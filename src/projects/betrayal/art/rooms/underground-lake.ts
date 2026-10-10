@@ -525,4 +525,5 @@ export const UNDERGROUND_LAKE: RoomDefinition = {
   ],
   focus: [-0.6, 0.3, 1.0],
   pawn: [1.9, -1.7],
+  spots: [[1.15, -1.3], [1.85, -0.75], [1.65, 0.1], [1.15, -2.15], [1.65, 1.0]],
 };

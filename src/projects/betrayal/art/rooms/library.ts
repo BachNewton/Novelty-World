@@ -199,8 +199,9 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
   const pitch = (height - 0.12) / levels;
   b.block([width, height, BACK], back, [0, 0, BACK / 2]);
   for (const x of columns) b.block([POST, height, depth], "woodMid", [x, 0, depth / 2]);
-  b.block([width + 0.06, 0.07, depth + 0.06], "woodDark", [0, height - 0.07, depth / 2 + 0.03]);
-  b.block([width + 0.02, 0.05, depth + 0.03], "woodMid", [0, height - 0.12, depth / 2 + 0.015]);
+  // The cornice overhangs at the front only: runs meet in the corners and at the walls.
+  b.block([width, 0.07, depth + 0.06], "woodDark", [0, height - 0.07, depth / 2 + 0.03]);
+  b.block([width, 0.05, depth + 0.03], "woodMid", [0, height - 0.12, depth / 2 + 0.015]);
   for (let level = 0; level < levels; level++) {
     const y = level * pitch;
     for (let bay = 0; bay < columns.length - 1; bay++) {
@@ -277,8 +278,8 @@ function cupboard(width: number): THREE.Group {
  *  the shelves above it hung on the wall so they hide with it. */
 function bookcase(edge: Edge, along: number, options: CaseOptions): PropPlacement[] {
   return [
-    { build: () => cupboard(options.width), ...onWall(edge, along) },
-    { build: () => shelving(options), ...onWall(edge, along, { y: CUT_HEIGHT }) },
+    { build: () => cupboard(options.width), name: "cupboard", ...onWall(edge, along) },
+    { build: () => shelving(options), name: "shelving", ...onWall(edge, along, { y: CUT_HEIGHT }) },
   ];
 }
 
@@ -314,8 +315,13 @@ function ladder(from: number, to: number): THREE.Group {
 
 function rollingLadder(edge: Edge, along: number): PropPlacement[] {
   return [
-    { build: () => ladder(0, CUT_HEIGHT), ...onWall(edge, along) },
-    { build: () => ladder(CUT_HEIGHT, LADDER.top + 0.1), ...onWall(edge, along, { y: CUT_HEIGHT }) },
+    { build: () => ladder(0, CUT_HEIGHT), name: "ladder", ...onWall(edge, along) },
+    {
+      build: () => ladder(CUT_HEIGHT, LADDER.top + 0.1),
+      name: "ladder",
+      ...onWall(edge, along, { y: CUT_HEIGHT }),
+      contacts: [{ with: "shelving", because: "its hooks hang on the shelving's rail" }],
+    },
   ];
 }
 
@@ -425,7 +431,8 @@ function spill(seed: string, count: number, radius: number): THREE.Group {
     const thick = uniform(rng, 0.035, 0.07);
     const tilt = rng.next() < 0.3 ? uniform(rng, 0.2, 0.6) : 0;
     const place = new THREE.Matrix4().compose(
-      new THREE.Vector3(Math.cos(angle) * distance, thick / 2 + tilt * 0.1, Math.sin(angle) * distance),
+      // Tilted books rest on an edge, their lowest corner on the floor.
+      new THREE.Vector3(Math.cos(angle) * distance, (book.h / 2) * Math.sin(tilt) + (thick / 2) * Math.cos(tilt) + 0.002, Math.sin(angle) * distance),
       new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, rng.next() * Math.PI * 2, 0)),
       new THREE.Vector3(1, 1, 1),
     );
@@ -437,14 +444,14 @@ function spill(seed: string, count: number, radius: number): THREE.Group {
 /** A free-standing bookcase that has fallen on its back, most of its books
  *  thrown out, one side propped on a fallen volume. Its top points to −z. */
 function fallenBookcase(): THREE.Group {
-  const length = 1.9;
+  const length = 1.5;
   const upright = shelving({ width: 0.9, height: length, depth: 0.32, seed: "fallen", fill: 0.4 });
   upright.rotation.x = -Math.PI / 2;
   upright.position.set(0.45, 0, length / 2);
   const rolled = group(upright);
   rolled.rotation.z = 0.1;
   rolled.position.x = -0.45;
-  return group(rolled, spill("fallen-top", 9, 0.45).translateZ(-length / 2 - 0.35));
+  return group(rolled, spill("fallen-top", 5, 0.18).translateZ(-length / 2 - 0.05));
 }
 
 /** A reading desk on two pedestals of drawers. The sitter's side faces −z. */
@@ -501,7 +508,7 @@ function globe(): THREE.Group {
   ring.position.y = 0.82;
   ring.rotation.z = 0.4;
   const legs = flat("woodDark");
-  const result = group(sphere, ring, cylinder(0.035, 0.5, legs, [0, 0.06, 0], { sides: 6 }), cylinder(0.14, 0.06, flat("woodMid"), [0, 0.5, 0], { top: 0.05, sides: 8 }));
+  const result = group(sphere, ring, cylinder(0.035, 0.47, legs, [0, 0.06, 0], { sides: 6 }), cylinder(0.14, 0.06, flat("woodMid"), [0, 0.5, 0], { top: 0.05, sides: 8 }));
   for (let i = 0; i < 3; i++) {
     const leg = box([0.04, 0.06, 0.32], legs, [0, 0, 0.16]);
     const holder = group(leg);
@@ -529,10 +536,11 @@ export const LIBRARY: RoomDefinition = {
   wainscot: () => panelling({ ramp: RAMPS.wood }),
   trim: "woodDark",
   props: [
-    ...bookcase("top", 0, { width: 5.6, seed: "top", webs: [{ bay: 0, side: "left" }, { bay: 3, side: "right" }] }),
+    // A hair wider than the wall, its end posts standing into the side walls off the dado rails' faces.
+    ...bookcase("top", 0, { width: 5.62, seed: "top", webs: [{ bay: 0, side: "left" }, { bay: 3, side: "right" }] }),
     ...bookcase("right", 0, { width: 4.76, seed: "right", rail: true, broken: { bay: 4, level: 4 }, webs: [{ bay: 4, side: "right" }] }),
     ...bookcase("bottom", 1.75, { width: 2.1, seed: "bottom-a" }),
-    ...bookcase("bottom", -1.75, { width: 2.1, seed: "bottom-b", webs: [{ bay: 1, side: "right" }] }),
+    ...bookcase("bottom", -1.755, { width: 2.11, seed: "bottom-b", webs: [{ bay: 1, side: "right" }] }),
     ...bookcase("left", 1.54, { width: 1.68, seed: "left-a" }),
     ...bookcase("left", -1.54, { width: 1.68, seed: "left-b", webs: [{ bay: 0, side: "left" }] }),
     ...rollingLadder("right", -1.3),
@@ -548,7 +556,7 @@ export const LIBRARY: RoomDefinition = {
     { build: () => candelabra({ arms: 3, intensity: 4 }), at: [0.95, -1.2], y: 0.77 },
     { build: () => openBook({ cover: "verdigrisDark" }), at: [0.25, -0.95], y: 0.77, turn: -8 },
     { build: inkwell, at: [-0.15, -1.25], y: 0.77 },
-    { build: () => bookPile("desk", 3), at: [-0.12, -0.8], y: 0.77, turn: 15 },
+    { build: () => bookPile("desk", 3), name: "bookPile", at: [-0.2, -0.78], y: 0.77, turn: 15 },
 
     { build: wingback, at: [-1.6, -1.35], turn: 45 },
     { build: sideTable, at: [-0.85, -1.95] },
@@ -559,12 +567,13 @@ export const LIBRARY: RoomDefinition = {
     { build: globe, at: [1.85, 1.0] },
     { build: () => bookPile("globe", 4), at: [1.6, 1.9], turn: 30 },
 
-    { build: fallenBookcase, at: [-1.5, 1.75], turn: 35 },
-    { build: () => spill("fallen", 10, 0.5), at: [-0.75, 1.55] },
+    // Fallen across the corner between the two doors, its top in the corner.
+    { build: fallenBookcase, at: [-1.4, 1.4], turn: 135 },
     { build: () => openBook({ glowing: true, cover: "bruiseDark" }), at: [0.7, 0.5], turn: 25 },
     ...SHEETS.map(([x, z, turn]) => ({ build: looseSheet, at: [x, z] as [number, number], turn })),
   ],
   lights: [{ at: [0.7, 0.35, 0.5], colour: "verdigrisLight", intensity: 1.6, range: 3 }],
   focus: [-0.2, 0.8, -0.8],
   pawn: [0.1, 1.7],
+  spots: [[-0.1, 0.9], [0.15, 0.1], [-0.75, 0.3], [0.8, 1.15], [1.1, -0.1]],
 };

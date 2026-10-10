@@ -1,9 +1,11 @@
 import type { Action, Edge, FloorId, Json, Rotation } from "../types";
-import { doorwaySpot, placed, type Doorway } from "../engine/board";
+import { doorwaySpot, type Doorway } from "../engine/board";
 import type { TurnChoice } from "../engine/exploration";
 import type { Choice } from "../engine/step-loop";
 import type { PlaceChoice } from "../engine/tiles";
 import type { GameView } from "../engine/view";
+import type { Lookahead, Reach } from "./lookahead";
+import { routePreview, type RoutePreview } from "./preview";
 
 /*
  * The pending decision, split by where it is answered: choices about a place
@@ -13,12 +15,21 @@ import type { GameView } from "../engine/view";
  * id names the choice, never the room: one room can carry several targets.
  */
 
-/** A choice the house offers, with the place it marks. */
-export type PlaceTarget = { id: string; label: string; action: Action } & (
-  /** A move to a room on the same floor. */
-  | { kind: "room"; room: string }
-  /** A move to `toward`, on another floor, shown as the way there out of `room`. */
-  | { kind: "stair"; room: string; toward: string }
+/** A choice the house offers, with the place it marks: a room a move can
+ *  reach, or an unexplored doorway, in the room the turn stands in or in one
+ *  it can reach first. `actions` answer the decisions on the way there, in
+ *  order: one for a step next door. A room on another floor shows as the way
+ *  there where its route takes the stairs. */
+export type PlaceTarget = {
+  id: string;
+  label: string;
+  actions: Action[];
+  /** The route, its cost and the rules it sets off; null where the turn's
+   *  lookahead wasn't worked out, and a choice is then one step. */
+  preview: RoutePreview | null;
+} & (
+  /** A move into `room`, on `side` of a barrier room. */
+  | { kind: "room"; room: string; side: Edge | null }
   /** Exploring through an unexplored doorway of `room`, on a board direction. */
   | { kind: "doorway"; room: string; direction: Edge }
 );
@@ -67,21 +78,45 @@ function actor(view: GameView): ((choice: Json) => Action) | null {
   return (choice) => ({ kind: "choose", decision: pending.id, seat, choice });
 }
 
-/** The room the figure acting on this turn stands in. */
-function actingRoom(view: GameView): string {
+/** Where the figure acting on this turn stands. */
+function actingPlace(view: GameView): { room: string; side: Edge | null } {
   const figure = view.turn?.acting;
-  const room = figure ? view.figures[figure].place?.room : undefined;
-  if (room === undefined) throw new Error("The turn offers a place, but no figure acting on it stands in the house");
-  return room;
+  const place = figure ? view.figures[figure].place : null;
+  if (!place) throw new Error("The turn offers a place, but no figure acting on it stands in the house");
+  return place;
 }
 
-function floorOf(view: GameView, room: string): FloorId {
-  const tile = placed(view.board, room);
-  if (!tile) throw new Error(`${room} is not in the house`);
-  return tile.floor;
+/** The turn's own moves and doorways as one-step routes, for a screen
+ *  without the lookahead (the debug board). */
+function oneStep(view: GameView, listed: readonly Choice[], act: (choice: Json) => Action): Reach[] {
+  return listed.flatMap((choice): Reach[] => {
+    const turn = choice.choice as TurnChoice;
+    if (turn.act !== "move" && turn.act !== "discover") return [];
+    const from = actingPlace(view);
+    const base = { label: choice.label, actions: [act(choice.choice)], spaces: 1, warnings: [], stops: turn.act === "discover" };
+    return turn.act === "move"
+      ? [{ ...base, end: { kind: "move", place: { room: turn.to, side: turn.side } }, route: [from, { room: turn.to, side: turn.side }] }]
+      : [{ ...base, end: { kind: "discover", room: from.room, direction: turn.direction }, route: [from] }];
+  });
 }
 
-export function playChoices(view: GameView): PlayChoices {
+/** A target's id: the choice, never just the room, so one room can carry several. */
+function targetId(reach: Reach): string {
+  const { end } = reach;
+  if (end.kind === "discover") return `doorway:${end.room}:${end.direction}`;
+  return end.place.side === null ? `room:${end.place.room}` : `room:${end.place.room}:${end.place.side}`;
+}
+
+function placeTarget(reach: Reach, preview: RoutePreview | null): PlaceTarget {
+  const base = { id: targetId(reach), label: reach.label, actions: reach.actions, preview };
+  const { end } = reach;
+  return end.kind === "discover" ? { ...base, kind: "doorway", room: end.room, direction: end.direction } : { ...base, kind: "room", room: end.place.room, side: end.place.side };
+}
+
+/** The pending decision for the viewing seat, split by where it is
+ *  answered. With the turn's lookahead, every place a move can reach is a
+ *  target, each with its route; without it, the turn's own steps are. */
+export function playChoices(view: GameView, ahead: Lookahead | null = null): PlayChoices {
   const act = actor(view);
   const pending = view.pending;
   if (!act || pending?.type !== "decision" || pending.detail === null) return NO_CHOICES;
@@ -91,27 +126,15 @@ export function playChoices(view: GameView): PlayChoices {
   if (pending.kind === "rotation" || pending.kind === "place-tile") return { ...NO_CHOICES, ghost: ghostOf(view, pending.kind, pending.detail.params, listed, act) };
   if (pending.kind !== "turn") return { ...NO_CHOICES, panel: panelOf(listed) };
 
-  const turnOf = (choice: Choice) => choice.choice as TurnChoice;
-  const moves = listed.filter((choice) => turnOf(choice).act === "move");
-  /** Rooms more than one move leads to (the sides of a barrier room) can't be told apart in the house yet. */
-  const destinations = moves.map((choice) => (turnOf(choice) as Extract<TurnChoice, { act: "move" }>).to);
-  const twice = new Set(destinations.filter((room, i) => destinations.indexOf(room) !== i));
-
-  const targets: PlaceTarget[] = [];
+  const lookedAhead = ahead !== null && ahead.decision === pending.id;
+  const reaches = lookedAhead ? ahead.reaches : oneStep(view, listed, act);
+  const targets = reaches.map((reach) => placeTarget(reach, lookedAhead ? routePreview(targetId(reach), ahead, reach) : null));
   const panel: Choice[] = [];
   let end: PanelChoice | null = null;
   for (const choice of listed) {
-    const turn = turnOf(choice);
-    const base = { label: choice.label, action: act(choice.choice) };
+    const turn = choice.choice as TurnChoice;
     if (turn.act === "end") end = panelChoice(choice, "end");
-    else if (turn.act === "discover") {
-      targets.push({ ...base, id: `doorway:${turn.direction}`, kind: "doorway", room: actingRoom(view), direction: turn.direction });
-    } else if (turn.act === "move") {
-      const from = actingRoom(view);
-      if (turn.to === from || twice.has(turn.to)) panel.push(choice);
-      else if (floorOf(view, turn.to) !== floorOf(view, from)) targets.push({ ...base, id: `stair:${from}:${turn.to}`, kind: "stair", room: from, toward: turn.to });
-      else targets.push({ ...base, id: `room:${turn.to}`, kind: "room", room: turn.to });
-    } else panel.push(choice);
+    else if (turn.act !== "move" && turn.act !== "discover") panel.push(choice);
   }
   return { targets, panel: panelOf(panel), end, ghost: null };
 }
@@ -184,7 +207,7 @@ export function boardFocus(view: GameView): Focus {
       const turn = choice as TurnChoice;
       if (turn.act === "move") offerRoom(turn.to, choice);
     }
-    for (const target of targets) if (target.kind === "doorway") focus.doorways.push({ room: target.room, direction: target.direction, action: target.action });
+    for (const target of targets) if (target.kind === "doorway") focus.doorways.push({ room: target.room, direction: target.direction, action: target.actions[0] });
     return focus;
   }
 

@@ -64,6 +64,8 @@ export interface ControlHandlers {
   rotating: () => string | null;
   /** Turns that choice to its next way round: clockwise seen from above (1) or back (-1). */
   rotate: (step: 1 | -1) => void;
+  /** Stands every wall full while the raise-walls key or pad button is held (true), and lets them down again (false). */
+  raiseWalls: (raised: boolean) => void;
   /** The player has a hand on the camera (dragging, holding a pan or orbit
    *  key, a stick), so the game may not move it. */
   controlling: (on: boolean) => void;
@@ -103,6 +105,10 @@ const TILT_KEYS: Record<string, number> = { KeyT: 1, KeyG: -1 };
 const FLOOR_KEYS: Record<string, 1 | -1> = { PageUp: 1, KeyR: 1, PageDown: -1, KeyF: -1 };
 const RECENTRE_KEYS = new Set(["KeyC", "Home"]);
 const CONFIRM_KEYS = new Set(["Enter", "NumpadEnter", "Space"]);
+/** Held, V raises the walls: a look at them whole, without the cutaway. */
+const RAISE_KEY = "KeyV";
+/** Held, the left stick's click raises the walls, leaving the right stick free to look round them. */
+const RAISE_BUTTON: StandardButton = "LS";
 
 /** Keys typed into a form control are the control's own. */
 function typing(target: EventTarget | null): boolean {
@@ -137,6 +143,13 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
   let pads: readonly PadSnapshot[] = [];
   let padCamera = false;
   let handsOn = false;
+  /** Whether the raise-walls key and pad button are held. */
+  const raising = { key: false, pad: false };
+  const setRaising = (source: keyof typeof raising, held: boolean) => {
+    const was = raising.key || raising.pad;
+    raising[source] = held;
+    if ((raising.key || raising.pad) !== was) handlers.raiseWalls(!was);
+  };
 
   const updateHands = () => {
     const now = dragging || fingers !== null || keysHeld.size > 0 || padCamera;
@@ -244,6 +257,12 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     const recentre = RECENTRE_KEYS.has(code);
     const cycle = code === "Tab";
     const back = code === "Escape";
+    if (code === RAISE_KEY) {
+      event.preventDefault();
+      handlers.usedInput("keyboard-mouse");
+      setRaising("key", true);
+      return;
+    }
     if (!held && rotate === undefined && !confirming && zoom === null && floor === undefined && !recentre && !cycle && !back) return;
     event.preventDefault();
     handlers.usedInput("keyboard-mouse");
@@ -262,10 +281,12 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
   };
   const onKeyUp = (event: KeyboardEvent) => {
     keysHeld.delete(event.code);
+    if (event.code === RAISE_KEY) setRaising("key", false);
     updateHands();
   };
   const onBlur = () => {
     keysHeld.clear();
+    setRaising("key", false);
     updateHands();
   };
 
@@ -299,11 +320,18 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
   const unsubscribe = subscribeGamepads({
     onConnectionChange: (connected) => {
       pads = connected;
+      // A pad unplugged with the button held never sends its release.
+      if (connected.length === 0) setRaising("pad", false);
     },
     onFrame: (connected) => {
       pads = connected;
     },
     onButton: (edge) => {
+      if (edge.name === RAISE_BUTTON) {
+        if (edge.pressed) handlers.usedInput("pad");
+        setRaising("pad", edge.pressed);
+        return;
+      }
       if (!edge.pressed || edge.name === null) return;
       handlers.usedInput("pad");
       if (handlers.padButton?.(edge.name)) return;

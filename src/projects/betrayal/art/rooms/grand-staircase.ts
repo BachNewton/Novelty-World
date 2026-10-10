@@ -49,8 +49,9 @@ function staircase(from: number, to: number): THREE.Group {
     slab(x0, x1, 0, top - 0.04, STAIR.back, STAIR.front, "woodDark");
     if (from === 0 && !whole(i)) {
       // Where the flight is cut down with its wall, its cut top shows the carpet, so the stub still reads as a stair.
-      b.block([STAIR.going, 0.03, depth], "woodMid", [(x0 + x1) / 2, to, STAIR_MID]);
-      b.block([STAIR.going, 0.03, STAIR.carpet], "blood", [(x0 + x1) / 2, to + 0.015, STAIR_MID]);
+      // The cap stands a little inside the step's sides, which the hung part above shares while the wall stands.
+      b.block([STAIR.going - 0.01, 0.03, depth - 0.01], "woodMid", [(x0 + x1) / 2, to, STAIR_MID]);
+      b.block([STAIR.going - 0.01, 0.03, STAIR.carpet], "blood", [(x0 + x1) / 2, to + 0.015, STAIR_MID]);
       b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.02, to + 0.03, STAIR_MID]);
     }
     if (!whole(i)) continue;
@@ -181,10 +182,29 @@ export const GRAND_STAIRCASE: RoomDefinition = {
   ...SUITE,
   props: [
     { build: () => runner({ from: 0.2, to: 3, finished: ["from"] }), at: [0, 0] },
-    { build: () => staircase(0, STAIR_CUT), at: [0, 0] },
-    { build: () => staircase(STAIR_CUT, 4), at: [0, 0], y: STAIR_CUT, walls: ["top"] },
-    { build: newel, at: [STAIR.foot - 0.04, STAIR.front - 0.06] },
-    { build: cupboardDoor, at: [-1.0, STAIR.front + 0.01] },
+    {
+      build: () => staircase(0, STAIR_CUT),
+      name: "flight",
+      at: [0, 0],
+      contacts: [{ with: "flight above the cut", because: "one flight in two parts: the cut part's cap and stringer reach into the part above, hidden while the wall stands" }],
+    },
+    {
+      build: () => staircase(STAIR_CUT, 4),
+      name: "flight above the cut",
+      at: [0, 0],
+      y: STAIR_CUT,
+      walls: ["top"],
+      contacts: [{ with: "left", because: "the flight's string runs into the wall it climbs to" }],
+    },
+    {
+      build: newel,
+      at: [STAIR.foot - 0.04, STAIR.front - 0.06],
+      contacts: [
+        { with: "flight", because: "the newel post is set into the foot of the flight" },
+        { with: "flight above the cut", because: "the handrail runs into the newel's top" },
+      ],
+    },
+    { build: cupboardDoor, at: [-1.2, STAIR.front + 0.01] },
     { build: sconce, ...onWall("top", -0.6, { y: 2.55, out: 0.02 }) },
     { build: () => pictureFrame({ frame: "brass" }), ...onWall("top", 0.75, { y: 1.45 }) },
     { build: () => pictureFrame({ frame: "woodLight" }), ...onWall("top", -0.15, { y: 2.1 }) },
@@ -194,6 +214,7 @@ export const GRAND_STAIRCASE: RoomDefinition = {
   ] satisfies PropPlacement[],
   focus: [0.4, 1.0, -1.6],
   pawn: [1.2, 0.5],
+  spots: [[0.45, 0.15], [0.55, 1.05], [-0.2, 0.7], [-0.3, -0.2], [0.4, -0.75]],
   // Up the middle of the carpet, over the middle of each tread, into the dark above.
   stairs: {
     "upper-landing": [

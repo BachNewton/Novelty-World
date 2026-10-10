@@ -4,13 +4,14 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import { BETRAYAL_THEME } from "../components/theme";
 import { createBench } from "./bench";
+import { markingsFromSearch } from "./markings";
 import { BENCH_EXPLORERS } from "./explorers";
 import { BENCH_ROOMS } from "./rooms";
 import { roomTile } from "./stage";
 
 /** The art bench (`?bench=<room-id>`): one room, full screen, to judge its art. */
 export function ArtBench({ room }: { room: string }) {
-  const [bench] = useState(() => createBench(room));
+  const [bench] = useState(() => createBench(room, markingsFromSearch(window.location.search)));
   const state = useSyncExternalStore(bench.subscribe, bench.snapshot, bench.snapshot);
   const containerRef = useThreeScene(bench.mount, { antialias: false, maxPixelRatio: 4 });
   const zoomIndex = bench.zooms.indexOf(state.zoom);

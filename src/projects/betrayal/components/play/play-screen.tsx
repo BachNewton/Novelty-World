@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import { figureFor } from "../../art/explorers/by-character";
-import { definition } from "../../art/house";
-import { createHouseScene, type FigureSpec, type HouseScene, type SceneHook, type Target } from "../../art/house-scene";
+import { createHouseScene, type FigureSpec, type FloorChoice, type HouseScene, type SceneHook } from "../../art/house-scene";
+import { markingsFromSearch } from "../../art/markings";
 import { FLOOR_NAMES, FLOORS } from "../../engine/board";
 import type { GameView } from "../../engine/view";
+import type { Action } from "../../types";
 import { ENGINE } from "../../game";
 import { playChoices, type PlaceTarget } from "../../play/choices";
+import { lookahead } from "../../play/lookahead";
+import { costText, routeRooms, type RoutePreview } from "../../play/preview";
 import { due } from "../../play/seat";
 import type { PlayStore } from "../../play/store";
 import { seatLabel } from "../describe";
@@ -17,6 +20,8 @@ import { GHOST, GhostHandles, useGhost, type GhostReadout } from "./ghost-placer
 import { figureColour, seatDot } from "./seat-colour";
 import { boxPadButton } from "./box-pad";
 import { StatusBox } from "./status-box";
+import { paceOf, sceneTarget, slotOf, walkedRooms, type RouteWalk } from "./routes";
+import { RaiseWallsButton } from "../raise-walls-button";
 
 /*
  * The game on one device: the house, showing the seat holding the device
@@ -45,6 +50,11 @@ export interface PlayReadout {
   problem: string | null;
   /** The room tile being placed, as its ghost shows it, or null. */
   ghost: GhostReadout | null;
+  /** The focused target's route preview, or null. */
+  preview: RoutePreview | null;
+  /** The floor the house shows, and whether a figure is walking. */
+  floor: FloorChoice;
+  walking: boolean;
 }
 
 export type PlayHook = SceneHook & { play: () => PlayReadout };
@@ -55,12 +65,10 @@ declare global {
   }
 }
 
-/** A target as the scene draws it. A move to another floor shows as the
- *  stair there, where the room has one; any other way between floors (a
- *  secret passage) marks the room itself, reached by changing floor. */
-function sceneTarget(target: PlaceTarget): Target {
-  if (target.kind === "stair" && !definition(target.room).stairs?.[target.toward]) return { id: target.id, kind: "room", room: target.toward };
-  return target;
+/** The pending decision's choices for the seat holding the device, with the turn's routes looked ahead. */
+function choicesNow(store: PlayStore) {
+  const { state, view, holder } = store.snapshot();
+  return playChoices(view, lookahead(ENGINE, state, holder));
 }
 
 /** The explorers standing in the house, each with a place of its own in its room. */
@@ -84,9 +92,9 @@ function activeFigure(view: GameView): string | null {
   return Object.values(view.figures).find((figure) => figure.kind === "explorer" && figure.owner === turn.seat)?.id ?? null;
 }
 
-function readout(store: PlayStore, ghost: GhostReadout | null): PlayReadout {
+function readout(store: PlayStore, scene: HouseScene, ghost: GhostReadout | null, focused: string | null): PlayReadout {
   const { client, holder, view } = store.snapshot();
-  const { targets, panel, end } = playChoices(view);
+  const { targets, panel, end } = choicesNow(store);
   const pending = view.pending;
   return {
     version: client.confirmed?.version ?? -1,
@@ -104,6 +112,9 @@ function readout(store: PlayStore, ghost: GhostReadout | null): PlayReadout {
     queued: client.queue.length,
     problem: client.problem,
     ghost,
+    preview: targets.find((target) => target.id === focused)?.preview ?? null,
+    floor: scene.view().floor,
+    walking: scene.view().walking,
   };
 }
 
@@ -112,12 +123,15 @@ function createScreen(store: PlayStore): {
   mount: (ctx: ThreeSceneContext) => ThreeSceneHandlers;
   /** The ghost as last rendered, for the readout: which way round it shows is the screen's own state. */
   ghostRef: { current: GhostReadout | null };
+  /** The target in focus as last rendered, for the readout. */
+  focusRef: { current: string | null };
 } {
-  const scene = createHouseScene({ tiles: store.snapshot().view.board.tiles });
+  const scene = createHouseScene({ tiles: store.snapshot().view.board.tiles }, { markings: markingsFromSearch(window.location.search) });
   const ghostRef: { current: GhostReadout | null } = { current: null };
+  const focusRef: { current: string | null } = { current: null };
   function mount(ctx: ThreeSceneContext): ThreeSceneHandlers {
     const handlers = scene.mount(ctx);
-    window.__betrayalPlay = { ...scene.hook, play: () => readout(store, ghostRef.current) };
+    window.__betrayalPlay = { ...scene.hook, play: () => readout(store, scene, ghostRef.current, focusRef.current) };
     return {
       ...handlers,
       dispose: () => {
@@ -126,23 +140,31 @@ function createScreen(store: PlayStore): {
       },
     };
   }
-  return { scene, mount, ghostRef };
+  return { scene, mount, ghostRef, focusRef };
 }
 
 export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () => void }) {
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const { view, holder, client } = snapshot;
-  const [{ scene, mount, ghostRef }] = useState(() => createScreen(store));
+  const [{ scene, mount, ghostRef, focusRef }] = useState(() => createScreen(store));
   const shown = useSyncExternalStore(scene.subscribe, scene.view, scene.view);
   const containerRef = useThreeScene(mount, { antialias: false, maxPixelRatio: 4 });
   const labelRef = useRef<HTMLDivElement>(null);
   const handlesRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
+  // Input fast-forwards whatever is playing: nothing waits on an animation.
+  const act = useCallback(
+    (action: Action) => {
+      scene.finish();
+      store.act(action);
+    },
+    [scene, store],
+  );
 
-  const choices = playChoices(view);
+  const choices = playChoices(view, lookahead(ENGINE, snapshot.state, holder));
   const { targets, ghost: placing } = choices;
-  const ghost = useGhost(view, placing, store.act);
+  const ghost = useGhost(view, placing, act);
   const ghostTargets = ghost?.targets ?? [];
   // The ghost holds the focus unless another of its cells has it.
   const live = [...targets, ...ghostTargets].some((target) => target.id === focused) ? focused : ghost ? GHOST : null;
@@ -153,14 +175,21 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
   useEffect(() => {
     latest.current = { targets, live, ghost, end };
     ghostRef.current = ghost?.readout ?? null;
+    focusRef.current = live;
   });
   const layoutKey = useRef("");
+  /** A route just committed, walked once the state it led to shows. */
+  const walking = useRef<RouteWalk | null>(null);
 
   useEffect(() => {
     const commit = (id: string | null) => {
+      // Input fast-forwards whatever is playing: nothing waits on an animation.
+      scene.finish();
       if (id !== null && latest.current.ghost?.commit(id)) return;
       const target = latest.current.targets.find((candidate) => candidate.id === id);
-      if (target) store.act(target.action);
+      if (!target) return;
+      walking.current = target.preview && { figure: target.preview.figure, rooms: routeRooms(target.preview) };
+      if (store.commit(target.actions) === 0) walking.current = null;
     };
     scene.setInput({
       focus: setFocused,
@@ -171,7 +200,7 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
       rotate: (step) => latest.current.ghost?.rotate(step),
       padButton: (button) => {
         const ending = latest.current.end;
-        return boxPadButton(boxRef.current, button, ending && (() => store.act(ending.action)));
+        return boxPadButton(boxRef.current, button, ending && (() => act(ending.action)));
       },
     });
     scene.setLabel(labelRef.current);
@@ -180,7 +209,7 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
       scene.setLabel(null);
       scene.setGhostHandles(null);
     };
-  }, [scene, store]);
+  }, [scene, store, act]);
 
   useEffect(() => {
     const key = JSON.stringify(view.board.tiles);
@@ -188,6 +217,11 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
       layoutKey.current = key;
       scene.setLayout({ tiles: view.board.tiles });
     }
+    // The walk starts before the figures are set, so the explorer walks to where the state already has it rather than standing there at once.
+    const walk = walking.current;
+    walking.current = null;
+    const rooms = walk && walkedRooms(walk, view);
+    if (walk && rooms) void scene.play({ kind: "walk", figure: walk.figure, route: rooms, slot: slotOf(view, walk.figure, rooms[rooms.length - 1]), pace: paceOf(view, walk.figure) });
     scene.setFigures(figuresOf(view));
     scene.setActive(activeFigure(view));
   }, [scene, view]);
@@ -195,13 +229,14 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
   // After the layout, so a room just placed is in the house before its ghost goes.
   const ghostKey = ghost ? JSON.stringify(ghost.readout) : "";
   useEffect(() => {
-    scene.setTargets([...playChoices(view).targets.map(sceneTarget), ...(latest.current.ghost?.targets ?? [])], live);
+    scene.setTargets([...latest.current.targets.map((target) => sceneTarget(target, view)), ...(latest.current.ghost?.targets ?? [])], live);
   }, [scene, view, live, ghostKey]);
 
   const holderExplorer = Object.values(view.figures).find((figure) => figure.kind === "explorer" && figure.owner === holder);
   const dot = holderExplorer ? seatDot(ENGINE, holderExplorer.definition) : undefined;
   const floors = FLOORS.filter((floor) => view.board.tiles.some((tile) => tile.floor === floor));
   const focusedTarget = [...targets, ...ghostTargets].find((target) => target.id === live);
+  const preview = targets.find((target) => target.id === live)?.preview ?? null;
 
   return (
     <div className="fixed inset-0 bg-(--bt-bg) text-(--bt-ink)">
@@ -211,6 +246,7 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
         className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm whitespace-nowrap"
       >
         {focusedTarget?.label}
+        {preview && <span className="ml-1.5 text-xs text-(--bt-muted)">· {costText(preview)}</span>}
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
 
@@ -240,13 +276,20 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
         >
           Recentre
         </button>
+        <RaiseWallsButton
+          raised={shown.wallsRaised}
+          raise={scene.hook.raiseWalls}
+          className="pointer-events-auto min-h-10 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)"
+        >
+          Walls
+        </RaiseWallsButton>
         <button type="button" onClick={onLeave} className="pointer-events-auto min-h-10 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1">
           Leave game
         </button>
       </header>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-start">
-        <StatusBox boxRef={boxRef} view={view} holder={holder} problem={client.problem} choices={choices} ghost={ghost} input={shown.input} act={store.act} />
+        <StatusBox boxRef={boxRef} view={view} holder={holder} problem={client.problem} choices={choices} ghost={ghost} input={shown.input} act={act} preview={preview} />
       </div>
     </div>
   );

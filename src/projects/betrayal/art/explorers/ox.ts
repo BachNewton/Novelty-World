@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { ball, drum, ellipsoid, figureMaterial, form, painted, plinth, ring, rod, roundBox, sculpt, shaped, stretched, surfaceAt, type Vec3 } from "../forms";
+import { ball, drum, ellipsoid, figureMaterial, form, painted, plinth, ring, rod, roundBox, sculpt, shaped, stretched, surfaceAt } from "../forms";
 import { group } from "../shapes";
 import { BASE_TOP, burst, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
 import { aimGrip, blendPose, buildArm, closedRound, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
@@ -82,10 +82,34 @@ function jacket(): THREE.BufferGeometry {
     .paint((_, y) => (Math.abs(y + 0.015) < 0.011 && y > -0.03 ? -1 : 1), "boneLight")
     .add(stretched(ring([0, 0.5, -0.01], 0.125, 0.038), [0, 0.5, -0.01], [1, 1, 0.85]), "bloodDark", 0.015);
   for (const y of [0.05, 0.15, 0.25, 0.36]) shape.add(ball([0, y, surfaceAt(shape.distance, 0, y) + 0.003], 0.012), "boneLight");
-  const letter: Vec3 = [0.135, 0.29, 0];
-  const front = surfaceAt(shape.distance, letter[0], letter[1]);
-  shape.add(ring([letter[0], letter[1], front + 0.004], 0.052, 0.016, [Math.PI / 2, 0, 0]), "boneLight", 0.004);
-  return shape.geometry(0.013);
+  return shape
+    .paint((x, y, z) => (z > 0 ? blockO(x, y, LETTER_BORDER) : 1), "bloodDark")
+    .paint((x, y, z) => (z > 0 ? blockO(x, y, 0) : 1), "boneLight")
+    .geometry(0.013);
+}
+
+/** Where the "O" sits on the jacket's front, and the dark felt border round it. */
+const LETTER: [number, number] = [0.135, 0.29];
+const LETTER_BORDER = 0.007;
+
+/** Distance in x and y to a rounded rectangle centred on (cx, cy). */
+function roundRect(x: number, y: number, cx: number, cy: number, halfWidth: number, halfHeight: number, round: number): number {
+  const qx = Math.abs(x - cx) - halfWidth + round;
+  const qy = Math.abs(y - cy) - halfHeight + round;
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - round;
+}
+
+/**
+ * The varsity "O" as a flat felt patch, seen from the front: a tall block
+ * letter with thick strokes and a narrow, squared counter, grown by `grow`
+ * for its border. Flat, taller than it is wide and outlined dark on the red,
+ * it reads as a letter, where a round raised ring reads as a doughnut.
+ */
+function blockO(x: number, y: number, grow: number): number {
+  const [cx, cy] = LETTER;
+  const outer = roundRect(x, y, cx, cy, 0.054 + grow, 0.066 + grow, 0.032 + grow);
+  const counter = roundRect(x, y, cx, cy, 0.022 - grow, 0.034 - grow, 0.014);
+  return Math.max(outer, -counter);
 }
 
 /** A cream leather sleeve on a thick upper arm, set in under the jacket's

@@ -291,4 +291,5 @@ export const GRAVEYARD: RoomDefinition = {
   lights: [{ at: [0, 0.85, WISP_Z], colour: "wraithLight", intensity: 10, range: 6, flicker: 0.25 }],
   focus: [0, 0.5, GRAVE_MIDDLE],
   pawn: [1.1, 1.45],
+  spots: [[0.6, 0.8], [0.25, 1.6], [-0.2, 0.6], [-0.55, 1.4], [-1.0, 0.4]],
 };

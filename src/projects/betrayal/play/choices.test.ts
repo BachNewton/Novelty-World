@@ -7,6 +7,7 @@ import { simulate } from "../simulation";
 import { choose, offered, testGame, waitingOn } from "../testing";
 import type { GameState } from "../types";
 import { boardFocus, NO_CHOICES, NO_FOCUS, playChoices } from "./choices";
+import { lookahead } from "./lookahead";
 import { due } from "./seat";
 
 const choicesOf = (state: GameState) => playChoices(viewFor(ENGINE, state, waitingOn(state)));
@@ -16,18 +17,34 @@ describe("playChoices", () => {
   it("puts the moves and doorways of a turn in the house, and ending it apart", () => {
     const state = testGame();
     const { targets, panel, end } = choicesOf(state);
-    expect(targets.map((t) => t.id).sort()).toEqual(["doorway:bottom", "doorway:top", "room:foyer"]);
+    expect(targets.map((t) => t.id).sort()).toEqual(["doorway:entrance-hall:bottom", "doorway:entrance-hall:top", "room:foyer"]);
     // A choice's id, never a room's.
     expect(targets.some((t) => t.id === t.room)).toBe(false);
     expect(panel).toEqual([]);
     expect(end?.label).toBe("End your turn");
   });
 
-  it("shows a move to another floor as the way there", () => {
+  it("offers a move to another floor as its room, by its route up the stairs", () => {
     // The Grand Staircase leads straight up to the Upper Landing.
     const state = testGame({ explorers: [{ seat: 0, room: "grand-staircase" }] });
-    const stair = choicesOf(state).targets.find((t) => t.kind === "stair");
-    expect(stair).toMatchObject({ id: "stair:grand-staircase:upper-landing", room: "grand-staircase", toward: "upper-landing" });
+    const upstairs = choicesOf(state).targets.find((t) => t.id === "room:upper-landing");
+    expect(upstairs).toMatchObject({ kind: "room", room: "upper-landing", side: null, preview: null });
+    expect(upstairs?.actions).toHaveLength(1);
+  });
+
+  it("with the turn looked ahead, offers every place the move can reach, each with its route and the actions walking it", () => {
+    const state = testGame();
+    const view = viewFor(ENGINE, state, 0);
+    const { targets } = playChoices(view, lookahead(ENGINE, state, 0));
+    const landing = targets.find((t) => t.id === "room:upper-landing");
+    expect(landing?.preview?.route.map((place) => place.room)).toEqual(["entrance-hall", "foyer", "grand-staircase", "upper-landing"]);
+    expect(landing?.actions).toHaveLength(3);
+    expect(landing?.preview).toMatchObject({ target: "room:upper-landing", spaces: 3, left: 4 });
+    // A doorway further on is a target too, reached by its route and then explored.
+    const far = targets.find((t) => t.id === "doorway:upper-landing:top");
+    expect(far?.actions).toHaveLength(4);
+    // Every target is one choice: no two share an id.
+    expect(new Set(targets.map((t) => t.id)).size).toBe(targets.length);
   });
 
   it("puts a discovered room's ways round on its ghost, on the cell through the doorway, and nothing in the panel", () => {
@@ -85,16 +102,15 @@ describe("playChoices", () => {
       const placings = ghost ? [...ghost.cells.flatMap((cell) => cell.options.map((option, i) => ({ ...option, id: `ghost:${cell.spot.floor}:${cell.spot.x}:${cell.spot.y}:${i}` }))), ...(ghost.stay ? [ghost.stay] : [])] : [];
       const all = [...targets, ...panel, ...(end ? [end] : []), ...placings];
       const listed = view.pending?.type === "decision" ? (view.pending.detail?.choices ?? []) : [];
-      expect(all.map((c) => c.action.kind === "choose" && JSON.stringify(c.action.choice)).sort()).toEqual(listed.map((c) => JSON.stringify(c.choice)).sort());
+      const actionOf = (c: (typeof all)[number]) => ("actions" in c ? c.actions[0] : c.action);
+      for (const target of targets) expect(target.actions).toHaveLength(1);
+      expect(all.map((c) => actionOf(c).kind === "choose" && JSON.stringify((actionOf(c) as { choice: unknown }).choice)).sort()).toEqual(listed.map((c) => JSON.stringify(c.choice)).sort());
       expect(new Set(all.map((c) => c.id)).size).toBe(all.length);
       for (const choice of all) {
-        const result = apply(ENGINE, state, choice.action);
+        const result = apply(ENGINE, state, actionOf(choice));
         if (!result.ok) throw new Error(`${choice.id} (${choice.label}) was rejected: ${result.reason}`);
       }
-      for (const target of targets) {
-        if (target.kind === "stair") expect(placed(state.board, target.room)?.floor).not.toBe(placed(state.board, target.toward)?.floor);
-        if (target.kind === "room") expect(placed(state.board, target.room)).toBeDefined();
-      }
+      for (const target of targets) if (target.kind === "room") expect(placed(state.board, target.room)).toBeDefined();
       checked++;
     });
     expect(checked).toBeGreaterThan(20);

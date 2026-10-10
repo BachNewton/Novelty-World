@@ -18,12 +18,14 @@ export type Vec3 = readonly [number, number, number];
 
 /**
  * Colours only figures wear, each mixed from two palette colours, so they stay
- * in the palette's family: skin warmed towards amber, so a face reads as a
- * living person's under the house's cold moonlight rather than as grey bone.
+ * in the palette's family: skin is bone flushed towards scarlet, a mid flesh
+ * tone, so a face reads as a living person's under the house's cold
+ * moonlight, neither grey bone nor a chalky cream as pale as the cloth
+ * beside it; its shade (stubble) is bone greyed, a little darker.
  */
 export const TONES = {
-  skin: ["boneLight", "amber", 0.22],
-  skinShade: ["bone", "ember", 0.2],
+  skin: ["bone", "scarlet", 0.22],
+  skinShade: ["bone", "stoneLight", 0.35],
 } as const satisfies Record<string, readonly [PaletteKey, PaletteKey, number]>;
 
 /** A figure's colour: a palette key, or one of the figure tones mixed from two. */
@@ -516,9 +518,34 @@ function settle(positions: Float32Array, distance: Distance, cell: number) {
 const BORDER_SPLITS = 2;
 
 /**
+ * How a sculpture's own hollows shade it: the house lights a figure by an
+ * ambient cube, light from every side and no shadow, so without this a carved
+ * eye socket, the crease under a brow or a nose, or a collar's fold is lit as
+ * brightly as a cheek and a pale face reads flat and chalky. Each corner is
+ * darkened by how far its own surface closes in over it within `reach`,
+ * stepping out along the normal (Inigo Quilez's distance-field occlusion), by
+ * at most `deepest`, so the colour keeps its hue and only its light changes.
+ */
+export const OCCLUSION = { reach: 0.03, steps: 5, strength: 2.2, deepest: 0.55 };
+
+function occlusion(distance: Distance, x: number, y: number, z: number, normal: THREE.Vector3): number {
+  const { reach, steps, strength, deepest } = OCCLUSION;
+  let closed = 0;
+  let total = 0;
+  for (let i = 1; i <= steps; i++) {
+    const h = (reach * i) / steps;
+    const weight = 1 / i;
+    closed += weight * Math.max(0, h - distance(x + normal.x * h, y + normal.y * h, z + normal.z * h));
+    total += weight * h;
+  }
+  return 1 - deepest * Math.min(1, (strength * closed) / total);
+}
+
+/**
  * A net as a non-indexed geometry: smooth normals from the distance's
  * gradient, and each triangle one flat palette colour, the colour at its
- * middle. A triangle whose corners differ in colour straddles a border, so it
+ * middle, darkened at each corner by the sculpture's own hollows
+ * (`occlusion`). A triangle whose corners differ in colour straddles a border, so it
  * is split (its new corners left on its own edges, which keeps the surface
  * closed) until the border is drawn `BORDER_SPLITS` times finer.
  */
@@ -543,9 +570,10 @@ function colouredGeometry({ positions, triangles }: Net, distance: Distance, col
     const { r, g: green, b: blue } = rgb(key);
     for (const corner of corners) {
       gradient(distance, corner[0], corner[1], corner[2], cell * 0.25, g).normalize();
+      const light = occlusion(distance, corner[0], corner[1], corner[2], g);
       position.push(...corner);
       normal.push(g.x, g.y, g.z);
-      colour.push(r, green, blue);
+      colour.push(r * light, green * light, blue * light);
     }
   };
   const corner = (index: number): Corner => [positions[index * 3], positions[index * 3 + 1], positions[index * 3 + 2]];

@@ -1,10 +1,9 @@
 import * as THREE from "three";
-import { createRng } from "@/shared/lib/seeded-random";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { lightAnchor } from "../light-anchor";
 import { box, flat, glow, group, lathe } from "../shapes";
 import { TILE, type RoomDefinition } from "../room";
-import { panelling, pixelTexture, svgTexture, TEXELS_PER_METRE, wallpaper } from "../textures";
+import { marble, panelling, svgTexture, TEXELS_PER_METRE, wallpaper } from "../textures";
 
 /*
  * The starting tile prints three rooms on one long tile: the Grand Staircase,
@@ -13,43 +12,14 @@ import { panelling, pixelTexture, svgTexture, TEXELS_PER_METRE, wallpaper } from
  * Their textures share seeds on purpose (every other room has its own): each
  * pattern repeats a whole number of times across a tile, so with one seed the
  * marble, paper and panels run on unbroken through the passages. The Upper
- * Landing, where the grand staircase arrives, wears the same dress.
+ * Landing, where the grand staircase arrives, wears the same paper and
+ * panels over the upper floor's boards.
  */
 
 const SEED = "starting-tile";
 
-const MARBLE = 64;
-const SQUARE = 16;
-
-/** A chequered marble floor of half-metre squares, pale and dark, veined and
- *  here and there cracked. 64 texels repeat three times across a tile. */
-function marbleRows(): string[] {
-  const rng = createRng(`${SEED}:marble`);
-  const grid: string[][] = Array.from({ length: MARBLE }, (_, y) =>
-    Array.from({ length: MARBLE }, (_, x) => ((Math.floor(x / SQUARE) + Math.floor(y / SQUARE)) % 2 === 0 ? "p" : "d")),
-  );
-  const vein = (x0: number, y0: number, steps: number) => {
-    let x = x0;
-    let y = y0;
-    for (let i = 0; i < steps; i++) {
-      const cell = grid[y % MARBLE][x % MARBLE];
-      grid[y % MARBLE][x % MARBLE] = cell === "p" || cell === "v" ? "v" : "w";
-      x += rng.next() < 0.6 ? 1 : 0;
-      y += rng.next() < 0.7 ? 1 : 0;
-    }
-  };
-  for (let i = 0; i < 14; i++) vein(Math.floor(rng.next() * MARBLE), Math.floor(rng.next() * MARBLE), 6 + Math.floor(rng.next() * 10));
-  for (let i = 0; i < MARBLE; i += SQUARE) {
-    for (let j = 0; j < MARBLE; j++) {
-      grid[i][j] = "g";
-      grid[j][i] = "g";
-    }
-  }
-  return grid.map((row) => row.join(""));
-}
-
 export const SUITE: Pick<RoomDefinition, "floor" | "wall" | "wainscot" | "trim"> = {
-  floor: () => pixelTexture(marbleRows(), { p: "stone", v: "stoneLight", d: "sootLight", w: "ash", g: "stoneDark" }, true),
+  floor: () => marble({ seed: `${SEED}:marble` }),
   wall: () => wallpaper({ ground: "moonDark", stripe: "soot", motif: "moon", seed: SEED }),
   wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED }),
   trim: "woodDark",

@@ -152,12 +152,23 @@ describe("diffLayout", () => {
   });
 
   it("builds an added room and re-bakes it with the rooms beside it", () => {
-    expect(diff([...tiles, { tile: "kitchen", floor: "ground", x: 0, y: 1, rotation: 0 }])).toEqual({
+    expect(diff([...tiles, { tile: "kitchen", floor: "ground", x: 1, y: 2, rotation: 0 }])).toEqual({
       added: ["kitchen"],
       removed: [],
       moved: [],
       rebuilt: ["kitchen"],
-      rebaked: ["grand-staircase", "kitchen", "library"],
+      rebaked: ["kitchen", "library"],
+    });
+  });
+
+  it("rebuilds a room whose window an added room now blocks, and re-bakes round it", () => {
+    // The Kitchen lands against the Grand Staircase's window.
+    expect(diff([...tiles, { tile: "kitchen", floor: "ground", x: 0, y: 1, rotation: 0 }])).toEqual({
+      added: ["kitchen"],
+      removed: [],
+      moved: [],
+      rebuilt: ["grand-staircase", "kitchen"],
+      rebaked: ["foyer", "grand-staircase", "kitchen", "library"],
     });
   });
 

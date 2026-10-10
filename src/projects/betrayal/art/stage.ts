@@ -21,15 +21,17 @@ import {
   WINDOW_SILL,
   WINDOW_TOP,
   WINDOW_WIDTH,
-  explorerSpots,
+  standingSpots,
   wallTurn,
   type FloorOpening,
   type PropPlacement,
   type RoomDefinition,
 } from "./room";
+import type { Markings } from "./markings";
 import type { PaletteKey } from "./palette";
 import { batch, box, flat, glow, group, projectUvs, textured } from "./shapes";
 import { pixelTexture, textureReady } from "./textures";
+import { boardedDoor, boardedWindow, capWindow, crossedThreshold, litThreshold, outlinedDoor, STUB_CAP, windowLight, type WallOpening } from "./wall-markings";
 
 export const EDGES: Edge[] = ["top", "right", "bottom", "left"];
 /** Baked lights cost load time, not frame time; this bounds the bake. */
@@ -43,12 +45,10 @@ export const OUTWARD: Record<Edge, THREE.Vector2> = {
   left: new THREE.Vector2(-1, 0),
 };
 
-interface Opening {
+interface Opening extends WallOpening {
   kind: "door" | "window";
-  centre: number;
-  width: number;
-  bottom: number;
-  top: number;
+  /** A window against a neighbour's wall, drawn without its glass: the cutaway markings board it up. */
+  blocked: boolean;
 }
 
 /** A solid rectangle of wall in the wall's own plane: x along it, y up. */
@@ -65,15 +65,15 @@ export function roomTile(id: string): RoomTile {
   return tile;
 }
 
-function openings(tile: RoomTile, edge: Edge): Opening[] {
+function openings(tile: RoomTile, edge: Edge, blockedWindow: boolean): Opening[] {
   const result: Opening[] = [];
   const door = tile.doors.includes(edge);
   if (door) {
     const front = tile.frontDoor === edge;
-    result.push({ kind: "door", centre: 0, width: front ? FRONT_DOOR_WIDTH : DOOR_WIDTH, bottom: 0, top: front ? FRONT_DOOR_HEIGHT : DOOR_HEIGHT });
+    result.push({ kind: "door", centre: 0, width: front ? FRONT_DOOR_WIDTH : DOOR_WIDTH, bottom: 0, top: front ? FRONT_DOOR_HEIGHT : DOOR_HEIGHT, blocked: false });
   }
   if (tile.windows.includes(edge)) {
-    result.push({ kind: "window", centre: door ? 1.7 : 0, width: WINDOW_WIDTH, bottom: WINDOW_SILL, top: WINDOW_TOP });
+    result.push({ kind: "window", centre: door ? 1.7 : 0, width: WINDOW_WIDTH, bottom: WINDOW_SILL, top: WINDOW_TOP, blocked: blockedWindow });
   }
   return result.sort((a, b) => a.centre - b.centre);
 }
@@ -166,7 +166,7 @@ function buildWall(length: number, holes: Opening[], height: number, parts: Wall
       // The sill stands a little above the wall it rests on, so their tops don't share a plane and fight.
       wall.add(box([hole.width + casing * 2, 0.05, WALL_THICKNESS + 0.1], parts.trim, [hole.centre, hole.bottom - 0.04, 0.05]));
       const glassTop = Math.min(hole.top, height);
-      if (glassTop > hole.bottom) {
+      if (glassTop > hole.bottom && !hole.blocked) {
         const pane = new THREE.Mesh(new THREE.PlaneGeometry(hole.width, glassTop - hole.bottom), glow("moon", pixelTexture(LEADED_GLASS, { l: "soot", m: "moon", d: "moonDark", g: "moonLight" })));
         pane.position.set(hole.centre, (hole.bottom + glassTop) / 2, -half + 0.02);
         pane.userData.noShadow = true;
@@ -409,6 +409,17 @@ export interface RoomOptions {
   /** Doors (by printed edge) drawn shut: in the house, a door that opens onto
    *  the wall of the room beyond. */
   closedDoors?: Edge[];
+  /** Windows (by printed edge) against the room beyond: with the markings on, they are boarded up. */
+  falseWindows?: Edge[];
+  /** The cutaway markings (see `markings.ts`), or null for none. */
+  markings?: Markings | null;
+}
+
+/** The door among a wall's openings: the stage is told a door is shut only where the tile has one. */
+function doorOf(holes: Opening[]): Opening {
+  const door = holes.find((hole) => hole.kind === "door");
+  if (!door) throw new Error("A door drawn shut on a wall with no door");
+  return door;
 }
 
 /** A plain door leaf shut in a doorway, in the middle of the wall's thickness. */
@@ -459,7 +470,7 @@ export interface RoomPart {
   dispose: () => void;
 }
 
-export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () => pawn(), closedDoors = [] }: RoomOptions = {}): RoomPart {
+export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () => pawn(), closedDoors = [], falseWindows = [], markings = null }: RoomOptions = {}): RoomPart {
   const tile = roomTile(def.id);
   const root = group();
   const wallTexture = def.wall();
@@ -470,6 +481,8 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     wainscot: def.wainscot ? textured(def.wainscot()) : null,
     trim: flat(def.trim),
   };
+  /** A cut-down wall's parts: with the markings on, its cap takes a colour of its own. */
+  const stubParts: WallParts = markings ? { ...parts, wall: [wallMaterial, wallMaterial, flat(STUB_CAP), cap, wallMaterial, wallMaterial] } : parts;
 
   const floorTexture = def.floor();
   const floorMaterial = textured(floorTexture);
@@ -498,11 +511,24 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
   const walls: RoomPart["walls"] = [];
   for (const edge of EDGES) {
     if (tile.passages.includes(edge)) continue;
-    const holes = openings(tile, edge);
+    const shut = closedDoors.includes(edge);
+    const holes = openings(tile, edge, markings !== null && falseWindows.includes(edge));
     const wall = (height: number) => {
       const full = height === WALL_HEIGHT;
-      const built = tile.outside ? buildBoundary(edgeLength(edge), holes, full, edge === "top" || edge === "bottom", wallTexture, def.trim) : buildWall(edgeLength(edge), holes, height, parts);
-      if (closedDoors.includes(edge)) built.add(tile.outside ? shutGate(full, def.trim) : shutLeaf(height, parts.trim));
+      const wallParts = full ? parts : stubParts;
+      const built = tile.outside ? buildBoundary(edgeLength(edge), holes, full, edge === "top" || edge === "bottom", wallTexture, def.trim) : buildWall(edgeLength(edge), holes, height, wallParts);
+      if (shut) {
+        if (tile.outside) built.add(shutGate(full, def.trim));
+        else if (markings?.falseDoor === "outline" && !full) built.add(outlinedDoor(doorOf(holes), wallParts.wall));
+        else built.add(shutLeaf(height, parts.trim));
+        if (markings?.falseDoor === "boarded" && !tile.outside) built.add(boardedDoor(doorOf(holes), height));
+      }
+      if (markings && !tile.outside) {
+        for (const hole of holes.filter((opening) => opening.kind === "window")) {
+          if (!full) built.add(capWindow(hole, parts.trim, hole.blocked));
+          else if (hole.blocked) built.add(boardedWindow(hole));
+        }
+      }
       const placed = placeOnEdge(built, edge);
       placed.userData.piece = { shell: edge } satisfies Piece;
       return placed;
@@ -511,6 +537,18 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     const cut = wall(CUT_HEIGHT);
     root.add(full, cut);
     walls.push({ edge, full, cut });
+    if (markings) {
+      const floorMarks = holes.flatMap((hole): THREE.Object3D[] => {
+        if (hole.kind === "window") return hole.blocked ? [] : [windowLight(hole)];
+        if (!shut) return [litThreshold(hole)];
+        return markings.falseDoor === "outline" ? [crossedThreshold(hole)] : [];
+      });
+      if (floorMarks.length) {
+        const placed = placeOnEdge(group(...floorMarks), edge);
+        placed.userData.piece = { shell: edge } satisfies Piece;
+        root.add(placed);
+      }
+    }
   }
 
   const corners: RoomPart["corners"] = [];
@@ -589,7 +627,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     },
     explorer,
     lights,
-    spots: def.pawn ? explorerSpots(def.pawn) : [],
+    spots: standingSpots(def),
     dispose: () => disposeTree(root),
     ready: Promise.all([...textures].map(textureReady)).then(() => undefined),
   };

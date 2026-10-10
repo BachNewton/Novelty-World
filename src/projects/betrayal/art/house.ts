@@ -5,11 +5,12 @@ import type { GhostDoor, GhostDoorway } from "../play/ghost";
 import type { Edge, FloorId, PlacedTile } from "../types";
 import { animationOf, type Animation } from "./animate";
 import { ADULT_WALK, isGrounded, walkingOf, type Stride, type Walking } from "./explorers/figure";
-import { closedDoors, diffLayout, DIRECTION, printedEdge, tileTurn, wallIsCut, type LayoutChange } from "./house-layout";
+import { closedDoors, diffLayout, DIRECTION, falseWindows, printedEdge, tileTurn, wallIsCut, type LayoutChange } from "./house-layout";
 import { inHouse, walkLength, walkPose, type HousePoint, type Walk } from "./house-walk";
 import { inlineBaker, type Baker } from "./bake";
 import { freezeRoom, type FrozenRoom } from "./freeze";
 import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog } from "./lighting";
+import { DEFAULT_MARKINGS, type Markings } from "./markings";
 import { createLitFloor, ghostRoom, patchProbe, type GhostRoom, type LitFloor, type ProbeUniform, type Rebake } from "./lit-floor";
 import { paletteHex, type PaletteKey } from "./palette";
 import { DOOR_WIDTH, explorerSpot, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
@@ -98,8 +99,9 @@ export interface House {
   /** The corners of every room showing: one floor, or all of them. */
   corners: () => THREE.Vector3[];
   /** Cuts the walls for a camera looking from this horizontal direction,
-   *  with `focus` the room a close view is on (null for the whole floor). */
-  setCutaway: (cameraDirection: THREE.Vector2, focus: string | null) => void;
+   *  with `focus` the room a close view is on (null for the whole floor);
+   *  `raised` stands every wall full, for the player's look at them. */
+  setCutaway: (cameraDirection: THREE.Vector2, focus: string | null, raised?: boolean) => void;
   update: (seconds: number) => void;
   /** Each floor's lighting, by floor. */
   lighting: Map<FloorId, LitFloor>;
@@ -275,7 +277,7 @@ interface Ghost {
   tile: PlacedTile;
   room: GhostRoom;
   holder: THREE.Group;
-  /** Its doors drawn shut, as a key: a ghost turned another way may need others shut. */
+  /** Its doors drawn shut and windows blocked, as a key: a ghost turned another way may need others. */
   shut: string;
 }
 
@@ -350,8 +352,9 @@ const level = (floor: FloorId) => (FLOORS.indexOf(floor) - FLOORS.indexOf("groun
 
 /** An engine layout as a house of rooms, each built in its own frame and laid
  *  at its cell and rotation, on its floor, and the figures in it, who walk
- *  between rooms. Both change as play goes on. */
-export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House {
+ *  between rooms. Both change as play goes on. Its rooms carry the cutaway
+ *  markings asked for (`markings.ts`), null for none. */
+export function buildHouse(initial: Layout, baker: Baker = inlineBaker(), markings: Markings | null = DEFAULT_MARKINGS): House {
   const root = group();
   let layout: Layout = { tiles: [] };
   const levels = new Map<FloorId, THREE.Group>();
@@ -376,7 +379,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
   };
   /** A tile built, frozen and laid at its cell and rotation on its floor's frame. */
   const placement = (tile: PlacedTile) => {
-    const room = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: closedDoors(layout, CATALOG, tile) }));
+    const room = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: closedDoors(layout, CATALOG, tile), falseWindows: falseWindows(layout, CATALOG, tile), markings }));
     const matrix = new THREE.Matrix4().compose(new THREE.Vector3(tile.x * TILE, 0, tile.y * TILE), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, tileTurn(tile.rotation), 0)), new THREE.Vector3(1, 1, 1));
     return { id: tile.tile, room, matrix };
   };
@@ -562,19 +565,24 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
   /** The way the camera last looked, for cutting a ghost's walls as the house's are cut. */
   let viewedFrom: { x: number; z: number } | null = null;
   let viewFocus: string | null = null;
+  /** Whether the player is holding every wall up. */
+  let wallsRaised = false;
   const ghosts = () => [...(choosing ? [choosing] : []), ...settling.values()];
   const cutGhost = (ghost: Ghost) => {
     if (!viewedFrom) return;
     const around: Layout = { tiles: [...liftTile(layout, ghost.tile.tile).tiles, ghost.tile] };
     const camera = viewedFrom;
-    const cut = EDGES.filter((direction) => wallIsCut(around, ghost.tile, direction, camera, viewFocus)).map((direction) => printedEdge(direction, ghost.tile.rotation));
+    const cut = wallsRaised ? [] : EDGES.filter((direction) => wallIsCut(around, ghost.tile, direction, camera, viewFocus)).map((direction) => printedEdge(direction, ghost.tile.rotation));
     ghost.room.setCut((edge) => cut.includes(edge));
   };
-  /** A ghost of a room at a cell, turned as given, with the doors that would face a wall there drawn shut. */
-  const ghostOf = (tile: PlacedTile, shut: Edge[]): Ghost => {
-    const room = ghostRoom(freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: shut })), ghostLook);
+  /** What of a room at a cell would be blocked there: its doors facing a wall, and its windows against a room. */
+  const blockedAt = (around: Layout, tile: PlacedTile) => ({ doors: closedDoors(around, CATALOG, tile), windows: falseWindows(around, CATALOG, tile) });
+  const blockedKey = (blocked: ReturnType<typeof blockedAt>) => `${blocked.doors.join()}|${blocked.windows.join()}`;
+  /** A ghost of a room at a cell, turned as given, with what would be blocked there drawn so. */
+  const ghostOf = (tile: PlacedTile, blocked: ReturnType<typeof blockedAt>): Ghost => {
+    const room = ghostRoom(freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: blocked.doors, falseWindows: blocked.windows, markings })), ghostLook);
     const holder = group(room.root);
-    const ghost: Ghost = { tile, room, holder, shut: shut.join() };
+    const ghost: Ghost = { tile, room, holder, shut: blockedKey(blocked) };
     layGhost(ghost, tile);
     return ghost;
   };
@@ -596,11 +604,11 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
       return;
     }
     const around: Layout = { tiles: [...liftTile(layout, tile.tile).tiles, tile] };
-    const shut = closedDoors(around, CATALOG, tile);
-    if (choosing?.tile.tile === tile.tile && choosing.shut === shut.join()) layGhost(choosing, tile);
+    const blocked = blockedAt(around, tile);
+    if (choosing?.tile.tile === tile.tile && choosing.shut === blockedKey(blocked)) layGhost(choosing, tile);
     else {
       if (choosing) dropGhost(choosing);
-      choosing = ghostOf(tile, shut);
+      choosing = ghostOf(tile, blocked);
     }
   };
   /** A room just placed or moved shows as a ghost until it is baked and shows itself. */
@@ -608,7 +616,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     const old = settling.get(id);
     if (old) dropGhost(old);
     const tile = tileOf(id);
-    const ghost = ghostOf({ ...tile }, closedDoors(layout, CATALOG, tile));
+    const ghost = ghostOf({ ...tile }, blockedAt(layout, tile));
     settling.set(id, ghost);
     void (shownWhen.get(id) ?? Promise.resolve()).then(() => {
       if (settling.get(id) !== ghost) return;
@@ -670,14 +678,15 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     showFloor,
     cellCentre,
     corners,
-    setCutaway: (cameraDirection, focus) => {
+    setCutaway: (cameraDirection, focus, raised = false) => {
       const camera = { x: cameraDirection.x, z: cameraDirection.y };
-      if (viewedFrom?.x !== camera.x || viewedFrom.z !== camera.z || viewFocus !== focus) {
+      if (viewedFrom?.x !== camera.x || viewedFrom.z !== camera.z || viewFocus !== focus || wallsRaised !== raised) {
         viewedFrom = camera;
         viewFocus = focus;
+        wallsRaised = raised;
         for (const ghost of ghosts()) cutGhost(ghost);
       }
-      const cuts = layout.tiles.map((tile) => EDGES.filter((direction) => wallIsCut(layout, tile, direction, camera, focus)).map((direction) => printedEdge(direction, tile.rotation)));
+      const cuts = layout.tiles.map((tile) => (raised ? [] : EDGES.filter((direction) => wallIsCut(layout, tile, direction, camera, focus)).map((direction) => printedEdge(direction, tile.rotation))));
       const key = JSON.stringify(cuts);
       if (key === lastCut) return;
       lastCut = key;

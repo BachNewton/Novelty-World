@@ -40,11 +40,13 @@ export function table({
     box([0.03, 0.1, width - leg * 2], frame, [-lx, legHeight - 0.1, 0]),
   );
   if (runner) {
+    // Laid the length of the top and hanging over both ends.
     const cloth = flat(runner);
+    const end = length / 2 + 0.01;
     result.add(
-      box([length * 0.75, 0.005, width * 0.45], cloth, [0, height, 0]),
-      box([0.01, 0.18, width * 0.45], cloth, [length * 0.375, height - 0.18, 0]),
-      box([0.01, 0.18, width * 0.45], cloth, [-length * 0.375, height - 0.18, 0]),
+      box([end * 2 + 0.01, 0.005, width * 0.45], cloth, [0, height, 0]),
+      box([0.01, 0.185, width * 0.45], cloth, [end, height - 0.18, 0]),
+      box([0.01, 0.185, width * 0.45], cloth, [-end, height - 0.18, 0]),
     );
   }
   return result;

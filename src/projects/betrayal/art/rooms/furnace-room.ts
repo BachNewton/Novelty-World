@@ -9,7 +9,8 @@ import { INNER, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane } from "../shapes";
 import { bricks, flagstones, pixelTexture } from "../textures";
 
-/** Where the furnace stands, its fire-door facing the left doorway. */
+/** Where the furnace stands, its fire-door turned across the room to the far
+ *  corner, so the fire shows from the front or the side in every view. */
 const FURNACE: [x: number, z: number] = [1.35, -0.45];
 /** The furnace's iron belly. */
 const BODY = 0.66;
@@ -392,7 +393,7 @@ export const FURNACE_ROOM: RoomDefinition = {
   trim: "soot",
   props: [
     { build: scorchedFloor, at: FURNACE },
-    { build: furnace, at: FURNACE, turn: -90 },
+    { build: furnace, at: FURNACE, turn: -45 },
     ...(
       [
         [[2.95, 2.55, -1.35], "right"],
@@ -411,16 +412,17 @@ export const FURNACE_ROOM: RoomDefinition = {
         { with: "furnace", because: "the duct rises out of the furnace's collar" },
       ],
     })),
-    { build: footprints, at: [-0.72, -0.2], turn: 12 },
+    { build: footprints, at: [-0.7, 0.17], turn: -8 },
     { build: floorGrate, at: [0.35, 1.05], turn: 8 },
     { build: coalHeap, at: [2.05, -2.05] },
     { build: chuteHatch, ...onWall("right", -2.05, { y: 1.15 }) },
-    { build: scuttle, at: [0.62, 0.45], turn: 20 },
+    { build: scuttle, at: [0.15, -0.4], turn: 20 },
     { build: fallenStool, at: [-0.5, -1.55], turn: 30 },
     { build: rake, at: [0.1, -2.05], turn: -8 },
     { build: crates, at: [-2.3, -2.3], turn: 10 },
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-(INNER - 0.29), -(INNER - 0.29)], y: 3.05, turn: 45, walls: ["left", "top"] },
   ],
   focus: [0.7, 0.6, -0.45],
-  pawn: [-1.2, 1.45],
+  pawn: [-1.4, 0.45],
+  spots: [[-0.6, -0.15], [-1.8, -1.1], [1.6, 1.4], [-2.0, 1.75], [0.95, 2.25]],
 };

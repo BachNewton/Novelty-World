@@ -8,8 +8,10 @@ import type { InputKind } from "../input/controls";
 import { BenchButton } from "./bench-view";
 import type { Layout } from "../engine/board";
 import { CATALOG } from "../data";
-import { HOUSE_FIXTURE, reviewHouse, SPILL_LAYOUTS } from "./house-layout";
+import { HOUSE_FIXTURE, MARKINGS_LAYOUT, reviewHouse, SPILL_LAYOUTS } from "./house-layout";
 import { createHouseDemo, FIXTURE_STARTS, type Phase } from "./house-demo";
+import { markingsFromSearch } from "./markings";
+import { RaiseWallsButton } from "../components/raise-walls-button";
 import type { FloorChoice } from "./house-scene";
 import { BENCH_ROOMS } from "./rooms";
 
@@ -53,6 +55,7 @@ function Hints({ input, phase, walking, stopping }: { input: InputKind; phase: P
             <Hint key="zoom" glyphs={<><Glyph>LT</Glyph><Glyph>RT</Glyph></>} does="zoom" />,
             <Hint key="floor" glyphs={<Glyph>✚</Glyph>} does="floor" />,
             <Hint key="recentre" glyphs={<Glyph round>Y</Glyph>} does="recentre" />,
+            <Hint key="walls" glyphs={<Glyph round>L3</Glyph>} does="hold: walls" />,
           ]
         : [
             <Hint key="pan" glyphs={<Glyph>WASD</Glyph>} does="look" />,
@@ -64,19 +67,23 @@ function Hints({ input, phase, walking, stopping }: { input: InputKind; phase: P
             <Hint key="zoom" glyphs={<Glyph>Wheel</Glyph>} does="zoom" />,
             <Hint key="floor" glyphs={<><Glyph>R</Glyph><Glyph>F</Glyph></>} does="floor" />,
             <Hint key="recentre" glyphs={<Glyph>C</Glyph>} does="recentre" />,
+            <Hint key="walls" glyphs={<Glyph>V</Glyph>} does="hold: walls" />,
           ];
   return <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">{hints}</div>;
 }
 
+/** The named houses `?layout=` may ask for: light between rooms, and the cutaway markings. */
+const LAYOUTS: Record<string, Layout> = { ...SPILL_LAYOUTS, markings: MARKINGS_LAYOUT };
+
 /** The house `?layout=` asks for: `room:<room-id>`, a small house round that
- *  room for reviewing it (`reviewHouse`); one of `SPILL_LAYOUTS`, for judging
- *  light between rooms; or, without it, the fixture house. */
+ *  room for reviewing it (`reviewHouse`); one of `LAYOUTS`; or, without it,
+ *  the fixture house. */
 function chosenHouse(): { layout: Layout; starts: readonly [string, string] } {
   const name = new URLSearchParams(window.location.search).get("layout");
   if (name === null) return { layout: HOUSE_FIXTURE, starts: FIXTURE_STARTS };
   if (name.startsWith("room:")) return reviewHouse(name.slice("room:".length), CATALOG, new Set(BENCH_ROOMS.map((room) => room.id)));
-  const layout = SPILL_LAYOUTS[name] as Layout | undefined;
-  if (!layout) throw new Error(`No house layout "${name}"; there are room:<room-id> and ${Object.keys(SPILL_LAYOUTS).join(", ")}`);
+  const layout = LAYOUTS[name] as Layout | undefined;
+  if (!layout) throw new Error(`No house layout "${name}"; there are room:<room-id> and ${Object.keys(LAYOUTS).join(", ")}`);
   return { layout, starts: FIXTURE_STARTS };
 }
 
@@ -85,7 +92,7 @@ function chosenHouse(): { layout: Layout; starts: readonly [string, string] } {
 export function HouseScreen() {
   const [view] = useState(() => {
     const { layout, starts } = chosenHouse();
-    return createHouseDemo(layout, starts);
+    return createHouseDemo(layout, starts, markingsFromSearch(window.location.search));
   });
   const state = useSyncExternalStore(view.subscribe, view.snapshot, view.snapshot);
   const shown = useSyncExternalStore(view.scene.subscribe, view.scene.view, view.scene.view);
@@ -214,6 +221,13 @@ export function HouseScreen() {
           <BenchButton label="Recentre" onClick={() => view.api.recentre()}>
             ◎
           </BenchButton>
+          <RaiseWallsButton
+            raised={shown.wallsRaised}
+            raise={view.scene.hook.raiseWalls}
+            className="pointer-events-auto h-12 w-12 rounded border border-(--bt-line) bg-(--bt-panel) text-xl text-(--bt-ink) aria-pressed:border-(--bt-accent)"
+          >
+            ▥
+          </RaiseWallsButton>
           <BenchButton label="Zoom out" disabled={shown.zoom <= minZoom} onClick={() => view.api.setZoom(shown.zoom / 1.5)}>
             −
           </BenchButton>

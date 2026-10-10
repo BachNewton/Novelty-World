@@ -258,5 +258,6 @@ export const CHASM: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [INNER - 0.29, -INNER + 0.29], y: 3.05, turn: -135, walls: ["right", "top"] },
   ],
   focus: [0, 0.3, 0],
-  pawn: [-2.0, 0],
+  pawn: [-1.6, -0.3],
+  spots: [[1.6, -0.2], [-1.75, -1.2], [1.9, -1.05], [-1.7, 0.75], [1.7, 0.95]],
 };

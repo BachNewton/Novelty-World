@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { candle, chair, chamberstick, pictureFrame, rug, table, windowPool } from "../kit";
+import { candle, chair, chamberstick, pictureFrame, rug, table } from "../kit";
 import { RAMPS, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, INNER, onWall, type RoomDefinition } from "../room";
 import { batch, box, flat, group, lathe, textured } from "../shapes";
@@ -316,9 +316,8 @@ export const MASTER_BEDROOM: RoomDefinition = {
     { build: lookingGlass, ...onWall("left", -1.5, { y: 1.12 }) },
     { build: () => chair({ cushion: "bloodDark" }), name: "watchingChair", at: [-1.7, 1.0], turn: 60 },
     { build: () => pictureFrame({ art: { rows: SITTER, legend: SITTER_LEGEND }, frame: "brass" }), name: "portrait", ...onWall("top", 1.4, { y: 1.35 }) },
-    { build: () => windowPool(), name: "windowPool", ...onWall("bottom", 0) },
   ],
-  lights: [{ at: [0, 1.4, INNER - 0.8], colour: "moonLight", intensity: 6, range: 6 }],
   focus: [1.6, 0.9, 0],
   pawn: [-1.0, -1.2],
+  spots: [[-0.45, -0.5], [-0.05, -1.25], [-1.25, -0.25], [-0.45, 0.4], [-1.8, -0.9]],
 };

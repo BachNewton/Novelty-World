@@ -20,6 +20,11 @@
 // joined to every doorway, so every wall between rooms is cut as the house cuts it. It writes sheet-room-<room-id>.png:
 // the floor from the four views, the room framed close from two (its back walls standing, as when an explorer enters),
 // and a phone shot, with Longfellow at the room's pawn spot and the scale pawn next door.
+//
+// --markings shoots only the cutaway markings, in the house built to show them (?house&layout=markings): its ground
+// floor from the four views and with every wall raised, the rooms with a false door or window framed close, and a
+// phone shot, into sheet-markings.png. --query=<params> adds to every page's URL, e.g. --query=falseDoor=outline or
+// --query=markings=off, so a label per setting compares them.
 
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -33,6 +38,10 @@ const ROOM = process.argv.find((arg) => arg.startsWith("--room="))?.slice("--roo
 /** Draws at this short side in pixels instead of the view's native default, e.g. --res=540. */
 const RES_FLAG = process.argv.find((arg) => arg.startsWith("--res="));
 const RES = RES_FLAG === undefined ? null : Number(RES_FLAG.slice("--res=".length));
+/** Shoots only the cutaway markings, in the house built to show them. */
+const MARKINGS = process.argv.includes("--markings");
+/** More of the page's query string, e.g. --query=markings=off. */
+const QUERY = process.argv.find((arg) => arg.startsWith("--query="))?.slice("--query=".length) ?? null;
 const FREEZE_AT = 2;
 const OUTDIR = join(HERE, "..", ".shots", LABEL, "house");
 const BASE = process.env.BETRAYAL_URL ?? "http://localhost:3001/board-games/betrayal";
@@ -62,7 +71,7 @@ async function openHouse(viewport, layout = null) {
   page.on("console", (m) => {
     if (m.type() === "error") console.error("page console error:", m.text());
   });
-  await page.goto(`${BASE}?house${layout ? `&layout=${layout}` : ""}`, { waitUntil: "load" });
+  await page.goto(`${BASE}?house${layout ? `&layout=${layout}` : ""}${QUERY ? `&${QUERY}` : ""}`, { waitUntil: "load" });
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
   await page.waitForFunction(() => "__betrayalHouse" in window, null, { timeout: 30000 });
   await page.evaluate(
@@ -81,11 +90,12 @@ async function settle(page) {
   await page.waitForFunction((n) => window.__betrayalHouse.frameCount() >= n + 2, frame, { timeout: 10000 });
 }
 
-async function capture(page, name, { floor = "ground", view = 0, focus = null, chrome = false } = {}) {
+async function capture(page, name, { floor = "ground", view = 0, focus = null, chrome = false, raised = false } = {}) {
   await page.evaluate(
-    ({ floor, view, focus, chrome }) => {
+    ({ floor, view, focus, chrome, raised }) => {
       const house = window.__betrayalHouse;
       house.showChoices(false);
+      house.raiseWalls(raised);
       house.setFloor(floor);
       house.setCloseUp(focus);
       house.setView(view);
@@ -94,7 +104,7 @@ async function capture(page, name, { floor = "ground", view = 0, focus = null, c
         el.style.visibility = chrome ? "" : "hidden";
       });
     },
-    { floor, view, focus, chrome },
+    { floor, view, focus, chrome, raised },
   );
   await page.waitForFunction(() => window.__betrayalHouse.isReady(), null, { timeout: 60000 });
   const frame = await page.evaluate(() => window.__betrayalHouse.frameCount());
@@ -135,6 +145,33 @@ async function shootRoom(room) {
   shots.push(await capture(phone, `room-${room}-phone`, { floor, view: 0, chrome: true }));
   await phone.close();
   return shots;
+}
+
+/** The cutaway markings, in the house built to show them: the floor from every view and with its walls raised,
+ *  the rooms with false doors and windows close, and a phone shot. */
+async function shootMarkings() {
+  const layout = "markings";
+  const shots = [];
+  const page = await openHouse(DESKTOP, layout);
+  for (const view of [0, 1, 2, 3]) shots.push(await capture(page, `markings-${view}`, { view }));
+  shots.push(await capture(page, "markings-raised-0", { view: 0, raised: true }));
+  shots.push(await capture(page, "markings-close-entrance-hall-0", { focus: "entrance-hall", view: 0 }));
+  shots.push(await capture(page, "markings-close-chapel-1", { focus: "chapel", view: 1 }));
+  shots.push(await capture(page, "markings-close-dining-room-3", { focus: "dining-room", view: 3 }));
+  shots.push(await capture(page, "markings-close-dining-room-1", { focus: "dining-room", view: 1 }));
+  shots.push(await capture(page, "markings-close-staircase-0", { focus: "grand-staircase", view: 0 }));
+  await page.close();
+  const phone = await openHouse(PHONE, layout);
+  shots.push(await capture(phone, "markings-phone", { view: 0, chrome: true }));
+  shots.push(await capture(phone, "markings-phone-close", { focus: "entrance-hall", view: 0, chrome: true }));
+  await phone.close();
+  return shots;
+}
+
+if (MARKINGS) {
+  await contactSheet("markings", await shootMarkings(), 3);
+  await browser.close();
+  process.exit(0);
 }
 
 if (ROOM) {

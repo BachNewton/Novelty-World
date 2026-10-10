@@ -120,9 +120,12 @@ export interface RoomDefinition {
   focus?: [x: number, y: number, z: number];
   /** Holes cut through the floor (a stairwell, a lake), in room metres. */
   floorOpenings?: FloorOpening[];
-  /** Where the scale-reference explorer pawn stands, and where an explorer
-   *  in the house stands in the room. */
+  /** The prime standing spot, the first the house fills: where the active
+   *  explorer stands, and where the bench stands its explorer. */
   pawn?: [x: number, z: number];
+  /** The five standing spots after `pawn`, in the order the house fills
+   *  them. Each is clear for a figure's base and reachable from the doors. */
+  spots?: [x: number, z: number][];
   /** For each room a fixed link (a stair) joins this one to, the way an
    *  explorer walks it: points in room metres, from this room's floor to
    *  where the stair leaves the room. A walk between the two rooms goes up
@@ -145,9 +148,9 @@ export function explorerSpot(pawn: [x: number, z: number], slot: number): [x: nu
   return [x * (1 - towardMiddle), z * (1 - towardMiddle)];
 }
 
-/** The spots kept clear and lit for explorers: the pawn spot and the second spot. */
-export function explorerSpots(pawn: [x: number, z: number]): [x: number, z: number][] {
-  return [explorerSpot(pawn, 0), explorerSpot(pawn, 1)];
+/** Every standing spot of a room, in the order the house fills them: `pawn`, then `spots`. */
+export function standingSpots(def: RoomDefinition): [x: number, z: number][] {
+  return def.pawn ? [def.pawn, ...(def.spots ?? [])] : [];
 }
 
 const WALL_TURN: Record<Edge, number> = { top: 0, right: -90, bottom: 180, left: 90 };

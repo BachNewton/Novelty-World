@@ -1,4 +1,4 @@
-import { EDGES, neighbourCell, opposite, openings, placementsAt, roomAt, type Layout } from "../engine/board";
+import { EDGES, neighbourCell, opposite, openings, placementsAt, roomAt, turn, type Layout } from "../engine/board";
 import type { Catalog, Edge, PlacedTile, Rotation } from "../types";
 
 /*
@@ -41,6 +41,11 @@ export const SPILL_LAYOUTS: Record<string, Layout> = {
   "spill-doorway": { tiles: [...SPILL_ROOMS, { tile: "dining-room", floor: "ground", x: 0, y: -1, rotation: 1 }] },
   "spill-wall": { tiles: [...SPILL_ROOMS, { tile: "dining-room", floor: "ground", x: 0, y: -1, rotation: 3 }] },
 };
+
+/** The fixture house with the Kitchen against the Dining Room's window, for
+ *  judging the cutaway markings: real doors joined and onto the unexplored,
+ *  the Entrance Hall's false door, real windows and a false one. */
+export const MARKINGS_LAYOUT: Layout = { tiles: [...HOUSE_FIXTURE.tiles, { tile: "kitchen", floor: "ground", x: 1, y: -2, rotation: 0 }] };
 
 /** A house for reviewing one room as the house shows it, and the rooms its two explorers start in. */
 export interface ReviewHouse {
@@ -151,6 +156,16 @@ export function closedDoors(layout: Layout, catalog: Catalog, tile: PlacedTile):
   return doorways(layout, catalog, tile).flatMap(({ edge, doorway }) => (doorway === "blind" ? [edge] : []));
 }
 
+/** The windows of a placed room that are false, by printed edge: each is
+ *  against another room, whatever that room has on its side. Only a window on
+ *  an edge with no room against it faces outside (see rules.md, "false feature"). */
+export function falseWindows(layout: Layout, catalog: Catalog, tile: PlacedTile): Edge[] {
+  return catalog.rooms[tile.tile].windows.filter((edge) => {
+    const cell = neighbourCell(tile, turn(edge, tile.rotation));
+    return roomAt(layout, tile.floor, cell.x, cell.y) !== undefined;
+  });
+}
+
 /** What changes in the house when its layout changes, by tile id. */
 export interface LayoutChange {
   added: string[];
@@ -158,7 +173,7 @@ export interface LayoutChange {
   /** On another cell, floor or rotation. */
   moved: string[];
   /** Built afresh: added, moved, or with a door that now opens on a wall or
-   *  no longer does, because a neighbour came or went. */
+   *  a window that now faces one, or no longer does, because a neighbour came or went. */
   rebuilt: string[];
   /** Baked again: every room rebuilt, and every room beside a cell a rebuilt
    *  or removed room stood on or now stands on, whose light it can now block
@@ -179,7 +194,8 @@ export function diffLayout(before: Layout, after: Layout, catalog: Catalog): Lay
   }).map((tile) => tile.tile);
   const reshut = after.tiles.filter((tile) => {
     const old = was.get(tile.tile);
-    return old !== undefined && samePlace(old, tile) && closedDoors(before, catalog, old).join() !== closedDoors(after, catalog, tile).join();
+    const blocked = (layout: Layout, placed: PlacedTile) => [closedDoors(layout, catalog, placed), falseWindows(layout, catalog, placed)].join("|");
+    return old !== undefined && samePlace(old, tile) && blocked(before, old) !== blocked(after, tile);
   }).map((tile) => tile.tile);
   const rebuilt = [...added, ...moved, ...reshut];
   const changedCells = [...rebuilt.flatMap((id) => [was.get(id), now.get(id)]), ...removed.map((id) => was.get(id))].filter((tile) => tile !== undefined);

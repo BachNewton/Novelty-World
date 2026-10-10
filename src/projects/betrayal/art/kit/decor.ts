@@ -149,8 +149,11 @@ export function pictureFrame({
 export interface WindowPoolOptions {
   /** How far the pool reaches into the room, in metres. */
   reach?: number;
-  glass?: PaletteKey;
+  /** The glass's colour, or a colour for each pane in turn (stained glass). */
+  glass?: PaletteKey | readonly PaletteKey[];
   lead?: PaletteKey;
+  /** How many panes across and how many deep the leading divides it into. */
+  panes?: [across: number, deep: number];
   opacity?: number;
 }
 
@@ -158,17 +161,29 @@ export interface WindowPoolOptions {
  *  drawn as a lattice. Stylised: it falls straight out of the window, not
  *  along the house's moon, so it is right however the tile is turned. Place
  *  it at the window's wall face (its origin), with `onWall`; it lies on the floor, reaching out along +z. */
-export function windowPool({ reach = 1.4, glass = "moonDark", lead = "void", opacity = 0.9 }: WindowPoolOptions = {}): THREE.Mesh {
+export function windowPool({ reach = 1.4, glass = "moonDark", lead = "void", panes = [2, 3], opacity = 0.9 }: WindowPoolOptions = {}): THREE.Mesh {
   const near = WINDOW_WIDTH / 2 + 0.05;
   const far = WINDOW_WIDTH / 2 + 0.3;
   const w = Math.round(far * 2 * TEXELS_PER_METRE);
   const h = Math.round(reach * TEXELS_PER_METRE);
-  const midX = Math.round(w / 2);
+  const [across, deep] = panes;
+  const colours = typeof glass === "string" ? [glass] : glass;
+  const fills: string[] = [];
+  for (let row = 0; row < deep; row++) {
+    for (let column = 0; column < across; column++) {
+      const x = Math.round((w * column) / across);
+      const y = Math.round((h * row) / deep);
+      const colour = colours[(column + row * (across + 1)) % colours.length];
+      fills.push(`<rect x="${x}" y="${y}" width="${Math.round((w * (column + 1)) / across) - x}" height="${Math.round((h * (row + 1)) / deep) - y}" fill="${paletteHex(colour)}"/>`);
+    }
+  }
+  const leads = [
+    ...Array.from({ length: across - 1 }, (_, i) => `<rect x="${Math.round((w * (i + 1)) / across) - 1}" width="2" height="${h}" fill="${paletteHex(lead)}"/>`),
+    ...Array.from({ length: deep - 1 }, (_, i) => `<rect y="${Math.round((h * (i + 1)) / deep)}" width="${w}" height="2" fill="${paletteHex(lead)}"/>`),
+  ];
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges">
-<rect width="${w}" height="${h}" fill="${paletteHex(glass)}"/>
-<rect x="${midX - 1}" width="2" height="${h}" fill="${paletteHex(lead)}"/>
-<rect y="${Math.round(h / 3)}" width="${w}" height="2" fill="${paletteHex(lead)}"/>
-<rect y="${Math.round((h * 2) / 3)}" width="${w}" height="2" fill="${paletteHex(lead)}"/>
+${fills.join("")}
+${leads.join("")}
 </svg>`;
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute([-near, 0.02, 0, near, 0.02, 0, far, 0.02, reach, -far, 0.02, reach], 3));

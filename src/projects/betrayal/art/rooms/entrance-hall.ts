@@ -111,7 +111,7 @@ function umbrellaStand(): THREE.Group {
   const stick = box([0.025, 0.85, 0.025], flat("woodMid"), [0, 0, 0]);
   stick.position.set(-0.05, 0.05, -0.02);
   stick.rotation.z = 0.12;
-  return group(cylinder(0.14, 0.5, flat("brass"), [0, 0, 0], { sides: 8 }), cylinder(0.12, 0.01, flat("void"), [0, 0.49, 0], { sides: 8 }), umbrella, stick);
+  return group(cylinder(0.14, 0.5, flat("brass"), [0, 0, 0], { sides: 8 }), cylinder(0.12, 0.006, flat("void"), [0, 0.5, 0], { sides: 8 }), umbrella, stick);
 }
 
 const PRINT = [".###.", "#w###", "#####", "####.", ".###.", ".##..", ".....", ".###.", ".###.", ".###."];
@@ -155,4 +155,5 @@ export const ENTRANCE_HALL: RoomDefinition = {
   ],
   focus: [1.6, 1.3, 0],
   pawn: [-0.9, -0.9],
+  spots: [[-0.2, -0.35], [-0.95, 0.05], [-0.2, 0.55], [0.6, 0.05], [0.55, -0.8]],
 };

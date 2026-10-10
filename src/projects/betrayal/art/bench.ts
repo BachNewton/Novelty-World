@@ -8,6 +8,7 @@ import { budgetGuard, EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, HOUSE_LIG
 import type { Baker } from "./bake";
 import { workerBaker } from "./bake-workers";
 import { createLitFloor, type Rebake } from "./lit-floor";
+import { DEFAULT_MARKINGS, type Markings } from "./markings";
 import { CUT_HEIGHT, DEFAULT_FOCUS, pieceLabel, type PropPlacement, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { buildRoom, OUTWARD, roomTile, type ExplorerBuilder } from "./stage";
@@ -89,8 +90,8 @@ declare global {
 /** One room on its own, lit exactly as the house lights it: baked, under the
  *  house's fill and moon, laid unturned, as a house of one room, with the
  *  house's light over the explorer whose turn it is. */
-function benchStage(def: RoomDefinition, explorerBuilder: ExplorerBuilder, baker: Baker) {
-  const part = buildRoom(def, { explorer: explorerBuilder });
+function benchStage(def: RoomDefinition, explorerBuilder: ExplorerBuilder, baker: Baker, markings: Markings | null) {
+  const part = buildRoom(def, { explorer: explorerBuilder, markings });
   const explorer = part.explorer;
   const frozen = freezeRoom(def.id, part);
   const floor = createLitFloor(baker);
@@ -133,7 +134,7 @@ function explorer(id: string): BenchExplorer {
 /** The art bench: one room on its own, under an orbit camera that the presets
  *  (four views, zoom, framing) place and the user can drag from there.
  *  Plain state outside React, so the page and screenshot tools drive the same thing. */
-export function createBench(initialRoom: string) {
+export function createBench(initialRoom: string, markings: Markings | null = DEFAULT_MARKINGS) {
   const firstRoom = definition(initialRoom).id;
   let snapshot: BenchSnapshot = {
     roomId: firstRoom,
@@ -229,7 +230,7 @@ export function createBench(initialRoom: string) {
         stage.dispose();
       }
       stageReady = false;
-      const built = benchStage(definition(snapshot.roomId), explorer(snapshot.explorer).build, baker);
+      const built = benchStage(definition(snapshot.roomId), explorer(snapshot.explorer).build, baker, markings);
       void built.bake.then((bake) => {
         if (stage === built) lastBake = bake;
       });

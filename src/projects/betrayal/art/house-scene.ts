@@ -9,10 +9,11 @@ import type { FloorId } from "../types";
 import type { Pace } from "./explorers/figure";
 import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure } from "./house";
 import type { LayoutChange } from "./house-layout";
-import { choiceLayout, FINGER, followFloor, targetPlace, type Target, type TargetPlace } from "./house-targets";
+import { choiceLayout, FINGER, followFloor, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
 import { walkPath, walkPose, type Stairway, type Walk } from "./house-walk";
 import { workerBaker } from "./bake-workers";
 import type { Rebake } from "./lit-floor";
+import { DEFAULT_MARKINGS, type Markings } from "./markings";
 import { budgetGuard, HOUSE_LIGHT, LIGHTMAP, MAX_DRAW_CALLS, MAX_TEXTURE_UNITS } from "./lighting";
 import { TILE } from "./room";
 import { clampPitch, DEFAULT_PITCH } from "./house-camera";
@@ -81,6 +82,8 @@ export interface SceneView {
   input: InputKind;
   /** Whether the targets glow and the route shows; off for judging the art alone. */
   showMarks: boolean;
+  /** Whether the player is holding every wall up, for a full look at them. */
+  wallsRaised: boolean;
   /** Whether a figure is walking. */
   walking: boolean;
 }
@@ -169,6 +172,8 @@ export interface SceneHook {
   /** Moves the focus to a target, as the input layer does. */
   focus: (id: string) => void;
   showChoices: (show: boolean) => void;
+  /** Stands every wall full while true, as holding the raise-walls key, button or touch button does. */
+  raiseWalls: (raised: boolean) => void;
   /** Where a target shows on the page, in CSS pixels, for tests to point at. */
   screenPoint: (id: string) => Point | null;
   /** The target under a point on the page, in CSS pixels, or null. */
@@ -240,8 +245,9 @@ interface Playing {
  *  driven by `setLayout`, `setFigures`, `setTargets`, `setActive` and `play`.
  *  Plain state outside React, so a page, tests and screenshot tools drive the same thing. */
 /** `readout` adds the performance readout (draw calls, texture units, bake
- *  times) under the frame-rate panel, for the house demo's phone tests. */
-export function createHouseScene(initial: Layout, { readout: showsReadout = false }: { readout?: boolean } = {}) {
+ *  times) under the frame-rate panel, for the house demo's phone tests.
+ *  `markings` are the cutaway markings its rooms are built with (null for none). */
+export function createHouseScene(initial: Layout, { readout: showsReadout = false, markings = DEFAULT_MARKINGS }: { readout?: boolean; markings?: Markings | null } = {}) {
   let layout = initial;
   const figures = new Map<string, FigureSpec>();
   let targets: readonly Target[] = [];
@@ -260,6 +266,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     frozenAt: null,
     input: "keyboard-mouse",
     showMarks: true,
+    wallsRaised: false,
     walking: false,
   };
   const listeners = new Set<() => void>();
@@ -649,6 +656,9 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     },
     focus: focusTarget,
     showChoices: (show) => update({ showMarks: show }),
+    raiseWalls: (raised) => {
+      if (raised !== view.wallsRaised) update({ wallsRaised: raised });
+    },
     screenPoint: (id) => {
       if (!mounted) return null;
       const place = placesOf(mounted.house).find((candidate) => candidate.id === id)?.place;
@@ -676,7 +686,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     container.style.touchAction = "none";
 
     const baker = workerBaker();
-    const house = buildHouse(layout, baker);
+    const house = buildHouse(layout, baker, markings);
     for (const figure of figures.values()) placeFigure(house, figure);
     scene.add(house.root);
     scene.fog = house.fog;
@@ -722,7 +732,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
 
       const facing = new THREE.Vector2(lens.position.x - aim.x, lens.position.z - aim.z);
       if (facing.lengthSq() > 1e-6) cutaway = facing.normalize();
-      house.setCutaway(cutaway, view.closeUp);
+      house.setCutaway(cutaway, view.closeUp, view.wallsRaised);
       house.fog.near = Math.max(0, distance - span);
       house.fog.far = house.fog.near + (span * 2) / Math.max(HOUSE_LIGHT.fog.density, 0.01);
       return aim.distanceTo(goal) < 0.01;
@@ -826,6 +836,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         handsOn = on;
         settled = false;
       },
+      raiseWalls: hook.raiseWalls,
       usedInput: (kind) => {
         if (kind !== view.input) update({ input: kind });
       },
@@ -875,8 +886,9 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const ghost = ghostOf(targets);
       house.setGhost(ghost && { tile: ghost.tile, floor: ghost.floor, x: ghost.x, y: ghost.y, rotation: ghost.rotation });
       const going = targets.find((target) => target.id === focused);
-      const route = offering && going?.kind === "room" ? going.route : undefined;
-      house.showRoute(route ? walkPath(layout, route.rooms, house.figureAt(route.figure), house.spot(going?.kind === "room" ? going.room : "", route.slot), stairway) : null);
+      const routed = offering && (going?.kind === "room" || going?.kind === "doorway") ? going : null;
+      const end = routed && routeEnd(layout, routed, house.spot);
+      house.showRoute(routed?.route && end ? walkPath(layout, routed.route.rooms, house.figureAt(routed.route.figure), end, stairway) : null);
       settled = false;
     };
 

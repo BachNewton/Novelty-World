@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Edge } from "../types";
 import { PALETTE, type PaletteKey } from "./palette";
-import { DOOR_HEIGHT, DOOR_WIDTH, TILE, explorerSpots, pieceLabel, pieceName, type PropPlacement, type RoomDefinition } from "./room";
+import { DOOR_HEIGHT, DOOR_WIDTH, INNER, TILE, pieceLabel, pieceName, standingSpots, type FloorOpening, type PropPlacement, type RoomDefinition } from "./room";
 import { buildRoom, pieceOf, roomTile } from "./stage";
 
 /*
@@ -9,10 +9,12 @@ import { buildRoom, pieceOf, roomTile } from "./stage";
  *
  * - A solid passing too far (`PASS_INTO`) into another piece, a wall, the
  *   floor, or a keep-clear zone (a doorway and the lane the house walks
- *   through it, and the two spots explorers stand on). The small overlaps that
+ *   through it, and the six standing spots). The small overlaps that
  *   hide cracks between neighbours stay under it. A wall is its body: a
  *   piece may stand into the dressing (skirting, wainscot, casings), which
  *   it hides. Light (beams and pools, which write no depth) is not solid.
+ * - A standing spot a figure can't walk to from the doors, one crowding
+ *   another, or one standing in a doorway's lane (see `floorPlan`).
  * - Two faces of different look lying in one plane, facing the same way and
  *   sharing area, which z-fight. A face buried in a solid (a foot on the
  *   floor, a back against a wall, a joint inside a neighbour), or turned
@@ -40,8 +42,15 @@ const SAME_PLANE = 0.001;
 const FACING_DOWN = 0.5;
 /** The least shared area of two faces in one plane that counts, in m². */
 const FIGHT_AREA = 1e-4;
-/** How far round the explorer's spot is kept clear. */
-const PAWN_CLEAR = 0.45;
+/** How far round a standing spot is kept clear. */
+const SPOT_CLEAR = 0.45;
+/** The radius of a figure's base (`figureBase`): a walker needs this much clear floor round it. */
+const BASE_RADIUS = 0.36;
+/** Anything solid between these heights blocks a walker: lower, it is stepped over; higher, walked under. */
+const STEP = 0.05;
+const HEAD = 1.8;
+/** The floor plan's grid, in metres. */
+const CELL = 0.05;
 /** How far into the room the house lines a walker up with a doorway. */
 const DOOR_APPROACH = 0.8;
 
@@ -93,6 +102,8 @@ export interface Finding {
 
 export interface OverlapReport {
   findings: Finding[];
+  /** The largest circle of open floor a walker can reach: room for a big monster. Reported, never failed on. */
+  openFloor: { radius: number; at: [x: number, z: number] };
   /** Findings a piece declares as a contact. */
   accepted: Finding[];
   /** Declared contacts that match no finding: stale, or naming nothing. */
@@ -449,16 +460,14 @@ function planeIndex(faces: Face[]) {
   return { files, near };
 }
 
-const ZONE_LABELS: Record<string, string> = { pawn: "the pawn's spot", "second spot": "the second explorer's spot" };
-
 function zoneOwner(name: string): Owner {
-  return { name, label: ZONE_LABELS[name] ?? `the ${name}`, kind: "zone" };
+  return { name, label: name.startsWith("spot ") ? `standing ${name}` : `the ${name}`, kind: "zone" };
 }
 
 /** The keep-clear zones as solid meshes in room coordinates: each doorway and
- *  passage with the lane the house walks straight through it, and the spots
- *  explorers stand on (`pawn`, and the `second spot` beside it). The front
- *  door leads out of the house, so no one walks it. */
+ *  passage with the lane the house walks straight through it, and the
+ *  standing spots (`spot 1` to `spot 6`). The front door leads out of the
+ *  house, so no one walks it. */
 function zones(def: RoomDefinition): { owner: Owner; mesh: THREE.Mesh }[] {
   const tile = roomTile(def.id);
   const result: { owner: Owner; mesh: THREE.Mesh }[] = [];
@@ -475,13 +484,223 @@ function zones(def: RoomDefinition): { owner: Owner; mesh: THREE.Mesh }[] {
     along[edge](geometry);
     result.push({ owner: zoneOwner(`doorway ${edge}`), mesh: new THREE.Mesh(geometry) });
   }
-  if (def.pawn) {
-    explorerSpots(def.pawn).forEach(([x, z], slot) => {
-      const geometry = new THREE.CylinderGeometry(PAWN_CLEAR, PAWN_CLEAR, 1.8, 8).translate(x, 0.9, z);
-      result.push({ owner: zoneOwner(slot === 0 ? "pawn" : "second spot"), mesh: new THREE.Mesh(geometry) });
-    });
-  }
+  standingSpots(def).forEach(([x, z], slot) => {
+    // From a step up: a figure stands on a rug or a path, not in it.
+    const geometry = new THREE.CylinderGeometry(SPOT_CLEAR, SPOT_CLEAR, HEAD - STEP, 8).translate(x, (HEAD + STEP) / 2, z);
+    result.push({ owner: zoneOwner(`spot ${slot + 1}`), mesh: new THREE.Mesh(geometry) });
+  });
   return result;
+}
+
+/** An edge a figure walks in by, and how wide its opening is. */
+interface Entrance {
+  edge: Edge;
+  half: number;
+}
+
+/** Every doorway and passage but the front door, which leads out of the house. */
+function entrances(def: RoomDefinition): Entrance[] {
+  const tile = roomTile(def.id);
+  return [
+    ...tile.doors.filter((edge) => edge !== tile.frontDoor).map((edge) => ({ edge, half: DOOR_WIDTH / 2 })),
+    ...tile.passages.map((edge) => ({ edge, half: INNER })),
+  ];
+}
+
+/** A point `into` the room from the middle of an edge, in room metres. */
+function edgePoint(edge: Edge, into: number): [x: number, z: number] {
+  const at = TILE / 2 - into;
+  const points: Record<Edge, [number, number]> = { top: [0, -at], bottom: [0, at], left: [-at, 0], right: [at, 0] };
+  return points[edge];
+}
+
+function insideOpening(opening: FloorOpening, x: number, z: number): boolean {
+  if ("x" in opening) return x > opening.x[0] && x < opening.x[1] && z > opening.z[0] && z < opening.z[1];
+  let crossings = 0;
+  const corners = opening.polygon;
+  for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+    const [xi, zi] = corners[i];
+    const [xj, zj] = corners[j];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) crossings++;
+  }
+  return crossings % 2 === 1;
+}
+
+/** The convex hull of points on the floor, anticlockwise (monotone chain). */
+function hull2d(points: [number, number][]): [number, number][] {
+  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (list: [number, number][]) => {
+    const chain: [number, number][] = [];
+    for (const p of list) {
+      while (chain.length >= 2 && cross(chain[chain.length - 2], chain[chain.length - 1], p) <= 0) chain.pop();
+      chain.push(p);
+    }
+    chain.pop();
+    return chain;
+  };
+  return [...half(sorted), ...half([...sorted].reverse())];
+}
+
+function insideHull(hull: [number, number][], x: number, z: number): boolean {
+  if (hull.length < 3) return false;
+  for (let i = 0; i < hull.length; i++) {
+    const [ax, az] = hull[i];
+    const [bx, bz] = hull[(i + 1) % hull.length];
+    if ((bx - ax) * (z - az) - (bz - az) * (x - ax) < 0) return false;
+  }
+  return true;
+}
+
+/** Squared distance to the nearest zero of `f` along a line, in cells (Felzenszwalb and Huttenlocher). */
+function distance1d(f: Float64Array): Float64Array {
+  const n = f.length;
+  const d = new Float64Array(n);
+  const v = new Int32Array(n);
+  const z = new Float64Array(n + 1);
+  let k = 0;
+  z[0] = -Infinity;
+  z[1] = Infinity;
+  const meet = (q: number, r: number) => (f[q] + q * q - (f[r] + r * r)) / (2 * q - 2 * r);
+  for (let q = 1; q < n; q++) {
+    let s = meet(q, v[k]);
+    while (s <= z[k]) {
+      k--;
+      s = meet(q, v[k]);
+    }
+    k++;
+    v[k] = q;
+    z[k] = s;
+    z[k + 1] = Infinity;
+  }
+  k = 0;
+  for (let q = 0; q < n; q++) {
+    while (z[k + 1] < q) k++;
+    d[q] = (q - v[k]) * (q - v[k]) + f[v[k]];
+  }
+  return d;
+}
+
+export interface FloorPlan {
+  /** Cells per side; cell `j * size + i` is column i (along x) of row j (along z). */
+  size: number;
+  blocked: Uint8Array;
+  /** How far each cell's centre is from anything blocked, in metres. */
+  clearance: Float64Array;
+  /** The cells a figure's base reaches, walking in from the doorways. */
+  reached: Uint8Array;
+  cellAt: (x: number, z: number) => number;
+  centre: (cell: number) => [x: number, z: number];
+}
+
+/**
+ * The floor as a figure walks it, on a grid of `CELL`: blocked by the walls
+ * (open through each doorway and passage), by floor openings, and by any
+ * solid a figure would walk into (between `STEP` and `HEAD` high). A base
+ * fits where a cell is at least `BASE_RADIUS` clear of everything blocked,
+ * and the walk floods in from every doorway.
+ */
+export function floorPlan(def: RoomDefinition, solids: Part[]): FloorPlan {
+  const size = Math.round(TILE / CELL);
+  const centre = (cell: number): [number, number] => [-TILE / 2 + ((cell % size) + 0.5) * CELL, -TILE / 2 + (Math.floor(cell / size) + 0.5) * CELL];
+  const index = (value: number) => Math.min(size - 1, Math.max(0, Math.floor((value + TILE / 2) / CELL)));
+  const cellAt = (x: number, z: number) => index(z) * size + index(x);
+  const ways = entrances(def);
+  const throughWall = (x: number, z: number) => {
+    if (Math.abs(x) > INNER && Math.abs(z) > INNER) return false;
+    if (Math.abs(z) > INNER) return ways.some((way) => way.edge === (z < 0 ? "top" : "bottom") && Math.abs(x) < way.half);
+    return ways.some((way) => way.edge === (x < 0 ? "left" : "right") && Math.abs(z) < way.half);
+  };
+  const blocked = new Uint8Array(size * size);
+  for (let cell = 0; cell < blocked.length; cell++) {
+    const [x, z] = centre(cell);
+    const inWall = Math.abs(x) > INNER || Math.abs(z) > INNER;
+    if ((inWall && !throughWall(x, z)) || (def.floorOpenings ?? []).some((opening) => insideOpening(opening, x, z))) blocked[cell] = 1;
+  }
+  for (const part of solids) {
+    if (part.box.max.y <= STEP || part.box.min.y >= HEAD) continue;
+    const footprint = hull2d(part.points.map((point): [number, number] => [point.x, point.z]));
+    for (let j = index(part.box.min.z); j <= index(part.box.max.z); j++) {
+      for (let i = index(part.box.min.x); i <= index(part.box.max.x); i++) {
+        const cell = j * size + i;
+        if (!blocked[cell] && insideHull(footprint, ...centre(cell))) blocked[cell] = 1;
+      }
+    }
+  }
+
+  const far = size * size * 4;
+  const columns = new Float64Array(size * size);
+  const line = new Float64Array(size);
+  for (let i = 0; i < size; i++) {
+    for (let j = 0; j < size; j++) line[j] = blocked[j * size + i] ? 0 : far;
+    const d = distance1d(line);
+    for (let j = 0; j < size; j++) columns[j * size + i] = d[j];
+  }
+  const clearance = new Float64Array(size * size);
+  for (let j = 0; j < size; j++) {
+    const d = distance1d(columns.slice(j * size, (j + 1) * size));
+    for (let i = 0; i < size; i++) clearance[j * size + i] = Math.max(0, Math.sqrt(d[i]) * CELL - CELL / 2);
+  }
+
+  const reached = new Uint8Array(size * size);
+  const queue: number[] = [];
+  for (const { edge } of ways) {
+    for (let into = CELL / 2; into < DOOR_APPROACH; into += CELL) {
+      const cell = cellAt(...edgePoint(edge, into));
+      if (clearance[cell] < BASE_RADIUS) continue;
+      reached[cell] = 1;
+      queue.push(cell);
+      break;
+    }
+  }
+  for (let cell = queue.pop(); cell !== undefined; cell = queue.pop()) {
+    const i = cell % size;
+    const j = Math.floor(cell / size);
+    for (const [ni, nj] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) {
+      if (ni < 0 || nj < 0 || ni >= size || nj >= size) continue;
+      const next = nj * size + ni;
+      if (reached[next] || clearance[next] < BASE_RADIUS) continue;
+      reached[next] = 1;
+      queue.push(next);
+    }
+  }
+  return { size, blocked, clearance, reached, cellAt, centre };
+}
+
+/** What is wrong with the standing spots: one out of reach of the doors, two crowding each other, or one in a doorway's lane. */
+function spotFindings(def: RoomDefinition, plan: FloorPlan): Finding[] {
+  const spots = standingSpots(def);
+  const name = (slot: number) => `standing spot ${slot + 1} at (${spots[slot][0].toFixed(2)}, ${spots[slot][1].toFixed(2)})`;
+  const findings: Finding[] = [];
+  const add = (key: string) => findings.push({ key, text: key });
+  spots.forEach(([x, z], slot) => {
+    if (!plan.reached[plan.cellAt(x, z)]) add(`${name(slot)} can't be reached from the doors`);
+    spots.forEach(([ox, oz], other) => {
+      if (other > slot && Math.hypot(ox - x, oz - z) < 2 * BASE_RADIUS) add(`${name(slot)} crowds ${name(other)}`);
+    });
+    for (const { edge } of entrances(def)) {
+      // The spot in the doorway's own frame: `along` across it, `into` the room from the tile's edge.
+      const along = edge === "top" || edge === "bottom" ? x : z;
+      const into = TILE / 2 - (edge === "top" ? -z : edge === "bottom" ? z : edge === "left" ? -x : x);
+      const off = Math.hypot(Math.max(0, Math.abs(along) - DOOR_WIDTH / 2), Math.max(0, into - DOOR_APPROACH));
+      if (off < BASE_RADIUS) add(`${name(slot)} stands in the doorway ${edge}'s lane`);
+    }
+  });
+  return findings;
+}
+
+/** The largest circle of the room's own floor a figure can walk to: its
+ *  centre, and how far it is from anything blocked or the edge of the floor
+ *  (an open passage leads on into the next room, which isn't this room's). */
+function openFloor(plan: FloorPlan): OverlapReport["openFloor"] {
+  let best: OverlapReport["openFloor"] = { radius: 0, at: [0, 0] };
+  for (let cell = 0; cell < plan.clearance.length; cell++) {
+    if (!plan.reached[cell]) continue;
+    const [x, z] = plan.centre(cell);
+    const radius = Math.min(plan.clearance[cell], INNER - Math.abs(x), INNER - Math.abs(z));
+    if (radius > best.radius) best = { radius, at: [x, z] };
+  }
+  return best;
 }
 
 function ownerOf(object: THREE.Object3D): Owner {
@@ -583,6 +802,8 @@ export function checkRoom(def: RoomDefinition, at = 2): OverlapReport {
   const unusedContacts = def.props.flatMap((prop) =>
     (prop.contacts ?? []).map((contact) => `${pieceLabel(prop)} with ${contact.with}`).filter((contact) => !used.has(contact)),
   );
+  const plan = floorPlan(def, solids.filter((part) => part.owner.kind === "prop" || (part.body && part.owner.name !== "floor")));
+  findings.push(...spotFindings(def, plan));
   room.dispose();
-  return { findings, accepted, unusedContacts };
+  return { findings, accepted, unusedContacts, openFloor: openFloor(plan) };
 }

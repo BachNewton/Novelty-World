@@ -93,7 +93,7 @@ function shroudedMirror(): THREE.Group {
     const x = -w / 2 + 0.08 + i * ((w - 0.16) / (folds.length - 1));
     cloth.block([0.09, h - 0.1 + drop, 0.035], i % 2 === 0 ? "sootLight" : "void", [x, 0.06 - drop, 0.085]);
   });
-  cloth.block([w + 0.12, 0.08, 0.06], "sootLight", [0, h - 0.07, 0.07]);
+  cloth.block([w + 0.14, 0.08, 0.06], "sootLight", [0, h - 0.07, 0.07]);
   return group(
     box([w + 0.12, h + 0.12, 0.05], frame, [0, -0.06, 0.025]),
     box([w, h, 0.02], flat("moonDark"), [0, 0, 0.05]),
@@ -188,9 +188,10 @@ export const FOYER: RoomDefinition = {
     { build: () => box([0.09, 0.01, 0.06], flat("boneLight")), at: [-1.43, -2.47], y: 0.835, turn: -15 },
     { build: shroudedMirror, ...onWall("top", -1.65, { y: 1.25 }) },
     { build: coatStand, at: [2.15, 2.25], turn: -30 },
-    { build: deadPalm, at: [-2.25, 2.2] },
+    { build: deadPalm, at: [-2.05, 2.0] },
     { build: () => table({ length: 0.8, width: 0.4, height: 0.5 }), ...onWall("top", 1.7, { out: 0.25 }) },
   ],
   focus: [0, 1.4, 0],
   pawn: [-1.0, 0.8],
+  spots: [[-0.3, 0.3], [-1.05, -0.05], [-0.35, -0.55], [0.45, -0.15], [0.5, 0.75]],
 };

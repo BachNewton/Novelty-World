@@ -3,6 +3,7 @@ import { animated } from "../animate";
 import { candelabra, candle, cobweb, pictureFrame, pitShell, table } from "../kit";
 import { INNER, TILE, onWall, type RoomDefinition } from "../room";
 import { batch, group } from "../shapes";
+import { woodPlanks } from "../textures";
 import { newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
 
 /** The stairwell along the top wall, where the grand staircase comes up from
@@ -57,7 +58,8 @@ function balustrade(): THREE.Group {
 function rockingChair(): THREE.Group {
   const b = batch();
   for (const x of [-0.24, 0.24]) {
-    for (const [z, y, tilt] of [[-0.3, 0.06, -0.35], [0, 0.02, 0], [0.3, 0.06, 0.35]]) {
+    // Each rocker curves up at both ends.
+    for (const [z, y, tilt] of [[-0.3, 0.075, 0.35], [0, 0.02, 0], [0.3, 0.075, -0.35]]) {
       b.add([0.04, 0.04, 0.32], "woodDark", new THREE.Matrix4().makeRotationX(tilt).setPosition(x, y, z));
     }
     for (const z of [-0.18, 0.18]) b.block([0.04, 0.4, 0.04], "woodMid", [x, 0.04, z]);
@@ -74,20 +76,26 @@ function rockingChair(): THREE.Group {
   const chair = group(b.mesh());
   return group(
     animated(chair, (seconds) => {
-      chair.rotation.x = 0.09 * Math.sin(seconds * 1.1);
+      // It rolls on its rockers: a turn about the centre of their curve, which lies this far above the floor.
+      const curve = 0.95;
+      const turn = 0.09 * Math.sin(seconds * 1.1);
+      chair.rotation.x = turn;
+      chair.position.set(0, curve * (1 - Math.cos(turn)), -curve * Math.sin(turn));
     }),
   );
 }
 
 /** The Upper Landing: the head of the grand staircase climbing out of a
- *  balustraded stairwell, its newel lamp lit, with a door on every side. */
+ *  balustraded stairwell, its newel lamp lit, with a door on every side. It
+ *  carries the hall's paper and panels up the stair, on the upper floor's boards. */
 export const UPPER_LANDING: RoomDefinition = {
   id: "upper-landing",
   ...SUITE,
+  floor: () => woodPlanks({ seed: "upper-landing" }),
   floorOpenings: [WELL],
   props: [
-    { build: stairHead, at: [0, 0] },
-    { build: balustrade, at: [0, 0] },
+    { build: stairHead, at: [0, 0], contacts: [{ with: "floor", because: "the landing's nosing is set into the edge of the floor" }] },
+    { build: balustrade, at: [0, 0], contacts: [{ with: "newel", because: "its rail is jointed into the newel post" }] },
     { build: newel, at: [HEAD + 0.06, EDGE] },
     { build: () => runner({ from: HEAD, to: 2.5, z: MID, finished: ["to"] }), at: [0, 0] },
     { build: rockingChair, at: [1.3, 1.3], turn: -135 },
@@ -101,6 +109,7 @@ export const UPPER_LANDING: RoomDefinition = {
   ],
   focus: [-0.8, 0.6, -1.8],
   pawn: [0.8, -0.9],
+  spots: [[0.3, -0.2], [-0.05, -0.95], [-0.55, -0.25], [-0.15, 0.55], [0.75, 0.6]],
   // Down the head of the flight, over the middle of each tread, to the last step showing in the well.
   stairs: {
     "grand-staircase": [

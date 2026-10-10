@@ -7,6 +7,7 @@ import { viewExplorer, type GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import type { PlayChoices } from "../../play/choices";
+import { costText, warningLines, type RoutePreview } from "../../play/preview";
 import { happenings, whyItems, type Happening, type WhyItem } from "../../play/status";
 import type { Action } from "../../types";
 import { seatLabel } from "../describe";
@@ -33,6 +34,8 @@ export interface StatusBoxProps {
   ghost: GhostPlacer | null;
   input: InputKind;
   act: (action: Action) => void;
+  /** The route of the place in focus, previewed before it is chosen. */
+  preview: RoutePreview | null;
 }
 
 /** The rule texts load with the box; until they arrive it words what it can without them. */
@@ -92,7 +95,7 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
       )}
       <div data-now aria-label="What you can do now" className="flex shrink-0 flex-col gap-2 border-t border-(--bt-line) p-3 first:border-t-0">
         {problem !== null && <ErrorBox message={problem} />}
-        <Now {...props} boxRef={boxRef} />
+        <Now {...props} boxRef={boxRef} notes={notes} />
       </div>
     </section>
   );
@@ -154,7 +157,26 @@ function SeatName({ view, holder }: { view: GameView; holder: number }) {
   );
 }
 
-function Now({ view, holder, choices, ghost, input, act }: StatusBoxProps) {
+/** Where the place in focus would take the player: its cost, and every rule it would set off on the way. */
+function RouteLine({ preview, label, notes }: { preview: RoutePreview; label: string; notes: RuleNotes | null }) {
+  const warnings = warningLines(ENGINE, notes, preview);
+  return (
+    <div aria-label="Route preview" className="flex flex-col gap-0.5 rounded border border-(--bt-line) bg-(--bt-bg) px-2 py-1.5 text-sm">
+      <p>
+        {label}: <span className="font-semibold">{costText(preview)}</span>
+      </p>
+      {warnings.length > 0 && (
+        <ul aria-label="On the way" className="flex flex-col gap-0.5 text-xs text-(--bt-muted)">
+          {warnings.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Now({ view, holder, choices, ghost, input, act, preview, notes }: StatusBoxProps & { notes: RuleNotes | null }) {
   const { targets, panel, end } = choices;
   const pending = view.pending;
   if (pending?.type !== "decision" || pending.detail === null || pending.detail.answer !== null) {
@@ -181,6 +203,7 @@ function Now({ view, holder, choices, ghost, input, act }: StatusBoxProps) {
         <SeatName view={view} holder={holder} />: {prompt}
       </p>
       {isTurn && targets.length > 0 && <p className="text-xs text-(--bt-muted)">{PLACE_HINTS[input]}</p>}
+      {isTurn && preview && <RouteLine preview={preview} label={targets.find((target) => target.id === preview.target)?.label ?? ""} notes={notes} />}
       {input === "pad" && (panel.length > 0 || ghost) && (
         <p className="text-xs text-(--bt-muted)">
           <Glyph>View</Glyph> moves into this box: the d-pad goes between its buttons, <Glyph>A</Glyph> presses one, <Glyph>B</Glyph> goes back to the house.
