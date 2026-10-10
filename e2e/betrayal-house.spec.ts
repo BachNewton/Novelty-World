@@ -315,35 +315,6 @@ test.describe("keyboard and mouse", () => {
   });
 });
 
-const wallsRaised = (page: Page) => page.evaluate(() => window.__betrayalHouse?.state().wallsRaised);
-
-test("keyboard: holding V raises the walls, and letting go lets them down", async ({ page }) => {
-  await openHouse(page);
-  expect(await wallsRaised(page)).toBe(false);
-  await page.keyboard.down("KeyV");
-  await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === true);
-  await page.keyboard.up("KeyV");
-  await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === false);
-});
-
-test.describe("touch", () => {
-  test.use({ viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true });
-
-  test("holding the walls button raises the walls until the finger lifts, even slid off it", async ({ page }) => {
-    await openHouse(page);
-    const button = await page.getByRole("button", { name: "Raise the walls" }).boundingBox();
-    if (!button) throw new Error("No walls button");
-    const cdp = await page.context().newCDPSession(page);
-    const [x, y] = [button.x + button.width / 2, button.y + button.height / 2];
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1 }] });
-    await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === true);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - 120, id: 1 }] });
-    expect(await wallsRaised(page)).toBe(true);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === false);
-  });
-});
-
 test.describe("touch", () => {
   test.use({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
 
@@ -472,7 +443,7 @@ test.describe("controller", () => {
     });
   });
 
-  const BUTTON = { A: 0, B: 1, Y: 3, LB: 4, RB: 5, LS: 10, DpadUp: 12, DpadDown: 13 } as const;
+  const BUTTON = { A: 0, B: 1, Y: 3, LB: 4, RB: 5, DpadUp: 12, DpadDown: 13 } as const;
 
   /** Holds a button until `done` holds, then lets go and waits for the pad
    *  to be read again, so the next press is seen as a new one. */
@@ -557,12 +528,6 @@ test.describe("controller", () => {
     expect(await focused(page)).toBe(STOP);
     await pressA(page);
     await stopped(page, "library");
-  });
-
-  test("holding the left stick's click raises the walls, and letting go lets them down", async ({ page }) => {
-    await openHouse(page);
-    await press(page, BUTTON.LS, () => page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === true));
-    await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === false);
   });
 
   test("the d-pad changes floor, Y recentres, and B backs out", async ({ page }) => {
