@@ -1,4 +1,5 @@
-import { test, expect, devices } from "@playwright/test";
+import { devices } from "@playwright/test";
+import { test, expect } from "./test";
 import type { Page } from "@playwright/test";
 
 /**

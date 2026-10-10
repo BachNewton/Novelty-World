@@ -97,7 +97,8 @@ function range(): THREE.Group {
   const iron = batch();
   iron.block([width, 0.08, depth + 0.02], "void", [0, 0, back + (depth + 0.02) / 2]);
   iron.block([width, hob - 0.14, depth - 0.04], "soot", [0, 0.08, back + (depth - 0.04) / 2]);
-  iron.block([width + 0.08, 0.06, depth + 0.04], "sootLight", [0, hob - 0.06, back + (depth + 0.04) / 2]);
+  // The hob plate's back stands a little in front of the piers' backs, so where it runs into them their faces never share a plane.
+  iron.block([width + 0.08, 0.06, depth + 0.035], "sootLight", [0, hob - 0.06, back + 0.005 + (depth + 0.035) / 2]);
   const face = front - 0.04;
   for (const side of [-1, 1]) {
     const x = side * 0.48;
@@ -109,16 +110,19 @@ function range(): THREE.Group {
   iron.block([0.46, 0.52, 0.03], "sootLight", [0, 0.18, face + 0.01]);
   iron.block([0.36, 0.34, 0.02], "void", [0, 0.27, face + 0.025]);
   iron.block([0.3, 0.06, 0.12], "stone", [0, 0.27, face - 0.02]);
-  for (let i = 0; i < 5; i++) iron.block([0.025, 0.34, 0.025], "sootLight", [-0.14 + i * 0.07, 0.27, face + 0.045]);
+  // The bars stop a little under the dark of the oven behind them, so their tops never share its plane.
+  for (let i = 0; i < 5; i++) iron.block([0.025, 0.335, 0.025], "sootLight", [-0.14 + i * 0.07, 0.27, face + 0.045]);
   iron.block([0.36, 0.06, 0.03], "ash", [0, 0.2, face + 0.035]);
   // The brass rail along the front, with a cloth hung over it.
   iron.block([width + 0.06, 0.03, 0.03], "brass", [0, hob - 0.16, front + 0.08]);
-  for (const side of [-1, 1]) iron.block([0.03, 0.03, 0.11], "brass", [side * (width / 2 + 0.01), hob - 0.16, front + 0.03]);
+  // The brackets are a hair slimmer than the rail they carry, so their tops never share its plane.
+  for (const side of [-1, 1]) iron.block([0.03, 0.026, 0.11], "brass", [side * (width / 2 + 0.01), hob - 0.158, front + 0.03]);
   iron.block([0.3, 0.3, 0.02], "bone", [0.38, hob - 0.45, front + 0.106]);
   iron.block([0.3, 0.02, 0.07], "bone", [0.38, hob - 0.145, front + 0.08]);
-  // A low back, so the pots show from behind when its wall is cut away.
-  iron.block([width + 0.02, 0.2, 0.05], "soot", [0, hob, back + 0.025]);
-  iron.block([width + 0.02, 0.03, 0.08], "sootLight", [0, hob + 0.2, back + 0.04]);
+  // A low back, so the pots show from behind when its wall is cut away; it stands a little in front of the piers' backs, so
+  // where it runs into them their back faces never share a plane.
+  iron.block([width + 0.02, 0.2, 0.05], "soot", [0, hob, back + 0.03]);
+  iron.block([width + 0.02, 0.03, 0.08], "sootLight", [0, hob + 0.2, back + 0.045]);
 
   const brick = textured(BARE_BRICK());
   const stone = textured(flagstones({ stonePx: 6, size: 32, seed: "kitchen-cap", ramp: RAMPS.stone }));
@@ -170,7 +174,8 @@ function chimneyBreast(): THREE.Group {
   // The range's high back and plate shelf, hung here so they hide with the wall.
   const iron = batch();
   const bottom = RANGE.hob + 0.23 - CAP_TOP;
-  iron.block([PIER.x * 2 - PIER.width - 0.02, arch - bottom + 0.01, 0.04], "soot", [0, bottom, back + 0.02]);
+  // The back runs into the piers, past the plate shelf's ends, so their ends never share a plane.
+  iron.block([PIER.x * 2 - PIER.width + 0.02, arch - bottom + 0.01, 0.04], "soot", [0, bottom, back + 0.02]);
   iron.block([RANGE.width - 0.2, 0.04, 0.03], "brass", [0, bottom + 0.12, back + 0.055]);
   iron.block([PIER.x * 2 - PIER.width - 0.02, 0.04, 0.22], "sootLight", [0, bottom + 0.4, back + 0.11]);
   for (const x of [-0.45, -0.2, 0.3]) {
@@ -262,7 +267,8 @@ function knives(): THREE.Group {
     const handle = 0.12;
     b.block([0.035, 0.022, handle], "woodDark", [x, 0, 0]);
     b.block([0.03, 0.03, 0.012], "brass", [x, 0, -handle / 2 - 0.004]);
-    b.block([0.04 - i * 0.003, 0.015, blade], "stoneLight", [x, 0, -handle / 2 - blade / 2 - 0.008]);
+    // The blade starts at the bolster's face rather than inside it: some blades are within a millimetre of its width.
+    b.block([0.04 - i * 0.003, 0.015, blade], "stoneLight", [x, 0, -handle / 2 - blade / 2 - 0.01]);
   });
   return group(b.mesh());
 }
@@ -522,7 +528,8 @@ function mealChest(): THREE.Group {
 function crockRack(): THREE.Group {
   const b = batch();
   for (const x of [-0.58, 0.58]) b.block([0.04, 0.8, 0.36], "wood", [x, 0, 0.22]);
-  for (const y of [0.12, 0.76]) b.block([1.18, 0.03, 0.36], "woodMid", [0, y, 0.22]);
+  // The shelves are a little shallower than the sides they run into, so their faces never share the sides' planes.
+  for (const y of [0.12, 0.76]) b.block([1.18, 0.03, 0.34], "woodMid", [0, y, 0.22]);
   const result = group(b.mesh());
   const rng = createRng("kitchen-crocks");
   for (const [y, xs] of [[0.15, [-0.4, -0.1, 0.25]], [0.79, [-0.38, -0.12, 0.12, 0.38]]] as const) {
@@ -624,4 +631,11 @@ export const KITCHEN: RoomDefinition = {
   ],
   focus: [-1.6, 0.9, 0],
   pawn: [1.45, 1.55],
+  spots: [[0.45, 0.65], [-1.5, 0.6], [1.75, -0.6], [-0.55, 1.55], [1.0, -1.75]],
+  overflow: [[-1.6, -1.75], [1.55, 0.45], [0.45, 1.55], [-0.8, -1.8], [-0.35, 0.65], [-1.3, 1.8]],
+  // Round the end of the table, from the top doorway down past the range to the right one and the floor below.
+  lanes: [
+    [[0, -2.2], [0, -1.8], [1.4, -1.8], [1.5, -0.9], [1.95, -0.35], [1.95, 0], [1.95, 0.3], [1.4, 1.0], [-0.8, 1.0]],
+    [[2.2, 0], [1.95, 0]],
+  ],
 };

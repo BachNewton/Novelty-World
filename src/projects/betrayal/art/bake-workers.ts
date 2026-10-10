@@ -1,83 +1,66 @@
-import type { Baker, BakeScene, Gathered, Samples } from "./bake";
-import type { BakeJob } from "./bake.worker";
+import type { Gathered, RoomLight } from "./bake";
+import type { FinishWork } from "./bake-finish";
+import type { Lane } from "./bake-schedule";
+import type { BakeMessage } from "./bake.worker";
 
-/** Samples per chunk at least: below this, posting costs more than baking. */
-const LEAST_CHUNK = 4096;
-
-interface Pending {
-  scene: BakeScene;
-  sceneId: number;
-  samples: Samples;
-  resolve: (gathered: Gathered) => void;
-  reject: (error: Error) => void;
+/** The arrays a finish can hand over rather than copy: the bounce's light, used once. The direct
+ *  light is copied, as the room keeps it to add its bounce to; the room's layout always stays. */
+function finishTransfers(work: FinishWork): Transferable[] {
+  if (work.kind === "direct") return [];
+  return [work.direct, work.coarse].flatMap(({ light, weights }) => [light.buffer, weights.buffer]);
 }
 
 /**
- * Bakes on a pool of workers, so the page stays live while the house is lit
- * and a phone's cores share the work. Each bake is cut into chunks that go to
- * whichever worker is free; a worker keeps the last scene it was sent, with
- * its BVH, so a floor's casters cross over once per worker.
+ * Workers in the pool, from the logical cores the browser reports. Throughput
+ * stops rising at about three quarters of them (the physical cores and some
+ * of their second threads), while every worker past that only takes time
+ * from the page's own thread, the compositor and the GPU process: on a
+ * 16-thread laptop, 11 workers baked the house as fast as 15 did, at 41
+ * frames a second against 28. So it is three quarters, less one for the page.
+ * Each worker holds its floor's scene and BVH, a few MB, so memory sets no
+ * tighter bound.
  */
-export function workerBaker(): Baker & { dispose: () => void } {
-  const size = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 2) - 1));
-  const pool = Array.from({ length: size }, () => ({
-    worker: new Worker(new URL("./bake.worker.ts", import.meta.url), { type: "module" }),
-    sceneId: -1,
-    job: null as Pending | null,
-  }));
-  const queue: Pending[] = [];
+function poolSize(): number {
+  return Math.max(1, Math.floor(((navigator.hardwareConcurrency || 2) * 3) / 4) - 1);
+}
 
-  const pump = () => {
-    for (const slot of pool) {
-      if (slot.job) continue;
-      const job = queue.shift();
-      if (!job) return;
-      slot.job = job;
-      const message: BakeJob = { sceneId: job.sceneId, scene: slot.sceneId === job.sceneId ? null : job.scene, ...job.samples };
-      slot.sceneId = job.sceneId;
-      slot.worker.postMessage(message, [job.samples.position.buffer, job.samples.normal.buffer, job.samples.within.buffer]);
-    }
+/** One worker as a lane: it keeps the last scene it was sent, with its BVH,
+ *  so a floor's casters cross over once per worker. */
+function workerLane(): Lane {
+  const worker = new Worker(new URL("./bake.worker.ts", import.meta.url), { type: "module" });
+  let sceneId = -1;
+  let job: { resolve: (result: Gathered | RoomLight) => void; reject: (error: Error) => void } | null = null;
+  worker.onmessage = ({ data }: MessageEvent<Gathered | RoomLight>) => {
+    const current = job;
+    job = null;
+    current?.resolve(data);
   };
-  for (const slot of pool) {
-    slot.worker.onmessage = ({ data }: MessageEvent<Gathered>) => {
-      const job = slot.job;
-      slot.job = null;
-      job?.resolve(data);
-      pump();
-    };
-    slot.worker.onerror = (event) => {
-      const job = slot.job;
-      slot.job = null;
-      job?.reject(new Error(`A bake worker failed: ${event.message}`));
-    };
-  }
-
-  const bake: Baker = async (scene, sceneId, samples) => {
-    const count = samples.position.length / 3;
-    const chunk = Math.max(LEAST_CHUNK, Math.ceil(count / (size * 2)));
-    const parts: Promise<Gathered>[] = [];
-    for (let start = 0; start < count; start += chunk) {
-      const end = Math.min(count, start + chunk);
-      const part = { position: samples.position.slice(start * 3, end * 3), normal: samples.normal.slice(start * 3, end * 3), within: samples.within.slice(start * 6, end * 6) };
-      parts.push(new Promise((resolve, reject) => queue.push({ scene, sceneId, samples: part, resolve, reject })));
-    }
-    pump();
-    const done = await Promise.all(parts);
-    const light = new Float32Array(count * 3);
-    const weights = new Float32Array(done.reduce((sum, part) => sum + part.weights.length, 0));
-    let at = 0;
-    let weightAt = 0;
-    for (const part of done) {
-      light.set(part.light, at);
-      weights.set(part.weights, weightAt);
-      at += part.light.length;
-      weightAt += part.weights.length;
-    }
-    return { light, weights };
+  worker.onerror = (event) => {
+    const current = job;
+    job = null;
+    current?.reject(new Error(`A bake worker failed: ${event.message}`));
   };
-  return Object.assign(bake, {
-    dispose: () => {
-      for (const { worker } of pool) worker.terminate();
+  const send = (message: BakeMessage, transfer: Transferable[]) => {
+    if (job) throw new Error("A bake lane was sent work while busy");
+    return new Promise<Gathered | RoomLight>((resolve, reject) => {
+      job = { resolve, reject };
+      worker.postMessage(message, transfer);
+    });
+  };
+  return {
+    run: async ({ pass, scene, sceneId: id, samples }) => {
+      const message: BakeMessage = { type: "gather", pass, sceneId: id, scene: sceneId === id ? null : scene, samples };
+      sceneId = id;
+      return (await send(message, [samples.position.buffer, samples.normal.buffer, samples.within.buffer])) as Gathered;
     },
-  });
+    finish: async ({ work }) => (await send({ type: "finish", work }, finishTransfers(work))) as RoomLight,
+    dispose: () => {
+      worker.terminate();
+    },
+  };
+}
+
+/** The pool's lanes, so the page stays live while the house is lit and every core shares the work. */
+export function workerLanes(count = poolSize()): Lane[] {
+  return Array.from({ length: count }, workerLane);
 }

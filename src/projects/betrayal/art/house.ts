@@ -5,25 +5,30 @@ import type { GhostDoor, GhostDoorway } from "../play/ghost";
 import type { Edge, FloorId, PlacedTile } from "../types";
 import { animationOf, type Animation } from "./animate";
 import { ADULT_WALK, isGrounded, walkingOf, type Stride, type Walking } from "./explorers/figure";
-import { closedDoors, diffLayout, DIRECTION, printedEdge, tileTurn, wallIsCut, type LayoutChange } from "./house-layout";
+import { closedDoors, diffLayout, DIRECTION, falseWindows, printedEdge, tileTurn, wallIsCut, type LayoutChange } from "./house-layout";
 import { inHouse, walkLength, walkPose, type HousePoint, type Walk } from "./house-walk";
-import { inlineBaker, type Baker } from "./bake";
+import { inlineScheduler, type BakeScheduler } from "./bake-schedule";
 import { freezeRoom, type FrozenRoom } from "./freeze";
 import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog } from "./lighting";
 import { createLitFloor, ghostRoom, patchProbe, type GhostRoom, type LitFloor, type ProbeUniform, type Rebake } from "./lit-floor";
 import { paletteHex, type PaletteKey } from "./palette";
-import { DOOR_WIDTH, explorerSpot, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
+import { batchParts, type PartBatch } from "./part-batch";
+import { DOOR_WIDTH, MARK_PLANES, roomSpot, standingSpots, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { box, glow, group, lightMaterial } from "./shapes";
 import { buildRoom, disposeTree, roomTile, type ExplorerBuilder } from "./stage";
-import { earth, flagstones, plaster, textureReady, woodPlanks } from "./textures";
+import { earth, flagstones, plaster, texturesUnder, woodPlanks } from "./textures";
 /** How far apart the floors are stacked when the whole house shows at once:
  *  far enough apart that one floor never hides the one below. */
 export const STACK_GAP = 7;
 /** The explorer marker: a ring of the player's colour round the base. */
-const RING = { inner: 0.4, outer: 0.55, height: 0.03 };
+export const COLOUR_RING = { inner: 0.4, outer: 0.55, height: MARK_PLANES.colourRing };
+/** Drawn after the room's solids, which all draw at the default order, so
+ *  the floor is in the depth buffer before a ring that writes none. */
+const COLOUR_RING_ORDER = 1;
 /** A room offered as a choice glows on its floor: a fill, and a border just inside its walls. */
-const MARK = { inset: 0.35, border: 0.12, height: 0.04 };
+/** `fill` and `edge` are the heights of the glow's flat fill and border. */
+const MARK = { inset: 0.35, border: 0.12, height: 0.04, fill: MARK_PLANES.fill, edge: MARK_PLANES.edge };
 /** A stair offered as a choice glows along its run: a band this wide, edged with rails. */
 const STAIR_MARK = { width: 1.1, rail: 0.1, lift: 0.06 };
 /** A doorway offered as a choice glows across it: a pad this deep, half each side of the wall. */
@@ -40,7 +45,7 @@ export const GHOST_DOORWAY_COLOUR: Record<GhostDoorway, PaletteKey> = { joined: 
  *  its opacity falls to `low` of itself and back every `period` seconds. */
 const GHOST_LOOK = { opacity: 0.5, glow: 1.1, low: 0.6, period: 2.4 };
 /** A figure offered as a choice glows in a ring round its colour ring. */
-const FIGURE_MARK = { inner: 0.68, outer: 0.82, height: 0.035 };
+const FIGURE_MARK = { inner: 0.68, outer: 0.82, height: MARK_PLANES.ring };
 /** The route preview: a dot every `every` metres, kept clear of where the walk starts and ends, at most `most` of them. */
 const ROUTE = { every: 0.5, size: 0.14, clear: 0.6, most: 160 };
 
@@ -98,8 +103,9 @@ export interface House {
   /** The corners of every room showing: one floor, or all of them. */
   corners: () => THREE.Vector3[];
   /** Cuts the walls for a camera looking from this horizontal direction,
-   *  with `focus` the room a close view is on (null for the whole floor). */
-  setCutaway: (cameraDirection: THREE.Vector2, focus: string | null) => void;
+   *  with `focus` the room a close view is on (null for the whole floor);
+   *  `raised` stands every wall full, for the player's look at them. */
+  setCutaway: (cameraDirection: THREE.Vector2, focus: string | null, raised?: boolean) => void;
   update: (seconds: number) => void;
   /** Each floor's lighting, by floor. */
   lighting: Map<FloorId, LitFloor>;
@@ -110,9 +116,10 @@ export interface House {
   rebake: (room: string) => Promise<Rebake>;
   /** Where in the scene a point in the house is, with its floor stacked as it shows. */
   scenePoint: (point: HousePoint) => THREE.Vector3;
-  /** Where an explorer stands in a room: its pawn spot, or for a second
-   *  explorer there (`slot` 1), beside it, towards the middle of the room. */
-  spot: (room: string, slot: number) => HousePoint;
+  /** Where an explorer stands in a room: the room's standing spots in the
+   *  order it fills them, the first its pawn spot; in a barrier room, those
+   *  on `side`, the explorer's own side of it. */
+  spot: (room: string, slot: number, side?: Edge | null) => HousePoint;
   /** The way a figure faces standing in a room it has just been put in: as the room is turned. */
   roomHeading: (room: string) => number;
   addFigure: (figure: HouseFigure, at: HousePoint, heading: number) => void;
@@ -142,6 +149,15 @@ export interface House {
   dispose: () => void;
 }
 
+/** Where figures stand in a room with nothing in it: a square of spots round
+ *  the middle and two corners, then the middle and the floor between, all
+ *  clear of every doorway's lane, whichever doors the tile has. */
+const SHELL_PLACES: Pick<RoomDefinition, "pawn" | "spots" | "overflow"> = {
+  pawn: [0.8, 0.8],
+  spots: [[-0.8, 0.8], [0.8, -0.8], [-0.8, -0.8], [2.0, 2.0], [-2.0, -2.0]],
+  overflow: [[0.0, 0.0], [-2.0, 2.0], [2.0, -2.0], [0.0, 1.7], [0.0, -1.7], [1.7, 0.0]],
+};
+
 /** A plain room for a tile with no art yet: bare boards and plaster (or, out
  *  of doors, bare earth inside a fieldstone wall), its doors and windows from
  *  the tile data, and nothing in it. */
@@ -153,7 +169,7 @@ export function shellRoom(id: string): RoomDefinition {
       wall: () => flagstones({ stonePx: 6, seed: id }),
       trim: "ash",
       props: [],
-      pawn: [0.8, 0.8],
+      ...SHELL_PLACES,
     };
   }
   return {
@@ -162,7 +178,7 @@ export function shellRoom(id: string): RoomDefinition {
     wall: () => plaster({ seed: id }),
     trim: "woodDark",
     props: [],
-    pawn: [0.8, 0.8],
+    ...SHELL_PLACES,
   };
 }
 
@@ -177,25 +193,33 @@ export function definition(id: string): RoomDefinition {
   return BENCH_ROOMS.find((room) => room.id === id) ?? shellRoom(id);
 }
 
+/**
+ * The ring of a player's colour round their figure's base. Figures' rings
+ * overlap wherever figures stand close (a crowded room, a big monster spread
+ * over its neighbours' spots), and two rings in one plane that both wrote
+ * depth would fight there. So a ring tests depth (a base or a leg in front
+ * still hides it) but writes none, and draws after the room: where two
+ * overlap, the later one lies over the other. Three.js orders draws of one
+ * render order by material, and each ring has its own, made once, so which
+ * lies on top stays the same from frame to frame as the camera moves.
+ */
+export function colourRing(colour: PaletteKey): THREE.Mesh {
+  const material = glow(colour);
+  material.depthWrite = false;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(COLOUR_RING.inner, COLOUR_RING.outer, 24), material);
+  ring.name = "colour ring";
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = COLOUR_RING.height;
+  ring.renderOrder = COLOUR_RING_ORDER;
+  return ring;
+}
+
 /** A figure with their player's colour round the base, and how the figure walks. */
 function marked({ id, build, colour }: HouseFigure, gait: (seconds: number) => Stride): { marked: THREE.Group; walking: Walking } {
-  const ring = new THREE.Mesh(new THREE.RingGeometry(RING.inner, RING.outer, 24), glow(colour));
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = RING.height;
+  const ring = colourRing(colour);
   const figure = build(`${id}:explorer`, gait);
   // A figure that floats has no base for the ring to go round.
   return { marked: isGrounded(figure) ? group(figure, ring) : group(figure), walking: walkingOf(figure) };
-}
-
-function texturesUnder(root: THREE.Object3D): Promise<void> {
-  const textures = new Set<THREE.Texture>();
-  root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return;
-    for (const material of [object.material].flat() as THREE.Material[]) {
-      if ("map" in material && material.map instanceof THREE.Texture) textures.add(material.map);
-    }
-  });
-  return Promise.all([...textures].map(textureReady)).then(() => undefined);
 }
 
 interface Walker {
@@ -203,25 +227,29 @@ interface Walker {
   /** The baked light where it stands, as an ambient cube. */
   probe: ProbeUniform;
   animations: Animation[];
+  /** Draws its parts together, posed as its animations left them. */
+  batch: PartBatch;
   at: HousePoint;
   heading: number;
   walk: Walk | null;
   walking: Walking;
 }
 
+/** A flat patch of glow lying on the floor, `w` along x and `d` along z,
+ *  centred at (x, z), at height `y`. The marks are flat, at a few set heights,
+ *  so a room has only those planes to keep its faces out of. */
+function patch(w: number, d: number, x: number, z: number, y: number, material: THREE.Material): THREE.Mesh {
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2).translate(x, y, z), material);
+}
+
 /** The glow on a tile's floor that marks it as a choice: a faint fill (none
  *  for an empty cell) and a border just inside its walls. */
 function tileMark(fill: THREE.Material | null, border: THREE.Material): THREE.Group {
   const span = TILE - MARK.inset * 2;
-  const edge = (w: number, d: number, x: number, z: number) => box([w, 0.01, d], border, [x, MARK.height, z]);
+  const edge = (w: number, d: number, x: number, z: number) => patch(w, d, x, z, MARK.edge, border);
   const off = span / 2 - MARK.border / 2;
-  const mark = group(edge(span, MARK.border, 0, -off), edge(span, MARK.border, 0, off), edge(MARK.border, span, -off, 0), edge(MARK.border, span, off, 0));
-  if (fill) {
-    const pane = new THREE.Mesh(new THREE.PlaneGeometry(span, span), fill);
-    pane.rotation.x = -Math.PI / 2;
-    pane.position.y = MARK.height - 0.01;
-    mark.add(pane);
-  }
+  const mark = group(edge(span, MARK.border, 0, -off), edge(span, MARK.border, 0, off), edge(MARK.border, span - MARK.border * 2, -off, 0), edge(MARK.border, span - MARK.border * 2, off, 0));
+  if (fill) mark.add(patch(span, span, 0, 0, MARK.fill, fill));
   return mark;
 }
 
@@ -275,7 +303,7 @@ interface Ghost {
   tile: PlacedTile;
   room: GhostRoom;
   holder: THREE.Group;
-  /** Its doors drawn shut, as a key: a ghost turned another way may need others shut. */
+  /** Its doors drawn shut and windows blocked, as a key: a ghost turned another way may need others. */
   shut: string;
 }
 
@@ -283,11 +311,10 @@ interface Ghost {
 function doorwayMark(direction: Edge, fill: THREE.Material, border: THREE.Material): THREE.Group {
   const { x, z } = DIRECTION[direction];
   const [w, d] = x === 0 ? [DOOR_WIDTH, DOORWAY_MARK.depth] : [DOORWAY_MARK.depth, DOOR_WIDTH];
-  const centre: [number, number, number] = [(x * TILE) / 2, MARK.height, (z * TILE) / 2];
+  const [cx, cz] = [(x * TILE) / 2, (z * TILE) / 2];
   const rim = MARK.border;
-  const pane = box([w, 0.005, d], fill, [centre[0], MARK.height - 0.01, centre[2]]);
-  const edge = (ew: number, ed: number, ox: number, oz: number) => box([ew, 0.01, ed], border, [centre[0] + ox, MARK.height, centre[2] + oz]);
-  return group(pane, edge(w, rim, 0, -(d - rim) / 2), edge(w, rim, 0, (d - rim) / 2), edge(rim, d, -(w - rim) / 2, 0), edge(rim, d, (w - rim) / 2, 0));
+  const edge = (ew: number, ed: number, ox: number, oz: number) => patch(ew, ed, cx + ox, cz + oz, MARK.edge, border);
+  return group(patch(w, d, cx, cz, MARK.fill, fill), edge(w, rim, 0, -(d - rim) / 2), edge(w, rim, 0, (d - rim) / 2), edge(rim, d - rim * 2, -(w - rim) / 2, 0), edge(rim, d - rim * 2, (w - rim) / 2, 0));
 }
 
 /** The glow along a stair's run, in its room's frame: a faint band over the
@@ -324,6 +351,26 @@ function figureMark(border: THREE.Material): THREE.Mesh {
   return ring;
 }
 
+/**
+ * Every choice mark the house may draw in a room, in the room's own frame:
+ * its glow, a pad at each doorway, the glow along each stair and a ring at
+ * each standing spot. They write no depth, so a face of the room's lying in
+ * one of their planes fights them: the overlap check reads them.
+ */
+export function roomMarks(def: RoomDefinition): THREE.Group {
+  const fill = lightMaterial(0.1);
+  const border = lightMaterial(0.3);
+  const tile = roomTile(def.id);
+  const marks = group(tileMark(fill, border), ...[...tile.doors, ...tile.passages].map((edge) => doorwayMark(edge, fill, border)));
+  for (const run of Object.values(def.stairs ?? {})) marks.add(stairGlow(run, fill, border));
+  for (const [x, z] of standingSpots(def)) {
+    const ring = figureMark(border);
+    ring.position.set(x, ring.position.y, z);
+    marks.add(ring);
+  }
+  return marks;
+}
+
 /** Points every so often along a path, leaving its ends bare: the start is
  *  under the explorer, and the end is marked by its room's glow. */
 function routeDots(path: readonly HousePoint[]): HousePoint[] {
@@ -351,7 +398,7 @@ const level = (floor: FloorId) => (FLOORS.indexOf(floor) - FLOORS.indexOf("groun
 /** An engine layout as a house of rooms, each built in its own frame and laid
  *  at its cell and rotation, on its floor, and the figures in it, who walk
  *  between rooms. Both change as play goes on. */
-export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House {
+export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineScheduler()): House {
   const root = group();
   let layout: Layout = { tiles: [] };
   const levels = new Map<FloorId, THREE.Group>();
@@ -376,7 +423,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
   };
   /** A tile built, frozen and laid at its cell and rotation on its floor's frame. */
   const placement = (tile: PlacedTile) => {
-    const room = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: closedDoors(layout, CATALOG, tile) }));
+    const room = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: closedDoors(layout, CATALOG, tile), falseWindows: falseWindows(layout, CATALOG, tile) }));
     const matrix = new THREE.Matrix4().compose(new THREE.Vector3(tile.x * TILE, 0, tile.y * TILE), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, tileTurn(tile.rotation), 0)), new THREE.Vector3(1, 1, 1));
     return { id: tile.tile, room, matrix };
   };
@@ -384,7 +431,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
   const floorLighting = (floor: FloorId): LitFloor => {
     const existing = lighting.get(floor);
     if (existing) return existing;
-    const lit = createLitFloor(baker);
+    const lit = createLitFloor(bakeQueue, floor);
     const holder = group(lit.root);
     holder.position.y = level(floor);
     holder.visible = shows(floor);
@@ -393,6 +440,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     root.add(holder);
     return lit;
   };
+  /** Lays a floor's rooms; it resolves once they show their direct light, and the finer passes follow in the background. */
   const placeFloor = (floor: FloorId): Promise<Rebake> =>
     floorLighting(floor).place(layout.tiles.filter((tile) => tile.floor === floor).flatMap((tile) => placements.get(tile.tile) ?? []));
   /** Tracks work on the house until it is done, so readiness waits for it. */
@@ -455,10 +503,8 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
       const placedRoom = placements.get(tile.tile);
       return placedRoom ? [{ id: tile.tile, floor: tile.floor, room: placedRoom.room, centre: cellCentre(tile.floor, tile.x, tile.y) }] : [];
     });
-  const spot = (room: string, slot: number): HousePoint => {
-    const pawnSpot = definition(room).pawn;
-    if (!pawnSpot) throw new Error(`${room} has no spot for an explorer to stand on`);
-    const [x, z] = explorerSpot(pawnSpot, slot);
+  const spot = (room: string, slot: number, side: Edge | null = null): HousePoint => {
+    const [x, z] = roomSpot(definition(room), slot, side);
     return inHouse(layout, room, [x, 0, z]);
   };
 
@@ -479,6 +525,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     walker.holder.visible = shows(walker.at.floor);
     lighting.get(walker.at.floor)?.probeAt(new THREE.Vector3(walker.at.x, walker.at.y, walker.at.z), walker.probe.value);
     for (const animation of walker.animations) animation(seconds);
+    walker.batch.sync();
   };
   /** One light follows whoever's turn it is, so the scene's count of lights
    *  never changes: a change recompiles every material. */
@@ -562,19 +609,24 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
   /** The way the camera last looked, for cutting a ghost's walls as the house's are cut. */
   let viewedFrom: { x: number; z: number } | null = null;
   let viewFocus: string | null = null;
+  /** Whether the player is holding every wall up. */
+  let wallsRaised = false;
   const ghosts = () => [...(choosing ? [choosing] : []), ...settling.values()];
   const cutGhost = (ghost: Ghost) => {
     if (!viewedFrom) return;
     const around: Layout = { tiles: [...liftTile(layout, ghost.tile.tile).tiles, ghost.tile] };
     const camera = viewedFrom;
-    const cut = EDGES.filter((direction) => wallIsCut(around, ghost.tile, direction, camera, viewFocus)).map((direction) => printedEdge(direction, ghost.tile.rotation));
+    const cut = wallsRaised ? [] : EDGES.filter((direction) => wallIsCut(around, ghost.tile, direction, camera, viewFocus)).map((direction) => printedEdge(direction, ghost.tile.rotation));
     ghost.room.setCut((edge) => cut.includes(edge));
   };
-  /** A ghost of a room at a cell, turned as given, with the doors that would face a wall there drawn shut. */
-  const ghostOf = (tile: PlacedTile, shut: Edge[]): Ghost => {
-    const room = ghostRoom(freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: shut })), ghostLook);
+  /** What of a room at a cell would be blocked there: its doors facing a wall, and its windows against a room. */
+  const blockedAt = (around: Layout, tile: PlacedTile) => ({ doors: closedDoors(around, CATALOG, tile), windows: falseWindows(around, CATALOG, tile) });
+  const blockedKey = (blocked: ReturnType<typeof blockedAt>) => `${blocked.doors.join()}|${blocked.windows.join()}`;
+  /** A ghost of a room at a cell, turned as given, with what would be blocked there drawn so. */
+  const ghostOf = (tile: PlacedTile, blocked: ReturnType<typeof blockedAt>): Ghost => {
+    const room = ghostRoom(freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: blocked.doors, falseWindows: blocked.windows })), ghostLook);
     const holder = group(room.root);
-    const ghost: Ghost = { tile, room, holder, shut: shut.join() };
+    const ghost: Ghost = { tile, room, holder, shut: blockedKey(blocked) };
     layGhost(ghost, tile);
     return ghost;
   };
@@ -596,11 +648,11 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
       return;
     }
     const around: Layout = { tiles: [...liftTile(layout, tile.tile).tiles, tile] };
-    const shut = closedDoors(around, CATALOG, tile);
-    if (choosing?.tile.tile === tile.tile && choosing.shut === shut.join()) layGhost(choosing, tile);
+    const blocked = blockedAt(around, tile);
+    if (choosing?.tile.tile === tile.tile && choosing.shut === blockedKey(blocked)) layGhost(choosing, tile);
     else {
       if (choosing) dropGhost(choosing);
-      choosing = ghostOf(tile, shut);
+      choosing = ghostOf(tile, blocked);
     }
   };
   /** A room just placed or moved shows as a ghost until it is baked and shows itself. */
@@ -608,7 +660,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     const old = settling.get(id);
     if (old) dropGhost(old);
     const tile = tileOf(id);
-    const ghost = ghostOf({ ...tile }, closedDoors(layout, CATALOG, tile));
+    const ghost = ghostOf({ ...tile }, blockedAt(layout, tile));
     settling.set(id, ghost);
     void (shownWhen.get(id) ?? Promise.resolve()).then(() => {
       if (settling.get(id) !== ghost) return;
@@ -670,14 +722,15 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     showFloor,
     cellCentre,
     corners,
-    setCutaway: (cameraDirection, focus) => {
+    setCutaway: (cameraDirection, focus, raised = false) => {
       const camera = { x: cameraDirection.x, z: cameraDirection.y };
-      if (viewedFrom?.x !== camera.x || viewedFrom.z !== camera.z || viewFocus !== focus) {
+      if (viewedFrom?.x !== camera.x || viewedFrom.z !== camera.z || viewFocus !== focus || wallsRaised !== raised) {
         viewedFrom = camera;
         viewFocus = focus;
+        wallsRaised = raised;
         for (const ghost of ghosts()) cutGhost(ghost);
       }
-      const cuts = layout.tiles.map((tile) => EDGES.filter((direction) => wallIsCut(layout, tile, direction, camera, focus)).map((direction) => printedEdge(direction, tile.rotation)));
+      const cuts = layout.tiles.map((tile) => (raised ? [] : EDGES.filter((direction) => wallIsCut(layout, tile, direction, camera, focus)).map((direction) => printedEdge(direction, tile.rotation))));
       const key = JSON.stringify(cuts);
       if (key === lastCut) return;
       lastCut = key;
@@ -708,7 +761,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     roomHeading: (room) => tileTurn(tileOf(room).rotation),
     addFigure: (figure, at, heading) => {
       if (walkers.has(figure.id)) throw new Error(`The house already has a figure "${figure.id}"`);
-      const walker: Walker = { holder: group(), probe: { value: [] }, animations: [], at, heading, walk: null, walking: ADULT_WALK };
+      const walker: Walker = { holder: group(), probe: { value: [] }, animations: [], batch: { sync: () => undefined }, at, heading, walk: null, walking: ADULT_WALK };
       const { marked: built, walking } = marked(figure, (seconds) => (walker.walk ? walkPose(walker.walk, seconds, walker.walking.step).stride : { phase: 0, amount: 0 }));
       walker.walking = walking;
       built.traverse((object) => {
@@ -716,6 +769,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
         if (animation) walker.animations.push(animation);
       });
       walker.probe = patchProbe(built);
+      walker.batch = batchParts(built);
       walker.holder.add(built);
       walker.holder.visible = shows(at.floor);
       root.add(walker.holder);

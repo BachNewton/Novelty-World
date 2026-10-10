@@ -1,12 +1,17 @@
 import { Worker } from "node:worker_threads";
+import * as THREE from "three";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { stubCanvas } from "./headless";
-import { checkRoom, type OverlapReport } from "./overlap";
+import { ROOMS } from "../data/rooms";
+import type { Layout } from "../engine/board";
+import { COLOUR_RING, shellRoom } from "./house";
+import { HOUSE_FIXTURE } from "./house-layout";
+import { checkHouseFloor, checkRoom, OVERFLOW_SPACING, SPOT_SPACING, type OverlapReport } from "./overlap";
 import type { CheckReply } from "./overlap-worker";
-import type { Contact, RoomDefinition } from "./room";
+import { MARK_PLANES, roomSpot, standingSpots, type Contact, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { CHAPEL } from "./rooms/chapel";
-import { batch, group } from "./shapes";
+import { batch, flat, group } from "./shapes";
 
 /** How long one room's check may take before it fails as an endless loop. */
 const TIME_LIMIT_MS = 20_000;
@@ -60,81 +65,6 @@ ${reply.error}`));
   };
 }
 
-/**
- * Overlaps the rooms had when the check arrived, which it reports but doesn't
- * fail on, so only new ones fail. The review pass empties it: each entry is
- * fixed, or declared as a contact on its piece with the reason. The entries
- * on the second explorer's spot arrived with that spot's check, and the
- * Library's bookcases fighting the walls when touching solids were first
- * split apart (their merged hull had hidden those faces).
- */
-const BASELINE: Record<string, string[]> = {
-  "drawing-room": [
-    "prop at (0.50, 0.80) passes into the second explorer's spot",
-    "fireplace at (-2.80, -1.60) passes into the left wall",
-    "prop at (0.00, 0.00) z-fights with itself",
-  ],
-  "chapel": [
-    "chancel at (0.00, 2.12) passes into lectern at (-1.75, 2.00)",
-    "crackedFont at (-2.20, -2.20) passes into prop at (-1.55, -2.00)",
-    "stainedWindow at (0.00, 2.80) up 1.00 z-fights with the bottom wall",
-    "altar at (0.00, 2.25) up 0.15 z-fights with itself",
-    "lectern at (-1.75, 2.00) z-fights with itself",
-    "pricket at (-2.55, -0.65) z-fights with itself",
-    "pricket at (2.55, 0.25) z-fights with itself",
-  ],
-  "library": [
-    "prop at (0.00, -2.80) up 0.45 passes into the right wall",
-    "prop at (0.00, -2.80) up 0.45 passes into the left wall",
-    "prop at (0.00, -2.80) up 0.45 passes into prop at (2.80, 0.00) up 0.45",
-    "prop at (-2.80, -1.54) up 0.45 passes into prop at (0.00, -2.80) up 0.45",
-    "prop at (1.75, 2.80) up 0.45 passes into prop at (2.80, 0.00) up 0.45",
-    "prop at (2.80, -1.30) up 0.45 passes into prop at (2.80, 0.00) up 0.45",
-    "fallenBookcase at (-1.50, 1.75) passes into prop at (-1.75, 2.80)",
-    "prop at (-1.75, 2.80) up 0.45 passes into the left wall",
-    "prop at (-1.75, 2.80) up 0.45 passes into prop at (-2.80, 1.54) up 0.45",
-    "prop at (1.75, 2.80) up 0.45 passes into the right wall",
-    "fallenBookcase at (-1.50, 1.75) passes into prop at (-2.80, 1.54)",
-    "prop at (-0.12, -0.80) up 0.77 passes into prop at (0.25, -0.95) up 0.77",
-    "fallenBookcase at (-1.50, 1.75) passes into the doorway left",
-    "prop at (-0.75, 1.55) passes into the floor",
-    "globe at (1.85, 1.00) z-fights with itself",
-    "prop at (0.00, -2.80) up 0.45 z-fights with the right wall",
-    "prop at (1.75, 2.80) up 0.45 z-fights with the right wall",
-    "prop at (0.00, -2.80) up 0.45 z-fights with the left wall",
-  ],
-  "grand-staircase": [
-    "newel at (1.24, -1.50) passes into prop at (0.00, 0.00)",
-    "prop at (0.00, 0.00) passes into prop at (0.00, 0.00) up 1.57",
-    "cupboardDoor at (-1.00, -1.43) passes into prop at (0.00, 0.00)",
-    "newel at (1.24, -1.50) passes into prop at (0.00, 0.00) up 1.57",
-    "prop at (0.00, 0.00) up 1.57 passes into the left wall",
-    "prop at (0.00, 0.00) z-fights with prop at (0.00, 0.00) up 1.57",
-  ],
-  "foyer": [
-    "deadPalm at (-2.25, 2.20) passes into the bottom wall",
-    "shroudedMirror at (-1.65, -2.80) up 1.25 z-fights with itself",
-  ],
-  "entrance-hall": [
-    "umbrellaStand at (2.35, 2.15) z-fights with itself",
-  ],
-  "chasm": [
-    "bridge at (0.00, 0.00) passes into the second explorer's spot",
-    "handLines at (0.00, 0.00) passes into the second explorer's spot",
-  ],
-  "graveyard": [
-    "gravelPath at (0.00, 1.55) passes into the second explorer's spot",
-  ],
-  "underground-lake": [
-    "shore at (0.00, 0.00) passes into the second explorer's spot",
-  ],
-  "upper-landing": [
-    "stairHead at (0.00, 0.00) passes into the floor",
-    "balustrade at (0.00, 0.00) passes into newel at (-0.79, -1.41)",
-    "rockingChair at (1.30, 1.30) passes into the floor",
-  ],
-};
-
 beforeAll(stubCanvas);
 
 describe("the overlap check", () => {
@@ -155,7 +85,153 @@ describe("the overlap check", () => {
     const room: RoomDefinition = { ...CHAPEL, props: [{ build: frame, at: [0, -1] }, { build: panel, at: [0, -1] }], pawn: undefined };
     expect(checkRoom(room).findings).toEqual([]);
     const crowded: RoomDefinition = { ...room, props: [...room.props, { build: panel, name: "crowding", at: [0.05, -1] }] };
-    expect(checkRoom(crowded).findings.map((finding) => finding.key)).toEqual(["crowding at (0.05, -1.00) passes into panel at (0.00, -1.00)"]);
+    expect(checkRoom(crowded).findings.map((finding) => finding.key)).toEqual([
+      "crowding at (0.05, -1.00) passes into panel at (0.00, -1.00)",
+      "crowding at (0.05, -1.00) z-fights with panel at (0.00, -1.00)",
+    ]);
+  });
+});
+
+describe("z-fighting", () => {
+  /** A mat lying flat on the Chapel's floor, `at` above it. */
+  const mat = (at: number, colour: "blood" | "moon") => () => new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4).rotateX(-Math.PI / 2).translate(0, at, 0), flat(colour));
+  const fights = (room: RoomDefinition) => checkRoom(room).findings.map((finding) => finding.key).filter((key) => key.includes("z-fights"));
+  /** Two mats overlapping, one `apart` above the other. */
+  const mats = (apart: number): RoomDefinition => ({
+    ...CHAPEL,
+    props: [
+      { build: mat(0.1, "blood"), name: "mat", at: [0, -1] },
+      { build: mat(0.1 + apart, "moon"), name: "rug", at: [0.2, -1] },
+    ],
+  });
+
+  it("finds two pieces' faces too near one plane for the house's depth buffer to part, and passes them a few millimetres apart", () => {
+    expect(fights(mats(0.0005))).toEqual(["mat at (0.00, -1.00) z-fights with rug at (0.20, -1.00)"]);
+    expect(fights(mats(0.004))).toEqual([]);
+  });
+
+  it("finds a face in the plane of the house's choice glow, which draws no depth: the Chapel's votive stand's foot", () => {
+    /** A stand's foot on the floor, its top `top` up. */
+    const foot = (top: number) => () => {
+      const b = batch();
+      b.block([0.3, top, 0.3], "sootLight", [0, 0, 0]);
+      return group(b.mesh());
+    };
+    const room = (top: number): RoomDefinition => ({ ...CHAPEL, props: [{ build: foot(top), name: "foot", at: [1, -1] }] });
+    expect(fights(room(MARK_PLANES.fill))).toEqual(["foot at (1.00, -1.00) z-fights with the choice marks"]);
+    expect(fights(room(MARK_PLANES.fill - 0.005))).toEqual([]);
+  });
+
+  it("accepts a fight declared as a contact, with its reason", () => {
+    const declared = mats(0);
+    declared.props[1] = { ...declared.props[1], contacts: [{ with: "mat", because: "a test of a declared contact" }] };
+    const report = checkRoom(declared);
+    expect(report.findings.filter((finding) => finding.key.includes("z-fights"))).toEqual([]);
+    expect(report.accepted.map((finding) => finding.key)).toEqual(["mat at (0.00, -1.00) z-fights with rug at (0.20, -1.00)"]);
+  });
+
+  it("finds a piece's own boxes fighting, as a merged mesh would", () => {
+    const pair = () => {
+      const b = batch();
+      b.block([0.4, 0.4, 0.3], "soot", [0, 0, 0]);
+      b.block([0.05, 0.04, 0.2], "bone", [0, 0.36, 0]);
+      return group(b.mesh());
+    };
+    expect(fights({ ...CHAPEL, props: [{ build: pair, name: "shelf", at: [0, -1] }] })).toEqual(["shelf at (0.00, -1.00) z-fights with itself"]);
+  });
+
+  it("the stage's shell meets itself without fighting in every tile, in every way the house cuts its walls, and stands its figures clear of each other and the doorways", () => {
+    const found = ROOMS.flatMap((tile) => checkRoom(shellRoom(tile.id)).findings.map((finding) => `${tile.id}: ${finding.text}`));
+    expect(found).toEqual([]);
+  }, 60_000);
+
+  /** Real rooms laid round a four-way corner on two floors, turned every way, an outdoor tile among them. */
+  const MIXED: Layout = {
+    tiles: [
+      { tile: "catacombs", floor: "basement", x: 0, y: 0, rotation: 0 },
+      { tile: "wine-cellar", floor: "basement", x: 1, y: 0, rotation: 1 },
+      { tile: "furnace-room", floor: "basement", x: 0, y: 1, rotation: 2 },
+      { tile: "chasm", floor: "basement", x: 1, y: 1, rotation: 3 },
+      { tile: "graveyard", floor: "ground", x: 0, y: 0, rotation: 0 },
+      { tile: "kitchen", floor: "ground", x: 1, y: 0, rotation: 1 },
+      { tile: "dusty-hallway", floor: "ground", x: 0, y: 1, rotation: 0 },
+      { tile: "statuary-corridor", floor: "ground", x: 1, y: 1, rotation: 2 },
+    ],
+  };
+
+  it("rooms laid side by side in a house don't fight each other along their shared edges and at their corners", () => {
+    const found = [HOUSE_FIXTURE, MIXED].flatMap((layout) =>
+      [...new Set(layout.tiles.map((tile) => tile.floor))].flatMap((floor) => checkHouseFloor(layout, floor).map((finding) => finding.text)),
+    );
+    expect(found).toEqual([]);
+  }, 30_000);
+});
+
+describe("standing spots", () => {
+  /** A low wall right across the Chapel, between its one door (top) and the bottom half of the floor. */
+  const wall = () => {
+    const stones = batch();
+    stones.block([5.4, 0.6, 0.3], "stone", [0, 0, 0]);
+    return group(stones.mesh());
+  };
+  const keys = (room: RoomDefinition) => checkRoom(room).findings.map((finding) => finding.key);
+  const spots: [number, number][] = [[-2, -2], [2, -2], [-2, -0.7], [2, -0.7], [0, -0.8]];
+
+  it("finds a spot cut off from the doors", () => {
+    expect(keys({ ...CHAPEL, props: [{ build: wall, at: [0, 0] }], pawn: [0, 1.5], spots })).toEqual([
+      "standing spot 1 at (0.00, 1.50) can't be reached from the doors",
+      "the walk from standing spot 1 to the doorway top is blocked",
+    ]);
+  });
+
+  it("finds a spot in a doorway's lane, and two spots crowding each other", () => {
+    expect(keys({ ...CHAPEL, props: [], pawn: [0, -2.4], spots: [...spots.slice(0, 4), [-2.2, -2.3]] })).toEqual([
+      "standing spot 1 at (0.00, -2.40) stands in the doorway top's lane",
+      "standing spot 2 at (-2.00, -2.00) crowds standing spot 6 at (-2.20, -2.30)",
+    ]);
+  });
+
+  it("keeps standing spots a ring's width apart, ring from ring, and overflow places only base from base", () => {
+    expect(SPOT_SPACING).toBeCloseTo(2 * COLOUR_RING.outer + (COLOUR_RING.outer - COLOUR_RING.inner));
+    const apart = (gap: number): RoomDefinition => ({ ...CHAPEL, props: [], pawn: [-2, 1.5], spots: [[-2 + gap, 1.5], ...spots.slice(1)] });
+    expect(keys(apart(SPOT_SPACING - 0.02))).toEqual(["standing spot 1 at (-2.00, 1.50) crowds standing spot 2 at (-0.77, 1.50)"]);
+    expect(keys(apart(SPOT_SPACING + 0.02))).toEqual([]);
+    const squeezed = (gap: number): RoomDefinition => ({ ...CHAPEL, props: [], pawn: [-2, 1.5], spots, overflow: [[-2 + gap, 1.5]] });
+    expect(keys(squeezed(OVERFLOW_SPACING - 0.02))).toEqual(["standing spot 1 at (-2.00, 1.50) crowds overflow place 1 at (-1.26, 1.50)"]);
+    expect(keys(squeezed(OVERFLOW_SPACING + 0.02))).toEqual([]);
+  });
+
+  it("stands a figure past the six on the room's overflow, clear of every other figure, and says when the room is full", () => {
+    const room: RoomDefinition = { ...CHAPEL, props: [], pawn: [-2, 1.5], spots, overflow: [[-1, -1.5], [1, -1.5]] };
+    const stood = [0, 1, 2, 3, 4, 5, 6, 7].map((slot) => roomSpot(room, slot));
+    expect(stood.slice(6)).toEqual(room.overflow);
+    stood.forEach(([x, z], i) => stood.slice(i + 1).forEach(([ox, oz]) => expect(Math.hypot(ox - x, oz - z)).toBeGreaterThanOrEqual(OVERFLOW_SPACING)));
+    expect(() => roomSpot(room, 8)).toThrow("chapel has places for 8 figures, not 9");
+  });
+});
+
+describe("walks", () => {
+  /** A block in the middle of the Chapel, between its one door (top) and a spot below it. */
+  const block = () => {
+    const stone = batch();
+    stone.block([1.6, 0.8, 1.0], "stone", [0, 0, 0]);
+    return group(stone.mesh());
+  };
+  const walkKeys = (room: RoomDefinition) => checkRoom(room).findings.map((finding) => finding.key).filter((key) => key.startsWith("the walk"));
+  const below: RoomDefinition = { ...CHAPEL, props: [{ build: block, at: [0, 0] }], pawn: [0, 1.6], spots: [] };
+
+  it("finds a walk that goes straight through a piece in its way", () => {
+    expect(walkKeys(below)).toEqual(["the walk from standing spot 1 to the doorway top is blocked"]);
+  });
+
+  it("clears it by lanes round the piece", () => {
+    expect(walkKeys({ ...below, lanes: [[[0, -2.2], [-1.6, -1.2], [-1.6, 1.2], [0, 1.6]]] })).toEqual([]);
+  });
+
+  it("walks a barrier room's halves together along its crossing, over the gap between them", () => {
+    const split: RoomDefinition = { ...CHAPEL, props: [], pawn: [0, 1.6], spots: [], floorOpenings: [{ x: [-3, 3], z: [-0.4, 0.4] }] };
+    expect(walkKeys(split)).toEqual(["the walk from standing spot 1 to the doorway top is blocked"]);
+    expect(walkKeys({ ...split, crossing: [[0, 0, -0.9], [0, 0, 0.9]] })).toEqual([]);
   });
 });
 
@@ -183,23 +259,29 @@ describe("room overlaps", () => {
   afterAll(() => checker.stop());
 
   it("accepts a declared contact, and reports one that no longer happens", () => {
-    const font = CHAPEL.props.find((prop) => prop.build.name === "crackedFont");
-    if (!font) throw new Error("The Chapel has no font");
-    const declared = (contacts: Contact[]) => checkRoom({ ...CHAPEL, props: CHAPEL.props.map((prop) => (prop === font ? { ...prop, contacts } : prop)) });
-    const touching = declared([{ with: "prop", because: "the font has been shoved against the pew" }]);
-    expect(touching.accepted.map((finding) => finding.key)).toEqual(["crackedFont at (-2.20, -2.20) passes into prop at (-1.55, -2.00)"]);
+    const block = () => {
+      const stone = batch();
+      stone.block([0.6, 0.6, 0.6], "stone", [0, 0, 0]);
+      return group(stone.mesh());
+    };
+    const declared = (contacts: Contact[]) =>
+      checkRoom({ ...CHAPEL, pawn: undefined, spots: undefined, props: [{ build: block, at: [0, -1] }, { build: block, name: "shoved", at: [0.3, -1], contacts }] });
+    const touching = declared([{ with: "block", because: "it has been shoved into the other" }]);
+    expect(touching.accepted.map((finding) => finding.key)).toEqual([
+      "block at (0.00, -1.00) passes into shoved at (0.30, -1.00)",
+      "block at (0.00, -1.00) z-fights with shoved at (0.30, -1.00)",
+    ]);
     expect(touching.unusedContacts).toEqual([]);
-    expect(declared([{ with: "right", because: "nothing" }]).unusedContacts).toEqual(["crackedFont at (-2.20, -2.20) with right"]);
+    expect(declared([{ with: "right", because: "nothing" }]).unusedContacts).toEqual(["shoved at (0.30, -1.00) with right"]);
   });
 
   for (const room of BENCH_ROOMS) {
-    it(`${room.id}: no piece passes into another, and no faces fight`, async () => {
-      const { findings, unusedContacts } = await checker.check(room.id);
-      const known = new Set(BASELINE[room.id] ?? []);
-      const baselined = findings.filter((finding) => known.has(finding.key));
-      if (baselined.length) console.warn(`${room.id}, known overlaps for the review pass:\n  ${baselined.map((finding) => finding.text).join("\n  ")}`);
-      expect(findings.filter((finding) => !known.has(finding.key)).map((finding) => finding.text), "new overlaps: fix them, or declare the contact on the piece").toEqual([]);
-      expect([...known].filter((key) => !findings.some((finding) => finding.key === key)), "fixed: remove them from the baseline").toEqual([]);
+    it(`${room.id}: six standing spots, clear and in reach; no piece passes into another, and no faces fight, however the walls are cut`, async () => {
+      expect(standingSpots(room), "a room defines six standing spots: `pawn` and five `spots`").toHaveLength(6);
+      console.info(`${room.id}: room for ${standingSpots(room).length + (room.overflow ?? []).length} figures`);
+      const { findings, unusedContacts, openFloor } = await checker.check(room.id);
+      console.info(`${room.id}: the largest open floor circle has a radius of ${openFloor.radius.toFixed(2)} m, at (${openFloor.at[0].toFixed(2)}, ${openFloor.at[1].toFixed(2)})`);
+      expect(findings.map((finding) => finding.text), "fix them, or declare the contact on the piece").toEqual([]);
       expect(unusedContacts, "declared contacts that no longer happen, or name nothing").toEqual([]);
     }, TIME_LIMIT_MS + 30_000);
   }

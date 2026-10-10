@@ -24,6 +24,8 @@ export interface TargetRoute {
   figure: string;
   rooms: readonly string[];
   slot: number;
+  /** In a barrier room, the side it would stand on. */
+  side?: Edge | null;
 }
 
 export type Target = { id: string } & (
@@ -32,8 +34,9 @@ export type Target = { id: string } & (
   | { kind: "room"; room: string; route?: TargetRoute }
   /** The stair out of `room` towards the room it links to. */
   | { kind: "stair"; room: string; toward: string }
-  /** An unexplored doorway out of `room`, on a board direction. */
-  | { kind: "doorway"; room: string; direction: Edge }
+  /** An unexplored doorway out of `room`, on a board direction. With a
+   *  route, the route preview shows when it is focused. */
+  | { kind: "doorway"; room: string; direction: Edge; route?: TargetRoute }
   /** An empty cell on a floor. */
   | { kind: "cell"; floor: FloorId; x: number; y: number }
   /** A room tile not yet placed, shown as a ghost on a cell, turned
@@ -197,6 +200,19 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
     case "self":
       return figurePlace(ctx, target.id, target.figure);
   }
+}
+
+/** How far inside a room a route to one of its doorways ends, short of the doorway itself. */
+const DOORWAY_STOP = 0.8;
+
+/** Where a route to a target ends: the spot taken in a room, or just inside an unexplored doorway. */
+export function routeEnd(layout: Layout, target: Extract<Target, { kind: "room" | "doorway" }>, spot: (room: string, slot: number, side?: Edge | null) => HousePoint): HousePoint | null {
+  if (!target.route) return null;
+  if (target.kind === "room") return spot(target.room, target.route.slot, target.route.side);
+  const tile = tileOf(layout, target.room);
+  const { x, z } = DIRECTION[target.direction];
+  const reach = TILE / 2 - DOORWAY_STOP;
+  return { floor: tile.floor, x: tile.x * TILE + x * reach, y: 0, z: tile.y * TILE + z * reach };
 }
 
 /** An outline on the screen grown, where it is smaller than a fingertip

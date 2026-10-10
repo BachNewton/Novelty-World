@@ -20,6 +20,9 @@
 // joined to every doorway, so every wall between rooms is cut as the house cuts it. It writes sheet-room-<room-id>.png:
 // the floor from the four views, the room framed close from two (its back walls standing, as when an explorer enters),
 // and a phone shot, with Longfellow at the room's pawn spot and the scale pawn next door.
+//
+// --query=<params> adds to every page's URL, for a setting the page reads from it, e.g. --query=name=value, so a
+// label per setting compares them.
 
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -33,6 +36,8 @@ const ROOM = process.argv.find((arg) => arg.startsWith("--room="))?.slice("--roo
 /** Draws at this short side in pixels instead of the view's native default, e.g. --res=540. */
 const RES_FLAG = process.argv.find((arg) => arg.startsWith("--res="));
 const RES = RES_FLAG === undefined ? null : Number(RES_FLAG.slice("--res=".length));
+/** More of the page's query string, e.g. --query=name=value. */
+const QUERY = process.argv.find((arg) => arg.startsWith("--query="))?.slice("--query=".length) ?? null;
 const FREEZE_AT = 2;
 const OUTDIR = join(HERE, "..", ".shots", LABEL, "house");
 const BASE = process.env.BETRAYAL_URL ?? "http://localhost:3001/board-games/betrayal";
@@ -62,7 +67,7 @@ async function openHouse(viewport, layout = null) {
   page.on("console", (m) => {
     if (m.type() === "error") console.error("page console error:", m.text());
   });
-  await page.goto(`${BASE}?house${layout ? `&layout=${layout}` : ""}`, { waitUntil: "load" });
+  await page.goto(`${BASE}?house${layout ? `&layout=${layout}` : ""}${QUERY ? `&${QUERY}` : ""}`, { waitUntil: "load" });
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
   await page.waitForFunction(() => "__betrayalHouse" in window, null, { timeout: 30000 });
   await page.evaluate(
@@ -76,7 +81,7 @@ async function openHouse(viewport, layout = null) {
 }
 
 async function settle(page) {
-  await page.waitForFunction(() => window.__betrayalHouse.isReady(), null, { timeout: 60000 });
+  await page.waitForFunction(() => window.__betrayalHouse.isFullyLit(), null, { timeout: 180000 });
   const frame = await page.evaluate(() => window.__betrayalHouse.frameCount());
   await page.waitForFunction((n) => window.__betrayalHouse.frameCount() >= n + 2, frame, { timeout: 10000 });
 }
@@ -96,7 +101,7 @@ async function capture(page, name, { floor = "ground", view = 0, focus = null, c
     },
     { floor, view, focus, chrome },
   );
-  await page.waitForFunction(() => window.__betrayalHouse.isReady(), null, { timeout: 60000 });
+  await page.waitForFunction(() => window.__betrayalHouse.isFullyLit(), null, { timeout: 180000 });
   const frame = await page.evaluate(() => window.__betrayalHouse.frameCount());
   await page.waitForFunction((n) => window.__betrayalHouse.frameCount() >= n + 2, frame, { timeout: 10000 });
   const path = join(OUTDIR, `${name}.png`);

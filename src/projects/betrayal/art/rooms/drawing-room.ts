@@ -14,10 +14,11 @@ function fireplace(): THREE.Group {
   const result = group(
     box([0.3, 1.15, 0.4], stone, [-0.65, 0, 0.2]),
     box([0.3, 1.15, 0.4], stone, [0.65, 0, 0.2]),
-    box([1.6, 0.3, 0.4], stone, [0, 0.85, 0.2]),
-    box([1.0, 0.85, 0.3], soot, [0, 0, 0.1]),
-    box([1.8, 0.08, 0.5], mantel, [0, 1.15, 0.22]),
-    box([1.6, 0.04, 0.55], stone, [0, 0, 0.3]),
+    // The lintel spans between the jambs, and the hearth stands a little wider than them, so no faces meet in one plane.
+    box([1.0, 0.3, 0.4], stone, [0, 0.85, 0.2]),
+    box([1.0, 0.85, 0.3], soot, [0, 0, 0.16]),
+    box([1.8, 0.08, 0.5], mantel, [0, 1.15, 0.25]),
+    box([1.64, 0.04, 0.55], stone, [0, 0, 0.3]),
   );
   const log = flat("wood");
   for (const [x, turn] of [[-0.15, 0.3], [0.15, -0.25]]) {
@@ -75,4 +76,13 @@ export const DRAWING_ROOM: RoomDefinition = {
   lights: [{ at: [-2.3, 0.6, -1.6], colour: "ember", intensity: 5, range: 6, flicker: 0.3 }],
   focus: [0, 0.8, 0],
   pawn: [1.3, 1.7],
+  spots: [[1.4, 0.0], [-0.4, 1.6], [1.4, -1.7], [-0.3, -1.55], [-2.0, 1.0]],
+  overflow: [[-1.7, -2.25], [-1.3, 2.35], [2.3, 1.7], [-1.15, 0.75], [1.15, -0.85], [0.4, 1.6]],
+  // Round the table, with a way in from each doorway: the left one's from
+  // below, as the side chair and the hearth leave no room for a base above it.
+  lanes: [
+    [[0, -2.2], [0, -1.6], [1.55, -1.6], [1.55, 0], [1.55, 1.5], [0, 1.5], [-1.6, 1.5], [-2.2, 0.75], [-2.2, 0]],
+    [[2.2, 0], [1.55, 0]],
+    [[0, 2.2], [0, 1.5]],
+  ],
 };

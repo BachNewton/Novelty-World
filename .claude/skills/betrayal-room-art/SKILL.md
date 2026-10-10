@@ -68,7 +68,8 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
 - `room.ts`: the units (one unit is a metre, the tile is 6 m square, walls
   3.2 m), the layout constants (`OUTDOOR` among them), `RoomDefinition`,
   `LightSpec` and `FlickerSignal`, placements, `Contact`, `FloorOpening`,
-  `explorerSpots` and `onWall`.
+  `standingSpots`, `roomSpot`, `onWall`, and `MARK_PLANES` (the heights
+  the house draws its marks at).
 - `stage.ts`: builds the shell from the definition (floor, walls, wainscot,
   trim, doors and windows from the room data, or an outdoor tile's low
   walls, railings and gates), places the props and gathers their lights.
@@ -81,7 +82,8 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   floor of baked rooms, cuts their walls for the camera, and re-bakes a room
   and its neighbours when the layout changes. `lighting.ts` holds the
   house's light, the flicker signals (`flickerOf`), the lightmap's density
-  (`LIGHTMAP`) and the render budgets. Room work doesn't change them.
+  (`LIGHTMAP`), the bounce's strength (`BOUNCE`) and the render budgets.
+  Room work doesn't change them. `design/lighting.md` explains the whole.
 - `palette.ts`: `PALETTE`, its keys and `RAMPS`. The only colours there are.
   The ramps that end bright enough to glow carry the lighting language.
 - `textures.ts`: seeded generators (`woodPlanks`, `flagstones`, `plaster`,
@@ -104,20 +106,28 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `chamberstick`, `lantern`. Furniture: `table`, `chair`. Stores: `crate`,
   `cask`. Rope: `strand` and `slung` (into a batch), `coil`. Floor openings:
   `pitShell` (the dark round and under a hole) and `pitHaze`. Decor: `rug`,
-  `pictureFrame`, `windowPool` (a pool of window light on the floor),
-  `cobweb`. And `pawn`, the scale pawn.
+  `pictureFrame`, `cobweb`. Water: `water.ts`, for any water (a lake,
+  flooding, a puddle, a fountain). Shape: `wall-mass.ts` (`wallMass`), solid
+  wall standing inside the tile, for a room that isn't square; a piece set
+  against a mass clears its skirting. And `pawn`, the scale pawn.
 - `rooms/`: one file per room. `drawing-room.ts` is the reference for a
   room's shape; `chapel.ts` and `library.ts` hold most of the indoor
   techniques; `grand-staircase.ts` and `upper-landing.ts` show a stair link;
   `chasm.ts` a pit, `underground-lake.ts` water, `furnace-room.ts` fire,
   `graveyard.ts` an outdoor tile, `mystic-elevator.ts` a moving room. Read
   the ones nearest yours closely before the first prop.
-- `overlap.ts` and `overlap.test.ts`: the overlap check (see "Build it").
+- `overlap.ts` and `overlap.test.ts`: the overlap check, with `zfight.ts`
+  for faces that share a plane (see "Build it").
 - `bench.ts`: the art bench and its control surface,
   `window.__betrayalBench`: views, zoom, camera, resolution, which explorer
   stands in the room (`setExplorer`), framing the room, the explorer or one
   prop (`setSubject`, `props`), and `freezeClock` to stop flicker and
-  animation at a fixed time.
+  animation at a fixed time. Its URL takes `bench=<room-id>`,
+  `explorer=<id>` (a figure, a line-up, or a crowd: `crowd-6`, six explorers
+  one a spot; `crowd-7`, one past the spots; `crowd-spider`), `frame=explorer`,
+  `paths` (the spots and the walks across the room, drawn over it),
+  `bounce=off` and `water=<style>`. The house takes `bake-debug`, which shows
+  the bake at work.
 - `house*.ts`: the house view and its layouts. Read them to know what the
   house does with a room; room work doesn't change them.
 
@@ -157,7 +167,8 @@ A room that can lie on several floors takes the zone that suits its
 character, and records it in the ledger: the Kitchen, on the ground floor
 or in the basement, is a cellar kitchen of brick and flagstone. The Mystic
 Elevator, on every floor, is a deliberate exception: a machine, in iron and
-brass, belonging to no floor.
+brass, belonging to no floor. A roof or an attic may break its floor's zone
+too (the Tower's stone roof, the Attic's bare plank walls).
 
 ### The lighting language
 
@@ -167,7 +178,7 @@ Colour means something, in light, glows and decals alike:
 |---|---|---|
 | Cold moon blue | the baseline: night, the house itself | `moon` |
 | Warm amber | human and safe-ish: candles, lamps, explorers | `fire` (amber, flame) |
-| Orange | fire itself | `fire` (ember, amber) |
+| Orange | fire itself, which counts as amber: warm and human | `fire` (ember, amber) |
 | Sickly green | the supernatural | `wraith` |
 | Red | danger, blood, the traitor | `scarlet` |
 | Violet | magic and omens | `violet` |
@@ -184,9 +195,9 @@ haze and beams (`lightMaterial`).
 windows, baked, from the house's moon, and it has no gameplay. No room
 effect may be lined up by hand with the moon: a room's build doesn't know
 how its tile will be turned, so a beam or pool aimed at the moon is wrong
-in three turns out of four. A pool of window light that falls straight out
-of its window (the kit's `windowPool`) is a stylised glow of the window
-itself, not the moon, and is allowed.
+in three turns out of four. Every real window gets a pool of window light
+falling straight out of it, a stylised glow of the window rather than the
+moon; the stage draws it, so a room never adds its own.
 
 ### The ledger
 
@@ -199,33 +210,36 @@ room's row is part of done.
 | Room | Zone and surfaces | Signature shape | Signature light |
 |---|---|---|---|
 | Drawing Room | upper: wood boards, plum (`bruise`) damask, wood panelling | a stone hearth with its fire, and a candlelit table | the hearth's ember glow |
-| Chapel | ground: flagstones, stone plaster, a dark stone dado. **Breaks its zone**: stone is the basement's | ranks of pews down a red runner to the altar, under a lancet | the moon through stained glass, thrown on the floor as a jewel-coloured pool; amber altar candles |
+| Chapel | ground, formal | ranks of pews down a red runner to the altar, under a lancet | gold holy light, and a stylised jewel-coloured pool in front of its stained window |
 | Library | upper: wood boards, verdigris damask, wood panelling | every wall shelved with books, one bookcase fallen | a sickly green glowing book on the floor (`verdigrisLight`) |
 | Grand Staircase | ground: the starting hall's dress, chequered marble, moon-blue papered walls, wood panelling | a broad carpeted flight climbing the back wall | the newel lamp's amber, and the tall window's moon on the marble |
 | Foyer | ground: the starting hall's dress | a brass chandelier hung out of true over the runner | the chandelier's amber |
 | Entrance Hall | ground: the starting hall's dress | the tall barred front door under its fanlight, between standing lamps | twin amber lamps, and the moonlit fanlight |
-| Upper Landing | upper, in the starting hall's dress, marble included. **Breaks its zone**, to carry on the stair it tops | the head of the grand staircase in a balustraded well | the newel lamp's amber |
-| Master Bedroom | upper: wood boards, faded rose (`blood`) sprig paper, wood panelling | a pale four-poster with an open tester, its curtains tied back | one bedside candle's amber against a moon-blue pool of panes |
+| Upper Landing | upper: wood boards, in the starting hall's dress above them | the head of the grand staircase in a balustraded well | the newel lamp's amber |
+| Master Bedroom | upper: wood boards, faded rose (`blood`) sprig paper, wood panelling | a pale four-poster with an open tester, its curtains tied back | one bedside candle's amber against the stage's window pool |
 | Mystic Elevator | **the machine exception**: iron tread plate, dark panelled walls, soot-iron kick panels, brass trim | a telegraph dial column in a floor sigil, pulley wheels turning in floor slots | the dial's violet glow and violet haze from the slots; one failing amber lamp |
 | Chasm | basement: flagstones, brick (`brick` ramp) over a stone footing, stone trim | a ragged gulf wall to wall, crossed by a plank bridge between hand-line posts | sickly green from the depths, under a lone amber lantern |
-| Furnace Room | basement: worn brick, a soot-black brick dado, dark grey flagstones | a squat round iron furnace with pale ducts | orange fire from the open mouth and from below (ash pit, floor grate), hard flicker |
+| Furnace Room | basement: worn brick, a soot-black brick dado, dark grey flagstones | a squat round iron furnace with pale ducts, its mouth turned to a corner | orange fire from the open mouth and from below (ash pit, floor grate), hard flicker |
 | Graveyard | outdoors: earth with dead grass, a fieldstone low wall, ash iron railings, a gravel path | headstones round an open grave, with an obelisk | the wisp's green over a faint glow from the pit, on moon-blue ground; an amber gate lantern |
-| Underground Lake | basement: flagstones, rough block-stone walls, a dark wet tide-mark dado, stone trim | a sunken lake with a jetty and an empty rowing boat | the lake's cold cyan rippling up the walls; the boat's amber lantern |
+| Underground Lake | basement: flagstones, rough block-stone walls, a dark wet tide-mark dado, stone trim | a sunken lake (the water kit) with a jetty and an empty rowing boat | the lake's cold cyan rippling up the walls; the boat's amber lantern |
 | Kitchen | basement (fits ground too): flagstones, grimy limewashed brick, a bare smoke-browned brick dado | a black iron kitchener between brick piers, pots on the hob | sickly green from inside the boiling pots |
+| Basement Landing | basement anchor: brick-paved floor, pale ashlar walls, a dark ashlar plinth | a pale flag cross from door to door round an iron drain | one iron lamp-standard's amber |
+| Stairs from Basement | basement: big flagstones, ashlar | a steep stone flight up the left wall, its rail torn | amber falling from the Foyer over the head of the flight |
+| Wine Cellar | basement: grey setts, brick over ashlar | casks on cradles, heads to the aisle | amber bottle candles on an upended cask |
+| Creaky Hallway | upper: wood boards, charcoal paper | loose boards sprung into a tent over a hole | sickly green up through every seam |
+| Dusty Hallway | upper, greyed by dust | dust sheets, and footprints ending at a lantern | the lantern's amber in a dust haze |
+| Statuary Corridor | ground, formal: pale marble, charcoal damask | statues in red-lined niches, one stepped down | the moved statue's red eye-light; amber votives |
+| Catacombs | basement: an earth floor, near-black rock | a wall of bones with an arch of skulls | sickly green from the skulls' eyes |
+| Tower | outdoors, a roof. **Breaks its zone**: a stone roof | the fallen belfry and its bell across the roof | an amber-orange beacon fire |
+| Pentagram Chamber | basement: black flagstones, dark brick | a circle and star in light across the whole floor | violet |
+| Junk Room | upper | junk heaped into every corner | an amber oil lamp on the heap |
+| Attic | upper. **Breaks its zone**: bare plank walls | bare joists over lath, a boarded way through | an amber storm lantern |
 
-Open for the review pass: the Chapel's stone breaks the ground floor's
-zone, its holy light is amber where the language says gold, and its moon
-shaft and floor pool are lined up by hand with the moon, which the moon
-rule above forbids; the Master Bedroom still adds a moon-blue lamp at its
-window; the Upper
-Landing's marble breaks the upper floor's boards; four rooms (the starting
-hall and the Upper Landing) share one dress and one amber light, so
-telling them apart rests on their shapes alone; and green is the
-supernatural in the Library, the Chasm, the Graveyard and the Kitchen, so
-no two of them should sit on one floor with the same green source. The
-Furnace Room's mouth turns to face a corner. The owner's taste calls on the
-Master Bedroom, Mystic Elevator, Kitchen and Underground Lake wait for the
-owner (`design/v1-play.md`).
+Four rooms (the starting hall and the Upper Landing) share one dress and one
+amber light, so telling them apart rests on their shapes alone. Green is the
+supernatural in several rooms (the Library, the Chasm, the Graveyard, the
+Kitchen, the Creaky Hallway, the Catacombs): no two of them should sit on
+one floor with the same green source.
 
 ## Workflow
 
@@ -278,24 +292,38 @@ in, so wall dressing comes last. Keep clear:
 
 #### Standing spots
 
-Every room defines **six standing spots**, and the room's designer chooses
-them where they make sense in that room: in open floor, where a figure
-standing there reads and doesn't hide the identity. The house fills them in
-order, so the first is the prime spot, for the active explorer: put it in
-open floor, with open floor towards the middle of the room as well. Each
-spot must be clear for a base and reachable from the doors, and the
-overlap check verifies both. The existing rooms define only `pawn`, with a
-second spot derived from it (`explorerSpots`, 90 cm towards the middle),
-and the check so far tests only that those two are clear: the review pass
-gives every room six, and the check its reachability test and the open
-floor report below.
+Every room defines **six standing spots**, the prime spot (`pawn`) and five
+more (`spots`), and the room's designer chooses them where they make sense
+in that room: in open floor, where a figure standing there reads and
+doesn't hide the identity. The house fills them in order, so the first is
+the prime spot, for the active explorer: put it in open floor, with open
+floor towards the middle of the room as well. Each spot is clear,
+reachable from every door and out of the doorways' lanes, and **the spots
+stand apart**, at least `SPOT_SPACING` centre to centre, so the figures'
+colour rings (`COLOUR_RING` in `house.ts`) never touch, with a ring's width
+of floor between them. A test checks all of it for every room.
+
+**Overflow.** Figures from the seventh on stand on the room's `overflow`
+places, in order: free floor, clear for a base and reachable like a spot,
+and at least `OVERFLOW_SPACING` from every other place, so bases never
+touch though rings may overlap. Give a room as many as its floor allows; a
+room with no free floor left has none. `roomSpot` throws for a figure past
+the last place, rather than stand two figures in one.
+
+**Walks.** A walker needs clear floor of the base's radius (0.36 m) round
+it, and anything solid from the step-over height (7 cm) to 1.8 m blocks it.
+Walks go straight; where a straight walk would be blocked, give the room
+`lanes` to keep to round the obstacle. A barrier room gives its `crossing`,
+the path from one half to the other, and its spots alternate between the
+halves. A stair link needs both rooms' halves of the path (see "Build it").
+`?paths` on the bench draws the spots and the walks over the room.
 
 **Leave room for a big monster.** A large monster (the Spider, the Dragon)
 may stand in a room one day, taking a spot and spreading over its
 neighbours. No room reserves a spot for one, but where it doesn't cost the
 room's identity, keep tall clutter out of the middle of the floor. The
-overlap check reports each room's largest open floor circle (it never fails
-on it), and the review pass reviews the numbers.
+overlap check reports each room's largest open floor circle; it never fails
+on it.
 
 Use `onWall` for anything backed against a wall: `along` is metres from the
 wall's centre, positive to the right as you face the wall, and `out` stands
@@ -324,22 +352,31 @@ whatever frame is easiest (local, or room metres placed at `[0, 0]`).
 A room with a stair link gives `stairs` a walk path for each room it links
 to: points in room metres from its floor up (or down) the flight to where
 it leaves the room. The two rooms' paths meet, one going up and the other
-coming down (the Grand Staircase and the Upper Landing).
+coming down (the Grand Staircase and the Upper Landing), and both halves
+are needed. The Foyer's secret door down to Stairs from Basement has its
+path but no drawn door yet.
 
 **Run the overlap check** after every change to the props:
 `npx vitest run src/projects/betrayal/art/overlap.test.ts` (headless). It
 builds each room in a worker with a time limit, so a build that loops
 forever fails alone instead of hanging the run. It fails when a solid
 passes into another piece, a wall's body or the floor by more than 2 cm (or
-a third of the thinner piece, so a book half sunk in the floor counts),
-when a piece stands in a doorway's lane or on a standing spot, or when
-two faces of different colour share a plane facing the same way
-(z-fighting). It tests each piece's real shape, splitting touching solids
-into convex parts, so a fallen bookcase is judged as it lies. The few
-millimetres neighbours overlap to hide a crack pass, and so does standing
-into a wall's dressing (skirting, wainscot, casings), which the piece
-hides. A piece's own parts are built into each other on purpose, so only
-their z-fighting counts.
+a third of the thinner piece, so a book half sunk in the floor counts), or
+when a piece stands in a doorway's lane or on a standing spot. It tests
+each piece's real shape, splitting touching solids into convex parts, so a
+fallen bookcase is judged as it lies. The few millimetres neighbours
+overlap to hide a crack pass, and so does standing into a wall's dressing
+(skirting, wainscot, casings), which the piece hides. A piece's own parts
+are built into each other on purpose, so only their z-fighting counts.
+
+**It finds z-fighting too**: faces of any two solids, the shell included,
+lying within about a millimetre of one plane, facing the same way and
+sharing area. It checks the room with its walls standing, cut and
+half-cut; rooms against each other in a house; every tile's bare shell;
+and every face against the house's mark planes (`MARK_PLANES`: the choice
+glow's fill, ring and border, and the figures' colour ring). Fix a fight
+with an inset of a few millimetres, or a butt joint (one wall run stops at
+the other's face), never by declaring it.
 
 When a piece is meant to pass into something, declare it on the piece, in
 one line, with the reason:
@@ -350,12 +387,8 @@ another piece by its name. A piece's name is its build function's, or its
 which the check otherwise calls `prop`. A declared contact that no longer
 happens fails the check too, so declarations don't outlive their reason.
 Prefer fixing the geometry to declaring: a contact is for a piece that
-truly rests in or against another.
-
-The test also holds a baseline: the overlaps the first rooms had when the
-check (or one of its checks) arrived, reported but not failing. A new room
-adds nothing to it. The review pass empties it, fixing each entry or
-declaring it.
+truly rests in or against another. There is no baseline: every room passes
+the check, or declares each intended contact with its reason.
 
 ### 5. Screenshot, review, repeat
 
@@ -376,10 +409,12 @@ ledger.
   `paletteHex`, and `svgTexture` snaps every pixel to the palette anyway. A
   new palette key changes how existing decals snap at their edges, so
   adding one means re-shooting every room and checking it is unchanged.
+  The skin keys are for figures only: decals never snap to them.
 - **Pixels match.** Size a decal or pixel plane from `TEXELS_PER_METRE`
   (`pixelPlane` does it for you), and draw SVGs at that pixel size, never
-  finer. Pixel art moves a whole texel at a time, never smoothly (the
-  Underground Lake's water steps its texture by whole texels).
+  finer. A surface's pixel art moves a whole texel at a time, never
+  smoothly. Light and water are not pixel art: water's surface, its
+  reflections and caustics, and light itself may move smoothly.
 - **Doorways and the standing spots stay clear** (see "Lay it out"); the
   overlap check enforces it.
 - **Wall-hung props and the cutaway.** A wall that is cut stands only to
@@ -486,13 +521,12 @@ light and colour, not shape.
 
 ### Water
 
-The Underground Lake is the reference. Water is an unlit pixel texture
-whose wavelets step a whole texel at a time, with a counter-drifting glint
-layer added over it. It has a signal of its own: its baked lights flicker
-on `water`, a slow swell, not a flame's waver. Reflections are faked (a
-streak of the lantern's colour on the surface, swapped a few frames a
-second), and so is the light it throws up the walls (a caustic band below
-the cut height).
+Water is one kit piece (`kit/water.ts`) for any water: a lake, flooding, a
+puddle, a fountain. The Underground Lake is the reference. Its baked lights
+flicker on `water`, a slow swell, not a flame's waver. Its reflections and
+the caustics it throws up the walls are light, added over the surfaces
+(the walls' band stops below the cut height). The lake's look is pending
+the owner, between two styles (`?water=shader` and `shader-palette`).
 
 ### Fire
 
@@ -538,6 +572,8 @@ Build such a room so it reads at rest, and report what its movement needs.
 - **Coloured light shifts hue on warm surfaces.** Green or red on bone,
   brick or wood turns yellowish; a coloured light reads truest on grey
   stone and on its own glows.
+- **No patterned texture on smooth metal.** The Tower's bell, textured,
+  read as paint; it is one flat colour.
 - **Pale cloth reads cold** blue-grey under the house fill. Warm it in its
   palette keys, or light it warm.
 - **Merge many small pieces** with `batch()`: one mesh, coloured by palette
@@ -569,15 +605,14 @@ Build such a room so it reads at rest, and report what its movement needs.
 What lies through a door or window is decided by the layout, not the room.
 A door that ends up against a neighbour's wall is a **false door**: it can't
 be passed. The house tells the stage which doors are false, and the stage
-shuts them with a plain closed leaf in the trim colour (a shut gate
-outdoors). A window against a neighbour is a **false window**: it lets no
-moonlight in, because the neighbour's wall behind it stops the moon in the
-bake; but its glass still glows as if moonlit. Both matter to the rules
-(haunts make false doors passable, and many cards ask whether a window
-faces outside), so both are to be drawn visibly blocked, boarded or
-bricked, as generic stage pieces: the stage's to build, not a room's. Build
-the room for its real openings, and report anything about a room that only
-works when an opening is live.
+boards them: a shut leaf with boards across it, and boards across the cut
+stub's top (a shut gate outdoors). A window against a neighbour is a
+**false window**: boarded, and letting no moonlight in. Both matter to the
+rules (haunts make false doors passable, and many cards ask whether a
+window faces outside), and both are the stage's to build, not a room's,
+along with every other cutaway marking (`design/presentation.md`, "The
+cutaway"). Build the room for its real openings, and report anything about
+a room that only works when an opening is live.
 
 ## The review loop
 
@@ -650,12 +685,6 @@ check passing.
 
 ### A review pass over many rooms
 
-A pass over the 14 rooms built so far is pending; `design/v1-play.md`
-("Where we left off") lists what it covers, and the ledger's notes above
-are part of it. Besides the checks below, a review pass empties the overlap
-check's baseline, gives each room its six standing spots, and reviews each
-room's largest open floor circle.
-
 When several rooms are reviewed together, shoot them all:
 `node src/projects/betrayal/tools/shots.mjs --all <label>` writes, under
 `.shots/<label>/rooms/`, `rooms.png` (view 0 of every room, named) and
@@ -672,7 +701,7 @@ When several rooms are reviewed together, shoot them all:
 
 All four views and the phone view pass the checklist on the bench and in
 the review house, the close-ups show no detail faults, lint and typecheck
-are clean, the overlap check passes with no new findings, and the room is
+are clean, the overlap check passes, and the room is
 registered with its ledger row. The builder reports back:
 
 - the room's file, the one-sentence identity, and its ledger row;

@@ -49,15 +49,18 @@ function staircase(from: number, to: number): THREE.Group {
     slab(x0, x1, 0, top - 0.04, STAIR.back, STAIR.front, "woodDark");
     if (from === 0 && !whole(i)) {
       // Where the flight is cut down with its wall, its cut top shows the carpet, so the stub still reads as a stair.
-      b.block([STAIR.going, 0.03, depth], "woodMid", [(x0 + x1) / 2, to, STAIR_MID]);
-      b.block([STAIR.going, 0.03, STAIR.carpet], "blood", [(x0 + x1) / 2, to + 0.015, STAIR_MID]);
+      // The cap stands a little inside the step's sides, which the hung part above shares while the wall stands.
+      b.block([STAIR.going - 0.01, 0.03, depth - 0.01], "woodMid", [(x0 + x1) / 2, to, STAIR_MID]);
+      // The carpet stops short of the cap's ends, so their end faces never share a plane.
+      b.block([STAIR.going - 0.02, 0.03, STAIR.carpet], "blood", [(x0 + x1) / 2, to + 0.015, STAIR_MID]);
       b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.02, to + 0.03, STAIR_MID]);
     }
     if (!whole(i)) continue;
     const at = (y: number) => y - from;
     b.block([STAIR.going + 0.03, 0.04, depth + 0.03], "woodMid", [(x0 + x1) / 2 + 0.015, at(top - 0.04), STAIR_MID + 0.015]);
     b.block([STAIR.going, 0.025, STAIR.carpet], "blood", [(x0 + x1) / 2 - 0.02, at(top), STAIR_MID]);
-    b.block([0.025, STAIR.rise - 0.04, STAIR.carpet], "blood", [x1 + 0.0125, at(top - STAIR.rise), STAIR_MID]);
+    // The riser's carpet stands on the tread carpet below, rather than beside it in the same planes.
+    b.block([0.025, STAIR.rise - 0.065, STAIR.carpet], "blood", [x1 + 0.0125, at(top - STAIR.rise + 0.025), STAIR_MID]);
     b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 + 0.03, at(top), STAIR_MID]);
     if (i <= LAST_BALUSTER) {
       for (const x of [x1 - 0.08, x1 - 0.22]) b.block([0.04, RAIL, 0.04], "woodMid", [x, at(top), STAIR.front - 0.06]);
@@ -140,13 +143,17 @@ function turnedPortrait(): THREE.Group {
   return pictureFrame({ art: { rows: CANVAS_BACK, legend: { w: "woodDark", m: "wood", b: "boneDark" } }, frame: "woodDark", border: 0.03 });
 }
 
+/** How far under the cut height the clock's foot stops. */
+const BELOW_CUT = 0.005;
+
 /** A tall case clock with a pale face, its pendulum still. The case's foot
  *  stands on the floor; the rest hangs with its wall. Faces +z. */
 function clock(part: "foot" | "case"): THREE.Group {
   const wood = flat("wood");
   const dark = flat("woodDark");
   if (part === "foot") {
-    return group(box([0.56, 0.1, 0.36], dark, [0, 0, 0.18]), box([0.5, CUT_HEIGHT - 0.1, 0.32], wood, [0, 0.1, 0.16]));
+    // A little under the cut wall's top, so the two never share a plane; the case above reaches down to meet it.
+    return group(box([0.56, 0.1, 0.36], dark, [0, 0, 0.18]), box([0.5, CUT_HEIGHT - 0.1 - BELOW_CUT, 0.32], wood, [0, 0.1, 0.16]));
   }
   const face = cylinder(0.17, 0.02, flat("bone"), [0, 0, 0], { sides: 12 });
   face.rotation.x = Math.PI / 2;
@@ -159,7 +166,7 @@ function clock(part: "foot" | "case"): THREE.Group {
     return holder;
   };
   return group(
-    box([0.42, 0.95, 0.28], wood, [0, 0, 0.14]),
+    box([0.42, 0.95 + BELOW_CUT, 0.28], wood, [0, -BELOW_CUT, 0.14]),
     box([0.2, 0.62, 0.02], flat("soot"), [0, 0.18, 0.285]),
     box([0.04, 0.4, 0.02], flat("brass"), [0, 0.32, 0.3]),
     box([0.13, 0.13, 0.02], flat("brass"), [0, 0.24, 0.305]),
@@ -181,10 +188,29 @@ export const GRAND_STAIRCASE: RoomDefinition = {
   ...SUITE,
   props: [
     { build: () => runner({ from: 0.2, to: 3, finished: ["from"] }), at: [0, 0] },
-    { build: () => staircase(0, STAIR_CUT), at: [0, 0] },
-    { build: () => staircase(STAIR_CUT, 4), at: [0, 0], y: STAIR_CUT, walls: ["top"] },
-    { build: newel, at: [STAIR.foot - 0.04, STAIR.front - 0.06] },
-    { build: cupboardDoor, at: [-1.0, STAIR.front + 0.01] },
+    {
+      build: () => staircase(0, STAIR_CUT),
+      name: "flight",
+      at: [0, 0],
+      contacts: [{ with: "flight above the cut", because: "one flight in two parts: the cut part's cap and stringer reach into the part above, hidden while the wall stands" }],
+    },
+    {
+      build: () => staircase(STAIR_CUT, 4),
+      name: "flight above the cut",
+      at: [0, 0],
+      y: STAIR_CUT,
+      walls: ["top"],
+      contacts: [{ with: "left", because: "the flight's string runs into the wall it climbs to" }],
+    },
+    {
+      build: newel,
+      at: [STAIR.foot - 0.04, STAIR.front - 0.06],
+      contacts: [
+        { with: "flight", because: "the newel post is set into the foot of the flight" },
+        { with: "flight above the cut", because: "the handrail runs into the newel's top" },
+      ],
+    },
+    { build: cupboardDoor, at: [-1.2, STAIR.front + 0.01] },
     { build: sconce, ...onWall("top", -0.6, { y: 2.55, out: 0.02 }) },
     { build: () => pictureFrame({ frame: "brass" }), ...onWall("top", 0.75, { y: 1.45 }) },
     { build: () => pictureFrame({ frame: "woodLight" }), ...onWall("top", -0.15, { y: 2.1 }) },
@@ -194,6 +220,13 @@ export const GRAND_STAIRCASE: RoomDefinition = {
   ] satisfies PropPlacement[],
   focus: [0.4, 1.0, -1.6],
   pawn: [1.2, 0.5],
+  spots: [[-0.35, -0.2], [-0.1, 1.6], [-1.65, 0.9], [-1.9, -0.9], [1.5, 2.2]],
+  overflow: [[-2.35, 2.25], [1.25, -0.9], [-1.9, 0.1], [-0.35, 0.8], [-1.65, 1.9], [0.15, -0.8]],
+  // Across the hall from the doorway, and round the newel to the foot of the stair.
+  lanes: [
+    [[2.2, 0], [1.5, 0], [-1.5, 0]],
+    [[1.5, 0], [1.95, -0.8], [STAIR.foot + 0.8, STAIR_MID]],
+  ],
   // Up the middle of the carpet, over the middle of each tread, into the dark above.
   stairs: {
     "upper-landing": [

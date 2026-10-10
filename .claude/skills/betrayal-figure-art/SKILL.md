@@ -35,9 +35,14 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   one coloured mesh, `loft` for tubes and ribbons through rings, `painted` and
   `mergeAll` for explicit geometry, `surfaceAt` and `onSurface` to lay
   details on a sculpted surface, `glowShaded` for glowing figures, `plinth`
-  for a base, `figureMaterial` and `form`. The figure tones (`TONES`, such as
-  `skin`) are colours mixed from two palette colours that only figures wear.
-  `forms.test.ts` tests the meshing.
+  for a base, `figureMaterial` and `form`. Every sculpture darkens its own
+  hollows as it is meshed (an occlusion term in `forms.ts`), so creases and
+  sockets read without a light of their own. `forms.test.ts` tests the
+  meshing.
+- `explorers/skin.ts`: each character's skin tone, assigned in one place
+  (`skinOf(characterId)`) from the palette's skin ramp, and `skinShade`, the
+  next step down the ramp, for stubble and creases. Only figures wear the
+  skin keys.
 - `explorers/figure.ts`: what every figure shares. `BASE_TOP`;
   `miniatureHeight`, the one scale every explorer is built to; the walk and
   run contract (`Walking`, `walks`, `walkingOf`, `Pace`, `Stride`, `Gait`,
@@ -55,11 +60,15 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `aimGrip`). `explorers/props.ts`: the stand-in props (revolver, candle,
   spear) until items get art, `burning` for a prop with a flame and its
   live light, and `carrying` for a figure built holding one.
-- `explorers/longfellow.ts`, `ox.ts`, `zoe.ts`: the explorers. Longfellow is
+- `explorers/cloth.ts`: the shared heavy-cloth helper every cloth that
+  follows the legs goes through, with `cloth.test.ts`, its smoothness test.
+- `explorers/longfellow.ts`, `ox.ts`, `zoe.ts`, `rhinehardt.ts`: the
+  explorers. Longfellow is
   the reference for an ordinary adult and for a held object riding a hand;
   Ox for a big, heavy body and a held thing that follows the hand (the coin);
   Zoe for a child, a sculpted skirt from a custom distance, and a doll that
-  hangs from her hand. Read all three before the first part.
+  hangs from her hand; Father Rhinehardt for a floor-length robe. Read them
+  all before the first part.
 - `monsters/spider.ts`, `banshee.ts`, `base.ts`: the monsters, and what they
   share (`monsterBase`, `floorGlow`, `ghostly`, `spectral`, `MonsterOptions`).
 - `explorers/line-up.ts`: every explorer side by side with the scale pawn,
@@ -141,7 +150,11 @@ once in code:
   expensive step; building another figure is cheap.
 - **One material per figure**: `figureMaterial()`, a smooth Lambert lit by
   vertex colours, since the house's light probes light Lambert. Each rigid
-  part is one mesh in one draw, however many colours it wears.
+  part is one mesh, however many colours it wears. Once the figure is
+  placed, its parts sharing a material are batched together (`batchParts`,
+  in `part-batch.ts`), so a figure costs a draw call per material, not per
+  part: a part with a material of its own, or cloth whose vertices deform
+  over the legs, stays separate and costs one more.
 - **Grid cell**: 6–9 mm for heads and hands, 12–15 mm for bodies. Never
   sculpt a feature thinner than about two cells; it breaks up. Anything
   finer (wire rims, bristles) is a loft or explicit geometry.
@@ -150,11 +163,13 @@ once in code:
   (the nearest surface point: markings following a curve). Measured, not
   guessed, so they sit on the form and never float or sink.
 - **Hair is soft masses**: blended ellipsoids, rods and lofted locks, never
-  spikes. A sheet down the back reads as long hair from above; separate thin
-  strands read as antennae.
+  spikes, sitting tight to the skull: a big round mass reads as an afro. A
+  sheet down the back reads as long hair from above; separate thin strands
+  read as antennae.
 - **Faces**: the house's cameras look down and its probes are cool, so a
-  face in plain `bone` reads grey-blue and dark. Skin is the `skin` tone
-  (bone warmed towards amber); give the face a brow, a nose and cheeks that
+  face in plain `bone` reads grey-blue and dark. Skin is the character's
+  tone from `skinOf`, and its shade (stubble, creases) is `skinShade`, never
+  another colour; pass the skin to `handParts` too. Give the face a brow, a nose and cheeks that
   catch the light from above, and a head that doesn't bow its face away
   unless the pose means it (Longfellow reads his book). Eyes are white with a
   small dark iris and a glint, sunk under the brow: big black eyes read as
@@ -239,9 +254,15 @@ once in code:
   the legs smoothly and never jumps from one side of a leg to the other);
   Zoe's bell billows front to back as far as her knees and heels need,
   gradually as a heel rises towards its hem, and her feet lift less
-  (`lifts` on the rig) so her knees stay under it. A hem low over the hips
-  (Ox's jacket) ends above the hip pivot, over a seat the thighs swing
-  from.
+  (`lifts` on the rig) so her knees stay under it. A floor-length robe is
+  two halves, each pushed by its leg (Father Rhinehardt). A hem low over
+  the hips (Ox's jacket) ends above the hip pivot, over a seat the thighs
+  swing from.
+- **Cloth moves through the shared helper.** Cloth that follows the legs
+  goes through `heavyCloth` (`explorers/cloth.ts`), which smooths it over a
+  window of time on a fixed grid of moments, the same at any frame rate, and every such cloth
+  passes its smoothness test. The look of robe and skirt motion still needs
+  another pass, tabled by the owner.
 
 ## Colour and identity
 
@@ -258,6 +279,8 @@ file.
   card is red, so his jacket is; Zoe's is yellow, so her dress is. Pair it
   with one contrasting secondary (Ox's cream sleeves, Zoe's copper hair).
   Take no dominant colour another explorer already wears.
+- **A letter or emblem is a flat patch**: Ox's "O" is a flat block letter on a felt
+  patch with a dark border, never a raised ring, which reads as a donut.
 - **Explorers are warm and human**: in the lighting language, amber means
   human. Clothes may take any palette colour as cloth, but nothing on an
   explorer glows, and sickly green, violet and red light stay the

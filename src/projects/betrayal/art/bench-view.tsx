@@ -5,12 +5,14 @@ import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import { BETRAYAL_THEME } from "../components/theme";
 import { createBench } from "./bench";
 import { BENCH_EXPLORERS } from "./explorers";
+import { PathLegendPanel } from "./path-legend";
 import { BENCH_ROOMS } from "./rooms";
 import { roomTile } from "./stage";
 
-/** The art bench (`?bench=<room-id>`): one room, full screen, to judge its art. */
-export function ArtBench({ room }: { room: string }) {
-  const [bench] = useState(() => createBench(room));
+/** The art bench (`?bench=<room-id>`, optionally `&explorer=<id>`,
+ *  `&frame=explorer` and `&paths`): one room, full screen, to judge its art. */
+export function ArtBench({ room, explorer, frame, paths }: { room: string; explorer: string | null; frame: string | null; paths: boolean }) {
+  const [bench] = useState(() => createBench(room, explorer, frame, paths));
   const state = useSyncExternalStore(bench.subscribe, bench.snapshot, bench.snapshot);
   const containerRef = useThreeScene(bench.mount, { antialias: false, maxPixelRatio: 4 });
   const zoomIndex = bench.zooms.indexOf(state.zoom);
@@ -70,10 +72,19 @@ export function ArtBench({ room }: { room: string }) {
         >
           {state.subject === "explorer" ? "Framing: explorer" : "Framing: room"}
         </button>
+        <button
+          type="button"
+          aria-pressed={state.paths}
+          onClick={() => bench.api.setPaths(!state.paths)}
+          className="pointer-events-auto rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 text-sm"
+        >
+          {state.paths ? "Paths: on" : "Paths: off"}
+        </button>
         <span className="rounded border border-(--bt-danger) px-2 text-xs font-semibold tracking-wide text-(--bt-danger) uppercase">
           Art bench
         </span>
       </div>
+      {state.pathLegend && <PathLegendPanel legend={state.pathLegend} />}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <BenchButton label="Orbit left" onClick={() => bench.api.setView(state.view - 1)}>
           ⟲

@@ -1,14 +1,15 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import nextEnv from "@next/env";
 import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
+import { PEER_SIGNAL } from "./peer-signal";
 
 /**
  * Frogmino's lobby: solo play, and co-op rooms found through the live list
  * of open games (Supabase presence) and joined over the shared PeerJS room.
  *
- * `?peer-signal=local` keeps PeerJS on the local PeerServer from
- * global-setup. The open-games list is real Supabase presence, so each test
+ * `?peer-signal=local:<port>` keeps PeerJS on the local PeerServer this run
+ * started. The open-games list is real Supabase presence, so each test
  * lists its rooms on a channel of its own (`?room-list=<unique>`): real
  * players never see the tests' rooms, and no test sees another's. Every wait
  * is on a DOM state the page renders or an event; there are no fixed pauses.
@@ -19,7 +20,7 @@ const LOBBY = "/games/3d-games/frogmino";
 const TIMEOUT = 15_000;
 
 function lobbyUrl(channel: string): string {
-  return `${LOBBY}?peer-signal=local&room-list=${channel}`;
+  return `${LOBBY}?${PEER_SIGNAL}&room-list=${channel}`;
 }
 
 function uniqueChannel(): string {

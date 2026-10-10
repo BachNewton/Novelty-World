@@ -23,6 +23,8 @@
 // room looks like the same house, and rooms-blind.png, numbered in a shuffled order with the names in
 // rooms-blind-key.txt, to ask whether each room can be told from the others without its name.
 //
+// --query=<params> adds to the bench's URL, for a setting the page reads from it, e.g. --query=name=value.
+//
 // The bench's clock is frozen at FREEZE_AT for every shot, so candle flicker and the explorer's idle
 // stand still and two runs differ only where the art does.
 
@@ -44,6 +46,8 @@ const IDLE = FLAGS.includes("--idle");
 const EXPLORER_ZOOM = Number(flag("explorer-zoom") ?? 1);
 /** Draws the room at this short side in pixels instead of the bench's native default, e.g. --res=540. */
 const RES = flag("res") === undefined ? null : Number(flag("res"));
+/** More of the bench's query string, e.g. --query=name=value. */
+const QUERY = flag("query");
 const FREEZE_AT = 2;
 /** Where the idle strip starts: at 0 by default, or --from=<s>. */
 const FREEZE_AT_STRIP = Number(flag("from") ?? 0);
@@ -100,7 +104,7 @@ async function openBench(room, viewport) {
   page.on("console", (m) => {
     if (m.type() === "error") console.error("page console error:", m.text());
   });
-  await page.goto(`${BASE}?bench=${encodeURIComponent(room)}`, { waitUntil: "load" });
+  await page.goto(`${BASE}?bench=${encodeURIComponent(room)}${QUERY ? `&${QUERY}` : ""}`, { waitUntil: "load" });
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
   await page.waitForFunction(() => "__betrayalBench" in window, null, { timeout: 30000 });
   const known = await page.evaluate(() => window.__betrayalBench.rooms());

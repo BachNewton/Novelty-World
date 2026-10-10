@@ -17,6 +17,18 @@ export function textureReady(texture: THREE.Texture): Promise<void> | undefined 
   return (texture.userData as { ready?: Promise<void> }).ready;
 }
 
+/** Resolves once every texture drawn under a root has its pixels. */
+export function texturesUnder(root: THREE.Object3D): Promise<void> {
+  const textures = new Set<THREE.Texture>();
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    for (const material of [object.material].flat() as THREE.Material[]) {
+      if ("map" in material && material.map instanceof THREE.Texture) textures.add(material.map);
+    }
+  });
+  return Promise.all([...textures].map(textureReady)).then(() => undefined);
+}
+
 function canvas(width: number, height: number) {
   const element = document.createElement("canvas");
   element.width = width;
@@ -395,6 +407,60 @@ export function earth({ soil = ["soot", "woodDark", "wood"], grass = ["wraithDar
   });
 }
 
+export interface MarbleOptions {
+  /** Square side in texels (16 = half a metre); a texture `size` across holds a whole number of them. */
+  square?: number;
+  /** Texture size in texels (64 = 2 m). */
+  size?: number;
+  /** Pale and dark squares in a chequer, or every square pale. */
+  chequer?: boolean;
+  pale?: PaletteKey;
+  paleVein?: PaletteKey;
+  dark?: PaletteKey;
+  darkVein?: PaletteKey;
+  grout?: PaletteKey;
+  /** How many veins wander across it. */
+  veins?: number;
+  seed?: string;
+}
+
+/** A marble floor of square slabs, veined, between grout lines: chequered by default. */
+export function marble({
+  square = 16,
+  size = 64,
+  chequer = true,
+  pale = "stone",
+  paleVein = "stoneLight",
+  dark = "sootLight",
+  darkVein = "ash",
+  grout = "stoneDark",
+  veins = 14,
+  seed = "marble",
+}: MarbleOptions = {}): THREE.Texture {
+  const rng = createRng(seed);
+  const grid: string[][] = Array.from({ length: size }, (_, y) =>
+    Array.from({ length: size }, (_, x) => (chequer && (Math.floor(x / square) + Math.floor(y / square)) % 2 === 1 ? "d" : "p")),
+  );
+  const vein = (x0: number, y0: number, steps: number) => {
+    let x = x0;
+    let y = y0;
+    for (let i = 0; i < steps; i++) {
+      const cell = grid[y % size][x % size];
+      grid[y % size][x % size] = cell === "p" || cell === "v" ? "v" : "w";
+      x += rng.next() < 0.6 ? 1 : 0;
+      y += rng.next() < 0.7 ? 1 : 0;
+    }
+  };
+  for (let i = 0; i < veins; i++) vein(Math.floor(rng.next() * size), Math.floor(rng.next() * size), 6 + Math.floor(rng.next() * 10));
+  for (let i = 0; i < size; i += square) {
+    for (let j = 0; j < size; j++) {
+      grid[i][j] = "g";
+      grid[j][i] = "g";
+    }
+  }
+  return pixelTexture(grid.map((row) => row.join("")), { p: pale, v: paleVein, d: dark, w: darkVein, g: grout }, true);
+}
+
 /** Maps each character of a pixel grid to a palette colour; `null` is transparent. */
 export type PixelLegend = Record<string, PaletteKey | null>;
 
@@ -421,7 +487,13 @@ export function pixelTexture(rows: readonly string[], legend: PixelLegend, repea
   });
 }
 
-const PALETTE_RGB = Object.values(PALETTE).map((hex) => [
+/** The colours a decal snaps to: every palette colour but skin, which only
+ *  figures wear, and which would otherwise catch the anti-aliased edge
+ *  between most pairs of the house's warm colours. */
+const SKIN: readonly PaletteKey[] = RAMPS.skin;
+const DECAL_COLOURS = (Object.keys(PALETTE) as PaletteKey[]).filter((key) => !SKIN.includes(key));
+
+const PALETTE_RGB = DECAL_COLOURS.map(paletteHex).map((hex) => [
   parseInt(hex.slice(1, 3), 16),
   parseInt(hex.slice(3, 5), 16),
   parseInt(hex.slice(5, 7), 16),

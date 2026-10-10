@@ -1,6 +1,6 @@
 # Cutaway research
 
-How other games show the inside of a building from above, gathered to decide how the house's cut walls carry what a wall means to the rules (doors, false doors, windows, secret passages). The evidence is mostly player forums, manuals and reviews; there are few developer talks. The proposals it led to are in `presentation.md` ("Walls under the cutaway").
+How other games show the inside of a building from above, gathered to decide how the house's cut walls carry what a wall means to the rules (doors, false doors, windows, secret passages). The evidence is mostly player forums, manuals and reviews; there are few developer talks. The decisions it led to are in `presentation.md` ("Walls under the cutaway").
 
 ## What other games do
 

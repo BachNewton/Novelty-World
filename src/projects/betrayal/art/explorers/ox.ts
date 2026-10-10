@@ -1,10 +1,11 @@
 import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { ball, drum, ellipsoid, figureMaterial, form, painted, plinth, ring, rod, roundBox, sculpt, shaped, stretched, surfaceAt, type Vec3 } from "../forms";
+import { ball, drum, ellipsoid, figureMaterial, form, painted, plinth, ring, rod, roundBox, sculpt, shaped, stretched, surfaceAt } from "../forms";
 import { group } from "../shapes";
 import { BASE_TOP, burst, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
 import { aimGrip, blendPose, buildArm, closedRound, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
+import { skinOf, skinShade } from "./skin";
 
 /*
  * Ox Bellows: a huge young linebacker, all Might, who is afraid of the dark
@@ -15,6 +16,8 @@ import { aimGrip, blendPose, buildArm, closedRound, fist, handParts, hasHands, h
  *
  * Every size is in metres, every height from the floor; each pivot sits at its joint.
  */
+
+const SKIN = skinOf("ox-bellows");
 
 /** 6'4" at the miniature's scale. */
 const TOP = BASE_TOP + miniatureHeight(6, 4);
@@ -44,13 +47,13 @@ const SHIN = 0.326;
  *  a broad nose, a day's stubble, and a buzz cut painted close to the skull. */
 function head(): THREE.BufferGeometry {
   const shape = sculpt()
-    .add(rod([0, -0.12, -0.01], [0, 0.1, -0.005], 0.088, 0.088), "skin")
-    .add(ellipsoid([0, 0.2, -0.005], [0.112, 0.135, 0.122]), "skin", 0.04)
-    .add(roundBox([0, 0.1, 0.035], [0.095, 0.06, 0.08], 0.045), "skin", 0.05)
-    .add(rod([-0.07, 0.215, 0.1], [0.07, 0.215, 0.1], 0.024), "skin", 0.025)
-    .add(rod([0, 0.2, 0.125], [0, 0.155, 0.142], 0.017, 0.026), "skin", 0.015);
+    .add(rod([0, -0.12, -0.01], [0, 0.1, -0.005], 0.088, 0.088), SKIN)
+    .add(ellipsoid([0, 0.2, -0.005], [0.112, 0.135, 0.122]), SKIN, 0.04)
+    .add(roundBox([0, 0.1, 0.035], [0.095, 0.06, 0.08], 0.045), SKIN, 0.05)
+    .add(rod([-0.07, 0.215, 0.1], [0.07, 0.215, 0.1], 0.024), SKIN, 0.025)
+    .add(rod([0, 0.2, 0.125], [0, 0.155, 0.142], 0.017, 0.026), SKIN, 0.015);
   for (const side of [-1, 1]) {
-    shape.add(ellipsoid([side * 0.112, 0.17, -0.005], [0.02, 0.036, 0.026]), "skin", 0.01);
+    shape.add(ellipsoid([side * 0.112, 0.17, -0.005], [0.02, 0.036, 0.026]), SKIN, 0.01);
     shape.carve(ball([side * 0.042, 0.188, 0.122], 0.018), { blend: 0.008 });
     shape.add(ball([side * 0.042, 0.188, 0.104], 0.018), "boneLight");
     shape.paint(ball([side * 0.042, 0.188, 0.121], 0.009), "woodDark");
@@ -58,7 +61,7 @@ function head(): THREE.BufferGeometry {
   return shape
     .paint(ellipsoid([0, 0.218, 0.122], [0.075, 0.009, 0.02]), "woodDark")
     // Stubble round the jaw and chin, below the cheekbones.
-    .paint((x, y, z) => (y < 0.135 && y > 0.04 && z > -0.02 && Math.hypot(x, z - 0.04) > 0.03 ? -1 : 1), "skinShade")
+    .paint((x, y, z) => (y < 0.135 && y > 0.04 && z > -0.02 && Math.hypot(x, z - 0.04) > 0.03 ? -1 : 1), skinShade(SKIN))
     .paint(ellipsoid([0, 0.112, 0.125], [0.032, 0.007, 0.03]), "bloodDark")
     // The buzz cut: hair to the brow at the front, down to the nape behind.
     .paint((x, y, z) => (y > 0.235 + 0.03 * Math.max(0, z / 0.12) - 0.1 * Math.max(0, -z / 0.12) && Math.abs(x) < 0.122 ? -1 : 1), "woodDark")
@@ -82,10 +85,34 @@ function jacket(): THREE.BufferGeometry {
     .paint((_, y) => (Math.abs(y + 0.015) < 0.011 && y > -0.03 ? -1 : 1), "boneLight")
     .add(stretched(ring([0, 0.5, -0.01], 0.125, 0.038), [0, 0.5, -0.01], [1, 1, 0.85]), "bloodDark", 0.015);
   for (const y of [0.05, 0.15, 0.25, 0.36]) shape.add(ball([0, y, surfaceAt(shape.distance, 0, y) + 0.003], 0.012), "boneLight");
-  const letter: Vec3 = [0.135, 0.29, 0];
-  const front = surfaceAt(shape.distance, letter[0], letter[1]);
-  shape.add(ring([letter[0], letter[1], front + 0.004], 0.052, 0.016, [Math.PI / 2, 0, 0]), "boneLight", 0.004);
-  return shape.geometry(0.013);
+  return shape
+    .paint((x, y, z) => (z > 0 ? blockO(x, y, LETTER_BORDER) : 1), "bloodDark")
+    .paint((x, y, z) => (z > 0 ? blockO(x, y, 0) : 1), "boneLight")
+    .geometry(0.013);
+}
+
+/** Where the "O" sits on the jacket's front, and the dark felt border round it. */
+const LETTER: [number, number] = [0.135, 0.29];
+const LETTER_BORDER = 0.007;
+
+/** Distance in x and y to a rounded rectangle centred on (cx, cy). */
+function roundRect(x: number, y: number, cx: number, cy: number, halfWidth: number, halfHeight: number, round: number): number {
+  const qx = Math.abs(x - cx) - halfWidth + round;
+  const qy = Math.abs(y - cy) - halfHeight + round;
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - round;
+}
+
+/**
+ * The varsity "O" as a flat felt patch, seen from the front: a tall block
+ * letter with thick strokes and a narrow, squared counter, grown by `grow`
+ * for its border. Flat, taller than it is wide and outlined dark on the red,
+ * it reads as a letter, where a round raised ring reads as a doughnut.
+ */
+function blockO(x: number, y: number, grow: number): number {
+  const [cx, cy] = LETTER;
+  const outer = roundRect(x, y, cx, cy, 0.054 + grow, 0.066 + grow, 0.032 + grow);
+  const counter = roundRect(x, y, cx, cy, 0.022 - grow, 0.034 - grow, 0.014);
+  return Math.max(outer, -counter);
 }
 
 /** A cream leather sleeve on a thick upper arm, set in under the jacket's
@@ -101,7 +128,7 @@ function forearm(): THREE.BufferGeometry {
   return sculpt()
     .add(rod([0, 0, 0], [0, -FOREARM + 0.03, 0], 0.068, 0.06), "boneLight")
     .add(ring([0, -FOREARM + 0.03, 0], 0.05, 0.022), "bloodDark", 0.006)
-    .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.02, 0.002], 0.03, 0.027), "skin")
+    .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.02, 0.002], 0.03, 0.027), SKIN)
     .geometry(0.009);
 }
 
@@ -145,7 +172,7 @@ function meshParts() {
     upperArm: upperArm(),
     forearm: forearm(),
     /** The right hand, then the left. */
-    hands: [handParts(-1, HAND), handParts(1, HAND)],
+    hands: [handParts(-1, HAND, SKIN), handParts(1, HAND, SKIN)],
     thigh: thigh(),
     shin: shin(),
     shoes: [shoe(-LEG_X), shoe(LEG_X)],

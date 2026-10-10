@@ -2,15 +2,28 @@ import { CHARACTERS } from "../../data/characters";
 import { pawn } from "../kit/pawn";
 import type { PaletteKey } from "../palette";
 import type { ExplorerBuilder } from "../stage";
+import type { CardColour } from "../../types";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
+
+/** A seat's colour is its character card's: on the figure, from the art palette. */
+export const CARD_PALETTE: Record<CardColour, PaletteKey> = {
+  white: "boneLight",
+  red: "scarlet",
+  yellow: "gold",
+  green: "wraithLight",
+  blue: "moonLight",
+  purple: "violet",
+};
 
 /** The characters with a figure of their own, by character id. */
 const FIGURES: Partial<Record<string, ExplorerBuilder>> = {
   "professor-longfellow": longfellow,
   "ox-bellows": ox,
   "zoe-ingstrom": zoe,
+  "father-rhinehardt": rhinehardt,
 };
 
 /** The pawn standing in for a character without a figure, one per colour, so

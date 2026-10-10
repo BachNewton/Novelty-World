@@ -63,6 +63,9 @@ src/projects/monopoly/bots/optimize/*.log
 # Isolated dist dir for the Shipwright perf sweep's production server (see next.config.ts distDir)
 .next-bench/
 
+# Each e2e run's own build, one folder per run (e2e/next-server.ts deletes finished runs' folders)
+.next-e2e/
+
 # learned-bot (RL) training checkpoints — generated net weights + meta
 rl-checkpoints/
 

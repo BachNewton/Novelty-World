@@ -93,7 +93,7 @@ function shroudedMirror(): THREE.Group {
     const x = -w / 2 + 0.08 + i * ((w - 0.16) / (folds.length - 1));
     cloth.block([0.09, h - 0.1 + drop, 0.035], i % 2 === 0 ? "sootLight" : "void", [x, 0.06 - drop, 0.085]);
   });
-  cloth.block([w + 0.12, 0.08, 0.06], "sootLight", [0, h - 0.07, 0.07]);
+  cloth.block([w + 0.14, 0.08, 0.06], "sootLight", [0, h - 0.07, 0.07]);
   return group(
     box([w + 0.12, h + 0.12, 0.05], frame, [0, -0.06, 0.025]),
     box([w, h, 0.02], flat("moonDark"), [0, 0, 0.05]),
@@ -123,7 +123,8 @@ function coatStand(): THREE.Group {
   const wood = flat("woodDark");
   const result = group(
     box([0.5, 0.05, 0.08], wood, [0, 0, 0]),
-    box([0.08, 0.05, 0.5], wood, [0, 0, 0]),
+    // A little lower than the foot it crosses, so their tops never share a plane.
+    box([0.08, 0.045, 0.5], wood, [0, 0, 0]),
     cylinder(0.035, 1.8, wood, [0, 0.05, 0], { sides: 6 }),
     cylinder(0.06, 0.06, flat("woodMid"), [0, 1.85, 0], { top: 0, sides: 6 }),
   );
@@ -139,7 +140,7 @@ function coatStand(): THREE.Group {
   coat.block([0.42, 0.95, 0.16], "bruiseDark", [0, 0.5, 0.15]);
   coat.block([0.1, 0.8, 0.1], "bruise", [-0.17, 0.62, 0.19]);
   coat.block([0.1, 0.8, 0.1], "bruise", [0.17, 0.62, 0.19]);
-  coat.block([0.04, 0.9, 0.02], "void", [0, 0.55, 0.235]);
+  coat.block([0.04, 0.89, 0.02], "void", [0, 0.55, 0.235]);
   result.add(coat.mesh());
   const hat = group(cylinder(0.17, 0.015, flat("soot"), [0, 0, 0], { sides: 10 }), cylinder(0.1, 0.13, flat("soot"), [0, 0.015, 0], { sides: 10 }));
   hat.position.set(-0.15, 1.72, -0.1);
@@ -168,7 +169,8 @@ function deadPalm(): THREE.Group {
       .multiply(new THREE.Matrix4().makeTranslation(0, 0.4, 0))
       .multiply(new THREE.Matrix4().makeRotationZ(-0.9 - tilt * 0.3))
       .multiply(new THREE.Matrix4().makeTranslation(0, 0.2, 0));
-    fronds.add([0.09, 0.42, 0.015], colour, tip);
+    // A little thinner than the stem it bends from, so their faces never share a plane where they overlap.
+    fronds.add([0.09, 0.42, 0.011], colour, tip);
   });
   result.add(fronds.mesh());
   return result;
@@ -188,9 +190,20 @@ export const FOYER: RoomDefinition = {
     { build: () => box([0.09, 0.01, 0.06], flat("boneLight")), at: [-1.43, -2.47], y: 0.835, turn: -15 },
     { build: shroudedMirror, ...onWall("top", -1.65, { y: 1.25 }) },
     { build: coatStand, at: [2.15, 2.25], turn: -30 },
-    { build: deadPalm, at: [-2.25, 2.2] },
+    { build: deadPalm, at: [-2.05, 2.0] },
     { build: () => table({ length: 0.8, width: 0.4, height: 0.5 }), ...onWall("top", 1.7, { out: 0.25 }) },
   ],
   focus: [0, 1.4, 0],
   pawn: [-1.0, 0.8],
+  spots: [[0.3, -0.05], [-1.1, -0.75], [0.2, -1.6], [1.6, -0.9], [1.6, 0.8]],
+  overflow: [[0.25, 1.65], [-1.1, -1.75], [0.0, 0.8], [0.6, -0.9], [1.1, -1.5], [-0.5, -1.25]],
+  // To the secret door at the foot of the bottom wall, beside the front-door
+  // side of the runner, and down through it to the cellar stair.
+  stairs: {
+    "stairs-from-basement": [
+      [1.15, 0, 1.6],
+      [1.15, 0, 2.45],
+      [1.15, -1.0, 2.75],
+    ],
+  },
 };

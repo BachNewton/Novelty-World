@@ -1,10 +1,13 @@
 import * as THREE from "three";
 import type { Edge } from "../types";
-import { bakeScene, PROBE_FLOATS, roomLight, roomSamples, type Baker, type RoomLight } from "./bake";
+import { bakeScene, bounceSamples, PROBE_FLOATS, roomSamples, type Gathered, type RoomLight } from "./bake";
+import { lightLayout } from "./bake-finish";
+import type { BakeScheduler, PassPlan } from "./bake-schedule";
 import { PROBE_GRID, type Bucket, type FrozenRoom } from "./freeze";
-import { flickerOf, flickerSignal, LIGHTMAP, MAX_FLICKER } from "./lighting";
+import { BOUNCE, bounceOn, flickerOf, flickerSignal, LIGHTMAP, MAX_FLICKER } from "./lighting";
 import { TILE } from "./room";
-import { EDGES } from "./stage";
+import { batchParts, type PartBatch } from "./part-batch";
+import { disposeTree, EDGES } from "./stage";
 
 /*
  * A floor of frozen rooms, drawn with their baked light: the house has one
@@ -12,7 +15,9 @@ import { EDGES } from "./stage";
  * the light the house gives it. Placing rooms is the only way in, and it is
  * diffed: a room that is new, moved or rebuilt is re-baked with the rooms
  * next to it, whose light it can now block or let through. Nothing re-bakes
- * on a clock.
+ * on a clock. The bake runs in the background, in passes (`bake-schedule.ts`):
+ * each room shows its direct light as soon as that lands, and its bounce
+ * when that does. A newer change to a room supersedes its bake in progress.
  */
 
 /** The ambient cube a moving piece is lit by, shared by all its materials. */
@@ -37,16 +42,20 @@ export interface LitRoom {
 }
 
 export interface Rebake {
-  /** The rooms baked, and how long it took. */
+  /** The rooms baked, and how long until their direct light showed. */
   rooms: string[];
   ms: number;
+  /** Resolves, with how long it took from the start, once their bounce shows too; null when the page bakes none (`?bounce=off`). */
+  bounce: Promise<number> | null;
 }
 
 export interface LitFloor {
   root: THREE.Group;
   rooms: Map<string, LitRoom>;
-  /** Lays the floor's rooms, and resolves once what the change affects is
-   *  re-baked. Calls run one after another, in the order made. */
+  /** Lays the floor's rooms, and resolves once what the change affects shows
+   *  its direct light (its `bounce` once that shows too). A later call that
+   *  re-bakes the same rooms supersedes this one's bake of them, and this
+   *  one's promises then follow the later bake. */
   place: (placements: FloorPlacement[]) => Promise<Rebake>;
   /** The probe light at a point of the floor (floor frame), into `out`. */
   probeAt: (point: THREE.Vector3, out: THREE.Vector3[]) => THREE.Vector3[];
@@ -185,7 +194,7 @@ function litRoom(
   matrix: THREE.Matrix4,
   flicker: { value: THREE.Vector4 },
   water: { value: number },
-): LitRoom & { lightmap: THREE.DataTexture; flickerMap: THREE.DataTexture; probes: { uniform: ProbeUniform; probe: number }[] } {
+): LitRoom & { lightmap: THREE.DataTexture; flickerMap: THREE.DataTexture; probes: { uniform: ProbeUniform; probe: number; batch: PartBatch }[] } {
   const { width, height } = room.texels;
   const lightmap = lightmapTexture(new Uint16Array(width * height * 4), width, height, THREE.HalfFloatType);
   const flickerMap = lightmapTexture(new Uint8Array(width * height * 4), width, height, THREE.UnsignedByteType);
@@ -217,7 +226,7 @@ function litRoom(
   for (const bucket of room.buckets) root.add(new THREE.Mesh(bucket.geometry, material(bucket)));
   const probes = room.dynamics.map(({ holder, probe }) => {
     root.add(holder);
-    return { uniform: patchProbe(holder), probe };
+    return { uniform: patchProbe(holder), probe, batch: batchParts(holder) };
   });
 
   return {
@@ -341,7 +350,31 @@ export function ghostRoom(room: FrozenRoom, look: GhostLook): GhostRoom {
 /** Every bake scene gets its own id, so workers shared between floors never confuse two. */
 let scenes = 0;
 
-export function createLitFloor(baker: Baker): LitFloor {
+/**
+ * Which kinds of bake show how far they have got: those that usually take
+ * more than a couple of seconds, judged from their times in the bake's debug
+ * view (`?bake-debug`). The rest show only that the light is refining.
+ * Measured on a 16-thread laptop with the fixture house: the direct light
+ * of the whole house took 2 to 3.5 s, and the bounce 9 to 10 s more; a
+ * re-bake of one room and its neighbours took about 1 s for the direct
+ * light and 6 to 7 s for the bounce. A phone takes longer still.
+ */
+const SHOWS_PROGRESS = {
+  /** A floor's first bake: every room on it at once. */
+  firstDirect: true,
+  /** A re-bake on discovering or moving a room: the room and its neighbours. */
+  direct: false,
+  bounce: true,
+};
+
+/** Every floor gets its own id, so its rooms' bakes never supersede another floor's. */
+let floors = 0;
+
+/** `floor` names the floor to the scheduler, which runs the bakes of the floor's rooms
+ *  the player is looking at first. */
+export function createLitFloor(bakes: BakeScheduler, floor: string): LitFloor {
+  const floorKey = `${floor}#${++floors}`;
+  const keyOf = (id: string) => `${floorKey}:${id}`;
   const root = new THREE.Group();
   const flicker = { value: new THREE.Vector4() };
   const water = { value: 0 };
@@ -378,9 +411,59 @@ export function createLitFloor(baker: Baker): LitFloor {
     return readProbes(nearest.room, nearest.light.probes, local.x, local.z, out);
   };
 
-  let queue: Promise<void> = Promise.resolve();
-  const place = async (placements: FloorPlacement[]): Promise<Rebake> => {
+  const show = (built: Built, light: RoomLight) => {
+    built.light = light;
+    built.lightmap.image.data = light.irradiance;
+    built.lightmap.needsUpdate = true;
+    built.flickerMap.image.data = light.flicker;
+    built.flickerMap.needsUpdate = true;
+    for (const { uniform, probe } of built.probes) readProbe(light.probes, probe, uniform.value);
+    // A new room shows once it has its light, never black while it bakes.
+    if (built.root.parent !== root) root.add(built.root);
+  };
+
+  /** A room's passes: its direct light, then (unless the page asks for none) its bounce, added to it.
+   *  A worker lays each into the room's lightmap; here it is only shown. */
+  const passesOf = (built: Built, first: boolean): PassPlan[] => {
+    const layout = lightLayout(built.room);
+    let direct: Gathered | null = null;
+    const passes: PassPlan[] = [
+      {
+        pass: "direct",
+        samples: roomSamples(built),
+        cost: 1,
+        progress: first ? SHOWS_PROGRESS.firstDirect : SHOWS_PROGRESS.direct,
+        finish: (light) => {
+          direct = light;
+          return { kind: "direct", layout, light };
+        },
+        show: (light) => {
+          show(built, light);
+        },
+      },
+    ];
+    if (bounceOn()) {
+      passes.push({
+        pass: "bounce",
+        samples: bounceSamples(built),
+        // Each ray reads the direct light where it lands: about a direct sample's work.
+        cost: BOUNCE.rays,
+        progress: SHOWS_PROGRESS.bounce,
+        finish: (coarse) => {
+          if (!direct) throw new Error(`${built.id}'s bounce was in before its direct light`);
+          return { kind: "bounce", layout, direct, coarse };
+        },
+        show: (light) => {
+          show(built, light);
+        },
+      });
+    }
+    return passes;
+  };
+
+  const place = (placements: FloorPlacement[]): Promise<Rebake> => {
     const started = performance.now();
+    const first = rooms.size === 0;
     const changed = new Set<string>();
     const centres: THREE.Vector3[] = [];
     const centre = (matrix: THREE.Matrix4) => new THREE.Vector3().setFromMatrixPosition(matrix);
@@ -389,6 +472,7 @@ export function createLitFloor(baker: Baker): LitFloor {
       if (next && next.room === built.room && next.matrix.equals(built.matrix)) continue;
       changed.add(id);
       centres.push(centre(built.matrix));
+      bakes.cancel(keyOf(id));
       remove(built);
       rooms.delete(id);
     }
@@ -400,55 +484,37 @@ export function createLitFloor(baker: Baker): LitFloor {
     }
     // A change re-bakes the rooms next to it too: their light now meets new walls and doorways.
     const affected = new Set([...rooms.values()].filter((built) => changed.has(built.id) || centres.some((at) => at.distanceTo(centre(built.matrix)) < TILE * 1.01)).map((built) => built.id));
-    if (affected.size === 0) return { rooms: [], ms: performance.now() - started };
+    if (affected.size === 0) return Promise.resolve({ rooms: [], ms: performance.now() - started, bounce: null });
     const all = [...rooms.values()].map((built) => ({ room: built.room, matrix: built.matrix }));
     const scene = bakeScene(all);
     const sceneId = ++scenes;
-    const targets = [...rooms.values()].filter((built) => affected.has(built.id));
-    const gathered = await Promise.all(targets.map((built) => baker(scene, sceneId, roomSamples(built))));
-    for (const [i, built] of targets.entries()) {
-      const light = roomLight(built.room, gathered[i]);
-      built.light = light;
-      built.lightmap.image.data = light.irradiance;
-      built.lightmap.needsUpdate = true;
-      built.flickerMap.image.data = light.flicker;
-      built.flickerMap.needsUpdate = true;
-      for (const { uniform, probe } of built.probes) readProbe(light.probes, probe, uniform.value);
-      // A new room shows once it has its light, never black while it bakes.
-      if (built.root.parent !== root) root.add(built.root);
-    }
-    return { rooms: [...affected], ms: performance.now() - started };
+    const submitted = [...rooms.values()]
+      .filter((built) => affected.has(built.id))
+      .map((built) => bakes.submit({ key: keyOf(built.id), floor, room: built.id, scene, sceneId, passes: passesOf(built, first) }));
+    const shown = Promise.all(submitted.map(({ passes }) => passes[0]));
+    const bounce = bounceOn() ? Promise.all(submitted.map(({ done }) => done)).then(() => performance.now() - started) : null;
+    return shown.then(() => ({ rooms: [...affected], ms: performance.now() - started, bounce }));
   };
 
   return {
     root,
     rooms,
-    place: (placements) => {
-      const run = queue.then(() => place(placements));
-      queue = run.then(
-        () => undefined,
-        () => undefined,
-      );
-      return run;
-    },
+    place,
 
     probeAt,
     update: (seconds) => {
       flickerSignal(seconds, flicker.value);
       water.value = flickerOf(seconds, "water");
-      for (const built of rooms.values()) for (const animation of built.room.animations) animation(seconds);
+      for (const built of rooms.values()) {
+        for (const animation of built.room.animations) animation(seconds);
+        for (const { batch } of built.probes) batch.sync();
+      }
     },
     dispose: () => {
       for (const built of rooms.values()) {
+        bakes.cancel(keyOf(built.id));
         remove(built);
-        for (const { holder } of built.room.dynamics) {
-          holder.traverse((object) => {
-            if (object instanceof THREE.Mesh) {
-              object.geometry.dispose();
-              for (const material of [object.material].flat() as THREE.Material[]) material.dispose();
-            }
-          });
-        }
+        for (const { holder } of built.room.dynamics) disposeTree(holder);
       }
       rooms.clear();
     },

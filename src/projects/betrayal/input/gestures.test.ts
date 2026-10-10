@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyTwoFinger, isDrag, panOnFloor, spanOf, TAP_SLOP, tapAction, turnBetween } from "./gestures";
+import { isDrag, NO_PARTS, panOnFloor, partsUnderWay, spanOf, TAP_SLOP, tapAction } from "./gestures";
 
 describe("isDrag", () => {
   it("is a tap within the slop, and a drag past it", () => {
@@ -8,42 +8,49 @@ describe("isDrag", () => {
   });
 });
 
-describe("classifyTwoFinger", () => {
+describe("partsUnderWay", () => {
   const start = spanOf({ x: 0, y: 0 }, { x: 100, y: 0 });
+  const parts = (a: { x: number; y: number }, b: { x: number; y: number }) => partsUnderWay(start, spanOf(a, b), NO_PARTS);
 
-  it("waits while the fingers barely move", () => {
-    expect(classifyTwoFinger(start, spanOf({ x: 0, y: 0 }, { x: 104, y: 5 }))).toBe("pending");
+  it("starts nothing while the fingers barely move", () => {
+    expect(parts({ x: 0, y: 0 }, { x: 104, y: 5 })).toEqual(NO_PARTS);
   });
 
-  it("is a pinch when the spread changes, either way", () => {
-    expect(classifyTwoFinger(start, spanOf({ x: 0, y: 0 }, { x: 130, y: 0 }))).toBe("pinch");
-    expect(classifyTwoFinger(start, spanOf({ x: 0, y: 0 }, { x: 70, y: 0 }))).toBe("pinch");
+  it("zooms alone when the spread changes about a still middle, either way", () => {
+    expect(parts({ x: -15, y: 0 }, { x: 115, y: 0 })).toEqual({ turn: false, tilt: false, zoom: true });
+    expect(parts({ x: 15, y: 0 }, { x: 85, y: 0 })).toEqual({ turn: false, tilt: false, zoom: true });
   });
 
-  it("is a twist when the line between the fingers turns", () => {
-    const turned = (degrees: number) => spanOf({ x: 0, y: 0 }, { x: 100 * Math.cos((degrees * Math.PI) / 180), y: 100 * Math.sin((degrees * Math.PI) / 180) });
-    expect(classifyTwoFinger(start, turned(20))).toBe("twist");
-    expect(classifyTwoFinger(start, turned(-20))).toBe("twist");
+  it("turns alone when both fingers slide sideways together", () => {
+    expect(parts({ x: 60, y: 0 }, { x: 160, y: 0 })).toEqual({ turn: true, tilt: false, zoom: false });
   });
 
-  it("is a tilt when both fingers move up or down together", () => {
-    expect(classifyTwoFinger(start, spanOf({ x: 0, y: -40 }, { x: 100, y: -40 }))).toBe("tilt");
-    expect(classifyTwoFinger(start, spanOf({ x: 0, y: 30 }, { x: 100, y: 30 }))).toBe("tilt");
+  it("tilts alone when both fingers move up or down together", () => {
+    expect(parts({ x: 0, y: -40 }, { x: 100, y: -40 })).toEqual({ turn: false, tilt: true, zoom: false });
   });
 
-  it("is no tilt when the fingers slide sideways together", () => {
-    expect(classifyTwoFinger(start, spanOf({ x: 60, y: 0 }, { x: 160, y: 0 }))).toBe("pending");
+  it("turns and tilts on a diagonal drag", () => {
+    expect(parts({ x: 30, y: 30 }, { x: 130, y: 30 })).toEqual({ turn: true, tilt: true, zoom: false });
   });
 
-  it("goes with whichever passes its threshold by more", () => {
-    // Spread up 10% (1.2 thresholds) and turned 24° (2 thresholds).
-    const angle = (24 * Math.PI) / 180;
-    expect(classifyTwoFinger(start, spanOf({ x: 0, y: 0 }, { x: 110 * Math.cos(angle), y: 110 * Math.sin(angle) }))).toBe("twist");
+  it("does all three at once", () => {
+    expect(parts({ x: 20, y: 30 }, { x: 180, y: 30 })).toEqual({ turn: true, tilt: true, zoom: true });
   });
 
-  it("measures a turn the short way across the half-turn", () => {
-    expect(turnBetween(Math.PI - 0.1, -Math.PI + 0.1)).toBeCloseTo(0.2);
-    expect(turnBetween(-Math.PI + 0.1, Math.PI - 0.1)).toBeCloseTo(-0.2);
+  it("does nothing when the line between the fingers only turns", () => {
+    const angle = (30 * Math.PI) / 180;
+    expect(parts({ x: 50 - 50 * Math.cos(angle), y: -50 * Math.sin(angle) }, { x: 50 + 50 * Math.cos(angle), y: 50 * Math.sin(angle) })).toEqual(NO_PARTS);
+  });
+
+  it("turns too on a pinch with one finger still, once the middle has moved past its threshold", () => {
+    // The moving finger's 30 px moves the middle 15 px: a zoom alone.
+    expect(parts({ x: 0, y: 0 }, { x: 130, y: 0 })).toEqual({ turn: false, tilt: false, zoom: true });
+    // At 40 px the middle has moved 20 px, so the turn begins too.
+    expect(parts({ x: 0, y: 0 }, { x: 140, y: 0 })).toEqual({ turn: true, tilt: false, zoom: true });
+  });
+
+  it("keeps a part under way once begun, even back where it started", () => {
+    expect(partsUnderWay(start, start, { turn: true, tilt: false, zoom: true })).toEqual({ turn: true, tilt: false, zoom: true });
   });
 });
 

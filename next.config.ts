@@ -30,6 +30,13 @@ const nextConfig: NextConfig = {
   // time. `NEXT_DIST_DIR=.next-bench npm run build` gives that build its own output dir.
   // Unset — every normal build and deploy — this is exactly `.next`.
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
+  // An e2e run's own build (e2e/next-server.ts) points Next at that run's tsconfig, so the build's
+  // per-run `include` additions land there and never in the tracked tsconfig.json. It skips the type
+  // check: `npm run typecheck` owns that, and an e2e run shouldn't fail on a type error in someone's
+  // unrelated half-done work.
+  ...(process.env.E2E_TSCONFIG === undefined
+    ? {}
+    : { typescript: { tsconfigPath: process.env.E2E_TSCONFIG, ignoreBuildErrors: true } }),
   env: {
     APP_VERSION: commitCount,
   },

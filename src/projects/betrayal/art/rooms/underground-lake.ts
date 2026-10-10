@@ -2,18 +2,16 @@ import * as THREE from "three";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { cask, coil, crate, lantern, strand } from "../kit";
+import { causticSides, waterCaustics, waterRectangle, waterSurface, type CausticFace, type WaterContact, type WaterLamp } from "../kit/water";
 import type { PaletteKey } from "../palette";
-import { INNER, onWall, type RoomDefinition } from "../room";
-import { batch, box, flat, group, lightMaterial, pixelPlane, projectUvs, textured } from "../shapes";
+import { CUT_HEIGHT, INNER, WAINSCOT_DEPTH, type PropPlacement, type RoomDefinition } from "../room";
+import { RAIL, SKIRTING } from "../stage";
+import { batch, box, flat, group, pixelPlane, projectUvs, textured } from "../shapes";
 import { flagstones, pixelTexture, TEXELS_PER_METRE, woodPlanks } from "../textures";
 
 /** The hole in the floor the lake fills, along the left and bottom walls; the
  *  dry stone left over is a ledge under the two doors. */
 const LAKE = { x: [-INNER, 0.9] as [number, number], z: [-0.6, INNER] as [number, number] };
-const LAKE_W = LAKE.x[1] - LAKE.x[0];
-const LAKE_D = LAKE.z[1] - LAKE.z[0];
-const LAKE_X = (LAKE.x[0] + LAKE.x[1]) / 2;
-const LAKE_Z = (LAKE.z[0] + LAKE.z[1]) / 2;
 /** The water's surface, a little below the floor. */
 const WATER = -0.12;
 /** The jetty's middle line, and where it ends out on the water. */
@@ -22,11 +20,6 @@ const JETTY_END = 1.7;
 /** Where the boat lies, and the jetty's end post its rope is tied to, in the boat's frame. */
 const BOAT: [number, number] = [JETTY_X + 0.98, 0.95];
 const MOORING: [number, number, number] = [JETTY_X + 0.42 - BOAT[0] + 0.06, 0.32, JETTY_END - 0.06 - BOAT[1]];
-
-/** Whole texel steps: pixel art moves a pixel at a time, never smoothly. */
-function steps(seconds: number, perSecond: number): number {
-  return Math.floor(seconds * perSecond) / TEXELS_PER_METRE;
-}
 
 function between(rng: Rng, low: number, high: number): number {
   return low + Math.floor(rng.next() * (high - low + 1));
@@ -41,42 +34,6 @@ function canvasRows(width: number, height: number) {
     },
     rows: () => grid.map((row) => row.join("")),
   };
-}
-
-/** One metre of dark water: troughs and wavelets in short dashes, the odd glint. */
-function waterRows(): string[] {
-  const rng = createRng("underground-lake:water");
-  const size = TEXELS_PER_METRE;
-  const { put, rows } = canvasRows(size, size);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) put(x, y, "d");
-  for (let i = 0; i < 46; i++) {
-    const x = between(rng, 0, size - 1);
-    const y = between(rng, 0, size - 1);
-    for (let k = between(rng, 3, 8); k > 0; k--) put(x + k, y, "s");
-  }
-  for (let i = 0; i < 15; i++) {
-    const x = between(rng, 0, size - 1);
-    const y = between(rng, 0, size - 1);
-    const length = between(rng, 2, 5);
-    for (let k = 0; k < length; k++) put(x + k, y, "c");
-    put(x + 1, y + 1, "s");
-  }
-  return rows();
-}
-
-/** Sparse glints that ride over the water, drawn as light. */
-function glintRows(): string[] {
-  const rng = createRng("underground-lake:glints");
-  const size = TEXELS_PER_METRE;
-  const { put, rows } = canvasRows(size, size);
-  for (let i = 0; i < 9; i++) {
-    const x = between(rng, 0, size - 1);
-    const y = between(rng, 0, size - 1);
-    put(x, y, "g");
-    put(x + 1, y, "c");
-    if (rng.next() < 0.5) put(x - 1, y, "c");
-  }
-  return rows();
 }
 
 /** The dark thing just under the surface, seen from above: a long body,
@@ -103,156 +60,151 @@ function shapeRows(): string[] {
   return rows();
 }
 
-/** Rings spreading on the water, a frame each, the last empty: 32 texels a frame. */
-const RING_FRAMES = 8;
-function ringRows(): string[] {
-  const size = TEXELS_PER_METRE;
-  const { put, rows } = canvasRows(size * RING_FRAMES, size);
-  const radii = [1.5, 3, 5, 7, 9.5, 12, 14.5];
-  radii.forEach((radius, frame) => {
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        const d = Math.hypot(x - (size - 1) / 2, y - (size - 1) / 2);
-        const inner = radius - 3.5;
-        if (Math.abs(d - radius) < 0.6) put(frame * size + x, y, frame < 3 ? "g" : "c");
-        else if (frame > 1 && inner > 1 && Math.abs(d - inner) < 0.55 && (x + y) % 2 === 0) put(frame * size + x, y, "c");
-      }
-    }
-  });
-  return rows();
-}
-
-/** The cold light the water throws up a wall: a net of caustic lines,
- *  densest at the waterline, in two frames stacked one over the other. */
-const CAUSTIC_H = 17;
-function causticRows(): string[] {
-  const width = TEXELS_PER_METRE;
-  const { put, rows } = canvasRows(width, CAUSTIC_H * 2);
-  for (let frame = 0; frame < 2; frame++) {
-    const rng = createRng(`underground-lake:caustic:${frame}`);
-    const points = Array.from({ length: 14 }, () => [rng.next() * width, rng.next() * CAUSTIC_H * 1.6] as const);
-    for (let y = 0; y < CAUSTIC_H; y++) {
-      const low = 1 - y / CAUSTIC_H;
-      for (let x = 0; x < width; x++) {
-        const distances = points
-          .map(([px, py]) => {
-            const dx = Math.min(Math.abs(x - px), width - Math.abs(x - px));
-            return Math.hypot(dx, (y - py) * 1.6);
-          })
-          .sort((a, b) => a - b);
-        const edge = distances[1] - distances[0] < 1.1;
-        if (!edge || rng.next() > 0.15 + low * 0.6) continue;
-        put(x, CAUSTIC_H * frame + (CAUSTIC_H - 1 - y), low > 0.6 ? "g" : low > 0.25 ? "c" : "d");
-      }
-    }
-  }
-  return rows();
-}
-
-/** A texture of the room's own, so moving its pixels moves nothing else. */
-function own(texture: THREE.Texture): THREE.Texture {
-  return texture.clone();
-}
-
-/** A flat sheet lying on the water, `w` × `d` metres, its texture at the room's pixel size. */
-function sheet(w: number, d: number, material: THREE.Material, y: number): THREE.Mesh {
-  const geometry = new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2);
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.y = y;
-  mesh.userData.noShadow = true;
-  return mesh;
-}
-
 /**
- * The lake, filling the hole in the floor: black-teal water whose wavelets
- * creep a pixel at a time, glints drifting across it the other way, and a
- * pale shape circling slowly just under the surface. Built in room metres.
+ * The water's surface, in one of two treatments of the kit's water shader
+ * (`kit/water.ts`) for the owner to choose between, picked by the page's URL
+ * (`?water=<style>`) on the bench and in the house. Both move under slow
+ * drifting noise, reflect the lantern and the water's own cold glows, shade
+ * to black away from the shore, lap and ring round what stands in it, and
+ * throw their light up the walls and the jetty's posts as caustics:
+ * - `shader`, the default, draws it smoothly;
+ * - `shader-palette` draws it a texel at a time in the art's palette, as the
+ *   floors' textures are.
  */
+const WATER_STYLES = ["shader", "shader-palette"] as const;
+type WaterStyle = (typeof WATER_STYLES)[number];
+
+function isWaterStyle(value: string): value is WaterStyle {
+  return (WATER_STYLES as readonly string[]).includes(value);
+}
+
+/** The water this page asks for; a value it doesn't know throws, so a typo never passes for a choice. Rooms are also
+ *  built in tests, which have no page. */
+function waterStyle(): WaterStyle {
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  const style = new URLSearchParams(search).get("water") ?? "shader";
+  if (!isWaterStyle(style)) throw new Error(`water=${style}: it is one of ${WATER_STYLES.join(", ")}`);
+  return style;
+}
+
+/** The thing's slow loop under the surface: where it is, and which way it heads. */
+const LOOP = { x: -1.0, z: 2.1, rx: 1.3, rz: 0.4, period: 40, phase: 1.26 };
+function thingAt(seconds: number): { x: number; z: number; heading: number } {
+  const a = (seconds / LOOP.period) * Math.PI * 2 + LOOP.phase;
+  return {
+    x: LOOP.x + LOOP.rx * Math.cos(a),
+    z: LOOP.z + LOOP.rz * Math.sin(a),
+    heading: Math.atan2(-LOOP.rz * Math.cos(a), -LOOP.rx * Math.sin(a)),
+  };
+}
+
+/** The thing just under the surface, circling. */
+function thing(): THREE.Mesh {
+  const map = pixelTexture(shapeRows(), { p: "tideDark", l: "soot" });
+  const geometry = new THREE.PlaneGeometry(48 / TEXELS_PER_METRE, 16 / TEXELS_PER_METRE).rotateX(-Math.PI / 2);
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map, alphaTest: 0.5 }));
+  mesh.userData.noShadow = true;
+  mesh.position.y = WATER + 0.01;
+  return animated(mesh, (seconds) => {
+    const at = thingAt(seconds);
+    mesh.position.set(at.x, WATER + 0.01, at.z);
+    mesh.rotation.y = at.heading;
+  });
+}
+
+/** Where the bow lantern's flame hangs, in room metres, the boat at rest. */
+const LANTERN_FLAME: [number, number, number] = [BOAT[0], 0.57, BOAT[1] + 0.91];
+
+/** What stands in the lake at a moment: the jetty's posts, the rocking boat's
+ *  hull at the waterline, and the thing's wake, trailing behind it. */
+function lakeContacts(seconds: number): WaterContact[] {
+  const posts = [LAKE.z[0] + 0.1, 0.55, JETTY_END - 0.06].flatMap((z) => [-0.42, 0.42].map((x) => ({ x: JETTY_X + x, z, radius: 0.07, strength: 0.7 })));
+  // It slaps hardest as it rocks down (its bob is a sine on 1.3 rad/s).
+  const slap = 0.35 + 0.45 * Math.max(0, -Math.cos(seconds * 1.3));
+  const hullAt = [-0.7, -0.25, 0.2, 0.6].map((z) => ({ x: BOAT[0], z: BOAT[1] + z, radius: hullHalf(z, WATER), strength: slap }));
+  const wake = [0.5, 1.2, 2].map((behind, i) => {
+    const at = thingAt(seconds - behind);
+    return { x: at.x, z: at.z, radius: 0.08, strength: 0.7 - i * 0.2 };
+  });
+  return [...posts, ...hullAt, ...wake];
+}
+
+/** How high above the water its thrown light reaches, fading out. */
+const CAUSTIC_REACH = 2;
+
+type LakeWall = "left" | "bottom";
+
+/** The faces of a wall the lake laps at, as the water's caustics light them,
+ *  from the water up to `top`: the floor slab's cut edge down to the water,
+ *  then the skirting, the wainscot, its rail and the bare wall above. */
+function wallFaces(wall: LakeWall, top: number): CausticFace[] {
+  const [at, along, inward]: [(out: number, along: number) => [number, number], [number, number], [number, number]] =
+    wall === "left"
+      ? [(out, z) => [-INNER + out, z], [LAKE.z[0], INNER - SKIRTING.depth], [1, 0]]
+      : [(out, x) => [x, INNER - out], [-INNER + SKIRTING.depth, LAKE.x[1]], [0, -1]];
+  const profile: [out: number, bottom: number, top: number][] = [
+    [0, WATER, 0],
+    [SKIRTING.depth, 0, SKIRTING.height],
+    [WAINSCOT_DEPTH, SKIRTING.height, RAIL.y],
+    [RAIL.depth, RAIL.y, RAIL.y + RAIL.height],
+    [0, RAIL.y + RAIL.height, WATER + CAUSTIC_REACH],
+  ];
+  return profile.flatMap(([out, low, high]) => {
+    const from = Math.max(low, top === CUT_HEIGHT ? WATER : CUT_HEIGHT);
+    const to = Math.min(high, top);
+    return to > from ? [{ from: at(out, along[0]), to: at(out, along[1]), bottom: from, top: to, facing: inward }] : [];
+  });
+}
+
+/** What the light thrown off the water plays on below the cut height: the
+ *  feet of the two walls the lake laps at, and the jetty's posts, up to
+ *  under its boards. The walls above are hung on them (see `wallCaustics`). */
+function causticFaces(): CausticFace[] {
+  const posts = [LAKE.z[0] + 0.1, 0.55, JETTY_END - 0.06].flatMap((z) =>
+    [-0.42, 0.42].flatMap((x) => causticSides([JETTY_X + x - 0.06, JETTY_X + x + 0.06], [z - 0.06, z + 0.06], z === JETTY_END - 0.06 ? 0.42 : 0.08)),
+  );
+  return [...wallFaces("left", CUT_HEIGHT), ...wallFaces("bottom", CUT_HEIGHT), ...posts];
+}
+
+/** The lake's water as last built: a wall's caustics above the cut height are
+ *  a piece of their own, hung on the wall so they go when it is cut, and are
+ *  cast by this water, which the room builds first. */
+let builtWater: THREE.Mesh | undefined;
+
+/** The water's light up a wall above the cut height, hung on that wall. Built
+ *  in room metres, placed at the cut height. */
+function wallCaustics(wall: LakeWall): THREE.Group {
+  if (!builtWater) throw new Error("The lake's wall caustics are built after its water");
+  const layer = waterCaustics(builtWater, { faces: wallFaces(wall, WATER + CAUSTIC_REACH), reach: CAUSTIC_REACH });
+  layer.position.y = -CUT_HEIGHT;
+  return group(layer);
+}
+
+/** The lake, filling the hole in the floor: the kit's water, reflecting the
+ *  bow lantern and three of the water's own cold glows, the boat's lantern
+ *  brightest, and throwing their light up the walls and the jetty's posts,
+ *  over a dark shape circling slowly just under its surface. Built in room metres. */
 function lake(): THREE.Group {
-  const waterMap = own(pixelTexture(waterRows(), { d: "tideDark", s: "soot", c: "tide" }, true));
-  const water = sheet(LAKE_W, LAKE_D, new THREE.MeshBasicMaterial({ map: waterMap }), WATER);
-  projectUvs(water.geometry, waterMap);
-  water.position.set(LAKE_X, WATER, LAKE_Z);
-
-  const glintMap = own(pixelTexture(glintRows(), { g: "tideLight", c: "tide" }, true));
-  const glints = sheet(LAKE_W, LAKE_D, lightMaterial(0.7, { map: glintMap }), WATER + 0.02);
-  projectUvs(glints.geometry, glintMap);
-  glints.position.set(LAKE_X, WATER + 0.02, LAKE_Z);
-
-  const shapeMap = pixelTexture(shapeRows(), { p: "tideDark", l: "void" });
-  const thing = sheet(48 / TEXELS_PER_METRE, 16 / TEXELS_PER_METRE, new THREE.MeshBasicMaterial({ map: shapeMap, alphaTest: 0.5 }), WATER + 0.01);
-
-  const loop = { x: -1.0, z: 2.1, rx: 1.3, rz: 0.4, period: 40, phase: 1.26 };
-  return group(
-    animated(water, (seconds) => {
-      waterMap.offset.set(steps(seconds, 1.6), steps(seconds, 0.5));
-    }),
-    animated(glints, (seconds) => {
-      glintMap.offset.set(-steps(seconds, 2.2), steps(seconds, 1.3));
-    }),
-    animated(thing, (seconds) => {
-      const a = (seconds / loop.period) * Math.PI * 2 + loop.phase;
-      thing.position.set(loop.x + loop.rx * Math.cos(a), WATER + 0.01, loop.z + loop.rz * Math.sin(a));
-      thing.rotation.y = Math.atan2(-loop.rz * Math.cos(a), -loop.rx * Math.sin(a));
-    }),
-  );
+  const glows: WaterLamp[] = (UNDERGROUND_LAKE.lights ?? []).slice(0, 3).map(({ at, colour, flicker, signal }) => ({ at, colour, intensity: 2.5, flicker, signal }));
+  const water = waterSurface({
+    outline: waterRectangle(LAKE.x, LAKE.z),
+    height: WATER,
+    // Its top and right edges are the shore; the walls drop straight into the deep.
+    shores: [true, true, false, false],
+    shelf: 1.1,
+    colours: { shallow: "tideDark", deep: "void", sheen: "moonDark" },
+    lamps: [{ at: LANTERN_FLAME, colour: "amber", intensity: 5, flicker: 0.15 }, ...glows],
+    contacts: lakeContacts,
+    palette: waterStyle() === "shader-palette" ? ["void", "soot", "sootLight", "tideDark", "tide", "tideLight", "moonDark", "moon", "ember", "amber", "flame"] : undefined,
+    caustics: { faces: causticFaces(), reach: CAUSTIC_REACH },
+  });
+  builtWater = water;
+  return group(water, thing());
 }
 
-/** Rings spreading out over open water from nothing, every few seconds. */
-function ripples(period: number, phase: number): THREE.Group {
-  const map = own(pixelTexture(ringRows(), { g: "tideLight", c: "tide" }));
-  map.repeat.set(1 / RING_FRAMES, 1);
-  const ring = sheet(1, 1, lightMaterial(0.8, { map }), WATER + 0.03);
-  return group(
-    animated(ring, (seconds) => {
-      const t = (((seconds + phase) % period) + period) % period;
-      map.offset.x = Math.min(RING_FRAMES - 1, Math.floor(t / 0.32)) / RING_FRAMES;
-    }),
-  );
-}
-
-/** The lantern's broken amber streak on the water beside the boat, its dashes
- *  swapped a few times a second. Lies along z, towards +z. */
-function reflection(): THREE.Group {
-  const frames = 3;
-  const w = 8;
-  const h = 26;
-  const { put, rows } = canvasRows(w * frames, h);
-  for (let frame = 0; frame < frames; frame++) {
-    const rng = createRng(`underground-lake:reflection:${frame}`);
-    for (let y = 0; y < h; y += between(rng, 1, 3)) {
-      const spread = 1 + Math.floor((y / h) * 3);
-      const length = between(rng, 1, spread + 1);
-      const x0 = Math.floor(w / 2 - length / 2) + between(rng, -1, 1);
-      for (let k = 0; k < length; k++) put(frame * w + x0 + k, y, y < h * 0.35 ? "f" : y < h * 0.7 ? "a" : "e");
-    }
-  }
-  const map = own(pixelTexture(rows(), { f: "flame", a: "amber", e: "ember" }));
-  map.repeat.set(1 / frames, 1);
-  const streak = sheet(w / TEXELS_PER_METRE, h / TEXELS_PER_METRE, lightMaterial(0.65, { map }), WATER + 0.025);
-  const order = [0, 2, 1, 2, 0, 1, 0];
-  return group(
-    animated(streak, (seconds) => {
-      map.offset.x = order[Math.floor(seconds / 0.3) % order.length] / frames;
-    }),
-  );
-}
-
-/** The water's cold light thrown up the foot of a wall, `length` metres of it,
- *  crawling sideways and shimmering between two frames. It stops under the
- *  cut height, so it never hangs in the air where a wall is cut. Faces +z. */
-function causticBand(length: number): THREE.Group {
-  const map = own(pixelTexture(causticRows(), { g: "tideLight", c: "tide", d: "tideDark" }, true));
-  const height = CAUSTIC_H / TEXELS_PER_METRE;
-  map.repeat.set(length, 0.5);
-  const band = new THREE.Mesh(new THREE.PlaneGeometry(length, height), lightMaterial(0.55, { map }));
-  band.position.y = WATER + 0.03 + height / 2;
-  band.userData.noShadow = true;
-  return group(
-    animated(band, (seconds) => {
-      map.offset.set(steps(seconds, 1.4), Math.floor(seconds / 0.55) % 2 === 0 ? 0 : 0.5);
-    }),
-  );
+/** The walls' caustics above the cut height, each hung on its wall. */
+function wallCausticPieces(): PropPlacement[] {
+  return (["left", "bottom"] as const).map((wall) => ({ build: () => wallCaustics(wall), name: "wallCaustics", at: [0, 0], y: CUT_HEIGHT, walls: [wall] }));
 }
 
 /** Rough coping stones along the lake's two open edges, overhanging the water
@@ -301,7 +253,9 @@ function jetty(): THREE.Group {
   const start = LAKE.z[0] - 0.45;
   const width = 0.9;
   const b = batch();
-  for (const x of [-0.36, 0.36]) b.block([0.1, 0.08, JETTY_END - start], "woodDark", [x, 0, (start + JETTY_END) / 2]);
+  // The beams stop just short of the end posts' faces, so their ends never lie in one plane.
+  const beamEnd = JETTY_END - 0.006;
+  for (const x of [-0.36, 0.36]) b.block([0.1, 0.08, beamEnd - start], "woodDark", [x, 0, (start + beamEnd) / 2]);
   const colours: PaletteKey[] = ["woodMid", "wood", "woodMid", "woodLight"];
   let i = 0;
   for (let z = start + 0.02; z < JETTY_END - 0.1; z += 0.165, i++) {
@@ -317,7 +271,8 @@ function jetty(): THREE.Group {
   }
   for (const z of [LAKE.z[0] + 0.1, 0.55, JETTY_END - 0.06]) {
     const tall = z === JETTY_END - 0.06;
-    for (const x of [-0.42, 0.42]) b.block([0.12, (tall ? 0.42 : 0.12) + 0.6, 0.12], "woodDark", [x, -0.6, z]);
+    // A short post stops just under the boards' tops, so its top never lies in their plane.
+    for (const x of [-0.42, 0.42]) b.block([0.12, (tall ? 0.42 : 0.114) + 0.6, 0.12], "woodDark", [x, -0.6, z]);
   }
   return group(b.mesh());
 }
@@ -507,11 +462,7 @@ export const UNDERGROUND_LAKE: RoomDefinition = {
     { build: shore, at: [0, 0] },
     { build: jetty, at: [JETTY_X, 0] },
     { build: boat, at: BOAT, contacts: [{ with: "jetty", because: "its mooring rope is tied to the jetty's end post" }] },
-    { build: reflection, at: [BOAT[0], 2.3] },
-    { build: () => ripples(7, 0), name: "ripples", at: [0.25, 2.15] },
-    { build: () => ripples(11, 4.5), name: "ripples", at: [-2.2, 0.0] },
-    { build: () => causticBand(LAKE_D - 0.1), name: "causticBand", ...onWall("left", -LAKE_Z + 0.05, { out: 0.06 }) },
-    { build: () => causticBand(LAKE_W - 0.1), name: "causticBand", ...onWall("bottom", -LAKE_X - 0.05, { out: 0.06 }) },
+    ...wallCausticPieces(),
     { build: chain, at: [0, 0] },
     { build: ropeCoil, at: [-0.15, -1.2], turn: 30 },
     { build: stores, at: [-2.35, -2.3], turn: 90 },
@@ -525,4 +476,11 @@ export const UNDERGROUND_LAKE: RoomDefinition = {
   ],
   focus: [-0.6, 0.3, 1.0],
   pawn: [1.9, -1.7],
+  spots: [[0.6, -1.35], [1.65, -0.4], [1.9, 0.9], [-0.75, -1.75], [1.65, 2.2]],
+  overflow: [[2.35, -2.35], [-1.5, -1.5], [2.35, -1.05], [2.25, 1.7], [1.4, -2.3]],
+  // Along the shore, clear of the water.
+  lanes: [
+    [[0, -2.2], [0.9, -2.0], [1.6, -1.2], [1.75, 0], [1.65, 1.8]],
+    [[2.2, 0], [1.75, 0]],
+  ],
 };

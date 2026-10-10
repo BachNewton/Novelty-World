@@ -78,7 +78,7 @@ const { FakePeer } = vi.hoisted(() => {
 
 vi.mock("peerjs", () => ({ Peer: FakePeer }));
 
-import { createRoom, generateRoomCode, hostPeerId, parseRoomCode } from "./room";
+import { createRoom, generateRoomCode, hostPeerId, parseRoomCode, peerOptionsFromSearch } from "./room";
 
 const GAME = "test";
 const CODE = "ROOM";
@@ -496,5 +496,19 @@ describe("teardown", () => {
     lastPeer().emit("open", HOST_ID);
     expect(FakePeer.all).toHaveLength(2);
     expect(h.state()).toMatchObject({ status: "connected", role: "host" });
+  });
+});
+
+describe("signalling server", () => {
+  it("uses the PeerJS cloud unless the page asks for a local server", () => {
+    expect(peerOptionsFromSearch("?room=x")).toEqual({});
+  });
+
+  it("points at a local server on the port the page names", () => {
+    expect(peerOptionsFromSearch("?peer-signal=local:51234")).toMatchObject({ host: "localhost", port: 51234, secure: false });
+  });
+
+  it("rejects a local server with no port", () => {
+    expect(() => peerOptionsFromSearch("?peer-signal=local")).toThrow();
   });
 });

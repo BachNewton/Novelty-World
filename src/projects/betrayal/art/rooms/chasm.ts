@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { createRng, pick } from "@/shared/lib/seeded-random";
-import { candle, cask, cobweb, coil, crate, lantern, pitHaze, pitShell, slung, strand } from "../kit";
+import { candle, cask, cobweb, coil, crate, lantern, pitHaze, pitShell, slung, strand, TWIST } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { INNER, TILE, onWall, type RoomDefinition } from "../room";
@@ -86,13 +86,17 @@ function gulf(): THREE.Group {
       if (here === there) continue;
       const opensInto = side === 0 ? there < here : there > here;
       const [lo, hi] = [Math.min(here, there), Math.max(here, there)];
-      if (opensInto) wall(lo, hi, at, at + LINING);
-      else wall(lo, hi, at - LINING, at);
+      // It stops where it meets the lining of the stretch it turns from or into, so their ends never share a plane.
+      const meets = opensInto ? there : here;
+      const [from, to] = side === 1 ? [lo, meets === hi ? hi - LINING : hi] : [meets === lo ? lo + LINING : lo, hi];
+      if (opensInto) wall(from, to, at, at + LINING);
+      else wall(from, to, at - LINING, at);
     }
   }
-  wall(COURSE[0].x[0], COURSE[0].x[1], -INNER, -INNER + LINING);
+  // The end linings run between the side linings, so their faces never share a plane in the corners.
+  wall(COURSE[0].x[0] + LINING, COURSE[0].x[1] - LINING, -INNER, -INNER + LINING);
   const last = COURSE[COURSE.length - 1];
-  wall(last.x[0], last.x[1], INNER - LINING, INNER);
+  wall(last.x[0] + LINING, last.x[1] - LINING, INNER - LINING, INNER);
   const material = new THREE.MeshBasicMaterial({ map: texture, vertexColors: true, fog: false });
   const haze = (y: number, opacity: number) => pitHaze({ x: GULF_X, z: [-TILE / 2 + 0.2, TILE / 2 - 0.2], y, colour: "wraithLight", opacity, fade: true });
   const shell = pitShell({ x: [GULF_X[0] - 0.06, GULF_X[1] + 0.06], z: [-TILE / 2, TILE / 2], bottom: -6 });
@@ -157,7 +161,7 @@ function handLines(): THREE.Group {
     const a = new THREE.Vector3(from, top, RAIL_Z);
     const lip = new THREE.Vector3(toward, -0.05, RAIL_Z + 0.04);
     strand(b, a, lip, 0.025, "boneDark");
-    strand(b, lip, new THREE.Vector3(toward + Math.sign(toward) * -0.06, -1.3, RAIL_Z + 0.1), 0.025, "boneDark");
+    strand(b, lip, new THREE.Vector3(toward + Math.sign(toward) * -0.06, -1.3, RAIL_Z + 0.1), 0.025, "boneDark", TWIST);
   };
   fall(-POST_X + 0.05, SPAN[0] + 0.12);
   fall(POST_X - 0.05, SPAN[1] - 0.15);
@@ -174,12 +178,12 @@ function ropeDown(): THREE.Group {
   for (let k = 0; k < 6; k++) {
     const a = (k / 6) * Math.PI * 2;
     const c = ((k + 1) / 6) * Math.PI * 2;
-    strand(b, new THREE.Vector3(Math.cos(a) * 0.07, 0.07 + Math.sin(a) * 0.05, 0), new THREE.Vector3(Math.cos(c) * 0.07, 0.07 + Math.sin(c) * 0.05, 0), 0.02, "ash");
+    strand(b, new THREE.Vector3(Math.cos(a) * 0.07, 0.07 + Math.sin(a) * 0.05, 0), new THREE.Vector3(Math.cos(c) * 0.07, 0.07 + Math.sin(c) * 0.05, 0), 0.02, "ash", (k % 2) * TWIST);
   }
   const lip = new THREE.Vector3(COURSE[1].x[1] - 1.45 + 0.02, 0.02, 0.15);
   const knot = new THREE.Vector3(-0.06, 0.04, 0);
   strand(b, knot, lip, 0.03, "boneDark");
-  strand(b, lip, new THREE.Vector3(lip.x - 0.04, -2.4, lip.z + 0.05), 0.03, "boneDark");
+  strand(b, lip, new THREE.Vector3(lip.x - 0.04, -2.4, lip.z + 0.05), 0.03, "boneDark", TWIST);
   // The slack, coiled beside the ring.
   const slack = coil({ radii: [0.15], thick: 0.015 });
   slack.position.set(0.22, 0, 0.18);
@@ -258,5 +262,14 @@ export const CHASM: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [INNER - 0.29, -INNER + 0.29], y: 3.05, turn: -135, walls: ["right", "top"] },
   ],
   focus: [0, 0.3, 0],
-  pawn: [-2.0, 0],
+  pawn: [-1.7, -0.55],
+  spots: [[1.5, -1.9], [-2.25, -1.75], [1.75, -0.6], [-1.55, 0.8], [2.3, 1.05]],
+  overflow: [[-1.55, -1.4], [1.55, 1.35], [2.1, -1.4], [1.7, 0.55]],
+  // Over the bridge, down the middle of its deck, from the floor at one end to the other.
+  crossing: [
+    [-1.6, 0, 0],
+    [SPAN[0] - 0.3, DECK, 0],
+    [SPAN[1] + 0.3, DECK, 0],
+    [1.6, 0, 0],
+  ],
 };

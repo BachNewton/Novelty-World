@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./test";
 import type { PlayReadout } from "../src/projects/betrayal/components/play/play-screen";
 
 /**
@@ -54,9 +55,17 @@ async function until(page: Page, check: string): Promise<void> {
     },
     check,
     { timeout: 60_000 },
-  );
+  ).catch(async (error: unknown) => {
+    // Says why it never held: the game as it stands, or that the page has none (a reload, say, when the dev server rebuilt under the test).
+    const now = await page.evaluate(() => {
+      const hook = window.__betrayalPlay;
+      return hook ? { ready: hook.isReady(), play: hook.play() } : null;
+    });
+    throw new Error(`${check} never held. ${now ? `Ready: ${now.ready}; the game: ${JSON.stringify(now.play)}` : `No game on the page, at ${page.url()}`}`, { cause: error });
+  });
 }
 
+/** Resumes the seeded game. */
 async function resumeSaved(page: Page): Promise<void> {
   page.on("pageerror", (error) => {
     throw error;
@@ -72,26 +81,71 @@ async function resumeSaved(page: Page): Promise<void> {
 
 /** Points at a target where it shows in the house, checks it took the focus, and clicks it. */
 async function clickTarget(page: Page, id: string): Promise<void> {
+  const at = await pointOf(page, id);
+  await page.mouse.move(at.x, at.y);
+  await expect.poll(() => page.evaluate((point) => window.__betrayalPlay?.targetAt(point), at)).toBe(id);
+  await page.mouse.click(at.x, at.y);
+}
+
+/** Where a target shows on the page, checked to be open house (no panel over it). */
+async function pointOf(page: Page, id: string): Promise<{ x: number; y: number }> {
   const at = await page.evaluate((target) => {
     const point = window.__betrayalPlay?.screenPoint(target) ?? null;
     return point && document.elementFromPoint(point.x, point.y) instanceof HTMLCanvasElement ? point : null;
   }, id);
   if (!at) throw new Error(`${id} doesn't show in the open house`);
-  await page.mouse.move(at.x, at.y);
-  await expect.poll(() => page.evaluate((point) => window.__betrayalPlay?.targetAt(point), at)).toBe(id);
-  await page.mouse.click(at.x, at.y);
+  return at;
+}
+
+/** A standard controller the page reads in place of a real one, its buttons set by `press`. */
+async function withPad(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const pad = {
+      index: 0,
+      id: "Test pad (STANDARD GAMEPAD)",
+      mapping: "standard",
+      connected: true,
+      timestamp: 0,
+      axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
+    };
+    Object.assign(window, { testPad: pad });
+    Object.defineProperty(navigator, "getGamepads", { value: () => [pad, null, null, null] });
+  });
+}
+
+const BUTTON = { A: 0, X: 2, LB: 4, RB: 5, View: 8, DpadLeft: 14, DpadRight: 15 } as const;
+
+/** Holds a button until the game's state passes `check` (by default with the
+ *  house settled too), then lets go and waits for the pad to be read again,
+ *  so the next press is a new one. */
+async function press(page: Page, button: number, check: string, settled = true): Promise<void> {
+  const setButton = (pressed: boolean) =>
+    page.evaluate(
+      ([index, down]) => {
+        const pad = (window as unknown as { testPad: { buttons: { pressed: boolean; value: number }[] } }).testPad;
+        pad.buttons[index] = { ...pad.buttons[index], pressed: down, value: down ? 1 : 0 };
+      },
+      [button, pressed] as const,
+    );
+  await setButton(true);
+  if (settled) await until(page, check);
+  else await page.waitForFunction((body) => (new Function("play", `return ${body}`) as (play: unknown) => boolean)(window.__betrayalPlay?.play()), check);
+  await setButton(false);
+  const frame = await page.evaluate(() => window.__betrayalPlay?.frameCount() ?? 0);
+  await page.waitForFunction((n) => (window.__betrayalPlay?.frameCount() ?? 0) >= n + 2, frame);
 }
 
 test("a seeded game: a discovery, an event card, a move and ended turns, with keyboard and mouse", async ({ page }) => {
   await resumeSaved(page);
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
   const start = await readout(page);
-  expect(start.targets.map((t) => t.id)).toContain("doorway:top");
+  expect(start.targets.map((t) => t.id)).toContain("doorway:entrance-hall:top");
   expect(start.canEnd).toBe(true);
   await expect(page.getByText("Ann (Zoe Ingstrom): your turn", { exact: false })).toBeVisible();
 
   // Ann explores north: the doorway glows in the house.
-  await clickTarget(page, "doorway:top");
+  await clickTarget(page, "doorway:entrance-hall:top");
   await until(page, "play.pending?.kind === 'rotation'");
   // The Game Room shows as a ghost on its cell: E turns it a quarter turn on, and Enter places it.
   await until(page, "play.ghost?.tile === 'game-room' && play.ghost.rotation === 0");
@@ -193,22 +247,13 @@ test("the playtesting view is at ?debug", async ({ page }) => {
  * them, round and back, then places it, and the room lands the way it showed.
  */
 test.describe("the rotation ghost", () => {
-  /** Where a target shows on the page, checked to be open house (no panel over it). */
-  async function pointOf(page: Page, id: string): Promise<{ x: number; y: number }> {
-    const at = await page.evaluate((target) => {
-      const point = window.__betrayalPlay?.screenPoint(target) ?? null;
-      return point && document.elementFromPoint(point.x, point.y) instanceof HTMLCanvasElement ? point : null;
-    }, id);
-    if (!at) throw new Error(`${id} doesn't show in the open house`);
-    return at;
-  }
 
   const placedTurned = (page: Page, rotation: number) => until(page, `play.ghost === null && play.tiles === 6 && play.rotations['game-room'] === ${rotation}`);
 
   test("keyboard and mouse: Q and E and its arrows turn it, the wheel over it still zooms, and a click places it", async ({ page }) => {
     await resumeSaved(page);
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-    await clickTarget(page, "doorway:top");
+    await clickTarget(page, "doorway:entrance-hall:top");
     await until(page, "play.ghost?.tile === 'game-room' && play.ghost.rotation === 0");
     expect((await readout(page)).ghost?.rotations).toEqual([0, 1, 2]);
     await expect(page.getByText("Way 1 of 3 it can go.")).toBeVisible();
@@ -263,7 +308,7 @@ test.describe("the rotation ghost", () => {
     await page.reload();
     await page.getByRole("button", { name: "Resume" }).click();
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-    await clickTarget(page, "doorway:top");
+    await clickTarget(page, "doorway:entrance-hall:top");
     // The room is placed and Ann is in it, with her turn going on; the screen says so.
     await until(page, "play.tiles === 6 && play.rooms['zoe-ingstrom'] === 'creaky-hallway' && play.pending?.kind === 'turn' && play.ghost === null");
     expect((await readout(page)).rotations["creaky-hallway"]).toBeDefined();
@@ -273,45 +318,15 @@ test.describe("the rotation ghost", () => {
 
   test.describe("controller", () => {
     test.beforeEach(async ({ page }) => {
-      await page.addInitScript(() => {
-        const pad = {
-          index: 0,
-          id: "Test pad (STANDARD GAMEPAD)",
-          mapping: "standard",
-          connected: true,
-          timestamp: 0,
-          axes: [0, 0, 0, 0],
-          buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
-        };
-        Object.assign(window, { testPad: pad });
-        Object.defineProperty(navigator, "getGamepads", { value: () => [pad, null, null, null] });
-      });
+      await withPad(page);
     });
 
-    const BUTTON = { A: 0, X: 2, LB: 4, RB: 5, View: 8, DpadLeft: 14, DpadRight: 15 } as const;
 
-    /** Holds a button until the game's state passes `check`, then lets go and
-     *  waits for the pad to be read again, so the next press is a new one. */
-    async function press(page: Page, button: number, check: string): Promise<void> {
-      const setButton = (pressed: boolean) =>
-        page.evaluate(
-          ([index, down]) => {
-            const pad = (window as unknown as { testPad: { buttons: { pressed: boolean; value: number }[] } }).testPad;
-            pad.buttons[index] = { ...pad.buttons[index], pressed: down, value: down ? 1 : 0 };
-          },
-          [button, pressed] as const,
-        );
-      await setButton(true);
-      await until(page, check);
-      await setButton(false);
-      const frame = await page.evaluate(() => window.__betrayalPlay?.frameCount() ?? 0);
-      await page.waitForFunction((n) => (window.__betrayalPlay?.frameCount() ?? 0) >= n + 2, frame);
-    }
 
     test("the bumpers and the d-pad turn it; A places it", async ({ page }) => {
       await resumeSaved(page);
       await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-      await clickTarget(page, "doorway:top");
+      await clickTarget(page, "doorway:entrance-hall:top");
       await until(page, "play.ghost?.tile === 'game-room' && play.ghost.rotation === 0");
       await press(page, BUTTON.RB, "play.ghost?.rotation === 1");
       await expect(page.getByText("LB / RB or the d-pad's left and right turn it. A places it.")).toBeVisible();
@@ -328,7 +343,7 @@ test.describe("the rotation ghost", () => {
     test("View moves into the status box, the d-pad and A press its choice, and X ends the turn", async ({ page }) => {
       await resumeSaved(page);
       await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-      await clickTarget(page, "doorway:top");
+      await clickTarget(page, "doorway:entrance-hall:top");
       await until(page, "play.ghost?.tile === 'game-room'");
       await press(page, BUTTON.A, "play.pending?.kind === 'choose-one'");
       const now = page.getByLabel("What you can do now");
@@ -350,11 +365,11 @@ test.describe("the rotation ghost", () => {
       await resumeSaved(page);
       await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
       // A first tap on the doorway focuses it, and a second explores.
-      const label = (await readout(page)).targets.find((target) => target.id === "doorway:top")?.label;
+      const label = (await readout(page)).targets.find((target) => target.id === "doorway:entrance-hall:top")?.label;
       if (!label) throw new Error("No north doorway to explore");
-      const doorway = await pointOf(page, "doorway:top");
+      const doorway = await pointOf(page, "doorway:entrance-hall:top");
       await page.touchscreen.tap(doorway.x, doorway.y);
-      await expect(page.getByText(label, { exact: true })).toBeVisible();
+      await expect(page.getByLabel("Route preview")).toContainText(label);
       await page.touchscreen.tap(doorway.x, doorway.y);
       await until(page, "play.ghost?.tile === 'game-room' && play.ghost.rotation === 0");
 
@@ -369,5 +384,140 @@ test.describe("the rotation ghost", () => {
       await page.getByRole("button", { name: "Place the Game Room" }).tap();
       await placedTurned(page, 1);
     });
+  });
+});
+
+/**
+ * Moves of several rooms: every room the move can reach glows, not only the
+ * next ones, and pointing at one previews its route before anything is sent:
+ * the path in the house, its cost and the rules it would set off. Committing
+ * walks the explorer there while the game has already moved on. Ann goes
+ * from the Entrance Hall up the Grand Staircase to the Upper Landing, three
+ * of her four spaces, on each input, and the view follows her upstairs.
+ */
+test.describe("a move of several rooms, previewed", () => {
+  const LANDING = "room:upper-landing";
+
+  /** Stops the stage's clock before a route is committed, so its walk can't
+   *  end before the test sees it playing, however slowly the page draws. */
+  const holdTheWalk = (page: Page) => page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
+
+  /** The route committed, with the walk held: the state is there at once,
+   *  while the walk plays; then, let go, the walk ends upstairs, the floor having followed. */
+  async function walkedUpstairs(page: Page): Promise<void> {
+    await page.waitForFunction(() => {
+      const play = window.__betrayalPlay?.play();
+      return play?.rooms["zoe-ingstrom"] === "upper-landing" && play.walking && play.holder === 0 && play.pending?.kind === "turn";
+    });
+    await page.evaluate(() => window.__betrayalPlay?.freezeClock(null));
+    await until(page, "!play.walking && play.floor === 'upper' && play.rooms['zoe-ingstrom'] === 'upper-landing' && play.queued === 0 && play.problem === null");
+  }
+
+  async function expectLandingPreview(page: Page): Promise<void> {
+    await until(page, `play.preview?.target === '${LANDING}'`);
+    const { preview } = await readout(page);
+    expect(preview?.route.map((place) => place.room)).toEqual(["entrance-hall", "foyer", "grand-staircase", "upper-landing"]);
+    expect(preview).toMatchObject({ spaces: 3, left: 4, warnings: [] });
+    await expect(page.getByLabel("Route preview")).toContainText("Move to the Upper Landing: 3 of 4 spaces");
+  }
+
+  test("keyboard and mouse: hovering previews a route and its rules, and a click walks it", async ({ page }) => {
+    await resumeSaved(page);
+    await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.floor === 'ground'");
+    const ids = (await readout(page)).targets.map((target) => target.id);
+    expect(ids).toEqual(expect.arrayContaining(["room:foyer", "room:grand-staircase", LANDING, "doorway:foyer:top", "doorway:upper-landing:left"]));
+
+    // A doorway further on: exploring there may draw a card, which ends the move.
+    const doorway = await pointOf(page, "doorway:foyer:top");
+    await page.mouse.move(doorway.x, doorway.y);
+    await until(page, "play.preview?.target === 'doorway:foyer:top'");
+    await expect(page.getByLabel("Route preview")).toContainText("Drawing a card ends your movement for the rest of the turn.");
+
+    // The Upper Landing glows on the ground floor as the stairs its route takes.
+    const stairs = await pointOf(page, LANDING);
+    await page.mouse.move(stairs.x, stairs.y);
+    await expectLandingPreview(page);
+    expect((await readout(page)).queued).toBe(0);
+    await holdTheWalk(page);
+    await page.mouse.click(stairs.x, stairs.y);
+    await walkedUpstairs(page);
+  });
+
+  test.describe("touch", () => {
+    test.use({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
+
+    test("a first tap previews the route, and a second walks it", async ({ page }) => {
+      await resumeSaved(page);
+      await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.floor === 'ground'");
+      const stairs = await pointOf(page, LANDING);
+      await page.touchscreen.tap(stairs.x, stairs.y);
+      await expectLandingPreview(page);
+      expect((await readout(page)).rooms["zoe-ingstrom"]).toBe("entrance-hall");
+      await holdTheWalk(page);
+      await page.touchscreen.tap(stairs.x, stairs.y);
+      await walkedUpstairs(page);
+    });
+  });
+
+  test.describe("controller", () => {
+    test.beforeEach(async ({ page }) => {
+      await withPad(page);
+    });
+
+    test("the bumpers bring the reticle to the route, which it previews, and A walks it", async ({ page }) => {
+      await resumeSaved(page);
+      await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.floor === 'ground'");
+      // RB goes round every choice once, whichever floor each shows on.
+      const targets = (await readout(page)).targets.length;
+      const reticle = () => page.evaluate(() => window.__betrayalPlay?.reticle() ?? null);
+      for (let presses = 0, at = await reticle(); at !== LANDING; presses++, at = await reticle()) {
+        if (presses > targets) throw new Error("RB never brought the reticle to the Upper Landing");
+        await press(page, BUTTON.RB, `window.__betrayalPlay.reticle() !== ${JSON.stringify(at)}`);
+      }
+      await expectLandingPreview(page);
+      // Not waiting for the house to settle: the camera follows the walk, and the walk is what is checked next.
+      await holdTheWalk(page);
+      await press(page, BUTTON.A, "play.rooms['zoe-ingstrom'] === 'upper-landing'", false);
+      await walkedUpstairs(page);
+    });
+  });
+});
+
+/**
+ * The tag over a focused target, with its route's cost, stays on a 360px
+ * phone screen even when the target sits at the screen's edge: Ann's route to
+ * the Upper Landing, its stairs dragged to the left edge, then the right.
+ */
+test.describe("the route tag on a phone", () => {
+  test.use({ viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true });
+
+  test("stays on screen with its target at either edge", async ({ page }) => {
+    await resumeSaved(page);
+    await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.floor === 'ground'");
+    const cdp = await page.context().newCDPSession(page);
+    const LANDING = "room:upper-landing";
+    for (const edge of [6, 354]) {
+      // One finger drags the stairs to the edge, and the house settles there.
+      const from = await pointOf(page, LANDING);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from.x, y: from.y, id: 1 }] });
+      for (let step = 1; step <= 8; step++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from.x + ((edge - from.x) * step) / 8, y: from.y, id: 1 }] });
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.evaluate((id) => {
+        window.__betrayalPlay?.focus(id);
+      }, LANDING);
+      await until(page, `play.preview?.target === '${LANDING}'`);
+      const at = await page.evaluate((id) => window.__betrayalPlay?.screenPoint(id) ?? null, LANDING);
+      if (!at) throw new Error("The stairs left the screen");
+      const tag = page.getByRole("tooltip");
+      await expect(tag).toContainText("3 of 4 spaces");
+      const box = await tag.boundingBox();
+      if (!box) throw new Error("The route tag doesn't show");
+      // Close enough to the edge that a tag centred on it would run off.
+      expect(Math.abs(at.x - edge)).toBeLessThan(box.width / 2);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(360);
+    }
   });
 });

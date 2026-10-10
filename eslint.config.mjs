@@ -71,6 +71,14 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // The e2e harness manages its own run folders (builds, test output), every path built from its
+  // own constants and process ids: the rule guards against paths from outside input, which it has none of.
+  {
+    files: ["e2e/*.ts"],
+    rules: {
+      "security/detect-non-literal-fs-filename": "off",
+    },
+  },
   {
     files: ["**/*.mjs", "public/**/*.js"],
     languageOptions: {
@@ -84,9 +92,12 @@ const eslintConfig = defineConfig([
   // The family tree layout solver's Python venv holds third-party files, never project source.
   // `.next-bench/**`: build output from an alternate `distDir` (NEXT_DIST_DIR), used to run a production
   // server for the Shipwright perf sweep alongside the dev server. Same generated code as `.next`.
+  // `.next-e2e/**`: each e2e run's own build (e2e/next-server.ts); `test-results/**`: e2e run output.
   globalIgnores([
     ".next/**",
     ".next-bench/**",
+    ".next-e2e/**",
+    "test-results/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
@@ -94,6 +105,8 @@ const eslintConfig = defineConfig([
     ".claude/**",
     ".opencode/worktrees/**",
     "src/projects/family-tree/layout/solver/.venv/**",
+    // Gitignored genealogy research (living people): never part of the build.
+    "src/projects/family-tree/research/**",
   ]),
 ]);
 

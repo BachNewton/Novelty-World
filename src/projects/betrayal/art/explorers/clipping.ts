@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { solidOf, type Solid } from "../forms";
+import { shapeOf, solidOf, type Solid } from "../forms";
 import { jointsOf, type Joint } from "./figure";
 import { handsOf, heldJoint } from "./hands";
 
@@ -38,23 +38,28 @@ interface Part {
   box: THREE.Box3;
 }
 
-const sampled = new WeakMap<THREE.BufferGeometry, { points: Float32Array; box: THREE.Box3 }>();
+/** The thinning grid's cells along each axis, centred on a part's origin: enough for a part 18 m across. */
+const CELLS = 4096;
+
+const sampled = new WeakMap<THREE.BufferGeometry, { shape: string; points: Float32Array; box: THREE.Box3 }>();
 
 /** A geometry's vertices, thinned to about one every `SPACING`, and the box they lie in. */
 function pointsOf(geometry: THREE.BufferGeometry): { points: Float32Array; box: THREE.Box3 } {
   const known = sampled.get(geometry);
-  if (known) return known;
+  if (known?.shape === shapeOf(geometry)) return known;
   const position = geometry.getAttribute("position");
-  const taken = new Set<string>();
+  const taken = new Set<number>();
   const points: number[] = [];
+  // A number for each cell of the thinning grid, rather than a string: cloth the legs push is thinned again every frame it moves.
+  const cell = (v: number) => Math.round(v / SPACING) + CELLS / 2;
   for (let i = 0; i < position.count; i++) {
     const [x, y, z] = [position.getX(i), position.getY(i), position.getZ(i)];
-    const key = `${Math.round(x / SPACING)},${Math.round(y / SPACING)},${Math.round(z / SPACING)}`;
+    const key = (cell(x) * CELLS + cell(y)) * CELLS + cell(z);
     if (taken.has(key)) continue;
     taken.add(key);
     points.push(x, y, z);
   }
-  const result = { points: new Float32Array(points), box: new THREE.Box3().setFromArray(points) };
+  const result = { shape: shapeOf(geometry), points: new Float32Array(points), box: new THREE.Box3().setFromArray(points) };
   sampled.set(geometry, result);
   return result;
 }
@@ -157,9 +162,10 @@ function deepestInside(a: Part, b: Part, allowed: readonly { at: THREE.Vector3; 
  */
 const checked = new Map<string, { relative: THREE.Matrix4; finding: string | null }[]>();
 
-/** A part's place in the memory: its geometry, and which copy of an instanced mesh. */
+/** A part's place in the memory: its geometry, the shape it is in, and which copy of an instanced mesh. */
 function keyOf(part: Part, copy: string): string {
-  return `${(part.mesh.geometry as THREE.BufferGeometry).uuid}${copy}`;
+  const geometry = part.mesh.geometry as THREE.BufferGeometry;
+  return `${geometry.uuid}${shapeOf(geometry)}${copy}`;
 }
 
 const corner = new THREE.Vector3();

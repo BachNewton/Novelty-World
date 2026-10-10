@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { ball, ellipsoid, rod, roundBox, sculpt, type Tone } from "../forms";
+import { ball, ellipsoid, rod, roundBox, sculpt } from "../forms";
+import type { PaletteKey } from "../palette";
 import { group } from "../shapes";
 import { reach, type Joint, type Limb, type Reach } from "./figure";
 
@@ -92,7 +93,7 @@ export interface HandParts {
 }
 
 /** A hand's parts, `side` −1 for the right and 1 for the left, `scale` times an adult's. */
-export function handParts(side: -1 | 1, scale = 1, skin: Tone = "skin"): HandParts {
+export function handParts(side: -1 | 1, scale: number, skin: PaletteKey): HandParts {
   const palmward = -side;
   const s = (x: number, y: number, z: number): [number, number, number] => [palmward * x * scale, y * scale, z * scale];
   const cell = 0.0042 * scale;

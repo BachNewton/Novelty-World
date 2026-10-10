@@ -16,28 +16,6 @@ import { paletteHex, type PaletteKey } from "./palette";
 
 export type Vec3 = readonly [number, number, number];
 
-/**
- * Colours only figures wear, each mixed from two palette colours, so they stay
- * in the palette's family: skin warmed towards amber, so a face reads as a
- * living person's under the house's cold moonlight rather than as grey bone.
- */
-export const TONES = {
-  skin: ["boneLight", "amber", 0.22],
-  skinShade: ["bone", "ember", 0.2],
-} as const satisfies Record<string, readonly [PaletteKey, PaletteKey, number]>;
-
-/** A figure's colour: a palette key, or one of the figure tones mixed from two. */
-export type Tone = PaletteKey | keyof typeof TONES;
-
-function mixed(tone: Tone): tone is keyof typeof TONES {
-  return tone in TONES;
-}
-
-export function toneColour(tone: Tone): THREE.Color {
-  if (!mixed(tone)) return new THREE.Color(paletteHex(tone));
-  const [from, to, amount] = TONES[tone];
-  return new THREE.Color(paletteHex(from)).lerp(new THREE.Color(paletteHex(to)), amount);
-}
 /** Signed distance to a surface, in metres. */
 export type Distance = (x: number, y: number, z: number) => number;
 
@@ -60,6 +38,24 @@ export function shaped<T extends THREE.BufferGeometry>(geometry: T, solid: Solid
 
 export function solidOf(geometry: THREE.BufferGeometry): Solid | undefined {
   return (geometry.userData as { solid?: Solid }).solid;
+}
+
+/** Marks a geometry whose vertices a figure moves (cloth draped over the
+ *  legs), its solid moving with them. The figure calls `reshaped` after each
+ *  move, so the clipping check knows which shape it last saw. */
+export function deforming<T extends THREE.BufferGeometry>(geometry: T): T {
+  geometry.userData.shape = 0;
+  return geometry;
+}
+
+export function reshaped(geometry: THREE.BufferGeometry) {
+  (geometry.userData as { shape: number }).shape += 1;
+}
+
+/** Which shape a geometry is in: "" for one whose vertices never move. */
+export function shapeOf(geometry: THREE.BufferGeometry): string {
+  const { shape } = geometry.userData as { shape?: number };
+  return shape === undefined ? "" : `~${shape}`;
 }
 
 function bounds(centre: Vec3, reach: Vec3): Pick<Solid, "min" | "max"> {
@@ -264,9 +260,9 @@ function outsideBox(x: number, y: number, z: number, min: Vec3, max: Vec3): numb
 }
 
 type Step =
-  | { kind: "add"; solid: Solid; colour: Tone; blend: number }
-  | { kind: "carve"; solid: Solid; colour?: Tone; blend: number }
-  | { kind: "paint"; region: Distance; colour: Tone };
+  | { kind: "add"; solid: Solid; colour: PaletteKey; blend: number }
+  | { kind: "carve"; solid: Solid; colour?: PaletteKey; blend: number }
+  | { kind: "paint"; region: Distance; colour: PaletteKey };
 
 /**
  * A sculpture built up from solids in order: each `add` joins one on, with a
@@ -277,15 +273,15 @@ type Step =
 export function sculpt() {
   const steps: Step[] = [];
   const shape = {
-    add(solid: Solid, colour: Tone, blend = 0) {
+    add(solid: Solid, colour: PaletteKey, blend = 0) {
       steps.push({ kind: "add", solid, colour, blend });
       return shape;
     },
-    carve(solid: Solid, { blend = 0, colour }: { blend?: number; colour?: Tone } = {}) {
+    carve(solid: Solid, { blend = 0, colour }: { blend?: number; colour?: PaletteKey } = {}) {
       steps.push({ kind: "carve", solid, colour, blend });
       return shape;
     },
-    paint(region: Solid | Distance, colour: Tone) {
+    paint(region: Solid | Distance, colour: PaletteKey) {
       steps.push({ kind: "paint", region: typeof region === "function" ? region : region.distance, colour });
       return shape;
     },
@@ -303,9 +299,9 @@ export function sculpt() {
       }
       return d;
     },
-    colourAt(x: number, y: number, z: number): Tone {
+    colourAt(x: number, y: number, z: number): PaletteKey {
       let d = Infinity;
-      let colour: Tone = "void";
+      let colour: PaletteKey = "void";
       for (const step of steps) {
         if (step.kind === "add") {
           const s = step.solid.distance(x, y, z);
@@ -516,13 +512,38 @@ function settle(positions: Float32Array, distance: Distance, cell: number) {
 const BORDER_SPLITS = 2;
 
 /**
+ * How a sculpture's own hollows shade it: the house lights a figure by an
+ * ambient cube, light from every side and no shadow, so without this a carved
+ * eye socket, the crease under a brow or a nose, or a collar's fold is lit as
+ * brightly as a cheek and a pale face reads flat and chalky. Each corner is
+ * darkened by how far its own surface closes in over it within `reach`,
+ * stepping out along the normal (Inigo Quilez's distance-field occlusion), by
+ * at most `deepest`, so the colour keeps its hue and only its light changes.
+ */
+const OCCLUSION = { reach: 0.03, steps: 5, strength: 2.2, deepest: 0.55 };
+
+function occlusion(distance: Distance, x: number, y: number, z: number, normal: THREE.Vector3): number {
+  const { reach, steps, strength, deepest } = OCCLUSION;
+  let closed = 0;
+  let total = 0;
+  for (let i = 1; i <= steps; i++) {
+    const h = (reach * i) / steps;
+    const weight = 1 / i;
+    closed += weight * Math.max(0, h - distance(x + normal.x * h, y + normal.y * h, z + normal.z * h));
+    total += weight * h;
+  }
+  return 1 - deepest * Math.min(1, (strength * closed) / total);
+}
+
+/**
  * A net as a non-indexed geometry: smooth normals from the distance's
  * gradient, and each triangle one flat palette colour, the colour at its
- * middle. A triangle whose corners differ in colour straddles a border, so it
+ * middle, darkened at each corner by the sculpture's own hollows
+ * (`occlusion`). A triangle whose corners differ in colour straddles a border, so it
  * is split (its new corners left on its own edges, which keeps the surface
  * closed) until the border is drawn `BORDER_SPLITS` times finer.
  */
-function colouredGeometry({ positions, triangles }: Net, distance: Distance, colourAt: (x: number, y: number, z: number) => Tone, cell: number): THREE.BufferGeometry {
+function colouredGeometry({ positions, triangles }: Net, distance: Distance, colourAt: (x: number, y: number, z: number) => PaletteKey, cell: number): THREE.BufferGeometry {
   const g = new THREE.Vector3();
   const position: number[] = [];
   const normal: number[] = [];
@@ -543,9 +564,10 @@ function colouredGeometry({ positions, triangles }: Net, distance: Distance, col
     const { r, g: green, b: blue } = rgb(key);
     for (const corner of corners) {
       gradient(distance, corner[0], corner[1], corner[2], cell * 0.25, g).normalize();
+      const light = occlusion(distance, corner[0], corner[1], corner[2], g);
       position.push(...corner);
       normal.push(g.x, g.y, g.z);
-      colour.push(r, green, blue);
+      colour.push(r * light, green * light, blue * light);
     }
   };
   const corner = (index: number): Corner => [positions[index * 3], positions[index * 3 + 1], positions[index * 3 + 2]];
@@ -558,11 +580,11 @@ function colouredGeometry({ positions, triangles }: Net, distance: Distance, col
 }
 
 function colourCache() {
-  const cache = new Map<Tone, THREE.Color>();
-  return (key: Tone): THREE.Color => {
+  const cache = new Map<PaletteKey, THREE.Color>();
+  return (key: PaletteKey): THREE.Color => {
     let colour = cache.get(key);
     if (!colour) {
-      colour = toneColour(key);
+      colour = new THREE.Color(paletteHex(key));
       cache.set(key, colour);
     }
     return colour;
@@ -574,7 +596,7 @@ function colourCache() {
 export interface Section {
   at: Vec3;
   radius: number | readonly [number, number];
-  colour: Tone;
+  colour: PaletteKey;
 }
 
 /**
@@ -599,7 +621,7 @@ export function loft(
     across.push(carried.normalize());
   }
 
-  type RingSpec = { centre: THREE.Vector3; r: [number, number]; frame: number; colour: Tone };
+  type RingSpec = { centre: THREE.Vector3; r: [number, number]; frame: number; colour: PaletteKey };
   const rings: RingSpec[] = sections.map((s, i) => ({ centre: at[i], r: [radii[i][0], radii[i][1]], frame: i, colour: s.colour }));
   // A rounded end: rings shrinking over a quarter circle, as far again as the end's radius.
   const capRings = (end: number, outward: number): RingSpec[] => {
@@ -631,7 +653,7 @@ export function loft(
     }
   }
   const index: number[] = [];
-  const triangleColour: Tone[] = [];
+  const triangleColour: PaletteKey[] = [];
   for (let r = 0; r < all.length - 1; r++) {
     for (let s = 0; s < sides; s++) {
       const a = r * sides + s;
@@ -729,9 +751,9 @@ function loftSolid(
 }
 
 /** Gives a whole geometry one palette colour, for merging with others into one vertex-coloured mesh. */
-export function painted(geometry: THREE.BufferGeometry, colour: Tone): THREE.BufferGeometry {
+export function painted(geometry: THREE.BufferGeometry, colour: PaletteKey): THREE.BufferGeometry {
   const flatGeometry = geometry.index ? geometry.toNonIndexed() : geometry;
-  const { r, g, b } = toneColour(colour);
+  const { r, g, b } = new THREE.Color(paletteHex(colour));
   const count = flatGeometry.getAttribute("position").count;
   const colours = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) colours.set([r, g, b], i * 3);
@@ -797,7 +819,7 @@ export function form(material: THREE.Material, ...geometries: THREE.BufferGeomet
 
 /** A round plinth, `top` above the floor, with a bevelled edge, smooth all
  *  round: a miniature's base, from `radius` at the floor to `topRadius`. */
-export function plinth(radius: number, topRadius: number, top: number, colour: Tone, sides = 64): THREE.BufferGeometry {
+export function plinth(radius: number, topRadius: number, top: number, colour: PaletteKey, sides = 64): THREE.BufferGeometry {
   const bevel = Math.min(0.015, top / 3);
   const profile = [
     new THREE.Vector2(0, 0),

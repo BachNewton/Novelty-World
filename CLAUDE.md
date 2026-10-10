@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Novelty World is a Next.js 16 monorepo-style platform hosting multiple games and tools under a single dark-themed UI. Each "project" (game/tool) lives in `src/projects/<slug>/` and is lazy-loaded via `next/dynamic` in the catch-all route `src/app/[...slug]/page.tsx`. The homepage (`src/app/page.tsx`) renders a categorized directory of all projects.
 
+Next.js's own docs for the installed version are bundled in `node_modules/next/dist/docs/`; check them before using a Next.js API.
+
 **Hosting:** the app is deployed on **Vercel**. Server-side code (route handlers, server actions) runs in Vercel's environment, so any server env var — e.g. `SUPABASE_SERVICE_ROLE_KEY` — must be set in **Vercel → Project Settings → Environment Variables**, not just in local `.env.local`. Env var changes only take effect on the next deployment.
 
 ## Commands
@@ -19,10 +21,11 @@ Novelty World is a Next.js 16 monorepo-style platform hosting multiple games and
 | Unit tests | `npm run test` |
 | Single test file | `npx vitest run src/projects/euchre/logic.test.ts` |
 | Watch mode | `npm run test:watch` |
-| E2E tests | `npm run test:e2e` |
+| E2E tests | `npm run test:e2e` (builds its own server each run; `--workers=N` overrides the worker count) |
+| E2E against the dev server | `E2E_BASE_URL=http://localhost:3001 npm run test:e2e` |
 | All tests | `npm run test:all` |
 
-E2E tests (Playwright) expect the dev server on port 3001 and a local PeerJS signalling server on port 3003 (started automatically via `e2e/global-setup.ts`). Multiplayer pages opt into it with `?peer-signal=local`, so the suites never touch the public PeerJS cloud.
+E2E tests (Playwright) are self-contained: each run builds the app (a snapshot of the code when the run starts) and serves it, along with a local PeerJS signalling server, on ports the OS picks, so a run never touches the dev server and any number can run at once. `E2E_BASE_URL` points a run at a server that is already up instead. Workers default to half the logical cores, and every test page reports a fair share of the cores as `navigator.hardwareConcurrency`, so specs import `test` and `expect` from `e2e/test.ts`, not from Playwright. Multiplayer pages opt into the local signalling server with `?peer-signal=local:<port>` (`e2e/peer-signal.ts`), so the suites never touch the public PeerJS cloud.
 
 ## Principles
 
@@ -117,4 +120,4 @@ Tailwind CSS v4. Novelty World's own visual identity, the home page, shared UI a
 
 **Rule: never use a timer, delay, clock-based retry or polling loop to handle a race condition or a flaky test, in app logic or in tests.** This matters most in networking and async code. A race is an ordering bug, and the fix is correct ordering: register handlers before starting what fires them, queue work until the event that makes it valid (a connection's `open`, a promise resolving), and derive "ready" from events, never from elapsed time. Timers that are the feature itself (a game's countdown, an animation frame loop) are fine; a timer whose job is to let something else "probably finish first" never is.
 
-**Rule: never wait an arbitrary duration (`waitForTimeout`, `sleep`, `setTimeout`-as-delay) in tests or automated tools.** A fixed sleep hides race conditions (it passes until the machine is slow, then flakes) and makes every run slower than it needs to be. Whatever you're waiting *for* has an observable event — wait on that instead: a readiness predicate (`waitForFunction` on an `isReady()`), a frame counter advancing (Shipwright exposes `__shipwright.frameCount()` because "a rendered frame" is the real event a screenshot needs), an element appearing, a promise resolving, a message arriving. If a wait target genuinely doesn't exist yet, expose one from the app rather than guessing a number — that's what `isReady()` replacements of hardcoded sleeps are. (Some older Shipwright perf tools still carry settle-sleeps; they're a refactor target, not a pattern to copy.)
+**Rule: never wait an arbitrary duration (`waitForTimeout`, `sleep`, `setTimeout`-as-delay) in tests or automated tools.** A fixed sleep hides race conditions (it passes until the machine is slow, then flakes) and makes every run slower than it needs to be. Whatever you're waiting *for* has an observable event — wait on that instead: a readiness predicate (`waitForFunction` on an `isReady()`), a frame counter advancing (Shipwright exposes `__shipwright.frameCount()` because "a rendered frame" is the real event a screenshot needs), an element appearing, a promise resolving, a message arriving. A test never waits for a state that lasts only a moment: it freezes the clock first. If a wait target genuinely doesn't exist yet, expose one from the app rather than guessing a number — that's what `isReady()` replacements of hardcoded sleeps are. (Some older Shipwright perf tools still carry settle-sleeps; they're a refactor target, not a pattern to copy.)

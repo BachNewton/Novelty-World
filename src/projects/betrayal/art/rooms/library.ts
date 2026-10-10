@@ -64,6 +64,10 @@ function addBook(b: Batch, place: THREE.Matrix4, book: Book) {
 /** Neighbouring books overlap a little: two boxes that only touch leave a
  *  crack the dark shelf back shows through, as a column of dots. */
 const OVERLAP = 0.004;
+/** Two overlapping books' tops or spines nearer than this share a plane as far as the depth buffer can tell; one is
+ *  then moved this far clear of the other. */
+const NEAR = 0.002;
+const CLEAR = 0.003;
 
 const Z_TURN = new THREE.Vector3(0, 0, 1);
 function standing(x: number, y: number, z: number, lean = 0, pivot = 0): THREE.Matrix4 {
@@ -82,11 +86,25 @@ function standing(x: number, y: number, z: number, lean = 0, pivot = 0): THREE.M
 function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: number, front: number, fill = 1) {
   let x = x0 + uniform(rng, 0, 0.03);
   const fits = (width: number) => x + width <= x1;
+  /** The last book stood upright, while the next may overlap it. */
+  let last: { top: number; spine: number; right: number } | null = null;
+  /** Stands a book upright at x, its spine at z. Where it overlaps the last,
+   *  a top or a spine within a hair of the last's is moved clear of it, so
+   *  the two never share a plane. */
+  const upright = (book: Book, z: number) => {
+    const near = (a: number, b: number) => Math.abs(a - b) < NEAR;
+    if (last && x < last.right) {
+      if (near(book.h, last.top)) book.h = last.top + (last.top + CLEAR <= room ? CLEAR : -CLEAR);
+      if (near(z, last.spine)) z = last.spine - CLEAR;
+    }
+    addBook(b, standing(x, y, z), book);
+    last = { top: book.h, spine: z, right: x + book.w };
+  };
   const finish = () => {
     while (x < x1 - 0.025) {
       const book = randomBook(rng, room);
       book.w = Math.min(book.w, x1 - x);
-      addBook(b, standing(x, y, front - uniform(rng, 0, 0.03)), book);
+      upright(book, front - uniform(rng, 0, 0.03));
       x += book.w - OVERLAP;
     }
   };
@@ -140,7 +158,7 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
       // A matching set.
       const book = randomBook(rng, room);
       for (let i = 0, count = 3 + Math.floor(rng.next() * 5); i < count && fits(book.w); i++) {
-        addBook(b, standing(x, y, front - uniform(rng, 0, 0.012)), { ...book, h: book.h - uniform(rng, 0, 0.025) });
+        upright({ ...book, h: book.h - uniform(rng, 0, 0.025) }, front - uniform(rng, 0, 0.012));
         x += book.w - OVERLAP;
       }
     } else {
@@ -149,7 +167,7 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
         finish();
         break;
       }
-      addBook(b, standing(x, y, pull), book);
+      upright(book, pull);
       x += book.w + (rng.next() < 0.12 ? uniform(rng, 0.015, 0.04) : -OVERLAP);
     }
   }
@@ -161,6 +179,8 @@ const BASE_DEPTH = 0.42;
 const SHELF_PITCH = 0.36;
 const BOARD = 0.035;
 const POST = 0.05;
+/** How far under the cut height the cupboard's top stops, so it never shares the plane of the cut wall's top. */
+const BELOW_CUT = 0.005;
 /** The shelving's back stands just proud of the wainscot it hangs in front of. */
 const BACK = WAINSCOT_DEPTH + 0.01;
 
@@ -197,10 +217,14 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
   const columns = posts(width);
   const levels = Math.floor((height - 0.12) / SHELF_PITCH);
   const pitch = (height - 0.12) / levels;
-  b.block([width, height, BACK], back, [0, 0, BACK / 2]);
-  for (const x of columns) b.block([POST, height, depth], "woodMid", [x, 0, depth / 2]);
-  b.block([width + 0.06, 0.07, depth + 0.06], "woodDark", [0, height - 0.07, depth / 2 + 0.03]);
-  b.block([width + 0.02, 0.05, depth + 0.03], "woodMid", [0, height - 0.12, depth / 2 + 0.015]);
+  // The back stops inside the end posts and under the cornice, and the posts under the cornice, so no faces share a
+  // plane. The posts and the lowest boards reach a little below the shelving's foot, down to the cupboard it stands on,
+  // which stops short of the cut wall's top.
+  b.block([width - POST, height - 0.01, BACK], back, [0, 0, BACK / 2]);
+  for (const x of columns) b.block([POST, height - 0.12 + BELOW_CUT, depth], "woodMid", [x, -BELOW_CUT, depth / 2]);
+  // The cornice overhangs at the front only: runs meet in the corners and at the walls.
+  b.block([width, 0.07, depth + 0.06], "woodDark", [0, height - 0.07, depth / 2 + 0.03]);
+  b.block([width, 0.05, depth + 0.03], "woodMid", [0, height - 0.12, depth / 2 + 0.015]);
   for (let level = 0; level < levels; level++) {
     const y = level * pitch;
     for (let bay = 0; bay < columns.length - 1; bay++) {
@@ -214,7 +238,8 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
         b.add([span, BOARD, depth - 0.02], "woodMid", standing(left, y + BOARD / 2, depth / 2, tilt, span).multiply(new THREE.Matrix4().makeTranslation(span / 2, 0, 0)));
         continue;
       }
-      b.block([span, BOARD, depth - 0.02], "woodMid", [(left + right) / 2, y, depth / 2]);
+      const foot = level === 0 ? BELOW_CUT : 0;
+      b.block([span, BOARD + foot, depth - 0.02], "woodMid", [(left + right) / 2, y - foot, depth / 2]);
       const floor = y + BOARD;
       const room = pitch - BOARD - 0.015;
       if (broken?.bay === bay && broken.level === level + 1) {
@@ -238,7 +263,8 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
   if (rail) {
     const railY = height - 0.32;
     b.block([width, 0.03, 0.03], "brass", [0, railY, depth + 0.06]);
-    for (const x of columns) b.block([0.03, 0.03, 0.08], "brass", [x, railY, depth + 0.02]);
+    // The brackets are a hair slimmer than the rail they carry, so their tops never share its plane.
+    for (const x of columns) b.block([0.03, 0.026, 0.08], "brass", [x, railY + 0.002, depth + 0.02]);
   }
   const result = group(b.mesh());
   for (const { bay, side } of webs) {
@@ -253,7 +279,7 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
 /** The panelled cupboard the shelving stands on, as tall as a cut-away wall. */
 function cupboard(width: number): THREE.Group {
   const b = batch();
-  const height = CUT_HEIGHT;
+  const height = CUT_HEIGHT - BELOW_CUT;
   b.block([width, 0.08, BASE_DEPTH - 0.04], "woodDark", [0, 0, (BASE_DEPTH - 0.04) / 2]);
   b.block([width, height - 0.12, BASE_DEPTH - 0.03], "wood", [0, 0.08, (BASE_DEPTH - 0.03) / 2]);
   const columns = posts(width);
@@ -266,8 +292,9 @@ function cupboard(width: number): THREE.Group {
       b.block([door, height - 0.2, 0.02], "woodMid", [x, 0.11, BASE_DEPTH - 0.02]);
       b.block([door - 0.08, height - 0.3, 0.02], "wood", [x, 0.16, BASE_DEPTH - 0.005]);
     }
-    b.block([0.02, 0.06, 0.03], "brass", [centre - 0.03, 0.26, BASE_DEPTH]);
-    b.block([0.02, 0.06, 0.03], "brass", [centre + 0.03, 0.26, BASE_DEPTH]);
+    // The handles stand clear of the doors' inner edges, so their sides never share the doors' planes.
+    b.block([0.02, 0.06, 0.03], "brass", [centre - 0.035, 0.26, BASE_DEPTH]);
+    b.block([0.02, 0.06, 0.03], "brass", [centre + 0.035, 0.26, BASE_DEPTH]);
   }
   b.block([width, 0.04, BASE_DEPTH], "woodMid", [0, height - 0.04, BASE_DEPTH / 2]);
   return group(b.mesh());
@@ -277,8 +304,8 @@ function cupboard(width: number): THREE.Group {
  *  the shelves above it hung on the wall so they hide with it. */
 function bookcase(edge: Edge, along: number, options: CaseOptions): PropPlacement[] {
   return [
-    { build: () => cupboard(options.width), ...onWall(edge, along) },
-    { build: () => shelving(options), ...onWall(edge, along, { y: CUT_HEIGHT }) },
+    { build: () => cupboard(options.width), name: "cupboard", ...onWall(edge, along) },
+    { build: () => shelving(options), name: "shelving", ...onWall(edge, along, { y: CUT_HEIGHT }) },
   ];
 }
 
@@ -314,8 +341,13 @@ function ladder(from: number, to: number): THREE.Group {
 
 function rollingLadder(edge: Edge, along: number): PropPlacement[] {
   return [
-    { build: () => ladder(0, CUT_HEIGHT), ...onWall(edge, along) },
-    { build: () => ladder(CUT_HEIGHT, LADDER.top + 0.1), ...onWall(edge, along, { y: CUT_HEIGHT }) },
+    { build: () => ladder(0, CUT_HEIGHT), name: "ladder", ...onWall(edge, along) },
+    {
+      build: () => ladder(CUT_HEIGHT, LADDER.top + 0.1),
+      name: "ladder",
+      ...onWall(edge, along, { y: CUT_HEIGHT }),
+      contacts: [{ with: "shelving", because: "its hooks hang on the shelving's rail" }],
+    },
   ];
 }
 
@@ -425,7 +457,8 @@ function spill(seed: string, count: number, radius: number): THREE.Group {
     const thick = uniform(rng, 0.035, 0.07);
     const tilt = rng.next() < 0.3 ? uniform(rng, 0.2, 0.6) : 0;
     const place = new THREE.Matrix4().compose(
-      new THREE.Vector3(Math.cos(angle) * distance, thick / 2 + tilt * 0.1, Math.sin(angle) * distance),
+      // Tilted books rest on an edge, their lowest corner on the floor.
+      new THREE.Vector3(Math.cos(angle) * distance, (book.h / 2) * Math.sin(tilt) + (thick / 2) * Math.cos(tilt) + 0.002, Math.sin(angle) * distance),
       new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, rng.next() * Math.PI * 2, 0)),
       new THREE.Vector3(1, 1, 1),
     );
@@ -437,14 +470,14 @@ function spill(seed: string, count: number, radius: number): THREE.Group {
 /** A free-standing bookcase that has fallen on its back, most of its books
  *  thrown out, one side propped on a fallen volume. Its top points to −z. */
 function fallenBookcase(): THREE.Group {
-  const length = 1.9;
+  const length = 1.5;
   const upright = shelving({ width: 0.9, height: length, depth: 0.32, seed: "fallen", fill: 0.4 });
   upright.rotation.x = -Math.PI / 2;
   upright.position.set(0.45, 0, length / 2);
   const rolled = group(upright);
   rolled.rotation.z = 0.1;
   rolled.position.x = -0.45;
-  return group(rolled, spill("fallen-top", 9, 0.45).translateZ(-length / 2 - 0.35));
+  return group(rolled, spill("fallen-top", 5, 0.18).translateZ(-length / 2 - 0.05));
 }
 
 /** A reading desk on two pedestals of drawers. The sitter's side faces −z. */
@@ -501,7 +534,7 @@ function globe(): THREE.Group {
   ring.position.y = 0.82;
   ring.rotation.z = 0.4;
   const legs = flat("woodDark");
-  const result = group(sphere, ring, cylinder(0.035, 0.5, legs, [0, 0.06, 0], { sides: 6 }), cylinder(0.14, 0.06, flat("woodMid"), [0, 0.5, 0], { top: 0.05, sides: 8 }));
+  const result = group(sphere, ring, cylinder(0.035, 0.47, legs, [0, 0.06, 0], { sides: 6 }), cylinder(0.14, 0.06, flat("woodMid"), [0, 0.5, 0], { top: 0.05, sides: 8 }));
   for (let i = 0; i < 3; i++) {
     const leg = box([0.04, 0.06, 0.32], legs, [0, 0, 0.16]);
     const holder = group(leg);
@@ -529,10 +562,11 @@ export const LIBRARY: RoomDefinition = {
   wainscot: () => panelling({ ramp: RAMPS.wood }),
   trim: "woodDark",
   props: [
-    ...bookcase("top", 0, { width: 5.6, seed: "top", webs: [{ bay: 0, side: "left" }, { bay: 3, side: "right" }] }),
+    // A hair wider than the wall, its end posts standing into the side walls off the dado rails' faces.
+    ...bookcase("top", 0, { width: 5.62, seed: "top", webs: [{ bay: 0, side: "left" }, { bay: 3, side: "right" }] }),
     ...bookcase("right", 0, { width: 4.76, seed: "right", rail: true, broken: { bay: 4, level: 4 }, webs: [{ bay: 4, side: "right" }] }),
     ...bookcase("bottom", 1.75, { width: 2.1, seed: "bottom-a" }),
-    ...bookcase("bottom", -1.75, { width: 2.1, seed: "bottom-b", webs: [{ bay: 1, side: "right" }] }),
+    ...bookcase("bottom", -1.755, { width: 2.11, seed: "bottom-b", webs: [{ bay: 1, side: "right" }] }),
     ...bookcase("left", 1.54, { width: 1.68, seed: "left-a" }),
     ...bookcase("left", -1.54, { width: 1.68, seed: "left-b", webs: [{ bay: 0, side: "left" }] }),
     ...rollingLadder("right", -1.3),
@@ -548,7 +582,7 @@ export const LIBRARY: RoomDefinition = {
     { build: () => candelabra({ arms: 3, intensity: 4 }), at: [0.95, -1.2], y: 0.77 },
     { build: () => openBook({ cover: "verdigrisDark" }), at: [0.25, -0.95], y: 0.77, turn: -8 },
     { build: inkwell, at: [-0.15, -1.25], y: 0.77 },
-    { build: () => bookPile("desk", 3), at: [-0.12, -0.8], y: 0.77, turn: 15 },
+    { build: () => bookPile("desk", 3), name: "bookPile", at: [-0.2, -0.78], y: 0.77, turn: 15 },
 
     { build: wingback, at: [-1.6, -1.35], turn: 45 },
     { build: sideTable, at: [-0.85, -1.95] },
@@ -559,12 +593,16 @@ export const LIBRARY: RoomDefinition = {
     { build: globe, at: [1.85, 1.0] },
     { build: () => bookPile("globe", 4), at: [1.6, 1.9], turn: 30 },
 
-    { build: fallenBookcase, at: [-1.5, 1.75], turn: 35 },
-    { build: () => spill("fallen", 10, 0.5), at: [-0.75, 1.55] },
+    // Fallen across the corner between the two doors, its top in the corner.
+    { build: fallenBookcase, at: [-1.4, 1.4], turn: 135 },
     { build: () => openBook({ glowing: true, cover: "bruiseDark" }), at: [0.7, 0.5], turn: 25 },
     ...SHEETS.map(([x, z, turn]) => ({ build: looseSheet, at: [x, z] as [number, number], turn })),
   ],
   lights: [{ at: [0.7, 0.35, 0.5], colour: "verdigrisLight", intensity: 1.6, range: 3 }],
   focus: [-0.2, 0.8, -0.8],
   pawn: [0.1, 1.7],
+  spots: [[-0.15, 0.45], [-0.85, -0.65], [-1.7, 0.3], [1.1, 0.9], [1.55, -0.3]],
+  overflow: [[0.9, 1.7], [-0.9, 0.2], [0.35, -0.15]],
+  // In from the left doorway and down between the desk and the armchair to the bottom one.
+  lanes: [[[-2.2, 0], [-0.5, -0.1], [0.2, 0.2], [0.2, 1.9], [0, 2.2]]],
 };

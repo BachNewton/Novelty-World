@@ -4,7 +4,7 @@ import { frogminoView, replayName } from "./view";
 describe("frogminoView", () => {
   it("opens on the lobby", () => {
     expect(frogminoView("")).toBe("lobby");
-    expect(frogminoView("?peer-signal=local")).toBe("lobby");
+    expect(frogminoView("?peer-signal=local:51234")).toBe("lobby");
   });
 
   it("skips the lobby with ?play=solo", () => {

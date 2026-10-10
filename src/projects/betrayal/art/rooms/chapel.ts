@@ -1,12 +1,11 @@
 import * as THREE from "three";
-import { candle, cobweb, rug } from "../kit";
+import { candle, cobweb, rug, windowPool } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import type { Edge } from "../../types";
 import { INNER, onWall, WINDOW_SILL, WINDOW_TOP, WINDOW_WIDTH, type PropPlacement, type RoomDefinition } from "../room";
-import { box, cylinder, flat, glow, group, lathe, lightMaterial, textured } from "../shapes";
-import { moonPosition } from "../stage";
-import { flagstones, plaster, svgTexture, TEXELS_PER_METRE, woodPlanks } from "../textures";
+import { box, cylinder, flat, glow, group, lathe, textured } from "../shapes";
+import { flagstones, marble, panelling, svgTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from "../textures";
 
 /** The jewel colours of the glass, and so of the light it throws. */
 const GLASS: PaletteKey[] = ["blood", "amber", "verdigris", "moon", "bloodLight", "verdigrisLight"];
@@ -101,51 +100,18 @@ function stainedWindow(): THREE.Group {
     new THREE.PlaneGeometry(sw / TEXELS_PER_METRE, sh / TEXELS_PER_METRE),
     textured(svgTexture(surroundSvg(sw, sh, band), sw, sh), true),
   );
-  surround.position.set(0, sh / TEXELS_PER_METRE / 2, 0.1);
+  // Proud of the sill's front, which stands 10 cm off the wall.
+  surround.position.set(0, sh / TEXELS_PER_METRE / 2, 0.11);
   glass.userData.noShadow = true;
   surround.userData.noShadow = true;
   return group(glass, surround);
 }
 
-/** Where the moon, coming through the lancet, falls: a slanting shaft and a
- *  pool of coloured light on the floor. Built in room coordinates, along the
- *  stage's own moonlight. */
-function moonbeam(): THREE.Group {
-  const moon = moonPosition(CHAPEL);
-  const drop = (x: number, y: number): [number, number, number] => [x - (moon.x / moon.y) * y, 0.02, INNER - (moon.z / moon.y) * y];
-  const half = WINDOW_WIDTH / 2;
-  const low = 1.35;
-  const sill: [number, number, number][] = [[-half, low, INNER], [half, low, INNER], [half, WINDOW_TOP, INNER], [-half, WINDOW_TOP, INNER]];
-  const floor = sill.map(([x, y]) => drop(x, y));
-
-  const w = 32;
-  const h = 32;
-  const cells: string[] = [];
-  for (let y = 0; y < h; y += 4) {
-    for (let x = 0; x < w; x += 4) {
-      const colour = GLASS[(x / 4 + (y / 4) * 2) % GLASS.length];
-      cells.push(`<rect x="${x + 1}" y="${y + 1}" width="3" height="3" fill="${hex(colour)}"/>`);
-    }
-  }
-  const poolGeometry = new THREE.BufferGeometry();
-  poolGeometry.setAttribute("position", new THREE.Float32BufferAttribute(floor.flat(), 3));
-  poolGeometry.setAttribute("uv", new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
-  poolGeometry.setIndex([0, 1, 2, 0, 2, 3]);
-  const pool = new THREE.Mesh(poolGeometry, lightMaterial(0.75, { map: svgTexture(svg(w, h, `<rect width="${w}" height="${h}" fill="${hex("void")}"/>${cells.join("")}`), w, h) }));
-
-  const shaftGeometry = new THREE.BufferGeometry();
-  shaftGeometry.setAttribute("position", new THREE.Float32BufferAttribute([...sill.flat(), ...floor.flat()], 3));
-  const sides: number[] = [];
-  for (let i = 0; i < 4; i++) {
-    const j = (i + 1) % 4;
-    sides.push(i, j, j + 4, i, j + 4, i + 4);
-  }
-  shaftGeometry.setIndex(sides);
-  const bright = new THREE.Color(hex("moonDark"));
-  const faded = new THREE.Color(hex("void"));
-  shaftGeometry.setAttribute("color", new THREE.Float32BufferAttribute([...sill.flatMap(() => bright.toArray()), ...floor.flatMap(() => faded.toArray())], 3));
-  const shaft = new THREE.Mesh(shaftGeometry, lightMaterial(0.8, { vertexColors: true }));
-  return group(pool, shaft);
+/** The lancet's colours laid on the floor before the chancel: a stylised
+ *  glow of the window, falling straight out of it whichever way the tile
+ *  turns. Its origin is where it meets the chancel step; it reaches out along +z. */
+function stainedPool(): THREE.Mesh {
+  return windowPool({ reach: 1.9, glass: GLASS, panes: [6, 8], opacity: 0.6 });
 }
 
 /** A row of chapel seating with gothic pointed ends. It faces +z. */
@@ -231,17 +197,19 @@ function altar(): THREE.Group {
     box([1.7, 0.84, 0.7], stone, [0, 0, 0]),
     box([1.86, 0.06, 0.82], stone, [0, 0.84, 0]),
     box([1.9, 0.012, 0.86], cloth, [0, slab, 0]),
-    box([1.9, 0.22, 0.012], cloth, [0, top - 0.22, 0.432]),
+    // The cloth's fall stops under the laid cloth, so their tops never share a plane.
+    box([1.9, 0.22, 0.012], cloth, [0, slab - 0.22, 0.432]),
     box([0.9, 0.62, 0.012], flat("blood"), [0, slab - 0.68, 0.44]),
-    box([0.9, 0.05, 0.014], flat("amber"), [0, slab - 0.1, 0.442]),
-    box([0.06, 0.38, 0.016], flat("amber"), [0, slab - 0.6, 0.444]),
-    box([0.24, 0.06, 0.016], flat("amber"), [0, slab - 0.4, 0.444]),
+    box([0.94, 0.05, 0.02], flat("amber"), [0, slab - 0.1, 0.44]),
+    box([0.06, 0.38, 0.016], flat("amber"), [0, slab - 0.6, 0.446]),
+    box([0.24, 0.06, 0.012], flat("amber"), [0, slab - 0.4, 0.446]),
   );
   result.add(
     box([0.26, 0.05, 0.18], brass, [0, top, -0.2]),
     box([0.16, 0.05, 0.12], brass, [0, top + 0.05, -0.2]),
     box([0.06, 0.72, 0.06], brass, [0, top + 0.1, -0.2]),
-    box([0.38, 0.06, 0.06], brass, [0, top + 0.56, -0.2]),
+    // The arms are a little shallower than the upright they cross, so their faces never share its planes.
+    box([0.38, 0.06, 0.05], brass, [0, top + 0.56, -0.2]),
   );
   for (const [x, lit] of [[-0.62, true], [0.62, false]] as const) {
     const stick = candlestick(0.4, lit);
@@ -256,13 +224,14 @@ function altar(): THREE.Group {
   for (const [x, length] of [[0.33, 0.12], [0.38, 0.24], [-0.7, 0.16]]) {
     result.add(box([0.025, length, 0.02], flat("boneLight"), [x, slab - length, 0.452]));
   }
-  result.add(lightAnchor({ colour: "amber", intensity: 6, range: 8, flicker: 0.12 }, [0, top + 0.55, 0.75]));
+  // The holy light: gold, as the lighting language gives the Chapel.
+  result.add(lightAnchor({ colour: "gold", intensity: 6, range: 8, flicker: 0.12 }, [0, top + 0.55, 0.75]));
   return result;
 }
 
 /** The raised floor the altar stands on, with a communion rail in front. */
 function chancel(): THREE.Group {
-  const stone = textured(flagstones({ stonePx: 12, size: 64, seed: "chancel", ramp: RAMPS.bone }));
+  const stone = textured(marble({ chequer: false, pale: "bone", paleVein: "boneLight", grout: "boneDark", seed: "chancel" }));
   const rail = flat("woodDark");
   const result = group(box([4.2, 0.15, 1.35], stone, [0, 0, 0]));
   for (const side of [-1, 1]) {
@@ -281,7 +250,7 @@ function lectern(): THREE.Group {
   const dark = flat("woodDark");
   const desk = group(
     box([0.56, 0.04, 0.42], wood, [0, 0, 0]),
-    box([0.56, 0.06, 0.03], dark, [0, 0.02, 0.2]),
+    box([0.58, 0.06, 0.03], dark, [0, 0.02, 0.2]),
     box([0.24, 0.03, 0.34], flat("boneLight"), [-0.13, 0.04, 0]),
     box([0.24, 0.03, 0.34], flat("bone"), [0.13, 0.04, 0]),
     box([0.03, 0.012, 0.32], flat("boneDark"), [0, 0.07, 0]),
@@ -295,7 +264,8 @@ function lectern(): THREE.Group {
 /** An iron stand of votive candles, most long gone out. */
 function votiveStand(): THREE.Group {
   const iron = flat("sootLight");
-  const result = group(box([0.04, 0.9, 0.04], iron, [0, 0, 0]), box([0.3, 0.03, 0.3], iron, [0, 0, 0]));
+  // The foot's top stays under the plane of the house's choice glow (`MARK_PLANES`), which it would fight.
+  const result = group(box([0.04, 0.9, 0.04], iron, [0, 0, 0]), box([0.3, 0.025, 0.3], iron, [0, 0, 0]));
   const tiers = [
     { y: 0.6, z: 0.12, lit: [true, false, false, true] },
     { y: 0.75, z: 0, lit: [false, true, false, false] },
@@ -326,7 +296,7 @@ function pricket(): THREE.Group {
     box([0.04, 1.24, 0.04], iron, [0, 0.06, 0]),
     cylinder(0.12, 0.03, iron, [0, 1.27, 0], { top: 0.14, sides: 8 }),
     cylinder(0.11, 0.006, flat("boneDark"), [0, 1.3, 0], { sides: 8 }),
-    box([0.02, 0.12, 0.02], flat("bone"), [0.11, 1.18, 0]),
+    box([0.02, 0.135, 0.02], flat("bone"), [0.11, 1.15, 0]),
     taper,
   );
 }
@@ -392,24 +362,26 @@ function cornerWeb(x: 1 | -1, z: 1 | -1): PropPlacement {
   return { build: () => cobweb({ form: "slung" }), at: [x * inset, z * inset], y: 3.05, turn: x * z > 0 ? 45 : -45, walls };
 }
 
-/** The Chapel: pews in two ranks down a red runner to a candlelit altar,
- *  under a stained-glass lancet whose colours the moon throws on the floor. */
+/** The Chapel: pews in two ranks down a red runner to an altar in gold
+ *  light, under a stained-glass lancet whose colours lie on the floor before
+ *  the chancel. A ground-floor room in the formal zone: marble, damask, panelling. */
 export const CHAPEL: RoomDefinition = {
   id: "chapel",
-  floor: () => flagstones({ seed: "chapel" }),
-  wall: () => plaster({ ramp: RAMPS.stone, seed: "chapel" }),
-  wainscot: () => flagstones({ stonePx: 8, size: 32, seed: "chapel-dado", ramp: RAMPS.soot }),
-  trim: "stoneDark",
+  floor: () => marble({ square: 32, chequer: false, pale: "stoneDark", paleVein: "stone", grout: "ash", veins: 10, seed: "chapel" }),
+  wall: () => wallpaper({ ground: "ash", stripe: "sootLight", motif: "stoneDark", seed: "chapel" }),
+  wainscot: () => panelling({ ramp: RAMPS.wood, seed: "chapel" }),
+  trim: "woodDark",
   props: [
     { build: () => rug({ width: 1.1, length: 3.9, field: "blood", border: "bloodDark", motif: "amber" }), at: [0, -0.6] },
     { build: chancel, at: [0, 2.12] },
     { build: altar, ...onWall("bottom", 0, { y: 0.15, out: 0.55 }) },
     { build: stainedWindow, ...onWall("bottom", 0, { y: WINDOW_SILL }) },
-    { build: moonbeam, at: [0, 0] },
-    { build: lectern, at: [-1.75, 2.0], turn: 200 },
+    { build: stainedPool, ...onWall("bottom", 0, { out: 1.36 }) },
+    { build: lectern, at: [-1.75, 2.1], y: 0.15, turn: 200 },
     { build: votiveStand, at: [2.3, 1.85], turn: 200 },
-    ...[-2.0, -1.1, -0.2, 0.7].map((z) => ({ build: () => pew(), at: [-1.55, z] as [number, number] })),
-    ...[-2.0, -1.1, -0.2].map((z) => ({ build: () => pew(), at: [1.55, z] as [number, number] })),
+    // The back of the nave is left open, for the people coming in at the door.
+    ...[-1.1, -0.2, 0.7].map((z) => ({ build: () => pew(), at: [-1.55, z] as [number, number] })),
+    ...[-1.1, -0.2].map((z) => ({ build: () => pew(), at: [1.55, z] as [number, number] })),
     { build: toppledPew, at: [1.6, 0.78], turn: 18 },
     { build: pricket, at: [-2.55, -0.65] },
     { build: pricket, at: [2.55, 0.25] },
@@ -421,5 +393,6 @@ export const CHAPEL: RoomDefinition = {
     cornerWeb(1, -1),
   ],
   focus: [0, 1.0, 1.2],
-  pawn: [0.15, -1.6],
+  pawn: [-0.1, -1.7],
+  spots: [[2.3, -2.05], [1.05, -2.3], [-1.25, -2.3], [-0.25, 0.85], [0.2, -0.35]],
 };

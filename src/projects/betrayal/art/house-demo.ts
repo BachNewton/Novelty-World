@@ -6,7 +6,7 @@ import { figureFor } from "./explorers/by-character";
 import { candle, carrying } from "./explorers/props";
 import { HOUSE_FIXTURE } from "./house-layout";
 import { createHouseScene, type FigureSpec, type SceneHook, type SceneView, type Target } from "./house-scene";
-import { afterLeg, moveIsOver, nextLegs } from "./house-walk";
+import { afterLeg, moveIsOver, nextLegs } from "./house-demo-moves";
 import { pawn } from "./kit/pawn";
 import type { PaletteKey } from "./palette";
 import { roomTile, type ExplorerBuilder } from "./stage";

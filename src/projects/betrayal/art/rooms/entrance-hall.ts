@@ -35,21 +35,22 @@ ${spokes.join("")}
  * The front door: tall double leaves, panelled and studded, barred from the
  * inside with an iron bar, under a fanlight. Built in its wall's frame, centred
  * in the wall's thickness, facing +z into the room, as the part between heights
- * `from` and `to` (dropped by `from`), so the part above the cut height can
- * hide with the wall.
+ * `from` and `to` (dropped by `base`, `from` by default), so the part above the
+ * cut height can hide with the wall.
  */
-function frontDoor(from: number, to: number): THREE.Group {
+function frontDoor(from: number, to: number, base = from): THREE.Group {
   const b = batch();
   const slab = (w: number, y0: number, y1: number, d: number, colour: PaletteKey, x: number, z: number) => {
     const low = Math.max(y0, from);
     const high = Math.min(y1, to);
     if (high - low < 0.005) return;
-    b.block([w, high - low, d], colour, [x, low - from, z]);
+    b.block([w, high - low, d], colour, [x, low - base, z]);
   };
   const leaf = FRONT_DOOR_WIDTH / 2 + 0.01;
   for (const side of [-1, 1]) {
+    // The leaves meet edge to edge, under the dark strip down the middle: overlapping, their faces would share planes.
+    slab(leaf, 0, LEAF_TOP, 0.07, "woodDark", side * (leaf / 2), 0);
     const cx = side * (leaf / 2 - 0.005);
-    slab(leaf, 0, LEAF_TOP, 0.07, "woodDark", cx, 0);
     for (const [y0, y1] of [[0.25, 1.0], [1.3, 2.15]]) {
       slab(leaf - 0.22, y0, y1, 0.02, "wood", cx, 0.045);
       for (let y = y0 + 0.12; y < y1 - 0.05; y += 0.25) {
@@ -58,7 +59,8 @@ function frontDoor(from: number, to: number): THREE.Group {
     }
     slab(0.05, 1.12, 1.2, 0.05, "brass", side * 0.08, 0.06);
   }
-  slab(0.02, 0, LEAF_TOP, 0.02, "void", 0, 0.04);
+  // The strip stands on the leaves' faces, not sunk into them, so its top never shares theirs at the cut.
+  slab(0.02, 0, LEAF_TOP, 0.015, "void", 0, 0.0425);
   slab(FRONT_DOOR_WIDTH + 0.02, LEAF_TOP, FAN_BOTTOM, 0.1, "woodDark", 0, 0);
   slab(FRONT_DOOR_WIDTH + 0.3, 1.25, 1.33, 0.06, "ash", 0, 0.2);
   for (const x of [-0.7, 0, 0.7]) slab(0.1, 1.2, 1.38, 0.17, "soot", x, 0.12);
@@ -67,7 +69,7 @@ function frontDoor(from: number, to: number): THREE.Group {
     const w = Math.round(FRONT_DOOR_WIDTH * TEXELS_PER_METRE);
     const h = Math.round((FRONT_DOOR_HEIGHT - FAN_BOTTOM) * TEXELS_PER_METRE);
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(FRONT_DOOR_WIDTH, h / TEXELS_PER_METRE), glow("moon", svgTexture(fanlightSvg(w, h), w, h)));
-    glass.position.set(0, FAN_BOTTOM + h / TEXELS_PER_METRE / 2 - from, 0);
+    glass.position.set(0, FAN_BOTTOM + h / TEXELS_PER_METRE / 2 - base, 0);
     glass.userData.noShadow = true;
     result.add(glass);
   }
@@ -111,7 +113,7 @@ function umbrellaStand(): THREE.Group {
   const stick = box([0.025, 0.85, 0.025], flat("woodMid"), [0, 0, 0]);
   stick.position.set(-0.05, 0.05, -0.02);
   stick.rotation.z = 0.12;
-  return group(cylinder(0.14, 0.5, flat("brass"), [0, 0, 0], { sides: 8 }), cylinder(0.12, 0.01, flat("void"), [0, 0.49, 0], { sides: 8 }), umbrella, stick);
+  return group(cylinder(0.14, 0.5, flat("brass"), [0, 0, 0], { sides: 8 }), cylinder(0.12, 0.006, flat("void"), [0, 0.5, 0], { sides: 8 }), umbrella, stick);
 }
 
 const PRINT = [".###.", "#w###", "#####", "####.", ".###.", ".##..", ".....", ".###.", ".###.", ".###."];
@@ -124,6 +126,9 @@ function footprint(): THREE.Group {
   print.userData.noShadow = true;
   return group(print);
 }
+
+/** How far under the cut height the front door's lower part stops. */
+const BELOW_CUT = 0.005;
 
 /** Wet footprints in from the barred front door, walking up the runner and
  *  stopping, side by side, in the middle of the hall. */
@@ -145,14 +150,18 @@ export const ENTRANCE_HALL: RoomDefinition = {
   ...SUITE,
   props: [
     { build: () => runner({ from: -3, to: 2.62, finished: ["to"] }), at: [0, 0] },
-    { build: () => frontDoor(0, CUT_HEIGHT), ...onWall("right", 0, { out: -WALL_THICKNESS / 2 }) },
-    { build: () => frontDoor(CUT_HEIGHT, 4), ...onWall("right", 0, { y: CUT_HEIGHT, out: -WALL_THICKNESS / 2 }) },
+    // The part on the floor stops a little under the cut wall's top, so the two never share a plane; the part above reaches down to it.
+    { build: () => frontDoor(0, CUT_HEIGHT - BELOW_CUT), ...onWall("right", 0, { out: -WALL_THICKNESS / 2 }) },
+    { build: () => frontDoor(CUT_HEIGHT - BELOW_CUT, 4, CUT_HEIGHT), ...onWall("right", 0, { y: CUT_HEIGHT, out: -WALL_THICKNESS / 2 }) },
     { build: torchere, at: [2.3, -1.3] },
     { build: torchere, at: [2.3, 1.3] },
     { build: umbrellaStand, at: [2.35, 2.15] },
     { build: settle, ...onWall("top", 1.5, { out: 0.3 }) },
-    ...PRINTS.map(([x, z, turn]) => ({ build: footprint, at: [x, z] as [number, number], turn })),
+    // Prints lie at three heights in turn, so two that overlap never share a plane.
+    ...PRINTS.map(([x, z, turn], i) => ({ build: footprint, at: [x, z] as [number, number], y: (i % 3) * 0.002, turn })),
   ],
   focus: [1.6, 1.3, 0],
   pawn: [-0.9, -0.9],
+  spots: [[0.8, -0.85], [-1.7, 1.25], [-0.1, 0.6], [1.6, 0.65], [1.05, 2.3]],
+  overflow: [[-1.05, -2.2], [-1.7, 0.25], [-1.7, 2.25], [0.35, 1.65], [0.8, 0.15], [0.7, -1.7]],
 };

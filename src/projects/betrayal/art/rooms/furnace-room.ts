@@ -9,7 +9,8 @@ import { INNER, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane } from "../shapes";
 import { bricks, flagstones, pixelTexture } from "../textures";
 
-/** Where the furnace stands, its fire-door facing the left doorway. */
+/** Where the furnace stands, its fire-door turned across the room to the far
+ *  corner, so the fire shows from the front or the side in every view. */
 const FURNACE: [x: number, z: number] = [1.35, -0.45];
 /** The furnace's iron belly. */
 const BODY = 0.66;
@@ -215,11 +216,12 @@ function floorGrate(): THREE.Group {
   for (const z of [-0.12, 0.12]) bars.block([size - 0.04, 0.035, 0.03], "sootLight", [0, 0.014, z]);
   const pit = box([size - 0.08, 0.004, size - 0.08], glow("ember"), [0, 0.006, 0]);
   pit.userData.noShadow = true;
+  // The embers lie on the glowing pit, under the bars and the scorched floor, rather than a millimetre from either.
   const embers = [
     [-0.18, 0.1],
     [0.12, -0.2],
     [0.2, 0.15],
-  ].map(([x, z]) => box([0.08, 0.003, 0.06], glow("amber"), [x, 0.008, z]));
+  ].map(([x, z]) => box([0.08, 0.0015, 0.06], glow("amber"), [x, 0.01, z]));
   return group(
     box([size, 0.04, 0.06], iron, [0, 0, -size / 2 + 0.03]),
     box([size, 0.04, 0.06], iron, [0, 0, size / 2 - 0.03]),
@@ -392,7 +394,7 @@ export const FURNACE_ROOM: RoomDefinition = {
   trim: "soot",
   props: [
     { build: scorchedFloor, at: FURNACE },
-    { build: furnace, at: FURNACE, turn: -90 },
+    { build: furnace, at: FURNACE, turn: -45 },
     ...(
       [
         [[2.95, 2.55, -1.35], "right"],
@@ -411,16 +413,27 @@ export const FURNACE_ROOM: RoomDefinition = {
         { with: "furnace", because: "the duct rises out of the furnace's collar" },
       ],
     })),
-    { build: footprints, at: [-0.72, -0.2], turn: 12 },
+    { build: footprints, at: [-0.7, 0.17], turn: -8 },
     { build: floorGrate, at: [0.35, 1.05], turn: 8 },
     { build: coalHeap, at: [2.05, -2.05] },
     { build: chuteHatch, ...onWall("right", -2.05, { y: 1.15 }) },
-    { build: scuttle, at: [0.62, 0.45], turn: 20 },
+    { build: scuttle, at: [0.15, -0.4], turn: 20 },
     { build: fallenStool, at: [-0.5, -1.55], turn: 30 },
     { build: rake, at: [0.1, -2.05], turn: -8 },
     { build: crates, at: [-2.3, -2.3], turn: 10 },
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-(INNER - 0.29), -(INNER - 0.29)], y: 3.05, turn: 45, walls: ["left", "top"] },
   ],
   focus: [0.7, 0.6, -0.45],
-  pawn: [-1.2, 1.45],
+  pawn: [-1.4, 0.45],
+  spots: [[-0.35, -0.9], [-2.05, -1.15], [1.6, 1.4], [-2.1, 2.0], [-0.1, 1.7]],
+  overflow: [[0.95, -1.75], [-1.1, -2.35], [-0.2, 0.45], [-1.3, 1.55], [-1.4, 2.35], [1.0, 1.9]],
+  // Down from the top doorway between the coal and the furnace, across the
+  // floor to the other doorways, and round the coal into the corner behind it.
+  lanes: [
+    [[0, -2.2], [0, -1.2], [-0.45, -0.7], [-0.5, -0.35], [-0.5, 0.2], [0.3, 1.0], [0, 2.2]],
+    [[-1.8, -1.4], [-1.6, -0.35], [-0.5, -0.35]],
+    [[-1.6, -0.35], [-2.2, 0], [-0.5, 0.2]],
+    [[0.3, 1.0], [1.5, 1.2]],
+    [[0, 2.2], [-1.9, 1.9], [-2.2, 0]],
+  ],
 };

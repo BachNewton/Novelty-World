@@ -28,6 +28,10 @@ export interface PlayStore {
   subscribe: (listener: () => void) => () => void;
   snapshot: () => PlaySnapshot;
   act: (action: Action) => void;
+  /** Takes a route's actions one at a time, each only while the decision it
+   *  answers is the one pending: when a step raises something else (a roll,
+   *  a card, a question), the rest drops. Returns how many were taken. */
+  commit: (actions: readonly Action[]) => number;
 }
 
 export function createPlayStore(engine: Engine, shared: SharedGame, save: (code: string) => void): PlayStore {
@@ -70,6 +74,18 @@ export function createPlayStore(engine: Engine, shared: SharedGame, save: (code:
     snapshot: () => snapshot,
     act: (action) => {
       dispatch({ type: "local-action", action });
+    },
+    commit: (actions) => {
+      let taken = 0;
+      for (const action of actions) {
+        const pending = snapshot.state.pending;
+        const due = action.kind === "choose" ? pending?.type === "decision" && pending.id === action.decision : pending?.type === "ready" && pending.id === action.wait;
+        if (!due) break;
+        dispatch({ type: "local-action", action });
+        if (snapshot.client.problem !== null) break;
+        taken++;
+      }
+      return taken;
     },
   };
 }

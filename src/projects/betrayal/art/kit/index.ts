@@ -4,5 +4,5 @@ export { chair, table } from "./furniture";
 export { pictureFrame, rug, windowPool } from "./decor";
 export { pawn } from "./pawn";
 export { pitHaze, pitShell } from "./pit";
-export { coil, slung, strand } from "./rope";
+export { coil, slung, strand, TWIST } from "./rope";
 export { cask, crate } from "./stores";

@@ -27,17 +27,18 @@ The engine already shapes the UI: at any moment there is one pending decision, w
 |---|---|---|---|
 | Selection | a reticle at the screen's centre, snapping to the nearest legal choice | the cursor (hover, click) | tap to focus, tap again to confirm |
 | Pan | left stick | WASD or the arrows | one-finger drag |
-| Turn | right stick across | Q / E, or right- or middle-drag | two-finger twist |
-| Tilt | right stick up and down | T / G, or right- or middle-drag | two-finger vertical drag |
-| Zoom | RT in, LT out | the wheel | pinch |
+| Turn | right stick across | Q / E, or right- or middle-drag | two fingers' midpoint moving sideways |
+| Tilt | right stick up and down | T / G, or right- or middle-drag | two fingers' midpoint moving up or down |
+| Zoom | RT in, LT out | the wheel | two fingers' spread |
 | Floors | d-pad up and down | PgUp / PgDn, or R / F | on-screen floor buttons |
 | Next or previous choice | RB / LB | Tab | |
 | Confirm, back | A, B | click (or Enter), Esc | tap |
 | Turn a ghost tile | LB / RB, or d-pad left and right | Q / E | on-screen buttons |
 | Recentre | Y or R3 | C or Home, and an on-screen button | an on-screen button |
 | The status box | View moves into it and out; X ends the turn | click | tap |
+| Raise the walls | hold L3 | hold V | hold the on-screen Walls button |
 
-A two-finger gesture locks to its first motion (pan, pinch, twist or tilt).
+Two fingers are one combined gesture: turning, tilting and zooming happen at once, each starting past its own small threshold, and there is no twist. The art bench uses the same scheme.
 
 ## The camera
 
@@ -52,7 +53,11 @@ A free strategy camera, in the style of Cities: Skylines and XCOM: a target poin
 
 Movement follows the rules: up to Speed in spaces a turn, a stair step costing one. Movement is spent freely around actions until the turn ends, and the movement left is shown. **End turn is a separate, explicit action**, never automatic: a turn with nothing left waits for it, with a hint ("No moves or actions left: End turn"). Drawing a card or failing a barrier roll ends movement, with a note in the status box.
 
-**The route preview** (v1 phase 2): pointing at any reachable room shows its route, its cost ("3 of 4 spaces") and every rule it would trigger on the way: rolls to leave (the Junk Room, the Attic, the Graveyard, the Pentagram Chamber), barrier crossings (the Chasm, the Catacombs, the Tower), entering the Collapsed Room or the Mystic Elevator, a discovery ending the move, and after the haunt, opponents slowing you. Committing walks the route, and the walk stops at a trigger. The preview is built on the lookahead, and is one small serialisable value (the target, the route, the warnings), so it can be broadcast to other players online.
+**Targets.** Every reachable room is a target, and so are the doorways further on ("walk there, then explore"). A route stops at anything chance decides (a roll, a card draw, a question). Crossing a barrier room is an engine action, so routes never cross one. RB and LB step through the choices in an order fixed until the choices change.
+
+**The route preview:** pointing at a target shows its route, its cost ("3 of 4 spaces") and every rule it would trigger on the way. The warnings come from what the engine actually does on the way, never from a list of room names. Room damage at the end of a turn gets no warning: the engine applies it at turn end, not on the way. The preview is one small serialisable value (the target, the figure, the route, the spaces, what is left, the warnings), worded on the screen that receives it, so it can be broadcast to other players online. The route's tag stays inside the screen's edges.
+
+**Committing** sends the route's actions one at a time, and drops the rest when the pending decision changes. The walk plays after the state has moved, and any input skips it. The floor follows the explorer's stairs.
 
 ## Placing a room
 
@@ -94,20 +99,20 @@ When online play comes, other players see the acting player's preview before it 
 
 Every wall between two rooms is cut down to a 45 cm stub from every view; only the outside walls at the back of the house stand full. When an explorer first enters a room, the camera shows it close with its back walls up, so its wall art is seen once; the moment plays on the first visit only and can be skipped, and a room may name its best angle for it. Most of the time a room is read from its floor and what stands below the cut height.
 
-**Walls under the cutaway, to prototype then judge by look and play.** A wall's meaning to the rules must survive the cut. The proposals, from the research in `cutaway-research.md`:
+**Walls under the cutaway.** A wall's meaning to the rules survives the cut, on the stub, the floor or an icon (the research is in `cutaway-research.md`). Decided, with no switch:
 
-1. **Doors:** a gap with a lit threshold strip. A false door keeps its stub with a drawn door outline and a dark or crossed threshold, and changes when a haunt makes it passable.
-2. **Windows:** a glass strip and frame on the stub's cap, plus a pool of window light on the floor. A false window bricked, shuttered or left out, with a window badge as a fallback.
-3. **Markers** on the floor or the stub for secret passages and switches.
-4. **Hold to raise the walls**, on a key, a pad button and a touch button.
-5. **Keep the 45 cm stub**, with a cap of a colour of its own.
-6. **Hysteresis and a short fade** on cutting and restoring a wall.
-7. **Stairs show their destination floor** with an icon.
-8. **Highlighting in context** when a haunt cares about a wall.
+- **Doors:** a lit amber threshold strip in the gap.
+- **False doors** are boarded: a shut leaf with boards across it, and boards across the cut stub's top, so it reads from every view.
+- **Windows:** a frame and glass strip on the stub's cap, and a pool of window light on the floor. The stage draws the pool; rooms don't draw their own.
+- **False windows** are boarded, and let no moonlight in.
+- **The stub's cap** is light stone.
+- **Raise the walls** by holding a key, a pad button or an on-screen button (see "Input"). The walls snap back, with no fade or hysteresis: a fade isn't cheap.
+
+Still open: markers for secret passages and switches, stairs showing their destination floor with an icon, highlighting a wall a haunt cares about, and a fade.
 
 ### Connections
 
-A door against a neighbour's wall is a false door, and a window against a neighbour a false window. False doors are a game mechanic (haunts 76 and 80 make them passable, and they reopen if a neighbour moves), and whether a window faces outside matters to many haunts and cards, so both are drawn visibly blocked (boarded or bricked) as generic stage pieces, never dropped. A false window lets no moonlight in.
+A door against a neighbour's wall is a false door, and a window against a neighbour a false window. False doors are a game mechanic (haunts 76 and 80 make them passable, and they reopen if a neighbour moves), and whether a window faces outside matters to many haunts and cards, so both are drawn boarded, as generic stage pieces (see "The cutaway"), never dropped.
 
 Connections that aren't doorways (the Secret Passage and Secret Stairs, the Wall Switch, the Revolving Wall, the Mystic Slide, the Coal Chute, falling through a floor) need a visible look of their own, as room features.
 
@@ -117,7 +122,7 @@ The layout changes during play (the Mystic Elevator, "What The . . . ?", haunts 
 
 ### Light
 
-The house is lit by baked light: each room's static pieces are merged, and its lamps' light and shadows are baked into lightmaps, with only what moves lit live. Light spills through open doorways and passages into the next room, and walls and shut doors stop it; a room and its neighbours re-bake when the layout changes. The house owns the fill, the fog and the moon. Moonlight has no gameplay, so the moon comes only through real windows and no room effect is aimed at it. Lightmaps are filtered smooth. There are no graphics settings or quality tiers: the players have decent laptops, gaming PCs and modern phones, and the technique (merged geometry, baked light, a guard on draw calls and texture units) is what keeps it fast.
+The house is lit by baked light: lamps' light and shadows baked into each room's lightmaps, with one bounce of indirect light, and only what moves lit live, from light probes. Light spills through doorways into the next room, and a room and its neighbours re-bake when the layout changes. The house owns the fill, the fog and the moon; the moon comes only through real windows. There are no graphics settings or quality tiers: the technique is what keeps it fast. `lighting.md` holds the lighting in full: the bake and its passes, probes, fakes, budgets, and how a new effect chooses between baked, live and faked.
 
 **Colour has a meaning**, in light, glows and decals alike:
 
@@ -145,7 +150,11 @@ A room may carry slow, quiet "something's wrong" motion (the Foyer's chandelier,
 
 Explorers are miniatures on a base ringed in the player's colour, which is the character card's; the active explorer has a soft warm light from above. Nothing on an explorer glows; a monster may.
 
-**Standing spots.** Each room defines six standing spots, chosen by whoever designs the room where they make sense in it. The house fills them in order, and the first is the prime spot, for the active explorer. Each spot is clear for a base and reachable from the doors.
+**Standing spots.** Each room defines six standing spots (the prime spot and five more), chosen by whoever designs the room where they make sense in it. The house fills them in order, and the first is the prime spot, for the active explorer. Each spot is clear for a base and reachable from the doors, and the spots stand at least a ring's width apart beyond two ring radii (`SPOT_SPACING`), so colour rings never touch. Figures past the six take the room's overflow places, free floor where bases don't touch though rings may overlap; how many a room has depends on its floor. Filling a room past its capacity is an error for now. What should happen instead is the owner's call, settled at the first haunt that can overfill a room, together with how a large monster fits a crowded one. A figure's colour ring writes no depth and draws after the room, so overlapping rings never fight.
+
+**Walking.** A room may give walking lanes where a straight walk would be blocked, and a barrier room a crossing path. A crossing is walked; a failed crossing shows nothing. A crossing always walks for now, though heroes should run it after the haunt.
+
+**Batching and cloth.** A figure's parts are drawn in a batch per material. Cloth (robes, skirts) follows the legs through a smoothed window that doesn't depend on the frame rate, shared by every figure and held to a smoothness test. The look of Zoe's skirt and Father Rhinehardt's robe needs another pass, tabled by the owner.
 
 **Size classes.** A figure is small (swarms and animals), person-sized (explorers, companions, most named monsters, zombies and cultists) or large (the Spider, the Dragon, the Demon Lord, the Ouroboros heads: four or five figures, each in one haunt). A figure is never shrunk to fit, no room needs a reserved large spot, and furniture never fades out of the way. A big monster takes a spot and may spread to its neighbours. How a large monster fits a crowded room waits for the first haunt that has one; the lead idea is a per-monster "crowded pose" (the Spider coiled), used when its full spread doesn't fit. A swarm is one instanced group clustered round a spot.
 
@@ -156,12 +165,12 @@ Explorers are miniatures on a base ringed in the player's colour, which is the c
 ## Art scope
 
 **Built:**
-- **14 rooms:** the starting tile (the Entrance Hall, Foyer and Grand Staircase), the Upper Landing, the Chapel, Library, Master Bedroom, Mystic Elevator, Chasm, Furnace Room, Kitchen, Graveyard and Underground Lake, and the Drawing Room, a Widow's Walk tile kept as the reference room.
-- **3 explorers:** Professor Longfellow, Ox Bellows and Zoe Ingstrom, sculpted as smooth forms, with arms that hold things, an idle, a walk and a run. Every other character stands as a pawn in their seat's colour.
+- **25 rooms:** the starting tile (the Entrance Hall, Foyer and Grand Staircase), the Upper Landing, the Chapel, Library, Master Bedroom, Mystic Elevator, Chasm, Furnace Room, Kitchen, Graveyard, Underground Lake, Basement Landing, Stairs from Basement, Wine Cellar, Creaky Hallway, Dusty Hallway, Statuary Corridor, Junk Room, Attic, Pentagram Chamber, Catacombs and Tower, and the Drawing Room, a Widow's Walk tile kept as the reference room.
+- **4 explorers:** Professor Longfellow, Ox Bellows, Zoe Ingstrom and Father Rhinehardt, sculpted as smooth forms, with arms that hold things, an idle, a walk and a run. Every other character stands as a pawn in their seat's colour.
 - **2 monsters:** the Banshee and the Spider.
 - **Stand-in props:** a revolver, a candle (carrying a live light) and a spear.
 
-**Next**, roughly in order: the review pass over the 14 rooms; the cutaway markings prototype; the remaining base rooms and explorers, one agent per room or per small group that must match, and one per figure; room features (the non-doorway connections, false doors and windows); then monsters, carried props, companions, room tokens and body states as the cards and haunts need them. Widow's Walk rooms, cards and art wait for the base game.
+**Next:** the remaining base rooms and explorers (`v1-play.md` lists them), one agent per room or per small group that must match, and one per figure; room features (the non-doorway connections); then monsters, carried props, companions, room tokens and body states as the cards and haunts need them. Widow's Walk rooms, cards and art wait for the base game.
 
 **In numbers**, counted from `content/`:
 - **Rooms:** 67 tiles across the base game and Widow's Walk. Some are outdoors (gardens, graveyard, patio, balcony, roof); an outdoor tile's edge style is its own (railings, hedges, a balustrade), and an indoor wall beside one is cut like an interior wall.
@@ -177,6 +186,7 @@ Explorers are miniatures on a base ringed in the player's colour, which is the c
 - **One device per player, a shared screen with phones as controllers, or both**, once online play comes. A TV could show what everyone may see (the house, whose turn it is) as a spectator client of the game row, while each phone renders its own seat's `viewFor`: its cards, its choices and, after the reveal, its side's half of the haunt. That suits the server-authoritative design and the traitor's secrets, and could sit beside one device per player.
 - **The layout on phones and on wide screens**, around the status box: how much of a phone it may cover, and what extra width shows.
 - **How the turn's actions are offered on each input** (see "Actions").
-- **How a large monster fits a crowded room**, at the first haunt that has one.
-- **The cutaway markings**, once prototyped.
-- **Whether to brighten a figure lit only from behind.**
+- **How a large monster fits a crowded room**, and **what happens when a room is overfilled**, at the first haunt that can do either.
+- **The lake's water look:** `shader` or `shader-palette` (`?water=`).
+- **Whether to brighten a figure lit only from behind.** Bounce light now gives figures some fill from below.
+- **Whether the rotation ghost reads clearly enough as "not placed yet".**

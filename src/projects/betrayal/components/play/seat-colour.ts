@@ -1,17 +1,8 @@
+import { CARD_PALETTE } from "../../art/explorers/by-character";
 import type { PaletteKey } from "../../art/palette";
 import type { Engine } from "../../engine/step-loop";
 import type { CardColour } from "../../types";
 import { CARD_BG, CARD_TEXT } from "../theme";
-
-/** A seat's colour is its character card's: on the figure, from the art palette. */
-const CARD_PALETTE: Record<CardColour, PaletteKey> = {
-  white: "boneLight",
-  red: "scarlet",
-  yellow: "gold",
-  green: "wraithLight",
-  blue: "moonLight",
-  purple: "violet",
-};
 
 function cardOf(engine: Engine, character: string): CardColour {
   if (!(character in engine.catalog.characters)) throw new Error(`No character "${character}"`);

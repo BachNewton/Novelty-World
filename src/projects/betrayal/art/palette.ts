@@ -57,6 +57,13 @@ export const PALETTE = {
   moonDark: "#18243a",
   moon: "#3f5d88",
   moonLight: "#93afd2",
+
+  skinShadow: "#3e2820",
+  skinDeep: "#5a3b33",
+  skinBrown: "#8e5f45",
+  skinTan: "#b4876a",
+  skinLight: "#cead90",
+  skinFair: "#dfc0a7",
 } as const;
 
 export type PaletteKey = keyof typeof PALETTE;
@@ -84,6 +91,12 @@ export const RAMPS = {
   wraith: ["wraithDark", "wraith", "wraithLight"],
   gold: ["brass", "gold", "goldLight"],
   tide: ["tideDark", "tide", "tideLight"],
+  /** Figures' skin: muted flesh with a red undertone, so a face reads as a
+   *  living person's under the house's cold moonlight. A tone's shade
+   *  (stubble, a crease) is the step below it, so `skinShadow` is never a
+   *  face, only the deepest tone's shade. Only figures wear skin: decals
+   *  never snap to it. */
+  skin: ["skinShadow", "skinDeep", "skinBrown", "skinTan", "skinLight", "skinFair"],
 } as const satisfies Record<string, readonly PaletteKey[]>;
 
 export type Ramp = readonly PaletteKey[];

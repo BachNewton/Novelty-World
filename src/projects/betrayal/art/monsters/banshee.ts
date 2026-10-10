@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { arm, burst, floats, joins, pose, reach, STANDING, walks, type Gait, type Joint, type Limb } from "../explorers/figure";
-import { ball, ellipsoid, glowShaded, loft, rod, sculpt, stretched, type Section, type Tone } from "../forms";
-import { paletteHex } from "../palette";
+import { ball, ellipsoid, glowShaded, loft, rod, sculpt, stretched, type Section } from "../forms";
+import { paletteHex, type PaletteKey } from "../palette";
 import { group, lightMaterial } from "../shapes";
 import { floorGlow, spectral, type MonsterOptions } from "./base";
 
@@ -59,7 +59,7 @@ function head(): THREE.BufferGeometry {
 }
 
 /** A ribbon of hair, hanging from its root along +y (the mane hangs it down her back). */
-function lock(length: number, width: number, colour: Tone): THREE.BufferGeometry {
+function lock(length: number, width: number, colour: PaletteKey): THREE.BufferGeometry {
   const sections: Section[] = [0, 0.35, 0.7, 1].map((t) => ({ at: [0, t * length, -0.01 * Math.sin(t * Math.PI)], radius: [width * (1 - t * 0.55), 0.012], colour }));
   return loft(sections, { sides: 10, ends: ["round", "point"] });
 }

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { candle, chair, chamberstick, pictureFrame, rug, table, windowPool } from "../kit";
+import { candle, chair, chamberstick, pictureFrame, rug, table } from "../kit";
 import { RAMPS, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, INNER, onWall, type RoomDefinition } from "../room";
 import { batch, box, flat, group, lathe, textured } from "../shapes";
@@ -40,8 +40,9 @@ function gatheredCurtain(b: ReturnType<typeof batch>, x: number, z: number, top:
     [0, 0.03, "bone"],
     [0.06, -0.01, "boneDark"],
   ];
+  // The middle fold stops a little lower than the two it overlaps, so their tops never share a plane.
   for (const [dx, dz, colour] of folds) {
-    b.block([0.07, top - 1.25, 0.11], colour, [x + dx, 1.25, z + dz]);
+    b.block([0.07, top - 1.25 - (dx === 0 ? 0.003 : 0), 0.11], colour, [x + dx, 1.25, z + dz]);
     b.block([0.06, 1.1, 0.1], colour, [x + dx * 0.6, 0.12, z + dz]);
   }
   b.block([0.22, 0.07, 0.15], "bloodDark", [x, 1.18, z + 0.01]);
@@ -66,7 +67,8 @@ function fourPosterBed(): THREE.Group {
   }
   const span = POST_X * 2 - 0.1;
   result.add(
-    box([span, 1.15, 0.06], dark, [0, 0.2, HEAD_Z]),
+    // The headboard stops under its top rail, so their ends never share a plane.
+    box([span, 1.13, 0.06], dark, [0, 0.2, HEAD_Z]),
     box([span - 0.3, 0.55, 0.03], mid, [0, 0.72, HEAD_Z + 0.04]),
     box([span, 0.12, 0.1], dark, [0, 1.33, HEAD_Z]),
     box([span, 0.55, 0.06], dark, [0, 0.2, FOOT_Z]),
@@ -108,13 +110,15 @@ function fourPosterBed(): THREE.Group {
   const rail = (size: [number, number, number], at: [number, number, number]) => hangings.block(size, "woodDark", at);
   rail([POST_X * 2 + 0.1, 0.07, 0.08], [0, top, HEAD_Z]);
   rail([POST_X * 2 + 0.1, 0.07, 0.08], [0, top, FOOT_Z]);
-  rail([0.08, 0.07, FOOT_Z - HEAD_Z], [-POST_X, top, BED.length / 2]);
-  rail([0.08, 0.07, FOOT_Z - HEAD_Z], [POST_X, top, BED.length / 2]);
+  // The side rails run between the head and foot rails, so no two rails share a top where they meet.
+  rail([0.08, 0.07, FOOT_Z - HEAD_Z - 0.08], [-POST_X, top, BED.length / 2]);
+  rail([0.08, 0.07, FOOT_Z - HEAD_Z - 0.08], [POST_X, top, BED.length / 2]);
   const valance = 0.3;
   const drop = top + 0.08 - valance;
   hangings.block([POST_X * 2 + 0.16, valance, 0.03], "bone", [0, drop, FOOT_Z + 0.06]);
-  hangings.block([0.03, valance, FOOT_Z - HEAD_Z + 0.1], "bone", [-POST_X - 0.06, drop, BED.length / 2]);
-  hangings.block([0.03, valance, FOOT_Z - HEAD_Z + 0.1], "bone", [POST_X + 0.06, drop, BED.length / 2]);
+  // The side valances stop at the back of the foot's, so their tops never overlap in one plane.
+  hangings.block([0.03, valance, FOOT_Z - HEAD_Z + 0.095], "bone", [-POST_X - 0.06, drop, BED.length / 2 - 0.0025]);
+  hangings.block([0.03, valance, FOOT_Z - HEAD_Z + 0.095], "bone", [POST_X + 0.06, drop, BED.length / 2 - 0.0025]);
   for (let i = 0; i < 9; i++) {
     const x = -POST_X + (i + 0.5) * ((POST_X * 2) / 9);
     hangings.block([0.06, 0.06, 0.035], "bloodDark", [x, drop - 0.05, FOOT_Z + 0.06]);
@@ -140,7 +144,8 @@ function testerBack(): THREE.Mesh {
   const width = POST_X * 2 - 0.1;
   for (let i = 0; i < pleats; i++) {
     const x = -width / 2 + (i + 0.5) * (width / pleats);
-    b.block([width / pleats + 0.005, height, i % 2 ? 0.03 : 0.05], i % 2 ? "boneDark" : "bone", [x, 0, 0.03]);
+    // The shallow pleats stop a little lower than the deep ones they overlap, so their tops never share a plane.
+    b.block([width / pleats + 0.005, i % 2 ? height - 0.005 : height, i % 2 ? 0.03 : 0.05], i % 2 ? "boneDark" : "bone", [x, 0, 0.03]);
   }
   return b.mesh();
 }
@@ -198,15 +203,18 @@ function blanketChest(): THREE.Group {
 }
 
 const WARDROBE = { width: 1.2, depth: 0.56, height: 2.3 };
+/** How far under the cut height the wardrobe's base stops. */
+const BELOW_CUT = 0.005;
 
 /** The wardrobe's plinth and drawer, as tall as a cut-away wall. Faces +z, back at z = 0. */
 function wardrobeBase(): THREE.Group {
   const { width, depth } = WARDROBE;
   return group(
-    box([width, CUT_HEIGHT - 0.03, depth], flat("wood"), [0, 0, depth / 2]),
-    box([width - 0.16, 0.2, 0.02], flat("woodLight"), [0, 0.12, depth + 0.01]),
+    box([width, CUT_HEIGHT - 0.03 - BELOW_CUT, depth], flat("wood"), [0, 0, depth / 2]),
+    box([width - 0.16, 0.2, 0.02], flat("woodLight"), [0, 0.12 - BELOW_CUT, depth + 0.01]),
     box([0.08, 0.03, 0.03], flat("brass"), [0, 0.22, depth + 0.02]),
-    box([width + 0.04, 0.03, depth + 0.03], flat("wood"), [0, CUT_HEIGHT - 0.03, depth / 2 + 0.015]),
+    // Its top stops a little under the cut wall's, so the two never share a plane; the body above reaches down to it.
+    box([width + 0.04, 0.03, depth + 0.03], flat("wood"), [0, CUT_HEIGHT - 0.03 - BELOW_CUT, depth / 2 + 0.015]),
   );
 }
 
@@ -217,7 +225,7 @@ function wardrobeBody(): THREE.Group {
   const doorWidth = width / 2 - 0.06;
   const door = flat("woodLight");
   const result = group(
-    box([width, tall, depth - 0.02], flat("woodMid"), [0, 0, depth / 2 - 0.01]),
+    box([width, tall + BELOW_CUT, depth - 0.02], flat("woodMid"), [0, -BELOW_CUT, depth / 2 - 0.01]),
     box([width - 0.1, tall - 0.18, 0.02], flat("void"), [0, 0.06, depth - 0.01]),
     box([width + 0.1, 0.1, depth + 0.04], flat("woodDark"), [0, tall, depth / 2 + 0.02]),
     box([doorWidth, tall - 0.22, 0.03], door, [-width / 4, 0.08, depth + 0.015]),
@@ -316,9 +324,14 @@ export const MASTER_BEDROOM: RoomDefinition = {
     { build: lookingGlass, ...onWall("left", -1.5, { y: 1.12 }) },
     { build: () => chair({ cushion: "bloodDark" }), name: "watchingChair", at: [-1.7, 1.0], turn: 60 },
     { build: () => pictureFrame({ art: { rows: SITTER, legend: SITTER_LEGEND }, frame: "brass" }), name: "portrait", ...onWall("top", 1.4, { y: 1.35 }) },
-    { build: () => windowPool(), name: "windowPool", ...onWall("bottom", 0) },
   ],
-  lights: [{ at: [0, 1.4, INNER - 0.8], colour: "moonLight", intensity: 6, range: 6 }],
   focus: [1.6, 0.9, 0],
   pawn: [-1.0, -1.2],
+  spots: [[-0.45, 0.45], [0.65, -1.65], [-1.25, 1.95], [0.65, 1.75], [2.25, -2.25]],
+  overflow: [[-1.65, 0.2], [-2.1, -1.1], [-0.25, 1.95], [1.65, -1.65], [-0.35, -1.65], [1.15, -2.25]],
+  // Round the foot of the bed.
+  lanes: [
+    [[0, -2.2], [-0.6, -1.0], [-2.2, 0]],
+    [[-0.6, -1.0], [-0.6, 0.4], [-2.2, 0]],
+  ],
 };

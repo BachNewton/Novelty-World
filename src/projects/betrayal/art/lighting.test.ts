@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
-import { inlineBaker } from "./bake";
+import { inlineScheduler } from "./bake-schedule";
 import { freezeRoom } from "./freeze";
 import { stubCanvas } from "./headless";
 import { buildHouse, shellRoom } from "./house";
@@ -55,7 +55,7 @@ describe("the house's draw budget", () => {
 
   for (const room of BENCH_ROOMS) {
     it(`${room.id} on the bench: within the budget`, async () => {
-      const floor = createLitFloor(inlineBaker());
+      const floor = createLitFloor(inlineScheduler(), "bench");
       await floor.place([{ id: room.id, room: freezeRoom(room.id, buildRoom(room)), matrix: new THREE.Matrix4() }]);
       expect(drawCalls(floor.root)).toBeLessThanOrEqual(MAX_DRAW_CALLS / 4);
     }, 60_000);
@@ -68,7 +68,7 @@ describe("light between rooms", () => {
 
   /** The baked light on the floor of the room to the right of the lamp, just inside its left edge. */
   async function lightNextDoor(neighbour: string, turn: number): Promise<number> {
-    const floor = createLitFloor(inlineBaker());
+    const floor = createLitFloor(inlineScheduler(), "bench");
     const right = new THREE.Matrix4().compose(new THREE.Vector3(TILE, 0, 0), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turn), new THREE.Vector3(1, 1, 1));
     const dark = freezeRoom(neighbour, buildRoom(shellRoom(neighbour), { explorer: null }));
     await floor.place([

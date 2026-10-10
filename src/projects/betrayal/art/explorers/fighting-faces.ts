@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { TONES, toneColour } from "../forms";
 import { PALETTE } from "../palette";
 
 /*
@@ -49,8 +48,8 @@ function tint(colour: THREE.Color): THREE.Vector3 {
   return new THREE.Vector3(colour.r / most, colour.g / most, colour.b / most);
 }
 
-const TINTS = [...Object.keys(PALETTE), ...Object.keys(TONES)].map((key) => {
-  const colour = toneColour(key as keyof typeof PALETTE);
+const TINTS = Object.entries(PALETTE).map(([key, hex]) => {
+  const colour = new THREE.Color(hex);
   return { key, hex: colour.getHexString(), tint: tint(colour) };
 });
 

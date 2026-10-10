@@ -8,10 +8,11 @@ import { handsOf, holdIn, type Prop } from "./hands";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { STAND_INS } from "./props";
+import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
 
 /** Every explorer figure, tallest first; the line-up stands them in this order. */
-const EXPLORERS: readonly ExplorerBuilder[] = [ox, longfellow, zoe];
+const EXPLORERS: readonly ExplorerBuilder[] = [ox, longfellow, rhinehardt, zoe];
 /** How far apart the line-up stands its figures: a base and a hand's width. */
 const SPACING = 0.85;
 /** The house's paces, in metres a second, for walking and running on the spot. */
@@ -34,7 +35,7 @@ export function onTheSpot(build: ExplorerBuilder, seed: string, pace?: Pace): TH
 
 /** What each explorer holds in the right hand, in line-up order: a prop each, or one for all. */
 export type Holding = keyof typeof STAND_INS | "each";
-/** One stand-in each, so a line-up shows every way of carrying at once. */
+/** One stand-in each, in turn, so a line-up shows every way of carrying at once. */
 const EACH: readonly (keyof typeof STAND_INS)[] = ["spear", "revolver", "candle"];
 
 function holdingIn(figure: THREE.Object3D, prop: Prop) {
@@ -54,7 +55,7 @@ function holdingIn(figure: THREE.Object3D, prop: Prop) {
 export function explorerLineUp(seed = "line-up", pace?: Pace, holding?: Holding, { sideOn = false } = {}): THREE.Group {
   const figures = EXPLORERS.map((build, i) => {
     const figure = onTheSpot(build, `${seed}:${i}`, pace);
-    if (holding) holdingIn(figure, STAND_INS[holding === "each" ? EACH[i] : holding]());
+    if (holding) holdingIn(figure, STAND_INS[holding === "each" ? EACH[i % EACH.length] : holding]());
     return figure;
   });
   const row = [...figures, pawn()];

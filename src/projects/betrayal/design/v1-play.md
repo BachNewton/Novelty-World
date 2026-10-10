@@ -6,31 +6,42 @@ The first real game: three to six players on one device, playing in the 3D house
 
 ## Where we left off
 
-Done: phase 0 (the house scene split from its demo), phase 1 (the playable skeleton), and, ahead of their phases, the camera and its controls, the rotation ghost (with rooms that cards move, on the same ghost) and the status box; and the engine's forced-step refinement, so a player's act always asks.
+The goal for the coming sessions: a fully playable local hot-seat game, with all its UI and art up to and including the haunt reveal.
+
+Done: phase 0 (the house scene split from its demo), phase 1 (the playable skeleton), the camera and its controls, the rotation ghost (with rooms that cards move, on the same ghost), the status box, and the engine's forced-step refinement, so a player's act always asks. Then:
+
+- the review pass over the first 14 rooms, with the owner's taste calls on the four pilot rooms resolved: they stay as they are;
+- the cutaway markings, decided (`presentation.md`, "The cutaway");
+- phase 2: moves of several rooms, walking and the route preview, hardened (two e2e races fixed, the lookahead's cost cut by about a third), with walking lanes and barrier crossings;
+- the z-fighting detector, in the overlap check;
+- several controllers on one device (`pads.ts`), part of P7;
+- the bake in passes, with bounce light (`lighting.md`);
+- 11 new rooms (the Basement Landing, Stairs from Basement, Wine Cellar, Creaky Hallway, Dusty Hallway, Statuary Corridor, Junk Room, Attic, Pentagram Chamber, Catacombs and Tower) and Father Rhinehardt;
+- the skin ramp.
 
 Next, in order:
 
-1. **The review pass over the 14 rooms** (the room-art skill's "A review pass over many rooms"):
-   - empty the overlap check's baseline, fixing or declaring each entry;
-   - give every room its six standing spots, and review each room's largest open floor circle;
-   - the Chapel's broken rules: its moon-aligned pool becomes a stylised pool in front of its window, its holy light turns from amber to gold, and its basement stone sits on a ground-floor room;
-   - the Upper Landing's marble on the upper floor;
-   - turn the Furnace Room's mouth to face a corner;
-   - figures: Ox's "O" may read as a donut, and the smooth-form faces read a little chalky;
-   - the "same house?" and "tell them apart?" checks.
+1. **Startup speed and frame smoothness.** The first load takes about 7–8 s, and frames drop while baking. Measure where the time goes, and build the visible floor first.
+2. **P3, the presenter**, including stable standing spots: a figure keeps its spot until it moves; the active explorer steps into spot 1 at the start of its turn; at the game's start the first player is on spot 1 and the rest follow in turn order. Today spots are recounted on every update, so figures can shuffle, and spot 1 goes to the first seat, not the active one.
+3. **P4, P5, P6 and P7 in parallel**, with P5's design pass on actions per input held with the owner early.
+4. **Art throughout.**
 
-   The owner's open taste calls wait for the owner, who reviews them on the laptop: the Master Bedroom (dark and red, and its canopy), the Mystic Elevator (violet with a red "0", and its wheels), the Kitchen (its chains, and how close it reads to the Furnace Room) and the Underground Lake (dimmer, and its straight shore).
-2. **The cutaway markings prototype** (`presentation.md`, "Walls under the cutaway"), as a stage and house change, judged by look and play.
-3. **Phase 2**: moves of several rooms, walking, and preview before commit.
-4. **Phases 3 to 8**, as below.
-5. **The remaining base rooms and explorers**, and the owner's open questions (at the end).
+What remains for the goal:
+
+- **UI:** P4, the room-moved animation, the Mystic Elevator across floors, and the room option on `chooseOne` (an engine gap); P5, actions per input and the trade sheet; P6, cards in the house, dice, damage and the stats overlay, with the debug panel retired; P7, setup polish with portraits, haunt selection and the reveal moment.
+- **Rooms:** the 23 base rooms left: the Game Room, Organ Room, Gymnasium, Operating Laboratory, Research Laboratory, Servants' Quarters, Storeroom, Vault, Balcony, Bedroom, Gallery, Bloody Room, Charred Room, Collapsed Room, Conservatory, Ballroom, Coal Chute, Dining Room, Gardens, Patio, Abandoned Room, Crypt and Larder.
+- **Explorers:** the 8 left: Flash, Missy, Brandon, Peter, Vivian, Madame Zostra, Heather and Jenny.
+- **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements.
+- **Props and figures:** held items and omens, companions, room tokens; startle and hurt animations; flat art icons.
+
+**Tabled or pending the owner:** the look of cloth in motion (Zoe's skirt, Father Rhinehardt's robe); the lake's water look; what happens when a room is overfilled.
 
 ## The decisions and events
 
 The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 10 sub-acts (`TurnChoice`).
 
 **Places, chosen in the house**
-- `turn` move: reachable rooms glow, a room on another floor glows as its staircase, and each half of a barrier room is its own target. Shown by walking, from phase 2.
+- `turn` move: reachable rooms and the doorways beyond them glow, a room on another floor glows as its staircase, and each half of a barrier room is its own target. Shown by walking.
 - `turn` discover: an unexplored doorway glows. Shown by the ghost, then the tile appearing and the floor re-baking.
 - `turn` end: End turn, an explicit action in the status box, never automatic.
 - `rotation`: the ghost tile on its cell, turned through its legal ways round. A tile that fits one way is placed by the engine.
@@ -63,17 +74,21 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `choices.ts`: the pending decision split by where it is answered: places become house targets, a tile to place becomes a ghost, everything else goes to the box, and End turn is an action of its own. A target's id names the choice, never the room.
 - `ghost.ts`: what each way round of a tile would do to the doorways round it, worked out from the engine's own board rules.
 - `status.ts`: the status box in words: what the latest write did and why, each rule in one plain sentence with its source.
+- `lookahead.ts`: every room and doorway reachable this turn, with its route and the actions that reach it, found on copies of the state through movement-only writes, and memoised per decision.
+- `preview.ts`: the route preview as one small serialisable value, and its words.
+- `pads.ts`: which seats each controller plays, and whether a pad may act now.
 
-**`components/play/`, the screen.** `play-game.tsx` sets up a game or resumes the saved one; the game is the page's default, with the debug view at `?debug`. `play-screen.tsx` is the house plus the status box; `status-box.tsx` the box, with `box-pad.ts` for a controller inside it; `ghost-placer.tsx` placing a tile; `seat-colour.ts` the seat's colour, which is the character card's. The old debug panel (`PendingPanel`) still answers any decision the box doesn't handle yet, and shrinks phase by phase.
+**`components/play/`, the screen.** `play-game.tsx` sets up a game or resumes the saved one; the game is the page's default, with the debug view at `?debug`. `play-screen.tsx` is the house plus the status box; `status-box.tsx` the box, with `box-pad.ts` for a controller inside it; `ghost-placer.tsx` placing a tile; `seat-colour.ts` the seat's colour, which is the character card's; `routes.ts` turns a route into the house's targets and walks; `seats-panel.tsx` lists the seats and the pads that play them. The old debug panel (`PendingPanel`) still answers any decision the box doesn't handle yet, and shrinks phase by phase.
 
 **The house.**
-- `art/house-scene.ts`: the house as a picture of whatever it is fed (a layout, figures, targets, whose turn it is, beats of animation), with no game in it. Layout changes are diffed and re-baked with their neighbours (`art/lit-floor.ts`). Its performance readout is opt-in, on for the demo only.
+- `art/house-scene.ts`: the house as a picture of whatever it is fed (a layout, figures, targets, whose turn it is, beats of animation), with no game in it. Layout changes are diffed and re-baked with their neighbours (`art/lit-floor.ts`), through the bake scheduler (`art/bake-schedule.ts`: passes, priorities, stale work dropped). Its performance readout is opt-in, on for the demo only.
 - `art/house-demo.ts`: the stand-in game for `?house` and its e2e, until phase 2 retires it.
 - `art/house-camera.ts`: the camera's tilt limits and height; `art/house-targets.ts`: each target placed, marked and laid out on the screen for input.
-- `art/explorers/by-character.ts`: a character's figure, or a pawn in their seat's colour.
+- `art/explorers/by-character.ts`: a character's figure, or a pawn in their seat's colour; `art/part-batch.ts` batches a placed figure's parts per material.
+- `art/zfight.ts`: finding faces that share a plane, for the overlap check; `art/path-overlay.ts`: a room's spots and walks drawn over it on the bench (`?paths`).
 - `input/controls.ts`, `gestures.ts` and `navigate.ts`: the three input methods, driving the free camera and picking choices through the same few intents.
 
-**Tests:** the sync reducer against duplicated, reordered and dropped updates; `choices.ts`, the ghost, the seat and the status words; the camera and gestures; and the e2e in `e2e/betrayal-play.spec.ts` (a seeded game through a discovery, an event card, a move and ended turns; setup and resume; the ghost and the status box on all three inputs) and `e2e/betrayal-house.spec.ts` (the house and its camera).
+**Tests:** the sync reducer against duplicated, reordered and dropped updates; `choices.ts`, the ghost, the seat and the status words; the camera and gestures; and the e2e in `e2e/betrayal-play.spec.ts` (a seeded game through a discovery, an event card, a move and ended turns; setup and resume; the ghost and the status box on all three inputs) `e2e/betrayal-house.spec.ts` (the house and its camera), `e2e/betrayal-pads.spec.ts` (several controllers) and `e2e/betrayal-bake.spec.ts` (the bake's passes); and the lookahead against the engine (a slow test).
 
 ## The owner's UI answers
 
@@ -94,12 +109,12 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 
 - **P0: split the house view.** Done. The house scene and its demo, layouts and figures that change, doorway, cell and self marks, the figure registry.
 - **P1: the playable skeleton.** Done. Sync, store, seat and choices; the play screen with the house and the status box; setup and resume; moves one room at a time, discovery doorways, End turn; everything snaps, with no animation.
-- **P2: legs, walking and preview before commit.** The lookahead (`play/lookahead.ts`): a breadth-first search over `move` choices on copies of the state, through movement-only writes, to every reachable room with its route and the actions that reach it, memoised per decision. It retires the house demo's `reachable`, `nextLegs`, `afterLeg` and `moveIsOver` in `art/house-walk.ts`. Committing a route queues its actions one at a time, and the rest drops if the pending decision changes. Walk beats, and the floor following the explorer's stairs. The route preview with its cost and rule triggers, as one small serialisable value (target, route, warnings), so broadcasting it online later is only a transport change. Tests: the lookahead agrees with the engine (a slow test); e2e on all three inputs, stairs included.
+- **P2: legs, walking and preview before commit.** Done. The lookahead, committing a route one action at a time, walking, the floor following the explorer's stairs, and the route preview (`presentation.md`, "Moving").
 - **P3: the presenter and narration in the moment.** A pure `beats(previous view, events, next view)`; the state never waits, input fast-forwards, beats are de-duplicated by event id, and the status box tells any event without a beat. The entering moment, the active explorer's light, the forced-step beat. Tests: every event type has a beat or words.
 - **P4: discovery and placement.** The rotation ghost is done, and so is `place-tile` on the same ghost. Left: `room-moved` animated, the Mystic Elevator across floors with its e2e, and the room option on `chooseOne`.
 - **P5: the action bar per input, and trading.**
 - **P6: cards, dice and damage.** After it, a test asserts the old debug panel is never used in a scripted exploration game.
-- **P7: hot-seat setup polish.** Setup, resume, haunt selection as a feature (at setup, and at a reveal on an unbuilt haunt), the v1 reveal. Can run alongside P2 to P6.
+- **P7: hot-seat setup polish.** Setup with portraits, resume, haunt selection as a feature (at setup, and at a reveal on an unbuilt haunt), the v1 reveal. Several controllers on one device are done.
 - **P8: haunt 13 in the house.** Last.
 
 P4, P5 and P6 can run in parallel after P3. Each phase's review: a preview link, screenshots on phone and desktop, and a short recording.
@@ -108,8 +123,8 @@ P4, P5 and P6 can run in parallel after P3. Each phase's review: a preview link,
 
 ## Risks
 
-1. Re-bake cost on phones during discovery.
-2. The lookahead's cost, a copy of the state per step; the fallback is a routes query in the engine.
+1. The bake's cost: re-baking on phones during discovery, a first load of several seconds, and frames dropping while baking (`lighting.md`, "Known gaps").
+2. The lookahead's cost, a copy of the state per step: about 0.75 ms median before the haunt, and at worst about 54 ms in haunt 13, on desktop. The fallback is a routes query in the engine.
 3. About 75 event types: coverage and pacing need playtests.
 4. Information reaching the wrong seat in hot-seat.
 5. `lastEvents` covers one write only (matters online).
@@ -120,7 +135,8 @@ P4, P5 and P6 can run in parallel after P3. Each phase's review: a preview link,
 
 ## Open questions for the owner
 
-- The taste calls on four pilot rooms (in "Where we left off").
 - Whether to brighten a figure lit only from behind.
 - How the turn's actions are offered on each input (phase 5's design pass).
 - The phone layout round the status box, and what extra width shows on desktop.
+- What happens when a room is overfilled, at the first haunt that can.
+- The lake's water look.

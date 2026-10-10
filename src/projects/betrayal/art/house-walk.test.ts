@@ -1,37 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG } from "../data";
 import { HOUSE_FIXTURE } from "./house-layout";
-import { afterLeg, inHouse, moveIsOver, nextLegs, reachable, shownOn, walkLength, walkPath, walkPose, RUN_SPEED, WALK_SPEED, type HousePoint, type Stairway } from "./house-walk";
-import { TILE } from "./room";
-
-describe("reachable", () => {
-  const from = (room: string, movement: number) => reachable(HOUSE_FIXTURE, CATALOG, room, movement);
-
-  it("offers every room within the move, nearest first, each by its shortest route", () => {
-    expect(from("library", 4)).toEqual([
-      { room: "chapel", route: ["library", "chapel"] },
-      { room: "foyer", route: ["library", "foyer"] },
-      { room: "dining-room", route: ["library", "foyer", "dining-room"] },
-      { room: "entrance-hall", route: ["library", "foyer", "entrance-hall"] },
-      { room: "grand-staircase", route: ["library", "foyer", "grand-staircase"] },
-      { room: "upper-landing", route: ["library", "foyer", "grand-staircase", "upper-landing"] },
-      { room: "bedroom", route: ["library", "foyer", "grand-staircase", "upper-landing", "bedroom"] },
-      { room: "drawing-room", route: ["library", "foyer", "grand-staircase", "upper-landing", "drawing-room"] },
-    ]);
-  });
-
-  it("stops at the edge of the move", () => {
-    expect(from("library", 2).map((reach) => reach.room)).toEqual(["chapel", "foyer", "dining-room", "entrance-hall", "grand-staircase"]);
-  });
-
-  it("goes down the stairs as well as up them", () => {
-    expect(from("upper-landing", 1).map((reach) => reach.room)).toEqual(["bedroom", "drawing-room", "grand-staircase"]);
-  });
-
-  it("offers nothing from a room nothing joins", () => {
-    expect(from("basement-landing", 4)).toEqual([]);
-  });
-});
+import { inHouse, inRoom, shownOn, walkLength, walkPath, walkPose, RUN_SPEED, WALK_SPEED, type HousePoint, type Stairway } from "./house-walk";
+import { crossLanes, TILE, waypoints, type RoomWays } from "./room";
 
 const near = (a: HousePoint, b: Omit<HousePoint, "floor"> & { floor?: HousePoint["floor"] }) => {
   expect(a.x).toBeCloseTo(b.x);
@@ -39,42 +9,6 @@ const near = (a: HousePoint, b: Omit<HousePoint, "floor"> & { floor?: HousePoint
   expect(a.z).toBeCloseTo(b.z);
   if (b.floor) expect(a.floor).toBe(b.floor);
 };
-
-describe("a move in legs", () => {
-  const legTo = (move: { room: string; left: number }, room: string) => {
-    const reach = nextLegs(HOUSE_FIXTURE, CATALOG, move).find((leg) => leg.room === room);
-    if (!reach) throw new Error(`${room} is out of reach`);
-    return afterLeg(move, reach);
-  };
-
-  it("spends each leg's spaces from one budget, a stair step costing one like any other", () => {
-    const start = { room: "library", left: 4 };
-    const landing = legTo(start, "upper-landing");
-    expect(landing).toEqual({ room: "upper-landing", left: 1 });
-    expect(nextLegs(HOUSE_FIXTURE, CATALOG, landing).map((leg) => leg.room)).toEqual(["bedroom", "drawing-room", "grand-staircase"]);
-    expect(legTo(landing, "drawing-room")).toEqual({ room: "drawing-room", left: 0 });
-  });
-
-  it("offers only what the movement left can reach", () => {
-    const foyer = legTo({ room: "library", left: 4 }, "foyer");
-    expect(foyer.left).toBe(3);
-    expect(nextLegs(HOUSE_FIXTURE, CATALOG, foyer).map((leg) => leg.room)).toContain("drawing-room");
-    expect(nextLegs(HOUSE_FIXTURE, CATALOG, { room: "foyer", left: 1 }).every((leg) => leg.route.length === 2)).toBe(true);
-  });
-
-  it("ends a move with nothing left, or nowhere to go", () => {
-    expect(moveIsOver(HOUSE_FIXTURE, CATALOG, { room: "drawing-room", left: 0 })).toBe(true);
-    expect(moveIsOver(HOUSE_FIXTURE, CATALOG, { room: "basement-landing", left: 4 })).toBe(true);
-    expect(moveIsOver(HOUSE_FIXTURE, CATALOG, { room: "foyer", left: 1 })).toBe(false);
-  });
-
-  it("refuses a leg longer than the movement left, or from somewhere else", () => {
-    const far = reachable(HOUSE_FIXTURE, CATALOG, "library", 4).find((leg) => leg.room === "bedroom");
-    if (!far) throw new Error("The bedroom is out of reach");
-    expect(() => afterLeg({ room: "library", left: 2 }, far)).toThrow(/more than/);
-    expect(() => afterLeg({ room: "foyer", left: 4 }, far)).toThrow(/can't continue/);
-  });
-});
 
 describe("shownOn", () => {
   const stairs: Stairway = (room, toward) =>
@@ -116,12 +50,49 @@ describe("inHouse", () => {
   });
 });
 
+describe("inRoom", () => {
+  it("undoes inHouse, however the tile is turned", () => {
+    for (const room of ["foyer", "dining-room", "library", "chapel"]) {
+      const [x, y, z] = inRoom(HOUSE_FIXTURE, room, inHouse(HOUSE_FIXTURE, room, [1.2, 0.3, -0.7]));
+      expect([x, y, z].map((value) => Number(value.toFixed(9)))).toEqual([1.2, 0.3, -0.7]);
+    }
+  });
+});
+
+describe("waypoints", () => {
+  const flat = (points: readonly (readonly number[])[]) => points.map(([x, , z]) => [Number(x.toFixed(6)), Number(z.toFixed(6))]);
+
+  it("goes straight across a room with no lanes and no crossing", () => {
+    expect(waypoints({}, [-1, 0, -1], [1, 0, 1])).toEqual([]);
+  });
+
+  it("keeps to the lanes, stepping on and off them where they come nearest", () => {
+    // From one arm of a cross to the next: in to the middle and out again, never across the corner between them.
+    expect(flat(waypoints({ lanes: crossLanes() }, [0.3, 0, -1.8], [1.8, 0, 0.3]))).toEqual([
+      [0, -1.8],
+      [0, 0],
+      [1.8, 0],
+    ]);
+  });
+
+  it("steps onto a lane about as near when that makes the walk shorter", () => {
+    // Equally near both lanes, it takes the one leading where it is going.
+    expect(flat(waypoints({ lanes: crossLanes() }, [0.5, 0, 0.5], [2.2, 0, 0]))).toEqual([[0.5, 0]]);
+  });
+
+  it("crosses a barrier room along its crossing only between its halves", () => {
+    const ways: RoomWays = { crossing: [[-1, 0, 0], [-0.5, 0.1, 0], [0.5, 0.1, 0], [1, 0, 0]] };
+    expect(waypoints(ways, [-2, 0, 1], [-1.5, 0, -1])).toEqual([]);
+    expect(waypoints(ways, [2, 0, 1], [-2, 0, -1])).toEqual([[1, 0, 0], [0.5, 0.1, 0], [-0.5, 0.1, 0], [-1, 0, 0]]);
+  });
+});
+
 describe("walkPath", () => {
-  const noStairs: Stairway = () => undefined;
+  const plain = () => ({});
   const ground = (x: number, z: number): HousePoint => ({ floor: "ground", x, y: 0, z });
 
   it("walks through the centre of each doorway, lined up with it on both sides", () => {
-    const path = walkPath(HOUSE_FIXTURE, ["library", "foyer"], ground(6, 7), ground(5, 0), noStairs);
+    const path = walkPath(HOUSE_FIXTURE, ["library", "foyer"], ground(6, 7), ground(5, 0), plain);
     // The Library is below the Foyer on the board: the door is on their shared edge, z = TILE / 2.
     expect(path.map((p) => [p.x, p.z])).toEqual([
       [6, 7],
@@ -133,16 +104,24 @@ describe("walkPath", () => {
   });
 
   it("climbs one room's stairway and comes down the other's, changing floor between them", () => {
-    const stairs: Stairway = (room) =>
+    const stairs = (room: string): RoomWays =>
       room === "grand-staircase"
-        ? [
-            [1, 0, -2],
-            [-2, 3, -2],
-          ]
-        : [
-            [-1, 0, -2],
-            [-2, -1, -2],
-          ];
+        ? {
+            stairs: {
+              "upper-landing": [
+                [1, 0, -2],
+                [-2, 3, -2],
+              ],
+            },
+          }
+        : {
+            stairs: {
+              "grand-staircase": [
+                [-1, 0, -2],
+                [-2, -1, -2],
+              ],
+            },
+          };
     const path = walkPath(HOUSE_FIXTURE, ["grand-staircase", "upper-landing"], ground(1, 0), { floor: "upper", x: 1, y: 0, z: 1 }, stairs);
     expect(path.map((p) => p.floor)).toEqual(["ground", "ground", "ground", "upper", "upper", "upper"]);
     near(path[2], { x: -2, y: 3, z: -2 });
@@ -150,8 +129,23 @@ describe("walkPath", () => {
     near(path[4], { x: -1, y: 0, z: -2 });
   });
 
+  it("keeps to each room's ways: the Library's lanes round the shelves", () => {
+    const lanes = (room: string): RoomWays => (room === "library" ? { lanes: [[[-1, -1], [1, -1]]] } : {});
+    // The Library is turned twice, so its lane from (-1, -1) to (1, -1) lies at z = TILE + 1 in the house, x from 7 to 5.
+    const path = walkPath(HOUSE_FIXTURE, ["library", "foyer"], ground(7.5, 7.5), ground(5, 0), lanes);
+    expect(path.map((p) => [Number(p.x.toFixed(6)), Number(p.z.toFixed(6))])).toEqual([
+      [7.5, 7.5],
+      [7, 7],
+      [6, 7],
+      [6, 3 + 0.8],
+      [6, 3],
+      [6, 3 - 0.8],
+      [5, 0],
+    ]);
+  });
+
   it("fails loudly where a link has no stairway to walk", () => {
-    expect(() => walkPath(HOUSE_FIXTURE, ["grand-staircase", "upper-landing"], ground(0, 0), ground(0, 0), noStairs)).toThrow(/No stairway/);
+    expect(() => walkPath(HOUSE_FIXTURE, ["grand-staircase", "upper-landing"], ground(0, 0), ground(0, 0), plain)).toThrow(/No stairway/);
   });
 });
 

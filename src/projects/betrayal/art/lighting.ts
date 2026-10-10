@@ -26,6 +26,29 @@ export const LIGHTMAP: { texelsPerMetre: number; filter: "linear" | "nearest" } 
   filter: "linear",
 };
 
+/**
+ * The bake's one bounce of light: what the lit surfaces reflect, tinted by
+ * their colour, so light eases off into corners and the undersides of
+ * things (an explorer's chin over a lamplit floor) instead of stopping dead.
+ * `strength` scales it, 1 being what the surfaces' colours reflect; it is
+ * the one setting for how much the bounce lifts the dark. It is gathered
+ * with `rays` rays at every `step`th lightmap texel each way, and filled in
+ * between.
+ */
+export const BOUNCE = { strength: 3, rays: 16, step: 4 };
+
+/** Whether a page's query string asks for the bounce: `?bounce=off` bakes the direct light only, to compare. */
+function bounceFromSearch(search: string): boolean {
+  const value = new URLSearchParams(search).get("bounce") ?? "on";
+  if (value !== "on" && value !== "off") throw new Error(`bounce=${value}: it is on or off`);
+  return value === "on";
+}
+
+/** Whether this page bakes the bounce. Floors are also baked in tests, which have no page. */
+export function bounceOn(): boolean {
+  return bounceFromSearch(typeof window === "undefined" ? "" : window.location.search);
+}
+
 /** The light the whole house shares: one fill, one moon shining from a fixed
  *  corner of the board, and one fog. The bench lights a room the same way. */
 export const HOUSE_LIGHT = {

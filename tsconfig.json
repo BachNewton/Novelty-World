@@ -38,7 +38,9 @@
   ],
   "exclude": [
     "node_modules",
+    ".next-e2e",
     ".claude/worktrees",
-    ".opencode/worktrees"
+    ".opencode/worktrees",
+    "src/projects/family-tree/research"
   ]
 }

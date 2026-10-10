@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./test";
 
 /**
  * The Betrayal house demo's stand-in decision, once per input method: each
@@ -152,8 +153,11 @@ test("keyboard and mouse: hovering a room focuses it, a click walks there, and a
   const { id, room, at } = await openChoice(page);
   await page.mouse.move(at.x, at.y);
   await expect.poll(() => focused(page)).toBe(id);
+  // The clock held, so the walk can't end before it is seen playing, however slowly the page draws.
+  await page.evaluate(() => window.__betrayalHouse?.freezeClock(1000));
   await page.mouse.click(at.x, at.y);
   await page.waitForFunction(() => window.__betrayalHouse?.state().walking === true);
+  await page.evaluate(() => window.__betrayalHouse?.freezeClock(null));
   await arrived(page, room);
   await clickThrough(page, STOP);
   await stopped(page, room);
@@ -315,6 +319,35 @@ test.describe("keyboard and mouse", () => {
   });
 });
 
+const wallsRaised = (page: Page) => page.evaluate(() => window.__betrayalHouse?.state().wallsRaised);
+
+test("keyboard: holding V raises the walls, and letting go lets them down", async ({ page }) => {
+  await openHouse(page);
+  expect(await wallsRaised(page)).toBe(false);
+  await page.keyboard.down("KeyV");
+  await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === true);
+  await page.keyboard.up("KeyV");
+  await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === false);
+});
+
+test.describe("touch", () => {
+  test.use({ viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true });
+
+  test("holding the walls button raises the walls until the finger lifts, even slid off it", async ({ page }) => {
+    await openHouse(page);
+    const button = await page.getByRole("button", { name: "Raise the walls" }).boundingBox();
+    if (!button) throw new Error("No walls button");
+    const cdp = await page.context().newCDPSession(page);
+    const [x, y] = [button.x + button.width / 2, button.y + button.height / 2];
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1 }] });
+    await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === true);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - 120, id: 1 }] });
+    expect(await wallsRaised(page)).toBe(true);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === false);
+  });
+});
+
 test.describe("touch", () => {
   test.use({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
 
@@ -334,7 +367,7 @@ test.describe("touch", () => {
     await stopped(page, room);
   });
 
-  test("one finger pans, a pinch zooms and a twist orbits, then taps still choose", async ({ page }) => {
+  test("one finger pans, two fingers zoom, turn and tilt at once, then taps still choose", async ({ page }) => {
     await openHouse(page);
     const cdp = await page.context().newCDPSession(page);
     type Finger = { x: number; y: number; id: number };
@@ -372,20 +405,21 @@ test.describe("touch", () => {
     expect(pinched.zoom).toBeGreaterThan(panned.zoom * 2);
     expect(pinched.yaw).toBeCloseTo(panned.yaw, 5);
 
-    // A quarter turn clockwise of the line between two fingers, at the same spread.
+    // Two fingers dragged a quarter of the screen's width to the right together turn the camera an eighth of a turn.
     await gesture(
       [
-        { x: cx - 80, y: cy, id: 1 },
-        { x: cx + 80, y: cy, id: 2 },
+        { x: cx - 60, y: cy, id: 1 },
+        { x: cx + 60, y: cy, id: 2 },
       ],
       [
-        { x: cx - 57, y: cy - 57, id: 1 },
-        { x: cx + 57, y: cy + 57, id: 2 },
+        { x: cx + 43, y: cy, id: 1 },
+        { x: cx + 163, y: cy, id: 2 },
       ],
     );
-    const twisted = await cameraNow(page);
-    expect(twisted.yaw - pinched.yaw).toBeCloseTo(Math.PI / 4, 1);
-    expect(twisted.zoom).toBeCloseTo(pinched.zoom, 5);
+    const turned = await cameraNow(page);
+    expect(turned.yaw - pinched.yaw).toBeCloseTo(-Math.PI / 4, 1);
+    expect(turned.pitch).toBeCloseTo(pinched.pitch, 5);
+    expect(turned.zoom).toBeCloseTo(pinched.zoom, 5);
     // Two fingers dragged up together tilt the camera down.
     await gesture(
       [
@@ -398,9 +432,24 @@ test.describe("touch", () => {
       ],
     );
     const tilted = await cameraNow(page);
-    expect(tilted.pitch).toBeLessThan(twisted.pitch - 0.3);
-    expect(tilted.yaw).toBeCloseTo(twisted.yaw, 5);
-    expect(tilted.zoom).toBeCloseTo(twisted.zoom, 5);
+    expect(tilted.pitch).toBeLessThan(turned.pitch - 0.3);
+    expect(tilted.yaw).toBeCloseTo(turned.yaw, 5);
+    expect(tilted.zoom).toBeCloseTo(turned.zoom, 5);
+    // Pinching in while dragging a quarter of the screen's width to the right zooms out and turns, in one gesture.
+    await gesture(
+      [
+        { x: cx - 80, y: cy, id: 1 },
+        { x: cx + 80, y: cy, id: 2 },
+      ],
+      [
+        { x: cx + 63, y: cy, id: 1 },
+        { x: cx + 143, y: cy, id: 2 },
+      ],
+    );
+    const both = await cameraNow(page);
+    expect(both.zoom).toBeCloseTo(tilted.zoom / 2, 1);
+    expect(both.yaw - tilted.yaw).toBeCloseTo(-Math.PI / 4, 1);
+    expect(both.pitch).toBeCloseTo(tilted.pitch, 5);
     // No gesture chose anything.
     expect(await page.evaluate(() => window.__betrayalHouse?.state().walking)).toBe(false);
 
@@ -443,7 +492,7 @@ test.describe("controller", () => {
     });
   });
 
-  const BUTTON = { A: 0, B: 1, Y: 3, LB: 4, RB: 5, DpadUp: 12, DpadDown: 13 } as const;
+  const BUTTON = { A: 0, B: 1, Y: 3, LB: 4, RB: 5, LS: 10, DpadUp: 12, DpadDown: 13 } as const;
 
   /** Holds a button until `done` holds, then lets go and waits for the pad
    *  to be read again, so the next press is seen as a new one. */
@@ -528,6 +577,12 @@ test.describe("controller", () => {
     expect(await focused(page)).toBe(STOP);
     await pressA(page);
     await stopped(page, "library");
+  });
+
+  test("holding the left stick's click raises the walls, and letting go lets them down", async ({ page }) => {
+    await openHouse(page);
+    await press(page, BUTTON.LS, () => page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === true));
+    await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === false);
   });
 
   test("the d-pad changes floor, Y recentres, and B backs out", async ({ page }) => {
