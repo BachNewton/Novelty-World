@@ -164,11 +164,14 @@ export function apply(
   return { ok: true, state: draft };
 }
 
-/** The legal choices of the pending decision for a seat that has yet to answer it. */
+/** The legal choices of the pending decision for a seat that has yet to
+ *  answer it; with `among`, only the candidates it keeps are tried, for a
+ *  caller that wants some kinds of answer and not others. */
 export function choices(
   engine: Engine,
   state: GameState,
   seat: number,
+  among: (candidate: Json) => boolean = () => true,
 ): Choice[] {
   const pending = state.pending;
   if (
@@ -178,13 +181,34 @@ export function choices(
   )
     return [];
   const kind = decisionKind(engine, pending.kind);
-  return kind
-    .candidates(state, pending, seat, engine)
-    .filter((choice) => tryAnswer(engine, state, seat, choice) === null)
-    .map((choice) => ({
-      choice,
-      label: kind.label(state, pending, choice, engine),
-    }));
+  return legalChoices(engine, state, pending, seat, among).map((choice) => ({
+    choice,
+    label: kind.label(state, pending, choice, engine),
+  }));
+}
+
+/** The legal answers to a decision, stopping once `enough` are found: each
+ *  is tried on a copy of the whole state, so a caller that only needs to
+ *  tell none, one and more apart shouldn't try every one. */
+function legalChoices(
+  engine: Engine,
+  state: GameState,
+  decision: Decision,
+  seat: number,
+  among: (candidate: Json) => boolean,
+  enough = Infinity,
+): Json[] {
+  const legal: Json[] = [];
+  for (const choice of decisionKind(engine, decision.kind).candidates(
+    state,
+    decision,
+    seat,
+    engine,
+  )) {
+    if (legal.length >= enough) break;
+    if (among(choice) && tryAnswer(engine, state, seat, choice) === null) legal.push(choice);
+  }
+  return legal;
 }
 
 // A choice is legal exactly when answering with it succeeds. Answering only
@@ -315,27 +339,25 @@ function run(engine: Engine, draft: GameState, write: Write): void {
     react(engine, draft, write);
     const pending = draft.pending;
     if (pending?.type === "decision" && pending.seats.length === 1) {
-      const legal = choices(engine, draft, pending.seats[0]);
+      const kind = decisionKind(engine, pending.kind);
+      const seat = pending.seats[0];
+      // Telling one legal choice from several needs only the first two.
+      const legal = legalChoices(engine, draft, pending, seat, () => true, 2);
       if (legal.length === 0)
         throw new Error(`Decision ${pending.kind} has no legal choice`);
       if (
         legal.length === 1 &&
-        !decisionKind(engine, pending.kind).alwaysAsks?.(draft, pending, engine)
+        !kind.alwaysAsks?.(draft, pending, engine)
       ) {
+        const [choice] = legal;
         write.ctx.emit("forced", pending.rule, {
-          seat: pending.seats[0],
+          seat,
           kind: pending.kind,
           about: pending.about,
-          choice: legal[0].choice,
-          label: legal[0].label,
+          choice,
+          label: kind.label(draft, pending, choice, engine),
         });
-        const reason = answer(
-          engine,
-          draft,
-          write,
-          pending.seats[0],
-          legal[0].choice,
-        );
+        const reason = answer(engine, draft, write, seat, choice);
         if (reason !== null)
           throw new Error(`Forced choice was rejected: ${reason}`);
         continue;

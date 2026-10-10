@@ -1,4 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
+test.beforeEach(async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.THROTTLE ?? 6) });
+});
 
 /**
  * The Betrayal house demo's stand-in decision, once per input method: each
@@ -363,7 +367,7 @@ test.describe("touch", () => {
     await stopped(page, room);
   });
 
-  test("one finger pans, two fingers zoom, turn and tilt at once, then taps still choose", async ({ page }) => {
+  test("one finger pans, a pinch zooms, two fingers turn and tilt, then taps still choose", async ({ page }) => {
     await openHouse(page);
     const cdp = await page.context().newCDPSession(page);
     type Finger = { x: number; y: number; id: number };
@@ -431,21 +435,6 @@ test.describe("touch", () => {
     expect(tilted.pitch).toBeLessThan(turned.pitch - 0.3);
     expect(tilted.yaw).toBeCloseTo(turned.yaw, 5);
     expect(tilted.zoom).toBeCloseTo(turned.zoom, 5);
-    // Pinching in while dragging a quarter of the screen's width to the right zooms out and turns, in one gesture.
-    await gesture(
-      [
-        { x: cx - 80, y: cy, id: 1 },
-        { x: cx + 80, y: cy, id: 2 },
-      ],
-      [
-        { x: cx + 63, y: cy, id: 1 },
-        { x: cx + 143, y: cy, id: 2 },
-      ],
-    );
-    const both = await cameraNow(page);
-    expect(both.zoom).toBeCloseTo(tilted.zoom / 2, 1);
-    expect(both.yaw - tilted.yaw).toBeCloseTo(-Math.PI / 4, 1);
-    expect(both.pitch).toBeCloseTo(tilted.pitch, 5);
     // No gesture chose anything.
     expect(await page.evaluate(() => window.__betrayalHouse?.state().walking)).toBe(false);
 

@@ -95,7 +95,10 @@ describe("standing spots", () => {
   const spots: [number, number][] = [[-1.5, -1.5], [1.5, -1.5], [-1.5, -0.6], [1.5, -0.6], [2, -2.2]];
 
   it("finds a spot cut off from the doors", () => {
-    expect(keys({ ...CHAPEL, props: [{ build: wall, at: [0, 0] }], pawn: [0, 1.5], spots })).toEqual(["standing spot 1 at (0.00, 1.50) can't be reached from the doors"]);
+    expect(keys({ ...CHAPEL, props: [{ build: wall, at: [0, 0] }], pawn: [0, 1.5], spots })).toEqual([
+      "standing spot 1 at (0.00, 1.50) can't be reached from the doors",
+      "the walk from standing spot 1 to the doorway top is blocked",
+    ]);
   });
 
   it("finds a spot in a doorway's lane, and two spots crowding each other", () => {
@@ -103,6 +106,31 @@ describe("standing spots", () => {
       "standing spot 1 at (0.00, -2.40) stands in the doorway top's lane",
       "standing spot 2 at (-1.50, -1.50) crowds standing spot 6 at (-1.20, -1.30)",
     ]);
+  });
+});
+
+describe("walks", () => {
+  /** A block in the middle of the Chapel, between its one door (top) and a spot below it. */
+  const block = () => {
+    const stone = batch();
+    stone.block([1.6, 0.8, 1.0], "stone", [0, 0, 0]);
+    return group(stone.mesh());
+  };
+  const walkKeys = (room: RoomDefinition) => checkRoom(room).findings.map((finding) => finding.key).filter((key) => key.startsWith("the walk"));
+  const below: RoomDefinition = { ...CHAPEL, props: [{ build: block, at: [0, 0] }], pawn: [0, 1.6], spots: [] };
+
+  it("finds a walk that goes straight through a piece in its way", () => {
+    expect(walkKeys(below)).toEqual(["the walk from standing spot 1 to the doorway top is blocked"]);
+  });
+
+  it("clears it by lanes round the piece", () => {
+    expect(walkKeys({ ...below, lanes: [[[0, -2.2], [-1.6, -1.2], [-1.6, 1.2], [0, 1.6]]] })).toEqual([]);
+  });
+
+  it("walks a barrier room's halves together along its crossing, over the gap between them", () => {
+    const split: RoomDefinition = { ...CHAPEL, props: [], pawn: [0, 1.6], spots: [], floorOpenings: [{ x: [-3, 3], z: [-0.4, 0.4] }] };
+    expect(walkKeys(split)).toEqual(["the walk from standing spot 1 to the doorway top is blocked"]);
+    expect(walkKeys({ ...split, crossing: [[0, 0, -0.9], [0, 0, 0.9]] })).toEqual([]);
   });
 });
 

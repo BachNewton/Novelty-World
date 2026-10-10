@@ -3,7 +3,7 @@ import { animated } from "../animate";
 import { chair, cobweb, lantern } from "../kit";
 import { crossCorners } from "../kit/wall-mass";
 import { paletteHex, RAMPS } from "../palette";
-import { INNER, type RoomDefinition } from "../room";
+import { crossLanes, INNER, type RoomDefinition } from "../room";
 import { batch, group, lightMaterial, pixelPlane, type Batch } from "../shapes";
 import { panelling, pixelTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from "../textures";
 
@@ -176,4 +176,5 @@ export const DUSTY_HALLWAY: RoomDefinition = {
   focus: [-0.6, 0.4, 0.6],
   pawn: [0.45, 0.45],
   spots: [[0.45, -0.45], [-0.45, -0.45], [-0.45, 0.45], [-0.5, -1.8], [1.75, -0.45]],
+  lanes: crossLanes(),
 };

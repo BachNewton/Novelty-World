@@ -425,4 +425,13 @@ export const FURNACE_ROOM: RoomDefinition = {
   focus: [0.7, 0.6, -0.45],
   pawn: [-1.4, 0.45],
   spots: [[-0.6, -0.15], [-1.8, -1.1], [1.6, 1.4], [-2.0, 1.75], [0.95, 2.25]],
+  // Down from the top doorway between the coal and the furnace, across the
+  // floor to the other doorways, and round the coal into the corner behind it.
+  lanes: [
+    [[0, -2.2], [0, -1.2], [-0.45, -0.7], [-0.5, -0.35], [-0.5, 0.2], [0.3, 1.0], [0, 2.2]],
+    [[-1.8, -1.4], [-1.6, -0.35], [-0.5, -0.35]],
+    [[-1.6, -0.35], [-2.2, 0], [-0.5, 0.2]],
+    [[0.3, 1.0], [1.5, 1.2]],
+    [[0, 2.2], [-1.9, 1.9], [-2.2, 0]],
+  ],
 };

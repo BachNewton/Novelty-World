@@ -254,6 +254,8 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
     controls.minDistance = 1;
     controls.maxDistance = 40;
     controls.maxPolarAngle = THREE.MathUtils.degToRad(88);
+    // As in the house: one finger pans, a pinch zooms, and two fingers dragged together turn and tilt.
+    controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
     let cutaway = new THREE.Vector2(1, 1).normalize();
 
     const fitDistance = () => {

@@ -625,4 +625,9 @@ export const KITCHEN: RoomDefinition = {
   focus: [-1.6, 0.9, 0],
   pawn: [1.45, 1.55],
   spots: [[0.95, 0.9], [0.15, 0.7], [0.45, 1.6], [-0.35, 1.4], [-0.8, 0.7]],
+  // Round the end of the table, from the top doorway down past the range to the right one and the floor below.
+  lanes: [
+    [[0, -2.2], [0, -1.8], [1.4, -1.8], [1.5, -0.9], [1.95, -0.35], [1.95, 0], [1.95, 0.3], [1.4, 1.0], [-0.8, 1.0]],
+    [[2.2, 0], [1.95, 0]],
+  ],
 };

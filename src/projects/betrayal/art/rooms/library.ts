@@ -576,4 +576,6 @@ export const LIBRARY: RoomDefinition = {
   focus: [-0.2, 0.8, -0.8],
   pawn: [0.1, 1.7],
   spots: [[-0.1, 0.9], [0.15, 0.1], [-0.75, 0.3], [0.8, 1.15], [1.1, -0.1]],
+  // In from the left doorway and down between the desk and the armchair to the bottom one.
+  lanes: [[[-2.2, 0], [-0.5, -0.1], [0.2, 0.2], [0.2, 1.9], [0, 2.2]]],
 };

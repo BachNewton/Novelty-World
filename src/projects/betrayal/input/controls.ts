@@ -1,5 +1,5 @@
 import { readPad, subscribeGamepads, type PadSnapshot, type StandardButton } from "@/shared/lib/gamepad";
-import { classifyTwoFinger, isDrag, spanOf, tapAction, turnBetween, type Span, type TwoFingerGesture } from "./gestures";
+import { isDrag, NO_PARTS, partsUnderWay, spanOf, tapAction, type Span, type TwoFingerParts } from "./gestures";
 import { pickTarget, type Point, type ScreenPoint, type Target } from "./navigate";
 
 /*
@@ -70,14 +70,20 @@ export interface ControlHandlers {
    *  key, a stick), so the game may not move it. */
   controlling: (on: boolean) => void;
   usedInput: (kind: InputKind) => void;
-  /** Offered every pad button press first: true when the page took it (its
-   *  own panel's buttons), so the house does nothing with it. */
-  padButton?: (button: StandardButton) => boolean;
+  /** Offered every pad button press first, from any pad: true when the page
+   *  took it (its own panel's buttons), so the house does nothing with it.
+   *  The page gates its own panels by `pad`. */
+  padButton?: (button: StandardButton, pad: number) => boolean;
+  /** Whether a pad may act now (hot-seat pad assignment): a pad that may not
+   *  is idle, its sticks and buttons ignored by the house. Every pad may when absent. */
+  padMay?: (pad: number) => boolean;
 }
 
 /** Pointer targets reach at least this far round a choice: a 48 px circle, a fingertip. */
 const FINGER_REACH = 24;
 const ORBIT_PER_PIXEL = 0.008;
+/** Radians a two-finger drag turns the camera across the screen's full width: a half turn. */
+const TURN_PER_WIDTH = Math.PI;
 const WHEEL_ZOOM = 0.0015;
 const KEY_ZOOM = 1.25;
 /** Radians a second at full tilt, or with an orbit or tilt key held. */
@@ -123,11 +129,11 @@ interface Press {
   orbits: boolean;
 }
 
-/** Two fingers down: where they started, where they were last seen, and what they are doing. */
+/** Two fingers down: where they started, where they were last seen, and which parts of their gesture are under way. */
 interface TwoFingers {
   start: Span;
   last: Span;
-  gesture: TwoFingerGesture;
+  parts: TwoFingerParts;
 }
 
 /** Wires every input to `handlers`. Pointers are read on `element`; keys and
@@ -189,7 +195,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     if (presses.size === 2) {
       multiTouch = true;
       const span = twoSpan();
-      fingers = { start: span, last: span, gesture: "pending" };
+      fingers = { start: span, last: span, parts: NO_PARTS };
       updateHands();
     }
   };
@@ -207,12 +213,15 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     press.last = point;
     if (fingers) {
       const now = twoSpan();
-      if (fingers.gesture === "pending") fingers.gesture = classifyTwoFinger(fingers.start, now);
-      if (fingers.gesture === "pinch" && fingers.last.spread > 0) handlers.zoom(now.spread / fingers.last.spread);
-      if (fingers.gesture === "twist") handlers.orbit(turnBetween(fingers.last.angle, now.angle), 0);
-      if (fingers.gesture === "tilt") handlers.orbit(0, (now.middle.y - fingers.last.middle.y) * ORBIT_PER_PIXEL);
-      // Until it decides, a gesture measures from where it started, so the movement that decided it still counts.
-      if (fingers.gesture !== "pending") fingers.last = now;
+      const { start, last, parts: was } = fingers;
+      const parts = partsUnderWay(start, now, was);
+      // A part measures its first step from where the fingers went down, so the movement that began it still counts.
+      const from = (part: keyof TwoFingerParts) => (was[part] ? last : start);
+      const turn = parts.turn ? -((now.middle.x - from("turn").middle.x) / element.clientWidth) * TURN_PER_WIDTH : 0;
+      const tilt = parts.tilt ? (now.middle.y - from("tilt").middle.y) * ORBIT_PER_PIXEL : 0;
+      if (turn !== 0 || tilt !== 0) handlers.orbit(turn, tilt);
+      if (parts.zoom && from("zoom").spread > 0) handlers.zoom(now.spread / from("zoom").spread);
+      fingers = { start, last: now, parts };
       return;
     }
     if (!dragging && isDrag(press.start, point)) {
@@ -327,14 +336,18 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
       pads = connected;
     },
     onButton: (edge) => {
+      const may = handlers.padMay?.(edge.pad) ?? true;
       if (edge.name === RAISE_BUTTON) {
+        // A release always lets go: the pad may have gone idle while it held the button.
+        if (edge.pressed && !may) return;
         if (edge.pressed) handlers.usedInput("pad");
         setRaising("pad", edge.pressed);
         return;
       }
       if (!edge.pressed || edge.name === null) return;
-      handlers.usedInput("pad");
-      if (handlers.padButton?.(edge.name)) return;
+      if (may) handlers.usedInput("pad");
+      if (handlers.padButton?.(edge.name, edge.pad)) return;
+      if (!may) return;
       PAD_BUTTONS[edge.name]?.();
     },
   });
@@ -361,18 +374,20 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
       }
       let zoom = 1;
       padCamera = false;
-      const controls = pads.map((pad) => readPad(pad).controls).find((read) => read !== null);
-      if (controls) {
+      // Every pad that may act drives the camera together; an idle pad's sticks are ignored.
+      for (const pad of pads) {
+        const controls = (handlers.padMay?.(pad.index) ?? true) ? readPad(pad).controls : null;
+        if (!controls) continue;
         const { leftStick, rightStick, leftTrigger, rightTrigger } = controls;
         pan.x += leftStick.x;
         pan.y += leftStick.y;
         yaw += rightStick.x * ORBIT_SPEED * delta;
         // Up on the stick tilts up, towards top-down.
         pitch -= rightStick.y * ORBIT_SPEED * delta;
-        zoom = Math.exp((rightTrigger - leftTrigger) * TRIGGER_ZOOM * delta);
-        padCamera = leftStick.x !== 0 || leftStick.y !== 0 || rightStick.x !== 0 || rightStick.y !== 0 || zoom !== 1;
-        if (padCamera) handlers.usedInput("pad");
+        zoom *= Math.exp((rightTrigger - leftTrigger) * TRIGGER_ZOOM * delta);
+        padCamera ||= leftStick.x !== 0 || leftStick.y !== 0 || rightStick.x !== 0 || rightStick.y !== 0 || rightTrigger !== leftTrigger;
       }
+      if (padCamera) handlers.usedInput("pad");
       updateHands();
       if (pan.x !== 0 || pan.y !== 0) handlers.pan(pan.x * PAN_SPEED * delta, pan.y * PAN_SPEED * delta);
       if (yaw !== 0 || pitch !== 0) handlers.orbit(yaw, pitch);

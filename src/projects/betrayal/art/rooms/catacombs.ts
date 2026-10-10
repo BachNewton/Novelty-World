@@ -198,4 +198,9 @@ export const CATACOMBS: RoomDefinition = {
   focus: [0, 0.6, 0],
   pawn: [-1.2, -1.5],
   spots: [[1.2, 1.5], [1.25, -1.55], [-1.25, 1.45], [0.0, -1.65], [0.0, 1.65]],
+  // Through the bank under the arch of skulls.
+  crossing: [
+    [0, 0, -(BANK.half + 0.6)],
+    [0, 0, BANK.half + 0.6],
+  ],
 };

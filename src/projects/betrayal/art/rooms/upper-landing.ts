@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { animated } from "../animate";
 import { candelabra, candle, cobweb, pictureFrame, pitShell, table } from "../kit";
-import { INNER, TILE, onWall, type RoomDefinition } from "../room";
+import { crossLanes, INNER, TILE, onWall, type RoomDefinition } from "../room";
 import { batch, group } from "../shapes";
 import { woodPlanks } from "../textures";
 import { newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
@@ -110,6 +110,8 @@ export const UPPER_LANDING: RoomDefinition = {
   focus: [-0.8, 0.6, -1.8],
   pawn: [0.8, -0.9],
   spots: [[0.3, -0.2], [-0.05, -0.95], [-0.55, -0.25], [-0.15, 0.55], [0.75, 0.6]],
+  // Doorway to doorway through the middle, below the stairwell's rail and wide of the table.
+  lanes: crossLanes(),
   // Down the head of the flight, over the middle of each tread, to the last step showing in the well.
   stairs: {
     "grand-staircase": [

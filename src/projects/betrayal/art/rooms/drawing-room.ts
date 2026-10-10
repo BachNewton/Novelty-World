@@ -76,4 +76,11 @@ export const DRAWING_ROOM: RoomDefinition = {
   focus: [0, 0.8, 0],
   pawn: [1.3, 1.7],
   spots: [[1.3, 0.85], [0.45, 1.6], [1.4, 0.0], [2.1, 1.25], [-0.4, 1.55]],
+  // Round the table, with a way in from each doorway: the left one's from
+  // below, as the side chair and the hearth leave no room for a base above it.
+  lanes: [
+    [[0, -2.2], [0, -1.6], [1.55, -1.6], [1.55, 0], [1.55, 1.5], [0, 1.5], [-1.6, 1.5], [-2.2, 0.75], [-2.2, 0]],
+    [[2.2, 0], [1.55, 0]],
+    [[0, 2.2], [0, 1.5]],
+  ],
 };

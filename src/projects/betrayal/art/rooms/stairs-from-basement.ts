@@ -170,6 +170,8 @@ export const STAIRS_FROM_BASEMENT: RoomDefinition = {
   focus: [-1.6, 1.0, -0.4],
   pawn: [-0.7, 1.15],
   spots: [[0.35, 0.6], [0.6, -0.5], [-0.35, -1.45], [1.5, 0.95], [1.5, -1.4]],
+  // Along the open side of the flight, wide of its foot, to where it starts.
+  lanes: [[[MID_X, FLIGHT.foot + 0.8], [-0.6, 1.8], [0.2, 1.0], [0.2, -1.5]]],
   // Up the middle of the flight, over the middle of each tread, into the dark above.
   stairs: {
     foyer: [

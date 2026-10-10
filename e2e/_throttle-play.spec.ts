@@ -1,4 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
+test.beforeEach(async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.THROTTLE ?? 6) });
+});
 import type { PlayReadout } from "../src/projects/betrayal/components/play/play-screen";
 
 /**

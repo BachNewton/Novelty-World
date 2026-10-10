@@ -131,6 +131,124 @@ export interface RoomDefinition {
    *  where the stair leaves the room. A walk between the two rooms goes up
    *  one room's stair and down the other's. */
   stairs?: Record<string, [x: number, y: number, z: number][]>;
+  /** In a barrier room, the way across from one half to the other, along
+   *  its visible crossing (a bridge, an arch): points in room metres, from
+   *  one end to the other. A point stands in the half of the end it is
+   *  nearer, and a walk between the halves goes along it. */
+  crossing?: [x: number, y: number, z: number][];
+  /** Where a straight walk across the room would pass through something (a
+   *  table, a corner of wall), the lanes walks keep to round it: lines of
+   *  clear floor, as points in room metres, joined where they share a point.
+   *  A walk steps onto them, follows them and steps off again by whichever
+   *  way is shortest. Without lanes, walks go straight. */
+  lanes?: (readonly [x: number, z: number])[][];
+}
+
+/** How far inside a doorway a walker lines up with it, so it passes through
+ *  square rather than cutting past the frame. */
+export const DOOR_APPROACH = 0.8;
+
+/** Lanes straight across the room from the middle of each side to the
+ *  middle of the opposite one, crossing in the middle: for a cross of
+ *  corridors, or a room clear down its middle lines. */
+export function crossLanes(): [x: number, z: number][][] {
+  const end = TILE / 2 - DOOR_APPROACH;
+  return [
+    [[0, -end], [0, 0], [0, end]],
+    [[-end, 0], [0, 0], [end, 0]],
+  ];
+}
+
+/** A point in a room's own frame, in metres, `y` up from its floor. */
+export type RoomPoint = readonly [x: number, y: number, z: number];
+
+/** What a walk across a room keeps to. */
+export type RoomWays = Pick<RoomDefinition, "stairs" | "crossing" | "lanes">;
+
+type Flat = readonly [x: number, z: number];
+
+const flatDistance = (a: Flat, b: Flat) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+/** The nearest point to `p` on the segment from `a` to `b`. */
+function nearestOn(p: Flat, a: Flat, b: Flat): Flat {
+  const [dx, dz] = [b[0] - a[0], b[1] - a[1]];
+  const squared = dx * dx + dz * dz;
+  const t = squared === 0 ? 0 : Math.min(1, Math.max(0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / squared));
+  return [a[0] + dx * t, a[1] + dz * t];
+}
+
+/** How much further than the nearest lane a walk may step onto another,
+ *  when that makes it shorter: as near, give or take a step. */
+const STEP_ON = 0.3;
+
+/**
+ * The way from `a` to `b` by the lanes, as the points it passes through:
+ * onto the lanes at the nearest point to `a` (or one about as near), along
+ * them, and off them where they come nearest `b`, by the shortest way.
+ */
+function byLanes(lanes: readonly (readonly Flat[])[], a: RoomPoint, b: RoomPoint): RoomPoint[] {
+  const points: Flat[] = [];
+  const indexOf = ([x, z]: Flat) => {
+    const found = points.findIndex(([px, pz]) => px === x && pz === z);
+    return found === -1 ? points.push([x, z]) - 1 : found;
+  };
+  const stretches = lanes.flatMap((lane) => lane.slice(1).map((point, i) => [indexOf(lane[i]), indexOf(point)] as const));
+  const links: (readonly [number, number])[] = [...stretches];
+  /** Joins a walk's end to where it may step onto the lanes, and those to the ends of their stretches; by stretch. */
+  const stepOn = (end: Flat) => {
+    const node = points.push(end) - 1;
+    const near = stretches.map((stretch) => nearestOn(end, points[stretch[0]], points[stretch[1]]));
+    const nearest = Math.min(...near.map((at) => flatDistance(end, at)));
+    const on = new Map<(typeof stretches)[number], number>();
+    near.forEach((at, i) => {
+      if (flatDistance(end, at) > nearest + STEP_ON) return;
+      const point = points.push(at) - 1;
+      links.push([node, point], [point, stretches[i][0]], [point, stretches[i][1]]);
+      on.set(stretches[i], point);
+    });
+    return { node, on };
+  };
+  const [from, to] = [stepOn([a[0], a[2]]), stepOn([b[0], b[2]])];
+  for (const [stretch, point] of from.on) {
+    const other = to.on.get(stretch);
+    if (other !== undefined) links.push([point, other]);
+  }
+  // The shortest way between every two points (Floyd–Warshall: a room's lanes have a handful).
+  const n = points.length;
+  const far = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 0 : Infinity)));
+  const next = Array.from({ length: n }, () => Array.from({ length: n }, (_, j) => j));
+  for (const [i, j] of links) far[i][j] = far[j][i] = flatDistance(points[i], points[j]);
+  for (let k = 0; k < n; k++)
+    for (let i = 0; i < n; i++)
+      for (let j = 0; j < n; j++)
+        if (far[i][k] + far[k][j] < far[i][j]) {
+          far[i][j] = far[i][k] + far[k][j];
+          next[i][j] = next[i][k];
+        }
+  const way: Flat[] = [];
+  for (let at = next[from.node][to.node]; at !== to.node; at = next[at][to.node]) way.push(points[at]);
+  // A point the walk is already at is no turn.
+  const ends = [points[from.node], points[to.node]];
+  return way
+    .filter((point, i) => ends.every((end) => flatDistance(point, end) > 1e-6) && (i === 0 || flatDistance(point, way[i - 1]) > 1e-6))
+    .map(([x, z]): RoomPoint => [x, 0, z]);
+}
+
+/**
+ * The points a walk passes through on its way across a room from `a` to `b`,
+ * both in room metres and on its floor: along the crossing where they lie in
+ * different halves of a barrier room, and by the room's lanes, where it has
+ * them; with neither, none, straight across.
+ */
+export function waypoints(ways: RoomWays, a: RoomPoint, b: RoomPoint): RoomPoint[] {
+  const { crossing, lanes } = ways;
+  const across = (from: RoomPoint, to: RoomPoint) => (lanes ? byLanes(lanes, from, to) : []);
+  if (!crossing || crossing.length === 0) return across(a, b);
+  const ends = [crossing[0], crossing[crossing.length - 1]];
+  const half = ([x, , z]: RoomPoint) => (Math.hypot(x - ends[0][0], z - ends[0][2]) <= Math.hypot(x - ends[1][0], z - ends[1][2]) ? 0 : 1);
+  if (half(a) === half(b)) return across(a, b);
+  const way = half(a) === 0 ? [...crossing] : [...crossing].reverse();
+  return [...across(a, way[0]), ...way, ...across(way[way.length - 1], b)];
 }
 
 /** A hole through the floor: a rectangle, as x and z ranges, or a polygon of

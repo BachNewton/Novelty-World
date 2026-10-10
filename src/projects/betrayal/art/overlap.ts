@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Edge } from "../types";
 import { PALETTE, type PaletteKey } from "./palette";
-import { DOOR_HEIGHT, DOOR_WIDTH, INNER, TILE, pieceLabel, pieceName, standingSpots, type FloorOpening, type PropPlacement, type RoomDefinition } from "./room";
+import { DOOR_APPROACH, DOOR_HEIGHT, DOOR_WIDTH, INNER, TILE, pieceLabel, pieceName, standingSpots, waypoints, type FloorOpening, type PropPlacement, type RoomDefinition } from "./room";
 import { buildRoom, pieceOf, roomTile } from "./stage";
 
 /*
@@ -14,7 +14,9 @@ import { buildRoom, pieceOf, roomTile } from "./stage";
  *   piece may stand into the dressing (skirting, wainscot, casings), which
  *   it hides. Light (beams and pools, which write no depth) is not solid.
  * - A standing spot a figure can't walk to from the doors, one crowding
- *   another, or one standing in a doorway's lane (see `floorPlan`).
+ *   another, or one standing in a doorway's lane (see `floorPlan`), and a
+ *   walk the house makes across the room that a figure's base can't follow
+ *   (see `walkFindings`).
  * - Two faces of different look lying in one plane, facing the same way and
  *   sharing area, which z-fight. A face buried in a solid (a foot on the
  *   floor, a back against a wall, a joint inside a neighbour), or turned
@@ -46,13 +48,12 @@ const FIGHT_AREA = 1e-4;
 const SPOT_CLEAR = 0.45;
 /** The radius of a figure's base (`figureBase`): a walker needs this much clear floor round it. */
 const BASE_RADIUS = 0.36;
-/** Anything solid between these heights blocks a walker: lower, it is stepped over; higher, walked under. */
-const STEP = 0.05;
+/** Anything solid between these heights blocks a walker: lower (scree, bones
+ *  trodden flat), it is stepped over; higher, walked under. */
+const STEP = 0.07;
 const HEAD = 1.8;
 /** The floor plan's grid, in metres. */
 const CELL = 0.05;
-/** How far into the room the house lines a walker up with a doorway. */
-const DOOR_APPROACH = 0.8;
 
 /** What a solid or face belongs to: a prop, part of the shell, or a keep-clear zone. */
 interface Owner {
@@ -689,6 +690,61 @@ function spotFindings(def: RoomDefinition, plan: FloorPlan): Finding[] {
   return findings;
 }
 
+type Point3 = readonly [x: number, y: number, z: number];
+
+/** Where a walk across the room starts or ends; a doorway's walk carries on `out` through it. */
+interface WalkEnd {
+  name: string;
+  at: Point3;
+  out?: Point3;
+}
+
+/**
+ * The walks the house makes across the room that are blocked: from each
+ * standing spot to each doorway and the foot of each stair, and from each of
+ * those to every other, by the room's own `waypoints`. A walk is clear where
+ * a figure's base fits at every step of it; along the crossing, the floor's
+ * openings (a gulf bridged) don't count.
+ */
+function walkFindings(def: RoomDefinition, plan: FloorPlan, bridged: FloorPlan): Finding[] {
+  const crossing = new Set<Point3>(def.crossing ?? []);
+  const ends: WalkEnd[] = [
+    ...entrances(def).map(({ edge }) => {
+      const [x, z] = edgePoint(edge, DOOR_APPROACH);
+      const [ox, oz] = edgePoint(edge, 0);
+      return { name: `the doorway ${edge}`, at: [x, 0, z] as Point3, out: [ox, 0, oz] as Point3 };
+    }),
+    ...Object.entries(def.stairs ?? {}).map(([toward, run]) => ({ name: `the stair to ${toward}`, at: run[0] })),
+  ];
+  const spots = standingSpots(def).map(([x, z], slot) => ({ name: `standing spot ${slot + 1}`, at: [x, 0, z] as Point3 }));
+  const findings: Finding[] = [];
+  const blockedAt = (a: Point3, b: Point3, floor: FloorPlan): [number, number] | null => {
+    const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) / (CELL / 2)));
+    for (let k = 0; k <= steps; k++) {
+      const [x, z] = [a[0] + ((b[0] - a[0]) * k) / steps, a[2] + ((b[2] - a[2]) * k) / steps];
+      if (floor.clearance[floor.cellAt(x, z)] < BASE_RADIUS) return [x, z];
+    }
+    return null;
+  };
+  const walk = (from: WalkEnd, to: WalkEnd) => {
+    const path = [...(from.out ? [from.out] : []), from.at, ...waypoints(def, from.at, to.at), to.at, ...(to.out ? [to.out] : [])];
+    for (let i = 1; i < path.length; i++) {
+      const across = crossing.has(path[i - 1]) && crossing.has(path[i]);
+      const at = blockedAt(path[i - 1], path[i], across ? bridged : plan);
+      if (at) {
+        const key = `the walk from ${from.name} to ${to.name} is blocked`;
+        findings.push({ key, text: `${key} at (${at[0].toFixed(2)}, ${at[1].toFixed(2)})` });
+        return;
+      }
+    }
+  };
+  for (const spot of spots) for (const end of ends) walk(spot, end);
+  ends.forEach((end, i) => {
+    for (const other of ends.slice(i + 1)) walk(end, other);
+  });
+  return findings;
+}
+
 /** The largest circle of the room's own floor a figure can walk to: its
  *  centre, and how far it is from anything blocked or the edge of the floor
  *  (an open passage leads on into the next room, which isn't this room's). */
@@ -802,8 +858,11 @@ export function checkRoom(def: RoomDefinition, at = 2): OverlapReport {
   const unusedContacts = def.props.flatMap((prop) =>
     (prop.contacts ?? []).map((contact) => `${pieceLabel(prop)} with ${contact.with}`).filter((contact) => !used.has(contact)),
   );
-  const plan = floorPlan(def, solids.filter((part) => part.owner.kind === "prop" || (part.body && part.owner.name !== "floor")));
+  const blockers = solids.filter((part) => part.owner.kind === "prop" || (part.body && part.owner.name !== "floor"));
+  const plan = floorPlan(def, blockers);
   findings.push(...spotFindings(def, plan));
+  const bridged = def.crossing ? floorPlan({ ...def, floorOpenings: [] }, blockers) : plan;
+  findings.push(...walkFindings(def, plan, bridged));
   room.dispose();
   return { findings, accepted, unusedContacts, openFloor: openFloor(plan) };
 }

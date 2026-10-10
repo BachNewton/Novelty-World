@@ -45,6 +45,8 @@ const EASE_RATE = 6;
 const PAN_MARGIN = TILE / 2;
 /** The reticle snaps to a choice this close to the screen's centre, in CSS pixels. */
 const RETICLE_SNAP = FINGER;
+/** The gap kept between a tag pinned in the house and the screen's edge, in CSS pixels. */
+const SCREEN_MARGIN = 8;
 
 /** A figure in the house: who it is, how it is built, and where it stands at
  *  rest: a room, and its place there (0 the pawn spot, 1 beside it). */
@@ -118,8 +120,10 @@ export interface SceneInput {
    *  right, a tap on it) turn the ghost instead of
    *  the camera or the selection. */
   rotate?: (step: 1 | -1) => void;
-  /** Offered every pad button press before the house: true when it was taken. */
-  padButton?: (button: StandardButton) => boolean;
+  /** Offered every pad button press before the house, from any pad: true when it was taken. */
+  padButton?: (button: StandardButton, pad: number) => boolean;
+  /** Whether a pad may act now; an idle pad's sticks and buttons are ignored. Every pad may when absent. */
+  padMay?: (pad: number) => boolean;
 }
 
 /** What one frame cost to draw, for measuring. */
@@ -418,8 +422,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const old = figures.get(spec.id);
       figures.set(spec.id, { ...spec });
       if (!house) continue;
-      if (!old) placeFigure(house, spec);
-      else if ((old.room !== spec.room || old.slot !== spec.slot || old.side !== spec.side) && !walking.has(spec.id)) house.stand(spec.id, house.spot(spec.room, spec.slot, spec.side));
+      if (!old || walking.has(spec.id)) {
+        if (!old) placeFigure(house, spec);
+      } else if (old.room === spec.room && old.side && spec.side && old.side !== spec.side) {
+        // Crossing a barrier is an action, not a move, so no route walks it: the figure walks across its room.
+        void play({ kind: "walk", figure: spec.id, route: [spec.room], slot: spec.slot, side: spec.side });
+      } else if (old.room !== spec.room || old.slot !== spec.slot || old.side !== spec.side) house.stand(spec.id, house.spot(spec.room, spec.slot, spec.side));
     }
     mounted?.sync();
   }
@@ -488,7 +496,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
             resolve();
             return;
           }
-          const walk: Walk = { path: walkPath(layout, beat.route, house.figureAt(beat.figure), house.spot(destination, beat.slot, beat.side), stairway), start: seconds, pace: beat.pace };
+          const walk: Walk = { path: walkPath(layout, beat.route, house.figureAt(beat.figure), house.spot(destination, beat.slot, beat.side), definition), start: seconds, pace: beat.pace };
           house.walk(beat.figure, walk);
           start(
             () => walkPose(walk, seconds).done,
@@ -760,6 +768,16 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       return raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -level()), new THREE.Vector3());
     };
 
+    /** Centres an element over a point on the screen, raised by `lift` of its
+     *  own height (lowered, below zero), but never past the screen's edges:
+     *  a target near one would carry its tag off it. */
+    const pin = (element: HTMLElement, at: Point, lift: number) => {
+      const { offsetWidth: width, offsetHeight: height } = element;
+      const x = Math.max(SCREEN_MARGIN, Math.min(at.x - width / 2, container.clientWidth - width - SCREEN_MARGIN));
+      const y = Math.max(SCREEN_MARGIN, Math.min(at.y - height * lift, container.clientHeight - height - SCREEN_MARGIN));
+      element.style.transform = `translate(${x}px, ${y}px)`;
+    };
+
     const project = (point: THREE.Vector3): Point | null => {
       const ndc = point.clone().project(lens);
       if (ndc.z > 1) return null;
@@ -804,7 +822,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       },
       rotating: turning,
       rotate: (step) => input.rotate?.(step),
-      padButton: (button) => input.padButton?.(button) ?? false,
+      padButton: (button, pad) => input.padButton?.(button, pad) ?? false,
+      padMay: (pad) => input.padMay?.(pad) ?? true,
       back: () => {
         // Backing out of a jump stops the camera where it is, so the choice the reticle is passed over is the one it is on now.
         if (pinned !== null && aim) aimGoal = aim.clone();
@@ -901,7 +920,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const going = targets.find((target) => target.id === focused);
       const routed = offering && (going?.kind === "room" || going?.kind === "doorway") ? going : null;
       const end = routed && routeEnd(layout, routed, house.spot);
-      house.showRoute(routed?.route && end ? walkPath(layout, routed.route.rooms, house.figureAt(routed.route.figure), end, stairway) : null);
+      house.showRoute(routed?.route && end ? walkPath(layout, routed.route.rooms, house.figureAt(routed.route.figure), end, definition) : null);
       settled = false;
     };
 
@@ -992,12 +1011,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           const place = view.showMarks && !walkingNow() ? placesOf(house).find(({ id }) => id === focused)?.place : undefined;
           const at = focused !== null && focused === ghost ? ghostSpan && { x: ghostSpan.middle, y: ghostSpan.top } : place ? project(place.anchor) : null;
           label.style.visibility = at ? "visible" : "hidden";
-          if (at) label.style.transform = `translate(${at.x}px, ${at.y}px) translate(-50%, -150%)`;
+          if (at) pin(label, at, 1.5);
         }
         if (ghostHandles) {
           const at = ghostSpan && !usesReticle(view.input) ? { x: ghostSpan.middle, y: ghostSpan.bottom } : null;
           ghostHandles.style.visibility = at ? "visible" : "hidden";
-          if (at) ghostHandles.style.transform = `translate(${at.x}px, ${at.y}px) translate(-50%, 25%)`;
+          if (at) pin(ghostHandles, at, -0.25);
         }
       },
       onResize: () => {
@@ -1029,6 +1048,10 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     /** Who hears the player focus, commit and confirm. */
     setInput: (next: SceneInput) => {
       input = next;
+    },
+    /** Sets the input the hints are for, as using it would: hot-seat restores the acting seat's own. */
+    setInputKind: (kind: InputKind) => {
+      if (kind !== view.input) update({ input: kind });
     },
     resolutions: RESOLUTIONS,
     zoomRange: ZOOM_RANGE,

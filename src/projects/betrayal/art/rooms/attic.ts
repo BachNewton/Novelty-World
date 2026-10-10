@@ -134,4 +134,9 @@ export const ATTIC: RoomDefinition = {
   focus: [-0.8, 0.2, 0.2],
   pawn: [0.0, 0.3],
   spots: [[-0.3, 1.45], [0.3, -0.7], [-1.35, -1.85], [1.4, -1.0], [0.45, -1.9]],
+  // Up the gap between the trunks, then along under the eaves.
+  lanes: [
+    [[0, 2.2], [0, -1.1], [-0.1, -1.6], [-0.5, -2.1], [-1.4, -2.1]],
+    [[0, -1.1], [1.5, -1.1]],
+  ],
 };

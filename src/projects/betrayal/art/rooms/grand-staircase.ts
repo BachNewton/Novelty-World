@@ -215,6 +215,11 @@ export const GRAND_STAIRCASE: RoomDefinition = {
   focus: [0.4, 1.0, -1.6],
   pawn: [1.2, 0.5],
   spots: [[0.45, 0.15], [0.55, 1.05], [-0.2, 0.7], [-0.3, -0.2], [0.4, -0.75]],
+  // Across the hall from the doorway, and round the newel to the foot of the stair.
+  lanes: [
+    [[2.2, 0], [1.5, 0], [-1.5, 0]],
+    [[1.5, 0], [1.95, -0.8], [STAIR.foot + 0.8, STAIR_MID]],
+  ],
   // Up the middle of the carpet, over the middle of each tread, into the dark above.
   stairs: {
     "upper-landing": [

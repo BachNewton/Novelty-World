@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { chamberstick, cobweb, pictureFrame, pitHaze, pitShell, table } from "../kit";
 import { crossCorners } from "../kit/wall-mass";
 import { RAMPS, type PaletteKey } from "../palette";
-import { INNER, type RoomDefinition } from "../room";
+import { crossLanes, INNER, type RoomDefinition } from "../room";
 import { batch, box, glow, group } from "../shapes";
 import { panelling, wallpaper, woodPlanks } from "../textures";
 
@@ -151,4 +151,5 @@ export const CREAKY_HALLWAY: RoomDefinition = {
   focus: [0.6, 0.4, 1.2],
   pawn: [-0.5, 0.45],
   spots: [[0.5, -0.5], [-0.55, -0.55], [0.55, 0.5], [-1.8, 0.45], [0.5, -1.8]],
+  lanes: crossLanes(),
 };

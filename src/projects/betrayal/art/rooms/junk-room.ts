@@ -4,7 +4,7 @@ import { cask, chair, chamberstick, crate, table } from "../kit";
 import { trunk } from "../kit/trunk";
 import { lightAnchor } from "../light-anchor";
 import { RAMPS, type PaletteKey } from "../palette";
-import { onWall, type RoomDefinition } from "../room";
+import { crossLanes, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group } from "../shapes";
 import { panelling, wallpaper, woodPlanks } from "../textures";
 
@@ -220,4 +220,6 @@ export const JUNK_ROOM: RoomDefinition = {
   focus: [-1.4, 0.8, -1.4],
   pawn: [0.75, 0.7],
   spots: [[-0.75, 0.7], [0.75, -0.75], [-0.75, -0.75], [0.0, 0.0], [1.55, 0.05]],
+  // Doorway to doorway through the middle, clear of the heaps.
+  lanes: crossLanes(),
 };

@@ -179,4 +179,6 @@ export const STATUARY_CORRIDOR: RoomDefinition = {
   focus: [0.4, 1.0, -0.4],
   pawn: [-0.45, 0.95],
   spots: [[0.4, 1.55], [-0.5, -0.15], [0.3, 0.75], [-0.45, -1.3], [0.25, -1.75]],
+  // Past the statue.
+  lanes: [[[0, -2.2], [-0.4, -1.0], [-0.4, 0.8], [0, 2.2]]],
 };

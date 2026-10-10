@@ -212,4 +212,9 @@ export const TOWER: RoomDefinition = {
   focus: [0, 0.6, -0.6],
   pawn: [-1.5, -1.0],
   spots: [[1.5, 1.0], [-1.55, 1.1], [1.5, -1.05], [-1.6, 2.15], [1.6, -2.15]],
+  // Over the rubble through the saddle, where the scree lies flat.
+  crossing: [
+    [-(RAMPART + 0.6), 0, 0],
+    [RAMPART + 0.6, 0, 0],
+  ],
 };

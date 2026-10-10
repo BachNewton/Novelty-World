@@ -260,4 +260,11 @@ export const CHASM: RoomDefinition = {
   focus: [0, 0.3, 0],
   pawn: [-1.6, -0.3],
   spots: [[1.6, -0.2], [-1.75, -1.2], [1.9, -1.05], [-1.7, 0.75], [1.7, 0.95]],
+  // Over the bridge, down the middle of its deck, from the floor at one end to the other.
+  crossing: [
+    [-1.6, 0, 0],
+    [SPAN[0] - 0.3, DECK, 0],
+    [SPAN[1] + 0.3, DECK, 0],
+    [1.6, 0, 0],
+  ],
 };

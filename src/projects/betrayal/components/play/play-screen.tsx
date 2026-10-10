@@ -243,7 +243,8 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
       <div ref={containerRef} className="absolute inset-0" />
       <div
         ref={labelRef}
-        className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm whitespace-nowrap"
+        role="tooltip"
+        className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm w-max max-w-[calc(100%-1rem)]"
       >
         {focusedTarget?.label}
         {preview && <span className="ml-1.5 text-xs text-(--bt-muted)">· {costText(preview)}</span>}

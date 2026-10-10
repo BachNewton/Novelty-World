@@ -67,6 +67,12 @@ const DISCOVERY_WARNINGS: Omit<RouteWarning, "room">[] = [
   { rule: { source: "rulebook", page: 6 }, event: "movement-ended" },
 ];
 
+/** A move or a discovery: the only answers a route is made of, so the only ones worth trying. */
+const isStep = (candidate: unknown) => {
+  const act = (candidate as TurnChoice).act;
+  return act === "move" || act === "discover";
+};
+
 const placeKey = (place: Place) => `${place.room}|${place.side ?? ""}`;
 
 function movementLeft(engine: Engine, state: GameState, figure: FigureId): number {
@@ -156,7 +162,7 @@ function search(engine: Engine, start: GameState, seat: number, figure: FigureId
     const id = (here.pending as { id: string }).id;
     if (barrierSides(engine, node.place.room).length > 0) addWarning(node.ahead, { room: node.place.room, rule: { source: "room", room: node.place.room }, event: null });
     const cost = moveCost(engine, here, figure);
-    for (const { choice, label } of choices(engine, here, seat)) {
+    for (const { choice, label } of choices(engine, here, seat, isStep)) {
       const turn = choice as TurnChoice;
       const action: Action = { kind: "choose", decision: id, seat, choice };
       if (turn.act === "discover") {
