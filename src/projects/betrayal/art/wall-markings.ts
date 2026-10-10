@@ -5,9 +5,16 @@ import { CUT_HEIGHT, DOOR_HEIGHT, WALL_THICKNESS } from "./room";
 import { batch, box, glow, group, lightMaterial, type Batch } from "./shapes";
 
 /*
- * The pieces the stage adds to a wall for the cutaway markings (see
- * `markings.ts`), each built in the wall's own frame as `buildWall` builds a
- * wall: x along it, y up, and its inner face at z = `FACE`, towards the room.
+ * The cutaway markings: how a wall's meaning to the rules survives being cut
+ * down to its stub (see "Walls under the cutaway" in design/presentation.md).
+ * A real door shows as a gap with a lit threshold; a window as glass on the
+ * stub's cap with its pool of light on the floor; a false door or window, one
+ * against a neighbour's wall, boarded up. The stub's cap takes a colour of
+ * its own.
+ *
+ * These are the pieces the stage adds to a wall for them, each built in the
+ * wall's own frame as `buildWall` builds a wall: x along it, y up, and its
+ * inner face at z = `FACE`, towards the room.
  * Stub pieces stand on the cut-down wall and show only while it is cut; floor
  * pieces lie in front of it and show whatever the wall does.
  */
@@ -25,14 +32,11 @@ const FACE = WALL_THICKNESS / 2;
 export const STUB_CAP: PaletteKey = "stoneLight";
 /** A real doorway's threshold: a strip of warm light across the floor through the wall, reaching a little into the room. */
 const THRESHOLD = { colour: "amber", opacity: 0.5, into: 0.08, lift: 0.012 } as const;
-/** A false door's threshold, in front of its stub: a dark patch on the floor with a red cross on it. */
-const BLOCKED = { depth: 0.5, from: 0.08, shade: 0.7, cross: "scarlet", crossOpacity: 0.85, bar: 0.06, lift: 0.014 } as const;
-/** The frame on a stub's cap round a window's strip, and the glass or boards inside it. */
-const CAP_FRAME = { rail: 0.04, height: 0.03, sink: 0.005 } as const;
+/** The frame on a stub's cap round a window's strip, and the glass or boards inside it: sunk a little into the cap, and set in a
+ *  little from the stub's faces, so its sunk foot never shares their planes. */
+const CAP_FRAME = { rail: 0.04, height: 0.03, sink: 0.005, inset: 0.002 } as const;
 /** Boards nailed across a false opening, standing clear of the casings in front of it. */
 const BOARD = { thickness: 0.03, standOff: 0.09, height: 0.17, overhang: 0.14 } as const;
-/** A false door drawn on an unbroken stub: a dashed outline of the doorway on its cap, standing a centimetre proud of it. */
-const OUTLINE = { line: 0.05, dash: 0.1, gap: 0.06, colour: "soot", lift: 0.01, height: 0.02 } as const;
 
 function lit(colour: PaletteKey, opacity: number): THREE.MeshBasicMaterial {
   const material = lightMaterial(opacity);
@@ -51,22 +55,6 @@ function flatPatch(width: number, depth: number, x: number, z: number, y: number
 export function litThreshold(door: WallOpening): THREE.Mesh {
   const depth = WALL_THICKNESS + THRESHOLD.into;
   return flatPatch(door.width, depth, door.centre, -FACE + depth / 2, THRESHOLD.lift, lit(THRESHOLD.colour, THRESHOLD.opacity));
-}
-
-/** A false door's threshold, on the floor in front of its wall: a dark patch, crossed in red. */
-export function crossedThreshold(door: WallOpening): THREE.Group {
-  const z = FACE + BLOCKED.from + BLOCKED.depth / 2;
-  const shade = new THREE.MeshBasicMaterial({ color: paletteHex("void"), transparent: true, opacity: BLOCKED.shade, depthWrite: false });
-  const red = lit(BLOCKED.cross, BLOCKED.crossOpacity);
-  const span = Math.hypot(door.width, BLOCKED.depth) - BLOCKED.bar * 2;
-  const bar = (angle: number) => {
-    const mesh = flatPatch(BLOCKED.bar, span, 0, 0, 0, red);
-    mesh.rotation.y = angle;
-    mesh.position.set(door.centre, BLOCKED.lift, z);
-    return mesh;
-  };
-  const slant = Math.atan2(door.width, BLOCKED.depth);
-  return group(flatPatch(door.width, BLOCKED.depth, door.centre, z, BLOCKED.lift - 0.002, shade), bar(slant), bar(-slant));
 }
 
 /** A window's own pool of light on the floor, falling straight out of it into the room. */
@@ -93,13 +81,13 @@ function capBoards(width: number, depth: number, x: number, y: number): THREE.Me
 
 /** The frame on the stub's cap above a window, and what fills it: glass for a real window, boards for a false one. */
 export function capWindow(window: WallOpening, trim: THREE.Material, blocked: boolean): THREE.Group {
-  const { rail, height, sink } = CAP_FRAME;
+  const { rail, height, sink, inset } = CAP_FRAME;
   const y = CUT_HEIGHT - sink;
   const x = window.centre;
-  const inner = WALL_THICKNESS - rail * 2;
+  const inner = WALL_THICKNESS - (rail + inset) * 2;
   const frame = group(
-    box([window.width + rail * 2, height, rail], trim, [x, y, -FACE + rail / 2]),
-    box([window.width + rail * 2, height, rail], trim, [x, y, FACE - rail / 2]),
+    box([window.width + rail * 2, height, rail], trim, [x, y, -FACE + inset + rail / 2]),
+    box([window.width + rail * 2, height, rail], trim, [x, y, FACE - inset - rail / 2]),
     box([rail, height, inner], trim, [x - window.width / 2 - rail / 2, y, 0]),
     box([rail, height, inner], trim, [x + window.width / 2 + rail / 2, y, 0]),
   );
@@ -141,23 +129,4 @@ export function boardedDoor(door: WallOpening, height: number): THREE.Group {
   const matrix = new THREE.Matrix4().compose(new THREE.Vector3(door.centre, 0.3 + rise / 2, 0.065), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.atan2(rise, run))), new THREE.Vector3(1, 1, 1));
   boards.add([Math.hypot(run, rise), 0.14, 0.03], "wood", matrix);
   return group(boards.mesh());
-}
-
-/** A false door drawn on an unbroken stub: the stub carried across the doorway, with the doorway dashed out on its cap. */
-export function outlinedDoor(door: WallOpening, wall: THREE.Material[]): THREE.Group {
-  const infill = box([door.width, CUT_HEIGHT, WALL_THICKNESS], wall, [door.centre, 0, 0]);
-  infill.userData.body = true;
-  const dashes = batch();
-  const y = CUT_HEIGHT - OUTLINE.height + OUTLINE.lift;
-  const inset = OUTLINE.line / 2 + 0.01;
-  for (const z of [-FACE + inset, FACE - inset]) {
-    for (let x = -door.width / 2; x < door.width / 2; x += OUTLINE.dash + OUTLINE.gap) {
-      const length = Math.min(OUTLINE.dash, door.width / 2 - x);
-      dashes.block([length, OUTLINE.height, OUTLINE.line], OUTLINE.colour, [door.centre + x + length / 2, y, z]);
-    }
-  }
-  for (const x of [-door.width / 2 + inset, door.width / 2 - inset]) {
-    dashes.block([OUTLINE.line, OUTLINE.height, WALL_THICKNESS - inset * 2 - OUTLINE.line], OUTLINE.colour, [door.centre + x, y, 0]);
-  }
-  return group(infill, dashes.mesh());
 }

@@ -123,7 +123,8 @@ function coatStand(): THREE.Group {
   const wood = flat("woodDark");
   const result = group(
     box([0.5, 0.05, 0.08], wood, [0, 0, 0]),
-    box([0.08, 0.05, 0.5], wood, [0, 0, 0]),
+    // A little lower than the foot it crosses, so their tops never share a plane.
+    box([0.08, 0.045, 0.5], wood, [0, 0, 0]),
     cylinder(0.035, 1.8, wood, [0, 0.05, 0], { sides: 6 }),
     cylinder(0.06, 0.06, flat("woodMid"), [0, 1.85, 0], { top: 0, sides: 6 }),
   );
@@ -139,7 +140,7 @@ function coatStand(): THREE.Group {
   coat.block([0.42, 0.95, 0.16], "bruiseDark", [0, 0.5, 0.15]);
   coat.block([0.1, 0.8, 0.1], "bruise", [-0.17, 0.62, 0.19]);
   coat.block([0.1, 0.8, 0.1], "bruise", [0.17, 0.62, 0.19]);
-  coat.block([0.04, 0.9, 0.02], "void", [0, 0.55, 0.235]);
+  coat.block([0.04, 0.89, 0.02], "void", [0, 0.55, 0.235]);
   result.add(coat.mesh());
   const hat = group(cylinder(0.17, 0.015, flat("soot"), [0, 0, 0], { sides: 10 }), cylinder(0.1, 0.13, flat("soot"), [0, 0.015, 0], { sides: 10 }));
   hat.position.set(-0.15, 1.72, -0.1);
@@ -168,7 +169,8 @@ function deadPalm(): THREE.Group {
       .multiply(new THREE.Matrix4().makeTranslation(0, 0.4, 0))
       .multiply(new THREE.Matrix4().makeRotationZ(-0.9 - tilt * 0.3))
       .multiply(new THREE.Matrix4().makeTranslation(0, 0.2, 0));
-    fronds.add([0.09, 0.42, 0.015], colour, tip);
+    // A little thinner than the stem it bends from, so their faces never share a plane where they overlap.
+    fronds.add([0.09, 0.42, 0.011], colour, tip);
   });
   result.add(fronds.mesh());
   return result;

@@ -21,6 +21,23 @@ export const WAINSCOT_HEIGHT = 1.0;
  *  against a wall must not put a face in this plane, or the two fight. */
 export const WAINSCOT_DEPTH = 0.03;
 /**
+ * The heights of the house's choice marks: flat glows over the floor that
+ * draw no depth (the fill of a room or doorway offered as a choice, the ring
+ * round a figure, and the border). A room keeps its faces out of these planes,
+ * or they fight the glow; `clearOfMarks` moves a height clear of them.
+ */
+export const MARK_PLANES = { fill: 0.03, ring: 0.035, edge: 0.05 } as const;
+/** How far clear of a mark's plane `clearOfMarks` moves a height. */
+const MARK_CLEAR = 0.0015;
+
+/** A height, or the nearest one clear of the choice marks' planes. */
+export function clearOfMarks(y: number): number {
+  for (const plane of Object.values(MARK_PLANES)) {
+    if (Math.abs(y - plane) < MARK_CLEAR) return y < plane ? plane - MARK_CLEAR : plane + MARK_CLEAR;
+  }
+  return y;
+}
+/**
  * An outdoor tile (the tile data's `outside`) has no walls and no ceiling.
  * Its edges are a low wall of the room's `wall` surface, exactly the cut
  * height tall so cutting it changes nothing, with iron railings of its

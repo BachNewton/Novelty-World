@@ -63,13 +63,20 @@ interface Strip {
 }
 
 /** A strip of dressing along one side of a box, between two heights, wrapping
- *  round its free corners and stopping at the walls. Built in room metres. */
-function strip(side: MassSide, [x0, x1]: [number, number], [z0, z1]: [number, number], { y0, y1, depth, material }: Strip, wrap: boolean): THREE.Mesh {
+ *  round its free corners and stopping at the walls, against the face of the
+ *  wall's own dressing of that depth. Built in room metres. At a corner where
+ *  both sides are dressed, the ±x side's strip wraps round it and the ±z
+ *  side's stops at the box's corner, so the two never overlap in one plane. */
+function strip(side: MassSide, [x0, x1]: [number, number], [z0, z1]: [number, number], { y0, y1, depth, material }: Strip, wrap: boolean, dressed: MassSide[]): THREE.Mesh {
   const atWall = (value: number) => Math.abs(value) >= INNER - 1e-6;
+  const alongX = side === "-z" || side === "+z";
+  /** Whether the ±x side's strip wraps round this strip's end, `out` along x. */
+  const wrapped = (out: 1 | -1) => alongX && dressed.includes(out < 0 ? "-x" : "+x");
   // Unwrapped, each strip stops short of the end by a tenth of its depth, so the ends of strips of different depths never share a plane.
-  const end = (value: number, out: 1 | -1) => (atWall(value) ? value : wrap ? value + out * depth : value - out * depth * 0.1);
+  const end = (value: number, out: 1 | -1) =>
+    atWall(value) ? value - out * depth : !wrap ? value - out * depth * 0.1 : wrapped(out) ? value : value + out * depth;
   const reach = (from: number, to: number): [number, number] => [end(from, -1), end(to, 1)];
-  if (side === "-z" || side === "+z") {
+  if (alongX) {
     const [a, b] = reach(x0, x1);
     const face = side === "-z" ? z0 - depth / 2 : z1 + depth / 2;
     return box([b - a, y1 - y0, depth], material, [(a + b) / 2, y0, face]);
@@ -121,7 +128,7 @@ export function wallMass({ blocks, walls, wall, wainscot, trim, name }: WallMass
     ];
     for (const { y0: a, y1: b, ...rest } of strips) {
       const [lo, hi] = [Math.max(a, y0), Math.min(b, y1)];
-      if (hi - lo > 0.001) for (const side of free) parts.push(strip(side, x, z, { y0: lo, y1: hi, ...rest }, wrap));
+      if (hi - lo > 0.001) for (const side of free) parts.push(strip(side, x, z, { y0: lo, y1: hi, ...rest }, wrap, free));
     }
     return parts;
   };
@@ -132,7 +139,8 @@ export function wallMass({ blocks, walls, wall, wainscot, trim, name }: WallMass
   placements.push({
     build: () => {
       // Built in room metres from the floor up, so its textures carry on from the base's, then lowered onto its placement.
-      const upper = group(...slice(BASE_TOP - 0.001, TOP));
+      // From the base's top, not into it: overlapping, their sides would share a plane and fight.
+      const upper = group(...slice(BASE_TOP, TOP));
       upper.position.y = -CUT_HEIGHT;
       return group(upper);
     },

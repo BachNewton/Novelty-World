@@ -140,8 +140,9 @@ export function pictureFrame({
     picture,
     box([w, border, 0.05], moulding, [0, 0, 0.025]),
     box([w, border, 0.05], moulding, [0, h - border, 0.025]),
-    box([border, h, 0.05], moulding, [-w / 2 + border / 2, 0, 0.025]),
-    box([border, h, 0.05], moulding, [w / 2 - border / 2, 0, 0.025]),
+    // The sides stand between the top and bottom, so no two strips share a face's plane where they meet.
+    box([border, h - border * 2, 0.05], moulding, [-w / 2 + border / 2, border, 0.025]),
+    box([border, h - border * 2, 0.05], moulding, [w / 2 - border / 2, border, 0.025]),
     box([width, height, 0.02], flat("soot"), [0, border, 0.01]),
   );
 }

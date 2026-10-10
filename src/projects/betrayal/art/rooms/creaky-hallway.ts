@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { chamberstick, cobweb, pictureFrame, pitHaze, pitShell, table } from "../kit";
 import { crossCorners } from "../kit/wall-mass";
 import { RAMPS, type PaletteKey } from "../palette";
-import { crossLanes, INNER, type RoomDefinition } from "../room";
+import { clearOfMarks, crossLanes, INNER, type RoomDefinition } from "../room";
 import { batch, box, glow, group } from "../shapes";
 import { panelling, wallpaper, woodPlanks } from "../textures";
 
@@ -55,15 +55,17 @@ function looseBoards(): THREE.Group {
     const z0 = FIRST + k * PITCH;
     for (const [x0, x1] of rowPieces(k)) {
       // Each board is warped: its middle stands a little higher than its ends.
-      const thick = 0.022 + rng.next() * 0.006;
-      const bow = 0.004 + rng.next() * 0.01;
+      // Its top is kept clear of the choice marks' planes, as is its bowed middle's.
+      const thick = clearOfMarks(0.022 + rng.next() * 0.006);
+      const bow = clearOfMarks(thick + 0.004 + rng.next() * 0.01) - thick;
       const pieces = 3;
       const step = (x1 - x0) / pieces;
       for (let p = 0; p < pieces; p++) {
         const lift = p === 1 ? bow : 0;
-        boards.block([step + (p === 1 ? 0.004 : 0), thick + lift, BOARD], shades[Math.floor(rng.next() * shades.length)], [x0 + (p + 0.5) * step, 0, z0 + BOARD / 2]);
+        // The bowed middle overlaps the ends a little, and is a little narrower, so their edges never share a plane.
+        boards.block([step + (p === 1 ? 0.004 : 0), thick + lift, BOARD - (p === 1 ? 0.004 : 0)], shades[Math.floor(rng.next() * shades.length)], [x0 + (p + 0.5) * step, 0, z0 + BOARD / 2]);
       }
-      boards.block([0.03, 0.004, 0.03], "stoneDark", [x0 + 0.06, thick, z0 + 0.05]);
+      boards.block([0.03, clearOfMarks(thick + 0.004) - thick, 0.03], "stoneDark", [x0 + 0.06, thick, z0 + 0.05]);
     }
     // The seam before this row, lit from below, in lengths that fade away from the hole.
     if (k === 0) continue;
@@ -72,9 +74,10 @@ function looseBoards(): THREE.Group {
     const from = Math.max(before[0][0], here[0][0]);
     const to = Math.min(before.at(-1)?.[1] ?? 0, here.at(-1)?.[1] ?? 0);
     const z = z0 - (PITCH - BOARD) / 2;
-    for (let x = from; x < to - 0.01; x += 0.25) {
+    // Every other length a little thinner and narrower, so where two overlap their faces never share a plane.
+    for (let x = from, i = 0; x < to - 0.01; x += 0.25, i++) {
       const end = Math.min(x + 0.25, to);
-      seams.block([end - x + 0.002, 0.003, PITCH - BOARD - 0.006], seamShade((x + end) / 2, z), [(x + end) / 2, 0.006, z]);
+      seams.block([end - x + 0.002, i % 2 ? 0.0015 : 0.003, PITCH - BOARD - (i % 2 ? 0.01 : 0.006)], seamShade((x + end) / 2, z), [(x + end) / 2, 0.006, z]);
     }
   }
   // The seams are their own light, so they take the batch's colours unlit.

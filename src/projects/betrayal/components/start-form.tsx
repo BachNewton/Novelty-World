@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Character } from "../types";
 import type { Scenario } from "../engine/scenario";
 import type { Engine } from "../engine/step-loop";
@@ -159,10 +159,18 @@ export function SeatPickers({
   characters,
   seats,
   onChange,
+  seatExtra,
+  highlighted = null,
+  onSeatFocus,
 }: {
   characters: Character[];
   seats: Seats;
   onChange: (seats: Seats) => void;
+  /** More for a seat's row: its controller, in hot-seat. */
+  seatExtra?: (index: number) => ReactNode;
+  /** The seat a controller's d-pad has highlighted, or null. */
+  highlighted?: number | null;
+  onSeatFocus?: (index: number) => void;
 }) {
   const cardOf = (id: string) => characters.find((c) => c.id === id)?.card;
   const update = (index: number, change: Partial<Seats[number]>) => {
@@ -183,7 +191,12 @@ export function SeatPickers({
           seats.filter((_, i) => i !== index).map((s) => cardOf(s.character)),
         );
         return (
-          <div key={index} className="flex flex-wrap items-center gap-2">
+          <div
+            key={index}
+            data-highlighted={highlighted === index || undefined}
+            className="-mx-1 flex flex-wrap items-center gap-2 rounded px-1 py-0.5 data-highlighted:bg-(--bt-room) data-highlighted:outline-1 data-highlighted:outline-(--bt-accent)"
+            onFocus={() => onSeatFocus?.(index)}
+          >
             <span className="w-14 text-sm text-(--bt-muted)">Seat {index}</span>
             <input
               className={`${FIELD} flex-1`}
@@ -214,6 +227,7 @@ export function SeatPickers({
                 </option>
               ))}
             </select>
+            {seatExtra?.(index)}
           </div>
         );
       })}

@@ -161,3 +161,20 @@ export function group(...children: THREE.Object3D[]): THREE.Group {
   if (children.length) result.add(...children);
   return result;
 }
+
+/** The bounds of everything showing under `root`, in its world's metres. */
+export function shownBounds(root: THREE.Object3D): THREE.Box3 {
+  const bounds = new THREE.Box3();
+  const part = new THREE.Box3();
+  const visit = (object: THREE.Object3D) => {
+    if (!object.visible) return;
+    if (object instanceof THREE.Mesh) {
+      const geometry = object.geometry as THREE.BufferGeometry;
+      if (!geometry.boundingBox) geometry.computeBoundingBox();
+      if (geometry.boundingBox) bounds.union(part.copy(geometry.boundingBox).applyMatrix4(object.matrixWorld));
+    }
+    for (const child of object.children) visit(child);
+  };
+  visit(root);
+  return bounds;
+}

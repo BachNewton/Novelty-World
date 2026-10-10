@@ -121,8 +121,8 @@ function binFace(w: number, h: number, seed: string): THREE.Texture {
 }
 
 /** Bottle racks against a wall, faces of bins: the part from `from` to `to`
- *  metres up. Faces +z. */
-function racks(from: number, to: number): THREE.Group {
+ *  metres up, standing on `base` (`from` by default). Faces +z. */
+function racks(from: number, to: number, base = from): THREE.Group {
   const h = to - from;
   const face = textured(binFace(RACK.length, h, `wine-cellar:bins:${from}`));
   const wood = flat("soot");
@@ -131,7 +131,8 @@ function racks(from: number, to: number): THREE.Group {
   for (const x of [-RACK.length / 2 + 0.03, -RACK.length / 6, RACK.length / 6, RACK.length / 2 - 0.03]) {
     result.add(box([0.1, h, RACK.depth + 0.04], flat("woodDark"), [x, 0, RACK.depth / 2 + 0.02]));
   }
-  return result;
+  result.position.y = from - base;
+  return group(result);
 }
 
 /** An empty bottle with a candle stub in its neck and wax run down it. */
@@ -198,8 +199,9 @@ export const WINE_CELLAR: RoomDefinition = {
       }),
     ),
     { build: spill, at: [CASK_X + CASK.length / 2 + 0.75, RANK[BURST] - 0.05] },
-    { build: () => racks(0, CUT_HEIGHT), name: "rackBase", ...onWall("right", 0, { out: 0.005 }) },
-    { build: () => racks(CUT_HEIGHT, RACK.top), name: "rackAbove", ...onWall("right", 0, { y: CUT_HEIGHT, out: 0.005 }) },
+    // The base stops a little under the cut wall's top, so the two never share a plane; the part above reaches down to it.
+    { build: () => racks(0, CUT_HEIGHT - 0.005), name: "rackBase", ...onWall("right", 0, { out: 0.005 }) },
+    { build: () => racks(CUT_HEIGHT - 0.005, RACK.top, CUT_HEIGHT), name: "rackAbove", ...onWall("right", 0, { y: CUT_HEIGHT, out: 0.005 }) },
     { build: tastingCask, at: [-1.2, -1.05] },
     { build: () => bottleCandle(true, 0.26, { intensity: 2.2, signal: 3 }), name: "floorCandle", at: [2.22, 1.25] },
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-(INNER - 0.29), -(INNER - 0.29)], y: 3.05, turn: 45, walls: ["left", "top"] },

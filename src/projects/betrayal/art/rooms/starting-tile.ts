@@ -75,7 +75,10 @@ export function runner({ from, to, z = 0, finished = [] }: { from: number; to: n
   const hex = (key: PaletteKey) => paletteHex(key);
   const w = Math.round((to - from) * TEXELS_PER_METRE);
   const h = Math.round(RUNNER_WIDTH * TEXELS_PER_METRE);
-  const origin = Math.round((from + TILE / 2) * TEXELS_PER_METRE);
+  // Rounded to whole texels, it keeps the end at the tile's edge where it is, so it never reaches into the next room's
+  // piece and lies in its plane there.
+  const start = to >= TILE / 2 - 1e-6 ? to - w / TEXELS_PER_METRE : from;
+  const origin = Math.round((start + TILE / 2) * TEXELS_PER_METRE);
   const x0 = finished.includes("from") ? FRINGE : 0;
   const x1 = finished.includes("to") ? w - FRINGE : w;
   const body = (x: number, y: number, width: number, height: number, key: PaletteKey) => {
@@ -113,7 +116,7 @@ export function runner({ from, to, z = 0, finished = [] }: { from: number; to: n
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges">${parts.join("")}</svg>`;
   const geometry = new THREE.PlaneGeometry(w / TEXELS_PER_METRE, h / TEXELS_PER_METRE);
   geometry.rotateX(-Math.PI / 2);
-  geometry.translate(from + w / TEXELS_PER_METRE / 2, 0.006, z);
+  geometry.translate(start + w / TEXELS_PER_METRE / 2, 0.006, z);
   const mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ map: svgTexture(svg, w, h), alphaTest: 0.5 }));
   mesh.receiveShadow = true;
   return mesh;

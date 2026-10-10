@@ -45,8 +45,9 @@ export function table({
     const end = length / 2 + 0.01;
     result.add(
       box([end * 2 + 0.01, 0.005, width * 0.45], cloth, [0, height, 0]),
-      box([0.01, 0.185, width * 0.45], cloth, [end, height - 0.18, 0]),
-      box([0.01, 0.185, width * 0.45], cloth, [-end, height - 0.18, 0]),
+      // The hanging ends stop under the laid cloth, so their tops never share its plane.
+      box([0.01, 0.18, width * 0.45], cloth, [end, height - 0.18, 0]),
+      box([0.01, 0.18, width * 0.45], cloth, [-end, height - 0.18, 0]),
     );
   }
   return result;
@@ -68,7 +69,8 @@ export function chair({ wood = RAMPS.wood, cushion = "blood", back = 1.15 }: Cha
   const size = 0.46;
   const leg = 0.05;
   const half = size / 2 - leg / 2;
-  const result = group(box([size, 0.04, size], frame, [0, seat - 0.04, 0]));
+  // The seat sits a hair inside the posts' outer faces, so its edges never share their planes.
+  const result = group(box([size - 0.004, 0.04, size - 0.004], frame, [0, seat - 0.04, 0]));
   for (const [x, z] of [[-half, half], [half, half]]) {
     result.add(box([leg, seat - 0.04, leg], frame, [x, 0, z]));
   }

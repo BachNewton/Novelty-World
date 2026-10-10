@@ -27,7 +27,7 @@ function drape(b: Batch, [w, h, d]: [number, number, number], [x, y, z]: [number
   if (skirt && y === 0) b.block([w + 0.05, 0.14, d + 0.05], "boneDark", [x, 0, z]);
   for (const along of [-0.3, 0.12, 0.36]) {
     b.block([0.035, h * 0.7, 0.02], "boneLight", [x + along * w, y + h * 0.05, z + d / 2 + 0.008]);
-    b.block([0.02, h * 0.6, 0.035], "boneDark", [x + w / 2 + 0.008, y + h * 0.1, z + along * d]);
+    b.block([0.02, h * 0.6, 0.03], "boneDark", [x + w / 2 + 0.008, y + h * 0.1, z + along * d]);
   }
 }
 
@@ -66,10 +66,11 @@ function sheetedBench(): THREE.Group {
 /** A dust sheet that has slid off the chair beside it into a heap on the floor. */
 function fallenSheet(): THREE.Group {
   const b = batch();
-  b.block([0.62, 0.05, 0.44], "bone", [0, 0, 0]);
+  // Its folds' tops stay out of the planes of the house's choice glow, which they would fight.
+  b.block([0.62, 0.048, 0.44], "bone", [0, 0, 0]);
   b.block([0.4, 0.09, 0.3], "boneLight", [0.06, 0.04, -0.03]);
   b.block([0.22, 0.12, 0.2], "bone", [-0.12, 0.08, 0.04]);
-  b.block([0.5, 0.03, 0.12], "boneDark", [0.02, 0, 0.26]);
+  b.block([0.5, 0.027, 0.12], "boneDark", [0.02, 0, 0.26]);
   return group(b.mesh());
 }
 

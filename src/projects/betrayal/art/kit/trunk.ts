@@ -28,7 +28,7 @@ export function trunk({ size = [0.9, 0.42, 0.5], body = "blood", open = 0 }: Tru
   const lidThick = 0.07;
   const lid = batch();
   lid.block([w + 0.02, lidThick, d + 0.02], body, [0, 0, (d + 0.02) / 2]);
-  for (const x of [-w * 0.3, w * 0.3]) lid.block([0.05, lidThick + 0.006, d + 0.032], "woodDark", [x, -0.003, (d + 0.02) / 2]);
+  for (const x of [-w * 0.3, w * 0.3]) lid.block([0.046, lidThick + 0.006, d + 0.032], "woodDark", [x, -0.003, (d + 0.02) / 2]);
   const top = lid.mesh();
   const hinge = group(top);
   hinge.position.set(0, h, -(d + 0.02) / 2);

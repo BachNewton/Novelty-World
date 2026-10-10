@@ -1,10 +1,12 @@
 import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { ball, ellipsoid, figureMaterial, form, plinth, ring, rod, roughened, roundBox, sculpt, stretched, type Solid } from "../forms";
+import { ball, deforming, ellipsoid, figureMaterial, form, plinth, reshaped, ring, rod, roundBox, sculpt, shaped, solidOf, stretched, type Solid } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, burst, joins, leg, legJoints, legPoints, miniatureHeight, pushAside, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Swept, type Walking } from "./figure";
+import { BASE_TOP, burst, joins, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Swept, type Walking } from "./figure";
+import { heavyCloth, hangsCloth, type ClothTiming } from "./cloth";
 import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm, type ArmPose, type Prop } from "./hands";
+import { skinOf } from "./skin";
 
 /*
  * Father Rhinehardt: a stocky parish priest of 62 who fences and gardens,
@@ -18,6 +20,8 @@ import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holdi
  * Every size is in metres, every height from the floor; each pivot sits at its joint.
  */
 
+const SKIN = skinOf("father-rhinehardt");
+
 /** 5'9" at the miniature's scale. */
 const TOP = BASE_TOP + miniatureHeight(5, 9);
 /** The legs swing from the hips, at the waist. */
@@ -27,6 +31,8 @@ const LEG = WAIST - BASE_TOP;
  *  carries himself upright, as a fencer does. */
 const PRIEST_WALK: Walking = { step: 0.5, hop: 0.012 };
 const ARM_SWING = 0.24;
+/** How far his hips turn against his sway. */
+const HIPS_SWAY = -0.008;
 const NECK = TOP - 0.37;
 const SHOULDER: [number, number] = [0.225, 1.1];
 const UPPER_ARM = 0.27;
@@ -45,17 +51,17 @@ const SHIN = THIGH;
  *  close, receding a little at the temples. */
 function head(): THREE.BufferGeometry {
   const shape = sculpt()
-    .add(rod([0, -0.04, -0.005], [0, 0.11, 0], 0.055, 0.052), "skin")
-    .add(ellipsoid([0, 0.235, -0.01], [0.12, 0.13, 0.13]), "skin", 0.04)
-    .add(ellipsoid([0, 0.15, 0.03], [0.105, 0.1, 0.1]), "skin", 0.05)
-    .add(ellipsoid([0, 0.088, 0.075], [0.048, 0.032, 0.04]), "skin", 0.03)
-    .add(ellipsoid([0, 0.222, 0.1], [0.088, 0.022, 0.032]), "skin", 0.02)
-    .add(rod([0, 0.208, 0.122], [0, 0.158, 0.148], 0.016, 0.023), "skin", 0.014);
+    .add(rod([0, -0.04, -0.005], [0, 0.11, 0], 0.055, 0.052), SKIN)
+    .add(ellipsoid([0, 0.235, -0.01], [0.12, 0.13, 0.13]), SKIN, 0.04)
+    .add(ellipsoid([0, 0.15, 0.03], [0.105, 0.1, 0.1]), SKIN, 0.05)
+    .add(ellipsoid([0, 0.088, 0.075], [0.048, 0.032, 0.04]), SKIN, 0.03)
+    .add(ellipsoid([0, 0.222, 0.1], [0.088, 0.022, 0.032]), SKIN, 0.02)
+    .add(rod([0, 0.208, 0.122], [0, 0.158, 0.148], 0.016, 0.023), SKIN, 0.014);
   for (const side of [-1, 1]) {
     const x = side * 0.043;
     // The jowls, and the ears.
-    shape.add(ellipsoid([side * 0.062, 0.12, 0.065], [0.05, 0.045, 0.05]), "skin", 0.04);
-    shape.add(ellipsoid([side * 0.12, 0.18, -0.005], [0.018, 0.04, 0.027]), "skin", 0.01);
+    shape.add(ellipsoid([side * 0.062, 0.12, 0.065], [0.05, 0.045, 0.05]), SKIN, 0.04);
+    shape.add(ellipsoid([side * 0.12, 0.18, -0.005], [0.018, 0.04, 0.027]), SKIN, 0.01);
     // Eyes sunk under the brow: white, a small dark iris.
     shape.carve(ball([x, 0.19, 0.126], 0.019), { blend: 0.01 });
     shape.add(ball([x, 0.19, 0.108], 0.018), "boneLight");
@@ -63,16 +69,23 @@ function head(): THREE.BufferGeometry {
     // Heavy grey brows.
     shape.add(rod([side * 0.018, 0.226, 0.126], [side * 0.072, 0.232, 0.108], 0.012, 0.01), "stone", 0.006);
   }
-  // Steel-grey hair: a close cap from the hairline over the crown down to the nape.
-  const hairline = (x: number, y: number, z: number) => (0.205 + 0.45 * z - y + 0.25 * Math.max(0, Math.abs(x) - 0.07) * Math.max(0, z)) / 1.1;
-  const crown = ellipsoid([0, 0.24, -0.016], [0.127, 0.135, 0.136]);
+  // Steel-grey hair cropped short and combed flat: a thin, smooth layer tight
+  // to the skull, so the head keeps a head's shape. It is thinnest low at the
+  // sides and the nape, a little fuller on top, and starts high on the brow,
+  // receding further at the temples.
+  const skull = ellipsoid([0, 0.235, -0.01], [0.12, 0.13, 0.13]);
+  const thickness = (y: number) => 0.0025 + 0.004 * THREE.MathUtils.smoothstep(y, 0.2, 0.34);
+  const temples = (x: number, z: number) => 0.4 * Math.max(0, z - 0.02) * Math.exp(-(((Math.abs(x) - 0.07) / 0.03) ** 2));
+  const hairline = (x: number, y: number, z: number) => (0.205 + (z > 0 ? 0.85 : 0.45) * z + temples(x, z) - y) / 1.3;
   const cap: Solid = {
-    distance: (x, y, z) => Math.max(crown.distance(x, y, z), hairline(x, y, z)),
-    min: [-0.13, 0.1, -0.16],
-    max: [0.13, 0.38, 0.13],
+    distance: (x, y, z) => Math.max(skull.distance(x, y, z) - thickness(y), hairline(x, y, z)),
+    min: [-0.13, 0.1, -0.15],
+    max: [0.13, 0.375, 0.13],
   };
   return shape
-    .add(roughened(cap, 0.0015, 0.04), "stone", 0.012)
+    .add(cap, "stone", 0.006)
+    // A neat side parting, on his left.
+    .paint((x, y, z) => (Math.abs(x - 0.04) < 0.0035 && y > 0.3 && z > -0.07 ? -1 : 1), "stoneDark")
     .paint(ellipsoid([0, 0.118, 0.13], [0.026, 0.006, 0.02]), "bloodDark")
     .geometry(0.008);
 }
@@ -153,10 +166,45 @@ function robeHalf(front: boolean): THREE.BufferGeometry {
   return shape.geometry(0.008);
 }
 
-/** How far a point of a radius lies clear in front of a robe half's inside
- *  back, in that half's frame (the front half's, mirrored front to back): a
- *  point beside the robe, above its top or below its hem doesn't press on it. */
-function robeMargin({ x, y, z }: THREE.Vector3, radius: number): number {
+/*
+ * The robe is heavy cloth, so it drapes rather than swinging as a board from
+ * the waist: each half is bent each frame, every height of it moved straight
+ * out (the front forward, the back back) by its own amount, the drape. A leg
+ * pushing the cloth out at some height moves it fully there, less and less
+ * up towards the waist, where it stays put, and on a little further below,
+ * so the hem swings wider than the knee. The robe is heavy wool
+ * (`heavyCloth`): it swings out ahead of a knee, peaks gently, falls back a
+ * little after the leg has gone, and never lets one through.
+ */
+
+/** The heights the drape is worked out at, from the hem up to the top. */
+const DRAPE_ROWS = 48;
+const rowHeight = (row: number) => ROBE.hem + ((ROBE.top - ROBE.hem) * row) / (DRAPE_ROWS - 1);
+/** How sharply the cloth bends in above a pushing leg: 1 is a straight line from the waist. */
+const BEND = 1.6;
+/** How quickly the extra swing below a pushing leg levels off. */
+const SWING = 5;
+/** How far from the cloth a leg starts to move it. */
+const GIVES = 0.03;
+/** How much room the robe leaves round his legs as it swings, so it never comes near to shoving them. */
+const ROBE_ROOM = 0.015;
+/** The robe's weight: it makes room for a leg this long before it arrives, keeps it this long after, and swings smoothly between. */
+const ROBE_SWING: ClothTiming = { ahead: 0.08, behind: 0.12, soften: 0.08 };
+/** How far the robe's back flies out at its hem behind him running. */
+const FLARE = 0.06;
+
+/** How far the cloth at a height moves, as a share of how far a leg pushes it
+ *  out at `at`: bending in from nothing at the waist, and on a little further below. */
+function drape(y: number, at: number): number {
+  const u = Math.max(0, (ROBE.top - y) / (ROBE.top - Math.min(at, ROBE.top - 0.02)));
+  return u <= 1 ? u ** BEND : 1 + (BEND * (1 - Math.exp(-(u - 1) * SWING))) / SWING;
+}
+
+/** How far a point of a radius presses out on the inside back of the back
+ *  half (the front's mirrored front to back) as it hangs, eased in (`gives`):
+ *  positive where the cloth must move out. A point beside the robe, above its
+ *  top or below its hem doesn't press on it. */
+function pressOf({ x, y, z }: THREE.Vector3, radius: number): number {
   // The inside is narrowest without the surplice's layer, and higher up: the narrowest a point's reach meets.
   const { rx, rz } = robeRadii(y + radius, false);
   const [ix, iz] = [rx - ROBE.cloth, rz - ROBE.cloth];
@@ -166,7 +214,84 @@ function robeMargin({ x, y, z }: THREE.Vector3, radius: number): number {
     (1 - THREE.MathUtils.smoothstep(Math.abs(across), 1, 1.3)) *
     THREE.MathUtils.smoothstep(y + radius, ROBE.hem - 0.03, ROBE.hem + 0.01) *
     (1 - THREE.MathUtils.smoothstep(y - radius, ROBE.top - 0.03, ROBE.top));
-  return z - radius - back + (1 - pressing) * 0.5;
+  // A push on a slope reaches the cloth a little sooner than straight back from it.
+  return pressing > 0 ? gives((back + radius - z) * 1.1) * pressing : 0;
+}
+
+/** Eases a push in: nothing until a leg comes within `GIVES` of the cloth, then smoothly up to, and never below, the push itself. */
+function gives(push: number): number {
+  const half = GIVES / 2;
+  if (push <= -half) return 0;
+  return push >= half ? push : (push + half) ** 2 / (2 * GIVES);
+}
+
+/** Adds to `rows` how far each height of a robe half must move out for the points (as the back half sees them). */
+function pushedBy(rows: Float32Array, points: readonly Swept[]) {
+  for (const { at, radius } of points) {
+    const push = pressOf(at, radius);
+    if (push <= 0) continue;
+    for (let row = 0; row < DRAPE_ROWS; row++) rows[row] = Math.max(rows[row], push * drape(rowHeight(row), at.y + radius));
+  }
+}
+
+/** Where a height falls among the drape's rows: the row below it, and how far on to the next. */
+function rowOf(y: number): { row: number; on: number } {
+  const t = THREE.MathUtils.clamp(((y - ROBE.hem) / (ROBE.top - ROBE.hem)) * (DRAPE_ROWS - 1), 0, DRAPE_ROWS - 1.0001);
+  const row = Math.floor(t);
+  return { row, on: t - row };
+}
+const ROW_STEP = (ROBE.top - ROBE.hem) / (DRAPE_ROWS - 1);
+
+/** A robe half that drapes: its own copy of the half's geometry, each height
+ *  moved straight out (+z for the front, −z for the back) by the drape, its
+ *  solid moving with it. */
+function draping(geometry: THREE.BufferGeometry, outwards: 1 | -1) {
+  const base = solidOf(geometry);
+  if (!base) throw new Error("A robe half is sculpted, so it keeps its solid");
+  const moved = geometry.clone();
+  moved.userData = {};
+  const position = moved.getAttribute("position") as THREE.BufferAttribute;
+  const normal = moved.getAttribute("normal") as THREE.BufferAttribute;
+  const [positions, normals] = [position.array as Float32Array, normal.array as Float32Array];
+  const [restZ, restNormalY] = [new Float32Array(position.count), new Float32Array(position.count)];
+  const [rows, ons] = [new Uint8Array(position.count), new Float32Array(position.count)];
+  for (let i = 0; i < position.count; i++) {
+    restZ[i] = positions[i * 3 + 2];
+    restNormalY[i] = normals[i * 3 + 1];
+    const { row, on } = rowOf(positions[i * 3 + 1]);
+    rows[i] = row;
+    ons[i] = on;
+  }
+  const drapes = new Float32Array(DRAPE_ROWS);
+  const outAt = (y: number) => {
+    const { row, on } = rowOf(y);
+    return drapes[row] + (drapes[row + 1] - drapes[row]) * on;
+  };
+  deforming(
+    shaped(moved, {
+      distance: (x, y, z) => base.distance(x, y, z - outwards * outAt(y)),
+      min: [base.min[0], base.min[1], base.min[2] - (outwards < 0 ? 0.4 : 0)],
+      max: [base.max[0], base.max[1], base.max[2] + (outwards > 0 ? 0.4 : 0)],
+    }),
+  );
+  moved.computeBoundingSphere();
+  if (moved.boundingSphere) moved.boundingSphere.radius += 0.4;
+  /** Drapes the half `out`: how far each of the rows, from the hem up, moves out. */
+  const set = (out: Float32Array) => {
+    if (out.every((value, row) => value === drapes[row])) return;
+    drapes.set(out);
+    for (let i = 0; i < position.count; i++) {
+      const [row, on] = [rows[i], ons[i]];
+      const slope = (drapes[row + 1] - drapes[row]) / ROW_STEP;
+      positions[i * 3 + 2] = restZ[i] + outwards * (drapes[row] + slope * ROW_STEP * on);
+      // The cloth's slope tilts its normal: z = z₀ + f(y) turns (x, y, z) to (x, y − f′z, z), which the shader normalises.
+      normals[i * 3 + 1] = restNormalY[i] - outwards * slope * normals[i * 3 + 2];
+    }
+    position.needsUpdate = true;
+    normal.needsUpdate = true;
+    reshaped(moved);
+  };
+  return { geometry: moved, set };
 }
 
 /** A white surplice sleeve on the upper arm, set in under the shoulder, tapering to the elbow. */
@@ -184,7 +309,7 @@ function forearm(): THREE.BufferGeometry {
     .add(rod([0, 0, 0], [0, -0.1, 0.004], 0.05, 0.068), "boneLight")
     .carve(rod([0, -0.075, 0.004], [0, -0.16, 0.006], 0.036, 0.05), { colour: "soot" })
     .add(rod([0, -0.07, 0.004], [0, -FOREARM + 0.03, 0.002], 0.034, 0.031), "sootLight", 0.004)
-    .add(rod([0, -FOREARM + 0.045, 0.002], [0, -FOREARM + 0.012, 0.002], 0.022, 0.02), "skin")
+    .add(rod([0, -FOREARM + 0.045, 0.002], [0, -FOREARM + 0.012, 0.002], 0.022, 0.02), SKIN)
     .geometry(0.007);
 }
 
@@ -235,7 +360,7 @@ function meshParts() {
     upperArm: upperArm(),
     forearm: forearm(),
     /** The right hand, then the left. */
-    hands: [handParts(-1, HAND), handParts(1, HAND)],
+    hands: [handParts(-1, HAND, SKIN), handParts(1, HAND, SKIN)],
     crucifix: crucifix(),
     thigh: thigh(),
     shin: shin(),
@@ -254,9 +379,20 @@ const SHOE_POINTS = [
   { at: new THREE.Vector3(0, BASE_TOP + 0.03, 0.08), radius: 0.04 },
   { at: new THREE.Vector3(0, BASE_TOP + 0.03, 0.12), radius: 0.03 },
 ];
-/** How far a robe half eases out past what the legs need: offset so that, unpushed, it hangs straight. */
-const HANGS = -0.1 * Math.LN2;
 const MIRROR = new THREE.Vector3(1, 1, -1);
+/** The points as the front half sees them: mirrored front to back, as the back half. */
+const mirror = (points: readonly Swept[]) => points.map(({ at, radius }) => ({ at: at.clone().multiply(MIRROR), radius }));
+
+/** Points down a rig's legs and round its shoes, as posed now, in the frame of hips placed by `hips` in its body. */
+function sweptBy(by: StrideRig, hips: THREE.Matrix4): Swept[] {
+  const intoHips = hips.clone().invert();
+  const intoBody = by.body.matrix.clone().invert();
+  return by.legs.flatMap((one) => {
+    one.shoe.updateMatrix();
+    const shoe = SHOE_POINTS.map(({ at, radius }) => ({ at: at.clone().setX(one.ankle.x).applyMatrix4(one.shoe.matrix).applyMatrix4(intoBody), radius }));
+    return [...legPoints(one, 0.062, 0.05), ...shoe].map(({ at, radius }) => ({ at: at.applyMatrix4(intoHips), radius }));
+  });
+}
 
 /** Where his right wrist traces the blessing, `s` of the way through it: down, then across from his left to his right. */
 function blessingAt(s: number): THREE.Vector3 {
@@ -323,9 +459,11 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
 
   const trunk = mesh(parts.torso, "torso");
   const chest = group(trunk, neck, left.shoulder, right.shoulder);
-  const front = group(mesh(parts.robe.front, "robe front"));
-  const back = group(mesh(parts.robe.back, "robe back"));
-  const hips = group(front, back, chest);
+  const front = draping(parts.robe.front, 1);
+  const back = draping(parts.robe.back, -1);
+  const robeFront = mesh(front.geometry, "robe front");
+  const robeBack = mesh(back.geometry, "robe back");
+  const hips = group(robeFront, robeBack, chest);
   hips.position.y = WAIST - BASE_TOP;
 
   const legs = ([-1, 1] as const).map((side, i) => {
@@ -340,34 +478,68 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
   }) as unknown as StrideRig["legs"];
   const body = group(legs[0].hip, legs[1].hip, hips);
   body.position.y = BASE_TOP;
+  // The same legs again, never shown, walked a moment ahead of his own or behind: where the robe makes room for them.
+  const unseen = ([-1, 1] as const).map((side, i) => {
+    const { geometry, heel, toe } = parts.shoes[i];
+    return leg(group(), group(), group(new THREE.Mesh(geometry)), new THREE.Vector3(side * LEG_X, LEG, 0), THIGH, SHIN, {
+      ankle: new THREE.Vector3(side * LEG_X, ANKLE, -0.012),
+      heel,
+      toe,
+    });
+  }) as unknown as StrideRig["legs"];
+  const unseenBody = group(unseen[0].hip, unseen[1].hip);
+  unseenBody.position.y = BASE_TOP;
 
   const figure = walks(group(mesh(parts.base, "base"), body, legs[0].shoe, legs[1].shoe), PRIEST_WALK);
   hasHands(figure, { right: right.hand, left: left.hand });
+  hangsCloth(figure, [robeFront, robeBack]);
   joins(figure, [
     { parts: [face, trunk], at: neck, radius: 0.1 },
     { parts: [left.shoulder.children[0], trunk], at: left.shoulder, radius: 0.11 },
     { parts: [right.shoulder.children[0], trunk], at: right.shoulder, radius: 0.11 },
     // The robe's halves hang from the waist, inside the surplice's belly.
-    { parts: [front, trunk], at: hips, radius: 0.26 },
-    { parts: [back, trunk], at: hips, radius: 0.26 },
+    { parts: [robeFront, trunk], at: hips, radius: 0.26 },
+    { parts: [robeBack, trunk], at: hips, radius: 0.26 },
     ...left.joints,
     ...right.joints,
     ...legs.flatMap((one) => legJoints(one, trunk, 0.14, 0.11, 0.09)),
   ]);
 
-  // His left hand holds the crucifix, so only his right arm swings.
-  const swinging = { limb: right, side: -1 as const, swing: ARM_SWING };
-  const rig: StrideRig = { walking: PRIEST_WALK, legs, body, rest: BASE_TOP, arms: [swinging], chest, lean: 0.03, lifts: 0.6 };
-
   const rng = createRng(seed);
   const breathPhase = rng.next() * Math.PI * 2;
   const swayPhase = rng.next() * Math.PI * 2;
   const offset = rng.next() * 100;
+  /** How far he sways, side to side, at the stage clock's `clock`. */
+  const swayAt = (clock: number) => Math.sin(((clock + offset) / 10) * Math.PI * 2 + swayPhase);
+
+  // His left hand holds the crucifix, so only his right arm swings.
+  const swinging = { limb: right, side: -1 as const, swing: ARM_SWING };
+  const rig: StrideRig = { walking: PRIEST_WALK, legs, body, rest: BASE_TOP, arms: [swinging], chest, lean: 0.03, lifts: 0.6 };
+  const unseenChest = group();
+  const unseenRig: StrideRig = { ...rig, legs: unseen, body: unseenBody, arms: [], chest: unseenChest };
+  const unseenHips = group();
+  unseenHips.position.y = hips.position.y;
+  const robe = heavyCloth(
+    DRAPE_ROWS * 2,
+    gait,
+    (moving, clock, out) => {
+      unseenChest.rotation.x = 0;
+      stride(unseenRig, moving);
+      unseenHips.rotation.z = swayAt(clock) * HIPS_SWAY;
+      unseenHips.updateMatrix();
+      const swept = sweptBy(unseenRig, unseenHips.matrix).map(({ at, radius }) => ({ at, radius: radius + ROBE_ROOM }));
+      pushedBy(out.subarray(0, DRAPE_ROWS), swept);
+      pushedBy(out.subarray(DRAPE_ROWS), mirror(swept));
+    },
+    ROBE_SWING,
+  );
+  const drapes = new Float32Array(DRAPE_ROWS * 2);
+
 
   return animated(figure, (clock) => {
     const seconds = clock + offset;
     const breath = Math.sin((seconds / 4.6) * Math.PI * 2 + breathPhase);
-    const sway = Math.sin((seconds / 10) * Math.PI * 2 + swayPhase);
+    const sway = swayAt(clock);
     const moving = gait(clock);
     const running = moving.running ? moving.amount : 0;
     const held = right.hand.held;
@@ -382,7 +554,7 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
     const blessed = bless.amount * free * (1 - fearing) * (1 - warding);
 
     body.rotation.z = sway * 0.018;
-    hips.rotation.z = sway * -0.008;
+    hips.rotation.z = sway * HIPS_SWAY;
     chest.rotation.z = sway * -0.01;
     chest.rotation.x = breath * -0.012 - warding * 0.05;
     trunk.scale.set(1 + breath * 0.012, 1, 1 + breath * 0.014);
@@ -407,17 +579,20 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
     aimGrip(left.hand, figure, UP, 1);
     if (upright) aimGrip(right.hand, figure, UP, 1);
 
-    // Each half of the robe is pushed out by the legs: the back behind a heel, the front over a knee.
+    // Each half of the robe drapes over the legs, the back behind a heel and the
+    // front over a knee: swinging out ahead of them and falling back after,
+    // and never letting one through as they are now.
     hips.updateMatrix();
-    const intoHips = hips.matrix.clone().invert();
-    const intoBody = body.matrix.clone().invert();
-    const swept: Swept[] = legs.flatMap((one) => {
-      one.shoe.updateMatrix();
-      const shoe = SHOE_POINTS.map(({ at, radius }) => ({ at: at.clone().setX(one.ankle.x).applyMatrix4(one.shoe.matrix).applyMatrix4(intoBody), radius }));
-      return [...legPoints(one, 0.062, 0.05), ...shoe].map(({ at, radius }) => ({ at: at.applyMatrix4(intoHips), radius }));
-    });
-    back.rotation.x = pushAside(robeMargin, back.position, swept, HANGS + running * 0.2);
-    const mirrored = swept.map(({ at, radius }) => ({ at: at.clone().multiply(MIRROR), radius }));
-    front.rotation.x = -pushAside(robeMargin, front.position, mirrored, HANGS);
+    const swept = sweptBy(rig, hips.matrix);
+    const pushedNow = new Float32Array(DRAPE_ROWS * 2);
+    pushedBy(pushedNow.subarray(0, DRAPE_ROWS), swept);
+    pushedBy(pushedNow.subarray(DRAPE_ROWS), mirror(swept));
+    robe(clock, pushedNow, drapes);
+    const backRows = drapes.slice(0, DRAPE_ROWS);
+    const frontRows = drapes.slice(DRAPE_ROWS);
+    // Running, the back flies out behind him.
+    for (let row = 0; row < DRAPE_ROWS; row++) backRows[row] += running * FLARE * drape(rowHeight(row), ROBE.hem);
+    back.set(backRows);
+    front.set(frontRows);
   });
 }

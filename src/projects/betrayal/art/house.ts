@@ -7,13 +7,12 @@ import { animationOf, type Animation } from "./animate";
 import { ADULT_WALK, isGrounded, walkingOf, type Stride, type Walking } from "./explorers/figure";
 import { closedDoors, diffLayout, DIRECTION, falseWindows, printedEdge, tileTurn, wallIsCut, type LayoutChange } from "./house-layout";
 import { inHouse, walkLength, walkPose, type HousePoint, type Walk } from "./house-walk";
-import { inlineBaker, type Baker } from "./bake";
+import { inlineScheduler, type BakeScheduler } from "./bake-schedule";
 import { freezeRoom, type FrozenRoom } from "./freeze";
 import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog } from "./lighting";
-import { DEFAULT_MARKINGS, type Markings } from "./markings";
 import { createLitFloor, ghostRoom, patchProbe, type GhostRoom, type LitFloor, type ProbeUniform, type Rebake } from "./lit-floor";
 import { paletteHex, type PaletteKey } from "./palette";
-import { DOOR_WIDTH, explorerSpot, standingSpots, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
+import { DOOR_WIDTH, explorerSpot, MARK_PLANES, standingSpots, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { box, glow, group, lightMaterial } from "./shapes";
 import { buildRoom, disposeTree, roomTile, type ExplorerBuilder } from "./stage";
@@ -24,7 +23,8 @@ export const STACK_GAP = 7;
 /** The explorer marker: a ring of the player's colour round the base. */
 const RING = { inner: 0.4, outer: 0.55, height: 0.03 };
 /** A room offered as a choice glows on its floor: a fill, and a border just inside its walls. */
-const MARK = { inset: 0.35, border: 0.12, height: 0.04 };
+/** `fill` and `edge` are the heights of the glow's flat fill and border. */
+const MARK = { inset: 0.35, border: 0.12, height: 0.04, fill: MARK_PLANES.fill, edge: MARK_PLANES.edge };
 /** A stair offered as a choice glows along its run: a band this wide, edged with rails. */
 const STAIR_MARK = { width: 1.1, rail: 0.1, lift: 0.06 };
 /** A doorway offered as a choice glows across it: a pad this deep, half each side of the wall. */
@@ -41,7 +41,7 @@ export const GHOST_DOORWAY_COLOUR: Record<GhostDoorway, PaletteKey> = { joined: 
  *  its opacity falls to `low` of itself and back every `period` seconds. */
 const GHOST_LOOK = { opacity: 0.5, glow: 1.1, low: 0.6, period: 2.4 };
 /** A figure offered as a choice glows in a ring round its colour ring. */
-const FIGURE_MARK = { inner: 0.68, outer: 0.82, height: 0.035 };
+const FIGURE_MARK = { inner: 0.68, outer: 0.82, height: MARK_PLANES.ring };
 /** The route preview: a dot every `every` metres, kept clear of where the walk starts and ends, at most `most` of them. */
 const ROUTE = { every: 0.5, size: 0.14, clear: 0.6, most: 160 };
 
@@ -212,19 +212,21 @@ interface Walker {
   walking: Walking;
 }
 
+/** A flat patch of glow lying on the floor, `w` along x and `d` along z,
+ *  centred at (x, z), at height `y`. The marks are flat, at a few set heights,
+ *  so a room has only those planes to keep its faces out of. */
+function patch(w: number, d: number, x: number, z: number, y: number, material: THREE.Material): THREE.Mesh {
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2).translate(x, y, z), material);
+}
+
 /** The glow on a tile's floor that marks it as a choice: a faint fill (none
  *  for an empty cell) and a border just inside its walls. */
 function tileMark(fill: THREE.Material | null, border: THREE.Material): THREE.Group {
   const span = TILE - MARK.inset * 2;
-  const edge = (w: number, d: number, x: number, z: number) => box([w, 0.01, d], border, [x, MARK.height, z]);
+  const edge = (w: number, d: number, x: number, z: number) => patch(w, d, x, z, MARK.edge, border);
   const off = span / 2 - MARK.border / 2;
-  const mark = group(edge(span, MARK.border, 0, -off), edge(span, MARK.border, 0, off), edge(MARK.border, span, -off, 0), edge(MARK.border, span, off, 0));
-  if (fill) {
-    const pane = new THREE.Mesh(new THREE.PlaneGeometry(span, span), fill);
-    pane.rotation.x = -Math.PI / 2;
-    pane.position.y = MARK.height - 0.01;
-    mark.add(pane);
-  }
+  const mark = group(edge(span, MARK.border, 0, -off), edge(span, MARK.border, 0, off), edge(MARK.border, span - MARK.border * 2, -off, 0), edge(MARK.border, span - MARK.border * 2, off, 0));
+  if (fill) mark.add(patch(span, span, 0, 0, MARK.fill, fill));
   return mark;
 }
 
@@ -286,11 +288,10 @@ interface Ghost {
 function doorwayMark(direction: Edge, fill: THREE.Material, border: THREE.Material): THREE.Group {
   const { x, z } = DIRECTION[direction];
   const [w, d] = x === 0 ? [DOOR_WIDTH, DOORWAY_MARK.depth] : [DOORWAY_MARK.depth, DOOR_WIDTH];
-  const centre: [number, number, number] = [(x * TILE) / 2, MARK.height, (z * TILE) / 2];
+  const [cx, cz] = [(x * TILE) / 2, (z * TILE) / 2];
   const rim = MARK.border;
-  const pane = box([w, 0.005, d], fill, [centre[0], MARK.height - 0.01, centre[2]]);
-  const edge = (ew: number, ed: number, ox: number, oz: number) => box([ew, 0.01, ed], border, [centre[0] + ox, MARK.height, centre[2] + oz]);
-  return group(pane, edge(w, rim, 0, -(d - rim) / 2), edge(w, rim, 0, (d - rim) / 2), edge(rim, d, -(w - rim) / 2, 0), edge(rim, d, (w - rim) / 2, 0));
+  const edge = (ew: number, ed: number, ox: number, oz: number) => patch(ew, ed, cx + ox, cz + oz, MARK.edge, border);
+  return group(patch(w, d, cx, cz, MARK.fill, fill), edge(w, rim, 0, -(d - rim) / 2), edge(w, rim, 0, (d - rim) / 2), edge(rim, d - rim * 2, -(w - rim) / 2, 0), edge(rim, d - rim * 2, (w - rim) / 2, 0));
 }
 
 /** The glow along a stair's run, in its room's frame: a faint band over the
@@ -327,6 +328,26 @@ function figureMark(border: THREE.Material): THREE.Mesh {
   return ring;
 }
 
+/**
+ * Every choice mark the house may draw in a room, in the room's own frame:
+ * its glow, a pad at each doorway, the glow along each stair and a ring at
+ * each standing spot. They write no depth, so a face of the room's lying in
+ * one of their planes fights them: the overlap check reads them.
+ */
+export function roomMarks(def: RoomDefinition): THREE.Group {
+  const fill = lightMaterial(0.1);
+  const border = lightMaterial(0.3);
+  const tile = roomTile(def.id);
+  const marks = group(tileMark(fill, border), ...[...tile.doors, ...tile.passages].map((edge) => doorwayMark(edge, fill, border)));
+  for (const run of Object.values(def.stairs ?? {})) marks.add(stairGlow(run, fill, border));
+  for (const [x, z] of standingSpots(def)) {
+    const ring = figureMark(border);
+    ring.position.set(x, ring.position.y, z);
+    marks.add(ring);
+  }
+  return marks;
+}
+
 /** Points every so often along a path, leaving its ends bare: the start is
  *  under the explorer, and the end is marked by its room's glow. */
 function routeDots(path: readonly HousePoint[]): HousePoint[] {
@@ -353,9 +374,8 @@ const level = (floor: FloorId) => (FLOORS.indexOf(floor) - FLOORS.indexOf("groun
 
 /** An engine layout as a house of rooms, each built in its own frame and laid
  *  at its cell and rotation, on its floor, and the figures in it, who walk
- *  between rooms. Both change as play goes on. Its rooms carry the cutaway
- *  markings asked for (`markings.ts`), null for none. */
-export function buildHouse(initial: Layout, baker: Baker = inlineBaker(), markings: Markings | null = DEFAULT_MARKINGS): House {
+ *  between rooms. Both change as play goes on. */
+export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineScheduler()): House {
   const root = group();
   let layout: Layout = { tiles: [] };
   const levels = new Map<FloorId, THREE.Group>();
@@ -380,7 +400,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker(), markin
   };
   /** A tile built, frozen and laid at its cell and rotation on its floor's frame. */
   const placement = (tile: PlacedTile) => {
-    const room = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: closedDoors(layout, CATALOG, tile), falseWindows: falseWindows(layout, CATALOG, tile), markings }));
+    const room = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: closedDoors(layout, CATALOG, tile), falseWindows: falseWindows(layout, CATALOG, tile) }));
     const matrix = new THREE.Matrix4().compose(new THREE.Vector3(tile.x * TILE, 0, tile.y * TILE), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, tileTurn(tile.rotation), 0)), new THREE.Vector3(1, 1, 1));
     return { id: tile.tile, room, matrix };
   };
@@ -388,7 +408,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker(), markin
   const floorLighting = (floor: FloorId): LitFloor => {
     const existing = lighting.get(floor);
     if (existing) return existing;
-    const lit = createLitFloor(baker);
+    const lit = createLitFloor(bakeQueue, floor);
     const holder = group(lit.root);
     holder.position.y = level(floor);
     holder.visible = shows(floor);
@@ -397,6 +417,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker(), markin
     root.add(holder);
     return lit;
   };
+  /** Lays a floor's rooms; it resolves once they show their direct light, and the finer passes follow in the background. */
   const placeFloor = (floor: FloorId): Promise<Rebake> =>
     floorLighting(floor).place(layout.tiles.filter((tile) => tile.floor === floor).flatMap((tile) => placements.get(tile.tile) ?? []));
   /** Tracks work on the house until it is done, so readiness waits for it. */
@@ -586,7 +607,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker(), markin
   const blockedKey = (blocked: ReturnType<typeof blockedAt>) => `${blocked.doors.join()}|${blocked.windows.join()}`;
   /** A ghost of a room at a cell, turned as given, with what would be blocked there drawn so. */
   const ghostOf = (tile: PlacedTile, blocked: ReturnType<typeof blockedAt>): Ghost => {
-    const room = ghostRoom(freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: blocked.doors, falseWindows: blocked.windows, markings })), ghostLook);
+    const room = ghostRoom(freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: blocked.doors, falseWindows: blocked.windows })), ghostLook);
     const holder = group(room.root);
     const ghost: Ghost = { tile, room, holder, shut: blockedKey(blocked) };
     layGhost(ghost, tile);

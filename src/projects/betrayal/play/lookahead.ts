@@ -1,7 +1,7 @@
 import type { TurnChoice } from "../engine/exploration";
 import { placeOf } from "../engine/figures";
 import { askNumber, barrierSides, moveCost } from "../engine/questions";
-import { apply, choices, type Engine } from "../engine/step-loop";
+import { choices, outcomes, type Engine } from "../engine/step-loop";
 import { viewFor, type RuleView } from "../engine/view";
 import type { Action, Edge, FigureId, GameState, Place } from "../types";
 import { isRuleDriven } from "./status";
@@ -67,11 +67,9 @@ const DISCOVERY_WARNINGS: Omit<RouteWarning, "room">[] = [
   { rule: { source: "rulebook", page: 6 }, event: "movement-ended" },
 ];
 
-/** A move or a discovery: the only answers a route is made of, so the only ones worth trying. */
-const isStep = (candidate: unknown) => {
-  const act = (candidate as TurnChoice).act;
-  return act === "move" || act === "discover";
-};
+/** A route is made of moves, and may end in a discovery: no other answer is worth trying. */
+const isMove = (candidate: unknown) => (candidate as TurnChoice).act === "move";
+const isDiscovery = (candidate: unknown) => (candidate as TurnChoice).act === "discover";
 
 const placeKey = (place: Place) => `${place.room}|${place.side ?? ""}`;
 
@@ -162,7 +160,8 @@ function search(engine: Engine, start: GameState, seat: number, figure: FigureId
     const id = (here.pending as { id: string }).id;
     if (barrierSides(engine, node.place.room).length > 0) addWarning(node.ahead, { room: node.place.room, rule: { source: "room", room: node.place.room }, event: null });
     const cost = moveCost(engine, here, figure);
-    for (const { choice, label } of choices(engine, here, seat, isStep)) {
+    // A doorway is only offered, never explored: what it finds is the deck's to say.
+    for (const { choice, label } of choices(engine, here, seat, isDiscovery)) {
       const turn = choice as TurnChoice;
       const action: Action = { kind: "choose", decision: id, seat, choice };
       if (turn.act === "discover") {
@@ -175,13 +174,13 @@ function search(engine: Engine, start: GameState, seat: number, figure: FigureId
           warnings: [...node.warnings, ...DISCOVERY_WARNINGS.map((w) => ({ ...w, room: node.place.room }))],
           stops: true,
         });
-        continue;
       }
+    }
+    for (const { choice, label, state: after } of outcomes(engine, here, seat, isMove)) {
+      const turn = choice as TurnChoice;
       if (turn.act !== "move") continue;
+      const action: Action = { kind: "choose", decision: id, seat, choice };
       const place: Place = { room: turn.to, side: turn.side };
-      const result = apply(engine, here, action);
-      if (!result.ok) throw new Error(`The turn listed a move it then refused: ${result.reason}`);
-      const after = result.state;
       const chance = after.lastEvents.some((event) => CHANCE.has(event.type));
       const moving = stillMoving(after, seat, figure);
       const arrived = placeKey(placeOf(after, figure)) === placeKey(place);

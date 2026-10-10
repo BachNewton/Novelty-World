@@ -1,5 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
 import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
+import { PEER_SIGNAL } from "./peer-signal";
 
 /**
  * Frogmino's online co-op: two browsers host and join a game over the local
@@ -29,7 +30,7 @@ async function open(browser: Browser, url: string, name: string): Promise<Client
 
 /** Hoppy hosts, Leapy joins, Hoppy starts: both are in the game. */
 async function startGame(browser: Browser): Promise<{ host: Client; guest: Client }> {
-  const url = `${LOBBY}?peer-signal=local&room-list=e2e-${crypto.randomUUID()}`;
+  const url = `${LOBBY}?${PEER_SIGNAL}&room-list=e2e-${crypto.randomUUID()}`;
   const host = await open(browser, url, "Hoppy");
   const guest = await open(browser, url, "Leapy");
   await host.page.getByRole("button", { name: "Host co-op" }).click();

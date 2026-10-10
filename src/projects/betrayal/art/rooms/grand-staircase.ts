@@ -51,14 +51,16 @@ function staircase(from: number, to: number): THREE.Group {
       // Where the flight is cut down with its wall, its cut top shows the carpet, so the stub still reads as a stair.
       // The cap stands a little inside the step's sides, which the hung part above shares while the wall stands.
       b.block([STAIR.going - 0.01, 0.03, depth - 0.01], "woodMid", [(x0 + x1) / 2, to, STAIR_MID]);
-      b.block([STAIR.going - 0.01, 0.03, STAIR.carpet], "blood", [(x0 + x1) / 2, to + 0.015, STAIR_MID]);
+      // The carpet stops short of the cap's ends, so their end faces never share a plane.
+      b.block([STAIR.going - 0.02, 0.03, STAIR.carpet], "blood", [(x0 + x1) / 2, to + 0.015, STAIR_MID]);
       b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.02, to + 0.03, STAIR_MID]);
     }
     if (!whole(i)) continue;
     const at = (y: number) => y - from;
     b.block([STAIR.going + 0.03, 0.04, depth + 0.03], "woodMid", [(x0 + x1) / 2 + 0.015, at(top - 0.04), STAIR_MID + 0.015]);
     b.block([STAIR.going, 0.025, STAIR.carpet], "blood", [(x0 + x1) / 2 - 0.02, at(top), STAIR_MID]);
-    b.block([0.025, STAIR.rise - 0.04, STAIR.carpet], "blood", [x1 + 0.0125, at(top - STAIR.rise), STAIR_MID]);
+    // The riser's carpet stands on the tread carpet below, rather than beside it in the same planes.
+    b.block([0.025, STAIR.rise - 0.065, STAIR.carpet], "blood", [x1 + 0.0125, at(top - STAIR.rise + 0.025), STAIR_MID]);
     b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 + 0.03, at(top), STAIR_MID]);
     if (i <= LAST_BALUSTER) {
       for (const x of [x1 - 0.08, x1 - 0.22]) b.block([0.04, RAIL, 0.04], "woodMid", [x, at(top), STAIR.front - 0.06]);
@@ -141,13 +143,17 @@ function turnedPortrait(): THREE.Group {
   return pictureFrame({ art: { rows: CANVAS_BACK, legend: { w: "woodDark", m: "wood", b: "boneDark" } }, frame: "woodDark", border: 0.03 });
 }
 
+/** How far under the cut height the clock's foot stops. */
+const BELOW_CUT = 0.005;
+
 /** A tall case clock with a pale face, its pendulum still. The case's foot
  *  stands on the floor; the rest hangs with its wall. Faces +z. */
 function clock(part: "foot" | "case"): THREE.Group {
   const wood = flat("wood");
   const dark = flat("woodDark");
   if (part === "foot") {
-    return group(box([0.56, 0.1, 0.36], dark, [0, 0, 0.18]), box([0.5, CUT_HEIGHT - 0.1, 0.32], wood, [0, 0.1, 0.16]));
+    // A little under the cut wall's top, so the two never share a plane; the case above reaches down to meet it.
+    return group(box([0.56, 0.1, 0.36], dark, [0, 0, 0.18]), box([0.5, CUT_HEIGHT - 0.1 - BELOW_CUT, 0.32], wood, [0, 0.1, 0.16]));
   }
   const face = cylinder(0.17, 0.02, flat("bone"), [0, 0, 0], { sides: 12 });
   face.rotation.x = Math.PI / 2;
@@ -160,7 +166,7 @@ function clock(part: "foot" | "case"): THREE.Group {
     return holder;
   };
   return group(
-    box([0.42, 0.95, 0.28], wood, [0, 0, 0.14]),
+    box([0.42, 0.95 + BELOW_CUT, 0.28], wood, [0, -BELOW_CUT, 0.14]),
     box([0.2, 0.62, 0.02], flat("soot"), [0, 0.18, 0.285]),
     box([0.04, 0.4, 0.02], flat("brass"), [0, 0.32, 0.3]),
     box([0.13, 0.13, 0.02], flat("brass"), [0, 0.24, 0.305]),

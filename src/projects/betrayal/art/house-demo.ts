@@ -5,7 +5,6 @@ import type { FloorId } from "../types";
 import { figureFor } from "./explorers/by-character";
 import { candle, carrying } from "./explorers/props";
 import { HOUSE_FIXTURE } from "./house-layout";
-import { DEFAULT_MARKINGS, type Markings } from "./markings";
 import { createHouseScene, type FigureSpec, type SceneHook, type SceneView, type Target } from "./house-scene";
 import { afterLeg, moveIsOver, nextLegs } from "./house-demo-moves";
 import { pawn } from "./kit/pawn";
@@ -93,8 +92,8 @@ declare global {
   }
 }
 
-export function createHouseDemo(layout: Layout = HOUSE_FIXTURE, starts: readonly [string, string] = FIXTURE_STARTS, markings: Markings | null = DEFAULT_MARKINGS) {
-  const scene = createHouseScene(layout, { readout: true, markings });
+export function createHouseDemo(layout: Layout = HOUSE_FIXTURE, starts: readonly [string, string] = FIXTURE_STARTS) {
+  const scene = createHouseScene(layout, { readout: true });
   const floorOf = (room: string) => {
     const tile = layout.tiles.find((placed) => placed.tile === room);
     if (!tile) throw new Error(`The house has no room "${room}"`);

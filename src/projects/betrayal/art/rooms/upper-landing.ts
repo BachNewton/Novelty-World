@@ -33,7 +33,8 @@ function stairHead(): THREE.Group {
     // This flight climbs towards +x, so each riser faces −x and the nosings overhang that way.
     b.block([x1 - x0, 0.04, depth + 0.03], "woodMid", [cx - 0.015, top - 0.04, MID + 0.015]);
     b.block([x1 - x0, 0.025, STAIR.carpet], "blood", [cx + 0.02, top, MID]);
-    b.block([0.025, STAIR.rise - 0.04, STAIR.carpet], "blood", [x1 - 0.0125, top, MID]);
+    // The riser's carpet stands on the tread carpet, rather than beside it in the same planes.
+    b.block([0.025, STAIR.rise - 0.065, STAIR.carpet], "blood", [x1 - 0.0125, top + 0.025, MID]);
     b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.03, top, MID]);
   }
   b.block([0.08, 0.055, depth + 0.03], "woodMid", [HEAD + 0.01, -0.04, MID + 0.015]);
@@ -59,11 +60,13 @@ function rockingChair(): THREE.Group {
   const b = batch();
   for (const x of [-0.24, 0.24]) {
     // Each rocker curves up at both ends.
+    // The middle length is a hair narrower than the curved ends it overlaps, so their sides never share a plane.
     for (const [z, y, tilt] of [[-0.3, 0.075, 0.35], [0, 0.02, 0], [0.3, 0.075, -0.35]]) {
-      b.add([0.04, 0.04, 0.32], "woodDark", new THREE.Matrix4().makeRotationX(tilt).setPosition(x, y, z));
+      b.add([tilt === 0 ? 0.036 : 0.04, 0.04, 0.32], "woodDark", new THREE.Matrix4().makeRotationX(tilt).setPosition(x, y, z));
     }
-    for (const z of [-0.18, 0.18]) b.block([0.04, 0.4, 0.04], "woodMid", [x, 0.04, z]);
-    b.block([0.04, 0.24, 0.04], "woodMid", [x, 0.47, 0.18]);
+    // The legs are a hair narrower than the rockers and the seat, so their sides never share a plane with them.
+    for (const z of [-0.18, 0.18]) b.block([0.036, 0.4, 0.04], "woodMid", [x, 0.04, z]);
+    b.block([0.036, 0.24, 0.04], "woodMid", [x, 0.47, 0.18]);
     b.block([0.06, 0.03, 0.44], "woodMid", [x, 0.7, 0]);
   }
   b.block([0.52, 0.04, 0.44], "woodMid", [0, 0.44, 0]);

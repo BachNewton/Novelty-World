@@ -5,14 +5,15 @@ import { BENCH_EXPLORERS, type BenchExplorer } from "./explorers";
 import type { Edge } from "../types";
 import { freezeRoom } from "./freeze";
 import { budgetGuard, EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, HOUSE_LIGHT, houseFog } from "./lighting";
-import type { Baker } from "./bake";
-import { workerBaker } from "./bake-workers";
+import { workerLanes } from "./bake-workers";
+import { createBakeScheduler, type BakeScheduler } from "./bake-schedule";
 import { createLitFloor, type Rebake } from "./lit-floor";
-import { DEFAULT_MARKINGS, type Markings } from "./markings";
 import { CUT_HEIGHT, DEFAULT_FOCUS, pieceLabel, type PropPlacement, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { buildRoom, OUTWARD, roomTile, type ExplorerBuilder } from "./stage";
-import { group } from "./shapes";
+import { group, shownBounds } from "./shapes";
+import { depthRange, FIELD_OF_VIEW } from "./house-camera";
+import { createPathOverlay, type PathLegend, type PathOverlay } from "./path-overlay";
 
 /** The art is drawn at this many pixels on the screen's short side and scaled
  *  up with hard edges, for the chunky retro look on every screen size. Null
@@ -20,7 +21,6 @@ import { group } from "./shapes";
 export type Resolution = number | null;
 const RESOLUTIONS: Resolution[] = [270, 360, 540, 720, 1080, null];
 const DEFAULT_RESOLUTION: Resolution = null;
-const FIELD_OF_VIEW = 32;
 const ELEVATION = THREE.MathUtils.degToRad(40);
 /** How far the room reaches from its centre on screen: across (corner to
  *  corner, seen diagonally) and up and down. */
@@ -58,6 +58,9 @@ export interface BenchSnapshot {
   subject: Subject;
   /** The animation clock stands still at this many seconds; null lets it run. */
   frozenAt: number | null;
+  /** Whether the paths overlay shows (`&paths`), and its legend once drawn. */
+  paths: boolean;
+  pathLegend: PathLegend | null;
 }
 
 export interface BenchApi {
@@ -72,6 +75,8 @@ export interface BenchApi {
   /** Stops the animation clock (candle flicker, explorers) at a fixed time, so
    *  screenshots differ only when the art does; null starts it again. */
   freezeClock: (seconds: number | null) => void;
+  /** Shows or hides the standing spots and walks over the room (see `path-overlay.ts`). */
+  setPaths: (on: boolean) => void;
   isReady: () => boolean;
   rooms: () => string[];
   explorers: () => string[];
@@ -90,11 +95,11 @@ declare global {
 /** One room on its own, lit exactly as the house lights it: baked, under the
  *  house's fill and moon, laid unturned, as a house of one room, with the
  *  house's light over the explorer whose turn it is. */
-function benchStage(def: RoomDefinition, explorerBuilder: ExplorerBuilder, baker: Baker, markings: Markings | null) {
-  const part = buildRoom(def, { explorer: explorerBuilder, markings });
+function benchStage(def: RoomDefinition, explorerBuilder: ExplorerBuilder, bakes: BakeScheduler) {
+  const part = buildRoom(def, { explorer: explorerBuilder });
   const explorer = part.explorer;
   const frozen = freezeRoom(def.id, part);
-  const floor = createLitFloor(baker);
+  const floor = createLitFloor(bakes, "bench");
   const bake = floor.place([{ id: def.id, room: frozen, matrix: new THREE.Matrix4() }]);
   const fog = houseFog();
   let isCut: (edge: Edge) => boolean = () => false;
@@ -115,7 +120,8 @@ function benchStage(def: RoomDefinition, explorerBuilder: ExplorerBuilder, baker
     explorer,
     bounds: (prop: PropPlacement) => frozen.bounds.get(prop),
     bake,
-    ready: Promise.all([frozen.ready, bake.then(cut)]).then(() => undefined),
+    // Ready once the room shows its whole light, the bounce included, so a screenshot shows it.
+    ready: Promise.all([frozen.ready, bake.then(cut), bake.then((done) => done.bounce)]).then(() => undefined),
     dispose: floor.dispose,
   };
 }
@@ -123,6 +129,21 @@ type Stage = ReturnType<typeof benchStage>;
 
 function definition(id: string): RoomDefinition {
   return BENCH_ROOMS.find((room) => room.id === id) ?? BENCH_ROOMS[0];
+}
+
+/** The framing a link asks for (`&frame=room|explorer`), so a link can open on the explorer close up. */
+function framingSubject(framing: string | null): Subject {
+  if (framing === null || framing === "room") return "room";
+  if (framing === "explorer") return "explorer";
+  throw new Error(`The bench has no framing "${framing}"`);
+}
+
+/** Keeps the address in step with the bench, so it can be shared as a link to exactly this view. */
+function setSearchParam(name: string, value: string | null) {
+  const url = new URL(window.location.href);
+  if (value === null) url.searchParams.delete(name);
+  else url.searchParams.set(name, value);
+  window.history.replaceState(window.history.state, "", url);
 }
 
 function explorer(id: string): BenchExplorer {
@@ -134,7 +155,7 @@ function explorer(id: string): BenchExplorer {
 /** The art bench: one room on its own, under an orbit camera that the presets
  *  (four views, zoom, framing) place and the user can drag from there.
  *  Plain state outside React, so the page and screenshot tools drive the same thing. */
-export function createBench(initialRoom: string, markings: Markings | null = DEFAULT_MARKINGS) {
+export function createBench(initialRoom: string, initialExplorer: string | null = null, framing: string | null = null, paths = false) {
   const firstRoom = definition(initialRoom).id;
   let snapshot: BenchSnapshot = {
     roomId: firstRoom,
@@ -142,15 +163,18 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
     view: 0,
     zoom: ZOOMS[0],
     resolution: DEFAULT_RESOLUTION,
-    explorer: BENCH_EXPLORERS[0].id,
-    subject: "room",
+    explorer: initialExplorer === null ? BENCH_EXPLORERS[0].id : explorer(initialExplorer).id,
+    subject: framingSubject(framing),
     frozenAt: null,
+    paths,
+    pathLegend: null,
   };
   const listeners = new Set<() => void>();
   let mounted: {
     rebuild: () => void;
     settle: () => void;
     applyResolution: () => void;
+    showPaths: () => void;
   } | null = null;
   let stageReady = false;
   let lastBake: Rebake | null = null;
@@ -169,10 +193,9 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
       const room = definition(id);
       if (room.id !== id) throw new Error(`The bench has no room "${id}"`);
       update({ ...snapshot, roomId: id, roomName: roomTile(id).name });
-      const url = new URL(window.location.href);
-      url.searchParams.set("bench", id);
-      window.history.replaceState(window.history.state, "", url);
+      setSearchParam("bench", id);
       mounted?.rebuild();
+      mounted?.showPaths();
       mounted?.settle();
     },
     setView: (view) => {
@@ -190,15 +213,22 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
     setExplorer: (id) => {
       explorer(id);
       update({ ...snapshot, explorer: id });
+      setSearchParam("explorer", id);
       mounted?.rebuild();
       mounted?.settle();
     },
     setSubject: (subject) => {
       update({ ...snapshot, subject });
+      if (subject === "room" || subject === "explorer") setSearchParam("frame", subject);
       mounted?.settle();
     },
     freezeClock: (seconds) => {
       update({ ...snapshot, frozenAt: seconds });
+    },
+    setPaths: (on) => {
+      update({ ...snapshot, paths: on });
+      setSearchParam("paths", on ? "" : null);
+      mounted?.showPaths();
     },
     isReady: () => stageReady && settled,
     rooms: () => BENCH_ROOMS.map((room) => room.id),
@@ -218,11 +248,9 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
     renderer.domElement.style.imageRendering = "pixelated";
     renderer.toneMappingExposure = 1.5;
     camera.fov = FIELD_OF_VIEW;
-    camera.near = 0.1;
-    camera.far = 200;
 
     const guard = budgetGuard(renderer);
-    const baker = workerBaker();
+    const bakes = createBakeScheduler(() => workerLanes());
     let stage: Stage | null = null;
     const rebuild = () => {
       if (stage) {
@@ -230,7 +258,7 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
         stage.dispose();
       }
       stageReady = false;
-      const built = benchStage(definition(snapshot.roomId), explorer(snapshot.explorer).build, baker, markings);
+      const built = benchStage(definition(snapshot.roomId), explorer(snapshot.explorer).build, bakes);
       void built.bake.then((bake) => {
         if (stage === built) lastBake = bake;
       });
@@ -306,7 +334,19 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
       fog.far = fog.near + (ROOM_RADIUS * 2) / Math.max(density, 0.01);
     };
 
-    const placeCamera = () => {
+    /** Draws with the depth range the room needs from where the camera stands, as the house does. */
+    const fitDepth = () => {
+      const shown = stage ? shownBounds(stage.root) : null;
+      if (!shown || shown.isEmpty()) return;
+      camera.updateMatrixWorld();
+      const range = depthRange(camera.position, camera.getWorldDirection(new THREE.Vector3()), camera.aspect, shown);
+      if (range.near === camera.near && range.far === camera.far) return;
+      camera.near = range.near;
+      camera.far = range.far;
+      camera.updateProjectionMatrix();
+    };
+
+    const placePose = () => {
       controls.update();
       if (byHand) {
         frameRoom(controls.target, camera.position.distanceTo(controls.target));
@@ -337,6 +377,11 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
       frameRoom(target, fit);
     };
 
+    const placeCamera = () => {
+      placePose();
+      fitDepth();
+    };
+
     /** A drag takes the camera from wherever the preset put it. */
     controls.addEventListener("start", () => {
       byHand = true;
@@ -356,8 +401,26 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
       ctx.setPixelRatio(ratio);
     };
 
-    mounted = { rebuild, settle, applyResolution };
+    let paths: PathOverlay | null = null;
+    const hidePaths = () => {
+      if (!paths) return;
+      scene.remove(paths.root);
+      paths.dispose();
+      paths = null;
+    };
+    /** Draws the paths overlay for the room shown, or frees it when it is off. */
+    const showPaths = () => {
+      hidePaths();
+      if (snapshot.paths) {
+        paths = createPathOverlay(definition(snapshot.roomId));
+        scene.add(paths.root);
+      }
+      update({ ...snapshot, pathLegend: paths?.legend ?? null });
+    };
+
+    mounted = { rebuild, settle, applyResolution, showPaths };
     rebuild();
+    showPaths();
     window.__betrayalBench = api;
 
     return {
@@ -389,8 +452,12 @@ export function createBench(initialRoom: string, markings: Markings | null = DEF
         if (stage) {
           scene.remove(stage.root);
           stage.dispose();
+          // Disposing cancels its bake, which resolves its ready: forgotten here, it would mark
+          // the next mount's room ready before that room has any light.
+          stage = null;
         }
-        baker.dispose();
+        bakes.stop();
+        hidePaths();
         mounted = null;
         delete window.__betrayalBench;
       },

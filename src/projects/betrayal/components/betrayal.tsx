@@ -59,7 +59,7 @@ export function Betrayal() {
   if (search === null) return null;
   const params = new URLSearchParams(search);
   const bench = params.get("bench");
-  if (bench) return <ArtBench room={bench} />;
+  if (bench) return <ArtBench room={bench} explorer={params.get("explorer")} frame={params.get("frame")} paths={params.has("paths")} />;
   if (params.has("house")) return <HouseScreen />;
   if (params.has("debug") || params.has("game")) return <DebugGame code={params.get("game")} />;
   return <PlayGame />;

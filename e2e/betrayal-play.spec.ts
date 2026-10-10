@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./test";
 import type { PlayReadout } from "../src/projects/betrayal/components/play/play-screen";
 
 /**
@@ -54,15 +55,22 @@ async function until(page: Page, check: string): Promise<void> {
     },
     check,
     { timeout: 60_000 },
-  );
+  ).catch(async (error: unknown) => {
+    // Says why it never held: the game as it stands, or that the page has none (a reload, say, when the dev server rebuilt under the test).
+    const now = await page.evaluate(() => {
+      const hook = window.__betrayalPlay;
+      return hook ? { ready: hook.isReady(), play: hook.play() } : null;
+    });
+    throw new Error(`${check} never held. ${now ? `Ready: ${now.ready}; the game: ${JSON.stringify(now.play)}` : `No game on the page, at ${page.url()}`}`, { cause: error });
+  });
 }
 
-/** Resumes the seeded game, on the page with `query` (the cutaway's markings off, say). */
-async function resumeSaved(page: Page, query = ""): Promise<void> {
+/** Resumes the seeded game. */
+async function resumeSaved(page: Page): Promise<void> {
   page.on("pageerror", (error) => {
     throw error;
   });
-  await page.goto(`${PAGE}${query}`);
+  await page.goto(PAGE);
   await expect(page.getByRole("heading", { name: "New game" })).toBeVisible();
   await page.evaluate(([key, value]) => {
     localStorage.setItem(key, JSON.stringify(value));
@@ -385,89 +393,95 @@ test.describe("the rotation ghost", () => {
  * the path in the house, its cost and the rules it would set off. Committing
  * walks the explorer there while the game has already moved on. Ann goes
  * from the Entrance Hall up the Grand Staircase to the Upper Landing, three
- * of her four spaces, on each input, and the view follows her upstairs; with
- * the cutaway's markings on and off.
+ * of her four spaces, on each input, and the view follows her upstairs.
  */
-for (const [markings, query] of [["markings on", ""], ["markings off", "?markings=off"]] as const) {
-  test.describe(`a move of several rooms, previewed (${markings})`, () => {
-    const LANDING = "room:upper-landing";
+test.describe("a move of several rooms, previewed", () => {
+  const LANDING = "room:upper-landing";
 
-    /** The route committed: the state is there at once, while the walk plays; then the walk ends upstairs, the floor having followed. */
-    async function walkedUpstairs(page: Page): Promise<void> {
-      await page.waitForFunction(() => {
-        const play = window.__betrayalPlay?.play();
-        return play?.rooms["zoe-ingstrom"] === "upper-landing" && play.walking && play.holder === 0 && play.pending?.kind === "turn";
-      });
-      await until(page, "!play.walking && play.floor === 'upper' && play.rooms['zoe-ingstrom'] === 'upper-landing' && play.queued === 0 && play.problem === null");
-    }
+  /** Stops the stage's clock before a route is committed, so its walk can't
+   *  end before the test sees it playing, however slowly the page draws. */
+  const holdTheWalk = (page: Page) => page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
 
-    async function expectLandingPreview(page: Page): Promise<void> {
-      await until(page, `play.preview?.target === '${LANDING}'`);
-      const { preview } = await readout(page);
-      expect(preview?.route.map((place) => place.room)).toEqual(["entrance-hall", "foyer", "grand-staircase", "upper-landing"]);
-      expect(preview).toMatchObject({ spaces: 3, left: 4, warnings: [] });
-      await expect(page.getByLabel("Route preview")).toContainText("Move to the Upper Landing: 3 of 4 spaces");
-    }
+  /** The route committed, with the walk held: the state is there at once,
+   *  while the walk plays; then, let go, the walk ends upstairs, the floor having followed. */
+  async function walkedUpstairs(page: Page): Promise<void> {
+    await page.waitForFunction(() => {
+      const play = window.__betrayalPlay?.play();
+      return play?.rooms["zoe-ingstrom"] === "upper-landing" && play.walking && play.holder === 0 && play.pending?.kind === "turn";
+    });
+    await page.evaluate(() => window.__betrayalPlay?.freezeClock(null));
+    await until(page, "!play.walking && play.floor === 'upper' && play.rooms['zoe-ingstrom'] === 'upper-landing' && play.queued === 0 && play.problem === null");
+  }
 
-    test("keyboard and mouse: hovering previews a route and its rules, and a click walks it", async ({ page }) => {
-      await resumeSaved(page, query);
+  async function expectLandingPreview(page: Page): Promise<void> {
+    await until(page, `play.preview?.target === '${LANDING}'`);
+    const { preview } = await readout(page);
+    expect(preview?.route.map((place) => place.room)).toEqual(["entrance-hall", "foyer", "grand-staircase", "upper-landing"]);
+    expect(preview).toMatchObject({ spaces: 3, left: 4, warnings: [] });
+    await expect(page.getByLabel("Route preview")).toContainText("Move to the Upper Landing: 3 of 4 spaces");
+  }
+
+  test("keyboard and mouse: hovering previews a route and its rules, and a click walks it", async ({ page }) => {
+    await resumeSaved(page);
+    await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.floor === 'ground'");
+    const ids = (await readout(page)).targets.map((target) => target.id);
+    expect(ids).toEqual(expect.arrayContaining(["room:foyer", "room:grand-staircase", LANDING, "doorway:foyer:top", "doorway:upper-landing:left"]));
+
+    // A doorway further on: exploring there may draw a card, which ends the move.
+    const doorway = await pointOf(page, "doorway:foyer:top");
+    await page.mouse.move(doorway.x, doorway.y);
+    await until(page, "play.preview?.target === 'doorway:foyer:top'");
+    await expect(page.getByLabel("Route preview")).toContainText("Drawing a card ends your movement for the rest of the turn.");
+
+    // The Upper Landing glows on the ground floor as the stairs its route takes.
+    const stairs = await pointOf(page, LANDING);
+    await page.mouse.move(stairs.x, stairs.y);
+    await expectLandingPreview(page);
+    expect((await readout(page)).queued).toBe(0);
+    await holdTheWalk(page);
+    await page.mouse.click(stairs.x, stairs.y);
+    await walkedUpstairs(page);
+  });
+
+  test.describe("touch", () => {
+    test.use({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
+
+    test("a first tap previews the route, and a second walks it", async ({ page }) => {
+      await resumeSaved(page);
       await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.floor === 'ground'");
-      const ids = (await readout(page)).targets.map((target) => target.id);
-      expect(ids).toEqual(expect.arrayContaining(["room:foyer", "room:grand-staircase", LANDING, "doorway:foyer:top", "doorway:upper-landing:left"]));
-
-      // A doorway further on: exploring there may draw a card, which ends the move.
-      const doorway = await pointOf(page, "doorway:foyer:top");
-      await page.mouse.move(doorway.x, doorway.y);
-      await until(page, "play.preview?.target === 'doorway:foyer:top'");
-      await expect(page.getByLabel("Route preview")).toContainText("Drawing a card ends your movement for the rest of the turn.");
-
-      // The Upper Landing glows on the ground floor as the stairs its route takes.
       const stairs = await pointOf(page, LANDING);
-      await page.mouse.move(stairs.x, stairs.y);
+      await page.touchscreen.tap(stairs.x, stairs.y);
       await expectLandingPreview(page);
-      expect((await readout(page)).queued).toBe(0);
-      await page.mouse.click(stairs.x, stairs.y);
+      expect((await readout(page)).rooms["zoe-ingstrom"]).toBe("entrance-hall");
+      await holdTheWalk(page);
+      await page.touchscreen.tap(stairs.x, stairs.y);
       await walkedUpstairs(page);
     });
+  });
 
-    test.describe("touch", () => {
-      test.use({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
-
-      test("a first tap previews the route, and a second walks it", async ({ page }) => {
-        await resumeSaved(page, query);
-        await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.floor === 'ground'");
-        const stairs = await pointOf(page, LANDING);
-        await page.touchscreen.tap(stairs.x, stairs.y);
-        await expectLandingPreview(page);
-        expect((await readout(page)).rooms["zoe-ingstrom"]).toBe("entrance-hall");
-        await page.touchscreen.tap(stairs.x, stairs.y);
-        await walkedUpstairs(page);
-      });
+  test.describe("controller", () => {
+    test.beforeEach(async ({ page }) => {
+      await withPad(page);
     });
 
-    test.describe("controller", () => {
-      test.beforeEach(async ({ page }) => {
-        await withPad(page);
-      });
-
-      test("the bumpers bring the reticle to the route, which it previews, and A walks it", async ({ page }) => {
-        await resumeSaved(page, query);
-        await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.floor === 'ground'");
-        // RB goes round every choice once, whichever floor each shows on.
-        const targets = (await readout(page)).targets.length;
-        const reticle = () => page.evaluate(() => window.__betrayalPlay?.reticle() ?? null);
-        for (let presses = 0, at = await reticle(); at !== LANDING; presses++, at = await reticle()) {
-          if (presses > targets) throw new Error("RB never brought the reticle to the Upper Landing");
-          await press(page, BUTTON.RB, `window.__betrayalPlay.reticle() !== ${JSON.stringify(at)}`);
-        }
-        await expectLandingPreview(page);
-        // Not waiting for the house to settle: the camera follows the walk, and the walk is what is checked next.
-        await press(page, BUTTON.A, "play.rooms['zoe-ingstrom'] === 'upper-landing'", false);
-        await walkedUpstairs(page);
-      });
+    test("the bumpers bring the reticle to the route, which it previews, and A walks it", async ({ page }) => {
+      await resumeSaved(page);
+      await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.floor === 'ground'");
+      // RB goes round every choice once, whichever floor each shows on.
+      const targets = (await readout(page)).targets.length;
+      const reticle = () => page.evaluate(() => window.__betrayalPlay?.reticle() ?? null);
+      for (let presses = 0, at = await reticle(); at !== LANDING; presses++, at = await reticle()) {
+        if (presses > targets) throw new Error("RB never brought the reticle to the Upper Landing");
+        await press(page, BUTTON.RB, `window.__betrayalPlay.reticle() !== ${JSON.stringify(at)}`);
+      }
+      await expectLandingPreview(page);
+      // Not waiting for the house to settle: the camera follows the walk, and the walk is what is checked next.
+      await holdTheWalk(page);
+      await press(page, BUTTON.A, "play.rooms['zoe-ingstrom'] === 'upper-landing'", false);
+      await walkedUpstairs(page);
     });
   });
-}
+});
 
 /**
  * The tag over a focused target, with its route's cost, stays on a 360px

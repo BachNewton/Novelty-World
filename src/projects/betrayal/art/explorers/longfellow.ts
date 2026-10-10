@@ -28,6 +28,7 @@ import type { PaletteKey } from "../palette";
 import { group } from "../shapes";
 import { ADULT_WALK, BASE_TOP, burst, joins, leg, legJoints, legPoints, pushAside, soleEnds, STANDING, stride, walks, type Gait, type StrideRig } from "./figure";
 import { aimGrip, blendPose, buildArm, fist, gripAt, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Prop } from "./hands";
+import { skinOf } from "./skin";
 
 /*
  * Professor Longfellow: a slight, elderly scholar, all Knowledge and no Might.
@@ -38,6 +39,8 @@ import { aimGrip, blendPose, buildArm, fist, gripAt, handParts, hasHands, holdin
  *
  * Every size is in metres, every height from the floor; each pivot sits at its joint.
  */
+
+const SKIN = skinOf("professor-longfellow");
 
 const WAIST = 0.7;
 const HIP = WAIST - BASE_TOP;
@@ -60,14 +63,14 @@ const TAIL_FOLLOW = 0.8;
  *  tufts above the ears. */
 function head(): THREE.BufferGeometry {
   const shape = sculpt()
-    .add(rod([0, -0.03, -0.01], [0, 0.12, 0], 0.05, 0.047), "skin")
-    .add(ellipsoid([0, 0.235, -0.005], [0.118, 0.15, 0.13]), "skin", 0.04)
-    .add(ellipsoid([0, 0.15, 0.025], [0.095, 0.1, 0.105]), "skin", 0.05)
-    .add(ellipsoid([0, 0.218, 0.1], [0.085, 0.022, 0.032]), "skin", 0.02)
-    .add(rod([0, 0.205, 0.118], [0, 0.152, 0.15], 0.014, 0.021), "skin", 0.012);
+    .add(rod([0, -0.03, -0.01], [0, 0.12, 0], 0.05, 0.047), SKIN)
+    .add(ellipsoid([0, 0.235, -0.005], [0.118, 0.15, 0.13]), SKIN, 0.04)
+    .add(ellipsoid([0, 0.15, 0.025], [0.095, 0.1, 0.105]), SKIN, 0.05)
+    .add(ellipsoid([0, 0.218, 0.1], [0.085, 0.022, 0.032]), SKIN, 0.02)
+    .add(rod([0, 0.205, 0.118], [0, 0.152, 0.15], 0.014, 0.021), SKIN, 0.012);
   for (const side of [-1, 1]) {
     const x = side * 0.043;
-    shape.add(ellipsoid([side * 0.117, 0.18, 0], [0.018, 0.042, 0.028]), "skin", 0.01);
+    shape.add(ellipsoid([side * 0.117, 0.18, 0], [0.018, 0.042, 0.028]), SKIN, 0.01);
     // Eyes sunk under the brow.
     shape.carve(ball([x, 0.188, 0.128], 0.02), { blend: 0.01 });
     shape.add(ball([x, 0.188, 0.11], 0.019), "boneLight");
@@ -284,7 +287,7 @@ function forearm(): THREE.BufferGeometry {
   return sculpt()
     .add(rod([0, 0, 0], [0, -FOREARM + 0.03, 0], 0.046, 0.041), "verdigris")
     .add(ring([0, -FOREARM + 0.028, 0], 0.036, 0.016), "verdigrisDark", 0.004)
-    .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.016, 0.002], 0.021, 0.019), "skin")
+    .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.016, 0.002], 0.021, 0.019), SKIN)
     .geometry(0.008);
 }
 
@@ -335,7 +338,7 @@ function meshParts() {
     upperArm: upperArm(),
     forearm: forearm(),
     /** The right hand, then the left. */
-    hands: [handParts(-1), handParts(1)],
+    hands: [handParts(-1, 1, SKIN), handParts(1, 1, SKIN)],
     thigh: thigh(),
     shin: shin(),
     shoes: [shoe(-LEG_X), shoe(LEG_X)],

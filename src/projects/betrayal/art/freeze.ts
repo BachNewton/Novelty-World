@@ -69,6 +69,16 @@ export interface Texels {
   index: Uint32Array;
   position: Float32Array;
   normal: Float32Array;
+  /** Each chart's samples, three numbers a chart: its first sample, and its
+   *  width and height in texels; a chart's samples run row by row. */
+  charts: Uint32Array;
+}
+
+/** Triangles, nine floats each, and the share of the light on each that it
+ *  reflects (its albedo: linear RGB, three floats a triangle). */
+export interface Surfaces {
+  triangles: Float32Array;
+  albedo: Float32Array;
 }
 
 /** A moving piece, kept as built and lit by its own probe. */
@@ -105,10 +115,10 @@ export interface FrozenRoom {
   id: string;
   buckets: Bucket[];
   texels: Texels;
-  /** Triangles that stop light, nine floats each, in the room's frame. */
-  casters: Float32Array;
+  /** Triangles that stop light (and bounce it), in the room's frame. */
+  casters: Surfaces;
   /** Triangles that shut each doorway and passage in the bake when no room lies beyond it. */
-  plugs: Partial<Record<Edge, Float32Array>>;
+  plugs: Partial<Record<Edge, Surfaces>>;
   lights: BakedLight[];
   dynamics: Dynamic[];
   probes: Probes;
@@ -318,10 +328,12 @@ function sampleTexels(all: Chart[], width: number, height: number): Texels {
   const index = new Uint32Array(count);
   const position = new Float32Array(count * 3);
   const normal = new Float32Array(count * 3);
+  const charts = new Uint32Array(all.length * 3);
   const density = LIGHTMAP.texelsPerMetre;
   let n = 0;
-  for (const chart of all) {
+  for (const [c, chart] of all.entries()) {
     const [w, h] = footprint(chart);
+    charts.set([n, w, h], c * 3);
     for (let j = 0; j < h; j++) {
       for (let i = 0; i < w; i++) {
         const along = (axis: 0 | 1, k: number) =>
@@ -336,7 +348,62 @@ function sampleTexels(all: Chart[], width: number, height: number): Texels {
     }
   }
   if (n !== count) throw new Error(`Sampled ${n} texels of ${count}`);
-  return { width, height, index, position, normal };
+  return { width, height, index, position, normal, charts };
+}
+
+const surfaces = ({ triangles, albedo }: { triangles: number[]; albedo: number[] }): Surfaces => ({ triangles: new Float32Array(triangles), albedo: new Float32Array(albedo) });
+
+/** A texture's average colour, linear, over its opaque texels: what a surface it covers reflects on the whole. */
+const textureAverages = new WeakMap<THREE.Texture, THREE.Color>();
+function textureAverage(texture: THREE.Texture): THREE.Color {
+  const known = textureAverages.get(texture);
+  if (known) return known;
+  const image = texture.image as { width: number; height: number; data?: ArrayLike<number> };
+  let pixels = image.data;
+  if (!pixels) {
+    const element = document.createElement("canvas");
+    element.width = image.width;
+    element.height = image.height;
+    const context = element.getContext("2d");
+    if (!context) throw new Error("2D canvas unavailable");
+    context.drawImage(texture.image as CanvasImageSource, 0, 0);
+    pixels = context.getImageData(0, 0, image.width, image.height).data;
+  }
+  const texel = new THREE.Color();
+  const sum = [0, 0, 0];
+  let opaque = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    const alpha = pixels[i + 3] / 255;
+    texel.setRGB(pixels[i] / 255, pixels[i + 1] / 255, pixels[i + 2] / 255, texture.colorSpace);
+    sum[0] += texel.r * alpha;
+    sum[1] += texel.g * alpha;
+    sum[2] += texel.b * alpha;
+    opaque += alpha;
+  }
+  const average = opaque > 0 ? new THREE.Color(sum[0] / opaque, sum[1] / opaque, sum[2] / opaque) : new THREE.Color(0, 0, 0);
+  textureAverages.set(texture, average);
+  return average;
+}
+
+/** The albedo of one triangle, into `out`: its material's colour, its
+ *  vertices' colours and its texture's average. An unlit surface draws
+ *  the same whatever light falls on it, so it reflects none. */
+function albedoOf(material: THREE.Material, colours: THREE.BufferAttribute | undefined, ids: number[], out: THREE.Color): THREE.Color {
+  if (!(material instanceof THREE.MeshLambertMaterial)) return out.setRGB(0, 0, 0);
+  out.copy(material.color);
+  if (colours) {
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    for (const id of ids) {
+      r += colours.getX(id) / 3;
+      g += colours.getY(id) / 3;
+      b += colours.getZ(id) / 3;
+    }
+    out.multiply(new THREE.Color(r, g, b));
+  }
+  if (material.map) out.multiply(textureAverage(material.map));
+  return out;
 }
 
 /** Is the object, or anything above it up to the root, one of these? */
@@ -397,9 +464,16 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
   }
 
   const buckets = new Map<string, Gathering>();
+  const bucketFor = (material: THREE.Material): Gathering => {
+    const params = drawParams(material);
+    const key = paramsKey(params);
+    const bucket = buckets.get(key) ?? { params, position: [], normal: [], colour: [], uv: [], role: [], uv1: [] };
+    buckets.set(key, bucket);
+    return bucket;
+  };
   const lit: LitTriangle[] = [];
-  const casters: number[] = [];
-  const plugs: Partial<Record<Edge, number[]>> = {};
+  const casters = { triangles: [] as number[], albedo: [] as number[] };
+  const plugs: Partial<Record<Edge, typeof casters>> = {};
   const meshes: THREE.Mesh[] = [];
   root.traverse((object) => {
     if (object instanceof THREE.Mesh) meshes.push(object);
@@ -427,16 +501,11 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
     const castsInBake = mesh.castShadow && !explorer && !cutRole.includes(ROLE_SHOW_WHEN_CUT);
     const bakeOnly = (mesh.userData as { bakeOnly?: boolean }).bakeOnly === true;
     const plug = (mesh.userData as { plug?: Edge }).plug;
-    const stops = plug ? (plugs[plug] ??= []) : casters;
+    const stops = plug ? (plugs[plug] ??= { triangles: [], albedo: [] }) : casters;
     for (const group of groups) {
       const material = (Array.isArray(mesh.material) ? mesh.material[group.materialIndex ?? 0] : mesh.material) as THREE.Material;
-      const params = drawParams(material);
-      const key = paramsKey(params);
-      let bucket = buckets.get(key);
-      if (!bucket && !dynamic && !bakeOnly) {
-        bucket = { params, position: [], normal: [], colour: [], uv: [], role: [], uv1: [] };
-        buckets.set(key, bucket);
-      }
+      // A moving piece is drawn as built, so its material may be any kind (water's own shader, say).
+      const bucket = dynamic || bakeOnly ? undefined : bucketFor(material);
       const base = (material as THREE.MeshBasicMaterial).color;
       const vertexColours = material.vertexColors && colours !== undefined;
       run++;
@@ -448,8 +517,12 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
         const normal = points[1].clone().sub(points[0]).cross(points[2].clone().sub(points[0]));
         if (normal.lengthSq() < 1e-14) continue;
         normal.normalize();
-        if (castsInBake) for (const p of points) stops.push(p.x, p.y, p.z);
-        if (dynamic || bakeOnly || !bucket) continue;
+        if (castsInBake) {
+          for (const p of points) stops.triangles.push(p.x, p.y, p.z);
+          albedoOf(material, vertexColours ? colours : undefined, ids, colour);
+          stops.albedo.push(colour.r, colour.g, colour.b);
+        }
+        if (!bucket) continue;
         const vertex = bucket.position.length / 3;
         ids.forEach((id, k) => {
           const p = points[k];
@@ -458,11 +531,11 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
           colour.copy(base);
           if (vertexColours) colour.multiply(new THREE.Color().fromBufferAttribute(colours, id));
           bucket.colour.push(colour.r, colour.g, colour.b);
-          if (params.map && uvs) bucket.uv.push(uvs.getX(id), uvs.getY(id));
+          if (bucket.params.map && uvs) bucket.uv.push(uvs.getX(id), uvs.getY(id));
           bucket.role.push(...cutRole);
         });
         const unseen = normal.y < FACING_DOWN || (outside !== undefined && normal.x * outside.x + normal.z * outside.y > 0.5);
-        if (params.lit) lit.push({ bucket, vertex, points, normal, run, unseen });
+        if (bucket.params.lit) lit.push({ bucket, vertex, points, normal, run, unseen });
       }
     }
   }
@@ -539,8 +612,8 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
     id,
     buckets: frozenBuckets,
     texels,
-    casters: new Float32Array(casters),
-    plugs: Object.fromEntries(Object.entries(plugs).map(([edge, triangles]) => [edge, new Float32Array(triangles)])),
+    casters: surfaces(casters),
+    plugs: Object.fromEntries(Object.entries(plugs).map(([edge, stops]) => [edge, surfaces(stops)])),
     lights: part.lights,
     dynamics,
     probes: { all, grid, spots },

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
 
 /**
  * Frogmino's replays: a named input log played in the real game scene. The

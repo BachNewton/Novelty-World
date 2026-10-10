@@ -55,7 +55,8 @@ function toppledWardrobe(): THREE.Group {
 function fallenChair(): THREE.Group {
   const piece = chair({ cushion: null });
   piece.rotation.z = Math.PI / 2;
-  piece.position.set(0.255, 0.23, 0);
+  // A hair off the floor, which puts no face of it in the plane of the house's choice glow.
+  piece.position.set(0.255, 0.232, 0);
   return group(piece);
 }
 
@@ -88,10 +89,11 @@ function crackedMirror(): THREE.Group {
     box([0.7, 1.5, 0.05], frame, [0, 0, 0.025]),
     box([0.56, 1.36, 0.02], glass, [0, 0.07, 0.055]),
   );
-  for (const [x, y, turn] of [[-0.05, 0.9, 0.6], [0.08, 0.7, -0.9], [0.02, 0.45, 0.3]] as const) {
+  // Each crack lies a little proud of the last, so where they cross their faces never share a plane.
+  for (const [i, [x, y, turn]] of ([[-0.05, 0.9, 0.6], [0.08, 0.7, -0.9], [0.02, 0.45, 0.3]] as const).entries()) {
     const crack = box([0.012, 0.42, 0.006], flat("ash"), [0, -0.21, 0]);
     crack.rotation.z = turn;
-    crack.position.set(x, y, 0.066);
+    crack.position.set(x, y, 0.066 + i * 0.002);
     result.add(crack);
   }
   result.rotation.x = -0.16;
@@ -169,10 +171,12 @@ function junkPile(size: number, seed: string): THREE.Group {
     const s = 0.22 + rng.next() * 0.18;
     tumble([s * 1.3, s * 0.8, s], [Math.cos(a) * r, 0.62 + (1 - r / half) * 0.35, Math.sin(a) * r], 0.6);
   }
-  // Chair legs and a bedpost poking out of the heap.
+  // Chair legs and a bedpost poking out of the heap, each at its own distance from the middle: two leaning mirror-wise at
+  // one distance would lie in one plane.
   for (let k = 0; k < 5; k++) {
     const a = (k / 5) * Math.PI * 2 + rng.next();
-    b.add([0.045, 0.6 + rng.next() * 0.4, 0.045], pick(rng, ["woodDark", "wood", "woodMid"] as PaletteKey[]), new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * half * 0.35, 0.95, Math.sin(a) * half * 0.35), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6)), new THREE.Vector3(1, 1, 1)));
+    const out = half * (0.3 + k * 0.025);
+    b.add([0.045, 0.6 + rng.next() * 0.4, 0.045], pick(rng, ["woodDark", "wood", "woodMid"] as PaletteKey[]), new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * out, 0.95, Math.sin(a) * out), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6)), new THREE.Vector3(1, 1, 1)));
   }
   b.block([0.62, 0.32, 0.55], "woodMid", [0, PILE_TOP - 0.32, 0]);
   b.block([0.66, 0.05, 0.59], "woodDark", [0, PILE_TOP - 0.21, 0]);

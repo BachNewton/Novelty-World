@@ -111,19 +111,22 @@ export function hostPeerId(game: string, code: string): string {
   return `novelty-world-${game}-${code}`;
 }
 
-/** Test/dev only: `?peer-signal=local` uses the e2e suite's local PeerServer. */
+/** Test/dev only: `?peer-signal=local:<port>` uses a local PeerServer on that port (each e2e run starts its own). */
 export const SIGNAL_PARAM = "peer-signal";
-const LOCAL_SIGNALING: PeerOptions = {
-  host: "localhost",
-  port: 3003,
-  path: "/",
-  secure: false,
-  // Same-machine peers connect over host candidates; no STUN/TURN needed.
-  config: { iceServers: [] },
-};
 
 export function peerOptionsFromSearch(search: string): PeerOptions {
-  return new URLSearchParams(search).get(SIGNAL_PARAM) === "local" ? LOCAL_SIGNALING : {};
+  const signal = new URLSearchParams(search).get(SIGNAL_PARAM);
+  if (signal === null) return {};
+  const local = /^local:(\d+)$/.exec(signal);
+  if (local === null) throw new Error(`?${SIGNAL_PARAM}=${signal} is not local:<port>`);
+  return {
+    host: "localhost",
+    port: Number(local[1]),
+    path: "/",
+    secure: false,
+    // Same-machine peers connect over host candidates; no STUN/TURN needed.
+    config: { iceServers: [] },
+  };
 }
 
 /**

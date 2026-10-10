@@ -5,7 +5,6 @@ import { freezeRoom } from "./freeze";
 import { stubCanvas } from "./headless";
 import { definition } from "./house";
 import { closedDoors, diffLayout, falseWindows, HOUSE_FIXTURE, MARKINGS_LAYOUT } from "./house-layout";
-import { FALSE_DOOR_STYLES, markingsFromSearch } from "./markings";
 import { BENCH_ROOMS } from "./rooms";
 import { buildRoom } from "./stage";
 
@@ -16,23 +15,6 @@ function tile(layout: Layout, id: string) {
   if (!found) throw new Error(`${id} is not in the layout`);
   return found;
 }
-
-describe("markingsFromSearch", () => {
-  it("is on, with boarded false doors, unless asked otherwise", () => {
-    expect(markingsFromSearch("")).toEqual({ falseDoor: "boarded" });
-    expect(markingsFromSearch("?house&markings=on")).toEqual({ falseDoor: "boarded" });
-    expect(markingsFromSearch("?house&falseDoor=outline")).toEqual({ falseDoor: "outline" });
-  });
-
-  it("turns them off", () => {
-    expect(markingsFromSearch("?markings=off&falseDoor=outline")).toBeNull();
-  });
-
-  it("throws on a value it doesn't know, so a typo never passes for a choice", () => {
-    expect(() => markingsFromSearch("?markings=no")).toThrow(/markings=no/);
-    expect(() => markingsFromSearch("?falseDoor=bricked")).toThrow(/falseDoor=bricked/);
-  });
-});
 
 describe("falseWindows", () => {
   const of = (layout: Layout, id: string) => falseWindows(layout, CATALOG, tile(layout, id));
@@ -65,15 +47,13 @@ describe("diffLayout with windows", () => {
 
 describe("building rooms with the markings", () => {
   const ids = [...BENCH_ROOMS.map((room) => room.id), "dining-room", "bedroom"];
-  for (const style of FALSE_DOOR_STYLES) {
-    it(`builds and freezes every room with every door false and every window false (${style})`, () => {
-      for (const id of ids) {
-        const room = CATALOG.rooms[id];
-        const part = buildRoom(definition(id), { explorer: null, closedDoors: room.doors.filter((edge) => edge !== room.frontDoor), falseWindows: room.windows, markings: { falseDoor: style } });
-        expect(() => freezeRoom(id, part)).not.toThrow();
-      }
-    });
-  }
+  it("builds and freezes every room with every door false and every window false", () => {
+    for (const id of ids) {
+      const room = CATALOG.rooms[id];
+      const part = buildRoom(definition(id), { explorer: null, closedDoors: room.doors.filter((edge) => edge !== room.frontDoor), falseWindows: room.windows });
+      expect(() => freezeRoom(id, part)).not.toThrow();
+    }
+  }, 30_000);
 
   it("builds every room in the markings house as the house would", () => {
     for (const placed of MARKINGS_LAYOUT.tiles) {
@@ -81,7 +61,6 @@ describe("building rooms with the markings", () => {
         explorer: null,
         closedDoors: closedDoors(MARKINGS_LAYOUT, CATALOG, placed),
         falseWindows: falseWindows(MARKINGS_LAYOUT, CATALOG, placed),
-        markings: { falseDoor: "boarded" },
       });
       expect(part.walls.length).toBeGreaterThan(0);
     }

@@ -1,11 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
 import type { Page, Browser, BrowserContext } from "@playwright/test";
+import { PEER_SIGNAL } from "./peer-signal";
 
 /**
  * RPG co-op E2E (PeerJS star, one room per test via `?coop-room=`).
  *
- * Offline by design: `?peer-signal=local` points PeerJS at the local
- * PeerServer started by global-setup (`e2e/peer-server.ts`), with no STUN or
+ * Offline by design: `?peer-signal=local:<port>` points PeerJS at the local
+ * PeerServer this run started (`e2e/peer-server.ts`), with no STUN or
  * TURN, so the suite never touches the public PeerJS cloud.
  *
  * Route: `/rpg` (`src/app/rpg/page.tsx` -> `RpgGame`). Play/edit toggles with
@@ -59,7 +60,7 @@ async function newPeer(browser: Browser): Promise<{ ctx: BrowserContext; page: P
 }
 
 async function gotoRpg(page: Page, room: string): Promise<void> {
-  await page.goto(`${RPG_URL}?${COOP_ROOM_PARAM}=${encodeURIComponent(room)}&peer-signal=local`);
+  await page.goto(`${RPG_URL}?${COOP_ROOM_PARAM}=${encodeURIComponent(room)}&${PEER_SIGNAL}`);
   await page.waitForLoadState("domcontentloaded");
   // Play mode is the default: the play canvas mounts (edit chrome absent).
   await expect(page.getByTestId("play-canvas")).toBeVisible({ timeout: 10_000 });

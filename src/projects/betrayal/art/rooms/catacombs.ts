@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { createRng, pick, type Rng } from "@/shared/lib/seeded-random";
 import { candle, cobweb } from "../kit";
 import type { PaletteKey } from "../palette";
-import { INNER, type LightSpec, type RoomDefinition } from "../room";
+import { clearOfMarks, INNER, type LightSpec, type RoomDefinition } from "../room";
 import { batch, group, type Batch } from "../shapes";
 import { earth, flagstones } from "../textures";
 
@@ -41,12 +41,13 @@ function skull(bones: Batch, eyes: Batch | null, at: THREE.Vector3, turn: number
 /** A row of long bones laid into the bank, their knuckled ends out to its
  *  face, `length` metres along x at height `y`. */
 function boneCourse(bones: Batch, x0: number, x1: number, y: number, face: number, rng: Rng) {
-  for (let x = x0 + 0.04 + rng.next() * 0.03; x < x1 - 0.03; x += 0.065) {
+  for (let x = x0 + 0.04 + rng.next() * 0.03; x < x1 - 0.04; x += 0.065) {
     const out = face * (BANK.half - 0.01 - rng.next() * 0.025);
     const colour = pick(rng, BONES);
     const lift = y + rng.next() * 0.012;
     bones.add([0.045, 0.045, 0.34], colour, new THREE.Matrix4().makeTranslation(x, lift + 0.03, out - face * 0.17));
-    bones.add([0.06, 0.06, 0.05], colour, new THREE.Matrix4().makeTranslation(x, lift + 0.03, out - face * 0.005));
+    // Its knuckle end is no taller than a course's rise less the lift, so the knuckles of two courses never overlap.
+    bones.add([0.06, 0.048, 0.05], colour, new THREE.Matrix4().makeTranslation(x, lift + 0.03, out - face * 0.005));
   }
 }
 
@@ -66,19 +67,23 @@ function bank(x0: number, x1: number, seed: string): THREE.Group {
   const rng = createRng(`catacombs-${seed}`);
   const bones = batch();
   const eyes = batch();
-  bones.block([x1 - x0 - 0.04, BANK.height - 0.16, BANK.half * 2 - 0.16], "boneDark", [(x0 + x1) / 2, 0, 0]);
+  // The core reaches a little past the courses' first and last bones, so its ends never share a plane with theirs.
+  bones.block([x1 - x0 - 0.01, BANK.height - 0.16, BANK.half * 2 - 0.16], "boneDark", [(x0 + x1) / 2, 0, 0]);
   for (const face of [-1, 1]) {
     const turn = face > 0 ? 0 : Math.PI;
     boneCourse(bones, x0, x1, 0, face, rng);
     boneCourse(bones, x0, x1, 0.06, face, rng);
     for (let x = x0 + 0.13; x < x1 - 0.1; x += 0.21) skull(bones, rng.next() < 0.85 ? eyes : null, new THREE.Vector3(x, 0.13, face * (BANK.half - 0.13)), turn, rng, 1.25);
     boneCourse(bones, x0, x1, 0.32, face, rng);
-    for (let x = x0 + 0.2; x < x1 - 0.1; x += 0.21) skull(bones, rng.next() < 0.7 ? eyes : null, new THREE.Vector3(x, 0.4, face * (BANK.half - 0.13)), turn, rng, 1.2);
+    // Set a little higher than the core's top would allow a skull's crown to meet it in one plane.
+    for (let x = x0 + 0.2; x < x1 - 0.1; x += 0.21) skull(bones, rng.next() < 0.7 ? eyes : null, new THREE.Vector3(x, 0.405, face * (BANK.half - 0.13)), turn, rng, 1.2);
   }
   // The top: long bones laid along it, and a few skulls set loose on them.
-  for (let x = x0 + 0.06; x < x1 - 0.05; x += 0.07) bones.block([0.05, 0.05, BANK.half * 2 - 0.16], pick(rng, BONES), [x, BANK.height - 0.165 + rng.next() * 0.02, 0]);
+  // They lie between the bands of skulls along the faces, never over them, so a crown never meets a bone in one plane.
+  for (let x = x0 + 0.06; x < x1 - 0.05; x += 0.07) bones.block([0.05, 0.05, 0.3], pick(rng, BONES), [x, BANK.height - 0.165 + rng.next() * 0.02, 0]);
   for (let x = x0 + 0.25; x < x1 - 0.2; x += 0.45 + rng.next() * 0.4) {
-    skull(bones, rng.next() < 0.5 ? eyes : null, new THREE.Vector3(x, BANK.height - 0.12, (rng.next() - 0.5) * 0.3), (rng.next() < 0.5 ? 0 : Math.PI) + (rng.next() - 0.5) * 0.8, rng, 0.9);
+    // Set on the bones a little higher than their tops reach, so no part of a skull meets a bone's top in one plane.
+    skull(bones, rng.next() < 0.5 ? eyes : null, new THREE.Vector3(x, BANK.height - 0.11, (rng.next() - 0.5) * 0.3), (rng.next() < 0.5 ? 0 : Math.PI) + (rng.next() - 0.5) * 0.8, rng, 0.9);
   }
   return group(bones.mesh(), eyeMesh(eyes));
 }
@@ -94,7 +99,8 @@ function skullArch(): THREE.Group {
   const eyes = batch();
   for (const side of [-1, 1]) {
     const x = side * (GAP + PILLAR / 2);
-    bones.block([PILLAR - 0.08, ARCH_TOP, BANK.half * 2 - 0.2], "boneDark", [x, 0, 0]);
+    // The pillar's core stops under the lintel's, so their faces never share a plane.
+    bones.block([PILLAR - 0.08, ARCH_TOP - 0.1, BANK.half * 2 - 0.2], "boneDark", [x, 0, 0]);
     for (let y = 0; y < ARCH_TOP - 0.35; y += 0.24) {
       for (const face of [-1, 1]) {
         skull(bones, eyes, new THREE.Vector3(x, y + 0.05, face * (BANK.half - 0.13)), face > 0 ? 0 : Math.PI, rng, 1.25);
@@ -107,11 +113,13 @@ function skullArch(): THREE.Group {
   const span = 2 * (GAP + PILLAR);
   bones.block([span, 0.26, BANK.half * 2 - 0.2], "boneDark", [0, ARCH_TOP - 0.1, 0]);
   for (const face of [-1, 1]) {
-    for (let x = -span / 2 + 0.11; x < span / 2 - 0.05; x += 0.2) skull(bones, eyes, new THREE.Vector3(x, ARCH_TOP - 0.05, face * (BANK.half - 0.13)), face > 0 ? 0 : Math.PI, rng, 1.25);
+    // Small enough never to overlap the next skull along, so two crowns never meet in one plane.
+    for (let x = -span / 2 + 0.11; x < span / 2 - 0.05; x += 0.2) skull(bones, eyes, new THREE.Vector3(x, ARCH_TOP - 0.05, face * (BANK.half - 0.13)), face > 0 ? 0 : Math.PI, rng, 1.2);
   }
   // Its top: a ridge of skulls looking both ways.
   for (let x = -span / 2 + 0.12; x < span / 2 - 0.08; x += 0.2) {
-    for (const face of [-1, 1]) skull(bones, eyes, new THREE.Vector3(x, ARCH_TOP + 0.16, face * 0.1), face > 0 ? 0 : Math.PI, rng, 1.1);
+    // Back to back but clear of each other, so the sides of two skulls of nearly one size never meet in one plane.
+    for (const face of [-1, 1]) skull(bones, eyes, new THREE.Vector3(x, ARCH_TOP + 0.16, face * 0.135), face > 0 ? 0 : Math.PI, rng, 1.1);
   }
   // Under the lintel, a row of skulls looking straight down on the way through.
   for (let x = -GAP + 0.1; x < GAP - 0.05; x += 0.2) bones.block([0.15, 0.03, 0.15], pick(rng, BONES), [x, ARCH_TOP - 0.13, 0]);
@@ -123,8 +131,13 @@ function skullArch(): THREE.Group {
 function trodden(): THREE.Group {
   const rng = createRng("catacombs-trodden");
   const bones = batch();
+  // Each bone lies a hair higher than the last, so no two tops share a plane, and the heap steps over the plane of the
+  // choice marks' glow rather than putting a top in it.
+  let over = 0;
   for (let k = 0; k < 26; k++) {
-    const at = new THREE.Vector3((rng.next() - 0.5) * GAP * 1.2, 0.013 + k * 0.0011, (rng.next() - 0.5) * 1.6);
+    const top = 0.0255 + k * 0.0011 + over;
+    if (clearOfMarks(top) !== top) over += 0.0024;
+    const at = new THREE.Vector3((rng.next() - 0.5) * GAP * 1.2, 0.013 + k * 0.0011 + over, (rng.next() - 0.5) * 1.6);
     const turn = rng.next() * Math.PI;
     bones.add([0.035, 0.025, 0.2 + rng.next() * 0.16], pick(rng, BONES), new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turn), new THREE.Vector3(1, 1, 1)));
   }
@@ -150,7 +163,8 @@ function galleryShelf(length: number, seed: string): THREE.Group {
     if (rng.next() < 0.12) continue;
     skull(bones, null, new THREE.Vector3(x, 0.13, depth / 2 - 0.12), 0, rng, 0.95);
   }
-  for (let x = -length / 2 + 0.05; x < length / 2 - 0.04; x += 0.07) bones.block([0.05, 0.04, depth - 0.1], pick(rng, BONES), [x, 0.36, -0.04]);
+  // The bones laid along the top stand a little proud of the dark core, so their tops never share its plane.
+  for (let x = -length / 2 + 0.05; x < length / 2 - 0.04; x += 0.07) bones.block([0.05, 0.04, depth - 0.1], pick(rng, BONES), [x, 0.365, -0.04]);
   return group(bones.mesh());
 }
 

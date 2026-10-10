@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
+import { PEER_SIGNAL } from "./peer-signal";
 
 /**
  * Frogmino's local co-op: two players on one keyboard, each half joining
@@ -51,7 +52,7 @@ test("?play=local opens the join screen, where both halves of the keyboard join 
 test("Local co-op from the lobby opens the join screen, and Back returns", async ({ page }) => {
   // The lobby lists online games too: on the local PeerServer, and on a
   // room-list channel of the test's own.
-  await page.goto(`${LOBBY}?peer-signal=local&room-list=e2e-${crypto.randomUUID()}`);
+  await page.goto(`${LOBBY}?${PEER_SIGNAL}&room-list=e2e-${crypto.randomUUID()}`);
   await page.getByRole("button", { name: "Local co-op" }).click();
   await expect(page.getByText("Road: 10 lanes")).toBeVisible({ timeout: TIMEOUT });
   await page.getByRole("button", { name: "Back to lobby" }).click();

@@ -3,10 +3,10 @@ import { createRng, pick } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { strand } from "../kit";
 import { lightAnchor } from "../light-anchor";
-import { flickerOf, flickerSignal } from "../lighting";
+import { flickerSignal } from "../lighting";
 import { RAMPS, type PaletteKey } from "../palette";
-import type { RoomDefinition } from "../room";
-import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial } from "../shapes";
+import { clearOfMarks, type RoomDefinition } from "../room";
+import { batch, box, cylinder, flat, glow, group, lathe } from "../shapes";
 import { flagstones } from "../textures";
 
 /** The fallen belfry lies along z, across the way between the two gates:
@@ -68,32 +68,40 @@ function rubbleBank(z0: number, z1: number, seed: string): THREE.Group {
 function saddleScree(): THREE.Group {
   const rng = createRng("tower-scree");
   const b = batch();
+  // Each stone lies a hair higher than the last, and the heap steps over the plane of the choice marks' glow rather than
+  // putting a top in it.
+  let over = 0;
   for (let k = 0; k < 18; k++) {
-    const at = new THREE.Vector3((rng.next() - 0.5) * RAMPART * 2, 0.012 + k * 0.0012, (rng.next() - 0.5) * SADDLE * 1.7);
+    const top = 0.023 + k * 0.0012 + over;
+    if (clearOfMarks(top) !== top) over += 0.0024;
+    const at = new THREE.Vector3((rng.next() - 0.5) * RAMPART * 2, 0.012 + k * 0.0012 + over, (rng.next() - 0.5) * SADDLE * 1.7);
     b.add([0.14 + rng.next() * 0.16, 0.022, 0.1 + rng.next() * 0.12], pick(rng, STONES), new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rng.next() * Math.PI), new THREE.Vector3(1, 1, 1)));
   }
   return group(b.mesh());
 }
 
 /** The belfry's great bell, green with age, crashed down and lying on its
- *  side, its mouth turned to the left gate, bright scars where it struck, a crack up its waist and the stump of its
+ *  side, its mouth turned to the left gate, a crack up its waist and the stump of its
  *  headstock still on its crown. Its axis runs along x. */
 function fallenBell(): THREE.Group {
   const height = 1.0;
+  // Bottom-up on the outside, as a lathe's profile must run for its faces to
+  // point outwards: in from the crown down the inside, round the lip, and up
+  // the outside to the crown.
   const profile: [number, number][] = [
-    [0, height],
-    [0.24, height],
-    [0.31, 0.92],
-    [0.33, 0.62],
-    [0.4, 0.3],
-    [0.54, 0.07],
-    [0.57, 0],
-    [0.5, 0],
-    [0.46, 0.06],
-    [0.33, 0.28],
-    [0.27, 0.6],
-    [0.25, 0.88],
     [0, 0.93],
+    [0.25, 0.88],
+    [0.27, 0.6],
+    [0.33, 0.28],
+    [0.46, 0.06],
+    [0.5, 0],
+    [0.57, 0],
+    [0.54, 0.07],
+    [0.4, 0.3],
+    [0.33, 0.62],
+    [0.31, 0.92],
+    [0.24, height],
+    [0, height],
   ];
   const bronze = lathe(profile, flat("verdigrisLight"), 16);
   const bell = group(
@@ -102,15 +110,6 @@ function fallenBell(): THREE.Group {
     box([0.3, 0.16, 0.2], flat("woodDark"), [0, height - 0.02, 0]),
     box([0.06, 0.12, 0.08], flat("soot"), [0, height + 0.12, 0]),
   );
-  // Scars of bright bronze down its waist, where it struck the stones.
-  for (const turn of [0.4, 1.9, 3.3, 4.6]) {
-    const streak = box([0.05, 0.42, 0.012], flat("brass"), [0, 0.45, 0]);
-    const r = 0.355;
-    streak.position.set(Math.sin(turn) * r, 0, Math.cos(turn) * r);
-    streak.rotation.y = turn;
-    streak.rotation.x = -0.18;
-    bell.add(streak);
-  }
   // Lying on its side: the crown to +x, the mouth to −x, rolled a little.
   bell.rotation.set(0.12, 0, -Math.PI / 2 + 0.1);
   bell.scale.setScalar(1.25);
@@ -161,15 +160,8 @@ function beaconStump(): THREE.Group {
   basket.add(new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.015, 3, 12).rotateX(Math.PI / 2).translate(0, 0.3, 0), iron));
   const coals = cylinder(0.2, 0.08, glow("ember"), [0, 0.03, 0], { top: 0.18, sides: 8 });
   coals.userData.noShadow = true;
-  const heat = new THREE.Mesh(new THREE.SphereGeometry(0.33, 8, 6).translate(0, 0.25, 0), lightMaterial(0.25));
-  (heat.material as THREE.MeshBasicMaterial).color.set(flat("ember").color);
-  heat.userData.noShadow = true;
-  animated(heat, (seconds) => {
-    (heat.material as THREE.MeshBasicMaterial).opacity = 0.18 + 0.12 * flickerOf(seconds, FIRE_SIGNAL);
-  });
   basket.add(
     coals,
-    heat,
     tongue(-0.07, 0.03, 0.38, 0.08, "ember", 0),
     tongue(0.08, -0.04, 0.34, 0.07, "ember", 1),
     tongue(0, 0.07, 0.3, 0.07, "amber", 3),

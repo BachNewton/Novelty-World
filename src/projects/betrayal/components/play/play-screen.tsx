@@ -5,7 +5,6 @@ import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import { figureFor } from "../../art/explorers/by-character";
 import { createHouseScene, type FigureSpec, type FloorChoice, type HouseScene, type SceneHook } from "../../art/house-scene";
-import { markingsFromSearch } from "../../art/markings";
 import { FLOOR_NAMES, FLOORS } from "../../engine/board";
 import type { GameView } from "../../engine/view";
 import type { Action } from "../../types";
@@ -20,8 +19,12 @@ import { GHOST, GhostHandles, useGhost, type GhostReadout } from "./ghost-placer
 import { figureColour, seatDot } from "./seat-colour";
 import { boxPadButton } from "./box-pad";
 import { StatusBox } from "./status-box";
+import { freedText, SeatsPanel, useSeatInputs, useSeatsGate } from "./seats-panel";
+import type { PadSeats } from "./use-pads";
 import { paceOf, sceneTarget, slotOf, walkedRooms, type RouteWalk } from "./routes";
 import { RaiseWallsButton } from "../raise-walls-button";
+import { BakeDebug } from "../../art/bake-debug";
+import { BakeIndicator } from "../../art/bake-indicator";
 
 /*
  * The game on one device: the house, showing the seat holding the device
@@ -126,7 +129,7 @@ function createScreen(store: PlayStore): {
   /** The target in focus as last rendered, for the readout. */
   focusRef: { current: string | null };
 } {
-  const scene = createHouseScene({ tiles: store.snapshot().view.board.tiles }, { markings: markingsFromSearch(window.location.search) });
+  const scene = createHouseScene({ tiles: store.snapshot().view.board.tiles });
   const ghostRef: { current: GhostReadout | null } = { current: null };
   const focusRef: { current: string | null } = { current: null };
   function mount(ctx: ThreeSceneContext): ThreeSceneHandlers {
@@ -143,11 +146,15 @@ function createScreen(store: PlayStore): {
   return { scene, mount, ghostRef, focusRef };
 }
 
-export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () => void }) {
+export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: PadSeats; onLeave: () => void }) {
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const { view, holder, client } = snapshot;
   const [{ scene, mount, ghostRef, focusRef }] = useState(() => createScreen(store));
   const shown = useSyncExternalStore(scene.subscribe, scene.view, scene.view);
+  // Several pads on one device: only the acting seat's pads act, and each seat's hints follow its own last input.
+  const gate = useSeatsGate(pads, holder, view.seats.length);
+  const { padMay, padButton: seatsPadButton } = gate;
+  useSeatInputs(holder, shown.input, pads, scene.setInputKind);
   const containerRef = useThreeScene(mount, { antialias: false, maxPixelRatio: 4 });
   const labelRef = useRef<HTMLDivElement>(null);
   const handlesRef = useRef<HTMLDivElement>(null);
@@ -198,7 +205,9 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
         commit(latest.current.live);
       },
       rotate: (step) => latest.current.ghost?.rotate(step),
-      padButton: (button) => {
+      padMay,
+      padButton: (button, pad) => {
+        if (seatsPadButton(button, pad)) return true;
         const ending = latest.current.end;
         return boxPadButton(boxRef.current, button, ending && (() => act(ending.action)));
       },
@@ -209,7 +218,7 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
       scene.setLabel(null);
       scene.setGhostHandles(null);
     };
-  }, [scene, store, act]);
+  }, [scene, store, act, padMay, seatsPadButton]);
 
   useEffect(() => {
     const key = JSON.stringify(view.board.tiles);
@@ -241,6 +250,9 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
   return (
     <div className="fixed inset-0 bg-(--bt-bg) text-(--bt-ink)">
       <div ref={containerRef} className="absolute inset-0" />
+      {/* In the corner the header leaves clear. */}
+      <BakeIndicator bakes={scene.bakes} className="absolute top-3 right-2" />
+      <BakeDebug bakes={scene.bakes} />
       <div
         ref={labelRef}
         role="tooltip"
@@ -284,14 +296,26 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
         >
           Walls
         </RaiseWallsButton>
+        <button
+          type="button"
+          onClick={() => {
+            gate.setOpen(true);
+          }}
+          className="pointer-events-auto min-h-10 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1"
+        >
+          Seats
+        </button>
         <button type="button" onClick={onLeave} className="pointer-events-auto min-h-10 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1">
           Leave game
         </button>
       </header>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-start">
-        <StatusBox boxRef={boxRef} view={view} holder={holder} problem={client.problem} choices={choices} ghost={ghost} input={shown.input} act={act} preview={preview} />
+        <StatusBox boxRef={boxRef} view={view} holder={holder} problem={client.problem} choices={choices} ghost={ghost} input={shown.input} act={act} preview={preview} notice={freedText(view, pads)} openSeats={() => {
+          gate.setOpen(true);
+        }} />
       </div>
+      <SeatsPanel view={view} pads={pads} gate={gate} />
     </div>
   );
 }

@@ -187,6 +187,45 @@ export function choices(
   }));
 }
 
+/** Each legal choice the pending decision offers a seat, with the state
+ *  applying it leads to: what `choices`, then `apply` on each, would give,
+ *  with the candidates listed once and each tried on one copy, for a caller
+ *  that looks ahead. `among` keeps the candidates worth trying. */
+export function outcomes(
+  engine: Engine,
+  state: GameState,
+  seat: number,
+  among: (candidate: Json) => boolean = () => true,
+): (Choice & { state: GameState })[] {
+  const pending = state.pending;
+  if (
+    pending?.type !== "decision" ||
+    !pending.seats.includes(seat) ||
+    seat in pending.answers
+  )
+    return [];
+  const kind = decisionKind(engine, pending.kind);
+  const found: (Choice & { state: GameState })[] = [];
+  for (const choice of kind.candidates(state, pending, seat, engine)) {
+    if (!among(choice)) continue;
+    const draft = copyState(state);
+    const write = beginWrite(
+      engine,
+      draft,
+      pending.id,
+      writeKey(pending.id, seat),
+    );
+    if (answer(engine, draft, write, seat, choice) !== null) continue;
+    run(engine, draft, write);
+    found.push({
+      choice,
+      label: kind.label(state, pending, choice, engine),
+      state: draft,
+    });
+  }
+  return found;
+}
+
 /** The legal answers to a decision, stopping once `enough` are found: each
  *  is tried on a copy of the whole state, so a caller that only needs to
  *  tell none, one and more apart shouldn't try every one. */

@@ -38,6 +38,7 @@
   ],
   "exclude": [
     "node_modules",
+    ".next-e2e",
     ".claude/worktrees",
     ".opencode/worktrees"
   ]

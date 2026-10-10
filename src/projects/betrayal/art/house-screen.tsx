@@ -6,11 +6,12 @@ import { BETRAYAL_THEME } from "../components/theme";
 import { FLOOR_NAMES, FLOORS } from "../engine/board";
 import type { InputKind } from "../input/controls";
 import { BenchButton } from "./bench-view";
+import { BakeDebug } from "./bake-debug";
+import { BakeIndicator } from "./bake-indicator";
 import type { Layout } from "../engine/board";
 import { CATALOG } from "../data";
 import { HOUSE_FIXTURE, MARKINGS_LAYOUT, reviewHouse, SPILL_LAYOUTS } from "./house-layout";
 import { createHouseDemo, FIXTURE_STARTS, type Phase } from "./house-demo";
-import { markingsFromSearch } from "./markings";
 import { RaiseWallsButton } from "../components/raise-walls-button";
 import type { FloorChoice } from "./house-scene";
 import { BENCH_ROOMS } from "./rooms";
@@ -92,7 +93,7 @@ function chosenHouse(): { layout: Layout; starts: readonly [string, string] } {
 export function HouseScreen() {
   const [view] = useState(() => {
     const { layout, starts } = chosenHouse();
-    return createHouseDemo(layout, starts, markingsFromSearch(window.location.search));
+    return createHouseDemo(layout, starts);
   });
   const state = useSyncExternalStore(view.subscribe, view.snapshot, view.snapshot);
   const shown = useSyncExternalStore(view.scene.subscribe, view.scene.view, view.scene.view);
@@ -131,6 +132,9 @@ export function HouseScreen() {
   return (
     <div style={BETRAYAL_THEME} className="fixed inset-0 bg-(--bt-bg) text-(--bt-ink)">
       <div ref={containerRef} className="absolute inset-0" />
+      {/* Under the frame-rate panel and the readout, in the column the controls leave clear. */}
+      <BakeIndicator bakes={view.scene.bakes} className="absolute top-30 right-2" />
+      <BakeDebug bakes={view.scene.bakes} />
       <div
         ref={reticleRef}
         aria-hidden

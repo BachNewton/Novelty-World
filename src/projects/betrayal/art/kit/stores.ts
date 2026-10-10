@@ -8,8 +8,8 @@ export function crate(size: Size = [0.55, 0.5, 0.55], wood: PaletteKey = "wood")
   const [w, h, d] = size;
   const b = batch();
   b.block([w, h, d], wood, [0, 0, 0]);
-  for (const sx of [-1, 1]) b.block([0.05, h + 0.01, d + 0.02], "woodDark", [(sx * (w - 0.05)) / 2, -0.005, 0]);
-  b.block([w - 0.1, 0.05, d + 0.015], "woodMid", [0, h / 2 - 0.025, 0]);
+  for (const sx of [-1, 1]) b.block([0.05, h + 0.01, d + 0.02], "woodDark", [sx * (w / 2 - 0.015), -0.005, 0]);
+  b.block([w - 0.07, 0.05, d + 0.015], "woodMid", [0, h / 2 - 0.025, 0]);
   return group(b.mesh());
 }
 

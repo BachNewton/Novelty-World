@@ -14,10 +14,11 @@ function fireplace(): THREE.Group {
   const result = group(
     box([0.3, 1.15, 0.4], stone, [-0.65, 0, 0.2]),
     box([0.3, 1.15, 0.4], stone, [0.65, 0, 0.2]),
-    box([1.6, 0.3, 0.4], stone, [0, 0.85, 0.2]),
+    // The lintel spans between the jambs, and the hearth stands a little wider than them, so no faces meet in one plane.
+    box([1.0, 0.3, 0.4], stone, [0, 0.85, 0.2]),
     box([1.0, 0.85, 0.3], soot, [0, 0, 0.16]),
     box([1.8, 0.08, 0.5], mantel, [0, 1.15, 0.25]),
-    box([1.6, 0.04, 0.55], stone, [0, 0, 0.3]),
+    box([1.64, 0.04, 0.55], stone, [0, 0, 0.3]),
   );
   const log = flat("wood");
   for (const [x, turn] of [[-0.15, 0.3], [0.15, -0.25]]) {

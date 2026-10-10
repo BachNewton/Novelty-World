@@ -1,34 +1,25 @@
 import { execSync } from "child_process";
+import { existsSync, readFileSync, rmSync } from "fs";
+import { runDir } from "./run-dir";
 
 /**
- * Kills the services spawned by global-setup. They are spawned with
- * `shell:true`, so each recorded PID is the shell — not the service itself —
- * and a bare `process.kill(pid)` only kills the shell, leaking the service as
- * a stale listener on its port (`EADDRINUSE` on the next run). Kill the
- * whole process TREE instead. Dependency-free (node builtins only).
+ * Stops this run's Next server (e2e/next-server.ts) and deletes its build.
+ * Playwright would stop the server after this, but its build can only be
+ * deleted once nothing is serving it. The server runs under a shell, and on
+ * Windows killing a process leaves its children running, so kill the whole
+ * process tree. Dependency-free (node builtins only).
  */
 function killTree(pid: number): void {
-  try {
-    if (process.platform === "win32") {
-      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
-    } else {
-      process.kill(pid);
-    }
-  } catch {
-    // taskkill may fail if the shell already exited while the service lives
-    // on — fall back to a direct kill so a survivor never leaks its port.
-    try {
-      process.kill(pid);
-    } catch {
-      // Process is already gone.
-    }
-  }
+  if (process.platform === "win32") execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+  else process.kill(pid, "SIGTERM");
 }
 
-export default async function globalTeardown() {
-  const pids = (process.env.E2E_SERVICE_PIDS ?? "")
-    .split(",")
-    .map(Number)
-    .filter((pid) => Number.isFinite(pid) && pid > 0);
-  for (const pid of pids) killTree(pid);
+export default function globalTeardown(): void {
+  const runId = process.env.E2E_RUN_ID;
+  if (runId === undefined) throw new Error("E2E_RUN_ID is unset: playwright.config.ts sets it");
+  const dir = runDir(runId);
+  // No folder: the run used an already-running server (E2E_BASE_URL).
+  if (!existsSync(dir)) return;
+  killTree(Number(readFileSync(`${dir}/server.pid`, "utf8")));
+  rmSync(dir, { recursive: true, force: true });
 }

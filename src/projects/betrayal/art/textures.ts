@@ -475,7 +475,13 @@ export function pixelTexture(rows: readonly string[], legend: PixelLegend, repea
   });
 }
 
-const PALETTE_RGB = Object.values(PALETTE).map((hex) => [
+/** The colours a decal snaps to: every palette colour but skin, which only
+ *  figures wear, and which would otherwise catch the anti-aliased edge
+ *  between most pairs of the house's warm colours. */
+const SKIN: readonly PaletteKey[] = RAMPS.skin;
+const DECAL_COLOURS = (Object.keys(PALETTE) as PaletteKey[]).filter((key) => !SKIN.includes(key));
+
+const PALETTE_RGB = DECAL_COLOURS.map(paletteHex).map((hex) => [
   parseInt(hex.slice(1, 3), 16),
   parseInt(hex.slice(3, 5), 16),
   parseInt(hex.slice(5, 7), 16),

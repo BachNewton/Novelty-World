@@ -315,9 +315,10 @@ function cabBench(): THREE.Group {
   b.block([width, 0.1, 0.44], "woodDark", [0, 0, 0.22]);
   b.block([width - 0.04, 0.26, 0.4], "wood", [0, 0.1, 0.2]);
   b.block([width - 0.2, 0.18, 0.02], "woodMid", [0, 0.14, 0.405]);
-  b.block([width, 0.09, 0.46], "bruise", [0, 0.36, 0.23]);
-  b.block([width - 0.06, 0.02, 0.4], "bruiseDark", [0, 0.448, 0.23]);
-  b.block([width, 0.4, 0.1], "bruise", [0, 0.45, 0.06]);
+  // The seat's top stops a little under the cut wall's, so the two never share a plane.
+  b.block([width, 0.085, 0.46], "bruise", [0, 0.36, 0.23]);
+  b.block([width - 0.06, 0.02, 0.4], "bruiseDark", [0, 0.443, 0.23]);
+  b.block([width, 0.405, 0.1], "bruise", [0, 0.445, 0.06]);
   for (let i = 0; i < 6; i++) b.block([0.04, 0.04, 0.02], "bruiseDark", [-width / 2 + 0.2 + i * 0.26, 0.64, 0.115]);
   return group(b.mesh());
 }
@@ -332,7 +333,8 @@ function toppledStool(): THREE.Group {
     cylinder(0.16, 0.03, iron, [0, 0.59, 0], { sides: 10 }),
   );
   for (let i = 0; i < 3; i++) {
-    const foot = box([0.03, 0.03, 0.24], iron, [0, 0, 0.12]);
+    // Each foot a little higher than the last, so where they cross at the hub their faces never share a plane.
+    const foot = box([0.03, 0.03, 0.24], iron, [0, i * 0.002, 0.12]);
     const holder = group(foot);
     holder.rotation.y = (i * Math.PI * 2) / 3;
     stool.add(holder);
@@ -358,10 +360,12 @@ function cableCoil(): THREE.Group {
   run.position.set(0.28, 0, 0.05);
   run.rotation.y = 0.5;
   result.add(run);
-  for (const [turn, length] of [[-0.5, 0.12], [0, 0.16], [0.45, 0.1], [0.9, 0.08]]) {
+  for (const [i, [turn, length]] of [[-0.5, 0.12], [0, 0.16], [0.45, 0.1], [0.9, 0.08]].entries()) {
     const strand = box([0.012, 0.012, length], flat("stone"), [0, 0, length / 2]);
     const fray = group(strand);
-    fray.position.set(0.28 + Math.sin(0.5) * 0.7, 0.012, 0.05 + Math.cos(0.5) * 0.7);
+    // Each strand a little higher than the last, so where they splay from the end their tops never share a plane, all
+    // under the plane of the house's choice glow.
+    fray.position.set(0.28 + Math.sin(0.5) * 0.7, 0.012 + i * 0.0015, 0.05 + Math.cos(0.5) * 0.7);
     fray.rotation.y = 0.5 + turn;
     result.add(fray);
   }

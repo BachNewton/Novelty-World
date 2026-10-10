@@ -11,12 +11,13 @@ import { buildHouse, definition, tileCorners, type FloorChoice, type House, type
 import type { LayoutChange } from "./house-layout";
 import { choiceLayout, FINGER, followFloor, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
 import { walkPath, walkPose, type Stairway, type Walk } from "./house-walk";
-import { workerBaker } from "./bake-workers";
+import { workerLanes } from "./bake-workers";
+import { createBakeScheduler, type BakeStatus } from "./bake-schedule";
 import type { Rebake } from "./lit-floor";
-import { DEFAULT_MARKINGS, type Markings } from "./markings";
 import { budgetGuard, HOUSE_LIGHT, LIGHTMAP, MAX_DRAW_CALLS, MAX_TEXTURE_UNITS } from "./lighting";
 import { TILE } from "./room";
-import { clampPitch, DEFAULT_PITCH } from "./house-camera";
+import { shownBounds } from "./shapes";
+import { BASE_SPAN, cameraDistance, clampPitch, DEFAULT_PITCH, depthRange, FIELD_OF_VIEW, ZOOM_RANGE } from "./house-camera";
 
 /*
  * The house as a picture of whatever is fed to it, with no game in it: a
@@ -35,10 +36,6 @@ export type { Target, TargetRoute } from "./house-targets";
 export type Resolution = number | null;
 const RESOLUTIONS: Resolution[] = [270, 360, 540, 720, 1080, null];
 const DEFAULT_RESOLUTION: Resolution = null;
-const FIELD_OF_VIEW = 32;
-/** Metres of floor across the screen's short side at zoom 1: about four rooms. */
-const BASE_SPAN = 24;
-const ZOOM_RANGE = [0.3, 4] as const;
 /** How quickly the camera eases to where it is going: the share of the way it closes each second, roughly. */
 const EASE_RATE = 6;
 /** How far past the rooms showing the camera's target may be panned, in metres. */
@@ -167,8 +164,12 @@ export interface SceneHook {
   setCloseUp: (room: string | null) => void;
   setResolution: (resolution: Resolution) => void;
   freezeClock: (seconds: number | null) => void;
-  /** The house is built and baked, and the camera has settled. */
+  /** The house is built and shows its direct light, and the camera has settled: the player can play. Finer light may still be on its way. */
   isReady: () => boolean;
+  /** Ready, and every pass of the light is in: for screenshots and anything that compares the final picture. */
+  isFullyLit: () => boolean;
+  /** The background bake's work in hand. */
+  bake: () => BakeStatus;
   floors: () => FloorId[];
   /** The rooms on a floor, as tile ids. */
   rooms: (floor: FloorId) => string[];
@@ -251,9 +252,8 @@ interface Playing {
  *  driven by `setLayout`, `setFigures`, `setTargets`, `setActive` and `play`.
  *  Plain state outside React, so a page, tests and screenshot tools drive the same thing. */
 /** `readout` adds the performance readout (draw calls, texture units, bake
- *  times) under the frame-rate panel, for the house demo's phone tests.
- *  `markings` are the cutaway markings its rooms are built with (null for none). */
-export function createHouseScene(initial: Layout, { readout: showsReadout = false, markings = DEFAULT_MARKINGS }: { readout?: boolean; markings?: Markings | null } = {}) {
+ *  times) under the frame-rate panel, for the house demo's phone tests. */
+export function createHouseScene(initial: Layout, { readout: showsReadout = false }: { readout?: boolean } = {}) {
   let layout = initial;
   const figures = new Map<string, FigureSpec>();
   let targets: readonly Target[] = [];
@@ -302,6 +302,19 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let cycleOrder: string[] | null = null;
 
   const playing = new Set<Playing>();
+  /** The bake's workers and its queue, for the scene's life: the lanes start with the first work, and stop when the scene unmounts. */
+  const bakes = createBakeScheduler(() => workerLanes());
+  // The bake lights first the room the explorer whose turn it is stands in, then the rooms on screen
+  // (once the camera is placed), then the rest of the floor showing, then the other floors.
+  bakes.setPriority(({ floor, room }) => {
+    if (active !== null && figures.get(active)?.room === room) return 3;
+    if (view.floor !== "all" && view.floor !== floor) return 0;
+    const tile = placed(layout, room);
+    const at = tile && mounted && aim ? mounted.project(mounted.house.cellCentre(tile.floor, tile.x, tile.y)) : null;
+    if (!at || !mounted) return 1;
+    const { clientWidth, clientHeight } = mounted.container;
+    return at.x >= 0 && at.y >= 0 && at.x <= clientWidth && at.y <= clientHeight ? 2 : 1;
+  });
   let mounted: {
     house: House;
     sync: () => void;
@@ -657,9 +670,13 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       mounted?.applyResolution();
     },
     freezeClock: (at) => {
+      // At once, not at the next frame: a beat started before that frame would start on the old clock and end, or never start, when it jumps.
+      if (at !== null) seconds = at;
       update({ frozenAt: at });
     },
     isReady: () => mounted !== null && mounted.house.built() && settled,
+    isFullyLit: () => hook.isReady() && !bakes.status().pending,
+    bake: bakes.status,
     floors: () => floorsOf(layout),
     rooms: (floor) => layout.tiles.filter((tile) => tile.floor === floor).map((tile) => tile.tile),
     stats: () => {
@@ -697,12 +714,9 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     renderer.domElement.style.imageRendering = "pixelated";
     renderer.toneMappingExposure = 1.5;
     lens.fov = FIELD_OF_VIEW;
-    lens.near = 0.1;
-    lens.far = 400;
     container.style.touchAction = "none";
 
-    const baker = workerBaker();
-    const house = buildHouse(layout, baker, markings);
+    const house = buildHouse(layout, bakes);
     for (const figure of figures.values()) placeFigure(house, figure);
     scene.add(house.root);
     scene.fog = house.fog;
@@ -739,12 +753,19 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       aim ??= goal.clone();
       aim.lerp(goal, ease);
       const span = spanAt(zoom);
-      const distance = span / (2 * shortSide());
+      const distance = cameraDistance(zoom, lens.aspect);
       // Zooming in raises the lowest tilt, so the camera stays above the furniture.
       pitch = clampPitch(pitch, distance);
       lens.position.copy(aim).addScaledVector(backward(yaw, pitch), distance);
       lens.lookAt(aim);
       lens.updateMatrixWorld();
+      const shown = shownBounds(house.root);
+      const range = shown.isEmpty() ? null : depthRange(lens.position, lens.getWorldDirection(new THREE.Vector3()), lens.aspect, shown);
+      if (range && (range.near !== lens.near || range.far !== lens.far)) {
+        lens.near = range.near;
+        lens.far = range.far;
+        lens.updateProjectionMatrix();
+      }
 
       const facing = new THREE.Vector2(lens.position.x - aim.x, lens.position.z - aim.z);
       if (facing.lengthSq() > 1e-6) cutaway = facing.normalize();
@@ -1029,7 +1050,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         controls.dispose();
         scene.remove(house.root);
         house.dispose();
-        baker.dispose();
+        bakes.stop();
         mounted = null;
       },
     };
@@ -1038,6 +1059,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   return {
     mount,
     hook,
+    /** The background bake, for the screen's indicator and the debug view. */
+    bakes,
     camera,
     setLayout,
     setFigures,

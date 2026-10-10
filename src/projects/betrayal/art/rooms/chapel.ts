@@ -197,17 +197,19 @@ function altar(): THREE.Group {
     box([1.7, 0.84, 0.7], stone, [0, 0, 0]),
     box([1.86, 0.06, 0.82], stone, [0, 0.84, 0]),
     box([1.9, 0.012, 0.86], cloth, [0, slab, 0]),
-    box([1.9, 0.22, 0.012], cloth, [0, top - 0.22, 0.432]),
+    // The cloth's fall stops under the laid cloth, so their tops never share a plane.
+    box([1.9, 0.22, 0.012], cloth, [0, slab - 0.22, 0.432]),
     box([0.9, 0.62, 0.012], flat("blood"), [0, slab - 0.68, 0.44]),
     box([0.94, 0.05, 0.02], flat("amber"), [0, slab - 0.1, 0.44]),
     box([0.06, 0.38, 0.016], flat("amber"), [0, slab - 0.6, 0.446]),
-    box([0.24, 0.06, 0.016], flat("amber"), [0, slab - 0.4, 0.446]),
+    box([0.24, 0.06, 0.012], flat("amber"), [0, slab - 0.4, 0.446]),
   );
   result.add(
     box([0.26, 0.05, 0.18], brass, [0, top, -0.2]),
     box([0.16, 0.05, 0.12], brass, [0, top + 0.05, -0.2]),
     box([0.06, 0.72, 0.06], brass, [0, top + 0.1, -0.2]),
-    box([0.38, 0.06, 0.06], brass, [0, top + 0.56, -0.2]),
+    // The arms are a little shallower than the upright they cross, so their faces never share its planes.
+    box([0.38, 0.06, 0.05], brass, [0, top + 0.56, -0.2]),
   );
   for (const [x, lit] of [[-0.62, true], [0.62, false]] as const) {
     const stick = candlestick(0.4, lit);
@@ -262,7 +264,8 @@ function lectern(): THREE.Group {
 /** An iron stand of votive candles, most long gone out. */
 function votiveStand(): THREE.Group {
   const iron = flat("sootLight");
-  const result = group(box([0.04, 0.9, 0.04], iron, [0, 0, 0]), box([0.3, 0.03, 0.3], iron, [0, 0, 0]));
+  // The foot's top stays under the plane of the house's choice glow (`MARK_PLANES`), which it would fight.
+  const result = group(box([0.04, 0.9, 0.04], iron, [0, 0, 0]), box([0.3, 0.025, 0.3], iron, [0, 0, 0]));
   const tiers = [
     { y: 0.6, z: 0.12, lit: [true, false, false, true] },
     { y: 0.75, z: 0, lit: [false, true, false, false] },

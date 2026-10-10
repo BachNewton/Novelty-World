@@ -8,11 +8,11 @@ function room(code: string, listedAt: number): ListedRoom {
 describe("roomListChannel", () => {
   it("is one channel per game", () => {
     expect(roomListChannel("frogmino", "")).toBe("lobby:frogmino");
-    expect(roomListChannel("euchre", "?peer-signal=local")).toBe("lobby:euchre");
+    expect(roomListChannel("euchre", "?peer-signal=local:51234")).toBe("lobby:euchre");
   });
 
   it("moves to a channel of its own with ?room-list", () => {
-    expect(roomListChannel("frogmino", "?peer-signal=local&room-list=run-7")).toBe("lobby:frogmino:run-7");
+    expect(roomListChannel("frogmino", "?peer-signal=local:51234&room-list=run-7")).toBe("lobby:frogmino:run-7");
   });
 });
 

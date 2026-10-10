@@ -36,6 +36,10 @@ export interface StatusBoxProps {
   act: (action: Action) => void;
   /** The route of the place in focus, previewed before it is chosen. */
   preview: RoutePreview | null;
+  /** Something about the device to tell the table (a pad that disconnected), or null. */
+  notice?: string | null;
+  /** Opens the seats panel, where pads take and give back seats. */
+  openSeats?: () => void;
 }
 
 /** The rule texts load with the box; until they arrive it words what it can without them. */
@@ -95,9 +99,23 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
       )}
       <div data-now aria-label="What you can do now" className="flex shrink-0 flex-col gap-2 border-t border-(--bt-line) p-3 first:border-t-0">
         {problem !== null && <ErrorBox message={problem} />}
+        {props.notice != null && <DeviceNotice text={props.notice} openSeats={props.openSeats} />}
         <Now {...props} boxRef={boxRef} notes={notes} />
       </div>
     </section>
+  );
+}
+
+function DeviceNotice({ text, openSeats }: { text: string; openSeats?: () => void }) {
+  return (
+    <p role="status" className="flex flex-wrap items-center gap-2 rounded border border-(--bt-line) bg-(--bt-bg) px-2 py-1.5 text-sm">
+      {text}
+      {openSeats && (
+        <button type="button" onClick={openSeats} className="min-h-9 rounded border border-(--bt-line) px-2 underline-offset-2 hover:border-(--bt-accent)">
+          Seats
+        </button>
+      )}
+    </p>
   );
 }
 

@@ -41,9 +41,10 @@ function bareJoists(bay: { x: [number, number]; z: [number, number] }, hole: [nu
   const result = group(b.mesh(), ceiling);
   if (hole) {
     const dark = flat("void");
-    for (const [dx, dz, w, d] of [[0, 0, 0.36, 0.5], [0.1, -0.2, 0.22, 0.3], [-0.12, 0.18, 0.2, 0.26]]) {
-      result.add(box([w, 0.01, d], dark, [hole[0] + dx, LATH_Y + 0.02, hole[1] + dz]));
-    }
+    const patches = [[0, 0, 0.36, 0.5], [0.1, -0.2, 0.22, 0.3], [-0.12, 0.18, 0.2, 0.26]];
+    patches.forEach(([dx, dz, w, d], i) => {
+      result.add(box([w, 0.01, d], dark, [hole[0] + dx, LATH_Y + 0.02 + i * 0.002, hole[1] + dz]));
+    });
   }
   return result;
 }

@@ -1,17 +1,18 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
+import { PEER_SIGNAL } from "./peer-signal";
 
 /**
  * Room-code games on the shared PeerJS room (`src/shared/lib/peer`): a host
  * creates a room, guests join by typing its code, and they play for real.
  *
- * Offline by design: `?peer-signal=local` points PeerJS at the local
- * PeerServer started by global-setup, with no STUN or TURN. Every wait is
+ * Offline by design: `?peer-signal=local:<port>` points PeerJS at the local
+ * PeerServer this run started, with no STUN or TURN. Every wait is
  * on a DOM state the game renders; there are no fixed pauses.
  */
 test.describe.configure({ mode: "serial" });
 
-const SIGNAL = "?peer-signal=local";
+const SIGNAL = `?${PEER_SIGNAL}`;
 const TIC_TAC_TOE = `/games/tic-tac-toe${SIGNAL}`;
 const EUCHRE = `/games/card-games/euchre${SIGNAL}`;
 const CONNECT_TIMEOUT = 15_000;

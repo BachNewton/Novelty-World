@@ -120,8 +120,10 @@ function crossing(): THREE.Group {
   const inner = DRAIN - 0.12;
   for (let k = 0; k < 16; k++) {
     const a = (k / 16) * Math.PI * 2;
+    // Every other segment a little lower, so where they overlap their tops never share a plane, nor the choice glow's.
+    const tall = 0.03 - (k % 2) * 0.0025;
     const at = new THREE.Vector3(Math.cos(a) * (inner + ring / 2), 0.004, Math.sin(a) * (inner + ring / 2));
-    b.add([ring, 0.03, inner * 0.44], "stoneDark", new THREE.Matrix4().compose(at.add(new THREE.Vector3(0, 0.015, 0)), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a), new THREE.Vector3(1, 1, 1)));
+    b.add([ring, tall, inner * 0.44], "stoneDark", new THREE.Matrix4().compose(at.add(new THREE.Vector3(0, tall / 2, 0)), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a), new THREE.Vector3(1, 1, 1)));
   }
   for (let x = -inner + 0.07; x < inner - 0.04; x += 0.09) {
     const half = Math.sqrt(inner * inner - x * x);

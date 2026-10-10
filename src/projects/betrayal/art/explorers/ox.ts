@@ -5,6 +5,7 @@ import { ball, drum, ellipsoid, figureMaterial, form, painted, plinth, ring, rod
 import { group } from "../shapes";
 import { BASE_TOP, burst, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
 import { aimGrip, blendPose, buildArm, closedRound, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
+import { skinOf, skinShade } from "./skin";
 
 /*
  * Ox Bellows: a huge young linebacker, all Might, who is afraid of the dark
@@ -15,6 +16,8 @@ import { aimGrip, blendPose, buildArm, closedRound, fist, handParts, hasHands, h
  *
  * Every size is in metres, every height from the floor; each pivot sits at its joint.
  */
+
+const SKIN = skinOf("ox-bellows");
 
 /** 6'4" at the miniature's scale. */
 const TOP = BASE_TOP + miniatureHeight(6, 4);
@@ -44,13 +47,13 @@ const SHIN = 0.326;
  *  a broad nose, a day's stubble, and a buzz cut painted close to the skull. */
 function head(): THREE.BufferGeometry {
   const shape = sculpt()
-    .add(rod([0, -0.12, -0.01], [0, 0.1, -0.005], 0.088, 0.088), "skin")
-    .add(ellipsoid([0, 0.2, -0.005], [0.112, 0.135, 0.122]), "skin", 0.04)
-    .add(roundBox([0, 0.1, 0.035], [0.095, 0.06, 0.08], 0.045), "skin", 0.05)
-    .add(rod([-0.07, 0.215, 0.1], [0.07, 0.215, 0.1], 0.024), "skin", 0.025)
-    .add(rod([0, 0.2, 0.125], [0, 0.155, 0.142], 0.017, 0.026), "skin", 0.015);
+    .add(rod([0, -0.12, -0.01], [0, 0.1, -0.005], 0.088, 0.088), SKIN)
+    .add(ellipsoid([0, 0.2, -0.005], [0.112, 0.135, 0.122]), SKIN, 0.04)
+    .add(roundBox([0, 0.1, 0.035], [0.095, 0.06, 0.08], 0.045), SKIN, 0.05)
+    .add(rod([-0.07, 0.215, 0.1], [0.07, 0.215, 0.1], 0.024), SKIN, 0.025)
+    .add(rod([0, 0.2, 0.125], [0, 0.155, 0.142], 0.017, 0.026), SKIN, 0.015);
   for (const side of [-1, 1]) {
-    shape.add(ellipsoid([side * 0.112, 0.17, -0.005], [0.02, 0.036, 0.026]), "skin", 0.01);
+    shape.add(ellipsoid([side * 0.112, 0.17, -0.005], [0.02, 0.036, 0.026]), SKIN, 0.01);
     shape.carve(ball([side * 0.042, 0.188, 0.122], 0.018), { blend: 0.008 });
     shape.add(ball([side * 0.042, 0.188, 0.104], 0.018), "boneLight");
     shape.paint(ball([side * 0.042, 0.188, 0.121], 0.009), "woodDark");
@@ -58,7 +61,7 @@ function head(): THREE.BufferGeometry {
   return shape
     .paint(ellipsoid([0, 0.218, 0.122], [0.075, 0.009, 0.02]), "woodDark")
     // Stubble round the jaw and chin, below the cheekbones.
-    .paint((x, y, z) => (y < 0.135 && y > 0.04 && z > -0.02 && Math.hypot(x, z - 0.04) > 0.03 ? -1 : 1), "skinShade")
+    .paint((x, y, z) => (y < 0.135 && y > 0.04 && z > -0.02 && Math.hypot(x, z - 0.04) > 0.03 ? -1 : 1), skinShade(SKIN))
     .paint(ellipsoid([0, 0.112, 0.125], [0.032, 0.007, 0.03]), "bloodDark")
     // The buzz cut: hair to the brow at the front, down to the nape behind.
     .paint((x, y, z) => (y > 0.235 + 0.03 * Math.max(0, z / 0.12) - 0.1 * Math.max(0, -z / 0.12) && Math.abs(x) < 0.122 ? -1 : 1), "woodDark")
@@ -125,7 +128,7 @@ function forearm(): THREE.BufferGeometry {
   return sculpt()
     .add(rod([0, 0, 0], [0, -FOREARM + 0.03, 0], 0.068, 0.06), "boneLight")
     .add(ring([0, -FOREARM + 0.03, 0], 0.05, 0.022), "bloodDark", 0.006)
-    .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.02, 0.002], 0.03, 0.027), "skin")
+    .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.02, 0.002], 0.03, 0.027), SKIN)
     .geometry(0.009);
 }
 
@@ -169,7 +172,7 @@ function meshParts() {
     upperArm: upperArm(),
     forearm: forearm(),
     /** The right hand, then the left. */
-    hands: [handParts(-1, HAND), handParts(1, HAND)],
+    hands: [handParts(-1, HAND, SKIN), handParts(1, HAND, SKIN)],
     thigh: thigh(),
     shin: shin(),
     shoes: [shoe(-LEG_X), shoe(LEG_X)],

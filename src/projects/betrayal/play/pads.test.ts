@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claim, keepConnected, NO_PADS, padMayAct, padOf, release, seatsOf, toggle, trimSeats } from "./pads";
+import { claim, keepConnected, NO_PADS, padMayAct, padOf, release, seatListPress, seatsOf, toggle, trimSeats } from "./pads";
 
 describe("pad assignment", () => {
   it("leaves every seat open at first, so any pad acts for anyone", () => {
@@ -61,5 +61,14 @@ describe("pad assignment", () => {
   it("changes nothing while every assigned pad is connected", () => {
     const pads = claim(NO_PADS, 0, 2);
     expect(keepConnected(pads, [0, 2])).toEqual({ assignment: pads, freed: [] });
+  });
+
+  it("moves a list's highlight round the seats with the d-pad, and A takes the seat for the pad pressed", () => {
+    const list = { focus: 0, count: 3, assignment: NO_PADS };
+    expect(seatListPress("DpadUp", 0, list)?.focus).toBe(2);
+    expect(seatListPress("DpadDown", 0, { ...list, focus: 2 })?.focus).toBe(0);
+    const taken = seatListPress("A", 1, { ...list, focus: 1 });
+    expect(taken && padOf(taken.assignment, 1)).toBe(1);
+    expect(seatListPress("X", 0, list)).toBeNull();
   });
 });

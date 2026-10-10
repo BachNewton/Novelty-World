@@ -97,8 +97,9 @@ function ritualCandle(): THREE.Group {
   const iron = flat("soot");
   const height = 0.22;
   const stand = group(
-    cylinder(0.12, 0.03, iron, [0, 0, 0], { top: 0.1, sides: 6 }),
-    cylinder(0.02, 0.32, iron, [0, 0.03, 0], { sides: 5 }),
+    // The foot's top stays under the plane of the house's choice glow, which it would fight.
+    cylinder(0.12, 0.027, iron, [0, 0, 0], { top: 0.1, sides: 6 }),
+    cylinder(0.02, 0.323, iron, [0, 0.027, 0], { sides: 5 }),
     cylinder(0.08, 0.025, iron, [0, 0.35, 0], { top: 0.1, sides: 6 }),
   );
   const wax = cylinder(0.04, height, flat("sootLight"), [0, 0.375, 0], { sides: 6 });
@@ -119,8 +120,9 @@ function ritualCandle(): THREE.Group {
 function fallenCandle(): THREE.Group {
   const iron = flat("soot");
   const pricket = group(
-    cylinder(0.12, 0.03, iron, [0, 0, 0], { top: 0.1, sides: 6 }),
-    cylinder(0.02, 0.32, iron, [0, 0.03, 0], { sides: 5 }),
+    // The foot's top stays under the plane of the house's choice glow, which it would fight.
+    cylinder(0.12, 0.027, iron, [0, 0, 0], { top: 0.1, sides: 6 }),
+    cylinder(0.02, 0.323, iron, [0, 0.027, 0], { sides: 5 }),
     cylinder(0.08, 0.025, iron, [0, 0.35, 0], { top: 0.1, sides: 6 }),
   );
   pricket.rotation.z = -Math.PI / 2 + 0.06;

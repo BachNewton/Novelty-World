@@ -64,6 +64,10 @@ function addBook(b: Batch, place: THREE.Matrix4, book: Book) {
 /** Neighbouring books overlap a little: two boxes that only touch leave a
  *  crack the dark shelf back shows through, as a column of dots. */
 const OVERLAP = 0.004;
+/** Two overlapping books' tops or spines nearer than this share a plane as far as the depth buffer can tell; one is
+ *  then moved this far clear of the other. */
+const NEAR = 0.002;
+const CLEAR = 0.003;
 
 const Z_TURN = new THREE.Vector3(0, 0, 1);
 function standing(x: number, y: number, z: number, lean = 0, pivot = 0): THREE.Matrix4 {
@@ -82,11 +86,25 @@ function standing(x: number, y: number, z: number, lean = 0, pivot = 0): THREE.M
 function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: number, front: number, fill = 1) {
   let x = x0 + uniform(rng, 0, 0.03);
   const fits = (width: number) => x + width <= x1;
+  /** The last book stood upright, while the next may overlap it. */
+  let last: { top: number; spine: number; right: number } | null = null;
+  /** Stands a book upright at x, its spine at z. Where it overlaps the last,
+   *  a top or a spine within a hair of the last's is moved clear of it, so
+   *  the two never share a plane. */
+  const upright = (book: Book, z: number) => {
+    const near = (a: number, b: number) => Math.abs(a - b) < NEAR;
+    if (last && x < last.right) {
+      if (near(book.h, last.top)) book.h = last.top + (last.top + CLEAR <= room ? CLEAR : -CLEAR);
+      if (near(z, last.spine)) z = last.spine - CLEAR;
+    }
+    addBook(b, standing(x, y, z), book);
+    last = { top: book.h, spine: z, right: x + book.w };
+  };
   const finish = () => {
     while (x < x1 - 0.025) {
       const book = randomBook(rng, room);
       book.w = Math.min(book.w, x1 - x);
-      addBook(b, standing(x, y, front - uniform(rng, 0, 0.03)), book);
+      upright(book, front - uniform(rng, 0, 0.03));
       x += book.w - OVERLAP;
     }
   };
@@ -140,7 +158,7 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
       // A matching set.
       const book = randomBook(rng, room);
       for (let i = 0, count = 3 + Math.floor(rng.next() * 5); i < count && fits(book.w); i++) {
-        addBook(b, standing(x, y, front - uniform(rng, 0, 0.012)), { ...book, h: book.h - uniform(rng, 0, 0.025) });
+        upright({ ...book, h: book.h - uniform(rng, 0, 0.025) }, front - uniform(rng, 0, 0.012));
         x += book.w - OVERLAP;
       }
     } else {
@@ -149,7 +167,7 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
         finish();
         break;
       }
-      addBook(b, standing(x, y, pull), book);
+      upright(book, pull);
       x += book.w + (rng.next() < 0.12 ? uniform(rng, 0.015, 0.04) : -OVERLAP);
     }
   }
@@ -161,6 +179,8 @@ const BASE_DEPTH = 0.42;
 const SHELF_PITCH = 0.36;
 const BOARD = 0.035;
 const POST = 0.05;
+/** How far under the cut height the cupboard's top stops, so it never shares the plane of the cut wall's top. */
+const BELOW_CUT = 0.005;
 /** The shelving's back stands just proud of the wainscot it hangs in front of. */
 const BACK = WAINSCOT_DEPTH + 0.01;
 
@@ -197,8 +217,11 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
   const columns = posts(width);
   const levels = Math.floor((height - 0.12) / SHELF_PITCH);
   const pitch = (height - 0.12) / levels;
-  b.block([width, height, BACK], back, [0, 0, BACK / 2]);
-  for (const x of columns) b.block([POST, height, depth], "woodMid", [x, 0, depth / 2]);
+  // The back stops inside the end posts and under the cornice, and the posts under the cornice, so no faces share a
+  // plane. The posts and the lowest boards reach a little below the shelving's foot, down to the cupboard it stands on,
+  // which stops short of the cut wall's top.
+  b.block([width - POST, height - 0.01, BACK], back, [0, 0, BACK / 2]);
+  for (const x of columns) b.block([POST, height - 0.12 + BELOW_CUT, depth], "woodMid", [x, -BELOW_CUT, depth / 2]);
   // The cornice overhangs at the front only: runs meet in the corners and at the walls.
   b.block([width, 0.07, depth + 0.06], "woodDark", [0, height - 0.07, depth / 2 + 0.03]);
   b.block([width, 0.05, depth + 0.03], "woodMid", [0, height - 0.12, depth / 2 + 0.015]);
@@ -215,7 +238,8 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
         b.add([span, BOARD, depth - 0.02], "woodMid", standing(left, y + BOARD / 2, depth / 2, tilt, span).multiply(new THREE.Matrix4().makeTranslation(span / 2, 0, 0)));
         continue;
       }
-      b.block([span, BOARD, depth - 0.02], "woodMid", [(left + right) / 2, y, depth / 2]);
+      const foot = level === 0 ? BELOW_CUT : 0;
+      b.block([span, BOARD + foot, depth - 0.02], "woodMid", [(left + right) / 2, y - foot, depth / 2]);
       const floor = y + BOARD;
       const room = pitch - BOARD - 0.015;
       if (broken?.bay === bay && broken.level === level + 1) {
@@ -239,7 +263,8 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
   if (rail) {
     const railY = height - 0.32;
     b.block([width, 0.03, 0.03], "brass", [0, railY, depth + 0.06]);
-    for (const x of columns) b.block([0.03, 0.03, 0.08], "brass", [x, railY, depth + 0.02]);
+    // The brackets are a hair slimmer than the rail they carry, so their tops never share its plane.
+    for (const x of columns) b.block([0.03, 0.026, 0.08], "brass", [x, railY + 0.002, depth + 0.02]);
   }
   const result = group(b.mesh());
   for (const { bay, side } of webs) {
@@ -254,7 +279,7 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
 /** The panelled cupboard the shelving stands on, as tall as a cut-away wall. */
 function cupboard(width: number): THREE.Group {
   const b = batch();
-  const height = CUT_HEIGHT;
+  const height = CUT_HEIGHT - BELOW_CUT;
   b.block([width, 0.08, BASE_DEPTH - 0.04], "woodDark", [0, 0, (BASE_DEPTH - 0.04) / 2]);
   b.block([width, height - 0.12, BASE_DEPTH - 0.03], "wood", [0, 0.08, (BASE_DEPTH - 0.03) / 2]);
   const columns = posts(width);
@@ -267,8 +292,9 @@ function cupboard(width: number): THREE.Group {
       b.block([door, height - 0.2, 0.02], "woodMid", [x, 0.11, BASE_DEPTH - 0.02]);
       b.block([door - 0.08, height - 0.3, 0.02], "wood", [x, 0.16, BASE_DEPTH - 0.005]);
     }
-    b.block([0.02, 0.06, 0.03], "brass", [centre - 0.03, 0.26, BASE_DEPTH]);
-    b.block([0.02, 0.06, 0.03], "brass", [centre + 0.03, 0.26, BASE_DEPTH]);
+    // The handles stand clear of the doors' inner edges, so their sides never share the doors' planes.
+    b.block([0.02, 0.06, 0.03], "brass", [centre - 0.035, 0.26, BASE_DEPTH]);
+    b.block([0.02, 0.06, 0.03], "brass", [centre + 0.035, 0.26, BASE_DEPTH]);
   }
   b.block([width, 0.04, BASE_DEPTH], "woodMid", [0, height - 0.04, BASE_DEPTH / 2]);
   return group(b.mesh());

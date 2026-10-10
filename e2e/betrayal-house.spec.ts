@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./test";
 
 /**
  * The Betrayal house demo's stand-in decision, once per input method: each
@@ -152,8 +153,11 @@ test("keyboard and mouse: hovering a room focuses it, a click walks there, and a
   const { id, room, at } = await openChoice(page);
   await page.mouse.move(at.x, at.y);
   await expect.poll(() => focused(page)).toBe(id);
+  // The clock held, so the walk can't end before it is seen playing, however slowly the page draws.
+  await page.evaluate(() => window.__betrayalHouse?.freezeClock(1000));
   await page.mouse.click(at.x, at.y);
   await page.waitForFunction(() => window.__betrayalHouse?.state().walking === true);
+  await page.evaluate(() => window.__betrayalHouse?.freezeClock(null));
   await arrived(page, room);
   await clickThrough(page, STOP);
   await stopped(page, room);

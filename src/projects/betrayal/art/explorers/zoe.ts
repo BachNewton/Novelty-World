@@ -4,7 +4,9 @@ import { animated } from "../animate";
 import { ball, chain, ellipsoid, figureMaterial, form, plinth, ring, rod, roundBox, sculpt, stretched, type Solid } from "../forms";
 import { group } from "../shapes";
 import { BASE_TOP, burst, joins, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Swept, type Walking } from "./figure";
+import { atLeast, hangsCloth, heavyCloth, type ClothTiming } from "./cloth";
 import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, turnIn, type Arm } from "./hands";
+import { skinOf } from "./skin";
 
 /*
  * Zoe Ingstrom: an eight-year-old who hums little tunes, loves her dolls and
@@ -15,6 +17,8 @@ import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holdi
  *
  * Every size is in metres, every height from the floor; each pivot sits at its joint.
  */
+
+const SKIN = skinOf("zoe-ingstrom");
 
 const TOP = BASE_TOP + miniatureHeight(3, 9);
 const WAIST = 0.47;
@@ -43,12 +47,12 @@ const SHIN = 0.176;
  *  holes), a small smile, a straight fringe and hair to the neck behind. */
 function head(): THREE.BufferGeometry {
   const shape = sculpt()
-    .add(rod([0, -0.04, 0], [0, 0.06, 0], 0.04, 0.038), "skin")
-    .add(ellipsoid([0, 0.16, 0], [0.122, 0.13, 0.122]), "skin", 0.03)
-    .add(ellipsoid([0, 0.1, 0.03], [0.1, 0.085, 0.098]), "skin", 0.05)
-    .add(ball([0, 0.105, 0.13], 0.015), "skin", 0.012);
+    .add(rod([0, -0.04, 0], [0, 0.06, 0], 0.04, 0.038), SKIN)
+    .add(ellipsoid([0, 0.16, 0], [0.122, 0.13, 0.122]), SKIN, 0.03)
+    .add(ellipsoid([0, 0.1, 0.03], [0.1, 0.085, 0.098]), SKIN, 0.05)
+    .add(ball([0, 0.105, 0.13], 0.015), SKIN, 0.012);
   for (const side of [-1, 1]) {
-    shape.add(ellipsoid([side * 0.12, 0.12, 0], [0.016, 0.03, 0.022]), "skin", 0.01);
+    shape.add(ellipsoid([side * 0.12, 0.12, 0], [0.016, 0.03, 0.022]), SKIN, 0.01);
     shape.carve(ball([side * 0.044, 0.126, 0.128], 0.021), { blend: 0.008 });
     shape.add(ball([side * 0.044, 0.125, 0.105], 0.023), "boneLight");
     shape.paint(ball([side * 0.044, 0.124, 0.127], 0.0125), "woodMid");
@@ -129,7 +133,7 @@ function skirt(): THREE.BufferGeometry {
 /** A puffed yellow sleeve over a thin bare upper arm. */
 function upperArm(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, -0.02, 0], [0, -UPPER_ARM, 0], 0.026, 0.019), "skin")
+    .add(rod([0, -0.02, 0], [0, -UPPER_ARM, 0], 0.026, 0.019), SKIN)
     .add(ellipsoid([0, -0.035, 0], [0.052, 0.05, 0.054]), "gold", 0.01)
     .add(ring([0, -0.075, 0], 0.036, 0.009), "boneLight", 0.004)
     .geometry(0.0055);
@@ -138,7 +142,7 @@ function upperArm(): THREE.BufferGeometry {
 /** A thin bare forearm, from the elbow to the wrist. */
 function forearm(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, 0, 0], [0, -FOREARM + 0.008, 0.002], 0.023, 0.017), "skin")
+    .add(rod([0, 0, 0], [0, -FOREARM + 0.008, 0.002], 0.023, 0.017), SKIN)
     .geometry(0.0055);
 }
 
@@ -195,7 +199,7 @@ function meshParts() {
     upperArm: upperArm(),
     forearm: forearm(),
     /** The right hand, then the left. */
-    hands: [handParts(-1, HAND), handParts(1, HAND)],
+    hands: [handParts(-1, HAND, SKIN), handParts(1, HAND, SKIN)],
     doll: doll(),
     thigh: thigh(),
     shin: shin(),
@@ -217,6 +221,24 @@ const SHOE_POINTS = [new THREE.Vector3(0, BASE_TOP + 0.024, -0.02), new THREE.Ve
 const REST_DEPTH = 0.8;
 /** The furthest it billows, front to back: past this a bell of skirt reads as a disc. */
 const BILLOW_MOST = 1.45;
+/** How far short of its furthest billow the skirt starts to ease into it. */
+const BILLOW_EASE = 0.12;
+
+/** How much room the skirt leaves round her legs as it billows, so it never comes near to shoving them. */
+const SKIRT_ROOM = 0.006;
+/** The skirt's weight: it billows out for a leg this long before it arrives, holds this long after, and moves smoothly between. */
+const SKIRT_SWING: ClothTiming = { ahead: 0.06, behind: 0.08, soften: 0.06 };
+
+/** Points down a rig's legs and round its shoes, as posed now, in the frame of hips placed by `hips` in its body. */
+function sweptBy(by: StrideRig, hips: THREE.Matrix4): Swept[] {
+  const intoHips = hips.clone().invert();
+  const intoBody = by.body.matrix.clone().invert();
+  return by.legs.flatMap((one) => {
+    one.shoe.updateMatrix();
+    const shoe = SHOE_POINTS.map((at) => ({ at: at.clone().setX(one.ankle.x).applyMatrix4(one.shoe.matrix).applyMatrix4(intoBody), radius: 0.05 }));
+    return [...legPoints(one, 0.044, 0.036, { from: 0.1 }), ...shoe].map(({ at, radius }) => ({ at: at.applyMatrix4(intoHips), radius }));
+  });
+}
 
 /** How far the skirt must stretch front to back, as a scale of its depth,
  *  for every swept point above its hem to lie inside it: a raised knee or a
@@ -309,10 +331,22 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
   }) as unknown as StrideRig["legs"];
   const body = group(legs[0].hip, legs[1].hip, hips);
   body.position.y = BASE_TOP;
+  // The same legs again, never shown, walked a moment ahead of hers or behind: where the skirt makes room for them.
+  const unseen = ([-1, 1] as const).map((side, i) => {
+    const { geometry, heel, toe } = parts.shoes[i];
+    return leg(group(), group(), group(new THREE.Mesh(geometry)), new THREE.Vector3(side * LEG_X, LEG, 0), THIGH, SHIN, {
+      ankle: new THREE.Vector3(side * LEG_X, ANKLE, -0.005),
+      heel,
+      toe,
+    });
+  }) as unknown as StrideRig["legs"];
+  const unseenBody = group(unseen[0].hip, unseen[1].hip);
+  unseenBody.position.y = BASE_TOP;
   const standing = group(body, legs[0].shoe, legs[1].shoe);
 
   const figure = walks(group(mesh(parts.base, "base"), standing), ZOE_WALK);
   hasHands(figure, { right: right.hand, left: left.hand });
+  hangsCloth(figure, [dress]);
   joins(figure, [
     { parts: [face, top], at: neck, radius: 0.07 },
     ...pigtails.map((tail) => ({ parts: [tail, face] as const, at: tail, radius: 0.06 })),
@@ -328,6 +362,16 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
   // The doll arm swings less: she keeps it close, and clutches it running.
   const swings = { right: { limb: right, side: -1 as const, swing: ARM_SWING, pump: 1 }, left: { limb: left, side: 1 as const, swing: ARM_SWING * 0.6 } };
   const rig: StrideRig = { walking: ZOE_WALK, legs, body, rest: BASE_TOP, arms: [swings.right, swings.left], chest, lean: 0.05, lifts: 0.35 };
+  const unseenChest = group();
+  const unseenRig: StrideRig = { ...rig, legs: unseen, body: unseenBody, arms: [], chest: unseenChest };
+  hips.updateMatrix();
+  const hanging = hips.matrix.clone();
+  const billow = heavyCloth(1, gait, (moving, _clock, out) => {
+    unseenChest.rotation.x = 0;
+    stride(unseenRig, moving);
+    out[0] = billowFor(sweptBy(unseenRig, hanging).map(({ at, radius }) => ({ at, radius: radius + SKIRT_ROOM })));
+  }, SKIRT_SWING);
+  const [billowNow, billowed] = [new Float32Array(1), new Float32Array(1)];
 
   const rng = createRng(seed);
   const tunePhase = rng.next() * Math.PI * 2;
@@ -381,16 +425,13 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
       tail.rotation.z = side * (0.75 + spinning * 0.6 + bounce * 0.25) + tune * 0.12 * humming;
     }
 
-    // Her skirt billows out in front of a raised knee, and behind a heel kicked back.
+    // Her skirt billows out in front of a raised knee, and behind a heel kicked
+    // back: ahead of them, falling back after, never letting one through as they are now.
     hips.updateMatrix();
-    const intoHips = hips.matrix.clone().invert();
-    const intoBody = body.matrix.clone().invert();
-    const swept = legs.flatMap((one) => {
-      one.shoe.updateMatrix();
-      const shoe = SHOE_POINTS.map((at) => ({ at: at.clone().setX(one.ankle.x).applyMatrix4(one.shoe.matrix).applyMatrix4(intoBody), radius: 0.05 }));
-      return [...legPoints(one, 0.044, 0.036, { from: 0.1 }), ...shoe].map(({ at, radius }) => ({ at: at.applyMatrix4(intoHips), radius }));
-    });
-    dress.scale.set(flare, 1, Math.max(REST_DEPTH * flare, Math.min(BILLOW_MOST, billowFor(swept))));
+    billowNow[0] = billowFor(sweptBy(rig, hips.matrix));
+    billow(clock, billowNow, billowed);
+    // It eases into its furthest billow rather than stopping dead at it.
+    dress.scale.set(flare, 1, Math.max(REST_DEPTH * flare, -atLeast(-billowed[0], -BILLOW_MOST, BILLOW_EASE)));
 
     // The doll hangs straight down from her fist, swaying to the tune; she clutches it across her chest when scared.
     const hanging = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, tune * 0.08 * humming + spinning * 1.1));

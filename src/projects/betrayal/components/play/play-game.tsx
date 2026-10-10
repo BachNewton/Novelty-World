@@ -10,6 +10,10 @@ import { errorText } from "../pending-panel";
 import { defaultSeats, MIN_SEATS, SeatPickers, today, type Seats } from "../start-form";
 import { BETRAYAL_THEME } from "../theme";
 import { PlayScreen } from "./play-screen";
+import { PadPicker } from "./pad-picker";
+import { useSetupPads } from "./setup-pads";
+import { usePads, type PadSeats } from "./use-pads";
+import { trimSeats } from "../../play/pads";
 
 /*
  * The game, the page's default: set up a hot-seat game, or resume the one
@@ -38,10 +42,12 @@ function savedGame(): { game: SharedGame; error: null } | { game: null; error: s
 export function PlayGame() {
   const [store, setStore] = useState<PlayStore | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pads = usePads();
 
   const open = (shared: SharedGame) => {
     try {
       setStore(createPlayStore(ENGINE, shared, save));
+      pads.set(trimSeats(pads.assignment, shared.game.seats.length));
       setError(null);
     } catch (problem) {
       setError(errorText(problem));
@@ -53,20 +59,22 @@ export function PlayGame() {
       {store ? (
         <PlayScreen
           store={store}
+          pads={pads}
           onLeave={() => {
             setStore(null);
           }}
         />
       ) : (
-        <Setup error={error} onOpen={open} />
+        <Setup error={error} onOpen={open} pads={pads} />
       )}
     </div>
   );
 }
 
-function Setup({ error, onOpen }: { error: string | null; onOpen: (shared: SharedGame) => void }) {
+function Setup({ error, onOpen, pads }: { error: string | null; onOpen: (shared: SharedGame) => void; pads: PadSeats }) {
   const characters = Object.values(ENGINE.catalog.characters);
   const [seats, setSeats] = useState<Seats>(() => defaultSeats(characters, MIN_SEATS));
+  const { highlighted, highlight } = useSetupPads(pads, seats.length);
   const [saved] = useState(savedGame);
   const game = saved.game;
   const ready = seats.every((seat) => seat.name.trim() !== "" && seat.character !== "");
@@ -104,7 +112,20 @@ function Setup({ error, onOpen }: { error: string | null; onOpen: (shared: Share
           One device, passed round the table: each player takes their turn on it, and looks away from what isn&apos;t theirs.
           {game && " Starting a new game replaces the saved one."}
         </p>
-        <SeatPickers characters={characters} seats={seats} onChange={setSeats} />
+        {pads.connected.length > 0 && (
+          <p className="text-sm text-(--bt-muted)">
+            Controllers: the d-pad moves between seats, A on a pad takes the highlighted seat for that pad (a pad can take several), B opens it again. A seat
+            with no pad is open to any pad, and touch and the mouse always act for whoever&apos;s turn it is.
+          </p>
+        )}
+        <SeatPickers
+          characters={characters}
+          seats={seats}
+          onChange={setSeats}
+          highlighted={pads.connected.length > 0 ? highlighted : null}
+          onSeatFocus={highlight}
+          seatExtra={(index) => <PadPicker seat={index} name={seats[index].name} pads={pads} />}
+        />
         <button
           type="submit"
           disabled={!ready}

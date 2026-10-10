@@ -48,23 +48,25 @@ function flight(from: number, to: number): THREE.Group {
   const whole = (i: number) => i <= LOW_STEPS === (from === 0);
   for (let i = 1; i <= FLIGHT.steps; i++) {
     const z1 = nosing(i);
-    const z0 = z1 - FLIGHT.going;
+    // The last step stops just short of the top wall, as the flight stops short of the left: its end never shares the plane of the walls' faces or dressing.
+    const z0 = Math.max(z1 - FLIGHT.going, -INNER + 0.005);
     const top = i * FLIGHT.rise;
     const tread = pick(rng, ["stoneLight", "stoneLight", "boneDark"] as PaletteKey[]);
     // The step's body, from the floor (or the cut) up to its tread.
     const low = Math.max(0, from);
     const high = Math.min(top - 0.04, to);
-    if (high - low > 0.005) b.block([width, high - low, FLIGHT.going], "stone", [cx, low - from, (z0 + z1) / 2]);
+    const going = z1 - z0;
+    if (high - low > 0.005) b.block([width, high - low, going], "stone", [cx, low - from, (z0 + z1) / 2]);
     if (from === 0 && !whole(i)) {
       // Cut down with its wall, the step's cut top still reads as a step.
-      b.block([width - 0.01, 0.03, FLIGHT.going - 0.01], tread, [cx, to, (z0 + z1) / 2]);
+      b.block([width - 0.01, 0.03, going - 0.01], tread, [cx, to, (z0 + z1) / 2]);
       continue;
     }
     if (!whole(i)) continue;
     const at = (y: number) => y - from;
-    b.block([width + 0.02, 0.04, FLIGHT.going + 0.03], tread, [cx + 0.01, at(top - 0.04), (z0 + z1) / 2 + 0.015]);
+    b.block([width + 0.02, 0.04, going + 0.03], tread, [cx + 0.01, at(top - 0.04), (z0 + z1) / 2 + 0.015]);
     // Worn hollow down the middle of the tread, where every foot has gone.
-    b.block([0.42, 0.012, FLIGHT.going - 0.06], "bone", [MID_X + 0.05, at(top - 0.005), (z0 + z1) / 2 + 0.01]);
+    b.block([0.42, 0.012, going - 0.06], "bone", [MID_X + 0.05, at(top - 0.005), (z0 + z1) / 2 + 0.01]);
     if (i % 2 === 1 && i > 2) b.block([0.035, RAIL, 0.035], "ash", [SIDE - 0.06, at(top), z1 - FLIGHT.going / 2]);
   }
   if (from > 0) {

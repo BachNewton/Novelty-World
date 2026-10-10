@@ -216,11 +216,12 @@ function floorGrate(): THREE.Group {
   for (const z of [-0.12, 0.12]) bars.block([size - 0.04, 0.035, 0.03], "sootLight", [0, 0.014, z]);
   const pit = box([size - 0.08, 0.004, size - 0.08], glow("ember"), [0, 0.006, 0]);
   pit.userData.noShadow = true;
+  // The embers lie on the glowing pit, under the bars and the scorched floor, rather than a millimetre from either.
   const embers = [
     [-0.18, 0.1],
     [0.12, -0.2],
     [0.2, 0.15],
-  ].map(([x, z]) => box([0.08, 0.003, 0.06], glow("amber"), [x, 0.008, z]));
+  ].map(([x, z]) => box([0.08, 0.0015, 0.06], glow("amber"), [x, 0.01, z]));
   return group(
     box([size, 0.04, 0.06], iron, [0, 0, -size / 2 + 0.03]),
     box([size, 0.04, 0.06], iron, [0, 0, size / 2 - 0.03]),
