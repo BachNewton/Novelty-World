@@ -141,6 +141,16 @@ Monopoly (`src/projects/monopoly/`) is the closest existing project: a turn-base
 
 Keep the main session thin. Delegate each substantial unit of work (a phase, an integration, an engine gap, a review) to a fresh agent with a self-contained written brief, and read back only a short report. The main session orchestrates and makes the decisions at each boundary. When its own context grows heavy, hand orchestration to a fresh agent through a written brief rather than pressing on or waiting for auto-compaction: a long context degrades judgement well before it fills. Decisions only the owner can make still come back to the owner through the reports.
 
+## Checking the tree
+
+A green check runs only what the change can reach, a trial rule for this project to be lifted to the repo if it works well:
+
+- **Lint and typecheck** always run whole: they are fast, and catch a broken import anywhere.
+- **Unit and slow tests** run by the import graph: `npx vitest run --changed`, and the same with `--config vitest.slow.config.ts` (`--changed <ref>` for a branch's commits). A test no change reaches isn't run.
+- **E2E** runs Betrayal's specs only (`npx playwright test e2e/betrayal-`). Playwright's `--only-changed` doesn't fit: its specs load the app by URL, not by import, so the graph never links a change in `src/projects/betrayal/` to them.
+- **The whole suite** runs when the change reaches above one project: `src/shared/`, `package.json` or the lockfile (a dependency update), or test, build or TypeScript config.
+- After a failure, rerun only the failing files, never the whole suite.
+
 ## Next step
 
 Milestones 1 to 3 are built: the engine plays the whole game before the haunt, and haunt 13, Perchance to Dream, plays start to finish in one browser, reached by the haunt roll or the page's "start haunt 13" scenario. Every other haunt still stops the game at its reveal. The playtesting tools are built: the page can start from a scenario (stacked decks and room stack, rooms in the house, explorers placed with chosen traits and cards, or "start haunt N"), set up by the engine's own setup so it stays reproducible; a game can be shared as a link (`?game=<code>`) that replays it from its seed, scenario and actions; the log reads by turn and each line can show "why?" (the rule's text and its rulings, from `data/rule-notes.json`, which holds a haunt's cited rulings but never its halves' text); and the board highlights what the pending decision offers. The haunt framework is the kit in `kit/` (setup parts, shared statuses, rule changes, triggers and objective actions written for any haunt), compiled into a haunt-layer rule source, with `viewFor` as the per-seat view the page renders. A toy haunt in `test/` still sweeps the framework under every haunt number.
