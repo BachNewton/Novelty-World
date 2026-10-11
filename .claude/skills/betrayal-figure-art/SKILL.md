@@ -61,7 +61,7 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   spear) until items get art, `burning` for a prop with a flame and its
   live light, and `carrying` for a figure built holding one.
 - `explorers/cloth.ts`: the shared heavy-cloth helper every cloth that
-  follows the legs goes through, with `cloth.test.ts`, its smoothness test.
+  follows the legs goes through, with `cloth.slow.test.ts`, its smoothness test.
 - `explorers/longfellow.ts`, `ox.ts`, `zoe.ts`, `rhinehardt.ts`: the
   explorers. Longfellow is
   the reference for an ordinary adult and for a held object riding a hand;
@@ -76,9 +76,9 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `monsterLineUp` stands every figure, monsters and explorers, with the pawn.
   A new figure joins the line-ups.
 - `explorers/index.ts`: `BENCH_EXPLORERS`, who the bench can stand in a room.
-- `explorers/fighting-faces.ts` and `explorers/overlap.test.ts`: the figures'
-  overlap check; `explorers/gait.test.ts`: the gait check (no jump through
-  a walk or a run, the base planted); `explorers/clipping.ts`, with `explorers/clipping.test.ts`
+- `explorers/fighting-faces.ts` and `explorers/overlap.slow.test.ts`: the figures'
+  overlap check; `explorers/gait.slow.test.ts`: the gait check (no jump through
+  a walk or a run, the base planted); `explorers/clipping.ts`, with `explorers/clipping.slow.test.ts`
   and `monsters/clipping.test.ts`: the clipping check (see "Build it").
 - `animate.ts`: `animated`, which marks the piece the stage poses each frame.
 - `house.ts` and `house-walk.ts`: how the house stands, walks, runs, marks
@@ -361,7 +361,7 @@ weight that switches on (a foot counted as planted the moment it lands), a
 hard limit (a leg snapping straight, a knee folding shut), a search that can
 pick a different answer from one frame to the next (cloth pushed to one
 side of a leg or the other), or a burst whose end doesn't match its start
-all show as a drop or a pop. `gait.test.ts` walks and runs every explorer as
+all show as a drop or a pop. `gait.slow.test.ts` walks and runs every explorer as
 the house moves it, a sample every 1/600 s, and fails on any part whose
 step is longer than the steps either side of it by more than 3 mm; a new
 figure joins it.
@@ -428,11 +428,11 @@ figure is in one of three size classes: **small** (swarms and animals),
 **person-sized** (explorers, companions, most named monsters, zombies and
 cultists) or **large** (the Spider, the Dragon, the Demon Lord, the
 Ouroboros heads: a handful of figures, each in one haunt). A figure is
-never shrunk to fit a room. A person-sized figure stands on one of a room's
-standing spots; a large one takes a spot and spreads over its neighbours.
-How a large one fits a crowded room waits for the first haunt that has one;
-the lead idea is a "crowded pose" of its own (the Spider coiled), used when
-its full spread doesn't fit. A big monster that stands gets a bigger base
+never shrunk to fit a room. The placement solver (`placement.ts`) stands
+every figure on a room's free floor by its size class's footprint; a large
+one's spreads over its neighbours'. When its full spread doesn't fit a
+crowded room, the solver gives it its "crowded pose" footprint (the Spider
+coiled): build that pose to match. A big monster that stands gets a bigger base
 (`monsterBase`), dark to tell it from an explorer's.
 
 **It has a stunned pose.** A stunned monster misses its next turn (rules.md,
@@ -443,7 +443,7 @@ not a dimmer idle: the Spider crumples, the Banshee slumps.
 parts that never move relative to each other. Many copies of one shape that
 move are one `InstancedMesh` in a single draw (the Spider's sixteen leg
 bands follow its legs each frame); swarms (bats, rats) are the same, never
-many separate figures, clustered round a standing spot.
+many separate figures, clustered round the one place the solver gives it.
 
 ## Build it
 
@@ -463,7 +463,7 @@ character is, from the data, and how they read at a glance. Then, in order:
    the overlap, clipping and gait tests.
 
 **Run the clipping check** after every change: `npx vitest run
-src/projects/betrayal/art/explorers/clipping.test.ts` (and
+--config vitest.slow.config.ts src/projects/betrayal/art/explorers/clipping.slow.test.ts` (and
 `monsters/clipping.test.ts`). It asks each part's surface points how deep
 they lie inside every other part's solid, in that part's frame, and reports
 two parts whose surfaces cross (each partly inside the other) by more than
@@ -482,7 +482,7 @@ the shape, the pivot or the pose, never a joint's reach, unless the crossing
 really is the joint folding.
 
 **Run the overlap check** too:
-`npx vitest run src/projects/betrayal/art/explorers/overlap.test.ts` poses
+`npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/explorers/overlap.slow.test.ts` poses
 each figure at moments through its idle, standing, walking and running (and
 each monster standing and stunned), and fails on any two of its parts whose
 surfaces of different colour lie within a millimetre of each other, facing

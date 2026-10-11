@@ -15,6 +15,7 @@ import type { CardDestination, ChosenBy, GainedBy } from "./effects";
 import type { Harm } from "./questions";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
+import { requireBuilt } from "./haunt";
 import {
   viewExplorer,
   type EventView,
@@ -67,6 +68,8 @@ export function describeRule(engine: Engine, rule: RuleView): string {
         : `Haunt ${rule.haunt}, ${rule.section}`;
     case "scenario":
       return "Scenario";
+    case "players":
+      return "The players' choice";
   }
 }
 
@@ -93,7 +96,7 @@ function withRule(
   sentence: string,
   about: string | null = null,
 ): string {
-  if (rule.source === "rulebook" || rule.source === "haunt") return sentence;
+  if (rule.source === "rulebook" || rule.source === "haunt" || rule.source === "players") return sentence;
   if (rule.source === "card" && rule.card === about) return sentence;
   return `${describeRule(engine, rule)}: ${sentence}`;
 }
@@ -581,10 +584,18 @@ export function describeEvent(
         `Haunt ${d.number} begins, revealed by ${seat(d.revealer)} with the ${words.card(d.omen)} in the ${words.room(d.room)}`,
       );
     }
-    case "haunt-unbuilt":
+    case "haunt-unbuilt": {
+      const d = data<{ haunt: number; stops: boolean }>(event);
       return sentence(
-        `Haunt ${data<{ haunt: number }>(event).haunt} isn't built yet, so the game stops here`,
+        `Haunt ${d.haunt} isn't built yet, so ${d.stops ? "the game stops here" : "a haunt that is built is played instead"}`,
       );
+    }
+    case "haunt-chosen": {
+      const d = data<{ haunt: number; instead: number }>(event);
+      return sentence(
+        `Haunt ${d.haunt}, ${requireBuilt(engine, d.haunt).name}, is played in place of haunt ${d.instead}`,
+      );
+    }
     case "traitor-tie": {
       const d = data<{ tied: number[]; seat: number }>(event);
       return sentence(
@@ -726,9 +737,14 @@ export function describeEvent(
         result: number;
         omens: number;
         haunt: number;
+        charted?: number;
       }>(event);
+      const chosen =
+        d.charted === undefined || d.charted === d.haunt
+          ? ""
+          : `, the haunt chosen for this game (the chart gave haunt ${d.charted})`;
       return sentence(
-        `${who(d.figure)} rolls ${d.result} for the haunt, under the ${d.omens} omens drawn: haunt ${d.haunt} begins`,
+        `${who(d.figure)} rolls ${d.result} for the haunt, under the ${d.omens} omens drawn: haunt ${d.haunt} begins${chosen}`,
       );
     }
   }

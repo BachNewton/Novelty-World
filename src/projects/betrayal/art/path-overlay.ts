@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { BASE_RADIUS, checkFloor } from "./overlap";
+import { checkFloor } from "./overlap";
 import { PALETTE, type PaletteKey } from "./palette";
-import { DOOR_WIDTH, standingSpots, type RoomDefinition, type RoomPoint } from "./room";
+import { BASE_RADIUS, DOOR_WIDTH, primePlaces, type RoomDefinition, type RoomPoint } from "./room";
+import { footprint, type Crowding, type Placement, type PlacementHints, type SizeClass } from "./placement";
 
 /*
  * The bench's paths overlay (`&paths`): where figures stand and walk in a
@@ -16,21 +17,34 @@ import { DOOR_WIDTH, standingSpots, type RoomDefinition, type RoomPoint } from "
 
 /** What each colour marks, in the order the legend lists them. */
 const KEY = {
-  prime: { colour: "goldLight", label: "Standing spot 1 (prime), base clearance" },
-  spot: { colour: "moonLight", label: "Standing spots 2–6, base clearance" },
+  prime: { colour: "goldLight", label: "Prime place, base clearance" },
   doorway: { colour: "amber", label: "Doorway lane and approach" },
   lane: { colour: "verdigrisLight", label: "Room lanes" },
   crossing: { colour: "violet", label: "Crossing" },
   stair: { colour: "tideLight", label: "Stair path" },
   walk: { colour: "boneLight", label: "Walks the house makes" },
   open: { colour: "wraithLight", label: "Largest open floor" },
+  keepClear: { colour: "bruiseLight", label: "Kept clear: doorways and the room's own areas" },
+  laneClear: { colour: "verdigris", label: "Kept clear until rings overlap: walking lanes" },
+  apart: { colour: "tideLight", label: "Placed apart (base and outer mark)" },
+  overlap: { colour: "flame", label: "Placed with rings overlapping" },
+  behind: { colour: "bloodLight", label: "Placed partly behind another" },
   warning: { colour: "scarlet", label: "Flagged by the overlap check" },
 } as const satisfies Record<string, { colour: PaletteKey; label: string }>;
 type Mark = keyof typeof KEY;
 
 /** Drawn in this order, later over earlier. */
-const LAYER: Record<Mark, number> = { walk: 1, doorway: 2, lane: 3, crossing: 3, stair: 3, open: 4, spot: 5, prime: 5, warning: 6 };
-const OPACITY: Partial<Record<Mark, number>> = { walk: 0.7, doorway: 0.35 };
+const LAYER: Record<Mark, number> = { walk: 1, doorway: 2, keepClear: 2, laneClear: 2, lane: 3, crossing: 3, stair: 3, open: 4, prime: 5, apart: 5, overlap: 5, behind: 5, warning: 6 };
+const OPACITY: Partial<Record<Mark, number>> = { walk: 0.7, doorway: 0.35, keepClear: 0.3, laneClear: 0.2 };
+const BY_CROWDING: Record<Crowding, Mark> = { 0: "apart", 1: "overlap", 2: "behind", 3: "behind" };
+
+/** Where the placement solver stood a room's figures, and what it was told. */
+export interface SolvedRoom {
+  hints: PlacementHints;
+  placement: Placement;
+  /** Each figure's size class, by its id (its place in the crowd). */
+  sizes: SizeClass[];
+}
 
 /** How far above what it marks the overlay lies, so it reads as lying over the room. */
 const LIFT = 0.06;
@@ -198,8 +212,27 @@ function numberMesh(numbers: readonly SpotNumber[]): THREE.Mesh<THREE.BufferGeom
 
 const same = (a: readonly [number, number], b: readonly [number, number]) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-6;
 
+/** The areas kept clear, and where the solver stood each figure: its base and
+ *  its outer mark, coloured by how crowded it stands, numbered in the crowd's order. */
+function solvedMarks({ hints, placement, sizes }: SolvedRoom, draw: (mark: Mark, geometry: THREE.BufferGeometry) => void): SpotNumber[] {
+  for (const [mark, strokes] of [["laneClear", hints.lanes], ["keepClear", hints.keepClear]] as const) {
+    for (const { from, to, radius } of strokes) {
+      draw(mark, band([flat(...from), flat(...to)], radius * 2));
+      for (const end of [from, to]) draw(mark, ring(flat(...end), 0, radius));
+    }
+  }
+  return sizes.map((size, i): SpotNumber => {
+    const { x, z, crowding, pose } = placement.figures[String(i)];
+    const mark = BY_CROWDING[crowding];
+    const print = footprint(size, pose);
+    draw(mark, ring(flat(x, z), print.base - LINE, print.base));
+    if (print.outer > print.base) draw(mark, ring(flat(x, z), print.outer - LINE / 2, print.outer));
+    return { text: String(i + 1), colour: KEY[mark].colour, at: flat(x, z) };
+  });
+}
+
 /** The overlay for one room: built when shown, freed by `dispose`. */
-export function createPathOverlay(def: RoomDefinition): PathOverlay {
+export function createPathOverlay(def: RoomDefinition, solved: SolvedRoom | null = null): PathOverlay {
   const report = checkFloor(def);
   const root = new THREE.Group();
   root.name = "paths overlay";
@@ -222,12 +255,12 @@ export function createPathOverlay(def: RoomDefinition): PathOverlay {
   if (radius > 0) draw("open", ring(flat(...at), radius - LINE / 2, radius));
 
   const flagged = report.findings.flatMap((finding) => finding.at ?? []);
-  const numbers = standingSpots(def).map(([x, z], slot): SpotNumber => {
-    const mark: Mark = flagged.some((point) => same(point, [x, z])) ? "warning" : slot === 0 ? "prime" : "spot";
+  for (const [x, z] of primePlaces(def)) {
+    const mark: Mark = flagged.some((point) => same(point, [x, z])) ? "warning" : "prime";
     draw(mark, ring(flat(x, z), BASE_RADIUS - LINE, BASE_RADIUS));
     draw(mark, ring(flat(x, z), 0, 0.05));
-    return { text: String(slot + 1), colour: KEY[mark].colour, at: flat(x, z) };
-  });
+  }
+  const numbers = solved ? solvedMarks(solved, draw) : [];
   for (const point of flagged) draw("warning", ring(flat(...point), 0, 0.12));
 
   // One mesh a colour, in the order each colour was first drawn: three draws

@@ -152,8 +152,6 @@ export const CREAKY_HALLWAY: RoomDefinition = {
     { at: [0, 0.06, 0.3], colour: "wraith", intensity: 2.5, range: 4 },
   ],
   focus: [0.6, 0.4, 1.2],
-  pawn: [-0.5, 0.45],
-  spots: [[0.3, -0.75], [1.75, -0.6], [0.95, 0.65], [-1.7, -0.35], [-0.75, -1.75]],
-  overflow: [[-0.4, 1.55], [0.1, -1.7], [-0.5, -0.35], [1.65, 0.3], [-1.35, 0.35], [0.8, -1.35]],
+  prime: [-0.5, 0.45],
   lanes: crossLanes(),
 };

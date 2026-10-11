@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENGINE } from "../game";
+import { BASE_ENGINE, ENGINE } from "../game";
 import { at, choose, explorer, offered, testGame, spectator } from "../testing";
 import { placed } from "./board";
 import { describeEvent } from "./describe";
@@ -96,7 +96,8 @@ describe("a scenario", () => {
 
 describe("start haunt N", () => {
   it("starts with the haunt revealed, as a haunt roll would leave it", () => {
-    const state = testGame({ haunt: { number: 14, revealer: 1 } });
+    // With no haunt built, the game stops at the reveal, haunt 14 in place.
+    const state = testGame({ engine: BASE_ENGINE, haunt: { number: 14, revealer: 1 } });
     const cell = hauntCells(ENGINE.catalog, 14)[0];
     expect(state.status).toBe("haunt");
     expect(state.haunt).toMatchObject({

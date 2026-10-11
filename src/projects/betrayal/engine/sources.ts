@@ -82,8 +82,10 @@ export const LAYER_OF: Record<RuleRef["source"], Layer> = {
   card: "card",
   token: "card",
   haunt: "haunt",
-  // A scenario only sets a game up and never changes an answer.
+  // A scenario only sets a game up, and the players' choice only picks the
+  // haunt: neither changes an answer.
   scenario: "rulebook",
+  players: "rulebook",
 };
 
 /** What a roll is, so effects can tell rolls apart. */

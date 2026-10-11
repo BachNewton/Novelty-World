@@ -492,7 +492,7 @@ test.describe("controller", () => {
     });
   });
 
-  const BUTTON = { A: 0, B: 1, Y: 3, LB: 4, RB: 5, LS: 10, DpadUp: 12, DpadDown: 13 } as const;
+  const BUTTON = { A: 0, B: 1, LB: 4, RB: 5, View: 8, LS: 10, DpadRight: 15 } as const;
 
   /** Holds a button until `done` holds, then lets go and waits for the pad
    *  to be read again, so the next press is seen as a new one. */
@@ -526,7 +526,7 @@ test.describe("controller", () => {
     await press(page, BUTTON.A, () => page.waitForFunction((w) => JSON.stringify(window.__betrayalHouse?.state().choices) !== w, was));
   };
 
-  test("the left stick pans the reticle onto a room, and A walks there; RB jumps to a choice, and A takes it", async ({ page }) => {
+  test("the left stick pans the reticle onto a room, and A walks there; the d-pad's right jumps to a choice, and A takes it", async ({ page }) => {
     await openHouse(page);
     const { id, room } = await openChoice(page);
     await steerReticle(
@@ -545,10 +545,10 @@ test.describe("controller", () => {
     await expect(page.getByText("walk", { exact: true })).toBeVisible();
     await pressA(page);
     await arrived(page, room);
-    // RB round the choices until the jump comes back to the room he stands in, then A stops there.
+    // The d-pad's right round the choices until the jump comes back to the room he stands in, then A stops there.
     for (let tries = 0; tries < 12; tries++) {
       const was = await focused(page);
-      await press(page, BUTTON.RB, () => page.waitForFunction((w) => window.__betrayalHouse?.state().focused !== w, was));
+      await press(page, BUTTON.DpadRight, () => page.waitForFunction((w) => window.__betrayalHouse?.state().focused !== w, was));
       if ((await focused(page)) === STOP) break;
     }
     expect(await focused(page)).toBe(STOP);
@@ -557,7 +557,7 @@ test.describe("controller", () => {
     await stopped(page, room);
   });
 
-  test("the right stick tilts down to eye level, and the reticle still selects and A takes it", async ({ page }) => {
+  test("the right stick tilts to eye level, and the reticle still selects and A takes it", async ({ page }) => {
     await openHouse(page);
     const setRightStick = (x: number, y: number) =>
       page.evaluate(
@@ -567,8 +567,8 @@ test.describe("controller", () => {
         },
         [x, y] as const,
       );
-    // Down on the stick tilts down.
-    await setRightStick(0, 0.9);
+    // Up on the stick tilts down, towards eye level.
+    await setRightStick(0, -0.9);
     await page.waitForFunction(() => (window.__betrayalHouse?.camera().pitch ?? 1) < 0.16);
     await setRightStick(0, 0);
     await page.waitForFunction(() => window.__betrayalHouse?.isReady());
@@ -585,10 +585,10 @@ test.describe("controller", () => {
     await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === false);
   });
 
-  test("the d-pad changes floor, Y recentres, and B backs out", async ({ page }) => {
+  test("the bumpers change floor, View recentres, and B backs out", async ({ page }) => {
     await openHouse(page);
-    await press(page, BUTTON.DpadUp, () => page.waitForFunction(() => window.__betrayalHouse?.state().floor === "upper"));
-    await press(page, BUTTON.Y, () => page.waitForFunction(() => window.__betrayalHouse?.state().floor === "ground"));
+    await press(page, BUTTON.RB, () => page.waitForFunction(() => window.__betrayalHouse?.state().floor === "upper"));
+    await press(page, BUTTON.View, () => page.waitForFunction(() => window.__betrayalHouse?.state().floor === "ground"));
     await page.waitForFunction(() => window.__betrayalHouse?.isReady() && window.__betrayalHouse.reticle() === "stop");
     await press(page, BUTTON.B, () => page.waitForFunction(() => window.__betrayalHouse?.state().focused === null));
     expect(await page.evaluate(() => window.__betrayalHouse?.reticle())).toBeNull();

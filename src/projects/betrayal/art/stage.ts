@@ -21,7 +21,7 @@ import {
   WINDOW_SILL,
   WINDOW_TOP,
   WINDOW_WIDTH,
-  standingSpots,
+  primePlaces,
   wallTurn,
   type FloorOpening,
   type PropPlacement,
@@ -452,7 +452,7 @@ function doorwayPlugs(tile: RoomTile): THREE.Mesh[] {
 export type ExplorerBuilder = (seed: string, gait?: Gait) => THREE.Object3D;
 
 export interface RoomOptions {
-  /** Who stands at the room's pawn spot (the scale pawn unless told
+  /** Who stands on the room's prime place (the scale pawn unless told
    *  otherwise); null leaves it empty. */
   explorer?: ExplorerBuilder | null;
   /** Doors (by printed edge) drawn shut: in the house, a door that opens onto
@@ -506,11 +506,11 @@ export interface RoomPart {
   cutWalls: (isCut: (edge: Edge) => boolean) => void;
   /** Poses its animated pieces for this moment. */
   update: (seconds: number) => void;
-  /** The explorer standing where the room puts its pawn, if it has one. */
+  /** The explorer standing on the room's prime place, if it has one. */
   explorer: THREE.Object3D | null;
   /** The room's own lights, all baked. */
   lights: BakedLight[];
-  /** Where explorers stand (the pawn spot, then the second spot), if the room has a pawn spot. */
+  /** The room's prime places (`primePlaces`), where a figure most often stands: each gets a light probe of its own. */
   spots: [x: number, z: number][];
   /** Resolves once every texture has its pixels (SVG decals decode asynchronously). */
   ready: Promise<void>;
@@ -620,9 +620,9 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
   }
 
   let explorer: THREE.Object3D | null = null;
-  if (def.pawn && buildExplorer) {
+  if (def.prime && buildExplorer) {
     explorer = buildExplorer(`${def.id}:explorer`);
-    explorer.position.set(def.pawn[0], 0, def.pawn[1]);
+    explorer.position.set(def.prime[0], 0, def.prime[1]);
     root.add(explorer);
   }
 
@@ -668,7 +668,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     },
     explorer,
     lights,
-    spots: standingSpots(def),
+    spots: primePlaces(def),
     dispose: () => disposeTree(root),
     ready: Promise.all([...textures].map(textureReady)).then(() => undefined),
   };

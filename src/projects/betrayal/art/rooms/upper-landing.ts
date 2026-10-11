@@ -111,9 +111,7 @@ export const UPPER_LANDING: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), at: [INNER - 0.29, INNER - 0.29], y: 3.05, turn: 45, walls: ["right", "bottom"] },
   ],
   focus: [-0.8, 0.6, -1.8],
-  pawn: [0.8, -0.9],
-  spots: [[-0.3, 0.4], [-1.55, -0.8], [-1.9, 1.0], [1.7, 0.55], [1.0, 2.15]],
-  overflow: [[1.9, -2.0], [-1.2, 2.35], [2.3, 1.85], [-0.3, -1.0], [0.8, 0.1], [1.05, -2.1]],
+  prime: [0.8, -0.9],
   // Doorway to doorway through the middle, below the stairwell's rail and wide of the table.
   lanes: crossLanes(),
   // Down the head of the flight, over the middle of each tread, to the last step showing in the well.

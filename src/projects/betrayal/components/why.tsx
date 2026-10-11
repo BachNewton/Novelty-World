@@ -52,6 +52,12 @@ export function RuleDetail({ rule }: { rule: RuleView }) {
         only that side may read.
       </p>
     );
+  if (rule.source === "players")
+    return (
+      <p className="text-(--bt-muted)">
+        Chosen by the players, not by a rule.
+      </p>
+    );
   if (rule.source === "scenario")
     return (
       <p className="text-(--bt-muted)">

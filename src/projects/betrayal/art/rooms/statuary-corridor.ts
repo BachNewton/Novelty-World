@@ -177,9 +177,7 @@ export const STATUARY_CORRIDOR: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), at: [-HALF + 0.29, -INNER + 0.29], y: 3.05, turn: -135, walls: ["top", "left"] },
   ],
   focus: [0.4, 1.0, -0.4],
-  pawn: [-0.6, 0.45],
-  spots: [[-0.8, 1.8], [0.7, 0.7], [0.8, -1.8], [0.15, -0.65], [-0.8, -1.8]],
-  overflow: [[0.4, 1.65], [0.0, -1.45], [-0.95, -0.25], [-0.6, -0.95], [-0.1, 1.05]],
+  prime: [-0.6, 0.45],
   // Past the statue.
   lanes: [[[0, -2.2], [-0.4, -1.0], [-0.4, 0.8], [0, 2.2]]],
 };

@@ -102,12 +102,19 @@ export interface NewGame {
   today: { month: number; day: number };
   /** Start somewhere other than the default deal (playtesting and tests). */
   scenario?: Scenario;
+  /** The haunt to play, chosen at setup: the haunt roll reveals it, whatever
+   *  the chart says. Without it the chart decides. */
+  chosenHaunt?: number;
 }
 
 /** Sets a game up and runs it to the first player's first decision. */
 export function newGame(engine: Engine, game: NewGame): GameState {
   validateSeats(engine.catalog, game.seats);
+  const chosen = game.chosenHaunt ?? null;
+  if (chosen !== null && !(chosen in engine.haunts))
+    throw new Error(`Haunt ${chosen} isn't built, so it can't be chosen`);
   const state = emptyState(game.gameId, game.seed, game.sets);
+  state.chosenHaunt = chosen;
   state.seats = game.seats.map((s) => ({
     name: s.name,
     controller: "human",
@@ -880,11 +887,12 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       });
       return;
     }
-    const number = ctx.catalog.chart.cells[p.room]?.[p.omen];
-    if (number === undefined)
+    const charted = ctx.catalog.chart.cells[p.room]?.[p.omen];
+    if (charted === undefined)
       throw new Error(
         `The haunt chart has no cell for ${p.room} and ${p.omen}`,
       );
+    const number = state.chosenHaunt ?? charted;
     // The revealer is the player who made the roll.
     revealHaunt(state, ctx, {
       number,
@@ -897,6 +905,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       result: p.result,
       omens: state.omensDrawn,
       haunt: number,
+      charted,
     });
   }),
 

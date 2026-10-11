@@ -27,8 +27,11 @@ const UPSTAIRS: Target = {
   id: "walk:upper-landing",
   kind: "room",
   room: "upper-landing",
-  route: { figure: "longfellow", rooms: ["library", "foyer", "grand-staircase", "upper-landing"], slot: 0 },
+  route: { figure: "longfellow", rooms: ["library", "foyer", "grand-staircase", "upper-landing"], end: () => [0, 0] },
 };
+
+/** The cell below the Library, explored through its bottom doorway. */
+const EXPLORE: Target = { id: "e", kind: "explore", floor: "ground", x: 1, y: 2, room: "library", direction: "bottom" };
 
 describe("targetPlace", () => {
   it("marks a room on the floor showing, as a pointer target over its whole tile", () => {
@@ -53,12 +56,21 @@ describe("targetPlace", () => {
     expect(place.floor).toBe("upper");
   });
 
-  it("puts a doorway on its room's edge, small, and a cell or a ghost on its own floor", () => {
-    const doorway = targetPlace({ id: "d", kind: "doorway", room: "library", direction: "bottom" }, context("ground"));
-    expect(doorway.mark).toEqual({ id: "d", kind: "doorway", room: "library", direction: "bottom" });
-    expect(doorway.anchor.z).toBeCloseTo(1.5 * TILE);
+  it("puts a cell to explore over its whole cell, marked with the doorway it is explored through, a cell or a ghost on its own floor, and a cell on another floor at its place on this one", () => {
+    const explore = targetPlace(EXPLORE, context("ground"));
+    expect(explore.mark).toEqual({ id: "e", kind: "explore", floor: "ground", x: 1, y: 2, room: "library", direction: "bottom" });
+    expect(explore.anchor.z).toBeCloseTo(2 * TILE);
+    const zs = (explore.outline ?? []).map((corner) => corner.z);
+    expect(Math.max(...zs) - Math.min(...zs)).toBeCloseTo(TILE);
+    expect(explore.cell).toEqual({ floor: "ground", x: 1, y: 2 });
+    expect(targetPlace(EXPLORE, context("upper")).outline).toBeNull();
     const cell: Target = { id: "c", kind: "cell", floor: "basement", x: 1, y: 0 };
-    expect(targetPlace(cell, context("ground")).mark).toBeNull();
+    const away = targetPlace(cell, context("ground"));
+    expect(away.mark).toEqual({ id: "c", kind: "away", floor: "ground", x: 1, y: 0 });
+    expect(away.anchor.y).toBeCloseTo(targetPlace({ ...cell, floor: "ground" }, context("ground")).anchor.y);
+    // Choosing it shows the ghost on its own floor: it still lies on the basement.
+    expect([away.floor, away.cell.floor]).toEqual(["basement", "basement"]);
+    expect(targetPlace(cell, context("all")).mark).toEqual({ id: "c", kind: "cell", floor: "basement", x: 1, y: 0 });
     expect(targetPlace(cell, context("basement")).mark).toEqual({ id: "c", kind: "cell", floor: "basement", x: 1, y: 0 });
     const doors = [
       { direction: "top", doorway: "joined" },
@@ -99,7 +111,7 @@ describe("choiceLayout", () => {
   });
 
   it("makes every pointer target at least a fingertip each way", () => {
-    const layout = choiceLayout(places([{ id: "d", kind: "doorway", room: "library", direction: "bottom" }, { id: "s", kind: "self", figure: "pawn" }], "ground"), null, project);
+    const layout = choiceLayout(places([EXPLORE, { id: "s", kind: "self", figure: "pawn" }], "ground"), null, project);
     for (const target of layout.targets) {
       const xs = target.outline.map((point) => point.x);
       const ys = target.outline.map((point) => point.y);

@@ -37,6 +37,10 @@ export function lightMaterial(
     depthWrite: false,
     fog: false,
     side: THREE.DoubleSide,
+    // three draws a transparent double-sided material in two passes, back faces then front, by flipping
+    // its side and marking it changed for each, which rebuilds its shader parameters twice a draw, every frame.
+    // Added light sums the same in any order, so one pass draws it the same.
+    forceSinglePass: true,
   });
 }
 

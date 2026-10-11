@@ -210,9 +210,8 @@ export const CATACOMBS: RoomDefinition = {
   ],
   lights: EYE_LIGHTS,
   focus: [0, 0.6, 0],
-  pawn: [-1.2, -1.5],
-  spots: [[1.75, 0.95], [1.9, -1.95], [-1.5, 1.1], [0.45, -1.05], [0.15, 1.55]],
-  overflow: [[1.55, -1.15], [1.65, 2.15], [-0.55, -1.05], [-1.5, 2.3], [-1.7, -2.1], [-0.5, 1.1]],
+  prime: [-1.2, -1.5],
+  primeAcross: [1.75, 0.95],
   // Through the bank under the arch of skulls.
   crossing: [
     [0, 0, -(BANK.half + 0.6)],

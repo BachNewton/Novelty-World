@@ -222,9 +222,7 @@ export const JUNK_ROOM: RoomDefinition = {
     { build: () => sheetedHeap([0.75, 0.95, 0.6], "l"), name: "sheetedHeap", ...onWall("left", 0.95, { out: 0.31 }) },
   ],
   focus: [-1.4, 0.8, -1.4],
-  pawn: [0.75, 0.7],
-  spots: [[-2.15, 1.0], [0.8, -0.95], [-0.8, -1.7], [-0.55, -0.15], [-0.65, 1.4]],
-  overflow: [[-1.65, -0.25], [1.05, 1.75], [1.65, 0.3], [0.2, -1.7], [1.65, -1.2], [0.35, 1.4]],
+  prime: [0.75, 0.7],
   // Doorway to doorway through the middle, clear of the heaps.
   lanes: crossLanes(),
 };

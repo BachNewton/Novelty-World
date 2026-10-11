@@ -16,7 +16,7 @@ One bounce of indirect light: from each surface, cosine-weighted rays find what 
 
 ## Moving things
 
-What moves (figures, animated pieces) is lit from light probes: an ambient cube, a colour for each of six directions, baked at the standing spots, at each moving piece and on a grid over the floor. The active explorer adds a live light from above, and a carried flame its own. At most two live lights cast shadows, and those are the house's.
+What moves (figures, animated pieces) is lit from light probes: an ambient cube, a colour for each of six directions, baked at the prime places, at each moving piece and on a grid over the floor. The active explorer adds a live light from above, and a carried flame its own. At most two live lights cast shadows, and those are the house's.
 
 ## The house's own light
 

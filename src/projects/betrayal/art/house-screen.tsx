@@ -13,6 +13,7 @@ import { CATALOG } from "../data";
 import { HOUSE_FIXTURE, MARKINGS_LAYOUT, reviewHouse, SPILL_LAYOUTS } from "./house-layout";
 import { createHouseDemo, FIXTURE_STARTS, type Phase } from "./house-demo";
 import { RaiseWallsButton } from "../components/raise-walls-button";
+import { ControlGlyph } from "../components/prompts";
 import type { FloorChoice } from "./house-scene";
 import { BENCH_ROOMS } from "./rooms";
 
@@ -45,18 +46,18 @@ function Hints({ input, phase, walking, stopping }: { input: InputKind; phase: P
   const pad = input === "pad";
   const hints =
     phase === "entering"
-      ? [<Hint key="skip" glyphs={pad ? <Glyph round>A</Glyph> : <Glyph>Enter</Glyph>} does="go on" />]
+      ? [<Hint key="skip" glyphs={pad ? <ControlGlyph control={{ pad: "A" }} /> : <Glyph>Enter</Glyph>} does="go on" />]
       : pad
         ? [
             <Hint key="pan" glyphs={<Glyph round>L</Glyph>} does="look" />,
-            <Hint key="go" glyphs={<Glyph round>A</Glyph>} does={go} />,
-            <Hint key="back" glyphs={<Glyph round>B</Glyph>} does="back" />,
-            <Hint key="next" glyphs={<><Glyph>LB</Glyph><Glyph>RB</Glyph></>} does="next" />,
+            <Hint key="go" glyphs={<ControlGlyph control={{ pad: "A" }} />} does={go} />,
+            <Hint key="back" glyphs={<ControlGlyph control={{ pad: "B" }} />} does="back" />,
+            <Hint key="next" glyphs={<ControlGlyph control={{ pad: "DpadLeftRight" }} />} does="next" />,
             <Hint key="orbit" glyphs={<Glyph round>R</Glyph>} does="turn, tilt" />,
-            <Hint key="zoom" glyphs={<><Glyph>LT</Glyph><Glyph>RT</Glyph></>} does="zoom" />,
-            <Hint key="floor" glyphs={<Glyph>✚</Glyph>} does="floor" />,
-            <Hint key="recentre" glyphs={<Glyph round>Y</Glyph>} does="recentre" />,
-            <Hint key="walls" glyphs={<Glyph round>L3</Glyph>} does="hold: walls" />,
+            <Hint key="zoom" glyphs={<><ControlGlyph control={{ pad: "LT" }} /><ControlGlyph control={{ pad: "RT" }} /></>} does="zoom" />,
+            <Hint key="floor" glyphs={<><ControlGlyph control={{ pad: "LB" }} /><ControlGlyph control={{ pad: "RB" }} /></>} does="floor" />,
+            <Hint key="recentre" glyphs={<ControlGlyph control={{ pad: "View" }} />} does="recentre" />,
+            <Hint key="walls" glyphs={<ControlGlyph control={{ pad: "L3" }} hold={{ holding: false }} />} does="walls" />,
           ]
         : [
             <Hint key="pan" glyphs={<Glyph>WASD</Glyph>} does="look" />,

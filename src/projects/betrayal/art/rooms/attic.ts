@@ -133,9 +133,7 @@ export const ATTIC: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [2.51, -2.51], y: 3.05, turn: -135, walls: ["right", "top"] },
   ],
   focus: [-0.8, 0.2, 0.2],
-  pawn: [0.0, 0.3],
-  spots: [[-0.3, 1.7], [1.05, 2.2], [-1.35, -1.85], [1.55, -1.0], [0.45, -1.9]],
-  overflow: [[0.55, -0.8], [1.85, 2.2], [1.3, -1.75], [-0.35, -0.4], [-0.75, -2.35], [-0.05, -1.3]],
+  prime: [0.0, 0.3],
   // Up the gap between the trunks, then along under the eaves.
   lanes: [
     [[0, 2.2], [0, -1.1], [-0.1, -1.6], [-0.5, -2.1], [-1.4, -2.1]],

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { rulingHalves } from "../engine/haunt";
@@ -14,6 +14,7 @@ import {
 } from "./rule-notes";
 import { ROOMS } from "./rooms";
 import { TOKENS } from "./tokens";
+import { ruleSources } from "../test/rule-sources";
 
 // Builds rule-notes.json from content/. The file is a snapshot: this test
 // fails when content/ changes until it is rewritten with `vitest run -u`.
@@ -188,19 +189,7 @@ describe("rule-notes.json", () => {
 /** Every ruling id the engine and the content code cite, from their source:
  *  a reference is written `ruling: "<id>"`. */
 function citedRulings(): string[] {
-  const root = path.join(__dirname, "..");
-  const files = ["engine", "kit", "data"].flatMap((dir) =>
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only scan of this project's own engine/, kit/ and data/ folders
-    readdirSync(path.join(root, dir), { recursive: true, encoding: "utf8" })
-      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-      .map((f) => path.join(root, dir, f)),
-  );
-  return files.flatMap((file) =>
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only scan of this project's own engine/ and data/ source files
-    [...readFileSync(file, "utf8").matchAll(/ruling: "([a-z0-9-]+)"/g)].map(
-      (m) => m[1],
-    ),
-  );
+  return ruleSources().flatMap(({ source }) => [...source.matchAll(/ruling: "([a-z0-9-]+)"/g)].map((m) => m[1]));
 }
 
 describe("ruling ids", () => {

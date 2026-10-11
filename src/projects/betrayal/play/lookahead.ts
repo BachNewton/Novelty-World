@@ -107,7 +107,7 @@ function writeWarnings(engine: Engine, after: GameState, seat: number, at: strin
     if (CHANCE.has(event.type)) return warnings;
   }
   const pending = view.pending;
-  if (asked && pending && pending.rule.source !== "rulebook" && pending.rule.source !== "scenario") addWarning(warnings, { room: room(pending.rule), rule: pending.rule, event: null });
+  if (asked && pending && pending.rule.source !== "rulebook" && pending.rule.source !== "scenario" && pending.rule.source !== "players") addWarning(warnings, { room: room(pending.rule), rule: pending.rule, event: null });
   return warnings;
 }
 

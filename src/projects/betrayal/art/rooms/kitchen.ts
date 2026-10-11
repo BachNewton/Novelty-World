@@ -630,9 +630,9 @@ export const KITCHEN: RoomDefinition = {
     cornerWeb(1, 1),
   ],
   focus: [-1.6, 0.9, 0],
-  pawn: [1.45, 1.55],
-  spots: [[0.45, 0.65], [-1.5, 0.6], [1.75, -0.6], [-0.55, 1.55], [1.0, -1.75]],
-  overflow: [[-1.6, -1.75], [1.55, 0.45], [0.45, 1.55], [-0.8, -1.8], [-0.35, 0.65], [-1.3, 1.8]],
+  prime: [1.45, 1.55],
+  // The front of the range on the left wall, whose pots boil green: the room's identity stays in view.
+  keepClear: [{ from: [-2.0, -0.5], to: [-2.0, 0.3], radius: 0.35 }],
   // Round the end of the table, from the top doorway down past the range to the right one and the floor below.
   lanes: [
     [[0, -2.2], [0, -1.8], [1.4, -1.8], [1.5, -0.9], [1.95, -0.35], [1.95, 0], [1.95, 0.3], [1.4, 1.0], [-0.8, 1.0]],

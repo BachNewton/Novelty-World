@@ -424,9 +424,7 @@ export const FURNACE_ROOM: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-(INNER - 0.29), -(INNER - 0.29)], y: 3.05, turn: 45, walls: ["left", "top"] },
   ],
   focus: [0.7, 0.6, -0.45],
-  pawn: [-1.4, 0.45],
-  spots: [[-0.35, -0.9], [-2.05, -1.15], [1.6, 1.4], [-2.1, 2.0], [-0.1, 1.7]],
-  overflow: [[0.95, -1.75], [-1.1, -2.35], [-0.2, 0.45], [-1.3, 1.55], [-1.4, 2.35], [1.0, 1.9]],
+  prime: [-1.4, 0.45],
   // Down from the top doorway between the coal and the furnace, across the
   // floor to the other doorways, and round the coal into the corner behind it.
   lanes: [

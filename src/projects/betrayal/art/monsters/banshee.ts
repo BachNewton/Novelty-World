@@ -6,6 +6,7 @@ import { ball, ellipsoid, glowShaded, loft, rod, sculpt, stretched, type Section
 import { paletteHex, type PaletteKey } from "../palette";
 import { group, lightMaterial } from "../shapes";
 import { floorGlow, spectral, type MonsterOptions } from "./base";
+import { declareParts, figureParts } from "../figure-parts";
 
 /*
  * The Banshee: a wailing spirit in sickly green, the supernatural's colour.
@@ -159,9 +160,9 @@ function meshParts() {
     forearms: [glowShaded(forearm(-1)), glowShaded(forearm(1))],
   };
 }
-type Parts = ReturnType<typeof meshParts>;
-/** Meshed once on first use and shared by every banshee: none of it depends on the seed. */
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const BANSHEE_PARTS = figureParts("banshee", meshParts);
+declareParts(banshee, [BANSHEE_PARTS]);
 
 /** Light added to what lies behind it, coloured by its geometry's colours. */
 function light(opacity: number): THREE.MeshBasicMaterial {
@@ -179,8 +180,7 @@ function light(opacity: number): THREE.MeshBasicMaterial {
  * tatters and hair stream behind her; she has no legs to stride.
  */
 export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = false }: MonsterOptions = {}): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+  const parts = BANSHEE_PARTS.get();
   const glowing = spectral(stunned ? 0.5 : 1);
   const mesh = (geometry: THREE.BufferGeometry, material: THREE.Material = glowing, name = "") => {
     const made = new THREE.Mesh(geometry, material);

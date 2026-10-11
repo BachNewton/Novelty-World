@@ -66,19 +66,25 @@ export function shownOn(layout: Layout, reach: Reach, floor: FloorId | "all", st
   return from !== undefined && floorOf(from) === floor && stairway(from, reach.room) ? { stairFrom: from } : null;
 }
 
+/** Reshapes a walk's points across one room (in its own frame, from where it
+ *  comes in to where it leaves, both kept): to keep round the figures standing there. */
+export type Avoid = (room: string, points: readonly RoomPoint[]) => RoomPoint[];
+
 /**
  * The path of a walk along a route: from `from`, through the centre of each
  * doorway between rooms on one floor, or along the stairway out of one room
  * and back down the other's into it where a fixed link joins them, to `to`.
  * Across each room it keeps to the room's ways (`waypoints`): its lanes, and
- * a barrier room's crossing. Where it changes floor, two points in a row lie
- * on different floors.
+ * a barrier room's crossing, reshaped by `avoid` (round the figures standing
+ * there). Where it changes floor, two points in a row lie on different floors.
  */
-export function walkPath(layout: Layout, route: readonly string[], from: HousePoint, to: HousePoint, ways: (room: string) => RoomWays): HousePoint[] {
+export function walkPath(layout: Layout, route: readonly string[], from: HousePoint, to: HousePoint, ways: (room: string) => RoomWays, avoid?: Avoid): HousePoint[] {
   const path: HousePoint[] = [];
   /** Walks across `room` from `a` to just short of `b`. */
   const across = (room: string, a: HousePoint, b: HousePoint) => {
-    path.push(a, ...waypoints(ways(room), inRoom(layout, room, a), inRoom(layout, room, b)).map((point) => inHouse(layout, room, point)));
+    const [start, end] = [inRoom(layout, room, a), inRoom(layout, room, b)];
+    const points = [start, ...waypoints(ways(room), start, end), end];
+    path.push(a, ...(avoid ? avoid(room, points) : points).slice(1, -1).map((point) => inHouse(layout, room, point)));
   };
   let entered = from;
   for (let i = 1; i < route.length; i++) {

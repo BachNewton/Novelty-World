@@ -8,10 +8,21 @@ import { BENCH_EXPLORERS } from "./explorers";
 import { PathLegendPanel } from "./path-legend";
 import { BENCH_ROOMS } from "./rooms";
 import { roomTile } from "./stage";
+import { PLACEMENT_PRESETS } from "./placement-bench";
 
 /** The art bench (`?bench=<room-id>`, optionally `&explorer=<id>`,
  *  `&frame=explorer` and `&paths`): one room, full screen, to judge its art. */
-export function ArtBench({ room, explorer, frame, paths }: { room: string; explorer: string | null; frame: string | null; paths: boolean }) {
+export function ArtBench({
+  room,
+  explorer,
+  frame,
+  paths,
+}: {
+  room: string;
+  explorer: string | null;
+  frame: string | null;
+  paths: boolean;
+}) {
   const [bench] = useState(() => createBench(room, explorer, frame, paths));
   const state = useSyncExternalStore(bench.subscribe, bench.snapshot, bench.snapshot);
   const containerRef = useThreeScene(bench.mount, { antialias: false, maxPixelRatio: 4 });
@@ -58,7 +69,7 @@ export function ArtBench({ room, explorer, frame, paths }: { room: string; explo
             value={state.explorer}
             onChange={(event) => bench.api.setExplorer(event.target.value)}
           >
-            {BENCH_EXPLORERS.map((figure) => (
+            {[...BENCH_EXPLORERS, ...PLACEMENT_PRESETS].map((figure) => (
               <option key={figure.id} value={figure.id}>
                 {figure.name}
               </option>

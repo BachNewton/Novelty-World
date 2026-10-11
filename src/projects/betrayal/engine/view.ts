@@ -88,6 +88,10 @@ export interface FigureView {
    *  traits are its own side's to know until a roll makes them known to
    *  everyone. */
   traits: Partial<Record<Trait, number | null>>;
+  /** Each trait's clip, as an index into its track, for a figure whose
+   *  traits are clips on a character card's printed tracks (public, as the
+   *  cards are); null for fixed traits. */
+  clips: Record<Trait, number> | null;
   cards: string[];
   /** Each status, with its rule and its own data. The data is left out
    *  (null) unless this viewer knows every seat's side, as it may name a
@@ -389,6 +393,7 @@ function figureViews(
       owner: ownerHidden(state, viewer, figure.id) ? null : figure.owner,
       place: figure.place === null ? null : { ...figure.place },
       traits,
+      clips: figure.traits.kind === "track" ? { ...figure.traits.clips } : null,
       cards: [...figure.cards],
       statuses: figure.statuses.map((status) => ({
         id: status.id,
@@ -584,6 +589,17 @@ function eventView(
     rule: ruleView(engine, state, viewer, event.rule, hideSection),
     data: jsonView(engine, state, viewer, seen),
   };
+}
+
+/** Events as a viewer may see them, read against a state: for a screen
+ *  catching up on events from writes before the one it shows. */
+export function eventsFor(
+  engine: Engine,
+  state: GameState,
+  viewer: number | null,
+  events: readonly GameEvent[],
+): EventView[] {
+  return events.map((e) => eventView(engine, state, viewer, e));
 }
 
 /** What a seat may see of the game, or a spectator (null): public

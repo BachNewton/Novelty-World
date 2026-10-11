@@ -28,6 +28,10 @@ export const WAINSCOT_DEPTH = 0.03;
  * fight the marks; `clearOfMarks` moves a height clear of them.
  */
 export const MARK_PLANES = { fill: 0.03, ring: 0.035, edge: 0.05, colourRing: 0.03 } as const;
+/** The radius of a figure's base (`figureBase`): a walker needs this much clear floor round it. */
+export const BASE_RADIUS = 0.36;
+/** The explorer marker: a ring of the player's colour round the base. */
+export const COLOUR_RING = { inner: 0.4, outer: 0.55, height: MARK_PLANES.colourRing };
 /** How far clear of a mark's plane `clearOfMarks` moves a height. */
 const MARK_CLEAR = 0.0015;
 
@@ -136,19 +140,23 @@ export interface RoomDefinition {
   lights?: LightSpec[];
   /** Where the close-up looks. Defaults to `DEFAULT_FOCUS`. */
   focus?: [x: number, y: number, z: number];
+  /** The standard view (0 to 3) the room reads best from, which its close
+   *  view on a first visit turns to. Without it, the player's angle stands. */
+  angle?: number;
   /** Holes cut through the floor (a stairwell, a lake), in room metres. */
   floorOpenings?: FloorOpening[];
-  /** The prime standing spot, the first the house fills: where the active
-   *  explorer stands, and where the bench stands its explorer. */
-  pawn?: [x: number, z: number];
-  /** The five standing spots after `pawn`, in the order the house fills
-   *  them. Each is clear for a figure's base and reachable from the doors. */
-  spots?: [x: number, z: number][];
-  /** Where figures past the six stand, in the order the house fills them:
-   *  free floor, clear for a base and reachable from the doors like a
-   *  standing spot, and far enough from every other place that no figure's
-   *  colour ring runs under another's base. Rings may overlap here. */
-  overflow?: [x: number, z: number][];
+  /** The prime place: where the active explorer stands, and where the bench
+   *  stands its explorer. Every other figure the placement solver
+   *  (`placement.ts`) stands on the room's free floor. Clear for a figure's
+   *  base, reachable from the doors and out of their lanes. In a barrier
+   *  room, the prime place of one half (see `primeAcross`). */
+  prime?: [x: number, z: number];
+  /** In a barrier room, the prime place of the half across the barrier from `prime`. */
+  primeAcross?: [x: number, z: number];
+  /** Floor no figure stands on while the room has room: in front of what
+   *  makes the room, so its identity stays in view. The doorways and the
+   *  walking lanes are kept clear without being listed. */
+  keepClear?: Stroke[];
   /** For each room a fixed link (a stair) joins this one to, the way an
    *  explorer walks it: points in room metres, from this room's floor to
    *  where the stair leaves the room. A walk between the two rooms goes up
@@ -278,26 +286,24 @@ export function waypoints(ways: RoomWays, a: RoomPoint, b: RoomPoint): RoomPoint
  *  [x, z] corners (either winding, not crossing itself) for a ragged edge. */
 export type FloorOpening = { x: [number, number]; z: [number, number] } | { polygon: [x: number, z: number][] };
 
-/** Every standing spot of a room, in the order the house fills them: `pawn`, then `spots`. */
-export function standingSpots(def: RoomDefinition): [x: number, z: number][] {
-  return def.pawn ? [def.pawn, ...(def.spots ?? [])] : [];
+/** A stroke of floor: points within `radius` of the segment from `from` to `to`. A circle has the two the same. */
+export interface Stroke {
+  from: readonly [x: number, z: number];
+  to: readonly [x: number, z: number];
+  radius: number;
+}
+
+/** A room's prime places: its `prime`, and in a barrier room its `primeAcross`. */
+export function primePlaces(def: RoomDefinition): [x: number, z: number][] {
+  return [def.prime, def.primeAcross].flatMap((place) => (place ? [place] : []));
 }
 
 /** In a room's own frame, the way each printed door edge lies from the middle: top is -z, right +x. */
-const TOWARD: Record<Edge, [x: number, z: number]> = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
+export const TOWARD: Record<Edge, [x: number, z: number]> = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
 
-/** Where the figure in `slot` stands in a room, in its own frame: its
- *  standing spots in order, then its overflow; in a barrier room, those on
- *  `side`, the figure's own side of it. */
-export function roomSpot(def: RoomDefinition, slot: number, side: Edge | null = null): [x: number, z: number] {
-  const all = standingSpots(def);
-  if (all.length === 0) throw new Error(`${def.id} has no spot for an explorer to stand on`);
-  const toward = side === null ? null : TOWARD[side];
-  const onSide = (places: [x: number, z: number][]) => (toward === null ? places : places.filter(([x, z]) => x * toward[0] + z * toward[1] > 0));
-  const sided = onSide(all).length > 0;
-  const places = sided ? [...onSide(all), ...onSide(def.overflow ?? [])] : [...all, ...(def.overflow ?? [])];
-  if (slot >= places.length) throw new Error(`${def.id} has places for ${places.length} figures${sided && side ? ` on its ${side} side` : ""}, not ${slot + 1}`);
-  return places[slot];
+/** Whether a point of a room lies in its half on `side` (a barrier room's halves are split across the middle, one by each door); with no side, the whole room. */
+export function onSide(side: Edge | null, x: number, z: number): boolean {
+  return side === null || x * TOWARD[side][0] + z * TOWARD[side][1] > 0;
 }
 
 const WALL_TURN: Record<Edge, number> = { top: 0, right: -90, bottom: 180, left: 90 };

@@ -33,7 +33,9 @@ function canvas(width: number, height: number) {
   const element = document.createElement("canvas");
   element.width = width;
   element.height = height;
-  const context = element.getContext("2d");
+  // Its pixels are read back (a decal snapped to the palette, a texture's average colour for the bake): a canvas kept in
+  // memory reads back at once, where one drawn on the GPU waits on the GPU process, behind whatever it is doing.
+  const context = element.getContext("2d", { willReadFrequently: true });
   if (!context) throw new Error("2D canvas unavailable");
   return { element, context };
 }
@@ -499,6 +501,25 @@ const PALETTE_RGB = DECAL_COLOURS.map(paletteHex).map((hex) => [
   parseInt(hex.slice(5, 7), 16),
 ]);
 
+/** The palette colour nearest each colour met so far, by its 24-bit value: an image has few colours, and each is searched for once. */
+const nearestOf = new Map<number, (typeof PALETTE_RGB)[number]>();
+function nearestInPalette(r: number, g: number, b: number) {
+  const key = (r << 16) | (g << 8) | b;
+  const known = nearestOf.get(key);
+  if (known) return known;
+  let best = PALETTE_RGB[0];
+  let bestDistance = Infinity;
+  for (const rgb of PALETTE_RGB) {
+    const distance = (rgb[0] - r) ** 2 + (rgb[1] - g) ** 2 + (rgb[2] - b) ** 2;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = rgb;
+    }
+  }
+  nearestOf.set(key, best);
+  return best;
+}
+
 function snapToPalette(context: CanvasRenderingContext2D, width: number, height: number) {
   const image = context.getImageData(0, 0, width, height);
   const data = image.data;
@@ -507,15 +528,7 @@ function snapToPalette(context: CanvasRenderingContext2D, width: number, height:
       data[i + 3] = 0;
       continue;
     }
-    let best = PALETTE_RGB[0];
-    let bestDistance = Infinity;
-    for (const rgb of PALETTE_RGB) {
-      const distance = (rgb[0] - data[i]) ** 2 + (rgb[1] - data[i + 1]) ** 2 + (rgb[2] - data[i + 2]) ** 2;
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = rgb;
-      }
-    }
+    const best = nearestInPalette(data[i], data[i + 1], data[i + 2]);
     data[i] = best[0];
     data[i + 1] = best[1];
     data[i + 2] = best[2];

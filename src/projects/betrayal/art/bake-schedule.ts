@@ -146,6 +146,8 @@ interface PassState {
   parts: (Gathered | null)[];
   /** Chunks not yet in. */
   left: number;
+  /** Whether it waits to be finished, or is being or has been. */
+  finishing: boolean;
   /** Its light, finished; null until then. */
   light: RoomLight | null;
   applied: Deferred;
@@ -270,11 +272,22 @@ export function createBakeScheduler(spawn: () => Lane[]) {
   /** Passes all in, waiting for a lane to finish them: they go before any chunk, being the last step to the screen. */
   const finishing: { running: Running; state: PassState }[] = [];
 
+  /** Queues a job's passes that are all in for finishing, in order: a pass's finish may build on an earlier
+   *  pass's light, so it waits until every earlier pass is all in, even when its own chunks landed first. */
+  const ripen = (running: Running) => {
+    for (const state of running.passes) {
+      if (state.left > 0) return;
+      if (state.finishing) continue;
+      state.finishing = true;
+      finishing.push({ running, state });
+    }
+  };
+
   const land = (running: Running, state: PassState, part: number, gathered: Gathered) => {
     state.parts[part] = gathered;
     state.left--;
     done += (state.ranges[part][1] - state.ranges[part][0]) * state.plan.cost;
-    if (state.left === 0) finishing.push({ running, state });
+    if (state.left === 0) ripen(running);
   };
 
   /** Starts a trace record of work on a lane. */
@@ -385,7 +398,7 @@ export function createBakeScheduler(spawn: () => Lane[]) {
         const size = Math.max(Math.ceil(LEAST_CHUNK / plan.cost), Math.ceil(count / (pool.length * 2)));
         const ranges: [number, number][] = [];
         for (let start = 0; start < count; start += size) ranges.push([start, Math.min(count, start + size)]);
-        return { plan, count, ranges, queued: ranges.map((_, i) => i), parts: ranges.map(() => null), left: ranges.length, light: null, applied: deferred() };
+        return { plan, count, ranges, queued: ranges.map((_, i) => i), parts: ranges.map(() => null), left: ranges.length, finishing: false, light: null, applied: deferred() };
       }),
     };
     const older = byKey.get(job.key);
@@ -399,7 +412,7 @@ export function createBakeScheduler(spawn: () => Lane[]) {
     byKey.set(job.key, running);
     total += running.passes.reduce((sum, state) => sum + state.count * state.plan.cost, 0);
     // A pass with no samples has nothing to gather: it only needs finishing.
-    for (const state of running.passes) if (state.left === 0) finishing.push({ running, state });
+    ripen(running);
     // Work starts once everything submitted alongside it is in (a layout lays every floor at once),
     // so the first lanes go to the rooms most wanted rather than to whichever came first.
     if (!pumpQueued) {
@@ -417,6 +430,12 @@ export function createBakeScheduler(spawn: () => Lane[]) {
 
   return {
     submit,
+    /** Starts the work submitted so far now, rather than once the code submitting it has run: for a caller
+     *  that has submitted all it has, and has more to do on this thread before it yields. */
+    start: () => {
+      pump();
+      publish();
+    },
     /** Drops the job for `key`, if any: what it lit is gone. */
     cancel: (key: string) => {
       const running = byKey.get(key);

@@ -1,5 +1,3 @@
-import type { StandardButton } from "@/shared/lib/gamepad";
-
 /*
  * Pad assignment: which controller plays which seats on this device, for a
  * hot-seat game round one screen with several controllers (a TV and two
@@ -43,9 +41,10 @@ export function release(assignment: PadAssignment, seat: number): PadAssignment 
   return Object.fromEntries(seatEntries(assignment).filter(([owner]) => owner !== seat));
 }
 
-/** What A on a pad does to a seat: claims it, or releases it when that pad already has it. */
-export function toggle(assignment: PadAssignment, seat: number, pad: number): PadAssignment {
-  return padOf(assignment, seat) === pad ? release(assignment, seat) : claim(assignment, seat, pad);
+/** A seat's pad picker pressed: a pad takes the seat, or gives it back when
+ *  it has it already; "open" (null) opens it to any pad. */
+export function pickPad(assignment: PadAssignment, seat: number, pad: number | null): PadAssignment {
+  return pad === null || padOf(assignment, seat) === pad ? release(assignment, seat) : claim(assignment, seat, pad);
 }
 
 /** Only the seats a game has: a seat removed at setup takes its pad with it. */
@@ -77,21 +76,6 @@ export function padMayAct(assignment: PadAssignment, seat: number | null, pad: n
   if (seat === null) return true;
   const owner = padOf(assignment, seat);
   return owner === null || owner === pad;
-}
-
-/** A pad's press on a list of seats (at setup, and in the game's seats
- *  panel), any pad moving the highlight: the d-pad's up and down move it
- *  round the seats, and A takes the highlighted seat for that pad, or
- *  releases it when the pad has it already. Null for a button the list doesn't use. */
-export function seatListPress(
-  button: StandardButton,
-  pad: number,
-  list: { focus: number; count: number; assignment: PadAssignment },
-): { focus: number; assignment: PadAssignment } | null {
-  const { focus, count, assignment } = list;
-  if (button === "DpadDown" || button === "DpadUp") return { focus: (focus + (button === "DpadDown" ? 1 : -1) + count) % count, assignment };
-  if (button === "A") return { focus, assignment: toggle(assignment, focus, pad) };
-  return null;
 }
 
 /** A pad's name for players: its slot counted from one. */

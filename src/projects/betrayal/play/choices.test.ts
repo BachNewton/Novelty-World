@@ -6,18 +6,22 @@ import { viewFor } from "../engine/view";
 import { simulate } from "../simulation";
 import { choose, offered, testGame, waitingOn } from "../testing";
 import type { GameState } from "../types";
-import { boardFocus, NO_CHOICES, NO_FOCUS, playChoices } from "./choices";
-import { lookahead } from "./lookahead";
+import type { Layout } from "../engine/board";
+import type { Edge } from "../types";
+import { boardFocus, explorations, NO_CHOICES, NO_FOCUS, playChoices } from "./choices";
+import { lookahead, type Reach } from "./lookahead";
 import { due } from "./seat";
 
 const choicesOf = (state: GameState) => playChoices(viewFor(ENGINE, state, waitingOn(state)));
 const focusOf = (state: GameState) => boardFocus(viewFor(ENGINE, state, waitingOn(state)));
 
 describe("playChoices", () => {
-  it("puts the moves and doorways of a turn in the house, and ending it apart", () => {
+  it("puts the moves and the cells to explore of a turn in the house, and ending it apart", () => {
     const state = testGame();
     const { targets, panel, end } = choicesOf(state);
-    expect(targets.map((t) => t.id).sort()).toEqual(["doorway:entrance-hall:bottom", "doorway:entrance-hall:top", "room:foyer"]);
+    // The Entrance Hall stands at (2, 0): its unexplored doorways open north and south.
+    expect(targets.map((t) => t.id).sort()).toEqual(["explore:ground:2:-1", "explore:ground:2:1", "room:foyer"]);
+    expect(targets.find((t) => t.id === "explore:ground:2:-1")).toMatchObject({ kind: "explore", cell: { floor: "ground", x: 2, y: -1 }, room: "entrance-hall", direction: "top" });
     // A choice's id, never a room's.
     expect(targets.some((t) => t.id === t.room)).toBe(false);
     expect(panel).toEqual([]);
@@ -40,8 +44,8 @@ describe("playChoices", () => {
     expect(landing?.preview?.route.map((place) => place.room)).toEqual(["entrance-hall", "foyer", "grand-staircase", "upper-landing"]);
     expect(landing?.actions).toHaveLength(3);
     expect(landing?.preview).toMatchObject({ target: "room:upper-landing", spaces: 3, left: 4 });
-    // A doorway further on is a target too, reached by its route and then explored.
-    const far = targets.find((t) => t.id === "doorway:upper-landing:top");
+    // A cell further on is a target too, reached by its route and then explored.
+    const far = targets.find((t) => t.id === "explore:upper:0:-1");
     expect(far?.actions).toHaveLength(4);
     // Every target is one choice: no two share an id.
     expect(new Set(targets.map((t) => t.id)).size).toBe(targets.length);
@@ -86,6 +90,23 @@ describe("playChoices", () => {
     expect(panel.map((c) => c.label)).toEqual(offered(placedState).map((c) => c.label));
   });
 
+  it("offers the rooms a choice's options name as places in the house, each answering its option", () => {
+    const state = choose(testGame({ explorers: [{ seat: 0, cards: ["dog"] }] }), "Send the Dog");
+    expect(state.pending?.type === "decision" && state.pending.kind).toBe("choose-one");
+    const { targets, panel, end, ghost } = choicesOf(state);
+    expect([panel, end, ghost]).toEqual([[], null, null]);
+    expect(targets.map((t) => [t.kind, t.kind === "room" && t.room, t.label])).toEqual([
+      ["room", "foyer", "Send the Dog to the Foyer"],
+      ["room", "grand-staircase", "Send the Dog to the Grand Staircase"],
+      ["room", "upper-landing", "Send the Dog to the Upper Landing"],
+    ]);
+    const foyer = targets[0];
+    const result = apply(ENGINE, state, foyer.actions[0]);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.state.lastEvents.some((event) => event.type === "dog-ran" && (event.data as { room: string }).room === "foyer")).toBe(true);
+    expect(focusOf(state).rooms.get("foyer")).toEqual(foyer.actions[0]);
+  });
+
   it("offers nothing to a seat the decision isn't put to", () => {
     expect(playChoices(viewFor(ENGINE, testGame(), 1))).toEqual(NO_CHOICES);
   });
@@ -115,6 +136,58 @@ describe("playChoices", () => {
     });
     expect(checked).toBeGreaterThan(20);
   }, 30_000);
+});
+
+describe("explorations", () => {
+  /** The Kitchen and the Chapel either side of an empty cell, each with a doorway onto it. */
+  const layout: Layout = {
+    tiles: [
+      { tile: "kitchen", floor: "ground", x: 0, y: 0, rotation: 0 },
+      { tile: "chapel", floor: "ground", x: 2, y: 0, rotation: 0 },
+    ],
+  };
+  const through = (room: string, direction: Edge, spaces: number, steps: number): Reach => ({
+    end: { kind: "discover", room, direction },
+    label: `Explore from the ${room}`,
+    route: Array.from({ length: steps }, (_, i) => ({ room: i === steps - 1 ? room : `walk-${String(i)}`, side: null })),
+    actions: [],
+    spaces,
+    warnings: [],
+    stops: true,
+  });
+  const chosen = (reaches: Reach[]) => {
+    const found = explorations(layout, reaches);
+    expect(found).toHaveLength(1);
+    expect(found[0].cell).toEqual({ floor: "ground", x: 1, y: 0 });
+    return `${found[0].reach.end.room}:${found[0].reach.end.direction}`;
+  };
+
+  it("makes a cell beside two doorways one target, by the cheaper route there", () => {
+    const kitchen = through("kitchen", "right", 3, 3);
+    const chapel = through("chapel", "left", 2, 4);
+    expect(chosen([kitchen, chapel])).toBe("chapel:left");
+    expect(chosen([chapel, kitchen])).toBe("chapel:left");
+  });
+
+  it("prefers the room the turn stands in on a tie", () => {
+    const here = through("kitchen", "right", 1, 1);
+    const next = through("chapel", "left", 1, 2);
+    expect(chosen([next, here])).toBe("kitchen:right");
+    expect(chosen([here, next])).toBe("kitchen:right");
+  });
+
+  it("breaks any other tie by the room, the same whatever order the routes come in", () => {
+    const chapel = through("chapel", "left", 2, 2);
+    const kitchen = through("kitchen", "right", 2, 3);
+    expect(chosen([kitchen, chapel])).toBe("chapel:left");
+    expect(chosen([chapel, kitchen])).toBe("chapel:left");
+  });
+
+  it("keeps cells apart and leaves moves out", () => {
+    const move: Reach = { ...through("kitchen", "right", 1, 2), end: { kind: "move", place: { room: "chapel", side: null } } };
+    const found = explorations(layout, [move, through("kitchen", "right", 1, 1), through("kitchen", "left", 1, 1)]);
+    expect(found.map(({ cell }) => `${String(cell.x)},${String(cell.y)}`).sort()).toEqual(["-1,0", "1,0"]);
+  });
 });
 
 describe("boardFocus", () => {

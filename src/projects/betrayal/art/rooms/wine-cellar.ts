@@ -207,7 +207,5 @@ export const WINE_CELLAR: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-(INNER - 0.29), -(INNER - 0.29)], y: 3.05, turn: 45, walls: ["left", "top"] },
   ],
   focus: [-0.6, 0.6, 0.2],
-  pawn: [0.6, 0.55],
-  spots: [[-0.65, -0.4], [1.6, -0.65], [1.0, 2.05], [0.35, -1.6], [1.75, -2.3]],
-  overflow: [[2.05, 2.35], [1.6, 0.55], [-0.4, 0.55], [0.25, -0.5], [1.7, 1.65], [1.95, -1.35]],
+  prime: [0.6, 0.55],
 };

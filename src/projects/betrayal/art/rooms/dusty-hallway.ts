@@ -175,8 +175,6 @@ export const DUSTY_HALLWAY: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), at: [INNER - 0.29, ARM - 0.29], y: 3.05, turn: 45, walls: ["right", "bottom"] },
   ],
   focus: [-0.6, 0.4, 0.6],
-  pawn: [0.45, 0.45],
-  spots: [[0.2, -0.95], [-1.65, 0.7], [-0.4, 1.6], [-1.2, -0.65], [1.65, -0.45]],
-  overflow: [[-0.45, 0.7], [0.3, 1.25], [-0.3, -0.35], [-0.6, -1.15], [0.7, -0.35], [-1.05, 0.2]],
+  prime: [0.45, 0.45],
   lanes: crossLanes(),
 };

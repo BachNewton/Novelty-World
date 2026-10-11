@@ -4,6 +4,7 @@ import { ball, drum, figureMaterial, form, ring, rod, roundBox, sculpt } from ".
 import { CARRIED_LIGHT, carriedLight, flickerOf } from "../lighting";
 import { glow, group } from "../shapes";
 import type { ExplorerBuilder } from "../stage";
+import { declareParts, figureParts, partsOf } from "../figure-parts";
 import { handsOf, holdIn, type Prop } from "./hands";
 
 /*
@@ -83,14 +84,9 @@ function spearGeometry(): THREE.BufferGeometry {
     .geometry(0.007);
 }
 
-let meshed:
-  | { revolver: THREE.BufferGeometry; candle: THREE.BufferGeometry; flame: THREE.BufferGeometry; spear: THREE.BufferGeometry }
-  | undefined;
-
-function parts() {
-  meshed ??= { revolver: revolverGeometry(), candle: candleGeometry(), flame: flameGeometry(), spear: spearGeometry() };
-  return meshed;
-}
+/** The stand-ins' geometry, meshed once a session (ahead of time in a worker, in the house) and shared. */
+export const PROP_PARTS = figureParts("props", () => ({ revolver: revolverGeometry(), candle: candleGeometry(), flame: flameGeometry(), spear: spearGeometry() }));
+const parts = PROP_PARTS.get;
 
 function prop(geometry: THREE.BufferGeometry, name: string): THREE.Mesh {
   const mesh = form(figureMaterial(), geometry);
@@ -136,11 +132,12 @@ export const STAND_INS = { revolver, candle, spear } as const;
 
 /** A figure built holding a prop in its right hand. */
 export function carrying(build: ExplorerBuilder, make: () => Prop): ExplorerBuilder {
-  return (seed, gait) => {
+  const carried: ExplorerBuilder = (seed, gait) => {
     const figure = build(seed, gait);
     const hands = handsOf(figure);
     if (!hands) throw new Error("A figure without hands can't carry a prop");
     holdIn(hands.right, make());
     return figure;
   };
+  return declareParts(carried, [...partsOf(build), PROP_PARTS]);
 }

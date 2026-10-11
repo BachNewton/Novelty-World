@@ -194,9 +194,7 @@ export const FOYER: RoomDefinition = {
     { build: () => table({ length: 0.8, width: 0.4, height: 0.5 }), ...onWall("top", 1.7, { out: 0.25 }) },
   ],
   focus: [0, 1.4, 0],
-  pawn: [-1.0, 0.8],
-  spots: [[0.3, -0.05], [-1.1, -0.75], [0.2, -1.6], [1.6, -0.9], [1.6, 0.8]],
-  overflow: [[0.25, 1.65], [-1.1, -1.75], [0.0, 0.8], [0.6, -0.9], [1.1, -1.5], [-0.5, -1.25]],
+  prime: [-1.0, 0.8],
   // To the secret door at the foot of the bottom wall, beside the front-door
   // side of the runner, and down through it to the cellar stair.
   stairs: {

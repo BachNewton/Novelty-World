@@ -445,10 +445,11 @@ export const ITEMS: BehaviourGroup = {
               p.figure,
               state.board.tiles.map((t) =>
                 t.tile === here
-                  ? { label: `Stay in the ${roomName(t.tile)}`, steps: [] }
+                  ? { label: `Stay in the ${roomName(t.tile)}`, steps: [], room: t.tile }
                   : {
                       label: `Put your explorer in the ${roomName(t.tile)}`,
                       steps: [relocate(p.figure, t.tile, card("bottle"))],
+                      room: t.tile,
                     },
               ),
               card("bottle"),
@@ -602,6 +603,7 @@ export const ITEMS: BehaviourGroup = {
           }).map((room) => ({
             label: `Move into the ${roomName(room)}`,
             steps: [relocate(p.figure, room, card("dark-dice"))],
+            room,
           }));
           if (options.length > 0)
             ctx.push(chooseOne(p.figure, options, card("dark-dice")));

@@ -1,5 +1,5 @@
 import type { Action, Edge, FloorId, Json, Rotation } from "../types";
-import { doorwaySpot, type Doorway } from "../engine/board";
+import { doorwaySpot, EDGES, type Doorway, type Layout } from "../engine/board";
 import type { TurnChoice } from "../engine/exploration";
 import type { Choice } from "../engine/step-loop";
 import type { PlaceChoice } from "../engine/tiles";
@@ -16,10 +16,11 @@ import { routePreview, type RoutePreview } from "./preview";
  */
 
 /** A choice the house offers, with the place it marks: a room a move can
- *  reach, or an unexplored doorway, in the room the turn stands in or in one
- *  it can reach first. `actions` answer the decisions on the way there, in
+ *  reach, or an empty cell to explore, through an unexplored doorway of the
+ *  room the turn stands in or of one it can reach first. `actions` answer the decisions on the way there, in
  *  order: one for a step next door. A room on another floor shows as the way
- *  there where its route takes the stairs. */
+ *  there where its route takes the stairs. A choice among options offers the
+ *  rooms its options name the same way, each one action with no route. */
 export type PlaceTarget = {
   id: string;
   label: string;
@@ -30,8 +31,9 @@ export type PlaceTarget = {
 } & (
   /** A move into `room`, on `side` of a barrier room. */
   | { kind: "room"; room: string; side: Edge | null }
-  /** Exploring through an unexplored doorway of `room`, on a board direction. */
-  | { kind: "doorway"; room: string; direction: Edge }
+  /** Exploring the empty `cell`, through the unexplored doorway of `room`
+   *  on a board direction: of the doorways onto it, the one the turn reaches cheapest. */
+  | { kind: "explore"; cell: Spot; room: string; direction: Edge }
 );
 
 /** A choice the panel offers: the engine's choice and label, and its action. */
@@ -100,17 +102,36 @@ function oneStep(view: GameView, listed: readonly Choice[], act: (choice: Json) 
   });
 }
 
-/** A target's id: the choice, never just the room, so one room can carry several. */
-function targetId(reach: Reach): string {
-  const { end } = reach;
-  if (end.kind === "discover") return `doorway:${end.room}:${end.direction}`;
-  return end.place.side === null ? `room:${end.place.room}` : `room:${end.place.room}:${end.place.side}`;
+type Discovery = Reach & { end: { kind: "discover" } };
+
+/** A cell to explore's target id: the choice, exploring that cell, whichever doorway it goes through. */
+export const exploreId = (cell: Spot) => `explore:${cell.floor}:${String(cell.x)}:${String(cell.y)}`;
+
+/** A move's target id: the choice, never just the room, so one room can carry several. */
+function moveId(place: { room: string; side: Edge | null }): string {
+  return place.side === null ? `room:${place.room}` : `room:${place.room}:${place.side}`;
 }
 
-function placeTarget(reach: Reach, preview: RoutePreview | null): PlaceTarget {
-  const base = { id: targetId(reach), label: reach.label, actions: reach.actions, preview };
-  const { end } = reach;
-  return end.kind === "discover" ? { ...base, kind: "doorway", room: end.room, direction: end.direction } : { ...base, kind: "room", room: end.place.room, side: end.place.side };
+/** Which of two routes to explore one cell by: the cheaper, then one from
+ *  the room the turn stands in, then by room and board direction. */
+function preferred(a: Discovery, b: Discovery): number {
+  const here = (reach: Discovery) => (reach.route.length === 1 ? 0 : 1);
+  return a.spaces - b.spaces || here(a) - here(b) || (a.end.room < b.end.room ? -1 : a.end.room > b.end.room ? 1 : 0) || EDGES.indexOf(a.end.direction) - EDGES.indexOf(b.end.direction);
+}
+
+/** Each empty cell a turn can explore, once, by the doorway onto it the turn
+ *  prefers: a player means "go into whatever is over there", whichever way in. */
+export function explorations(board: Layout, reaches: readonly Reach[]): { cell: Spot; reach: Discovery }[] {
+  const cells = new Map<string, { cell: Spot; reach: Discovery }>();
+  for (const reach of reaches) {
+    if (reach.end.kind !== "discover") continue;
+    const discovery = reach as Discovery;
+    const { spot } = doorwaySpot(board, discovery.end);
+    const id = exploreId(spot);
+    const was = cells.get(id);
+    if (!was || preferred(discovery, was.reach) < 0) cells.set(id, { cell: spot, reach: discovery });
+  }
+  return [...cells.values()];
 }
 
 /** The pending decision for the viewing seat, split by where it is
@@ -124,11 +145,22 @@ export function playChoices(view: GameView, ahead: Lookahead | null = null): Pla
   const panelChoice = (choice: Choice, id: string): PanelChoice => ({ ...choice, id, action: act(choice.choice) });
   const panelOf = (list: readonly Choice[]) => list.map((choice) => panelChoice(choice, `panel:${listed.indexOf(choice)}`));
   if (pending.kind === "rotation" || pending.kind === "place-tile") return { ...NO_CHOICES, ghost: ghostOf(view, pending.kind, pending.detail.params, listed, act) };
+  if (pending.kind === "choose-one") return chooseOneChoices(view, pending.detail.params, listed, act, panelOf);
   if (pending.kind !== "turn") return { ...NO_CHOICES, panel: panelOf(listed) };
 
   const lookedAhead = ahead !== null && ahead.decision === pending.id;
   const reaches = lookedAhead ? ahead.reaches : oneStep(view, listed, act);
-  const targets = reaches.map((reach) => placeTarget(reach, lookedAhead ? routePreview(targetId(reach), ahead, reach) : null));
+  const preview = (id: string, reach: Reach) => (lookedAhead ? routePreview(id, ahead, reach) : null);
+  const targets: PlaceTarget[] = [];
+  for (const reach of reaches) {
+    if (reach.end.kind !== "move") continue;
+    const id = moveId(reach.end.place);
+    targets.push({ id, kind: "room", room: reach.end.place.room, side: reach.end.place.side, label: reach.label, actions: reach.actions, preview: preview(id, reach) });
+  }
+  for (const { cell, reach } of explorations(view.board, reaches)) {
+    const id = exploreId(cell);
+    targets.push({ id, kind: "explore", cell, room: reach.end.room, direction: reach.end.direction, label: reach.label, actions: reach.actions, preview: preview(id, reach) });
+  }
   const panel: Choice[] = [];
   let end: PanelChoice | null = null;
   for (const choice of listed) {
@@ -137,6 +169,25 @@ export function playChoices(view: GameView, ahead: Lookahead | null = null): Pla
     else if (turn.act !== "move" && turn.act !== "discover") panel.push(choice);
   }
   return { targets, panel: panelOf(panel), end, ghost: null };
+}
+
+/** A choice among options: each option naming a room in the house is that
+ *  room, a place (put your explorer there, send the Dog there); the rest go
+ *  to the panel. The listed choices are the options' indexes. */
+function chooseOneChoices(view: GameView, params: Json, listed: readonly Choice[], act: (choice: Json) => Action, panelOf: (list: readonly Choice[]) => PanelChoice[]): PlayChoices {
+  const { options } = params as { options: { room?: string }[] };
+  const targets: PlaceTarget[] = [];
+  const panel: Choice[] = [];
+  for (const choice of listed) {
+    const room = options[choice.choice as number].room;
+    if (room === undefined) {
+      panel.push(choice);
+      continue;
+    }
+    if (!view.board.tiles.some((tile) => tile.tile === room)) throw new Error(`An option names the ${room}, which isn't in the house`);
+    targets.push({ id: `option:${String(choice.choice)}`, kind: "room", room, side: null, label: choice.label, actions: [act(choice.choice)], preview: null });
+  }
+  return { ...NO_CHOICES, targets, panel: panelOf(panel) };
 }
 
 const sameSpot = (a: Spot, b: Spot) => a.floor === b.floor && a.x === b.x && a.y === b.y;
@@ -207,7 +258,7 @@ export function boardFocus(view: GameView): Focus {
       const turn = choice as TurnChoice;
       if (turn.act === "move") offerRoom(turn.to, choice);
     }
-    for (const target of targets) if (target.kind === "doorway") focus.doorways.push({ room: target.room, direction: target.direction, action: target.actions[0] });
+    for (const target of targets) if (target.kind === "explore") focus.doorways.push({ room: target.room, direction: target.direction, action: target.actions[0] });
     return focus;
   }
 
@@ -228,6 +279,11 @@ export function boardFocus(view: GameView): Focus {
       if (same) same.action = null;
       else focus.cells.push({ floor: at.floor, x: at.x, y: at.y, tile, action: act(choice) });
     }
+    return focus;
+  }
+
+  if (pending.kind === "choose-one") {
+    for (const target of playChoices(view).targets) focus.rooms.set(target.room, focus.rooms.has(target.room) ? null : target.actions[0]);
     return focus;
   }
 

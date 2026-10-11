@@ -422,13 +422,30 @@ export function roomSamples({ room, matrix }: PlacedRoom): Samples {
   const position = new Float32Array((texels + probes) * 3);
   const normal = new Float32Array((texels + probes) * 3);
   const within = new Float32Array((texels + probes) * 6).fill(NaN);
-  const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrix);
-  const p = new THREE.Vector3();
-  const nrm = new THREE.Vector3();
-  for (let n = 0; n < texels; n++) {
-    p.fromArray(room.texels.position, n * 3).applyMatrix4(matrix).toArray(position, n * 3);
-    nrm.fromArray(room.texels.normal, n * 3).applyMatrix3(normalMatrix).normalize().toArray(normal, n * 3);
+  // Written out rather than through vectors: a room has hundreds of thousands of texels, and this runs on the page's thread.
+  const m = matrix.elements;
+  const k = new THREE.Matrix3().getNormalMatrix(matrix).elements;
+  const from = room.texels.position;
+  const facing = room.texels.normal;
+  for (let i = 0; i < texels * 3; i += 3) {
+    const x = from[i];
+    const y = from[i + 1];
+    const z = from[i + 2];
+    position[i] = m[0] * x + m[4] * y + m[8] * z + m[12];
+    position[i + 1] = m[1] * x + m[5] * y + m[9] * z + m[13];
+    position[i + 2] = m[2] * x + m[6] * y + m[10] * z + m[14];
+    const a = facing[i];
+    const b = facing[i + 1];
+    const c = facing[i + 2];
+    const nx = k[0] * a + k[3] * b + k[6] * c;
+    const ny = k[1] * a + k[4] * b + k[7] * c;
+    const nz = k[2] * a + k[5] * b + k[8] * c;
+    const length = Math.hypot(nx, ny, nz) || 1;
+    normal[i] = nx / length;
+    normal[i + 1] = ny / length;
+    normal[i + 2] = nz / length;
   }
+  const p = new THREE.Vector3();
   let n = texels;
   for (const probe of room.probes.all) {
     p.copy(probe.at).applyMatrix4(matrix);
@@ -476,9 +493,9 @@ function coarseAxis(length: number, step: number): number[] {
 
 /** A placed room's bounce samples: its lightmap's texels every `step` along
  *  each chart's axes (and each chart's last inner row and column), then each
- *  probe's faces, as `spreadBounce` reads them back. */
-export function bounceSamples(placed: PlacedRoom, step = BOUNCE.step): Samples {
-  const all = roomSamples(placed);
+ *  probe's faces, as `spreadBounce` reads them back. `all` is the room's
+ *  own samples, when they are already made. */
+export function bounceSamples(placed: PlacedRoom, step = BOUNCE.step, all = roomSamples(placed)): Samples {
   const { charts, index } = placed.room.texels;
   const picked: number[] = [];
   for (let c = 0; c < charts.length; c += 3) {
@@ -490,9 +507,11 @@ export function bounceSamples(placed: PlacedRoom, step = BOUNCE.step): Samples {
   const normal = new Float32Array(picked.length * 3);
   const within = new Float32Array(picked.length * 6);
   picked.forEach((n, k) => {
-    position.set(all.position.subarray(n * 3, n * 3 + 3), k * 3);
-    normal.set(all.normal.subarray(n * 3, n * 3 + 3), k * 3);
-    within.set(all.within.subarray(n * 6, n * 6 + 6), k * 6);
+    for (let j = 0; j < 3; j++) {
+      position[k * 3 + j] = all.position[n * 3 + j];
+      normal[k * 3 + j] = all.normal[n * 3 + j];
+    }
+    for (let j = 0; j < 6; j++) within[k * 6 + j] = all.within[n * 6 + j];
   });
   return { position, normal, within };
 }

@@ -475,9 +475,7 @@ export const UNDERGROUND_LAKE: RoomDefinition = {
     { at: [0.45, WATER + 0.3, 0.45], colour: "tideLight", intensity: 6, range: 5.5, flicker: 0.45, signal: "water" },
   ],
   focus: [-0.6, 0.3, 1.0],
-  pawn: [1.9, -1.7],
-  spots: [[0.6, -1.35], [1.65, -0.4], [1.9, 0.9], [-0.75, -1.75], [1.65, 2.2]],
-  overflow: [[2.35, -2.35], [-1.5, -1.5], [2.35, -1.05], [2.25, 1.7], [1.4, -2.3]],
+  prime: [1.9, -1.7],
   // Along the shore, clear of the water.
   lanes: [
     [[0, -2.2], [0.9, -2.0], [1.6, -1.2], [1.75, 0], [1.65, 1.8]],

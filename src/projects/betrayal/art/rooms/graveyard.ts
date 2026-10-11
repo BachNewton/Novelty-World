@@ -290,9 +290,9 @@ export const GRAVEYARD: RoomDefinition = {
   ],
   lights: [{ at: [0, 0.85, WISP_Z], colour: "wraithLight", intensity: 10, range: 6, flicker: 0.25 }],
   focus: [0, 0.5, GRAVE_MIDDLE],
-  pawn: [0.85, 1.85],
-  spots: [[2.15, 1.9], [-0.35, 1.4], [0.6, 0.55], [-1.5, 2.0], [-1.45, 0.45]],
-  overflow: [[1.5, 2.35], [-0.6, 0.65], [1.65, 1.3]],
+  prime: [0.85, 1.85],
+  // The foot of the open grave, which the gate looks along: no one stands between the path and the pit.
+  keepClear: [{ from: [0, 0.35], to: [0, 0.9], radius: 0.45 }],
   // Between the graves.
   lanes: [
     [[0, 2.2], [-0.2, 1.0], [-1.0, 0.4]],

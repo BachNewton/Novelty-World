@@ -600,9 +600,7 @@ export const LIBRARY: RoomDefinition = {
   ],
   lights: [{ at: [0.7, 0.35, 0.5], colour: "verdigrisLight", intensity: 1.6, range: 3 }],
   focus: [-0.2, 0.8, -0.8],
-  pawn: [0.1, 1.7],
-  spots: [[-0.15, 0.45], [-0.85, -0.65], [-1.7, 0.3], [1.1, 0.9], [1.55, -0.3]],
-  overflow: [[0.9, 1.7], [-0.9, 0.2], [0.35, -0.15]],
+  prime: [0.1, 1.7],
   // In from the left doorway and down between the desk and the armchair to the bottom one.
   lanes: [[[-2.2, 0], [-0.5, -0.1], [0.2, 0.2], [0.2, 1.9], [0, 2.2]]],
 };

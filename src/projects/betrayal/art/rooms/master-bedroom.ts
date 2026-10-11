@@ -326,9 +326,7 @@ export const MASTER_BEDROOM: RoomDefinition = {
     { build: () => pictureFrame({ art: { rows: SITTER, legend: SITTER_LEGEND }, frame: "brass" }), name: "portrait", ...onWall("top", 1.4, { y: 1.35 }) },
   ],
   focus: [1.6, 0.9, 0],
-  pawn: [-1.0, -1.2],
-  spots: [[-0.45, 0.45], [0.65, -1.65], [-1.25, 1.95], [0.65, 1.75], [2.25, -2.25]],
-  overflow: [[-1.65, 0.2], [-2.1, -1.1], [-0.25, 1.95], [1.65, -1.65], [-0.35, -1.65], [1.15, -2.25]],
+  prime: [-1.0, -1.2],
   // Round the foot of the bed.
   lanes: [
     [[0, -2.2], [-0.6, -1.0], [-2.2, 0]],

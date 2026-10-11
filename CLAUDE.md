@@ -18,12 +18,14 @@ Next.js's own docs for the installed version are bundled in `node_modules/next/d
 | Build | `npm run build` |
 | Lint | `npm run lint` |
 | Type-check | `npm run typecheck` |
-| Unit tests | `npm run test` |
+| Unit tests | `npm run test` (skips `*.slow.test.ts`) |
+| Slow unit tests | `npm run test:slow` (only `*.slow.test.ts`: heavy geometry, simulations, production-sized fixtures) |
 | Single test file | `npx vitest run src/projects/euchre/logic.test.ts` |
+| Single slow test file | `npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/lighting.slow.test.ts` |
 | Watch mode | `npm run test:watch` |
 | E2E tests | `npm run test:e2e` (builds its own server each run; `--workers=N` overrides the worker count) |
 | E2E against the dev server | `E2E_BASE_URL=http://localhost:3001 npm run test:e2e` |
-| All tests | `npm run test:all` |
+| All tests | `npm run test:all` (unit, slow, then e2e) |
 
 E2E tests (Playwright) are self-contained: each run builds the app (a snapshot of the code when the run starts) and serves it, along with a local PeerJS signalling server, on ports the OS picks, so a run never touches the dev server and any number can run at once. `E2E_BASE_URL` points a run at a server that is already up instead. Workers default to half the logical cores, and every test page reports a fair share of the cores as `navigator.hardwareConcurrency`, so specs import `test` and `expect` from `e2e/test.ts`, not from Playwright. Multiplayer pages opt into the local signalling server with `?peer-signal=local:<port>` (`e2e/peer-signal.ts`), so the suites never touch the public PeerJS cloud.
 

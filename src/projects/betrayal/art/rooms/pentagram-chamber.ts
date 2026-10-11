@@ -10,7 +10,7 @@ import { bricks, flagstones, svgTexture, TEXELS_PER_METRE } from "../textures";
 const hex = paletteHex;
 
 /** The circle's middle, and its radius: it fills the cell, so its line runs
- *  between every standing spot and the one door, just inside the doorway. */
+ *  between the floor where figures stand and the one door, just inside the doorway. */
 const CENTRE: [number, number] = [-0.25, 0];
 const RADIUS = 2.35;
 /** Where the star's points lie, from the middle, and their bearings in
@@ -196,7 +196,5 @@ export const PENTAGRAM_CHAMBER: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-INNER + 0.29, -INNER + 0.29], y: 3.05, turn: 135, walls: ["left", "top"] },
   ],
   focus: [CENTRE[0], 0.5, CENTRE[1]],
-  pawn: [0.75, -0.55],
-  spots: [[0.5, 1.15], [-0.85, -1.15], [-1.2, 1.0], [1.7, -2.0], [2.2, 1.05]],
-  overflow: [[-2.35, -0.55], [1.7, 2.15], [1.8, -0.9], [-2.3, 0.9], [-0.85, 0.05], [1.5, -0.05]],
+  prime: [0.75, -0.55],
 };

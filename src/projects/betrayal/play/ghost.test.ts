@@ -18,7 +18,7 @@ import { simulate } from "../simulation";
 import { choose, testGame } from "../testing";
 import type { GameState } from "../types";
 import { playChoices } from "./choices";
-import { countDoors, cycle, ghostDoors, type GhostDoorway } from "./ghost";
+import { countDoors, cycle, ghostDoors, stepWay, type GhostDoorway } from "./ghost";
 import { due } from "./seat";
 
 const catalog = ENGINE.catalog;
@@ -176,4 +176,15 @@ describe("ghostDoors", () => {
       });
     expect(checked).toBeGreaterThan(10);
   }, 30_000);
+});
+
+describe("stepWay", () => {
+  it("steps through a cell's ways round, then on to the next cell's, wrapping round", () => {
+    const ways = [3, 2];
+    expect(stepWay(ways, { cell: 0, way: 0 }, 1)).toEqual({ cell: 0, way: 1 });
+    expect(stepWay(ways, { cell: 0, way: 2 }, 1)).toEqual({ cell: 1, way: 0 });
+    expect(stepWay(ways, { cell: 1, way: 1 }, 1)).toEqual({ cell: 0, way: 0 });
+    expect(stepWay(ways, { cell: 1, way: 0 }, -1)).toEqual({ cell: 0, way: 2 });
+    expect(stepWay(ways, { cell: 0, way: 0 }, -1)).toEqual({ cell: 1, way: 1 });
+  });
 });

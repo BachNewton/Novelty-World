@@ -39,9 +39,10 @@ differently from how it looks alone:
   floor in the way, so they spill through open doorways and passages onto
   the rooms next door, and walls (and a shut door) stop them. A room is lit
   partly by its neighbours, and lights them in turn.
-- **Figures stand on the room's standing spots** (see "Standing spots"),
-  and walk in through the centre of each doorway and up and down the
-  stairs.
+- **Figures stand where the placement solver puts them** on the room's
+  free floor, the active explorer on the room's prime place (see "Where
+  figures stand"), and walk in through the centre of each doorway and up
+  and down the stairs, round anyone standing in the way.
 
 **The bench** (`?bench=<room-id>`) shows one room on its own, under an orbit
 camera, with only the two walls facing the camera cut. It is where a room is
@@ -116,16 +117,19 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `chasm.ts` a pit, `underground-lake.ts` water, `furnace-room.ts` fire,
   `graveyard.ts` an outdoor tile, `mystic-elevator.ts` a moving room. Read
   the ones nearest yours closely before the first prop.
-- `overlap.ts` and `overlap.test.ts`: the overlap check, with `zfight.ts`
+- `overlap.ts` and `overlap.slow.test.ts`: the overlap check, with `zfight.ts`
   for faces that share a plane (see "Build it").
 - `bench.ts`: the art bench and its control surface,
   `window.__betrayalBench`: views, zoom, camera, resolution, which explorer
   stands in the room (`setExplorer`), framing the room, the explorer or one
   prop (`setSubject`, `props`), and `freezeClock` to stop flicker and
   animation at a fixed time. Its URL takes `bench=<room-id>`,
-  `explorer=<id>` (a figure, a line-up, or a crowd: `crowd-6`, six explorers
-  one a spot; `crowd-7`, one past the spots; `crowd-spider`), `frame=explorer`,
-  `paths` (the spots and the walks across the room, drawn over it),
+  `explorer=<id>` (a figure, a line-up, or a crowd: `crowd-6`, `crowd-7`,
+  `crowd-spider`, and `place-1` to `place-6`, `place-6-spider` and
+  `place-worst`, the worst case a haunt can bring), `frame=explorer`,
+  `paths` (the prime place, the keep-clear areas, each figure's footprint
+  coloured by how crowded it stands, and the walks across the room, drawn
+  over it; `tools/placement-shots.mjs` shoots every crowd in a room),
   `bounce=off` and `water=<style>`. The house takes `bake-debug`, which shows
   the bake at work.
 - `house*.ts`: the house view and its layouts. Read them to know what the
@@ -287,40 +291,51 @@ in, so wall dressing comes last. Keep clear:
 - **Every doorway and passage**: nothing stands in its 40 cm depth (the two
   walls between rooms), nor in the lane the house walks straight in through
   its centre, 80 cm deep from the tile's edge.
-- **Every standing spot**: a keep-clear zone, floor and air above it alike.
+- **The prime place**: a keep-clear zone, floor and air above it alike.
 - **Windows**, unless blocking one is the point.
 
-#### Standing spots
+#### Where figures stand
 
-Every room defines **six standing spots**, the prime spot (`pawn`) and five
-more (`spots`), and the room's designer chooses them where they make sense
-in that room: in open floor, where a figure standing there reads and
-doesn't hide the identity. The house fills them in order, so the first is
-the prime spot, for the active explorer: put it in open floor, with open
-floor towards the middle of the room as well. Each spot is clear,
-reachable from every door and out of the doorways' lanes, and **the spots
-stand apart**, at least `SPOT_SPACING` centre to centre, so the figures'
-colour rings (`COLOUR_RING` in `house.ts`) never touch, with a ring's width
-of floor between them. A test checks all of it for every room.
+A room doesn't list where figures stand: the placement solver
+(`placement.ts`) places every figure on the room's free floor, from the
+floor plan the overlap check reads off the built room. The room gives it
+only two things:
 
-**Overflow.** Figures from the seventh on stand on the room's `overflow`
-places, in order: free floor, clear for a base and reachable like a spot,
-and at least `OVERFLOW_SPACING` from every other place, so bases never
-touch though rings may overlap. Give a room as many as its floor allows; a
-room with no free floor left has none. `roomSpot` throws for a figure past
-the last place, rather than stand two figures in one.
+- **The prime place** (`prime`): where the active explorer stands, and the
+  bench stands its explorer. Put it in open floor, where a figure standing
+  there reads and doesn't hide the identity, with open floor towards the
+  middle of the room as well. It must be clear for a base, reachable from
+  every door and out of the doorways' lanes; the overlap check holds it to
+  that. A barrier room gives one in each half: `prime` in one, and
+  `primeAcross` in the other.
+- **Keep-clear areas** (`keepClear`), only where the room needs them: floor
+  in front of what makes the room (the range in the Kitchen, the open grave
+  in the Graveyard), so no figure stands between the player and the
+  identity. Each is a stroke: a segment and a radius round it. Most rooms
+  need none.
+
+The doorways and the walking lanes are always kept clear without being
+listed: no figure stands on a lane until the room is crowded enough that
+the rings overlap. Figures stand apart, rings never touching, while the
+room has room; past that it degrades in steps, never failing: rings
+overlap; a large figure takes its crowded pose; then figures stand partly
+behind each other, in the keep-clear areas too, and the room shows a count
+badge. The overlap check places three explorers and six in every room (on
+each side of a barrier room): three must stand apart, and six with their
+rings overlapping at worst. If a room fails that, open up its floor.
 
 **Walks.** A walker needs clear floor of the base's radius (0.36 m) round
 it, and anything solid from the step-over height (7 cm) to 1.8 m blocks it.
 Walks go straight; where a straight walk would be blocked, give the room
 `lanes` to keep to round the obstacle. A barrier room gives its `crossing`,
-the path from one half to the other, and its spots alternate between the
-halves. A stair link needs both rooms' halves of the path (see "Build it").
-`?paths` on the bench draws the spots and the walks over the room.
+the path from one half to the other. A stair link needs both rooms' halves
+of the path (see "Build it"). In play a walk also keeps round the figures
+standing still in the room, planned on its free floor. `?paths` on the
+bench draws where figures stand and the walks over the room.
 
 **Leave room for a big monster.** A large monster (the Spider, the Dragon)
-may stand in a room one day, taking a spot and spreading over its
-neighbours. No room reserves a spot for one, but where it doesn't cost the
+may stand in a room one day, its footprint spreading over its neighbours'.
+No room reserves floor for one, but where it doesn't cost the
 room's identity, keep tall clutter out of the middle of the floor. The
 overlap check reports each room's largest open floor circle; it never fails
 on it.
@@ -338,8 +353,8 @@ not a solid box), or put it against a wall and split it (see "Rules").
 
 A room is one file, `rooms/<room-id>.ts`, exporting one `RoomDefinition`:
 surfaces (floor, wall, optional wainscot, trim colour) from its zone, props,
-lights of its own, the close-up `focus`, and where the explorer stands
-(`pawn`). The bench stands its first explorer there, a person at 1.6 m;
+lights of its own, the close-up `focus`, and the prime place (`prime`).
+The bench stands its first explorer there, a person at 1.6 m;
 shoot with `--explorer=pawn` for the plain scale pawn. Props the room alone
 needs are functions in that file, each with a one-line doc comment saying
 what it is and which way it faces. Give every seeded texture a seed of the
@@ -357,12 +372,12 @@ are needed. The Foyer's secret door down to Stairs from Basement has its
 path but no drawn door yet.
 
 **Run the overlap check** after every change to the props:
-`npx vitest run src/projects/betrayal/art/overlap.test.ts` (headless). It
+`npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/overlap.slow.test.ts` (headless). It
 builds each room in a worker with a time limit, so a build that loops
 forever fails alone instead of hanging the run. It fails when a solid
 passes into another piece, a wall's body or the floor by more than 2 cm (or
 a third of the thinner piece, so a book half sunk in the floor counts), or
-when a piece stands in a doorway's lane or on a standing spot. It tests
+when a piece stands in a doorway's lane or on the prime place. It tests
 each piece's real shape, splitting touching solids into convex parts, so a
 fallen bookcase is judged as it lies. The few millimetres neighbours
 overlap to hide a crack pass, and so does standing into a wall's dressing
@@ -381,7 +396,7 @@ the other's face), never by declaring it.
 When a piece is meant to pass into something, declare it on the piece, in
 one line, with the reason:
 `contacts: [{ with: "left", because: "it has fallen against the wall" }]`.
-`with` names a wall's edge, `floor`, a zone (`pawn`, `doorway top`) or
+`with` names a wall's edge, `floor`, a zone (`prime place`, `doorway top`) or
 another piece by its name. A piece's name is its build function's, or its
 `name` when it has one: give one to any piece built by an inline arrow,
 which the check otherwise calls `prop`. A declared contact that no longer
@@ -415,7 +430,7 @@ ledger.
   finer. A surface's pixel art moves a whole texel at a time, never
   smoothly. Light and water are not pixel art: water's surface, its
   reflections and caustics, and light itself may move smoothly.
-- **Doorways and the standing spots stay clear** (see "Lay it out"); the
+- **Doorways and the prime place stay clear** (see "Lay it out"); the
   overlap check enforces it.
 - **Wall-hung props and the cutaway.** A wall that is cut stands only to
   `CUT_HEIGHT`. A prop placed with `walls` (which `onWall` sets) and a `y`

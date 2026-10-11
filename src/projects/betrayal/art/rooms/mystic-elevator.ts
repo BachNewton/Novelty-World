@@ -428,7 +428,5 @@ export const MYSTIC_ELEVATOR: RoomDefinition = {
   ],
   lights: SIDES.map(([, side]) => ({ at: [side * SLOT_MID, -0.15, 0] as [number, number, number], colour: "violet" as const, intensity: 4, range: 5 })),
   focus: [COLUMN[0], 1.2, COLUMN[1]],
-  pawn: [-1.0, -1.0],
-  spots: [[1.6, 0.35], [-2.3, -2.1], [-0.35, 0.6], [2.3, -1.8], [0.7, -1.2]],
-  overflow: [[-1.6, 0.5], [-1.1, -2.1], [1.0, -1.95], [-0.6, 1.35], [0.1, -1.7], [-1.6, -0.5]],
+  prime: [-1.0, -1.0],
 };

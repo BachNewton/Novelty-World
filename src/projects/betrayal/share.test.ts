@@ -53,6 +53,12 @@ describe("a shared game", () => {
     });
   });
 
+  it("carries the haunt chosen at setup", () => {
+    const chosen: SharedGame = { ...shared, game: { ...shared.game, chosenHaunt: 13 } };
+    expect(decodeGame(encodeGame(chosen))).toEqual(chosen);
+    expect(replay(ENGINE, chosen, "a")[0].chosenHaunt).toBe(13);
+  });
+
   it("replays to exactly the same game", () => {
     let [state] = replay(ENGINE, shared, "a");
     const actions: Action[] = [];

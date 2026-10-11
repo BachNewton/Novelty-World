@@ -119,7 +119,7 @@ describe("the bake scheduler", () => {
     expect(bakes.status().pending).toBe(false);
   });
 
-  it("shows a job's passes in order, even when a later one is finished first", async () => {
+  it("finishes a job's passes in order, even when a later one is all in first, since its finish builds on the earlier", async () => {
     const { lanes, calls } = fakeLanes(2);
     const bakes = createBakeScheduler(() => lanes);
     const shown: string[] = [];
@@ -127,14 +127,25 @@ describe("the bake scheduler", () => {
     await started();
     expect(calls.map(({ label }) => label)).toEqual(["hall:direct:gather", "hall:bounce:gather"]);
     await calls[1].land();
-    await calls[2].land();
-    expect(calls[2].label).toBe("hall:bounce:finish");
-    expect(shown).toEqual([]);
+    expect(calls).toHaveLength(2);
     await calls[0].land();
+    expect(calls.slice(2).map(({ label }) => label)).toEqual(["hall:direct:finish", "hall:bounce:finish"]);
+    // The bounce finished first still shows after the direct light.
     await calls[3].land();
+    expect(shown).toEqual([]);
+    await calls[2].land();
     await passes[0];
     await done;
     expect(shown).toEqual(["hall:direct:100", "hall:bounce:100"]);
+  });
+
+  it("starts at once when asked, rather than once the submitting code has run", () => {
+    const { lanes, calls } = fakeLanes(1);
+    const bakes = createBakeScheduler(() => lanes);
+    bakes.submit(job("hall", ["direct"], 100, []));
+    expect(calls).toHaveLength(0);
+    bakes.start();
+    expect(calls.map(({ label }) => label)).toEqual(["hall:direct:gather"]);
   });
 
   it("joins a pass's chunks back in order before finishing it", async () => {

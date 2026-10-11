@@ -7,6 +7,7 @@ import { BASE_TOP, burst, joins, leg, legJoints, legPoints, miniatureHeight, sol
 import { heavyCloth, hangsCloth, type ClothTiming } from "./cloth";
 import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm, type ArmPose, type Prop } from "./hands";
 import { skinOf } from "./skin";
+import { declareParts, figureParts } from "../figure-parts";
 
 /*
  * Father Rhinehardt: a stocky parish priest of 62 who fences and gardens,
@@ -368,8 +369,9 @@ function meshParts() {
     base: plinth(0.36, 0.34, BASE_TOP, "boneDark"),
   };
 }
-type Parts = ReturnType<typeof meshParts>;
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const RHINEHARDT_PARTS = figureParts("rhinehardt", meshParts);
+declareParts(rhinehardt, [RHINEHARDT_PARTS]);
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** The middles of a shoe's heel and toe, as built (x set per foot): what a lifted foot pushes the robe with. */
@@ -417,8 +419,7 @@ function blessingAt(s: number): THREE.Vector3 {
  *  steps, his robe swinging round his ankles. His left hand holds the
  *  crucifix; his right hand is free to hold anything else. */
 export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+  const parts = RHINEHARDT_PARTS.get();
   const material = figureMaterial();
   const mesh = (geometry: THREE.BufferGeometry, name: string) => {
     const made = form(material, geometry);

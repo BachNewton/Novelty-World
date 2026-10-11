@@ -42,7 +42,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 
 **Places, chosen in the house**
 - `turn` move: reachable rooms and the doorways beyond them glow, a room on another floor glows as its staircase, and each half of a barrier room is its own target. Shown by walking.
-- `turn` discover: an unexplored doorway glows. Shown by the ghost, then the tile appearing and the floor re-baking.
+- `turn` discover: the empty cell beyond an unexplored doorway glows, one target per cell. Shown by the ghost, then the tile appearing and the floor re-baking.
 - `turn` end: End turn, an explicit action in the status box, never automatic.
 - `rotation`: the ghost tile on its cell, turned through its legal ways round. A tile that fits one way is placed by the engine.
 - `place-tile` (the Mystic Elevator, The Beckoning, cards that move rooms, haunt 13's top-up rooms): the legal cells glow on any floor, and the tile's own cell means "leave it". `room-moved` animates the tile lifting and moving with its figures (phase 4).

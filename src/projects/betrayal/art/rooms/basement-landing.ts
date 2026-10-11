@@ -226,7 +226,5 @@ export const BASEMENT_LANDING: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-(INNER - 0.29), INNER - 0.29], y: 3.05, turn: -45, walls: ["left", "bottom"] },
   ],
   focus: [-0.4, 0.4, 0.2],
-  pawn: [-1.15, -1.0],
-  spots: [[1.15, -1.0], [-1.5, 1.1], [1.65, 0.85], [0.0, 0.0], [2.25, -2.3]],
-  overflow: [[0.0, 1.7], [-1.5, 2.3], [2.25, -1.1], [1.25, -2.3], [-1.15, -2.0], [-1.15, 0.0]],
+  prime: [-1.15, -1.0],
 };

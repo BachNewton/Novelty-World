@@ -170,9 +170,7 @@ export const STAIRS_FROM_BASEMENT: RoomDefinition = {
   ] satisfies PropPlacement[],
   lights: [{ at: HEAD_LIGHT, colour: "amber", intensity: 11, range: 8.5, flicker: 0.04 }],
   focus: [-1.6, 1.0, -0.4],
-  pawn: [-0.65, 1.15],
-  spots: [[0.85, 0.35], [0.4, -1.3], [-1.25, -1.75], [1.95, 1.65], [2.1, -1.4]],
-  overflow: [[-0.5, -0.45], [1.85, 0.55], [1.6, -2.25], [0.35, 1.15], [-0.6, -1.3], [2.3, 2.35]],
+  prime: [-0.65, 1.15],
   // Along the open side of the flight, wide of its foot, to where it starts.
   lanes: [[[MID_X, FLIGHT.foot + 0.8], [-0.6, 1.8], [0.2, 1.0], [0.2, -1.5]]],
   // Up the middle of the flight, over the middle of each tread, into the dark above.

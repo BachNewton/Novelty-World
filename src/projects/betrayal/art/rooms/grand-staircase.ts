@@ -219,9 +219,7 @@ export const GRAND_STAIRCASE: RoomDefinition = {
     { build: () => clock("case"), ...onWall("left", -0.9, { y: CUT_HEIGHT }) },
   ] satisfies PropPlacement[],
   focus: [0.4, 1.0, -1.6],
-  pawn: [1.2, 0.5],
-  spots: [[-0.35, -0.2], [-0.1, 1.6], [-1.65, 0.9], [-1.9, -0.9], [1.5, 2.2]],
-  overflow: [[-2.35, 2.25], [1.25, -0.9], [-1.9, 0.1], [-0.35, 0.8], [-1.65, 1.9], [0.15, -0.8]],
+  prime: [1.2, 0.5],
   // Across the hall from the doorway, and round the newel to the foot of the stair.
   lanes: [
     [[2.2, 0], [1.5, 0], [-1.5, 0]],

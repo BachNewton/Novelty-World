@@ -262,9 +262,8 @@ export const CHASM: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [INNER - 0.29, -INNER + 0.29], y: 3.05, turn: -135, walls: ["right", "top"] },
   ],
   focus: [0, 0.3, 0],
-  pawn: [-1.7, -0.55],
-  spots: [[1.5, -1.9], [-2.25, -1.75], [1.75, -0.6], [-1.55, 0.8], [2.3, 1.05]],
-  overflow: [[-1.55, -1.4], [1.55, 1.35], [2.1, -1.4], [1.7, 0.55]],
+  prime: [-1.7, -0.55],
+  primeAcross: [1.5, -1.9],
   // Over the bridge, down the middle of its deck, from the floor at one end to the other.
   crossing: [
     [-1.6, 0, 0],

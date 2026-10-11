@@ -1,28 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import type { StandardButton } from "@/shared/lib/gamepad";
 import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import { figureFor } from "../../art/explorers/by-character";
+import { houseFloors, loadFloors } from "../../art/room-floor";
+import type { HouseMood } from "../../art/house-mood";
 import { createHouseScene, type FigureSpec, type FloorChoice, type HouseScene, type SceneHook } from "../../art/house-scene";
 import { FLOOR_NAMES, FLOORS } from "../../engine/board";
-import type { GameView } from "../../engine/view";
-import type { Action } from "../../types";
+import { eventsFor, type GameView } from "../../engine/view";
+import type { Action, FigureId, FloorId } from "../../types";
 import { ENGINE } from "../../game";
-import { playChoices, type PlaceTarget } from "../../play/choices";
+import { NO_CHOICES, playChoices, type PlaceTarget } from "../../play/choices";
 import { lookahead } from "../../play/lookahead";
-import { costText, routeRooms, type RoutePreview } from "../../play/preview";
+import { costText, type RoutePreview } from "../../play/preview";
+import { explorerActions } from "../../play/sheet";
+import type { Spots } from "../../play/spots";
 import { due } from "../../play/seat";
 import type { PlayStore } from "../../play/store";
 import { seatLabel } from "../describe";
+import { FOCUS_A_MASK, PAD_FOCUS, Prompt } from "../prompts";
 import { GHOST, GhostHandles, useGhost, type GhostReadout } from "./ghost-placer";
-import { figureColour, seatDot } from "./seat-colour";
-import { boxPadButton } from "./box-pad";
+import { figureColour, seatDot, sideMark } from "./seat-colour";
+import { controlsOf, enterLayer, layerHeight, leaveLayer, padFocused, padPress, topLayer } from "./pad-focus";
 import { StatusBox } from "./status-box";
-import { freedText, SeatsPanel, useSeatInputs, useSeatsGate } from "./seats-panel";
+import { freedText, useSeatInputs, useSeatsGate } from "./seats-panel";
+import { GameMenu } from "./game-menu";
 import type { PadSeats } from "./use-pads";
-import { paceOf, sceneTarget, slotOf, walkedRooms, type RouteWalk } from "./routes";
+import { sceneTarget } from "./routes";
+import { createPresenting, skipOrAnswer, SPEEDS, type Presented, type Presenting, type Speed } from "./presenting";
 import { RaiseWallsButton } from "../raise-walls-button";
+import { CardBeat } from "./card-beat";
+import { ExplorerSheet, FigureMarks, markedExplorers, StatsButton } from "./figure-marks";
+import { TradeSheet } from "./trade-sheet";
+import { useStatsHold } from "./stats-hold";
 import { BakeDebug } from "../../art/bake-debug";
 import { BakeIndicator } from "../../art/bake-indicator";
 
@@ -31,6 +43,11 @@ import { BakeIndicator } from "../../art/bake-indicator";
  * only what that seat may see, with the places the pending decision offers
  * glowing in it, and one status box: what just happened and why, and what
  * the player can do now, every other decision and ending the turn included.
+ * Over it open the player's explorer, a trade being built, and the game menu.
+ *
+ * A controller has one focus: on a choice in the house, or on a button of
+ * the box or of whatever is open over the house (`pad-focus.ts`). Each of
+ * its controls means one thing everywhere (`input/controls.ts`).
  */
 
 /** What the e2e tests read of the game, beside the scene's own hook. */
@@ -49,6 +66,8 @@ export interface PlayReadout {
   tiles: number;
   /** Each room's way round in the house, by tile id. */
   rotations: Record<string, number>;
+  /** Each room's floor, by tile id. */
+  floors: Record<string, FloorId>;
   queued: number;
   problem: string | null;
   /** The room tile being placed, as its ghost shows it, or null. */
@@ -58,6 +77,21 @@ export interface PlayReadout {
   /** The floor the house shows, and whether a figure is walking. */
   floor: FloorChoice;
   walking: boolean;
+  /** Whether a room a rule moved is being carried to its new cell. */
+  moving: boolean;
+  /** Where each explorer stands: its room, its side of a barrier room, and its place there, in the room's own frame. */
+  spots: Spots;
+  /** The status box's line held as a moment, by its event's id, or null. */
+  moment: string | null;
+  /** The house's light as a whole: the haunt's once it is revealed. */
+  mood: HouseMood;
+  /** Beats are playing, so the pending decision's choices wait. */
+  playing: boolean;
+  /** End turn is being held, its ring filling. */
+  endHold: boolean;
+  /** What is open over the house: an explorer's sheet (`explorer:<figure>`), a trade (`trade:<figure>`), or null. */
+  sheet: string | null;
+  menu: boolean;
 }
 
 export type PlayHook = SceneHook & { play: () => PlayReadout };
@@ -68,36 +102,63 @@ declare global {
   }
 }
 
+/** What the screen adds to the readout: its own state, as last rendered. */
+interface ScreenReadout {
+  ghost: GhostReadout | null;
+  focused: string | null;
+  endHold: boolean;
+  sheet: string | null;
+  menu: boolean;
+}
+
 /** The pending decision's choices for the seat holding the device, with the turn's routes looked ahead. */
-function choicesNow(store: PlayStore) {
+function choicesNow(store: PlayStore, presented: Presented) {
+  if (presented.playing) return NO_CHOICES;
   const { state, view, holder } = store.snapshot();
   return playChoices(view, lookahead(ENGINE, state, holder));
 }
 
-/** The explorers standing in the house, each with a place of its own in its room. */
-function figuresOf(view: GameView): FigureSpec[] {
-  const counts = new Map<string, number>();
+/** The explorers standing in the house, each in its place. */
+function figuresOf(view: GameView, spots: Spots): FigureSpec[] {
   return Object.values(view.figures).flatMap((figure) => {
-    const room = figure.place?.room;
-    if (figure.kind !== "explorer" || !figure.alive || room === undefined) return [];
-    const slot = counts.get(room) ?? 0;
-    counts.set(room, slot + 1);
+    const spot = spots[figure.id];
+    if (!spot) return [];
     const colour = figureColour(ENGINE, figure.definition);
-    return [{ id: figure.id, build: figureFor(figure.definition, colour), colour, room, slot, side: figure.place?.side ?? null }];
+    return [{ id: figure.id, build: figureFor(figure.definition, colour), colour, mark: sideMark(view, figure.owner), room: spot.room, at: [spot.x, spot.z] }];
   });
 }
 
-/** The figure whose turn it is: the one acting, or the turn's seat's explorer. */
-function activeFigure(view: GameView): string | null {
-  const turn = view.turn;
-  if (!turn) return null;
-  if (turn.acting !== null) return turn.acting;
-  return Object.values(view.figures).find((figure) => figure.kind === "explorer" && figure.owner === turn.seat)?.id ?? null;
+/** The events fed to the screen so far, as the seat holding the device may see them. */
+function eventsNow(store: PlayStore) {
+  const { state, holder, client } = store.snapshot();
+  return eventsFor(ENGINE, state, holder, client.feed);
 }
 
-function readout(store: PlayStore, scene: HouseScene, ghost: GhostReadout | null, focused: string | null): PlayReadout {
+const SPEED_KEY = "nw:betrayal:speed";
+
+const isSpeed = (value: string | null): value is Speed => value !== null && value in SPEEDS;
+
+/** The beats' speed this device last chose. Storage may be unavailable (a private window): the speed is then normal. */
+function savedSpeed(): Speed {
+  try {
+    const saved = localStorage.getItem(SPEED_KEY);
+    return isSpeed(saved) ? saved : "normal";
+  } catch {
+    return "normal";
+  }
+}
+
+function saveSpeed(speed: Speed) {
+  try {
+    localStorage.setItem(SPEED_KEY, speed);
+  } catch {
+    // Storage may be unavailable (a private window): the speed then lasts as long as the page.
+  }
+}
+
+function readout(store: PlayStore, scene: HouseScene, presented: Presented, screen: ScreenReadout): PlayReadout {
   const { client, holder, view } = store.snapshot();
-  const { targets, panel, end } = choicesNow(store);
+  const { targets, panel, end } = choicesNow(store, presented);
   const pending = view.pending;
   return {
     version: client.confirmed?.version ?? -1,
@@ -112,29 +173,37 @@ function readout(store: PlayStore, scene: HouseScene, ghost: GhostReadout | null
     rooms: Object.fromEntries(Object.values(view.figures).filter((f) => f.kind === "explorer").map((f) => [f.id, f.place?.room ?? null])),
     tiles: view.board.tiles.length,
     rotations: Object.fromEntries(view.board.tiles.map((tile) => [tile.tile, tile.rotation])),
+    floors: Object.fromEntries(view.board.tiles.map((tile) => [tile.tile, tile.floor])),
     queued: client.queue.length,
     problem: client.problem,
-    ghost,
-    preview: targets.find((target) => target.id === focused)?.preview ?? null,
+    ghost: screen.ghost,
+    preview: targets.find((target) => target.id === screen.focused)?.preview ?? null,
     floor: scene.view().floor,
     walking: scene.view().walking,
+    moving: scene.view().moving,
+    spots: presented.spots,
+    moment: presented.moment?.event ?? null,
+    mood: scene.mood(),
+    playing: presented.playing,
+    endHold: screen.endHold,
+    sheet: screen.sheet,
+    menu: screen.menu,
   };
 }
 
 function createScreen(store: PlayStore): {
   scene: HouseScene;
+  presenting: Presenting;
   mount: (ctx: ThreeSceneContext) => ThreeSceneHandlers;
-  /** The ghost as last rendered, for the readout: which way round it shows is the screen's own state. */
-  ghostRef: { current: GhostReadout | null };
-  /** The target in focus as last rendered, for the readout. */
-  focusRef: { current: string | null };
+  /** The screen's own state as last rendered, for the readout. */
+  screenRef: { current: ScreenReadout };
 } {
   const scene = createHouseScene({ tiles: store.snapshot().view.board.tiles });
-  const ghostRef: { current: GhostReadout | null } = { current: null };
-  const focusRef: { current: string | null } = { current: null };
+  const presenting = createPresenting(scene, figuresOf, { place: houseFloors, load: loadFloors });
+  const screenRef: { current: ScreenReadout } = { current: { ghost: null, focused: null, endHold: false, sheet: null, menu: false } };
   function mount(ctx: ThreeSceneContext): ThreeSceneHandlers {
     const handlers = scene.mount(ctx);
-    window.__betrayalPlay = { ...scene.hook, play: () => readout(store, scene, ghostRef.current, focusRef.current) };
+    window.__betrayalPlay = { ...scene.hook, play: () => readout(store, scene, presenting.snapshot(), screenRef.current) };
     return {
       ...handlers,
       dispose: () => {
@@ -143,60 +212,114 @@ function createScreen(store: PlayStore): {
       },
     };
   }
-  return { scene, mount, ghostRef, focusRef };
+  return { scene, presenting, mount, screenRef };
 }
+
+/** What is open over the house, on the decision it was opened on: it closes when the decision changes. */
+type Sheet = { kind: "explorer"; tab: FigureId; decision: string | null } | { kind: "trade"; with: FigureId; decision: string | null };
+
+/** The pad's d-pad, A and B: what a panel over the house takes from it. */
+const NAVIGATION = new Set<StandardButton>(["DpadUp", "DpadDown", "DpadLeft", "DpadRight", "A", "B"]);
+/** The game menu's layer, over everything: any pad works it. */
+const MENU_LAYER = 3;
 
 export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: PadSeats; onLeave: () => void }) {
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const { view, holder, client } = snapshot;
-  const [{ scene, mount, ghostRef, focusRef }] = useState(() => createScreen(store));
+  const [{ scene, presenting, mount, screenRef }] = useState(() => createScreen(store));
   const shown = useSyncExternalStore(scene.subscribe, scene.view, scene.view);
+  const presented = useSyncExternalStore(presenting.subscribe, presenting.snapshot, presenting.snapshot);
+  const [speed, setSpeed] = useState(savedSpeed);
+  useEffect(() => {
+    presenting.setSpeed(speed);
+  }, [presenting, speed]);
   // Several pads on one device: only the acting seat's pads act, and each seat's hints follow its own last input.
-  const gate = useSeatsGate(pads, holder, view.seats.length);
-  const { padMay, padButton: seatsPadButton } = gate;
+  const gate = useSeatsGate(pads, holder);
+  const { padMay, padActs, setMenuOpen } = gate;
   useSeatInputs(holder, shown.input, pads, scene.setInputKind);
   const containerRef = useThreeScene(mount, { antialias: false, maxPixelRatio: 4 });
+  const rootRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const handlesRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
+  const stats = useStatsHold(padMay);
   // Input fast-forwards whatever is playing: nothing waits on an animation.
   const act = useCallback(
     (action: Action) => {
-      scene.finish();
-      store.act(action);
+      skipOrAnswer(presenting, () => {
+        store.act(action);
+      });
     },
-    [scene, store],
+    [presenting, store],
   );
 
-  const choices = playChoices(view, lookahead(ENGINE, snapshot.state, holder));
+  // The pending decision's choices show once the beats leading to them are over.
+  const choices = presented.playing ? NO_CHOICES : playChoices(view, lookahead(ENGINE, snapshot.state, holder));
   const { targets, ghost: placing } = choices;
   const ghost = useGhost(view, placing, act);
   const ghostTargets = ghost?.targets ?? [];
   // The ghost holds the focus unless another of its cells has it.
   const live = [...targets, ...ghostTargets].some((target) => target.id === focused) ? focused : ghost ? GHOST : null;
-
-  // The scene keeps the handlers it was given, so they read the latest choices and focus through a ref.
   const end = choices.end;
-  const latest = useRef({ targets, live, ghost, end });
+
+  // What is open over the house, while the decision it was opened on stands.
+  const decision = view.pending?.id ?? null;
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const open = sheet !== null && sheet.decision === decision ? sheet : null;
+  const explorers = markedExplorers(view, presented.spots);
+  const yours = explorers.find((figure) => figure.owner === holder) ?? null;
+  // The turn's actions are the acting explorer's, on its own tab.
+  const acting = view.pending?.type === "decision" && view.pending.kind === "turn" && yours !== null && view.turn?.acting === yours.id ? yours : null;
+  const actions = acting ? { figure: acting.id, rows: explorerActions(acting.cards, choices.panel) } : null;
+  const tab = open?.kind === "explorer" ? (explorers.find((figure) => figure.id === open.tab) ?? null) : null;
+  const trade = open?.kind === "trade" ? (actions?.rows.trades.find((row) => row.with === open.with) ?? null) : null;
+  const openTab = (figure: FigureId | null) => {
+    setSheet(figure === null ? null : { kind: "explorer", tab: figure, decision });
+  };
+
+  // End turn is a hold: X, Backspace. Let go too soon, it says so.
+  const [ending, setEnding] = useState(false);
+  const [tapped, setTapped] = useState<string | null>(null);
+  const held = useRef(false);
+  const endHold = {
+    holding: ending && end !== null,
+    tapped: tapped !== null && tapped === decision,
+    // One hold ends one turn: the next turn's End turn waits for a new press.
+    onHeld: () => {
+      held.current = true;
+      setEnding(false);
+      if (end) act(end.action);
+    },
+  };
+
+  // The scene keeps the handlers it was given, so they read the latest state through a ref.
+  const latest = useRef({ targets, live, ghost, end, decision, yours, open });
   useEffect(() => {
-    latest.current = { targets, live, ghost, end };
-    ghostRef.current = ghost?.readout ?? null;
-    focusRef.current = live;
+    latest.current = { targets, live, ghost, end, decision, yours, open };
+    screenRef.current = {
+      ghost: ghost?.readout ?? null,
+      focused: live,
+      endHold: endHold.holding,
+      sheet: open === null ? null : open.kind === "explorer" ? `explorer:${open.tab}` : `trade:${open.with}`,
+      menu: gate.menuOpen,
+    };
   });
   const layoutKey = useRef("");
-  /** A route just committed, walked once the state it led to shows. */
-  const walking = useRef<RouteWalk | null>(null);
 
   useEffect(() => {
     const commit = (id: string | null) => {
-      // Input fast-forwards whatever is playing: nothing waits on an animation.
-      scene.finish();
-      if (id !== null && latest.current.ghost?.commit(id)) return;
-      const target = latest.current.targets.find((candidate) => candidate.id === id);
-      if (!target) return;
-      walking.current = target.preview && { figure: target.preview.figure, rooms: routeRooms(target.preview) };
-      if (store.commit(target.actions) === 0) walking.current = null;
+      // An input while beats play only skips them.
+      skipOrAnswer(presenting, () => {
+        if (id !== null && latest.current.ghost?.commit(id)) return;
+        const target = latest.current.targets.find((candidate) => candidate.id === id);
+        if (target) store.commit(target.actions);
+      });
+    };
+    /** The highest panel open over the house, if any. */
+    const over = () => {
+      const layer = rootRef.current && topLayer(rootRef.current);
+      return layer && layerHeight(layer) > 0 ? layer : null;
     };
     scene.setInput({
       focus: setFocused,
@@ -204,12 +327,63 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
       confirm: () => {
         commit(latest.current.live);
       },
-      rotate: (step) => latest.current.ghost?.rotate(step),
+      back: () => {
+        const layer = over();
+        if (layer) padPress(layer, "B");
+      },
+      cycle: (step) => {
+        const placer = latest.current.ghost;
+        if (!placer) return false;
+        placer.step(step);
+        return true;
+      },
+      explorer: () => {
+        const { yours: mine, open: was, decision: now } = latest.current;
+        if (was) setSheet(null);
+        else if (mine) setSheet({ kind: "explorer", tab: mine.id, decision: now });
+      },
+      menu: () => {
+        setMenuOpen(!gate.menuOpen);
+      },
+      endTurn: (on) => {
+        if (on) {
+          held.current = false;
+          setEnding(true);
+          return;
+        }
+        setEnding(false);
+        if (!held.current && latest.current.end) setTapped(latest.current.decision);
+      },
+      covered: () => over() !== null,
       padMay,
       padButton: (button, pad) => {
-        if (seatsPadButton(button, pad)) return true;
-        const ending = latest.current.end;
-        return boxPadButton(boxRef.current, button, ending && (() => act(ending.action)));
+        const root = rootRef.current;
+        if (!root) return false;
+        const layer = topLayer(root);
+        if (layer && layerHeight(layer) >= MENU_LAYER) {
+          padPress(layer, button);
+          return true;
+        }
+        // An idle pad does nothing but open the menu.
+        if (!padActs(pad)) return true;
+        if (layer && layerHeight(layer) > 0) {
+          if (!NAVIGATION.has(button)) return false;
+          padPress(layer, button);
+          return true;
+        }
+        const box = boxRef.current;
+        if (box && padFocused(box)) {
+          if (!NAVIGATION.has(button)) return false;
+          padPress(box, button, () => {
+            leaveLayer(box);
+          });
+          return true;
+        }
+        if (button === "DpadDown") {
+          if (box) enterLayer(box, "[data-now]");
+          return true;
+        }
+        return button === "DpadUp";
       },
     });
     scene.setLabel(labelRef.current);
@@ -218,7 +392,26 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
       scene.setLabel(null);
       scene.setGhostHandles(null);
     };
-  }, [scene, store, act, padMay, seatsPadButton]);
+  }, [scene, presenting, store, act, padMay, padActs, setMenuOpen, gate.menuOpen, screenRef]);
+
+  // Over the house, Tab goes round the panel's own buttons.
+  useEffect(() => {
+    const tab = (event: KeyboardEvent) => {
+      const root = rootRef.current;
+      const layer = root && topLayer(root);
+      if (event.code !== "Tab" || !layer || layerHeight(layer) === 0) return;
+      event.preventDefault();
+      const controls = controlsOf(layer);
+      if (controls.length === 0) return;
+      const at = controls.findIndex((control) => control === document.activeElement);
+      const step = event.shiftKey ? -1 : 1;
+      controls[at < 0 ? 0 : (at + step + controls.length) % controls.length].focus();
+    };
+    window.addEventListener("keydown", tab);
+    return () => {
+      window.removeEventListener("keydown", tab);
+    };
+  }, []);
 
   useEffect(() => {
     const key = JSON.stringify(view.board.tiles);
@@ -226,29 +419,27 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
       layoutKey.current = key;
       scene.setLayout({ tiles: view.board.tiles });
     }
-    // The walk starts before the figures are set, so the explorer walks to where the state already has it rather than standing there at once.
-    const walk = walking.current;
-    walking.current = null;
-    const rooms = walk && walkedRooms(walk, view);
-    if (walk && rooms) void scene.play({ kind: "walk", figure: walk.figure, route: rooms, slot: slotOf(view, walk.figure, rooms[rooms.length - 1]), side: view.figures[walk.figure].place?.side ?? null, pace: paceOf(view, walk.figure) });
-    scene.setFigures(figuresOf(view));
-    scene.setActive(activeFigure(view));
-  }, [scene, view]);
+    presenting.show(view, eventsNow(store));
+  }, [scene, presenting, store, view]);
 
   // After the layout, so a room just placed is in the house before its ghost goes.
   const ghostKey = ghost ? JSON.stringify(ghost.readout) : "";
   useEffect(() => {
-    scene.setTargets([...latest.current.targets.map((target) => sceneTarget(target, view)), ...(latest.current.ghost?.targets ?? [])], live);
-  }, [scene, view, live, ghostKey]);
+    scene.setTargets([...latest.current.targets.map((target) => sceneTarget(target, presented.spots, houseFloors)), ...(latest.current.ghost?.targets ?? [])], live);
+    // The choices show once the beats leading to them are over.
+  }, [scene, view, live, ghostKey, presented.spots, presented.playing]);
 
-  const holderExplorer = Object.values(view.figures).find((figure) => figure.kind === "explorer" && figure.owner === holder);
-  const dot = holderExplorer ? seatDot(ENGINE, holderExplorer.definition) : undefined;
+  const toldIds = new Set(presented.told);
+  const told = eventsFor(ENGINE, snapshot.state, holder, client.feed).filter((event) => toldIds.has(event.id));
+  const dot = yours ? seatDot(ENGINE, yours.definition) : undefined;
   const floors = FLOORS.filter((floor) => view.board.tiles.some((tile) => tile.floor === floor));
   const focusedTarget = [...targets, ...ghostTargets].find((target) => target.id === live);
   const preview = targets.find((target) => target.id === live)?.preview ?? null;
+  const input = shown.input;
+  const button = "pointer-events-auto inline-flex min-h-10 items-center gap-1.5 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1";
 
   return (
-    <div className="fixed inset-0 bg-(--bt-bg) text-(--bt-ink)">
+    <div ref={rootRef} style={{ "--bt-focus-a": FOCUS_A_MASK } as CSSProperties} className={`fixed inset-0 bg-(--bt-bg) text-(--bt-ink) ${input === "pad" ? PAD_FOCUS : ""}`}>
       <div ref={containerRef} className="absolute inset-0" />
       {/* In the corner the header leaves clear. */}
       <BakeIndicator bakes={scene.bakes} className="absolute top-3 right-2" />
@@ -262,60 +453,143 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
         {preview && <span className="ml-1.5 text-xs text-(--bt-muted)">· {costText(preview)}</span>}
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
+      <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} statsHeld={stats.held} tab={tab?.id ?? null} openTab={openTab} />
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 p-3 pr-28 text-xs sm:text-sm">
-        <span className="pointer-events-auto flex items-center gap-1.5 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 font-semibold">
+        {/* The seat holding the device: its explorer's character card, as the mark on the figure opens it. */}
+        <button
+          type="button"
+          aria-label={`${seatLabel(view, holder)}: character card`}
+          aria-expanded={yours !== null && tab?.id === yours.id}
+          disabled={yours === null}
+          onClick={() => {
+            if (yours) openTab(tab?.id === yours.id ? null : yours.id);
+          }}
+          className={`${button} font-semibold aria-expanded:border-(--bt-accent)`}
+        >
           {dot && <span className={`inline-block size-2.5 rounded-full ${dot}`} />}
           {seatLabel(view, holder)}
+        </button>
+        <span className="flex items-center gap-1">
+          <Prompt meaning="floor-down" input={input} size={18} />
+          {floors.map((floor) => (
+            <button
+              key={floor}
+              type="button"
+              onClick={() => {
+                scene.hook.setFloor(floor);
+              }}
+              className={`${button} ${shown.floor === floor ? "border-(--bt-accent) bg-(--bt-room)" : ""}`}
+            >
+              {FLOOR_NAMES[floor]}
+            </button>
+          ))}
+          <Prompt meaning="floor-up" input={input} size={18} />
         </span>
-        {floors.map((floor) => (
-          <button
-            key={floor}
-            type="button"
-            onClick={() => {
-              scene.hook.setFloor(floor);
-            }}
-            className={`pointer-events-auto min-h-10 rounded border px-2 py-1 ${shown.floor === floor ? "border-(--bt-accent) bg-(--bt-room)" : "border-(--bt-line) bg-(--bt-panel)"}`}
-          >
-            {FLOOR_NAMES[floor]}
-          </button>
-        ))}
         <button
           type="button"
           onClick={() => {
             scene.camera.recentre();
           }}
-          className="pointer-events-auto min-h-10 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1"
+          className={button}
         >
           Recentre
+          <Prompt meaning="recentre" input={input} size={16} />
         </button>
-        <RaiseWallsButton
-          raised={shown.wallsRaised}
-          raise={scene.hook.raiseWalls}
-          className="pointer-events-auto min-h-10 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)"
-        >
+        <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
           Walls
+          <Prompt meaning="walls" input={input} size={16} />
         </RaiseWallsButton>
+        <StatsButton held={stats.held} hold={stats.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
         <button
           type="button"
+          aria-expanded={gate.menuOpen}
           onClick={() => {
-            gate.setOpen(true);
+            setMenuOpen(!gate.menuOpen);
           }}
-          className="pointer-events-auto min-h-10 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1"
+          className={button}
         >
-          Seats
-        </button>
-        <button type="button" onClick={onLeave} className="pointer-events-auto min-h-10 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1">
-          Leave game
+          Menu
+          <Prompt meaning="menu" input={input} size={16} />
         </button>
       </header>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-start">
-        <StatusBox boxRef={boxRef} view={view} holder={holder} problem={client.problem} choices={choices} ghost={ghost} input={shown.input} act={act} preview={preview} notice={freedText(view, pads)} openSeats={() => {
-          gate.setOpen(true);
-        }} />
+        <StatusBox
+          boxRef={boxRef}
+          view={view}
+          told={told}
+          moment={presented.moment}
+          playing={presented.playing}
+          skip={presenting.skip}
+          holder={holder}
+          problem={client.problem}
+          choices={choices}
+          ghost={ghost}
+          input={input}
+          act={act}
+          preview={preview}
+          notice={freedText(view, pads)}
+          openMenu={() => {
+            setMenuOpen(true);
+          }}
+          endHold={endHold}
+          explorer={yours && { count: actions?.rows.count ?? 0 }}
+          openExplorer={() => {
+            if (yours) openTab(yours.id);
+          }}
+          openTrade={(figure) => {
+            setSheet({ kind: "trade", with: figure, decision });
+          }}
+        />
       </div>
-      <SeatsPanel view={view} pads={pads} gate={gate} />
+      <CardBeat scene={scene} moment={presented.moment} told={told} spots={presented.spots} input={input} playing={presented.playing} goOn={presenting.goOn} />
+      {tab && (
+        <ExplorerSheet
+          scene={scene}
+          view={view}
+          explorers={explorers}
+          tab={tab}
+          setTab={openTab}
+          actions={actions}
+          act={act}
+          openTrade={(figure) => {
+            setSheet({ kind: "trade", with: figure, decision });
+          }}
+          input={input}
+          close={() => {
+            setSheet(null);
+          }}
+        />
+      )}
+      {trade && (
+        <TradeSheet
+          key={trade.with}
+          view={view}
+          row={trade}
+          act={act}
+          input={input}
+          close={() => {
+            setSheet(null);
+          }}
+        />
+      )}
+      {gate.menuOpen && (
+        <GameMenu
+          view={view}
+          pads={pads}
+          speed={speed}
+          setSpeed={(next) => {
+            setSpeed(next);
+            saveSpeed(next);
+          }}
+          onLeave={onLeave}
+          input={input}
+          close={() => {
+            setMenuOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

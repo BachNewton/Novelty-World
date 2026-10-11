@@ -52,6 +52,7 @@ export function ruleTexts(notes: RuleNotes, rule: RuleView): RuleText[] {
     case "haunt":
       return rule.ruling === undefined ? [] : (notes.haunts[rule.haunt] ?? []);
     case "scenario":
+    case "players":
       return [];
   }
 }

@@ -8,24 +8,24 @@ import type { Edge, FloorId, Rotation } from "../types";
 import type { FloorChoice, Mark } from "./house";
 import { DIRECTION } from "./house-layout";
 import { inHouse, shownOn, type HousePoint, type Stairway } from "./house-walk";
-import { DOOR_WIDTH, TILE } from "./room";
+import { TILE } from "./room";
 
 /*
  * What the house shows a decision offering, as pure functions: each target
- * (a room, a stair, a doorway, an empty cell, a tile to place, a figure)
+ * (a room, a stair, an empty cell to explore or to place on, a tile to place, a figure)
  * placed in the scene, marked on its floor, and laid out on the screen for
  * the input layer to point at. A target's id is the choice's, never a room's:
  * one room can carry several targets.
  */
 
 /** The walk a target leads to: a figure's route through rooms, from the one
- *  it stands in, to the spot (`slot`) it would stand on at the end. */
+ *  it stands in, to the place it would stand on at the end (in the last
+ *  room's own frame), worked out only when the route is shown. */
 export interface TargetRoute {
   figure: string;
   rooms: readonly string[];
-  slot: number;
-  /** In a barrier room, the side it would stand on. */
-  side?: Edge | null;
+  /** Null while the room's floor is still being read: no route shows yet. */
+  end: () => readonly [x: number, z: number] | null;
 }
 
 export type Target = { id: string } & (
@@ -34,9 +34,10 @@ export type Target = { id: string } & (
   | { kind: "room"; room: string; route?: TargetRoute }
   /** The stair out of `room` towards the room it links to. */
   | { kind: "stair"; room: string; toward: string }
-  /** An unexplored doorway out of `room`, on a board direction. With a
-   *  route, the route preview shows when it is focused. */
-  | { kind: "doorway"; room: string; direction: Edge; route?: TargetRoute }
+  /** An empty cell on a floor to explore, through the unexplored doorway out
+   *  of `room` on a board direction. With a route, the route preview shows
+   *  when it is focused. */
+  | { kind: "explore"; floor: FloorId; x: number; y: number; room: string; direction: Edge; route?: TargetRoute }
   /** An empty cell on a floor. */
   | { kind: "cell"; floor: FloorId; x: number; y: number }
   /** A room tile not yet placed, shown as a ghost on a cell, turned
@@ -91,8 +92,8 @@ const FIGURE_ANCHOR = 0.9;
 const FIGURE_BOX = { reach: 0.6, height: 1.8 };
 /** A stair offered as a choice is a pointer target this far either side of its run. */
 const STAIR_REACH = 0.8;
-/** A doorway is a pointer target this deep, half each side of its wall. */
-const DOORWAY_REACH = 1.4;
+/** An empty cell on another floor is a pointer target this wide each way, round the middle of the same cell on this one. */
+const AWAY_REACH = TILE / 2;
 /** The smallest pointer target, in CSS pixels each way: a fingertip. */
 export const FINGER = 48;
 
@@ -137,6 +138,20 @@ function stairPlace(ctx: PlaceContext, id: string, from: string, toward: string,
   };
 }
 
+/** An empty cell on another floor, marked on the floor showing at the same
+ *  place, as a stair marks a room upstairs: a tile has no stairs to it. */
+function awayPlace(ctx: PlaceContext, id: string, cell: Cell, showing: FloorId): TargetPlace {
+  const centre = cellCentre(ctx, { ...cell, floor: showing });
+  return {
+    anchor: lift(centre, ANCHOR_HEIGHT),
+    outline: rectangle(centre, AWAY_REACH, AWAY_REACH),
+    box: false,
+    mark: { id, kind: "away", floor: showing, x: cell.x, y: cell.y },
+    cell,
+    floor: cell.floor,
+  };
+}
+
 function figurePlace(ctx: PlaceContext, id: string, figure: string): TargetPlace {
   const at = ctx.figureAt(figure);
   const base = ctx.scenePoint(at);
@@ -173,26 +188,25 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
       const place = stairPlace(ctx, target.id, target.room, target.toward, tileOf(ctx.layout, target.room).floor);
       return shows(ctx, place.floor) ? place : { ...place, outline: null, mark: null };
     }
-    case "doorway": {
-      const tile = tileOf(ctx.layout, target.room);
-      const { x, z } = DIRECTION[target.direction];
-      const centre = cellCentre(ctx, tile).add(new THREE.Vector3((x * TILE) / 2, 0, (z * TILE) / 2));
-      const [w, d] = x === 0 ? [DOOR_WIDTH, DOORWAY_REACH] : [DOORWAY_REACH, DOOR_WIDTH];
-      const shown = shows(ctx, tile.floor);
+    case "explore": {
+      const cell = { floor: target.floor, x: target.x, y: target.y };
+      const centre = cellCentre(ctx, cell);
+      const shown = shows(ctx, target.floor);
       return {
         anchor: lift(centre, ANCHOR_HEIGHT),
-        outline: shown ? rectangle(centre, w, d) : null,
+        outline: shown ? rectangle(centre, TILE, TILE) : null,
         box: false,
-        mark: shown ? { id: target.id, kind: "doorway", room: target.room, direction: target.direction } : null,
-        cell: { floor: tile.floor, x: tile.x, y: tile.y },
-        floor: tile.floor,
+        mark: shown ? { id: target.id, kind: "explore", ...cell, room: target.room, direction: target.direction } : null,
+        cell,
+        floor: target.floor,
       };
     }
     case "cell":
     case "ghost": {
       const cell = { floor: target.floor, x: target.x, y: target.y };
-      const centre = cellCentre(ctx, cell);
       const shown = shows(ctx, target.floor);
+      if (!shown && target.kind === "cell" && ctx.showing !== "all") return awayPlace(ctx, target.id, cell, ctx.showing);
+      const centre = cellCentre(ctx, cell);
       const mark: Mark = target.kind === "cell" ? { id: target.id, kind: "cell", ...cell } : { id: target.id, kind: "ghost", ...cell, doors: target.doors };
       return { anchor: lift(centre, ANCHOR_HEIGHT), outline: shown ? rectangle(centre, TILE, TILE) : null, box: false, mark: shown ? mark : null, cell, floor: target.floor };
     }
@@ -205,10 +219,13 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
 /** How far inside a room a route to one of its doorways ends, short of the doorway itself. */
 const DOORWAY_STOP = 0.8;
 
-/** Where a route to a target ends: the spot taken in a room, or just inside an unexplored doorway. */
-export function routeEnd(layout: Layout, target: Extract<Target, { kind: "room" | "doorway" }>, spot: (room: string, slot: number, side?: Edge | null) => HousePoint): HousePoint | null {
+/** Where a route to a target ends: the place taken in a room, or just inside the unexplored doorway a cell is explored through. */
+export function routeEnd(layout: Layout, target: Extract<Target, { kind: "room" | "explore" }>): HousePoint | null {
   if (!target.route) return null;
-  if (target.kind === "room") return spot(target.room, target.route.slot, target.route.side);
+  if (target.kind === "room") {
+    const end = target.route.end();
+    return end && inHouse(layout, target.room, [end[0], 0, end[1]]);
+  }
   const tile = tileOf(layout, target.room);
   const { x, z } = DIRECTION[target.direction];
   const reach = TILE / 2 - DOORWAY_STOP;

@@ -179,6 +179,9 @@ export type RuleRef = (
   | { source: "haunt"; haunt: number; section: string }
   /** A playtesting or test scenario set this up, not a rule. */
   | { source: "scenario" }
+  /** The players chose this, not a rule: the haunt to play, at setup or at
+   *  the reveal of a haunt that isn't built. */
+  | { source: "players" }
 ) & {
   /** The ruling in content/ behind this event, by the id its `> Note [id]:`
    *  carries, when one ruling of the source applies rather than its text. */
@@ -524,6 +527,9 @@ export interface GameState {
   /** Every omen card drawn this game, for the haunt roll (p. 15). */
   omensDrawn: number;
   haunt: Haunt | null;
+  /** The haunt this game plays, chosen at setup, whatever the chart says at
+   *  the haunt roll; null when the chart decides. */
+  chosenHaunt: number | null;
   memory: RuleMemory;
   /** Counter for decision and wait ids, so every client computes the same ids. */
   nextId: number;

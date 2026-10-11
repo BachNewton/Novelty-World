@@ -55,15 +55,17 @@ export interface ControlHandlers {
   floor: (step: 1 | -1) => void;
   /** Brings the view back to the explorer whose turn it is. */
   recentre: () => void;
-  /** The choice being turned before it is taken (the ghost of a room being
-   *  placed), or null. While there is one, turning wins: Q and E, the
-   *  bumpers and the d-pad's left and right turn it rather than orbiting the
-   *  camera or jumping between choices, and a tap on it turns it (a click
-   *  still takes it). The wheel always zooms: a control whose meaning
-   *  changed with what lies under the cursor would confuse. */
-  rotating: () => string | null;
-  /** Turns that choice to its next way round: clockwise seen from above (1) or back (-1). */
-  rotate: (step: 1 | -1) => void;
+  /** Opens or closes the acting player's explorer: its character card, held cards and the turn's actions. */
+  explorer: () => void;
+  /** Opens or closes the game menu. Any pad may, even one that may not act now. */
+  menu: () => void;
+  /** End turn's hold: true as the player starts holding its key or button,
+   *  false as they let go. Ending the turn is a hold, never a tap: there is
+   *  no undo, and with several pads a stray press would pass the device. */
+  endTurn: (held: boolean) => void;
+  /** A panel covers the house (a sheet, a reader, the menu): Tab, Enter and
+   *  Space are then the page's own, moving between and pressing its buttons. */
+  covered: () => boolean;
   /** Stands every wall full while the raise-walls key or pad button is held (true), and lets them down again (false). */
   raiseWalls: (raised: boolean) => void;
   /** The player has a hand on the camera (dragging, holding a pan or orbit
@@ -104,8 +106,6 @@ const PAN_KEYS: Record<string, Point> = {
   KeyD: { x: 1, y: 0 },
 };
 const ORBIT_KEYS: Record<string, number> = { KeyQ: -1, KeyE: 1 };
-/** While a choice is being turned, Q turns it back and E on. */
-const ROTATE_KEYS: Record<string, 1 | -1> = { KeyQ: -1, KeyE: 1 };
 /** T tilts the camera up towards top-down, G down towards eye level. */
 const TILT_KEYS: Record<string, number> = { KeyT: 1, KeyG: -1 };
 const FLOOR_KEYS: Record<string, 1 | -1> = { PageUp: 1, KeyR: 1, PageDown: -1, KeyF: -1 };
@@ -115,6 +115,12 @@ const CONFIRM_KEYS = new Set(["Enter", "NumpadEnter", "Space"]);
 const RAISE_KEY = "KeyV";
 /** Held, the left stick's click raises the walls, leaving the right stick free to look round them. */
 const RAISE_BUTTON: StandardButton = "LS";
+/** I opens the player's explorer (inventory, as on a PC), M the game menu. */
+const EXPLORER_KEY = "KeyI";
+const MENU_KEY = "KeyM";
+/** Held, Backspace ends the turn (XCOM's end-turn key on a PC); on a pad, X held. */
+const END_KEY = "Backspace";
+const END_BUTTON: StandardButton = "X";
 
 /** Keys typed into a form control are the control's own. */
 function typing(target: EventTarget | null): boolean {
@@ -156,6 +162,13 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     raising[source] = held;
     if ((raising.key || raising.pad) !== was) handlers.raiseWalls(!was);
   };
+  /** Whether End turn's key and pad button are held. */
+  const ending = { key: false, pad: false };
+  const setEnding = (source: keyof typeof ending, held: boolean) => {
+    const was = ending.key || ending.pad;
+    ending[source] = held;
+    if ((ending.key || ending.pad) !== was) handlers.endTurn(!was);
+  };
 
   const updateHands = () => {
     const now = dragging || fingers !== null || keysHeld.size > 0 || padCamera;
@@ -172,8 +185,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     const { targets, points, focused } = handlers.layout();
     const id = pickTarget(targets, point, FINGER_REACH);
     if (id === null) return;
-    if (kind === "touch" && id === handlers.rotating()) handlers.rotate(1);
-    else if (tapAction(kind, id, focused, points.length) === "commit") handlers.commit(id);
+    if (tapAction(kind, id, focused, points.length) === "commit") handlers.commit(id);
     else handlers.focus(id);
   };
   const hover = (point: Point) => {
@@ -257,22 +269,31 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     if (typing(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
     const { code } = event;
     const confirming = CONFIRM_KEYS.has(code);
-    // A focused button takes Enter and Space itself.
-    if (confirming && event.target instanceof HTMLButtonElement) return;
-    const rotate = handlers.rotating() === null ? undefined : (ROTATE_KEYS[code] as 1 | -1 | undefined);
-    const held = rotate === undefined && (code in PAN_KEYS || code in ORBIT_KEYS || code in TILT_KEYS);
+    // A focused button takes Enter and Space itself, and a panel over the house takes them and Tab.
+    if (confirming && (event.target instanceof HTMLButtonElement || handlers.covered())) return;
+    if (code === "Tab" && handlers.covered()) return;
+    const held = code in PAN_KEYS || code in ORBIT_KEYS || code in TILT_KEYS;
     const zoom = event.key === "+" || event.key === "=" ? KEY_ZOOM : event.key === "-" || event.key === "_" ? 1 / KEY_ZOOM : null;
     const floor = FLOOR_KEYS[code] as 1 | -1 | undefined;
     const recentre = RECENTRE_KEYS.has(code);
     const cycle = code === "Tab";
     const back = code === "Escape";
-    if (code === RAISE_KEY) {
+    if (code === RAISE_KEY || code === END_KEY) {
       event.preventDefault();
       handlers.usedInput("keyboard-mouse");
-      setRaising("key", true);
+      if (code === RAISE_KEY) setRaising("key", true);
+      else setEnding("key", true);
       return;
     }
-    if (!held && rotate === undefined && !confirming && zoom === null && floor === undefined && !recentre && !cycle && !back) return;
+    if (code === EXPLORER_KEY || code === MENU_KEY) {
+      event.preventDefault();
+      handlers.usedInput("keyboard-mouse");
+      if (event.repeat) return;
+      if (code === EXPLORER_KEY) handlers.explorer();
+      else handlers.menu();
+      return;
+    }
+    if (!held && !confirming && zoom === null && floor === undefined && !recentre && !cycle && !back) return;
     event.preventDefault();
     handlers.usedInput("keyboard-mouse");
     if (held) {
@@ -281,7 +302,6 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     }
     if (zoom !== null) handlers.zoom(zoom);
     if (event.repeat) return;
-    if (rotate !== undefined) handlers.rotate(rotate);
     if (confirming) handlers.confirm();
     if (floor !== undefined) handlers.floor(floor);
     if (recentre) handlers.recentre();
@@ -291,30 +311,36 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
   const onKeyUp = (event: KeyboardEvent) => {
     keysHeld.delete(event.code);
     if (event.code === RAISE_KEY) setRaising("key", false);
+    if (event.code === END_KEY) setEnding("key", false);
     updateHands();
   };
   const onBlur = () => {
     keysHeld.clear();
     setRaising("key", false);
+    setEnding("key", false);
     updateHands();
   };
 
-  /** A turning button turns the choice being turned, if there is one, and otherwise does `otherwise`. */
-  const turnOr = (step: 1 | -1, otherwise?: () => void) => () => {
-    if (handlers.rotating() !== null) handlers.rotate(step);
-    else otherwise?.();
-  };
+  /** Each pad button's one meaning in the house. The d-pad's up and down,
+   *  between the house and the status box's rows, are the page's; X (End
+   *  turn) and L3 are held; Menu is any pad's. */
   const PAD_BUTTONS: Partial<Record<StandardButton, () => void>> = {
     A: handlers.confirm,
     B: handlers.back,
-    LB: turnOr(-1, () => handlers.cycle(-1)),
-    RB: turnOr(1, () => handlers.cycle(1)),
-    DpadLeft: turnOr(-1),
-    DpadRight: turnOr(1),
-    Y: handlers.recentre,
-    RS: handlers.recentre,
-    DpadUp: () => handlers.floor(1),
-    DpadDown: () => handlers.floor(-1),
+    DpadLeft: () => {
+      handlers.cycle(-1);
+    },
+    DpadRight: () => {
+      handlers.cycle(1);
+    },
+    LB: () => {
+      handlers.floor(-1);
+    },
+    RB: () => {
+      handlers.floor(1);
+    },
+    Y: handlers.explorer,
+    View: handlers.recentre,
   };
 
   element.addEventListener("pointerdown", onPointerDown);
@@ -329,23 +355,31 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
   const unsubscribe = subscribeGamepads({
     onConnectionChange: (connected) => {
       pads = connected;
-      // A pad unplugged with the button held never sends its release.
-      if (connected.length === 0) setRaising("pad", false);
+      // A pad unplugged with a button held never sends its release.
+      if (connected.length === 0) {
+        setRaising("pad", false);
+        setEnding("pad", false);
+      }
     },
     onFrame: (connected) => {
       pads = connected;
     },
     onButton: (edge) => {
       const may = handlers.padMay?.(edge.pad) ?? true;
-      if (edge.name === RAISE_BUTTON) {
+      if (edge.name === RAISE_BUTTON || edge.name === END_BUTTON) {
         // A release always lets go: the pad may have gone idle while it held the button.
         if (edge.pressed && !may) return;
         if (edge.pressed) handlers.usedInput("pad");
-        setRaising("pad", edge.pressed);
+        if (edge.name === RAISE_BUTTON) setRaising("pad", edge.pressed);
+        else setEnding("pad", edge.pressed);
         return;
       }
       if (!edge.pressed || edge.name === null) return;
       if (may) handlers.usedInput("pad");
+      if (edge.name === "Menu") {
+        handlers.menu();
+        return;
+      }
       if (handlers.padButton?.(edge.name, edge.pad)) return;
       if (!may) return;
       PAD_BUTTONS[edge.name]?.();
@@ -381,9 +415,9 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
         const { leftStick, rightStick, leftTrigger, rightTrigger } = controls;
         pan.x += leftStick.x;
         pan.y += leftStick.y;
-        yaw += rightStick.x * ORBIT_SPEED * delta;
-        // Up on the stick tilts up, towards top-down.
-        pitch -= rightStick.y * ORBIT_SPEED * delta;
+        yaw -= rightStick.x * ORBIT_SPEED * delta;
+        // Down on the stick tilts up, towards top-down.
+        pitch += rightStick.y * ORBIT_SPEED * delta;
         zoom *= Math.exp((rightTrigger - leftTrigger) * TRIGGER_ZOOM * delta);
         padCamera ||= leftStick.x !== 0 || leftStick.y !== 0 || rightStick.x !== 0 || rightStick.y !== 0 || rightTrigger !== leftTrigger;
       }

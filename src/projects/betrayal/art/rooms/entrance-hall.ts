@@ -161,7 +161,5 @@ export const ENTRANCE_HALL: RoomDefinition = {
     ...PRINTS.map(([x, z, turn], i) => ({ build: footprint, at: [x, z] as [number, number], y: (i % 3) * 0.002, turn })),
   ],
   focus: [1.6, 1.3, 0],
-  pawn: [-0.9, -0.9],
-  spots: [[0.8, -0.85], [-1.7, 1.25], [-0.1, 0.6], [1.6, 0.65], [1.05, 2.3]],
-  overflow: [[-1.05, -2.2], [-1.7, 0.25], [-1.7, 2.25], [0.35, 1.65], [0.8, 0.15], [0.7, -1.7]],
+  prime: [-0.9, -0.9],
 };

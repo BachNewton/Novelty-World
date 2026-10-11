@@ -6,6 +6,7 @@ import { group } from "../shapes";
 import { BASE_TOP, burst, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
 import { aimGrip, blendPose, buildArm, closedRound, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
 import { skinOf, skinShade } from "./skin";
+import { declareParts, figureParts } from "../figure-parts";
 
 /*
  * Ox Bellows: a huge young linebacker, all Might, who is afraid of the dark
@@ -180,8 +181,9 @@ function meshParts() {
     base: plinth(0.36, 0.34, BASE_TOP, "boneDark"),
   };
 }
-type Parts = ReturnType<typeof meshParts>;
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const OX_PARTS = figureParts("ox", meshParts);
+declareParts(ox, [OX_PARTS]);
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** How far into bringing the coin out his fist has closed and the coin is in it. */
@@ -194,8 +196,7 @@ const COIN_OUT = 0.15;
  *  heavy steps, rolling from foot to foot, both arms swinging. Either hand
  *  can hold a thing; the coin comes out only while his right hand is free. */
 export function ox(seed = "ox", gait: Gait = STANDING): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+  const parts = OX_PARTS.get();
   const material = figureMaterial();
   const mesh = (geometry: THREE.BufferGeometry, name: string) => {
     const made = form(material, geometry);

@@ -30,6 +30,13 @@ export const BETRAYAL_THEME = {
   "--bt-card-green": "#a3c552",
   "--bt-card-blue": "#93afd2",
   "--bt-card-purple": "#a97ad8",
+  /** What a colour means in the house (CLAUDE.md, "Visual style"): a card's draw shows in its own. */
+  "--bt-mood-moon": "#8fb3dd",
+  "--bt-mood-human": "#e3a24c",
+  "--bt-mood-supernatural": "#9ccc5c",
+  "--bt-mood-danger": "#dd4f4f",
+  "--bt-mood-magic": "#b384ea",
+  "--bt-mood-holy": "#ecd06a",
 } as CSSProperties;
 
 /** Seat colours as whole class names, so Tailwind sees each one. */

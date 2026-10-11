@@ -205,9 +205,8 @@ export const TOWER: RoomDefinition = {
     { build: beaconStump, at: [0, STUMP_Z] },
   ],
   focus: [0, 0.6, -0.6],
-  pawn: [-1.5, -1.0],
-  spots: [[1.5, 0.65], [2.2, 2.2], [-1.2, 0.7], [-2.0, 2.2], [1.85, -2.25]],
-  overflow: [[-1.5, -2.2], [1.25, -0.55], [-1.1, 1.8], [1.15, 2.35], [-2.0, -1.6], [1.5, 1.65]],
+  prime: [-1.5, -1.0],
+  primeAcross: [1.5, 0.65],
   // Over the rubble through the saddle, where the scree lies flat.
   crossing: [
     [-(RAMPART + 0.6), 0, 0],

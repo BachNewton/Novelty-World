@@ -59,3 +59,13 @@ export function countDoors(doors: readonly GhostDoor[]): Record<GhostDoorway, nu
   for (const { doorway } of doors) counts[doorway]++;
   return counts;
 }
+
+/** The next way round (1) or the one before (-1) a tile may be placed, as
+ *  choices to step through: this cell's ways round in turn, then on to the
+ *  next cell's, wrapping round. `ways` counts each cell's ways round. */
+export function stepWay(ways: readonly number[], at: { cell: number; way: number }, step: 1 | -1): { cell: number; way: number } {
+  if (ways.length === 0 || ways.some((count) => count < 1)) throw new Error("Every cell needs a way round");
+  const flat = ways.flatMap((count, cell) => Array.from({ length: count }, (_, way) => ({ cell, way })));
+  const here = flat.findIndex((option) => option.cell === at.cell && option.way === at.way);
+  return flat[(Math.max(0, here) + step + flat.length) % flat.length];
+}

@@ -108,12 +108,28 @@ export function hauntRule(haunt: number, section: string): RuleRef {
   return { source: "haunt", haunt, section };
 }
 
+/** The players chose the haunt: at setup, or at the reveal of one not built. */
+export const PLAYERS_CHOICE: RuleRef = { source: "players" };
+
+/** Every haunt that has been built, lowest first: the ones a game may choose. */
+export function builtHaunts(engine: Engine): number[] {
+  return Object.values(engine.haunts)
+    .flatMap((haunt) => (haunt ? [haunt.number] : []))
+    .sort((a, b) => a - b);
+}
+
 /** The rules of the haunt being played, if it has been built. */
 export function activeHaunt(
   engine: Engine,
   state: GameState,
 ): HauntRules | null {
   return state.haunt === null ? null : (engine.haunts[state.haunt.number] ?? null);
+}
+
+export function requireBuilt(engine: Engine, number: number): HauntRules {
+  const rules = engine.haunts[number];
+  if (!rules) throw new Error(`Haunt ${number} isn't built`);
+  return rules;
 }
 
 function requireHaunt(engine: Engine, state: GameState): HauntRules {
@@ -735,11 +751,27 @@ function winningSide(seats: Seat[], winners: number[]): Seat["side"] {
 type Side = "traitor" | "heroes";
 
 export const HAUNT_STEPS: Record<string, StepHandler> = {
-  // A haunt not built yet stops the game at its reveal.
+  // A haunt not built yet is swapped at its reveal for one that is, which
+  // the revealer chooses; with none built, or with sides a scenario already
+  // set (which a built haunt would decide afresh), the game stops there.
   "haunt-begins": defineStep<null>((state, _p, ctx) => {
     const haunt = hauntState(state);
     if (!activeHaunt(ctx.engine, state)) {
-      ctx.emit("haunt-unbuilt", HAUNT_START, { haunt: haunt.number });
+      const built = builtHaunts(ctx.engine);
+      const stops = built.length === 0 || state.seats.some((seat) => seat.side !== null);
+      ctx.emit("haunt-unbuilt", HAUNT_START, { haunt: haunt.number, stops });
+      if (stops) return;
+      ctx.push(
+        chooseOne(
+          { seat: haunt.revealer },
+          built.map((number) => ({
+            label: `Haunt ${number}: ${requireBuilt(ctx.engine, number).name}`,
+            steps: [step<{ number: number }>("haunt-chosen", { number })],
+          })),
+          PLAYERS_CHOICE,
+          `haunt ${haunt.number} isn't built yet: choose the haunt to play`,
+        ),
+      );
       return;
     }
     if (state.seats.some((seat) => seat.side !== null))
@@ -754,6 +786,14 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
       step<{ side: Side }>("haunt-setup", { side: "heroes" }),
       step<null>("next-turn", null),
     );
+  }),
+
+  // The haunt chosen in place of one not built begins as if revealed.
+  "haunt-chosen": defineStep<{ number: number }>((state, p, ctx) => {
+    const haunt = hauntState(state);
+    ctx.emit("haunt-chosen", PLAYERS_CHOICE, { haunt: p.number, instead: haunt.number });
+    haunt.number = p.number;
+    ctx.push(step<null>("haunt-begins", null));
   }),
 
   // The chart picks the traitor from the explorers' traits as they stand

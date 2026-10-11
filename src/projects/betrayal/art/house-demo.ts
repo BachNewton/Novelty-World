@@ -8,6 +8,9 @@ import { HOUSE_FIXTURE } from "./house-layout";
 import { createHouseScene, type FigureSpec, type SceneHook, type SceneView, type Target } from "./house-scene";
 import { afterLeg, moveIsOver, nextLegs } from "./house-demo-moves";
 import { pawn } from "./kit/pawn";
+import { placeFigures } from "./placement";
+import { definition } from "./house";
+import { houseFloors, loadFloors } from "./room-floor";
 import type { PaletteKey } from "./palette";
 import { roomTile, type ExplorerBuilder } from "./stage";
 
@@ -63,8 +66,28 @@ export interface Choice {
  *  its walls up until the player goes on or the moment passes. */
 export type Phase = "choosing" | "entering";
 
+export interface DemoExplorer {
+  id: string;
+  name: string;
+  room: string;
+  /** Its place in the room, in the room's own frame. */
+  at: readonly [x: number, z: number];
+}
+
+/** The place in a room an explorer walking there takes, beside whoever stands there already, as the game places figures. */
+function placeIn(explorers: readonly DemoExplorer[], room: string, explorer: string): readonly [x: number, z: number] {
+  const there = explorers.filter((other) => other.id !== explorer && other.room === room);
+  const prime = definition(room).prime;
+  // Alone in a room, it stands on the prime place, which needs no floor read.
+  if (there.length === 0 && prime) return prime;
+  const { floor, hints } = houseFloors(room, null);
+  const before = Object.fromEntries(there.map(({ id, at: [x, z] }) => [id, { x, z, crowding: 0 as const, pose: "standing" as const }]));
+  const { x, z } = placeFigures(floor, hints, [...there, { id: explorer }].map(({ id }) => ({ id, size: "person" })), before).figures[explorer];
+  return [x, z];
+}
+
 export interface DemoState {
-  explorers: { id: string; name: string; room: string; slot: number }[];
+  explorers: DemoExplorer[];
   /** Whose turn it is, by index into `explorers`. */
   active: number;
   /** The active explorer's movement this turn, and the spaces of it left. */
@@ -102,7 +125,7 @@ export function createHouseDemo(layout: Layout = HOUSE_FIXTURE, starts: readonly
   const roomName = (id: string) => roomTile(id).name;
 
   let state: DemoState = {
-    explorers: CAST.map(({ id, name }, i) => ({ id, name, room: starts[i], slot: 0 })),
+    explorers: CAST.map(({ id, name }, i) => ({ id, name, room: starts[i], at: placeIn([], starts[i], id) })),
     active: 0,
     movement: MOVEMENT,
     left: MOVEMENT,
@@ -122,14 +145,14 @@ export function createHouseDemo(layout: Layout = HOUSE_FIXTURE, starts: readonly
   const figures = (): FigureSpec[] =>
     state.explorers.map((explorer, i) => {
       const { id, build, colour } = CAST[i];
-      return { id, build, colour, room: explorer.room, slot: explorer.slot };
+      return { id, build, colour, room: explorer.room, at: explorer.at };
     });
   const targets = (): Target[] =>
     state.phase === "choosing"
       ? state.choices.map((choice) => {
           const route = routes.get(choice.id);
           return route
-            ? { id: choice.id, kind: "room", room: choice.room, route: { figure: activeId(), rooms: route, slot: slotIn(choice.room, activeId()) } }
+            ? { id: choice.id, kind: "room", room: choice.room, route: { figure: activeId(), rooms: route, end: () => placeIn(state.explorers, choice.room, activeId()) } }
             : { id: choice.id, kind: "room", room: choice.room };
         })
       : [];
@@ -141,10 +164,6 @@ export function createHouseDemo(layout: Layout = HOUSE_FIXTURE, starts: readonly
     for (const listener of listeners) listener();
   }
 
-  /** The place in a room an explorer walking there takes: the pawn spot, or beside it when someone already stands there. */
-  function slotIn(room: string, explorer: string): number {
-    return state.explorers.some((other) => other.id !== explorer && other.room === room) ? 1 : 0;
-  }
 
   /** The active explorer's next leg: every room within the movement left, and stopping where they stand. */
   function offer(next: DemoState): DemoState {
@@ -211,10 +230,10 @@ export function createHouseDemo(layout: Layout = HOUSE_FIXTURE, starts: readonly
     const route = routes.get(id);
     if (!route) throw new Error(`${id} has no route`);
     const explorer = activeId();
-    const slot = slotIn(choice.room, explorer);
+    const at = placeIn(state.explorers, choice.room, explorer);
     const { left } = afterLeg({ room: route[0], left: state.left }, { room: choice.room, route });
-    const explorers = state.explorers.map((member) => (member.id === explorer ? { ...member, room: choice.room, slot } : member));
-    const walked = scene.play({ kind: "walk", figure: explorer, route, slot });
+    const explorers = state.explorers.map((member) => (member.id === explorer ? { ...member, room: choice.room, at } : member));
+    const walked = scene.play({ kind: "walk", walks: [{ figure: explorer, route, at }] });
     if (visited.has(choice.room)) {
       continueTurn({ ...state, explorers, left });
       return;
@@ -238,8 +257,15 @@ export function createHouseDemo(layout: Layout = HOUSE_FIXTURE, starts: readonly
   scene.setActive(activeId());
   publish(offer(state));
 
+  // The rooms' floors are read in a worker, for placing an explorer beside another; the demo is ready once they are.
+  let floorsRead = false;
+  const reading = loadFloors(layout.tiles.map((tile) => tile.tile));
+  if (reading) void reading.then(() => (floorsRead = true));
+  else floorsRead = true;
+
   const api: HouseApi = {
     ...scene.hook,
+    isReady: () => floorsRead && scene.hook.isReady(),
     state: () => ({ ...scene.view(), ...state }),
     choose,
     confirm,

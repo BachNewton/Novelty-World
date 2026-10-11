@@ -3,7 +3,7 @@
 import { Suspense, use, useState, type RefObject } from "react";
 import type { RuleNotes } from "../../data/rule-notes";
 import { describeDecision } from "../../engine/describe";
-import { viewExplorer, type GameView } from "../../engine/view";
+import { viewExplorer, type EventView, type GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import type { PlayChoices } from "../../play/choices";
@@ -15,19 +15,39 @@ import { ErrorBox } from "../error-box";
 import { PendingPanel } from "../pending-panel";
 import { RuleDetail, ruleNotes } from "../why";
 import { GhostPanel, type GhostPlacer } from "./ghost-placer";
+import { boxActions } from "../../play/sheet";
+import type { FigureId } from "../../types";
+import { Prompt } from "../prompts";
+import { DecisionPart } from "./decision-panel";
+import { HappeningLine } from "./happening-line";
+import { boxPart } from "../../play/panels";
+import type { Moment } from "./presenting";
+import { RevealNow } from "./reveal";
 import { seatDot, seatText } from "./seat-colour";
 
 /*
- * The one status box: what just happened, why it happened, and what the
- * player holding the device can do now. "Now" is the strongest part and
- * stays in view; when many things happened at once, the parts above it
- * scroll within the box.
+ * The one status box: what just happened (in icons where icons say it),
+ * why it happened (a tap away), and what the player holding the device can
+ * do now. "Now" is the strongest part and stays in view; when many things
+ * happened at once, the parts above it scroll within the box. While beats
+ * play, "now" is skipping them: the choices wait until they are over. It is
+ * the lowest layer a controller's focus works in: the d-pad's down moves the
+ * focus from the house into "now", and up past the box's top row gives it
+ * back. Its buttons carry their controls' glyphs; it spells out none.
  */
 
 export interface StatusBoxProps {
   /** The box, for a controller to move the focus round its buttons. */
   boxRef: RefObject<HTMLElement | null>;
   view: GameView;
+  /** The events to tell: the latest the presenter played, as the holder may see them. */
+  told: EventView[];
+  /** The line held as a moment, or null. */
+  moment: Moment | null;
+  /** Beats are playing: the choices wait until they are over, and any input skips them. */
+  playing: boolean;
+  /** Skips the beats playing. */
+  skip: () => void;
   holder: number;
   problem: string | null;
   choices: PlayChoices;
@@ -38,8 +58,15 @@ export interface StatusBoxProps {
   preview: RoutePreview | null;
   /** Something about the device to tell the table (a pad that disconnected), or null. */
   notice?: string | null;
-  /** Opens the seats panel, where pads take and give back seats. */
-  openSeats?: () => void;
+  /** Opens the game menu, where pads take and give back seats. */
+  openMenu?: () => void;
+  /** End turn's hold: under way, its end (the turn ends), and whether it was let go too soon. */
+  endHold: { holding: boolean; onHeld: () => void; tapped: boolean };
+  /** The acting player's explorer, with the count of the turn's actions on its sheet; null with no explorer to show. */
+  explorer: { count: number } | null;
+  openExplorer: () => void;
+  /** Opens the trade sheet with an explorer. */
+  openTrade: (figure: FigureId) => void;
 }
 
 /** The rule texts load with the box; until they arrive it words what it can without them. */
@@ -55,19 +82,19 @@ function WithNotes(props: StatusBoxProps) {
   return <Box {...props} notes={use(ruleNotes())} />;
 }
 
-/** The latest write's lines, as the holder may read them. A write with
- *  nothing to say (a question asked mid-move) leaves the last ones up. */
-function useCaption(view: GameView, notes: RuleNotes | null): { key: string | null; lines: Happening[] } {
-  const lines = happenings(ENGINE, view, notes);
-  const key = view.events.at(0)?.id ?? null;
+/** The lines of the events told, as the holder may read them. Events with
+ *  nothing to say (a question asked mid-move) leave the last ones up. */
+function useCaption(view: GameView, told: EventView[], notes: RuleNotes | null): { key: string | null; lines: Happening[] } {
+  const lines = happenings(ENGINE, { ...view, events: told }, notes);
+  const key = told.at(0)?.id ?? null;
   const [caption, setCaption] = useState({ key, lines });
   if (key !== caption.key && lines.length > 0) setCaption({ key, lines });
   return caption;
 }
 
 function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | null }) {
-  const { view, problem, input } = props;
-  const caption = useCaption(view, notes);
+  const { view, told, moment, problem } = props;
+  const caption = useCaption(view, told, notes);
   const pending = view.pending;
   const raisedBy = pending?.type === "decision" && pending.detail !== null ? pending.rule : null;
   const whys = whyItems(ENGINE, notes, caption.lines, raisedBy);
@@ -76,46 +103,78 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
     <section
       ref={boxRef}
       aria-label="Status"
-      className={`pointer-events-auto flex max-h-[45vh] w-full flex-col overflow-y-auto rounded border border-(--bt-line) bg-(--bt-panel) sm:w-[28rem] ${input === "pad" ? PAD_FOCUS : ""}`}
+      data-pad-layer="0"
+      // Only a focus the pad put here is the pad's: a button a click left focused is not.
+      data-pad-owned
+      className="pointer-events-auto flex max-h-[45vh] w-full flex-col overflow-y-auto rounded border border-(--bt-line) bg-(--bt-panel) sm:w-[28rem]"
     >
       {(caption.lines.length > 0 || whys.length > 0) && (
         // Keyed by the write, so a new one is read from its top.
         <div key={caption.key} className="flex min-h-0 shrink flex-col gap-1.5 overflow-y-auto px-3 py-2">
           {caption.lines.length > 0 && (
             <ul aria-label="What happened" aria-live="polite" className="flex flex-col gap-0.5 text-sm">
-              {caption.lines.map(({ event, text }) => (
-                <li key={event.id}>{text}</li>
-              ))}
+              {caption.lines.map((happening) =>
+                moment?.event === happening.event.id ? (
+                  <li key={happening.event.id} aria-current="true" className="-mx-1 rounded border-l-2 border-(--bt-accent) bg-(--bt-room) px-1 font-semibold">
+                    <HappeningLine happening={happening} view={view} notes={notes} />
+                  </li>
+                ) : (
+                  <li key={happening.event.id}>
+                    <HappeningLine happening={happening} view={view} notes={notes} />
+                  </li>
+                ),
+              )}
             </ul>
           )}
-          {whys.length > 0 && (
-            <ul aria-label="Why it happened" className="flex flex-col gap-1 border-l-2 border-(--bt-line) pl-2 text-xs text-(--bt-muted)">
-              {whys.map((why) => (
-                <WhyLine key={why.statement} why={why} />
-              ))}
-            </ul>
-          )}
+          {whys.length > 0 && <WhyList whys={whys} />}
         </div>
       )}
       <div data-now aria-label="What you can do now" className="flex shrink-0 flex-col gap-2 border-t border-(--bt-line) p-3 first:border-t-0">
         {problem !== null && <ErrorBox message={problem} />}
-        {props.notice != null && <DeviceNotice text={props.notice} openSeats={props.openSeats} />}
+        {props.notice != null && <DeviceNotice text={props.notice} openMenu={props.openMenu} />}
         <Now {...props} boxRef={boxRef} notes={notes} />
       </div>
     </section>
   );
 }
 
-function DeviceNotice({ text, openSeats }: { text: string; openSeats?: () => void }) {
+function DeviceNotice({ text, openMenu }: { text: string; openMenu?: () => void }) {
   return (
     <p role="status" className="flex flex-wrap items-center gap-2 rounded border border-(--bt-line) bg-(--bt-bg) px-2 py-1.5 text-sm">
       {text}
-      {openSeats && (
-        <button type="button" onClick={openSeats} className="min-h-9 rounded border border-(--bt-line) px-2 underline-offset-2 hover:border-(--bt-accent)">
+      {openMenu && (
+        <button type="button" onClick={openMenu} className="min-h-9 rounded border border-(--bt-line) px-2 underline-offset-2 hover:border-(--bt-accent)">
           Seats
         </button>
       )}
     </p>
+  );
+}
+
+/** The rules behind what happened, a tap away rather than shown by default. */
+function WhyList({ whys }: { whys: WhyItem[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        data-pad-back={open || undefined}
+        onClick={() => {
+          setOpen(!open);
+        }}
+        className="inline-flex min-h-7 items-center self-start text-xs text-(--bt-muted) underline decoration-dotted hover:text-(--bt-ink)"
+      >
+        {open ? "Hide why" : "Why?"}
+      </button>
+      {open && (
+        <ul aria-label="Why it happened" className="flex flex-col gap-1 border-l-2 border-(--bt-line) pl-2 text-xs text-(--bt-muted)">
+          {whys.map((why) => (
+            <WhyLine key={why.statement} why={why} />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -127,6 +186,7 @@ function WhyLine({ why }: { why: WhyItem }) {
       <button
         type="button"
         aria-expanded={open}
+        data-pad-back={open || undefined}
         className="inline-flex min-h-7 items-center underline decoration-dotted hover:text-(--bt-ink)"
         onClick={() => {
           setOpen(!open);
@@ -145,24 +205,27 @@ function WhyLine({ why }: { why: WhyItem }) {
   );
 }
 
-/** With a controller, the button the focus is on shows it: the pad moves the focus by hand. */
-const PAD_FOCUS = "[&_button:focus]:outline-2 [&_button:focus]:outline-offset-2 [&_button:focus]:outline-(--bt-ink)";
-
-/** A controller button's name, as a key cap; on a button, kept out of its accessible name. */
-function Glyph({ children, onButton = false }: { children: string; onButton?: boolean }) {
+/** While beats play, what the player can do now is skip them. Keyed as End
+ *  turn is, so it is the same button on the page: one focused stays focused. */
+function skipButton(input: InputKind, skip: () => void) {
   return (
-    <span aria-hidden={onButton} className="mx-1 inline-block rounded border border-current px-1 text-xs leading-4 font-semibold">
-      {children}
-    </span>
+    <button key="primary" type="button" onClick={skip} className="inline-flex min-h-11 items-center gap-1.5 self-end rounded border border-(--bt-line) px-4 py-1 text-sm hover:border-(--bt-accent)">
+      Skip ahead
+      <Prompt meaning="confirm" input={input} size={16} />
+    </button>
   );
 }
 
-/** How to choose a place in the house, for the input the player last used. */
-const PLACE_HINTS: Record<InputKind, string> = {
-  "keyboard-mouse": "Click a glowing room or doorway to go there.",
-  pad: "Aim at a glowing room or doorway and press A; LB / RB jump between them.",
-  touch: "Tap a glowing room or doorway, then tap it again to go.",
-};
+/** The acting player's explorer, a press away: its glyph, and how many of the turn's actions its sheet holds. */
+function ExplorerChip({ count, input, open }: { count: number; input: InputKind; open: () => void }) {
+  return (
+    <button type="button" onClick={open} className="inline-flex min-h-10 items-center gap-1.5 self-start rounded-full border border-(--bt-line) bg-(--bt-bg) px-3 text-sm hover:border-(--bt-accent)">
+      <Prompt meaning="explorer" input={input} size={18} />
+      Your explorer
+      {count > 0 && <span className="text-(--bt-muted)">· {count} {count === 1 ? "action" : "actions"}</span>}
+    </button>
+  );
+}
 
 /** The seat holding the device, named with its explorer, in its colour. */
 function SeatName({ view, holder }: { view: GameView; holder: number }) {
@@ -194,11 +257,18 @@ function RouteLine({ preview, label, notes }: { preview: RoutePreview; label: st
   );
 }
 
-function Now({ view, holder, choices, ghost, input, act, preview, notes }: StatusBoxProps & { notes: RuleNotes | null }) {
+function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip, endHold, explorer: chip, openExplorer, openTrade }: StatusBoxProps & { notes: RuleNotes | null }) {
   const { targets, panel, end } = choices;
   const pending = view.pending;
-  if (pending?.type !== "decision" || pending.detail === null || pending.detail.answer !== null) {
-    return <PendingPanel engine={ENGINE} view={view} onAction={act} />;
+  if (playing) return <>{skipButton(input, skip)}</>;
+  if (pending?.type === "ready" && view.haunt !== null) return <RevealNow view={view} holder={holder} act={act} input={input} />;
+  const part = boxPart(view);
+  if (part === "debug" || pending?.type !== "decision" || pending.detail === null) {
+    return (
+      <div data-debug-panel>
+        <PendingPanel engine={ENGINE} view={view} onAction={act} />
+      </div>
+    );
   }
 
   const isTurn = pending.kind === "turn";
@@ -206,13 +276,7 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes }: Statu
   // The question names who is asked, as the seat's name already does.
   const question = (prompt: string) => (explorer ? prompt.replace(`${explorer.name}: `, "") : prompt);
   const prompt = isTurn
-    ? `your turn. ${
-        targets.length > 0
-          ? `Choose a glowing room or doorway in the house${panel.length > 0 ? ", or an action below" : ""}${end ? ", or end your turn." : "."}`
-          : panel.length > 0
-            ? `Choose an action below${end ? ", or end your turn." : "."}`
-            : "No moves or actions left: End turn."
-      }`
+    ? `your turn.${targets.length === 0 && panel.length === 0 ? " No moves or actions left: End turn." : ""}`
     : question(describeDecision(ENGINE, view, { ...pending, params: pending.detail.params }));
 
   return (
@@ -220,42 +284,58 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes }: Statu
       <p className="text-base">
         <SeatName view={view} holder={holder} />: {prompt}
       </p>
-      {isTurn && targets.length > 0 && <p className="text-xs text-(--bt-muted)">{PLACE_HINTS[input]}</p>}
       {isTurn && preview && <RouteLine preview={preview} label={targets.find((target) => target.id === preview.target)?.label ?? ""} notes={notes} />}
-      {input === "pad" && (panel.length > 0 || ghost) && (
-        <p className="text-xs text-(--bt-muted)">
-          <Glyph>View</Glyph> moves into this box: the d-pad goes between its buttons, <Glyph>A</Glyph> presses one, <Glyph>B</Glyph> goes back to the house.
-        </p>
-      )}
+      {isTurn && chip && <ExplorerChip count={chip.count} input={input} open={openExplorer} />}
       {ghost && <GhostPanel ghost={ghost} input={input} act={act} />}
-      {panel.length > 0 && (
+      {part !== "turn" && part !== "ghost" && <DecisionPart part={part} view={view} panel={panel} act={act} input={input} notes={notes} />}
+      {(part === "turn" || part === "ghost") && panel.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {panel.map((choice) => (
-            <button
-              key={choice.id}
-              type="button"
-              className="min-h-11 rounded border border-(--bt-line) bg-(--bt-room) px-3 py-1.5 text-left text-sm hover:border-(--bt-accent)"
-              onClick={() => {
-                act(choice.action);
-              }}
-            >
-              {choice.label}
-            </button>
-          ))}
+          {boxActions(panel).map((entry) =>
+            entry.kind === "choice" ? (
+              <button
+                key={entry.choice.id}
+                type="button"
+                className={BOX_ACTION}
+                onClick={() => {
+                  act(entry.choice.action);
+                }}
+              >
+                {entry.choice.label}
+              </button>
+            ) : (
+              <button
+                key={`trade:${entry.row.with}`}
+                type="button"
+                className={BOX_ACTION}
+                onClick={() => {
+                  openTrade(entry.row.with);
+                }}
+              >
+                Trade with {view.figures[entry.row.with].name}
+              </button>
+            ),
+          )}
         </div>
       )}
       {end && (
-        <button
-          type="button"
-          onClick={() => {
-            act(end.action);
-          }}
-          className="min-h-11 self-end rounded bg-(--bt-accent) px-4 py-1 font-semibold text-(--bt-bg)"
-        >
-          End turn
-          {input === "pad" && <Glyph onButton>X</Glyph>}
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2 self-end">
+          {endHold.tapped && <p className="text-xs text-(--bt-muted)">Hold to end your turn.</p>}
+          <button
+            key="primary"
+            type="button"
+            data-end-turn
+            onClick={() => {
+              act(end.action);
+            }}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded bg-(--bt-accent) px-4 py-1 font-semibold text-(--bt-bg)"
+          >
+            End turn
+            <Prompt meaning="end-turn" input={input} size={18} hold={{ holding: endHold.holding, onHeld: endHold.onHeld }} />
+          </button>
+        </div>
       )}
     </>
   );
 }
+
+const BOX_ACTION = "min-h-11 rounded border border-(--bt-line) bg-(--bt-room) px-3 py-1.5 text-left text-sm hover:border-(--bt-accent)";

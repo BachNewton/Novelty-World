@@ -6,14 +6,19 @@ import type { Edge, FloorId, PlacedTile } from "../types";
 import { animationOf, type Animation } from "./animate";
 import { ADULT_WALK, isGrounded, walkingOf, type Stride, type Walking } from "./explorers/figure";
 import { closedDoors, diffLayout, DIRECTION, falseWindows, printedEdge, tileTurn, wallIsCut, type LayoutChange } from "./house-layout";
-import { inHouse, walkLength, walkPose, type HousePoint, type Walk } from "./house-walk";
+import { walkLength, walkPose, type HousePoint, type Walk } from "./house-walk";
 import { inlineScheduler, type BakeScheduler } from "./bake-schedule";
-import { freezeRoom, type FrozenRoom } from "./freeze";
+import { inlineSlicer, runSteps, type Slicer } from "./build-slices";
+import { meshOnBuild, type FigureMesher } from "./figure-mesh";
+import { freezeRoom, freezeSteps, type FrozenRoom } from "./freeze";
+import { carrying } from "./room-flight";
+import { houseMood, type HouseMood } from "./house-mood";
 import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog } from "./lighting";
-import { createLitFloor, ghostRoom, patchProbe, type GhostRoom, type LitFloor, type ProbeUniform, type Rebake } from "./lit-floor";
+import { createLitFloor, ghostRoom, patchProbe, type GhostRoom, type LitFloor, type Prepare, type ProbeUniform, type Rebake } from "./lit-floor";
 import { paletteHex, type PaletteKey } from "./palette";
 import { batchParts, type PartBatch } from "./part-batch";
-import { DOOR_WIDTH, MARK_PLANES, roomSpot, standingSpots, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
+import { COLOUR_RING, DOOR_WIDTH, MARK_PLANES, primePlaces, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
+import { pawn } from "./kit/pawn";
 import { BENCH_ROOMS } from "./rooms";
 import { box, glow, group, lightMaterial } from "./shapes";
 import { buildRoom, disposeTree, roomTile, type ExplorerBuilder } from "./stage";
@@ -21,8 +26,8 @@ import { earth, flagstones, plaster, texturesUnder, woodPlanks } from "./texture
 /** How far apart the floors are stacked when the whole house shows at once:
  *  far enough apart that one floor never hides the one below. */
 export const STACK_GAP = 7;
-/** The explorer marker: a ring of the player's colour round the base. */
-export const COLOUR_RING = { inner: 0.4, outer: 0.55, height: MARK_PLANES.colourRing };
+/** The traitor's mark: a ring of their side's red just outside the colour ring. */
+const SIDE_RING = { inner: 0.58, outer: 0.66 };
 /** Drawn after the room's solids, which all draw at the default order, so
  *  the floor is in the depth buffer before a ring that writes none. */
 const COLOUR_RING_ORDER = 1;
@@ -46,6 +51,8 @@ export const GHOST_DOORWAY_COLOUR: Record<GhostDoorway, PaletteKey> = { joined: 
 const GHOST_LOOK = { opacity: 0.5, glow: 1.1, low: 0.6, period: 2.4 };
 /** A figure offered as a choice glows in a ring round its colour ring. */
 const FIGURE_MARK = { inner: 0.68, outer: 0.82, height: MARK_PLANES.ring };
+/** How long the active explorer's light takes to move to whoever's turn starts, in seconds. */
+const LIGHT_GLIDE = 0.6;
 /** The route preview: a dot every `every` metres, kept clear of where the walk starts and ends, at most `most` of them. */
 const ROUTE = { every: 0.5, size: 0.14, clear: 0.6, most: 160 };
 
@@ -57,6 +64,8 @@ export interface HouseFigure {
   id: string;
   build: ExplorerBuilder;
   colour: PaletteKey;
+  /** A second ring outside the colour ring, marking the figure's side: the traitor's red. */
+  mark?: PaletteKey | null;
 }
 
 export interface PlacedRoom {
@@ -77,9 +86,13 @@ export type Mark = { id: string } & (
   | { kind: "ghost"; floor: FloorId; x: number; y: number; doors: readonly GhostDoor[] }
   /** The stair out of `room` towards the room it links to. */
   | { kind: "stair"; room: string; toward: string }
-  /** A doorway out of `room`, on a board direction. */
-  | { kind: "doorway"; room: string; direction: Edge }
+  /** An empty cell to explore: a border alone round it, as for a cell, and
+   *  the pad across the doorway out of `room`, on a board direction, it is explored through. */
+  | { kind: "explore"; floor: FloorId; x: number; y: number; room: string; direction: Edge }
   | { kind: "figure"; figure: string }
+  /** An empty cell on another floor, marked on this one at the same place:
+   *  the corners of a smaller square, round where it lies above or below. */
+  | { kind: "away"; floor: FloorId; x: number; y: number }
 );
 
 export interface House {
@@ -96,6 +109,10 @@ export interface House {
   roomShown: (room: string) => Promise<void>;
   /** Whether every room placed so far is built and baked. */
   built: () => boolean;
+  /** Whether every figure shows as itself, none still a pawn while it is meshed. */
+  figuresIn: () => boolean;
+  /** How many rooms show, lit: a room shows once it has its direct light. */
+  roomsShown: () => number;
   /** Shows one floor, or every floor stacked apart. */
   showFloor: (floor: FloorChoice) => void;
   /** The centre in the scene of a cell, with its floor stacked as it shows. */
@@ -116,10 +133,6 @@ export interface House {
   rebake: (room: string) => Promise<Rebake>;
   /** Where in the scene a point in the house is, with its floor stacked as it shows. */
   scenePoint: (point: HousePoint) => THREE.Vector3;
-  /** Where an explorer stands in a room: the room's standing spots in the
-   *  order it fills them, the first its pawn spot; in a barrier room, those
-   *  on `side`, the explorer's own side of it. */
-  spot: (room: string, slot: number, side?: Edge | null) => HousePoint;
   /** The way a figure faces standing in a room it has just been put in: as the room is turned. */
   roomHeading: (room: string) => number;
   addFigure: (figure: HouseFigure, at: HousePoint, heading: number) => void;
@@ -142,21 +155,25 @@ export interface House {
    *  as given, without baking it; null takes it away. A room just placed or
    *  moved shows as a ghost too, until it is baked and shows itself. */
   setGhost: (ghost: PlacedTile | null) => void;
+  /** The light the whole house takes from the sky and the ground; the backdrop's sky is its sky colour. */
+  fill: THREE.HemisphereLight;
   fog: THREE.Fog;
   background: THREE.Color;
+  /** The house's light as a whole: shifting to the haunt's at its reveal, or set at once. */
+  setMood: (mood: HouseMood, how: { shifting: boolean }) => void;
+  /** Lifts a room `setLayout` just moved off `from`, its old place, and
+   *  carries it with the figures standing in it (`riders`) to where it now
+   *  is; until it lands, the room as baked there and its settling ghost wait
+   *  hidden. */
+  liftRoom: (room: string, from: PlacedTile, riders: readonly string[]) => RoomFlight;
   /** Resolves once the house as first laid out is built and baked. */
   ready: Promise<void>;
   dispose: () => void;
 }
 
-/** Where figures stand in a room with nothing in it: a square of spots round
- *  the middle and two corners, then the middle and the floor between, all
- *  clear of every doorway's lane, whichever doors the tile has. */
-const SHELL_PLACES: Pick<RoomDefinition, "pawn" | "spots" | "overflow"> = {
-  pawn: [0.8, 0.8],
-  spots: [[-0.8, 0.8], [0.8, -0.8], [-0.8, -0.8], [2.0, 2.0], [-2.0, -2.0]],
-  overflow: [[0.0, 0.0], [-2.0, 2.0], [2.0, -2.0], [0.0, 1.7], [0.0, -1.7], [1.7, 0.0]],
-};
+/** Where the active explorer stands in a room with nothing in it: off the
+ *  middle, clear of every doorway's lane, whichever doors the tile has. */
+const SHELL_PRIME: [x: number, z: number] = [0.8, 0.8];
 
 /** A plain room for a tile with no art yet: bare boards and plaster (or, out
  *  of doors, bare earth inside a fieldstone wall), its doors and windows from
@@ -169,7 +186,7 @@ export function shellRoom(id: string): RoomDefinition {
       wall: () => flagstones({ stonePx: 6, seed: id }),
       trim: "ash",
       props: [],
-      ...SHELL_PLACES,
+      prime: SHELL_PRIME,
     };
   }
   return {
@@ -178,7 +195,7 @@ export function shellRoom(id: string): RoomDefinition {
     wall: () => plaster({ seed: id }),
     trim: "woodDark",
     props: [],
-    ...SHELL_PLACES,
+    prime: SHELL_PRIME,
   };
 }
 
@@ -196,17 +213,17 @@ export function definition(id: string): RoomDefinition {
 /**
  * The ring of a player's colour round their figure's base. Figures' rings
  * overlap wherever figures stand close (a crowded room, a big monster spread
- * over its neighbours' spots), and two rings in one plane that both wrote
+ * over its neighbours), and two rings in one plane that both wrote
  * depth would fight there. So a ring tests depth (a base or a leg in front
  * still hides it) but writes none, and draws after the room: where two
  * overlap, the later one lies over the other. Three.js orders draws of one
  * render order by material, and each ring has its own, made once, so which
  * lies on top stays the same from frame to frame as the camera moves.
  */
-export function colourRing(colour: PaletteKey): THREE.Mesh {
+export function colourRing(colour: PaletteKey, { inner, outer }: { inner: number; outer: number } = COLOUR_RING): THREE.Mesh {
   const material = glow(colour);
   material.depthWrite = false;
-  const ring = new THREE.Mesh(new THREE.RingGeometry(COLOUR_RING.inner, COLOUR_RING.outer, 24), material);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(inner, outer, 24), material);
   ring.name = "colour ring";
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = COLOUR_RING.height;
@@ -215,11 +232,11 @@ export function colourRing(colour: PaletteKey): THREE.Mesh {
 }
 
 /** A figure with their player's colour round the base, and how the figure walks. */
-function marked({ id, build, colour }: HouseFigure, gait: (seconds: number) => Stride): { marked: THREE.Group; walking: Walking } {
-  const ring = colourRing(colour);
+function marked({ id, build, colour, mark = null }: HouseFigure, gait: (seconds: number) => Stride): { marked: THREE.Group; walking: Walking } {
+  const rings = [colourRing(colour), ...(mark === null ? [] : [colourRing(mark, SIDE_RING)])];
   const figure = build(`${id}:explorer`, gait);
   // A figure that floats has no base for the ring to go round.
-  return { marked: isGrounded(figure) ? group(figure, ring) : group(figure), walking: walkingOf(figure) };
+  return { marked: isGrounded(figure) ? group(figure, ...rings) : group(figure), walking: walkingOf(figure) };
 }
 
 interface Walker {
@@ -233,6 +250,8 @@ interface Walker {
   heading: number;
   walk: Walk | null;
   walking: Walking;
+  /** Riding in a room in flight, which then shows it whatever floor shows. */
+  carried: boolean;
 }
 
 /** A flat patch of glow lying on the floor, `w` along x and `d` along z,
@@ -343,6 +362,18 @@ function stairGlow(run: readonly (readonly [number, number, number])[], fill: TH
   return mark;
 }
 
+/** A cell on another floor, on this one: the corners of a square half a tile across, open along its sides. */
+function awayMark(border: THREE.Material): THREE.Group {
+  const half = TILE / 4;
+  const arm = TILE / 10;
+  const mark = group();
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const [x, z] = [sx * half, sz * half];
+    mark.add(patch(arm, MARK.border, x - (sx * arm) / 2, z - (sz * MARK.border) / 2, MARK.edge, border), patch(MARK.border, arm, x - (sx * MARK.border) / 2, z - (sz * arm) / 2, MARK.edge, border));
+  }
+  return mark;
+}
+
 /** A ring round a figure's colour ring. */
 function figureMark(border: THREE.Material): THREE.Mesh {
   const ring = new THREE.Mesh(new THREE.RingGeometry(FIGURE_MARK.inner, FIGURE_MARK.outer, 32), border);
@@ -354,7 +385,7 @@ function figureMark(border: THREE.Material): THREE.Mesh {
 /**
  * Every choice mark the house may draw in a room, in the room's own frame:
  * its glow, a pad at each doorway, the glow along each stair and a ring at
- * each standing spot. They write no depth, so a face of the room's lying in
+ * each prime place (where a figure most often stands to be chosen). They write no depth, so a face of the room's lying in
  * one of their planes fights them: the overlap check reads them.
  */
 export function roomMarks(def: RoomDefinition): THREE.Group {
@@ -363,7 +394,7 @@ export function roomMarks(def: RoomDefinition): THREE.Group {
   const tile = roomTile(def.id);
   const marks = group(tileMark(fill, border), ...[...tile.doors, ...tile.passages].map((edge) => doorwayMark(edge, fill, border)));
   for (const run of Object.values(def.stairs ?? {})) marks.add(stairGlow(run, fill, border));
-  for (const [x, z] of standingSpots(def)) {
+  for (const [x, z] of primePlaces(def)) {
     const ring = figureMark(border);
     ring.position.set(x, ring.position.y, z);
     marks.add(ring);
@@ -395,10 +426,26 @@ function routeDots(path: readonly HousePoint[]): HousePoint[] {
 /** How high a floor stands in the scene, stacked round the ground floor. */
 const level = (floor: FloorId) => (FLOORS.indexOf(floor) - FLOORS.indexOf("ground")) * STACK_GAP;
 
+/** A room in flight: posed at `t`, from 0 (on its old cell) to 1 (on its new one), and landed. */
+export interface RoomFlight {
+  at: (t: number) => void;
+  land: () => void;
+}
+
 /** An engine layout as a house of rooms, each built in its own frame and laid
  *  at its cell and rotation, on its floor, and the figures in it, who walk
  *  between rooms. Both change as play goes on. */
-export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineScheduler()): House {
+/** How the house does its slow work: `prepare` readies a room's or a figure's
+ *  shaders before it first shows (see `Prepare`), `slices` builds its rooms
+ *  (inline, all at once, unless given), and `figures` meshes its figures
+ *  (as each is built, unless given). */
+export interface HouseWork {
+  prepare?: Prepare;
+  slices?: Slicer;
+  figures?: FigureMesher;
+}
+
+export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineScheduler(), { prepare, slices = inlineSlicer(), figures = meshOnBuild }: HouseWork = {}): House {
   const root = group();
   let layout: Layout = { tiles: [] };
   const levels = new Map<FloorId, THREE.Group>();
@@ -408,9 +455,12 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
   /** Each room's wait to be shown with its light, while it is pending. */
   const shownWhen = new Map<string, Promise<void>>();
   let pending = 0;
+  /** Figures standing in as pawns while theirs are meshed. */
+  let figuresComing = 0;
   /** The walls last cut, so they are cut again only when that changes; cleared when rooms change. */
   let lastCut = "";
-  root.add(fillLight());
+  const fill = fillLight();
+  root.add(fill);
 
   let showing: FloorChoice = "ground";
   const shows = (floor: FloorId) => showing === "all" || showing === floor;
@@ -421,17 +471,23 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     if (!tile) throw new Error(`The house has no room "${room}"`);
     return tile;
   };
-  /** A tile built, frozen and laid at its cell and rotation on its floor's frame. */
-  const placement = (tile: PlacedTile) => {
-    const room = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: closedDoors(layout, CATALOG, tile), falseWindows: falseWindows(layout, CATALOG, tile) }));
-    const matrix = new THREE.Matrix4().compose(new THREE.Vector3(tile.x * TILE, 0, tile.y * TILE), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, tileTurn(tile.rotation), 0)), new THREE.Vector3(1, 1, 1));
-    return { id: tile.tile, room, matrix };
-  };
+  /** A room built, frozen and laid at its cell and rotation on its floor's frame, in steps: laid where its tile is once frozen. */
+  function* placementSteps(id: string): Generator<void, { id: string; room: FrozenRoom; matrix: THREE.Matrix4 }> {
+    const tile = tileOf(id);
+    const built = buildRoom(definition(id), { explorer: null, closedDoors: closedDoors(layout, CATALOG, tile), falseWindows: falseWindows(layout, CATALOG, tile) });
+    yield;
+    const room = yield* freezeSteps(id, built);
+    const at = tileOf(id);
+    const matrix = new THREE.Matrix4().compose(new THREE.Vector3(at.x * TILE, 0, at.y * TILE), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, tileTurn(at.rotation), 0)), new THREE.Vector3(1, 1, 1));
+    return { id, room, matrix };
+  }
+  /** A tile built, frozen and laid at its cell and rotation on its floor's frame, at once. */
+  const placement = (tile: PlacedTile) => runSteps(placementSteps(tile.tile));
   /** The floor's lighting, made (and its level stacked) the first time a room is on it. */
   const floorLighting = (floor: FloorId): LitFloor => {
     const existing = lighting.get(floor);
     if (existing) return existing;
-    const lit = createLitFloor(bakeQueue, floor);
+    const lit = createLitFloor(bakeQueue, floor, prepare);
     const holder = group(lit.root);
     holder.position.y = level(floor);
     holder.visible = shows(floor);
@@ -454,6 +510,45 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     return work;
   };
 
+  /** Rooms waiting to be built, a slice each, by floor: a floor is laid once all of its are built. */
+  const unbuilt = new Map<FloorId, Set<string>>();
+  /** Rooms to be shown with their light once their floor is next laid: how to hand each the bake. */
+  const laying = new Map<FloorId, ((baked: Promise<Rebake>) => void)[]>();
+  const sliceKey = (room: string) => `room:${room}`;
+  const layFloor = (floor: FloorId) => {
+    const baked = track(
+      placeFloor(floor).then((rebake) => {
+        if (!bakes.has(floor)) bakes.set(floor, rebake);
+        return rebake;
+      }),
+    );
+    for (const hand of laying.get(floor) ?? []) hand(baked);
+    laying.delete(floor);
+    lastCut = "";
+  };
+  const layIfBuilt = (floor: FloorId) => {
+    if ((unbuilt.get(floor)?.size ?? 0) === 0) layFloor(floor);
+  };
+  /** Takes a room off the build queue; the floor it waited on, if it did. */
+  const unqueue = (room: string): FloorId | null => {
+    for (const [floor, waiting] of unbuilt) {
+      if (!waiting.delete(room)) continue;
+      slices.cancel(sliceKey(room));
+      pending--;
+      return floor;
+    }
+    return null;
+  };
+  /** Builds a room a few steps a frame; it waits on the build queue until it is done, so a change to it meanwhile drops it. */
+  function* buildNow(room: string, floor: FloorId): Generator<void, void> {
+    const fresh = yield* placementSteps(room);
+    unbuilt.get(floor)?.delete(room);
+    pending--;
+    placements.set(room, fresh);
+    void track(fresh.room.ready);
+    layIfBuilt(floor);
+  }
+
   /** Whether the house as first laid out is in: rooms placed after it show as ghosts while they bake. */
   let started = false;
   const setLayout = (next: Layout): LayoutChange => {
@@ -461,31 +556,33 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     const touched = new Set<FloorId>();
     for (const id of change.removed) {
       touched.add(tileOf(id).floor);
+      unqueue(id);
       placements.delete(id);
     }
     for (const id of change.moved) touched.add(tileOf(id).floor);
     layout = { tiles: next.tiles.map((tile) => ({ ...tile })) };
-    for (const id of change.rebuilt) {
-      const tile = tileOf(id);
-      touched.add(tile.floor);
-      const fresh = placement(tile);
-      placements.set(id, fresh);
-      void track(fresh.room.ready);
-    }
-    for (const floor of FLOORS.filter((candidate) => touched.has(candidate))) {
-      const baked = track(
-        placeFloor(floor).then((rebake) => {
-          if (!bakes.has(floor)) bakes.set(floor, rebake);
-          return rebake;
-        }),
-      );
-      for (const tile of layout.tiles.filter((candidate) => candidate.floor === floor && change.rebuilt.includes(candidate.tile))) {
-        const shown = baked.then(() => {
-          shownWhen.delete(tile.tile);
+    // Every room to build joins the queue before any is built, so a floor is laid only once all of its are in.
+    const building = change.rebuilt.map((id) => {
+      const left = unqueue(id);
+      if (left) touched.add(left);
+      const { floor } = tileOf(id);
+      touched.add(floor);
+      unbuilt.set(floor, (unbuilt.get(floor) ?? new Set()).add(id));
+      pending++;
+      const shown: Promise<void> = new Promise<Promise<Rebake>>((hand) => {
+        laying.set(floor, [...(laying.get(floor) ?? []), hand]);
+      })
+        .then((baked) => baked)
+        .then(() => placements.get(id)?.room.ready)
+        .then(() => {
+          if (shownWhen.get(id) === shown) shownWhen.delete(id);
         });
-        shownWhen.set(tile.tile, shown);
-      }
-    }
+      shownWhen.set(id, shown);
+      return { id, floor };
+    });
+    // The floor showing is built first, so it is lit first.
+    for (const { id, floor } of building) slices.add(sliceKey(id), () => buildNow(id, floor), () => (shows(floor) ? 1 : 0));
+    for (const floor of FLOORS.filter((candidate) => touched.has(candidate) && !building.some((room) => room.floor === candidate))) layIfBuilt(floor);
     lastCut = "";
     if (started) for (const id of [...change.added, ...change.moved]) settle(id);
     for (const id of change.removed) {
@@ -503,10 +600,6 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
       const placedRoom = placements.get(tile.tile);
       return placedRoom ? [{ id: tile.tile, floor: tile.floor, room: placedRoom.room, centre: cellCentre(tile.floor, tile.x, tile.y) }] : [];
     });
-  const spot = (room: string, slot: number, side: Edge | null = null): HousePoint => {
-    const [x, z] = roomSpot(definition(room), slot, side);
-    return inHouse(layout, room, [x, 0, z]);
-  };
 
   const walkers = new Map<string, Walker>();
   const walkerOf = (id: string) => {
@@ -522,7 +615,7 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     }
     walker.holder.position.copy(scenePoint(walker.at));
     walker.holder.rotation.y = walker.heading;
-    walker.holder.visible = shows(walker.at.floor);
+    walker.holder.visible = walker.carried || shows(walker.at.floor);
     lighting.get(walker.at.floor)?.probeAt(new THREE.Vector3(walker.at.x, walker.at.y, walker.at.z), walker.probe.value);
     for (const animation of walker.animations) animation(seconds);
     walker.batch.sync();
@@ -532,6 +625,9 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
   const activeLight = explorerLight();
   root.add(activeLight);
   let active: Walker | null = null;
+  /** The light moving to whoever's turn starts: where it set off from, and when, on the stage's clock (null until its first frame). */
+  let glide: { from: THREE.Vector3; start: number | null } | null = null;
+  const lightGoal = new THREE.Vector3();
 
   /** A glow in a palette colour, kept out of tone mapping: the exposure that
    *  lifts the dark rooms would wash every glow out to the same white. */
@@ -581,14 +677,21 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
         object.rotation.y = tileTurn(tile.rotation);
         return { object, parent: floorHolder(tile.floor) };
       }
-      case "doorway": {
+      case "explore": {
         const tile = tileOf(mark.room);
-        const object = doorwayMark(mark.direction, fill, border);
-        object.position.set(tile.x * TILE, 0, tile.y * TILE);
-        return { object, parent: floorHolder(tile.floor) };
+        const cell = tileMark(null, border);
+        cell.position.set(mark.x * TILE, 0, mark.y * TILE);
+        const doorway = doorwayMark(mark.direction, fill, border);
+        doorway.position.set(tile.x * TILE, 0, tile.y * TILE);
+        return { object: group(cell, doorway), parent: floorHolder(mark.floor) };
       }
       case "figure":
         return { object: figureMark(border), parent: walkerOf(mark.figure).holder };
+      case "away": {
+        const object = awayMark(border);
+        object.position.set(mark.x * TILE, 0, mark.y * TILE);
+        return { object, parent: floorHolder(mark.floor) };
+      }
     }
   };
   const clearMarks = () => {
@@ -611,7 +714,9 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
   let viewFocus: string | null = null;
   /** Whether the player is holding every wall up. */
   let wallsRaised = false;
-  const ghosts = () => [...(choosing ? [choosing] : []), ...settling.values()];
+  /** Rooms moved by a rule, in flight to their new cells: what carries them, and the ghost of each that flies. */
+  const flights = new Map<string, { carrier: THREE.Group; floors: FloorId[]; ghost: Ghost; riders: { id: string; walker: Walker }[] }>();
+  const ghosts = () => [...(choosing ? [choosing] : []), ...settling.values(), ...[...flights.values()].map((flight) => flight.ghost)];
   const cutGhost = (ghost: Ghost) => {
     if (!viewedFrom) return;
     const around: Layout = { tiles: [...liftTile(layout, ghost.tile.tile).tiles, ghost.tile] };
@@ -669,6 +774,58 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     });
   };
 
+  /** A room in flight: the room baked at its new cell and its settling ghost wait hidden, and it shows from either floor. */
+  const hideLanding = (id: string, flight: { carrier: THREE.Group; floors: FloorId[] }) => {
+    const tile = placed(layout, id);
+    const lit = tile && lighting.get(tile.floor)?.rooms.get(id);
+    if (lit) lit.root.visible = false;
+    const waiting = settling.get(id);
+    if (waiting) waiting.holder.visible = false;
+    flight.carrier.visible = flight.floors.some(shows);
+  };
+  const landRoom = (id: string) => {
+    const flight = flights.get(id);
+    if (!flight) return;
+    flights.delete(id);
+    for (const { id: rider, walker } of flight.riders) {
+      walker.carried = false;
+      // A figure taken out of the house in flight has nowhere to land.
+      if (walkers.get(rider) === walker) root.add(walker.holder);
+    }
+    flight.carrier.removeFromParent();
+    dropGhost(flight.ghost);
+    const tile = placed(layout, id);
+    const lit = tile && lighting.get(tile.floor)?.rooms.get(id);
+    if (lit) lit.root.visible = true;
+    const waiting = settling.get(id);
+    if (waiting) waiting.holder.visible = true;
+  };
+  const liftRoom = (id: string, from: PlacedTile, riders: readonly string[]): RoomFlight => {
+    landRoom(id);
+    const to = tileOf(id);
+    const carrier = group();
+    carrier.matrixAutoUpdate = false;
+    root.add(carrier);
+    const ghost = ghostOf({ ...to }, blockedAt(layout, to));
+    carrier.add(ghost.holder);
+    ghost.holder.position.copy(cellCentre(to.floor, to.x, to.y));
+    const carried = riders.map((rider) => ({ id: rider, walker: walkerOf(rider) }));
+    for (const { walker } of carried) {
+      walker.carried = true;
+      carrier.add(walker.holder);
+    }
+    const flight = { carrier, floors: [from.floor, to.floor], ghost, riders: carried };
+    flights.set(id, flight);
+    const ends = [from, to].map((tile) => ({ centre: cellCentre(tile.floor, tile.x, tile.y), turn: tileTurn(tile.rotation) }));
+    const at = (t: number) => {
+      carrier.matrix.copy(carrying(ends[0], ends[1], t));
+      carrier.matrixWorldNeedsUpdate = true;
+    };
+    at(0);
+    hideLanding(id, flight);
+    return { at, land: () => landRoom(id) };
+  };
+
   // Every dot of the route is one instance, so the whole route is one draw call.
   const dotGeometry = new THREE.BoxGeometry(ROUTE.size, 0.015, ROUTE.size);
   const route = new THREE.InstancedMesh(dotGeometry, glowing("flame", 0.9), ROUTE.most);
@@ -688,7 +845,8 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     route.instanceMatrix.needsUpdate = true;
   };
 
-  const corners = () => rooms().filter((room) => shows(room.floor)).flatMap((room) => tileCorners(room.centre));
+  // From the layout, not the rooms built, so the camera frames the house while its rooms are still being built.
+  const corners = () => layout.tiles.filter((tile) => shows(tile.floor)).flatMap((tile) => tileCorners(cellCentre(tile.floor, tile.x, tile.y)));
   const showFloor = (floor: FloorChoice) => {
     showing = floor;
     for (const [id, holder] of levels) holder.visible = shows(id);
@@ -705,6 +863,8 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
   });
 
   const fog = houseFog();
+  const background = fog.color.clone();
+  const mood = houseMood(fill, fog, background);
   return {
     root,
     get layout() {
@@ -719,6 +879,8 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     setLayout,
     roomShown: (room) => shownWhen.get(room) ?? Promise.resolve(),
     built: () => pending === 0,
+    figuresIn: () => figuresComing === 0,
+    roomsShown: () => [...lighting.values()].reduce((sum, lit) => sum + [...lit.rooms.values()].filter((room) => room.root.parent === lit.root).length, 0),
     showFloor,
     cellCentre,
     corners,
@@ -740,11 +902,24 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
       }
     },
     update: (seconds) => {
+      mood.update(seconds);
+      for (const [id, flight] of flights) hideLanding(id, flight);
       for (const lit of lighting.values()) lit.update(seconds);
       for (const walker of walkers.values()) poseWalker(walker, seconds);
       for (const ghost of ghosts()) ghost.room.update(seconds);
       ghostLook.fade.value = 1 - (1 - GHOST_LOOK.low) * (0.5 - 0.5 * Math.cos((seconds * Math.PI * 2) / GHOST_LOOK.period));
-      if (active) activeLight.position.copy(active.holder.position).add(EXPLORER_LIGHT_OFFSET);
+      if (active) {
+        // The world position, as a figure riding in a moving room is carried in it.
+        active.holder.getWorldPosition(lightGoal).add(EXPLORER_LIGHT_OFFSET);
+        if (glide) {
+          glide.start ??= seconds;
+          const t = Math.min(1, (seconds - glide.start) / LIGHT_GLIDE);
+          activeLight.position.lerpVectors(glide.from, lightGoal, t * t * (3 - 2 * t));
+          if (t >= 1) glide = null;
+        } else {
+          activeLight.position.copy(lightGoal);
+        }
+      }
       const pulse = 0.5 + 0.5 * Math.sin(seconds * 3);
       focusFill.opacity = 0.1 + 0.1 * pulse;
       focusBorder.opacity = 0.7 + 0.3 * pulse;
@@ -753,28 +928,59 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     bakes,
     rebake: (room) => {
       const tile = tileOf(room);
+      unqueue(room);
       placements.set(room, placement(tile));
       return track(placeFloor(tile.floor));
     },
     scenePoint,
-    spot,
     roomHeading: (room) => tileTurn(tileOf(room).rotation),
     addFigure: (figure, at, heading) => {
       if (walkers.has(figure.id)) throw new Error(`The house already has a figure "${figure.id}"`);
-      const walker: Walker = { holder: group(), probe: { value: [] }, animations: [], batch: { sync: () => undefined }, at, heading, walk: null, walking: ADULT_WALK };
-      const { marked: built, walking } = marked(figure, (seconds) => (walker.walk ? walkPose(walker.walk, seconds, walker.walking.step).stride : { phase: 0, amount: 0 }));
-      walker.walking = walking;
-      built.traverse((object) => {
-        const animation = animationOf(object);
-        if (animation) walker.animations.push(animation);
-      });
-      walker.probe = patchProbe(built);
-      walker.batch = batchParts(built);
-      walker.holder.add(built);
+      const walker: Walker = { holder: group(), probe: { value: [] }, animations: [], batch: { sync: () => undefined }, at, heading, walk: null, walking: ADULT_WALK, carried: false };
+      const gait = (seconds: number) => (walker.walk ? walkPose(walker.walk, seconds, walker.walking.step).stride : { phase: 0, amount: 0 });
+      /** The figure built, lit by its probe and batched, ready to stand in the holder. */
+      const make = (as: HouseFigure) => {
+        const { marked: built, walking } = marked(as, gait);
+        const animations: Animation[] = [];
+        built.traverse((object) => {
+          const animation = animationOf(object);
+          if (animation) animations.push(animation);
+        });
+        return { built, walking, animations, probe: patchProbe(built), batch: batchParts(built) };
+      };
+      const stand = (made: ReturnType<typeof make>) => {
+        for (const old of [...walker.holder.children]) {
+          old.removeFromParent();
+          disposeTree(old);
+        }
+        Object.assign(walker, { walking: made.walking, animations: made.animations, probe: made.probe, batch: made.batch });
+        walker.holder.add(made.built);
+        void track(texturesUnder(made.built));
+      };
+      if (figures.isMeshed(figure.build)) stand(make(figure));
+      else {
+        // Its pawn in the seat's colour stands in, at once, until the figure is meshed off this thread and its shaders are ready.
+        stand(make({ ...figure, build: () => pawn({ colour: figure.colour }) }));
+        figuresComing++;
+        const standing = () => walkers.get(figure.id) === walker;
+        const arrive = (made: ReturnType<typeof make>) => {
+          if (standing()) stand(made);
+          else disposeTree(made.built);
+          figuresComing--;
+        };
+        void figures.meshed(figure.build).then(() => {
+          if (!standing()) {
+            figuresComing--;
+            return;
+          }
+          const made = make(figure);
+          if (prepare) return prepare(made.built).then(() => arrive(made));
+          arrive(made);
+        });
+      }
       walker.holder.visible = shows(at.floor);
       root.add(walker.holder);
       walkers.set(figure.id, walker);
-      void track(texturesUnder(built));
     },
     removeFigure: (id) => {
       const walker = walkerOf(id);
@@ -794,7 +1000,10 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     },
     figureAt: (id) => walkerOf(id).at,
     setActive: (id) => {
-      active = id === null ? null : walkerOf(id);
+      const next = id === null ? null : walkerOf(id);
+      // The light moves from one explorer to the next, rather than jumping.
+      if (active && next && next !== active) glide = { from: activeLight.position.clone(), start: null };
+      active = next;
     },
     setMarks: (wanted, focused) => {
       clearMarks();
@@ -819,10 +1028,14 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
       placeRoute();
     },
     setGhost,
+    fill,
     fog,
-    background: fog.color.clone(),
+    background,
+    setMood: mood.set,
+    liftRoom,
     ready,
     dispose: () => {
+      for (const id of [...flights.keys()]) landRoom(id);
       clearMarks();
       for (const ghost of ghosts()) dropGhost(ghost);
       for (const lit of lighting.values()) lit.dispose();

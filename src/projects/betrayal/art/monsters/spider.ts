@@ -27,6 +27,7 @@ import {
 import { paletteHex, type PaletteKey } from "../palette";
 import { group } from "../shapes";
 import { ghostly, type MonsterOptions } from "./base";
+import { declareParts, figureParts } from "../figure-parts";
 
 /*
  * The Spider of haunt 04: a giant red-kneed tarantula, a threat to any
@@ -260,8 +261,9 @@ function meshParts() {
   };
 }
 type Parts = ReturnType<typeof meshParts>;
-/** Meshed once on first use and shared by every spider: none of it depends on the seed. */
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const SPIDER_PARTS = figureParts("spider", meshParts);
+declareParts(spider, [SPIDER_PARTS]);
 
 interface Leg {
   hip: THREE.Group;
@@ -296,8 +298,7 @@ function leg(side: -1 | 1, index: number, material: THREE.Material, parts: Parts
 
 /** The Spider. */
 export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false }: MonsterOptions = {}): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+  const parts = SPIDER_PARTS.get();
   const material = chitin(figureMaterial());
   // The legs smoulder brighter than the body, so their lines show on the darkest floor.
   const legMaterial = chitin(figureMaterial(), "blood", stunned ? 0.3 : 0.5);
