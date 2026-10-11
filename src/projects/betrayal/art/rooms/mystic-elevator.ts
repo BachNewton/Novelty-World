@@ -7,7 +7,9 @@ import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, DOOR_HEIGHT, onWall, type PropPlacement, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane } from "../shapes";
+import { shiny, shinyBatch, SHINES } from "../shine";
 import { panelling, pixelTexture, svgTexture, TEXELS_PER_METRE, type PixelLegend } from "../textures";
+
 
 const hex = paletteHex;
 
@@ -34,7 +36,6 @@ function treadPlate(): THREE.Texture {
       const flip = (Math.floor(x / 4) + Math.floor(y / 4)) % 2 === 0;
       let c = rng.next() < 0.06 ? "w" : "p";
       if (x === 0 || y === 0) c = "s";
-      else if (x === 1 || y === 1) c = "h";
       else if ((x === 3 || x === size - 2) && y % 6 === 3) c = "r";
       else if ((y === 3 || y === size - 2) && x % 6 === 3) c = "r";
       else if (x > 4 && y > 4 && x < size - 4 && y < size - 4) {
@@ -45,7 +46,8 @@ function treadPlate(): THREE.Texture {
     }
     rows.push(row);
   }
-  return pixelTexture(rows, { p: "ash", w: "stoneDark", s: "soot", h: "stoneDark", r: "stone", d: "stone" }, true);
+  // Bare iron's colour is what it reflects, so the plate is a step paler than the house's dark stone, and its raised treads and rivets a step paler again.
+  return pixelTexture(rows, { p: "stoneDark", w: "ash", s: "soot", r: "stone", d: "stone" }, true);
 }
 
 /** The dial's face, in pixels: the four floors as dice pips (4 for any floor,
@@ -102,8 +104,8 @@ function dialFace(): THREE.Texture {
  * has swung down past the floors to the red mark of the drop. Faces +z.
  */
 function controlColumn(): THREE.Group {
-  const iron = flat("sootLight");
-  const brass = flat("brass");
+  const iron = shiny(flat("sootLight"), SHINES.iron);
+  const brass = shiny(flat("brass"), SHINES.brass);
   const pedestal = lathe(
     [
       [0, 0],
@@ -189,8 +191,8 @@ function sigil(): THREE.Group {
  * stands by (−1 left, +1 right). `cable` lays a cable over it.
  */
 function pulley(side: -1 | 1, cable: boolean): THREE.Group {
-  const iron = flat("stoneDark");
-  const dark = flat("brass");
+  const iron = shiny(flat("stoneDark"), SHINES.iron);
+  const dark = shiny(flat("brass"), SHINES.brass);
   const { radius, rim, axle } = WHEEL;
   const wheel = group(new THREE.Mesh(new THREE.TorusGeometry(radius, rim, 4, 28).rotateY(Math.PI / 2), flat("stone")));
   for (let i = 0; i < 6; i++) {
@@ -210,11 +212,11 @@ function pulley(side: -1 | 1, cable: boolean): THREE.Group {
   const result = group(turning);
   result.add(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.7, 6).rotateZ(Math.PI / 2).translate(0, axle, 0), dark));
   for (const dx of [-0.32, 0.32]) {
-    result.add(box([0.11, axle + 0.07, 0.24], iron, [dx, 0, 0]), box([0.12, 0.03, 0.26], flat("brass"), [dx, axle + 0.06, 0]));
+    result.add(box([0.11, axle + 0.07, 0.24], iron, [dx, 0, 0]), box([0.12, 0.03, 0.26], dark, [dx, axle + 0.06, 0]));
   }
   if (cable) {
     const over = radius + rim + 0.03;
-    const rope = flat("stoneDark");
+    const rope = shiny(flat("stoneDark"), SHINES.iron);
     const arc = new THREE.Mesh(new THREE.TorusGeometry(over, 0.022, 4, 20, Math.PI).rotateY(Math.PI / 2), rope);
     arc.position.y = axle;
     result.add(arc);
@@ -242,7 +244,7 @@ function slotLip(): THREE.Group {
   b.block([w + lip * 2 + 0.01, 0.02, lip], "brass", [0, 0, d / 2 + lip / 2]);
   b.block([lip, 0.02, d], "brass", [-w / 2 - lip / 2, 0, 0]);
   b.block([lip, 0.02, d], "brass", [w / 2 + lip / 2, 0, 0]);
-  return group(b.mesh());
+  return group(shinyBatch(b, SHINES.brass));
 }
 
 /** One wall's floor slot, wheel and dark, as placed pieces. */
@@ -261,6 +263,7 @@ function wheelBay(side: -1 | 1, cable: boolean): PropPlacement[] {
  *  part above the cut height can hang with the wall. Faces +z. */
 function foldedGate(from: number, to: number): THREE.Group {
   const b = batch();
+  const brass = batch();
   const height = DOOR_HEIGHT;
   const bars = 7;
   const width = 0.32;
@@ -268,11 +271,11 @@ function foldedGate(from: number, to: number): THREE.Group {
     const x = -width / 2 + (i * width) / (bars - 1);
     const y0 = Math.max(from, 0.04);
     const y1 = Math.min(to, height - 0.04);
-    if (y1 > y0) b.block([0.025, y1 - y0, 0.03], i % 2 ? "brass" : "woodMid", [x, y0 - from, 0.05 + (i % 2) * 0.03]);
+    if (y1 > y0) (i % 2 ? brass : b).block([0.025, y1 - y0, 0.03], i % 2 ? "brass" : "woodMid", [x, y0 - from, 0.05 + (i % 2) * 0.03]);
   }
   if (from === 0) b.block([width + 0.06, 0.04, 0.12], "soot", [0, 0, 0.07]);
-  if (to >= height) b.block([width + 0.06, 0.05, 0.12], "brass", [0, height - 0.04 - from, 0.07]);
-  return group(b.mesh());
+  if (to >= height) brass.block([width + 0.06, 0.05, 0.12], "brass", [0, height - 0.04 - from, 0.07]);
+  return group(b.mesh(), shinyBatch(brass, SHINES.brass));
 }
 
 function gate(along: number): PropPlacement[] {
@@ -284,7 +287,7 @@ function gate(along: number): PropPlacement[] {
 
 /** The cab's lamp over the door: a bulb under a brass shade on a bracket, failing. Faces +z. */
 function cageLamp(): THREE.Group {
-  const brass = flat("brass");
+  const brass = shiny(flat("brass"), SHINES.brass);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), glow("amber"));
   bulb.position.set(0, -0.08, 0.26);
   const shade = cylinder(0.13, 0.1, brass, [0, -0.06, 0.26], { top: 0.04, sides: 8 });
@@ -305,7 +308,7 @@ function handrail(): THREE.Group {
   const length = 1.9;
   b.block([length, 0.04, 0.04], "brass", [0, 0, 0.09]);
   for (const x of [-length / 2 + 0.1, 0, length / 2 - 0.1]) b.block([0.03, 0.03, 0.09], "brass", [x, 0.005, 0.045]);
-  return group(b.mesh());
+  return group(shinyBatch(b, SHINES.brass));
 }
 
 /** The cab's bench seat along a wall, buttoned in faded violet. Faces +z. */
@@ -326,7 +329,7 @@ function cabBench(): THREE.Group {
 /** The operator's stool, knocked over on its side: a round violet seat on an
  *  iron post with three feet. */
 function toppledStool(): THREE.Group {
-  const iron = flat("sootLight");
+  const iron = shiny(flat("sootLight"), SHINES.iron);
   const stool = group(
     cylinder(0.025, 0.62, iron, [0, 0.02, 0], { sides: 6 }),
     cylinder(0.18, 0.08, flat("bruise"), [0, 0.62, 0], { sides: 10 }),
@@ -346,7 +349,7 @@ function toppledStool(): THREE.Group {
 
 /** The cut cable, lying where it fell in loose coils, its end frayed. */
 function cableCoil(): THREE.Group {
-  const rope = flat("stoneDark");
+  const rope = shiny(flat("stoneDark"), SHINES.iron);
   const rng = createRng("mystic-elevator:coil");
   const result = group();
   for (let i = 0; i < 4; i++) {
@@ -404,9 +407,10 @@ const SIDES: [Edge, -1 | 1][] = [["left", -1], ["right", 1]];
 export const MYSTIC_ELEVATOR: RoomDefinition = {
   id: "mystic-elevator",
   floor: treadPlate,
-  wall: () => panelling({ ramp: RAMPS.wood, panelPx: 20, seed: "mystic-elevator" }),
-  wainscot: () => panelling({ ramp: ["void", "soot", "sootLight", "ash"] as readonly PaletteKey[], panelPx: 32, seed: "mystic-elevator-kick" }),
+  wall: () => panelling({ ramp: RAMPS.wood, panelPx: 20, seed: "mystic-elevator", glints: false }),
+  wainscot: () => panelling({ ramp: ["void", "soot", "sootLight", "ash"] as readonly PaletteKey[], panelPx: 32, seed: "mystic-elevator-kick", glints: false }),
   trim: "brass",
+  shine: { wall: SHINES.floorSheen, wainscot: SHINES.floorSheen, trim: SHINES.brass },
   floorOpenings: SIDES.map(([, side]) => ({
     x: (side < 0 ? [-SLOT.x[1], -SLOT.x[0]] : SLOT.x) as [number, number],
     z: SLOT.z,
@@ -428,7 +432,5 @@ export const MYSTIC_ELEVATOR: RoomDefinition = {
   ],
   lights: SIDES.map(([, side]) => ({ at: [side * SLOT_MID, -0.15, 0] as [number, number, number], colour: "violet" as const, intensity: 4, range: 5 })),
   focus: [COLUMN[0], 1.2, COLUMN[1]],
-  pawn: [-1.0, -1.0],
-  spots: [[1.6, 0.35], [-2.3, -2.1], [-0.35, 0.6], [2.3, -1.8], [0.7, -1.2]],
-  overflow: [[-1.6, 0.5], [-1.1, -2.1], [1.0, -1.95], [-0.6, 1.35], [0.1, -1.7], [-1.6, -0.5]],
+  prime: [-1.0, -1.0],
 };

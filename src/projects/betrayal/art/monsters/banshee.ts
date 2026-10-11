@@ -1,11 +1,14 @@
 import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { arm, burst, floats, joins, pose, reach, STANDING, walks, type Gait, type Joint, type Limb } from "../explorers/figure";
+import { arm, floats, idleBursts, joins, pose, reach, STANDING, walks, type Gait, type Joint, type Limb } from "../explorers/figure";
 import { ball, ellipsoid, glowShaded, loft, rod, sculpt, stretched, type Section } from "../forms";
 import { paletteHex, type PaletteKey } from "../palette";
 import { group, lightMaterial } from "../shapes";
 import { floorGlow, spectral, type MonsterOptions } from "./base";
+import { declareParts, figureParts } from "../figure-parts";
+import { clothMoment, clothNet, clothOnClock, clothSheet, clothMode, FABRICS, simulatesCloth, type ClothMode, type SheetLook } from "../explorers/cloth-sim";
+import { windOf } from "../wind";
 
 /*
  * The Banshee: a wailing spirit in sickly green, the supernatural's colour.
@@ -95,6 +98,52 @@ function veil(): THREE.BufferGeometry {
   return loft(sections, { sides: 18, ends: ["flat", "flat"] });
 }
 
+/** The shroud: her veil as a simulated net, 12 round by 7 down, hung
+ *  from under her robe, kept off it; nothing else pushes it but her own drifting, gliding and turning, and the room's air. Its rings,
+ *  from the top, at the veil's heights and radii. */
+const SHROUD: readonly (readonly [y: number, radius: number])[] = [
+  // Hung well inside the round end of her robe, so it leaves the robe through its underside at a steep angle and
+  // never lies along it.
+  [-0.33, 0.14],
+  [-0.45, 0.25],
+  [HEM - WAIST + 0.18, 0.27],
+  [HEM - WAIST, 0.3],
+];
+const SHROUD_NET = { around: 12, down: 7 };
+/** Gauze, and the room it leaves her robe. */
+const SHROUD_FEEL = { ...FABRICS.gauze, room: 0.02, roomAtTop: 0 };
+/** Her robe's lower end, as the shroud sees it: it can't swing into it (its top hangs from inside it, out of sight). */
+const ROBE_END = { top: new THREE.Vector3(0, -0.1, 0), bottom: new THREE.Vector3(0, -0.3, 0), radius: 0.2 };
+/** Its mesh: one sheet of light, the darker green at the hem; its inside is black, which light adds nothing to. */
+const SHROUD_LOOK: SheetLook = {
+  across: 54,
+  down: 21,
+  thickness: 0.004,
+  inset: () => 0,
+  colour: (_, v, inside) => (inside ? "void" : v > 0.85 ? "wraithDark" : "wraith"),
+};
+
+/** A point on the shroud, `round` it (a share of a turn) and `along` it from the top to the hem, in the robe's frame. */
+function onShroud(round: number, along: number): THREE.Vector3 {
+  const y = SHROUD[0][0] + (SHROUD[SHROUD.length - 1][0] - SHROUD[0][0]) * along;
+  const ring = SHROUD.findIndex(([at], i) => i > 0 && at <= y);
+  const [[y0, r0], [y1, r1]] = [SHROUD[ring - 1], SHROUD[ring]];
+  const radius = r0 + ((r1 - r0) * (y - y0)) / (y1 - y0);
+  return new THREE.Vector3(radius * Math.cos(round * Math.PI * 2), y, radius * Math.sin(round * Math.PI * 2));
+}
+
+/** The shroud as a simulated net: the net, its mesh, the moment it hangs in, and what steps it on the clock. */
+function shroudNet() {
+  const { around, down } = SHROUD_NET;
+  const rest = new Float64Array(around * down * 3);
+  for (let j = 0; j < down; j++) for (let i = 0; i < around; i++) rest.set(onShroud(i / around, j / (down - 1)).toArray(), (j * around + i) * 3);
+  const shape = { rest, around, down, closed: true, outward: 1 as const, round: true };
+  const body = clothNet(shape, SHROUD_FEEL);
+  const sheet = clothSheet(body, shape, SHROUD_LOOK);
+  const moment = clothMoment(1);
+  return { body, sheet, moment, swing: clothOnClock(body, 1, sheet.follow) };
+}
+
 /** A ring of light round the robe, a hand's width out. */
 function halo(): THREE.BufferGeometry {
   const sections: Section[] = [
@@ -159,9 +208,9 @@ function meshParts() {
     forearms: [glowShaded(forearm(-1)), glowShaded(forearm(1))],
   };
 }
-type Parts = ReturnType<typeof meshParts>;
-/** Meshed once on first use and shared by every banshee: none of it depends on the seed. */
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const BANSHEE_PARTS = figureParts("banshee", meshParts);
+declareParts(banshee, [BANSHEE_PARTS]);
 
 /** Light added to what lies behind it, coloured by its geometry's colours. */
 function light(opacity: number): THREE.MeshBasicMaterial {
@@ -178,9 +227,8 @@ function light(opacity: number): THREE.MeshBasicMaterial {
  * darkest greens. Moving, she glides: she leans into the way she goes and her
  * tatters and hair stream behind her; she has no legs to stride.
  */
-export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = false }: MonsterOptions = {}): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = false, cloth = clothMode() }: MonsterOptions & { cloth?: ClothMode } = {}): THREE.Group {
+  const parts = BANSHEE_PARTS.get();
   const glowing = spectral(stunned ? 0.5 : 1);
   const mesh = (geometry: THREE.BufferGeometry, material: THREE.Material = glowing, name = "") => {
     const made = new THREE.Mesh(geometry, material);
@@ -200,7 +248,9 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
     return piece;
   });
   const robe = mesh(parts.robe, glowing, "robe");
-  const hem = group(robe, mesh(parts.veil, veil), mesh(parts.halo, halo), ...tatters);
+  // Her veil is a simulated net, its tatters riding its hem, unless `?cloth=off`.
+  const shroud = cloth === "net" ? shroudNet() : null;
+  const hem = group(robe, mesh(shroud?.sheet.geometry ?? parts.veil, veil, "veil"), mesh(parts.halo, halo), ...tatters);
 
   // Her hair: one sheet hanging from the back of her crown to between her
   // shoulders, splitting into ragged locks that stream behind her. A sheet
@@ -274,6 +324,24 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
   const offset = rng.next() * 100;
   const sink = stunned ? -0.22 : 0;
 
+  if (shroud) simulatesCloth(figure, shroud.body);
+  const intoHem = new THREE.Matrix4();
+  const hemPoint = new THREE.Vector3();
+  /** Where the shroud's hem is, round it at a share `round` of a turn, in the robe's frame. */
+  const shroudHem = (round: number, out: THREE.Vector3) => {
+    if (!shroud) throw new Error("Only the shroud has a hem to follow");
+    const { around, down } = SHROUD_NET;
+    const at = (((round % 1) + 1) % 1) * around;
+    const i = Math.floor(at);
+    const point = (k: number) => hemPoint.fromArray(shroud.body.points, ((down - 1) * around + (k % around)) * 3).applyMatrix4(intoHem);
+    const first = point(i).clone();
+    return out.lerpVectors(first, point(i + 1), at - i);
+  };
+  // Stunned, she neither wails nor beckons.
+  const bursts = stunned ? null : idleBursts(figure, seed, offset, { wail: { every: 7, lasts: 3, chance: 0.75 }, beckon: { every: 5, lasts: 2.4, chance: 0.5 } });
+  const TATTER_INSET = new THREE.Vector3(0.9, 1, 0.9);
+  const tatterRounds = tatters.map((piece) => Math.atan2(piece.position.z, piece.position.x) / (Math.PI * 2));
+
   // She glides: no hop, and the step only paces how her tatters stream.
   return floats(walks(
     animated(figure, (clock) => {
@@ -281,8 +349,9 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
       const glide = gait(clock).amount;
       const drift = Math.sin((seconds / 3.4) * Math.PI * 2);
       const sway = Math.sin((seconds / 7.3) * Math.PI * 2 + swayPhase);
-      const wail = stunned ? 0 : burst(seconds, `${seed}:wail`, { every: 7, lasts: 3, chance: 0.75 }).amount * (1 - glide);
-      const beckon = stunned ? 0 : burst(seconds, `${seed}:beckon`, { every: 5, lasts: 2.4, chance: 0.5 }).amount * (1 - wail);
+      const idle = bursts?.(clock);
+      const wail = (idle?.wail.amount ?? 0) * (1 - glide);
+      const beckon = (idle?.beckon.amount ?? 0) * (1 - wail);
 
       body.position.y = WAIST + sink + drift * (stunned ? 0.015 : 0.05) + wail * 0.06;
       body.rotation.z = sway * 0.05;
@@ -295,6 +364,24 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
 
       // Her light on the floor is brighter as she drifts lower, and flares as she wails.
       poolMaterial.opacity = resting * (1 - drift * 0.2 + wail * 0.4);
+
+      if (shroud) {
+        // Her shroud swings from under her robe as she drifts, glides and turns, in the room's air; her tatters hang from its hem.
+        figure.updateWorldMatrix(true, true);
+        shroud.moment.anchor.copy(hem.matrixWorld);
+        const [robeEnd] = shroud.moment.capsules;
+        robeEnd.a.copy(ROBE_END.top).applyMatrix4(hem.matrixWorld);
+        robeEnd.b.copy(ROBE_END.bottom).applyMatrix4(hem.matrixWorld);
+        robeEnd.radius = ROBE_END.radius;
+        windOf(figure)(clock, shroud.moment.wind);
+        shroud.swing(clock, shroud.moment);
+        intoHem.copy(hem.matrixWorld).invert();
+        tatters.forEach((piece, i) => {
+          // A little in from the hem and above it, as the veil's tatters hang.
+          shroudHem(tatterRounds[i], piece.position).multiply(TATTER_INSET);
+          piece.position.y += 0.03;
+        });
+      }
 
       // Tatters ripple, and stream back as she glides.
       tatters.forEach((piece, i) => {

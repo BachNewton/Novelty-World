@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { paletteHex, type PaletteKey } from "./palette";
-import type { FlickerSignal } from "./room";
+import type { FlickerSignal, LampKind } from "./room";
+import { pageSearch } from "./page-search";
 
 /*
  * How the house is lit. Almost everything in it stands still, so its light is
@@ -14,15 +15,76 @@ import type { FlickerSignal } from "./room";
  */
 
 /**
+ * How shadows are drawn, a prototype behind `?shadows=`: `hard` (the default)
+ * bakes every lamp as a point and reads the lightmap bilinearly; `soft` gives
+ * each lamp its size (`LAMP_RADIUS`) and the moon its spread, so a shadow is
+ * crisp where it touches and softens with distance, and reads the lightmap
+ * through a cubic B-spline, so no edge shows the texel grid.
+ */
+export type ShadowMode = "hard" | "soft";
+
+function shadowsFromSearch(search: string): ShadowMode {
+  const value = new URLSearchParams(search).get("shadows") ?? "hard";
+  if (value !== "hard" && value !== "soft") throw new Error(`shadows=${value}: it is hard or soft`);
+  return value;
+}
+
+/** How this page draws shadows. Floors are also baked in tests, which have no page, and get the default. */
+export function shadowMode(): ShadowMode {
+  return shadowsFromSearch(pageSearch());
+}
+
+/**
+ * Soft shadows: `rays` shadow rays a lamp per texel, spread over the lamp's
+ * disc as seen from the texel (and over the moon's), in one fixed sunflower
+ * pattern, so the penumbra is smooth and the bake the same every time.
+ * `moonSpread` is the moon's angular radius, in radians: far wider than the
+ * moon's own, as the sky's glow round it comes in through a window with it.
+ */
+export const SOFT_SHADOWS = { texelsPerMetre: 16, rays: 16, moonSpread: (2.5 * Math.PI) / 180 };
+
+/** Each kind of lamp's radius in metres, as soft shadows see it: what its light comes from. */
+export const LAMP_RADIUS: Record<LampKind, number> = {
+  candle: 0.015,
+  candelabra: 0.06,
+  lamp: 0.02,
+  fire: 0.2,
+  glow: 0.12,
+};
+
+/**
+ * The lightmap density tests bake at, in texels a metre: fixed and coarse, so
+ * a test of what the bake does (which rooms it reaches, light through a
+ * doorway) or of the UI around it neither depends on the game's own density
+ * nor slows with it.
+ */
+export const TEST_TEXELS_PER_METRE = 8;
+
+/** Whether a page's query string asks for the test density: `?lightmap=test`, for end-to-end tests, which check the UI, not the light. */
+function testLightmapFromSearch(search: string): boolean {
+  const value = new URLSearchParams(search).get("lightmap") ?? "game";
+  if (value !== "game" && value !== "test") throw new Error(`lightmap=${value}: it is game or test`);
+  return value === "test";
+}
+
+function testLightmap(): boolean {
+  return testLightmapFromSearch(pageSearch());
+}
+
+/**
  * The lightmap's own resolution and filtering, independent of the render
  * resolution and of the textures' pixel size: one setting, so the look can be
- * judged and changed in one place. 16 texels a metre (6 cm) keeps a shadow's
- * edge as sharp as a candle's would be at this scale; linear filtering lets
- * it fall off smoothly at native resolution and is no softer than a pixel at
- * a low one. `nearest` gives blocky shadow edges instead.
+ * judged and changed in one place. Hard shadows take the finer density, as a
+ * point lamp's edge is only as sharp as a texel; soft shadows take
+ * `SOFT_SHADOWS.texelsPerMetre`, their edges being soft already. Linear
+ * filtering lets light fall off smoothly at native resolution (soft shadows
+ * build their cubic filter from it); `nearest` gives blocky shadow edges instead.
  */
-export const LIGHTMAP: { texelsPerMetre: number; filter: "linear" | "nearest" } = {
-  texelsPerMetre: 10,
+export const LIGHTMAP: { readonly texelsPerMetre: number; filter: "linear" | "nearest" } = {
+  get texelsPerMetre() {
+    if (testLightmap()) return TEST_TEXELS_PER_METRE;
+    return shadowMode() === "soft" ? SOFT_SHADOWS.texelsPerMetre : 48;
+  },
   filter: "linear",
 };
 
@@ -46,7 +108,7 @@ function bounceFromSearch(search: string): boolean {
 
 /** Whether this page bakes the bounce. Floors are also baked in tests, which have no page. */
 export function bounceOn(): boolean {
-  return bounceFromSearch(typeof window === "undefined" ? "" : window.location.search);
+  return bounceFromSearch(pageSearch());
 }
 
 /** The light the whole house shares: one fill, one moon shining from a fixed
@@ -76,6 +138,8 @@ export interface BakedLight {
   flicker: number;
   /** What it wavers with; unset, a flame signal is picked by its place in the room. */
   signal?: FlickerSignal;
+  /** What gives it, which sets its size for soft shadows; a lamp's glass when unset. */
+  kind?: LampKind;
 }
 
 /** The deepest flicker the flicker map can hold. */

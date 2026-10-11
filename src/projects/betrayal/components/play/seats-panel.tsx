@@ -1,75 +1,43 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { StandardButton } from "@/shared/lib/gamepad";
 import type { GameView } from "../../engine/view";
 import { viewExplorer } from "../../engine/view";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
-import { padMayAct, padName, padOf, seatListPress } from "../../play/pads";
+import { padMayAct, padName, padOf } from "../../play/pads";
 import { seatLabel } from "../describe";
 import { PadPicker } from "./pad-picker";
 import { seatDot } from "./seat-colour";
-import { buzz, type PadSeats } from "./use-pads";
+import type { PadSeats } from "./use-pads";
 
 /*
  * Several pads on one device during the game. Only the pads of the seat the
  * game waits on act (an open seat's, any pad): the rest are idle, but any
- * pad's Menu opens the seats panel, where pads take and give back seats.
- * Touch and the mouse use the same panel, from the header or the status
- * box, and always act for whoever the game waits on.
+ * pad's Menu opens the game menu, where pads take and give back seats. Touch
+ * and the mouse use the same menu, from its button, and always act for
+ * whoever the game waits on.
  */
 
 export interface SeatsGate {
-  open: boolean;
-  /** Opens or closes the panel, by touch or mouse; the highlight starts on the acting seat. */
-  setOpen: (open: boolean) => void;
-  /** The seat a pad's d-pad has highlighted in the panel. */
-  highlighted: number;
-  /** Offered every pad button first: true when the panel took it, or the pad is idle and must do nothing. */
-  padButton: (button: StandardButton, pad: number) => boolean;
-  /** Whether a pad may act on the house now. */
+  /** Whether the game menu is open: the house and its pads wait while it is. */
+  menuOpen: boolean;
+  setMenuOpen: (open: boolean) => void;
+  /** Whether a pad may act on the house now: the acting seat's, with the menu shut. */
   padMay: (pad: number) => boolean;
+  /** Whether a pad plays the seat the game waits on, menu or not. */
+  padActs: (pad: number) => boolean;
 }
 
-export function useSeatsGate(pads: PadSeats, holder: number, seats: number): SeatsGate {
-  const [panel, setPanel] = useState<{ highlighted: number } | null>(null);
-  const latest = useRef({ pads, holder, seats, panel });
+export function useSeatsGate(pads: PadSeats, holder: number): SeatsGate {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const latest = useRef({ pads, holder, menuOpen });
   useEffect(() => {
-    latest.current = { pads, holder, seats, panel };
+    latest.current = { pads, holder, menuOpen };
   });
-
-  const setOpen = useCallback((open: boolean) => {
-    setPanel(open ? { highlighted: latest.current.holder } : null);
-  }, []);
-
-  const padButton = useCallback((button: StandardButton, pad: number) => {
-    const { pads: now, holder: acting, seats: count, panel: shown } = latest.current;
-    if (button === "Menu") {
-      setPanel(shown ? null : { highlighted: acting });
-      return true;
-    }
-    if (shown) {
-      if (button === "B") setPanel(null);
-      const next = seatListPress(button, pad, { focus: shown.highlighted, count, assignment: now.assignment });
-      if (next) {
-        setPanel({ highlighted: next.focus });
-        if (next.assignment !== now.assignment) {
-          now.set(next.assignment);
-          if (padOf(next.assignment, next.focus) === pad) buzz(pad);
-        }
-      }
-      return true;
-    }
-    return !padMayAct(now.assignment, acting, pad);
-  }, []);
-
-  const padMay = useCallback((pad: number) => {
-    const { pads: now, holder: acting, panel: shown } = latest.current;
-    return shown === null && padMayAct(now.assignment, acting, pad);
-  }, []);
-
-  return { open: panel !== null, setOpen, highlighted: panel?.highlighted ?? holder, padButton, padMay };
+  const padActs = useCallback((pad: number) => padMayAct(latest.current.pads.assignment, latest.current.holder, pad), []);
+  const padMay = useCallback((pad: number) => !latest.current.menuOpen && padActs(pad), [padActs]);
+  return { menuOpen, setMenuOpen, padMay, padActs };
 }
 
 /** Hints follow the input the acting seat last used: each seat's is remembered, and restored when the game turns to that seat. */
@@ -97,48 +65,29 @@ export function freedText(view: GameView, pads: PadSeats): string | null {
     .join(" ");
 }
 
-export function SeatsPanel({ view, pads, gate }: { view: GameView; pads: PadSeats; gate: SeatsGate }) {
-  if (!gate.open) return null;
+/** The game menu's seats: each seat's pad, picked by any input. */
+export function SeatsSection({ view, pads }: { view: GameView; pads: PadSeats }) {
   const freed = freedText(view, pads);
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-(--bt-bg)/70 p-3">
-      <section role="dialog" aria-label="Seats and pads" className="flex max-h-full w-full max-w-md flex-col gap-3 overflow-y-auto rounded border border-(--bt-line) bg-(--bt-panel) p-4">
-        <h2 className="text-lg font-semibold">Seats and pads</h2>
-        <p className="text-xs text-(--bt-muted)">
-          Choose each seat&apos;s pad: a seat with no pad is open to any pad. Touch and the mouse always act for whoever&apos;s turn it is.
-          {pads.connected.length > 0 && " On a pad: the d-pad moves between seats, A takes the highlighted seat for your pad or gives it back, B closes."}
-        </p>
-        {pads.connected.length === 0 && <p className="text-sm">No pads connected: press a button on a pad to connect it.</p>}
-        {freed !== null && <p className="text-sm">{freed}</p>}
-        <ul className="flex flex-col gap-2">
-          {view.seats.map((seat, index) => {
-            const explorer = viewExplorer(view, index);
-            return (
-              <li
-                key={index}
-                aria-label={seatLabel(view, index)}
-                data-highlighted={(pads.connected.length > 0 && gate.highlighted === index) || undefined}
-                className="flex flex-col gap-1 rounded border border-(--bt-line) p-2 data-highlighted:border-(--bt-accent) data-highlighted:bg-(--bt-room)"
-              >
-                <span className="flex items-center gap-1.5 text-sm font-semibold">
-                  {explorer && <span className={`inline-block size-2.5 rounded-full ${seatDot(ENGINE, explorer.definition)}`} />}
-                  {seatLabel(view, index)}
-                </span>
-                <PadPicker seat={index} name={seat.name} pads={pads} />
-              </li>
-            );
-          })}
-        </ul>
-        <button
-          type="button"
-          onClick={() => {
-            gate.setOpen(false);
-          }}
-          className="min-h-11 self-end rounded bg-(--bt-accent) px-4 py-1 font-semibold text-(--bt-bg)"
-        >
-          Done
-        </button>
-      </section>
-    </div>
+    <section aria-label="Seats and pads" className="flex flex-col gap-2">
+      <h3 className="font-semibold">Seats and pads</h3>
+      <p className="text-xs text-(--bt-muted)">Choose each seat&apos;s pad: a seat with no pad is open to any pad. Touch and the mouse always act for whoever&apos;s turn it is.</p>
+      {pads.connected.length === 0 && <p className="text-sm">No pads connected: press a button on a pad to connect it.</p>}
+      {freed !== null && <p className="text-sm">{freed}</p>}
+      <ul className="flex flex-col gap-2">
+        {view.seats.map((seat, index) => {
+          const explorer = viewExplorer(view, index);
+          return (
+            <li key={index} aria-label={seatLabel(view, index)} className="flex flex-col gap-1 rounded border border-(--bt-line) p-2">
+              <span className="flex items-center gap-1.5 text-sm font-semibold">
+                {explorer && <span className={`inline-block size-2.5 rounded-full ${seatDot(ENGINE, explorer.definition)}`} />}
+                {seatLabel(view, index)}
+              </span>
+              <PadPicker seat={index} name={seat.name} pads={pads} />
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

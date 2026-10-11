@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cycleChoice, pickTarget, reticleTarget, stepFloor, type ScreenPoint, type Target } from "./navigate";
+import { cycleChoice, nextInDirection, pickTarget, reticleTarget, stepFloor, type ScreenPoint, type Target } from "./navigate";
 
 const square = (id: string, x: number, y: number, size: number): Target => ({
   id,
@@ -52,16 +52,34 @@ describe("reticleTarget", () => {
   const tiny = square("tiny", 300, 0, 4);
 
   it("selects the choice under the centre, and snaps the reticle onto its anchor", () => {
-    expect(reticleTarget([big, tiny], { x: 30, y: 40 }, 60)).toEqual({ id: "big", at: { x: 100, y: 100 } });
+    expect(reticleTarget([big, tiny], { x: 30, y: 40 }, { snap: 60, held: null })).toEqual({ id: "big", at: { x: 100, y: 100 } });
   });
 
   it("snaps to the nearest choice when the centre is close to it", () => {
-    expect(reticleTarget([big, tiny], { x: 350, y: 2 }, 60)).toEqual({ id: "tiny", at: { x: 302, y: 2 } });
+    expect(reticleTarget([big, tiny], { x: 350, y: 2 }, { snap: 60, held: null })).toEqual({ id: "tiny", at: { x: 302, y: 2 } });
+  });
+
+  it("catches a small thing near the centre over a big room the centre lies in", () => {
+    const room = square("room", 0, 0, 400);
+    const thing = square("thing", 300, 300, 10);
+    expect(reticleTarget([room, thing], { x: 280, y: 290 }, { snap: 60, held: null })?.id).toBe("thing");
+    expect(reticleTarget([room, thing], { x: 210, y: 210 }, { snap: 60, held: null })?.id).toBe("room");
+  });
+
+  it("holds the target caught through a small drift, and lets go once the centre moves clearly away or onto another", () => {
+    const a = square("a", 100, 100, 10);
+    const b = square("b", 150, 100, 10);
+    expect(reticleTarget([a, b], { x: 128, y: 105 }, { snap: 60, held: "a" })?.id).toBe("a");
+    expect(reticleTarget([a, b], { x: 128, y: 105 }, { snap: 60, held: "b" })?.id).toBe("b");
+    expect(reticleTarget([a, b], { x: 154, y: 105 }, { snap: 60, held: "a" })?.id).toBe("b");
+    expect(reticleTarget([a], { x: 175, y: 105 }, { snap: 60, held: "a" })?.id).toBe("a");
+    expect(reticleTarget([a], { x: 175, y: 105 }, { snap: 60, held: null })).toBeNull();
+    expect(reticleTarget([a], { x: 205, y: 105 }, { snap: 60, held: "a" })).toBeNull();
   });
 
   it("selects nothing on open floor", () => {
-    expect(reticleTarget([big, tiny], { x: 250, y: 400 }, 60)).toBeNull();
-    expect(reticleTarget([], { x: 0, y: 0 }, 60)).toBeNull();
+    expect(reticleTarget([big, tiny], { x: 250, y: 400 }, { snap: 60, held: null })).toBeNull();
+    expect(reticleTarget([], { x: 0, y: 0 }, { snap: 60, held: null })).toBeNull();
   });
 });
 
@@ -113,5 +131,32 @@ describe("stepFloor", () => {
 
   it("goes from every floor at once to the home floor", () => {
     expect(stepFloor(floors, "all", 1, "basement")).toBe("basement");
+  });
+});
+
+describe("nextInDirection", () => {
+  const box = (left: number, top: number, width = 80, height = 40) => ({ left, top, right: left + width, bottom: top + height });
+  // Two buttons on a row, a wide one under them, and a small one on a row of its own at the bottom right.
+  const boxes = [box(0, 0), box(100, 0), box(0, 60, 300), box(250, 120, 40, 20)];
+
+  it("goes along a row, and stops at its ends", () => {
+    expect(nextInDirection(boxes, 0, "right")).toBe(1);
+    expect(nextInDirection(boxes, 1, "left")).toBe(0);
+    expect(nextInDirection(boxes, 1, "right")).toBeNull();
+    expect(nextInDirection(boxes, 2, "left")).toBeNull();
+  });
+
+  it("goes to the nearest row up or down, onto the control nearest across", () => {
+    expect(nextInDirection(boxes, 0, "down")).toBe(2);
+    expect(nextInDirection(boxes, 2, "up")).toBe(1);
+    expect(nextInDirection(boxes, 2, "down")).toBe(3);
+    expect(nextInDirection(boxes, 3, "up")).toBe(2);
+    expect(nextInDirection(boxes, 0, "up")).toBeNull();
+  });
+
+  it("counts controls of different heights on one line as one row", () => {
+    const line = [box(0, 0, 80, 44), box(100, 10, 30, 20)];
+    expect(nextInDirection(line, 0, "right")).toBe(1);
+    expect(nextInDirection(line, 0, "down")).toBeNull();
   });
 });

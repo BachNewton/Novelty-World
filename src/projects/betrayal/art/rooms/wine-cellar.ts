@@ -5,6 +5,7 @@ import { lightAnchor } from "../light-anchor";
 import type { PaletteKey } from "../palette";
 import { CUT_HEIGHT, INNER, onWall, type FlickerSignal, type PropPlacement, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, group, textured } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { bricks, flagstones, pixelTexture, TEXELS_PER_METRE } from "../textures";
 
 /** A great cask's radius and length, and how high its cradle holds it. */
@@ -43,12 +44,14 @@ function tally(marks: number): THREE.Mesh {
 function greatCask({ burst = false, marks = 3 }: { burst?: boolean; marks?: number } = {}): THREE.Group {
   const { radius: r, length, lift } = CASK;
   const body = group(lying(r, length, flat("woodMid")));
-  for (const x of [-0.38, -0.13, 0.13, 0.38]) body.add(lying(r + 0.015, 0.045, flat("soot")).translateX(x * length));
+  const hoop = shiny(flat("soot"), SHINES.iron);
+  for (const x of [-0.38, -0.13, 0.13, 0.38]) body.add(lying(r + 0.015, 0.045, hoop).translateX(x * length));
   const head = burst ? lying(r - 0.05, 0.02, flat("void")) : lying(r - 0.03, 0.02, flat("woodLight"));
   head.position.x = length / 2 + (burst ? -0.04 : 0.006);
   body.add(head);
   if (!burst) {
-    body.add(box([0.06, 0.05, 0.05], flat("brass"), [length / 2 + 0.03, -r * 0.62, 0]), box([0.03, 0.06, 0.03], flat("brass"), [length / 2 + 0.05, -r * 0.62 - 0.06, 0]));
+    const tap = shiny(flat("brass"), SHINES.tarnishedBrass);
+    body.add(box([0.06, 0.05, 0.05], tap, [length / 2 + 0.03, -r * 0.62, 0]), box([0.03, 0.06, 0.03], tap, [length / 2 + 0.05, -r * 0.62 - 0.06, 0]));
     const chalk = tally(marks);
     chalk.position.set(length / 2 + 0.02, r * 0.15, 0);
     body.add(chalk);
@@ -93,9 +96,10 @@ function spill(): THREE.Mesh {
   return mesh;
 }
 
-/** A face of bottle bins: wooden lattice with a dark bottle end in each,
- *  some catching the light, a few bins empty. `w` × `h` metres. */
-function binFace(w: number, h: number, seed: string): THREE.Texture {
+/** A face of bottle bins as pixel rows, `w` × `h` metres: wooden lattice (`f`)
+ *  with a dark bottle end in each (`g` green glass, `r` red), and a few bins
+ *  empty (`v`). */
+function binRows(w: number, h: number, seed: string): string[] {
   const cell = 5;
   const width = Math.round((w * TEXELS_PER_METRE) / cell) * cell;
   const height = Math.round((h * TEXELS_PER_METRE) / cell) * cell;
@@ -111,22 +115,26 @@ function binFace(w: number, h: number, seed: string): THREE.Texture {
           grid[cy + y][cx + x] = empty ? "v" : corner ? "v" : glass;
         }
       }
-      if (!empty && rng.next() < 0.45) grid[cy + 2][cx + 2] = "h";
     }
   }
-  return pixelTexture(
-    grid.map((row) => row.join("")),
-    { f: "woodMid", v: "void", g: "verdigrisDark", r: "bloodDark", h: "verdigrisLight" },
-  );
+  return grid.map((row) => row.join(""));
 }
+
+/** The glass of the bottle ends in a face of bins, alone, to lie over the face and take highlights. */
+const BOTTLE_GLASS = { f: null, v: null, g: "verdigrisDark", r: "bloodDark" } as const;
 
 /** Bottle racks against a wall, faces of bins: the part from `from` to `to`
  *  metres up, standing on `base` (`from` by default). Faces +z. */
 function racks(from: number, to: number, base = from): THREE.Group {
   const h = to - from;
-  const face = textured(binFace(RACK.length, h, `wine-cellar:bins:${from}`));
+  const rows = binRows(RACK.length, h, `wine-cellar:bins:${from}`);
+  const face = textured(pixelTexture(rows, { f: "woodMid", v: "void", g: "verdigrisDark", r: "bloodDark" }));
   const wood = flat("soot");
   const result = group(box([RACK.length, h - 0.01, RACK.depth], [wood, wood, wood, wood, face, wood], [0, 0.005, RACK.depth / 2]));
+  // The bottle ends' glass, just proud of the bins' face, so the glass alone shines and the lattice stays wood.
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(RACK.length, h - 0.01), shiny(textured(pixelTexture(rows, BOTTLE_GLASS), true), SHINES.glass));
+  glass.position.set(0, h / 2, RACK.depth + 0.004);
+  result.add(glass);
   // Uprights between the bays and at the ends, standing a little proud of the bins.
   for (const x of [-RACK.length / 2 + 0.03, -RACK.length / 6, RACK.length / 6, RACK.length / 2 - 0.03]) {
     result.add(box([0.1, h, RACK.depth + 0.04], flat("woodDark"), [x, 0, RACK.depth / 2 + 0.02]));
@@ -137,7 +145,7 @@ function racks(from: number, to: number, base = from): THREE.Group {
 
 /** An empty bottle with a candle stub in its neck and wax run down it. */
 function bottleCandle(lit: boolean, height: number, { intensity = 3, signal = 1 as FlickerSignal } = {}): THREE.Group {
-  const glass = flat("verdigrisDark");
+  const glass = shiny(flat("verdigrisDark"), SHINES.glass);
   const result = group(
     cylinder(0.04, height, glass, [0, 0, 0], { sides: 8 }),
     cylinder(0.04, 0.05, glass, [0, height, 0], { top: 0.016, sides: 8 }),
@@ -175,7 +183,7 @@ function tastingCask(): THREE.Group {
     bottle.position.set(x, top, z);
     result.add(bottle);
   }
-  result.add(cylinder(0.035, 0.06, flat("stoneLight"), [0.13, top, 0.14], { sides: 8 }));
+  result.add(cylinder(0.035, 0.06, shiny(flat("stoneLight"), SHINES.pewter), [0.13, top, 0.14], { sides: 8 }));
   return result;
 }
 
@@ -207,7 +215,5 @@ export const WINE_CELLAR: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-(INNER - 0.29), -(INNER - 0.29)], y: 3.05, turn: 45, walls: ["left", "top"] },
   ],
   focus: [-0.6, 0.6, 0.2],
-  pawn: [0.6, 0.55],
-  spots: [[-0.65, -0.4], [1.6, -0.65], [1.0, 2.05], [0.35, -1.6], [1.75, -2.3]],
-  overflow: [[2.05, 2.35], [1.6, 0.55], [-0.4, 0.55], [0.25, -0.5], [1.7, 1.65], [1.95, -1.35]],
+  prime: [0.6, 0.55],
 };

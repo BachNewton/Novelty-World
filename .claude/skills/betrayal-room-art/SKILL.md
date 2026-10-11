@@ -39,9 +39,10 @@ differently from how it looks alone:
   floor in the way, so they spill through open doorways and passages onto
   the rooms next door, and walls (and a shut door) stop them. A room is lit
   partly by its neighbours, and lights them in turn.
-- **Figures stand on the room's standing spots** (see "Standing spots"),
-  and walk in through the centre of each doorway and up and down the
-  stairs.
+- **Figures stand where the placement solver puts them** on the room's
+  free floor, the active explorer on the room's prime place (see "Where
+  figures stand"), and walk in through the centre of each doorway and up
+  and down the stairs, round anyone standing in the way.
 
 **The bench** (`?bench=<room-id>`) shows one room on its own, under an orbit
 camera, with only the two walls facing the camera cut. It is where a room is
@@ -68,12 +69,19 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
 - `room.ts`: the units (one unit is a metre, the tile is 6 m square, walls
   3.2 m), the layout constants (`OUTDOOR` among them), `RoomDefinition`,
   `LightSpec` and `FlickerSignal`, placements, `Contact`, `FloorOpening`,
-  `standingSpots`, `roomSpot`, `onWall`, and `MARK_PLANES` (the heights
-  the house draws its marks at).
+  `primePlaces`, `onWall`, and `MARK_PLANES` (the heights the house draws
+  its marks at).
 - `stage.ts`: builds the shell from the definition (floor, walls, wainscot,
   trim, doors and windows from the room data, or an outdoor tile's low
   walls, railings and gates), places the props and gathers their lights.
   Its limits throw; see "Rules". `pieceOf` says what each built piece is.
+- `wall-marks.ts`: wall marks (`wallMarks` on the definition), drawn into
+  one wall's own texture at its pixel size: a picture's ghost, a stain, a
+  scorch, a worn door edge. A mark recolours the wall's palette colours or
+  paints one over them, with an optional dithered soft rim. Being surface,
+  it stands off nothing and fights nothing, and above the cut height it
+  shows only where the wall stands full. Anything that must be a mark on a
+  wall is one of these, never a plane or block set against the wall.
 - `lighting.ts`, `freeze.ts`, `bake.ts`, `lit-floor.ts`: how a built room is
   drawn. `freezeRoom` merges every still piece into a few meshes by how it
   draws, and lays out the room's lightmap; the bake (run on workers by
@@ -98,6 +106,10 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
 - `light-anchor.ts`: `lightAnchor` puts a light inside a prop, so the light
   goes wherever the prop is placed. It is baked where the prop stands when
   the room is built.
+- `wind.ts`: a room's air (`roomWind`, `withGust`, `blowsOn`, `windOf`; see
+  "Outdoors").
+- `page-search.ts`: `pageSearch`, the one browser check for code a worker may
+  load (see "Rules").
 - `animate.ts`: `animated` marks a piece the stage poses every frame from
   the clock (a pure function of the seconds, so a frozen clock always shows
   the same pose). An animated piece is kept out of the merge and lit by
@@ -106,7 +118,10 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `chamberstick`, `lantern`. Furniture: `table`, `chair`. Stores: `crate`,
   `cask`. Rope: `strand` and `slung` (into a batch), `coil`. Floor openings:
   `pitShell` (the dark round and under a hole) and `pitHaze`. Decor: `rug`,
-  `pictureFrame`, `cobweb`. Water: `water.ts`, for any water (a lake,
+  `pictureFrame`, which hangs a named picture from the silhouette library
+  (`pictures.ts`; no two on one floor are the same), `cobweb`. Turned
+  things: `vessel.ts` (`vessel` for anything with an inside, `solidLathe`
+  for a shut one). Water: `water.ts`, for any water (a lake,
   flooding, a puddle, a fountain). Shape: `wall-mass.ts` (`wallMass`), solid
   wall standing inside the tile, for a room that isn't square; a piece set
   against a mass clears its skirting. And `pawn`, the scale pawn.
@@ -116,16 +131,19 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `chasm.ts` a pit, `underground-lake.ts` water, `furnace-room.ts` fire,
   `graveyard.ts` an outdoor tile, `mystic-elevator.ts` a moving room. Read
   the ones nearest yours closely before the first prop.
-- `overlap.ts` and `overlap.test.ts`: the overlap check, with `zfight.ts`
+- `overlap.ts` and `overlap.slow.test.ts`: the overlap check, with `zfight.ts`
   for faces that share a plane (see "Build it").
 - `bench.ts`: the art bench and its control surface,
   `window.__betrayalBench`: views, zoom, camera, resolution, which explorer
   stands in the room (`setExplorer`), framing the room, the explorer or one
   prop (`setSubject`, `props`), and `freezeClock` to stop flicker and
   animation at a fixed time. Its URL takes `bench=<room-id>`,
-  `explorer=<id>` (a figure, a line-up, or a crowd: `crowd-6`, six explorers
-  one a spot; `crowd-7`, one past the spots; `crowd-spider`), `frame=explorer`,
-  `paths` (the spots and the walks across the room, drawn over it),
+  `explorer=<id>` (a figure, a line-up, or a crowd: `crowd-6`, `crowd-7`,
+  `crowd-spider`, and `place-1` to `place-6`, `place-6-spider` and
+  `place-worst`, the worst case a haunt can bring), `frame=explorer`,
+  `paths` (the prime place, the keep-clear areas, each figure's footprint
+  coloured by how crowded it stands, and the walks across the room, drawn
+  over it; `tools/placement-shots.mjs` shoots every crowd in a room),
   `bounce=off` and `water=<style>`. The house takes `bake-debug`, which shows
   the bake at work.
 - `house*.ts`: the house view and its layouts. Read them to know what the
@@ -168,7 +186,9 @@ character, and records it in the ledger: the Kitchen, on the ground floor
 or in the basement, is a cellar kitchen of brick and flagstone. The Mystic
 Elevator, on every floor, is a deliberate exception: a machine, in iron and
 brass, belonging to no floor. A roof or an attic may break its floor's zone
-too (the Tower's stone roof, the Attic's bare plank walls).
+too (the Tower's stone roof, the Attic's bare plank walls). Whatever its
+zone, it must look right on every floor it can lie on, the basement
+included, where no moonlight comes in: its own lamps carry it there.
 
 ### The lighting language
 
@@ -179,7 +199,8 @@ Colour means something, in light, glows and decals alike:
 | Cold moon blue | the baseline: night, the house itself | `moon` |
 | Warm amber | human and safe-ish: candles, lamps, explorers | `fire` (amber, flame) |
 | Orange | fire itself, which counts as amber: warm and human | `fire` (ember, amber) |
-| Sickly green | the supernatural | `wraith` |
+| Spectral teal | a haunting: a presence, unease (the Bedroom's glow under the bed) | `spectre` (one key) |
+| Sickly green | the corrupt: rot, poison, the ghoulish | `wraith` |
 | Red | danger, blood, the traitor | `scarlet` |
 | Violet | magic and omens | `violet` |
 | Gold | the holy: the Blessing, the Holy Symbol, the Chapel | `gold` |
@@ -207,33 +228,50 @@ signature light's colour and source, and not its zone's surfaces where a
 neighbour on the same floor already wears them in the same way. Adding the
 room's row is part of done.
 
-| Room | Zone and surfaces | Signature shape | Signature light |
-|---|---|---|---|
-| Drawing Room | upper: wood boards, plum (`bruise`) damask, wood panelling | a stone hearth with its fire, and a candlelit table | the hearth's ember glow |
-| Chapel | ground, formal | ranks of pews down a red runner to the altar, under a lancet | gold holy light, and a stylised jewel-coloured pool in front of its stained window |
-| Library | upper: wood boards, verdigris damask, wood panelling | every wall shelved with books, one bookcase fallen | a sickly green glowing book on the floor (`verdigrisLight`) |
-| Grand Staircase | ground: the starting hall's dress, chequered marble, moon-blue papered walls, wood panelling | a broad carpeted flight climbing the back wall | the newel lamp's amber, and the tall window's moon on the marble |
-| Foyer | ground: the starting hall's dress | a brass chandelier hung out of true over the runner | the chandelier's amber |
-| Entrance Hall | ground: the starting hall's dress | the tall barred front door under its fanlight, between standing lamps | twin amber lamps, and the moonlit fanlight |
-| Upper Landing | upper: wood boards, in the starting hall's dress above them | the head of the grand staircase in a balustraded well | the newel lamp's amber |
-| Master Bedroom | upper: wood boards, faded rose (`blood`) sprig paper, wood panelling | a pale four-poster with an open tester, its curtains tied back | one bedside candle's amber against the stage's window pool |
-| Mystic Elevator | **the machine exception**: iron tread plate, dark panelled walls, soot-iron kick panels, brass trim | a telegraph dial column in a floor sigil, pulley wheels turning in floor slots | the dial's violet glow and violet haze from the slots; one failing amber lamp |
-| Chasm | basement: flagstones, brick (`brick` ramp) over a stone footing, stone trim | a ragged gulf wall to wall, crossed by a plank bridge between hand-line posts | sickly green from the depths, under a lone amber lantern |
-| Furnace Room | basement: worn brick, a soot-black brick dado, dark grey flagstones | a squat round iron furnace with pale ducts, its mouth turned to a corner | orange fire from the open mouth and from below (ash pit, floor grate), hard flicker |
-| Graveyard | outdoors: earth with dead grass, a fieldstone low wall, ash iron railings, a gravel path | headstones round an open grave, with an obelisk | the wisp's green over a faint glow from the pit, on moon-blue ground; an amber gate lantern |
-| Underground Lake | basement: flagstones, rough block-stone walls, a dark wet tide-mark dado, stone trim | a sunken lake (the water kit) with a jetty and an empty rowing boat | the lake's cold cyan rippling up the walls; the boat's amber lantern |
-| Kitchen | basement (fits ground too): flagstones, grimy limewashed brick, a bare smoke-browned brick dado | a black iron kitchener between brick piers, pots on the hob | sickly green from inside the boiling pots |
-| Basement Landing | basement anchor: brick-paved floor, pale ashlar walls, a dark ashlar plinth | a pale flag cross from door to door round an iron drain | one iron lamp-standard's amber |
-| Stairs from Basement | basement: big flagstones, ashlar | a steep stone flight up the left wall, its rail torn | amber falling from the Foyer over the head of the flight |
-| Wine Cellar | basement: grey setts, brick over ashlar | casks on cradles, heads to the aisle | amber bottle candles on an upended cask |
-| Creaky Hallway | upper: wood boards, charcoal paper | loose boards sprung into a tent over a hole | sickly green up through every seam |
-| Dusty Hallway | upper, greyed by dust | dust sheets, and footprints ending at a lantern | the lantern's amber in a dust haze |
-| Statuary Corridor | ground, formal: pale marble, charcoal damask | statues in red-lined niches, one stepped down | the moved statue's red eye-light; amber votives |
-| Catacombs | basement: an earth floor, near-black rock | a wall of bones with an arch of skulls | sickly green from the skulls' eyes |
-| Tower | outdoors, a roof. **Breaks its zone**: a stone roof | the fallen belfry and its bell across the roof | an amber-orange beacon fire |
-| Pentagram Chamber | basement: black flagstones, dark brick | a circle and star in light across the whole floor | violet |
-| Junk Room | upper | junk heaped into every corner | an amber oil lamp on the heap |
-| Attic | upper. **Breaks its zone**: bare plank walls | bare joists over lath, a boarded way through | an amber storm lantern |
+The last two columns are its light (see "Measure its light"): the intent,
+dark, normal or bright, which `tools/room-light.mjs` reads from this table,
+and the measured median lightness (L*, 0 black to 100 white) with its 10th
+to 90th percentiles. A bold note is what the tool flagged. The normal band
+is derived from the normal rooms' medians each run (Tukey's fences); on
+these numbers it is L* 0 to 5.0. An intent marked "(proposed)" was read from
+the room's description and waits for the owner's word. The numbers are a
+first baseline, taken while the soft shadows, the picture decor and the
+lightmap density were in flux; re-measure the house once they settle.
+
+| Room | Zone and surfaces | Signature shape | Signature light | Light intent | Measured: median L*, p10–p90 |
+|---|---|---|---|---|---|
+| Drawing Room | upper: wood boards, plum (`bruise`) damask, wood panelling | a stone hearth with its fire, and a candlelit table | the hearth's ember glow | normal (proposed) | 1.3 (0.4–15.5) |
+| Chapel | ground, formal | ranks of pews down a red runner to the altar, under a lancet | gold holy light, and a stylised jewel-coloured pool in front of its stained window | normal (proposed) | 2.3 (0.5–22.2) |
+| Library | upper: wood boards, verdigris damask, wood panelling | every wall shelved with books, one bookcase fallen | a sickly green glowing book on the floor (`verdigrisLight`) | normal (proposed) | 2.1 (0.5–17.1) |
+| Grand Staircase | ground: the starting hall's dress, chequered marble, moon-blue papered walls, wood panelling | a broad carpeted flight climbing the back wall | the newel lamp's amber, and the tall window's moon on the marble | normal (proposed) | 1.3 (0.4–14.3) |
+| Foyer | ground: the starting hall's dress | a brass chandelier hung out of true over the runner | the chandelier's amber | normal (proposed) | 1.9 (0.6–18.5) |
+| Entrance Hall | ground: the starting hall's dress | the tall barred front door under its fanlight, between standing lamps | twin amber lamps, and the moonlit fanlight | normal (proposed) | 1.8 (0.5–16.3) |
+| Upper Landing | upper: wood boards, in the starting hall's dress above them | the head of the grand staircase in a balustraded well | the newel lamp's amber | normal (proposed) | 1.6 (0.4–13.6) |
+| Master Bedroom | upper: wood boards, faded rose (`blood`) sprig paper, wood panelling | a pale four-poster with an open tester, its curtains tied back | one bedside candle's amber against the stage's window pool | normal (proposed) | 1.4 (0.4–19.8) |
+| Mystic Elevator | **the machine exception**: iron tread plate, dark panelled walls, soot-iron kick panels, brass trim | a telegraph dial column in a floor sigil, pulley wheels turning in floor slots | the dial's violet glow and violet haze from the slots; one failing amber lamp | normal (proposed) | 2.4 (0.6–15.4) |
+| Chasm | basement: flagstones, brick (`brick` ramp) over a stone footing, stone trim | a ragged gulf wall to wall, crossed by a plank bridge between hand-line posts | sickly green from the depths, under a lone amber lantern | dark (proposed) | 2.7 (0.4–17.6), **meant dark, but not darker than most normal rooms** |
+| Furnace Room | basement: worn brick, a soot-black brick dado, dark grey flagstones | a squat round iron furnace with pale ducts, its mouth turned to a corner | orange fire from the open mouth and from below (ash pit, floor grate), hard flicker | bright (proposed) | 3.3 (0.6–25.8) |
+| Graveyard | outdoors: earth with dead grass, a fieldstone low wall, ash iron railings, a gravel path | headstones round an open grave, with an obelisk | the wisp's green over a faint glow from the pit, on moon-blue ground; an amber gate lantern | normal (proposed) | 7.3 (1.2–44.5), **brighter than the normal band** |
+| Underground Lake | basement: flagstones, rough block-stone walls, a dark wet tide-mark dado, stone trim | a sunken lake (the water kit) with a jetty and an empty rowing boat | the lake's cold cyan rippling up the walls; the boat's amber lantern | dark (proposed) | 3.7 (0.6–20.2), **meant dark, but not darker than most normal rooms** |
+| Kitchen | basement (fits ground too): flagstones, grimy limewashed brick, a bare smoke-browned brick dado | a black iron kitchener between brick piers, pots on the hob | sickly green from inside the boiling pots | normal (proposed) | 6.1 (0.6–30.1), **brighter than the normal band** |
+| Basement Landing | basement anchor: brick-paved floor, pale ashlar walls, a dark ashlar plinth | a pale flag cross from door to door round an iron drain | one iron lamp-standard's amber | normal (proposed) | 3.9 (0.6–30.6) |
+| Stairs from Basement | basement: big flagstones, ashlar | a steep stone flight up the left wall, its rail torn | amber falling from the Foyer over the head of the flight | normal (proposed) | 5.7 (0.9–23.9), **brighter than the normal band** |
+| Wine Cellar | basement: grey setts, brick over ashlar | casks on cradles, heads to the aisle | amber bottle candles on an upended cask | normal (proposed) | 2.4 (0.5–15.5) |
+| Creaky Hallway | upper: wood boards, charcoal paper | loose boards sprung into a tent over a hole | sickly green up through every seam | dark (proposed) | 1.0 (0.4–14.2) |
+| Dusty Hallway | upper, greyed by dust | dust sheets, and footprints ending at a lantern | the lantern's amber in a dust haze | normal (proposed) | 7.5 (0.6–30.2), **brighter than the normal band** |
+| Statuary Corridor | ground, formal: pale marble, charcoal damask | statues in red-lined niches, one stepped down | the moved statue's red eye-light; amber votives | normal (proposed) | 0.8 (0.3–15.9) |
+| Dining Room | ground, formal: warm cream marble, wine-dark (`blood`) damask, wood panelling, a violet rug | a long table laid for eight under a pale cloth, with a shut silver cloche; the host's chair turned to the window, a guest's knocked over | violet: two silver candelabra whose candles burn violet, flooding the cloth; one amber candle on the sideboard | normal (proposed) | 1.7 (0.5–25.4) |
+| Catacombs | basement: an earth floor, near-black rock | a wall of bones with an arch of skulls | sickly green from the skulls' eyes | dark (proposed) | 2.1 (0.4–35.0), **meant dark, but not darker than most normal rooms** |
+| Tower | outdoors, a roof. **Breaks its zone**: a stone roof | the fallen belfry and its bell across the roof | an amber-orange beacon fire | bright (proposed) | 2.8 (0.6–29.0), **meant bright, but not brighter than most normal rooms** |
+| Pentagram Chamber | basement: black flagstones, dark brick | a circle and star in light across the whole floor | violet | dark (proposed) | 1.6 (0.4–19.0) |
+| Junk Room | upper | junk heaped into every corner | an amber oil lamp on the heap | normal (proposed) | 2.1 (0.5–16.9) |
+| Attic | upper. **Breaks its zone**: bare plank walls | bare joists over lath, a boarded way through | an amber storm lantern | normal (proposed) | 1.4 (0.4–14.9) |
+| Bedroom | upper: wood boards, moon-blue paper with pale stars, cream-painted panelling | two narrow iron bedsteads side by side, one made with a patchwork quilt and a doll, one stripped, its quilt drawn in under it | spectral teal (`spectre`) welling out from under the empty bed; a low amber night-lamp between them | normal (proposed) | 1.3 (0.4–28.5) |
+| Storeroom | upper (fits basement too): pale scrubbed boards, bone limewash plaster, a dark tarred dado | an open slatted store bay in a corner | an amber lantern burning in the bay that nobody lit, its slats barring the floor and walls | normal (proposed) | 8.9 (0.7–38.0), **brighter than the normal band** |
+| Abandoned Room | ground, formal stripped bare (fits basement): wood boards with pale grime-rimmed ghosts where furniture stood, dark gilt (`brass` on `woodDark`) damask with unfaded oblongs where pictures hung, wood panelling | a dapple rocking horse on red bows, alone on its rug's ghost, rocking by itself | a wrong amber: the steady, unflickering pool of a lamp that is no longer there, on the horse and its rug's ghost; a guttered candle by a picture turned to the wall | normal (proposed) | 1.8 (0.5–20.7) |
+| Game Room | ground, formal (fits every floor): wood boards, oxblood (`brickDark`) paper with a spade pip, wood panelling | a green baize billiard table, a cue stroking at the cue ball with no one holding it | twin amber-glass shades hung low, a hard pool of amber on the baize | normal (proposed) | 1.9 (0.5–15.1) |
+| Servants' Quarters | upper (fits basement): plain dark boards, grimy grey-buff limewash, a brown painted board dado | four black iron cots in two rows, a maid's uniform laid out flat on each like a sleeper; the fourth's gone, its blanket flung back, muddy wet boots and prints from the door at its foot | two tallow dips' low amber on stools by the cots' heads | dark (proposed) | 4.3 (0.6–29.3), **meant dark, but not darker than most normal rooms** |
+| Organ Room | ground, formal (fits every floor): dark grey marble, charcoal paper with a moon-blue damask, wood panelling | a pipe organ against the back wall, pale tin pipes in three towers between wooden end towers, its bench knocked over and its music blown across a red rug | a cold pale (`moonLight`) breath from the pipe mouths; amber keydesk candles; its keys go down and up by themselves | normal (proposed) | 2.6 (0.4–16.3) |
 
 Four rooms (the starting hall and the Upper Landing) share one dress and one
 amber light, so telling them apart rests on their shapes alone. Green is the
@@ -275,6 +313,12 @@ way, a cracked font, candles mostly burnt out, a fallen bookcase. **Eerie,
 never gory**: no bodies, wounds or blood as gore; the `blood` keys are for
 cloth, leather and lacquer.
 
+**Settle the uncanny note against the ledger, not just its colour.** Two
+rooms may share a light's colour; they must not share the kind of wrong.
+Several rooms already use "moves by itself" (the Game Room's cue, the
+Abandoned Room's horse, the organ's keys, the Upper Landing's chair): find
+another note unless the room's rules call for it.
+
 ### 3. Lay it out
 
 Sketch the plan in metres before building: the walkable floor is within
@@ -287,40 +331,57 @@ in, so wall dressing comes last. Keep clear:
 - **Every doorway and passage**: nothing stands in its 40 cm depth (the two
   walls between rooms), nor in the lane the house walks straight in through
   its centre, 80 cm deep from the tile's edge.
-- **Every standing spot**: a keep-clear zone, floor and air above it alike.
+- **The prime place**: a keep-clear zone, floor and air above it alike.
 - **Windows**, unless blocking one is the point.
 
-#### Standing spots
+#### Where figures stand
 
-Every room defines **six standing spots**, the prime spot (`pawn`) and five
-more (`spots`), and the room's designer chooses them where they make sense
-in that room: in open floor, where a figure standing there reads and
-doesn't hide the identity. The house fills them in order, so the first is
-the prime spot, for the active explorer: put it in open floor, with open
-floor towards the middle of the room as well. Each spot is clear,
-reachable from every door and out of the doorways' lanes, and **the spots
-stand apart**, at least `SPOT_SPACING` centre to centre, so the figures'
-colour rings (`COLOUR_RING` in `house.ts`) never touch, with a ring's width
-of floor between them. A test checks all of it for every room.
+A room doesn't list where figures stand: the placement solver
+(`placement.ts`) places every figure on the room's free floor, from the
+floor plan the overlap check reads off the built room. The room gives it
+only two things:
 
-**Overflow.** Figures from the seventh on stand on the room's `overflow`
-places, in order: free floor, clear for a base and reachable like a spot,
-and at least `OVERFLOW_SPACING` from every other place, so bases never
-touch though rings may overlap. Give a room as many as its floor allows; a
-room with no free floor left has none. `roomSpot` throws for a figure past
-the last place, rather than stand two figures in one.
+- **The prime place** (`prime`): where the active explorer stands, and the
+  bench stands its explorer. Put it in open floor, where a figure standing
+  there reads and doesn't hide the identity, with open floor towards the
+  middle of the room as well. It must be clear for a base, reachable from
+  every door and out of the doorways' lanes; the overlap check holds it to
+  that. A barrier room gives one in each half: `prime` in one, and
+  `primeAcross` in the other.
+- **Keep-clear areas** (`keepClear`), only where the room needs them: floor
+  in front of what makes the room (the range in the Kitchen, the open grave
+  in the Graveyard), so no figure stands between the player and the
+  identity. Each is a stroke: a segment and a radius round it. Most rooms
+  need none.
+
+**Things that live in rooms aren't the room's art.** Dropped cards, haunt
+objects and tokens are placed in any room by a shared system: objects by
+the placement solver, room effects sized to the tile, connections on the
+tile's edges. A room never reserves places for them; the prime place and
+its keep-clear areas are all it gives.
+
+The doorways and the walking lanes are always kept clear without being
+listed: no figure stands on a lane until the room is crowded enough that
+the rings overlap. Figures stand apart, rings never touching, while the
+room has room; past that it degrades in steps, never failing: rings
+overlap; a large figure takes its crowded pose; then figures stand partly
+behind each other, in the keep-clear areas too, and the room shows a count
+badge. The overlap check places three explorers and six in every room (on
+each side of a barrier room): three must stand apart, and six with their
+rings overlapping at worst. If a room fails that, open up its floor.
 
 **Walks.** A walker needs clear floor of the base's radius (0.36 m) round
 it, and anything solid from the step-over height (7 cm) to 1.8 m blocks it.
 Walks go straight; where a straight walk would be blocked, give the room
 `lanes` to keep to round the obstacle. A barrier room gives its `crossing`,
-the path from one half to the other, and its spots alternate between the
-halves. A stair link needs both rooms' halves of the path (see "Build it").
-`?paths` on the bench draws the spots and the walks over the room.
+the path from one half to the other. A stair link needs both rooms' halves
+of the path (see "Build it"). In play a walk also keeps round the figures
+standing still in the room, planned on its free floor. `?paths` on the
+bench draws where figures stand and the walks over the room.
 
 **Leave room for a big monster.** A large monster (the Spider, the Dragon)
-may stand in a room one day, taking a spot and spreading over its
-neighbours. No room reserves a spot for one, but where it doesn't cost the
+may stand in a room one day, its footprint spreading over its neighbours'.
+No room reserves floor for one, but where it doesn't cost the
 room's identity, keep tall clutter out of the middle of the floor. The
 overlap check reports each room's largest open floor circle; it never fails
 on it.
@@ -338,8 +399,8 @@ not a solid box), or put it against a wall and split it (see "Rules").
 
 A room is one file, `rooms/<room-id>.ts`, exporting one `RoomDefinition`:
 surfaces (floor, wall, optional wainscot, trim colour) from its zone, props,
-lights of its own, the close-up `focus`, and where the explorer stands
-(`pawn`). The bench stands its first explorer there, a person at 1.6 m;
+lights of its own, the close-up `focus`, and the prime place (`prime`).
+The bench stands its first explorer there, a person at 1.6 m;
 shoot with `--explorer=pawn` for the plain scale pawn. Props the room alone
 needs are functions in that file, each with a one-line doc comment saying
 what it is and which way it faces. Give every seeded texture a seed of the
@@ -357,12 +418,12 @@ are needed. The Foyer's secret door down to Stairs from Basement has its
 path but no drawn door yet.
 
 **Run the overlap check** after every change to the props:
-`npx vitest run src/projects/betrayal/art/overlap.test.ts` (headless). It
+`npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/overlap.slow.test.ts` (headless). It
 builds each room in a worker with a time limit, so a build that loops
 forever fails alone instead of hanging the run. It fails when a solid
 passes into another piece, a wall's body or the floor by more than 2 cm (or
 a third of the thinner piece, so a book half sunk in the floor counts), or
-when a piece stands in a doorway's lane or on a standing spot. It tests
+when a piece stands in a doorway's lane or on the prime place. It tests
 each piece's real shape, splitting touching solids into convex parts, so a
 fallen bookcase is judged as it lies. The few millimetres neighbours
 overlap to hide a crack pass, and so does standing into a wall's dressing
@@ -381,7 +442,7 @@ the other's face), never by declaring it.
 When a piece is meant to pass into something, declare it on the piece, in
 one line, with the reason:
 `contacts: [{ with: "left", because: "it has fallen against the wall" }]`.
-`with` names a wall's edge, `floor`, a zone (`pawn`, `doorway top`) or
+`with` names a wall's edge, `floor`, a zone (`prime place`, `doorway top`) or
 another piece by its name. A piece's name is its build function's, or its
 `name` when it has one: give one to any piece built by an inline arrow,
 which the check otherwise calls `prop`. A declared contact that no longer
@@ -395,12 +456,30 @@ the check, or declares each intended contact with its reason.
 See "The review loop". Expect many rounds. Fix the biggest problem each
 round, not the smallest.
 
-### 6. Register it
+### 6. Measure its light
+
+A room is lit by eye, on its own, and the camera has no auto-exposure, so
+a room can drift far brighter or darker than the house without anyone
+meaning it, and the player sees it beside its neighbours. Very dark or very
+bright is fine when it is the room's point; by accident it isn't.
+
+Decide the room's light intent from its identity: dark, normal or bright.
+Then measure it with `tools/room-light.mjs --rooms=<room-id>` (its header
+says how to serve the app for it): it renders the four views fully lit and
+reports the room's median lightness (L*) and its dark and bright spots (the
+10th and 90th percentiles), over the room's own pixels. Compare it with the
+ledger: a normal room sits in the normal band, and a dark or bright one
+clearly below or above it. Where it lands anywhere else, change the light,
+or say in the report why the room belongs where it is. Re-run the whole
+house (no `--rooms`) after a change to the shared lighting, which moves
+every room and the band with them.
+
+### 7. Register it
 
 Add the definition to `BENCH_ROOMS` in `rooms/index.ts`; the bench, the
 house and `shots.mjs` only know rooms listed there. The id must be a tile id
 in `data/rooms.ts` (the stage throws otherwise). Add the room's row to the
-ledger.
+ledger, with its light intent and its measured median and range.
 
 ## Rules
 
@@ -415,7 +494,29 @@ ledger.
   finer. A surface's pixel art moves a whole texel at a time, never
   smoothly. Light and water are not pixel art: water's surface, its
   reflections and caustics, and light itself may move smoothly.
-- **Doorways and the standing spots stay clear** (see "Lay it out"); the
+- **Light makes shine; paint never does.** Never paint shine into a pixel
+  texture: no glints, speckles, highlight pixels, pale bevels or pale
+  "reflection" tones standing in for light catching a surface. Mark a shiny
+  surface instead, with a preset from `SHINES` (`shine.ts`): `shiny(material,
+  SHINES.brass)` for a prop's material, `shinyAll` for a built piece, and the
+  room's `shine` for its shell (floor, wall, wainscot, trim, glass; a
+  `wallMass` takes the same). It then takes real highlights from the room's
+  lamps, flickering with them and stopped where the bake says they are
+  shadowed. Use the preset's name, never numbers; add a preset to `SHINES`
+  when no name fits. A metal takes its surface colour, so paint it one flat
+  mid tone. `?shine=off` shows the room without highlights, for comparison.
+  Each shine is its own draw call in the room, so a room keeps to a few.
+- **Floors and walls are matte by default.** This is an old, dusty house, not
+  a showroom: a lamp's broad highlight across a floor reads as fake. Worn
+  boards, flagstones, brick, earth, parquet, panelling and wainscot take no
+  shine at all. Only where the room's story calls for it (the formal halls'
+  marble, the Dining Room's honed stone, the Chapel, a lift car's polished
+  panels) does the shell take `SHINES.floorSheen`, a small soft gleam near
+  the lamp; never a stronger preset, never the broad highlight. Objects keep
+  theirs: silver, brass, glass, china, polished furniture. Marble floors are
+  honed, with no vein lines (dark veins read as cracks at this pixel size):
+  nearly flat, at most a faint broad two-tone.
+- **Doorways and the prime place stay clear** (see "Lay it out"); the
   overlap check enforces it.
 - **Wall-hung props and the cutaway.** A wall that is cut stands only to
   `CUT_HEIGHT`. A prop placed with `walls` (which `onWall` sets) and a `y`
@@ -465,6 +566,20 @@ ledger.
 - **Floor openings** (a stairwell, a lake, a pit) are `floorOpenings`:
   rectangles, or polygons for a ragged edge. The stage cuts the slab; the
   room builds what is below (see "Pits and openings").
+- **Vessels are closed solids.** A pot, cup, decanter, urn or bowl is built
+  with `vessel` or `solidLathe` (`kit/vessel.ts`), never as an open,
+  one-sided lathe shell: from the house's camera a shell's inside shows
+  through its back. `openEdges` is the check.
+- **Decorations never promise mechanics that don't exist.** A padlock, a
+  cage, a lever or a sealed door reads as something to use: if the rules
+  have nothing there, don't build it (the Storeroom's padlocked cage became
+  an open bay).
+- **Show before telling.** Anything a room signals shows in 3D or on the
+  board first, then as an icon, and in text only for what only text can
+  explain.
+- **Code a worker may load reads the page with `pageSearch`**
+  (`page-search.ts`), never a `typeof window` or `document` check: both give
+  the wrong answer inside a worker bundle or a headless test.
 - **Shared code.** Room-specific props stay in the room's file. A piece goes
   to `kit/` only when a second room needs it: then move it there in the
   same change, generalise it with options, switch the first room to the kit
@@ -498,6 +613,10 @@ An outdoor tile (`outside` in the tile data) has no walls and no ceiling.
   2 cm above the ground so they don't fight its plane.
 - **Next to an indoor room**, the indoor room's wall on that edge cuts like
   any wall between rooms.
+- **Wind.** Indoors the air is still; outdoors a gentle, gusty breeze blows
+  (`wind.ts`), with a gust hook for events that whip up the air. Cloth and
+  anything else that moves answers it. A room is outdoors when its content
+  says "Outside: yes" (`content/rooms.md`); the Conservatory counts.
 
 ### Pits and openings
 
@@ -534,6 +653,12 @@ The Furnace Room is the reference. Give the fire a strong light with a
 high flicker on a named signal, and make its glows (the mouth, the flame
 tongues, cracks in the floor) follow that signal with `flickerOf`. Light
 from below (an ash pit, a grate) says fire more than light from above.
+
+### Rooms that change in play
+
+A room whose art changes during play (the Vault: closed, then opened and
+emptied) declares each of its states, and a change of state re-bakes that
+room, as `design/lighting.md` says any changing light needs.
 
 ### Moving rooms
 
@@ -574,6 +699,11 @@ Build such a room so it reads at rest, and report what its movement needs.
   stone and on its own glows.
 - **No patterned texture on smooth metal.** The Tower's bell, textured,
   read as paint; it is one flat colour.
+- **Fine noise in a pixel texture reads as dots, not as material.** At this
+  resolution a speckle of lighter or darker texels never reads as grain,
+  polish or wear: it reads as noise. Prefer flat colour, with structure (a
+  plank's edge, a tile's grout, a vein) drawn as shapes, and let light give
+  the surface its finish.
 - **Pale cloth reads cold** blue-grey under the house fill. Warm it in its
   palette keys, or light it warm.
 - **Merge many small pieces** with `batch()`: one mesh, coloured by palette
@@ -705,6 +835,8 @@ are clean, the overlap check passes, and the room is
 registered with its ledger row. The builder reports back:
 
 - the room's file, the one-sentence identity, and its ledger row;
+- its measured light against its intent and the normal band, and why it
+  sits there;
 - the path of the final contact sheet, comparison and review-house sheet
   (and the label of the run before it, for comparison);
 - the overlap check's result: passing, and every contact the room declares,

@@ -21,7 +21,7 @@ import {
   WINDOW_SILL,
   WINDOW_TOP,
   WINDOW_WIDTH,
-  standingSpots,
+  primePlaces,
   wallTurn,
   type FloorOpening,
   type PropPlacement,
@@ -30,7 +30,9 @@ import {
 import type { PaletteKey } from "./palette";
 import { batch, box, flat, glow, group, projectUvs, textured } from "./shapes";
 import { pixelTexture, textureReady } from "./textures";
+import { shiny, SHINES, type Shine } from "./shine";
 import { boardedDoor, boardedWindow, capWindow, litThreshold, STUB_CAP, windowLight, type WallOpening } from "./wall-markings";
+import { markedWall } from "./wall-marks";
 
 export const EDGES: Edge[] = ["top", "right", "bottom", "left"];
 /** Baked lights cost load time, not frame time; this bounds the bake. */
@@ -92,25 +94,25 @@ function spans(length: number, holes: Opening[], height: number): Span[] {
   return result;
 }
 
+/** The material slot of a wall's inner face: a box's faces run +x, −x, +y, −y, +z, −z, and a wall is built with its inner face towards +z. */
+const INNER_FACE = 4;
+
 interface WallParts {
   wall: THREE.Material[];
   wainscot: THREE.Material | null;
   trim: THREE.Material;
+  /** The windows' panes. */
+  glass: THREE.Material;
 }
 
-const LEADED_GLASS = leadedGlass();
-function leadedGlass(): string[] {
-  const rows: string[] = [];
-  for (let y = 0; y < 48; y++) {
-    let row = "";
-    for (let x = 0; x < 32; x++) {
-      const lead = x % 8 === 0 || y % 12 === 0 || (x + y) % 16 === 0 || (x - y + 64) % 16 === 0;
-      const glint = !lead && (x * 7 + y * 13) % 29 === 0;
-      row += lead ? "l" : glint ? "g" : y < 24 ? "m" : "d";
-    }
-    rows.push(row);
-  }
-  return rows;
+/** Leaded glass. No painted glints: the panes are shiny, and take real highlights from the room's lights. */
+const LEADED_GLASS = Array.from({ length: 48 }, (_, y) =>
+  Array.from({ length: 32 }, (_, x) => (x % 8 === 0 || y % 12 === 0 || (x + y) % 16 === 0 || (x - y + 64) % 16 === 0 ? "l" : y < 24 ? "m" : "d")).join(""),
+);
+
+/** A window's panes: moonlit leaded glass, glass unless the room says otherwise. */
+function windowGlass(shine: Shine = SHINES.glass): THREE.Material {
+  return shiny(glow("moon", pixelTexture(LEADED_GLASS, { l: "soot", m: "moon", d: "moonDark" })), shine);
 }
 
 /** A wall's dressing, standing out from its inner face: the skirting, the
@@ -198,7 +200,7 @@ function buildWall(length: number, holes: Opening[], height: number, parts: Wall
       wall.add(box([hole.width + casing * 2, SILL.height, WALL_THICKNESS + 0.1], parts.trim, [hole.centre, hole.bottom - SILL.below, 0.05]));
       const glassTop = Math.min(hole.top, height);
       if (glassTop > hole.bottom && !hole.blocked) {
-        const pane = new THREE.Mesh(new THREE.PlaneGeometry(hole.width, glassTop - hole.bottom), glow("moon", pixelTexture(LEADED_GLASS, { l: "soot", m: "moon", d: "moonDark", g: "moonLight" })));
+        const pane = new THREE.Mesh(new THREE.PlaneGeometry(hole.width, glassTop - hole.bottom), parts.glass);
         pane.position.set(hole.centre, (hole.bottom + glassTop) / 2, -half + 0.02);
         pane.userData.noShadow = true;
         wall.add(pane);
@@ -452,7 +454,7 @@ function doorwayPlugs(tile: RoomTile): THREE.Mesh[] {
 export type ExplorerBuilder = (seed: string, gait?: Gait) => THREE.Object3D;
 
 export interface RoomOptions {
-  /** Who stands at the room's pawn spot (the scale pawn unless told
+  /** Who stands on the room's prime place (the scale pawn unless told
    *  otherwise); null leaves it empty. */
   explorer?: ExplorerBuilder | null;
   /** Doors (by printed edge) drawn shut: in the house, a door that opens onto
@@ -506,33 +508,39 @@ export interface RoomPart {
   cutWalls: (isCut: (edge: Edge) => boolean) => void;
   /** Poses its animated pieces for this moment. */
   update: (seconds: number) => void;
-  /** The explorer standing where the room puts its pawn, if it has one. */
+  /** The explorer standing on the room's prime place, if it has one. */
   explorer: THREE.Object3D | null;
   /** The room's own lights, all baked. */
   lights: BakedLight[];
-  /** Where explorers stand (the pawn spot, then the second spot), if the room has a pawn spot. */
+  /** The room's prime places (`primePlaces`), where a figure most often stands: each gets a light probe of its own. */
   spots: [x: number, z: number][];
   /** Resolves once every texture has its pixels (SVG decals decode asynchronously). */
   ready: Promise<void>;
   dispose: () => void;
 }
 
+/** A shell material, marked shiny when the room declares its surface so. */
+function withShine<M extends THREE.Material>(material: M, shine: Shine | undefined): M {
+  return shine ? shiny(material, shine) : material;
+}
+
 export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () => pawn(), closedDoors = [], falseWindows = [] }: RoomOptions = {}): RoomPart {
   const tile = roomTile(def.id);
   const root = group();
   const wallTexture = def.wall();
-  const wallMaterial = textured(wallTexture);
+  const wallMaterial = withShine(textured(wallTexture), def.shine?.wall);
   const cap = flat("soot");
   const parts: WallParts = {
     wall: [wallMaterial, wallMaterial, cap, cap, wallMaterial, wallMaterial],
-    wainscot: def.wainscot ? textured(def.wainscot()) : null,
-    trim: flat(def.trim),
+    wainscot: def.wainscot ? withShine(textured(def.wainscot()), def.shine?.wainscot) : null,
+    trim: withShine(flat(def.trim), def.shine?.trim),
+    glass: windowGlass(def.shine?.glass),
   };
   /** A cut-down wall's parts: its cap takes a colour of its own, so the cut reads as a line round the room. */
   const stubParts: WallParts = { ...parts, wall: [wallMaterial, wallMaterial, flat(STUB_CAP), cap, wallMaterial, wallMaterial] };
 
   const floorTexture = def.floor();
-  const floorMaterial = textured(floorTexture);
+  const floorMaterial = withShine(textured(floorTexture), def.shine?.floor);
   const slab = flat("sootLight");
   const holes = def.floorOpenings ?? [];
   const floor: THREE.Mesh[] = floorPieces(holes.map((hole) => openingRect(hole, def.id))).map(([x0, x1, z0, z1]) =>
@@ -560,9 +568,15 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     if (tile.passages.includes(edge)) continue;
     const shut = closedDoors.includes(edge);
     const holes = openings(tile, edge, falseWindows.includes(edge));
+    // A wall with marks of its own wears its own texture, the room's with the marks drawn in.
+    const marks = (def.wallMarks ?? []).filter((mark) => mark.edge === edge);
+    if (marks.length && tile.outside) throw new Error(`${def.id} is outdoors, with no wall to hold its wall marks`);
+    const marked = marks.length ? withShine(textured(markedWall(wallTexture, marks, edgeLength(edge), WALL_HEIGHT)), def.shine?.wall) : null;
+    // Only on the wall's inner face: its outer face and its ends keep the room's own texture.
+    const wallOf = (whole: WallParts): WallParts => (marked ? { ...whole, wall: whole.wall.map((face, side) => (side === INNER_FACE ? marked : face)) } : whole);
     const wall = (height: number) => {
       const full = height === WALL_HEIGHT;
-      const wallParts = full ? parts : stubParts;
+      const wallParts = wallOf(full ? parts : stubParts);
       const built = tile.outside ? buildBoundary(edgeLength(edge), holes, full, edge === "top" || edge === "bottom", wallTexture, def.trim) : buildWall(edgeLength(edge), holes, height, wallParts, dressingEnds(tile, edge, height));
       if (shut) {
         if (tile.outside) built.add(shutGate(full, def.trim));
@@ -620,9 +634,9 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
   }
 
   let explorer: THREE.Object3D | null = null;
-  if (def.pawn && buildExplorer) {
+  if (def.prime && buildExplorer) {
     explorer = buildExplorer(`${def.id}:explorer`);
-    explorer.position.set(def.pawn[0], 0, def.pawn[1]);
+    explorer.position.set(def.prime[0], 0, def.prime[1]);
     root.add(explorer);
   }
 
@@ -668,7 +682,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     },
     explorer,
     lights,
-    spots: standingSpots(def),
+    spots: primePlaces(def),
     dispose: () => disposeTree(root),
     ready: Promise.all([...textures].map(textureReady)).then(() => undefined),
   };

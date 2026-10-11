@@ -3,9 +3,10 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { ball, drum, ellipsoid, figureMaterial, form, painted, plinth, ring, rod, roundBox, sculpt, shaped, stretched, surfaceAt } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, burst, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
+import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
 import { aimGrip, blendPose, buildArm, closedRound, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
 import { skinOf, skinShade } from "./skin";
+import { declareParts, figureParts } from "../figure-parts";
 
 /*
  * Ox Bellows: a huge young linebacker, all Might, who is afraid of the dark
@@ -180,8 +181,9 @@ function meshParts() {
     base: plinth(0.36, 0.34, BASE_TOP, "boneDark"),
   };
 }
-type Parts = ReturnType<typeof meshParts>;
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const OX_PARTS = figureParts("ox", meshParts);
+declareParts(ox, [OX_PARTS]);
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** How far into bringing the coin out his fist has closed and the coin is in it. */
@@ -194,8 +196,7 @@ const COIN_OUT = 0.15;
  *  heavy steps, rolling from foot to foot, both arms swinging. Either hand
  *  can hold a thing; the coin comes out only while his right hand is free. */
 export function ox(seed = "ox", gait: Gait = STANDING): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+  const parts = OX_PARTS.get();
   const material = figureMaterial();
   const mesh = (geometry: THREE.BufferGeometry, name: string) => {
     const made = form(material, geometry);
@@ -225,9 +226,13 @@ export function ox(seed = "ox", gait: Gait = STANDING): THREE.Group {
   const poses = { right: { hangs: hangs(right, -1), carries: carries(right, -1) }, left: { hangs: hangs(left, 1), carries: carries(left, 1) } };
   const admires = reachWrist(right, new THREE.Vector3(-0.12, NECK - WAIST - 0.22, 0.36), new THREE.Vector3(-1, -0.3, 0.2));
 
-  // The coin rests on his thumb, the top of his fist.
+  // The coin rests on his thumb, the top of his fist. It stays in his hand, shown only while it is out, so it
+  // never leaves the figure (a part batch draws the parts it was built with); holding it only fits his grip to it.
   const flipped = mesh(parts.coin, "coin");
-  const lucky: Prop = { object: group(flipped), handle: 0.01, carry: "hang" };
+  const pocketed = group(flipped);
+  pocketed.visible = false;
+  right.hand.grip.add(pocketed);
+  const lucky: Prop = { object: group(), handle: 0.01, carry: "hang" };
 
   const trunk = mesh(parts.jacket, "jacket");
   const chest = group(trunk, neck, left.shoulder, right.shoulder);
@@ -254,6 +259,8 @@ export function ox(seed = "ox", gait: Gait = STANDING): THREE.Group {
     { parts: [face, trunk], at: neck, radius: 0.19 },
     { parts: [left.shoulder.children[0], trunk], at: left.shoulder, radius: 0.18 },
     { parts: [right.shoulder.children[0], trunk], at: right.shoulder, radius: 0.18 },
+    // The coin rests in his closing fist, as a held thing does (`heldJoint`).
+    { parts: [pocketed, right.hand.wrist.parent ?? right.hand.wrist], at: right.hand.grip, radius: lucky.handle + 0.03 * right.hand.scale },
     ...left.joints,
     ...right.joints,
     ...legs.flatMap((one) => legJoints(one, trunk, 0.2, 0.19, 0.12)),
@@ -268,6 +275,7 @@ export function ox(seed = "ox", gait: Gait = STANDING): THREE.Group {
   const breathPhase = rng.next() * Math.PI * 2;
   const swayPhase = rng.next() * Math.PI * 2;
   const offset = rng.next() * 100;
+  const bursts = idleBursts(figure, seed, offset, { coin: { every: 10, lasts: 3.6, chance: 0.75 }, dark: { every: 7, lasts: 2.2, chance: 0.55 } });
 
   return animated(figure, (clock) => {
     const seconds = clock + offset;
@@ -277,13 +285,13 @@ export function ox(seed = "ox", gait: Gait = STANDING): THREE.Group {
     const running = moving.running ? moving.amount : 0;
     // The coin comes out walking, but not running, and only into an empty hand.
     const free = right.hand.held === null || right.hand.held === lucky;
-    const shiny = burst(seconds, `${seed}:coin`, { every: 10, lasts: 3.6, chance: 0.75 });
+    const { coin: shiny, dark: glance } = bursts(clock);
     const admiring = free ? shiny.amount * (1 - running) : 0;
-    const glance = burst(seconds, `${seed}:dark`, { every: 7, lasts: 2.2, chance: 0.55 });
     const look = glance.amount * (1 - admiring);
     // His fist closes as he brings the coin out, and only then is it in it.
     const closing = THREE.MathUtils.smoothstep(admiring, 0, COIN_OUT);
     if (free) holdIn(right.hand, admiring >= COIN_OUT ? lucky : null);
+    pocketed.visible = right.hand.held === lucky;
 
     body.rotation.z = sway * 0.025;
     chest.rotation.z = sway * -0.015;

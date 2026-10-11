@@ -195,9 +195,10 @@ function linkRooms(
               ]),
         );
       }),
-      // A rule for leaving may have kept them where they were.
+      // A rule for leaving may have kept them where they were, or killed
+      // them on the way (a trait lost to the Attic's roll in a haunt).
       arrived: defineStep<Linked>((state, p, ctx) => {
-        if (roomOf(state, p.figure) === p.there.room)
+        if (figureOf(state, p.figure).place?.room === p.there.room)
           ctx.push(...after(p.figure));
       }),
     },

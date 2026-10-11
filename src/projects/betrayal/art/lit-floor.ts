@@ -1,13 +1,15 @@
 import * as THREE from "three";
 import type { Edge } from "../types";
-import { bakeScene, bounceSamples, PROBE_FLOATS, roomSamples, type Gathered, type RoomLight } from "./bake";
+import { bakeScene, bounceSampleSet, PROBE_FLOATS, probeSamples, roomSampleSet, type Gathered, type RoomLight } from "./bake";
 import { lightLayout } from "./bake-finish";
 import type { BakeScheduler, PassPlan } from "./bake-schedule";
 import { PROBE_GRID, type Bucket, type FrozenRoom } from "./freeze";
-import { BOUNCE, bounceOn, flickerOf, flickerSignal, LIGHTMAP, MAX_FLICKER } from "./lighting";
+import { BOUNCE, bounceOn, flickerOf, flickerSignal, LIGHTMAP, MAX_FLICKER, shadowMode, SOFT_SHADOWS } from "./lighting";
 import { TILE } from "./room";
 import { batchParts, type PartBatch } from "./part-batch";
 import { disposeTree, EDGES } from "./stage";
+import { pageSearch } from "./page-search";
+import { patchGlassShine, patchShine, setShineLights, shineLights, type ShineLights } from "./shine";
 
 /*
  * A floor of frozen rooms, drawn with their baked light: the house has one
@@ -19,6 +21,12 @@ import { disposeTree, EDGES } from "./stage";
  * each room shows its direct light as soon as that lands, and its bounce
  * when that does. A newer change to a room supersedes its bake in progress.
  */
+
+/** Readies a room's shaders before it first shows, resolving once it can be
+ *  drawn without stalling the frame. The house compiles them on the GPU's
+ *  own threads while the room bakes; with none given, a room's shaders
+ *  compile when it is first drawn. */
+export type Prepare = (object: THREE.Object3D) => Promise<void>;
 
 /** The ambient cube a moving piece is lit by, shared by all its materials. */
 export type ProbeUniform = { value: THREE.Vector3[] };
@@ -69,9 +77,20 @@ const CUT_VERTEX = /* glsl */ `
   if ( dot( hidden, vec4( 1.0 ) ) > 0.5 ) gl_Position = vec4( 0.0, 0.0, 2.0, 1.0 );
 }`;
 
+/** Each patch made so far, by its anchor and replacement, then by the source it was made to: every material of a
+ *  kind patches the same three.js source the same way, once per material, hundreds of times as a house loads. */
+const injected = new Map<string, Map<string, string>>();
+
 function inject(source: string, anchor: string, replacement: string): string {
+  const patch = `${anchor}\u0000${replacement}`;
+  const made = injected.get(patch) ?? new Map<string, string>();
+  injected.set(patch, made);
+  const known = made.get(source);
+  if (known !== undefined) return known;
   if (!source.includes(anchor)) throw new Error(`three.js's shader has no "${anchor}" to patch; check the lighting patches against this three version`);
-  return source.replace(anchor, replacement);
+  const result = source.replace(anchor, replacement);
+  made.set(source, result);
+  return result;
 }
 
 const FLICKERING_LIGHTMAP = inject(
@@ -80,14 +99,96 @@ const FLICKERING_LIGHTMAP = inject(
   `irradiance += lightMapIrradiance * ( 1.0 + dot( texture2D( flickerMap, vLightMapUv ) * ${MAX_FLICKER.toFixed(3)}, flickerSignal ) + lightMapTexel.a * ${MAX_FLICKER.toFixed(3)} * waterSignal );`,
 );
 
-const PROBE_FRAGMENT = /* glsl */ `
-{
-  vec3 probeNormal = inverseTransformDirection( normal, viewMatrix );
-  vec3 probeSquared = probeNormal * probeNormal;
-  irradiance += probeSquared.x * ( probeNormal.x > 0.0 ? probeCube[ 0 ] : probeCube[ 1 ] )
-    + probeSquared.y * ( probeNormal.y > 0.0 ? probeCube[ 2 ] : probeCube[ 3 ] )
-    + probeSquared.z * ( probeNormal.z > 0.0 ? probeCube[ 4 ] : probeCube[ 5 ] );
+/**
+ * Soft shadows read the lightmap through a cubic B-spline, so a shadow's edge
+ * curves smoothly instead of stepping with the texel grid. It is four
+ * bilinear reads, each placed between two texels a way so that their blend
+ * is the spline's weights for both (the usual 4×4 B-spline in 4 taps). Each
+ * read is kept within the texel's own chart (`lightmapChart`, its first and
+ * last texels' centres), so the filter never reaches across a seam: past a
+ * chart's edge it reads the edge, as clamping a texture would.
+ */
+const BSPLINE_LIGHTMAP_VERTEX = /* glsl */ `
+attribute vec4 lightmapChart;
+varying vec4 vLightmapChart;
+void main() {
+  vLightmapChart = lightmapChart;`;
+
+const BSPLINE_LIGHTMAP_FRAGMENT = /* glsl */ `
+varying vec4 vLightmapChart;
+vec4 lightmapBSpline( sampler2D map, vec2 uv ) {
+  vec2 size = vec2( textureSize( map, 0 ) );
+  vec2 st = uv * size - 0.5;
+  vec2 i = floor( st );
+  vec2 f = st - i;
+  vec2 f2 = f * f;
+  vec2 f3 = f2 * f;
+  vec2 w0 = ( 1.0 - 3.0 * f + 3.0 * f2 - f3 ) / 6.0;
+  vec2 w1 = ( 4.0 - 6.0 * f2 + 3.0 * f3 ) / 6.0;
+  vec2 w2 = ( 1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3 ) / 6.0;
+  vec2 w3 = f3 / 6.0;
+  vec2 g0 = w0 + w1;
+  vec2 g1 = w2 + w3;
+  vec2 low = clamp( i - 0.5 + w1 / g0, vLightmapChart.xy, vLightmapChart.zw ) / size;
+  vec2 high = clamp( i + 1.5 + w3 / g1, vLightmapChart.xy, vLightmapChart.zw ) / size;
+  return g0.y * ( g0.x * texture2D( map, low ) + g1.x * texture2D( map, vec2( high.x, low.y ) ) )
+    + g1.y * ( g0.x * texture2D( map, vec2( low.x, high.y ) ) + g1.x * texture2D( map, high ) );
+}
+void main() {`;
+
+const SOFT_LIGHTMAP = inject(FLICKERING_LIGHTMAP, "vec4 lightMapTexel = texture2D( lightMap, vLightMapUv );", "vec4 lightMapTexel = lightmapBSpline( lightMap, vLightMapUv );");
+
+/** The ambient cube's light on a surface facing `n` (world axes), blended by the squared normal. */
+const PROBE_LIGHT = /* glsl */ `
+uniform vec3 probeCube[ 6 ];
+vec3 probeLight( vec3 n ) {
+  vec3 s = n * n;
+  return s.x * ( n.x > 0.0 ? probeCube[ 0 ] : probeCube[ 1 ] )
+    + s.y * ( n.y > 0.0 ? probeCube[ 2 ] : probeCube[ 3 ] )
+    + s.z * ( n.z > 0.0 ? probeCube[ 4 ] : probeCube[ 5 ] );
 }`;
+
+const PROBE_FRAGMENT = /* glsl */ `
+irradiance += probeLight( inverseTransformDirection( normal, viewMatrix ) );`;
+
+/**
+ * A figure lit from behind, as the camera sees it, takes a rim of that light
+ * (`?backlight=off` turns it off, for comparison). The probe says which way across the floor its light
+ * mostly comes from; the more that way lies beyond the figure, as the camera
+ * sees it, the more of that light's surplus over the far side wraps round:
+ * as a rim on the edges turned towards it, and a little onto the front. It is
+ * the probe's own light and colour, added to irradiance (so shaded by the
+ * surface's colour, never a glow), and nothing when the figure is lit from
+ * the front or evenly. Across the floor only, so the floor's bounce from below
+ * and the house's light above never count as "behind".
+ */
+const BACKLIGHT = { rim: 10, edge: 3, wrap: 0.5 };
+const BACKLIGHT_FRAGMENT = /* glsl */ `
+{
+  const vec3 luma = vec3( 0.299, 0.587, 0.114 );
+  vec3 across = vec3( dot( probeCube[ 0 ] - probeCube[ 1 ], luma ), 0.0, dot( probeCube[ 4 ] - probeCube[ 5 ], luma ) );
+  float spread = length( across );
+  if ( spread > 1e-4 ) {
+    vec3 towardsLight = across / spread;
+    vec3 towardsViewer = inverseTransformDirection( geometryViewDir, viewMatrix );
+    vec2 viewerAcross = towardsViewer.xz;
+    float behind = saturate( -dot( towardsLight.xz, viewerAcross ) / max( length( viewerAcross ), 1e-4 ) );
+    vec3 surplus = max( probeLight( towardsLight ) - probeLight( -towardsLight ), vec3( 0.0 ) ) * behind;
+    vec3 worldNormal = inverseTransformDirection( normal, viewMatrix );
+    // Light from behind reaches a little past the silhouette, so an edge turned square to it still catches it.
+    float facing = saturate( ( dot( worldNormal, towardsLight ) + 0.6 ) / 1.6 );
+    float upright = 1.0 - abs( worldNormal.y );
+    float edge = pow( 1.0 - saturate( dot( normal, geometryViewDir ) ), ${BACKLIGHT.edge.toFixed(2)} );
+    irradiance += surplus * upright * ( edge * facing * ${BACKLIGHT.rim.toFixed(2)} + ${BACKLIGHT.wrap.toFixed(2)} );
+  }
+}`;
+
+/** Whether figures take the backlight: on unless `?backlight=off`, for comparison. */
+function backlightOn(): boolean {
+  const value = new URLSearchParams(pageSearch()).get("backlight") ?? "rim";
+  if (value !== "rim" && value !== "off") throw new Error(`backlight=${value}: it is rim or off`);
+  return value === "rim";
+}
 
 function patchCut(shader: THREE.WebGLProgramParametersWithUniforms, cut: { value: THREE.Vector4 }) {
   shader.uniforms.cutEdges = cut;
@@ -96,6 +197,7 @@ function patchCut(shader: THREE.WebGLProgramParametersWithUniforms, cut: { value
 }
 
 function lightmapTexture(data: Uint16Array | Uint8Array, width: number, height: number, type: THREE.TextureDataType): THREE.DataTexture {
+  if (shadowMode() === "soft" && LIGHTMAP.filter !== "linear") throw new Error("Soft shadows build their cubic filter from linear reads; the lightmap's filter must be linear");
   const texture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, type);
   const filter = LIGHTMAP.filter === "linear" ? THREE.LinearFilter : THREE.NearestFilter;
   texture.magFilter = filter;
@@ -106,19 +208,23 @@ function lightmapTexture(data: Uint16Array | Uint8Array, width: number, height: 
   return texture;
 }
 
-/** Lights a moving piece's lit materials by an ambient cube instead of the baked lights it can't read. */
-export function patchProbe(object: THREE.Object3D): ProbeUniform {
+/** Lights a moving piece's lit materials by an ambient cube instead of the baked lights it can't read.
+ *  A figure (unlike a swaying chandelier) also takes the backlight. */
+export function patchProbe(object: THREE.Object3D, figure = true): ProbeUniform {
   const uniform: ProbeUniform = { value: Array.from({ length: 6 }, () => new THREE.Vector3()) };
+  const backlight = figure && backlightOn();
   object.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
     for (const material of [child.material].flat() as THREE.Material[]) {
       if (!(material instanceof THREE.MeshLambertMaterial)) continue;
       material.onBeforeCompile = (shader) => {
         shader.uniforms.probeCube = uniform;
-        shader.fragmentShader = inject(shader.fragmentShader, "void main() {", "uniform vec3 probeCube[ 6 ];\nvoid main() {");
-        shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_fragment_maps>", `#include <lights_fragment_maps>\n${PROBE_FRAGMENT}`);
+        shader.fragmentShader = inject(shader.fragmentShader, "void main() {", `${PROBE_LIGHT}
+void main() {`);
+        shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_fragment_maps>", `#include <lights_fragment_maps>
+${PROBE_FRAGMENT}${backlight ? BACKLIGHT_FRAGMENT : ""}`);
       };
-      material.customProgramCacheKey = () => "betrayal-probe";
+      material.customProgramCacheKey = () => (backlight ? "betrayal-probe-backlight" : "betrayal-probe");
     }
   });
   return uniform;
@@ -194,7 +300,17 @@ function litRoom(
   matrix: THREE.Matrix4,
   flicker: { value: THREE.Vector4 },
   water: { value: number },
-): LitRoom & { lightmap: THREE.DataTexture; flickerMap: THREE.DataTexture; probes: { uniform: ProbeUniform; probe: number; batch: PartBatch }[] } {
+  prepare: Prepare,
+): LitRoom & {
+  lightmap: THREE.DataTexture;
+  flickerMap: THREE.DataTexture;
+  probes: { uniform: ProbeUniform; probe: number; batch: PartBatch }[];
+  /** The lights its shiny surfaces take highlights from. */
+  shine: ShineLights;
+  /** Resolves once its shaders are ready; `compiled` is then true. */
+  prepared: Promise<void>;
+  compiled: boolean;
+} {
   const { width, height } = room.texels;
   const lightmap = lightmapTexture(new Uint16Array(width * height * 4), width, height, THREE.HalfFloatType);
   const flickerMap = lightmapTexture(new Uint8Array(width * height * 4), width, height, THREE.UnsignedByteType);
@@ -202,9 +318,11 @@ function litRoom(
   const root = new THREE.Group();
   root.matrixAutoUpdate = false;
   root.matrix.copy(matrix);
+  const shine = shineLights();
+  const soft = shadowMode() === "soft";
 
   const material = ({ params }: Bucket): THREE.Material => {
-    const common = { vertexColors: true, map: params.map, alphaTest: params.alphaTest, side: params.side, transparent: params.transparent, opacity: params.opacity, toneMapped: params.toneMapped };
+    const common = { vertexColors: true, map: params.map, alphaTest: params.alphaTest, side: params.side, forceSinglePass: params.forceSinglePass, transparent: params.transparent, opacity: params.opacity, toneMapped: params.toneMapped };
     if (params.lit) {
       const lit = new THREE.MeshLambertMaterial({ ...common, lightMap: lightmap });
       lit.onBeforeCompile = (shader) => {
@@ -213,23 +331,31 @@ function litRoom(
         shader.uniforms.flickerSignal = flicker;
         shader.uniforms.waterSignal = water;
         shader.fragmentShader = inject(shader.fragmentShader, "void main() {", "uniform sampler2D flickerMap;\nuniform vec4 flickerSignal;\nuniform float waterSignal;\nvoid main() {");
-        shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_fragment_maps>", FLICKERING_LIGHTMAP);
+        shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_fragment_maps>", soft ? SOFT_LIGHTMAP : FLICKERING_LIGHTMAP);
+        if (soft) {
+          shader.vertexShader = inject(shader.vertexShader, "void main() {", BSPLINE_LIGHTMAP_VERTEX);
+          shader.fragmentShader = inject(shader.fragmentShader, "void main() {", BSPLINE_LIGHTMAP_FRAGMENT);
+        }
+        if (params.shine) patchShine(shader, params.shine, shine, inject);
       };
-      lit.customProgramCacheKey = () => "betrayal-baked";
+      lit.customProgramCacheKey = () => `${params.shine ? "betrayal-baked-shine" : "betrayal-baked"}${soft ? "-soft" : ""}`;
       return lit;
     }
     const unlit = new THREE.MeshBasicMaterial({ ...common, blending: params.blending, depthWrite: params.depthWrite, fog: params.fog });
-    unlit.onBeforeCompile = (shader) => patchCut(shader, cut);
-    unlit.customProgramCacheKey = () => "betrayal-cut";
+    unlit.onBeforeCompile = (shader) => {
+      patchCut(shader, cut);
+      if (params.shine) patchGlassShine(shader, params.shine, shine, flicker, water, inject);
+    };
+    unlit.customProgramCacheKey = () => (params.shine ? "betrayal-cut-shine" : "betrayal-cut");
     return unlit;
   };
   for (const bucket of room.buckets) root.add(new THREE.Mesh(bucket.geometry, material(bucket)));
-  const probes = room.dynamics.map(({ holder, probe }) => {
+  const probes = room.dynamics.map(({ holder, probe, explorer }) => {
     root.add(holder);
-    return { uniform: patchProbe(holder), probe, batch: batchParts(holder) };
+    return { uniform: patchProbe(holder, explorer), probe, batch: batchParts(holder) };
   });
 
-  return {
+  const built = {
     id,
     room,
     matrix,
@@ -238,11 +364,17 @@ function litRoom(
     lightmap,
     flickerMap,
     probes,
-    setCut: (isCut) => {
+    shine,
+    prepared: prepare(root).then(() => {
+      built.compiled = true;
+    }),
+    compiled: false,
+    setCut: (isCut: (edge: Edge) => boolean) => {
       cut.value.fromArray(EDGES.map((edge) => (isCut(edge) ? 1 : 0)));
       for (const { holder, hidesWith } of room.dynamics) holder.visible = !hidesWith.some(isCut);
     },
   };
+  return built;
 }
 
 type Built = ReturnType<typeof litRoom>;
@@ -299,7 +431,7 @@ export function ghostRoom(room: FrozenRoom, look: GhostLook): GhostRoom {
   const cut = { value: new THREE.Vector4() };
   const root = new THREE.Group();
   const material = ({ params }: Bucket): THREE.Material => {
-    const common = { vertexColors: true, map: params.map, alphaTest: params.alphaTest, side: params.side, transparent: true, opacity: params.opacity * look.opacity, toneMapped: params.toneMapped };
+    const common = { vertexColors: true, map: params.map, alphaTest: params.alphaTest, side: params.side, forceSinglePass: params.forceSinglePass, transparent: true, opacity: params.opacity * look.opacity, toneMapped: params.toneMapped };
     if (params.lit) {
       const lit = new THREE.MeshLambertMaterial(common);
       lit.onBeforeCompile = (shader) => {
@@ -354,10 +486,12 @@ let scenes = 0;
  * Which kinds of bake show how far they have got: those that usually take
  * more than a couple of seconds, judged from their times in the bake's debug
  * view (`?bake-debug`). The rest show only that the light is refining.
- * Measured on a 16-thread laptop with the fixture house: the direct light
- * of the whole house took 2 to 3.5 s, and the bounce 9 to 10 s more; a
- * re-bake of one room and its neighbours took about 1 s for the direct
- * light and 6 to 7 s for the bounce. A phone takes longer still.
+ * Measured on a 16-thread laptop (11 workers) with the fixture house, by
+ * `tools/startup-perf.mjs`: the direct light of the whole house took 1.3 to
+ * 1.4 s once the house was built, and the bounce 1.7 to 1.9 s more; a
+ * re-bake of one room and its four neighbours took 0.6 to 0.9 s for the
+ * direct light and 1 to 1.2 s more for the bounce. A device with fewer
+ * cores takes several times as long: one with 4 threads has 2 workers.
  */
 const SHOWS_PROGRESS = {
   /** A floor's first bake: every room on it at once. */
@@ -372,7 +506,7 @@ let floors = 0;
 
 /** `floor` names the floor to the scheduler, which runs the bakes of the floor's rooms
  *  the player is looking at first. */
-export function createLitFloor(bakes: BakeScheduler, floor: string): LitFloor {
+export function createLitFloor(bakes: BakeScheduler, floor: string, prepare: Prepare = () => Promise.resolve()): LitFloor {
   const floorKey = `${floor}#${++floors}`;
   const keyOf = (id: string) => `${floorKey}:${id}`;
   const root = new THREE.Group();
@@ -418,20 +552,27 @@ export function createLitFloor(bakes: BakeScheduler, floor: string): LitFloor {
     built.flickerMap.image.data = light.flicker;
     built.flickerMap.needsUpdate = true;
     for (const { uniform, probe } of built.probes) readProbe(light.probes, probe, uniform.value);
-    // A new room shows once it has its light, never black while it bakes.
-    if (built.root.parent !== root) root.add(built.root);
+    // A new room shows once it has its light, never black while it bakes, and its shaders, so it never stalls a frame.
+    const appear = () => {
+      if (rooms.get(built.id) === built && built.root.parent !== root) root.add(built.root);
+    };
+    if (built.compiled) appear();
+    else void built.prepared.then(appear);
   };
 
   /** A room's passes: its direct light, then (unless the page asks for none) its bounce, added to it.
    *  A worker lays each into the room's lightmap; here it is only shown. */
   const passesOf = (built: Built, first: boolean): PassPlan[] => {
     const layout = lightLayout(built.room);
+    // Only the probes are laid out here: the lanes lay out the texels, chunk by chunk.
+    const probes = probeSamples(built);
     let direct: Gathered | null = null;
     const passes: PassPlan[] = [
       {
         pass: "direct",
-        samples: roomSamples(built),
-        cost: 1,
+        samples: roomSampleSet(built, probes),
+        // A lamp with a size costs a shadow ray for each point of it a sample aims at.
+        cost: shadowMode() === "soft" ? SOFT_SHADOWS.rays : 1,
         progress: first ? SHOWS_PROGRESS.firstDirect : SHOWS_PROGRESS.direct,
         finish: (light) => {
           direct = light;
@@ -445,7 +586,7 @@ export function createLitFloor(bakes: BakeScheduler, floor: string): LitFloor {
     if (bounceOn()) {
       passes.push({
         pass: "bounce",
-        samples: bounceSamples(built),
+        samples: bounceSampleSet(built, BOUNCE.step, probes),
         // Each ray reads the direct light where it lands: about a direct sample's work.
         cost: BOUNCE.rays,
         progress: SHOWS_PROGRESS.bounce,
@@ -480,7 +621,7 @@ export function createLitFloor(bakes: BakeScheduler, floor: string): LitFloor {
       if (rooms.has(id)) continue;
       changed.add(id);
       centres.push(centre(matrix));
-      rooms.set(id, litRoom(id, room, matrix, flicker, water));
+      rooms.set(id, litRoom(id, room, matrix, flicker, water, prepare));
     }
     // A change re-bakes the rooms next to it too: their light now meets new walls and doorways.
     const affected = new Set([...rooms.values()].filter((built) => changed.has(built.id) || centres.some((at) => at.distanceTo(centre(built.matrix)) < TILE * 1.01)).map((built) => built.id));
@@ -488,10 +629,11 @@ export function createLitFloor(bakes: BakeScheduler, floor: string): LitFloor {
     const all = [...rooms.values()].map((built) => ({ room: built.room, matrix: built.matrix }));
     const scene = bakeScene(all);
     const sceneId = ++scenes;
-    const submitted = [...rooms.values()]
-      .filter((built) => affected.has(built.id))
-      .map((built) => bakes.submit({ key: keyOf(built.id), floor, room: built.id, scene, sceneId, passes: passesOf(built, first) }));
-    const shown = Promise.all(submitted.map(({ passes }) => passes[0]));
+    const baking = [...rooms.values()].filter((built) => affected.has(built.id));
+    for (const built of baking) setShineLights(built.shine, scene.lamps, scene.moon, scene.moonRgb, built.matrix);
+    const submitted = baking.map((built) => bakes.submit({ key: keyOf(built.id), floor, room: built.id, scene, sceneId, passes: passesOf(built, first) }));
+    // Shown once each room has its direct light and its shaders; a room dropped meanwhile by a later change no longer counts.
+    const shown = Promise.all(submitted.map(({ passes }) => passes[0])).then(() => Promise.all(baking.filter((built) => rooms.get(built.id) === built).map((built) => built.prepared)));
     const bounce = bounceOn() ? Promise.all(submitted.map(({ done }) => done)).then(() => performance.now() - started) : null;
     return shown.then(() => ({ rooms: [...affected], ms: performance.now() - started, bounce }));
   };

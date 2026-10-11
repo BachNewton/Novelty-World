@@ -4,6 +4,7 @@ import { candle, cask, cobweb, crate } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { INNER, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, projectUvs, textured } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { bricks, flagstones, pixelTexture, TEXELS_PER_METRE } from "../textures";
 
 /** Half the width of each arm of the cross of flags joining the four doors. */
@@ -85,16 +86,16 @@ function footprints(length: number): THREE.Mesh {
     FOOT.forEach((row, dy) => {
       const line = left ? row : FOOT[FOOT.length - 1 - dy];
       [...line].forEach((cell, dx) => {
-        if (cell === "x" && rng.next() > dry * dry * 0.8) grid[top + dy][x + dx] = rng.next() < 0.25 ? "s" : "w";
+        if (cell === "x" && rng.next() > dry * dry * 0.8) grid[top + dy][x + dx] = "w";
       });
     });
   }
   const texture = pixelTexture(
     grid.map((row) => row.join("")),
-    { w: "void", s: "tideDark" },
+    { w: "void" },
   );
   const geometry = new THREE.PlaneGeometry(long / TEXELS_PER_METRE, width / TEXELS_PER_METRE).rotateX(-Math.PI / 2);
-  return new THREE.Mesh(geometry, textured(texture, true));
+  return new THREE.Mesh(geometry, shiny(textured(texture, true), SHINES.wetStone));
 }
 
 /**
@@ -129,10 +130,12 @@ function crossing(): THREE.Group {
     const half = Math.sqrt(inner * inner - x * x);
     b.block([0.035, 0.03, half * 2], "ash", [x, 0.006, 0]);
   }
+  const grate = b.mesh();
+  shiny(grate.material, SHINES.iron);
   const drain = group(
     cylinder(DRAIN, 0.03, flat("stoneLight"), [0, -0.01, 0], { sides: 16 }),
     cylinder(inner, 0.004, flat("void"), [0, 0.006, 0], { sides: 16 }),
-    b.mesh(),
+    grate,
   );
   const marks: [THREE.Mesh, number, number, number][] = [
     [chalk(false), 1.7, 0, 0],
@@ -155,7 +158,7 @@ function crossing(): THREE.Group {
 
 /** The glazed head of the lamp-standard, its glass burning amber. */
 function lampHead(): THREE.Group {
-  const iron = flat("soot");
+  const iron = shiny(flat("soot"), SHINES.iron);
   const glass = 0.2;
   const height = 0.28;
   const hood = cylinder(0.18, 0.12, iron, [0, height + 0.03, 0], { top: 0.03, sides: 4 });
@@ -171,12 +174,12 @@ const POST = 1.6;
 /** An iron lamp-standard over the crossing, a glazed lamp on a post, its
  *  glass burning amber. */
 function lampStandard(): THREE.Group {
-  const iron = flat("soot");
+  const iron = shiny(flat("soot"), SHINES.iron);
   const result = group(
     cylinder(0.2, 0.05, iron, [0, 0, 0], { top: 0.16, sides: 8 }),
-    cylinder(0.07, 0.14, flat("ash"), [0, 0.05, 0], { top: 0.035, sides: 6 }),
+    cylinder(0.07, 0.14, iron, [0, 0.05, 0], { top: 0.035, sides: 6 }),
     box([0.05, POST, 0.05], iron, [0, 0.17, 0]),
-    box([0.09, 0.05, 0.09], flat("ash"), [0, 0.17 + POST - 0.02, 0]),
+    box([0.09, 0.05, 0.09], iron, [0, 0.17 + POST - 0.02, 0]),
   );
   const head = lampHead();
   head.position.y = 0.17 + POST + 0.02;
@@ -226,7 +229,5 @@ export const BASEMENT_LANDING: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-(INNER - 0.29), INNER - 0.29], y: 3.05, turn: -45, walls: ["left", "bottom"] },
   ],
   focus: [-0.4, 0.4, 0.2],
-  pawn: [-1.15, -1.0],
-  spots: [[1.15, -1.0], [-1.5, 1.1], [1.65, 0.85], [0.0, 0.0], [2.25, -2.3]],
-  overflow: [[0.0, 1.7], [-1.5, 2.3], [2.25, -1.1], [1.25, -2.3], [-1.15, -2.0], [-1.15, 0.0]],
+  prime: [-1.15, -1.0],
 };

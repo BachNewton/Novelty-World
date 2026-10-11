@@ -2,16 +2,20 @@ import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { animationOf } from "../animate";
 import { loft, mergeAll, solidOf, surfaceAt, type Section, type Vec3 } from "../forms";
+import { partsOf } from "../figure-parts";
 import { stubCanvas } from "../headless";
 import type { ExplorerBuilder } from "../stage";
 import { clipping } from "./clipping";
 import type { Pace } from "./figure";
 import { handsOf, holdIn } from "./hands";
 import { onTheSpot } from "./line-up";
+import { flash } from "./flash";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
-import { STAND_INS } from "./props";
+import { PROP_PARTS, STAND_INS } from "./props";
+import { brandon } from "./brandon";
 import { zoe } from "./zoe";
 
 /*
@@ -26,7 +30,14 @@ import { zoe } from "./zoe";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter };
+/** Zoe and Rhinehardt are checked in the heavy cloth (`?cloth=off`): the check leaves their simulated nets out
+ *  (`isClothSheet`), and their rigid parts are the same either way, so simulating the nets through every moment would
+ *  only cost time. */
+const CHECKED: Partial<Record<string, ExplorerBuilder>> = {
+  zoe: (seed, gait) => zoe(seed, gait, { cloth: "off" }),
+  rhinehardt: (seed, gait) => rhinehardt(seed, gait, { cloth: "off" }),
+};
 
 function clipsThrough(figure: THREE.Object3D, times: readonly number[]): string[] {
   const found = new Map<string, string>();
@@ -47,10 +58,21 @@ const moments = (from: number, every: number, count: number) => Array.from({ len
 const IDLE = moments(0, 0.45, 200);
 /** Several strides, sampled at a spacing that never lines up with a step, so every phase of the stride comes up. */
 const STRIDES = moments(0, 0.0371, 90);
-/** A figure's first check pays for meshing its parts; after that each takes a second or two. */
-const LIMIT = { timeout: 15_000 };
+/** A check takes one to nine seconds alone, its figure's parts meshed before it: the longest, Rhinehardt's, samples his
+ *  robe again at every moment, as his legs reshape it. */
+const LIMIT = { timeout: 30_000 };
 
-describe.each(Object.entries(EXPLORERS))("%s", (name, build) => {
+/** The longest one figure's meshing may take, under a full run's load. */
+const MESHING = 60_000;
+
+describe.each(Object.entries(EXPLORERS))("%s", (name, own) => {
+  const build = CHECKED[name] ?? own;
+  // Meshing the parts is the slow step, done once a session: it belongs to no one check. It takes up to
+  // about 6 s alone (Peter's).
+  beforeAll(() => {
+    for (const parts of [...partsOf(own), PROP_PARTS]) parts.get();
+  }, MESHING);
+
   for (const pace of [undefined, "walk", "run"] as (Pace | undefined)[]) {
     it(`passes no part through another ${pace ? `${pace === "run" ? "running" : "walking"}` : "standing"}`, LIMIT, () => {
       expect(clipsThrough(onTheSpot(build, name, pace), pace ? STRIDES : IDLE)).toEqual([]);

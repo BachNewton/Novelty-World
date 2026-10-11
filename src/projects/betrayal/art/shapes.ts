@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { paletteHex, type PaletteKey } from "./palette";
 import { TEXELS_PER_METRE, textureMetres } from "./textures";
 
@@ -37,6 +36,10 @@ export function lightMaterial(
     depthWrite: false,
     fog: false,
     side: THREE.DoubleSide,
+    // three draws a transparent double-sided material in two passes, back faces then front, by flipping
+    // its side and marking it changed for each, which rebuilds its shader parameters twice a draw, every frame.
+    // Added light sums the same in any order, so one pass draws it the same.
+    forceSinglePass: true,
   });
 }
 
@@ -126,31 +129,79 @@ export function lathe(profile: [number, number][], material: THREE.Material, sid
 
 export type Size = [w: number, h: number, d: number];
 
+/** A box's six faces as `THREE.BoxGeometry` lays them, in its order: the axes a face's
+ *  corners run along (u, v) and out of (w), which way each runs, and the sizes along them. */
+const BOX_FACES: [u: number, v: number, w: number, uDir: number, vDir: number, uSize: number, vSize: number, wSize: number, wSign: number][] = [
+  [2, 1, 0, -1, -1, 2, 1, 0, 1],
+  [2, 1, 0, 1, -1, 2, 1, 0, -1],
+  [0, 2, 1, 1, 1, 0, 2, 1, 1],
+  [0, 2, 1, 1, -1, 0, 2, 1, -1],
+  [0, 1, 2, 1, -1, 0, 1, 2, 1],
+  [0, 1, 2, -1, -1, 0, 1, 2, -1],
+];
+
 /**
  * Many small boxes merged into one mesh, each tinted by vertex colour: a wall
- * of books is thousands of pieces, far too many to draw one by one.
+ * of books is thousands of pieces, far too many to draw one by one. Each box
+ * is written straight into the batch's arrays, vertex for vertex what a
+ * `THREE.BoxGeometry` moved by its matrix and merged would hold, without
+ * making that geometry: a room of books made thousands of them.
  */
 export function batch() {
-  const parts: THREE.BufferGeometry[] = [];
-  const add = (size: Size, colour: PaletteKey, matrix: THREE.Matrix4) => {
-    const geometry = new THREE.BoxGeometry(...size).applyMatrix4(matrix);
-    const { r, g, b } = new THREE.Color(paletteHex(colour));
-    const count = geometry.getAttribute("position").count;
-    const colours = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) colours.set([r, g, b], i * 3);
-    geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
-    parts.push(geometry);
+  const position: number[] = [];
+  const normal: number[] = [];
+  const uv: number[] = [];
+  const colour: number[] = [];
+  const index: number[] = [];
+  const tints = new Map<PaletteKey, THREE.Color>();
+  const normalMatrix = new THREE.Matrix3();
+  const corner = new THREE.Vector3();
+  const facing = new THREE.Vector3();
+  const local = [0, 0, 0];
+  const add = (size: Size, tint: PaletteKey, matrix: THREE.Matrix4) => {
+    let rgb = tints.get(tint);
+    if (!rgb) tints.set(tint, (rgb = new THREE.Color(paletteHex(tint))));
+    normalMatrix.getNormalMatrix(matrix);
+    for (const [u, v, w, uDir, vDir, uSize, vSize, wSize, wSign] of BOX_FACES) {
+      const width = size[uSize];
+      const height = size[vSize];
+      const depth = wSign * size[wSize];
+      const first = position.length / 3;
+      for (let iy = 0; iy < 2; iy++) {
+        for (let ix = 0; ix < 2; ix++) {
+          // The corner as BoxGeometry stores it, in 32-bit floats, before it is moved.
+          local[u] = (ix * width - width / 2) * uDir;
+          local[v] = (iy * height - height / 2) * vDir;
+          local[w] = depth / 2;
+          corner.set(Math.fround(local[0]), Math.fround(local[1]), Math.fround(local[2])).applyMatrix4(matrix);
+          position.push(corner.x, corner.y, corner.z);
+          local[u] = 0;
+          local[v] = 0;
+          local[w] = depth > 0 ? 1 : -1;
+          facing.set(local[0], local[1], local[2]).applyNormalMatrix(normalMatrix);
+          normal.push(facing.x, facing.y, facing.z);
+          uv.push(ix, 1 - iy);
+          colour.push(rgb.r, rgb.g, rgb.b);
+        }
+      }
+      index.push(first, first + 2, first + 1, first + 2, first + 3, first + 1);
+    }
   };
   return {
     add,
     /** A box standing on `at` (its base, not its centre), like `box`. */
-    block: (size: Size, colour: PaletteKey, at: [number, number, number]) => {
-      add(size, colour, new THREE.Matrix4().makeTranslation(at[0], at[1] + size[1] / 2, at[2]));
+    block: (size: Size, tint: PaletteKey, at: [number, number, number]) => {
+      add(size, tint, new THREE.Matrix4().makeTranslation(at[0], at[1] + size[1] / 2, at[2]));
     },
     mesh: () => {
-      const merged = mergeGeometries(parts);
-      for (const part of parts) part.dispose();
-      return new THREE.Mesh(merged, new THREE.MeshLambertMaterial({ vertexColors: true }));
+      if (index.length === 0) throw new Error("A batch was meshed with no boxes in it");
+      const geometry = new THREE.BufferGeometry();
+      geometry.setIndex(index);
+      geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(position), 3));
+      geometry.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(normal), 3));
+      geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(uv), 2));
+      geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(colour), 3));
+      return new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ vertexColors: true }));
     },
   };
 }

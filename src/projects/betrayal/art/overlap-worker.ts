@@ -7,7 +7,7 @@ import { BENCH_ROOMS } from "./rooms";
  * The overlap check of one room at a time, in a worker thread, so a room
  * whose build never ends (an endless loop) can be stopped from outside and
  * fail on its own, rather than hang the test for every room. The test runs
- * it (see `overlap.test.ts`).
+ * it (see `overlap.slow.test.ts`).
  */
 
 export type CheckReply = { id: string; report: OverlapReport } | { id: string; error: string };

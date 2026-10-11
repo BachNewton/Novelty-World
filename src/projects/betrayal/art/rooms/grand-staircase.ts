@@ -3,7 +3,8 @@ import { candle, pictureFrame } from "../kit";
 import type { PaletteKey } from "../palette";
 import { CUT_HEIGHT, INNER, onWall, type PropPlacement, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, group, type Batch } from "../shapes";
-import { newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
+import { shiny, shinyBatch, SHINES } from "../shine";
+import { HALL_SHINE, newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
 
 const STAIR_MID = (STAIR.back + STAIR.front) / 2;
 /** The flight rises through the ceiling here: the balustrade stops where its
@@ -34,6 +35,7 @@ function beam(b: Batch, from: THREE.Vector3, to: THREE.Vector3, size: [number, n
  */
 function staircase(from: number, to: number): THREE.Group {
   const b = batch();
+  const rods = batch();
   const depth = STAIR.front - STAIR.back;
   const slab = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, colour: PaletteKey) => {
     const low = Math.max(y0, from);
@@ -53,7 +55,7 @@ function staircase(from: number, to: number): THREE.Group {
       b.block([STAIR.going - 0.01, 0.03, depth - 0.01], "woodMid", [(x0 + x1) / 2, to, STAIR_MID]);
       // The carpet stops short of the cap's ends, so their end faces never share a plane.
       b.block([STAIR.going - 0.02, 0.03, STAIR.carpet], "blood", [(x0 + x1) / 2, to + 0.015, STAIR_MID]);
-      b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.02, to + 0.03, STAIR_MID]);
+      rods.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.02, to + 0.03, STAIR_MID]);
     }
     if (!whole(i)) continue;
     const at = (y: number) => y - from;
@@ -61,7 +63,7 @@ function staircase(from: number, to: number): THREE.Group {
     b.block([STAIR.going, 0.025, STAIR.carpet], "blood", [(x0 + x1) / 2 - 0.02, at(top), STAIR_MID]);
     // The riser's carpet stands on the tread carpet below, rather than beside it in the same planes.
     b.block([0.025, STAIR.rise - 0.065, STAIR.carpet], "blood", [x1 + 0.0125, at(top - STAIR.rise + 0.025), STAIR_MID]);
-    b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 + 0.03, at(top), STAIR_MID]);
+    rods.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 + 0.03, at(top), STAIR_MID]);
     if (i <= LAST_BALUSTER) {
       for (const x of [x1 - 0.08, x1 - 0.22]) b.block([0.04, RAIL, 0.04], "woodMid", [x, at(top), STAIR.front - 0.06]);
     }
@@ -79,7 +81,7 @@ function staircase(from: number, to: number): THREE.Group {
     beam(b, rail(STAIR.foot - 0.05), rail(railEnd), [0.07, 0.08], "woodDark");
     beam(b, stringer(split), stringer(-INNER), [0.24, 0.06], "woodMid");
   }
-  return group(b.mesh());
+  return group(b.mesh(), shinyBatch(rods, SHINES.brass));
 }
 
 /** A small door in the side of the flight, into the cupboard under the stairs,
@@ -90,7 +92,7 @@ function cupboardDoor(): THREE.Group {
   const leaf = group(
     box([width, height, 0.035], flat("woodMid"), [width / 2, 0, 0.0175]),
     box([width - 0.14, height - 0.3, 0.02], flat("wood"), [width / 2, 0.15, 0.035]),
-    box([0.04, 0.04, 0.04], flat("brass"), [width - 0.08, 0.7, 0.05]),
+    box([0.04, 0.04, 0.04], shiny(flat("brass"), SHINES.brass), [width - 0.08, 0.7, 0.05]),
   );
   leaf.position.set(-width / 2, 0, 0.02);
   leaf.rotation.y = -0.55;
@@ -99,7 +101,7 @@ function cupboardDoor(): THREE.Group {
 
 /** A brass candle sconce on the wall above the flight, to light the climb. Faces +z. */
 function sconce(): THREE.Group {
-  const brass = flat("brass");
+  const brass = shiny(flat("brass"), SHINES.brass);
   const taper = candle({ height: 0.16, intensity: 2.2 });
   taper.position.set(0, 0.06, 0.18);
   const result = group(
@@ -140,7 +142,7 @@ const CANVAS_BACK = [
 /** A portrait hung the wrong way round: its stretcher and bare canvas face
  *  the room. */
 function turnedPortrait(): THREE.Group {
-  return pictureFrame({ art: { rows: CANVAS_BACK, legend: { w: "woodDark", m: "wood", b: "boneDark" } }, frame: "woodDark", border: 0.03 });
+  return pictureFrame({ picture: { name: "canvas back", shape: "rect", rows: CANVAS_BACK, legend: { w: "woodDark", m: "wood", b: "boneDark" } }, frame: "woodDark", border: 0.03 });
 }
 
 /** How far under the cut height the clock's foot stops. */
@@ -149,13 +151,14 @@ const BELOW_CUT = 0.005;
 /** A tall case clock with a pale face, its pendulum still. The case's foot
  *  stands on the floor; the rest hangs with its wall. Faces +z. */
 function clock(part: "foot" | "case"): THREE.Group {
-  const wood = flat("wood");
-  const dark = flat("woodDark");
+  const wood = shiny(flat("wood"), SHINES.polishedWood);
+  const dark = shiny(flat("woodDark"), SHINES.polishedWood);
+  const brass = shiny(flat("brass"), SHINES.brass);
   if (part === "foot") {
     // A little under the cut wall's top, so the two never share a plane; the case above reaches down to meet it.
     return group(box([0.56, 0.1, 0.36], dark, [0, 0, 0.18]), box([0.5, CUT_HEIGHT - 0.1 - BELOW_CUT, 0.32], wood, [0, 0.1, 0.16]));
   }
-  const face = cylinder(0.17, 0.02, flat("bone"), [0, 0, 0], { sides: 12 });
+  const face = cylinder(0.17, 0.02, shiny(flat("bone"), SHINES.glazedChina), [0, 0, 0], { sides: 12 });
   face.rotation.x = Math.PI / 2;
   face.position.set(0, 1.35, 0.33);
   const hand = (length: number, turn: number) => {
@@ -168,8 +171,8 @@ function clock(part: "foot" | "case"): THREE.Group {
   return group(
     box([0.42, 0.95 + BELOW_CUT, 0.28], wood, [0, -BELOW_CUT, 0.14]),
     box([0.2, 0.62, 0.02], flat("soot"), [0, 0.18, 0.285]),
-    box([0.04, 0.4, 0.02], flat("brass"), [0, 0.32, 0.3]),
-    box([0.13, 0.13, 0.02], flat("brass"), [0, 0.24, 0.305]),
+    box([0.04, 0.4, 0.02], brass, [0, 0.32, 0.3]),
+    box([0.13, 0.13, 0.02], brass, [0, 0.24, 0.305]),
     box([0.5, 0.06, 0.34], dark, [0, 0.95, 0.17]),
     box([0.48, 0.55, 0.32], wood, [0, 1.01, 0.16]),
     face,
@@ -186,6 +189,7 @@ function clock(part: "foot" | "case"): THREE.Group {
 export const GRAND_STAIRCASE: RoomDefinition = {
   id: "grand-staircase",
   ...SUITE,
+  shine: HALL_SHINE,
   props: [
     { build: () => runner({ from: 0.2, to: 3, finished: ["from"] }), at: [0, 0] },
     {
@@ -212,16 +216,14 @@ export const GRAND_STAIRCASE: RoomDefinition = {
     },
     { build: cupboardDoor, at: [-1.2, STAIR.front + 0.01] },
     { build: sconce, ...onWall("top", -0.6, { y: 2.55, out: 0.02 }) },
-    { build: () => pictureFrame({ frame: "brass" }), ...onWall("top", 0.75, { y: 1.45 }) },
-    { build: () => pictureFrame({ frame: "woodLight" }), ...onWall("top", -0.15, { y: 2.1 }) },
+    { build: () => pictureFrame({ picture: "ship", frame: "brass" }), ...onWall("top", 0.75, { y: 1.45 }) },
+    { build: () => pictureFrame({ picture: "lady with a bun", frame: "woodLight" }), ...onWall("top", -0.15, { y: 2.1 }) },
     { build: turnedPortrait, ...onWall("top", -1.05, { y: 2.6 }) },
     { build: () => clock("foot"), ...onWall("left", -0.9) },
     { build: () => clock("case"), ...onWall("left", -0.9, { y: CUT_HEIGHT }) },
   ] satisfies PropPlacement[],
   focus: [0.4, 1.0, -1.6],
-  pawn: [1.2, 0.5],
-  spots: [[-0.35, -0.2], [-0.1, 1.6], [-1.65, 0.9], [-1.9, -0.9], [1.5, 2.2]],
-  overflow: [[-2.35, 2.25], [1.25, -0.9], [-1.9, 0.1], [-0.35, 0.8], [-1.65, 1.9], [0.15, -0.8]],
+  prime: [1.2, 0.5],
   // Across the hall from the doorway, and round the newel to the foot of the stair.
   lanes: [
     [[2.2, 0], [1.5, 0], [-1.5, 0]],

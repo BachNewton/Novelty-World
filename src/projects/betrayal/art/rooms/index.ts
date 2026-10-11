@@ -4,6 +4,7 @@ import { CATACOMBS } from "./catacombs";
 import { CHAPEL } from "./chapel";
 import { CHASM } from "./chasm";
 import { CREAKY_HALLWAY } from "./creaky-hallway";
+import { DINING_ROOM } from "./dining-room";
 import { DRAWING_ROOM } from "./drawing-room";
 import { DUSTY_HALLWAY } from "./dusty-hallway";
 import { ENTRANCE_HALL } from "./entrance-hall";
@@ -24,6 +25,12 @@ import { TOWER } from "./tower";
 import { PENTAGRAM_CHAMBER } from "./pentagram-chamber";
 import { JUNK_ROOM } from "./junk-room";
 import { ATTIC } from "./attic";
+import { SERVANTS_QUARTERS } from "./servants-quarters";
+import { BEDROOM } from "./bedroom";
+import { STOREROOM } from "./storeroom";
+import { ABANDONED_ROOM } from "./abandoned-room";
+import { GAME_ROOM } from "./game-room";
+import { ORGAN_ROOM } from "./organ-room";
 
 /** Every room the art bench can show, in the order it lists them. */
-export const BENCH_ROOMS: readonly RoomDefinition[] = [DRAWING_ROOM, CHAPEL, LIBRARY, GRAND_STAIRCASE, FOYER, ENTRANCE_HALL, UPPER_LANDING, MASTER_BEDROOM, CHASM, MYSTIC_ELEVATOR, FURNACE_ROOM, KITCHEN, GRAVEYARD, UNDERGROUND_LAKE, BASEMENT_LANDING, STAIRS_FROM_BASEMENT, WINE_CELLAR, CATACOMBS, CREAKY_HALLWAY, TOWER, PENTAGRAM_CHAMBER, DUSTY_HALLWAY, JUNK_ROOM, STATUARY_CORRIDOR, ATTIC];
+export const BENCH_ROOMS: readonly RoomDefinition[] = [DRAWING_ROOM, CHAPEL, LIBRARY, GRAND_STAIRCASE, FOYER, ENTRANCE_HALL, UPPER_LANDING, MASTER_BEDROOM, CHASM, MYSTIC_ELEVATOR, FURNACE_ROOM, KITCHEN, GRAVEYARD, UNDERGROUND_LAKE, BASEMENT_LANDING, STAIRS_FROM_BASEMENT, WINE_CELLAR, CATACOMBS, CREAKY_HALLWAY, TOWER, PENTAGRAM_CHAMBER, DUSTY_HALLWAY, JUNK_ROOM, STATUARY_CORRIDOR, ATTIC, SERVANTS_QUARTERS, BEDROOM, STOREROOM, DINING_ROOM, ABANDONED_ROOM, GAME_ROOM, ORGAN_ROOM];

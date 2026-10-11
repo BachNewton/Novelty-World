@@ -5,6 +5,7 @@ import { crossCorners } from "../kit/wall-mass";
 import { RAMPS, type PaletteKey } from "../palette";
 import { clearOfMarks, crossLanes, INNER, type RoomDefinition } from "../room";
 import { batch, box, glow, group } from "../shapes";
+import { SHINES } from "../shine";
 import { panelling, wallpaper, woodPlanks } from "../textures";
 
 const SEED = "creaky-hallway";
@@ -12,9 +13,10 @@ const SEED = "creaky-hallway";
 const ARM = 1.3;
 const SURFACES = {
   wall: () => wallpaper({ ground: "ash", stripe: "sootLight", motif: "stoneDark", seed: SEED }),
-  wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED }),
+  wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED, glints: false }),
   trim: "woodDark",
-} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim">;
+  shine: { glass: SHINES.glass },
+} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim" | "shine">;
 
 /** The loose boards lie in rows along x, one every `PITCH` from `FIRST`, with a gap between each. */
 const PITCH = 0.25;
@@ -124,7 +126,7 @@ function brokenFloor(): THREE.Group {
 
 /** The faded hall paper's portrait, for a frame hung askew. */
 function askewFrame(): THREE.Group {
-  const frame = pictureFrame({ frame: "woodLight" });
+  const frame = pictureFrame({ picture: "empty oval", frame: "woodLight" });
   frame.rotation.z = 0.12;
   return group(frame);
 }
@@ -134,7 +136,7 @@ function askewFrame(): THREE.Group {
  *  every seam. */
 export const CREAKY_HALLWAY: RoomDefinition = {
   id: "creaky-hallway",
-  floor: () => woodPlanks({ seed: SEED }),
+  floor: () => woodPlanks({ seed: SEED, glints: false }),
   ...SURFACES,
   floorOpenings: [HOLE],
   props: [
@@ -144,7 +146,7 @@ export const CREAKY_HALLWAY: RoomDefinition = {
     { build: () => table({ length: 0.8, width: 0.32, height: 0.8, wood: RAMPS.wood }), name: "hall table", at: [-2.15, -ARM + 0.21] },
     { build: () => chamberstick({ height: 0.05, intensity: 1.1, range: 4 }), at: [-1.95, -ARM + 0.21], y: 0.8 },
     { build: askewFrame, at: [-2.05, -ARM - 0.005], y: 1.35, walls: ["top", "left"] },
-    { build: () => pictureFrame({ frame: "brass" }), at: [ARM + 0.005, -2.05], y: 1.4, turn: -90, walls: ["top", "right"] },
+    { build: () => pictureFrame({ picture: "willow over a grave", frame: "brass" }), at: [ARM + 0.005, -2.05], y: 1.4, turn: -90, walls: ["top", "right"] },
     { build: () => cobweb({ form: "slung" }), at: [-ARM + 0.29, INNER - 0.29], y: 3.05, turn: -45, walls: ["bottom", "left"] },
   ],
   lights: [
@@ -152,8 +154,6 @@ export const CREAKY_HALLWAY: RoomDefinition = {
     { at: [0, 0.06, 0.3], colour: "wraith", intensity: 2.5, range: 4 },
   ],
   focus: [0.6, 0.4, 1.2],
-  pawn: [-0.5, 0.45],
-  spots: [[0.3, -0.75], [1.75, -0.6], [0.95, 0.65], [-1.7, -0.35], [-0.75, -1.75]],
-  overflow: [[-0.4, 1.55], [0.1, -1.7], [-0.5, -0.35], [1.65, 0.3], [-1.35, 0.35], [0.8, -1.35]],
+  prime: [-0.5, 0.45],
   lanes: crossLanes(),
 };

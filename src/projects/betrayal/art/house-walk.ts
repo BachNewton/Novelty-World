@@ -66,19 +66,25 @@ export function shownOn(layout: Layout, reach: Reach, floor: FloorId | "all", st
   return from !== undefined && floorOf(from) === floor && stairway(from, reach.room) ? { stairFrom: from } : null;
 }
 
+/** Reshapes a walk's points across one room (in its own frame, from where it
+ *  comes in to where it leaves, both kept): to keep round the figures standing there. */
+export type Avoid = (room: string, points: readonly RoomPoint[]) => RoomPoint[];
+
 /**
  * The path of a walk along a route: from `from`, through the centre of each
  * doorway between rooms on one floor, or along the stairway out of one room
  * and back down the other's into it where a fixed link joins them, to `to`.
  * Across each room it keeps to the room's ways (`waypoints`): its lanes, and
- * a barrier room's crossing. Where it changes floor, two points in a row lie
- * on different floors.
+ * a barrier room's crossing, reshaped by `avoid` (round the figures standing
+ * there). Where it changes floor, two points in a row lie on different floors.
  */
-export function walkPath(layout: Layout, route: readonly string[], from: HousePoint, to: HousePoint, ways: (room: string) => RoomWays): HousePoint[] {
+export function walkPath(layout: Layout, route: readonly string[], from: HousePoint, to: HousePoint, ways: (room: string) => RoomWays, avoid?: Avoid): HousePoint[] {
   const path: HousePoint[] = [];
   /** Walks across `room` from `a` to just short of `b`. */
   const across = (room: string, a: HousePoint, b: HousePoint) => {
-    path.push(a, ...waypoints(ways(room), inRoom(layout, room, a), inRoom(layout, room, b)).map((point) => inHouse(layout, room, point)));
+    const [start, end] = [inRoom(layout, room, a), inRoom(layout, room, b)];
+    const points = [start, ...waypoints(ways(room), start, end), end];
+    path.push(a, ...(avoid ? avoid(room, points) : points).slice(1, -1).map((point) => inHouse(layout, room, point)));
   };
   let entered = from;
   for (let i = 1; i < route.length; i++) {
@@ -115,11 +121,27 @@ export function walkPath(layout: Layout, route: readonly string[], from: HousePo
 }
 
 /** Walking pace, in metres a second along the path: slow enough to follow.
- *  Every figure keeps it, so a turn takes as long whoever walks; a figure's
- *  own step sets its cadence. */
+ *  An explorer of middling Speed keeps it, as does any figure without a
+ *  Speed track (a monster moves its own way); a figure's own step sets its
+ *  cadence. */
 export const WALK_SPEED = 1.5;
-/** Running pace, shared by every figure as the walking pace is. */
+/** Running pace, kept as the walking pace is. */
 export const RUN_SPEED = 3.6;
+/** The Speed values the explorers' tracks run between. An explorer's pace
+ *  follows their Speed through it: each point above the middle 10% faster
+ *  than the house's pace, each below it 10% slower, and no faster or slower
+ *  past either end. */
+export const SPEED_VALUES = { lowest: 2, highest: 8 } as const;
+const PER_POINT = 0.1;
+
+/** Metres a second along the path at a pace, for an explorer of this Speed
+ *  value, or a figure without one at the house's own pace. */
+export function paceSpeed(pace: Pace = "walk", speed?: number): number {
+  const base = pace === "run" ? RUN_SPEED : WALK_SPEED;
+  if (speed === undefined) return base;
+  const { lowest, highest } = SPEED_VALUES;
+  return base * (1 + PER_POINT * (THREE.MathUtils.clamp(speed, lowest, highest) - (lowest + highest) / 2));
+}
 /** Metres over which a walker gets into its stride, and out of it. */
 const EASE = 0.5;
 /** How far either side of the walker its heading looks, so it turns through
@@ -132,6 +154,14 @@ export interface Walk {
   start: number;
   /** Walked unless it says otherwise. */
   pace?: Pace;
+  /** The walker's Speed value as the walk began, which sets how fast it
+   *  goes (`paceSpeed`); left out, the house's own pace. */
+  speed?: number;
+}
+
+/** How long a walk takes, at its pace and Speed. */
+export function walkLasts(walk: Walk): number {
+  return walkLength(walk.path) / paceSpeed(walk.pace, walk.speed);
 }
 
 /** The length of each leg of a path; a change of floor has none. */
@@ -177,11 +207,13 @@ export interface WalkPose {
 }
 
 /** Where a walker is, and how it moves, at a moment on the stage's clock,
- *  taking walking steps `step` metres long (a run lengthens them). */
+ *  taking walking steps `step` metres long (a run lengthens them). The
+ *  stride's phase follows the distance walked, not the time, so a faster
+ *  walker steps more often with the same step, and its feet never slide. */
 export function walkPose(walk: Walk, seconds: number, step = ADULT_WALK.step): WalkPose {
   const running = walk.pace === "run";
   const total = walkLength(walk.path);
-  const distance = Math.min(total, Math.max(0, (seconds - walk.start) * (running ? RUN_SPEED : WALK_SPEED)));
+  const distance = Math.min(total, Math.max(0, (seconds - walk.start) * paceSpeed(walk.pace, walk.speed)));
   const here = along(walk.path, distance);
   const behind = along(walk.path, distance - LOOK).point;
   const ahead = along(walk.path, distance + LOOK).point;

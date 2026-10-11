@@ -7,7 +7,13 @@ import { flickerOf, flickerSignal } from "../lighting";
 import type { PaletteKey } from "../palette";
 import { INNER, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { bricks, flagstones, pixelTexture } from "../textures";
+
+/** Iron, in one of its tones, taking the iron's highlights. */
+function iron(colour: PaletteKey): THREE.MeshLambertMaterial {
+  return shiny(flat(colour), SHINES.iron);
+}
 
 /** Where the furnace stands, its fire-door turned across the room to the far
  *  corner, so the fire shows from the front or the side in every view. */
@@ -41,9 +47,11 @@ function tongue(x: number, z: number, height: number, radius: number, colour: Pa
 /** A round cast-iron gravity furnace on a stone plinth, its fire-door hanging
  *  open on the fire, an ash pit glowing beneath. The fire-door faces +z. */
 function furnace(): THREE.Group {
-  const iron = flat("ash");
-  const dark = flat("soot");
-  const band = flat("stoneDark");
+  // Bare iron's colour is what it reflects, so the belly is a step paler than the room's dark iron; its bands stand out
+  // darker than it, not paler, since the light catching them is the iron's own highlight.
+  const body = iron("stoneDark");
+  const dark = iron("soot");
+  const band = iron("ash");
   const result = group(
     cylinder(0.8, 0.1, flat("stoneDark"), [0, 0, 0], { sides: 12 }),
     lathe(
@@ -57,7 +65,7 @@ function furnace(): THREE.Group {
         [0.32, COLLAR + 0.1],
         [0, COLLAR + 0.1],
       ],
-      iron,
+      body,
       12,
     ),
     cylinder(BODY + 0.02, 0.06, band, [0, 0.98, 0], { sides: 12 }),
@@ -69,10 +77,10 @@ function furnace(): THREE.Group {
   const open = { width: 0.46, bottom: 0.34, top: 0.72 };
   const jamb = 0.12;
   result.add(
-    box([jamb, open.top - open.bottom + 0.12, 0.36], iron, [-(open.width / 2 + jamb / 2), open.bottom - 0.1, 0.68]),
-    box([jamb, open.top - open.bottom + 0.12, 0.36], iron, [open.width / 2 + jamb / 2, open.bottom - 0.1, 0.68]),
-    box([open.width + jamb * 2 + 0.04, 0.12, 0.38], iron, [0, open.top, 0.69]),
-    box([open.width + jamb * 2 + 0.04, 0.1, 0.4], iron, [0, open.bottom - 0.1, 0.7]),
+    box([jamb, open.top - open.bottom + 0.12, 0.36], body, [-(open.width / 2 + jamb / 2), open.bottom - 0.1, 0.68]),
+    box([jamb, open.top - open.bottom + 0.12, 0.36], body, [open.width / 2 + jamb / 2, open.bottom - 0.1, 0.68]),
+    box([open.width + jamb * 2 + 0.04, 0.12, 0.38], body, [0, open.top, 0.69]),
+    box([open.width + jamb * 2 + 0.04, 0.1, 0.4], body, [0, open.bottom - 0.1, 0.7]),
     box([open.width - 0.02, open.top - open.bottom, 0.02], glow("ember"), [0, open.bottom, 0.69]),
   );
   const coals: [number, number, number, PaletteKey][] = [
@@ -101,7 +109,7 @@ function furnace(): THREE.Group {
 
   // The fire-door, hanging open off its upper hinge, swung back against the belly.
   const leaf = group(
-    box([0.5, 0.44, 0.04], iron, [0.25, -0.22, 0.02]),
+    box([0.5, 0.44, 0.04], body, [0.25, -0.22, 0.02]),
     box([0.42, 0.36, 0.02], dark, [0.25, -0.18, 0.045]),
     box([0.06, 0.05, 0.07], band, [0.44, -0.02, 0.04]),
   );
@@ -112,7 +120,7 @@ function furnace(): THREE.Group {
 
   // The ash pit below, glowing through its open slot.
   result.add(
-    box([0.56, 0.16, 0.12], iron, [0, 0.1, 0.68]),
+    box([0.56, 0.16, 0.12], body, [0, 0.1, 0.68]),
     box([0.42, 0.07, 0.03], glow("ember"), [0, 0.135, 0.735]),
   );
 
@@ -120,7 +128,7 @@ function furnace(): THREE.Group {
   const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.05, 10), band);
   dial.rotation.x = Math.PI / 2;
   dial.position.set(0.22, 1.24, 0.6);
-  const face = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.02, 10), flat("boneDark"));
+  const face = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.02, 10), shiny(flat("boneDark"), SHINES.glass));
   face.rotation.x = Math.PI / 2;
   face.position.set(0.22, 1.24, 0.63);
   const needle = box([0.015, 0.065, 0.015], flat("scarlet"), [0, 0, 0]);
@@ -135,9 +143,9 @@ function furnace(): THREE.Group {
 
   result.add(
     // Flame signal 1, which the floor's glowing cracks waver with too.
-    lightAnchor({ colour: "amber", intensity: 30, range: 12, flicker: 0.5, signal: 1 }, [0, 0.56, 0.95]),
-    lightAnchor({ colour: "ember", intensity: 8, range: 7, flicker: 0.45 }, [0, 0.12, 0.98]),
-    lightAnchor({ colour: "ember", intensity: 5, range: 6, flicker: 0.4 }, [0.1, 0.5, -0.95]),
+    lightAnchor({ colour: "amber", intensity: 30, range: 12, flicker: 0.5, signal: 1, kind: "fire" }, [0, 0.56, 0.95]),
+    lightAnchor({ colour: "ember", intensity: 8, range: 7, flicker: 0.45, kind: "fire" }, [0, 0.12, 0.98]),
+    lightAnchor({ colour: "ember", intensity: 5, range: 6, flicker: 0.4, kind: "fire" }, [0.1, 0.5, -0.95]),
   );
   return result;
 }
@@ -184,7 +192,7 @@ function coalHeap(): THREE.Group {
   }
   const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 7).translate(0, height / 2, 0), flat("soot"));
   const handle = pipe(new THREE.Vector3(-0.05, 0.3, -0.1), new THREE.Vector3(-0.45, 1.05, 0.15), 0.02, flat("woodMid"), 6);
-  const blade = box([0.24, 0.3, 0.02], flat("ash"), [0, -0.15, 0]);
+  const blade = box([0.24, 0.3, 0.02], iron("ash"), [0, -0.15, 0]);
   blade.position.set(0.02, 0.3, -0.13);
   blade.rotation.set(0.25, 0.55, 0.45);
   return group(cone, lumps.mesh(), handle, blade);
@@ -192,28 +200,30 @@ function coalHeap(): THREE.Group {
 
 /** The iron hatch of the coal chute, hung on the wall above the heap. Faces +z. */
 function chuteHatch(): THREE.Group {
-  const iron = flat("sootLight");
-  const trough = box([0.46, 0.03, 0.55], iron, [0, 0, 0]);
+  const plate = iron("sootLight");
+  const trough = box([0.46, 0.03, 0.55], plate, [0, 0, 0]);
   trough.rotation.x = 0.55;
   trough.position.set(0, -0.28, 0.32);
   return group(
-    box([0.62, 0.5, 0.08], iron, [0, 0, 0.04]),
+    box([0.62, 0.5, 0.08], plate, [0, 0, 0.04]),
     box([0.48, 0.36, 0.03], flat("void"), [0, 0.07, 0.09]),
-    box([0.66, 0.05, 0.1], flat("ash"), [0, 0.5, 0.05]),
+    box([0.66, 0.05, 0.1], iron("sootLight"), [0, 0.5, 0.05]),
     trough,
   );
 }
 
 /** An iron grille in the floor over a pit of embers, the fire showing through. */
 function floorGrate(): THREE.Group {
-  const iron = flat("soot");
+  const frame = iron("soot");
   const size = 0.72;
   const bars = batch();
   for (let i = 0; i < 7; i++) {
     const x = -size / 2 + 0.07 + i * ((size - 0.14) / 6);
     bars.block([0.035, 0.03, size - 0.04], "soot", [x, 0.012, 0]);
   }
-  for (const z of [-0.12, 0.12]) bars.block([size - 0.04, 0.035, 0.03], "sootLight", [0, 0.014, z]);
+  for (const z of [-0.12, 0.12]) bars.block([size - 0.04, 0.035, 0.03], "soot", [0, 0.014, z]);
+  const barMesh = bars.mesh();
+  shiny(barMesh.material, SHINES.iron);
   const pit = box([size - 0.08, 0.004, size - 0.08], glow("ember"), [0, 0.006, 0]);
   pit.userData.noShadow = true;
   // The embers lie on the glowing pit, under the bars and the scorched floor, rather than a millimetre from either.
@@ -223,14 +233,14 @@ function floorGrate(): THREE.Group {
     [0.2, 0.15],
   ].map(([x, z]) => box([0.08, 0.0015, 0.06], glow("amber"), [x, 0.01, z]));
   return group(
-    box([size, 0.04, 0.06], iron, [0, 0, -size / 2 + 0.03]),
-    box([size, 0.04, 0.06], iron, [0, 0, size / 2 - 0.03]),
-    box([0.06, 0.04, size - 0.12], iron, [-size / 2 + 0.03, 0, 0]),
-    box([0.06, 0.04, size - 0.12], iron, [size / 2 - 0.03, 0, 0]),
+    box([size, 0.04, 0.06], frame, [0, 0, -size / 2 + 0.03]),
+    box([size, 0.04, 0.06], frame, [0, 0, size / 2 - 0.03]),
+    box([0.06, 0.04, size - 0.12], frame, [-size / 2 + 0.03, 0, 0]),
+    box([0.06, 0.04, size - 0.12], frame, [size / 2 - 0.03, 0, 0]),
     pit,
     ...embers,
-    bars.mesh(),
-    lightAnchor({ colour: "ember", intensity: 8, range: 7, flicker: 0.4 }, [0, 0.16, 0]),
+    barMesh,
+    lightAnchor({ colour: "ember", intensity: 8, range: 7, flicker: 0.4, kind: "fire" }, [0, 0.16, 0]),
   );
 }
 
@@ -332,11 +342,11 @@ function scuttle(): THREE.Group {
       [0.17, 0.32],
       [0, 0.32],
     ],
-    flat("ash"),
+    iron("ash"),
     9,
   );
   const coal = cylinder(0.16, 0.05, flat("void"), [0, 0.31, 0], { top: 0.07, sides: 9 });
-  const handle = box([0.36, 0.025, 0.025], flat("sootLight"), [0, 0.36, 0]);
+  const handle = box([0.36, 0.025, 0.025], iron("sootLight"), [0, 0.36, 0]);
   return group(body, coal, handle);
 }
 
@@ -350,7 +360,7 @@ function fallenStool(): THREE.Group {
   }
   stool.rotation.z = Math.PI / 2;
   stool.position.y = 0.17;
-  const cup = cylinder(0.04, 0.09, flat("stone"), [0, 0, 0], { sides: 7 });
+  const cup = cylinder(0.04, 0.09, shiny(flat("stone"), SHINES.pewter), [0, 0, 0], { sides: 7 });
   cup.rotation.x = Math.PI / 2;
   cup.position.set(-0.7, 0.04, 0.3);
   return group(stool, cup);
@@ -358,10 +368,10 @@ function fallenStool(): THREE.Group {
 
 /** A long iron fire rake left lying on the floor. Runs along +x. */
 function rake(): THREE.Group {
-  const iron = flat("sootLight");
-  const head = box([0.04, 0.05, 0.26], iron, [0.62, 0, 0]);
-  const shaft = pipe(new THREE.Vector3(-0.65, 0.025, 0), new THREE.Vector3(0.62, 0.025, 0), 0.015, iron, 5);
-  return group(shaft, head, box([0.1, 0.04, 0.04], iron, [-0.68, 0, 0]));
+  const metal = iron("sootLight");
+  const head = box([0.04, 0.05, 0.26], metal, [0.62, 0, 0]);
+  const shaft = pipe(new THREE.Vector3(-0.65, 0.025, 0), new THREE.Vector3(0.62, 0.025, 0), 0.015, metal, 5);
+  return group(shaft, head, box([0.1, 0.04, 0.04], metal, [-0.68, 0, 0]));
 }
 
 /** Two crates of kindling stacked in the far corner. */
@@ -424,9 +434,7 @@ export const FURNACE_ROOM: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-(INNER - 0.29), -(INNER - 0.29)], y: 3.05, turn: 45, walls: ["left", "top"] },
   ],
   focus: [0.7, 0.6, -0.45],
-  pawn: [-1.4, 0.45],
-  spots: [[-0.35, -0.9], [-2.05, -1.15], [1.6, 1.4], [-2.1, 2.0], [-0.1, 1.7]],
-  overflow: [[0.95, -1.75], [-1.1, -2.35], [-0.2, 0.45], [-1.3, 1.55], [-1.4, 2.35], [1.0, 1.9]],
+  prime: [-1.4, 0.45],
   // Down from the top doorway between the coal and the furnace, across the
   // floor to the other doorways, and round the coal into the corner behind it.
   lanes: [

@@ -7,7 +7,9 @@ import type { PaletteKey } from "../palette";
 import { CUT_HEIGHT, INNER, WAINSCOT_DEPTH, type PropPlacement, type RoomDefinition } from "../room";
 import { RAIL, SKIRTING } from "../stage";
 import { batch, box, flat, group, pixelPlane, projectUvs, textured } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { flagstones, pixelTexture, TEXELS_PER_METRE, woodPlanks } from "../textures";
+import { pageSearch } from "../page-search";
 
 /** The hole in the floor the lake fills, along the left and bottom walls; the
  *  dry stone left over is a ledge under the two doors. */
@@ -81,8 +83,7 @@ function isWaterStyle(value: string): value is WaterStyle {
 /** The water this page asks for; a value it doesn't know throws, so a typo never passes for a choice. Rooms are also
  *  built in tests, which have no page. */
 function waterStyle(): WaterStyle {
-  const search = typeof window === "undefined" ? "" : window.location.search;
-  const style = new URLSearchParams(search).get("water") ?? "shader";
+  const style = new URLSearchParams(pageSearch()).get("water") ?? "shader";
   if (!isWaterStyle(style)) throw new Error(`water=${style}: it is one of ${WATER_STYLES.join(", ")}`);
   return style;
 }
@@ -243,7 +244,9 @@ function shore(): THREE.Group {
     new THREE.Vector3(1, 1, 1),
   );
   b.add([0.3, 0.09, 0.4], "stoneDark", slipped);
-  return group(b.mesh());
+  const stones = b.mesh();
+  shiny(stones.material, SHINES.wetStone);
+  return group(stones);
 }
 
 /** A landing stage of tarred posts and grey boards running out over the
@@ -396,13 +399,15 @@ function chain(): THREE.Group {
       const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, flatLink ? 0 : Math.PI / 2, "YXZ"));
       const reach = (Math.abs(Math.sin(pitch)) * (link + 0.02) + Math.cos(pitch) * (flatLink ? 0.016 : 0.045)) / 2;
       if (at.z < LAKE.z[0] + 0.05) at.y = Math.max(at.y, reach);
-      b.add([0.045, 0.016, link + 0.02], k % 3 === 0 ? "stoneDark" : "ash", new THREE.Matrix4().compose(at, rotation, new THREE.Vector3(1, 1, 1)));
+      b.add([0.045, 0.016, link + 0.02], "ash", new THREE.Matrix4().compose(at, rotation, new THREE.Vector3(1, 1, 1)));
     }
   });
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.016, 4, 8), flat("ash"));
+  const links = b.mesh();
+  shiny(links.material, SHINES.iron);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.016, 4, 8), shiny(flat("ash"), SHINES.iron));
   ring.position.set(-0.9, 0.32, -INNER + 0.075);
-  const plate = box([0.12, 0.12, 0.03], flat("soot"), [-0.9, 0.26, -INNER + 0.045]);
-  return group(b.mesh(), ring, plate);
+  const plate = box([0.12, 0.12, 0.03], shiny(flat("soot"), SHINES.iron), [-0.9, 0.26, -INNER + 0.045]);
+  return group(links, ring, plate);
 }
 
 /** Wet footprints of bare feet coming up out of the lake beside the jetty,
@@ -427,7 +432,9 @@ function footprints(): THREE.Mesh {
       });
     });
   });
-  const mesh = pixelPlane(pixelTexture(rows(), { w: "tide" }), { alpha: true });
+  const texture = pixelTexture(rows(), { w: "void" });
+  const mesh = pixelPlane(texture);
+  mesh.material = shiny(textured(texture, true), SHINES.wetStone);
   mesh.rotation.x = -Math.PI / 2;
   mesh.userData.noShadow = true;
   return mesh;
@@ -469,15 +476,13 @@ export const UNDERGROUND_LAKE: RoomDefinition = {
     { build: footprints, at: [-0.6, -1.75], y: 0.004 },
   ],
   lights: [
-    { at: [-2.35, WATER + 0.3, 0.1], colour: "tideLight", intensity: 6, range: 5.5, flicker: 0.45, signal: "water" },
-    { at: [-2.3, WATER + 0.3, 2.3], colour: "tideLight", intensity: 6, range: 5.5, flicker: 0.45, signal: "water" },
-    { at: [-0.3, WATER + 0.3, 2.35], colour: "tideLight", intensity: 6, range: 5.5, flicker: 0.45, signal: "water" },
-    { at: [0.45, WATER + 0.3, 0.45], colour: "tideLight", intensity: 6, range: 5.5, flicker: 0.45, signal: "water" },
+    { at: [-2.35, WATER + 0.3, 0.1], colour: "tideLight", intensity: 6, range: 5.5, flicker: 0.45, signal: "water", kind: "glow" },
+    { at: [-2.3, WATER + 0.3, 2.3], colour: "tideLight", intensity: 6, range: 5.5, flicker: 0.45, signal: "water", kind: "glow" },
+    { at: [-0.3, WATER + 0.3, 2.35], colour: "tideLight", intensity: 6, range: 5.5, flicker: 0.45, signal: "water", kind: "glow" },
+    { at: [0.45, WATER + 0.3, 0.45], colour: "tideLight", intensity: 6, range: 5.5, flicker: 0.45, signal: "water", kind: "glow" },
   ],
   focus: [-0.6, 0.3, 1.0],
-  pawn: [1.9, -1.7],
-  spots: [[0.6, -1.35], [1.65, -0.4], [1.9, 0.9], [-0.75, -1.75], [1.65, 2.2]],
-  overflow: [[2.35, -2.35], [-1.5, -1.5], [2.35, -1.05], [2.25, 1.7], [1.4, -2.3]],
+  prime: [1.9, -1.7],
   // Along the shore, clear of the water.
   lanes: [
     [[0, -2.2], [0.9, -2.0], [1.6, -1.2], [1.75, 0], [1.65, 1.8]],

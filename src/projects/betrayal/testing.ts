@@ -22,6 +22,8 @@ export interface TestGame extends Scenario {
   /** Characters in seat order. */
   characters?: string[];
   engine?: Engine;
+  /** The haunt chosen at setup. */
+  chosenHaunt?: number;
 }
 
 export const DEFAULT_CHARACTERS = [
@@ -31,7 +33,7 @@ export const DEFAULT_CHARACTERS = [
 ];
 
 export function testGame(options: TestGame = {}): GameState {
-  const { seed, characters = DEFAULT_CHARACTERS, engine = ENGINE, ...scenario } =
+  const { seed, characters = DEFAULT_CHARACTERS, engine = ENGINE, chosenHaunt, ...scenario } =
     options;
   return newGame(engine, {
     gameId: "test",
@@ -44,6 +46,7 @@ export function testGame(options: TestGame = {}): GameState {
     // Seat 0's birthday is today, so seat 0 goes first.
     today: engine.catalog.characters[characters[0]].birthday,
     scenario,
+    ...(chosenHaunt === undefined ? {} : { chosenHaunt }),
   });
 }
 

@@ -3,6 +3,7 @@ import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { lightAnchor } from "../light-anchor";
 import { box, flat, glow, group, lathe } from "../shapes";
 import { TILE, type RoomDefinition } from "../room";
+import { shiny, SHINES } from "../shine";
 import { marble, panelling, svgTexture, TEXELS_PER_METRE, wallpaper } from "../textures";
 
 /*
@@ -18,12 +19,17 @@ import { marble, panelling, svgTexture, TEXELS_PER_METRE, wallpaper } from "../t
 
 const SEED = "starting-tile";
 
+
 export const SUITE: Pick<RoomDefinition, "floor" | "wall" | "wainscot" | "trim"> = {
-  floor: () => marble({ seed: `${SEED}:marble` }),
+  floor: () => marble({ seed: `${SEED}:marble`, veins: 0 }),
   wall: () => wallpaper({ ground: "moonDark", stripe: "soot", motif: "moon", seed: SEED }),
-  wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED }),
+  wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED, glints: false }),
   trim: "woodDark",
 };
+
+/** The hall's kept marble, with a faint sheen; its panelling is matte. Apart from `SUITE`, as the Upper Landing wears the panels over boards. */
+export const HALL_SHINE: RoomDefinition["shine"] = { floor: SHINES.floorSheen };
+
 
 /** The grand staircase's measure, shared by the flight on the ground floor
  *  and its head on the Upper Landing. On the ground floor it climbs the top
@@ -43,9 +49,9 @@ export const RAIL = 0.85;
 /** The newel post at the foot of the flight, crowned with a lamp whose globe
  *  lights the stair. */
 export function newel(): THREE.Group {
-  const post = flat("woodDark");
-  const cap = flat("woodMid");
-  const brass = flat("brass");
+  const post = shiny(flat("woodDark"), SHINES.polishedWood);
+  const cap = shiny(flat("woodMid"), SHINES.polishedWood);
+  const brass = shiny(flat("brass"), SHINES.brass);
   const globe = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 0), glow("amber"));
   globe.position.y = 1.42;
   const result = group(

@@ -3,7 +3,8 @@ import { createRng, pick } from "@/shared/lib/seeded-random";
 import { candle, chair, cobweb } from "../kit";
 import { paletteHex, type PaletteKey } from "../palette";
 import { INNER, onWall, type PropPlacement, type RoomDefinition } from "../room";
-import { batch, cylinder, flat, group, lightMaterial } from "../shapes";
+import { batch, cylinder, flat, group, lightMaterial, type Batch } from "../shapes";
+import { shiny, shinyBatch, SHINES } from "../shine";
 import { flagstones } from "../textures";
 
 /** The stone flight up to the Foyer: it climbs the left wall from its foot
@@ -25,12 +26,13 @@ const HEAD_LIGHT: [number, number, number] = [SIDE + 0.35, 2.95, -2.2];
 /** The front (nosing) edge of step `i`, counted from 1 at the foot. */
 const nosing = (i: number) => FLIGHT.foot - (i - 1) * FLIGHT.going;
 
-function beam(b: ReturnType<typeof batch>, from: THREE.Vector3, to: THREE.Vector3, size: [number, number], colour: PaletteKey) {
+function beam(b: Batch, from: THREE.Vector3, to: THREE.Vector3, size: [number, number], colour: PaletteKey) {
   const along = to.clone().sub(from);
   const turn = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), along.clone().normalize());
   const middle = from.clone().add(to).multiplyScalar(0.5);
   b.add([size[0], size[1], along.length()], colour, new THREE.Matrix4().compose(middle, turn, new THREE.Vector3(1, 1, 1)));
 }
+
 
 /**
  * The flight, built in room metres, as the part of it between heights `from`
@@ -41,6 +43,8 @@ function beam(b: ReturnType<typeof batch>, from: THREE.Vector3, to: THREE.Vector
  */
 function flight(from: number, to: number): THREE.Group {
   const b = batch();
+  const iron = batch();
+  let irons = 0;
   const rng = createRng("stairs-from-basement:treads");
   const x0 = -INNER + 0.005;
   const cx = (x0 + SIDE) / 2;
@@ -67,15 +71,19 @@ function flight(from: number, to: number): THREE.Group {
     b.block([width + 0.02, 0.04, going + 0.03], tread, [cx + 0.01, at(top - 0.04), (z0 + z1) / 2 + 0.015]);
     // Worn hollow down the middle of the tread, where every foot has gone.
     b.block([0.42, 0.012, going - 0.06], "bone", [MID_X + 0.05, at(top - 0.005), (z0 + z1) / 2 + 0.01]);
-    if (i % 2 === 1 && i > 2) b.block([0.035, RAIL, 0.035], "ash", [SIDE - 0.06, at(top), z1 - FLIGHT.going / 2]);
+    if (i % 2 === 1 && i > 2) {
+      iron.block([0.035, RAIL, 0.035], "ash", [SIDE - 0.06, at(top), z1 - FLIGHT.going / 2]);
+      irons++;
+    }
   }
   if (from > 0) {
     const nose = (z: number) => ((FLIGHT.foot - z) / FLIGHT.going) * FLIGHT.rise;
     const rail = (z: number) => new THREE.Vector3(SIDE - 0.06, nose(z) + RAIL + FLIGHT.rise - from, z);
     // The rail is torn from its lowest posts: it starts in the air above the fifth step.
-    beam(b, rail(nosing(5)), rail(-INNER + 0.05), [0.05, 0.05], "ash");
+    beam(iron, rail(nosing(5)), rail(-INNER + 0.05), [0.05, 0.05], "ash");
+    irons++;
   }
-  return group(b.mesh());
+  return irons ? group(b.mesh(), shinyBatch(iron, SHINES.iron)) : group(b.mesh());
 }
 
 /** The two lowest rail posts, wrenched out of the first steps and bent over
@@ -88,7 +96,7 @@ function tornPosts(): THREE.Group {
   };
   bent(nosing(1) - FLIGHT.going / 2, FLIGHT.rise, 0.75);
   bent(nosing(3) - FLIGHT.going / 2, 3 * FLIGHT.rise, 0.4);
-  return group(b.mesh());
+  return group(shinyBatch(b, SHINES.iron));
 }
 
 /** Warm light falling in from the Foyer over the head of the flight: a soft
@@ -127,8 +135,10 @@ function preserves(): THREE.Group {
     const r = 0.04 + rng.next() * 0.03;
     const h = 0.12 + rng.next() * 0.12;
     const z = 0.12 + rng.next() * 0.16;
+    const body = pick(rng, ["boneDark", "bone", "verdigris", "brickLight"] as PaletteKey[]);
     result.add(
-      cylinder(r, h, flat(pick(rng, ["boneDark", "bone", "verdigris", "brickLight"] as PaletteKey[])), [x, 0.44, z], { sides: 6 }),
+      // Green glass jars among glazed crocks.
+      cylinder(r, h, shiny(flat(body), body === "verdigris" ? SHINES.glass : SHINES.glazedChina), [x, 0.44, z], { sides: 6 }),
       cylinder(r + 0.005, 0.025, flat(pick(rng, ["boneLight", "stoneLight"] as PaletteKey[])), [x, 0.44 + h, z], { sides: 6 }),
     );
   }
@@ -170,9 +180,7 @@ export const STAIRS_FROM_BASEMENT: RoomDefinition = {
   ] satisfies PropPlacement[],
   lights: [{ at: HEAD_LIGHT, colour: "amber", intensity: 11, range: 8.5, flicker: 0.04 }],
   focus: [-1.6, 1.0, -0.4],
-  pawn: [-0.65, 1.15],
-  spots: [[0.85, 0.35], [0.4, -1.3], [-1.25, -1.75], [1.95, 1.65], [2.1, -1.4]],
-  overflow: [[-0.5, -0.45], [1.85, 0.55], [1.6, -2.25], [0.35, 1.15], [-0.6, -1.3], [2.3, 2.35]],
+  prime: [-0.65, 1.15],
   // Along the open side of the flight, wide of its foot, to where it starts.
   lanes: [[[MID_X, FLIGHT.foot + 0.8], [-0.6, 1.8], [0.2, 1.0], [0.2, -1.5]]],
   // Up the middle of the flight, over the middle of each tread, into the dark above.

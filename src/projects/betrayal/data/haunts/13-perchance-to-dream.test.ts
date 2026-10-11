@@ -349,6 +349,16 @@ describe("unleashing Nightmares", () => {
     expect(state.figures["nightmare-4"]).toBeUndefined();
   });
 
+  it("always brings one in when the last in play has gone, so the dreamer never runs out", () => {
+    const state = escaped((s) => {
+      for (const id of Object.keys(s.figures))
+        if (id !== N1 && s.figures[id].definition === "nightmare") s.figures[id].place = null;
+    });
+    expect(eventTypes(state)).not.toContain("replacement-declined");
+    expect(eventTypes(state)).toContain("forced");
+    expect(state.figures["nightmare-4"].place?.room).toBe("entrance-hall");
+  });
+
   it("never brings the Nightmares in play past one per player", () => {
     const state = escaped((s) => {
       s.figures["nightmare-9"] = { ...structuredClone(s.figures[N2]), id: "nightmare-9" };

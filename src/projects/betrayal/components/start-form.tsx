@@ -9,7 +9,7 @@ import { ErrorBox } from "./error-box";
 import { compactScenario, ScenarioForm } from "./scenario-form";
 
 export const MIN_SEATS = 3;
-const MAX_SEATS = 6;
+export const MAX_SEATS = 6;
 
 const FIELD = "min-w-0 rounded border border-(--bt-line) bg-(--bt-bg) px-2 py-1";
 const BUTTON = "rounded border border-(--bt-line) px-3 py-1 disabled:opacity-40";

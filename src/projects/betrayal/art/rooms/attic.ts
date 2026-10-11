@@ -3,6 +3,7 @@ import { chamberstick, cobweb, crate, lantern } from "../kit";
 import { trunk } from "../kit/trunk";
 import type { FloorOpening, RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, group, lathe, textured } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { pixelTexture, woodPlanks } from "../textures";
 
 /** The bays where the floorboards are up, down to the bare joists: one
@@ -79,7 +80,7 @@ function dressmakersDummy(): THREE.Group {
   );
   torso.scale.z = 0.7;
   torso.position.y = 0.95;
-  const iron = flat("soot");
+  const iron = shiny(flat("soot"), SHINES.iron);
   const result = group(torso, cylinder(0.02, 0.97, flat("woodDark"), [0, 0, 0], { sides: 6 }), box([0.035, 0.08, 0.035], flat("woodMid"), [0, 1.67, 0]));
   for (let k = 0; k < 3; k++) {
     const leg = box([0.3, 0.025, 0.035], iron, [0.15, 0, 0]);
@@ -114,8 +115,8 @@ const OPENINGS: FloorOpening[] = BAYS;
  *  joists. To get out you pick your way back over them. */
 export const ATTIC: RoomDefinition = {
   id: "attic",
-  floor: () => woodPlanks({ ramp: ["woodDark", "wood", "woodMid", "woodLight"], plankPx: 7, seed: "attic" }),
-  wall: () => woodPlanks({ ramp: ["soot", "woodDark", "wood", "woodMid"], plankPx: 10, seed: "attic-wall" }),
+  floor: () => woodPlanks({ ramp: ["woodDark", "wood", "woodMid", "woodLight"], plankPx: 7, seed: "attic", glints: false }),
+  wall: () => woodPlanks({ ramp: ["soot", "woodDark", "wood", "woodMid"], plankPx: 10, seed: "attic-wall", glints: false }),
   trim: "woodDark",
   floorOpenings: OPENINGS,
   props: [
@@ -133,9 +134,7 @@ export const ATTIC: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [2.51, -2.51], y: 3.05, turn: -135, walls: ["right", "top"] },
   ],
   focus: [-0.8, 0.2, 0.2],
-  pawn: [0.0, 0.3],
-  spots: [[-0.3, 1.7], [1.05, 2.2], [-1.35, -1.85], [1.55, -1.0], [0.45, -1.9]],
-  overflow: [[0.55, -0.8], [1.85, 2.2], [1.3, -1.75], [-0.35, -0.4], [-0.75, -2.35], [-0.05, -1.3]],
+  prime: [0.0, 0.3],
   // Up the gap between the trunks, then along under the eaves.
   lanes: [
     [[0, 2.2], [0, -1.1], [-0.1, -1.6], [-0.5, -2.1], [-1.4, -2.1]],

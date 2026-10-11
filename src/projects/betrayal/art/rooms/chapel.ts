@@ -5,6 +5,7 @@ import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import type { Edge } from "../../types";
 import { INNER, onWall, WINDOW_SILL, WINDOW_TOP, WINDOW_WIDTH, type PropPlacement, type RoomDefinition } from "../room";
 import { box, cylinder, flat, glow, group, lathe, textured } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { flagstones, marble, panelling, svgTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from "../textures";
 
 /** The jewel colours of the glass, and so of the light it throws. */
@@ -91,7 +92,7 @@ function stainedWindow(): THREE.Group {
   const height = WINDOW_TOP - WINDOW_SILL + 0.5;
   const w = Math.round(width * TEXELS_PER_METRE);
   const h = Math.round(height * TEXELS_PER_METRE);
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(w / TEXELS_PER_METRE, h / TEXELS_PER_METRE), glow("moon", svgTexture(lancetSvg(w, h), w, h)));
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(w / TEXELS_PER_METRE, h / TEXELS_PER_METRE), shiny(glow("moon", svgTexture(lancetSvg(w, h), w, h)), SHINES.glass));
   glass.position.set(0, h / TEXELS_PER_METRE / 2, 0.09);
   const band = 5;
   const sw = w + band * 2;
@@ -116,9 +117,9 @@ function stainedPool(): THREE.Mesh {
 
 /** A row of chapel seating with gothic pointed ends. It faces +z. */
 function pew(length = 1.6): THREE.Group {
-  const boards = textured(woodPlanks({ plankPx: 6, seed: "pew" }));
-  const dark = flat("woodDark");
-  const end = flat("woodMid");
+  const boards = shiny(textured(woodPlanks({ plankPx: 6, seed: "pew", glints: false })), SHINES.polishedWood);
+  const dark = shiny(flat("woodDark"), SHINES.polishedWood);
+  const end = shiny(flat("woodMid"), SHINES.polishedWood);
   const span = length - 0.1;
   const result = group(
     box([span, 0.05, 0.42], boards, [0, 0.42, 0.02]),
@@ -177,7 +178,7 @@ function candlestick(height: number, lit = true): THREE.Group {
       [0.06, height],
       [0, height],
     ],
-    flat("brass"),
+    shiny(flat("brass"), SHINES.brass),
     8,
   );
   const taper = lit ? candle({ height: 0.3, light: false }) : stub(false, 0.12);
@@ -189,7 +190,7 @@ function candlestick(height: number, lit = true): THREE.Group {
  *  It faces +z, towards the people. */
 function altar(): THREE.Group {
   const stone = textured(flagstones({ stonePx: 8, size: 32, seed: "altar" }));
-  const brass = flat("brass");
+  const brass = shiny(flat("brass"), SHINES.brass);
   const cloth = flat("bone");
   const slab = 0.9;
   const top = slab + 0.012;
@@ -231,12 +232,12 @@ function altar(): THREE.Group {
 
 /** The raised floor the altar stands on, with a communion rail in front. */
 function chancel(): THREE.Group {
-  const stone = textured(marble({ chequer: false, pale: "bone", paleVein: "boneLight", grout: "boneDark", seed: "chancel" }));
-  const rail = flat("woodDark");
+  const stone = shiny(textured(marble({ chequer: false, pale: "bone", grout: "bone", veins: 0, seed: "chancel" })), SHINES.floorSheen);
+  const rail = shiny(flat("woodDark"), SHINES.polishedWood);
   const result = group(box([4.2, 0.15, 1.35], stone, [0, 0, 0]));
   for (const side of [-1, 1]) {
     const cx = side * 1.3;
-    result.add(box([1.5, 0.06, 0.12], flat("wood"), [cx, 0.85, -0.6]), box([1.5, 0.08, 0.3], flat("blood"), [cx, 0.15, -0.5]));
+    result.add(box([1.5, 0.06, 0.12], shiny(flat("wood"), SHINES.polishedWood), [cx, 0.85, -0.6]), box([1.5, 0.08, 0.3], flat("blood"), [cx, 0.15, -0.5]));
     for (let i = 0; i <= 5; i++) {
       result.add(box([0.05, 0.7, 0.05], rail, [cx - 0.72 + i * 0.288, 0.15, -0.6]));
     }
@@ -246,8 +247,8 @@ function chancel(): THREE.Group {
 
 /** A reading stand with an open book. The reader stands on its +z side. */
 function lectern(): THREE.Group {
-  const wood = flat("wood");
-  const dark = flat("woodDark");
+  const wood = shiny(flat("wood"), SHINES.polishedWood);
+  const dark = shiny(flat("woodDark"), SHINES.polishedWood);
   const desk = group(
     box([0.56, 0.04, 0.42], wood, [0, 0, 0]),
     box([0.58, 0.06, 0.03], dark, [0, 0.02, 0.2]),
@@ -263,7 +264,7 @@ function lectern(): THREE.Group {
 
 /** An iron stand of votive candles, most long gone out. */
 function votiveStand(): THREE.Group {
-  const iron = flat("sootLight");
+  const iron = shiny(flat("sootLight"), SHINES.iron);
   // The foot's top stays under the plane of the house's choice glow (`MARK_PLANES`), which it would fight.
   const result = group(box([0.04, 0.9, 0.04], iron, [0, 0, 0]), box([0.3, 0.025, 0.3], iron, [0, 0, 0]));
   const tiers = [
@@ -280,13 +281,13 @@ function votiveStand(): THREE.Group {
       result.add(s);
     });
   }
-  result.add(lightAnchor({ colour: "amber", intensity: 2.5, range: 4, flicker: 0.2 }, [0, 1.1, 0.1]));
+  result.add(lightAnchor({ colour: "amber", intensity: 2.5, range: 4, flicker: 0.2, kind: "candelabra" }, [0, 1.1, 0.1]));
   return result;
 }
 
 /** A tall iron pricket stand holding one candle, for the side aisles. */
 function pricket(): THREE.Group {
-  const iron = flat("sootLight");
+  const iron = shiny(flat("sootLight"), SHINES.iron);
   const base = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.12, 3), iron);
   base.position.y = 0.06;
   const taper = candle({ height: 0.22, intensity: 2.5 });
@@ -321,7 +322,7 @@ function crackedFont(): THREE.Group {
     stone,
     9,
   );
-  const water = cylinder(0.27, 0.01, flat("verdigrisDark"), [0, 0.87, 0], { sides: 9 });
+  const water = cylinder(0.27, 0.01, shiny(flat("verdigrisDark"), SHINES.wetStone), [0, 0.87, 0], { sides: 9 });
   const crack = box([0.025, 0.34, 0.04], flat("void"), [0, 0.6, 0.32]);
   crack.rotation.z = 0.25;
   const chunk = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08, 0), stone);
@@ -350,7 +351,7 @@ function banner(emblem: "cross" | "rose"): THREE.Group {
   const cloth = new THREE.Mesh(new THREE.PlaneGeometry(w / TEXELS_PER_METRE, h / TEXELS_PER_METRE), textured(svgTexture(art, w, h), true));
   cloth.position.set(0, -h / TEXELS_PER_METRE / 2, 0.04);
   cloth.userData.noShadow = true;
-  const rod = box([w / TEXELS_PER_METRE + 0.16, 0.03, 0.03], flat("brass"), [0, 0, 0.04]);
+  const rod = box([w / TEXELS_PER_METRE + 0.16, 0.03, 0.03], shiny(flat("brass"), SHINES.brass), [0, 0, 0.04]);
   return group(cloth, rod);
 }
 
@@ -367,10 +368,11 @@ function cornerWeb(x: 1 | -1, z: 1 | -1): PropPlacement {
  *  the chancel. A ground-floor room in the formal zone: marble, damask, panelling. */
 export const CHAPEL: RoomDefinition = {
   id: "chapel",
-  floor: () => marble({ square: 32, chequer: false, pale: "stoneDark", paleVein: "stone", grout: "ash", veins: 10, seed: "chapel" }),
+  floor: () => marble({ square: 32, chequer: true, pale: "stoneDark", dark: "ash", grout: "stoneDark", veins: 0, seed: "chapel" }),
   wall: () => wallpaper({ ground: "ash", stripe: "sootLight", motif: "stoneDark", seed: "chapel" }),
-  wainscot: () => panelling({ ramp: RAMPS.wood, seed: "chapel" }),
+  wainscot: () => panelling({ ramp: RAMPS.wood, seed: "chapel", glints: false }),
   trim: "woodDark",
+  shine: { floor: SHINES.floorSheen },
   props: [
     { build: () => rug({ width: 1.1, length: 3.9, field: "blood", border: "bloodDark", motif: "amber" }), at: [0, -0.6] },
     { build: chancel, at: [0, 2.12] },
@@ -393,6 +395,5 @@ export const CHAPEL: RoomDefinition = {
     cornerWeb(1, -1),
   ],
   focus: [0, 1.0, 1.2],
-  pawn: [-0.1, -1.7],
-  spots: [[2.3, -2.05], [1.05, -2.3], [-1.25, -2.3], [-0.25, 0.85], [0.2, -0.35]],
+  prime: [-0.1, -1.7],
 };

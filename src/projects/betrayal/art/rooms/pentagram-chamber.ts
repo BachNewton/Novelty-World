@@ -5,12 +5,13 @@ import { lightAnchor } from "../light-anchor";
 import { paletteHex, type PaletteKey } from "../palette";
 import { INNER, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lightMaterial } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { bricks, flagstones, svgTexture, TEXELS_PER_METRE } from "../textures";
 
 const hex = paletteHex;
 
 /** The circle's middle, and its radius: it fills the cell, so its line runs
- *  between every standing spot and the one door, just inside the doorway. */
+ *  between the floor where figures stand and the one door, just inside the doorway. */
 const CENTRE: [number, number] = [-0.25, 0];
 const RADIUS = 2.35;
 /** Where the star's points lie, from the middle, and their bearings in
@@ -94,7 +95,7 @@ function summoning(): THREE.Group {
 /** A black candle on an iron pricket at one of the star's points, burning
  *  with a violet flame. Its light is the flame's. */
 function ritualCandle(): THREE.Group {
-  const iron = flat("soot");
+  const iron = shiny(flat("soot"), SHINES.iron);
   const height = 0.22;
   const stand = group(
     // The foot's top stays under the plane of the house's choice glow, which it would fight.
@@ -118,7 +119,7 @@ function ritualCandle(): THREE.Group {
 /** The candle at the fallen point: its pricket knocked over, the black
  *  candle snapped off and rolled away, cold. Lies along x. */
 function fallenCandle(): THREE.Group {
-  const iron = flat("soot");
+  const iron = shiny(flat("soot"), SHINES.iron);
   const pricket = group(
     // The foot's top stays under the plane of the house's choice glow, which it would fight.
     cylinder(0.12, 0.027, iron, [0, 0, 0], { top: 0.1, sides: 6 }),
@@ -136,7 +137,7 @@ function fallenCandle(): THREE.Group {
 /** A tall iron lectern, its desk tipped towards the room, an open grimoire
  *  on it with a ribbon hanging. Faces +z. */
 function lectern(): THREE.Group {
-  const iron = flat("soot");
+  const iron = shiny(flat("soot"), SHINES.iron);
   const desk = group(
     box([0.55, 0.04, 0.42], flat("woodDark"), [0, 0, 0]),
     box([0.5, 0.05, 0.34], flat("bone"), [0, 0.04, 0]),
@@ -156,13 +157,16 @@ function lectern(): THREE.Group {
 function chest(): THREE.Group {
   const b = batch();
   b.block([0.8, 0.4, 0.45], "wood", [0, 0, 0]);
-  for (const x of [-0.3, 0.3]) b.block([0.05, 0.41, 0.46], "soot", [x, -0.002, 0]);
+  const bands = batch();
+  for (const x of [-0.3, 0.3]) bands.block([0.05, 0.41, 0.46], "soot", [x, -0.002, 0]);
+  const iron = bands.mesh();
+  shiny(iron.material, SHINES.iron);
   const lid = batch();
   lid.block([0.82, 0.08, 0.47], "woodMid", [0, 0, 0.235]);
   const top = lid.mesh();
   top.rotation.x = -0.35;
   top.position.set(0, 0.4, -0.225);
-  return group(b.mesh(), top);
+  return group(b.mesh(), iron, top);
 }
 
 /** Pages torn from the grimoire, lying where they were thrown. */
@@ -196,7 +200,5 @@ export const PENTAGRAM_CHAMBER: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-INNER + 0.29, -INNER + 0.29], y: 3.05, turn: 135, walls: ["left", "top"] },
   ],
   focus: [CENTRE[0], 0.5, CENTRE[1]],
-  pawn: [0.75, -0.55],
-  spots: [[0.5, 1.15], [-0.85, -1.15], [-1.2, 1.0], [1.7, -2.0], [2.2, 1.05]],
-  overflow: [[-2.35, -0.55], [1.7, 2.15], [1.8, -0.9], [-2.3, 0.9], [-0.85, 0.05], [1.5, -0.05]],
+  prime: [0.75, -0.55],
 };

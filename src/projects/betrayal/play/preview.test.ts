@@ -42,7 +42,7 @@ describe("the route preview", () => {
   });
 
   it("warns that exploring may draw a card and end the move", () => {
-    const lines = warningLines(ENGINE, notes, previewOf({}, "doorway:foyer:top"));
+    const lines = warningLines(ENGINE, notes, previewOf({}, "explore:ground:1:-1"));
     expect(lines).toEqual([
       "Rulebook, p. 10: The first explorer to discover a room with a card symbol draws that card.",
       "Rulebook, p. 6: Drawing a card ends your movement for the rest of the turn.",

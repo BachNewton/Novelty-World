@@ -69,6 +69,9 @@ export function decodeGame(code: string): SharedGame {
       ...(game.scenario === undefined
         ? {}
         : { scenario: scenario(game.scenario) }),
+      ...(game.chosenHaunt === undefined
+        ? {}
+        : { chosenHaunt: number(game.chosenHaunt, "game.chosenHaunt") }),
     },
     actions: list(root.actions, "actions").map(action),
   };

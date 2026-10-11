@@ -745,7 +745,12 @@ export function endOngoing(card: string): Step {
   return step<{ card: string }>("end-ongoing", { card });
 }
 
-export type Option = { label: string; steps: Step[] };
+/** One option of a choice. `room` names the room in the house the option
+ *  is, where taking it is choosing that room (put your explorer there, send
+ *  the Dog there), so the screen can offer it as a place: one option per
+ *  room. It describes the option only; what is legal and what it does stay
+ *  with the decision and the steps. */
+export type Option = { label: string; steps: Step[]; room?: string };
 
 /** Who makes a choice: the seat controlling a figure, for a choice the
  *  rules give the figure (where it lands, whether it comes closer), or a

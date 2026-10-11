@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { PaletteKey } from "../palette";
 import { batch, group, type Size } from "../shapes";
+import { shinyAll, SHINES } from "../shine";
 
 export interface TrunkOptions {
   /** Width (x), height of the body (y) and depth (z), in metres. */
@@ -12,7 +13,7 @@ export interface TrunkOptions {
 }
 
 /**
- * A travelling trunk: a body bound with dark straps and brass corners, and a
+ * A travelling trunk: a body bound with dark straps and tarnished brass corners, and a
  * flat lid hinged along its back edge (−z), shut or lifted. Faces +z, base
  * at y = 0.
  */
@@ -21,10 +22,13 @@ export function trunk({ size = [0.9, 0.42, 0.5], body = "blood", open = 0 }: Tru
   const b = batch();
   b.block([w, h, d], body, [0, 0, 0]);
   for (const x of [-w * 0.3, w * 0.3]) b.block([0.05, h + 0.006, d + 0.012], "woodDark", [x, -0.003, 0]);
+  const fittings = batch();
   for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) b.block([0.07, 0.07, 0.07], "brass", [sx * (w / 2 - 0.03), h - 0.06, sz * (d / 2 - 0.03)]);
+    for (const sz of [-1, 1]) fittings.block([0.07, 0.07, 0.07], "brass", [sx * (w / 2 - 0.03), h - 0.06, sz * (d / 2 - 0.03)]);
   }
-  b.block([0.08, 0.08, 0.02], "brass", [0, h - 0.1, d / 2]);
+  fittings.block([0.08, 0.08, 0.02], "brass", [0, h - 0.1, d / 2]);
+  const brass = fittings.mesh();
+  shinyAll(brass, SHINES.tarnishedBrass);
   const lidThick = 0.07;
   const lid = batch();
   lid.block([w + 0.02, lidThick, d + 0.02], body, [0, 0, (d + 0.02) / 2]);
@@ -33,5 +37,5 @@ export function trunk({ size = [0.9, 0.42, 0.5], body = "blood", open = 0 }: Tru
   const hinge = group(top);
   hinge.position.set(0, h, -(d + 0.02) / 2);
   hinge.rotation.x = -open;
-  return group(b.mesh(), hinge);
+  return group(b.mesh(), brass, hinge);
 }

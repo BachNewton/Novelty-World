@@ -14,6 +14,10 @@ export default defineConfig({
   },
   test: {
     include: ["**/*.slow.test.ts"],
+    // Every file here is CPU-bound for seconds at a time, and several hold per-test limits: half the
+    // logical cores (about one file per physical core) gives each test the CPU its limit was set for.
+    // The longest file, the simulation's seeds, sets the suite's length either way.
+    maxWorkers: "50%",
     exclude: ["e2e/**", "node_modules/**", ...NESTED_CHECKOUTS],
   },
 });

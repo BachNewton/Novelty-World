@@ -32,7 +32,7 @@ export function clampPitch(pitch: number, distance = Infinity): number {
 export const FIELD_OF_VIEW = 32;
 /** Metres of floor across the screen's short side at zoom 1: about four rooms. */
 export const BASE_SPAN = 24;
-export const ZOOM_RANGE = [0.3, 4] as const;
+export const ZOOM_RANGE = [0.3, 8] as const;
 
 /** How far the camera stands back from its target at a zoom, on a screen of
  *  this aspect (width over height): far enough to fit the zoom's span of floor

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claim, keepConnected, NO_PADS, padMayAct, padOf, release, seatListPress, seatsOf, toggle, trimSeats } from "./pads";
+import { claim, keepConnected, NO_PADS, padMayAct, padOf, pickPad, release, seatsOf, trimSeats } from "./pads";
 
 describe("pad assignment", () => {
   it("leaves every seat open at first, so any pad acts for anyone", () => {
@@ -37,13 +37,6 @@ describe("pad assignment", () => {
     expect(release(pads, 5)).toBe(pads);
   });
 
-  it("toggles: A claims a seat, and on a seat the pad already has, releases it", () => {
-    const claimed = toggle(NO_PADS, 2, 1);
-    expect(padOf(claimed, 2)).toBe(1);
-    expect(padOf(toggle(claimed, 2, 1), 2)).toBeNull();
-    expect(padOf(toggle(claimed, 2, 0), 2)).toBe(0);
-  });
-
   it("drops seats a game doesn't have", () => {
     const pads = trimSeats(claim(claim(NO_PADS, 1, 0), 4, 1), 3);
     expect(padOf(pads, 1)).toBe(0);
@@ -63,12 +56,11 @@ describe("pad assignment", () => {
     expect(keepConnected(pads, [0, 2])).toEqual({ assignment: pads, freed: [] });
   });
 
-  it("moves a list's highlight round the seats with the d-pad, and A takes the seat for the pad pressed", () => {
-    const list = { focus: 0, count: 3, assignment: NO_PADS };
-    expect(seatListPress("DpadUp", 0, list)?.focus).toBe(2);
-    expect(seatListPress("DpadDown", 0, { ...list, focus: 2 })?.focus).toBe(0);
-    const taken = seatListPress("A", 1, { ...list, focus: 1 });
-    expect(taken && padOf(taken.assignment, 1)).toBe(1);
-    expect(seatListPress("X", 0, list)).toBeNull();
+  it("gives a seat to the pad picked, gives it back when picked again, and opens it", () => {
+    const taken = pickPad(NO_PADS, 1, 0);
+    expect(padOf(taken, 1)).toBe(0);
+    expect(padOf(pickPad(taken, 1, 1), 1)).toBe(1);
+    expect(padOf(pickPad(taken, 1, 0), 1)).toBeNull();
+    expect(padOf(pickPad(taken, 1, null), 1)).toBeNull();
   });
 });

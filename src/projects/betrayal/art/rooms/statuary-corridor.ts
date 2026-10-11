@@ -5,14 +5,18 @@ import { lightAnchor } from "../light-anchor";
 import { RAMPS } from "../palette";
 import { INNER, type RoomDefinition } from "../room";
 import { box, flat, glow, group, lathe } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { marble, panelling, plaster, wallpaper } from "../textures";
 
 const SEED = "statuary-corridor";
 const SURFACES = {
   wall: () => wallpaper({ ground: "sootLight", stripe: "soot", motif: "ash", seed: SEED }),
-  wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED }),
+  wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED, glints: false }),
   trim: "woodDark",
-} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim">;
+  shine: { glass: SHINES.glass },
+} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim" | "shine">;
+/** Statuary marble, polished. */
+const carved = (colour: "stoneLight" | "boneLight" | "stone") => shiny(flat(colour), SHINES.marble);
 
 /** The corridor runs this far either side of the middle, between two thick walls of niches. */
 const HALF = 1.3;
@@ -47,9 +51,9 @@ function sideWall(side: -1 | 1): MassBlock[] {
 function plinth(): THREE.Group {
   const { width, depth, height } = PLINTH;
   return group(
-    box([width, height - 0.05, depth], flat("stone"), [0, 0, 0]),
-    box([width + 0.04, 0.05, depth + 0.04], flat("stoneLight"), [0, height - 0.05, 0]),
-    box([width + 0.04, 0.06, depth + 0.04], flat("stoneDark"), [0, 0, 0]),
+    box([width, height - 0.05, depth], shiny(flat("stone"), SHINES.honedMarble), [0, 0, 0]),
+    box([width + 0.04, 0.05, depth + 0.04], shiny(flat("stoneLight"), SHINES.honedMarble), [0, height - 0.05, 0]),
+    box([width + 0.04, 0.06, depth + 0.04], shiny(flat("stoneDark"), SHINES.honedMarble), [0, 0, 0]),
   );
 }
 
@@ -62,8 +66,8 @@ type Pose = "torch" | "hooded" | "mourning" | "reaching";
  * a round head and box arms, never sculpted.
  */
 function figure(pose: Pose): THREE.Group {
-  const marbleWhite = flat("stoneLight");
-  const shade = flat("boneLight");
+  const marbleWhite = carved("stoneLight");
+  const shade = carved("boneLight");
   const robe = lathe([[0, 0], [0.21, 0], [0.205, 0.08], [0.2, 0.5], [0.16, 0.95], [0.15, 1.12], [0.19, 1.24], [0.14, 1.32], [0, 1.34]], marbleWhite, 10);
   const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 1), shade);
   head.position.set(0, 1.46, pose === "mourning" ? 0.05 : 0);
@@ -101,7 +105,7 @@ function figure(pose: Pose): THREE.Group {
 
 /** The torch a statue holds up, its flame carved in stone. */
 function torch(): THREE.Mesh {
-  const torch = lathe([[0, 0], [0.03, 0], [0.05, 0.18], [0, 0.2]], flat("stone"), 6);
+  const torch = lathe([[0, 0], [0.03, 0], [0.05, 0.18], [0, 0.2]], carved("stone"), 6);
   torch.rotation.x = Math.PI;
   torch.position.y = -0.6;
   return torch;
@@ -109,10 +113,10 @@ function torch(): THREE.Mesh {
 
 /** A bust on a fluted column, facing +z. */
 function bustOnColumn(): THREE.Group {
-  const stone = flat("stone");
-  const pale = flat("stoneLight");
+  const stone = carved("stone");
+  const pale = carved("stoneLight");
   const column = lathe([[0, 0], [0.2, 0], [0.2, 0.08], [0.13, 0.12], [0.11, 0.95], [0.16, 1.0], [0.16, 1.06], [0, 1.06]], stone, 10);
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 1), flat("boneLight"));
+  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 1), carved("boneLight"));
   head.position.set(0, 1.47, 0.01);
   return group(
     column,
@@ -160,7 +164,7 @@ function votive(): THREE.Group {
  *  stepped down into the corridor, eyes alight with red. */
 export const STATUARY_CORRIDOR: RoomDefinition = {
   id: "statuary-corridor",
-  floor: () => marble({ chequer: false, pale: "stone", paleVein: "stoneLight", grout: "stoneDark", seed: SEED }),
+  floor: () => marble({ chequer: false, pale: "stone", grout: "stone", veins: 0, seed: SEED }),
   ...SURFACES,
   props: [
     ...wallMass({ ...SURFACES, blocks: sideWall(-1), walls: ["left"], name: "left niches" }),
@@ -177,9 +181,7 @@ export const STATUARY_CORRIDOR: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), at: [-HALF + 0.29, -INNER + 0.29], y: 3.05, turn: -135, walls: ["top", "left"] },
   ],
   focus: [0.4, 1.0, -0.4],
-  pawn: [-0.6, 0.45],
-  spots: [[-0.8, 1.8], [0.7, 0.7], [0.8, -1.8], [0.15, -0.65], [-0.8, -1.8]],
-  overflow: [[0.4, 1.65], [0.0, -1.45], [-0.95, -0.25], [-0.6, -0.95], [-0.1, 1.05]],
+  prime: [-0.6, 0.45],
   // Past the statue.
   lanes: [[[0, -2.2], [-0.4, -1.0], [-0.4, 0.8], [0, 2.2]]],
 };

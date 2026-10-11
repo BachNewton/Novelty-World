@@ -3,10 +3,13 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { ball, chain, ellipsoid, figureMaterial, form, plinth, ring, rod, roundBox, sculpt, stretched, type Solid } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, burst, joins, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Swept, type Walking } from "./figure";
+import { BASE_TOP, idleBursts, joins, type BurstTiming, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Swept, type Walking } from "./figure";
 import { atLeast, hangsCloth, heavyCloth, type ClothTiming } from "./cloth";
 import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, turnIn, type Arm } from "./hands";
 import { skinOf } from "./skin";
+import { declareParts, figureParts } from "../figure-parts";
+import { windOf } from "../wind";
+import { clothMoment, clothNet, clothOnClock, clothSheet, clothMode, FABRICS, legCapsules, simulatesCloth, type ClothBody, type ClothMode, type LegsAsCloth, type SheetLook } from "./cloth-sim";
 
 /*
  * Zoe Ingstrom: an eight-year-old who hums little tunes, loves her dolls and
@@ -23,7 +26,7 @@ const SKIN = skinOf("zoe-ingstrom");
 const TOP = BASE_TOP + miniatureHeight(3, 9);
 const WAIST = 0.47;
 const LEG = WAIST - BASE_TOP;
-/** A child's short step: at the house's one pace, a quick patter. */
+/** A child's short step: at any pace, a quick patter. */
 const ZOE_WALK: Walking = { step: 0.4, hop: 0.03 };
 const ARM_SWING = 0.5;
 /** Where the original's head sat, so the neck pivot and the pigtails' ties stay where they were. */
@@ -105,7 +108,7 @@ function skirtRadius(y: number): number {
 /** The bell of the skirt, from the waist down: round, as the original's lathe, so the dress's z
  *  scale and twirl flare carry over; twelve pleats deepening to the hem, and a scalloped petticoat.
  *  Both are hollow, a cloth's thickness, so her legs swing inside them. */
-function skirt(): THREE.BufferGeometry {
+function skirt(cell = 0.006): THREE.BufferGeometry {
   const { top, hem, cloth } = SKIRT;
   const surface = (x: number, y: number, z: number) => {
     const t = THREE.MathUtils.clamp((top - y) / (top - hem), 0, 1);
@@ -128,7 +131,7 @@ function skirt(): THREE.BufferGeometry {
     min: [-0.22, -0.21, -0.22],
     max: [0.22, -0.16, 0.22],
   };
-  return sculpt().add(bell, "gold").paint((x, y, z) => surface(x, y, z) + cloth * 0.6, "brass").add(petticoat, "boneLight", 0.004).geometry(0.006);
+  return sculpt().add(bell, "gold").paint((x, y, z) => surface(x, y, z) + cloth * 0.6, "brass").add(petticoat, "boneLight", 0.004).geometry(cell);
 }
 /** A puffed yellow sleeve over a thin bare upper arm. */
 function upperArm(): THREE.BufferGeometry {
@@ -207,8 +210,9 @@ function meshParts() {
     base: plinth(0.36, 0.34, BASE_TOP, "boneDark"),
   };
 }
-type Parts = ReturnType<typeof meshParts>;
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const ZOE_PARTS = figureParts("zoe", meshParts);
+declareParts(zoe, [ZOE_PARTS]);
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** The doll held out in front of her, on the way to her chest, and clutched there: turned to lie across it, its head by her left hand. */
@@ -227,7 +231,84 @@ const BILLOW_EASE = 0.12;
 /** How much room the skirt leaves round her legs as it billows, so it never comes near to shoving them. */
 const SKIRT_ROOM = 0.006;
 /** The skirt's weight: it billows out for a leg this long before it arrives, holds this long after, and moves smoothly between. */
-const SKIRT_SWING: ClothTiming = { ahead: 0.06, behind: 0.08, soften: 0.06 };
+const SKIRT_SWING: ClothTiming = { ahead: 0.09, behind: 0.12, soften: 0.09 };
+
+/** How often she twirls: now and then, unless a bench asks her to on cue. */
+const TWIRLS: BurstTiming = { every: 11, lasts: 2.2, chance: 0.6 };
+/** How many times round she goes in a twirl. */
+const TWIRL_TURNS = 2;
+/** Twirling on cue, every few seconds, for judging how her skirt flies out. */
+export const TWIRLING: BurstTiming = { every: 5, lasts: 2.2, chance: 1 };
+
+/** The simulated skirt: a net 12 round by 6 down. */
+const NET = { around: 12, down: 6 };
+/** How the skirt moves: a cotton dress, with room for her legs inside it. */
+const NET_FEEL = { ...FABRICS.cottonDress, room: 0.025, roomAtTop: 0.017 };
+/** The simulated skirt's depth front to back, as a scale of its width, at its waist: round enough there for her
+ *  thighs to swing up under it, and still inside her sash. It flattens to `REST_DEPTH` at the hem. */
+const WAIST_DEPTH = 0.95;
+
+/** The simulated skirt's depth, a share `along` of the way down it. */
+const depthAt = (along: number) => WAIST_DEPTH + (REST_DEPTH - WAIST_DEPTH) * along;
+
+/** A point on the skirt's surface, `round` it as a share of a turn and `along` it from the waist to the petticoat's hem, in the hips' frame. */
+function onSkirt(round: number, along: number): THREE.Vector3 {
+  const y = SKIRT.petticoat * along;
+  const r = skirtRadius(y);
+  const turn = round * Math.PI * 2;
+  return new THREE.Vector3(r * Math.cos(turn), y, r * Math.sin(turn) * depthAt(along));
+}
+
+/** The net: its points on the skirt as it hangs, a row at a time from the waist. */
+function skirtNetShape() {
+  const { around, down } = NET;
+  return { rest: skirtNetRest(0, new Float64Array(around * down * 3)), around, down, closed: true, outward: 1 as const, round: true, waistband: true };
+}
+
+/** How the net skirt hangs while she walks: deeper front to back and narrower at the sides, its hem no longer, so her
+ *  stride has room inside it without the legs shoving it out each step (as the heavy cloth's billow makes room). */
+const WALKING_HEM = { deeper: 1.37, narrower: 0.7 };
+
+/** The net skirt's points as it hangs, a share `walking` of the way into its walking shape, into `out`. */
+function skirtNetRest(walking: number, out: Float64Array): Float64Array {
+  const { around, down } = NET;
+  for (let j = 0; j < down; j++) {
+    const along = j / (down - 1);
+    const [deeper, narrower] = [1 + (WALKING_HEM.deeper - 1) * along * walking, 1 - (1 - WALKING_HEM.narrower) * along * walking];
+    for (let i = 0; i < around; i++) {
+      const point = onSkirt(i / around, along);
+      out.set([point.x * narrower, point.y, point.z * deeper], (j * around + i) * 3);
+    }
+  }
+  return out;
+}
+
+/** Where the petticoat shows below the bell, as a share of the way down the net. */
+const PETTICOAT_FROM = SKIRT.hem / SKIRT.petticoat;
+
+/** The net skirt's look: the bell's twelve pleats deepening to the hem, gold outside and brass inside, and the
+ *  scalloped petticoat a little inside it below. */
+const NET_LOOK: SheetLook = {
+  across: 72,
+  down: 20,
+  thickness: 0.008,
+  // The pleats fold out from the net and the petticoat sits just inside it, so the cloth's inside lies a thickness
+  // under the net and the legs need keep only that far clear of it.
+  inset: (u, v) => {
+    if (v > PETTICOAT_FROM) return 0.003 + 0.003 * Math.cos(28 * u * Math.PI * 2);
+    const y = SKIRT.petticoat * v;
+    return -skirtRadius(y) * 0.06 * THREE.MathUtils.clamp(y / SKIRT.hem, 0, 1) * (1 + Math.cos(12 * u * Math.PI * 2)) * 0.5;
+  },
+  colour: (_, v, inside) => (inside ? "brass" : v > PETTICOAT_FROM ? "boneLight" : "gold"),
+};
+
+/** Her legs as the simulated skirt sees them; the thigh's top is inside her hips, under the waistband. */
+const LEGS_AS_CLOTH: LegsAsCloth = {
+  radii: { thigh: 0.034, shin: 0.03, foot: 0.04 },
+  hidden: 0.05,
+  heel: new THREE.Vector3(0, BASE_TOP + 0.024, -0.02),
+  toe: new THREE.Vector3(0, BASE_TOP + 0.02, 0.05),
+};
 
 /** Points down a rig's legs and round its shoes, as posed now, in the frame of hips placed by `hips` in its body. */
 function sweptBy(by: StrideRig, hips: THREE.Matrix4): Swept[] {
@@ -264,9 +345,12 @@ function billowFor(points: readonly Swept[]): number {
  *  behind her for the boogeyman. She walks with a quick patter of short steps,
  *  her pigtails bouncing. Her left hand holds her doll by its arm; her right
  *  hand is free to hold anything else. */
-export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+export function zoe(
+  seed = "zoe",
+  gait: Gait = STANDING,
+  { cloth = clothMode(), twirls = TWIRLS }: { cloth?: ClothMode; twirls?: BurstTiming } = {},
+): THREE.Group {
+  const parts = ZOE_PARTS.get();
   const material = figureMaterial();
   const mesh = (geometry: THREE.BufferGeometry, name: string) => {
     const made = form(material, geometry);
@@ -314,8 +398,29 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
 
   const top = mesh(parts.bodice, "bodice");
   const chest = group(top, neck, left.shoulder, right.shoulder);
-  const dress = group(mesh(parts.skirt, "skirt"));
-  dress.scale.z = REST_DEPTH;
+  // The skirt is simulated, a net whose mesh is rebuilt from its points, unless the page asks for the old cloth worked out from the clock.
+  const dress = group();
+  let simulated: { body: ClothBody; show: (intoAnchor: THREE.Matrix4) => void; walking?: (share: number) => void } | null = null;
+  if (cloth === "net") {
+    const shape = skirtNetShape();
+    const body = clothNet(shape, NET_FEEL);
+    const sheet = clothSheet(body, shape, NET_LOOK);
+    dress.add(mesh(sheet.geometry, "skirt"));
+    let hung = 0;
+    const rest = new Float64Array(shape.rest.length);
+    simulated = {
+      body,
+      show: sheet.follow,
+      walking: (share) => {
+        if (Math.abs(share - hung) < 1e-4) return;
+        hung = share;
+        body.reshape(skirtNetRest(share, rest));
+      },
+    };
+  } else {
+    dress.add(mesh(parts.skirt, "skirt"));
+    dress.scale.z = REST_DEPTH;
+  }
   const hips = group(dress, chest);
   hips.position.y = WAIST - BASE_TOP;
 
@@ -347,6 +452,7 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
   const figure = walks(group(mesh(parts.base, "base"), standing), ZOE_WALK);
   hasHands(figure, { right: right.hand, left: left.hand });
   hangsCloth(figure, [dress]);
+  if (simulated) simulatesCloth(figure, simulated.body);
   joins(figure, [
     { parts: [face, top], at: neck, radius: 0.07 },
     ...pigtails.map((tail) => ({ parts: [tail, face] as const, at: tail, radius: 0.06 })),
@@ -366,16 +472,20 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
   const unseenRig: StrideRig = { ...rig, legs: unseen, body: unseenBody, arms: [], chest: unseenChest };
   hips.updateMatrix();
   const hanging = hips.matrix.clone();
-  const billow = heavyCloth(1, gait, (moving, _clock, out) => {
+  const billow = simulated ? null : heavyCloth(1, gait, (moving, _clock, out) => {
     unseenChest.rotation.x = 0;
     stride(unseenRig, moving);
     out[0] = billowFor(sweptBy(unseenRig, hanging).map(({ at, radius }) => ({ at, radius: radius + SKIRT_ROOM })));
   }, SKIRT_SWING);
   const [billowNow, billowed] = [new Float32Array(1), new Float32Array(1)];
+  // The simulated skirt hangs from her hips, round her thighs, shins and feet.
+  const moment = clothMoment(legs.length * 3);
+  const swing = simulated && clothOnClock(simulated.body, moment.capsules.length, simulated.show);
 
   const rng = createRng(seed);
   const tunePhase = rng.next() * Math.PI * 2;
   const offset = rng.next() * 100;
+  const bursts = idleBursts(figure, seed, offset, { boogeyman: { every: 8, lasts: 3, chance: 0.55 }, twirl: twirls });
 
   return animated(figure, (clock) => {
     const seconds = clock + offset;
@@ -383,8 +493,7 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
     const running = moving.running ? moving.amount : 0;
     const tune = Math.sin((seconds / 1.8) * Math.PI * 2 + tunePhase);
     const breath = Math.sin((seconds / 3) * Math.PI * 2);
-    const scared = burst(seconds, `${seed}:boogeyman`, { every: 8, lasts: 3, chance: 0.55 });
-    const twirl = burst(seconds, `${seed}:twirl`, { every: 11, lasts: 2.2, chance: 0.6 });
+    const { boogeyman: scared, twirl } = bursts(clock);
     const held = right.hand.held;
     // She twirls only with her right hand free.
     const twirling = held ? 0 : 1 - moving.amount;
@@ -392,7 +501,8 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
     const humming = 1 - scared.amount;
     const upright = held?.carry === "upright";
 
-    standing.rotation.y = THREE.MathUtils.smootherstep(twirl.progress, 0, 1) * Math.PI * 2 * (twirl.pick < 0.5 ? -1 : 1) * (1 - scared.amount) * twirling;
+    // Twice round: a child's twirl is quick enough to make a skirt fly out.
+    standing.rotation.y = THREE.MathUtils.smootherstep(twirl.progress, 0, 1) * Math.PI * 2 * TWIRL_TURNS * (twirl.pick < 0.5 ? -1 : 1) * (1 - scared.amount) * twirling;
     const flare = 1 + 0.3 * spinning * Math.sin(Math.PI * twirl.progress);
 
     body.rotation.z = tune * 0.035 * humming;
@@ -425,13 +535,25 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
       tail.rotation.z = side * (0.75 + spinning * 0.6 + bounce * 0.25) + tune * 0.12 * humming;
     }
 
-    // Her skirt billows out in front of a raised knee, and behind a heel kicked
-    // back: ahead of them, falling back after, never letting one through as they are now.
-    hips.updateMatrix();
-    billowNow[0] = billowFor(sweptBy(rig, hips.matrix));
-    billow(clock, billowNow, billowed);
-    // It eases into its furthest billow rather than stopping dead at it.
-    dress.scale.set(flare, 1, Math.max(REST_DEPTH * flare, -atLeast(-billowed[0], -BILLOW_MOST, BILLOW_EASE)));
+    if (swing) {
+      // Her simulated skirt swings from her hips as she moves, round her legs and in the room's air.
+      standing.updateWorldMatrix(true, true);
+      moment.anchor.copy(hips.matrixWorld);
+      legCapsules(legs, LEGS_AS_CLOTH, moment.capsules);
+      windOf(figure)(clock, moment.wind);
+      moment.floor = figure.matrixWorld.elements[13] + BASE_TOP;
+      // Walking (not running), the net hangs in its walking shape, eased in with her stride.
+      simulated?.walking?.(moving.running ? 0 : moving.amount);
+      swing(clock, moment);
+    } else if (billow) {
+      // Her skirt billows out in front of a raised knee, and behind a heel kicked
+      // back: ahead of them, falling back after, never letting one through as they are now.
+      hips.updateMatrix();
+      billowNow[0] = billowFor(sweptBy(rig, hips.matrix));
+      billow(clock, billowNow, billowed);
+      // It eases into its furthest billow rather than stopping dead at it.
+      dress.scale.set(flare, 1, Math.max(REST_DEPTH * flare, -atLeast(-billowed[0], -BILLOW_MOST, BILLOW_EASE)));
+    }
 
     // The doll hangs straight down from her fist, swaying to the tune; she clutches it across her chest when scared.
     const hanging = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, tune * 0.08 * humming + spinning * 1.1));

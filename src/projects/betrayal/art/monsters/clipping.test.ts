@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { animationOf } from "../animate";
 import { clipping } from "../explorers/clipping";
 import type { Gait } from "../explorers/figure";
+import { partsOf } from "../figure-parts";
 import { stubCanvas } from "../headless";
 import { banshee, spider } from ".";
 
@@ -39,6 +40,11 @@ describe.each([
   ["the Banshee", banshee, 0.9],
   ["the Spider", spider, 0.54],
 ] as const)("%s", (_, build, step) => {
+  // Meshing the parts is the slow step, done once a session: it belongs to no one test.
+  beforeAll(() => {
+    for (const parts of partsOf(build)) parts.get();
+  });
+
   it("passes no part through another in its idle", LIMIT, () => {
     expect(clipsThrough(build("clip"), IDLE)).toEqual([]);
   });

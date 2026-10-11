@@ -4,7 +4,8 @@ import { candle, table } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { WALL_HEIGHT, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe } from "../shapes";
-import { runner, SUITE } from "./starting-tile";
+import { shiny, shinyBatch, SHINES } from "../shine";
+import { HALL_SHINE, runner, SUITE } from "./starting-tile";
 
 const CHANDELIER_ARMS = 6;
 
@@ -14,14 +15,14 @@ const CHANDELIER_ARMS = 6;
  * air.
  */
 function chandelier(): THREE.Group {
-  const brass = flat("brass");
+  const brass = shiny(flat("brass"), SHINES.brass);
   const swing = group();
   const links = batch();
   for (let i = 0; i < 9; i++) {
     const across = i % 2 === 0;
     links.block([across ? 0.06 : 0.02, 0.08, across ? 0.02 : 0.06], "brass", [0, -0.08 * (i + 1), 0]);
   }
-  swing.add(links.mesh());
+  swing.add(shinyBatch(links, SHINES.brass));
   const body = group(
     lathe(
       [
@@ -46,7 +47,7 @@ function chandelier(): THREE.Group {
     const cup = cylinder(0.045, 0.04, brass, [radius, 0.1, 0], { top: 0.06, sides: 6 });
     const taper = candle({ height: 0.12, light: false });
     taper.position.set(radius, 0.14, 0);
-    const drop = new THREE.Mesh(new THREE.OctahedronGeometry(0.025, 0), flat("boneLight"));
+    const drop = new THREE.Mesh(new THREE.OctahedronGeometry(0.025, 0), shiny(flat("boneLight"), SHINES.glass));
     drop.scale.y = 2;
     drop.position.set(radius * 0.7, 0.04, 0);
     const spoke = group(arm, cup, taper, drop);
@@ -83,7 +84,7 @@ function chandelier(): THREE.Group {
 /** A tall hall mirror, shrouded in black crape as a house in mourning covers
  *  its mirrors. Its back is against the wall; its origin is its bottom edge. */
 function shroudedMirror(): THREE.Group {
-  const frame = flat("brass");
+  const frame = shiny(flat("brass"), SHINES.gilt);
   const w = 0.8;
   const h = 1.1;
   const cloth = batch();
@@ -96,7 +97,7 @@ function shroudedMirror(): THREE.Group {
   cloth.block([w + 0.14, 0.08, 0.06], "sootLight", [0, h - 0.07, 0.07]);
   return group(
     box([w + 0.12, h + 0.12, 0.05], frame, [0, -0.06, 0.025]),
-    box([w, h, 0.02], flat("moonDark"), [0, 0, 0.05]),
+    box([w, h, 0.02], shiny(flat("moonDark"), SHINES.glass), [0, 0, 0.05]),
     cloth.mesh(),
     box([0.04, 0.05, 0.03], frame, [0, h + 0.06, 0.03]),
   );
@@ -104,7 +105,7 @@ function shroudedMirror(): THREE.Group {
 
 /** A glass-chimneyed oil lamp, turned low. */
 function oilLamp(): THREE.Group {
-  const brass = flat("brass");
+  const brass = shiny(flat("brass"), SHINES.brass);
   const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.18, 6), glow("amber"));
   chimney.position.y = 0.3;
   const result = group(
@@ -181,12 +182,13 @@ function deadPalm(): THREE.Group {
 export const FOYER: RoomDefinition = {
   id: "foyer",
   ...SUITE,
+  shine: HALL_SHINE,
   props: [
     { build: () => runner({ from: -3, to: 3 }), at: [0, 0] },
     { build: chandelier, at: [0, 0] },
     { build: () => table({ length: 1.2, width: 0.45, height: 0.82 }), ...onWall("top", -1.65, { out: 0.3 }) },
     { build: oilLamp, at: [-1.95, -2.5], y: 0.82 },
-    { build: () => box([0.24, 0.015, 0.16], flat("brass")), at: [-1.45, -2.48], y: 0.82, turn: 10 },
+    { build: () => box([0.24, 0.015, 0.16], shiny(flat("brass"), SHINES.brass)), at: [-1.45, -2.48], y: 0.82, turn: 10 },
     { build: () => box([0.09, 0.01, 0.06], flat("boneLight")), at: [-1.43, -2.47], y: 0.835, turn: -15 },
     { build: shroudedMirror, ...onWall("top", -1.65, { y: 1.25 }) },
     { build: coatStand, at: [2.15, 2.25], turn: -30 },
@@ -194,9 +196,7 @@ export const FOYER: RoomDefinition = {
     { build: () => table({ length: 0.8, width: 0.4, height: 0.5 }), ...onWall("top", 1.7, { out: 0.25 }) },
   ],
   focus: [0, 1.4, 0],
-  pawn: [-1.0, 0.8],
-  spots: [[0.3, -0.05], [-1.1, -0.75], [0.2, -1.6], [1.6, -0.9], [1.6, 0.8]],
-  overflow: [[0.25, 1.65], [-1.1, -1.75], [0.0, 0.8], [0.6, -0.9], [1.1, -1.5], [-0.5, -1.25]],
+  prime: [-1.0, 0.8],
   // To the secret door at the foot of the bottom wall, beside the front-door
   // side of the runner, and down through it to the cellar stair.
   stairs: {

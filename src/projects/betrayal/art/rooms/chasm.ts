@@ -5,6 +5,7 @@ import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { INNER, TILE, onWall, type RoomDefinition } from "../room";
 import { batch, box, group, projectUvs, textured, type Size } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { bricks, flagstones } from "../textures";
 
 /** The gulf, wall to wall from the top edge to the bottom: one stretch of its
@@ -102,8 +103,8 @@ function gulf(): THREE.Group {
   const shell = pitShell({ x: [GULF_X[0] - 0.06, GULF_X[1] + 0.06], z: [-TILE / 2, TILE / 2], bottom: -6 });
   const result = group(...pieces.map((piece) => new THREE.Mesh(piece, material)), haze(-0.9, 0.12), haze(-1.6, 0.25), haze(-2.6, 0.5), shell);
   // The glow far below, lighting the underside of the bridge and the walls where the gulf meets them.
-  result.add(lightAnchor({ colour: "wraithLight", intensity: 14, range: 4.5, flicker: 0.1 }, [0, -3.6, -1.4]));
-  result.add(lightAnchor({ colour: "wraithLight", intensity: 14, range: 4.5, flicker: 0.1 }, [0, -3.6, 1.5]));
+  result.add(lightAnchor({ colour: "wraithLight", intensity: 14, range: 4.5, flicker: 0.1, kind: "glow" }, [0, -3.6, -1.4]));
+  result.add(lightAnchor({ colour: "wraithLight", intensity: 14, range: 4.5, flicker: 0.1, kind: "glow" }, [0, -3.6, 1.5]));
   return result;
 }
 
@@ -173,13 +174,16 @@ function handLines(): THREE.Group {
 /** An iron ring bolted into the floor, with a rope knotted to it running off
  *  over the gulf's edge and straight down: someone went down, or tried to. */
 function ropeDown(): THREE.Group {
-  const b = batch();
-  b.block([0.12, 0.02, 0.12], "soot", [0, 0, 0]);
+  const iron = batch();
+  iron.block([0.12, 0.02, 0.12], "soot", [0, 0, 0]);
   for (let k = 0; k < 6; k++) {
     const a = (k / 6) * Math.PI * 2;
     const c = ((k + 1) / 6) * Math.PI * 2;
-    strand(b, new THREE.Vector3(Math.cos(a) * 0.07, 0.07 + Math.sin(a) * 0.05, 0), new THREE.Vector3(Math.cos(c) * 0.07, 0.07 + Math.sin(c) * 0.05, 0), 0.02, "ash", (k % 2) * TWIST);
+    strand(iron, new THREE.Vector3(Math.cos(a) * 0.07, 0.07 + Math.sin(a) * 0.05, 0), new THREE.Vector3(Math.cos(c) * 0.07, 0.07 + Math.sin(c) * 0.05, 0), 0.02, "ash", (k % 2) * TWIST);
   }
+  const ring = iron.mesh();
+  shiny(ring.material, SHINES.iron);
+  const b = batch();
   const lip = new THREE.Vector3(COURSE[1].x[1] - 1.45 + 0.02, 0.02, 0.15);
   const knot = new THREE.Vector3(-0.06, 0.04, 0);
   strand(b, knot, lip, 0.03, "boneDark");
@@ -187,7 +191,7 @@ function ropeDown(): THREE.Group {
   // The slack, coiled beside the ring.
   const slack = coil({ radii: [0.15], thick: 0.015 });
   slack.position.set(0.22, 0, 0.18);
-  return group(b.mesh(), slack);
+  return group(ring, b.mesh(), slack);
 }
 
 /** A flagstone broken from the gulf's edge, tipped half into the dark. */
@@ -262,9 +266,8 @@ export const CHASM: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [INNER - 0.29, -INNER + 0.29], y: 3.05, turn: -135, walls: ["right", "top"] },
   ],
   focus: [0, 0.3, 0],
-  pawn: [-1.7, -0.55],
-  spots: [[1.5, -1.9], [-2.25, -1.75], [1.75, -0.6], [-1.55, 0.8], [2.3, 1.05]],
-  overflow: [[-1.55, -1.4], [1.55, 1.35], [2.1, -1.4], [1.7, 0.55]],
+  prime: [-1.7, -0.55],
+  primeAcross: [1.5, -1.9],
   // Over the bridge, down the middle of its deck, from the floor at one end to the other.
   crossing: [
     [-1.6, 0, 0],

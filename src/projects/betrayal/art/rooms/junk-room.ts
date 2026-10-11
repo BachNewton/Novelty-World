@@ -6,6 +6,7 @@ import { lightAnchor } from "../light-anchor";
 import { RAMPS, type PaletteKey } from "../palette";
 import { crossLanes, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { panelling, wallpaper, woodPlanks } from "../textures";
 
 /** The heap in the top-left corner the lamp stands on: where its table stands. */
@@ -16,7 +17,7 @@ const HEAP_CRATE = 0.42;
 /** A brass oil lamp with a glass chimney, its wick turned low: the only
  *  light anyone left up here. Base at y = 0. */
 function oilLamp(): THREE.Group {
-  const brass = flat("brass");
+  const brass = shiny(flat("brass"), SHINES.tarnishedBrass);
   const result = group(
     cylinder(0.08, 0.03, brass, [0, 0, 0], { top: 0.06, sides: 8 }),
     cylinder(0.025, 0.08, brass, [0, 0.03, 0], { sides: 6 }),
@@ -70,7 +71,7 @@ function rolledCarpet(): THREE.Group {
 
 /** A domed brass birdcage, its door open and empty. */
 function birdcage(): THREE.Group {
-  const brass = flat("brass");
+  const brass = shiny(flat("brass"), SHINES.tarnishedBrass);
   const result = group(cylinder(0.16, 0.03, brass, [0, 0, 0], { sides: 8 }));
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2;
@@ -81,10 +82,10 @@ function birdcage(): THREE.Group {
 }
 
 /** A tall mirror in a frame, stood against the wall, its glass cracked
- *  across: a pale sheet catching what light there is. Its back at z = 0. */
+ *  across: dark glass catching what light there is. Its back at z = 0. */
 function crackedMirror(): THREE.Group {
   const frame = flat("woodMid");
-  const glass = flat("moonLight");
+  const glass = shiny(flat("sootLight"), SHINES.glass);
   const result = group(
     box([0.7, 1.5, 0.05], frame, [0, 0, 0.025]),
     box([0.56, 1.36, 0.02], glass, [0, 0.07, 0.055]),
@@ -188,9 +189,9 @@ function junkPile(size: number, seed: string): THREE.Group {
  *  on top of the tallest heap: anyone leaving must shove a way out. */
 export const JUNK_ROOM: RoomDefinition = {
   id: "junk-room",
-  floor: () => woodPlanks({ ramp: RAMPS.wood, seed: "junk-room" }),
+  floor: () => woodPlanks({ ramp: RAMPS.wood, seed: "junk-room", glints: false }),
   wall: () => wallpaper({ ground: "sootLight", stripe: "ash", motif: "stoneDark", seed: "junk-room" }),
-  wainscot: () => panelling({ ramp: RAMPS.wood, seed: "junk-room" }),
+  wainscot: () => panelling({ ramp: RAMPS.wood, seed: "junk-room", glints: false }),
   trim: "woodDark",
   props: [
     // The tall heap, top left: a table piled with a crate, a chair and the lamp.
@@ -222,9 +223,7 @@ export const JUNK_ROOM: RoomDefinition = {
     { build: () => sheetedHeap([0.75, 0.95, 0.6], "l"), name: "sheetedHeap", ...onWall("left", 0.95, { out: 0.31 }) },
   ],
   focus: [-1.4, 0.8, -1.4],
-  pawn: [0.75, 0.7],
-  spots: [[-2.15, 1.0], [0.8, -0.95], [-0.8, -1.7], [-0.55, -0.15], [-0.65, 1.4]],
-  overflow: [[-1.65, -0.25], [1.05, 1.75], [1.65, 0.3], [0.2, -1.7], [1.65, -1.2], [0.35, 1.4]],
+  prime: [0.75, 0.7],
   // Doorway to doorway through the middle, clear of the heaps.
   lanes: crossLanes(),
 };

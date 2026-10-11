@@ -3,10 +3,13 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { ball, deforming, ellipsoid, figureMaterial, form, plinth, reshaped, ring, rod, roundBox, sculpt, shaped, solidOf, stretched, type Solid } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, burst, joins, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Swept, type Walking } from "./figure";
+import { BASE_TOP, idleBursts, joins, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type Joint, type StrideRig, type Swept, type Walking } from "./figure";
 import { heavyCloth, hangsCloth, type ClothTiming } from "./cloth";
 import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm, type ArmPose, type Prop } from "./hands";
 import { skinOf } from "./skin";
+import { declareParts, figureParts } from "../figure-parts";
+import { windOf } from "../wind";
+import { clothMoment, clothNet, clothOnClock, clothSheet, clothMode, FABRICS, legCapsules, simulatesCloth, type ClothMode, type LegsAsCloth, type Net, type SheetLook } from "./cloth-sim";
 
 /*
  * Father Rhinehardt: a stocky parish priest of 62 who fences and gardens,
@@ -368,8 +371,70 @@ function meshParts() {
     base: plinth(0.36, 0.34, BASE_TOP, "boneDark"),
   };
 }
-type Parts = ReturnType<typeof meshParts>;
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const RHINEHARDT_PARTS = figureParts("rhinehardt", meshParts);
+declareParts(rhinehardt, [RHINEHARDT_PARTS]);
+
+/** The simulated robe: one net round him from the waist to the hem, 16 round by 8
+ *  down, pinned at the waist, pushed by his legs and kept off the floor, its mesh rebuilt each frame. */
+const ROBE_NET = { around: 16, down: 8 };
+/** Heavy wool, and the room it leaves his legs. */
+const ROBE_FEEL = { ...FABRICS.heavyWool, room: 0.025, roomAtTop: 0.015 };
+/** His legs as the robe sees them; the thigh's top is inside his hips. */
+const ROBE_LEGS: LegsAsCloth = {
+  radii: { thigh: 0.058, shin: 0.047, foot: 0.05 },
+  hidden: 0.1,
+  heel: new THREE.Vector3(0, BASE_TOP + 0.035, -0.03),
+  toe: new THREE.Vector3(0, BASE_TOP + 0.03, 0.11),
+};
+/** How the net robe hangs while he walks: deeper front to back, narrower at the sides, its hem no longer, so his
+ *  stride has room inside it without his legs shoving it out each step. */
+const WALKING_ROBE = { deeper: 1.2, narrower: 0.8 };
+
+/** A point on the robe's cassock, `round` it (a share of a turn from +x, a quarter turn at the front) and `along`
+ *  it from the waist to the hem, in the hips' frame. */
+function onRobe(round: number, along: number): THREE.Vector3 {
+  const y = ROBE.top + (ROBE.hem - ROBE.top) * along;
+  const { rx, rz } = robeRadii(y, false);
+  return new THREE.Vector3(rx * Math.cos(round * Math.PI * 2), y, rz * Math.sin(round * Math.PI * 2));
+}
+
+/** The net robe's points as it hangs, a share `walking` of the way into its walking shape, into `out`. */
+function robeNetRest(walking: number, out: Float64Array): Float64Array {
+  const { around, down } = ROBE_NET;
+  for (let j = 0; j < down; j++) {
+    const along = j / (down - 1);
+    const [deeper, narrower] = [1 + (WALKING_ROBE.deeper - 1) * along * walking, 1 - (1 - WALKING_ROBE.narrower) * along * walking];
+    for (let i = 0; i < around; i++) {
+      const point = onRobe(i / around, along);
+      out.set([point.x * narrower, point.y, point.z * deeper], (j * around + i) * 3);
+    }
+  }
+  return out;
+}
+
+/** The net robe's look: the black cassock, the white surplice standing out over it to the knee with its trimmed hem,
+ *  and the stole's ends down its front with their gold crosses. */
+const ROBE_LOOK: SheetLook = {
+  across: 96,
+  down: 32,
+  thickness: 0.01,
+  inset: (_, v) => {
+    const y = ROBE.top + (ROBE.hem - ROBE.top) * v;
+    return -ROBE.layer * THREE.MathUtils.smoothstep(y, ROBE.surplice - 0.006, ROBE.surplice + 0.006);
+  },
+  colour: (u, v, inside) => {
+    if (inside) return "soot";
+    const { x, y, z } = onRobe(u, v);
+    const { surplice } = ROBE;
+    if (y < surplice) return "sootLight";
+    const crossAt = surplice + 0.075;
+    const across = Math.abs(Math.abs(x) - 0.062);
+    if (z > 0.02 && ((across < 0.006 && Math.abs(y - crossAt) < 0.026) || (across < 0.017 && Math.abs(y - crossAt - 0.008) < 0.006))) return "gold";
+    if (stoleFront(x, y, z) && y > surplice + 0.03) return "bruiseLight";
+    return y < surplice + 0.022 ? "bone" : "boneLight";
+  },
+};
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** The middles of a shoe's heel and toe, as built (x set per foot): what a lifted foot pushes the robe with. */
@@ -408,6 +473,28 @@ function blessingAt(s: number): THREE.Vector3 {
     .add(right.clone().sub(left).multiplyScalar(ease(0.6, 1)));
 }
 
+/** The robe as a simulated net: the net, its mesh, the moment it hangs in, and its walking shape. */
+function robeNet() {
+  const { around, down } = ROBE_NET;
+  const shape = { rest: robeNetRest(0, new Float64Array(around * down * 3)), around, down, closed: true, outward: 1 as const, round: true, waistband: true };
+  const body: Net = clothNet(shape, ROBE_FEEL);
+  const sheet = clothSheet(body, shape, ROBE_LOOK);
+  const moment = clothMoment(6);
+  const rest = new Float64Array(shape.rest.length);
+  let hung = 0;
+  return {
+    body,
+    sheet,
+    moment,
+    swing: clothOnClock(body, moment.capsules.length, sheet.follow),
+    walking: (share: number) => {
+      if (Math.abs(share - hung) < 1e-4) return;
+      hung = share;
+      body.reshape(robeNetRest(share, rest));
+    },
+  };
+}
+
 /** Father Rhinehardt as a miniature on a round base, 5'9" at the house's
  *  scale. He breathes slow and even, shifting his weight, the crucifix held
  *  before him; now and then he raises his right hand and blesses the room,
@@ -416,9 +503,8 @@ function blessingAt(s: number): THREE.Vector3 {
  *  and shakes his head to clear it. He walks with short, brisk, upright
  *  steps, his robe swinging round his ankles. His left hand holds the
  *  crucifix; his right hand is free to hold anything else. */
-export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING, { cloth = clothMode() }: { cloth?: ClothMode } = {}): THREE.Group {
+  const parts = RHINEHARDT_PARTS.get();
   const material = figureMaterial();
   const mesh = (geometry: THREE.BufferGeometry, name: string) => {
     const made = form(material, geometry);
@@ -459,11 +545,12 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
 
   const trunk = mesh(parts.torso, "torso");
   const chest = group(trunk, neck, left.shoulder, right.shoulder);
+  // The robe is one simulated net; with `?cloth=off`, two halves draped over the legs.
+  const net = cloth === "net" ? robeNet() : null;
   const front = draping(parts.robe.front, 1);
   const back = draping(parts.robe.back, -1);
-  const robeFront = mesh(front.geometry, "robe front");
-  const robeBack = mesh(back.geometry, "robe back");
-  const hips = group(robeFront, robeBack, chest);
+  const robeParts = net ? [mesh(net.sheet.geometry, "robe")] : [mesh(front.geometry, "robe front"), mesh(back.geometry, "robe back")];
+  const hips = group(...robeParts, chest);
   hips.position.y = WAIST - BASE_TOP;
 
   const legs = ([-1, 1] as const).map((side, i) => {
@@ -492,14 +579,14 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
 
   const figure = walks(group(mesh(parts.base, "base"), body, legs[0].shoe, legs[1].shoe), PRIEST_WALK);
   hasHands(figure, { right: right.hand, left: left.hand });
-  hangsCloth(figure, [robeFront, robeBack]);
+  hangsCloth(figure, robeParts);
+  if (net) simulatesCloth(figure, net.body);
   joins(figure, [
     { parts: [face, trunk], at: neck, radius: 0.1 },
     { parts: [left.shoulder.children[0], trunk], at: left.shoulder, radius: 0.11 },
     { parts: [right.shoulder.children[0], trunk], at: right.shoulder, radius: 0.11 },
     // The robe's halves hang from the waist, inside the surplice's belly.
-    { parts: [robeFront, trunk], at: hips, radius: 0.26 },
-    { parts: [robeBack, trunk], at: hips, radius: 0.26 },
+    ...robeParts.map((half): Joint => ({ parts: [half, trunk], at: hips, radius: 0.26 })),
     ...left.joints,
     ...right.joints,
     ...legs.flatMap((one) => legJoints(one, trunk, 0.14, 0.11, 0.09)),
@@ -519,7 +606,9 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
   const unseenRig: StrideRig = { ...rig, legs: unseen, body: unseenBody, arms: [], chest: unseenChest };
   const unseenHips = group();
   unseenHips.position.y = hips.position.y;
-  const robe = heavyCloth(
+  const robe = net
+    ? null
+    : heavyCloth(
     DRAPE_ROWS * 2,
     gait,
     (moving, clock, out) => {
@@ -534,6 +623,11 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
     ROBE_SWING,
   );
   const drapes = new Float32Array(DRAPE_ROWS * 2);
+  const bursts = idleBursts(figure, seed, offset, {
+    dread: { every: 13, lasts: 3.4, chance: 0.5 },
+    ward: { every: 11, lasts: 3, chance: 0.6 },
+    bless: { every: 9, lasts: 3.2, chance: 0.65 },
+  });
 
 
   return animated(figure, (clock) => {
@@ -546,11 +640,9 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
     const upright = held?.carry === "upright";
     // His right hand's gestures wait while it holds something, and while he walks.
     const free = held ? 0 : 1 - moving.amount;
-    const dread = burst(seconds, `${seed}:dread`, { every: 13, lasts: 3.4, chance: 0.5 });
+    const { dread, ward, bless } = bursts(clock);
     const fearing = dread.amount * free;
-    const ward = burst(seconds, `${seed}:ward`, { every: 11, lasts: 3, chance: 0.6 });
     const warding = ward.amount * (1 - running) * (1 - fearing);
-    const bless = burst(seconds, `${seed}:bless`, { every: 9, lasts: 3.2, chance: 0.65 });
     const blessed = bless.amount * free * (1 - fearing) * (1 - warding);
 
     body.rotation.z = sway * 0.018;
@@ -579,6 +671,18 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING): THREE.Gr
     aimGrip(left.hand, figure, UP, 1);
     if (upright) aimGrip(right.hand, figure, UP, 1);
 
+    if (net) {
+      // The net robe swings from his hips as he moves, round his legs, off the floor and in the room's air.
+      figure.updateWorldMatrix(true, true);
+      net.moment.anchor.copy(hips.matrixWorld);
+      legCapsules(legs, ROBE_LEGS, net.moment.capsules);
+      windOf(figure)(clock, net.moment.wind);
+      net.moment.floor = figure.matrixWorld.elements[13] + BASE_TOP;
+      net.walking(moving.running ? 0 : moving.amount);
+      net.swing(clock, net.moment);
+      return;
+    }
+    if (!robe) throw new Error("The draped robe has its cloth");
     // Each half of the robe drapes over the legs, the back behind a heel and the
     // front over a knee: swinging out ahead of them and falling back after,
     // and never letting one through as they are now.

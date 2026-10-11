@@ -62,6 +62,10 @@ const zoeLedger = {
 };
 
 describe("migrate", () => {
+  it("upgrades a format 12 state: the chart decides its haunt", () => {
+    expect(migrate({ format: 12, gameId: "g" })).toEqual({ format: STATE_FORMAT, gameId: "g", chosenHaunt: null });
+  });
+
   it("passes a current state through unchanged", () => {
     const saved = { format: STATE_FORMAT, gameId: "g" };
     expect(migrate(saved)).toEqual(saved);
@@ -83,6 +87,7 @@ describe("migrate", () => {
     };
     expect(migrate(saved)).toEqual({
       format: STATE_FORMAT,
+      chosenHaunt: null,
       gameId: "g",
       ongoing: [],
       cardMarks: {},
@@ -112,6 +117,7 @@ describe("migrate", () => {
     };
     expect(migrate(saved)).toEqual({
       format: STATE_FORMAT,
+      chosenHaunt: null,
       gameId: "g",
       cardMarks: {},
       figures: { "zoe-ingstrom": zoeFigure },
@@ -142,6 +148,7 @@ describe("migrate", () => {
     };
     expect(migrate(saved)).toEqual({
       format: STATE_FORMAT,
+      chosenHaunt: null,
       gameId: "g",
       figures: { "zoe-ingstrom": zoeFigure },
       lastEvents: [],
@@ -210,6 +217,7 @@ describe("migrate", () => {
     it("keeps its explorers as figures by character, and names them by id wherever it named a seat", () => {
       expect(migrate(saved)).toEqual({
         format: STATE_FORMAT,
+        chosenHaunt: null,
         gameId: "g",
         figures: {
           "zoe-ingstrom": zoeFigure,
@@ -290,6 +298,7 @@ describe("migrate", () => {
     it("gives its seats no side or roles yet, known to everyone, and starts rule memory and cards set aside empty", () => {
       expect(migrate(saved)).toEqual({
         format: STATE_FORMAT,
+        chosenHaunt: null,
         gameId: "g",
         seats: [
           { name: "Ann", controller: "human", side: null, roles: [], knownBy: null },
@@ -323,6 +332,7 @@ describe("migrate", () => {
       };
       expect(migrate(saved)).toEqual({
         format: STATE_FORMAT,
+        chosenHaunt: null,
         gameId: "g",
         status: "haunt",
         turn: { seat: 2, moved: {}, ...inOrder, ...actedBy(null) },
@@ -360,6 +370,7 @@ describe("migrate", () => {
       };
       expect(migrate(saved)).toEqual({
         format: STATE_FORMAT,
+        chosenHaunt: null,
         gameId: "g",
         pending: null,
         work: [],
@@ -411,6 +422,7 @@ describe("migrate", () => {
       expect(migrate(saved)).toEqual({
         ...saved,
         format: STATE_FORMAT,
+        chosenHaunt: null,
         turn: { ...saved.turn, ...actedBy("zoe-ingstrom") },
         memory: { ...later.memory, spawned: { phantom: 2 } },
       });

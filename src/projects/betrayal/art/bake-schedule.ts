@@ -1,4 +1,4 @@
-import { inlineBaker, type BakeScene, type Gathered, type Pass, type RoomLight, type Samples } from "./bake";
+import { inlineBaker, layOut, type BakeScene, type Gathered, type Pass, type RoomLight, type SampleChunk, type SampleSet } from "./bake";
 import { finishLight, type FinishWork } from "./bake-finish";
 
 /*
@@ -28,7 +28,7 @@ export interface ChunkWork {
   room: string;
   scene: BakeScene;
   sceneId: number;
-  samples: Samples;
+  samples: SampleChunk;
 }
 
 /** A pass's light, all in, to be finished into the room's light. */
@@ -48,7 +48,7 @@ export interface Lane {
 /** One pass of a job: its samples, and how its light reaches the screen. */
 export interface PassPlan {
   pass: Pass;
-  samples: Samples;
+  samples: SampleSet;
   /** The work of one of its samples, in direct-light samples: a finer pass's chunks are cut smaller, so each takes about as long. */
   cost: number;
   /** Whether this kind of work usually takes long enough (more than a couple of seconds) that the screen shows how far it has got, from the start. */
@@ -146,6 +146,8 @@ interface PassState {
   parts: (Gathered | null)[];
   /** Chunks not yet in. */
   left: number;
+  /** Whether it waits to be finished, or is being or has been. */
+  finishing: boolean;
   /** Its light, finished; null until then. */
   light: RoomLight | null;
   applied: Deferred;
@@ -177,13 +179,6 @@ function deferred(): Deferred {
 }
 
 const IDLE: BakeStatus = { pending: false, progress: false, passes: [], done: 0, total: 0, since: null };
-
-/** Samples in a sample set. */
-const sampleCount = (samples: Samples) => samples.position.length / 3;
-
-function slice(samples: Samples, start: number, end: number): Samples {
-  return { position: samples.position.slice(start * 3, end * 3), normal: samples.normal.slice(start * 3, end * 3), within: samples.within.slice(start * 6, end * 6) };
-}
 
 /** A pass's chunks joined back in order. */
 function join(parts: Gathered[]): Gathered {
@@ -270,11 +265,22 @@ export function createBakeScheduler(spawn: () => Lane[]) {
   /** Passes all in, waiting for a lane to finish them: they go before any chunk, being the last step to the screen. */
   const finishing: { running: Running; state: PassState }[] = [];
 
+  /** Queues a job's passes that are all in for finishing, in order: a pass's finish may build on an earlier
+   *  pass's light, so it waits until every earlier pass is all in, even when its own chunks landed first. */
+  const ripen = (running: Running) => {
+    for (const state of running.passes) {
+      if (state.left > 0) return;
+      if (state.finishing) continue;
+      state.finishing = true;
+      finishing.push({ running, state });
+    }
+  };
+
   const land = (running: Running, state: PassState, part: number, gathered: Gathered) => {
     state.parts[part] = gathered;
     state.left--;
     done += (state.ranges[part][1] - state.ranges[part][0]) * state.plan.cost;
-    if (state.left === 0) finishing.push({ running, state });
+    if (state.left === 0) ripen(running);
   };
 
   /** Starts a trace record of work on a lane. */
@@ -338,7 +344,7 @@ export function createBakeScheduler(spawn: () => Lane[]) {
       slot.busy = true;
       const chunk = record(index, "gather", running, state, range[1] - range[0]);
       const { scene, sceneId } = running.job;
-      slot.lane.run({ pass: state.plan.pass, room: running.job.room, scene, sceneId, samples: slice(state.plan.samples, range[0], range[1]) }).then(
+      slot.lane.run({ pass: state.plan.pass, room: running.job.room, scene, sceneId, samples: state.plan.samples.chunk(range[0], range[1]) }).then(
         (gathered) => {
           slot.busy = false;
           if (trace && chunk) {
@@ -381,11 +387,11 @@ export function createBakeScheduler(spawn: () => Lane[]) {
       applied: 0,
       live: true,
       passes: job.passes.map((plan) => {
-        const count = sampleCount(plan.samples);
+        const { count } = plan.samples;
         const size = Math.max(Math.ceil(LEAST_CHUNK / plan.cost), Math.ceil(count / (pool.length * 2)));
         const ranges: [number, number][] = [];
         for (let start = 0; start < count; start += size) ranges.push([start, Math.min(count, start + size)]);
-        return { plan, count, ranges, queued: ranges.map((_, i) => i), parts: ranges.map(() => null), left: ranges.length, light: null, applied: deferred() };
+        return { plan, count, ranges, queued: ranges.map((_, i) => i), parts: ranges.map(() => null), left: ranges.length, finishing: false, light: null, applied: deferred() };
       }),
     };
     const older = byKey.get(job.key);
@@ -399,7 +405,7 @@ export function createBakeScheduler(spawn: () => Lane[]) {
     byKey.set(job.key, running);
     total += running.passes.reduce((sum, state) => sum + state.count * state.plan.cost, 0);
     // A pass with no samples has nothing to gather: it only needs finishing.
-    for (const state of running.passes) if (state.left === 0) finishing.push({ running, state });
+    ripen(running);
     // Work starts once everything submitted alongside it is in (a layout lays every floor at once),
     // so the first lanes go to the rooms most wanted rather than to whichever came first.
     if (!pumpQueued) {
@@ -417,6 +423,12 @@ export function createBakeScheduler(spawn: () => Lane[]) {
 
   return {
     submit,
+    /** Starts the work submitted so far now, rather than once the code submitting it has run: for a caller
+     *  that has submitted all it has, and has more to do on this thread before it yields. */
+    start: () => {
+      pump();
+      publish();
+    },
     /** Drops the job for `key`, if any: what it lit is gone. */
     cancel: (key: string) => {
       const running = byKey.get(key);
@@ -463,7 +475,7 @@ export type BakeScheduler = ReturnType<typeof createBakeScheduler>;
 export function inlineLane(): Lane {
   const baker = inlineBaker();
   return {
-    run: ({ pass, scene, sceneId, samples }) => baker(scene, sceneId, samples, pass),
+    run: ({ pass, scene, sceneId, samples }) => baker(scene, sceneId, layOut(samples), pass),
     finish: ({ work }) => Promise.resolve(finishLight(work)),
     dispose: () => undefined,
   };

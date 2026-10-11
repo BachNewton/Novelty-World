@@ -1,9 +1,11 @@
 import * as THREE from "three";
 import type { Edge } from "../types";
 import { animationOf, type Animation } from "./animate";
-import { LIGHTMAP, type BakedLight } from "./lighting";
+import { runSteps } from "./build-slices";
+import { LIGHTMAP, shadowMode, type BakedLight } from "./lighting";
 import { EDGES, OUTWARD, pieceOf, type RoomPart } from "./stage";
 import type { PropPlacement } from "./room";
+import { shineOf, type Shine } from "./shine";
 
 /*
  * Freezing a built room: everything in it that stands still is merged, by
@@ -47,12 +49,16 @@ export interface DrawParams {
   map: THREE.Texture | null;
   alphaTest: number;
   side: THREE.Side;
+  /** A transparent double-sided group drawn in one pass, not three's two (see `lightMaterial`). */
+  forceSinglePass: boolean;
   transparent: boolean;
   opacity: number;
   blending: THREE.Blending;
   depthWrite: boolean;
   fog: boolean;
   toneMapped: boolean;
+  /** How it takes highlights, when shiny and the page draws them (`shine.ts`). */
+  shine: Shine | null;
 }
 
 /** The merged geometry of one way of drawing, in the room's frame. */
@@ -136,17 +142,19 @@ function drawParams(material: THREE.Material): DrawParams {
     map: material.map,
     alphaTest: material.alphaTest,
     side: material.side,
+    forceSinglePass: material.forceSinglePass,
     transparent: material.transparent,
     opacity: material.opacity,
     blending: material.blending,
     depthWrite: material.depthWrite,
     fog: material.fog,
     toneMapped: material.toneMapped,
+    shine: shineOf(material),
   };
 }
 
 function paramsKey(p: DrawParams): string {
-  return [p.lit, p.map?.uuid, p.alphaTest, p.side, p.transparent, p.opacity, p.blending, p.depthWrite, p.fog, p.toneMapped].join("|");
+  return [p.lit, p.map?.uuid, p.alphaTest, p.side, p.forceSinglePass, p.transparent, p.opacity, p.blending, p.depthWrite, p.fog, p.toneMapped, p.shine?.roughness, p.shine?.metalness, p.shine?.reflectance].join("|");
 }
 
 interface Gathering {
@@ -158,6 +166,8 @@ interface Gathering {
   role: number[];
   /** For a lit bucket, where each triangle's lightmap UVs go, set once the atlas is packed. */
   uv1: number[];
+  /** Under soft shadows, each vertex's chart in the atlas: its first and last texels' centres (u, v, u, v, in texels), which the lightmap's cubic filter keeps to. */
+  chart: number[];
 }
 
 interface LitTriangle {
@@ -184,6 +194,8 @@ interface Chart {
   origin: [number, number];
   /** Texels per axis inside its border, or 0 for an axis collapsed to one texel. */
   texels: [number, number];
+  /** Its allocated size, border included (`footprint`). */
+  size: [number, number];
   /** Where it is packed in the atlas: its corner, border included. */
   at: [number, number];
 }
@@ -205,9 +217,8 @@ function sharesEdge(a: LitTriangle, b: LitTriangle): boolean {
   return shared >= 2;
 }
 
-function charts(triangles: LitTriangle[]): Chart[] {
+function charts(triangles: LitTriangle[], density: number): Chart[] {
   const result: Chart[] = [];
-  const density = LIGHTMAP.texelsPerMetre;
   let current: Chart | null = null;
   let last: LitTriangle | null = null;
   for (const triangle of triangles) {
@@ -221,7 +232,7 @@ function charts(triangles: LitTriangle[]): Chart[] {
       sharesEdge(last, triangle);
     if (!joins || !current) {
       const [u, v, aligned] = basis(triangle.normal, triangle.points[0], triangle.points[1]);
-      current = { triangles: [], normal: triangle.normal.clone(), u, v, offset: triangle.points[0].dot(triangle.normal), min: [Infinity, Infinity], max: [-Infinity, -Infinity], origin: [0, 0], texels: [0, 0], at: [0, 0] };
+      current = { triangles: [], normal: triangle.normal.clone(), u, v, offset: triangle.points[0].dot(triangle.normal), min: [Infinity, Infinity], max: [-Infinity, -Infinity], origin: [0, 0], texels: [0, 0], size: [1, 1], at: [0, 0] };
       current.origin = aligned ? [NaN, NaN] : [Infinity, Infinity];
       result.push(current);
     }
@@ -241,6 +252,7 @@ function charts(triangles: LitTriangle[]): Chart[] {
     const spans = [0, 1].map((axis) => (chart.max[axis] - chart.origin[axis]) * density);
     const single = chart.triangles[0].unseen || Math.max(...spans) <= SMALL_CHART * density;
     chart.texels = spans.map((span) => (single || span < 1 ? 0 : Math.ceil(span - 1e-6))) as [number, number];
+    chart.size = footprint(chart);
   }
   return result;
 }
@@ -252,15 +264,15 @@ function footprint(chart: Chart): [number, number] {
 
 /** Packs charts in shelves, tallest first, into an atlas about square. */
 function pack(all: Chart[]): { width: number; height: number } {
-  const area = all.reduce((sum, chart) => sum + footprint(chart)[0] * footprint(chart)[1], 0);
-  const widest = Math.max(1, ...all.map((chart) => footprint(chart)[0]));
+  const area = all.reduce((sum, chart) => sum + chart.size[0] * chart.size[1], 0);
+  const widest = all.reduce((most, chart) => Math.max(most, chart.size[0]), 1);
   const width = Math.max(widest, 16, Math.ceil(Math.sqrt(area * 1.1) / 4) * 4);
-  const order = [...all].sort((a, b) => footprint(b)[1] - footprint(a)[1] || footprint(b)[0] - footprint(a)[0]);
+  const order = [...all].sort((a, b) => b.size[1] - a.size[1] || b.size[0] - a.size[0]);
   let x = 0;
   let y = 0;
   let shelf = 0;
   for (const chart of order) {
-    const [w, h] = footprint(chart);
+    const [w, h] = chart.size;
     if (x + w > width) {
       x = 0;
       y += shelf;
@@ -274,78 +286,111 @@ function pack(all: Chart[]): { width: number; height: number } {
 }
 
 /** The texel-space coordinate of a point of a chart on one axis. */
-function texelCoord(chart: Chart, axis: 0 | 1, value: number): number {
+function texelCoord(chart: Chart, axis: 0 | 1, value: number, density: number): number {
   if (chart.texels[axis] === 0) return chart.at[axis] + 0.5;
-  return chart.at[axis] + 1 + (value - chart.origin[axis]) * LIGHTMAP.texelsPerMetre;
+  return chart.at[axis] + 1 + (value - chart.origin[axis]) * density;
 }
 
-/** The point of a chart nearest a point of its plane, in plane coordinates. */
-function clampToChart(chart: Chart, pu: number, pv: number): [number, number] {
-  let best: [number, number] = [pu, pv];
+/** A chart's triangles laid flat on its plane: six numbers a triangle, its corners' plane coordinates. */
+function flatTriangles(chart: Chart): Float64Array {
+  const flat = new Float64Array(chart.triangles.length * 6);
+  chart.triangles.forEach(({ points }, t) => {
+    points.forEach((q, k) => {
+      flat[t * 6 + k * 2] = q.dot(chart.u);
+      flat[t * 6 + k * 2 + 1] = q.dot(chart.v);
+    });
+  });
+  return flat;
+}
+
+/** The point of a chart (its flat triangles) nearest a point of its plane, in plane coordinates, into `out`. */
+function clampToChart(flat: Float64Array, pu: number, pv: number, out: [number, number]): [number, number] {
+  out[0] = pu;
+  out[1] = pv;
   let bestDistance = Infinity;
-  const p = new THREE.Vector2(pu, pv);
-  const flat = (q: THREE.Vector3) => new THREE.Vector2(q.dot(chart.u), q.dot(chart.v));
-  for (const { points } of chart.triangles) {
-    const [a, b, c] = points.map(flat);
-    const closest = closestOnTriangle(p, a, b, c);
-    const distance = closest.distanceToSquared(p);
+  for (let t = 0; t < flat.length; t += 6) {
+    closestOnTriangle(pu, pv, flat, t, closest);
+    const dx = closest[0] - pu;
+    const dy = closest[1] - pv;
+    const distance = dx * dx + dy * dy;
     if (distance < bestDistance) {
       bestDistance = distance;
-      best = [closest.x, closest.y];
+      out[0] = closest[0];
+      out[1] = closest[1];
       if (distance === 0) break;
     }
   }
-  return best;
+  return out;
 }
+const closest: [number, number] = [0, 0];
 
-function closestOnTriangle(p: THREE.Vector2, a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2): THREE.Vector2 {
-  const cross = (o: THREE.Vector2, s: THREE.Vector2, t: THREE.Vector2) => (s.x - o.x) * (t.y - o.y) - (s.y - o.y) * (t.x - o.x);
-  const d1 = cross(a, b, p);
-  const d2 = cross(b, c, p);
-  const d3 = cross(c, a, p);
+/** The point of the flat triangle at `t` nearest (px, py), into `out`: the point itself when inside. */
+function closestOnTriangle(px: number, py: number, flat: Float64Array, t: number, out: [number, number]) {
+  const cross = (ox: number, oy: number, sx: number, sy: number) => (sx - ox) * (py - oy) - (sy - oy) * (px - ox);
+  const [ax, ay, bx, by, cx, cy] = [flat[t], flat[t + 1], flat[t + 2], flat[t + 3], flat[t + 4], flat[t + 5]];
+  const d1 = cross(ax, ay, bx, by);
+  const d2 = cross(bx, by, cx, cy);
+  const d3 = cross(cx, cy, ax, ay);
   const negative = d1 < 0 || d2 < 0 || d3 < 0;
   const positive = d1 > 0 || d2 > 0 || d3 > 0;
-  if (!(negative && positive)) return p.clone();
-  let best = a.clone();
+  if (!(negative && positive)) {
+    out[0] = px;
+    out[1] = py;
+    return;
+  }
+  out[0] = ax;
+  out[1] = ay;
   let bestDistance = Infinity;
-  for (const [s, t] of [[a, b], [b, c], [c, a]]) {
-    const along = t.clone().sub(s);
-    const length = along.lengthSq();
-    const k = length > 0 ? THREE.MathUtils.clamp(p.clone().sub(s).dot(along) / length, 0, 1) : 0;
-    const q = s.clone().addScaledVector(along, k);
-    const distance = q.distanceToSquared(p);
+  for (let edge = 0; edge < 3; edge++) {
+    const sx = flat[t + edge * 2];
+    const sy = flat[t + edge * 2 + 1];
+    const ex = flat[t + ((edge + 1) % 3) * 2];
+    const ey = flat[t + ((edge + 1) % 3) * 2 + 1];
+    const alongX = ex - sx;
+    const alongY = ey - sy;
+    const length = alongX * alongX + alongY * alongY;
+    const k = length > 0 ? THREE.MathUtils.clamp(((px - sx) * alongX + (py - sy) * alongY) / length, 0, 1) : 0;
+    const qx = sx + alongX * k;
+    const qy = sy + alongY * k;
+    const distance = (qx - px) * (qx - px) + (qy - py) * (qy - py);
     if (distance < bestDistance) {
       bestDistance = distance;
-      best = q;
+      out[0] = qx;
+      out[1] = qy;
     }
   }
-  return best;
 }
 
-/** Every texel of every chart, with the point of the surface it lights. */
-function sampleTexels(all: Chart[], width: number, height: number): Texels {
-  const count = all.reduce((sum, chart) => sum + footprint(chart)[0] * footprint(chart)[1], 0);
+/** Every texel of every chart, with the point of the surface it lights: one step a chart. */
+function* sampleTexels(all: Chart[], width: number, height: number, density: number): Generator<void, Texels> {
+  const count = all.reduce((sum, chart) => sum + chart.size[0] * chart.size[1], 0);
   const index = new Uint32Array(count);
   const position = new Float32Array(count * 3);
   const normal = new Float32Array(count * 3);
   const charts = new Uint32Array(all.length * 3);
-  const density = LIGHTMAP.texelsPerMetre;
+  const at: [number, number] = [0, 0];
   let n = 0;
   for (const [c, chart] of all.entries()) {
-    const [w, h] = footprint(chart);
+    const [w, h] = chart.size;
     charts.set([n, w, h], c * 3);
+    const flat = flatTriangles(chart);
+    const { normal: across, u, v, offset } = chart;
+    const along = (axis: 0 | 1, k: number) =>
+      chart.texels[axis] === 0 ? (chart.min[axis] + chart.max[axis]) / 2 : chart.origin[axis] + (THREE.MathUtils.clamp(k - 1, 0, chart.texels[axis] - 1) + 0.5) / density;
     for (let j = 0; j < h; j++) {
       for (let i = 0; i < w; i++) {
-        const along = (axis: 0 | 1, k: number) =>
-          chart.texels[axis] === 0 ? (chart.min[axis] + chart.max[axis]) / 2 : chart.origin[axis] + (THREE.MathUtils.clamp(k - 1, 0, chart.texels[axis] - 1) + 0.5) / density;
-        const [pu, pv] = clampToChart(chart, along(0, i), along(1, j));
-        const point = chart.normal.clone().multiplyScalar(chart.offset).addScaledVector(chart.u, pu).addScaledVector(chart.v, pv);
+        const [pu, pv] = clampToChart(flat, along(0, i), along(1, j), at);
         index[n] = (chart.at[1] + j) * width + chart.at[0] + i;
-        position.set([point.x, point.y, point.z], n * 3);
-        normal.set([chart.normal.x, chart.normal.y, chart.normal.z], n * 3);
+        position[n * 3] = across.x * offset + u.x * pu + v.x * pv;
+        position[n * 3 + 1] = across.y * offset + u.y * pu + v.y * pv;
+        position[n * 3 + 2] = across.z * offset + u.z * pu + v.z * pv;
+        normal[n * 3] = across.x;
+        normal[n * 3 + 1] = across.y;
+        normal[n * 3 + 2] = across.z;
         n++;
       }
     }
+    yield;
   }
   if (n !== count) throw new Error(`Sampled ${n} texels of ${count}`);
   return { width, height, index, position, normal, charts };
@@ -353,31 +398,56 @@ function sampleTexels(all: Chart[], width: number, height: number): Texels {
 
 const surfaces = ({ triangles, albedo }: { triangles: number[]; albedo: number[] }): Surfaces => ({ triangles: new Float32Array(triangles), albedo: new Float32Array(albedo) });
 
+/** Each of a byte's 256 levels in a colour space, as a linear channel: read per texel, so a texture's average is a table lookup a channel. */
+const levels = new Map<string, Float32Array>();
+function linearLevels(colorSpace: string): Float32Array {
+  const known = levels.get(colorSpace);
+  if (known) return known;
+  const colour = new THREE.Color();
+  const table = Float32Array.from({ length: 256 }, (_, level) => colour.setRGB(level / 255, 0, 0, colorSpace).r);
+  levels.set(colorSpace, table);
+  return table;
+}
+
+/** A texture's image: pixels of its own, or a canvas, or an image to draw. */
+interface TextureImage {
+  width: number;
+  height: number;
+  data?: ArrayLike<number>;
+  getContext?: (kind: "2d", options: CanvasRenderingContext2DSettings) => CanvasRenderingContext2D | null;
+}
+
+/** A texture's pixels: its data, or its canvas's, read from the canvas itself rather than a copy (`textures.ts` keeps them in memory). */
+function pixelsOf(image: TextureImage): ArrayLike<number> {
+  if (image.data) return image.data;
+  const { width, height } = image;
+  // A canvas drawn as WebGL has no 2D context: it is copied into one.
+  let context = image.getContext ? image.getContext("2d", { willReadFrequently: true }) : null;
+  if (!context) {
+    const element = document.createElement("canvas");
+    element.width = width;
+    element.height = height;
+    context = element.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("2D canvas unavailable");
+    context.drawImage(image as unknown as CanvasImageSource, 0, 0);
+  }
+  return context.getImageData(0, 0, width, height).data;
+}
+
 /** A texture's average colour, linear, over its opaque texels: what a surface it covers reflects on the whole. */
 const textureAverages = new WeakMap<THREE.Texture, THREE.Color>();
 function textureAverage(texture: THREE.Texture): THREE.Color {
   const known = textureAverages.get(texture);
   if (known) return known;
-  const image = texture.image as { width: number; height: number; data?: ArrayLike<number> };
-  let pixels = image.data;
-  if (!pixels) {
-    const element = document.createElement("canvas");
-    element.width = image.width;
-    element.height = image.height;
-    const context = element.getContext("2d");
-    if (!context) throw new Error("2D canvas unavailable");
-    context.drawImage(texture.image as CanvasImageSource, 0, 0);
-    pixels = context.getImageData(0, 0, image.width, image.height).data;
-  }
-  const texel = new THREE.Color();
+  const pixels = pixelsOf(texture.image as TextureImage);
+  const linear = linearLevels(texture.colorSpace);
   const sum = [0, 0, 0];
   let opaque = 0;
   for (let i = 0; i < pixels.length; i += 4) {
     const alpha = pixels[i + 3] / 255;
-    texel.setRGB(pixels[i] / 255, pixels[i + 1] / 255, pixels[i + 2] / 255, texture.colorSpace);
-    sum[0] += texel.r * alpha;
-    sum[1] += texel.g * alpha;
-    sum[2] += texel.b * alpha;
+    sum[0] += linear[pixels[i]] * alpha;
+    sum[1] += linear[pixels[i + 1]] * alpha;
+    sum[2] += linear[pixels[i + 2]] * alpha;
     opaque += alpha;
   }
   const average = opaque > 0 ? new THREE.Color(sum[0] / opaque, sum[1] / opaque, sum[2] / opaque) : new THREE.Color(0, 0, 0);
@@ -400,7 +470,9 @@ function albedoOf(material: THREE.Material, colours: THREE.BufferAttribute | und
       g += colours.getY(id) / 3;
       b += colours.getZ(id) / 3;
     }
-    out.multiply(new THREE.Color(r, g, b));
+    out.r *= r;
+    out.g *= g;
+    out.b *= b;
   }
   if (material.map) out.multiply(textureAverage(material.map));
   return out;
@@ -417,7 +489,17 @@ function within(object: THREE.Object3D, stop: THREE.Object3D, test: (o: THREE.Ob
  * The room as built is taken apart: its moving pieces move to the frozen
  * room's holders, and its still meshes are freed once merged.
  */
-export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
+export function freezeRoom(id: string, part: RoomPart, density = LIGHTMAP.texelsPerMetre): FrozenRoom {
+  return runSteps(freezeSteps(id, part, density));
+}
+
+/**
+ * `freezeRoom` in steps, each a mesh merged or a chart sampled, so the house
+ * can freeze a room a few steps a frame (`build-slices.ts`). Nothing else may
+ * touch the built room between its steps. `density` is the lightmap's texels
+ * a metre: the page's own setting unless a test asks for a coarser one.
+ */
+export function* freezeSteps(id: string, part: RoomPart, density = LIGHTMAP.texelsPerMetre): Generator<void, FrozenRoom> {
   const { root } = part;
   root.updateMatrixWorld(true);
 
@@ -467,7 +549,7 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
   const bucketFor = (material: THREE.Material): Gathering => {
     const params = drawParams(material);
     const key = paramsKey(params);
-    const bucket = buckets.get(key) ?? { params, position: [], normal: [], colour: [], uv: [], role: [], uv1: [] };
+    const bucket = buckets.get(key) ?? { params, position: [], normal: [], colour: [], uv: [], role: [], uv1: [], chart: [] };
     buckets.set(key, bucket);
     return bucket;
   };
@@ -485,6 +567,8 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
   const b = new THREE.Vector3();
   const c = new THREE.Vector3();
   const colour = new THREE.Color();
+  const vertexColour = new THREE.Color();
+  const vertexNormal = new THREE.Vector3();
   for (const mesh of meshes) {
     const dynamic = isMoving(mesh);
     const explorer = part.explorer !== null && within(mesh, root, (o) => o === part.explorer);
@@ -492,6 +576,8 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
     const positions = geometry.getAttribute("position");
     const colours = geometry.getAttribute("color") as THREE.BufferAttribute | undefined;
     const uvs = geometry.getAttribute("uv") as THREE.BufferAttribute | undefined;
+    const normals = geometry.getAttribute("normal") as THREE.BufferAttribute | undefined;
+    const normalMatrix = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
     const indices = geometry.index;
     const total = indices ? indices.count : positions.count;
     const groups = geometry.groups.length > 0 ? geometry.groups : [{ start: 0, count: total, materialIndex: 0 }];
@@ -527,9 +613,12 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
         ids.forEach((id, k) => {
           const p = points[k];
           bucket.position.push(p.x, p.y, p.z);
-          bucket.normal.push(normal.x, normal.y, normal.z);
+          // A shiny surface keeps its geometry's own normals, so a highlight glides over a curve rather than lighting one facet.
+          const own = bucket.params.shine && normals ? vertexNormal.fromBufferAttribute(normals, id).applyMatrix3(normalMatrix).normalize() : null;
+          const shown = own && own.dot(normal) > 0 ? own : normal;
+          bucket.normal.push(shown.x, shown.y, shown.z);
           colour.copy(base);
-          if (vertexColours) colour.multiply(new THREE.Color().fromBufferAttribute(colours, id));
+          if (vertexColours) colour.multiply(vertexColour.fromBufferAttribute(colours, id));
           bucket.colour.push(colour.r, colour.g, colour.b);
           if (bucket.params.map && uvs) bucket.uv.push(uvs.getX(id), uvs.getY(id));
           bucket.role.push(...cutRole);
@@ -538,21 +627,27 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
         if (bucket.params.lit) lit.push({ bucket, vertex, points, normal, run, unseen });
       }
     }
+    yield;
   }
 
   const still = meshes.filter((mesh) => !isMoving(mesh));
-  const allCharts = charts(lit);
+  const allCharts = charts(lit, density);
+  yield;
   const { width, height } = pack(allCharts);
+  const soft = shadowMode() === "soft";
   for (const chart of allCharts) {
+    const [first, last] = [[chart.at[0] + 0.5, chart.at[1] + 0.5], [chart.at[0] + chart.size[0] - 0.5, chart.at[1] + chart.size[1] - 0.5]];
     for (const triangle of chart.triangles) {
       triangle.points.forEach((p, k) => {
         const at = (triangle.vertex + k) * 2;
-        triangle.bucket.uv1[at] = texelCoord(chart, 0, p.dot(chart.u)) / width;
-        triangle.bucket.uv1[at + 1] = texelCoord(chart, 1, p.dot(chart.v)) / height;
+        triangle.bucket.uv1[at] = texelCoord(chart, 0, p.dot(chart.u), density) / width;
+        triangle.bucket.uv1[at + 1] = texelCoord(chart, 1, p.dot(chart.v), density) / height;
+        if (soft) [first[0], first[1], last[0], last[1]].forEach((value, n) => (triangle.bucket.chart[(triangle.vertex + k) * 4 + n] = value));
       });
     }
   }
-  const texels = sampleTexels(allCharts, width, height);
+  yield;
+  const texels = yield* sampleTexels(allCharts, width, height, density);
 
   const frozenBuckets: Bucket[] = [...buckets.values()]
     .filter((bucket) => bucket.position.length > 0)
@@ -566,6 +661,7 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
         geometry.setAttribute("uv", new THREE.Float32BufferAttribute(bucket.uv, 2));
       }
       if (bucket.params.lit) geometry.setAttribute("uv1", new THREE.Float32BufferAttribute(bucket.uv1, 2));
+      if (bucket.params.lit && soft) geometry.setAttribute("lightmapChart", new THREE.Float32BufferAttribute(bucket.chart, 4));
       geometry.setAttribute("cutRole", new THREE.Uint8BufferAttribute(bucket.role, 4));
       geometry.computeBoundingSphere();
       return { params: bucket.params, geometry };

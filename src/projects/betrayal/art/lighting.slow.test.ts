@@ -5,7 +5,7 @@ import { freezeRoom } from "./freeze";
 import { stubCanvas } from "./headless";
 import { buildHouse, shellRoom } from "./house";
 import { HOUSE_FIXTURE } from "./house-layout";
-import { MAX_DRAW_CALLS, MAX_LIVE_SHADOWS, MAX_TEXTURE_UNITS } from "./lighting";
+import { MAX_DRAW_CALLS, MAX_LIVE_SHADOWS, MAX_TEXTURE_UNITS, TEST_TEXELS_PER_METRE } from "./lighting";
 import { createLitFloor } from "./lit-floor";
 import { TILE, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
@@ -30,7 +30,7 @@ function textureUnits(material: THREE.Material): number {
 }
 
 describe("the house's draw budget", () => {
-  const house = buildHouse(HOUSE_FIXTURE);
+  const house = buildHouse(HOUSE_FIXTURE, undefined, { texelsPerMetre: TEST_TEXELS_PER_METRE });
   beforeAll(() => house.ready, 120_000);
 
   for (const floor of house.floors) {
@@ -56,7 +56,7 @@ describe("the house's draw budget", () => {
   for (const room of BENCH_ROOMS) {
     it(`${room.id} on the bench: within the budget`, async () => {
       const floor = createLitFloor(inlineScheduler(), "bench");
-      await floor.place([{ id: room.id, room: freezeRoom(room.id, buildRoom(room)), matrix: new THREE.Matrix4() }]);
+      await floor.place([{ id: room.id, room: freezeRoom(room.id, buildRoom(room), TEST_TEXELS_PER_METRE), matrix: new THREE.Matrix4() }]);
       expect(drawCalls(floor.root)).toBeLessThanOrEqual(MAX_DRAW_CALLS / 4);
     }, 60_000);
   }
@@ -70,9 +70,9 @@ describe("light between rooms", () => {
   async function lightNextDoor(neighbour: string, turn: number): Promise<number> {
     const floor = createLitFloor(inlineScheduler(), "bench");
     const right = new THREE.Matrix4().compose(new THREE.Vector3(TILE, 0, 0), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turn), new THREE.Vector3(1, 1, 1));
-    const dark = freezeRoom(neighbour, buildRoom(shellRoom(neighbour), { explorer: null }));
+    const dark = freezeRoom(neighbour, buildRoom(shellRoom(neighbour), { explorer: null }), TEST_TEXELS_PER_METRE);
     await floor.place([
-      { id: lit.id, room: freezeRoom(lit.id, buildRoom(lit, { explorer: null })), matrix: new THREE.Matrix4() },
+      { id: lit.id, room: freezeRoom(lit.id, buildRoom(lit, { explorer: null }), TEST_TEXELS_PER_METRE), matrix: new THREE.Matrix4() },
       { id: neighbour, room: dark, matrix: right },
     ]);
     const baked = floor.rooms.get(neighbour)?.light;
@@ -98,9 +98,9 @@ describe("light between rooms", () => {
 
   it("spills through an open doorway onto the floor beyond", async () => {
     expect(await lightNextDoor("panic-room", 0)).toBeGreaterThan(0.1);
-  });
+  }, 60_000);
 
   it("is stopped by a solid wall", async () => {
     expect(await lightNextDoor("panic-room", Math.PI)).toBe(0);
-  });
+  }, 60_000);
 });

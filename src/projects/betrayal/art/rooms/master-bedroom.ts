@@ -1,9 +1,15 @@
 import * as THREE from "three";
 import { candle, chair, chamberstick, pictureFrame, rug, table } from "../kit";
+import { solidLathe, vessel } from "../kit/vessel";
 import { RAMPS, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, INNER, onWall, type RoomDefinition } from "../room";
-import { batch, box, flat, group, lathe, textured } from "../shapes";
+import { batch, box, flat, group, textured } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { panelling, wallpaper, woodPlanks } from "../textures";
+
+/** Waxed wood, the room's furniture. */
+const waxed = (colour: PaletteKey) => shiny(flat(colour), SHINES.polishedWood);
+const brass = () => shiny(flat("brass"), SHINES.brass);
 
 /** The bed's footprint in its own frame: across x, and from the wall (z = 0) out to its foot. */
 const BED = { width: 1.6, length: 2.15, posts: 2.2, mattress: 0.66 };
@@ -15,7 +21,7 @@ const FOOT_Z = BED.length - 0.08;
 function bedpost(material: THREE.Material, height: number): THREE.Group {
   return group(
     box([0.12, 0.5, 0.12], material, [0, 0, 0]),
-    lathe(
+    solidLathe(
       [
         [0.055, 0.5],
         [0.035, 0.6],
@@ -55,8 +61,8 @@ function gatheredCurtain(b: ReturnType<typeof batch>, x: number, z: number, top:
  * and under the coverlet lies a long shape with nothing on the pillow.
  */
 function fourPosterBed(): THREE.Group {
-  const dark = flat("woodDark");
-  const mid = flat("wood");
+  const dark = waxed("woodDark");
+  const mid = waxed("wood");
   const result = group();
   for (const x of [-POST_X, POST_X]) {
     for (const z of [HEAD_Z, FOOT_Z]) {
@@ -152,21 +158,21 @@ function testerBack(): THREE.Mesh {
 
 /** A small bedside cupboard with a drawer. Faces +z, back at z = 0. */
 function nightstand(): THREE.Group {
-  const top = textured(woodPlanks({ plankPx: 5, size: 32, seed: "master-bedroom-stand" }));
+  const top = shiny(textured(woodPlanks({ plankPx: 5, size: 32, seed: "master-bedroom-stand", glints: false })), SHINES.polishedWood);
   return group(
-    box([0.44, 0.58, 0.38], flat("wood"), [0, 0.02, 0.21]),
+    box([0.44, 0.58, 0.38], waxed("wood"), [0, 0.02, 0.21]),
     box([0.5, 0.04, 0.44], top, [0, 0.6, 0.22]),
-    box([0.36, 0.14, 0.02], flat("woodMid"), [0, 0.4, 0.405]),
-    box([0.36, 0.26, 0.02], flat("woodMid"), [0, 0.08, 0.405]),
-    box([0.05, 0.03, 0.03], flat("brass"), [0, 0.45, 0.42]),
+    box([0.36, 0.14, 0.02], waxed("woodMid"), [0, 0.4, 0.405]),
+    box([0.36, 0.26, 0.02], waxed("woodMid"), [0, 0.08, 0.405]),
+    box([0.05, 0.03, 0.03], brass(), [0, 0.45, 0.42]),
   );
 }
 
 /** A ewer standing in its basin, and a closed book beside them, on a nightstand top. */
 function washstandThings(): THREE.Group {
-  const china = flat("boneLight");
-  const basin = lathe([[0.05, 0], [0.12, 0.05], [0.13, 0.07], [0.11, 0.07], [0.04, 0.02]], china, 8);
-  const ewer = lathe([[0.04, 0.02], [0.065, 0.08], [0.06, 0.15], [0.035, 0.2], [0.045, 0.24], [0, 0.24]], flat("bone"), 8);
+  const china = shiny(flat("bone"), SHINES.glazedChina);
+  const basin = vessel([[0.05, 0], [0.12, 0.05], [0.13, 0.07]], china, { wall: 0.02, depth: 0.05, sides: 8 });
+  const ewer = solidLathe([[0.04, 0.02], [0.065, 0.08], [0.06, 0.15], [0.035, 0.2], [0.045, 0.24], [0, 0.24]], shiny(flat("bone"), SHINES.glazedChina), 8);
   const book = box([0.14, 0.04, 0.2], flat("blood"), [0, 0, 0]);
   book.position.set(0.1, 0, 0.24);
   book.rotation.y = 0.3;
@@ -188,15 +194,15 @@ function slippers(): THREE.Group {
 
 /** A long chest at the foot of the bed, with a nightgown laid out on its lid. Faces +z. */
 function blanketChest(): THREE.Group {
-  const body = textured(woodPlanks({ plankPx: 6, size: 32, seed: "master-bedroom-chest" }));
-  const brass = flat("brass");
+  const body = shiny(textured(woodPlanks({ plankPx: 6, size: 32, seed: "master-bedroom-chest", glints: false })), SHINES.polishedWood);
+  const bands = brass();
   return group(
     box([1.1, 0.42, 0.45], body, [0, 0.03, 0]),
-    box([1.06, 0.03, 0.41], flat("woodDark"), [0, 0, 0]),
-    box([1.14, 0.05, 0.49], flat("woodMid"), [0, 0.45, 0]),
-    box([0.04, 0.44, 0.47], brass, [-0.36, 0.03, 0]),
-    box([0.04, 0.44, 0.47], brass, [0.36, 0.03, 0]),
-    box([0.08, 0.08, 0.02], brass, [0, 0.3, 0.235]),
+    box([1.06, 0.03, 0.41], waxed("woodDark"), [0, 0, 0]),
+    box([1.14, 0.05, 0.49], waxed("woodMid"), [0, 0.45, 0]),
+    box([0.04, 0.44, 0.47], bands, [-0.36, 0.03, 0]),
+    box([0.04, 0.44, 0.47], bands, [0.36, 0.03, 0]),
+    box([0.08, 0.08, 0.02], bands, [0, 0.3, 0.235]),
     box([0.7, 0.03, 0.38], flat("boneLight"), [-0.05, 0.5, -0.02]),
     box([0.18, 0.025, 0.12], flat("bone"), [-0.25, 0.53, 0.06]),
   );
@@ -210,11 +216,11 @@ const BELOW_CUT = 0.005;
 function wardrobeBase(): THREE.Group {
   const { width, depth } = WARDROBE;
   return group(
-    box([width, CUT_HEIGHT - 0.03 - BELOW_CUT, depth], flat("wood"), [0, 0, depth / 2]),
-    box([width - 0.16, 0.2, 0.02], flat("woodLight"), [0, 0.12 - BELOW_CUT, depth + 0.01]),
-    box([0.08, 0.03, 0.03], flat("brass"), [0, 0.22, depth + 0.02]),
+    box([width, CUT_HEIGHT - 0.03 - BELOW_CUT, depth], waxed("wood"), [0, 0, depth / 2]),
+    box([width - 0.16, 0.2, 0.02], waxed("woodLight"), [0, 0.12 - BELOW_CUT, depth + 0.01]),
+    box([0.08, 0.03, 0.03], brass(), [0, 0.22, depth + 0.02]),
     // Its top stops a little under the cut wall's, so the two never share a plane; the body above reaches down to it.
-    box([width + 0.04, 0.03, depth + 0.03], flat("wood"), [0, CUT_HEIGHT - 0.03 - BELOW_CUT, depth / 2 + 0.015]),
+    box([width + 0.04, 0.03, depth + 0.03], waxed("wood"), [0, CUT_HEIGHT - 0.03 - BELOW_CUT, depth / 2 + 0.015]),
   );
 }
 
@@ -223,11 +229,11 @@ function wardrobeBody(): THREE.Group {
   const { width, depth, height } = WARDROBE;
   const tall = height - CUT_HEIGHT;
   const doorWidth = width / 2 - 0.06;
-  const door = flat("woodLight");
+  const door = waxed("woodLight");
   const result = group(
-    box([width, tall + BELOW_CUT, depth - 0.02], flat("woodMid"), [0, -BELOW_CUT, depth / 2 - 0.01]),
+    box([width, tall + BELOW_CUT, depth - 0.02], waxed("woodMid"), [0, -BELOW_CUT, depth / 2 - 0.01]),
     box([width - 0.1, tall - 0.18, 0.02], flat("void"), [0, 0.06, depth - 0.01]),
-    box([width + 0.1, 0.1, depth + 0.04], flat("woodDark"), [0, tall, depth / 2 + 0.02]),
+    box([width + 0.1, 0.1, depth + 0.04], waxed("woodDark"), [0, tall, depth / 2 + 0.02]),
     box([doorWidth, tall - 0.22, 0.03], door, [-width / 4, 0.08, depth + 0.015]),
   );
   const ajar = box([doorWidth, tall - 0.22, 0.03], door, [doorWidth / 2, 0.08, 0.015]);
@@ -240,10 +246,9 @@ function wardrobeBody(): THREE.Group {
 
 /** A dark looking-glass in a plain frame, hung over the dressing table; it shows nothing. Back at z = 0. */
 function lookingGlass(): THREE.Group {
-  const frame = flat("woodDark");
   return group(
-    box([0.62, 0.86, 0.04], frame, [0, 0, 0.02]),
-    box([0.5, 0.74, 0.02], flat("moonDark"), [0, 0.06, 0.04]),
+    box([0.62, 0.86, 0.04], waxed("woodDark"), [0, 0, 0.02]),
+    box([0.5, 0.74, 0.02], shiny(flat("moonDark"), SHINES.glass), [0, 0.06, 0.04]),
   );
 }
 
@@ -303,10 +308,11 @@ const SPRIG = [
  *  single candle on the nightstand against the moon from its window. */
 export const MASTER_BEDROOM: RoomDefinition = {
   id: "master-bedroom",
-  floor: () => woodPlanks({ seed: "master-bedroom" }),
+  floor: () => woodPlanks({ seed: "master-bedroom", glints: false }),
   wall: () => wallpaper({ ground: "bloodDark", stripe: "blood", motif: "blood", pattern: SPRIG, seed: "master-bedroom" }),
-  wainscot: () => panelling({ ramp: RAMPS.wood, seed: "master-bedroom" }),
+  wainscot: () => panelling({ ramp: RAMPS.wood, seed: "master-bedroom", glints: false }),
   trim: "woodDark",
+  shine: { glass: SHINES.glass },
   props: [
     { build: bedsideRug, at: [1.15, 1.45] },
     { build: fourPosterBed, ...onWall("right", 0, { out: 0.05 }) },
@@ -323,12 +329,10 @@ export const MASTER_BEDROOM: RoomDefinition = {
     { build: () => candle({ height: 0.22, intensity: 4 }), name: "dressingCandle", at: [-INNER + 0.22, 1.85], y: 0.74 },
     { build: lookingGlass, ...onWall("left", -1.5, { y: 1.12 }) },
     { build: () => chair({ cushion: "bloodDark" }), name: "watchingChair", at: [-1.7, 1.0], turn: 60 },
-    { build: () => pictureFrame({ art: { rows: SITTER, legend: SITTER_LEGEND }, frame: "brass" }), name: "portrait", ...onWall("top", 1.4, { y: 1.35 }) },
+    { build: () => pictureFrame({ picture: { name: "bedroom sitter", shape: "rect", rows: SITTER, legend: SITTER_LEGEND }, frame: "brass" }), name: "portrait", ...onWall("top", 1.4, { y: 1.35 }) },
   ],
   focus: [1.6, 0.9, 0],
-  pawn: [-1.0, -1.2],
-  spots: [[-0.45, 0.45], [0.65, -1.65], [-1.25, 1.95], [0.65, 1.75], [2.25, -2.25]],
-  overflow: [[-1.65, 0.2], [-2.1, -1.1], [-0.25, 1.95], [1.65, -1.65], [-0.35, -1.65], [1.15, -2.25]],
+  prime: [-1.0, -1.2],
   // Round the foot of the bed.
   lanes: [
     [[0, -2.2], [-0.6, -1.0], [-2.2, 0]],

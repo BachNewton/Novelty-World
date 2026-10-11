@@ -112,13 +112,15 @@ export const PERCHANCE_TO_DREAM: HauntDefinition = {
       rule("Special Attack Rules", "h13-killed"),
     ),
     // Each kill or escape lets in one replacement, so the Nightmares in
-    // play never outnumber the players (ruling h13-unleash).
+    // play never outnumber the players, and the last one is always
+    // replaced (ruling h13-unleash).
     supplyOf("nightmare", { of: "players" }),
   ],
   reactions: replaceWhenLost({
     figure: "nightmare",
     at: "traitor",
     owner: "traitor",
+    keepOne: true,
     rule: UNLEASH,
   }),
   actions: {

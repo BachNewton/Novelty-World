@@ -5,17 +5,27 @@ import { FLOORS, placed, type Layout } from "../engine/board";
 import { attachControls, usesReticle, type ChoiceLayout, type InputKind } from "../input/controls";
 import { panOnFloor } from "../input/gestures";
 import { cycleChoice, pickTarget, reticleTarget, stepFloor, type Point } from "../input/navigate";
-import type { Edge, FloorId } from "../types";
+import type { FloorId, PlacedTile } from "../types";
 import type { Pace } from "./explorers/figure";
 import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure } from "./house";
 import type { LayoutChange } from "./house-layout";
-import { choiceLayout, FINGER, followFloor, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
-import { walkPath, walkPose, type Stairway, type Walk } from "./house-walk";
+import { choiceLayout, exploreEntry, FINGER, followFloor, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
+import { inHouse, walkPath, walkPose, type Avoid, type HousePoint, type Stairway, type Walk } from "./house-walk";
+import { pinsApart } from "./pins-apart";
+import type { ShownThing } from "../play/things";
+import { createThingsLayer } from "./things/layer";
+import { floorRead, readFloor } from "./room-floor";
+import { aroundBases } from "./walk-around";
 import { workerLanes } from "./bake-workers";
+import { frameSlicer } from "./build-slices";
+import { shaderReadier } from "./shader-prep";
+import { meshInWorkers } from "./figure-mesh";
 import { createBakeScheduler, type BakeStatus } from "./bake-schedule";
 import type { Rebake } from "./lit-floor";
+import { backdropKind, createBackdrop } from "./backdrop";
+import type { HouseMood } from "./house-mood";
 import { budgetGuard, HOUSE_LIGHT, LIGHTMAP, MAX_DRAW_CALLS, MAX_TEXTURE_UNITS } from "./lighting";
-import { TILE } from "./room";
+import { BASE_RADIUS, TILE, type RoomPoint } from "./room";
 import { shownBounds } from "./shapes";
 import { BASE_SPAN, cameraDistance, clampPitch, DEFAULT_PITCH, depthRange, FIELD_OF_VIEW, ZOOM_RANGE } from "./house-camera";
 
@@ -40,18 +50,47 @@ const DEFAULT_RESOLUTION: Resolution = null;
 const EASE_RATE = 6;
 /** How far past the rooms showing the camera's target may be panned, in metres. */
 const PAN_MARGIN = TILE / 2;
-/** The reticle snaps to a choice this close to the screen's centre, in CSS pixels. */
-const RETICLE_SNAP = FINGER;
+/** The reticle snaps to a choice at least this close to the screen's centre, in CSS pixels: generous, so a thing drawn small is easy to catch. */
+const RETICLE_SNAP = FINGER * 1.5;
 /** The gap kept between a tag pinned in the house and the screen's edge, in CSS pixels. */
 const SCREEN_MARGIN = 8;
+/** The least space between pins kept apart, in CSS pixels. */
+const PIN_GAP = 4;
+/** How much of a frame building the house may take, in milliseconds: about half of a 60 Hz frame,
+ *  leaving the rest to drawing it. A room is built whole, so a frame always builds one. */
+const BUILD_BUDGET_MS = 8;
 
 /** A figure in the house: who it is, how it is built, and where it stands at
- *  rest: a room, and its place there (0 the pawn spot, 1 beside it). */
+ *  rest: a room, and its place there, in the room's own frame. */
 export interface FigureSpec extends HouseFigure {
   room: string;
-  slot: number;
-  /** In a barrier room, the side it stands on. */
-  side?: Edge | null;
+  at: readonly [x: number, z: number];
+}
+
+/** One figure's walk (or run) along its route of rooms to its place (`at`,
+ *  in the last room's own frame), which is where it then rests. */
+export interface FigureWalk {
+  figure: string;
+  route: readonly string[];
+  at: readonly [x: number, z: number];
+  pace?: Pace;
+  /** The walker's Speed value, which sets how fast it goes; left out, the house's own pace. */
+  speed?: number;
+}
+
+/** A page element kept over a figure or a room's middle, `height` metres
+ *  above its floor and raised by `lift` of its own height. A clamped one
+ *  stays on the screen when its point leaves it, at the top of the screen
+ *  when its point doesn't show at all; any other hides. Pins kept `apart`
+ *  (the figures' marks, each a touch target) never cover each other: those
+ *  that would are laid side by side (`pins-apart.ts`). */
+export interface Pin {
+  element: HTMLElement;
+  at: { figure: string } | { room: string } | { thing: string };
+  height: number;
+  lift: number;
+  clamp: boolean;
+  apart: boolean;
 }
 
 /** What the camera pans to: one room, with its back walls standing; or these rooms on the floor showing. */
@@ -59,15 +98,21 @@ export type Framing = { closeUp: string } | { rooms: readonly string[] };
 
 /** A beat of animation. Each resolves when it has played out, or at once on `finish`. */
 export type Beat =
-  /** A figure walks (or runs) its route of rooms to its place (`slot`) in the last, which is where it then rests. */
-  | { kind: "walk"; figure: string; route: readonly string[]; slot: number; side?: Edge | null; pace?: Pace }
+  /** Figures walk (or run) at once. Each keeps round the figures standing
+   *  still, and round where the walkers before it are going; resolves once
+   *  every one has arrived. */
+  | { kind: "walk"; walks: readonly FigureWalk[] }
   /** A room placed by `setLayout` shows, once it is baked with its light. */
   | { kind: "appear"; room: string }
   /** The camera pans to something, keeping the player's angles and zoom, or
    *  (null) lets a close view's walls down; resolves once it has settled. */
   | { kind: "frame"; framing: Framing | null }
   /** A pause on the stage's clock, for a step the player should see. */
-  | { kind: "pause"; seconds: number };
+  | { kind: "pause"; seconds: number }
+  /** A room `setLayout` moved lifts off its old cell and is carried, with the
+   *  figures standing in it, to its new one, over `seconds`; the room baked
+   *  there shows once it lands. */
+  | { kind: "move-room"; room: string; seconds: number };
 
 /** How the view is set: the camera, the floor, and what shows. */
 export interface SceneView {
@@ -87,6 +132,8 @@ export interface SceneView {
   wallsRaised: boolean;
   /** Whether a figure is walking. */
   walking: boolean;
+  /** Whether a moved room is being carried to its new cell. */
+  moving: boolean;
 }
 
 /** Where the camera is: the point on the floor it looks at, its angles round
@@ -111,12 +158,18 @@ export interface SceneInput {
   back?: () => void;
   /** The reticle has left every choice, so nothing has the focus. */
   blur?: () => void;
-  /** Turns the ghost of a room being placed to its next way round, clockwise
-   *  seen from above (1) or back (-1). While a ghost is offered, the keys and
-   *  buttons that turn things (Q and E, the bumpers, the d-pad's left and
-   *  right, a tap on it) turn the ghost instead of
-   *  the camera or the selection. */
-  rotate?: (step: 1 | -1) => void;
+  /** The player steps to the next (1) or previous (-1) choice: true when the
+   *  driver took the step (a room tile being placed, whose ways round are the
+   *  choices then), else the house jumps to the next target. */
+  cycle?: (step: 1 | -1) => boolean;
+  /** Opens or closes the player's explorer. */
+  explorer?: () => void;
+  /** Opens or closes the game menu. */
+  menu?: () => void;
+  /** End turn's hold, begun (true) and let go (false). */
+  endTurn?: (held: boolean) => void;
+  /** Whether a panel covers the house, taking Tab, Enter and Space. */
+  covered?: () => boolean;
   /** Offered every pad button press before the house, from any pad: true when it was taken. */
   padButton?: (button: StandardButton, pad: number) => boolean;
   /** Whether a pad may act now; an idle pad's sticks and buttons are ignored. Every pad may when absent. */
@@ -166,8 +219,10 @@ export interface SceneHook {
   freezeClock: (seconds: number | null) => void;
   /** The house is built and shows its direct light, and the camera has settled: the player can play. Finer light may still be on its way. */
   isReady: () => boolean;
-  /** Ready, and every pass of the light is in: for screenshots and anything that compares the final picture. */
+  /** Ready, every pass of the light is in, and every figure shows as itself (not its pawn, while it is meshed): for screenshots and anything that compares the final picture. */
   isFullyLit: () => boolean;
+  /** How many rooms show, lit. */
+  roomsShown: () => number;
   /** The background bake's work in hand. */
   bake: () => BakeStatus;
   floors: () => FloorId[];
@@ -243,6 +298,8 @@ interface Playing {
   kind: Beat["kind"];
   /** A walk's figure and its route of rooms. */
   walk?: { figure: string; route: readonly string[] };
+  /** A moved room's flight: its room, and posing it for this frame. */
+  carry?: { room: string; pose: () => void };
   /** True once it has played out on its own; it is then over. */
   over: () => boolean;
   end: () => void;
@@ -259,6 +316,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let targets: readonly Target[] = [];
   let focused: string | null = null;
   let active: string | null = null;
+  /** The house's light as a whole, kept for a house mounted later. */
+  let mood: HouseMood = "explore";
   /** The floor the active figure was last seen on, for following them. */
   let activeFloor: FloorId | null = null;
   let input: SceneInput = { focus: () => undefined, commit: () => undefined, confirm: () => undefined };
@@ -274,6 +333,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     showMarks: true,
     wallsRaised: false,
     walking: false,
+    moving: false,
   };
   const listeners = new Set<() => void>();
   /** The camera's angles round the vertical and up from the floor, and its zoom, eased towards their goals (the zoom's is `view.zoom`). */
@@ -281,6 +341,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let pitch = DEFAULT_PITCH;
   let zoom = view.zoom;
   let yawGoal: number | null = null;
+  /** The player's angle before a close view turned to its room's best one, to turn back to after; null when none did. */
+  let yawBeforeCloseUp: number | null = null;
   let pitchGoal: number | null = null;
   /** The point on the floor the camera looks at, and where it is easing to; null until the house first shows. */
   let aim: THREE.Vector3 | null = null;
@@ -339,6 +401,10 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let reticleMark: HTMLElement | null = null;
   /** A page element the scene keeps on the ghost of a room being placed, for its turning handles; hidden with a controller, which turns it with buttons. */
   let ghostHandles: HTMLElement | null = null;
+  /** Page elements the scene keeps over figures and rooms: a figure's marks, a card's title over its room. */
+  const pins = new Map<string, readonly Pin[]>();
+  /** The things living in the rooms: objects, room effects and connections. Each is a pointer target that names it, never a choice. */
+  const things = createThingsLayer();
 
   const tileFloor = (room: string): FloorId => {
     const tile = placed(layout, room);
@@ -351,6 +417,19 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     return figure;
   };
   const figureFloor = (id: string): FloorId => (mounted ? mounted.house.figureAt(id).floor : tileFloor(figureOf(id).room));
+  /** Where a figure rests, in the house. */
+  const placeOf = (figure: FigureSpec): HousePoint => inHouse(layout, figure.room, [figure.at[0], 0, figure.at[1]]);
+  /** Keeps a walk's way across a room round the figures resting there, but for those in `walking`. */
+  const roundStanding =
+    (walking: ReadonlySet<string>): Avoid =>
+    (room, points) => {
+      const bases = [...figures.values()].filter((figure) => figure.room === room && !walking.has(figure.id)).map(({ at: [x, z] }) => ({ x, z, radius: BASE_RADIUS }));
+      // A room whose floor is still being read (in its worker) keeps to its lanes until it is.
+      if (bases.length === 0 || !floorRead(room)) return [...points];
+      const crossing = definition(room).crossing ?? [];
+      const onCrossing = (point: RoomPoint) => crossing.some((along) => along === point);
+      return aroundBases(readFloor(room), points, bases, (a, b) => onCrossing(a) && onCrossing(b));
+    };
 
   function update(next: Partial<SceneView>) {
     view = { ...view, ...next };
@@ -383,18 +462,40 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     return centres.reduce((sum, centre) => sum.add(centre), new THREE.Vector3()).divideScalar(centres.length);
   }
 
+  /** Where a pin's point is in the house, or null where it doesn't show: off the floor showing, or not in the house. */
+  const pinPoint = (house: House, pinned: Pin): THREE.Vector3 | null => {
+    if ("thing" in pinned.at) {
+      const floor = things.floorOf(pinned.at.thing);
+      return floor !== null && (view.floor === "all" || floor === view.floor) ? things.pointOf(pinned.at.thing, house.scenePoint, pinned.height) : null;
+    }
+    const at = "figure" in pinned.at ? (figures.has(pinned.at.figure) ? house.figureAt(pinned.at.figure) : null) : null;
+    const tile = "room" in pinned.at ? placed(layout, pinned.at.room) : null;
+    const floor = at?.floor ?? tile?.floor;
+    if (floor === undefined || (view.floor !== "all" && floor !== view.floor)) return null;
+    const point = at ? house.scenePoint(at) : tile ? house.cellCentre(tile.floor, tile.x, tile.y) : null;
+    return point && point.setY(point.y + pinned.height);
+  };
   const placeContext = (house: House) => ({ layout, showing: view.floor, stairway, scenePoint: house.scenePoint, figureAt: house.figureAt });
   const placesOf = (house: House): { id: string; place: TargetPlace }[] => {
     const context = placeContext(house);
-    return targets.map((target) => ({ id: target.id, place: targetPlace(target, context) }));
+    return [...targets.map((target) => ({ id: target.id, place: targetPlace(target, context) })), ...things.places(house.scenePoint, view.floor)];
   };
   const walkingNow = () => [...playing].some((beat) => beat.walk !== undefined);
+  const movingNow = () => [...playing].some((beat) => beat.carry !== undefined);
+  /** Where each room the last layout change moved stood before it, for its flight. */
+  let departed = new Map<string, PlacedTile>();
   const ghostOf = (list: readonly Target[]) => list.find((target): target is Extract<Target, { kind: "ghost" }> => target.kind === "ghost") ?? null;
-  /** The ghost the player can turn: offered, with someone to tell. */
-  const turning = () => (input.rotate ? (ghostOf(targets)?.id ?? null) : null);
+  /** The ghost of a room being placed, when one is offered. */
+  const turning = () => ghostOf(targets)?.id ?? null;
 
   /** Moves the focus to a target, showing its floor if it doesn't show on this one. */
   function focusTarget(id: string) {
+    if (things.has(id)) {
+      const floor = things.floorOf(id);
+      if (floor !== null && view.floor !== "all" && floor !== view.floor) showFloor(floor);
+      input.focus(id);
+      return;
+    }
     const target = targets.find((candidate) => candidate.id === id);
     if (!target) return;
     if (mounted && view.floor !== "all") {
@@ -407,8 +508,23 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   // ---- What the house shows ----
 
   function setLayout(next: Layout): LayoutChange | null {
+    const before = layout;
     layout = next;
+    things.setLayout(next);
     const change = mounted?.house.setLayout(next) ?? null;
+    // A room moved again (or gone) mid-flight lands at once: its flight is from a place it no longer comes from.
+    const changed = new Set([...(change?.moved ?? []), ...(change?.removed ?? [])]);
+    for (const beat of [...playing]) if (beat.carry && changed.has(beat.carry.room)) beat.end();
+    departed = new Map((change?.moved ?? []).flatMap((room) => {
+      const was = placed(before, room);
+      return was ? [[room, was] as const] : [];
+    }));
+    // Figures standing in a room that moved stand in it where it now is; its flight carries them there.
+    const house = mounted?.house;
+    const walking = new Set([...playing].flatMap((beat) => (beat.walk ? [beat.walk.figure] : [])));
+    for (const figure of figures.values()) {
+      if (house && departed.has(figure.room) && !walking.has(figure.id)) house.stand(figure.id, placeOf(figure), house.roomHeading(figure.room));
+    }
     // A room appearing (discovered, or placed by a rule) is something to see: the camera pans to it.
     const shownNow = change?.added.filter((room) => view.floor === "all" || tileFloor(room) === view.floor) ?? [];
     if (mounted && shownNow.length > 0) panTo(middleOf(mounted.house, shownNow));
@@ -417,7 +533,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   }
 
   function placeFigure(house: House, figure: FigureSpec) {
-    house.addFigure(figure, house.spot(figure.room, figure.slot, figure.side), house.roomHeading(figure.room));
+    house.addFigure(figure, placeOf(figure), house.roomHeading(figure.room));
   }
 
   function setFigures(specs: readonly FigureSpec[]) {
@@ -425,7 +541,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     const wanted = new Map(specs.map((spec) => [spec.id, spec] as const));
     for (const [id, old] of figures) {
       const next = wanted.get(id);
-      if (next && next.build === old.build && next.colour === old.colour) continue;
+      if (next && next.build === old.build && next.colour === old.colour && (next.mark ?? null) === (old.mark ?? null)) continue;
       house?.removeFigure(id);
       figures.delete(id);
       if (active === id) active = null;
@@ -435,12 +551,10 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const old = figures.get(spec.id);
       figures.set(spec.id, { ...spec });
       if (!house) continue;
+      // A figure moving with no walk playing (put somewhere by a rule) stands there at once.
       if (!old || walking.has(spec.id)) {
         if (!old) placeFigure(house, spec);
-      } else if (old.room === spec.room && old.side && spec.side && old.side !== spec.side) {
-        // Crossing a barrier is an action, not a move, so no route walks it: the figure walks across its room.
-        void play({ kind: "walk", figure: spec.id, route: [spec.room], slot: spec.slot, side: spec.side });
-      } else if (old.room !== spec.room || old.slot !== spec.slot || old.side !== spec.side) house.stand(spec.id, house.spot(spec.room, spec.slot, spec.side));
+      } else if (old.room !== spec.room || old.at[0] !== spec.at[0] || old.at[1] !== spec.at[1]) house.stand(spec.id, placeOf(spec));
     }
     mounted?.sync();
   }
@@ -484,42 +598,52 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
 
   function play(beat: Beat): Promise<void> {
     return new Promise((resolve) => {
-      const start = (over: () => boolean, end: () => void) => {
+      const start = (over: () => boolean, end: () => void, extra: Pick<Playing, "walk" | "carry"> = {}, done: () => void = resolve) => {
         const entry: Playing = {
           kind: beat.kind,
           over,
           end: () => {
             playing.delete(entry);
             end();
-            resolve();
+            done();
             if (!walkingNow() && view.walking) update({ walking: false });
+            if (!movingNow() && view.moving) update({ moving: false });
           },
-          ...(beat.kind === "walk" ? { walk: { figure: beat.figure, route: beat.route } } : {}),
+          ...extra,
         };
         playing.add(entry);
       };
       switch (beat.kind) {
         case "walk": {
-          const figure = figureOf(beat.figure);
-          for (const other of [...playing]) if (other.walk?.figure === beat.figure) other.end();
-          const destination = beat.route[beat.route.length - 1];
-          figures.set(beat.figure, { ...figure, room: destination, slot: beat.slot, side: beat.side ?? null });
+          const walkers = beat.walks.map((walk) => walk.figure);
+          for (const other of [...playing]) if (other.walk && walkers.includes(other.walk.figure)) other.end();
+          const from = new Map(walkers.map((id) => [id, mounted?.house.figureAt(id)]));
+          for (const walk of beat.walks) figures.set(walk.figure, { ...figureOf(walk.figure), room: walk.route[walk.route.length - 1], at: walk.at });
           const house = mounted?.house;
-          if (!house) {
+          if (!house || beat.walks.length === 0) {
             resolve();
             return;
           }
-          const walk: Walk = { path: walkPath(layout, beat.route, house.figureAt(beat.figure), house.spot(destination, beat.slot, beat.side), definition), start: seconds, pace: beat.pace };
-          house.walk(beat.figure, walk);
-          start(
-            () => walkPose(walk, seconds).done,
-            () => {
-              const rest = figureOf(beat.figure);
-              house.stand(beat.figure, house.spot(rest.room, rest.slot, rest.side), walkPose(walk, Infinity).heading);
-              if (following === beat.figure) following = null;
-            },
-          );
-          if (!handsOn) following = beat.figure;
+          let walking = beat.walks.length;
+          const arrived = () => {
+            if (--walking === 0) resolve();
+          };
+          beat.walks.forEach((step, i) => {
+            // The walkers after this one are on their way too, so only those before it stand where they are going.
+            const walkingOn = new Set(walkers.slice(i));
+            const walk: Walk = { path: walkPath(layout, step.route, from.get(step.figure) ?? placeOf(figureOf(step.figure)), placeOf(figureOf(step.figure)), definition, roundStanding(walkingOn)), start: seconds, pace: step.pace, speed: step.speed };
+            house.walk(step.figure, walk);
+            start(
+              () => walkPose(walk, seconds).done,
+              () => {
+                house.stand(step.figure, placeOf(figureOf(step.figure)), walkPose(walk, Infinity).heading);
+                if (following === step.figure) following = null;
+              },
+              { walk: { figure: step.figure, route: step.route } },
+              arrived,
+            );
+          });
+          if (!handsOn) following = walkers[0];
           settled = false;
           update({ walking: true });
           return;
@@ -542,12 +666,48 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           const rooms = beat.framing === null ? [] : "closeUp" in beat.framing ? [beat.framing.closeUp] : beat.framing.rooms;
           const showing = rooms.filter((room) => view.floor === "all" || tileFloor(room) === view.floor);
           if (mounted && showing.length > 0) panTo(middleOf(mounted.house, showing));
+          // A room may name the angle it reads best from: its close view turns there, and back after.
+          const angle = closeUp === null ? undefined : definition(closeUp).angle;
+          if (angle !== undefined && !handsOn) {
+            yawBeforeCloseUp ??= yawGoal ?? yaw;
+            yawGoal = wrapNear(viewAngle(angle), yaw);
+          } else if (closeUp === null && yawBeforeCloseUp !== null) {
+            yawGoal = wrapNear(yawBeforeCloseUp, yaw);
+            yawBeforeCloseUp = null;
+          }
           settled = false;
           update({ closeUp });
           start(
             () => settled,
             () => mounted?.placeCamera(1),
           );
+          return;
+        }
+        case "move-room": {
+          const from = departed.get(beat.room);
+          departed.delete(beat.room);
+          const house = mounted?.house;
+          const to = placed(layout, beat.room);
+          if (!house || !from || !to) {
+            resolve();
+            return;
+          }
+          for (const other of [...playing]) if (other.carry?.room === beat.room) other.end();
+          const walking = new Set([...playing].flatMap((other) => (other.walk ? [other.walk.figure] : [])));
+          const riders = [...figures.values()].filter((figure) => figure.room === beat.room && !walking.has(figure.id)).map((figure) => figure.id);
+          const flight = house.liftRoom(beat.room, from, riders);
+          const began = seconds;
+          const share = () => (beat.seconds > 0 ? Math.min(1, (seconds - began) / beat.seconds) : 1);
+          if (view.floor === "all" || to.floor === view.floor) panTo(house.cellCentre(to.floor, to.x, to.y));
+          start(
+            () => share() >= 1,
+            () => {
+              flight.land();
+              mounted?.sync();
+            },
+            { carry: { room: beat.room, pose: () => flight.at(share()) } },
+          );
+          update({ moving: true });
           return;
         }
         case "pause": {
@@ -596,6 +756,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     },
     /** Turns the camera round the vertical and tilts it up from the floor, in radians, within the tilt limits. */
     orbitBy: (yawBy: number, pitchBy = 0) => {
+      yawBeforeCloseUp = null;
       yaw += yawBy;
       pitch = clampPitch(pitch + pitchBy);
       yawGoal = null;
@@ -675,7 +836,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       update({ frozenAt: at });
     },
     isReady: () => mounted !== null && mounted.house.built() && settled,
-    isFullyLit: () => hook.isReady() && !bakes.status().pending,
+    isFullyLit: () => hook.isReady() && !bakes.status().pending && mounted?.house.figuresIn() === true,
+    roomsShown: () => mounted?.house.roomsShown() ?? 0,
     bake: bakes.status,
     floors: () => floorsOf(layout),
     rooms: (floor) => layout.tiles.filter((tile) => tile.floor === floor).map((tile) => tile.tile),
@@ -716,11 +878,39 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     lens.fov = FIELD_OF_VIEW;
     container.style.touchAction = "none";
 
-    const house = buildHouse(layout, bakes);
+    // Shaders compile on the GPU's own threads before what uses them shows (a room while it bakes, a figure while it is meshed),
+    // so no frame waits for one. A room's and a figure's are compiled for the scene with the house in it, so they start once it is staged.
+    const readyShaders = shaderReadier(renderer, lens, scene);
+    let staged!: () => void;
+    const onStage = new Promise<void>((resolve) => {
+      staged = resolve;
+    });
+    // The rooms are built a few each frame, the floor showing first, and each floor's bake starts as soon as its rooms are in;
+    // the figures are meshed by workers, each standing in as its pawn until it lands. So the house shows from the first frame.
+    const slices = frameSlicer(BUILD_BUDGET_MS);
+    const house = buildHouse(layout, bakes, {
+      prepare: (object) => onStage.then(() => readyShaders(object)),
+      slices,
+      figures: meshInWorkers,
+    });
     for (const figure of figures.values()) placeFigure(house, figure);
-    scene.add(house.root);
+    house.setMood(mood, { shifting: false });
     scene.fog = house.fog;
     scene.background = house.background;
+    // What the house holds from the start (its lights, the pawns, the route) joins the scene once its shaders are ready too.
+    let unmounted = false;
+    void readyShaders(house.root).then(() => {
+      if (unmounted) return;
+      scene.add(house.root);
+      staged();
+    });
+    // What lies behind the house (`?backdrop=night`), drawn before it; off, the background is the fog's colour.
+    const backdrop = backdropKind() === "night" ? createBackdrop(house.fill.color) : null;
+    if (backdrop) {
+      void readyShaders(backdrop.mesh).then(() => {
+        if (!unmounted) scene.add(backdrop.mesh);
+      });
+    }
 
     let cutaway = new THREE.Vector2(1, 1).normalize();
     aim = null;
@@ -821,7 +1011,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const middle = centre();
       const { points, targets: onScreen } = layoutNow();
       if (pinned !== null && targets.some((target) => target.id === pinned)) return { id: pinned, at: points.find((point) => point.id === pinned) ?? middle };
-      const hit = reticleTarget(onScreen, middle, RETICLE_SNAP);
+      const hit = reticleTarget(onScreen, middle, { snap: RETICLE_SNAP, held: reticleSelected });
       if (hit?.id !== dismissed) dismissed = null;
       return hit && hit.id !== dismissed ? hit : { id: null, at: middle };
     };
@@ -833,6 +1023,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       focus: focusTarget,
       commit: (id) => input.commit(id),
       confirm: () => {
+        // A thing in a room is read whatever the decision offers.
+        const at = selection();
+        if (at !== null && things.has(at)) {
+          input.commit(at);
+          return;
+        }
         if (targets.length === 0) {
           input.confirm();
           return;
@@ -841,8 +1037,10 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         const chosen = selection() ?? ghostOf(targets)?.id ?? null;
         if (chosen !== null) input.commit(chosen);
       },
-      rotating: turning,
-      rotate: (step) => input.rotate?.(step),
+      explorer: () => input.explorer?.(),
+      menu: () => input.menu?.(),
+      endTurn: (held) => input.endTurn?.(held),
+      covered: () => input.covered?.() ?? false,
       padButton: (button, pad) => input.padButton?.(button, pad) ?? false,
       padMay: (pad) => input.padMay?.(pad) ?? true,
       back: () => {
@@ -853,7 +1051,9 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         input.back?.();
       },
       cycle: (step) => {
-        const points = layoutNow().points;
+        if (input.cycle?.(step)) return;
+        // The d-pad steps the choices; the things in the rooms are pointed at, never stepped to.
+        const points = layoutNow().points.filter((point) => !things.has(point.id));
         const current = selection();
         // Read again when the selection isn't in it: a choice behind the camera when it was read.
         if (cycleOrder === null || (current !== null && !cycleOrder.includes(current))) cycleOrder = [...points].sort((a, b) => a.x - b.x || a.y - b.y).map((point) => point.id);
@@ -924,9 +1124,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       if (view.floor !== shownFloor) {
         shownFloor = view.floor;
         house.showFloor(view.floor);
+        const lowest = view.floor === "all" ? (house.floors[0] ?? "ground") : view.floor;
+        backdrop?.show({ underground: view.floor === "basement", floorY: house.cellCentre(lowest, 0, 0).y, groundFloorY: house.cellCentre("ground", 0, 0).y });
       }
       house.setActive(active);
-      const offering = view.showMarks && !walkingNow();
+      things.focus(focused);
+      const offering = view.showMarks && !walkingNow() && !movingNow();
       const places = offering ? placesOf(house) : [];
       const marks = places.flatMap(({ place }) => place.mark ?? []);
       const key = JSON.stringify([marks, layout.tiles.length]);
@@ -939,9 +1142,10 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const ghost = ghostOf(targets);
       house.setGhost(ghost && { tile: ghost.tile, floor: ghost.floor, x: ghost.x, y: ghost.y, rotation: ghost.rotation });
       const going = targets.find((target) => target.id === focused);
-      const routed = offering && (going?.kind === "room" || going?.kind === "doorway") ? going : null;
-      const end = routed && routeEnd(layout, routed, house.spot);
-      house.showRoute(routed?.route && end ? walkPath(layout, routed.route.rooms, house.figureAt(routed.route.figure), end, definition) : null);
+      const routed = offering && (going?.kind === "room" || going?.kind === "explore") ? going : null;
+      const end = routed && routeEnd(layout, routed);
+      const onward = routed?.kind === "explore" ? exploreEntry(layout, routed).slice(1) : [];
+      house.showRoute(routed?.route && end ? [...walkPath(layout, routed.route.rooms, house.figureAt(routed.route.figure), end, definition, roundStanding(new Set([routed.route.figure]))), ...onward] : null);
       settled = false;
     };
 
@@ -986,17 +1190,22 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       ].join("\n");
     };
 
+    scene.add(things.root);
+    things.mount(readyShaders);
     mounted = { house, sync, applyResolution, stats, layoutNow, project, container, placeCamera, floorHit, fitting };
     sync();
 
     return {
       onFrame: (delta) => {
+        slices.frame();
         guard.check();
         frames++;
         if (frames % 10 === 0) showReadout();
         seconds = view.frozenAt ?? seconds + delta;
         controls.frame(delta);
+        for (const beat of playing) beat.carry?.pose();
         house.update(seconds);
+        things.update(house, seconds, view.floor);
         if (active !== null && activeFloor !== null) {
           const floor = house.figureAt(active).floor;
           if (floor !== activeFloor) {
@@ -1029,11 +1238,26 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         // A ghost's tag and turning handles sit off its floor, above and below it, clear of the marks at its doorways.
         const ghostSpan = ghost === null ? null : screenSpan(placesOf(house).find(({ id }) => id === ghost)?.place);
         if (label) {
-          const place = view.showMarks && !walkingNow() ? placesOf(house).find(({ id }) => id === focused)?.place : undefined;
+          const place = view.showMarks && !walkingNow() && !movingNow() ? placesOf(house).find(({ id }) => id === focused)?.place : undefined;
           const at = focused !== null && focused === ghost ? ghostSpan && { x: ghostSpan.middle, y: ghostSpan.top } : place ? project(place.anchor) : null;
           label.style.visibility = at ? "visible" : "hidden";
           if (at) pin(label, at, 1.5);
         }
+        const apart: { pinned: Pin; at: Point; lift: number }[] = [];
+        for (const pinned of [...pins.values()].flat()) {
+          const point = pinPoint(house, pinned);
+          const at = point && project(point);
+          const onScreen = at && at.x >= 0 && at.y >= 0 && at.x <= container.clientWidth && at.y <= container.clientHeight;
+          // A clamped pin whose point doesn't show (on another floor, behind the camera) waits at the top of the screen.
+          const shown = onScreen ? at : pinned.clamp ? (at ?? { x: container.clientWidth / 2, y: 0 }) : null;
+          pinned.element.style.visibility = shown ? "visible" : "hidden";
+          if (!shown) continue;
+          if (pinned.apart) apart.push({ pinned, at: shown, lift: at ? pinned.lift : 0 });
+          else pin(pinned.element, shown, at ? pinned.lift : 0);
+        }
+        const boxes = apart.map(({ pinned: { element }, at, lift }) => ({ x: at.x, top: at.y - element.offsetHeight * lift, width: element.offsetWidth, height: element.offsetHeight }));
+        const xs = pinsApart(boxes, PIN_GAP);
+        for (const [i, { pinned, at, lift }] of apart.entries()) pin(pinned.element, { x: xs[i], y: at.y }, lift);
         if (ghostHandles) {
           const at = ghostSpan && !usesReticle(view.input) ? { x: ghostSpan.middle, y: ghostSpan.bottom } : null;
           ghostHandles.style.visibility = at ? "visible" : "hidden";
@@ -1048,8 +1272,15 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         finish();
         readout.remove();
         controls.dispose();
+        unmounted = true;
         scene.remove(house.root);
+        things.unmount();
+        scene.remove(things.root);
         house.dispose();
+        if (backdrop) {
+          scene.remove(backdrop.mesh);
+          backdrop.dispose();
+        }
         bakes.stop();
         mounted = null;
       },
@@ -1065,7 +1296,18 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     setLayout,
     setFigures,
     setTargets,
+    /** The things living in the rooms, as they show. */
+    setThings: (next: readonly ShownThing[]) => {
+      things.set(next, layout);
+      mounted?.sync();
+    },
     setActive,
+    /** The house's light as a whole: shifting to the haunt's at its reveal, or set at once (a game resumed mid-haunt). */
+    setMood: (next: HouseMood, how: { shifting: boolean }) => {
+      mood = next;
+      mounted?.house.setMood(next, how);
+    },
+    mood: () => mood,
     play,
     finish,
     /** Who hears the player focus, commit and confirm. */
@@ -1086,6 +1328,11 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     },
     setGhostHandles: (element: HTMLElement | null) => {
       ghostHandles = element;
+    },
+    /** Keeps these page elements over their figures and rooms while they show, replacing the group's set before. */
+    setPins: (group: string, next: readonly Pin[]) => {
+      if (next.length === 0) pins.delete(group);
+      else pins.set(group, next);
     },
     subscribe: (listener: () => void) => {
       listeners.add(listener);

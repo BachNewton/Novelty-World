@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { BASE_TOP, burst, joins, reach, STANDING, walks, type Gait, type Joint } from "../explorers/figure";
+import { BASE_TOP, burst, idleBursts, joins, reach, STANDING, walks, type Gait, type Joint } from "../explorers/figure";
 import {
   ball,
   drum,
@@ -27,6 +27,7 @@ import {
 import { paletteHex, type PaletteKey } from "../palette";
 import { group } from "../shapes";
 import { ghostly, type MonsterOptions } from "./base";
+import { declareParts, figureParts } from "../figure-parts";
 
 /*
  * The Spider of haunt 04: a giant red-kneed tarantula, a threat to any
@@ -260,8 +261,9 @@ function meshParts() {
   };
 }
 type Parts = ReturnType<typeof meshParts>;
-/** Meshed once on first use and shared by every spider: none of it depends on the seed. */
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const SPIDER_PARTS = figureParts("spider", meshParts);
+declareParts(spider, [SPIDER_PARTS]);
 
 interface Leg {
   hip: THREE.Group;
@@ -296,8 +298,7 @@ function leg(side: -1 | 1, index: number, material: THREE.Material, parts: Parts
 
 /** The Spider. */
 export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false }: MonsterOptions = {}): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+  const parts = SPIDER_PARTS.get();
   const material = chitin(figureMaterial());
   // The legs smoulder brighter than the body, so their lines show on the darkest floor.
   const legMaterial = chitin(figureMaterial(), "blood", stunned ? 0.3 : 0.5);
@@ -366,6 +367,8 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
 
   const rng = createRng(seed);
   const offset = rng.next() * 100;
+  // Stunned, it never rears.
+  const bursts = stunned ? null : idleBursts(figure, seed, offset, { rear: { every: 10, lasts: 3.2, chance: 0.65 } });
   const breathPhase = rng.next() * Math.PI * 2;
   const toBody = new THREE.Matrix4();
   const target = new THREE.Vector3();
@@ -375,7 +378,7 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
     const seconds = clock + offset;
     const breath = Math.sin((seconds / 3.1) * Math.PI * 2 + breathPhase);
     const stride = gait(clock);
-    const rear = stunned ? 0 : burst(seconds, `${seed}:rear`, { every: 10, lasts: 3.2, chance: 0.65 }).amount * (1 - stride.amount);
+    const rear = (bursts?.(clock).rear.amount ?? 0) * (1 - stride.amount);
 
     body.position.set(0, stunned ? 0.3 : BODY_HEIGHT + breath * 0.012 + rear * 0.12 - stride.amount * 0.08, stunned ? 0.05 : -rear * 0.12);
     body.rotation.x = stunned ? 0.08 : -rear * 0.32 + stride.amount * 0.04;

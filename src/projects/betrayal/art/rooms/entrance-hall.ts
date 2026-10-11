@@ -2,9 +2,11 @@ import * as THREE from "three";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, FRONT_DOOR_HEIGHT, FRONT_DOOR_WIDTH, WALL_THICKNESS, onWall, type RoomDefinition } from "../room";
-import { batch, box, cylinder, flat, glow, group, lathe, pixelPlane } from "../shapes";
+import { batch, box, cylinder, flat, glow, group, pixelPlane } from "../shapes";
+import { solidLathe } from "../kit/vessel";
+import { shiny, shinyBatch, SHINES } from "../shine";
 import { pixelTexture, svgTexture, TEXELS_PER_METRE } from "../textures";
-import { runner, SUITE } from "./starting-tile";
+import { HALL_SHINE, runner, SUITE } from "./starting-tile";
 
 const LEAF_TOP = 2.32;
 const TRANSOM = 0.08;
@@ -40,11 +42,13 @@ ${spokes.join("")}
  */
 function frontDoor(from: number, to: number, base = from): THREE.Group {
   const b = batch();
-  const slab = (w: number, y0: number, y1: number, d: number, colour: PaletteKey, x: number, z: number) => {
+  const brass = batch();
+  const iron = batch();
+  const slab = (w: number, y0: number, y1: number, d: number, colour: PaletteKey, x: number, z: number, into = b) => {
     const low = Math.max(y0, from);
     const high = Math.min(y1, to);
     if (high - low < 0.005) return;
-    b.block([w, high - low, d], colour, [x, low - base, z]);
+    into.block([w, high - low, d], colour, [x, low - base, z]);
   };
   const leaf = FRONT_DOOR_WIDTH / 2 + 0.01;
   for (const side of [-1, 1]) {
@@ -57,18 +61,20 @@ function frontDoor(from: number, to: number, base = from): THREE.Group {
         for (const x of [-0.22, 0.22]) slab(0.035, y, y + 0.035, 0.03, "soot", cx + x * (leaf / 0.86), 0.065);
       }
     }
-    slab(0.05, 1.12, 1.2, 0.05, "brass", side * 0.08, 0.06);
+    slab(0.05, 1.12, 1.2, 0.05, "brass", side * 0.08, 0.06, brass);
   }
   // The strip stands on the leaves' faces, not sunk into them, so its top never shares theirs at the cut.
   slab(0.02, 0, LEAF_TOP, 0.015, "void", 0, 0.0425);
   slab(FRONT_DOOR_WIDTH + 0.02, LEAF_TOP, FAN_BOTTOM, 0.1, "woodDark", 0, 0);
-  slab(FRONT_DOOR_WIDTH + 0.3, 1.25, 1.33, 0.06, "ash", 0, 0.2);
-  for (const x of [-0.7, 0, 0.7]) slab(0.1, 1.2, 1.38, 0.17, "soot", x, 0.12);
+  slab(FRONT_DOOR_WIDTH + 0.3, 1.25, 1.33, 0.06, "ash", 0, 0.2, iron);
+  for (const x of [-0.7, 0, 0.7]) slab(0.1, 1.2, 1.38, 0.17, "soot", x, 0.12, iron);
   const result = group(b.mesh());
+  // The handles and the bar lie wholly in the part above the cut.
+  if (to > 1.38) result.add(shinyBatch(brass, SHINES.brass), shinyBatch(iron, SHINES.iron));
   if (to > FAN_BOTTOM) {
     const w = Math.round(FRONT_DOOR_WIDTH * TEXELS_PER_METRE);
     const h = Math.round((FRONT_DOOR_HEIGHT - FAN_BOTTOM) * TEXELS_PER_METRE);
-    const glass = new THREE.Mesh(new THREE.PlaneGeometry(FRONT_DOOR_WIDTH, h / TEXELS_PER_METRE), glow("moon", svgTexture(fanlightSvg(w, h), w, h)));
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(FRONT_DOOR_WIDTH, h / TEXELS_PER_METRE), shiny(glow("moon", svgTexture(fanlightSvg(w, h), w, h)), SHINES.glass));
     glass.position.set(0, FAN_BOTTOM + h / TEXELS_PER_METRE / 2 - base, 0);
     glass.userData.noShadow = true;
     result.add(glass);
@@ -78,12 +84,12 @@ function frontDoor(from: number, to: number, base = from): THREE.Group {
 
 /** A standing lamp with a glass shade, one each side of the front door. */
 function torchere(): THREE.Group {
-  const brass = flat("brass");
+  const brass = shiny(flat("brass"), SHINES.brass);
   const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.26, 6), glow("amber"));
   shade.position.y = 1.62;
   const result = group(
     cylinder(0.2, 0.05, flat("woodDark"), [0, 0, 0], { top: 0.16, sides: 6 }),
-    lathe([[0.05, 0], [0.03, 0.4], [0.05, 0.45], [0.025, 0.5], [0.025, 1.45], [0.07, 1.49], [0, 1.5]], brass, 6).translateY(0.05),
+    solidLathe([[0.05, 0], [0.03, 0.4], [0.05, 0.45], [0.025, 0.5], [0.025, 1.45], [0.07, 1.49], [0, 1.5]], brass, 6).translateY(0.05),
     shade,
   );
   result.traverse((child) => {
@@ -102,7 +108,7 @@ function settle(): THREE.Group {
   for (let i = 0; i < 4; i++) b.block([0.26, 0.6, 0.02], "wood", [-0.45 + i * 0.3, 0.55, -0.16]);
   for (const x of [-0.65, 0.65]) b.block([0.07, 0.75, 0.5], "woodMid", [x, 0, 0]);
   b.block([1.4, 0.06, 0.12], "woodMid", [0, 1.3, -0.2]);
-  return group(b.mesh());
+  return group(shinyBatch(b, SHINES.polishedWood));
 }
 
 /** A brass umbrella stand holding a walking stick and a furled umbrella. */
@@ -113,14 +119,15 @@ function umbrellaStand(): THREE.Group {
   const stick = box([0.025, 0.85, 0.025], flat("woodMid"), [0, 0, 0]);
   stick.position.set(-0.05, 0.05, -0.02);
   stick.rotation.z = 0.12;
-  return group(cylinder(0.14, 0.5, flat("brass"), [0, 0, 0], { sides: 8 }), cylinder(0.12, 0.006, flat("void"), [0, 0.5, 0], { sides: 8 }), umbrella, stick);
+  return group(cylinder(0.14, 0.5, shiny(flat("brass"), SHINES.brass), [0, 0, 0], { sides: 8 }), cylinder(0.12, 0.006, flat("void"), [0, 0.5, 0], { sides: 8 }), umbrella, stick);
 }
 
-const PRINT = [".###.", "#w###", "#####", "####.", ".###.", ".##..", ".....", ".###.", ".###.", ".###."];
+const PRINT = [".###.", "#####", "#####", "####.", ".###.", ".##..", ".....", ".###.", ".###.", ".###."];
 
 /** One wet footprint lying on the floor, toes towards −z. */
 function footprint(): THREE.Group {
-  const print = pixelPlane(pixelTexture(PRINT, { "#": "moonDark", w: "moon" }), { alpha: true });
+  const print = pixelPlane(pixelTexture(PRINT, { "#": "moonDark" }), { alpha: true });
+  shiny(print.material as THREE.Material, SHINES.wetStone);
   print.rotation.x = -Math.PI / 2;
   print.position.y = 0.012;
   print.userData.noShadow = true;
@@ -148,6 +155,7 @@ const PRINTS: [x: number, z: number, turn: number][] = [
 export const ENTRANCE_HALL: RoomDefinition = {
   id: "entrance-hall",
   ...SUITE,
+  shine: HALL_SHINE,
   props: [
     { build: () => runner({ from: -3, to: 2.62, finished: ["to"] }), at: [0, 0] },
     // The part on the floor stops a little under the cut wall's top, so the two never share a plane; the part above reaches down to it.
@@ -161,7 +169,5 @@ export const ENTRANCE_HALL: RoomDefinition = {
     ...PRINTS.map(([x, z, turn], i) => ({ build: footprint, at: [x, z] as [number, number], y: (i % 3) * 0.002, turn })),
   ],
   focus: [1.6, 1.3, 0],
-  pawn: [-0.9, -0.9],
-  spots: [[0.8, -0.85], [-1.7, 1.25], [-0.1, 0.6], [1.6, 0.65], [1.05, 2.3]],
-  overflow: [[-1.05, -2.2], [-1.7, 0.25], [-1.7, 2.25], [0.35, 1.65], [0.8, 0.15], [0.7, -1.7]],
+  prime: [-0.9, -0.9],
 };

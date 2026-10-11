@@ -2,7 +2,9 @@ import * as THREE from "three";
 import { paletteHex, type PaletteKey } from "../palette";
 import { WINDOW_WIDTH } from "../room";
 import { box, flat, group, lightMaterial, pixelPlane } from "../shapes";
-import { pixelTexture, svgTexture, TEXELS_PER_METRE, type PixelLegend } from "../textures";
+import { shiny, SHINES } from "../shine";
+import { pixelTexture, svgTexture, TEXELS_PER_METRE } from "../textures";
+import { picture, pictureRows, type Picture, type PictureName } from "./pictures";
 
 export interface RugOptions {
   /** Along x, in metres. */
@@ -82,69 +84,58 @@ export function rug({
   return mesh;
 }
 
-const PORTRAIT = [
-  "aaaaaaaaaaaaaaaa",
-  "aaaaaaabbaaaaaaa",
-  "aaaaabbbbbbaaaaa",
-  "aaaabbbbbbbbaaaa",
-  "aaaabffffffbaaaa",
-  "aaaabfffffffaaaa",
-  "aaaaffeffeffaaaa",
-  "aaaafffffffaaaaa",
-  "aaaaaffgfffaaaaa",
-  "aaaaafffffaaaaaa",
-  "aaaaaaffffaaaaaa",
-  "aaaaaaaffaaaaaaa",
-  "aaaaacccccccaaaa",
-  "aaaccccdddccccaa",
-  "aaccccccdccccccc",
-  "accccccccccccccc",
-  "cccccccccccccccc",
-  "cccccccccccccccc",
-  "cccccccccccccccc",
-  "cccccccccccccccc",
-];
-
-const PORTRAIT_LEGEND: PixelLegend = {
-  a: "bruiseDark",
-  b: "soot",
-  c: "sootLight",
-  d: "boneDark",
-  e: "void",
-  f: "bone",
-  g: "boneDark",
-};
-
 export interface FrameOptions {
-  /** The picture itself, as pixel rows and their legend. Defaults to a pale ancestor. */
-  art?: { rows: readonly string[]; legend: PixelLegend };
+  /** The picture: one from the library by name (`pictures.ts`), or a room's own. */
+  picture: PictureName | Picture;
+  /** The moulding's colour: brass is gilt, and takes highlights. */
   frame?: PaletteKey;
   /** Width of the moulding in metres. */
   border?: number;
 }
 
+/** How far an oval moulding reaches in over its picture, hiding the pixel steps of the oval's edge. */
+const OVAL_LAP = 0.75 / TEXELS_PER_METRE;
+
+/** An oval moulding round a picture `width` by `height`, its bottom at y = 0 and its back at z = 0. */
+function ovalMoulding(width: number, height: number, border: number, material: THREE.Material): THREE.Mesh {
+  const rx = width / 2 - OVAL_LAP;
+  const ry = height / 2 - OVAL_LAP;
+  const shape = new THREE.Shape().absellipse(0, 0, rx + border, ry + border, 0, Math.PI * 2, false, 0);
+  shape.holes.push(new THREE.Path().absellipse(0, 0, rx, ry, 0, Math.PI * 2, true, 0));
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.05, bevelEnabled: false, curveSegments: 28 });
+  geometry.translate(0, ry + border, 0);
+  return new THREE.Mesh(geometry, material);
+}
+
 /** A framed picture to hang on a wall (place it with `onWall`; `y` is its bottom edge, about 1.3). Its back is at z = 0. */
-export function pictureFrame({
-  art = { rows: PORTRAIT, legend: PORTRAIT_LEGEND },
-  frame = "brass",
-  border = 0.07,
-}: FrameOptions = {}): THREE.Group {
-  const picture = pixelPlane(pixelTexture(art.rows, art.legend));
-  const geometry = picture.geometry as THREE.PlaneGeometry;
+export function pictureFrame({ picture: chosen, frame = "brass", border = 0.07 }: FrameOptions): THREE.Group {
+  const art = typeof chosen === "string" ? picture(chosen) : chosen;
+  const oval = art.shape === "oval";
+  const plane = pixelPlane(pixelTexture(pictureRows(art), art.legend), { alpha: oval });
+  const geometry = plane.geometry as THREE.PlaneGeometry;
   const { width, height } = geometry.parameters;
-  picture.position.set(0, height / 2 + border, 0.035);
-  const moulding = flat(frame);
-  const w = width + border * 2;
-  const h = height + border * 2;
-  return group(
-    picture,
-    box([w, border, 0.05], moulding, [0, 0, 0.025]),
-    box([w, border, 0.05], moulding, [0, h - border, 0.025]),
-    // The sides stand between the top and bottom, so no two strips share a face's plane where they meet.
-    box([border, h - border * 2, 0.05], moulding, [-w / 2 + border / 2, border, 0.025]),
-    box([border, h - border * 2, 0.05], moulding, [w / 2 - border / 2, border, 0.025]),
-    box([width, height, 0.02], flat("soot"), [0, border, 0.01]),
-  );
+  const moulding = frame === "brass" ? shiny(flat(frame), SHINES.gilt) : flat(frame);
+  let built: THREE.Group;
+  if (oval) {
+    const ring = ovalMoulding(width, height, border, moulding);
+    plane.position.set(0, height / 2 + border - OVAL_LAP, 0.035);
+    built = group(plane, ring);
+  } else {
+    plane.position.set(0, height / 2 + border, 0.035);
+    const w = width + border * 2;
+    const h = height + border * 2;
+    built = group(
+      plane,
+      box([w, border, 0.05], moulding, [0, 0, 0.025]),
+      box([w, border, 0.05], moulding, [0, h - border, 0.025]),
+      // The sides stand between the top and bottom, so no two strips share a face's plane where they meet.
+      box([border, h - border * 2, 0.05], moulding, [-w / 2 + border / 2, border, 0.025]),
+      box([border, h - border * 2, 0.05], moulding, [w / 2 - border / 2, border, 0.025]),
+      box([width, height, 0.02], flat("soot"), [0, border, 0.01]),
+    );
+  }
+  built.userData.picture = art.name;
+  return built;
 }
 
 export interface WindowPoolOptions {

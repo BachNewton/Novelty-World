@@ -52,7 +52,8 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `legPoints` and `pushAside` for cloth the legs push (coat tails); `reach`
   and `pose` for two-bone limbs (`arm` builds a monster's simple arm);
   `joins` and `Joint` for the joints the clipping check allows; and
-  `burst`, the seeded occasional movement every idle is built from.
+  `burst`, the seeded occasional movement every idle is built from, and
+  `idleBursts`, which names a figure's bursts so a bench can cue one.
 - `explorers/hands.ts`: every explorer's arm and hand (`buildArm`,
   `handParts`, `Arm`, `Hand`), hand poses (`RELAXED`, `OPEN`, `fist`,
   `holding`), arm poses (`reachWrist`, `gripAt`, `pointHand`, `between`,
@@ -61,7 +62,19 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   spear) until items get art, `burning` for a prop with a flame and its
   live light, and `carrying` for a figure built holding one.
 - `explorers/cloth.ts`: the shared heavy-cloth helper every cloth that
-  follows the legs goes through, with `cloth.test.ts`, its smoothness test.
+  follows the legs goes through, with `cloth.slow.test.ts`, its smoothness test.
+  `explorers/cloth-sim.ts`: the net simulation the figures wear by default
+  (`clothMode`; `?cloth=off` shows the heavy cloth to compare), and `explorers/cloth-trial.ts`, the bench's
+  course that walks and runs a figure to show its cloth (see "Sculpting the
+  forms").
+- `figure-parts.ts`, `figure-mesh.ts` and `figure-mesh.worker.ts`: how a
+  figure's parts are meshed off the page's thread (see "Sculpting the
+  forms").
+- `shader-prep.ts`: readies a figure's shaders before it joins the scene
+  (see "Held props").
+- `page-search.ts`: `pageSearch`, the one browser check for code a worker may
+  load.
+- `wind.ts`: the air a room's cloth hangs in (`windOf`).
 - `explorers/longfellow.ts`, `ox.ts`, `zoe.ts`, `rhinehardt.ts`: the
   explorers. Longfellow is
   the reference for an ordinary adult and for a held object riding a hand;
@@ -76,9 +89,9 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `monsterLineUp` stands every figure, monsters and explorers, with the pawn.
   A new figure joins the line-ups.
 - `explorers/index.ts`: `BENCH_EXPLORERS`, who the bench can stand in a room.
-- `explorers/fighting-faces.ts` and `explorers/overlap.test.ts`: the figures'
-  overlap check; `explorers/gait.test.ts`: the gait check (no jump through
-  a walk or a run, the base planted); `explorers/clipping.ts`, with `explorers/clipping.test.ts`
+- `explorers/fighting-faces.ts` and `explorers/overlap.slow.test.ts`: the figures'
+  overlap check; `explorers/gait.slow.test.ts`: the gait check (no jump through
+  a walk or a run, the base planted); `explorers/clipping.ts`, with `explorers/clipping.slow.test.ts`
   and `monsters/clipping.test.ts`: the clipping check (see "Build it").
 - `animate.ts`: `animated`, which marks the piece the stage poses each frame.
 - `house.ts` and `house-walk.ts`: how the house stands, walks, runs, marks
@@ -114,6 +127,13 @@ they know, and the colour of their card.
 
 ## Body, proportion and scale
 
+**Reuse before you sculpt.** Each of the twelve characters gets a figure of
+their own (the board game shared figures only to save plastic). A new
+explorer starts from the nearest existing figure's body and the shared
+parts (hands, shoes, garments, the walk and run contract), and changes only
+what makes the character themselves: head, hair, outfit, colours, a
+signature prop.
+
 **Heights come from the data.** `miniatureHeight(feet, inches)` gives how
 tall a figure stands off its base; every explorer uses it, so they keep
 their true heights against one another. Longfellow's 5'11" stands 1.5 m off
@@ -144,10 +164,17 @@ once in code:
 - **Explicit geometry** for hard or very thin parts (a book's covers and
   pages, spectacle rims, a coin), `painted` one palette colour and merged
   into the same part's mesh with `mergeAll`.
-- **Mesh once, cache per module.** Nothing about a part's shape depends on
-  the seed, so a module meshes all its parts on first use (`meshed ??=
-  meshParts()`) and every copy of the figure shares them. Meshing is the
-  expensive step; building another figure is cheap.
+- **Mesh in a worker, once a session.** Nothing about a part's shape
+  depends on the seed, so a figure declares its parts with `figureParts`
+  (an id and its `meshParts`) and ties them to its builder with
+  `declareParts`; every copy shares them. Meshing is the expensive step, so
+  the house has workers do it, and until a figure's parts land it shows
+  that seat's pawn. Register the parts in `figure-mesh.worker.ts`, or the
+  worker throws. Tests and tools mesh on their own thread when a builder
+  first needs them.
+- **Code a worker may load reads the page with `pageSearch`**
+  (`page-search.ts`), never a `typeof window` or `document` check: both give
+  the wrong answer inside a worker bundle or a headless test.
 - **One material per figure**: `figureMaterial()`, a smooth Lambert lit by
   vertex colours, since the house's light probes light Lambert. Each rigid
   part is one mesh, however many colours it wears. Once the figure is
@@ -261,8 +288,20 @@ once in code:
 - **Cloth moves through the shared helper.** Cloth that follows the legs
   goes through `heavyCloth` (`explorers/cloth.ts`), which smooths it over a
   window of time on a fixed grid of moments, the same at any frame rate, and every such cloth
-  passes its smoothness test. The look of robe and skirt motion still needs
-  another pass, tabled by the owner.
+  passes its smoothness test.
+- **Cloth is going the way of the net**: the position-based simulation in
+  `cloth-sim.ts` (our own solver), which Zoe, Father Rhinehardt and the
+  Banshee carry (the default; `?cloth=off` compares the old heavy cloth). It is
+  not perfect, but it is the best so far, and a new robed or skirted
+  explorer builds on it. Each garment takes a fabric from `FABRICS` for its
+  weight and feel (heavy wool for Rhinehardt's robe, a cotton dress for
+  Zoe, gauze for the Banshee), never hand-tuned numbers; add a fabric when
+  none fits. A twirl on the spot is felt fully, while running round a
+  corner stays damped; the cloth is carried to the frame's own time; and a
+  shroud is kept off the robe under it. Cloth answers the room's wind
+  (`wind.ts`): still indoors, a breeze outdoors. Loose things (hair, a
+  doll, scarf ends, stoles, coat tails) wait for strands in the same
+  solver.
 
 ## Colour and identity
 
@@ -278,13 +317,19 @@ file.
 - **One dominant colour from the card**, where the card's colour serves: Ox's
   card is red, so his jacket is; Zoe's is yellow, so her dress is. Pair it
   with one contrasting secondary (Ox's cream sleeves, Zoe's copper hair).
-  Take no dominant colour another explorer already wears.
+  **An explorer's main clothing colour never matches another character
+  card's colour**, whether or not that character is built yet: the seat's
+  ring is the card's colour, so a figure dressed in another card's colour
+  reads as someone else's seat. Take no dominant colour another explorer
+  already wears.
 - **A letter or emblem is a flat patch**: Ox's "O" is a flat block letter on a felt
   patch with a dark border, never a raised ring, which reads as a donut.
 - **Explorers are warm and human**: in the lighting language, amber means
   human. Clothes may take any palette colour as cloth, but nothing on an
-  explorer glows, and sickly green, violet and red light stay the
-  supernatural's and the traitor's.
+  explorer glows, and spectral teal, sickly green, violet and red light
+  stay the haunting's, the corrupt's, magic's and the traitor's.
+- **Show before telling.** Anything a figure signals (a status, a held
+  card) is shown in 3D or as an icon before any words.
 - **Eerie, never gory**, as in the rooms.
 
 ## Idle personality
@@ -307,29 +352,51 @@ stride eases out as the stride eases in (Zoe's twirl); one that doesn't
 carries on while walking (a glance, the coin) but eases out running, when
 the arms pump.
 
+**Name every gesture and fear with `idleBursts`**, never a bare `burst`:
+`idleBursts(figure, seed, offset, { coin: {...}, dark: {...} })`, declared
+as the figure is built, returns what plays them all at a moment on the
+stage's clock (`bursts(clock).coin`), each seeded by its name on the
+figure's own time. The names are what the figure viewer shows as buttons,
+and `cueBurst(figure, { name, at, repeat })` plays one on demand from the
+moment `at` (while a cue is set the seeded schedule rests, and `null` hands
+it back), still a pure function of the clock. So a burst is judged by
+cueing it, never by waiting for it, and no figure needs an option of its own
+to show one. Small fidgets that are no gesture (a spider's leg shifting) may
+stay bare `burst`s.
+
 ## The walk and run contract
 
 **The gait rule (owner decision).** Before the haunt, every explorer walks.
 After the haunt starts, heroes run and the traitor walks calmly; in a
 hidden-traitor haunt everyone runs, since a gait must never reveal hidden
-information. Monsters keep their own movement. The house chooses the pace
-per walk (`Walk.pace` in `house-walk.ts`); nothing chooses it from game
-state yet.
+information. Monsters keep their own movement. The presenter chooses the
+pace per walk (`gaitOf` in `play/presenter.ts`, `Walk.pace` in
+`house-walk.ts`).
 
-**One speed per pace.** The house moves every figure at `WALK_SPEED` walking
-and `RUN_SPEED` running, so a turn takes as long whoever moves. Stride and
-cadence show the character, never speed. Each figure declares its walk with
-`walks(figure, { step, hop })` on its root:
+**Speed sets how fast; the figure sets how it steps.** An explorer walks
+and runs at a pace their current Speed value sets (`paceSpeed` in
+`house-walk.ts`, carried as `Walk.speed`): the middle of the tracks' range
+at `WALK_SPEED` and `RUN_SPEED`, each point of Speed 10% faster or slower,
+bounded at the lowest and highest values the tracks print. A figure without
+a Speed (a monster) keeps the middle pace. Each figure declares its walk
+with `walks(figure, { step, hop })` on its root, and its step never changes
+with Speed:
 
-- **`step`**, metres per step, sets the cadence: a long step at the shared
-  pace is a slow, heavy gait (Ox), a short one a quick patter (Zoe).
+- **`step`**, metres per step, sets the cadence: a long step at any pace
+  is a slow, heavy gait (Ox), a short one a quick patter (Zoe).
 - **`hop`**, its bounce: walking, how far it sinks into its knees as both
   feet are down; running, a third of how high it bounds off its base between
   steps. Low for a heavy figure, high for a skipping one.
 
-**The cadence comes from the pace and the step.** At `WALK_SPEED` (1.5 m/s,
-in `house-walk.ts`) an adult's 0.6 m step is 2.5 steps a second, Ox's
-0.7 m about 2, and Zoe's 0.4 m a child's patter near 4. Keep a walking step
+**The cadence comes from the pace and the step.** The stride's phase
+follows the distance walked, so a faster explorer steps more often and the
+feet still keep pace with the floor. At `WALK_SPEED` (1.5 m/s) an adult's
+0.6 m step is 2.5 steps a second, Ox's 0.7 m about 2, and Zoe's 0.4 m a
+child's patter near 4; the slowest Speed takes 0.7 times as many, the
+fastest 1.3 times. Anything timed in seconds against the stride (heavy
+cloth's `ClothTiming`) must hold up across that range: `gait.slow.test.ts`
+and `cloth.slow.test.ts` walk and run every explorer at the slowest, middle
+and fastest Speed. Keep a walking step
 about as long as the leg from hip to ankle: longer goose-steps, shorter
 scurries.
 
@@ -361,7 +428,7 @@ weight that switches on (a foot counted as planted the moment it lands), a
 hard limit (a leg snapping straight, a knee folding shut), a search that can
 pick a different answer from one frame to the next (cloth pushed to one
 side of a leg or the other), or a burst whose end doesn't match its start
-all show as a drop or a pop. `gait.test.ts` walks and runs every explorer as
+all show as a drop or a pop. `gait.slow.test.ts` walks and runs every explorer as
 the house moves it, a sample every 1/600 s, and fails on any part whose
 step is longer than the steps either side of it by more than 3 mm; a new
 figure joins it.
@@ -392,8 +459,10 @@ helps find that explorer in a dark room. It casts no shadow (the house
 allows two live shadow casters), so its range is short and its fall-off
 gentle (`CARRIED_LIGHT`): a pool round the figure that barely reaches
 through a wall, without burning out the hand and coat beside the flame.
-Each one is a live light in the scene, and changing how many are showing
-recompiles the lit materials, so the house adds them with their figures.
+Each one is a live light in the scene, and a new light count recompiles
+every lit material at once and freezes the frame, so **anything that
+carries a light goes through `shader-prep.ts`** before it joins the scene:
+its shaders, and every lit material's for the new count, are readied first.
 
 ## Monsters and other figures
 
@@ -428,11 +497,11 @@ figure is in one of three size classes: **small** (swarms and animals),
 **person-sized** (explorers, companions, most named monsters, zombies and
 cultists) or **large** (the Spider, the Dragon, the Demon Lord, the
 Ouroboros heads: a handful of figures, each in one haunt). A figure is
-never shrunk to fit a room. A person-sized figure stands on one of a room's
-standing spots; a large one takes a spot and spreads over its neighbours.
-How a large one fits a crowded room waits for the first haunt that has one;
-the lead idea is a "crowded pose" of its own (the Spider coiled), used when
-its full spread doesn't fit. A big monster that stands gets a bigger base
+never shrunk to fit a room. The placement solver (`placement.ts`) stands
+every figure on a room's free floor by its size class's footprint; a large
+one's spreads over its neighbours'. When its full spread doesn't fit a
+crowded room, the solver gives it its "crowded pose" footprint (the Spider
+coiled): build that pose to match. A big monster that stands gets a bigger base
 (`monsterBase`), dark to tell it from an explorer's.
 
 **It has a stunned pose.** A stunned monster misses its next turn (rules.md,
@@ -443,7 +512,7 @@ not a dimmer idle: the Spider crumples, the Banshee slumps.
 parts that never move relative to each other. Many copies of one shape that
 move are one `InstancedMesh` in a single draw (the Spider's sixteen leg
 bands follow its legs each frame); swarms (bats, rats) are the same, never
-many separate figures, clustered round a standing spot.
+many separate figures, clustered round the one place the solver gives it.
 
 ## Build it
 
@@ -454,16 +523,18 @@ character is, from the data, and how they read at a glance. Then, in order:
    hip pivot), the neck, the shoulders, the limb lengths, and the `Walking`
    with its reason.
 2. Each part as a function returning its geometry, at its pivot, head
-   first; then `meshParts`, cached in the module.
+   first; then `meshParts`, declared with `figureParts`.
 3. The builder: the groups at their pivots, the arm poses, the `StrideRig`,
    then the animation: idle layers first, then `stride` and the figure's
    own touches.
-4. Register it in `BENCH_EXPLORERS` and in `art/explorers/by-character.ts`
-   (so the game shows it instead of a pawn), and add it to the line-ups and
-   the overlap, clipping and gait tests.
+4. Tie the parts to the builder with `declareParts`, register them in
+   `figure-mesh.worker.ts`, and register the figure in `BENCH_EXPLORERS`
+   and in `art/explorers/by-character.ts` (so the game shows it instead of
+   a pawn); add it to the line-ups and the overlap, clipping and gait
+   tests.
 
 **Run the clipping check** after every change: `npx vitest run
-src/projects/betrayal/art/explorers/clipping.test.ts` (and
+--config vitest.slow.config.ts src/projects/betrayal/art/explorers/clipping.slow.test.ts` (and
 `monsters/clipping.test.ts`). It asks each part's surface points how deep
 they lie inside every other part's solid, in that part's frame, and reports
 two parts whose surfaces cross (each partly inside the other) by more than
@@ -482,7 +553,7 @@ the shape, the pivot or the pose, never a joint's reach, unless the crossing
 really is the joint folding.
 
 **Run the overlap check** too:
-`npx vitest run src/projects/betrayal/art/explorers/overlap.test.ts` poses
+`npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/explorers/overlap.slow.test.ts` poses
 each figure at moments through its idle, standing, walking and running (and
 each monster standing and stunned), and fails on any two of its parts whose
 surfaces of different colour lie within a millimetre of each other, facing
@@ -509,7 +580,24 @@ fight: move one surface clearly inside or clear of the other.
 The dev server, the Playwright-only rule, and waiting on events are as in
 the room-art skill.
 
-- **One figure close**:
+**Review with the backlight on**, the default: a figure lit from behind, as
+the camera sees it, takes a rim of that light (`lit-floor.ts`).
+`?backlight=off` is only for comparing. The owner hasn't made the final
+call on it, so never tune a figure to depend on it.
+
+- **The figure viewer** (`?bench=figures`, `figure-viewer.ts`): one figure on
+  a plain round floor, or every explorer side by side (`&lineup`), under
+  simple live lights (`&light=studio|lamp|backlit|moon|dim`) and camera
+  presets (`&camera=house|close|eye|turntable`, or drag for a free camera),
+  idle, walking or running on the spot or along little courses (a straight,
+  start and stop, sharp turns, the loop course: `&state=`), each named burst
+  a button (`&burst=<name>`, starting as the clock does), with pause, half
+  and quarter speed and frame steps on the frozen clock (`&paused&t=<s>`,
+  `&speed=`), an explorer's Speed value to walk and run at (`&stat=`), and
+  the cloth, backlight, seat ring, held prop and stunned toggles. Every setting is in the address, so a link shows exactly a
+  frame; `window.__betrayalFigures` drives it from a tool. Judge the idle's
+  bursts, the gaits and the line-up's silhouettes here first.
+- **One figure close in a room**:
   `node src/projects/betrayal/tools/shots.mjs <room-id> <label> --explorer=<id> --idle`
   writes the figure framed close and `idle-strip.png`, sixteen frozen frames
   1.5 s apart, which catch the idle's gestures. Shoot in a lit room and a
@@ -531,6 +619,11 @@ the room-art skill.
   lit, and dark legs vanish in the Drawing Room's corners.
 - **The house**: `node src/projects/betrayal/tools/house-shots.mjs <label>`
   with the figure in the demo's cast (`art/house-demo.ts`).
+- **The portraits**: setup shows each character's portrait, so after a
+  figure lands or changes, re-shoot it with
+  `node src/projects/betrayal/tools/portraits.mjs <character-id>`. The
+  portrait camera is pending a change to a lower angle and a closer zoom
+  that shows the figure off; until then, shoot with its defaults.
 
 Judge each round in this order, and don't polish detail while a higher item
 fails:
@@ -594,8 +687,8 @@ e2e/betrayal-house.spec.ts`, all clean.
 The figure reads at a glance in the house and on the phone, distinct in the
 line-ups; its idle, walk and run play without a broken frame; the
 clipping, gait and overlap checks pass; lint, typecheck, the art tests and the house e2e are clean;
-it is registered and in the line-ups; and any temporary cast change is
-reverted. The builder reports back:
+it is registered and in the line-ups; its portrait is re-shot; and any
+temporary cast change is reverted. The builder reports back:
 
 - the figure's file, its one-line identity, and its idle;
 - the paths of the final line-up sheet and idle strip;

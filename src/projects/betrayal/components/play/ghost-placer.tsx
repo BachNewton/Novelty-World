@@ -4,26 +4,32 @@ import { useState, type RefObject } from "react";
 import { GHOST_DOORWAY_COLOUR } from "../../art/house";
 import type { Target } from "../../art/house-scene";
 import { paletteHex } from "../../art/palette";
-import type { Spot } from "../../engine/board";
+import { placed, type Spot } from "../../engine/board";
 import type { GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import type { GhostCell, GhostChoice, GhostOption } from "../../play/choices";
-import { countDoors, cycle, ghostDoors, type GhostDoor, type GhostDoorway } from "../../play/ghost";
+import { countDoors, cycle, ghostDoors, stepWay, type GhostDoor, type GhostDoorway } from "../../play/ghost";
 import type { Action, Rotation } from "../../types";
+import { Prompt } from "../prompts";
 
 /*
  * Placing a room tile: the house shows the actual room as a ghost on its
  * cell, turned the way the player has it, with what each doorway would do
  * there marked at its edges. The player turns it through its legal ways
- * round, then places it. When a rule lets the tile go on several cells, the
+ * round, then places it. Its ways round are the decision's choices, stepped
+ * through as any choices are (the d-pad's left and right, Tab), cell by cell
+ * where it may go on several; its arrows turn it on its cell. When a rule lets the tile go on several cells, the
  * other cells glow, and choosing one moves the ghost there. Which cell and
  * way round are showing is the player's own until they place it: nothing is
- * sent before that.
+ * sent before that. A tile already in the house that the rule lets stay
+ * glows on its own cell too, and choosing it there leaves it where it is.
  */
 
 /** The ghost's target id: one ghost at a time. */
 export const GHOST = "ghost";
+/** The target of a tile's own cell, which leaves it where it is. */
+export const STAY = "stay";
 const cellId = (spot: Spot) => `cell:${spot.floor}:${spot.x}:${spot.y}`;
 
 /** What the e2e tests read of the ghost. */
@@ -35,6 +41,8 @@ export interface GhostReadout {
   rotations: Rotation[];
   doors: GhostDoor[];
   cells: number;
+  /** The ids of the targets the house shows: the ghost, the other cells, and the tile's own cell when it may stay. */
+  targets: string[];
 }
 
 export interface GhostPlacer {
@@ -47,6 +55,8 @@ export interface GhostPlacer {
   /** The ghost, and the other cells the tile may go on, as the house shows them, each with its name tag. */
   targets: (Target & { label: string })[];
   rotate: (step: 1 | -1) => void;
+  /** Steps to the next way round (1) or the one before (-1), on to the next cell after this one's last. */
+  step: (step: 1 | -1) => void;
   /** Answers a target the house committed: the ghost places the tile as it
    *  shows, and another cell moves the ghost there. False for any other target. */
   commit: (id: string) => boolean;
@@ -77,6 +87,8 @@ export function useGhost(view: GameView, choice: GhostChoice | null, act: (actio
     i === selection.cell ? [] : [{ id: cellId(other.spot), kind: "cell" as const, ...other.spot, label: `Put the ${name} here` }],
   );
   targets.push({ id: GHOST, kind: "ghost", ...cell.spot, tile: choice.tile, rotation: option.rotation, doors, label: name });
+  const stay = choice.stay;
+  if (stay && placed(view.board, choice.tile)) targets.push({ id: STAY, kind: "room", room: choice.tile, label: stay.label });
 
   return {
     choice,
@@ -93,9 +105,26 @@ export function useGhost(view: GameView, choice: GhostChoice | null, act: (actio
         return { ...now, rotation: cycle(ways, now.rotation, step) };
       });
     },
+    step: (step) => {
+      setChosen((before) => {
+        const now = before?.decision === decision ? before : selection;
+        const at = choice.cells.at(now.cell) ?? choice.cells[0];
+        const way = Math.max(0, at.options.findIndex((other) => other.rotation === now.rotation));
+        const next = stepWay(
+          choice.cells.map((other) => other.options.length),
+          { cell: now.cell, way },
+          step,
+        );
+        return { decision, cell: next.cell, rotation: choice.cells[next.cell].options[next.way].rotation };
+      });
+    },
     commit: (id) => {
       if (id === GHOST) {
         act(option.action);
+        return true;
+      }
+      if (id === STAY && stay) {
+        act(stay.action);
         return true;
       }
       const to = choice.cells.findIndex((other) => cellId(other.spot) === id);
@@ -103,7 +132,7 @@ export function useGhost(view: GameView, choice: GhostChoice | null, act: (actio
       setChosen({ decision, cell: to, rotation: choice.cells[to].options[0].rotation });
       return true;
     },
-    readout: { tile: choice.tile, spot: cell.spot, rotation: option.rotation, rotations, doors, cells: choice.cells.length },
+    readout: { tile: choice.tile, spot: cell.spot, rotation: option.rotation, rotations, doors, cells: choice.cells.length, targets: targets.map((target) => target.id) },
   };
 }
 
@@ -115,16 +144,9 @@ const DOORWAY_WORDS: Record<GhostDoorway, (n: number) => string> = {
 };
 const DOORWAY_ORDER: GhostDoorway[] = ["joined", "unexplored", "blind", "shut"];
 
-/** How to turn and place the ghost, for the input the player last used. */
-const HINTS: Record<InputKind, string> = {
-  "keyboard-mouse": "Q / E or its arrows turn it. Click it or press Enter to place it.",
-  pad: "LB / RB or the d-pad's left and right turn it. A places it.",
-  touch: "Tap the room, or its arrows, to turn it.",
-};
-
 /** The panel while a tile is being placed: the question (asked by the
- *  caller, which names who is asked), which way round it shows, what its
- *  doorways would do, how to turn it, and placing it. */
+ *  caller, which names who is asked), which way round it shows (with the
+ *  control that steps through them), what its doorways would do, and placing it. */
 export function GhostPanel({ ghost, input, act }: { ghost: GhostPlacer; input: InputKind; act: (action: Action) => void }) {
   const counts = countDoors(ghost.doors);
   const ways = ghost.cell.options.length;
@@ -133,6 +155,7 @@ export function GhostPanel({ ghost, input, act }: { ghost: GhostPlacer; input: I
   return (
     <div className="flex flex-col gap-2">
       <p className="text-(--bt-muted)">
+        {(ways > 1 || ghost.choice.cells.length > 1) && <Prompt meaning="choices" input={input} size={16} className="mr-1.5" />}
         {ways === 1 ? "It fits only one way round here." : `Way ${ghost.way + 1} of ${ways} it can go.`}
         {ghost.choice.cells.length > 1 && ` ${ghost.choice.cells.length} places it can go: choose a glowing one to move it there.`}
       </p>
@@ -144,14 +167,13 @@ export function GhostPanel({ ghost, input, act }: { ghost: GhostPlacer; input: I
           </li>
         ))}
       </ul>
-      <p className="text-xs text-(--bt-muted)">{HINTS[input]}</p>
       <div className="flex flex-wrap justify-end gap-2">
         {stay && (
           <button type="button" onClick={() => act(stay.action)} className="min-h-11 rounded border border-(--bt-line) bg-(--bt-room) px-3 py-1">
             {stay.label}
           </button>
         )}
-        <button type="button" onClick={() => act(ghost.option.action)} className="min-h-11 rounded bg-(--bt-accent) px-4 py-1 font-semibold text-(--bt-bg)">
+        <button type="button" data-pad-start onClick={() => act(ghost.option.action)} className="min-h-11 rounded bg-(--bt-accent) px-4 py-1 font-semibold text-(--bt-bg)">
           Place the {name}
         </button>
       </div>

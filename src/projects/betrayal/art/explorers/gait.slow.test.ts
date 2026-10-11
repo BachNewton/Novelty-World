@@ -1,20 +1,25 @@
 import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { animationOf } from "../animate";
+import { partsOf as meshedParts } from "../figure-parts";
 import { stubCanvas } from "../headless";
-import { walkPose, type Walk } from "../house-walk";
+import { paceSpeed, SPEED_VALUES, walkPose, type Walk } from "../house-walk";
 import type { ExplorerBuilder } from "../stage";
 import { walkingOf, type Pace } from "./figure";
 import { explorerLineUp } from "./line-up";
+import { flash } from "./flash";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
+import { brandon } from "./brandon";
 import { zoe } from "./zoe";
 
 /*
  * A walk or a run never jumps. Each explorer walks and runs a straight path
- * as the house moves it, easing into its stride, through several strides
- * (every foot's cycle wrapping more than once) and out of it again, sampled
+ * as the house moves it, at the slowest, middle and fastest Speed, easing
+ * into its stride, through several strides (every foot's cycle wrapping more
+ * than once) and out of it again, sampled
  * finely. Each part is followed by three points (its middle and two far
  * corners of its box, so a turn shows as well as a move): a point moving
  * smoothly, however fast and however sharply it turns, takes a step between
@@ -24,7 +29,7 @@ import { zoe } from "./zoe";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter };
 /** Samples a second: fine enough that the fastest foot's step barely changes from one sample to the next. */
 const RATE = 600;
 /** The most a point's step may be longer than the steps either side of it. */
@@ -33,7 +38,10 @@ const JUMP = 0.003;
 /** The path's length: long enough for several strides between the ease in and the ease out. */
 const LENGTH: Record<Pace, number> = { walk: 3.5, run: 6 };
 
-function walkOf(pace: Pace): Walk {
+/** The Speed values walked at: the slowest, the middle (the house's own pace) and the fastest. */
+const SPEEDS = [SPEED_VALUES.lowest, (SPEED_VALUES.lowest + SPEED_VALUES.highest) / 2, SPEED_VALUES.highest];
+
+function walkOf(pace: Pace, speed: number): Walk {
   return {
     path: [
       { floor: "ground", x: 0, y: 0, z: 0 },
@@ -41,6 +49,7 @@ function walkOf(pace: Pace): Walk {
     ],
     start: 0,
     pace,
+    speed,
   };
 }
 
@@ -74,15 +83,15 @@ function partsOf(figure: THREE.Object3D) {
 }
 
 /** The largest jump in any part through a walk or run, and where. */
-function largestJump(build: ExplorerBuilder, name: string, pace: Pace): { size: number; part: string; at: number } {
-  const walk = walkOf(pace);
+function largestJump(build: ExplorerBuilder, name: string, pace: Pace, speed: number): { size: number; part: string; at: number } {
+  const walk = walkOf(pace, speed);
   let step = 0.6;
   const figure = build(name, (seconds) => walkPose(walk, seconds, step).stride);
   step = walkingOf(figure).step;
   const animation = animationOf(figure);
   if (!animation) throw new Error(`${name} has no animation`);
   const parts = partsOf(figure);
-  const seconds = LENGTH[pace] / (pace === "run" ? 3.6 : 1.5) + 0.1;
+  const seconds = LENGTH[pace] / paceSpeed(pace, speed) + 0.1;
   const frames: Float64Array[] = [];
   for (let i = 0; i <= seconds * RATE; i++) {
     animation(i / RATE);
@@ -103,15 +112,22 @@ function largestJump(build: ExplorerBuilder, name: string, pace: Pace): { size: 
 
 describe.each(Object.entries(EXPLORERS))("%s", (name, build) => {
   for (const pace of ["walk", "run"] as const) {
-    it(`never jumps ${pace === "run" ? "running" : "walking"}, from the ease in to the ease out`, { timeout: 20_000 }, () => {
-      const jump = largestJump(build, name, pace);
+    it.each(SPEEDS)(`never jumps ${pace === "run" ? "running" : "walking"} at Speed %d, from the ease in to the ease out`, { timeout: 30_000 }, (speed) => {
+      const jump = largestJump(build, name, pace, speed);
       expect(jump.size, `${jump.part} jumps ${(jump.size * 1000).toFixed(1)} mm at ${jump.at.toFixed(3)} s`).toBeLessThan(JUMP);
     });
   }
 });
 
 describe("the base", () => {
-  it("stays planted on the floor, level, while the figure walks or runs above it", () => {
+  // Meshing the explorers' parts is the slow step, done once a session: it belongs to no one check. All seven take
+  // about 25 s alone.
+  beforeAll(() => {
+    for (const build of Object.values(EXPLORERS)) for (const parts of meshedParts(build)) parts.get();
+  }, 120_000);
+
+  // The whole line-up posed at every sample, its simulated cloth stepped through each: about 3 s alone.
+  it("stays planted on the floor, level, while the figure walks or runs above it", { timeout: 20_000 }, () => {
     for (const pace of ["walk", "run"] as const) {
       const row = explorerLineUp("planted", pace);
       for (let t = 0; t < 2; t += 0.013) {

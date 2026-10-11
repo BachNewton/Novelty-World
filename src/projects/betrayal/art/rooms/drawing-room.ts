@@ -3,14 +3,16 @@ import { candelabra, candle, chair, pictureFrame, rug, table } from "../kit";
 import { RAMPS } from "../palette";
 import { onWall, type RoomDefinition } from "../room";
 import { box, flat, glow, group, textured } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { flagstones, panelling, wallpaper, woodPlanks } from "../textures";
+
 
 /** A stone hearth with a smouldering fire and a mantel, backed against a wall.
  *  Room-specific props like this live in the room's own file. */
 function fireplace(): THREE.Group {
   const stone = textured(flagstones({ stonePx: 8, size: 32, seed: "hearth" }));
   const soot = flat("void");
-  const mantel = flat("woodDark");
+  const mantel = shiny(flat("woodDark"), SHINES.polishedWood);
   const result = group(
     box([0.3, 1.15, 0.4], stone, [-0.65, 0, 0.2]),
     box([0.3, 1.15, 0.4], stone, [0.65, 0, 0.2]),
@@ -53,9 +55,9 @@ function fireplace(): THREE.Group {
  *  the kit's pieces, and its own props defined locally. */
 export const DRAWING_ROOM: RoomDefinition = {
   id: "drawing-room",
-  floor: () => woodPlanks({ seed: "drawing-room" }),
+  floor: () => woodPlanks({ seed: "drawing-room", glints: false }),
   wall: () => wallpaper({ ground: "bruiseDark", stripe: "bruise", motif: "bruiseLight", seed: "drawing-room" }),
-  wainscot: () => panelling({ ramp: RAMPS.wood }),
+  wainscot: () => panelling({ ramp: RAMPS.wood, glints: false }),
   trim: "woodDark",
   props: [
     { build: () => rug({ width: 2.6, length: 3.4 }), at: [0, 0] },
@@ -67,17 +69,15 @@ export const DRAWING_ROOM: RoomDefinition = {
     { build: () => chair(), at: [0.5, 0.8], turn: 160 },
     { build: () => chair({ cushion: null }), at: [-1.5, 0.1], turn: 95 },
     { build: fireplace, ...onWall("left", 1.6) },
-    { build: () => pictureFrame(), ...onWall("top", -1.7, { y: 1.35 }) },
-    { build: () => pictureFrame({ frame: "woodLight" }), ...onWall("right", 1.7, { y: 1.4 }) },
-    { build: () => pictureFrame(), ...onWall("bottom", 1.7, { y: 1.3 }) },
+    { build: () => pictureFrame({ picture: "whiskered gentleman" }), ...onWall("top", -1.7, { y: 1.35 }) },
+    { build: () => pictureFrame({ picture: "stern couple", frame: "woodLight" }), ...onWall("right", 1.7, { y: 1.4 }) },
+    { build: () => pictureFrame({ picture: "moon through a bare tree" }), ...onWall("bottom", 1.7, { y: 1.3 }) },
     { build: () => table({ length: 0.5, width: 0.5, height: 0.7 }), ...onWall("right", -1.9, { out: 0.3 }) },
     { build: () => candle({ height: 0.18, intensity: 1.2 }), at: [2.5, -1.9], y: 0.7 },
   ],
-  lights: [{ at: [-2.3, 0.6, -1.6], colour: "ember", intensity: 5, range: 6, flicker: 0.3 }],
+  lights: [{ at: [-2.3, 0.6, -1.6], colour: "ember", intensity: 5, range: 6, flicker: 0.3, kind: "fire" }],
   focus: [0, 0.8, 0],
-  pawn: [1.3, 1.7],
-  spots: [[1.4, 0.0], [-0.4, 1.6], [1.4, -1.7], [-0.3, -1.55], [-2.0, 1.0]],
-  overflow: [[-1.7, -2.25], [-1.3, 2.35], [2.3, 1.7], [-1.15, 0.75], [1.15, -0.85], [0.4, 1.6]],
+  prime: [1.3, 1.7],
   // Round the table, with a way in from each doorway: the left one's from
   // below, as the side chair and the hearth leave no room for a base above it.
   lanes: [

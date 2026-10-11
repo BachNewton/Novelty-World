@@ -64,12 +64,16 @@ function holdOffHaunt(engine: Engine): Engine {
 
 /** Plays one game. `onWrite` is called with the state after every write,
  *  for checks of a test's own. `haunt` starts the game with that haunt
- *  revealed, by a seat the seed picks, as the page's "start haunt N" does. */
+ *  revealed, by a seat the seed picks, as the page's "start haunt N" does.
+ *  `checks: false` leaves out the engine's invariants, applying every
+ *  candidate choice the most costly of them, for a test of another layer
+ *  that needs a game's writes: the engine's own sweeps check them. It plays
+ *  the same game either way. */
 export function simulate(
   seed: string,
   engine: Engine = ENGINE,
   onWrite: (state: GameState) => void = () => {},
-  { haunt }: { haunt?: number } = {},
+  { haunt, checks = true }: { haunt?: number; checks?: boolean } = {},
 ): SimulationResult {
   const rng = createRng(`simulation/${seed}`);
   const history: string[] = [];
@@ -94,7 +98,7 @@ export function simulate(
           }),
     });
     record(engine, state, history, "setup");
-    checkState(engine, state);
+    if (checks) checkState(engine, state);
     onWrite(state);
     const kinds: Record<string, number> = {};
     let decisions = 0;
@@ -139,7 +143,7 @@ export function simulate(
         const listed = choices(engine, state, seat);
         if (listed.length === 0)
           throw new Error(`Decision ${pending.kind} offers no choice`);
-        checkListedAreLegal(engine, state, seat, listed);
+        if (checks) checkListedAreLegal(engine, state, seat, listed);
         const pick = pickChoice(
           rng,
           engine,
@@ -177,7 +181,7 @@ export function simulate(
         history,
         action.kind === "ready" ? "ready" : "answer",
       );
-      checkState(engine, state);
+      if (checks) checkState(engine, state);
       onWrite(state);
       // Several turns can start in one write (every other seat's passing at
       // once), even coming back round to the same seat.

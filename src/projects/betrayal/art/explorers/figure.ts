@@ -59,8 +59,8 @@ export function isGrounded(figure: THREE.Object3D): boolean {
 /** How a figure walks: metres per step (a stride cycle is two steps) and how
  *  much it bounces at each one: walking, how far it sinks into its knees as
  *  both feet are down; running, a third of how high it bounds off its base
- *  between steps. A longer step at the
- *  house's one walking pace is a slower cadence, a shorter one a quicker. A
+ *  between steps. A longer step at the same
+ *  pace is a slower cadence, a shorter one a quicker. A
  *  figure's run is its walk scaled by the shared run factors below, so the
  *  cadence and bounce that give a walk its character carry into the run. */
 export interface Walking {
@@ -72,8 +72,8 @@ export interface Walking {
  *  walking pace, about two and a half steps a second. */
 export const ADULT_WALK: Walking = { step: 0.6, hop: 0.02 };
 
-/** How a figure crosses the house: every figure walks at one pace and runs at
- *  another. Once the haunt starts heroes run and the traitor walks calmly;
+/** How a figure crosses the house: walking or running, each at a pace an
+ *  explorer's Speed sets (`paceSpeed`). Once the haunt starts heroes run and the traitor walks calmly;
  *  in a hidden-traitor haunt everyone runs, since a gait must never give the
  *  traitor away. Monsters keep their own movement. */
 export type Pace = "walk" | "run";
@@ -517,7 +517,7 @@ export interface BurstTiming {
  * and eases back; `progress` runs from 0 to 1 through the burst, for a motion
  * inside it; `pick` is a seeded value in [0, 1) for that burst, to vary it.
  */
-export function burst(seconds: number, seed: string, { every, lasts, chance }: BurstTiming): { amount: number; progress: number; pick: number } {
+export function burst(seconds: number, seed: string, { every, lasts, chance }: BurstTiming): Burst {
   const slot = Math.floor(seconds / every);
   for (const k of [slot, slot - 1]) {
     const rng = createRng(`${seed}:${k}`);
@@ -525,10 +525,101 @@ export function burst(seconds: number, seed: string, { every, lasts, chance }: B
     const start = k * every + rng.next() * (every - lasts);
     const t = (seconds - start) / lasts;
     if (t < 0 || t > 1) continue;
-    const ease = (x: number) => THREE.MathUtils.smootherstep(x, 0, 1);
-    return { amount: t < 0.3 ? ease(t / 0.3) : t > 0.7 ? ease((1 - t) / 0.3) : 1, progress: t, pick: rng.next() };
+    return { amount: envelope(t), progress: t, pick: rng.next() };
   }
-  return { amount: 0, progress: 0, pick: 0 };
+  return AT_REST;
+}
+
+/** A burst at a moment: how far in it is (0 at rest, 1 in full), how far through, and its seeded variation. */
+export interface Burst {
+  amount: number;
+  progress: number;
+  pick: number;
+}
+
+const AT_REST: Burst = { amount: 0, progress: 0, pick: 0 };
+
+/** A burst's amount `t` of the way through it: eased up from 0, held at 1, and eased back. */
+function envelope(t: number): number {
+  const ease = (x: number) => THREE.MathUtils.smootherstep(x, 0, 1);
+  return t < 0.3 ? ease(t / 0.3) : t > 0.7 ? ease((1 - t) / 0.3) : 1;
+}
+
+/** A named burst asked for on the stage's clock: it starts at `at` and, repeating, again after every rest. */
+export interface BurstCue {
+  name: string;
+  at: number;
+  repeat: boolean;
+}
+
+/** How long a repeating cue rests between one burst and the next, in seconds. */
+export const CUE_REST = 1.5;
+
+interface IdleBursts {
+  timings: Readonly<Record<string, BurstTiming>>;
+  cue: BurstCue | null;
+}
+
+/**
+ * Declares a figure's named idle bursts (its signature gestures and its
+ * glimpses of fear) and returns what plays them at a moment on the stage's
+ * clock: each burst as `burst` times it, on the figure's own time (the
+ * clock and the figure's `offset`), seeded by its name. A bench can cue one
+ * by name (`cueBurst`): while a cue is set, the seeded schedule rests and
+ * only the cued burst plays, from the cue's moment, so a frozen clock still
+ * draws the same frame.
+ */
+export function idleBursts<Name extends string>(
+  figure: THREE.Object3D,
+  seed: string,
+  offset: number,
+  timings: Readonly<Record<Name, BurstTiming>>,
+): (clock: number) => Record<Name, Burst> {
+  const declared: IdleBursts = { timings, cue: null };
+  figure.userData.idleBursts = declared;
+  const names = Object.keys(timings) as Name[];
+  return (clock) => {
+    const { cue } = declared;
+    const played = {} as Record<Name, Burst>;
+    for (const name of names) {
+      played[name] = cue === null ? burst(clock + offset, `${seed}:${name}`, timings[name]) : cue.name === name ? cued(cue, timings[name], seed, clock) : AT_REST;
+    }
+    return played;
+  };
+}
+
+/** A cued burst at a moment on the stage's clock. */
+function cued({ name, at, repeat }: BurstCue, { lasts }: BurstTiming, seed: string, clock: number): Burst {
+  const since = clock - at;
+  if (since < 0) return AT_REST;
+  const period = lasts + CUE_REST;
+  const round = repeat ? Math.floor(since / period) : 0;
+  const t = (since - round * period) / lasts;
+  if (t > 1) return AT_REST;
+  return { amount: envelope(t), progress: t, pick: createRng(`${seed}:${name}:cue:${round}`).next() };
+}
+
+/** The figure's declared bursts, wherever in `root` it stands. */
+function idleBurstsIn(root: THREE.Object3D): IdleBursts | null {
+  let found: IdleBursts | null = null;
+  root.traverse((object) => {
+    found ??= (object.userData as { idleBursts?: IdleBursts }).idleBursts ?? null;
+  });
+  return found;
+}
+
+/** The names of a figure's idle bursts, in the order it declares them, and how long each lasts. */
+export function burstsOf(root: THREE.Object3D): { name: string; lasts: number }[] {
+  const declared = idleBurstsIn(root);
+  return declared ? Object.entries(declared.timings).map(([name, { lasts }]) => ({ name, lasts })) : [];
+}
+
+/** Cues a figure's named burst to play now, or with null hands its idle back to the seeded schedule. */
+export function cueBurst(root: THREE.Object3D, cue: BurstCue | null) {
+  const declared = idleBurstsIn(root);
+  if (!declared) throw new Error("The figure declares no idle bursts");
+  if (cue && !(cue.name in declared.timings)) throw new Error(`The figure has no burst "${cue.name}": it has ${Object.keys(declared.timings).join(", ")}`);
+  declared.cue = cue;
 }
 
 /** A point something sweeps through, and how far round it it reaches. */

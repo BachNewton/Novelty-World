@@ -33,7 +33,7 @@ const PLAIN = new Set(["game-started", "turn-started", "turn-ended", "left", "en
  *  card, a token, a haunt, or the rulebook beyond its plain flow. A scenario
  *  set up for playtesting is no rule. */
 export function isRuleDriven(event: Pick<EventView, "type" | "rule">): boolean {
-  if (event.rule.source === "scenario") return false;
+  if (event.rule.source === "scenario" || event.rule.source === "players") return false;
   return event.rule.source !== "rulebook" || !PLAIN.has(event.type);
 }
 
@@ -58,7 +58,7 @@ function firstSentence(text: string): string {
 }
 
 /** A rule's lines, from content/, for a room, card or token. */
-function ownLines(notes: RuleNotes, rule: RuleView): string[] {
+export function ownLines(notes: RuleNotes, rule: RuleView): string[] {
   if (rule.source !== "room" && rule.source !== "card" && rule.source !== "token") return [];
   return ruleTexts(notes, rule).flatMap((text) => text.lines);
 }
@@ -71,6 +71,16 @@ function rowRange(label: string): [number, number] | null {
   return range ? [Number(range[1]), Number(range[2])] : null;
 }
 
+/** The result a trait roll needs, as the rule's text states it ("a Might
+ *  roll of 3+"), or null when it states no single target for this roll. */
+export function rollTarget(lines: string[], spec: RollSpec): number | null {
+  if (spec.kind !== "trait") return null;
+  const trait = traitName(spec.trait);
+  const text = lines.join(" ").replaceAll("**", "");
+  const targets = new Set([...text.matchAll(/(\w+) roll of (\d+)\+/g)].filter((match) => match[1] === trait).map((match) => Number(match[2])));
+  return targets.size === 1 ? [...targets][0] : null;
+}
+
 /** What a roll's result means, as the rule's text states it: the target a
  *  trait roll needed ("a Might roll of 3+"), or the row of the rule's one
  *  roll table the result falls in. Null when the text doesn't say it plainly
@@ -78,15 +88,8 @@ function rowRange(label: string): [number, number] | null {
 export function rollOutcome(lines: string[], spec: RollSpec, result: number): string | null {
   const text = lines.join(" ").replaceAll("**", "");
   const trait = spec.kind === "trait" ? traitName(spec.trait) : null;
-  if (trait !== null) {
-    const targets = new Set(
-      [...text.matchAll(/(\w+) roll of (\d+)\+/g)].filter((match) => match[1] === trait).map((match) => Number(match[2])),
-    );
-    if (targets.size === 1) {
-      const [target] = targets;
-      return `, needed ${target}+: ${result >= target ? "success" : "failure"}`;
-    }
-  }
+  const target = rollTarget(lines, spec);
+  if (target !== null) return `, needed ${target}+: ${result >= target ? "success" : "failure"}`;
   const asked =
     trait !== null
       ? text.includes(`${trait} roll`)
@@ -185,6 +188,8 @@ export function ruleStatement(engine: Engine, notes: RuleNotes | null, rule: Rul
     }
     case "scenario":
       return `${source}: set up by the scenario this game started from.`;
+    case "players":
+      return `${source}: chosen by the players, not by a rule.`;
   }
 }
 
@@ -198,7 +203,7 @@ export function whyItems(engine: Engine, notes: RuleNotes | null, lines: Happeni
     if (!items.some((item) => item.statement === statement)) items.push({ rule, statement });
   };
   for (const { event } of lines) if (isRuleDriven(event)) add(event.rule, event);
-  if (decision && decision.source !== "rulebook" && decision.source !== "scenario") add(decision, null);
+  if (decision && decision.source !== "rulebook" && decision.source !== "scenario" && decision.source !== "players") add(decision, null);
   return items;
 }
 

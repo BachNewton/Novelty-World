@@ -5,7 +5,10 @@ import { candelabra, candle, chair, cobweb, FAN_WEB_PX, rug } from "../kit";
 import { RAMPS, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, onWall, WAINSCOT_DEPTH, type PropPlacement, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, group, pixelPlane, textured, type Batch } from "../shapes";
+import { shiny, shinyBatch, SHINES } from "../shine";
 import { panelling, pixelTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from "../textures";
+
+
 
 /** Bindings, weighted towards the dark leathers and cloths of an old library. */
 const BINDINGS: readonly PaletteKey[] = [
@@ -44,17 +47,17 @@ const BAND = 0.024;
  *  origin, spine facing +z, pages running back into −z. Its bands are slices
  *  of the book in their own colour, flush with the spine: a band standing
  *  proud of it shows only a lip thinner than a pixel, drawn as a row of dots. */
-function addBook(b: Batch, place: THREE.Matrix4, book: Book) {
-  const slice = (y0: number, y1: number, colour: PaletteKey) => {
+function addBook(b: Batch, place: THREE.Matrix4, book: Book, gilt: Batch) {
+  const slice = (y0: number, y1: number, colour: PaletteKey, into = b) => {
     const matrix = place.clone().multiply(new THREE.Matrix4().makeTranslation(book.w / 2, (y0 + y1) / 2, -book.d / 2));
-    b.add([book.w, y1 - y0, book.d], colour, matrix);
+    into.add([book.w, y1 - y0, book.d], colour, matrix);
   };
   let y = 0;
   if (book.band) {
     for (const at of book.h > 0.2 ? [0.16, 0.84] : [0.8]) {
       const centre = book.h * at;
       slice(y, centre - BAND / 2, book.colour);
-      slice(centre - BAND / 2, centre + BAND / 2, book.band);
+      slice(centre - BAND / 2, centre + BAND / 2, book.band, book.band === "brass" ? gilt : b);
       y = centre + BAND / 2;
     }
   }
@@ -83,7 +86,7 @@ function standing(x: number, y: number, z: number, lean = 0, pivot = 0): THREE.M
  * irregular tops, gaps and leans are what make a shelf read as books rather
  * than stripes. `fill` below 1 leaves more of the shelf empty.
  */
-function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: number, front: number, fill = 1) {
+function fillShelf(b: Batch, gilt: Batch, rng: Rng, x0: number, x1: number, y: number, room: number, front: number, fill = 1) {
   let x = x0 + uniform(rng, 0, 0.03);
   const fits = (width: number) => x + width <= x1;
   /** The last book stood upright, while the next may overlap it. */
@@ -97,7 +100,7 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
       if (near(book.h, last.top)) book.h = last.top + (last.top + CLEAR <= room ? CLEAR : -CLEAR);
       if (near(z, last.spine)) z = last.spine - CLEAR;
     }
-    addBook(b, standing(x, y, z), book);
+    addBook(b, standing(x, y, z), book, gilt);
     last = { top: book.h, spine: z, right: x + book.w };
   };
   const finish = () => {
@@ -122,7 +125,7 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
         finish();
         break;
       }
-      addBook(b, standing(x + foot, y, pull, lean), book);
+      addBook(b, standing(x + foot, y, pull, lean), book, gilt);
       x += foot + book.w * Math.cos(lean) + uniform(rng, 0.04, 0.16);
     } else if (roll < 0.11 * fill) {
       // A gap, then a book leaning right onto the next.
@@ -134,7 +137,7 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
         finish();
         break;
       }
-      addBook(b, standing(x, y, pull, -lean, book.w), book);
+      addBook(b, standing(x, y, pull, -lean, book.w), book, gilt);
       x += reach;
     } else if (roll < 0.13 * fill) {
       // A short stack lying flat, spines out.
@@ -150,7 +153,7 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
         const place = new THREE.Matrix4()
           .makeTranslation(x + uniform(rng, -0.01, 0.01), top + book.w, pull)
           .multiply(new THREE.Matrix4().makeRotationAxis(Z_TURN, -Math.PI / 2));
-        addBook(b, place, book);
+        addBook(b, place, book, gilt);
         top += book.w;
       }
       x += length + uniform(rng, 0.01, 0.04);
@@ -214,6 +217,7 @@ function posts(width: number): number[] {
 function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fill = 1, broken, webs = [], rail = false, back = "soot" }: CaseOptions): THREE.Group {
   const rng = createRng(`library:${seed}`);
   const b = batch();
+  const gilt = batch();
   const columns = posts(width);
   const levels = Math.floor((height - 0.12) / SHELF_PITCH);
   const pitch = (height - 0.12) / levels;
@@ -248,25 +252,27 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
         while (x < left + span * 0.62) {
           const book = randomBook(rng, room * 0.8);
           const lean = uniform(rng, -1.3, 1.3);
-          addBook(b, standing(x, floor + Math.abs(Math.sin(lean)) * book.w, depth - uniform(rng, 0.02, 0.08), lean), book);
+          addBook(b, standing(x, floor + Math.abs(Math.sin(lean)) * book.w, depth - uniform(rng, 0.02, 0.08), lean), book, gilt);
           x += uniform(rng, 0.04, 0.09);
         }
-        fillShelf(b, rng, left + span * 0.7, right, floor, room, depth - 0.02, fill);
+        fillShelf(b, gilt, rng, left + span * 0.7, right, floor, room, depth - 0.02, fill);
         continue;
       }
       // A webbed corner stands empty, so the web shows against the dark back.
       const web = level === levels - 1 ? webs.find((w) => w.bay === bay)?.side : undefined;
       const clear = FAN_WEB_PX / TEXELS_PER_METRE + 0.04;
-      fillShelf(b, rng, web === "left" ? left + clear : left, web === "right" ? right - clear : right, floor, room, depth - 0.02, fill);
+      fillShelf(b, gilt, rng, web === "left" ? left + clear : left, web === "right" ? right - clear : right, floor, room, depth - 0.02, fill);
     }
   }
+  const result = group(b.mesh(), shinyBatch(gilt, SHINES.gilt));
   if (rail) {
     const railY = height - 0.32;
-    b.block([width, 0.03, 0.03], "brass", [0, railY, depth + 0.06]);
+    const brass = batch();
+    brass.block([width, 0.03, 0.03], "brass", [0, railY, depth + 0.06]);
     // The brackets are a hair slimmer than the rail they carry, so their tops never share its plane.
-    for (const x of columns) b.block([0.03, 0.026, 0.08], "brass", [x, railY + 0.002, depth + 0.02]);
+    for (const x of columns) brass.block([0.03, 0.026, 0.08], "brass", [x, railY + 0.002, depth + 0.02]);
+    result.add(shinyBatch(brass, SHINES.brass));
   }
-  const result = group(b.mesh());
   for (const { bay, side } of webs) {
     const web = cobweb({ form: "fan", flip: side === "right", colour: "stoneLight", lit: true });
     const x = side === "left" ? columns[bay] + POST / 2 : columns[bay + 1] - POST / 2;
@@ -279,6 +285,7 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
 /** The panelled cupboard the shelving stands on, as tall as a cut-away wall. */
 function cupboard(width: number): THREE.Group {
   const b = batch();
+  const brass = batch();
   const height = CUT_HEIGHT - BELOW_CUT;
   b.block([width, 0.08, BASE_DEPTH - 0.04], "woodDark", [0, 0, (BASE_DEPTH - 0.04) / 2]);
   b.block([width, height - 0.12, BASE_DEPTH - 0.03], "wood", [0, 0.08, (BASE_DEPTH - 0.03) / 2]);
@@ -293,11 +300,11 @@ function cupboard(width: number): THREE.Group {
       b.block([door - 0.08, height - 0.3, 0.02], "wood", [x, 0.16, BASE_DEPTH - 0.005]);
     }
     // The handles stand clear of the doors' inner edges, so their sides never share the doors' planes.
-    b.block([0.02, 0.06, 0.03], "brass", [centre - 0.035, 0.26, BASE_DEPTH]);
-    b.block([0.02, 0.06, 0.03], "brass", [centre + 0.035, 0.26, BASE_DEPTH]);
+    brass.block([0.02, 0.06, 0.03], "brass", [centre - 0.035, 0.26, BASE_DEPTH]);
+    brass.block([0.02, 0.06, 0.03], "brass", [centre + 0.035, 0.26, BASE_DEPTH]);
   }
   b.block([width, 0.04, BASE_DEPTH], "woodMid", [0, height - 0.04, BASE_DEPTH / 2]);
-  return group(b.mesh());
+  return group(shinyBatch(b, SHINES.polishedWood), shinyBatch(brass, SHINES.brass));
 }
 
 /** A run of library shelving against a wall: the cupboard on the floor, and
@@ -325,18 +332,19 @@ function beam(b: Batch, from: THREE.Vector3, to: THREE.Vector3, thickness: numbe
  */
 function ladder(from: number, to: number): THREE.Group {
   const b = batch();
+  const hooks = batch();
   const outAt = (y: number) => LADDER.standOff + LADDER.foot * (1 - y / LADDER.top);
   const point = (x: number, y: number) => new THREE.Vector3(x, y - from, outAt(y));
   for (const x of [-LADDER.width / 2, LADDER.width / 2]) {
     beam(b, point(x, Math.max(from, 0.06)), point(x, Math.min(to, LADDER.top)), 0.05, "woodMid");
     if (from === 0) b.block([0.06, 0.07, 0.07], "soot", [x, 0, outAt(0.03)]);
-    if (to >= LADDER.top) b.add([0.04, 0.1, 0.1], "brass", new THREE.Matrix4().makeTranslation(x, LADDER.top - from, LADDER.standOff - 0.02));
+    if (to >= LADDER.top) hooks.add([0.04, 0.1, 0.1], "brass", new THREE.Matrix4().makeTranslation(x, LADDER.top - from, LADDER.standOff - 0.02));
   }
   for (let y = 0.28; y < LADDER.top - 0.1; y += 0.3) {
     if (y < from || y >= to) continue;
     b.add([LADDER.width, 0.035, 0.07], "woodLight", new THREE.Matrix4().makeTranslation(0, y - from, outAt(y)));
   }
-  return group(b.mesh());
+  return to >= LADDER.top ? group(b.mesh(), shinyBatch(hooks, SHINES.brass)) : group(b.mesh());
 }
 
 function rollingLadder(edge: Edge, along: number): PropPlacement[] {
@@ -353,7 +361,7 @@ function rollingLadder(edge: Edge, along: number): PropPlacement[] {
 
 /** A brass candle sconce screwed to the front of a shelving post. Faces +z. */
 function sconce(): THREE.Group {
-  const brass = flat("brass");
+  const brass = shiny(flat("brass"), SHINES.brass);
   const taper = candle({ height: 0.13, intensity: 1.1 });
   taper.position.set(0, 0.04, 0.22);
   return group(
@@ -482,10 +490,10 @@ function fallenBookcase(): THREE.Group {
 
 /** A reading desk on two pedestals of drawers. The sitter's side faces −z. */
 function desk(): THREE.Group {
-  const top = textured(woodPlanks({ ramp: RAMPS.wood, plankPx: 6, seed: "library-desk" }));
-  const body = flat("woodDark");
-  const front = flat("woodMid");
-  const brass = flat("brass");
+  const top = shiny(textured(woodPlanks({ ramp: RAMPS.wood, plankPx: 6, seed: "library-desk", glints: false })), SHINES.polishedWood);
+  const body = shiny(flat("woodDark"), SHINES.polishedWood);
+  const front = shiny(flat("woodMid"), SHINES.polishedWood);
+  const brass = shiny(flat("brass"), SHINES.brass);
   const result = group(box([1.5, 0.05, 0.8], top, [0, 0.72, 0]), box([0.66, 0.5, 0.03], body, [0, 0.22, 0.34]));
   for (const side of [-1, 1]) {
     result.add(box([0.42, 0.72, 0.72], body, [side * 0.52, 0, 0]));
@@ -501,16 +509,19 @@ function inkwell(): THREE.Group {
   const quill = box([0.012, 0.3, 0.004], flat("boneLight"), [0, 0, 0]);
   quill.position.set(0.02, 0.05, 0);
   quill.rotation.z = -0.5;
-  return group(cylinder(0.04, 0.06, flat("void"), [0, 0, 0], { top: 0.03, sides: 6 }), cylinder(0.02, 0.015, flat("brass"), [0, 0.06, 0], { sides: 6 }), quill);
+  return group(
+    cylinder(0.04, 0.06, shiny(flat("void"), SHINES.glass), [0, 0, 0], { top: 0.03, sides: 6 }),
+    cylinder(0.02, 0.015, shiny(flat("brass"), SHINES.brass), [0, 0.06, 0], { sides: 6 }),
+    quill,
+  );
 }
 
 /** A round lamp table on a single turned pedestal. */
 function sideTable(): THREE.Group {
-  const wood = flat("wood");
   return group(
-    cylinder(0.2, 0.04, flat("woodDark"), [0, 0, 0], { top: 0.16, sides: 8 }),
-    cylinder(0.04, 0.56, wood, [0, 0.04, 0], { sides: 6 }),
-    cylinder(0.3, 0.04, flat("woodMid"), [0, 0.6, 0], { sides: 10 }),
+    cylinder(0.2, 0.04, shiny(flat("woodDark"), SHINES.polishedWood), [0, 0, 0], { top: 0.16, sides: 8 }),
+    cylinder(0.04, 0.56, shiny(flat("wood"), SHINES.polishedWood), [0, 0.04, 0], { sides: 6 }),
+    cylinder(0.3, 0.04, shiny(flat("woodMid"), SHINES.polishedWood), [0, 0.6, 0], { sides: 10 }),
   );
 }
 
@@ -530,7 +541,7 @@ function globe(): THREE.Group {
   const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 8), new THREE.MeshLambertMaterial({ map, flatShading: true }));
   sphere.position.y = 0.82;
   sphere.rotation.z = 0.4;
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.014, 4, 16), flat("brass"));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.014, 4, 16), shiny(flat("brass"), SHINES.brass));
   ring.position.y = 0.82;
   ring.rotation.z = 0.4;
   const legs = flat("woodDark");
@@ -557,15 +568,16 @@ const SHEETS: [x: number, z: number, turn: number][] = [
  *  shelving, and the only light is candles and the book on the floor. */
 export const LIBRARY: RoomDefinition = {
   id: "library",
-  floor: () => woodPlanks({ seed: "library" }),
+  floor: () => woodPlanks({ seed: "library", glints: false }),
   wall: () => wallpaper({ ground: "verdigrisDark", stripe: "verdigris", motif: "verdigrisLight", seed: "library" }),
-  wainscot: () => panelling({ ramp: RAMPS.wood }),
+  wainscot: () => panelling({ ramp: RAMPS.wood, glints: false }),
   trim: "woodDark",
   props: [
     // A hair wider than the wall, its end posts standing into the side walls off the dado rails' faces.
     ...bookcase("top", 0, { width: 5.62, seed: "top", webs: [{ bay: 0, side: "left" }, { bay: 3, side: "right" }] }),
     ...bookcase("right", 0, { width: 4.76, seed: "right", rail: true, broken: { bay: 4, level: 4 }, webs: [{ bay: 4, side: "right" }] }),
-    ...bookcase("bottom", 1.75, { width: 2.1, seed: "bottom-a" }),
+    // Its end post stands into the left wall past the dado rail, as the other run's does on the right: ending at the wall, its inner face would share the rail's.
+    ...bookcase("bottom", 1.755, { width: 2.11, seed: "bottom-a" }),
     ...bookcase("bottom", -1.755, { width: 2.11, seed: "bottom-b", webs: [{ bay: 1, side: "right" }] }),
     ...bookcase("left", 1.54, { width: 1.68, seed: "left-a" }),
     ...bookcase("left", -1.54, { width: 1.68, seed: "left-b", webs: [{ bay: 0, side: "left" }] }),
@@ -598,11 +610,9 @@ export const LIBRARY: RoomDefinition = {
     { build: () => openBook({ glowing: true, cover: "bruiseDark" }), at: [0.7, 0.5], turn: 25 },
     ...SHEETS.map(([x, z, turn]) => ({ build: looseSheet, at: [x, z] as [number, number], turn })),
   ],
-  lights: [{ at: [0.7, 0.35, 0.5], colour: "verdigrisLight", intensity: 1.6, range: 3 }],
+  lights: [{ at: [0.7, 0.35, 0.5], colour: "verdigrisLight", intensity: 1.6, range: 3, kind: "glow" }],
   focus: [-0.2, 0.8, -0.8],
-  pawn: [0.1, 1.7],
-  spots: [[-0.15, 0.45], [-0.85, -0.65], [-1.7, 0.3], [1.1, 0.9], [1.55, -0.3]],
-  overflow: [[0.9, 1.7], [-0.9, 0.2], [0.35, -0.15]],
+  prime: [0.1, 1.7],
   // In from the left doorway and down between the desk and the armchair to the bottom one.
   lanes: [[[-2.2, 0], [-0.5, -0.1], [0.2, 0.2], [0.2, 1.9], [0, 2.2]]],
 };

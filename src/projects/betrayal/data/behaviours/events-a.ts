@@ -554,6 +554,7 @@ export const EVENTS_A: BehaviourGroup = {
                   rooms.map((room) => ({
                     label: `Go to the ${CATALOG.rooms[room].name}`,
                     steps: room === here ? [] : [relocate(figure, room, rule)],
+                    room,
                   })),
                   rule,
                 ),
@@ -988,6 +989,7 @@ export const EVENTS_A: BehaviourGroup = {
                 .map((t) => ({
                   label: `Slide down to the ${ctx.catalog.rooms[t.tile].name}`,
                   steps: [relocate(p.figure, t.tile, card(SLIDE))],
+                  room: t.tile,
                 })),
               card(SLIDE),
             ),
@@ -1007,6 +1009,7 @@ export const EVENTS_A: BehaviourGroup = {
                       damage(p.figure, "physical", { dice: 1 }, rule),
                     ]),
                   ],
+                  room: t.tile,
                 })),
               rule,
             ),

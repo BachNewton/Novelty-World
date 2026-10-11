@@ -12,7 +12,7 @@ function writes(seed: string, haunt?: number): GameView[] {
     seed,
     ENGINE,
     (state) => views.push(...[null, ...state.seats.keys()].map((seat) => viewFor(ENGINE, state, seat))),
-    haunt === undefined ? {} : { haunt },
+    { haunt, checks: false },
   );
   return views;
 }

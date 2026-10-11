@@ -7,6 +7,7 @@ import { flickerSignal } from "../lighting";
 import { RAMPS, type PaletteKey } from "../palette";
 import { clearOfMarks, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { flagstones } from "../textures";
 
 /** The fallen belfry lies along z, across the way between the two gates:
@@ -106,7 +107,7 @@ function fallenBell(): THREE.Group {
   ];
   const sides = 16;
   // One plain dark bronze: a pattern on so smooth a shape read as paint, not metal.
-  const bronze = lathe(profile, flat("woodDark"), sides);
+  const bronze = lathe(profile, shiny(flat("woodDark"), SHINES.tarnishedBrass), sides);
   const bell = group(
     bronze,
     box([0.38, 0.06, 0.06], flat("void"), [0, 0.32, 0.35]),
@@ -151,7 +152,7 @@ function beaconStump(): THREE.Group {
     box([0.56, STUMP_HEIGHT - 0.12, 0.5], stone, [0, 0, 0]),
     box([0.42, 0.14, 0.38], flat("stoneDark"), [0.04, STUMP_HEIGHT - 0.14, -0.02]),
   );
-  const iron = flat("soot");
+  const iron = shiny(flat("soot"), SHINES.iron);
   const basket = group(cylinder(0.24, 0.03, iron, [0, 0, 0], { top: 0.22, sides: 8 }));
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2;
@@ -175,7 +176,7 @@ function beaconStump(): THREE.Group {
   basket.traverse((child) => {
     child.userData.noShadow = true;
   });
-  basket.add(lightAnchor({ colour: "ember", intensity: 14, range: 9, flicker: 0.32, signal: FIRE_SIGNAL }, [0, 0.62, 0.05]));
+  basket.add(lightAnchor({ colour: "ember", intensity: 14, range: 9, flicker: 0.32, signal: FIRE_SIGNAL, kind: "fire" }, [0, 0.62, 0.05]));
   return group(pier, basket);
 }
 
@@ -205,9 +206,8 @@ export const TOWER: RoomDefinition = {
     { build: beaconStump, at: [0, STUMP_Z] },
   ],
   focus: [0, 0.6, -0.6],
-  pawn: [-1.5, -1.0],
-  spots: [[1.5, 0.65], [2.2, 2.2], [-1.2, 0.7], [-2.0, 2.2], [1.85, -2.25]],
-  overflow: [[-1.5, -2.2], [1.25, -0.55], [-1.1, 1.8], [1.15, 2.35], [-2.0, -1.6], [1.5, 1.65]],
+  prime: [-1.5, -1.0],
+  primeAcross: [1.5, 0.65],
   // Over the rubble through the saddle, where the scree lies flat.
   crossing: [
     [-(RAMPART + 0.6), 0, 0],

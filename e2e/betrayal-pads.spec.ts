@@ -1,11 +1,12 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./test";
 import type { PlayReadout } from "../src/projects/betrayal/components/play/play-screen";
+import { PAGE, padTo } from "./betrayal-game";
 
 /**
  * Betrayal's hot-seat game with two controllers on one device: seats claimed
  * by pad at setup, only the acting seat's pad acting (and driving the camera)
- * while the other is idle, seats taken over mid-game in the seats panel, a
+ * while the other is idle, seats taken over mid-game in the game menu, a
  * pad disconnecting and opening its seats, and touch and the mouse acting for
  * whoever the game waits on. The pads are simulated: `navigator.getGamepads`
  * returns two standard pads whose buttons and sticks the test sets. Every wait
@@ -13,7 +14,6 @@ import type { PlayReadout } from "../src/projects/betrayal/components/play/play-
  * event), never a pause.
  */
 
-const PAGE = "/board-games/betrayal";
 const SAVED = "nw:betrayal:hot-seat";
 
 test.use({
@@ -40,7 +40,8 @@ const GAME = {
 };
 const code = Buffer.from(JSON.stringify(GAME)).toString("base64url");
 
-const BUTTON = { A: 0, B: 1, X: 2, Menu: 9, DpadDown: 13 } as const;
+const BUTTON = { A: 0, B: 1, X: 2, Menu: 9, DpadDown: 13, DpadLeft: 14, DpadRight: 15 } as const;
+const X = BUTTON.X;
 
 interface TestPad {
   axes: number[];
@@ -116,6 +117,30 @@ async function press(page: Page, pad: number, button: number): Promise<void> {
   await frames(page);
 }
 
+/** Holds a pad's X, End turn, until the game's state passes `check`, then lets go. */
+async function holdX(page: Page, pad: number, check: string): Promise<void> {
+  await setPad(page, pad, { button: X, down: true });
+  await until(page, check);
+  await setPad(page, pad, { button: X, down: false });
+  await frames(page);
+}
+
+/** An idle pad's X: held, End turn's hold never starts, and the turn stays. */
+async function idleX(page: Page, pad: number): Promise<void> {
+  const turn = (await readout(page)).pending?.id;
+  await setPad(page, pad, { button: X, down: true });
+  await frames(page, 4);
+  expect(await readout(page)).toMatchObject({ endHold: false, pending: { id: turn } });
+  await setPad(page, pad, { button: X, down: false });
+  await frames(page);
+}
+
+/** Moves a pad's focus to a button with its d-pad, and presses A on it. */
+async function padPress(page: Page, pad: number, target: Locator): Promise<void> {
+  await padTo(target, (button) => press(page, pad, button));
+  await press(page, pad, BUTTON.A);
+}
+
 /** Unplugs a pad: gone from `getGamepads`, with the browser's disconnect event. */
 async function unplug(page: Page, pad: number): Promise<void> {
   await page.evaluate((index) => {
@@ -140,7 +165,8 @@ async function until(page: Page, check: string): Promise<void> {
   await page.waitForFunction(
     (body) => {
       const hook = window.__betrayalPlay;
-      if (!hook?.isReady()) return false;
+      // No beats playing: an input while they play only skips them.
+      if (!hook?.isReady() || hook.play().playing) return false;
       return (
         new Function("play", `return ${body}`) as (play: unknown) => boolean
       )(hook.play());
@@ -181,17 +207,14 @@ test("two pads: claimed at setup, only the acting seat's pad acts and drives the
 }) => {
   await openSetup(page);
 
-  // Pad 1 takes the first seat; Pad 2 moves down and takes the next two.
-  await press(page, 0, BUTTON.A);
+  // Pad 1 takes the first seat, pressing its own pad on the seat's picker; Pad 2 takes the next two.
+  await padPress(page, 0, padButton(page, "Player 1", "Pad 1"));
   await expect(padButton(page, "Player 1", "Pad 1")).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-  await press(page, 1, BUTTON.DpadDown);
-  await expect(page.locator("[data-highlighted]")).toContainText("Seat 1");
-  await press(page, 1, BUTTON.A);
-  await press(page, 1, BUTTON.DpadDown);
-  await press(page, 1, BUTTON.A);
+  await padPress(page, 1, padButton(page, "Player 2", "Pad 2"));
+  await padPress(page, 1, padButton(page, "Player 3", "Pad 2"));
   await expect(padButton(page, "Player 2", "Pad 2")).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -227,53 +250,65 @@ test("two pads: claimed at setup, only the acting seat's pad acts and drives the
   await setPad(page, 0, { axes: [0, 0, 0, 0] });
   await until(page, "play.holder === 0");
 
-  // Pad 2's X does nothing on Ann's turn; Pad 1's ends it.
-  const annTurn = (await readout(page)).pending?.id;
-  await press(page, 1, BUTTON.X);
-  expect((await readout(page)).pending?.id).toBe(annTurn);
-  await press(page, 0, BUTTON.X);
-  await until(
+  // Pad 2's X does nothing on Ann's turn; Pad 1's, held, ends it.
+  await idleX(page, 1);
+  await holdX(
     page,
+    0,
     "play.holder === 1 && play.turnSeat === 1 && play.pending?.kind === 'turn'",
   );
 
   // On Ben's turn it is the other way round.
-  const benTurn = (await readout(page)).pending?.id;
-  await press(page, 0, BUTTON.X);
-  expect((await readout(page)).pending?.id).toBe(benTurn);
-  await press(page, 1, BUTTON.X);
-  await until(
+  await idleX(page, 0);
+  await holdX(
     page,
+    1,
     "play.holder === 2 && play.turnSeat === 2 && play.pending?.kind === 'turn'",
   );
 
-  // Cat hands her seat to Pad 1: any pad's Menu opens the seats panel, on the acting seat, and A takes it.
+  // Cat hands her seat to Pad 1: any pad's Menu, even an idle one's, opens the game menu, where Pad 1's A on Cat's "Pad 1" takes it.
   await press(page, 0, BUTTON.Menu);
-  const panel = page.getByRole("dialog", { name: "Seats and pads" });
-  await expect(panel).toBeVisible();
-  await expect(panel.locator("[data-highlighted]")).toContainText("Cat");
-  await press(page, 0, BUTTON.A);
+  const menu = page.getByRole("dialog", { name: "Game menu" });
+  await expect(menu).toBeVisible();
+  await padPress(page, 0, padButton(page, "Cat", "Pad 1"));
   await expect(padButton(page, "Cat", "Pad 1")).toHaveAttribute(
     "aria-pressed",
     "true",
   );
   await press(page, 0, BUTTON.B);
-  await expect(panel).toBeHidden();
-  const catTurn = (await readout(page)).pending?.id;
-  await press(page, 1, BUTTON.X);
-  expect((await readout(page)).pending?.id).toBe(catTurn);
-  await press(page, 0, BUTTON.X);
-  await until(page, "play.holder === 0 && play.turnSeat === 0");
+  await expect(menu).toBeHidden();
+  await idleX(page, 1);
+  await holdX(page, 0, "play.holder === 0 && play.turnSeat === 0");
 
   // Pad 2 is unplugged: Ben's seat opens, the status box says so, and Pad 1 may play it.
   await unplug(page, 1);
   await expect(
     page.getByLabel("What you can do now").getByRole("status"),
   ).toContainText("Pad 2 disconnected: Ben (Ox Bellows) is open to any pad.");
-  await press(page, 0, BUTTON.X);
-  await until(page, "play.holder === 1 && play.turnSeat === 1");
-  await press(page, 0, BUTTON.X);
-  await until(page, "play.holder === 2 && play.turnSeat === 2");
+  await holdX(page, 0, "play.holder === 1 && play.turnSeat === 1");
+  await holdX(page, 0, "play.holder === 2 && play.turnSeat === 2");
+});
+
+test("setup on a pad: the d-pad and A change a seat's character and pick one from the grid, Menu does nothing, and Start starts", async ({ page }) => {
+  await openSetup(page);
+  const seat0 = page.getByRole("listitem", { name: "Seat 0" });
+  await expect(seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" })).toBeVisible();
+  await padPress(page, 0, page.getByRole("button", { name: "Seat 0: next character" }));
+  await expect(seat0.getByRole("button", { name: "Seat 0 character: Professor Longfellow" })).toBeVisible();
+  await press(page, 0, BUTTON.DpadLeft);
+  await press(page, 0, BUTTON.A);
+  await expect(seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" })).toBeVisible();
+  // The portrait opens the grid; A picks a character there, and B closes it.
+  await padPress(page, 0, seat0.getByRole("button", { name: /^Seat 0 character/ }));
+  const grid = page.getByRole("dialog", { name: "Seat 0's character" });
+  await expect(grid).toBeVisible();
+  await press(page, 0, BUTTON.B);
+  await expect(grid).toBeHidden();
+  // Menu does nothing in setup: Start is a button like any other.
+  await press(page, 0, BUTTON.Menu);
+  await expect(page.getByRole("heading", { name: "New game" })).toBeVisible();
+  await padPress(page, 0, page.getByRole("button", { name: "Start" }));
+  await until(page, "play.pending?.kind === 'turn'");
 });
 
 test.describe("on a touch screen with a mouse", () => {
@@ -283,7 +318,7 @@ test.describe("on a touch screen with a mouse", () => {
     page,
   }) => {
     await openSetup(page);
-    await press(page, 1, BUTTON.A);
+    await padPress(page, 1, padButton(page, "Player 1", "Pad 2"));
     await expect(padButton(page, "Player 1", "Pad 2")).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -295,12 +330,9 @@ test.describe("on a touch screen with a mouse", () => {
     await page.getByRole("button", { name: "End turn" }).click();
     await until(page, "play.holder === 1 && play.turnSeat === 1");
 
-    // The panel by mouse: Ben's seat goes to Pad 2, so Pad 1 is idle on his turn.
-    await page
-      .getByRole("button", { name: "Seats", exact: true })
-      .first()
-      .click();
-    const panel = page.getByRole("dialog", { name: "Seats and pads" });
+    // The game menu by mouse: Ben's seat goes to Pad 2, so Pad 1 is idle on his turn.
+    await page.getByRole("button", { name: "Menu", exact: true }).click();
+    const panel = page.getByRole("dialog", { name: "Game menu" });
     await padButton(page, "Ben", "Pad 2").click();
     await expect(padButton(page, "Ben", "Pad 2")).toHaveAttribute(
       "aria-pressed",
@@ -311,11 +343,9 @@ test.describe("on a touch screen with a mouse", () => {
       "aria-pressed",
       "true",
     );
-    await panel.getByRole("button", { name: "Done" }).click();
+    await panel.getByRole("button", { name: "Close" }).click();
     await expect(panel).toBeHidden();
-    const benTurn = (await readout(page)).pending?.id;
-    await press(page, 0, BUTTON.X);
-    expect((await readout(page)).pending?.id).toBe(benTurn);
+    await idleX(page, 0);
 
     // A tap ends it all the same.
     await page.getByRole("button", { name: "End turn" }).tap();

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { animationOf } from "../animate";
+import { partsOf } from "../figure-parts";
 import { stubCanvas } from "../headless";
 import { banshee, spider } from ".";
 
@@ -31,6 +32,11 @@ describe.each([
   ["the Banshee", banshee],
   ["the Spider", spider],
 ])("%s", (_, build) => {
+  // Meshing the parts is the slow step, done once a session: it belongs to no one test.
+  beforeAll(() => {
+    for (const parts of partsOf(build)) parts.get();
+  });
+
   it(`draws in at most ${DRAWS_PER_FIGURE} calls`, () => {
     expect(draws(build())).toBeLessThanOrEqual(DRAWS_PER_FIGURE);
     expect(draws(build("stunned", undefined, { stunned: true }))).toBeLessThanOrEqual(DRAWS_PER_FIGURE);

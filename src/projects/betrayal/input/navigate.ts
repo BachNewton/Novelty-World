@@ -48,14 +48,51 @@ export function pickTarget(targets: readonly Target[], point: Point, reach: numb
   return close?.id ?? null;
 }
 
-/** The choice the screen-centre reticle selects, and where the reticle shows:
- *  the choice under the centre, or else the nearest one within `snap` pixels,
- *  with the reticle snapped onto its anchor. Null on open floor, where the
- *  reticle stays at the centre and selects nothing. */
-export function reticleTarget(targets: readonly Target[], centre: Point, snap: number): { id: string; at: Point } | null {
-  const id = pickTarget(targets, centre, snap);
-  const target = targets.find((candidate) => candidate.id === id);
-  return target ? { id: target.id, at: target.anchor } : null;
+/** How the screen-centre reticle catches a target, in CSS pixels. */
+export interface ReticleReach {
+  /** The least snap round any target: generous, so a thing drawn small is easy to catch. */
+  snap: number;
+  /** The target caught now, if any: it holds on until the centre moves clearly away. */
+  held: string | null;
+}
+
+/** A target's snap grows with how big it shows: this share of its half-size on the screen. */
+const SNAP_GROWTH = 1.5;
+/** The target held reaches this much further before it lets go, and counts this much nearer than the rest, so a stick's drift doesn't drop it. */
+const STICKY = 1.5;
+/** Past this many snaps, how big a target shows no longer makes it nearer. */
+const BIG = 2;
+
+/** Half the larger side of a target's outline on the screen. */
+function halfSize({ outline }: Target): number {
+  const xs = outline.map((point) => point.x);
+  const ys = outline.map((point) => point.y);
+  return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2;
+}
+
+/**
+ * The choice the screen-centre reticle selects, and where the reticle shows:
+ * the target nearest the centre for its size (its distance from its anchor
+ * as a share of its snap, which grows with how big it shows, from a generous
+ * least, up to a cap), among those the centre is over or within the snap of. So a small
+ * thing near the centre wins over a big room the centre lies in. The target
+ * held keeps the reticle until the centre leaves its longer reach, or comes
+ * clearly nearer another. Null on open floor, where the reticle stays at the
+ * centre and selects nothing.
+ */
+export function reticleTarget(targets: readonly Target[], centre: Point, { snap, held }: ReticleReach): { id: string; at: Point } | null {
+  let best: Target | null = null;
+  let top = Infinity;
+  for (const target of targets) {
+    const reach = Math.max(snap, SNAP_GROWTH * halfSize(target));
+    const sticky = target.id === held ? STICKY : 1;
+    const distance = Math.hypot(target.anchor.x - centre.x, target.anchor.y - centre.y);
+    if (!inside(centre, target.outline) && distance > reach * sticky) continue;
+    // A big target's own size counts only so far, so a small one by the centre wins over the room the centre lies in.
+    const score = distance / Math.min(reach, BIG * snap) / sticky;
+    if (score < top) [best, top] = [target, score];
+  }
+  return best ? { id: best.id, at: best.anchor } : null;
 }
 
 /**
@@ -80,4 +117,45 @@ export function stepFloor<F extends string>(floors: readonly F[], showing: F | "
   if (showing === "all") return home;
   const at = floors.indexOf(showing);
   return floors[Math.min(floors.length - 1, Math.max(0, at + step))];
+}
+
+/** A control's box on the screen, in CSS pixels. */
+export interface Box {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+export type Direction = "up" | "down" | "left" | "right";
+
+const middleY = (box: Box) => (box.top + box.bottom) / 2;
+const middleX = (box: Box) => (box.left + box.right) / 2;
+/** Two controls share a row when either's middle lies within the other's height. */
+const sameRow = (a: Box, b: Box) => (middleY(a) > b.top && middleY(a) < b.bottom) || (middleY(b) > a.top && middleY(b) < a.bottom);
+
+/**
+ * Where a controller's d-pad moves the focus among controls laid out on the
+ * screen (a panel's buttons, in rows): left and right go to the nearest
+ * control along the same row, up and down to the nearest row above or below,
+ * and in it to the control nearest across. Null at an edge: nothing wraps.
+ */
+export function nextInDirection(boxes: readonly Box[], from: number, direction: Direction): number | null {
+  const here = boxes[from];
+  const indexed = boxes.map((box, index) => ({ box, index })).filter(({ index }) => index !== from);
+  const nearest = (candidates: typeof indexed, distance: (box: Box) => number) =>
+    candidates.reduce<(typeof indexed)[number] | null>((best, candidate) => (best === null || distance(candidate.box) < distance(best.box) ? candidate : best), null)?.index ?? null;
+  if (direction === "left" || direction === "right") {
+    const sign = direction === "right" ? 1 : -1;
+    const along = indexed.filter(({ box }) => sameRow(box, here) && (middleX(box) - middleX(here)) * sign > 0);
+    return nearest(along, (box) => Math.abs(middleX(box) - middleX(here)));
+  }
+  const sign = direction === "down" ? 1 : -1;
+  const beyond = indexed.filter(({ box }) => !sameRow(box, here) && (middleY(box) - middleY(here)) * sign > 0);
+  const row = nearest(beyond, (box) => Math.abs(middleY(box) - middleY(here)));
+  if (row === null) return null;
+  return nearest(
+    beyond.filter(({ box }) => sameRow(box, boxes[row])),
+    (box) => Math.abs(middleX(box) - middleX(here)),
+  );
 }

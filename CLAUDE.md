@@ -18,12 +18,14 @@ Next.js's own docs for the installed version are bundled in `node_modules/next/d
 | Build | `npm run build` |
 | Lint | `npm run lint` |
 | Type-check | `npm run typecheck` |
-| Unit tests | `npm run test` |
+| Unit tests | `npm run test` (skips `*.slow.test.ts`) |
+| Slow unit tests | `npm run test:slow` (only `*.slow.test.ts`: heavy geometry, simulations, production-sized fixtures) |
 | Single test file | `npx vitest run src/projects/euchre/logic.test.ts` |
+| Single slow test file | `npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/lighting.slow.test.ts` |
 | Watch mode | `npm run test:watch` |
 | E2E tests | `npm run test:e2e` (builds its own server each run; `--workers=N` overrides the worker count) |
 | E2E against the dev server | `E2E_BASE_URL=http://localhost:3001 npm run test:e2e` |
-| All tests | `npm run test:all` |
+| All tests | `npm run test:all` (unit, slow, then e2e) |
 
 E2E tests (Playwright) are self-contained: each run builds the app (a snapshot of the code when the run starts) and serves it, along with a local PeerJS signalling server, on ports the OS picks, so a run never touches the dev server and any number can run at once. `E2E_BASE_URL` points a run at a server that is already up instead. Workers default to half the logical cores, and every test page reports a fair share of the cores as `navigator.hardwareConcurrency`, so specs import `test` and `expect` from `e2e/test.ts`, not from Playwright. Multiplayer pages opt into the local signalling server with `?peer-signal=local:<port>` (`e2e/peer-signal.ts`), so the suites never touch the public PeerJS cloud.
 
@@ -33,6 +35,7 @@ E2E tests (Playwright) are self-contained: each run builds the app (a snapshot o
 - **Code is its own documentation.** Good code is obvious by reading it. Only add comments when the *why* isn't clear from the code itself — workarounds for framework bugs, environment quirks, or browser behavior are the main case: the reason lives outside the codebase, so it always needs the comment.
 - **Share code aggressively.** This platform has many projects and will keep growing. When patterns repeat across projects, refactor them into `src/shared/`. Look for reuse opportunities proactively.
 - **Responsive everywhere.** All layouts must work from 360px wide (the practical floor — ~5-year-old Android devices like Galaxy S21/S22 report 360px CSS width in portrait) through ultrawide desktop. Use a single fluid layout when possible, or build distinct mobile/desktop layouts when the UX demands it.
+- **A slow test earns its time.** A test's run time is paid on every run, so a long-running test or suite must return value to match: say what it catches that a faster test can't, and size it by measurement, never by a round number. A sweep that only re-confirms what targeted tests already pin down is cut or made opt-in.
 - **Sanity-check the approach.** If a request or direction is far outside industry-standard practice, or if there's a significantly simpler way to achieve the same result, flag it before implementing. Push back with a brief explanation — don't just go along with an overcomplicated approach.
 - **Consistency, but not with bad code.** Observe and follow existing patterns where they're sound — consistency makes a codebase easier to read and maintain. But don't double down on bad design just to match what's already there. If the current pattern is poor, do the new work the better way and flag the existing code as a refactor target so it can be brought in line.
 

@@ -1,4 +1,5 @@
 import { test, expect } from "./test";
+import { HOUSE } from "./betrayal-game";
 
 /**
  * The Betrayal house's light bakes in the background, in passes: the house
@@ -10,7 +11,6 @@ import { test, expect } from "./test";
  * the page, never a pause.
  */
 
-const HOUSE = "/board-games/betrayal?house";
 const MARK = "[data-bake-indicator]";
 
 // The house is WebGL: run it on the GPU, as the shots tools do, rather than a slow software renderer.

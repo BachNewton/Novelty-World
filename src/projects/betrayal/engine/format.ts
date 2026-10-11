@@ -2,7 +2,7 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 12;
+export const STATE_FORMAT = 13;
 
 type JsonObject = { [key: string]: Json };
 
@@ -309,6 +309,8 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
       pending: { ...pending, about: typeof named === "string" ? named : null },
     };
   },
+  // Format 13 records the haunt chosen at setup; an older game let the chart decide.
+  12: (state) => ({ ...state, chosenHaunt: null }),
 };
 
 /** Thrown for a state written by newer code than this bundle: the deploy has

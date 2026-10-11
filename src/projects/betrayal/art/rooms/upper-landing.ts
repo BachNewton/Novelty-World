@@ -3,6 +3,7 @@ import { animated } from "../animate";
 import { candelabra, candle, cobweb, pictureFrame, pitShell, table } from "../kit";
 import { crossLanes, INNER, TILE, onWall, type RoomDefinition } from "../room";
 import { batch, group } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { woodPlanks } from "../textures";
 import { newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
 
@@ -22,6 +23,7 @@ const WELL_STEPS = Math.floor((HEAD - WELL.x[0]) / STAIR.going);
  *  ground floor's own measure and dress, with the lining of the well. */
 function stairHead(): THREE.Group {
   const b = batch();
+  const rods = batch();
   const depth = STAIR.front - STAIR.back;
   for (let k = 1; ; k++) {
     const x1 = HEAD - (k - 1) * STAIR.going;
@@ -35,11 +37,13 @@ function stairHead(): THREE.Group {
     b.block([x1 - x0, 0.025, STAIR.carpet], "blood", [cx + 0.02, top, MID]);
     // The riser's carpet stands on the tread carpet, rather than beside it in the same planes.
     b.block([0.025, STAIR.rise - 0.065, STAIR.carpet], "blood", [x1 - 0.0125, top + 0.025, MID]);
-    b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.03, top, MID]);
+    rods.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.03, top, MID]);
   }
   b.block([0.08, 0.055, depth + 0.03], "woodMid", [HEAD + 0.01, -0.04, MID + 0.015]);
   // The dark of the well below the floor, which the flight falls into.
-  return group(b.mesh(), pitShell({ x: [-TILE / 2, HEAD + 0.07], z: [-TILE / 2, EDGE + 0.04], bottom: -WELL_DEPTH - 0.05 }));
+  const brass = rods.mesh();
+  shiny(brass.material, SHINES.brass);
+  return group(b.mesh(), brass, pitShell({ x: [-TILE / 2, HEAD + 0.07], z: [-TILE / 2, EDGE + 0.04], bottom: -WELL_DEPTH - 0.05 }));
 }
 
 /** The balustrade along the landing edge of the well, its rail running into
@@ -51,7 +55,9 @@ function balustrade(): THREE.Group {
   b.block([to - from, 0.08, 0.12], "woodMid", [(from + to) / 2, 0, EDGE]);
   for (let x = to - 0.2; x > from + 0.05; x -= 0.18) b.block([0.04, RAIL + 0.1, 0.04], "woodMid", [x, 0.08, EDGE]);
   b.block([to - from, 0.08, 0.08], "woodDark", [(from + to) / 2, RAIL + 0.15, EDGE]);
-  return group(b.mesh());
+  const rail = b.mesh();
+  shiny(rail.material, SHINES.polishedWood);
+  return group(rail);
 }
 
 /** A rocking chair with a shawl over its back. It faces +z, and rocks slowly
@@ -94,7 +100,8 @@ function rockingChair(): THREE.Group {
 export const UPPER_LANDING: RoomDefinition = {
   id: "upper-landing",
   ...SUITE,
-  floor: () => woodPlanks({ seed: "upper-landing" }),
+  floor: () => woodPlanks({ seed: "upper-landing", glints: false }),
+  shine: { glass: SHINES.glass },
   floorOpenings: [WELL],
   props: [
     { build: stairHead, at: [0, 0], contacts: [{ with: "floor", because: "the landing's nosing is set into the edge of the floor" }] },
@@ -105,15 +112,13 @@ export const UPPER_LANDING: RoomDefinition = {
     { build: () => candle({ height: 0.1, intensity: 1.6 }), at: [1.85, 0.95] },
     { build: () => table({ length: 1.0, width: 0.4, height: 0.82 }), ...onWall("right", -1.7, { out: 0.25 }) },
     { build: () => candelabra({ arms: 3, intensity: 3 }), at: [2.5, -1.7], y: 0.82 },
-    { build: () => pictureFrame({ frame: "brass" }), ...onWall("right", -1.7, { y: 1.45 }) },
-    { build: () => pictureFrame({ frame: "woodLight" }), ...onWall("bottom", 1.7, { y: 1.4 }) },
-    { build: () => pictureFrame({ frame: "brass" }), ...onWall("bottom", -1.7, { y: 1.4 }) },
+    { build: () => pictureFrame({ picture: "house on its hill", frame: "brass" }), ...onWall("right", -1.7, { y: 1.45 }) },
+    { build: () => pictureFrame({ picture: "old woman in a bonnet", frame: "woodLight" }), ...onWall("bottom", 1.7, { y: 1.4 }) },
+    { build: () => pictureFrame({ picture: "man in a top hat", frame: "brass" }), ...onWall("bottom", -1.7, { y: 1.4 }) },
     { build: () => cobweb({ form: "slung" }), at: [INNER - 0.29, INNER - 0.29], y: 3.05, turn: 45, walls: ["right", "bottom"] },
   ],
   focus: [-0.8, 0.6, -1.8],
-  pawn: [0.8, -0.9],
-  spots: [[-0.3, 0.4], [-1.55, -0.8], [-1.9, 1.0], [1.7, 0.55], [1.0, 2.15]],
-  overflow: [[1.9, -2.0], [-1.2, 2.35], [2.3, 1.85], [-0.3, -1.0], [0.8, 0.1], [1.05, -2.1]],
+  prime: [0.8, -0.9],
   // Doorway to doorway through the middle, below the stairwell's rail and wide of the table.
   lanes: crossLanes(),
   // Down the head of the flight, over the middle of each tread, to the last step showing in the well.

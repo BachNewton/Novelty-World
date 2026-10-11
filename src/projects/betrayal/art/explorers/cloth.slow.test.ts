@@ -2,20 +2,24 @@ import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { animationOf } from "../animate";
 import { stubCanvas } from "../headless";
+import { SPEED_VALUES } from "../house-walk";
 import type { ExplorerBuilder } from "../stage";
 import { clothOf } from "./cloth";
 import type { Pace } from "./figure";
 import { onTheSpot } from "./line-up";
+import { flash } from "./flash";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
+import { brandon } from "./brandon";
 import { zoe } from "./zoe";
 
 /*
  * Cloth the legs push (Rhinehardt's robe, Zoe's skirt) is heavy: it swings
  * out ahead of a knee, peaks gently and falls back, and never bangs against
- * the legs. Each explorer with such cloth walks and runs on the spot through
- * a couple of strides, finely sampled, and points on its cloth (front and
+ * the legs. Each explorer with such cloth walks and runs on the spot, at the
+ * slowest, middle and fastest Speed, through a couple of strides, finely sampled, and points on its cloth (front and
  * back, at the hem and higher up) are followed in the frame the cloth hangs
  * from, so the body's own bounce doesn't count. A knee shoving the cloth the
  * moment it meets it, or the cloth stopping dead, shows as a spike in how
@@ -26,9 +30,20 @@ import { zoe } from "./zoe";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt };
+/** Zoe and Rhinehardt in the heavy cloth (`?cloth=off`); the simulated nets they wear by default have tests of their own (`cloth-trial.slow.test.ts`). */
+const EXPLORERS: Record<string, ExplorerBuilder> = {
+  longfellow,
+  ox,
+  zoe: (seed, gait) => zoe(seed, gait, { cloth: "off" }),
+  rhinehardt: (seed, gait) => rhinehardt(seed, gait, { cloth: "off" }),
+  flash,
+  brandon,
+  peter,
+};
 /** The figures robed or skirted, whose cloth the legs push. */
 const CLOTHED = ["zoe", "rhinehardt"];
+/** The Speed values walked at: the slowest, the middle (the house's own pace) and the fastest. */
+const SPEEDS = [SPEED_VALUES.lowest, (SPEED_VALUES.lowest + SPEED_VALUES.highest) / 2, SPEED_VALUES.highest];
 /** Samples a second: fine enough to see a knock between frames. */
 const RATE = 600;
 /** The sharpest change of speed, in m/s², and of acceleration, in m/s³, cloth may make. */
@@ -88,8 +103,8 @@ function clothMotion(figure: THREE.Object3D, name: string): { acceleration: numb
 describe("cloth the legs push", () => {
   for (const [name, build] of Object.entries(EXPLORERS)) {
     for (const pace of ["walk", "run"] as Pace[]) {
-      it(`swings smoothly on ${name} ${pace === "run" ? "running" : "walking"}`, { timeout: 20_000 }, () => {
-        const figure = onTheSpot(build, name, pace);
+      it.each(SPEEDS)(`swings smoothly on ${name} ${pace === "run" ? "running" : "walking"} at Speed %d`, { timeout: 20_000 }, (speed) => {
+        const figure = onTheSpot(build, name, pace, speed);
         expect(clothOf(figure).length > 0, "has cloth the legs push").toBe(CLOTHED.includes(name));
         const peaks = clothMotion(figure, name);
         expect(peaks.acceleration, "acceleration, m/s²").toBeLessThan(SMOOTH.acceleration);

@@ -49,9 +49,16 @@ function workerLane(): Lane {
   };
   return {
     run: async ({ pass, scene, sceneId: id, samples }) => {
-      const message: BakeMessage = { type: "gather", pass, sceneId: id, scene: sceneId === id ? null : scene, samples };
+      // A floor's casters run to megabytes, and every lane takes them at once when a bake starts. Copied
+      // here and handed over, each lane's costs the page one copy; posted as they are, cloning them cost
+      // several times that, across the lanes a long task at the start of every bake.
+      const own = sceneId === id ? null : { ...scene, casters: scene.casters.slice(), albedo: scene.albedo.slice() };
+      const message: BakeMessage = { type: "gather", pass, sceneId: id, scene: own, samples };
       sceneId = id;
-      return (await send(message, [samples.position.buffer, samples.normal.buffer, samples.within.buffer])) as Gathered;
+      const sceneBuffers = own ? [own.casters.buffer, own.albedo.buffer] : [];
+      const { texels, probes } = samples;
+      const sampleBuffers = [texels.position, texels.normal, probes.position, probes.normal, probes.within].map((array) => array.buffer);
+      return (await send(message, [...sampleBuffers, ...sceneBuffers])) as Gathered;
     },
     finish: async ({ work }) => (await send({ type: "finish", work }, finishTransfers(work))) as RoomLight,
     dispose: () => {

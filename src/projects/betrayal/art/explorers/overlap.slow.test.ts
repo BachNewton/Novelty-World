@@ -1,21 +1,25 @@
 import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { animationOf } from "../animate";
+import { partsOf } from "../figure-parts";
 import { figureMaterial, form, painted } from "../forms";
 import { stubCanvas } from "../headless";
 import { banshee, spider } from "../monsters";
 import { group } from "../shapes";
 import { fightingFaces } from "./fighting-faces";
 import { STANDING, type Gait } from "./figure";
+import { flash } from "./flash";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
+import { brandon } from "./brandon";
 import { zoe } from "./zoe";
 
 /** Each figure posed at moments through its idle, standing, in full stride
  *  and running, and the monsters standing and stunned: its own parts may pass
  *  into each other, as a figure's joints do, but no two of its faces may fight. */
-const EXPLORERS = { longfellow, ox, zoe, rhinehardt };
+const EXPLORERS = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter };
 const MOMENTS = [0, 2, 5, 9, 14, 21];
 
 beforeAll(stubCanvas);
@@ -45,26 +49,41 @@ describe("the fighting-faces check", () => {
   });
 });
 
-/** A figure's first check pays for meshing its parts, which under a full test run's load can pass five seconds. */
+/** The longest one figure's meshing may take, under a full run's load. */
+const MESHING = 60_000;
+
+/** A check poses its figure at six moments and compares every pair of its parts' faces: two to four seconds alone, with its parts meshed before it. */
 const LIMIT = { timeout: 15_000 };
 
 describe("figures", () => {
   const striding: Gait = () => ({ phase: Math.PI / 2, amount: 1 });
   const running: Gait = () => ({ phase: Math.PI / 2, amount: 1, running: true });
   for (const [name, build] of Object.entries(EXPLORERS)) {
-    for (const [how, gait] of [["standing", STANDING], ["walking", striding], ["running", running]] as const) {
-      it(`${name}, ${how}, has no fighting faces`, LIMIT, () => {
-        const figure = build(name, gait);
-        for (const at of MOMENTS) expect(fightingFaces(posedAt(figure, at)).map((finding) => `${at}s: ${finding}`)).toEqual([]);
-      });
-    }
+    describe(name, () => {
+      // Meshing the parts is the slow step, done once a session: it belongs to no one check. It takes
+      // up to about 6 s alone (Peter's).
+      beforeAll(() => {
+        for (const parts of partsOf(build)) parts.get();
+      }, MESHING);
+      for (const [how, gait] of [["standing", STANDING], ["walking", striding], ["running", running]] as const) {
+        it(`${name}, ${how}, has no fighting faces`, LIMIT, () => {
+          const figure = build(name, gait);
+          for (const at of MOMENTS) expect(fightingFaces(posedAt(figure, at)).map((finding) => `${at}s: ${finding}`)).toEqual([]);
+        });
+      }
+    });
   }
   for (const [name, build] of Object.entries({ banshee, spider })) {
-    for (const stunned of [false, true]) {
-      it(`the ${name}${stunned ? ", stunned," : ""} has no fighting faces`, LIMIT, () => {
-        const figure = build(name, STANDING, { stunned });
-        for (const at of MOMENTS) expect(fightingFaces(posedAt(figure, at)).map((finding) => `${at}s: ${finding}`)).toEqual([]);
-      });
-    }
+    describe(name, () => {
+      beforeAll(() => {
+        for (const parts of partsOf(build)) parts.get();
+      }, MESHING);
+      for (const stunned of [false, true]) {
+        it(`the ${name}${stunned ? ", stunned," : ""} has no fighting faces`, LIMIT, () => {
+          const figure = build(name, STANDING, { stunned });
+          for (const at of MOMENTS) expect(fightingFaces(posedAt(figure, at)).map((finding) => `${at}s: ${finding}`)).toEqual([]);
+        });
+      }
+    });
   }
 });

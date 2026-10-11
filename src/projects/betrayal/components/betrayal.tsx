@@ -48,7 +48,8 @@ function subscribeToNothing(): () => void {
 /** The game is the page. `?bench=<room-id>` opens the art bench instead,
  *  `?house` the house view prototype, and `?debug` the playtesting view, with
  *  `?debug&game=<code>` (or an older link's bare `?game=<code>`) opening a
- *  shared game there. The server render has no URL, so it renders nothing
+ *  shared game there. `?play=<code>` opens a shared game on the play screen
+ *  without saving it over the game saved in this browser. The server render has no URL, so it renders nothing
  *  and the page picks after hydrating. */
 export function Betrayal() {
   const search = useSyncExternalStore(
@@ -62,7 +63,7 @@ export function Betrayal() {
   if (bench) return <ArtBench room={bench} explorer={params.get("explorer")} frame={params.get("frame")} paths={params.has("paths")} />;
   if (params.has("house")) return <HouseScreen />;
   if (params.has("debug") || params.has("game")) return <DebugGame code={params.get("game")} />;
-  return <PlayGame />;
+  return <PlayGame code={params.get("play")} />;
 }
 
 function viewsOf(state: GameState): GameView[] {

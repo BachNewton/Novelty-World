@@ -684,6 +684,8 @@ describe("Music Box (cards/items.md)", () => {
     let state = holding(["music-box"]);
     expect(labels(state)).toContain("Open the Music Box");
     state = choose(state, "Open the Music Box");
+    // Opening it keeps it in hand: only a mesmerized carrier drops it.
+    expect(explorer(state, ZOE).cards).toContain("music-box");
     expect(labels(state)).not.toContain("Close the Music Box");
     expect(labels(state)).not.toContain("Open the Music Box");
   });

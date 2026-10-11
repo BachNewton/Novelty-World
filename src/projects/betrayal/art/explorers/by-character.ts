@@ -3,9 +3,12 @@ import { pawn } from "../kit/pawn";
 import type { PaletteKey } from "../palette";
 import type { ExplorerBuilder } from "../stage";
 import type { CardColour } from "../../types";
+import { flash } from "./flash";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
+import { brandon } from "./brandon";
 import { zoe } from "./zoe";
 
 /** A seat's colour is its character card's: on the figure, from the art palette. */
@@ -22,13 +25,21 @@ export const CARD_PALETTE: Record<CardColour, PaletteKey> = {
 const FIGURES: Partial<Record<string, ExplorerBuilder>> = {
   "professor-longfellow": longfellow,
   "ox-bellows": ox,
+  "darrin-flash-williams": flash,
   "zoe-ingstrom": zoe,
+  "peter-akimoto": peter,
+  "brandon-jaspers": brandon,
   "father-rhinehardt": rhinehardt,
 };
 
 /** The pawn standing in for a character without a figure, one per colour, so
  *  the same character always gets the same builder and is never rebuilt. */
 const pawns = new Map<PaletteKey, ExplorerBuilder>();
+
+/** Whether a character has a figure of their own, rather than the pawn. */
+export function hasFigure(character: string): boolean {
+  return FIGURES[character] !== undefined;
+}
 
 /** The figure a character is shown as: their own, or the scale pawn in their seat's colour. */
 export function figureFor(character: string, seatColour: PaletteKey): ExplorerBuilder {

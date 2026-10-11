@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RAMPS, type PaletteKey, type Ramp } from "../palette";
 import { box, flat, group, textured } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { woodPlanks } from "../textures";
 
 export interface TableOptions {
@@ -14,7 +15,7 @@ export interface TableOptions {
   runner?: PaletteKey | null;
 }
 
-/** A plain four-legged table with an apron. */
+/** A plain four-legged table with an apron, its wood polished. */
 export function table({
   length = 1.8,
   width = 0.9,
@@ -22,8 +23,8 @@ export function table({
   wood = RAMPS.wood,
   runner = null,
 }: TableOptions = {}): THREE.Group {
-  const top = textured(woodPlanks({ ramp: wood, plankPx: 6, seed: "table" }));
-  const frame = flat(wood[1]);
+  const top = shiny(textured(woodPlanks({ ramp: wood, plankPx: 6, seed: "table", glints: false })), SHINES.polishedWood);
+  const frame = shiny(flat(wood[1]), SHINES.polishedWood);
   const leg = 0.07;
   const thickness = 0.05;
   const legHeight = height - thickness;
@@ -61,10 +62,10 @@ export interface ChairOptions {
   back?: number;
 }
 
-/** A high-backed dining chair. It faces +z: you sit facing the bottom edge. */
+/** A high-backed dining chair, its wood polished. It faces +z: you sit facing the bottom edge. */
 export function chair({ wood = RAMPS.wood, cushion = "blood", back = 1.15 }: ChairOptions = {}): THREE.Group {
-  const frame = flat(wood[1]);
-  const dark = flat(wood[0]);
+  const frame = shiny(flat(wood[1]), SHINES.polishedWood);
+  const dark = shiny(flat(wood[0]), SHINES.polishedWood);
   const seat = 0.46;
   const size = 0.46;
   const leg = 0.05;
@@ -82,8 +83,9 @@ export function chair({ wood = RAMPS.wood, cushion = "blood", back = 1.15 }: Cha
     box([size + 0.02, 0.08, leg + 0.02], frame, [0, back - 0.07, -half]),
     box([size - leg * 2 + 0.01, 0.05, leg - 0.016], dark, [0, seat + 0.12, -half]),
   );
+  // The slats run from the lower rail's top to the top rail's underside.
   for (const x of [-0.09, 0, 0.09]) {
-    result.add(box([0.04, back - seat - 0.28, 0.02], dark, [x, seat + 0.17, -half]));
+    result.add(box([0.04, back - seat - 0.24, 0.02], dark, [x, seat + 0.17, -half]));
   }
   if (cushion) result.add(box([size - 0.06, 0.05, size - 0.08], flat(cushion), [0, seat, 0.02]));
   return result;

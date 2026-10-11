@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { CHARACTERS } from "../data/characters";
 import { HOUSE_FIXTURE } from "./house-layout";
-import { inHouse, inRoom, shownOn, walkLength, walkPath, walkPose, RUN_SPEED, WALK_SPEED, type HousePoint, type Stairway } from "./house-walk";
+import { inHouse, inRoom, paceSpeed, shownOn, walkLength, walkPath, walkPose, RUN_SPEED, SPEED_VALUES, WALK_SPEED, type HousePoint, type Stairway } from "./house-walk";
 import { crossLanes, TILE, waypoints, type RoomWays } from "./room";
 
 const near = (a: HousePoint, b: Omit<HousePoint, "floor"> & { floor?: HousePoint["floor"] }) => {
@@ -187,6 +188,13 @@ describe("walkPose", () => {
     expect(pose.stride.phase).toBeLessThan(walkPose(walk, 10 + 2 / WALK_SPEED, 0.5).stride.phase);
   });
 
+  it("goes at its Speed, stepping more often with the same step, so the feet keep pace with the floor", () => {
+    const fast = { ...walk, speed: SPEED_VALUES.highest };
+    const seconds = 10 + 2 / paceSpeed("walk", SPEED_VALUES.highest);
+    near(walkPose(fast, seconds, 0.5).point, { floor: "ground", x: 2, y: 0, z: 0 });
+    expect(walkPose(fast, seconds, 0.5).stride.phase).toBeCloseTo(walkPose(walk, 10 + 2 / WALK_SPEED, 0.5).stride.phase);
+  });
+
   it("turns through a corner rather than snapping round it", () => {
     expect(at(4).heading).toBeCloseTo(Math.PI / 4);
   });
@@ -206,5 +214,35 @@ describe("walkPose", () => {
 
   it("is a pure function of the clock", () => {
     expect(at(3.3)).toEqual(at(3.3));
+  });
+});
+
+describe("paceSpeed", () => {
+  const values = Array.from({ length: SPEED_VALUES.highest - SPEED_VALUES.lowest + 1 }, (_, i) => SPEED_VALUES.lowest + i);
+
+  it("spans the Speed values the characters' tracks print, lowest to highest", () => {
+    const printed = CHARACTERS.flatMap((character) => character.tracks.speed);
+    expect({ lowest: Math.min(...printed), highest: Math.max(...printed) }).toEqual(SPEED_VALUES);
+  });
+
+  it("keeps the house's pace for a figure without a Speed, and for the middle of the tracks", () => {
+    expect(paceSpeed("walk")).toBe(WALK_SPEED);
+    expect(paceSpeed("run")).toBe(RUN_SPEED);
+    expect(paceSpeed("walk", 5)).toBeCloseTo(WALK_SPEED);
+    expect(paceSpeed("run", 5)).toBeCloseTo(RUN_SPEED);
+  });
+
+  it("is faster for every point of Speed, walking and running, and a run always outpaces a walk", () => {
+    for (const pace of ["walk", "run"] as const) {
+      for (const [i, value] of values.slice(1).entries()) expect(paceSpeed(pace, value)).toBeGreaterThan(paceSpeed(pace, values[i]));
+    }
+    expect(paceSpeed("run", SPEED_VALUES.lowest)).toBeGreaterThan(paceSpeed("walk", SPEED_VALUES.highest));
+  });
+
+  it("goes no faster or slower past the ends of the tracks", () => {
+    expect(paceSpeed("walk", 0)).toBe(paceSpeed("walk", SPEED_VALUES.lowest));
+    expect(paceSpeed("walk", 12)).toBe(paceSpeed("walk", SPEED_VALUES.highest));
+    expect(paceSpeed("walk", SPEED_VALUES.lowest)).toBeCloseTo(1.05);
+    expect(paceSpeed("walk", SPEED_VALUES.highest)).toBeCloseTo(1.95);
   });
 });

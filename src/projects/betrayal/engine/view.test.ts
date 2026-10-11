@@ -426,7 +426,7 @@ describe("every view of random games", () => {
     (seed) => {
       simulate(seed, ALL_TOY_ENGINE, (state) => {
         checkViews(ALL_TOY_ENGINE, state);
-      });
+      }, { checks: false });
     },
     60_000,
   );
@@ -442,7 +442,7 @@ describe("every view of random games", () => {
         (state) => {
           checkViews(ENGINE, state);
         },
-        { haunt: 13 },
+        { haunt: 13, checks: false },
       );
     },
     60_000,
@@ -453,7 +453,7 @@ describe("every view of random games", () => {
     (seed) => {
       simulate(seed, ENGINE, (state) => {
         checkViews(ENGINE, state);
-      });
+      }, { checks: false });
     },
     60_000,
   );

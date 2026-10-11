@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import type { Edge } from "../../types";
 import type { PaletteKey } from "../palette";
-import { CUT_HEIGHT, INNER, WAINSCOT_DEPTH, WAINSCOT_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, type PropPlacement, type Surface } from "../room";
+import { CUT_HEIGHT, INNER, WAINSCOT_DEPTH, WAINSCOT_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, type PropPlacement, type RoomDefinition, type Surface } from "../room";
 import { box, flat, group, textured } from "../shapes";
+import { shiny } from "../shine";
 import { STUB_CAP } from "../wall-markings";
 
 /*
@@ -40,6 +41,8 @@ export interface WallMassOptions {
   wall: Surface;
   wainscot?: Surface;
   trim: PaletteKey;
+  /** Its shiny surfaces, as the room's shell's (`RoomDefinition.shine`), so it takes highlights as the walls do. */
+  shine?: RoomDefinition["shine"];
   /** What the overlap check and the close-ups call its two parts. */
   name: string;
 }
@@ -87,7 +90,11 @@ function strip(side: MassSide, [x0, x1]: [number, number], [z0, z1]: [number, nu
 }
 
 /** A block of wall inside the tile, as two placements: its base, and its part above the cut height. */
-export function wallMass({ blocks, walls, wall, wainscot, trim, name }: WallMassOptions): PropPlacement[] {
+export function wallMass({ blocks, walls, wall, wainscot, trim, shine, name }: WallMassOptions): PropPlacement[] {
+  const marked = <M extends THREE.Material>(material: M, surface: "wall" | "wainscot" | "trim"): M => {
+    const chosen = shine?.[surface];
+    return chosen ? shiny(material, chosen) : material;
+  };
   const into = (value: number) => (Math.abs(value) >= INNER - 1e-6 ? value + Math.sign(value) * INTO_WALL : value);
 
   /** One block and its dressing between two heights, in room metres. */
@@ -100,7 +107,8 @@ export function wallMass({ blocks, walls, wall, wainscot, trim, name }: WallMass
       return Math.abs(value) < INNER - 1e-6;
     });
     const cap = flat("soot");
-    const plaster = textured(surface());
+    // A block's own surface is not the walls', and doesn't take their shine.
+    const plaster = surface === wall ? marked(textured(surface()), "wall") : textured(surface());
     const solid = (x0: number, x1: number, z0: number, z1: number, top: THREE.Material) =>
       box([x1 - x0, y1 - y0, z1 - z0], [plaster, plaster, top, cap, plaster, plaster], [(x0 + x1) / 2, y0, (z0 + z1) / 2]);
     const parts: THREE.Object3D[] = [];
@@ -118,8 +126,8 @@ export function wallMass({ blocks, walls, wall, wainscot, trim, name }: WallMass
         if (side === "+z") parts.push(solid(core.x0, core.x1, core.z1, body.z[1], rim));
       }
     }
-    const trimMaterial = flat(trim);
-    const panels = wainscot ? textured(wainscot()) : null;
+    const trimMaterial = marked(flat(trim), "trim");
+    const panels = wainscot ? marked(textured(wainscot()), "wainscot") : null;
     const strips: Strip[] = [
       ...(from === 0 ? [{ y0: 0, y1: SKIRTING.height, depth: SKIRTING.depth, material: trimMaterial }] : []),
       ...(panels ? [{ y0: from, y1: WAINSCOT_HEIGHT, depth: WAINSCOT_DEPTH, material: panels }] : []),
@@ -154,7 +162,7 @@ export function wallMass({ blocks, walls, wall, wainscot, trim, name }: WallMass
 
 /** The four corners of a tile filled with wall, leaving a cross of corridors
  *  `arm` metres either side of the middle, each running to a door. */
-export function crossCorners({ arm, ...surfaces }: { arm: number } & Pick<WallMassOptions, "wall" | "wainscot" | "trim">): PropPlacement[] {
+export function crossCorners({ arm, ...surfaces }: { arm: number } & Pick<WallMassOptions, "wall" | "wainscot" | "trim" | "shine">): PropPlacement[] {
   const corners: [Edge, Edge, number, number][] = [
     ["top", "left", -1, -1],
     ["top", "right", 1, -1],

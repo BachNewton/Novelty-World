@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { PaletteKey } from "../palette";
 import { batch, cylinder, flat, group, type Size } from "../shapes";
+import { shiny, SHINES } from "../shine";
 
 /** A plank crate, `size` metres, with dark battens up its corners and a band
  *  round its middle. Base at y = 0. */
@@ -22,7 +23,7 @@ export interface CaskOptions {
 
 /** An upright cask on its end, hooped in iron. Base at y = 0. */
 export function cask({ radius = 0.24, height = 0.72, lid = true }: CaskOptions = {}): THREE.Group {
-  const hoop = flat("soot");
+  const hoop = shiny(flat("soot"), SHINES.iron);
   const result = group(
     cylinder(radius, height, flat("woodMid"), [0, 0, 0], { sides: 10 }),
     cylinder(radius + 0.015, 0.04, hoop, [0, height * 0.14, 0], { sides: 10 }),

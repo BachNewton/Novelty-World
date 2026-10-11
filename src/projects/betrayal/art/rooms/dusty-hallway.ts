@@ -5,6 +5,7 @@ import { crossCorners } from "../kit/wall-mass";
 import { paletteHex, RAMPS } from "../palette";
 import { crossLanes, INNER, type RoomDefinition } from "../room";
 import { batch, group, lightMaterial, pixelPlane, type Batch } from "../shapes";
+import { SHINES } from "../shine";
 import { panelling, pixelTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from "../textures";
 
 const SEED = "dusty-hallway";
@@ -12,9 +13,10 @@ const SEED = "dusty-hallway";
 const ARM = 1.3;
 const SURFACES = {
   wall: () => wallpaper({ ground: "boneDark", stripe: "stoneDark", motif: "stone", seed: SEED }),
-  wainscot: () => panelling({ ramp: RAMPS.stone, seed: SEED }),
+  wainscot: () => panelling({ ramp: RAMPS.stone, seed: SEED, glints: false }),
   trim: "ash",
-} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim">;
+  shine: { glass: SHINES.glass },
+} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim" | "shine">;
 
 /** Where the lantern was set down, in the corner of the crossing, and the footprints end. */
 const LANTERN: [number, number] = [-1.0, 1.0];
@@ -158,7 +160,7 @@ function dustHaze(): THREE.Group {
  *  down in its haze, and no further. */
 export const DUSTY_HALLWAY: RoomDefinition = {
   id: "dusty-hallway",
-  floor: () => woodPlanks({ ramp: ["stoneDark", "stone", "stone", "stoneLight"], seed: SEED }),
+  floor: () => woodPlanks({ ramp: ["stoneDark", "stone", "stone", "stoneLight"], seed: SEED, glints: false }),
   ...SURFACES,
   props: [
     ...crossCorners({ arm: ARM, ...SURFACES }),
@@ -175,8 +177,6 @@ export const DUSTY_HALLWAY: RoomDefinition = {
     { build: () => cobweb({ form: "slung" }), at: [INNER - 0.29, ARM - 0.29], y: 3.05, turn: 45, walls: ["right", "bottom"] },
   ],
   focus: [-0.6, 0.4, 0.6],
-  pawn: [0.45, 0.45],
-  spots: [[0.2, -0.95], [-1.65, 0.7], [-0.4, 1.6], [-1.2, -0.65], [1.65, -0.45]],
-  overflow: [[-0.45, 0.7], [0.3, 1.25], [-0.3, -0.35], [-0.6, -1.15], [0.7, -0.35], [-1.05, 0.2]],
+  prime: [0.45, 0.45],
   lanes: crossLanes(),
 };

@@ -531,3 +531,54 @@ describe("a haunt game", () => {
     30_000,
   );
 });
+
+describe("choosing the haunt", () => {
+  /** Seat 0 explores into the Abandoned Room and draws the Book, the chart's
+   *  haunt 7, with enough omens out that the haunt roll always reveals it. */
+  const revealSeven = (engine: Engine, options: TestGame = {}) => {
+    let state = testGame({ engine, stack: ["abandoned-room"], decks: { omen: ["book"] }, ...options });
+    state.omensDrawn = 12;
+    state = choose(state, "Explore through the north door", engine);
+    return choose(state, "End your turn", engine);
+  };
+
+  it("swaps a haunt that isn't built for the one that is, at its reveal, as a forced step when only one is", () => {
+    const state = revealSeven(ENGINE);
+    expect(state.haunt).toMatchObject({ number: 13, revealer: 0, omen: "book", room: "abandoned-room" });
+    expect(state.pending).toMatchObject({ type: "ready" });
+    expect(eventTypes(state)).toEqual(
+      expect.arrayContaining(["haunt-revealed", "haunt-unbuilt", "forced", "haunt-chosen", "side-set"]),
+    );
+    const said = describeAll(ENGINE, state);
+    expect(said).toContain("Haunt 7 isn't built yet, so a haunt that is built is played instead.");
+    expect(said).toContain("Haunt 13, Perchance to Dream, is played in place of haunt 7.");
+  });
+
+  it("offers the revealer every built haunt, and takes the traitor from the chosen haunt's chart rule", () => {
+    let state = revealSeven(TOY_ENGINE);
+    expect(state.haunt?.number).toBe(7);
+    expect(offered(state, TOY_ENGINE).map((c) => c.label)).toEqual([
+      `Haunt 6: ${TOY_ENGINE.haunts[6]?.name ?? ""}`,
+      `Haunt 13: ${TOY_ENGINE.haunts[13]?.name ?? ""}`,
+    ]);
+    state = choose(state, "Haunt 6", TOY_ENGINE);
+    expect(state.haunt?.number).toBe(6);
+    expect(state.pending).toMatchObject({ type: "ready" });
+    // Haunt 6's chart rule picks the traitor, not haunt 7's.
+    const sixth = testGame({ engine: TOY_ENGINE, haunt: { number: 6, revealer: 0 } });
+    expect(state.seats.map((s) => s.side)).toEqual(sixth.seats.map((s) => s.side));
+  });
+
+  it("plays the haunt chosen at setup, whatever the chart says, saying so", () => {
+    const state = revealSeven(TOY_ENGINE, { chosenHaunt: 6 });
+    expect(state.haunt?.number).toBe(6);
+    expect(eventTypes(state)).not.toContain("haunt-unbuilt");
+    expect(describeAll(TOY_ENGINE, state).find((line) => line.includes("for the haunt"))).toMatch(
+      /haunt 6 begins, the haunt chosen for this game \(the chart gave haunt 7\)\.$/,
+    );
+  });
+
+  it("refuses a haunt chosen at setup that isn't built", () => {
+    expect(() => testGame({ chosenHaunt: 7 })).toThrow(/Haunt 7 isn't built/);
+  });
+});

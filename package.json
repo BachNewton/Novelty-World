@@ -33,7 +33,7 @@
     "frogmino:prove": "tsx src/projects/frogmino/proof/prove-cli.ts",
     "setup:family-tree-solver": "python src/projects/family-tree/layout/solver/setup_venv.py",
     "test:e2e": "playwright test",
-    "test:all": "vitest run && playwright test"
+    "test:all": "vitest run && npm run test:slow && playwright test"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
@@ -45,7 +45,7 @@
     "clsx": "^2.1.1",
     "d3-dag": "^1.2.1",
     "d3-force-3d": "^3.0.6",
-    "lucide-react": "^1.7.0",
+    "lucide-react": "^1.55.0",
     "msedge-tts": "^2.0.5",
     "next": "^16.4.0",
     "peerjs": "^1.5.5",

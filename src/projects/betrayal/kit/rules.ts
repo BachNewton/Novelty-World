@@ -157,11 +157,13 @@ export function escapeTheHouse(how: {
 
 /** Whenever a figure of a definition is killed or leaves play, the owning
  *  seat may at once put another beside a group's explorer, within the
- *  supply; a chance not taken is lost (haunt 13's Nightmares unleashed). */
+ *  supply; a chance not taken is lost (haunt 13's Nightmares unleashed).
+ *  With `keepOne`, the last one in play is always replaced. */
 export function replaceWhenLost(how: {
   figure: string;
   at: FigureGroup;
   owner: SeatGroup;
+  keepOne?: true;
   rule: RuleRef;
 }): Reaction[] {
   const lost = (state: GameState, event: GameEvent) =>
@@ -170,7 +172,15 @@ export function replaceWhenLost(how: {
     event: type,
     when: (state, event) => lost(state, event),
     steps: () => [
-      offerReplacement(how.figure, { at: how.at, owner: how.owner }, how.rule),
+      offerReplacement(
+        how.figure,
+        {
+          at: how.at,
+          owner: how.owner,
+          ...(how.keepOne ? { keepOne: how.keepOne } : {}),
+        },
+        how.rule,
+      ),
     ],
   }));
 }

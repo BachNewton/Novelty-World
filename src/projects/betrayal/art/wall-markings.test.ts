@@ -3,6 +3,7 @@ import { CATALOG } from "../data";
 import type { Layout } from "../engine/board";
 import { freezeRoom } from "./freeze";
 import { stubCanvas } from "./headless";
+import { TEST_TEXELS_PER_METRE } from "./lighting";
 import { definition } from "./house";
 import { closedDoors, diffLayout, falseWindows, HOUSE_FIXTURE, MARKINGS_LAYOUT } from "./house-layout";
 import { BENCH_ROOMS } from "./rooms";
@@ -51,7 +52,7 @@ describe("building rooms with the markings", () => {
     for (const id of ids) {
       const room = CATALOG.rooms[id];
       const part = buildRoom(definition(id), { explorer: null, closedDoors: room.doors.filter((edge) => edge !== room.frontDoor), falseWindows: room.windows });
-      expect(() => freezeRoom(id, part)).not.toThrow();
+      expect(() => freezeRoom(id, part, TEST_TEXELS_PER_METRE)).not.toThrow();
     }
   }, 30_000);
 

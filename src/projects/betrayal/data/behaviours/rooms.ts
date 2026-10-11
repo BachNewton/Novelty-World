@@ -491,6 +491,7 @@ export const ROOMS: BehaviourGroup = {
                       fallDamage(p.figure, rule),
                     ]),
                   ],
+                  room: t.tile,
                 })),
               rule,
             ),

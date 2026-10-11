@@ -1,12 +1,12 @@
 import * as THREE from "three";
 import type { Edge } from "../types";
 import { PALETTE, type PaletteKey } from "./palette";
-import { DOOR_APPROACH, DOOR_HEIGHT, DOOR_WIDTH, INNER, TILE, pieceLabel, pieceName, standingSpots, waypoints, type FloorOpening, type PropPlacement, type RoomDefinition } from "./room";
+import { BASE_RADIUS, DOOR_APPROACH, DOOR_HEIGHT, DOOR_WIDTH, INNER, TILE, pieceLabel, pieceName, primePlaces, waypoints, type FloorOpening, type PropPlacement, type RoomDefinition } from "./room";
 import { buildRoom, disposeTree, EDGES, OUTWARD, pieceOf, roomTile, type RoomPart } from "./stage";
 import { CATALOG } from "../data";
 import type { Layout } from "../engine/board";
 import type { FloorId } from "../types";
-import { COLOUR_RING, colourRing, definition, roomMarks } from "./house";
+import { colourRing, definition, roomMarks } from "./house";
 import { closedDoors, falseWindows, printedEdge, tileTurn, wallIsCut } from "./house-layout";
 import { zFights, type PlaneFace, type ZFight } from "./zfight";
 
@@ -15,14 +15,13 @@ import { zFights, type PlaneFace, type ZFight } from "./zfight";
  *
  * - A solid passing too far (`PASS_INTO`) into another piece, a wall, the
  *   floor, or a keep-clear zone (a doorway and the lane the house walks
- *   through it, and the six standing spots). The small overlaps that
+ *   through it, and the prime place). The small overlaps that
  *   hide cracks between neighbours stay under it. A wall is its body: a
  *   piece may stand into the dressing (skirting, wainscot, casings), which
  *   it hides. Light (beams and pools, which write no depth) is not solid.
- * - A standing spot a figure can't walk to from the doors, one crowding
- *   another, or one standing in a doorway's lane (see `floorPlan`), and a
- *   walk the house makes across the room that a figure's base can't follow
- *   (see `walkFindings`).
+ * - A prime place a figure can't walk to from the doors, or one standing in
+ *   a doorway's lane (see `floorPlan`), and a walk the house makes across
+ *   the room that a figure's base can't follow (see `walkFindings`).
  * - Two faces lying in one plane, facing the same way and sharing area,
  *   which z-fight (see `zfight.ts`), with the walls standing, cut, and cut on
  *   alternate edges, as the house shows them. Any two faces count, the
@@ -47,17 +46,8 @@ export const PASS_INTO = 0.02;
 const PASS_ALWAYS = 0.005;
 /** The least area two owners' faces may share in one plane before they count as fighting, in m². */
 const FIGHT_AREA = 1e-4;
-/** How far round a standing spot is kept clear. */
+/** How far round a prime place is kept clear. */
 const SPOT_CLEAR = 0.45;
-/** The radius of a figure's base (`figureBase`): a walker needs this much clear floor round it. */
-export const BASE_RADIUS = 0.36;
-/** How far apart two standing spots must be: the colour rings round the
- *  figures on them don't touch, with a ring's own width of floor between. */
-export const SPOT_SPACING = 2 * COLOUR_RING.outer + (COLOUR_RING.outer - COLOUR_RING.inner);
-/** How far an overflow place must be from every other place: the bases
- *  keep apart by the gap between a base and its own ring, though the rings
- *  overlap (and pass under a neighbour's base, which hides them). */
-export const OVERFLOW_SPACING = 2 * BASE_RADIUS + (COLOUR_RING.inner - BASE_RADIUS);
 /** Anything solid between these heights blocks a walker: lower (scree, bones
  *  trodden flat), it is stepped over; higher, walked under. */
 const STEP = 0.07;
@@ -105,7 +95,7 @@ export interface Finding {
   key: string;
   /** The key with how much they overlap. */
   text: string;
-  /** For a finding about the floor (a standing spot, a walk), where on it, in room metres. */
+  /** For a finding about the floor (a prime place, a walk), where on it, in room metres. */
   at?: [x: number, z: number][];
 }
 
@@ -239,8 +229,8 @@ function convexPieces(triangles: Triangle[]): Triangle[][] | null {
   return pieces.every((piece) => piece.length >= 4) ? pieces : null;
 }
 
-/** Splits a mesh into its separate solids and lists its faces, in room coordinates. */
-function readMesh(mesh: THREE.Mesh, owner: Owner, parts: Part[], faces: Face[]) {
+/** Splits a mesh into its separate solids and lists its faces (unless `faces` is null: the floor checks need none), in room coordinates. */
+function readMesh(mesh: THREE.Mesh, owner: Owner, parts: Part[], faces: Face[] | null) {
   const geometry = mesh.geometry;
   const position = geometry.getAttribute("position");
   const colours = geometry.getAttribute("color") as THREE.BufferAttribute | undefined;
@@ -276,6 +266,7 @@ function readMesh(mesh: THREE.Mesh, owner: Owner, parts: Part[], faces: Face[]) 
     if (lump) lump.push(triangle);
     else lumps.set(key, [triangle]);
 
+    if (!faces) continue;
     const material = materialOf(mesh, t / 3, geometry);
     const vertexColour = colours && "vertexColors" in material && material.vertexColors ? new THREE.Color().fromBufferAttribute(colours, ids[0]) : null;
     const colour = colourOf(material, vertexColour);
@@ -383,14 +374,13 @@ function inside(part: Part, point: THREE.Vector3): boolean {
 }
 
 function zoneOwner(name: string): Owner {
-  return { name, label: /^(standing spot|overflow place) /.test(name) ? name : `the ${name}`, kind: "zone" };
+  return { name, label: /^prime place/.test(name) ? name : `the ${name}`, kind: "zone" };
 }
 
 /** The keep-clear zones as solid meshes in room coordinates: each doorway and
  *  passage with the lane the house walks straight through it, and the
- *  places figures stand (`standing spot 1` to `standing spot 6`, then
- *  `overflow place 1` on). The front door leads out of the
- *  house, so no one walks it. */
+ *  prime place (`prime place`, and in a barrier room `prime place across`).
+ *  The front door leads out of the house, so no one walks it. */
 function zones(def: RoomDefinition): { owner: Owner; mesh: THREE.Mesh }[] {
   const tile = roomTile(def.id);
   const result: { owner: Owner; mesh: THREE.Mesh }[] = [];
@@ -407,10 +397,9 @@ function zones(def: RoomDefinition): { owner: Owner; mesh: THREE.Mesh }[] {
     along[edge](geometry);
     result.push({ owner: zoneOwner(`doorway ${edge}`), mesh: new THREE.Mesh(geometry) });
   }
-  for (const { name, at: [x, z], standing } of places(def)) {
-    // From a step up: a figure stands on a rug or a path, not in it. An overflow place is a squeeze, clear only for the base.
-    const clear = standing ? SPOT_CLEAR : BASE_RADIUS;
-    const geometry = new THREE.CylinderGeometry(clear, clear, HEAD - STEP, 8).translate(x, (HEAD + STEP) / 2, z);
+  for (const { name, at: [x, z] } of places(def)) {
+    // From a step up: a figure stands on a rug or a path, not in it.
+    const geometry = new THREE.CylinderGeometry(SPOT_CLEAR, SPOT_CLEAR, HEAD - STEP, 8).translate(x, (HEAD + STEP) / 2, z);
     result.push({ owner: zoneOwner(name), mesh: new THREE.Mesh(geometry) });
   }
   return result;
@@ -517,6 +506,17 @@ export interface FloorPlan {
   centre: (cell: number) => [x: number, z: number];
 }
 
+/** The floor plan's grid: cells per side, each cell's centre, and the cell a point lies in. */
+export function floorGrid(): Pick<FloorPlan, "size" | "centre" | "cellAt"> {
+  const size = Math.round(TILE / CELL);
+  const index = (value: number) => Math.min(size - 1, Math.max(0, Math.floor((value + TILE / 2) / CELL)));
+  return {
+    size,
+    centre: (cell) => [-TILE / 2 + ((cell % size) + 0.5) * CELL, -TILE / 2 + (Math.floor(cell / size) + 0.5) * CELL],
+    cellAt: (x, z) => index(z) * size + index(x),
+  };
+}
+
 /**
  * The floor as a figure walks it, on a grid of `CELL`: blocked by the walls
  * (open through each doorway and passage), by floor openings, and by any
@@ -525,10 +525,8 @@ export interface FloorPlan {
  * and the walk floods in from every doorway.
  */
 function floorPlan(def: RoomDefinition, solids: Part[]): FloorPlan {
-  const size = Math.round(TILE / CELL);
-  const centre = (cell: number): [number, number] => [-TILE / 2 + ((cell % size) + 0.5) * CELL, -TILE / 2 + (Math.floor(cell / size) + 0.5) * CELL];
+  const { size, centre, cellAt } = floorGrid();
   const index = (value: number) => Math.min(size - 1, Math.max(0, Math.floor((value + TILE / 2) / CELL)));
-  const cellAt = (x: number, z: number) => index(z) * size + index(x);
   const ways = entrances(def);
   const throughWall = (x: number, z: number) => {
     if (Math.abs(x) > INNER && Math.abs(z) > INNER) return false;
@@ -591,26 +589,19 @@ function floorPlan(def: RoomDefinition, solids: Part[]): FloorPlan {
   return { size, blocked, clearance, reached, cellAt, centre };
 }
 
-/** Every place a figure stands in a room, named, in the order the house fills them: the standing spots, then the overflow. */
-function places(def: RoomDefinition): { name: string; at: [x: number, z: number]; standing: boolean }[] {
-  return [
-    ...standingSpots(def).map((at, slot) => ({ name: `standing spot ${slot + 1}`, at, standing: true })),
-    ...(def.overflow ?? []).map((at, slot) => ({ name: `overflow place ${slot + 1}`, at, standing: false })),
-  ];
+/** The room's prime places, named. */
+function places(def: RoomDefinition): { name: string; at: [x: number, z: number] }[] {
+  return primePlaces(def).map((at, i) => ({ name: i === 0 ? "prime place" : "prime place across", at }));
 }
 
-/** What is wrong with the places figures stand: one out of reach of the doors, two crowding each other, or one in a doorway's lane. */
+/** What is wrong with the prime places: one out of reach of the doors, or one in a doorway's lane. */
 function spotFindings(def: RoomDefinition, plan: FloorPlan): Finding[] {
   const spots = places(def);
   const name = (slot: number) => `${spots[slot].name} at (${spots[slot].at[0].toFixed(2)}, ${spots[slot].at[1].toFixed(2)})`;
   const findings: Finding[] = [];
   const add = (key: string, ...slots: number[]) => findings.push({ key, text: key, at: slots.map((slot) => spots[slot].at) });
-  spots.forEach(({ at: [x, z], standing }, slot) => {
+  spots.forEach(({ at: [x, z] }, slot) => {
     if (!plan.reached[plan.cellAt(x, z)]) add(`${name(slot)} can't be reached from the doors`, slot);
-    spots.forEach(({ at: [ox, oz], standing: alsoStanding }, other) => {
-      const spacing = standing && alsoStanding ? SPOT_SPACING : OVERFLOW_SPACING;
-      if (other > slot && Math.hypot(ox - x, oz - z) < spacing) add(`${name(slot)} crowds ${name(other)}`, slot, other);
-    });
     for (const { edge } of entrances(def)) {
       // The spot in the doorway's own frame: `along` across it, `into` the room from the tile's edge.
       const along = edge === "top" || edge === "bottom" ? x : z;
@@ -631,7 +622,7 @@ export interface WalkEnd {
   out?: Point3;
 }
 
-/** Where walks across the room start and end, besides the standing spots:
+/** Where walks across the room start and end, besides the prime places:
  *  each doorway's approach, and the foot of each stair. */
 function walkEnds(def: RoomDefinition): WalkEnd[] {
   return [
@@ -655,7 +646,7 @@ export interface RoomWalk {
 }
 
 /**
- * The walks the house makes across the room: from each standing spot to each
+ * The walks the house makes across the room: from each prime place to each
  * doorway and the foot of each stair, and from each of those to every other,
  * by the room's own `waypoints`. A walk is clear where a figure's base fits
  * at every step of it; along the crossing, the floor's openings (a gulf
@@ -751,10 +742,18 @@ function showing(object: THREE.Object3D): boolean {
   return true;
 }
 
-/** The ways the house shows a room's walls: all standing, all cut, and cut on
+/** The ways the house shows a room's walls: all standing, all cut, cut on
  *  alternate edges, which shows each corner piece that stands only between a
- *  standing wall and a cut one. */
-const CUT_STATES: ((edge: Edge) => boolean)[] = [() => false, () => true, (edge) => edge === "top" || edge === "bottom", (edge) => edge === "left" || edge === "right"];
+ *  standing wall and a cut one, and cut as each of the four views cuts them,
+ *  the two walls nearest the camera. Only the views show a face turned to a
+ *  cut wall on a piece hung on the standing wall across from it. */
+const CUT_STATES: ((edge: Edge) => boolean)[] = [
+  () => false,
+  () => true,
+  (edge) => edge === "top" || edge === "bottom",
+  (edge) => edge === "left" || edge === "right",
+  ...([["right", "bottom"], ["right", "top"], ["left", "top"], ["left", "bottom"]] satisfies Edge[][]).map((cut: Edge[]) => (edge: Edge) => cut.includes(edge)),
+];
 
 type Kind = "passes into" | "z-fights with";
 
@@ -823,11 +822,11 @@ function standingRoom(def: RoomDefinition, at: number): RoomPart {
   return room;
 }
 
-/** The floor as a figure walks it, and what is wrong there: the standing
- *  spots and the walks across the room, and its largest open circle. */
+/** The floor as a figure walks it, and what is wrong there: the prime
+ *  places and the walks across the room, and its largest open circle. */
 export interface FloorReport {
   plan: FloorPlan;
-  /** Where walks start and end, besides the standing spots. */
+  /** Where walks start and end, besides the prime places. */
   ends: WalkEnd[];
   walks: RoomWalk[];
   findings: Finding[];
@@ -848,7 +847,10 @@ function floorReport(def: RoomDefinition, solids: Part[]): FloorReport {
  *  quicker than `checkRoom`, which tests every piece against the others too. */
 export function checkFloor(def: RoomDefinition, at = 2): FloorReport {
   const room = standingRoom(def, at);
-  const { parts } = readRoom(room);
+  const parts: Part[] = [];
+  room.root.traverse((object) => {
+    if (object instanceof THREE.Mesh && !(object.userData as { bakeOnly?: boolean }).bakeOnly) readMesh(object, ownerOf(object), parts, null);
+  });
   const report = floorReport(def, parts.filter((part) => part.solid && showing(part.mesh)));
   room.dispose();
   return report;
@@ -859,7 +861,7 @@ export function checkRoom(def: RoomDefinition, at = 2): OverlapReport {
   const room = standingRoom(def, at);
   const { parts, faces } = readRoom(room);
   // The house's choice marks glow in the room, and colour rings lie round the
-  // figures on its spots, none drawing depth: a face in one of their planes fights them.
+  // figures on its prime places, none drawing depth: a face in one of their planes fights them.
   const marks = roomMarks(def);
   for (const { at: [x, z] } of places(def)) {
     const ring = colourRing("moonLight");

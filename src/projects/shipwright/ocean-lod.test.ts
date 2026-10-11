@@ -30,19 +30,15 @@ describe("buildLodGrid", () => {
     for (const opts of [SMALL, SHIPPED]) {
       const grid = buildLodGrid(opts);
       const half = grid.extent / 2;
-      for (const [key, count] of edgeCounts(grid)) {
-        // ≥3 would be an overlap; 1 anywhere but the outer boundary would be a
-        // crack or a T-junction (vertices are welded by exact lattice position,
-        // so an unmatched interior edge cannot hide behind a duplicate vertex).
-        expect(count).toBeLessThanOrEqual(2);
-        if (count === 1) {
-          const [a, b] = key.split(":").map(Number);
-          for (const i of [a, b]) {
-            const [x, z] = vertexXZ(grid, i);
-            expect(Math.max(Math.abs(x), Math.abs(z))).toBeCloseTo(half, 6);
-          }
-        }
-      }
+      const onBoundary = (i: number) => {
+        const [x, z] = vertexXZ(grid, i);
+        return Math.abs(Math.max(Math.abs(x), Math.abs(z)) - half) < 5e-7;
+      };
+      // ≥3 would be an overlap; 1 anywhere but the outer boundary would be a
+      // crack or a T-junction (vertices are welded by exact lattice position,
+      // so an unmatched interior edge cannot hide behind a duplicate vertex).
+      const bad = [...edgeCounts(grid)].filter(([key, count]) => count > 2 || (count === 1 && !key.split(":").map(Number).every(onBoundary)));
+      expect(bad).toEqual([]);
     }
   });
 
@@ -50,6 +46,7 @@ describe("buildLodGrid", () => {
     for (const opts of [SMALL, SHIPPED]) {
       const grid = buildLodGrid(opts);
       let area = 0;
+      let backFacing = 0;
       for (let t = 0; t < grid.index.length; t += 3) {
         const [ax, az] = vertexXZ(grid, grid.index[t]);
         const [bx, bz] = vertexXZ(grid, grid.index[t + 1]);
@@ -59,20 +56,19 @@ describe("buildLodGrid", () => {
         // signed area in xz. A positive value is a back-facing triangle; zero
         // is degenerate. Combined with the watertight test, a correct total
         // area means full coverage with no overlaps.
-        expect(area2).toBeLessThan(0);
+        if (area2 >= 0) backFacing++;
         area += -area2 / 2;
       }
+      expect(backFacing).toBe(0);
       expect(area).toBeCloseTo(grid.extent * grid.extent, 3);
     }
   });
 
   it("keeps every vertex on the base-quad integer lattice (the snap-stability invariant)", () => {
     const grid = buildLodGrid(SHIPPED);
-    for (let i = 0; i < grid.vertexCount; i++) {
-      const [x, z] = vertexXZ(grid, i);
-      expect(x / SHIPPED.baseQuad).toBeCloseTo(Math.round(x / SHIPPED.baseQuad), 6);
-      expect(z / SHIPPED.baseQuad).toBeCloseTo(Math.round(z / SHIPPED.baseQuad), 6);
-    }
+    const offLattice = (value: number) => Math.abs(value / SHIPPED.baseQuad - Math.round(value / SHIPPED.baseQuad)) >= 5e-7;
+    const off = Array.from({ length: grid.vertexCount }, (_, i) => vertexXZ(grid, i)).filter(([x, z]) => offLattice(x) || offLattice(z));
+    expect(off).toEqual([]);
   });
 
   it("reports consistent metadata", () => {
@@ -81,7 +77,7 @@ describe("buildLodGrid", () => {
     expect(grid.triangleCount).toBe(grid.index.length / 3);
     expect(grid.coarsestQuad).toBeCloseTo(SHIPPED.baseQuad * 2 ** grid.levels, 10);
     expect(grid.extent).toBeCloseTo(grid.nearExtent * 2 ** grid.levels, 6);
-    for (const i of grid.index) expect(i).toBeLessThan(grid.vertexCount);
+    expect(grid.index.reduce((most, i) => Math.max(most, i), 0)).toBeLessThan(grid.vertexCount);
   });
 
   it("lands near the designed vertex budget at the shipped defaults (~52k, not ~1M)", () => {

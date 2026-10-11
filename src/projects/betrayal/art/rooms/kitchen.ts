@@ -7,7 +7,12 @@ import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { INNER, onWall, type PropPlacement, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane, textured } from "../shapes";
+import { shiny, shinyBatch, SHINES, type Shine } from "../shine";
 import { bricks, flagstones, pixelTexture, woodPlanks } from "../textures";
+
+
+/** A metal's shine by its colour: brass, or iron. */
+const metalShine = (metal: PaletteKey): Shine => (metal === "brass" ? SHINES.brass : SHINES.iron);
 
 /** Old, grimy limewash over brick above the dado; bare, smoke-browned brick below it. */
 const LIMEWASH = (): THREE.Texture => bricks({ ramp: ["stoneDark", "boneDark", "boneDark", "stoneLight", "stoneLight"], mortar: "stone", wear: 0, seed: "kitchen-brick:wash" });
@@ -38,7 +43,7 @@ function pot(radius: number, height: number, metal: PaletteKey, below = 0.05): T
       [radius - wall, height - below],
       [0, height - below],
     ],
-    flat(metal),
+    shiny(flat(metal), metalShine(metal)),
     10,
   );
   const surface = cylinder(radius - wall + 0.002, 0.012, glow("wraithLight"), [0, height - below, 0], { sides: 10 });
@@ -99,13 +104,14 @@ function range(): THREE.Group {
   iron.block([width, hob - 0.14, depth - 0.04], "soot", [0, 0.08, back + (depth - 0.04) / 2]);
   // The hob plate's back stands a little in front of the piers' backs, so where it runs into them their faces never share a plane.
   iron.block([width + 0.08, 0.06, depth + 0.035], "sootLight", [0, hob - 0.06, back + 0.005 + (depth + 0.035) / 2]);
+  const brass = batch();
   const face = front - 0.04;
   for (const side of [-1, 1]) {
     const x = side * 0.48;
     iron.block([0.44, 0.44, 0.03], "sootLight", [x, 0.18, face + 0.01]);
     iron.block([0.34, 0.32, 0.02], "soot", [x, 0.24, face + 0.03]);
-    iron.block([0.2, 0.035, 0.035], "brass", [x, 0.52, face + 0.055]);
-    iron.block([0.05, 0.05, 0.02], "brass", [x - side * 0.15, 0.36, face + 0.04]);
+    brass.block([0.2, 0.035, 0.035], "brass", [x, 0.52, face + 0.055]);
+    brass.block([0.05, 0.05, 0.02], "brass", [x - side * 0.15, 0.36, face + 0.04]);
   }
   iron.block([0.46, 0.52, 0.03], "sootLight", [0, 0.18, face + 0.01]);
   iron.block([0.36, 0.34, 0.02], "void", [0, 0.27, face + 0.025]);
@@ -114,9 +120,9 @@ function range(): THREE.Group {
   for (let i = 0; i < 5; i++) iron.block([0.025, 0.335, 0.025], "sootLight", [-0.14 + i * 0.07, 0.27, face + 0.045]);
   iron.block([0.36, 0.06, 0.03], "ash", [0, 0.2, face + 0.035]);
   // The brass rail along the front, with a cloth hung over it.
-  iron.block([width + 0.06, 0.03, 0.03], "brass", [0, hob - 0.16, front + 0.08]);
+  brass.block([width + 0.06, 0.03, 0.03], "brass", [0, hob - 0.16, front + 0.08]);
   // The brackets are a hair slimmer than the rail they carry, so their tops never share its plane.
-  for (const side of [-1, 1]) iron.block([0.03, 0.026, 0.11], "brass", [side * (width / 2 + 0.01), hob - 0.158, front + 0.03]);
+  for (const side of [-1, 1]) brass.block([0.03, 0.026, 0.11], "brass", [side * (width / 2 + 0.01), hob - 0.158, front + 0.03]);
   iron.block([0.3, 0.3, 0.02], "bone", [0.38, hob - 0.45, front + 0.106]);
   iron.block([0.3, 0.02, 0.07], "bone", [0.38, hob - 0.145, front + 0.08]);
   // A low back, so the pots show from behind when its wall is cut away; it stands a little in front of the piers' backs, so
@@ -126,7 +132,7 @@ function range(): THREE.Group {
 
   const brick = textured(BARE_BRICK());
   const stone = textured(flagstones({ stonePx: 6, size: 32, seed: "kitchen-cap", ramp: RAMPS.stone }));
-  const result = group(iron.mesh());
+  const result = group(iron.mesh(), shinyBatch(brass, SHINES.brass));
   for (const side of [-1, 1]) {
     result.add(
       box([PIER.width, hob, PIER.depth], brick, [side * PIER.x, 0, back + PIER.depth / 2]),
@@ -138,17 +144,17 @@ function range(): THREE.Group {
     pot(0.17, 0.32, "sootLight").translateX(-0.4).translateY(hob).translateZ(back + 0.36),
     pot(0.12, 0.14, "brass", 0.035).translateX(0.12).translateY(hob).translateZ(back + 0.42),
     pot(0.1, 0.1, "sootLight", 0.03).translateX(0.48).translateY(hob).translateZ(back + 0.32),
-    box([0.2, 0.025, 0.03], flat("sootLight"), [0.12, hob + 0.12, back + 0.62]),
-    box([0.03, 0.025, 0.2], flat("sootLight"), [0.62, hob + 0.075, back + 0.42]),
+    box([0.2, 0.025, 0.03], shiny(flat("sootLight"), SHINES.iron), [0.12, hob + 0.12, back + 0.62]),
+    box([0.03, 0.025, 0.2], shiny(flat("sootLight"), SHINES.iron), [0.62, hob + 0.075, back + 0.42]),
   );
-  for (const x of [-0.4 - 0.18, -0.4 + 0.18]) pots.add(box([0.03, 0.04, 0.06], flat("sootLight"), [x, hob + 0.26, back + 0.36]));
+  for (const x of [-0.4 - 0.18, -0.4 + 0.18]) pots.add(box([0.03, 0.04, 0.06], shiny(flat("sootLight"), SHINES.iron), [x, hob + 0.26, back + 0.36]));
   noShadows(pots);
   result.add(
     pots,
     steam(-0.4, hob + 0.3, back + 0.36, 0, 0.1),
     steam(0.12, hob + 0.12, back + 0.42, 0.4),
     steam(0.48, hob + 0.08, back + 0.32, 0.7, 0.06),
-    lightAnchor({ colour: "wraith", intensity: 11, range: 7, flicker: 0.2 }, [0, hob + 0.3, back + 0.66]),
+    lightAnchor({ colour: "wraith", intensity: 11, range: 7, flicker: 0.2, kind: "fire" }, [0, hob + 0.3, back + 0.66]),
   );
   return result;
 }
@@ -173,17 +179,19 @@ function chimneyBreast(): THREE.Group {
   }
   // The range's high back and plate shelf, hung here so they hide with the wall.
   const iron = batch();
+  const fittings = batch();
+  const china = batch();
   const bottom = RANGE.hob + 0.23 - CAP_TOP;
   // The back runs into the piers, past the plate shelf's ends, so their ends never share a plane.
   iron.block([PIER.x * 2 - PIER.width + 0.02, arch - bottom + 0.01, 0.04], "soot", [0, bottom, back + 0.02]);
-  iron.block([RANGE.width - 0.2, 0.04, 0.03], "brass", [0, bottom + 0.12, back + 0.055]);
+  fittings.block([RANGE.width - 0.2, 0.04, 0.03], "brass", [0, bottom + 0.12, back + 0.055]);
   iron.block([PIER.x * 2 - PIER.width - 0.02, 0.04, 0.22], "sootLight", [0, bottom + 0.4, back + 0.11]);
   for (const x of [-0.45, -0.2, 0.3]) {
-    iron.add([0.22, 0.22, 0.02], "boneLight", new THREE.Matrix4().makeRotationX(-0.15).setPosition(x, bottom + 0.55, back + 0.1));
+    china.add([0.22, 0.22, 0.02], "boneLight", new THREE.Matrix4().makeRotationX(-0.15).setPosition(x, bottom + 0.55, back + 0.1));
   }
   // Iron cheeks lining the arch, sooted black.
   for (const side of [-1, 1]) iron.block([0.03, arch - bottom, PIER.depth - 0.1], "soot", [side * (inner - 0.01), bottom, back + 0.05 + (PIER.depth - 0.1) / 2]);
-  result.add(iron.mesh());
+  result.add(iron.mesh(), shinyBatch(fittings, SHINES.brass), shinyBatch(china, SHINES.glazedChina));
   const tins = batch();
   const shelf = arch + 0.38;
   const z = back + PIER.depth + 0.02;
@@ -207,8 +215,9 @@ const TABLE = { length: 2.2, width: 1.0, height: 0.8 };
  *  drawer at each end. Its length runs along x. */
 function kitchenTable(): THREE.Group {
   const { length, width, height } = TABLE;
-  const top = textured(woodPlanks({ ramp: DEAL, plankPx: 7, seed: "kitchen-table" }));
+  const top = textured(woodPlanks({ ramp: DEAL, plankPx: 7, seed: "kitchen-table", glints: false }));
   const frame = batch();
+  const pulls = batch();
   const leg = 0.09;
   const lx = length / 2 - 0.12;
   const lz = width / 2 - 0.1;
@@ -221,10 +230,10 @@ function kitchenTable(): THREE.Group {
   for (const side of [-1, 1]) {
     frame.block([0.03, 0.14, width - 0.2], "woodMid", [side * lx, height - 0.19, 0]);
     frame.block([0.02, 0.1, 0.4], "wood", [side * (lx + 0.05), height - 0.17, 0]);
-    frame.block([0.03, 0.03, 0.08], "brass", [side * (lx + 0.07), height - 0.13, 0]);
+    pulls.block([0.03, 0.03, 0.08], "brass", [side * (lx + 0.07), height - 0.13, 0]);
   }
   frame.block([length - 0.3, 0.04, 0.05], "wood", [0, 0.12, 0]);
-  return group(frame.mesh(), box([length, 0.05, width], top, [0, height - 0.05, 0]));
+  return group(frame.mesh(), shinyBatch(pulls, SHINES.brass), box([length, 0.05, width], top, [0, height - 0.05, 0]));
 }
 
 /** A plank bench with splayed legs, as long as the table. Faces +z. */
@@ -261,16 +270,18 @@ function stool(): THREE.Group {
  *  handle on one line, every blade parallel, the spacing exact. Blades point −z. */
 function knives(): THREE.Group {
   const b = batch();
+  const bolsters = batch();
+  const blades = batch();
   const lengths = [0.36, 0.32, 0.28, 0.25, 0.22, 0.19, 0.16];
   lengths.forEach((blade, i) => {
     const x = -0.21 + i * 0.07;
     const handle = 0.12;
     b.block([0.035, 0.022, handle], "woodDark", [x, 0, 0]);
-    b.block([0.03, 0.03, 0.012], "brass", [x, 0, -handle / 2 - 0.004]);
+    bolsters.block([0.03, 0.03, 0.012], "brass", [x, 0, -handle / 2 - 0.004]);
     // The blade starts at the bolster's face rather than inside it: some blades are within a millimetre of its width.
-    b.block([0.04 - i * 0.003, 0.015, blade], "stoneLight", [x, 0, -handle / 2 - blade / 2 - 0.01]);
+    blades.block([0.04 - i * 0.003, 0.015, blade], "stoneLight", [x, 0, -handle / 2 - blade / 2 - 0.01]);
   });
-  return group(b.mesh());
+  return group(b.mesh(), shinyBatch(bolsters, SHINES.brass), shinyBatch(blades, SHINES.silver));
 }
 
 /** A chopping board with a turnip half cut into slices, the knife that cut
@@ -343,7 +354,7 @@ function pastry(): THREE.Group {
       [0.13, 0.07],
       [0, 0.07],
     ],
-    flat("boneDark"),
+    shiny(flat("boneDark"), SHINES.glazedChina),
     10,
   );
   bowl.position.set(-0.35, 0, -0.08);
@@ -384,17 +395,17 @@ function panRack(): THREE.Group {
     if (kind === "pan") {
       const handle = 0.22;
       b.block([0.03, handle, 0.018], colour, [x, rail - 0.05 - handle, z]);
-      const dish = cylinder(size, 0.045, flat(colour), [0, 0, 0], { top: size * 1.08, sides: 10 });
+      const dish = cylinder(size, 0.045, shiny(flat(colour), metalShine(colour)), [0, 0, 0], { top: size * 1.08, sides: 10 });
       dish.rotation.x = Math.PI / 2;
       dish.position.set(x, rail - 0.05 - handle - size + 0.01, z);
       result.add(dish);
     } else if (kind === "pot") {
       b.block([0.012, 0.12, 0.012], "sootLight", [x, rail - 0.17, z]);
-      const body = cylinder(size, size * 1.3, flat(colour), [x, rail - 0.17 - size * 1.3, z], { top: size * 0.95, sides: 9 });
+      const body = cylinder(size, size * 1.3, shiny(flat(colour), metalShine(colour)), [x, rail - 0.17 - size * 1.3, z], { top: size * 0.95, sides: 9 });
       result.add(body);
     } else if (kind === "ladle") {
       b.block([0.025, 0.42, 0.015], colour, [x, rail - 0.47, z]);
-      const cup = cylinder(0.055, 0.05, flat(colour), [x, rail - 0.52, z + 0.02], { top: 0.07, sides: 8 });
+      const cup = cylinder(0.055, 0.05, shiny(flat(colour), metalShine(colour)), [x, rail - 0.52, z + 0.02], { top: 0.07, sides: 8 });
       result.add(cup);
     } else {
       b.block([0.05, 0.08, 0.05], "boneDark", [x, rail - 0.13, z]);
@@ -411,6 +422,7 @@ function panRack(): THREE.Group {
  *  its top. Backed against its wall, it faces +z. */
 function dresserBase(): THREE.Group {
   const b = batch();
+  const handles = batch();
   const width = 1.8;
   const back = 0.04;
   b.block([width, 0.08, 0.48], "woodDark", [0, 0, back + 0.24]);
@@ -420,17 +432,17 @@ function dresserBase(): THREE.Group {
   for (let i = 0; i < 3; i++) {
     const x = (i - 1) * 0.58;
     b.block([0.54, 0.17, 0.02], "woodMid", [x, 0.6, face + 0.005]);
-    b.block([0.08, 0.03, 0.03], "brass", [x, 0.67, face + 0.025]);
+    handles.block([0.08, 0.03, 0.03], "brass", [x, 0.67, face + 0.025]);
   }
   for (const x of [-0.45, 0.45]) {
     b.block([0.8, 0.44, 0.02], "woodMid", [x, 0.12, face + 0.005]);
     b.block([0.66, 0.32, 0.02], "wood", [x, 0.18, face + 0.02]);
-    b.block([0.03, 0.06, 0.03], "brass", [x - Math.sign(x) * 0.33, 0.33, face + 0.035]);
+    handles.block([0.03, 0.06, 0.03], "brass", [x - Math.sign(x) * 0.33, 0.33, face + 0.035]);
   }
-  const result = group(b.mesh());
-  const crock = lathe([[0, 0], [0.1, 0], [0.12, 0.12], [0.1, 0.24], [0.08, 0.26], [0, 0.26]], flat("boneDark"), 9);
+  const result = group(shinyBatch(b, SHINES.polishedWood), shinyBatch(handles, SHINES.brass));
+  const crock = lathe([[0, 0], [0.1, 0], [0.12, 0.12], [0.1, 0.24], [0.08, 0.26], [0, 0.26]], shiny(flat("boneDark"), SHINES.glazedChina), 9);
   crock.position.set(-0.65, 0.87, back + 0.42);
-  const jar = lathe([[0, 0], [0.07, 0], [0.08, 0.16], [0.05, 0.19], [0, 0.19]], flat("woodLight"), 8);
+  const jar = lathe([[0, 0], [0.07, 0], [0.08, 0.16], [0.05, 0.19], [0, 0.19]], shiny(flat("woodLight"), SHINES.glazedChina), 8);
   jar.position.set(-0.4, 0.87, back + 0.42);
   const light = chamberstick({ intensity: 1.8 });
   light.position.set(0.55, 0.87, back + 0.42);
@@ -453,24 +465,26 @@ function dresserRack(): THREE.Group {
   const result = group();
   for (const level of [0.02, 0.45, 0.88]) {
     b.block([width - 0.06, 0.03, depth - 0.02], "woodMid", [0, level, back + depth / 2]);
-    if (level > 0.1) b.block([width - 0.06, 0.025, 0.02], "wood", [0, level + 0.1, back + depth - 0.01]);
+    // The lip stands a hair behind the sides' fronts, whose planes it would share where it runs into them.
+    if (level > 0.1) b.block([width - 0.06, 0.025, 0.02], "wood", [0, level + 0.1, back + depth - 0.012]);
     let x = -width / 2 + 0.16;
     while (x < width / 2 - 0.15) {
       const radius = uniform(rng, 0.1, 0.13);
-      const plate = cylinder(radius, 0.02, flat(pick(rng, ["boneLight", "boneLight", "moon", "moonLight"] as const)), [0, 0, 0], { sides: 10 });
+      const plate = cylinder(radius, 0.02, shiny(flat(pick(rng, ["boneLight", "boneLight", "moon", "bone"] as const)), SHINES.glazedChina), [0, 0, 0], { sides: 10 });
       plate.rotation.x = Math.PI / 2 - 0.14;
       plate.position.set(x, level + 0.03 + radius, back + 0.1);
       result.add(plate);
       x += radius * 2 + uniform(rng, 0.02, 0.05);
     }
   }
+  const hooks = batch();
   for (const x of [-0.6, -0.3, 0, 0.3, 0.6]) {
-    b.block([0.012, 0.04, 0.012], "brass", [x, 0.4, back + depth - 0.02]);
-    const jug = lathe([[0, 0], [0.05, 0], [0.065, 0.06], [0.045, 0.12], [0.055, 0.14], [0, 0.14]], flat(x === 0 ? "moon" : "bone"), 8);
+    hooks.block([0.012, 0.04, 0.012], "brass", [x, 0.4, back + depth - 0.02]);
+    const jug = lathe([[0, 0], [0.05, 0], [0.065, 0.06], [0.045, 0.12], [0.055, 0.14], [0, 0.14]], shiny(flat(x === 0 ? "moon" : "bone"), SHINES.glazedChina), 8);
     jug.position.set(x, 0.26, back + depth - 0.02);
     result.add(jug);
   }
-  result.add(b.mesh());
+  result.add(b.mesh(), shinyBatch(hooks, SHINES.brass));
   return result;
 }
 
@@ -486,12 +500,15 @@ function sink(): THREE.Group {
   b.block([w, 0.14, 0.07], "stone", [0, top - 0.14, back + d - 0.035]);
   b.block([w, 0.14, 0.07], "stone", [0, top - 0.14, back + 0.035]);
   for (const side of [-1, 1]) b.block([0.07, 0.14, d - 0.14], "stone", [side * (w / 2 - 0.035), top - 0.14, back + d / 2]);
-  b.block([w - 0.14, 0.02, d - 0.14], "tideDark", [0, top - 0.12, back + d / 2]);
-  b.block([0.07, 0.62, 0.07], "sootLight", [-0.25, top - 0.14, back + 0.06]);
-  b.block([0.05, 0.05, 0.22], "sootLight", [-0.25, top + 0.36, back + 0.17]);
-  b.add([0.04, 0.04, 0.4], "sootLight", new THREE.Matrix4().makeRotationX(-0.6).setPosition(-0.25, top + 0.56, back + 0.2));
-  for (let i = 0; i < 3; i++) b.block([0.22, 0.02, 0.22], "boneLight", [0.2 + i * 0.012, top - 0.1 + i * 0.022, back + 0.28]);
-  const result = group(b.mesh());
+  const water = batch();
+  water.block([w - 0.14, 0.02, d - 0.14], "tideDark", [0, top - 0.12, back + d / 2]);
+  const pump = batch();
+  pump.block([0.07, 0.62, 0.07], "sootLight", [-0.25, top - 0.14, back + 0.06]);
+  pump.block([0.05, 0.05, 0.22], "sootLight", [-0.25, top + 0.36, back + 0.17]);
+  pump.add([0.04, 0.04, 0.4], "sootLight", new THREE.Matrix4().makeRotationX(-0.6).setPosition(-0.25, top + 0.56, back + 0.2));
+  const plates = batch();
+  for (let i = 0; i < 3; i++) plates.block([0.22, 0.02, 0.22], "boneLight", [0.2 + i * 0.012, top - 0.1 + i * 0.022, back + 0.28]);
+  const result = group(b.mesh(), shinyBatch(water, SHINES.wetStone), shinyBatch(pump, SHINES.iron), shinyBatch(plates, SHINES.glazedChina));
   for (const side of [-1, 1]) result.add(box([0.16, top - 0.22, d - 0.06], brick, [side * 0.38, 0, back + (d - 0.06) / 2]));
   const pail = cylinder(0.13, 0.26, flat("stoneDark"), [0, 0, back + 0.28], { top: 0.15, sides: 9 });
   result.add(pail);
@@ -500,11 +517,11 @@ function sink(): THREE.Group {
 
 /** A coal scuttle, full, and its shovel, by the cold range. */
 function coalScuttle(): THREE.Group {
-  const scuttle = lathe([[0, 0], [0.16, 0], [0.18, 0.3], [0, 0.3]], flat("sootLight"), 8);
+  const scuttle = lathe([[0, 0], [0.16, 0], [0.18, 0.3], [0, 0.3]], shiny(flat("sootLight"), SHINES.iron), 8);
   const coal = new THREE.Mesh(new THREE.DodecahedronGeometry(0.16, 0), flat("void"));
   coal.scale.y = 0.4;
   coal.position.y = 0.3;
-  const shovel = box([0.04, 0.5, 0.02], flat("sootLight"), [0, 0, 0]);
+  const shovel = box([0.04, 0.5, 0.02], shiny(flat("sootLight"), SHINES.iron), [0, 0, 0]);
   shovel.rotation.z = 0.35;
   shovel.position.set(0.12, 0.22, 0.04);
   return group(scuttle, coal, shovel);
@@ -536,7 +553,7 @@ function crockRack(): THREE.Group {
     for (const x of xs) {
       const r = uniform(rng, 0.07, 0.11);
       const h = uniform(rng, 0.14, 0.26);
-      const crock = lathe([[0, 0], [r, 0], [r * 1.1, h * 0.6], [r * 0.8, h], [0, h]], flat(pick(rng, ["boneDark", "woodLight", "bone"] as const)), 8);
+      const crock = lathe([[0, 0], [r, 0], [r * 1.1, h * 0.6], [r * 0.8, h], [0, h]], shiny(flat(pick(rng, ["boneDark", "woodLight", "bone"] as const)), SHINES.glazedChina), 8);
       crock.position.set(x, y + 0.03, 0.22);
       result.add(crock);
     }
@@ -547,7 +564,7 @@ function crockRack(): THREE.Group {
 /** A chopping block on three stout legs, a cabbage's outer leaves on it. */
 function choppingBlock(): THREE.Group {
   const top = cylinder(0.28, 0.3, flat("woodLight"), [0, 0.5, 0], { sides: 10 });
-  const ring = cylinder(0.285, 0.04, flat("sootLight"), [0, 0.7, 0], { sides: 10 });
+  const ring = cylinder(0.285, 0.04, shiny(flat("sootLight"), SHINES.iron), [0, 0.7, 0], { sides: 10 });
   const b = batch();
   for (let i = 0; i < 3; i++) {
     const angle = (i / 3) * Math.PI * 2 + 0.4;
@@ -575,7 +592,7 @@ function potatoBasket(): THREE.Group {
 /** A pail and a mop leaning into the corner. */
 function mopAndPail(): THREE.Group {
   const pail = cylinder(0.14, 0.28, flat("stoneDark"), [0, 0, 0], { top: 0.16, sides: 9 });
-  const water = cylinder(0.14, 0.01, flat("tideDark"), [0, 0.24, 0], { sides: 9 });
+  const water = cylinder(0.14, 0.01, shiny(flat("tideDark"), SHINES.wetStone), [0, 0.24, 0], { sides: 9 });
   const mop = group(box([0.035, 1.3, 0.035], flat("woodMid"), [0, 0.12, 0]), box([0.14, 0.14, 0.14], flat("boneDark"), [0, 0, 0]));
   mop.rotation.set(-0.2, 0, 0.2);
   mop.position.set(0.25, 0.01, 0.15);
@@ -630,9 +647,9 @@ export const KITCHEN: RoomDefinition = {
     cornerWeb(1, 1),
   ],
   focus: [-1.6, 0.9, 0],
-  pawn: [1.45, 1.55],
-  spots: [[0.45, 0.65], [-1.5, 0.6], [1.75, -0.6], [-0.55, 1.55], [1.0, -1.75]],
-  overflow: [[-1.6, -1.75], [1.55, 0.45], [0.45, 1.55], [-0.8, -1.8], [-0.35, 0.65], [-1.3, 1.8]],
+  prime: [1.45, 1.55],
+  // The front of the range on the left wall, whose pots boil green: the room's identity stays in view.
+  keepClear: [{ from: [-2.0, -0.5], to: [-2.0, 0.3], radius: 0.35 }],
   // Round the end of the table, from the top doorway down past the range to the right one and the floor below.
   lanes: [
     [[0, -2.2], [0, -1.8], [1.4, -1.8], [1.5, -0.9], [1.95, -0.35], [1.95, 0], [1.95, 0.3], [1.4, 1.0], [-0.8, 1.0]],

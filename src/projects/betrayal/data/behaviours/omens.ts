@@ -168,6 +168,7 @@ const DOG_BEHAVIOUR: Behaviour = {
           dogRuns(ctx.engine, state, p.figure).map((room) => ({
             label: `Send the Dog to the ${CATALOG.rooms[room].name}`,
             steps: [local("dog", "there", { figure: p.figure, room })],
+            room,
           })),
           DOG,
         ),

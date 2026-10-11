@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENGINE } from "../game";
+import { BASE_ENGINE, ENGINE } from "../game";
 import {
   at,
   choose,
@@ -201,14 +201,16 @@ describe("discovering a room", () => {
 
 describe("omens and the haunt roll", () => {
   it("reveals the haunt from the chart when the roll is under the omens drawn", () => {
+    // With no haunt built, the game stops at the reveal, the chart's haunt in place.
     let state = testGame({
+      engine: BASE_ENGINE,
       stack: ["abandoned-room"],
       decks: { omen: ["book"] },
     });
     // With 12 omens already out, the 13th makes any 6-dice roll (at most 12) start the haunt.
     state.omensDrawn = 12;
-    state = choose(state, "Explore through the north door");
-    state = choose(state, "End your turn");
+    state = choose(state, "Explore through the north door", BASE_ENGINE);
+    state = choose(state, "End your turn", BASE_ENGINE);
     expect(state.status).toBe("haunt");
     expect(state.haunt).toMatchObject({
       number: 7,

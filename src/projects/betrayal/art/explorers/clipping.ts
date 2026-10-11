@@ -1,11 +1,13 @@
 import * as THREE from "three";
 import { shapeOf, solidOf, type Solid } from "../forms";
+import { isClothSheet } from "./cloth-sim";
 import { jointsOf, type Joint } from "./figure";
 import { handsOf, heldJoint } from "./hands";
 
 /*
  * The figures' clipping check: where one of a figure's rigid parts passes
- * through another, as it is posed now. Every part is a solid kept with its
+ * through another, as it is posed now. Simulated cloth is no rigid part and
+ * is left out (`isClothSheet`). Every part is a solid kept with its
  * geometry (see `shaped` in forms.ts), so each part's surface points are
  * asked how deep they lie inside every other part, in that part's own frame.
  *
@@ -85,6 +87,7 @@ function readParts(figure: THREE.Object3D): Part[] {
     const materials = [object.material].flat() as THREE.Material[];
     if (!materials.every((material) => material.depthWrite)) return;
     const geometry = object.geometry as THREE.BufferGeometry;
+    if (isClothSheet(geometry)) return;
     const solid = solidOf(geometry);
     if (!solid) throw new Error(`${nameOf(object)} has no solid to check clipping against: build it with \`shaped\``);
     const placements =

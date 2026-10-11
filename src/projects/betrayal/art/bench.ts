@@ -9,14 +9,24 @@ import { workerLanes } from "./bake-workers";
 import { createBakeScheduler, type BakeScheduler } from "./bake-schedule";
 import { createLitFloor, patchProbe, type Rebake } from "./lit-floor";
 import { batchParts } from "./part-batch";
-import { CUT_HEIGHT, DEFAULT_FOCUS, pieceLabel, roomSpot, type PropPlacement, type RoomDefinition } from "./room";
+import { CUT_HEIGHT, DEFAULT_FOCUS, pieceLabel, type PropPlacement, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
+import { PICTURE_LIBRARY } from "./rooms/picture-library";
 import { buildRoom, disposeTree, OUTWARD, roomTile } from "./stage";
 import { animationOf, type Animation } from "./animate";
 import { texturesUnder } from "./textures";
 import { group, shownBounds } from "./shapes";
+import { blowsOn, roomWind } from "./wind";
 import { depthRange, FIELD_OF_VIEW } from "./house-camera";
-import { createPathOverlay, type PathLegend, type PathOverlay } from "./path-overlay";
+import { createPathOverlay, type PathLegend, type PathOverlay, type SolvedRoom } from "./path-overlay";
+import { checkFloor } from "./overlap";
+import { backdropKind, createBackdrop } from "./backdrop";
+import { paletteHex } from "./palette";
+import { CATALOG } from "../data";
+import { colourRing } from "./house";
+import { placeFigures } from "./placement";
+import { placementHints } from "./room-floor";
+import { countBadge, PLACEMENT_PRESETS, placementPreset, type CrowdFigure } from "./placement-bench";
 
 /** The art is drawn at this many pixels on the screen's short side and scaled
  *  up with hard edges, for the chunky retro look on every screen size. Null
@@ -36,6 +46,8 @@ const EXPLORER_AIM = 0.85;
 const EXPLORER_RADIUS = 0.9;
 /** Framing a prop: the least it frames round the prop's centre, so a small one still shows where it lies. */
 const PROP_RADIUS = 0.3;
+/** How high over the crowd's middle the count badge floats, in metres. */
+const BADGE_HEIGHT = 2.4;
 
 /** What the camera's presets frame: the whole room, the explorer standing in
  *  it, one prop (by its place in the room's `props`), or a close-up of a
@@ -72,13 +84,13 @@ export interface BenchApi {
   setView: (view: number) => void;
   setZoom: (zoom: number) => void;
   setResolution: (resolution: Resolution) => void;
-  /** Who stands at the room's pawn spot, or the crowd on its standing spots (see `explorers()`). */
+  /** Who stands in the room: one explorer on its prime place, or a crowd placed by the solver (see `explorers()`). */
   setExplorer: (id: string) => void;
   setSubject: (subject: Subject) => void;
   /** Stops the animation clock (candle flicker, explorers) at a fixed time, so
    *  screenshots differ only when the art does; null starts it again. */
   freezeClock: (seconds: number | null) => void;
-  /** Shows or hides the standing spots and walks over the room (see `path-overlay.ts`). */
+  /** Shows or hides where figures stand and walk over the room (see `path-overlay.ts`). */
   setPaths: (on: boolean) => void;
   isReady: () => boolean;
   rooms: () => string[];
@@ -95,22 +107,40 @@ declare global {
   }
 }
 
+/** Who stands in the bench's room: the explorer whose turn it is first, then
+ *  the crowd after it, as one list, whichever kind of preset it comes from. */
+function crowdOf(id: string): CrowdFigure[] {
+  const preset = placementPreset(id);
+  if (preset) return [...preset.figures];
+  const figures = explorer(id);
+  return [figures.build, ...(figures.crowd ?? [])].map((build) => ({ build, size: "person", ring: null }));
+}
+
+/** Where each figure stands: where the placement solver puts it, as the house places figures. */
+function standCrowd(def: RoomDefinition, crowd: readonly CrowdFigure[]): { at: [number, number][]; solved: SolvedRoom } {
+  const hints = placementHints(def, null);
+  const placement = placeFigures(checkFloor(def).plan, hints, crowd.map((figure, i) => ({ id: String(i), size: figure.size })));
+  const at = crowd.map((_, i): [number, number] => [placement.figures[String(i)].x, placement.figures[String(i)].z]);
+  return { at, solved: { hints, placement, sizes: crowd.map((figure) => figure.size) } };
+}
+
 /** One room on its own, lit exactly as the house lights it: baked, under the
  *  house's fill and moon, laid unturned, as a house of one room, with the
- *  house's light over the explorer whose turn it is, on the prime spot. A
- *  crowd stands on the spots after it as the house stands figures, facing as
- *  the unturned room faces them, each lit by the bake where it stands. */
-function benchStage(def: RoomDefinition, figures: BenchExplorer, bakes: BakeScheduler) {
-  const part = buildRoom(def, { explorer: figures.build });
-  const explorer = part.explorer;
+ *  house's light over the explorer whose turn it is, on the prime place. A
+ *  crowd stands where the placement solver puts it, as the house stands
+ *  figures, facing as the unturned room faces them, each lit by the bake
+ *  where it stands. */
+function benchStage(def: RoomDefinition, figures: readonly CrowdFigure[], bakes: BakeScheduler) {
+  const { at, solved } = standCrowd(def, figures);
+  const part = buildRoom(def, { explorer: null });
+  // Everyone in the room stands in its air, for cloth that blows in it.
+  const wind = roomWind(def);
   const frozen = freezeRoom(def.id, part);
   const floor = createLitFloor(bakes, "bench");
   const bake = floor.place([{ id: def.id, room: frozen, matrix: new THREE.Matrix4() }]);
-  const crowd = (figures.crowd ?? []).map((build, i) => {
-    const slot = i + 1;
-    const figure = build(`${def.id}:crowd:${slot}`);
-    const [x, z] = roomSpot(def, slot);
-    figure.position.set(x, 0, z);
+  const crowd = figures.map(({ build }, slot) => {
+    const figure = blowsOn(build(`${def.id}:crowd:${slot}`), wind);
+    figure.position.set(at[slot][0], 0, at[slot][1]);
     const animations: Animation[] = [];
     figure.traverse((object) => {
       const animation = animationOf(object);
@@ -118,6 +148,19 @@ function benchStage(def: RoomDefinition, figures: BenchExplorer, bakes: BakeSche
     });
     return { figure, probe: patchProbe(figure), batch: batchParts(figure), animations };
   });
+  const explorer = crowd.at(0)?.figure ?? null;
+  const marks: THREE.Object3D[] = [];
+  figures.forEach(({ ring }, slot) => {
+    if (ring === null) return;
+    const mark = colourRing(ring);
+    mark.position.x = at[slot][0];
+    mark.position.z = at[slot][1];
+    marks.push(mark);
+  });
+  if (solved.placement.badge !== null) {
+    const middle = at.reduce((sum, [x, z]) => sum.add(new THREE.Vector3(x, 0, z)), new THREE.Vector3()).divideScalar(at.length);
+    marks.push(countBadge(solved.placement.badge, middle.setY(BADGE_HEIGHT)));
+  }
   const fog = houseFog();
   let isCut: (edge: Edge) => boolean = () => false;
   const cut = () => floor.rooms.get(def.id)?.setCut(isCut);
@@ -126,7 +169,7 @@ function benchStage(def: RoomDefinition, figures: BenchExplorer, bakes: BakeSche
   if (explorer) overExplorer.position.copy(explorer.getWorldPosition(new THREE.Vector3())).add(EXPLORER_LIGHT_OFFSET);
   overExplorer.visible = explorer !== null;
   return {
-    root: group(floor.root, fillLight(), overExplorer, ...crowd.map(({ figure }) => figure)),
+    root: group(floor.root, fillLight(), overExplorer, ...crowd.map(({ figure }) => figure), ...marks),
     fog,
     background: fog.color.clone(),
     setCutaway: (cameraDirection: THREE.Vector2) => {
@@ -146,16 +189,39 @@ function benchStage(def: RoomDefinition, figures: BenchExplorer, bakes: BakeSche
     bake,
     // Ready once the room shows its whole light, the bounce included, so a screenshot shows it.
     ready: Promise.all([frozen.ready, ...crowd.map(({ figure }) => texturesUnder(figure)), bake.then(cut), bake.then((done) => done.bounce)]).then(() => undefined),
+    solved,
     dispose: () => {
       floor.dispose();
       for (const { figure } of crowd) disposeTree(figure);
+      for (const mark of marks) {
+        if (mark instanceof THREE.Sprite) {
+          mark.material.map?.dispose();
+          mark.material.dispose();
+        } else disposeTree(mark);
+      }
     },
   };
 }
 type Stage = ReturnType<typeof benchStage>;
 
+/** The picture library's bench id (`?bench=pictures`), in place of a room's: it hangs on the Gallery's tile
+ *  until the Gallery has art of its own (see `picture-library.ts`), so the tile's id can't name it. */
+export const PICTURES_BENCH = "pictures";
+
+/** The room a bench id shows: a bench room by its own id, or the picture library. */
+function benchRoom(id: string): RoomDefinition | undefined {
+  return id === PICTURES_BENCH ? PICTURE_LIBRARY : BENCH_ROOMS.find((room) => room.id === id);
+}
+
 function definition(id: string): RoomDefinition {
-  return BENCH_ROOMS.find((room) => room.id === id) ?? BENCH_ROOMS[0];
+  const room = benchRoom(id);
+  if (!room) throw new Error(`The bench has no room "${id}"`);
+  return room;
+}
+
+/** What the bench calls a room it shows. */
+function benchRoomName(id: string): string {
+  return id === PICTURES_BENCH ? "Picture library" : roomTile(id).name;
 }
 
 /** The framing a link asks for (`&frame=room|explorer`), so a link can open on the explorer close up. */
@@ -174,6 +240,8 @@ function setSearchParam(name: string, value: string | null) {
 }
 
 function explorer(id: string): BenchExplorer {
+  const preset = placementPreset(id);
+  if (preset) return { id: preset.id, name: preset.name, build: preset.figures[0].build };
   const found = BENCH_EXPLORERS.find((candidate) => candidate.id === id);
   if (!found) throw new Error(`The bench has no explorer "${id}"`);
   return found;
@@ -183,10 +251,10 @@ function explorer(id: string): BenchExplorer {
  *  (four views, zoom, framing) place and the user can drag from there.
  *  Plain state outside React, so the page and screenshot tools drive the same thing. */
 export function createBench(initialRoom: string, initialExplorer: string | null = null, framing: string | null = null, paths = false) {
-  const firstRoom = definition(initialRoom).id;
+  const firstRoom = benchRoom(initialRoom) ? initialRoom : BENCH_ROOMS[0].id;
   let snapshot: BenchSnapshot = {
     roomId: firstRoom,
-    roomName: roomTile(firstRoom).name,
+    roomName: benchRoomName(firstRoom),
     view: 0,
     zoom: ZOOMS[0],
     resolution: DEFAULT_RESOLUTION,
@@ -217,9 +285,8 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
     frameCount: () => frames,
     bake: () => lastBake,
     setRoom: (id) => {
-      const room = definition(id);
-      if (room.id !== id) throw new Error(`The bench has no room "${id}"`);
-      update({ ...snapshot, roomId: id, roomName: roomTile(id).name });
+      definition(id);
+      update({ ...snapshot, roomId: id, roomName: benchRoomName(id) });
       setSearchParam("bench", id);
       mounted?.rebuild();
       mounted?.showPaths();
@@ -242,6 +309,7 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
       update({ ...snapshot, explorer: id });
       setSearchParam("explorer", id);
       mounted?.rebuild();
+      mounted?.showPaths();
       mounted?.settle();
     },
     setSubject: (subject) => {
@@ -259,7 +327,7 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
     },
     isReady: () => stageReady && settled,
     rooms: () => BENCH_ROOMS.map((room) => room.id),
-    explorers: () => BENCH_EXPLORERS.map((figure) => figure.id),
+    explorers: () => [...BENCH_EXPLORERS, ...PLACEMENT_PRESETS].map((figure) => figure.id),
     props: () =>
       definition(snapshot.roomId).props.map((prop) => ({
         label: pieceLabel(prop),
@@ -277,6 +345,9 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
     camera.fov = FIELD_OF_VIEW;
 
     const guard = budgetGuard(renderer);
+    // What lies behind the room (`?backdrop=night`), as behind the house, under the house's sky.
+    const backdrop = backdropKind() === "night" ? createBackdrop(new THREE.Color(paletteHex(HOUSE_LIGHT.fill.sky))) : null;
+    if (backdrop) scene.add(backdrop.mesh);
     const bakes = createBakeScheduler(() => workerLanes());
     let stage: Stage | null = null;
     const rebuild = () => {
@@ -285,7 +356,7 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
         stage.dispose();
       }
       stageReady = false;
-      const built = benchStage(definition(snapshot.roomId), explorer(snapshot.explorer), bakes);
+      const built = benchStage(definition(snapshot.roomId), crowdOf(snapshot.explorer), bakes);
       void built.bake.then((bake) => {
         if (stage === built) lastBake = bake;
       });
@@ -293,6 +364,9 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
       scene.add(built.root);
       scene.fog = built.fog;
       scene.background = built.background;
+      const id = definition(snapshot.roomId).id;
+      const underground = id in CATALOG.rooms && CATALOG.rooms[id].floors.every((floor) => floor === "basement");
+      backdrop?.show({ underground, floorY: 0, groundFloorY: 0 });
       void built.ready.then(() => {
         if (stage === built) stageReady = true;
       });
@@ -439,7 +513,7 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
     const showPaths = () => {
       hidePaths();
       if (snapshot.paths) {
-        paths = createPathOverlay(definition(snapshot.roomId));
+        paths = createPathOverlay(definition(snapshot.roomId), stage?.solved ?? null);
         scene.add(paths.root);
       }
       update({ ...snapshot, pathLegend: paths?.legend ?? null });
@@ -482,6 +556,10 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
           // Disposing cancels its bake, which resolves its ready: forgotten here, it would mark
           // the next mount's room ready before that room has any light.
           stage = null;
+        }
+        if (backdrop) {
+          scene.remove(backdrop.mesh);
+          backdrop.dispose();
         }
         bakes.stop();
         hidePaths();

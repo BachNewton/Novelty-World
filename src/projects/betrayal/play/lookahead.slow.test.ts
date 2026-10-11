@@ -94,7 +94,7 @@ describe("the lookahead agrees with the engine", () => {
     let checked = 0;
     simulate(seed, ENGINE, (state) => {
       if (check(state, timings)) checked++;
-    }, haunt === undefined ? {} : { haunt });
+    }, { haunt, checks: false });
     expect(checked).toBeGreaterThan(10);
     timings.sort((a, b) => a - b);
     console.log(`${seed}: ${checked} turns looked ahead; median ${timings[Math.floor(timings.length / 2)].toFixed(1)} ms, slowest ${timings[timings.length - 1].toFixed(1)} ms`);

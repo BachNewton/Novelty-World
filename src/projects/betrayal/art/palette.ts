@@ -54,6 +54,9 @@ export const PALETTE = {
   tide: "#2a7480",
   tideLight: "#7cc9c4",
 
+  /** A cold spectral teal, greener than the water's: the Bedroom's under-bed glow. */
+  spectre: "#19c294",
+
   moonDark: "#18243a",
   moon: "#3f5d88",
   moonLight: "#93afd2",

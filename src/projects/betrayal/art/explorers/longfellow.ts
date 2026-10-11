@@ -26,9 +26,10 @@ import {
 } from "../forms";
 import type { PaletteKey } from "../palette";
 import { group } from "../shapes";
-import { ADULT_WALK, BASE_TOP, burst, joins, leg, legJoints, legPoints, pushAside, soleEnds, STANDING, stride, walks, type Gait, type StrideRig } from "./figure";
+import { ADULT_WALK, BASE_TOP, idleBursts, joins, leg, legJoints, legPoints, pushAside, soleEnds, STANDING, stride, walks, type Gait, type StrideRig } from "./figure";
 import { aimGrip, blendPose, buildArm, fist, gripAt, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Prop } from "./hands";
 import { skinOf } from "./skin";
+import { declareParts, figureParts } from "../figure-parts";
 
 /*
  * Professor Longfellow: a slight, elderly scholar, all Knowledge and no Might.
@@ -345,8 +346,9 @@ function meshParts() {
     base: plinth(0.36, 0.34, BASE_TOP, "boneDark"),
   };
 }
-type Parts = ReturnType<typeof meshParts>;
-let meshed: Parts | undefined;
+/** Its parts, meshed once a session (ahead of time in a worker, in the house) and shared by every copy. */
+export const LONGFELLOW_PARTS = figureParts("longfellow", meshParts);
+declareParts(longfellow, [LONGFELLOW_PARTS]);
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** The middles of a shoe's heel and toe, as built (x set per foot): what a kicked-up foot pushes the coat with. */
@@ -358,8 +360,7 @@ const SHOE_POINTS = [new THREE.Vector3(0, BASE_TOP + 0.035, -0.03), new THREE.Ve
  *  page. He walks with an ordinary adult's step, the book held up before him.
  *  His left hand holds the book; his right hand is free to hold anything else. */
 export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Group {
-  meshed ??= meshParts();
-  const parts = meshed;
+  const parts = LONGFELLOW_PARTS.get();
   const material = figureMaterial();
   const mesh = (geometry: THREE.BufferGeometry, name: string) => {
     const made = form(material, geometry);
@@ -448,6 +449,7 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
   const breathPhase = rng.next() * Math.PI * 2;
   const swayPhase = rng.next() * Math.PI * 2;
   const offset = rng.next() * 100;
+  const bursts = idleBursts(figure, seed, offset, { spectacles: { every: 9, lasts: 2, chance: 0.7 }, glance: { every: 6, lasts: 2.6, chance: 0.6 } });
 
   return animated(figure, (clock) => {
     const seconds = clock + offset;
@@ -457,8 +459,8 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
     const running = moving.running ? moving.amount : 0;
     const held = right.hand.held;
     // His spectacles wait while his right hand is full, or he runs.
-    const gesture = held ? 0 : burst(seconds, `${seed}:spectacles`, { every: 9, lasts: 2, chance: 0.7 }).amount * (1 - running);
-    const glance = burst(seconds, `${seed}:glance`, { every: 6, lasts: 2.6, chance: 0.6 });
+    const { spectacles: pushUp, glance } = bursts(clock);
+    const gesture = held ? 0 : pushUp.amount * (1 - running);
 
     body.rotation.z = sway * 0.02;
     hips.rotation.z = sway * -0.008;

@@ -6,6 +6,7 @@ import { lightAnchor } from "../light-anchor";
 import { paletteHex, type PaletteKey } from "../palette";
 import type { PropPlacement, RoomDefinition } from "../room";
 import { box, cylinder, flat, glow, group, lightMaterial, projectUvs, textured } from "../shapes";
+import { shiny, SHINES } from "../shine";
 import { earth, flagstones, pixelTexture, TEXELS_PER_METRE } from "../textures";
 
 /** The open grave's hole in the ground, in room metres. */
@@ -14,7 +15,7 @@ const GRAVE_MIDDLE = (GRAVE.z[0] + GRAVE.z[1]) / 2;
 /** The wisp hangs over the head of the grave, before its headstone, so its light falls on ground and stone, not into the pit. */
 const WISP_Z = -1.75;
 
-const STONE_FACE: Record<string, PaletteKey | null> = { s: "stone", d: "stoneDark", l: "stoneLight", m: "verdigrisDark", g: "wraith", ".": null };
+const STONE_FACE: Record<string, PaletteKey | null> = { s: "stone", d: "stoneDark", m: "verdigrisDark", g: "wraith", ".": null };
 
 function between(rng: Rng, low: number, high: number): number {
   return low + Math.floor(rng.next() * (high - low + 1));
@@ -46,7 +47,6 @@ function stoneFace(w: number, h: number, seed: string): string[] {
     const y = h - 1 - Math.floor(Math.abs(rng.next() - rng.next()) * h * 0.8);
     set(x, y, rng.next() < 0.3 ? "g" : "m");
   }
-  for (let i = 0; i < w / 2; i++) set(between(rng, 0, w - 1), between(rng, 0, h - 1), "l");
   return grid.map((row) => row.join(""));
 }
 
@@ -98,12 +98,13 @@ function grave(shape: Shape, seed: string, at: [number, number], options: { lean
   return { build: () => headstone(shape, seed, options), name, at, contacts: tipped ? [{ with: "floor", because: "it has settled askew, a corner sunk in the soft earth" }] : [] };
 }
 
-/** A tall obelisk on a stepped base, the grandest memorial in the yard. Square, so it faces every way. */
+/** A tall obelisk of polished stone on a stepped base, the grandest memorial in the yard. Square, so it faces every way. */
 function obelisk(): THREE.Group {
   const dark = flat("stoneDark");
   const stone = flat("stone");
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.19, 1.45, 4).rotateY(Math.PI / 4).translate(0, 0.47 + 0.725, 0), stone);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.13 * Math.SQRT1_2 * Math.SQRT2, 0.2, 4).rotateY(Math.PI / 4).translate(0, 0.47 + 1.45 + 0.1, 0), flat("stoneLight"));
+  const polished = shiny(flat("stone"), SHINES.honedMarble);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.19, 1.45, 4).rotateY(Math.PI / 4).translate(0, 0.47 + 0.725, 0), polished);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.13 * Math.SQRT1_2 * Math.SQRT2, 0.2, 4).rotateY(Math.PI / 4).translate(0, 0.47 + 1.45 + 0.1, 0), polished);
   return group(box([0.7, 0.15, 0.7], dark), box([0.5, 0.2, 0.5], stone, [0, 0.15, 0]), facedSlab(0.38, 0.12, 0.38, "obelisk").translateY(0.35), shaft, tip);
 }
 
@@ -132,7 +133,7 @@ function openGrave(): THREE.Group {
   haze.material.color.set(paletteHex("wraith"));
   haze.position.set(0, -0.75, (z0 + z1) / 2);
   pit.add(haze);
-  pit.add(lightAnchor({ colour: "wraith", intensity: 1.6, range: 2.5, flicker: 0.2 }, [0, -0.35, (z0 + z1) / 2]));
+  pit.add(lightAnchor({ colour: "wraith", intensity: 1.6, range: 2.5, flicker: 0.2, kind: "glow" }, [0, -0.35, (z0 + z1) / 2]));
   return pit;
 }
 
@@ -159,7 +160,7 @@ function spoilHeap(): THREE.Group {
 
 /** A spade driven into the heap, its handle leaning out. Blade down, handle up. */
 function spade(): THREE.Group {
-  const blade = box([0.2, 0.28, 0.025], flat("ash"), [0, -0.28, 0]);
+  const blade = box([0.2, 0.28, 0.025], shiny(flat("ash"), SHINES.iron), [0, -0.28, 0]);
   const shaft = cylinder(0.018, 0.85, flat("woodMid"), [0, 0, 0], { sides: 6 });
   const grip = box([0.16, 0.035, 0.035], flat("woodMid"), [0, 0.85, 0]);
   const tool = group(blade, shaft, grip);
@@ -200,7 +201,7 @@ function wisp(): THREE.Group {
 
 /** A lantern on an iron post by the gate, its candle guttering behind smoked glass. Faces +z. */
 function gateLantern(): THREE.Group {
-  const iron = flat("soot");
+  const iron = shiny(flat("soot"), SHINES.iron);
   const light = lantern({ width: 0.15, height: 0.17, intensity: 1.3, range: 4.5, flicker: 0.2 });
   light.position.set(0.27, 1.34, 0);
   return group(box([0.18, 0.06, 0.18], iron), cylinder(0.03, 1.45, iron, [0, 0, 0], { sides: 6 }), box([0.32, 0.03, 0.03], iron, [0.14, 1.36, 0]), light);
@@ -288,11 +289,11 @@ export const GRAVEYARD: RoomDefinition = {
     { build: gateLantern, at: [-0.95, 2.35] },
     { build: groundFog, at: [0, 0] },
   ],
-  lights: [{ at: [0, 0.85, WISP_Z], colour: "wraithLight", intensity: 10, range: 6, flicker: 0.25 }],
+  lights: [{ at: [0, 0.85, WISP_Z], colour: "wraithLight", intensity: 10, range: 6, flicker: 0.25, kind: "glow" }],
   focus: [0, 0.5, GRAVE_MIDDLE],
-  pawn: [0.85, 1.85],
-  spots: [[2.15, 1.9], [-0.35, 1.4], [0.6, 0.55], [-1.5, 2.0], [-1.45, 0.45]],
-  overflow: [[1.5, 2.35], [-0.6, 0.65], [1.65, 1.3]],
+  prime: [0.85, 1.85],
+  // The foot of the open grave, which the gate looks along: no one stands between the path and the pit.
+  keepClear: [{ from: [0, 0.35], to: [0, 0.9], radius: 0.45 }],
   // Between the graves.
   lanes: [
     [[0, 2.2], [-0.2, 1.0], [-1.0, 0.4]],

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { MeshBVH, SAH } from "three-mesh-bvh";
 import type { Edge } from "../types";
 import type { FrozenRoom, Surfaces, Texels } from "./freeze";
-import { BOUNCE, FLICKER_CHANNELS, HOUSE_LIGHT, MAX_FLICKER, moonDirection } from "./lighting";
+import { BOUNCE, FLICKER_CHANNELS, HOUSE_LIGHT, LAMP_RADIUS, MAX_FLICKER, moonDirection, shadowMode, SOFT_SHADOWS } from "./lighting";
 import { paletteHex } from "./palette";
 import { TILE, type FlickerSignal } from "./room";
 
@@ -76,11 +76,13 @@ const HELD_SHARE = 0.5;
 /** Off a surface by this much before a shadow ray leaves it, so it doesn't hit its own face. */
 const LIFT = 0.005;
 
-/** A light on the floor, as plain numbers: position, linear colour times intensity, range, flicker and its channel. */
+/** A light on the floor, as plain numbers: position, linear colour times intensity, range, size, flicker and its channel. */
 export interface Lamp {
   at: [number, number, number];
   rgb: [number, number, number];
   range: number;
+  /** Its radius in metres, which softens its shadows: 0 for a point. */
+  radius: number;
   flicker: number;
   channel: number;
 }
@@ -95,6 +97,10 @@ export interface BakeScene {
   /** Towards the moon, and its light. */
   moon: [number, number, number];
   moonRgb: [number, number, number];
+  /** The moon's angular radius, in radians: 0 for parallel light. */
+  moonSpread: number;
+  /** Shadow rays a lamp (and the moon) per sample of the direct light when it has a size. */
+  rays: number;
 }
 
 /** Points to light, in the floor's frame: a position and the way the surface faces, three floats each. */
@@ -152,6 +158,7 @@ function roomBeyond(rooms: PlacedRoom[], { matrix }: PlacedRoom, edge: Edge): bo
 /** A floor's rooms as a bake scene: what stops light, and every light. A
  *  doorway with no room beyond it is shut (see the stage's plugs). */
 export function bakeScene(rooms: PlacedRoom[]): BakeScene {
+  const soft = shadowMode() === "soft";
   const blocks: { surfaces: Surfaces; matrix: THREE.Matrix4 }[] = rooms.flatMap((placed) => [
     { surfaces: placed.room.casters, matrix: placed.matrix },
     ...Object.entries(placed.room.plugs).flatMap(([edge, surfaces]) => (roomBeyond(rooms, placed, edge as Edge) ? [] : [{ surfaces, matrix: placed.matrix }])),
@@ -174,10 +181,18 @@ export function bakeScene(rooms: PlacedRoom[]): BakeScene {
     room.lights.map((light, i) => {
       if (light.flicker > MAX_FLICKER) throw new Error(`A light in ${room.id} flickers by ${light.flicker}; the most is ${MAX_FLICKER}`);
       const position = light.at.clone().applyMatrix4(matrix);
-      return { at: [position.x, position.y, position.z], rgb: linear(light.colour, light.intensity), range: light.range, flicker: light.flicker, channel: channelOf(light.signal, `${room.id}:${i}`) };
+      return { at: [position.x, position.y, position.z], rgb: linear(light.colour, light.intensity), range: light.range, radius: soft ? LAMP_RADIUS[light.kind ?? "lamp"] : 0, flicker: light.flicker, channel: channelOf(light.signal, `${room.id}:${i}`) };
     }),
   );
-  return { casters, albedo, lamps, moon: moonDirection().toArray(), moonRgb: linear(HOUSE_LIGHT.moon.colour, HOUSE_LIGHT.moon.intensity) };
+  return {
+    casters,
+    albedo,
+    lamps,
+    moon: moonDirection().toArray(),
+    moonRgb: linear(HOUSE_LIGHT.moon.colour, HOUSE_LIGHT.moon.intensity),
+    moonSpread: soft ? SOFT_SHADOWS.moonSpread : 0,
+    rays: soft ? SOFT_SHADOWS.rays : 1,
+  };
 }
 
 /** What stops light, ready for shadow rays. */
@@ -191,12 +206,32 @@ export function occluders(casters: Float32Array): MeshBVH {
 const READING = 3 + SIGNALS;
 
 /**
+ * `count` points filling the unit disc evenly, in a sunflower's spiral: where
+ * the shadow rays to a lamp with a size aim, across its disc. One fixed
+ * pattern for every sample, so neighbouring texels see a shadow's edge cross
+ * the same points, and a penumbra steps smoothly rather than speckling.
+ */
+function sunflower(count: number): Float64Array {
+  const points = new Float64Array(count * 2);
+  const turn = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < count; i++) {
+    const radius = Math.sqrt((i + 0.5) / count);
+    points[i * 2] = radius * Math.cos(i * turn);
+    points[i * 2 + 1] = radius * Math.sin(i * turn);
+  }
+  return points;
+}
+
+/**
  * Rays through the floor from one point at a time: `from` sets where they
  * start (and the box of the piece the point is inside, whose own surfaces
  * neither shadow nor bounce), `direct` reads the light straight from the
- * lamps and the moon there, and `first` finds what a ray hits.
+ * lamps and the moon there, and `first` finds what a ray hits. With `area`,
+ * a lamp with a size, and the moon, are seen as discs, `scene.rays` shadow
+ * rays each, and light the share of their rays that gets through; without,
+ * as points (the bounce's readings, which the bounce blurs anyway).
  */
-function tracer(scene: BakeScene, bvh: MeshBVH) {
+function tracer(scene: BakeScene, bvh: MeshBVH, area = false) {
   const ray = new THREE.Ray();
   // three-mesh-bvh's types say a raycast always hits; it returns null when nothing is in the way.
   const raycastFirst = bvh.raycastFirst.bind(bvh) as (...args: Parameters<MeshBVH["raycastFirst"]>) => THREE.Intersection | null;
@@ -222,6 +257,43 @@ function tracer(scene: BakeScene, bvh: MeshBVH) {
   const lamps = scene.lamps.map((lamp) => ({ ...lamp, position: new THREE.Vector3(...lamp.at), brightness: luminance(...lamp.rgb) }));
   const toLight = new THREE.Vector3();
   const size = new THREE.Vector3();
+  const disc = sunflower(scene.rays);
+  const across = new THREE.Vector3();
+  const upon = new THREE.Vector3();
+  const towards = new THREE.Vector3();
+  const target = new THREE.Vector3();
+  /** Sets `across` and `upon` square to `direction` and to each other. */
+  const square = (direction: THREE.Vector3) => {
+    across.set(Math.abs(direction.y) < 0.9 ? 0 : 1, Math.abs(direction.y) < 0.9 ? 1 : 0, 0).cross(direction).normalize();
+    upon.crossVectors(direction, across);
+  };
+  /** The share of a lamp's disc, `radius` across and `distance` away the way `direction` points, that rays reach unblocked. */
+  const lampSeen = (centre: THREE.Vector3, direction: THREE.Vector3, distance: number, radius: number): number => {
+    if (!area || radius === 0) return first(direction, distance - 0.02) === null ? 1 : 0;
+    // A disc wider than half the way to it would reach behind the sample.
+    const spread = Math.min(radius, distance / 2);
+    square(direction);
+    let seen = 0;
+    for (let i = 0; i < disc.length; i += 2) {
+      target.copy(centre).addScaledVector(across, disc[i] * spread).addScaledVector(upon, disc[i + 1] * spread);
+      towards.subVectors(target, ray.origin);
+      const far = towards.length();
+      if (first(towards.divideScalar(far), far - 0.02) === null) seen++;
+    }
+    return (seen * 2) / disc.length;
+  };
+  /** The share of the moon's disc that rays reach unblocked. */
+  const moonSeen = (): number => {
+    if (!area || scene.moonSpread === 0) return first(moon, 60) === null ? 1 : 0;
+    const spread = Math.tan(scene.moonSpread);
+    square(moon);
+    let seen = 0;
+    for (let i = 0; i < disc.length; i += 2) {
+      towards.copy(moon).addScaledVector(across, disc[i] * spread).addScaledVector(upon, disc[i + 1] * spread).normalize();
+      if (first(towards, 60) === null) seen++;
+    }
+    return (seen * 2) / disc.length;
+  };
   return {
     first,
     /** Rays start a lift off the surface at `position` facing `normal`, and outside `box` (min xyz, max xyz at `boxAt`) when it is a number. */
@@ -237,8 +309,9 @@ function tracer(scene: BakeScene, bvh: MeshBVH) {
     direct: (normal: THREE.Vector3, out: Float32Array) => {
       out.fill(0);
       const ndlMoon = normal.dot(moon);
-      if (ndlMoon > 0 && first(moon, 60) === null) {
-        for (let k = 0; k < 3; k++) out[k] += scene.moonRgb[k] * ndlMoon;
+      const moonLit = ndlMoon > 0 ? ndlMoon * moonSeen() : 0;
+      if (moonLit > 0) {
+        for (let k = 0; k < 3; k++) out[k] += scene.moonRgb[k] * moonLit;
       }
       for (const lamp of lamps) {
         toLight.subVectors(lamp.position, ray.origin);
@@ -252,9 +325,10 @@ function tracer(scene: BakeScene, bvh: MeshBVH) {
         const around = held ? HELD_SHARE * falloff(Math.max(distance, within.getSize(size).length() / 2), lamp.range) : 0;
         const strength = Math.max(ndl > 0 ? falloff(distance, lamp.range) * ndl : 0, around);
         if (strength === 0 || lamp.brightness * strength < FAINT) continue;
-        if (!held && first(toLight, distance - 0.02) !== null) continue;
-        for (let k = 0; k < 3; k++) out[k] += lamp.rgb[k] * strength;
-        if (lamp.flicker > 0) out[3 + lamp.channel] += lamp.flicker * lamp.brightness * strength;
+        const lit = held ? strength : strength * lampSeen(lamp.position, toLight, distance, lamp.radius);
+        if (lit === 0) continue;
+        for (let k = 0; k < 3; k++) out[k] += lamp.rgb[k] * lit;
+        if (lamp.flicker > 0) out[3 + lamp.channel] += lamp.flicker * lamp.brightness * lit;
       }
       return out;
     },
@@ -272,7 +346,7 @@ function record(reading: Float32Array, n: number, { light, weights }: Gathered) 
 function gatherLight(scene: BakeScene, bvh: MeshBVH, samples: Samples): Gathered {
   const count = samples.position.length / 3;
   const gathered: Gathered = { light: new Float32Array(count * 3), weights: new Float32Array(count * SIGNALS) };
-  const rays = tracer(scene, bvh);
+  const rays = tracer(scene, bvh, true);
   const position = new THREE.Vector3();
   const normal = new THREE.Vector3();
   const reading = new Float32Array(READING);
@@ -415,21 +489,83 @@ export function inlineBaker(): Baker {
   };
 }
 
-/** A placed room's samples: every lightmap texel, then each probe's faces. */
-export function roomSamples({ room, matrix }: PlacedRoom): Samples {
-  const texels = room.texels.index.length;
-  const probes = room.probes.all.length * PROBE_FACES.length;
-  const position = new Float32Array((texels + probes) * 3);
-  const normal = new Float32Array((texels + probes) * 3);
-  const within = new Float32Array((texels + probes) * 6).fill(NaN);
-  const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrix);
-  const p = new THREE.Vector3();
-  const nrm = new THREE.Vector3();
-  for (let n = 0; n < texels; n++) {
-    p.fromArray(room.texels.position, n * 3).applyMatrix4(matrix).toArray(position, n * 3);
-    nrm.fromArray(room.texels.normal, n * 3).applyMatrix3(normalMatrix).normalize().toArray(normal, n * 3);
+/**
+ * A chunk of a pass's samples, as a lane takes it: its texels in the room's
+ * own frame, with the matrix that lays them on the floor, then its probes'
+ * faces, already on it. A room has hundreds of thousands of texels, so the
+ * lane lays them out (`layOut`), not the page's thread.
+ */
+export interface SampleChunk {
+  texels: { position: Float32Array; normal: Float32Array };
+  /** The room's matrix, its elements. */
+  matrix: number[];
+  probes: Samples;
+}
+
+/** A pass's samples, cut into chunks as they are sent: texels first, then probe faces. */
+export interface SampleSet {
+  count: number;
+  chunk: (start: number, end: number) => SampleChunk;
+}
+
+const IDENTITY = new THREE.Matrix4().toArray();
+
+/** Samples already on the floor, as a set with no texels to lay out. */
+export function placedSet(samples: Samples): SampleSet {
+  return {
+    count: samples.position.length / 3,
+    chunk: (start, end) => ({
+      texels: { position: new Float32Array(0), normal: new Float32Array(0) },
+      matrix: IDENTITY,
+      probes: { position: samples.position.slice(start * 3, end * 3), normal: samples.normal.slice(start * 3, end * 3), within: samples.within.slice(start * 6, end * 6) },
+    }),
+  };
+}
+
+/** A chunk's samples on the floor: its texels laid out by its matrix, then its probes' faces. */
+export function layOut({ texels, matrix, probes }: SampleChunk): Samples {
+  const count = texels.position.length / 3;
+  const total = count + probes.position.length / 3;
+  const position = new Float32Array(total * 3);
+  const normal = new Float32Array(total * 3);
+  const within = new Float32Array(total * 6).fill(NaN);
+  // Written out rather than through vectors: a room has hundreds of thousands of texels.
+  const m = matrix;
+  const k = new THREE.Matrix3().getNormalMatrix(new THREE.Matrix4().fromArray(matrix)).elements;
+  const from = texels.position;
+  const facing = texels.normal;
+  for (let i = 0; i < count * 3; i += 3) {
+    const x = from[i];
+    const y = from[i + 1];
+    const z = from[i + 2];
+    position[i] = m[0] * x + m[4] * y + m[8] * z + m[12];
+    position[i + 1] = m[1] * x + m[5] * y + m[9] * z + m[13];
+    position[i + 2] = m[2] * x + m[6] * y + m[10] * z + m[14];
+    const a = facing[i];
+    const b = facing[i + 1];
+    const c = facing[i + 2];
+    const nx = k[0] * a + k[3] * b + k[6] * c;
+    const ny = k[1] * a + k[4] * b + k[7] * c;
+    const nz = k[2] * a + k[5] * b + k[8] * c;
+    const length = Math.hypot(nx, ny, nz) || 1;
+    normal[i] = nx / length;
+    normal[i + 1] = ny / length;
+    normal[i + 2] = nz / length;
   }
-  let n = texels;
+  position.set(probes.position, count * 3);
+  normal.set(probes.normal, count * 3);
+  within.set(probes.within, count * 6);
+  return { position, normal, within };
+}
+
+/** A placed room's probes' faces, on the floor: what follows its texels in each pass's samples. */
+export function probeSamples({ room, matrix }: PlacedRoom): Samples {
+  const count = room.probes.all.length * PROBE_FACES.length;
+  const position = new Float32Array(count * 3);
+  const normal = new Float32Array(count * 3);
+  const within = new Float32Array(count * 6).fill(NaN);
+  const p = new THREE.Vector3();
+  let n = 0;
   for (const probe of room.probes.all) {
     p.copy(probe.at).applyMatrix4(matrix);
     const box = probe.within?.clone().applyMatrix4(matrix);
@@ -444,6 +580,48 @@ export function roomSamples({ room, matrix }: PlacedRoom): Samples {
     }
   }
   return { position, normal, within };
+}
+
+/** A placed room's texels (`picked`, by index, or all of them), then its probes' faces, as a set. */
+function texelSet({ room, matrix }: PlacedRoom, picked: Uint32Array | null, probes: Samples): SampleSet {
+  const texels = picked ? picked.length : room.texels.index.length;
+  const elements = matrix.toArray();
+  const { position, normal } = room.texels;
+  const texelsOf = (start: number, end: number) => {
+    if (!picked) return { position: position.slice(start * 3, end * 3), normal: normal.slice(start * 3, end * 3) };
+    const out = { position: new Float32Array((end - start) * 3), normal: new Float32Array((end - start) * 3) };
+    for (let k = start; k < end; k++) {
+      const n = picked[k] * 3;
+      const at = (k - start) * 3;
+      for (let j = 0; j < 3; j++) {
+        out.position[at + j] = position[n + j];
+        out.normal[at + j] = normal[n + j];
+      }
+    }
+    return out;
+  };
+  return {
+    count: texels + probes.position.length / 3,
+    chunk: (start, end) => {
+      const [from, to] = [Math.max(start, texels) - texels, Math.max(end, texels) - texels];
+      return {
+        texels: texelsOf(Math.min(start, texels), Math.min(end, texels)),
+        matrix: elements,
+        probes: { position: probes.position.slice(from * 3, to * 3), normal: probes.normal.slice(from * 3, to * 3), within: probes.within.slice(from * 6, to * 6) },
+      };
+    },
+  };
+}
+
+/** A placed room's samples, as a set: every lightmap texel, then each probe's faces. */
+export function roomSampleSet(placed: PlacedRoom, probes = probeSamples(placed)): SampleSet {
+  return texelSet(placed, null, probes);
+}
+
+/** A placed room's samples, on the floor: every lightmap texel, then each probe's faces. */
+export function roomSamples(placed: PlacedRoom): Samples {
+  const set = roomSampleSet(placed);
+  return layOut(set.chunk(0, set.count));
 }
 
 /** A room's bake from the light gathered at its samples (as `roomSamples` lays them). */
@@ -474,27 +652,23 @@ function coarseAxis(length: number, step: number): number[] {
   return at;
 }
 
-/** A placed room's bounce samples: its lightmap's texels every `step` along
- *  each chart's axes (and each chart's last inner row and column), then each
- *  probe's faces, as `spreadBounce` reads them back. */
-export function bounceSamples(placed: PlacedRoom, step = BOUNCE.step): Samples {
-  const all = roomSamples(placed);
-  const { charts, index } = placed.room.texels;
+/** A placed room's bounce samples, as a set: its lightmap's texels every
+ *  `step` along each chart's axes (and each chart's last inner row and
+ *  column), then each probe's faces, as `spreadBounce` reads them back. */
+export function bounceSampleSet(placed: PlacedRoom, step = BOUNCE.step, probes = probeSamples(placed)): SampleSet {
+  const { charts } = placed.room.texels;
   const picked: number[] = [];
   for (let c = 0; c < charts.length; c += 3) {
     const [start, w, h] = [charts[c], charts[c + 1], charts[c + 2]];
     for (const j of coarseAxis(h, step)) for (const i of coarseAxis(w, step)) picked.push(start + j * w + i);
   }
-  for (let n = index.length; n < all.position.length / 3; n++) picked.push(n);
-  const position = new Float32Array(picked.length * 3);
-  const normal = new Float32Array(picked.length * 3);
-  const within = new Float32Array(picked.length * 6);
-  picked.forEach((n, k) => {
-    position.set(all.position.subarray(n * 3, n * 3 + 3), k * 3);
-    normal.set(all.normal.subarray(n * 3, n * 3 + 3), k * 3);
-    within.set(all.within.subarray(n * 6, n * 6 + 6), k * 6);
-  });
-  return { position, normal, within };
+  return texelSet(placed, Uint32Array.from(picked), probes);
+}
+
+/** A placed room's bounce samples, on the floor (see `bounceSampleSet`). */
+export function bounceSamples(placed: PlacedRoom, step = BOUNCE.step): Samples {
+  const set = bounceSampleSet(placed, step);
+  return layOut(set.chunk(0, set.count));
 }
 
 /**

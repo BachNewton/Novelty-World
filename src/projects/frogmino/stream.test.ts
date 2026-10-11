@@ -49,7 +49,9 @@ describe("the row stream", () => {
     for (const rows of STREAMS) rows.forEach((row, i) => expect(row.index).toBe(i));
   });
 
-  it("builds for hundreds of seeds, and deep into the stream", () => {
+  // Composes some 2,400 rows: about 2.5 s on an idle machine, and past the
+  // default 5 s limit when the full suite has every core busy.
+  it("builds for hundreds of seeds, and deep into the stream", { timeout: 15_000 }, () => {
     expect(ROWS).toHaveLength(SEEDS.length * DEPTH);
     for (const seed of [COURSE_SEED, 7, 99]) expect(rowStream(seed, TUNING).row(800).index).toBe(800);
   });
