@@ -5,6 +5,7 @@ import { findProjectBySlug, PROJECTS, getProjectPath } from "@/shared/lib/consta
 import { Button } from "@/shared/components/ui/button";
 import { IDEAS as FINLAND_IDEAS } from "@/projects/finland-catalogue/ideas";
 import type { Metadata } from "next";
+import { projectOgImage } from "../og/project-og-images";
 
 // Project component registry — lazy loaded
 const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
@@ -59,9 +60,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const project = findProjectBySlug(slug);
   if (!project) return {};
+  // A page's openGraph replaces the layout's whole, so it restates the site name.
   return {
     title: `${project.name} — Novelty World`,
     description: project.description,
+    openGraph: {
+      title: project.name,
+      description: project.description,
+      siteName: "Novelty World",
+      images: [await projectOgImage(project)],
+    },
   };
 }
 

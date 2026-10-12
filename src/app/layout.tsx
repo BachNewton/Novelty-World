@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Space_Mono } from "next/font/google";
 import Script from "next/script";
+import { DEFAULT_OG_IMAGE } from "@/shared/lib/og/metadata";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
     title: "Novelty World",
     description: "Kyle's novel ideas built with imagination and code",
     siteName: "Novelty World",
-    images: ["/opengraph-image"],
+    images: [DEFAULT_OG_IMAGE],
   },
 };
 

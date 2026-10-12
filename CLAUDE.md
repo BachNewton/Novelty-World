@@ -54,6 +54,10 @@ Each project in `src/projects/<slug>/` follows this convention:
 
 To add a new project: create the folder, add an entry to `PROJECTS` in `src/shared/lib/constants.ts` (which determines routing and homepage display), and register a lazy `dynamic()` import in `src/app/[...slug]/page.tsx`. Projects without a registered component render a "Coming soon" placeholder.
 
+### Share images (Open Graph)
+
+Every page's link preview carries the project's own name and tagline, and a 1200×630 share image. The site's card (`src/app/opengraph-image.tsx`) is the default. A project gets its own by adding an `og-image.tsx` to its folder, exporting its card and alt text, and registering it in `PROJECT_OG_IMAGES` (`src/app/og/project-og-images.ts`); the catch-all route's metadata then points its pages at `/og/<slug>`, drawn once at build time. Next.js can't put an `opengraph-image` file under a catch-all segment, hence the separate route. The cards are drawn by Satori (`next/og`) from the shared pieces in `src/shared/lib/og/`: the site's fonts, its wordmark, sea and brand bars, and `ProjectOgCard`, a frame with the project's name and tagline beside its own art. A project with a style of its own may draw the whole card instead. Satori can't read CSS variables, so the cards take colours from `OG_COLORS`, which mirrors the design tokens in `globals.css` (a test holds them equal) and is the one place a share image's colours come from. Social sites cache a preview by URL, so a changed card may take a while to show on a link that was already shared.
+
 ### Routing
 
 A catch-all route (`src/app/[...slug]/page.tsx`) handles all project URLs using category/project slug segments. Projects are registered in `src/shared/lib/constants.ts`.
