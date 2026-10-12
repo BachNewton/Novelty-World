@@ -33,9 +33,7 @@ function Calculator() {
     setInputs(next);
     saveInputs(next);
   };
-  // The max can be typed below the min on the way to a new range.
-  const counted = { ...inputs, maxDamage: Math.max(inputs.minDamage, inputs.maxDamage) };
-  const prediction = predict(counted, inputs.splash ? "splash" : "target");
+  const prediction = predict(inputs, inputs.splash ? "splash" : "target");
   const number = (key: keyof typeof LIMITS) => ({
     value: inputs[key],
     onChange: (value: number) => change({ [key]: value }),
@@ -45,8 +43,8 @@ function Calculator() {
   return (
     <>
       <div className="grid shrink-0 grid-cols-2 gap-x-3 gap-y-2">
-        <Stepper label="Min damage" {...number("minDamage")} />
-        <Stepper label="Max damage" {...number("maxDamage")} />
+        <Stepper label="Min damage" {...number("minDamage")} max={inputs.maxDamage} />
+        <Stepper label="Max damage" {...number("maxDamage")} min={inputs.minDamage} />
         <SlotPicker
           slots={inputs.slots}
           focus={inputs.focus}
@@ -180,6 +178,19 @@ function Stepper({
 }) {
   const set = (next: number) => onChange(Math.min(max, Math.max(min, Math.round(next))));
   const id = useId();
+  // What's being typed. Clamping every keystroke would turn the "3" of a
+  // typed 30 into the min, so the text is held as typed, counts as soon as
+  // it's in range, and is clamped into range when the typing ends.
+  const [draft, setDraft] = useState<string | null>(null);
+  const type = (text: string) => {
+    setDraft(text);
+    const typed = Number(text);
+    if (text !== "" && Number.isInteger(typed) && typed >= min && typed <= max) onChange(typed);
+  };
+  const commit = () => {
+    if (draft !== null && draft !== "") set(Number(draft));
+    setDraft(null);
+  };
   return (
     <div className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold whitespace-nowrap text-text-secondary">
       <label htmlFor={id} className="leading-none">
@@ -197,9 +208,13 @@ function Stepper({
             inputMode="numeric"
             min={min}
             max={max}
-            value={value}
+            value={draft ?? value}
             onFocus={(e) => e.target.select()}
-            onChange={(e) => set(Number(e.target.value))}
+            onChange={(e) => type(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
             className={cn(
               "w-[3ch] min-w-0 [appearance:textfield] bg-transparent font-mono text-xl text-text-primary focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
               suffix ? "text-right" : "text-center",

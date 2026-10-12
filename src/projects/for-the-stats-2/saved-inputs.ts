@@ -29,8 +29,8 @@ const MAX_DAMAGE = 999;
 
 type NumberKey = { [K in keyof Inputs]: Inputs[K] extends number ? K : never }[keyof Inputs];
 
-/** The range each number can take. Focus can't exceed the slots, which the
- *  screen also keeps to. */
+/** The range each number can take. Focus can't exceed the slots, nor the min
+ *  the max, which the screen also keeps to. */
 export const LIMITS: Record<NumberKey, { min: number; max: number }> = {
   minDamage: { min: 0, max: MAX_DAMAGE },
   maxDamage: { min: 0, max: MAX_DAMAGE },
@@ -58,6 +58,7 @@ export function loadInputs(): Inputs {
     if (typeof value === "boolean") inputs[key] = value;
   }
   inputs.focus = Math.min(inputs.focus, inputs.slots);
+  inputs.maxDamage = Math.max(inputs.maxDamage, inputs.minDamage);
   return inputs;
 }
 
