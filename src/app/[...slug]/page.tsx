@@ -43,6 +43,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   betrayal: dynamic(() =>
     import("@/projects/betrayal").then((m) => ({ default: m.Betrayal })),
   ),
+  "for-the-stats-2": dynamic(() =>
+    import("@/projects/for-the-stats-2").then((m) => ({ default: m.ForTheStats2 })),
+  ),
   "controller-tester": dynamic(() =>
     import("@/projects/controller-tester").then((m) => ({ default: m.ControllerTester })),
   ),

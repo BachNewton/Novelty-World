@@ -127,9 +127,9 @@ export const PROJECTS: Project[] = [
   {
     name: "For The Stats 2",
     slug: "for-the-stats-2",
-    description: "Advanced sports statistics and analytics",
+    description: "Binomial distributions for people who just wanted to hit the goblin",
     categorySlug: "tools",
-    icon: "BarChart3",
+    icon: "Crown",
   },
   {
     name: "Finland Catalogue",
