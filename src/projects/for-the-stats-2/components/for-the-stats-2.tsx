@@ -4,7 +4,16 @@ import { useState } from "react";
 import { Crown, Minus, Plus } from "lucide-react";
 import { Card } from "@/shared/components/ui/card";
 import { cn } from "@/shared/lib/utils";
-import { chanceOfAtLeast, expectedDamage, outcomes, type Attack, type Outcome } from "../logic";
+import {
+  chanceOfAtLeast,
+  expectedDamage,
+  focusBonus,
+  MAX_SLOT_PERCENT,
+  outcomes,
+  rangeMatchesChance,
+  type Attack,
+  type Outcome,
+} from "../logic";
 
 const SLOT_CHOICES = [1, 2, 3, 4, 5, 6];
 const MAX_DAMAGE = 999;
@@ -19,12 +28,19 @@ export function ForTheStats2() {
   const [slots, setSlots] = useState(3);
   const [slotPercent, setSlotPercent] = useState(80);
   const [target, setTarget] = useState(9);
+  const [focus, setFocus] = useState(0);
 
   const attack: Attack = {
     minDamage,
     maxDamage: Math.max(minDamage, maxDamage),
     slots,
-    slotChance: slotPercent / 100,
+    slotPercent,
+    focus,
+  };
+
+  const pickSlots = (count: number) => {
+    setSlots(count);
+    setFocus((spent) => Math.min(spent, count));
   };
 
   return (
@@ -42,8 +58,22 @@ export function ForTheStats2() {
       <Card className="grid shrink-0 grid-cols-2 gap-x-3 gap-y-2 p-3 [@media(max-height:640px)]:gap-y-1 [@media(max-height:640px)]:p-2">
         <Stepper label="Min damage" value={minDamage} onChange={setMinDamage} max={MAX_DAMAGE} />
         <Stepper label="Max damage" value={maxDamage} onChange={setMaxDamage} max={MAX_DAMAGE} />
-        <SlotPicker value={slots} onChange={setSlots} />
-        <Stepper label="Chance per slot" value={slotPercent} onChange={setSlotPercent} max={100} suffix="%" />
+        <ChoiceRow label="Slots" choices={SLOT_CHOICES} value={slots} onChange={pickSlots} />
+        <ChoiceRow
+          label="Focus"
+          choices={Array.from({ length: slots + 1 }, (_, spent) => spent)}
+          value={focus}
+          onChange={setFocus}
+          tone="focus"
+        />
+        <Stepper
+          label="Chance per slot"
+          note={focus > 0 ? `+${String(focusBonus(focus))}%` : undefined}
+          value={slotPercent}
+          onChange={setSlotPercent}
+          max={MAX_SLOT_PERCENT}
+          suffix="%"
+        />
         <Stepper label="Damage needed" value={target} onChange={setTarget} max={MAX_DAMAGE} />
       </Card>
 
@@ -54,9 +84,15 @@ export function ForTheStats2() {
 
       <Distribution rows={outcomes(attack)} slots={slots} target={target} />
 
-      <p className="shrink-0 text-center text-[10px] leading-tight text-text-muted sm:text-xs">
-        Damage steps evenly from min to max, rounded to the nearest, as players measured it. No crits, armor or
-        Focus yet.
+      <p
+        className={cn(
+          "shrink-0 text-center text-[10px] leading-tight sm:text-xs",
+          rangeMatchesChance(attack) ? "text-text-muted" : "font-semibold text-brand-orange",
+        )}
+      >
+        {rangeMatchesChance(attack)
+          ? "Crits and armor aren't counted yet."
+          : `A basic attack at ${String(slotPercent)}% can't have this range: check the numbers, or the lowest rolls may be off.`}
       </p>
     </div>
   );
@@ -66,12 +102,14 @@ export function ForTheStats2() {
  *  mid-fight than typing. */
 function Stepper({
   label,
+  note,
   value,
   onChange,
   max,
   suffix,
 }: {
   label: string;
+  note?: string;
   value: number;
   onChange: (value: number) => void;
   max: number;
@@ -80,7 +118,9 @@ function Stepper({
   const set = (next: number) => onChange(Math.min(max, Math.max(0, Math.round(next))));
   return (
     <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-text-secondary">
-      {label}
+      <span>
+        {label} {note && <span className="text-brand-orange">{note}</span>}
+      </span>
       <div className="flex h-11 [@media(max-height:640px)]:h-10 items-stretch overflow-hidden rounded-md border border-border-default bg-surface-tertiary focus-within:border-brand-blue">
         <StepButton label={`Decrease ${label}`} onClick={() => set(value - 1)} disabled={value <= 0}>
           <Minus size={18} />
@@ -131,25 +171,41 @@ function StepButton({
   );
 }
 
-function SlotPicker({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+/** A row of big tap targets for a small whole number, labelled inline to
+ *  save height. */
+function ChoiceRow({
+  label,
+  choices,
+  value,
+  onChange,
+  tone = "slots",
+}: {
+  label: string;
+  choices: readonly number[];
+  value: number;
+  onChange: (value: number) => void;
+  tone?: "slots" | "focus";
+}) {
   return (
-    <div className="col-span-2 flex flex-col gap-1 text-xs font-semibold text-text-secondary">
-      Roll slots
-      <div className="flex gap-2">
-        {SLOT_CHOICES.map((count) => (
+    <div className="col-span-2 flex items-center gap-2" role="group" aria-label={label}>
+      <span className="w-12 shrink-0 text-xs font-semibold text-text-secondary">{label}</span>
+      <div className="flex flex-1 gap-1.5">
+        {choices.map((choice) => (
           <button
-            key={count}
+            key={choice}
             type="button"
-            onClick={() => onChange(count)}
-            aria-pressed={value === count}
+            onClick={() => onChange(choice)}
+            aria-pressed={value === choice}
             className={cn(
-              "h-11 flex-1 touch-manipulation [@media(max-height:640px)]:h-10 rounded-md border font-mono text-lg transition-colors",
-              value === count
-                ? "border-brand-blue bg-surface-elevated text-text-primary"
-                : "border-border-default bg-surface-tertiary text-text-secondary",
+              "h-11 flex-1 touch-manipulation rounded-md border font-mono text-lg [@media(max-height:640px)]:h-10",
+              value !== choice
+                ? "border-border-default bg-surface-tertiary text-text-secondary"
+                : tone === "focus"
+                  ? "border-brand-orange bg-surface-elevated text-brand-orange"
+                  : "border-brand-blue bg-surface-elevated text-text-primary",
             )}
           >
-            {count}
+            {choice}
           </button>
         ))}
       </div>
@@ -183,7 +239,7 @@ function Distribution({ rows, slots, target }: { rows: readonly Outcome[]; slots
             className="grid min-h-4 max-h-9 flex-1 grid-cols-[5.5rem_1fr_3.5rem] items-center gap-2 text-xs leading-none sm:text-sm"
           >
             <span className="text-text-secondary">
-              {row.successes}/{slots} <span className="font-mono text-text-primary">{row.damage} dmg</span>
+              {row.successes}/{slots} <span className="font-mono text-text-primary">{row.damage > 0 ? `${String(row.damage)} dmg` : "miss"}</span>
             </span>
             <div className="h-full max-h-5 rounded-sm bg-surface-tertiary">
               <div
