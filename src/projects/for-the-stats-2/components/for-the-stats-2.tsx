@@ -2,14 +2,10 @@
 
 import { useId, useState } from "react";
 import { Info, Minus, Plus, RotateCcw, ShieldOff, Skull, Snowflake, Zap, ZapOff } from "lucide-react";
-import { Card } from "@/shared/components/ui/card";
 import { useHydrated } from "@/shared/lib/use-hydrated";
 import { cn } from "@/shared/lib/utils";
-import { critPercent, MAX_SLOT_PERCENT, predict, type Prediction } from "../logic";
-import { DEFAULT_INPUTS, loadInputs, saveInputs, type Inputs } from "../saved-inputs";
-
-const MAX_SLOTS = 6;
-const MAX_DAMAGE = 999;
+import { critPercent, MAX_SLOTS, predict, type Prediction } from "../logic";
+import { DEFAULT_INPUTS, LIMITS, loadInputs, saveInputs, type Inputs } from "../saved-inputs";
 
 /** Works out the odds of a For The King II attack: the chance it deals at
  *  least each amount of damage, such as an enemy's remaining HP.
@@ -20,7 +16,7 @@ export function ForTheStats2() {
   // render can't read, so the calculator waits for the browser.
   const hydrated = useHydrated();
   return (
-    <div className="mx-auto flex h-dvh max-w-xl flex-col gap-2 overflow-hidden px-4 py-3 sm:gap-4 sm:py-6 [@media(max-height:640px)]:gap-1.5 [@media(max-height:640px)]:py-2">
+    <div className="mx-auto flex h-dvh max-w-xl flex-col gap-3 overflow-hidden px-4 py-3">
       <h1 className="sr-only">For The Stats 2</h1>
       {hydrated && <Calculator />}
     </div>
@@ -39,104 +35,97 @@ function Calculator() {
   };
   // The max can be typed below the min on the way to a new range.
   const counted = { ...inputs, maxDamage: Math.max(inputs.minDamage, inputs.maxDamage) };
-  const prediction = predict(counted);
+  const prediction = predict(counted, inputs.splash ? "splash" : "target");
+  const number = (key: keyof typeof LIMITS) => ({
+    value: inputs[key],
+    onChange: (value: number) => change({ [key]: value }),
+    ...LIMITS[key],
+  });
 
   return (
     <>
-      <Card className="grid shrink-0 grid-cols-2 gap-x-3 gap-y-2 p-3 [@media(max-height:640px)]:gap-y-1.5 [@media(max-height:640px)]:p-2">
-        <Stepper
-          label="Min damage"
-          value={inputs.minDamage}
-          onChange={(minDamage) => change({ minDamage })}
-          max={MAX_DAMAGE}
-        />
-        <Stepper
-          label="Max damage"
-          value={inputs.maxDamage}
-          onChange={(maxDamage) => change({ maxDamage })}
-          max={MAX_DAMAGE}
-        />
+      <div className="grid shrink-0 grid-cols-2 gap-x-3 gap-y-1.5">
+        <Stepper label="Min damage" {...number("minDamage")} />
+        <Stepper label="Max damage" {...number("maxDamage")} />
         <SlotPicker
           slots={inputs.slots}
           focus={inputs.focus}
           shocked={inputs.shocked}
           onPickSlots={(slots) => change({ slots })}
           onFocus={(focus) => change({ focus })}
-        />
-        <Stepper
-          label="Chance, no Focus"
-          note={prediction.rolledPercent === inputs.slotPercent ? undefined : `→ ${String(prediction.rolledPercent)}%`}
-          value={inputs.slotPercent}
-          onChange={(slotPercent) => change({ slotPercent })}
-          max={MAX_SLOT_PERCENT}
-          suffix="%"
-        />
-        <Stepper label="Armor / Resist" value={inputs.armor} onChange={(armor) => change({ armor })} max={MAX_DAMAGE} />
-        <Stepper
-          label="Crit Chance"
-          note={inputs.focus > 0 ? `→ ${String(critPercent(inputs))}%` : undefined}
-          value={inputs.critChance}
-          onChange={(critChance) => change({ critChance })}
-          max={100}
-          suffix="%"
-          tall
-        />
-        <Stepper
-          label="Crit Damage"
-          value={inputs.critDamage}
-          onChange={(critDamage) => change({ critDamage })}
-          max={MAX_DAMAGE}
-          suffix="%"
-          tall
-          action={
-            <button
-              type="button"
-              aria-label="Reset crit to the base game's"
-              onClick={() => change({ critChance: DEFAULT_INPUTS.critChance, critDamage: DEFAULT_INPUTS.critDamage })}
-              disabled={
-                inputs.critChance === DEFAULT_INPUTS.critChance && inputs.critDamage === DEFAULT_INPUTS.critDamage
-              }
-              className="flex size-11 touch-manipulation items-center justify-center text-text-muted disabled:opacity-30"
-            >
-              <RotateCcw size={14} />
-            </button>
+          shock={
+            <Switch
+              on={inputs.shocked}
+              onToggle={() => change({ shocked: !inputs.shocked })}
+              icon={<ZapOff size={16} />}
+              name="Shock"
+              detail="you"
+            />
           }
         />
+        <Stepper
+          label="Chance"
+          note={
+            prediction.focusedPercent === inputs.slotPercent ? (
+              <span className="text-text-secondary">, no Focus</span>
+            ) : (
+              <span className="text-brand-orange"> → {prediction.focusedPercent}%</span>
+            )
+          }
+          {...number("slotPercent")}
+          suffix="%"
+        />
+        <Stepper label="Armor / Resist" {...number("armor")} />
+        <Stepper
+          label="Crit Chance"
+          note={inputs.focus > 0 && <span className="text-brand-orange"> → {critPercent(inputs)}%</span>}
+          {...number("critChance")}
+          suffix="%"
+        />
+        <Stepper label="Crit Damage" {...number("critDamage")} suffix="%" />
         <div className="col-span-2 grid grid-cols-4 gap-1.5">
           <Switch
             on={inputs.ignoresArmor}
             onToggle={() => change({ ignoresArmor: !inputs.ignoresArmor })}
-            icon={<ShieldOff size={14} />}
+            icon={<ShieldOff size={16} />}
             name="Pierce"
             detail="perfect"
           />
           <Switch
-            on={inputs.shocked}
-            onToggle={() => change({ shocked: !inputs.shocked })}
-            icon={<ZapOff size={14} />}
-            name="Shock"
-            detail="you"
-          />
-          <Switch
             on={inputs.poisoned}
             onToggle={() => change({ poisoned: !inputs.poisoned })}
-            icon={<Skull size={14} />}
+            icon={<Skull size={16} />}
             name="Poison"
             detail="you"
           />
           <Switch
             on={inputs.frozen}
             onToggle={() => change({ frozen: !inputs.frozen })}
-            icon={<Snowflake size={14} />}
+            icon={<Snowflake size={16} />}
             name="Frozen"
             detail="target"
           />
+          <button
+            type="button"
+            aria-label="Reset crit to the base game's"
+            onClick={() => change({ critChance: DEFAULT_INPUTS.critChance, critDamage: DEFAULT_INPUTS.critDamage })}
+            disabled={inputs.critChance === DEFAULT_INPUTS.critChance && inputs.critDamage === DEFAULT_INPUTS.critDamage}
+            className="flex h-11 min-w-0 touch-manipulation flex-col items-center justify-center rounded-md border border-border-default text-sm leading-tight text-text-secondary active:bg-surface-elevated disabled:opacity-30"
+          >
+            <span className="flex items-center gap-1 font-semibold">
+              <RotateCcw size={16} />
+              Crit
+            </span>
+            <span className="text-text-muted">reset</span>
+          </button>
         </div>
-      </Card>
+      </div>
 
       <Distribution
         prediction={prediction}
         slots={inputs.slots}
+        splash={inputs.splash}
+        onToggleSplash={() => change({ splash: !inputs.splash })}
         notes={<Notes prediction={prediction} />}
       />
     </>
@@ -164,7 +153,7 @@ function Switch({
       aria-pressed={on}
       onClick={onToggle}
       className={cn(
-        "flex h-11 min-w-0 touch-manipulation flex-col items-center justify-center rounded-md border text-xs leading-tight",
+        "flex h-11 min-w-0 touch-manipulation flex-col items-center justify-center rounded-md border text-sm leading-tight",
         on ? "border-brand-blue bg-surface-elevated text-text-primary" : "border-border-default bg-surface-tertiary text-text-muted",
       )}
     >
@@ -179,60 +168,54 @@ function Switch({
 
 /** A number typed on the phone keypad or nudged with −/+, which is quicker
  *  mid-fight than typing. The number box has a fixed width, so nothing moves as
- *  the digits change. */
+ *  the digits change, and a tap anywhere between the buttons types into it. */
 function Stepper({
   label,
   note,
-  action,
-  tall = false,
   value,
   onChange,
+  min,
   max,
   suffix,
 }: {
   label: string;
-  note?: string;
-  /** A button at the end of the label's line, which then needs `tall`. */
-  action?: React.ReactNode;
-  /** A label line tall enough for a full-size button, kept on both steppers
-   *  of a row so their boxes line up. */
-  tall?: boolean;
+  /** Text after the label, styled by the caller. */
+  note?: React.ReactNode;
   value: number;
   onChange: (value: number) => void;
+  min: number;
   max: number;
   suffix?: string;
 }) {
-  const set = (next: number) => onChange(Math.min(max, Math.max(0, Math.round(next))));
+  const set = (next: number) => onChange(Math.min(max, Math.max(min, Math.round(next))));
   const id = useId();
   return (
-    <div className="flex min-w-0 flex-col gap-1 text-xs font-semibold whitespace-nowrap text-text-secondary">
-      <span className={cn("flex items-center justify-between", tall && "-mr-3 h-11 items-end")}>
-        <label htmlFor={id} className="flex-1">
-          {label} {note && <span className="text-brand-orange">{note}</span>}
-        </label>
-        {action}
-      </span>
-      <div className="flex h-12 items-stretch overflow-hidden rounded-md border border-border-default bg-surface-tertiary focus-within:border-brand-blue">
-        <StepButton label={`Decrease ${label}`} onClick={() => set(value - 1)} disabled={value <= 0}>
+    <div className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold whitespace-nowrap text-text-secondary">
+      <label htmlFor={id} className="leading-none">
+        {label}
+        {note}
+      </label>
+      <div className="flex h-11.5 items-stretch overflow-hidden rounded-md border border-border-default bg-surface-tertiary focus-within:border-brand-blue">
+        <StepButton label={`Decrease ${label}`} onClick={() => set(value - 1)} disabled={value <= min}>
           <Minus size={18} />
         </StepButton>
-        <div className="flex min-w-0 flex-1 items-center justify-center">
+        <label htmlFor={id} className="flex min-w-0 flex-1 cursor-text items-center justify-center">
           <input
             id={id}
             type="number"
             inputMode="numeric"
-            min={0}
+            min={min}
             max={max}
             value={value}
             onFocus={(e) => e.target.select()}
             onChange={(e) => set(Number(e.target.value))}
             className={cn(
-              "w-[3ch] min-w-0 [appearance:textfield] bg-transparent font-mono text-lg text-text-primary focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+              "w-[3ch] min-w-0 [appearance:textfield] bg-transparent font-mono text-xl text-text-primary focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
               suffix ? "text-right" : "text-center",
             )}
           />
-          {suffix && <span className="font-mono text-lg text-text-secondary">{suffix}</span>}
-        </div>
+          {suffix && <span className="font-mono text-xl text-text-secondary">{suffix}</span>}
+        </label>
         <StepButton label={`Increase ${label}`} onClick={() => set(value + 1)} disabled={value >= max}>
           <Plus size={18} />
         </StepButton>
@@ -265,29 +248,43 @@ function StepButton({
   );
 }
 
-/** The attack's slots as a row, as the game draws them, between the buttons
+/** The attack's slots as a row, as the game draws them, under the buttons
  *  that spend Focus: tap a slot to set how many the attack rolls; rolled slots
- *  fill in, focused ones light up, and a shock's failed slot is marked. Always
- *  six wide, so the row never changes size. */
+ *  fill in, focused ones light up, and a shock's failed slot is marked. Six
+ *  slots big enough to tap leave no room beside them on a phone, so Focus
+ *  sits on the line above, with Shock. Always six wide, so the row never
+ *  changes size. */
 function SlotPicker({
   slots,
   focus,
   shocked,
   onPickSlots,
   onFocus,
+  shock,
 }: {
   slots: number;
   focus: number;
   shocked: boolean;
   onPickSlots: (count: number) => void;
   onFocus: (focus: number) => void;
+  /** The Shock switch, which fails the first slot. */
+  shock: React.ReactNode;
 }) {
   return (
-    <div className="col-span-2 flex items-center gap-1">
-      <FocusButton label="Spend less Focus" onClick={() => onFocus(focus - 1)} disabled={focus <= 0}>
-        <Minus size={16} />
-      </FocusButton>
-      <div className="flex min-w-0 flex-1" role="group" aria-label="Slots">
+    <div className="col-span-2 flex flex-col">
+      <div className="flex items-center justify-between text-sm font-semibold text-text-secondary">
+        <span className="grid w-20">{shock}</span>
+        <span className="flex items-center gap-1.5">
+          Focus
+          <FocusButton label="Spend less Focus" onClick={() => onFocus(focus - 1)} disabled={focus <= 0}>
+            <Minus size={16} />
+          </FocusButton>
+          <FocusButton label="Spend more Focus" onClick={() => onFocus(focus + 1)} disabled={focus >= slots}>
+            <Plus size={16} />
+          </FocusButton>
+        </span>
+      </div>
+      <div className="flex" role="group" aria-label="Slots">
         {Array.from({ length: MAX_SLOTS }, (_, index) => {
           const count = index + 1;
           const state =
@@ -305,7 +302,7 @@ function SlotPicker({
               onClick={() => onPickSlots(count)}
               aria-label={`${String(count)} slot${count === 1 ? "" : "s"}`}
               aria-pressed={slots === count}
-              className="flex h-11 min-w-0 flex-1 touch-manipulation items-center justify-center"
+              className="flex h-11 min-w-11 flex-1 touch-manipulation items-center justify-center"
             >
               <span
                 className={cn(
@@ -323,9 +320,6 @@ function SlotPicker({
           );
         })}
       </div>
-      <FocusButton label="Spend more Focus" onClick={() => onFocus(focus + 1)} disabled={focus >= slots}>
-        <Plus size={16} />
-      </FocusButton>
     </div>
   );
 }
@@ -350,46 +344,74 @@ function FocusButton({
       className="flex size-11 shrink-0 touch-manipulation items-center justify-center gap-0.5 rounded-md border border-brand-orange text-brand-orange active:bg-surface-elevated disabled:opacity-30"
     >
       {children}
-      <Zap size={14} fill="currentColor" />
+      <Zap size={16} fill="currentColor" />
     </button>
   );
 }
 
 /** One row per possible success count, from a perfect roll down to none, with
  *  a crit above them, each with the chance of dealing at least that row's
- *  damage: read the row for the HP an enemy has left. There are always eight
+ *  damage: read the row for the HP an enemy has left. The splash switch shows
+ *  the same for each neighbour of a Splash or Swipe. There are always eight
  *  rows, the most an attack can have, so nothing moves as slots change. */
-function Distribution({ prediction, slots, notes }: { prediction: Prediction; slots: number; notes: React.ReactNode }) {
+function Distribution({
+  prediction,
+  slots,
+  splash,
+  onToggleSplash,
+  notes,
+}: {
+  prediction: Prediction;
+  slots: number;
+  splash: boolean;
+  onToggleSplash: () => void;
+  notes: React.ReactNode;
+}) {
   const { rows, crit, nothing } = prediction;
   const blanks = MAX_SLOTS + 1 - rows.length;
   return (
-    <Card className="flex min-h-0 flex-1 flex-col gap-2 p-3 [@media(max-height:640px)]:gap-1 [@media(max-height:640px)]:p-2">
-      <div className="flex shrink-0 items-center justify-between gap-x-2 whitespace-nowrap">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-          Chance to deal at least
+    <section className="flex min-h-0 flex-1 flex-col gap-2 border-t border-border-default pt-3">
+      <div className="flex shrink-0 items-center gap-x-2 whitespace-nowrap">
+        <h2 className="flex items-center gap-1.5 text-base font-semibold">
+          Deal at least
           <button
             type="button"
             popoverTarget="fts-notes"
             aria-label="How these numbers work"
             className={cn(
-              "-m-3.5 touch-manipulation p-3.5",
+              "relative z-10 -m-3.5 touch-manipulation p-3.5",
               prediction.matched ? "text-text-muted" : "text-brand-orange",
             )}
           >
-            <Info size={16} />
+            <Info size={18} />
           </button>
         </h2>
-        <span className="text-xs text-text-secondary">
+        <button
+          type="button"
+          aria-pressed={splash}
+          onClick={onToggleSplash}
+          className="relative z-10 -my-2.5 ml-1 flex h-11 touch-manipulation items-center px-1"
+        >
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-sm font-semibold",
+              splash ? "border-brand-blue bg-surface-elevated text-text-primary" : "border-border-default text-text-muted",
+            )}
+          >
+            Splash
+          </span>
+        </button>
+        <span className="ml-auto text-sm text-text-secondary">
           avg <span className="font-mono text-text-primary">{prediction.expected.toFixed(1)}</span> dmg
         </span>
       </div>
-      <ol className="flex min-h-0 flex-1 flex-col justify-center gap-1 [@media(max-height:640px)]:gap-0.5">
+      <ol className="flex min-h-0 flex-1 flex-col justify-center gap-1">
         <ResultRow
           label="crit"
           damage={crit?.damage ?? null}
-          rolled={crit?.damage ?? null}
+          beforeArmor={crit?.beforeArmor ?? null}
           chance={crit?.chance ?? null}
-          nothing={nothing}
+          nothing={null}
           tone="crit"
         />
         {rows.map((row) => (
@@ -397,37 +419,39 @@ function Distribution({ prediction, slots, notes }: { prediction: Prediction; sl
             key={row.successes}
             label={`${String(row.successes)}/${String(slots)}`}
             damage={row.damage}
-            rolled={row.rolled}
+            beforeArmor={row.beforeArmor}
             chance={row.chance}
             nothing={nothing}
             tone={row.floored ? "floored" : "plain"}
           />
         ))}
         {Array.from({ length: blanks }, (_, index) => (
-          <li key={`blank-${String(index)}`} aria-hidden className="max-h-10 min-h-4 flex-1" />
+          <li key={`blank-${String(index)}`} aria-hidden className="max-h-10 min-h-5 flex-1" />
         ))}
       </ol>
       {notes}
-    </Card>
+    </section>
   );
 }
 
 /** A row's damage and its chance. No damage is a miss, or blocked when armor
- *  took it all, and its chance is then the chance of dealing nothing. A row
- *  with no damage at all (a crit that can't happen) is a placeholder. */
+ *  took it all, and a success count's chance is then the chance of dealing
+ *  nothing. A row with no damage at all (a crit that can't happen) is a
+ *  placeholder. */
 function ResultRow({
   label,
   damage,
-  rolled,
+  beforeArmor,
   chance,
   nothing,
   tone,
 }: {
   label: string;
   damage: number | null;
-  rolled: number | null;
+  beforeArmor: number | null;
   chance: number | null;
-  nothing: number;
+  /** The chance of dealing nothing, or null where it isn't this row's to show. */
+  nothing: number | null;
   tone: "plain" | "floored" | "crit";
 }) {
   const none = damage === 0;
@@ -435,7 +459,7 @@ function ResultRow({
   return (
     <li
       className={cn(
-        "grid max-h-10 min-h-4 flex-1 grid-cols-[2.5rem_4rem_1fr_3.5rem] items-center gap-2 text-xs leading-none sm:text-sm",
+        "grid max-h-10 min-h-5 flex-1 grid-cols-[2.5rem_4rem_1fr_3.5rem] items-center gap-2 text-sm leading-none",
         damage === null && "opacity-30",
       )}
     >
@@ -454,7 +478,7 @@ function ResultRow({
                 : "text-text-primary",
         )}
       >
-        {damage === null ? "—" : none ? (rolled === 0 ? "miss" : "blocked") : damage}
+        {damage === null ? "—" : none ? (beforeArmor === 0 ? "miss" : "blocked") : damage}
       </span>
       <div className="h-full max-h-5 rounded-sm bg-surface-tertiary">
         {shown !== null && (
@@ -467,7 +491,9 @@ function ResultRow({
           />
         )}
       </div>
-      <span className="text-right font-mono text-text-primary">{shown === null ? "—" : formatPercent(shown)}</span>
+      <span className="text-right font-mono text-text-primary">
+        {shown === null ? "—" : formatPercent(shown, none ? "up" : "down")}
+      </span>
     </li>
   );
 }
@@ -479,7 +505,7 @@ function Notes({ prediction }: { prediction: Prediction }) {
     <div
       id="fts-notes"
       popover="auto"
-      className="m-auto w-[min(22rem,calc(100vw-2rem))] space-y-2 rounded-lg border border-border-hover bg-surface-elevated p-4 text-sm text-text-secondary backdrop:bg-surface-primary/70"
+      className="m-auto w-[min(22rem,calc(100vw-2rem))] space-y-2 rounded-lg border border-border-hover bg-surface-elevated p-4 text-base text-text-secondary backdrop:bg-surface-primary/70"
     >
       <p>Each row: the chance to deal at least that much.</p>
       {!prediction.matched && (
@@ -490,15 +516,21 @@ function Notes({ prediction }: { prediction: Prediction }) {
           <span className="font-semibold text-brand-green">Green</span>: the game lifts weak rolls above the min.
         </p>
       )}
-      <p>Already poisoned or frozen? Leave the switch off: the screen counts it.</p>
+      <p>Splash: what each neighbour of a Splash or Swipe takes, if its armor is the same.</p>
+      <p>Already poisoned or frozen? Leave the switch off: the screen counts it. The switches assume no bonus damage against this creature.</p>
       <p>Crit stats: your sheet&apos;s Modifiers. No Crit Damage listed? Enter 0.</p>
     </div>
   );
 }
 
-function formatPercent(probability: number): string {
+/** A probability as a percent to one decimal, rounded the cautious way: a
+ *  chance of dealing damage down, a chance of dealing none up. */
+function formatPercent(probability: number, rounding: "up" | "down"): string {
   const percent = probability * 100;
   if (percent > 0 && percent < 0.1) return "<0.1%";
   if (percent < 100 && percent > 99.9) return ">99.9%";
-  return `${percent.toFixed(1)}%`;
+  // The binomial sums can land a hair off a whole tenth in floating point.
+  const tenths = percent * 10;
+  const rounded = rounding === "down" ? Math.floor(tenths + 1e-9) : Math.ceil(tenths - 1e-9);
+  return `${(rounded / 10).toFixed(1)}%`;
 }

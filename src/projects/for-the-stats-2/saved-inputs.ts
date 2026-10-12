@@ -1,10 +1,13 @@
 import { getProjectStorage } from "@/shared/lib/storage";
-import type { ScreenAttack } from "./logic";
+import { MAX_SLOT_PERCENT, MAX_SLOTS, type ScreenAttack } from "./logic";
 
 const KEY = "inputs";
 
-/** Everything the player has entered: the attack and the what-ifs. */
-export type Inputs = ScreenAttack;
+/** Everything the player has entered: the attack, the what-ifs and whether
+ *  the table shows a Splash's neighbours. */
+export interface Inputs extends ScreenAttack {
+  splash: boolean;
+}
 
 export const DEFAULT_INPUTS: Inputs = {
   minDamage: 4,
@@ -19,24 +22,43 @@ export const DEFAULT_INPUTS: Inputs = {
   shocked: false,
   poisoned: false,
   frozen: false,
+  splash: false,
 };
 
-const NUMBERS = ["minDamage", "maxDamage", "slots", "slotPercent", "focus", "critChance", "critDamage", "armor"];
-const SWITCHES = ["ignoresArmor", "shocked", "poisoned", "frozen"];
+const MAX_DAMAGE = 999;
 
-function isInputs(value: unknown): value is Inputs {
-  if (typeof value !== "object" || value === null) return false;
-  const saved = value as Record<string, unknown>;
-  return (
-    NUMBERS.every((key) => Number.isInteger(saved[key])) && SWITCHES.every((key) => typeof saved[key] === "boolean")
-  );
-}
+type NumberKey = { [K in keyof Inputs]: Inputs[K] extends number ? K : never }[keyof Inputs];
 
-/** The inputs from the player's last visit, or the defaults if there are none
- *  (or they were saved in a shape this version doesn't know). */
+/** The range each number can take. Focus can't exceed the slots, which the
+ *  screen also keeps to. */
+export const LIMITS: Record<NumberKey, { min: number; max: number }> = {
+  minDamage: { min: 0, max: MAX_DAMAGE },
+  maxDamage: { min: 0, max: MAX_DAMAGE },
+  slots: { min: 1, max: MAX_SLOTS },
+  slotPercent: { min: 0, max: MAX_SLOT_PERCENT },
+  focus: { min: 0, max: MAX_SLOTS },
+  critChance: { min: 0, max: 100 },
+  critDamage: { min: 0, max: MAX_DAMAGE },
+  armor: { min: 0, max: MAX_DAMAGE },
+};
+
+/** The inputs from the player's last visit. Anything missing or out of range
+ *  (saved by an older version, or edited by hand) takes its default. */
 export function loadInputs(): Inputs {
   const saved = getProjectStorage("for-the-stats-2").get<unknown>(KEY);
-  return isInputs(saved) ? saved : DEFAULT_INPUTS;
+  const fields = typeof saved === "object" && saved !== null ? (saved as Record<string, unknown>) : {};
+  const inputs = { ...DEFAULT_INPUTS };
+  for (const key of Object.keys(LIMITS) as NumberKey[]) {
+    const value = fields[key];
+    const { min, max } = LIMITS[key];
+    if (typeof value === "number" && Number.isInteger(value) && value >= min && value <= max) inputs[key] = value;
+  }
+  for (const key of ["ignoresArmor", "shocked", "poisoned", "frozen", "splash"] as const) {
+    const value = fields[key];
+    if (typeof value === "boolean") inputs[key] = value;
+  }
+  inputs.focus = Math.min(inputs.focus, inputs.slots);
+  return inputs;
 }
 
 export function saveInputs(inputs: Inputs): void {

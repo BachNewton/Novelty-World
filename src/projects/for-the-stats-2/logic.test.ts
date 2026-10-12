@@ -147,6 +147,31 @@ describe("armor", () => {
   });
 });
 
+describe("splash", () => {
+  const splashed = (attack: Attack) =>
+    Array.from({ length: attack.slots + 1 }, (_, hits) => hitDamage(attack, hits, false, "splash"));
+
+  it("halves the hit, rounding halves to even", () => {
+    expect(splashed(hammer)).toEqual([0, 2, 4, 6]); // 3 / 2 = 1.5
+    expect(splashed({ ...hammer, maxDamage: 5 })).toEqual([0, 0, 2, 2]); // rolls 0, 1, 3, 5
+  });
+
+  it("halves a crit's hit, crit bonus included", () => {
+    expect(hitDamage(hammer, 3, true, "splash")).toBe(7); // 14 / 2
+  });
+
+  it("takes the full armor off the halved hit, except a pierce's perfect roll", () => {
+    expect(splashed({ ...hammer, armor: 4 })).toEqual([0, 0, 0, 2]);
+    expect(hitDamage({ ...hammer, armor: 4 }, 3, true, "splash")).toBe(3);
+    expect(splashed({ ...hammer, armor: 4, ignoresArmor: true })).toEqual([0, 0, 0, 6]);
+  });
+
+  it("gives the neighbours' own chances", () => {
+    // Rolls 0, 3, 8 and 12 halve to 0, 2, 4 and 6: 2 needs one success of three.
+    expect(chanceOfAtLeast(hammer, 2, "splash")).toBeCloseTo(1 - 0.2 ** 3);
+  });
+});
+
 describe("shock", () => {
   it("fails the first slot when no Focus is spent, so the roll can't be perfect", () => {
     const shocked = outcomes({ ...hammer, shocked: true, critChance: 50 });
@@ -182,48 +207,103 @@ describe("resolve", () => {
   it("finds the attack's hidden numbers, keeping the screen's range", () => {
     const { attacks, matched } = resolve(screen);
     expect(matched).toBe(true);
-    expect(attacks.map(range)).toEqual([{ minDamage: 4, maxDamage: 11, slotPercent: 80, floorShare: 4000 }]);
+    // 80% could be a stat of 70, 75 or 80: weapons give +0, +5 or +10 accuracy.
+    expect(attacks.map(range)).toEqual([
+      { minDamage: 4, maxDamage: 11, slotPercent: 80, floorShare: 3500 },
+      { minDamage: 4, maxDamage: 11, slotPercent: 80, floorShare: 3750 },
+      { minDamage: 4, maxDamage: 11, slotPercent: 80, floorShare: 4000 },
+    ]);
+  });
+
+  it("keeps only the stats that round to the shown min", () => {
+    // 13 x 0.5 x 0.8 = 5.2 would show a min of 5; stats of 85 and 90 show 6.
+    expect(resolve({ ...screen, minDamage: 6, maxDamage: 13, slotPercent: 90 }).attacks.map(range)).toEqual([
+      { minDamage: 6, maxDamage: 13, slotPercent: 90, floorShare: 4250 },
+      { minDamage: 6, maxDamage: 13, slotPercent: 90, floorShare: 4500 },
+    ]);
   });
 
   it("freezing the target rebuilds the range a quarter higher before rounding", () => {
-    // 4.4 × 1.25 = 5.5, to even; 11 × 1.25 = 13.75.
-    expect(resolve({ ...screen, frozen: true }).attacks.map(range)).toEqual([
-      { minDamage: 6, maxDamage: 14, slotPercent: 80, floorShare: 4000 },
-    ]);
+    // At a stat of 80: 4.4 x 1.25 = 5.5, to even; 11 x 1.25 = 13.75.
+    expect(resolve({ ...screen, frozen: true }).attacks.map(range).at(-1)).toEqual({
+      minDamage: 6,
+      maxDamage: 14,
+      slotPercent: 80,
+      floorShare: 4000,
+    });
   });
 
   it("poison takes 10 from the stat: the chance, the minimum and the floor", () => {
-    expect(resolve({ ...screen, poisoned: true }).attacks.map(range)).toEqual([
-      { minDamage: 4, maxDamage: 11, slotPercent: 70, floorShare: 3500 },
-    ]);
-    expect(resolve({ ...screen, poisoned: true, frozen: true }).attacks.map(range)).toEqual([
-      { minDamage: 5, maxDamage: 14, slotPercent: 70, floorShare: 3500 },
-    ]);
+    expect(resolve({ ...screen, poisoned: true }).attacks.map(range).at(-1)).toEqual({
+      minDamage: 4,
+      maxDamage: 11,
+      slotPercent: 70,
+      floorShare: 3500,
+    });
+    expect(resolve({ ...screen, poisoned: true, frozen: true }).attacks.map(range).at(-1)).toEqual({
+      minDamage: 5,
+      maxDamage: 14,
+      slotPercent: 70,
+      floorShare: 3500,
+    });
   });
 
-  it("falls back to the common shape, unmatched, when nothing in the game fits", () => {
+  it("reads numbers nothing in the game fits as cautiously as it can: no floor", () => {
     const { attacks, matched } = resolve({ ...screen, minDamage: 9 });
     expect(matched).toBe(false);
-    expect(attacks.map(range)).toEqual([{ minDamage: 9, maxDamage: 11, slotPercent: 80, floorShare: 4000 }]);
+    expect(attacks.map(range)).toEqual([{ minDamage: 9, maxDamage: 11, slotPercent: 80, floorShare: 0 }]);
+  });
+
+  it("moves an unmatched range by the least a what-if could", () => {
+    // 11 could be 10.5, which freezes to 13.125; poison takes an unknown share off the min.
+    expect(resolve({ ...screen, minDamage: 9, frozen: true, poisoned: true }).attacks.map(range)).toEqual([
+      { minDamage: 0, maxDamage: 13, slotPercent: 70, floorShare: 0 },
+    ]);
   });
 });
 
 describe("predict", () => {
-  it("is exact when one attack fits", () => {
-    const { rows, expected } = predict(screen);
+  it("shows the lowest of the attacks that fit", () => {
+    const { rows, expected } = predict(screen, "target");
     expect(rows.map((row) => row.damage)).toEqual([11, 9, 8, 6, 6, 6]);
-    expect(expected).toBeCloseTo(expectedDamage({ ...axe, slots: 5, slotPercent: 80, floorShare: 4000 }));
+    expect(expected).toBeCloseTo(expectedDamage({ ...axe, slots: 5, slotPercent: 80, floorShare: 3500 }));
+  });
+
+  it("counts weapon accuracy in the shown chance, which the floor leaves out", () => {
+    // A stat of 70 with +5 accuracy and an attack value of 13 shows 5-13 at
+    // 75%. Its floor is 35% of the way: 5 + 8 x 0.35 = 7.8, truncated.
+    const { rows } = predict({ ...screen, minDamage: 5, maxDamage: 13, slots: 3, slotPercent: 75 }, "target");
+    expect(rows.map((row) => row.damage)).toEqual([13, 10, 7, 7]);
   });
 
   it("reads a three-slot basic attack as the ordinary one, not the Zodiac Tome's stun", () => {
-    const { rows } = predict({ ...screen, slots: 3 });
+    const { rows } = predict({ ...screen, slots: 3 }, "target");
     expect(rows.map((row) => row.damage)).toEqual([11, 8, 6, 6]);
   });
 
   it("freezes a range from zero to the lowest max any fitting attack gives", () => {
-    // Max 12 could be 0.5 × 23 (11.5, to even), which freezes to 14.375.
-    const { rows } = predict({ ...screen, minDamage: 0, maxDamage: 12, slots: 3, frozen: true });
+    // Max 12 could be 0.5 x 23 (11.5, to even), which freezes to 14.375.
+    const { rows } = predict({ ...screen, minDamage: 0, maxDamage: 12, slots: 3, frozen: true }, "target");
     expect(rows[0]?.damage).toBe(14);
+  });
+
+  it("gives a certain outcome a chance of exactly 1", () => {
+    const { rows } = predict({ ...screen, slots: 1, slotPercent: 15, minDamage: 0, maxDamage: 1 }, "target");
+    expect(rows.at(-1)?.chance).toBe(1);
+  });
+
+  it("tells a crit that armor blocks from a miss", () => {
+    const { crit } = predict({ ...screen, minDamage: 0, maxDamage: 5, armor: 10, critChance: 5 }, "target");
+    expect(crit).toEqual({ damage: 0, beforeArmor: 6, chance: 1 });
+  });
+
+  it("shows the full chance once every slot is focused, as the combat screen does", () => {
+    expect(predict({ ...screen, slots: 3, focus: 3 }, "target").focusedPercent).toBe(100);
+  });
+
+  it("adds no Focus to a shown 10%, which could be lower before the game clamps it", () => {
+    expect(predict({ ...screen, minDamage: 0, slotPercent: 10, focus: 1 }, "target").focusedPercent).toBe(10);
+    expect(predict({ ...screen, minDamage: 0, slotPercent: 11, focus: 1 }, "target").focusedPercent).toBe(21);
   });
 });
 
@@ -233,22 +313,22 @@ describe("the average", () => {
   it("counts misses, crits, armor and pierce together", () => {
     // Hit 80%: a crit (20%) adds 10 × 0.15 = 1.5, to even 2, so 12; armor 2
     // comes off both: 0.8 × (0.8 × 8 + 0.2 × 10).
-    expect(predict(oneSlot).expected).toBeCloseTo(0.8 * (0.8 * 8 + 0.2 * 10));
+    expect(predict(oneSlot, "target").expected).toBeCloseTo(0.8 * (0.8 * 8 + 0.2 * 10));
     // A perfect roll pierces the armor: 0.8 × (0.8 × 10 + 0.2 × 12).
-    expect(predict({ ...oneSlot, ignoresArmor: true }).expected).toBeCloseTo(0.8 * (0.8 * 10 + 0.2 * 12));
+    expect(predict({ ...oneSlot, ignoresArmor: true }, "target").expected).toBeCloseTo(0.8 * (0.8 * 10 + 0.2 * 12));
   });
 
   it("counts Focus and Shock", () => {
     // Shocked with no Focus, the only slot fails.
-    expect(predict({ ...oneSlot, shocked: true }).expected).toBe(0);
+    expect(predict({ ...oneSlot, shocked: true }, "target").expected).toBe(0);
     // One Focus makes the hit certain, cancels the shock, and adds 5% to the crit.
-    expect(predict({ ...oneSlot, shocked: true, focus: 1 }).expected).toBeCloseTo(0.75 * 8 + 0.25 * 10);
+    expect(predict({ ...oneSlot, shocked: true, focus: 1 }, "target").expected).toBeCloseTo(0.75 * 8 + 0.25 * 10);
   });
 
   it("counts the what-ifs", () => {
     // Five slots, 4-11, every slot at 100%: always perfect, 11; frozen, 14.
     const sure = { ...screen, slotPercent: 100, minDamage: 6 }; // half of 100% of 11, to even
-    expect(predict(sure).expected).toBeCloseTo(11);
-    expect(predict({ ...sure, frozen: true }).expected).toBeCloseTo(14);
+    expect(predict(sure, "target").expected).toBeCloseTo(11);
+    expect(predict({ ...sure, frozen: true }, "target").expected).toBeCloseTo(14);
   });
 });
