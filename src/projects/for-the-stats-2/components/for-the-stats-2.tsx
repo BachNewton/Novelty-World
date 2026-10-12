@@ -16,7 +16,7 @@ export function ForTheStats2() {
   // render can't read, so the calculator waits for the browser.
   const hydrated = useHydrated();
   return (
-    <div className="mx-auto flex h-dvh max-w-xl flex-col gap-3 overflow-hidden px-4 py-3">
+    <div className="mx-auto flex h-dvh max-w-xl flex-col gap-3 overflow-hidden px-4 py-4">
       <h1 className="sr-only">For The Stats 2</h1>
       {hydrated && <Calculator />}
     </div>
@@ -44,7 +44,7 @@ function Calculator() {
 
   return (
     <>
-      <div className="grid shrink-0 grid-cols-2 gap-x-3 gap-y-1.5">
+      <div className="grid shrink-0 grid-cols-2 gap-x-3 gap-y-2">
         <Stepper label="Min damage" {...number("minDamage")} />
         <Stepper label="Max damage" {...number("maxDamage")} />
         <SlotPicker
@@ -57,9 +57,8 @@ function Calculator() {
             <Switch
               on={inputs.shocked}
               onToggle={() => change({ shocked: !inputs.shocked })}
-              icon={<ZapOff size={16} />}
+              icon={<ZapOff size={18} />}
               name="Shock"
-              detail="you"
             />
           }
         />
@@ -87,36 +86,32 @@ function Calculator() {
           <Switch
             on={inputs.ignoresArmor}
             onToggle={() => change({ ignoresArmor: !inputs.ignoresArmor })}
-            icon={<ShieldOff size={16} />}
+            icon={<ShieldOff size={18} />}
             name="Pierce"
-            detail="perfect"
           />
           <Switch
             on={inputs.poisoned}
             onToggle={() => change({ poisoned: !inputs.poisoned })}
-            icon={<Skull size={16} />}
+            icon={<Skull size={18} />}
             name="Poison"
-            detail="you"
           />
           <Switch
             on={inputs.frozen}
             onToggle={() => change({ frozen: !inputs.frozen })}
-            icon={<Snowflake size={16} />}
+            icon={<Snowflake size={18} />}
             name="Frozen"
-            detail="target"
           />
           <button
             type="button"
             aria-label="Reset crit to the base game's"
             onClick={() => change({ critChance: DEFAULT_INPUTS.critChance, critDamage: DEFAULT_INPUTS.critDamage })}
             disabled={inputs.critChance === DEFAULT_INPUTS.critChance && inputs.critDamage === DEFAULT_INPUTS.critDamage}
-            className="flex h-11 min-w-0 touch-manipulation flex-col items-center justify-center rounded-md border border-border-default text-sm leading-tight text-text-secondary active:bg-surface-elevated disabled:opacity-30"
+            className="flex h-11 min-w-0 touch-manipulation flex-col items-center justify-center rounded-md border border-border-default text-base leading-tight text-text-secondary active:bg-surface-elevated disabled:opacity-30"
           >
             <span className="flex items-center gap-1 font-semibold">
-              <RotateCcw size={16} />
+              <RotateCcw size={18} />
               Crit
             </span>
-            <span className="text-text-muted">reset</span>
           </button>
         </div>
       </div>
@@ -132,20 +127,17 @@ function Calculator() {
   );
 }
 
-/** An on/off switch for the attack or a what-if, named in two short lines so
- *  four fit across a phone. */
+/** An on/off switch for the attack or a what-if, named in a word. */
 function Switch({
   on,
   onToggle,
   icon,
   name,
-  detail,
 }: {
   on: boolean;
   onToggle: () => void;
   icon: React.ReactNode;
   name: string;
-  detail: string;
 }) {
   return (
     <button
@@ -153,7 +145,7 @@ function Switch({
       aria-pressed={on}
       onClick={onToggle}
       className={cn(
-        "flex h-11 min-w-0 touch-manipulation flex-col items-center justify-center rounded-md border text-sm leading-tight",
+        "flex h-11 min-w-0 touch-manipulation flex-col items-center justify-center rounded-md border text-base leading-tight",
         on ? "border-brand-blue bg-surface-elevated text-text-primary" : "border-border-default bg-surface-tertiary text-text-muted",
       )}
     >
@@ -161,7 +153,6 @@ function Switch({
         {icon}
         {name}
       </span>
-      <span className={cn("truncate", on ? "text-text-secondary" : "text-text-muted")}>{detail}</span>
     </button>
   );
 }
@@ -341,7 +332,7 @@ function FocusButton({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="flex size-11 shrink-0 touch-manipulation items-center justify-center gap-0.5 rounded-md border border-brand-orange text-brand-orange active:bg-surface-elevated disabled:opacity-30"
+      className="flex h-11 w-20 shrink-0 touch-manipulation items-center justify-center gap-0.5 rounded-md border border-brand-orange text-brand-orange active:bg-surface-elevated disabled:opacity-30"
     >
       {children}
       <Zap size={16} fill="currentColor" />
@@ -426,7 +417,7 @@ function Distribution({
           />
         ))}
         {Array.from({ length: blanks }, (_, index) => (
-          <li key={`blank-${String(index)}`} aria-hidden className="max-h-10 min-h-5 flex-1" />
+          <li key={`blank-${String(index)}`} aria-hidden className="max-h-10 min-h-4.5 flex-1" />
         ))}
       </ol>
       {notes}
@@ -459,7 +450,7 @@ function ResultRow({
   return (
     <li
       className={cn(
-        "grid max-h-10 min-h-5 flex-1 grid-cols-[2.5rem_4rem_1fr_3.5rem] items-center gap-2 text-sm leading-none",
+        "grid max-h-10 min-h-4.5 flex-1 grid-cols-[2.5rem_4rem_1fr_3.5rem] items-center gap-2 text-sm leading-none",
         damage === null && "opacity-30",
       )}
     >
