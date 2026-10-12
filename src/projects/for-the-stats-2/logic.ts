@@ -36,29 +36,37 @@ export function rolledSlotPercent(attack: Attack): number {
   return Math.min(MAX_SLOT_PERCENT, Math.max(MIN_SLOT_PERCENT, attack.slotPercent + focusBonus(attack.focus)));
 }
 
-/** A range with a minimum above zero is a basic attack. Its minimum is half the
- *  attack's stat as a fraction of the range, and for a basic attack that stat is
- *  the shown slot chance; the game floors every roll at that same fraction.
- *  With a minimum of zero there is no floor. In thousandths, so the arithmetic
- *  stays exact like the game's decimal arithmetic. */
-function floorThousandths(attack: Attack): number {
-  return attack.minDamage > 0 ? 5 * attack.slotPercent : 0;
-}
-
-/** Whether the range is the one a basic attack at the shown chance would have.
- *  When it isn't, the floor is unknown and the low rolls may be off. */
-export function rangeMatchesChance(attack: Attack): boolean {
-  if (attack.minDamage === 0) return true;
-  return roundHalfEven((attack.slotPercent * attack.maxDamage) / 200) === attack.minDamage;
+/** An attack whose range starts above zero is floored: however few slots
+ *  succeed, the roll counts as at least this share of the way from min to max.
+ *  The share is half the attack's stat, which is what the slot chance shows
+ *  before Focus. The game builds the shown minimum from that same share, so in
+ *  effect it counts twice. A range starting at zero has no floor. */
+export function floorPercent(attack: Attack): number {
+  return attack.minDamage > 0 ? attack.slotPercent / 2 : 0;
 }
 
 /** The share of successful slots, rounded to two decimals and floored as above;
  *  damage runs that far from min to max and is truncated. No successes with a
- *  minimum of zero is a whiff. */
+ *  minimum of zero is a whiff. Shares are in thousandths, so the arithmetic is
+ *  exact like the game's decimal arithmetic. */
 export function damageForSuccesses(attack: Attack, successes: number): number {
-  const { minDamage, maxDamage, slots } = attack;
-  const share = Math.max(floorThousandths(attack), 10 * roundHalfEven((100 * successes) / slots));
-  return minDamage + Math.trunc(((maxDamage - minDamage) * share) / 1000);
+  return damageAtShare(attack, Math.max(10 * floorPercent(attack), successShare(attack, successes)));
+}
+
+/** Whether the floor makes this many successes deal more than they would
+ *  without it. */
+export function floorRaises(attack: Attack, successes: number): boolean {
+  return damageForSuccesses(attack, successes) > damageAtShare(attack, successShare(attack, successes));
+}
+
+/** The share of slots that succeeded, in thousandths, rounded as the game
+ *  rounds it: to two decimals. */
+function successShare(attack: Attack, successes: number): number {
+  return 10 * roundHalfEven((100 * successes) / attack.slots);
+}
+
+function damageAtShare(attack: Attack, thousandths: number): number {
+  return attack.minDamage + Math.trunc(((attack.maxDamage - attack.minDamage) * thousandths) / 1000);
 }
 
 /** Every possible success count, with its damage and probability: the focused

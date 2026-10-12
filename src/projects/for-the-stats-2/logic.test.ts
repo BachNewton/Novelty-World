@@ -5,14 +5,15 @@ import {
   expectedDamage,
   focusBonus,
   outcomes,
-  rangeMatchesChance,
+  floorPercent,
+  floorRaises,
   rolledSlotPercent,
   type Attack,
 } from "./logic";
 
-/** A basic attack: min 4 is half of 72% of 11. */
+/** A range above zero: its min 4 is half of 72% of 11. */
 const axe: Attack = { minDamage: 4, maxDamage: 11, slots: 3, slotPercent: 72, focus: 0 };
-/** A heavy attack: no minimum. */
+/** A range from zero. */
 const hammer: Attack = { minDamage: 0, maxDamage: 12, slots: 3, slotPercent: 80, focus: 0 };
 
 const damages = (attack: Attack) =>
@@ -23,7 +24,7 @@ describe("damageForSuccesses", () => {
     expect(damages(hammer)).toEqual([0, 3, 8, 12]); // 12 × 0.33 = 3.96, 12 × 0.67 = 8.04
   });
 
-  it("floors a basic attack's low rolls at half its stat, above the shown minimum", () => {
+  it("floors the low rolls of a range above zero at half the stat, past the shown minimum", () => {
     expect(damages(axe)).toEqual([6, 6, 8, 11]); // floor 0.36: 4 + 7 × 0.36 = 6.52
   });
 
@@ -37,23 +38,21 @@ describe("damageForSuccesses", () => {
   });
 });
 
-describe("rangeMatchesChance", () => {
-  it("accepts the range a basic attack has at the shown chance", () => {
-    expect(rangeMatchesChance(axe)).toBe(true);
-    expect(rangeMatchesChance({ ...axe, slotPercent: 80 })).toBe(true); // 4.4 → 4
+describe("floorPercent", () => {
+  it("is half the chance before Focus for a range above zero", () => {
+    expect(floorPercent(axe)).toBe(36);
+    expect(floorPercent({ ...axe, focus: 2 })).toBe(36);
   });
 
-  it("rejects a minimum the shown chance can't produce", () => {
-    expect(rangeMatchesChance({ ...axe, slotPercent: 90 })).toBe(false); // 4.95 → 5
+  it("is zero for a range from zero", () => {
+    expect(floorPercent(hammer)).toBe(0);
   });
+});
 
-  it("rounds an exact half to even, as the game does", () => {
-    expect(rangeMatchesChance({ ...axe, minDamage: 2, maxDamage: 10, slotPercent: 50 })).toBe(true); // 2.5 → 2
-    expect(rangeMatchesChance({ ...axe, minDamage: 3, maxDamage: 10, slotPercent: 50 })).toBe(false);
-  });
-
-  it("always accepts an attack with no minimum", () => {
-    expect(rangeMatchesChance(hammer)).toBe(true);
+describe("floorRaises", () => {
+  it("marks the rolls the floor lifts above their plain share", () => {
+    expect([0, 1, 2, 3].map((hits) => floorRaises(axe, hits))).toEqual([true, false, false, false]);
+    expect([0, 1, 2, 3].map((hits) => floorRaises(hammer, hits))).toEqual([false, false, false, false]);
   });
 });
 
