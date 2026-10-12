@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Info, Minus, Move, Plus, RotateCcw, ShieldOff, Skull, Snowflake, Zap, ZapOff } from "lucide-react";
 import { useHydrated } from "@/shared/lib/use-hydrated";
 import { cn } from "@/shared/lib/utils";
@@ -187,7 +187,7 @@ function Stepper({
         {note}
       </label>
       <div className="flex h-11.5 items-stretch overflow-hidden rounded-md border border-border-default bg-surface-tertiary focus-within:border-brand-blue">
-        <StepButton label={`Decrease ${label}`} onClick={() => set(value - 1)} disabled={value <= min}>
+        <StepButton label={`Decrease ${label}`} onStep={() => set(value - 1)} disabled={value <= min}>
           <Minus size={18} />
         </StepButton>
         <label htmlFor={id} className="flex min-w-0 flex-1 cursor-text items-center justify-center">
@@ -207,7 +207,7 @@ function Stepper({
           />
           {suffix && <span className="font-mono text-xl text-text-secondary">{suffix}</span>}
         </label>
-        <StepButton label={`Increase ${label}`} onClick={() => set(value + 1)} disabled={value >= max}>
+        <StepButton label={`Increase ${label}`} onStep={() => set(value + 1)} disabled={value >= max}>
           <Plus size={18} />
         </StepButton>
       </div>
@@ -215,24 +215,69 @@ function Stepper({
   );
 }
 
+const HOLD_DELAY_MS = 400;
+const FIRST_REPEAT_MS = 120;
+const FASTEST_REPEAT_MS = 30;
+const REPEAT_SPEEDUP = 0.85;
+
+/** Steps once when pressed and, held down, keeps stepping, faster the longer
+ *  it's held, until it's let go or reaches its limit. */
 function StepButton({
   label,
-  onClick,
+  onStep,
   disabled,
   children,
 }: {
   label: string;
-  onClick: () => void;
+  onStep: () => void;
   disabled: boolean;
   children: React.ReactNode;
 }) {
+  // Each step re-renders with the new value, so the repeat calls the latest
+  // step rather than the one from when the press began.
+  const step = useRef(onStep);
+  useEffect(() => {
+    step.current = onStep;
+  });
+  const timer = useRef<number | undefined>(undefined);
+  const stop = useCallback(() => {
+    window.clearTimeout(timer.current);
+  }, []);
+  // A disabled button gets no pointer-up, so reaching the limit ends the hold.
+  useEffect(() => {
+    if (disabled) stop();
+  }, [disabled, stop]);
+  useEffect(() => stop, [stop]);
+
+  const repeatAfter = (delay: number, next: number) => {
+    timer.current = window.setTimeout(() => {
+      step.current();
+      repeatAfter(next, Math.max(FASTEST_REPEAT_MS, next * REPEAT_SPEEDUP));
+    }, delay);
+  };
+  const press = (event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    stop();
+    step.current();
+    repeatAfter(HOLD_DELAY_MS, FIRST_REPEAT_MS);
+  };
+
   return (
     <button
       type="button"
       aria-label={label}
-      onClick={onClick}
+      onPointerDown={press}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      // A pointer press already stepped; a click with no pointer (Enter or
+      // Space) steps here.
+      onClick={(event) => {
+        if (event.detail === 0) onStep();
+      }}
+      onContextMenu={(event) => event.preventDefault()}
       disabled={disabled}
-      className="flex w-11 shrink-0 touch-manipulation items-center justify-center text-text-secondary active:bg-surface-elevated disabled:opacity-30"
+      className="flex w-11 shrink-0 touch-none items-center justify-center text-text-secondary select-none active:bg-surface-elevated disabled:opacity-30 [-webkit-touch-callout:none]"
     >
       {children}
     </button>
