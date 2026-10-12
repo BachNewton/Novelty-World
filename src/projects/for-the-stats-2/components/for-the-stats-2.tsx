@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Info, Minus, Plus, RotateCcw, ShieldOff, Skull, Snowflake, Zap, ZapOff } from "lucide-react";
+import { Info, Minus, Move, Plus, RotateCcw, ShieldOff, Skull, Snowflake, Zap, ZapOff } from "lucide-react";
 import { useHydrated } from "@/shared/lib/use-hydrated";
 import { cn } from "@/shared/lib/utils";
 import { critPercent, MAX_SLOTS, predict, type Prediction } from "../logic";
@@ -16,7 +16,7 @@ export function ForTheStats2() {
   // render can't read, so the calculator waits for the browser.
   const hydrated = useHydrated();
   return (
-    <div className="mx-auto flex h-dvh max-w-xl flex-col gap-3 overflow-hidden px-4 py-4">
+    <div className="mx-auto flex h-dvh max-w-xl flex-col gap-2 overflow-hidden px-4 py-3.5">
       <h1 className="sr-only">For The Stats 2</h1>
       {hydrated && <Calculator />}
     </div>
@@ -361,42 +361,31 @@ function Distribution({
   const { rows, crit, nothing } = prediction;
   const blanks = MAX_SLOTS + 1 - rows.length;
   return (
-    <section className="flex min-h-0 flex-1 flex-col gap-2 border-t border-border-default pt-3">
+    <section className="flex min-h-0 flex-1 flex-col gap-1.5 border-t border-border-default pt-2">
       <div className="flex shrink-0 items-center gap-x-2 whitespace-nowrap">
-        <h2 className="flex items-center gap-1.5 text-base font-semibold">
-          Deal at least
-          <button
-            type="button"
-            popoverTarget="fts-notes"
-            aria-label="How these numbers work"
-            className={cn(
-              "relative z-10 -m-3.5 touch-manipulation p-3.5",
-              prediction.matched ? "text-text-muted" : "text-brand-orange",
-            )}
-          >
-            <Info size={18} />
-          </button>
-        </h2>
+        <h2 className="text-base font-semibold">Deal at least</h2>
         <button
           type="button"
-          aria-pressed={splash}
-          onClick={onToggleSplash}
-          className="relative z-10 -my-2.5 ml-1 flex h-11 touch-manipulation items-center px-1"
+          popoverTarget="fts-notes"
+          aria-label="How these numbers work"
+          className={cn(
+            "flex size-11 shrink-0 touch-manipulation items-center justify-center rounded-md border",
+            prediction.matched ? "border-border-default text-text-secondary" : "border-brand-orange text-brand-orange",
+          )}
         >
-          <span
-            className={cn(
-              "rounded-full border px-2 py-0.5 text-sm font-semibold",
-              splash ? "border-brand-blue bg-surface-elevated text-text-primary" : "border-border-default text-text-muted",
-            )}
-          >
-            Splash
-          </span>
+          <Info size={20} />
         </button>
-        <span className="ml-auto text-sm text-text-secondary">
-          avg <span className="font-mono text-text-primary">{prediction.expected.toFixed(1)}</span> dmg
+        <span className="grid w-20 shrink-0">
+          <Switch on={splash} onToggle={onToggleSplash} icon={<Move size={18} />} name="Splash" />
+        </span>
+        <span className="ml-auto flex flex-col items-end gap-0.5 leading-none">
+          <span className="text-sm text-text-secondary">avg dmg</span>
+          <span className="w-[6ch] text-right font-mono text-xl font-bold text-text-primary">
+            {formatAverage(prediction.expected)}
+          </span>
         </span>
       </div>
-      <ol className="flex min-h-0 flex-1 flex-col justify-center gap-1">
+      <ol className="flex min-h-0 flex-1 flex-col justify-center gap-0.75">
         <ResultRow
           label="crit"
           damage={crit?.damage ?? null}
@@ -512,6 +501,15 @@ function Notes({ prediction }: { prediction: Prediction }) {
       <p>Crit stats: your sheet&apos;s Modifiers. No Crit Damage listed? Enter 0.</p>
     </div>
   );
+}
+
+/** The average damage, rounded down like every number that could flatter the
+ *  attack: to a tenth, or a whole number from 1000 up so it stays six
+ *  characters wide. */
+function formatAverage(damage: number): string {
+  // The weighted sum can land a hair off a whole tenth in floating point.
+  if (damage >= 1000) return String(Math.floor(damage + 1e-9));
+  return (Math.floor(damage * 10 + 1e-9) / 10).toFixed(1);
 }
 
 /** A probability as a percent to one decimal, rounded the cautious way: a
