@@ -49,6 +49,32 @@ describe("a lit floor", () => {
     floor.dispose();
   }, 60_000);
 
+  it("keeps showing a room rebuilt where it stands until its new build shows lit, so it never drops out while it bakes", async () => {
+    let compiled = () => undefined as void;
+    let gate = Promise.resolve();
+    const floor = createLitFloor(inlineScheduler(), "bench", () => gate);
+    const id = "creaky-hallway";
+    const frozen = () => freezeRoom(id, buildRoom(shellRoom(id), { explorer: null }), TEST_TEXELS_PER_METRE);
+    await floor.place([{ id, room: frozen(), matrix: new THREE.Matrix4() }]);
+    const before = floor.rooms.get(id);
+    expect(before?.root.parent).toBe(floor.root);
+
+    gate = new Promise<void>((resolve) => {
+      compiled = resolve;
+    });
+    const rebuilt = floor.place([{ id, room: frozen(), matrix: new THREE.Matrix4() }]);
+    const after = floor.rooms.get(id);
+    expect(after).not.toBe(before);
+    expect(before?.root.parent).toBe(floor.root);
+    expect(after?.root.parent).toBeNull();
+
+    compiled();
+    await rebuilt;
+    expect(after?.root.parent).toBe(floor.root);
+    expect(before?.root.parent).toBeNull();
+    floor.dispose();
+  }, 60_000);
+
   it("draws a room's added light in one pass, so three never marks its material changed while drawing it", () => {
     const floor = createLitFloor(inlineScheduler(), "bench");
     const id = "library";

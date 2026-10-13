@@ -9,6 +9,7 @@ import { TILE } from "./room";
 import { batchParts, type PartBatch } from "./part-batch";
 import { disposeTree, EDGES } from "./stage";
 import { pageSearch } from "./page-search";
+import { paletteHex, type PaletteKey } from "./palette";
 import { patchGlassShine, patchShine, setShineLights, shineLights, type ShineLights } from "./shine";
 
 /*
@@ -379,9 +380,9 @@ function litRoom(
 
 type Built = ReturnType<typeof litRoom>;
 
-/** A room shown as a ghost of itself: drawn as it would be placed, merged
- *  the same way, but never baked. */
-export interface GhostRoom {
+/** A room drawn without its bake, standing in for it: a ghost of a room not
+ *  yet placed, or a room just placed, in flat light until its bake lands. */
+export interface StandInRoom {
   root: THREE.Group;
   setCut: (isCut: (edge: Edge) => boolean) => void;
   update: (seconds: number) => void;
@@ -427,7 +428,7 @@ function ghostPieceMaterial(material: THREE.Material, look: GhostLook): THREE.Ma
  * the placed room will, and reads as not yet real. Its walls cut as a placed
  * room's do.
  */
-export function ghostRoom(room: FrozenRoom, look: GhostLook): GhostRoom {
+export function ghostRoom(room: FrozenRoom, look: GhostLook): StandInRoom {
   const cut = { value: new THREE.Vector4() };
   const root = new THREE.Group();
   const material = ({ params }: Bucket): THREE.Material => {
@@ -479,6 +480,42 @@ export function ghostRoom(room: FrozenRoom, look: GhostLook): GhostRoom {
   };
 }
 
+/** The light a room just placed shows in until its bake lands: the house's moon fill, even over the whole room. */
+const FLAT_LIGHT = { colour: "moonLight" as PaletteKey, strength: 0.25 };
+
+/**
+ * A frozen room drawn solid in flat light: the room as placed, before its
+ * bake lands. It is drawn by the baked room's own materials with an even
+ * lightmap, so it needs no shaders the house hasn't already compiled for its
+ * rooms, and shows the frame it is made. Its walls cut as a placed room's do.
+ */
+export function flatRoom(room: FrozenRoom): StandInRoom {
+  const built = litRoom(room.id, room, new THREE.Matrix4(), { value: new THREE.Vector4() }, { value: 0 }, () => Promise.resolve());
+  const flat = new THREE.Color(paletteHex(FLAT_LIGHT.colour)).multiplyScalar(FLAT_LIGHT.strength);
+  const texel = [flat.r, flat.g, flat.b, 0].map((value) => THREE.DataUtils.toHalfFloat(value));
+  const data = built.lightmap.image.data as Uint16Array;
+  for (let i = 0; i < data.length; i++) data[i] = texel[i % 4];
+  built.lightmap.needsUpdate = true;
+  for (const { uniform } of built.probes) for (const face of uniform.value) face.set(flat.r, flat.g, flat.b);
+  return {
+    root: built.root,
+    setCut: built.setCut,
+    update: (seconds) => {
+      for (const animation of room.animations) animation(seconds);
+      for (const { batch } of built.probes) batch.sync();
+    },
+    dispose: () => {
+      built.root.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.geometry.dispose();
+        for (const each of [object.material].flat() as THREE.Material[]) each.dispose();
+      });
+      built.lightmap.dispose();
+      built.flickerMap.dispose();
+    },
+  };
+}
+
 /** Every bake scene gets its own id, so workers shared between floors never confuse two. */
 let scenes = 0;
 
@@ -505,14 +542,16 @@ const SHOWS_PROGRESS = {
 let floors = 0;
 
 /** `floor` names the floor to the scheduler, which runs the bakes of the floor's rooms
- *  the player is looking at first. */
-export function createLitFloor(bakes: BakeScheduler, floor: string, prepare: Prepare = () => Promise.resolve()): LitFloor {
+ *  the player is looking at first. `joined` hears of each room as it first shows, lit. */
+export function createLitFloor(bakes: BakeScheduler, floor: string, prepare: Prepare = () => Promise.resolve(), joined: (room: string) => void = () => undefined): LitFloor {
   const floorKey = `${floor}#${++floors}`;
   const keyOf = (id: string) => `${floorKey}:${id}`;
   const root = new THREE.Group();
   const flicker = { value: new THREE.Vector4() };
   const water = { value: 0 };
   const rooms = new Map<string, Built>();
+  /** Rooms rebuilt where they stand (a door now shut or open), still showing as they were until the new build shows lit. */
+  const outgoing = new Map<string, Built>();
   const inverse = new THREE.Matrix4();
   const local = new THREE.Vector3();
 
@@ -554,7 +593,12 @@ export function createLitFloor(bakes: BakeScheduler, floor: string, prepare: Pre
     for (const { uniform, probe } of built.probes) readProbe(light.probes, probe, uniform.value);
     // A new room shows once it has its light, never black while it bakes, and its shaders, so it never stalls a frame.
     const appear = () => {
-      if (rooms.get(built.id) === built && built.root.parent !== root) root.add(built.root);
+      if (rooms.get(built.id) !== built || built.root.parent === root) return;
+      root.add(built.root);
+      const old = outgoing.get(built.id);
+      if (old) remove(old);
+      outgoing.delete(built.id);
+      joined(built.id);
     };
     if (built.compiled) appear();
     else void built.prepared.then(appear);
@@ -614,8 +658,14 @@ export function createLitFloor(bakes: BakeScheduler, floor: string, prepare: Pre
       changed.add(id);
       centres.push(centre(built.matrix));
       bakes.cancel(keyOf(id));
-      remove(built);
       rooms.delete(id);
+      if (next?.matrix.equals(built.matrix) && built.root.parent === root && !outgoing.has(id)) outgoing.set(id, built);
+      else remove(built);
+    }
+    for (const [id, old] of outgoing) {
+      if (placements.some((placement) => placement.id === id && placement.matrix.equals(old.matrix))) continue;
+      remove(old);
+      outgoing.delete(id);
     }
     for (const { id, room, matrix } of placements) {
       if (rooms.has(id)) continue;
@@ -653,12 +703,13 @@ export function createLitFloor(bakes: BakeScheduler, floor: string, prepare: Pre
       }
     },
     dispose: () => {
-      for (const built of rooms.values()) {
+      for (const built of [...rooms.values(), ...outgoing.values()]) {
         bakes.cancel(keyOf(built.id));
         remove(built);
         for (const { holder } of built.room.dynamics) disposeTree(holder);
       }
       rooms.clear();
+      outgoing.clear();
     },
   };
 }

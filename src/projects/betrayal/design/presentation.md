@@ -75,7 +75,7 @@ Movement follows the rules: up to Speed in spaces a turn, a stair step costing o
 
 ## Placing a room
 
-A discovered room shows as a ghost of the actual room on its cell, with each doorway marked at its edge by what it would do (joins a door, faces a wall, opens onto the unexplored). The player turns it through its legal ways round, which are the decision's choices and step like any others, then places it. A room that fits only one way is placed by the engine and shown as the tile appearing, with no prompt. Rooms that cards and rooms move (the Mystic Elevator, The Beckoning) use the same ghost, with the cells they may go to glowing.
+A discovered room shows as a ghost of the actual room on its cell, with each doorway marked at its edge by what it would do (joins a door, faces a wall, opens onto the unexplored). The player turns it through its legal ways round, which are the decision's choices and step like any others, then places it. A room that fits only one way is placed by the engine and shown as the tile appearing, with no prompt. Rooms that cards and rooms move (the Mystic Elevator, The Beckoning) use the same ghost, with the cells they may go to glowing. A ghost only ever means "not yet placed": a room placed, or carried by a rule, shows solid at once in a flat moon light until its baked light lands (`lighting.md`).
 
 ## Dice
 
@@ -225,12 +225,11 @@ Shelved, with what was learnt, for when they are picked up again.
 
 ## Open questions
 
-`v1-play.md` lists the questions paused for the playtest: the reveal's light, pacing, rooms before their light lands, phase 3's small calls, the rotation ghost, the phone layout, the lake's water look, the backlight, and soft or hard shadows. The longer-standing ones:
+`v1-play.md` lists the questions paused for the playtest: the reveal's light, pacing, phase 3's small calls, the phone layout, the lake's water look, the backlight, and soft or hard shadows. The longer-standing ones:
 
 - **One device per player, a shared screen with phones as controllers, or both**, once online play comes. A TV could show what everyone may see (the house, whose turn it is) as a spectator client of the game row, while each phone renders its own seat's `viewFor`: its cards, its choices and, after the reveal, its side's half of the haunt. That suits the server-authoritative design and the traitor's secrets, and could sit beside one device per player.
 - **The layout on phones and on wide screens**, around the status box: how much of a phone it may cover, and what extra width shows.
 - **The reveal's light:** the house turned red (the default) or its moon blue pushed deeper (`?mood=cold`).
 - **The lake's water look:** `shader` or `shader-palette` (`?water=`).
 - **Whether to light a figure lit only from behind** with a rim (the backlight, on by default; `?backlight=off` to compare). Bounce light gives figures some fill from below.
-- **Whether the rotation ghost reads clearly enough as "not placed yet".**
 - **Soft or hard shadows** (`lighting.md`).

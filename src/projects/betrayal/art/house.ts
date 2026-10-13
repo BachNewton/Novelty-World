@@ -14,7 +14,7 @@ import { freezeRoom, freezeSteps, type FrozenRoom } from "./freeze";
 import { carrying } from "./room-flight";
 import { houseMood, type HouseMood } from "./house-mood";
 import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog, LIGHTMAP } from "./lighting";
-import { createLitFloor, ghostRoom, patchProbe, type GhostRoom, type LitFloor, type Prepare, type ProbeUniform, type Rebake } from "./lit-floor";
+import { createLitFloor, flatRoom, ghostRoom, patchProbe, type LitFloor, type Prepare, type ProbeUniform, type Rebake, type StandInRoom } from "./lit-floor";
 import { paletteHex, type PaletteKey } from "./palette";
 import { batchParts, type PartBatch } from "./part-batch";
 import { COLOUR_RING, DOOR_WIDTH, FLOOR_RINGS, MARK_PLANES, primePlaces, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
@@ -50,6 +50,8 @@ const LIGHT_GLIDE = 0.6;
 const ROUTE = { every: 0.5, size: 0.14, clear: 0.6, most: 160 };
 
 export type FloorChoice = FloorId | "all";
+
+export type RoomShownAs = "ghost" | "flat" | "lit" | null;
 
 /** A figure standing in the house: an explorer (or anything built like one)
  *  with its player's colour round the base. */
@@ -103,6 +105,8 @@ export interface House {
   figuresIn: () => boolean;
   /** How many rooms show, lit: a room shows once it has its direct light. */
   roomsShown: () => number;
+  /** How a room shows now: as a ghost (not yet placed), solid in flat light (placed, its bake still to land), lit, or not at all. */
+  shownAs: (room: string) => RoomShownAs;
   /** Shows one floor, or every floor stacked apart. */
   showFloor: (floor: FloorChoice) => void;
   /** The centre in the scene of a cell, with its floor stacked as it shows. */
@@ -142,8 +146,9 @@ export interface House {
   /** Dots along the path a walk would take, on the floors it crosses; null clears them. */
   showRoute: (path: readonly HousePoint[] | null) => void;
   /** Shows a room not yet placed as a ghost of itself, at a cell and turned
-   *  as given, without baking it; null takes it away. A room just placed or
-   *  moved shows as a ghost too, until it is baked and shows itself. */
+   *  as given, without baking it; null takes it away. A ghost only ever means
+   *  a room not yet placed: one just placed or moved shows solid at once, in
+   *  flat light, until its bake lands. */
   setGhost: (ghost: PlacedTile | null) => void;
   /** The light the whole house takes from the sky and the ground; the backdrop's sky is its sky colour. */
   fill: THREE.HemisphereLight;
@@ -153,8 +158,8 @@ export interface House {
   setMood: (mood: HouseMood, how: { shifting: boolean }) => void;
   /** Lifts a room `setLayout` just moved off `from`, its old place, and
    *  carries it with the figures standing in it (`riders`) to where it now
-   *  is; until it lands, the room as baked there and its settling ghost wait
-   *  hidden. */
+   *  is, solid in flat light; until it lands, the room as it shows there
+   *  waits hidden. */
   liftRoom: (room: string, from: PlacedTile, riders: readonly string[]) => RoomFlight;
   /** Resolves once the house as first laid out is built and baked. */
   ready: Promise<void>;
@@ -307,10 +312,10 @@ function ghostMark(doors: readonly GhostDoor[], fill: THREE.Material, border: TH
   return mark;
 }
 
-/** A room shown as a ghost: as built, and the holder that lays it at its cell. */
-interface Ghost {
+/** A room shown without its bake (a ghost, or a room in flat light): as built, and the holder that lays it at its cell. */
+interface StandIn {
   tile: PlacedTile;
-  room: GhostRoom;
+  room: StandInRoom;
   holder: THREE.Group;
   /** Its doors drawn shut and windows blocked, as a key: a ghost turned another way may need others. */
   shut: string;
@@ -479,7 +484,7 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
   const floorLighting = (floor: FloorId): LitFloor => {
     const existing = lighting.get(floor);
     if (existing) return existing;
-    const lit = createLitFloor(bakeQueue, floor, prepare);
+    const lit = createLitFloor(bakeQueue, floor, prepare, dropFlat);
     const holder = group(lit.root);
     holder.position.y = level(floor);
     holder.visible = shows(floor);
@@ -541,7 +546,7 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     layIfBuilt(floor);
   }
 
-  /** Whether the house as first laid out is in: rooms placed after it show as ghosts while they bake. */
+  /** Whether the house as first laid out is in: rooms placed after it show solid, in flat light, while they bake. */
   let started = false;
   const setLayout = (next: Layout): LayoutChange => {
     const change = diffLayout(layout, next, CATALOG);
@@ -553,6 +558,9 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     }
     for (const id of change.moved) touched.add(tileOf(id).floor);
     layout = { tiles: next.tiles.map((tile) => ({ ...tile })) };
+    for (const id of change.removed) dropFlat(id);
+    // Each stands in before its build starts, so its light can never land first.
+    if (started) for (const id of [...change.added, ...change.moved]) settle(id);
     // Every room to build joins the queue before any is built, so a floor is laid only once all of its are in.
     const building = change.rebuilt.map((id) => {
       const left = unqueue(id);
@@ -576,12 +584,6 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     for (const { id, floor } of building) slices.add(sliceKey(id), () => buildNow(id, floor), () => (shows(floor) ? 1 : 0));
     for (const floor of FLOORS.filter((candidate) => touched.has(candidate) && !building.some((room) => room.floor === candidate))) layIfBuilt(floor);
     lastCut = "";
-    if (started) for (const id of [...change.added, ...change.moved]) settle(id);
-    for (const id of change.removed) {
-      const ghost = settling.get(id);
-      if (ghost) dropGhost(ghost);
-      settling.delete(id);
-    }
     return change;
   };
 
@@ -690,18 +692,18 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     marks = [];
   };
 
-  /** The room the player is placing, and the rooms just placed that are still baking, shown as ghosts. */
-  let choosing: Ghost | null = null;
-  const settling = new Map<string, Ghost>();
+  /** The room the player is placing, shown as a ghost, and the rooms just placed that are still baking, shown solid in flat light. */
+  let choosing: StandIn | null = null;
+  const settling = new Map<string, StandIn>();
   /** The way the camera last looked, for cutting a ghost's walls as the house's are cut. */
   let viewedFrom: { x: number; z: number } | null = null;
   let viewFocus: string | null = null;
   /** Whether the player is holding every wall up. */
   let wallsRaised = false;
-  /** Rooms moved by a rule, in flight to their new cells: what carries them, and the ghost of each that flies. */
-  const flights = new Map<string, { carrier: THREE.Group; floors: FloorId[]; ghost: Ghost; riders: { id: string; walker: Walker }[] }>();
-  const ghosts = () => [...(choosing ? [choosing] : []), ...settling.values(), ...[...flights.values()].map((flight) => flight.ghost)];
-  const cutGhost = (ghost: Ghost) => {
+  /** Rooms moved by a rule, in flight to their new cells: what carries them, and the room that flies, in flat light. */
+  const flights = new Map<string, { carrier: THREE.Group; floors: FloorId[]; flying: StandIn; riders: { id: string; walker: Walker }[] }>();
+  const standIns = () => [...(choosing ? [choosing] : []), ...settling.values(), ...[...flights.values()].map((flight) => flight.flying)];
+  const cutGhost = (ghost: StandIn) => {
     if (!viewedFrom) return;
     const around: Layout = { tiles: [...liftTile(layout, ghost.tile.tile).tiles, ghost.tile] };
     const camera = viewedFrom;
@@ -711,22 +713,22 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
   /** What of a room at a cell would be blocked there: its doors facing a wall, and its windows against a room. */
   const blockedAt = (around: Layout, tile: PlacedTile) => ({ doors: closedDoors(around, CATALOG, tile), windows: falseWindows(around, CATALOG, tile) });
   const blockedKey = (blocked: ReturnType<typeof blockedAt>) => `${blocked.doors.join()}|${blocked.windows.join()}`;
-  /** A ghost of a room at a cell, turned as given, with what would be blocked there drawn so. */
-  const ghostOf = (tile: PlacedTile, blocked: ReturnType<typeof blockedAt>): Ghost => {
-    const room = ghostRoom(freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: blocked.doors, falseWindows: blocked.windows }), texelsPerMetre), ghostLook);
-    const holder = group(room.root);
-    const ghost: Ghost = { tile, room, holder, shut: blockedKey(blocked) };
-    layGhost(ghost, tile);
-    return ghost;
+  /** A room at a cell, turned as given, with what would be blocked there drawn so: as a ghost, or solid in flat light. */
+  const standInOf = (tile: PlacedTile, blocked: ReturnType<typeof blockedAt>, look: "ghost" | "flat"): StandIn => {
+    const frozen = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: blocked.doors, falseWindows: blocked.windows }), texelsPerMetre);
+    const room = look === "ghost" ? ghostRoom(frozen, ghostLook) : flatRoom(frozen);
+    const standIn: StandIn = { tile, room, holder: group(room.root), shut: blockedKey(blocked) };
+    layGhost(standIn, tile);
+    return standIn;
   };
-  const layGhost = (ghost: Ghost, tile: PlacedTile) => {
+  const layGhost = (ghost: StandIn, tile: PlacedTile) => {
     ghost.tile = tile;
     ghost.holder.position.set(tile.x * TILE, 0, tile.y * TILE);
     ghost.holder.rotation.y = tileTurn(tile.rotation);
     floorHolder(tile.floor).add(ghost.holder);
     cutGhost(ghost);
   };
-  const dropGhost = (ghost: Ghost) => {
+  const dropGhost = (ghost: StandIn) => {
     ghost.holder.removeFromParent();
     ghost.room.dispose();
   };
@@ -741,24 +743,23 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     if (choosing?.tile.tile === tile.tile && choosing.shut === blockedKey(blocked)) layGhost(choosing, tile);
     else {
       if (choosing) dropGhost(choosing);
-      choosing = ghostOf(tile, blocked);
+      choosing = standInOf(tile, blocked, "ghost");
     }
   };
-  /** A room just placed or moved shows as a ghost until it is baked and shows itself. */
+  /** Takes away the flat room standing in for a room: once the room shows lit (in the same frame), or is gone. */
+  const dropFlat = (id: string) => {
+    const flat = settling.get(id);
+    if (flat) dropGhost(flat);
+    settling.delete(id);
+  };
+  /** A room just placed or moved shows solid at once, in flat light, until it shows lit. */
   const settle = (id: string) => {
-    const old = settling.get(id);
-    if (old) dropGhost(old);
+    dropFlat(id);
     const tile = tileOf(id);
-    const ghost = ghostOf({ ...tile }, blockedAt(layout, tile));
-    settling.set(id, ghost);
-    void (shownWhen.get(id) ?? Promise.resolve()).then(() => {
-      if (settling.get(id) !== ghost) return;
-      dropGhost(ghost);
-      settling.delete(id);
-    });
+    settling.set(id, standInOf({ ...tile }, blockedAt(layout, tile), "flat"));
   };
 
-  /** A room in flight: the room baked at its new cell and its settling ghost wait hidden, and it shows from either floor. */
+  /** A room in flight: the room as it shows at its new cell (lit, or flat while it bakes) waits hidden, and it shows from either floor. */
   const hideLanding = (id: string, flight: { carrier: THREE.Group; floors: FloorId[] }) => {
     const tile = placed(layout, id);
     const lit = tile && lighting.get(tile.floor)?.rooms.get(id);
@@ -777,7 +778,7 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
       if (walkers.get(rider) === walker) root.add(walker.holder);
     }
     flight.carrier.removeFromParent();
-    dropGhost(flight.ghost);
+    dropGhost(flight.flying);
     const tile = placed(layout, id);
     const lit = tile && lighting.get(tile.floor)?.rooms.get(id);
     if (lit) lit.root.visible = true;
@@ -790,15 +791,15 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     const carrier = group();
     carrier.matrixAutoUpdate = false;
     root.add(carrier);
-    const ghost = ghostOf({ ...to }, blockedAt(layout, to));
-    carrier.add(ghost.holder);
-    ghost.holder.position.copy(cellCentre(to.floor, to.x, to.y));
+    const flying = standInOf({ ...to }, blockedAt(layout, to), "flat");
+    carrier.add(flying.holder);
+    flying.holder.position.copy(cellCentre(to.floor, to.x, to.y));
     const carried = riders.map((rider) => ({ id: rider, walker: walkerOf(rider) }));
     for (const { walker } of carried) {
       walker.carried = true;
       carrier.add(walker.holder);
     }
-    const flight = { carrier, floors: [from.floor, to.floor], ghost, riders: carried };
+    const flight = { carrier, floors: [from.floor, to.floor], flying, riders: carried };
     flights.set(id, flight);
     const ends = [from, to].map((tile) => ({ centre: cellCentre(tile.floor, tile.x, tile.y), turn: tileTurn(tile.rotation) }));
     const at = (t: number) => {
@@ -865,6 +866,13 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     built: () => pending === 0,
     figuresIn: () => figuresComing === 0,
     roomsShown: () => [...lighting.values()].reduce((sum, lit) => sum + [...lit.rooms.values()].filter((room) => room.root.parent === lit.root).length, 0),
+    shownAs: (room) => {
+      if (choosing?.tile.tile === room) return "ghost";
+      if (settling.has(room) || flights.has(room)) return "flat";
+      const tile = placed(layout, room);
+      const lit = tile && lighting.get(tile.floor);
+      return lit && lit.rooms.get(room)?.root.parent === lit.root ? "lit" : null;
+    },
     showFloor,
     cellCentre,
     corners,
@@ -874,7 +882,7 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
         viewedFrom = camera;
         viewFocus = focus;
         wallsRaised = raised;
-        for (const ghost of ghosts()) cutGhost(ghost);
+        for (const standIn of standIns()) cutGhost(standIn);
       }
       const cuts = layout.tiles.map((tile) => (raised ? [] : EDGES.filter((direction) => wallIsCut(layout, tile, direction, camera, focus)).map((direction) => printedEdge(direction, tile.rotation))));
       const key = JSON.stringify(cuts);
@@ -890,7 +898,7 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
       for (const [id, flight] of flights) hideLanding(id, flight);
       for (const lit of lighting.values()) lit.update(seconds);
       for (const walker of walkers.values()) poseWalker(walker, seconds);
-      for (const ghost of ghosts()) ghost.room.update(seconds);
+      for (const standIn of standIns()) standIn.room.update(seconds);
       ghostLook.fade.value = 1 - (1 - GHOST_LOOK.low) * (0.5 - 0.5 * Math.cos((seconds * Math.PI * 2) / GHOST_LOOK.period));
       if (active) {
         // The world position, as a figure riding in a moving room is carried in it.
@@ -1021,7 +1029,7 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     dispose: () => {
       for (const id of [...flights.keys()]) landRoom(id);
       clearMarks();
-      for (const ghost of ghosts()) dropGhost(ghost);
+      for (const standIn of standIns()) dropGhost(standIn);
       for (const lit of lighting.values()) lit.dispose();
       disposeTree(root);
       dotGeometry.dispose();
