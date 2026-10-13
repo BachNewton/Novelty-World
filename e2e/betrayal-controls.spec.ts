@@ -84,6 +84,18 @@ test.describe("controller", () => {
     expect(await others()).toEqual([]);
   });
 
+  test("Y in a turn with nothing to do opens the acting player's own tab, not the first seat's", async ({ page }) => {
+    await resumeByPad(page, seededGame({}));
+    await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
+    await holdButton(page, BUTTON.X, "play.holder === 1");
+    await until(page, "play.holder === 1 && play.pending?.kind === 'turn'");
+
+    await tapButton(page, BUTTON.Y);
+    const sheet = page.getByRole("dialog", { name: "Ox Bellows's character card" });
+    await expect(sheet.getByRole("tab", { name: "Ox Bellows" })).toBeFocused();
+    await expect(sheet.getByRole("tab", { name: "Ox Bellows" })).toHaveAttribute("aria-selected", "true");
+  });
+
   test("a whole game on the pad alone: setup, a discovery, a card, damage, a trade, the reveal and Ready", async ({ page }) => {
     const others = await padOnly(page);
     const debugShown = await watchDebugPanel(page);

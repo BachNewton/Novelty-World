@@ -58,6 +58,17 @@ export function explorerActions(cards: readonly string[], panel: readonly PanelC
   return { held, floor, trades, count };
 }
 
+/** The action a sheet opens on, by id: the first of its rows (a trade row by `trade:<explorer>`), or null where it offers none, when it opens on its tab. */
+export function firstAction(rows: ExplorerActions | null): string | null {
+  if (rows === null) return null;
+  const ids = [
+    ...rows.held.flatMap((row) => [...row.uses, ...(row.drop ? [row.drop] : [])]).map((choice) => choice.id),
+    ...rows.floor.map(({ pickUp }) => pickUp.id),
+    ...rows.trades.map((trade) => `trade:${trade.with}`),
+  ];
+  return ids.at(0) ?? null;
+}
+
 /** The turn's trades, one row per explorer, in the order the engine lists them. */
 export function tradeRows(panel: readonly PanelChoice[]): TradeRow[] {
   const rows: TradeRow[] = [];
