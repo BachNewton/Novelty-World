@@ -8,9 +8,8 @@ import { ruleSources } from "../test/rule-sources";
 import { openFloors } from "../art/open-floor";
 import { EVENT_SHOWS, present, speedOf, startPresentation, type Beat, type Presentation } from "./presenter";
 
-/** Zoe's and Ox's starting Speed, as their cards print it. */
+/** Zoe's starting Speed, as her card prints it. */
 const ZOE_SPEED = 4;
-const OX_SPEED = 4;
 
 /** Every room an open floor, its prime place off the middle. */
 const FLOORS = openFloors([1, 1]);
@@ -120,16 +119,13 @@ describe("present", () => {
     expect(game.choose("Move to the Foyer")).not.toContainEqual({ kind: "enter", room: "foyer" });
   });
 
-  it("starts a turn by moving the light, with the explorer stepping onto the prime place and its holder stepping aside, in that order", () => {
+  it("passes the turn by moving the light only: no figure moves", () => {
     const game = played();
-    const rhinehardt = game.presentation().spots["father-rhinehardt"];
+    const before = game.presentation().spots;
     const beats = game.choose("End your turn");
     expect(beats).toContainEqual({ kind: "turn", figure: "ox-bellows" });
-    const walks = beats.flatMap((beat) => (beat.kind === "walk" ? [beat] : []));
-    expect(walks.map((walk) => walk.figure)).toEqual(["ox-bellows", "zoe-ingstrom"]);
-    expect(walks[0]).toEqual({ kind: "walk", figure: "ox-bellows", route: ["entrance-hall"], at: [1, 1], gait: "walk", speed: OX_SPEED });
-    expect(walks[1].at).not.toEqual([1, 1]);
-    expect(game.presentation().spots["father-rhinehardt"]).toEqual(rhinehardt);
+    expect(beats.filter((beat) => beat.kind === "walk")).toEqual([]);
+    expect(game.presentation().spots).toEqual(before);
   });
 
   it("starts a game with no beats, its latest write told and its rooms seen", () => {

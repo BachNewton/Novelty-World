@@ -180,7 +180,7 @@ export function ControlGlyph({ control, className = "" }: { control: Control; cl
 /** What a control means, whatever the input: the map's single source. A
  *  and B (Enter and Esc) are left out: pressing the focused thing and
  *  closing the topmost one go without saying, so they never show a glyph. */
-export type Meaning = "end-turn" | "explorer" | "menu" | "recentre" | "stats" | "walls" | "floor-down" | "floor-up" | "choices";
+export type Meaning = "end-turn" | "explorer" | "menu" | "follow" | "details" | "walls" | "floor-down" | "floor-up" | "choices";
 
 /** Each meaning's control on a pad and on the keyboard, and whether it is a
  *  hold that fills before it acts. Touch has none. */
@@ -188,8 +188,8 @@ const MAP: Record<Meaning, { pad: PadGlyph; key: string | null; fills: boolean }
   "end-turn": { pad: "X", key: "⌫", fills: true },
   explorer: { pad: "Y", key: "I", fills: false },
   menu: { pad: "Menu", key: "M", fills: false },
-  recentre: { pad: "View", key: "C", fills: false },
-  stats: { pad: "R3", key: "Z", fills: false },
+  follow: { pad: "View", key: "C", fills: false },
+  details: { pad: "R3", key: "Z", fills: false },
   walls: { pad: "L3", key: "V", fills: false },
   "floor-down": { pad: "LB", key: "F", fills: false },
   "floor-up": { pad: "RB", key: "R", fills: false },

@@ -293,7 +293,7 @@ test.describe("keyboard and mouse", () => {
     expect(await page.evaluate(() => window.__betrayalHouse?.state().active)).toBe(0);
   });
 
-  test("recentre goes back to the active explorer after panning away and changing floor", async ({ page }) => {
+  test("panning frees the camera, and Follow goes back to the active explorer and their floor", async ({ page }) => {
     await openHouse(page);
     const home = await cameraNow(page);
     await page.keyboard.down("KeyD");
@@ -302,10 +302,12 @@ test.describe("keyboard and mouse", () => {
       return now !== undefined && Math.hypot(now.x - from.x, now.z - from.z) > 9;
     }, home.target);
     await page.keyboard.up("KeyD");
+    expect(await page.evaluate(() => window.__betrayalHouse?.cameraMode())).toBe("free");
     await page.keyboard.press("PageUp");
     await page.waitForFunction(() => window.__betrayalHouse?.state().floor === "upper");
     await page.keyboard.press("KeyC");
     await page.waitForFunction(() => window.__betrayalHouse?.state().floor === "ground" && window.__betrayalHouse.isReady());
+    expect(await page.evaluate(() => window.__betrayalHouse?.cameraMode())).toBe("following");
     const back = await cameraNow(page);
     expect(Math.hypot(back.target.x - home.target.x, back.target.z - home.target.z)).toBeLessThan(0.05);
     expect(back.zoom).toBe(home.zoom);
@@ -454,7 +456,7 @@ test.describe("touch", () => {
     expect(await page.evaluate(() => window.__betrayalHouse?.state().walking)).toBe(false);
 
     await page.evaluate(() => {
-      window.__betrayalHouse?.recentre();
+      window.__betrayalHouse?.follow();
       window.__betrayalHouse?.setZoom(1);
     });
     await page.waitForFunction(() => window.__betrayalHouse?.isReady());
@@ -464,11 +466,11 @@ test.describe("touch", () => {
     await arrived(page, room);
   });
 
-  test("the on-screen buttons change floor and recentre", async ({ page }) => {
+  test("the on-screen buttons change floor and follow", async ({ page }) => {
     await openHouse(page);
     await page.getByRole("button", { name: "Floor up" }).tap();
     await page.waitForFunction(() => window.__betrayalHouse?.state().floor === "upper");
-    await page.getByRole("button", { name: "Recentre" }).tap();
+    await page.getByRole("button", { name: "Follow" }).tap();
     await page.waitForFunction(() => window.__betrayalHouse?.state().floor === "ground" && window.__betrayalHouse.isReady());
   });
 });
@@ -585,7 +587,7 @@ test.describe("controller", () => {
     await page.waitForFunction(() => window.__betrayalHouse?.state().wallsRaised === false);
   });
 
-  test("the bumpers change floor, View recentres, and B backs out", async ({ page }) => {
+  test("the bumpers change floor, View follows, and B backs out", async ({ page }) => {
     await openHouse(page);
     await press(page, BUTTON.RB, () => page.waitForFunction(() => window.__betrayalHouse?.state().floor === "upper"));
     await press(page, BUTTON.View, () => page.waitForFunction(() => window.__betrayalHouse?.state().floor === "ground"));

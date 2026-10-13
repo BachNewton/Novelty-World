@@ -32,14 +32,16 @@ import { sceneTarget } from "./routes";
 import { createPresenting, skipOrAnswer, SPEEDS, type Presented, type Presenting, type Speed } from "./presenting";
 import { RaiseWallsButton } from "../raise-walls-button";
 import { CardBeat } from "./card-beat";
-import { ExplorerSheet, FigureMarks, markedExplorers, StatsButton } from "./figure-marks";
+import { ExplorerSheet, FigureMarks, markedExplorers } from "./figure-marks";
+import { DetailsButton, HouseDetails } from "./details";
 import { TradeSheet } from "./trade-sheet";
 import { ClusterCounts, ThingReader, ThingTag } from "./thing-reader";
 import type { ShownThing } from "../../play/things";
-import { useStatsHold } from "./stats-hold";
+import { useDetailsHold } from "./details-hold";
 import { BakeDebug } from "../../art/bake-debug";
 import { BakeIndicator } from "../../art/bake-indicator";
 import { createFrameMeter, useFrameMeter, type FrameMeter } from "../../art/frame-meter";
+import { AimDebug } from "./aim-debug";
 
 /*
  * The game on one device: the house, showing the seat holding the device
@@ -280,7 +282,7 @@ export function PlayScreen({
   const handlesRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  const stats = useStatsHold(padMay);
+  const details = useDetailsHold(padMay);
   // Input fast-forwards whatever is playing: nothing waits on an animation.
   const act = useCallback(
     (action: Action) => {
@@ -498,7 +500,9 @@ export function PlayScreen({
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />
-      <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} statsHeld={stats.held} tab={tab?.id ?? null} openTab={openTab} />
+      <AimDebug scene={scene} named={[...targets, ...ghostTargets, ...things]} />
+      {details.held && <HouseDetails scene={scene} view={view} things={things} />}
+      <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 p-3 pr-28 text-xs sm:text-sm">
         {/* The seat holding the device: its explorer's character card, as the mark on the figure opens it. */}
@@ -534,19 +538,20 @@ export function PlayScreen({
           <Prompt meaning="floor-up" input={input} />
         </span>
         <PromptButton
-          meaning="recentre"
+          meaning="follow"
           input={input}
+          aria-pressed={shown.camera === "following"}
           onClick={() => {
-            scene.camera.recentre();
+            scene.camera.follow();
           }}
-          className={button}
+          className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}
         >
-          Recentre
+          Follow
         </PromptButton>
         <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
           Walls
         </RaiseWallsButton>
-        <StatsButton held={stats.held} hold={stats.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
+        <DetailsButton held={details.held} hold={details.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
         <PromptButton
           meaning="menu"
           input={input}

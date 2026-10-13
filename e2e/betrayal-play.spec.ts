@@ -241,41 +241,24 @@ test("a game saved by an older engine is refused, not replayed", async ({ page }
 });
 
 /**
- * Standing places: the explorer whose turn it is stands on the room's prime
- * place, stepping onto it as the turn starts, and whoever stood there steps
- * aside; every other figure keeps its place until it moves. All three start
- * in the Entrance Hall, the first player on the prime place; each turn ends
- * without a move.
+ * Standing places: a figure keeps its place until it moves, whoever's turn it
+ * is. All three start in the Entrance Hall, apart, the first player on the
+ * prime place; each turn ends without a move, and no one steps anywhere.
  */
-test("the explorer whose turn it is steps onto the prime place, and the others keep theirs", async ({ page }) => {
+test("passing the turn moves no figure", async ({ page }) => {
   await resumeSaved(page);
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
   const places = async () => Object.fromEntries(Object.entries((await readout(page)).spots).map(([id, spot]) => [id, spot && `${spot.room} ${spot.x.toFixed(2)} ${spot.z.toFixed(2)}`]));
   const start = await places();
-  const prime = start["zoe-ingstrom"];
   expect(new Set(Object.values(start)).size).toBe(3);
 
-  // Ox's turn: Ox steps onto the prime place, and Zoe, who stood there, steps aside. The clock is held so the step is seen playing.
-  await page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
   await page.getByRole("button", { name: "End turn" }).click();
-  await page.waitForFunction(() => {
-    const play = window.__betrayalPlay?.play();
-    return play?.holder === 1 && play.walking;
-  });
-  const second = await places();
-  expect(second["ox-bellows"]).toBe(prime);
-  expect(second["zoe-ingstrom"]).not.toBe(prime);
-  expect(second["father-rhinehardt"]).toBe(start["father-rhinehardt"]);
-  await page.evaluate(() => window.__betrayalPlay?.freezeClock(null));
-  await until(page, "play.holder === 1 && !play.walking");
+  await until(page, "play.holder === 1 && play.turnSeat === 1 && !play.walking");
+  expect(await places()).toEqual(start);
 
-  // Father Rhinehardt's turn: Father Rhinehardt steps onto it, Ox steps aside, and Zoe, who never moved, stays where she is.
   await page.getByRole("button", { name: "End turn" }).click();
   await until(page, "play.holder === 2 && play.turnSeat === 2 && !play.walking");
-  const third = await places();
-  expect(third["father-rhinehardt"]).toBe(prime);
-  expect(third["ox-bellows"]).not.toBe(prime);
-  expect(third["zoe-ingstrom"]).toBe(second["zoe-ingstrom"]);
+  expect(await places()).toEqual(start);
 });
 
 test("a new game from the setup starts with the first player holding the device", async ({ page }) => {
@@ -314,22 +297,18 @@ test("setup: characters chosen by portrait, one per card, and a chosen haunt car
   const seat0 = page.getByRole("listitem", { name: "Seat 0" });
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" })).toBeVisible();
 
-  // Four seats by default. The arrows step past characters whose card another seat has: Longfellow shares seat 0's own card, then the next three cards are taken.
+  // Four seats by default, each showing its character's traits.
   await expect(page.getByRole("listitem", { name: /^Seat \d$/ })).toHaveCount(4);
-  await seat0.getByRole("button", { name: "Seat 0: next character" }).click();
-  await expect(seat0.getByRole("button", { name: "Seat 0 character: Professor Longfellow" })).toBeVisible();
-  await seat0.getByRole("button", { name: "Seat 0: next character" }).click();
-  await expect(seat0.getByRole("button", { name: "Seat 0 character: Vivian Lopez" })).toBeVisible();
-  // The seat shows its character's traits.
-  await expect(seat0.getByLabel("Vivian Lopez's traits").getByLabel(/ track$/)).toHaveCount(4);
+  await expect(seat0.getByLabel("Father Rhinehardt's traits").getByLabel(/ track$/)).toHaveCount(4);
 
-  // The portrait opens every character; one whose card another seat holds can't be picked.
-  await seat0.getByRole("button", { name: "Seat 0 character: Vivian Lopez" }).click();
+  // Tapping the portrait opens every character; one whose card another seat holds can't be picked.
+  await seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" }).click();
   const grid = page.getByRole("dialog", { name: "Seat 0's character" });
   await expect(grid.getByRole("button", { name: /Ox Bellows/ })).toBeDisabled();
   await grid.getByRole("button", { name: /Heather Granville/ }).click();
   await expect(grid).toHaveCount(0);
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Heather Granville" })).toBeVisible();
+  await expect(seat0.getByLabel("Heather Granville's traits").getByLabel(/ track$/)).toHaveCount(4);
 
   await page.getByRole("button", { name: /^13 · / }).click();
   await page.getByRole("button", { name: "Start" }).click();

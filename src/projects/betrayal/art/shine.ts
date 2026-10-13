@@ -14,8 +14,9 @@
  * boards, flagstones, brick, earth, parquet, panelling and wainscot are not
  * marked at all. Only where the room's story calls for it (the formal halls'
  * marble, a dining room's honed stone, a chapel, a lift car's polished
- * panels) does a floor or wall take `floorSheen`: a small, soft gleam near
- * the lamp, never a broad bright patch. The object presets (metal, glass,
+ * panels) does a floor or wall take `floorSheen`: a faint, small gleam near
+ * the lamp that is seen only when looked for, never a patch that draws the eye
+ * or competes with the figures and the lamps. The object presets (metal, glass,
  * china, wax, polished furniture) are for things, never a room's shell.
  */
 import * as THREE from "three";
@@ -94,8 +95,8 @@ export const SHINES = {
   /** Wet stone and slick earth: a puddle, a wet footprint, the stones at a lake's edge. Not a whole floor. */
   wetStone: { roughness: 0.3, metalness: 0 },
   /** The faint sheen of a kept floor or polished panelling, where the room's story calls for one: a tight
-   *  highlight, as polished stone's, but reflecting a fifth as much, so a lamp leaves a small soft gleam. */
-  floorSheen: { roughness: 0.3, metalness: 0, reflectance: 0.008 },
+   *  highlight, as polished stone's, but reflecting a twentieth as much, so a lamp leaves only a faint gleam. */
+  floorSheen: { roughness: 0.3, metalness: 0, reflectance: 0.002 },
 } as const satisfies Record<string, Shine>;
 
 /** Whether this page draws highlights: `lights` (the default), or `?shine=off` to compare the house without them. */

@@ -3,7 +3,7 @@ import { ENGINE } from "../game";
 import { viewFor } from "../engine/view";
 import { testGame, waitingOn } from "../testing";
 import { playChoices } from "./choices";
-import { boxActions, explorerActions, tradeOffer, tradeSides } from "./sheet";
+import { boxActions, explorerActions, firstAction, tradeOffer, tradeSides } from "./sheet";
 
 // Zoe holds the Music Box and the Lucky Stone, and Ox the Rabbit's Foot; all three explorers start in the Entrance Hall.
 const state = testGame({
@@ -31,6 +31,21 @@ describe("explorerActions", () => {
     expect(actions.floor).toEqual([]);
     // One use, two drops and two trade rows.
     expect(actions.count).toBe(5);
+  });
+});
+
+describe("firstAction", () => {
+  it("opens the sheet on its first row's action", () => {
+    const actions = explorerActions(["music-box", "lucky-stone"], panel);
+    expect(firstAction(actions)).toBe(actions.held[0].uses[0].id);
+    expect(firstAction(explorerActions([], panel))).toBe("trade:ox-bellows");
+  });
+
+  // The playtest case: Y in a turn with nothing to do jumped to the first seat's tab.
+  it("has none in a turn with no action to take, so the sheet opens on its own tab", () => {
+    const bare = viewFor(ENGINE, testGame({}), waitingOn(testGame({})));
+    expect(firstAction(explorerActions([], playChoices(bare).panel))).toBeNull();
+    expect(firstAction(null)).toBeNull();
   });
 });
 

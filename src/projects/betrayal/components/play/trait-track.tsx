@@ -1,5 +1,5 @@
 import { traitName } from "../../engine/describe";
-import { stepsAboveSkull, type TraitTrack } from "../../play/tracks";
+import type { TraitTrack } from "../../play/tracks";
 import { Lock, Skull } from "lucide-react";
 import { TraitIcon } from "../icons";
 
@@ -9,7 +9,7 @@ import { TraitIcon } from "../icons";
  * starting step, a bar past the top for the ceiling, and the skull below the
  * lowest, padlocked before the haunt (when no one can die) and bare after.
  * A previewed change marks the step it lands on. The compact form, for six
- * explorers at once, keeps only the value and the steps left above the skull.
+ * explorers at once, keeps only the icon and the value.
  */
 
 /** One trait's track, with a change previewed when it has one. At setup,
@@ -68,19 +68,14 @@ export function TrackRow({ track, skull = true }: { track: TraitTrack; skull?: b
   );
 }
 
-/** A trait in brief: its value, and how many losses it can take before the skull. */
+/** A trait in brief: its icon and value, in the danger colour on the last step above a live skull. */
 export function CompactTrait({ track }: { track: TraitTrack }) {
-  const name = traitName(track.trait);
-  const steps = stepsAboveSkull(track.clip);
-  const near = track.skull === "live" && steps === 1;
+  const value = track.values[track.clip];
+  const last = track.skull === "live" && track.clip === 0;
   return (
-    <span aria-label={`${name} ${track.values[track.clip]}, ${steps} ${steps === 1 ? "step" : "steps"} above the skull`} className="inline-flex items-center gap-0.5 whitespace-nowrap">
+    <span aria-label={`${traitName(track.trait)} ${value}`} className={`inline-flex items-center gap-0.5 whitespace-nowrap ${last ? "text-(--bt-danger)" : ""}`}>
       <TraitIcon trait={track.trait} />
-      <span className="font-semibold">{track.values[track.clip]}</span>
-      <span className={`inline-flex items-center text-[10px] ${near ? "text-(--bt-danger)" : "text-(--bt-muted)"}`}>
-        {steps}
-        <Skull aria-hidden className="size-2.5" />
-      </span>
+      <span className="font-semibold">{value}</span>
     </span>
   );
 }

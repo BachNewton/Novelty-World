@@ -177,8 +177,9 @@ export interface RoomDefinition {
   angle?: number;
   /** Holes cut through the floor (a stairwell, a lake), in room metres. */
   floorOpenings?: FloorOpening[];
-  /** The prime place: where the active explorer stands, and where the bench
-   *  stands its explorer. Every other figure the placement solver
+  /** The prime place: where the first explorer stands at the start, where a
+   *  figure arriving stands while it is free, and where the bench stands its
+   *  explorer. Every other figure the placement solver
    *  (`placement.ts`) stands on the room's free floor. Clear for a figure's
    *  base, reachable from the doors and out of their lanes. In a barrier
    *  room, the prime place of one half (see `primeAcross`). */
