@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { ball, chain, ellipsoid, figureMaterial, form, intersect, plinth, ring, rod, roundBox, sculpt, stretched, type Solid, type Vec3 } from "../forms";
+import { ball, chain, ellipsoid, figureMaterial, form, plinth, ring, rod, roundBox, sculpt, stretched, type Solid, type Vec3 } from "../forms";
 import { group } from "../shapes";
 import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
 import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm } from "./hands";
@@ -38,7 +38,7 @@ const ARM_SWING = 0.34;
 /** The neck's pivot: the head and its hair stand 0.325 above it, a miniature's big head. */
 const NECK = TOP - 0.325;
 /** Narrow shoulders: a young woman's. */
-const SHOULDER: [number, number] = [0.165, 1.05];
+const SHOULDER: [number, number] = [0.16, 1.035];
 const UPPER_ARM = 0.235;
 /** From the elbow to the wrist. */
 const FOREARM = 0.19;
@@ -52,13 +52,32 @@ const SHIN = 0.266;
 /** Where the ponytail is tied, in the neck's frame: high on the back of her crown. */
 const TIE: Vec3 = [0, 0.262, -0.108];
 
-/** Everything on the side of `boundary` its sign says is above, within a box: for hair down to a hairline. */
-function above(boundary: (x: number, z: number) => number, min: Vec3, max: Vec3): Solid {
-  return { distance: (x, y, z) => boundary(x, z) - y, min, max };
+/** A solid cut softly to above a boundary: for hair down to a hairline, its edge a rounded rim rather than a crease. */
+function above(solid: Solid, boundary: (x: number, z: number) => number): Solid {
+  return { distance: (x, y, z) => softMax(solid.distance(x, y, z), boundary(x, z) - y, 0.006), min: solid.min, max: solid.max };
 }
 
-/** The head on its neck, in the neck's frame: a young woman's oval face with
- *  a soft jaw and a small chin, a small nose and cheeks that catch the light,
+/** The skull the hair lies on, a little out from the skin. */
+const HAIR_CAP = ellipsoid([0, 0.207, -0.014], [0.104, 0.118, 0.114]);
+/** The fringe's lower edge across the forehead: low at her right temple (−x), rising to the parting on her left. */
+const fringeEdge = (x: number) => 0.196 + 0.5 * THREE.MathUtils.clamp(x + 0.09, 0, 0.16) ** 1.25;
+/** The larger of two distances, rounded where they meet, so a cut edge is a soft rim rather than a crease. */
+function softMax(a: number, b: number, round = 0.008): number {
+  return 0.5 * (a + b + Math.sqrt((a - b) ** 2 + round * round));
+}
+/** The fringe: a thin sheet of the hair's cap a few millimetres out, over the forehead, down to its swept edge. */
+const FRINGE: Solid = {
+  distance: (x, y, z) => {
+    const out = HAIR_CAP.distance(x, y, z) - 0.004;
+    const shell = softMax(out, -out - 0.014);
+    return softMax(softMax(shell, (fringeEdge(x) - y) * 0.8), 0.02 - z);
+  },
+  min: [-0.12, 0.17, 0.0],
+  max: [0.12, 0.33, 0.13],
+};
+
+/** The head on its neck, in the neck's frame: a young woman's smooth oval face
+ *  (a skull and one soft jaw, with only a small nose standing out),
  *  blue eyes (white, a blue iris and a glint) under fine fair brows, dark
  *  lashes, pink lips, and golden hair drawn smoothly back from a side-swept
  *  fringe to the ponytail's tie. */
@@ -66,13 +85,10 @@ function head(): THREE.BufferGeometry {
   const shape = sculpt()
     .add(rod([0, -0.04, -0.005], [0, 0.1, 0], 0.038, 0.035), SKIN)
     .add(ellipsoid([0, 0.2, -0.01], [0.094, 0.11, 0.104]), SKIN, 0.04)
-    .add(ellipsoid([0, 0.137, 0.022], [0.072, 0.078, 0.086]), SKIN, 0.05)
-    .add(ball([0, 0.088, 0.062], 0.026), SKIN, 0.04)
-    .add(ellipsoid([0, 0.19, 0.083], [0.066, 0.014, 0.024]), SKIN, 0.02)
-    .add(rod([0, 0.176, 0.102], [0, 0.144, 0.116], 0.008, 0.013), SKIN, 0.01);
+    .add(ellipsoid([0, 0.135, 0.024], [0.07, 0.08, 0.084]), SKIN, 0.06)
+    .add(rod([0, 0.172, 0.1], [0, 0.146, 0.111], 0.007, 0.011), SKIN, 0.014);
   for (const side of [-1, 1]) {
     const x = side * 0.036;
-    shape.add(ellipsoid([side * 0.048, 0.132, 0.074], [0.028, 0.022, 0.024]), SKIN, 0.03);
     shape.add(ellipsoid([side * 0.092, 0.162, -0.006], [0.013, 0.025, 0.019]), SKIN, 0.01);
     shape.carve(ball([x, 0.166, 0.104], 0.017), { blend: 0.007 });
     shape.add(ball([x, 0.166, 0.087], 0.017), "boneLight");
@@ -87,12 +103,11 @@ function head(): THREE.BufferGeometry {
   // The hair drawn back: a smooth cap over the skull down to a hairline high at the brow, over the ears and low at the nape.
   const hairline = (x: number, z: number) => 0.236 - 0.13 * THREE.MathUtils.smoothstep(-z, -0.07, 0.08) - 0.03 * THREE.MathUtils.smoothstep(Math.abs(x), 0.05, 0.09);
   shape
-    .add(intersect(ellipsoid([0, 0.207, -0.014], [0.104, 0.118, 0.114]), above(hairline, [-0.12, 0.08, -0.14], [0.12, 0.34, 0.13])), HAIR, 0.006)
+    .add(above(HAIR_CAP, hairline), HAIR, 0.006)
     // Gathered up to the tie: fullness at the back of the crown.
     .add(ellipsoid([0, 0.24, -0.075], [0.075, 0.065, 0.05]), HAIR, 0.03)
-    // The fringe, swept from a parting on her left across to her right temple.
-    .add(rod([0.05, 0.262, 0.076], [-0.06, 0.224, 0.09], 0.016, 0.009), HAIR, 0.02)
-    .add(rod([0.0, 0.266, 0.072], [-0.086, 0.204, 0.064], 0.015, 0.009), HAIR, 0.02);
+    // The fringe: one smooth sheet lying on the forehead, swept from a parting on her left down to her right temple.
+    .add(FRINGE, HAIR, 0.012);
   return shape.geometry(0.0065);
 }
 
@@ -124,33 +139,55 @@ const BAND = stretched(ring([0, 0.035, 0], 0.1, 0.019), [0, 0.035, 0], [1, 1, 0.
 
 /** The sweater from the jeans' seat up, built from the waist (the hips' pivot):
  *  a fitted violet sweater, narrow at the waist and soft over the bust, a
- *  ribbed hem, its shoulders reaching out over the tops of the sleeves, and a
- *  white Peter Pan collar; below its hem, the seat of her jeans, which her
+ *  ribbed hem, and its shoulders sloping out to the arms' pivots; below its hem, the seat of her jeans, which her
  *  thighs swing from. */
-function sweater(): THREE.BufferGeometry {
+function sweaterShape() {
   const shape = sculpt()
     .add(ellipsoid([0, -0.025, -0.002], [0.125, 0.082, 0.086]), "moon")
     .add(roundBox([0, 0.085, 0], [0.098, 0.06, 0.068], 0.05), "violet", 0.03)
     .add(ellipsoid([0, 0.245, 0], [0.122, 0.15, 0.082]), "violet", 0.06);
   for (const side of [-1, 1]) {
     shape.add(ellipsoid([side * 0.042, 0.25, 0.046], [0.04, 0.036, 0.032]), "violet", 0.035);
-    // The shoulders reach out over the tops of the sleeves, so a sleeve's round top sits inside one.
-    shape.add(rod([side * 0.04, 0.375, -0.008], [side * (SHOULDER[0] - 0.008), 0.36, -0.004], 0.042, 0.042), "violet", 0.06);
+    // The shoulder slopes out to end round the arm's pivot, where the sleeve's round cap takes over the same curve.
+    shape.add(rod([side * 0.04, 0.372, -0.006], [side * (SHOULDER[0] - 0.012), SHOULDER[1] - WAIST - 0.004, -0.004], 0.042, 0.039), "violet", 0.06);
   }
   shape
     .add(stretched(ring([0, 0.035, 0], 0.1, 0.012), [0, 0.035, 0], [1, 1, 0.72]), "bruiseLight", 0.012)
     .paint((x, y, z) => Math.max(BAND.distance(x, y, z), 0.022 - y), "bruiseLight")
     // Below the hem it is all jeans, with none of the sweater's colour blended into the seat.
-    .paint((_, y) => y - 0.022, "moon")
-    .add(ring([0, 0.402, 0.002], 0.04, 0.012), "violet", 0.01);
-  for (const side of [-1, 1]) shape.add(ellipsoid([side * 0.03, 0.4, 0.046], [0.034, 0.01, 0.026]), "boneLight", 0.004);
-  return shape.geometry(0.009);
+    .paint((_, y) => y - 0.022, "moon");
+  return shape;
 }
 
-/** The upper arm from the shoulder to the elbow: a slim violet sleeve, tapering to the elbow, where it ends inside the forearm's top. */
+/** The Peter Pan collar's notch, parting its two rounded halves at the front of the throat. */
+const COLLAR_NOTCH = ball([0, 0.4, 0.074], 0.021);
+
+/** The Peter Pan collar: a white band a few millimetres thick lying on the sweater's own surface round the
+ *  neckline, so it follows the shoulders exactly, its edges rounded and its halves parted at the front. */
+function collar(): THREE.BufferGeometry {
+  const on = sweaterShape();
+  const band: Solid = {
+    distance: (x, y, z) => {
+      const surface = on.distance(x, y, z);
+      const round = Math.hypot(x / 1.1, z - 0.004);
+      const lying = softMax(surface - 0.011, -surface - 0.003, 0.005);
+      const ring = softMax(0.034 - round, round - 0.082, 0.012);
+      return softMax(softMax(softMax(lying, ring), 0.35 - y), -COLLAR_NOTCH.distance(x, y, z));
+    },
+    min: [-0.1, 0.33, -0.09],
+    max: [0.1, 0.45, 0.1],
+  };
+  return sculpt().add(band, "boneLight").geometry(0.0045);
+}
+
+
+/** The upper arm from the shoulder to the elbow: a round sleeve cap centred on the pivot, the same size as the
+ *  sweater's shoulder end, so the shoulder reads as one form however the arm turns; then a slim sleeve tapering to
+ *  the elbow, where it ends inside the forearm's top. */
 function upperArm(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, -0.005, 0], [0, -UPPER_ARM, 0], 0.037, 0.031), "violet")
+    .add(ball([0, 0, 0], 0.04), "violet")
+    .add(rod([0, -0.01, 0], [0, -UPPER_ARM, 0], 0.037, 0.031), "violet", 0.03)
     .geometry(0.008);
 }
 
@@ -196,7 +233,8 @@ function meshParts() {
   return {
     head: head(),
     ponytail: ponytail(),
-    sweater: sweater(),
+    sweater: sweaterShape().geometry(0.009),
+    collar: collar(),
     upperArm: upperArm(),
     forearm: forearm(),
     /** The right hand, then the left. */
@@ -212,18 +250,20 @@ export const HEATHER_PARTS = figureParts("heather", meshParts);
 declareParts(heather, [HEATHER_PARTS]);
 
 const UP = new THREE.Vector3(0, 1, 0);
+/** How the waving hand turns about its length so its palm faces the room. */
+const WAVE_ROLL = 0;
+/** How many times her hand rocks out and back in a wave. */
+const WAVE_ROCKS = 4;
 const smooth = THREE.MathUtils.smoothstep;
-/** A bump easing up from 0 to 1 between `a` and `b`, holding, and back down between `c` and `d`. */
-const bump = (t: number, a: number, b: number, c: number, d: number) => smooth(t, a, b) - smooth(t, c, d);
 
 /** Heather Granville as a miniature on a round base, 5'2" at the house's
  *  scale. She breathes and rests her weight on one hip, then the other; now
  *  and then she sets her hand on her hip and tosses her ponytail; now and then she
- *  lifts her hand and inspects her nails; and now and then she spots a flaw:
- *  she looks down, brushes at her sweater, and glances round to see whether
- *  anyone noticed. She walks with a light, quick step, her ponytail swinging.
+ *  lifts her hand and inspects her nails; and now and then she gives the room
+ *  her prom-queen wave, hand raised and rocking at the wrist, chin up: the
+ *  perfect girl everyone knows, which is what she fears she isn't. She walks with a light, quick step, her ponytail swinging.
  *  Either hand can hold a thing; the toss waits while her right does, the
- *  nails and the brushing while her left does. */
+ *  nails and the wave while her left does. */
 export function heather(seed = "heather", gait: Gait = STANDING): THREE.Group {
   const parts = HEATHER_PARTS.get();
   const material = figureMaterial();
@@ -262,12 +302,14 @@ export function heather(seed = "heather", gait: Gait = STANDING): THREE.Group {
   const onHip = pointHand(reachWrist(right, new THREE.Vector3(-0.162, 0.1, -0.035), new THREE.Vector3(-1, 0.05, -0.15)), new THREE.Vector3(0.25, -0.6, 0.75), 0);
   // The nails: her left hand lifted before her chest, fingers curled towards her, so she sees their backs.
   const nails = pointHand(reachWrist(left, new THREE.Vector3(0.06, 0.31, 0.23), new THREE.Vector3(1, -0.6, -0.3)), new THREE.Vector3(-0.2, 1, 0.15), Math.PI);
-  // The flaw: her left hand brushing across the front of her sweater, from her side to her middle.
-  const brushFrom = pointHand(reachWrist(left, new THREE.Vector3(0.1, 0.17, 0.13), new THREE.Vector3(1, -0.4, -0.5)), new THREE.Vector3(-0.6, -0.5, 0.6), 0);
-  const brushTo = pointHand(reachWrist(left, new THREE.Vector3(-0.01, 0.15, 0.135), new THREE.Vector3(1, -0.4, -0.5)), new THREE.Vector3(-0.8, -0.4, 0.4), 0);
+  // The wave: her left hand raised out at her side, the elbow near square, the palm to the room, rocking at the wrist.
+  const raised = reachWrist(left, new THREE.Vector3(0.42, 0.57, 0.17), new THREE.Vector3(0.6, -1, -0.2));
+  const waveOut = pointHand(raised, new THREE.Vector3(0.35, 1, 0.1), WAVE_ROLL);
+  const waveIn = pointHand(raised, new THREE.Vector3(-0.2, 1, 0.1), WAVE_ROLL);
 
   const trunk = mesh(parts.sweater, "sweater");
-  const chest = group(trunk, neck, left.shoulder, right.shoulder);
+  const neckline = mesh(parts.collar, "collar");
+  const chest = group(trunk, neckline, neck, left.shoulder, right.shoulder);
   const hips = group(chest);
   hips.position.y = WAIST - BASE_TOP;
 
@@ -288,6 +330,9 @@ export function heather(seed = "heather", gait: Gait = STANDING): THREE.Group {
   hasHands(figure, { right: right.hand, left: left.hand });
   joins(figure, [
     { parts: [face, trunk], at: neck, radius: 0.1 },
+    // The collar lies on the sweater's neckline, round the base of her neck.
+    { parts: [neckline, trunk], at: neck, radius: 0.1 },
+    { parts: [neckline, face], at: neck, radius: 0.08 },
     // The scrunchie and the tail's root sit in the hair gathered at the tie.
     { parts: [tail, face], at: tie, radius: 0.07 },
     { parts: [left.shoulder.children[0], trunk], at: left.shoulder, radius: 0.1 },
@@ -309,7 +354,7 @@ export function heather(seed = "heather", gait: Gait = STANDING): THREE.Group {
   const bursts = idleBursts(figure, seed, offset, {
     toss: { every: 9, lasts: 2.4, chance: 0.6 },
     nails: { every: 12, lasts: 3.2, chance: 0.55 },
-    flaw: { every: 14, lasts: 3.6, chance: 0.5 },
+    wave: { every: 14, lasts: 3, chance: 0.5 },
   });
 
   return animated(figure, (clock) => {
@@ -319,44 +364,44 @@ export function heather(seed = "heather", gait: Gait = STANDING): THREE.Group {
     const moving = gait(clock);
     const running = moving.running ? moving.amount : 0;
     const still = 1 - moving.amount;
-    const { toss, nails: inspect, flaw } = bursts(clock);
+    const { toss, nails: inspect, wave } = bursts(clock);
     // Each gesture eases out as the stride eases in, and waits while the hand it needs holds something.
     const tossing = right.hand.held === null ? toss.amount * still : 0;
     // The toss: her head tips one way and swings back the other, chin up, and the ponytail follows a beat behind.
     const tossed = Math.sin(smooth(toss.progress, 0.25, 0.7) * Math.PI * 2) * tossing;
     const flying = Math.sin(smooth(toss.progress, 0.3, 0.85) * Math.PI * 2) * tossing;
     const leftFree = left.hand.held === null ? still : 0;
-    const fretting = flaw.amount * leftFree;
-    const admiring = inspect.amount * leftFree * (1 - fretting);
+    const waving = wave.amount * leftFree;
+    const admiring = inspect.amount * leftFree * (1 - waving);
 
     // Weight on one hip, then the other.
     body.rotation.z = sway * 0.03;
     hips.rotation.z = sway * -0.03;
     chest.rotation.z = sway * 0.012;
     // Looking down at herself she leans in a little.
-    const lookDown = fretting * bump(flaw.progress, 0.0, 0.15, 0.55, 0.7);
-    chest.rotation.x = breath * -0.014 + lookDown * 0.12;
+    chest.rotation.x = breath * -0.014;
     trunk.scale.set(1 + breath * 0.012, 1, 1 + breath * 0.015);
+    neckline.scale.copy(trunk.scale);
     left.shoulder.position.y = left.at.y + breath * 0.004;
     right.shoulder.position.y = right.at.y + breath * 0.004;
 
-    // A tilt of the head, down to her nails, down to her sweater, then a quick glance either way: did anyone see?
-    const glance = fretting * Math.sin(smooth(flaw.progress, 0.55, 0.95) * Math.PI * 2) * (flaw.pick < 0.5 ? -1 : 1);
-    neck.rotation.y = glance * 0.75 + admiring * -0.15 + tossed * 0.15;
-    neck.rotation.x = 0.03 + admiring * 0.32 + lookDown * 0.42 - tossing * 0.12;
-    neck.rotation.z = sway * -0.05 * (1 - fretting) + admiring * 0.12 + tossed * 0.22;
+    // A tilt of the head down to her nails; waving, chin up and turned a little across the room, tipped towards her hand.
+    const across = wave.pick < 0.5 ? -1 : 1;
+    neck.rotation.y = admiring * -0.15 + tossed * 0.15 + waving * across * 0.25;
+    neck.rotation.x = 0.03 + admiring * 0.32 - tossing * 0.12 - waving * 0.1;
+    neck.rotation.z = sway * -0.05 * (1 - waving) + admiring * 0.12 + tossed * 0.22 + waving * 0.1;
 
     const restOf = (arm: Arm, own: (typeof poses)["right"]) => (arm.hand.held?.carry === "upright" ? own.carries : own.hangs);
     poseArm(right, restOf(right, poses.right), onHip, tossing);
-    // The left hand lifts to show her her nails, or brushes at her sweater twice.
-    const brushing = between(brushFrom, brushTo, 0.5 - 0.5 * Math.cos(smooth(flaw.progress, 0.12, 0.55) * Math.PI * 4));
+    // The left hand lifts to show her her nails, or rises to wave, rocking out and in.
+    const rocking = between(waveOut, waveIn, 0.5 - 0.5 * Math.cos(smooth(wave.progress, 0.25, 0.75) * Math.PI * 2 * WAVE_ROCKS));
     const leftRests = restOf(left, poses.left);
     poseArm(left, leftRests, nails, admiring);
-    if (fretting > 0) poseArm(left, between(leftRests, nails, admiring), brushing, fretting * bump(flaw.progress, 0.0, 0.12, 0.55, 0.68));
+    if (waving > 0) poseArm(left, between(leftRests, nails, admiring), rocking, waving);
 
     const curled = { knuckles: [0.9, 1.1, 0.8] as [number, number, number], thumb: 0.3 };
     poseHand(right.hand, holding(right.hand, blendPose(blendPose(RELAXED, OPEN, tossing * 0.6), fist(right.hand), running * 0.7)));
-    poseHand(left.hand, holding(left.hand, blendPose(blendPose(blendPose(RELAXED, curled, admiring), OPEN, fretting), fist(left.hand), running * 0.7)));
+    poseHand(left.hand, holding(left.hand, blendPose(blendPose(blendPose(RELAXED, curled, admiring), OPEN, waving), fist(left.hand), running * 0.7)));
     for (const [arm, side] of [
       [right, "right"],
       [left, "left"],
