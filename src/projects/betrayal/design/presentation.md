@@ -100,7 +100,7 @@ Hidden by default and shown when useful: in a roll's prompt, on the damage track
 
 **A trait is a track, as the character card prints it** (`play/tracks.ts`): the character's own values in a row, the clip on its step, the starting step marked, the top as the ceiling, and the skull below the lowest, padlocked before the haunt (when no one can die) and bare after. One track component is used everywhere: on the character card, in a damage preview (where the choice in focus would leave the clip) and, as just the icon and value, in the details. It is HTML and SVG, not 3D.
 
-**The character card** is Your explorer, a sheet over the house: a tab for each explorer, then the explorer's portrait, its four tracks and the cards it holds, with their text. Another explorer's tab is for reading only.
+**The character card** is Your explorer, a sheet over the house, docked in one place whichever tab it shows (a bottom sheet on a phone, a panel at the right on a wide screen, clear of the status box), so switching tabs changes only its contents; the mark of the explorer it shows is lit. A tab for each explorer, then the explorer's portrait, its four tracks and the cards it holds, with their text. Another explorer's tab is for reading only.
 
 ## Actions
 
