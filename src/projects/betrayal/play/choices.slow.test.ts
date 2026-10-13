@@ -22,7 +22,9 @@ describe("playChoices over whole games", () => {
       const listed = view.pending?.type === "decision" ? (view.pending.detail?.choices ?? []) : [];
       const actionOf = (c: (typeof all)[number]) => ("actions" in c ? c.actions[0] : c.action);
       for (const target of targets) expect(target.actions).toHaveLength(1);
-      expect(all.map((c) => actionOf(c).kind === "choose" && JSON.stringify((actionOf(c) as { choice: unknown }).choice)).sort()).toEqual(listed.map((c) => JSON.stringify(c.choice)).sort());
+      // A way through a connection to several rooms (the Slide) is one choice, offered on each room it may come out in.
+      const once = all.filter((c, i) => !("kind" in c && c.kind === "through") || all.findIndex((o) => o.id.startsWith("through:") && JSON.stringify(actionOf(o)) === JSON.stringify(actionOf(c))) === i);
+      expect(once.map((c) => actionOf(c).kind === "choose" && JSON.stringify((actionOf(c) as { choice: unknown }).choice)).sort()).toEqual(listed.map((c) => JSON.stringify(c.choice)).sort());
       expect(new Set(all.map((c) => c.id)).size).toBe(all.length);
       for (const choice of all) {
         const result = apply(ENGINE, state, actionOf(choice));
