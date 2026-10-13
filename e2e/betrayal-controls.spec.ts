@@ -28,11 +28,11 @@ async function padOnly(page: Page): Promise<() => Promise<string[]>> {
 }
 
 /** Opens the setup page with a game saved, and resumes it with the pad. */
-async function resumeByPad(page: Page, game: object): Promise<void> {
+async function resumeByPad(page: Page, game: object, url = PAGE): Promise<void> {
   page.on("pageerror", (error) => {
     throw error;
   });
-  await page.goto(PAGE);
+  await page.goto(url);
   await expect(page.getByRole("heading", { name: "New game" })).toBeVisible();
   await page.evaluate((value) => {
     localStorage.setItem("nw:betrayal:hot-seat", JSON.stringify(value));
@@ -167,6 +167,17 @@ test.describe("controller", () => {
     expect((await readout(page)).status).toBe("haunt");
     expect(await others()).toEqual([]);
     expect(await debugShown()).toBe(false);
+  });
+
+  test("?aim=debug draws the reticle's aim over the house, with a line saying what it caught and why; the backquote key hides it", async ({ page }) => {
+    await resumeByPad(page, HOLDING, `${PAGE}&aim=debug`);
+    await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
+    await tapButton(page, BUTTON.DpadRight);
+    await until(page, "window.__betrayalPlay.reticle() !== null");
+    const aim = page.getByLabel("Aim debug");
+    await expect(aim.locator("[data-aim-state]")).toHaveText(/^(Caught|Holding) /);
+    await page.keyboard.press("Backquote");
+    await expect(aim).toBeHidden();
   });
 
   test("the game menu: any pad's Menu opens it, the d-pad and A change the speed, and B closes it", async ({ page }) => {

@@ -4,7 +4,7 @@ import type { StandardButton } from "@/shared/lib/gamepad";
 import { FLOORS, placed, type Layout } from "../engine/board";
 import { attachControls, usesReticle, type ChoiceLayout, type InputKind } from "../input/controls";
 import { panOnFloor } from "../input/gestures";
-import { cycleChoice, pickTarget, reticleTarget, stepFloor, type Point } from "../input/navigate";
+import { cycleChoice, pickTarget, reticleTarget, stepFloor, type Point, type ReticleWeighing } from "../input/navigate";
 import type { FloorId, PlacedTile } from "../types";
 import type { Pace } from "./explorers/figure";
 import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure } from "./house";
@@ -177,6 +177,27 @@ export interface SceneInput {
   padButton?: (button: StandardButton, pad: number) => boolean;
   /** Whether a pad may act now; an idle pad's sticks and buttons are ignored. Every pad may when absent. */
   padMay?: (pad: number) => boolean;
+}
+
+/** How the reticle is deciding right now, read from the rule it decides by, for the aim's debug view. */
+export interface AimReading {
+  /** Whether the reticle is the selection: only with a controller. */
+  active: boolean;
+  centre: Point;
+  /** The least snap round any target. */
+  snap: number;
+  /** Every target on the screen, as the rule weighed it with the focused one held. */
+  weighed: ReticleWeighing[];
+  /** What the rule catches with nothing held. */
+  fresh: string | null;
+  /** What it picks with the focused one held. */
+  picked: string | null;
+  /** The reticle's choice as the driver was last told it. */
+  focused: string | null;
+  /** A choice a d-pad jump went to, held until the player pans away. */
+  pinned: string | null;
+  /** A choice backed out of, passed over until the reticle leaves it. */
+  dismissed: string | null;
 }
 
 /** What one frame cost to draw, for measuring. */
@@ -394,6 +415,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     floorHit: (point: Point) => THREE.Vector3 | null;
     /** The camera's target and zoom that fit these points in view from its angle. */
     fitting: (points: THREE.Vector3[]) => { target: THREE.Vector3; zoom: number };
+    aimReading: () => AimReading;
   } | null = null;
   let settled = false;
   let frames = 0;
@@ -1053,6 +1075,14 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       if (hit?.id !== dismissed) dismissed = null;
       return hit && hit.id !== dismissed ? hit : { id: null, at: middle };
     };
+    const aimReading = (): AimReading => {
+      const middle = centre();
+      const onScreen = layoutNow().targets;
+      const weighed: ReticleWeighing[] = [];
+      const picked = reticleTarget(onScreen, middle, { snap: RETICLE_SNAP, held: reticleSelected }, (weighing) => weighed.push(weighing));
+      const fresh = reticleTarget(onScreen, middle, { snap: RETICLE_SNAP, held: null });
+      return { active: usesReticle(view.input), centre: middle, snap: RETICLE_SNAP, weighed, fresh: fresh?.id ?? null, picked: picked?.id ?? null, focused: reticleSelected, pinned, dismissed };
+    };
     /** The selection: the reticle's choice, or the focused one where a pointer selects. */
     const selection = () => (usesReticle(view.input) ? reticleNow().id : focused);
 
@@ -1229,7 +1259,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
 
     scene.add(things.root);
     things.mount(readyShaders);
-    mounted = { house, sync, applyResolution, stats, layoutNow, project, container, placeCamera, floorHit, fitting };
+    mounted = { house, sync, applyResolution, stats, layoutNow, project, container, placeCamera, floorHit, fitting, aimReading };
     sync();
 
     return {
@@ -1356,6 +1386,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     setReticle: (element: HTMLElement | null) => {
       reticleMark = element;
     },
+    /** How the reticle is deciding right now, or null before the house mounts. */
+    aimReading: () => mounted?.aimReading() ?? null,
     setGhostHandles: (element: HTMLElement | null) => {
       ghostHandles = element;
     },
