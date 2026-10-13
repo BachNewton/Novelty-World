@@ -12,18 +12,23 @@ import { PLACEMENT_PRESETS } from "./placement-bench";
 import { GALLERY_ROOMS, sourceLabel } from "./props-gallery";
 import { createPropsGallery, RESOLUTIONS } from "./props-gallery-scene";
 import { FigureViewer } from "./figure-viewer-view";
+import { ShineBenchView } from "./shine-bench-view";
 
 /** The bench's id for the props gallery, in place of a room's. */
 const PROPS_BENCH = "props";
 /** The bench's id for the figure viewer, in place of a room's. */
 const FIGURES_BENCH = "figures";
+/** The bench's id for the shine bench, in place of a room's. */
+const SHINE_BENCH = "shine";
 
 /** The art bench (`?bench=<room-id>`, optionally `&explorer=<id>`,
  *  `&frame=explorer` and `&paths`): one room, full screen, to judge its art.
  *  `?bench=props` opens the props gallery instead (`&show=kit|duplicates|<room-id>`, `&q=<search>`), and
- *  `?bench=figures` the figure viewer (see `figure-viewer.ts`). */
+ *  `?bench=figures` the figure viewer (see `figure-viewer.ts`), and `?bench=shine` the shine bench
+ *  (every floor and shiny shell surface under a light to pick and move, see `shine-bench.ts`). */
 export function ArtBench(props: { room: string; explorer: string | null; frame: string | null; paths: boolean }) {
   if (props.room === FIGURES_BENCH) return <FigureViewer />;
+  if (props.room === SHINE_BENCH) return <ShineBenchView />;
   return props.room === PROPS_BENCH ? <PropsGallery /> : <RoomBench {...props} />;
 }
 
@@ -53,7 +58,7 @@ function RoomBench({
             className="bg-(--bt-panel) text-(--bt-ink)"
             value={state.roomId}
             onChange={(event) => {
-              if (event.target.value === PROPS_BENCH || event.target.value === FIGURES_BENCH) window.location.search = `?bench=${event.target.value}`;
+              if ([PROPS_BENCH, FIGURES_BENCH, SHINE_BENCH].includes(event.target.value)) window.location.search = `?bench=${event.target.value}`;
               else bench.api.setRoom(event.target.value);
             }}
           >
@@ -64,6 +69,7 @@ function RoomBench({
             ))}
             <option value={PROPS_BENCH}>All props (gallery)</option>
             <option value={FIGURES_BENCH}>Figure viewer</option>
+            <option value={SHINE_BENCH}>Shine bench</option>
           </select>
         </label>
         <label className="pointer-events-auto flex items-center gap-2 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 text-sm">

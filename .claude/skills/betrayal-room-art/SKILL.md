@@ -516,7 +516,10 @@ ledger, with its light intent and its measured median and range.
   the lamps; never a stronger preset, never the broad highlight. Objects keep
   theirs: silver, brass, glass, china, polished furniture. Marble floors are
   honed, with no vein lines (dark veins read as cracks at this pixel size):
-  nearly flat, at most a faint broad two-tone.
+  nearly flat, at most a faint broad two-tone. The shine bench
+  (`?bench=shine`, `shine-bench.ts`) lays every room's floor and shiny shell
+  surface side by side under a lamp, a candle, the moon or a coloured light,
+  from the game's high camera or a low one, and tries a preset's numbers live.
 - **Doorways and the prime place stay clear** (see "Lay it out"); the
   overlap check enforces it.
 - **Wall-hung props and the cutaway.** A wall that is cut stands only to

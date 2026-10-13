@@ -144,6 +144,21 @@ describe("present", () => {
     expect(beats.filter((beat) => beat.kind === "moment").map((beat) => beat.waits)).toContain(true);
   });
 
+  it("walks into a discovered room, and shows it close, before a card drawn there asks its question", () => {
+    // Secret Stairs, drawn in the Conservatory, asks where its other token goes before the explorer has entered the room.
+    const game = played(testGame({ stack: ["conservatory"], decks: { event: ["secret-stairs"] } }));
+    const beats = game.choose("Explore");
+    expect(offered(game.state()).every((choice) => choice.label.startsWith("Put the other Secret Stairs token"))).toBe(true);
+    expect(beats.slice(0, 2)).toEqual([
+      { kind: "walk", figure: "zoe-ingstrom", route: ["entrance-hall", "conservatory"], at: [1, 1], gait: "walk", speed: ZOE_SPEED },
+      { kind: "enter", room: "conservatory" },
+    ]);
+    expect(beats.at(-1)).toMatchObject({ kind: "moment", waits: true });
+    // Entering the room once the card is done, it is already there: no second walk.
+    game.choose("Basement Landing");
+    expect(game.choose("Stay here")).toEqual([]);
+  });
+
   it("fails loudly on an event type it has no way to show", () => {
     const view = viewFor(ENGINE, testGame(), 0);
     const strange = { id: "x:0", type: "nonsense", rule: { source: "rulebook" as const, page: 1 }, data: null };

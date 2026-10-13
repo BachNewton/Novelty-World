@@ -8,7 +8,7 @@ import { describeRule } from "../../engine/describe";
 import type { EventView, FigureView, GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import { cardMood, consequence, statChanges, type StatChange } from "../../play/cards";
-import { portraitSrc } from "../../play/setup";
+import { portraitOf } from "../../play/portraits";
 import { firstAction, type ExplorerActions } from "../../play/sheet";
 import { cardThingId } from "../../play/things";
 import type { Spots } from "../../play/spots";
@@ -31,7 +31,7 @@ import { CardTypeIcon, TraitIcon, traitLabel } from "../icons";
  * The cards' 3D props on the figures are art still to come: the pips stand
  * in for them.
  *
- * "Your explorer" is the character card as a sheet over the figure: a tab
+ * "Your explorer" is the character card as a sheet docked over the house: a tab
  * for each explorer in the house, then the explorer's portrait, its four
  * trait tracks and the cards it holds, with their text. On the acting
  * player's own tab, in their turn, it holds the turn's actions on fixed
@@ -41,8 +41,6 @@ import { CardTypeIcon, TraitIcon, traitLabel } from "../icons";
  * or the nameplate opens it.
  */
 
-/** How high over a figure's floor its card opens, in metres: just over its head. */
-const FAN_HEIGHT = 2;
 const FLOAT_MS = 1800;
 
 /** The explorers with a mark: those standing in the house, in seat order. */
@@ -196,40 +194,26 @@ export interface ExplorerSheetProps {
   close: () => void;
 }
 
-/** "Your explorer": the character card over its figure, with the turn's actions on the acting player's tab. */
+/** "Your explorer": the character card, docked, with the turn's actions on the acting player's tab. */
 export function ExplorerSheet(props: ExplorerSheetProps) {
-  const { scene, tab, close } = props;
-  const ref = usePinned(scene, "fan", tab.id, { height: FAN_HEIGHT, lift: 1, clamp: true, apart: false });
+  const { tab, close } = props;
   const sheet = useRef<HTMLElement>(null);
   // Focusing a tab shows it: a sheet with no action opens on its own tab, never the layer's first control, which is the first explorer's tab.
   const opensOnTab = firstAction(shownActions(props)) === null;
-  // It opens with the focus on its first action, or its tab where there is none, once the scene has put it over its figure and it shows.
+  // It opens with the focus on its first action, or its tab where there is none.
   useEffect(() => {
-    const pinned = ref.current;
-    const section = sheet.current;
-    if (!pinned || !section) throw new Error("The sheet has no element");
-    const observer = new MutationObserver(() => {
-      enter();
-    });
-    const enter = () => {
-      if (pinned.style.visibility !== "visible") return;
-      observer.disconnect();
-      enterLayer(section);
-    };
-    observer.observe(pinned, { attributes: true, attributeFilter: ["style"] });
-    enter();
-    return () => {
-      observer.disconnect();
-    };
-  }, [ref]);
+    if (!sheet.current) throw new Error("The sheet has no element");
+    enterLayer(sheet.current);
+  }, []);
+  // Docked in one place whichever tab it shows, so switching tabs never moves it: a bottom sheet on a phone, a panel at the right on a wide screen, clear of the status box.
   return (
-    <div ref={ref} className="pointer-events-none invisible absolute top-0 left-0 w-[min(30rem,calc(100vw-1rem))]">
+    <div className="absolute inset-x-0 bottom-0 lg:top-16 lg:right-3 lg:bottom-auto lg:left-auto lg:w-[30rem]">
       <section
         ref={sheet}
         role="dialog"
         aria-label={`${tab.name}'s character card`}
         data-pad-layer="1"
-        className="pointer-events-auto flex max-h-[70vh] flex-col gap-2 overflow-y-auto rounded border border-(--bt-accent) bg-(--bt-panel) p-2"
+        className="flex h-[70vh] flex-col gap-2 overflow-y-auto rounded-t border border-(--bt-accent) bg-(--bt-panel) p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:h-auto lg:max-h-[calc(100vh-5rem)] lg:rounded lg:pb-2"
       >
         <div className="flex items-start gap-1.5">
           <div role="tablist" aria-label="Explorers" className="flex flex-1 flex-wrap gap-1">
@@ -283,7 +267,7 @@ function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: Explore
   return (
     <>
       <header className="flex items-center gap-2">
-        <Image src={portraitSrc(tab.definition)} alt="" width={48} height={60} draggable={false} className="h-15 w-12 shrink-0 rounded border border-(--bt-line) object-cover" />
+        <Image src={portraitOf(tab.definition)} unoptimized alt="" width={48} height={60} draggable={false} className="h-15 w-12 shrink-0 rounded border border-(--bt-line) object-cover" />
         <span className="flex min-w-0 items-center gap-1.5 font-semibold">
           <span className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, tab.definition)}`} />
           {tab.name}
