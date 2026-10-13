@@ -145,6 +145,15 @@ A door against a neighbour's wall is a false door, and a window against a neighb
 
 Connections that aren't doorways (the Secret Passage and Secret Stairs, the Wall Switch, the Revolving Wall, the Mystic Slide, the Coal Chute, falling through a floor) need a visible look of their own, as room features.
 
+**The connection mark** (to build). A door is expected on an edge and a player looks for it; a connection a card adds is a surprise, so a highlight on the wall, as a door has, is easily missed. The card-made connections (the Secret Passage, the Secret Stairs, the Wall Switch, the Mystic Slide) share one mark, each kind with its own icon:
+
+- **In the room, unmistakable and never a door:** a small upright icon on the floor at the spot (turning arrows for the Wall Switch, a stair for the Secret Stairs, a hatch for the Secret Passage, a chute for the Slide), on a plate with a soft glow, readable at any zoom. Its colour stays clear of the colour language's meanings: a neutral bone or ink with an edge of violet, as these come from cards.
+- **Its arrival is a beat:** when it is placed, a following camera shows it and the line says what changed ("A Wall Switch joins the Chapel and the Library"), Why a step away.
+- **It shows when moving:** the rooms reachable through it glow as any reachable room does, and the route preview runs through the mark with its icon on the path, so a player finds it when it matters.
+- **Details and inspect:** it is labelled while Details is held, and pointing at it then explains it.
+
+The stub art (a hinged wall section, a hatch in the floor) comes with the room features and fits the same mark.
+
 ### A layout that changes
 
 The layout changes during play (the Mystic Elevator, "What The . . . ?", haunts 52, 80 and 93), so the house never assumes a fixed one: it rebuilds walls, the cutaway and the baked light on any layout change. Rooms need one generic ruined state (collapsed, burned or flipped), built on the shared stage when the first haunt needs it.
