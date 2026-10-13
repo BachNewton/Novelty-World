@@ -8,16 +8,17 @@ import { woodPlanks } from "../textures";
 import { newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
 
 /** The stairwell along the top wall, where the grand staircase comes up from
- *  the ground floor: its head is at `head`, and it falls away towards the
- *  left wall. */
-const WELL = { x: [-INNER, -0.85] as [number, number], z: [-INNER, -1.38] as [number, number] };
-const HEAD = WELL.x[1];
+ *  the ground floor: its head is at `HEAD`, and it falls away towards the
+ *  right wall, the way the flight below falls towards its foot by the Foyer,
+ *  so a climb arrives facing the way it went up. */
+const WELL = { x: [0.85, INNER] as [number, number], z: [-INNER, -1.38] as [number, number] };
+const HEAD = WELL.x[0];
 const MID = (STAIR.back + STAIR.front) / 2;
 /** The edge of the well on the landing side, where the balustrade stands. */
 const EDGE = -1.41;
 const WELL_DEPTH = 1.9;
 /** The whole steps of the flight that show in the well. */
-const WELL_STEPS = Math.floor((HEAD - WELL.x[0]) / STAIR.going);
+const WELL_STEPS = Math.floor((WELL.x[1] - HEAD) / STAIR.going);
 
 /** The head of the grand staircase climbing up out of the well, in the
  *  ground floor's own measure and dress, with the lining of the well. */
@@ -26,34 +27,34 @@ function stairHead(): THREE.Group {
   const rods = batch();
   const depth = STAIR.front - STAIR.back;
   for (let k = 1; ; k++) {
-    const x1 = HEAD - (k - 1) * STAIR.going;
-    const x0 = Math.max(x1 - STAIR.going, WELL.x[0]);
+    const x0 = HEAD + (k - 1) * STAIR.going;
+    const x1 = Math.min(x0 + STAIR.going, WELL.x[1]);
     if (x1 - x0 < 0.02) break;
     const top = -k * STAIR.rise;
     const cx = (x0 + x1) / 2;
     b.block([x1 - x0, top - 0.04 + WELL_DEPTH, depth], "woodDark", [cx, -WELL_DEPTH, MID]);
-    // This flight climbs towards +x, so each riser faces −x and the nosings overhang that way.
-    b.block([x1 - x0, 0.04, depth + 0.03], "woodMid", [cx - 0.015, top - 0.04, MID + 0.015]);
-    b.block([x1 - x0, 0.025, STAIR.carpet], "blood", [cx + 0.02, top, MID]);
+    // This flight climbs towards −x, so each riser faces +x and the nosings overhang that way.
+    b.block([x1 - x0, 0.04, depth + 0.03], "woodMid", [cx + 0.015, top - 0.04, MID + 0.015]);
+    b.block([x1 - x0, 0.025, STAIR.carpet], "blood", [cx - 0.02, top, MID]);
     // The riser's carpet stands on the tread carpet, rather than beside it in the same planes.
-    b.block([0.025, STAIR.rise - 0.065, STAIR.carpet], "blood", [x1 - 0.0125, top + 0.025, MID]);
-    rods.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.03, top, MID]);
+    b.block([0.025, STAIR.rise - 0.065, STAIR.carpet], "blood", [x0 + 0.0125, top + 0.025, MID]);
+    rods.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x0 + 0.03, top, MID]);
   }
-  b.block([0.08, 0.055, depth + 0.03], "woodMid", [HEAD + 0.01, -0.04, MID + 0.015]);
+  b.block([0.08, 0.055, depth + 0.03], "woodMid", [HEAD - 0.01, -0.04, MID + 0.015]);
   // The dark of the well below the floor, which the flight falls into.
   const brass = rods.mesh();
   shiny(brass.material, SHINES.brass);
-  return group(b.mesh(), brass, pitShell({ x: [-TILE / 2, HEAD + 0.07], z: [-TILE / 2, EDGE + 0.04], bottom: -WELL_DEPTH - 0.05 }));
+  return group(b.mesh(), brass, pitShell({ x: [HEAD - 0.07, TILE / 2], z: [-TILE / 2, EDGE + 0.04], bottom: -WELL_DEPTH - 0.05 }));
 }
 
 /** The balustrade along the landing edge of the well, its rail running into
- *  the left wall. */
+ *  the right wall. */
 function balustrade(): THREE.Group {
   const b = batch();
-  const from = WELL.x[0];
-  const to = HEAD;
+  const from = HEAD;
+  const to = WELL.x[1];
   b.block([to - from, 0.08, 0.12], "woodMid", [(from + to) / 2, 0, EDGE]);
-  for (let x = to - 0.2; x > from + 0.05; x -= 0.18) b.block([0.04, RAIL + 0.1, 0.04], "woodMid", [x, 0.08, EDGE]);
+  for (let x = from + 0.2; x < to - 0.05; x += 0.18) b.block([0.04, RAIL + 0.1, 0.04], "woodMid", [x, 0.08, EDGE]);
   b.block([to - from, 0.08, 0.08], "woodDark", [(from + to) / 2, RAIL + 0.15, EDGE]);
   const rail = b.mesh();
   shiny(rail.material, SHINES.polishedWood);
@@ -105,27 +106,27 @@ export const UPPER_LANDING: RoomDefinition = {
   props: [
     { build: stairHead, at: [0, 0], contacts: [{ with: "floor", because: "the landing's nosing is set into the edge of the floor" }] },
     { build: balustrade, at: [0, 0], contacts: [{ with: "newel", because: "its rail is jointed into the newel post" }] },
-    { build: newel, at: [HEAD + 0.06, EDGE] },
-    { build: () => runner({ from: HEAD, to: 2.5, z: MID, finished: ["to"] }), at: [0, 0] },
-    { build: rockingChair, at: [1.3, 1.3], turn: -135 },
-    { build: () => candle({ height: 0.1, intensity: 1.6 }), at: [1.85, 0.95] },
-    { build: () => table({ length: 1.0, width: 0.4, height: 0.82 }), ...onWall("right", -1.7, { out: 0.25 }) },
-    { build: () => candelabra({ arms: 3, intensity: 3 }), at: [2.5, -1.7], y: 0.82 },
-    { build: () => pictureFrame({ picture: "house on its hill", frame: "brass" }), ...onWall("right", -1.7, { y: 1.45 }) },
-    { build: () => pictureFrame({ picture: "old woman in a bonnet", frame: "woodLight" }), ...onWall("bottom", 1.7, { y: 1.4 }) },
-    { build: () => pictureFrame({ picture: "man in a top hat", frame: "brass" }), ...onWall("bottom", -1.7, { y: 1.4 }) },
-    { build: () => cobweb({ form: "slung" }), at: [INNER - 0.29, INNER - 0.29], y: 3.05, turn: 45, walls: ["right", "bottom"] },
+    { build: newel, at: [HEAD - 0.06, EDGE] },
+    { build: () => runner({ from: -2.5, to: HEAD, z: MID, finished: ["from"] }), at: [0, 0] },
+    { build: rockingChair, at: [-1.3, 1.3], turn: 135 },
+    { build: () => candle({ height: 0.1, intensity: 1.6 }), at: [-1.85, 0.95] },
+    { build: () => table({ length: 1.0, width: 0.4, height: 0.82 }), ...onWall("left", 1.7, { out: 0.25 }) },
+    { build: () => candelabra({ arms: 3, intensity: 3 }), at: [-2.5, -1.7], y: 0.82 },
+    { build: () => pictureFrame({ picture: "house on its hill", frame: "brass" }), ...onWall("left", 1.7, { y: 1.45 }) },
+    { build: () => pictureFrame({ picture: "old woman in a bonnet", frame: "woodLight" }), ...onWall("bottom", -1.7, { y: 1.4 }) },
+    { build: () => pictureFrame({ picture: "man in a top hat", frame: "brass" }), ...onWall("bottom", 1.7, { y: 1.4 }) },
+    { build: () => cobweb({ form: "slung" }), at: [-(INNER - 0.29), INNER - 0.29], y: 3.05, turn: -45, walls: ["left", "bottom"] },
   ],
-  focus: [-0.8, 0.6, -1.8],
-  prime: [0.8, -0.9],
+  focus: [0.8, 0.6, -1.8],
+  prime: [-0.8, -0.9],
   // Doorway to doorway through the middle, below the stairwell's rail and wide of the table.
   lanes: crossLanes(),
   // Down the head of the flight, over the middle of each tread, to the last step showing in the well.
   stairs: {
     "grand-staircase": [
-      [HEAD + 0.8, 0, MID],
-      [HEAD + STAIR.going / 2, 0, MID],
-      [HEAD - (WELL_STEPS - 0.5) * STAIR.going, -WELL_STEPS * STAIR.rise, MID],
+      [HEAD - 0.8, 0, MID],
+      [HEAD - STAIR.going / 2, 0, MID],
+      [HEAD + (WELL_STEPS - 0.5) * STAIR.going, -WELL_STEPS * STAIR.rise, MID],
     ],
   },
 };
