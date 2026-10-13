@@ -1,4 +1,7 @@
 import type { RuleNotes } from "../data/rule-notes";
+import { TOKENS } from "../data/tokens";
+import { traitName } from "../engine/describe";
+import type { Through } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
 import type { FigureId, Place } from "../types";
 import type { Lookahead, Reach, RouteWarning } from "./lookahead";
@@ -42,4 +45,30 @@ export function warningLines(engine: Engine, notes: RuleNotes | null, preview: P
 /** The rooms a route walks through, each once in a row: a barrier room's sides are one room to walk. */
 export function routeRooms(preview: Pick<RoutePreview, "route">): string[] {
   return preview.route.map((place) => place.room).filter((room, i, rooms) => i === 0 || rooms[i - 1] !== room);
+}
+
+/** Going through a connection, as its tag names it: "Wall Switch: Knowledge roll 3+", or "Wall Switch: no roll" for a figure it doesn't bind. */
+export function throughText(through: Pick<Through, "token" | "roll">): string {
+  const token = TOKENS.find((each) => each.id === through.token);
+  if (!token) throw new Error(`No token kind ${through.token}`);
+  return through.roll ? `${token.name}: ${traitName(through.roll.trait)} roll ${String(through.roll.min)}+` : `${token.name}: no roll`;
+}
+
+/** The exact chance that this many dice, each showing 0, 1 or 2 alike, total at least `min`. */
+export function chanceAtLeast(dice: number, min: number): number {
+  let ways = [1];
+  for (let die = 0; die < dice; die++) {
+    const next = Array<number>(ways.length + 2).fill(0);
+    ways.forEach((count, total) => {
+      for (let face = 0; face <= 2; face++) next[total + face] += count;
+    });
+    ways = next;
+  }
+  return ways.reduce((sum, count, total) => (total >= min ? sum + count : sum), 0) / 3 ** dice;
+}
+
+/** A chance as a whole percent, never rounded to 0% or 100% when it could still go either way. */
+export function percentText(chance: number): string {
+  if (chance === 0 || chance === 1) return `${String(chance * 100)}%`;
+  return `${String(Math.min(99, Math.max(1, Math.round(chance * 100))))}%`;
 }

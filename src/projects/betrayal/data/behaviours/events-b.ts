@@ -31,6 +31,7 @@ import {
   removeToken,
   roll,
   table,
+  traitDice,
   type TableRow,
 } from "../../engine/effects";
 import {
@@ -41,11 +42,16 @@ import {
   trackTraits,
   TRAITS,
 } from "../../engine/figures";
-import { askPermission, barrierSides } from "../../engine/questions";
+import {
+  askPermission,
+  askStructured,
+  barrierSides,
+} from "../../engine/questions";
 import {
   local,
   type Behaviour,
   type BehaviourGroup,
+  type Source,
 } from "../../engine/sources";
 import type { Engine } from "../../engine/step-loop";
 import {
@@ -256,6 +262,17 @@ function switchWalls(catalog: Catalog, room: string): Edge[][] {
 /** The Wall Switch is used once a turn by each figure: on a monster turn
  *  several figures act. */
 const switchUse = (figure: FigureId) => `wall-switch:${figure}`;
+
+/** The Knowledge roll that finds the Wall Switch. */
+const SWITCH_FINDS = 3;
+
+/** The room on the Wall Switch's other side from a figure at it. */
+function switchOther(state: GameState, figure: FigureId, source: Source): string {
+  const other =
+    roomOf(state, figure) === source.room ? source.beside : source.room;
+  if (other === null) throw new Error("The Wall Switch has no room beyond it");
+  return other;
+}
 
 /** The cell beyond a wall, and the room there if any. */
 function beyond(state: GameState, room: string, wall: Edge[]) {
@@ -920,12 +937,39 @@ export const EVENTS_B: BehaviourGroup = {
           available: (state, figure, source) =>
             source.beside !== null &&
             mayAttempt(state, figure, switchUse(figure)),
+          through: (state, figure, source, engine) => {
+            if (source.token === null || source.room === null)
+              throw new Error("The Wall Switch isn't a token in a room");
+            return {
+              token: "wall-switch",
+              room: source.room,
+              wall: source.token.wall ?? [],
+              rooms: [switchOther(state, figure, source)],
+              roll:
+                askStructured(engine, state, "bindingText", {
+                  figure,
+                  rule: source.rule,
+                }) === "ignored"
+                  ? null
+                  : {
+                      trait: "knowledge",
+                      dice: traitDice(
+                        engine,
+                        state,
+                        figure,
+                        "knowledge",
+                        source.rule,
+                      ),
+                      min: SWITCH_FINDS,
+                    },
+            };
+          },
           steps: (state, figure, source) => {
-            const here = roomOf(state, figure);
-            const other = here === source.room ? source.beside : source.room;
-            if (other === null)
-              throw new Error("The Wall Switch has no room beyond it");
-            const through = relocate(figure, other, source.rule);
+            const through = relocate(
+              figure,
+              switchOther(state, figure, source),
+              source.rule,
+            );
             return [
               harmful(figure, source.rule, {
                 what: "the roll to find the switch",
@@ -937,8 +981,8 @@ export const EVENTS_B: BehaviourGroup = {
                       "knowledge",
                       source.rule,
                       [
-                        { min: 3, max: null, steps: [through] },
-                        { min: 0, max: 2, steps: [] },
+                        { min: SWITCH_FINDS, max: null, steps: [through] },
+                        { min: 0, max: SWITCH_FINDS - 1, steps: [] },
                       ],
                       switchUse(figure),
                     ),

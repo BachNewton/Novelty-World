@@ -80,11 +80,8 @@ export type Avoid = (room: string, points: readonly RoomPoint[]) => RoomPoint[];
  */
 export function walkPath(layout: Layout, route: readonly string[], from: HousePoint, to: HousePoint, ways: (room: string) => RoomWays, avoid?: Avoid): HousePoint[] {
   const path: HousePoint[] = [];
-  /** Walks across `room` from `a` to just short of `b`. */
   const across = (room: string, a: HousePoint, b: HousePoint) => {
-    const [start, end] = [inRoom(layout, room, a), inRoom(layout, room, b)];
-    const points = [start, ...waypoints(ways(room), start, end), end];
-    path.push(a, ...(avoid ? avoid(room, points) : points).slice(1, -1).map((point) => inHouse(layout, room, point)));
+    path.push(...acrossRoom(layout, room, a, b, ways, avoid));
   };
   let entered = from;
   for (let i = 1; i < route.length; i++) {
@@ -118,6 +115,26 @@ export function walkPath(layout: Layout, route: readonly string[], from: HousePo
   across(route[route.length - 1], entered, to);
   path.push(to);
   return path;
+}
+
+/** The points of a walk across `room` from `a` to just short of `b`, along the room's ways. */
+function acrossRoom(layout: Layout, room: string, a: HousePoint, b: HousePoint, ways: (room: string) => RoomWays, avoid?: Avoid): HousePoint[] {
+  const [start, end] = [inRoom(layout, room, a), inRoom(layout, room, b)];
+  const points = [start, ...waypoints(ways(room), start, end), end];
+  return [a, ...(avoid ? avoid(room, points) : points).slice(1, -1).map((point) => inHouse(layout, room, point))];
+}
+
+/**
+ * The path through a connection that isn't a doorway (a Wall Switch, the
+ * Slide): from `from` across room `a` to the connection at `via`, then into
+ * room `b` at its nearest point to `via` (the shared wall, the corner, or
+ * straight below on a lower floor), and across it to `to`.
+ */
+export function throughPath(layout: Layout, [a, b]: readonly [string, string], from: HousePoint, via: HousePoint, to: HousePoint, ways: (room: string) => RoomWays, avoid?: Avoid): HousePoint[] {
+  const tile = tileOf(layout, b);
+  const clamp = (value: number, middle: number) => Math.min(middle + TILE / 2, Math.max(middle - TILE / 2, value));
+  const entered: HousePoint = { floor: tile.floor, x: clamp(via.x, tile.x * TILE), y: 0, z: clamp(via.z, tile.y * TILE) };
+  return [...acrossRoom(layout, a, from, via, ways, avoid), via, ...acrossRoom(layout, b, entered, to, ways, avoid), to];
 }
 
 /** Walking pace, in metres a second along the path: slow enough to follow.

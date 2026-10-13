@@ -29,6 +29,10 @@ export interface TargetRoute {
   rooms: readonly string[];
   /** Null while the room's floor is still being read: no route shows yet. */
   end: () => readonly [x: number, z: number] | null;
+  /** Where a connection that isn't a doorway takes the route out of its
+   *  first room into its second (a Wall Switch, the Slide), in the own frame
+   *  of the room it is in; null while not yet known: no route shows yet. */
+  via?: { room: string; at: () => readonly [x: number, z: number] | null };
 }
 
 /** A token a choice would put on a wall, shown there while it is focused. */
@@ -226,6 +230,21 @@ function figurePlace(ctx: PlaceContext, id: string, figure: string): TargetPlace
   };
 }
 
+/** How far from a room's middle a way into it through a connection is pointed at. */
+const THROUGH_REACH = TILE / 2 - 1.2;
+
+/** Where a way into a room through a connection is pointed at: inside the
+ *  room, towards the connection, so a move into the same room is still
+ *  pointed at round its middle. Null while the connection's place isn't known. */
+function throughAnchor(ctx: PlaceContext, room: string, via: NonNullable<TargetRoute["via"]>): THREE.Vector3 | null {
+  const at = via.at();
+  if (!at) return null;
+  const point = inHouse(ctx.layout, via.room, [at[0], 0, at[1]]);
+  const tile = tileOf(ctx.layout, room);
+  const toward = (value: number, middle: number) => Math.min(middle + THROUGH_REACH, Math.max(middle - THROUGH_REACH, value));
+  return ctx.scenePoint({ floor: tile.floor, x: toward(point.x, tile.x * TILE), y: 0, z: toward(point.z, tile.y * TILE) });
+}
+
 export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
   switch (target.kind) {
     case "room": {
@@ -245,8 +264,9 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
         };
       }
       const centre = cellCentre(ctx, tile);
+      const way = target.route?.via ? throughAnchor(ctx, target.room, target.route.via) : null;
       return {
-        anchor: lift(centre, ANCHOR_HEIGHT),
+        anchor: lift(way ?? centre, ANCHOR_HEIGHT),
         outline: shown ? rectangle(centre, TILE, TILE) : null,
         box: false,
         mark: shown ? { id: target.id, kind: "room", room: target.room } : null,

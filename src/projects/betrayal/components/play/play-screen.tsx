@@ -15,7 +15,7 @@ import type { Action, FigureId, FloorId } from "../../types";
 import { ENGINE } from "../../game";
 import { NO_CHOICES, playChoices, type PlaceTarget, type PlayChoices } from "../../play/choices";
 import { lookahead } from "../../play/lookahead";
-import { costText, type RoutePreview } from "../../play/preview";
+import { costText, percentText, type RoutePreview } from "../../play/preview";
 import { explorerActions } from "../../play/sheet";
 import type { Spots } from "../../play/spots";
 import { due } from "../../play/seat";
@@ -524,6 +524,7 @@ export function PlayScreen({
         {focusedTarget && (focusedTarget.kind === "explore" ? <span className="sr-only">{focusedTarget.label}</span> : focusedTarget.label)}
         {focusedThing && <ThingTag thing={focusedThing} />}
         {preview && <span className={focusedTarget?.kind === "explore" ? "font-semibold" : "ml-1.5 text-xs text-(--bt-muted)"}>{focusedTarget?.kind === "explore" ? "" : "· "}{costText(preview)}</span>}
+        {focusedTarget?.kind === "through" && focusedTarget.chance !== null && <span className="ml-1.5 text-xs text-(--bt-muted)">· {percentText(focusedTarget.chance)}</span>}
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />

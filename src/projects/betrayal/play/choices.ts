@@ -1,12 +1,13 @@
 import type { Action, Edge, FigureId, FloorId, Json, Rotation } from "../types";
 import { doorwaySpot, EDGES, wallName, type Doorway, type Layout } from "../engine/board";
 import type { Option } from "../engine/effects";
+import type { Through } from "../engine/sources";
 import type { TurnChoice } from "../engine/exploration";
 import type { Choice } from "../engine/step-loop";
 import type { PlaceChoice } from "../engine/tiles";
 import type { GameView } from "../engine/view";
 import type { Lookahead, Reach } from "./lookahead";
-import { routePreview, type RoutePreview } from "./preview";
+import { chanceAtLeast, routePreview, throughText, type RoutePreview } from "./preview";
 
 /*
  * The pending decision, split by where it is answered: choices about a place
@@ -42,6 +43,11 @@ export type PlaceTarget = {
   | { kind: "wall"; room: string; wall: readonly Edge[]; token: string | null }
   /** A figure in the house. */
   | { kind: "figure"; figure: FigureId }
+  /** Going through a connection that isn't a doorway into `room` (the Wall
+   *  Switch, the Slide): `figure` goes from the room it stands in, `from`,
+   *  through the token `through` describes, if the roll goes its way, with
+   *  `chance` of it; null where it takes no roll. */
+  | { kind: "through"; room: string; figure: FigureId; from: string; through: Through; chance: number | null }
 );
 
 /** A choice the panel offers: the engine's choice and label, and its action. */
@@ -175,10 +181,22 @@ export function playChoices(view: GameView, ahead: Lookahead | null = null): Pla
     const turn = choice.choice as TurnChoice;
     const figure = turn.act === "activate" ? turn.figure : turn.act === "attack" && turn.target.kind === "figure" ? turn.target.figure : null;
     if (turn.act === "end") end = panelChoice(choice, "end");
+    else if (turn.act === "action" && choice.through && choice.through.rooms.length > 0) targets.push(...throughTargets(view, turn, choice.through, act(choice.choice)));
     else if (figure !== null) targets.push({ id: `${turn.act}:${figure}`, kind: "figure", figure, label: choice.label, actions: [act(choice.choice)], preview: null });
     else if (turn.act !== "move" && turn.act !== "discover") panel.push(choice);
   }
   return { targets, panel: panelOf(panel), end, ghost: null };
+}
+
+/** An action that goes through a connection, as a target on each room it
+ *  may come out in, all taking the one action: the roll, then the engine's
+ *  own choice of room where the roll leaves one. */
+function throughTargets(view: GameView, turn: TurnChoice & { act: "action" }, through: Through, action: Action): PlaceTarget[] {
+  const figure = view.turn?.acting;
+  if (!figure) throw new Error("An action goes through a connection, but no figure is acting");
+  const from = actingPlace(view).room;
+  const chance = through.roll && chanceAtLeast(through.roll.dice, through.roll.min);
+  return through.rooms.map((room) => ({ id: `through:${turn.id}:${turn.action}:${room}`, kind: "through", room, figure, from, through, chance, label: throughText(through), actions: [action], preview: null }));
 }
 
 /** A choice among options: each option naming a place in the house is

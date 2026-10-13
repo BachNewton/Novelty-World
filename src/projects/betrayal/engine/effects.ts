@@ -2,6 +2,7 @@ import type {
   Catalog,
   CardMark,
   CardType,
+  Decision,
   Edge,
   FigureId,
   GameState,
@@ -40,6 +41,7 @@ import {
   type RollOption,
   type RollSpec,
   type Source,
+  type Through,
 } from "./sources";
 import type {
   DecisionKind,
@@ -73,6 +75,12 @@ export function defineDecision<P extends Json, C extends Json>(kind: {
     engine: Engine,
   ) => C[];
   label: (state: GameState, params: P, choice: C, engine: Engine) => string;
+  through?: (
+    state: GameState,
+    params: P,
+    choice: C,
+    engine: Engine,
+  ) => Through | null;
   alwaysAsks?: (state: GameState, params: P, engine: Engine) => boolean;
   resolve: (
     state: GameState,
@@ -83,11 +91,22 @@ export function defineDecision<P extends Json, C extends Json>(kind: {
   ) => string | null;
 }): DecisionKind {
   const asks = kind.alwaysAsks;
+  const through = kind.through;
   return {
     candidates: (state, decision, seat, engine) =>
       kind.candidates(state, decision.params as P, seat, engine),
     label: (state, decision, choice, engine) =>
       kind.label(state, decision.params as P, choice as C, engine),
+    ...(through
+      ? {
+          through: (
+            state: GameState,
+            decision: Decision,
+            choice: Json,
+            engine: Engine,
+          ) => through(state, decision.params as P, choice as C, engine),
+        }
+      : {}),
     alwaysAsks: (state, decision, engine) =>
       asks?.(state, decision.params as P, engine) ?? false,
     resolve: (state, decision, ctx) => {
@@ -341,6 +360,20 @@ export function roll(
     then,
     id: options.id ?? null,
     extraDice: options.extraDice ?? 0,
+  });
+}
+
+/** The dice a figure would roll now for a roll of a trait that a rule asks for. */
+export function traitDice(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+  trait: Trait,
+  rule: RuleRef,
+): number {
+  return askNumber(engine, state, "dicePool", {
+    figure,
+    roll: { spec: { kind: "trait", trait }, rule, extraDice: 0 },
   });
 }
 

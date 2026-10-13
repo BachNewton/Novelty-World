@@ -9,8 +9,8 @@ import type { FloorId, PlacedTile } from "../types";
 import type { Pace } from "./explorers/figure";
 import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure, type RoomShownAs } from "./house";
 import type { LayoutChange } from "./house-layout";
-import { choiceLayout, exploreEntry, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
-import { inHouse, walkPath, walkPose, type Avoid, type HousePoint, type Stairway, type Walk } from "./house-walk";
+import { choiceLayout, exploreEntry, routeEnd, targetPlace, type Target, type TargetPlace, type TargetRoute } from "./house-targets";
+import { inHouse, throughPath, walkPath, walkPose, type Avoid, type HousePoint, type Stairway, type Walk } from "./house-walk";
 import { pinsApart } from "./pins-apart";
 import type { ShownThing } from "../play/things";
 import { createThingsLayer } from "./things/layer";
@@ -1151,6 +1151,17 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       ctx.setPixelRatio(ratio);
     };
 
+    /** A target's route as the dotted path shows it: through doorways and stairs, or through its connection. */
+    const routePath = (route: TargetRoute, end: HousePoint, onward: HousePoint[]): HousePoint[] | null => {
+      const from = house.figureAt(route.figure);
+      const avoid = roundStanding(new Set([route.figure]));
+      if (!route.via) return [...walkPath(layout, route.rooms, from, end, definition, avoid), ...onward];
+      const at = route.via.at();
+      if (!at) return null;
+      const [a, b] = route.rooms;
+      return throughPath(layout, [a, b], from, inHouse(layout, route.via.room, [at[0], 0, at[1]]), end, definition, avoid);
+    };
+
     /** Shows what the scene holds: the floor, whose turn it is, and the targets with the focused one's route. */
     let shownFloor: FloorChoice | null = null;
     let shownMarks = "";
@@ -1179,7 +1190,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const routed = offering && (going?.kind === "room" || going?.kind === "explore") ? going : null;
       const end = routed && routeEnd(layout, routed);
       const onward = routed?.kind === "explore" ? exploreEntry(layout, routed).slice(1) : [];
-      house.showRoute(routed?.route && end ? [...walkPath(layout, routed.route.rooms, house.figureAt(routed.route.figure), end, definition, roundStanding(new Set([routed.route.figure]))), ...onward] : null);
+      house.showRoute(routed?.route && end ? routePath(routed.route, end, onward) : null);
       settled = false;
     };
 

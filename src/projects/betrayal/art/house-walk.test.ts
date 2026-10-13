@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CHARACTERS } from "../data/characters";
 import { HOUSE_FIXTURE } from "./house-layout";
-import { inHouse, inRoom, paceSpeed, shownOn, walkLength, walkPath, walkPose, RUN_SPEED, SPEED_VALUES, WALK_SPEED, type HousePoint, type Stairway } from "./house-walk";
+import { inHouse, inRoom, paceSpeed, shownOn, throughPath, walkLength, walkPath, walkPose, RUN_SPEED, SPEED_VALUES, WALK_SPEED, type HousePoint, type Stairway } from "./house-walk";
 import { crossLanes, TILE, waypoints, type RoomWays } from "./room";
 
 const near = (a: HousePoint, b: Omit<HousePoint, "floor"> & { floor?: HousePoint["floor"] }) => {
@@ -142,6 +142,25 @@ describe("walkPath", () => {
       [6, 3],
       [6, 3 - 0.8],
       [5, 0],
+    ]);
+  });
+
+  it("goes through a connection that isn't a doorway at its mark, into the next room where it is nearest", () => {
+    // A corner of the Foyer, at (6, 0), leads to the Chapel diagonally beyond it, at (12, 6): entered at their shared corner.
+    const corner = throughPath(HOUSE_FIXTURE, ["foyer", "chapel"], ground(6, 0), ground(8.5, 2.5), ground(12, 6), plain);
+    expect(corner.map((p) => [p.x, p.z])).toEqual([
+      [6, 0],
+      [8.5, 2.5],
+      [9, 3],
+      [12, 6],
+    ]);
+    // A floor's slide drops straight down into the room below, at its nearest point.
+    const slide = throughPath(HOUSE_FIXTURE, ["foyer", "basement-landing"], ground(7, 1), ground(6, 0), { floor: "basement", x: 0, y: 0, z: 0 }, plain);
+    expect(slide.map((p) => [p.floor, p.x, p.z])).toEqual([
+      ["ground", 7, 1],
+      ["ground", 6, 0],
+      ["basement", 3, 0],
+      ["basement", 0, 0],
     ]);
   });
 
