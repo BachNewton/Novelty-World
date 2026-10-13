@@ -21,6 +21,7 @@ const EXPLORERS: readonly string[] = [
   "brandon-jaspers",
   "madame-zostra",
   "peter-akimoto",
+  "missy-dubourde",
   "zoe-ingstrom",
 ];
 /** How far apart the line-up stands its figures: a base and a hand's width. */

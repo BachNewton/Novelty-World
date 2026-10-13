@@ -15,6 +15,7 @@ import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
 import { vivian } from "./vivian";
+import { missy } from "./missy";
 import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
 import { zostra } from "./zostra";
@@ -37,6 +38,7 @@ const FIGURES: Record<string, ExplorerBuilder> = {
   peter,
   jenny,
   vivian,
+  missy,
   rhinehardt,
   zoe,
   zostra,

@@ -7,6 +7,7 @@ import { explorerLineUp } from "./line-up";
 import { flash } from "./flash";
 import { jenny } from "./jenny";
 import { longfellow } from "./longfellow";
+import { missy } from "./missy";
 import { ox } from "./ox";
 import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
@@ -46,6 +47,7 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "brandon", name: "Brandon Jaspers", build: brandon },
   { id: "peter", name: "Peter Akimoto", build: peter },
   { id: "heather-granville", name: "Heather Granville", build: heather },
+  { id: "missy-dubourde", name: "Missy Dubourde", build: missy },
   { id: "zoe", name: "Zoe Ingstrom", build: zoe },
   // Round a little loop with sharp turns, walking, stopping, then running: how her skirt swings (`&cloth=` picks it).
   { id: "zoe-course", name: "Zoe walking and running a course", build: onCourse(zoe) },
