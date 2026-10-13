@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { createRng, pick } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { cobweb, crate } from "../kit";
+import { fire as burning } from "../kit/flame";
 import { lightAnchor } from "../light-anchor";
-import { flickerOf, flickerSignal } from "../lighting";
+import { flickerOf } from "../lighting";
 import type { PaletteKey } from "../palette";
 import { INNER, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane } from "../shapes";
@@ -30,18 +31,6 @@ function pipe(from: THREE.Vector3, to: THREE.Vector3, radius: number, material: 
   mesh.position.copy(from).add(to).multiplyScalar(0.5);
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), along.normalize());
   return mesh;
-}
-
-/** A flame tongue whose height wavers with the fire's flicker signal. */
-function tongue(x: number, z: number, height: number, radius: number, colour: PaletteKey, channel: 0 | 1 | 2 | 3): THREE.Mesh {
-  const geometry = new THREE.ConeGeometry(radius, height, 4).translate(0, height / 2, 0);
-  const mesh = new THREE.Mesh(geometry, glow(colour));
-  mesh.position.set(x, 0, z);
-  const signal = new THREE.Vector4();
-  return animated(mesh, (seconds) => {
-    flickerSignal(seconds, signal);
-    mesh.scale.y = 1 + 0.4 * signal.getComponent(channel);
-  });
 }
 
 /** A round cast-iron gravity furnace on a stone plinth, its fire-door hanging
@@ -97,13 +86,8 @@ function furnace(): THREE.Group {
     coal.rotation.y = x * 4;
     result.add(coal);
   }
-  const fire = group(
-    tongue(-0.12, 0.74, 0.22, 0.07, "ember", 0),
-    tongue(0.13, 0.75, 0.2, 0.06, "ember", 1),
-    tongue(-0.04, 0.76, 0.3, 0.07, "amber", 2),
-    tongue(0.06, 0.73, 0.26, 0.06, "amber", 3),
-    tongue(0.0, 0.79, 0.16, 0.05, "flame", 0),
-  );
+  const fire = burning({ width: 0.36, depth: 0.1, height: 0.3, signal: 1 });
+  fire.position.set(0, 0, 0.76);
   fire.position.y = open.bottom + 0.03;
   result.add(fire);
 

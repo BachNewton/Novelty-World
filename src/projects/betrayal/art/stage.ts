@@ -3,9 +3,10 @@ import { ROOMS } from "../data/rooms";
 import type { Edge, RoomTile } from "../types";
 import type { Gait } from "./explorers/figure";
 import { pawn } from "./kit/pawn";
+import { batchFlames, signalFlame, unsignalledFlames } from "./kit/flame";
 import { animationOf } from "./animate";
 import { anchoredLight } from "./light-anchor";
-import { MAX_FLICKER, type BakedLight } from "./lighting";
+import { FLICKER_CHANNELS, MAX_FLICKER, type BakedLight } from "./lighting";
 import {
   CUT_HEIGHT,
   DOOR_HEIGHT,
@@ -23,6 +24,7 @@ import {
   WINDOW_WIDTH,
   primePlaces,
   wallTurn,
+  type FlickerSignal,
   type FloorOpening,
   type PropPlacement,
   type RoomDefinition,
@@ -519,6 +521,47 @@ export interface RoomPart {
   dispose: () => void;
 }
 
+function depthOf(object: THREE.Object3D): number {
+  let depth = 0;
+  for (let o = object.parent; o; o = o.parent) depth++;
+  return depth;
+}
+
+/**
+ * Makes each of the kit's flames dip with the light it burns with: a flame
+ * that names no signal takes the signal of the light anchored beside it in
+ * its piece (a candle's, a candelabra's one light for its tapers), deepest
+ * pieces first, and failing that the nearest flickering light in the room. A
+ * light that names no signal is given one, picked by its place in the room.
+ * A flame with no flickering light in its room is a mistake: a flame that
+ * looks lit always lights something.
+ */
+function signalFlames(roomId: string, root: THREE.Object3D, anchors: { object: THREE.Object3D; light: BakedLight }[], lights: BakedLight[]) {
+  const signalOf = (light: BakedLight): Exclude<FlickerSignal, "water"> | null => {
+    if (light.signal === "water") return null;
+    if (light.signal === undefined) {
+      const key = `${roomId}:${lights.indexOf(light)}`;
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+      light.signal = (Math.abs(hash) % FLICKER_CHANNELS) as Exclude<FlickerSignal, "water">;
+    }
+    return light.signal;
+  };
+  for (const { object, light } of [...anchors].sort((a, b) => depthOf(b.object) - depthOf(a.object))) {
+    const flames = unsignalledFlames(object.parent ?? root);
+    const signal = flames.length > 0 ? signalOf(light) : null;
+    if (signal !== null) for (const mesh of flames) signalFlame(mesh, signal);
+  }
+  const flickering = lights.filter((light) => light.flicker > 0 && light.signal !== "water");
+  for (const mesh of unsignalledFlames(root)) {
+    const at = mesh.getWorldPosition(new THREE.Vector3());
+    const nearest = flickering.reduce<BakedLight | null>((best, light) => (best && best.at.distanceTo(at) <= light.at.distanceTo(at) ? best : light), null);
+    const signal = nearest ? signalOf(nearest) : null;
+    if (signal === null) throw new Error(`${roomId} has a flame with no flickering light to burn with`);
+    signalFlame(mesh, signal);
+  }
+}
+
 export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () => pawn(), closedDoors = [], falseWindows = [] }: RoomOptions = {}): RoomPart {
   const tile = roomTile(def.id);
   const root = group();
@@ -637,11 +680,17 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
 
   root.updateMatrixWorld(true);
   const lights: BakedLight[] = [];
+  const anchors: { object: THREE.Object3D; light: BakedLight }[] = [];
   root.traverse((object) => {
     const spec = anchoredLight(object);
-    if (spec) lights.push({ ...spec, flicker: spec.flicker ?? 0, at: object.getWorldPosition(new THREE.Vector3()) });
+    if (!spec) return;
+    const light = { ...spec, flicker: spec.flicker ?? 0, at: object.getWorldPosition(new THREE.Vector3()) };
+    lights.push(light);
+    anchors.push({ object, light });
   });
   for (const { at, ...spec } of def.lights ?? []) lights.push({ ...spec, flicker: spec.flicker ?? 0, at: new THREE.Vector3(...at) });
+  signalFlames(def.id, root, anchors, lights);
+  batchFlames(root, hung.map(({ object }) => object));
   if (lights.length > MAX_LIGHTS) throw new Error(`${def.id} has ${lights.length} lights; the most a room may bake is ${MAX_LIGHTS}`);
   const deep = lights.find((light) => light.flicker > MAX_FLICKER);
   if (deep) throw new Error(`${def.id} has a light flickering by ${deep.flicker}; the most is ${MAX_FLICKER}`);

@@ -7,6 +7,7 @@
 import * as THREE from "three";
 import { candelabra, candle, chamberstick, lantern } from "./kit/candles";
 import { cobweb } from "./kit/cobweb";
+import { fire, flame } from "./kit/flame";
 import { pictureFrame, rug, windowPool } from "./kit/decor";
 import { chair, table } from "./kit/furniture";
 import { instrumentTray, labBench, labGlass } from "./kit/laboratory";
@@ -54,6 +55,8 @@ const KIT_PIECES: { file: string; name: string; build: () => THREE.Object3D }[] 
   { file: "candles.ts", name: "candelabra, five arms", build: () => candelabra({ arms: 5 }) },
   { file: "candles.ts", name: "chamberstick", build: () => chamberstick() },
   { file: "candles.ts", name: "lantern", build: () => lantern() },
+  { file: "flame.ts", name: "fire", build: () => fire({ width: 0.5 }) },
+  { file: "flame.ts", name: "torch flame", build: () => flame("torch") },
   { file: "cobweb.ts", name: "cobweb, slung", build: () => cobweb({ form: "slung" }) },
   { file: "cobweb.ts", name: "cobweb, fan", build: () => cobweb({ form: "fan" }) },
   { file: "furniture.ts", name: "table", build: () => table() },

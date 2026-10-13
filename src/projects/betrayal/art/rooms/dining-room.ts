@@ -1,10 +1,11 @@
 import * as THREE from "three";
 import { chair, chamberstick, pictureFrame, rug, table } from "../kit";
+import { flame } from "../kit/flame";
 import { solidLathe, vessel } from "../kit/vessel";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS } from "../palette";
 import { onWall, type RoomDefinition } from "../room";
-import { box, cylinder, flat, glow, group, textured } from "../shapes";
+import { box, cylinder, flat, group, textured } from "../shapes";
 import { shiny, shinyAll, SHINES } from "../shine";
 import { marble, panelling, wallpaper, woodPlanks } from "../textures";
 
@@ -91,13 +92,13 @@ function cloche(): THREE.Group {
 
 /** A tall taper with a violet flame: the omen's candle. Its base is at y = 0. */
 function violetTaper(height: number): THREE.Group {
-  const flame = new THREE.OctahedronGeometry(0.026, 0);
-  flame.scale(1, 2.4, 1);
-  flame.translate(0, height + 0.055, 0);
+  const burning = flame("candle", { tint: "violet" });
+  burning.position.y = height + 0.012;
+  burning.scale.setScalar(1.15);
   return group(
     cylinder(0.026, height, flat("boneDark"), [0, 0, 0], { sides: 6 }),
     cylinder(0.004, 0.02, flat("soot"), [0, height, 0], { sides: 3 }),
-    new THREE.Mesh(flame, glow("violet")),
+    burning,
   );
 }
 

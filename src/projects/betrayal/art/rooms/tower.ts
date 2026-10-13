@@ -1,9 +1,8 @@
 import * as THREE from "three";
 import { createRng, pick } from "@/shared/lib/seeded-random";
-import { animated } from "../animate";
 import { strand } from "../kit";
+import { fire } from "../kit/flame";
 import { lightAnchor } from "../light-anchor";
-import { flickerSignal } from "../lighting";
 import { RAMPS, type PaletteKey } from "../palette";
 import { clearOfMarks, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe } from "../shapes";
@@ -129,18 +128,6 @@ function bellRope(): THREE.Group {
   return group(b.mesh());
 }
 
-/** A flame tongue that wavers with the beacon's signal. */
-function tongue(x: number, z: number, height: number, radius: number, colour: PaletteKey, channel: 0 | 1 | 2 | 3): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 4).translate(0, height / 2, 0), glow(colour));
-  mesh.position.set(x, 0, z);
-  mesh.userData.noShadow = true;
-  const signal = new THREE.Vector4();
-  return animated(mesh, (seconds) => {
-    flickerSignal(seconds, signal);
-    mesh.scale.y = 1 + 0.45 * signal.getComponent(channel);
-  });
-}
-
 /**
  * The stump of the belfry's corner pier, all that stands of it, with the
  * tower's beacon still burning on it: an iron fire basket of bars round a
@@ -166,11 +153,7 @@ function beaconStump(): THREE.Group {
   coals.userData.noShadow = true;
   basket.add(
     coals,
-    tongue(-0.07, 0.03, 0.38, 0.08, "ember", 0),
-    tongue(0.08, -0.04, 0.34, 0.07, "ember", 1),
-    tongue(0, 0.07, 0.3, 0.07, "amber", 3),
-    tongue(0.02, -0.01, 0.48, 0.06, "amber", FIRE_SIGNAL),
-    tongue(-0.02, 0.01, 0.26, 0.04, "flame", 1),
+    fire({ width: 0.3, depth: 0.24, height: 0.48, signal: FIRE_SIGNAL }).translateY(0.09),
   );
   basket.position.y = STUMP_HEIGHT;
   basket.traverse((child) => {

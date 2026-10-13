@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { animated } from "../animate";
 import { chair, chamberstick, pictureFrame, table } from "../kit";
+import { flame } from "../kit/flame";
 import { lightAnchor } from "../light-anchor";
 import { RAMPS, type PaletteKey } from "../palette";
 import { WAINSCOT_DEPTH, WALL_HEIGHT, onWall, type RoomDefinition } from "../room";
@@ -164,6 +165,11 @@ function ghostCue(): THREE.Group {
  * floor below it): a brass bar along z carrying two broad brass shades, each
  * with its lamp, throwing a pool of light down onto the baize.
  */
+/** Each of the billiard lamp's two burners wavers on a signal of its own, its flame with its light. */
+function lampSignal(z: number): 0 | 2 {
+  return z < 0 ? 0 : 2;
+}
+
 function billiardLamp(): THREE.Group {
   const brass = shiny(flat("brass"), SHINES.brass);
   const shadeBottom = 1.45;
@@ -181,14 +187,16 @@ function billiardLamp(): THREE.Group {
       cylinder(0.08, 0.03, brass, [0, shadeBottom + 0.19, z], { top: 0.05, sides: 10 }),
       cylinder(0.25, 0.025, brass, [0, shadeBottom - 0.005, z], { top: 0.235, sides: 10 }),
       cylinder(0.22, 0.01, glow("amber"), [0, shadeBottom - 0.015, z], { sides: 10 }),
-      cylinder(0.06, 0.06, glow("flame"), [0, shadeBottom - 0.07, z], { top: 0.04, sides: 6 }),
     );
+    const burning = flame("oilLamp", { signal: lampSignal(z) });
+    burning.position.set(0, shadeBottom - 0.1, z);
+    result.add(burning);
   }
   result.traverse((child) => {
     child.userData.noShadow = true;
   });
   for (const z of [-0.6, 0.6]) {
-    result.add(lightAnchor({ colour: "amber", intensity: 6, range: 8, flicker: 0.05 }, [0, shadeBottom - 0.12, z]));
+    result.add(lightAnchor({ colour: "amber", intensity: 6, range: 8, flicker: 0.05, signal: lampSignal(z) }, [0, shadeBottom - 0.12, z]));
   }
   return result;
 }

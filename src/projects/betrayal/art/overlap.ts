@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { isFlame } from "./kit/flame";
 import type { Edge } from "../types";
 import { PALETTE, type PaletteKey } from "./palette";
 import { BASE_RADIUS, DOOR_APPROACH, DOOR_HEIGHT, DOOR_WIDTH, INNER, TILE, pieceLabel, pieceName, primePlaces, waypoints, type FloorOpening, type PropPlacement, type RoomDefinition } from "./room";
@@ -776,7 +777,8 @@ function readRoom(part: RoomPart, room?: string): { parts: Part[]; faces: Face[]
   const read: Face[] = [];
   part.root.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
-    if ((object.userData as { bakeOnly?: boolean }).bakeOnly) return;
+    // A flame is light drawn on a card, not a solid: it passes into nothing.
+    if ((object.userData as { bakeOnly?: boolean }).bakeOnly || isFlame(object)) return;
     readMesh(object, ownerOf(object, room), parts, read);
   });
   const outward = (edge: Edge) => new THREE.Vector3(OUTWARD[edge].x, 0, OUTWARD[edge].y).transformDirection(part.root.matrixWorld);
@@ -849,7 +851,7 @@ export function checkFloor(def: RoomDefinition, at = 2): FloorReport {
   const room = standingRoom(def, at);
   const parts: Part[] = [];
   room.root.traverse((object) => {
-    if (object instanceof THREE.Mesh && !(object.userData as { bakeOnly?: boolean }).bakeOnly) readMesh(object, ownerOf(object), parts, null);
+    if (object instanceof THREE.Mesh && !(object.userData as { bakeOnly?: boolean }).bakeOnly && !isFlame(object)) readMesh(object, ownerOf(object), parts, null);
   });
   const report = floorReport(def, parts.filter((part) => part.solid && showing(part.mesh)));
   room.dispose();

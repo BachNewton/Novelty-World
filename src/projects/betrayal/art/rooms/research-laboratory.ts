@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { createRng, pick } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { instrumentTray, LAB_SHELL, labBench, labGlass, labGlassMaterial } from "../kit/laboratory";
+import { flame } from "../kit/flame";
 import { solidLathe } from "../kit/vessel";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, type PaletteKey } from "../palette";
@@ -121,9 +122,10 @@ function shards(): THREE.Group {
 /** A spirit lamp: a squat glass font with a brass collar and a small flame, the light the bench's work is done by. */
 function spiritLamp(): THREE.Group {
   const font = solidLathe([[0.03, 0], [0.045, 0.02], [0.04, 0.045], [0.018, 0.055]], labGlassMaterial(), 10);
-  const flameGeometry = new THREE.OctahedronGeometry(0.016, 0).scale(1, 2.2, 1).translate(0, 0.1, 0);
-  const flame = new THREE.Mesh(flameGeometry, glow("flame"));
-  const result = group(font, cylinder(0.018, 0.02, brass(), [0, 0.054, 0], { sides: 8 }), cylinder(0.004, 0.012, flat("soot"), [0, 0.074, 0], { sides: 3 }), flame);
+  const burning = flame("candle");
+  burning.position.y = 0.084;
+  burning.scale.setScalar(0.75);
+  const result = group(font, cylinder(0.018, 0.02, brass(), [0, 0.054, 0], { sides: 8 }), cylinder(0.004, 0.012, flat("soot"), [0, 0.074, 0], { sides: 3 }), burning);
   result.traverse((child) => (child.userData.noShadow = true));
   return result;
 }
@@ -240,7 +242,7 @@ function reagentRack(): THREE.Group {
       cylinder(0.008, 0.16, metal, [0, RACK.shelf - 0.16, 0], { sides: 4 }),
       solidLathe([[0.13, 0], [0.11, 0.04], [0.05, 0.11], [0.02, 0.13]], brass(), 12),
       new THREE.Mesh(new THREE.CircleGeometry(0.11, 12).rotateX(Math.PI / 2).translate(0, 0.006, 0), glow("amber")),
-      cylinder(0.03, 0.04, glow("flame"), [0, -0.035, 0], { sides: 8 }),
+      flame("oilLamp").translateY(-0.06),
     );
     // The shade hangs below its rod; its parts hold the light, so they cast no shadow.
     for (const part of lamp.children.slice(1)) part.position.y += RACK.shelf - 0.29;

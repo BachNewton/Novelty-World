@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { animated } from "../animate";
 import type { AnchoredLight } from "../light-anchor";
 import { flickerOf, flickerSignal, MAX_FLICKER } from "../lighting";
@@ -111,22 +112,32 @@ export const FLAME_PRESETS = {
   },
   hearth: {
     label: "Hearth fire",
-    height: 0.45,
-    width: 0.55,
+    height: 0.3,
+    width: 0.16,
     colours: { core: "flame", body: "amber", tip: "scarlet", base: "ember" },
-    base: 0.35,
-    tongues: 5,
-    turbulence: 0.85,
-    pace: 1.1,
-    sway: 0.25,
-    brightness: 0.9,
-    hot: 0.45,
+    base: 0.3,
+    tongues: 1,
+    turbulence: 0.8,
+    pace: 1.2,
+    sway: 0.3,
+    brightness: 0.85,
+    hot: 0.55,
     dip: { brightness: 1.2, height: 1 },
     light: { colour: "amber", intensity: 14, range: 9, flicker: 0.35, kind: "fire" },
   },
 } as const satisfies Record<string, FlamePreset>;
 
 export type FlamePresetName = keyof typeof FLAME_PRESETS;
+
+/** Flames that burn a colour with a meaning (see the colour table) instead of a preset's own warm one. */
+export const FLAME_TINTS = {
+  /** Magic and omens. */
+  violet: { core: "boneLight", body: "violet", tip: "bruise", base: "bruiseDark" },
+  /** The corrupt: rot, poison, the ghoulish. */
+  wraith: { core: "goldLight", body: "wraithLight", tip: "wraith", base: "wraithDark" },
+} as const satisfies Record<string, FlamePreset["colours"]>;
+
+export type FlameTint = keyof typeof FLAME_TINTS;
 
 /** The light a flame throws, on the signal its flame dips with: give both the same signal. */
 export function flameLight(name: FlamePresetName, signal: Exclude<FlickerSignal, "water">): AnchoredLight {
@@ -164,16 +175,18 @@ const VERTEX = /* glsl */ `
 attribute vec4 signalMask;
 uniform vec4 brightnessBy;
 uniform vec4 heightBy;
-uniform vec2 size;
+// Where the flame's foot stands in the mesh's frame, and its width and height there: one flame card, or many batched in one mesh.
+attribute vec3 foot;
+attribute vec2 extent;
 uniform float pixels;
 varying vec2 vPlace;
 varying float vSeed;
 varying float vBright;
 
 void main() {
-  vec4 centre = modelMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
-  float across = length( modelMatrix[ 0 ].xyz ) * size.x * 0.5;
-  float tall = length( modelMatrix[ 1 ].xyz ) * size.y * dot( heightBy, signalMask );
+  vec4 centre = modelMatrix * vec4( foot, 1.0 );
+  float across = length( modelMatrix[ 0 ].xyz ) * extent.x * 0.5;
+  float tall = length( modelMatrix[ 1 ].xyz ) * extent.y * dot( heightBy, signalMask );
   vSeed = fract( sin( dot( centre.xyz, vec3( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 ) * 61.0;
   vBright = dot( brightnessBy, signalMask );
 
@@ -304,16 +317,17 @@ interface PresetMaterial {
   live: { time: { value: number }; pixels: { value: number }; brightnessBy: { value: THREE.Vector4 }; heightBy: { value: THREE.Vector4 } };
 }
 
-const materials = new Map<FlamePresetName, PresetMaterial>();
+const materials = new Map<string, PresetMaterial>();
 
 function colour(key: PaletteKey): THREE.Color {
   return new THREE.Color(paletteHex(key));
 }
 
-function materialFor(name: FlamePresetName): PresetMaterial {
-  const found = materials.get(name);
+function materialFor(name: FlamePresetName, tint: FlameTint | undefined): PresetMaterial {
+  const key = tint ? `${name}:${tint}` : name;
+  const found = materials.get(key);
   if (found) return found;
-  const preset: FlamePreset = FLAME_PRESETS[name];
+  const preset: FlamePreset = tint ? { ...FLAME_PRESETS[name], colours: FLAME_TINTS[tint] } : FLAME_PRESETS[name];
   if (preset.tongues < 1 || preset.tongues > MAX_TONGUES) throw new Error(`A ${preset.label} flame has ${preset.tongues} tongues; it takes 1 to ${MAX_TONGUES}`);
   const live = { time: clock.time, pixels: clock.pixels, brightnessBy: { value: new THREE.Vector4(1, 1, 1, 1) }, heightBy: { value: new THREE.Vector4(1, 1, 1, 1) } };
   const material = new THREE.ShaderMaterial({
@@ -326,7 +340,6 @@ function materialFor(name: FlamePresetName): PresetMaterial {
     depthWrite: false,
     fog: false,
     uniforms: {
-      size: { value: new THREE.Vector2(preset.width, preset.height) },
       pace: { value: preset.pace },
       turbulence: { value: preset.turbulence },
       sway: { value: preset.sway },
@@ -342,7 +355,8 @@ function materialFor(name: FlamePresetName): PresetMaterial {
     },
   });
   const made = { preset, material, live };
-  materials.set(name, made);
+  materials.set(key, made);
+  madeOf.set(material, made);
   drive(made);
   return made;
 }
@@ -370,8 +384,24 @@ export function driveFlames(seconds: number, signalSeconds = seconds) {
 const drawingBuffer = new THREE.Vector2();
 
 export interface FlameOptions {
-  /** The flame signal it dips with: its light's (`flameLight`). */
+  /** The flame signal it dips with: its light's (`flameLight`). Unnamed, the room gives it the signal of the
+   *  light it burns with (`signalFlames`). */
   signal?: Exclude<FlickerSignal, "water">;
+  /** Burns a colour with a meaning instead of the preset's warm one. */
+  tint?: FlameTint;
+}
+
+interface FlameData {
+  flame: { named: boolean };
+}
+
+/** Which preset's material each one draws with, to batch flames that share one. */
+const madeOf = new WeakMap<THREE.Material, PresetMaterial>();
+
+function maskOf(signal: Exclude<FlickerSignal, "water">): number[] {
+  const mask = [0, 0, 0, 0];
+  mask[signal] = 1;
+  return Array.from({ length: 4 }, () => mask).flat();
 }
 
 /**
@@ -380,17 +410,24 @@ export interface FlameOptions {
  * room keeps it as built rather than merging and baking it; it casts no
  * shadow and is not baked. Scale it to make it bigger or smaller.
  */
-export function flame(name: FlamePresetName, { signal = 0 }: FlameOptions = {}): THREE.Mesh {
-  const made = materialFor(name);
-  const geometry = new THREE.PlaneGeometry(1, 1);
-  const mask = [0, 0, 0, 0];
-  mask[signal] = 1;
-  geometry.setAttribute("signalMask", new THREE.Float32BufferAttribute(Array.from({ length: geometry.attributes.position.count }, () => mask).flat(), 4));
+export function flame(name: FlamePresetName, { signal, tint }: FlameOptions = {}): THREE.Mesh {
+  const made = materialFor(name, tint);
+  // The shader places the card from its uvs alone; its corners are the flame's own extent at rest, for its bounds.
+  const { width, height } = made.preset;
+  const geometry = new THREE.PlaneGeometry(width, height).translate(0, height / 2, 0);
+  geometry.setAttribute("signalMask", new THREE.Float32BufferAttribute(maskOf(signal ?? 0), 4));
+  geometry.setAttribute("foot", new THREE.Float32BufferAttribute(Array.from({ length: 4 }, () => [0, 0, 0]).flat(), 3));
+  geometry.setAttribute("extent", new THREE.Float32BufferAttribute(Array.from({ length: 4 }, () => [width, height]).flat(), 2));
+  return flameMesh(geometry, made, signal !== undefined);
+}
+
+function flameMesh(geometry: THREE.BufferGeometry, made: PresetMaterial, named: boolean): THREE.Mesh {
   const mesh = new THREE.Mesh(geometry, made.material);
   // The card is moved into place in the shader, so its bounds can't be culled by.
   mesh.frustumCulled = false;
   mesh.renderOrder = 1;
   mesh.userData.noShadow = true;
+  (mesh.userData as FlameData).flame = { named };
   mesh.onBeforeRender = (renderer, _scene, _camera, _geometry, drawn) => {
     clock.pixels.value = renderer.getDrawingBufferSize(drawingBuffer).y;
     Object.assign((drawn as THREE.ShaderMaterial).uniforms, made.live);
@@ -398,4 +435,114 @@ export function flame(name: FlamePresetName, { signal = 0 }: FlameOptions = {}):
   return animated(mesh, (seconds) => {
     driveFlames(seconds);
   });
+}
+
+/** Whether an object is one of the kit's flames (or a batch of them). */
+export function isFlame(object: THREE.Object3D): boolean {
+  return (object.userData as Partial<FlameData>).flame !== undefined;
+}
+
+/** The kit's flames under `root` that name no signal of their own. */
+export function unsignalledFlames(root: THREE.Object3D): THREE.Mesh[] {
+  const found: THREE.Mesh[] = [];
+  root.traverse((object) => {
+    const data = (object.userData as Partial<FlameData>).flame;
+    if (object instanceof THREE.Mesh && data && !data.named) found.push(object);
+  });
+  return found;
+}
+
+/** Gives a flame that named no signal the one its light wavers with. */
+export function signalFlame(mesh: THREE.Mesh, signal: Exclude<FlickerSignal, "water">) {
+  mesh.geometry.setAttribute("signalMask", new THREE.Float32BufferAttribute(maskOf(signal), 4));
+  (mesh.userData as FlameData).flame.named = true;
+}
+
+export interface FireOptions {
+  /** How wide and how deep the bed of the fire is, in metres. */
+  width: number;
+  depth?: number;
+  /** How tall its tallest tongue stands, in metres. */
+  height?: number;
+  signal?: Exclude<FlickerSignal, "water">;
+  tint?: FlameTint;
+}
+
+/** A repeatable spread in [0, 1) for the `i`th tongue, so a fire is the same each time it is built. */
+function spread(i: number, salt: number): number {
+  const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/**
+ * A fire on a bed `width` by `depth` metres, its foot at the origin: several
+ * narrow hearth flames, each its own card facing the camera, staggered across
+ * the bed and back into it, tallest in the middle, so it holds its shape from
+ * every side. Each wavers on its own (its noise is seeded by where it stands)
+ * and all dip together on the fire's signal.
+ */
+export function fire({ width, depth = width * 0.4, height = 0.45, signal, tint }: FireOptions): THREE.Group {
+  const result = new THREE.Group();
+  const count = Math.max(3, Math.round(width / 0.08));
+  const tongue = FLAME_PRESETS.hearth;
+  for (let i = 0; i < count; i++) {
+    const across = count === 1 ? 0 : (i / (count - 1)) * 2 - 1;
+    const x = across * width * 0.42 + (spread(i, 1) - 0.5) * (width / count) * 0.6;
+    const z = (spread(i, 2) - 0.5) * depth * 0.7;
+    const tall = (height / tongue.height) * (1 - 0.45 * across * across) * (0.75 + 0.35 * spread(i, 3));
+    const card = flame("hearth", { signal, tint });
+    card.position.set(x, 0, z);
+    card.scale.set(0.8 + 0.5 * spread(i, 4), tall, 1);
+    result.add(card);
+  }
+  return result;
+}
+
+/**
+ * Draws all the flames under `root` that share a material as one mesh, in
+ * `root`'s frame, so a room's candles cost a draw call per preset, not one
+ * each. Flames under one of `apart` (a piece hung on a wall, which hides when
+ * its wall is cut) are batched within that piece instead, so they hide with
+ * it. Call it once the flames have their signals and stand where they stay.
+ */
+export function batchFlames(root: THREE.Object3D, apart: readonly THREE.Object3D[] = []) {
+  root.updateMatrixWorld(true);
+  const homes = new Map<THREE.Object3D, Map<PresetMaterial, THREE.Mesh[]>>();
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || !(object.userData as Partial<FlameData>).flame) return;
+    const made = madeOf.get(object.material as THREE.Material);
+    if (!made) throw new Error("A flame draws with a material the kit did not make");
+    let home: THREE.Object3D = root;
+    for (let o: THREE.Object3D | null = object.parent; o && o !== root; o = o.parent) if (apart.includes(o)) home = o;
+    const byMaterial = homes.get(home) ?? new Map<PresetMaterial, THREE.Mesh[]>();
+    homes.set(home, byMaterial);
+    byMaterial.set(made, [...(byMaterial.get(made) ?? []), object]);
+  });
+  const toHome = new THREE.Matrix4();
+  const within = new THREE.Matrix4();
+  const scale = new THREE.Vector3();
+  for (const [home, byMaterial] of homes) {
+    toHome.copy(home.matrixWorld).invert();
+    for (const [made, meshes] of byMaterial) {
+      const parts = meshes.map((mesh) => {
+        within.multiplyMatrices(toHome, mesh.matrixWorld);
+        scale.setFromMatrixScale(within);
+        const part = mesh.geometry.clone().applyMatrix4(within);
+        const foot = part.getAttribute("foot");
+        const extent = part.getAttribute("extent");
+        const at = new THREE.Vector3().setFromMatrixPosition(within);
+        for (let i = 0; i < foot.count; i++) {
+          foot.setXYZ(i, at.x, at.y, at.z);
+          extent.setXY(i, extent.getX(i) * scale.x, extent.getY(i) * scale.y);
+        }
+        part.deleteAttribute("normal");
+        mesh.removeFromParent();
+        mesh.geometry.dispose();
+        return part;
+      });
+      const merged = mergeGeometries(parts);
+      for (const part of parts) part.dispose();
+      home.add(flameMesh(merged, made, true));
+    }
+  }
 }

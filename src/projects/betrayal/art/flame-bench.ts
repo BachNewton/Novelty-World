@@ -5,7 +5,7 @@ import { workerLanes } from "./bake-workers";
 import { createBakeScheduler } from "./bake-schedule";
 import { freezeRoom } from "./freeze";
 import { cameraDistance, FIELD_OF_VIEW } from "./house-camera";
-import { driveFlames, flame, FLAME_PRESETS, momentAtSignal, type FlamePresetName } from "./kit/flame";
+import { driveFlames, fire, flame, FLAME_PRESETS, momentAtSignal, type FlamePresetName } from "./kit/flame";
 import { budgetGuard, fillLight, HOUSE_LIGHT, type BakedLight } from "./lighting";
 import { createLitFloor } from "./lit-floor";
 import { paletteHex } from "./palette";
@@ -262,7 +262,8 @@ export function createFlameBench() {
     const floor = createLitFloor(bakes, "flame-bench");
     const fill = fillLight();
     const flames = STATIONS.map((station) => {
-      const mesh = flame(station.name, { signal: SIGNAL });
+      // The hearth is a fire of several narrow flames, as a room lays one.
+      const mesh = station.name === "hearth" ? fire({ width: 0.5, depth: 0.3, height: 0.45, signal: SIGNAL }) : flame(station.name, { signal: SIGNAL });
       mesh.position.set(station.x, ...station.foot);
       return mesh;
     });
@@ -332,7 +333,11 @@ export function createFlameBench() {
         controls.dispose();
         floor.dispose();
         bakes.stop();
-        for (const mesh of [...flames, ...diamonds]) mesh.geometry.dispose();
+        for (const object of [...flames, ...diamonds]) {
+          object.traverse((child) => {
+            if (child instanceof THREE.Mesh) child.geometry.dispose();
+          });
+        }
         for (const mesh of diamonds) (mesh.material as THREE.Material).dispose();
         scene.remove(floor.root, fill, ...flames, ...diamonds);
         mounted = null;

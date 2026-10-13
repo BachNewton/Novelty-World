@@ -115,7 +115,9 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   the same pose). An animated piece is kept out of the merge and lit by
   light probes of its own.
 - `kit/`: pieces several rooms share. Lights: `candle`, `candelabra`,
-  `chamberstick`, `lantern`. Furniture: `table`, `chair`. Stores: `crate`,
+  `chamberstick`, `lantern`. Flames: `flame` (presets candle, oilLamp,
+  gasJet, torch, hearth; a `tint` for violet or wraith flames) and `fire`
+  (a bed of hearth flames), in `kit/flame.ts`, judged on `?bench=flames`. Furniture: `table`, `chair`. Stores: `crate`,
   `cask`. Rope: `strand` and `slung` (into a batch), `coil`. Floor openings:
   `pitShell` (the dark round and under a hole) and `pitHaze`. Decor: `rug`,
   `pictureFrame`, which hangs a named picture from the silhouette library
@@ -550,6 +552,18 @@ ledger, with its light intent and its measured median and range.
   in step. A glow doesn't flicker by itself; to make one follow its light
   (a fire's mouth, glowing cracks), name the light's signal and drive the
   glow from `flickerOf` in an `animated` piece.
+- **Every flame is the shared flame.** A visible flame (a wick, a lamp's
+  burner under its shade, a torch, a fire) is the kit's `flame` or `fire`,
+  never a lit diamond, cone or glow box: a shader card that faces the
+  camera, licks and wavers on the stage's clock, and dips with its light.
+  Kit candles carry it already. A flame that names no `signal` takes its
+  light's: the light anchored in its own piece first (a candle's, a
+  candelabra's one light for its tapers), else the nearest flickering light
+  in the room, and the stage names that light's signal to match. **A
+  lit-looking flame always lights something**: a room whose flame has no
+  flickering light throws when it is built. Flames add no lights, and a
+  room's flames of one preset draw as one batch. A lamp whose glass hides
+  its flame (a frosted chimney, a lantern's amber panes) stays a glow.
 - **Light spills; walls stop it.** A lamp lights whatever it reaches within
   its `range`, through doorways and passages into the next room, and stops
   at walls and shut doors. Give a light the range its brightness deserves,
@@ -661,8 +675,10 @@ the owner, between two styles (`?water=shader` and `shader-palette`).
 ### Fire
 
 The Furnace Room is the reference. Give the fire a strong light with a
-high flicker on a named signal, and make its glows (the mouth, the flame
-tongues, cracks in the floor) follow that signal with `flickerOf`. Light
+high flicker on a named signal, lay its flames with the kit's `fire` on
+that signal (several narrow flames across and into the bed, so it holds
+from every side), and make its glows (the mouth, the coals, cracks in the
+floor) follow that signal with `flickerOf`. Light
 from below (an ash pit, a grate) says fire more than light from above.
 
 ### Rooms that change in play

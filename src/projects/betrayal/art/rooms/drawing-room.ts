@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { candelabra, candle, chair, pictureFrame, rug, table } from "../kit";
 import { RAMPS } from "../palette";
 import { onWall, type RoomDefinition } from "../room";
+import { fire } from "../kit/flame";
 import { box, flat, glow, group, textured } from "../shapes";
 import { shiny, SHINES } from "../shine";
 import { flagstones, panelling, wallpaper, woodPlanks } from "../textures";
@@ -29,19 +30,9 @@ function fireplace(): THREE.Group {
     piece.rotation.y = turn;
     result.add(piece);
   }
-  const tongues: [number, number, number, "ember" | "amber" | "flame"][] = [
-    [-0.2, 0.22, 0.09, "ember"],
-    [0.18, 0.2, 0.08, "ember"],
-    [-0.08, 0.32, 0.08, "amber"],
-    [0.08, 0.28, 0.07, "amber"],
-    [0, 0.18, 0.05, "flame"],
-  ];
-  for (const [x, height, radius, colour] of tongues) {
-    const tongue = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 4), glow(colour));
-    tongue.position.set(x, 0.1 + height / 2, 0.24);
-    tongue.userData.noShadow = true;
-    result.add(tongue);
-  }
+  const flames = fire({ width: 0.5, depth: 0.18, height: 0.42, signal: FIRE_SIGNAL });
+  flames.position.set(0, 0.1, 0.24);
+  result.add(flames);
   result.add(box([0.6, 0.06, 0.22], glow("ember"), [0, 0.04, 0.25]));
   for (const x of [-0.6, 0.6]) {
     const taper = candle({ height: 0.24, light: false });
@@ -50,6 +41,9 @@ function fireplace(): THREE.Group {
   }
   return result;
 }
+
+/** The signal the hearth's fire and its light waver with. */
+const FIRE_SIGNAL = 2;
 
 /** The demo room and the reference for every room module: one definition,
  *  the kit's pieces, and its own props defined locally. */
@@ -75,7 +69,7 @@ export const DRAWING_ROOM: RoomDefinition = {
     { build: () => table({ length: 0.5, width: 0.5, height: 0.7 }), ...onWall("right", -1.9, { out: 0.3 }) },
     { build: () => candle({ height: 0.18, intensity: 1.2 }), at: [2.5, -1.9], y: 0.7 },
   ],
-  lights: [{ at: [-2.3, 0.6, -1.6], colour: "ember", intensity: 5, range: 6, flicker: 0.3, kind: "fire" }],
+  lights: [{ at: [-2.3, 0.6, -1.6], colour: "ember", intensity: 5, range: 6, flicker: 0.3, signal: FIRE_SIGNAL, kind: "fire" }],
   focus: [0, 0.8, 0],
   prime: [1.3, 1.7],
   // Round the table, with a way in from each doorway: the left one's from

@@ -1,14 +1,16 @@
 import * as THREE from "three";
 import type { PaletteKey } from "../palette";
 import { lightAnchor } from "../light-anchor";
+import type { FlickerSignal } from "../room";
 import { box, cylinder, flat, glow, group } from "../shapes";
 import { shiny, SHINES, type Shine } from "../shine";
+import { flame, type FlameTint } from "./flame";
 
 export interface CandleOptions {
   /** Wax height in metres. */
   height?: number;
   wax?: PaletteKey;
-  /** Gives the candle a real light; without one its flame still glows. */
+  /** Gives the candle a real light; without one its flame burns with the nearest flickering light in its room. */
   light?: boolean;
   intensity?: number;
   /** Metres its light reaches. */
@@ -16,6 +18,11 @@ export interface CandleOptions {
   /** How far above the wick its light sits: lifted off a surface it would
    *  otherwise blow out. */
   lift?: number;
+  /** The flicker signal its flame and light waver with; unnamed, the room picks one (or, without a light, its
+   *  flame takes the light it burns beside). */
+  signal?: Exclude<FlickerSignal, "water">;
+  /** Burns a colour with a meaning instead of warm amber; its light, if it has one, should match. */
+  tint?: FlameTint;
 }
 
 /** A piece holding a light would throw its own silhouette across the room. */
@@ -25,11 +32,11 @@ function noShadows(object: THREE.Object3D) {
   });
 }
 
-function flame(y: number): THREE.Mesh {
-  const geometry = new THREE.OctahedronGeometry(0.022, 0);
-  geometry.scale(1, 2.2, 1);
-  geometry.translate(0, y + 0.045, 0);
-  return new THREE.Mesh(geometry, glow("flame"));
+/** The shared candle flame, its foot on the wick's top. */
+function wickFlame(height: number, signal: CandleOptions["signal"], tint: FlameTint | undefined): THREE.Mesh {
+  const result = flame("candle", { signal, tint });
+  result.position.y = height + 0.012;
+  return result;
 }
 
 /** A single taper. Its base is at y = 0. */
@@ -40,15 +47,17 @@ export function candle({
   intensity = 2.5,
   range = 5,
   lift = 0.08,
+  signal,
+  tint,
 }: CandleOptions = {}): THREE.Group {
   const result = group(
     cylinder(0.028, height, shiny(flat(wax), SHINES.wax), [0, 0, 0], { sides: 6 }),
     cylinder(0.004, 0.02, flat("soot"), [0, height, 0], { sides: 3 }),
-    flame(height),
+    wickFlame(height, signal, tint),
   );
   noShadows(result);
   if (light) {
-    result.add(lightAnchor({ colour: "amber", intensity, range, flicker: 0.15, kind: "candle" }, [0, height + lift, 0]));
+    result.add(lightAnchor({ colour: "amber", intensity, range, flicker: 0.15, kind: "candle", signal }, [0, height + lift, 0]));
   }
   return result;
 }
