@@ -194,7 +194,7 @@ Explorers are miniatures on a base ringed in the player's colour, which is the c
 
 **Moves a card makes**, agreed in principle and to be confirmed in play: voluntary movement walks before the haunt; a card that makes an explorer flee (Burning Man) may run; jumps and falls get animations of their own; a neutral "put your explorer there" gets a quick transition; the Dog runs.
 
-**Moves that aren't a walk.** Every base-game move other than walking through doorways falls into one of four transitions, shared rather than built per room or card, so no explorer ever pops to a new spot. Until each is built, the move shows as a jump; the room features they pass through (the chute, token marks, the secret door) are drawn with the rooms.
+**Moves that aren't a walk.** Every base-game move other than walking through doorways falls into one of four transitions, shared rather than built per room or card, so no explorer ever pops to a new spot. Until each is built, the move shows as a jump, but never a silent one: the explorer walks to where the rule takes hold (into the Coal Chute), then is put at the destination as a beat of its own, told by the rule's line, and a following camera goes after them to their floor; the room features they pass through (the chute, token marks, the secret door) are drawn with the rooms.
 
 | Transition | What triggers it | How it looks |
 |---|---|---|
