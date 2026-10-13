@@ -3,9 +3,10 @@ import { openFloor, openFloors } from "../art/open-floor";
 import { NO_HINTS, placeFigures, type PlacementHints } from "../art/placement";
 import { FLOOR_RINGS, INNER } from "../art/room";
 import { TOKENS } from "../data/tokens";
+import { describeEvent } from "../engine/describe";
 import { viewFor } from "../engine/view";
 import { ENGINE } from "../game";
-import { choose, testGame } from "../testing";
+import { choose, put, testGame } from "../testing";
 import type { GameState } from "../types";
 import { firstSpots, nextSpots } from "./spots";
 import { CLUSTER_SHOWN, clusterId, clusterReach, edgeSpot, nextClusters, PRESENCE, roomThings, shownObjects, shownThings, type Cluster } from "./things";
@@ -52,6 +53,45 @@ describe("what lives in rooms", () => {
       s.tokens.push({ token: "nonsense", room: "foyer" });
     });
     expect(() => roomThings(ENGINE, viewOf(strange))).toThrow(/nonsense/);
+  });
+
+  it("names an explorer token by its explorer, never by its colour: ending a turn in the Gymnasium (rooms.md) leaves one", () => {
+    let state = testGame();
+    state.board.tiles.push({ tile: "gymnasium", floor: "basement", x: 0, y: -1, rotation: 0 });
+    put(state, 0, "gymnasium");
+    state = choose(state, "End your turn");
+    expect(state.tokens).toContainEqual({ token: "explorer-yellow", room: "gymnasium" });
+    const view = viewOf(state);
+    expect(roomThings(ENGINE, view)).toMatchObject([{ room: "gymnasium", kind: "object", name: "Zoe's explorer token", lies: true }]);
+    const placed = view.events.find((event) => event.type === "token-placed");
+    expect(placed && describeEvent(ENGINE, view, placed)).toBe("Gymnasium: Zoe Ingstrom's explorer token is placed in the Gymnasium.");
+  });
+
+  it("names every token kind and every card on the screen by what it is, never by a bare colour or an id", () => {
+    // One explorer on each colour's character card, so every explorer token has its explorer.
+    const state = testGame({ characters: ["father-rhinehardt", "ox-bellows", "zoe-ingstrom", "brandon-jaspers", "vivian-lopez", "heather-granville"] });
+    const kinds = Object.entries(PRESENCE).flatMap(([token, presence]) => (presence.kind === "figure" ? [] : [token]));
+    state.piles["entrance-hall"] = Object.keys(ENGINE.catalog.cards);
+    state.tokens.push(...kinds.map((token) => ({ token, room: "foyer" })));
+    const things = roomThings(ENGINE, viewOf(state));
+    expect(things.flatMap((thing) => (thing.token === null ? [] : [thing.token]))).toEqual(kinds);
+    const colours = new Set(TOKENS.filter((token) => token.shape === "small-circle").map((token) => token.name.toLowerCase()));
+    for (const thing of things) {
+      const what = thing.token ?? thing.card;
+      expect(colours.has(thing.name.toLowerCase()), `${what} is named only by its colour, "${thing.name}"`).toBe(false);
+      expect(thing.name, `${what} is named by an id`).toMatch(/^[A-Z0-9"].*[^-]$/);
+      expect(thing.name, `${what} is named by an id`).not.toBe(what);
+    }
+    const names = new Set(things.map((thing) => thing.name));
+    const shown = shownThings(ENGINE, things, nextClusters({}, things, {}, FLOORS));
+    for (const thing of shown) expect(names.has(thing.name) || /^\d+ more$/.test(thing.name), `${thing.id} shows as "${thing.name}"`).toBe(true);
+  });
+
+  it("fails loudly on an explorer token whose explorer isn't in the game", () => {
+    const state = withThings((s) => {
+      s.tokens.push({ token: "explorer-green", room: "foyer" });
+    });
+    expect(() => roomThings(ENGINE, viewOf(state))).toThrow(/explorer-green/);
   });
 });
 
