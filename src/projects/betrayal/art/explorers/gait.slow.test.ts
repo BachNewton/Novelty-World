@@ -14,6 +14,7 @@ import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
 import { brandon } from "./brandon";
 import { zoe } from "./zoe";
+import { zostra } from "./zostra";
 
 /*
  * A walk or a run never jumps. Each explorer walks and runs a straight path
@@ -29,7 +30,7 @@ import { zoe } from "./zoe";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter, zostra };
 /** Samples a second: fine enough that the fastest foot's step barely changes from one sample to the next. */
 const RATE = 600;
 /** The most a point's step may be longer than the steps either side of it. */

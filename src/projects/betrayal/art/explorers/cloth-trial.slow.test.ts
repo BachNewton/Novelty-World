@@ -13,6 +13,7 @@ import type { ExplorerBuilder } from "../stage";
 import { clothOf } from "./cloth";
 import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
+import { zostra } from "./zostra";
 
 /*
  * The simulated cloth, as the house shows it: Zoe's
@@ -44,6 +45,7 @@ interface Case {
 const CASES: Record<string, Case> = {
   zoe: { build: (cloth) => (seed, gait) => zoe(seed, gait, { cloth }), legs: true, covered: -0.015, near: 0.45 },
   rhinehardt: { build: (cloth) => (seed, gait) => rhinehardt(seed, gait, { cloth }), legs: true, covered: 0, near: 0.9 },
+  zostra: { build: (cloth) => (seed, gait) => zostra(seed, gait, { cloth }), legs: true, covered: 0, near: 0.8 },
   banshee: { build: (cloth) => (seed, gait) => banshee(seed, gait, { cloth }), legs: false, covered: 0, near: 1 },
 };
 

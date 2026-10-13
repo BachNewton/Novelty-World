@@ -11,6 +11,7 @@ import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
 import { brandon } from "./brandon";
 import { TWIRLING, zoe } from "./zoe";
+import { zostra } from "./zostra";
 import { onCourse } from "./cloth-trial";
 
 export interface BenchExplorer {
@@ -48,6 +49,8 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "zoe-twirl", name: "Zoe twirling, every few seconds", build: (seed, gait) => zoe(seed, gait, { twirls: TWIRLING }) },
   { id: "rhinehardt", name: "Father Rhinehardt", build: rhinehardt },
   { id: "rhinehardt-course", name: "Father Rhinehardt walking and running a course", build: onCourse(rhinehardt) },
+  { id: "zostra", name: "Madame Zostra", build: zostra },
+  { id: "zostra-course", name: "Madame Zostra walking and running a course", build: onCourse(zostra) },
   { id: "explorer-line-up", name: "Every explorer, with the pawn", build: (seed) => explorerLineUp(seed) },
   { id: "explorer-walk", name: "Every explorer walking on the spot", build: (seed) => explorerLineUp(seed, "walk") },
   { id: "explorer-run", name: "Every explorer running on the spot", build: (seed) => explorerLineUp(seed, "run") },
