@@ -53,22 +53,3 @@ export function throughText(through: Pick<Through, "token" | "roll">): string {
   if (!token) throw new Error(`No token kind ${through.token}`);
   return through.roll ? `${token.name}: ${traitName(through.roll.trait)} roll ${String(through.roll.min)}+` : `${token.name}: no roll`;
 }
-
-/** The exact chance that this many dice, each showing 0, 1 or 2 alike, total at least `min`. */
-export function chanceAtLeast(dice: number, min: number): number {
-  let ways = [1];
-  for (let die = 0; die < dice; die++) {
-    const next = Array<number>(ways.length + 2).fill(0);
-    ways.forEach((count, total) => {
-      for (let face = 0; face <= 2; face++) next[total + face] += count;
-    });
-    ways = next;
-  }
-  return ways.reduce((sum, count, total) => (total >= min ? sum + count : sum), 0) / 3 ** dice;
-}
-
-/** A chance as a whole percent, never rounded to 0% or 100% when it could still go either way. */
-export function percentText(chance: number): string {
-  if (chance === 0 || chance === 1) return `${String(chance * 100)}%`;
-  return `${String(Math.min(99, Math.max(1, Math.round(chance * 100))))}%`;
-}

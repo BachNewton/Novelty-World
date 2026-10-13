@@ -9,9 +9,8 @@ import { choose, explorer, inHaunt, offered, put, testGame, waitingOn } from "..
 import type { GameState } from "../types";
 import type { Layout } from "../engine/board";
 import type { Edge } from "../types";
-import { boardFocus, explorations, NO_CHOICES, NO_FOCUS, playChoices } from "./choices";
+import { boardFocus, chanceAtLeast, explorations, NO_CHOICES, NO_FOCUS, playChoices } from "./choices";
 import { lookahead, type Reach } from "./lookahead";
-import { chanceAtLeast } from "./preview";
 
 const choicesOf = (state: GameState) => playChoices(viewFor(ENGINE, state, waitingOn(state)));
 const focusOf = (state: GameState) => boardFocus(viewFor(ENGINE, state, waitingOn(state)));
@@ -204,6 +203,15 @@ describe("playChoices", () => {
 
   it("offers nothing to a seat the decision isn't put to", () => {
     expect(playChoices(viewFor(ENGINE, testGame(), 1))).toEqual(NO_CHOICES);
+  });
+});
+
+describe("chanceAtLeast", () => {
+  it("works out the exact odds of a total, each die showing 0, 1 or 2 alike", () => {
+    expect(chanceAtLeast(1, 1)).toBeCloseTo(2 / 3);
+    // Two dice make 0 to 4 in 1, 2, 3, 2 and 1 ways of 9.
+    expect(chanceAtLeast(2, 3)).toBeCloseTo(3 / 9);
+    expect([chanceAtLeast(0, 1), chanceAtLeast(0, 0), chanceAtLeast(2, 5)]).toEqual([0, 1, 0]);
   });
 });
 

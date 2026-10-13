@@ -6,8 +6,8 @@ import { BUTTON, clickTarget, onePad, padTo, readout, resume, seededGame, setBut
  * holding the Lucky Stone and the Skull, explores north into the Game Room
  * and draws Skeletons: the card's title shows over the room and waits for a
  * tap; its die of mental damage rolls 0, which the Stone rerolls to 2; the
- * Skull offers to take it as physical; and the damage is split on the stat
- * tracks, previewed before it is taken. The old debug panel never shows.
+ * Skull offers to take it as physical; and the damage is split on one
+ * control between the stat tracks, previewed before it is taken. The old debug panel never shows.
  */
 
 test.use({ launchOptions: { args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] } });
@@ -78,11 +78,18 @@ test("keyboard and mouse: a card's beat, a reroll picked from the dice, and dama
   await expect(damage.getByLabel("Sanity track")).toBeVisible();
   await damage.getByRole("button", { name: "Take 2 mental damage" }).click();
 
-  // The split: pointing at a way shows where each clip would land; nothing is taken until it is clicked.
+  // The split: one control between the two tracks, starting even and focused; the arrows move it a point at a time, the
+  // tracks show where each clip would land, and nothing is taken until the split is.
   await until(page, "play.pending?.kind === 'split-damage'");
-  await damage.getByRole("button", { name: "Take 1 Sanity and 1 Knowledge" }).hover();
+  const split = damage.getByRole("slider", { name: "Split the damage" });
+  await expect(split).toBeFocused();
+  await expect(split).toHaveAttribute("aria-valuetext", "Take 1 Sanity and 1 Knowledge");
   await expect(damage.getByLabel("Sanity track").locator("[data-after]")).toHaveCount(1);
   await expect(damage.getByLabel("Knowledge track").locator("[data-after]")).toHaveCount(1);
+  await page.keyboard.press("ArrowRight");
+  await expect(split).toHaveAttribute("aria-valuetext", "Take 2 Sanity and 0 Knowledge");
+  await expect(damage.getByLabel("Knowledge track").locator("[data-after]")).toHaveCount(0);
+  await page.keyboard.press("ArrowLeft");
   expect((await readout(page)).pending?.kind).toBe("split-damage");
   await damage.getByRole("button", { name: "Take 1 Sanity and 1 Knowledge" }).click();
 

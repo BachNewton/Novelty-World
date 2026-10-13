@@ -1,18 +1,52 @@
-import type { RuleNotes } from "../../data/rule-notes";
 import { rollName } from "../../engine/describe";
+import type { RowSummary } from "../../engine/outcomes";
 import type { RollSpec } from "../../engine/sources";
 import type { EventView, GameView } from "../../engine/view";
 import { rollMeaning } from "../../play/dice";
+import { rowOdds } from "../../play/roll-table";
 import type { FigureId, Trait } from "../../types";
-import { DamageIcon, TraitIcon } from "../icons";
+import { DamageIcon, DieFace, TraitIcon } from "../icons";
 import { RollResult } from "./roll-result";
+import { RollTable } from "./roll-table";
 
 /*
  * The status box's line for the beat playing, in icons where icons say it: a
  * roll as its dice, total and mark, its dice turning up as its beat plays;
  * damage and trait changes as icons and numbers. Every other event is its
- * words. The words stay with the icons for screen readers.
+ * words. The words stay with the icons for screen readers. A roll with a
+ * table shows the table under the line: before a roll made at once, each
+ * row with its odds; once rolled, the row it landed on lit.
  */
+
+interface Coming {
+  figure: FigureId;
+  spec: RollSpec;
+  pool: number;
+  bonus: number;
+  rows: RowSummary[] | null;
+}
+
+interface TableRowData {
+  figure: FigureId;
+  rows: RowSummary[];
+  index: number;
+}
+
+/** The table under a beat's line: a roll's coming, with each row's odds, or its result, with its row lit. Null for a beat with none. */
+export function HappeningTable({ event, events }: { event: EventView; events: readonly EventView[] }) {
+  if (event.type === "roll-coming") {
+    const d = event.data as unknown as Coming;
+    if (d.rows === null) return null;
+    return <RollTable rows={d.rows} odds={rowOdds(d.rows, d.pool, d.bonus)} />;
+  }
+  if (event.type === "rolled") {
+    const row = events.find((other) => other.type === "table-row");
+    if (!row) return null;
+    const d = row.data as unknown as TableRowData;
+    return <RollTable rows={d.rows} lit={d.index} />;
+  }
+  return null;
+}
 
 interface Rolled {
   figure: FigureId;
@@ -24,14 +58,32 @@ interface Rolled {
 }
 
 /** `turnUp`: seconds for a roll's dice to turn up, while its beat plays, or null once it has. */
-export function HappeningLine({ event, text, view, notes, turnUp }: { event: EventView; text: string; view: GameView; notes: RuleNotes | null; turnUp: number | null }) {
+export function HappeningLine({ event, events, text, view, turnUp }: { event: EventView; events: readonly EventView[]; text: string; view: GameView; turnUp: number | null }) {
   const name = (figure: FigureId) => view.figures[figure].name;
+
+  if (event.type === "roll-coming") {
+    const d = event.data as unknown as Coming;
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <span className="sr-only">{text}</span>
+        <span aria-hidden>
+          {name(d.figure)}: {rollName(d.spec)}
+        </span>
+        {d.spec.kind === "trait" && <TraitIcon trait={d.spec.trait} />}
+        <span aria-hidden className="inline-flex items-center gap-0.5">
+          <DieFace value={0} className="size-4" />×{d.pool}
+        </span>
+      </span>
+    );
+  }
 
   if (event.type === "rolled") {
     const d = event.data as unknown as Rolled;
     // A card's attacker's dice thrown for it read as the engine words them.
     if (d.spec.kind === "attack" && d.spec.dice !== null) return text;
-    const meaning = rollMeaning(view, notes, { spec: d.spec, rule: event.rule, then: { kind: "rolled", params: {} } }, d.result);
+    // A roll with a table says what it means by the row lit under the line.
+    const tabled = events.some((other) => other.type === "table-row");
+    const meaning = tabled ? { target: null, verdict: null, damage: null, note: null } : rollMeaning(view, { spec: d.spec, then: { kind: "rolled", params: {} } }, d.result);
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
         <span className="sr-only">{text}</span>

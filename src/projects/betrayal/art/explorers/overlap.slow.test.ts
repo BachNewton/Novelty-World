@@ -9,17 +9,22 @@ import { group } from "../shapes";
 import { fightingFaces } from "./fighting-faces";
 import { STANDING, type Gait } from "./figure";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
+import { vivian } from "./vivian";
+import { missy } from "./missy";
 import { rhinehardt } from "./rhinehardt";
 import { brandon } from "./brandon";
+import { heather } from "./heather";
 import { zoe } from "./zoe";
+import { zostra } from "./zostra";
 
 /** Each figure posed at moments through its idle, standing, in full stride
  *  and running, and the monsters standing and stunned: its own parts may pass
  *  into each other, as a figure's joints do, but no two of its faces may fight. */
-const EXPLORERS = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter };
+const EXPLORERS = { longfellow, ox, zoe, rhinehardt, flash, brandon, heather, peter, vivian, jenny, zostra, missy };
 const MOMENTS = [0, 2, 5, 9, 14, 21];
 
 beforeAll(stubCanvas);

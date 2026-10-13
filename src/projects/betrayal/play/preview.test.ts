@@ -5,7 +5,7 @@ import { ENGINE } from "../game";
 import { testGame } from "../testing";
 import { playChoices } from "./choices";
 import { lookahead } from "./lookahead";
-import { chanceAtLeast, costText, percentText, routeRooms, throughText, warningLines, type RoutePreview } from "./preview";
+import { costText, routeRooms, throughText, warningLines, type RoutePreview } from "./preview";
 
 let notes: RuleNotes;
 beforeAll(async () => {
@@ -58,18 +58,5 @@ describe("going through a connection", () => {
   it("names the connection and the roll it takes", () => {
     expect(throughText({ token: "wall-switch", roll: { trait: "knowledge", dice: 3, min: 3 } })).toBe("Wall Switch: Knowledge roll 3+");
     expect(throughText({ token: "wall-switch", roll: null })).toBe("Wall Switch: no roll");
-  });
-
-  it("works out the exact odds of a total, each die showing 0, 1 or 2 alike", () => {
-    expect(chanceAtLeast(1, 1)).toBeCloseTo(2 / 3);
-    // Two dice make 0 to 4 in 1, 2, 3, 2 and 1 ways of 9.
-    expect(chanceAtLeast(2, 3)).toBeCloseTo(3 / 9);
-    expect(chanceAtLeast(0, 1)).toBe(0);
-    expect(chanceAtLeast(0, 0)).toBe(1);
-    expect(chanceAtLeast(2, 5)).toBe(0);
-  });
-
-  it("shows a chance as a whole percent, never 0% or 100% while it can go either way", () => {
-    expect([percentText(0), percentText(1 / 3), percentText(0.001), percentText(0.999), percentText(1)]).toEqual(["0%", "33%", "1%", "99%", "100%"]);
   });
 });

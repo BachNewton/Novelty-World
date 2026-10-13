@@ -71,11 +71,13 @@ export function trap(
                 min: 4,
                 max: null,
                 steps: [local(id, "freed", { figure: holder(source) })],
+                does: "freed",
               },
               {
                 min: 0,
                 max: 3,
                 steps: [local(id, "failed"), ...failing(figure, rule)],
+                does: "stuck",
               },
             ]),
             { id },

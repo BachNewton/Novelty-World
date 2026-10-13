@@ -1,15 +1,18 @@
 "use client";
 
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { Suspense, use, useEffect, useRef, type ReactNode } from "react";
 import type { HouseScene, Pin } from "../../art/house-scene";
 import { FLOOR_NAMES, FLOORS } from "../../engine/board";
 import type { GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
+import type { RuleNotes } from "../../data/rule-notes";
+import { inspectRoomId, roomLines, thingLines } from "../../play/inspect";
 import type { ShownThing } from "../../play/things";
 import type { FloorId } from "../../types";
 import { PromptButton } from "../prompts";
+import { ruleNotes } from "../why";
 import { MOOD_BG } from "./moods";
 
 /*
@@ -19,6 +22,10 @@ import { MOOD_BG } from "./moods";
  * thing in a room is named where it lies, a room's objects in one list over
  * their spot; and each explorer's mark adds the explorer's name and its
  * stats (`figure-marks.tsx`). Everything here comes from the seat's own view.
+ *
+ * Pointing while the details are held inspects (`play/inspect.ts`): the
+ * label of whatever is pointed at expands in place with a line from the
+ * rules' text, and no pointing tag shows. Each thing keeps one label.
  */
 
 /** How high over the floor a thing's label stands, in metres: over its plate. */
@@ -40,8 +47,29 @@ function stairsTo(view: GameView, tile: string, floor: FloorId): FloorId | null 
 
 const capitalised = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
+interface HouseDetailsProps {
+  scene: HouseScene;
+  view: GameView;
+  things: readonly ShownThing[];
+  /** What pointing has found (`play/inspect.ts` names the ids), its label expanded; null for none. */
+  inspected: string | null;
+}
+
 /** The room names and the things' labels, pinned over the house. */
-export function HouseDetails({ scene, view, things }: { scene: HouseScene; view: GameView; things: readonly ShownThing[] }) {
+export function HouseDetails(props: HouseDetailsProps) {
+  return (
+    <Suspense fallback={<Labels {...props} notes={null} />}>
+      <WithNotes {...props} />
+    </Suspense>
+  );
+}
+
+function WithNotes(props: HouseDetailsProps) {
+  // The rules' text is loaded only once something is inspected.
+  return props.inspected === null ? <Labels {...props} notes={null} /> : <Labels {...props} notes={use(ruleNotes())} />;
+}
+
+function Labels({ scene, view, things, inspected, notes }: HouseDetailsProps & { notes: RuleNotes | null }) {
   const ref = useRef<HTMLDivElement>(null);
   // A room's objects share one spot, so they share one label: its first object holds the pin.
   const lying = new Map<string, ShownThing[]>();
@@ -51,6 +79,7 @@ export function HouseDetails({ scene, view, things }: { scene: HouseScene; view:
     ...view.board.tiles.map(({ tile, floor }) => {
       const stairs = stairsTo(view, tile, floor);
       const Arrow = stairs !== null && FLOORS.indexOf(stairs) > FLOORS.indexOf(floor) ? ArrowUp : ArrowDown;
+      const explained = inspected === inspectRoomId(tile) && notes !== null ? roomLines(notes, tile) : null;
       return {
         id: `room:${tile}`,
         at: { room: tile, far: true },
@@ -59,7 +88,7 @@ export function HouseDetails({ scene, view, things }: { scene: HouseScene; view:
         // Rooms never move aside: each has its own place, and the marks and labels over it are what matters.
         apart: false,
         node: (
-          <span data-detail-room={tile} className="flex max-w-32 flex-col items-center rounded bg-(--bt-bg)/80 px-1.5 text-center text-[11px] leading-3.5 text-(--bt-ink)">
+          <span data-detail-room={tile} data-inspected={explained !== null || undefined} className={`flex flex-col items-center rounded bg-(--bt-bg)/80 px-1.5 text-center text-[11px] leading-3.5 text-(--bt-ink) ${explained === null ? "max-w-32" : "max-w-56 ring-1 ring-(--bt-accent)"}`}>
             <span className="font-semibold tracking-wide uppercase">{ENGINE.catalog.rooms[tile].name}</span>
             {stairs !== null && (
               <span className="inline-flex items-center gap-0.5">
@@ -67,6 +96,11 @@ export function HouseDetails({ scene, view, things }: { scene: HouseScene; view:
                 <span>{capitalised(FLOOR_NAMES[stairs])}</span>
               </span>
             )}
+            {explained?.map((line) => (
+              <span key={line} className="pb-0.5">
+                {line}
+              </span>
+            ))}
           </span>
         ),
       };
@@ -77,7 +111,7 @@ export function HouseDetails({ scene, view, things }: { scene: HouseScene; view:
       height: THING_HEIGHT,
       lift: 1,
       apart: true,
-      node: <ThingNames things={group} />,
+      node: <ThingNames things={group} inspected={inspected} notes={notes} />,
     })),
     ...standing.map((thing) => ({
       id: `thing:${thing.id}`,
@@ -85,7 +119,7 @@ export function HouseDetails({ scene, view, things }: { scene: HouseScene; view:
       height: THING_HEIGHT,
       lift: 1,
       apart: true,
-      node: <ThingNames things={[thing]} />,
+      node: <ThingNames things={[thing]} inspected={inspected} notes={notes} />,
     })),
   ];
   // Each element carries its pin, so the pins are set again only when what they say changes.
@@ -116,15 +150,26 @@ export function HouseDetails({ scene, view, things }: { scene: HouseScene; view:
   );
 }
 
-function ThingNames({ things }: { things: readonly ShownThing[] }) {
+function ThingNames({ things, inspected, notes }: { things: readonly ShownThing[]; inspected: string | null; notes: RuleNotes | null }) {
+  const open = things.some((thing) => thing.id === inspected);
   return (
-    <ul className="flex flex-col gap-px rounded border border-(--bt-line) bg-(--bt-panel)/90 px-1.5 py-0.5 text-[11px] leading-3.5">
-      {things.map((thing) => (
-        <li key={thing.id} data-detail-thing={thing.id} className="flex items-center gap-1 whitespace-nowrap">
-          <span aria-hidden className={`inline-block size-2 shrink-0 rounded-full ${MOOD_BG[thing.mood]}`} />
-          {thing.name}
-        </li>
-      ))}
+    <ul className={`flex flex-col gap-px rounded border bg-(--bt-panel)/90 px-1.5 py-0.5 text-[11px] leading-3.5 ${open ? "max-w-56 border-(--bt-accent)" : "border-(--bt-line)"}`}>
+      {things.map((thing) => {
+        const explained = thing.id === inspected && notes !== null ? thingLines(notes, thing) : [];
+        return (
+          <li key={thing.id} data-detail-thing={thing.id} data-inspected={thing.id === inspected || undefined} className="flex flex-col">
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              <span aria-hidden className={`inline-block size-2 shrink-0 rounded-full ${MOOD_BG[thing.mood]}`} />
+              <span className={thing.id === inspected ? "font-semibold" : ""}>{thing.name}</span>
+            </span>
+            {explained.map((line) => (
+              <span key={line} className="line-clamp-3 pl-3">
+                {line}
+              </span>
+            ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }

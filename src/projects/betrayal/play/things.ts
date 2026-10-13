@@ -1,12 +1,11 @@
 import { placeFigures, type RoomFloors } from "../art/placement";
 import { FLOOR_RINGS } from "../art/room";
 import { TOKENS } from "../data/tokens";
-import { explorerOfToken, isExplorerToken } from "../engine/describe";
+import { isExplorerToken } from "../engine/describe";
 import type { Engine } from "../engine/step-loop";
 import type { GameView } from "../engine/view";
 import type { Edge, Place, RoomTile } from "../types";
 import { cardMood, type Mood } from "./cards";
-import { shortName } from "./short-name";
 import type { Spot, Spots } from "./spots";
 
 /*
@@ -32,14 +31,16 @@ export type ThingKind = "object" | "effect" | "connection";
 export type ThingColour = { card: string } | { mood: Mood };
 
 /** How a token kind shows in the house. A monster token is a figure, never a
- *  thing in a room; a trait roll token kept as a haunt's tally lies in the
- *  room it is put in, as an object. */
+ *  thing in a room; an explorer token marks a room bonus taken, shown as the
+ *  room's badge (`room-bonus.ts`), never on the floor; a trait roll token
+ *  kept as a haunt's tally lies in the room it is put in, as an object. */
 export type Presence =
   | { kind: "object"; colour: ThingColour }
   | { kind: "effect"; colour: ThingColour }
   /** A connection's mark: on the tile's edge (a wall stub), or on its floor. */
   | { kind: "connection"; on: "edge" | "floor"; colour: ThingColour }
-  | { kind: "figure" };
+  | { kind: "figure" }
+  | { kind: "bonus" };
 
 const card = (id: string): ThingColour => ({ card: id });
 const mood = (of: Mood): ThingColour => ({ mood: of });
@@ -73,8 +74,8 @@ export const PRESENCE: Readonly<Record<string, Presence>> = {
   "might-roll": { kind: "object", colour: mood("magic") },
   "sanity-roll": { kind: "object", colour: mood("magic") },
   "speed-roll": { kind: "object", colour: mood("magic") },
-  // Widow's Walk explorer tokens: a room power used, left in the room.
-  ...Object.fromEntries(TOKENS.filter((token) => isExplorerToken(token.id)).map((token) => [token.id, { kind: "object", colour: mood("human") } satisfies Presence])),
+  // Explorer tokens: a room bonus taken, shown on the room's badge.
+  ...Object.fromEntries(TOKENS.filter((token) => isExplorerToken(token.id)).map((token) => [token.id, { kind: "bonus" } satisfies Presence])),
   // Monster tokens stand for figures.
   ...Object.fromEntries(TOKENS.filter((token) => token.id.startsWith("monster-")).map((token) => [token.id, { kind: "figure" } satisfies Presence])),
 };
@@ -87,7 +88,7 @@ export function presenceOf(token: string): Presence {
 /** The mood a token shows in: its placing card's, or its own. */
 export function tokenMood(engine: Engine, token: string): Mood {
   const presence = presenceOf(token);
-  if (presence.kind === "figure") throw new Error(`The ${token} token is a figure, not a thing in a room`);
+  if (presence.kind === "figure" || presence.kind === "bonus") throw new Error(`The ${token} token is ${presence.kind === "figure" ? "a figure" : "a room bonus's badge"}, not a thing in a room`);
   return "card" in presence.colour ? cardMood(engine, presence.colour.card) : presence.colour.mood;
 }
 
@@ -114,11 +115,8 @@ export interface RoomThing {
 
 const TOKEN_NAMES = new Map(TOKENS.map((token) => [token.id, token.name]));
 
-/** A token's name in the room: its printed name ("Blessing"), or, for an
- *  explorer token, whose it is ("Zoe's explorer token"): its printed name is
- *  only its colour. */
-export function tokenName(engine: Engine, view: Pick<GameView, "figures">, token: string): string {
-  if (isExplorerToken(token)) return `${shortName(explorerOfToken(engine, view, token).name)}'s explorer token`;
+/** A token's name in the room: its printed name ("Blessing"). */
+export function tokenName(token: string): string {
   const name = TOKEN_NAMES.get(token);
   if (name === undefined) throw new Error(`No token kind ${token}`);
   return name;
@@ -137,7 +135,7 @@ export function roomThings(engine: Engine, view: Pick<GameView, "piles" | "token
     // A token that goes wherever a figure goes (the Dog) is the figure's, not the room's.
     if (token.holder !== undefined) return [];
     const presence = presenceOf(token.token);
-    if (presence.kind === "figure") return [];
+    if (presence.kind === "figure" || presence.kind === "bonus") return [];
     const key = `${token.token}:${token.room}`;
     const n = counts.get(key) ?? 0;
     counts.set(key, n + 1);
@@ -148,7 +146,7 @@ export function roomThings(engine: Engine, view: Pick<GameView, "piles" | "token
         kind: presence.kind,
         room: token.room,
         side: token.side ?? null,
-        name: tokenName(engine, view, token.token),
+        name: tokenName(token.token),
         card: placer,
         token: token.token,
         mood: tokenMood(engine, token.token),

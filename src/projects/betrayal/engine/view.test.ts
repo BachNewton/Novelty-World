@@ -396,7 +396,7 @@ describe("events only some seats may see", () => {
     const other = viewFor(ENGINE, forced, 0);
     expect(JSON.stringify(other)).not.toContain("Revolver");
     expect(logLines(ENGINE, other).map((l) => l.text)).toEqual([
-      "Scenario: Father Rhinehardt has only one choice.",
+      "Scenario: Father Rhinehardt settles something only they may see.",
     ]);
   });
 });

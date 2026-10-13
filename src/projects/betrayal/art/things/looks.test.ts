@@ -14,7 +14,7 @@ describe("the looks of things in rooms", () => {
   it("give every card and token kind something to show", () => {
     for (const card of Object.values(CATALOG.cards)) expect(bounds(cardModel(card.id, card.type).floor()).isEmpty()).toBe(false);
     for (const [token, presence] of Object.entries(PRESENCE)) {
-      if (presence.kind === "figure") continue;
+      if (presence.kind === "figure" || presence.kind === "bonus") continue;
       const look = presence.kind === "effect" ? effectLook(token, "moon").object : presence.kind === "connection" ? (presence.on === "edge" ? connectionLook(token, "moon", { edge: "top", along: 0 }) : floorMark("moon")) : tokenModel().floor();
       expect(bounds(look).isEmpty(), token).toBe(false);
     }

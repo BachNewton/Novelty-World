@@ -7,7 +7,8 @@ import type { Choice } from "../engine/step-loop";
 import type { PlaceChoice } from "../engine/tiles";
 import type { GameView } from "../engine/view";
 import type { Lookahead, Reach } from "./lookahead";
-import { chanceAtLeast, routePreview, throughText, type RoutePreview } from "./preview";
+import { routePreview, throughText, type RoutePreview } from "./preview";
+import { waysToRoll } from "./roll-table";
 
 /*
  * The pending decision, split by where it is answered: choices about a place
@@ -186,6 +187,11 @@ export function playChoices(view: GameView, ahead: Lookahead | null = null): Pla
     else if (turn.act !== "move" && turn.act !== "discover") panel.push(choice);
   }
   return { targets, panel: panelOf(panel), end, ghost: null };
+}
+
+/** The exact chance that this many dice total at least `min`. */
+export function chanceAtLeast(dice: number, min: number): number {
+  return waysToRoll(dice).reduce((sum, count, total) => (total >= min ? sum + count : sum), 0) / 3 ** dice;
 }
 
 /** An action that goes through a connection, as a target on each room it

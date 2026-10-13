@@ -112,3 +112,9 @@ export function tradeOffer(row: TradeRow, give: string | null, take: string | nu
     }) ?? null
   );
 }
+
+/** The room whose own text offers a turn's action (the Collapsed Room's fall on purpose), named with it so it never shows without its reason; null for any other choice. */
+export function actionRoom(choice: PanelChoice): string | null {
+  const turn = turnChoice(choice);
+  return turn.act === "action" && turn.source === "room" ? turn.id : null;
+}

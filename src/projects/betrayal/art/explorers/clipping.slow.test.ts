@@ -6,17 +6,22 @@ import { partsOf } from "../figure-parts";
 import { stubCanvas } from "../headless";
 import type { ExplorerBuilder } from "../stage";
 import { clipping } from "./clipping";
-import type { Pace } from "./figure";
+import { cueBurst, type Pace } from "./figure";
 import { handsOf, holdIn } from "./hands";
 import { onTheSpot } from "./line-up";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
+import { vivian } from "./vivian";
+import { missy } from "./missy";
 import { rhinehardt } from "./rhinehardt";
 import { PROP_PARTS, STAND_INS } from "./props";
 import { brandon } from "./brandon";
+import { heather } from "./heather";
 import { zoe } from "./zoe";
+import { zostra } from "./zostra";
 
 /*
  * No figure's parts pass through each other, still or moving. Each explorer
@@ -30,13 +35,14 @@ import { zoe } from "./zoe";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, heather, peter, vivian, jenny, zostra, missy };
 /** Zoe and Rhinehardt are checked in the heavy cloth (`?cloth=off`): the check leaves their simulated nets out
  *  (`isClothSheet`), and their rigid parts are the same either way, so simulating the nets through every moment would
  *  only cost time. */
 const CHECKED: Partial<Record<string, ExplorerBuilder>> = {
   zoe: (seed, gait) => zoe(seed, gait, { cloth: "off" }),
   rhinehardt: (seed, gait) => rhinehardt(seed, gait, { cloth: "off" }),
+  zostra: (seed, gait) => zostra(seed, gait, { cloth: "off" }),
 };
 
 function clipsThrough(figure: THREE.Object3D, times: readonly number[]): string[] {
@@ -133,4 +139,64 @@ describe("longfellow's scarf", () => {
   it("lays the ends clear of the coat", LIMIT, () => {
     expect(clipsThrough(longfellow("scarf"), IDLE.slice(0, 40))).toEqual([]);
   });
+});
+
+/*
+ * Jenny's book is a held prop, and the check lets a held thing pass into the
+ * hand and forearm round its grip, as a handle passes into the fist that
+ * closes on it. Her forearm lies across the book's front, a few centimetres
+ * from the grip, so a forearm sunk into the cover went unseen. Her book is
+ * held to a stricter rule: no surface point of her left arm lies inside it,
+ * nor any of its points inside her arm or her cardigan, at any moment of her
+ * idle, cued bursts, walk or run. Only her hand's own parts may touch it.
+ */
+describe("jenny's book", () => {
+  /** How deep one part's surface lies inside another's solid, at its deepest. */
+  function deepest(a: THREE.Mesh, b: THREE.Mesh): number {
+    const solid = solidOf(b.geometry as THREE.BufferGeometry);
+    if (!solid) throw new Error(`${b.name} has no solid`);
+    const into = b.matrixWorld.clone().invert().multiply(a.matrixWorld);
+    const position = (a.geometry as THREE.BufferGeometry).getAttribute("position");
+    const point = new THREE.Vector3();
+    let depth = 0;
+    for (let i = 0; i < position.count; i += 2) {
+      point.fromBufferAttribute(position, i).applyMatrix4(into);
+      depth = Math.max(depth, -solid.distance(point.x, point.y, point.z));
+    }
+    return depth;
+  }
+
+  function crossings(figure: THREE.Object3D, times: readonly number[]): string[] {
+    const named = (name: string) => {
+      const found = figure.getObjectByName(name);
+      if (!(found instanceof THREE.Mesh)) throw new Error(`Jenny has no ${name}`);
+      return found;
+    };
+    const book = named("book");
+    const others = ["left forearm", "left upper arm", "cardigan"].map(named);
+    const found: string[] = [];
+    for (const at of times) {
+      figure.traverse((object) => animationOf(object)?.(at));
+      figure.updateMatrixWorld(true);
+      for (const other of others) {
+        const depth = Math.max(deepest(other, book), other.name === "cardigan" ? 0 : deepest(book, other));
+        if (depth > 0.0015) found.push(`at ${at.toFixed(2)} s: the book and her ${other.name} cross, ${(depth * 1000).toFixed(1)} mm deep`);
+      }
+    }
+    return found;
+  }
+
+  for (const pace of [undefined, "walk", "run"] as (Pace | undefined)[]) {
+    it(`sits clear of her arm and chest ${pace ? `${pace === "run" ? "running" : "walking"}` : "standing"}`, LIMIT, () => {
+      expect(crossings(onTheSpot(jenny, "jenny's book", pace), pace ? STRIDES : IDLE).slice(0, 5)).toEqual([]);
+    });
+  }
+
+  for (const name of ["peek", "crowd"]) {
+    it(`sits clear of her arm and chest through her ${name}`, LIMIT, () => {
+      const figure = jenny("jenny's book");
+      cueBurst(figure, { name, at: 0, repeat: false });
+      expect(crossings(figure, moments(0, 0.05, 80)).slice(0, 5)).toEqual([]);
+    });
+  }
 });

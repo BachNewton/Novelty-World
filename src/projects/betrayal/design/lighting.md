@@ -38,6 +38,8 @@ The house owns one fill, one fog and one moon, the same for every room. The moon
 
 What a point light can't give is faked, and faking is cheap: glows (a surface that is its own light), additive pools, haze and beams, and on water, reflections and caustics drawn as additive light. Light is not pixel art: it may move smoothly while surfaces stay pixel art.
 
+A shadow is never faked: it is drawn by the bake, as every shadow is. To cast a shadow with nothing there to cast it, a room marks a mesh `bakeOnly` (in its `userData`): the bake sees it as a caster, and it is never drawn, nor solid to the overlap check, the placement solver or the walks. The stage uses the same flag for its unseen ceiling and doorway plugs; the Operating Laboratory's figure no one can see is a room's. Give such a caster a dark material, since the bounce reads its albedo too.
+
 ## The bake at run time
 
 The bake must keep frames smooth on every page; making the house load faster was never the goal in itself. Nothing the bake or the build does may hold the page's thread for long:

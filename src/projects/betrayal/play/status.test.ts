@@ -3,7 +3,7 @@ import { loadRuleNotes, type RuleNotes } from "../data/rule-notes";
 import { viewFor, type EventView, type GameView } from "../engine/view";
 import { ENGINE } from "../game";
 import { simulate } from "../simulation";
-import { isRuleDriven, lineText, rollOutcome, ruleName, ruleStatement, whyItems } from "./status";
+import { isRuleDriven, lineText, ruleName, ruleStatement, whyItems } from "./status";
 
 /** Every write of a seeded game, as a spectator sees it, then as each seat does. */
 function writes(seed: string, haunt?: number): GameView[] {
@@ -90,34 +90,16 @@ describe("ruleStatement", () => {
   });
 });
 
-describe("rollOutcome", () => {
-  it("compares a trait roll with the target the rule's text sets", () => {
-    const { event } = first(game, roomRoll("junk-room"));
-    const { spec, result } = event.data as { spec: { kind: "trait"; trait: "might" }; result: number };
-    expect(rollOutcome(["Whenever you leave this room, you must try a Might roll of 3+."], spec, result)).toBe(`, needed 3+: ${result >= 3 ? "success" : "failure"}`);
-    expect(rollOutcome(["you must try a Might roll of 3+."], spec, 2)).toBe(", needed 3+: failure");
-  });
-
-  it("finds the row of the rule's one roll table the result falls in", () => {
-    const lines = notes.cards["something-hidden"].lines;
-    expect(rollOutcome(lines, { kind: "trait", trait: "knowledge" }, 5)).toBe(". 4+: Draw an item card");
-    expect(rollOutcome(lines, { kind: "trait", trait: "knowledge" }, 2)).toBe(". 0–3: Lose 1 Sanity");
-    expect(rollOutcome(notes.rooms["mystic-elevator"].lines, { kind: "dice", count: 2 }, 3)).toBe(". 3: Upper floor");
-  });
-
-  it("says nothing when the text sets no outcome for this roll", () => {
-    // Burning Man's table is for its Sanity roll, not the die of damage after it.
-    expect(rollOutcome(notes.cards["burning-man"].lines, { kind: "dice", count: 1 }, 1)).toBeNull();
-    expect(rollOutcome(notes.cards["burning-man"].lines, { kind: "trait", trait: "might" }, 1)).toBeNull();
-  });
-});
-
 describe("lineText", () => {
-  it("shows a roll's dice, total and outcome", () => {
+  it("shows a roll's dice, total, and the row of its table it landed on", () => {
     const { view, event } = first(game, roomRoll("junk-room"));
     const { figure, dice, result } = event.data as { figure: string; dice: number[]; result: number };
-    const outcome = result >= 3 ? "success" : "failure";
-    expect(lineText(ENGINE, view, event, notes)).toBe(`Junk Room: ${view.figures[figure].name}'s Might roll: ${dice.join(" + ")} = ${result}, needed 3+: ${outcome}.`);
+    const beat = view.events.slice(view.events.indexOf(event), view.events.indexOf(event) + 2);
+    expect(beat[1].type).toBe("table-row");
+    const row = result >= 3 ? "3+: go on." : "0–2: lose 1 Speed and go on, or stop.";
+    expect(lineText(ENGINE, view, event, beat)).toBe(`Junk Room: ${view.figures[figure].name}'s Might roll: ${dice.join(" + ")} = ${result}. ${row}`);
+    // Told alone, without its beat, it is the dice and total.
+    expect(lineText(ENGINE, view, event)).toBe(`Junk Room: ${view.figures[figure].name}'s Might roll: ${dice.join(" + ")} = ${result}.`);
   });
 });
 

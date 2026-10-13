@@ -120,7 +120,13 @@ test.describe("controller", () => {
     await until(page, "play.pending?.kind === 'damage-kind'");
     await choose(page, /./, page.getByLabel("Damage"));
     await until(page, "play.pending?.kind === 'split-damage'");
-    await choose(page, /./, page.getByLabel("Damage"));
+    // The split's control has the focus: the d-pad's right moves it a point, and A takes it.
+    const split = page.getByLabel("Damage").getByRole("slider", { name: "Split the damage" });
+    await expect(split).toBeFocused();
+    const even = await split.getAttribute("aria-valuetext");
+    await tapButton(page, BUTTON.DpadRight);
+    await expect(split).not.toHaveAttribute("aria-valuetext", even ?? "");
+    await tapButton(page, BUTTON.A);
     await until(page, "play.pending?.kind === 'turn' && play.holder === 0");
     await holdButton(page, BUTTON.X, "play.holder === 1 && play.turnSeat === 1");
 

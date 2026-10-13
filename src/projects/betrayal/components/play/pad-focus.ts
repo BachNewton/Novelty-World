@@ -12,10 +12,13 @@ import { nextInDirection, type Direction } from "../../input/navigate";
  * with none, puts the focus on the layer's start as the d-pad does); B
  * presses the layer's last `data-pad-back` control (the innermost thing open
  * closes first). A layer opening puts the focus on its `data-pad-start`
- * control, or its first.
+ * control, or its first. A control marked `data-pad-steps` (the damage
+ * split) takes the d-pad's left and right itself, as a `PAD_STEP` event.
  */
 
 const DIRECTIONS: Partial<Record<StandardButton, Direction>> = { DpadUp: "up", DpadDown: "down", DpadLeft: "left", DpadRight: "right" };
+/** The event a `data-pad-steps` control gets for the d-pad's left (detail -1) and right (1). */
+export const PAD_STEP = "padstep";
 /** How far the d-pad scrolls a long text past its last control, in CSS pixels. */
 const SCROLL = 120;
 
@@ -104,6 +107,10 @@ export function padPress(layer: HTMLElement, button: StandardButton, out: (() =>
   const from = padFocused(layer);
   const direction = DIRECTIONS[button];
   if (direction) {
+    if ((direction === "left" || direction === "right") && from?.hasAttribute("data-pad-steps")) {
+      from.dispatchEvent(new CustomEvent(PAD_STEP, { detail: direction === "left" ? -1 : 1 }));
+      return true;
+    }
     const controls = controlsOf(layer);
     const at = controls.findIndex((control) => control === from);
     if (at < 0) return enterLayer(layer);

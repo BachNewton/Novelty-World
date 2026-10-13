@@ -1,18 +1,20 @@
 import type { FigureId, Json, Trait } from "../types";
 import { rollName } from "../engine/describe";
+import { rowFor } from "../engine/effects";
 import type { RollSpec } from "../engine/sources";
 import type { Choice } from "../engine/step-loop";
 import type { GameView, RuleView } from "../engine/view";
-import type { RuleNotes } from "../data/rule-notes";
-import { ownLines, rollOutcome, rollTarget } from "./status";
+import type { RowSummary } from "../engine/outcomes";
+import { rollRows, rowOdds } from "./roll-table";
 
 /*
  * A roll as the status box shows it while its roller decides something about
  * it: before it (a card that adds dice or names the result) or after it (a
  * card that rerolls some of the dice). Each die's value (0, 1 or 2), the
- * total, and what the total means: a pass or fail against the target, a
- * damage amount, the haunt roll against the omens, an attack's comparison,
- * as icons where it can, in a short note where only words say it.
+ * total, and what the total means: the row of its table it lands on (with
+ * each row's odds before it), a damage amount, the haunt roll against the
+ * omens, an attack's comparison, as icons where it can, in a short note
+ * where only words say it.
  * There are no physical dice: the engine rolls them.
  */
 
@@ -31,7 +33,8 @@ export interface RollParams {
 
 /** What a roll's total means, as little in words as it can be: a pass or a
  *  fail against a target, damage dealt, and a short note only where an icon
- *  can't say it (a roll table's row, the haunt beginning). */
+ *  can't say it (the haunt beginning). A roll with a table shows the table
+ *  instead (`RollShown.table`). */
 export interface RollMeaning {
   /** The total it needs, or that it is against, or null for none. */
   target: number | null;
@@ -56,6 +59,8 @@ export interface RollShown extends RollMeaning {
   named: number | null;
   /** The total, or null before the roll. */
   total: number | null;
+  /** The roll's table, with each row's odds before the roll and the row it landed on after, or null for a roll with none. */
+  table: { rows: RowSummary[]; odds: number[]; lit: number | null } | null;
 }
 
 /** A roll's trait, for a trait or attack roll. */
@@ -66,8 +71,8 @@ function rolledTrait(spec: RollSpec): Trait | null {
 const verdictOf = (total: number | null, target: number) => (total === null ? null : total >= target ? "pass" : "fail");
 const NOTHING: RollMeaning = { target: null, verdict: null, damage: null, note: null };
 
-/** What a roll's total means, or (total null) what the roll is for before it is made. */
-export function rollMeaning(view: GameView, notes: RuleNotes | null, roll: Pick<RollParams, "spec" | "rule" | "then">, total: number | null): RollMeaning {
+/** What a roll's total means, or (total null) what the roll is for before it is made. A roll with a table means its row, which the table shows. */
+export function rollMeaning(view: GameView, roll: Pick<RollParams, "spec" | "then">, total: number | null): RollMeaning {
   const { spec, then } = roll;
   if (spec.kind === "haunt") {
     const omens = view.omensDrawn;
@@ -83,21 +88,16 @@ export function rollMeaning(view: GameView, notes: RuleNotes | null, roll: Pick<
     const tie = total === attack;
     return { ...NOTHING, target: attack, verdict: total === null || tie ? null : total > attack ? "pass" : "fail", note: tie ? "a tie: no one is hurt" : null };
   }
-  if (spec.kind === "attack") return NOTHING;
-  const lines = notes === null ? [] : ownLines(notes, roll.rule);
-  const target = rollTarget(lines, spec);
-  if (target !== null) return { ...NOTHING, target, verdict: verdictOf(total, target) };
-  if (total === null) return NOTHING;
-  const outcome = rollOutcome(lines, spec, total);
-  return { ...NOTHING, note: outcome === null ? null : outcome.replace(/^[,.] /, "") };
+  return NOTHING;
 }
 
 /** A roll in progress as the box shows it. */
-export function rollShown(view: GameView, notes: RuleNotes | null, roll: RollParams, rolled: boolean): RollShown {
+export function rollShown(view: GameView, roll: RollParams, rolled: boolean): RollShown {
   const figure = view.figures[roll.figure];
   const trait = rolledTrait(roll.spec);
   const value = trait === null ? undefined : figure.traits[trait];
   const total = rolled ? (roll.named ?? roll.dice.reduce((sum, die) => sum + die, 0)) + roll.bonus : null;
+  const rows = rollRows(roll.then);
   return {
     figure: roll.figure,
     name: rollName(roll.spec),
@@ -107,7 +107,8 @@ export function rollShown(view: GameView, notes: RuleNotes | null, roll: RollPar
     bonus: roll.bonus,
     named: roll.named,
     total,
-    ...rollMeaning(view, notes, roll, total),
+    table: rows === null ? null : { rows, odds: rowOdds(rows, roll.pool, roll.bonus), lit: total === null ? null : rowFor(rows, total) },
+    ...rollMeaning(view, roll, total),
   };
 }
 

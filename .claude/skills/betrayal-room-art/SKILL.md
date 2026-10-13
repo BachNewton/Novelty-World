@@ -272,11 +272,16 @@ lightmap density were in flux; re-measure the house once they settle.
 | Game Room | ground, formal (fits every floor): wood boards, oxblood (`brickDark`) paper with a spade pip, wood panelling | a green baize billiard table, a cue stroking at the cue ball with no one holding it | twin amber-glass shades hung low, a hard pool of amber on the baize | normal (proposed) | 1.9 (0.5–15.1) |
 | Servants' Quarters | upper (fits basement): plain dark boards, grimy grey-buff limewash, a brown painted board dado | four black iron cots in two rows, a maid's uniform laid out flat on each like a sleeper; the fourth's gone, its blanket flung back, muddy wet boots and prints from the door at its foot | two tallow dips' low amber on stools by the cots' heads | dark (proposed) | 4.3 (0.6–29.3), **meant dark, but not darker than most normal rooms** |
 | Organ Room | ground, formal (fits every floor): dark grey marble, charcoal paper with a moon-blue damask, wood panelling | a pipe organ against the back wall, pale tin pipes in three towers between wooden end towers, its bench knocked over and its music blown across a red rug | a cold pale (`moonLight`) breath from the pipe mouths; amber keydesk candles; its keys go down and up by themselves | normal (proposed) | 2.6 (0.4–16.3) |
+| Gymnasium | upper (fits basement): narrow wood strip boards, cold grey distemper plaster, narrow dark wood panelling | a red leather vaulting horse on splayed legs beside three climbing ropes that swing slowly, out of step, in a draught that stirs nothing else; wall bars on one wall | spectral teal (`spectre`) welling up in an empty corner from nothing; a frosted gas globe's amber over the horse | normal (proposed) | 3.2 (0.8–15.4) |
+| Larder | basement: red quarry tiles, cold blue limewash (`moon`), a slate dado | a long slate thrall down one wall, heaped with cheeses, a ham, a pie and eggs, crocks beneath | amber glowing from inside the jars of preserves on it, lit by nothing; everything on it has had one bite taken | normal (proposed) | 4.3 (0.8–24.9) |
+| Crypt | basement: big dressed stone slabs in staggered courses, dark coursed-stone walls, a stone bench round three walls under sealed burial niches cut with names | a stone sarcophagus on a plinth in the middle, its lid shoved askew off the head end | sickly green (`wraith`), the rot welling out of the open tomb and lying round its plinth; amber candles on the bench, and the mason's candle by a pale new tablet whose name is only half cut (a place made ready, not something moving) | normal | 4.5 (0.6–23.2) |
+| Operating Laboratory | the laboratories' dress, upper or basement: plain grey quarry tiles, pale grey glazed tile walls, a dark green tiled dado with a band | an iron operating table across a corner, its straps undone, under a standing lamp with a deep dark shade | the lamp's sickly green (`wraithLight`), a cone of light round the table; in it, the baked shadow of someone leaning over the table, though no one is there (a `bakeOnly` caster); one amber chamberstick on the bench | normal (proposed) | 3.8 (0.7–20.1) |
+| Research Laboratory | the laboratories' dress (as the Operating Laboratory) | a tall glowing bell jar on a pedestal, beside an island bench of apparatus and a wall of specimen jars | violet from a presence caught under the bell jar (occult science), glass shards at its foot where the jar has begun to give; two amber lamps hung under a reagent rack over the bench, and a spirit lamp under a brewing flask | normal (proposed) | 4.9 (0.8–21.1) |
 
 Four rooms (the starting hall and the Upper Landing) share one dress and one
 amber light, so telling them apart rests on their shapes alone. Green is the
 supernatural in several rooms (the Library, the Chasm, the Graveyard, the
-Kitchen, the Creaky Hallway, the Catacombs): no two of them should sit on
+Kitchen, the Creaky Hallway, the Catacombs, the Crypt): no two of them should sit on
 one floor with the same green source.
 
 ## Workflow
@@ -549,6 +554,13 @@ ledger, with its light intent and its measured median and range.
   its `range`, through doorways and passages into the next room, and stops
   at walls and shut doors. Give a light the range its brightness deserves,
   not one cut to its tile.
+- **Shadows are the bake's, never painted.** A shadow with nothing to cast
+  it (someone unseen standing by a lamp) comes from an invisible caster:
+  mark its meshes `userData.bakeOnly = true` and the bake casts its shadow
+  while nothing draws it, and the overlap check, placement and walks ignore
+  it (keep figures off it with `keepClear`). Give it a dark material: the
+  bounce reads its albedo. A lamp burning inches from a pale surface (the
+  inside of a shade) throws blotchy bounce round the room: line it dark.
 - **What breaks the bake.** A light inside a piece that casts shadows is
   smothered by it: a piece that holds a light must not cast shadows (mark
   it `noShadow`, as the kit's candles and lanterns do), nor may glass,

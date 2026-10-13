@@ -13,6 +13,7 @@ import type {
 import type { Attacker } from "./combat";
 import type { CardDestination, ChosenBy, GainedBy } from "./effects";
 import type { Harm } from "./questions";
+import type { GainTrait, OutcomeNote, RowOutcome, RowSummary } from "./outcomes";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
 import { requireBuilt } from "./haunt";
@@ -48,6 +49,93 @@ export function rollName(spec: RollSpec): string {
         ? `${traitName(spec.trait)} ${spec.role === "attacker" ? "attack" : "defence"} roll`
         : `${traitName(spec.trait)} ${spec.dice} attack roll`;
   }
+}
+
+/** A table row's results: "4+", "2–3" or "4". */
+export function rangeText(row: Pick<RowSummary, "min" | "max">): string {
+  if (row.max === null) return `${row.min}+`;
+  return row.max === row.min ? `${row.min}` : `${row.min}–${row.max}`;
+}
+
+const GAIN_WORDS: Record<Exclude<GainTrait, Trait>, string> = {
+  choice: "a trait of your choice",
+  physical: "a physical trait of your choice",
+  mental: "a mental trait of your choice",
+};
+
+const NOTE_WORDS: Record<OutcomeNote, string> = {
+  attack: "attack someone",
+  freed: "freed",
+  stuck: "still stuck",
+  fall: "fall to the floor below",
+  "choose-room": "go to any room you choose",
+  "choose-landing": "land in a room below of your choice",
+  jump: "jump out",
+  "floor-basement": "to the basement",
+  "floor-ground": "to the ground floor",
+  "floor-upper": "to the upper floor",
+  "floor-any": "to a floor of your choice",
+  shake: "everyone in it is shaken",
+  search: "search a stack for a card",
+  nearest: "the nearest explorer too",
+  "drop-to-lowest": "the trait drops to its lowest",
+  "item-blown": "an item blows away",
+  "join-others": "join another explorer",
+  push: "push someone next door",
+  step: "move a room for free",
+  "bottom-out": "lose the dice",
+  "call-heroes": "call the heroes",
+  "call-monsters": "call the monsters",
+  mesmerized: "mesmerized",
+  mask: "put the Mask on or take it off",
+  "haunt-held-off": "the haunt holds off",
+  "haunt-begins": "the haunt begins",
+};
+
+/** What a table row does, in a few words. */
+export function outcomeText(engine: Engine, outcome: RowOutcome): string {
+  switch (outcome.kind) {
+    case "gain": {
+      const trait = outcome.trait in GAIN_WORDS ? GAIN_WORDS[outcome.trait as keyof typeof GAIN_WORDS] : traitName(outcome.trait as Trait);
+      return `${outcome.amount < 0 ? "lose" : "gain"} ${Math.abs(outcome.amount)} ${trait}`;
+    }
+    case "damage":
+      return outcome.dice !== null
+        ? `${outcome.dice} ${outcome.dice === 1 ? "die" : "dice"} of ${outcome.damage} damage`
+        : `${outcome.points ?? 0} ${outcome.damage} damage`;
+    case "draw":
+      return `draw an ${outcome.type}`;
+    case "keep":
+      return `keep the ${engine.catalog.cards[outcome.card].name}`;
+    case "lose":
+      return `lose the ${engine.catalog.cards[outcome.card].name}`;
+    case "move":
+      return outcome.room === null ? "go on" : `go to the ${engine.catalog.rooms[outcome.room].name}`;
+    case "stop":
+      return "stop";
+    case "roll":
+      return `make a ${rollName(outcome.spec)}`;
+    case "attack":
+      return "attack";
+    case "pass":
+      return "success";
+    case "fail":
+      return "failure";
+    case "choice":
+      return outcome.options.map((option) => rowText(engine, option)).join(", or ");
+    case "note":
+      return NOTE_WORDS[outcome.note];
+  }
+}
+
+/** The row of a table a roll landed on: "3+: go on." */
+export function landedText(engine: Engine, row: RowSummary): string {
+  return `${rangeText(row)}: ${rowText(engine, row.outcome)}.`;
+}
+
+/** What a table row does, in words: its outcomes, or "nothing". */
+export function rowText(engine: Engine, outcomes: readonly RowOutcome[]): string {
+  return outcomes.length === 0 ? "nothing happens" : outcomes.map((outcome) => outcomeText(engine, outcome)).join(" and ");
 }
 
 /** The rule's source, by name. */
@@ -209,11 +297,14 @@ export function describeEvent(
     case "ready":
       return sentence(`${seat(data<{ seat: number }>(event).seat)} is ready`);
     case "forced": {
-      // Its one choice comes only to the seat it was put to.
-      const d = data<{ seat?: number; label?: string }>(event);
-      return d.label === undefined
-        ? sentence(`${seat(d.seat)} has only one choice`)
-        : sentence(`${seat(d.seat)}: ${d.label} (the only choice)`);
+      // Told as what happens in the game, never as the engine taking a
+      // choice: a turn with nothing left to do passes, anything else is the
+      // one thing that could happen.
+      // Its one outcome reaches only the seat it was put to.
+      const d = data<{ seat?: number; kind?: string; about?: FigureId | null; label?: string }>(event);
+      const by = d.about === undefined || d.about === null ? seat(d.seat) : who(d.about);
+      if (d.kind === "turn") return sentence(`${by} can do nothing more this turn`);
+      return d.label === undefined ? sentence(`${by} settles something only they may see`) : sentence(`${by}: ${d.label}`);
     }
     case "left":
       return null;
@@ -365,6 +456,16 @@ export function describeEvent(
         );
       return sentence(`${who(d.figure)}'s ${rollName(d.spec)}: ${how}`);
     }
+    case "roll-coming": {
+      const d = data<{ figure: FigureId; spec: RollSpec; pool: number }>(event);
+      return sentence(
+        `${who(d.figure)} makes a ${rollName(d.spec)} with ${d.pool} ${d.pool === 1 ? "die" : "dice"}`,
+      );
+    }
+    case "table-row": {
+      const d = data<{ figure: FigureId; rows: RowSummary[]; index: number }>(event);
+      return withRule(engine, event.rule, landedText(engine, d.rows[d.index]));
+    }
     case "attacked": {
       const d = data<{
         attacker: Attacker;
@@ -483,6 +584,12 @@ export function describeEvent(
       return sentence(
         `${who(data<{ figure: FigureId }>(event).figure)} looks at the top room tile`,
       );
+    case "room-bonus-spent": {
+      const d = data<{ figure: FigureId; room: string }>(event);
+      return sentence(
+        `${who(d.figure)} has already taken the ${words.room(d.room)}'s bonus this game, so gains nothing`,
+      );
+    }
     case "search-found-nothing":
       return sentence(
         `${who(data<{ figure: FigureId }>(event).figure)} finds nothing to search`,

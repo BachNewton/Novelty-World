@@ -168,7 +168,7 @@ describe("describeEvent", () => {
       },
     );
     expect(text(forced)).toBe(
-      "Angry Being: Zoe Ingstrom: Take 1 Might and 0 Speed (the only choice).",
+      "Angry Being: Zoe Ingstrom: Take 1 Might and 0 Speed.",
     );
   });
 

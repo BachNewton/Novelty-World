@@ -6,14 +6,19 @@ import { banshee, spider } from "../monsters";
 import { batchParts } from "../part-batch";
 import type { ExplorerBuilder } from "../stage";
 import { brandon } from "./brandon";
+import { heather } from "./heather";
 import { burstsOf, CUE_REST, cueBurst, STANDING, type Gait } from "./figure";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { onTheSpot } from "./line-up";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
+import { vivian } from "./vivian";
+import { missy } from "./missy";
 import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
+import { zostra } from "./zostra";
 
 beforeAll(stubCanvas);
 
@@ -29,9 +34,14 @@ const FIGURES: Record<string, ExplorerBuilder> = {
   ox,
   flash,
   brandon,
+  heather,
   peter,
+  jenny,
+  vivian,
+  missy,
   rhinehardt,
   zoe,
+  zostra,
   banshee: (seed, gait) => banshee(seed, gait),
   spider: (seed, gait) => spider(seed, gait),
 };

@@ -68,6 +68,7 @@ What remains for the goal:
 
 Not blocking; taken up when the game plays.
 
+- **A hair study, then one pass over every explorer** (its own session). The owner's review: every explorer's hair has the right idea and style, but its shape as rendered is off. It is a technique problem, so fixing figures one by one would repeat it. Diagnose the shared faults across all twelve (lumps, hair not following the skull, seams where pieces meet, silhouettes that misread from the house's camera); build better shared hair pieces in the figure kit (a cap that follows the skull, swept sheets for fringes and bobs, a ponytail and a bun, locks with clean edges); prove them on two explorers on the bench for the owner's approval; then apply them to all twelve and record the method in the `betrayal-figure-art` skill.
 - Physics for loose things: hair, Zoe's doll, scarf ends, stoles, coat tails, as strands in the cloth solver.
 - Gait speed and animation tuning.
 - The shared plaster texture, to read more clearly as damp and cracks.

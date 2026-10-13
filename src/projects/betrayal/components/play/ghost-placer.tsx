@@ -53,7 +53,7 @@ export interface GhostPlacer {
   way: number;
   doors: GhostDoor[];
   /** The ghost, and the other cells the tile may go on, as the house shows them, each with its name tag. */
-  targets: (Target & { label: string })[];
+  targets: PlacerTarget[];
   rotate: (step: 1 | -1) => void;
   /** Steps to the next way round (1) or the one before (-1), on to the next cell after this one's last. */
   step: (step: 1 | -1) => void;
@@ -61,6 +61,25 @@ export interface GhostPlacer {
    *  shows, and another cell moves the ghost there. False for any other target. */
   commit: (id: string) => boolean;
   readout: GhostReadout;
+}
+
+/** A target of the tile being placed: its label, read out, and the name tag
+ *  it shows when focused, where that isn't the label. */
+export type PlacerTarget = Target & { label: string; tag?: string };
+
+/** The ghost on its cell, the other cells the tile may go on, and the tile's
+ *  own cell where it may stay. The ghost and the cells are tagged with the
+ *  room's name alone: the house already shows what pressing them does, so
+ *  "Put it here" is only read out. Its own cell says it stays there, which
+ *  the house doesn't show. */
+export function placerTargets(choice: GhostChoice, cell: number, ghost: { rotation: Rotation; doors: GhostDoor[] }, name: string, stays: boolean): PlacerTarget[] {
+  const targets: PlacerTarget[] = choice.cells.flatMap((other, i) =>
+    i === cell ? [] : [{ id: cellId(other.spot), kind: "cell" as const, ...other.spot, label: `Put the ${name} here`, tag: name }],
+  );
+  const spot = (choice.cells.at(cell) ?? choice.cells[0]).spot;
+  targets.push({ id: GHOST, kind: "ghost", ...spot, tile: choice.tile, rotation: ghost.rotation, doors: ghost.doors, label: name });
+  if (choice.stay && stays) targets.push({ id: STAY, kind: "room", room: choice.tile, label: choice.stay.label });
+  return targets;
 }
 
 interface Selection {
@@ -83,12 +102,8 @@ export function useGhost(view: GameView, choice: GhostChoice | null, act: (actio
   const doors = ghostDoors(ENGINE.catalog, view.board, choice.tile, cell.spot, option.rotation);
   const name = ENGINE.catalog.rooms[choice.tile].name;
 
-  const targets: GhostPlacer["targets"] = choice.cells.flatMap((other, i) =>
-    i === selection.cell ? [] : [{ id: cellId(other.spot), kind: "cell" as const, ...other.spot, label: `Put the ${name} here` }],
-  );
-  targets.push({ id: GHOST, kind: "ghost", ...cell.spot, tile: choice.tile, rotation: option.rotation, doors, label: name });
   const stay = choice.stay;
-  if (stay && placed(view.board, choice.tile)) targets.push({ id: STAY, kind: "room", room: choice.tile, label: stay.label });
+  const targets = placerTargets(choice, choice.cells.indexOf(cell), { rotation: option.rotation, doors }, name, placed(view.board, choice.tile) !== undefined);
 
   return {
     choice,

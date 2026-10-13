@@ -1,5 +1,6 @@
 import type { FigureId } from "../types";
-import { describeEvent, describeRule, rollName, traitName } from "../engine/describe";
+import { describeEvent, describeRule, landedText, rollName } from "../engine/describe";
+import type { RowSummary } from "../engine/outcomes";
 import type { RollSpec } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
 import type { EventView, GameView, RuleView } from "../engine/view";
@@ -10,7 +11,7 @@ import { ruleDetail, ruleTexts, type RuleNotes } from "../data/rule-notes";
  * plain language, and its Why, the rules behind it, each named by its
  * source (a room, card, token, haunt or the rulebook's section, never a
  * page number) with a short statement, then its full text and rulings.
- * Rolls show their dice, total and outcome.
+ * Rolls show their dice, total, and the row of their table they land on.
  */
 
 /** A rule behind what happened: its name, and the rule in one plain sentence. */
@@ -58,62 +59,24 @@ export function ownLines(notes: RuleNotes, rule: RuleView): string[] {
   return ruleTexts(notes, rule).flatMap((text) => text.lines);
 }
 
-/** A roll table row's results: "4+", "2–3" or "4", as the lowest and highest it covers, or null for any other line. */
-function rowRange(label: string): [number, number] | null {
-  if (/^\d+$/.test(label)) return [Number(label), Number(label)];
-  if (/^\d+\+$/.test(label)) return [Number(label.slice(0, -1)), Infinity];
-  const range = /^(\d+)[–-](\d+)$/.exec(label);
-  return range ? [Number(range[1]), Number(range[2])] : null;
-}
-
-/** The result a trait roll needs, as the rule's text states it ("a Might
- *  roll of 3+"), or null when it states no single target for this roll. */
-export function rollTarget(lines: string[], spec: RollSpec): number | null {
-  if (spec.kind !== "trait") return null;
-  const trait = traitName(spec.trait);
-  const text = lines.join(" ").replaceAll("**", "");
-  const targets = new Set([...text.matchAll(/(\w+) roll of (\d+)\+/g)].filter((match) => match[1] === trait).map((match) => Number(match[2])));
-  return targets.size === 1 ? [...targets][0] : null;
-}
-
-/** What a roll's result means, as the rule's text states it: the target a
- *  trait roll needed ("a Might roll of 3+"), or the row of the rule's one
- *  roll table the result falls in. Null when the text doesn't say it plainly
- *  for this roll: no target or table, or more than one. */
-export function rollOutcome(lines: string[], spec: RollSpec, result: number): string | null {
-  const text = lines.join(" ").replaceAll("**", "");
-  const trait = spec.kind === "trait" ? traitName(spec.trait) : null;
-  const target = rollTarget(lines, spec);
-  if (target !== null) return `, needed ${target}+: ${result >= target ? "success" : "failure"}`;
-  const asked =
-    trait !== null
-      ? text.includes(`${trait} roll`)
-      : spec.kind === "dice" && [...text.matchAll(/roll (\d+) dice/gi)].some((match) => Number(match[1]) === spec.count);
-  if (!asked) return null;
-  const rows = lines.flatMap((line, i) => {
-    const colon = line.indexOf(": ");
-    const range = colon < 0 ? null : rowRange(line.slice(0, colon));
-    return range ? [{ i, low: range[0], high: range[1], label: line.slice(0, colon), does: line.slice(colon + 2) }] : [];
-  });
-  // One table: its rows run together.
-  if (rows.length === 0 || rows.some((row, n) => row.i !== rows[0].i + n)) return null;
-  const row = rows.find((candidate) => result >= candidate.low && result <= candidate.high);
-  return row ? `. ${row.label}: ${row.does.replace(/\.$/, "")}` : null;
-}
-
-function rollText(engine: Engine, view: GameView, event: EventView, notes: RuleNotes | null): string | null {
+function rollText(engine: Engine, view: GameView, event: EventView): string | null {
   const d = event.data as unknown as Rolled;
   // A named result, no dice at all, or a card's attacker's dice thrown for it read as the engine words them.
   if (d.named !== null || d.dice.length === 0 || (d.spec.kind === "attack" && d.spec.dice !== null)) return null;
   const bonus = d.bonus === 0 ? "" : d.bonus > 0 ? ` + ${d.bonus}` : ` - ${-d.bonus}`;
-  const outcome = notes === null ? null : rollOutcome(ownLines(notes, event.rule), d.spec, d.result);
   const source = event.rule.source === "room" || event.rule.source === "card" || event.rule.source === "token" ? `${describeRule(engine, event.rule)}: ` : "";
-  return `${source}${view.figures[d.figure].name}'s ${rollName(d.spec)}: ${d.dice.join(" + ")}${bonus} = ${d.result}${outcome ?? ""}.`;
+  return `${source}${view.figures[d.figure].name}'s ${rollName(d.spec)}: ${d.dice.join(" + ")}${bonus} = ${d.result}.`;
 }
 
-/** An event's line, as the seat holding the device may read it, or null when it has no words for them. */
-export function lineText(engine: Engine, view: GameView, event: EventView, notes: RuleNotes | null): string | null {
-  return (event.type === "rolled" ? rollText(engine, view, event, notes) : null) ?? describeEvent(engine, view, event);
+/** An event's line, as the seat holding the device may read it, or null
+ *  when it has no words for them; a roll's ends with the row of its table it
+ *  landed on, told in the same beat. */
+export function lineText(engine: Engine, view: GameView, event: EventView, beat: readonly EventView[] = []): string | null {
+  const text = (event.type === "rolled" ? rollText(engine, view, event) : null) ?? describeEvent(engine, view, event);
+  const row = event.type === "rolled" ? beat.find((other) => other.type === "table-row") : undefined;
+  if (text === null || row === undefined) return text;
+  const { rows, index } = row.data as unknown as { rows: RowSummary[]; index: number };
+  return `${text} ${landedText(engine, rows[index])}`;
 }
 
 /** The rulebook's rules behind events beyond its plain flow, in our own words. */
@@ -121,7 +84,7 @@ const RULEBOOK: Partial<Record<string, string>> = {
   "card-drawn": "the first explorer to discover a room with a card symbol draws that card",
   "movement-ended": "drawing a card ends your movement for the rest of the turn",
   "forced:rotation": "a room that fits only one way round goes in that way, with no question asked",
-  forced: "when the rules leave only one choice, the game takes it for you",
+  forced: "when the rules leave only one thing that can happen, it happens",
   "haunt-roll": "each turn you draw an omen ends with a haunt roll of 6 dice: under the number of omens drawn, the haunt begins",
   slowed: "after the haunt starts, leaving a room costs 1 extra space of movement for each opponent in it",
 };

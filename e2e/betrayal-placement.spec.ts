@@ -7,7 +7,7 @@ import type { PlayReadout } from "../src/projects/betrayal/components/play/play-
  * Rooms placed and moved by a rule, and choices among rooms, in the house:
  * the Mystic Elevator, discovered through the Entrance Hall's north door and
  * entered, rolls where it goes. Its cells glow on the floor rolled, and on any
- * other floor as markers at the same place; its own cell, when it may stay,
+ * other floor only that floor's button is marked; its own cell, when it may stay,
  * leaves it there. Placed, it is carried with Zoe in it to its new cell. The
  * Dog's run offers rooms, which glow as places. Every wait is on the game's
  * own state (window.__betrayalPlay), never a pause.
@@ -112,19 +112,24 @@ async function rideTheElevator(page: Page, floor: string): Promise<void> {
 /** The ghost's other cells, as their target ids. */
 const otherCells = async (page: Page) => (await readout(page)).ghost?.targets.filter((id) => id.startsWith("cell:")) ?? [];
 
-test("keyboard and mouse: a cell on another floor glows on this one, and the elevator carries Zoe down to the basement", async ({ page }) => {
+test("keyboard and mouse: a cell on another floor marks that floor's button, and the elevator carries Zoe down to the basement", async ({ page }) => {
   await resume(page, gameCode(SEEDS.basement, { stack: ["mystic-elevator"] }));
   await rideTheElevator(page, "basement");
   const first = (await readout(page)).ghost?.spot;
 
-  // Back on the ground floor, the basement's cells glow where they lie below it, and choosing one moves the ghost there, showing its floor.
+  // On the ground floor, the basement's cells don't show: the basement's button is marked, and going there shows them.
   await page.evaluate(() => window.__betrayalPlay?.setFloor("ground"));
   await until(page, "play.floor === 'ground'");
   const cells = await otherCells(page);
   expect(cells.length).toBeGreaterThan(0);
+  for (const candidate of cells) expect(await pointOf(page, candidate)).toBeNull();
+  const basement = page.getByRole("button", { name: /^basement/ });
+  await expect(basement.locator("[data-offered]")).toBeVisible();
+  await basement.click();
+  await until(page, "play.floor === 'basement'");
   let cell: string | null = null;
   for (const candidate of cells) if (!cell && (await pointOf(page, candidate))) cell = candidate;
-  if (!cell) throw new Error("No basement cell shows on the ground floor");
+  if (!cell) throw new Error("No basement cell shows on the basement");
   await clickTarget(page, cell);
   const [, , x, y] = cell.split(":");
   await until(page, `play.ghost?.spot.x === ${x} && play.ghost.spot.y === ${y} && play.floor === 'basement'`);

@@ -252,6 +252,10 @@ export interface Behaviour {
   beforeAttack?: (state: GameState, figure: FigureId, go: Step) => Step[];
   /** Its holder may take damage of the other kind as this kind instead (the Skull). */
   damageAs?: "physical" | "mental";
+  /** A room whose bonus each explorer may take once a game, by ending a
+   *  turn there: 1 in one of these traits, marked by their explorer token
+   *  (the Gymnasium's Speed). The presentation reads it to show the bonus. */
+  bonus?: { traits: readonly Trait[] };
   /** A barrier room: split in two, one side by each door, crossed by this
    *  trait roll (p. 7). */
   barrier?: { trait: Trait; target: number };
