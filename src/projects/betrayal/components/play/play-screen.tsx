@@ -9,6 +9,7 @@ import { figureFor } from "../../art/explorers/by-character";
 import { houseFloors, loadFloors } from "../../art/room-floor";
 import type { HouseMood } from "../../art/house-mood";
 import { createHouseScene, type FigureSpec, type FloorChoice, type HouseScene, type SceneHook } from "../../art/house-scene";
+import { floorsOffering } from "../../art/house-targets";
 import { FLOOR_NAMES, FLOORS } from "../../engine/board";
 import { eventsFor, seatName, type GameView } from "../../engine/view";
 import type { Action, FigureId, FloorId } from "../../types";
@@ -500,6 +501,8 @@ export function PlayScreen({
   const dot = yours ? seatDot(ENGINE, yours.definition) : undefined;
   const floors = FLOORS.filter((floor) => view.board.tiles.some((tile) => tile.floor === floor));
   const focusedTarget = [...targets, ...ghostTargets].find((target) => target.id === live);
+  const focusedTag = focusedTarget && "tag" in focusedTarget ? focusedTarget.tag : undefined;
+  const offeredOn = new Set(floorsOffering(ghostTargets, shown.floor));
   const focusedThing = things.find((thing) => thing.id === live);
   const preview = targets.find((target) => target.id === live)?.preview ?? null;
   const input = shown.input;
@@ -521,7 +524,8 @@ export function PlayScreen({
         className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm w-max max-w-[calc(100%-1rem)]"
       >
         {/* A doorway to explore is drawn as its route on the floor: its tag says only the cost, its label kept for screen readers. */}
-        {focusedTarget && (focusedTarget.kind === "explore" ? <span className="sr-only">{focusedTarget.label}</span> : focusedTarget.label)}
+        {/* A tile's other cells are tagged with the room's name: the glowing cell already shows what pressing it does. */}
+        {focusedTarget && (focusedTarget.kind === "explore" ? <span className="sr-only">{focusedTarget.label}</span> : focusedTag !== undefined ? <><span aria-hidden>{focusedTag}</span><span className="sr-only">{focusedTarget.label}</span></> : focusedTarget.label)}
         {focusedThing && <ThingTag thing={focusedThing} />}
         {preview && <span className={focusedTarget?.kind === "explore" ? "font-semibold" : "ml-1.5 text-xs text-(--bt-muted)"}>{focusedTarget?.kind === "explore" ? "" : "· "}{costText(preview)}</span>}
       </div>
@@ -561,6 +565,12 @@ export function PlayScreen({
                 className={`${button} ${shown.floor === floor ? "border-(--bt-accent) bg-(--bt-room)" : ""}`}
               >
                 {FLOOR_NAMES[floor]}
+                {/* A tile may go on this floor too: it has no stair to glow, so its button says so. */}
+                {offeredOn.has(floor) && (
+                  <span data-offered className="size-2 rounded-full bg-(--bt-accent) shadow-[0_0_6px_var(--bt-accent)]">
+                    <span className="sr-only">: places to choose</span>
+                  </span>
+                )}
               </button>
             ))}
             <Prompt meaning="floor-up" input={input} />
