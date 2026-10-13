@@ -89,14 +89,15 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `turn` end: End turn, an explicit action, held on a pad or the keyboard, never automatic.
 - `rotation`: the ghost tile on its cell, turned through its legal ways round, which are the decision's choices. A tile that fits one way is placed by the engine.
 - `place-tile` (the Mystic Elevator, The Beckoning, cards that move rooms, haunt 13's top-up rooms): the legal cells glow on any floor, and the tile's own cell means "leave it". `room-moved` flies the tile to its new cell with its figures (`art/room-flight.ts`).
-- `choose-one` with room options (the Bottle's teleport, the Dog's run): an option may name a room, and those options are places.
+- `choose-one` with place options (the Bottle's teleport, the Dog's run, the Revolving Wall's walls and corners, a barrier room's sides, a card's figures): an option may name a room, a side of a barrier room, a wall or corner of a room, or a figure, and those options are places (`card-presentation.md`, "Choices that are places").
+- `turn` attack on a figure and activate (a monster turn): the figure is the target.
 
 **Not places: the status box and the explorer sheet**
 - `turn` action, drop and pickup: Your explorer's rows, and the same as buttons in the status box; a card on the floor is picked up from the floor too.
 - `turn` trade: the trade sheet. `trade-offer` goes to another seat mid-turn, named in the prompt.
 - `roll-before` and `roll-after`: the roll's dice, total and outcome, in icons.
 - `split-damage` and `damage-kind`: the stat tracks, with where the damage would land.
-- `choose-one` (event cards): the card, per `card-presentation.md`.
+- `choose-one` (event cards) whose options aren't places: the card, per `card-presentation.md`.
 - The ready wait (the haunt reveal): the reveal.
 
 **Haunt 13**

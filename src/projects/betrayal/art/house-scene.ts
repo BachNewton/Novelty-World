@@ -604,6 +604,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     if (ids(next) !== ids(targets)) {
       pinned = null;
       cycleOrder = null;
+      // A choice among a room's walls and corners is about that room: a following camera pans to it.
+      const walls = new Set(next.flatMap((target) => (target.kind === "wall" ? [target.room] : [])));
+      if (mounted && walls.size === 1) {
+        const [room] = walls;
+        panTo(middleOf(mounted.house, [room]), tileFloor(room));
+      }
     }
     // A ghost put on a new cell is shown. It is the player's own decision in hand, so even a free camera shows its floor; a following one pans to it too.
     const [ghost, was] = [ghostOf(next), ghostOf(targets)];

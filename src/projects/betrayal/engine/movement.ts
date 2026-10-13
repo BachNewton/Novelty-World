@@ -1,6 +1,6 @@
 import type { Edge, FigureId, GameState, Place, RuleRef, Step } from "../types";
 import { sideName } from "./board";
-import { chooseOne, defineStep, displace, relocate, step } from "./effects";
+import { chooseOne, defineStep, displace, optionPlace, relocate, step } from "./effects";
 import { figureName, figureOf, placeOf } from "./figures";
 import { askSet, barrierSides, type Mover } from "./questions";
 import type { Engine, StepHandler } from "./step-loop";
@@ -126,6 +126,7 @@ export const MOVEMENT_STEPS: Record<string, StepHandler> = {
         closer.map((next) => ({
           label: `Move ${name} to the ${ctx.catalog.rooms[next.room].name}${next.side === null ? "" : `, on its ${sideName(state.board, next.room, next.side)} side`}`,
           steps: [relocate(p.figure, next.room, p.rule, next.side)],
+          ...optionPlace(next),
         })),
         p.rule,
       ),

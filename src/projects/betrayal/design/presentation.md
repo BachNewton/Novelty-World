@@ -6,7 +6,7 @@ How the game looks and is played on screen. The game is played in the 3D house: 
 
 The engine already shapes the UI: at any moment there is one pending decision, with plain-language choices, and every event names the rule behind it. A physical board can't do that, so the UI leans on it.
 
-- **Decisions about places live in the house only**, with no list: the rooms you can reach glow, the empty cell beyond an unexplored doorway glows as a faint room outline, a tile to place shows as a ghost on its cell. A choice on another floor shows as its staircase glowing on this floor. Picking one is the same action on every input.
+- **Decisions about places live in the house only**, with no list: the rooms you can reach glow, the empty cell beyond an unexplored doorway glows as a faint room outline, a tile to place shows as a ghost on its cell, each side of a barrier room is its own half of the tile, a wall or corner of a room (where a card puts a token) is a pad on the floor against it with the token shown there when focused, and a figure a card or attack names is the figure. A choice on another floor shows as its staircase glowing on this floor. Picking one is the same action on every input.
 - **Everything else is in one status box**, in three parts:
   - **What happened:** the latest events, in plain language.
   - **Why it happened:** the rule behind each, a room, card, haunt or rulebook rule, as its short plain text with its source named ("Junk Room: roll Might to leave"). The full text and its rulings (the "why?" content from `data/rule-notes.json`) are a tap away.

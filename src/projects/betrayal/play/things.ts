@@ -82,6 +82,13 @@ export function presenceOf(token: string): Presence {
   return PRESENCE[token];
 }
 
+/** The mood a token shows in: its placing card's, or its own. */
+export function tokenMood(engine: Engine, token: string): Mood {
+  const presence = presenceOf(token);
+  if (presence.kind === "figure") throw new Error(`The ${token} token is a figure, not a thing in a room`);
+  return "card" in presence.colour ? cardMood(engine, presence.colour.card) : presence.colour.mood;
+}
+
 /** One thing living in a room. Its id is stable while it stays where it is. */
 export interface RoomThing {
   id: string;
@@ -138,7 +145,7 @@ export function roomThings(engine: Engine, view: Pick<GameView, "piles" | "token
         name: tokenName(token.token),
         card: placer,
         token: token.token,
-        mood: "card" in presence.colour ? cardMood(engine, presence.colour.card) : presence.colour.mood,
+        mood: tokenMood(engine, token.token),
         wall: token.wall ?? null,
         link: token.link ?? null,
         lies: presence.kind === "object" || (presence.kind === "connection" && presence.on === "floor"),
@@ -276,17 +283,21 @@ const PRINTED: readonly Edge[] = ["top", "right", "bottom", "left"];
  *  on the first plain wall, beside a window, or beside a doorway when every
  *  wall has one. */
 export function edgeSpot(tile: Pick<RoomTile, "doors" | "passages" | "windows">, wall: readonly Edge[] | null): EdgeSpot {
-  if (wall !== null && wall.length > 0) {
-    const [edge, corner] = wall;
-    if (wall.length === 1) return { edge, along: 0 };
-    const [ax, az] = ALONG_AXIS[edge];
-    const [tx, tz] = TOWARD_EDGE[corner];
-    return { edge, along: Math.sign(ax * tx + az * tz) * INTO_CORNER };
-  }
+  if (wall !== null && wall.length > 0) return wallSpot(wall);
   const open = (edge: Edge) => tile.doors.includes(edge) || tile.passages.includes(edge);
   const plain = PRINTED.find((edge) => !open(edge));
   if (plain !== undefined) return { edge: plain, along: tile.windows.includes(plain) ? -BESIDE_OPENING : 0 };
   return { edge: "top", along: -BESIDE_OPENING };
+}
+
+/** Where a mark the game puts on a wall goes: in the middle of a wall, or in
+ *  a corner, along its first edge towards the second. */
+export function wallSpot(wall: readonly Edge[]): EdgeSpot {
+  const [edge, corner] = wall;
+  if (wall.length === 1) return { edge, along: 0 };
+  const [ax, az] = ALONG_AXIS[edge];
+  const [tx, tz] = TOWARD_EDGE[corner];
+  return { edge, along: Math.sign(ax * tx + az * tz) * INTO_CORNER };
 }
 
 export type ThingPlace =
