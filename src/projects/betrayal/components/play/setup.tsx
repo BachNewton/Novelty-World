@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { builtHaunts, requireBuilt } from "../../engine/haunt";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
-import { cycleCharacter, portraitSrc, takenBy } from "../../play/setup";
+import { portraitSrc, takenBy } from "../../play/setup";
 import { characterTracks } from "../../play/tracks";
 import type { SharedGame } from "../../share";
 import { ErrorBox } from "../error-box";
@@ -81,9 +81,6 @@ export function Setup({
     if (!ready) return;
     onOpen({ game: { seed: crypto.randomUUID(), sets: ["base"], seats, today: today(), ...(haunt === null ? {} : { chosenHaunt: haunt }) }, actions: [] });
   };
-  const cycle = (seat: number, step: 1 | -1) => {
-    setSeats((now) => cycleCharacter(characters, now, seat, step));
-  };
   const root = useRef<HTMLDivElement>(null);
   useSetupPads(root, input, onInput);
 
@@ -108,9 +105,6 @@ export function Setup({
               key={index}
               index={index}
               seats={seats}
-              onCycle={(step) => {
-                cycle(index, step);
-              }}
               onChoose={() => {
                 setChoosing(index);
               }}
@@ -187,43 +181,23 @@ function Resume({ saved, onResume }: { saved: SharedGame; onResume: () => void }
   );
 }
 
-function SeatCard({ index, seats, onCycle, onChoose, pads }: { index: number; seats: Seats; onCycle: (step: 1 | -1) => void; onChoose: () => void; pads: PadSeats }) {
+function SeatCard({ index, seats, onChoose, pads }: { index: number; seats: Seats; onChoose: () => void; pads: PadSeats }) {
   const { character } = seats[index];
-  const arrow = "flex min-h-11 min-w-11 items-center justify-center rounded border border-(--bt-line) bg-(--bt-bg)/70 text-xl hover:border-(--bt-accent)";
   return (
     <li aria-label={`Seat ${index}`} className="flex min-w-0 flex-col gap-2 rounded border border-(--bt-line) bg-(--bt-bg) p-1.5 focus-within:border-(--bt-accent)">
-      {/* The card is the portrait, with the character's name and the arrows that change it over its foot. */}
-      <div className="relative">
-        <button type="button" aria-label={`Seat ${index} character: ${nameOf(character)}`} onClick={onChoose} className="block w-full">
-          <Portrait character={character} className="aspect-4/5 h-auto w-full" />
-        </button>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 rounded-b bg-linear-to-t from-(--bt-bg) via-(--bt-bg)/80 to-transparent p-1.5 pt-8">
-          <button
-            type="button"
-            aria-label={`Seat ${index}: previous character`}
-            className={`pointer-events-auto ${arrow}`}
-            onClick={() => {
-              onCycle(-1);
-            }}
-          >
-            ‹
-          </button>
-          <span className="flex min-w-0 flex-1 items-center justify-center gap-1.5 text-center text-sm font-semibold">
-            <span aria-hidden className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, character)}`} />
-            <span className="truncate">{nameOf(character)}</span>
-          </span>
-          <button
-            type="button"
-            aria-label={`Seat ${index}: next character`}
-            className={`pointer-events-auto ${arrow}`}
-            onClick={() => {
-              onCycle(1);
-            }}
-          >
-            ›
-          </button>
-        </div>
-      </div>
+      {/* The card is the portrait, with the character's name over its foot; the whole portrait opens the character picker. */}
+      <button
+        type="button"
+        aria-label={`Seat ${index} character: ${nameOf(character)}`}
+        onClick={onChoose}
+        className="group relative block w-full cursor-pointer rounded outline-offset-2 hover:outline-2 hover:outline-(--bt-accent) focus-visible:outline-3 focus-visible:outline-(--bt-ink)"
+      >
+        <Portrait character={character} className="aspect-4/5 h-auto w-full transition-[filter] group-hover:brightness-110" />
+        <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 rounded-b bg-linear-to-t from-(--bt-bg) via-(--bt-bg)/80 to-transparent p-2 pt-8 text-center text-sm font-semibold">
+          <span aria-hidden className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, character)}`} />
+          <span className="truncate">{nameOf(character)}</span>
+        </span>
+      </button>
       <Traits character={character} />
       {pads.connected.length > 0 && <PadPicker seat={index} name={nameOf(character)} pads={pads} />}
     </li>

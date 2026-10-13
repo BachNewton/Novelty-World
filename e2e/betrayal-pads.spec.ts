@@ -289,17 +289,17 @@ test("two pads: claimed at setup, only the acting seat's pad acts and drives the
   await holdX(page, 0, "play.holder === 2 && play.turnSeat === 2");
 });
 
-test("setup on a pad: the d-pad and A change a seat's character and pick one from the grid, Menu does nothing, and Start starts", async ({ page }) => {
+test("setup on a pad: A on a seat's portrait opens the grid, A picks a character there and B closes it, Menu does nothing, and Start starts", async ({ page }) => {
   await openSetup(page);
   const seat0 = page.getByRole("listitem", { name: "Seat 0" });
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" })).toBeVisible();
-  await padPress(page, 0, page.getByRole("button", { name: "Seat 0: next character" }));
-  await expect(seat0.getByRole("button", { name: "Seat 0 character: Professor Longfellow" })).toBeVisible();
-  await padPress(page, 0, page.getByRole("button", { name: "Seat 0: previous character" }));
-  await expect(seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" })).toBeVisible();
-  // The portrait opens the grid; A picks a character there, and B closes it.
-  await padPress(page, 0, seat0.getByRole("button", { name: /^Seat 0 character/ }));
   const grid = page.getByRole("dialog", { name: "Seat 0's character" });
+  await padPress(page, 0, seat0.getByRole("button", { name: /^Seat 0 character/ }));
+  await expect(grid).toBeVisible();
+  await padPress(page, 0, grid.getByRole("button", { name: /Professor Longfellow/ }));
+  await expect(grid).toBeHidden();
+  await expect(seat0.getByRole("button", { name: "Seat 0 character: Professor Longfellow" })).toBeVisible();
+  await padPress(page, 0, seat0.getByRole("button", { name: /^Seat 0 character/ }));
   await expect(grid).toBeVisible();
   await press(page, 0, BUTTON.B);
   await expect(grid).toBeHidden();
