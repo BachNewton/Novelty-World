@@ -200,13 +200,25 @@ export function startPresentation(engine: Engine, view: GameView, floors: RoomFl
   };
 }
 
+/** The event that puts a figure in a room it arrives at. A room discovered
+ *  has the figure in it from `discovered`, while its `entered` waits until
+ *  the cards drawn for the room are done (p. 9), which may be writes later,
+ *  after a decision a card raised: the figure walks in, and the room shows
+ *  close, at `discovered`, before the card. */
+function arrival(event: EventView): { figure: FigureId; room: string } | null {
+  if (event.type === "discovered") return event.data as { figure: FigureId; room: string };
+  if (event.type !== "entered") return null;
+  const data = event.data as { figure: FigureId; room: string; discovered?: boolean };
+  return data.discovered === true ? null : data;
+}
+
 /** The rooms each figure walked through in these events, in order, from the
  *  room it left. A figure put somewhere by a rule rather than its own
  *  movement teleports, so it has no walk. */
 function routesOf(events: readonly EventView[]): Map<FigureId, string[] | null> {
   const routes = new Map<FigureId, string[] | null>();
   for (const event of events) {
-    if (event.type !== "left" && event.type !== "entered" && event.type !== "crossed") continue;
+    if (event.type !== "left" && event.type !== "crossed" && arrival(event) === null) continue;
     const { figure, room, moved } = event.data as { figure: FigureId; room: string; moved?: boolean };
     if (moved === false) {
       routes.set(figure, null);
@@ -252,8 +264,9 @@ export function present(engine: Engine, before: Presentation, events: readonly E
 
   const visited = new Set(before.visited);
   for (const event of fresh) {
-    if (event.type !== "entered") continue;
-    const { figure, room } = event.data as { figure: FigureId; room: string };
+    const arrived = arrival(event);
+    if (arrived === null) continue;
+    const { figure, room } = arrived;
     if (visited.has(room) || spots[figure]?.room !== room) continue;
     visited.add(room);
     beats.push({ kind: "enter", room });
