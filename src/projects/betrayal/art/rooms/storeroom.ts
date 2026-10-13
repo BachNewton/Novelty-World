@@ -202,7 +202,6 @@ export const STOREROOM: RoomDefinition = {
   wall: () => plaster({ ramp: ["stoneDark", "boneDark", "bone"], seed: SEED }),
   wainscot: () => panelling({ ramp: ["soot", "sootLight", "woodDark", "wood"], panelPx: 6, seed: SEED, glints: false }),
   trim: "woodDark",
-  shine: { glass: SHINES.glass },
   props: [
     { build: storeBay, at: [0, 0] },
     { build: () => lantern({ width: 0.12, height: 0.2, intensity: 18, range: 12, flicker: 0.12 }), name: "lantern", at: [(BAY.x[0] + BAY.x[1]) / 2, (BAY.z[0] + BAY.z[1]) / 2], y: HOOK },

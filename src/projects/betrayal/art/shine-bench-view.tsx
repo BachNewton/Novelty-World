@@ -5,23 +5,13 @@ import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import { BETRAYAL_THEME } from "../components/theme";
 import { BenchButton } from "./bench-view";
 import { SHINES, type Shine } from "./shine";
-import {
-  BENCH_LIGHTS,
-  createShineBench,
-  NO_LAMP,
-  swatchShine,
-  TILTS,
-  type ShineBench,
-  type ShineBenchSnapshot,
-  type ShineMark,
-  type Swatch,
-} from "./shine-bench";
+import { BENCH_LIGHTS, createShineBench, NO_LAMP, TILTS, type ShineBench, type ShineBenchSnapshot } from "./shine-bench";
 
 const PANEL = "pointer-events-auto rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 text-sm";
 
 const numbers = (shine: Shine | null) => (shine ? `r ${shine.roughness} · m ${shine.metalness} · refl ${shine.reflectance ?? 0.04}` : "matte");
 
-/** The shine bench (`?bench=shine`): every floor and shiny shell surface of the built rooms, under a light to pick and move. */
+/** The shine bench (`?bench=shine`): every floor of the built rooms, matte, under a light to pick and move, with a shine to try on them. */
 export function ShineBenchView() {
   const [bench] = useState(createShineBench);
   const state = useSyncExternalStore(bench.subscribe, bench.snapshot, bench.snapshot);
@@ -85,7 +75,7 @@ function Controls({ bench, state }: { bench: ShineBench; state: ShineBenchSnapsh
           {state.frozen ? "Flicker: frozen" : "Flicker: live"}
         </Toggle>
       </div>
-      {state.selected !== null && <TunePanel bench={bench} state={state} swatch={bench.swatches[state.selected]} index={state.selected} />}
+      <TryPanel bench={bench} state={state} />
       <SwatchList bench={bench} state={state} />
     </>
   );
@@ -182,45 +172,45 @@ function LightPanel({ bench, state }: { bench: ShineBench; state: ShineBenchSnap
   );
 }
 
-/** Tries numbers on the selected swatch's mark, on every swatch that has it. */
-function TunePanel({ bench, state, swatch, index }: { bench: ShineBench; state: ShineBenchSnapshot; swatch: Swatch; index: number }) {
-  const own = swatch.mark === "none" ? null : SHINES[swatch.mark];
-  const shine = swatchShine(swatch, state.overrides);
-  const tried = swatch.mark in state.overrides;
+type PresetName = keyof typeof SHINES;
+
+/** Tries a shine on every floor at once: a preset, then its numbers live. Rooms' floors stay matte; this is only for seeing a shine on a flat surface. */
+function TryPanel({ bench, state }: { bench: ShineBench; state: ShineBenchSnapshot }) {
+  const shine = state.tried;
   const set = (change: Partial<Shine>) => {
-    if (!shine) return;
-    bench.api.tune(swatch.mark, { ...shine, ...change });
+    if (shine) bench.api.tune({ ...shine, ...change });
   };
   return (
     <div className={`${PANEL} flex flex-col gap-1`}>
-      <span>
-        #{index + 1} {swatch.surface}: <b>{swatch.mark}</b>
-      </span>
-      <span className="text-xs text-(--bt-muted)">{swatch.rooms.join(", ")}</span>
-      <span className="text-xs text-(--bt-muted)">Its own numbers: {numbers(own)}</span>
-      {shine ? (
+      <label className="flex items-center gap-2">
+        <span className="text-(--bt-muted)">Try a shine</span>
+        <select
+          className="flex-1 bg-(--bt-panel) text-(--bt-ink)"
+          value=""
+          onChange={(event) => bench.api.tune(event.target.value === "" ? null : { ...SHINES[event.target.value as PresetName] })}
+        >
+          <option value="">{shine ? "Pick another preset" : "Matte, as rooms lay them"}</option>
+          {(Object.keys(SHINES) as PresetName[]).map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className="text-xs text-(--bt-muted)">On every floor: {numbers(shine)}</span>
+      {shine && (
         <>
           <Slider label="Roughness" value={shine.roughness} min={0} max={1} step={0.01} onCommit={(value) => set({ roughness: value })} />
           <Slider label="Metalness" value={shine.metalness} min={0} max={1} step={0.01} onCommit={(value) => set({ metalness: value })} />
           <Slider label="Reflectance" value={shine.reflectance ?? 0.04} min={0} max={0.1} step={0.001} onCommit={(value) => set({ reflectance: value })} />
           <span className="text-xs text-(--bt-muted)">
-            Applies to every swatch marked {swatch.mark}. Reflectance is how much it reflects head on: towards a grazing angle (a low camera, or a
-            lamp low beside the surface) every non-metal reflects more, whatever its reflectance.
+            Reflectance is how much it reflects head on: towards a grazing angle (a low camera, or a lamp low beside the surface) every non-metal
+            reflects more, whatever its reflectance.
           </span>
+          <button type="button" className="rounded border border-(--bt-line) px-2 py-0.5 text-xs" onClick={() => bench.api.tune(null)}>
+            Back to matte
+          </button>
         </>
-      ) : (
-        <button
-          type="button"
-          className="rounded border border-(--bt-line) px-2 py-0.5 text-xs"
-          onClick={() => bench.api.tune(swatch.mark, { ...SHINES.floorSheen })}
-        >
-          Try floorSheen on every unmarked swatch
-        </button>
-      )}
-      {tried && (
-        <button type="button" className="rounded border border-(--bt-line) px-2 py-0.5 text-xs" onClick={() => bench.api.tune(swatch.mark, null)}>
-          Put {swatch.mark}&apos;s own numbers back
-        </button>
       )}
     </div>
   );
@@ -229,25 +219,18 @@ function TunePanel({ bench, state, swatch, index }: { bench: ShineBench; state: 
 function SwatchList({ bench, state }: { bench: ShineBench; state: ShineBenchSnapshot }) {
   return (
     <ol className={`${PANEL} flex flex-col gap-0.5 text-xs`}>
-      <li className="text-(--bt-muted)">Click a swatch, here or on the floor, to try its numbers.</li>
-      {bench.swatches.map((swatch, index) => {
-        const mark: ShineMark = swatch.mark;
-        return (
-          <li key={index}>
-            <button
-              type="button"
-              onClick={() => bench.api.select(state.selected === index ? null : index)}
-              className={`w-full rounded px-1 text-left ${state.selected === index ? "bg-(--bt-focus)" : ""}`}
-            >
-              <span className="tabular-nums">{index + 1}.</span> {swatch.surface !== "floor" && `${swatch.surface}, `}
-              <span className={mark === "none" ? "text-(--bt-muted)" : "text-(--bt-door)"}>{mark}</span>
-              {mark in state.overrides && " (trying)"} <span className="text-(--bt-muted)">· {numbers(swatchShine(swatch, state.overrides))}</span>
-              <br />
-              <span className="text-(--bt-muted)">{swatch.rooms.join(", ")}</span>
-            </button>
-          </li>
-        );
-      })}
+      <li className="text-(--bt-muted)">Click a floor, here or on the bench, to find it.</li>
+      {bench.swatches.map((swatch, index) => (
+        <li key={index}>
+          <button
+            type="button"
+            onClick={() => bench.api.select(state.selected === index ? null : index)}
+            className={`w-full rounded px-1 text-left ${state.selected === index ? "bg-(--bt-focus)" : ""}`}
+          >
+            <span className="tabular-nums">{index + 1}.</span> <span className="text-(--bt-muted)">{swatch.rooms.join(", ")}</span>
+          </button>
+        </li>
+      ))}
     </ol>
   );
 }

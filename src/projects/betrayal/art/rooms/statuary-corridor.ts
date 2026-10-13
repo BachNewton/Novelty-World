@@ -13,8 +13,7 @@ const SURFACES = {
   wall: () => wallpaper({ ground: "sootLight", stripe: "soot", motif: "ash", seed: SEED }),
   wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED, glints: false }),
   trim: "woodDark",
-  shine: { glass: SHINES.glass },
-} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim" | "shine">;
+} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim">;
 /** Statuary marble, polished. */
 const carved = (colour: "stoneLight" | "boneLight" | "stone") => shiny(flat(colour), SHINES.marble);
 

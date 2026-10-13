@@ -27,10 +27,6 @@ export const SUITE: Pick<RoomDefinition, "floor" | "wall" | "wainscot" | "trim">
   trim: "woodDark",
 };
 
-/** The hall's kept marble, with a faint sheen; its panelling is matte. Apart from `SUITE`, as the Upper Landing wears the panels over boards. */
-export const HALL_SHINE: RoomDefinition["shine"] = { floor: SHINES.floorSheen };
-
-
 /** The grand staircase's measure, shared by the flight on the ground floor
  *  and its head on the Upper Landing. On the ground floor it climbs the top
  *  wall from its foot near the Foyer (+x) to the left wall. */

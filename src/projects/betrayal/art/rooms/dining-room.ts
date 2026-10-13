@@ -184,7 +184,6 @@ export const DINING_ROOM: RoomDefinition = {
   wall: () => wallpaper({ ground: "bloodDark", stripe: "woodDark", motif: "blood", seed: SEED }),
   wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED, glints: false }),
   trim: "woodDark",
-  shine: { floor: SHINES.floorSheen, glass: SHINES.glass },
   props: [
     { build: () => rug({ width: 4.4, length: 2.9, field: "bruiseDark", border: "soot", motif: "bruise", fringe: "boneDark" }), name: "rug", at: TABLE.at },
     { build: banquetTable, at: TABLE.at },

@@ -11,14 +11,16 @@ import { paletteHex, type PaletteKey } from "./palette";
 import { TILE, WALL_HEIGHT, type LampKind, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { box, flat, group, textured } from "./shapes";
-import { SHINES, shineOn, shiny, type Shine } from "./shine";
+import { shineOn, shiny, type Shine } from "./shine";
 import { disposeTree, roomTile, type RoomPart } from "./stage";
 import { texturesUnder } from "./textures";
 
 /*
- * The shine bench (`?bench=shine`): every floor the built rooms lay, and every
- * wall, wainscot and trim a room marks shiny, side by side as swatches, each
- * with the shine its rooms give it, under one light the page picks and moves.
+ * The shine bench (`?bench=shine`): every floor the built rooms lay, side by
+ * side as swatches, under one light the page picks and moves. A room's shell
+ * never shines (`shine.ts`), so the floors are matte: the bench shows how they
+ * take each light, and tries a shine on all of them at once, to see a preset
+ * on a flat surface under the house's own lighting.
  *
  * The swatches go through the house's own path: frozen and baked as a room is
  * (`freezeRoom`, `createLitFloor`), so a lamp's highlight is shown as far as
@@ -30,17 +32,9 @@ import { texturesUnder } from "./textures";
  * walls bounce light back onto them; and there is no fog.
  */
 
-export type ShinePresetName = keyof typeof SHINES;
-/** What a swatch's surface is marked: one of the presets, or nothing (matte). */
-export type ShineMark = ShinePresetName | "none";
-export type ShellSurface = "floor" | "wall" | "wainscot" | "trim";
-
-/** One swatch: a surface as a room draws it, and the rooms that draw it so. */
+/** One swatch: a floor as rooms lay it, and the rooms that lay it. */
 export interface Swatch {
-  surface: ShellSurface;
-  /** The rooms' texture for it, or for trim its flat colour. */
-  look: THREE.Texture | PaletteKey;
-  mark: ShineMark;
+  look: THREE.Texture;
   rooms: string[];
 }
 
@@ -80,35 +74,20 @@ export const TILTS = [
 ] as const;
 const ZOOMS = [1, 1.6, 2.4, 3.6];
 
-const markOf = (shine: Shine | undefined): ShineMark => {
-  if (!shine) return "none";
-  const found = (Object.keys(SHINES) as ShinePresetName[]).find((name) => SHINES[name] === shine);
-  if (!found) throw new Error("A room marks a surface with a shine of its own numbers, not a preset: the bench lists presets only");
-  return found;
-};
-
-/** Every floor of the built rooms, and every wall, wainscot and trim one marks shiny: one swatch per look and mark, with the rooms that share it. */
-export function shellSwatches(rooms: readonly RoomDefinition[] = BENCH_ROOMS): Swatch[] {
+/** Every floor of the built rooms: one swatch per look, with the rooms that share it. */
+export function floorSwatches(rooms: readonly RoomDefinition[] = BENCH_ROOMS): Swatch[] {
   const swatches = new Map<string, Swatch>();
-  const add = (surface: ShellSurface, look: Swatch["look"], mark: ShineMark, room: string) => {
-    const key = `${surface}|${typeof look === "string" ? look : look.uuid}|${mark}`;
-    const found = swatches.get(key);
-    if (found) found.rooms.push(room);
-    else swatches.set(key, { surface, look, mark, rooms: [room] });
-  };
   for (const def of rooms) {
+    const look = def.floor();
     const name = roomTile(def.id).name;
-    add("floor", def.floor(), markOf(def.shine?.floor), name);
-    if (def.shine?.wall) add("wall", def.wall(), markOf(def.shine.wall), name);
-    if (def.shine?.wainscot && def.wainscot) add("wainscot", def.wainscot(), markOf(def.shine.wainscot), name);
-    if (def.shine?.trim) add("trim", def.trim, markOf(def.shine.trim), name);
+    const found = swatches.get(look.uuid);
+    if (found) found.rooms.push(name);
+    else swatches.set(look.uuid, { look, rooms: [name] });
   }
-  // Shiny floors first, so they lie in the middle round a light there; the upright wall pieces last, round the edge, where they hide nothing.
-  const order = (swatch: Swatch) => (swatch.surface !== "floor" ? 2 : swatch.mark === "none" ? 1 : 0);
-  return [...swatches.values()].sort((a, b) => order(a) - order(b));
+  return [...swatches.values()];
 }
 
-/** Where each swatch lies on the tile: a square grid, filled from the middle out, so the first swatches (the shiny ones) lie round a light at the centre. */
+/** Where each swatch lies on the tile: a square grid, filled from the middle out, so the first swatches lie round a light at the centre. */
 function layout(count: number): { size: number; at: (index: number) => [number, number] } {
   const columns = Math.ceil(Math.sqrt(count));
   const pitch = (TILE - 0.4) / columns;
@@ -121,8 +100,6 @@ function layout(count: number): { size: number; at: (index: number) => [number, 
 }
 
 const SWATCH_DEPTH = 0.02;
-const UPRIGHT_HEIGHT = 0.9;
-const UPRIGHT_THICKNESS = 0.05;
 
 export interface ShineBenchSnapshot {
   light: string;
@@ -136,8 +113,8 @@ export interface ShineBenchSnapshot {
   zoom: number;
   frozen: boolean;
   selected: number | null;
-  /** Numbers tried in place of a mark's own, on every swatch with that mark. */
-  overrides: Partial<Record<ShineMark, Shine>>;
+  /** A shine tried on every swatch, or null for the floors as rooms lay them: matte. */
+  tried: Shine | null;
   /** Whether a bake is under way, and how long the last one took to show its whole light. */
   baking: boolean;
   bakeMs: number | null;
@@ -156,19 +133,14 @@ export interface ShineBenchApi {
   setZoom: (zoom: number) => void;
   freezeClock: (frozen: boolean) => void;
   select: (index: number | null) => void;
-  /** Tries numbers on every swatch with this mark; null puts its own back. */
-  tune: (mark: ShineMark, shine: Shine | null) => void;
+  /** Tries a shine on every swatch; null puts them back to matte. */
+  tune: (shine: Shine | null) => void;
 }
 
 declare global {
   interface Window {
     __betrayalShineBench?: ShineBenchApi;
   }
-}
-
-/** The shine a swatch is drawn with: its mark's, or the numbers being tried on it. */
-export function swatchShine(swatch: Swatch, overrides: ShineBenchSnapshot["overrides"]): Shine | null {
-  return overrides[swatch.mark] ?? (swatch.mark === "none" ? null : SHINES[swatch.mark]);
 }
 
 /** Keeps the address in step with the page's shine setting, which `shineOn` reads. */
@@ -185,15 +157,10 @@ function swatchPart(swatches: readonly Swatch[], snapshot: ShineBenchSnapshot): 
   const base = flat("sootLight");
   const root = group(box([TILE, 0.2, TILE], flat("soot"), [0, -0.2, 0]));
   swatches.forEach((swatch, index) => {
-    const material = typeof swatch.look === "string" ? flat(swatch.look) : textured(swatch.look);
-    const shine = swatchShine(swatch, snapshot.overrides);
-    if (shine && snapshot.shine) shiny(material, shine);
+    const material = textured(swatch.look);
+    if (snapshot.tried && snapshot.shine) shiny(material, snapshot.tried);
     const [x, z] = at(index);
-    root.add(
-      swatch.surface === "floor"
-        ? box([size, SWATCH_DEPTH, size], [base, base, material, base, base, base], [x, 0, z])
-        : box([size, UPRIGHT_HEIGHT, UPRIGHT_THICKNESS], [base, base, base, base, material, material], [x, 0, z]),
-    );
+    root.add(box([size, SWATCH_DEPTH, size], [base, base, material, base, base, base], [x, 0, z]));
   });
   if (!snapshot.moon) {
     const ceiling = box([TILE * 3, 0.1, TILE * 3], flat("void"), [0, WALL_HEIGHT, 0]);
@@ -245,7 +212,7 @@ function label(text: string): THREE.Sprite {
 
 /** The bench's state outside React, so the page and screenshot tools drive the same thing. */
 export function createShineBench() {
-  const swatches = shellSwatches();
+  const swatches = floorSwatches();
   const firstLamp = BENCH_LIGHTS[0];
   let snapshot: ShineBenchSnapshot = {
     light: firstLamp.id,
@@ -258,7 +225,7 @@ export function createShineBench() {
     zoom: ZOOMS[0],
     frozen: false,
     selected: null,
-    overrides: {},
+    tried: null,
     baking: true,
     bakeMs: null,
   };
@@ -318,13 +285,9 @@ export function createShineBench() {
       update({ ...snapshot, selected: index });
       mounted?.select();
     },
-    tune: (mark, shine) => {
-      const overrides = { ...snapshot.overrides };
-      if (shine) {
-        for (const [key, value] of Object.entries(shine)) if (!(value >= 0 && value <= 1)) throw new Error(`A shine's ${key} is ${value}; it runs from 0 to 1`);
-        overrides[mark] = shine;
-      } else delete overrides[mark];
-      rebaking({ ...snapshot, overrides });
+    tune: (shine) => {
+      if (shine) for (const [key, value] of Object.entries(shine)) if (!(value >= 0 && value <= 1)) throw new Error(`A shine's ${key} is ${value}; it runs from 0 to 1`);
+      rebaking({ ...snapshot, tried: shine });
     },
   };
 
@@ -348,10 +311,10 @@ export function createShineBench() {
     const overExplorer = explorerLight();
     const lampMarker = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshBasicMaterial({ toneMapped: false }));
     const { size, at } = layout(swatches.length);
-    const labels = swatches.map((swatch, index) => {
+    const labels = swatches.map((_, index) => {
       const sprite = label(String(index + 1));
       const [x, z] = at(index);
-      sprite.position.set(x - size / 2 + 0.12, swatch.surface === "floor" ? 0.1 : UPRIGHT_HEIGHT + 0.1, z + size / 2 + 0.02);
+      sprite.position.set(x - size / 2 + 0.12, 0.1, z + size / 2 + 0.02);
       return sprite;
     });
     const outline = new THREE.LineSegments(
@@ -370,7 +333,7 @@ export function createShineBench() {
       overExplorer.position.set(snapshot.at[0], 0, snapshot.at[2]).add(EXPLORER_LIGHT_OFFSET);
     };
     let bakeId = 0;
-    /** Rebuilds the swatches and bakes them afresh: a light moved, the moon, the shine or its numbers changed. */
+    /** Rebuilds the swatches and bakes them afresh: a light moved, the moon, the shine or the one tried changed. */
     const rebake = () => {
       const id = ++bakeId;
       ready = false;
@@ -392,9 +355,8 @@ export function createShineBench() {
       outline.visible = index !== null;
       if (index === null) return;
       const [x, z] = at(index);
-      const upright = swatches[index].surface !== "floor";
-      outline.scale.set(size + 0.06, upright ? UPRIGHT_HEIGHT + 0.06 : 0.06, upright ? UPRIGHT_THICKNESS + 0.06 : size + 0.06);
-      outline.position.set(x, upright ? UPRIGHT_HEIGHT / 2 : SWATCH_DEPTH / 2, z);
+      outline.scale.set(size + 0.06, 0.06, size + 0.06);
+      outline.position.set(x, SWATCH_DEPTH / 2, z);
     };
 
     const controls = new OrbitControls(camera, renderer.domElement);

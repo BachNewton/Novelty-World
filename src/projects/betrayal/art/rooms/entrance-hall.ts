@@ -6,7 +6,7 @@ import { batch, box, cylinder, flat, glow, group, pixelPlane } from "../shapes";
 import { solidLathe } from "../kit/vessel";
 import { shiny, shinyBatch, SHINES } from "../shine";
 import { pixelTexture, svgTexture, TEXELS_PER_METRE } from "../textures";
-import { HALL_SHINE, runner, SUITE } from "./starting-tile";
+import { runner, SUITE } from "./starting-tile";
 
 const LEAF_TOP = 2.32;
 const TRANSOM = 0.08;
@@ -155,7 +155,6 @@ const PRINTS: [x: number, z: number, turn: number][] = [
 export const ENTRANCE_HALL: RoomDefinition = {
   id: "entrance-hall",
   ...SUITE,
-  shine: HALL_SHINE,
   props: [
     { build: () => runner({ from: -3, to: 2.62, finished: ["to"] }), at: [0, 0] },
     // The part on the floor stops a little under the cut wall's top, so the two never share a plane; the part above reaches down to it.
