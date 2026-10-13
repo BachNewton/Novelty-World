@@ -1,8 +1,21 @@
 import { describe, expect, it } from "vitest";
+import { TRAITS } from "../engine/figures";
 import { viewFor } from "../engine/view";
 import { ENGINE } from "../game";
 import { testGame } from "../testing";
-import { figureTracks, landing, skullState, stepsAboveSkull, traitTrack } from "./tracks";
+import { characterTracks, figureTracks, landing, skullState, stepsAboveSkull, traitTrack } from "./tracks";
+
+describe("a character's tracks at setup", () => {
+  it("are the card's, in its order, with the clip on each starting step and the skull locked", () => {
+    const ox = ENGINE.catalog.characters["ox-bellows"];
+    const tracks = characterTracks(ox);
+    expect(tracks.map((track) => track.trait)).toEqual(TRAITS);
+    for (const track of tracks) {
+      expect(track.values).toEqual(ox.tracks[track.trait]);
+      expect(track).toMatchObject({ clip: ox.start[track.trait], start: ox.start[track.trait], skull: "locked", lands: null });
+    }
+  });
+});
 
 describe("a trait's track", () => {
   it("moves the clip a step per point, and never past the top", () => {

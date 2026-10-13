@@ -10,7 +10,7 @@ export function PadPicker({ seat, name, pads }: { seat: number; name: string; pa
   const owner = padOf(pads.assignment, seat);
   const options = [null, ...pads.connected];
   return (
-    <div role="group" aria-label={`${name}'s pad`} className="flex flex-wrap items-center gap-1 text-xs">
+    <div role="group" aria-label={`${name}'s controller`} className="flex flex-wrap items-center gap-1 text-xs">
       {options.map((pad) => (
         <button
           key={pad ?? "open"}

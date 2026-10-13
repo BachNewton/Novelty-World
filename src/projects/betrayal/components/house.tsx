@@ -13,6 +13,7 @@ import type { Engine } from "../engine/step-loop";
 import type { Focus } from "../play/choices";
 import type { GameView } from "../engine/view";
 import { SEAT_BG } from "./theme";
+import { ownerPrefix } from "./describe";
 
 /** A figure's colour: its owning seat's, or a neutral one when no seat owns it. */
 const figureBg = (owner: number | null) =>
@@ -262,7 +263,7 @@ function Room({
             <span
               key={f.id}
               className={`rounded px-1 font-semibold text-(--bt-bg) ${figureBg(f.owner)} ${theirs ? "ring-2 ring-(--bt-ink)" : ""}`}
-              title={`${f.owner === null ? "" : `${view.seats[f.owner].name}: `}${name}${side}${theirs ? " (their turn)" : ""}`}
+              title={`${ownerPrefix(view, f)}${name}${side}${theirs ? " (their turn)" : ""}`}
             >
               {theirs ? "▶ " : ""}
               {name.split(" ")[0]}
@@ -356,7 +357,7 @@ function Legend({ view }: { view: GameView }) {
       {Object.values(view.figures).map((f) => (
         <span key={f.id} className="flex items-center gap-1">
           <span className={`inline-block size-2.5 rounded-full ${figureBg(f.owner)}`} />
-          {f.owner === null ? "" : `${view.seats[f.owner].name}: `}
+          {ownerPrefix(view, f)}
           {f.name}
         </span>
       ))}

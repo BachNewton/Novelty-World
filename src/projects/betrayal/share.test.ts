@@ -9,9 +9,9 @@ const shared: SharedGame = {
     seed: "share-seed",
     sets: ["base"],
     seats: [
-      { name: "Zoë", character: "zoe-ingstrom" },
-      { name: "Ox", character: "ox-bellows" },
-      { name: "Père", character: "father-rhinehardt" },
+      { character: "zoe-ingstrom" },
+      { character: "ox-bellows" },
+      { character: "father-rhinehardt" },
     ],
     today: { month: 3, day: 1 },
     scenario: {
@@ -24,10 +24,15 @@ const shared: SharedGame = {
 };
 
 describe("a shared game", () => {
-  it("survives encoding, accents and all, as URL-safe text", () => {
+  it("survives encoding as URL-safe text", () => {
     const code = encodeGame(shared);
     expect(code).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(decodeGame(code)).toEqual(shared);
+  });
+
+  it("reads a code from when seats had typed names, accents and all, without them", () => {
+    const named = { ...shared, game: { ...shared.game, seats: shared.game.seats.map((seat, i) => ({ name: ["Zoë", "Ox", "Père"][i], ...seat })) } };
+    expect(decodeGame(encodeGame(named))).toEqual(shared);
   });
 
   it("carries a haunt scenario's sides and roles, secrets included", () => {

@@ -5,9 +5,9 @@ import { CHARACTERS } from "../data/characters";
 import { cycleCharacter, portraitSrc, takenBy } from "./setup";
 
 const seats = [
-  { name: "A", character: "father-rhinehardt" },
-  { name: "B", character: "ox-bellows" },
-  { name: "C", character: "zoe-ingstrom" },
+  { character: "father-rhinehardt" },
+  { character: "ox-bellows" },
+  { character: "zoe-ingstrom" },
 ];
 
 describe("choosing characters at setup", () => {

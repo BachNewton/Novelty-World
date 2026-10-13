@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { GameView } from "../../engine/view";
+import { seatName, type GameView } from "../../engine/view";
 import type { InputKind } from "../../input/controls";
 import type { Action, HauntHalf } from "../../types";
-import { seatLabel } from "../describe";
 import { Prompt } from "../prompts";
 import { enterLayer } from "./pad-focus";
 
@@ -21,7 +20,7 @@ export function revealPrompt(view: GameView, holder: number): string {
   const traitors = view.seats.flatMap((seat, i) => (seat.side === "traitor" && !seat.hidden ? [i] : []));
   const me = view.seats[holder];
   if (me.side === "traitor") return "you're the traitor. Everyone else, look away.";
-  if (me.side === "heroes" && traitors.length > 0) return `heroes read; ${traitors.map((seat) => view.seats[seat].name).join(" and ")}, look away.`;
+  if (me.side === "heroes" && traitors.length > 0) return `heroes read; ${traitors.map((seat) => seatName(view, seat)).join(" and ")}, look away.`;
   return "your half. Everyone else, look away.";
 }
 
@@ -44,13 +43,13 @@ export function RevealNow({ view, holder, act, input }: { view: GameView; holder
         <p data-traitor className="flex items-center gap-2 rounded border border-(--bt-mood-danger) px-2 py-1 text-sm">
           <span aria-hidden className="inline-block size-2.5 rounded-full bg-(--bt-mood-danger)" />
           <span>
-            <span className="font-semibold text-(--bt-mood-danger)">{traitors.map((seat) => seatLabel(view, seat)).join(" and ")}</span>: traitor
+            <span className="font-semibold text-(--bt-mood-danger)">{traitors.map((seat) => seatName(view, seat)).join(" and ")}</span>: traitor
           </span>
         </p>
       )}
       {secret && <p className="text-sm text-(--bt-muted)">The traitor is secret.</p>}
       <p className="text-base">
-        <span className="font-semibold">{seatLabel(view, holder)}</span>: {revealPrompt(view, holder)}
+        <span className="font-semibold">{seatName(view, holder)}</span>: {revealPrompt(view, holder)}
       </p>
       <div className="flex flex-wrap gap-2">
         {halves.map((half) => (

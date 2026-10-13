@@ -5,8 +5,7 @@ import {
   describeRule,
   describeWaiting,
 } from "../engine/describe";
-import type { GameView } from "../engine/view";
-import { seatLabel } from "./describe";
+import { seatName, type GameView } from "../engine/view";
 import { SEAT_BG } from "./theme";
 import { Why } from "./why";
 
@@ -39,7 +38,7 @@ export function PendingPanel({
         The game is over.{" "}
         {winners.length === 0
           ? "No one wins."
-          : `Winners: ${winners.map((seat) => seatLabel(view, seat)).join(", ")}.`}{" "}
+          : `Winners: ${winners.map((seat) => seatName(view, seat)).join(", ")}.`}{" "}
         <span className="text-xs font-normal text-(--bt-muted)">
           ({describeRule(engine, rule)})
         </span>
@@ -63,7 +62,7 @@ export function PendingPanel({
     return (
       <div className="flex flex-col gap-2">
         <div>
-          Waiting for {pending.seats.map((seat) => seatLabel(view, seat)).join(", ")}{" "}
+          Waiting for {pending.seats.map((seat) => seatName(view, seat)).join(", ")}{" "}
           to read and confirm{" "}
           <span className="text-(--bt-muted)">
             ({describeRule(engine, pending.rule)})
@@ -73,7 +72,7 @@ export function PendingPanel({
         {viewer !== null && pending.seats.includes(viewer) && (
           <div className="flex flex-wrap gap-2">
             <ChoiceButton
-              label={`Ready: ${seatLabel(view, viewer)}`}
+              label={`Ready: ${seatName(view, viewer)}`}
               onClick={() => {
                 onAction({ kind: "ready", wait: pending.id, seat: viewer });
               }}
@@ -104,7 +103,7 @@ export function PendingPanel({
       </div>
       <h3 className="flex items-center gap-1.5 font-semibold">
         <span className={`inline-block size-2.5 rounded-full ${seatDot ?? SEAT_BG[viewer]}`} />
-        {seatLabel(view, viewer)}
+        {seatName(view, viewer)}
       </h3>
       {detail.answer !== null ? (
         <p className="text-(--bt-muted)">

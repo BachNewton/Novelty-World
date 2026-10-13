@@ -63,7 +63,7 @@ What remains for the goal:
 
 - **UI:** the list above, and whatever the playtest finds.
 - **Rooms:** the 16 base rooms left: the Gymnasium, Operating Laboratory, Research Laboratory, Vault, Balcony, Gallery, Bloody Room, Charred Room, Collapsed Room, Conservatory, Ballroom, Coal Chute, Gardens, Patio, Crypt and Larder.
-- **Explorers:** the 5 left: Missy, Vivian, Madame Zostra, Heather and Jenny. Setup's portraits then move to a lower camera and a closer zoom, and setup shows each character's starting tracks and a short description (not built; the final call waits on more explorer art).
+- **Explorers:** the 5 left: Missy, Vivian, Madame Zostra, Heather and Jenny. Setup's portraits are shot from a lower camera and a closer zoom, in the Abandoned Room (done). Setup shows each character's tracks as the card prints them, on each seat and for the character in focus in the picker; a short description is not built (the final call waits on more explorer art).
 - **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements.
 - **Props and figures:** held items and omens, companions, room tokens; startle and hurt animations; jumps and falls; the models of things on the floor (stand-ins today).
 

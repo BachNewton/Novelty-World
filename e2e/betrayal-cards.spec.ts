@@ -33,7 +33,7 @@ test("keyboard and mouse: a card's beat, a reroll picked from the dice, and dama
   await page.keyboard.press("Escape");
   await expect(fan).toBeHidden();
   // The seat's own panel in the header opens the same card.
-  await page.getByRole("button", { name: /\(Zoe Ingstrom\): character card$/ }).click();
+  await page.getByRole("button", { name: "Zoe Ingstrom: character card", exact: true }).click();
   await expect(fan).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(fan).toBeHidden();

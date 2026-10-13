@@ -16,7 +16,7 @@ export const PAGE = "/board-games/betrayal?lightmap=test";
 export const HOUSE = `${PAGE}&house`;
 const SAVED = "nw:betrayal:hot-seat";
 
-/** A game for the share code: Zoe goes first (it is her birthday) as Ann, then Ox as Ben and Father Rhinehardt as Cat. */
+/** A game for the share code: Zoe goes first (it is her birthday), then Ox, then Father Rhinehardt. */
 export function seededGame(scenario: object, seed = "e2e-play") {
   return {
     format: 3,
@@ -24,9 +24,9 @@ export function seededGame(scenario: object, seed = "e2e-play") {
       seed,
       sets: ["base"],
       seats: [
-        { name: "Ann", character: "zoe-ingstrom" },
-        { name: "Ben", character: "ox-bellows" },
-        { name: "Cat", character: "father-rhinehardt" },
+        { character: "zoe-ingstrom" },
+        { character: "ox-bellows" },
+        { character: "father-rhinehardt" },
       ],
       today: { month: 11, day: 5 },
       scenario,
@@ -86,7 +86,9 @@ export async function resume(page: Page, game: object): Promise<void> {
 export async function pointOf(page: Page, id: string): Promise<{ x: number; y: number }> {
   const at = await page.evaluate((target) => {
     const point = window.__betrayalPlay?.screenPoint(target) ?? null;
-    return point && document.elementFromPoint(point.x, point.y) instanceof HTMLCanvasElement ? point : null;
+    const over = point && document.elementFromPoint(point.x, point.y);
+    // The frame meter draws on canvases too: open house is the house's own.
+    return over instanceof HTMLCanvasElement && over.closest("[data-frame-meter]") === null ? point : null;
   }, id);
   if (!at) throw new Error(`${id} doesn't show in the open house`);
   return at;
@@ -112,9 +114,15 @@ export async function watchDebugPanel(page: Page): Promise<() => Promise<boolean
   return () => page.evaluate(() => (window as unknown as { debugPanelSeen: { debug: boolean } }).debugPanelSeen.debug);
 }
 
-/** A standard controller the page reads in place of a real one, its buttons set by `press`. */
-export async function withPad(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+/**
+ * A standard controller the page reads in place of a real one, its buttons
+ * set by `press`. By default the page sees it from the start. An `asleep`
+ * pad behaves as Chrome's do: hidden from the page (`getGamepads` lists no
+ * pad) until a button is pressed on it (`wakePad`), which shows it to the
+ * page and fires `gamepadconnected`.
+ */
+export async function withPad(page: Page, { asleep = false }: { asleep?: boolean } = {}): Promise<void> {
+  await page.addInitScript((hidden) => {
     const pad = {
       index: 0,
       id: "Test pad (STANDARD GAMEPAD)",
@@ -124,9 +132,26 @@ export async function withPad(page: Page): Promise<void> {
       axes: [0, 0, 0, 0],
       buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
     };
-    Object.assign(window, { testPad: pad });
-    Object.defineProperty(navigator, "getGamepads", { value: () => [pad, null, null, null] });
-  });
+    const shown = { pad: !hidden };
+    Object.assign(window, { testPad: pad, testPadShown: shown });
+    Object.defineProperty(navigator, "getGamepads", { value: () => [shown.pad ? pad : null, null, null, null] });
+  }, asleep);
+}
+
+/** Presses a button on an asleep pad, as a player picking it up would: the
+ *  browser shows the page the pad with the button down and fires
+ *  `gamepadconnected`, and the button is let go once the page has read it. */
+export async function wakePad(page: Page, button: number): Promise<void> {
+  await page.evaluate((index) => {
+    const w = window as unknown as { testPad: { buttons: { pressed: boolean; value: number }[] }; testPadShown: { pad: boolean } };
+    w.testPad.buttons[index] = { ...w.testPad.buttons[index], pressed: true, value: 1 };
+    w.testPadShown.pad = true;
+    const event = new Event("gamepadconnected");
+    Object.defineProperty(event, "gamepad", { value: w.testPad });
+    window.dispatchEvent(event);
+  }, button);
+  await frames(page);
+  await setButton(page, button, false);
 }
 
 export const BUTTON = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, View: 8, Menu: 9, LS: 10, RS: 11, DpadUp: 12, DpadDown: 13, DpadLeft: 14, DpadRight: 15 } as const;
