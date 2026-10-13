@@ -240,7 +240,7 @@ function HoldFill({ holding, onHeld }: Hold) {
       run.cancel();
     };
   }, [holding]);
-  return <span ref={ref} aria-hidden data-hold-fill={holding ? "filling" : "rest"} className="absolute inset-0 origin-left scale-x-0 bg-(--bt-ink)" />;
+  return <span ref={ref} aria-hidden data-hold-fill={holding ? "filling" : "rest"} style={{ transform: "scaleX(0)" }} className="absolute inset-0 origin-left bg-(--bt-ink)" />;
 }
 
 /** A filling hold's button is always the accent with dark text, so its label
