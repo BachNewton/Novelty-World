@@ -316,6 +316,7 @@ export const EVENTS_A: BehaviourGroup = {
                   targets.map((e) => ({
                     label: `Attack ${figureName(ctx.catalog, state, e.id)}`,
                     steps: [attackOn(e.id)],
+                    figure: e.id,
                   })),
                   rule,
                 ),
@@ -537,6 +538,7 @@ export const EVENTS_A: BehaviourGroup = {
                   .map(({ e }) => ({
                     label: `${explorerName(state, e.id)} is the nearest explorer`,
                     steps: [gain(e.id, p.trait, p.amount, rule)],
+                    figure: e.id,
                   })),
                 rule,
               ),

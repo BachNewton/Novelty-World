@@ -741,6 +741,8 @@ export function chooseSide(
     sides.map((side) => ({
       label: `Land on the ${sideName(state.board, room, side)} side of the ${roomName}`,
       steps: [continueWith(then, { side })],
+      room,
+      side,
     })),
     rule,
   );
@@ -778,12 +780,30 @@ export function endOngoing(card: string): Step {
   return step<{ card: string }>("end-ongoing", { card });
 }
 
-/** One option of a choice. `room` names the room in the house the option
- *  is, where taking it is choosing that room (put your explorer there, send
- *  the Dog there), so the screen can offer it as a place: one option per
- *  room. It describes the option only; what is legal and what it does stay
- *  with the decision and the steps. */
-export type Option = { label: string; steps: Step[]; room?: string };
+/** One option of a choice, and the place in the house it is, where taking
+ *  it is choosing that place, so the screen can offer it there. These
+ *  describe the option only; what is legal and what it does stay with the
+ *  decision and the steps. */
+export type Option = {
+  label: string;
+  steps: Step[];
+  /** A room in the house (put your explorer there, send the Dog there). */
+  room?: string;
+  /** With `room`, one side of a barrier room: a printed edge of its tile. */
+  side?: Edge;
+  /** With `room`, one of its walls or corners: the printed edge of its
+   *  tile, or the two edges of a corner (the Wall Switch's place). */
+  wall?: Edge[];
+  /** With `wall`, the token the option puts there, for showing it there first. */
+  token?: string;
+  /** A figure in the house (attack it, heal them, join them). */
+  figure?: FigureId;
+};
+
+/** An option's place in the house: a room, or one side of a barrier room. */
+export function optionPlace(place: Place): Pick<Option, "room" | "side"> {
+  return place.side === null ? { room: place.room } : { room: place.room, side: place.side };
+}
 
 /** Who makes a choice: the seat controlling a figure, for a choice the
  *  rules give the figure (where it lands, whether it comes closer), or a

@@ -19,6 +19,7 @@ import {
   loseCard,
   markCard,
   type Option,
+  optionPlace,
   relocate,
   roll,
   steal,
@@ -375,6 +376,7 @@ export const ITEMS: BehaviourGroup = {
                   {
                     label: `Call ${explorerName(hero)} 1 space closer`,
                     steps: [moveCloser(hero.id, here, p.figure, rule)],
+                    figure: hero.id,
                   },
                   { label: `Leave ${explorerName(hero)} be`, steps: [] },
                 ],
@@ -584,6 +586,7 @@ export const ITEMS: BehaviourGroup = {
                   placeOf(state, e.id).side,
                 ),
               ],
+              figure: e.id,
             }));
           if (options.length > 0)
             ctx.push(chooseOne(p.figure, options, card("dark-dice")));
@@ -655,6 +658,7 @@ export const ITEMS: BehaviourGroup = {
                 steps: [
                   local("dynamite", "blast", { place, thrower: p.figure }),
                 ],
+                ...optionPlace(place),
               })),
               rule,
             ),
@@ -782,6 +786,7 @@ export const ITEMS: BehaviourGroup = {
                   )
                   .map((e) => ({
                     label: `Heal ${explorerName(e)}`,
+                    figure: e.id,
                     steps: [
                       roll(
                         figure,
