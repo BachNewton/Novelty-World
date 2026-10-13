@@ -242,6 +242,7 @@ Shelved, with what was learnt, for when they are picked up again.
 
 - **A whole-house view:** the floors spread apart sideways in a fixed order, with small height steps between them and the stair links drawn between floors. Stacking the floors is ruled out: it hides the lower ones, and lines up rooms that aren't connected.
 - **A storm outside:** light rain on the outdoor rooms only, and mild lightning through the real windows, driven by a flicker signal. It stays mild, so haunt 57 and Lightning Strikes stand apart from it. Thunder waits on audio.
+- **Rooms a haunt names, brought to attention:** many haunts speak of rooms by name, so a player must know each room's name and its art together (why a discovery's line names the room). After the reveal, the rooms the player's half of the haunt names could be marked in the house, for that seat only. Waits for a playtest that reaches a haunt.
 - **A life pass:** an enhanced idle in which explorers stand around a room as people would: walk a few steps, look at the props, turn to each other, talk. The turn-start step onto the prime place brought figures to life, but read as a meaningless move. Life motion must be clearly ambient, never looking like a game move nor taking a figure off its place in a way that suggests a rule did it, and it waits for a pass of its own.
 - **A night backdrop** (`?backdrop=night`, off): tabled. Pixel-art trees read as a glitch, the scale and proportion need design, and the moon showed only at some tilts.
 
