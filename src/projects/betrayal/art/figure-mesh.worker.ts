@@ -1,4 +1,5 @@
 import { FLASH_PARTS } from "./explorers/flash";
+import { JENNY_PARTS } from "./explorers/jenny";
 import { LONGFELLOW_PARTS } from "./explorers/longfellow";
 import { OX_PARTS } from "./explorers/ox";
 import { PETER_PARTS } from "./explorers/peter";
@@ -11,7 +12,7 @@ import { BANSHEE_PARTS } from "./monsters/banshee";
 import { SPIDER_PARTS } from "./monsters/spider";
 
 /** Every figure's parts a worker can mesh, by id. A figure built in the house joins this list. */
-const ALL: readonly FigureParts<unknown>[] = [LONGFELLOW_PARTS, OX_PARTS, PETER_PARTS, ZOE_PARTS, RHINEHARDT_PARTS, FLASH_PARTS, BRANDON_PARTS, PROP_PARTS, SPIDER_PARTS, BANSHEE_PARTS];
+const ALL: readonly FigureParts<unknown>[] = [LONGFELLOW_PARTS, OX_PARTS, PETER_PARTS, ZOE_PARTS, RHINEHARDT_PARTS, FLASH_PARTS, JENNY_PARTS, BRANDON_PARTS, PROP_PARTS, SPIDER_PARTS, BANSHEE_PARTS];
 
 /** What `figure-mesh.ts` hears back: one figure's parts, packed, or why they couldn't be meshed. */
 export type MeshReply = { id: string; packed: Packed } | { id: string; error: string };

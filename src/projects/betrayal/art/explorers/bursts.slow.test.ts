@@ -8,6 +8,7 @@ import type { ExplorerBuilder } from "../stage";
 import { brandon } from "./brandon";
 import { burstsOf, CUE_REST, cueBurst, STANDING, type Gait } from "./figure";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { onTheSpot } from "./line-up";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
@@ -30,6 +31,7 @@ const FIGURES: Record<string, ExplorerBuilder> = {
   flash,
   brandon,
   peter,
+  jenny,
   rhinehardt,
   zoe,
   banshee: (seed, gait) => banshee(seed, gait),

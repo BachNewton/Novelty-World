@@ -4,6 +4,7 @@ import type { PaletteKey } from "../palette";
 import type { ExplorerBuilder } from "../stage";
 import type { CardColour } from "../../types";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
@@ -30,6 +31,7 @@ const FIGURES: Partial<Record<string, ExplorerBuilder>> = {
   "peter-akimoto": peter,
   "brandon-jaspers": brandon,
   "father-rhinehardt": rhinehardt,
+  "jenny-leclerc": jenny,
 };
 
 /** The pawn standing in for a character without a figure, one per colour, so

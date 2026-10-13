@@ -10,6 +10,7 @@ import type { Pace } from "./figure";
 import { handsOf, holdIn } from "./hands";
 import { onTheSpot } from "./line-up";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
@@ -30,7 +31,7 @@ import { zoe } from "./zoe";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter, jenny };
 /** Zoe and Rhinehardt are checked in the heavy cloth (`?cloth=off`): the check leaves their simulated nets out
  *  (`isClothSheet`), and their rigid parts are the same either way, so simulating the nets through every moment would
  *  only cost time. */
