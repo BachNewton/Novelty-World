@@ -68,6 +68,14 @@ export async function whilePlaying(page: Page, check: string): Promise<void> {
   await page.waitForFunction((body) => (new Function("play", `return ${body}`) as (play: unknown) => boolean)(window.__betrayalPlay?.play()), check, { timeout: 60_000 });
 }
 
+/** The drawn card over its room, once the beats before it (the walk into the room) have played and it shows. */
+export async function drawnCard(page: Page, card: string, name: string): Promise<Locator> {
+  await whilePlaying(page, `play.card?.card === ${JSON.stringify(card)}`);
+  const shown = page.getByRole("dialog", { name: `Card drawn: ${name}` });
+  await expect(shown).toBeVisible();
+  return shown;
+}
+
 /** Resumes a seeded game saved in this browser. */
 export async function resume(page: Page, game: object): Promise<void> {
   page.on("pageerror", (error) => {

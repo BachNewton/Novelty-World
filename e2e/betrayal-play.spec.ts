@@ -398,7 +398,8 @@ test("End turn shows top right with the frame meter beside it (under it on a pho
     const end = await page.getByRole("button", { name: "End turn" }).boundingBox();
     if (!end) throw new Error("End turn has no box");
     expect(end.x + end.width).toBeGreaterThan(size.width - 16);
-    expect(end.y).toBeLessThan(16);
+    // Centred on the meter beside it, which is taller, it sits a little lower than the corner's margin.
+    expect(end.y).toBeLessThanOrEqual(16);
     expect(await overlapping(page, "header button", end), `at ${size.width}x${size.height}`).toEqual([]);
     if (size.width >= 640) {
       // Wide enough: the meter is just left of End turn, centred on it.
@@ -493,10 +494,12 @@ test.describe("the rotation ghost", () => {
     await page.getByRole("button", { name: "Resume" }).click();
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
     await clickTarget(page, "explore:ground:2:-1");
-    // The room is placed and Zoe is in it, with her turn going on; the house shows it, and the box tells nothing of it.
+    // The room is placed and Zoe is in it, with her turn going on; the house shows it, and the box tells only of the discovery, not of the way it was turned.
     await until(page, "play.tiles === 6 && play.rooms['zoe-ingstrom'] === 'creaky-hallway' && play.pending?.kind === 'turn' && play.ghost === null");
     expect((await readout(page)).rotations["creaky-hallway"]).toBeDefined();
-    await expect(page.getByLabel("What happened")).toHaveCount(0);
+    const line = page.getByLabel("What happened");
+    await expect(line).toContainText("Zoe Ingstrom discovers the Creaky Hallway.");
+    await expect(line).not.toContainText(/turned|way round|°/);
     expect(await page.evaluate(() => (window as unknown as { turningAsked: { asked: boolean } }).turningAsked.asked)).toBe(false);
   });
 

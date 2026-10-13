@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./test";
-import { BUTTON, holdButton, onePad, PAGE, padTo, pointOf, readout, resume, seededGame, setButton, tapButton, until, wakePad, watchDebugPanel, withPad } from "./betrayal-game";
+import { BUTTON, drawnCard, holdButton, onePad, PAGE, padTo, pointOf, readout, resume, seededGame, setButton, tapButton, until, wakePad, watchDebugPanel, whilePlaying, withPad } from "./betrayal-game";
 
 /**
  * Each input method is complete on its own. The owner's playtest case (an
@@ -115,7 +115,7 @@ test.describe("controller", () => {
     await until(page, "play.ghost?.rotation === 1");
     await tapButton(page, BUTTON.A);
     // Skeletons: A goes on from the card, and the damage is chosen and split in the box.
-    await expect(page.getByRole("dialog", { name: "Card drawn: Skeletons" })).toBeVisible();
+    await drawnCard(page, "skeletons", "Skeletons");
     await tapButton(page, BUTTON.A);
     await until(page, "play.pending?.kind === 'damage-kind'");
     await choose(page, /./, page.getByLabel("Damage"));
@@ -147,7 +147,7 @@ test.describe("controller", () => {
     // Ox explores south into the Junk Room, draws the Ring, and ends his turn: the haunt roll starts the haunt.
     await stepTo(page, "explore:ground:2:1");
     await tapButton(page, BUTTON.A);
-    await expect(page.getByRole("dialog", { name: "Card drawn: Ring" })).toBeVisible();
+    await drawnCard(page, "ring", "Ring");
     await tapButton(page, BUTTON.A);
     await until(page, "play.pending?.kind === 'turn' && play.canEnd");
     await holdButton(page, BUTTON.X, "play.pending?.type === 'ready'");
@@ -198,7 +198,8 @@ test.describe("controller", () => {
     await page.evaluate(() => {
       (window as unknown as { testPad: { axes: number[] } }).testPad.axes = [1, 0, 0, 0];
     });
-    await until(page, "window.__betrayalPlay.reticle() === null");
+    // The camera keeps moving while the stick is held, so the house never settles: the wait is on the reticle alone.
+    await whilePlaying(page, "window.__betrayalPlay.reticle() === null");
     await page.evaluate(() => {
       (window as unknown as { testPad: { axes: number[] } }).testPad.axes = [0, 0, 0, 0];
     });

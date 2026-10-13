@@ -1,5 +1,5 @@
 import { test, expect } from "./test";
-import { BUTTON, clickTarget, onePad, padTo, readout, resume, seededGame, setButton, tapButton, until, watchDebugPanel, whilePlaying, withPad } from "./betrayal-game";
+import { BUTTON, clickTarget, drawnCard, onePad, padTo, readout, resume, seededGame, setButton, tapButton, until, watchDebugPanel, whilePlaying, withPad } from "./betrayal-game";
 
 /**
  * Betrayal's cards, dice and damage in the hot-seat game (v1 phase 6). Zoe,
@@ -52,8 +52,7 @@ test("keyboard and mouse: a card's beat, a reroll picked from the dice, and dama
   await page.keyboard.press("Enter");
 
   // The draw: the card over the room, its text waiting for a press (its mark shows it), and no choice offered until it is read.
-  const beat = page.getByRole("dialog", { name: "Card drawn: Skeletons" });
-  await expect(beat).toBeVisible();
+  const beat = await drawnCard(page, "skeletons", "Skeletons");
   await expect(beat).toContainText("Take 1 die of mental damage.");
   const waiting = await readout(page);
   expect(waiting).toMatchObject({ playing: true, panel: [], pending: { kind: "roll-after" }, card: { card: "skeletons", asks: false } });
@@ -108,7 +107,7 @@ test("a card that moves the explorer: it waits for a press, then gets out of the
   await page.keyboard.press("Enter");
 
   // The card waits for a press; the engine has already moved Zoe and put her next turn decision up.
-  const beat = page.getByRole("dialog", { name: "Card drawn: Burning Man" });
+  const beat = await drawnCard(page, "burning-man", "Burning Man");
   await expect(beat.locator("[data-continue]")).toBeVisible();
   // The clock is held, so the beats after the card's stay playing to be seen.
   await page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
@@ -162,7 +161,7 @@ test.describe("touch", () => {
     await until(page, "play.ghost?.tile === 'game-room'");
     await page.getByRole("button", { name: "Place the Game Room" }).tap();
     // A tap on the house goes on from the card.
-    await expect(page.getByRole("dialog", { name: "Card drawn: Skeletons" })).toBeVisible();
+    await drawnCard(page, "skeletons", "Skeletons");
     await page.touchscreen.tap(doorway.x, doorway.y);
     await until(page, "play.pending?.kind === 'roll-after'");
     await page.getByRole("button", { name: "Keep the result (0)" }).tap();
@@ -201,7 +200,7 @@ test.describe("controller", () => {
     await clickTarget(page, "explore:ground:2:-1");
     await until(page, "play.ghost?.tile === 'game-room'");
     await tapButton(page, BUTTON.A);
-    await expect(page.getByRole("dialog", { name: "Card drawn: Skeletons" })).toBeVisible();
+    await drawnCard(page, "skeletons", "Skeletons");
     // A goes on from the card.
     await tapButton(page, BUTTON.A);
     await until(page, "play.pending?.kind === 'roll-after'");

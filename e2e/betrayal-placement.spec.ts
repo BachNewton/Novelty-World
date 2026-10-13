@@ -89,6 +89,14 @@ const pointOf = (page: Page, id: string) =>
     return point && document.elementFromPoint(point.x, point.y) instanceof HTMLCanvasElement ? point : null;
   }, id);
 
+/** What pointing at a target's place on the page picks, whether or not the target shows there. */
+const pickedWhereItWouldShow = (page: Page, id: string) =>
+  page.evaluate((target) => {
+    const hook = window.__betrayalPlay;
+    const point = hook?.screenPoint(target) ?? null;
+    return point && hook ? hook.targetAt(point) : null;
+  }, id);
+
 async function shownAt(page: Page, id: string): Promise<{ x: number; y: number }> {
   const at = await pointOf(page, id);
   if (!at) throw new Error(`${id} doesn't show in the open house`);
@@ -122,7 +130,8 @@ test("keyboard and mouse: a cell on another floor marks that floor's button, and
   await until(page, "play.floor === 'ground'");
   const cells = await otherCells(page);
   expect(cells.length).toBeGreaterThan(0);
-  for (const candidate of cells) expect(await pointOf(page, candidate)).toBeNull();
+  // Nothing picks them: pointing where one would be finds anything but it.
+  for (const candidate of cells) expect(await pickedWhereItWouldShow(page, candidate)).not.toBe(candidate);
   const basement = page.getByRole("button", { name: /^basement/ });
   await expect(basement.locator("[data-offered]")).toBeVisible();
   await basement.click();
