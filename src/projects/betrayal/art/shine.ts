@@ -1,7 +1,6 @@
 /*
  * Presets (SHINES): silver, brass, tarnishedBrass, gilt, pewter, copper, iron,
- * glass, glazedChina, wax, marble, honedMarble, polishedWood, lacquer, wetStone,
- * floorSheen.
+ * glass, glazedChina, wax, marble, honedMarble, polishedWood, lacquer, wetStone.
  *
  * The rule: light makes shine; textures never paint it. A room has one set of
  * textures, with no painted glints, speckles, pale bevels or "reflection"
@@ -9,15 +8,20 @@
  * the real highlights off, for comparison: it never brings painted shine
  * back, so no code reads `shineOn` to pick a texture or a tone.
  *
- * Floors and walls are matte by default: this is an old, dusty house, not a
- * showroom, and a lamp's broad highlight across a floor reads as fake. Worn
- * boards, flagstones, brick, earth, parquet, panelling and wainscot are not
- * marked at all. Only where the room's story calls for it (the formal halls'
- * marble, a dining room's honed stone, a chapel, a lift car's polished
- * panels) does a floor or wall take `floorSheen`: a faint, small gleam near
- * the lamp that is seen only when looked for, never a patch that draws the eye
- * or competes with the figures and the lamps. The object presets (metal, glass,
- * china, wax, polished furniture) are for things, never a room's shell.
+ * Shine is for things that clearly shine: metal, mirrors, glass, glaze, wax
+ * and polished furniture on a room's props. A room's shell never shines:
+ * floors, walls, wainscot and trim are matte, marble and panelling included,
+ * since this is an old, dusty house, not a showroom, and a lamp's gleam on a
+ * floor draws the eye from the figures. The one exception is the windows'
+ * glass, which the stage marks itself.
+ *
+ * A faint gleam can't be made with `reflectance` alone: it sets only the
+ * reflection head on (F0), and the shader's Fresnel takes every surface
+ * towards reflecting all the light at a grazing angle whatever its F0, so a
+ * lamp low beside a surface, or a low camera, still leaves a bright gleam
+ * (the halls' marble floor showed as much at reflectance 0.002 as at 0). A
+ * preset that must be faint needs its grazing reflection (F90) scaled too, as
+ * three's `specularIntensity` scales both.
  */
 import * as THREE from "three";
 import type { Lamp } from "./bake";
@@ -53,7 +57,8 @@ import type { Batch } from "./shapes";
  *  mirror's sharp highlight, 1 none to speak of; `metalness` 1 is bare metal,
  *  whose highlight takes its colour and whose diffuse light it loses;
  *  `reflectance` is how much a non-metal reflects head on (its F0), 0.04 for
- *  most stone, wood and paint unless set, lower for a faint gleam. */
+ *  most stone, wood and paint unless set (it doesn't dim the grazing gleam:
+ *  see the header). */
 export interface Shine {
   roughness: number;
   metalness: number;
@@ -92,11 +97,8 @@ export const SHINES = {
   polishedWood: { roughness: 0.42, metalness: 0 },
   /** Lacquer and enamel paint: a piano, a japanned box. */
   lacquer: { roughness: 0.26, metalness: 0 },
-  /** Wet stone and slick earth: a puddle, a wet footprint, the stones at a lake's edge. Not a whole floor. */
+  /** Wet stone and slick earth: a puddle, a wet footprint, the stones at a lake's edge. A prop, never a floor. */
   wetStone: { roughness: 0.3, metalness: 0 },
-  /** The faint sheen of a kept floor or polished panelling, where the room's story calls for one: a tight
-   *  highlight, as polished stone's, but reflecting a twentieth as much, so a lamp leaves only a faint gleam. */
-  floorSheen: { roughness: 0.3, metalness: 0, reflectance: 0.002 },
 } as const satisfies Record<string, Shine>;
 
 /** Whether this page draws highlights: `lights` (the default), or `?shine=off` to compare the house without them. */

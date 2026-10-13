@@ -5,7 +5,6 @@ import { crossCorners } from "../kit/wall-mass";
 import { paletteHex, RAMPS } from "../palette";
 import { crossLanes, INNER, type RoomDefinition } from "../room";
 import { batch, group, lightMaterial, pixelPlane, type Batch } from "../shapes";
-import { SHINES } from "../shine";
 import { panelling, pixelTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from "../textures";
 
 const SEED = "dusty-hallway";
@@ -15,8 +14,7 @@ const SURFACES = {
   wall: () => wallpaper({ ground: "boneDark", stripe: "stoneDark", motif: "stone", seed: SEED }),
   wainscot: () => panelling({ ramp: RAMPS.stone, seed: SEED, glints: false }),
   trim: "ash",
-  shine: { glass: SHINES.glass },
-} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim" | "shine">;
+} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim">;
 
 /** Where the lantern was set down, in the corner of the crossing, and the footprints end. */
 const LANTERN: [number, number] = [-1.0, 1.0];

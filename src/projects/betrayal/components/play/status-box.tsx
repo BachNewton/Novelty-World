@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, use, useState, type RefObject } from "react";
+import { Suspense, use, useEffect, type RefObject } from "react";
 import type { RuleNotes } from "../../data/rule-notes";
 import { describeDecision } from "../../engine/describe";
 import { seatName, viewExplorer, type EventView, type GameView } from "../../engine/view";
@@ -8,41 +8,41 @@ import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import type { PlayChoices } from "../../play/choices";
 import { costText, warningLines, type RoutePreview } from "../../play/preview";
-import { happenings, whyItems, type Happening, type WhyItem } from "../../play/status";
+import { lineText, whyItems, type WhyItem } from "../../play/status";
 import type { Action } from "../../types";
 import { ErrorBox } from "../error-box";
 import { PendingPanel } from "../pending-panel";
 import { RuleDetail, ruleNotes } from "../why";
 import { GhostPanel, type GhostPlacer } from "./ghost-placer";
 import { boxActions } from "../../play/sheet";
-import type { FigureId } from "../../types";
 import { PromptButton, type Hold } from "../prompts";
 import { DecisionPart } from "./decision-panel";
 import { HappeningLine } from "./happening-line";
 import { boxPart } from "../../play/panels";
-import type { Moment } from "./presenting";
 import { RevealNow } from "./reveal";
 import { seatDot, seatText } from "./seat-colour";
 
 /*
- * The one status box: what just happened (in icons where icons say it),
- * why it happened (a tap away), and what the player holding the device can
- * do now. "Now" is the strongest part and stays in view; when many things
- * happened at once, the parts above it scroll within the box. While beats
- * play, "now" is skipping them: the choices wait until they are over. It is
- * the lowest layer a controller's focus works in: the d-pad's down moves the
- * focus from the house into "now", and up past the box's top row gives it
- * back. Its buttons carry their controls' glyphs; it spells out none.
+ * The one status box: what the player holding the device can do now, and at
+ * most one line, for the beat playing (or the last one played), in icons
+ * where icons say it, with its Why. The box keeps no history: the line goes
+ * when the next write's beats begin, and nothing is told before its beat
+ * plays. Why opens the rules behind the line's beat, or, with nothing
+ * playing, behind the pending decision: each named, with its plain text and
+ * rulings. While beats play, "now" is skipping them: the choices wait until
+ * they are over. The box is the lowest layer a controller's focus works in:
+ * the d-pad's down moves the focus from the house into "now", and up past
+ * the box's top row gives it back.
  */
 
 export interface StatusBoxProps {
   /** The box, for a controller to move the focus round its buttons. */
   boxRef: RefObject<HTMLElement | null>;
   view: GameView;
-  /** The events to tell: the latest the presenter played, as the holder may see them. */
-  told: EventView[];
-  /** The line held as a moment, or null. */
-  moment: Moment | null;
+  /** The line to tell and the events of its beat, as the holder may see them, or null. */
+  told: { event: EventView; events: EventView[] } | null;
+  /** Seconds for the line's dice to turn up while its beat plays, or null. */
+  turnUp: number | null;
   /** Beats are playing: the choices wait until they are over, and any input skips them. */
   playing: boolean;
   /** Skips the beats playing. */
@@ -61,8 +61,8 @@ export interface StatusBoxProps {
   openMenu?: () => void;
   /** End turn's hold: under way, and its end (the turn ends). */
   endHold: Hold;
-  /** Opens the trade sheet with an explorer. */
-  openTrade: (figure: FigureId) => void;
+  /** Why is open, opening or closing it, and holding the beats between two while it is open. */
+  why: { open: boolean; toggle: (open: boolean) => void; hold: (on: boolean) => void };
 }
 
 /** The rule texts load with the box; until they arrive it words what it can without them. */
@@ -78,22 +78,18 @@ function WithNotes(props: StatusBoxProps) {
   return <Box {...props} notes={use(ruleNotes())} />;
 }
 
-/** The lines of the events told, as the holder may read them. Events with
- *  nothing to say (a question asked mid-move) leave the last ones up. */
-function useCaption(view: GameView, told: EventView[], notes: RuleNotes | null): { key: string | null; lines: Happening[] } {
-  const lines = happenings(ENGINE, { ...view, events: told }, notes);
-  const key = told.at(0)?.id ?? null;
-  const [caption, setCaption] = useState({ key, lines });
-  if (key !== caption.key && lines.length > 0) setCaption({ key, lines });
-  return caption;
+/** The rules a Why opens: the line's beat's, and, with nothing playing, the pending decision's. */
+export function boxWhys(view: GameView, told: StatusBoxProps["told"], playing: boolean, notes: RuleNotes | null): WhyItem[] {
+  const pending = view.pending;
+  const raisedBy = !playing && pending?.type === "decision" && pending.detail !== null ? pending.rule : null;
+  return whyItems(ENGINE, notes, told?.events ?? [], raisedBy);
 }
 
 function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | null }) {
-  const { view, told, moment, problem } = props;
-  const caption = useCaption(view, told, notes);
-  const pending = view.pending;
-  const raisedBy = pending?.type === "decision" && pending.detail !== null ? pending.rule : null;
-  const whys = whyItems(ENGINE, notes, caption.lines, raisedBy);
+  const { view, told, problem, playing, why } = props;
+  const text = told ? lineText(ENGINE, view, told.event, notes) : null;
+  const whys = boxWhys(view, told, playing, notes);
+  const open = why.open && whys.length > 0;
 
   return (
     <section
@@ -104,25 +100,31 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
       data-pad-owned
       className="pointer-events-auto flex max-h-[45vh] w-full flex-col overflow-y-auto rounded border border-(--bt-line) bg-(--bt-panel) sm:w-[28rem]"
     >
-      {(caption.lines.length > 0 || whys.length > 0) && (
-        // Keyed by the write, so a new one is read from its top.
-        <div key={caption.key} className="flex min-h-0 shrink flex-col gap-1.5 overflow-y-auto px-3 py-2">
-          {caption.lines.length > 0 && (
-            <ul aria-label="What happened" aria-live="polite" className="flex flex-col gap-0.5 text-sm">
-              {caption.lines.map((happening) =>
-                moment?.event === happening.event.id ? (
-                  <li key={happening.event.id} aria-current="true" className="-mx-1 rounded border-l-2 border-(--bt-accent) bg-(--bt-room) px-1 font-semibold">
-                    <HappeningLine happening={happening} view={view} notes={notes} />
-                  </li>
-                ) : (
-                  <li key={happening.event.id}>
-                    <HappeningLine happening={happening} view={view} notes={notes} />
-                  </li>
-                ),
-              )}
-            </ul>
+      {open && <WhyDialog whys={whys} hold={why.hold} close={() => {
+            why.toggle(false);
+          }} />}
+      {(text !== null || whys.length > 0) && (
+        <div className="flex min-h-0 shrink-0 items-center gap-2 px-3 py-2">
+          {told && text !== null && (
+            // Keyed by the event, so a new line is announced and its dice turn up afresh.
+            <p key={told.event.id} aria-label="What happened" aria-live="polite" className="min-w-0 flex-1 text-sm">
+              <HappeningLine event={told.event} text={text} view={view} notes={notes} turnUp={props.turnUp} />
+            </p>
           )}
-          {whys.length > 0 && <WhyList whys={whys} />}
+          {whys.length > 0 && (
+            <PromptButton
+              meaning="why"
+              input={props.input}
+              aria-expanded={open}
+              data-why
+              onClick={() => {
+                why.toggle(!open);
+              }}
+              className="ml-auto min-h-9 shrink-0 rounded border border-(--bt-line) px-2 text-sm text-(--bt-muted) hover:border-(--bt-accent) hover:text-(--bt-ink)"
+            >
+              Why
+            </PromptButton>
+          )}
         </div>
       )}
       <div data-now aria-label="What you can do now" className="flex shrink-0 flex-col gap-2 border-t border-(--bt-line) p-3 first:border-t-0">
@@ -130,6 +132,41 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
         {props.notice != null && <DeviceNotice text={props.notice} openMenu={props.openMenu} />}
         <Now {...props} boxRef={boxRef} notes={notes} />
       </div>
+    </section>
+  );
+}
+
+/** The rules behind the beat: each named, in a plain sentence, then its full text and rulings. B or Esc closes it. */
+function WhyDialog({ whys, hold, close }: { whys: WhyItem[]; hold: (on: boolean) => void; close: () => void }) {
+  // Reading never costs a beat: the next waits while Why is open.
+  useEffect(() => {
+    hold(true);
+    return () => {
+      hold(false);
+    };
+  }, [hold]);
+  return (
+    <section role="dialog" aria-label="Why" data-pad-layer="2" className="flex shrink-0 flex-col gap-2 border-b border-(--bt-line) bg-(--bt-bg) p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-semibold">Why</h2>
+        <button type="button" data-pad-back data-pad-start onClick={close} className="inline-flex min-h-9 items-center rounded border border-(--bt-line) px-3 hover:border-(--bt-accent)">
+          Close
+        </button>
+      </div>
+      <ul className="flex flex-col gap-3">
+        {whys.map((why) => (
+          <li key={why.statement} className="flex flex-col gap-1">
+            <h3 className="font-semibold text-(--bt-accent)">{why.name}</h3>
+            {/* Named in the heading, so its sentence doesn't name it again. */}
+            <p>{why.statement.startsWith(`${why.name}: `) ? why.statement.slice(why.name.length + 2) : why.statement}</p>
+            <div className="text-xs text-(--bt-muted)">
+              <Suspense fallback={<p>Loading the rules…</p>}>
+                <RuleDetail rule={why.rule} />
+              </Suspense>
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -147,60 +184,6 @@ function DeviceNotice({ text, openMenu }: { text: string; openMenu?: () => void 
   );
 }
 
-/** The rules behind what happened, a tap away rather than shown by default. */
-function WhyList({ whys }: { whys: WhyItem[] }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="flex flex-col gap-1">
-      <button
-        type="button"
-        aria-expanded={open}
-        data-pad-back={open || undefined}
-        onClick={() => {
-          setOpen(!open);
-        }}
-        className="inline-flex min-h-7 items-center self-start text-xs text-(--bt-muted) underline decoration-dotted hover:text-(--bt-ink)"
-      >
-        {open ? "Hide why" : "Why?"}
-      </button>
-      {open && (
-        <ul aria-label="Why it happened" className="flex flex-col gap-1 border-l-2 border-(--bt-line) pl-2 text-xs text-(--bt-muted)">
-          {whys.map((why) => (
-            <WhyLine key={why.statement} why={why} />
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function WhyLine({ why }: { why: WhyItem }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <li>
-      {why.statement}{" "}
-      <button
-        type="button"
-        aria-expanded={open}
-        data-pad-back={open || undefined}
-        className="inline-flex min-h-7 items-center underline decoration-dotted hover:text-(--bt-ink)"
-        onClick={() => {
-          setOpen(!open);
-        }}
-      >
-        {open ? "Hide the full rule" : "Full rule"}
-      </button>
-      {open && (
-        <div className="mt-1 rounded border border-(--bt-line) bg-(--bt-bg) p-2 text-(--bt-ink)">
-          <Suspense fallback={<p className="text-(--bt-muted)">Loading the rules…</p>}>
-            <RuleDetail rule={why.rule} />
-          </Suspense>
-        </div>
-      )}
-    </li>
-  );
-}
-
 /** While beats play, what the player can do now is skip them. Keyed as End
  *  turn is, so it is the same button on the page: one focused stays focused. */
 function skipButton(skip: () => void) {
@@ -211,7 +194,7 @@ function skipButton(skip: () => void) {
   );
 }
 
-/** The seat holding the device, named with its explorer, in its colour. */
+/** A seat other than the turn's, asked a question mid-turn: named with its explorer, in its colour. */
 function SeatName({ view, holder }: { view: GameView; holder: number }) {
   const explorer = Object.values(view.figures).find((figure) => figure.kind === "explorer" && figure.owner === holder);
   return (
@@ -222,13 +205,14 @@ function SeatName({ view, holder }: { view: GameView; holder: number }) {
   );
 }
 
-/** Where the place in focus would take the player: its cost, and every rule it would set off on the way. */
+/** What the place in focus would cost, and every rule it would set off on the way. The route itself is drawn on the floor, so it isn't told; its label stays for screen readers. */
 function RouteLine({ preview, label, notes }: { preview: RoutePreview; label: string; notes: RuleNotes | null }) {
   const warnings = warningLines(ENGINE, notes, preview);
   return (
     <div aria-label="Route preview" className="flex flex-col gap-0.5 rounded border border-(--bt-line) bg-(--bt-bg) px-2 py-1.5 text-sm">
       <p>
-        {label}: <span className="font-semibold">{costText(preview)}</span>
+        <span className="sr-only">{label}: </span>
+        <span className="font-semibold">{costText(preview)}</span>
       </p>
       {warnings.length > 0 && (
         <ul aria-label="On the way" className="flex flex-col gap-0.5 text-xs text-(--bt-muted)">
@@ -241,7 +225,7 @@ function RouteLine({ preview, label, notes }: { preview: RoutePreview; label: st
   );
 }
 
-function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip, endHold, openTrade }: StatusBoxProps & { notes: RuleNotes | null }) {
+function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip, endHold }: StatusBoxProps & { notes: RuleNotes | null }) {
   const { targets, panel, end } = choices;
   const pending = view.pending;
   if (playing) return <>{skipButton(skip)}</>;
@@ -255,49 +239,44 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
     );
   }
 
+  // The turn needs no prompt: its places glow in the house, and End turn is here.
   const isTurn = pending.kind === "turn";
   const explorer = viewExplorer(view, holder);
-  // The question names who is asked, as the seat's name already does.
+  // A question for a seat other than the turn's names it, as the device passes mid-turn.
+  const otherSeat = view.turn !== null && view.turn.seat !== holder;
   const question = (prompt: string) => (explorer ? prompt.replace(`${explorer.name}: `, "") : prompt);
-  const prompt = isTurn
-    ? `your turn.${targets.length === 0 && panel.length === 0 ? " No moves or actions left: End turn." : ""}`
-    : question(describeDecision(ENGINE, view, { ...pending, params: pending.detail.params }));
+  const prompt = isTurn ? null : question(describeDecision(ENGINE, view, { ...pending, params: pending.detail.params }));
+  const actions = part === "turn" || part === "ghost" ? boxActions(panel) : [];
 
   return (
     <>
-      <p className="text-base">
-        <SeatName view={view} holder={holder} />: {prompt}
-      </p>
+      {prompt !== null && (
+        <p className="text-base">
+          {otherSeat && (
+            <>
+              <SeatName view={view} holder={holder} />:{" "}
+            </>
+          )}
+          {prompt}
+        </p>
+      )}
       {isTurn && preview && <RouteLine preview={preview} label={targets.find((target) => target.id === preview.target)?.label ?? ""} notes={notes} />}
       {ghost && <GhostPanel ghost={ghost} input={input} act={act} />}
       {part !== "turn" && part !== "ghost" && <DecisionPart part={part} view={view} panel={panel} act={act} input={input} notes={notes} />}
-      {(part === "turn" || part === "ghost") && panel.length > 0 && (
+      {actions.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {boxActions(panel).map((entry) =>
-            entry.kind === "choice" ? (
-              <button
-                key={entry.choice.id}
-                type="button"
-                className={BOX_ACTION}
-                onClick={() => {
-                  act(entry.choice.action);
-                }}
-              >
-                {entry.choice.label}
-              </button>
-            ) : (
-              <button
-                key={`trade:${entry.row.with}`}
-                type="button"
-                className={BOX_ACTION}
-                onClick={() => {
-                  openTrade(entry.row.with);
-                }}
-              >
-                Trade with {view.figures[entry.row.with].name}
-              </button>
-            ),
-          )}
+          {actions.map((choice) => (
+            <button
+              key={choice.id}
+              type="button"
+              className={BOX_ACTION}
+              onClick={() => {
+                act(choice.action);
+              }}
+            >
+              {choice.label}
+            </button>
+          ))}
         </div>
       )}
       {end && (

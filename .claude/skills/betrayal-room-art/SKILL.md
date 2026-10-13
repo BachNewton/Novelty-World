@@ -498,25 +498,23 @@ ledger, with its light intent and its measured median and range.
   texture: no glints, speckles, highlight pixels, pale bevels or pale
   "reflection" tones standing in for light catching a surface. Mark a shiny
   surface instead, with a preset from `SHINES` (`shine.ts`): `shiny(material,
-  SHINES.brass)` for a prop's material, `shinyAll` for a built piece, and the
-  room's `shine` for its shell (floor, wall, wainscot, trim, glass; a
-  `wallMass` takes the same). It then takes real highlights from the room's
-  lamps, flickering with them and stopped where the bake says they are
-  shadowed. Use the preset's name, never numbers; add a preset to `SHINES`
-  when no name fits. A metal takes its surface colour, so paint it one flat
-  mid tone. `?shine=off` shows the room without highlights, for comparison.
+  SHINES.brass)` for a prop's material, `shinyAll` for a built piece. It then
+  takes real highlights from the room's lamps, flickering with them and
+  stopped where the bake says they are shadowed. Use the preset's name,
+  never numbers; add a preset to `SHINES` when no name fits. A metal takes
+  its surface colour, so paint it one flat mid tone. `?shine=off` shows the room without highlights, for comparison.
   Each shine is its own draw call in the room, so a room keeps to a few.
-- **Floors and walls are matte by default.** This is an old, dusty house, not
-  a showroom: a lamp's broad highlight across a floor reads as fake. Worn
-  boards, flagstones, brick, earth, parquet, panelling and wainscot take no
-  shine at all. Only where the room's story calls for it (the formal halls'
-  marble, the Dining Room's honed stone, the Chapel, a lift car's polished
-  panels) does the shell take `SHINES.floorSheen`, a faint gleam near the
-  lamp, seen only when looked for and never competing with the figures or
-  the lamps; never a stronger preset, never the broad highlight. Objects keep
-  theirs: silver, brass, glass, china, polished furniture. Marble floors are
-  honed, with no vein lines (dark veins read as cracks at this pixel size):
-  nearly flat, at most a faint broad two-tone.
+- **A room's shell never shines.** Shine is for things that clearly shine:
+  metal, mirrors, glass, glaze, wax and polished furniture on the props.
+  Floors, walls, wainscot and trim are matte, marble and panelling included:
+  this is an old, dusty house, not a showroom, and a lamp's gleam on a floor
+  draws the eye from the figures. Only the windows' glass shines, which the
+  stage marks itself. Marble floors are honed, with no vein lines (dark veins
+  read as cracks at this pixel size): nearly flat, at most a faint broad
+  two-tone. The shine bench (`?bench=shine`, `shine-bench.ts`) lays every
+  room's floor side by side under a lamp, a candle, the moon or a coloured
+  light, from the game's high camera or a low one, and tries a preset on them
+  live.
 - **Doorways and the prime place stay clear** (see "Lay it out"); the
   overlap check enforces it.
 - **Wall-hung props and the cutaway.** A wall that is cut stands only to

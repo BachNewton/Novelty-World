@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { Trait } from "../../types";
 import { DamageIcon, DieFace, FailIcon, PassIcon, TraitIcon, traitLabel } from "../icons";
 import type { RollMeaning } from "../../play/dice";
@@ -55,17 +56,48 @@ export function DiceFaces({ dice }: { dice: readonly number[] }) {
   );
 }
 
-/** A roll's outcome in a line: the dice, the total, and what it means. */
-export function RollResult({ dice, bonus, total, meaning }: { dice: readonly number[] | null; bonus: number; total: number; meaning: RollMeaning }) {
+/** Turns up a roll's parts in order over `seconds`: each die, then the
+ *  total and what it means. The turning up is the roll's beat itself. */
+function useTurnUp(seconds: number | null) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const root = ref.current;
+    if (seconds === null || !root) return;
+    const parts = [...root.querySelectorAll<HTMLElement>("[data-turn-up]")];
+    const step = (seconds * 1000) / Math.max(1, parts.length);
+    const runs = parts.map((part, i) =>
+      part.animate([{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "scale(1)" }], { duration: step, delay: i * step, fill: "backwards", easing: "ease-out" }),
+    );
+    return () => {
+      for (const run of runs) run.finish();
+    };
+  }, [seconds]);
+  return ref;
+}
+
+/** A roll's outcome in a line: the dice, the total, and what it means; with
+ *  `turnUp`, its dice turn up one by one over that many seconds, then the rest. */
+export function RollResult({ dice, bonus, total, meaning, turnUp = null }: { dice: readonly number[] | null; bonus: number; total: number; meaning: RollMeaning; turnUp?: number | null }) {
+  const ref = useTurnUp(turnUp);
   return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
-      {dice && <DiceFaces dice={dice} />}
+    <span ref={ref} className="inline-flex flex-wrap items-center gap-1.5">
+      {dice && (
+        <span aria-label="Dice" className="inline-flex flex-wrap gap-0.5">
+          {dice.map((value, index) => (
+            <span key={index} data-turn-up className="inline-flex">
+              <DieFace value={value} label={`a die showing ${value}`} className="size-6" />
+            </span>
+          ))}
+        </span>
+      )}
       {bonus !== 0 && <span className="text-sm">{bonus > 0 ? `+${bonus}` : `−${-bonus}`}</span>}
-      <span aria-label={`total ${total}`} className="text-lg leading-none font-bold">
-        = {total}
+      <span data-turn-up className="inline-flex items-center gap-1.5">
+        <span aria-label={`total ${total}`} className="text-lg leading-none font-bold">
+          = {total}
+        </span>
+        <Verdict verdict={meaning.verdict} target={meaning.target} />
+        {meaning.damage && <DamageAmount kind={meaning.damage.kind} amount={meaning.damage.amount} />}
       </span>
-      <Verdict verdict={meaning.verdict} target={meaning.target} />
-      {meaning.damage && <DamageAmount kind={meaning.damage.kind} amount={meaning.damage.amount} />}
       {meaning.note !== null && <span className="text-xs text-(--bt-muted)">{meaning.note}</span>}
     </span>
   );

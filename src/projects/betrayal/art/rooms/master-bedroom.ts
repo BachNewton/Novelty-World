@@ -312,7 +312,6 @@ export const MASTER_BEDROOM: RoomDefinition = {
   wall: () => wallpaper({ ground: "bloodDark", stripe: "blood", motif: "blood", pattern: SPRIG, seed: "master-bedroom" }),
   wainscot: () => panelling({ ramp: RAMPS.wood, seed: "master-bedroom", glints: false }),
   trim: "woodDark",
-  shine: { glass: SHINES.glass },
   props: [
     { build: bedsideRug, at: [1.15, 1.45] },
     { build: fourPosterBed, ...onWall("right", 0, { out: 0.05 }) },

@@ -7,24 +7,24 @@ How the game looks and is played on screen. The game is played in the 3D house: 
 The engine already shapes the UI: at any moment there is one pending decision, with plain-language choices, and every event names the rule behind it. A physical board can't do that, so the UI leans on it.
 
 - **Decisions about places live in the house only**, with no list: the rooms you can reach glow, the empty cell beyond an unexplored doorway glows as a faint room outline, a tile to place shows as a ghost on its cell, each side of a barrier room is its own half of the tile, a wall or corner of a room (where a card puts a token) is a pad on the floor against it with the token shown there when focused, and a figure a card or attack names is the figure. A choice on another floor shows as its staircase glowing on this floor. Picking one is the same action on every input.
-- **Everything else is in one status box**, in three parts:
-  - **What happened:** the latest events, in plain language.
-  - **Why it happened:** the rule behind each, a room, card, haunt or rulebook rule, as its short plain text with its source named ("Junk Room: roll Might to leave"). The full text and its rulings (the "why?" content from `data/rule-notes.json`) are a tap away.
-  - **What you can do now:** the seat named, the prompt, the choices that aren't places, and End turn. This part is the strongest and stays in view.
-
-  The box is how "every rule the engine applies is explained in plain language as it happens" is kept without a log.
-- **No game log panel in v1.** Explanations live in the moment, in the status box. The debug view (`?debug`) keeps its full log.
+- **Everything else is in one status box**: what you can do now, and at most one line for the beat playing. A player is not playing to read: ordinary play shows, and the text is there when they want the detail.
+  - **What you can do now:** the prompt and the choices that aren't places (a roll, damage, a card's question, a trade offered to you), and End turn, always in reach. The turn itself has no prompt: its places glow and End turn is there. The seat is named only for a question put to a seat other than the turn's, mid-turn; the seat's button at the top left names the holder. Of the turn's actions, the box offers only those needed often, and only where they apply: Pick up, a held card's uses, and a haunt's actions. Drop and trading are on Your explorer's sheet only.
+  - **The line:** the beat playing, in icons where icons say it (a roll's die faces turning up, its total and mark; damage on its tracks), or else in a few plain words. It stays until the next write's beats begin. There is no history list, and no line for what the house already shows: walking in, discovering, a room placed the only way it fits, a card drawn (its title is over the room), a trait gained or lost (it floats over the figure), the turn passing.
+  - **Why:** one button beside the line opens the rules behind its beat, or, with nothing playing, behind the pending decision (the card that asked a roll): each named by its source (a room, card, token, haunt, or the rulebook's section, never a page number), in a plain sentence, then its full text and every ruling on it (`data/rule-notes.json`). A beat with several causes lists them all. While Why is open the beats wait between two, so reading never costs a beat. On a pad it is a box button, reached with the d-pad and pressed with A; on the keyboard H, or a click; on touch, a tap.
+- **No game log panel in v1.** The events stay in the game's data, and the debug view (`?debug`) keeps its full log.
 - **Show before telling.** The house or the board shows a thing first, then an icon, and text only for what only text can explain. The rule behind an event is a tap away, not shown by default.
 - **One meaning per control** (see "Input"): the mouse wheel always zooms, even over the rotation ghost.
 - **Preview before commit.** Pointing at a choice shows what it would do before anything is sent: the ghost turned the way it would be placed, and, from v1 phase 2, a move's route (below). There is no undo: a step is a recorded action, and a roll is seeded by the decision it answers.
 
-**Pacing:** automatic beats play by themselves, with a speed setting that scales the pauses, not the walks, and a card's text waits for a tap. The game's state never waits on an animation, but **the story comes before the next choice**: a decision's choices appear only once the beats leading to it have played or been skipped, an input during a beat only skips them, never also answering, and what caused a new decision (a card's title over its room) stays in view until its choices appear.
+**Pacing: the text and the house are always in step.** The presenter cuts each write into beats in the order its events happened, each naming the events it shows, and every event belongs to one beat or to none (bookkeeping with nothing to show is silent). A discovery plays as walking in, the card for each symbol, what the card did, then the room's own rule if it does something; a turn's end plays before the next turn's light; the haunt roll before the house turns to the haunt. The beat playing is the one source of truth for what the screen tells: the box's line, its Why, a card's title and the floats over the figures, so **the box never tells an event before its beat plays in the house**, nor after. A figure whose walk is still to come stands where it was until its beat, and a walk always runs from where the figure was shown, even when its discovery spans several writes.
+
+A beat lasts as long as what it shows, and nothing waits with nothing to see: a walk, at the explorer's Speed; a room carried by a rule; a roll's dice turning up in its line; a gain or loss rising over its figure; a card's text, until a tap. A line with nothing else to show holds nothing up. The next tiles of the room stack have their floors read ahead, so walking into a room just discovered never waits on one. A speed setting scales the beats' own timings, not the walks. The game's state never waits on an animation, but **the story comes before the next choice**: a decision's choices appear the moment the beats leading to it have played or been skipped, an input during a beat only skips them, never also answering, and what caused a new decision (a card's title over its room) stays in view until its choices appear.
 
 ## Input
 
 **Three input methods**, interchangeable, each picking among the pending decision's choices: a controller, touch, and keyboard + mouse (one method, the two used together; there is no keyboard-only mode). **Each is complete on its own**: a controller never needs touch, the keyboard or the mouse, and every feature works natively on all three; the art bench and `?debug` are exempt. An audit and a controller-only e2e game through the reveal hold it. Hints follow the last-used input. Nothing is hover-only, and touch targets are measured in screen pixels.
 
-**One meaning per control.** A control means one thing everywhere, never changing with what is under the cursor or what is open. There is one focus at a time, on a choice in the house or a button over it, and confirming presses it. Hints are glyphs on the thing they act on, our own prompts in Lucide's style (`components/prompts.tsx`, the single map from a meaning to its control on each input); there are no per-decision hint sentences, and no sentence restates what a glyph or a hold's fill already shows. Touch has no glyph, since the control is the tap target. A glyph shows only where the control isn't obvious: confirming the focused thing (A, Enter) and closing the topmost one (B, Esc) show none, so what matters there is seeing clearly what has the focus. Every glyph is one system: sized to the text beside it, on one solid chip that reads on any background, and leading the label inside the button it presses (a pair that steps through a group, LB and RB, flanks it). A hold that acts when complete, End turn, fills its button's background from the left while held and empties when let go early.
+**One meaning per control.** A control means one thing everywhere, never changing with what is under the cursor or what is open. There is one focus at a time, on a choice in the house or a button over it, and confirming presses it. Hints are glyphs on the thing they act on, drawn as games draw button prompts, our own drawings on their conventions (`components/prompts.tsx`, the single map from a meaning to its control on each input): each glyph is the control's own shape (a keycap, a bumper, a trigger, a stick, the d-pad, View and Menu, the mouse) with its label filling it, near-black with a pale rim and label, and the face buttons Xbox's coloured discs (prompt tokens, which name a button and never a meaning); there are no per-decision hint sentences, and no sentence restates what a glyph or a hold's fill already shows. Touch has no glyph, since the control is the tap target. A glyph shows only where the control isn't obvious: confirming the focused thing (A, Enter) and closing the topmost one (B, Esc) show none, so what matters there is seeing clearly what has the focus. Every glyph is one system: sized to the text beside it, reading on any background through its dark body and halo, and leading the label inside the button it presses (a pair that steps through a group, LB and RB, flanks it). A hold that acts when complete, End turn, fills its button's background from the left while held and empties when let go early.
 
 The controller map, with its counterparts:
 
@@ -41,6 +41,7 @@ The controller map, with its counterparts:
 | Zoom | RT in, LT out | the wheel, + / − | two fingers' spread |
 | Floors | LB down, RB up | PgDn / PgUp, or F / R | on-screen floor buttons |
 | End turn | hold X | hold Backspace, or click End turn | tap End turn |
+| Why, the rules behind the box's line | the box's Why button: d-pad into the box, then A | H, or click Why | tap Why |
 | Your explorer | Y | I, or click the seat's button, a mark or a nameplate | tap the seat's button, a mark or a nameplate |
 | Follow the active explorer | View | C or Home, or the on-screen Follow button | the on-screen Follow button |
 | The game menu | Menu, on any pad | M, or its button | its button |
@@ -55,12 +56,12 @@ A free strategy camera, in the style of Cities: Skylines and XCOM: a target poin
 
 The camera has **two modes**, as Monopoly's board does, kept as local UI state and never game state (`art/camera-follow.ts`):
 
-- **Following** the active explorer: the camera's target tracks them, smoothly through their walks, onto another floor when they take the stairs, and to the turn's beats about them (a room appearing, a room shown close, a card drawn, a room carried by a rule, a ghost tile to place), then back to them. A figure walking is followed until it arrives. The game starts following.
+- **Following** the active explorer: the camera's target tracks them, smoothly through their walks, onto another floor when they take the stairs, and to the turn's beats about them (a room appearing, a card drawn, a room carried by a rule, a ghost tile to place), then back to them. A figure walking is followed until it arrives. The game starts following.
 - **Free**: the camera is the player's alone, and nothing in the game moves it, not even a card's beat elsewhere: the beat plays where it is, and the status box still tells it. A ghost tile is the player's own decision in hand, so its floor still shows.
 - **What frees it**: panning (the left stick, WASD or the arrows, a left-drag, a one-finger drag) and changing floor by hand (the bumpers, PgUp/PgDn or F/R, the floor buttons). Turning, tilting and zooming never do: while following, they orbit and zoom round whatever is followed, as a strategy game's "follow unit" camera does.
 - **Follow** (View, C or Home, the on-screen button) reattaches whenever the player wants: following again, the camera glides to the active explorer and their floor. The button is lit while following, so the player always knows which mode they are in.
 - **A new turn reattaches**: in hot-seat the device has just passed to the next player, who expects to see their own explorer. A question put to another seat mid-turn changes nothing.
-- **The player owns the angles.** Following moves only the target; the turn, tilt and zoom stay the player's. A room's best angle for its close view is taken only while following, and given back after.
+- **The player owns the angles.** The game only ever pans: following moves only the target, and the turn, tilt and zoom are the player's alone, never changed by a beat.
 - The cutaway, the reticle and picking hold at the lowest tilt.
 
 ## Moving
@@ -75,18 +76,18 @@ Movement follows the rules: up to Speed in spaces a turn, a stair step costing o
 
 ## Placing a room
 
-A discovered room shows as a ghost of the actual room on its cell, with each doorway marked at its edge by what it would do (joins a door, faces a wall, opens onto the unexplored). The player turns it through its legal ways round, which are the decision's choices and step like any others, then places it. A room that fits only one way is placed by the engine and shown as the tile appearing, with no prompt. Rooms that cards and rooms move (the Mystic Elevator, The Beckoning) use the same ghost, with the cells they may go to glowing.
+A discovered room shows as a ghost of the actual room on its cell, with each doorway marked at its edge by what it would do (joins a door, faces a wall, opens onto the unexplored). The player turns it through its legal ways round, which are the decision's choices and step like any others, then places it. A room that fits only one way is placed by the engine and shown as the tile appearing, with no prompt. Rooms that cards and rooms move (the Mystic Elevator, The Beckoning) use the same ghost, with the cells they may go to glowing. A ghost only ever means "not yet placed": a room placed, or carried by a rule, shows solid at once in a flat moon light until its baked light lands (`lighting.md`).
 
 ## Dice
 
-The engine makes the randomness, so there are no physical or 3D dice and no thrown-dice animation. A roll still shows: each die's value (0, 1 or 2), the total, and the outcome for what it means, a pass or fail against the target, a damage amount, the haunt roll against the omens, an attack's comparison: as die faces and icons where icons say it, with a short note only where they can't. A reroll card (the Lucky Stone, the Rabbit's Foot) picks from the dice shown, with no special case.
+The engine makes the randomness, so there are no physical or 3D dice and no thrown-dice animation. A roll still shows: each die's value (0, 1 or 2), the total, and the outcome for what it means, a pass or fail against the target, a damage amount, the haunt roll against the omens, an attack's comparison: as die faces and icons where icons say it, with a short note only where they can't. A reroll card (the Lucky Stone, the Rabbit's Foot) picks from the dice shown, with no special case. Before a roll the box offers Roll and each card that acts on it once, with the card's consequence said once; a card whose options differ only by the number they name (the Angel Feather's result, 0 to 8) opens one row of those numbers, each previewing what it would mean (a pass or fail, the damage) in icons.
 
 ## Cards
 
 The card sort (`card-presentation.md`) sorted all 110 cards by how they show in the house, and is the direction:
 
 1. **A draw is an in-world beat**: the card's name as a title over the room, in its colour (amber for an item, violet for an omen, an event's mood colour), the effect playing out in the room, the result shown, and one caption line. Most events and every card that never needs reading take no panel.
-2. **Held cards live on the figure**: items and omens carried, companions beside it. Until their 3D props are built, a mark under each explorer carries a pip per card in the card's colour; choosing the mark or the nameplate opens the explorer's character card with its cards and their text (see "Stats").
+2. **Held cards live on the figure**: items and omens carried, companions beside it. Until their 3D props are built, a mark under each explorer carries the seat's dot and a pip per card in the card's colour, drawn smaller as the camera zooms out; choosing the mark or the nameplate opens the explorer's character card with its cards and their text (see "Stats").
 3. **A card on the floor is a thing in the room**: dropped, it lies on its plate in its colour (see "Things in rooms"), pointing at it names it, choosing it reads it, and Pick up is offered there and on the explorer's sheet alike.
 4. **Reading happens at the point of use**: a card that applies surfaces as an offer with a one-line consequence ("Idol: +2 dice, −1 Sanity").
 5. **A panel only where nothing else works**: the 15 each-use cards whose odds table is the decision, deck searches and peeks, trait picks, and cards with several written options.
@@ -96,7 +97,7 @@ The card sort (`card-presentation.md`) sorted all 110 cards by how they show in 
 
 Hidden by default and shown when useful: in a roll's prompt, on the damage tracks, as a float on a gain or loss, and in the details (below). More of it is contextual after the haunt.
 
-**Details.** Holding R3, Z or the Details button labels what is useful at a glance, and letting go returns the clean house at once (`components/play/details.tsx`): each explorer's mark adds the explorer's name and its stats in brief, each trait's icon and value (in the danger colour on the last step above a live skull); each room on the floor showing is named on its far side from the camera, by its back wall, with where its stairs lead when they go to another floor; and each thing in a room is named where it lies, a room's objects in one list over their spot. The labels come from the seat's own view, like everything else on the screen. The marks and the things' labels are kept apart as the marks are (`art/pins-apart.ts`), and slid back onto the screen whole at its edge; a room's name gives way, drawn under them.
+**Details.** Holding R3, Z or the Details button labels what is useful at a glance, and letting go returns the clean house at once (`components/play/details.tsx`): each explorer's mark becomes its nameplate, one size and shape for every explorer whatever their name: the seat's colour down its edge, the short name the card calls them by (`play/short-name.ts`: Flash, Ox, Rhinehardt), the pips, and the stats in brief, each trait's icon and value (in the danger colour on the last step above a live skull); nameplates show only while the details are held; each room on the floor showing is named in ink on a dark plate on its far side from the camera, by its back wall, with where its stairs lead when they go to another floor; and each thing in a room is named where it lies, a room's objects in one list over their spot. The labels come from the seat's own view, like everything else on the screen. The marks and the things' labels are kept apart as the marks are (`art/pins-apart.ts`), and slid back onto the screen whole at its edge; a room's name gives way, drawn under them.
 
 **A trait is a track, as the character card prints it** (`play/tracks.ts`): the character's own values in a row, the clip on its step, the starting step marked, the top as the ceiling, and the skull below the lowest, padlocked before the haunt (when no one can die) and bare after. One track component is used everywhere: on the character card, in a damage preview (where the choice in focus would leave the clip) and, as just the icon and value, in the details. It is HTML and SVG, not 3D.
 
@@ -104,7 +105,7 @@ Hidden by default and shown when useful: in a roll's prompt, on the damage track
 
 ## Actions
 
-**Your explorer** holds the turn's actions that aren't places. It opens with Y, I, the seat's button at the top left (which counts the turn's actions), the explorer's mark or its nameplate. On the acting player's own tab, in their turn, the character card carries the actions on fixed rows (`play/sheet.ts`): each card held with its uses, what using one costs, and Drop; each card on the floor that can be picked up; and a trade with each explorer who can. The rows keep the engine's order, never rearranged, so a row stays where the player learnt it. The status box offers the same actions as buttons, and End turn is always in reach.
+**Your explorer** holds the turn's actions that aren't places. It opens with Y, I, the seat's button at the top left (which counts the turn's actions), the explorer's mark or its nameplate. On the acting player's own tab, in their turn, the character card carries the actions on fixed rows (`play/sheet.ts`): each card held with its uses, what using one costs, and Drop; each card on the floor that can be picked up; and a trade with each explorer who can. The rows keep the engine's order, never rearranged, so a row stays where the player learnt it. The status box offers only those needed often, where they apply (Pick up, a card's uses, a haunt's actions); Drop and trading are here only. End turn is always in reach.
 
 **Trading** is a sheet of its own: what you give and what you take, a card at most each way and either side empty, previewed as it is built. Offering it puts the question to the other explorer's seat, named in the prompt, which answers Accept or Decline in the status box.
 
@@ -122,7 +123,7 @@ When online play comes, other players see the acting player's preview before it 
 
 ### The cutaway
 
-Every wall between two rooms is cut down to a 45 cm stub from every view; only the outside walls at the back of the house stand full. When an explorer first enters a room, the camera shows it close with its back walls up, so its wall art is seen once; the moment plays on the first visit only and can be skipped, and a room may name its best angle for it. Most of the time a room is read from its floor and what stands below the cut height.
+Every wall between two rooms is cut down to a 45 cm stub from every view; only the outside walls at the back of the house stand full. A room's walls are seen whole by raising them (hold L3, V or the Walls button); the game never raises them or moves in close by itself. Most of the time a room is read from its floor and what stands below the cut height.
 
 **Walls under the cutaway.** A wall's meaning to the rules survives the cut, on the stub, the floor or an icon (the research is in `cutaway-research.md`). Decided, with no switch:
 
@@ -192,6 +193,17 @@ Explorers are miniatures on a base ringed in the player's colour, which is the c
 
 **Moves a card makes**, agreed in principle and to be confirmed in play: voluntary movement walks before the haunt; a card that makes an explorer flee (Burning Man) may run; jumps and falls get animations of their own; a neutral "put your explorer there" gets a quick transition; the Dog runs.
 
+**Moves that aren't a walk.** Every base-game move other than walking through doorways falls into one of four transitions, shared rather than built per room or card, so no explorer ever pops to a new spot. Until each is built, the move shows as a jump; the room features they pass through (the chute, token marks, the secret door) are drawn with the rooms.
+
+| Transition | What triggers it | How it looks |
+|---|---|---|
+| **Drop or slide** to a lower floor | the Coal Chute; the Collapsed Room (a failed roll, or a fall on purpose later); the Gallery (to the Ballroom); the Mystic Slide; The Beckoning (a jump out to the Patio) | walk to the edge, chute or window; drop out of sight; the camera follows down; land, staggering where there is damage |
+| **Secret way**, token to token or through a hidden door | Secret Stairs; Secret Passage; the Stairs from Basement's secret door to the Foyer; the Revolving Wall | walk to the token or wall, slip through, step out at the other end |
+| **The room carries you** | the Mystic Elevator; What The . . . ? | built: the room flies to its new cell with everyone in it |
+| **Put there** | Burning Man (flee to the Entrance Hall, running where there is a path); Funeral; The Lost One; The Walls; the Bottle; the Dark Dice's 6 | vanish where they stand, appear at the destination |
+
+The Dark Dice's push and free move and the Bell's pull are always to an adjacent room, so they walk. No base-game omen moves an explorer; the Widow's Walk moves wait for that expansion.
+
 **Animations**, in priority order: the walk (through doorways, up and down stairs); a startle on discovering a room; physical and mental hurt; attack and defend; death; the traitor's turn (optional). No item pickups or celebrations.
 
 ## Art scope
@@ -225,12 +237,12 @@ Shelved, with what was learnt, for when they are picked up again.
 
 ## Open questions
 
-`v1-play.md` lists the questions paused for the playtest: the reveal's light, pacing, rooms before their light lands, phase 3's small calls, the rotation ghost, the phone layout, the lake's water look, the backlight, and soft or hard shadows. The longer-standing ones:
+`v1-play.md` lists the questions paused for the playtest: the reveal's light, pacing, phase 3's small calls, the phone layout, the lake's water look, the backlight, and soft or hard shadows. The longer-standing ones:
 
 - **One device per player, a shared screen with phones as controllers, or both**, once online play comes. A TV could show what everyone may see (the house, whose turn it is) as a spectator client of the game row, while each phone renders its own seat's `viewFor`: its cards, its choices and, after the reveal, its side's half of the haunt. That suits the server-authoritative design and the traitor's secrets, and could sit beside one device per player.
 - **The layout on phones and on wide screens**, around the status box: how much of a phone it may cover, and what extra width shows.
 - **The reveal's light:** the house turned red (the default) or its moon blue pushed deeper (`?mood=cold`).
 - **The lake's water look:** `shader` or `shader-palette` (`?water=`).
 - **Whether to light a figure lit only from behind** with a rim (the backlight, on by default; `?backlight=off` to compare). Bounce light gives figures some fill from below.
-- **Whether the rotation ghost reads clearly enough as "not placed yet".**
 - **Soft or hard shadows** (`lighting.md`).
+

@@ -20,7 +20,7 @@ One bounce of indirect light: from each surface, cosine-weighted rays find what 
 
 ## Shine
 
-Light makes shine; textures never paint it. Shiny surfaces take real highlights, worked out live in the shader: a GGX highlight from each baked lamp near the surface, from the moon, and from the live lights. A highlight is gated by the bake: the bake keeps, per texel, how much of its light came from each flicker signal, so a lamp the bake says is blocked shows no highlight there, and a highlight flickers with its lamp. A surface is marked with a named preset (`SHINES` in `shine.ts`: metals such as silver, brass, gilt, pewter, copper and iron, glass, glazed china, wax, marble, honed marble, polished wood, lacquer, wet stone, and a faint sheen for floors), never with numbers. There are no reflections: from the house's high camera only light reads, and no rule needs a true mirror ("Image in the Mirror" shows a vision, not a reflection), so reflection probes were dropped.
+Light makes shine; textures never paint it. Shiny surfaces take real highlights, worked out live in the shader: a GGX highlight from each baked lamp near the surface, from the moon, and from the live lights. A highlight is gated by the bake: the bake keeps, per texel, how much of its light came from each flicker signal, so a lamp the bake says is blocked shows no highlight there, and a highlight flickers with its lamp. A surface is marked with a named preset (`SHINES` in `shine.ts`: metals such as silver, brass, gilt, pewter, copper and iron, glass, glazed china, wax, marble, honed marble, polished wood, lacquer and wet stone), never with numbers. A room's shell never shines: floors, walls, wainscot and trim are matte, and only the windows' glass takes highlights. There are no reflections: from the house's high camera only light reads, and no rule needs a true mirror ("Image in the Mirror" shows a vision, not a reflection), so reflection probes were dropped.
 
 Floors and walls are matte by default: an old, dusty house, where a lamp's broad highlight across a floor reads as fake. A faint floor sheen goes only where the room's story calls for it, and a marble floor is honed, with no vein lines, which read as cracks at this pixel size. `?shine=off` turns the real highlights off for comparison, and never brings painted shine back. Each shine is a draw call of its own. Figures and moving pieces have no shine yet (it needs a lamp's uniforms per figure), nor does a texture carry a per-texel shine mask (gilt threads in damask); both are polish.
 
@@ -42,7 +42,7 @@ What a point light can't give is faked, and faking is cheap: glows (a surface th
 
 The bake must keep frames smooth on every page; making the house load faster was never the goal in itself. Nothing the bake or the build does may hold the page's thread for long:
 
-- **Shaders compile in the background.** three.js links a material's program the first time it draws it, and the frame waits on the GPU for it. `shader-prep.ts` compiles an object's programs on the GPU's own threads for the scene as it will be, and the object joins once they are done, so a room shows once its light and its shaders are ready. An object that brings lights of its own (a carried candle) changes every lit material's program, so those are compiled for the new lights first, one such object at a time.
+- **Shaders compile in the background.** three.js links a material's program the first time it draws it, and the frame waits on the GPU for it. `shader-prep.ts` compiles an object's programs on the GPU's own threads for the scene as it will be, and the object joins once they are done, so a room's baked light shows once both it and its shaders are ready. An object that brings lights of its own (a carried candle) changes every lit material's program, so those are compiled for the new lights first, one such object at a time.
 - **Work runs in workers**: the bake's sample placement and its passes' last step (`bake-finish.ts`), the meshing of figures (`figure-mesh.ts`; a figure stands as a pawn until its parts land), and reading a room's free floor (`room-floor.ts`).
 - **What stays on the page's thread runs in slices** (`build-slices.ts`), the most urgent first, under a frame budget: rooms are built with the visible floor first, and the freeze runs a few steps a frame and can resume. The bake starts before the figures are built.
 - **Shared geometry is batched** (books on a shelf as one box geometry), and per-frame shader parameters are kept, never rebuilt.
@@ -52,6 +52,8 @@ The bake runs as passes, direct light first and then the bounce, on a pool of wo
 Measured on a quiet machine, the first frame came down from 3.7 s to 0.5 s, ready from 4.9 s to 2.2 s, the longest task from 3.2 s to 0.08 s, and a re-bake's worst frame from 203 ms to 19 ms (`tools/startup-perf.mjs`).
 
 **Measuring performance.** Benchmark only when an issue shows up, never proactively. A measurement is taken in a quiet window, with no other agents running, before and after back to back, and reports the machine's state with its numbers.
+
+**A room placed in play shows solid at once.** A ghost only ever means a room not yet placed. The moment a room is placed, or lands where a rule moved it (and while it flies there), it shows solid in a flat light, the house's moon fill even over the whole room, and its baked light replaces it in the frame that light lands, with no ghost between. The flat room is drawn by the baked room's own materials with an even lightmap, so it needs no shader the house hasn't already compiled. A room rebuilt where it stands (a door now shut or opened by a neighbour) keeps showing as it was until its new build shows lit. The rooms of the house as first laid out, at the start and after a reload, show once their light lands, never as ghosts.
 
 **Ready** means interactive with the direct pass; **fully lit** is separate, once every pass has landed. Screenshot tools wait for fully lit. While finer passes are coming, the screen shows a "Refining light" mark, and work that usually takes long shows its progress from the start, decided per kind of work by measurement. `?bake-debug` on the house shows the scheduler's chunks, lanes and passes.
 
@@ -78,7 +80,7 @@ A light that changes while the game runs (a lamp dimmed, a candle put out) needs
 
 - Removing a candle-bearer from the scene relinks the lit materials' shaders.
 - A room's build (not its freeze) runs in one slice: about 90 ms for a room full of books.
-- Ghost rooms freeze all at once.
+- A ghost, and a room shown flat before its light lands, freezes all at once, on the frame it first shows.
 - Draw calls stand at about 248 of 300 with every floor drawn.
 - Baked shadows don't move with a candle's flicker.
 

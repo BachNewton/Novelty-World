@@ -3,7 +3,7 @@ import { loadRuleNotes, type RuleNotes } from "../data/rule-notes";
 import { viewFor, type EventView, type GameView } from "../engine/view";
 import { ENGINE } from "../game";
 import { simulate } from "../simulation";
-import { happenings, isRuleDriven, rollOutcome, ruleStatement, whyItems } from "./status";
+import { isRuleDriven, lineText, rollOutcome, ruleName, ruleStatement, whyItems } from "./status";
 
 /** Every write of a seeded game, as a spectator sees it, then as each seat does. */
 function writes(seed: string, haunt?: number): GameView[] {
@@ -77,15 +77,16 @@ describe("ruleStatement", () => {
     expect(statement.endsWith(": this haunt's own rule, in its half of the haunt book.")).toBe(true);
   });
 
-  it("words the rulebook's rule for the event, the page named", () => {
+  it("words the rulebook's rule for the event, with no page number", () => {
     const drawn = first(game, (e) => e.type === "card-drawn" && e.rule.source === "rulebook").event;
-    expect(ruleStatement(ENGINE, notes, drawn.rule, drawn)).toBe("Rulebook, p. 10: The first explorer to discover a room with a card symbol draws that card.");
+    expect(ruleStatement(ENGINE, notes, drawn.rule, drawn)).toBe("The first explorer to discover a room with a card symbol draws that card.");
     const forced = first(game, (e) => e.type === "forced" && (e.data as { kind: string }).kind === "rotation").event;
-    expect(ruleStatement(ENGINE, notes, forced.rule, forced)).toBe("Rulebook, p. 6: A room that fits only one way round goes in that way, with no question asked.");
+    expect(ruleStatement(ENGINE, notes, forced.rule, forced)).toBe("A room that fits only one way round goes in that way, with no question asked.");
   });
 
-  it("names a rulebook page's sections when it has no wording of its own for the event", () => {
-    expect(ruleStatement(ENGINE, notes, { source: "rulebook", page: 6 }, { type: "stayed", data: {} })).toBe("Rulebook, p. 6: On Your Turn, Move, Discover a New Room.");
+  it("names a rulebook rule by its page's sections, never the page", () => {
+    expect(ruleName(ENGINE, notes, { source: "rulebook", page: 6 })).toBe("On Your Turn, Move, Discover a New Room");
+    expect(ruleStatement(ENGINE, notes, { source: "rulebook", page: 6 }, { type: "stayed", data: {} })).toBe("On Your Turn, Move, Discover a New Room.");
   });
 });
 
@@ -111,31 +112,23 @@ describe("rollOutcome", () => {
   });
 });
 
-describe("happenings", () => {
+describe("lineText", () => {
   it("shows a roll's dice, total and outcome", () => {
     const { view, event } = first(game, roomRoll("junk-room"));
     const { figure, dice, result } = event.data as { figure: string; dice: number[]; result: number };
-    const line = happenings(ENGINE, view, notes).find((h) => h.event === event);
     const outcome = result >= 3 ? "success" : "failure";
-    expect(line?.text).toBe(`Junk Room: ${view.figures[figure].name}'s Might roll: ${dice.join(" + ")} = ${result}, needed 3+: ${outcome}.`);
-  });
-
-  it("says a room that fits only one way was placed so, after its discovery", () => {
-    const { view } = first(game, (e) => e.type === "forced" && (e.data as { kind: string }).kind === "rotation");
-    const lines = happenings(ENGINE, view, notes).map((h) => h.text);
-    const discovered = lines.findIndex((text) => text.includes(" discovers the "));
-    const room = /discovers the (.+)\.$/.exec(lines[discovered])?.[1];
-    expect(lines[discovered + 1]).toBe(`The ${room} fits only one way round: placed.`);
+    expect(lineText(ENGINE, view, event, notes)).toBe(`Junk Room: ${view.figures[figure].name}'s Might roll: ${dice.join(" + ")} = ${result}, needed 3+: ${outcome}.`);
   });
 });
 
 describe("whyItems", () => {
-  it("gives each rule behind a write once, and none for a plain move", () => {
+  it("gives each rule behind a beat once, named, and none for a plain move", () => {
     const { view } = first(game, roomRoll("junk-room"));
-    const items = whyItems(ENGINE, notes, happenings(ENGINE, view, notes), null);
+    const items = whyItems(ENGINE, notes, view.events, null);
     expect(items.map((item) => item.statement)).toContain("Junk Room: Whenever you leave this room, you must try a Might roll of 3+.");
+    expect(items.find((item) => item.statement.startsWith("Junk Room"))?.name).toBe("Junk Room");
     expect(new Set(items.map((item) => item.statement)).size).toBe(items.length);
-    const plain = first(game, (e) => e.type === "turn-started").view;
-    expect(whyItems(ENGINE, notes, happenings(ENGINE, plain, notes).filter((h) => h.event.type === "turn-started"), null)).toEqual([]);
+    const plain = first(game, (e) => e.type === "turn-started");
+    expect(whyItems(ENGINE, notes, [plain.event], null)).toEqual([]);
   });
 });

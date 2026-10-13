@@ -5,7 +5,7 @@ import { ENGINE } from "../game";
 import { choose, offered, pendingDecision, testGame } from "../testing";
 import type { GameState } from "../types";
 import { damageTracks, splitOf } from "./damage";
-import { rerollCards, rerollChoice, rollMeaning, rollShown, type RollParams } from "./dice";
+import { rerollCards, rerollChoice, rollMeaning, rollOffers, rollShown, type RollParams } from "./dice";
 
 /** Zoe, holding the Lucky Stone and the Skull, explores into the Game Room
  *  and draws Skeletons: a die of mental damage, which the Stone can reroll. */
@@ -58,6 +58,20 @@ describe("a roll in the box", () => {
     const defence = { spec: { kind: "attack", trait: "might", role: "defender", card: null, dice: null }, rule: { source: "rulebook", page: 13 }, then: { kind: "attack-compare", params: { attackResult: 4 } } } as const;
     expect(rollMeaning(view, notes, defence, 5)).toMatchObject({ target: 4, verdict: "pass" });
     expect(rollMeaning(view, notes, defence, 4)).toMatchObject({ target: 4, verdict: null, note: "a tie: no one is hurt" });
+  });
+});
+
+describe("cards offered before a roll", () => {
+  it("make a card whose options differ only by a number one picker, and keep every other card one offer", () => {
+    // Zoe, holding the Angel Feather and the Adrenaline Shot, draws Creepy Crawlies: a Sanity roll she may act on first.
+    let state = testGame({ stack: ["game-room"], decks: { event: ["creepy-crawlies"] }, explorers: [{ seat: 0, cards: ["angel-feather", "adrenaline-shot"] }] });
+    state = choose(choose(state, "Explore through the north door"), "turned 0°");
+    expect(pendingDecision(state).kind).toBe("roll-before");
+    const offers = rollOffers(offered(state));
+    expect(offers.map((offer) => offer.card)).toEqual(["angel-feather", "adrenaline-shot"]);
+    expect(offers[0].picks?.map((pick) => pick.value)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(offers[0].picks?.[3].choice.label).toBe("Use Angel Feather: the result is 3");
+    expect(offers[1]).toMatchObject({ picks: null, choice: { label: "Use Adrenaline Shot" } });
   });
 });
 

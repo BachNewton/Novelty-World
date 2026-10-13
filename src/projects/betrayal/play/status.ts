@@ -6,22 +6,17 @@ import type { EventView, GameView, RuleView } from "../engine/view";
 import { ruleDetail, ruleTexts, type RuleNotes } from "../data/rule-notes";
 
 /*
- * The play screen's status box, in words: what the latest write did, in
- * plain language, and why, as the short statement of each rule behind it
- * with its source named. The rule's full text and rulings are the "why?"
- * content, a tap away. Rolls show their dice, total and outcome; a room
- * placed the only way it fits says so.
+ * The play screen's status box, in words: the line of the beat playing, in
+ * plain language, and its Why, the rules behind it, each named by its
+ * source (a room, card, token, haunt or the rulebook's section, never a
+ * page number) with a short statement, then its full text and rulings.
+ * Rolls show their dice, total and outcome.
  */
 
-/** One line of what happened, with the event it tells. */
-export interface Happening {
-  text: string;
-  event: EventView;
-}
-
-/** A rule behind what happened, put in one plain sentence with its source named. */
+/** A rule behind what happened: its name, and the rule in one plain sentence. */
 export interface WhyItem {
   rule: RuleView;
+  name: string;
   statement: string;
 }
 
@@ -116,27 +111,9 @@ function rollText(engine: Engine, view: GameView, event: EventView, notes: RuleN
   return `${source}${view.figures[d.figure].name}'s ${rollName(d.spec)}: ${d.dice.join(" + ")}${bonus} = ${d.result}${outcome ?? ""}.`;
 }
 
-/** The latest write's events in plain language, one line each. A room that
- *  fits only one way is said to be placed so, after its discovery. */
-export function happenings(engine: Engine, view: GameView, notes: RuleNotes | null): Happening[] {
-  const events = view.events;
-  const lines: Happening[] = [];
-  const after = new Map<number, Happening>();
-  for (const [i, event] of events.entries()) {
-    if (event.type === "forced" && (event.data as { kind?: string }).kind === "rotation") {
-      const placing = events.findIndex((later, j) => j > i && (later.type === "discovered" || later.type === "room-placed"));
-      if (placing >= 0) {
-        const room = (events[placing].data as { room?: string; tile?: string }).room ?? (events[placing].data as { tile: string }).tile;
-        after.set(placing, { text: `The ${engine.catalog.rooms[room].name} fits only one way round: placed.`, event });
-        continue;
-      }
-    }
-    const text = (event.type === "rolled" ? rollText(engine, view, event, notes) : null) ?? describeEvent(engine, view, event);
-    if (text !== null) lines.push({ text, event });
-    const forced = after.get(i);
-    if (forced) lines.push(forced);
-  }
-  return lines;
+/** An event's line, as the seat holding the device may read it, or null when it has no words for them. */
+export function lineText(engine: Engine, view: GameView, event: EventView, notes: RuleNotes | null): string | null {
+  return (event.type === "rolled" ? rollText(engine, view, event, notes) : null) ?? describeEvent(engine, view, event);
 }
 
 /** The rulebook's rules behind events beyond its plain flow, in our own words. */
@@ -159,13 +136,21 @@ function rulebookKey(event: Pick<EventView, "type" | "data">): string {
 }
 
 /** A section's title without the page it is on: "Move (p. 6)" is "Move". */
-const untitled = (title: string) => title.replace(/\s*\((?:sidebar, )?p\. \d+\)$/, "");
+export const untitled = (title: string) => title.replace(/\s*\((?:sidebar, )?p\. \d+\)$/, "");
 
-/** A rule in one plain sentence, its source named first: a room's, card's or
- *  token's text opens with it; a ruling is its resolution; the rulebook's
- *  are worded per event, or else named by the sections of its page. */
+/** A rule's name: its room, card or token, its haunt, or the rulebook's
+ *  sections on its page, never the page's number. */
+export function ruleName(engine: Engine, notes: RuleNotes | null, rule: RuleView): string {
+  if (rule.source !== "rulebook") return describeRule(engine, rule);
+  const sections = notes === null ? [] : (notes.pages[rule.page] ?? []).map((text) => untitled(text.title));
+  return sections.length === 0 ? "The rulebook" : sections.join(", ");
+}
+
+/** A rule in one plain sentence: a room's, card's or token's opens with
+ *  its name, then its text; a ruling is its resolution; the rulebook's are
+ *  worded per event, or else named by the sections of its page. */
 export function ruleStatement(engine: Engine, notes: RuleNotes | null, rule: RuleView, event: Pick<EventView, "type" | "data"> | null): string {
-  const source = describeRule(engine, rule);
+  const source = ruleName(engine, notes, rule);
   if (rule.hiddenRuling) return `${source}: a ruling from one side's half of the haunt, which only that side may read.`;
   if (notes !== null && rule.ruling !== undefined) {
     const ruling = ruleDetail(notes, rule).flatMap((text) => text.rulings).at(0);
@@ -182,28 +167,25 @@ export function ruleStatement(engine: Engine, notes: RuleNotes | null, rule: Rul
       return `${source}: this haunt's own rule, in its half of the haunt book.`;
     case "rulebook": {
       const worded = event === null ? undefined : RULEBOOK[rulebookKey(event)];
-      if (worded !== undefined) return `${source}: ${capital(worded)}.`;
-      const sections = notes === null ? [] : (notes.pages[rule.page] ?? []).map((text) => untitled(text.title));
-      return sections.length === 0 ? `${source}.` : `${source}: ${sections.join(", ")}.`;
+      return worded === undefined ? `${source}.` : `${capital(worded)}.`;
     }
     case "scenario":
-      return `${source}: set up by the scenario this game started from.`;
+      return "Set up by the scenario this game started from.";
     case "players":
-      return `${source}: chosen by the players, not by a rule.`;
+      return "Chosen by the players, not by a rule.";
   }
 }
 
-/** The rules behind what happened, each once, in the order they first acted:
- *  those of rule-driven events, then the rule that raised the pending
- *  decision when it is a room's, card's, token's or haunt's. */
-export function whyItems(engine: Engine, notes: RuleNotes | null, lines: Happening[], decision: RuleView | null): WhyItem[] {
+/** The rules behind a beat, each once, in the order they acted: those of its
+ *  rule-driven events, then, with nothing playing, the rule that raised the
+ *  pending decision when it is a room's, card's, token's or haunt's. */
+export function whyItems(engine: Engine, notes: RuleNotes | null, events: readonly EventView[], decision: RuleView | null): WhyItem[] {
   const items: WhyItem[] = [];
   const add = (rule: RuleView, event: Pick<EventView, "type" | "data"> | null) => {
     const statement = ruleStatement(engine, notes, rule, event);
-    if (!items.some((item) => item.statement === statement)) items.push({ rule, statement });
+    if (!items.some((item) => item.statement === statement)) items.push({ rule, name: ruleName(engine, notes, rule), statement });
   };
-  for (const { event } of lines) if (isRuleDriven(event)) add(event.rule, event);
+  for (const event of events) if (isRuleDriven(event)) add(event.rule, event);
   if (decision && decision.source !== "rulebook" && decision.source !== "scenario" && decision.source !== "players") add(decision, null);
   return items;
 }
-

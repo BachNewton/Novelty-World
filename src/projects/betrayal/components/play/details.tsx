@@ -59,7 +59,7 @@ export function HouseDetails({ scene, view, things }: { scene: HouseScene; view:
         // Rooms never move aside: each has its own place, and the marks and labels over it are what matters.
         apart: false,
         node: (
-          <span data-detail-room={tile} className="flex max-w-32 flex-col items-center rounded bg-(--bt-panel)/80 px-1.5 text-center text-[11px] leading-3.5 text-(--bt-muted)">
+          <span data-detail-room={tile} className="flex max-w-32 flex-col items-center rounded bg-(--bt-bg)/80 px-1.5 text-center text-[11px] leading-3.5 text-(--bt-ink)">
             <span className="font-semibold tracking-wide uppercase">{ENGINE.catalog.rooms[tile].name}</span>
             {stairs !== null && (
               <span className="inline-flex items-center gap-0.5">
