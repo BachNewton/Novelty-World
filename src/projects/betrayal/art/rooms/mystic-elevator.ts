@@ -410,7 +410,6 @@ export const MYSTIC_ELEVATOR: RoomDefinition = {
   wall: () => panelling({ ramp: RAMPS.wood, panelPx: 20, seed: "mystic-elevator", glints: false }),
   wainscot: () => panelling({ ramp: ["void", "soot", "sootLight", "ash"] as readonly PaletteKey[], panelPx: 32, seed: "mystic-elevator-kick", glints: false }),
   trim: "brass",
-  shine: { wall: SHINES.floorSheen, wainscot: SHINES.floorSheen, trim: SHINES.brass },
   floorOpenings: SIDES.map(([, side]) => ({
     x: (side < 0 ? [-SLOT.x[1], -SLOT.x[0]] : SLOT.x) as [number, number],
     z: SLOT.z,

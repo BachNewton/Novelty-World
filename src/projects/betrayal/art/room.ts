@@ -1,7 +1,6 @@
 import type * as THREE from "three";
 import type { Edge } from "../types";
 import type { PaletteKey } from "./palette";
-import type { Shine } from "./shine";
 import type { WallMark } from "./wall-marks";
 
 /** One unit is one metre. Every room is the same square tile. */
@@ -166,8 +165,6 @@ export interface RoomDefinition {
   wainscot?: Surface;
   /** Skirting, crown, door and window frames. */
   trim: PaletteKey;
-  /** The shell's shiny surfaces (polished marble, waxed panelling, the windows' glass), which take highlights from the room's lights (`shine.ts`). The glass is `SHINES.glass` unless set. */
-  shine?: Partial<Record<"floor" | "wall" | "wainscot" | "trim" | "glass", Shine>>;
   props: PropPlacement[];
   lights?: LightSpec[];
   /** Where the close-up looks. Defaults to `DEFAULT_FOCUS`. */

@@ -4,7 +4,7 @@ import type { PaletteKey } from "../palette";
 import { CUT_HEIGHT, INNER, onWall, type PropPlacement, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, group, type Batch } from "../shapes";
 import { shiny, shinyBatch, SHINES } from "../shine";
-import { HALL_SHINE, newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
+import { newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
 
 const STAIR_MID = (STAIR.back + STAIR.front) / 2;
 /** The flight rises through the ceiling here: the balustrade stops where its
@@ -189,7 +189,6 @@ function clock(part: "foot" | "case"): THREE.Group {
 export const GRAND_STAIRCASE: RoomDefinition = {
   id: "grand-staircase",
   ...SUITE,
-  shine: HALL_SHINE,
   props: [
     { build: () => runner({ from: 0.2, to: 3, finished: ["from"] }), at: [0, 0] },
     {

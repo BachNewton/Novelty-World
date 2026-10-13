@@ -232,7 +232,7 @@ function altar(): THREE.Group {
 
 /** The raised floor the altar stands on, with a communion rail in front. */
 function chancel(): THREE.Group {
-  const stone = shiny(textured(marble({ chequer: false, pale: "bone", grout: "bone", veins: 0, seed: "chancel" })), SHINES.floorSheen);
+  const stone = textured(marble({ chequer: false, pale: "bone", grout: "bone", veins: 0, seed: "chancel" }));
   const rail = shiny(flat("woodDark"), SHINES.polishedWood);
   const result = group(box([4.2, 0.15, 1.35], stone, [0, 0, 0]));
   for (const side of [-1, 1]) {
@@ -372,7 +372,6 @@ export const CHAPEL: RoomDefinition = {
   wall: () => wallpaper({ ground: "ash", stripe: "sootLight", motif: "stoneDark", seed: "chapel" }),
   wainscot: () => panelling({ ramp: RAMPS.wood, seed: "chapel", glints: false }),
   trim: "woodDark",
-  shine: { floor: SHINES.floorSheen },
   props: [
     { build: () => rug({ width: 1.1, length: 3.9, field: "blood", border: "bloodDark", motif: "amber" }), at: [0, -0.6] },
     { build: chancel, at: [0, 2.12] },

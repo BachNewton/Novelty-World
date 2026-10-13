@@ -30,7 +30,7 @@ import {
 import type { PaletteKey } from "./palette";
 import { batch, box, flat, glow, group, projectUvs, textured } from "./shapes";
 import { pixelTexture, textureReady } from "./textures";
-import { shiny, SHINES, type Shine } from "./shine";
+import { shiny, SHINES } from "./shine";
 import { boardedDoor, boardedWindow, capWindow, litThreshold, STUB_CAP, windowLight, type WallOpening } from "./wall-markings";
 import { markedWall } from "./wall-marks";
 
@@ -110,9 +110,9 @@ const LEADED_GLASS = Array.from({ length: 48 }, (_, y) =>
   Array.from({ length: 32 }, (_, x) => (x % 8 === 0 || y % 12 === 0 || (x + y) % 16 === 0 || (x - y + 64) % 16 === 0 ? "l" : y < 24 ? "m" : "d")).join(""),
 );
 
-/** A window's panes: moonlit leaded glass, glass unless the room says otherwise. */
-function windowGlass(shine: Shine = SHINES.glass): THREE.Material {
-  return shiny(glow("moon", pixelTexture(LEADED_GLASS, { l: "soot", m: "moon", d: "moonDark" })), shine);
+/** A window's panes: moonlit leaded glass, the one part of a room's shell that shines. */
+function windowGlass(): THREE.Material {
+  return shiny(glow("moon", pixelTexture(LEADED_GLASS, { l: "soot", m: "moon", d: "moonDark" })), SHINES.glass);
 }
 
 /** A wall's dressing, standing out from its inner face: the skirting, the
@@ -519,28 +519,23 @@ export interface RoomPart {
   dispose: () => void;
 }
 
-/** A shell material, marked shiny when the room declares its surface so. */
-function withShine<M extends THREE.Material>(material: M, shine: Shine | undefined): M {
-  return shine ? shiny(material, shine) : material;
-}
-
 export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () => pawn(), closedDoors = [], falseWindows = [] }: RoomOptions = {}): RoomPart {
   const tile = roomTile(def.id);
   const root = group();
   const wallTexture = def.wall();
-  const wallMaterial = withShine(textured(wallTexture), def.shine?.wall);
+  const wallMaterial = textured(wallTexture);
   const cap = flat("soot");
   const parts: WallParts = {
     wall: [wallMaterial, wallMaterial, cap, cap, wallMaterial, wallMaterial],
-    wainscot: def.wainscot ? withShine(textured(def.wainscot()), def.shine?.wainscot) : null,
-    trim: withShine(flat(def.trim), def.shine?.trim),
-    glass: windowGlass(def.shine?.glass),
+    wainscot: def.wainscot ? textured(def.wainscot()) : null,
+    trim: flat(def.trim),
+    glass: windowGlass(),
   };
   /** A cut-down wall's parts: its cap takes a colour of its own, so the cut reads as a line round the room. */
   const stubParts: WallParts = { ...parts, wall: [wallMaterial, wallMaterial, flat(STUB_CAP), cap, wallMaterial, wallMaterial] };
 
   const floorTexture = def.floor();
-  const floorMaterial = withShine(textured(floorTexture), def.shine?.floor);
+  const floorMaterial = textured(floorTexture);
   const slab = flat("sootLight");
   const holes = def.floorOpenings ?? [];
   const floor: THREE.Mesh[] = floorPieces(holes.map((hole) => openingRect(hole, def.id))).map(([x0, x1, z0, z1]) =>
@@ -571,7 +566,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     // A wall with marks of its own wears its own texture, the room's with the marks drawn in.
     const marks = (def.wallMarks ?? []).filter((mark) => mark.edge === edge);
     if (marks.length && tile.outside) throw new Error(`${def.id} is outdoors, with no wall to hold its wall marks`);
-    const marked = marks.length ? withShine(textured(markedWall(wallTexture, marks, edgeLength(edge), WALL_HEIGHT)), def.shine?.wall) : null;
+    const marked = marks.length ? textured(markedWall(wallTexture, marks, edgeLength(edge), WALL_HEIGHT)) : null;
     // Only on the wall's inner face: its outer face and its ends keep the room's own texture.
     const wallOf = (whole: WallParts): WallParts => (marked ? { ...whole, wall: whole.wall.map((face, side) => (side === INNER_FACE ? marked : face)) } : whole);
     const wall = (height: number) => {

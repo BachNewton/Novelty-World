@@ -5,7 +5,6 @@ import { crossCorners } from "../kit/wall-mass";
 import { RAMPS, type PaletteKey } from "../palette";
 import { clearOfMarks, crossLanes, INNER, type RoomDefinition } from "../room";
 import { batch, box, glow, group } from "../shapes";
-import { SHINES } from "../shine";
 import { panelling, wallpaper, woodPlanks } from "../textures";
 
 const SEED = "creaky-hallway";
@@ -15,8 +14,7 @@ const SURFACES = {
   wall: () => wallpaper({ ground: "ash", stripe: "sootLight", motif: "stoneDark", seed: SEED }),
   wainscot: () => panelling({ ramp: RAMPS.wood, seed: SEED, glints: false }),
   trim: "woodDark",
-  shine: { glass: SHINES.glass },
-} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim" | "shine">;
+} satisfies Pick<RoomDefinition, "wall" | "wainscot" | "trim">;
 
 /** The loose boards lie in rows along x, one every `PITCH` from `FIRST`, with a gap between each. */
 const PITCH = 0.25;

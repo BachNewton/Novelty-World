@@ -196,7 +196,6 @@ export const SERVANTS_QUARTERS: RoomDefinition = {
   wall: () => plaster({ ramp: ["stoneDark", "boneDark", "stone"], seed: "servants-quarters" }),
   wainscot: () => woodPlanks({ ramp: DADO, plankPx: 4, seed: "servants-quarters-dado", glints: false }),
   trim: "woodDark",
-  shine: { glass: SHINES.glass },
   props: [
     { build: madeCot(0.02), ...onWall("left", 1.75, { out: 0.04 }) },
     { build: madeCot(-0.03), ...onWall("left", -1.75, { out: 0.04 }) },

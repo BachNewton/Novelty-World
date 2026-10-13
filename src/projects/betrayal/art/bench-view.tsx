@@ -25,7 +25,7 @@ const SHINE_BENCH = "shine";
  *  `&frame=explorer` and `&paths`): one room, full screen, to judge its art.
  *  `?bench=props` opens the props gallery instead (`&show=kit|duplicates|<room-id>`, `&q=<search>`), and
  *  `?bench=figures` the figure viewer (see `figure-viewer.ts`), and `?bench=shine` the shine bench
- *  (every floor and shiny shell surface under a light to pick and move, see `shine-bench.ts`). */
+ *  (every floor, matte, under a light to pick and move, with a shine to try on them, see `shine-bench.ts`). */
 export function ArtBench(props: { room: string; explorer: string | null; frame: string | null; paths: boolean }) {
   if (props.room === FIGURES_BENCH) return <FigureViewer />;
   if (props.room === SHINE_BENCH) return <ShineBenchView />;
