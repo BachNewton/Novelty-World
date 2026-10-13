@@ -7,7 +7,7 @@ import { panOnFloor } from "../input/gestures";
 import { cycleChoice, stepFloor, type Point } from "../input/navigate";
 import type { FloorId, PlacedTile } from "../types";
 import type { Pace } from "./explorers/figure";
-import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure } from "./house";
+import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure, type RoomShownAs } from "./house";
 import type { LayoutChange } from "./house-layout";
 import { choiceLayout, exploreEntry, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
 import { inHouse, walkPath, walkPose, type Avoid, type HousePoint, type Stairway, type Walk } from "./house-walk";
@@ -229,6 +229,8 @@ export interface SceneHook {
   isFullyLit: () => boolean;
   /** How many rooms show, lit. */
   roomsShown: () => number;
+  /** How a room shows now: a ghost, solid in flat light while it bakes, lit, or not at all. */
+  roomShownAs: (room: string) => RoomShownAs;
   /** The background bake's work in hand. */
   bake: () => BakeStatus;
   floors: () => FloorId[];
@@ -876,6 +878,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     isReady: () => mounted !== null && mounted.house.built() && settled,
     isFullyLit: () => hook.isReady() && !bakes.status().pending && mounted?.house.figuresIn() === true,
     roomsShown: () => mounted?.house.roomsShown() ?? 0,
+    roomShownAs: (room) => mounted?.house.shownAs(room) ?? null,
     bake: bakes.status,
     floors: () => floorsOf(layout),
     rooms: (floor) => layout.tiles.filter((tile) => tile.floor === floor).map((tile) => tile.tile),
