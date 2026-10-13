@@ -1,10 +1,12 @@
 import { placeFigures, type RoomFloors } from "../art/placement";
 import { FLOOR_RINGS } from "../art/room";
 import { TOKENS } from "../data/tokens";
+import { explorerOfToken, isExplorerToken } from "../engine/describe";
 import type { Engine } from "../engine/step-loop";
 import type { GameView } from "../engine/view";
 import type { Edge, Place, RoomTile } from "../types";
 import { cardMood, type Mood } from "./cards";
+import { shortName } from "./short-name";
 import type { Spot, Spots } from "./spots";
 
 /*
@@ -72,7 +74,7 @@ export const PRESENCE: Readonly<Record<string, Presence>> = {
   "sanity-roll": { kind: "object", colour: mood("magic") },
   "speed-roll": { kind: "object", colour: mood("magic") },
   // Widow's Walk explorer tokens: a room power used, left in the room.
-  ...Object.fromEntries(TOKENS.filter((token) => token.id.startsWith("explorer-")).map((token) => [token.id, { kind: "object", colour: mood("human") } satisfies Presence])),
+  ...Object.fromEntries(TOKENS.filter((token) => isExplorerToken(token.id)).map((token) => [token.id, { kind: "object", colour: mood("human") } satisfies Presence])),
   // Monster tokens stand for figures.
   ...Object.fromEntries(TOKENS.filter((token) => token.id.startsWith("monster-")).map((token) => [token.id, { kind: "figure" } satisfies Presence])),
 };
@@ -105,17 +107,21 @@ export interface RoomThing {
 
 const TOKEN_NAMES = new Map(TOKENS.map((token) => [token.id, token.name]));
 
-const tokenName = (token: string) => {
+/** A token's name in the room: its printed name ("Blessing"), or, for an
+ *  explorer token, whose it is ("Zoe's explorer token"): its printed name is
+ *  only its colour. */
+export function tokenName(engine: Engine, view: Pick<GameView, "figures">, token: string): string {
+  if (isExplorerToken(token)) return `${shortName(explorerOfToken(engine, view, token).name)}'s explorer token`;
   const name = TOKEN_NAMES.get(token);
   if (name === undefined) throw new Error(`No token kind ${token}`);
   return name;
-};
+}
 
 /** The id of a card lying on a floor: the object in the room and the sheet's Pick up name it alike. */
 export const cardThingId = (card: string) => `card:${card}`;
 
 /** Everything living in the house's rooms, in the view's order: dropped cards, then tokens. */
-export function roomThings(engine: Engine, view: Pick<GameView, "piles" | "tokens">): RoomThing[] {
+export function roomThings(engine: Engine, view: Pick<GameView, "piles" | "tokens" | "figures">): RoomThing[] {
   const cards = Object.entries(view.piles).flatMap(([room, pile]) =>
     pile.map((id): RoomThing => ({ id: cardThingId(id), kind: "object", room, side: null, name: engine.catalog.cards[id].name, card: id, token: null, mood: cardMood(engine, id), wall: null, link: null, lies: true })),
   );
@@ -135,7 +141,7 @@ export function roomThings(engine: Engine, view: Pick<GameView, "piles" | "token
         kind: presence.kind,
         room: token.room,
         side: token.side ?? null,
-        name: tokenName(token.token),
+        name: tokenName(engine, view, token.token),
         card: placer,
         token: token.token,
         mood: "card" in presence.colour ? cardMood(engine, presence.colour.card) : presence.colour.mood,

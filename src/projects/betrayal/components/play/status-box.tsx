@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, use, useEffect, type RefObject } from "react";
+import { Suspense, use, type RefObject } from "react";
 import type { RuleNotes } from "../../data/rule-notes";
 import { describeDecision } from "../../engine/describe";
 import { seatName, viewExplorer, type EventView, type GameView } from "../../engine/view";
@@ -12,15 +12,16 @@ import { lineText, whyItems, type WhyItem } from "../../play/status";
 import type { Action } from "../../types";
 import { ErrorBox } from "../error-box";
 import { PendingPanel } from "../pending-panel";
-import { RuleDetail, ruleNotes } from "../why";
+import { ruleNotes } from "../why";
 import { GhostPanel, type GhostPlacer } from "./ghost-placer";
 import { boxActions } from "../../play/sheet";
-import { PromptButton, type Hold } from "../prompts";
+import { PromptButton } from "../prompts";
 import { DecisionPart } from "./decision-panel";
 import { HappeningLine, HappeningTable } from "./happening-line";
 import { boxPart } from "../../play/panels";
 import { RevealNow } from "./reveal";
 import { seatDot, seatText } from "./seat-colour";
+import { WhyDialog } from "./why-dialog";
 
 /*
  * The one status box: what the player holding the device can do now, and at
@@ -28,9 +29,9 @@ import { seatDot, seatText } from "./seat-colour";
  * where icons say it, with its Why. The box keeps no history: the line goes
  * when the next write's beats begin, and nothing is told before its beat
  * plays. Why opens the rules behind the line's beat, or, with nothing
- * playing, behind the pending decision: each named, with its plain text and
- * rulings. While beats play, "now" is skipping them: the choices wait until
- * they are over. The box is the lowest layer a controller's focus works in:
+ * playing, behind the pending decision, in a dialog over the house
+ * (`WhyDialog`). While beats play, "now" is skipping them: the choices wait
+ * until they are over. The box is the lowest layer a controller's focus works in:
  * the d-pad's down moves the focus from the house into "now", and up past
  * the box's top row gives it back.
  */
@@ -59,8 +60,6 @@ export interface StatusBoxProps {
   notice?: string | null;
   /** Opens the game menu, where pads take and give back seats. */
   openMenu?: () => void;
-  /** End turn's hold: under way, and its end (the turn ends). */
-  endHold: Hold;
   /** Why is open, opening or closing it, and holding the beats between two while it is open. */
   why: { open: boolean; toggle: (open: boolean) => void; hold: (on: boolean) => void };
 }
@@ -98,11 +97,18 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
       data-pad-layer="0"
       // Only a focus the pad put here is the pad's: a button a click left focused is not.
       data-pad-owned
-      className="pointer-events-auto flex max-h-[45vh] w-full flex-col overflow-y-auto rounded border border-(--bt-line) bg-(--bt-panel) sm:w-[28rem]"
+      // With End turn apart, a turn with nothing to tell or choose here leaves the box empty, and it hides.
+      className="pointer-events-auto flex has-[>[data-now]:first-child:empty]:hidden max-h-[45vh] w-full flex-col overflow-y-auto rounded border border-(--bt-line) bg-(--bt-panel) sm:w-[28rem]"
     >
-      {open && <WhyDialog whys={whys} hold={why.hold} close={() => {
+      {open && (
+        <WhyDialog
+          whys={whys}
+          hold={why.hold}
+          close={() => {
             why.toggle(false);
-          }} />}
+          }}
+        />
+      )}
       {(text !== null || whys.length > 0) && (
         <div className="flex min-h-0 shrink-0 items-start gap-2 px-3 py-2">
           {told && text !== null && (
@@ -139,41 +145,6 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
   );
 }
 
-/** The rules behind the beat: each named, in a plain sentence, then its full text and rulings. B or Esc closes it. */
-function WhyDialog({ whys, hold, close }: { whys: WhyItem[]; hold: (on: boolean) => void; close: () => void }) {
-  // Reading never costs a beat: the next waits while Why is open.
-  useEffect(() => {
-    hold(true);
-    return () => {
-      hold(false);
-    };
-  }, [hold]);
-  return (
-    <section role="dialog" aria-label="Why" data-pad-layer="2" className="flex shrink-0 flex-col gap-2 border-b border-(--bt-line) bg-(--bt-bg) p-3 text-sm">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">Why</h2>
-        <button type="button" data-pad-back data-pad-start onClick={close} className="inline-flex min-h-9 items-center rounded border border-(--bt-line) px-3 hover:border-(--bt-accent)">
-          Close
-        </button>
-      </div>
-      <ul className="flex flex-col gap-3">
-        {whys.map((why) => (
-          <li key={why.statement} className="flex flex-col gap-1">
-            <h3 className="font-semibold text-(--bt-accent)">{why.name}</h3>
-            {/* Named in the heading, so its sentence doesn't name it again. */}
-            <p>{why.statement.startsWith(`${why.name}: `) ? why.statement.slice(why.name.length + 2) : why.statement}</p>
-            <div className="text-xs text-(--bt-muted)">
-              <Suspense fallback={<p>Loading the rules…</p>}>
-                <RuleDetail rule={why.rule} />
-              </Suspense>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 function DeviceNotice({ text, openMenu }: { text: string; openMenu?: () => void }) {
   return (
     <p role="status" className="flex flex-wrap items-center gap-2 rounded border border-(--bt-line) bg-(--bt-bg) px-2 py-1.5 text-sm">
@@ -187,11 +158,10 @@ function DeviceNotice({ text, openMenu }: { text: string; openMenu?: () => void 
   );
 }
 
-/** While beats play, what the player can do now is skip them. Keyed as End
- *  turn is, so it is the same button on the page: one focused stays focused. */
+/** While beats play, what the player can do now is skip them. */
 function skipButton(skip: () => void) {
   return (
-    <button key="primary" type="button" onClick={skip} className="inline-flex min-h-11 items-center gap-1.5 self-end rounded border border-(--bt-line) px-4 py-1 text-sm hover:border-(--bt-accent)">
+    <button type="button" onClick={skip} className="inline-flex min-h-11 items-center gap-1.5 self-end rounded border border-(--bt-line) px-4 py-1 text-sm hover:border-(--bt-accent)">
       Skip ahead
     </button>
   );
@@ -228,8 +198,8 @@ function RouteLine({ preview, label, notes }: { preview: RoutePreview; label: st
   );
 }
 
-function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip, endHold }: StatusBoxProps & { notes: RuleNotes | null }) {
-  const { targets, panel, end } = choices;
+function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip }: StatusBoxProps & { notes: RuleNotes | null }) {
+  const { targets, panel } = choices;
   const pending = view.pending;
   if (playing) return <>{skipButton(skip)}</>;
   const part = boxPart(view);
@@ -242,7 +212,7 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
     );
   }
 
-  // The turn needs no prompt: its places glow in the house, and End turn is here.
+  // The turn needs no prompt: its places glow in the house, and End turn is at the top right.
   const isTurn = pending.kind === "turn";
   const explorer = viewExplorer(view, holder);
   // A question for a seat other than the turn's names it, as the device passes mid-turn.
@@ -280,23 +250,6 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
               {choice.label}
             </button>
           ))}
-        </div>
-      )}
-      {end && (
-        <div className="flex flex-wrap items-center justify-end gap-2 self-end">
-          <PromptButton
-            key="primary"
-            meaning="end-turn"
-            input={input}
-            hold={endHold}
-            data-end-turn
-            onClick={() => {
-              act(end.action);
-            }}
-            className="min-h-11 rounded px-4 py-1 font-semibold"
-          >
-            End turn
-          </PromptButton>
         </div>
       )}
     </>

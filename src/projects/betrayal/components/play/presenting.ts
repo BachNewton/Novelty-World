@@ -2,7 +2,7 @@ import type { FigureSpec, HouseScene } from "../../art/house-scene";
 import type { RoomFloors } from "../../art/placement";
 import type { EventView, GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
-import { beatLine, present, startPresentation, type Beat, type Presentation } from "../../play/presenter";
+import { arrivedRooms, beatLine, present, startPresentation, type Beat, type Presentation } from "../../play/presenter";
 import { aheadRooms, standingRooms, type Spots } from "../../play/spots";
 import { lyingRooms, roomThings, shownThings, type Clusters, type RoomThing, type ShownThing } from "../../play/things";
 
@@ -61,6 +61,9 @@ export interface Presented {
   things: readonly ShownThing[];
   /** Beats are playing: the pending decision's choices wait until they are over, and an input only skips them. */
   playing: boolean;
+  /** The view last presented. Until the view now shown has been presented,
+   *  its beats aren't known yet, so its choices wait as they do while beats play. */
+  view: GameView | null;
 }
 
 /** The house's room floors: placing figures on those read, and reading more
@@ -92,7 +95,7 @@ function started(beats: readonly Beat[], told: Told | null): Pick<Presented, "to
 
 export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, spots: Spots) => FigureSpec[], floors: Floors) {
   let presentation: Presentation | null = null;
-  let shown: Presented = { beat: null, told: null, shown: [], card: null, floats: [], spots: {}, clusters: {}, inRooms: [], things: [], playing: false };
+  let shown: Presented = { beat: null, told: null, shown: [], card: null, floats: [], spots: {}, clusters: {}, inRooms: [], things: [], playing: false, view: null };
   let speed: Speed = "normal";
   /** Counts the runs of beats: a run that is no longer the latest stops at its next step. */
   let run = 0;
@@ -131,8 +134,9 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
     } else if (shown.playing) publish({ beat: null, card: null, playing: false });
   }
 
-  async function playRun(beats: readonly Beat[], figures: (released: ReadonlySet<string>) => FigureSpec[], told: Told | null, mine: number) {
-    const released = new Set<string>();
+  async function playRun(beats: readonly Beat[], figures: (standing: Spots) => FigureSpec[], told: Told | null, mine: number, from: Spots) {
+    /** Where each figure stands as the beats so far have shown it. */
+    let standing = from;
     for (const [i, beat] of beats.entries()) {
       if (holding)
         await new Promise<void>((resolve) => {
@@ -144,16 +148,18 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
       publish({ ...now, card, beat });
       switch (beat.kind) {
         case "walk":
-          for (const walk of beat.walks) released.add(walk.figure);
+          standing = { ...standing, ...Object.fromEntries(beat.walks.map((walk) => [walk.figure, walk.to])) };
           {
-            const walking = scene.play({ kind: "walk", walks: beat.walks.map((walk) => ({ figure: walk.figure, route: walk.route, at: walk.at, pace: walk.gait, speed: walk.speed ?? undefined })) });
-            scene.setFigures(figures(released));
+            const walking = scene.play({ kind: "walk", walks: beat.walks.map((walk) => ({ figure: walk.figure, route: walk.route, at: [walk.to.x, walk.to.z], pace: walk.gait, speed: walk.speed ?? undefined })) });
+            scene.setFigures(figures(standing));
             await walking;
           }
           break;
         case "place":
-          for (const figure of beat.figures) released.add(figure);
-          scene.setFigures(figures(released));
+          // Gone from where it stood and standing at once where it was put; the beat lasts until a following camera has gone after it there.
+          standing = { ...standing, [beat.figure]: beat.to };
+          scene.setFigures(figures(standing));
+          await scene.play({ kind: "frame", framing: null });
           break;
         case "move":
           await scene.play({ kind: "move-room", room: beat.room, seconds: MOVING_SECONDS * SPEEDS[speed] });
@@ -184,9 +190,9 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
   /** Shows a view, with the events fed so far as the seat holding the device may see them; `ahead` names rooms to read the floors of before they are needed (the next tiles of the room stack). */
   function show(view: GameView, events: readonly EventView[], ahead: readonly string[] = []) {
     latest = { view, events };
-    // A view waits only for the floors of the rooms its explorers stand in; the rest of the house, a room being placed and the next tiles drawn are read ahead.
+    // A view waits only for the floors of the rooms its explorers stand in or pass through; the rest of the house, a room being placed and the next tiles drawn are read ahead.
     // Objects lying in a room are placed on its floor too.
-    const needed = floors.load([...new Set([...standingRooms(view), ...lyingRooms(roomThings(ENGINE, view))])]);
+    const needed = floors.load([...new Set([...standingRooms(view), ...arrivedRooms(presentation, events), ...lyingRooms(roomThings(ENGINE, view))])]);
     void floors.load([...aheadRooms(view), ...ahead]);
     if (needed) {
       if (!shown.playing) {
@@ -211,7 +217,7 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
       scene.setThings(things.things);
       scene.setActive(presentation.active);
       scene.setMood(presentation.haunted ? "haunt" : "explore", { shifting: false });
-      publish({ spots: presentation.spots, clusters: presentation.clusters, ...things, playing: false });
+      publish({ spots: presentation.spots, clusters: presentation.clusters, ...things, playing: false, view });
       return;
     }
     const before = presentation;
@@ -223,19 +229,20 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
     const mine = run;
     const spots = presentation.spots;
     // A figure whose walk, or whose being put somewhere, is still to come stands where it was until its beat.
-    const moving = new Set(next.beats.flatMap((beat) => (beat.kind === "walk" ? beat.walks.map((walk) => walk.figure) : beat.kind === "place" ? beat.figures : [])));
-    const figures = (released: ReadonlySet<string>) => figuresOf(view, Object.fromEntries(Object.entries(spots).map(([id, spot]) => [id, moving.has(id) && !released.has(id) ? before.spots[id] : spot])));
-    scene.setFigures(figures(new Set()));
+    const moving = new Set(next.beats.flatMap((beat) => (beat.kind === "walk" ? beat.walks.map((walk) => walk.figure) : beat.kind === "place" ? [beat.figure] : [])));
+    const from: Spots = Object.fromEntries(Object.entries(spots).map(([id, spot]) => [id, moving.has(id) ? before.spots[id] : spot]));
+    const figures = (standing: Spots) => figuresOf(view, standing);
+    scene.setFigures(figures(from));
     const things = thingsOf(view, presentation.clusters);
     scene.setThings(things.things);
     const told = fresh ? null : shown.told;
     if (next.beats.length === 0) {
-      publish({ spots, clusters: presentation.clusters, ...things, told, playing: shown.playing && !wasHeld });
+      publish({ spots, clusters: presentation.clusters, ...things, told, playing: shown.playing && !wasHeld, view });
       return;
     }
     playingRun = { beats: next.beats, figures: figuresOf(view, spots), told };
-    publish({ spots, clusters: presentation.clusters, ...things, told, shown: [], floats: [], card: null, playing: true });
-    void playRun(next.beats, figures, told, mine);
+    publish({ spots, clusters: presentation.clusters, ...things, told, shown: [], floats: [], card: null, playing: true, view });
+    void playRun(next.beats, figures, told, mine, from);
   }
 
   return {

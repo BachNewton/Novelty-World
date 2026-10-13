@@ -5,6 +5,7 @@ import { describeRule } from "../engine/describe";
 import type { Engine } from "../engine/step-loop";
 import type { RuleView } from "../engine/view";
 import { loadRuleNotes, ruleDetail, type RuleNotes } from "../data/rule-notes";
+import { untitled } from "../play/status";
 
 let notes: Promise<RuleNotes> | null = null;
 
@@ -71,7 +72,7 @@ export function RuleDetail({ rule }: { rule: RuleView }) {
       {texts.map((text) => (
         <section key={text.title}>
           {rule.source === "rulebook" && (
-            <h4 className="font-semibold text-(--bt-muted)">{text.title}</h4>
+            <h4 className="font-semibold text-(--bt-muted)">{untitled(text.title)}</h4>
           )}
           <ul className="list-disc pl-4">
             {text.lines.map((line, i) => (

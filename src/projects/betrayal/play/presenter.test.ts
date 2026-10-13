@@ -1,12 +1,14 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { describeEvent } from "../engine/describe";
 import { eventsFor, viewFor } from "../engine/view";
 import { ENGINE } from "../game";
 import { choose, explorer, inHaunt, offered, testGame } from "../testing";
 import type { GameEvent, GameState } from "../types";
 import { ruleSources } from "../test/rule-sources";
 import { openFloors } from "../art/open-floor";
-import { EVENT_SHOWS, present, speedOf, startPresentation, type Beat, type Presentation } from "./presenter";
+import { decodeGame, replay } from "../share";
+import { EVENT_SHOWS, beatLine, present, speedOf, startPresentation, type Beat, type Presentation } from "./presenter";
 
 /** Zoe's starting Speed, as her card prints it. */
 const ZOE_SPEED = 4;
@@ -117,7 +119,7 @@ describe("present", () => {
     const game = played();
     const beats = game.choose("Move to the Foyer");
     expect(beats).toEqual([
-      { kind: "walk", walks: [{ figure: "zoe-ingstrom", route: ["entrance-hall", "foyer"], at: [1, 1], gait: "walk", speed: ZOE_SPEED }], events: idsOf(game.state(), "left", "entered") },
+      { kind: "walk", walks: [{ figure: "zoe-ingstrom", route: ["entrance-hall", "foyer"], to: expect.objectContaining({ room: "foyer", x: 1, z: 1 }), gait: "walk", speed: ZOE_SPEED }], events: idsOf(game.state(), "left", "entered") },
     ]);
     expect(game.present()).toEqual([]);
   });
@@ -137,7 +139,7 @@ describe("present", () => {
     if (!start) throw new Error("No seed sends the elevator away");
     const game = played(start);
     const beats = game.choose("Put the Mystic Elevator");
-    expect(beats).toContainEqual({ kind: "move", room: "mystic-elevator", events: idsOf(game.state(), "room-moved") });
+    expect(beats).toContainEqual({ kind: "move", room: "mystic-elevator", line: idsOf(game.state(), "room-moved")[0], events: idsOf(game.state(), "room-moved") });
     // Zoe rides in it: she stands in the same room, so she has no walk of her own.
     expect(beats.filter((beat) => beat.kind === "walk")).toEqual([]);
     expectInOrder(game.state(), beats);
@@ -198,7 +200,7 @@ describe("present", () => {
     const game = played(testGame({ stack: ["conservatory"], decks: { event: ["secret-stairs"] } }));
     const beats = game.choose("Explore");
     expect(offered(game.state()).every((choice) => choice.label.startsWith("Put the other Secret Stairs token"))).toBe(true);
-    expect(beats[0]).toEqual({ kind: "walk", walks: [{ figure: "zoe-ingstrom", route: ["entrance-hall", "conservatory"], at: [1, 1], gait: "walk", speed: ZOE_SPEED }], events: idsOf(game.state(), "left", "discovered") });
+    expect(beats[0]).toEqual({ kind: "walk", walks: [{ figure: "zoe-ingstrom", route: ["entrance-hall", "conservatory"], to: expect.objectContaining({ room: "conservatory", x: 1, z: 1 }), gait: "walk", speed: ZOE_SPEED }], events: idsOf(game.state(), "left", "discovered") });
     expect(beats.at(-1)).toMatchObject({ kind: "line", show: "card" });
     expectInOrder(game.state(), beats);
     // Entering the room once the card is done, it is already there: no second walk.
@@ -235,6 +237,68 @@ describe("present", () => {
     const view = viewFor(ENGINE, testGame(), 0);
     const strange = { id: "x:0", type: "nonsense", rule: { source: "rulebook" as const, page: 1 }, data: null };
     expect(() => present(ENGINE, startPresentation(ENGINE, view, FLOORS), [strange], view, FLOORS)).toThrow(/nonsense/);
+  });
+});
+
+/** A play-test game: Zoe (seat 2, first) explores through the bottom door of
+ *  the Entrance Hall on her first turn, discovers the Coal Chute and slides
+ *  down it to the Basement Landing. */
+const COAL_CHUTE_GAME =
+  "eyJmb3JtYXQiOjMsImdhbWUiOnsic2VlZCI6IjUwYzQ1MTFmLWZkZmYtNGUwZi1iZDdmLTI3Njg5ZDc0Zjg4OCIsInNldHMiOlsiYmFzZSJdLCJzZWF0cyI6W3siY2hhcmFjdGVyIjoiZmF0aGVyLXJoaW5laGFyZHQifSx7ImNoYXJhY3RlciI6ImRhcnJpbi1mbGFzaC13aWxsaWFtcyJ9LHsiY2hhcmFjdGVyIjoiem9lLWluZ3N0cm9tIn0seyJjaGFyYWN0ZXIiOiJicmFuZG9uLWphc3BlcnMifV0sInRvZGF5Ijp7Im1vbnRoIjoxMCwiZGF5IjoxM319LCJhY3Rpb25zIjpbeyJraW5kIjoiY2hvb3NlIiwiZGVjaXNpb24iOiJkMCIsInNlYXQiOjIsImNob2ljZSI6eyJhY3QiOiJkaXNjb3ZlciIsImRpcmVjdGlvbiI6ImJvdHRvbSJ9fV19";
+
+/** The words a beat's line tells, as the seat holding the device sees them. */
+const lineOf = (state: GameState, beat: Beat) => {
+  const id = beatLine(beat);
+  const view = viewFor(ENGINE, state, state.turn?.seat ?? 0);
+  const event = view.events.find((candidate) => candidate.id === id);
+  return event ? describeEvent(ENGINE, view, event) : null;
+};
+
+describe("moves that aren't a walk", () => {
+  it("walks Zoe into the Coal Chute, then puts her in the Basement Landing, told by the chute's line", () => {
+    const [start, after] = replay(ENGINE, decodeGame(COAL_CHUTE_GAME), "coal-chute");
+    const before = startPresentation(ENGINE, viewFor(ENGINE, start, 2), FLOORS);
+    const { beats } = present(ENGINE, before, eventsFor(ENGINE, after, 2, [...start.lastEvents, ...after.lastEvents]), viewFor(ENGINE, after, 2), FLOORS);
+    expect(beats.map((beat) => beat.kind)).toEqual(["walk", "place"]);
+    expect(beats[0]).toMatchObject({ walks: [{ figure: "zoe-ingstrom", route: ["entrance-hall", "coal-chute"], to: { room: "coal-chute" } }] });
+    expect(beats[1]).toMatchObject({ kind: "place", figure: "zoe-ingstrom", to: { room: "basement-landing" } });
+    expect(lineOf(after, beats[1])).toBe("Coal Chute: Zoe Ingstrom is put in the Basement Landing.");
+    expectInOrder(after, beats);
+  });
+
+  it("puts an explorer who falls through the Collapsed Room in the room below, told by the fall's line, before its damage", () => {
+    const game = played(testGame({ stack: ["collapsed-room"] }));
+    game.choose("Explore through the north door");
+    game.choose("Fall to the basement");
+    const beats = game.choose("Put the Vault");
+    const put = beats.findIndex((beat) => beat.kind === "place");
+    expect(beats[put]).toMatchObject({ figure: "zoe-ingstrom", to: { room: "vault" } });
+    expect(lineOf(game.state(), beats[put])).toBe("Collapsed Room: Zoe Ingstrom discovers the Vault.");
+    expect(beats.slice(put + 1).some((beat) => beat.kind === "line")).toBe(true);
+    expectInOrder(game.state(), beats);
+  });
+
+  it("puts an explorer who falls from the Gallery in the Ballroom, told by the fall's line", () => {
+    const game = played(testGame({ stack: ["gallery"], rooms: ["ballroom"], explorers: [{ seat: 0, room: "upper-landing" }] }));
+    game.choose("Explore");
+    const beats = game.choose("Fall down to the Ballroom");
+    const put = beats.find((beat) => beat.kind === "place");
+    expect(put).toMatchObject({ figure: "zoe-ingstrom", to: { room: "ballroom" } });
+    expect(put && lineOf(game.state(), put)).toMatch(/^Gallery: /);
+    expectInOrder(game.state(), beats);
+  });
+
+  it.each(["mystic-slide", "the-walls", "the-lost-one"])("puts an explorer %s sends to another room there, told by the card's line", (card) => {
+    const game = played(testGame({ stack: ["game-room"], decks: { event: [card] }, explorers: [{ seat: 0, room: "upper-landing" }] }));
+    game.choose("Explore");
+    game.choose("Place");
+    // The card puts a room in the house and the explorer in it.
+    const beats = game.choose("");
+    const put = beats.find((beat): beat is Extract<Beat, { kind: "place" }> => beat.kind === "place");
+    if (!put) throw new Error(`${card} put no one anywhere`);
+    expect(put.to.room).not.toBe("game-room");
+    expect(lineOf(game.state(), put)?.startsWith(`${ENGINE.catalog.cards[card].name}: `)).toBe(true);
+    expectInOrder(game.state(), beats);
   });
 });
 

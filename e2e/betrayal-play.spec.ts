@@ -196,10 +196,10 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   // Drawing the card ended Zoe's move. With nothing left to do, ending her turn is hers to choose.
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.targets.length === 0");
   expect((await readout(page)).canEnd).toBe(true);
-  await expect(now.getByRole("button", { name: "End turn" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "End turn" })).toBeVisible();
   // With no actions, the seat's button in the header shows no count.
   await expect(page.locator("header").getByRole("button", { name: /: character card$/ })).toBeVisible();
-  await now.getByRole("button", { name: "End turn" }).click();
+  await page.getByRole("button", { name: "End turn" }).click();
   // The device passes to Ox.
   await until(page, "play.holder === 1 && play.turnSeat === 1 && play.pending?.kind === 'turn'");
   expect((await readout(page)).rooms["zoe-ingstrom"]).toBe("game-room");
@@ -372,7 +372,18 @@ test("the playtesting view is at ?debug", async ({ page }) => {
   await expect(page.getByRole("button", { name: "End your turn" })).toBeVisible();
 });
 
-test("the frame meter shows top right, clear of the buttons, and ~ hides it on this device", async ({ page }) => {
+/** The text of each element matching `selector` that overlaps `at` on the page. */
+const overlapping = (page: Page, selector: string, at: { x: number; y: number; width: number; height: number }): Promise<(string | null)[]> =>
+  page.evaluate(
+    ([query, box]) =>
+      [...document.querySelectorAll(query)]
+        .map((element) => ({ name: element.textContent, rect: element.getBoundingClientRect() }))
+        .filter(({ rect }) => rect.left < box.x + box.width && rect.right > box.x && rect.top < box.y + box.height && rect.bottom > box.y)
+        .map(({ name }) => name),
+    [selector, at] as const,
+  );
+
+test("End turn shows top right with the frame meter beside it (under it on a phone), clear of the buttons, and ~ hides the meter on this device", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await resumeSaved(page);
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
@@ -382,16 +393,22 @@ test("the frame meter shows top right, clear of the buttons, and ~ hides it on t
     await expect(meter).toBeVisible();
     const box = await page.locator("[data-frame-meter]").boundingBox();
     if (!box) throw new Error("The frame meter has no box");
-    expect(box.x + box.width).toBeGreaterThan(size.width - 16);
-    const covered = await page.evaluate(
-      (at) =>
-        [...document.querySelectorAll("header button, section")]
-          .map((element) => ({ name: element.textContent, rect: element.getBoundingClientRect() }))
-          .filter(({ rect }) => rect.left < at.x + at.width && rect.right > at.x && rect.top < at.y + at.height && rect.bottom > at.y)
-          .map(({ name }) => name),
-      box,
-    );
-    expect(covered, `at ${size.width}x${size.height}`).toEqual([]);
+    expect(await overlapping(page, "header button, section, [data-end-turn]", box), `at ${size.width}x${size.height}`).toEqual([]);
+    // End turn is in the top right corner, in view without scrolling.
+    const end = await page.getByRole("button", { name: "End turn" }).boundingBox();
+    if (!end) throw new Error("End turn has no box");
+    expect(end.x + end.width).toBeGreaterThan(size.width - 16);
+    expect(end.y).toBeLessThan(16);
+    expect(await overlapping(page, "header button", end), `at ${size.width}x${size.height}`).toEqual([]);
+    if (size.width >= 640) {
+      // Wide enough: the meter is just left of End turn, centred on it.
+      expect(end.x - (box.x + box.width)).toBeLessThan(16);
+      expect(Math.abs(box.y + box.height / 2 - (end.y + end.height / 2))).toBeLessThan(2);
+    } else {
+      // A phone: just under it, right-aligned with it.
+      expect(box.y - (end.y + end.height)).toBeLessThan(16);
+      expect(Math.abs(box.x + box.width - (end.x + end.width))).toBeLessThan(2);
+    }
   }
   await page.keyboard.press("Shift+Backquote");
   await expect(meter).toBeHidden();
@@ -521,13 +538,12 @@ test.describe("the rotation ghost", () => {
       await press(page, BUTTON.A, "play.pending?.kind === 'choose-one'", false);
       // A goes on from the card's beat, and its question shows.
       await press(page, BUTTON.A, "!play.playing && play.panel.length > 0");
-      const now = page.getByLabel("What you can do now");
       const focused = "document.activeElement?.textContent";
       await press(page, BUTTON.DpadDown, `${focused} === 'Make a Knowledge roll'`);
       await press(page, BUTTON.DpadRight, `${focused} === "Don't roll"`);
       await press(page, BUTTON.A, "play.pending?.kind === 'turn' && play.targets.length === 0");
       // End turn's background fills while X is held, and the turn then passes.
-      await expect(now.locator("[data-end-turn] [data-hold-fill='rest']")).toBeAttached();
+      await expect(page.locator("[data-end-turn] [data-hold-fill='rest']")).toBeAttached();
       await press(page, BUTTON.X, "play.holder === 1 && play.turnSeat === 1");
     });
   });

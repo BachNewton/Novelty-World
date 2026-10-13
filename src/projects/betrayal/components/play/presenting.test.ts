@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { HouseScene } from "../../art/house-scene";
+import type { FigureSpec, HouseScene } from "../../art/house-scene";
 import { openFloors } from "../../art/open-floor";
 import { viewFor, type EventView, type GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
@@ -11,16 +11,23 @@ import { createPresenting, skipOrAnswer, type Presented, type Presenting } from 
  *  until the test ends the oldest (`step`), or `finish` ends them all. */
 function fakeScene() {
   const held: (() => void)[] = [];
+  /** The kinds of the beats played, in order. */
+  const played: string[] = [];
+  /** Each time the house is told where the figures stand: their rooms. */
+  const stood: Record<string, string>[] = [];
   const scene = {
     finish: () => {
       for (const release of held.splice(0)) release();
     },
-    play: () =>
+    play: (beat: { kind: string }) =>
       new Promise<void>((resolve) => {
+        played.push(beat.kind);
         held.push(resolve);
       }),
     view: () => ({ closeUp: null }),
-    setFigures: () => {},
+    setFigures: (figures: readonly { id: string; room: string }[]) => {
+      stood.push(Object.fromEntries(figures.map((figure) => [figure.id, figure.room])));
+    },
     setThings: () => {},
     setActive: () => {},
     setMood: () => {},
@@ -33,6 +40,8 @@ function fakeScene() {
       await settle();
     },
     holding: () => held.length,
+    played,
+    stood,
   };
 }
 
@@ -159,6 +168,44 @@ describe("the box and the house in step", () => {
     expect(presenting.snapshot().told?.line).not.toBe(rolling);
   });
 
+  it("show a figure a rule put on another floor leaving where it stood, then standing there with the rule's line, until the camera has gone after it", async () => {
+    // Zoe walks into the Coal Chute and slides down it to the Basement Landing.
+    const start = testGame({ stack: ["coal-chute"] });
+    const house = fakeScene();
+    const presenting = createPresenting(house.scene, (_view, spots) => Object.entries(spots).flatMap(([id, spot]) => (spot ? [{ id, room: spot.room } as FigureSpec] : [])), { place: openFloors(), load: () => null });
+    /** The room Zoe stands in, each time the house is told where the figures are. */
+    const zoeIn = () => house.stood.map((figures) => figures["zoe-ingstrom"]);
+    presenting.show(zoe(start), zoe(start).events);
+    const slid = choose(start, "Explore through the north door");
+    presenting.show(zoe(slid), [...zoe(start).events, ...zoe(slid).events]);
+    const said = (id: string | undefined) => slid.lastEvents.find((event) => event.id === id);
+
+    // She walks into the chute, standing where she was until then; nothing is told.
+    expect(presenting.snapshot().beat?.kind).toBe("walk");
+    expect(presenting.snapshot().told).toBeNull();
+    expect(zoeIn().slice(-2)).toEqual(["entrance-hall", "coal-chute"]);
+    await house.step();
+    // She is put in the Basement Landing, the chute's line tells it, and the beat lasts until the camera has followed her there.
+    expect(presenting.snapshot().beat).toMatchObject({ kind: "place", figure: "zoe-ingstrom" });
+    expect(said(presenting.snapshot().told?.line)).toMatchObject({ type: "entered", data: { room: "basement-landing", moved: false } });
+    expect(zoeIn().at(-1)).toBe("basement-landing");
+    expect(house.played).toEqual(["walk", "frame"]);
+    await house.step();
+    expect(presenting.snapshot()).toMatchObject({ playing: false, beat: null });
+    expect(said(presenting.snapshot().told?.line)?.type).toBe("entered");
+  });
+
+  it("name the view they last presented, so its choices wait until it has been", () => {
+    const start = testGame();
+    const { presenting, fed } = started(start);
+    const next = choose(start, "Move to the Foyer");
+    const view = zoe(next);
+    expect(presenting.snapshot().view).not.toBe(view);
+    fed.push(...view.events);
+    presenting.show(view, fed);
+    expect(presenting.snapshot().view).toBe(view);
+  });
+
   it("aren't held by a view with nothing new to play", () => {
     const start = testGame();
     const { presenting, fed } = started(start);
@@ -190,6 +237,24 @@ describe("the rooms' floors", () => {
     expect(placed).toEqual([3]);
     expect(presenting.snapshot().playing).toBe(false);
     expect(Object.keys(presenting.snapshot().spots)).toHaveLength(3);
+  });
+
+  it("are read for a room a figure only passes through on the way", () => {
+    const asked: string[][] = [];
+    const presenting = createPresenting(fakeScene().scene, () => [], {
+      place: openFloors(),
+      load: (rooms) => {
+        asked.push([...rooms]);
+        return null;
+      },
+    });
+    const start = testGame({ stack: ["coal-chute"] });
+    presenting.show(zoe(start), zoe(start).events);
+    const slid = choose(start, "Explore through the north door");
+    asked.length = 0;
+    presenting.show(zoe(slid), [...zoe(start).events, ...zoe(slid).events]);
+    // The first ask is the one the view waits on.
+    expect(asked[0]).toEqual(expect.arrayContaining(["coal-chute", "basement-landing"]));
   });
 
   it("are read ahead for the next tiles of the room stack", () => {

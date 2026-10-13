@@ -217,13 +217,13 @@ export function ExplorerSheet(props: ExplorerSheetProps) {
   }, []);
   // Docked in one place whichever tab it shows, so switching tabs never moves it: a bottom sheet on a phone, a panel at the right on a wide screen, clear of the status box.
   return (
-    <div className="absolute inset-x-0 bottom-0 lg:top-16 lg:right-3 lg:bottom-auto lg:left-auto lg:w-[30rem]">
+    <div className="absolute inset-x-0 bottom-0 lg:top-[6.5rem] lg:right-3 lg:bottom-auto lg:left-auto lg:w-[30rem]">
       <section
         ref={sheet}
         role="dialog"
         aria-label={`${tab.name}'s character card`}
         data-pad-layer="1"
-        className="flex h-[70vh] flex-col gap-2 overflow-y-auto rounded-t border border-(--bt-accent) bg-(--bt-panel) p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:h-auto lg:max-h-[calc(100vh-5rem)] lg:rounded lg:pb-2"
+        className="flex h-[70vh] flex-col gap-2 overflow-y-auto rounded-t border border-(--bt-accent) bg-(--bt-panel) p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:h-auto lg:max-h-[calc(100vh-7.5rem)] lg:rounded lg:pb-2"
       >
         <div className="flex items-start gap-1.5">
           <div role="tablist" aria-label="Explorers" className="flex flex-1 flex-wrap gap-1">
