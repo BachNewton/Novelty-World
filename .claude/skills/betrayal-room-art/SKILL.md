@@ -201,10 +201,10 @@ Colour means something, in light, glows and decals alike:
 | Cold moon blue | the baseline: night, the house itself | `moon` |
 | Warm amber | human and safe-ish: candles, lamps, explorers | `fire` (amber, flame) |
 | Orange | fire itself, which counts as amber: warm and human | `fire` (ember, amber) |
-| Spectral teal | a haunting: a presence, unease (the Bedroom's glow under the bed) | `spectre` (one key) |
-| Sickly green | the corrupt: rot, poison, the ghoulish | `wraith` |
+| Spectral teal | an unseen presence, and only that (the Bedroom's glow under the bed, the Gymnasium's empty corner) | `spectre` (one key) |
+| Sickly green | death, decay and the corrupt: rot, poison, the ghoulish (the Crypt) | `wraith` |
 | Red | danger, blood, the traitor | `scarlet` |
-| Violet | magic and omens | `violet` |
+| Violet | magic, omens, and the occult or trapped (the Research Laboratory's jar) | `violet` |
 | Gold | the holy: the Blessing, the Holy Symbol, the Chapel | `gold` |
 | Cyan | water | `tide` |
 
@@ -331,9 +331,9 @@ another note unless the room's rules call for it.
 Sketch the plan in metres before building: the walkable floor is within
 `INNER` of the centre on both axes. Place the identity pieces first, then
 the furniture that supports them, then the small story props. Spend the
-effort on the floor and on what stands below the cut height: players mostly
-see a room's walls whole only in the close-up when an explorer first walks
-in, so wall dressing comes last. Keep clear:
+effort on the floor and on what stands below the cut height: players see a
+room's walls whole only when they hold the walls up (the game never moves in
+close by itself), so wall dressing comes last. Keep clear:
 
 - **Every doorway and passage**: nothing stands in its 40 cm depth (the two
   walls between rooms), nor in the lane the house walks straight in through
@@ -421,7 +421,9 @@ A room with a stair link gives `stairs` a walk path for each room it links
 to: points in room metres from its floor up (or down) the flight to where
 it leaves the room. The two rooms' paths meet, one going up and the other
 coming down (the Grand Staircase and the Upper Landing), and both halves
-are needed. The Foyer's secret door down to Stairs from Basement has its
+are needed. A figure keeps its heading through the change of floor, so both
+flights climb the same way (the Upper Landing is mirrored to match the Grand
+Staircase; `stair-links.test.ts` walks every drawn stair both ways). The Foyer's secret door down to Stairs from Basement has its
 path but no drawn door yet.
 
 **Run the overlap check** after every change to the props:

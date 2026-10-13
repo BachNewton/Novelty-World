@@ -40,13 +40,14 @@ A session's write isolation is fixed at launch, subagents included, so the agent
 
 - Give it the worktree's absolute path as its working directory, and tell it to use absolute paths and `git -C <worktree>`.
 - Tell it not to call `EnterWorktree`.
-- It must never touch the owner's dev server (port 3001). E2E runs are self-contained and fine inside the worktree; a dev server of its own, if it needs one, runs with Turbopack on a spare port (`npx next dev --port <port>`).
+- It must never touch the owner's dev server (port 3001). A dev server of its own, if it needs one, runs with Turbopack on a spare port (`npx next dev --port <port>`), and when it is done it confirms that port is free again.
+- E2E runs are self-contained and fine inside the worktree, except while the owner is playtesting: then no agent runs e2e or the whole suite, which load the machine the game runs on. E2E is batched for when the owner pushes or steps away.
 - It commits its work on its branch when its checks are green, and doesn't push.
 - Tell it which files the other agents are working on, so merges stay clean.
 
 ## Land it
 
-From the main checkout, merge the agent's branch (`git merge <branch>`), resolve any conflicts, and make the tree green as the project's rules scope it before the owner sees it. Later worktrees are then created from that new `HEAD`. Push only when the owner asks.
+Conflicts are resolved in the worktree, never in the main checkout, where a half-resolved merge would hot-reload into the owner's game: inside the worktree, merge the main checkout's current branch into the agent's (`git -C <worktree> merge main`), resolve, and make the tree green there as the project's rules scope it. Then, from the main checkout, merge the agent's branch (`git merge <branch>`), which now lands clean. Later worktrees are then created from that new `HEAD`. Push only when the owner asks.
 
 ## Remove it
 

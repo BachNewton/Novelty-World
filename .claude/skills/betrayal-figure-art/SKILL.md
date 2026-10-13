@@ -320,14 +320,15 @@ file.
   **An explorer's main clothing colour never matches another character
   card's colour**, whether or not that character is built yet: the seat's
   ring is the card's colour, so a figure dressed in another card's colour
-  reads as someone else's seat. Take no dominant colour another explorer
-  already wears.
+  reads as someone else's seat. Check it by measurement, not by eye: the
+  clothing colour's ΔE against every other card's colour. Take no dominant
+  colour another explorer already wears.
 - **A letter or emblem is a flat patch**: Ox's "O" is a flat block letter on a felt
   patch with a dark border, never a raised ring, which reads as a donut.
 - **Explorers are warm and human**: in the lighting language, amber means
   human. Clothes may take any palette colour as cloth, but nothing on an
   explorer glows, and spectral teal, sickly green, violet and red light
-  stay the haunting's, the corrupt's, magic's and the traitor's.
+  stay unseen presences', death's, magic's and the traitor's.
 - **Show before telling.** Anything a figure signals (a status, a held
   card) is shown in 3D or as an icon before any words.
 - **Eerie, never gory**, as in the rooms.
@@ -624,7 +625,8 @@ call on it, so never tune a figure to depend on it.
   `node src/projects/betrayal/tools/portraits.mjs <character-id>`, with its
   defaults: the owner approved them (a low, close camera; the figure on a
   dark studio sweep, a warm key, a moon rim, and a glow in the seat's colour
-  behind it).
+  behind it; 640×800, JPEG at quality 90, imported as files so their URLs
+  are fingerprinted, never re-compressed by `next/image`).
 
 **Two lessons from the owner's reviews.** Faces stay simple and smooth: at
 miniature scale, subtle modelling of cheeks, brows, lids and noses reads as

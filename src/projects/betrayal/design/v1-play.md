@@ -16,40 +16,54 @@ The goal: a fully playable local hot-seat game, with all its UI and art up to an
 - **P5:** the approved controller map with its keyboard + mouse and touch counterparts (`presentation.md`, "Input"), Your explorer with the turn's actions, the trade sheet, and the game menu.
 - **P6:** cards drawn as beats in the house, dice and damage in icons on the character card's tracks, the stats overlay, and things on the floor; the old debug panel answers only the game's end and a haunt that stops the game.
 - **P7:** setup with portraits, haunt selection (at setup, and at a reveal on an unbuilt haunt), the reveal in the house's red light, and review links (`?play=<share code>`) that open a set-up game in memory, never touching the saved game.
-- **Art:** 7 more rooms (the Game Room, Organ Room, Storeroom, Bedroom, Abandoned Room, Dining Room and Servants' Quarters), 3 more explorers (Flash, Brandon and Peter), shine house-wide, wall marks, the picture library, closed vessels, wind outdoors, and cloth on the net for Zoe, Father Rhinehardt and the Banshee.
 
-Phases 3 to 7 are built but not yet playtested by the owner. P8, haunt 13 in the house, is last.
+**The first playtest session** (UI first) reworked, on all three inputs (`presentation.md` holds each):
 
-**Next session: playtesting, UI first.** The owner plays a game from setup and reports what they see; each piece becomes work. Placeholder art is allowed wherever art isn't ready: UI and playability come first. The UI known to need work, picked up as the playtest reaches it:
+- **Setup:** four seats by default, each called by its explorer, with no name to type; seat cards that are the portrait, with a compact picker; portraits re-shot (`presentation.md`, "Setup").
+- **Input:** a controller's focus shows the moment it is noticed, as a ring, and the last-used input carries into the game; the controller aims with the reticle only (catch areas, magnetism, sticky focus and the snap debug overlay are gone); button prompts are each control's own shape, shown only where the control isn't obvious; the browser's context menu never opens; the frame meter.
+- **The screen:** End turn in the top right corner; the status box as what you can do now plus one line driven by the beat playing, with Why as a dialog; Your explorer docked in one fixed place; Details with nameplates only while held, and inspecting by pointing.
+- **Cards, dice and damage:** one card, one place, every card drawn waiting for a press; roll tables as one component, with exact odds before and the row hit lit after, forced rolls getting their "before" beat; damage split on one slider.
+- **The camera:** following or free, and the game never changes the player's zoom, turn or tilt (the first-visit close-up is gone).
+- **The house:** explorers keep their places when the turn passes; options naming walls, corners, sides, tokens and figures are house targets (`card-presentation.md`), the Wall Switch and the Mystic Slide among them; placement cells only on the floor shown; a ghost only ever means "not yet placed"; rule-caused moves (the Coal Chute, falls, the Mystic Elevator) play as beats a following camera follows; room bonuses as badges in their rooms.
+- **Art:** the last five explorers (Missy, Vivian, Madame Zostra, Heather and Jenny), so all twelve stand; five rooms (the Larder, Gymnasium, Crypt, and the Operating and Research Laboratories); the Upper Landing mirrored so its stair head matches the Grand Staircase's; the shared shader flame house-wide; the shine bench; the bake-only shadow caster; and teal kept for unseen presences alone.
+
+P8, haunt 13 in the house, is last.
+
+**Next session: the playtest goes on, UI first.** The owner plays on from setup and reports what they see; each finding becomes work, done in the agents' own worktrees under the playtest's working rules (the project's `CLAUDE.md`, "Working on long tasks"). Placeholder art is allowed wherever art isn't ready. Known to need work, picked up as the playtest reaches it:
 
 - **A UI-size setting** for TV play: in the game menu, on every input, saved per device, scaling all UI and touch targets; 100% by default.
-- **The controller's aim is decided:** the reticle points at what is under the screen's centre, the mouse's way of picking, with no snapping, magnetism or sticky focus; small things are reached by zooming in (`presentation.md`, "The camera").
-- **Explorer nameplates cover items on the floor** when zoomed out.
-- **The controller-map playtest**, which needs the owner's controller.
 - **The phone and desktop layout** round the status box.
-- **The paused questions** below, each brought up only when the playtest reaches it.
+- **Roll tables' last cases:** Hanged Men's four results, and each explorer's roll, stacked into one view.
+- **The open questions** below, each brought up only when the playtest reaches it.
 
-**Engine testing, queued** (not UI; taken up when there is room). The slow simulation sweep plays about 690 random games and takes most of the slow suite's time, yet it can only check that the engine stays consistent, never that a rule is right; its game counts were never measured against what they find. The plan:
+**Engine testing, its own session** (not UI). The slow simulation sweep plays about 690 random games and takes 30 minutes or more under load, blocking any agent that runs it, yet it can only check that the engine stays consistent, never that a rule is right; its game counts were never measured against what they find. The plan:
 
 - Review the engine for invariants the design could make impossible to break instead of checking them: a card's place as one field rather than separate lists, and an offered choice that is accepted simply because it is offered, so the dry run of every candidate at every decision isn't needed.
 - A targeted scenario test for each decision kind, replacing the sweep's "every kind was answered".
 - The remaining invariants run inside every engine test, with universal game rules added to them (a trait stays on its track, a dead explorer never acts).
 - The random sweep shrinks to a small consistency check sized by measurement, the full run opt-in for engine changes; each bug a random game finds becomes a targeted test.
 
-**Paused questions,** the owner's call later:
+**Open questions,** the owner's call:
 
 - The reveal's light: today's red house, or `?mood=cold` (full-house review links exist).
-- Phase 3's small calls: a mid-turn arrival taking a free place; starting rooms unseen after a reload.
+- Pacing: largely answered by the status box's redesign; to confirm in play.
 - The phone layout round the status box.
 - The lake's water look (`?water=`).
 - The backlight: on by default, `?backlight=off` to compare.
 - Soft or hard shadows (`?shadows=soft`).
 - Card-driven moves (`presentation.md`, "Gait"): agreed in principle, to confirm in play.
-- Saves without backwards compatibility: a save from an older state format marked outdated and unplayable, and the migrations deleted. Held, because during playtesting every state change would end the game in progress; the Widow's Walk record is the other thing it touches.
+- An instant floor swap: whether changing floor should cut rather than glide between floors 7 m apart (the owner has looked at all the floors at once through the page hook).
+- Showing at setup who goes first, and why.
+- The frame meter's default: on while playtesting, off before the game is done.
+
+**Before launch:**
+
+- **Saves start over at v1.** The save format resets to v1 and its migrations are deleted; a save from an older format is marked outdated; and the localStorage key and the share code's prefix are new, so an old development save can't pass as the new v1.
+- **The frame meter defaults to off.**
 
 **The art review list,** not blocking:
 
-- the explorer line-up (Flash, Brandon, Peter);
+- the explorer line-up, all twelve;
 - Father Rhinehardt's and the Banshee's cloth;
 - the silhouette picture library (`?bench=pictures`);
 - the props gallery (`?bench=props`), with 13 likely-duplicate groups;
@@ -59,9 +73,9 @@ Phases 3 to 7 are built but not yet playtested by the owner. P8, haunt 13 in the
 What remains for the goal:
 
 - **UI:** the list above, and whatever the playtest finds.
-- **Rooms:** the 16 base rooms left: the Gymnasium, Operating Laboratory, Research Laboratory, Vault, Balcony, Gallery, Bloody Room, Charred Room, Collapsed Room, Conservatory, Ballroom, Coal Chute, Gardens, Patio, Crypt and Larder.
-- **Explorers:** the 5 left: Missy, Vivian, Madame Zostra, Heather and Jenny. Setup's portraits are shot from a lower camera and a closer zoom, in the Abandoned Room (done). Setup shows each character's tracks as the card prints them, on each seat and for the character in focus in the picker; a short description is not built (the final call waits on more explorer art).
-- **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements; with them, the three transitions still to build for moves that aren't a walk (drop or slide, secret way, put there; `presentation.md`, "Moves that aren't a walk"), and the connection mark for the card-made connections (`presentation.md`, "Connections").
+- **Rooms:** the 11 base rooms left: the Vault, Balcony, Gallery, Bloody Room, Charred Room, Collapsed Room, Conservatory, Ballroom, Coal Chute, Gardens and Patio.
+- **Explorers:** all twelve have figures and portraits. Setup shows each character's tracks as the card prints them; a short description is not built, the owner's call.
+- **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements; with them, the three transitions still to build for moves that aren't a walk (drop or slide, secret way, put there; `presentation.md`, "Moves that aren't a walk"), and the connection mark for the card-made connections and the Below Collapsed Room token (`presentation.md`, "Connections").
 - **Props and figures:** held items and omens, companions, room tokens; startle and hurt animations; jumps and falls; the models of things on the floor (stand-ins today).
 
 ## Polish list
@@ -104,7 +118,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 
 **Events**
 - House animation: movement, layout changes, tokens, haunt figures, the turn starting (light and camera).
-- A line in the box, in its place in the order of events, for as long as what it shows (a card's text until a tap, dice turning up, a float rising); any input skips it: cards, rolls, stats, haunt events, forced steps, the decks and the haunt's odds and ends.
+- A line in the box, in its place in the order of events, for as long as what it shows (a card's text until a press, dice turning up, a float rising); any input skips it: cards, rolls, stats, haunt events, forced steps, the decks and the haunt's odds and ends.
 - Silent: bookkeeping the house or the screen already shows.
 
 ## The architecture as built
@@ -120,6 +134,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `things.ts`: every dropped card and token in a room as an object, a room effect or a connection, decided per token kind as data.
 - `sheet.ts`: Your explorer's rows: each card held with its uses and Drop, each card on the floor to pick up, each explorer to trade with, in the engine's order so a row stays where the player learnt it.
 - `tracks.ts`: a trait as the character card prints it, its clip, its top, and the skull locked before the haunt.
+- `room-bonus.ts`, `inspect.ts` and `short-name.ts`: which rooms give a bonus and who has taken it, what pointing finds while the details are held, and the short name each explorer goes by.
 - `cards.ts`, `dice.ts`, `damage.ts`: a card's colour and mood, a roll as the box shows it, and damage previewed on its two tracks.
 - `setup.ts`: choosing seats' characters, one per card, on any input, and each character's portrait.
 - `ghost.ts`, `status.ts`, `lookahead.ts`, `preview.ts` and `pads.ts`: what each way round of a tile would do, the box's words, every room and cell reachable this turn with its route, the route preview as one serialisable value, and which seats each controller plays.
@@ -128,17 +143,17 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `play-screen.tsx`, the house plus the status box (`status-box.tsx`), with the on-screen floor, Follow, walls and menu buttons; `presenting.ts` plays the presenter's beats one after another, publishing the beat playing as the one source of what the box's line, its Why, a card over its room and the floats tell, stops a skip at each card drawn until it is pressed, and holds a decision's choices until the beats before it are over; `card-beat.tsx` is the card over the room, where a card's question is answered.
 - `pad-focus.ts`, the controller's one focus over the page's layers (the box, a sheet, a reader, the menu), with the d-pad moving along and between rows and B closing the topmost layer; `use-pads.ts` and `pad-picker.tsx`, the device's pads and a seat's pad.
 - `figure-marks.tsx`, each explorer's mark, and Your explorer: the character card as a sheet, with the explorer's tabs, portrait, trait tracks (`trait-track.tsx`), cards and the turn's actions; `details-hold.ts` and `details.tsx`, the held details (room names, things' labels, every explorer's name and stats); `trade-sheet.tsx`, building a trade.
-- `card-beat.tsx`, a card drawn as a beat over its room; `decision-panel.tsx`, rolls, damage and other questions; `roll-result.tsx` and `happening-line.tsx`, rolls and events in icons; `thing-reader.tsx`, a thing on the floor read.
+- `card-beat.tsx`, a card drawn as a beat over its room; `decision-panel.tsx`, rolls, damage and other questions; `roll-table.tsx`, every roll's table; `damage-split.tsx`, damage split on one slider; `roll-result.tsx` and `happening-line.tsx`, rolls and events in icons; `thing-reader.tsx`, a thing on the floor read.
 - `setup.tsx` and `setup-pads.ts`, setup by portraits on every input; `reveal.tsx`, the haunt's reveal; `game-menu.tsx`, the seats and pads, the speed and leaving; `ghost-placer.tsx`, placing a tile; `seat-colour.ts`, the seat's colour, which is the character card's.
-- `prompts.tsx` (beside `play/`): every button prompt, our own glyphs in Lucide's style, the one map from a meaning to its control per input, and `PromptButton`, the button every prompt leads and every filling hold fills. `icons.tsx`: the traits, card types, damage, pass and fail, and die faces.
+- `prompts.tsx` (beside `play/`): every button prompt, our own glyphs, each the control's own shape, the one map from a meaning to its control per input, and `PromptButton`, the button every prompt leads and every filling hold fills. `icons.tsx`: the traits, card types, damage, pass and fail, and die faces.
 
 **The house, in `art/`.**
-- `house-scene.ts`: the house as a picture of whatever it is fed (a layout, figures, things, targets, whose turn it is, beats of animation), with no game in it. Layout changes are diffed and re-baked with their neighbours (`lit-floor.ts`), through the bake scheduler (`bake-schedule.ts`). `house-mood.ts`: the house's fill and fog, moon blue exploring and red from the reveal. `house-camera.ts`, `house-targets.ts`: the camera's limits, and each target placed and laid out on the screen.
+- `house-scene.ts`: the house as a picture of whatever it is fed (a layout, figures, things, targets, whose turn it is, beats of animation), with no game in it. Layout changes are diffed and re-baked with their neighbours (`lit-floor.ts`), through the bake scheduler (`bake-schedule.ts`). `house-mood.ts`: the house's fill and fog, moon blue exploring and red from the reveal. `house-camera.ts`, `camera-follow.ts`, `house-targets.ts`: the camera's limits, its following and free modes, and each target placed and laid out on the screen. `frame-meter.ts`: three.js's frame meter.
 - `placement.ts`: the placement solver, for figures and objects alike; `room-floor.ts` and its worker read a room's free floor off the built room; `walk-around.ts` plans a walk round standing figures; `room-flight.ts`, a room a rule moves, flying to its cell; `pins-apart.ts` keeps nameplates and marks over figures from covering each other.
 - `figure-mesh.ts` and its worker, with `figure-parts.ts`: figures meshed off the page's thread; `shader-prep.ts`: an object's shaders compiled before it joins the scene; `build-slices.ts`: the house's own work cut into slices under a frame budget; `bake-finish.ts`: a pass's last step, in a worker.
 - `shine.ts`: real highlights from the baked lamps, by named preset; `wall-marks.ts`: marks drawn into a wall's own texture; `wind.ts`: a room's air, still indoors and a breeze outdoors; `things/`: the things in rooms drawn and pointed at (`layer.ts`), with their stand-in looks (`looks.ts`); `backdrop.ts`: a night backdrop, tabled and off (`?backdrop=night`).
-- `kit/pictures.ts`, the silhouette library, and `kit/vessel.ts`, closed solids of revolution.
-- Benches: `?bench=<room>` (`bench.ts`), the props gallery (`?bench=props`, `props-gallery.ts`), the figure viewer (`?bench=figures`, `figure-viewer.ts` and `figure-motion.ts`), the picture library (`?bench=pictures`, `rooms/picture-library.ts`), and crowds placed by the solver (`placement-bench.ts`).
+- `kit/pictures.ts`, the silhouette library, `kit/vessel.ts`, closed solids of revolution, and `kit/flame.ts`, every visible flame.
+- Benches: `?bench=<room>` (`bench.ts`), the props gallery (`?bench=props`, `props-gallery.ts`), the figure viewer (`?bench=figures`, `figure-viewer.ts` and `figure-motion.ts`), the picture library (`?bench=pictures`, `rooms/picture-library.ts`), the shine presets (`?bench=shine`, `shine-bench.ts`), the flames (`?bench=flames`, `flame-bench.ts`), and crowds placed by the solver (`placement-bench.ts`).
 - `explorers/by-character.ts`: a character's figure, or a pawn in their seat's colour; `part-batch.ts` batches a placed figure's parts per material; `zfight.ts` finds faces that share a plane, for the overlap check; `path-overlay.ts` draws a room's places, keep-clear areas and walks on the bench (`?paths`).
 - `input/controls.ts`, `gestures.ts` and `navigate.ts`: the three input methods, driving the free camera and picking choices through the same few intents.
 
@@ -158,7 +173,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 8. **Handover:** no banner or curtain; ending the turn is the device pass.
 9. **"Stop here":** gone; End turn is separate, and movement is spent freely around actions.
 10. **Seat colour:** the character card's.
-11. **Pacing:** automatic beats with a speed setting; a card's text waits for a tap.
+11. **Pacing:** automatic beats with a speed setting; a card drawn waits for a press.
 12. **The default page:** the game; debug at `?debug`.
 
 ## Phases
@@ -184,5 +199,5 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 5. `lastEvents` covers one write only (matters online).
 6. `choose-one` and other opaque parameters need engine metadata.
 7. Touch targets overlapping on phones: picking needs a priority by kind.
-8. Art coverage: rooms and explorers not built yet show as plain shells and pawns.
+8. Art coverage: rooms not built yet show as plain shells.
 9. Saved games: an engine change to recorded actions must raise `SHARE_FORMAT`.
