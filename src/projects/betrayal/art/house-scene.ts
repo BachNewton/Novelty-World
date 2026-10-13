@@ -1158,7 +1158,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         const id = at === -1 ? cycleChoice(points, current, step, centre()) : cycleOrder[(at + step + cycleOrder.length) % cycleOrder.length];
         if (id === null) return;
         focusTarget(id);
-        const place = placesOf(house).find((candidate) => candidate.id === id)?.place;
+        const placeNow = () => placesOf(house).find((candidate) => candidate.id === id)?.place;
+        const shown = placeNow();
+        // A following camera shows the choice's floor, which a choice up or down a stair isn't drawn on yet. The floor goes first: the
+        // camera's target lies on the floor showing, and the choice is drawn, and anchored, where that floor shows it.
+        if (shown && follow.mode === "following") cue({ kind: "show", point: shown.anchor, floor: shown.floor });
+        const place = placeNow();
         if (place) {
           // The target where the line of sight through the choice's anchor meets the floor, so the anchor shows at the screen's centre.
           const back = backward(yaw, pitch);
