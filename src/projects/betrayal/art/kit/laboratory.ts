@@ -188,11 +188,11 @@ function tileRows(pattern: readonly string[], px: number): string[] {
 /**
  * The laboratories' shell, one family for both: walls of pale grey glazed
  * tile over a dado of dark green tile capped with a band, on a floor of
- * small grey quarry tiles laid in a chequer. Washable surfaces, matte as
+ * small plain grey quarry tiles, on which shadows read. Washable surfaces, matte as
  * every shell is; the trim is the benches' dark oak.
  */
 export const LAB_SHELL: Pick<RoomDefinition, "floor" | "wall" | "wainscot" | "trim"> = {
-  floor: () => pixelTexture(tileRows(["adad", "dada", "adad", "dada"], 8), { a: "stoneDark", d: "ash", g: "sootLight" }, true),
+  floor: () => pixelTexture(tileRows(["a"], 8), { a: "stoneDark", g: "ash" }, true),
   wall: () => pixelTexture(tileRows(["c"], 6), { c: "stone", g: "stoneDark" }, true),
   wainscot: () => {
     const tiles = tileRows(["vv", "vv", "vw", "vv", "vv"], 6);

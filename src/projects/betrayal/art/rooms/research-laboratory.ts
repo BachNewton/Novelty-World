@@ -33,7 +33,7 @@ function tinted(geometry: THREE.BufferGeometry, colour: PaletteKey): THREE.Buffe
 /**
  * The bell jar on its pedestal: a turned, polished column with a brass ring
  * on top, and over it a tall dome of glass in which something is held, a
- * slow knot of spectral teal light that lights the room. Round, so it faces
+ * slow knot of violet light that lights the room. Round, so it faces
  * every way.
  */
 function bellJar(): THREE.Group {
@@ -48,7 +48,7 @@ function bellJar(): THREE.Group {
   const top = cylinder(radius + 0.06, 0.05, flat("soot"), [0, plinth - 0.05, 0], { top: radius + 0.06, sides: 14 });
   top.userData.noShadow = true;
   const ring = cylinder(radius + 0.03, base, brass(), [0, plinth, 0], { sides: 14 });
-  // The pedestal's top and the ring hold the light, so they cast no shadow: the floor round the foot is lit teal.
+  // The pedestal's top and the ring hold the light, so they cast no shadow: the floor round the foot is lit violet.
   ring.userData.noShadow = true;
   const floor = plinth + base;
   const profile: [number, number][] = [[radius, 0], [radius, wall]];
@@ -57,7 +57,7 @@ function bellJar(): THREE.Group {
     profile.push([radius * Math.cos(a), wall + crown * Math.sin(a)]);
   }
   const dome = new THREE.Mesh(
-    tinted(new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 16), "spectre"),
+    tinted(new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 16), "bruiseLight"),
     shiny(lightMaterial(0.22, { vertexColors: true }), SHINES.glass),
   );
   dome.position.y = floor;
@@ -66,21 +66,21 @@ function bellJar(): THREE.Group {
   knob.position.y = floor + wall + crown - 0.004;
   knob.userData.noShadow = true;
   const result = group(pedestal, top, ring, dome, knob);
-  result.add(lightAnchor({ colour: "spectre", intensity: 6, range: 10, flicker: 0.12, signal: 1, kind: "glow" }, [0, floor + 0.6, 0]));
+  result.add(lightAnchor({ colour: "violet", intensity: 4.5, range: 10, flicker: 0.12, signal: 1, kind: "glow" }, [0, floor + 0.6, 0]));
   return result;
 }
 
 /**
- * What is held under the bell jar: a slow knot of teal light, a bright core
+ * What is held under the bell jar: a slow knot of violet light, a bright core
  * with veils wound round it, turning and rising and sinking as if it breathed.
  * It lights nothing itself (the jar's light does), and casts no shadow.
  */
 function presence(): THREE.Group {
   const floor = JAR.plinth + JAR.base;
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8).scale(1, 1.5, 1), glow("spectre"));
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8).scale(1, 1.5, 1), glow("violet"));
   core.position.y = floor + 0.3;
   const veils = [0, 1, 2].map((k) => {
-    const veil = new THREE.Mesh(tinted(new THREE.SphereGeometry(0.13 - k * 0.018, 12, 8).scale(1, 1.9, 0.7), "spectre"), lightMaterial(0.32 - k * 0.06, { vertexColors: true }));
+    const veil = new THREE.Mesh(tinted(new THREE.SphereGeometry(0.13 - k * 0.018, 12, 8).scale(1, 1.9, 0.7), "violet"), lightMaterial(0.32 - k * 0.06, { vertexColors: true }));
     veil.userData.noShadow = true;
     return veil;
   });
@@ -213,6 +213,45 @@ function notes(seed: string): THREE.Group {
   return group(b.mesh());
 }
 
+/** How high the reagent rack's shelf stands over the slate, and its uprights' places along the bench. */
+const RACK = { shelf: 0.95, posts: [-1.1, 1.1] };
+
+/**
+ * A reagent rack over the island bench, the way a laboratory works by night:
+ * two iron uprights from the slate, a shelf of bottles across their tops,
+ * and two brass lamps hung under it, throwing their amber straight down on
+ * the apparatus. Open below the shelf, so the bench shows from every side.
+ * In the bench's frame (long along x), base on the slate.
+ */
+function reagentRack(): THREE.Group {
+  const metal = iron();
+  const result = group();
+  for (const x of RACK.posts) result.add(cylinder(0.018, RACK.shelf + 0.02, metal, [x, 0, 0], { sides: 6 }));
+  result.add(box([2.36, 0.03, 0.26], shiny(flat("woodDark"), SHINES.polishedWood), [0, RACK.shelf, 0]));
+  const fluids: PaletteKey[] = ["wraith", "bloodDark", "boneDark", "verdigris", "ember", "wraithDark", "bruise"];
+  for (let k = 0; k < 11; k++) {
+    if (k === 4 || k === 8) continue;
+    const bottle = labGlass("bottle", { fluid: fluids[k % fluids.length], fill: 0.6, scale: 1 + (k % 3) * 0.15, lid: "stopper" });
+    bottle.position.set(-1.0 + k * 0.2, RACK.shelf + 0.03, (k % 2) * 0.05 - 0.02);
+    result.add(bottle);
+  }
+  for (const x of [-0.5, 0.45]) {
+    const lamp = group(
+      cylinder(0.008, 0.16, metal, [0, RACK.shelf - 0.16, 0], { sides: 4 }),
+      solidLathe([[0.13, 0], [0.11, 0.04], [0.05, 0.11], [0.02, 0.13]], brass(), 12),
+      new THREE.Mesh(new THREE.CircleGeometry(0.11, 12).rotateX(Math.PI / 2).translate(0, 0.006, 0), glow("amber")),
+      cylinder(0.03, 0.04, glow("flame"), [0, -0.035, 0], { sides: 8 }),
+    );
+    // The shade hangs below its rod; its parts hold the light, so they cast no shadow.
+    for (const part of lamp.children.slice(1)) part.position.y += RACK.shelf - 0.29;
+    lamp.traverse((part) => (part.userData.noShadow = true));
+    lamp.position.x = x;
+    lamp.add(lightAnchor({ colour: "amber", intensity: 3.5, range: 6, flicker: 0.05, kind: "lamp" }, [0, RACK.shelf - 0.42, 0]));
+    result.add(lamp);
+  }
+  return result;
+}
+
 /** Everything on the island bench's slate, in the bench's frame (long along x, the room side +z), base on the slate. */
 function benchApparatus(): THREE.Group {
   const result = group();
@@ -229,7 +268,7 @@ function benchApparatus(): THREE.Group {
   place(instrumentTray({ length: 0.42, width: 0.26 }), 0.25, -0.16, 0.1);
   place(microscope(), 0.7, 0.18, -0.3);
   place(notes("bench"), 0.78, -0.18, 0.4);
-  place(labGlass("jar", { fill: 0.85, fluid: "wraithDark", scale: 0.8, lid: "brass" }), 1.02, 0.05);
+  place(labGlass("jar", { fill: 0.85, fluid: "wraithDark", scale: 0.8, lid: "brass" }), 0.92, 0.05);
   return result;
 }
 
@@ -320,7 +359,7 @@ function bottleCrate(): THREE.Group {
  * The Research Laboratory: a long island bench crowded with apparatus, a
  * flask brewing over a spirit lamp, shelves of specimens in murky jars; and
  * on a pedestal of its own a tall bell jar, in which a presence has been
- * caught, a knot of spectral teal light, turning, and lighting the room.
+ * caught, a knot of violet light, turning, and lighting the room.
  * Glass lies on the floor at the pedestal's foot: the jar has begun to give.
  */
 export const RESEARCH_LABORATORY: RoomDefinition = {
@@ -329,6 +368,7 @@ export const RESEARCH_LABORATORY: RoomDefinition = {
   props: [
     { build: () => labBench({ length: ISLAND.length, depth: ISLAND.depth, height: ISLAND.height, doubleSided: true }), name: "labBench", at: ISLAND.at, turn: 90 },
     { build: benchApparatus, at: ISLAND.at, y: ISLAND.height, turn: 90 },
+    { build: reagentRack, at: ISLAND.at, y: ISLAND.height, turn: 90 },
     { build: bellJar, at: JAR_AT },
     { build: presence, at: JAR_AT },
     { build: shards, at: JAR_AT },

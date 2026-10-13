@@ -3,11 +3,10 @@ import { chamberstick } from "../kit";
 import { instrumentTray, LAB_SHELL, labBench, labGlass } from "../kit/laboratory";
 import { solidLathe, vessel } from "../kit/vessel";
 import { lightAnchor } from "../light-anchor";
-import { paletteHex, type PaletteKey } from "../palette";
+import type { PaletteKey } from "../palette";
 import { onWall, type RoomDefinition } from "../room";
-import { batch, box, cylinder, flat, glow, group, lightMaterial, pixelPlane } from "../shapes";
+import { batch, box, cylinder, flat, glow, group, lightMaterial } from "../shapes";
 import { shiny, shinyBatch, SHINES } from "../shine";
-import { pixelTexture, TEXELS_PER_METRE } from "../textures";
 
 /** The operating table's centre on the floor, turned across the top-left corner. */
 const TABLE_AT: [x: number, z: number] = [-0.7, -0.7];
@@ -15,9 +14,11 @@ const TABLE_TURN = 45;
 const TABLE = { length: 1.95, width: 0.62, top: 0.86 };
 /** Where the lamp stands, behind the table towards the corner, and how far its arm reaches to hang the shade over the table. */
 const LAMP_AT: [x: number, z: number] = [-1.8, -1.8];
-const LAMP = { reach: Math.hypot(TABLE_AT[0] - LAMP_AT[0], TABLE_AT[1] - LAMP_AT[1]), pole: 2.15, shade: 1.78, radius: 0.34 };
-/** Where the shadow's feet stand, at the table's side towards the room, and the way it falls, away from the lamp. */
-const SHADOW = { feet: [-0.27, -0.27] as [number, number], toward: [Math.SQRT1_2, Math.SQRT1_2] as [number, number], length: 1.7 };
+const LAMP = { reach: Math.hypot(TABLE_AT[0] - LAMP_AT[0], TABLE_AT[1] - LAMP_AT[1]), pole: 2.62, shade: 1.98, radius: 0.32 };
+/** Where the unseen figure stands, at the table's side towards the room, facing the table. */
+const FIGURE = { feet: [-0.3, -0.3] as [number, number], turn: -135 };
+/** The way its shadow falls across the floor, away from the lamp. */
+const AWAY: [x: number, z: number] = [Math.SQRT1_2, Math.SQRT1_2];
 
 const iron = () => shiny(flat("soot"), SHINES.iron);
 
@@ -79,87 +80,55 @@ function operatingLamp(): THREE.Group {
   result.add(cylinder(0.035, pole, metal, [0, 0.1, 0], { top: 0.025, sides: 6 }));
   // The arm: out from the top of the pole, then a drop to the shade.
   result.add(box([0.05, 0.05, reach + 0.05], metal, [0, pole, reach / 2 - 0.02]));
-  result.add(box([0.04, pole - shade - 0.12, 0.04], metal, [0, shade + 0.15, reach]));
+  result.add(box([0.04, pole - shade - 0.42, 0.04], metal, [0, shade + 0.4, reach]));
   // The counterweight behind the pole.
   result.add(cylinder(0.07, 0.12, metal, [0, pole - 0.06, -0.12], { sides: 8 }));
-  const enamel = shiny(flat("stoneLight"), SHINES.glazedChina);
-  const dome = solidLathe([[radius, 0], [radius - 0.02, 0.06], [radius * 0.7, 0.14], [0.08, 0.2], [0.05, 0.22]], enamel, 14);
-  // The shade casts its shadow, so the lamp lights the table and the floor, not the walls above.
-  dome.position.set(0, shade, reach);
-  // The shade's burning mouth: a disc of green light just inside its rim.
-  const mouth = new THREE.Mesh(new THREE.CircleGeometry(radius - 0.03, 14).rotateX(Math.PI / 2), glow("wraithLight"));
-  mouth.position.set(0, shade + 0.012, reach);
-  const bulb = cylinder(0.07, 0.05, glow("wraithLight"), [0, shade - 0.03, reach], { sides: 10 });
-  // A ring of green light round the rim, so the lamp reads as burning from above too.
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(radius - 0.005, 0.014, 4, 18).rotateX(Math.PI / 2), glow("wraithLight"));
+  // Dark enamel: the lamp burns inches from the shade's inside, and a pale lining there would
+  // throw that light back round the room as blotchy bounce.
+  const enamel = shiny(flat("sootLight"), SHINES.glazedChina);
+  // A deep, open shade hung mouth down, the light up inside it: the shade casts its shadow, so the
+  // lamp throws a cone of light on the table and the floor round it, and leaves the walls dark.
+  const dome = vessel([[0.07, 0], [0.13, 0.08], [0.24, 0.22], [radius, 0.4]], enamel, { wall: 0.014, depth: 0.37, sides: 16 });
+  dome.rotation.x = Math.PI;
+  dome.position.set(0, shade + 0.4, reach);
+  const bulb = cylinder(0.06, 0.07, glow("wraithLight"), [0, shade + 0.22, reach], { sides: 10 });
+  // A ring of green light round the mouth, so the lamp reads as burning from above too.
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(radius - 0.004, 0.014, 4, 18).rotateX(Math.PI / 2), glow("wraithLight"));
   rim.position.set(0, shade + 0.004, reach);
-  for (const part of [mouth, bulb, rim]) part.userData.noShadow = true;
-  result.add(dome, mouth, bulb, rim);
-  result.add(lightAnchor({ colour: "wraithLight", intensity: 8, range: 10, flicker: 0.06, signal: 2, kind: "lamp" }, [0, shade - 0.2, reach]));
+  for (const part of [bulb, rim]) part.userData.noShadow = true;
+  result.add(dome, bulb, rim);
+  result.add(lightAnchor({ colour: "wraithLight", intensity: 26, range: 10, flicker: 0.06, signal: 2, kind: "lamp" }, [0, shade + 0.2, reach]));
   return result;
 }
 
 /**
- * The shadow of someone standing at the table under the lamp, thrown long
- * across the floor away from it, though nobody stands there: a flat dark
- * silhouette drawn into the floor's own pixel grid, so it lies texel for
- * texel on the tiles. Built in room metres.
+ * Someone standing at the table under the lamp, leaning in over it with
+ * their hands out, who isn't there: a plain figure, legs, body, arms and
+ * head, that only the bake sees (`bakeOnly`). It is never drawn, but it
+ * stops the lamp's light like anything else, so its shadow falls across the
+ * table and long over the floor. It faces +z.
  */
-function castlessShadow(): THREE.Mesh {
-  const [fx, fz] = SHADOW.feet;
-  const [ux, uz] = SHADOW.toward;
-  const [vx, vz] = [-uz, ux];
-  const reach = SHADOW.length;
-  // The silhouette along its length (0 at the feet, 1 at the crown), half its width at each point.
-  const halfWidth = (t: number): number => {
-    if (t < 0) return 0;
-    if (t < 0.46) return 0.08 + 0.07 * (t / 0.46);
-    if (t < 0.54) return 0.15 + 0.1 * ((t - 0.46) / 0.08);
-    if (t < 0.76) return 0.25 - 0.04 * ((t - 0.54) / 0.22);
-    if (t < 0.8) return 0.08;
-    if (t <= 1) return 0.12 * Math.sqrt(Math.max(0, 1 - ((t - 0.9) / 0.1) ** 2));
-    return 0;
-  };
-  /** Whether a floor point lies in the shadow. */
-  const inside = (x: number, z: number): boolean => {
-    const along = ((x - fx) * ux + (z - fz) * uz) / reach;
-    const across = (x - fx) * vx + (z - fz) * vz;
-    return Math.abs(across) < halfWidth(along);
-  };
-  const corners = [[fx, fz], [fx + ux * reach, fz + uz * reach]].flatMap(([x, z]) => [[x + vx * 0.25, z + vz * 0.25], [x - vx * 0.25, z - vz * 0.25]]);
-  const snap = (value: number, up: boolean) => (up ? Math.ceil(value * TEXELS_PER_METRE) : Math.floor(value * TEXELS_PER_METRE)) / TEXELS_PER_METRE;
-  const [x0, x1] = [snap(Math.min(...corners.map(([x]) => x)), false), snap(Math.max(...corners.map(([x]) => x)), true)];
-  const [z0, z1] = [snap(Math.min(...corners.map(([, z]) => z)), false), snap(Math.max(...corners.map(([, z]) => z)), true)];
-  const [w, h] = [Math.round((x1 - x0) * TEXELS_PER_METRE), Math.round((z1 - z0) * TEXELS_PER_METRE)];
-  const rows = Array.from({ length: h }, (_, row) =>
-    Array.from({ length: w }, (_, col) => (inside(x0 + (col + 0.5) / TEXELS_PER_METRE, z0 + (row + 0.5) / TEXELS_PER_METRE) ? "#" : ".")).join(""),
+function unseenFigure(): THREE.Group {
+  const nothing = flat("void");
+  const lean = new THREE.Group();
+  lean.rotation.x = 0.12;
+  lean.position.y = 0.82;
+  lean.add(
+    solidLathe([[0.15, 0], [0.18, 0.12], [0.19, 0.32], [0.21, 0.48], [0.12, 0.54], [0.05, 0.56], [0.05, 0.62]], nothing, 10),
+    new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8).scale(0.9, 1.15, 1).translate(0, 0.73, 0.02), nothing),
   );
-  const decal = pixelPlane(pixelTexture(rows, { "#": "void" }), { lit: false, alpha: true });
-  decal.rotation.x = -Math.PI / 2;
-  decal.position.set((x0 + x1) / 2, 0.008, (z0 + z1) / 2);
-  decal.userData.noShadow = true;
-  return decal;
-}
-
-/**
- * The pool the lamp throws on the floor round the table: green light added
- * over the tiles, strongest under the shade and fading out at its edge, so
- * the shadow beside the table lies dark on a lit floor.
- */
-function lampPool(): THREE.Mesh {
-  const geometry = new THREE.CircleGeometry(1.7, 32, 0, Math.PI * 2).rotateX(-Math.PI / 2);
-  const centre = new THREE.Color(paletteHex("wraithLight"));
-  const position = geometry.getAttribute("position");
-  const colours = new Float32Array(position.count * 3);
-  for (let i = 0; i < position.count; i++) {
-    const fade = Math.max(0, 1 - Math.hypot(position.getX(i), position.getZ(i)) / 1.7);
-    colours.set([centre.r * fade, centre.g * fade, centre.b * fade], i * 3);
+  for (const side of [-1, 1]) {
+    // Each arm from the shoulder down and out towards the table, the hand over its edge.
+    const arm = box([0.08, 0.08, 0.5], nothing, [0, -0.04, 0.22]);
+    arm.position.set(side * 0.2, 0.46, 0);
+    arm.rotation.x = 0.55;
+    arm.rotation.y = -side * 0.12;
+    lean.add(arm);
   }
-  geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
-  const pool = new THREE.Mesh(geometry, lightMaterial(0.28, { vertexColors: true }));
-  pool.position.y = 0.005;
-  pool.userData.noShadow = true;
-  return pool;
+  const figure = group(lean);
+  for (const side of [-1, 1]) figure.add(cylinder(0.07, 0.86, nothing, [side * 0.09, 0, 0], { top: 0.08, sides: 8 }));
+  figure.traverse((part) => (part.userData.bakeOnly = true));
+  return figure;
 }
 
 /** A two-tier steel trolley on casters, the instruments laid out on its top tray and spare bottles and a basin below. Long along x. */
@@ -319,8 +288,7 @@ export const OPERATING_LABORATORY: RoomDefinition = {
     // The drain at the table's foot, clear of its pedestal.
     { build: drain, at: [TABLE_AT[0] + 0.46, TABLE_AT[1] - 0.46], turn: TABLE_TURN },
     { build: operatingLamp, at: LAMP_AT, turn: 45 },
-    { build: lampPool, at: TABLE_AT },
-    { build: castlessShadow, at: [0, 0] },
+    { build: unseenFigure, at: FIGURE.feet, turn: FIGURE.turn },
     { build: instrumentTrolley, at: [-2.2, 0.55], turn: 70 },
     { build: stool, at: [0.35, -1.75] },
     { build: pail, at: [-1.9, 0.0] },
@@ -335,6 +303,6 @@ export const OPERATING_LABORATORY: RoomDefinition = {
   ],
   focus: [-0.5, 0.7, -0.5],
   prime: [1.4, -0.75],
-  // The shadow and the table's near side, where a figure would stand in the shadow's place.
-  keepClear: [{ from: SHADOW.feet, to: [SHADOW.feet[0] + SHADOW.toward[0] * 1.6, SHADOW.feet[1] + SHADOW.toward[1] * 1.6], radius: 0.38 }],
+  // Where the unseen figure stands and its shadow falls, so no explorer stands in either.
+  keepClear: [{ from: FIGURE.feet, to: [FIGURE.feet[0] + AWAY[0] * 2.2, FIGURE.feet[1] + AWAY[1] * 2.2], radius: 0.4 }],
 };
