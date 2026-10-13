@@ -101,7 +101,11 @@ describe("the box and the house in step", () => {
     expect(presenting.snapshot().card).toMatchObject({ waits: true });
     presenting.goOn();
     await settle();
-    // The roll's dice turn up, under the card's title, which stays until the choice shows.
+    // The roll's table shows first, with its odds, under the card's title.
+    expect(type(presenting.snapshot().told?.line)).toBe("roll-coming");
+    expect(presenting.snapshot().card).toMatchObject({ waits: false });
+    await house.step();
+    // Then its dice turn up, under the card's title, which stays until the choice shows.
     expect(type(presenting.snapshot().told?.line)).toBe("rolled");
     expect(presenting.snapshot().card).toMatchObject({ waits: false });
     expect(presenting.snapshot().floats).toEqual([]);

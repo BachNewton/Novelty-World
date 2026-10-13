@@ -1,6 +1,8 @@
 import { rowFor, tableOf } from "../engine/effects";
 import type { RowSummary } from "../engine/outcomes";
-import type { Json, Step } from "../types";
+import type { EventView, GameView, RuleView } from "../engine/view";
+import type { RollSpec } from "../engine/sources";
+import type { FigureId, Json, Step } from "../types";
 
 /*
  * A roll's table as the status box, a card's beat and a reader show it: each
@@ -53,4 +55,36 @@ export function rollRows(then: { kind: string; params: Json }): RowSummary[] | n
 /** The rows of a table, kept in the order the card prints them: highest results first. */
 export function printedOrder(rows: readonly RowSummary[]): { row: RowSummary; index: number }[] {
   return rows.map((row, index) => ({ row, index })).sort((a, b) => b.row.min - a.row.min);
+}
+
+/** The table a card's roll goes by, for its beat to show with its text: the
+ *  first roll of the card's own after it was drawn, made at once (its coming
+ *  or its row) or waiting on its roller (the pending decision), or null for a
+ *  card that rolls no table. */
+export function cardTable(card: string, after: readonly EventView[], pending: GameView["pending"]): RowSummary[] | null {
+  const byCard = (rule: RuleView) => rule.source === "card" && rule.card === card;
+  for (const event of after) {
+    if ((event.type !== "roll-coming" && event.type !== "table-row") || !byCard(event.rule)) continue;
+    const rows = (event.data as { rows: RowSummary[] | null }).rows;
+    if (rows !== null) return rows;
+  }
+  if (pending?.type === "decision" && pending.detail !== null && (pending.kind === "roll-before" || pending.kind === "roll-after") && byCard(pending.rule))
+    return rollRows((pending.detail.params as { then: { kind: string; params: Json } }).then);
+  return null;
+}
+
+/** A choice's options that each make one roll with a table (a trait chosen
+ *  before the roll: Possession, the Spider), with the odds of each row at the
+ *  roller's trait value now; null for an option that doesn't. */
+export function optionRolls(view: GameView, params: Json): ({ rows: RowSummary[]; odds: number[] } | null)[] {
+  const options = (params as { options?: { steps: Step[] }[] }).options ?? [];
+  return options.map(({ steps }) => {
+    const [only] = steps;
+    if (steps.length !== 1 || only.kind !== "roll") return null;
+    const roll = only.params as { figure: FigureId; spec: RollSpec; then: Step };
+    const rows = tableOf(roll.then);
+    const value = roll.spec.kind === "trait" ? view.figures[roll.figure].traits[roll.spec.trait] : undefined;
+    if (rows === null || typeof value !== "number") return null;
+    return { rows, odds: rowOdds(rows, value) };
+  });
 }

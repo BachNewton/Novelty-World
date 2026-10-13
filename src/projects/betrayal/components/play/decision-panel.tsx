@@ -18,6 +18,8 @@ import { DamageAmount, DiceFaces, RollResult, TraitValue, Verdict } from "./roll
 import { DamageIcon, DieFace, TraitIcon } from "../icons";
 import { RollTable } from "./roll-table";
 import { rowFor } from "../../engine/effects";
+import { rangeText } from "../../engine/describe";
+import { optionRolls, percentText, printedOrder } from "../../play/roll-table";
 
 /*
  * The status box's part for a decision that isn't a place or the turn: a
@@ -318,24 +320,41 @@ function DamagePart({ view, panel, act, input, params, kind }: DecisionPartProps
   );
 }
 
-function ChoicesPart({ panel, act, notes, rule }: DecisionPartProps & { rule: RuleView }) {
+function ChoicesPart({ view, panel, act, notes, rule }: DecisionPartProps & { rule: RuleView }) {
   const card = rule.source === "card" ? rule.card : null;
+  const pending = view.pending;
+  // A trait chosen before its roll: each option shows its odds on each row.
+  const rolls = pending?.type === "decision" && pending.detail !== null && pending.kind === "choose-one" ? optionRolls(view, pending.detail.params) : [];
+  const table = rolls.find((roll) => roll !== null) ?? null;
   return (
     <>
       {card !== null && <CardFace card={card} notes={notes} />}
+      {table && <RollTable rows={table.rows} />}
       <div className="flex flex-wrap gap-2">
-        {panel.map((choice) => (
-          <button
-            key={choice.id}
-            type="button"
-            onClick={() => {
-              act(choice.action);
-            }}
-            className={CHOICE}
-          >
-            {choice.label}
-          </button>
-        ))}
+        {panel.map((choice) => {
+          const odds = typeof choice.choice === "number" ? rolls[choice.choice] : null;
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              onClick={() => {
+                act(choice.action);
+              }}
+              className={CHOICE}
+            >
+              {choice.label}
+              {odds && (
+                <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-(--bt-muted) tabular-nums">
+                  {printedOrder(odds.rows).map(({ row, index }) => (
+                    <span key={index}>
+                      {rangeText(row)} {percentText(odds.odds[index])}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </>
   );

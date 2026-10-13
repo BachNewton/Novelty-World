@@ -33,6 +33,7 @@ import { createPresenting, DICE_SECONDS, skipOrAnswer, SPEEDS, type Presented, t
 import { beatLine } from "../../play/presenter";
 import { RaiseWallsButton } from "../raise-walls-button";
 import { CardBeat } from "./card-beat";
+import { cardTable } from "../../play/roll-table";
 import { ExplorerSheet, FigureMarks, markedExplorers } from "./figure-marks";
 import { DetailsButton, HouseDetails } from "./details";
 import { TradeSheet } from "./trade-sheet";
@@ -495,6 +496,8 @@ export function PlayScreen({
   const told = toldEvent && presented.told ? { event: toldEvent, events: eventsOf(presented.told.events) } : null;
   const drawnEvent = presented.card === null ? undefined : fed.get(presented.card.event);
   const card = drawnEvent && presented.card ? { event: drawnEvent, waits: presented.card.waits } : null;
+  const fedNow = [...fed.values()];
+  const cardRows = card === null ? null : cardTable((card.event.data as { card: string }).card, fedNow.slice(fedNow.indexOf(card.event) + 1), view.pending);
   const beat = presented.beat;
   const turnUp = beat?.kind === "line" && beat.show === "dice" && beat.line === presented.told?.line ? DICE_SECONDS * SPEEDS[speed] : null;
   const dot = yours ? seatDot(ENGINE, yours.definition) : undefined;
@@ -642,7 +645,7 @@ export function PlayScreen({
           why={{ open: whyOpen, toggle: setWhyOpen, hold: presenting.hold }}
         />
       </div>
-      <CardBeat scene={scene} card={card} shown={eventsOf(presented.shown)} spots={presented.spots} goOn={presenting.goOn} />
+      <CardBeat scene={scene} card={card} table={cardRows} shown={eventsOf(presented.shown)} spots={presented.spots} goOn={presenting.goOn} />
       {tab && (
         <ExplorerSheet
           scene={scene}

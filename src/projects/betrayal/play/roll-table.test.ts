@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { RowSummary } from "../engine/outcomes";
-import { percentText, printedOrder, rowOdds, waysToRoll } from "./roll-table";
+import { viewFor } from "../engine/view";
+import { ENGINE } from "../game";
+import { choose, pendingDecision, testGame } from "../testing";
+import { cardTable, optionRolls, percentText, printedOrder, rowOdds, waysToRoll } from "./roll-table";
 
 const passFail = (target: number): RowSummary[] => [
   { min: target, max: null, outcome: [{ kind: "pass" }] },
@@ -55,5 +58,38 @@ describe("a roll's odds", () => {
       { min: 2, max: 3, outcome: [] },
     ];
     expect(printedOrder(rows).map(({ index }) => index)).toEqual([1, 2, 0]);
+  });
+});
+
+describe("tables read off the game", () => {
+  it("gives each trait to choose before a roll its odds, at the roller's trait value now", () => {
+    // Possession: choose a trait, then roll it, 4+ or 0–3.
+    let state = testGame({ stack: ["game-room"], decks: { event: ["possession"] } });
+    state = choose(choose(state, "Explore through the north door"), "turned 0°");
+    const decision = pendingDecision(state);
+    expect(decision.kind).toBe("choose-one");
+    const view = viewFor(ENGINE, state, 0);
+    const rolls = optionRolls(view, decision.params);
+    expect(rolls).toHaveLength(4);
+    const zoe = view.figures["zoe-ingstrom"].traits;
+    for (const roll of rolls) {
+      expect(roll?.rows.map((row) => row.min)).toEqual([4, 0]);
+      expect(roll?.odds.reduce((sum, odds) => sum + odds, 0)).toBeCloseTo(1, 12);
+    }
+    const might = zoe.might ?? 0;
+    const mightRoll = rolls.find((_roll, i) => (decision.params as { options: { label: string }[] }).options[i].label.includes("Might"));
+    expect(mightRoll?.odds).toEqual(rowOdds(mightRoll?.rows ?? [], might));
+  });
+
+  it("finds the table a drawn card rolls by, from its roll made at once or its decision", () => {
+    let state = testGame({ stack: ["game-room"], decks: { event: ["creepy-crawlies"] } });
+    state = choose(choose(state, "Explore through the north door"), "turned 0°");
+    const view = viewFor(ENGINE, state, 0);
+    expect(cardTable("creepy-crawlies", view.events, view.pending)?.map((row) => row.min)).toEqual([5, 1, 0]);
+    expect(cardTable("bloody-vision", view.events, view.pending)).toBeNull();
+    let deciding = testGame({ stack: ["game-room"], decks: { event: ["creepy-crawlies"] }, explorers: [{ seat: 0, cards: ["angel-feather"] }] });
+    deciding = choose(choose(deciding, "Explore through the north door"), "turned 0°");
+    const waiting = viewFor(ENGINE, deciding, 0);
+    expect(cardTable("creepy-crawlies", [], waiting.pending)?.map((row) => row.min)).toEqual([5, 1, 0]);
   });
 });
