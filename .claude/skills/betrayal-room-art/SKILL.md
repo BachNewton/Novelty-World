@@ -511,8 +511,9 @@ ledger, with its light intent and its measured median and range.
   boards, flagstones, brick, earth, parquet, panelling and wainscot take no
   shine at all. Only where the room's story calls for it (the formal halls'
   marble, the Dining Room's honed stone, the Chapel, a lift car's polished
-  panels) does the shell take `SHINES.floorSheen`, a small soft gleam near
-  the lamp; never a stronger preset, never the broad highlight. Objects keep
+  panels) does the shell take `SHINES.floorSheen`, a faint gleam near the
+  lamp, seen only when looked for and never competing with the figures or
+  the lamps; never a stronger preset, never the broad highlight. Objects keep
   theirs: silver, brass, glass, china, polished furniture. Marble floors are
   honed, with no vein lines (dark veins read as cracks at this pixel size):
   nearly flat, at most a faint broad two-tone.
