@@ -4,14 +4,13 @@ import { BASE_RADIUS, COLOUR_RING, FLOOR_RINGS, INNER, type Stroke } from "./roo
 
 /*
  * The placement solver: places every figure in a room on its free floor. A
- * room gives only its prime place, where the active explorer stands, and
- * any areas it keeps clear beyond its doorways and walking lanes.
+ * room gives only its prime place, where a figure arriving stands while it
+ * is free, and any areas it keeps clear beyond its doorways and walking
+ * lanes.
  *
- * Figures are placed one at a time: the explorer stepping onto the prime
- * place, then everyone who stood here already, then the newcomers, the
- * large first, then people, then small ones. A figure keeps its place until
- * it moves, unless the explorer stepping onto the prime place crowds it
- * more than it stood crowded before: then it steps aside. A newcomer takes
+ * Figures are placed one at a time: everyone who stood here already, then
+ * the newcomers, the large first, then people, then small ones. A figure
+ * keeps its place until it moves. A newcomer takes
  * the prime place while it is free, or else the best free place by a simple
  * score (open floor, near the group, off the lanes), among the places that
  * keep it apart from the figures already placed, as far apart as the room
@@ -181,19 +180,17 @@ function clearanceAt(floor: PlacementFloor, x: number, z: number): number {
 
 /** Places every figure in one room (or one half of a barrier room).
  *  `figures` lists them in turn order; `before` is where those that were
- *  here already stood; `stepping` is the explorer whose turn has just
- *  started, which steps onto the prime place. */
+ *  here already stood, and keep it. */
 export function placeFigures(
   floor: PlacementFloor,
   hints: PlacementHints,
   figures: readonly PlacingFigure[],
   before: Readonly<Partial<Record<string, Placed>>> = {},
-  stepping: string | null = null,
 ): Placement {
   if (figures.length === 0) return { figures: {}, crowding: 0, badge: null };
-  const standing = solve(floor, hints, figures, before, stepping, "standing");
+  const standing = solve(floor, hints, figures, before, "standing");
   if (!figures.some((figure) => figure.size === "large") || standing.crowding < 2) return standing;
-  const crowded = solve(floor, hints, figures, before, stepping, "crowded");
+  const crowded = solve(floor, hints, figures, before, "crowded");
   return behindCount(crowded) < behindCount(standing) ? crowded : standing;
 }
 
@@ -206,7 +203,6 @@ function solve(
   hints: PlacementHints,
   figures: readonly PlacingFigure[],
   before: Readonly<Partial<Record<string, Placed>>>,
-  stepping: string | null,
   largePose: Pose,
 ): Placement {
   const all = candidates(floor, hints.within);
@@ -241,18 +237,14 @@ function solve(
       (inStrokes(candidate.x, candidate.z, hints.keepClear) ? IN_KEEP_CLEAR : 0)
     );
   };
-  /** The best place for a figure: `toward` (the prime place, for the explorer stepping onto it) or the floor
-   *  nearest it, or else the best free floor, at the least crowding the room allows. */
-  const best = (print: Footprint, toward: readonly [number, number] | null): [number, number] => {
+  /** The best free floor for a figure, at the least crowding the room allows. */
+  const best = (print: Footprint): [number, number] => {
     for (const level of [0, 1, 2] as const) {
-      if (toward && allowed(toward[0], toward[1], print, level)) return [toward[0], toward[1]];
       let found: Candidate | null = null;
       let top = -Infinity;
       for (const candidate of all) {
         if (!allowed(candidate.x, candidate.z, print, level)) continue;
-        const value = toward
-          ? -Math.hypot(candidate.x - toward[0], candidate.z - toward[1])
-          : score(candidate) + (level > 0 ? SPREAD * Math.min(roomAt(candidate.x, candidate.z, print, others), SPREAD_CAP) : 0);
+        const value = score(candidate) + (level > 0 ? SPREAD * Math.min(roomAt(candidate.x, candidate.z, print, others), SPREAD_CAP) : 0);
         if (value > top) [found, top] = [candidate, value];
       }
       if (found) return [found.x, found.z];
@@ -271,22 +263,18 @@ function solve(
     .map((figure, i) => ({ figure, i }))
     .sort((a, b) => SIZE_ORDER[a.figure.size] - SIZE_ORDER[b.figure.size] || a.i - b.i)
     .map(({ figure }) => figure);
-  // The explorer whose turn has started steps onto the prime place, or as near it as the room allows.
-  const stepper = hints.prime === null ? undefined : figures.find((figure) => figure.id === stepping);
-  if (stepper) put(stepper, ...best(printOf(stepper), hints.prime));
-  // Whoever stood here keeps their place, unless the stepper crowds them more than they stood crowded before.
+  // Whoever stood here keeps their place.
   const arriving: PlacingFigure[] = [];
   for (const figure of ordered) {
-    if (figure === stepper) continue;
     const was = before[figure.id];
-    if (was && (!stepper || figure.size === "object" || crowdingAt(was.x, was.z, printOf(figure), [others[0]]) <= was.crowding)) put(figure, was.x, was.z);
+    if (was) put(figure, was.x, was.z);
     else arriving.push(figure);
   }
   // The rest take the prime place while it is free, or else the best free floor.
   for (const figure of arriving) {
     const print = printOf(figure);
     const prime = hints.prime;
-    put(figure, ...(prime && figure.size !== "object" && allowed(prime[0], prime[1], print, 0) ? [prime[0], prime[1]] as [number, number] : best(print, null)));
+    put(figure, ...(prime && figure.size !== "object" && allowed(prime[0], prime[1], print, 0) ? [prime[0], prime[1]] as [number, number] : best(print)));
   }
 
   const result: Record<string, Placed> = {};

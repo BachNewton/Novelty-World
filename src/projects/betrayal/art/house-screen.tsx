@@ -56,7 +56,7 @@ function Hints({ input, phase, walking, stopping }: { input: InputKind; phase: P
             <Hint key="orbit" glyphs={<Glyph round>R</Glyph>} does="turn, tilt" />,
             <Hint key="zoom" glyphs={<><ControlGlyph control={{ pad: "LT" }} /><ControlGlyph control={{ pad: "RT" }} /></>} does="zoom" />,
             <Hint key="floor" glyphs={<><ControlGlyph control={{ pad: "LB" }} /><ControlGlyph control={{ pad: "RB" }} /></>} does="floor" />,
-            <Hint key="recentre" glyphs={<ControlGlyph control={{ pad: "View" }} />} does="recentre" />,
+            <Hint key="follow" glyphs={<ControlGlyph control={{ pad: "View" }} />} does="follow" />,
             <Hint key="walls" glyphs={<ControlGlyph control={{ pad: "L3" }} hold={{ holding: false }} />} does="walls" />,
           ]
         : [
@@ -68,7 +68,7 @@ function Hints({ input, phase, walking, stopping }: { input: InputKind; phase: P
             <Hint key="drag" glyphs={<Glyph>Right-drag</Glyph>} does="turn, tilt" />,
             <Hint key="zoom" glyphs={<Glyph>Wheel</Glyph>} does="zoom" />,
             <Hint key="floor" glyphs={<><Glyph>R</Glyph><Glyph>F</Glyph></>} does="floor" />,
-            <Hint key="recentre" glyphs={<Glyph>C</Glyph>} does="recentre" />,
+            <Hint key="follow" glyphs={<Glyph>C</Glyph>} does="follow" />,
             <Hint key="walls" glyphs={<Glyph>V</Glyph>} does="hold: walls" />,
           ];
   return <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">{hints}</div>;
@@ -223,7 +223,7 @@ export function HouseScreen() {
           <BenchButton label="Floor up" disabled={shown.floor === floors[floors.length - 2]} onClick={() => view.api.stepFloor(1)}>
             ▲
           </BenchButton>
-          <BenchButton label="Recentre" onClick={() => view.api.recentre()}>
+          <BenchButton label="Follow" onClick={() => view.api.follow()}>
             ◎
           </BenchButton>
           <RaiseWallsButton

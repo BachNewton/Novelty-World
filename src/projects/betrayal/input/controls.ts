@@ -53,8 +53,8 @@ export interface ControlHandlers {
   zoom: (factor: number) => void;
   /** Shows the floor above (1) or below (-1). */
   floor: (step: 1 | -1) => void;
-  /** Brings the view back to the explorer whose turn it is. */
-  recentre: () => void;
+  /** Follows the explorer whose turn it is with the camera again. Panning and changing floor by hand stop following; turning, tilting and zooming never do. */
+  follow: () => void;
   /** Opens or closes the acting player's explorer: its character card, held cards and the turn's actions. */
   explorer: () => void;
   /** Opens or closes the game menu. Any pad may, even one that may not act now. */
@@ -109,7 +109,7 @@ const ORBIT_KEYS: Record<string, number> = { KeyQ: -1, KeyE: 1 };
 /** T tilts the camera up towards top-down, G down towards eye level. */
 const TILT_KEYS: Record<string, number> = { KeyT: 1, KeyG: -1 };
 const FLOOR_KEYS: Record<string, 1 | -1> = { PageUp: 1, KeyR: 1, PageDown: -1, KeyF: -1 };
-const RECENTRE_KEYS = new Set(["KeyC", "Home"]);
+const FOLLOW_KEYS = new Set(["KeyC", "Home"]);
 const CONFIRM_KEYS = new Set(["Enter", "NumpadEnter", "Space"]);
 /** Held, V raises the walls: a look at them whole, without the cutaway. */
 const RAISE_KEY = "KeyV";
@@ -275,7 +275,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     const held = code in PAN_KEYS || code in ORBIT_KEYS || code in TILT_KEYS;
     const zoom = event.key === "+" || event.key === "=" ? KEY_ZOOM : event.key === "-" || event.key === "_" ? 1 / KEY_ZOOM : null;
     const floor = FLOOR_KEYS[code] as 1 | -1 | undefined;
-    const recentre = RECENTRE_KEYS.has(code);
+    const follow = FOLLOW_KEYS.has(code);
     const cycle = code === "Tab";
     const back = code === "Escape";
     if (code === RAISE_KEY || code === END_KEY) {
@@ -293,7 +293,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
       else handlers.menu();
       return;
     }
-    if (!held && !confirming && zoom === null && floor === undefined && !recentre && !cycle && !back) return;
+    if (!held && !confirming && zoom === null && floor === undefined && !follow && !cycle && !back) return;
     event.preventDefault();
     handlers.usedInput("keyboard-mouse");
     if (held) {
@@ -304,7 +304,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     if (event.repeat) return;
     if (confirming) handlers.confirm();
     if (floor !== undefined) handlers.floor(floor);
-    if (recentre) handlers.recentre();
+    if (follow) handlers.follow();
     if (cycle) handlers.cycle(event.shiftKey ? -1 : 1);
     if (back) handlers.back();
   };
@@ -340,7 +340,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
       handlers.floor(1);
     },
     Y: handlers.explorer,
-    View: handlers.recentre,
+    View: handlers.follow,
   };
 
   element.addEventListener("pointerdown", onPointerDown);

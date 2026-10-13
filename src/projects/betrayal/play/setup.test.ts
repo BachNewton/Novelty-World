@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CHARACTERS } from "../data/characters";
-import { cycleCharacter, portraitSrc, takenBy } from "./setup";
+import { portraitSrc, takenBy } from "./setup";
 
 const seats = [
   { character: "father-rhinehardt" },
@@ -14,13 +14,6 @@ describe("choosing characters at setup", () => {
   it("counts a character taken when another seat has its card", () => {
     expect(takenBy(CHARACTERS, seats, 0, "professor-longfellow")).toBeNull();
     expect(takenBy(CHARACTERS, seats, 0, "darrin-flash-williams")).toBe(1);
-  });
-
-  it("cycles a seat round the free characters, both ways, wrapping", () => {
-    // Longfellow shares the seat's own card, so is free; Flash and Ox's card is taken, as is Zoe's.
-    expect(cycleCharacter(CHARACTERS, seats, 0, 1)[0].character).toBe("professor-longfellow");
-    expect(cycleCharacter(CHARACTERS, cycleCharacter(CHARACTERS, seats, 0, 1), 0, 1)[0].character).toBe("brandon-jaspers");
-    expect(cycleCharacter(CHARACTERS, seats, 0, -1)[0].character).toBe("jenny-leclerc");
   });
 });
 

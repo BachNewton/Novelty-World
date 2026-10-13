@@ -10,7 +10,7 @@ import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import { cardMood, consequence, statChanges, type StatChange } from "../../play/cards";
 import { portraitSrc } from "../../play/setup";
-import type { ExplorerActions } from "../../play/sheet";
+import { firstAction, type ExplorerActions } from "../../play/sheet";
 import { cardThingId } from "../../play/things";
 import type { Spots } from "../../play/spots";
 import { figureTracks } from "../../play/tracks";
@@ -204,6 +204,8 @@ export function ExplorerSheet(props: ExplorerSheetProps) {
   const { scene, tab, close, input } = props;
   const ref = usePinned(scene, "fan", tab.id, { height: FAN_HEIGHT, lift: 1, clamp: true, apart: false });
   const sheet = useRef<HTMLElement>(null);
+  // Focusing a tab shows it: a sheet with no action opens on its own tab, never the layer's first control, which is the first explorer's tab.
+  const opensOnTab = firstAction(shownActions(props)) === null;
   // It opens with the focus on its first action, or its tab where there is none, once the scene has put it over its figure and it shows.
   useEffect(() => {
     const pinned = ref.current;
@@ -240,7 +242,7 @@ export function ExplorerSheet(props: ExplorerSheetProps) {
                 type="button"
                 role="tab"
                 aria-selected={figure.id === tab.id}
-                data-pad-start={(props.actions === null && figure.id === tab.id) || undefined}
+                data-pad-start={(opensOnTab && figure.id === tab.id) || undefined}
                 // The d-pad moving along the tabs shows each: the focus is the tab.
                 onFocus={() => {
                   props.setTab(figure.id);
@@ -274,10 +276,13 @@ function WithNotes(props: ExplorerSheetProps) {
 
 const ACTION = "min-h-10 rounded border border-(--bt-line) bg-(--bt-room) px-3 py-1 text-left text-sm hover:border-(--bt-accent)";
 
+/** The turn's actions on the tab shown, or null where it shows none. */
+const shownActions = ({ actions, tab }: Pick<ExplorerSheetProps, "actions" | "tab">): ExplorerActions | null => (actions?.figure === tab.id ? actions.rows : null);
+
 function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: ExplorerSheetProps & { notes: RuleNotes | null }) {
-  const rows = actions?.figure === tab.id ? actions.rows : null;
+  const rows = shownActions({ actions, tab });
   // The first action takes the focus as the sheet opens.
-  const first = rows && [...rows.held.flatMap((row) => [...row.uses, ...(row.drop ? [row.drop] : [])]).map((choice) => choice.id), ...rows.floor.map(({ pickUp }) => pickUp.id), ...rows.trades.map((trade) => `trade:${trade.with}`)][0];
+  const first = firstAction(rows);
   const start = (id: string) => id === first || undefined;
   return (
     <>

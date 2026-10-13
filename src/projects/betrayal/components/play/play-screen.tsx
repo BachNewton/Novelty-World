@@ -41,6 +41,7 @@ import { useDetailsHold } from "./details-hold";
 import { BakeDebug } from "../../art/bake-debug";
 import { BakeIndicator } from "../../art/bake-indicator";
 import { createFrameMeter, useFrameMeter, type FrameMeter } from "../../art/frame-meter";
+import { AimDebug } from "./aim-debug";
 
 /*
  * The game on one device: the house, showing the seat holding the device
@@ -508,6 +509,7 @@ export function PlayScreen({
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />
+      <AimDebug scene={scene} named={[...targets, ...ghostTargets, ...things]} />
       {details.held && <HouseDetails scene={scene} view={view} things={things} />}
       <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
 
@@ -544,13 +546,14 @@ export function PlayScreen({
         </span>
         <button
           type="button"
+          aria-pressed={shown.camera === "following"}
           onClick={() => {
-            scene.camera.recentre();
+            scene.camera.follow();
           }}
-          className={button}
+          className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}
         >
-          Recentre
-          <Prompt meaning="recentre" input={input} size={16} />
+          Follow
+          <Prompt meaning="follow" input={input} size={16} />
         </button>
         <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
           Walls

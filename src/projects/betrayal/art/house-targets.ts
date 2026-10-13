@@ -289,13 +289,3 @@ export function choiceLayout(places: readonly { id: string; place: TargetPlace }
   }
   return { points, targets, focused };
 }
-
-/**
- * The floor the view shows after the active explorer goes from one floor to
- * another, by walking or by the turn passing to someone on another floor.
- * The view follows them when it was showing the floor they left; a floor the
- * player chose to look at instead, or every floor at once, stays.
- */
-export function followFloor(showing: FloorChoice, from: FloorId, to: FloorId): FloorChoice {
-  return showing === from ? to : showing;
-}

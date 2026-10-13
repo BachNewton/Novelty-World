@@ -70,6 +70,24 @@ function halfSize({ outline }: Target): number {
   return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2;
 }
 
+/** One target as the reticle weighed it: the numbers behind its choice, for the aim's debug view. */
+export interface ReticleWeighing {
+  target: Target;
+  /** From the centre to its anchor. */
+  distance: number;
+  /** Its snap: the least snap, or more for a target that shows big. */
+  reach: number;
+  /** How far it reaches now: its snap, stretched while it is the one held. */
+  holdsTo: number;
+  held: boolean;
+  /** Whether the centre is over its outline, which keeps it in reach however far its anchor. */
+  over: boolean;
+  /** What its distance is measured against: its snap, up to the cap for a big target. */
+  scale: number;
+  /** Its distance for its size, eased while held: the lowest wins. Null out of reach. */
+  score: number | null;
+}
+
 /**
  * The choice the screen-centre reticle selects, and where the reticle shows:
  * the target nearest the centre for its size (its distance from its anchor
@@ -78,19 +96,26 @@ function halfSize({ outline }: Target): number {
  * thing near the centre wins over a big room the centre lies in. The target
  * held keeps the reticle until the centre leaves its longer reach, or comes
  * clearly nearer another. Null on open floor, where the reticle stays at the
- * centre and selects nothing.
+ * centre and selects nothing. `weigh`, when given, hears every target's numbers.
  */
-export function reticleTarget(targets: readonly Target[], centre: Point, { snap, held }: ReticleReach): { id: string; at: Point } | null {
+export function reticleTarget(
+  targets: readonly Target[],
+  centre: Point,
+  { snap, held }: ReticleReach,
+  weigh?: (weighing: ReticleWeighing) => void,
+): { id: string; at: Point } | null {
   let best: Target | null = null;
   let top = Infinity;
   for (const target of targets) {
     const reach = Math.max(snap, SNAP_GROWTH * halfSize(target));
     const sticky = target.id === held ? STICKY : 1;
     const distance = Math.hypot(target.anchor.x - centre.x, target.anchor.y - centre.y);
-    if (!inside(centre, target.outline) && distance > reach * sticky) continue;
+    const over = inside(centre, target.outline);
     // A big target's own size counts only so far, so a small one by the centre wins over the room the centre lies in.
-    const score = distance / Math.min(reach, BIG * snap) / sticky;
-    if (score < top) [best, top] = [target, score];
+    const scale = Math.min(reach, BIG * snap);
+    const score = over || distance <= reach * sticky ? distance / scale / sticky : null;
+    weigh?.({ target, distance, reach, holdsTo: reach * sticky, held: sticky !== 1, over, scale, score });
+    if (score !== null && score < top) [best, top] = [target, score];
   }
   return best ? { id: best.id, at: best.anchor } : null;
 }

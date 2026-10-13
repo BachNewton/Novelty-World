@@ -4,12 +4,12 @@ import type { StandardButton } from "@/shared/lib/gamepad";
 import { FLOORS, placed, type Layout } from "../engine/board";
 import { attachControls, usesReticle, type ChoiceLayout, type InputKind } from "../input/controls";
 import { panOnFloor } from "../input/gestures";
-import { cycleChoice, pickTarget, reticleTarget, stepFloor, type Point } from "../input/navigate";
+import { cycleChoice, pickTarget, reticleTarget, stepFloor, type Point, type ReticleWeighing } from "../input/navigate";
 import type { FloorId, PlacedTile } from "../types";
 import type { Pace } from "./explorers/figure";
 import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure } from "./house";
 import type { LayoutChange } from "./house-layout";
-import { choiceLayout, exploreEntry, FINGER, followFloor, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
+import { choiceLayout, exploreEntry, FINGER, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
 import { inHouse, walkPath, walkPose, type Avoid, type HousePoint, type Stairway, type Walk } from "./house-walk";
 import { pinsApart } from "./pins-apart";
 import type { ShownThing } from "../play/things";
@@ -28,6 +28,7 @@ import { budgetGuard, HOUSE_LIGHT, LIGHTMAP, MAX_DRAW_CALLS, MAX_TEXTURE_UNITS }
 import { BASE_RADIUS, TILE, type RoomPoint } from "./room";
 import { shownBounds } from "./shapes";
 import { BASE_SPAN, cameraDistance, clampPitch, DEFAULT_PITCH, depthRange, FIELD_OF_VIEW, ZOOM_RANGE } from "./house-camera";
+import { cameraCue, followed, followedFloor, FOLLOWING, type CameraCue, type CameraFollow, type CameraMode } from "./camera-follow";
 
 /*
  * The house as a picture of whatever is fed to it, with no game in it: a
@@ -137,18 +138,20 @@ export interface SceneView {
   walking: boolean;
   /** Whether a moved room is being carried to its new cell. */
   moving: boolean;
+  /** Whether the camera follows the active explorer, or is the player's alone (`camera-follow.ts`). */
+  camera: CameraMode;
 }
 
 /** Where the camera is: the point on the floor it looks at, its angles round
  *  the vertical and up from the floor, its zoom, and the floor
- *  showing. `following` is whether it is following a figure as it walks. */
+ *  showing. `mode` is whether it follows the active explorer or is free. */
 export interface CameraState {
   target: THREE.Vector3;
   yaw: number;
   pitch: number;
   zoom: number;
   floor: FloorChoice;
-  following: boolean;
+  mode: CameraMode;
 }
 
 /** Whoever drives the scene, told what the player does with the targets. */
@@ -177,6 +180,27 @@ export interface SceneInput {
   padButton?: (button: StandardButton, pad: number) => boolean;
   /** Whether a pad may act now; an idle pad's sticks and buttons are ignored. Every pad may when absent. */
   padMay?: (pad: number) => boolean;
+}
+
+/** How the reticle is deciding right now, read from the rule it decides by, for the aim's debug view. */
+export interface AimReading {
+  /** Whether the reticle is the selection: only with a controller. */
+  active: boolean;
+  centre: Point;
+  /** The least snap round any target. */
+  snap: number;
+  /** Every target on the screen, as the rule weighed it with the focused one held. */
+  weighed: ReticleWeighing[];
+  /** What the rule catches with nothing held. */
+  fresh: string | null;
+  /** What it picks with the focused one held. */
+  picked: string | null;
+  /** The reticle's choice as the driver was last told it. */
+  focused: string | null;
+  /** A choice a d-pad jump went to, held until the player pans away. */
+  pinned: string | null;
+  /** A choice backed out of, passed over until the reticle leaves it. */
+  dismissed: string | null;
 }
 
 /** What one frame cost to draw, for measuring. */
@@ -209,8 +233,10 @@ export interface SceneHook {
   fit: () => void;
   /** Shows the floor above (1) or below (-1). */
   stepFloor: (step: 1 | -1) => void;
-  /** Brings the view back to the explorer whose turn it is: their room and floor, keeping the angles and zoom. */
-  recentre: () => void;
+  /** Follows the explorer whose turn it is again, gliding to them and their floor, keeping the angles and zoom. */
+  follow: () => void;
+  /** Whether the camera follows the active explorer or is free. */
+  cameraMode: () => CameraMode;
   /** Where the camera looks, its angles round the vertical and up from the floor, and its zoom. */
   camera: () => { target: { x: number; y: number; z: number }; yaw: number; pitch: number; zoom: number };
   /** The choice the screen-centre reticle selects, or null; null too when the pointer is the selection. */
@@ -321,8 +347,6 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let active: string | null = null;
   /** The house's light as a whole, kept for a house mounted later. */
   let mood: HouseMood = "explore";
-  /** The floor the active figure was last seen on, for following them. */
-  let activeFloor: FloorId | null = null;
   let input: SceneInput = { focus: () => undefined, commit: () => undefined, confirm: () => undefined };
 
   let view: SceneView = {
@@ -337,6 +361,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     wallsRaised: false,
     walking: false,
     moving: false,
+    camera: FOLLOWING.mode,
   };
   const listeners = new Set<() => void>();
   /** The camera's angles round the vertical and up from the floor, and its zoom, eased towards their goals (the zoom's is `view.zoom`). */
@@ -350,9 +375,9 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   /** The point on the floor the camera looks at, and where it is easing to; null until the house first shows. */
   let aim: THREE.Vector3 | null = null;
   let aimGoal: THREE.Vector3 | null = null;
-  /** A figure the camera follows as it walks, until the player takes the camera. */
-  let following: string | null = null;
-  /** The player has a hand on the camera, so the game may not move it. */
+  /** Whether the camera follows the active explorer (and what it looks at meanwhile), or is free. */
+  let follow: CameraFollow = FOLLOWING;
+  /** The player has a hand on the camera, so it hasn't settled. */
   let handsOn = false;
   /** A choice a jump went to, which the reticle holds until the player pans away. */
   let pinned: string | null = null;
@@ -393,6 +418,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     floorHit: (point: Point) => THREE.Vector3 | null;
     /** The camera's target and zoom that fit these points in view from its angle. */
     fitting: (points: THREE.Vector3[]) => { target: THREE.Vector3; zoom: number };
+    aimReading: () => AimReading;
   } | null = null;
   let settled = false;
   let frames = 0;
@@ -446,12 +472,40 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     if (floor !== view.floor || closeUp !== view.closeUp) update({ floor, closeUp });
   }
 
-  /** The camera pans to a point, keeping the player's angles and zoom, unless the player has a hand on it. */
-  function panTo(point: THREE.Vector3) {
-    if (handsOn) return;
-    aimGoal = point.clone();
-    following = null;
+  /** The floor a following camera's subject is on, or null when it is free or follows no one. */
+  const followedFloorNow = (): FloorId | null => {
+    const subject = followed(follow, active);
+    if (subject === null) return null;
+    if ("point" in subject) return subject.floor;
+    return figures.has(subject.figure) ? figureFloor(subject.figure) : null;
+  };
+
+  /** A following camera's view shows its subject's floor. */
+  function keepFollowedFloor() {
+    const floor = followedFloorNow();
+    if (floor !== null) showFloor(followedFloor(view.floor, floor));
+  }
+
+  function cue(next: CameraCue) {
+    const was = follow;
+    follow = cameraCue(follow, next);
+    if (follow === was) return;
+    settled = false;
+    if (follow.mode !== view.camera) update({ camera: follow.mode });
+    keepFollowedFloor();
+  }
+
+  /** The camera pans to a point on a floor, keeping the player's angles and zoom, if it is following: free, nothing the game shows moves it. */
+  function panTo(point: THREE.Vector3, floor: FloorId) {
+    if (follow.mode === "free") return;
+    cue({ kind: "show", point, floor });
     pinned = null;
+  }
+
+  /** The player's own look at a point (a jump to a choice): a following camera looks there for now, a free one goes there. */
+  function lookAt(point: THREE.Vector3, floor: FloorId) {
+    if (follow.mode === "following") cue({ kind: "show", point, floor });
+    else aimGoal = point.clone();
     settled = false;
   }
 
@@ -505,7 +559,11 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     if (!target) return;
     if (mounted && view.floor !== "all") {
       const place = targetPlace(target, placeContext(mounted.house));
-      if (place.outline === null) showFloor(place.floor);
+      // A following camera would go straight back to its subject's floor, so it looks at the choice instead.
+      if (place.outline === null) {
+        if (follow.mode === "following") cue({ kind: "show", point: place.anchor, floor: place.floor });
+        else showFloor(place.floor);
+      }
     }
     input.focus(id);
   }
@@ -532,7 +590,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     }
     // A room appearing (discovered, or placed by a rule) is something to see: the camera pans to it.
     const shownNow = change?.added.filter((room) => view.floor === "all" || tileFloor(room) === view.floor) ?? [];
-    if (mounted && shownNow.length > 0) panTo(middleOf(mounted.house, shownNow));
+    if (mounted && shownNow.length > 0) panTo(middleOf(mounted.house, shownNow), tileFloor(shownNow[0]));
     settled = false;
     return change;
   }
@@ -572,30 +630,25 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       dismissed = null;
       cycleOrder = null;
     }
-    // A ghost put on a new cell is shown: its floor, and the camera panned to it.
+    // A ghost put on a new cell is shown. It is the player's own decision in hand, so even a free camera shows its floor; a following one pans to it too.
     const [ghost, was] = [ghostOf(next), ghostOf(targets)];
     if (ghost && (ghost.floor !== was?.floor || ghost.x !== was.x || ghost.y !== was.y)) {
-      if (view.floor !== "all") showFloor(ghost.floor);
-      if (mounted) panTo(mounted.house.cellCentre(ghost.floor, ghost.x, ghost.y));
+      if (follow.mode === "free" && view.floor !== "all") showFloor(ghost.floor);
+      if (mounted) panTo(mounted.house.cellCentre(ghost.floor, ghost.x, ghost.y), ghost.floor);
     }
     targets = next;
     focused = focus;
     mounted?.sync();
   }
 
-  /** Whose turn it is: the light follows them, the camera pans to them, and
-   *  the view goes to their floor if it was on the floor of whoever went before. */
+  /** Whose turn it is: the light follows them, and a new turn follows them
+   *  with the camera, free or not: on one device it has just passed to the
+   *  player who expects to see their own explorer. */
   function setActive(id: string | null) {
-    if (id !== null) {
-      const floor = figureFloor(id);
-      const showing = activeFloor === null ? floor : followFloor(view.floor, activeFloor, floor);
-      activeFloor = floor;
-      showFloor(showing);
-    } else {
-      activeFloor = null;
-    }
-    if (id !== active && id !== null && mounted) panTo(mounted.house.scenePoint(mounted.house.figureAt(id)));
+    const turned = id !== null && id !== active;
     active = id;
+    if (turned) cue({ kind: "follow" });
+    keepFollowedFloor();
     mounted?.sync();
   }
 
@@ -642,13 +695,13 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
               () => walkPose(walk, seconds).done,
               () => {
                 house.stand(step.figure, placeOf(figureOf(step.figure)), walkPose(walk, Infinity).heading);
-                if (following === step.figure) following = null;
+                cue({ kind: "arrive", figure: step.figure });
               },
               { walk: { figure: step.figure, route: step.route } },
               arrived,
             );
           });
-          if (!handsOn) following = walkers[0];
+          cue({ kind: "walk", figure: walkers[0] });
           settled = false;
           update({ walking: true });
           return;
@@ -670,10 +723,11 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           }
           const rooms = beat.framing === null ? [] : "closeUp" in beat.framing ? [beat.framing.closeUp] : beat.framing.rooms;
           const showing = rooms.filter((room) => view.floor === "all" || tileFloor(room) === view.floor);
-          if (mounted && showing.length > 0) panTo(middleOf(mounted.house, showing));
-          // A room may name the angle it reads best from: its close view turns there, and back after.
+          if (mounted && showing.length > 0) panTo(middleOf(mounted.house, showing), tileFloor(showing[0]));
+          if (beat.framing === null) cue({ kind: "release" });
+          // A room may name the angle it reads best from: a following camera's close view turns there, and back after.
           const angle = closeUp === null ? undefined : definition(closeUp).angle;
-          if (angle !== undefined && !handsOn) {
+          if (angle !== undefined && follow.mode === "following" && !handsOn) {
             yawBeforeCloseUp ??= yawGoal ?? yaw;
             yawGoal = wrapNear(viewAngle(angle), yaw);
           } else if (closeUp === null && yawBeforeCloseUp !== null) {
@@ -703,7 +757,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           const flight = house.liftRoom(beat.room, from, riders);
           const began = seconds;
           const share = () => (beat.seconds > 0 ? Math.min(1, (seconds - began) / beat.seconds) : 1);
-          if (view.floor === "all" || to.floor === view.floor) panTo(house.cellCentre(to.floor, to.x, to.y));
+          if (view.floor === "all" || to.floor === view.floor) panTo(house.cellCentre(to.floor, to.x, to.y), to.floor);
           start(
             () => share() >= 1,
             () => {
@@ -736,26 +790,26 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
 
   /** The floor the camera's target lies on: the one showing, or with every
    *  floor showing, the active figure's (else the lowest). */
-  const aimFloor = (): FloorId => (view.floor !== "all" ? view.floor : (activeFloor ?? floorsOf(layout)[0]));
+  const aimFloor = (): FloorId => (view.floor !== "all" ? view.floor : active !== null && figures.has(active) ? figureFloor(active) : floorsOf(layout)[0]);
 
   /** The camera's target, as far as it is going. */
   const aimingAt = () => (aimGoal ?? aim ?? new THREE.Vector3()).clone();
 
   const camera = {
-    state: (): CameraState => ({ target: (aim ?? new THREE.Vector3()).clone(), yaw, pitch, zoom: view.zoom, floor: view.floor, following: following !== null }),
-    /** Puts the camera's target on a point, at once. */
+    state: (): CameraState => ({ target: (aim ?? new THREE.Vector3()).clone(), yaw, pitch, zoom: view.zoom, floor: view.floor, mode: follow.mode }),
+    /** Puts the camera's target on a point, at once: the camera is then free. */
     setTarget: (point: THREE.Vector3) => {
+      cue({ kind: "free" });
       aim = point.clone();
       aimGoal = point.clone();
-      following = null;
       settled = false;
     },
-    /** Moves the camera's target along the floor, in scene metres. The player's pan: it stops the camera following anyone. */
+    /** Moves the camera's target along the floor, in scene metres. The player's pan: the camera is then free. */
     panBy: (dx: number, dz: number) => {
+      cue({ kind: "free" });
       const by = new THREE.Vector3(dx, 0, dz);
       aimGoal = aimingAt().add(by);
       aim?.add(by);
-      following = null;
       pinned = null;
       settled = false;
     },
@@ -769,9 +823,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       settled = false;
     },
     zoomBy: (factor: number) => hook.setZoom(view.zoom * factor),
-    /** Eases the camera to any of a target point, an angle round the vertical, a tilt and a zoom. */
+    /** Eases the camera to any of a target point (freeing it), an angle round the vertical, a tilt and a zoom. */
     easeTo: ({ target, yaw: toYaw, pitch: toPitch, zoom: toZoom }: { target?: THREE.Vector3; yaw?: number; pitch?: number; zoom?: number }) => {
-      if (target) aimGoal = target.clone();
+      if (target) {
+        cue({ kind: "free" });
+        aimGoal = target.clone();
+      }
       if (toYaw !== undefined) yawGoal = wrapNear(toYaw, yaw);
       if (toPitch !== undefined) pitchGoal = clampPitch(toPitch);
       if (toZoom !== undefined) hook.setZoom(toZoom);
@@ -779,13 +836,11 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     },
     /** Pans to something, keeping the player's angles and zoom. */
     frame: (what: Framing | null) => play({ kind: "frame", framing: what }),
-    /** Brings the camera back to the active figure: its room and floor, keeping the player's angles and zoom. */
-    recentre: () => {
-      if (active === null) return;
-      showFloor(figureFloor(active));
-      following = null;
+    /** Follows the active figure again: the camera glides to it and its floor, keeping the player's angles and zoom. */
+    follow: () => {
+      cue({ kind: "follow" });
       pinned = null;
-      if (mounted) camera.easeTo({ target: middleOf(mounted.house, [figureOf(active).room]) });
+      settled = false;
     },
   };
 
@@ -806,8 +861,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const { house } = mounted;
       const room = view.closeUp === null ? null : placed(layout, view.closeUp);
       const fit = mounted.fitting(room ? tileCorners(house.cellCentre(room.floor, room.x, room.y)) : house.corners());
+      cue({ kind: "free" });
       aimGoal = fit.target;
-      following = null;
       hook.setZoom(fit.zoom);
       settled = false;
     },
@@ -815,12 +870,15 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       update({ zoom: THREE.MathUtils.clamp(next, ...ZOOM_RANGE) });
       settled = false;
     },
+    /** The player's floor: the camera is then free. */
     setFloor: (floor) => {
+      cue({ kind: "free" });
       showFloor(floor);
       settled = false;
     },
     stepFloor: (step) => hook.setFloor(stepFloor(floorsOf(layout), view.floor, step, active === null ? aimFloor() : figureFloor(active))),
-    recentre: () => camera.recentre(),
+    follow: () => camera.follow(),
+    cameraMode: () => follow.mode,
     camera: () => {
       const { x, y, z } = aim ?? new THREE.Vector3();
       return { target: { x, y, z }, yaw, pitch, zoom: view.zoom };
@@ -828,7 +886,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     reticle: () => reticleSelected,
     setCloseUp: (room) => {
       update({ closeUp: room, floor: room ? tileFloor(room) : view.floor });
-      if (room !== null && mounted) panTo(middleOf(mounted.house, [room]));
+      if (room !== null && mounted) panTo(middleOf(mounted.house, [room]), tileFloor(room));
       settled = false;
     },
     setResolution: (resolution) => {
@@ -942,7 +1000,9 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     const home = () => (active !== null ? middleOf(house, [figureOf(active).room]) : new THREE.Box3().setFromPoints(house.corners()).getCenter(new THREE.Vector3()));
 
     const placeCamera = (ease: number) => {
-      if (following !== null && !handsOn) aimGoal = house.scenePoint(house.figureAt(following));
+      const subject = followed(follow, active);
+      if (subject !== null && "point" in subject) aimGoal = new THREE.Vector3(subject.point.x, subject.point.y, subject.point.z);
+      else if (subject !== null && figures.has(subject.figure)) aimGoal = house.scenePoint(house.figureAt(subject.figure));
       const goal = bounded(aimGoal ?? home());
       aimGoal = goal;
       aim ??= goal.clone();
@@ -1020,6 +1080,14 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       if (hit?.id !== dismissed) dismissed = null;
       return hit && hit.id !== dismissed ? hit : { id: null, at: middle };
     };
+    const aimReading = (): AimReading => {
+      const middle = centre();
+      const onScreen = layoutNow().targets;
+      const weighed: ReticleWeighing[] = [];
+      const picked = reticleTarget(onScreen, middle, { snap: RETICLE_SNAP, held: reticleSelected }, (weighing) => weighed.push(weighing));
+      const fresh = reticleTarget(onScreen, middle, { snap: RETICLE_SNAP, held: null });
+      return { active: usesReticle(view.input), centre: middle, snap: RETICLE_SNAP, weighed, fresh: fresh?.id ?? null, picked: picked?.id ?? null, focused: reticleSelected, pinned, dismissed };
+    };
     /** The selection: the reticle's choice, or the focused one where a pointer selects. */
     const selection = () => (usesReticle(view.input) ? reticleNow().id : focused);
 
@@ -1050,7 +1118,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       padMay: (pad) => input.padMay?.(pad) ?? true,
       back: () => {
         // Backing out of a jump stops the camera where it is, so the choice the reticle is passed over is the one it is on now.
-        if (pinned !== null && aim) aimGoal = aim.clone();
+        if (pinned !== null && aim) lookAt(aim, aimFloor());
         pinned = null;
         if (usesReticle(view.input)) dismissed = reticleNow().id;
         input.back?.();
@@ -1070,9 +1138,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         if (place) {
           // The target where the line of sight through the choice's anchor meets the floor, so the anchor shows at the screen's centre.
           const back = backward(yaw, pitch);
-          aimGoal = place.anchor.clone().addScaledVector(back, -(place.anchor.y - level()) / back.y);
+          lookAt(place.anchor.clone().addScaledVector(back, -(place.anchor.y - level()) / back.y), place.floor);
         }
-        following = null;
         pinned = id;
         dismissed = null;
         settled = false;
@@ -1089,7 +1156,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       orbit: (yawBy, pitchBy) => camera.orbitBy(yawBy, pitchBy),
       zoom: (factor) => camera.zoomBy(factor),
       floor: (step) => hook.stepFloor(step),
-      recentre: () => camera.recentre(),
+      follow: () => camera.follow(),
       controlling: (on) => {
         handsOn = on;
         settled = false;
@@ -1197,7 +1264,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
 
     scene.add(things.root);
     things.mount(readyShaders);
-    mounted = { house, sync, applyResolution, stats, layoutNow, project, container, placeCamera, floorHit, fitting };
+    mounted = { house, sync, applyResolution, stats, layoutNow, project, container, placeCamera, floorHit, fitting, aimReading };
     sync();
 
     return {
@@ -1211,14 +1278,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         for (const beat of playing) beat.carry?.pose();
         house.update(seconds);
         things.update(house, seconds, view.floor);
-        if (active !== null && activeFloor !== null) {
-          const floor = house.figureAt(active).floor;
-          if (floor !== activeFloor) {
-            const showing = followFloor(view.floor, activeFloor, floor);
-            activeFloor = floor;
-            showFloor(showing);
-          }
-        }
+        keepFollowedFloor();
 
         const ease = Math.min(1, delta * EASE_RATE);
         let still = !handsOn;
@@ -1331,6 +1391,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     setReticle: (element: HTMLElement | null) => {
       reticleMark = element;
     },
+    /** How the reticle is deciding right now, or null before the house mounts. */
+    aimReading: () => mounted?.aimReading() ?? null,
     setGhostHandles: (element: HTMLElement | null) => {
       ghostHandles = element;
     },
