@@ -530,8 +530,8 @@ export function PlayScreen({
       {details.held && <HouseDetails scene={scene} view={view} things={things} />}
       <FigureMarks scene={scene} view={view} spots={presented.spots} floating={eventsOf(presented.floats)} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
 
-      {/* The header leaves the top right corner to End turn; under the header, at the left, the frame meter (~) and the bake's mark. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-start gap-1.5 p-3 pr-32">
+      {/* The header leaves the top right corner to End turn, the frame meter (~) and the bake's mark. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 p-3 pr-32 sm:pr-56">
         <header className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm">
           {/* The seat holding the device: its explorer's character card, as the mark on the figure opens it. */}
           <PromptButton
@@ -592,25 +592,33 @@ export function PlayScreen({
             Menu
           </PromptButton>
         </header>
-        <div ref={meterRef} data-frame-meter className="pointer-events-auto" />
+      </div>
+      {/* End turn in the corner, the meter at its left (under it on a phone, where the header needs the width) and the bake's mark under both. Without End turn, its place is kept, so they don't move. */}
+      <div className="pointer-events-none absolute top-3 right-3 flex flex-col items-end gap-1.5">
+        <div className="flex flex-col-reverse items-end gap-1.5 sm:flex-row sm:items-center">
+          <div ref={meterRef} data-frame-meter className="pointer-events-auto" />
+          {end ? (
+            <PromptButton
+              meaning="end-turn"
+              input={input}
+              hold={endHold}
+              data-end-turn
+              onClick={() => {
+                act(end.action);
+              }}
+              className="pointer-events-auto min-h-10 rounded px-3 py-1 text-sm font-semibold whitespace-nowrap"
+            >
+              End turn
+            </PromptButton>
+          ) : (
+            <span aria-hidden className="invisible inline-flex min-h-10 items-center gap-[0.4em] px-3 py-1 text-sm font-semibold whitespace-nowrap">
+              <Prompt meaning="end-turn" input={input} />
+              End turn
+            </span>
+          )}
+        </div>
         <BakeIndicator bakes={scene.bakes} className="" />
       </div>
-      {end && (
-        <div className="absolute top-3 right-3">
-          <PromptButton
-            meaning="end-turn"
-            input={input}
-            hold={endHold}
-            data-end-turn
-            onClick={() => {
-              act(end.action);
-            }}
-            className="min-h-10 rounded px-3 py-1 text-sm font-semibold whitespace-nowrap"
-          >
-            End turn
-          </PromptButton>
-        </div>
-      )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-start">
         <StatusBox

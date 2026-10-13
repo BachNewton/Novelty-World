@@ -383,7 +383,7 @@ const overlapping = (page: Page, selector: string, at: { x: number; y: number; w
     [selector, at] as const,
   );
 
-test("End turn shows top right and the frame meter at the left, clear of the buttons, and ~ hides the meter on this device", async ({ page }) => {
+test("End turn shows top right with the frame meter beside it (under it on a phone), clear of the buttons, and ~ hides the meter on this device", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await resumeSaved(page);
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
@@ -393,7 +393,6 @@ test("End turn shows top right and the frame meter at the left, clear of the but
     await expect(meter).toBeVisible();
     const box = await page.locator("[data-frame-meter]").boundingBox();
     if (!box) throw new Error("The frame meter has no box");
-    expect(box.x).toBeLessThan(16);
     expect(await overlapping(page, "header button, section, [data-end-turn]", box), `at ${size.width}x${size.height}`).toEqual([]);
     // End turn is in the top right corner, in view without scrolling.
     const end = await page.getByRole("button", { name: "End turn" }).boundingBox();
@@ -401,6 +400,15 @@ test("End turn shows top right and the frame meter at the left, clear of the but
     expect(end.x + end.width).toBeGreaterThan(size.width - 16);
     expect(end.y).toBeLessThan(16);
     expect(await overlapping(page, "header button", end), `at ${size.width}x${size.height}`).toEqual([]);
+    if (size.width >= 640) {
+      // Wide enough: the meter is just left of End turn, centred on it.
+      expect(end.x - (box.x + box.width)).toBeLessThan(16);
+      expect(Math.abs(box.y + box.height / 2 - (end.y + end.height / 2))).toBeLessThan(2);
+    } else {
+      // A phone: just under it, right-aligned with it.
+      expect(box.y - (end.y + end.height)).toBeLessThan(16);
+      expect(Math.abs(box.x + box.width - (end.x + end.width))).toBeLessThan(2);
+    }
   }
   await page.keyboard.press("Shift+Backquote");
   await expect(meter).toBeHidden();
