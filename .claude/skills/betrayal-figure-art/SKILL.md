@@ -621,9 +621,10 @@ call on it, so never tune a figure to depend on it.
   with the figure in the demo's cast (`art/house-demo.ts`).
 - **The portraits**: setup shows each character's portrait, so after a
   figure lands or changes, re-shoot it with
-  `node src/projects/betrayal/tools/portraits.mjs <character-id>`. The
-  portrait camera is pending a change to a lower angle and a closer zoom
-  that shows the figure off; until then, shoot with its defaults.
+  `node src/projects/betrayal/tools/portraits.mjs <character-id>`, with its
+  defaults: the owner approved them (a low, close camera; the figure on a
+  dark studio sweep, a warm key, a moon rim, and a glow in the seat's colour
+  behind it).
 
 Judge each round in this order, and don't polish detail while a higher item
 fails:
