@@ -8,7 +8,7 @@ import { describeRule } from "../../engine/describe";
 import type { EventView, FigureView, GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import { cardMood, consequence, statChanges, type StatChange } from "../../play/cards";
-import { portraitSrc } from "../../play/setup";
+import { portraitOf } from "../../play/portraits";
 import { firstAction, type ExplorerActions } from "../../play/sheet";
 import { cardThingId } from "../../play/things";
 import type { Spots } from "../../play/spots";
@@ -283,7 +283,7 @@ function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: Explore
   return (
     <>
       <header className="flex items-center gap-2">
-        <Image src={portraitSrc(tab.definition)} alt="" width={48} height={60} draggable={false} className="h-15 w-12 shrink-0 rounded border border-(--bt-line) object-cover" />
+        <Image src={portraitOf(tab.definition)} unoptimized alt="" width={48} height={60} draggable={false} className="h-15 w-12 shrink-0 rounded border border-(--bt-line) object-cover" />
         <span className="flex min-w-0 items-center gap-1.5 font-semibold">
           <span className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, tab.definition)}`} />
           {tab.name}
