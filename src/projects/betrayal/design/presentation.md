@@ -145,6 +145,17 @@ A door against a neighbour's wall is a false door, and a window against a neighb
 
 Connections that aren't doorways (the Secret Passage and Secret Stairs, the Wall Switch, the Revolving Wall, the Mystic Slide, the Coal Chute, falling through a floor) need a visible look of their own, as room features.
 
+**The connection mark** (to build). A door is expected on an edge and a player looks for it; a connection a card adds is a surprise, so a highlight on the wall, as a door has, is easily missed. The card-made connections (the Secret Passage, the Secret Stairs, the Wall Switch, the Mystic Slide) share one mark, each kind with its own icon:
+
+- **In the room, unmistakable and never a door:** a small upright icon on the floor at the spot (turning arrows for the Wall Switch, a stair for the Secret Stairs, a hatch for the Secret Passage, a chute for the Slide), on a plate with a soft glow, readable at any zoom. Its colour stays clear of the colour language's meanings: a neutral bone or ink with an edge of violet, as these come from cards.
+- **Its arrival is a beat:** when it is placed, a following camera shows it and the line says what changed ("A Wall Switch joins the Chapel and the Library"), Why a step away.
+- **It shows when moving:** the rooms reachable through it glow as any reachable room does, and the route preview runs through the mark with its icon on the path, so a player finds it when it matters.
+- **Details and inspect:** it is labelled while Details is held, and pointing at it then explains it.
+
+The stub art (a hinged wall section, a hatch in the floor) comes with the room features and fits the same mark.
+
+The **Below Collapsed Room** token joins the family: a one-way connection, where the Collapsed Room's floor opens onto the basement and later falls land. Today it is the generic ring for things on the floor, easily missed. It takes the mark with a falling icon, and art that tells the story: in the landing room, a pile of rubble and broken boards and a dusty shaft of light from the hole above; in the Collapsed Room, the hole in its floor. The first fall is the beat that places it ("The floor gives way into the Storeroom"), and the drop transition ("Moves that aren't a walk") lands on it.
+
 ### A layout that changes
 
 The layout changes during play (the Mystic Elevator, "What The . . . ?", haunts 52, 80 and 93), so the house never assumes a fixed one: it rebuilds walls, the cutaway and the baked light on any layout change. Rooms need one generic ruined state (collapsed, burned or flipped), built on the shared stage when the first haunt needs it.
@@ -233,6 +244,7 @@ Shelved, with what was learnt, for when they are picked up again.
 
 - **A whole-house view:** the floors spread apart sideways in a fixed order, with small height steps between them and the stair links drawn between floors. Stacking the floors is ruled out: it hides the lower ones, and lines up rooms that aren't connected.
 - **A storm outside:** light rain on the outdoor rooms only, and mild lightning through the real windows, driven by a flicker signal. It stays mild, so haunt 57 and Lightning Strikes stand apart from it. Thunder waits on audio.
+- **Rooms a haunt names, brought to attention:** many haunts speak of rooms by name, so a player must know each room's name and its art together (why a discovery's line names the room). After the reveal, the rooms the player's half of the haunt names could be marked in the house, for that seat only. Waits for a playtest that reaches a haunt.
 - **A life pass:** an enhanced idle in which explorers stand around a room as people would: walk a few steps, look at the props, turn to each other, talk. The turn-start step onto the prime place brought figures to life, but read as a meaningless move. Life motion must be clearly ambient, never looking like a game move nor taking a figure off its place in a way that suggests a rule did it, and it waits for a pass of its own.
 - **A night backdrop** (`?backdrop=night`, off): tabled. Pixel-art trees read as a glitch, the scale and proportion need design, and the moon showed only at some tilts.
 
