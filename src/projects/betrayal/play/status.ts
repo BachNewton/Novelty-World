@@ -84,7 +84,7 @@ const RULEBOOK: Partial<Record<string, string>> = {
   "card-drawn": "the first explorer to discover a room with a card symbol draws that card",
   "movement-ended": "drawing a card ends your movement for the rest of the turn",
   "forced:rotation": "a room that fits only one way round goes in that way, with no question asked",
-  forced: "when the rules leave only one choice, the game takes it for you",
+  forced: "when the rules leave only one thing that can happen, it happens",
   "haunt-roll": "each turn you draw an omen ends with a haunt roll of 6 dice: under the number of omens drawn, the haunt begins",
   slowed: "after the haunt starts, leaving a room costs 1 extra space of movement for each opponent in it",
 };

@@ -88,6 +88,8 @@ const NOTE_WORDS: Record<OutcomeNote, string> = {
   "call-monsters": "call the monsters",
   mesmerized: "mesmerized",
   mask: "put the Mask on or take it off",
+  "haunt-held-off": "the haunt holds off",
+  "haunt-begins": "the haunt begins",
 };
 
 /** What a table row does, in a few words. */
@@ -295,11 +297,14 @@ export function describeEvent(
     case "ready":
       return sentence(`${seat(data<{ seat: number }>(event).seat)} is ready`);
     case "forced": {
-      // Its one choice comes only to the seat it was put to.
-      const d = data<{ seat?: number; label?: string }>(event);
-      return d.label === undefined
-        ? sentence(`${seat(d.seat)} has only one choice`)
-        : sentence(`${seat(d.seat)}: ${d.label} (the only choice)`);
+      // Told as what happens in the game, never as the engine taking a
+      // choice: a turn with nothing left to do passes, anything else is the
+      // one thing that could happen.
+      // Its one outcome reaches only the seat it was put to.
+      const d = data<{ seat?: number; kind?: string; about?: FigureId | null; label?: string }>(event);
+      const by = d.about === undefined || d.about === null ? seat(d.seat) : who(d.about);
+      if (d.kind === "turn") return sentence(`${by} can do nothing more this turn`);
+      return d.label === undefined ? sentence(`${by} settles something only they may see`) : sentence(`${by}: ${d.label}`);
     }
     case "left":
       return null;

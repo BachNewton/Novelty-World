@@ -8,7 +8,9 @@ import type { GameEvent, GameState } from "../types";
 import { ruleSources } from "../test/rule-sources";
 import { openFloors } from "../art/open-floor";
 import { decodeGame, replay } from "../share";
-import { EVENT_SHOWS, beatLine, present, speedOf, startPresentation, type Beat, type Presentation } from "./presenter";
+import { lineText } from "./status";
+import { actionRoom } from "./sheet";
+import { EVENT_SHOWS, beatLine, present, shownByWhatFollows, speedOf, startPresentation, type Beat, type Presentation } from "./presenter";
 
 /** Zoe's starting Speed, as her card prints it. */
 const ZOE_SPEED = 4;
@@ -108,7 +110,7 @@ function expectInOrder(state: GameState, beats: readonly Beat[]) {
       shown === null ||
       shown === "walk" ||
       shown === "turn" ||
-      (event.type === "forced" && (event.data as { kind?: string }).kind === "rotation") ||
+      shownByWhatFollows(event) ||
       (event.type === "roll-coming" && (event.data as { rows: unknown }).rows === null);
     expect(quiet, `${event.type} plays in no beat`).toBe(true);
   }
@@ -167,7 +169,7 @@ describe("present", () => {
     game.choose("Explore");
     const beats = game.choose("Place");
     expect(beats.map(named(game.state()))).toEqual(["walk", "card-drawn", "roll-coming", "rolled", "trait-changed"]);
-    expect(beats.slice(1).map((beat) => beat.kind === "line" && beat.show)).toEqual(["card", "table", "dice", "float"]);
+    expect(beats.slice(1).map((beat) => beat.kind === "line" && beat.show)).toEqual(["card", "table", "roll", "float"]);
     // The room's own rule applying, its `entered`, is no step of the walk: the walk is the discovery's.
     expect(beats[0].events).toEqual(idsOf(game.state(), "left", "discovered"));
     expectInOrder(game.state(), beats);
@@ -181,7 +183,7 @@ describe("present", () => {
     const coming = beats.find((beat) => beat.kind === "line" && named(game.state())(beat) === "roll-coming");
     const rolled = beats.find((beat) => beat.kind === "line" && named(game.state())(beat) === "rolled");
     expect(coming).toMatchObject({ show: "table", events: idsOf(game.state(), "roll-coming") });
-    expect(rolled).toMatchObject({ show: "dice", events: idsOf(game.state(), "rolled", "table-row") });
+    expect(rolled).toMatchObject({ show: "roll", events: idsOf(game.state(), "rolled", "table-row") });
     if (!coming || !rolled) throw new Error("No roll's beats");
     expect(beats.indexOf(coming)).toBeLessThan(beats.indexOf(rolled));
     expectInOrder(game.state(), beats);
@@ -219,6 +221,47 @@ describe("present", () => {
     expectInOrder(game.state(), beats);
   });
 
+  it("plays the haunt roll at a turn's end in full, its coming and its dice, before the turn passes", () => {
+    // Zoe draws the Book in the Abandoned Room; ending her turn makes the haunt roll, held off by the one omen drawn.
+    const game = played(testGame({ stack: ["abandoned-room"], decks: { omen: ["book"] } }));
+    game.choose("Explore through the north door");
+    const beats = game.choose("End your turn");
+    const order = beats.map(named(game.state()));
+    // The roll against the omens shows first, with its two rows, then its dice with the row lit.
+    expect(order.indexOf("roll-coming")).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf("roll-coming")).toBeLessThan(order.indexOf("rolled"));
+    expect(beats[order.indexOf("roll-coming")]).toMatchObject({ show: "table" });
+    // The haunt held off is said by the row lit, in the roll's own beat, held to be read.
+    expect(beats[order.indexOf("rolled")]).toMatchObject({ show: "roll", events: idsOf(game.state(), "rolled", "table-row", "haunt-held-off") });
+    expect(order.indexOf("rolled")).toBeLessThan(order.indexOf("turn"));
+    expect(order.at(-1)).toBe("turn");
+    expectInOrder(game.state(), beats);
+  });
+
+  it("plays a forced roll's beats like any other, and tells no forced step as the engine's bookkeeping", () => {
+    // Webs, on a seed where Zoe fails to break free: stuck, her turn has nothing left and passes.
+    const game = played(testGame({ seed: "w1", stack: ["game-room"], decks: { event: ["webs"] } }));
+    game.choose("Explore");
+    const beats = game.choose("Place");
+    const state = game.state();
+    expect(state.lastEvents.some((event) => event.type === "forced" && (event.data as { kind: string }).kind === "turn")).toBe(true);
+    const order = beats.map(named(state));
+    expect(order.indexOf("card-drawn")).toBeLessThan(order.indexOf("roll-coming"));
+    expect(order.indexOf("roll-coming")).toBeLessThan(order.indexOf("rolled"));
+    expect(beats[order.indexOf("rolled")]).toMatchObject({ show: "roll", events: idsOf(state, "rolled", "table-row") });
+    // The turn passing shows it; no line says a choice was taken for her.
+    expect(order).not.toContain("forced");
+    const view = viewFor(ENGINE, state, 0);
+    const lines = beats.flatMap((beat) => {
+      const id = beatLine(beat);
+      const event = id === null ? undefined : view.events.find((candidate) => candidate.id === id);
+      return event ? [lineText(ENGINE, view, event, view.events.filter((other) => beat.events.includes(other.id)))] : [];
+    });
+    expect(lines.join(" ")).not.toMatch(/only (one )?choice/);
+    expect(lines).toContainEqual(expect.stringMatching(/^Webs: Zoe Ingstrom makes a Might roll with \d dice\.$/));
+    expectInOrder(state, beats);
+  });
+
   it("holds nothing up for a line with nothing of its own to show", () => {
     // Hideous Shriek: every explorer rolls; a die of damage that rolls 0 prevents it, told in words alone.
     const game = played(testGame({ stack: ["game-room"], decks: { event: ["hideous-shriek"] } }));
@@ -227,7 +270,7 @@ describe("present", () => {
     for (const beat of beats) {
       if (beat.kind !== "line") continue;
       const event = game.state().lastEvents.find((candidate) => candidate.id === beat.line);
-      const expected = event?.type === "card-drawn" ? "card" : event?.type === "roll-coming" ? "table" : event?.type === "rolled" ? "dice" : event?.type === "trait-changed" || event?.type === "damaged" ? "float" : "words";
+      const expected = event?.type === "card-drawn" ? "card" : event?.type === "roll-coming" ? "table" : event?.type === "rolled" ? (beat.events.length > 1 ? "roll" : "dice") : event?.type === "trait-changed" || event?.type === "damaged" ? "float" : "words";
       expect(beat.show, event?.type).toBe(expected);
     }
     expectInOrder(game.state(), beats);
@@ -264,6 +307,25 @@ describe("moves that aren't a walk", () => {
     expect(beats[1]).toMatchObject({ kind: "place", figure: "zoe-ingstrom", to: { room: "basement-landing" } });
     expect(lineOf(after, beats[1])).toBe("Coal Chute: Zoe Ingstrom is put in the Basement Landing.");
     expectInOrder(after, beats);
+  });
+
+  it("names the Collapsed Room as the cause of its roll and its table, and of the fall it offers after", () => {
+    const game = played(testGame({ seed: "collapse-1", stack: ["collapsed-room"] }));
+    const beats = game.choose("Explore through the north door");
+    const state = game.state();
+    const coming = beats.find((beat) => beat.kind === "line" && named(state)(beat) === "roll-coming");
+    if (!coming) throw new Error("The roll to avoid falling shows no table first");
+    expect(lineOf(state, coming)).toMatch(/^Collapsed Room: Zoe Ingstrom makes a Speed roll with \d dice\.$/);
+    const event = state.lastEvents.find((candidate) => candidate.type === "roll-coming");
+    expect(event?.rule).toEqual({ source: "room", room: "collapsed-room" });
+    expect((event?.data as { rows: unknown }).rows).toEqual([
+      { min: 5, max: null, outcome: [] },
+      { min: 0, max: 4, outcome: [{ kind: "note", note: "fall" }] },
+    ]);
+    // Falling on purpose, offered to whoever is in the room, names the room it comes from.
+    const fall = offered(state).find((choice) => choice.label.startsWith("Fall to the basement"));
+    if (!fall) throw new Error("No fall offered: on this seed the roll should pass");
+    expect(actionRoom({ ...fall, id: "fall", action: { kind: "choose", decision: "", seat: 0, choice: fall.choice } })).toBe("collapsed-room");
   });
 
   it("puts an explorer who falls through the Collapsed Room in the room below, told by the fall's line, before its damage", () => {

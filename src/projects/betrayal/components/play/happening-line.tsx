@@ -58,7 +58,7 @@ interface Rolled {
 }
 
 /** `turnUp`: seconds for a roll's dice to turn up, while its beat plays, or null once it has. */
-export function HappeningLine({ event, text, view, turnUp }: { event: EventView; text: string; view: GameView; turnUp: number | null }) {
+export function HappeningLine({ event, events, text, view, turnUp }: { event: EventView; events: readonly EventView[]; text: string; view: GameView; turnUp: number | null }) {
   const name = (figure: FigureId) => view.figures[figure].name;
 
   if (event.type === "roll-coming") {
@@ -81,7 +81,9 @@ export function HappeningLine({ event, text, view, turnUp }: { event: EventView;
     const d = event.data as unknown as Rolled;
     // A card's attacker's dice thrown for it read as the engine words them.
     if (d.spec.kind === "attack" && d.spec.dice !== null) return text;
-    const meaning = rollMeaning(view, { spec: d.spec, then: { kind: "rolled", params: {} } }, d.result);
+    // A roll with a table says what it means by the row lit under the line.
+    const tabled = events.some((other) => other.type === "table-row");
+    const meaning = tabled ? { target: null, verdict: null, damage: null, note: null } : rollMeaning(view, { spec: d.spec, then: { kind: "rolled", params: {} } }, d.result);
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
         <span className="sr-only">{text}</span>

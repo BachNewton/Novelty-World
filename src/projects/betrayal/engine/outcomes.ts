@@ -48,7 +48,10 @@ export type OutcomeNote =
   /** You are mesmerized (the Music Box). */
   | "mesmerized"
   /** Put the Mask on or take it off. */
-  | "mask";
+  | "mask"
+  /** The haunt roll's two rows: the haunt held off, or begun. */
+  | "haunt-held-off"
+  | "haunt-begins";
 
 /** Who gains: one trait, any trait of the gainer's choice, or a physical or mental trait of their choice. */
 export type GainTrait = Trait | "choice" | "physical" | "mental";
@@ -195,4 +198,10 @@ export type LocalOutcome = OutcomeNote | RowOutcome[];
  *  outcome to show. */
 export function rowOutcome(steps: readonly Step[], note: LocalOutcome | null): RowOutcome[] {
   return stepsOutcomes(steps, note);
+}
+
+/** The haunt roll as a table: at least the omens drawn holds the haunt off, under them it begins (p. 15). */
+export function hauntRows(omens: number): RowSummary[] {
+  const held: RowSummary = { min: omens, max: null, outcome: [{ kind: "note", note: "haunt-held-off" }] };
+  return omens === 0 ? [held] : [held, { min: 0, max: omens - 1, outcome: [{ kind: "note", note: "haunt-begins" }] }];
 }

@@ -35,7 +35,7 @@ import {
   onTurn,
 } from "./questions";
 import { readyActors } from "./monsters";
-import { rowOutcome, type LocalOutcome, type RowSummary } from "./outcomes";
+import { hauntRows, rowOutcome, type LocalOutcome, type RowSummary } from "./outcomes";
 import {
   liveSources,
   type RollOption,
@@ -379,6 +379,11 @@ export function tableOf(then: Step): RowSummary[] | null {
   return (then.params as { rows: StoredRow[] }).rows.map(
     ({ min, max, outcome }) => ({ min, max, outcome }),
   );
+}
+
+/** The rows a roll's result goes by: its table's, or the haunt roll's against the omens drawn. */
+function rowsOf(state: GameState, r: Roll): RowSummary[] | null {
+  return tableOf(r.then) ?? (r.spec.kind === "haunt" ? hauntRows(state.omensDrawn) : null);
 }
 
 /** Which row of a table a result falls in. */
@@ -1246,7 +1251,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
           spec: p.spec,
           pool: p.pool,
           bonus: p.bonus,
-          rows: tableOf(p.then),
+          rows: rowsOf(state, p),
         });
       ctx.push(step("roll-dice", p));
     } else
@@ -1292,7 +1297,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       bonus: p.bonus,
       result,
     });
-    const rows = tableOf(p.then);
+    const rows = rowsOf(state, p);
     if (rows !== null)
       ctx.emit("table-row", p.rule, {
         figure: p.figure,

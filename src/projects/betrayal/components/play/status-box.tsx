@@ -14,7 +14,7 @@ import { ErrorBox } from "../error-box";
 import { PendingPanel } from "../pending-panel";
 import { ruleNotes } from "../why";
 import { GhostPanel, type GhostPlacer } from "./ghost-placer";
-import { boxActions } from "../../play/sheet";
+import { actionRoom, boxActions } from "../../play/sheet";
 import { PromptButton } from "../prompts";
 import { DecisionPart } from "./decision-panel";
 import { HappeningLine, HappeningTable } from "./happening-line";
@@ -115,7 +115,7 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
             // Keyed by the event, so a new line is announced and its dice turn up afresh.
             <div key={told.event.id} className="flex min-w-0 flex-1 flex-col gap-1.5">
               <p aria-label="What happened" aria-live="polite" className="text-sm">
-                <HappeningLine event={told.event} text={text} view={view} turnUp={props.turnUp} />
+                <HappeningLine event={told.event} events={told.events} text={text} view={view} turnUp={props.turnUp} />
               </p>
               <HappeningTable event={told.event} events={told.events} />
             </div>
@@ -238,18 +238,23 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
       {part !== "turn" && part !== "ghost" && <DecisionPart part={part} view={view} panel={panel} act={act} input={input} notes={notes} />}
       {actions.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {actions.map((choice) => (
-            <button
-              key={choice.id}
-              type="button"
-              className={BOX_ACTION}
-              onClick={() => {
-                act(choice.action);
-              }}
-            >
-              {choice.label}
-            </button>
-          ))}
+          {actions.map((choice) => {
+            const room = actionRoom(choice);
+            return (
+              <button
+                key={choice.id}
+                type="button"
+                className={BOX_ACTION}
+                onClick={() => {
+                  act(choice.action);
+                }}
+              >
+                {/* A room's own action names the room, so it never shows without its reason. */}
+                {room !== null && <span className="block text-xs text-(--bt-muted)">{ENGINE.catalog.rooms[room].name}</span>}
+                {choice.label}
+              </button>
+            );
+          })}
         </div>
       )}
     </>

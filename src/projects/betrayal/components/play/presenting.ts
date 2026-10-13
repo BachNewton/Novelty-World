@@ -32,6 +32,8 @@ const MOVING_SECONDS = 1.8;
 export const DICE_SECONDS = 0.9;
 /** How long a roll's table shows, with its odds, before a roll made at once turns up its dice, at normal speed, in seconds. */
 const TABLE_SECONDS = 1.6;
+/** How long a roll's row, lit once its dice have turned up, holds to be read, at normal speed, in seconds. */
+const ROW_SECONDS = 1.2;
 /** How long a gain or loss takes to rise over its figure, before the next beat, at normal speed, in seconds. */
 const FLOAT_SECONDS = 1.1;
 
@@ -177,6 +179,7 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
             });
           else if (beat.show === "table") await scene.play({ kind: "pause", seconds: TABLE_SECONDS * SPEEDS[speed] });
           else if (beat.show === "dice") await scene.play({ kind: "pause", seconds: DICE_SECONDS * SPEEDS[speed] });
+          else if (beat.show === "roll") await scene.play({ kind: "pause", seconds: (DICE_SECONDS + ROW_SECONDS) * SPEEDS[speed] });
           else if (beat.show === "float") await scene.play({ kind: "pause", seconds: FLOAT_SECONDS * SPEEDS[speed] });
           if (mine === run && shown.card?.waits) publish({ card: { event: shown.card.event, waits: false } });
           break;

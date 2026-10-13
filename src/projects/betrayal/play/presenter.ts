@@ -38,9 +38,10 @@ export interface Walk {
 }
 
 /** How a line of the status box shows: a roll's table before its dice, its
- *  dice turning up, a gain or loss floating over the figure, a card's text
+ *  dice turning up (with the row of its table they land on lit, held to be
+ *  read: "roll"), a gain or loss floating over the figure, a card's text
  *  waiting for a tap, or its words alone, which hold nothing up. */
-export type LineShow = "table" | "dice" | "float" | "card" | "words";
+export type LineShow = "table" | "roll" | "dice" | "float" | "card" | "words";
 
 export type Beat = { events: readonly string[] } & (
   /** Figures walk their routes, together, the active explorer's first. */
@@ -152,11 +153,19 @@ function shows(type: string): Shown {
   return EVENT_SHOWS[type];
 }
 
+const SHOWN_BY_WHAT_FOLLOWS = new Set(["rotation", "turn", "split-damage", "damage-kind"]);
+
+/** A forced step shown by what follows it rather than a line of its own. */
+export const shownByWhatFollows = (event: Pick<EventView, "type" | "data">) => event.type === "forced" && SHOWN_BY_WHAT_FOLLOWS.has((event.data as { kind: string }).kind);
+
 /** How a line shows, or null for one with nothing to say: a room placed the
  *  only way it fits, which its appearing already showed, or an event with no
  *  words for this seat. */
 function lineShow(engine: Engine, view: GameView, event: EventView): LineShow | null {
-  if (event.type === "forced" && (event.data as { kind?: string }).kind === "rotation") return null;
+  // A forced step shows by what it leads to: a room placed the only way it
+  // fits by its appearing, a turn with nothing left by the turn passing, damage
+  // that lands only one way by the damage's own line.
+  if (shownByWhatFollows(event)) return null;
   if (describeEvent(engine, view, event) === null) return null;
   if (event.type === "card-drawn") return "card";
   // A roll made at once shows what it is for first, when that is a table;
@@ -347,12 +356,15 @@ export function present(engine: Engine, before: Presentation, events: readonly E
   if (haunted && !before.haunted) add({ kind: "reveal", line: revealed?.id ?? null, events: revealed ? [revealed.id] : [] });
   else if (revealed) add({ kind: "line", line: revealed.id, show: "words", events: [revealed.id] });
 
+  const told = new Set<string>();
   for (const [i, event] of fresh.entries()) {
-    if (shows(event.type) !== "line") continue;
+    if (shows(event.type) !== "line" || told.has(event.id)) continue;
     const show = lineShow(engine, next, event);
-    // A roll's table row comes straight after it, and is told in its line.
-    const row = event.type === "rolled" && fresh[i + 1]?.type === "table-row" ? [fresh[i + 1].id] : [];
-    if (show !== null) add({ kind: "line", line: event.id, show, events: [event.id, ...row] });
+    // A roll's table row comes straight after it, and is told in its line,
+    // as is the haunt held off, which the row lit says.
+    const row = event.type === "rolled" && fresh[i + 1]?.type === "table-row" ? [fresh[i + 1].id, ...(fresh[i + 2]?.type === "haunt-held-off" ? [fresh[i + 2].id] : [])] : [];
+    for (const id of row) told.add(id);
+    if (show !== null) add({ kind: "line", line: event.id, show: show === "dice" && row.length > 0 ? "roll" : show, events: [event.id, ...row] });
   }
 
   return {

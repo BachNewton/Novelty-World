@@ -140,6 +140,15 @@ function figuresOf(view: GameView, spots: Spots): FigureSpec[] {
 }
 
 /** The events fed to the screen so far, as the seat holding the device may see them. */
+/** The seat the screen names as holding the device: the holder, once the
+ *  beats leading to the device passing have played, so a turn's last beats
+ *  (the haunt roll at its end) finish under the seat whose turn it was. */
+function useSeatShown(holder: number, presentedNow: boolean): number {
+  const [seat, setSeat] = useState(holder);
+  if (presentedNow && seat !== holder) setSeat(holder);
+  return presentedNow ? holder : seat;
+}
+
 function eventsNow(store: PlayStore) {
   const { state, holder, client } = store.snapshot();
   return eventsFor(ENGINE, state, holder, client.feed);
@@ -318,7 +327,8 @@ export function PlayScreen({
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const open = sheet !== null && sheet.decision === decision ? sheet : null;
   const explorers = markedExplorers(view, presented.spots);
-  const yours = explorers.find((figure) => figure.owner === holder) ?? null;
+  const seat = useSeatShown(holder, !presented.playing && presented.view === view);
+  const yours = explorers.find((figure) => figure.owner === seat) ?? null;
   // The turn's actions are the acting explorer's, on its own tab.
   const acting = view.pending?.type === "decision" && view.pending.kind === "turn" && yours !== null && view.turn?.acting === yours.id ? yours : null;
   const actions = acting ? { figure: acting.id, rows: explorerActions(acting.cards, choices.panel) } : null;
@@ -499,7 +509,7 @@ export function PlayScreen({
   const fedNow = [...fed.values()];
   const cardRows = card === null ? null : cardTable((card.event.data as { card: string }).card, fedNow.slice(fedNow.indexOf(card.event) + 1), view.pending);
   const beat = presented.beat;
-  const turnUp = beat?.kind === "line" && beat.show === "dice" && beat.line === presented.told?.line ? DICE_SECONDS * SPEEDS[speed] : null;
+  const turnUp = beat?.kind === "line" && (beat.show === "dice" || beat.show === "roll") && beat.line === presented.told?.line ? DICE_SECONDS * SPEEDS[speed] : null;
   const dot = yours ? seatDot(ENGINE, yours.definition) : undefined;
   const floors = FLOORS.filter((floor) => view.board.tiles.some((tile) => tile.floor === floor));
   const focusedTarget = [...targets, ...ghostTargets].find((target) => target.id === live);
@@ -540,7 +550,7 @@ export function PlayScreen({
           <PromptButton
             meaning="explorer"
             input={input}
-            aria-label={`${seatName(view, holder)}: character card${actionCount > 0 ? `, ${actionCount} ${actionCount === 1 ? "action" : "actions"}` : ""}`}
+            aria-label={`${seatName(view, seat)}: character card${actionCount > 0 ? `, ${actionCount} ${actionCount === 1 ? "action" : "actions"}` : ""}`}
             aria-expanded={yours !== null && tab?.id === yours.id}
             disabled={yours === null}
             onClick={() => {
@@ -549,7 +559,7 @@ export function PlayScreen({
             className={`${button} font-semibold aria-expanded:border-(--bt-accent)`}
           >
             {dot && <span className={`inline-block size-2.5 rounded-full ${dot}`} />}
-            {seatName(view, holder)}
+            {seatName(view, seat)}
             {actionCount > 0 && <span className="font-normal text-(--bt-muted)">· {actionCount} {actionCount === 1 ? "action" : "actions"}</span>}
           </PromptButton>
           <span className="flex items-center gap-1">
