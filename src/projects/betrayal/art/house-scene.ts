@@ -111,7 +111,8 @@ export type Beat =
   /** A room placed by `setLayout` shows, once it is baked with its light. */
   | { kind: "appear"; room: string }
   /** The camera pans to something, keeping the player's angles and zoom, or
-   *  (null) lets a close view's walls down; resolves once it has settled. */
+   *  (null) lets go of what it showed, back to whatever it follows (a
+   *  figure put on another floor); resolves once it has settled. */
   | { kind: "frame"; framing: Framing | null }
   /** A pause on the stage's clock, for a step the player should see. */
   | { kind: "pause"; seconds: number }
@@ -724,11 +725,13 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           const flight = house.liftRoom(beat.room, from, riders);
           const began = seconds;
           const share = () => (beat.seconds > 0 ? Math.min(1, (seconds - began) / beat.seconds) : 1);
-          if (view.floor === "all" || to.floor === view.floor) panTo(house.cellCentre(to.floor, to.x, to.y), to.floor);
+          // A following camera goes with the room to its new cell, onto its floor: the flight shows from either floor.
+          panTo(house.cellCentre(to.floor, to.x, to.y), to.floor);
           start(
             () => share() >= 1,
             () => {
               flight.land();
+              cue({ kind: "release" });
               mounted?.sync();
             },
             { carry: { room: beat.room, pose: () => flight.at(share()) } },

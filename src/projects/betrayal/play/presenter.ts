@@ -4,7 +4,7 @@ import type { EventView, GameView } from "../engine/view";
 import type { RoomFloors } from "../art/placement";
 import type { FigureId } from "../types";
 import { statChanges } from "./cards";
-import { firstSpots, nextSpots, type Spots } from "./spots";
+import { arrivalSpot, firstSpots, nextSpots, type Spot, type Spots } from "./spots";
 import { nextClusters, roomThings, type Clusters } from "./things";
 import { traitTrack } from "./tracks";
 
@@ -25,15 +25,14 @@ import { traitTrack } from "./tracks";
 /** How a figure crosses the house. */
 export type Gait = "walk" | "run";
 
-/** A figure walking (or running) its route of rooms to its place in the
- *  last (`at`, in the room's own frame). A route of one room is a walk
- *  inside it: crossing a barrier room. An explorer goes at their Speed
- *  (`speed`, its value as the walk began); any other figure (null) at the
- *  house's own pace. */
+/** A figure walking (or running) its route of rooms to its spot in the
+ *  last (`to`). A route of one room is a walk inside it: crossing a barrier
+ *  room. An explorer goes at their Speed (`speed`, its value as the walk
+ *  began); any other figure (null) at the house's own pace. */
 export interface Walk {
   figure: FigureId;
   route: string[];
-  at: readonly [x: number, z: number];
+  to: Spot;
   gait: Gait;
   speed: number | null;
 }
@@ -46,10 +45,11 @@ export type LineShow = "dice" | "float" | "card" | "words";
 export type Beat = { events: readonly string[] } & (
   /** Figures walk their routes, together, the active explorer's first. */
   | { kind: "walk"; walks: Walk[] }
-  /** Figures a rule put somewhere, with no walk, stand there. */
-  | { kind: "place"; figures: FigureId[] }
-  /** A room a rule moved is carried to its new cell, with everyone in it. */
-  | { kind: "move"; room: string }
+  /** A figure a rule put in another room (the Coal Chute, a card), with no
+   *  walk, stands at its spot there, told by its line when it has one. */
+  | { kind: "place"; figure: FigureId; to: Spot; line: string | null }
+  /** A room a rule moved is carried to its new cell, with everyone in it, told by its line when it has one. */
+  | { kind: "move"; room: string; line: string | null }
   /** Whose turn it is changed: their light moves to them, and the camera pans there. */
   | { kind: "turn"; figure: FigureId | null }
   /** The haunt is revealed: the house's light shifts to the haunt's, told by its line when it has one. */
@@ -230,21 +230,44 @@ function arrival(event: EventView): { figure: FigureId; room: string } | null {
   return data.discovered === true ? null : data;
 }
 
-/** The rooms each figure walked through in these events, in order, from the
- *  room it left, with the events of its movement. A figure put somewhere by
- *  a rule rather than its own movement has no route (null): it stands there. */
-function routesOf(events: readonly EventView[]): Map<FigureId, { route: string[] | null; events: string[] }> {
-  const routes = new Map<FigureId, { route: string[] | null; events: string[] }>();
+/** The rooms figures arrive in among the events not yet presented: a room
+ *  only passed through (the Coal Chute, on the way down) needs its floor
+ *  read as much as the one the figure ends in. */
+export function arrivedRooms(before: Presentation | null, events: readonly EventView[]): string[] {
+  const seen = new Set(before?.seen ?? []);
+  return [...new Set(events.flatMap((event) => (seen.has(event.id) ? [] : (arrival(event)?.room ?? []))))];
+}
+
+/** One leg of a figure's movement in these events, from the room it left:
+ *  a walk of its own through doorways (`put` false), or being put in a room
+ *  by a rule (the Coal Chute, a fall, a card), with no walk. */
+interface Leg {
+  put: boolean;
+  route: string[];
+  events: string[];
+}
+
+/** The legs each figure moved in these events, in order. A walk into a room
+ *  whose rule then puts the figure elsewhere is two legs: the walk in, then
+ *  the put. */
+function legsOf(events: readonly EventView[]): Map<FigureId, Leg[]> {
+  const legs = new Map<FigureId, Leg[]>();
   for (const event of events) {
     if (event.type !== "left" && event.type !== "crossed" && arrival(event) === null) continue;
     const { figure, room, moved } = event.data as { figure: FigureId; room: string; moved?: boolean };
-    const entry = routes.get(figure) ?? { route: [], events: [] };
-    entry.events.push(event.id);
-    if (moved === false) entry.route = null;
-    else if (entry.route !== null && entry.route.at(-1) !== room) entry.route.push(room);
-    routes.set(figure, entry);
+    const put = moved === false;
+    const list = legs.get(figure) ?? [];
+    legs.set(figure, list);
+    let leg = list.at(-1);
+    // Leaving by a rule starts a put; a walk goes on through every room its own movement enters.
+    if (!leg || (event.type === "left" && (put || leg.put)) || (put && !leg.put)) {
+      leg = { put, route: [], events: [] };
+      list.push(leg);
+    }
+    leg.events.push(event.id);
+    if (leg.route.at(-1) !== room) leg.route.push(room);
   }
-  return routes;
+  return legs;
 }
 
 /** The next presentation and its beats: `events` is every event the screen
@@ -267,32 +290,48 @@ export function present(engine: Engine, before: Presentation, events: readonly E
     placed.push({ order, beat });
   };
 
-  const routes = routesOf(fresh);
+  const legs = legsOf(fresh);
   const walks: Walk[] = [];
   const walked: string[] = [];
-  const stood: FigureId[] = [];
-  const stoodEvents: string[] = [];
+  const later: Beat[] = [];
+  /** Where figures stand as the legs so far leave them, for the spots of rooms a figure only passes through. */
+  let passing: Spots = before.spots;
   for (const [figure, spot] of Object.entries(spots)) {
     const was = before.spots[figure];
     if (!spot || !was) continue;
-    const moved = routes.get(figure);
-    const walk = (route: string[]) => ({ figure, route, at: [spot.x, spot.z] as const, gait: gaitOf(next, figure), speed: speedOf(engine, next, figure) });
-    if (moved?.route === null) {
-      stood.push(figure);
-      stoodEvents.push(...moved.events);
-    } else if (moved !== undefined && moved.route.length > 0) {
-      if (moved.route[0] === was.room && moved.route.at(-1) === spot.room) {
-        walks.push(walk(moved.route));
-        walked.push(...moved.events);
-      }
-    } else if (spot.room === was.room && spot.side !== was.side) walks.push(walk([spot.room]));
+    const moved = legs.get(figure) ?? [];
+    const walk = (route: string[], to: Spot): Walk => ({ figure, route, to, gait: gaitOf(next, figure), speed: speedOf(engine, next, figure) });
+    if (moved.length === 0) {
+      if (spot.room === was.room && spot.side !== was.side) walks.push(walk([spot.room], spot));
+      continue;
+    }
+    if (moved[0].route[0] !== was.room || moved.at(-1)?.route.at(-1) !== spot.room) continue;
+    moved.forEach((leg, i) => {
+      const room = leg.route[leg.route.length - 1];
+      const to = i === moved.length - 1 ? spot : arrivalSpot(passing, figure, room, null, floors, before.clusters);
+      passing = { ...passing, [figure]: to };
+      if (leg.put) {
+        // The words of where it was put, which name the rule that put it there.
+        const line = leg.events.findLast((id) => {
+          const event = fresh.find((candidate) => candidate.id === id);
+          return event !== undefined && arrival(event) !== null && describeEvent(engine, next, event) !== null;
+        });
+        later.push({ kind: "place", figure, to, line: line ?? null, events: leg.events });
+      } else if (i === 0) {
+        walks.push(walk(leg.route, to));
+        walked.push(...leg.events);
+      } else later.push({ kind: "walk", walks: [walk(leg.route, to)], events: leg.events });
+    });
   }
   // The active explorer walks first.
   walks.sort((a, b) => Number(b.figure === active) - Number(a.figure === active));
   if (walks.length > 0) add({ kind: "walk", walks, events: walked }, walked.length > 0 ? undefined : -1);
-  if (stood.length > 0) add({ kind: "place", figures: stood, events: stoodEvents });
+  for (const beat of later) add(beat);
 
-  for (const event of fresh) if (event.type === "room-moved") add({ kind: "move", room: (event.data as { tile: string }).tile, events: [event.id] });
+  for (const event of fresh) {
+    if (event.type !== "room-moved") continue;
+    add({ kind: "move", room: (event.data as { tile: string }).tile, line: describeEvent(engine, next, event) === null ? null : event.id, events: [event.id] });
+  }
 
   const turns = fresh.filter((event) => shows(event.type) === "turn").map((event) => event.id);
   if (active !== before.active) add({ kind: "turn", figure: active, events: turns });
@@ -316,5 +355,5 @@ export function present(engine: Engine, before: Presentation, events: readonly E
 
 /** The event a beat's line tells, or null for a beat with none. */
 export function beatLine(beat: Beat): string | null {
-  return beat.kind === "line" || beat.kind === "reveal" ? beat.line : null;
+  return beat.kind === "line" || beat.kind === "reveal" || beat.kind === "place" || beat.kind === "move" ? beat.line : null;
 }

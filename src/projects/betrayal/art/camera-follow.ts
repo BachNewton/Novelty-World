@@ -38,7 +38,7 @@ export type CameraCue =
   | { kind: "walk"; figure: string }
   /** A figure has arrived where it was walking. */
   | { kind: "arrive"; figure: string }
-  /** A beat lets go of the place it showed (a close view's walls going down). */
+  /** A beat lets go of the place it showed: a figure put somewhere by a rule is followed there. */
   | { kind: "release" };
 
 export function cameraCue(state: CameraFollow, cue: CameraCue): CameraFollow {

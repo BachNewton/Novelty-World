@@ -300,8 +300,8 @@ export function PlayScreen({
     [presenting, store],
   );
 
-  // The pending decision's choices show once the beats leading to them are over.
-  const choices = presented.playing ? NO_CHOICES : playChoices(view, lookahead(ENGINE, snapshot.state, holder));
+  // The pending decision's choices show once the beats leading to them are over: a view not yet presented has its beats still to come.
+  const choices = presented.playing || presented.view !== view ? NO_CHOICES : playChoices(view, lookahead(ENGINE, snapshot.state, holder));
   const { targets, ghost: placing } = choices;
   const ghost = useGhost(view, placing, act);
   const ghostTargets = ghost?.targets ?? [];
@@ -485,7 +485,7 @@ export function PlayScreen({
   useEffect(() => {
     scene.setTargets([...latest.current.targets.map((target) => sceneTarget(target, presented.spots, houseFloors, presented.clusters)), ...(latest.current.ghost?.targets ?? [])], live);
     // The choices show once the beats leading to them are over.
-  }, [scene, view, live, ghostKey, presented.spots, presented.clusters, presented.playing]);
+  }, [scene, view, live, ghostKey, presented.spots, presented.clusters, presented.playing, presented.view]);
 
   // What the screen tells, read from the beats started so far, as the holder may see it.
   const fed = new Map(eventsFor(ENGINE, snapshot.state, holder, client.feed).map((event) => [event.id, event]));
