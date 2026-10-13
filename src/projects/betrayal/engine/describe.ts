@@ -17,7 +17,7 @@ import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
 import { requireBuilt } from "./haunt";
 import {
-  viewExplorer,
+  seatName,
   type EventView,
   type FigureView,
   type GameView,
@@ -83,7 +83,7 @@ function wordsFor(engine: Engine, view: GameView): Words {
   const { rooms, cards } = engine.catalog;
   return {
     figure: (figure) => figureIn(view, figure).name,
-    seat: (seat) => viewExplorer(view, seat)?.name ?? view.seats[seat].name,
+    seat: (seat) => seatName(view, seat),
     room: (room) => rooms[room].name,
     card: (card) => cards[card].name,
   };

@@ -277,7 +277,6 @@ const ACTION = "min-h-10 rounded border border-(--bt-line) bg-(--bt-room) px-3 p
 const shownActions = ({ actions, tab }: Pick<ExplorerSheetProps, "actions" | "tab">): ExplorerActions | null => (actions?.figure === tab.id ? actions.rows : null);
 
 function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: ExplorerSheetProps & { notes: RuleNotes | null }) {
-  const seat = tab.owner === null ? null : view.seats[tab.owner];
   const rows = shownActions({ actions, tab });
   // The first action takes the focus as the sheet opens.
   const first = firstAction(rows);
@@ -286,12 +285,9 @@ function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: Explore
     <>
       <header className="flex items-center gap-2">
         <Image src={portraitSrc(tab.definition)} alt="" width={48} height={60} draggable={false} className="h-15 w-12 shrink-0 rounded border border-(--bt-line) object-cover" />
-        <span className="flex min-w-0 flex-col">
-          <span className="flex items-center gap-1.5 font-semibold">
-            <span className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, tab.definition)}`} />
-            {tab.name}
-          </span>
-          {seat && <span className="truncate text-xs text-(--bt-muted)">{seat.name}</span>}
+        <span className="flex min-w-0 items-center gap-1.5 font-semibold">
+          <span className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, tab.definition)}`} />
+          {tab.name}
         </span>
       </header>
       <div className="flex flex-col gap-1">

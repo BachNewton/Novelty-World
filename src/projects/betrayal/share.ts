@@ -55,10 +55,10 @@ export function decodeGame(code: string): SharedGame {
           throw new Error(`game.sets[${i}] is not a set`);
         return set;
       }),
+      // A code from before seats were named by their explorers still carries names, ignored.
       seats: list(game.seats, "game.seats").map((seat, i) => {
         const s = record(seat, `game.seats[${i}]`);
         return {
-          name: text(s.name, `game.seats[${i}].name`),
           character: text(s.character, `game.seats[${i}].character`),
         };
       }),

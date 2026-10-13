@@ -1,20 +1,21 @@
-// Setup's character portraits, shot from the art bench: each character as a seat shows them in the house
-// (their figure, or the pawn in their card's colour), standing on the pawn spot of one room, framed whole
-// from near eye level and close in, like a character-select portrait. The room is the Abandoned Room: from
-// view 0 its pawn spot has solid wall behind it, so the room fills the frame and the void past the bench's
-// one tile never shows. Every character is framed at the same scale, so their heights stay true.
+// Setup's character portraits, shot in the figure viewer (`?bench=figures`): each character as a seat shows them
+// (their figure, or the pawn in their card's colour), on their base, like a miniature photographed on a plain
+// dark backdrop: a sweep whose floor curves up behind the figure, under a soft warm key with the cold moon
+// behind as a rim (the viewer's portrait light). They are framed whole from near eye level and close in, like a
+// character-select portrait, and every character at the same scale (the viewer's portrait camera), so their
+// heights stay true. No colour ring round the base: the card around the portrait carries the seat's colour.
 // Run it again whenever a figure lands or changes, and commit the images it writes.
 //
-// Drives the bench's control surface (window.__betrayalBench, see ../art/bench.ts) over Playwright and
-// waits on its events (room built and lit, frames rendered), never a sleep. The clock is frozen, so two
+// Drives the viewer's control surface (window.__betrayalFigures, see ../art/figure-viewer.ts) over Playwright and
+// waits on its events (figure built and readied, frames rendered), never a sleep. The clock is frozen, so two
 // runs differ only where the art does.
 //
 // Prereq: a server for the app (the dev server on :3001, or BETRAYAL_URL pointing at another) and
 // `npx playwright install chromium` (one-time).
 // Usage:  node src/projects/betrayal/tools/portraits.mjs [character-id ...]
-//         With no ids, every character is shot. --room=<room-id> picks the room they stand in, --view=<0-3>,
-//         --zoom=<z> and --tilt=<degrees above level> the bench's preset view, zoom and camera tilt, and
-//         --out=<dir> another folder, to try a look.
+//         With no ids, every character is shot. --light=<preset> and --camera=<preset> pick another of the
+//         viewer's lights and cameras, --view=<0-3> turns the camera by quarter turns, --zoom=<z> brings it
+//         nearer (above 1) or farther, and --out=<dir> writes to another folder, to try a look.
 //
 // Writes public/betrayal/portraits/<character-id>.jpg.
 
@@ -27,11 +28,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const FLAGS = process.argv.slice(2).filter((arg) => arg.startsWith("--"));
 const flag = (name) => FLAGS.find((f) => f.startsWith(`--${name}=`))?.slice(name.length + 3);
 const WANTED = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
-const ROOM = flag("room") ?? "abandoned-room";
-/** The bench's preset view, zoom and tilt the portraits are shot from. */
+const LIGHT = flag("light") ?? "portrait";
+const CAMERA = flag("camera") ?? "portrait";
 const VIEW = Number(flag("view") ?? 0);
-const ZOOM = Number(flag("zoom") ?? 1.3);
-const TILT = Number(flag("tilt") ?? 12);
+const ZOOM = Number(flag("zoom") ?? 1);
 const BASE = process.env.BETRAYAL_URL ?? "http://localhost:3001/board-games/betrayal";
 const OUT = flag("out") ?? join(HERE, "..", "..", "..", "..", "public", "betrayal", "portraits");
 /** A portrait's size in CSS pixels, drawn at twice that for sharp screens; setup shows it at most this big. */
@@ -51,34 +51,38 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: SIZE, deviceScaleFactor: 2 });
 page.on("pageerror", async (error) => {
-  console.error(`The bench threw:\n${error.stack ?? error.message}`);
+  console.error(`The viewer threw:\n${error.stack ?? error.message}`);
   await browser.close();
   process.exit(1);
 });
-await page.goto(`${BASE}?bench=${encodeURIComponent(ROOM)}&frame=explorer`, { waitUntil: "load" });
+const address = new URLSearchParams({ bench: "figures", light: LIGHT, camera: CAMERA, ring: "off", t: String(FREEZE_AT) });
+await page.goto(`${BASE}?${address}&paused`, { waitUntil: "load" });
 await page.addStyleTag({ content: "nextjs-portal{display:none!important} .pointer-events-none{visibility:hidden!important}" });
-await page.waitForFunction(() => "__betrayalBench" in window, null, { timeout: 60000 });
+await page.waitForFunction(() => "__betrayalFigures" in window, null, { timeout: 60000 });
 
-const SEATED = "seated:";
-const characters = (await page.evaluate(() => window.__betrayalBench.explorers())).filter((id) => id.startsWith(SEATED)).map((id) => id.slice(SEATED.length));
-for (const id of WANTED) if (!characters.includes(id)) throw new Error(`No character "${id}"; there are: ${characters.join(", ")}`);
+const seated = new Map((await page.evaluate(() => window.__betrayalFigures.characters())).map(({ character, figure }) => [character, figure]));
+for (const id of WANTED) if (!seated.has(id)) throw new Error(`No character "${id}"; there are: ${[...seated.keys()].join(", ")}`);
+await page.evaluate(
+  ({ view, zoom }) => {
+    const viewer = window.__betrayalFigures;
+    viewer.orbit(view);
+    viewer.zoom(zoom);
+  },
+  { view: VIEW, zoom: ZOOM },
+);
 
-for (const id of WANTED.length > 0 ? WANTED : characters) {
+for (const id of WANTED.length > 0 ? WANTED : [...seated.keys()]) {
   await page.evaluate(
-    ({ id, at, view, zoom, tilt }) => {
-      const bench = window.__betrayalBench;
-      bench.setExplorer(`seated:${id}`);
-      bench.setView(view);
-      bench.setZoom(zoom);
-      bench.setTilt(tilt);
-      bench.setSubject("explorer");
-      bench.freezeClock(at);
+    ({ figure, at }) => {
+      const viewer = window.__betrayalFigures;
+      viewer.setFigure(figure);
+      viewer.freezeAt(at);
     },
-    { id, at: FREEZE_AT, view: VIEW, zoom: ZOOM, tilt: TILT },
+    { figure: seated.get(id), at: FREEZE_AT },
   );
-  await page.waitForFunction(() => window.__betrayalBench.isReady(), null, { timeout: 120000 });
-  const frame = await page.evaluate(() => window.__betrayalBench.frameCount());
-  await page.waitForFunction((n) => window.__betrayalBench.frameCount() >= n + 2, frame, { timeout: 20000 });
+  await page.waitForFunction(() => window.__betrayalFigures.isReady(), null, { timeout: 120000 });
+  const frame = await page.evaluate(() => window.__betrayalFigures.frameCount());
+  await page.waitForFunction((n) => window.__betrayalFigures.frameCount() >= n + 2, frame, { timeout: 20000 });
   const path = join(OUT, `${id}.jpg`);
   await page.screenshot({ path, type: "jpeg", quality: 82 });
   console.log("wrote", path);

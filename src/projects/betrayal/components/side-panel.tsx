@@ -1,7 +1,7 @@
 import type { Side, Trait, TurnKind } from "../types";
 import type { Engine } from "../engine/step-loop";
-import type { GameView, SeatView, SecretView } from "../engine/view";
-import { seatLabel } from "./describe";
+import { ownerPrefix } from "./describe";
+import { seatName, type GameView, type SeatView, type SecretView } from "../engine/view";
 
 /** A seat's side and roles, as far as the viewer knows them. */
 function allegiance(seat: SeatView): string[] {
@@ -30,7 +30,7 @@ function secretText(view: GameView, secret: SecretView): string {
       ? ""
       : secret.knownBy === null
         ? " (everyone knows)"
-        : ` (known to ${secret.knownBy.map((seat) => seatLabel(view, seat)).join(", ") || "no one"})`;
+        : ` (known to ${secret.knownBy.map((seat) => seatName(view, seat)).join(", ") || "no one"})`;
   return `${secret.name}: ${value}${knowers}`;
 }
 
@@ -52,13 +52,13 @@ export function SidePanel({ engine, view }: { engine: Engine; view: GameView }) 
         <dt className="text-(--bt-muted)">Turn</dt>
         <dd>
           {view.turn
-            ? `${view.turn.seat === null ? "A player" : seatLabel(view, view.turn.seat)}, ${TURN_NAMES[view.turn.kind]}${view.turn.follows ? " (inserted)" : ""}`
+            ? `${view.turn.seat === null ? "A player" : seatName(view, view.turn.seat)}, ${TURN_NAMES[view.turn.kind]}${view.turn.follows ? " (inserted)" : ""}`
             : "none"}
         </dd>
         <dt className="text-(--bt-muted)">Haunt</dt>
         <dd>
           {view.haunt
-            ? `#${view.haunt.number}${view.haunt.name === null ? "" : ` ${view.haunt.name}`}, revealed by ${seatLabel(view, view.haunt.revealer)} (${cards[view.haunt.omen].name} in the ${rooms[view.haunt.room].name})`
+            ? `#${view.haunt.number}${view.haunt.name === null ? "" : ` ${view.haunt.name}`}, revealed by ${seatName(view, view.haunt.revealer)} (${cards[view.haunt.omen].name} in the ${rooms[view.haunt.room].name})`
             : "not yet"}
         </dd>
         {view.haunt && (
@@ -85,7 +85,7 @@ export function SidePanel({ engine, view }: { engine: Engine; view: GameView }) 
             <dd>
               {view.result.winners.length === 0
                 ? "no one wins"
-                : `won by ${view.result.winners.map((seat) => seatLabel(view, seat)).join(", ")}`}
+                : `won by ${view.result.winners.map((seat) => seatName(view, seat)).join(", ")}`}
             </dd>
           </>
         )}
@@ -94,9 +94,7 @@ export function SidePanel({ engine, view }: { engine: Engine; view: GameView }) 
       {Object.values(view.figures).map((figure) => (
         <section key={figure.id} className="rounded border border-(--bt-line) p-2">
           <h3 className="font-semibold">
-            {figure.owner === null
-              ? ""
-              : `${figure.owner}. ${view.seats[figure.owner].name}: `}
+            {figure.owner === null ? "" : `${figure.owner}. ${ownerPrefix(view, figure)}`}
             {figure.name}
           </h3>
           <p className="text-(--bt-muted)">
