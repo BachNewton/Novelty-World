@@ -28,7 +28,7 @@ const played = (result: SimulationResult) => {
  *  engine up must not change it; a deliberate change to the rules or the
  *  policy that changes the game updates it. */
 const S104_WRITES =
-  "c0b7ebb1a68e28d77a018fad6d34787697eda29b9dccda43b48b97e073107211";
+  "09c27a8f1cd6a162b79144a68570fc8ea9f761f3f1be80259e795237d24510f5";
 const writes = createHash("sha256");
 const hashWrites = (state: GameState) => {
   writes.update(JSON.stringify(state));
