@@ -38,10 +38,10 @@ export interface Walk {
   speed: number | null;
 }
 
-/** How a line of the status box shows: its dice turning up, a gain or loss
- *  floating over the figure, a card's text waiting for a tap, or its words
- *  alone, which hold nothing up. */
-export type LineShow = "dice" | "float" | "card" | "words";
+/** How a line of the status box shows: a roll's table before its dice, its
+ *  dice turning up, a gain or loss floating over the figure, a card's text
+ *  waiting for a tap, or its words alone, which hold nothing up. */
+export type LineShow = "table" | "dice" | "float" | "card" | "words";
 
 export type Beat = { events: readonly string[] } & (
   /** Figures walk their routes, together, the active explorer's first. */
@@ -77,6 +77,7 @@ export const EVENT_SHOWS: Readonly<Record<string, Shown>> = {
   "haunt-revealed": "reveal",
   // Lines: rolls, stats, cards, forced steps and the haunt.
   forced: "line",
+  "roll-coming": "line",
   rolled: "line",
   damaged: "line",
   "damage-converted": "line",
@@ -138,6 +139,8 @@ export const EVENT_SHOWS: Readonly<Record<string, Shown>> = {
   "side-set": null,
   "status-added": null,
   "status-removed": null,
+  // Told with the roll it belongs to, whose line lights its row.
+  "table-row": null,
   stayed: null,
   "token-placed": null,
   "token-removed": null,
@@ -156,6 +159,9 @@ function lineShow(engine: Engine, view: GameView, event: EventView): LineShow | 
   if (event.type === "forced" && (event.data as { kind?: string }).kind === "rotation") return null;
   if (describeEvent(engine, view, event) === null) return null;
   if (event.type === "card-drawn") return "card";
+  // A roll made at once shows what it is for first, when that is a table;
+  // any other roll's line says it all.
+  if (event.type === "roll-coming") return (event.data as { rows: unknown }).rows === null ? null : "table";
   if (event.type === "rolled") {
     const { dice, named } = event.data as { dice: number[]; named: number | null };
     return named === null && dice.length > 0 ? "dice" : "words";
@@ -302,10 +308,12 @@ export function present(engine: Engine, before: Presentation, events: readonly E
   if (haunted && !before.haunted) add({ kind: "reveal", line: revealed?.id ?? null, events: revealed ? [revealed.id] : [] });
   else if (revealed) add({ kind: "line", line: revealed.id, show: "words", events: [revealed.id] });
 
-  for (const event of fresh) {
+  for (const [i, event] of fresh.entries()) {
     if (shows(event.type) !== "line") continue;
     const show = lineShow(engine, next, event);
-    if (show !== null) add({ kind: "line", line: event.id, show, events: [event.id] });
+    // A roll's table row comes straight after it, and is told in its line.
+    const row = event.type === "rolled" && fresh[i + 1]?.type === "table-row" ? [fresh[i + 1].id] : [];
+    if (show !== null) add({ kind: "line", line: event.id, show, events: [event.id, ...row] });
   }
 
   return {

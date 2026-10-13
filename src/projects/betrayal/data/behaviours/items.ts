@@ -38,6 +38,7 @@ import {
   TRAITS,
 } from "../../engine/figures";
 import { pullMonsters } from "../../engine/monsters";
+import type { RowOutcome } from "../../engine/outcomes";
 import { distanceTo, moveCloser } from "../../engine/movement";
 import { askPermission, askSet, hasTrait } from "../../engine/questions";
 import { heroes, inPlay, revealedAs } from "../../engine/sides";
@@ -237,7 +238,12 @@ function hearMusicBox(figure: FigureId): Step {
     card("music-box"),
     table([
       { min: 4, max: null, steps: [] },
-      { min: 0, max: 3, steps: [local("music-box", "mesmerized", { figure })] },
+      {
+        min: 0,
+        max: 3,
+        steps: [local("music-box", "mesmerized", { figure })],
+        does: "mesmerized",
+      },
     ]),
   );
 }
@@ -324,11 +330,13 @@ export const ITEMS: BehaviourGroup = {
                   min: 5,
                   max: null,
                   steps: [local("bell", "call-heroes", { figure })],
+                  does: "call-heroes",
                 },
                 {
                   min: 0,
                   max: 4,
                   steps: [local("bell", "call-monsters", { figure })],
+                  does: "call-monsters",
                 },
               ]),
               { id: "bell" },
@@ -415,6 +423,7 @@ export const ITEMS: BehaviourGroup = {
                     min: 6,
                     max: 6,
                     steps: [local("bottle", "anywhere", { figure })],
+                    does: "choose-room",
                   },
                   { min: 5, max: 5, steps: both(["might", "speed"], 2) },
                   { min: 4, max: 4, steps: both(["knowledge", "sanity"], 2) },
@@ -515,11 +524,13 @@ export const ITEMS: BehaviourGroup = {
                     min: 6,
                     max: 6,
                     steps: [local("dark-dice", "join", { figure })],
+                    does: "join-others",
                   },
                   {
                     min: 5,
                     max: 5,
                     steps: [local("dark-dice", "push", { figure })],
+                    does: "push",
                   },
                   {
                     min: 4,
@@ -530,6 +541,7 @@ export const ITEMS: BehaviourGroup = {
                     min: 3,
                     max: 3,
                     steps: [local("dark-dice", "step", { figure })],
+                    does: "step",
                   },
                   { min: 2, max: 2, steps: [chooseTrait(figure, MENTAL, rule)] },
                   { min: 1, max: 1, steps: [drawCard(figure, "event", rule)] },
@@ -540,6 +552,7 @@ export const ITEMS: BehaviourGroup = {
                       local("dark-dice", "bottom-out", { figure }),
                       discardCard(figure, "dark-dice"),
                     ],
+                    does: "bottom-out",
                   },
                 ]),
               ),
@@ -753,9 +766,13 @@ export const ITEMS: BehaviourGroup = {
             ),
           steps: (state, figure) => {
             const rule = card("medical-kit");
-            const heal = (target: FigureId, points: number) => [
-              local("medical-kit", "heal", { figure, target, points }),
-            ];
+            // Healing is gaining physical traits back, up to their starting values.
+            const heal = (target: FigureId, points: number) => ({
+              steps: [local("medical-kit", "heal", { figure, target, points })],
+              does: [
+                { kind: "gain", trait: "physical", amount: points },
+              ] satisfies RowOutcome[],
+            });
             return [
               chooseOne(
                 figure,
@@ -771,9 +788,9 @@ export const ITEMS: BehaviourGroup = {
                         { kind: "trait", trait: "knowledge" },
                         rule,
                         table([
-                          { min: 8, max: null, steps: heal(e.id, 3) },
-                          { min: 6, max: 7, steps: heal(e.id, 2) },
-                          { min: 4, max: 5, steps: heal(e.id, 1) },
+                          { min: 8, max: null, ...heal(e.id, 3) },
+                          { min: 6, max: 7, ...heal(e.id, 2) },
+                          { min: 4, max: 5, ...heal(e.id, 1) },
                           { min: 0, max: 3, steps: [] },
                         ]),
                       ),

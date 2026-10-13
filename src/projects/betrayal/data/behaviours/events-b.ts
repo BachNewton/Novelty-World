@@ -355,6 +355,7 @@ export const EVENTS_B: BehaviourGroup = {
                     steps: [
                       local("possession", "drop-to-lowest", { figure, trait }),
                     ],
+                    does: "drop-to-lowest",
                   },
                 ]),
               ],
@@ -487,6 +488,7 @@ export const EVENTS_B: BehaviourGroup = {
                   damage(s, "physical", { dice: 1 }, rule),
                   local("shrieking-wind", "blow-item-away", { figure: s }),
                 ],
+                does: "item-blown",
               },
             ]),
           );
@@ -562,10 +564,15 @@ export const EVENTS_B: BehaviourGroup = {
             { kind: "dice", count: 3 },
             card("secret-passage"),
             table([
-              { min: 6, max: null, steps: on(null) },
-              { min: 4, max: 5, steps: on(["upper"]) },
-              { min: 2, max: 3, steps: on(["ground"]) },
-              { min: 0, max: 1, steps: on(["basement"]) },
+              { min: 6, max: null, steps: on(null), does: "floor-any" },
+              { min: 4, max: 5, steps: on(["upper"]), does: "floor-upper" },
+              { min: 2, max: 3, steps: on(["ground"]), does: "floor-ground" },
+              {
+                min: 0,
+                max: 1,
+                steps: on(["basement"]),
+                does: "floor-basement",
+              },
             ]),
           ),
         ];
@@ -711,6 +718,7 @@ export const EVENTS_B: BehaviourGroup = {
                 min: 0,
                 max: 2,
                 steps: [local("the-beckoning", "jump", { figure: s })],
+                does: "jump",
               },
             ]),
           );

@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { loadRuleNotes, type RuleNotes } from "../data/rule-notes";
 import { viewFor, type GameView } from "../engine/view";
 import type { Engine } from "../engine/step-loop";
 import { ENGINE } from "../game";
@@ -28,12 +27,10 @@ function holderViews(engine: Engine, seeds: string[], shown: (state: GameState) 
 /** Played through the exploration, or up to the haunt's reveal and its ready wait. */
 const upToTheReveal = (state: GameState) => state.status === "exploring" || state.pending?.type === "ready";
 
-let notes: RuleNotes;
 let views: GameView[];
 let revealed: GameView[];
 // Playing whole games takes a few seconds, more on a busy machine.
-beforeAll(async () => {
-  notes = await loadRuleNotes();
+beforeAll(() => {
   // With the haunt held off, the house fills and every deck is drawn deep.
   views = holderViews(NO_HAUNT_ENGINE, ["panels-1", "panels-2"], (state) => state.status === "exploring");
   revealed = holderViews(ENGINE, ["panels-1", "panels-2"], upToTheReveal);
@@ -59,7 +56,7 @@ describe("boxPart", () => {
       const pending = view.pending;
       if (pending?.type !== "decision" || pending.detail === null) continue;
       if (part === "roll") {
-        const shown = rollShown(view, notes, pending.detail.params as unknown as RollParams, pending.kind === "roll-after");
+        const shown = rollShown(view, pending.detail.params as unknown as RollParams, pending.kind === "roll-after");
         expect(shown.pool).toBeGreaterThan(0);
       }
       if (part === "damage") {

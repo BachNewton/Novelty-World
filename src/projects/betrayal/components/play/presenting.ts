@@ -14,8 +14,8 @@ import { lyingRooms, roomThings, shownThings, type Clusters, type RoomThing, typ
  * title and the floats over the figures read only the beats started so far,
  * so nothing is told before its beat plays. A figure whose walk is still to
  * come stands where it was until its beat. A beat lasts as long as what it
- * shows (a walk, a room carried, dice turning up, a float rising, a card's
- * text until a tap); a line with nothing else to show holds nothing up. The
+ * shows (a walk, a room carried, a roll's table read, dice turning up, a
+ * float rising, a card's text until a tap); a line with nothing else to show holds nothing up. The
  * game's state never waits on a beat, but the screen does: the pending
  * decision's choices show the moment the last beat ends, and an input while
  * they play only completes them all at once (`skip`), never answering as
@@ -30,6 +30,8 @@ export type Speed = keyof typeof SPEEDS;
 const MOVING_SECONDS = 1.8;
 /** How long a roll's dice take to turn up in its line, at normal speed, in seconds. */
 export const DICE_SECONDS = 0.9;
+/** How long a roll's table shows, with its odds, before a roll made at once turns up its dice, at normal speed, in seconds. */
+const TABLE_SECONDS = 1.6;
 /** How long a gain or loss takes to rise over its figure, before the next beat, at normal speed, in seconds. */
 const FLOAT_SECONDS = 1.1;
 
@@ -167,6 +169,7 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
             await new Promise<void>((resolve) => {
               release = resolve;
             });
+          else if (beat.show === "table") await scene.play({ kind: "pause", seconds: TABLE_SECONDS * SPEEDS[speed] });
           else if (beat.show === "dice") await scene.play({ kind: "pause", seconds: DICE_SECONDS * SPEEDS[speed] });
           else if (beat.show === "float") await scene.play({ kind: "pause", seconds: FLOAT_SECONDS * SPEEDS[speed] });
           if (mine === run && shown.card?.waits) publish({ card: { event: shown.card.event, waits: false } });

@@ -16,11 +16,13 @@ import { MOOD_EDGE } from "./moods";
 import { TrackRow } from "./trait-track";
 import { DamageAmount, DiceFaces, RollResult, TraitValue, Verdict } from "./roll-result";
 import { DamageIcon, DieFace, TraitIcon } from "../icons";
+import { RollTable } from "./roll-table";
+import { rowFor } from "../../engine/effects";
 
 /*
  * The status box's part for a decision that isn't a place or the turn: a
- * roll (its dice, total and what it means, with the cards that can act on
- * it offered where they apply), damage (its stat tracks, with where it would
+ * roll (its table with each row's odds, then its dice, total and the row it
+ * landed on, with the cards that can act on it offered where they apply), damage (its stat tracks, with where it would
  * land), or any other question (its choices, under the card that asks it).
  */
 
@@ -95,10 +97,8 @@ function Offer({ choice, card, act, notes }: { choice: PanelChoice; card: string
 /** A card whose uses differ only by the number they name: one offer, its
  *  consequence said once, opening a row of the numbers, each previewing what
  *  it would mean (a pass or fail, the damage). */
-function PickOffer({ card, picks, act, notes, preview }: { card: string; picks: { value: number; choice: PanelChoice }[]; act: (action: Action) => void; notes: RuleNotes | null; preview: (value: number) => ReturnType<typeof rollMeaning> }) {
+function PickOffer({ card, picks, act, notes, preview, aim, setAim }: { card: string; picks: { value: number; choice: PanelChoice }[]; act: (action: Action) => void; notes: RuleNotes | null; preview: (value: number) => ReturnType<typeof rollMeaning>; aim: number | null; setAim: (value: number | null) => void }) {
   const [open, setOpen] = useState(false);
-  /** The number pointed at, whose outcome the row's note previews where an icon can't say it. */
-  const [aim, setAim] = useState<number | null>(null);
   const line = notes === null ? null : consequence(notes, card);
   const name = ENGINE.catalog.cards[card].name;
   const aimed = aim === null ? null : preview(aim);
@@ -109,6 +109,7 @@ function PickOffer({ card, picks, act, notes, preview }: { card: string; picks: 
         aria-expanded={open}
         onClick={() => {
           setOpen(!open);
+          setAim(null);
         }}
         className={`${CHOICE} ${MOOD_EDGE[cardMood(ENGINE, card)]}`}
       >
@@ -151,7 +152,11 @@ function PickOffer({ card, picks, act, notes, preview }: { card: string; picks: 
 const cardOf = (choice: Json): string | null => (typeof choice === "object" && choice !== null && !Array.isArray(choice) && typeof choice.card === "string" ? choice.card : null);
 
 function RollPart({ view, panel, act, notes, params, after }: DecisionPartProps & { params: RollParams; after: boolean }) {
-  const shown = rollShown(view, notes, params, after);
+  const shown = rollShown(view, params, after);
+  /** The number pointed at in a picker, whose row of the table lights as a preview. */
+  const [aim, setAim] = useState<number | null>(null);
+  const table = shown.table;
+  const lit = table === null ? null : aim !== null ? rowFor(table.rows, aim + params.bonus) : table.lit;
   const cards = after ? rerollCards(panel) : [];
   const [picked, setPicked] = useState<ReadonlySet<number>>(new Set());
   const keep = panel.find((choice) => cardOf(choice.choice) === null);
@@ -173,6 +178,7 @@ function RollPart({ view, panel, act, notes, params, after }: DecisionPartProps 
           </>
         )}
       </p>
+      {table && <RollTable rows={table.rows} odds={shown.total === null ? table.odds : null} lit={lit} />}
       {shown.total !== null && (
         <div aria-label="Result" className="flex flex-wrap items-center gap-1.5">
           {shown.dice && (
@@ -227,7 +233,7 @@ function RollPart({ view, panel, act, notes, params, after }: DecisionPartProps 
               offer.picks === null ? (
                 <Offer key={offer.card} choice={offer.choice} card={offer.card} act={act} notes={notes} />
               ) : (
-                <PickOffer key={offer.card} card={offer.card} picks={offer.picks} act={act} notes={notes} preview={(value) => rollMeaning(view, notes, params, value + params.bonus)} />
+                <PickOffer key={offer.card} card={offer.card} picks={offer.picks} act={act} notes={notes} preview={(value) => rollMeaning(view, params, value + params.bonus)} aim={aim} setAim={setAim} />
               ),
             )}
       </div>

@@ -17,7 +17,7 @@ import { GhostPanel, type GhostPlacer } from "./ghost-placer";
 import { boxActions } from "../../play/sheet";
 import { PromptButton, type Hold } from "../prompts";
 import { DecisionPart } from "./decision-panel";
-import { HappeningLine } from "./happening-line";
+import { HappeningLine, HappeningTable } from "./happening-line";
 import { boxPart } from "../../play/panels";
 import { RevealNow } from "./reveal";
 import { seatDot, seatText } from "./seat-colour";
@@ -87,7 +87,7 @@ export function boxWhys(view: GameView, told: StatusBoxProps["told"], playing: b
 
 function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | null }) {
   const { view, told, problem, playing, why } = props;
-  const text = told ? lineText(ENGINE, view, told.event, notes) : null;
+  const text = told ? lineText(ENGINE, view, told.event, told.events) : null;
   const whys = boxWhys(view, told, playing, notes);
   const open = why.open && whys.length > 0;
 
@@ -104,12 +104,15 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
             why.toggle(false);
           }} />}
       {(text !== null || whys.length > 0) && (
-        <div className="flex min-h-0 shrink-0 items-center gap-2 px-3 py-2">
+        <div className="flex min-h-0 shrink-0 items-start gap-2 px-3 py-2">
           {told && text !== null && (
             // Keyed by the event, so a new line is announced and its dice turn up afresh.
-            <p key={told.event.id} aria-label="What happened" aria-live="polite" className="min-w-0 flex-1 text-sm">
-              <HappeningLine event={told.event} text={text} view={view} notes={notes} turnUp={props.turnUp} />
-            </p>
+            <div key={told.event.id} className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <p aria-label="What happened" aria-live="polite" className="text-sm">
+                <HappeningLine event={told.event} text={text} view={view} turnUp={props.turnUp} />
+              </p>
+              <HappeningTable event={told.event} events={told.events} />
+            </div>
           )}
           {whys.length > 0 && (
             <PromptButton

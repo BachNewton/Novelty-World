@@ -1,10 +1,10 @@
-import { BicepsFlexed, BookOpen, Brain, Check, Dice1, Dice2, Droplet, Footprints, HeartCrack, Key, Moon, Square, X, type LucideIcon } from "lucide-react";
+import { BicepsFlexed, BookOpen, Brain, Check, Dice1, Dice2, Dices, DoorOpen, Droplet, Footprints, Hand, HeartCrack, Key, Moon, Square, Swords, X, type LucideIcon } from "lucide-react";
 import type { CardType, Trait } from "../types";
 
 /*
  * Betrayal's flat icons, one place for every phase: the four traits, the
- * three card types, the two kinds of damage, a pass and a fail, and a die
- * face. Lucide's line icons where one fits, and our own drawing on Lucide's
+ * three card types, the two kinds of damage, a pass and a fail, a die face,
+ * and what a roll table's rows do (go somewhere, stop, attack, roll again). Lucide's line icons where one fits, and our own drawing on Lucide's
  * grid where none does, all in `currentColor`, so each takes its colour from
  * the project's tokens where it is used. The screen prefers, in order:
  * showing a thing in the house, an icon, and text only for what only text
@@ -76,4 +76,23 @@ export function FailIcon(props: IconProps) {
 /** A die as the game's dice show it: blank, one pip or two. */
 export function DieFace({ value, label, className = "size-8" }: IconProps & { value: number }) {
   return <Lucide icon={value === 1 ? Dice1 : value === 2 ? Dice2 : Square} label={label} className={className} />;
+}
+
+/** Go somewhere: a roll table's row that moves you. */
+export function MoveIcon(props: IconProps) {
+  return <Lucide icon={DoorOpen} {...props} />;
+}
+
+/** Stop where you are. */
+export function StopIcon(props: IconProps) {
+  return <Lucide icon={Hand} {...props} />;
+}
+
+export function AttackIcon(props: IconProps) {
+  return <Lucide icon={Swords} {...props} />;
+}
+
+/** A further roll. */
+export function RollIcon(props: IconProps) {
+  return <Lucide icon={Dices} {...props} />;
 }

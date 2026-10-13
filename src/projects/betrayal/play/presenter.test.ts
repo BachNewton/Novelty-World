@@ -102,7 +102,12 @@ function expectInOrder(state: GameState, beats: readonly Beat[]) {
   for (const event of state.lastEvents) {
     if (covered.includes(event.id)) continue;
     const shown = EVENT_SHOWS[event.type];
-    const quiet = shown === null || shown === "walk" || shown === "turn" || (event.type === "forced" && (event.data as { kind?: string }).kind === "rotation");
+    const quiet =
+      shown === null ||
+      shown === "walk" ||
+      shown === "turn" ||
+      (event.type === "forced" && (event.data as { kind?: string }).kind === "rotation") ||
+      (event.type === "roll-coming" && (event.data as { rows: unknown }).rows === null);
     expect(quiet, `${event.type} plays in no beat`).toBe(true);
   }
 }
@@ -159,10 +164,24 @@ describe("present", () => {
     const game = played(testGame({ stack: ["game-room"], decks: { event: ["creepy-crawlies"] } }));
     game.choose("Explore");
     const beats = game.choose("Place");
-    expect(beats.map(named(game.state()))).toEqual(["walk", "card-drawn", "rolled", "trait-changed"]);
-    expect(beats.slice(1).map((beat) => beat.kind === "line" && beat.show)).toEqual(["card", "dice", "float"]);
+    expect(beats.map(named(game.state()))).toEqual(["walk", "card-drawn", "roll-coming", "rolled", "trait-changed"]);
+    expect(beats.slice(1).map((beat) => beat.kind === "line" && beat.show)).toEqual(["card", "table", "dice", "float"]);
     // The room's own rule applying, its `entered`, is no step of the walk: the walk is the discovery's.
     expect(beats[0].events).toEqual(idsOf(game.state(), "left", "discovered"));
+    expectInOrder(game.state(), beats);
+  });
+
+  it("shows a roll made at once by its table first, then its dice with the row it landed on", () => {
+    // Creepy Crawlies: a Sanity roll Zoe has no card to act on.
+    const game = played(testGame({ stack: ["game-room"], decks: { event: ["creepy-crawlies"] } }));
+    game.choose("Explore");
+    const beats = game.choose("Place");
+    const coming = beats.find((beat) => beat.kind === "line" && named(game.state())(beat) === "roll-coming");
+    const rolled = beats.find((beat) => beat.kind === "line" && named(game.state())(beat) === "rolled");
+    expect(coming).toMatchObject({ show: "table", events: idsOf(game.state(), "roll-coming") });
+    expect(rolled).toMatchObject({ show: "dice", events: idsOf(game.state(), "rolled", "table-row") });
+    if (!coming || !rolled) throw new Error("No roll's beats");
+    expect(beats.indexOf(coming)).toBeLessThan(beats.indexOf(rolled));
     expectInOrder(game.state(), beats);
   });
 
@@ -206,7 +225,7 @@ describe("present", () => {
     for (const beat of beats) {
       if (beat.kind !== "line") continue;
       const event = game.state().lastEvents.find((candidate) => candidate.id === beat.line);
-      const expected = event?.type === "card-drawn" ? "card" : event?.type === "rolled" ? "dice" : event?.type === "trait-changed" || event?.type === "damaged" ? "float" : "words";
+      const expected = event?.type === "card-drawn" ? "card" : event?.type === "roll-coming" ? "table" : event?.type === "rolled" ? "dice" : event?.type === "trait-changed" || event?.type === "damaged" ? "float" : "words";
       expect(beat.show, event?.type).toBe(expected);
     }
     expectInOrder(game.state(), beats);
