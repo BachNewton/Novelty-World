@@ -224,15 +224,17 @@ function book(): THREE.BufferGeometry {
  *  cover, its fingers round the fore-edge, a little below the middle. The
  *  edge runs along the grip's axis, upwards; her fingers point across the
  *  cover towards it. */
+/** How round her hand curls at the book: wider than the book is thick, so her fingers wrap its fore-edge loosely while her palm and wrist stay out in front of the cover. */
+const BOOK_HOLD = 0.035;
 const BOOK_GRIP = new THREE.Matrix4()
   .makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0), new THREE.Vector3(-1, 0, 0))
-  .setPosition(-BOOK.width / 2 + BOOK.thick / 2, -0.025, 0);
+  .setPosition(-BOOK.width / 2 + 0.02, -0.025, 0.004);
 
 /** Her book as a prop, held at its fore-edge. */
 function heldBook(geometry: THREE.BufferGeometry, mesh: (geometry: THREE.BufferGeometry, name: string) => THREE.Mesh): Prop {
   const pages = mesh(geometry, "book");
   BOOK_GRIP.clone().invert().decompose(pages.position, pages.quaternion, pages.scale);
-  return { object: group(pages), handle: BOOK.thick / 2, carry: "hang" };
+  return { object: group(pages), handle: BOOK_HOLD, carry: "hang" };
 }
 
 /** Every part's geometry, meshed once on first use and shared: none of it depends on the seed. */
@@ -301,10 +303,10 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
   holdIn(left.hand, heldBook(parts.book, mesh));
 
   // The book hugged to her left breast, her forearm across its front; held tight, higher and closer; tipped out to look at.
-  const outward = new THREE.Vector3(1, -0.4, -0.5);
-  const hugs = gripAt(left, placed(new THREE.Vector3(0.055, 0.25, 0.152), new THREE.Euler(-0.1, 0.22, 0.06)).multiply(BOOK_GRIP), outward);
-  const clutches = gripAt(left, placed(new THREE.Vector3(0.045, 0.27, 0.148), new THREE.Euler(-0.14, 0.26, 0.04)).multiply(BOOK_GRIP), outward);
-  const peeks = gripAt(left, placed(new THREE.Vector3(0.04, 0.2, 0.22), new THREE.Euler(0.55, 0.12, 0.04)).multiply(BOOK_GRIP), outward);
+  const outward = new THREE.Vector3(1, -0.3, 0.6);
+  const hugs = gripAt(left, placed(new THREE.Vector3(0.055, 0.25, 0.152), new THREE.Euler(-0.1, 0.45, 0.06)).multiply(BOOK_GRIP), outward);
+  const clutches = gripAt(left, placed(new THREE.Vector3(0.045, 0.27, 0.148), new THREE.Euler(-0.14, 0.5, 0.04)).multiply(BOOK_GRIP), outward);
+  const peeks = gripAt(left, placed(new THREE.Vector3(0.04, 0.2, 0.22), new THREE.Euler(0.55, 0.9, 0.04)).multiply(BOOK_GRIP), outward);
 
   const hangs = reachWrist(right, right.at.clone().add(new THREE.Vector3(-0.04, -0.44, 0.05)), new THREE.Vector3(-0.3, 0, -1));
   const carries = reachWrist(right, right.at.clone().add(new THREE.Vector3(0, -0.28, 0.21)), new THREE.Vector3(-0.2, 0, -1));
