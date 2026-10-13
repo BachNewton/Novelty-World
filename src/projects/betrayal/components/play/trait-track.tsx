@@ -6,7 +6,7 @@ import { TraitIcon } from "../icons";
 /*
  * A trait as the character card prints it, shown rather than told: the
  * character's own values in a row, the clip on its step, a tick under the
- * starting step, a bar past the top for the ceiling, and the skull below the
+ * starting step, and the skull below the
  * lowest, padlocked before the haunt (when no one can die) and bare after.
  * A previewed change marks the step it lands on. The compact form, for six
  * explorers at once, keeps only the icon and the value.
@@ -63,7 +63,6 @@ export function TrackRow({ track, skull = true }: { track: TraitTrack; skull?: b
           );
         })}
       </ol>
-      <span aria-hidden className="h-7 w-1 shrink-0 rounded-full bg-(--bt-ink)" />
     </div>
   );
 }
