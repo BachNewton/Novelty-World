@@ -41,6 +41,31 @@ describe("targetPlace", () => {
     expect(place.cell).toEqual({ floor: "ground", x: 1, y: -1 });
   });
 
+  it("puts a wall's pad against that wall, and a corner's in that corner, turned with the room, with the token shown there as its preview", () => {
+    // The Dining Room is turned a quarter: its printed top wall faces east.
+    const [cx, cz] = [1 * TILE, -1 * TILE];
+    const preview = { token: "wall-switch", colour: "brass" } as const;
+    const wall = targetPlace({ id: "w", kind: "wall", room: "dining-room", wall: ["top"], preview }, context("ground"));
+    expect(wall.anchor.x).toBeGreaterThan(cx + TILE / 3);
+    expect(wall.anchor.z).toBeCloseTo(cz);
+    expect(wall.mark).toMatchObject({ kind: "area", room: "dining-room", preview: { ...preview, spot: { edge: "top", along: 0 } } });
+    expect(wall.outline).toHaveLength(4);
+    expect(wall.cell).toEqual({ floor: "ground", x: 1, y: -1 });
+    // Its printed top-right corner is the south-east one.
+    const corner = targetPlace({ id: "c", kind: "wall", room: "dining-room", wall: ["top", "right"], preview: null }, context("ground"));
+    expect(corner.anchor.x).toBeGreaterThan(cx + TILE / 3);
+    expect(corner.anchor.z).toBeGreaterThan(cz + TILE / 3);
+    expect(targetPlace({ id: "u", kind: "wall", room: "bedroom", wall: ["top"], preview: null }, context("ground")).mark).toBeNull();
+  });
+
+  it("marks one side of a room as the half of its tile on that printed edge", () => {
+    // The Dining Room's printed left edge faces north.
+    const half = targetPlace({ id: "h", kind: "room", room: "dining-room", side: "left" }, context("ground"));
+    expect(half.anchor.z).toBeCloseTo(-1 * TILE - TILE / 4);
+    expect(half.anchor.x).toBeCloseTo(1 * TILE);
+    expect(half.mark?.kind).toBe("area");
+  });
+
   it("shows a room on another floor as the stair its route takes there from this one", () => {
     const place = targetPlace(UPSTAIRS, context("ground"));
     expect(place.mark).toEqual({ id: UPSTAIRS.id, kind: "stair", room: "grand-staircase", toward: "upper-landing" });

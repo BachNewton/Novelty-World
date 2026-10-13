@@ -221,7 +221,7 @@ export const MONSTER_STEPS: Record<string, StepHandler> = {
         chooseOne(
           monster.id,
           [
-            { label: `Move ${name} 1 space closer`, steps: [move] },
+            { label: `Move ${name} 1 space closer`, steps: [move], figure: monster.id },
             { label: `Leave ${name} where it is`, steps: [] },
           ],
           p.rule,

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
 import { placed } from "../engine/board";
-import { apply } from "../engine/step-loop";
+import { relocate } from "../engine/effects";
+import { apply, start } from "../engine/step-loop";
 import { viewFor } from "../engine/view";
-import { choose, offered, testGame, waitingOn } from "../testing";
+import { choose, explorer, inHaunt, offered, testGame, waitingOn } from "../testing";
 import type { GameState } from "../types";
 import type { Layout } from "../engine/board";
 import type { Edge } from "../types";
@@ -21,7 +22,7 @@ describe("playChoices", () => {
     expect(targets.map((t) => t.id).sort()).toEqual(["explore:ground:2:-1", "explore:ground:2:1", "room:foyer"]);
     expect(targets.find((t) => t.id === "explore:ground:2:-1")).toMatchObject({ kind: "explore", cell: { floor: "ground", x: 2, y: -1 }, room: "entrance-hall", direction: "top" });
     // A choice's id, never a room's.
-    expect(targets.some((t) => t.id === t.room)).toBe(false);
+    expect(targets.some((t) => "room" in t && t.id === t.room)).toBe(false);
     expect(panel).toEqual([]);
     expect(end?.label).toBe("End your turn");
   });
@@ -103,6 +104,55 @@ describe("playChoices", () => {
     if (!result.ok) throw new Error(result.reason);
     expect(result.state.lastEvents.some((event) => event.type === "dog-ran" && (event.data as { room: string }).room === "foyer")).toBe(true);
     expect(focusOf(state).rooms.get("foyer")).toEqual(foyer.actions[0]);
+  });
+
+  it("offers the walls and corners a Wall Switch can go on as places in its room, named by the compass, and nothing in the panel", () => {
+    // Zoe explores north into the Ballroom and draws the Revolving Wall: the Ballroom has a door on every wall, so only its corners.
+    const state = choose(testGame({ stack: ["ballroom", "dusty-hallway"], decks: { event: ["revolving-wall"] } }), "Explore through the north door");
+    expect(state.pending?.type === "decision" && state.pending.kind).toBe("choose-one");
+    const { targets, panel, end, ghost } = choicesOf(state);
+    expect([panel, end, ghost]).toEqual([[], null, null]);
+    expect(targets.map((t) => (t.kind === "wall" ? [t.label, t.room, t.wall, t.token] : t.kind)).sort()).toEqual([
+      ["North-east corner", "ballroom", ["top", "right"], "wall-switch"],
+      ["North-west corner", "ballroom", ["left", "top"], "wall-switch"],
+      ["South-east corner", "ballroom", ["right", "bottom"], "wall-switch"],
+      ["South-west corner", "ballroom", ["bottom", "left"], "wall-switch"],
+    ]);
+    // Choosing the south-west corner, onto the Foyer, puts the switch there and Zoe through it.
+    const corner = targets.find((t) => t.label === "South-west corner");
+    if (!corner) throw new Error("No south-west corner");
+    const result = apply(ENGINE, state, corner.actions[0]);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.state.tokens).toContainEqual({ token: "wall-switch", room: "ballroom", wall: ["bottom", "left"] });
+  });
+
+  it("offers each side of a barrier room a figure lands in as its own place", () => {
+    const state = testGame({ rooms: ["tower"] });
+    const zoe = explorer(state, 0).id;
+    const landing = start(ENGINE, { ...state, pending: null }, [relocate(zoe, "tower", { source: "rulebook", page: 7 })]);
+    const { targets, panel } = choicesOf(landing);
+    expect(panel).toEqual([]);
+    expect(targets.map((t) => (t.kind === "room" ? [t.room, t.side] : t.kind)).sort()).toEqual(ENGINE.catalog.rooms.tower.doors.map((side) => ["tower", side]).sort());
+  });
+
+  it("offers a choice among figures as the figures in the house", () => {
+    // The Medical Kit heals Zoe or Ox, both hurt, in the Entrance Hall.
+    const hurt = testGame({ explorers: [{ seat: 0, cards: ["medical-kit"], clips: { might: 1 } }, { seat: 1, clips: { might: 1 } }] });
+    const state = choose(hurt, "Use the Medical Kit");
+    const { targets, panel } = choicesOf(state);
+    expect(panel).toEqual([]);
+    expect(targets.map((t) => (t.kind === "figure" ? t.figure : t.kind)).sort()).toEqual([explorer(state, 0).id, explorer(state, 1).id].sort());
+  });
+
+  it("offers a turn's attack on a figure as that figure, its other actions staying in the panel", () => {
+    const state = inHaunt(testGame(), 1);
+    const ox = explorer(state, 1).id;
+    const { targets, panel } = choicesOf(state);
+    const attack = targets.find((t) => t.kind === "figure" && t.figure === ox);
+    expect(attack?.id).toBe(`attack:${ox}`);
+    expect(panel.some((c) => c.label.includes("Attack"))).toBe(false);
+    if (!attack) throw new Error("No attack on Ox");
+    expect(apply(ENGINE, state, attack.actions[0]).ok).toBe(true);
   });
 
   it("offers nothing to a seat the decision isn't put to", () => {
