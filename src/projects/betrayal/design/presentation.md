@@ -42,7 +42,7 @@ The controller map, with its counterparts:
 | Floors | LB down, RB up | PgDn / PgUp, or F / R | on-screen floor buttons |
 | End turn | hold X | hold Backspace, or click End turn | tap End turn |
 | Your explorer | Y | I, or click the chip, a mark or a nameplate | tap the chip, a mark or a nameplate |
-| Recentre | View | C or Home, or the on-screen button | the on-screen button |
+| Follow the active explorer | View | C or Home, or the on-screen Follow button | the on-screen Follow button |
 | The game menu | Menu, on any pad | M, or its button | its button |
 | Raise the walls | hold L3 | hold V | hold the Walls button |
 | Every explorer's stats | hold R3 | hold Z | hold the Stats button |
@@ -53,9 +53,14 @@ The status box shows a chip for Your explorer with the turn's actions counted ("
 
 A free strategy camera, in the style of Cities: Skylines and XCOM: a target point on the floor, turned round the vertical, tilted from near eye level (about 9°) to near top-down (80°), and zoomed. It never drops below 2.2 m above the floor, so fully zoomed in the lowest tilt rises to about 12°, looking over the furniture rather than into it. Zooming never changes the tilt. Fully zoomed in (8), half a room spans the screen's short side. The reticle catches a choice within at least 72 px, further for one drawn large, and holds the one it caught until the centre moves clearly away; that magnetism and sticky focus are built but not yet approved.
 
-- **The player owns the view.** On a game event the camera only pans to the subject, keeping the player's turn, tilt and zoom; recentring does the same.
-- **Recentre** returns to the active explorer's room and floor, on every input, so a player is never lost.
-- **Floors** change by the player's hand, and follow an explorer only when the explorer takes the stairs. The game never overrides a floor the player picked.
+The camera has **two modes**, as Monopoly's board does, kept as local UI state and never game state (`art/camera-follow.ts`):
+
+- **Following** the active explorer: the camera's target tracks them, smoothly through their walks, onto another floor when they take the stairs, and to the turn's beats about them (a room appearing, a room shown close, a card drawn, a room carried by a rule, a ghost tile to place), then back to them. A figure walking is followed until it arrives. The game starts following.
+- **Free**: the camera is the player's alone, and nothing in the game moves it, not even a card's beat elsewhere: the beat plays where it is, and the status box still tells it. A ghost tile is the player's own decision in hand, so its floor still shows.
+- **What frees it**: panning (the left stick, WASD or the arrows, a left-drag, a one-finger drag) and changing floor by hand (the bumpers, PgUp/PgDn or F/R, the floor buttons). Turning, tilting and zooming never do: while following, they orbit and zoom round whatever is followed, as a strategy game's "follow unit" camera does.
+- **Follow** (View, C or Home, the on-screen button) reattaches whenever the player wants: following again, the camera glides to the active explorer and their floor. The button is lit while following, so the player always knows which mode they are in.
+- **A new turn reattaches**: in hot-seat the device has just passed to the next player, who expects to see their own explorer. A question put to another seat mid-turn changes nothing.
+- **The player owns the angles.** Following moves only the target; the turn, tilt and zoom stay the player's. A room's best angle for its close view is taken only while following, and given back after.
 - The cutaway, the reticle and picking hold at the lowest tilt.
 
 ## Moving
