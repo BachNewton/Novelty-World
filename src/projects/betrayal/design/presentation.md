@@ -30,7 +30,7 @@ The controller map, with its counterparts:
 
 | | Controller | Keyboard + mouse | Touch |
 |---|---|---|---|
-| Point at a choice | a reticle at the screen's centre, snapping to the nearest choice | the cursor | tap to focus |
+| Point at a choice | a reticle at the screen's centre, pointing at what's under it | the cursor | tap to focus |
 | Press the focus | A | click, Enter or Space | tap the focused choice again, or tap a button |
 | Back | B closes the topmost thing open, or clears the focus | Esc | the open thing's close button |
 | Step through a row's choices (a ghost's ways round among them) | d-pad left and right | Tab and Shift+Tab | tap the choice; the ghost's turn buttons |
@@ -51,7 +51,7 @@ The seat's button at the top left opens Your explorer and counts the turn's acti
 
 ## The camera
 
-A free strategy camera, in the style of Cities: Skylines and XCOM: a target point on the floor, turned round the vertical, tilted from near eye level (about 9°) to near top-down (80°), and zoomed. It never drops below 2.2 m above the floor, so fully zoomed in the lowest tilt rises to about 12°, looking over the furniture rather than into it. Zooming never changes the tilt. Fully zoomed in (8), half a room spans the screen's short side. The reticle catches a choice within at least 72 px, further for one drawn large, and holds the one it caught until the centre moves clearly away; that magnetism and sticky focus are built but not yet approved.
+A free strategy camera, in the style of Cities: Skylines and XCOM: a target point on the floor, turned round the vertical, tilted from near eye level (about 9°) to near top-down (80°), and zoomed. It never drops below 2.2 m above the floor, so fully zoomed in the lowest tilt rises to about 12°, looking over the furniture rather than into it. Zooming never changes the tilt. Fully zoomed in (8), half a room spans the screen's short side. The reticle points at exactly what is under the screen's centre, picked the same way as under the mouse cursor, with no magnetism or sticky focus: to point at something small, the player zooms in. Moving off every choice clears the focus, as the mouse leaving one does.
 
 The camera has **two modes**, as Monopoly's board does, kept as local UI state and never game state (`art/camera-follow.ts`):
 
@@ -75,7 +75,7 @@ Movement follows the rules: up to Speed in spaces a turn, a stair step costing o
 
 ## Placing a room
 
-A discovered room shows as a ghost of the actual room on its cell, with each doorway marked at its edge by what it would do (joins a door, faces a wall, opens onto the unexplored). The player turns it through its legal ways round, which are the decision's choices and step like any others, then places it. A room that fits only one way is placed by the engine and shown as the tile appearing, with no prompt. Rooms that cards and rooms move (the Mystic Elevator, The Beckoning) use the same ghost, with the cells they may go to glowing.
+A discovered room shows as a ghost of the actual room on its cell, with each doorway marked at its edge by what it would do (joins a door, faces a wall, opens onto the unexplored). The player turns it through its legal ways round, which are the decision's choices and step like any others, then places it. A room that fits only one way is placed by the engine and shown as the tile appearing, with no prompt. Rooms that cards and rooms move (the Mystic Elevator, The Beckoning) use the same ghost, with the cells they may go to glowing. A ghost only ever means "not yet placed": a room placed, or carried by a rule, shows solid at once in a flat moon light until its baked light lands (`lighting.md`).
 
 ## Dice
 
@@ -100,7 +100,7 @@ Hidden by default and shown when useful: in a roll's prompt, on the damage track
 
 **A trait is a track, as the character card prints it** (`play/tracks.ts`): the character's own values in a row, the clip on its step, the starting step marked, the top as the ceiling, and the skull below the lowest, padlocked before the haunt (when no one can die) and bare after. One track component is used everywhere: on the character card, in a damage preview (where the choice in focus would leave the clip) and, as just the icon and value, in the details. It is HTML and SVG, not 3D.
 
-**The character card** is Your explorer, a sheet over the house: a tab for each explorer, then the explorer's portrait, its four tracks and the cards it holds, with their text. Another explorer's tab is for reading only.
+**The character card** is Your explorer, a sheet over the house, docked in one place whichever tab it shows (a bottom sheet on a phone, a panel at the right on a wide screen, clear of the status box), so switching tabs changes only its contents; the mark of the explorer it shows is lit. A tab for each explorer, then the explorer's portrait, its four tracks and the cards it holds, with their text. Another explorer's tab is for reading only.
 
 ## Actions
 
@@ -225,12 +225,11 @@ Shelved, with what was learnt, for when they are picked up again.
 
 ## Open questions
 
-`v1-play.md` lists the questions paused for the playtest: the reveal's light, pacing, rooms before their light lands, phase 3's small calls, the rotation ghost, the phone layout, the lake's water look, the backlight, and soft or hard shadows. The longer-standing ones:
+`v1-play.md` lists the questions paused for the playtest: the reveal's light, pacing, phase 3's small calls, the phone layout, the lake's water look, the backlight, and soft or hard shadows. The longer-standing ones:
 
 - **One device per player, a shared screen with phones as controllers, or both**, once online play comes. A TV could show what everyone may see (the house, whose turn it is) as a spectator client of the game row, while each phone renders its own seat's `viewFor`: its cards, its choices and, after the reveal, its side's half of the haunt. That suits the server-authoritative design and the traitor's secrets, and could sit beside one device per player.
 - **The layout on phones and on wide screens**, around the status box: how much of a phone it may cover, and what extra width shows.
 - **The reveal's light:** the house turned red (the default) or its moon blue pushed deeper (`?mood=cold`).
 - **The lake's water look:** `shader` or `shader-palette` (`?water=`).
 - **Whether to light a figure lit only from behind** with a rim (the backlight, on by default; `?backlight=off` to compare). Bounce light gives figures some fill from below.
-- **Whether the rotation ghost reads clearly enough as "not placed yet".**
 - **Soft or hard shadows** (`lighting.md`).

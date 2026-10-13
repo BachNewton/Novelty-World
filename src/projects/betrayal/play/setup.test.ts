@@ -1,8 +1,7 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CHARACTERS } from "../data/characters";
-import { portraitSrc, takenBy } from "./setup";
+import { PORTRAITS } from "./portraits";
+import { takenBy } from "./setup";
 
 const seats = [
   { character: "father-rhinehardt" },
@@ -18,12 +17,7 @@ describe("choosing characters at setup", () => {
 });
 
 describe("portraits", () => {
-  it("has one for every character, shot by tools/portraits.mjs", () => {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- a file under public/ named by a character id from the catalogue; no external input
-    for (const { id } of CHARACTERS) expect(existsSync(portraitFile(id)), `No portrait for ${id}: run tools/portraits.mjs`).toBe(true);
+  it("has one for every character and none for anyone else, shot by tools/portraits.mjs", () => {
+    expect(Object.keys(PORTRAITS).sort()).toEqual(CHARACTERS.map(({ id }) => id).sort());
   });
 });
-
-function portraitFile(character: string): string {
-  return path.join(__dirname, "..", "..", "..", "..", "public", portraitSrc(character));
-}

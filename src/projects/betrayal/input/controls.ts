@@ -34,6 +34,8 @@ export interface ChoiceLayout {
 export interface ControlHandlers {
   layout: () => ChoiceLayout;
   focus: (id: string) => void;
+  /** The mouse has left the choice it was over, so nothing has the focus. */
+  blur: () => void;
   /** Commits a choice a pointer picked. */
   commit: (id: string) => void;
   /** Commits the selection: the reticle's choice, or the focused one (the one under the mouse). */
@@ -83,6 +85,11 @@ export interface ControlHandlers {
 
 /** Pointer targets reach at least this far round a choice: a 48 px circle, a fingertip. */
 const FINGER_REACH = 24;
+
+/** The choice a pointer at this point picks: the mouse, a finger, and the controller's reticle at the screen's centre all pick this one way. */
+export function pointAt(targets: readonly Target[], point: Point): string | null {
+  return pickTarget(targets, point, FINGER_REACH);
+}
 const ORBIT_PER_PIXEL = 0.004;
 /** Radians a two-finger drag turns the camera across the screen's full width: a half turn. */
 const TURN_PER_WIDTH = Math.PI;
@@ -183,15 +190,19 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
 
   const tap = (point: Point, kind: "mouse" | "touch") => {
     const { targets, points, focused } = handlers.layout();
-    const id = pickTarget(targets, point, FINGER_REACH);
+    const id = pointAt(targets, point);
     if (id === null) return;
     if (tapAction(kind, id, focused, points.length) === "commit") handlers.commit(id);
     else handlers.focus(id);
   };
-  const hover = (point: Point) => {
+  /** The choice the mouse was over as it last moved: leaving it clears the focus. */
+  let hovered: string | null = null;
+  const hover = (point: Point | null) => {
     const { targets, focused } = handlers.layout();
-    const id = pickTarget(targets, point, FINGER_REACH);
+    const id = point && pointAt(targets, point);
+    if (id === null && hovered !== null) handlers.blur();
     if (id !== null && id !== focused) handlers.focus(id);
+    hovered = id;
   };
   const twoSpan = (): Span => {
     const [a, b] = [...presses.values()];
@@ -314,6 +325,9 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     if (event.code === END_KEY) setEnding("key", false);
     updateHands();
   };
+  const onPointerLeave = (event: PointerEvent) => {
+    if (event.pointerType === "mouse") hover(null);
+  };
   const onBlur = () => {
     keysHeld.clear();
     setRaising("key", false);
@@ -345,6 +359,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
 
   element.addEventListener("pointerdown", onPointerDown);
   element.addEventListener("pointermove", onPointerMove);
+  element.addEventListener("pointerleave", onPointerLeave);
   element.addEventListener("pointerup", onPointerUp);
   element.addEventListener("pointercancel", onPointerCancel);
   element.addEventListener("wheel", onWheel, { passive: false });
@@ -430,6 +445,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
     dispose: () => {
       element.removeEventListener("pointerdown", onPointerDown);
       element.removeEventListener("pointermove", onPointerMove);
+      element.removeEventListener("pointerleave", onPointerLeave);
       element.removeEventListener("pointerup", onPointerUp);
       element.removeEventListener("pointercancel", onPointerCancel);
       element.removeEventListener("wheel", onWheel);

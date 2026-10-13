@@ -22,8 +22,8 @@ Phases 3 to 7 are built but not yet playtested by the owner. P8, haunt 13 in the
 
 **Next session: playtesting, UI first.** The owner plays a game from setup and reports what they see; each piece becomes work. Placeholder art is allowed wherever art isn't ready: UI and playability come first. The UI known to need work, picked up as the playtest reaches it:
 
-- **A UI-size setting** for TV play: in the game menu, on every input, saved per device, scaling all UI, touch targets and the controller's snap radius; 100% by default.
-- **A debug overlay for the controller's snap system** (the snap areas, what is caught and why), then tune the controller's aiming. The magnetism and sticky focus are built but not approved.
+- **A UI-size setting** for TV play: in the game menu, on every input, saved per device, scaling all UI and touch targets; 100% by default.
+- **The controller's aim is decided:** the reticle points at what is under the screen's centre, the mouse's way of picking, with no snapping, magnetism or sticky focus; small things are reached by zooming in (`presentation.md`, "The camera").
 - **Explorer nameplates cover items on the floor** when zoomed out.
 - **The controller-map playtest**, which needs the owner's controller.
 - **The phone and desktop layout** round the status box.
@@ -40,9 +40,7 @@ Phases 3 to 7 are built but not yet playtested by the owner. P8, haunt 13 in the
 
 - The reveal's light: today's red house, or `?mood=cold` (full-house review links exist).
 - Pacing: whether choices waiting for every moment (about 1.6 s each) is too slow. The speed setting scales pauses, not walks (recommended, not objected to).
-- Rooms before their light lands: outlines, or a flat moon fill.
 - Phase 3's small calls: the close-up only where a walk ends; a mid-turn arrival taking a free place; starting rooms unseen after a reload.
-- Whether the rotation ghost reads as "not placed yet".
 - The phone layout round the status box.
 - The lake's water look (`?water=`).
 - The backlight: on by default, `?backlight=off` to compare.
@@ -87,7 +85,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `turn` move: reachable rooms and the cells beyond them glow, a room on another floor glows as its staircase, and each half of a barrier room is its own target. Shown by walking.
 - `turn` discover: the empty cell beyond an unexplored doorway glows, one target per cell. Shown by the ghost, then the tile appearing and the floor re-baking.
 - `turn` end: End turn, an explicit action, held on a pad or the keyboard, never automatic.
-- `rotation`: the ghost tile on its cell, turned through its legal ways round, which are the decision's choices. A tile that fits one way is placed by the engine.
+- `rotation`: the ghost tile on its cell, turned through its legal ways round, which are the decision's choices. A tile that fits one way is placed by the engine. A ghost only ever means "not yet placed": once placed, a room shows solid at once in a flat moon light until its baked light lands (`lighting.md`).
 - `place-tile` (the Mystic Elevator, The Beckoning, cards that move rooms, haunt 13's top-up rooms): the legal cells glow on any floor, and the tile's own cell means "leave it". `room-moved` flies the tile to its new cell with its figures (`art/room-flight.ts`).
 - `choose-one` with room options (the Bottle's teleport, the Dog's run): an option may name a room, and those options are places.
 
