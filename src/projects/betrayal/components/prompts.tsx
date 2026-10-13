@@ -50,10 +50,21 @@ const FACE_COLOUR: Record<"A" | "B" | "X" | "Y", string> = {
   Y: "var(--bt-prompt-y)",
 };
 
-/** A label filling its shape, centred on (x, y). */
+/** The height of a capital in the labels' font, Space Grotesk, in ems of its size. */
+const CAP_HEIGHT = 0.7;
+
+/** How far a label's ink sits off the middle of its advance in that font, in
+ *  ems, measured: a letter's side bearings differ (an L's ink leans left), so
+ *  centring the advance alone leaves it a fraction of a pixel off. */
+const INK_SHIFT: Partial<Record<string, number>> = { L: 0.024, R: 0.014, F: 0.018, LB: 0.013, RB: 0.013, LT: 0.021, RT: 0.021, Tab: -0.009, Enter: 0.022, Esc: 0.017 };
+
+/** A label filling its shape, its ink centred on (x, y): across by its
+ *  measured ink, and down by the capitals' box. The font's own middle
+ *  (`dominant-baseline: central`) sits below the capitals' middle, so the
+ *  baseline is set from the capitals' height instead. */
 function Label({ x, y, size, fill = INK, children }: { x: number; y: number; size: number; fill?: string; children: string }) {
   return (
-    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={size} fontWeight={800} fill={fill} fontFamily="inherit">
+    <text x={x - (INK_SHIFT[children] ?? 0) * size} y={y + (CAP_HEIGHT * size) / 2} textAnchor="middle" fontSize={size} fontWeight={700} fill={fill} fontFamily="inherit">
       {children}
     </text>
   );
@@ -82,7 +93,7 @@ function padShape(glyph: PadGlyph): { width: number; shape: ReactNode } {
         shape: (
           <>
             <circle {...ROUND} fill={FACE_COLOUR[glyph]} stroke="var(--bt-bg)" strokeWidth={2.5} />
-            <Label x={12} y={12.5} size={15} fill="var(--bt-bg)">
+            <Label x={12} y={12} size={15} fill="var(--bt-bg)">
               {glyph}
             </Label>
           </>
@@ -95,7 +106,7 @@ function padShape(glyph: PadGlyph): { width: number; shape: ReactNode } {
         shape: (
           <>
             <Body shape={(paint) => <path d={BUMPER} transform={glyph === "RB" ? mirror(36) : undefined} {...paint} />} />
-            <Label x={18} y={13} size={13.5}>
+            <Label x={18} y={12.375} size={13.5}>
               {glyph}
             </Label>
           </>
@@ -108,7 +119,7 @@ function padShape(glyph: PadGlyph): { width: number; shape: ReactNode } {
         shape: (
           <>
             <Body shape={(paint) => <path d={TRIGGER} transform={glyph === "RT" ? mirror(26) : undefined} {...paint} />} />
-            <Label x={13} y={13.5} size={12.5}>
+            <Label x={13} y={12.25} size={12.5}>
               {glyph}
             </Label>
           </>
@@ -116,16 +127,15 @@ function padShape(glyph: PadGlyph): { width: number; shape: ReactNode } {
       };
     case "L3":
     case "R3":
-      // The stick's cap with its letter, and under it the press mark: a click of the stick.
+      // The stick's cap with its letter: the stick alone says it is pressed.
       return {
         width: 24,
         shape: (
           <>
             <Body shape={(paint) => <circle {...ROUND} {...paint} />} />
-            <Label x={12} y={8.75} size={12.5}>
+            <Label x={12} y={12} size={13}>
               {glyph === "L3" ? "L" : "R"}
             </Label>
-            <path d="M8.75 16.5h6.5L12 19.75z" fill={INK} stroke={INK} strokeWidth={1} strokeLinejoin="round" />
           </>
         ),
       };
@@ -181,17 +191,39 @@ function padShape(glyph: PadGlyph): { width: number; shape: ReactNode } {
 }
 
 /** A keycap with its key's label filling it; a long name gets a wider cap. */
+/** Keys drawn as a symbol rather than a name, on a wide cap: the symbol's box is centred on the cap. */
+const KEY_SYMBOLS: Record<string, { width: number; shape: ReactNode }> = {
+  Backspace: {
+    width: 34,
+    shape: (
+      <path d="M12 7h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H12l-5-5zM17.5 10l4 4m0-4-4 4" fill="none" stroke={INK} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+    ),
+  },
+};
+
+/** A long key name's width in ems of its label, measured in the labels' font, so its cap fits it; another name
+ *  takes an average letter's width. */
+const KEY_NAME_EM: Partial<Record<string, number>> = { Tab: 1.72, Esc: 1.66, Enter: 2.57, Space: 2.98 };
+const KEY_LETTER_EM = 0.6;
+/** The space either side of a long key name, inside its cap. */
+const KEY_PADDING = 5;
+
+/** A keycap with its key's label filling it; a long name gets a cap as wide as the name. */
 function keyShape(label: string): { width: number; shape: ReactNode } {
+  const symbol = KEY_SYMBOLS[label] as { width: number; shape: ReactNode } | undefined;
   const single = label.length <= 1;
-  const width = single ? 24 : 10 + label.length * 7.5;
+  const size = single ? 14 : 11;
+  const width = symbol?.width ?? (single ? 24 : Math.round((KEY_NAME_EM[label] ?? label.length * KEY_LETTER_EM) * size + 2 * KEY_PADDING + 3.5));
   return {
     width,
     shape: (
       <>
         <Body shape={(paint) => <rect x="1.75" y="1.75" width={width - 3.5} height="20.5" rx="4" {...paint} />} />
-        <Label x={width / 2} y={12.5} size={single ? 14 : 11}>
-          {label}
-        </Label>
+        {symbol?.shape ?? (
+          <Label x={width / 2} y={12} size={size}>
+            {label}
+          </Label>
+        )}
       </>
     ),
   };
@@ -234,7 +266,7 @@ export type Meaning = "end-turn" | "explorer" | "menu" | "follow" | "details" | 
 /** Each meaning's control on a pad and on the keyboard, and whether it is a
  *  hold that fills before it acts. Touch has none. */
 const MAP: Record<Meaning, { pad: PadGlyph; key: string | null; fills: boolean }> = {
-  "end-turn": { pad: "X", key: "⌫", fills: true },
+  "end-turn": { pad: "X", key: "Backspace", fills: true },
   explorer: { pad: "Y", key: "I", fills: false },
   menu: { pad: "Menu", key: "M", fills: false },
   follow: { pad: "View", key: "C", fills: false },
