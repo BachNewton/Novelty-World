@@ -8,7 +8,8 @@ import { nextInDirection, type Direction } from "../../input/navigate";
  * box under the house at 0, a sheet over the house at 1, a reader at 2, the
  * menu at 3. The pad works in the highest layer open. Its d-pad moves the
  * focus along a row and between rows (`nextInDirection`), and past the last
- * row up or down it scrolls a long text; A presses the button focused; B
+ * row up or down it scrolls a long text; A presses the button focused (or,
+ * with none, puts the focus on the layer's start as the d-pad does); B
  * presses the layer's last `data-pad-back` control (the innermost thing open
  * closes first). A layer opening puts the focus on its `data-pad-start`
  * control, or its first.
@@ -121,8 +122,10 @@ export function padPress(layer: HTMLElement, button: StandardButton, out: (() =>
     return true;
   }
   if (button === "A") {
-    from?.click();
-    return from !== null;
+    // With nothing focused, A brings the focus into view rather than doing nothing.
+    if (from === null) return enterLayer(layer);
+    from.click();
+    return true;
   }
   if (button === "B") {
     const backs = [...layer.querySelectorAll<HTMLElement>("[data-pad-back]")].filter((back) => back.closest("[data-pad-layer]") === layer && shows(back));

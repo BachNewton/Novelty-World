@@ -6,7 +6,6 @@ import type { Character } from "../types";
  */
 
 export interface SeatChoice {
-  name: string;
   character: string;
 }
 

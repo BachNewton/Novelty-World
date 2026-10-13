@@ -12,8 +12,9 @@ import { TraitIcon } from "../icons";
  * explorers at once, keeps only the value and the steps left above the skull.
  */
 
-/** One trait's track, with a change previewed when it has one. */
-export function TrackRow({ track }: { track: TraitTrack }) {
+/** One trait's track, with a change previewed when it has one. At setup,
+ *  where no one can die yet, `skull` false leaves the skull out. */
+export function TrackRow({ track, skull = true }: { track: TraitTrack; skull?: boolean }) {
   const name = traitName(track.trait);
   const { lands } = track;
   const moved = lands !== null && lands !== track.clip;
@@ -23,17 +24,19 @@ export function TrackRow({ track }: { track: TraitTrack }) {
   return (
     <div aria-label={`${name} track`} className="flex items-center gap-1 text-xs">
       <TraitIcon trait={track.trait} label={name} className="size-5 shrink-0" />
-      <span
-        aria-label={locked ? "Skull: locked until the haunt" : "Skull: death"}
-        data-skull={track.skull}
-        data-after={skullHit ? "true" : undefined}
-        className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded border ${
-          skullHit ? "border-(--bt-danger) bg-(--bt-danger) text-(--bt-bg)" : locked ? "border-dashed border-(--bt-line) text-(--bt-muted)" : "border-(--bt-danger) text-(--bt-danger)"
-        }`}
-      >
-        <Skull aria-hidden className="size-4" />
-        {locked && <Lock aria-hidden className={`absolute -right-1 -bottom-1 size-3 rounded-sm bg-(--bt-panel) ${track.stopped ? "text-(--bt-accent)" : "text-(--bt-muted)"}`} />}
-      </span>
+      {skull && (
+        <span
+          aria-label={locked ? "Skull: locked until the haunt" : "Skull: death"}
+          data-skull={track.skull}
+          data-after={skullHit ? "true" : undefined}
+          className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded border ${
+            skullHit ? "border-(--bt-danger) bg-(--bt-danger) text-(--bt-bg)" : locked ? "border-dashed border-(--bt-line) text-(--bt-muted)" : "border-(--bt-danger) text-(--bt-danger)"
+          }`}
+        >
+          <Skull aria-hidden className="size-4" />
+          {locked && <Lock aria-hidden className={`absolute -right-1 -bottom-1 size-3 rounded-sm bg-(--bt-panel) ${track.stopped ? "text-(--bt-accent)" : "text-(--bt-muted)"}`} />}
+        </span>
+      )}
       <ol className="flex min-w-0 flex-1 gap-0.5">
         {track.values.map((value, index) => {
           const now = index === track.clip;

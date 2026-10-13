@@ -1,34 +1,37 @@
 ---
 name: worktree
-description: Give an agent (or a second dev server) its own git worktree of Novelty World, so its edits never hot-reload into the owner's running dev server and parallel agents don't trip over each other's half-finished files. Covers creating it from the current HEAD, installing dependencies (a cached npm install, never a junction), launching the agent in it, landing its branch back on the main checkout, and removing it safely. Use whenever work is delegated while the owner is playtesting on their dev server, when several agents edit in parallel, or when a reference build must run beside the main one.
+description: Give an agent (or a second dev server) its own git worktree of Novelty World, so its edits never hot-reload into the owner's running dev server and parallel agents don't trip over each other's half-finished files. Covers creating it from the current HEAD with setup.ps1 (no npm install: it resolves the main checkout's node_modules upward), the dependency-change exception, launching the agent in it, landing its branch back on the main checkout, and removing it safely with teardown.ps1. Use whenever work is delegated while the owner is playtesting on their dev server, when several agents edit in parallel, or when a reference build must run beside the main one.
 ---
 
 # Worktrees for agents
 
 The owner keeps `npm run dev` running in the main checkout and plays while agents work. An agent editing that checkout hot-reloads half-finished code into the game. So each agent gets its own worktree on its own branch, and the main checkout only changes when a finished, green piece of work lands.
 
-## Create it from HEAD
+## Create it
 
-Worktrees live in `.claude/worktrees/<name>` (gitignored, and inside the session's directory, so agents may write there). Create the branch from the current `HEAD`, not from `origin/main`: work that has landed locally but isn't pushed yet must be in it.
+From the main checkout:
 
-```bash
-git -C <repo> worktree add .claude/worktrees/<name> -b <branch> HEAD
+```powershell
+.\.claude\skills\worktree\setup.ps1 -Name <name> -Branch <branch>
 ```
 
-Don't use `EnterWorktree` with a `name` for this: it branches from `origin/<default branch>`, which misses local commits.
+It creates `.claude/worktrees/<name>` on a new branch from the current `HEAD`, copies `.env.local`, and runs `next typegen`. It takes seconds.
 
-## Dependencies: a cached install, never a junction
+- **From `HEAD`, not `origin/main`:** work that has landed locally but isn't pushed yet must be in the branch. That is also why `EnterWorktree` with a `name` is the wrong tool here: it branches from `origin/<default branch>`.
+- **`.env.local` is copied, never linked.** It is gitignored, so a fresh worktree has none, and anything touching Supabase fails without it.
+- **`next typegen`** writes `next-env.d.ts`, which is gitignored too. Without it `npm run typecheck` fails on every image import. A dev server or build in the worktree rewrites it anyway.
 
-From the worktree:
+## Dependencies: none to install
 
-```bash
-npm install --prefer-offline --no-audit --no-fund
-cp <repo>/.env.local .env.local
-```
+A worktree has no `node_modules` of its own. It sits inside the main checkout, so Node resolves packages upward and finds the main checkout's install. Nothing is copied or linked, so nothing is at risk. It is safe because every tool that walks the main checkout leaves nested checkouts alone:
 
-The install takes about a minute from npm's cache (node_modules is about 1.9 GB, 45,000 files, so a copy is unlikely to beat it) and always matches the worktree's lockfile. `.env.local` is gitignored, so a fresh worktree has none and anything touching Supabase fails without it; copy it, never link it.
+- `.gitignore` ignores `.claude/*` (skills and commands are un-ignored, worktrees are not).
+- Lint ignores `.claude/**` (`eslint.config.mjs`), vitest excludes `NESTED_CHECKOUTS` (`vitest.config.ts`), `tsconfig.json` excludes `.claude/worktrees`, and Playwright only looks in `e2e/`. Without the tsconfig exclude the main checkout type-checks worktree files against its own `@/*` paths and reports phantom errors under `.claude/worktrees/`; if those ever appear, the exclude was dropped.
+- Turbopack compiles nothing outside its root, which defaults to the nearest lockfile's folder: the worktree, where it can't find `next`. `next.config.ts` sets the root to the nearest folder holding `node_modules/next`, which is the repo root everywhere except a worktree.
 
-**Never junction or symlink `node_modules` (or anything) into a worktree.** `git worktree remove` follows a junction and deletes the real files in the main checkout, with no recycle bin. Turbopack also rejects a `node_modules` pointing outside the project, and the webpack fallback no longer compiles on Next 16 (`node:process` is unhandled), so the trick doesn't even work.
+**The exception: a branch that changes dependencies.** Upward resolution hands the worktree the main checkout's install, so a branch that edits `package.json` or `package-lock.json` runs against the wrong packages. Run `npm install` inside that worktree after the change, and only then. Never run it in the main checkout from an agent: other processes use that install.
+
+**Never junction or symlink `node_modules` (or anything) into a worktree.** `git worktree remove` follows a junction and deletes the real files in the main checkout, with no recycle bin. Turbopack also rejects a `node_modules` pointing outside its root, so the trick doesn't even work.
 
 ## Launch the agent in it
 
@@ -46,9 +49,8 @@ From the main checkout, merge the agent's branch (`git merge <branch>`), resolve
 
 ## Remove it
 
-```bash
-git -C <repo> worktree remove .claude/worktrees/<name>
-git -C <repo> branch -d <branch>
+```powershell
+.\.claude\skills\worktree\teardown.ps1 -Name <name>
 ```
 
-If a junction somehow exists inside a worktree, remove the link alone first (`cmd /c "rmdir <link>"`) before any recursive delete.
+It refuses a worktree with uncommitted changes or a branch that isn't merged (`-Force` overrides both; `-KeepBranch` keeps the branch). It deletes the folder with `rmdir /s`, which removes a junction without entering it, rather than `git worktree remove`, which follows one: no junction should exist, but a build in the worktree can make some under `.next`. Then it prunes the worktree and deletes the branch.

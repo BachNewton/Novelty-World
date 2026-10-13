@@ -23,16 +23,16 @@ test.use({
 });
 test.setTimeout(120_000);
 
-/** Ann (Zoe Ingstrom) goes first, then Ben (Ox Bellows), then Cat (Father Rhinehardt). */
+/** Zoe Ingstrom goes first, then Ox Bellows, then Father Rhinehardt. */
 const GAME = {
   format: 3,
   game: {
     seed: "e2e-pads",
     sets: ["base"],
     seats: [
-      { name: "Ann", character: "zoe-ingstrom" },
-      { name: "Ben", character: "ox-bellows" },
-      { name: "Cat", character: "father-rhinehardt" },
+      { character: "zoe-ingstrom" },
+      { character: "ox-bellows" },
+      { character: "father-rhinehardt" },
     ],
     today: { month: 11, day: 5 },
   },
@@ -199,7 +199,7 @@ async function openSetup(page: Page): Promise<void> {
 
 const padButton = (page: Page, seat: string, pad: string) =>
   page
-    .getByRole("group", { name: `${seat}'s pad` })
+    .getByRole("group", { name: `${seat}'s controller` })
     .getByRole("button", { name: pad, exact: true });
 
 test("two pads: claimed at setup, only the acting seat's pad acts and drives the camera, reassigned in the panel, freed on disconnect", async ({
@@ -208,31 +208,31 @@ test("two pads: claimed at setup, only the acting seat's pad acts and drives the
   await openSetup(page);
 
   // Pad 1 takes the first seat, pressing its own pad on the seat's picker; Pad 2 takes the next two.
-  await padPress(page, 0, padButton(page, "Player 1", "Pad 1"));
-  await expect(padButton(page, "Player 1", "Pad 1")).toHaveAttribute(
+  await padPress(page, 0, padButton(page, "Father Rhinehardt", "Controller 1"));
+  await expect(padButton(page, "Father Rhinehardt", "Controller 1")).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-  await padPress(page, 1, padButton(page, "Player 2", "Pad 2"));
-  await padPress(page, 1, padButton(page, "Player 3", "Pad 2"));
-  await expect(padButton(page, "Player 2", "Pad 2")).toHaveAttribute(
+  await padPress(page, 1, padButton(page, 'Darrin "Flash" Williams', "Controller 2"));
+  await padPress(page, 1, padButton(page, "Zoe Ingstrom", "Controller 2"));
+  await expect(padButton(page, 'Darrin "Flash" Williams', "Controller 2")).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-  await expect(padButton(page, "Player 3", "Pad 2")).toHaveAttribute(
+  await expect(padButton(page, "Zoe Ingstrom", "Controller 2")).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-  await expect(padButton(page, "Player 1", "Open")).toHaveAttribute(
+  await expect(padButton(page, "Father Rhinehardt", "Open")).toHaveAttribute(
     "aria-pressed",
     "false",
   );
 
-  // The claims carry into the game: seat by seat, Ann has Pad 1, Ben and Cat Pad 2.
+  // The claims carry into the game: seat by seat, Zoe has Pad 1, Ox and Father Rhinehardt Pad 2.
   await page.getByRole("button", { name: "Resume" }).click();
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
 
-  // Pad 2's stick is idle on Ann's turn: the camera stays put. Pad 1's moves it.
+  // Pad 2's stick is idle on Zoe's turn: the camera stays put. Pad 1's moves it.
   const before = await cameraTarget(page);
   await setPad(page, 1, { axes: [1, 0, 0, 0] });
   await frames(page, 20);
@@ -250,7 +250,7 @@ test("two pads: claimed at setup, only the acting seat's pad acts and drives the
   await setPad(page, 0, { axes: [0, 0, 0, 0] });
   await until(page, "play.holder === 0");
 
-  // Pad 2's X does nothing on Ann's turn; Pad 1's, held, ends it.
+  // Pad 2's X does nothing on Zoe's turn; Pad 1's, held, ends it.
   await idleX(page, 1);
   await holdX(
     page,
@@ -258,7 +258,7 @@ test("two pads: claimed at setup, only the acting seat's pad acts and drives the
     "play.holder === 1 && play.turnSeat === 1 && play.pending?.kind === 'turn'",
   );
 
-  // On Ben's turn it is the other way round.
+  // On Ox's turn it is the other way round.
   await idleX(page, 0);
   await holdX(
     page,
@@ -266,12 +266,12 @@ test("two pads: claimed at setup, only the acting seat's pad acts and drives the
     "play.holder === 2 && play.turnSeat === 2 && play.pending?.kind === 'turn'",
   );
 
-  // Cat hands her seat to Pad 1: any pad's Menu, even an idle one's, opens the game menu, where Pad 1's A on Cat's "Pad 1" takes it.
+  // Father Rhinehardt hands his seat to Pad 1: any pad's Menu, even an idle one's, opens the game menu, where Pad 1's A on Father Rhinehardt's "Controller 1" takes it.
   await press(page, 0, BUTTON.Menu);
   const menu = page.getByRole("dialog", { name: "Game menu" });
   await expect(menu).toBeVisible();
-  await padPress(page, 0, padButton(page, "Cat", "Pad 1"));
-  await expect(padButton(page, "Cat", "Pad 1")).toHaveAttribute(
+  await padPress(page, 0, padButton(page, "Father Rhinehardt", "Controller 1"));
+  await expect(padButton(page, "Father Rhinehardt", "Controller 1")).toHaveAttribute(
     "aria-pressed",
     "true",
   );
@@ -280,11 +280,11 @@ test("two pads: claimed at setup, only the acting seat's pad acts and drives the
   await idleX(page, 1);
   await holdX(page, 0, "play.holder === 0 && play.turnSeat === 0");
 
-  // Pad 2 is unplugged: Ben's seat opens, the status box says so, and Pad 1 may play it.
+  // Pad 2 is unplugged: Ox's seat opens, the status box says so, and Pad 1 may play it.
   await unplug(page, 1);
   await expect(
     page.getByLabel("What you can do now").getByRole("status"),
-  ).toContainText("Pad 2 disconnected: Ben (Ox Bellows) is open to any pad.");
+  ).toContainText("Controller 2 disconnected: Ox Bellows is open to any controller.");
   await holdX(page, 0, "play.holder === 1 && play.turnSeat === 1");
   await holdX(page, 0, "play.holder === 2 && play.turnSeat === 2");
 });
@@ -295,8 +295,7 @@ test("setup on a pad: the d-pad and A change a seat's character and pick one fro
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" })).toBeVisible();
   await padPress(page, 0, page.getByRole("button", { name: "Seat 0: next character" }));
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Professor Longfellow" })).toBeVisible();
-  await press(page, 0, BUTTON.DpadLeft);
-  await press(page, 0, BUTTON.A);
+  await padPress(page, 0, page.getByRole("button", { name: "Seat 0: previous character" }));
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" })).toBeVisible();
   // The portrait opens the grid; A picks a character there, and B closes it.
   await padPress(page, 0, seat0.getByRole("button", { name: /^Seat 0 character/ }));
@@ -318,28 +317,28 @@ test.describe("on a touch screen with a mouse", () => {
     page,
   }) => {
     await openSetup(page);
-    await padPress(page, 1, padButton(page, "Player 1", "Pad 2"));
-    await expect(padButton(page, "Player 1", "Pad 2")).toHaveAttribute(
+    await padPress(page, 1, padButton(page, "Father Rhinehardt", "Controller 2"));
+    await expect(padButton(page, "Father Rhinehardt", "Controller 2")).toHaveAttribute(
       "aria-pressed",
       "true",
     );
     await page.getByRole("button", { name: "Resume" }).click();
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
 
-    // Ann's seat is Pad 2's, but the mouse ends her turn.
+    // Zoe's seat is Pad 2's, but the mouse ends her turn.
     await page.getByRole("button", { name: "End turn" }).click();
     await until(page, "play.holder === 1 && play.turnSeat === 1");
 
-    // The game menu by mouse: Ben's seat goes to Pad 2, so Pad 1 is idle on his turn.
+    // The game menu by mouse: Ox's seat goes to Pad 2, so Pad 1 is idle on his turn.
     await page.getByRole("button", { name: "Menu", exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Game menu" });
-    await padButton(page, "Ben", "Pad 2").click();
-    await expect(padButton(page, "Ben", "Pad 2")).toHaveAttribute(
+    await padButton(page, "Ox Bellows", "Controller 2").click();
+    await expect(padButton(page, "Ox Bellows", "Controller 2")).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    await padButton(page, "Ann", "Open").click();
-    await expect(padButton(page, "Ann", "Open")).toHaveAttribute(
+    await padButton(page, "Zoe Ingstrom", "Open").click();
+    await expect(padButton(page, "Zoe Ingstrom", "Open")).toHaveAttribute(
       "aria-pressed",
       "true",
     );

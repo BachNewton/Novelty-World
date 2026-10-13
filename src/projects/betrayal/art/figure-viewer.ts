@@ -40,6 +40,8 @@ export interface ViewerFigure {
   id: string;
   name: string;
   kind: "explorer" | "pawn" | "monster";
+  /** The character it shows as a seat shows them, or null for a figure that is no character's. */
+  character: string | null;
   build: (stunned: boolean) => ExplorerBuilder;
   /** The seat colour of the ring round its base: the character card's. */
   ring: PaletteKey | null;
@@ -55,15 +57,15 @@ function viewerFigures(): ViewerFigure[] {
     const own = hasFigure(character.id) ? BENCH_EXPLORERS.find((figure) => figure.build === build) : undefined;
     const speed = { track: character.tracks.speed, start: character.tracks.speed[character.start.speed] };
     return own
-      ? { id: own.id, name: character.name, kind: "explorer" as const, build: () => build, ring, speed }
-      : { id: character.id, name: `${character.name} (pawn)`, kind: "pawn" as const, build: () => build, ring, speed };
+      ? { id: own.id, name: character.name, kind: "explorer" as const, character: character.id, build: () => build, ring, speed }
+      : { id: character.id, name: `${character.name} (pawn)`, kind: "pawn" as const, character: character.id, build: () => build, ring, speed };
   });
   return [
     ...characters.filter(({ kind }) => kind === "explorer"),
     ...characters.filter(({ kind }) => kind === "pawn"),
-    { id: "pawn", name: "Scale pawn", kind: "pawn", build: () => () => pawn(), ring: null, speed: null },
-    { id: "banshee", name: "The Banshee", kind: "monster", build: (stunned) => (seed, gait) => banshee(seed, gait, { stunned }), ring: null, speed: null },
-    { id: "spider", name: "The Spider", kind: "monster", build: (stunned) => (seed, gait) => spider(seed, gait, { stunned }), ring: null, speed: null },
+    { id: "pawn", name: "Scale pawn", kind: "pawn", character: null, build: () => () => pawn(), ring: null, speed: null },
+    { id: "banshee", name: "The Banshee", kind: "monster", character: null, build: (stunned) => (seed, gait) => banshee(seed, gait, { stunned }), ring: null, speed: null },
+    { id: "spider", name: "The Spider", kind: "monster", character: null, build: (stunned) => (seed, gait) => spider(seed, gait, { stunned }), ring: null, speed: null },
   ];
 }
 
@@ -72,7 +74,7 @@ export const VIEWER_FIGURES: readonly ViewerFigure[] = viewerFigures();
 /** What a line-up does: every explorer in the same state. */
 export const LINE_UP_STATES = ["idle", "walk", "run"] as const satisfies readonly FigureState[];
 
-export const LIGHTS = ["studio", "lamp", "backlit", "moon", "dim"] as const;
+export const LIGHTS = ["studio", "lamp", "backlit", "moon", "dim", "portrait"] as const;
 export type LightPreset = (typeof LIGHTS)[number];
 export const LIGHT_LABELS: Record<LightPreset, string> = {
   studio: "Even studio",
@@ -80,15 +82,17 @@ export const LIGHT_LABELS: Record<LightPreset, string> = {
   backlit: "Back-lit",
   moon: "Moonlight only",
   dim: "Dim room",
+  portrait: "Portrait backdrop",
 };
 
-export const CAMERAS = ["house", "close", "eye", "turntable"] as const;
+export const CAMERAS = ["house", "close", "eye", "turntable", "portrait"] as const;
 export type CameraPreset = (typeof CAMERAS)[number];
 export const CAMERA_LABELS: Record<CameraPreset | "free", string> = {
   house: "House distance",
   close: "Close-up",
   eye: "Eye level",
   turntable: "Turntable",
+  portrait: "Portrait",
   free: "Free",
 };
 
@@ -139,6 +143,8 @@ export interface FigureViewerApi {
   /** The figure built and shown, its textures drawn and its shaders ready. */
   isReady: () => boolean;
   figures: () => string[];
+  /** Every character, with the figure that shows them as a seat does: their own, or the pawn in their card's colour. */
+  characters: () => { character: string; figure: string }[];
   setFigure: (id: string) => void;
   /** Steps to the next (1) or previous (-1) figure. */
   stepFigure: (by: number) => void;
@@ -180,6 +186,9 @@ type Cube = readonly (readonly [PaletteKey, number])[];
 interface LightRig {
   background: PaletteKey;
   floor: PaletteKey;
+  /** Whether the figure stands on a photographer's sweep, its floor curving up into a backdrop behind it as the
+   *  camera sees it, in place of the plain round floor. */
+  sweep?: true;
   hemisphere: { sky: PaletteKey; ground: PaletteKey; intensity: number };
   key: { colour: PaletteKey; intensity: number; from: THREE.Vector3 };
   lamp: { colour: PaletteKey; intensity: number; at: THREE.Vector3 };
@@ -265,10 +274,35 @@ const LIGHT_RIGS: Record<LightPreset, LightRig> = {
     lamp: { colour: "amber", intensity: 2, at: new THREE.Vector3(-2.5, 2.2, 1.5) },
     probe: even("moon", 0.3, 0.45, 0.08),
   },
+  // A miniature photographed on a dark backdrop: a soft warm key from the front left, a little warm fill, and the
+  // cold moon behind, lighting the backdrop round the figure and catching its edges as a rim.
+  portrait: {
+    background: "void",
+    floor: "ash",
+    sweep: true,
+    hemisphere: { sky: "moon", ground: "void", intensity: 0.6 },
+    key: { colour: "boneLight", intensity: 1.4, from: new THREE.Vector3(0.8, 3, 4) },
+    lamp: { colour: "moon", intensity: 4, at: new THREE.Vector3(-1.3, 1, -1.3) },
+    probe: [
+      ["boneDark", 0.45],
+      ["moonLight", 1],
+      ["boneLight", 0.6],
+      ["void", 0.1],
+      ["boneDark", 0.45],
+      ["moonLight", 1],
+    ],
+  },
 };
 
 /** How far round the plain floor reaches, in metres. */
 const FLOOR_RADIUS = 4;
+/** The sweep, in metres: how wide, how far its floor reaches in front of the figure and behind it to the foot of
+ *  the backdrop, the radius of the curve between them, and how tall the backdrop stands. */
+const SWEEP = { width: 8, front: 3, back: 2.5, bend: 0.8, height: 4 };
+const SWEEP_STEPS = 12;
+/** The portrait camera: the height it aims at and how far round that its frame reaches, the same for every
+ *  figure so their heights stay true, and how far it looks down. */
+const PORTRAIT = { aim: 0.85, reach: 0.76, pitch: THREE.MathUtils.degToRad(12) };
 /** The camera's tilts for each preset that frames the figure close, and how fast the turntable turns, radians a second. */
 const CLOSE_PITCH = THREE.MathUtils.degToRad(18);
 /** Where a figure's eyes are, as a share of its height. */
@@ -281,6 +315,26 @@ const CLOSE_REACH = 0.62;
 /** Pad sticks: the share of the view's distance panned, and the radians turned, per second at full tilt. */
 const PAD_PAN = 0.9;
 const PAD_TURN = 2;
+
+/** The sweep's surface, facing +z (the camera, once turned to face it) and up: its floor from the front edge back,
+ *  round the curve and up the backdrop, as one seamless sheet. */
+function sweepGeometry(): THREE.BufferGeometry {
+  const { width, front, back, bend, height } = SWEEP;
+  const foot = -back + bend;
+  const profile = [new THREE.Vector2(front, 0), new THREE.Vector2(foot, 0)];
+  for (let step = 1; step <= SWEEP_STEPS; step++) {
+    const angle = (step / SWEEP_STEPS) * (Math.PI / 2);
+    profile.push(new THREE.Vector2(foot - Math.sin(angle) * bend, bend - Math.cos(angle) * bend));
+  }
+  profile.push(new THREE.Vector2(-back, height));
+  const positions = profile.flatMap(({ x: z, y }) => [-width / 2, y, z, width / 2, y, z]);
+  const index = profile.slice(1).flatMap((_, i) => [2 * i, 2 * i + 1, 2 * i + 2, 2 * i + 1, 2 * i + 3, 2 * i + 2]);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(index);
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 /** The address's settings, read as the viewer opens; anything it doesn't know throws, so a typo never passes for a choice. */
 function fromAddress(search: string) {
@@ -403,6 +457,7 @@ export function createFigureViewer(search: string) {
     frameCount: () => frames,
     isReady: () => ready,
     figures: () => VIEWER_FIGURES.map(({ id }) => id),
+    characters: () => VIEWER_FIGURES.flatMap(({ id, character }) => (character === null ? [] : [{ character, figure: id }])),
     setFigure: (id) => {
       figureById(id);
       update({ figure: id, lineUp: false, burst: null, ...statsFor(false, id) });
@@ -561,7 +616,9 @@ export function createFigureViewer(search: string) {
     const floorMaterial = new THREE.MeshLambertMaterial();
     const floor = new THREE.Mesh(new THREE.CircleGeometry(FLOOR_RADIUS, 64).rotateX(-Math.PI / 2), floorMaterial);
     floor.position.y = -0.002;
-    const stage = group(hemisphere, key, key.target, lamp, floor);
+    const sweep = new THREE.Mesh(sweepGeometry(), floorMaterial);
+    sweep.position.y = -0.002;
+    const stage = group(hemisphere, key, key.target, lamp, floor, sweep);
     scene.add(stage);
     const background = new THREE.Color();
     scene.background = background;
@@ -571,6 +628,8 @@ export function createFigureViewer(search: string) {
       const rig = LIGHT_RIGS[snapshot.light];
       background.set(paletteHex(rig.background));
       floorMaterial.color.set(paletteHex(rig.floor));
+      floor.visible = rig.sweep === undefined;
+      sweep.visible = !floor.visible;
       hemisphere.color.set(paletteHex(rig.hemisphere.sky));
       hemisphere.groundColor.set(paletteHex(rig.hemisphere.ground));
       hemisphere.intensity = rig.hemisphere.intensity;
@@ -661,6 +720,10 @@ export function createFigureViewer(search: string) {
         aim.set(0, 0, 0);
         pitch = DEFAULT_PITCH;
         distance = cameraDistance(1, camera.aspect);
+      } else if (preset === "portrait") {
+        aim.y = PORTRAIT.aim;
+        pitch = PORTRAIT.pitch;
+        distance = PORTRAIT.reach / Math.sin(Math.min(vertical, horizontal) / 2);
       } else {
         aim.x += subject.figure ? 0 : subject.centre.x;
         aim.z += subject.figure ? 0 : subject.centre.z;
@@ -671,6 +734,9 @@ export function createFigureViewer(search: string) {
       distance /= nearer;
       toward.set(Math.sin(azimuth) * Math.cos(pitch), Math.sin(pitch), Math.cos(azimuth) * Math.cos(pitch));
       camera.position.copy(aim).addScaledVector(toward, distance);
+      // The backdrop stands behind the figure, wherever the camera has turned to.
+      sweep.position.set(aim.x, sweep.position.y, aim.z);
+      sweep.rotation.y = azimuth;
       controls.target.copy(aim);
       camera.lookAt(aim);
       camera.near = Math.max(0.02, distance / 100);

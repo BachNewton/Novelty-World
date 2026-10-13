@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GameView } from "../../engine/view";
-import { viewExplorer } from "../../engine/view";
+import { seatName, viewExplorer, type GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import { padMayAct, padName, padOf } from "../../play/pads";
-import { seatLabel } from "../describe";
 import { PadPicker } from "./pad-picker";
 import { seatDot } from "./seat-colour";
 import type { PadSeats } from "./use-pads";
@@ -61,7 +59,7 @@ export function useSeatInputs(holder: number, input: InputKind, pads: PadSeats, 
 export function freedText(view: GameView, pads: PadSeats): string | null {
   if (pads.freed.length === 0) return null;
   return pads.freed
-    .map(({ pad, seats }) => `${padName(pad)} disconnected: ${new Intl.ListFormat("en").format(seats.map((seat) => seatLabel(view, seat)))} ${seats.length === 1 ? "is" : "are"} open to any pad.`)
+    .map(({ pad, seats }) => `${padName(pad)} disconnected: ${new Intl.ListFormat("en").format(seats.map((seat) => seatName(view, seat)))} ${seats.length === 1 ? "is" : "are"} open to any controller.`)
     .join(" ");
 }
 
@@ -69,21 +67,21 @@ export function freedText(view: GameView, pads: PadSeats): string | null {
 export function SeatsSection({ view, pads }: { view: GameView; pads: PadSeats }) {
   const freed = freedText(view, pads);
   return (
-    <section aria-label="Seats and pads" className="flex flex-col gap-2">
-      <h3 className="font-semibold">Seats and pads</h3>
-      <p className="text-xs text-(--bt-muted)">Choose each seat&apos;s pad: a seat with no pad is open to any pad. Touch and the mouse always act for whoever&apos;s turn it is.</p>
-      {pads.connected.length === 0 && <p className="text-sm">No pads connected: press a button on a pad to connect it.</p>}
+    <section aria-label="Seats and controllers" className="flex flex-col gap-2">
+      <h3 className="font-semibold">Seats and controllers</h3>
+      <p className="text-xs text-(--bt-muted)">Choose each seat&apos;s controller: a seat with none is open to any controller. Touch and the mouse always act for whoever&apos;s turn it is.</p>
+      {pads.connected.length === 0 && <p className="text-sm">No controllers connected: press a button on a controller to connect it.</p>}
       {freed !== null && <p className="text-sm">{freed}</p>}
       <ul className="flex flex-col gap-2">
-        {view.seats.map((seat, index) => {
+        {view.seats.map((_seat, index) => {
           const explorer = viewExplorer(view, index);
           return (
-            <li key={index} aria-label={seatLabel(view, index)} className="flex flex-col gap-1 rounded border border-(--bt-line) p-2">
+            <li key={index} aria-label={seatName(view, index)} className="flex flex-col gap-1 rounded border border-(--bt-line) p-2">
               <span className="flex items-center gap-1.5 text-sm font-semibold">
                 {explorer && <span className={`inline-block size-2.5 rounded-full ${seatDot(ENGINE, explorer.definition)}`} />}
-                {seatLabel(view, index)}
+                {seatName(view, index)}
               </span>
-              <PadPicker seat={index} name={seat.name} pads={pads} />
+              <PadPicker seat={index} name={seatName(view, index)} pads={pads} />
             </li>
           );
         })}

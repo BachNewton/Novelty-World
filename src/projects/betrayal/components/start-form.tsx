@@ -19,8 +19,7 @@ export type Seats = SharedGame["game"]["seats"];
 /** One explorer from each of the first few character cards. */
 export function defaultSeats(characters: Character[], count: number): Seats {
   const cards = [...new Set(characters.map((c) => c.card))];
-  return cards.slice(0, count).map((card, index) => ({
-    name: `Player ${index + 1}`,
+  return cards.slice(0, count).map((card) => ({
     character: characters.find((c) => c.card === card)?.id ?? "",
   }));
 }
@@ -181,7 +180,7 @@ export function SeatPickers({
     const free = characters.find((c) => !taken.has(c.card));
     onChange([
       ...seats,
-      { name: `Player ${seats.length + 1}`, character: free?.id ?? "" },
+      { character: free?.id ?? "" },
     ]);
   };
   return (
@@ -198,14 +197,6 @@ export function SeatPickers({
             onFocus={() => onSeatFocus?.(index)}
           >
             <span className="w-14 text-sm text-(--bt-muted)">Seat {index}</span>
-            <input
-              className={`${FIELD} flex-1`}
-              value={seat.name}
-              aria-label={`Seat ${index} name`}
-              onChange={(e) => {
-                update(index, { name: e.target.value });
-              }}
-            />
             <select
               className={`${FIELD} flex-1`}
               value={seat.character}

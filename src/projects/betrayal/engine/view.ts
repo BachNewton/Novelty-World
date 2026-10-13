@@ -61,7 +61,6 @@ export type EventView = Omit<GameEvent, "rule"> & { rule: RuleView };
 
 /** A seat as a viewer sees it. */
 export interface SeatView {
-  name: string;
   controller: Seat["controller"];
   /** None before the haunt, and none while it is kept from this viewer. */
   side: Side | null;
@@ -349,10 +348,9 @@ function jsonView(
 }
 
 function seatView(state: GameState, viewer: number | null, seat: number): SeatView {
-  const { name, controller, side, roles, knownBy } = state.seats[seat];
+  const { controller, side, roles, knownBy } = state.seats[seat];
   const hidden = !knowsSide(state, viewer, seat);
   return {
-    name,
     controller,
     side: hidden ? null : side,
     roles: hidden ? [] : [...roles],
@@ -671,4 +669,11 @@ export function viewFor(
 export function viewExplorer(view: GameView, seat: number): FigureView | null {
   const id = explorerOf(view, seat);
   return id === null ? null : view.figures[id];
+}
+
+/** What players call a seat: its explorer's name, the character they chose
+ *  at setup. A seat whose explorer has left the board is named by its place
+ *  at the table. */
+export function seatName(view: GameView, seat: number): string {
+  return viewExplorer(view, seat)?.name ?? `Seat ${seat + 1}`;
 }

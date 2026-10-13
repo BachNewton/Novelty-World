@@ -1,4 +1,4 @@
-import type { FigureId, Trait } from "../types";
+import type { Character, FigureId, Trait } from "../types";
 import { TRAITS } from "../engine/figures";
 import type { Engine } from "../engine/step-loop";
 import type { GameView } from "../engine/view";
@@ -50,6 +50,20 @@ export const stepsAboveSkull = (clip: number): number => clip + 1;
 /** A figure's four tracks, in the card's order, with nothing previewed. */
 export function figureTracks(engine: Engine, view: GameView, figure: FigureId): TraitTrack[] {
   return TRAITS.map((trait) => traitTrack(engine, view, figure, trait, null));
+}
+
+/** A character's four tracks as their card prints them, the clip on each
+ *  starting step: for choosing a character at setup, before anyone can die. */
+export function characterTracks(character: Character): TraitTrack[] {
+  return TRAITS.map((trait) => ({
+    trait,
+    values: character.tracks[trait],
+    clip: character.start[trait],
+    start: character.start[trait],
+    skull: "locked",
+    lands: null,
+    stopped: false,
+  }));
 }
 
 /** One of a figure's tracks, with a change of `spaces` previewed (or null). */

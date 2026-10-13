@@ -198,12 +198,15 @@ function HoldRing({ holding, onHeld }: { holding: boolean; onHeld?: () => void }
   );
 }
 
-/** One control's glyph, `size` pixels tall; `hold` draws the hold ring round it. */
-export function ControlGlyph({ control, size = 18, hold, className }: { control: Control; size?: number; hold?: { holding: boolean; onHeld?: () => void }; className?: string }) {
+/** Every glyph sits on an opaque chip of its own, so it reads whatever is behind it. */
+const CHIP = "rounded-md bg-(--bt-bg) text-(--bt-ink)";
+
+/** One control's glyph, `size` pixels tall, on its chip; `hold` draws the hold ring round it. */
+export function ControlGlyph({ control, size = 18, hold, className = "" }: { control: Control; size?: number; hold?: { holding: boolean; onHeld?: () => void }; className?: string }) {
   const { width, shape } = "pad" in control ? { width: 24, shape: padShape(control.pad) } : "key" in control ? keyShape(control.key) : { width: 24, shape: mouseShape(control.mouse) };
   if (!hold) {
     return (
-      <Svg width={width} size={size} className={className}>
+      <Svg width={width} size={size} className={`${CHIP} ${className}`}>
         {shape}
       </Svg>
     );
@@ -211,7 +214,7 @@ export function ControlGlyph({ control, size = 18, hold, className }: { control:
   if (width !== 24) throw new Error("A hold ring goes round a square glyph only");
   // The glyph keeps its size, and the ring sits outside it on a wider grid.
   return (
-    <Svg width={30} size={(size * 30) / 24} className={`-my-[0.125em] ${className ?? ""}`}>
+    <Svg width={30} size={(size * 30) / 24} className={`${CHIP} -my-[0.125em] ${className}`}>
       <g transform="translate(3 3)">{shape}</g>
       <HoldRing holding={hold.holding} onHeld={hold.onHeld} />
     </Svg>
@@ -263,11 +266,8 @@ export function Prompt({ meaning, input, size, hold, className }: { meaning: Mea
   return <ControlGlyph control={control} size={size} hold={MAP[meaning].held ? (hold ?? { holding: false }) : undefined} className={className} />;
 }
 
-/** The pad's A, as a CSS mask image: the focused control's prompt, drawn by the stylesheet on whichever button has the pad's focus. */
-export const FOCUS_A_MASK = `url("data:image/svg+xml,${encodeURIComponent(
-  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='${LETTERS.A}'/></svg>`,
-)}")`;
-
-/** With a controller, the button its focus is on shows it: an outline, and the A that presses it on its corner. Needs `--bt-focus-a` set to `FOCUS_A_MASK`. */
-export const PAD_FOCUS =
-  "[&_button:focus]:outline-2 [&_button:focus]:outline-offset-2 [&_button:focus]:outline-(--bt-ink) [&_button:focus]:relative [&_button:focus]:after:pointer-events-none [&_button:focus]:after:absolute [&_button:focus]:after:-top-1.5 [&_button:focus]:after:-right-1.5 [&_button:focus]:after:size-4 [&_button:focus]:after:bg-(--bt-ink) [&_button:focus]:after:[mask:var(--bt-focus-a)_center/contain_no-repeat] [&_button:focus]:after:content-['']";
+/** With a controller, the button its focus is on shows it plainly: a thick
+ *  ink ring with a dark band inside it, so it reads on a pale portrait and a
+ *  dark panel alike. No glyph marks it: A pressing the focused thing goes
+ *  without saying, so glyphs are kept for controls that aren't obvious. */
+export const PAD_FOCUS = "[&_button:focus]:outline-3 [&_button:focus]:outline-offset-2 [&_button:focus]:outline-(--bt-ink) [&_button:focus]:shadow-[0_0_0_2px_var(--bt-bg)]";

@@ -3,14 +3,13 @@
 import { Suspense, use, useState, type RefObject } from "react";
 import type { RuleNotes } from "../../data/rule-notes";
 import { describeDecision } from "../../engine/describe";
-import { viewExplorer, type EventView, type GameView } from "../../engine/view";
+import { seatName, viewExplorer, type EventView, type GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import type { PlayChoices } from "../../play/choices";
 import { costText, warningLines, type RoutePreview } from "../../play/preview";
 import { happenings, whyItems, type Happening, type WhyItem } from "../../play/status";
 import type { Action } from "../../types";
-import { seatLabel } from "../describe";
 import { ErrorBox } from "../error-box";
 import { PendingPanel } from "../pending-panel";
 import { RuleDetail, ruleNotes } from "../why";
@@ -233,7 +232,7 @@ function SeatName({ view, holder }: { view: GameView; holder: number }) {
   return (
     <>
       {explorer && <span className={`mr-1.5 inline-block size-2.5 rounded-full align-middle ${seatDot(ENGINE, explorer.definition)}`} />}
-      <span className={`font-semibold ${explorer ? seatText(ENGINE, explorer.definition) : ""}`}>{seatLabel(view, holder)}</span>
+      <span className={`font-semibold ${explorer ? seatText(ENGINE, explorer.definition) : ""}`}>{seatName(view, holder)}</span>
     </>
   );
 }

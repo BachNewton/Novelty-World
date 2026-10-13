@@ -5,9 +5,9 @@ import dynamic from "next/dynamic";
 import type { Action, GameState } from "../types";
 import { ENGINE, viewFor } from "../game";
 import { apply } from "../engine/step-loop";
-import type { GameView } from "../engine/view";
+import { seatName, type GameView } from "../engine/view";
 import { decodeGame, replay, type SharedGame } from "../share";
-import { logLines, seatLabel, type LogLine } from "./describe";
+import { logLines, type LogLine } from "./describe";
 import { ErrorBox } from "./error-box";
 import { EventLog } from "./event-log";
 import { boardFocus } from "../play/choices";
@@ -248,7 +248,7 @@ function PlayView({
               setPicked(seat);
             }}
           >
-            {seat === null ? "Spectator" : seatLabel(view, seat)}
+            {seat === null ? "Spectator" : seatName(view, seat)}
           </button>
         ))}
         <label className="ml-auto flex items-center gap-1.5 text-(--bt-muted)">
