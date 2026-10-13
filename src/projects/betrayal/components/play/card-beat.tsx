@@ -9,12 +9,16 @@ import { cardMood, cardTypeName, drawnCard, heldText } from "../../play/cards";
 import type { Spots } from "../../play/spots";
 import { ruleNotes } from "../why";
 import { CardTypeIcon } from "../icons";
+import type { RowSummary } from "../../engine/outcomes";
+import { RollTable } from "./roll-table";
+import { withoutTable } from "../../play/roll-table";
 import { MOOD_BORDER, MOOD_TEXT } from "./moods";
 
 /*
  * A card drawn, as a beat in the house: the card's name as a title over the
  * room it was drawn in, in its colour, with its type's icon, and the card's
- * own wording under it, waiting for a tap (or A, or Enter) to go on. The
+ * own wording under it (its roll's table drawn as the status box draws it,
+ * without odds), waiting for a tap (or A, or Enter) to go on. The
  * title stays up while what the card set off plays, until the choice it led
  * to shows. The camera
  * pans to the room, keeping the player's angles and zoom. What the card does
@@ -25,6 +29,8 @@ export interface CardBeatProps {
   scene: HouseScene;
   /** The card drawn to show, from its beat until the beats after it are over and the choice it led to shows, and whether its text waits for a tap. */
   card: { event: EventView; waits: boolean } | null;
+  /** The table the card's roll goes by, shown with its text, or null. */
+  table: readonly RowSummary[] | null;
   /** The events of the beats started so far, the card's among them. */
   shown: readonly EventView[];
   spots: Spots;
@@ -40,7 +46,7 @@ function drawnIn(told: readonly EventView[], drawn: EventView, figure: string): 
   return entered ? (entered.data as { room: string }).room : null;
 }
 
-export function CardBeat({ scene, card: draw, shown, spots, goOn }: CardBeatProps) {
+export function CardBeat({ scene, card: draw, table, shown, spots, goOn }: CardBeatProps) {
   const event = draw?.event;
   const drawn = event ? drawnCard(event) : null;
   const room = drawn && event ? drawnIn(shown, event, drawn.figure) ?? spots[drawn.figure]?.room ?? null : null;
@@ -73,8 +79,9 @@ export function CardBeat({ scene, card: draw, shown, spots, goOn }: CardBeatProp
         {draw.waits && (
           <>
             <Suspense fallback={null}>
-              <Text card={drawn.card} />
+              <Text card={drawn.card} table={table} />
             </Suspense>
+            {table && <RollTable rows={table} label={`${ENGINE.catalog.cards[drawn.card].name}: its table`} />}
             <button type="button" onClick={goOn} className="mt-1 inline-flex min-h-10 items-center gap-1.5 self-end rounded border border-(--bt-line) px-3 text-sm hover:border-(--bt-accent)">
               Go on
             </button>
@@ -85,11 +92,13 @@ export function CardBeat({ scene, card: draw, shown, spots, goOn }: CardBeatProp
   );
 }
 
-function Text({ card }: { card: string }) {
+/** The card's text, less the lines of its table when the table shows beside it. */
+function Text({ card, table }: { card: string; table: readonly RowSummary[] | null }) {
   const notes = use(ruleNotes());
+  const lines = heldText(notes, card);
   return (
     <ul aria-label="The card's text" className="flex max-h-[30vh] flex-col gap-0.5 overflow-y-auto text-xs">
-      {heldText(notes, card).map((line) => (
+      {(table === null ? lines : withoutTable(lines, table)).map((line) => (
         <li key={line}>{line}</li>
       ))}
     </ul>

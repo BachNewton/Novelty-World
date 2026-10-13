@@ -216,7 +216,12 @@ function slideRoll(
     { kind: "trait", trait: "might" },
     rule,
     table([
-      { min: 5, max: null, steps: [local(SLIDE, "control", { figure, room })] },
+      {
+        min: 5,
+        max: null,
+        steps: [local(SLIDE, "control", { figure, room })],
+        does: "choose-landing",
+      },
       {
         min: 0,
         max: 4,
@@ -270,6 +275,7 @@ export const EVENTS_A: BehaviourGroup = {
             min: 0,
             max: 1,
             steps: [local("bloody-vision", "attack", { figure })],
+            does: "attack",
           },
         ]),
       ],
@@ -472,11 +478,13 @@ export const EVENTS_A: BehaviourGroup = {
                 min: 4,
                 max: 4,
                 steps: [gain(figure, "might", 1, rule), nearest("might", 1)],
+                does: "nearest",
               },
               {
                 min: 3,
                 max: 3,
                 steps: [gain(figure, "might", 1, rule), nearest("sanity", -1)],
+                does: "nearest",
               },
               { min: 2, max: 2, steps: [gain(figure, "sanity", -1, rule)] },
               { min: 1, max: 1, steps: [gain(figure, "speed", -1, rule)] },

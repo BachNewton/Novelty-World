@@ -14,10 +14,10 @@ import { ErrorBox } from "../error-box";
 import { PendingPanel } from "../pending-panel";
 import { ruleNotes } from "../why";
 import { GhostPanel, type GhostPlacer } from "./ghost-placer";
-import { boxActions } from "../../play/sheet";
+import { actionRoom, boxActions } from "../../play/sheet";
 import { PromptButton } from "../prompts";
 import { DecisionPart } from "./decision-panel";
-import { HappeningLine } from "./happening-line";
+import { HappeningLine, HappeningTable } from "./happening-line";
 import { boxPart } from "../../play/panels";
 import { RevealNow } from "./reveal";
 import { seatDot, seatText } from "./seat-colour";
@@ -86,7 +86,7 @@ export function boxWhys(view: GameView, told: StatusBoxProps["told"], playing: b
 
 function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | null }) {
   const { view, told, problem, playing, why } = props;
-  const text = told ? lineText(ENGINE, view, told.event, notes) : null;
+  const text = told ? lineText(ENGINE, view, told.event, told.events) : null;
   const whys = boxWhys(view, told, playing, notes);
   const open = why.open && whys.length > 0;
 
@@ -110,12 +110,15 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
         />
       )}
       {(text !== null || whys.length > 0) && (
-        <div className="flex min-h-0 shrink-0 items-center gap-2 px-3 py-2">
+        <div className="flex min-h-0 shrink-0 items-start gap-2 px-3 py-2">
           {told && text !== null && (
             // Keyed by the event, so a new line is announced and its dice turn up afresh.
-            <p key={told.event.id} aria-label="What happened" aria-live="polite" className="min-w-0 flex-1 text-sm">
-              <HappeningLine event={told.event} text={text} view={view} notes={notes} turnUp={props.turnUp} />
-            </p>
+            <div key={told.event.id} className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <p aria-label="What happened" aria-live="polite" className="text-sm">
+                <HappeningLine event={told.event} events={told.events} text={text} view={view} turnUp={props.turnUp} />
+              </p>
+              <HappeningTable event={told.event} events={told.events} />
+            </div>
           )}
           {whys.length > 0 && (
             <PromptButton
@@ -235,18 +238,23 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
       {part !== "turn" && part !== "ghost" && <DecisionPart part={part} view={view} panel={panel} act={act} input={input} notes={notes} />}
       {actions.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {actions.map((choice) => (
-            <button
-              key={choice.id}
-              type="button"
-              className={BOX_ACTION}
-              onClick={() => {
-                act(choice.action);
-              }}
-            >
-              {choice.label}
-            </button>
-          ))}
+          {actions.map((choice) => {
+            const room = actionRoom(choice);
+            return (
+              <button
+                key={choice.id}
+                type="button"
+                className={BOX_ACTION}
+                onClick={() => {
+                  act(choice.action);
+                }}
+              >
+                {/* A room's own action names the room, so it never shows without its reason. */}
+                {room !== null && <span className="block text-xs text-(--bt-muted)">{ENGINE.catalog.rooms[room].name}</span>}
+                {choice.label}
+              </button>
+            );
+          })}
         </div>
       )}
     </>

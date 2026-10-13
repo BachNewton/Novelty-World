@@ -1,5 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
-import { loadRuleNotes, type RuleNotes } from "../data/rule-notes";
+import { describe, expect, it } from "vitest";
 import { viewFor, type GameView } from "../engine/view";
 import { ENGINE } from "../game";
 import { choose, offered, pendingDecision, testGame } from "../testing";
@@ -17,11 +16,6 @@ function skeletons(): GameState {
 
 const zoe = (state: GameState): GameView => viewFor(ENGINE, state, 0);
 
-let notes: RuleNotes;
-beforeAll(async () => {
-  notes = await loadRuleNotes();
-});
-
 describe("a roll in the box", () => {
   it("shows the dice, the total and the damage it deals, and rerolls the dice picked", () => {
     const state = skeletons();
@@ -29,7 +23,7 @@ describe("a roll in the box", () => {
     expect(decision.kind).toBe("roll-after");
     const view = zoe(state);
     const params = decision.params as unknown as RollParams;
-    const shown = rollShown(view, notes, params, true);
+    const shown = rollShown(view, params, true);
     expect(shown.name).toBe("1-dice roll");
     expect(shown.dice).toHaveLength(1);
     expect(shown.damage).toEqual({ kind: "mental", amount: shown.total });
@@ -42,22 +36,35 @@ describe("a roll in the box", () => {
     expect(rerollChoice(choices, "lucky-stone", [die, die])).toBeNull();
   });
 
-  it("gives a trait roll's target before it, and whether it passed after", () => {
-    const view = zoe(skeletons());
-    const roll = { spec: { kind: "trait", trait: "might" }, rule: { source: "room", room: "junk-room" }, then: { kind: "x", params: {} } } as const;
-    expect(rollMeaning(view, notes, roll, null)).toMatchObject({ target: 3, verdict: null });
-    expect(rollMeaning(view, notes, roll, 3)).toMatchObject({ target: 3, verdict: "pass" });
-    expect(rollMeaning(view, notes, roll, 2)).toMatchObject({ target: 3, verdict: "fail" });
+  it("shows a roll's table from the engine: each row's odds before it, and the row it landed on after", () => {
+    // Zoe, holding the Angel Feather, draws Creepy Crawlies: a Sanity roll of 5+, 1–4 or 0, she may act on first.
+    let state = testGame({ stack: ["game-room"], decks: { event: ["creepy-crawlies"] }, explorers: [{ seat: 0, cards: ["angel-feather"] }] });
+    state = choose(choose(state, "Explore through the north door"), "turned 0°");
+    const decision = pendingDecision(state);
+    expect(decision.kind).toBe("roll-before");
+    const params = decision.params as unknown as RollParams;
+    const before = rollShown(zoe(state), params, false);
+    expect(before.table?.rows.map((row) => [row.min, row.max, row.outcome])).toEqual([
+      [5, null, [{ kind: "gain", trait: "sanity", amount: 1 }]],
+      [1, 4, [{ kind: "gain", trait: "sanity", amount: -1 }]],
+      [0, 0, [{ kind: "gain", trait: "sanity", amount: -2 }]],
+    ]);
+    expect(before.table?.lit).toBeNull();
+    expect(before.table?.odds.reduce((sum, odds) => sum + odds, 0)).toBeCloseTo(1, 12);
+    expect(before.target).toBeNull();
+    const after = rollShown(zoe(state), { ...params, dice: [2, 2, 1] }, true);
+    expect(after.table?.lit).toBe(0);
+    expect(rollShown(zoe(state), { ...params, dice: [0, 0, 0] }, true).table?.lit).toBe(2);
   });
 
   it("sets the haunt roll against the omens, and a defence against the attack's total", () => {
     const view = { ...zoe(skeletons()), omensDrawn: 3 };
     const haunt = { spec: { kind: "haunt" }, rule: { source: "rulebook", page: 15 }, then: { kind: "haunt-check", params: {} } } as const;
-    expect(rollMeaning(view, notes, haunt, 2)).toMatchObject({ target: 3, verdict: "fail", note: "the haunt begins" });
-    expect(rollMeaning(view, notes, haunt, 3)).toMatchObject({ target: 3, verdict: "pass", note: "the haunt holds off" });
+    expect(rollMeaning(view, haunt, 2)).toMatchObject({ target: 3, verdict: "fail", note: "the haunt begins" });
+    expect(rollMeaning(view, haunt, 3)).toMatchObject({ target: 3, verdict: "pass", note: "the haunt holds off" });
     const defence = { spec: { kind: "attack", trait: "might", role: "defender", card: null, dice: null }, rule: { source: "rulebook", page: 13 }, then: { kind: "attack-compare", params: { attackResult: 4 } } } as const;
-    expect(rollMeaning(view, notes, defence, 5)).toMatchObject({ target: 4, verdict: "pass" });
-    expect(rollMeaning(view, notes, defence, 4)).toMatchObject({ target: 4, verdict: null, note: "a tie: no one is hurt" });
+    expect(rollMeaning(view, defence, 5)).toMatchObject({ target: 4, verdict: "pass" });
+    expect(rollMeaning(view, defence, 4)).toMatchObject({ target: 4, verdict: null, note: "a tie: no one is hurt" });
   });
 });
 

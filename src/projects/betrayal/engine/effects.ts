@@ -35,6 +35,7 @@ import {
   onTurn,
 } from "./questions";
 import { readyActors } from "./monsters";
+import { hauntRows, rowOutcome, type LocalOutcome, type RowSummary } from "./outcomes";
 import {
   liveSources,
   type RollOption,
@@ -346,17 +347,54 @@ export function roll(
 
 /** A roll's outcome table: the first row whose range holds the result. A
  *  result past the table's top (a number named with the Angel Feather, a bonus
- *  on a roll whose top row is closed) takes the top row (cards/items.md). */
+ *  on a roll whose top row is closed) takes the top row (cards/items.md). A
+ *  row running a source's own step says what it does in `does`. */
 export type TableRow = {
   min: number;
   /** Inclusive. Null for "or more". */
   max: number | null;
   steps: Step[];
+  does?: LocalOutcome;
 };
 
-/** Continues a roll into its outcome table. */
+/** A table row as a roll carries it: its steps, and what they do. */
+export type StoredRow = RowSummary & { steps: Step[] };
+
+/** Continues a roll into its outcome table, each row with what it does read
+ *  off its steps. Throws on a row it can't read (see `rowOutcome`). */
 export function table(rows: TableRow[]): Step {
-  return step<{ rows: TableRow[] }>("table", { rows });
+  return step<{ rows: StoredRow[] }>("table", {
+    rows: rows.map(({ min, max, steps, does }) => ({
+      min,
+      max,
+      steps,
+      outcome: rowOutcome(steps, does ?? null),
+    })),
+  });
+}
+
+/** The rows of the table a roll continues into, without their steps, or null for a roll with no table. */
+export function tableOf(then: Step): RowSummary[] | null {
+  if (then.kind !== "table") return null;
+  return (then.params as { rows: StoredRow[] }).rows.map(
+    ({ min, max, outcome }) => ({ min, max, outcome }),
+  );
+}
+
+/** The rows a roll's result goes by: its table's, or the haunt roll's against the omens drawn. */
+function rowsOf(state: GameState, r: Roll): RowSummary[] | null {
+  return tableOf(r.then) ?? (r.spec.kind === "haunt" ? hauntRows(state.omensDrawn) : null);
+}
+
+/** Which row of a table a result falls in. */
+export function rowFor(rows: readonly RowSummary[], result: number): number {
+  const top = rows.reduce((a, b) => (b.min > a.min ? b : a));
+  const index = rows.findIndex(
+    (r) => result >= r.min && (r.max === null || result <= r.max),
+  );
+  if (index >= 0) return index;
+  if (top.max !== null && result > top.max) return rows.indexOf(top);
+  throw new Error(`No table row for a result of ${result}`);
 }
 
 type OptionChoice =
@@ -1204,9 +1242,19 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   // it is used), and a roll a dead figure was to make lapses.
   "roll-before": defineStep<RollInProgress>((state, p, ctx) => {
     if (!takesPart(state, p.figure)) return;
-    if (rollOptions(ctx.engine, state, p, "before").length === 0)
+    if (rollOptions(ctx.engine, state, p, "before").length === 0) {
+      // A roll with nothing to add to it is made at once; what it is for
+      // shows first. A result named in place of rolling has nothing coming.
+      if (p.named === null)
+        ctx.emit("roll-coming", p.rule, {
+          figure: p.figure,
+          spec: p.spec,
+          pool: p.pool,
+          bonus: p.bonus,
+          rows: rowsOf(state, p),
+        });
       ctx.push(step("roll-dice", p));
-    else
+    } else
       ctx.decideFor(
         p.figure,
         "roll-before",
@@ -1249,17 +1297,18 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       bonus: p.bonus,
       result,
     });
+    const rows = rowsOf(state, p);
+    if (rows !== null)
+      ctx.emit("table-row", p.rule, {
+        figure: p.figure,
+        rows,
+        index: rowFor(rows, result),
+      });
     ctx.push(continueWith(p.then, { result }));
   }),
 
-  table: defineStep<{ rows: TableRow[]; result: number }>((_state, p, ctx) => {
-    const top = p.rows.reduce((a, b) => (b.min > a.min ? b : a));
-    const row =
-      p.rows.find(
-        (r) => p.result >= r.min && (r.max === null || p.result <= r.max),
-      ) ?? (top.max !== null && p.result > top.max ? top : undefined);
-    if (!row) throw new Error(`No table row for a result of ${p.result}`);
-    ctx.push(...row.steps);
+  table: defineStep<{ rows: StoredRow[]; result: number }>((_state, p, ctx) => {
+    ctx.push(...p.rows[rowFor(p.rows, p.result)].steps);
   }),
 
   "draw-card": defineStep<DrawCard>((state, p, ctx) => {
