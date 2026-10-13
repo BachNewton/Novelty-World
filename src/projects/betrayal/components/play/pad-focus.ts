@@ -76,6 +76,16 @@ export function enterLayer(layer: HTMLElement, part: string | null = null): bool
   return true;
 }
 
+/** Puts the focus on a layer's start as a question appears in it, unless
+ *  the focus is in another layer as high or higher (Why, a sheet, the
+ *  menu), which keeps it. */
+export function claimFocus(layer: HTMLElement, part: string | null = null): boolean {
+  const active = document.activeElement;
+  const holder = active instanceof HTMLElement ? active.closest<HTMLElement>("[data-pad-layer]") : null;
+  if (holder && holder !== layer && layerHeight(holder) >= layerHeight(layer)) return false;
+  return enterLayer(layer, part);
+}
+
 /** Lets go of the pad's focus in a layer. */
 export function leaveLayer(layer: HTMLElement): void {
   const focused = padFocused(layer);

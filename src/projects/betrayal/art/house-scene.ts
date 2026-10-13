@@ -103,6 +103,8 @@ export interface Pin {
   apart: boolean;
   /** Pointed at as this, while inspecting (a room bonus badge): a box round its point. */
   inspect?: string;
+  /** Called once, the first time the element shows where it is pinned: it can take the focus from then on. */
+  shown?: () => void;
 }
 
 /** What the camera pans to: one room, with its back walls standing; or these rooms on the floor showing. */
@@ -175,6 +177,8 @@ export interface SceneInput {
   commit: (id: string) => void;
   /** The player confirms with no target offered: going on from a moment shown. */
   confirm: () => void;
+  /** The player taps or clicks the house where there is nothing to pick: going on from a moment shown, as a press anywhere does. */
+  pressedNothing?: () => void;
   /** The player backs out: the focus is cleared, or a selection pending cancelled. */
   back?: () => void;
   /** The reticle or the mouse has left the choice it was on, so nothing has the focus. */
@@ -430,6 +434,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let ghostHandles: HTMLElement | null = null;
   /** Page elements the scene keeps over figures and rooms: a figure's marks, a card's title over its room. */
   const pins = new Map<string, readonly Pin[]>();
+  /** The pins whose first showing has been announced (`Pin.shown`). */
+  const announced = new WeakSet<Pin>();
   /** The things living in the rooms: objects, room effects and connections. Each is a pointer target that names it, never a choice. */
   const things = createThingsLayer();
 
@@ -1108,6 +1114,9 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         if (view.inspecting) point(id);
         else input.commit(id);
       },
+      pressedNothing: () => {
+        if (!view.inspecting) input.pressedNothing?.();
+      },
       confirm: () => {
         if (view.inspecting) return;
         // A thing in a room is read whatever the decision offers.
@@ -1345,6 +1354,10 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           if (!shown) continue;
           if (pinned.apart) apart.push({ pinned, at: shown, lift: at ? pinned.lift : 0 });
           else pin(pinned.element, shown, at ? pinned.lift : 0);
+          if (pinned.shown && !announced.has(pinned)) {
+            announced.add(pinned);
+            pinned.shown();
+          }
         }
         const boxes = apart.map(({ pinned: { element }, at, lift }) => ({ x: at.x, top: at.y - element.offsetHeight * lift, width: element.offsetWidth, height: element.offsetHeight }));
         const xs = pinsApart(boxes, PIN_GAP, { left: SCREEN_MARGIN, right: container.clientWidth - SCREEN_MARGIN });

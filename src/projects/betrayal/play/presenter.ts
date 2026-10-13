@@ -3,7 +3,8 @@ import type { Engine } from "../engine/step-loop";
 import type { EventView, GameView } from "../engine/view";
 import type { RoomFloors } from "../art/placement";
 import type { FigureId } from "../types";
-import { statChanges } from "./cards";
+import { drawnCard, statChanges } from "./cards";
+import { cardQuestion } from "./panels";
 import { arrivalSpot, firstSpots, nextSpots, type Spot, type Spots } from "./spots";
 import { nextClusters, roomThings, type Clusters } from "./things";
 import { traitTrack } from "./tracks";
@@ -39,13 +40,17 @@ export interface Walk {
 
 /** How a line of the status box shows: a roll's table before its dice, its
  *  dice turning up (with the row of its table they land on lit, held to be
- *  read: "roll"), a gain or loss floating over the figure, a card's text
- *  waiting for a tap, or its words alone, which hold nothing up. */
-export type LineShow = "table" | "roll" | "dice" | "float" | "card" | "words";
+ *  read: "roll"), a gain or loss floating over the figure, a card drawn over
+ *  its room waiting for a press ("card"), or asking its question there, the
+ *  choices on the card waiting for the answer ("asks"), or its words alone,
+ *  which hold nothing up. */
+export type LineShow = "table" | "roll" | "dice" | "float" | "card" | "asks" | "words";
 
 export type Beat = { events: readonly string[] } & (
-  /** Figures walk their routes, together, the active explorer's first. */
-  | { kind: "walk"; walks: Walk[] }
+  /** Figures walk their routes, together, the active explorer's first; a
+   *  walk into a room just discovered is told by its discovery's line, which
+   *  names the room. */
+  | { kind: "walk"; walks: Walk[]; line: string | null }
   /** A figure a rule put in another room (the Coal Chute, a card), with no
    *  walk, stands at its spot there, told by its line when it has one. */
   | { kind: "place"; figure: FigureId; to: Spot; line: string | null }
@@ -336,12 +341,14 @@ export function present(engine: Engine, before: Presentation, events: readonly E
       } else if (i === 0) {
         walks.push(walk(leg.route, to));
         walked.push(...leg.events);
-      } else later.push({ kind: "walk", walks: [walk(leg.route, to)], events: leg.events });
+      } else later.push({ kind: "walk", walks: [walk(leg.route, to)], line: null, events: leg.events });
     });
   }
+  /** The discovery among a walk's events, whose line names the room walked into. */
+  const discovery = (ids: readonly string[]) => fresh.find((event) => event.type === "discovered" && ids.includes(event.id) && describeEvent(engine, next, event) !== null)?.id ?? null;
   // The active explorer walks first.
   walks.sort((a, b) => Number(b.figure === active) - Number(a.figure === active));
-  if (walks.length > 0) add({ kind: "walk", walks, events: walked }, walked.length > 0 ? undefined : -1);
+  if (walks.length > 0) add({ kind: "walk", walks, line: discovery(walked), events: walked }, walked.length > 0 ? undefined : -1);
   for (const beat of later) add(beat);
 
   for (const event of fresh) {
@@ -368,13 +375,21 @@ export function present(engine: Engine, before: Presentation, events: readonly E
     if (show !== null) add({ kind: "line", line: event.id, show: show === "dice" && row.length > 0 ? "roll" : show, events: [event.id, ...row] });
   }
 
+  const beats = placed.sort((a, b) => a.order - b.order).map(({ beat }) => beat);
+  // A card drawn whose question comes straight after asks it on the card: its
+  // choices are the next thing to see, so there is nothing to press on to.
+  const last = beats.at(-1);
+  if (last?.kind === "line" && last.show === "card") {
+    const drawn = fresh.find((event) => event.id === last.line);
+    if (drawn && drawnCard(drawn)?.card === cardQuestion(next)) beats[beats.length - 1] = { ...last, show: "asks" };
+  }
   return {
     presentation: { spots, clusters, active, haunted, seen: events.map((event) => event.id) },
-    beats: placed.sort((a, b) => a.order - b.order).map(({ beat }) => beat),
+    beats,
   };
 }
 
 /** The event a beat's line tells, or null for a beat with none. */
 export function beatLine(beat: Beat): string | null {
-  return beat.kind === "line" || beat.kind === "reveal" || beat.kind === "place" || beat.kind === "move" ? beat.line : null;
+  return beat.kind === "turn" ? null : beat.line;
 }
