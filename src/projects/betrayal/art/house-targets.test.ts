@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { FloorId } from "../types";
 import { definition, type FloorChoice } from "./house";
 import { HOUSE_FIXTURE } from "./house-layout";
-import { choiceLayout, exploreEntry, FINGER, fingerSized, followFloor, routeEnd, targetPlace, type PlaceContext, type Target } from "./house-targets";
+import { choiceLayout, exploreEntry, FINGER, fingerSized, routeEnd, targetPlace, type PlaceContext, type Target } from "./house-targets";
 import type { HousePoint, Stairway } from "./house-walk";
 import { TILE } from "./room";
 
@@ -152,20 +152,5 @@ describe("fingerSized", () => {
       { x: 15 + FINGER / 2, y: 70 },
       { x: 15 - FINGER / 2, y: 70 },
     ]);
-  });
-});
-
-describe("followFloor", () => {
-  it("follows the active explorer to their new floor when the view was on the one they left", () => {
-    expect(followFloor("ground", "ground", "upper")).toBe("upper");
-  });
-
-  it("never overrides a floor the player chose to look at instead", () => {
-    expect(followFloor("basement", "ground", "upper")).toBe("basement");
-    expect(followFloor("upper", "ground", "upper")).toBe("upper");
-  });
-
-  it("leaves every floor showing", () => {
-    expect(followFloor("all", "ground", "upper")).toBe("all");
   });
 });

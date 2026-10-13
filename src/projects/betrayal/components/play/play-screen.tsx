@@ -542,13 +542,14 @@ export function PlayScreen({
         </span>
         <button
           type="button"
+          aria-pressed={shown.camera === "following"}
           onClick={() => {
-            scene.camera.recentre();
+            scene.camera.follow();
           }}
-          className={button}
+          className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}
         >
-          Recentre
-          <Prompt meaning="recentre" input={input} size={16} />
+          Follow
+          <Prompt meaning="follow" input={input} size={16} />
         </button>
         <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
           Walls
