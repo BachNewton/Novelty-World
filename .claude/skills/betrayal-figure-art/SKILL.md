@@ -626,6 +626,15 @@ call on it, so never tune a figure to depend on it.
   dark studio sweep, a warm key, a moon rim, and a glow in the seat's colour
   behind it).
 
+**Two lessons from the owner's reviews.** Faces stay simple and smooth: at
+miniature scale, subtle modelling of cheeks, brows, lids and noses reads as
+lumps, not character. And an idle moment must read clearly from the house's
+camera, or not exist: a story gesture ("smells smoke", "brushes her sweater")
+reads there as something else, such as smoking with nothing in the hand.
+Judge every burst at the house's usual distance, and keep only those whose
+meaning is obvious there. Shoulders flow into the torso at every arm pose,
+and collars and necklines never clip.
+
 Judge each round in this order, and don't polish detail while a higher item
 fails:
 
