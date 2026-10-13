@@ -59,26 +59,6 @@ describe("placeFigures", () => {
     expect(moved({ ...first, figures: Object.fromEntries(Object.entries(first.figures).slice(1)) }, next)).toEqual([]);
   });
 
-  it("moves only the explorer stepping onto the prime place and whoever stood there", () => {
-    const first = placeFigures(room, prime, people(4));
-    expect(first.figures.p0).toMatchObject({ x: 0, z: 0 });
-    const next = placeFigures(room, prime, people(4), first.figures, "p2");
-    expect(next.figures.p2).toMatchObject({ x: 0, z: 0 });
-    expect(moved(first, next)).toEqual(["p0", "p2"]);
-    expect(next.crowding).toBe(0);
-  });
-
-  it("in a crowd, moves only those standing near enough the prime place to be crowded by the stepper", () => {
-    const small = openFloor(1.6);
-    const first = placeFigures(small, prime, people(8));
-    expect(first.crowding).toBeGreaterThan(0);
-    const next = placeFigures(small, prime, people(8), first.figures, "p5");
-    expect(next.figures.p5).toMatchObject({ x: 0, z: 0 });
-    expect(moved(first, next)).toContain("p0");
-    const far = Object.keys(first.figures).filter((id) => Math.hypot(first.figures[id].x, first.figures[id].z) >= 1.25);
-    for (const id of far) expect(moved(first, next)).not.toContain(id);
-  });
-
   it("keeps out of the keep-clear areas while the room has room", () => {
     const keepClear = [{ from: [-INNER, 0] as const, to: [INNER, 0] as const, radius: 0.8 }];
     const placement = placeFigures(room, { ...NO_HINTS, keepClear }, people(6));

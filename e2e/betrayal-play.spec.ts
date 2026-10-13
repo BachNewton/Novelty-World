@@ -241,41 +241,24 @@ test("a game saved by an older engine is refused, not replayed", async ({ page }
 });
 
 /**
- * Standing places: the explorer whose turn it is stands on the room's prime
- * place, stepping onto it as the turn starts, and whoever stood there steps
- * aside; every other figure keeps its place until it moves. All three start
- * in the Entrance Hall, the first player on the prime place; each turn ends
- * without a move.
+ * Standing places: a figure keeps its place until it moves, whoever's turn it
+ * is. All three start in the Entrance Hall, apart, the first player on the
+ * prime place; each turn ends without a move, and no one steps anywhere.
  */
-test("the explorer whose turn it is steps onto the prime place, and the others keep theirs", async ({ page }) => {
+test("passing the turn moves no figure", async ({ page }) => {
   await resumeSaved(page);
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
   const places = async () => Object.fromEntries(Object.entries((await readout(page)).spots).map(([id, spot]) => [id, spot && `${spot.room} ${spot.x.toFixed(2)} ${spot.z.toFixed(2)}`]));
   const start = await places();
-  const prime = start["zoe-ingstrom"];
   expect(new Set(Object.values(start)).size).toBe(3);
 
-  // Ox's turn: Ox steps onto the prime place, and Zoe, who stood there, steps aside. The clock is held so the step is seen playing.
-  await page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
   await page.getByRole("button", { name: "End turn" }).click();
-  await page.waitForFunction(() => {
-    const play = window.__betrayalPlay?.play();
-    return play?.holder === 1 && play.walking;
-  });
-  const second = await places();
-  expect(second["ox-bellows"]).toBe(prime);
-  expect(second["zoe-ingstrom"]).not.toBe(prime);
-  expect(second["father-rhinehardt"]).toBe(start["father-rhinehardt"]);
-  await page.evaluate(() => window.__betrayalPlay?.freezeClock(null));
-  await until(page, "play.holder === 1 && !play.walking");
+  await until(page, "play.holder === 1 && play.turnSeat === 1 && !play.walking");
+  expect(await places()).toEqual(start);
 
-  // Father Rhinehardt's turn: Father Rhinehardt steps onto it, Ox steps aside, and Zoe, who never moved, stays where she is.
   await page.getByRole("button", { name: "End turn" }).click();
   await until(page, "play.holder === 2 && play.turnSeat === 2 && !play.walking");
-  const third = await places();
-  expect(third["father-rhinehardt"]).toBe(prime);
-  expect(third["ox-bellows"]).not.toBe(prime);
-  expect(third["zoe-ingstrom"]).toBe(second["zoe-ingstrom"]);
+  expect(await places()).toEqual(start);
 });
 
 test("a new game from the setup starts with the first player holding the device", async ({ page }) => {

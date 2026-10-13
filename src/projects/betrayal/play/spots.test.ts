@@ -31,47 +31,41 @@ describe("standing spots", () => {
     const first = firstSpots(viewOf(state), FLOORS);
     let spots = first;
     state = choose(state, "Move to the Foyer");
-    spots = nextSpots(spots, viewOf(state), null, FLOORS);
+    spots = nextSpots(spots, viewOf(state), FLOORS);
     expect(rooms(spots)).toEqual({ "zoe-ingstrom": "foyer", "ox-bellows": "entrance-hall", "father-rhinehardt": "entrance-hall" });
     expect(onPrime(spots)).toEqual(["foyer:zoe-ingstrom"]);
     expect(spots["ox-bellows"]).toEqual(first["ox-bellows"]);
     expect(spots["father-rhinehardt"]).toEqual(first["father-rhinehardt"]);
-    // Ox's turn: he steps onto the prime place nobody holds, and Father Rhinehardt stays put.
+    // Ox's turn: the prime place Zoe left stays empty, and both stand still.
     state = choose(state, "End your turn");
-    spots = nextSpots(spots, viewOf(state), "ox-bellows", FLOORS);
-    expect(onPrime(spots)).toEqual(["entrance-hall:ox-bellows", "foyer:zoe-ingstrom"]);
+    spots = nextSpots(spots, viewOf(state), FLOORS);
+    expect(onPrime(spots)).toEqual(["foyer:zoe-ingstrom"]);
+    expect(spots["ox-bellows"]).toEqual(first["ox-bellows"]);
     expect(spots["father-rhinehardt"]).toEqual(first["father-rhinehardt"]);
     // Ox follows Zoe into the Foyer, beside her, as the route preview foresaw.
     const foreseen = arrivalSpot(spots, "ox-bellows", "foyer", null, FLOORS);
     state = choose(state, "Move to the Foyer");
-    spots = nextSpots(spots, viewOf(state), null, FLOORS);
+    spots = nextSpots(spots, viewOf(state), FLOORS);
     expect(spots["ox-bellows"]).toEqual(foreseen);
     expect(spots["ox-bellows"]).toMatchObject({ room: "foyer", crowding: 0 });
     expect(onPrime(spots)).toEqual(["foyer:zoe-ingstrom"]);
   });
 
-  it("put the explorer whose turn starts on the prime place, and its holder aside", () => {
+  it("are kept as the turn passes: no one steps onto the prime place", () => {
     let state = testGame();
     const first = firstSpots(viewOf(state), FLOORS);
     let spots = first;
-    state = choose(state, "End your turn");
-    spots = nextSpots(spots, viewOf(state), "ox-bellows", FLOORS);
-    expect(onPrime(spots)).toEqual(["entrance-hall:ox-bellows"]);
-    expect(spots["zoe-ingstrom"]).not.toEqual(first["zoe-ingstrom"]);
-    expect(spots["father-rhinehardt"]).toEqual(first["father-rhinehardt"]);
-    const zoe = spots["zoe-ingstrom"];
-    state = choose(state, "End your turn");
-    spots = nextSpots(spots, viewOf(state), "father-rhinehardt", FLOORS);
-    // Zoe never moved, so she keeps her place.
-    expect(onPrime(spots)).toEqual(["entrance-hall:father-rhinehardt"]);
-    expect(spots["zoe-ingstrom"]).toEqual(zoe);
-    expect(Object.values(spots).map((spot) => spot?.crowding)).toEqual([0, 0, 0]);
+    for (let turn = 0; turn < 3; turn++) {
+      state = choose(state, "End your turn");
+      spots = nextSpots(spots, viewOf(state), FLOORS);
+      expect(spots).toEqual(first);
+    }
   });
 
   it("are a figure's own while it stands still, whatever else changes", () => {
     const view = viewOf(testGame());
     const spots = firstSpots(view, FLOORS);
-    expect(nextSpots(spots, view, null, FLOORS)).toEqual(spots);
+    expect(nextSpots(spots, view, FLOORS)).toEqual(spots);
     expect(arrivalSpot(spots, "ox-bellows", "entrance-hall", null, FLOORS)).toEqual(spots["ox-bellows"]);
   });
 
@@ -85,7 +79,7 @@ describe("standing spots", () => {
     const spots = firstSpots(viewOf(state), floors);
     read.length = 0;
     state = choose(state, "Move to the Foyer");
-    nextSpots(spots, viewOf(state), null, floors);
+    nextSpots(spots, viewOf(state), floors);
     expect(read).toEqual(["foyer"]);
   });
 });

@@ -5,7 +5,7 @@ import { FLOOR_RINGS, INNER } from "../art/room";
 import { TOKENS } from "../data/tokens";
 import { viewFor } from "../engine/view";
 import { ENGINE } from "../game";
-import { testGame } from "../testing";
+import { choose, testGame } from "../testing";
 import type { GameState } from "../types";
 import { firstSpots, nextSpots } from "./spots";
 import { CLUSTER_SHOWN, clusterId, clusterReach, edgeSpot, nextClusters, PRESENCE, roomThings, shownObjects, shownThings, type Cluster } from "./things";
@@ -91,12 +91,11 @@ describe("objects on the floor", () => {
     expect(nextClusters(joined, [], spots, FLOORS)).toEqual({});
   });
 
-  it("stay put while the explorer whose turn starts steps onto the prime place", () => {
+  it("stay put as the turn passes", () => {
     const view = viewOf(dropped);
     const clusters = nextClusters({}, roomThings(ENGINE, view), {}, FLOORS);
     const spots = firstSpots(view, FLOORS, clusters);
-    const next = nextSpots(spots, view, "ox-bellows", FLOORS, clusters);
-    expect(next["ox-bellows"]).toMatchObject({ x: PRIME[0], z: PRIME[1] });
+    const next = nextSpots(spots, viewOf(choose(dropped, "End your turn")), FLOORS, clusters);
     expect(nextClusters(clusters, roomThings(ENGINE, view), next, FLOORS)).toEqual(clusters);
   });
 
