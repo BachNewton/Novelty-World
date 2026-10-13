@@ -17,7 +17,7 @@ import { RuleDetail, ruleNotes } from "../why";
 import { GhostPanel, type GhostPlacer } from "./ghost-placer";
 import { boxActions } from "../../play/sheet";
 import type { FigureId } from "../../types";
-import { Prompt } from "../prompts";
+import { PromptButton, type Hold } from "../prompts";
 import { DecisionPart } from "./decision-panel";
 import { HappeningLine } from "./happening-line";
 import { boxPart } from "../../play/panels";
@@ -60,11 +60,8 @@ export interface StatusBoxProps {
   notice?: string | null;
   /** Opens the game menu, where pads take and give back seats. */
   openMenu?: () => void;
-  /** End turn's hold: under way, its end (the turn ends), and whether it was let go too soon. */
-  endHold: { holding: boolean; onHeld: () => void; tapped: boolean };
-  /** The acting player's explorer, with the count of the turn's actions on its sheet; null with no explorer to show. */
-  explorer: { count: number } | null;
-  openExplorer: () => void;
+  /** End turn's hold: under way, and its end (the turn ends). */
+  endHold: Hold;
   /** Opens the trade sheet with an explorer. */
   openTrade: (figure: FigureId) => void;
 }
@@ -207,22 +204,10 @@ function WhyLine({ why }: { why: WhyItem }) {
 
 /** While beats play, what the player can do now is skip them. Keyed as End
  *  turn is, so it is the same button on the page: one focused stays focused. */
-function skipButton(input: InputKind, skip: () => void) {
+function skipButton(skip: () => void) {
   return (
     <button key="primary" type="button" onClick={skip} className="inline-flex min-h-11 items-center gap-1.5 self-end rounded border border-(--bt-line) px-4 py-1 text-sm hover:border-(--bt-accent)">
       Skip ahead
-      <Prompt meaning="confirm" input={input} size={16} />
-    </button>
-  );
-}
-
-/** The acting player's explorer, a press away: its glyph, and how many of the turn's actions its sheet holds. */
-function ExplorerChip({ count, input, open }: { count: number; input: InputKind; open: () => void }) {
-  return (
-    <button type="button" onClick={open} className="inline-flex min-h-10 items-center gap-1.5 self-start rounded-full border border-(--bt-line) bg-(--bt-bg) px-3 text-sm hover:border-(--bt-accent)">
-      <Prompt meaning="explorer" input={input} size={18} />
-      Your explorer
-      {count > 0 && <span className="text-(--bt-muted)">· {count} {count === 1 ? "action" : "actions"}</span>}
     </button>
   );
 }
@@ -257,10 +242,10 @@ function RouteLine({ preview, label, notes }: { preview: RoutePreview; label: st
   );
 }
 
-function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip, endHold, explorer: chip, openExplorer, openTrade }: StatusBoxProps & { notes: RuleNotes | null }) {
+function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip, endHold, openTrade }: StatusBoxProps & { notes: RuleNotes | null }) {
   const { targets, panel, end } = choices;
   const pending = view.pending;
-  if (playing) return <>{skipButton(input, skip)}</>;
+  if (playing) return <>{skipButton(skip)}</>;
   const part = boxPart(view);
   if (part === "reveal") return <RevealNow view={view} holder={holder} act={act} input={input} />;
   if (part === "debug" || pending?.type !== "decision" || pending.detail === null) {
@@ -285,7 +270,6 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
         <SeatName view={view} holder={holder} />: {prompt}
       </p>
       {isTurn && preview && <RouteLine preview={preview} label={targets.find((target) => target.id === preview.target)?.label ?? ""} notes={notes} />}
-      {isTurn && chip && <ExplorerChip count={chip.count} input={input} open={openExplorer} />}
       {ghost && <GhostPanel ghost={ghost} input={input} act={act} />}
       {part !== "turn" && part !== "ghost" && <DecisionPart part={part} view={view} panel={panel} act={act} input={input} notes={notes} />}
       {(part === "turn" || part === "ghost") && panel.length > 0 && (
@@ -319,19 +303,19 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
       )}
       {end && (
         <div className="flex flex-wrap items-center justify-end gap-2 self-end">
-          {endHold.tapped && <p className="text-xs text-(--bt-muted)">Hold to end your turn.</p>}
-          <button
+          <PromptButton
             key="primary"
-            type="button"
+            meaning="end-turn"
+            input={input}
+            hold={endHold}
             data-end-turn
             onClick={() => {
               act(end.action);
             }}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded bg-(--bt-accent) px-4 py-1 font-semibold text-(--bt-bg)"
+            className="min-h-11 rounded px-4 py-1 font-semibold"
           >
             End turn
-            <Prompt meaning="end-turn" input={input} size={18} hold={{ holding: endHold.holding, onHeld: endHold.onHeld }} />
-          </button>
+          </PromptButton>
         </div>
       )}
     </>

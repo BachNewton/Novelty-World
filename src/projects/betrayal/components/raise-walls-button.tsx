@@ -1,6 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { InputKind } from "../input/controls";
+import { PromptButton } from "./prompts";
 
 /**
  * The on-screen button that raises every wall while it is held, for touch
@@ -8,13 +10,13 @@ import type { ReactNode } from "react";
  * It keeps the pointer it was pressed with, so a finger sliding off it still
  * lets the walls down when it lifts.
  */
-export function RaiseWallsButton({ raised, raise, className, children }: { raised: boolean; raise: (raised: boolean) => void; className: string; children: ReactNode }) {
+export function RaiseWallsButton({ raised, raise, input, className, children }: { raised: boolean; raise: (raised: boolean) => void; input: InputKind; className: string; children: ReactNode }) {
   return (
-    <button
-      type="button"
+    <PromptButton
+      meaning="walls"
+      input={input}
       aria-label="Raise the walls"
       aria-pressed={raised}
-      title="Hold to raise the walls (V, or L3 on a controller)"
       onPointerDown={(event) => {
         event.currentTarget.setPointerCapture(event.pointerId);
         raise(true);
@@ -32,6 +34,6 @@ export function RaiseWallsButton({ raised, raise, className, children }: { raise
       className={`touch-none select-none ${className}`}
     >
       {children}
-    </button>
+    </PromptButton>
   );
 }

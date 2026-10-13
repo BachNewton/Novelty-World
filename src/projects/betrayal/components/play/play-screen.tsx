@@ -20,7 +20,7 @@ import type { Spots } from "../../play/spots";
 import { due } from "../../play/seat";
 import type { PlaySnapshot, PlayStore } from "../../play/store";
 import { seatLabel } from "../describe";
-import { FOCUS_A_MASK, PAD_FOCUS, Prompt } from "../prompts";
+import { FOCUS_A_MASK, PAD_FOCUS, Prompt, PromptButton } from "../prompts";
 import { GHOST, GhostHandles, useGhost, type GhostReadout } from "./ghost-placer";
 import { figureColour, seatDot, sideMark } from "./seat-colour";
 import { controlsOf, enterLayer, layerHeight, leaveLayer, padFocused, padPress, topLayer } from "./pad-focus";
@@ -283,6 +283,7 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
   // The turn's actions are the acting explorer's, on its own tab.
   const acting = view.pending?.type === "decision" && view.pending.kind === "turn" && yours !== null && view.turn?.acting === yours.id ? yours : null;
   const actions = acting ? { figure: acting.id, rows: explorerActions(acting.cards, choices.panel) } : null;
+  const actionCount = actions?.rows.count ?? 0;
   const tab = open?.kind === "explorer" ? (explorers.find((figure) => figure.id === open.tab) ?? null) : null;
   const trade = open?.kind === "trade" ? (actions?.rows.trades.find((row) => row.with === open.with) ?? null) : null;
   const reading = open?.kind === "thing" ? (things.find((thing) => thing.id === open.id) ?? null) : null;
@@ -291,16 +292,12 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
     setSheet(figure === null ? null : { kind: "explorer", tab: figure, decision });
   };
 
-  // End turn is a hold: X, Backspace. Let go too soon, it says so.
+  // End turn is a hold: X, Backspace. Let go too soon, its fill empties.
   const [ending, setEnding] = useState(false);
-  const [tapped, setTapped] = useState<string | null>(null);
-  const held = useRef(false);
   const endHold = {
     holding: ending && end !== null,
-    tapped: tapped !== null && tapped === decision,
     // One hold ends one turn: the next turn's End turn waits for a new press.
     onHeld: () => {
-      held.current = true;
       setEnding(false);
       if (end) act(end.action);
     },
@@ -366,13 +363,7 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
         setMenuOpen(!gate.menuOpen);
       },
       endTurn: (on) => {
-        if (on) {
-          held.current = false;
-          setEnding(true);
-          return;
-        }
-        setEnding(false);
-        if (!held.current && latest.current.end) setTapped(latest.current.decision);
+        setEnding(on);
       },
       covered: () => over() !== null,
       padMay,
@@ -480,9 +471,10 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 p-3 pr-28 text-xs sm:text-sm">
         {/* The seat holding the device: its explorer's character card, as the mark on the figure opens it. */}
-        <button
-          type="button"
-          aria-label={`${seatLabel(view, holder)}: character card`}
+        <PromptButton
+          meaning="explorer"
+          input={input}
+          aria-label={`${seatLabel(view, holder)}: character card${actionCount > 0 ? `, ${actionCount} ${actionCount === 1 ? "action" : "actions"}` : ""}`}
           aria-expanded={yours !== null && tab?.id === yours.id}
           disabled={yours === null}
           onClick={() => {
@@ -492,9 +484,10 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
         >
           {dot && <span className={`inline-block size-2.5 rounded-full ${dot}`} />}
           {seatLabel(view, holder)}
-        </button>
+          {actionCount > 0 && <span className="font-normal text-(--bt-muted)">· {actionCount} {actionCount === 1 ? "action" : "actions"}</span>}
+        </PromptButton>
         <span className="flex items-center gap-1">
-          <Prompt meaning="floor-down" input={input} size={18} />
+          <Prompt meaning="floor-down" input={input} />
           {floors.map((floor) => (
             <button
               key={floor}
@@ -507,25 +500,25 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
               {FLOOR_NAMES[floor]}
             </button>
           ))}
-          <Prompt meaning="floor-up" input={input} size={18} />
+          <Prompt meaning="floor-up" input={input} />
         </span>
-        <button
-          type="button"
+        <PromptButton
+          meaning="recentre"
+          input={input}
           onClick={() => {
             scene.camera.recentre();
           }}
           className={button}
         >
           Recentre
-          <Prompt meaning="recentre" input={input} size={16} />
-        </button>
-        <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
+        </PromptButton>
+        <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
           Walls
-          <Prompt meaning="walls" input={input} size={16} />
         </RaiseWallsButton>
         <StatsButton held={stats.held} hold={stats.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
-        <button
-          type="button"
+        <PromptButton
+          meaning="menu"
+          input={input}
           aria-expanded={gate.menuOpen}
           onClick={() => {
             setMenuOpen(!gate.menuOpen);
@@ -533,8 +526,7 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
           className={button}
         >
           Menu
-          <Prompt meaning="menu" input={input} size={16} />
-        </button>
+        </PromptButton>
       </header>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-start">
@@ -557,10 +549,6 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
             setMenuOpen(true);
           }}
           endHold={endHold}
-          explorer={yours && { count: actions?.rows.count ?? 0 }}
-          openExplorer={() => {
-            if (yours) openTab(yours.id);
-          }}
           openTrade={(figure) => {
             setSheet({ kind: "trade", with: figure, decision });
           }}

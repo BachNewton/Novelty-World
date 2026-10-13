@@ -92,7 +92,6 @@ export function CardBeat({ scene, moment, told, spots, input, playing, goOn }: C
             </Suspense>
             <button type="button" onClick={goOn} className="mt-1 inline-flex min-h-10 items-center gap-1.5 self-end rounded border border-(--bt-line) px-3 text-sm hover:border-(--bt-accent)">
               Go on
-              <Prompt meaning="confirm" input={input} size={16} />
             </button>
           </>
         )}

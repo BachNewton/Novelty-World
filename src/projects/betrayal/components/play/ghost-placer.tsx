@@ -155,7 +155,7 @@ export function GhostPanel({ ghost, input, act }: { ghost: GhostPlacer; input: I
   return (
     <div className="flex flex-col gap-2">
       <p className="text-(--bt-muted)">
-        {(ways > 1 || ghost.choice.cells.length > 1) && <Prompt meaning="choices" input={input} size={16} className="mr-1.5" />}
+        {(ways > 1 || ghost.choice.cells.length > 1) && <Prompt meaning="choices" input={input} className="mr-1.5 align-middle" />}
         {ways === 1 ? "It fits only one way round here." : `Way ${ghost.way + 1} of ${ways} it can go.`}
         {ghost.choice.cells.length > 1 && ` ${ghost.choice.cells.length} places it can go: choose a glowing one to move it there.`}
       </p>

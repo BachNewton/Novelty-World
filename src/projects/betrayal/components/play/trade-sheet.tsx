@@ -64,7 +64,6 @@ export function TradeSheet({ view, row, act, close, input }: { view: GameView; r
         <div className="flex flex-wrap justify-end gap-2">
           <button type="button" data-pad-back onClick={close} className="inline-flex min-h-11 items-center gap-1.5 rounded border border-(--bt-line) px-3 hover:border-(--bt-accent)">
             Cancel
-            <Prompt meaning="back" input={input} size={16} />
           </button>
           <button
             type="button"

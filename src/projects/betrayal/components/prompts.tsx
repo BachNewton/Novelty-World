@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ComponentProps, type ReactNode } from "react";
 import type { InputKind } from "../input/controls";
 
 /*
@@ -10,13 +10,14 @@ import type { InputKind } from "../input/controls";
  * read as one set with the project's icons and take Betrayal's tokens. The
  * letters are Xbox's names, never its colours: they would fight the house's
  * colour meanings. Filling the pressed arm of the d-pad, or the pressed
- * button of the mouse, is the only fill. A hold-only control shows a ring
- * round its glyph, which fills while the hold is under way.
+ * button of the mouse, is the only fill.
  *
  * `Prompt` is the one map from a meaning to its glyph for the input the
  * player last used. Hints never spell a button's name in words: the map is
  * the single source, and the glyph sits on the thing it acts on. Touch has no
- * glyph: the control is the tap target.
+ * glyph: the control is the tap target. One system for all of them: a glyph
+ * is sized in ems of its text, sits on one opaque chip, and leads the label
+ * inside its button (`PromptButton`); a filling hold fills that button.
  */
 
 type PadGlyph = "A" | "B" | "X" | "Y" | "LB" | "RB" | "LT" | "RT" | "L3" | "R3" | "View" | "Menu" | "DpadUp" | "DpadDown" | "DpadLeft" | "DpadRight" | "DpadLeftRight" | "DpadUpDown";
@@ -106,25 +107,27 @@ function padShape(glyph: PadGlyph): ReactNode {
   }
 }
 
-/** A glyph's svg: `width` units wide on the 24-unit grid, drawn `size` pixels tall. */
-function Svg({ width = 24, size, className = "", children }: { width?: number; size: number; className?: string; children: ReactNode }) {
+/** A glyph's svg, `width` units wide on the 24-unit grid; its height is the
+ *  prompt scale's, so it sizes with the text it sits beside. */
+function Svg({ width, children }: { width: number; children: ReactNode }) {
   return (
     <svg
       viewBox={`0 0 ${width} 24`}
-      width={(size * width) / 24}
-      height={size}
+      width={`${(GLYPH_EM * width) / 24}em`}
+      height={`${GLYPH_EM}em`}
       fill="none"
       stroke="currentColor"
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
-      className={`inline-block shrink-0 align-middle ${className}`}
+      className="block"
     >
       {children}
     </svg>
   );
 }
+
 
 /** A keycap with its key's letter or symbol; a long name gets a wider cap. */
 function keyShape(label: string): { width: number; shape: ReactNode } {
@@ -157,94 +160,40 @@ function mouseShape(pressed: "left" | "right"): ReactNode {
 /** A control as the player presses it: a pad button, a key, or a mouse button. */
 export type Control = { pad: PadGlyph } | { key: string } | { mouse: "left" | "right" };
 
-/** How long a hold-only control is held to act, in ms: about half a second. */
-export const HOLD_MS = 500;
-const RING = 2 * Math.PI * 13.5;
-/** The share of the ring drawn at rest, so a hold-only control never looks like a tap. */
-const REST = 0.25;
+/** The prompt scale: a glyph is this many ems tall, of the text it sits beside. */
+const GLYPH_EM = 1.25;
 
-/** The ring of a hold-only control: a short arc at rest, filling round while
- *  `holding`; `onHeld` hears it come full circle. The ring's fill is the
- *  hold's own timing, the feature, not a wait on something else. */
-function HoldRing({ holding, onHeld }: { holding: boolean; onHeld?: () => void }) {
-  const ref = useRef<SVGCircleElement>(null);
-  const done = useRef(onHeld);
-  useEffect(() => {
-    done.current = onHeld;
-  });
-  useEffect(() => {
-    const ring = ref.current;
-    if (!holding || !ring) return;
-    const fill = ring.animate([{ strokeDashoffset: RING * (1 - REST) }, { strokeDashoffset: 0 }], { duration: HOLD_MS, fill: "forwards" });
-    fill.onfinish = () => done.current?.();
-    return () => {
-      fill.cancel();
-    };
-  }, [holding]);
-  return (
-    <>
-      <circle cx="15" cy="15" r="13.5" strokeOpacity={0.3} />
-      <circle
-        ref={ref}
-        data-hold-ring={holding ? "filling" : "rest"}
-        cx="15"
-        cy="15"
-        r="13.5"
-        strokeDasharray={RING}
-        strokeDashoffset={RING * (1 - REST)}
-        transform="rotate(-90 15 15)"
-      />
-    </>
-  );
-}
+/** The chip every glyph sits on: solid and opaque, pale with a dark rim, so
+ *  it reads on the house, a dark panel, the accent and a pale portrait alike. */
+const CHIP = "inline-flex shrink-0 items-center rounded-[0.3em] bg-(--bt-ink) p-[0.1em] text-(--bt-bg) ring-1 ring-(--bt-bg)";
 
-/** One control's glyph, `size` pixels tall; `hold` draws the hold ring round it. */
-export function ControlGlyph({ control, size = 18, hold, className }: { control: Control; size?: number; hold?: { holding: boolean; onHeld?: () => void }; className?: string }) {
+/** One control's glyph on its chip. */
+export function ControlGlyph({ control, className = "" }: { control: Control; className?: string }) {
   const { width, shape } = "pad" in control ? { width: 24, shape: padShape(control.pad) } : "key" in control ? keyShape(control.key) : { width: 24, shape: mouseShape(control.mouse) };
-  if (!hold) {
-    return (
-      <Svg width={width} size={size} className={className}>
-        {shape}
-      </Svg>
-    );
-  }
-  if (width !== 24) throw new Error("A hold ring goes round a square glyph only");
-  // The glyph keeps its size, and the ring sits outside it on a wider grid.
   return (
-    <Svg width={30} size={(size * 30) / 24} className={`-my-[0.125em] ${className ?? ""}`}>
-      <g transform="translate(3 3)">{shape}</g>
-      <HoldRing holding={hold.holding} onHeld={hold.onHeld} />
-    </Svg>
+    <span className={`${CHIP} ${className}`}>
+      <Svg width={width}>{shape}</Svg>
+    </span>
   );
 }
 
-/** What a control means, whatever the input: the map's single source. */
-export type Meaning =
-  | "confirm"
-  | "back"
-  | "end-turn"
-  | "explorer"
-  | "menu"
-  | "recentre"
-  | "stats"
-  | "walls"
-  | "floor-down"
-  | "floor-up"
-  | "choices";
+/** What a control means, whatever the input: the map's single source. A
+ *  and B (Enter and Esc) are left out: pressing the focused thing and
+ *  closing the topmost one go without saying, so they never show a glyph. */
+export type Meaning = "end-turn" | "explorer" | "menu" | "recentre" | "stats" | "walls" | "floor-down" | "floor-up" | "choices";
 
-/** Each meaning's control on a pad and on the keyboard, and whether it is held. Touch has none. */
-const MAP: Record<Meaning, { pad: PadGlyph; key: string | null; held: boolean }> = {
-  confirm: { pad: "A", key: "Enter", held: false },
-  back: { pad: "B", key: "Esc", held: false },
-  "end-turn": { pad: "X", key: "⌫", held: true },
-  explorer: { pad: "Y", key: "I", held: false },
-  menu: { pad: "Menu", key: "M", held: false },
-  recentre: { pad: "View", key: "C", held: false },
-  stats: { pad: "R3", key: "Z", held: true },
-  walls: { pad: "L3", key: "V", held: true },
-  "floor-down": { pad: "LB", key: "F", held: false },
-  "floor-up": { pad: "RB", key: "R", held: false },
-  choices: { pad: "DpadLeftRight", key: "Tab", held: false },
+/** Each meaning's control on a pad and on the keyboard, and whether it is a
+ *  hold that fills before it acts. Touch has none. */
+const MAP: Record<Meaning, { pad: PadGlyph; key: string | null; fills: boolean }> = {
+  "end-turn": { pad: "X", key: "⌫", fills: true },
+  explorer: { pad: "Y", key: "I", fills: false },
+  menu: { pad: "Menu", key: "M", fills: false },
+  recentre: { pad: "View", key: "C", fills: false },
+  stats: { pad: "R3", key: "Z", fills: false },
+  walls: { pad: "L3", key: "V", fills: false },
+  "floor-down": { pad: "LB", key: "F", fills: false },
+  "floor-up": { pad: "RB", key: "R", fills: false },
+  choices: { pad: "DpadLeftRight", key: "Tab", fills: false },
 };
 
 /** The control for a meaning on an input, or null where it has none (touch, or a key it lacks). */
@@ -255,12 +204,61 @@ export function controlFor(meaning: Meaning, input: InputKind): Control | null {
   return null;
 }
 
-/** A meaning's glyph for the input the player last used, or nothing on touch.
- *  A hold-only meaning draws its ring; `hold` fills it while held. */
-export function Prompt({ meaning, input, size, hold, className }: { meaning: Meaning; input: InputKind; size?: number; hold?: { holding: boolean; onHeld?: () => void }; className?: string }) {
+/** A meaning's glyph on its chip, for the input the player last used, or nothing on touch. */
+export function Prompt({ meaning, input, className }: { meaning: Meaning; input: InputKind; className?: string }) {
   const control = controlFor(meaning, input);
   if (control === null) return null;
-  return <ControlGlyph control={control} size={size} hold={MAP[meaning].held ? (hold ?? { holding: false }) : undefined} className={className} />;
+  return <ControlGlyph control={control} className={className} />;
+}
+
+/** How long a filling hold is held to act, in ms: about half a second. */
+export const HOLD_MS = 500;
+
+/** A filling hold: under way while `holding`, and `onHeld` hears it complete. */
+export interface Hold {
+  holding: boolean;
+  onHeld: () => void;
+}
+
+/** The fill of a hold, across its button's background from the left. It
+ *  runs while the hold does and empties when it is let go: the fill is the
+ *  hold's own timing, the feature, not a wait on something else. */
+function HoldFill({ holding, onHeld }: Hold) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const done = useRef(onHeld);
+  useEffect(() => {
+    done.current = onHeld;
+  });
+  useEffect(() => {
+    const fill = ref.current;
+    if (!holding || !fill) return;
+    const run = fill.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: HOLD_MS, fill: "forwards" });
+    run.onfinish = () => {
+      done.current();
+    };
+    return () => {
+      run.cancel();
+    };
+  }, [holding]);
+  return <span ref={ref} aria-hidden data-hold-fill={holding ? "filling" : "rest"} className="absolute inset-0 origin-left scale-x-0 bg-(--bt-ink)" />;
+}
+
+/** A filling hold's button is always the accent with dark text, so its label
+ *  and glyph read on the empty part and on the pale fill alike. */
+const HOLD_BUTTON = "bg-(--bt-accent) text-(--bt-bg)";
+
+/** A button with its meaning's prompt: the glyph leads the label, centred
+ *  on it, at the prompt scale. A filling hold fills the button's background
+ *  while held. Every on-screen control with a prompt is one of these. */
+export function PromptButton({ meaning, input, hold, className = "", children, ...button }: ComponentProps<"button"> & { meaning: Meaning; input: InputKind; hold?: Hold }) {
+  if (MAP[meaning].fills !== (hold !== undefined)) throw new Error(`${meaning}'s button ${hold ? "fills" : "needs its hold's fill"}`);
+  return (
+    <button type="button" {...button} className={`relative inline-flex items-center gap-[0.4em] overflow-hidden ${hold ? HOLD_BUTTON : ""} ${className}`}>
+      {hold && <HoldFill holding={hold.holding} onHeld={hold.onHeld} />}
+      <Prompt meaning={meaning} input={input} className="relative" />
+      <span className="relative inline-flex items-center gap-1.5">{children}</span>
+    </button>
+  );
 }
 
 /** The pad's A, as a CSS mask image: the focused control's prompt, drawn by the stylesheet on whichever button has the pad's focus. */

@@ -57,7 +57,7 @@ function Hints({ input, phase, walking, stopping }: { input: InputKind; phase: P
             <Hint key="zoom" glyphs={<><ControlGlyph control={{ pad: "LT" }} /><ControlGlyph control={{ pad: "RT" }} /></>} does="zoom" />,
             <Hint key="floor" glyphs={<><ControlGlyph control={{ pad: "LB" }} /><ControlGlyph control={{ pad: "RB" }} /></>} does="floor" />,
             <Hint key="recentre" glyphs={<ControlGlyph control={{ pad: "View" }} />} does="recentre" />,
-            <Hint key="walls" glyphs={<ControlGlyph control={{ pad: "L3" }} hold={{ holding: false }} />} does="walls" />,
+            <Hint key="walls" glyphs={<ControlGlyph control={{ pad: "L3" }} />} does="walls" />,
           ]
         : [
             <Hint key="pan" glyphs={<Glyph>WASD</Glyph>} does="look" />,
@@ -229,6 +229,8 @@ export function HouseScreen() {
           <RaiseWallsButton
             raised={shown.wallsRaised}
             raise={view.scene.hook.raiseWalls}
+            // The bench's buttons are icons; its hints name the controls.
+            input="touch"
             className="pointer-events-auto h-12 w-12 rounded border border-(--bt-line) bg-(--bt-panel) text-xl text-(--bt-ink) aria-pressed:border-(--bt-accent)"
           >
             ▥

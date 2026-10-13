@@ -110,7 +110,6 @@ function HalfReader({ half, onClose, input }: { half: HauntHalf; onClose: () => 
           <h2 className="text-lg font-semibold">{half.title}</h2>
           <button type="button" data-pad-back onClick={onClose} className="inline-flex min-h-11 items-center gap-1.5 rounded border border-(--bt-line) px-3 hover:border-(--bt-accent)">
             Close
-            <Prompt meaning="back" input={input} size={16} />
           </button>
         </div>
         <div className="overflow-y-auto px-3 py-2 text-sm break-words whitespace-pre-wrap">{half.text}</div>

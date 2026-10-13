@@ -22,7 +22,7 @@ import { enterLayer } from "./pad-focus";
 import { seatDot } from "./seat-colour";
 import { CompactTrait, TrackRow } from "./trait-track";
 import { CardTypeIcon, TraitIcon, traitLabel } from "../icons";
-import { Prompt } from "../prompts";
+import { PromptButton } from "../prompts";
 
 /*
  * What the explorers carry, on the figures: a mark under each explorer with
@@ -254,7 +254,6 @@ export function ExplorerSheet(props: ExplorerSheetProps) {
           </div>
           <button type="button" data-pad-back onClick={close} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded border border-(--bt-line) px-3 text-sm hover:border-(--bt-accent)">
             Close
-            <Prompt meaning="back" input={input} size={16} />
           </button>
         </div>
         <Suspense fallback={<SheetBody {...props} notes={null} />}>
@@ -361,11 +360,11 @@ function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: Explore
 /** The on-screen button that shows every explorer's stats while it is held, as Z or a controller's R3 does. */
 export function StatsButton({ held, hold, input, className }: { held: boolean; hold: (on: boolean) => void; input: InputKind; className: string }) {
   return (
-    <button
-      type="button"
+    <PromptButton
+      meaning="stats"
+      input={input}
       aria-label="Show the stats"
       aria-pressed={held}
-      title="Hold to show every explorer's stats"
       onPointerDown={(event) => {
         event.currentTarget.setPointerCapture(event.pointerId);
         hold(true);
@@ -383,7 +382,6 @@ export function StatsButton({ held, hold, input, className }: { held: boolean; h
       className={`touch-none select-none ${className}`}
     >
       Stats
-      <Prompt meaning="stats" input={input} size={16} />
-    </button>
+    </PromptButton>
   );
 }

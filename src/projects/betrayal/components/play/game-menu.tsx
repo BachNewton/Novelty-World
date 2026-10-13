@@ -39,7 +39,6 @@ export function GameMenu({ view, pads, speed, setSpeed, onLeave, close, input }:
           <h2 className="text-lg font-semibold">Menu</h2>
           <button type="button" data-pad-back data-pad-start onClick={close} className="inline-flex min-h-11 items-center gap-1.5 rounded border border-(--bt-line) px-3 hover:border-(--bt-accent)">
             Close
-            <Prompt meaning="back" input={input} size={16} />
           </button>
         </div>
         <SeatsSection view={view} pads={pads} />

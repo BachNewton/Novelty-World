@@ -33,7 +33,6 @@ export function ThingTag({ thing, input }: { thing: ShownThing; input: InputKind
     <span className="inline-flex items-center gap-1.5">
       <span aria-hidden className={`inline-block size-2.5 rounded-full ${MOOD_BG[thing.mood]}`} />
       {thing.name}
-      <Prompt meaning="confirm" input={input} size={16} />
     </span>
   );
 }
@@ -101,7 +100,6 @@ export function ThingReader(props: ThingReaderProps) {
         </Suspense>
         <button type="button" data-pad-back onClick={close} className="inline-flex min-h-9 items-center gap-1.5 self-end rounded border border-(--bt-line) px-3 text-sm hover:border-(--bt-accent)">
           Close
-          <Prompt meaning="back" input={input} size={16} />
         </button>
       </section>
     </div>
