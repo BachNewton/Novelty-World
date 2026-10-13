@@ -5,7 +5,7 @@ import { ball, ellipsoid, figureMaterial, form, mergeAll, painted, plinth, ring,
 import { group } from "../shapes";
 import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type Joint, type StrideRig, type Walking } from "./figure";
 import { hangsCloth } from "./cloth";
-import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm, type ArmPose, type Prop } from "./hands";
+import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
 import { skinOf } from "./skin";
 import { declareParts, figureParts } from "../figure-parts";
 import { windOf } from "../wind";
@@ -360,17 +360,10 @@ function skirtNet() {
 
 const UP = new THREE.Vector3(0, 1, 0);
 
-/** Where her right wrist circles over the crystal ball, `s` of the way round, in the chest's frame. */
-function scryingAt(s: number, over: THREE.Vector3): THREE.Vector3 {
-  const turn = s * Math.PI * 2 * 2;
-  return over.clone().add(new THREE.Vector3(Math.cos(turn) * 0.07, 0.02 * Math.sin(turn * 0.5), Math.sin(turn) * 0.04));
-}
-
 /** Madame Zostra as a miniature on a round base, 5'0" at the house's scale.
  *  She breathes slow and full, rocking a little from foot to foot, her
- *  crystal ball held up before her; now and then she lifts it to her face
- *  and circles her free hand over it, reading what it shows; now and then
- *  she tips her head back and points up to read the stars; and now and then,
+ *  crystal ball held up before her; now and then she tips her head back
+ *  and points up to read the stars; and now and then,
  *  seeing death in the glass, she snatches it away from her, turns her face
  *  aside and throws up her free hand against it. She walks with short, quick, rolling steps,
  *  her skirt swinging round her ankles. Her left hand holds the crystal
@@ -405,18 +398,12 @@ export function zostra(seed = "zostra", gait: Gait = STANDING, { cloth = clothMo
 
   const wristAt = (of: Arm, offset: [number, number, number]) => of.at.clone().add(new THREE.Vector3(...offset));
   const bend = new THREE.Vector3(0, 0, -1);
-  // The ball held up before her, lifted to her face to read it, and thrust away from her at arm's length.
+  // The ball held up before her, and thrust away from her at arm's length.
   const presents = reachWrist(left, wristAt(left, [-0.05, -0.2, 0.24]), new THREE.Vector3(0.5, -0.3, -1));
-  const reads = reachWrist(left, wristAt(left, [-0.11, -0.05, 0.37]), new THREE.Vector3(1, -0.2, -0.3));
   const recoils = reachWrist(left, wristAt(left, [0.14, -0.06, 0.37]), new THREE.Vector3(0.6, -1, -0.3));
   const hangs = reachWrist(right, wristAt(right, [-0.13, -0.36, 0.06]), bend);
   const holds = reachWrist(right, wristAt(right, [-0.14, -0.35, 0.07]), bend);
   const carries = reachWrist(right, wristAt(right, [-0.1, -0.26, 0.22]), new THREE.Vector3(-0.3, 0, -1));
-  // Her free hand flat over the ball, palm down, circling it.
-  const over = new THREE.Vector3(-0.04, 0.56, 0.42);
-  const scrying = (s: number): ArmPose => pointHand(reachWrist(right, scryingAt(s, over), new THREE.Vector3(-1, -0.2, 0)), new THREE.Vector3(0.7, -0.25, 0.7), -Math.PI / 2);
-  // On the way to and from the ball, her free hand comes out and up to her side first, clear of her belly.
-  const aside = reachWrist(right, wristAt(right, [-0.16, -0.12, 0.2]), new THREE.Vector3(-1, -0.4, -0.3));
   // Pointing up at the stars, and her hand thrown up before her face against what she saw.
   const stars = pointHand(reachWrist(right, wristAt(right, [-0.06, 0.3, 0.16]), new THREE.Vector3(-1, 0, -0.3)), new THREE.Vector3(-0.15, 1, 0.2), 0);
   const heart = pointHand(reachWrist(right, new THREE.Vector3(-0.14, 0.42, 0.25), new THREE.Vector3(-1, -0.6, 0)), new THREE.Vector3(0.2, 1, 0.3), -Math.PI / 2);
@@ -466,7 +453,6 @@ export function zostra(seed = "zostra", gait: Gait = STANDING, { cloth = clothMo
   const swinging = { limb: right, side: -1 as const, swing: ARM_SWING };
   const rig: StrideRig = { walking: ZOSTRA_WALK, legs, body, rest: BASE_TOP, arms: [swinging], chest, lean: 0.03, lifts: 0.6 };
   const bursts = idleBursts(figure, seed, offset, {
-    scry: { every: 10, lasts: 4, chance: 0.6 },
     stars: { every: 12, lasts: 2.8, chance: 0.5 },
     omen: { every: 14, lasts: 3.2, chance: 0.45 },
   });
@@ -481,39 +467,35 @@ export function zostra(seed = "zostra", gait: Gait = STANDING, { cloth = clothMo
     const upright = held?.carry === "upright";
     // Her right hand's gestures wait while it holds something, and while she walks.
     const free = held ? 0 : 1 - moving.amount;
-    const still = 1 - moving.amount;
-    const { scry, stars: starry, omen } = bursts(clock);
+    const { stars: starry, omen } = bursts(clock);
     const fearing = omen.amount * (1 - running);
-    const reading = scry.amount * still * (1 - fearing);
-    const pointing = starry.amount * free * (1 - fearing) * (1 - reading);
+    const pointing = starry.amount * free * (1 - fearing);
 
     body.rotation.z = sway * 0.02;
     hips.rotation.z = sway * -0.01;
     chest.rotation.z = sway * -0.012;
-    chest.rotation.x = breath * -0.012 + reading * 0.06 - fearing * 0.18 - pointing * 0.04;
+    chest.rotation.x = breath * -0.012 - fearing * 0.18 - pointing * 0.04;
     trunk.scale.set(1 + breath * 0.014, 1, 1 + breath * 0.016);
     const hunch = fearing * 0.02;
     left.shoulder.position.y = left.at.y + breath * 0.004 + hunch;
     right.shoulder.position.y = right.at.y + breath * 0.004 + hunch;
 
-    // She looks down into the ball, up at the stars, or away from what she saw, with a shudder.
+    // She looks up at the stars, or away from what she saw, with a shudder.
     const shudder = Math.sin(omen.progress * Math.PI * 14) * 0.03 * fearing;
     const away = omen.pick < 0.5 ? -1 : 1;
-    neck.rotation.y = fearing * away * 0.9 + shudder + reading * 0.1;
-    neck.rotation.x = 0.04 + reading * 0.12 - pointing * 0.32 - fearing * 0.1;
-    neck.rotation.z = sway * 0.015 + reading * 0.06;
+    neck.rotation.y = fearing * away * 0.9 + shudder;
+    neck.rotation.x = 0.04 - pointing * 0.32 - fearing * 0.1;
+    neck.rotation.z = sway * 0.015;
 
     // Afraid, she snatches the ball away first, then her free hand goes to her heart, so the two never cross.
-    poseArm(left, between(presents, reads, reading), recoils, THREE.MathUtils.smoothstep(fearing, 0, 0.45));
+    poseArm(left, presents, recoils, THREE.MathUtils.smoothstep(fearing, 0, 0.45));
     const rests = upright ? carries : held ? holds : hangs;
-    const toBall = reading * (held ? 0 : 1);
-    const circling = between(between(rests, aside, THREE.MathUtils.smoothstep(toBall, 0, 0.5)), scrying(THREE.MathUtils.clamp((scry.progress - 0.2) / 0.6, 0, 1)), THREE.MathUtils.smoothstep(toBall, 0.5, 1));
-    const raised = between(circling, stars, pointing);
-    // Her hand goes to her heart only standing: walking, she just snatches the ball away and looks aside.
+    const raised = between(rests, stars, pointing);
+    // Her hand goes up against it only standing: walking, she just snatches the ball away and looks aside.
     poseArm(right, raised, heart, THREE.MathUtils.smoothstep(fearing, 0.55, 1) * free);
-    const gesture = Math.max(reading, pointing * 0.5, fearing * free);
+    const gesture = Math.max(pointing * 0.5, fearing * free);
     poseHand(right.hand, held ? holding(right.hand, RELAXED) : blendPose(blendPose(RELAXED, OPEN, gesture), fist(right.hand), running * 0.7));
-    swinging.swing = (upright ? ARM_SWING * 0.3 : ARM_SWING) * (1 - Math.max(reading, pointing, fearing * free));
+    swinging.swing = (upright ? ARM_SWING * 0.3 : ARM_SWING) * (1 - Math.max(pointing, fearing * free));
 
     stride(rig, moving);
     aimGrip(left.hand, figure, UP, 1);
