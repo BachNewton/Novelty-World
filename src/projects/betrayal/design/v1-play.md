@@ -22,8 +22,8 @@ Phases 3 to 7 are built but not yet playtested by the owner. P8, haunt 13 in the
 
 **Next session: playtesting, UI first.** The owner plays a game from setup and reports what they see; each piece becomes work. Placeholder art is allowed wherever art isn't ready: UI and playability come first. The UI known to need work, picked up as the playtest reaches it:
 
-- **A UI-size setting** for TV play: in the game menu, on every input, saved per device, scaling all UI, touch targets and the controller's snap radius; 100% by default.
-- **A debug overlay for the controller's snap system** (the snap areas, what is caught and why), then tune the controller's aiming. The magnetism and sticky focus are built but not approved.
+- **A UI-size setting** for TV play: in the game menu, on every input, saved per device, scaling all UI and touch targets; 100% by default.
+- **The controller's aim is decided:** the reticle points at what is under the screen's centre, the mouse's way of picking, with no snapping, magnetism or sticky focus; small things are reached by zooming in (`presentation.md`, "The camera").
 - **Explorer nameplates cover items on the floor** when zoomed out.
 - **The controller-map playtest**, which needs the owner's controller.
 - **The phone and desktop layout** round the status box.

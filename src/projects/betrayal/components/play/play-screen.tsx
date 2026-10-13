@@ -40,7 +40,6 @@ import { useStatsHold } from "./stats-hold";
 import { BakeDebug } from "../../art/bake-debug";
 import { BakeIndicator } from "../../art/bake-indicator";
 import { createFrameMeter, useFrameMeter, type FrameMeter } from "../../art/frame-meter";
-import { AimDebug } from "./aim-debug";
 
 /*
  * The game on one device: the house, showing the seat holding the device
@@ -278,6 +277,7 @@ export function PlayScreen({
   const containerRef = useThreeScene(mount, { antialias: false, maxPixelRatio: 4 });
   const rootRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
+  const reticleRef = useRef<HTMLDivElement>(null);
   const handlesRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
@@ -372,6 +372,9 @@ export function PlayScreen({
     };
     scene.setInput({
       focus: setFocused,
+      blur: () => {
+        setFocused(null);
+      },
       commit,
       confirm: () => {
         commit(latest.current.live);
@@ -379,6 +382,7 @@ export function PlayScreen({
       back: () => {
         const layer = over();
         if (layer) padPress(layer, "B");
+        else setFocused(null);
       },
       cycle: (step) => {
         const placer = latest.current.ghost;
@@ -436,9 +440,11 @@ export function PlayScreen({
       },
     });
     scene.setLabel(labelRef.current);
+    scene.setReticle(reticleRef.current);
     scene.setGhostHandles(handlesRef.current);
     return () => {
       scene.setLabel(null);
+      scene.setReticle(null);
       scene.setGhostHandles(null);
     };
   }, [scene, presenting, store, act, padMay, padActs, setMenuOpen, gate.menuOpen, screenRef]);
@@ -498,6 +504,12 @@ export function PlayScreen({
       </div>
       <BakeDebug bakes={scene.bakes} />
       <div
+        ref={reticleRef}
+        aria-hidden
+        data-reticle
+        className="pointer-events-none invisible absolute top-0 left-0 h-8 w-8 rounded-full border-2 border-(--bt-muted) data-[pointing=true]:border-(--bt-accent)"
+      />
+      <div
         ref={labelRef}
         role="tooltip"
         className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm w-max max-w-[calc(100%-1rem)]"
@@ -508,7 +520,6 @@ export function PlayScreen({
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />
-      <AimDebug scene={scene} named={[...targets, ...ghostTargets, ...things]} />
       <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} statsHeld={stats.held} tab={tab?.id ?? null} openTab={openTab} />
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 p-3 pr-28 text-xs sm:text-sm">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cycleChoice, nextInDirection, pickTarget, reticleTarget, stepFloor, type ScreenPoint, type Target } from "./navigate";
+import { cycleChoice, nextInDirection, pickTarget, stepFloor, type ScreenPoint, type Target } from "./navigate";
 
 const square = (id: string, x: number, y: number, size: number): Target => ({
   id,
@@ -44,42 +44,6 @@ describe("pickTarget", () => {
     };
     expect(pickTarget([skewed], { x: 20, y: 50 }, 0)).toBe("skewed");
     expect(pickTarget([skewed], { x: 10, y: 10 }, 0)).toBeNull();
-  });
-});
-
-describe("reticleTarget", () => {
-  const big = square("big", 0, 0, 200);
-  const tiny = square("tiny", 300, 0, 4);
-
-  it("selects the choice under the centre, and snaps the reticle onto its anchor", () => {
-    expect(reticleTarget([big, tiny], { x: 30, y: 40 }, { snap: 60, held: null })).toEqual({ id: "big", at: { x: 100, y: 100 } });
-  });
-
-  it("snaps to the nearest choice when the centre is close to it", () => {
-    expect(reticleTarget([big, tiny], { x: 350, y: 2 }, { snap: 60, held: null })).toEqual({ id: "tiny", at: { x: 302, y: 2 } });
-  });
-
-  it("catches a small thing near the centre over a big room the centre lies in", () => {
-    const room = square("room", 0, 0, 400);
-    const thing = square("thing", 300, 300, 10);
-    expect(reticleTarget([room, thing], { x: 280, y: 290 }, { snap: 60, held: null })?.id).toBe("thing");
-    expect(reticleTarget([room, thing], { x: 210, y: 210 }, { snap: 60, held: null })?.id).toBe("room");
-  });
-
-  it("holds the target caught through a small drift, and lets go once the centre moves clearly away or onto another", () => {
-    const a = square("a", 100, 100, 10);
-    const b = square("b", 150, 100, 10);
-    expect(reticleTarget([a, b], { x: 128, y: 105 }, { snap: 60, held: "a" })?.id).toBe("a");
-    expect(reticleTarget([a, b], { x: 128, y: 105 }, { snap: 60, held: "b" })?.id).toBe("b");
-    expect(reticleTarget([a, b], { x: 154, y: 105 }, { snap: 60, held: "a" })?.id).toBe("b");
-    expect(reticleTarget([a], { x: 175, y: 105 }, { snap: 60, held: "a" })?.id).toBe("a");
-    expect(reticleTarget([a], { x: 175, y: 105 }, { snap: 60, held: null })).toBeNull();
-    expect(reticleTarget([a], { x: 205, y: 105 }, { snap: 60, held: "a" })).toBeNull();
-  });
-
-  it("selects nothing on open floor", () => {
-    expect(reticleTarget([big, tiny], { x: 250, y: 400 }, { snap: 60, held: null })).toBeNull();
-    expect(reticleTarget([], { x: 0, y: 0 }, { snap: 60, held: null })).toBeNull();
   });
 });
 

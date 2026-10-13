@@ -30,7 +30,7 @@ The controller map, with its counterparts:
 
 | | Controller | Keyboard + mouse | Touch |
 |---|---|---|---|
-| Point at a choice | a reticle at the screen's centre, snapping to the nearest choice | the cursor | tap to focus |
+| Point at a choice | a reticle at the screen's centre, pointing at what's under it | the cursor | tap to focus |
 | Press the focus | A | click, Enter or Space | tap the focused choice again, or tap a button |
 | Back | B closes the topmost thing open, or clears the focus | Esc | the open thing's close button |
 | Step through a row's choices (a ghost's ways round among them) | d-pad left and right | Tab and Shift+Tab | tap the choice; the ghost's turn buttons |
@@ -51,7 +51,7 @@ The status box shows a chip for Your explorer with the turn's actions counted ("
 
 ## The camera
 
-A free strategy camera, in the style of Cities: Skylines and XCOM: a target point on the floor, turned round the vertical, tilted from near eye level (about 9°) to near top-down (80°), and zoomed. It never drops below 2.2 m above the floor, so fully zoomed in the lowest tilt rises to about 12°, looking over the furniture rather than into it. Zooming never changes the tilt. Fully zoomed in (8), half a room spans the screen's short side. The reticle catches a choice within at least 72 px, further for one drawn large, and holds the one it caught until the centre moves clearly away; that magnetism and sticky focus are built but not yet approved.
+A free strategy camera, in the style of Cities: Skylines and XCOM: a target point on the floor, turned round the vertical, tilted from near eye level (about 9°) to near top-down (80°), and zoomed. It never drops below 2.2 m above the floor, so fully zoomed in the lowest tilt rises to about 12°, looking over the furniture rather than into it. Zooming never changes the tilt. Fully zoomed in (8), half a room spans the screen's short side. The reticle points at exactly what is under the screen's centre, picked the same way as under the mouse cursor, with no magnetism or sticky focus: to point at something small, the player zooms in. Moving off every choice clears the focus, as the mouse leaving one does.
 
 The camera has **two modes**, as Monopoly's board does, kept as local UI state and never game state (`art/camera-follow.ts`):
 

@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./test";
-import { BUTTON, holdButton, onePad, PAGE, padTo, readout, resume, seededGame, setButton, tapButton, until, wakePad, watchDebugPanel, withPad } from "./betrayal-game";
+import { BUTTON, holdButton, onePad, PAGE, padTo, pointOf, readout, resume, seededGame, setButton, tapButton, until, wakePad, watchDebugPanel, withPad } from "./betrayal-game";
 
 /**
  * Each input method is complete on its own. The owner's playtest case (an
@@ -169,15 +169,56 @@ test.describe("controller", () => {
     expect(await debugShown()).toBe(false);
   });
 
-  test("?aim=debug draws the reticle's aim over the house, with a line saying what it caught and why; the backquote key hides it", async ({ page }) => {
-    await resumeByPad(page, HOLDING, `${PAGE}&aim=debug`);
+  test("the reticle shows at the centre on the pad; the name tag goes when B clears the focus or the reticle leaves every target, and with the mouse when it leaves a target", async ({ page }) => {
+    await resumeByPad(page, HOLDING);
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
+    const reticle = page.locator("[data-reticle]");
+    const tag = page.getByRole("tooltip");
+    await expect(reticle).toBeVisible();
+
+    // B clears the focus the d-pad brought, and its tag with it.
     await tapButton(page, BUTTON.DpadRight);
     await until(page, "window.__betrayalPlay.reticle() !== null");
-    const aim = page.getByLabel("Aim debug");
-    await expect(aim.locator("[data-aim-state]")).toHaveText(/^(Caught|Holding) /);
-    await page.keyboard.press("Backquote");
-    await expect(aim).toBeHidden();
+    await expect(tag).toBeVisible();
+    await tapButton(page, BUTTON.B);
+    await until(page, "window.__betrayalPlay.reticle() === null");
+    await expect(tag).toBeHidden();
+
+    // The stick pans the reticle off the house: nothing is under it, so nothing has the focus.
+    await tapButton(page, BUTTON.DpadRight);
+    await until(page, "window.__betrayalPlay.reticle() !== null");
+    const target = await page.evaluate(() => window.__betrayalPlay?.reticle() ?? null);
+    if (target === null) throw new Error("The d-pad brought no target");
+    await page.evaluate(() => {
+      (window as unknown as { testPad: { axes: number[] } }).testPad.axes = [1, 0, 0, 0];
+    });
+    await until(page, "window.__betrayalPlay.reticle() === null");
+    await page.evaluate(() => {
+      (window as unknown as { testPad: { axes: number[] } }).testPad.axes = [0, 0, 0, 0];
+    });
+    await expect(tag).toBeHidden();
+    await expect(reticle).toBeVisible();
+
+    // The mouse hides the reticle; pointing at a target names it, and leaving it for open floor clears the tag.
+    await tapButton(page, BUTTON.View);
+    await page.waitForFunction(() => window.__betrayalPlay?.isReady());
+    const at = await pointOf(page, target);
+    await page.mouse.move(at.x, at.y);
+    await expect(reticle).toBeHidden();
+    await expect(tag).toBeVisible();
+    const open = await page.evaluate(() => {
+      const hook = window.__betrayalPlay;
+      for (let y = innerHeight - 4; y > innerHeight / 2; y -= 16) {
+        for (let x = 4; x < innerWidth; x += 16) {
+          const over = document.elementFromPoint(x, y);
+          if (over instanceof HTMLCanvasElement && over.closest("[data-frame-meter]") === null && hook?.targetAt({ x, y }) === null) return { x, y };
+        }
+      }
+      return null;
+    });
+    if (!open) throw new Error("No open floor to point at");
+    await page.mouse.move(open.x, open.y);
+    await expect(tag).toBeHidden();
   });
 
   test("the game menu: any pad's Menu opens it, the d-pad and A change the speed, and B closes it", async ({ page }) => {

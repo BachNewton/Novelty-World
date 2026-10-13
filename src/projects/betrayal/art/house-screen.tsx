@@ -139,7 +139,7 @@ export function HouseScreen() {
       <div
         ref={reticleRef}
         aria-hidden
-        className="pointer-events-none invisible absolute top-0 left-0 h-8 w-8 rounded-full border-2 border-(--bt-muted) data-[snapped=true]:border-(--bt-accent)"
+        className="pointer-events-none invisible absolute top-0 left-0 h-8 w-8 rounded-full border-2 border-(--bt-muted) data-[pointing=true]:border-(--bt-accent)"
       />
       <div
         ref={labelRef}

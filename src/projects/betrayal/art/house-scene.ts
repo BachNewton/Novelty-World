@@ -2,14 +2,14 @@ import * as THREE from "three";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import type { StandardButton } from "@/shared/lib/gamepad";
 import { FLOORS, placed, type Layout } from "../engine/board";
-import { attachControls, usesReticle, type ChoiceLayout, type InputKind } from "../input/controls";
+import { attachControls, pointAt, usesReticle, type ChoiceLayout, type InputKind } from "../input/controls";
 import { panOnFloor } from "../input/gestures";
-import { cycleChoice, pickTarget, reticleTarget, stepFloor, type Point, type ReticleWeighing } from "../input/navigate";
+import { cycleChoice, stepFloor, type Point } from "../input/navigate";
 import type { FloorId, PlacedTile } from "../types";
 import type { Pace } from "./explorers/figure";
 import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure } from "./house";
 import type { LayoutChange } from "./house-layout";
-import { choiceLayout, exploreEntry, FINGER, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
+import { choiceLayout, exploreEntry, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
 import { inHouse, walkPath, walkPose, type Avoid, type HousePoint, type Stairway, type Walk } from "./house-walk";
 import { pinsApart } from "./pins-apart";
 import type { ShownThing } from "../play/things";
@@ -51,8 +51,6 @@ const DEFAULT_RESOLUTION: Resolution = null;
 const EASE_RATE = 6;
 /** How far past the rooms showing the camera's target may be panned, in metres. */
 const PAN_MARGIN = TILE / 2;
-/** The reticle snaps to a choice at least this close to the screen's centre, in CSS pixels: generous, so a thing drawn small is easy to catch. */
-const RETICLE_SNAP = FINGER * 1.5;
 /** The gap kept between a tag pinned in the house and the screen's edge, in CSS pixels. */
 const SCREEN_MARGIN = 8;
 /** The least space between pins kept apart, in CSS pixels. */
@@ -159,7 +157,7 @@ export interface SceneInput {
   confirm: () => void;
   /** The player backs out: the focus is cleared, or a selection pending cancelled. */
   back?: () => void;
-  /** The reticle has left every choice, so nothing has the focus. */
+  /** The reticle or the mouse has left the choice it was on, so nothing has the focus. */
   blur?: () => void;
   /** The player steps to the next (1) or previous (-1) choice: true when the
    *  driver took the step (a room tile being placed, whose ways round are the
@@ -177,27 +175,6 @@ export interface SceneInput {
   padButton?: (button: StandardButton, pad: number) => boolean;
   /** Whether a pad may act now; an idle pad's sticks and buttons are ignored. Every pad may when absent. */
   padMay?: (pad: number) => boolean;
-}
-
-/** How the reticle is deciding right now, read from the rule it decides by, for the aim's debug view. */
-export interface AimReading {
-  /** Whether the reticle is the selection: only with a controller. */
-  active: boolean;
-  centre: Point;
-  /** The least snap round any target. */
-  snap: number;
-  /** Every target on the screen, as the rule weighed it with the focused one held. */
-  weighed: ReticleWeighing[];
-  /** What the rule catches with nothing held. */
-  fresh: string | null;
-  /** What it picks with the focused one held. */
-  picked: string | null;
-  /** The reticle's choice as the driver was last told it. */
-  focused: string | null;
-  /** A choice a d-pad jump went to, held until the player pans away. */
-  pinned: string | null;
-  /** A choice backed out of, passed over until the reticle leaves it. */
-  dismissed: string | null;
 }
 
 /** What one frame cost to draw, for measuring. */
@@ -376,12 +353,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let follow: CameraFollow = FOLLOWING;
   /** The player has a hand on the camera, so it hasn't settled. */
   let handsOn = false;
-  /** A choice a jump went to, which the reticle holds until the player pans away. */
+  /** A choice a jump went to, which the reticle holds while the camera glides there, until the player pans away. */
   let pinned: string | null = null;
-  /** A choice the player backed out of, which the reticle passes over until it leaves it. */
-  let dismissed: string | null = null;
-  /** The reticle's choice as the driver was last told it. */
-  let reticleSelected: string | null = null;
+  /** The choice under the reticle as of the last frame: the reticle's choice changes only when this does. */
+  let underReticle: string | null = null;
+  /** The reticle's choice, as the driver was last told it: cleared by backing out, until the reticle moves onto another. */
+  let pointed: string | null = null;
   /** The order the next and previous choice go round in, fixed at the first
    *  jump until the choices change: a jump can change floor, which moves a
    *  choice shown as its stairs, so reading the order off the screen again
@@ -415,7 +392,6 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     floorHit: (point: Point) => THREE.Vector3 | null;
     /** The camera's target and zoom that fit these points in view from its angle. */
     fitting: (points: THREE.Vector3[]) => { target: THREE.Vector3; zoom: number };
-    aimReading: () => AimReading;
   } | null = null;
   let settled = false;
   let frames = 0;
@@ -423,7 +399,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let seconds = 0;
   /** A page element the scene keeps over the focused target, as its name tag. */
   let label: HTMLElement | null = null;
-  /** A page element the scene keeps at the screen's centre, or snapped onto the choice it selects, while the reticle is the selection. */
+  /** A page element the scene keeps at the screen's centre while the reticle is the selection. */
   let reticleMark: HTMLElement | null = null;
   /** A page element the scene keeps on the ghost of a room being placed, for its turning handles; hidden with a controller, which turns it with buttons. */
   let ghostHandles: HTMLElement | null = null;
@@ -622,7 +598,6 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     const ids = (list: readonly Target[]) => list.map((target) => target.id).join("\n");
     if (ids(next) !== ids(targets)) {
       pinned = null;
-      dismissed = null;
       cycleOrder = null;
     }
     // A ghost put on a new cell is shown. It is the player's own decision in hand, so even a free camera shows its floor; a following one pans to it too.
@@ -878,7 +853,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const { x, y, z } = aim ?? new THREE.Vector3();
       return { target: { x, y, z }, yaw, pitch, zoom: view.zoom };
     },
-    reticle: () => reticleSelected,
+    reticle: () => pointed,
     setCloseUp: (room) => {
       update({ closeUp: room, floor: room ? tileFloor(room) : view.floor });
       if (room !== null && mounted) panTo(middleOf(mounted.house, [room]), tileFloor(room));
@@ -923,7 +898,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     targetAt: (point) => {
       if (!mounted) return null;
       const rect = mounted.container.getBoundingClientRect();
-      return pickTarget(mounted.layoutNow().targets, { x: point.x - rect.left, y: point.y - rect.top }, FINGER / 2);
+      return pointAt(mounted.layoutNow().targets, { x: point.x - rect.left, y: point.y - rect.top });
     },
   };
 
@@ -1063,32 +1038,13 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       return { middle: (Math.min(...xs) + Math.max(...xs)) / 2, top: Math.min(...ys), bottom: Math.max(...ys) };
     };
 
-    /** The choice the screen-centre reticle selects, and where the reticle
-     *  shows: a choice a jump went to, held until the player pans away; else
-     *  the one under the centre or close to it, unless the player backed out
-     *  of it; else nothing, with the reticle at the centre. */
-    const reticleNow = (): { id: string | null; at: Point } => {
-      const middle = centre();
-      const { points, targets: onScreen } = layoutNow();
-      if (pinned !== null && targets.some((target) => target.id === pinned)) return { id: pinned, at: points.find((point) => point.id === pinned) ?? middle };
-      const hit = reticleTarget(onScreen, middle, { snap: RETICLE_SNAP, held: reticleSelected });
-      if (hit?.id !== dismissed) dismissed = null;
-      return hit && hit.id !== dismissed ? hit : { id: null, at: middle };
-    };
-    const aimReading = (): AimReading => {
-      const middle = centre();
-      const onScreen = layoutNow().targets;
-      const weighed: ReticleWeighing[] = [];
-      const picked = reticleTarget(onScreen, middle, { snap: RETICLE_SNAP, held: reticleSelected }, (weighing) => weighed.push(weighing));
-      const fresh = reticleTarget(onScreen, middle, { snap: RETICLE_SNAP, held: null });
-      return { active: usesReticle(view.input), centre: middle, snap: RETICLE_SNAP, weighed, fresh: fresh?.id ?? null, picked: picked?.id ?? null, focused: reticleSelected, pinned, dismissed };
-    };
     /** The selection: the reticle's choice, or the focused one where a pointer selects. */
-    const selection = () => (usesReticle(view.input) ? reticleNow().id : focused);
+    const selection = () => (usesReticle(view.input) ? pointed : focused);
 
     const controls = attachControls(container, {
       layout: layoutNow,
       focus: focusTarget,
+      blur: () => input.blur?.(),
       commit: (id) => input.commit(id),
       confirm: () => {
         // A thing in a room is read whatever the decision offers.
@@ -1112,10 +1068,10 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       padButton: (button, pad) => input.padButton?.(button, pad) ?? false,
       padMay: (pad) => input.padMay?.(pad) ?? true,
       back: () => {
-        // Backing out of a jump stops the camera where it is, so the choice the reticle is passed over is the one it is on now.
+        // Backing out of a jump stops the camera where it is.
         if (pinned !== null && aim) lookAt(aim, aimFloor());
         pinned = null;
-        if (usesReticle(view.input)) dismissed = reticleNow().id;
+        pointed = null;
         input.back?.();
       },
       cycle: (step) => {
@@ -1136,7 +1092,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           lookAt(place.anchor.clone().addScaledVector(back, -(place.anchor.y - level()) / back.y), place.floor);
         }
         pinned = id;
-        dismissed = null;
+        pointed = id;
         settled = false;
       },
       pan: (right, down) => {
@@ -1162,19 +1118,23 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       },
     });
 
-    /** Keeps the reticle on the screen and tells the driver when its choice changes. */
+    /** Points the reticle at whatever is under the screen's centre, as the mouse points at what is under it, and tells the driver when that changes. */
     const showReticle = () => {
-      const reticle = usesReticle(view.input) ? reticleNow() : null;
-      const selected = reticle?.id ?? null;
-      if (reticle && selected !== reticleSelected) {
-        if (selected !== null) input.focus(selected);
+      const reticle = usesReticle(view.input);
+      const under = reticle ? pointAt(layoutNow().targets, centre()) : null;
+      if (pinned !== null && !targets.some((target) => target.id === pinned)) pinned = null;
+      if (reticle && pinned === null && under !== underReticle) {
+        pointed = under;
+        if (under !== null) input.focus(under);
         else input.blur?.();
       }
-      reticleSelected = selected;
+      underReticle = under;
+      if (!reticle) pointed = null;
       if (!reticleMark) return;
       reticleMark.style.visibility = reticle && view.showMarks ? "visible" : "hidden";
-      reticleMark.dataset.snapped = String(selected !== null);
-      if (reticle) reticleMark.style.transform = `translate(${reticle.at.x}px, ${reticle.at.y}px) translate(-50%, -50%)`;
+      reticleMark.dataset.pointing = String(pointed !== null);
+      const middle = centre();
+      reticleMark.style.transform = `translate(${middle.x}px, ${middle.y}px) translate(-50%, -50%)`;
     };
 
     const applyResolution = () => {
@@ -1259,7 +1219,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
 
     scene.add(things.root);
     things.mount(readyShaders);
-    mounted = { house, sync, applyResolution, stats, layoutNow, project, container, placeCamera, floorHit, fitting, aimReading };
+    mounted = { house, sync, applyResolution, stats, layoutNow, project, container, placeCamera, floorHit, fitting };
     sync();
 
     return {
@@ -1386,8 +1346,6 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     setReticle: (element: HTMLElement | null) => {
       reticleMark = element;
     },
-    /** How the reticle is deciding right now, or null before the house mounts. */
-    aimReading: () => mounted?.aimReading() ?? null,
     setGhostHandles: (element: HTMLElement | null) => {
       ghostHandles = element;
     },
