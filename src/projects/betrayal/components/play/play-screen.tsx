@@ -39,6 +39,7 @@ import type { ShownThing } from "../../play/things";
 import { useStatsHold } from "./stats-hold";
 import { BakeDebug } from "../../art/bake-debug";
 import { BakeIndicator } from "../../art/bake-indicator";
+import { AimDebug } from "./aim-debug";
 
 /*
  * The game on one device: the house, showing the seat holding the device
@@ -476,6 +477,7 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />
+      <AimDebug scene={scene} named={[...targets, ...ghostTargets, ...things]} />
       <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} statsHeld={stats.held} tab={tab?.id ?? null} openTab={openTab} />
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 p-3 pr-28 text-xs sm:text-sm">
