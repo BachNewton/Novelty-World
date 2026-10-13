@@ -74,7 +74,7 @@ test.describe("touch", () => {
   test("touch alone: the first tap names a dropped card, the second reads it, and Pick up takes it", async ({ page }) => {
     await resume(page, HOLDING);
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
-    await page.getByLabel("What you can do now").getByRole("button", { name: /^Your explorer · \d+ actions?$/ }).tap();
+    await page.locator("header").getByRole("button", { name: /: character card, \d+ actions?$/ }).tap();
     const sheet = page.getByRole("dialog", { name: "Zoe Ingstrom's character card" });
     await sheet.getByRole("listitem").filter({ hasText: "Revolver" }).getByRole("button", { name: "Drop" }).tap();
     await until(page, `play.things.some((thing) => thing.id === '${REVOLVER}')`);

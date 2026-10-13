@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getProjectStorage } from "@/shared/lib/storage";
 import { ENGINE } from "../../game";
+import type { InputKind } from "../../input/controls";
 import { createPlayStore, type PlayStore } from "../../play/store";
 import { decodeGame, type SharedGame } from "../../share";
 import { errorText } from "../pending-panel";
@@ -17,7 +18,9 @@ import { trimSeats } from "../../play/pads";
  * saved in this browser, and play it. The game is saved as its share code
  * after every write, so closing the tab loses nothing. A linked game
  * (`?play=<code>`) opens straight on the play screen and is kept in memory
- * only, so reviewing one never overwrites the saved game.
+ * only, so reviewing one never overwrites the saved game. The input last
+ * used is the device's, kept across setup and the game, so a player who set
+ * up on a pad starts the game with the pad's focus and prompts showing.
  */
 
 const storage = getProjectStorage("betrayal");
@@ -55,6 +58,7 @@ export function PlayGame({ code }: { code: string | null }) {
   const [store, setStore] = useState<PlayStore | null>(linked.store);
   const [error, setError] = useState<string | null>(linked.error);
   const pads = usePads();
+  const [input, setInput] = useState<InputKind>("keyboard-mouse");
 
   const open = (shared: SharedGame) => {
     try {
@@ -72,12 +76,14 @@ export function PlayGame({ code }: { code: string | null }) {
         <PlayScreen
           store={store}
           pads={pads}
+          input={input}
+          onInput={setInput}
           onLeave={() => {
             setStore(null);
           }}
         />
       ) : (
-        <Setup error={error} readSaved={savedGame} onOpen={open} pads={pads} />
+        <Setup error={error} readSaved={savedGame} onOpen={open} pads={pads} input={input} onInput={setInput} />
       )}
     </div>
   );

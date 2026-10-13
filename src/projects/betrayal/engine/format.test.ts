@@ -62,6 +62,11 @@ const zoeLedger = {
 };
 
 describe("migrate", () => {
+  it("upgrades a format 13 state: its seats are called by their explorers, so their names go", () => {
+    const saved = { format: 13, gameId: "g", seats: [{ name: "Ann", controller: "human", side: null, roles: [], knownBy: null }] };
+    expect(migrate(saved)).toEqual({ format: STATE_FORMAT, gameId: "g", seats: [{ controller: "human", side: null, roles: [], knownBy: null }] });
+  });
+
   it("upgrades a format 12 state: the chart decides its haunt", () => {
     expect(migrate({ format: 12, gameId: "g" })).toEqual({ format: STATE_FORMAT, gameId: "g", chosenHaunt: null });
   });
@@ -301,7 +306,7 @@ describe("migrate", () => {
         chosenHaunt: null,
         gameId: "g",
         seats: [
-          { name: "Ann", controller: "human", side: null, roles: [], knownBy: null },
+          { controller: "human", side: null, roles: [], knownBy: null },
         ],
         figures: { "zoe-ingstrom": zoeFigure },
         ...later,

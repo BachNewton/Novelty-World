@@ -39,10 +39,7 @@ export function testGame(options: TestGame = {}): GameState {
     gameId: "test",
     seed: seed ?? "test-seed",
     sets: ["base"],
-    seats: characters.map((character, i) => ({
-      name: `Player ${i + 1}`,
-      character,
-    })),
+    seats: characters.map((character) => ({ character })),
     // Seat 0's birthday is today, so seat 0 goes first.
     today: engine.catalog.characters[characters[0]].birthday,
     scenario,

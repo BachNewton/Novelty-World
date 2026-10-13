@@ -10,7 +10,7 @@ const GAME: SharedGame = {
   game: {
     seed: "store",
     sets: ["base"],
-    seats: DEFAULT_CHARACTERS.map((character, i) => ({ name: `Player ${i + 1}`, character })),
+    seats: DEFAULT_CHARACTERS.map((character) => ({ character })),
     today: ENGINE.catalog.characters[DEFAULT_CHARACTERS[0]].birthday,
   },
   actions: [],

@@ -14,8 +14,8 @@ describe("logGroups", () => {
     const groups = logGroups(spectator(next), lines);
     expect(groups.map((g) => g.title)).toEqual([
       "Setup",
-      "Turn 1: Player 1 (Zoe Ingstrom)",
-      "Turn 2: Player 2 (Ox Bellows)",
+      "Turn 1: Zoe Ingstrom",
+      "Turn 2: Ox Bellows",
     ]);
     expect(groups[1].seat).toBe(0);
   });

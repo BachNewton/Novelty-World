@@ -63,7 +63,7 @@ What remains for the goal:
 
 - **UI:** the list above, and whatever the playtest finds.
 - **Rooms:** the 16 base rooms left: the Gymnasium, Operating Laboratory, Research Laboratory, Vault, Balcony, Gallery, Bloody Room, Charred Room, Collapsed Room, Conservatory, Ballroom, Coal Chute, Gardens, Patio, Crypt and Larder.
-- **Explorers:** the 5 left: Missy, Vivian, Madame Zostra, Heather and Jenny. Setup's portraits then move to a lower camera and a closer zoom, and setup shows each character's starting tracks and a short description (not built; the final call waits on more explorer art).
+- **Explorers:** the 5 left: Missy, Vivian, Madame Zostra, Heather and Jenny. Setup's portraits are shot from a lower camera and a closer zoom, in the Abandoned Room (done). Setup shows each character's tracks as the card prints them, on each seat and for the character in focus in the picker; a short description is not built (the final call waits on more explorer art).
 - **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements.
 - **Props and figures:** held items and omens, companions, room tokens; startle and hurt animations; jumps and falls; the models of things on the floor (stand-ins today).
 
@@ -131,7 +131,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `figure-marks.tsx`, each explorer's mark, and Your explorer: the character card as a sheet, with the explorer's tabs, portrait, trait tracks (`trait-track.tsx`), cards and the turn's actions; `stats-hold.ts`, the held stats overlay; `trade-sheet.tsx`, building a trade.
 - `card-beat.tsx`, a card drawn as a beat over its room; `decision-panel.tsx`, rolls, damage and other questions; `roll-result.tsx` and `happening-line.tsx`, rolls and events in icons; `thing-reader.tsx`, a thing on the floor read.
 - `setup.tsx` and `setup-pads.ts`, setup by portraits on every input; `reveal.tsx`, the haunt's reveal; `game-menu.tsx`, the seats and pads, the speed and leaving; `ghost-placer.tsx`, placing a tile; `seat-colour.ts`, the seat's colour, which is the character card's.
-- `prompts.tsx` (beside `play/`): every button prompt, our own glyphs in Lucide's style, and the one map from a meaning to its control per input. `icons.tsx`: the traits, card types, damage, pass and fail, and die faces.
+- `prompts.tsx` (beside `play/`): every button prompt, our own glyphs in Lucide's style, the one map from a meaning to its control per input, and `PromptButton`, the button every prompt leads and every filling hold fills. `icons.tsx`: the traits, card types, damage, pass and fail, and die faces.
 
 **The house, in `art/`.**
 - `house-scene.ts`: the house as a picture of whatever it is fed (a layout, figures, things, targets, whose turn it is, beats of animation), with no game in it. Layout changes are diffed and re-baked with their neighbours (`lit-floor.ts`), through the bake scheduler (`bake-schedule.ts`). `house-mood.ts`: the house's fill and fog, moon blue exploring and red from the reveal. `house-camera.ts`, `house-targets.ts`: the camera's limits, and each target placed and laid out on the screen.

@@ -192,13 +192,12 @@ export interface ExplorerSheetProps {
   actions: { figure: FigureId; rows: ExplorerActions } | null;
   act: (action: Action) => void;
   openTrade: (figure: FigureId) => void;
-  input: InputKind;
   close: () => void;
 }
 
 /** "Your explorer": the character card over its figure, with the turn's actions on the acting player's tab. */
 export function ExplorerSheet(props: ExplorerSheetProps) {
-  const { scene, tab, close, input } = props;
+  const { scene, tab, close } = props;
   const ref = usePinned(scene, "fan", tab.id, { height: FAN_HEIGHT, lift: 1, clamp: true, apart: false });
   const sheet = useRef<HTMLElement>(null);
   // It opens with the focus on its first action, or its tab where there is none, once the scene has put it over its figure and it shows.
@@ -271,7 +270,6 @@ function WithNotes(props: ExplorerSheetProps) {
 const ACTION = "min-h-10 rounded border border-(--bt-line) bg-(--bt-room) px-3 py-1 text-left text-sm hover:border-(--bt-accent)";
 
 function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: ExplorerSheetProps & { notes: RuleNotes | null }) {
-  const seat = tab.owner === null ? null : view.seats[tab.owner];
   const rows = actions?.figure === tab.id ? actions.rows : null;
   // The first action takes the focus as the sheet opens.
   const first = rows && [...rows.held.flatMap((row) => [...row.uses, ...(row.drop ? [row.drop] : [])]).map((choice) => choice.id), ...rows.floor.map(({ pickUp }) => pickUp.id), ...rows.trades.map((trade) => `trade:${trade.with}`)][0];
@@ -280,12 +278,9 @@ function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: Explore
     <>
       <header className="flex items-center gap-2">
         <Image src={portraitSrc(tab.definition)} alt="" width={48} height={60} draggable={false} className="h-15 w-12 shrink-0 rounded border border-(--bt-line) object-cover" />
-        <span className="flex min-w-0 flex-col">
-          <span className="flex items-center gap-1.5 font-semibold">
-            <span className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, tab.definition)}`} />
-            {tab.name}
-          </span>
-          {seat && <span className="truncate text-xs text-(--bt-muted)">{seat.name}</span>}
+        <span className="flex min-w-0 items-center gap-1.5 font-semibold">
+          <span className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, tab.definition)}`} />
+          {tab.name}
         </span>
       </header>
       <div className="flex flex-col gap-1">

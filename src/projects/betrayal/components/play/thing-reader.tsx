@@ -3,7 +3,6 @@
 import { Suspense, use, useEffect, useRef } from "react";
 import type { HouseScene } from "../../art/house-scene";
 import type { RuleNotes } from "../../data/rule-notes";
-import type { InputKind } from "../../input/controls";
 import type { PanelChoice } from "../../play/choices";
 import { CLUSTER_SHOWN, type Clusters, type RoomThing, type ShownThing } from "../../play/things";
 import type { Action } from "../../types";
@@ -11,7 +10,6 @@ import { ruleNotes } from "../why";
 import { CardFace } from "./card-face";
 import { MOOD_BG, MOOD_BORDER } from "./moods";
 import { enterLayer } from "./pad-focus";
-import { Prompt } from "../prompts";
 
 /*
  * The things in the rooms, read: pointing at one names it (the house's tag
@@ -27,8 +25,8 @@ import { Prompt } from "../prompts";
 const READER_HEIGHT = 0.5;
 const BADGE_HEIGHT = 0.4;
 
-/** What pointing at a thing shows: its colour and its name, and on a pad or keys the control that reads it. */
-export function ThingTag({ thing, input }: { thing: ShownThing; input: InputKind }) {
+/** What pointing at a thing shows: its colour and its name. */
+export function ThingTag({ thing }: { thing: ShownThing }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <span aria-hidden className={`inline-block size-2.5 rounded-full ${MOOD_BG[thing.mood]}`} />
@@ -59,13 +57,12 @@ export interface ThingReaderProps {
   /** The turn's Pick up for each card on the floor, by card id, where the turn offers it. */
   pickUps: ReadonlyMap<string, PanelChoice>;
   act: (action: Action) => void;
-  input: InputKind;
   close: () => void;
 }
 
 /** A thing's reader, over it: its card's text, and Pick up where the turn offers it. */
 export function ThingReader(props: ThingReaderProps) {
-  const { scene, thing, input, close } = props;
+  const { scene, thing, close } = props;
   const ref = usePinnedOver(scene, "reader", thing.id, { height: READER_HEIGHT, lift: 1, clamp: true });
   const section = useRef<HTMLElement>(null);
   // It takes the pad's focus once the scene has put it over its thing and it shows.

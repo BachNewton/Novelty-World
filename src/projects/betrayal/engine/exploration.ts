@@ -97,7 +97,7 @@ export interface NewGame {
   seed: string;
   sets: SetId[];
   /** In table order. */
-  seats: { name: string; character: string }[];
+  seats: { character: string }[];
   /** The first player is the one whose birthday comes next (p. 4), so setup needs the date. */
   today: { month: number; day: number };
   /** Start somewhere other than the default deal (playtesting and tests). */
@@ -115,8 +115,7 @@ export function newGame(engine: Engine, game: NewGame): GameState {
     throw new Error(`Haunt ${chosen} isn't built, so it can't be chosen`);
   const state = emptyState(game.gameId, game.seed, game.sets);
   state.chosenHaunt = chosen;
-  state.seats = game.seats.map((s) => ({
-    name: s.name,
+  state.seats = game.seats.map(() => ({
     controller: "human",
     side: null,
     roles: [],

@@ -264,7 +264,6 @@ export type Role = "traitor";
 
 /** A player. Seats are in table order; turns pass to the left, which is the next seat. */
 export interface Seat {
-  name: string;
   controller: "human";
   /** None before the haunt. */
   side: Side | null;

@@ -84,10 +84,7 @@ export function simulate(
       gameId: `sim-${seed}`,
       seed,
       sets: ["base"],
-      seats: characters.map((character, i) => ({
-        name: `Player ${i + 1}`,
-        character,
-      })),
+      seats: characters.map((character) => ({ character })),
       today: { month: 1 + below(rng, 12), day: 1 + below(rng, 28) },
       ...(haunt === undefined
         ? {}

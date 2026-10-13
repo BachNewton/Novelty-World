@@ -8,7 +8,7 @@ import type { PlayReadout } from "../src/projects/betrayal/components/play/play-
  * the Mystic Elevator, discovered through the Entrance Hall's north door and
  * entered, rolls where it goes. Its cells glow on the floor rolled, and on any
  * other floor as markers at the same place; its own cell, when it may stay,
- * leaves it there. Placed, it is carried with Ann in it to its new cell. The
+ * leaves it there. Placed, it is carried with Zoe in it to its new cell. The
  * Dog's run offers rooms, which glow as places. Every wait is on the game's
  * own state (window.__betrayalPlay), never a pause.
  */
@@ -28,9 +28,9 @@ function gameCode(seed: string, scenario: object): string {
       seed,
       sets: ["base"],
       seats: [
-        { name: "Ann", character: "zoe-ingstrom" },
-        { name: "Ben", character: "ox-bellows" },
-        { name: "Cat", character: "father-rhinehardt" },
+        { character: "zoe-ingstrom" },
+        { character: "ox-bellows" },
+        { character: "father-rhinehardt" },
       ],
       today: { month: 11, day: 5 },
       scenario,
@@ -103,7 +103,7 @@ async function clickTarget(page: Page, id: string): Promise<void> {
   await page.mouse.click(at.x, at.y);
 }
 
-/** Ann explores north into the Mystic Elevator, which rolls as she enters, and asks where it goes. */
+/** Zoe explores north into the Mystic Elevator, which rolls as she enters, and asks where it goes. */
 async function rideTheElevator(page: Page, floor: string): Promise<void> {
   await clickTarget(page, "explore:ground:2:-1");
   await until(page, `play.pending?.kind === 'place-tile' && play.ghost?.tile === 'mystic-elevator' && play.ghost.spot.floor === '${floor}' && play.floor === '${floor}' && play.rooms['zoe-ingstrom'] === 'mystic-elevator'`);
@@ -112,7 +112,7 @@ async function rideTheElevator(page: Page, floor: string): Promise<void> {
 /** The ghost's other cells, as their target ids. */
 const otherCells = async (page: Page) => (await readout(page)).ghost?.targets.filter((id) => id.startsWith("cell:")) ?? [];
 
-test("keyboard and mouse: a cell on another floor glows on this one, and the elevator carries Ann down to the basement", async ({ page }) => {
+test("keyboard and mouse: a cell on another floor glows on this one, and the elevator carries Zoe down to the basement", async ({ page }) => {
   await resume(page, gameCode(SEEDS.basement, { stack: ["mystic-elevator"] }));
   await rideTheElevator(page, "basement");
   const first = (await readout(page)).ghost?.spot;
@@ -130,7 +130,7 @@ test("keyboard and mouse: a cell on another floor glows on this one, and the ele
   await until(page, `play.ghost?.spot.x === ${x} && play.ghost.spot.y === ${y} && play.floor === 'basement'`);
   expect((await readout(page)).ghost?.spot).not.toEqual(first);
 
-  // Placed, it is carried there with Ann in it, while the game has already moved on; the clock held, it is seen in flight.
+  // Placed, it is carried there with Zoe in it, while the game has already moved on; the clock held, it is seen in flight.
   await page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
   await clickTarget(page, "ghost");
   await until(page, "play.moving && play.floors['mystic-elevator'] === 'basement' && play.pending?.kind === 'turn' && play.rooms['zoe-ingstrom'] === 'mystic-elevator'", false);
@@ -225,7 +225,7 @@ test.describe("controller", () => {
     const [, , x, y] = cell.split(":");
     await press(page, A, `play.ghost?.spot.x === ${x} && play.ghost.spot.y === ${y}`);
 
-    // A places it as it shows; with the clock held, it is in flight with Ann in it.
+    // A places it as it shows; with the clock held, it is in flight with Zoe in it.
     await page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
     await press(page, A, "play.moving && play.floors['mystic-elevator'] === 'upper' && play.pending?.kind === 'turn'", false);
     // A press while it flies lands it at once, and only that.

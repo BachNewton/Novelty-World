@@ -1,12 +1,13 @@
 import type { TurnKind } from "../types";
 import { describeEvent } from "../engine/describe";
-import { viewExplorer, type EventView, type GameView } from "../engine/view";
+import { seatName, type EventView, type FigureView, type GameView } from "../engine/view";
 import type { Engine } from "../engine/step-loop";
 
-export function seatLabel(view: GameView, seat: number): string {
-  const explorer = viewExplorer(view, seat);
-  const name = view.seats[seat].name;
-  return explorer === null ? name : `${name} (${explorer.name})`;
+/** "Seat: " before a figure a seat plays that isn't the seat's own explorer (the traitor's monsters), or nothing. */
+export function ownerPrefix(view: GameView, figure: Pick<FigureView, "owner" | "name">): string {
+  if (figure.owner === null) return "";
+  const seat = seatName(view, figure.owner);
+  return seat === figure.name ? "" : `${seat}: `;
 }
 
 /** One log line, worded against the view of the write it came from. */
@@ -53,7 +54,7 @@ export function logGroups(view: GameView, lines: LogLine[]): LogGroup[] {
       const { seat, kind } = event.data as { seat?: number; kind: TurnKind };
       groups.push({
         key: event.id,
-        title: `Turn ${turns}: ${seat === undefined ? "A player" : seatLabel(view, seat)}${KIND_TITLES[kind]}`,
+        title: `Turn ${turns}: ${seat === undefined ? "A player" : seatName(view, seat)}${KIND_TITLES[kind]}`,
         seat: seat ?? null,
         lines: [],
       });

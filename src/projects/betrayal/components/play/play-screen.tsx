@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { StandardButton } from "@/shared/lib/gamepad";
+import type { InputKind } from "../../input/controls";
 import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import { figureFor } from "../../art/explorers/by-character";
@@ -9,7 +10,7 @@ import { houseFloors, loadFloors } from "../../art/room-floor";
 import type { HouseMood } from "../../art/house-mood";
 import { createHouseScene, type FigureSpec, type FloorChoice, type HouseScene, type SceneHook } from "../../art/house-scene";
 import { FLOOR_NAMES, FLOORS } from "../../engine/board";
-import { eventsFor, type GameView } from "../../engine/view";
+import { eventsFor, seatName, type GameView } from "../../engine/view";
 import type { Action, FigureId, FloorId } from "../../types";
 import { ENGINE } from "../../game";
 import { NO_CHOICES, playChoices, type PlaceTarget, type PlayChoices } from "../../play/choices";
@@ -19,8 +20,7 @@ import { explorerActions } from "../../play/sheet";
 import type { Spots } from "../../play/spots";
 import { due } from "../../play/seat";
 import type { PlaySnapshot, PlayStore } from "../../play/store";
-import { seatLabel } from "../describe";
-import { FOCUS_A_MASK, PAD_FOCUS, Prompt, PromptButton } from "../prompts";
+import { PAD_FOCUS, Prompt, PromptButton } from "../prompts";
 import { GHOST, GhostHandles, useGhost, type GhostReadout } from "./ghost-placer";
 import { figureColour, seatDot, sideMark } from "./seat-colour";
 import { controlsOf, enterLayer, layerHeight, leaveLayer, padFocused, padPress, topLayer } from "./pad-focus";
@@ -39,6 +39,7 @@ import type { ShownThing } from "../../play/things";
 import { useStatsHold } from "./stats-hold";
 import { BakeDebug } from "../../art/bake-debug";
 import { BakeIndicator } from "../../art/bake-indicator";
+import { createFrameMeter, useFrameMeter, type FrameMeter } from "../../art/frame-meter";
 
 /*
  * The game on one device: the house, showing the seat holding the device
@@ -96,6 +97,8 @@ export interface PlayReadout {
   /** The things living in the rooms, as they show. */
   things: { id: string; kind: ShownThing["kind"]; room: string; name: string; stands: readonly string[] }[];
   menu: boolean;
+  /** The input the hints and the focus are for: the last one used. */
+  input: InputKind;
 }
 
 export type PlayHook = SceneHook & { play: () => PlayReadout };
@@ -191,18 +194,22 @@ function readout(scene: HouseScene, screen: ScreenReadout): PlayReadout {
     endHold: screen.endHold,
     sheet: screen.sheet,
     menu: screen.menu,
+    input: scene.view().input,
     things: screen.things.map((thing) => ({ id: thing.id, kind: thing.kind, room: thing.room, name: thing.name, stands: thing.things })),
   };
 }
 
-function createScreen(store: PlayStore): {
+function createScreen(store: PlayStore, input: InputKind): {
   scene: HouseScene;
   presenting: Presenting;
   mount: (ctx: ThreeSceneContext) => ThreeSceneHandlers;
   /** The screen's own state as last rendered, for the readout. */
   screenRef: { current: ScreenReadout };
+  meter: FrameMeter;
 } {
+  const meter = createFrameMeter();
   const scene = createHouseScene({ tiles: store.snapshot().view.board.tiles });
+  scene.setInputKind(input);
   const presenting = createPresenting(scene, figuresOf, { place: houseFloors, load: loadFloors });
   const screenRef: { current: ScreenReadout } = {
     current: { game: { snapshot: store.snapshot(), presented: presenting.snapshot(), choices: NO_CHOICES }, ghost: null, focused: null, endHold: false, sheet: null, menu: false, things: [] },
@@ -212,13 +219,17 @@ function createScreen(store: PlayStore): {
     window.__betrayalPlay = { ...scene.hook, play: () => readout(scene, screenRef.current) };
     return {
       ...handlers,
+      onFrame: (delta) => {
+        handlers.onFrame?.(delta);
+        meter.tick();
+      },
       dispose: () => {
         handlers.dispose?.();
         delete window.__betrayalPlay;
       },
     };
   }
-  return { scene, presenting, mount, screenRef };
+  return { scene, presenting, mount, screenRef, meter };
 }
 
 /** What is open over the house, on the decision it was opened on: it closes when the decision changes. */
@@ -232,11 +243,28 @@ const NAVIGATION = new Set<StandardButton>(["DpadUp", "DpadDown", "DpadLeft", "D
 /** The game menu's layer, over everything: any pad works it. */
 const MENU_LAYER = 3;
 
-export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: PadSeats; onLeave: () => void }) {
+export function PlayScreen({
+  store,
+  pads,
+  input: startInput,
+  onInput,
+  onLeave,
+}: {
+  store: PlayStore;
+  pads: PadSeats;
+  /** The input last used on this device as the game opens; each one used during it is reported back. */
+  input: InputKind;
+  onInput: (kind: InputKind) => void;
+  onLeave: () => void;
+}) {
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const { view, holder, client } = snapshot;
-  const [{ scene, presenting, mount, screenRef }] = useState(() => createScreen(store));
+  const [{ scene, presenting, mount, screenRef, meter }] = useState(() => createScreen(store, startInput));
+  const meterRef = useFrameMeter(meter);
   const shown = useSyncExternalStore(scene.subscribe, scene.view, scene.view);
+  useEffect(() => {
+    onInput(shown.input);
+  }, [shown.input, onInput]);
   const presented = useSyncExternalStore(presenting.subscribe, presenting.snapshot, presenting.snapshot);
   const [speed, setSpeed] = useState(savedSpeed);
   useEffect(() => {
@@ -451,10 +479,13 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
   const button = "pointer-events-auto inline-flex min-h-10 items-center gap-1.5 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1";
 
   return (
-    <div ref={rootRef} style={{ "--bt-focus-a": FOCUS_A_MASK } as CSSProperties} className={`fixed inset-0 bg-(--bt-bg) text-(--bt-ink) ${input === "pad" ? PAD_FOCUS : ""}`}>
+    <div ref={rootRef} className={`fixed inset-0 bg-(--bt-bg) text-(--bt-ink) ${input === "pad" ? PAD_FOCUS : ""}`}>
       <div ref={containerRef} className="absolute inset-0" />
-      {/* In the corner the header leaves clear. */}
-      <BakeIndicator bakes={scene.bakes} className="absolute top-3 right-2" />
+      {/* In the corner the header leaves clear: the frame meter (~), and under it the bake's mark. */}
+      <div className="pointer-events-none absolute top-3 right-2 flex flex-col items-end gap-1">
+        <div ref={meterRef} data-frame-meter className="pointer-events-auto" />
+        <BakeIndicator bakes={scene.bakes} className="" />
+      </div>
       <BakeDebug bakes={scene.bakes} />
       <div
         ref={labelRef}
@@ -462,7 +493,7 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
         className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm w-max max-w-[calc(100%-1rem)]"
       >
         {focusedTarget?.label}
-        {focusedThing && <ThingTag thing={focusedThing} input={shown.input} />}
+        {focusedThing && <ThingTag thing={focusedThing} />}
         {preview && <span className="ml-1.5 text-xs text-(--bt-muted)">· {costText(preview)}</span>}
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
@@ -474,7 +505,7 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
         <PromptButton
           meaning="explorer"
           input={input}
-          aria-label={`${seatLabel(view, holder)}: character card${actionCount > 0 ? `, ${actionCount} ${actionCount === 1 ? "action" : "actions"}` : ""}`}
+          aria-label={`${seatName(view, holder)}: character card${actionCount > 0 ? `, ${actionCount} ${actionCount === 1 ? "action" : "actions"}` : ""}`}
           aria-expanded={yours !== null && tab?.id === yours.id}
           disabled={yours === null}
           onClick={() => {
@@ -483,7 +514,7 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
           className={`${button} font-semibold aria-expanded:border-(--bt-accent)`}
         >
           {dot && <span className={`inline-block size-2.5 rounded-full ${dot}`} />}
-          {seatLabel(view, holder)}
+          {seatName(view, holder)}
           {actionCount > 0 && <span className="font-normal text-(--bt-muted)">· {actionCount} {actionCount === 1 ? "action" : "actions"}</span>}
         </PromptButton>
         <span className="flex items-center gap-1">
@@ -554,7 +585,7 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
           }}
         />
       </div>
-      <CardBeat scene={scene} moment={presented.moment} told={told} spots={presented.spots} input={input} playing={presented.playing} goOn={presenting.goOn} />
+      <CardBeat scene={scene} moment={presented.moment} told={told} spots={presented.spots} playing={presented.playing} goOn={presenting.goOn} />
       {tab && (
         <ExplorerSheet
           scene={scene}
@@ -567,7 +598,6 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
           openTrade={(figure) => {
             setSheet({ kind: "trade", with: figure, decision });
           }}
-          input={input}
           close={() => {
             setSheet(null);
           }}
@@ -581,7 +611,6 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
           things={inRooms}
           pickUps={pickUps}
           act={act}
-          input={input}
           close={() => {
             setSheet(null);
           }}
@@ -593,7 +622,6 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
           view={view}
           row={trade}
           act={act}
-          input={input}
           close={() => {
             setSheet(null);
           }}
@@ -609,7 +637,6 @@ export function PlayScreen({ store, pads, onLeave }: { store: PlayStore; pads: P
             saveSpeed(next);
           }}
           onLeave={onLeave}
-          input={input}
           close={() => {
             setMenuOpen(false);
           }}

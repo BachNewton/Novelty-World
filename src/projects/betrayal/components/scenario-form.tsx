@@ -74,7 +74,7 @@ export function ScenarioForm({
           <option value="">Next birthday (the rule)</option>
           {seats.map((s, i) => (
             <option key={i} value={i}>
-              Seat {i}: {s.name}
+              Seat {i}{s.character === "" ? "" : `: ${catalog.characters[s.character].name}`}
             </option>
           ))}
         </select>
@@ -127,8 +127,8 @@ export function ScenarioForm({
           return (
             <div key={index} className="flex flex-col gap-2 rounded border border-(--bt-line) p-2">
               <h4 className="font-semibold">
-                Seat {index}: {seat.name}
-                {character ? ` (${character.name})` : ""}
+                Seat {index}
+                {character ? `: ${character.name}` : ""}
               </h4>
               <Row label="Starts in">
                 <select
@@ -221,7 +221,7 @@ export function ScenarioForm({
               >
                 {seats.map((s, i) => (
                   <option key={i} value={i}>
-                    Seat {i}: {s.name}
+                    Seat {i}{s.character === "" ? "" : `: ${catalog.characters[s.character].name}`}
                   </option>
                 ))}
               </select>

@@ -1,34 +1,53 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, type CSSProperties } from "react";
+import { useRef, useState } from "react";
 import { builtHaunts, requireBuilt } from "../../engine/haunt";
 import { ENGINE } from "../../game";
+import type { InputKind } from "../../input/controls";
 import { cycleCharacter, portraitSrc, takenBy } from "../../play/setup";
+import { characterTracks } from "../../play/tracks";
 import type { SharedGame } from "../../share";
 import { ErrorBox } from "../error-box";
-import { FOCUS_A_MASK, PAD_FOCUS } from "../prompts";
+import { PAD_FOCUS } from "../prompts";
 import { defaultSeats, MAX_SEATS, MIN_SEATS, today, type Seats } from "../start-form";
 import { PadPicker } from "./pad-picker";
 import { seatDot } from "./seat-colour";
 import { useSetupPads } from "./setup-pads";
+import { TrackRow } from "./trait-track";
 import type { PadSeats } from "./use-pads";
 
 /*
  * Setting up a hot-seat game, carried by the characters' portraits: resume
  * the game saved in this browser, or choose three to six seats, each with a
- * character (one per card) and a pad, and the haunt to play. Every input
- * does all of it: a pad moves its focus round the buttons (`setup-pads.ts`).
+ * character (one per card) and a pad, and the haunt to play. A seat is its
+ * character: its four traits show on it as the card prints them, so players
+ * pick by them. Every input does all of it: a pad moves its focus round the
+ * buttons (`setup-pads.ts`).
  */
 
 const characters = Object.values(ENGINE.catalog.characters);
 const nameOf = (character: string) => ENGINE.catalog.characters[character].name;
+const tracksOf = (character: string) => characterTracks(ENGINE.catalog.characters[character]);
+
+const DEFAULT_SEATS = 4;
 
 /** A portrait's size in CSS pixels, as `tools/portraits.mjs` shoots it. */
 const PORTRAIT = { width: 192, height: 240 };
 
 function Portrait({ character, className }: { character: string; className: string }) {
   return <Image src={portraitSrc(character)} width={PORTRAIT.width} height={PORTRAIT.height} alt={nameOf(character)} draggable={false} className={`rounded object-cover ${className}`} />;
+}
+
+/** A character's four traits, as their card prints them. */
+function Traits({ character }: { character: string }) {
+  return (
+    <div aria-label={`${nameOf(character)}'s traits`} className="flex flex-col gap-1">
+      {tracksOf(character).map((track) => (
+        <TrackRow key={track.trait} track={track} skull={false} />
+      ))}
+    </div>
+  );
 }
 
 const BUTTON = "min-h-11 rounded border border-(--bt-line) px-3 py-1 hover:border-(--bt-accent) disabled:opacity-40";
@@ -41,18 +60,23 @@ export function Setup({
   readSaved,
   onOpen,
   pads,
+  input,
+  onInput,
 }: {
   error: string | null;
   /** Read as setup opens: leaving a game comes back here with it saved. */
   readSaved: () => SavedGame;
   onOpen: (shared: SharedGame) => void;
   pads: PadSeats;
+  /** The input last used on this device, which the prompts and the pad's focus follow. */
+  input: InputKind;
+  onInput: (kind: InputKind) => void;
 }) {
   const [{ game: saved, error: savedError }] = useState(readSaved);
-  const [seats, setSeats] = useState<Seats>(() => defaultSeats(characters, MIN_SEATS));
+  const [seats, setSeats] = useState<Seats>(() => defaultSeats(characters, DEFAULT_SEATS));
   const [haunt, setHaunt] = useState<number | null>(null);
   const [choosing, setChoosing] = useState<number | null>(null);
-  const ready = seats.every((seat) => seat.name.trim() !== "" && seat.character !== "");
+  const ready = seats.every((seat) => seat.character !== "");
   const start = () => {
     if (!ready) return;
     onOpen({ game: { seed: crypto.randomUUID(), sets: ["base"], seats, today: today(), ...(haunt === null ? {} : { chosenHaunt: haunt }) }, actions: [] });
@@ -61,10 +85,11 @@ export function Setup({
     setSeats((now) => cycleCharacter(characters, now, seat, step));
   };
   const root = useRef<HTMLDivElement>(null);
-  const padActive = useSetupPads(root);
+  useSetupPads(root, input, onInput);
 
   return (
-    <div ref={root} data-pad-layer="0" style={{ "--bt-focus-a": FOCUS_A_MASK } as CSSProperties} className={`mx-auto flex max-w-3xl flex-col gap-4 ${padActive ? PAD_FOCUS : ""}`}>
+    // Four seat cards side by side set the width on a desktop, two between, and a phone has one a row.
+    <div ref={root} data-pad-layer="0" className={`mx-auto flex w-full max-w-[69rem] flex-col gap-4 ${input === "pad" ? PAD_FOCUS : ""}`}>
       <h1 className="text-2xl font-bold">Betrayal at House on the Hill</h1>
       {saved && <Resume saved={saved} onResume={() => onOpen(saved)} />}
       {savedError !== null && <ErrorBox message={savedError} />}
@@ -77,15 +102,12 @@ export function Setup({
         }}
       >
         <h2 className="text-lg font-semibold">New game</h2>
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <ul className="grid grid-cols-[minmax(0,20rem)] justify-center gap-3 sm:grid-cols-[repeat(2,16rem)] xl:grid-cols-[repeat(4,16rem)]">
           {seats.map((seat, index) => (
             <SeatCard
               key={index}
               index={index}
               seats={seats}
-              onName={(name) => {
-                setSeats(seats.map((s, i) => (i === index ? { ...s, name } : s)));
-              }}
               onCycle={(step) => {
                 cycle(index, step);
               }}
@@ -103,7 +125,7 @@ export function Setup({
             disabled={seats.length >= MAX_SEATS}
             onClick={() => {
               const free = characters.find((c) => takenBy(characters, seats, seats.length, c.id) === null);
-              setSeats([...seats, { name: `Player ${seats.length + 1}`, character: free?.id ?? "" }]);
+              setSeats([...seats, { character: free?.id ?? "" }]);
             }}
           >
             + Seat
@@ -148,13 +170,13 @@ function Resume({ saved, onResume }: { saved: SharedGame; onResume: () => void }
     <section aria-label="Your game in this browser" className="flex flex-wrap items-center gap-3 rounded border border-(--bt-accent) bg-(--bt-panel) p-3">
       <ul className="flex -space-x-3">
         {seats.map((seat, i) => (
-          <li key={i} title={`${seat.name} (${nameOf(seat.character)})`}>
+          <li key={i} title={nameOf(seat.character)}>
             <Portrait character={seat.character} className="h-16 w-13 border-2 border-(--bt-panel)" />
           </li>
         ))}
       </ul>
       <p className="min-w-0 flex-1 text-sm text-(--bt-muted)">
-        {seats.map((seat) => seat.name).join(", ")}
+        {seats.map((seat) => nameOf(seat.character)).join(", ")}
         {chosenHaunt !== undefined && ` · haunt ${chosenHaunt}`}
       </p>
       <button type="button" onClick={onResume} className="min-h-11 rounded bg-(--bt-accent) px-6 py-1 font-semibold text-(--bt-bg)">
@@ -164,69 +186,52 @@ function Resume({ saved, onResume }: { saved: SharedGame; onResume: () => void }
   );
 }
 
-function SeatCard({
-  index,
-  seats,
-  onName,
-  onCycle,
-  onChoose,
-  pads,
-}: {
-  index: number;
-  seats: Seats;
-  onName: (name: string) => void;
-  onCycle: (step: 1 | -1) => void;
-  onChoose: () => void;
-  pads: PadSeats;
-}) {
-  const seat = seats[index];
-  const arrow = "min-h-11 min-w-9 rounded border border-(--bt-line) bg-(--bt-bg) text-lg hover:border-(--bt-accent)";
+function SeatCard({ index, seats, onCycle, onChoose, pads }: { index: number; seats: Seats; onCycle: (step: 1 | -1) => void; onChoose: () => void; pads: PadSeats }) {
+  const { character } = seats[index];
+  const arrow = "flex min-h-11 min-w-11 items-center justify-center rounded border border-(--bt-line) bg-(--bt-bg)/70 text-xl hover:border-(--bt-accent)";
   return (
-    <li aria-label={`Seat ${index}`} className="flex min-w-0 flex-col gap-1.5 rounded border border-(--bt-line) bg-(--bt-bg) p-2 focus-within:border-(--bt-accent)">
-      <button type="button" aria-label={`Seat ${index} character: ${nameOf(seat.character)}`} onClick={onChoose} className="self-center">
-        <Portrait character={seat.character} className="h-36 w-29 sm:h-40 sm:w-32" />
-      </button>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-label={`Seat ${index}: previous character`}
-          className={arrow}
-          onClick={() => {
-            onCycle(-1);
-          }}
-        >
-          ‹
+    <li aria-label={`Seat ${index}`} className="flex min-w-0 flex-col gap-2 rounded border border-(--bt-line) bg-(--bt-bg) p-1.5 focus-within:border-(--bt-accent)">
+      {/* The card is the portrait, with the character's name and the arrows that change it over its foot. */}
+      <div className="relative">
+        <button type="button" aria-label={`Seat ${index} character: ${nameOf(character)}`} onClick={onChoose} className="block w-full">
+          <Portrait character={character} className="aspect-4/5 h-auto w-full" />
         </button>
-        <span className="flex min-w-0 flex-1 items-center justify-center gap-1.5 text-center text-xs font-semibold">
-          <span aria-hidden className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, seat.character)}`} />
-          <span className="truncate">{nameOf(seat.character)}</span>
-        </span>
-        <button
-          type="button"
-          aria-label={`Seat ${index}: next character`}
-          className={arrow}
-          onClick={() => {
-            onCycle(1);
-          }}
-        >
-          ›
-        </button>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 rounded-b bg-linear-to-t from-(--bt-bg) via-(--bt-bg)/80 to-transparent p-1.5 pt-8">
+          <button
+            type="button"
+            aria-label={`Seat ${index}: previous character`}
+            className={`pointer-events-auto ${arrow}`}
+            onClick={() => {
+              onCycle(-1);
+            }}
+          >
+            ‹
+          </button>
+          <span className="flex min-w-0 flex-1 items-center justify-center gap-1.5 text-center text-sm font-semibold">
+            <span aria-hidden className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, character)}`} />
+            <span className="truncate">{nameOf(character)}</span>
+          </span>
+          <button
+            type="button"
+            aria-label={`Seat ${index}: next character`}
+            className={`pointer-events-auto ${arrow}`}
+            onClick={() => {
+              onCycle(1);
+            }}
+          >
+            ›
+          </button>
+        </div>
       </div>
-      <input
-        aria-label={`Seat ${index} name`}
-        value={seat.name}
-        onChange={(e) => {
-          onName(e.target.value);
-        }}
-        className="min-h-9 min-w-0 rounded border border-(--bt-line) bg-(--bt-panel) px-2 text-sm"
-      />
-      {pads.connected.length > 0 && <PadPicker seat={index} name={seat.name} pads={pads} />}
+      <Traits character={character} />
+      {pads.connected.length > 0 && <PadPicker seat={index} name={nameOf(character)} pads={pads} />}
     </li>
   );
 }
 
-/** Every character, to pick one for a seat; those whose card another seat has are taken. */
+/** Every character, to pick one for a seat; those whose card another seat has are taken, and dimmed. The one in focus shows its traits. On a wide screen they all fit in one row. */
 function CharacterGrid({ seat, seats, onPick, onClose }: { seat: number; seats: Seats; onPick: (character: string) => void; onClose: () => void }) {
+  const [shown, setShown] = useState(seats[seat].character);
   return (
     <div
       role="dialog"
@@ -238,29 +243,43 @@ function CharacterGrid({ seat, seats, onPick, onClose }: { seat: number; seats: 
         if (e.key === "Escape") onClose();
       }}
     >
-      <div className="flex max-h-full w-full max-w-3xl flex-col gap-2 rounded border border-(--bt-line) bg-(--bt-panel) p-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">{seats[seat].name}</h2>
+      <div className="flex max-h-full w-full max-w-6xl flex-col gap-3 min-[2200px]:max-w-[132rem] rounded border border-(--bt-line) bg-(--bt-panel) p-3">
+        <div className="flex items-start gap-3">
+          <section aria-label="In focus" className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+            <h2 className="flex shrink-0 items-center gap-1.5 font-semibold sm:w-44">
+              <span aria-hidden className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, shown)}`} />
+              {nameOf(shown)}
+            </h2>
+            <div className="min-w-0 flex-1 sm:max-w-md">
+              <Traits character={shown} />
+            </div>
+          </section>
           <button
             type="button"
             // The grid opens to choose from: its close button takes the focus, so Escape or Enter closes it.
             autoFocus
             data-pad-back
+            aria-label="Close"
             onClick={onClose}
-            className={BUTTON}
+            className={`${BUTTON} inline-flex items-center gap-1.5`}
           >
             ✕
           </button>
         </div>
-        <ul className="grid grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 md:grid-cols-6">
+        <ul className="grid grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-6 min-[2200px]:grid-cols-12">
           {characters.map((character) => {
             const taken = takenBy(characters, seats, seat, character.id);
+            const show = () => {
+              setShown(character.id);
+            };
             return (
               <li key={character.id}>
                 <button
                   type="button"
                   disabled={taken !== null}
                   aria-pressed={seats[seat].character === character.id}
+                  onFocus={show}
+                  onPointerEnter={show}
                   onClick={() => {
                     onPick(character.id);
                   }}
@@ -271,7 +290,6 @@ function CharacterGrid({ seat, seats, onPick, onClose }: { seat: number; seats: 
                     <span aria-hidden className={`inline-block size-2 shrink-0 rounded-full ${seatDot(ENGINE, character.id)}`} />
                     {character.name}
                   </span>
-                  {taken !== null && <span className="text-(--bt-muted)">{seats[taken].name}</span>}
                 </button>
               </li>
             );

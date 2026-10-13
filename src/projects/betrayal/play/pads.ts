@@ -78,9 +78,9 @@ export function padMayAct(assignment: PadAssignment, seat: number | null, pad: n
   return owner === null || owner === pad;
 }
 
-/** A pad's name for players: its slot counted from one. */
+/** A pad's name for players, who call it a controller: its slot counted from one. */
 export function padName(pad: number): string {
-  return `Pad ${pad + 1}`;
+  return `Controller ${pad + 1}`;
 }
 
 function seatEntries(assignment: PadAssignment): [number, number][] {

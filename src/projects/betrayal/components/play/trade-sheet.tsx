@@ -3,13 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
 import { cardMood } from "../../play/cards";
 import { tradeOffer, tradeSides, type TradeRow } from "../../play/sheet";
 import type { Action } from "../../types";
 import { MOOD_TEXT } from "./moods";
 import { enterLayer } from "./pad-focus";
-import { Prompt } from "../prompts";
 
 /*
  * Building a trade with one explorer: what you give and what you take, a
@@ -40,7 +38,7 @@ function Column({ label, cards, marked, mark }: { label: string; cards: string[]
   );
 }
 
-export function TradeSheet({ view, row, act, close, input }: { view: GameView; row: TradeRow; act: (action: Action) => void; close: () => void; input: InputKind }) {
+export function TradeSheet({ view, row, act, close }: { view: GameView; row: TradeRow; act: (action: Action) => void; close: () => void }) {
   const [give, setGive] = useState<string | null>(null);
   const [take, setTake] = useState<string | null>(null);
   const { gives, takes } = tradeSides(row);

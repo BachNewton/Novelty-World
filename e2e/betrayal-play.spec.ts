@@ -26,9 +26,9 @@ const GAME = {
     seed: "e2e-play",
     sets: ["base"],
     seats: [
-      { name: "Ann", character: "zoe-ingstrom" },
-      { name: "Ben", character: "ox-bellows" },
-      { name: "Cat", character: "father-rhinehardt" },
+      { character: "zoe-ingstrom" },
+      { character: "ox-bellows" },
+      { character: "father-rhinehardt" },
     ],
     today: { month: 11, day: 5 },
     scenario: { stack: ["game-room"], decks: { event: ["something-hidden"] } },
@@ -92,7 +92,9 @@ async function pointOf(page: Page, id: string): Promise<{ x: number; y: number }
   const found = await page.evaluate((target) => {
     const point = window.__betrayalPlay?.screenPoint(target) ?? null;
     const over = point && document.elementFromPoint(point.x, point.y);
-    return { point, over: over instanceof HTMLCanvasElement ? null : (over?.outerHTML.slice(0, 200) ?? "nothing") };
+    // The frame meter draws on canvases too: open house is the house's own.
+    const house = over instanceof HTMLCanvasElement && over.closest("[data-frame-meter]") === null;
+    return { point, over: house ? null : (over?.outerHTML.slice(0, 200) ?? "nothing") };
   }, id);
   if (!found.point || found.over !== null) throw new Error(`${id} doesn't show in the open house: ${found.point ? `${found.over} is over it` : "it is off the screen"}`);
   return found.point;
@@ -153,9 +155,9 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   const start = await readout(page);
   expect(start.targets.map((t) => t.id)).toContain("explore:ground:2:-1");
   expect(start.canEnd).toBe(true);
-  await expect(page.getByText("Ann (Zoe Ingstrom): your turn", { exact: false })).toBeVisible();
+  await expect(page.getByText("Zoe Ingstrom: your turn", { exact: false })).toBeVisible();
 
-  // Ann explores north: the empty cell beyond the doorway glows in the house.
+  // Zoe explores north: the empty cell beyond the doorway glows in the house.
   await clickTarget(page, "explore:ground:2:-1");
   await until(page, "play.pending?.kind === 'rotation'");
   // The Game Room shows as a ghost on its cell: Tab steps to its next way round, and Enter places it.
@@ -163,7 +165,7 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   await page.keyboard.press("Tab");
   await until(page, "play.ghost?.rotation === 1");
   await page.keyboard.press("Enter");
-  // Then its event card is answered in the status box, which says what happened, why, and what Ann can do now.
+  // Then its event card is answered in the status box, which says what happened, why, and what Zoe can do now.
   await page.waitForFunction(() => {
     const play = window.__betrayalPlay?.play();
     return play?.pending?.kind === "choose-one" && play.tiles === 6;
@@ -184,31 +186,31 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   await expect(why).not.toContainText("4+: Draw an item card.");
   await why.getByRole("listitem").filter({ hasText: "Something Hidden:" }).getByRole("button", { name: "Full rule" }).click();
   await expect(why).toContainText("4+: Draw an item card.");
-  await expect(now).toContainText("Ann (Zoe Ingstrom): Something Hidden: ");
+  await expect(now).toContainText("Zoe Ingstrom: Something Hidden: ");
   await now.getByRole("button", { name: "Don't roll" }).click();
-  // Drawing the card ended Ann's move. With nothing left to do, ending her turn is hers to choose, and the box says why it's all there is.
+  // Drawing the card ended Zoe's move. With nothing left to do, ending her turn is hers to choose, and the box says why it's all there is.
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.targets.length === 0");
   expect((await readout(page)).canEnd).toBe(true);
   await expect(now).toContainText("No moves or actions left: End turn.");
   await expect(now.getByRole("button", { name: "End turn" })).toBeVisible();
-  // With no actions, the explorer's chip shows no count.
-  await expect(now.getByRole("button", { name: "Your explorer", exact: true })).toBeVisible();
+  // With no actions, the seat's button in the header shows no count.
+  await expect(page.locator("header").getByRole("button", { name: /: character card$/ })).toBeVisible();
   await now.getByRole("button", { name: "End turn" }).click();
-  // The device passes to Ben.
+  // The device passes to Ox.
   await until(page, "play.holder === 1 && play.turnSeat === 1 && play.pending?.kind === 'turn'");
   expect((await readout(page)).rooms["zoe-ingstrom"]).toBe("game-room");
-  await expect(page.getByText("Ben (Ox Bellows): your turn", { exact: false })).toBeVisible();
+  await expect(page.getByText("Ox Bellows: your turn", { exact: false })).toBeVisible();
 
-  // Ben walks into the Foyer, and ends his turn.
+  // Ox walks into the Foyer, and ends his turn.
   await clickTarget(page, "room:foyer");
   await until(page, "play.rooms['ox-bellows'] === 'foyer' && play.holder === 1");
   await page.getByRole("button", { name: "End turn" }).click();
   await until(page, "play.holder === 2 && play.turnSeat === 2");
 
-  // Cat ends her turn from the keyboard: Backspace, held. Let go too soon, it only says to hold it.
+  // Father Rhinehardt ends his turn from the keyboard: Backspace, held. Let go too soon, End turn's fill empties.
   await page.keyboard.down("Backspace");
   await page.keyboard.up("Backspace");
-  await expect(page.getByText("Hold to end your turn.")).toBeVisible();
+  await expect(page.locator("[data-end-turn] [data-hold-fill='rest']")).toBeAttached();
   expect((await readout(page)).holder).toBe(2);
   await page.keyboard.down("Backspace");
   await until(page, "play.holder === 0 && play.turnSeat === 0");
@@ -253,7 +255,7 @@ test("the explorer whose turn it is steps onto the prime place, and the others k
   const prime = start["zoe-ingstrom"];
   expect(new Set(Object.values(start)).size).toBe(3);
 
-  // Ben's turn: Ox steps onto the prime place, and Zoe, who stood there, steps aside. The clock is held so the step is seen playing.
+  // Ox's turn: Ox steps onto the prime place, and Zoe, who stood there, steps aside. The clock is held so the step is seen playing.
   await page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
   await page.getByRole("button", { name: "End turn" }).click();
   await page.waitForFunction(() => {
@@ -267,7 +269,7 @@ test("the explorer whose turn it is steps onto the prime place, and the others k
   await page.evaluate(() => window.__betrayalPlay?.freezeClock(null));
   await until(page, "play.holder === 1 && !play.walking");
 
-  // Cat's turn: Father Rhinehardt steps onto it, Ox steps aside, and Zoe, who never moved, stays where she is.
+  // Father Rhinehardt's turn: Father Rhinehardt steps onto it, Ox steps aside, and Zoe, who never moved, stays where she is.
   await page.getByRole("button", { name: "End turn" }).click();
   await until(page, "play.holder === 2 && play.turnSeat === 2 && !play.walking");
   const third = await places();
@@ -312,26 +314,29 @@ test("setup: characters chosen by portrait, one per card, and a chosen haunt car
   const seat0 = page.getByRole("listitem", { name: "Seat 0" });
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" })).toBeVisible();
 
-  // The arrows step past characters whose card another seat has: Longfellow shares seat 0's own card, then Ox's and Zoe's cards are taken.
+  // Four seats by default. The arrows step past characters whose card another seat has: Longfellow shares seat 0's own card, then the next three cards are taken.
+  await expect(page.getByRole("listitem", { name: /^Seat \d$/ })).toHaveCount(4);
   await seat0.getByRole("button", { name: "Seat 0: next character" }).click();
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Professor Longfellow" })).toBeVisible();
   await seat0.getByRole("button", { name: "Seat 0: next character" }).click();
-  await expect(seat0.getByRole("button", { name: "Seat 0 character: Brandon Jaspers" })).toBeVisible();
+  await expect(seat0.getByRole("button", { name: "Seat 0 character: Vivian Lopez" })).toBeVisible();
+  // The seat shows its character's traits.
+  await expect(seat0.getByLabel("Vivian Lopez's traits").getByLabel(/ track$/)).toHaveCount(4);
 
   // The portrait opens every character; one whose card another seat holds can't be picked.
-  await seat0.getByRole("button", { name: "Seat 0 character: Brandon Jaspers" }).click();
+  await seat0.getByRole("button", { name: "Seat 0 character: Vivian Lopez" }).click();
   const grid = page.getByRole("dialog", { name: "Seat 0's character" });
   await expect(grid.getByRole("button", { name: /Ox Bellows/ })).toBeDisabled();
-  await grid.getByRole("button", { name: /Vivian Lopez/ }).click();
+  await grid.getByRole("button", { name: /Heather Granville/ }).click();
   await expect(grid).toHaveCount(0);
-  await expect(seat0.getByRole("button", { name: "Seat 0 character: Vivian Lopez" })).toBeVisible();
+  await expect(seat0.getByRole("button", { name: "Seat 0 character: Heather Granville" })).toBeVisible();
 
   await page.getByRole("button", { name: /^13 · / }).click();
   await page.getByRole("button", { name: "Start" }).click();
   await until(page, "play.pending?.kind === 'turn'");
   const shared = await savedShare(page);
   expect(shared.game.chosenHaunt).toBe(13);
-  expect(shared.game.seats[0].character).toBe("vivian-lopez");
+  expect(shared.game.seats[0].character).toBe("heather-granville");
 });
 
 /**
@@ -355,9 +360,9 @@ test("the haunt's reveal: the light is the haunt's, the traitor is named, and ea
 
   const reveal = page.getByLabel("The haunt begins");
   await expect(reveal).toContainText("Haunt 13");
-  // Haunt 13's traitor, with these explorers, is Ox: Ben.
-  await expect(reveal.locator("[data-traitor]")).toContainText("Ben");
-  await expect(reveal).toContainText("Ben, look away");
+  // Haunt 13's traitor, with these explorers, is Ox.
+  await expect(reveal.locator("[data-traitor]")).toContainText("Ox Bellows");
+  await expect(reveal).toContainText("Ox Bellows, look away");
 
   await reveal.getByRole("button", { name: "Secrets of Survival" }).click();
   const reader = page.getByRole("dialog", { name: "Secrets of Survival" });
@@ -384,8 +389,39 @@ test("the playtesting view is at ?debug", async ({ page }) => {
   await expect(page.getByRole("button", { name: "End your turn" })).toBeVisible();
 });
 
+test("the frame meter shows top right, clear of the buttons, and ~ hides it on this device", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await resumeSaved(page);
+  await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
+  const meter = page.locator("[data-frame-meter] canvas").first();
+  for (const size of [{ width: 360, height: 640 }, { width: 3440, height: 1440 }]) {
+    await page.setViewportSize(size);
+    await expect(meter).toBeVisible();
+    const box = await page.locator("[data-frame-meter]").boundingBox();
+    if (!box) throw new Error("The frame meter has no box");
+    expect(box.x + box.width).toBeGreaterThan(size.width - 16);
+    const covered = await page.evaluate(
+      (at) =>
+        [...document.querySelectorAll("header button, section")]
+          .map((element) => ({ name: element.textContent, rect: element.getBoundingClientRect() }))
+          .filter(({ rect }) => rect.left < at.x + at.width && rect.right > at.x && rect.top < at.y + at.height && rect.bottom > at.y)
+          .map(({ name }) => name),
+      box,
+    );
+    expect(covered, `at ${size.width}x${size.height}`).toEqual([]);
+  }
+  await page.keyboard.press("Shift+Backquote");
+  await expect(meter).toBeHidden();
+  await page.reload();
+  await page.getByRole("button", { name: "Resume" }).click();
+  await until(page, "play.holder === 0");
+  await expect(meter).toBeHidden();
+  await page.keyboard.press("Backquote");
+  await expect(meter).toBeVisible();
+});
+
 /**
- * The rotation ghost: Ann explores north into the Game Room, which fits three
+ * The rotation ghost: Zoe explores north into the Game Room, which fits three
  * ways round (0, 90° and 180°). Each input method turns the ghost through
  * them, round and back, then places it, and the room lands the way it showed.
  */
@@ -457,7 +493,7 @@ test.describe("the rotation ghost", () => {
     await page.getByRole("button", { name: "Resume" }).click();
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
     await clickTarget(page, "explore:ground:2:-1");
-    // The room is placed and Ann is in it, with her turn going on; the screen says so.
+    // The room is placed and Zoe is in it, with her turn going on; the screen says so.
     await until(page, "play.tiles === 6 && play.rooms['zoe-ingstrom'] === 'creaky-hallway' && play.pending?.kind === 'turn' && play.ghost === null");
     expect((await readout(page)).rotations["creaky-hallway"]).toBeDefined();
     await expect(page.getByText("discovers the Creaky Hallway", { exact: false })).toBeVisible();
@@ -507,8 +543,8 @@ test.describe("the rotation ghost", () => {
       await press(page, BUTTON.DpadDown, `${focused} === 'Make a Knowledge roll'`);
       await press(page, BUTTON.DpadRight, `${focused} === "Don't roll"`);
       await press(page, BUTTON.A, "play.pending?.kind === 'turn' && play.targets.length === 0");
-      // End turn carries X's hold ring, which fills while X is held, and the turn then passes.
-      await expect(now.locator("[data-end-turn] [data-hold-ring='rest']")).toBeVisible();
+      // End turn's background fills while X is held, and the turn then passes.
+      await expect(now.locator("[data-end-turn] [data-hold-fill='rest']")).toBeAttached();
       await press(page, BUTTON.X, "play.holder === 1 && play.turnSeat === 1");
     });
   });
@@ -545,7 +581,7 @@ test.describe("the rotation ghost", () => {
  * Moves of several rooms: every room the move can reach glows, not only the
  * next ones, and pointing at one previews its route before anything is sent:
  * the path in the house, its cost and the rules it would set off. Committing
- * walks the explorer there while the game has already moved on. Ann goes
+ * walks the explorer there while the game has already moved on. Zoe goes
  * from the Entrance Hall up the Grand Staircase to the Upper Landing, three
  * of her four spaces, on each input, and the view follows her upstairs.
  */
@@ -633,7 +669,7 @@ test.describe("a move of several rooms, previewed", () => {
 
 /**
  * The tag over a focused target, with its route's cost, stays on a 360px
- * phone screen even when the target sits at the screen's edge: Ann's route to
+ * phone screen even when the target sits at the screen's edge: Zoe's route to
  * the Upper Landing, its stairs dragged to the left edge, then the right.
  */
 test.describe("the route tag on a phone", () => {
