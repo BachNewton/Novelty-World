@@ -79,6 +79,17 @@ function figureIn(view: GameView, figure: FigureId): FigureView {
   return found;
 }
 
+/** The explorer an explorer token belongs to: the one explorer in the game on
+ *  that colour's character card. The token itself shows only the colour. */
+export function explorerOfToken(engine: Engine, view: Pick<GameView, "figures">, token: string): FigureView {
+  const owner = Object.values(view.figures).find((figure) => figure.kind === "explorer" && engine.catalog.figures[figure.definition].token === token);
+  if (!owner) throw new Error(`No explorer in the game has the ${token} token`);
+  return owner;
+}
+
+/** Whether a token kind is an explorer's token, named by its explorer rather than its colour. */
+export const isExplorerToken = (token: string) => token.startsWith("explorer-");
+
 function wordsFor(engine: Engine, view: GameView): Words {
   const { rooms, cards } = engine.catalog;
   return {
@@ -481,14 +492,16 @@ export function describeEvent(
       const d = data<{ token: string; room: string; wall?: Edge[] | null }>(
         event,
       );
-      const name = engine.catalog.tokens[d.token].name;
+      const name = isExplorerToken(d.token)
+        ? `${explorerOfToken(engine, view, d.token).name}'s explorer token`
+        : `The ${engine.catalog.tokens[d.token].name} token`;
       const where = d.wall
         ? `on a ${d.wall.length === 2 ? "corner" : "wall"} of the ${words.room(d.room)}`
         : `in the ${words.room(d.room)}`;
       return sentence(
         event.type === "token-placed"
-          ? `The ${name} token is placed ${where}`
-          : `The ${name} token is removed from the ${words.room(d.room)}`,
+          ? `${name} is placed ${where}`
+          : `${name} is removed from the ${words.room(d.room)}`,
       );
     }
     case "room-placed": {
