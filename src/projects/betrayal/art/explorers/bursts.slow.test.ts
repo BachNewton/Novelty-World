@@ -12,6 +12,7 @@ import { onTheSpot } from "./line-up";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
+import { missy } from "./missy";
 import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
 
@@ -30,6 +31,7 @@ const FIGURES: Record<string, ExplorerBuilder> = {
   flash,
   brandon,
   peter,
+  missy,
   rhinehardt,
   zoe,
   banshee: (seed, gait) => banshee(seed, gait),

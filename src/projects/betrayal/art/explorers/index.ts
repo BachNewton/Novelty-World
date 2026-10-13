@@ -6,6 +6,7 @@ import { CARD_PALETTE, figureFor } from "./by-character";
 import { explorerLineUp } from "./line-up";
 import { flash } from "./flash";
 import { longfellow } from "./longfellow";
+import { missy } from "./missy";
 import { ox } from "./ox";
 import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
@@ -41,6 +42,7 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "flash", name: "Darrin \"Flash\" Williams", build: flash },
   { id: "brandon", name: "Brandon Jaspers", build: brandon },
   { id: "peter", name: "Peter Akimoto", build: peter },
+  { id: "missy", name: "Missy Dubourde", build: missy },
   { id: "zoe", name: "Zoe Ingstrom", build: zoe },
   // Round a little loop with sharp turns, walking, stopping, then running: how her skirt swings (`&cloth=` picks it).
   { id: "zoe-course", name: "Zoe walking and running a course", build: onCourse(zoe) },

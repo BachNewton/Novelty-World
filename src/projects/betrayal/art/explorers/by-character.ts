@@ -5,6 +5,7 @@ import type { ExplorerBuilder } from "../stage";
 import type { CardColour } from "../../types";
 import { flash } from "./flash";
 import { longfellow } from "./longfellow";
+import { missy } from "./missy";
 import { ox } from "./ox";
 import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
@@ -27,6 +28,7 @@ const FIGURES: Partial<Record<string, ExplorerBuilder>> = {
   "ox-bellows": ox,
   "darrin-flash-williams": flash,
   "zoe-ingstrom": zoe,
+  "missy-dubourde": missy,
   "peter-akimoto": peter,
   "brandon-jaspers": brandon,
   "father-rhinehardt": rhinehardt,
