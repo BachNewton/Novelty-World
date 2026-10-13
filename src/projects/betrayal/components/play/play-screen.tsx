@@ -46,9 +46,10 @@ import { createFrameMeter, useFrameMeter, type FrameMeter } from "../../art/fram
 /*
  * The game on one device: the house, showing the seat holding the device
  * only what that seat may see, with the places the pending decision offers
- * glowing in it, and one status box: what just happened and why, and what
- * the player can do now, every other decision and ending the turn included.
- * Over it open the player's explorer, a trade being built, and the game menu.
+ * glowing in it, one status box: what just happened and why, and what the
+ * player can do now, every other decision included, and End turn at the top
+ * right. Over it open the player's explorer, a trade being built, and the
+ * game menu.
  *
  * A controller has one focus: on a choice in the house, or on a button of
  * the box or of whatever is open over the house (`pad-focus.ts`). Each of
@@ -507,11 +508,6 @@ export function PlayScreen({
   return (
     <div ref={rootRef} className={`fixed inset-0 bg-(--bt-bg) text-(--bt-ink) ${input === "pad" ? PAD_FOCUS : ""}`}>
       <div ref={containerRef} className="absolute inset-0" />
-      {/* In the corner the header leaves clear: the frame meter (~), and under it the bake's mark. */}
-      <div className="pointer-events-none absolute top-3 right-2 flex flex-col items-end gap-1">
-        <div ref={meterRef} data-frame-meter className="pointer-events-auto" />
-        <BakeIndicator bakes={scene.bakes} className="" />
-      </div>
       <BakeDebug bakes={scene.bakes} />
       <div
         ref={reticleRef}
@@ -534,66 +530,87 @@ export function PlayScreen({
       {details.held && <HouseDetails scene={scene} view={view} things={things} />}
       <FigureMarks scene={scene} view={view} spots={presented.spots} floating={eventsOf(presented.floats)} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
 
-      <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 p-3 pr-28 text-xs sm:text-sm">
-        {/* The seat holding the device: its explorer's character card, as the mark on the figure opens it. */}
-        <PromptButton
-          meaning="explorer"
-          input={input}
-          aria-label={`${seatName(view, holder)}: character card${actionCount > 0 ? `, ${actionCount} ${actionCount === 1 ? "action" : "actions"}` : ""}`}
-          aria-expanded={yours !== null && tab?.id === yours.id}
-          disabled={yours === null}
-          onClick={() => {
-            if (yours) openTab(tab?.id === yours.id ? null : yours.id);
-          }}
-          className={`${button} font-semibold aria-expanded:border-(--bt-accent)`}
-        >
-          {dot && <span className={`inline-block size-2.5 rounded-full ${dot}`} />}
-          {seatName(view, holder)}
-          {actionCount > 0 && <span className="font-normal text-(--bt-muted)">· {actionCount} {actionCount === 1 ? "action" : "actions"}</span>}
-        </PromptButton>
-        <span className="flex items-center gap-1">
-          <Prompt meaning="floor-down" input={input} />
-          {floors.map((floor) => (
-            <button
-              key={floor}
-              type="button"
-              onClick={() => {
-                scene.hook.setFloor(floor);
-              }}
-              className={`${button} ${shown.floor === floor ? "border-(--bt-accent) bg-(--bt-room)" : ""}`}
-            >
-              {FLOOR_NAMES[floor]}
-            </button>
-          ))}
-          <Prompt meaning="floor-up" input={input} />
-        </span>
-        <PromptButton
-          meaning="follow"
-          input={input}
-          aria-pressed={shown.camera === "following"}
-          onClick={() => {
-            scene.camera.follow();
-          }}
-          className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}
-        >
-          Follow
-        </PromptButton>
-        <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
-          Walls
-        </RaiseWallsButton>
-        <DetailsButton held={details.held} hold={details.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
-        <PromptButton
-          meaning="menu"
-          input={input}
-          aria-expanded={gate.menuOpen}
-          onClick={() => {
-            setMenuOpen(!gate.menuOpen);
-          }}
-          className={button}
-        >
-          Menu
-        </PromptButton>
-      </header>
+      {/* The header leaves the top right corner to End turn; under the header, at the left, the frame meter (~) and the bake's mark. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-start gap-1.5 p-3 pr-32">
+        <header className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm">
+          {/* The seat holding the device: its explorer's character card, as the mark on the figure opens it. */}
+          <PromptButton
+            meaning="explorer"
+            input={input}
+            aria-label={`${seatName(view, holder)}: character card${actionCount > 0 ? `, ${actionCount} ${actionCount === 1 ? "action" : "actions"}` : ""}`}
+            aria-expanded={yours !== null && tab?.id === yours.id}
+            disabled={yours === null}
+            onClick={() => {
+              if (yours) openTab(tab?.id === yours.id ? null : yours.id);
+            }}
+            className={`${button} font-semibold aria-expanded:border-(--bt-accent)`}
+          >
+            {dot && <span className={`inline-block size-2.5 rounded-full ${dot}`} />}
+            {seatName(view, holder)}
+            {actionCount > 0 && <span className="font-normal text-(--bt-muted)">· {actionCount} {actionCount === 1 ? "action" : "actions"}</span>}
+          </PromptButton>
+          <span className="flex items-center gap-1">
+            <Prompt meaning="floor-down" input={input} />
+            {floors.map((floor) => (
+              <button
+                key={floor}
+                type="button"
+                onClick={() => {
+                  scene.hook.setFloor(floor);
+                }}
+                className={`${button} ${shown.floor === floor ? "border-(--bt-accent) bg-(--bt-room)" : ""}`}
+              >
+                {FLOOR_NAMES[floor]}
+              </button>
+            ))}
+            <Prompt meaning="floor-up" input={input} />
+          </span>
+          <PromptButton
+            meaning="follow"
+            input={input}
+            aria-pressed={shown.camera === "following"}
+            onClick={() => {
+              scene.camera.follow();
+            }}
+            className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}
+          >
+            Follow
+          </PromptButton>
+          <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
+            Walls
+          </RaiseWallsButton>
+          <DetailsButton held={details.held} hold={details.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
+          <PromptButton
+            meaning="menu"
+            input={input}
+            aria-expanded={gate.menuOpen}
+            onClick={() => {
+              setMenuOpen(!gate.menuOpen);
+            }}
+            className={button}
+          >
+            Menu
+          </PromptButton>
+        </header>
+        <div ref={meterRef} data-frame-meter className="pointer-events-auto" />
+        <BakeIndicator bakes={scene.bakes} className="" />
+      </div>
+      {end && (
+        <div className="absolute top-3 right-3">
+          <PromptButton
+            meaning="end-turn"
+            input={input}
+            hold={endHold}
+            data-end-turn
+            onClick={() => {
+              act(end.action);
+            }}
+            className="min-h-10 rounded px-3 py-1 text-sm font-semibold whitespace-nowrap"
+          >
+            End turn
+          </PromptButton>
+        </div>
+      )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-start">
         <StatusBox
@@ -614,7 +631,6 @@ export function PlayScreen({
           openMenu={() => {
             setMenuOpen(true);
           }}
-          endHold={endHold}
           why={{ open: whyOpen, toggle: setWhyOpen, hold: presenting.hold }}
         />
       </div>
