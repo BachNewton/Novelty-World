@@ -1,6 +1,5 @@
 import {
   beyondWall,
-  COMPASS,
   EDGES,
   FLOORS,
   neighbourCell,
@@ -9,6 +8,7 @@ import {
   sideName,
   sightLines,
   turn,
+  wallName,
 } from "../../engine/board";
 import {
   attempt,
@@ -25,6 +25,7 @@ import {
   loseCard,
   mayAttempt,
   placeToken,
+  optionPlace,
   placeWallToken,
   relocate,
   removeToken,
@@ -159,6 +160,7 @@ function linkRooms(
         placesIn(engine, rooms).map((there) => ({
           label: `Put the other ${CATALOG.tokens[token].name} token in ${placeLabel(state, there)}`,
           steps: [local(id, "link", { figure, there })],
+          ...optionPlace(there),
         })),
         rule,
       ),
@@ -187,6 +189,7 @@ function linkRooms(
                         relocate(p.figure, p.there.room, rule, p.there.side),
                         local(id, "arrived", p),
                       ],
+                      ...optionPlace(p.there),
                     },
                     { label: "Stay here", steps: [] },
                   ],
@@ -250,22 +253,9 @@ function switchWalls(catalog: Catalog, room: string): Edge[][] {
   return [...walls, ...corners];
 }
 
-const NORTH_SOUTH: Edge[] = ["top", "bottom"];
-
 /** The Wall Switch is used once a turn by each figure: on a monster turn
  *  several figures act. */
 const switchUse = (figure: FigureId) => `wall-switch:${figure}`;
-
-/** A wall's name as the board shows it: "north wall", "north-east corner". */
-function wallName(state: GameState, room: string, wall: Edge[]): string {
-  const tile = placed(state.board, room);
-  if (!tile) throw new Error(`${room} is not on the board`);
-  const sides = wall
-    .map((edge) => turn(edge, tile.rotation))
-    .sort((a) => (NORTH_SOUTH.includes(a) ? -1 : 1))
-    .map((edge) => COMPASS[edge]);
-  return `${sides.join("-")} ${wall.length === 2 ? "corner" : "wall"}`;
-}
 
 /** The cell beyond a wall, and the room there if any. */
 function beyond(state: GameState, room: string, wall: Edge[]) {
@@ -407,10 +397,14 @@ export const EVENTS_B: BehaviourGroup = {
           chooseOne(
             figure,
             usable.map((wall) => ({
-              label: `Put the Wall Switch on the ${wallName(state, room, wall)} of the ${CATALOG.rooms[room].name}`,
+              label: `Put the Wall Switch on the ${wallName(state.board, room, wall)} of the ${CATALOG.rooms[room].name}`,
               steps: [local("revolving-wall", "switch", { figure, room, wall })],
+              room,
+              wall,
+              token: "wall-switch",
             })),
             rule,
+            "choose where the Wall Switch goes",
           ),
         ];
       },
