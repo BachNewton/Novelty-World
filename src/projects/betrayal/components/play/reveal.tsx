@@ -2,9 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { seatName, type GameView } from "../../engine/view";
-import type { InputKind } from "../../input/controls";
 import type { Action, HauntHalf } from "../../types";
-import { Prompt } from "../prompts";
 import { enterLayer } from "./pad-focus";
 
 /*
@@ -24,7 +22,7 @@ export function revealPrompt(view: GameView, holder: number): string {
   return "your half. Everyone else, look away.";
 }
 
-export function RevealNow({ view, holder, act, input }: { view: GameView; holder: number; act: (action: Action) => void; input: InputKind }) {
+export function RevealNow({ view, holder, act }: { view: GameView; holder: number; act: (action: Action) => void }) {
   const [reading, setReading] = useState<HauntHalf | null>(null);
   const pending = view.pending;
   const haunt = view.haunt;
@@ -78,7 +76,6 @@ export function RevealNow({ view, holder, act, input }: { view: GameView; holder
       {reading && (
         <HalfReader
           half={reading}
-          input={input}
           onClose={() => {
             setReading(null);
           }}
@@ -90,7 +87,7 @@ export function RevealNow({ view, holder, act, input }: { view: GameView; holder
 
 /** One half of the haunt, to read in full over the house: it opens with the
  *  focus on its close button, and a controller's d-pad scrolls its text. */
-function HalfReader({ half, onClose, input }: { half: HauntHalf; onClose: () => void; input: InputKind }) {
+function HalfReader({ half, onClose }: { half: HauntHalf; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (ref.current) enterLayer(ref.current);
@@ -109,7 +106,6 @@ function HalfReader({ half, onClose, input }: { half: HauntHalf; onClose: () => 
           <h2 className="text-lg font-semibold">{half.title}</h2>
           <button type="button" data-pad-back onClick={onClose} className="inline-flex min-h-11 items-center gap-1.5 rounded border border-(--bt-line) px-3 hover:border-(--bt-accent)">
             Close
-            <Prompt meaning="back" input={input} size={16} />
           </button>
         </div>
         <div className="overflow-y-auto px-3 py-2 text-sm break-words whitespace-pre-wrap">{half.text}</div>

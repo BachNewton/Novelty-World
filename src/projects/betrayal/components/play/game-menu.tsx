@@ -2,8 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import type { GameView } from "../../engine/view";
-import type { InputKind } from "../../input/controls";
-import { Prompt } from "../prompts";
 import { enterLayer } from "./pad-focus";
 import type { Speed } from "./presenting";
 import { SeatsSection } from "./seats-panel";
@@ -19,14 +17,13 @@ import type { PadSeats } from "./use-pads";
 const SPEED_NAMES: Record<Speed, string> = { slow: "Slow", normal: "Normal", fast: "Fast" };
 const SPEED_ORDER: Speed[] = ["slow", "normal", "fast"];
 
-export function GameMenu({ view, pads, speed, setSpeed, onLeave, close, input }: {
+export function GameMenu({ view, pads, speed, setSpeed, onLeave, close }: {
   view: GameView;
   pads: PadSeats;
   speed: Speed;
   setSpeed: (speed: Speed) => void;
   onLeave: () => void;
   close: () => void;
-  input: InputKind;
 }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -39,7 +36,6 @@ export function GameMenu({ view, pads, speed, setSpeed, onLeave, close, input }:
           <h2 className="text-lg font-semibold">Menu</h2>
           <button type="button" data-pad-back data-pad-start onClick={close} className="inline-flex min-h-11 items-center gap-1.5 rounded border border-(--bt-line) px-3 hover:border-(--bt-accent)">
             Close
-            <Prompt meaning="back" input={input} size={16} />
           </button>
         </div>
         <SeatsSection view={view} pads={pads} />

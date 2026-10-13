@@ -9,7 +9,7 @@ import { portraitSrc, takenBy } from "../../play/setup";
 import { characterTracks } from "../../play/tracks";
 import type { SharedGame } from "../../share";
 import { ErrorBox } from "../error-box";
-import { PAD_FOCUS, Prompt } from "../prompts";
+import { PAD_FOCUS } from "../prompts";
 import { defaultSeats, MAX_SEATS, MIN_SEATS, today, type Seats } from "../start-form";
 import { PadPicker } from "./pad-picker";
 import { seatDot } from "./seat-colour";
@@ -145,7 +145,6 @@ export function Setup({
         <CharacterGrid
           seat={choosing}
           seats={seats}
-          input={input}
           onPick={(character) => {
             setSeats(seats.map((s, i) => (i === choosing ? { ...s, character } : s)));
             setChoosing(null);
@@ -205,7 +204,7 @@ function SeatCard({ index, seats, onChoose, pads }: { index: number; seats: Seat
 }
 
 /** Every character, to pick one for a seat; those whose card another seat has are taken, and dimmed. The one in focus shows its traits. On a wide screen they all fit in one row. */
-function CharacterGrid({ seat, seats, input, onPick, onClose }: { seat: number; seats: Seats; input: InputKind; onPick: (character: string) => void; onClose: () => void }) {
+function CharacterGrid({ seat, seats, onPick, onClose }: { seat: number; seats: Seats; onPick: (character: string) => void; onClose: () => void }) {
   const [shown, setShown] = useState(seats[seat].character);
   return (
     <div
@@ -239,7 +238,6 @@ function CharacterGrid({ seat, seats, input, onPick, onClose }: { seat: number; 
             className={`${BUTTON} inline-flex items-center gap-1.5`}
           >
             ✕
-            <Prompt meaning="back" input={input} size={16} />
           </button>
         </div>
         <ul className="grid grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-6 min-[2200px]:grid-cols-12">

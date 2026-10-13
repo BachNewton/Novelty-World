@@ -44,9 +44,6 @@ export function landing(steps: number, clip: number, spaces: number, skull: Skul
   return Math.min(to, steps - 1);
 }
 
-/** How many losses the clip can take before it reaches the skull: one per step down, and the step past the lowest. */
-export const stepsAboveSkull = (clip: number): number => clip + 1;
-
 /** A figure's four tracks, in the card's order, with nothing previewed. */
 export function figureTracks(engine: Engine, view: GameView, figure: FigureId): TraitTrack[] {
   return TRAITS.map((trait) => traitTrack(engine, view, figure, trait, null));

@@ -193,8 +193,8 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   expect((await readout(page)).canEnd).toBe(true);
   await expect(now).toContainText("No moves or actions left: End turn.");
   await expect(now.getByRole("button", { name: "End turn" })).toBeVisible();
-  // With no actions, the explorer's chip shows no count.
-  await expect(now.getByRole("button", { name: "Your explorer", exact: true })).toBeVisible();
+  // With no actions, the seat's button in the header shows no count.
+  await expect(page.locator("header").getByRole("button", { name: /: character card$/ })).toBeVisible();
   await now.getByRole("button", { name: "End turn" }).click();
   // The device passes to Ox.
   await until(page, "play.holder === 1 && play.turnSeat === 1 && play.pending?.kind === 'turn'");
@@ -207,10 +207,10 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   await page.getByRole("button", { name: "End turn" }).click();
   await until(page, "play.holder === 2 && play.turnSeat === 2");
 
-  // Father Rhinehardt ends his turn from the keyboard: Backspace, held. Let go too soon, it only says to hold it.
+  // Father Rhinehardt ends his turn from the keyboard: Backspace, held. Let go too soon, End turn's fill empties.
   await page.keyboard.down("Backspace");
   await page.keyboard.up("Backspace");
-  await expect(page.getByText("Hold to end your turn.")).toBeVisible();
+  await expect(page.locator("[data-end-turn] [data-hold-fill='rest']")).toBeAttached();
   expect((await readout(page)).holder).toBe(2);
   await page.keyboard.down("Backspace");
   await until(page, "play.holder === 0 && play.turnSeat === 0");
@@ -522,8 +522,8 @@ test.describe("the rotation ghost", () => {
       await press(page, BUTTON.DpadDown, `${focused} === 'Make a Knowledge roll'`);
       await press(page, BUTTON.DpadRight, `${focused} === "Don't roll"`);
       await press(page, BUTTON.A, "play.pending?.kind === 'turn' && play.targets.length === 0");
-      // End turn carries X's hold ring, which fills while X is held, and the turn then passes.
-      await expect(now.locator("[data-end-turn] [data-hold-ring='rest']")).toBeVisible();
+      // End turn's background fills while X is held, and the turn then passes.
+      await expect(now.locator("[data-end-turn] [data-hold-fill='rest']")).toBeAttached();
       await press(page, BUTTON.X, "play.holder === 1 && play.turnSeat === 1");
     });
   });

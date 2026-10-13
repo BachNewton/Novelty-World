@@ -5,12 +5,10 @@ import type { HouseScene } from "../../art/house-scene";
 import { WALL_HEIGHT } from "../../art/room";
 import type { EventView } from "../../engine/view";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
 import { cardMood, cardTypeName, drawnCard, heldText } from "../../play/cards";
 import type { Spots } from "../../play/spots";
 import { ruleNotes } from "../why";
 import { CardTypeIcon } from "../icons";
-import { Prompt } from "../prompts";
 import { MOOD_BORDER, MOOD_TEXT } from "./moods";
 import type { Moment } from "./presenting";
 
@@ -30,7 +28,6 @@ export interface CardBeatProps {
   /** The events the status box tells, the moment's among them. */
   told: readonly EventView[];
   spots: Spots;
-  input: InputKind;
   /** Beats are playing: a card drawn stays over its room until they are over and the choice it led to shows. */
   playing: boolean;
   goOn: () => void;
@@ -54,7 +51,7 @@ function shownDraw(told: readonly EventView[], moment: Moment | null, playing: b
   return event ? { event, waits: false } : null;
 }
 
-export function CardBeat({ scene, moment, told, spots, input, playing, goOn }: CardBeatProps) {
+export function CardBeat({ scene, moment, told, spots, playing, goOn }: CardBeatProps) {
   const draw = shownDraw(told, moment, playing);
   const event = draw?.event;
   const drawn = event ? drawnCard(event) : null;
@@ -92,7 +89,6 @@ export function CardBeat({ scene, moment, told, spots, input, playing, goOn }: C
             </Suspense>
             <button type="button" onClick={goOn} className="mt-1 inline-flex min-h-10 items-center gap-1.5 self-end rounded border border-(--bt-line) px-3 text-sm hover:border-(--bt-accent)">
               Go on
-              <Prompt meaning="confirm" input={input} size={16} />
             </button>
           </>
         )}

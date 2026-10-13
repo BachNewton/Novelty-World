@@ -3,7 +3,9 @@
  * a touch target, and on a phone the figures of one room stand a finger's
  * width apart or less. Elements that would overlap are laid side by side,
  * in the order they stand across the screen, centred where they wanted to
- * be, and never moved up or down.
+ * be, and never moved up or down. A row that would leave the screen is slid
+ * back onto it as a whole, so the screen's edge never pushes one box onto
+ * its neighbour.
  */
 
 /** A pinned element on the screen: its middle across, its top, and its size, in CSS pixels. */
@@ -23,8 +25,9 @@ interface Run {
   bottom: number;
 }
 
-/** Where each box's middle goes across so that none overlaps another, with at least `gap` between neighbours side by side. */
-export function pinsApart(boxes: readonly PinBox[], gap: number): number[] {
+/** Where each box's middle goes across so that none overlaps another, with at least `gap` between neighbours side by side,
+ *  kept between `bounds` (the screen's edges, less a margin) where a row fits. */
+export function pinsApart(boxes: readonly PinBox[], gap: number, bounds: { left: number; right: number } = { left: -Infinity, right: Infinity }): number[] {
   const order = boxes.map((_, i) => i).sort((a, b) => boxes[a].x - boxes[b].x || a - b);
   const runs: Run[] = [];
   const layOut = (members: number[]): Run => {
@@ -32,7 +35,7 @@ export function pinsApart(boxes: readonly PinBox[], gap: number): number[] {
     const middle = members.reduce((sum, i) => sum + boxes[i].x, 0) / members.length;
     return {
       members,
-      left: middle - width / 2,
+      left: Math.max(bounds.left, Math.min(middle - width / 2, bounds.right - width)),
       width,
       top: Math.min(...members.map((i) => boxes[i].top)),
       bottom: Math.max(...members.map((i) => boxes[i].top + boxes[i].height)),

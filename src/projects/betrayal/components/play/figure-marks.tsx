@@ -7,7 +7,6 @@ import type { HouseScene, Pin } from "../../art/house-scene";
 import { describeRule } from "../../engine/describe";
 import type { EventView, FigureView, GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
 import { cardMood, consequence, statChanges, type StatChange } from "../../play/cards";
 import { portraitSrc } from "../../play/setup";
 import { firstAction, type ExplorerActions } from "../../play/sheet";
@@ -22,13 +21,13 @@ import { enterLayer } from "./pad-focus";
 import { seatDot } from "./seat-colour";
 import { CompactTrait, TrackRow } from "./trait-track";
 import { CardTypeIcon, TraitIcon, traitLabel } from "../icons";
-import { Prompt } from "../prompts";
 
 /*
  * What the explorers carry, on the figures: a mark under each explorer with
  * a pip for each card it holds, in the card's colour, and a tag for each
- * status it keeps. Holding the stats up shows every explorer's stats in brief
- * on its mark, and a gain or loss floats up over the figure as it happens.
+ * status it keeps. Holding the details up adds the explorer's name and its
+ * stats in brief to its mark, and a gain or loss floats up over the figure as
+ * it happens.
  * The cards' 3D props on the figures are art still to come: the pips stand
  * in for them.
  *
@@ -53,7 +52,7 @@ export function markedExplorers(view: GameView, spots: Spots): FigureView[] {
     .sort((a, b) => (a.owner ?? 0) - (b.owner ?? 0));
 }
 
-/** Every trait in brief, two to a row, so six explorers' stats leave the house in view. */
+/** Every trait in brief, its icon and value, two to a row, so six explorers' stats leave the house in view. */
 function CompactStats({ view, figure }: { view: GameView; figure: FigureView }) {
   return (
     <span aria-label={`${figure.name}'s stats`} className="grid grid-cols-2 gap-x-1.5 text-xs">
@@ -105,11 +104,11 @@ function usePinned(scene: HouseScene, group: string, figure: FigureId, { height,
   return ref;
 }
 
-function Mark({ scene, view, figure, statsHeld, floats, open, toggle }: {
+function Mark({ scene, view, figure, details, floats, open, toggle }: {
   scene: HouseScene;
   view: GameView;
   figure: FigureView;
-  statsHeld: boolean;
+  details: boolean;
   floats: StatChange[];
   open: boolean;
   toggle: () => void;
@@ -143,7 +142,8 @@ function Mark({ scene, view, figure, statsHeld, floats, open, toggle }: {
               </span>
             ))}
           </span>
-          {statsHeld && <CompactStats view={view} figure={figure} />}
+          {details && <span className="max-w-28 truncate text-[11px] leading-3.5 font-semibold">{figure.name}</span>}
+          {details && <CompactStats view={view} figure={figure} />}
         </button>
       </div>
     </div>
@@ -156,13 +156,14 @@ export interface FigureMarksProps {
   spots: Spots;
   /** The events the status box tells: their gains and losses float. */
   told: readonly EventView[];
-  statsHeld: boolean;
+  /** Whether the details are held up: each mark adds the explorer's name and stats. */
+  details: boolean;
   /** The explorer whose tab the sheet shows, or null while it is closed. */
   tab: FigureId | null;
   openTab: (figure: FigureId | null) => void;
 }
 
-export function FigureMarks({ scene, view, spots, told, statsHeld, tab, openTab }: FigureMarksProps) {
+export function FigureMarks({ scene, view, spots, told, details, tab, openTab }: FigureMarksProps) {
   const explorers = markedExplorers(view, spots);
   const changes = statChanges(told);
   return explorers.map((figure) => (
@@ -171,7 +172,7 @@ export function FigureMarks({ scene, view, spots, told, statsHeld, tab, openTab 
       scene={scene}
       view={view}
       figure={figure}
-      statsHeld={statsHeld}
+      details={details}
       floats={changes.filter((change) => change.figure === figure.id)}
       open={figure.id === tab}
       toggle={() => {
@@ -192,13 +193,12 @@ export interface ExplorerSheetProps {
   actions: { figure: FigureId; rows: ExplorerActions } | null;
   act: (action: Action) => void;
   openTrade: (figure: FigureId) => void;
-  input: InputKind;
   close: () => void;
 }
 
 /** "Your explorer": the character card over its figure, with the turn's actions on the acting player's tab. */
 export function ExplorerSheet(props: ExplorerSheetProps) {
-  const { scene, tab, close, input } = props;
+  const { scene, tab, close } = props;
   const ref = usePinned(scene, "fan", tab.id, { height: FAN_HEIGHT, lift: 1, clamp: true, apart: false });
   const sheet = useRef<HTMLElement>(null);
   // Focusing a tab shows it: a sheet with no action opens on its own tab, never the layer's first control, which is the first explorer's tab.
@@ -256,7 +256,6 @@ export function ExplorerSheet(props: ExplorerSheetProps) {
           </div>
           <button type="button" data-pad-back onClick={close} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded border border-(--bt-line) px-3 text-sm hover:border-(--bt-accent)">
             Close
-            <Prompt meaning="back" input={input} size={16} />
           </button>
         </div>
         <Suspense fallback={<SheetBody {...props} notes={null} />}>
@@ -356,35 +355,5 @@ function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: Explore
         </div>
       )}
     </>
-  );
-}
-
-/** The on-screen button that shows every explorer's stats while it is held, as Z or a controller's R3 does. */
-export function StatsButton({ held, hold, input, className }: { held: boolean; hold: (on: boolean) => void; input: InputKind; className: string }) {
-  return (
-    <button
-      type="button"
-      aria-label="Show the stats"
-      aria-pressed={held}
-      title="Hold to show every explorer's stats"
-      onPointerDown={(event) => {
-        event.currentTarget.setPointerCapture(event.pointerId);
-        hold(true);
-      }}
-      onPointerUp={() => {
-        hold(false);
-      }}
-      onPointerCancel={() => {
-        hold(false);
-      }}
-      // A long press would otherwise open the page's menu over the house.
-      onContextMenu={(event) => {
-        event.preventDefault();
-      }}
-      className={`touch-none select-none ${className}`}
-    >
-      Stats
-      <Prompt meaning="stats" input={input} size={16} />
-    </button>
   );
 }

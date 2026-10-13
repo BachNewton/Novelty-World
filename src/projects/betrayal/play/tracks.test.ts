@@ -3,7 +3,7 @@ import { TRAITS } from "../engine/figures";
 import { viewFor } from "../engine/view";
 import { ENGINE } from "../game";
 import { testGame } from "../testing";
-import { characterTracks, figureTracks, landing, skullState, stepsAboveSkull, traitTrack } from "./tracks";
+import { characterTracks, figureTracks, landing, skullState, traitTrack } from "./tracks";
 
 describe("a character's tracks at setup", () => {
   it("are the card's, in its order, with the clip on each starting step and the skull locked", () => {
@@ -38,11 +38,6 @@ describe("a trait's track", () => {
     expect(skullState("exploring")).toBe("locked");
     expect(skullState("haunt")).toBe("live");
     expect(skullState("finished")).toBe("live");
-  });
-
-  it("counts the losses left before the skull", () => {
-    expect(stepsAboveSkull(0)).toBe(1);
-    expect(stepsAboveSkull(4)).toBe(5);
   });
 
   it("shows a character's own printed values, the clip on its starting step", () => {

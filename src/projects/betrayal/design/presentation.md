@@ -24,7 +24,7 @@ The engine already shapes the UI: at any moment there is one pending decision, w
 
 **Three input methods**, interchangeable, each picking among the pending decision's choices: a controller, touch, and keyboard + mouse (one method, the two used together; there is no keyboard-only mode). **Each is complete on its own**: a controller never needs touch, the keyboard or the mouse, and every feature works natively on all three; the art bench and `?debug` are exempt. An audit and a controller-only e2e game through the reveal hold it. Hints follow the last-used input. Nothing is hover-only, and touch targets are measured in screen pixels.
 
-**One meaning per control.** A control means one thing everywhere, never changing with what is under the cursor or what is open. There is one focus at a time, on a choice in the house or a button over it, and confirming presses it. Hints are glyphs on the thing they act on, our own prompts in Lucide's style (`components/prompts.tsx`, the single map from a meaning to its control on each input); there are no per-decision hint sentences, and touch has no glyph, since the control is the tap target.
+**One meaning per control.** A control means one thing everywhere, never changing with what is under the cursor or what is open. There is one focus at a time, on a choice in the house or a button over it, and confirming presses it. Hints are glyphs on the thing they act on, our own prompts in Lucide's style (`components/prompts.tsx`, the single map from a meaning to its control on each input); there are no per-decision hint sentences, and no sentence restates what a glyph or a hold's fill already shows. Touch has no glyph, since the control is the tap target. A glyph shows only where the control isn't obvious: confirming the focused thing (A, Enter) and closing the topmost one (B, Esc) show none, so what matters there is seeing clearly what has the focus. Every glyph is one system: sized to the text beside it, on one solid chip that reads on any background, and leading the label inside the button it presses (a pair that steps through a group, LB and RB, flanks it). A hold that acts when complete, End turn, fills its button's background from the left while held and empties when let go early.
 
 The controller map, with its counterparts:
 
@@ -41,13 +41,13 @@ The controller map, with its counterparts:
 | Zoom | RT in, LT out | the wheel, + / − | two fingers' spread |
 | Floors | LB down, RB up | PgDn / PgUp, or F / R | on-screen floor buttons |
 | End turn | hold X | hold Backspace, or click End turn | tap End turn |
-| Your explorer | Y | I, or click the chip, a mark or a nameplate | tap the chip, a mark or a nameplate |
+| Your explorer | Y | I, or click the seat's button, a mark or a nameplate | tap the seat's button, a mark or a nameplate |
 | Follow the active explorer | View | C or Home, or the on-screen Follow button | the on-screen Follow button |
 | The game menu | Menu, on any pad | M, or its button | its button |
 | Raise the walls | hold L3 | hold V | hold the Walls button |
-| Every explorer's stats | hold R3 | hold Z | hold the Stats button |
+| Details | hold R3 | hold Z | hold the Details button |
 
-The status box shows a chip for Your explorer with the turn's actions counted ("Y Your explorer · 3 actions"). Ending the turn is a hold on a pad and the keyboard, because there is no undo and with several pads a stray press would pass the device. Menu opens the game menu from any pad, even one that may not act now, and does nothing at setup, where Start is a button like any other. A seat is called by its character everywhere, so setup has no names to type. The input last used is the device's, carried from setup into the game: a pad's focus and prompts show at setup the moment the pad is noticed, and a press that only brings the focus into view does nothing else. A mouse drag orbits at 0.004 radians a pixel, and a two-finger tilt shares it. Two fingers are one combined gesture: turning, tilting and zooming happen at once, each starting past its own small threshold, and there is no twist. The art bench uses the same scheme.
+The seat's button at the top left opens Your explorer and counts the turn's actions on it ("Y Zoe Ingstrom · 3 actions"); the status box has no second way to it. Ending the turn is a hold on a pad and the keyboard, because there is no undo and with several pads a stray press would pass the device. Menu opens the game menu from any pad, even one that may not act now, and does nothing at setup, where Start is a button like any other. A seat is called by its character everywhere, so setup has no names to type. The input last used is the device's, carried from setup into the game: a pad's focus and prompts show at setup the moment the pad is noticed, and a press that only brings the focus into view does nothing else. A mouse drag orbits at 0.004 radians a pixel, and a two-finger tilt shares it. Two fingers are one combined gesture: turning, tilting and zooming happen at once, each starting past its own small threshold, and there is no twist. The art bench uses the same scheme.
 
 ## The camera
 
@@ -94,15 +94,17 @@ The card sort (`card-presentation.md`) sorted all 110 cards by how they show in 
 
 ## Stats
 
-Hidden by default and shown when useful: in a roll's prompt, on the damage tracks, as a float on a gain or loss. Holding R3, Z or the Stats button overlays every explorer's stats over the figures, compactly: each trait's value and the steps left above the skull. More of it is contextual after the haunt.
+Hidden by default and shown when useful: in a roll's prompt, on the damage tracks, as a float on a gain or loss, and in the details (below). More of it is contextual after the haunt.
 
-**A trait is a track, as the character card prints it** (`play/tracks.ts`): the character's own values in a row, the clip on its step, the starting step marked, the top as the ceiling, and the skull below the lowest, padlocked before the haunt (when no one can die) and bare after. One track component is used everywhere: on the character card, in a damage preview (where the choice in focus would leave the clip) and, compact, in the overlay. It is HTML and SVG, not 3D.
+**Details.** Holding R3, Z or the Details button labels what is useful at a glance, and letting go returns the clean house at once (`components/play/details.tsx`): each explorer's mark adds the explorer's name and its stats in brief, each trait's icon and value (in the danger colour on the last step above a live skull); each room on the floor showing is named on its far side from the camera, by its back wall, with where its stairs lead when they go to another floor; and each thing in a room is named where it lies, a room's objects in one list over their spot. The labels come from the seat's own view, like everything else on the screen. The marks and the things' labels are kept apart as the marks are (`art/pins-apart.ts`), and slid back onto the screen whole at its edge; a room's name gives way, drawn under them.
+
+**A trait is a track, as the character card prints it** (`play/tracks.ts`): the character's own values in a row, the clip on its step, the starting step marked, the top as the ceiling, and the skull below the lowest, padlocked before the haunt (when no one can die) and bare after. One track component is used everywhere: on the character card, in a damage preview (where the choice in focus would leave the clip) and, as just the icon and value, in the details. It is HTML and SVG, not 3D.
 
 **The character card** is Your explorer, a sheet over the house: a tab for each explorer, then the explorer's portrait, its four tracks and the cards it holds, with their text. Another explorer's tab is for reading only.
 
 ## Actions
 
-**Your explorer** holds the turn's actions that aren't places. It opens with Y, I, the status box's chip ("Y Your explorer · 3 actions"), the explorer's mark or its nameplate. On the acting player's own tab, in their turn, the character card carries the actions on fixed rows (`play/sheet.ts`): each card held with its uses, what using one costs, and Drop; each card on the floor that can be picked up; and a trade with each explorer who can. The rows keep the engine's order, never rearranged, so a row stays where the player learnt it. The status box offers the same actions as buttons, and End turn is always in reach.
+**Your explorer** holds the turn's actions that aren't places. It opens with Y, I, the seat's button at the top left (which counts the turn's actions), the explorer's mark or its nameplate. On the acting player's own tab, in their turn, the character card carries the actions on fixed rows (`play/sheet.ts`): each card held with its uses, what using one costs, and Drop; each card on the floor that can be picked up; and a trade with each explorer who can. The rows keep the engine's order, never rearranged, so a row stays where the player learnt it. The status box offers the same actions as buttons, and End turn is always in reach.
 
 **Trading** is a sheet of its own: what you give and what you take, a card at most each way and either side empty, previewed as it is built. Offering it puts the question to the other explorer's seat, named in the prompt, which answers Accept or Decline in the status box.
 

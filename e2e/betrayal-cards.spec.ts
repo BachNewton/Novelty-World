@@ -33,17 +33,19 @@ test("keyboard and mouse: a card's beat, a reroll picked from the dice, and dama
   await page.keyboard.press("Escape");
   await expect(fan).toBeHidden();
   // The seat's own panel in the header opens the same card.
-  await page.getByRole("button", { name: "Zoe Ingstrom: character card", exact: true }).click();
+  await page.locator("header").getByRole("button", { name: /^Zoe Ingstrom: character card/ }).click();
   await expect(fan).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(fan).toBeHidden();
 
-  // Holding Z shows every explorer's stats over the figures, in brief: the value and the steps left above the skull.
+  // Holding Z shows the details: every explorer's stats in brief (each trait's icon and value) and the rooms' names.
   await page.keyboard.down("KeyZ");
   await expect(page.getByLabel("Ox Bellows's stats")).toBeVisible();
-  await expect(page.getByLabel("Ox Bellows's stats").getByLabel("Might 5, 3 steps above the skull")).toBeVisible();
+  await expect(page.getByLabel("Ox Bellows's stats").getByLabel("Might 5", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-detail-room='entrance-hall']")).toBeVisible();
   await page.keyboard.up("KeyZ");
   await expect(page.getByLabel("Ox Bellows's stats")).toBeHidden();
+  await expect(page.locator("[data-detail-room='entrance-hall']")).toBeHidden();
 
   await clickTarget(page, "explore:ground:2:-1");
   await until(page, "play.ghost?.tile === 'game-room'");
@@ -134,10 +136,10 @@ test.describe("touch", () => {
     await expect(page.getByRole("dialog", { name: "Zoe Ingstrom's character card" })).toContainText("Skull");
     await page.getByRole("dialog", { name: "Zoe Ingstrom's character card" }).getByRole("button", { name: "Close" }).tap();
 
-    // The on-screen Stats button shows them while it is held.
-    const stats = page.getByRole("button", { name: "Show the stats" });
-    const box = await stats.boundingBox();
-    if (!box) throw new Error("No Stats button");
+    // The on-screen Details button shows them while it is held.
+    const details = page.getByRole("button", { name: "Show the details" });
+    const box = await details.boundingBox();
+    if (!box) throw new Error("No Details button");
     const cdp = await page.context().newCDPSession(page);
     const at = { x: box.x + box.width / 2, y: box.y + box.height / 2, id: 1 };
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
@@ -164,7 +166,7 @@ test.describe("controller", () => {
     await withPad(page);
   });
 
-  test("Y opens the explorer's card, the d-pad goes along its tabs and B closes it; R3 held shows the stats; the dice are picked in the box", async ({ page }) => {
+  test("Y opens the explorer's card, the d-pad goes along its tabs and B closes it; R3 held shows the details; the dice are picked in the box", async ({ page }) => {
     await resume(page, SKELETONS);
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
     await tapButton(page, BUTTON.Y);

@@ -20,7 +20,7 @@ import { explorerActions } from "../../play/sheet";
 import type { Spots } from "../../play/spots";
 import { due } from "../../play/seat";
 import type { PlaySnapshot, PlayStore } from "../../play/store";
-import { PAD_FOCUS, Prompt } from "../prompts";
+import { PAD_FOCUS, Prompt, PromptButton } from "../prompts";
 import { GHOST, GhostHandles, useGhost, type GhostReadout } from "./ghost-placer";
 import { figureColour, seatDot, sideMark } from "./seat-colour";
 import { controlsOf, enterLayer, layerHeight, leaveLayer, padFocused, padPress, topLayer } from "./pad-focus";
@@ -32,11 +32,12 @@ import { sceneTarget } from "./routes";
 import { createPresenting, skipOrAnswer, SPEEDS, type Presented, type Presenting, type Speed } from "./presenting";
 import { RaiseWallsButton } from "../raise-walls-button";
 import { CardBeat } from "./card-beat";
-import { ExplorerSheet, FigureMarks, markedExplorers, StatsButton } from "./figure-marks";
+import { ExplorerSheet, FigureMarks, markedExplorers } from "./figure-marks";
+import { DetailsButton, HouseDetails } from "./details";
 import { TradeSheet } from "./trade-sheet";
 import { ClusterCounts, ThingReader, ThingTag } from "./thing-reader";
 import type { ShownThing } from "../../play/things";
-import { useStatsHold } from "./stats-hold";
+import { useDetailsHold } from "./details-hold";
 import { BakeDebug } from "../../art/bake-debug";
 import { BakeIndicator } from "../../art/bake-indicator";
 import { createFrameMeter, useFrameMeter, type FrameMeter } from "../../art/frame-meter";
@@ -281,7 +282,7 @@ export function PlayScreen({
   const handlesRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  const stats = useStatsHold(padMay);
+  const details = useDetailsHold(padMay);
   // Input fast-forwards whatever is playing: nothing waits on an animation.
   const act = useCallback(
     (action: Action) => {
@@ -312,6 +313,7 @@ export function PlayScreen({
   // The turn's actions are the acting explorer's, on its own tab.
   const acting = view.pending?.type === "decision" && view.pending.kind === "turn" && yours !== null && view.turn?.acting === yours.id ? yours : null;
   const actions = acting ? { figure: acting.id, rows: explorerActions(acting.cards, choices.panel) } : null;
+  const actionCount = actions?.rows.count ?? 0;
   const tab = open?.kind === "explorer" ? (explorers.find((figure) => figure.id === open.tab) ?? null) : null;
   const trade = open?.kind === "trade" ? (actions?.rows.trades.find((row) => row.with === open.with) ?? null) : null;
   const reading = open?.kind === "thing" ? (things.find((thing) => thing.id === open.id) ?? null) : null;
@@ -320,16 +322,12 @@ export function PlayScreen({
     setSheet(figure === null ? null : { kind: "explorer", tab: figure, decision });
   };
 
-  // End turn is a hold: X, Backspace. Let go too soon, it says so.
+  // End turn is a hold: X, Backspace. Let go too soon, its fill empties.
   const [ending, setEnding] = useState(false);
-  const [tapped, setTapped] = useState<string | null>(null);
-  const held = useRef(false);
   const endHold = {
     holding: ending && end !== null,
-    tapped: tapped !== null && tapped === decision,
     // One hold ends one turn: the next turn's End turn waits for a new press.
     onHeld: () => {
-      held.current = true;
       setEnding(false);
       if (end) act(end.action);
     },
@@ -399,13 +397,7 @@ export function PlayScreen({
         setMenuOpen(!gate.menuOpen);
       },
       endTurn: (on) => {
-        if (on) {
-          held.current = false;
-          setEnding(true);
-          return;
-        }
-        setEnding(false);
-        if (!held.current && latest.current.end) setTapped(latest.current.decision);
+        setEnding(on);
       },
       covered: () => over() !== null,
       padMay,
@@ -515,18 +507,20 @@ export function PlayScreen({
         className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm w-max max-w-[calc(100%-1rem)]"
       >
         {focusedTarget?.label}
-        {focusedThing && <ThingTag thing={focusedThing} input={shown.input} />}
+        {focusedThing && <ThingTag thing={focusedThing} />}
         {preview && <span className="ml-1.5 text-xs text-(--bt-muted)">· {costText(preview)}</span>}
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />
-      <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} statsHeld={stats.held} tab={tab?.id ?? null} openTab={openTab} />
+      {details.held && <HouseDetails scene={scene} view={view} things={things} />}
+      <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 p-3 pr-28 text-xs sm:text-sm">
         {/* The seat holding the device: its explorer's character card, as the mark on the figure opens it. */}
-        <button
-          type="button"
-          aria-label={`${seatName(view, holder)}: character card`}
+        <PromptButton
+          meaning="explorer"
+          input={input}
+          aria-label={`${seatName(view, holder)}: character card${actionCount > 0 ? `, ${actionCount} ${actionCount === 1 ? "action" : "actions"}` : ""}`}
           aria-expanded={yours !== null && tab?.id === yours.id}
           disabled={yours === null}
           onClick={() => {
@@ -536,9 +530,10 @@ export function PlayScreen({
         >
           {dot && <span className={`inline-block size-2.5 rounded-full ${dot}`} />}
           {seatName(view, holder)}
-        </button>
+          {actionCount > 0 && <span className="font-normal text-(--bt-muted)">· {actionCount} {actionCount === 1 ? "action" : "actions"}</span>}
+        </PromptButton>
         <span className="flex items-center gap-1">
-          <Prompt meaning="floor-down" input={input} size={18} />
+          <Prompt meaning="floor-down" input={input} />
           {floors.map((floor) => (
             <button
               key={floor}
@@ -551,10 +546,11 @@ export function PlayScreen({
               {FLOOR_NAMES[floor]}
             </button>
           ))}
-          <Prompt meaning="floor-up" input={input} size={18} />
+          <Prompt meaning="floor-up" input={input} />
         </span>
-        <button
-          type="button"
+        <PromptButton
+          meaning="follow"
+          input={input}
           aria-pressed={shown.camera === "following"}
           onClick={() => {
             scene.camera.follow();
@@ -562,15 +558,14 @@ export function PlayScreen({
           className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}
         >
           Follow
-          <Prompt meaning="follow" input={input} size={16} />
-        </button>
-        <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
+        </PromptButton>
+        <RaiseWallsButton raised={shown.wallsRaised} raise={scene.hook.raiseWalls} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`}>
           Walls
-          <Prompt meaning="walls" input={input} size={16} />
         </RaiseWallsButton>
-        <StatsButton held={stats.held} hold={stats.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
-        <button
-          type="button"
+        <DetailsButton held={details.held} hold={details.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
+        <PromptButton
+          meaning="menu"
+          input={input}
           aria-expanded={gate.menuOpen}
           onClick={() => {
             setMenuOpen(!gate.menuOpen);
@@ -578,8 +573,7 @@ export function PlayScreen({
           className={button}
         >
           Menu
-          <Prompt meaning="menu" input={input} size={16} />
-        </button>
+        </PromptButton>
       </header>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-start">
@@ -602,16 +596,12 @@ export function PlayScreen({
             setMenuOpen(true);
           }}
           endHold={endHold}
-          explorer={yours && { count: actions?.rows.count ?? 0 }}
-          openExplorer={() => {
-            if (yours) openTab(yours.id);
-          }}
           openTrade={(figure) => {
             setSheet({ kind: "trade", with: figure, decision });
           }}
         />
       </div>
-      <CardBeat scene={scene} moment={presented.moment} told={told} spots={presented.spots} input={input} playing={presented.playing} goOn={presenting.goOn} />
+      <CardBeat scene={scene} moment={presented.moment} told={told} spots={presented.spots} playing={presented.playing} goOn={presenting.goOn} />
       {tab && (
         <ExplorerSheet
           scene={scene}
@@ -624,7 +614,6 @@ export function PlayScreen({
           openTrade={(figure) => {
             setSheet({ kind: "trade", with: figure, decision });
           }}
-          input={input}
           close={() => {
             setSheet(null);
           }}
@@ -638,7 +627,6 @@ export function PlayScreen({
           things={inRooms}
           pickUps={pickUps}
           act={act}
-          input={input}
           close={() => {
             setSheet(null);
           }}
@@ -650,7 +638,6 @@ export function PlayScreen({
           view={view}
           row={trade}
           act={act}
-          input={input}
           close={() => {
             setSheet(null);
           }}
@@ -666,7 +653,6 @@ export function PlayScreen({
             saveSpeed(next);
           }}
           onLeave={onLeave}
-          input={input}
           close={() => {
             setMenuOpen(false);
           }}

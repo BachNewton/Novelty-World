@@ -324,7 +324,7 @@ test.describe("touch", () => {
     await resume(page, HOLDING);
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
     const now = page.getByLabel("What you can do now");
-    await now.getByRole("button", { name: /^Your explorer · \d+ actions$/ }).tap();
+    await page.locator("header").getByRole("button", { name: /: character card, \d+ actions$/ }).tap();
     const sheet = page.getByRole("dialog", { name: "Zoe Ingstrom's character card" });
     await sheet.getByRole("listitem").filter({ hasText: "Lucky Stone" }).getByRole("button", { name: "Drop" }).tap();
     await until(page, "!play.panel.includes('Drop the Lucky Stone')");
