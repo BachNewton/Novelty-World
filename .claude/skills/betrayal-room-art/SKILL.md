@@ -275,8 +275,8 @@ lightmap density were in flux; re-measure the house once they settle.
 | Gymnasium | upper (fits basement): narrow wood strip boards, cold grey distemper plaster, narrow dark wood panelling | a red leather vaulting horse on splayed legs beside three climbing ropes, one held out of plumb by no one, wall bars on one wall | spectral teal (`spectre`) gathered where unseen hands grip the held rope; a frosted gas globe's amber over the horse | normal (proposed) | 3.3 (0.8–15.4) |
 | Larder | basement: red quarry tiles, cold blue limewash (`moon`), a slate dado | a long slate thrall down one wall, heaped with cheeses, a ham, a pie and eggs, crocks beneath | amber glowing from inside the jars of preserves on it, lit by nothing; everything on it has had one bite taken | normal (proposed) | 4.3 (0.8–24.9) |
 | Crypt | basement: big dressed stone slabs in staggered courses, dark coursed-stone walls, a stone bench round three walls under sealed burial niches cut with names | a stone sarcophagus on a plinth in the middle, its lid shoved askew off the head end | spectral teal (`spectre`) welling out of the open tomb and lying round its plinth; amber candles on the bench, and the mason's candle by a pale new tablet whose name is only half cut (a place made ready, not something moving) | normal (proposed) | 4.2 (0.6–30.8) |
-| Operating Laboratory | the laboratories' dress, upper or basement: grey quarry tiles in a chequer, pale grey glazed tile walls, a dark green tiled dado with a band | an iron operating table across a corner, its straps undone, under a standing lamp with a deep pale shade | the lamp's sickly green (`wraithLight`), a hard pool round the table; on the floor beside it the shadow of someone standing there, though no one is; one amber chamberstick on the bench | normal (proposed) | 5.1 (0.7–25.2), **at the top of the normal band: the lamp's pool is the point** |
-| Research Laboratory | the laboratories' dress (as the Operating Laboratory) | a tall glowing bell jar on a pedestal, beside an island bench of apparatus and a wall of specimen jars | spectral teal (`spectre`) from a presence caught under the bell jar, glass shards at its foot where the jar has begun to give; an amber spirit lamp under a brewing flask | normal (proposed) | 3.2 (0.7–17.0) |
+| Operating Laboratory | the laboratories' dress, upper or basement: plain grey quarry tiles, pale grey glazed tile walls, a dark green tiled dado with a band | an iron operating table across a corner, its straps undone, under a standing lamp with a deep dark shade | the lamp's sickly green (`wraithLight`), a cone of light round the table; in it, the baked shadow of someone leaning over the table, though no one is there (a `bakeOnly` caster); one amber chamberstick on the bench | normal (proposed) | 3.8 (0.7–20.1) |
+| Research Laboratory | the laboratories' dress (as the Operating Laboratory) | a tall glowing bell jar on a pedestal, beside an island bench of apparatus and a wall of specimen jars | violet from a presence caught under the bell jar (occult science), glass shards at its foot where the jar has begun to give; two amber lamps hung under a reagent rack over the bench, and a spirit lamp under a brewing flask | normal (proposed) | 4.9 (0.8–21.1) |
 
 Four rooms (the starting hall and the Upper Landing) share one dress and one
 amber light, so telling them apart rests on their shapes alone. Green is the
@@ -554,6 +554,13 @@ ledger, with its light intent and its measured median and range.
   its `range`, through doorways and passages into the next room, and stops
   at walls and shut doors. Give a light the range its brightness deserves,
   not one cut to its tile.
+- **Shadows are the bake's, never painted.** A shadow with nothing to cast
+  it (someone unseen standing by a lamp) comes from an invisible caster:
+  mark its meshes `userData.bakeOnly = true` and the bake casts its shadow
+  while nothing draws it, and the overlap check, placement and walks ignore
+  it (keep figures off it with `keepClear`). Give it a dark material: the
+  bounce reads its albedo. A lamp burning inches from a pale surface (the
+  inside of a shade) throws blotchy bounce round the room: line it dark.
 - **What breaks the bake.** A light inside a piece that casts shadows is
   smothered by it: a piece that holds a light must not cast shadows (mark
   it `noShadow`, as the kit's candles and lanterns do), nor may glass,
