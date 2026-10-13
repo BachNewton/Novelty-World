@@ -189,9 +189,14 @@ interface LightRig {
   /** Whether the figure stands on a photographer's sweep, its floor curving up into a backdrop behind it as the
    *  camera sees it, in place of the plain round floor. */
   sweep?: true;
+  /** A gel on a light hidden behind the figure, low and close to the backdrop, washing a pool of the shown
+   *  character's seat colour onto it (none for a figure that is no character's). Where it stands is on the
+   *  sweep, from the figure: so far back and so high, reaching so far, which keeps it off the figure. */
+  accent?: { intensity: number; back: number; height: number; reach: number };
   hemisphere: { sky: PaletteKey; ground: PaletteKey; intensity: number };
   key: { colour: PaletteKey; intensity: number; from: THREE.Vector3 };
-  lamp: { colour: PaletteKey; intensity: number; at: THREE.Vector3 };
+  /** The lamp, reaching `reach` metres if not the usual `LAMP_REACH`. */
+  lamp: { colour: PaletteKey; intensity: number; at: THREE.Vector3; reach?: number };
   probe: Cube;
 }
 
@@ -275,14 +280,16 @@ const LIGHT_RIGS: Record<LightPreset, LightRig> = {
     probe: even("moon", 0.3, 0.45, 0.08),
   },
   // A miniature photographed on a dark backdrop: a soft warm key from the front left, a little warm fill, and the
-  // cold moon behind, lighting the backdrop round the figure and catching its edges as a rim.
+  // cold moon behind catching the figure's edges as a rim, while a gel in the character's seat colour glows on the
+  // backdrop behind them.
   portrait: {
     background: "void",
     floor: "ash",
     sweep: true,
+    accent: { intensity: 8, back: 2, height: 0.8, reach: 1.7 },
     hemisphere: { sky: "moon", ground: "void", intensity: 0.6 },
     key: { colour: "boneLight", intensity: 1.4, from: new THREE.Vector3(0.8, 3, 4) },
-    lamp: { colour: "moon", intensity: 4, at: new THREE.Vector3(-1.3, 1, -1.3) },
+    lamp: { colour: "moon", intensity: 6, at: new THREE.Vector3(-0.9, 1.1, -0.9), reach: 2 },
     probe: [
       ["boneDark", 0.45],
       ["moonLight", 1],
@@ -294,6 +301,8 @@ const LIGHT_RIGS: Record<LightPreset, LightRig> = {
   },
 };
 
+/** How far a rig's lamp reaches, in metres. */
+const LAMP_REACH = 6;
 /** How far round the plain floor reaches, in metres. */
 const FLOOR_RADIUS = 4;
 /** The sweep, in metres: how wide, how far its floor reaches in front of the figure and behind it to the foot of
@@ -612,13 +621,17 @@ export function createFigureViewer(search: string) {
 
     const hemisphere = new THREE.HemisphereLight();
     const key = new THREE.DirectionalLight();
-    const lamp = new THREE.PointLight(undefined, 0, 6, 1.5);
+    const lamp = new THREE.PointLight(undefined, 0, LAMP_REACH, 1.5);
+    const gel = new THREE.PointLight(undefined, 0, 1, 1.5);
     const floorMaterial = new THREE.MeshLambertMaterial();
     const floor = new THREE.Mesh(new THREE.CircleGeometry(FLOOR_RADIUS, 64).rotateX(-Math.PI / 2), floorMaterial);
     floor.position.y = -0.002;
     const sweep = new THREE.Mesh(sweepGeometry(), floorMaterial);
     sweep.position.y = -0.002;
-    const stage = group(hemisphere, key, key.target, lamp, floor, sweep);
+    // The gel stands beside the sweep rather than on it: a light under a hidden parent drops out of the scene's
+    // lights, and that recompiles every shader when the rig changes.
+    const backdrop = group(sweep, gel);
+    const stage = group(hemisphere, key, key.target, lamp, floor, backdrop);
     scene.add(stage);
     const background = new THREE.Color();
     scene.background = background;
@@ -639,6 +652,15 @@ export function createFigureViewer(search: string) {
       lamp.color.set(paletteHex(rig.lamp.colour));
       lamp.intensity = rig.lamp.intensity;
       lamp.position.copy(rig.lamp.at);
+      lamp.distance = rig.lamp.reach ?? LAMP_REACH;
+      const seat = snapshot.lineUp ? null : figureById(snapshot.figure).ring;
+      gel.intensity = 0;
+      if (rig.accent && seat !== null) {
+        gel.color.set(paletteHex(seat));
+        gel.intensity = rig.accent.intensity;
+        gel.position.set(0, rig.accent.height, -rig.accent.back);
+        gel.distance = rig.accent.reach;
+      }
       rig.probe.forEach(([colour, strength], face) => {
         tint.set(paletteHex(colour));
         cube[face].set(tint.r, tint.g, tint.b).multiplyScalar(strength);
@@ -735,8 +757,8 @@ export function createFigureViewer(search: string) {
       toward.set(Math.sin(azimuth) * Math.cos(pitch), Math.sin(pitch), Math.cos(azimuth) * Math.cos(pitch));
       camera.position.copy(aim).addScaledVector(toward, distance);
       // The backdrop stands behind the figure, wherever the camera has turned to.
-      sweep.position.set(aim.x, sweep.position.y, aim.z);
-      sweep.rotation.y = azimuth;
+      backdrop.position.set(aim.x, 0, aim.z);
+      backdrop.rotation.y = azimuth;
       controls.target.copy(aim);
       camera.lookAt(aim);
       camera.near = Math.max(0.02, distance / 100);

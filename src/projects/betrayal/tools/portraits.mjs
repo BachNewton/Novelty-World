@@ -1,9 +1,11 @@
 // Setup's character portraits, shot in the figure viewer (`?bench=figures`): each character as a seat shows them
 // (their figure, or the pawn in their card's colour), on their base, like a miniature photographed on a plain
 // dark backdrop: a sweep whose floor curves up behind the figure, under a soft warm key with the cold moon
-// behind as a rim (the viewer's portrait light). They are framed whole from near eye level and close in, like a
-// character-select portrait, and every character at the same scale (the viewer's portrait camera), so their
-// heights stay true. No colour ring round the base: the card around the portrait carries the seat's colour.
+// behind as a rim (the viewer's portrait light). Behind the figure a light gelled in the character's seat colour
+// (their card's) glows on the backdrop, so the portrait reads as that seat's at a glance while the figure keeps its
+// true colours: the light takes the colour from the character shown, so each shot is accented by its own. They
+// are framed whole from near eye level and close in, like a character-select portrait, and every character at the
+// same scale (the viewer's portrait camera), so their heights stay true. No colour ring round the base.
 // Run it again whenever a figure lands or changes, and commit the images it writes.
 //
 // Drives the viewer's control surface (window.__betrayalFigures, see ../art/figure-viewer.ts) over Playwright and
