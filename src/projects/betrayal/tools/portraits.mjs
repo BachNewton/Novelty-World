@@ -19,10 +19,14 @@
 //         viewer's lights and cameras, --view=<0-3> turns the camera by quarter turns, --zoom=<z> brings it
 //         nearer (above 1) or farther, and --out=<dir> writes to another folder, to try a look.
 //
-// Writes public/betrayal/portraits/<character-id>.jpg.
+//         --quality=<q> encodes at another JPEG quality, and --png also keeps the lossless shot beside it, to compare.
+//
+// Writes src/projects/betrayal/portraits/<character-id>.jpg: the page imports them (`play/portraits.ts`), so each one's
+// URL carries a hash of its content and a reshoot reaches every browser and image cache with no version bump.
 
 import { chromium } from "playwright";
-import { mkdirSync } from "node:fs";
+import sharp from "sharp";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -35,9 +39,14 @@ const CAMERA = flag("camera") ?? "portrait";
 const VIEW = Number(flag("view") ?? 0);
 const ZOOM = Number(flag("zoom") ?? 1);
 const BASE = process.env.BETRAYAL_URL ?? "http://localhost:3001/board-games/betrayal";
-const OUT = flag("out") ?? join(HERE, "..", "..", "..", "..", "public", "betrayal", "portraits");
-/** A portrait's size in CSS pixels, drawn at twice that for sharp screens; setup shows it at most this big. */
-const SIZE = { width: 192, height: 240 };
+const OUT = flag("out") ?? join(HERE, "..", "portraits");
+/** A portrait's size in CSS pixels, drawn at twice that for sharp screens. The largest setup shows one is a seat
+ *  card's on a phone, one card a row and the card at most 20rem wide, so the portrait is shot at that width. */
+const SIZE = { width: 320, height: 400 };
+/** JPEG at this quality with full-resolution colour keeps the backdrop's dark gradient and the seat colour's glow as
+ *  smooth as the lossless shot; lossy WebP, even at 95, blotches those dark gradients and shifts their colour. */
+const QUALITY = Number(flag("quality") ?? 90);
+const KEEP_PNG = FLAGS.includes("--png");
 const FREEZE_AT = 2;
 
 // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool writing the project's own portraits
@@ -85,8 +94,11 @@ for (const id of WANTED.length > 0 ? WANTED : [...seated.keys()]) {
   await page.waitForFunction(() => window.__betrayalFigures.isReady(), null, { timeout: 120000 });
   const frame = await page.evaluate(() => window.__betrayalFigures.frameCount());
   await page.waitForFunction((n) => window.__betrayalFigures.frameCount() >= n + 2, frame, { timeout: 20000 });
+  const shot = await page.screenshot({ type: "png" });
   const path = join(OUT, `${id}.jpg`);
-  await page.screenshot({ path, type: "jpeg", quality: 82 });
+  await sharp(shot).jpeg({ quality: QUALITY, chromaSubsampling: "4:4:4", mozjpeg: true }).toFile(path);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool writing the project's own portraits
+  if (KEEP_PNG) writeFileSync(join(OUT, `${id}.png`), shot);
   console.log("wrote", path);
 }
 await browser.close();

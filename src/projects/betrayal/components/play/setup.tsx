@@ -5,7 +5,8 @@ import { useRef, useState } from "react";
 import { builtHaunts, requireBuilt } from "../../engine/haunt";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
-import { portraitSrc, takenBy } from "../../play/setup";
+import { portraitOf } from "../../play/portraits";
+import { takenBy } from "../../play/setup";
 import { characterTracks } from "../../play/tracks";
 import type { SharedGame } from "../../share";
 import { ErrorBox } from "../error-box";
@@ -32,11 +33,10 @@ const tracksOf = (character: string) => characterTracks(ENGINE.catalog.character
 
 const DEFAULT_SEATS = 4;
 
-/** A portrait's size in CSS pixels, as `tools/portraits.mjs` shoots it. */
-const PORTRAIT = { width: 192, height: 240 };
-
+// Served as shot: `tools/portraits.mjs` sizes and compresses them for the largest place they show, so the
+// optimizer would only compress them a second time and blur the backdrop's dark gradient.
 function Portrait({ character, className }: { character: string; className: string }) {
-  return <Image src={portraitSrc(character)} width={PORTRAIT.width} height={PORTRAIT.height} alt={nameOf(character)} draggable={false} className={`rounded object-cover ${className}`} />;
+  return <Image src={portraitOf(character)} unoptimized alt={nameOf(character)} draggable={false} className={`rounded object-cover ${className}`} />;
 }
 
 /** A character's four traits, as their card prints them. */
@@ -203,7 +203,7 @@ function SeatCard({ index, seats, onChoose, pads }: { index: number; seats: Seat
   );
 }
 
-/** Every character, to pick one for a seat; those whose card another seat has are taken, and dimmed. The one in focus shows its traits. On a wide screen they all fit in one row. */
+/** Every character, to pick one for a seat; those whose card another seat has are taken, and dimmed. The one in focus shows its traits. A small centred panel, as wide as six portraits at most. */
 function CharacterGrid({ seat, seats, onPick, onClose }: { seat: number; seats: Seats; onPick: (character: string) => void; onClose: () => void }) {
   const [shown, setShown] = useState(seats[seat].character);
   return (
@@ -217,16 +217,14 @@ function CharacterGrid({ seat, seats, onPick, onClose }: { seat: number; seats: 
         if (e.key === "Escape") onClose();
       }}
     >
-      <div className="flex max-h-full w-full max-w-6xl flex-col gap-3 min-[2200px]:max-w-[132rem] rounded border border-(--bt-line) bg-(--bt-panel) p-3">
+      <div className="flex max-h-full w-full max-w-[34rem] flex-col gap-3 overflow-y-auto rounded border border-(--bt-line) bg-(--bt-panel) p-3">
         <div className="flex items-start gap-3">
-          <section aria-label="In focus" className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-            <h2 className="flex shrink-0 items-center gap-1.5 font-semibold sm:w-44">
+          <section aria-label="In focus" className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <h2 className="flex items-center gap-1.5 font-semibold">
               <span aria-hidden className={`inline-block size-2.5 shrink-0 rounded-full ${seatDot(ENGINE, shown)}`} />
               {nameOf(shown)}
             </h2>
-            <div className="min-w-0 flex-1 sm:max-w-md">
-              <Traits character={shown} />
-            </div>
+            <Traits character={shown} />
           </section>
           <button
             type="button"
@@ -240,7 +238,7 @@ function CharacterGrid({ seat, seats, onPick, onClose }: { seat: number; seats: 
             ✕
           </button>
         </div>
-        <ul className="grid grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-6 min-[2200px]:grid-cols-12">
+        <ul className="grid grid-cols-4 gap-1 sm:grid-cols-6">
           {characters.map((character) => {
             const taken = takenBy(characters, seats, seat, character.id);
             const show = () => {
@@ -260,10 +258,8 @@ function CharacterGrid({ seat, seats, onPick, onClose }: { seat: number; seats: 
                   className="flex w-full flex-col items-center gap-1 rounded border border-transparent p-1 text-xs hover:border-(--bt-accent) disabled:opacity-35 aria-pressed:border-(--bt-accent)"
                 >
                   <Portrait character={character.id} className="aspect-4/5 h-auto w-full" />
-                  <span className="flex items-center gap-1">
-                    <span aria-hidden className={`inline-block size-2 shrink-0 rounded-full ${seatDot(ENGINE, character.id)}`} />
-                    {character.name}
-                  </span>
+                  {/* The portrait's glow carries the seat colour, which leaves the name the tile's whole width. */}
+                  <span className="line-clamp-2 text-center leading-tight">{character.name}</span>
                 </button>
               </li>
             );
