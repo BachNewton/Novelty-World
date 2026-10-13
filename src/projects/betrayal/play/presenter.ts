@@ -25,7 +25,7 @@ export type Gait = "walk" | "run";
 export type Beat =
   /** A figure walks (or runs) its route of rooms to its place in the last
    *  (`at`, in the room's own frame). A route of one room is a walk inside
-   *  it: crossing a barrier room, or a short step from one place to another.
+   *  it: crossing a barrier room.
    *  The walks of one view play together, the active explorer's first. An
    *  explorer goes at their Speed (`speed`, its value as the walk began);
    *  any other figure (null) at the house's own pace. */
@@ -231,7 +231,7 @@ export function present(engine: Engine, before: Presentation, events: readonly E
   for (const event of fresh) shows(event.type);
   const active = activeFigure(next);
   const turned = active !== before.active;
-  const spots = nextSpots(before.spots, next, turned ? active : null, floors, before.clusters);
+  const spots = nextSpots(before.spots, next, floors, before.clusters);
   const clusters = nextClusters(before.clusters, roomThings(engine, next), spots, floors);
 
   const beats: Beat[] = [];
@@ -245,10 +245,7 @@ export function present(engine: Engine, before: Presentation, events: readonly E
       if (route[0] === was.room && route.at(-1) === spot.room) beats.push({ kind: "walk", figure, route, at: [spot.x, spot.z], gait: gaitOf(next, figure), speed: speedOf(engine, next, figure) });
       continue;
     }
-    if (spot.room === was.room && (spot.side !== was.side || spot.x !== was.x || spot.z !== was.z)) {
-      // A short step to another place is a walk, whatever the gait; crossing a barrier room is not.
-      beats.push({ kind: "walk", figure, route: [spot.room], at: [spot.x, spot.z], gait: spot.side === was.side ? "walk" : gaitOf(next, figure), speed: speedOf(engine, next, figure) });
-    }
+    if (spot.room === was.room && spot.side !== was.side) beats.push({ kind: "walk", figure, route: [spot.room], at: [spot.x, spot.z], gait: gaitOf(next, figure), speed: speedOf(engine, next, figure) });
   }
   for (const event of fresh) if (event.type === "room-moved") beats.push({ kind: "move", room: (event.data as { tile: string }).tile });
   if (turned) beats.push({ kind: "turn", figure: active });
