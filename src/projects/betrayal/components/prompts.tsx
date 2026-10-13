@@ -5,7 +5,7 @@ import type { InputKind } from "../input/controls";
 
 /*
  * Button prompts, drawn as games draw them: each glyph is the control's own
- * shape (a keycap, a face button, a bumper, a trigger, a stick, the d-pad,
+ * shape (a keycap or a key's own symbol, a face button, a bumper, a trigger, a stick, the d-pad,
  * the View and Menu buttons, the mouse), with its label filling it. They are
  * our own drawings on the conventions of console prompts: near-black with a
  * pale rim and label, so a glyph reads on the dark house, a dark panel, the
@@ -190,13 +190,20 @@ function padShape(glyph: PadGlyph): { width: number; shape: ReactNode } {
   }
 }
 
-/** A keycap with its key's label filling it; a long name gets a wider cap. */
-/** Keys drawn as a symbol rather than a name, on a wide cap: the symbol's box is centred on the cap. */
+/** Backspace's own symbol, a tag pointing left: its outline is the glyph's, with no keycap round it. */
+const BACKSPACE = "M2.25 12.75Q1.75 12 2.25 11.25L10.5 2.5Q11.25 1.75 12.25 1.75H28a2 2 0 0 1 2 2v16.5a2 2 0 0 1-2 2H12.25q-1 0-1.75-.75z";
+/** The × on the tag's square end. */
+const BACKSPACE_CROSS = "M16.75 8.25l7.5 7.5m0-7.5-7.5 7.5";
+
+/** Keys drawn as their own symbol rather than as a keycap with a name. */
 const KEY_SYMBOLS: Record<string, { width: number; shape: ReactNode }> = {
   Backspace: {
-    width: 34,
+    width: 32,
     shape: (
-      <path d="M12 7h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H12l-5-5zM17.5 10l4 4m0-4-4 4" fill="none" stroke={INK} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      <>
+        <Body shape={(paint) => <path d={BACKSPACE} {...paint} />} />
+        <path d={BACKSPACE_CROSS} stroke={INK} strokeWidth={1.75} strokeLinecap="round" />
+      </>
     ),
   },
 };
@@ -208,22 +215,21 @@ const KEY_LETTER_EM = 0.6;
 /** The space either side of a long key name, inside its cap. */
 const KEY_PADDING = 5;
 
-/** A keycap with its key's label filling it; a long name gets a cap as wide as the name. */
+/** A key's own symbol, or a keycap with its label filling it; a long name gets a cap as wide as the name. */
 function keyShape(label: string): { width: number; shape: ReactNode } {
   const symbol = KEY_SYMBOLS[label] as { width: number; shape: ReactNode } | undefined;
+  if (symbol) return symbol;
   const single = label.length <= 1;
   const size = single ? 14 : 11;
-  const width = symbol?.width ?? (single ? 24 : Math.round((KEY_NAME_EM[label] ?? label.length * KEY_LETTER_EM) * size + 2 * KEY_PADDING + 3.5));
+  const width = single ? 24 : Math.round((KEY_NAME_EM[label] ?? label.length * KEY_LETTER_EM) * size + 2 * KEY_PADDING + 3.5);
   return {
     width,
     shape: (
       <>
         <Body shape={(paint) => <rect x="1.75" y="1.75" width={width - 3.5} height="20.5" rx="4" {...paint} />} />
-        {symbol?.shape ?? (
-          <Label x={width / 2} y={12} size={size}>
-            {label}
-          </Label>
-        )}
+        <Label x={width / 2} y={12} size={size}>
+          {label}
+        </Label>
       </>
     ),
   };
