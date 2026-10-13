@@ -211,7 +211,7 @@ function fillOf(columns: number, open: [row: number, column: number][], seed: st
   );
 }
 
-/** The teal welling out of the open tomb: a glow on its floor, a haze at its rim, and the light it throws. */
+/** The sick green of decay welling out of the open tomb: a glow on its floor, a haze at its rim, and the light it throws. */
 function tombGlow(opening: { x: [number, number]; z: [number, number] }, floorY: number, rimY: number): THREE.Group {
   const [x0, x1] = opening.x;
   const [z0, z1] = opening.z;
@@ -222,7 +222,7 @@ function tombGlow(opening: { x: [number, number]; z: [number, number] }, floorY:
     [rimY - 0.04, 0.22],
   ] as const) {
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2), lightMaterial(opacity));
-    (plane.material as THREE.MeshBasicMaterial).color.set(hex("spectre"));
+    (plane.material as THREE.MeshBasicMaterial).color.set(hex("wraithLight"));
     plane.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
     plane.userData.noShadow = true;
     result.add(plane);
@@ -233,7 +233,7 @@ function tombGlow(opening: { x: [number, number]; z: [number, number] }, floorY:
 /**
  * The sarcophagus on its low plinth, long along x, carved panels down its
  * sides: its heavy lid shoved askew towards the foot (+x), so the head end
- * stands open, and out of it wells a cold teal light. Its long carved side faces +z.
+ * stands open, and out of it wells the sick green light of rot. Its long carved side faces +z.
  */
 function sarcophagus(): THREE.Group {
   const { length, width, plinth, height, wall } = TOMB;
@@ -279,13 +279,13 @@ function sarcophagus(): THREE.Group {
   lid.rotation.y = -0.32;
   result.add(lid);
   result.add(tombGlow({ x: [-half.x + wall, 0.1], z: [-half.z + wall, half.z - wall] }, y0 + 0.06, rimY));
-  result.add(lightAnchor({ colour: "spectre", intensity: 6, range: 7, kind: "glow" }, [-0.6, rimY + 0.55, 0]));
+  result.add(lightAnchor({ colour: "wraithLight", intensity: 5, range: 7, kind: "glow" }, [-0.6, rimY + 0.55, 0]));
   return result;
 }
 
-/** The cold spilled over the tomb's rim and lying round its plinth: teal light on the floor, thinning away
+/** The rot spilled over the tomb's rim and lying round its plinth: green light on the floor, thinning away
  *  from the stone, and a fainter sheet of mist a little above it. Centred on the tomb, long along x. */
-function coldMist(): THREE.Group {
+function rotMist(): THREE.Group {
   const half = { x: (TOMB.length + 0.44) / 2, z: (TOMB.width + 0.44) / 2 };
   const result = group();
   for (const [y, reach, opacity] of [
@@ -295,11 +295,11 @@ function coldMist(): THREE.Group {
     const [w, d] = [2 * (half.x + reach), 2 * (half.z + reach)];
     const geometry = new THREE.PlaneGeometry(w, d, Math.round(w * 10), Math.round(d * 10)).rotateX(-Math.PI / 2);
     const position = geometry.getAttribute("position");
-    const teal = new THREE.Color(hex("spectre"));
+    const green = new THREE.Color(hex("wraith"));
     const colours: number[] = [];
     for (let i = 0; i < position.count; i++) {
       const out = Math.hypot(Math.max(0, Math.abs(position.getX(i)) - half.x), Math.max(0, Math.abs(position.getZ(i)) - half.z));
-      colours.push(...teal.clone().multiplyScalar(Math.pow(Math.max(0, 1 - out / reach), 2)).toArray());
+      colours.push(...green.clone().multiplyScalar(Math.pow(Math.max(0, 1 - out / reach), 2)).toArray());
     }
     geometry.setAttribute("color", new THREE.Float32BufferAttribute(colours, 3));
     const sheet = new THREE.Mesh(geometry, lightMaterial(opacity, { vertexColors: true }));
@@ -387,7 +387,7 @@ function stub(height: number): () => THREE.Group {
 const BENCH_TOP = BENCH.top;
 
 /** The Crypt: a stone sarcophagus in the middle of a vault walled with sealed
- *  burial niches, its lid shoved askew and a cold teal light welling out of
+ *  burial niches, its lid shoved askew and the sick green light of rot welling out of
  *  it. By the bench a new pale tablet waits, its name half cut, the mason's
  *  tools put down beside it: a place made ready for whoever stays. */
 export const CRYPT: RoomDefinition = {
@@ -400,7 +400,7 @@ export const CRYPT: RoomDefinition = {
     ...wallOfNiches("right", fillOf(7, [[1, 3]], "right")),
     ...wallOfNiches("bottom", fillOf(6, [[0, 4], [1, 1]], "back")),
     { build: sarcophagus, at: TOMB_AT },
-    { build: coldMist, at: TOMB_AT },
+    { build: rotMist, at: TOMB_AT },
     { build: waitingTablet, at: TABLET_AT, turn: -90 },
     { build: masonsTools, at: [TABLET_AT[0] - 0.45, TABLET_AT[1] + 0.05], turn: 80 },
     { build: masonsCandle, at: [TABLET_AT[0] - 0.6, TABLET_AT[1] - 0.45] },
