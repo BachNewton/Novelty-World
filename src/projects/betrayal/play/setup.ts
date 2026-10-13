@@ -16,16 +16,6 @@ export function takenBy(characters: readonly Character[], seats: readonly SeatCh
   return other === -1 ? null : other;
 }
 
-/** The seats with `seat` moved `step` characters on, round the catalogue, past those taken. */
-export function cycleCharacter(characters: readonly Character[], seats: readonly SeatChoice[], seat: number, step: 1 | -1): SeatChoice[] {
-  const at = characters.findIndex((c) => c.id === seats[seat].character);
-  for (let i = 1; i <= characters.length; i++) {
-    const next = characters[(at + step * i + characters.length * 2) % characters.length];
-    if (takenBy(characters, seats, seat, next.id) === null) return seats.map((s, j) => (j === seat ? { ...s, character: next.id } : s));
-  }
-  throw new Error(`No character is free for seat ${seat}`);
-}
-
 /** A character's portrait, as the page serves it: shot from the art bench by
  *  `tools/portraits.mjs`, their figure or the pawn in their card's colour. */
 export function portraitSrc(character: string): string {

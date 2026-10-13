@@ -314,22 +314,18 @@ test("setup: characters chosen by portrait, one per card, and a chosen haunt car
   const seat0 = page.getByRole("listitem", { name: "Seat 0" });
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" })).toBeVisible();
 
-  // Four seats by default. The arrows step past characters whose card another seat has: Longfellow shares seat 0's own card, then the next three cards are taken.
+  // Four seats by default, each showing its character's traits.
   await expect(page.getByRole("listitem", { name: /^Seat \d$/ })).toHaveCount(4);
-  await seat0.getByRole("button", { name: "Seat 0: next character" }).click();
-  await expect(seat0.getByRole("button", { name: "Seat 0 character: Professor Longfellow" })).toBeVisible();
-  await seat0.getByRole("button", { name: "Seat 0: next character" }).click();
-  await expect(seat0.getByRole("button", { name: "Seat 0 character: Vivian Lopez" })).toBeVisible();
-  // The seat shows its character's traits.
-  await expect(seat0.getByLabel("Vivian Lopez's traits").getByLabel(/ track$/)).toHaveCount(4);
+  await expect(seat0.getByLabel("Father Rhinehardt's traits").getByLabel(/ track$/)).toHaveCount(4);
 
-  // The portrait opens every character; one whose card another seat holds can't be picked.
-  await seat0.getByRole("button", { name: "Seat 0 character: Vivian Lopez" }).click();
+  // Tapping the portrait opens every character; one whose card another seat holds can't be picked.
+  await seat0.getByRole("button", { name: "Seat 0 character: Father Rhinehardt" }).click();
   const grid = page.getByRole("dialog", { name: "Seat 0's character" });
   await expect(grid.getByRole("button", { name: /Ox Bellows/ })).toBeDisabled();
   await grid.getByRole("button", { name: /Heather Granville/ }).click();
   await expect(grid).toHaveCount(0);
   await expect(seat0.getByRole("button", { name: "Seat 0 character: Heather Granville" })).toBeVisible();
+  await expect(seat0.getByLabel("Heather Granville's traits").getByLabel(/ track$/)).toHaveCount(4);
 
   await page.getByRole("button", { name: /^13 · / }).click();
   await page.getByRole("button", { name: "Start" }).click();
