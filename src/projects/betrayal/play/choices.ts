@@ -1,5 +1,6 @@
-import type { Action, Edge, FloorId, Json, Rotation } from "../types";
-import { doorwaySpot, EDGES, type Doorway, type Layout } from "../engine/board";
+import type { Action, Edge, FigureId, FloorId, Json, Rotation } from "../types";
+import { doorwaySpot, EDGES, wallName, type Doorway, type Layout } from "../engine/board";
+import type { Option } from "../engine/effects";
 import type { TurnChoice } from "../engine/exploration";
 import type { Choice } from "../engine/step-loop";
 import type { PlaceChoice } from "../engine/tiles";
@@ -20,7 +21,9 @@ import { routePreview, type RoutePreview } from "./preview";
  *  room the turn stands in or of one it can reach first. `actions` answer the decisions on the way there, in
  *  order: one for a step next door. A room on another floor shows as the way
  *  there where its route takes the stairs. A choice among options offers the
- *  rooms its options name the same way, each one action with no route. */
+ *  places its options name the same way (a room or its side, a wall or
+ *  corner of a room, a figure), each one action with no route; so does a
+ *  turn's attack on a figure, and a monster turn's figure to act next. */
 export type PlaceTarget = {
   id: string;
   label: string;
@@ -34,6 +37,11 @@ export type PlaceTarget = {
   /** Exploring the empty `cell`, through the unexplored doorway of `room`
    *  on a board direction: of the doorways onto it, the one the turn reaches cheapest. */
   | { kind: "explore"; cell: Spot; room: string; direction: Edge }
+  /** A wall of `room` or a corner of it, as printed edges of its tile (one,
+   *  or the two of a corner), with the token the choice puts there. */
+  | { kind: "wall"; room: string; wall: readonly Edge[]; token: string | null }
+  /** A figure in the house. */
+  | { kind: "figure"; figure: FigureId }
 );
 
 /** A choice the panel offers: the engine's choice and label, and its action. */
@@ -165,27 +173,39 @@ export function playChoices(view: GameView, ahead: Lookahead | null = null): Pla
   let end: PanelChoice | null = null;
   for (const choice of listed) {
     const turn = choice.choice as TurnChoice;
+    const figure = turn.act === "activate" ? turn.figure : turn.act === "attack" && turn.target.kind === "figure" ? turn.target.figure : null;
     if (turn.act === "end") end = panelChoice(choice, "end");
+    else if (figure !== null) targets.push({ id: `${turn.act}:${figure}`, kind: "figure", figure, label: choice.label, actions: [act(choice.choice)], preview: null });
     else if (turn.act !== "move" && turn.act !== "discover") panel.push(choice);
   }
   return { targets, panel: panelOf(panel), end, ghost: null };
 }
 
-/** A choice among options: each option naming a room in the house is that
- *  room, a place (put your explorer there, send the Dog there); the rest go
- *  to the panel. The listed choices are the options' indexes. */
+/** A choice among options: each option naming a place in the house is
+ *  that place (a room or one side of it, a wall or corner of a room, a
+ *  figure); the rest go to the panel. The listed choices are the options' indexes. */
 function chooseOneChoices(view: GameView, params: Json, listed: readonly Choice[], act: (choice: Json) => Action, panelOf: (list: readonly Choice[]) => PanelChoice[]): PlayChoices {
-  const { options } = params as { options: { room?: string }[] };
+  const { options } = params as { options: Pick<Option, "room" | "side" | "wall" | "token" | "figure">[] };
   const targets: PlaceTarget[] = [];
   const panel: Choice[] = [];
   for (const choice of listed) {
-    const room = options[choice.choice as number].room;
+    const option = options[choice.choice as number];
+    const base = { id: `option:${String(choice.choice)}`, label: choice.label, actions: [act(choice.choice)], preview: null };
+    if (option.figure !== undefined) {
+      if (!(option.figure in view.figures)) throw new Error(`An option names the figure ${option.figure}, which isn't in the house`);
+      targets.push({ ...base, kind: "figure", figure: option.figure });
+      continue;
+    }
+    const room = option.room;
     if (room === undefined) {
       panel.push(choice);
       continue;
     }
     if (!view.board.tiles.some((tile) => tile.tile === room)) throw new Error(`An option names the ${room}, which isn't in the house`);
-    targets.push({ id: `option:${String(choice.choice)}`, kind: "room", room, side: null, label: choice.label, actions: [act(choice.choice)], preview: null });
+    if (option.wall !== undefined) {
+      const name = wallName(view.board, room, option.wall);
+      targets.push({ ...base, label: name.charAt(0).toUpperCase() + name.slice(1), kind: "wall", room, wall: option.wall, token: option.token ?? null });
+    } else targets.push({ ...base, kind: "room", room, side: option.side ?? null });
   }
   return { ...NO_CHOICES, targets, panel: panelOf(panel) };
 }
@@ -283,7 +303,10 @@ export function boardFocus(view: GameView): Focus {
   }
 
   if (pending.kind === "choose-one") {
-    for (const target of playChoices(view).targets) focus.rooms.set(target.room, focus.rooms.has(target.room) ? null : target.actions[0]);
+    for (const target of playChoices(view).targets) {
+      const room = target.kind === "figure" ? view.figures[target.figure].place?.room : target.room;
+      if (room !== undefined) focus.rooms.set(room, focus.rooms.has(room) ? null : target.actions[0]);
+    }
     return focus;
   }
 
