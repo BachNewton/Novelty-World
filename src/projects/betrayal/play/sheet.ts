@@ -8,8 +8,9 @@ import type { PanelChoice } from "./choices";
  * where the turn offers them; each card on the floor that can be picked up
  * is a row; each explorer who can trade is a row. The order is the engine's
  * listing, never rearranged, so a slot stays where the player learnt it.
- * The status box offers the same actions as buttons, with every trade with
- * one explorer behind one button, which opens the trade sheet.
+ * The status box offers the ones a turn needs often, where they apply: Pick
+ * up and a card's uses (and any other action that isn't Drop or a trade);
+ * Drop and trading are on the sheet only.
  */
 
 const turnChoice = (choice: PanelChoice) => choice.choice as TurnChoice;
@@ -82,17 +83,11 @@ export function tradeRows(panel: readonly PanelChoice[]): TradeRow[] {
   return rows;
 }
 
-/** A status box button for the turn: a panel choice, or every trade with one explorer. */
-export type BoxAction = { kind: "choice"; choice: PanelChoice } | { kind: "trade"; row: TradeRow };
-
-/** The status box's buttons for the turn: each panel choice, with every trade with one explorer as one entry. */
-export function boxActions(panel: readonly PanelChoice[]): BoxAction[] {
-  const rows = tradeRows(panel);
-  return panel.flatMap((choice): BoxAction[] => {
-    const turn = turnChoice(choice);
-    if (turn.act !== "trade") return [{ kind: "choice", choice }];
-    const row = rows.find((candidate) => candidate.with === turn.with);
-    return row && row.choices[0] === choice ? [{ kind: "trade", row }] : [];
+/** The status box's buttons for the turn: its actions but Drop and trades, which are on the sheet only, in the engine's order. */
+export function boxActions(panel: readonly PanelChoice[]): PanelChoice[] {
+  return panel.filter((choice) => {
+    const { act } = turnChoice(choice);
+    return act !== "drop" && act !== "trade";
   });
 }
 

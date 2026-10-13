@@ -180,11 +180,12 @@ export function ControlGlyph({ control, className = "" }: { control: Control; cl
 /** What a control means, whatever the input: the map's single source. A
  *  and B (Enter and Esc) are left out: pressing the focused thing and
  *  closing the topmost one go without saying, so they never show a glyph. */
-export type Meaning = "end-turn" | "explorer" | "menu" | "follow" | "details" | "walls" | "floor-down" | "floor-up" | "choices";
+export type Meaning = "end-turn" | "explorer" | "menu" | "follow" | "details" | "walls" | "floor-down" | "floor-up" | "choices" | "why";
 
 /** Each meaning's control on a pad and on the keyboard, and whether it is a
- *  hold that fills before it acts. Touch has none. */
-const MAP: Record<Meaning, { pad: PadGlyph; key: string | null; fills: boolean }> = {
+ *  hold that fills before it acts. Touch has none, and a pad none for a
+ *  button it reaches with the d-pad and presses with A (Why). */
+const MAP: Record<Meaning, { pad: PadGlyph | null; key: string | null; fills: boolean }> = {
   "end-turn": { pad: "X", key: "⌫", fills: true },
   explorer: { pad: "Y", key: "I", fills: false },
   menu: { pad: "Menu", key: "M", fills: false },
@@ -194,12 +195,13 @@ const MAP: Record<Meaning, { pad: PadGlyph; key: string | null; fills: boolean }
   "floor-down": { pad: "LB", key: "F", fills: false },
   "floor-up": { pad: "RB", key: "R", fills: false },
   choices: { pad: "DpadLeftRight", key: "Tab", fills: false },
+  why: { pad: null, key: "H", fills: false },
 };
 
 /** The control for a meaning on an input, or null where it has none (touch, or a key it lacks). */
 export function controlFor(meaning: Meaning, input: InputKind): Control | null {
   const entry = MAP[meaning];
-  if (input === "pad") return { pad: entry.pad };
+  if (input === "pad") return entry.pad === null ? null : { pad: entry.pad };
   if (input === "keyboard-mouse" && entry.key !== null) return { key: entry.key };
   return null;
 }

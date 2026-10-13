@@ -5,86 +5,164 @@ import { viewFor, type EventView, type GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import { choose, testGame } from "../../testing";
 import type { GameState } from "../../types";
-import { createPresenting, skipOrAnswer, type Presenting } from "./presenting";
+import { createPresenting, skipOrAnswer, type Presented, type Presenting } from "./presenting";
 
-/** A house that plays walks and pans at once, and holds every pause until it is finished. */
-function fakeScene(): HouseScene {
+/** A house that holds every beat it plays (a walk, a room carried, a pause)
+ *  until the test ends the oldest (`step`), or `finish` ends them all. */
+function fakeScene() {
   const held: (() => void)[] = [];
-  return {
+  const scene = {
     finish: () => {
       for (const release of held.splice(0)) release();
     },
-    play: (beat: { kind: string }) =>
-      beat.kind === "pause"
-        ? new Promise<void>((resolve) => {
-            held.push(resolve);
-          })
-        : Promise.resolve(),
+    play: () =>
+      new Promise<void>((resolve) => {
+        held.push(resolve);
+      }),
     view: () => ({ closeUp: null }),
     setFigures: () => {},
     setThings: () => {},
     setActive: () => {},
     setMood: () => {},
   } as unknown as HouseScene;
+  return {
+    scene,
+    /** Ends the oldest beat held, and lets what follows from it run. */
+    step: async () => {
+      held.shift()?.();
+      await settle();
+    },
+    holding: () => held.length,
+  };
 }
+
+/** Lets the promises a beat's end set going run to their next wait. */
+const settle = async () => {
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+};
 
 const zoe = (state: GameState): GameView => viewFor(ENGINE, state, 0);
 
-/** Resolves once the presenter's beats are over. */
-const played = (presenting: Presenting) =>
-  new Promise<void>((resolve) => {
-    if (!presenting.snapshot().playing) {
-      resolve();
-      return;
-    }
-    const stop = presenting.subscribe(() => {
-      if (presenting.snapshot().playing) return;
-      stop();
-      resolve();
-    });
-  });
-
-/** Zoe's game, shown from its start, and the presenter showing it. */
-function started() {
-  const state = testGame({ stack: ["game-room"], decks: { event: ["something-hidden"] } });
-  const presenting = createPresenting(fakeScene(), () => [], { place: openFloors(), load: () => null });
+/** Zoe's game, shown from its start, and the presenter showing it, with every snapshot it publishes. */
+function started(state: GameState) {
+  const house = fakeScene();
+  const presenting = createPresenting(house.scene, () => [], { place: openFloors(), load: () => null });
   const start = zoe(state);
   presenting.show(start, start.events);
-  return { state, presenting, fed: [...start.events] as EventView[] };
+  const snapshots: Presented[] = [];
+  presenting.subscribe(() => snapshots.push(presenting.snapshot()));
+  return { house, presenting, fed: [...start.events] as EventView[], snapshots };
 }
 
-describe("the choices wait for the beats", () => {
-  it("are held while a card drawn waits for a tap, and the first input only skips", () => {
-    const { state, presenting, fed } = started();
-    const discovered = choose(choose(state, "Explore through the north door"), "turned 0°");
-    const view = zoe(discovered);
-    presenting.show(view, [...fed, ...view.events]);
-    expect(presenting.snapshot().playing).toBe(true);
+/** Shows what a choice did, as the screen does. */
+function shown(presenting: Presenting, fed: EventView[], state: GameState) {
+  const view = zoe(state);
+  fed.push(...view.events);
+  presenting.show(view, fed);
+}
 
-    let answered = 0;
-    const answer = () => {
-      answered++;
-    };
-    expect(skipOrAnswer(presenting, answer)).toBe(false);
-    expect(answered).toBe(0);
-    expect(presenting.snapshot()).toMatchObject({ playing: false, moment: null });
-    expect(skipOrAnswer(presenting, answer)).toBe(true);
-    expect(answered).toBe(1);
+/** Holds, at every snapshot, that nothing is told before its beat has started: the line, the card's title and the floats. */
+function expectNothingAhead(snapshots: readonly Presented[]) {
+  for (const snapshot of snapshots) {
+    const started = new Set(snapshot.shown);
+    if (snapshot.playing && snapshot.told) expect(started.has(snapshot.told.line), "the line runs ahead of its beat").toBe(true);
+    if (snapshot.card) expect(started.has(snapshot.card.event), "the card's title runs ahead of its beat").toBe(true);
+    for (const float of snapshot.floats) expect(started.has(float), "a float runs ahead of its beat").toBe(true);
+    if (snapshot.beat) for (const event of snapshot.beat.events) expect(started.has(event)).toBe(true);
+  }
+}
+
+/** Discovering the Game Room draws Creepy Crawlies: a walk in, the card, a Sanity roll, and a Sanity gained or lost. */
+const CRAWLIES = () => testGame({ stack: ["game-room"], decks: { event: ["creepy-crawlies"] } });
+
+describe("the box and the house in step", () => {
+  it("tell each event only once its beat plays, in the order they happened", async () => {
+    const start = CRAWLIES();
+    const { house, presenting, fed, snapshots } = started(start);
+    const discovered = choose(choose(start, "Explore through the north door"), "turned 0°");
+    shown(presenting, fed, discovered);
+    const type = (id: string | undefined) => discovered.lastEvents.find((event) => event.id === id)?.type;
+
+    // The walk in: nothing told yet, no card's title, no float.
+    expect(presenting.snapshot()).toMatchObject({ playing: true, told: null, card: null, floats: [] });
+    expect(presenting.snapshot().beat?.kind).toBe("walk");
+    await house.step();
+    // The card: its title and text, waiting for a tap; its line, and nothing after it.
+    expect(type(presenting.snapshot().told?.line)).toBe("card-drawn");
+    expect(presenting.snapshot().card).toMatchObject({ waits: true });
+    presenting.goOn();
+    await settle();
+    // The roll's dice turn up, under the card's title, which stays until the choice shows.
+    expect(type(presenting.snapshot().told?.line)).toBe("rolled");
+    expect(presenting.snapshot().card).toMatchObject({ waits: false });
+    expect(presenting.snapshot().floats).toEqual([]);
+    await house.step();
+    // The Sanity gained or lost floats as its line shows.
+    expect(type(presenting.snapshot().told?.line)).toBe("trait-changed");
+    expect(presenting.snapshot().floats).toHaveLength(1);
+    await house.step();
+    // The choices show the moment the last beat ends, with the last line still up.
+    expect(presenting.snapshot()).toMatchObject({ playing: false, card: null, beat: null });
+    expect(type(presenting.snapshot().told?.line)).toBe("trait-changed");
+    expectNothingAhead(snapshots);
   });
 
-  it("show once beats that play out by themselves are over", async () => {
-    const { state, presenting, fed } = started();
-    const moved = choose(state, "Move to the Foyer");
-    const view = zoe(moved);
-    presenting.show(view, [...fed, ...view.events]);
-    await played(presenting);
-    expect(presenting.snapshot().playing).toBe(false);
+  it("hold nothing up for a line with nothing of its own to show", async () => {
+    // Ending the turn: the turn passing is the only beat, and it holds nothing.
+    const start = testGame();
+    const { presenting, fed } = started(start);
+    shown(presenting, fed, choose(start, "End your turn"));
+    await settle();
+    expect(presenting.snapshot()).toMatchObject({ playing: false, told: null });
+  });
+
+  it("complete at once on an input, every line, card and float shown, and only skip", () => {
+    const start = CRAWLIES();
+    const { presenting, fed, snapshots } = started(start);
+    const discovered = choose(choose(start, "Explore through the north door"), "turned 0°");
+    shown(presenting, fed, discovered);
+    let answered = 0;
+    expect(
+      skipOrAnswer(presenting, () => {
+        answered++;
+      }),
+    ).toBe(false);
+    expect(answered).toBe(0);
+    const after = presenting.snapshot();
+    expect(after).toMatchObject({ playing: false, card: null });
+    expect(discovered.lastEvents.find((event) => event.id === after.told?.line)?.type).toBe("trait-changed");
+    expect(after.floats).toHaveLength(1);
+    expect(
+      skipOrAnswer(presenting, () => {
+        answered++;
+      }),
+    ).toBe(true);
+    expect(answered).toBe(1);
+    expectNothingAhead(snapshots);
+  });
+
+  it("wait between two beats while Why is open, and go on once it closes", async () => {
+    const start = CRAWLIES();
+    const { house, presenting, fed } = started(start);
+    shown(presenting, fed, choose(choose(start, "Explore through the north door"), "turned 0°"));
+    await house.step();
+    presenting.goOn();
+    await settle();
+    // The roll plays; Why opens on it.
+    const rolling = presenting.snapshot().told?.line;
+    presenting.hold(true);
+    await house.step();
+    expect(presenting.snapshot().told?.line).toBe(rolling);
+    expect(house.holding()).toBe(0);
+    presenting.hold(false);
+    await settle();
+    expect(presenting.snapshot().told?.line).not.toBe(rolling);
   });
 
   it("aren't held by a view with nothing new to play", () => {
-    const { state, presenting, fed } = started();
-    const view = zoe(state);
-    presenting.show(view, fed);
+    const start = testGame();
+    const { presenting, fed } = started(start);
+    presenting.show(zoe(start), fed);
     expect(presenting.snapshot().playing).toBe(false);
   });
 });
@@ -97,7 +175,7 @@ describe("the rooms' floors", () => {
     });
     let ready = false;
     const placed: number[] = [];
-    const presenting = createPresenting(fakeScene(), (_view, spots) => {
+    const presenting = createPresenting(fakeScene().scene, (_view, spots) => {
       placed.push(Object.keys(spots).length);
       return [];
     }, { place: openFloors(), load: () => (ready ? null : reading) });
@@ -112,5 +190,19 @@ describe("the rooms' floors", () => {
     expect(placed).toEqual([3]);
     expect(presenting.snapshot().playing).toBe(false);
     expect(Object.keys(presenting.snapshot().spots)).toHaveLength(3);
+  });
+
+  it("are read ahead for the next tiles of the room stack", () => {
+    const asked: string[][] = [];
+    const presenting = createPresenting(fakeScene().scene, () => [], {
+      place: openFloors(),
+      load: (rooms) => {
+        asked.push([...rooms]);
+        return null;
+      },
+    });
+    const start = zoe(testGame());
+    presenting.show(start, start.events, ["game-room", "chapel"]);
+    expect(asked.some((rooms) => rooms.includes("game-room") && rooms.includes("chapel"))).toBe(true);
   });
 });

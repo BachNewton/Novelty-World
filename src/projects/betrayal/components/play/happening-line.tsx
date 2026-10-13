@@ -1,17 +1,17 @@
 import type { RuleNotes } from "../../data/rule-notes";
 import { rollName } from "../../engine/describe";
 import type { RollSpec } from "../../engine/sources";
-import type { GameView } from "../../engine/view";
+import type { EventView, GameView } from "../../engine/view";
 import { rollMeaning } from "../../play/dice";
-import type { Happening } from "../../play/status";
 import type { FigureId, Trait } from "../../types";
 import { DamageIcon, TraitIcon } from "../icons";
 import { RollResult } from "./roll-result";
 
 /*
- * A line of what happened, in icons where icons say it: a roll as its dice,
- * total and mark, damage and trait changes as icons and numbers. Every other
- * event is its words. The words stay with the icons for screen readers.
+ * The status box's line for the beat playing, in icons where icons say it: a
+ * roll as its dice, total and mark, its dice turning up as its beat plays;
+ * damage and trait changes as icons and numbers. Every other event is its
+ * words. The words stay with the icons for screen readers.
  */
 
 interface Rolled {
@@ -23,8 +23,8 @@ interface Rolled {
   result: number;
 }
 
-export function HappeningLine({ happening, view, notes }: { happening: Happening; view: GameView; notes: RuleNotes | null }) {
-  const { event, text } = happening;
+/** `turnUp`: seconds for a roll's dice to turn up, while its beat plays, or null once it has. */
+export function HappeningLine({ event, text, view, notes, turnUp }: { event: EventView; text: string; view: GameView; notes: RuleNotes | null; turnUp: number | null }) {
   const name = (figure: FigureId) => view.figures[figure].name;
 
   if (event.type === "rolled") {
@@ -40,7 +40,7 @@ export function HappeningLine({ happening, view, notes }: { happening: Happening
         </span>
         {d.spec.kind === "trait" && <TraitIcon trait={d.spec.trait} />}
         <span aria-hidden className="contents">
-          <RollResult dice={d.named === null ? d.dice : null} bonus={d.bonus} total={d.result} meaning={meaning} />
+          <RollResult dice={d.named === null ? d.dice : null} bonus={d.bonus} total={d.result} meaning={meaning} turnUp={turnUp} />
         </span>
       </span>
     );

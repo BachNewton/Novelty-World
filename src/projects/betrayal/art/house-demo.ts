@@ -26,8 +26,6 @@ import { roomTile, type ExplorerBuilder } from "./stage";
 
 /** The stand-in decision: how many spaces an explorer may move. */
 const MOVEMENT = 4;
-/** How long a room an explorer enters for the first time is shown with its walls up. */
-const ENTERING_SECONDS = 2.5;
 /** The id of the choice that stops the move where the explorer stands. */
 const STOP = "stop";
 
@@ -62,8 +60,7 @@ export interface Choice {
   stop: boolean;
 }
 
-/** Choosing where to go, or a room entered for the first time, shown with
- *  its walls up until the player goes on or the moment passes. */
+/** Choosing where to go, or walking into a room for the first time, until the walk ends or the player goes on. */
 export type Phase = "choosing" | "entering";
 
 export interface DemoExplorer {
@@ -187,20 +184,16 @@ export function createHouseDemo(layout: Layout = HOUSE_FIXTURE, starts: readonly
   /** After a leg: the next leg, or, when the move is over, the next explorer's turn. */
   function continueTurn(from: DemoState) {
     entering = null;
-    if (scene.view().closeUp !== null) void scene.play({ kind: "frame", framing: null });
     const explorer = from.explorers[from.active];
     if (moveIsOver(layout, CATALOG, { room: explorer.room, left: from.left })) nextTurn(from);
     else publish(offer(from));
   }
 
-  /** A room entered for the first time: shown with its walls up once the walk there is over, until the player goes on or the moment passes. */
-  function enter(room: string, walked: Promise<void>) {
+  /** A room entered for the first time: the turn goes on once the walk there is over, or the player goes on. */
+  function enter(walked: Promise<void>) {
     const arrival = ++arrivals;
     entering = arrival;
-    void walked.then(async () => {
-      if (entering !== arrival) return;
-      void scene.play({ kind: "frame", framing: { closeUp: room } });
-      await scene.play({ kind: "pause", seconds: ENTERING_SECONDS });
+    void walked.then(() => {
       if (entering === arrival) continueTurn(state);
     });
   }
@@ -239,7 +232,7 @@ export function createHouseDemo(layout: Layout = HOUSE_FIXTURE, starts: readonly
       return;
     }
     visited.add(choice.room);
-    enter(choice.room, walked);
+    enter(walked);
     publish({ ...state, explorers, left, phase: "entering", choices: [], focused: null });
   }
 

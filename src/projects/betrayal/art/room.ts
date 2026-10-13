@@ -172,9 +172,6 @@ export interface RoomDefinition {
   lights?: LightSpec[];
   /** Where the close-up looks. Defaults to `DEFAULT_FOCUS`. */
   focus?: [x: number, y: number, z: number];
-  /** The standard view (0 to 3) the room reads best from, which its close
-   *  view on a first visit turns to. Without it, the player's angle stands. */
-  angle?: number;
   /** Holes cut through the floor (a stairwell, a lake), in room metres. */
   floorOpenings?: FloorOpening[];
   /** The prime place: where the first explorer stands at the start, where a

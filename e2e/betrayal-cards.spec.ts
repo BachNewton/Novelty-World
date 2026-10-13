@@ -105,7 +105,7 @@ test("a card that moves the explorer: its title stays up until the choice it lea
   // The clock is held, so the beats after the card's stay playing to be seen.
   await page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
   await beat.getByRole("button", { name: "Go on" }).click();
-  await whilePlaying(page, "play.playing && play.moment !== null");
+  await whilePlaying(page, "play.playing && play.beat?.kind === 'line'");
   const between = await readout(page);
   expect(between).toMatchObject({ playing: true, targets: [], panel: [], canEnd: false, rooms: { "zoe-ingstrom": "entrance-hall" }, pending: { kind: "turn" } });
   await expect(beat).toBeVisible();

@@ -39,9 +39,8 @@ Phases 3 to 7 are built but not yet playtested by the owner. P8, haunt 13 in the
 **Paused questions,** the owner's call later:
 
 - The reveal's light: today's red house, or `?mood=cold` (full-house review links exist).
-- Pacing: whether choices waiting for every moment (about 1.6 s each) is too slow. The speed setting scales pauses, not walks (recommended, not objected to).
 - Rooms before their light lands: outlines, or a flat moon fill.
-- Phase 3's small calls: the close-up only where a walk ends; a mid-turn arrival taking a free place; starting rooms unseen after a reload.
+- Phase 3's small calls: a mid-turn arrival taking a free place; starting rooms unseen after a reload.
 - Whether the rotation ghost reads as "not placed yet".
 - The phone layout round the status box.
 - The lake's water look (`?water=`).
@@ -105,8 +104,8 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 
 **Events**
 - House animation: movement, layout changes, tokens, haunt figures, the turn starting (light and camera).
-- A moment in the box (non-blocking, any input skips it): cards, rolls, stats, haunt events.
-- Told in words only: bookkeeping, forced steps, the decks and room stack, the haunt's odds and ends.
+- A line in the box, in its place in the order of events, for as long as what it shows (a card's text until a tap, dice turning up, a float rising); any input skips it: cards, rolls, stats, haunt events, forced steps, the decks and the haunt's odds and ends.
+- Silent: bookkeeping the house or the screen already shows.
 
 ## The architecture as built
 
@@ -116,7 +115,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `seat.ts`: the holder follows whoever the game waits on. Ending a turn is passing the device, with no handover screen; a question for another seat mid-turn names that seat in its prompt.
 - `choices.ts`: the pending decision split by where it is answered: places become house targets, a tile to place becomes a ghost, everything else goes to the box, and End turn is an action of its own. A target's id names the choice, never the room.
 - `panels.ts`: which part of the status box answers what is pending; the old debug panel only what nothing else does, held by a test.
-- `presenter.ts`: the presenter, pure: the presentation so far and the next view in, the next presentation and its beats out. The state never waits; beats are de-duplicated by event id, and the box tells any event without a beat.
+- `presenter.ts`: the presenter, pure: the presentation so far and the next view in, the next presentation and its beats out, in the order the events happened, each naming the events it shows. The state never waits; beats are de-duplicated by event id, and an event in no beat is silent.
 - `spots.ts`: where each explorer stands, from the placement solver, as presentation that follows from the views shown, never game state.
 - `things.ts`: every dropped card and token in a room as an object, a room effect or a connection, decided per token kind as data.
 - `sheet.ts`: Your explorer's rows: each card held with its uses and Drop, each card on the floor to pick up, each explorer to trade with, in the engine's order so a row stays where the player learnt it.
@@ -126,7 +125,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `ghost.ts`, `status.ts`, `lookahead.ts`, `preview.ts` and `pads.ts`: what each way round of a tile would do, the box's words, every room and cell reachable this turn with its route, the route preview as one serialisable value, and which seats each controller plays.
 
 **`components/`, the screen.** `play/play-game.tsx` sets up a game, resumes the saved one or opens a review link; the game is the page's default, with the debug view at `?debug`. In `play/`:
-- `play-screen.tsx`, the house plus the status box (`status-box.tsx`), with the on-screen floor, Follow, walls and menu buttons; `presenting.ts` plays the presenter's beats in the house and the box, and holds a decision's choices until the beats before it are over.
+- `play-screen.tsx`, the house plus the status box (`status-box.tsx`), with the on-screen floor, Follow, walls and menu buttons; `presenting.ts` plays the presenter's beats one after another, publishing the beat playing as the one source of what the box's line, its Why, a card's title and the floats tell, and holds a decision's choices until the beats before it are over.
 - `pad-focus.ts`, the controller's one focus over the page's layers (the box, a sheet, a reader, the menu), with the d-pad moving along and between rows and B closing the topmost layer; `use-pads.ts` and `pad-picker.tsx`, the device's pads and a seat's pad.
 - `figure-marks.tsx`, each explorer's mark, and Your explorer: the character card as a sheet, with the explorer's tabs, portrait, trait tracks (`trait-track.tsx`), cards and the turn's actions; `details-hold.ts` and `details.tsx`, the held details (room names, things' labels, every explorer's name and stats); `trade-sheet.tsx`, building a trade.
 - `card-beat.tsx`, a card drawn as a beat over its room; `decision-panel.tsx`, rolls, damage and other questions; `roll-result.tsx` and `happening-line.tsx`, rolls and events in icons; `thing-reader.tsx`, a thing on the floor read.
@@ -167,7 +166,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - **P0: split the house view.** Done.
 - **P1: the playable skeleton.** Done.
 - **P2: legs, walking and preview before commit.** Done.
-- **P3: the presenter and narration in the moment.** Done: the pure presenter, the entering moment, the active explorer's light, the forced-step beat, and the placement solver.
+- **P3: the presenter and narration in the moment.** Done: the pure presenter, the active explorer's light, the forced-step beat, and the placement solver.
 - **P4: discovery and placement.** Done: the rotation ghost, `place-tile` on the same ghost, `room-moved` animated, the Mystic Elevator across floors, and rooms as options of a choice.
 - **P5: the action bar per input, and trading.** Done, as Your explorer and the trade sheet, with the controller map.
 - **P6: cards, dice and damage.** Done; a test holds that a game played up to its reveal never needs the old debug panel.

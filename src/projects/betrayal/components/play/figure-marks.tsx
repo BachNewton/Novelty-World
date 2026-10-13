@@ -27,7 +27,7 @@ import { CardTypeIcon, TraitIcon, traitLabel } from "../icons";
  * a pip for each card it holds, in the card's colour, and a tag for each
  * status it keeps. Holding the details up adds the explorer's name and its
  * stats in brief to its mark, and a gain or loss floats up over the figure as
- * it happens.
+ * its beat plays.
  * The cards' 3D props on the figures are art still to come: the pips stand
  * in for them.
  *
@@ -152,8 +152,8 @@ export interface FigureMarksProps {
   scene: HouseScene;
   view: GameView;
   spots: Spots;
-  /** The events the status box tells: their gains and losses float. */
-  told: readonly EventView[];
+  /** The gains and losses whose beats have started: they float. */
+  floating: readonly EventView[];
   /** Whether the details are held up: each mark adds the explorer's name and stats. */
   details: boolean;
   /** The explorer whose tab the sheet shows, or null while it is closed. */
@@ -161,9 +161,9 @@ export interface FigureMarksProps {
   openTab: (figure: FigureId | null) => void;
 }
 
-export function FigureMarks({ scene, view, spots, told, details, tab, openTab }: FigureMarksProps) {
+export function FigureMarks({ scene, view, spots, floating, details, tab, openTab }: FigureMarksProps) {
   const explorers = markedExplorers(view, spots);
-  const changes = statChanges(told);
+  const changes = statChanges(floating);
   return explorers.map((figure) => (
     <Mark
       key={figure.id}

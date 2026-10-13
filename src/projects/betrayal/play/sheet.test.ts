@@ -61,9 +61,7 @@ describe("the trade sheet", () => {
 });
 
 describe("boxActions", () => {
-  it("keeps every other action as it is, and every trade with one explorer behind one button", () => {
-    const entries = boxActions(panel);
-    expect(entries.filter((entry) => entry.kind === "trade").map((entry) => entry.row.with)).toEqual(["ox-bellows", "father-rhinehardt"]);
-    expect(entries.flatMap((entry) => (entry.kind === "choice" ? [entry.choice.label] : []))).toEqual(["Open the Music Box", "Drop the Music Box", "Drop the Lucky Stone"]);
+  it("keeps a card's uses, and leaves Drop and trading to the sheet", () => {
+    expect(boxActions(panel).map((choice) => choice.label)).toEqual(["Open the Music Box"]);
   });
 });

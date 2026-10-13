@@ -155,7 +155,8 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   const start = await readout(page);
   expect(start.targets.map((t) => t.id)).toContain("explore:ground:2:-1");
   expect(start.canEnd).toBe(true);
-  await expect(page.getByText("Zoe Ingstrom: your turn", { exact: false })).toBeVisible();
+  // The turn needs no prompt: the seat's button names whose it is, and its places glow.
+  await expect(page.locator("header").getByRole("button", { name: /^Zoe Ingstrom: character card/ })).toBeVisible();
 
   // Zoe explores north: the empty cell beyond the doorway glows in the house.
   await clickTarget(page, "explore:ground:2:-1");
@@ -165,33 +166,36 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   await page.keyboard.press("Tab");
   await until(page, "play.ghost?.rotation === 1");
   await page.keyboard.press("Enter");
-  // Then its event card is answered in the status box, which says what happened, why, and what Zoe can do now.
+  // Then its event card is answered in the status box: one line for the beat, its Why, and what Zoe can do now.
   await page.waitForFunction(() => {
     const play = window.__betrayalPlay?.play();
     return play?.pending?.kind === "choose-one" && play.tiles === 6;
   });
-  const happened = page.getByRole("list", { name: "What happened" });
-  const why = page.getByRole("list", { name: "Why it happened" });
+  const line = page.getByLabel("What happened");
+  const why = page.getByRole("dialog", { name: "Why" });
   const now = page.getByLabel("What you can do now");
   // The card's beat over the room waits for a tap before its question shows.
   await page.getByRole("dialog", { name: "Card drawn: Something Hidden" }).getByRole("button", { name: "Go on" }).click();
   await until(page, "play.panel.length > 0");
-  await expect(happened).toContainText("Zoe Ingstrom discovers the Game Room.");
-  await expect(happened).toContainText("Zoe Ingstrom draws the event Something Hidden.");
-  // Why it happened is a tap away.
-  await page.getByRole("button", { name: "Why?" }).click();
-  await expect(why).toContainText("Rulebook, p. 10: The first explorer to discover a room with a card symbol draws that card.");
-  await expect(why).toContainText("Something Hidden: You may choose to make a Knowledge roll to work out what's odd; if you don't, nothing happens.");
-  // The card's full text is a tap away.
-  await expect(why).not.toContainText("4+: Draw an item card.");
-  await why.getByRole("listitem").filter({ hasText: "Something Hidden:" }).getByRole("button", { name: "Full rule" }).click();
+  // The line is the last beat's: the walk in and the room's discovery are shown, not told.
+  await expect(line).toContainText("Zoe Ingstrom draws the event Something Hidden.");
+  await expect(line).not.toContainText("discovers");
+  // Why is a tap away: each rule named, never by its page, with its full text.
+  await page.getByRole("button", { name: /Why/ }).click();
+  await expect(why).toContainText("The first explorer to discover a room with a card symbol draws that card.");
+  await expect(why.getByRole("heading", { name: "Something Hidden" })).toBeVisible();
+  await expect(why).toContainText("You may choose to make a Knowledge roll to work out what's odd; if you don't, nothing happens.");
   await expect(why).toContainText("4+: Draw an item card.");
-  await expect(now).toContainText("Zoe Ingstrom: Something Hidden: ");
+  await expect(why).not.toContainText("p. 10");
+  await page.keyboard.press("Escape");
+  await expect(why).toBeHidden();
+  // Zoe holds the device in her own turn, so the question doesn't name her.
+  await expect(now).toContainText("Something Hidden: ");
+  await expect(now).not.toContainText("Zoe Ingstrom:");
   await now.getByRole("button", { name: "Don't roll" }).click();
-  // Drawing the card ended Zoe's move. With nothing left to do, ending her turn is hers to choose, and the box says why it's all there is.
+  // Drawing the card ended Zoe's move. With nothing left to do, ending her turn is hers to choose.
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.targets.length === 0");
   expect((await readout(page)).canEnd).toBe(true);
-  await expect(now).toContainText("No moves or actions left: End turn.");
   await expect(now.getByRole("button", { name: "End turn" })).toBeVisible();
   // With no actions, the seat's button in the header shows no count.
   await expect(page.locator("header").getByRole("button", { name: /: character card$/ })).toBeVisible();
@@ -199,7 +203,7 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   // The device passes to Ox.
   await until(page, "play.holder === 1 && play.turnSeat === 1 && play.pending?.kind === 'turn'");
   expect((await readout(page)).rooms["zoe-ingstrom"]).toBe("game-room");
-  await expect(page.getByText("Ox Bellows: your turn", { exact: false })).toBeVisible();
+  await expect(page.locator("header").getByRole("button", { name: /^Ox Bellows: character card/ })).toBeVisible();
 
   // Ox walks into the Foyer, and ends his turn.
   await clickTarget(page, "room:foyer");
@@ -472,10 +476,10 @@ test.describe("the rotation ghost", () => {
     await page.getByRole("button", { name: "Resume" }).click();
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
     await clickTarget(page, "explore:ground:2:-1");
-    // The room is placed and Zoe is in it, with her turn going on; the screen says so.
+    // The room is placed and Zoe is in it, with her turn going on; the house shows it, and the box tells nothing of it.
     await until(page, "play.tiles === 6 && play.rooms['zoe-ingstrom'] === 'creaky-hallway' && play.pending?.kind === 'turn' && play.ghost === null");
     expect((await readout(page)).rotations["creaky-hallway"]).toBeDefined();
-    await expect(page.getByText("discovers the Creaky Hallway", { exact: false })).toBeVisible();
+    await expect(page.getByLabel("What happened")).toHaveCount(0);
     expect(await page.evaluate(() => (window as unknown as { turningAsked: { asked: boolean } }).turningAsked.asked)).toBe(false);
   });
 

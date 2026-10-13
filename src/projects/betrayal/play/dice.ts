@@ -132,3 +132,32 @@ export function rerollChoice<C extends Choice>(choices: readonly C[], card: stri
   const want = [...picked].sort((a, b) => a - b).join(",");
   return choices.find((choice) => isReroll(choice.choice) && choice.choice.card === card && [...choice.choice.faces].sort((a, b) => a - b).join(",") === want) ?? null;
 }
+
+/** A card offered before a roll: the choice that uses it, or, for a card
+ *  whose options differ only by the number they name (the Angel Feather's
+ *  result, 0 to 8), each number and its choice, picked on one row. */
+export type RollOffer<C extends Choice> = { card: string; choice: C; picks: null } | { card: string; choice: null; picks: { value: number; choice: C }[] };
+
+const valueOf = (choice: Json): { card: string; value: number | null } | null =>
+  typeof choice === "object" && choice !== null && !Array.isArray(choice) && typeof choice.card === "string" ? { card: choice.card, value: typeof choice.value === "number" ? choice.value : null } : null;
+
+/** The cards a roll-before decision offers, each once, in the order offered:
+ *  a card offered more than once with a number each is one picker. */
+export function rollOffers<C extends Choice>(choices: readonly C[]): RollOffer<C>[] {
+  const offers: RollOffer<C>[] = [];
+  for (const choice of choices) {
+    const used = valueOf(choice.choice);
+    if (used === null) continue;
+    const many = choices.filter((other) => valueOf(other.choice)?.card === used.card);
+    if (many.length === 1 || used.value === null) {
+      offers.push({ card: used.card, choice, picks: null });
+      continue;
+    }
+    if (offers.some((offer) => offer.card === used.card)) continue;
+    offers.push({ card: used.card, choice: null, picks: many.flatMap((other) => {
+      const value = valueOf(other.choice)?.value;
+      return typeof value === "number" ? [{ value, choice: other }] : [];
+    }) });
+  }
+  return offers;
+}

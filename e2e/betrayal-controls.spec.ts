@@ -329,8 +329,10 @@ test.describe("touch", () => {
     await sheet.getByRole("listitem").filter({ hasText: "Lucky Stone" }).getByRole("button", { name: "Drop" }).tap();
     await until(page, "!play.panel.includes('Drop the Lucky Stone')");
 
-    // The box offers the same trade, behind one button.
-    await now.getByRole("button", { name: "Trade with Ox Bellows" }).tap();
+    // Trading is on the sheet only, never in the box.
+    await expect(now.getByRole("button", { name: /Trade with/ })).toHaveCount(0);
+    await page.locator("header").getByRole("button", { name: /: character card/ }).tap();
+    await sheet.getByRole("button", { name: "Trade with Ox Bellows" }).tap();
     const trade = page.getByRole("dialog", { name: "Trade with Ox Bellows" });
     await trade.getByRole("button", { name: "Rabbit's Foot" }).tap();
     await trade.getByRole("button", { name: "Offer" }).tap();

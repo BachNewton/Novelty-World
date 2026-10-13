@@ -29,7 +29,8 @@ import { freedText, useSeatInputs, useSeatsGate } from "./seats-panel";
 import { GameMenu } from "./game-menu";
 import type { PadSeats } from "./use-pads";
 import { sceneTarget } from "./routes";
-import { createPresenting, skipOrAnswer, SPEEDS, type Presented, type Presenting, type Speed } from "./presenting";
+import { createPresenting, DICE_SECONDS, skipOrAnswer, SPEEDS, type Presented, type Presenting, type Speed } from "./presenting";
+import { beatLine } from "../../play/presenter";
 import { RaiseWallsButton } from "../raise-walls-button";
 import { CardBeat } from "./card-beat";
 import { ExplorerSheet, FigureMarks, markedExplorers } from "./figure-marks";
@@ -85,8 +86,10 @@ export interface PlayReadout {
   moving: boolean;
   /** Where each explorer stands: its room, its side of a barrier room, and its place there, in the room's own frame. */
   spots: Spots;
-  /** The status box's line held as a moment, by its event's id, or null. */
-  moment: string | null;
+  /** The beat playing: its kind, and the event its status box line tells, or null. */
+  beat: { kind: string; line: string | null } | null;
+  /** The status box's line, by its event's id, or null. */
+  line: string | null;
   /** The house's light as a whole: the haunt's once it is revealed. */
   mood: HouseMood;
   /** Beats are playing, so the pending decision's choices wait. */
@@ -141,6 +144,8 @@ function eventsNow(store: PlayStore) {
 }
 
 const SPEED_KEY = "nw:betrayal:speed";
+/** How many tiles off the top of the room stack have their floors read ahead: a draw passes over tiles that don't fit the floor. */
+const STACK_AHEAD = 4;
 
 const isSpeed = (value: string | null): value is Speed => value !== null && value in SPEEDS;
 
@@ -189,7 +194,8 @@ function readout(scene: HouseScene, screen: ScreenReadout): PlayReadout {
     walking: scene.view().walking,
     moving: scene.view().moving,
     spots: presented.spots,
-    moment: presented.moment?.event ?? null,
+    beat: presented.beat && { kind: presented.beat.kind, line: beatLine(presented.beat) },
+    line: presented.told?.line ?? null,
     mood: scene.mood(),
     playing: presented.playing,
     endHold: screen.endHold,
@@ -283,6 +289,7 @@ export function PlayScreen({
   const boxRef = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const details = useDetailsHold(padMay);
+  const [whyOpen, setWhyOpen] = useState(false);
   // Input fast-forwards whatever is playing: nothing waits on an animation.
   const act = useCallback(
     (action: Action) => {
@@ -396,6 +403,9 @@ export function PlayScreen({
       menu: () => {
         setMenuOpen(!gate.menuOpen);
       },
+      why: () => {
+        setWhyOpen((was) => !was);
+      },
       endTurn: (on) => {
         setEnding(on);
       },
@@ -466,7 +476,8 @@ export function PlayScreen({
       layoutKey.current = key;
       scene.setLayout({ tiles: view.board.tiles });
     }
-    presenting.show(view, eventsNow(store));
+    // The next tiles of the room stack have their floors read before anyone discovers them, so a walk in never waits on one.
+    presenting.show(view, eventsNow(store), store.snapshot().state.board.stack.slice(0, STACK_AHEAD));
   }, [scene, presenting, store, view]);
 
   // After the layout, so a room just placed is in the house before its ghost goes.
@@ -476,8 +487,15 @@ export function PlayScreen({
     // The choices show once the beats leading to them are over.
   }, [scene, view, live, ghostKey, presented.spots, presented.clusters, presented.playing]);
 
-  const toldIds = new Set(presented.told);
-  const told = eventsFor(ENGINE, snapshot.state, holder, client.feed).filter((event) => toldIds.has(event.id));
+  // What the screen tells, read from the beats started so far, as the holder may see it.
+  const fed = new Map(eventsFor(ENGINE, snapshot.state, holder, client.feed).map((event) => [event.id, event]));
+  const eventsOf = (ids: readonly string[]) => ids.flatMap((id) => fed.get(id) ?? []);
+  const toldEvent = presented.told === null ? undefined : fed.get(presented.told.line);
+  const told = toldEvent && presented.told ? { event: toldEvent, events: eventsOf(presented.told.events) } : null;
+  const drawnEvent = presented.card === null ? undefined : fed.get(presented.card.event);
+  const card = drawnEvent && presented.card ? { event: drawnEvent, waits: presented.card.waits } : null;
+  const beat = presented.beat;
+  const turnUp = beat?.kind === "line" && beat.show === "dice" && beat.line === presented.told?.line ? DICE_SECONDS * SPEEDS[speed] : null;
   const dot = yours ? seatDot(ENGINE, yours.definition) : undefined;
   const floors = FLOORS.filter((floor) => view.board.tiles.some((tile) => tile.floor === floor));
   const focusedTarget = [...targets, ...ghostTargets].find((target) => target.id === live);
@@ -506,14 +524,15 @@ export function PlayScreen({
         role="tooltip"
         className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm w-max max-w-[calc(100%-1rem)]"
       >
-        {focusedTarget?.label}
+        {/* A doorway to explore is drawn as its route on the floor: its tag says only the cost, its label kept for screen readers. */}
+        {focusedTarget && (focusedTarget.kind === "explore" ? <span className="sr-only">{focusedTarget.label}</span> : focusedTarget.label)}
         {focusedThing && <ThingTag thing={focusedThing} />}
-        {preview && <span className="ml-1.5 text-xs text-(--bt-muted)">· {costText(preview)}</span>}
+        {preview && <span className={focusedTarget?.kind === "explore" ? "font-semibold" : "ml-1.5 text-xs text-(--bt-muted)"}>{focusedTarget?.kind === "explore" ? "" : "· "}{costText(preview)}</span>}
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />
       {details.held && <HouseDetails scene={scene} view={view} things={things} />}
-      <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
+      <FigureMarks scene={scene} view={view} spots={presented.spots} floating={eventsOf(presented.floats)} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 p-3 pr-28 text-xs sm:text-sm">
         {/* The seat holding the device: its explorer's character card, as the mark on the figure opens it. */}
@@ -581,7 +600,7 @@ export function PlayScreen({
           boxRef={boxRef}
           view={view}
           told={told}
-          moment={presented.moment}
+          turnUp={turnUp}
           playing={presented.playing}
           skip={presenting.skip}
           holder={holder}
@@ -596,12 +615,10 @@ export function PlayScreen({
             setMenuOpen(true);
           }}
           endHold={endHold}
-          openTrade={(figure) => {
-            setSheet({ kind: "trade", with: figure, decision });
-          }}
+          why={{ open: whyOpen, toggle: setWhyOpen, hold: presenting.hold }}
         />
       </div>
-      <CardBeat scene={scene} moment={presented.moment} told={told} spots={presented.spots} playing={presented.playing} goOn={presenting.goOn} />
+      <CardBeat scene={scene} card={card} shown={eventsOf(presented.shown)} spots={presented.spots} goOn={presenting.goOn} />
       {tab && (
         <ExplorerSheet
           scene={scene}

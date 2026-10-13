@@ -61,6 +61,8 @@ export interface ControlHandlers {
   explorer: () => void;
   /** Opens or closes the game menu. Any pad may, even one that may not act now. */
   menu: () => void;
+  /** Opens or closes Why: the rules behind the status box's line. A pad reaches its button with the d-pad instead, having no control free. */
+  why: () => void;
   /** End turn's hold: true as the player starts holding its key or button,
    *  false as they let go. Ending the turn is a hold, never a tap: there is
    *  no undo, and with several pads a stray press would pass the device. */
@@ -125,6 +127,8 @@ const RAISE_BUTTON: StandardButton = "LS";
 /** I opens the player's explorer (inventory, as on a PC), M the game menu. */
 const EXPLORER_KEY = "KeyI";
 const MENU_KEY = "KeyM";
+/** H opens Why (help), the rules behind the status box's line. */
+const WHY_KEY = "KeyH";
 /** Held, Backspace ends the turn (XCOM's end-turn key on a PC); on a pad, X held. */
 const END_KEY = "Backspace";
 const END_BUTTON: StandardButton = "X";
@@ -296,12 +300,13 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
       else setEnding("key", true);
       return;
     }
-    if (code === EXPLORER_KEY || code === MENU_KEY) {
+    if (code === EXPLORER_KEY || code === MENU_KEY || code === WHY_KEY) {
       event.preventDefault();
       handlers.usedInput("keyboard-mouse");
       if (event.repeat) return;
       if (code === EXPLORER_KEY) handlers.explorer();
-      else handlers.menu();
+      else if (code === MENU_KEY) handlers.menu();
+      else handlers.why();
       return;
     }
     if (!held && !confirming && zoom === null && floor === undefined && !follow && !cycle && !back) return;

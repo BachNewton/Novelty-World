@@ -96,7 +96,7 @@ export interface Pin {
 }
 
 /** What the camera pans to: one room, with its back walls standing; or these rooms on the floor showing. */
-export type Framing = { closeUp: string } | { rooms: readonly string[] };
+export type Framing = { rooms: readonly string[] };
 
 /** A beat of animation. Each resolves when it has played out, or at once on `finish`. */
 export type Beat =
@@ -170,6 +170,8 @@ export interface SceneInput {
   explorer?: () => void;
   /** Opens or closes the game menu. */
   menu?: () => void;
+  /** Opens or closes Why, the rules behind the beat in the status box. */
+  why?: () => void;
   /** End turn's hold, begun (true) and let go (false). */
   endTurn?: (held: boolean) => void;
   /** Whether a panel covers the house, taking Tab, Enter and Space. */
@@ -347,7 +349,6 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let zoom = view.zoom;
   let yawGoal: number | null = null;
   /** The player's angle before a close view turned to its room's best one, to turn back to after; null when none did. */
-  let yawBeforeCloseUp: number | null = null;
   let pitchGoal: number | null = null;
   /** The point on the floor the camera looks at, and where it is easing to; null until the house first shows. */
   let aim: THREE.Vector3 | null = null;
@@ -690,27 +691,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           return;
         }
         case "frame": {
-          const closeUp = beat.framing && "closeUp" in beat.framing ? beat.framing.closeUp : null;
-          // A close view of a room on a floor the player isn't looking at would frame nothing: the player's floor stands.
-          if (closeUp !== null && view.floor !== "all" && tileFloor(closeUp) !== view.floor) {
-            resolve();
-            return;
-          }
-          const rooms = beat.framing === null ? [] : "closeUp" in beat.framing ? [beat.framing.closeUp] : beat.framing.rooms;
+          // The game only ever pans: the player's zoom, turn and tilt are theirs.
+          const rooms = beat.framing === null ? [] : beat.framing.rooms;
           const showing = rooms.filter((room) => view.floor === "all" || tileFloor(room) === view.floor);
           if (mounted && showing.length > 0) panTo(middleOf(mounted.house, showing), tileFloor(showing[0]));
           if (beat.framing === null) cue({ kind: "release" });
-          // A room may name the angle it reads best from: a following camera's close view turns there, and back after.
-          const angle = closeUp === null ? undefined : definition(closeUp).angle;
-          if (angle !== undefined && follow.mode === "following" && !handsOn) {
-            yawBeforeCloseUp ??= yawGoal ?? yaw;
-            yawGoal = wrapNear(viewAngle(angle), yaw);
-          } else if (closeUp === null && yawBeforeCloseUp !== null) {
-            yawGoal = wrapNear(yawBeforeCloseUp, yaw);
-            yawBeforeCloseUp = null;
-          }
           settled = false;
-          update({ closeUp });
           start(
             () => settled,
             () => mounted?.placeCamera(1),
@@ -790,7 +776,6 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     },
     /** Turns the camera round the vertical and tilts it up from the floor, in radians, within the tilt limits. */
     orbitBy: (yawBy: number, pitchBy = 0) => {
-      yawBeforeCloseUp = null;
       yaw += yawBy;
       pitch = clampPitch(pitch + pitchBy);
       yawGoal = null;
@@ -1068,6 +1053,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       },
       explorer: () => input.explorer?.(),
       menu: () => input.menu?.(),
+      why: () => input.why?.(),
       endTurn: (held) => input.endTurn?.(held),
       covered: () => input.covered?.() ?? false,
       padButton: (button, pad) => input.padButton?.(button, pad) ?? false,

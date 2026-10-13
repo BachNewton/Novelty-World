@@ -10,7 +10,6 @@ import type { Spots } from "../../play/spots";
 import { ruleNotes } from "../why";
 import { CardTypeIcon } from "../icons";
 import { MOOD_BORDER, MOOD_TEXT } from "./moods";
-import type { Moment } from "./presenting";
 
 /*
  * A card drawn, as a beat in the house: the card's name as a title over the
@@ -24,12 +23,11 @@ import type { Moment } from "./presenting";
 
 export interface CardBeatProps {
   scene: HouseScene;
-  moment: Moment | null;
-  /** The events the status box tells, the moment's among them. */
-  told: readonly EventView[];
+  /** The card drawn to show, from its beat until the beats after it are over and the choice it led to shows, and whether its text waits for a tap. */
+  card: { event: EventView; waits: boolean } | null;
+  /** The events of the beats started so far, the card's among them. */
+  shown: readonly EventView[];
   spots: Spots;
-  /** Beats are playing: a card drawn stays over its room until they are over and the choice it led to shows. */
-  playing: boolean;
   goOn: () => void;
 }
 
@@ -42,20 +40,10 @@ function drawnIn(told: readonly EventView[], drawn: EventView, figure: string): 
   return entered ? (entered.data as { room: string }).room : null;
 }
 
-/** The card drawn to show: the one whose moment waits for a tap, or, while the beats after it play, the last one drawn before the moment playing. */
-function shownDraw(told: readonly EventView[], moment: Moment | null, playing: boolean): { event: EventView; waits: boolean } | null {
-  const at = moment === null ? -1 : told.findIndex((candidate) => candidate.id === moment.event);
-  if (moment?.waits && at >= 0) return { event: told[at], waits: true };
-  if (!playing) return null;
-  const event = (at < 0 ? told : told.slice(0, at)).findLast((candidate) => candidate.type === "card-drawn");
-  return event ? { event, waits: false } : null;
-}
-
-export function CardBeat({ scene, moment, told, spots, playing, goOn }: CardBeatProps) {
-  const draw = shownDraw(told, moment, playing);
+export function CardBeat({ scene, card: draw, shown, spots, goOn }: CardBeatProps) {
   const event = draw?.event;
   const drawn = event ? drawnCard(event) : null;
-  const room = drawn && event ? drawnIn(told, event, drawn.figure) ?? spots[drawn.figure]?.room ?? null : null;
+  const room = drawn && event ? drawnIn(shown, event, drawn.figure) ?? spots[drawn.figure]?.room ?? null : null;
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

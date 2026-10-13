@@ -7,18 +7,18 @@ How the game looks and is played on screen. The game is played in the 3D house: 
 The engine already shapes the UI: at any moment there is one pending decision, with plain-language choices, and every event names the rule behind it. A physical board can't do that, so the UI leans on it.
 
 - **Decisions about places live in the house only**, with no list: the rooms you can reach glow, the empty cell beyond an unexplored doorway glows as a faint room outline, a tile to place shows as a ghost on its cell. A choice on another floor shows as its staircase glowing on this floor. Picking one is the same action on every input.
-- **Everything else is in one status box**, in three parts:
-  - **What happened:** the latest events, in plain language.
-  - **Why it happened:** the rule behind each, a room, card, haunt or rulebook rule, as its short plain text with its source named ("Junk Room: roll Might to leave"). The full text and its rulings (the "why?" content from `data/rule-notes.json`) are a tap away.
-  - **What you can do now:** the seat named, the prompt, the choices that aren't places, and End turn. This part is the strongest and stays in view.
-
-  The box is how "every rule the engine applies is explained in plain language as it happens" is kept without a log.
-- **No game log panel in v1.** Explanations live in the moment, in the status box. The debug view (`?debug`) keeps its full log.
+- **Everything else is in one status box**: what you can do now, and at most one line for the beat playing. A player is not playing to read: ordinary play shows, and the text is there when they want the detail.
+  - **What you can do now:** the prompt and the choices that aren't places (a roll, damage, a card's question, a trade offered to you), and End turn, always in reach. The turn itself has no prompt: its places glow and End turn is there. The seat is named only for a question put to a seat other than the turn's, mid-turn; the seat's button at the top left names the holder. Of the turn's actions, the box offers only those needed often, and only where they apply: Pick up, a held card's uses, and a haunt's actions. Drop and trading are on Your explorer's sheet only.
+  - **The line:** the beat playing, in icons where icons say it (a roll's die faces turning up, its total and mark; damage on its tracks), or else in a few plain words. It stays until the next write's beats begin. There is no history list, and no line for what the house already shows: walking in, discovering, a room placed the only way it fits, a card drawn (its title is over the room), a trait gained or lost (it floats over the figure), the turn passing.
+  - **Why:** one button beside the line opens the rules behind its beat, or, with nothing playing, behind the pending decision (the card that asked a roll): each named by its source (a room, card, token, haunt, or the rulebook's section, never a page number), in a plain sentence, then its full text and every ruling on it (`data/rule-notes.json`). A beat with several causes lists them all. While Why is open the beats wait between two, so reading never costs a beat. On a pad it is a box button, reached with the d-pad and pressed with A; on the keyboard H, or a click; on touch, a tap.
+- **No game log panel in v1.** The events stay in the game's data, and the debug view (`?debug`) keeps its full log.
 - **Show before telling.** The house or the board shows a thing first, then an icon, and text only for what only text can explain. The rule behind an event is a tap away, not shown by default.
 - **One meaning per control** (see "Input"): the mouse wheel always zooms, even over the rotation ghost.
 - **Preview before commit.** Pointing at a choice shows what it would do before anything is sent: the ghost turned the way it would be placed, and, from v1 phase 2, a move's route (below). There is no undo: a step is a recorded action, and a roll is seeded by the decision it answers.
 
-**Pacing:** automatic beats play by themselves, with a speed setting that scales the pauses, not the walks, and a card's text waits for a tap. The game's state never waits on an animation, but **the story comes before the next choice**: a decision's choices appear only once the beats leading to it have played or been skipped, an input during a beat only skips them, never also answering, and what caused a new decision (a card's title over its room) stays in view until its choices appear.
+**Pacing: the text and the house are always in step.** The presenter cuts each write into beats in the order its events happened, each naming the events it shows, and every event belongs to one beat or to none (bookkeeping with nothing to show is silent). A discovery plays as walking in, the card for each symbol, what the card did, then the room's own rule if it does something; a turn's end plays before the next turn's light; the haunt roll before the house turns to the haunt. The beat playing is the one source of truth for what the screen tells: the box's line, its Why, a card's title and the floats over the figures, so **the box never tells an event before its beat plays in the house**, nor after. A figure whose walk is still to come stands where it was until its beat, and a walk always runs from where the figure was shown, even when its discovery spans several writes.
+
+A beat lasts as long as what it shows, and nothing waits with nothing to see: a walk, at the explorer's Speed; a room carried by a rule; a roll's dice turning up in its line; a gain or loss rising over its figure; a card's text, until a tap. A line with nothing else to show holds nothing up. The next tiles of the room stack have their floors read ahead, so walking into a room just discovered never waits on one. A speed setting scales the beats' own timings, not the walks. The game's state never waits on an animation, but **the story comes before the next choice**: a decision's choices appear the moment the beats leading to it have played or been skipped, an input during a beat only skips them, never also answering, and what caused a new decision (a card's title over its room) stays in view until its choices appear.
 
 ## Input
 
@@ -41,6 +41,7 @@ The controller map, with its counterparts:
 | Zoom | RT in, LT out | the wheel, + / − | two fingers' spread |
 | Floors | LB down, RB up | PgDn / PgUp, or F / R | on-screen floor buttons |
 | End turn | hold X | hold Backspace, or click End turn | tap End turn |
+| Why, the rules behind the box's line | the box's Why button: d-pad into the box, then A | H, or click Why | tap Why |
 | Your explorer | Y | I, or click the seat's button, a mark or a nameplate | tap the seat's button, a mark or a nameplate |
 | Follow the active explorer | View | C or Home, or the on-screen Follow button | the on-screen Follow button |
 | The game menu | Menu, on any pad | M, or its button | its button |
@@ -55,12 +56,12 @@ A free strategy camera, in the style of Cities: Skylines and XCOM: a target poin
 
 The camera has **two modes**, as Monopoly's board does, kept as local UI state and never game state (`art/camera-follow.ts`):
 
-- **Following** the active explorer: the camera's target tracks them, smoothly through their walks, onto another floor when they take the stairs, and to the turn's beats about them (a room appearing, a room shown close, a card drawn, a room carried by a rule, a ghost tile to place), then back to them. A figure walking is followed until it arrives. The game starts following.
+- **Following** the active explorer: the camera's target tracks them, smoothly through their walks, onto another floor when they take the stairs, and to the turn's beats about them (a room appearing, a card drawn, a room carried by a rule, a ghost tile to place), then back to them. A figure walking is followed until it arrives. The game starts following.
 - **Free**: the camera is the player's alone, and nothing in the game moves it, not even a card's beat elsewhere: the beat plays where it is, and the status box still tells it. A ghost tile is the player's own decision in hand, so its floor still shows.
 - **What frees it**: panning (the left stick, WASD or the arrows, a left-drag, a one-finger drag) and changing floor by hand (the bumpers, PgUp/PgDn or F/R, the floor buttons). Turning, tilting and zooming never do: while following, they orbit and zoom round whatever is followed, as a strategy game's "follow unit" camera does.
 - **Follow** (View, C or Home, the on-screen button) reattaches whenever the player wants: following again, the camera glides to the active explorer and their floor. The button is lit while following, so the player always knows which mode they are in.
 - **A new turn reattaches**: in hot-seat the device has just passed to the next player, who expects to see their own explorer. A question put to another seat mid-turn changes nothing.
-- **The player owns the angles.** Following moves only the target; the turn, tilt and zoom stay the player's. A room's best angle for its close view is taken only while following, and given back after.
+- **The player owns the angles.** The game only ever pans: following moves only the target, and the turn, tilt and zoom are the player's alone, never changed by a beat.
 - The cutaway, the reticle and picking hold at the lowest tilt.
 
 ## Moving
@@ -79,7 +80,7 @@ A discovered room shows as a ghost of the actual room on its cell, with each doo
 
 ## Dice
 
-The engine makes the randomness, so there are no physical or 3D dice and no thrown-dice animation. A roll still shows: each die's value (0, 1 or 2), the total, and the outcome for what it means, a pass or fail against the target, a damage amount, the haunt roll against the omens, an attack's comparison: as die faces and icons where icons say it, with a short note only where they can't. A reroll card (the Lucky Stone, the Rabbit's Foot) picks from the dice shown, with no special case.
+The engine makes the randomness, so there are no physical or 3D dice and no thrown-dice animation. A roll still shows: each die's value (0, 1 or 2), the total, and the outcome for what it means, a pass or fail against the target, a damage amount, the haunt roll against the omens, an attack's comparison: as die faces and icons where icons say it, with a short note only where they can't. A reroll card (the Lucky Stone, the Rabbit's Foot) picks from the dice shown, with no special case. Before a roll the box offers Roll and each card that acts on it once, with the card's consequence said once; a card whose options differ only by the number they name (the Angel Feather's result, 0 to 8) opens one row of those numbers, each previewing what it would mean (a pass or fail, the damage) in icons.
 
 ## Cards
 
@@ -104,7 +105,7 @@ Hidden by default and shown when useful: in a roll's prompt, on the damage track
 
 ## Actions
 
-**Your explorer** holds the turn's actions that aren't places. It opens with Y, I, the seat's button at the top left (which counts the turn's actions), the explorer's mark or its nameplate. On the acting player's own tab, in their turn, the character card carries the actions on fixed rows (`play/sheet.ts`): each card held with its uses, what using one costs, and Drop; each card on the floor that can be picked up; and a trade with each explorer who can. The rows keep the engine's order, never rearranged, so a row stays where the player learnt it. The status box offers the same actions as buttons, and End turn is always in reach.
+**Your explorer** holds the turn's actions that aren't places. It opens with Y, I, the seat's button at the top left (which counts the turn's actions), the explorer's mark or its nameplate. On the acting player's own tab, in their turn, the character card carries the actions on fixed rows (`play/sheet.ts`): each card held with its uses, what using one costs, and Drop; each card on the floor that can be picked up; and a trade with each explorer who can. The rows keep the engine's order, never rearranged, so a row stays where the player learnt it. The status box offers only those needed often, where they apply (Pick up, a card's uses, a haunt's actions); Drop and trading are here only. End turn is always in reach.
 
 **Trading** is a sheet of its own: what you give and what you take, a card at most each way and either side empty, previewed as it is built. Offering it puts the question to the other explorer's seat, named in the prompt, which answers Accept or Decline in the status box.
 
@@ -122,7 +123,7 @@ When online play comes, other players see the acting player's preview before it 
 
 ### The cutaway
 
-Every wall between two rooms is cut down to a 45 cm stub from every view; only the outside walls at the back of the house stand full. When an explorer first enters a room, the camera shows it close with its back walls up, so its wall art is seen once; the moment plays on the first visit only and can be skipped, and a room may name its best angle for it. Most of the time a room is read from its floor and what stands below the cut height.
+Every wall between two rooms is cut down to a 45 cm stub from every view; only the outside walls at the back of the house stand full. A room's walls are seen whole by raising them (hold L3, V or the Walls button); the game never raises them or moves in close by itself. Most of the time a room is read from its floor and what stands below the cut height.
 
 **Walls under the cutaway.** A wall's meaning to the rules survives the cut, on the stub, the floor or an icon (the research is in `cutaway-research.md`). Decided, with no switch:
 
@@ -235,69 +236,3 @@ Shelved, with what was learnt, for when they are picked up again.
 - **Whether the rotation ghost reads clearly enough as "not placed yet".**
 - **Soft or hard shadows** (`lighting.md`).
 
-## Status box redesign (proposal)
-
-A proposal from the first hot-seat playtest, not yet decided or built. The owner's verdict: the box's log isn't helping, rule numbers clutter it, its text runs out of step with the house, and the game seems to wait for the player to catch up. A player is not playing to read: ordinary play shows, and text is there when they want the detail.
-
-### What the trace found
-
-Real sequences were traced through the engine's events, the presenter's beats, the playback and the box, and timed in a browser at normal speed.
-
-- **The box tells a whole write at once.** The moment a write is shown, the box lists every event in it, and the drawn card's title and any gain or loss float go up with it. Discovering the Abandoned Room and drawing the Book: all five lines, the card's title over the room and the "+2 Knowledge" float appeared together, while Zoe was still in the Entrance Hall. Her walk (3.6 s) and the room's close-up (2.9 s) then played under text that had already told the end, and the card's text came up 6.5 s after its title.
-- **Beats play grouped by kind, not in the order things happened**: walks, rooms moved, the turn passing, close-ups, the reveal, then the box's moments. At a turn's end the light passes to the next explorer before the last turn's own consequences are told, and when the haunt roll reveals the haunt, the house turns red before the roll is shown.
-- **A discovery cut by a decision loses its walk.** When a card asks a question mid-discovery (Hideous Shriek's damage), the explorer pops into the new room with no walk and no close-up. 8.5 s and two damage questions later, they take a short walk inside the room they already stand in, as "Zoe Ingstrom enters the Game Room" is told.
-- **"Entered" reads as the walk.** The engine's order is right: stepping in (`discovered`), a card for each symbol, then `entered`, which means the room's own rule applies (p. 9). But the box words `entered` as "enters the room", after the card, so it reads as if the walk came after the draw.
-- **Moments are dead time.** Every roll, trait change, forced step and haunt event without a house animation holds its line for 1.6 s (measured 1.58 to 1.65 s) while nothing in the house moves. After Hideous Shriek's text: two holds before Zoe's damage choice, two before Ox's, two before her turn came back, about 10 s in all. The "fits only one way" line was held 6.5 s after the room had visibly appeared. Moments also play straight through a walk when no close-up follows it.
-- **Other waits:** reading a new room's floor held the screen at "Skip ahead" for about 0.66 s, nothing moving, before the walk began; a first-visit close-up, 2.5 s plus the camera's settling (2.9 s measured); a room carried by a rule, 1.8 s; a card's text, until a tap; End turn's hold, about 0.6 s.
-
-### What the box shows in ordinary play
-
-Only what you can do now, plus at most one line for the beat playing now.
-
-- **The prompt and the choices that aren't places**: a roll, damage, a card's question, a trade offered to you. The seat is named only when it isn't the turn's (a question for another seat mid-turn); the seat's button at the top left already names the holder. The turn itself has no prompt: the glowing rooms and End turn say it, so "your turn" and "No moves or actions left" go.
-- **End turn**, always in reach.
-- **The turn's actions, by how often they are needed.** In the box, shown only when they apply here and now: Pick up (a card lies in your room), a held card's Use, and a haunt's objective actions. Only on Your explorer's sheet: Drop (the owner's call: not needed often enough to sit in the box every turn) and Trade (recommended: occasional, and it opens the trade sheet anyway). The sheet keeps every row, as today.
-- **The route preview** while a place is in focus, as it is.
-- **The current beat's line**, in icons where icons say it (a roll's die faces, total and mark; damage and its tracks), and a **Why** button for it. The line belongs to the beat and goes when the beat ends. There is no history list.
-
-### The sync model
-
-**The box never shows an event whose beat hasn't played in the house yet**, and nothing stays up after its beat. The same holds outside the box: a card's title, a float, a mark.
-
-- **Beats in event order.** The presenter cuts each write into beats in the order the events happened, each naming the events it shows. A discovery: walking in (with the close-up on a first visit), the card for each symbol, what the card did, then the room's own rule, if it does something.
-- **Every event belongs to exactly one beat**, or is silent. Bookkeeping with nothing to show (a card gained as it is drawn, a turn ending, a room placed) joins the beat it is part of, with no line of its own.
-- **One source of truth.** The playback publishes the beat playing now, and the box's line, its Why, the card's title and the floats read only that. A beat starts when the one before it ends, a choice appears the moment the last beat ends, and an input completes the beats, as today.
-- **A discovery cut by a decision keeps its story.** A walk runs from where the figure was shown to where it is, whether its route came in one write or several, so it walks in before the card and never walks again later.
-- **Words never say "enters" for the room's rule.** An `entered` with no rule to apply has no line; one with a rule is worded as that rule ("Junk Room: roll Might to leave").
-
-### The waits
-
-Go (dead time, nothing visible):
-- **The 1.6 s moment hold.** A beat lasts as long as what it shows: a roll is its dice turning up in the line, a trait change its float on the figure, damage its landing on the tracks. A beat with nothing of its own to show (a forced rotation, which the room appearing already showed) is silent.
-- **The floor read before a walk.** The walk starts at once, through the doorway, and takes its end place when the floor lands.
-- **Moments under a walk**, and **floats and card titles fired at the start of a write**: both go with the sync model.
-
-Stay (the beat itself):
-- A walk, at the explorer's Speed; a room carried by a rule; the turn passing.
-- The first-visit close-up: it shows the room's art once, and is skippable. Its 2.5 s is to be judged in the next playtest.
-- A card's text waiting for a tap, and End turn's hold.
-
-### Why
-
-Why opens a dialog with the rules behind the beat playing now or, with nothing playing, behind the pending decision (the card that asked the roll). Each rule is named ("Hideous Shriek", "Making a Haunt Roll"), with its plain text and every ruling on it from `data/rule-notes.json`. A beat with several causes lists them all: the card that asked a roll, the item that added to it, the room that set it off. Opening Why holds the beats where they are until it closes, so reading never costs a beat. A beat with no rule worth explaining (a plain walk) has no Why.
-
-A controller has no free control for it: every face button, shoulder, trigger and stick click is taken. Why is a button in the box, reached as every box button is (d-pad down into the box, then A), and B closes it. On keyboard and mouse it is a click, or H, which nothing else uses. On touch, a tap.
-
-### What goes
-
-- The "What happened" list. The log stays in data, and `?debug` keeps its full log.
-- Rule numbers everywhere ("Rulebook, p. 10", page-titled statements): a rulebook rule is named by its section.
-- The "Why it happened" statements, replaced by the one Why.
-- Every line that only says what the house shows: discovers, enters, fits only one way, draws a card (its title is over the room), gains or loses a trait (the float), ends the turn, whose turn it is, and the turn's prompt.
-
-### Risks and tests
-
-- **Risks.** A player who looks away misses a beat, with no history to look back at; the current line stays announced to screen readers, and history comes back only if a playtest shows it is missed. The holder can change mid-sequence (Ox's damage in Zoe's turn), so each beat is worded for whoever holds the device as it plays. The e2e specs that read the box's list and its Why need rewriting.
-- **A presenter test** over scripted sequences (a discovery with a card, one cut by a decision, a roll with damage, a turn's end, an omen and the haunt roll): beats come in event order, every event belongs to exactly one beat or is silent, a discovery walks in before its card, and the reveal follows the haunt roll.
-- **A playback test** on a fake scene that finishes beats on command, with no clock: at every step the box's line, Why, the card's title and the floats name only events of the beat playing now; a choice appears in the same step as the last beat ends; and Why holds the beats.
-- **The words**: no `entered` line without a rule, and no line for an event the house shows.

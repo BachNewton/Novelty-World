@@ -8,7 +8,7 @@ import type { InputKind } from "../../input/controls";
 import { cardMood, consequence } from "../../play/cards";
 import type { PanelChoice } from "../../play/choices";
 import { damageTracks, landsAs, splitOf, type DamageKind } from "../../play/damage";
-import { rerollCards, rerollChoice, rollShown, type RollParams } from "../../play/dice";
+import { rerollCards, rerollChoice, rollMeaning, rollOffers, rollShown, type RollParams } from "../../play/dice";
 import type { BoxPart } from "../../play/panels";
 import type { Action, FigureId, Json, Trait } from "../../types";
 import { CardFace } from "./card-face";
@@ -92,6 +92,62 @@ function Offer({ choice, card, act, notes }: { choice: PanelChoice; card: string
   );
 }
 
+/** A card whose uses differ only by the number they name: one offer, its
+ *  consequence said once, opening a row of the numbers, each previewing what
+ *  it would mean (a pass or fail, the damage). */
+function PickOffer({ card, picks, act, notes, preview }: { card: string; picks: { value: number; choice: PanelChoice }[]; act: (action: Action) => void; notes: RuleNotes | null; preview: (value: number) => ReturnType<typeof rollMeaning> }) {
+  const [open, setOpen] = useState(false);
+  /** The number pointed at, whose outcome the row's note previews where an icon can't say it. */
+  const [aim, setAim] = useState<number | null>(null);
+  const line = notes === null ? null : consequence(notes, card);
+  const name = ENGINE.catalog.cards[card].name;
+  const aimed = aim === null ? null : preview(aim);
+  return (
+    <div className="flex basis-full flex-col gap-1.5">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open);
+        }}
+        className={`${CHOICE} ${MOOD_EDGE[cardMood(ENGINE, card)]}`}
+      >
+        Use {name}: pick the result
+        {line !== null && <span className="block text-xs text-(--bt-muted)">{line}</span>}
+      </button>
+      {open && (
+        <div role="group" aria-label={`${name}: the result`} className="flex gap-1">
+          {picks.map(({ value, choice }) => {
+            const meaning = preview(value);
+            return (
+              <button
+                key={choice.id}
+                type="button"
+                aria-label={choice.label}
+                onClick={() => {
+                  act(choice.action);
+                }}
+                onFocus={() => {
+                  setAim(value);
+                }}
+                onMouseEnter={() => {
+                  setAim(value);
+                }}
+                className="inline-flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center rounded border border-(--bt-line) bg-(--bt-room) py-0.5 hover:border-(--bt-accent) focus-visible:border-(--bt-accent)"
+              >
+                <span className="text-base leading-none font-bold">{value}</span>
+                {meaning.verdict !== null && <Verdict verdict={meaning.verdict} target={null} />}
+                {meaning.damage && <DamageAmount kind={meaning.damage.kind} amount={meaning.damage.amount} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {open && aimed?.note != null && <p className="text-xs text-(--bt-muted)">{aimed.note}</p>}
+    </div>
+  );
+}
+
 const cardOf = (choice: Json): string | null => (typeof choice === "object" && choice !== null && !Array.isArray(choice) && typeof choice.card === "string" ? choice.card : null);
 
 function RollPart({ view, panel, act, notes, params, after }: DecisionPartProps & { params: RollParams; after: boolean }) {
@@ -143,7 +199,7 @@ function RollPart({ view, panel, act, notes, params, after }: DecisionPartProps 
             }}
             className={CHOICE}
           >
-            {keep.label}
+            {after ? keep.label : "Roll"}
           </button>
         )}
         {after
@@ -167,10 +223,13 @@ function RollPart({ view, panel, act, notes, params, after }: DecisionPartProps 
                 </button>
               );
             })
-          : panel.flatMap((choice) => {
-              const card = cardOf(choice.choice);
-              return card === null ? [] : [<Offer key={choice.id} choice={choice} card={card} act={act} notes={notes} />];
-            })}
+          : rollOffers(panel).map((offer) =>
+              offer.picks === null ? (
+                <Offer key={offer.card} choice={offer.choice} card={offer.card} act={act} notes={notes} />
+              ) : (
+                <PickOffer key={offer.card} card={offer.card} picks={offer.picks} act={act} notes={notes} preview={(value) => rollMeaning(view, notes, params, value + params.bonus)} />
+              ),
+            )}
       </div>
     </div>
   );
