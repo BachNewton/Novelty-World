@@ -154,6 +154,8 @@ Connections that aren't doorways (the Secret Passage and Secret Stairs, the Wall
 
 The stub art (a hinged wall section, a hatch in the floor) comes with the room features and fits the same mark.
 
+The **Below Collapsed Room** token joins the family: a one-way connection, where the Collapsed Room's floor opens onto the basement and later falls land. Today it is the generic ring for things on the floor, easily missed. It takes the mark with a falling icon, and art that tells the story: in the landing room, a pile of rubble and broken boards and a dusty shaft of light from the hole above; in the Collapsed Room, the hole in its floor. The first fall is the beat that places it ("The floor gives way into the Storeroom"), and the drop transition ("Moves that aren't a walk") lands on it.
+
 ### A layout that changes
 
 The layout changes during play (the Mystic Elevator, "What The . . . ?", haunts 52, 80 and 93), so the house never assumes a fixed one: it rebuilds walls, the cutaway and the baked light on any layout change. Rooms need one generic ruined state (collapsed, burned or flipped), built on the shared stage when the first haunt needs it.
