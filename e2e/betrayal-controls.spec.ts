@@ -346,7 +346,7 @@ test.describe("touch", () => {
     await expect(menu.getByRole("button", { name: "Slow" })).toHaveAttribute("aria-pressed", "true");
     await menu.getByRole("button", { name: "Close" }).tap();
     await expect(menu).toBeHidden();
-    await now.getByRole("button", { name: "End turn" }).tap();
+    await page.getByRole("button", { name: "End turn" }).tap();
     await until(page, "play.holder === 1");
   });
 });

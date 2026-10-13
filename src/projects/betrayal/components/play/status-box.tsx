@@ -15,7 +15,7 @@ import { PendingPanel } from "../pending-panel";
 import { ruleNotes } from "../why";
 import { GhostPanel, type GhostPlacer } from "./ghost-placer";
 import { boxActions } from "../../play/sheet";
-import { PromptButton, type Hold } from "../prompts";
+import { PromptButton } from "../prompts";
 import { DecisionPart } from "./decision-panel";
 import { HappeningLine } from "./happening-line";
 import { boxPart } from "../../play/panels";
@@ -60,8 +60,6 @@ export interface StatusBoxProps {
   notice?: string | null;
   /** Opens the game menu, where pads take and give back seats. */
   openMenu?: () => void;
-  /** End turn's hold: under way, and its end (the turn ends). */
-  endHold: Hold;
   /** Why is open, opening or closing it, and holding the beats between two while it is open. */
   why: { open: boolean; toggle: (open: boolean) => void; hold: (on: boolean) => void };
 }
@@ -99,7 +97,8 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
       data-pad-layer="0"
       // Only a focus the pad put here is the pad's: a button a click left focused is not.
       data-pad-owned
-      className="pointer-events-auto flex max-h-[45vh] w-full flex-col overflow-y-auto rounded border border-(--bt-line) bg-(--bt-panel) sm:w-[28rem]"
+      // With End turn apart, a turn with nothing to tell or choose here leaves the box empty, and it hides.
+      className="pointer-events-auto flex has-[>[data-now]:first-child:empty]:hidden max-h-[45vh] w-full flex-col overflow-y-auto rounded border border-(--bt-line) bg-(--bt-panel) sm:w-[28rem]"
     >
       {open && (
         <WhyDialog
@@ -156,11 +155,10 @@ function DeviceNotice({ text, openMenu }: { text: string; openMenu?: () => void 
   );
 }
 
-/** While beats play, what the player can do now is skip them. Keyed as End
- *  turn is, so it is the same button on the page: one focused stays focused. */
+/** While beats play, what the player can do now is skip them. */
 function skipButton(skip: () => void) {
   return (
-    <button key="primary" type="button" onClick={skip} className="inline-flex min-h-11 items-center gap-1.5 self-end rounded border border-(--bt-line) px-4 py-1 text-sm hover:border-(--bt-accent)">
+    <button type="button" onClick={skip} className="inline-flex min-h-11 items-center gap-1.5 self-end rounded border border-(--bt-line) px-4 py-1 text-sm hover:border-(--bt-accent)">
       Skip ahead
     </button>
   );
@@ -197,8 +195,8 @@ function RouteLine({ preview, label, notes }: { preview: RoutePreview; label: st
   );
 }
 
-function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip, endHold }: StatusBoxProps & { notes: RuleNotes | null }) {
-  const { targets, panel, end } = choices;
+function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip }: StatusBoxProps & { notes: RuleNotes | null }) {
+  const { targets, panel } = choices;
   const pending = view.pending;
   if (playing) return <>{skipButton(skip)}</>;
   const part = boxPart(view);
@@ -211,7 +209,7 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
     );
   }
 
-  // The turn needs no prompt: its places glow in the house, and End turn is here.
+  // The turn needs no prompt: its places glow in the house, and End turn is at the top right.
   const isTurn = pending.kind === "turn";
   const explorer = viewExplorer(view, holder);
   // A question for a seat other than the turn's names it, as the device passes mid-turn.
@@ -249,23 +247,6 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
               {choice.label}
             </button>
           ))}
-        </div>
-      )}
-      {end && (
-        <div className="flex flex-wrap items-center justify-end gap-2 self-end">
-          <PromptButton
-            key="primary"
-            meaning="end-turn"
-            input={input}
-            hold={endHold}
-            data-end-turn
-            onClick={() => {
-              act(end.action);
-            }}
-            className="min-h-11 rounded px-4 py-1 font-semibold"
-          >
-            End turn
-          </PromptButton>
         </div>
       )}
     </>

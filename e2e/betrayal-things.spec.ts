@@ -78,7 +78,7 @@ test.describe("touch", () => {
     const sheet = page.getByRole("dialog", { name: "Zoe Ingstrom's character card" });
     await sheet.getByRole("listitem").filter({ hasText: "Revolver" }).getByRole("button", { name: "Drop" }).tap();
     await until(page, `play.things.some((thing) => thing.id === '${REVOLVER}')`);
-    await page.getByLabel("What you can do now").getByRole("button", { name: "End turn" }).tap();
+    await page.getByRole("button", { name: "End turn" }).tap();
 
     const at = await shows(page);
     await page.touchscreen.tap(at.x, at.y);
