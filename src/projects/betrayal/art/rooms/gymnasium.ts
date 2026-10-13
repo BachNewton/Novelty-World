@@ -1,9 +1,10 @@
 import * as THREE from "three";
-import { cobweb, coil, strand, TWIST } from "../kit";
+import { animated } from "../animate";
+import { cobweb, strand, TWIST } from "../kit";
 import { solidLathe } from "../kit/vessel";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, type PaletteKey } from "../palette";
-import { CUT_HEIGHT, WALL_HEIGHT, onWall, type RoomDefinition } from "../room";
+import { CUT_HEIGHT, INNER, WALL_HEIGHT, onWall, type RoomDefinition } from "../room";
 import { shiny, SHINES } from "../shine";
 import { batch, box, cylinder, flat, glow, group, lightMaterial, type Batch } from "../shapes";
 import { panelling, plaster, woodPlanks } from "../textures";
@@ -13,81 +14,92 @@ const SEED = "gymnasium";
 /** The vaulting horse's middle on the floor, and its turn. */
 const HORSE = { at: [-0.45, 0.25] as [x: number, z: number], turn: 14 };
 const ROPE = { thick: 0.045, colour: "boneDark" as PaletteKey };
-/** Where the climbing ropes hang from the ceiling, in room metres. */
-const ROPES = { coiled: [-2.0, -1.45], knotted: [-1.45, -1.95], held: [-0.95, -1.75] } satisfies Record<string, [x: number, z: number]>;
-/** Where unseen hands hold the third rope, from where it hangs: pulled out and down, as by a climber's weight. */
-const GRIP: [x: number, y: number, z: number] = [0.3, 1.85, 0.42];
+/**
+ * The climbing ropes: where each hangs from the ceiling, in room metres, how
+ * far above the boards its knotted end hangs, and how far behind the first it
+ * swings, in seconds.
+ */
+const ROPES: { at: [x: number, z: number]; end: number; lag: number }[] = [
+  { at: [-2.0, -1.45], end: 0.3, lag: 0 },
+  { at: [-1.45, -1.95], end: 0.45, lag: 1.1 },
+  { at: [-0.95, -1.55], end: 0.22, lag: 2.3 },
+];
+/**
+ * The draught no one feels that swings the ropes: one heading for all three,
+ * a slow, heavy period, and how far, in radians, it swings a rope at its
+ * strongest; it swells and slackens over a longer breath. Indoors the air is
+ * still (`wind.ts`), so nothing else in the room stirs.
+ */
+const DRAUGHT = { heading: 0.6, period: 7.5, swing: 0.075, breath: 23 };
+/** The spectral teal welling up in the bottom-right corner, from nothing: the floor's middle of it, in room metres. */
+const GLOW_CORNER: [x: number, z: number] = [INNER - 0.01, INNER - 0.01];
 const WALL_BARS = { along: -1.05, bays: 2, bay: 0.9, top: 2.6, rung: 0.15 };
 
 /** The ceiling's iron eye a rope hangs from, its origin at the ceiling. */
-function ceilingEye(b: Batch, x: number, z: number): void {
-  b.block([0.14, 0.03, 0.14], "soot", [x, WALL_HEIGHT - 0.035, z]);
-  b.block([0.06, 0.06, 0.06], "soot", [x, WALL_HEIGHT - 0.09, z]);
+function ceilingEye(b: Batch): void {
+  b.block([0.14, 0.03, 0.14], "soot", [0, WALL_HEIGHT - 0.035, 0]);
+  b.block([0.06, 0.06, 0.06], "soot", [0, WALL_HEIGHT - 0.09, 0]);
 }
 
-/** A rope straight from `a` to `to`, as a run of short twisted lengths. */
-function ropeRun(b: Batch, a: THREE.Vector3, to: THREE.Vector3): void {
-  const steps = Math.max(1, Math.round(a.distanceTo(to) / 0.35));
-  for (let i = 0; i < steps; i++) strand(b, a.clone().lerp(to, i / steps), a.clone().lerp(to, (i + 1) / steps), ROPE.thick, ROPE.colour, (i % 2) * TWIST);
-}
-
-/** A climbing rope hung straight from the ceiling, its slack lying coiled on the boards. Origin on the floor under it. */
-function coiledRope(): THREE.Group {
+/** A rope hanging straight down `length` from the origin, as a run of short twisted lengths, its knot at the bottom. */
+function ropeLength(length: number, knot: boolean): THREE.Mesh {
   const b = batch();
-  ceilingEye(b, 0, 0);
-  ropeRun(b, new THREE.Vector3(0, WALL_HEIGHT - 0.08, 0), new THREE.Vector3(0, 0.12, 0));
-  return group(b.mesh(), coil({ radii: [0.24, 0.21, 0.18], thick: 0.035, colour: ROPE.colour, seed: `${SEED}:coil` }));
-}
-
-/** A climbing rope hung straight from the ceiling, ending in a knot a hand's width off the floor. Origin on the floor under it. */
-function knottedRope(): THREE.Group {
-  const b = batch();
-  ceilingEye(b, 0, 0);
-  ropeRun(b, new THREE.Vector3(0, WALL_HEIGHT - 0.08, 0), new THREE.Vector3(0, 0.4, 0));
-  b.block([0.09, 0.11, 0.09], ROPE.colour, [0, 0.33, 0]);
-  return group(b.mesh());
-}
-
-/** A pale spectral teal haze where unseen hands hold the rope: three shells of added light, brightest at the middle. */
-function presence(): THREE.Group {
-  const result = group();
-  for (const [radius, opacity] of [
-    [0.08, 0.45],
-    [0.17, 0.2],
-    [0.3, 0.1],
-  ] as const) {
-    const material = lightMaterial(opacity);
-    material.color.set(paletteHex("spectre"));
-    result.add(new THREE.Mesh(new THREE.SphereGeometry(radius, 10, 7), material));
-  }
-  return result;
+  const steps = Math.max(1, Math.round(length / 0.35));
+  for (let i = 0; i < steps; i++) strand(b, new THREE.Vector3(0, -(length * i) / steps, 0), new THREE.Vector3(0, -(length * (i + 1)) / steps, 0), ROPE.thick, ROPE.colour, (i % 2) * TWIST);
+  if (knot) b.block([0.09, 0.11, 0.09], ROPE.colour, [0, -length - 0.04, 0]);
+  return b.mesh();
 }
 
 /**
- * The third climbing rope, held taut by no one: it runs out of plumb from
- * the ceiling to a grip in the air, as if a climber's weight hung on it, and
- * its tail drops straight down from there. Spectral teal gathers at the
- * grip. Origin on the floor under its ceiling eye; it casts no shadow, so
- * the light at the grip isn't smothered by it.
+ * A climbing rope hung from the ceiling, ending in a knot above the boards,
+ * swinging slowly in a draught that stirs nothing else: hinged at the ceiling,
+ * its lower half hinged again a beat behind, so its foot swings furthest and
+ * it bends as a heavy rope does. Origin on the floor under its ceiling eye.
  */
-function heldRope(): THREE.Group {
-  const b = batch();
-  ceilingEye(b, 0, 0);
-  const grip = new THREE.Vector3(...GRIP);
-  ropeRun(b, new THREE.Vector3(0, WALL_HEIGHT - 0.08, 0), grip);
-  // A turn of the rope squeezed together where the hands close on it.
-  b.block([0.07, 0.16, 0.07], ROPE.colour, [grip.x, grip.y - 0.1, grip.z]);
-  const tail = new THREE.Vector3(grip.x - 0.03, 0.42, grip.z + 0.02);
-  ropeRun(b, grip, tail);
-  b.block([0.09, 0.11, 0.09], ROPE.colour, [tail.x, tail.y - 0.08, tail.z]);
-  const haze = presence();
-  haze.position.set(grip.x, grip.y - 0.05, grip.z);
-  const result = group(b.mesh(), haze);
-  result.traverse((child) => {
+function swayingRope(end: number, lag: number): THREE.Group {
+  const top = WALL_HEIGHT - 0.08;
+  const upper = (top - end) * 0.55;
+  const lower = top - end - upper;
+  const eye = batch();
+  ceilingEye(eye);
+  const foot = group(ropeLength(lower, true));
+  foot.position.y = -upper;
+  const rope = group(ropeLength(upper, false), foot);
+  rope.position.y = top;
+  const axis = new THREE.Vector3(Math.cos(DRAUGHT.heading), 0, -Math.sin(DRAUGHT.heading));
+  const swing = (seconds: number, behind: number) => {
+    const t = seconds - lag - behind;
+    const strength = DRAUGHT.swing * (0.75 + 0.25 * Math.sin((2 * Math.PI * t) / DRAUGHT.breath));
+    return strength * Math.sin((2 * Math.PI * t) / DRAUGHT.period);
+  };
+  animated(rope, (seconds) => {
+    rope.quaternion.setFromAxisAngle(axis, swing(seconds, 0));
+    foot.quaternion.setFromAxisAngle(axis, 0.6 * swing(seconds, 0.7));
+  });
+  // It moves, so a shadow baked where it hung when built would stay put while it swings.
+  rope.traverse((child) => {
     child.userData.noShadow = true;
   });
-  result.add(lightAnchor({ colour: "spectre", intensity: 4.5, range: 5, flicker: 0.12, signal: 1, kind: "glow" }, [grip.x, grip.y - 0.05, grip.z + 0.06]));
-  return result;
+  return group(eye.mesh(), rope);
+}
+
+/** A soft pool of spectral teal on the boards in a corner, brightest in the corner itself and fading out across the floor; it has no source. Lies flat, the corner at the origin, spreading towards -x and -z. */
+function cornerGlow(): THREE.Mesh {
+  const reach = 1.6;
+  const geometry = new THREE.PlaneGeometry(reach, reach, 12, 12);
+  geometry.rotateX(-Math.PI / 2);
+  geometry.translate(-reach / 2, 0.012, -reach / 2);
+  const position = geometry.getAttribute("position");
+  const colour = new THREE.Color(paletteHex("spectre")).multiplyScalar(0.4);
+  const colours = new Float32Array(position.count * 3);
+  for (let i = 0; i < position.count; i++) {
+    const fall = Math.max(0, 1 - Math.hypot(position.getX(i), position.getZ(i)) / reach) ** 1.6;
+    colours.set([colour.r * fall, colour.g * fall, colour.b * fall], i * 3);
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+  const mesh = new THREE.Mesh(geometry, lightMaterial(1, { vertexColors: true }));
+  mesh.userData.noShadow = true;
+  return mesh;
 }
 
 /**
@@ -325,9 +337,9 @@ function clubTrophy(): THREE.Group {
   return result;
 }
 
-/** The Gymnasium: a worn leather vaulting horse under a caged gas globe,
- *  climbing ropes hung beside it, one held out of plumb by no one, with
- *  spectral teal at the grip. */
+/** The Gymnasium: a worn leather vaulting horse under a frosted gas globe,
+ *  climbing ropes beside it swinging slowly in a draught that stirs nothing
+ *  else, and spectral teal welling up in a corner from nothing. */
 export const GYMNASIUM: RoomDefinition = {
   id: "gymnasium",
   floor: () => woodPlanks({ ramp: ["woodDark", "wood", "woodMid", "woodLight"], plankPx: 5, seed: SEED, glints: false }),
@@ -337,20 +349,23 @@ export const GYMNASIUM: RoomDefinition = {
   props: [
     { build: vaultingHorse, at: HORSE.at, turn: HORSE.turn },
     { build: gasPendant, at: HORSE.at },
-    { build: coiledRope, at: ROPES.coiled },
-    { build: knottedRope, at: ROPES.knotted },
-    { build: heldRope, at: ROPES.held },
+    ...ROPES.map(({ at, end, lag }) => ({ build: () => swayingRope(end, lag), name: "climbing rope", at })),
+    { build: cornerGlow, at: GLOW_CORNER },
     { build: wallBarsBase, ...onWall("left", WALL_BARS.along) },
     { build: wallBarsAbove, ...onWall("left", WALL_BARS.along, { y: CUT_HEIGHT }) },
     { build: form, ...onWall("top", 0.15) },
     { build: gasBracket, ...onWall("top", 1.3, { y: 1.95 }) },
-    { build: clubStand, ...onWall("bottom", -1.65) },
-    { build: dumbbellRack, ...onWall("bottom", 1.55) },
+    { build: clubStand, ...onWall("bottom", 1.4) },
+    { build: dumbbellRack, ...onWall("left", 0.75) },
     { build: clubTrophy, ...onWall("top", -0.9, { y: 1.3 }) },
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [-2.55, -2.55], y: WALL_HEIGHT - 0.2, turn: 45, walls: ["left", "top"] },
   ],
   focus: [-0.6, 1.0, -0.6],
   prime: [1.3, -0.85],
-  // Under the held rope, so no figure stands where the unseen climber hangs.
-  keepClear: [{ from: [ROPES.held[0] + GRIP[0], ROPES.held[1] + GRIP[2]], to: [ROPES.held[0] + GRIP[0], ROPES.held[1] + GRIP[2]], radius: 0.45 }],
+  lights: [{ at: [GLOW_CORNER[0] - 0.35, 0.55, GLOW_CORNER[1] - 0.35], colour: "spectre", intensity: 3.5, range: 5, flicker: 0.1, signal: 2, kind: "glow" }],
+  // Under the swinging ropes, so no figure stands where they sweep.
+  keepClear: [
+    { from: ROPES[0].at, to: ROPES[2].at, radius: 0.45 },
+    { from: ROPES[1].at, to: ROPES[1].at, radius: 0.4 },
+  ],
 };
