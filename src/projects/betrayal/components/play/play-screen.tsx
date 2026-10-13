@@ -35,6 +35,7 @@ import { RaiseWallsButton } from "../raise-walls-button";
 import { CardBeat } from "./card-beat";
 import { ExplorerSheet, FigureMarks, markedExplorers } from "./figure-marks";
 import { DetailsButton, HouseDetails } from "./details";
+import { RoomBadges } from "./room-badges";
 import { TradeSheet } from "./trade-sheet";
 import { ClusterCounts, ThingReader, ThingTag } from "./thing-reader";
 import type { ShownThing } from "../../play/things";
@@ -290,6 +291,11 @@ export function PlayScreen({
   const boxRef = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const details = useDetailsHold(padMay);
+  // Holding the details up inspects: pointing explains what it finds, and pressing does nothing.
+  useEffect(() => {
+    scene.setInspecting(details.held);
+  }, [scene, details.held]);
+  const inspected = details.held ? shown.inspected : null;
   const [whyOpen, setWhyOpen] = useState(false);
   // Input fast-forwards whatever is playing: nothing waits on an animation.
   const act = useCallback(
@@ -527,8 +533,10 @@ export function PlayScreen({
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />
-      {details.held && <HouseDetails scene={scene} view={view} things={things} />}
-      <FigureMarks scene={scene} view={view} spots={presented.spots} floating={eventsOf(presented.floats)} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
+      {details.held && <HouseDetails scene={scene} view={view} things={things} inspected={inspected} />}
+      {/* After the room names, so a room's name gives way, drawn under its badge. */}
+      <RoomBadges scene={scene} view={view} active={view.turn?.acting ?? null} details={details.held} inspected={inspected} />
+      <FigureMarks scene={scene} view={view} spots={presented.spots} floating={eventsOf(presented.floats)} details={details.held} inspected={inspected} tab={tab?.id ?? null} openTab={openTab} />
 
       {/* The header leaves the top right corner to End turn, the frame meter (~) and the bake's mark. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 p-3 pr-32 sm:pr-56">
