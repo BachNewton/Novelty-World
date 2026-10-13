@@ -34,7 +34,8 @@ import { countBadge, PLACEMENT_PRESETS, placementPreset, type CrowdFigure } from
 export type Resolution = number | null;
 const RESOLUTIONS: Resolution[] = [270, 360, 540, 720, 1080, null];
 const DEFAULT_RESOLUTION: Resolution = null;
-const ELEVATION = THREE.MathUtils.degToRad(40);
+/** How far above level the presets look down at the subject, in degrees. */
+const DEFAULT_TILT = 40;
 /** How far the room reaches from its centre on screen: across (corner to
  *  corner, seen diagonally) and up and down. */
 const ROOM_HALF_WIDTH = 4.5;
@@ -68,6 +69,8 @@ export interface BenchSnapshot {
   roomName: string;
   view: number;
   zoom: number;
+  /** How far above level the camera looks down, in degrees: 0 is eye level, 90 straight down. */
+  tilt: number;
   resolution: Resolution;
   explorer: string;
   subject: Subject;
@@ -83,6 +86,7 @@ export interface BenchApi {
   setRoom: (id: string) => void;
   setView: (view: number) => void;
   setZoom: (zoom: number) => void;
+  setTilt: (degrees: number) => void;
   setResolution: (resolution: Resolution) => void;
   /** Who stands in the room: one explorer on its prime place, or a crowd placed by the solver (see `explorers()`). */
   setExplorer: (id: string) => void;
@@ -257,6 +261,7 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
     roomName: benchRoomName(firstRoom),
     view: 0,
     zoom: ZOOMS[0],
+    tilt: DEFAULT_TILT,
     resolution: DEFAULT_RESOLUTION,
     explorer: initialExplorer === null ? BENCH_EXPLORERS[0].id : explorer(initialExplorer).id,
     subject: framingSubject(framing),
@@ -298,6 +303,10 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
     },
     setZoom: (zoom) => {
       update({ ...snapshot, zoom });
+      mounted?.settle();
+    },
+    setTilt: (degrees) => {
+      update({ ...snapshot, tilt: degrees });
       mounted?.settle();
     },
     setResolution: (resolution) => {
@@ -467,10 +476,11 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
             : ROOM_RADIUS;
       const distance = (fit * radius) / ROOM_RADIUS;
       const target = presetTarget();
+      const elevation = THREE.MathUtils.degToRad(snapshot.tilt);
       const direction = new THREE.Vector3(
-        Math.sin(angle) * Math.cos(ELEVATION),
-        Math.sin(ELEVATION),
-        Math.cos(angle) * Math.cos(ELEVATION),
+        Math.sin(angle) * Math.cos(elevation),
+        Math.sin(elevation),
+        Math.cos(angle) * Math.cos(elevation),
       );
       camera.position.copy(target).addScaledVector(direction, distance / zoom);
       camera.lookAt(target);
