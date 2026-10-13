@@ -38,6 +38,8 @@ export interface ControlHandlers {
   blur: () => void;
   /** Commits a choice a pointer picked. */
   commit: (id: string) => void;
+  /** A tap or click on the house that picks nothing. */
+  pressedNothing?: () => void;
   /** Commits the selection: the reticle's choice, or the focused one (the one under the mouse). */
   confirm: () => void;
   /** Backs out: clears the focus, or cancels a selection pending. */
@@ -208,7 +210,10 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
   const tap = (point: Point, kind: "mouse" | "touch") => {
     const { targets, points, focused } = handlers.layout();
     const id = handlers.pick ? handlers.pick(point) : pointAt(targets, point);
-    if (id === null) return;
+    if (id === null) {
+      handlers.pressedNothing?.();
+      return;
+    }
     if (tapAction(kind, id, focused, points.length) === "commit") handlers.commit(id);
     else handlers.focus(id);
   };

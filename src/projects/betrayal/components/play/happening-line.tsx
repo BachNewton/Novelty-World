@@ -2,6 +2,7 @@ import { rollName } from "../../engine/describe";
 import type { RowSummary } from "../../engine/outcomes";
 import type { RollSpec } from "../../engine/sources";
 import type { EventView, GameView } from "../../engine/view";
+import { ENGINE } from "../../game";
 import { rollMeaning } from "../../play/dice";
 import { rowOdds } from "../../play/roll-table";
 import type { FigureId, Trait } from "../../types";
@@ -12,8 +13,10 @@ import { RollTable } from "./roll-table";
 /*
  * The status box's line for the beat playing, in icons where icons say it: a
  * roll as its dice, total and mark, its dice turning up as its beat plays;
- * damage and trait changes as icons and numbers. Every other event is its
- * words. The words stay with the icons for screen readers. A roll with a
+ * damage and trait changes as icons and numbers; a discovery as the room's
+ * name, large, since a haunt names rooms and players learn each name with
+ * its look as they walk in, and a room's own roll after it led by the same
+ * name, so the line goes on from it. Every other event is its words. The words stay with the icons for screen readers. A roll with a
  * table shows the table under the line: before a roll made at once, each
  * row with its odds; once rolled, the row it landed on lit.
  */
@@ -57,15 +60,41 @@ interface Rolled {
   result: number;
 }
 
+/** A room's name, as large as a discovery shows it. */
+function RoomName({ room }: { room: string }) {
+  return (
+    <span aria-hidden data-room-name={room} className="text-lg leading-tight font-bold">
+      {ENGINE.catalog.rooms[room].name}
+    </span>
+  );
+}
+
+/** The room whose own rule an event is, leading its line, or null. */
+const roomLead = (event: EventView) => (event.rule.source === "room" ? <RoomName room={event.rule.room} /> : null);
+
 /** `turnUp`: seconds for a roll's dice to turn up, while its beat plays, or null once it has. */
 export function HappeningLine({ event, events, text, view, turnUp }: { event: EventView; events: readonly EventView[]; text: string; view: GameView; turnUp: number | null }) {
   const name = (figure: FigureId) => view.figures[figure].name;
+
+  if (event.type === "discovered") {
+    const d = event.data as { figure: FigureId; room: string };
+    return (
+      <span className="inline-flex flex-wrap items-baseline gap-1.5">
+        <span className="sr-only">{text}</span>
+        <RoomName room={d.room} />
+        <span aria-hidden className="text-(--bt-muted)">
+          {name(d.figure)} discovers it
+        </span>
+      </span>
+    );
+  }
 
   if (event.type === "roll-coming") {
     const d = event.data as unknown as Coming;
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
         <span className="sr-only">{text}</span>
+        {roomLead(event)}
         <span aria-hidden>
           {name(d.figure)}: {rollName(d.spec)}
         </span>
@@ -87,6 +116,7 @@ export function HappeningLine({ event, events, text, view, turnUp }: { event: Ev
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
         <span className="sr-only">{text}</span>
+        {roomLead(event)}
         <span aria-hidden>
           {name(d.figure)}: {rollName(d.spec)}
         </span>

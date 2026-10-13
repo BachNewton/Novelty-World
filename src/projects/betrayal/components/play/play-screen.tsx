@@ -11,7 +11,7 @@ import type { HouseMood } from "../../art/house-mood";
 import { createHouseScene, type FigureSpec, type FloorChoice, type HouseScene, type SceneHook } from "../../art/house-scene";
 import { floorsOffering } from "../../art/house-targets";
 import { FLOOR_NAMES, FLOORS } from "../../engine/board";
-import { eventsFor, seatName, type GameView } from "../../engine/view";
+import { eventsFor, seatName, viewExplorer, type EventView, type GameView } from "../../engine/view";
 import type { Action, FigureId, FloorId } from "../../types";
 import { ENGINE } from "../../game";
 import { NO_CHOICES, playChoices, type PlaceTarget, type PlayChoices } from "../../play/choices";
@@ -25,7 +25,7 @@ import type { PlaySnapshot, PlayStore } from "../../play/store";
 import { PAD_FOCUS, Prompt, PromptButton } from "../prompts";
 import { GHOST, GhostHandles, useGhost, type GhostReadout } from "./ghost-placer";
 import { figureColour, seatDot, sideMark } from "./seat-colour";
-import { controlsOf, enterLayer, layerHeight, leaveLayer, padFocused, padPress, topLayer } from "./pad-focus";
+import { claimFocus, controlsOf, enterLayer, layerHeight, leaveLayer, padFocused, padPress, topLayer } from "./pad-focus";
 import { StatusBox } from "./status-box";
 import { freedText, useSeatInputs, useSeatsGate } from "./seats-panel";
 import { GameMenu } from "./game-menu";
@@ -34,8 +34,12 @@ import { sceneTarget } from "./routes";
 import { createPresenting, DICE_SECONDS, skipOrAnswer, SPEEDS, type Presented, type Presenting, type Speed } from "./presenting";
 import { beatLine } from "../../play/presenter";
 import { RaiseWallsButton } from "../raise-walls-button";
-import { CardBeat } from "./card-beat";
+import { CardBeat, drawnIn, type ShownCard } from "./card-beat";
 import { cardTable } from "../../play/roll-table";
+import { drawnCard } from "../../play/cards";
+import { boxPart, cardQuestion } from "../../play/panels";
+import { optionTable } from "./decision-panel";
+import { questionPrompt, SeatName } from "./status-box";
 import { ExplorerSheet, FigureMarks, markedExplorers } from "./figure-marks";
 import { DetailsButton, HouseDetails } from "./details";
 import { RoomBadges } from "./room-badges";
@@ -99,6 +103,8 @@ export interface PlayReadout {
   mood: HouseMood;
   /** Beats are playing, so the pending decision's choices wait. */
   playing: boolean;
+  /** The card over the room, and whether it asks a question there (else it waits for a press), or null. */
+  card: { card: string; asks: boolean } | null;
   /** End turn is being held, its ring filling. */
   endHold: boolean;
   /** What is open over the house: an explorer's sheet (`explorer:<figure>`), a trade (`trade:<figure>`), a thing's reader (`thing:<id>`), or null. */
@@ -130,6 +136,7 @@ interface ScreenReadout {
   sheet: string | null;
   menu: boolean;
   things: readonly ShownThing[];
+  card: PlayReadout["card"];
 }
 
 /** The explorers standing in the house, each in its place. */
@@ -212,6 +219,7 @@ function readout(scene: HouseScene, screen: ScreenReadout): PlayReadout {
     line: presented.told?.line ?? null,
     mood: scene.mood(),
     playing: presented.playing,
+    card: screen.card,
     endHold: screen.endHold,
     sheet: screen.sheet,
     menu: screen.menu,
@@ -233,7 +241,7 @@ function createScreen(store: PlayStore, input: InputKind): {
   scene.setInputKind(input);
   const presenting = createPresenting(scene, figuresOf, { place: houseFloors, load: loadFloors });
   const screenRef: { current: ScreenReadout } = {
-    current: { game: { snapshot: store.snapshot(), presented: presenting.snapshot(), choices: NO_CHOICES }, ghost: null, focused: null, endHold: false, sheet: null, menu: false, things: [] },
+    current: { game: { snapshot: store.snapshot(), presented: presenting.snapshot(), choices: NO_CHOICES }, ghost: null, focused: null, endHold: false, sheet: null, menu: false, things: [], card: null },
   };
   function mount(ctx: ThreeSceneContext): ThreeSceneHandlers {
     const handlers = scene.mount(ctx);
@@ -261,8 +269,46 @@ type Sheet =
 
 /** The pad's d-pad, A and B: what a panel over the house takes from it. */
 const NAVIGATION = new Set<StandardButton>(["DpadUp", "DpadDown", "DpadLeft", "DpadRight", "A", "B"]);
+/** The box's parts that ask a question with choices of their own, which take the focus as they appear. */
+const BOX_QUESTIONS = new Set(["roll", "damage", "choices"]);
 /** The game menu's layer, over everything: any pad works it. */
 const MENU_LAYER = 3;
+
+/** The card over the room: the card drawn waiting for its press, or, once
+ *  the beats are over, the card asking the holder's question, with its
+ *  choices; it stands over the room it was drawn in this run, else the
+ *  room of the explorer it asks. */
+function shownCard(view: GameView, holder: number, presented: Presented, fed: ReadonlyMap<string, EventView>, shown: readonly EventView[], choices: PlayChoices): ShownCard | null {
+  const roomOf = (figure: FigureId | undefined) => (figure === undefined ? null : (presented.spots[figure]?.room ?? null));
+  const drawnRoom = (event: EventView, figure: FigureId) => drawnIn(shown, event, figure) ?? roomOf(figure);
+  const event = presented.card === null ? undefined : fed.get(presented.card);
+  const drawn = event ? drawnCard(event) : null;
+  if (event && drawn) {
+    const all = [...fed.values()];
+    const room = drawnRoom(event, drawn.figure);
+    return room === null ? null : { card: drawn.card, room, drawn: true, table: cardTable(drawn.card, all.slice(all.indexOf(event) + 1), view.pending), question: null };
+  }
+  // A question shows once the beats leading to it are over, as every choice does.
+  const pending = view.pending;
+  const asking = presented.playing || presented.view !== view ? null : cardQuestion(view);
+  const question = questionPrompt(view, holder);
+  if (asking === null || question === null || pending?.type !== "decision") return null;
+  const draw = shown.findLast((candidate) => drawnCard(candidate)?.card === asking);
+  const drawer = draw && drawnCard(draw);
+  const room = draw && drawer ? drawnRoom(draw, drawer.figure) : roomOf(viewExplorer(view, holder)?.id);
+  if (room === null) return null;
+  const prompt = (
+    <>
+      {question.otherSeat && (
+        <>
+          <SeatName view={view} holder={holder} />:{" "}
+        </>
+      )}
+      {question.prompt}
+    </>
+  );
+  return { card: asking, room, drawn: draw !== undefined, table: optionTable(view)?.rows ?? cardTable(asking, [], pending), question: { decision: pending.id, view, prompt, panel: choices.panel } };
+}
 
 export function PlayScreen({
   store,
@@ -360,10 +406,16 @@ export function PlayScreen({
     },
   };
 
+  // What the screen tells, read from the beats started so far, as the holder may see it.
+  const fed = new Map(eventsFor(ENGINE, snapshot.state, holder, client.feed).map((event) => [event.id, event]));
+  const eventsOf = (ids: readonly string[]) => ids.flatMap((id) => fed.get(id) ?? []);
+  const card = shownCard(view, holder, presented, fed, eventsOf(presented.shown), choices);
+  const waiting = card !== null && card.question === null;
+
   // The scene keeps the handlers it was given, so they read the latest state through a ref.
-  const latest = useRef({ targets, live, ghost, end, decision, yours, open, things });
+  const latest = useRef({ targets, live, ghost, end, decision, yours, open, things, waiting });
   useEffect(() => {
-    latest.current = { targets, live, ghost, end, decision, yours, open, things };
+    latest.current = { targets, live, ghost, end, decision, yours, open, things, waiting };
     screenRef.current = {
       game: { snapshot, presented, choices },
       ghost: ghost?.readout ?? null,
@@ -372,6 +424,7 @@ export function PlayScreen({
       sheet: open === null ? null : open.kind === "explorer" ? `explorer:${open.tab}` : open.kind === "trade" ? `trade:${open.with}` : `thing:${open.id}`,
       menu: gate.menuOpen,
       things,
+      card: card && { card: card.card, asks: card.question !== null },
     };
   });
   const layoutKey = useRef("");
@@ -403,6 +456,10 @@ export function PlayScreen({
       commit,
       confirm: () => {
         commit(latest.current.live);
+      },
+      // A tap or click on the house goes on from what plays, as any press does.
+      pressedNothing: () => {
+        if (presenting.snapshot().playing) presenting.skip();
       },
       back: () => {
         const layer = over();
@@ -446,6 +503,11 @@ export function PlayScreen({
           padPress(layer, button);
           return true;
         }
+        // A card waiting over its room holds the focus: A, or B closing it, goes on.
+        if (latest.current.waiting && (button === "A" || button === "B")) {
+          presenting.skip();
+          return true;
+        }
         const box = boxRef.current;
         if (box && padFocused(box)) {
           if (!NAVIGATION.has(button)) return false;
@@ -470,6 +532,13 @@ export function PlayScreen({
       scene.setGhostHandles(null);
     };
   }, [scene, presenting, store, act, padMay, padActs, setMenuOpen, gate.menuOpen, screenRef]);
+
+  // On a pad, a question in the box takes the focus as it appears, on its first choice, so A answers it at once.
+  // Not on touch or the mouse, whose focus previews a choice: touch's first tap would then take it.
+  const boxQuestion = shown.input === "pad" && !presented.playing && presented.view === view && BOX_QUESTIONS.has(boxPart(view)) ? (view.pending?.id ?? null) : null;
+  useEffect(() => {
+    if (boxQuestion !== null && boxRef.current) claimFocus(boxRef.current, "[data-now]");
+  }, [boxQuestion]);
 
   // Over the house, Tab goes round the panel's own buttons.
   useEffect(() => {
@@ -507,15 +576,8 @@ export function PlayScreen({
     // The choices show once the beats leading to them are over.
   }, [scene, view, live, ghostKey, presented.spots, presented.clusters, presented.playing, presented.view]);
 
-  // What the screen tells, read from the beats started so far, as the holder may see it.
-  const fed = new Map(eventsFor(ENGINE, snapshot.state, holder, client.feed).map((event) => [event.id, event]));
-  const eventsOf = (ids: readonly string[]) => ids.flatMap((id) => fed.get(id) ?? []);
   const toldEvent = presented.told === null ? undefined : fed.get(presented.told.line);
   const told = toldEvent && presented.told ? { event: toldEvent, events: eventsOf(presented.told.events) } : null;
-  const drawnEvent = presented.card === null ? undefined : fed.get(presented.card.event);
-  const card = drawnEvent && presented.card ? { event: drawnEvent, waits: presented.card.waits } : null;
-  const fedNow = [...fed.values()];
-  const cardRows = card === null ? null : cardTable((card.event.data as { card: string }).card, fedNow.slice(fedNow.indexOf(card.event) + 1), view.pending);
   const beat = presented.beat;
   const turnUp = beat?.kind === "line" && (beat.show === "dice" || beat.show === "roll") && beat.line === presented.told?.line ? DICE_SECONDS * SPEEDS[speed] : null;
   const dot = yours ? seatDot(ENGINE, yours.definition) : undefined;
@@ -660,7 +722,6 @@ export function PlayScreen({
           told={told}
           turnUp={turnUp}
           playing={presented.playing}
-          skip={presenting.skip}
           holder={holder}
           problem={client.problem}
           choices={choices}
@@ -675,7 +736,7 @@ export function PlayScreen({
           why={{ open: whyOpen, toggle: setWhyOpen, hold: presenting.hold }}
         />
       </div>
-      <CardBeat scene={scene} card={card} table={cardRows} shown={eventsOf(presented.shown)} spots={presented.spots} goOn={presenting.goOn} />
+      <CardBeat scene={scene} card={card} goOn={presenting.skip} act={act} />
       {tab && (
         <ExplorerSheet
           scene={scene}

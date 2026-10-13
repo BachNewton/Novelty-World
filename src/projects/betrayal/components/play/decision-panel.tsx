@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { RuleNotes } from "../../data/rule-notes";
-import type { GameView, RuleView } from "../../engine/view";
+import type { GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import { cardMood, consequence } from "../../play/cards";
@@ -11,13 +11,13 @@ import { DAMAGE_TRAITS, damageTracks, evenStop, landsAs, splitOf, splitStops, ty
 import { rerollCards, rerollChoice, rollMeaning, rollOffers, rollShown, type RollParams } from "../../play/dice";
 import type { BoxPart } from "../../play/panels";
 import type { Action, FigureId, Json } from "../../types";
-import { CardFace } from "./card-face";
 import { SplitControl } from "./damage-split";
 import { MOOD_EDGE } from "./moods";
 import { TrackRow } from "./trait-track";
 import { DamageAmount, DiceFaces, RollResult, TraitValue, Verdict } from "./roll-result";
 import { DamageIcon, DieFace } from "../icons";
 import { RollTable } from "./roll-table";
+import type { RowSummary } from "../../engine/outcomes";
 import { rowFor } from "../../engine/effects";
 import { rangeText } from "../../engine/describe";
 import { optionRolls, percentText, printedOrder } from "../../play/roll-table";
@@ -26,11 +26,12 @@ import { optionRolls, percentText, printedOrder } from "../../play/roll-table";
  * The status box's part for a decision that isn't a place or the turn: a
  * roll (its table with each row's odds, then its dice, total and the row it
  * landed on, with the cards that can act on it offered where they apply), damage (its stat tracks, with where it would
- * land, split on one control between them), or any other question (its choices, under the card that asks it).
+ * land, split on one control between them), or any other question but a
+ * card's, which the card over the room asks (its choices).
  */
 
 export interface DecisionPartProps {
-  part: Exclude<BoxPart, "turn" | "ghost" | "debug">;
+  part: Exclude<BoxPart, "turn" | "ghost" | "card" | "debug">;
   view: GameView;
   /** The decision's choices, each with the action that answers it. */
   panel: PanelChoice[];
@@ -51,7 +52,7 @@ export function DecisionPart(props: DecisionPartProps) {
     case "damage":
       return <DamagePart key={pending.id} {...props} kind={pending.kind} params={pending.detail.params} />;
     case "choices":
-      return <ChoicesPart {...props} rule={pending.rule} />;
+      return <ChoicesPart {...props} />;
   }
 }
 
@@ -203,6 +204,7 @@ function RollPart({ view, panel, act, notes, params, after }: DecisionPartProps 
         {keep && (
           <button
             type="button"
+            data-pad-start
             onClick={() => {
               act(keep.action);
             }}
@@ -354,41 +356,58 @@ function DamageKindPart({ view, panel, act, input, params }: DecisionPartProps &
   );
 }
 
-function ChoicesPart({ view, panel, act, notes, rule }: DecisionPartProps & { rule: RuleView }) {
-  const card = rule.source === "card" ? rule.card : null;
-  const pending = view.pending;
-  // A trait chosen before its roll: each option shows its odds on each row.
-  const rolls = pending?.type === "decision" && pending.detail !== null && pending.kind === "choose-one" ? optionRolls(view, pending.detail.params) : [];
-  const table = rolls.find((roll) => roll !== null) ?? null;
+function ChoicesPart({ view, panel, act }: DecisionPartProps) {
+  const table = optionTable(view);
   return (
     <>
-      {card !== null ? <CardFace card={card} notes={notes} table={table?.rows ?? null} /> : table && <RollTable rows={table.rows} />}
-      <div className="flex flex-wrap gap-2">
-        {panel.map((choice) => {
-          const odds = typeof choice.choice === "number" ? rolls[choice.choice] : null;
-          return (
-            <button
-              key={choice.id}
-              type="button"
-              onClick={() => {
-                act(choice.action);
-              }}
-              className={CHOICE}
-            >
-              {choice.label}
-              {odds && (
-                <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-(--bt-muted) tabular-nums">
-                  {printedOrder(odds.rows).map(({ row, index }) => (
-                    <span key={index}>
-                      {rangeText(row)} {percentText(odds.odds[index])}
-                    </span>
-                  ))}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {table && <RollTable rows={table.rows} />}
+      <ChoiceButtons view={view} panel={panel} act={act} />
     </>
+  );
+}
+
+/** Each of a question's options that makes one roll with a table, with its odds. */
+function rollsOf(view: GameView): ReturnType<typeof optionRolls> {
+  const pending = view.pending;
+  return pending?.type === "decision" && pending.detail !== null && pending.kind === "choose-one" ? optionRolls(view, pending.detail.params) : [];
+}
+
+/** The table a question's options roll on, when they roll on one: a trait chosen before its roll (Possession, the Spider). */
+export function optionTable(view: GameView): { rows: RowSummary[]; odds: number[] } | null {
+  return rollsOf(view).find((roll) => roll !== null) ?? null;
+}
+
+/** A question's choices as a row of buttons, the first the pad's start; a
+ *  trait chosen before its roll shows each option's odds on each row. */
+export function ChoiceButtons({ view, panel, act }: { view: GameView; panel: readonly PanelChoice[]; act: (action: Action) => void }) {
+  const rolls = rollsOf(view);
+  return (
+    <div className="flex flex-wrap gap-2">
+      {panel.map((choice, i) => {
+        const odds = typeof choice.choice === "number" ? rolls[choice.choice] : null;
+        return (
+          <button
+            key={choice.id}
+            type="button"
+            data-pad-start={i === 0 || undefined}
+            onClick={() => {
+              act(choice.action);
+            }}
+            className={CHOICE}
+          >
+            {choice.label}
+            {odds && (
+              <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-(--bt-muted) tabular-nums">
+                {printedOrder(odds.rows).map(({ row, index }) => (
+                  <span key={index}>
+                    {rangeText(row)} {percentText(odds.odds[index])}
+                  </span>
+                ))}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -166,7 +166,7 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   await page.keyboard.press("Tab");
   await until(page, "play.ghost?.rotation === 1");
   await page.keyboard.press("Enter");
-  // Then its event card is answered in the status box: one line for the beat, its Why, and what Zoe can do now.
+  // Then its event card is answered on the card over the room: the box keeps one line for the beat and its Why.
   await page.waitForFunction(() => {
     const play = window.__betrayalPlay?.play();
     return play?.pending?.kind === "choose-one" && play.tiles === 6;
@@ -174,12 +174,12 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   const line = page.getByLabel("What happened");
   const why = page.getByRole("dialog", { name: "Why" });
   const now = page.getByLabel("What you can do now");
-  // The card's beat over the room waits for a tap before its question shows.
-  await page.getByRole("dialog", { name: "Card drawn: Something Hidden" }).getByRole("button", { name: "Go on" }).click();
-  await until(page, "play.panel.length > 0");
-  // The line is the last beat's: the walk in and the room's discovery are shown, not told.
+  // The card asks at once, its question and choices on it; the box repeats neither.
+  const card = page.getByRole("dialog", { name: "Card drawn: Something Hidden" });
+  await until(page, "play.panel.length > 0 && play.card?.asks === true");
+  await expect(now).toBeHidden();
+  // The line is the last beat's, the card's draw, after the discovery's line named the room.
   await expect(line).toContainText("Zoe Ingstrom draws the event Something Hidden.");
-  await expect(line).not.toContainText("discovers");
   // Why is a tap away: each rule named, never by its page, with its full text.
   await page.getByRole("button", { name: /Why/ }).click();
   await expect(why).toContainText("The first explorer to discover a room with a card symbol draws that card.");
@@ -190,9 +190,9 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   await page.keyboard.press("Escape");
   await expect(why).toBeHidden();
   // Zoe holds the device in her own turn, so the question doesn't name her.
-  await expect(now).toContainText("Something Hidden: ");
-  await expect(now).not.toContainText("Zoe Ingstrom:");
-  await now.getByRole("button", { name: "Don't roll" }).click();
+  await expect(card).toContainText("Something Hidden: ");
+  await expect(card).not.toContainText("Zoe Ingstrom:");
+  await card.getByRole("button", { name: "Don't roll" }).click();
   // Drawing the card ended Zoe's move. With nothing left to do, ending her turn is hers to choose.
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn' && play.targets.length === 0");
   expect((await readout(page)).canEnd).toBe(true);
@@ -530,16 +530,15 @@ test.describe("the rotation ghost", () => {
       await placedTurned(page, 1);
     });
 
-    test("the d-pad's down moves into the status box, its left and right and A press a choice, and X held ends the turn", async ({ page }) => {
+    test("a card's question takes the focus on its first choice, the d-pad's right moves along, A presses, and X held ends the turn", async ({ page }) => {
       await resumeSaved(page);
       await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
       await bumpTo(page, "explore:ground:2:-1");
       await press(page, BUTTON.A, "play.ghost?.tile === 'game-room'", false);
-      await press(page, BUTTON.A, "play.pending?.kind === 'choose-one'", false);
-      // A goes on from the card's beat, and its question shows.
-      await press(page, BUTTON.A, "!play.playing && play.panel.length > 0");
+      // The card asks at once, on the card, its first choice focused with no d-pad needed.
+      await press(page, BUTTON.A, "play.pending?.kind === 'choose-one' && play.card?.asks === true && !play.playing", false);
       const focused = "document.activeElement?.textContent";
-      await press(page, BUTTON.DpadDown, `${focused} === 'Make a Knowledge roll'`);
+      await page.waitForFunction(`${focused}?.startsWith('Make a Knowledge roll')`);
       await press(page, BUTTON.DpadRight, `${focused} === "Don't roll"`);
       await press(page, BUTTON.A, "play.pending?.kind === 'turn' && play.targets.length === 0");
       // End turn's background fills while X is held, and the turn then passes.
