@@ -4,6 +4,7 @@ import type { PaletteKey } from "../palette";
 import type { ExplorerBuilder } from "../stage";
 import type { CardColour } from "../../types";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
@@ -33,6 +34,7 @@ const FIGURES: Partial<Record<string, ExplorerBuilder>> = {
   "brandon-jaspers": brandon,
   "heather-granville": heather,
   "father-rhinehardt": rhinehardt,
+  "jenny-leclerc": jenny,
   "vivian-lopez": vivian,
 };
 
