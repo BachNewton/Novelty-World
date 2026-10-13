@@ -328,8 +328,7 @@ function ChoicesPart({ view, panel, act, notes, rule }: DecisionPartProps & { ru
   const table = rolls.find((roll) => roll !== null) ?? null;
   return (
     <>
-      {card !== null && <CardFace card={card} notes={notes} />}
-      {table && <RollTable rows={table.rows} />}
+      {card !== null ? <CardFace card={card} notes={notes} table={table?.rows ?? null} /> : table && <RollTable rows={table.rows} />}
       <div className="flex flex-wrap gap-2">
         {panel.map((choice) => {
           const odds = typeof choice.choice === "number" ? rolls[choice.choice] : null;

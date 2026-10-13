@@ -104,6 +104,8 @@ function Outcome({ outcome }: { outcome: RowOutcome }) {
         </span>
       );
     case "note":
+      // An attack has its icon, whoever's step makes it.
+      if (outcome.note === "attack") return <AttackIcon className="size-4 text-(--bt-danger)" />;
       return <span className="text-xs">{outcomeText(ENGINE, outcome)}</span>;
   }
 }
@@ -128,12 +130,13 @@ export interface RollTableProps {
   lit?: number | null;
   /** Its name for screen readers. */
   label?: string;
+  className?: string;
 }
 
-export function RollTable({ rows, odds = null, lit = null, label = "Roll table" }: RollTableProps) {
+export function RollTable({ rows, odds = null, lit = null, label = "Roll table", className = "" }: RollTableProps) {
   return (
     // A long table scrolls inside itself, but takes no focus: it is read, never pressed.
-    <div tabIndex={-1} className="max-h-40 overflow-y-auto rounded border border-(--bt-line) bg-(--bt-bg)">
+    <div tabIndex={-1} className={`max-h-40 overflow-y-auto rounded border border-(--bt-line) bg-(--bt-bg) ${className}`}>
       <table aria-label={label} className="w-full table-fixed border-collapse text-sm">
         <colgroup>
           <col className="w-12" />

@@ -1,3 +1,4 @@
+import { rangeText } from "../engine/describe";
 import { rowFor, tableOf } from "../engine/effects";
 import type { RowSummary } from "../engine/outcomes";
 import type { EventView, GameView, RuleView } from "../engine/view";
@@ -87,4 +88,10 @@ export function optionRolls(view: GameView, params: Json): ({ rows: RowSummary[]
     if (rows === null || typeof value !== "number") return null;
     return { rows, odds: rowOdds(rows, value) };
   });
+}
+
+/** A card's text lines, less those of its table ("Roll: Result", "4+: …"), for where the table shows beside the text. */
+export function withoutTable(lines: readonly string[], rows: readonly RowSummary[]): string[] {
+  const starts = ["Roll: Result", ...rows.map((row) => `${rangeText(row)}: `)];
+  return lines.filter((line) => !starts.some((start) => line.startsWith(start)));
 }

@@ -9,9 +9,9 @@ import { cardMood, cardTypeName, drawnCard, heldText } from "../../play/cards";
 import type { Spots } from "../../play/spots";
 import { ruleNotes } from "../why";
 import { CardTypeIcon } from "../icons";
-import { rangeText } from "../../engine/describe";
 import type { RowSummary } from "../../engine/outcomes";
 import { RollTable } from "./roll-table";
+import { withoutTable } from "../../play/roll-table";
 import { MOOD_BORDER, MOOD_TEXT } from "./moods";
 
 /*
@@ -95,10 +95,10 @@ export function CardBeat({ scene, card: draw, table, shown, spots, goOn }: CardB
 /** The card's text, less the lines of its table when the table shows beside it. */
 function Text({ card, table }: { card: string; table: readonly RowSummary[] | null }) {
   const notes = use(ruleNotes());
-  const tableLines = table === null ? [] : ["Roll: Result", ...table.map((row) => `${rangeText(row)}: `)];
+  const lines = heldText(notes, card);
   return (
     <ul aria-label="The card's text" className="flex max-h-[30vh] flex-col gap-0.5 overflow-y-auto text-xs">
-      {heldText(notes, card).filter((line) => !tableLines.some((start) => line.startsWith(start))).map((line) => (
+      {(table === null ? lines : withoutTable(lines, table)).map((line) => (
         <li key={line}>{line}</li>
       ))}
     </ul>
