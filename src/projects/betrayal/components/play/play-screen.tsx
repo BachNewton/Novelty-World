@@ -9,6 +9,7 @@ import { figureFor } from "../../art/explorers/by-character";
 import { houseFloors, loadFloors } from "../../art/room-floor";
 import type { HouseMood } from "../../art/house-mood";
 import { createHouseScene, type FigureSpec, type FloorChoice, type HouseScene, type SceneHook } from "../../art/house-scene";
+import { floorsOffering } from "../../art/house-targets";
 import { FLOOR_NAMES, FLOORS } from "../../engine/board";
 import { eventsFor, seatName, type GameView } from "../../engine/view";
 import type { Action, FigureId, FloorId } from "../../types";
@@ -36,6 +37,7 @@ import { CardBeat } from "./card-beat";
 import { cardTable } from "../../play/roll-table";
 import { ExplorerSheet, FigureMarks, markedExplorers } from "./figure-marks";
 import { DetailsButton, HouseDetails } from "./details";
+import { RoomBadges } from "./room-badges";
 import { TradeSheet } from "./trade-sheet";
 import { ClusterCounts, ThingReader, ThingTag } from "./thing-reader";
 import type { ShownThing } from "../../play/things";
@@ -300,6 +302,11 @@ export function PlayScreen({
   const boxRef = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const details = useDetailsHold(padMay);
+  // Holding the details up inspects: pointing explains what it finds, and pressing does nothing.
+  useEffect(() => {
+    scene.setInspecting(details.held);
+  }, [scene, details.held]);
+  const inspected = details.held ? shown.inspected : null;
   const [whyOpen, setWhyOpen] = useState(false);
   // Input fast-forwards whatever is playing: nothing waits on an animation.
   const act = useCallback(
@@ -513,6 +520,8 @@ export function PlayScreen({
   const dot = yours ? seatDot(ENGINE, yours.definition) : undefined;
   const floors = FLOORS.filter((floor) => view.board.tiles.some((tile) => tile.floor === floor));
   const focusedTarget = [...targets, ...ghostTargets].find((target) => target.id === live);
+  const focusedTag = focusedTarget && "tag" in focusedTarget ? focusedTarget.tag : undefined;
+  const offeredOn = new Set(floorsOffering(ghostTargets, shown.floor));
   const focusedThing = things.find((thing) => thing.id === live);
   const preview = targets.find((target) => target.id === live)?.preview ?? null;
   const input = shown.input;
@@ -534,14 +543,17 @@ export function PlayScreen({
         className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm w-max max-w-[calc(100%-1rem)]"
       >
         {/* A doorway to explore is drawn as its route on the floor: its tag says only the cost, its label kept for screen readers. */}
-        {focusedTarget && (focusedTarget.kind === "explore" ? <span className="sr-only">{focusedTarget.label}</span> : focusedTarget.label)}
+        {/* A tile's other cells are tagged with the room's name: the glowing cell already shows what pressing it does. */}
+        {focusedTarget && (focusedTarget.kind === "explore" ? <span className="sr-only">{focusedTarget.label}</span> : focusedTag !== undefined ? <><span aria-hidden>{focusedTag}</span><span className="sr-only">{focusedTarget.label}</span></> : focusedTarget.label)}
         {focusedThing && <ThingTag thing={focusedThing} />}
         {preview && <span className={focusedTarget?.kind === "explore" ? "font-semibold" : "ml-1.5 text-xs text-(--bt-muted)"}>{focusedTarget?.kind === "explore" ? "" : "· "}{costText(preview)}</span>}
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />
-      {details.held && <HouseDetails scene={scene} view={view} things={things} />}
-      <FigureMarks scene={scene} view={view} spots={presented.spots} floating={eventsOf(presented.floats)} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
+      {details.held && <HouseDetails scene={scene} view={view} things={things} inspected={inspected} />}
+      {/* After the room names, so a room's name gives way, drawn under its badge. */}
+      <RoomBadges scene={scene} view={view} active={view.turn?.acting ?? null} details={details.held} inspected={inspected} />
+      <FigureMarks scene={scene} view={view} spots={presented.spots} floating={eventsOf(presented.floats)} details={details.held} inspected={inspected} tab={tab?.id ?? null} openTab={openTab} />
 
       {/* The header leaves the top right corner to End turn, the frame meter (~) and the bake's mark. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 p-3 pr-32 sm:pr-56">
@@ -574,6 +586,12 @@ export function PlayScreen({
                 className={`${button} ${shown.floor === floor ? "border-(--bt-accent) bg-(--bt-room)" : ""}`}
               >
                 {FLOOR_NAMES[floor]}
+                {/* A tile may go on this floor too: it has no stair to glow, so its button says so. */}
+                {offeredOn.has(floor) && (
+                  <span data-offered className="size-2 rounded-full bg-(--bt-accent) shadow-[0_0_6px_var(--bt-accent)]">
+                    <span className="sr-only">: places to choose</span>
+                  </span>
+                )}
               </button>
             ))}
             <Prompt meaning="floor-up" input={input} />

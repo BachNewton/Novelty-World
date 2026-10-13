@@ -105,8 +105,6 @@ const FIGURE_ANCHOR = 0.9;
 const FIGURE_BOX = { reach: 0.6, height: 1.8 };
 /** A stair offered as a choice is a pointer target this far either side of its run. */
 const STAIR_REACH = 0.8;
-/** An empty cell on another floor is a pointer target this wide each way, round the middle of the same cell on this one. */
-const AWAY_REACH = TILE / 2;
 /** A wall's pad on the floor before it, in metres: `length` along the wall
  *  and `depth` out from it; a corner's is a square `corner` across. */
 const WALL_PAD = { length: 1.6, depth: 1, corner: 1.2 };
@@ -196,20 +194,6 @@ function stairPlace(ctx: PlaceContext, id: string, from: string, toward: string,
   };
 }
 
-/** An empty cell on another floor, marked on the floor showing at the same
- *  place, as a stair marks a room upstairs: a tile has no stairs to it. */
-function awayPlace(ctx: PlaceContext, id: string, cell: Cell, showing: FloorId): TargetPlace {
-  const centre = cellCentre(ctx, { ...cell, floor: showing });
-  return {
-    anchor: lift(centre, ANCHOR_HEIGHT),
-    outline: rectangle(centre, AWAY_REACH, AWAY_REACH),
-    box: false,
-    mark: { id, kind: "away", floor: showing, x: cell.x, y: cell.y },
-    cell,
-    floor: cell.floor,
-  };
-}
-
 function figurePlace(ctx: PlaceContext, id: string, figure: string): TargetPlace {
   const at = ctx.figureAt(figure);
   const base = ctx.scenePoint(at);
@@ -289,8 +273,8 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
     case "cell":
     case "ghost": {
       const cell = { floor: target.floor, x: target.x, y: target.y };
+      // A cell on another floor doesn't show here: the floor's button is marked instead (`floorsOffering`).
       const shown = shows(ctx, target.floor);
-      if (!shown && target.kind === "cell" && ctx.showing !== "all") return awayPlace(ctx, target.id, cell, ctx.showing);
       const centre = cellCentre(ctx, cell);
       const mark: Mark = target.kind === "cell" ? { id: target.id, kind: "cell", ...cell } : { id: target.id, kind: "ghost", ...cell, doors: target.doors };
       return { anchor: lift(centre, ANCHOR_HEIGHT), outline: shown ? rectangle(centre, TILE, TILE) : null, box: false, mark: shown ? mark : null, cell, floor: target.floor };
@@ -299,6 +283,17 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
     case "self":
       return figurePlace(ctx, target.id, target.figure);
   }
+}
+
+/** The floors, other than the one showing, holding cells a tile may go on
+ *  (and its ghost, when the player has looked away from it). A cell has no
+ *  stair to it, so such a floor's button is marked instead, for the player
+ *  to go and look; on the floor showing, only its own cells are drawn. */
+export function floorsOffering(targets: readonly Target[], showing: FloorChoice): FloorId[] {
+  if (showing === "all") return [];
+  const floors = new Set<FloorId>();
+  for (const target of targets) if ((target.kind === "cell" || target.kind === "ghost") && target.floor !== showing) floors.add(target.floor);
+  return [...floors];
 }
 
 /** Where a route to a target ends its walk through rooms: the place taken in

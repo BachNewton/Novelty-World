@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "lucide-react";
 import Image from "next/image";
 import { Suspense, use, useEffect, useRef } from "react";
 import type { RuleNotes } from "../../data/rule-notes";
@@ -10,6 +11,8 @@ import { ENGINE } from "../../game";
 import { cardMood, consequence, statChanges, type StatChange } from "../../play/cards";
 import { portraitOf } from "../../play/portraits";
 import { shortName } from "../../play/short-name";
+import { figureLines, inspectFigureId } from "../../play/inspect";
+import { bonusRow, type BonusState } from "../../play/room-bonus";
 import { firstAction, type ExplorerActions } from "../../play/sheet";
 import { cardThingId } from "../../play/things";
 import type { Spots } from "../../play/spots";
@@ -109,13 +112,15 @@ function usePinned(scene: HouseScene, group: string, figure: FigureId, { height,
 const MARK = "min-h-[2em] min-w-[2em] rounded-full border-(--bt-line) px-[0.375em] py-[0.125em] text-[calc(1rem*var(--bt-pin-scale,1))]";
 /** While the details are held, the nameplate: one size and shape for every explorer, whatever their name, with the
  *  seat's colour down its edge, the short name, the pips and the stats. */
-const PLATE = "w-20 gap-0.5 overflow-hidden rounded border-(--bt-line) py-0.5 pr-1 pl-2 text-base";
+const PLATE = "gap-0.5 overflow-hidden rounded border-(--bt-line) py-0.5 pr-1 pl-2 text-base";
 
-function Mark({ scene, view, figure, details, floats, open, toggle }: {
+function Mark({ scene, view, figure, details, inspected, floats, open, toggle }: {
   scene: HouseScene;
   view: GameView;
   figure: FigureView;
   details: boolean;
+  /** Pointed at while the details are held: the nameplate adds what they hold. */
+  inspected: boolean;
   floats: StatChange[];
   open: boolean;
   toggle: () => void;
@@ -136,7 +141,8 @@ function Mark({ scene, view, figure, details, floats, open, toggle }: {
           aria-expanded={open}
           data-mark={figure.id}
           onClick={toggle}
-          className={`pointer-events-auto relative flex flex-col items-center justify-center border bg-(--bt-panel) aria-expanded:border-(--bt-accent) ${details ? PLATE : MARK}`}
+          data-inspected={(details && inspected) || undefined}
+          className={`pointer-events-auto relative flex flex-col items-center justify-center border bg-(--bt-panel) aria-expanded:border-(--bt-accent) ${details ? `${PLATE} ${inspected ? "w-36 border-(--bt-accent)" : "w-20"}` : MARK}`}
         >
           {details && <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${seatDot(ENGINE, figure.definition)}`} />}
           {details && <span className="w-full truncate text-center text-xs leading-4 font-semibold">{shortName(figure.name)}</span>}
@@ -152,6 +158,12 @@ function Mark({ scene, view, figure, details, floats, open, toggle }: {
             ))}
           </span>
           {details && <CompactStats view={view} figure={figure} />}
+          {details && inspected && (
+            <span className="w-full text-left text-[11px] leading-3.5">
+              <span className="block font-semibold">{figure.name}</span>
+              {figureLines(ENGINE, view, figure.id).join(" ")}
+            </span>
+          )}
         </button>
       </div>
     </div>
@@ -166,12 +178,14 @@ export interface FigureMarksProps {
   floating: readonly EventView[];
   /** Whether the details are held up: each mark adds the explorer's name and stats. */
   details: boolean;
+  /** What pointing has found while the details are held (`play/inspect.ts`), or null. */
+  inspected: string | null;
   /** The explorer whose tab the sheet shows, or null while it is closed. */
   tab: FigureId | null;
   openTab: (figure: FigureId | null) => void;
 }
 
-export function FigureMarks({ scene, view, spots, floating, details, tab, openTab }: FigureMarksProps) {
+export function FigureMarks({ scene, view, spots, floating, details, inspected, tab, openTab }: FigureMarksProps) {
   const explorers = markedExplorers(view, spots);
   const changes = statChanges(floating);
   return explorers.map((figure) => (
@@ -181,6 +195,7 @@ export function FigureMarks({ scene, view, spots, floating, details, tab, openTa
       view={view}
       figure={figure}
       details={details}
+      inspected={inspected === inspectFigureId(figure.id)}
       floats={changes.filter((change) => change.figure === figure.id)}
       open={figure.id === tab}
       toggle={() => {
@@ -269,6 +284,48 @@ const ACTION = "min-h-10 rounded border border-(--bt-line) bg-(--bt-room) px-3 p
 /** The turn's actions on the tab shown, or null where it shows none. */
 const shownActions = ({ actions, tab }: Pick<ExplorerSheetProps, "actions" | "tab">): ExplorerActions | null => (actions?.figure === tab.id ? actions.rows : null);
 
+const BONUS_LOOK: Record<BonusState, string> = {
+  available: "border-solid border-(--bt-mood-holy) text-(--bt-mood-holy)",
+  taken: "border-solid border-(--bt-line) text-(--bt-muted)",
+  undiscovered: "border-dashed border-(--bt-line) text-(--bt-muted) opacity-60",
+};
+const BONUS_WORDS: Record<BonusState, string> = { available: "yours to take", taken: "taken", undiscovered: "not found yet" };
+
+/** The explorer's room bonuses: each bonus room's trait, lit while theirs to take, ticked once taken, outlined while the room is still to be found. */
+function BonusRow({ view, figure }: { view: GameView; figure: FigureId }) {
+  const row = bonusRow(ENGINE, view, figure);
+  if (row.length === 0) return null;
+  return (
+    <section aria-label="Room bonuses" className="flex items-center gap-2">
+      <h3 className="text-xs font-semibold text-(--bt-muted)">Room bonuses</h3>
+      <ul className="flex flex-wrap gap-1.5">
+        {row.map(({ room, traits, state }) => {
+          const name = ENGINE.catalog.rooms[room].name;
+          return (
+            <li
+              key={room}
+              data-bonus-room={room}
+              data-state={state}
+              aria-label={`${name}: +1 ${traits.map(traitLabel).join(" or ")}, ${BONUS_WORDS[state]}`}
+              title={`${name}: ${BONUS_WORDS[state]}`}
+              className={`relative flex size-8 items-center justify-center rounded-full border-2 ${BONUS_LOOK[state]}`}
+            >
+              {traits.map((trait) => (
+                <TraitIcon key={trait} trait={trait} className="size-4" />
+              ))}
+              {state === "taken" && (
+                <span aria-hidden className="absolute -right-1 -bottom-1 flex size-3.5 items-center justify-center rounded-full bg-(--bt-ink) text-(--bt-bg)">
+                  <Check className="size-2.5" strokeWidth={4} />
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: ExplorerSheetProps & { notes: RuleNotes | null }) {
   const rows = shownActions({ actions, tab });
   // The first action takes the focus as the sheet opens.
@@ -288,6 +345,7 @@ function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: Explore
           <TrackRow key={track.trait} track={track} />
         ))}
       </div>
+      <BonusRow view={view} figure={tab.id} />
       {tab.cards.length === 0 ? (
         <p className="text-sm text-(--bt-muted)">No cards.</p>
       ) : (

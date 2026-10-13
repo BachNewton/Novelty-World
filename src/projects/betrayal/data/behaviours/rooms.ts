@@ -67,32 +67,43 @@ function endedHere(event: GameEvent, room: string): FigureId | null {
   return ended.room === room ? ended.figure : null;
 }
 
-/** Once per game for each explorer, ending a turn here gains 1 in a trait; their explorer token marks that they have (Widow's Walk FAQ). */
-function oncePerGame(trait: Trait): Behaviour {
+/** Once per game for each explorer, ending a turn here gains 1 in a trait
+ *  (the explorer's pick, where it offers several); their explorer token
+ *  marks that they have (Widow's Walk FAQ). Ending a turn here again gains
+ *  nothing, and says so. */
+function oncePerGame(...traits: [Trait, ...Trait[]]): Behaviour {
   return {
+    bonus: { traits },
     reactions: [
       {
         event: "turn-ended",
-        when: (state, event, source) => {
-          const figure = endedHere(event, source.id);
-          return (
-            figure !== null &&
-            !state.tokens.some(
-              (t) =>
-                t.room === source.id && t.token === explorerToken(state, figure),
-            )
-          );
-        },
+        when: (_state, event, source) => endedHere(event, source.id) !== null,
         steps: (state, event, source) => {
           const figure = endedHere(event, source.id);
           if (figure === null) return [];
+          const token = explorerToken(state, figure);
+          if (state.tokens.some((t) => t.room === source.id && t.token === token)) {
+            return [local(source.id, "spent", { figure, room: source.id })];
+          }
+          const gains = traits.map((trait) => gain(figure, trait, 1, source.rule));
           return [
-            gain(figure, trait, 1, source.rule),
-            placeToken(explorerToken(state, figure), source.id, source.rule),
+            gains.length === 1
+              ? gains[0]
+              : chooseOne(
+                  figure,
+                  traits.map((trait, i) => ({ label: `Gain 1 ${traitName(trait)}`, steps: [gains[i]] })),
+                  source.rule,
+                ),
+            placeToken(token, source.id, source.rule),
           ];
         },
       },
     ],
+    steps: {
+      spent: defineStep<{ figure: FigureId; room: string }>((_state, p, ctx) => {
+        ctx.emit("room-bonus-spent", { source: "room", room: p.room }, p);
+      }),
+    },
   };
 }
 

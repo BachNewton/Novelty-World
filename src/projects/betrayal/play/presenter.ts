@@ -105,6 +105,7 @@ export const EVENT_SHOWS: Readonly<Record<string, Shown>> = {
   "ongoing-ended": "line",
   recovered: "line",
   "replacement-declined": "line",
+  "room-bonus-spent": "line",
   "room-not-found": "line",
   "rooms-short": "line",
   "room-stack-seen": "line",
