@@ -61,7 +61,7 @@ What remains for the goal:
 - **UI:** the list above, and whatever the playtest finds.
 - **Rooms:** the 16 base rooms left: the Gymnasium, Operating Laboratory, Research Laboratory, Vault, Balcony, Gallery, Bloody Room, Charred Room, Collapsed Room, Conservatory, Ballroom, Coal Chute, Gardens, Patio, Crypt and Larder.
 - **Explorers:** the 5 left: Missy, Vivian, Madame Zostra, Heather and Jenny. Setup's portraits are shot from a lower camera and a closer zoom, in the Abandoned Room (done). Setup shows each character's tracks as the card prints them, on each seat and for the character in focus in the picker; a short description is not built (the final call waits on more explorer art).
-- **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements; with them, the three transitions still to build for moves that aren't a walk (drop or slide, secret way, put there; `presentation.md`, "Moves that aren't a walk").
+- **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements; with them, the three transitions still to build for moves that aren't a walk (drop or slide, secret way, put there; `presentation.md`, "Moves that aren't a walk"), and the connection mark for the card-made connections (`presentation.md`, "Connections").
 - **Props and figures:** held items and omens, companions, room tokens; startle and hurt animations; jumps and falls; the models of things on the floor (stand-ins today).
 
 ## Polish list
@@ -86,14 +86,15 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `turn` end: End turn, an explicit action, held on a pad or the keyboard, never automatic.
 - `rotation`: the ghost tile on its cell, turned through its legal ways round, which are the decision's choices. A tile that fits one way is placed by the engine. A ghost only ever means "not yet placed": once placed, a room shows solid at once in a flat moon light until its baked light lands (`lighting.md`).
 - `place-tile` (the Mystic Elevator, The Beckoning, cards that move rooms, haunt 13's top-up rooms): the legal cells glow on any floor, and the tile's own cell means "leave it". `room-moved` flies the tile to its new cell with its figures (`art/room-flight.ts`).
-- `choose-one` with room options (the Bottle's teleport, the Dog's run): an option may name a room, and those options are places.
+- `choose-one` with place options (the Bottle's teleport, the Dog's run, the Revolving Wall's walls and corners, a barrier room's sides, a card's figures): an option may name a room, a side of a barrier room, a wall or corner of a room, or a figure, and those options are places (`card-presentation.md`, "Choices that are places").
+- `turn` attack on a figure and activate (a monster turn): the figure is the target.
 
 **Not places: the status box and the explorer sheet**
 - `turn` action, drop and pickup: Your explorer's rows, and the same as buttons in the status box; a card on the floor is picked up from the floor too.
 - `turn` trade: the trade sheet. `trade-offer` goes to another seat mid-turn, named in the prompt.
 - `roll-before` and `roll-after`: the roll's dice, total and outcome, in icons.
 - `split-damage` and `damage-kind`: the stat tracks, with where the damage would land.
-- `choose-one` (event cards): the card, per `card-presentation.md`.
+- `choose-one` (event cards) whose options aren't places: the card, per `card-presentation.md`.
 - The ready wait (the haunt reveal): the reveal.
 
 **Haunt 13**

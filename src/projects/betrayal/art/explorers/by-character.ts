@@ -9,6 +9,7 @@ import { ox } from "./ox";
 import { peter } from "./peter";
 import { rhinehardt } from "./rhinehardt";
 import { brandon } from "./brandon";
+import { heather } from "./heather";
 import { zoe } from "./zoe";
 import { vivian } from "./vivian";
 
@@ -30,6 +31,7 @@ const FIGURES: Partial<Record<string, ExplorerBuilder>> = {
   "zoe-ingstrom": zoe,
   "peter-akimoto": peter,
   "brandon-jaspers": brandon,
+  "heather-granville": heather,
   "father-rhinehardt": rhinehardt,
   "vivian-lopez": vivian,
 };

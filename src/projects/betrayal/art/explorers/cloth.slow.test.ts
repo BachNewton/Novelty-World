@@ -14,6 +14,7 @@ import { peter } from "./peter";
 import { vivian } from "./vivian";
 import { rhinehardt } from "./rhinehardt";
 import { brandon } from "./brandon";
+import { heather } from "./heather";
 import { zoe } from "./zoe";
 
 /*
@@ -39,6 +40,7 @@ const EXPLORERS: Record<string, ExplorerBuilder> = {
   rhinehardt: (seed, gait) => rhinehardt(seed, gait, { cloth: "off" }),
   flash,
   brandon,
+  heather,
   peter,
   vivian,
 };
