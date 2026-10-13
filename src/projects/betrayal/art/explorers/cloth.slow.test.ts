@@ -11,6 +11,7 @@ import { flash } from "./flash";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
+import { vivian } from "./vivian";
 import { rhinehardt } from "./rhinehardt";
 import { brandon } from "./brandon";
 import { zoe } from "./zoe";
@@ -39,6 +40,7 @@ const EXPLORERS: Record<string, ExplorerBuilder> = {
   flash,
   brandon,
   peter,
+  vivian,
 };
 /** The figures robed or skirted, whose cloth the legs push. */
 const CLOTHED = ["zoe", "rhinehardt"];
