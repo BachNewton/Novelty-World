@@ -32,11 +32,12 @@ import { sceneTarget } from "./routes";
 import { createPresenting, skipOrAnswer, SPEEDS, type Presented, type Presenting, type Speed } from "./presenting";
 import { RaiseWallsButton } from "../raise-walls-button";
 import { CardBeat } from "./card-beat";
-import { ExplorerSheet, FigureMarks, markedExplorers, StatsButton } from "./figure-marks";
+import { ExplorerSheet, FigureMarks, markedExplorers } from "./figure-marks";
+import { DetailsButton, HouseDetails } from "./details";
 import { TradeSheet } from "./trade-sheet";
 import { ClusterCounts, ThingReader, ThingTag } from "./thing-reader";
 import type { ShownThing } from "../../play/things";
-import { useStatsHold } from "./stats-hold";
+import { useDetailsHold } from "./details-hold";
 import { BakeDebug } from "../../art/bake-debug";
 import { BakeIndicator } from "../../art/bake-indicator";
 import { createFrameMeter, useFrameMeter, type FrameMeter } from "../../art/frame-meter";
@@ -280,7 +281,7 @@ export function PlayScreen({
   const handlesRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  const stats = useStatsHold(padMay);
+  const details = useDetailsHold(padMay);
   // Input fast-forwards whatever is playing: nothing waits on an animation.
   const act = useCallback(
     (action: Action) => {
@@ -507,7 +508,8 @@ export function PlayScreen({
       </div>
       <GhostHandles handlesRef={handlesRef} ghost={ghost} />
       <ClusterCounts scene={scene} clusters={presented.clusters} shown={things} />
-      <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} statsHeld={stats.held} tab={tab?.id ?? null} openTab={openTab} />
+      {details.held && <HouseDetails scene={scene} view={view} things={things} />}
+      <FigureMarks scene={scene} view={view} spots={presented.spots} told={told} details={details.held} tab={tab?.id ?? null} openTab={openTab} />
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-1.5 p-3 pr-28 text-xs sm:text-sm">
         {/* The seat holding the device: its explorer's character card, as the mark on the figure opens it. */}
@@ -554,7 +556,7 @@ export function PlayScreen({
           Walls
           <Prompt meaning="walls" input={input} size={16} />
         </RaiseWallsButton>
-        <StatsButton held={stats.held} hold={stats.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
+        <DetailsButton held={details.held} hold={details.hold} input={input} className={`${button} aria-pressed:border-(--bt-accent) aria-pressed:bg-(--bt-room)`} />
         <button
           type="button"
           aria-expanded={gate.menuOpen}

@@ -27,8 +27,9 @@ import { Prompt } from "../prompts";
 /*
  * What the explorers carry, on the figures: a mark under each explorer with
  * a pip for each card it holds, in the card's colour, and a tag for each
- * status it keeps. Holding the stats up shows every explorer's stats in brief
- * on its mark, and a gain or loss floats up over the figure as it happens.
+ * status it keeps. Holding the details up adds the explorer's name and its
+ * stats in brief to its mark, and a gain or loss floats up over the figure as
+ * it happens.
  * The cards' 3D props on the figures are art still to come: the pips stand
  * in for them.
  *
@@ -53,7 +54,7 @@ export function markedExplorers(view: GameView, spots: Spots): FigureView[] {
     .sort((a, b) => (a.owner ?? 0) - (b.owner ?? 0));
 }
 
-/** Every trait in brief, two to a row, so six explorers' stats leave the house in view. */
+/** Every trait in brief, its icon and value, two to a row, so six explorers' stats leave the house in view. */
 function CompactStats({ view, figure }: { view: GameView; figure: FigureView }) {
   return (
     <span aria-label={`${figure.name}'s stats`} className="grid grid-cols-2 gap-x-1.5 text-xs">
@@ -105,11 +106,11 @@ function usePinned(scene: HouseScene, group: string, figure: FigureId, { height,
   return ref;
 }
 
-function Mark({ scene, view, figure, statsHeld, floats, open, toggle }: {
+function Mark({ scene, view, figure, details, floats, open, toggle }: {
   scene: HouseScene;
   view: GameView;
   figure: FigureView;
-  statsHeld: boolean;
+  details: boolean;
   floats: StatChange[];
   open: boolean;
   toggle: () => void;
@@ -143,7 +144,8 @@ function Mark({ scene, view, figure, statsHeld, floats, open, toggle }: {
               </span>
             ))}
           </span>
-          {statsHeld && <CompactStats view={view} figure={figure} />}
+          {details && <span className="max-w-28 truncate text-[11px] leading-3.5 font-semibold">{figure.name}</span>}
+          {details && <CompactStats view={view} figure={figure} />}
         </button>
       </div>
     </div>
@@ -156,13 +158,14 @@ export interface FigureMarksProps {
   spots: Spots;
   /** The events the status box tells: their gains and losses float. */
   told: readonly EventView[];
-  statsHeld: boolean;
+  /** Whether the details are held up: each mark adds the explorer's name and stats. */
+  details: boolean;
   /** The explorer whose tab the sheet shows, or null while it is closed. */
   tab: FigureId | null;
   openTab: (figure: FigureId | null) => void;
 }
 
-export function FigureMarks({ scene, view, spots, told, statsHeld, tab, openTab }: FigureMarksProps) {
+export function FigureMarks({ scene, view, spots, told, details, tab, openTab }: FigureMarksProps) {
   const explorers = markedExplorers(view, spots);
   const changes = statChanges(told);
   return explorers.map((figure) => (
@@ -171,7 +174,7 @@ export function FigureMarks({ scene, view, spots, told, statsHeld, tab, openTab 
       scene={scene}
       view={view}
       figure={figure}
-      statsHeld={statsHeld}
+      details={details}
       floats={changes.filter((change) => change.figure === figure.id)}
       open={figure.id === tab}
       toggle={() => {
@@ -351,35 +354,5 @@ function SheetBody({ scene, view, tab, actions, act, openTrade, notes }: Explore
         </div>
       )}
     </>
-  );
-}
-
-/** The on-screen button that shows every explorer's stats while it is held, as Z or a controller's R3 does. */
-export function StatsButton({ held, hold, input, className }: { held: boolean; hold: (on: boolean) => void; input: InputKind; className: string }) {
-  return (
-    <button
-      type="button"
-      aria-label="Show the stats"
-      aria-pressed={held}
-      title="Hold to show every explorer's stats"
-      onPointerDown={(event) => {
-        event.currentTarget.setPointerCapture(event.pointerId);
-        hold(true);
-      }}
-      onPointerUp={() => {
-        hold(false);
-      }}
-      onPointerCancel={() => {
-        hold(false);
-      }}
-      // A long press would otherwise open the page's menu over the house.
-      onContextMenu={(event) => {
-        event.preventDefault();
-      }}
-      className={`touch-none select-none ${className}`}
-    >
-      Stats
-      <Prompt meaning="stats" input={input} size={16} />
-    </button>
   );
 }

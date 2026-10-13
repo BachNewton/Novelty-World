@@ -229,7 +229,7 @@ export type Meaning =
   | "explorer"
   | "menu"
   | "recentre"
-  | "stats"
+  | "details"
   | "walls"
   | "floor-down"
   | "floor-up"
@@ -243,7 +243,7 @@ const MAP: Record<Meaning, { pad: PadGlyph; key: string | null; held: boolean }>
   explorer: { pad: "Y", key: "I", held: false },
   menu: { pad: "Menu", key: "M", held: false },
   recentre: { pad: "View", key: "C", held: false },
-  stats: { pad: "R3", key: "Z", held: true },
+  details: { pad: "R3", key: "Z", held: true },
   walls: { pad: "L3", key: "V", held: true },
   "floor-down": { pad: "LB", key: "F", held: false },
   "floor-up": { pad: "RB", key: "R", held: false },

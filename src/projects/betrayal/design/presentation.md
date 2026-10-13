@@ -45,7 +45,7 @@ The controller map, with its counterparts:
 | Recentre | View | C or Home, or the on-screen button | the on-screen button |
 | The game menu | Menu, on any pad | M, or its button | its button |
 | Raise the walls | hold L3 | hold V | hold the Walls button |
-| Every explorer's stats | hold R3 | hold Z | hold the Stats button |
+| Details | hold R3 | hold Z | hold the Details button |
 
 The status box shows a chip for Your explorer with the turn's actions counted ("Y Your explorer · 3 actions"). Ending the turn is a hold on a pad and the keyboard, because there is no undo and with several pads a stray press would pass the device. Menu opens the game menu from any pad, even one that may not act now, and does nothing at setup, where Start is a button like any other. A seat is called by its character everywhere, so setup has no names to type. The input last used is the device's, carried from setup into the game: a pad's focus and prompts show at setup the moment the pad is noticed, and a press that only brings the focus into view does nothing else. A mouse drag orbits at 0.004 radians a pixel, and a two-finger tilt shares it. Two fingers are one combined gesture: turning, tilting and zooming happen at once, each starting past its own small threshold, and there is no twist. The art bench uses the same scheme.
 
@@ -89,9 +89,11 @@ The card sort (`card-presentation.md`) sorted all 110 cards by how they show in 
 
 ## Stats
 
-Hidden by default and shown when useful: in a roll's prompt, on the damage tracks, as a float on a gain or loss. Holding R3, Z or the Stats button overlays every explorer's stats over the figures, compactly: each trait's value and the steps left above the skull. More of it is contextual after the haunt.
+Hidden by default and shown when useful: in a roll's prompt, on the damage tracks, as a float on a gain or loss, and in the details (below). More of it is contextual after the haunt.
 
-**A trait is a track, as the character card prints it** (`play/tracks.ts`): the character's own values in a row, the clip on its step, the starting step marked, the top as the ceiling, and the skull below the lowest, padlocked before the haunt (when no one can die) and bare after. One track component is used everywhere: on the character card, in a damage preview (where the choice in focus would leave the clip) and, compact, in the overlay. It is HTML and SVG, not 3D.
+**Details.** Holding R3, Z or the Details button labels what is useful at a glance, and letting go returns the clean house at once (`components/play/details.tsx`): each explorer's mark adds the explorer's name and its stats in brief, each trait's icon and value (in the danger colour on the last step above a live skull); each room on the floor showing is named on its far side from the camera, by its back wall, with where its stairs lead when they go to another floor; and each thing in a room is named where it lies, a room's objects in one list over their spot. The labels come from the seat's own view, like everything else on the screen. The marks and the things' labels are kept apart as the marks are (`art/pins-apart.ts`), and slid back onto the screen whole at its edge; a room's name gives way, drawn under them.
+
+**A trait is a track, as the character card prints it** (`play/tracks.ts`): the character's own values in a row, the clip on its step, the starting step marked, the top as the ceiling, and the skull below the lowest, padlocked before the haunt (when no one can die) and bare after. One track component is used everywhere: on the character card, in a damage preview (where the choice in focus would leave the clip) and, as just the icon and value, in the details. It is HTML and SVG, not 3D.
 
 **The character card** is Your explorer, a sheet over the house: a tab for each explorer, then the explorer's portrait, its four tracks and the cards it holds, with their text. Another explorer's tab is for reading only.
 

@@ -45,4 +45,18 @@ describe("pinsApart", () => {
     const boxes = [box(100, 100), box(100, 200)];
     expect(pinsApart(boxes, GAP)).toEqual([100, 100]);
   });
+
+  it("slides a row the screen's edge would cut back onto the screen whole, its boxes still apart", () => {
+    const boxes = [box(10), box(30)];
+    const xs = pinsApart(boxes, GAP, { left: 8, right: 352 });
+    expect(xs[0] - 20).toBe(8);
+    expect(xs[1] - xs[0]).toBe(40 + GAP);
+  });
+
+  it("joins a row slid off the edge to the box it now reaches", () => {
+    const boxes = [box(0), box(70)];
+    const xs = pinsApart(boxes, GAP, { left: 8, right: 352 });
+    expect(overlapping(boxes, xs)).toBe(false);
+    expect(Math.min(...xs) - 20).toBeGreaterThanOrEqual(8);
+  });
 });

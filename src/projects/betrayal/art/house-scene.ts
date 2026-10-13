@@ -54,6 +54,8 @@ const PAN_MARGIN = TILE / 2;
 const RETICLE_SNAP = FINGER * 1.5;
 /** The gap kept between a tag pinned in the house and the screen's edge, in CSS pixels. */
 const SCREEN_MARGIN = 8;
+/** How far a room's `far` pin stands from its middle, in metres: just inside its back wall. */
+const FAR_SIDE = TILE * 0.4;
 /** The least space between pins kept apart, in CSS pixels. */
 const PIN_GAP = 4;
 /** How much of a frame building the house may take, in milliseconds: about half of a 60 Hz frame,
@@ -78,7 +80,8 @@ export interface FigureWalk {
   speed?: number;
 }
 
-/** A page element kept over a figure or a room's middle, `height` metres
+/** A page element kept over a figure, a thing, or a room's middle (or its
+ *  `far` side from the camera, where its back wall stands), `height` metres
  *  above its floor and raised by `lift` of its own height. A clamped one
  *  stays on the screen when its point leaves it, at the top of the screen
  *  when its point doesn't show at all; any other hides. Pins kept `apart`
@@ -86,7 +89,7 @@ export interface FigureWalk {
  *  that would are laid side by side (`pins-apart.ts`). */
 export interface Pin {
   element: HTMLElement;
-  at: { figure: string } | { room: string } | { thing: string };
+  at: { figure: string } | { room: string; far?: boolean } | { thing: string };
   height: number;
   lift: number;
   clamp: boolean;
@@ -473,6 +476,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     const floor = at?.floor ?? tile?.floor;
     if (floor === undefined || (view.floor !== "all" && floor !== view.floor)) return null;
     const point = at ? house.scenePoint(at) : tile ? house.cellCentre(tile.floor, tile.x, tile.y) : null;
+    // Away from the camera, across the floor: the side of the room its back wall stands on.
+    if (point && "room" in pinned.at && pinned.at.far) point.add(new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)).multiplyScalar(FAR_SIDE));
     return point && point.setY(point.y + pinned.height);
   };
   const placeContext = (house: House) => ({ layout, showing: view.floor, stairway, scenePoint: house.scenePoint, figureAt: house.figureAt });
@@ -1256,7 +1261,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           else pin(pinned.element, shown, at ? pinned.lift : 0);
         }
         const boxes = apart.map(({ pinned: { element }, at, lift }) => ({ x: at.x, top: at.y - element.offsetHeight * lift, width: element.offsetWidth, height: element.offsetHeight }));
-        const xs = pinsApart(boxes, PIN_GAP);
+        const xs = pinsApart(boxes, PIN_GAP, { left: SCREEN_MARGIN, right: container.clientWidth - SCREEN_MARGIN });
         for (const [i, { pinned, at, lift }] of apart.entries()) pin(pinned.element, { x: xs[i], y: at.y }, lift);
         if (ghostHandles) {
           const at = ghostSpan && !usesReticle(view.input) ? { x: ghostSpan.middle, y: ghostSpan.bottom } : null;
