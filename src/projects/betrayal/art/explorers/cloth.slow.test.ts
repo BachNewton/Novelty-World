@@ -12,6 +12,7 @@ import { jenny } from "./jenny";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
+import { vivian } from "./vivian";
 import { rhinehardt } from "./rhinehardt";
 import { brandon } from "./brandon";
 import { heather } from "./heather";
@@ -43,6 +44,7 @@ const EXPLORERS: Record<string, ExplorerBuilder> = {
   heather,
   peter,
   jenny,
+  vivian,
 };
 /** The figures robed or skirted, whose cloth the legs push. */
 const CLOTHED = ["zoe", "rhinehardt"];

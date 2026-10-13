@@ -16,6 +16,7 @@ const EXPLORERS: readonly string[] = [
   "professor-longfellow",
   "father-rhinehardt",
   "jenny-leclerc",
+  "vivian-lopez",
   "heather-granville",
   "brandon-jaspers",
   "peter-akimoto",

@@ -5,7 +5,7 @@ import { animated } from "../animate";
 import { ball, chain, ellipsoid, figureMaterial, form, intersect, mergeAll, painted, plinth, ring, rod, roundBox, sculpt, shaped, stretched, surfaceAt, union, type Solid, type Vec3 } from "../forms";
 import { group } from "../shapes";
 import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
-import { aimGrip, blendPose, buildArm, fist, gripAt, handParts, hasHands, holdIn, holding, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Prop } from "./hands";
+import { aimGrip, blendPose, buildArm, fist, gripAt, handParts, hasHands, holdIn, holding, poseArm, poseHand, reachWrist, RELAXED, type Prop } from "./hands";
 import { skinOf, skinShade } from "./skin";
 import { declareParts, figureParts } from "../figure-parts";
 
@@ -13,7 +13,7 @@ import { declareParts, figureParts } from "../figure-parts";
  * Jenny LeClerc: a quiet 21-year-old who lives in the library and plays
  * soccer, whose only real friend is Caitlyn, and whose greatest fear is being
  * trapped in a crowd or lost out in the open. Read at a glance: a slim young
- * woman of middle height in a long burnt-orange cardigan open over a cream
+ * woman of middle height in a long mustard cardigan open over a cream
  * top, a long dark-brown ponytail swinging behind her, a green library book
  * hugged to her chest in her left arm, slim blue jeans and white sneakers.
  * She faces +z; her right hand is on −x.
@@ -83,8 +83,7 @@ function head(): THREE.BufferGeometry {
     0.256 - 0.04 * THREE.MathUtils.smoothstep(Math.abs(x), 0.05, 0.1) - 0.13 * THREE.MathUtils.smoothstep(-z, 0, 0.1);
   shape
     .add(intersect(ellipsoid([0, 0.226, -0.014], [0.107, 0.127, 0.122]), above(hairline, [-0.12, 0.08, -0.15], [0.12, 0.36, 0.13])), "wood", 0.006)
-    // Swept from a parting on her left across her brow, and gathered at the back towards the tie.
-    .add(rod([0.03, 0.302, 0.085], [-0.095, 0.238, 0.062], 0.024, 0.02), "wood", 0.024)
+    // Gathered at the back towards the tie.
     .add(ellipsoid([-0.1, 0.218, -0.03], [0.024, 0.042, 0.06]), "wood", 0.03)
     .add(ellipsoid([0.1, 0.218, -0.03], [0.024, 0.042, 0.06]), "wood", 0.03)
     // Loose locks fallen from the ponytail, framing her face down to the jaw.
@@ -122,20 +121,20 @@ function ponytail(): THREE.BufferGeometry {
 const opening = (y: number) => 0.024 + (0.44 - y) * 0.1;
 
 /** The cardigan from the hem up, built from the waist: a slim figure, a
- *  little wider at the hips than the waist, the burnt-orange knit open down
+ *  little wider at the hips than the waist, the mustard knit open down
  *  the front over a cream top with a round neck, its button bands standing
  *  proud, a ribbed hem; and below the hem, the seat of her jeans, which her
  *  thighs swing from. */
 function cardigan(): THREE.BufferGeometry {
   const shape = sculpt()
     .add(ellipsoid([0, -0.03, 0], [0.124, 0.075, 0.092]), "moon")
-    .add(roundBox([0, 0.09, 0], [0.12, 0.09, 0.086], 0.065), "ember", 0.02)
-    .add(ellipsoid([0, 0.27, 0], [0.158, 0.155, 0.098]), "ember", 0.08);
-  for (const side of [-1, 1]) shape.add(ellipsoid([side * 0.052, 0.255, 0.058], [0.052, 0.05, 0.045]), "ember", 0.05);
+    .add(roundBox([0, 0.09, 0], [0.12, 0.09, 0.086], 0.065), "brass", 0.02)
+    .add(ellipsoid([0, 0.27, 0], [0.158, 0.155, 0.098]), "brass", 0.08);
+  for (const side of [-1, 1]) shape.add(ellipsoid([side * 0.052, 0.255, 0.058], [0.052, 0.05, 0.045]), "brass", 0.05);
   // The shoulders reach out over the tops of the sleeves, so a sleeve's round top sits inside one and never shows as a ball.
-  for (const side of [-1, 1]) shape.add(rod([side * 0.04, 0.412, -0.01], [side * 0.18, 0.381, -0.004], 0.044, 0.05), "ember", 0.06);
+  for (const side of [-1, 1]) shape.add(rod([side * 0.04, 0.412, -0.01], [side * 0.18, 0.381, -0.004], 0.044, 0.05), "brass", 0.06);
   shape
-    .add(stretched(ring([0, 0.022, 0], 0.122, 0.013), [0, 0.022, 0], [1.04, 1, 0.78]), "brickLight", 0.008)
+    .add(stretched(ring([0, 0.022, 0], 0.122, 0.013), [0, 0.022, 0], [1.04, 1, 0.78]), "woodLight", 0.008)
     .paint((x, y, z) => (z > 0.03 && y > 0.03 && y < 0.44 && Math.abs(x) < opening(y) ? -1 : 1), "bone")
     .add(stretched(ring([0, 0.44, -0.008], 0.066, 0.016), [0, 0.44, -0.008], [1.08, 1, 0.95]), "bone", 0.008);
   // The button bands: the cardigan's edges stand proud either side of the opening, buttons down her right.
@@ -144,7 +143,7 @@ function cardigan(): THREE.BufferGeometry {
       const x = side * (opening(y) + 0.008);
       return [x, y, surfaceAt(shape.distance, x, y) - 0.004];
     });
-    shape.add(chain(points, [0.012, 0.012, 0.012]), "ember", 0.01);
+    shape.add(chain(points, [0.012, 0.012, 0.012]), "brass", 0.01);
   }
   for (const y of [0.1, 0.19, 0.28]) {
     const x = -(opening(y) + 0.012);
@@ -156,7 +155,7 @@ function cardigan(): THREE.BufferGeometry {
 /** The upper arm from the shoulder to the elbow: a knit sleeve, tapering to the elbow, where it ends inside the forearm's top. */
 function upperArm(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, -0.005, 0], [0, -UPPER_ARM, 0], 0.042, 0.034), "ember")
+    .add(rod([0, -0.005, 0], [0, -UPPER_ARM, 0], 0.042, 0.034), "brass")
     .geometry(0.01);
 }
 
@@ -165,8 +164,8 @@ function upperArm(): THREE.BufferGeometry {
  *  however far the elbow bends. */
 function forearm(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, 0, 0], [0, -FOREARM + 0.03, 0], 0.04, 0.035), "ember")
-    .add(ring([0, -FOREARM + 0.028, 0], 0.031, 0.014), "brickLight", 0.004)
+    .add(rod([0, 0, 0], [0, -FOREARM + 0.03, 0], 0.04, 0.035), "brass")
+    .add(ring([0, -FOREARM + 0.028, 0], 0.031, 0.014), "woodLight", 0.004)
     .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.016, 0.002], 0.019, 0.017), SKIN)
     .geometry(0.008);
 }
@@ -185,14 +184,14 @@ function shin(): THREE.BufferGeometry {
     .geometry(0.01);
 }
 
-/** A white sneaker on the base: a low toe, an orange flash down its side, a pale grey sole. */
+/** A white sneaker on the base: a low toe, a green flash down its side, a pale grey sole. */
 function shoe(x: number) {
   const shape = sculpt()
     .add(ellipsoid([x, BASE_TOP + 0.028, 0.08], [0.044, 0.03, 0.074]), "boneLight")
     .add(ellipsoid([x, BASE_TOP + 0.033, -0.028], [0.042, 0.037, 0.052]), "boneLight", 0.04)
     .add(rod([x, BASE_TOP + 0.038, -0.014], [x, BASE_TOP + 0.06, -0.01], 0.031), "boneLight", 0.02)
     .carve(roundBox([x, BASE_TOP - 0.1, 0], [0.2, 0.1, 0.3], 0))
-    .paint((px, y, z) => (Math.abs(px - x) > 0.03 && y > BASE_TOP + 0.016 && y < BASE_TOP + 0.03 && z > -0.04 && z < 0.08 ? -1 : 1), "ember")
+    .paint((px, y, z) => (Math.abs(px - x) > 0.03 && y > BASE_TOP + 0.016 && y < BASE_TOP + 0.03 && z > -0.04 && z < 0.08 ? -1 : 1), "verdigris")
     .paint((_, y) => (y < BASE_TOP + 0.012 ? -1 : 1), "stoneLight");
   return { geometry: shape.geometry(0.009), ...soleEnds(shape.distance, x) };
 }
@@ -258,8 +257,6 @@ export const JENNY_PARTS = figureParts("jenny", meshParts);
 declareParts(jenny, [JENNY_PARTS]);
 
 const UP = new THREE.Vector3(0, 1, 0);
-/** How far her right hand turns about its length at her ear, so its palm faces her head. */
-const TUCK_ROLL = -Math.PI / 2;
 
 /** A placement in the chest's frame: where the book stands, turned by `turn`. */
 function placed(at: THREE.Vector3, turn: THREE.Euler): THREE.Matrix4 {
@@ -268,13 +265,11 @@ function placed(at: THREE.Vector3, turn: THREE.Euler): THREE.Matrix4 {
 
 /** Jenny LeClerc as a miniature on a round base, 5'7" at the house's scale.
  *  She breathes and shifts her weight, her book hugged to her chest; now and
- *  then she tucks a loose strand of hair behind her ear, and now and then she
- *  tips her book out and glances down at it, as if to find her place; and
+ *  then she tips her book out and glances down at it, as if to find her place; and
  *  now and then, as though the house had filled with people, she hugs the
  *  book tight, hunches her shoulders and looks quickly one way and the other.
  *  She walks with a light, quick step, her ponytail bouncing. Her left arm
- *  holds the book; her right hand is free to hold anything else, and the tuck
- *  waits while it does. */
+ *  holds the book; her right hand is free to hold anything else. */
 export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
   const parts = JENNY_PARTS.get();
   const material = figureMaterial();
@@ -313,9 +308,6 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
 
   const hangs = reachWrist(right, right.at.clone().add(new THREE.Vector3(-0.04, -0.44, 0.05)), new THREE.Vector3(-0.3, 0, -1));
   const carries = reachWrist(right, right.at.clone().add(new THREE.Vector3(0, -0.28, 0.21)), new THREE.Vector3(-0.2, 0, -1));
-  // The tuck, in two stages: out and up before her, then her fingertips up the side of her head and back past her right ear.
-  const aside = reachWrist(right, right.at.clone().add(new THREE.Vector3(-0.12, -0.12, 0.2)), new THREE.Vector3(-0.4, -1, -0.4));
-  const tucks = pointHand(reachWrist(right, new THREE.Vector3(-0.2, NECK - WAIST + 0.065, 0.12), new THREE.Vector3(-0.8, -0.6, 0)), new THREE.Vector3(0.15, 0.6, -0.78), TUCK_ROLL);
 
   const trunk = mesh(parts.cardigan, "cardigan");
   const chest = group(trunk, neck, left.shoulder, right.shoulder);
@@ -342,8 +334,6 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
     { parts: [hair, face], at: tail, radius: 0.06 },
     { parts: [left.shoulder.children[0], trunk], at: left.shoulder, radius: 0.1 },
     { parts: [right.shoulder.children[0], trunk], at: right.shoulder, radius: 0.11 },
-    // Her hand at her ear folds her elbow past a right angle.
-    { parts: [right.shoulder.children[0], right.elbow.children[0]], at: right.elbow, radius: 0.13 },
     ...left.joints,
     ...right.joints,
     ...legs.flatMap((one) => legJoints(one, trunk, 0.13, 0.1, 0.085)),
@@ -359,7 +349,6 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
   const swayPhase = rng.next() * Math.PI * 2;
   const offset = rng.next() * 100;
   const bursts = idleBursts(figure, seed, offset, {
-    tuck: { every: 8, lasts: 2.2, chance: 0.6 },
     peek: { every: 12, lasts: 3.4, chance: 0.6 },
     crowd: { every: 10, lasts: 2.6, chance: 0.5 },
   });
@@ -372,10 +361,9 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
     const running = moving.running ? moving.amount : 0;
     const still = 1 - moving.amount;
     const held = right.hand.held;
-    const { tuck, peek, crowd } = bursts(clock);
-    // The fear plays walking and running too; the tuck waits on a full hand and the run; the peek wants her standing.
+    const { peek, crowd } = bursts(clock);
+    // The fear plays walking and running too; the peek wants her standing.
     const afraid = crowd.amount;
-    const tucking = held ? 0 : tuck.amount * (1 - running) * (1 - afraid);
     const peeking = peek.amount * still * (1 - afraid);
 
     body.rotation.z = sway * 0.018;
@@ -396,9 +384,9 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
     poseArm(left, hugs, afraid > 0 ? clutches : peeks, Math.max(afraid, peeking));
     poseHand(left.hand, holding(left.hand, RELAXED));
     const upright = held?.carry === "upright";
-    poseArm(right, upright ? carries : hangs, aside, THREE.MathUtils.clamp(tucking * 2, 0, 1));
-    if (tucking > 0.5) poseArm(right, aside, tucks, tucking * 2 - 1);
-    const empty = blendPose(blendPose(RELAXED, OPEN, tucking), fist(right.hand), Math.max(running, afraid) * 0.7);
+    const rest = upright ? carries : hangs;
+    poseArm(right, rest, rest, 0);
+    const empty = blendPose(RELAXED, fist(right.hand), Math.max(running, afraid) * 0.7);
     poseHand(right.hand, held ? holding(right.hand, RELAXED) : empty);
     swinging.swing = upright ? ARM_SWING * 0.3 : ARM_SWING;
 

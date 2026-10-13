@@ -83,6 +83,10 @@ export interface ControlHandlers {
   /** Whether a pad may act now (hot-seat pad assignment): a pad that may not
    *  is idle, its sticks and buttons ignored by the house. Every pad may when absent. */
   padMay?: (pad: number) => boolean;
+  /** What a pointer at this point picks, where the presentation picks its own way (inspecting); else `pointAt` over the layout's targets. */
+  pick?: (point: Point) => string | null;
+  /** Whether the player is inspecting (holding the details): a finger dragged over the house then points, never pans. */
+  inspecting?: () => boolean;
 }
 
 /** Pointer targets reach at least this far round a choice: a 48 px circle, a fingertip. */
@@ -91,6 +95,15 @@ const FINGER_REACH = 24;
 /** The choice a pointer at this point picks: the mouse, a finger, and the controller's reticle at the screen's centre all pick this one way. */
 export function pointAt(targets: readonly Target[], point: Point): string | null {
   return pickTarget(targets, point, FINGER_REACH);
+}
+
+/** What a pointer picks among layers of targets: the first layer with one under it, so a thing or a figure wins over the room it is in. */
+export function pointAtFirst(layers: readonly (readonly Target[])[], point: Point): string | null {
+  for (const layer of layers) {
+    const id = pointAt(layer, point);
+    if (id !== null) return id;
+  }
+  return null;
 }
 const ORBIT_PER_PIXEL = 0.004;
 /** Radians a two-finger drag turns the camera across the screen's full width: a half turn. */
@@ -194,7 +207,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
 
   const tap = (point: Point, kind: "mouse" | "touch") => {
     const { targets, points, focused } = handlers.layout();
-    const id = pointAt(targets, point);
+    const id = handlers.pick ? handlers.pick(point) : pointAt(targets, point);
     if (id === null) return;
     if (tapAction(kind, id, focused, points.length) === "commit") handlers.commit(id);
     else handlers.focus(id);
@@ -203,7 +216,7 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
   let hovered: string | null = null;
   const hover = (point: Point | null) => {
     const { targets, focused } = handlers.layout();
-    const id = point && pointAt(targets, point);
+    const id = point && (handlers.pick ? handlers.pick(point) : pointAt(targets, point));
     if (id === null && hovered !== null) handlers.blur();
     if (id !== null && id !== focused) handlers.focus(id);
     hovered = id;
@@ -249,6 +262,10 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
       if (turn !== 0 || tilt !== 0) handlers.orbit(turn, tilt);
       if (parts.zoom && from("zoom").spread > 0) handlers.zoom(now.spread / from("zoom").spread);
       fingers = { start, last: now, parts };
+      return;
+    }
+    if (press.kind === "touch" && handlers.inspecting?.()) {
+      hover(point);
       return;
     }
     if (!dragging && isDrag(press.start, point)) {

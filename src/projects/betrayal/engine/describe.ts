@@ -483,6 +483,12 @@ export function describeEvent(
       return sentence(
         `${who(data<{ figure: FigureId }>(event).figure)} looks at the top room tile`,
       );
+    case "room-bonus-spent": {
+      const d = data<{ figure: FigureId; room: string }>(event);
+      return sentence(
+        `${who(d.figure)} has already taken the ${words.room(d.room)}'s bonus this game, so gains nothing`,
+      );
+    }
     case "search-found-nothing":
       return sentence(
         `${who(data<{ figure: FigureId }>(event).figure)} finds nothing to search`,

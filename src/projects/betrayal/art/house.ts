@@ -85,9 +85,6 @@ export type Mark = { id: string } & (
   /** The stair out of `room` towards the room it links to. */
   | { kind: "stair"; room: string; toward: string }
   | { kind: "figure"; figure: string }
-  /** An empty cell on another floor, marked on this one at the same place:
-   *  the corners of a smaller square, round where it lies above or below. */
-  | { kind: "away"; floor: FloorId; x: number; y: number }
   /** Part of a room's floor, in its own frame: `size` along its x and z
    *  round `centre` (a half of a barrier room, a pad before a wall), with
    *  a token shown on a wall of it while focused. */
@@ -366,18 +363,6 @@ function stairGlow(run: readonly (readonly [number, number, number])[], fill: TH
     };
     const edge = (STAIR_MARK.width - STAIR_MARK.rail) / 2;
     mark.add(piece(STAIR_MARK.width, 0, fill), piece(STAIR_MARK.rail, -edge, border), piece(STAIR_MARK.rail, edge, border));
-  }
-  return mark;
-}
-
-/** A cell on another floor, on this one: the corners of a square half a tile across, open along its sides. */
-function awayMark(border: THREE.Material): THREE.Group {
-  const half = TILE / 4;
-  const arm = TILE / 10;
-  const mark = group();
-  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-    const [x, z] = [sx * half, sz * half];
-    mark.add(patch(arm, MARK.border, x - (sx * arm) / 2, z - (sz * MARK.border) / 2, MARK.edge, border), patch(MARK.border, arm, x - (sx * MARK.border) / 2, z - (sz * arm) / 2, MARK.edge, border));
   }
   return mark;
 }
@@ -686,11 +671,6 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
       }
       case "figure":
         return { object: figureMark(border), parent: walkerOf(mark.figure).holder };
-      case "away": {
-        const object = awayMark(border);
-        object.position.set(mark.x * TILE, 0, mark.y * TILE);
-        return { object, parent: floorHolder(mark.floor) };
-      }
       case "area": {
         const tile = tileOf(mark.room);
         const area = areaMark(mark.size[0], mark.size[1], fill, border);

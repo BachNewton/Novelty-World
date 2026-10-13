@@ -8,6 +8,7 @@ import { rhinehardt } from "../explorers/rhinehardt";
 import { brandon } from "../explorers/brandon";
 import { heather } from "../explorers/heather";
 import { zoe } from "../explorers/zoe";
+import { vivian } from "../explorers/vivian";
 import { pawn } from "../kit/pawn";
 import { group } from "../shapes";
 import { banshee } from "./banshee";
@@ -18,7 +19,7 @@ export { spider } from "./spider";
 
 /** The monsters beside the explorers and the scale pawn, for judging every
  *  figure's size and style together: the Spider in the middle, the Banshee
- *  Ox, Rhinehardt, Flash and Jenny on its right (−x), Longfellow, Zoe, Brandon, Peter, Heather and the pawn on its left. */
+ *  Ox, Rhinehardt, Flash, Vivian and Jenny on its right (−x), Longfellow, Zoe, Brandon, Peter, Heather and the pawn on its left. */
 export function monsterLineUp(seed = "line-up"): THREE.Group {
   const place = (figure: THREE.Object3D, x: number, z = 0) => {
     figure.position.set(x, 0, z);
@@ -30,7 +31,8 @@ export function monsterLineUp(seed = "line-up"): THREE.Group {
     place(ox(`${seed}:ox`), -2.6, 0.3),
     place(rhinehardt(`${seed}:rhinehardt`), -3.45, 0.3),
     place(flash(`${seed}:flash`), -4.3, 0.3),
-    place(jenny(`${seed}:jenny`), -5.15, 0.3),
+    place(vivian(`${seed}:vivian`), -5.15, 0.3),
+    place(jenny(`${seed}:jenny`), -6.0, 0.3),
     place(longfellow(`${seed}:longfellow`), 1.6, 0.4),
     place(zoe(`${seed}:zoe`), 2.4, 0.4),
     place(brandon(`${seed}:brandon`), 3.2, 0.4),
