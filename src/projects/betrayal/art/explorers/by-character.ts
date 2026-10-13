@@ -14,6 +14,7 @@ import { brandon } from "./brandon";
 import { heather } from "./heather";
 import { zoe } from "./zoe";
 import { vivian } from "./vivian";
+import { zostra } from "./zostra";
 
 /** A seat's colour is its character card's: on the figure, from the art palette. */
 export const CARD_PALETTE: Record<CardColour, PaletteKey> = {
@@ -38,6 +39,7 @@ const FIGURES: Partial<Record<string, ExplorerBuilder>> = {
   "father-rhinehardt": rhinehardt,
   "jenny-leclerc": jenny,
   "vivian-lopez": vivian,
+  "madame-zostra": zostra,
 };
 
 /** The pawn standing in for a character without a figure, one per colour, so

@@ -21,6 +21,7 @@ import { PROP_PARTS, STAND_INS } from "./props";
 import { brandon } from "./brandon";
 import { heather } from "./heather";
 import { zoe } from "./zoe";
+import { zostra } from "./zostra";
 
 /*
  * No figure's parts pass through each other, still or moving. Each explorer
@@ -34,13 +35,14 @@ import { zoe } from "./zoe";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, heather, peter, vivian, jenny, missy };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, heather, peter, vivian, jenny, zostra, missy };
 /** Zoe and Rhinehardt are checked in the heavy cloth (`?cloth=off`): the check leaves their simulated nets out
  *  (`isClothSheet`), and their rigid parts are the same either way, so simulating the nets through every moment would
  *  only cost time. */
 const CHECKED: Partial<Record<string, ExplorerBuilder>> = {
   zoe: (seed, gait) => zoe(seed, gait, { cloth: "off" }),
   rhinehardt: (seed, gait) => rhinehardt(seed, gait, { cloth: "off" }),
+  zostra: (seed, gait) => zostra(seed, gait, { cloth: "off" }),
 };
 
 function clipsThrough(figure: THREE.Object3D, times: readonly number[]): string[] {

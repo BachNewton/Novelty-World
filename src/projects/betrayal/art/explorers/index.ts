@@ -15,6 +15,7 @@ import { brandon } from "./brandon";
 import { heather } from "./heather";
 import { TWIRLING, zoe } from "./zoe";
 import { vivian } from "./vivian";
+import { zostra } from "./zostra";
 import { onCourse } from "./cloth-trial";
 
 export interface BenchExplorer {
@@ -55,6 +56,8 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "rhinehardt", name: "Father Rhinehardt", build: rhinehardt },
   { id: "vivian", name: "Vivian Lopez", build: vivian },
   { id: "rhinehardt-course", name: "Father Rhinehardt walking and running a course", build: onCourse(rhinehardt) },
+  { id: "zostra", name: "Madame Zostra", build: zostra },
+  { id: "zostra-course", name: "Madame Zostra walking and running a course", build: onCourse(zostra) },
   { id: "jenny-leclerc", name: "Jenny LeClerc", build: jenny },
   { id: "explorer-line-up", name: "Every explorer, with the pawn", build: (seed) => explorerLineUp(seed) },
   { id: "explorer-walk", name: "Every explorer walking on the spot", build: (seed) => explorerLineUp(seed, "walk") },

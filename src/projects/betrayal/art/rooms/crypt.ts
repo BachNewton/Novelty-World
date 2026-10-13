@@ -377,10 +377,10 @@ function deadFlowers(): THREE.Group {
   return group(b.mesh());
 }
 
-/** A guttered candle stub burnt down in its own wax on the ledge, cold. */
+/** A candle burnt down to a stub in its own wax on the ledge, still burning low. */
 function stub(height: number): () => THREE.Group {
-  return function coldStub() {
-    return group(candle({ height, light: false, wax: "boneDark" }), box([0.08, 0.008, 0.07], flat("boneDark"), [0, 0, 0]));
+  return function guttered() {
+    return group(candle({ height, intensity: 1.1, range: 3.5, wax: "boneDark" }), box([0.08, 0.008, 0.07], flat("boneDark"), [0, 0, 0]));
   };
 }
 

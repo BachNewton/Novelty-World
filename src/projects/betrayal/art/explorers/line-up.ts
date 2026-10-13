@@ -19,6 +19,7 @@ const EXPLORERS: readonly string[] = [
   "vivian-lopez",
   "heather-granville",
   "brandon-jaspers",
+  "madame-zostra",
   "peter-akimoto",
   "missy-dubourde",
   "zoe-ingstrom",

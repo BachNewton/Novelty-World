@@ -4,7 +4,7 @@ import { animated } from "../animate";
 import { ball, chain, ellipsoid, figureMaterial, form, intersect, plinth, ring, rod, roundBox, sculpt, stretched, surfaceAt, type Solid, type Vec3 } from "../forms";
 import { group } from "../shapes";
 import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
-import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm } from "./hands";
+import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm, type ArmPose } from "./hands";
 import { skinOf } from "./skin";
 import { declareParts, figureParts } from "../figure-parts";
 
@@ -53,6 +53,15 @@ function above(boundary: (x: number, z: number) => number, min: Vec3, max: Vec3)
   return { distance: (x, y, z) => boundary(x, z) - y, min, max };
 }
 
+/** A band on the face seen from the front: between x `from` and `to`, within `half` of the height `y(u)` at the
+ *  share `u` of the way across; for painting lashes and brows flat onto the surface, however it curves. */
+function frontBand(y: (u: number) => number, from: number, to: number, half: number) {
+  return (x: number, height: number, z: number) => {
+    const u = (x - from) / (to - from);
+    return z > 0.06 && u >= 0 && u <= 1 ? Math.abs(height - y(u)) - half : 1;
+  };
+}
+
 /** The head on its neck, in the neck's frame: a heart-shaped face with high
  *  cheeks, dark lashes, arched brows and red lips; dark auburn hair parted
  *  at the side, two victory rolls on the crown and a pageboy rolled under at
@@ -62,7 +71,7 @@ function head(): THREE.BufferGeometry {
     .add(rod([0, -0.03, -0.01], [0, 0.11, 0], 0.043, 0.039), SKIN)
     .add(ellipsoid([0, 0.212, -0.008], [0.098, 0.116, 0.11]), SKIN, 0.04)
     .add(ellipsoid([0, 0.145, 0.024], [0.078, 0.084, 0.09]), SKIN, 0.05)
-    .add(ellipsoid([0, 0.207, 0.087], [0.07, 0.016, 0.026]), SKIN, 0.02)
+    .add(ellipsoid([0, 0.207, 0.084], [0.068, 0.013, 0.022]), SKIN, 0.02)
     .add(rod([0, 0.196, 0.105], [0, 0.16, 0.122], 0.011, 0.016), SKIN, 0.012);
   for (const side of [-1, 1]) {
     const x = side * 0.037;
@@ -72,9 +81,9 @@ function head(): THREE.BufferGeometry {
     shape.add(ball([x, 0.182, 0.094], 0.017), "boneLight");
     shape.paint(ball([x, 0.182, 0.111], 0.0095), "woodMid");
     shape.paint(ball([x, 0.182, 0.113], 0.0052), "void");
-    // Dark lashes along each upper lid, and a thin arched brow above.
-    shape.add(rod([side * 0.019, 0.193, 0.11], [side * 0.058, 0.194, 0.1], 0.0055, 0.0045), "soot", 0.003);
-    shape.add(chain([[side * 0.018, 0.212, 0.11], [side * 0.042, 0.222, 0.108], [side * 0.066, 0.214, 0.096]], [0.0055, 0.006, 0.0045]), "woodDark", 0.003);
+    // Dark lashes painted along each upper lid, and a thin arched brow painted above: flat, so the brow stays smooth.
+    shape.paint(frontBand((u) => 0.1935 + 0.005 * Math.sin(u * Math.PI), side * 0.02, side * 0.056, 0.0035), "soot");
+    shape.paint(frontBand((u) => 0.216 + 0.008 * Math.sin(u * Math.PI) - 0.004 * u, side * 0.018, side * 0.064, 0.0035), "woodDark");
   }
   shape.paint(ellipsoid([0, 0.117, 0.11], [0.024, 0.009, 0.022]), "bloodLight");
 
@@ -226,10 +235,11 @@ const UP = new THREE.Vector3(0, 1, 0);
  *  She stands like a film star between takes, her left hand on her hip,
  *  breathing and shifting her weight; now and then she swoons like a
  *  heroine of the old movies, the back of her hand to her brow and her head
- *  thrown back; and now and then she catches a whiff of smoke, her hand
- *  flying to her collar as she looks about for the fire. She walks with a
+ *  thrown back; and now and then, afraid of fire, she screams like the
+ *  heroine of a horror picture, recoiling with both hands to her cheeks and
+ *  her face turned away from the flames. She walks with a
  *  rider's upright, even step, both arms swinging. Her right hand is free to
- *  hold a thing, and the swoon waits while it does. */
+ *  hold a thing; the swoon waits while it does, and she screams with her left hand alone. */
 export function vivian(seed = "vivian", gait: Gait = STANDING): THREE.Group {
   const parts = VIVIAN_PARTS.get();
   const material = figureMaterial();
@@ -265,9 +275,17 @@ export function vivian(seed = "vivian", gait: Gait = STANDING): THREE.Group {
   // The swoon: out to the side first, then the back of the wrist to her brow, the hand limp before her face.
   const swoonOut = reachWrist(right, new THREE.Vector3(-0.38, 0.3, 0.16), new THREE.Vector3(-0.4, -1, -0.4));
   const swoon = pointHand(reachWrist(right, new THREE.Vector3(-0.035, 0.665, 0.16), new THREE.Vector3(-1, 0, -0.1)), new THREE.Vector3(0.45, 0.05, 0.9), Math.PI / 2);
-  // Smoke: her left hand flies from her hip to her collar.
-  const collarOut = reachWrist(left, new THREE.Vector3(0.3, 0.22, 0.16), new THREE.Vector3(1, -0.4, -0.4));
-  const collar = pointHand(reachWrist(left, new THREE.Vector3(0.06, 0.29, 0.16), new THREE.Vector3(1, -0.5, -0.3)), new THREE.Vector3(-0.35, 1, -0.1), -Math.PI / 2);
+  // The scream: each hand out before her first, clear of her jacket, then up to its cheek, fingers up, elbows folded.
+  const cheekOf = (of: Arm, side: -1 | 1) => ({
+    out: reachWrist(of, new THREE.Vector3(side * 0.24, 0.2, 0.24), new THREE.Vector3(side * 0.5, -1, -0.3)),
+    at: pointHand(reachWrist(of, new THREE.Vector3(side * 0.105, 0.47, 0.13), new THREE.Vector3(side * 0.35, -1, -0.1)), new THREE.Vector3(-side * 0.15, 1, 0.05)),
+  });
+  const cheeks = { right: cheekOf(right, -1), left: cheekOf(left, 1) };
+  /** Poses an arm from its rest to its cheek, a share `amount` of the way, by way of the pose out before her. */
+  const toCheek = (of: Arm, rest: ArmPose, { out, at }: { out: ArmPose; at: ArmPose }, amount: number) => {
+    poseArm(of, rest, out, THREE.MathUtils.clamp(amount * 2, 0, 1));
+    if (amount > 0.5) poseArm(of, out, at, amount * 2 - 1);
+  };
 
   const trunk = mesh(parts.jacket, "jacket");
   const chest = group(trunk, neck, left.shoulder, right.shoulder);
@@ -295,6 +313,8 @@ export function vivian(seed = "vivian", gait: Gait = STANDING): THREE.Group {
     { parts: [right.shoulder.children[0], trunk], at: right.shoulder, radius: 0.1 },
     ...left.joints,
     ...right.joints,
+    // Screaming, her hands at her cheeks fold each elbow past a right angle.
+    ...[left, right].map((arm) => ({ parts: [arm.shoulder.children[0], arm.elbow.children[0]] as const, at: arm.elbow, radius: 0.13 })),
     ...legs.flatMap((one) => legJoints(one, trunk, 0.13, 0.1, 0.085)),
   ]);
   const swings = {
@@ -309,7 +329,7 @@ export function vivian(seed = "vivian", gait: Gait = STANDING): THREE.Group {
   const offset = rng.next() * 100;
   const bursts = idleBursts(figure, seed, offset, {
     swoon: { every: 12, lasts: 3.2, chance: 0.65 },
-    smoke: { every: 13, lasts: 2.6, chance: 0.6 },
+    scream: { every: 13, lasts: 2.6, chance: 0.6 },
   });
 
   return animated(figure, (clock) => {
@@ -319,43 +339,43 @@ export function vivian(seed = "vivian", gait: Gait = STANDING): THREE.Group {
     const moving = gait(clock);
     const running = moving.running ? moving.amount : 0;
     const still = 1 - moving.amount;
-    const { swoon: swooned, smoke } = bursts(clock);
+    const { swoon: swooned, scream } = bursts(clock);
     // The swoon fights the stride, so it eases out as the stride eases in, and waits while her right hand is full.
     const swooning = right.hand.held ? 0 : swooned.amount * still;
-    // She looks about for the fire walking too; her hand goes to her collar only standing.
-    const alarm = smoke.amount * (1 - swooning);
-    const clutching = left.hand.held ? 0 : alarm * still;
-    const way = smoke.pick < 0.5 ? -1 : 1;
-    // Sniffing about: her head turns one way, then the other.
-    const search = Math.sin(smoke.progress * Math.PI * 2) * way;
+    // The scream fights the stride too; each hand goes to her cheek only while it is empty.
+    const screaming = scream.amount * still * (1 - swooning);
+    const leftCheek = left.hand.held ? 0 : screaming;
+    const rightCheek = right.hand.held ? 0 : screaming;
+    const away = scream.pick < 0.5 ? -1 : 1;
 
     // A film star's stance: her weight on one hip, the chest counter-turned.
     body.rotation.z = sway * 0.022;
     hips.rotation.z = sway * -0.012;
     chest.rotation.z = sway * -0.012 + swooning * 0.04;
-    chest.rotation.x = breath * -0.012 - swooning * 0.08 - clutching * 0.05;
+    chest.rotation.x = breath * -0.012 - swooning * 0.08 - screaming * 0.12;
+    chest.rotation.y = screaming * away * 0.15;
     trunk.scale.set(1 + breath * 0.012, 1, 1 + breath * 0.014);
-    const shrug = clutching * 0.012;
+    const shrug = screaming * 0.015;
     left.shoulder.position.y = left.at.y + breath * 0.004 + shrug;
     right.shoulder.position.y = right.at.y + breath * 0.004 + shrug;
 
-    neck.rotation.y = swooning * 0.35 + alarm * search * 0.8;
-    neck.rotation.x = 0.04 - swooning * 0.3 - alarm * 0.12;
+    neck.rotation.y = swooning * 0.35 + screaming * away * 0.35;
+    neck.rotation.x = 0.04 - swooning * 0.3 - screaming * 0.12;
     neck.rotation.z = sway * 0.03 + swooning * 0.1;
 
-    // Her right arm: hanging, carrying, or raised to her brow.
+    // Her right arm: hanging, carrying, raised to her brow, or at her cheek.
     const rightRest = right.hand.held?.carry === "upright" ? poses.right.carries : poses.right.hangs;
     poseArm(right, rightRest, swoonOut, THREE.MathUtils.clamp(swooning * 2, 0, 1));
     if (swooning > 0.5) poseArm(right, swoonOut, swoon, swooning * 2 - 1);
-    poseHand(right.hand, holding(right.hand, blendPose(blendPose(RELAXED, OPEN, swooning * 0.7), fist(right.hand), running * 0.7)));
+    if (rightCheek > 0) toCheek(right, rightRest, cheeks.right, rightCheek);
+    poseHand(right.hand, holding(right.hand, blendPose(blendPose(RELAXED, OPEN, Math.max(swooning * 0.7, rightCheek * 0.8)), fist(right.hand), running * 0.7)));
 
-    // Her left: on her hip standing, swinging free walking, at her collar in alarm.
+    // Her left: on her hip standing, swinging free walking, at her cheek screaming.
     const leftRest = left.hand.held ? (left.hand.held.carry === "upright" ? poses.left.carries : poses.left.hangs) : between(akimbo, poses.left.hangs, moving.amount);
-    poseArm(left, leftRest, collarOut, THREE.MathUtils.clamp(clutching * 2, 0, 1));
-    if (clutching > 0.5) poseArm(left, collarOut, collar, clutching * 2 - 1);
+    toCheek(left, leftRest, cheeks.left, leftCheek);
     // On her hip her fingers lie nearly flat along it.
-    const onHip = left.hand.held ? 0 : still * (1 - clutching);
-    poseHand(left.hand, holding(left.hand, blendPose(blendPose(RELAXED, OPEN, Math.max(clutching * 0.6, onHip * 0.7)), fist(left.hand), running * 0.7)));
+    const onHip = left.hand.held ? 0 : still * (1 - leftCheek);
+    poseHand(left.hand, holding(left.hand, blendPose(blendPose(RELAXED, OPEN, Math.max(leftCheek * 0.8, onHip * 0.7)), fist(left.hand), running * 0.7)));
 
     for (const [arm, side] of [
       [right, "right"],
