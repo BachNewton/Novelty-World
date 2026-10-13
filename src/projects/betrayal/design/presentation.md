@@ -24,7 +24,7 @@ A beat lasts as long as what it shows, and nothing waits with nothing to see: a 
 
 **Three input methods**, interchangeable, each picking among the pending decision's choices: a controller, touch, and keyboard + mouse (one method, the two used together; there is no keyboard-only mode). **Each is complete on its own**: a controller never needs touch, the keyboard or the mouse, and every feature works natively on all three; the art bench and `?debug` are exempt. An audit and a controller-only e2e game through the reveal hold it. Hints follow the last-used input. Nothing is hover-only, and touch targets are measured in screen pixels.
 
-**One meaning per control.** A control means one thing everywhere, never changing with what is under the cursor or what is open. There is one focus at a time, on a choice in the house or a button over it, and confirming presses it. Hints are glyphs on the thing they act on, our own prompts in Lucide's style (`components/prompts.tsx`, the single map from a meaning to its control on each input); there are no per-decision hint sentences, and no sentence restates what a glyph or a hold's fill already shows. Touch has no glyph, since the control is the tap target. A glyph shows only where the control isn't obvious: confirming the focused thing (A, Enter) and closing the topmost one (B, Esc) show none, so what matters there is seeing clearly what has the focus. Every glyph is one system: sized to the text beside it, on one solid chip that reads on any background, and leading the label inside the button it presses (a pair that steps through a group, LB and RB, flanks it). A hold that acts when complete, End turn, fills its button's background from the left while held and empties when let go early.
+**One meaning per control.** A control means one thing everywhere, never changing with what is under the cursor or what is open. There is one focus at a time, on a choice in the house or a button over it, and confirming presses it. Hints are glyphs on the thing they act on, drawn as games draw button prompts, our own drawings on their conventions (`components/prompts.tsx`, the single map from a meaning to its control on each input): each glyph is the control's own shape (a keycap, a bumper, a trigger, a stick, the d-pad, View and Menu, the mouse) with its label filling it, near-black with a pale rim and label, and the face buttons Xbox's coloured discs (prompt tokens, which name a button and never a meaning); there are no per-decision hint sentences, and no sentence restates what a glyph or a hold's fill already shows. Touch has no glyph, since the control is the tap target. A glyph shows only where the control isn't obvious: confirming the focused thing (A, Enter) and closing the topmost one (B, Esc) show none, so what matters there is seeing clearly what has the focus. Every glyph is one system: sized to the text beside it, reading on any background through its dark body and halo, and leading the label inside the button it presses (a pair that steps through a group, LB and RB, flanks it). A hold that acts when complete, End turn, fills its button's background from the left while held and empties when let go early.
 
 The controller map, with its counterparts:
 
@@ -76,7 +76,7 @@ Movement follows the rules: up to Speed in spaces a turn, a stair step costing o
 
 ## Placing a room
 
-A discovered room shows as a ghost of the actual room on its cell, with each doorway marked at its edge by what it would do (joins a door, faces a wall, opens onto the unexplored). The player turns it through its legal ways round, which are the decision's choices and step like any others, then places it. A room that fits only one way is placed by the engine and shown as the tile appearing, with no prompt. Rooms that cards and rooms move (the Mystic Elevator, The Beckoning) use the same ghost, with the cells they may go to glowing.
+A discovered room shows as a ghost of the actual room on its cell, with each doorway marked at its edge by what it would do (joins a door, faces a wall, opens onto the unexplored). The player turns it through its legal ways round, which are the decision's choices and step like any others, then places it. A room that fits only one way is placed by the engine and shown as the tile appearing, with no prompt. Rooms that cards and rooms move (the Mystic Elevator, The Beckoning) use the same ghost, with the cells they may go to glowing. A ghost only ever means "not yet placed": a room placed, or carried by a rule, shows solid at once in a flat moon light until its baked light lands (`lighting.md`).
 
 ## Dice
 
@@ -87,7 +87,7 @@ The engine makes the randomness, so there are no physical or 3D dice and no thro
 The card sort (`card-presentation.md`) sorted all 110 cards by how they show in the house, and is the direction:
 
 1. **A draw is an in-world beat**: the card's name as a title over the room, in its colour (amber for an item, violet for an omen, an event's mood colour), the effect playing out in the room, the result shown, and one caption line. Most events and every card that never needs reading take no panel.
-2. **Held cards live on the figure**: items and omens carried, companions beside it. Until their 3D props are built, a mark under each explorer carries a pip per card in the card's colour; choosing the mark or the nameplate opens the explorer's character card with its cards and their text (see "Stats").
+2. **Held cards live on the figure**: items and omens carried, companions beside it. Until their 3D props are built, a mark under each explorer carries the seat's dot and a pip per card in the card's colour, drawn smaller as the camera zooms out; choosing the mark or the nameplate opens the explorer's character card with its cards and their text (see "Stats").
 3. **A card on the floor is a thing in the room**: dropped, it lies on its plate in its colour (see "Things in rooms"), pointing at it names it, choosing it reads it, and Pick up is offered there and on the explorer's sheet alike.
 4. **Reading happens at the point of use**: a card that applies surfaces as an offer with a one-line consequence ("Idol: +2 dice, −1 Sanity").
 5. **A panel only where nothing else works**: the 15 each-use cards whose odds table is the decision, deck searches and peeks, trait picks, and cards with several written options.
@@ -97,7 +97,7 @@ The card sort (`card-presentation.md`) sorted all 110 cards by how they show in 
 
 Hidden by default and shown when useful: in a roll's prompt, on the damage tracks, as a float on a gain or loss, and in the details (below). More of it is contextual after the haunt.
 
-**Details.** Holding R3, Z or the Details button labels what is useful at a glance, and letting go returns the clean house at once (`components/play/details.tsx`): each explorer's mark adds the explorer's name and its stats in brief, each trait's icon and value (in the danger colour on the last step above a live skull); each room on the floor showing is named on its far side from the camera, by its back wall, with where its stairs lead when they go to another floor; and each thing in a room is named where it lies, a room's objects in one list over their spot. The labels come from the seat's own view, like everything else on the screen. The marks and the things' labels are kept apart as the marks are (`art/pins-apart.ts`), and slid back onto the screen whole at its edge; a room's name gives way, drawn under them.
+**Details.** Holding R3, Z or the Details button labels what is useful at a glance, and letting go returns the clean house at once (`components/play/details.tsx`): each explorer's mark becomes its nameplate, one size and shape for every explorer whatever their name: the seat's colour down its edge, the short name the card calls them by (`play/short-name.ts`: Flash, Ox, Rhinehardt), the pips, and the stats in brief, each trait's icon and value (in the danger colour on the last step above a live skull); nameplates show only while the details are held; each room on the floor showing is named in ink on a dark plate on its far side from the camera, by its back wall, with where its stairs lead when they go to another floor; and each thing in a room is named where it lies, a room's objects in one list over their spot. The labels come from the seat's own view, like everything else on the screen. The marks and the things' labels are kept apart as the marks are (`art/pins-apart.ts`), and slid back onto the screen whole at its edge; a room's name gives way, drawn under them.
 
 **A trait is a track, as the character card prints it** (`play/tracks.ts`): the character's own values in a row, the clip on its step, the starting step marked, the top as the ceiling, and the skull below the lowest, padlocked before the haunt (when no one can die) and bare after. One track component is used everywhere: on the character card, in a damage preview (where the choice in focus would leave the clip) and, as just the icon and value, in the details. It is HTML and SVG, not 3D.
 
@@ -193,6 +193,17 @@ Explorers are miniatures on a base ringed in the player's colour, which is the c
 
 **Moves a card makes**, agreed in principle and to be confirmed in play: voluntary movement walks before the haunt; a card that makes an explorer flee (Burning Man) may run; jumps and falls get animations of their own; a neutral "put your explorer there" gets a quick transition; the Dog runs.
 
+**Moves that aren't a walk.** Every base-game move other than walking through doorways falls into one of four transitions, shared rather than built per room or card, so no explorer ever pops to a new spot. Until each is built, the move shows as a jump; the room features they pass through (the chute, token marks, the secret door) are drawn with the rooms.
+
+| Transition | What triggers it | How it looks |
+|---|---|---|
+| **Drop or slide** to a lower floor | the Coal Chute; the Collapsed Room (a failed roll, or a fall on purpose later); the Gallery (to the Ballroom); the Mystic Slide; The Beckoning (a jump out to the Patio) | walk to the edge, chute or window; drop out of sight; the camera follows down; land, staggering where there is damage |
+| **Secret way**, token to token or through a hidden door | Secret Stairs; Secret Passage; the Stairs from Basement's secret door to the Foyer; the Revolving Wall | walk to the token or wall, slip through, step out at the other end |
+| **The room carries you** | the Mystic Elevator; What The . . . ? | built: the room flies to its new cell with everyone in it |
+| **Put there** | Burning Man (flee to the Entrance Hall, running where there is a path); Funeral; The Lost One; The Walls; the Bottle; the Dark Dice's 6 | vanish where they stand, appear at the destination |
+
+The Dark Dice's push and free move and the Bell's pull are always to an adjacent room, so they walk. No base-game omen moves an explorer; the Widow's Walk moves wait for that expansion.
+
 **Animations**, in priority order: the walk (through doorways, up and down stairs); a startle on discovering a room; physical and mental hurt; attack and defend; death; the traitor's turn (optional). No item pickups or celebrations.
 
 ## Art scope
@@ -226,13 +237,12 @@ Shelved, with what was learnt, for when they are picked up again.
 
 ## Open questions
 
-`v1-play.md` lists the questions paused for the playtest: the reveal's light, pacing, rooms before their light lands, phase 3's small calls, the rotation ghost, the phone layout, the lake's water look, the backlight, and soft or hard shadows. The longer-standing ones:
+`v1-play.md` lists the questions paused for the playtest: the reveal's light, pacing, phase 3's small calls, the phone layout, the lake's water look, the backlight, and soft or hard shadows. The longer-standing ones:
 
 - **One device per player, a shared screen with phones as controllers, or both**, once online play comes. A TV could show what everyone may see (the house, whose turn it is) as a spectator client of the game row, while each phone renders its own seat's `viewFor`: its cards, its choices and, after the reveal, its side's half of the haunt. That suits the server-authoritative design and the traitor's secrets, and could sit beside one device per player.
 - **The layout on phones and on wide screens**, around the status box: how much of a phone it may cover, and what extra width shows.
 - **The reveal's light:** the house turned red (the default) or its moon blue pushed deeper (`?mood=cold`).
 - **The lake's water look:** `shader` or `shader-palette` (`?water=`).
 - **Whether to light a figure lit only from behind** with a rim (the backlight, on by default; `?backlight=off` to compare). Bounce light gives figures some fill from below.
-- **Whether the rotation ghost reads clearly enough as "not placed yet".**
 - **Soft or hard shadows** (`lighting.md`).
 

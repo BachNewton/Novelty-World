@@ -101,7 +101,6 @@ export const UPPER_LANDING: RoomDefinition = {
   id: "upper-landing",
   ...SUITE,
   floor: () => woodPlanks({ seed: "upper-landing", glints: false }),
-  shine: { glass: SHINES.glass },
   floorOpenings: [WELL],
   props: [
     { build: stairHead, at: [0, 0], contacts: [{ with: "floor", because: "the landing's nosing is set into the edge of the floor" }] },

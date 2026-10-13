@@ -71,7 +71,8 @@ export function PlayGame({ code }: { code: string | null }) {
   };
 
   return (
-    <div style={BETRAYAL_THEME} className="min-h-screen bg-(--bt-bg) p-4 text-(--bt-ink)">
+    // The right mouse button turns the camera, so the browser's menu never opens over the game.
+    <div style={BETRAYAL_THEME} onContextMenu={(event) => event.preventDefault()} className="min-h-screen bg-(--bt-bg) p-4 text-(--bt-ink)">
       {store ? (
         <PlayScreen
           store={store}

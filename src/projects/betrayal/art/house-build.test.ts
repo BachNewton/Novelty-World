@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { Layout } from "../engine/board";
-import { createBakeScheduler, type BakeScheduler } from "./bake-schedule";
+import { createBakeScheduler, inlineScheduler, type BakeScheduler } from "./bake-schedule";
 import { frameSlicer, inlineSlicer, type Slicer } from "./build-slices";
 import { stubCanvas } from "./headless";
 import { TEST_TEXELS_PER_METRE } from "./lighting";
@@ -134,4 +134,17 @@ describe("a figure meshed off the page's thread", () => {
     expect(house.root.getObjectByName("the figure")).toBeDefined();
     expect(house.figuresIn()).toBe(true);
   });
+});
+
+describe("a room placed in play", () => {
+  it("shows solid in flat light the moment it is placed, never as a ghost, and lit once its light lands", async () => {
+    const house = buildHouse(LAYOUT, inlineScheduler(), { texelsPerMetre: TEST_TEXELS_PER_METRE });
+    await house.ready;
+    expect(house.shownAs("foyer")).toBe("lit");
+    house.setLayout({ tiles: [...LAYOUT.tiles, { tile: "creaky-hallway", floor: "ground", x: 0, y: 0, rotation: 0 }] });
+    expect(house.shownAs("creaky-hallway")).toBe("flat");
+    await house.roomShown("creaky-hallway");
+    expect(house.shownAs("creaky-hallway")).toBe("lit");
+    house.dispose();
+  }, 60_000);
 });

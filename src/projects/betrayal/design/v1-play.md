@@ -39,9 +39,7 @@ Phases 3 to 7 are built but not yet playtested by the owner. P8, haunt 13 in the
 **Paused questions,** the owner's call later:
 
 - The reveal's light: today's red house, or `?mood=cold` (full-house review links exist).
-- Rooms before their light lands: outlines, or a flat moon fill.
 - Phase 3's small calls: a mid-turn arrival taking a free place; starting rooms unseen after a reload.
-- Whether the rotation ghost reads as "not placed yet".
 - The phone layout round the status box.
 - The lake's water look (`?water=`).
 - The backlight: on by default, `?backlight=off` to compare.
@@ -63,7 +61,7 @@ What remains for the goal:
 - **UI:** the list above, and whatever the playtest finds.
 - **Rooms:** the 16 base rooms left: the Gymnasium, Operating Laboratory, Research Laboratory, Vault, Balcony, Gallery, Bloody Room, Charred Room, Collapsed Room, Conservatory, Ballroom, Coal Chute, Gardens, Patio, Crypt and Larder.
 - **Explorers:** the 5 left: Missy, Vivian, Madame Zostra, Heather and Jenny. Setup's portraits are shot from a lower camera and a closer zoom, in the Abandoned Room (done). Setup shows each character's tracks as the card prints them, on each seat and for the character in focus in the picker; a short description is not built (the final call waits on more explorer art).
-- **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements.
+- **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements; with them, the three transitions still to build for moves that aren't a walk (drop or slide, secret way, put there; `presentation.md`, "Moves that aren't a walk").
 - **Props and figures:** held items and omens, companions, room tokens; startle and hurt animations; jumps and falls; the models of things on the floor (stand-ins today).
 
 ## Polish list
@@ -86,7 +84,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 - `turn` move: reachable rooms and the cells beyond them glow, a room on another floor glows as its staircase, and each half of a barrier room is its own target. Shown by walking.
 - `turn` discover: the empty cell beyond an unexplored doorway glows, one target per cell. Shown by the ghost, then the tile appearing and the floor re-baking.
 - `turn` end: End turn, an explicit action, held on a pad or the keyboard, never automatic.
-- `rotation`: the ghost tile on its cell, turned through its legal ways round, which are the decision's choices. A tile that fits one way is placed by the engine.
+- `rotation`: the ghost tile on its cell, turned through its legal ways round, which are the decision's choices. A tile that fits one way is placed by the engine. A ghost only ever means "not yet placed": once placed, a room shows solid at once in a flat moon light until its baked light lands (`lighting.md`).
 - `place-tile` (the Mystic Elevator, The Beckoning, cards that move rooms, haunt 13's top-up rooms): the legal cells glow on any floor, and the tile's own cell means "leave it". `room-moved` flies the tile to its new cell with its figures (`art/room-flight.ts`).
 - `choose-one` with room options (the Bottle's teleport, the Dog's run): an option may name a room, and those options are places.
 

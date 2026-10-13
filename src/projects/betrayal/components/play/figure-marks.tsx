@@ -9,6 +9,7 @@ import type { EventView, FigureView, GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import { cardMood, consequence, statChanges, type StatChange } from "../../play/cards";
 import { portraitOf } from "../../play/portraits";
+import { shortName } from "../../play/short-name";
 import { firstAction, type ExplorerActions } from "../../play/sheet";
 import { cardThingId } from "../../play/things";
 import type { Spots } from "../../play/spots";
@@ -25,9 +26,10 @@ import { CardTypeIcon, TraitIcon, traitLabel } from "../icons";
 /*
  * What the explorers carry, on the figures: a mark under each explorer with
  * a pip for each card it holds, in the card's colour, and a tag for each
- * status it keeps. Holding the details up adds the explorer's name and its
- * stats in brief to its mark, and a gain or loss floats up over the figure as
- * its beat plays.
+ * status it keeps, drawn smaller as the camera zooms out. Holding the
+ * details up turns each mark into a nameplate, the same size for everyone:
+ * the seat's colour down its edge, the explorer's short name, the pips and
+ * the stats in brief. A gain or loss floats up over the figure as its beat plays.
  * The cards' 3D props on the figures are art still to come: the pips stand
  * in for them.
  *
@@ -53,7 +55,7 @@ export function markedExplorers(view: GameView, spots: Spots): FigureView[] {
 /** Every trait in brief, its icon and value, two to a row, so six explorers' stats leave the house in view. */
 function CompactStats({ view, figure }: { view: GameView; figure: FigureView }) {
   return (
-    <span aria-label={`${figure.name}'s stats`} className="grid grid-cols-2 gap-x-1.5 text-xs">
+    <span aria-label={`${figure.name}'s stats`} className="grid w-full grid-cols-2 gap-x-1.5 text-xs">
       {figureTracks(ENGINE, view, figure.id).map((track) => (
         <CompactTrait key={track.trait} track={track} />
       ))}
@@ -102,6 +104,13 @@ function usePinned(scene: HouseScene, group: string, figure: FigureId, { height,
   return ref;
 }
 
+/** Outside the details, the mark: a small pill with the seat's dot and a pip per card, drawn smaller as the camera
+ *  zooms out (the scene sets `--bt-pin-scale`). */
+const MARK = "min-h-[2em] min-w-[2em] rounded-full border-(--bt-line) px-[0.375em] py-[0.125em] text-[calc(1rem*var(--bt-pin-scale,1))]";
+/** While the details are held, the nameplate: one size and shape for every explorer, whatever their name, with the
+ *  seat's colour down its edge, the short name, the pips and the stats. */
+const PLATE = "w-20 gap-0.5 overflow-hidden rounded border-(--bt-line) py-0.5 pr-1 pl-2 text-base";
+
 function Mark({ scene, view, figure, details, floats, open, toggle }: {
   scene: HouseScene;
   view: GameView;
@@ -127,20 +136,21 @@ function Mark({ scene, view, figure, details, floats, open, toggle }: {
           aria-expanded={open}
           data-mark={figure.id}
           onClick={toggle}
-          className="pointer-events-auto flex min-h-8 min-w-8 flex-col items-center justify-center gap-0.5 rounded-full border border-(--bt-line) bg-(--bt-panel) px-1.5 py-0.5 aria-expanded:border-(--bt-accent)"
+          className={`pointer-events-auto relative flex flex-col items-center justify-center border bg-(--bt-panel) aria-expanded:border-(--bt-accent) ${details ? PLATE : MARK}`}
         >
-          <span className="flex items-center gap-1">
-            <span className={`inline-block size-2 rounded-full ${seatDot(ENGINE, figure.definition)}`} />
+          {details && <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${seatDot(ENGINE, figure.definition)}`} />}
+          {details && <span className="w-full truncate text-center text-xs leading-4 font-semibold">{shortName(figure.name)}</span>}
+          <span className={`flex items-center gap-[0.25em] ${details ? "h-3.5 max-w-full overflow-hidden" : ""}`}>
+            {!details && <span className={`inline-block size-[0.5em] rounded-full ${seatDot(ENGINE, figure.definition)}`} />}
             {figure.cards.map((card) => (
-              <CardTypeIcon key={card} type={ENGINE.catalog.cards[card].type} className={`size-3.5 ${MOOD_TEXT[cardMood(ENGINE, card)]}`} />
+              <CardTypeIcon key={card} type={ENGINE.catalog.cards[card].type} className={`size-[0.875em] shrink-0 ${MOOD_TEXT[cardMood(ENGINE, card)]}`} />
             ))}
             {figure.statuses.map((status) => (
-              <span key={status.id} className="rounded bg-(--bt-danger) px-1 text-[10px] leading-4 font-semibold text-(--bt-bg)">
+              <span key={status.id} className="truncate rounded bg-(--bt-danger) px-[0.25em] text-[0.625em] leading-[1.6] font-semibold text-(--bt-bg)">
                 {describeRule(ENGINE, status.rule)}
               </span>
             ))}
           </span>
-          {details && <span className="max-w-28 truncate text-[11px] leading-3.5 font-semibold">{figure.name}</span>}
           {details && <CompactStats view={view} figure={figure} />}
         </button>
       </div>

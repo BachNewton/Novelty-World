@@ -5,7 +5,7 @@ import { lightAnchor } from "../light-anchor";
 import { WALL_HEIGHT, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe } from "../shapes";
 import { shiny, shinyBatch, SHINES } from "../shine";
-import { HALL_SHINE, runner, SUITE } from "./starting-tile";
+import { runner, SUITE } from "./starting-tile";
 
 const CHANDELIER_ARMS = 6;
 
@@ -182,7 +182,6 @@ function deadPalm(): THREE.Group {
 export const FOYER: RoomDefinition = {
   id: "foyer",
   ...SUITE,
-  shine: HALL_SHINE,
   props: [
     { build: () => runner({ from: -3, to: 3 }), at: [0, 0] },
     { build: chandelier, at: [0, 0] },

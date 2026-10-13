@@ -37,6 +37,11 @@ export const BETRAYAL_THEME = {
   "--bt-mood-danger": "#dd4f4f",
   "--bt-mood-magic": "#b384ea",
   "--bt-mood-holy": "#ecd06a",
+  /** A controller's face buttons in Xbox's colours, for button prompts only: they name a button, never a meaning. */
+  "--bt-prompt-a": "#6cc24a",
+  "--bt-prompt-b": "#e5534b",
+  "--bt-prompt-x": "#4a9ae8",
+  "--bt-prompt-y": "#f2c53d",
 } as CSSProperties;
 
 /** Seat colours as whole class names, so Tailwind sees each one. */
