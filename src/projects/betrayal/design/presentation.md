@@ -192,6 +192,17 @@ Explorers are miniatures on a base ringed in the player's colour, which is the c
 
 **Moves a card makes**, agreed in principle and to be confirmed in play: voluntary movement walks before the haunt; a card that makes an explorer flee (Burning Man) may run; jumps and falls get animations of their own; a neutral "put your explorer there" gets a quick transition; the Dog runs.
 
+**Moves that aren't a walk.** Every base-game move other than walking through doorways falls into one of four transitions, shared rather than built per room or card, so no explorer ever pops to a new spot. Until each is built, the move shows as a jump; the room features they pass through (the chute, token marks, the secret door) are drawn with the rooms.
+
+| Transition | What triggers it | How it looks |
+|---|---|---|
+| **Drop or slide** to a lower floor | the Coal Chute; the Collapsed Room (a failed roll, or a fall on purpose later); the Gallery (to the Ballroom); the Mystic Slide; The Beckoning (a jump out to the Patio) | walk to the edge, chute or window; drop out of sight; the camera follows down; land, staggering where there is damage |
+| **Secret way**, token to token or through a hidden door | Secret Stairs; Secret Passage; the Stairs from Basement's secret door to the Foyer; the Revolving Wall | walk to the token or wall, slip through, step out at the other end |
+| **The room carries you** | the Mystic Elevator; What The . . . ? | built: the room flies to its new cell with everyone in it |
+| **Put there** | Burning Man (flee to the Entrance Hall, running where there is a path); Funeral; The Lost One; The Walls; the Bottle; the Dark Dice's 6 | vanish where they stand, appear at the destination |
+
+The Dark Dice's push and free move and the Bell's pull are always to an adjacent room, so they walk. No base-game omen moves an explorer; the Widow's Walk moves wait for that expansion.
+
 **Animations**, in priority order: the walk (through doorways, up and down stairs); a startle on discovering a room; physical and mental hurt; attack and defend; death; the traitor's turn (optional). No item pickups or celebrations.
 
 ## Art scope
