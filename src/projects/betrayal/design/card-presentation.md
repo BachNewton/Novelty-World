@@ -38,3 +38,37 @@ Every card sorted by how it shows in the 3D house, and what that asks of the UI 
 - **Body states:** 6.
 - **Reuse:** the Spider event uses the Spider monster; Hideous Shriek, the Banshee.
 - **Reuse in haunts** (approximate count of haunts): the Revolver 16, Book 15, Ring 15, Dynamite 12, Holy Symbol 10; the Girl, the Madman, the Spirit Board and the Bell 9; the Dog 8; the Crystal Ball and Armor 6; the Spear, Skull and Cat 5. Most Widow's Walk items appear in no haunt.
+
+## Choices that are places
+
+A card or rule whose options are places or things in the house is answered in the house, like a move: each option is a target, pointed at with the reticle, the mouse or a tap and pressed like any other choice, its tag naming it. The engine describes the place an option is (a room, a side of a barrier room, a wall or corner of a room with the token going there, a figure) in the choice's own data, never in its label; `play/choices.ts` turns those options into house targets and leaves the rest in the status box. A wall or corner is a pad on the floor against it, the corner's in the corner, the focused one showing the token on its wall; a side of a barrier room is that half of its tile; a choice among one room's walls pans a following camera to that room.
+
+**Answered in the house**
+
+| Card or rule | Decision | Options | Was | Now |
+|---|---|---|---|---|
+| Revolving Wall | choose-one | the room's walls with no exit, and its corners | box, as text | a pad on each wall or corner ("North-east corner"), the Wall Switch previewed on it |
+| Secret Passage, Secret Stairs: the other end | choose-one | rooms, each side of a barrier room apart | box | the rooms, or the halves |
+| Secret Passage, Secret Stairs: go through now | choose-one | the linked room, or stay | box | the room; staying stays in the box |
+| Dynamite | choose-one | the adjacent rooms it can be thrown into | box | the rooms, or the halves |
+| Landing in a barrier room (any rule putting a figure in the Tower, Chasm or Catacombs) | choose-one | the room's sides | box | each half of the tile |
+| Moving a figure 1 space closer (the Bell, monsters pulled) | choose-one | the rooms next door that are closer | box | the rooms, or the halves |
+| The Bell: call a hero, pull a monster | choose-one | that figure, or leave it be | box | the figure; leaving it stays in the box |
+| Bloody Vision | choose-one | the figures to attack | box | the figures |
+| Footsteps | choose-one | the explorers tied nearest | box | the figures |
+| Medical Kit | choose-one | the hurt explorers in the room, yourself included | box | the figures |
+| Dark Dice: move to an explorer | choose-one | the other explorers | box | the figures |
+| A turn's attack on a figure (after the haunt) | turn | the figures in reach | box | the figures |
+| A monster turn's figure to act next (haunt 13) | turn | the monsters ready | box | the figures |
+
+Already in the house before: the turn's moves and cells to explore, a tile's ways round and the cells a moved room may go on (the ghost), and the room options of the Bottle, the Dog's run, Funeral, the Mystic Slide, the Collapsed Room's fall and the Dark Dice's step.
+
+**Left in the box, with a recommendation**
+
+| Card or rule | Options | Why not one target | Recommendation |
+|---|---|---|---|
+| Dark Dice: move an explorer | each pair of an explorer and a room next door | one option is two places | split the decision in the engine, the explorer and then the room, each in the house; it changes what recorded choices mean, so it bumps the share format |
+| Pickpocket's Gloves | each pair of an explorer and one of their items | a figure and a card | split it the same way: the explorer in the house, then the item on their sheet |
+| Mystic Elevator | the floors it can go to | a floor isn't a place to point at until its cells are | fold the floor into the tile placement after it: the elevator's cells glow on every floor it may go to, in one choice |
+| Haunt 13's rooms to add | room tiles not yet in the house | the tiles aren't in the house | keep the box; or offer each as the ghost on its cells, once a ghost can stand for several tiles |
+| A turn's attack on a room | rooms | no card raises it yet, and a room that is also a move would carry two targets on one tile | decide when a haunt first raises it |

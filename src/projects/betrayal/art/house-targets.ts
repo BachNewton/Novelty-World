@@ -4,15 +4,18 @@ import { placed } from "../engine/board";
 import type { ChoiceLayout } from "../input/controls";
 import type { Point, ScreenPoint, Target as PointerTarget } from "../input/navigate";
 import type { GhostDoor } from "../play/ghost";
+import { wallSpot } from "../play/things";
 import type { Edge, FloorId, Rotation } from "../types";
 import type { FloorChoice, Mark } from "./house";
 import { DIRECTION } from "./house-layout";
 import { inHouse, shownOn, type HousePoint, type Stairway } from "./house-walk";
-import { DOOR_APPROACH, TILE } from "./room";
+import type { PaletteKey } from "./palette";
+import { DOOR_APPROACH, INNER, onWall, TILE } from "./room";
 
 /*
  * What the house shows a decision offering, as pure functions: each target
- * (a room, a stair, an empty cell to explore or to place on, a tile to place, a figure)
+ * (a room or one side of it, a stair, an empty cell to explore or to place
+ * on, a tile to place, a wall or corner of a room, a figure)
  * placed in the scene, marked on its floor, and laid out on the screen for
  * the input layer to point at. A target's id is the choice's, never a room's:
  * one room can carry several targets.
@@ -28,10 +31,20 @@ export interface TargetRoute {
   end: () => readonly [x: number, z: number] | null;
 }
 
+/** A token a choice would put on a wall, shown there while it is focused. */
+export interface WallPreview {
+  token: string;
+  colour: PaletteKey;
+}
+
 export type Target = { id: string } & (
-  /** A room. With a route, the route preview shows when it is focused, and on
+  /** A room, or with `side` the half of a barrier room on that printed edge.
+   *  With a route, the route preview shows when it is focused, and on
    *  another floor it shows as the stair its route takes there from this one. */
-  | { kind: "room"; room: string; route?: TargetRoute }
+  | { kind: "room"; room: string; side?: Edge | null; route?: TargetRoute }
+  /** A wall of a room, or a corner of it, as printed edges of its tile: a
+   *  pad on the floor against it, with the token going there shown on it when focused. */
+  | { kind: "wall"; room: string; wall: readonly Edge[]; preview: WallPreview | null }
   /** The stair out of `room` towards the room it links to. */
   | { kind: "stair"; room: string; toward: string }
   /** An empty cell on a floor to explore, through the unexplored doorway out
@@ -92,8 +105,11 @@ const FIGURE_ANCHOR = 0.9;
 const FIGURE_BOX = { reach: 0.6, height: 1.8 };
 /** A stair offered as a choice is a pointer target this far either side of its run. */
 const STAIR_REACH = 0.8;
-/** An empty cell on another floor is a pointer target this wide each way, round the middle of the same cell on this one. */
-const AWAY_REACH = TILE / 2;
+/** A wall's pad on the floor before it, in metres: `length` along the wall
+ *  and `depth` out from it; a corner's is a square `corner` across. */
+const WALL_PAD = { length: 1.6, depth: 1, corner: 1.2 };
+/** A half of a barrier room's glow keeps this far in from the tile's walls, and from the other half. */
+const HALF_INSET = { wall: 0.35, middle: 0.1 };
 /** The smallest pointer target, in CSS pixels each way: a fingertip. */
 export const FINGER = 48;
 
@@ -113,6 +129,46 @@ function rectangle(centre: THREE.Vector3, w: number, d: number): THREE.Vector3[]
     [1, 1],
     [-1, 1],
   ].map(([x, z]) => centre.clone().add(new THREE.Vector3((x * w) / 2, 0, (z * d) / 2)));
+}
+
+/** A rectangle on a room's floor in its own frame, `[w, d]` along its x and
+ *  z round `centre`, as the scene has it: its corners and its middle. */
+function roomRectangle(ctx: PlaceContext, room: string, [cx, cz]: readonly [number, number], [w, d]: readonly [number, number]) {
+  const at = (x: number, z: number) => ctx.scenePoint(inHouse(ctx.layout, room, [x, 0, z]));
+  const corners = [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ].map(([x, z]) => at(cx + (x * w) / 2, cz + (z * d) / 2));
+  return { corners, middle: at(cx, cz) };
+}
+
+/** Which way a printed edge lies from a tile's middle, in its own frame. */
+const OUTWARD: Record<Edge, readonly [x: number, z: number]> = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
+
+/** A wall's pad, or a corner's, in its room's own frame: its middle and its size. */
+export function wallPad(wall: readonly Edge[]): { centre: [number, number]; size: [number, number] } {
+  if (wall.length === 1) {
+    const [edge] = wall;
+    const { at } = onWall(edge, 0, { out: WALL_PAD.depth / 2 });
+    const across = OUTWARD[edge][0] === 0;
+    return { centre: [at[0], at[1]], size: across ? [WALL_PAD.length, WALL_PAD.depth] : [WALL_PAD.depth, WALL_PAD.length] };
+  }
+  const [x, z] = wall.reduce<[number, number]>((sum, edge) => [sum[0] + OUTWARD[edge][0], sum[1] + OUTWARD[edge][1]], [0, 0]);
+  const reach = INNER - WALL_PAD.corner / 2;
+  return { centre: [x * reach, z * reach], size: [WALL_PAD.corner, WALL_PAD.corner] };
+}
+
+/** The half of a barrier room on a printed edge, in its own frame: its glow's middle and size, and the whole half's. */
+function roomHalf(side: Edge): { centre: [number, number]; size: [number, number]; reach: { centre: [number, number]; size: [number, number] } } {
+  const [x, z] = OUTWARD[side];
+  const along = TILE - HALF_INSET.wall * 2;
+  const out = TILE / 2 - HALF_INSET.wall - HALF_INSET.middle / 2;
+  const mid = HALF_INSET.middle / 2 + out / 2;
+  const size: [number, number] = x === 0 ? [along, out] : [out, along];
+  const whole: [number, number] = x === 0 ? [TILE, TILE / 2] : [TILE / 2, TILE];
+  return { centre: [x * mid, z * mid], size, reach: { centre: [(x * TILE) / 4, (z * TILE) / 4], size: whole } };
 }
 
 function cellCentre(ctx: PlaceContext, { floor, x, y }: Cell): THREE.Vector3 {
@@ -138,20 +194,6 @@ function stairPlace(ctx: PlaceContext, id: string, from: string, toward: string,
   };
 }
 
-/** An empty cell on another floor, marked on the floor showing at the same
- *  place, as a stair marks a room upstairs: a tile has no stairs to it. */
-function awayPlace(ctx: PlaceContext, id: string, cell: Cell, showing: FloorId): TargetPlace {
-  const centre = cellCentre(ctx, { ...cell, floor: showing });
-  return {
-    anchor: lift(centre, ANCHOR_HEIGHT),
-    outline: rectangle(centre, AWAY_REACH, AWAY_REACH),
-    box: false,
-    mark: { id, kind: "away", floor: showing, x: cell.x, y: cell.y },
-    cell,
-    floor: cell.floor,
-  };
-}
-
 function figurePlace(ctx: PlaceContext, id: string, figure: string): TargetPlace {
   const at = ctx.figureAt(figure);
   const base = ctx.scenePoint(at);
@@ -174,12 +216,39 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
       const tile = tileOf(ctx.layout, target.room);
       const shown = shownOn(ctx.layout, { room: target.room, route: target.route ? [...target.route.rooms] : [target.room] }, ctx.showing, ctx.stairway);
       if (shown && "stairFrom" in shown) return stairPlace(ctx, target.id, shown.stairFrom, target.room, tile.floor);
+      if (target.side) {
+        const half = roomHalf(target.side);
+        const { corners, middle } = roomRectangle(ctx, target.room, half.reach.centre, half.reach.size);
+        return {
+          anchor: lift(middle, ANCHOR_HEIGHT),
+          outline: shown ? corners : null,
+          box: false,
+          mark: shown ? { id: target.id, kind: "area", room: target.room, centre: half.centre, size: half.size, preview: null } : null,
+          cell: { floor: tile.floor, x: tile.x, y: tile.y },
+          floor: tile.floor,
+        };
+      }
       const centre = cellCentre(ctx, tile);
       return {
         anchor: lift(centre, ANCHOR_HEIGHT),
         outline: shown ? rectangle(centre, TILE, TILE) : null,
         box: false,
         mark: shown ? { id: target.id, kind: "room", room: target.room } : null,
+        cell: { floor: tile.floor, x: tile.x, y: tile.y },
+        floor: tile.floor,
+      };
+    }
+    case "wall": {
+      const tile = tileOf(ctx.layout, target.room);
+      const shown = shows(ctx, tile.floor);
+      const pad = wallPad(target.wall);
+      const { corners, middle } = roomRectangle(ctx, target.room, pad.centre, pad.size);
+      const preview = target.preview && { ...target.preview, spot: wallSpot(target.wall) };
+      return {
+        anchor: lift(middle, ANCHOR_HEIGHT),
+        outline: shown ? corners : null,
+        box: false,
+        mark: shown ? { id: target.id, kind: "area", room: target.room, centre: pad.centre, size: pad.size, preview } : null,
         cell: { floor: tile.floor, x: tile.x, y: tile.y },
         floor: tile.floor,
       };
@@ -204,8 +273,8 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
     case "cell":
     case "ghost": {
       const cell = { floor: target.floor, x: target.x, y: target.y };
+      // A cell on another floor doesn't show here: the floor's button is marked instead (`floorsOffering`).
       const shown = shows(ctx, target.floor);
-      if (!shown && target.kind === "cell" && ctx.showing !== "all") return awayPlace(ctx, target.id, cell, ctx.showing);
       const centre = cellCentre(ctx, cell);
       const mark: Mark = target.kind === "cell" ? { id: target.id, kind: "cell", ...cell } : { id: target.id, kind: "ghost", ...cell, doors: target.doors };
       return { anchor: lift(centre, ANCHOR_HEIGHT), outline: shown ? rectangle(centre, TILE, TILE) : null, box: false, mark: shown ? mark : null, cell, floor: target.floor };
@@ -214,6 +283,17 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
     case "self":
       return figurePlace(ctx, target.id, target.figure);
   }
+}
+
+/** The floors, other than the one showing, holding cells a tile may go on
+ *  (and its ghost, when the player has looked away from it). A cell has no
+ *  stair to it, so such a floor's button is marked instead, for the player
+ *  to go and look; on the floor showing, only its own cells are drawn. */
+export function floorsOffering(targets: readonly Target[], showing: FloorChoice): FloorId[] {
+  if (showing === "all") return [];
+  const floors = new Set<FloorId>();
+  for (const target of targets) if ((target.kind === "cell" || target.kind === "ghost") && target.floor !== showing) floors.add(target.floor);
+  return [...floors];
 }
 
 /** Where a route to a target ends its walk through rooms: the place taken in

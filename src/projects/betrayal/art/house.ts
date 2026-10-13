@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { EDGES, FLOORS, liftTile, placed, type Layout } from "../engine/board";
 import { CATALOG } from "../data";
 import type { GhostDoor, GhostDoorway } from "../play/ghost";
+import type { EdgeSpot } from "../play/things";
 import type { Edge, FloorId, PlacedTile } from "../types";
 import { animationOf, type Animation } from "./animate";
 import { ADULT_WALK, isGrounded, walkingOf, type Stride, type Walking } from "./explorers/figure";
@@ -12,6 +13,8 @@ import { inlineSlicer, runSteps, type Slicer } from "./build-slices";
 import { meshOnBuild, type FigureMesher } from "./figure-mesh";
 import { freezeRoom, freezeSteps, type FrozenRoom } from "./freeze";
 import { carrying } from "./room-flight";
+import type { WallPreview } from "./house-targets";
+import { connectionLook } from "./things/looks";
 import { houseMood, type HouseMood } from "./house-mood";
 import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog, LIGHTMAP } from "./lighting";
 import { createLitFloor, flatRoom, ghostRoom, patchProbe, type LitFloor, type Prepare, type ProbeUniform, type Rebake, type StandInRoom } from "./lit-floor";
@@ -82,9 +85,10 @@ export type Mark = { id: string } & (
   /** The stair out of `room` towards the room it links to. */
   | { kind: "stair"; room: string; toward: string }
   | { kind: "figure"; figure: string }
-  /** An empty cell on another floor, marked on this one at the same place:
-   *  the corners of a smaller square, round where it lies above or below. */
-  | { kind: "away"; floor: FloorId; x: number; y: number }
+  /** Part of a room's floor, in its own frame: `size` along its x and z
+   *  round `centre` (a half of a barrier room, a pad before a wall), with
+   *  a token shown on a wall of it while focused. */
+  | { kind: "area"; room: string; centre: readonly [number, number]; size: readonly [number, number]; preview: (WallPreview & { spot: EdgeSpot }) | null }
 );
 
 export interface House {
@@ -260,10 +264,16 @@ function patch(w: number, d: number, x: number, z: number, y: number, material: 
  *  for an empty cell) and a border just inside its walls. */
 function tileMark(fill: THREE.Material | null, border: THREE.Material): THREE.Group {
   const span = TILE - MARK.inset * 2;
-  const edge = (w: number, d: number, x: number, z: number) => patch(w, d, x, z, MARK.edge, border);
-  const off = span / 2 - MARK.border / 2;
-  const mark = group(edge(span, MARK.border, 0, -off), edge(span, MARK.border, 0, off), edge(MARK.border, span - MARK.border * 2, -off, 0), edge(MARK.border, span - MARK.border * 2, off, 0));
-  if (fill) mark.add(patch(span, span, 0, 0, MARK.fill, fill));
+  return areaMark(span, span, fill, border);
+}
+
+/** A glow over a rectangle of floor, `w` along x and `d` along z round its
+ *  middle: a faint fill (or none) and a border just inside its edges. */
+function areaMark(w: number, d: number, fill: THREE.Material | null, border: THREE.Material): THREE.Group {
+  const edge = (ew: number, ed: number, x: number, z: number) => patch(ew, ed, x, z, MARK.edge, border);
+  const [offX, offZ] = [w / 2 - MARK.border / 2, d / 2 - MARK.border / 2];
+  const mark = group(edge(w, MARK.border, 0, -offZ), edge(w, MARK.border, 0, offZ), edge(MARK.border, d - MARK.border * 2, -offX, 0), edge(MARK.border, d - MARK.border * 2, offX, 0));
+  if (fill) mark.add(patch(w, d, 0, 0, MARK.fill, fill));
   return mark;
 }
 
@@ -353,18 +363,6 @@ function stairGlow(run: readonly (readonly [number, number, number])[], fill: TH
     };
     const edge = (STAIR_MARK.width - STAIR_MARK.rail) / 2;
     mark.add(piece(STAIR_MARK.width, 0, fill), piece(STAIR_MARK.rail, -edge, border), piece(STAIR_MARK.rail, edge, border));
-  }
-  return mark;
-}
-
-/** A cell on another floor, on this one: the corners of a square half a tile across, open along its sides. */
-function awayMark(border: THREE.Material): THREE.Group {
-  const half = TILE / 4;
-  const arm = TILE / 10;
-  const mark = group();
-  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-    const [x, z] = [sx * half, sz * half];
-    mark.add(patch(arm, MARK.border, x - (sx * arm) / 2, z - (sz * MARK.border) / 2, MARK.edge, border), patch(MARK.border, arm, x - (sx * MARK.border) / 2, z - (sz * arm) / 2, MARK.edge, border));
   }
   return mark;
 }
@@ -648,7 +646,7 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
   };
   /** The marks showing, each drawn soft and focused, one of them visible. */
   let marks: { id: string; soft: THREE.Object3D; focused: THREE.Object3D }[] = [];
-  const markOf = (mark: Mark, fill: THREE.Material, border: THREE.Material): { object: THREE.Object3D; parent: THREE.Object3D } => {
+  const markOf = (mark: Mark, fill: THREE.Material, border: THREE.Material, focused: boolean): { object: THREE.Object3D; parent: THREE.Object3D } => {
     switch (mark.kind) {
       case "room": {
         const tile = tileOf(mark.room);
@@ -673,10 +671,19 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
       }
       case "figure":
         return { object: figureMark(border), parent: walkerOf(mark.figure).holder };
-      case "away": {
-        const object = awayMark(border);
-        object.position.set(mark.x * TILE, 0, mark.y * TILE);
-        return { object, parent: floorHolder(mark.floor) };
+      case "area": {
+        const tile = tileOf(mark.room);
+        const area = areaMark(mark.size[0], mark.size[1], fill, border);
+        area.position.set(mark.centre[0], 0, mark.centre[1]);
+        const object = group(area);
+        if (focused && mark.preview) {
+          const preview = connectionLook(mark.preview.token, mark.preview.colour, mark.preview.spot);
+          preview.userData.ownMaterials = true;
+          object.add(preview);
+        }
+        object.position.set(tile.x * TILE, 0, tile.y * TILE);
+        object.rotation.y = tileTurn(tile.rotation);
+        return { object, parent: floorHolder(tile.floor) };
       }
     }
   };
@@ -684,8 +691,10 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     for (const { soft, focused } of marks) {
       for (const object of [soft, focused]) {
         object.removeFromParent();
+        // The marks share their glow's materials; a token's preview has its own.
         object.traverse((child) => {
-          if (child instanceof THREE.Mesh) child.geometry.dispose();
+          if (child.userData.ownMaterials) disposeTree(child);
+          else if (child instanceof THREE.Mesh) child.geometry.dispose();
         });
       }
     }
@@ -1000,8 +1009,8 @@ export function buildHouse(initial: Layout, bakeQueue: BakeScheduler = inlineSch
     setMarks: (wanted, focused) => {
       clearMarks();
       marks = wanted.map((mark) => {
-        const soft = markOf(mark, softFill, softBorder);
-        const lit = markOf(mark, focusFill, focusBorder);
+        const soft = markOf(mark, softFill, softBorder, false);
+        const lit = markOf(mark, focusFill, focusBorder, true);
         soft.object.visible = mark.id !== focused;
         lit.object.visible = mark.id === focused;
         soft.parent.add(soft.object);

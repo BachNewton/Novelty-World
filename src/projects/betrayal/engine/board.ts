@@ -261,6 +261,20 @@ export function sideName(board: Layout, room: string, side: Edge): string {
   return COMPASS[turn(side, tile.rotation)];
 }
 
+/** A wall or corner of a placed room by the compass: "north wall",
+ *  "north-east corner". `wall` is printed edges of its tile: one for a
+ *  wall, the two of a corner. */
+export function wallName(board: Layout, room: string, wall: readonly Edge[]): string {
+  const tile = placed(board, room);
+  if (!tile) throw new Error(`${room} is not on the board`);
+  const eastWest = (edge: Edge) => (edge === "left" || edge === "right" ? 1 : 0);
+  const sides = wall
+    .map((edge) => turn(edge, tile.rotation))
+    .sort((a, b) => eastWest(a) - eastWest(b))
+    .map((edge) => COMPASS[edge]);
+  return `${sides.join("-")} ${wall.length === 2 ? "corner" : "wall"}`;
+}
+
 /** Floors bottom to top. */
 export const FLOORS: readonly FloorId[] = [
   "basement",

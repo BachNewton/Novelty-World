@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { FloorId } from "../types";
 import { definition, type FloorChoice } from "./house";
 import { HOUSE_FIXTURE } from "./house-layout";
-import { choiceLayout, exploreEntry, FINGER, fingerSized, routeEnd, targetPlace, type PlaceContext, type Target } from "./house-targets";
+import { choiceLayout, exploreEntry, FINGER, fingerSized, floorsOffering, routeEnd, targetPlace, type PlaceContext, type Target } from "./house-targets";
 import type { HousePoint, Stairway } from "./house-walk";
 import { TILE } from "./room";
 
@@ -41,6 +41,31 @@ describe("targetPlace", () => {
     expect(place.cell).toEqual({ floor: "ground", x: 1, y: -1 });
   });
 
+  it("puts a wall's pad against that wall, and a corner's in that corner, turned with the room, with the token shown there as its preview", () => {
+    // The Dining Room is turned a quarter: its printed top wall faces east.
+    const [cx, cz] = [1 * TILE, -1 * TILE];
+    const preview = { token: "wall-switch", colour: "brass" } as const;
+    const wall = targetPlace({ id: "w", kind: "wall", room: "dining-room", wall: ["top"], preview }, context("ground"));
+    expect(wall.anchor.x).toBeGreaterThan(cx + TILE / 3);
+    expect(wall.anchor.z).toBeCloseTo(cz);
+    expect(wall.mark).toMatchObject({ kind: "area", room: "dining-room", preview: { ...preview, spot: { edge: "top", along: 0 } } });
+    expect(wall.outline).toHaveLength(4);
+    expect(wall.cell).toEqual({ floor: "ground", x: 1, y: -1 });
+    // Its printed top-right corner is the south-east one.
+    const corner = targetPlace({ id: "c", kind: "wall", room: "dining-room", wall: ["top", "right"], preview: null }, context("ground"));
+    expect(corner.anchor.x).toBeGreaterThan(cx + TILE / 3);
+    expect(corner.anchor.z).toBeGreaterThan(cz + TILE / 3);
+    expect(targetPlace({ id: "u", kind: "wall", room: "bedroom", wall: ["top"], preview: null }, context("ground")).mark).toBeNull();
+  });
+
+  it("marks one side of a room as the half of its tile on that printed edge", () => {
+    // The Dining Room's printed left edge faces north.
+    const half = targetPlace({ id: "h", kind: "room", room: "dining-room", side: "left" }, context("ground"));
+    expect(half.anchor.z).toBeCloseTo(-1 * TILE - TILE / 4);
+    expect(half.anchor.x).toBeCloseTo(1 * TILE);
+    expect(half.mark?.kind).toBe("area");
+  });
+
   it("shows a room on another floor as the stair its route takes there from this one", () => {
     const place = targetPlace(UPSTAIRS, context("ground"));
     expect(place.mark).toEqual({ id: UPSTAIRS.id, kind: "stair", room: "grand-staircase", toward: "upper-landing" });
@@ -56,7 +81,7 @@ describe("targetPlace", () => {
     expect(place.floor).toBe("upper");
   });
 
-  it("puts a cell to explore over its whole cell, outlined as a cell, a cell or a ghost on its own floor, and a cell on another floor at its place on this one", () => {
+  it("puts a cell to explore over its whole cell, outlined as a cell, and a cell or a ghost on its own floor only", () => {
     const explore = targetPlace(EXPLORE, context("ground"));
     expect(explore.mark).toEqual({ id: "e", kind: "cell", floor: "ground", x: 1, y: 2 });
     expect(explore.anchor.z).toBeCloseTo(2 * TILE);
@@ -66,9 +91,8 @@ describe("targetPlace", () => {
     expect(targetPlace(EXPLORE, context("upper")).outline).toBeNull();
     const cell: Target = { id: "c", kind: "cell", floor: "basement", x: 1, y: 0 };
     const away = targetPlace(cell, context("ground"));
-    expect(away.mark).toEqual({ id: "c", kind: "away", floor: "ground", x: 1, y: 0 });
-    expect(away.anchor.y).toBeCloseTo(targetPlace({ ...cell, floor: "ground" }, context("ground")).anchor.y);
-    // Choosing it shows the ghost on its own floor: it still lies on the basement.
+    expect([away.mark, away.outline]).toEqual([null, null]);
+    // Focusing it shows its own floor.
     expect([away.floor, away.cell.floor]).toEqual(["basement", "basement"]);
     expect(targetPlace(cell, context("all")).mark).toEqual({ id: "c", kind: "cell", floor: "basement", x: 1, y: 0 });
     expect(targetPlace(cell, context("basement")).mark).toEqual({ id: "c", kind: "cell", floor: "basement", x: 1, y: 0 });
@@ -78,6 +102,26 @@ describe("targetPlace", () => {
     ] as const;
     const ghost = targetPlace({ id: "g", kind: "ghost", floor: "ground", x: 0, y: 1, tile: "kitchen", rotation: 1, doors }, context("all"));
     expect(ghost.mark).toEqual({ id: "g", kind: "ghost", floor: "ground", x: 0, y: 1, doors });
+  });
+
+  it("draws only the floor showing's cells of a tile to place, one target to a place, and marks the other floors that have some", () => {
+    const doors = [{ direction: "top", doorway: "joined" }] as const;
+    // The ghost on the ground floor, and cells on every floor, one right above it.
+    const targets: Target[] = [
+      { id: "ghost", kind: "ghost", floor: "ground", x: 1, y: 2, tile: "kitchen", rotation: 0, doors },
+      { id: "cell:ground:2:2", kind: "cell", floor: "ground", x: 2, y: 2 },
+      { id: "cell:upper:1:2", kind: "cell", floor: "upper", x: 1, y: 2 },
+      { id: "cell:basement:0:1", kind: "cell", floor: "basement", x: 0, y: 1 },
+    ];
+    const drawn = targets.filter((target) => targetPlace(target, context("ground")).outline !== null).map((target) => target.id);
+    expect(drawn).toEqual(["ghost", "cell:ground:2:2"]);
+    expect(targets.flatMap((target) => targetPlace(target, context("ground")).mark ?? []).map((mark) => mark.id)).toEqual(drawn);
+    expect(floorsOffering(targets, "ground").sort()).toEqual(["basement", "upper"]);
+    // Looking upstairs, the ghost's own floor is marked too.
+    expect(floorsOffering(targets, "upper").sort()).toEqual(["basement", "ground"]);
+    expect(floorsOffering(targets, "all")).toEqual([]);
+    // A turn's targets mark no floor: a room on another floor shows as its stair.
+    expect(floorsOffering([UPSTAIRS, EXPLORE], "upper")).toEqual([]);
   });
 
   it("rings a figure, itself or another, as a box the pointer can hit", () => {

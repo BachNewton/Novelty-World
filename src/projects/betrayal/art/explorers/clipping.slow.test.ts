@@ -13,9 +13,11 @@ import { flash } from "./flash";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
+import { vivian } from "./vivian";
 import { rhinehardt } from "./rhinehardt";
 import { PROP_PARTS, STAND_INS } from "./props";
 import { brandon } from "./brandon";
+import { heather } from "./heather";
 import { zoe } from "./zoe";
 import { zostra } from "./zostra";
 
@@ -31,7 +33,7 @@ import { zostra } from "./zostra";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, peter, zostra };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, heather, peter, vivian, zostra };
 /** Zoe and Rhinehardt are checked in the heavy cloth (`?cloth=off`): the check leaves their simulated nets out
  *  (`isClothSheet`), and their rigid parts are the same either way, so simulating the nets through every moment would
  *  only cost time. */
