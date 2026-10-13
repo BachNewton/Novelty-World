@@ -16,6 +16,7 @@ import {
   returnToDeck,
   roll,
   table,
+  traitDice,
   type TableRow,
 } from "../../engine/effects";
 import { attack, canBeAttacked, cardAttack } from "../../engine/combat";
@@ -197,6 +198,17 @@ function floorOf(state: GameState, room: string) {
   return tile.floor;
 }
 
+/** The rooms on the floors below a room: where a slide from it may land. */
+function roomsBelow(state: GameState, room: string): string[] {
+  const below = FLOORS.slice(0, FLOORS.indexOf(floorOf(state, room)));
+  return state.board.tiles
+    .filter((t) => below.includes(t.floor))
+    .map((t) => t.tile);
+}
+
+/** The Might roll that controls the slide. */
+const SLIDE_CONTROLLED = 5;
+
 /** Using the Slide in a room: a Might roll, the same roll each time, so it
  *  is made once a turn (p. 12). On 5+ you choose where you land below it;
  *  otherwise you fall to a new basement room. Off your turn, you don't draw
@@ -217,14 +229,14 @@ function slideRoll(
     rule,
     table([
       {
-        min: 5,
+        min: SLIDE_CONTROLLED,
         max: null,
         steps: [local(SLIDE, "control", { figure, room })],
         does: "choose-landing",
       },
       {
         min: 0,
-        max: 4,
+        max: SLIDE_CONTROLLED - 1,
         steps: [
           drawRoomTile(
             figure,
@@ -990,17 +1002,14 @@ export const EVENTS_A: BehaviourGroup = {
       },
       steps: {
         control: defineStep<{ figure: FigureId; room: string }>((state, p, ctx) => {
-          const below = FLOORS.slice(0, FLOORS.indexOf(floorOf(state, p.room)));
           ctx.push(
             chooseOne(
               p.figure,
-              state.board.tiles
-                .filter((t) => below.includes(t.floor))
-                .map((t) => ({
-                  label: `Slide down to the ${ctx.catalog.rooms[t.tile].name}`,
-                  steps: [relocate(p.figure, t.tile, card(SLIDE))],
-                  room: t.tile,
-                })),
+              roomsBelow(state, p.room).map((room) => ({
+                label: `Slide down to the ${ctx.catalog.rooms[room].name}`,
+                steps: [relocate(p.figure, room, card(SLIDE))],
+                room,
+              })),
               card(SLIDE),
             ),
           );
@@ -1056,6 +1065,20 @@ export const EVENTS_A: BehaviourGroup = {
           available: (state, figure, _source, engine) =>
             mayAttempt(state, figure, SLIDE) &&
             askPermission(engine, state, "canDiscover", { figure }).allowed,
+          through: (state, figure, source, engine) => {
+            if (source.room === null) throw new Error("The Slide has no room");
+            return {
+              token: "slide",
+              room: source.room,
+              wall: [],
+              rooms: roomsBelow(state, source.room),
+              roll: {
+                trait: "might",
+                dice: traitDice(engine, state, figure, "might", card(SLIDE)),
+                min: SLIDE_CONTROLLED,
+              },
+            };
+          },
           steps: (state, figure, source) => {
             if (source.room === null) throw new Error("The Slide has no room");
             return [slideRoll(state, figure, source.room, true)];

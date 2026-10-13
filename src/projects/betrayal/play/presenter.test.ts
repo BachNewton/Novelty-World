@@ -121,7 +121,7 @@ describe("present", () => {
     const game = played();
     const beats = game.choose("Move to the Foyer");
     expect(beats).toEqual([
-      { kind: "walk", walks: [{ figure: "zoe-ingstrom", route: ["entrance-hall", "foyer"], to: expect.objectContaining({ room: "foyer", x: 1, z: 1 }), gait: "walk", speed: ZOE_SPEED }], events: idsOf(game.state(), "left", "entered") },
+      { kind: "walk", walks: [{ figure: "zoe-ingstrom", route: ["entrance-hall", "foyer"], to: expect.objectContaining({ room: "foyer", x: 1, z: 1 }), gait: "walk", speed: ZOE_SPEED }], line: null, events: idsOf(game.state(), "left", "entered") },
     ]);
     expect(game.present()).toEqual([]);
   });
@@ -175,6 +175,34 @@ describe("present", () => {
     expectInOrder(game.state(), beats);
   });
 
+  it("tells a walk into a room just discovered by the discovery's line, which names the room, and the room's own rule straight after it", () => {
+    const game = played(testGame({ seed: "collapse-1", stack: ["collapsed-room"] }));
+    const beats = game.choose("Explore through the north door");
+    const state = game.state();
+    expect(beats[0]).toMatchObject({ kind: "walk", line: idsOf(state, "discovered")[0] });
+    expect(lineOf(state, beats[0])).toBe("Zoe Ingstrom discovers the Collapsed Room.");
+    // The room's rule applies at once: its roll's table is the next beat, led by the room.
+    expect(beats[1]).toMatchObject({ kind: "line", show: "table" });
+    expect(lineOf(state, beats[1])).toMatch(/^Collapsed Room: /);
+    expectInOrder(state, beats);
+  });
+
+  it("asks a card's question on the card when it comes straight after the draw: nothing to press on to, its choices next", () => {
+    const game = played(testGame({ stack: ["game-room"], decks: { event: ["something-hidden"] } }));
+    game.choose("Explore");
+    const beats = game.choose("Place");
+    expect(beats.at(-1)).toMatchObject({ kind: "line", show: "asks" });
+    expect(beats.some((beat) => beat.kind === "line" && beat.show === "card")).toBe(false);
+    expectInOrder(game.state(), beats);
+  });
+
+  it("shows every card drawn that asks nothing as a card waiting for a press: the Ring, with no choice to make", () => {
+    const game = played(testGame({ stack: ["abandoned-room"], decks: { omen: ["ring"] } }));
+    const beats = game.choose("Explore through the north door");
+    expect(beats.map(named(game.state()))).toEqual(["walk", "card-drawn"]);
+    expect(beats.at(-1)).toMatchObject({ show: "card" });
+  });
+
   it("shows a roll made at once by its table first, then its dice with the row it landed on", () => {
     // Creepy Crawlies: a Sanity roll Zoe has no card to act on.
     const game = played(testGame({ stack: ["game-room"], decks: { event: ["creepy-crawlies"] } }));
@@ -202,7 +230,8 @@ describe("present", () => {
     const game = played(testGame({ stack: ["conservatory"], decks: { event: ["secret-stairs"] } }));
     const beats = game.choose("Explore");
     expect(offered(game.state()).every((choice) => choice.label.startsWith("Put the other Secret Stairs token"))).toBe(true);
-    expect(beats[0]).toEqual({ kind: "walk", walks: [{ figure: "zoe-ingstrom", route: ["entrance-hall", "conservatory"], to: expect.objectContaining({ room: "conservatory", x: 1, z: 1 }), gait: "walk", speed: ZOE_SPEED }], events: idsOf(game.state(), "left", "discovered") });
+    expect(beats[0]).toEqual({ kind: "walk", walks: [{ figure: "zoe-ingstrom", route: ["entrance-hall", "conservatory"], to: expect.objectContaining({ room: "conservatory", x: 1, z: 1 }), gait: "walk", speed: ZOE_SPEED }], line: idsOf(game.state(), "discovered")[0], events: idsOf(game.state(), "left", "discovered") });
+    // Its question is all places, answered in the house: the card waits for a press first.
     expect(beats.at(-1)).toMatchObject({ kind: "line", show: "card" });
     expectInOrder(game.state(), beats);
     // Entering the room once the card is done, it is already there: no second walk.

@@ -4,11 +4,12 @@ import { placed } from "../engine/board";
 import { relocate } from "../engine/effects";
 import { apply, start } from "../engine/step-loop";
 import { viewFor } from "../engine/view";
-import { choose, explorer, inHaunt, offered, testGame, waitingOn } from "../testing";
+import { traitValue } from "../engine/questions";
+import { choose, explorer, inHaunt, offered, put, testGame, waitingOn } from "../testing";
 import type { GameState } from "../types";
 import type { Layout } from "../engine/board";
 import type { Edge } from "../types";
-import { boardFocus, explorations, NO_CHOICES, NO_FOCUS, playChoices } from "./choices";
+import { boardFocus, chanceAtLeast, explorations, NO_CHOICES, NO_FOCUS, playChoices } from "./choices";
 import { lookahead, type Reach } from "./lookahead";
 
 const choicesOf = (state: GameState) => playChoices(viewFor(ENGINE, state, waitingOn(state)));
@@ -126,6 +127,51 @@ describe("playChoices", () => {
     expect(result.state.tokens).toContainEqual({ token: "wall-switch", room: "ballroom", wall: ["bottom", "left"] });
   });
 
+  it("offers the Wall Switch as the room beyond it, with its roll and its odds, and not in the panel", () => {
+    // Zoe puts the switch on the Ballroom's south-west corner and goes through to the Foyer; Ox walks into the Foyer after her.
+    const placedSwitch = choose(choose(testGame({ stack: ["ballroom", "dusty-hallway"], decks: { event: ["revolving-wall"] } }), "Explore through the north door"), "south-west corner");
+    const state = choose(choose(placedSwitch, "End your turn"), "Move to the Foyer");
+    const { targets, panel } = choicesOf(state);
+    expect(panel.map((choice) => choice.label)).not.toContain("Use the Wall Switch (Knowledge roll)");
+    const through = targets.filter((t) => t.kind === "through");
+    const ox = explorer(state, 1).id;
+    const dice = traitValue(ENGINE, state, ox, "knowledge");
+    expect(through).toEqual([
+      expect.objectContaining({
+        kind: "through",
+        room: "ballroom",
+        figure: ox,
+        from: "foyer",
+        label: "Wall Switch: Knowledge roll 3+",
+        through: { token: "wall-switch", room: "ballroom", wall: ["bottom", "left"], rooms: ["ballroom"], roll: { trait: "knowledge", dice, min: 3 } },
+        chance: chanceAtLeast(dice, 3),
+        preview: null,
+      }),
+    ]);
+    // Pressing it takes the engine's own action: Ox rolls for the switch.
+    const result = apply(ENGINE, state, through[0].actions[0]);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.state.lastEvents.some((event) => event.type === "rolled" && (event.data as { figure: string }).figure === ox)).toBe(true);
+  });
+
+  it("offers the Slide as every room below it, each taking the one roll", () => {
+    // Zoe stands in the Attic, where a Slide lies: the ground floor and the basement are below.
+    const state = testGame();
+    state.board.tiles.push({ tile: "attic", floor: "upper", x: 9, y: 9, rotation: 0 });
+    put(state, 0, "attic");
+    state.tokens.push({ token: "slide", room: "attic" });
+    const { targets, panel } = choicesOf(state);
+    expect(panel.map((choice) => choice.label)).not.toContain("Use the Slide (Might roll)");
+    const below = state.board.tiles.filter((tile) => tile.floor !== "upper").map((tile) => tile.tile);
+    const through = targets.filter((t) => t.kind === "through");
+    expect(through.map((t) => t.room).sort()).toEqual(below.sort());
+    expect(new Set(through.map((t) => t.id)).size).toBe(through.length);
+    for (const target of through) {
+      expect(target).toMatchObject({ from: "attic", label: "Slide: Might roll 5+", through: { token: "slide", room: "attic", wall: [], roll: { trait: "might", min: 5 } } });
+      expect(target.actions).toEqual(through[0].actions);
+    }
+  });
+
   it("offers each side of a barrier room a figure lands in as its own place", () => {
     const state = testGame({ rooms: ["tower"] });
     const zoe = explorer(state, 0).id;
@@ -157,6 +203,15 @@ describe("playChoices", () => {
 
   it("offers nothing to a seat the decision isn't put to", () => {
     expect(playChoices(viewFor(ENGINE, testGame(), 1))).toEqual(NO_CHOICES);
+  });
+});
+
+describe("chanceAtLeast", () => {
+  it("works out the exact odds of a total, each die showing 0, 1 or 2 alike", () => {
+    expect(chanceAtLeast(1, 1)).toBeCloseTo(2 / 3);
+    // Two dice make 0 to 4 in 1, 2, 3, 2 and 1 ways of 9.
+    expect(chanceAtLeast(2, 3)).toBeCloseTo(3 / 9);
+    expect([chanceAtLeast(0, 1), chanceAtLeast(0, 0), chanceAtLeast(2, 5)]).toEqual([0, 1, 0]);
   });
 });
 

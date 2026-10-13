@@ -2,21 +2,22 @@
 
 import { useState } from "react";
 import type { RuleNotes } from "../../data/rule-notes";
-import type { GameView, RuleView } from "../../engine/view";
+import type { GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import { cardMood, consequence } from "../../play/cards";
 import type { PanelChoice } from "../../play/choices";
-import { damageTracks, landsAs, splitOf, type DamageKind } from "../../play/damage";
+import { DAMAGE_TRAITS, damageTracks, evenStop, landsAs, splitOf, splitStops, type DamageKind } from "../../play/damage";
 import { rerollCards, rerollChoice, rollMeaning, rollOffers, rollShown, type RollParams } from "../../play/dice";
 import type { BoxPart } from "../../play/panels";
-import type { Action, FigureId, Json, Trait } from "../../types";
-import { CardFace } from "./card-face";
+import type { Action, FigureId, Json } from "../../types";
+import { SplitControl } from "./damage-split";
 import { MOOD_EDGE } from "./moods";
 import { TrackRow } from "./trait-track";
 import { DamageAmount, DiceFaces, RollResult, TraitValue, Verdict } from "./roll-result";
-import { DamageIcon, DieFace, TraitIcon } from "../icons";
+import { DamageIcon, DieFace } from "../icons";
 import { RollTable } from "./roll-table";
+import type { RowSummary } from "../../engine/outcomes";
 import { rowFor } from "../../engine/effects";
 import { rangeText } from "../../engine/describe";
 import { optionRolls, percentText, printedOrder } from "../../play/roll-table";
@@ -25,11 +26,12 @@ import { optionRolls, percentText, printedOrder } from "../../play/roll-table";
  * The status box's part for a decision that isn't a place or the turn: a
  * roll (its table with each row's odds, then its dice, total and the row it
  * landed on, with the cards that can act on it offered where they apply), damage (its stat tracks, with where it would
- * land), or any other question (its choices, under the card that asks it).
+ * land, split on one control between them), or any other question but a
+ * card's, which the card over the room asks (its choices).
  */
 
 export interface DecisionPartProps {
-  part: Exclude<BoxPart, "turn" | "ghost" | "debug">;
+  part: Exclude<BoxPart, "turn" | "ghost" | "card" | "debug">;
   view: GameView;
   /** The decision's choices, each with the action that answers it. */
   panel: PanelChoice[];
@@ -50,7 +52,7 @@ export function DecisionPart(props: DecisionPartProps) {
     case "damage":
       return <DamagePart key={pending.id} {...props} kind={pending.kind} params={pending.detail.params} />;
     case "choices":
-      return <ChoicesPart {...props} rule={pending.rule} />;
+      return <ChoicesPart {...props} />;
   }
 }
 
@@ -202,6 +204,7 @@ function RollPart({ view, panel, act, notes, params, after }: DecisionPartProps 
         {keep && (
           <button
             type="button"
+            data-pad-start
             onClick={() => {
               act(keep.action);
             }}
@@ -243,25 +246,13 @@ function RollPart({ view, panel, act, notes, params, after }: DecisionPartProps 
   );
 }
 
-/** A way to take damage, in icons: the points on each trait, or the kind it lands as and the card that turns it. */
-function DamageChoice({ choice, damage, label, splitting }: { choice: Json; damage: DamageKind; label: string; splitting: boolean }) {
-  if (!splitting) {
-    const card = typeof choice === "string" ? choice : null;
-    return (
-      <span aria-label={label} className="inline-flex items-center gap-1">
-        {card !== null && <span>{ENGINE.catalog.cards[card].name}:</span>}
-        <DamageIcon kind={landsAs(damage, choice)} className="size-5" />
-      </span>
-    );
-  }
+/** A kind to take damage as, in icons: as it is, or as the other kind and the card that turns it. */
+function DamageKindChoice({ choice, damage, label }: { choice: Json; damage: DamageKind; label: string }) {
+  const card = typeof choice === "string" ? choice : null;
   return (
-    <span aria-label={label} className="inline-flex items-center gap-2">
-      {Object.entries(splitOf(choice)).map(([trait, points]) => (
-        <span key={trait} className="inline-flex items-center gap-0.5 font-semibold">
-          −{points}
-          <TraitIcon trait={trait as Trait} className="size-5" />
-        </span>
-      ))}
+    <span aria-label={label} className="inline-flex items-center gap-1">
+      {card !== null && <span>{ENGINE.catalog.cards[card].name}:</span>}
+      <DamageIcon kind={landsAs(damage, choice)} className="size-5" />
     </span>
   );
 }
@@ -271,19 +262,64 @@ interface DamageParams {
   damage: DamageKind;
 }
 
-function DamagePart({ view, panel, act, input, params, kind }: DecisionPartProps & { kind: string; params: Json }) {
-  const p = params as unknown as DamageParams & { amount?: number; points?: number };
-  const [selected, setSelected] = useState<string | null>(null);
-  const focused = panel.find((choice) => choice.id === selected) ?? null;
-  const splitting = kind === "split-damage";
-  const lands = splitting || focused === null ? p.damage : landsAs(p.damage, focused.choice);
-  const tracks = damageTracks(ENGINE, view, p.figure, lands, splitting && focused ? splitOf(focused.choice) : null);
-  const points = p.amount ?? p.points ?? 0;
+function DamagePart(props: DecisionPartProps & { kind: string; params: Json }) {
+  // Before its choices appear (the beats leading to it still playing), a split shows its tracks as they are.
+  return props.kind === "split-damage" && props.panel.length > 0 ? <SplitPart {...props} /> : <DamageKindPart {...props} />;
+}
+
+/** Damage to split: its two tracks with one control between them, the tracks showing where the split on it would leave each clip. */
+function SplitPart({ view, panel, act, input, params }: DecisionPartProps & { params: Json }) {
+  const p = params as unknown as DamageParams & { amount: number };
+  const stops = splitStops(p.damage, panel.map((choice) => choice.choice));
+  const [at, setAt] = useState(() => evenStop(stops, p.amount));
+  const chosen = panel[stops[at].choice];
+  const [first, second] = damageTracks(ENGINE, view, p.figure, p.damage, splitOf(chosen.choice));
+  const [onFirst, onSecond] = DAMAGE_TRAITS[p.damage];
 
   return (
     <div aria-label="Damage" className="flex flex-col gap-2 rounded border border-(--bt-line) bg-(--bt-bg) px-2 py-2">
       <p className="text-sm">
-        <DamageAmount kind={lands} amount={points} />
+        <DamageAmount kind={p.damage} amount={p.amount} />
+      </p>
+      <TrackRow track={first} />
+      <SplitControl
+        traits={[onFirst, onSecond]}
+        points={p.amount}
+        stops={stops}
+        at={at}
+        move={setAt}
+        take={() => {
+          act(chosen.action);
+        }}
+        label={chosen.label}
+        input={input}
+      />
+      <TrackRow track={second} />
+      <button
+        type="button"
+        onClick={() => {
+          act(chosen.action);
+        }}
+        className={`${CHOICE} text-center`}
+      >
+        {chosen.label}
+      </button>
+    </div>
+  );
+}
+
+/** Damage with its kinds to take it as, each previewing the tracks it lands on (or a split, before its choices appear). */
+function DamageKindPart({ view, panel, act, input, params }: DecisionPartProps & { params: Json }) {
+  const p = params as unknown as DamageParams & { points?: number; amount?: number };
+  const [selected, setSelected] = useState<string | null>(null);
+  const focused = panel.find((choice) => choice.id === selected) ?? null;
+  const lands = focused === null ? p.damage : landsAs(p.damage, focused.choice);
+  const tracks = damageTracks(ENGINE, view, p.figure, lands, null);
+
+  return (
+    <div aria-label="Damage" className="flex flex-col gap-2 rounded border border-(--bt-line) bg-(--bt-bg) px-2 py-2">
+      <p className="text-sm">
+        <DamageAmount kind={lands} amount={p.points ?? p.amount ?? 0} />
       </p>
       {tracks.map((track) => (
         <TrackRow key={track.trait} track={track} />
@@ -310,51 +346,68 @@ function DamagePart({ view, panel, act, input, params, kind }: DecisionPartProps
               }}
               className={`${CHOICE} aria-pressed:border-(--bt-accent) ${card === null ? "" : `${MOOD_EDGE[cardMood(ENGINE, card)]}`}`}
             >
-              <DamageChoice choice={choice.choice} damage={p.damage} label={choice.label} splitting={splitting} />
+              <DamageKindChoice choice={choice.choice} damage={p.damage} label={choice.label} />
             </button>
           );
         })}
       </div>
-      {input === "touch" && <p className="text-xs text-(--bt-muted)">Tap to see where it lands; tap again to take it.</p>}
+      {input === "touch" && panel.length > 0 && <p className="text-xs text-(--bt-muted)">Tap to see where it lands; tap again to take it.</p>}
     </div>
   );
 }
 
-function ChoicesPart({ view, panel, act, notes, rule }: DecisionPartProps & { rule: RuleView }) {
-  const card = rule.source === "card" ? rule.card : null;
-  const pending = view.pending;
-  // A trait chosen before its roll: each option shows its odds on each row.
-  const rolls = pending?.type === "decision" && pending.detail !== null && pending.kind === "choose-one" ? optionRolls(view, pending.detail.params) : [];
-  const table = rolls.find((roll) => roll !== null) ?? null;
+function ChoicesPart({ view, panel, act }: DecisionPartProps) {
+  const table = optionTable(view);
   return (
     <>
-      {card !== null ? <CardFace card={card} notes={notes} table={table?.rows ?? null} /> : table && <RollTable rows={table.rows} />}
-      <div className="flex flex-wrap gap-2">
-        {panel.map((choice) => {
-          const odds = typeof choice.choice === "number" ? rolls[choice.choice] : null;
-          return (
-            <button
-              key={choice.id}
-              type="button"
-              onClick={() => {
-                act(choice.action);
-              }}
-              className={CHOICE}
-            >
-              {choice.label}
-              {odds && (
-                <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-(--bt-muted) tabular-nums">
-                  {printedOrder(odds.rows).map(({ row, index }) => (
-                    <span key={index}>
-                      {rangeText(row)} {percentText(odds.odds[index])}
-                    </span>
-                  ))}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {table && <RollTable rows={table.rows} />}
+      <ChoiceButtons view={view} panel={panel} act={act} />
     </>
+  );
+}
+
+/** Each of a question's options that makes one roll with a table, with its odds. */
+function rollsOf(view: GameView): ReturnType<typeof optionRolls> {
+  const pending = view.pending;
+  return pending?.type === "decision" && pending.detail !== null && pending.kind === "choose-one" ? optionRolls(view, pending.detail.params) : [];
+}
+
+/** The table a question's options roll on, when they roll on one: a trait chosen before its roll (Possession, the Spider). */
+export function optionTable(view: GameView): { rows: RowSummary[]; odds: number[] } | null {
+  return rollsOf(view).find((roll) => roll !== null) ?? null;
+}
+
+/** A question's choices as a row of buttons, the first the pad's start; a
+ *  trait chosen before its roll shows each option's odds on each row. */
+export function ChoiceButtons({ view, panel, act }: { view: GameView; panel: readonly PanelChoice[]; act: (action: Action) => void }) {
+  const rolls = rollsOf(view);
+  return (
+    <div className="flex flex-wrap gap-2">
+      {panel.map((choice, i) => {
+        const odds = typeof choice.choice === "number" ? rolls[choice.choice] : null;
+        return (
+          <button
+            key={choice.id}
+            type="button"
+            data-pad-start={i === 0 || undefined}
+            onClick={() => {
+              act(choice.action);
+            }}
+            className={CHOICE}
+          >
+            {choice.label}
+            {odds && (
+              <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-(--bt-muted) tabular-nums">
+                {printedOrder(odds.rows).map(({ row, index }) => (
+                  <span key={index}>
+                    {rangeText(row)} {percentText(odds.odds[index])}
+                  </span>
+                ))}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }

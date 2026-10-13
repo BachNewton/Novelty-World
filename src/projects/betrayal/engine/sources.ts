@@ -152,7 +152,34 @@ export interface SourceAction {
     engine: Engine,
   ) => boolean;
   steps: (state: GameState, figure: FigureId, source: Source) => Step[];
+  /** Where it leads, for an action that takes its figure through a
+   *  connection to another room, for the house to show it there. */
+  through?: (
+    state: GameState,
+    figure: FigureId,
+    source: Source,
+    engine: Engine,
+  ) => Through;
 }
+
+/** A turn's action that takes its figure through a connection to another
+ *  room (the Wall Switch, the Slide), as the house shows it: the token it
+ *  goes through and where that lies, the rooms it may come out in, and the
+ *  roll it takes. */
+export type Through = {
+  token: string;
+  /** The room the token is in. */
+  room: string;
+  /** The printed edges of the room's tile the token is on: one wall, a
+   *  corner's two, or none for a token on the floor. */
+  wall: Edge[];
+  /** Every room it may come out in. */
+  rooms: string[];
+  /** The trait rolled, the dice its figure would roll now, and the least
+   *  total that goes through; null for a figure the text doesn't bind,
+   *  which goes through without one. */
+  roll: { trait: Trait; dice: number; min: number } | null;
+};
 
 export interface Reaction {
   event: string;

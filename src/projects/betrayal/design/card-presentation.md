@@ -41,13 +41,15 @@ Every card sorted by how it shows in the 3D house, and what that asks of the UI 
 
 ## Choices that are places
 
-A card or rule whose options are places or things in the house is answered in the house, like a move: each option is a target, pointed at with the reticle, the mouse or a tap and pressed like any other choice, its tag naming it. The engine describes the place an option is (a room, a side of a barrier room, a wall or corner of a room with the token going there, a figure) in the choice's own data, never in its label; `play/choices.ts` turns those options into house targets and leaves the rest in the status box. A wall or corner is a pad on the floor against it, the corner's in the corner, the focused one showing the token on its wall; a side of a barrier room is that half of its tile; a choice among one room's walls pans a following camera to that room.
+A card or rule whose options are places or things in the house is answered in the house, like a move: each option is a target, pointed at with the reticle, the mouse or a tap and pressed like any other choice, its tag naming it. The engine describes the place an option is (a room, a side of a barrier room, a wall or corner of a room with the token going there, a figure) in the choice's own data, never in its label; `play/choices.ts` turns those options into house targets and leaves the rest in the status box. A wall or corner is a pad on the floor against it, the corner's in the corner, the focused one showing the token on its wall; a side of a barrier room is that half of its tile; a choice among one room's walls pans a following camera to that room. A turn's action that goes through a connection (the Wall Switch, the Slide) is a place too: the engine's choice carries where it leads (the token and its wall, the rooms beyond, and the roll with the dice its figure would roll), each room beyond is a target tagged with the roll and its exact odds, and the route runs through the connection's mark. A room that is also a move carries both targets, the way through pointed at on the connection's side of the room.
 
 **Answered in the house**
 
 | Card or rule | Decision | Options | Was | Now |
 |---|---|---|---|---|
 | Revolving Wall | choose-one | the room's walls with no exit, and its corners | box, as text | a pad on each wall or corner ("North-east corner"), the Wall Switch previewed on it |
+| Wall Switch: going through (a turn's action) | turn | the room on its other side | box button | that room; its tag names the roll and its odds ("Wall Switch: Knowledge roll 3+ · 63%"), and the route runs through the switch |
+| Mystic Slide: using it (a turn's action) | turn | the rooms on the floors below | box button | each of those rooms, all taking the one roll, tagged as the switch is ("Slide: Might roll 5+"); where it lands is then chosen as before |
 | Secret Passage, Secret Stairs: the other end | choose-one | rooms, each side of a barrier room apart | box | the rooms, or the halves |
 | Secret Passage, Secret Stairs: go through now | choose-one | the linked room, or stay | box | the room; staying stays in the box |
 | Dynamite | choose-one | the adjacent rooms it can be thrown into | box | the rooms, or the halves |
@@ -61,7 +63,7 @@ A card or rule whose options are places or things in the house is answered in th
 | A turn's attack on a figure (after the haunt) | turn | the figures in reach | box | the figures |
 | A monster turn's figure to act next (haunt 13) | turn | the monsters ready | box | the figures |
 
-Already in the house before: the turn's moves and cells to explore, a tile's ways round and the cells a moved room may go on (the ghost), and the room options of the Bottle, the Dog's run, Funeral, the Mystic Slide, the Collapsed Room's fall and the Dark Dice's step.
+Already in the house before: the turn's moves (going through a Secret Passage or Secret Stairs on a later turn is one) and cells to explore, a tile's ways round and the cells a moved room may go on (the ghost), and the room options of the Bottle, the Dog's run, Funeral, the Mystic Slide, the Collapsed Room's fall and the Dark Dice's step.
 
 **Left in the box, with a recommendation**
 

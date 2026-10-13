@@ -75,7 +75,7 @@ function expectNothingAhead(snapshots: readonly Presented[]) {
   for (const snapshot of snapshots) {
     const started = new Set(snapshot.shown);
     if (snapshot.playing && snapshot.told) expect(started.has(snapshot.told.line), "the line runs ahead of its beat").toBe(true);
-    if (snapshot.card) expect(started.has(snapshot.card.event), "the card's title runs ahead of its beat").toBe(true);
+    if (snapshot.card) expect(started.has(snapshot.card), "the card runs ahead of its beat").toBe(true);
     for (const float of snapshot.floats) expect(started.has(float), "a float runs ahead of its beat").toBe(true);
     if (snapshot.beat) for (const event of snapshot.beat.events) expect(started.has(event)).toBe(true);
   }
@@ -92,22 +92,25 @@ describe("the box and the house in step", () => {
     shown(presenting, fed, discovered);
     const type = (id: string | undefined) => discovered.lastEvents.find((event) => event.id === id)?.type;
 
-    // The walk in: nothing told yet, no card's title, no float.
-    expect(presenting.snapshot()).toMatchObject({ playing: true, told: null, card: null, floats: [] });
+    // The walk in, told by the discovery's line, which names the room; no card, no float.
+    expect(presenting.snapshot()).toMatchObject({ playing: true, card: null, floats: [] });
+    expect(type(presenting.snapshot().told?.line)).toBe("discovered");
     expect(presenting.snapshot().beat?.kind).toBe("walk");
     await house.step();
-    // The card: its title and text, waiting for a tap; its line, and nothing after it.
+    // The card over its room, waiting for a press; its line, and nothing after it.
     expect(type(presenting.snapshot().told?.line)).toBe("card-drawn");
-    expect(presenting.snapshot().card).toMatchObject({ waits: true });
-    presenting.goOn();
+    expect(type(presenting.snapshot().card ?? undefined)).toBe("card-drawn");
     await settle();
-    // The roll's table shows first, with its odds, under the card's title.
+    expect(presenting.snapshot()).toMatchObject({ playing: true });
+    expect(house.holding()).toBe(0);
+    presenting.skip();
+    await settle();
+    // Pressed, the card gets out of the way; the roll's table shows first, with its odds.
     expect(type(presenting.snapshot().told?.line)).toBe("roll-coming");
-    expect(presenting.snapshot().card).toMatchObject({ waits: false });
+    expect(presenting.snapshot().card).toBeNull();
     await house.step();
-    // Then its dice turn up, under the card's title, which stays until the choice shows.
+    // Then its dice turn up.
     expect(type(presenting.snapshot().told?.line)).toBe("rolled");
-    expect(presenting.snapshot().card).toMatchObject({ waits: false });
     expect(presenting.snapshot().floats).toEqual([]);
     await house.step();
     // The Sanity gained or lost floats as its line shows.
@@ -129,29 +132,58 @@ describe("the box and the house in step", () => {
     expect(presenting.snapshot()).toMatchObject({ playing: false, told: null });
   });
 
-  it("complete at once on an input, every line, card and float shown, and only skip", () => {
+  it("skip on an input up to the next card, which waits for its own press, then play on at their pace, and only ever skip", async () => {
     const start = CRAWLIES();
-    const { presenting, fed, snapshots } = started(start);
+    const { house, presenting, fed, snapshots } = started(start);
     const discovered = choose(choose(start, "Explore through the north door"), "turned 0°");
     shown(presenting, fed, discovered);
+    const type = (id: string | null | undefined) => discovered.lastEvents.find((event) => event.id === id)?.type;
     let answered = 0;
-    expect(
+    const press = () =>
       skipOrAnswer(presenting, () => {
         answered++;
-      }),
-    ).toBe(false);
-    expect(answered).toBe(0);
+      });
+    // Pressed during the walk in: it completes, and the skip stops at the card, which waits.
+    expect(press()).toBe(false);
+    await settle();
+    expect(presenting.snapshot()).toMatchObject({ playing: true });
+    expect(type(presenting.snapshot().card)).toBe("card-drawn");
+    // Pressed on the card: it goes, and the beats after it play at their pace.
+    expect(press()).toBe(false);
+    await settle();
+    expect(presenting.snapshot()).toMatchObject({ playing: true, card: null });
+    expect(type(presenting.snapshot().told?.line)).toBe("roll-coming");
+    expect(house.holding()).toBe(1);
+    // Pressed again: the rest completes at once, every line and float shown.
+    expect(press()).toBe(false);
+    await settle();
     const after = presenting.snapshot();
     expect(after).toMatchObject({ playing: false, card: null });
-    expect(discovered.lastEvents.find((event) => event.id === after.told?.line)?.type).toBe("trait-changed");
+    expect(type(after.told?.line)).toBe("trait-changed");
     expect(after.floats).toHaveLength(1);
-    expect(
-      skipOrAnswer(presenting, () => {
-        answered++;
-      }),
-    ).toBe(true);
+    expect(answered).toBe(0);
+    // With nothing playing, a press answers.
+    expect(press()).toBe(true);
     expect(answered).toBe(1);
     expectNothingAhead(snapshots);
+  });
+
+  it("keep a card waiting when the next write's beats arrive, and play them once it is pressed", async () => {
+    // Two writes: Zoe discovers the Game Room and draws Creepy Crawlies; then the turn passes before the card is pressed.
+    const start = CRAWLIES();
+    const { house, presenting, fed } = started(start);
+    const discovered = choose(choose(start, "Explore through the north door"), "turned 0°");
+    shown(presenting, fed, discovered);
+    await house.step();
+    expect(presenting.snapshot().card).not.toBeNull();
+    shown(presenting, fed, choose(discovered, "End your turn"));
+    await settle();
+    expect(presenting.snapshot()).toMatchObject({ playing: true });
+    expect(presenting.snapshot().card).not.toBeNull();
+    presenting.skip();
+    await settle();
+    // What the card set off completes at once, as a run still playing does when the next arrives; the turn passing plays after it.
+    expect(presenting.snapshot()).toMatchObject({ playing: false, card: null, beat: null });
   });
 
   it("wait between two beats while Why is open, and go on once it closes", async () => {
@@ -159,7 +191,7 @@ describe("the box and the house in step", () => {
     const { house, presenting, fed } = started(start);
     shown(presenting, fed, choose(choose(start, "Explore through the north door"), "turned 0°"));
     await house.step();
-    presenting.goOn();
+    presenting.skip();
     await settle();
     // The roll plays; Why opens on it.
     const rolling = presenting.snapshot().told?.line;
@@ -184,9 +216,9 @@ describe("the box and the house in step", () => {
     presenting.show(zoe(slid), [...zoe(start).events, ...zoe(slid).events]);
     const said = (id: string | undefined) => slid.lastEvents.find((event) => event.id === id);
 
-    // She walks into the chute, standing where she was until then; nothing is told.
+    // She walks into the chute, standing where she was until then, told by its discovery.
     expect(presenting.snapshot().beat?.kind).toBe("walk");
-    expect(presenting.snapshot().told).toBeNull();
+    expect(said(presenting.snapshot().told?.line)?.type).toBe("discovered");
     expect(zoeIn().slice(-2)).toEqual(["entrance-hall", "coal-chute"]);
     await house.step();
     // She is put in the Basement Landing, the chute's line tells it, and the beat lasts until the camera has followed her there.

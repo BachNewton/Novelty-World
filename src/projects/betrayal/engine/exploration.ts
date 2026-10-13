@@ -69,6 +69,7 @@ import {
   liveSources,
   type Source,
   type SourceAction,
+  type Through,
 } from "./sources";
 import {
   prepareScenario,
@@ -595,6 +596,24 @@ function acting(state: GameState): FigureId {
   return figure;
 }
 
+/** Where an action leads, when it takes the acting figure through a connection to another room. */
+function turnChoiceThrough(
+  engine: Engine,
+  state: GameState,
+  choice: TurnChoice,
+): Through | null {
+  if (choice.act !== "action") return null;
+  const figure = acting(state);
+  const offered = cardActions(engine, state, figure).find(
+    ({ source, action }) =>
+      source.kind === choice.source &&
+      source.id === choice.id &&
+      action === choice.action,
+  );
+  if (!offered?.definition.through) return null;
+  return offered.definition.through(state, figure, offered.source, engine);
+}
+
 function describeTurnChoice(
   engine: Engine,
   state: GameState,
@@ -941,6 +960,8 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
     candidates: (state, _p, _seat, engine) => turnCandidates(engine, state),
     label: (state, _p, choice, engine) =>
       describeTurnChoice(engine, state, choice),
+    through: (state, _p, choice, engine) =>
+      turnChoiceThrough(engine, state, choice),
     alwaysAsks: (state, _p, engine) => someoneActs(engine, state),
     resolve: (state, p, choice, ctx) => {
       const work = takeTurnChoice(ctx.engine, state, p.seat, choice);

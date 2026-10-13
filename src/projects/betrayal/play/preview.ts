@@ -1,4 +1,7 @@
 import type { RuleNotes } from "../data/rule-notes";
+import { TOKENS } from "../data/tokens";
+import { traitName } from "../engine/describe";
+import type { Through } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
 import type { FigureId, Place } from "../types";
 import type { Lookahead, Reach, RouteWarning } from "./lookahead";
@@ -42,4 +45,11 @@ export function warningLines(engine: Engine, notes: RuleNotes | null, preview: P
 /** The rooms a route walks through, each once in a row: a barrier room's sides are one room to walk. */
 export function routeRooms(preview: Pick<RoutePreview, "route">): string[] {
   return preview.route.map((place) => place.room).filter((room, i, rooms) => i === 0 || rooms[i - 1] !== room);
+}
+
+/** Going through a connection, as its tag names it: "Wall Switch: Knowledge roll 3+", or "Wall Switch: no roll" for a figure it doesn't bind. */
+export function throughText(through: Pick<Through, "token" | "roll">): string {
+  const token = TOKENS.find((each) => each.id === through.token);
+  if (!token) throw new Error(`No token kind ${through.token}`);
+  return through.roll ? `${token.name}: ${traitName(through.roll.trait)} roll ${String(through.roll.min)}+` : `${token.name}: no roll`;
 }

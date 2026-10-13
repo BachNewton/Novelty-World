@@ -6,8 +6,8 @@ import { BUTTON, clickTarget, onePad, padTo, readout, resume, seededGame, setBut
  * holding the Lucky Stone and the Skull, explores north into the Game Room
  * and draws Skeletons: the card's title shows over the room and waits for a
  * tap; its die of mental damage rolls 0, which the Stone rerolls to 2; the
- * Skull offers to take it as physical; and the damage is split on the stat
- * tracks, previewed before it is taken. The old debug panel never shows.
+ * Skull offers to take it as physical; and the damage is split on one
+ * control between the stat tracks, previewed before it is taken. The old debug panel never shows.
  */
 
 test.use({ launchOptions: { args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] } });
@@ -51,13 +51,14 @@ test("keyboard and mouse: a card's beat, a reroll picked from the dice, and dama
   await until(page, "play.ghost?.tile === 'game-room'");
   await page.keyboard.press("Enter");
 
-  // The draw: the card's name over the room, its text waiting for a tap, and no choice offered until it is read.
+  // The draw: the card over the room, its text waiting for a press (its mark shows it), and no choice offered until it is read.
   const beat = page.getByRole("dialog", { name: "Card drawn: Skeletons" });
   await expect(beat).toBeVisible();
   await expect(beat).toContainText("Take 1 die of mental damage.");
   const waiting = await readout(page);
-  expect(waiting).toMatchObject({ playing: true, panel: [], pending: { kind: "roll-after" } });
-  await beat.getByRole("button", { name: "Go on" }).click();
+  expect(waiting).toMatchObject({ playing: true, panel: [], pending: { kind: "roll-after" }, card: { card: "skeletons", asks: false } });
+  await expect(beat.locator("[data-continue]")).toBeVisible();
+  await beat.click();
 
   // The roll: its die, 0, and Lucky Stone offered to reroll the dice picked from it.
   await until(page, "play.pending?.kind === 'roll-after'");
@@ -78,11 +79,18 @@ test("keyboard and mouse: a card's beat, a reroll picked from the dice, and dama
   await expect(damage.getByLabel("Sanity track")).toBeVisible();
   await damage.getByRole("button", { name: "Take 2 mental damage" }).click();
 
-  // The split: pointing at a way shows where each clip would land; nothing is taken until it is clicked.
+  // The split: one control between the two tracks, starting even and focused; the arrows move it a point at a time, the
+  // tracks show where each clip would land, and nothing is taken until the split is.
   await until(page, "play.pending?.kind === 'split-damage'");
-  await damage.getByRole("button", { name: "Take 1 Sanity and 1 Knowledge" }).hover();
+  const split = damage.getByRole("slider", { name: "Split the damage" });
+  await expect(split).toBeFocused();
+  await expect(split).toHaveAttribute("aria-valuetext", "Take 1 Sanity and 1 Knowledge");
   await expect(damage.getByLabel("Sanity track").locator("[data-after]")).toHaveCount(1);
   await expect(damage.getByLabel("Knowledge track").locator("[data-after]")).toHaveCount(1);
+  await page.keyboard.press("ArrowRight");
+  await expect(split).toHaveAttribute("aria-valuetext", "Take 2 Sanity and 0 Knowledge");
+  await expect(damage.getByLabel("Knowledge track").locator("[data-after]")).toHaveCount(0);
+  await page.keyboard.press("ArrowLeft");
   expect((await readout(page)).pending?.kind).toBe("split-damage");
   await damage.getByRole("button", { name: "Take 1 Sanity and 1 Knowledge" }).click();
 
@@ -92,23 +100,24 @@ test("keyboard and mouse: a card's beat, a reroll picked from the dice, and dama
   expect(await debugShown()).toBe(false);
 });
 
-test("a card that moves the explorer: its title stays up until the choice it leads to, and an input mid-beat only skips", async ({ page }) => {
+test("a card that moves the explorer: it waits for a press, then gets out of the way, and an input mid-beat only skips", async ({ page }) => {
   await resume(page, BURNING_MAN);
   await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");
   await clickTarget(page, "explore:ground:2:-1");
   await until(page, "play.ghost?.tile === 'game-room'");
   await page.keyboard.press("Enter");
 
-  // The card's beat waits for a tap; the engine has already moved Zoe and put her next turn decision up.
+  // The card waits for a press; the engine has already moved Zoe and put her next turn decision up.
   const beat = page.getByRole("dialog", { name: "Card drawn: Burning Man" });
-  await expect(beat.getByRole("button", { name: "Go on" })).toBeVisible();
+  await expect(beat.locator("[data-continue]")).toBeVisible();
   // The clock is held, so the beats after the card's stay playing to be seen.
   await page.evaluate(() => window.__betrayalPlay?.freezeClock(1000));
-  await beat.getByRole("button", { name: "Go on" }).click();
+  await beat.click();
   await whilePlaying(page, "play.playing && play.beat?.kind === 'line'");
   const between = await readout(page);
-  expect(between).toMatchObject({ playing: true, targets: [], panel: [], canEnd: false, rooms: { "zoe-ingstrom": "entrance-hall" }, pending: { kind: "turn" } });
-  await expect(beat).toBeVisible();
+  expect(between).toMatchObject({ playing: true, targets: [], panel: [], canEnd: false, rooms: { "zoe-ingstrom": "entrance-hall" }, pending: { kind: "turn" }, card: null });
+  // Pressed, the card got out of the way of what it set off.
+  await expect(beat).toBeHidden();
   await expect(page.getByRole("button", { name: "End turn" })).toHaveCount(0);
 
   // Enter now only skips: the choices show, and the turn is still Zoe's, untouched.
@@ -116,7 +125,6 @@ test("a card that moves the explorer: its title stays up until the choice it lea
   await whilePlaying(page, "!play.playing && play.canEnd");
   const after = await readout(page);
   expect(after).toMatchObject({ holder: 0, turnSeat: 0, queued: 0, pending: { id: between.pending?.id } });
-  await expect(beat).toBeHidden();
   await page.evaluate(() => window.__betrayalPlay?.freezeClock(null));
 });
 
@@ -153,7 +161,9 @@ test.describe("touch", () => {
     await page.touchscreen.tap(doorway.x, doorway.y);
     await until(page, "play.ghost?.tile === 'game-room'");
     await page.getByRole("button", { name: "Place the Game Room" }).tap();
-    await page.getByRole("dialog", { name: "Card drawn: Skeletons" }).getByRole("button", { name: "Go on" }).tap();
+    // A tap on the house goes on from the card.
+    await expect(page.getByRole("dialog", { name: "Card drawn: Skeletons" })).toBeVisible();
+    await page.touchscreen.tap(doorway.x, doorway.y);
     await until(page, "play.pending?.kind === 'roll-after'");
     await page.getByRole("button", { name: "Keep the result (0)" }).tap();
     // A 0 deals no damage: Zoe's turn goes on.

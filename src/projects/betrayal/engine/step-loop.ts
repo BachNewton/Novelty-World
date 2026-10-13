@@ -12,7 +12,7 @@ import type {
 import { checkConditions, type Haunts } from "./haunt";
 import { controllerOf } from "./questions";
 import { randomFor, SETUP_KEY, type Random } from "./random";
-import { liveSources, type Behaviours } from "./sources";
+import { liveSources, type Behaviours, type Through } from "./sources";
 
 /** What a step or a decision's resolution can do while the engine works. */
 export interface StepContext {
@@ -63,6 +63,14 @@ export interface DecisionKind {
    *  legal choice: a player's act, which they must see happen, not a step
    *  of bookkeeping. Without it, a single legal choice is a forced step. */
   alwaysAsks?: (state: GameState, decision: Decision, engine: Engine) => boolean;
+  /** Where a choice leads, for one that takes a figure through a connection
+   *  to another room; null for every other. */
+  through?: (
+    state: GameState,
+    decision: Decision,
+    choice: Json,
+    engine: Engine,
+  ) => Through | null;
   /** Applies the answers once every addressee has given one. Returns why, when an answer can't apply. */
   resolve: (
     state: GameState,
@@ -91,6 +99,24 @@ export type ApplyResult =
 export interface Choice {
   choice: Json;
   label: string;
+  /** Where it leads, when it takes a figure through a connection to another room. */
+  through?: Through;
+}
+
+/** A legal choice as offered: its label, and where it leads when it goes through a connection. */
+function offer(
+  engine: Engine,
+  state: GameState,
+  decision: Decision,
+  kind: DecisionKind,
+  choice: Json,
+): Choice {
+  const through = kind.through?.(state, decision, choice, engine) ?? null;
+  return {
+    choice,
+    label: kind.label(state, decision, choice, engine),
+    ...(through ? { through } : {}),
+  };
 }
 
 /** A game that loops this long without pausing has a bug: it must fail loudly, not be cut short. */
@@ -181,10 +207,9 @@ export function choices(
   )
     return [];
   const kind = decisionKind(engine, pending.kind);
-  return legalChoices(engine, state, pending, seat, among).map((choice) => ({
-    choice,
-    label: kind.label(state, pending, choice, engine),
-  }));
+  return legalChoices(engine, state, pending, seat, among).map((choice) =>
+    offer(engine, state, pending, kind, choice),
+  );
 }
 
 /** Each legal choice the pending decision offers a seat, with the state
@@ -218,8 +243,7 @@ export function outcomes(
     if (answer(engine, draft, write, seat, choice) !== null) continue;
     run(engine, draft, write);
     found.push({
-      choice,
-      label: kind.label(state, pending, choice, engine),
+      ...offer(engine, state, pending, kind, choice),
       state: draft,
     });
   }

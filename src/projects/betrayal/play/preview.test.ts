@@ -5,7 +5,7 @@ import { ENGINE } from "../game";
 import { testGame } from "../testing";
 import { playChoices } from "./choices";
 import { lookahead } from "./lookahead";
-import { costText, routeRooms, warningLines, type RoutePreview } from "./preview";
+import { costText, routeRooms, throughText, warningLines, type RoutePreview } from "./preview";
 
 let notes: RuleNotes;
 beforeAll(async () => {
@@ -51,5 +51,12 @@ describe("the route preview", () => {
 
   it("counts a barrier room's sides as one room to walk", () => {
     expect(routeRooms({ route: [{ room: "foyer", side: null }, { room: "chasm", side: "top" }, { room: "chasm", side: "bottom" }] })).toEqual(["foyer", "chasm"]);
+  });
+});
+
+describe("going through a connection", () => {
+  it("names the connection and the roll it takes", () => {
+    expect(throughText({ token: "wall-switch", roll: { trait: "knowledge", dice: 3, min: 3 } })).toBe("Wall Switch: Knowledge roll 3+");
+    expect(throughText({ token: "wall-switch", roll: null })).toBe("Wall Switch: no roll");
   });
 });

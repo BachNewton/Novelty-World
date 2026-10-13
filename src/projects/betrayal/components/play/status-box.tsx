@@ -30,8 +30,9 @@ import { WhyDialog } from "./why-dialog";
  * when the next write's beats begin, and nothing is told before its beat
  * plays. Why opens the rules behind the line's beat, or, with nothing
  * playing, behind the pending decision, in a dialog over the house
- * (`WhyDialog`). While beats play, "now" is skipping them: the choices wait
- * until they are over. The box is the lowest layer a controller's focus works in:
+ * (`WhyDialog`). While beats play, "now" is empty: the choices wait until
+ * they are over, and any input skips them. A card's question is asked on the
+ * card over the room, never here. The box is the lowest layer a controller's focus works in:
  * the d-pad's down moves the focus from the house into "now", and up past
  * the box's top row gives it back.
  */
@@ -46,8 +47,6 @@ export interface StatusBoxProps {
   turnUp: number | null;
   /** Beats are playing: the choices wait until they are over, and any input skips them. */
   playing: boolean;
-  /** Skips the beats playing. */
-  skip: () => void;
   holder: number;
   problem: string | null;
   choices: PlayChoices;
@@ -136,7 +135,7 @@ function Box({ notes, boxRef, ...props }: StatusBoxProps & { notes: RuleNotes | 
           )}
         </div>
       )}
-      <div data-now aria-label="What you can do now" className="flex shrink-0 flex-col gap-2 border-t border-(--bt-line) p-3 first:border-t-0">
+      <div data-now aria-label="What you can do now" className="flex shrink-0 flex-col gap-2 border-t border-(--bt-line) p-3 first:border-t-0 empty:hidden">
         {problem !== null && <ErrorBox message={problem} />}
         {props.notice != null && <DeviceNotice text={props.notice} openMenu={props.openMenu} />}
         <Now {...props} boxRef={boxRef} notes={notes} />
@@ -158,17 +157,8 @@ function DeviceNotice({ text, openMenu }: { text: string; openMenu?: () => void 
   );
 }
 
-/** While beats play, what the player can do now is skip them. */
-function skipButton(skip: () => void) {
-  return (
-    <button type="button" onClick={skip} className="inline-flex min-h-11 items-center gap-1.5 self-end rounded border border-(--bt-line) px-4 py-1 text-sm hover:border-(--bt-accent)">
-      Skip ahead
-    </button>
-  );
-}
-
 /** A seat other than the turn's, asked a question mid-turn: named with its explorer, in its colour. */
-function SeatName({ view, holder }: { view: GameView; holder: number }) {
+export function SeatName({ view, holder }: { view: GameView; holder: number }) {
   const explorer = Object.values(view.figures).find((figure) => figure.kind === "explorer" && figure.owner === holder);
   return (
     <>
@@ -198,11 +188,23 @@ function RouteLine({ preview, label, notes }: { preview: RoutePreview; label: st
   );
 }
 
-function Now({ view, holder, choices, ghost, input, act, preview, notes, playing, skip }: StatusBoxProps & { notes: RuleNotes | null }) {
+/** The holder's pending question in words, without their own name, and
+ *  whether it is put to a seat other than the turn's, which it then names. */
+export function questionPrompt(view: GameView, holder: number): { prompt: string; otherSeat: boolean } | null {
+  const pending = view.pending;
+  if (pending?.type !== "decision" || pending.detail === null || pending.kind === "turn") return null;
+  const explorer = viewExplorer(view, holder);
+  const prompt = describeDecision(ENGINE, view, { ...pending, params: pending.detail.params });
+  return { prompt: explorer ? prompt.replace(`${explorer.name}: `, "") : prompt, otherSeat: view.turn !== null && view.turn.seat !== holder };
+}
+
+function Now({ view, holder, choices, ghost, input, act, preview, notes, playing }: StatusBoxProps & { notes: RuleNotes | null }) {
   const { targets, panel } = choices;
   const pending = view.pending;
-  if (playing) return <>{skipButton(skip)}</>;
+  if (playing) return null;
   const part = boxPart(view);
+  // A card's question is asked on the card over the room.
+  if (part === "card") return null;
   if (part === "reveal") return <RevealNow view={view} holder={holder} act={act} />;
   if (part === "debug" || pending?.type !== "decision" || pending.detail === null) {
     return (
@@ -214,23 +216,20 @@ function Now({ view, holder, choices, ghost, input, act, preview, notes, playing
 
   // The turn needs no prompt: its places glow in the house, and End turn is at the top right.
   const isTurn = pending.kind === "turn";
-  const explorer = viewExplorer(view, holder);
   // A question for a seat other than the turn's names it, as the device passes mid-turn.
-  const otherSeat = view.turn !== null && view.turn.seat !== holder;
-  const question = (prompt: string) => (explorer ? prompt.replace(`${explorer.name}: `, "") : prompt);
-  const prompt = isTurn ? null : question(describeDecision(ENGINE, view, { ...pending, params: pending.detail.params }));
+  const question = questionPrompt(view, holder);
   const actions = part === "turn" || part === "ghost" ? boxActions(panel) : [];
 
   return (
     <>
-      {prompt !== null && (
+      {question !== null && (
         <p className="text-base">
-          {otherSeat && (
+          {question.otherSeat && (
             <>
               <SeatName view={view} holder={holder} />:{" "}
             </>
           )}
-          {prompt}
+          {question.prompt}
         </p>
       )}
       {isTurn && preview && <RouteLine preview={preview} label={targets.find((target) => target.id === preview.target)?.label ?? ""} notes={notes} />}

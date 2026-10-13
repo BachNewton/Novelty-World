@@ -9,8 +9,8 @@ import type { FloorId, PlacedTile } from "../types";
 import type { Pace } from "./explorers/figure";
 import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure, type RoomShownAs } from "./house";
 import type { LayoutChange } from "./house-layout";
-import { choiceLayout, exploreEntry, routeEnd, targetPlace, type Target, type TargetPlace } from "./house-targets";
-import { inHouse, walkPath, walkPose, type Avoid, type HousePoint, type Stairway, type Walk } from "./house-walk";
+import { choiceLayout, exploreEntry, routeEnd, targetPlace, type Target, type TargetPlace, type TargetRoute } from "./house-targets";
+import { inHouse, throughPath, walkPath, walkPose, type Avoid, type HousePoint, type Stairway, type Walk } from "./house-walk";
 import { pinsApart } from "./pins-apart";
 import type { ShownThing } from "../play/things";
 import { inspectFigureId, inspectRoomId, showsPointingTag } from "../play/inspect";
@@ -103,6 +103,8 @@ export interface Pin {
   apart: boolean;
   /** Pointed at as this, while inspecting (a room bonus badge): a box round its point. */
   inspect?: string;
+  /** Called once, the first time the element shows where it is pinned: it can take the focus from then on. */
+  shown?: () => void;
 }
 
 /** What the camera pans to: one room, with its back walls standing; or these rooms on the floor showing. */
@@ -175,6 +177,8 @@ export interface SceneInput {
   commit: (id: string) => void;
   /** The player confirms with no target offered: going on from a moment shown. */
   confirm: () => void;
+  /** The player taps or clicks the house where there is nothing to pick: going on from a moment shown, as a press anywhere does. */
+  pressedNothing?: () => void;
   /** The player backs out: the focus is cleared, or a selection pending cancelled. */
   back?: () => void;
   /** The reticle or the mouse has left the choice it was on, so nothing has the focus. */
@@ -430,6 +434,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let ghostHandles: HTMLElement | null = null;
   /** Page elements the scene keeps over figures and rooms: a figure's marks, a card's title over its room. */
   const pins = new Map<string, readonly Pin[]>();
+  /** The pins whose first showing has been announced (`Pin.shown`). */
+  const announced = new WeakSet<Pin>();
   /** The things living in the rooms: objects, room effects and connections. Each is a pointer target that names it, never a choice. */
   const things = createThingsLayer();
 
@@ -1108,6 +1114,9 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         if (view.inspecting) point(id);
         else input.commit(id);
       },
+      pressedNothing: () => {
+        if (!view.inspecting) input.pressedNothing?.();
+      },
       confirm: () => {
         if (view.inspecting) return;
         // A thing in a room is read whatever the decision offers.
@@ -1208,6 +1217,17 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       ctx.setPixelRatio(ratio);
     };
 
+    /** A target's route as the dotted path shows it: through doorways and stairs, or through its connection. */
+    const routePath = (route: TargetRoute, end: HousePoint, onward: HousePoint[]): HousePoint[] | null => {
+      const from = house.figureAt(route.figure);
+      const avoid = roundStanding(new Set([route.figure]));
+      if (!route.via) return [...walkPath(layout, route.rooms, from, end, definition, avoid), ...onward];
+      const at = route.via.at();
+      if (!at) return null;
+      const [a, b] = route.rooms;
+      return throughPath(layout, [a, b], from, inHouse(layout, route.via.room, [at[0], 0, at[1]]), end, definition, avoid);
+    };
+
     /** Shows what the scene holds: the floor, whose turn it is, and the targets with the focused one's route. */
     let shownFloor: FloorChoice | null = null;
     let shownMarks = "";
@@ -1236,7 +1256,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       const routed = offering && (going?.kind === "room" || going?.kind === "explore") ? going : null;
       const end = routed && routeEnd(layout, routed);
       const onward = routed?.kind === "explore" ? exploreEntry(layout, routed).slice(1) : [];
-      house.showRoute(routed?.route && end ? [...walkPath(layout, routed.route.rooms, house.figureAt(routed.route.figure), end, definition, roundStanding(new Set([routed.route.figure]))), ...onward] : null);
+      house.showRoute(routed?.route && end ? routePath(routed.route, end, onward) : null);
       settled = false;
     };
 
@@ -1345,6 +1365,10 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           if (!shown) continue;
           if (pinned.apart) apart.push({ pinned, at: shown, lift: at ? pinned.lift : 0 });
           else pin(pinned.element, shown, at ? pinned.lift : 0);
+          if (pinned.shown && !announced.has(pinned)) {
+            announced.add(pinned);
+            pinned.shown();
+          }
         }
         const boxes = apart.map(({ pinned: { element }, at, lift }) => ({ x: at.x, top: at.y - element.offsetHeight * lift, width: element.offsetWidth, height: element.offsetHeight }));
         const xs = pinsApart(boxes, PIN_GAP, { left: SCREEN_MARGIN, right: container.clientWidth - SCREEN_MARGIN });
