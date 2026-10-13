@@ -26,7 +26,7 @@ npm install --prefer-offline --no-audit --no-fund
 cp <repo>/.env.local .env.local
 ```
 
-The install takes about 30 seconds from npm's cache and always matches the worktree's lockfile. `.env.local` is gitignored, so a fresh worktree has none and anything touching Supabase fails without it; copy it, never link it.
+The install takes about a minute from npm's cache (node_modules is about 1.9 GB, 45,000 files, so a copy is unlikely to beat it) and always matches the worktree's lockfile. `.env.local` is gitignored, so a fresh worktree has none and anything touching Supabase fails without it; copy it, never link it.
 
 **Never junction or symlink `node_modules` (or anything) into a worktree.** `git worktree remove` follows a junction and deletes the real files in the main checkout, with no recycle bin. Turbopack also rejects a `node_modules` pointing outside the project, and the webpack fallback no longer compiles on Next 16 (`node:process` is unhandled), so the trick doesn't even work.
 
