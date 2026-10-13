@@ -59,6 +59,10 @@ const SCREEN_MARGIN = 8;
 const FAR_SIDE = TILE * 0.4;
 /** The least space between pins kept apart, in CSS pixels. */
 const PIN_GAP = 4;
+/** A pin is drawn full size where a metre at its point spans this many CSS pixels or more, and smaller as the camera
+ *  zooms out, down to `PIN_SCALE_MIN`: each pin reads its scale from `--bt-pin-scale`. */
+const PIN_FULL_SIZE_PX = 15;
+const PIN_SCALE_MIN = 0.6;
 /** How much of a frame building the house may take, in milliseconds: about half of a 60 Hz frame,
  *  leaving the rest to drawing it. A room is built whole, so a frame always builds one. */
 const BUILD_BUDGET_MS = 8;
@@ -1309,9 +1313,15 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           if (at) pin(label, at, 1.5);
         }
         const apart: { pinned: Pin; at: Point; lift: number }[] = [];
+        const across = new THREE.Vector3().setFromMatrixColumn(lens.matrixWorld, 0);
         for (const pinned of [...pins.values()].flat()) {
           const point = pinPoint(house, pinned);
           const at = point && project(point);
+          const metre = point && project(point.clone().add(across));
+          if (at && metre) {
+            const scale = Math.max(PIN_SCALE_MIN, Math.min(1, Math.hypot(metre.x - at.x, metre.y - at.y) / PIN_FULL_SIZE_PX)).toFixed(2);
+            if (pinned.element.style.getPropertyValue("--bt-pin-scale") !== scale) pinned.element.style.setProperty("--bt-pin-scale", scale);
+          }
           const onScreen = at && at.x >= 0 && at.y >= 0 && at.x <= container.clientWidth && at.y <= container.clientHeight;
           // A clamped pin whose point doesn't show (on another floor, behind the camera) waits at the top of the screen.
           const shown = onScreen ? at : pinned.clamp ? (at ?? { x: container.clientWidth / 2, y: 0 }) : null;
