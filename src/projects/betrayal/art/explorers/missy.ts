@@ -4,8 +4,8 @@ import { animated } from "../animate";
 import { ball, chain, drum, ellipsoid, figureMaterial, form, loft, mergeAll, onSurface, plinth, ring, rod, roundBox, sculpt, stretched, type Distance, type Section, type Solid, type Vec3 } from "../forms";
 import { group } from "../shapes";
 import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
-import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, OPEN, poseArm, poseHand, pointHand, reachWrist, RELAXED, type Arm, type ArmPose, type HandPose } from "./hands";
-import { skinOf, skinShade } from "./skin";
+import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, OPEN, poseArm, poseHand, pointHand, reachWrist, RELAXED, type Arm, type ArmPose } from "./hands";
+import { skinOf } from "./skin";
 import { declareParts, figureParts } from "../figure-parts";
 
 /*
@@ -69,18 +69,16 @@ function above(solid: Solid): Solid {
   };
 }
 
-/** The head on its neck: a big round head with a soft chin, a brow and a
- *  small nose that catch the light, blue eyes (white, an iris and a glint)
- *  under fair brows, a few freckles and a smile; her honey hair pulled
+/** The head on its neck: a big round head with full cheeks and a small
+ *  button nose, kept smooth and simple as the other children's, blue eyes
+ *  (white, an iris and a glint) under fair brows, and a smile; her honey hair pulled
  *  smoothly back to a high tie, and teal swim goggles pushed up on top. */
 function head(): THREE.BufferGeometry {
   const shape = sculpt()
     .add(rod([0, -0.04, 0], [0, 0.06, 0], 0.038, 0.036), SKIN)
     .add(ellipsoid([0, 0.16, 0], [0.117, 0.125, 0.118]), SKIN, 0.03)
     .add(ellipsoid([0, 0.098, 0.028], [0.094, 0.085, 0.094]), SKIN, 0.05)
-    .add(ball([0, 0.07, 0.066], 0.026), SKIN, 0.04)
-    .add(rod([-0.056, 0.166, 0.1], [0.056, 0.166, 0.1], 0.014), SKIN, 0.025)
-    .add(rod([0, 0.142, 0.119], [0, 0.108, 0.13], 0.009, 0.014), SKIN, 0.012);
+    .add(ball([0, 0.11, 0.13], 0.015), SKIN, 0.012);
   for (const side of [-1, 1]) {
     shape.add(ellipsoid([side * 0.116, 0.125, 0], [0.015, 0.028, 0.02]), SKIN, 0.01);
     shape.carve(ball([side * 0.042, 0.13, 0.124], 0.02), { blend: 0.008 });
@@ -91,10 +89,6 @@ function head(): THREE.BufferGeometry {
     // Dark lashes along the top of each eye.
     shape.paint(ellipsoid([side * 0.044, 0.145, 0.118], [0.022, 0.0042, 0.02]), "soot");
     shape.paint(ellipsoid([side * 0.044, 0.168, 0.112], [0.022, 0.005, 0.03]), "woodLight");
-  }
-  // A few freckles across her nose and cheeks.
-  for (const [x, y] of [[0.026, 0.108], [0.044, 0.1], [0.034, 0.091], [0.056, 0.107]]) {
-    for (const side of [-1, 1]) shape.paint(ball(onSurface(shape.distance, [side * x, y, 0.12]), 0.0045), skinShade(SKIN));
   }
   shape
     // A small smile, curving up at its corners.
@@ -288,8 +282,6 @@ export const MISSY_PARTS = figureParts("missy", meshParts);
 declareParts(missy, [MISSY_PARTS]);
 
 const UP = new THREE.Vector3(0, 1, 0);
-/** Two fingers out, the others curled: feeling for a pulse. */
-const TWO_FINGERS: HandPose = { knuckles: [0.25, 0.3, 0.2], thumb: 0.5 };
 
 const smooth = THREE.MathUtils.smoothstep;
 /** A bump easing up from 0 to 1 between `a` and `b`, holding, and back down between `c` and `d`. */
@@ -297,12 +289,10 @@ const bump = (t: number, a: number, b: number, c: number, d: number) => smooth(t
 
 /** Missy Dubourde as a miniature on a round base, 4'2" at the house's scale.
  *  She breathes and shifts from foot to foot; now and then she stretches
- *  both arms high, like a swimmer on the blocks; now and then she lifts her
- *  wrist and takes her own pulse with two fingers, counting with little nods,
- *  as a doctor would; and now and then she starts back, fists to her chest,
+ *  both arms high, like a swimmer on the blocks; and now and then she starts back, fists to her chest,
  *  staring at the floor as if something there had stirred, and glances over
  *  her shoulder. She walks with a quick, light step. Her right hand is free
- *  to hold anything; the stretch and the pulse wait while it does. */
+ *  to hold anything; the stretch waits while it does. */
 export function missy(seed = "missy", gait: Gait = STANDING): THREE.Group {
   const parts = MISSY_PARTS.get();
   const material = figureMaterial();
@@ -340,7 +330,7 @@ export function missy(seed = "missy", gait: Gait = STANDING): THREE.Group {
   // The stretch: both arms straight up in a V, fingers to the ceiling.
   const stretches = (of: Arm) => {
     const side = of.hand.side;
-    return pointHand(reachWrist(of, new THREE.Vector3(side * 0.235, 0.515, 0.03), new THREE.Vector3(side, 0, -0.3)), new THREE.Vector3(side * 0.35, 1, 0.05));
+    return pointHand(reachWrist(of, new THREE.Vector3(side * 0.29, 0.49, 0), new THREE.Vector3(side, 0, -0.3)), new THREE.Vector3(side * 0.6, 1, 0));
   };
   const rightStretches = stretches(right);
   const leftStretches = stretches(left);
@@ -351,9 +341,6 @@ export function missy(seed = "missy", gait: Gait = STANDING): THREE.Group {
   /** An arm from `rest` up into the stretch, `amount` of the way: out to the side, then up. */
   const raised = (rest: ArmPose, spread: ArmPose, up: ArmPose, amount: number) =>
     amount < 0.5 ? between(rest, spread, amount * 2) : between(spread, up, amount * 2 - 1);
-  // The pulse: her left wrist lifted before her chest, palm up, and two fingers of her right laid on it.
-  const leftOffers = pointHand(reachWrist(left, new THREE.Vector3(0.05, 0.11, 0.175), new THREE.Vector3(1, -1, -0.2)), new THREE.Vector3(-0.55, 0.05, 1), -Math.PI / 2);
-  const rightFeels = pointHand(reachWrist(right, new THREE.Vector3(-0.045, 0.16, 0.2), new THREE.Vector3(-1, -0.6, -0.3)), new THREE.Vector3(1, -0.45, 0.15), Math.PI / 2);
   // Startled, she draws both fists to her chest.
   const cowers = (of: Arm) => reachWrist(of, new THREE.Vector3(of.hand.side * 0.06, 0.165, 0.16), new THREE.Vector3(of.hand.side, -1, -0.3));
   const rightCowers = cowers(right);
@@ -402,8 +389,7 @@ export function missy(seed = "missy", gait: Gait = STANDING): THREE.Group {
   const offset = rng.next() * 100;
   const bursts = idleBursts(figure, seed, offset, {
     risen: { every: 10, lasts: 2.8, chance: 0.5 },
-    stretch: { every: 11, lasts: 3.2, chance: 0.55 },
-    pulse: { every: 13, lasts: 3.8, chance: 0.6 },
+    stretch: { every: 12, lasts: 3.2, chance: 0.55 },
   });
 
   return animated(figure, (clock) => {
@@ -414,14 +400,12 @@ export function missy(seed = "missy", gait: Gait = STANDING): THREE.Group {
     const breath = Math.sin((seconds / 3.2) * Math.PI * 2 + breathPhase);
     const sway = Math.sin((seconds / 4.2) * Math.PI * 2 + swayPhase);
 
-    const { risen, stretch, pulse } = bursts(clock);
+    const { risen, stretch } = bursts(clock);
     const held = right.hand.held;
     const upright = held?.carry === "upright";
     const fear = risen.amount * (1 - running);
     const calm = 1 - fear;
     const reaching = held ? 0 : still * calm * stretch.amount;
-    // One gesture at a time: a pulse that comes round mid-stretch waits for the stretch to end.
-    const feeling = held ? 0 : still * calm * pulse.amount * (1 - stretch.amount);
 
     // Startled, she stares down at the floor ahead, then glances back over her shoulder.
     const r = risen.progress;
@@ -438,23 +422,19 @@ export function missy(seed = "missy", gait: Gait = STANDING): THREE.Group {
     left.shoulder.position.y = left.at.y + lift;
     right.shoulder.position.y = right.at.y + lift;
 
-    // Counting her pulse, she watches her wrist and nods to the beat.
-    const p = pulse.progress;
-    const counting = feeling * bump(p, 0.2, 0.3, 0.8, 0.88);
-    const nod = Math.max(0, Math.sin(p * Math.PI * 16)) * counting;
-    neck.rotation.x = feeling * 0.32 + nod * 0.06 + stare * 0.38 - reaching * 0.22 - 0.03;
-    neck.rotation.y = feeling * 0.22 + glance * 0.85;
+    neck.rotation.x = stare * 0.38 - reaching * 0.22 - 0.03;
+    neck.rotation.y = glance * 0.85;
     neck.rotation.z = sway * -0.02 * calm;
 
     const rightRests = upright ? rightCarries : held ? rightHolds : rightHangs;
-    const rightPose = between(between(raised(rightRests, rightSpreads, rightStretches, reaching), rightFeels, feeling), rightCowers, held ? 0 : fear);
-    const leftPose = between(between(raised(leftHangs, leftSpreads, leftStretches, reaching), leftOffers, feeling), leftCowers, fear);
+    const rightPose = between(raised(rightRests, rightSpreads, rightStretches, reaching), rightCowers, held ? 0 : fear);
+    const leftPose = between(raised(leftHangs, leftSpreads, leftStretches, reaching), leftCowers, fear);
     poseArm(right, rightPose, rightPose, 1);
     poseArm(left, leftPose, leftPose, 1);
     const clench = Math.max(running * 0.7, fear);
-    const rightEmpty = blendPose(blendPose(blendPose(RELAXED, fist(right.hand), clench), OPEN, reaching), TWO_FINGERS, feeling);
+    const rightEmpty = blendPose(blendPose(RELAXED, fist(right.hand), clench), OPEN, reaching);
     poseHand(right.hand, holding(right.hand, rightEmpty));
-    poseHand(left.hand, blendPose(blendPose(RELAXED, fist(left.hand), clench), OPEN, Math.max(reaching, feeling * 0.7)));
+    poseHand(left.hand, blendPose(blendPose(RELAXED, fist(left.hand), clench), OPEN, reaching));
     swings.right.swing = upright ? ARM_SWING * 0.2 : ARM_SWING;
     swings.right.pump = held ? 0.4 : 1;
 
