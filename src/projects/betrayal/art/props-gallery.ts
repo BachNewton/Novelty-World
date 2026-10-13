@@ -9,6 +9,7 @@ import { candelabra, candle, chamberstick, lantern } from "./kit/candles";
 import { cobweb } from "./kit/cobweb";
 import { pictureFrame, rug, windowPool } from "./kit/decor";
 import { chair, table } from "./kit/furniture";
+import { instrumentTray, labBench, labGlass } from "./kit/laboratory";
 import { pawn } from "./kit/pawn";
 import { pitHaze, pitShell } from "./kit/pit";
 import { coil, slung } from "./kit/rope";
@@ -71,6 +72,12 @@ const KIT_PIECES: { file: string; name: string; build: () => THREE.Object3D }[] 
   { file: "stores.ts", name: "crate", build: () => crate() },
   { file: "stores.ts", name: "cask", build: () => cask() },
   { file: "stores.ts", name: "cask, no lid", build: () => cask({ lid: false }) },
+  { file: "laboratory.ts", name: "lab bench", build: () => labBench() },
+  { file: "laboratory.ts", name: "lab bench, both sides", build: () => labBench({ doubleSided: true }) },
+  { file: "laboratory.ts", name: "lab flask", build: () => labGlass("flask") },
+  { file: "laboratory.ts", name: "specimen jar", build: () => labGlass("jar", { lid: "brass" }) },
+  { file: "laboratory.ts", name: "lab beaker", build: () => labGlass("beaker") },
+  { file: "laboratory.ts", name: "instrument tray", build: () => instrumentTray() },
   { file: "trunk.ts", name: "trunk", build: () => trunk() },
   { file: "trunk.ts", name: "trunk, open", build: () => trunk({ open: 1.1 }) },
   {
