@@ -9,6 +9,7 @@ import { brandon } from "./brandon";
 import { heather } from "./heather";
 import { burstsOf, CUE_REST, cueBurst, STANDING, type Gait } from "./figure";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { onTheSpot } from "./line-up";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
@@ -34,6 +35,7 @@ const FIGURES: Record<string, ExplorerBuilder> = {
   brandon,
   heather,
   peter,
+  jenny,
   vivian,
   rhinehardt,
   zoe,

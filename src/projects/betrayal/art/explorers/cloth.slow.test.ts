@@ -8,6 +8,7 @@ import { clothOf } from "./cloth";
 import type { Pace } from "./figure";
 import { onTheSpot } from "./line-up";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { peter } from "./peter";
@@ -42,6 +43,7 @@ const EXPLORERS: Record<string, ExplorerBuilder> = {
   brandon,
   heather,
   peter,
+  jenny,
   vivian,
 };
 /** The figures robed or skirted, whose cloth the legs push. */
