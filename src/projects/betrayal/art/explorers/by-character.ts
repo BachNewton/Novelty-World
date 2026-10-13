@@ -4,6 +4,7 @@ import type { PaletteKey } from "../palette";
 import type { ExplorerBuilder } from "../stage";
 import type { CardColour } from "../../types";
 import { flash } from "./flash";
+import { jenny } from "./jenny";
 import { longfellow } from "./longfellow";
 import { missy } from "./missy";
 import { ox } from "./ox";
@@ -12,6 +13,7 @@ import { rhinehardt } from "./rhinehardt";
 import { brandon } from "./brandon";
 import { heather } from "./heather";
 import { zoe } from "./zoe";
+import { vivian } from "./vivian";
 
 /** A seat's colour is its character card's: on the figure, from the art palette. */
 export const CARD_PALETTE: Record<CardColour, PaletteKey> = {
@@ -34,6 +36,8 @@ const FIGURES: Partial<Record<string, ExplorerBuilder>> = {
   "brandon-jaspers": brandon,
   "heather-granville": heather,
   "father-rhinehardt": rhinehardt,
+  "jenny-leclerc": jenny,
+  "vivian-lopez": vivian,
 };
 
 /** The pawn standing in for a character without a figure, one per colour, so

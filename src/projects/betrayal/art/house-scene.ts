@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import type { StandardButton } from "@/shared/lib/gamepad";
 import { FLOORS, placed, type Layout } from "../engine/board";
-import { attachControls, pointAt, usesReticle, type ChoiceLayout, type InputKind } from "../input/controls";
+import { attachControls, pointAt, pointAtFirst, usesReticle, type ChoiceLayout, type InputKind } from "../input/controls";
 import { panOnFloor } from "../input/gestures";
 import { cycleChoice, stepFloor, type Point } from "../input/navigate";
 import type { FloorId, PlacedTile } from "../types";
@@ -13,6 +13,7 @@ import { choiceLayout, exploreEntry, routeEnd, targetPlace, type Target, type Ta
 import { inHouse, walkPath, walkPose, type Avoid, type HousePoint, type Stairway, type Walk } from "./house-walk";
 import { pinsApart } from "./pins-apart";
 import type { ShownThing } from "../play/things";
+import { inspectFigureId, inspectRoomId, showsPointingTag } from "../play/inspect";
 import { createThingsLayer } from "./things/layer";
 import { floorRead, readFloor } from "./room-floor";
 import { aroundBases } from "./walk-around";
@@ -55,6 +56,8 @@ const PAN_MARGIN = TILE / 2;
 const SCREEN_MARGIN = 8;
 /** How far a room's `far` pin stands from its middle, in metres: just inside its back wall. */
 const FAR_SIDE = TILE * 0.4;
+/** How far round a pinned badge pointing reaches while inspecting, in metres. */
+const BADGE_REACH = 0.35;
 /** The least space between pins kept apart, in CSS pixels. */
 const PIN_GAP = 4;
 /** A pin is drawn full size where a metre at its point spans this many CSS pixels or more, and smaller as the camera
@@ -83,8 +86,9 @@ export interface FigureWalk {
   speed?: number;
 }
 
-/** A page element kept over a figure, a thing, or a room's middle (or its
- *  `far` side from the camera, where its back wall stands), `height` metres
+/** A page element kept over a figure, a thing, a room's middle (or its
+ *  `far` side from the camera, where its back wall stands), or a spot on a
+ *  room's floor in the room's own frame (a room bonus badge), `height` metres
  *  above its floor and raised by `lift` of its own height. A clamped one
  *  stays on the screen when its point leaves it, at the top of the screen
  *  when its point doesn't show at all; any other hides. Pins kept `apart`
@@ -92,11 +96,13 @@ export interface FigureWalk {
  *  that would are laid side by side (`pins-apart.ts`). */
 export interface Pin {
   element: HTMLElement;
-  at: { figure: string } | { room: string; far?: boolean } | { thing: string };
+  at: { figure: string } | { room: string; far?: boolean } | { room: string; spot: readonly [x: number, z: number] } | { thing: string };
   height: number;
   lift: number;
   clamp: boolean;
   apart: boolean;
+  /** Pointed at as this, while inspecting (a room bonus badge): a box round its point. */
+  inspect?: string;
 }
 
 /** What the camera pans to: one room, with its back walls standing; or these rooms on the floor showing. */
@@ -143,6 +149,12 @@ export interface SceneView {
   moving: boolean;
   /** Whether the camera follows the active explorer, or is the player's alone (`camera-follow.ts`). */
   camera: CameraMode;
+  /** Whether the player is inspecting (holding the details): pointing then
+   *  finds every room, figure, thing and badge, to explain it, never a
+   *  choice; no pointing tag shows, and pressing does nothing. */
+  inspecting: boolean;
+  /** What pointing has found while inspecting (`play/inspect.ts` names the ids), or null. */
+  inspected: string | null;
 }
 
 /** Where the camera is: the point on the floor it looks at, its angles round
@@ -348,6 +360,8 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     walking: false,
     moving: false,
     camera: FOLLOWING.mode,
+    inspecting: false,
+    inspected: null,
   };
   const listeners = new Set<() => void>();
   /** The camera's angles round the vertical and up from the floor, and its zoom, eased towards their goals (the zoom's is `view.zoom`). */
@@ -513,15 +527,37 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     const tile = "room" in pinned.at ? placed(layout, pinned.at.room) : null;
     const floor = at?.floor ?? tile?.floor;
     if (floor === undefined || (view.floor !== "all" && floor !== view.floor)) return null;
+    if (tile && "spot" in pinned.at) return house.scenePoint(inHouse(layout, pinned.at.room, [pinned.at.spot[0], pinned.height, pinned.at.spot[1]]));
     const point = at ? house.scenePoint(at) : tile ? house.cellCentre(tile.floor, tile.x, tile.y) : null;
     // Away from the camera, across the floor: the side of the room its back wall stands on.
-    if (point && "room" in pinned.at && pinned.at.far) point.add(new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)).multiplyScalar(FAR_SIDE));
+    if (point && "far" in pinned.at && pinned.at.far) point.add(new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)).multiplyScalar(FAR_SIDE));
     return point && point.setY(point.y + pinned.height);
   };
   const placeContext = (house: House) => ({ layout, showing: view.floor, stairway, scenePoint: house.scenePoint, figureAt: house.figureAt });
   const placesOf = (house: House): { id: string; place: TargetPlace }[] => {
     const context = placeContext(house);
     return [...targets.map((target) => ({ id: target.id, place: targetPlace(target, context) })), ...things.places(house.scenePoint, view.floor)];
+  };
+  /** What pointing finds while inspecting, in layers: figures, things and
+   *  badges first, then the rooms they stand in. */
+  const inspectPlaces = (house: House): { id: string; place: TargetPlace }[][] => {
+    const context = placeContext(house);
+    const figuresShown = [...figures.keys()].map((figure) => {
+      const id = inspectFigureId(figure);
+      return { id, place: targetPlace({ id, kind: "figure", figure }, context) };
+    });
+    const badges = [...pins.values()].flat().flatMap((pinned) => {
+      const point = pinned.inspect === undefined || !("room" in pinned.at) ? null : pinPoint(house, pinned);
+      const tile = "room" in pinned.at ? placed(layout, pinned.at.room) : undefined;
+      if (pinned.inspect === undefined || !point || !tile) return [];
+      const corners = [-1, 1].flatMap((dx) => [-1, 1].map((dz) => point.clone().add(new THREE.Vector3(dx * BADGE_REACH, 0, dz * BADGE_REACH))));
+      return [{ id: pinned.inspect, place: { anchor: point, outline: corners, box: true, mark: null, cell: { floor: tile.floor, x: tile.x, y: tile.y }, floor: tile.floor } }];
+    });
+    const rooms = layout.tiles.map(({ tile }) => {
+      const id = inspectRoomId(tile);
+      return { id, place: targetPlace({ id, kind: "room", room: tile }, context) };
+    });
+    return [[...figuresShown, ...badges, ...things.places(house.scenePoint, view.floor)], rooms];
   };
   const walkingNow = () => [...playing].some((beat) => beat.walk !== undefined);
   const movingNow = () => [...playing].some((beat) => beat.carry !== undefined);
@@ -1036,6 +1072,20 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       return { x: ((ndc.x + 1) / 2) * container.clientWidth, y: ((1 - ndc.y) / 2) * container.clientHeight };
     };
     const layoutNow = (): ChoiceLayout => choiceLayout(placesOf(house), focused, project);
+    /** What a pointer at a point picks: while inspecting, whatever is there, a thing or figure over the room it is in; else a choice or a thing. */
+    const pickAt = (point: Point): string | null =>
+      view.inspecting ? pointAtFirst(inspectPlaces(house).map((layer) => choiceLayout(layer, null, project).targets), point) : pointAt(layoutNow().targets, point);
+    /** Pointing at something: while inspecting it explains it, else it focuses it. */
+    const point = (id: string) => {
+      if (view.inspecting) {
+        if (id !== view.inspected) update({ inspected: id });
+      } else focusTarget(id);
+    };
+    const unpoint = () => {
+      if (view.inspecting) {
+        if (view.inspected !== null) update({ inspected: null });
+      } else input.blur?.();
+    };
     /** Where a target's outline lies across the screen: its middle, top and bottom; null where it doesn't show. */
     const screenSpan = (place: TargetPlace | undefined): { middle: number; top: number; bottom: number } | null => {
       const corners = place?.outline?.map(project);
@@ -1048,11 +1098,18 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     const selection = () => (usesReticle(view.input) ? pointed : focused);
 
     const controls = attachControls(container, {
-      layout: layoutNow,
-      focus: focusTarget,
-      blur: () => input.blur?.(),
-      commit: (id) => input.commit(id),
+      layout: () => (view.inspecting ? { points: [], targets: [], focused: view.inspected } : layoutNow()),
+      pick: pickAt,
+      inspecting: () => view.inspecting,
+      focus: point,
+      blur: unpoint,
+      // Inspecting never acts: a press only points.
+      commit: (id) => {
+        if (view.inspecting) point(id);
+        else input.commit(id);
+      },
       confirm: () => {
+        if (view.inspecting) return;
         // A thing in a room is read whatever the decision offers.
         const at = selection();
         if (at !== null && things.has(at)) {
@@ -1082,7 +1139,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         input.back?.();
       },
       cycle: (step) => {
-        if (input.cycle?.(step)) return;
+        if (view.inspecting || input.cycle?.(step)) return;
         // The d-pad steps the choices; the things in the rooms are pointed at, never stepped to.
         const points = layoutNow().points.filter((point) => !things.has(point.id));
         const current = selection();
@@ -1128,12 +1185,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     /** Points the reticle at whatever is under the screen's centre, as the mouse points at what is under it, and tells the driver when that changes. */
     const showReticle = () => {
       const reticle = usesReticle(view.input);
-      const under = reticle ? pointAt(layoutNow().targets, centre()) : null;
+      const under = reticle ? pickAt(centre()) : null;
       if (pinned !== null && !targets.some((target) => target.id === pinned)) pinned = null;
       if (reticle && pinned === null && under !== underReticle) {
         pointed = under;
-        if (under !== null) input.focus(under);
-        else input.blur?.();
+        if (under !== null) point(under);
+        else unpoint();
       }
       underReticle = under;
       if (!reticle) pointed = null;
@@ -1265,8 +1322,9 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         // A ghost's tag and turning handles sit off its floor, above and below it, clear of the marks at its doorways.
         const ghostSpan = ghost === null ? null : screenSpan(placesOf(house).find(({ id }) => id === ghost)?.place);
         if (label) {
-          const place = view.showMarks && !walkingNow() && !movingNow() ? placesOf(house).find(({ id }) => id === focused)?.place : undefined;
-          const at = focused !== null && focused === ghost ? ghostSpan && { x: ghostSpan.middle, y: ghostSpan.top } : place ? project(place.anchor) : null;
+          // Inspecting, the thing pointed at explains itself in its own label: no pointing tag shows.
+          const place = showsPointingTag(view, walkingNow() || movingNow()) ? placesOf(house).find(({ id }) => id === focused)?.place : undefined;
+          const at = view.inspecting ? null : focused !== null && focused === ghost ? ghostSpan && { x: ghostSpan.middle, y: ghostSpan.top } : place ? project(place.anchor) : null;
           label.style.visibility = at ? "visible" : "hidden";
           if (at) pin(label, at, 1.5);
         }
@@ -1346,6 +1404,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     /** Who hears the player focus, commit and confirm. */
     setInput: (next: SceneInput) => {
       input = next;
+    },
+    /** Starts (true) or ends inspecting, as the details are held up and let go. */
+    setInspecting: (on: boolean) => {
+      if (on === view.inspecting) return;
+      underReticle = null;
+      update({ inspecting: on, inspected: null });
     },
     /** Sets the input the hints are for, as using it would: hot-seat restores the acting seat's own. */
     setInputKind: (kind: InputKind) => {

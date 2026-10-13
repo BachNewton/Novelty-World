@@ -12,9 +12,9 @@ import { declareParts, figureParts } from "../figure-parts";
  * Missy Dubourde: a nine-year-old who swims and wants to be a doctor, knows
  * Peter from school and Father Rhinehardt from Sunday school, and whose
  * greatest fear is dead things coming back to life to hunt her. Read at a
- * glance: a girl a head taller than Zoe, in a burnt-orange zip hoodie with
+ * glance: a girl a head taller than Zoe, in a bright orange zip hoodie with
  * its hood bunched behind her neck, a toy-doctor's stethoscope round her
- * neck, a high honey-blonde ponytail with teal swim goggles pushed up on her
+ * neck, a high blonde ponytail with teal swim goggles pushed up on her
  * head, denim shorts, bare knees, white socks and teal sneakers. She faces
  * +z; her right hand is on −x.
  *
@@ -25,12 +25,13 @@ import { declareParts, figureParts } from "../figure-parts";
  */
 
 const SKIN = skinOf("missy-dubourde");
-/** Her hoodie, its ribbing, her shorts, and the teal of her goggles, scrunchie and sneakers. */
-const HOODIE = "ember";
+/** Her hoodie (amber, an orange well clear of the red card's scarlet, which a burnt orange read as in warm light), its ribbing, her
+ *  shorts, and the teal of her goggles, scrunchie and sneakers. */
+const HOODIE = "amber";
 const RIBBING = "brick";
 const DENIM = "moon";
 const TEAL = "tide";
-const HAIR = "brass";
+const HAIR = "gold";
 
 /** 4'2" at the miniature's scale. */
 const TOP = BASE_TOP + miniatureHeight(4, 2);
@@ -71,7 +72,7 @@ function above(solid: Solid): Solid {
 
 /** The head on its neck: a big round head with full cheeks and a small
  *  button nose, kept smooth and simple as the other children's, blue eyes
- *  (white, an iris and a glint) under fair brows, and a smile; her honey hair pulled
+ *  (white, an iris and a glint) under fair brows, and a smile; her blonde hair pulled
  *  smoothly back to a high tie, and teal swim goggles pushed up on top. */
 function head(): THREE.BufferGeometry {
   const shape = sculpt()
@@ -100,8 +101,6 @@ function head(): THREE.BufferGeometry {
     // Loose locks that slipped the tie, framing her face in front of her ears.
     .add(chain([[-0.1, 0.205, 0.07], [-0.112, 0.15, 0.072], [-0.106, 0.098, 0.068]], [0.017, 0.013, 0.007]), HAIR, 0.012)
     .add(chain([[0.1, 0.205, 0.07], [0.112, 0.15, 0.072], [0.106, 0.098, 0.068]], [0.017, 0.013, 0.007]), HAIR, 0.012)
-    // Fair streaks combed back from her forehead to the tie, catching the light from above.
-    .paint((x, y, z) => (y > 0.12 && Math.abs(Math.sin((x / (Math.hypot(x, y - PONYTAIL_TIE[1], z - PONYTAIL_TIE[2]) + 0.03)) * 15)) > 0.9 ? -1 : 1), "gold")
     // The goggles' strap round her head, high at the front, and the two lenses on her forehead with a bridge between.
     .add(ring([0, 0.205, -0.012], 0.123, 0.0085, [-0.245, 0, 0]), TEAL, 0.004);
   for (const side of [-1, 1]) {
