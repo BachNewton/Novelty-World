@@ -70,6 +70,6 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "crowd-7", name: "Six explorers and the Banshee", build: TABLE[0], crowd: [...TABLE.slice(1), (seed, gait) => banshee(seed, gait)] },
   { id: "crowd-spider", name: "The Spider on the prime place, three explorers after it", build: (seed, gait) => spider(seed, gait), crowd: TABLE.slice(0, 3) },
   { id: "monster-line-up", name: "Every figure, monsters and explorers, with the pawn", build: (seed) => monsterLineUp(seed) },
-  // Every character as a seat shows them, `seated:<character id>`: their figure, or the pawn in their card's colour. Setup's portraits are shot from these.
+  // Every character as a seat shows them, `seated:<character id>`: their figure, or the pawn in their card's colour.
   ...CHARACTERS.map((character) => ({ id: `seated:${character.id}`, name: `${character.name}, as seated`, build: figureFor(character.id, CARD_PALETTE[character.card]) })),
 ];
