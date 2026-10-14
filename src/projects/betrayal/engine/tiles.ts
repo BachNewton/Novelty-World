@@ -401,7 +401,7 @@ function spotLabel(
 
 export const TILE_DECISIONS: Record<string, DecisionKind> = {
   "place-tile": defineDecision<PlaceRoom, PlaceChoice | null>({
-    candidates: (state, p, _seat, engine) => [
+    legal: (state, p, _seat, engine) => [
       ...(p.stay ? [null] : []),
       ...placeOptions(engine.catalog, state.board, p.tile, p.where),
     ],
@@ -413,18 +413,10 @@ export const TILE_DECISIONS: Record<string, DecisionKind> = {
     },
     resolve: (state, p, choice, ctx) => {
       if (choice === null) {
-        if (!p.stay) return "The room has to go somewhere";
         ctx.emit("room-stayed", p.rule, { tile: p.tile });
         ctx.push(...p.then);
-        return null;
+        return;
       }
-      const legal = placeOptions(ctx.catalog, state.board, p.tile, p.where);
-      if (
-        !legal.some(
-          (o) => sameCell(o, choice) && o.rotation === choice.rotation,
-        )
-      )
-        return "That placement isn't allowed";
       const tile = placed(state.board, p.tile);
       const at = {
         floor: choice.floor,
@@ -441,7 +433,6 @@ export const TILE_DECISIONS: Record<string, DecisionKind> = {
         ctx.emit("room-placed", p.rule, { tile: p.tile, floor: at.floor });
       }
       ctx.push(...p.then);
-      return null;
     },
   }),
 };

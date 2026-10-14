@@ -46,8 +46,10 @@ export type StepHandler = (
 ) => void;
 
 export interface DecisionKind {
-  /** Every answer worth offering a seat. The legal ones are those that apply. */
-  candidates: (
+  /** Every legal answer a seat can give, in the order offered: the one
+   *  source of the decision's legality. Answering with any of them applies;
+   *  `apply` refuses any other. */
+  legal: (
     state: GameState,
     decision: Decision,
     seat: number,
@@ -71,12 +73,9 @@ export interface DecisionKind {
     choice: Json,
     engine: Engine,
   ) => Through | null;
-  /** Applies the answers once every addressee has given one. Returns why, when an answer can't apply. */
-  resolve: (
-    state: GameState,
-    decision: Decision,
-    ctx: StepContext,
-  ) => string | null;
+  /** Applies the answers, each of them legal, once every addressee has
+   *  given one. A legal answer it can't apply is a bug, so it throws. */
+  resolve: (state: GameState, decision: Decision, ctx: StepContext) => void;
 }
 
 /** Every step and decision kind, registered by name so unfinished work can be stored as data. */
@@ -170,9 +169,8 @@ export function apply(
     return reject("That decision isn't addressed to this seat");
   if (action.seat in pending.answers)
     return reject("This seat has already answered");
-  const kind = decisionKind(engine, pending.kind);
-  const offered = kind
-    .candidates(state, pending, action.seat, engine)
+  const offered = decisionKind(engine, pending.kind)
+    .legal(state, pending, action.seat, engine)
     .map((c) => JSON.stringify(c));
   if (!offered.includes(JSON.stringify(action.choice)))
     return reject("That choice isn't offered");
@@ -184,15 +182,14 @@ export function apply(
     action.decision,
     writeKey(action.decision, action.seat),
   );
-  const reason = answer(engine, draft, write, action.seat, action.choice);
-  if (reason !== null) return reject(reason);
+  answer(engine, draft, write, action.seat, action.choice);
   run(engine, draft, write);
   return { ok: true, state: draft };
 }
 
 /** The legal choices of the pending decision for a seat that has yet to
- *  answer it; with `among`, only the candidates it keeps are tried, for a
- *  caller that wants some kinds of answer and not others. */
+ *  answer it; with `among`, only the ones it keeps, for a caller that wants
+ *  some kinds of answer and not others. */
 export function choices(
   engine: Engine,
   state: GameState,
@@ -207,15 +204,16 @@ export function choices(
   )
     return [];
   const kind = decisionKind(engine, pending.kind);
-  return legalChoices(engine, state, pending, seat, among).map((choice) =>
-    offer(engine, state, pending, kind, choice),
-  );
+  return kind
+    .legal(state, pending, seat, engine)
+    .filter(among)
+    .map((choice) => offer(engine, state, pending, kind, choice));
 }
 
 /** Each legal choice the pending decision offers a seat, with the state
  *  applying it leads to: what `choices`, then `apply` on each, would give,
- *  with the candidates listed once and each tried on one copy, for a caller
- *  that looks ahead. `among` keeps the candidates worth trying. */
+ *  with the choices listed once, for a caller that looks ahead. `among`
+ *  keeps the choices worth trying. */
 export function outcomes(
   engine: Engine,
   state: GameState,
@@ -231,7 +229,7 @@ export function outcomes(
     return [];
   const kind = decisionKind(engine, pending.kind);
   const found: (Choice & { state: GameState })[] = [];
-  for (const choice of kind.candidates(state, pending, seat, engine)) {
+  for (const choice of kind.legal(state, pending, seat, engine)) {
     if (!among(choice)) continue;
     const draft = copyState(state);
     const write = beginWrite(
@@ -240,7 +238,7 @@ export function outcomes(
       pending.id,
       writeKey(pending.id, seat),
     );
-    if (answer(engine, draft, write, seat, choice) !== null) continue;
+    answer(engine, draft, write, seat, choice);
     run(engine, draft, write);
     found.push({
       ...offer(engine, state, pending, kind, choice),
@@ -248,49 +246,6 @@ export function outcomes(
     });
   }
   return found;
-}
-
-/** The legal answers to a decision, stopping once `enough` are found: each
- *  is tried on a copy of the whole state, so a caller that only needs to
- *  tell none, one and more apart shouldn't try every one. */
-function legalChoices(
-  engine: Engine,
-  state: GameState,
-  decision: Decision,
-  seat: number,
-  among: (candidate: Json) => boolean,
-  enough = Infinity,
-): Json[] {
-  const legal: Json[] = [];
-  for (const choice of decisionKind(engine, decision.kind).candidates(
-    state,
-    decision,
-    seat,
-    engine,
-  )) {
-    if (legal.length >= enough) break;
-    if (among(choice) && tryAnswer(engine, state, seat, choice) === null) legal.push(choice);
-  }
-  return legal;
-}
-
-// A choice is legal exactly when answering with it succeeds. Answering only
-// resolves the decision; the work that follows can't make an answer illegal.
-function tryAnswer(
-  engine: Engine,
-  state: GameState,
-  seat: number,
-  choice: Json,
-): string | null {
-  const draft = copyState(state);
-  const decision = draft.pending as Decision;
-  return answer(
-    engine,
-    draft,
-    beginWrite(engine, draft, decision.id, writeKey(decision.id, seat)),
-    seat,
-    choice,
-  );
 }
 
 interface Write {
@@ -365,27 +320,24 @@ function assertNothingPending(draft: GameState): void {
     );
 }
 
-/** Records one seat's answer, and resolves the decision once every addressee has answered. */
+/** Records one seat's legal answer, and resolves the decision once every
+ *  addressee has answered. */
 function answer(
   engine: Engine,
   draft: GameState,
   write: Write,
   seat: number,
   choice: Json,
-): string | null {
+): void {
   const decision = draft.pending as Decision;
   decision.answers[seat] = choice;
   draft.answered = [
     ...draft.answered,
     { decision: decision.id, seat, choice },
   ].slice(-ANSWERS_KEPT);
-  if (Object.keys(decision.answers).length < decision.seats.length) return null;
+  if (Object.keys(decision.answers).length < decision.seats.length) return;
   draft.pending = null;
-  return decisionKind(engine, decision.kind).resolve(
-    draft,
-    decision,
-    write.ctx,
-  );
+  decisionKind(engine, decision.kind).resolve(draft, decision, write.ctx);
 }
 
 /** Runs queued work until the game pauses or the work runs out. A decision
@@ -404,8 +356,7 @@ function run(engine: Engine, draft: GameState, write: Write): void {
     if (pending?.type === "decision" && pending.seats.length === 1) {
       const kind = decisionKind(engine, pending.kind);
       const seat = pending.seats[0];
-      // Telling one legal choice from several needs only the first two.
-      const legal = legalChoices(engine, draft, pending, seat, () => true, 2);
+      const legal = kind.legal(draft, pending, seat, engine);
       if (legal.length === 0)
         throw new Error(`Decision ${pending.kind} has no legal choice`);
       if (
@@ -420,9 +371,7 @@ function run(engine: Engine, draft: GameState, write: Write): void {
           choice,
           label: kind.label(draft, pending, choice, engine),
         });
-        const reason = answer(engine, draft, write, seat, choice);
-        if (reason !== null)
-          throw new Error(`Forced choice was rejected: ${reason}`);
+        answer(engine, draft, write, seat, choice);
         continue;
       }
     }
@@ -457,9 +406,9 @@ function react(engine: Engine, draft: GameState, write: Write): void {
 }
 
 /** A deep copy of the state, which is plain JSON throughout (the saved
- *  format holds it as such). The engine copies it for every choice it
- *  tries, and copying plain data by hand is many times faster than
- *  structuredClone, which has to handle every kind of object. */
+ *  format holds it as such). The engine copies it for every write and every
+ *  outcome looked ahead, and copying plain data by hand is many times
+ *  faster than structuredClone, which has to handle every kind of object. */
 function copyState(state: GameState): GameState {
   return copyData(state) as GameState;
 }

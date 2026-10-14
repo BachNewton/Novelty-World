@@ -122,7 +122,7 @@ describe("forced steps and the player's acts", () => {
         ...ENGINE.rules,
         decisions: {
           ...ENGINE.rules.decisions,
-          "trade-offer": { ...offer, candidates: () => [false] },
+          "trade-offer": { ...offer, legal: () => [false] },
         },
       },
     };
@@ -362,9 +362,9 @@ describe("the choices offered are exactly the legal ones", () => {
   /** A whole game takes a few seconds. */
   const GAME_TIMEOUT = 30_000;
 
-  // The simulation checks, at every decision of a whole game played with the
-  // full decks, that every listed choice applies and every candidate left out
-  // doesn't. simulation.slow.test.ts sweeps many more seeds.
+  // Whole games played with the full decks: every listed choice the policy
+  // takes must apply, and the simulation checks the engine's invariants after
+  // every write. simulation.slow.test.ts sweeps many more seeds.
   it.each(["a", "b", "c"])(
     "over random play to the haunt (played out if it is built) or a full house, seed %s",
     (seed) => {

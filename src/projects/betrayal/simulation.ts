@@ -65,10 +65,9 @@ function holdOffHaunt(engine: Engine): Engine {
 /** Plays one game. `onWrite` is called with the state after every write,
  *  for checks of a test's own. `haunt` starts the game with that haunt
  *  revealed, by a seat the seed picks, as the page's "start haunt N" does.
- *  `checks: false` leaves out the engine's invariants, applying every
- *  candidate choice the most costly of them, for a test of another layer
- *  that needs a game's writes: the engine's own sweeps check them. It plays
- *  the same game either way. */
+ *  `checks: false` leaves out the engine's invariants, for a test of
+ *  another layer that needs a game's writes: the engine's own sweeps check
+ *  them. It plays the same game either way. */
 export function simulate(
   seed: string,
   engine: Engine = ENGINE,
@@ -140,7 +139,7 @@ export function simulate(
         const listed = choices(engine, state, seat);
         if (listed.length === 0)
           throw new Error(`Decision ${pending.kind} offers no choice`);
-        if (checks) checkListedAreLegal(engine, state, seat, listed);
+        if (checks) checkListedOnce(pending.kind, listed);
         const pick = pickChoice(
           rng,
           engine,
@@ -310,8 +309,15 @@ function pickChoice(
   return listed[listed.length - 1];
 }
 
-/** Every listed choice applies; every candidate left out doesn't. */
-export function checkListedAreLegal(
+/** A decision lists each choice once. */
+function checkListedOnce(kind: string, listed: Choice[]): void {
+  const keys = new Set(listed.map((c) => JSON.stringify(c.choice)));
+  if (keys.size !== listed.length)
+    throw new Error(`Decision ${kind} lists a choice twice`);
+}
+
+/** Every listed choice applies, for a test of the choices in one state. */
+export function checkListedApply(
   engine: Engine,
   state: GameState,
   seat: number,
@@ -319,12 +325,8 @@ export function checkListedAreLegal(
 ): void {
   const pending = state.pending;
   if (pending?.type !== "decision") throw new Error("No decision is pending");
-  const keys = new Set(listed.map((c) => JSON.stringify(c.choice)));
-  if (keys.size !== listed.length)
-    throw new Error(`Decision ${pending.kind} lists a choice twice`);
-  const kind = engine.rules.decisions[pending.kind];
-  if (!kind) throw new Error(`No decision kind named ${pending.kind}`);
-  for (const choice of kind.candidates(state, pending, seat, engine)) {
+  checkListedOnce(pending.kind, listed);
+  for (const { choice } of listed) {
     const action: Action = {
       kind: "choose",
       decision: pending.id,
@@ -332,14 +334,9 @@ export function checkListedAreLegal(
       choice,
     };
     const result = apply(engine, state, action);
-    const isListed = keys.has(JSON.stringify(choice));
-    if (isListed && !result.ok)
+    if (!result.ok)
       throw new Error(
         `Listed choice ${JSON.stringify(choice)} of ${pending.kind} was rejected: ${result.reason}`,
-      );
-    if (!isListed && result.ok)
-      throw new Error(
-        `Unlisted choice ${JSON.stringify(choice)} of ${pending.kind} applied`,
       );
   }
 }

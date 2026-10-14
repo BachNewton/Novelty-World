@@ -69,7 +69,7 @@ export function step<P extends Json>(kind: string, params: P): Step {
 /** A decision kind with typed parameters and choices. `choice` is the answer of a
  *  single-seat decision; a shared decision reads every seat's in `answers`. */
 export function defineDecision<P extends Json, C extends Json>(kind: {
-  candidates: (
+  legal: (
     state: GameState,
     params: P,
     seat: number,
@@ -89,13 +89,13 @@ export function defineDecision<P extends Json, C extends Json>(kind: {
     choice: C,
     ctx: StepContext,
     answers: Record<number, C>,
-  ) => string | null;
+  ) => void;
 }): DecisionKind {
   const asks = kind.alwaysAsks;
   const through = kind.through;
   return {
-    candidates: (state, decision, seat, engine) =>
-      kind.candidates(state, decision.params as P, seat, engine),
+    legal: (state, decision, seat, engine) =>
+      kind.legal(state, decision.params as P, seat, engine),
     label: (state, decision, choice, engine) =>
       kind.label(state, decision.params as P, choice as C, engine),
     ...(through
@@ -112,7 +112,7 @@ export function defineDecision<P extends Json, C extends Json>(kind: {
       asks?.(state, decision.params as P, engine) ?? false,
     resolve: (state, decision, ctx) => {
       const answers = decision.answers as Record<number, C>;
-      return kind.resolve(
+      kind.resolve(
         state,
         decision.params as P,
         answers[decision.seats[0]],
@@ -1763,7 +1763,7 @@ function cardName(engine: Engine, card: string): string {
 
 export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
   "split-damage": defineDecision<Split, { [trait: string]: number }>({
-    candidates: (state, p, _seat, engine) => splitOptions(engine, state, p),
+    legal: (state, p, _seat, engine) => splitOptions(engine, state, p),
     label: (_state, _p, split) =>
       `Take ${Object.entries(split)
         .map(([trait, n]) => `${n} ${traitName(trait as Trait)}`)
@@ -1778,12 +1778,11 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
       ctx.emit("damaged", p.rule, { figure: p.figure, damage: p.damage, split });
       for (const trait of skulls)
         reachSkull(state, ctx, p.figure, trait, p.rule, p.by);
-      return null;
     },
   }),
 
   "damage-kind": defineDecision<DamageLands, string | null>({
-    candidates: (state, p, _seat, engine) => [
+    legal: (state, p, _seat, engine) => [
       null,
       ...damageKinds(engine, state, p.figure, p.damage).map((s) => s.id),
     ],
@@ -1796,32 +1795,29 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
     resolve: (state, p, card, ctx) => {
       if (card === null) {
         ctx.push(step<DamageLands>("damage-lands", p));
-        return null;
+        return;
       }
       const to = ctx.engine.behaviours.cards[card]?.damageAs;
-      if (to === undefined || to === p.damage)
-        return "That card doesn't change this damage";
+      if (to === undefined) throw new Error(`${card} doesn't change damage`);
       ctx.emit(
         "damage-converted",
         { source: "card", card },
         { figure: p.figure, from: p.damage, to },
       );
       ctx.push(step<DamageLands>("damage-lands", { ...p, damage: to }));
-      return null;
     },
   }),
 
   "choose-one": defineDecision<ChooseOne, number>({
-    candidates: (_state, p) => p.options.map((_option, index) => index),
+    legal: (_state, p) => p.options.map((_option, index) => index),
     label: (_state, p, index) => p.options[index].label,
     resolve: (_state, p, index, ctx) => {
       ctx.push(...p.options[index].steps);
-      return null;
     },
   }),
 
   "roll-before": defineDecision<RollInProgress, OptionChoice>({
-    candidates: (state, r, _seat, engine) => {
+    legal: (state, r, _seat, engine) => {
       const choices: OptionChoice[] = [{ card: null }];
       for (const { card, index, option } of rollOptions(
         engine,
@@ -1862,11 +1858,12 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
     resolve: (state, r, c, ctx) => {
       if (c.card === null) {
         ctx.push(step("roll-dice", r));
-        return null;
+        return;
       }
       const option =
         ctx.engine.behaviours.cards[c.card]?.rollOptions?.[c.option];
-      if (!option) return "That option doesn't exist";
+      if (!option)
+        throw new Error(`${c.card} has no roll option ${c.option}`);
       handle(state, c.card);
       ctx.emit(
         "card-used",
@@ -1880,12 +1877,11 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
       if (option.effect.kind === "name" || option.effect.kind === "number")
         next.named = c.value;
       ctx.push(step("roll-before", next));
-      return null;
     },
   }),
 
   "roll-after": defineDecision<RollInProgress, RerollChoice>({
-    candidates: (state, r, _seat, engine) => {
+    legal: (state, r, _seat, engine) => {
       const choices: RerollChoice[] = [{ card: null }];
       for (const { card, index, option } of rollOptions(
         engine,
@@ -1906,7 +1902,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
     resolve: (state, r, c, ctx) => {
       if (c.card === null) {
         ctx.push(step("roll-done", r));
-        return null;
+        return;
       }
       const kept = [...r.dice];
       for (const face of c.faces) kept.splice(kept.indexOf(face), 1);
@@ -1924,7 +1920,6 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
           used: [...r.used, c.card],
         }),
       );
-      return null;
     },
   }),
 };

@@ -233,9 +233,6 @@ function attackModes(
   );
 }
 
-const sameMode = (a: AttackMode, b: AttackMode) =>
-  a.trait === b.trait && a.card === b.card && a.reach === b.reach;
-
 /** Whether a figure could be made to attack another at all: the target
  *  takes part, may be attacked by it, and some way of attacking works on
  *  it. Who counts as an opponent, and the reach, are for the rule making the
@@ -301,22 +298,10 @@ export function attackTargets(
     .map((f) => ({ kind: "figure", figure: f.id }));
 }
 
-/** The turn's own attack, which uses up the attacker's one attack of the
- *  turn, or why it can't be made. */
-export function turnAttack(
-  engine: Engine,
-  state: GameState,
-  attacker: FigureId,
-  target: AttackTarget,
-): string | Step {
-  if (target.kind !== "figure") return "Only a figure can be attacked";
-  if (!mayAttackNow(engine, state, attacker))
-    return "No attack is left to make this turn";
-  if (
-    !(target.figure in state.figures) ||
-    !isTurnTarget(engine, state, attacker, target.figure)
-  )
-    return "That can't be attacked";
+/** The turn's own attack on one of its targets, which uses up the
+ *  attacker's one attack of the turn. */
+export function turnAttack(attacker: FigureId, target: AttackTarget): Step {
+  if (target.kind !== "figure") throw new Error("Only a figure can be attacked");
   return step<Attack>("turn-attack", {
     attacker: { kind: "figure", figure: attacker },
     defender: target.figure,
@@ -539,7 +524,7 @@ function harmLabel(
 
 export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
   "attack-mode": defineDecision<Attack, AttackMode>({
-    candidates: (state, p, _seat, engine) =>
+    legal: (state, p, _seat, engine) =>
       p.attacker.kind === "figure"
         ? attackModes(engine, state, p.attacker.figure, p.defender, p.chosen)
         : [],
@@ -549,18 +534,12 @@ export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
         : `Attack with ${traitName(mode.trait)}, using the ${cardName(engine, mode.card)}`,
     resolve: (state, p, mode, ctx) => {
       if (p.attacker.kind !== "figure")
-        return "A card's attacker has no choice";
+        throw new Error("A card's attacker has no choice");
       const attacker = p.attacker.figure;
-      if (
-        !attackModes(ctx.engine, state, attacker, p.defender, p.chosen).some(
-          (m) => sameMode(m, mode),
-        )
-      )
-        return "That attack isn't possible";
       const go = step<Moded>("attack-roll", { ...p, mode, roller: attacker });
       if (mode.card === null) {
         ctx.push(go);
-        return null;
+        return;
       }
       // Attacking with a card uses it (p. 11).
       handle(state, mode.card);
@@ -571,12 +550,11 @@ export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
       );
       const before = ctx.engine.behaviours.cards[mode.card]?.beforeAttack;
       ctx.push(...(before ? before(state, attacker, go) : [go]));
-      return null;
     },
   }),
 
   "attack-steal": defineDecision<Settle, string | null>({
-    candidates: (state, p, _seat, engine) => [
+    legal: (state, p, _seat, engine) => [
       null,
       ...figureOf(state, p.defender).cards.filter((c) =>
         stealable(engine, state, c),
@@ -592,17 +570,11 @@ export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
     resolve: (state, p, card, ctx) => {
       if (card === null) {
         ctx.push(step<Settle>("attack-settle", p));
-        return null;
+        return;
       }
       const thief = subject(p).attacker;
-      if (
-        thief === null ||
-        !figureOf(state, p.defender).cards.includes(card) ||
-        !stealable(ctx.engine, state, card)
-      )
-        return "That can't be stolen";
+      if (thief === null) throw new Error("A card's attack can't steal");
       ctx.push(steal(p.defender, thief, card, p.rule), ...after(p));
-      return null;
     },
   }),
 };

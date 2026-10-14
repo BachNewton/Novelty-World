@@ -306,9 +306,9 @@ describe("a shared decision", () => {
       decisions: {
         ...ENGINE.rules.decisions,
         vote: {
-          candidates: (_state, _decision, seat) => [`seat${seat}-aye`, `seat${seat}-nay`],
+          legal: (_state, _decision, seat) => [`seat${seat}-aye`, `seat${seat}-nay`],
           label: (_state, _decision, choice) => `Vote ${String(choice)}`,
-          resolve: () => null,
+          resolve: () => undefined,
         },
       },
     },

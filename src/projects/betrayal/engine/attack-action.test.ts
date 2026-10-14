@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withHaunts } from "../kit/haunt";
-import { checkListedAreLegal } from "../simulation";
+import { checkListedApply } from "../simulation";
 import { DOZING, PHANTOM, TOY_ENGINE, toyHaunt } from "../test/toy-haunt";
 import { BASE_ENGINE, ENGINE } from "../game";
 import {
@@ -513,7 +513,7 @@ describe("the Bloody Vision's attack, after the haunt (cards/events.md)", () => 
 
 describe("choices match legality in attack states", () => {
   const check = (engine: Engine, state: GameState) => {
-    checkListedAreLegal(engine, state, waitingOn(state), offered(state, engine));
+    checkListedApply(engine, state, waitingOn(state), offered(state, engine));
   };
 
   it("the turn's choices, with targets near, far, stunned and already attacked", () => {

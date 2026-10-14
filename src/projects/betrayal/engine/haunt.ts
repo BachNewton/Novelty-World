@@ -1088,7 +1088,16 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
 
 export const HAUNT_DECISIONS: Record<string, DecisionKind> = {
   "replace-figure": defineDecision<Replacement, boolean>({
-    candidates: () => [true, false],
+    legal: (state, p, _seat, engine) => [
+      // Bringing one in needs an explorer to put it beside and one left in
+      // the supply; the last one in play can't be passed up.
+      ...(figuresIn(state, p.at).length > 0 &&
+      figuresInPlay(state, p.definition) <
+        askNumber(engine, state, "supply", { definition: p.definition })
+        ? [true]
+        : []),
+      ...(p.keepOne && figuresInPlay(state, p.definition) === 0 ? [] : [false]),
+    ],
     label: (state, p, unleash, engine) => {
       const name = engine.catalog.figures[p.definition].name;
       if (!unleash) return `Don't bring in another ${name}: the chance is lost`;
@@ -1099,24 +1108,14 @@ export const HAUNT_DECISIONS: Record<string, DecisionKind> = {
         ? `Bring in another ${name}, in the ${engine.catalog.rooms[placeOf(state, beside[0]).room].name}`
         : `Bring in another ${name}`;
     },
-    resolve: (state, p, unleash, ctx) => {
+    resolve: (_state, p, unleash, ctx) => {
       if (!unleash) {
-        if (p.keepOne && figuresInPlay(state, p.definition) === 0)
-          return `The last ${ctx.catalog.figures[p.definition].name} in play can't be passed up`;
         ctx.emit("replacement-declined", p.rule, { definition: p.definition });
-        return null;
+        return;
       }
-      if (figuresIn(state, p.at).length === 0)
-        return `No explorer of the ${p.at} to put it beside`;
-      const supply = askNumber(ctx.engine, state, "supply", {
-        definition: p.definition,
-      });
-      if (figuresInPlay(state, p.definition) >= supply)
-        return "None is left in the supply";
       ctx.push(
         spawn(p.definition, { count: 1, at: p.at, owner: p.owner }, p.rule),
       );
-      return null;
     },
   }),
 };

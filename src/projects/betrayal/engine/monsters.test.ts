@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { withHaunts } from "../kit/haunt";
 import { taskRoll } from "../kit/rules";
-import { checkListedAreLegal, simulate } from "../simulation";
+import { checkListedApply, simulate } from "../simulation";
 import {
   ALL_TOY_ENGINE,
   DOZING,
@@ -415,7 +415,7 @@ describe("the choices listed on monster turns", () => {
     const check = () => {
       const pending = state.pending;
       if (pending?.type !== "decision") throw new Error("No decision");
-      checkListedAreLegal(BUSY_ENGINE, state, waitingOn(state), offered(state, BUSY_ENGINE));
+      checkListedApply(BUSY_ENGINE, state, waitingOn(state), offered(state, BUSY_ENGINE));
     };
     check();
     state = choose(state, "Act with Phantom 1", BUSY_ENGINE);
