@@ -24,6 +24,7 @@ import {
   placeTiles,
   interject,
   pile,
+  discard,
 } from "../../testing";
 import type { GameState, RuleRef, Step } from "../../types";
 
@@ -501,6 +502,23 @@ describe("what each side sees", () => {
       known: true,
       value: 3,
     });
+  });
+});
+
+describe("a card that names the haunt's figures", () => {
+  it("the Bloody Vision offers each Nightmare in reach by name when no explorer is", () => {
+    // Father Rhinehardt fails the Vision's roll in the Basement Landing,
+    // which nothing else in the house reaches, with two Nightmares there.
+    let state = dreaming({
+      after: (s) => {
+        for (const figure of [FATHER, N1, N2]) placeIn(s, figure, "basement-landing");
+        placeIn(s, ZOE, "upper-landing");
+      },
+    });
+    discard(state, "bloody-vision");
+    state = interject(ENGINE, state, [local("bloody-vision", "attack", { figure: FATHER })]);
+    expect(pendingDecision(state).kind).toBe("choose-one");
+    expect(labels(state)).toEqual(["Attack Nightmare 1", "Attack Nightmare 2"]);
   });
 });
 
