@@ -1,3 +1,4 @@
+import type { MedalTimes } from "./medals";
 import type { Row } from "./traffic";
 import { TUNING } from "./tuning";
 import type { Frog, TetrominoKind } from "./types";
@@ -33,6 +34,8 @@ export interface DesignedCourse {
   // run goes on: the stream never runs out, and a slow team meets more rows
   // before the finish than the course has.
   repeat: number;
+  // The time to beat for each medal, in seconds (see `medals.ts`).
+  medals: MedalTimes;
 }
 
 function pose(col: number, rotation: Pose["rotation"], hop: Pose["hop"] = 0): Pose {
@@ -47,6 +50,8 @@ export const COOP_COURSE: DesignedCourse = {
   lanes: 10,
   kinds: ["L", "J"],
   repeat: 8,
+  // Provisional (see Courses and medals in the project's CLAUDE.md).
+  medals: { gold: 60, silver: 85, bronze: 120 },
   rows: [
     // Side by side, each its own opening: the jump is the team's.
     {

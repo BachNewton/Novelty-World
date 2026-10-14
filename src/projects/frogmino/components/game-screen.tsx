@@ -10,6 +10,7 @@ import { useKeyboardSource } from "../input/use-keyboard-source";
 import { isDone } from "../run";
 import type { Session } from "../session";
 import { GameView } from "./game-view";
+import { SessionResult } from "./run-clock";
 import { TouchControls } from "./touch-controls";
 
 // A game being played, whichever way: a session's run on screen, driven by
@@ -58,16 +59,18 @@ function CoopLegend() {
   );
 }
 
-// Touch screens have no R key, so they get a Restart button instead.
-function DoneOverlay({ onRestart }: { onRestart: () => void }) {
+// The run's result, and how to go again. Touch screens have no R key, so they
+// get a Restart button instead.
+function DoneOverlay({ session }: { session: Session }) {
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-      <p className="rounded-xl border-2 border-brand-green bg-surface-secondary/90 px-6 py-4 text-center text-lg font-bold text-text-primary">
-        Done<span className="pointer-coarse:hidden"> — press <span className="text-brand-green">R</span> to restart</span>
+      <SessionResult session={session} />
+      <p className="rounded-lg bg-surface-secondary/90 px-4 py-2 text-center font-bold text-text-primary pointer-coarse:hidden">
+        Done: press <span className="text-brand-green">R</span> to restart
       </p>
       <button
         type="button"
-        onClick={onRestart}
+        onClick={session.restart}
         className="pointer-events-auto hidden touch-manipulation rounded-full bg-brand-green px-8 py-3 text-lg font-bold text-surface-primary pointer-coarse:block"
       >
         Restart
@@ -98,7 +101,7 @@ export function GameScreen({
     <GameView session={session}>
       {touch && <TouchControls sink={sink} done={done} />}
       {keyboard === "solo" ? <SoloLegend /> : <CoopLegend />}
-      {done && <DoneOverlay onRestart={session.restart} />}
+      {done && <DoneOverlay session={session} />}
       {children}
     </GameView>
   );

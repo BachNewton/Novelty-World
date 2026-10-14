@@ -6,6 +6,7 @@ import { useStore } from "zustand";
 import { MuteButton } from "../audio/mute-button";
 import { useGameSounds } from "../audio/use-game-sounds";
 import type { Session } from "../session";
+import { RunTimer } from "./run-clock";
 
 // The scene reads its colours from the live stylesheet, so it only renders in
 // the browser.
@@ -13,10 +14,10 @@ const FrogminoScene = dynamic(() => import("./scene").then((m) => m.FrogminoScen
   ssr: false,
 });
 
-// A session's run on screen, with its sound and the mute button: what every
-// way of playing shares, whoever its players are. What goes between the
-// scene and the corner controls (input layers, legends, overlays) is the
-// caller's.
+// A session's run on screen, with its sound, its timer and the mute button:
+// what every way of playing shares, whoever its players are. What goes
+// between the scene and the corner controls (input layers, legends,
+// overlays) is the caller's.
 export function GameView({ session, children }: { session: Session; children?: ReactNode }) {
   // The team's state, mirrored on the page for the end-to-end tests to wait
   // on: its depth, each frog's column, when each frog last hopped, the rows
@@ -43,6 +44,7 @@ export function GameView({ session, children }: { session: Session; children?: R
       </div>
       {children}
       <h1 className="pointer-events-none absolute left-4 top-4 text-xl font-bold text-brand-green">Frogmino</h1>
+      <RunTimer session={session} />
       <MuteButton className="absolute right-4 top-4" />
     </div>
   );

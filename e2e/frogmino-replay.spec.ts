@@ -17,6 +17,10 @@ test("?replay=proof-coop plays the co-op course's proof through its first rows, 
   await expect(game).not.toHaveAttribute("data-depth", "0", { timeout: 30_000 });
   await expect(game).toHaveAttribute("data-passes", "2", { timeout: 30_000 });
   await expect(game).toHaveAttribute("data-bonked-at", "");
+  // The run's clock has started with the drop, gold still in reach.
+  const timer = page.getByTestId("frogmino-timer");
+  await expect(timer).not.toHaveText("0:00.0");
+  await expect(timer).toHaveAttribute("data-medal", "gold");
 
   // A restart plays it from the overpass again.
   await page.getByRole("button", { name: "Restart (R)" }).click();

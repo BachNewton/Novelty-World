@@ -130,6 +130,7 @@ describe("the solver", () => {
       lanes: 4,
       kinds: ["L"],
       row: (index) => ({ vehicles: wall, gates: [], solids: rowSolids(wall), gap: index === 0 ? TUNING.firstWallDepth : TUNING.wallSpacing }),
+      medals: { gold: 60, silver: 80, bronze: 100 },
     };
     const result = proveCourse(blocked);
     expect(result.ok).toBe(false);

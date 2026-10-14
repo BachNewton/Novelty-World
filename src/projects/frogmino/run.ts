@@ -292,6 +292,16 @@ export function isDone(run: Run): boolean {
   return run.finishedAt !== null && run.tick >= run.finishedAt + tickTiming(run.tuning).finishLeap;
 }
 
+// The run's time, in ticks: the course is timed from the team's drop off the
+// overpass to its crossing of the finish line. Lining up on the deck is free,
+// and the clock stops at the line, while the rules' own clock runs on under
+// the finish leap. It is read off the rule state, so a replay and both
+// devices online agree on it to the tick.
+export function runTime(run: Run): number {
+  if (run.droppedAt === null) return 0;
+  return (run.finishedAt ?? run.tick) - run.droppedAt;
+}
+
 // The wall the team meets next: the nearest one it hasn't passed. Null only
 // when every wall is behind it.
 export function nextWall(run: Run): number | null {

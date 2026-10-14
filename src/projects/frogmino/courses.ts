@@ -1,5 +1,6 @@
 import { COOP_COURSE, type DesignedCourse, type Pose } from "./coop-course";
 import { COURSE_SEED } from "./course";
+import { checkMedalTimes, type MedalTimes } from "./medals";
 import type { RuleRow } from "./run";
 import { rowStream } from "./stream";
 import { rowSolids, type Row } from "./traffic";
@@ -20,13 +21,22 @@ export interface Course {
   // One starting piece per player: how many frogs the run has.
   kinds: readonly TetrominoKind[];
   row: (index: number) => PlayRow;
+  // The time to beat for each medal (see `medals.ts`).
+  medals: MedalTimes;
 }
 
 // Solo: the row stream from the demo seed, on the road the stream is built
-// for.
+// for. Its medal times are provisional (see Courses and medals in the
+// project's CLAUDE.md).
 export function soloCourse(tuning: Tuning = TUNING): Course {
   const stream = rowStream(COURSE_SEED, tuning);
-  return { seed: stream.seed, lanes: tuning.corridorCols, kinds: [stream.start], row: stream.row };
+  return {
+    seed: stream.seed,
+    lanes: tuning.corridorCols,
+    kinds: [stream.start],
+    row: stream.row,
+    medals: checkMedalTimes({ gold: 60, silver: 80, bronze: 115 }),
+  };
 }
 
 // Which of a designed course's rows the run meets as its row `index`: each in
@@ -41,7 +51,13 @@ export function designedRowAt(course: DesignedCourse, index: number): number {
 // A course designed by hand, as a session plays it.
 export function designedCourse(course: DesignedCourse): Course {
   const rows = course.rows.map(({ vehicles, gap }) => ({ vehicles, gap, gates: [], solids: rowSolids(vehicles) }));
-  return { seed: COURSE_SEED, lanes: course.lanes, kinds: course.kinds, row: (index) => rows[designedRowAt(course, index)] };
+  return {
+    seed: COURSE_SEED,
+    lanes: course.lanes,
+    kinds: course.kinds,
+    row: (index) => rows[designedRowAt(course, index)],
+    medals: checkMedalTimes(course.medals),
+  };
 }
 
 // The pose each frog is meant to pass the run's row `index` in.

@@ -25,6 +25,11 @@
   --radius-md: 0.5rem;
   --radius-sm: 0.25rem;
 
+  /* Frogmino: the medals' colours, on the run's timer and the done screen. */
+  --color-frogmino-medal-gold: #ffc83d;
+  --color-frogmino-medal-silver: #c3ccd8;
+  --color-frogmino-medal-bronze: #d4884a;
+
   /* Family Tree: the view root's direct line (its links and card borders).
      Full brand orange shouts against the grey links; mixed toward the
      background it marks the line without taking over the tree. */

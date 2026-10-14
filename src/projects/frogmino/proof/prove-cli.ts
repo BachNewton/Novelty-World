@@ -1,13 +1,15 @@
 import { writeFileSync } from "node:fs";
 import { COOP_COURSE } from "../coop-course";
-import { courseOf, designedAnswers, designedRowAt, type CourseSpec } from "../courses";
-import { tickTiming } from "../ticks";
+import { courseOf, designedAnswers, designedRowAt, type Course, type CourseSpec } from "../courses";
+import { formatTime, heldJumpTicks, medalFor, MEDALS } from "../medals";
+import { replay, runTime } from "../run";
+import { tickTiming, toTicks } from "../ticks";
 import { TUNING, type Tuning } from "../tuning";
 import { passingPoses, reachablePoses } from "./analyse";
 import type { ReplayData } from "./replay-data";
 import { describeProof, describeStep, summary } from "./route";
 import { SAVED_REPLAYS } from "./saved-replays";
-import { courseRun, DEFAULT_SLOT, proveCourse, type ProofResult } from "./solver";
+import { courseRun, DEFAULT_SLOT, proveCourse, type Proof, type ProofResult } from "./solver";
 import { endSlot, type TeamPose } from "./team-plan";
 
 // Proves courses can be beaten: finds an input log through every row and over
@@ -114,6 +116,19 @@ function savedFile(replays: Readonly<Record<string, ReplayData>>): string {
   ].join("\n");
 }
 
+// The proof's time, from the drop to the finish line, beside the course's
+// medal times and the floor a held jump sets with nothing in its way: the
+// reference points the medal times are set from.
+function timing(course: Course, proof: Proof, tuning: Tuning): string {
+  const time = runTime(replay(courseRun(course, tuning), proof.log, proof.until));
+  const medal = medalFor(time, course.medals);
+  const medals = MEDALS.map((m) => `${m} ${formatTime(toTicks(course.medals[m]))}`).join(", ");
+  return [
+    `proof's time ${formatTime(time)} (${medal ?? "no medal"}); medals ${medals}`,
+    `a held jump with nothing in its way: ${formatTime(heldJumpTicks(tuning))}`,
+  ].join("\n");
+}
+
 function main(): void {
   const { jobs, options } = parse(process.argv.slice(2));
   const tuning: Tuning = options.length === undefined ? TUNING : { ...TUNING, courseLength: options.length };
@@ -134,6 +149,8 @@ function main(): void {
       stuck = true;
       continue;
     }
+    // Medal times are for the course as the game plays it, not a longer stretch.
+    if (result.proof.finished && options.length === undefined) console.log(timing(course, result.proof, tuning));
     if (options.save !== undefined) {
       const name = options.save ?? `proof-${label}`;
       const { proof } = result;

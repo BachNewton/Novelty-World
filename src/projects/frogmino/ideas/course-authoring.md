@@ -42,7 +42,7 @@ How the rest builds on it:
 
 - **Validate** is the solver run per row against every piece, or pair of pieces, the team could hold there, with the legality checks the row format already makes (`traffic.ts`).
 - **Analyse** reads the planner's search: how many poses pass, how far the shortest route is, which moves it needs (a hop, a kick, a perch), and decoys as poses that nearly pass.
-- **Play** grows from the solver: today it plays at one fixed pace and only between rows; the automated player for medals needs the fastest route, moves made while a row overlaps the team, and recovery after a bonk.
+- **Play** grows from the solver: today it plays at one fixed pace and only between rows; the automated player for medals needs the fastest route, moves made while a row overlaps the team, and recovery after a bonk. Until it has them, each course's medal times are provisional, set from the solver's proof and the held-jump floor, which the prove CLI prints (see Courses and medals in the project's CLAUDE.md).
 - **Preview** grows from the ASCII faces into pictures of rows and courses.
 
 ## Designing co-op rows

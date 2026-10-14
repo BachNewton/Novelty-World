@@ -135,6 +135,9 @@ function expectConverged({ host, guest }: Pair): void {
   expect(guestState.log).toEqual(hostState.log);
   expect(runHash(hostState.run)).toBe(runHash(replayed(SPEC, hostState.log, hostState.run.tick)));
   expect(runHash(guestState.run)).toBe(runHash(replayed(SPEC, hostState.log, guestState.run.tick)));
+  // The run's clock reads the rule state, so both players' timers count from
+  // the same drop.
+  expect(guestState.run.droppedAt).toBe(hostState.run.droppedAt);
 }
 
 describe("online co-op over a simulated network", () => {
@@ -154,6 +157,7 @@ describe("online co-op over a simulated network", () => {
         const log = sim.host.store.getState().log;
         expect(log.some((input) => input.player === HOST_SLOT)).toBe(true);
         expect(log.some((input) => input.player === GUEST_SLOT)).toBe(true);
+        expect(sim.host.store.getState().run.droppedAt).not.toBeNull();
       });
     }
   }
