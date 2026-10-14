@@ -66,7 +66,8 @@ export function CourseCard({ course }: { course: DesignedCourse }) {
 
 // The list to pick from, the picked course marked. Each course's button
 // carries its id as `data-course`, so a screen's own key handling can tell a
-// key meant for the list apart.
+// key meant for the list apart. A controller's focus starts on the course
+// picked.
 export function CoursePicker({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) {
   return (
     <div className="flex w-full flex-col gap-3">
@@ -85,6 +86,7 @@ export function CoursePicker({ selected, onSelect }: { selected: string; onSelec
                       type="button"
                       aria-pressed={picked}
                       data-course={course.id}
+                      data-pad-start={picked || undefined}
                       onClick={() => {
                         onSelect(course.id);
                       }}

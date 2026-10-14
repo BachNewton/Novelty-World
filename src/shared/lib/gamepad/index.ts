@@ -27,3 +27,17 @@ export {
   type RumbleResult,
 } from "./gamepads";
 export { useGamepads, type UseGamepadsOptions } from "./use-gamepads";
+export {
+  axisWay,
+  NAV_AT_REST,
+  NAV_TUNING,
+  navStep,
+  nextInDirection,
+  type Box,
+  type Direction,
+  type NavHold,
+  type NavTuning,
+  type StickThresholds,
+} from "./navigation";
+export { hidePadFocus, padControls, padFocusShowing, padMove, padPress, showPadFocus } from "./pad-focus";
+export { usePadConnected, usePadNavigation, type PadNavigationOptions } from "./use-pad-navigation";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cycleChoice, nextInDirection, pickTarget, stepFloor, type ScreenPoint, type Target } from "./navigate";
+import { cycleChoice, pickTarget, stepFloor, type ScreenPoint, type Target } from "./navigate";
 
 const square = (id: string, x: number, y: number, size: number): Target => ({
   id,
@@ -95,32 +95,5 @@ describe("stepFloor", () => {
 
   it("goes from every floor at once to the home floor", () => {
     expect(stepFloor(floors, "all", 1, "basement")).toBe("basement");
-  });
-});
-
-describe("nextInDirection", () => {
-  const box = (left: number, top: number, width = 80, height = 40) => ({ left, top, right: left + width, bottom: top + height });
-  // Two buttons on a row, a wide one under them, and a small one on a row of its own at the bottom right.
-  const boxes = [box(0, 0), box(100, 0), box(0, 60, 300), box(250, 120, 40, 20)];
-
-  it("goes along a row, and stops at its ends", () => {
-    expect(nextInDirection(boxes, 0, "right")).toBe(1);
-    expect(nextInDirection(boxes, 1, "left")).toBe(0);
-    expect(nextInDirection(boxes, 1, "right")).toBeNull();
-    expect(nextInDirection(boxes, 2, "left")).toBeNull();
-  });
-
-  it("goes to the nearest row up or down, onto the control nearest across", () => {
-    expect(nextInDirection(boxes, 0, "down")).toBe(2);
-    expect(nextInDirection(boxes, 2, "up")).toBe(1);
-    expect(nextInDirection(boxes, 2, "down")).toBe(3);
-    expect(nextInDirection(boxes, 3, "up")).toBe(2);
-    expect(nextInDirection(boxes, 0, "up")).toBeNull();
-  });
-
-  it("counts controls of different heights on one line as one row", () => {
-    const line = [box(0, 0, 80, 44), box(100, 10, 30, 20)];
-    expect(nextInDirection(line, 0, "right")).toBe(1);
-    expect(nextInDirection(line, 0, "down")).toBeNull();
   });
 });

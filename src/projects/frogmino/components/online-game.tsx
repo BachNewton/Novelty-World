@@ -14,7 +14,7 @@ export function OnlineGame({ session, slot, onLeave }: { session: Session; slot:
   const seating = useMemo<Seating>(() => () => slot, [slot]);
   const look = slot === 0 ? FROG_LOOKS.p1 : FROG_LOOKS.p2;
   return (
-    <GameScreen session={session} seating={seating} keyboard="solo" touch>
+    <GameScreen session={session} seating={seating} keyboard="solo" touch exit={{ label: "Leave the game", onExit: onLeave }}>
       <p
         data-testid="playing-as"
         className={cn(

@@ -54,10 +54,17 @@ function tick(): void {
     edges.push(...buttonEdges(prev, pad));
     lastSeen.set(pad.index, pad);
   }
-  for (const listener of listeners) {
-    for (const edge of edges) listener.onButton?.(edge);
-    listener.onFrame?.(pads, changed);
+  for (const listener of current()) {
+    for (const edge of edges) if (listeners.has(listener)) listener.onButton?.(edge);
+    if (listeners.has(listener)) listener.onFrame?.(pads, changed);
   }
+}
+
+// The listeners as a frame begins. A press can open a screen that listens
+// (React runs its effects within the click), and the press that opened it
+// isn't one for it; one that stops listening mid-frame hears no more.
+function current(): GamepadListener[] {
+  return [...listeners];
 }
 
 function updateLoop(): void {
@@ -71,9 +78,9 @@ function updateLoop(): void {
 
 function announceConnections(edges: readonly ButtonEdge[] = []): void {
   const pads = connectedPads();
-  for (const listener of listeners) {
-    for (const edge of edges) listener.onButton?.(edge);
-    listener.onConnectionChange?.(pads);
+  for (const listener of current()) {
+    for (const edge of edges) if (listeners.has(listener)) listener.onButton?.(edge);
+    if (listeners.has(listener)) listener.onConnectionChange?.(pads);
   }
   updateLoop();
 }
@@ -103,6 +110,10 @@ export function subscribeGamepads(listener: GamepadListener): () => void {
     window.addEventListener("gamepaddisconnected", onDisconnected);
     // Pads already exposed to this page announced themselves before anyone listened.
     for (const pad of navigator.getGamepads()) if (pad) connected.add(pad.index);
+    // What the pads held as the last listener left is kept, so a button held
+    // from one screen into the next, which listens anew, isn't a press there;
+    // a pad that left meanwhile is forgotten.
+    for (const index of lastSeen.keys()) if (!connected.has(index)) lastSeen.delete(index);
   }
   listeners.add(listener);
   if (connected.size > 0) listener.onConnectionChange?.(connectedPads());
@@ -113,7 +124,6 @@ export function subscribeGamepads(listener: GamepadListener): () => void {
       window.removeEventListener("gamepadconnected", onConnected);
       window.removeEventListener("gamepaddisconnected", onDisconnected);
       connected.clear();
-      lastSeen.clear();
     }
     updateLoop();
   };

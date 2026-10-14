@@ -267,3 +267,23 @@ body {
   background-color: var(--background-color);
   color: var(--text-color);
 }
+
+/* A game controller's focus on a menu (src/shared/lib/gamepad/pad-focus.ts):
+   a bright ring and glow, off the control, so it reads on any button. A
+   project with a style of its own sets --color-pad-focus to one of its own
+   tokens. Read by the rule below, never by a Tailwind class, so declared
+   outside @theme. The focus shows only while a controller was the last thing
+   used, which marks the document data-pad-nav. A control it focuses keeps
+   clear of a screen's sticky bars as it scrolls into view. */
+:root {
+  --color-pad-focus: var(--color-text-primary);
+}
+[data-pad-nav] :is(button, a[href]):focus {
+  outline: 3px solid var(--color-pad-focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--color-pad-focus) 35%, transparent);
+}
+[data-pad-nav] :is(button, a[href]) {
+  scroll-margin-top: 1.5rem;
+  scroll-margin-bottom: 10rem;
+}

@@ -1,4 +1,4 @@
-import { DEFAULT_DEADZONE, readPad, type PadSnapshot, type StandardButton } from "@/shared/lib/gamepad";
+import { axisWay, DEFAULT_DEADZONE, readPad, type PadSnapshot, type StandardButton, type StickThresholds } from "@/shared/lib/gamepad";
 import type { FrogAction, HeldAction, PlayerInput } from "../run";
 
 // A game controller's controls, on a pad with the standard (Xbox) layout,
@@ -6,17 +6,14 @@ import type { FrogAction, HeldAction, PlayerInput } from "../run";
 // left stick or the D-pad slides (left, right) and jumps (up forward, down
 // back), held as a held key is, so the rules repeat them on their own
 // clock; A hops, X or LB turns anticlockwise and B or RB clockwise, and
-// Menu restarts. A pad without the standard layout drives nothing: its
-// buttons are only known by number, and a guess would be wrong on some pads.
+// Menu restarts; View opens the game's menu. A pad without the standard
+// layout drives nothing: its buttons are only known by number, and a guess
+// would be wrong on some pads.
 
-export interface PadTuning {
-  // The stick's radial deadzone, which hides a worn stick's resting wobble.
+// The stick's radial deadzone, which hides a worn stick's resting wobble,
+// and the thresholds a tilt holds a way past and lets go inside.
+export interface PadTuning extends StickThresholds {
   deadzone: number;
-  // How far the stick, past its deadzone, must tilt along an axis to hold
-  // that way, and how far back it must come to let go: two thresholds, so a
-  // stick resting near one doesn't chatter between held and let go.
-  press: number;
-  release: number;
 }
 
 export const PAD_TUNING: PadTuning = {
@@ -33,6 +30,8 @@ const PAD_ACTIONS: Partial<Record<StandardButton, FrogAction>> = {
   RB: "rotateCw",
 };
 export const RESTART_BUTTON: StandardButton = "Menu";
+// View opens the game's menu (see `game-screen.tsx`), so it drives no frog.
+export const MENU_BUTTON: StandardButton = "View";
 const BUTTONS = [...(Object.keys(PAD_ACTIONS) as StandardButton[]), RESTART_BUTTON];
 
 // What a pad is holding: a slide and a jump, each one way or neither, and
@@ -45,28 +44,17 @@ export interface PadHold {
 
 export const PAD_AT_REST: PadHold = { slide: null, jump: null, buttons: [] };
 
+// Where a pad starts as the game first sees it: its buttons already down
+// count as held, so a press made for the screen before (A on Start, Menu)
+// isn't also a hop or a restart; a held direction still moves the frog.
+export function padArrival(pad: PadSnapshot, tuning: PadTuning = PAD_TUNING): PadHold {
+  return { ...padStep(PAD_AT_REST, pad, tuning).hold, slide: null, jump: null };
+}
+
 export interface PadStep {
   hold: PadHold;
   inputs: PlayerInput[];
   restart: boolean;
-}
-
-// Which way one axis holds: the D-pad's way if pressed, or the stick's once
-// it tilts past the press threshold, kept until it comes back inside the
-// release threshold.
-function axisWay<W extends string>(
-  stick: number,
-  negativePad: boolean,
-  positivePad: boolean,
-  [negative, positive]: readonly [W, W],
-  was: W | null,
-  tuning: PadTuning,
-): W | null {
-  if (negativePad !== positivePad) return negativePad ? negative : positive;
-  const beyond = (way: W): number => (was === way ? tuning.release : tuning.press);
-  if (stick <= -beyond(negative)) return negative;
-  if (stick >= beyond(positive)) return positive;
-  return null;
 }
 
 function heldChange<W extends HeldAction>(was: W | null, now: W | null): PlayerInput[] {
