@@ -72,7 +72,7 @@ The module owns **connection bookkeeping only**: codes, the relay's address, the
 
 Everything in the browser is event-driven (the socket's `open` / `message` / `close`); there are no timers. The relay notices a player whose connection died without closing (a closed laptop lid, a phone that lost signal) by pinging every socket on a heartbeat and dropping one that missed a ping, which frees its room or its seat. The heartbeat is the liveness check itself, not a guard against a race.
 
-The relay has no room discovery. A game that lists its open rooms, rather than asking for a typed code, uses the separate shared room list (`src/shared/lib/room-list/`, `useRoomList`): hosts advertise a listing over Supabase Realtime presence on a per-game lobby channel, and the lobby renders the live list with `GameLobby`'s `openRooms`. Frogmino uses it; e2e runs put it on a channel of their own with `?room-list=<name>`.
+The relay has no room discovery. A game that lists its open rooms, rather than asking for a typed code, uses the separate shared room list (`src/shared/lib/room-list/`, `useRoomList`): hosts advertise a listing over Supabase Realtime presence on a per-game lobby channel, and the lobby renders the live list with `GameLobby`'s `openRooms`. Frogmino and Connection Test use it; e2e runs put it on a channel of their own with `?room-list=<name>`.
 
 Monopoly is the exception: it is turn-based on one authoritative Supabase row, not on the relay.
 
