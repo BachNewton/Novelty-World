@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { placed, roomAt } from "../../engine/board";
 import { describeEvent } from "../../engine/describe";
 import { drawCard } from "../../engine/effects";
-import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import {
   at,
@@ -15,6 +14,10 @@ import {
   testGame,
   waitingOn,
   spectator,
+  placeTiles,
+  interject,
+  pile,
+  discard,
 } from "../../testing";
 import type { GameState } from "../../types";
 
@@ -83,7 +86,7 @@ function drawHere(state: GameState, event: string): GameState {
     event,
     ...state.decks.event.draw.filter((c) => c !== event),
   ];
-  return start(ENGINE, { ...state, pending: null }, [
+  return interject(ENGINE, state, [
     drawCard(ZOE, "event", { source: "rulebook", page: 10 }),
   ]);
 }
@@ -142,7 +145,7 @@ describe("The Walls", () => {
           { tile: "vault", x: -1, y: 0, rotation: 1 },
         ] as const;
         for (const c of closers)
-          s.board.tiles.push({ ...c, floor: "basement" });
+          placeTiles(s, { ...c, floor: "basement" });
         s.board.stack = s.board.stack.filter(
           (t) => !closers.some((c) => c.tile === t),
         );
@@ -222,7 +225,7 @@ describe("The Beckoning", () => {
       seed,
       events: ["night-view"],
       setUp: (s) => {
-        s.board.tiles.push({
+        placeTiles(s, {
           tile: "gardens",
           floor: "ground",
           x: 9,
@@ -263,7 +266,7 @@ describe("The Beckoning", () => {
         drawEvent("the-beckoning", {
           seed,
           setUp: (s) => {
-            s.board.tiles.push(
+            placeTiles(s, 
               { tile: "gardens", floor: "ground", x: 9, y: 9, rotation: 0 },
               { tile: "patio", floor: "ground", x: 2, y: 1, rotation: 0 },
             );
@@ -284,7 +287,7 @@ describe("The Beckoning", () => {
         drawEvent("the-beckoning", {
           seed,
           setUp: (s) => {
-            s.board.tiles.push(
+            placeTiles(s, 
               { tile: "graveyard", floor: "ground", x: 9, y: 9, rotation: 0 },
               { tile: "patio", floor: "ground", x: 2, y: 1, rotation: 0 },
             );
@@ -377,7 +380,7 @@ describe("Mystic Slide", () => {
   /** Zoe stands in the Attic, where a Slide lies, with no basement tile left to draw. */
   function inTheAttic(seed: string): GameState {
     const state = testGame({ seed });
-    state.board.tiles.push({
+    placeTiles(state, {
       tile: "attic",
       floor: "upper",
       x: 9,
@@ -388,6 +391,8 @@ describe("Mystic Slide", () => {
       (t) => t !== "attic" && !BASEMENT_TILES.includes(t),
     );
     put(state, 0, "attic");
+    // The Mystic Slide was drawn here, leaving its token.
+    discard(state, "mystic-slide");
     state.tokens.push({ token: "slide", room: "attic" });
     return choose(state, "Use the Slide");
   }
@@ -529,7 +534,7 @@ describe("Revolving Wall", () => {
 describe("What The . . . ?", () => {
   it("moves the room you are in elsewhere on the floor, against a different open doorway, with everything in it", () => {
     let state = drawEvent("what-the", {
-      setUp: (s) => (s.piles.ballroom = ["axe"]),
+      setUp: (s) => pile(s, "ballroom", "axe"),
     });
     const before = placed(state.board, "ballroom");
     expect(kind(state)).toBe("place-tile");
@@ -563,7 +568,7 @@ describe("What The . . . ?", () => {
       { tile: "coal-chute", x: 3, y: 0, rotation: 3 },
       { tile: "graveyard", x: 2, y: 1, rotation: 2 },
     ] as const;
-    for (const r of rooms) state.board.tiles.push({ ...r, floor: "ground" });
+    for (const r of rooms) placeTiles(state, { ...r, floor: "ground" });
     put(state, 0, "chapel");
     const moved = drawHere(state, "what-the");
     expect(kind(moved)).toBe("place-tile");

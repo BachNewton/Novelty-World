@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { neighbourCell, placed } from "../../engine/board";
 import { relocate } from "../../engine/effects";
-import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import {
   at,
@@ -12,6 +11,9 @@ import {
   pendingDecision,
   put,
   testGame,
+  give,
+  placeTiles,
+  interject,
 } from "../../testing";
 import type { FloorId, GameState, Trait } from "../../types";
 
@@ -22,7 +24,7 @@ const ZOE = "zoe-ingstrom";
 /** Zoe, seat 0, standing in a room placed beside a starting tile on one of its floors. */
 function standingIn(room: string, floor: FloorId): GameState {
   const state = testGame();
-  state.board.tiles.push({ tile: room, floor, x: 0, y: -1, rotation: 0 });
+  placeTiles(state, { tile: room, floor, x: 0, y: -1, rotation: 0 });
   put(state, 0, room);
   return state;
 }
@@ -71,7 +73,7 @@ describe.each<[string, "physical" | "mental", string[]]>([
 describe("Medallion (cards/omens.md)", () => {
   it("makes its holder immune to the Crypt", () => {
     let state = standingIn("crypt", "basement");
-    explorer(state, 0).cards.push("medallion");
+    give(state, 0, "medallion");
     const before = explorer(state, 0).traits.clips;
     state = choose(state, "End your turn");
     expect(eventTypes(state)).not.toContain("damaged");
@@ -81,7 +83,7 @@ describe("Medallion (cards/omens.md)", () => {
 
   it("doesn't protect from the Furnace Room", () => {
     let state = standingIn("furnace-room", "basement");
-    explorer(state, 0).cards.push("medallion");
+    give(state, 0, "medallion");
     state = choose(state, "End your turn");
     expect(pendingDecision(state).kind).toBe("split-damage");
   });
@@ -114,8 +116,8 @@ describe.each<[string, FloorId, Trait, number, Trait]>([
   /** Zoe holds the Angel Feather, which names the roll's result, and a card puts her in the Entrance Hall. */
   function leaving(): GameState {
     const state = standingIn(room, floor);
-    explorer(state, 0).cards.push("angel-feather");
-    return start(ENGINE, { ...state, pending: null }, [
+    give(state, 0, "angel-feather");
+    return interject(ENGINE, state, [
       relocate(ZOE, "entrance-hall", { source: "card", card: "bottle" }),
     ]);
   }
@@ -157,14 +159,14 @@ describe("Junk Room (rooms.md, rules p. 7)", () => {
     const state = testGame();
     const hall = placed(state.board, "entrance-hall");
     if (!hall) throw new Error("No Entrance Hall");
-    state.board.tiles.push({
+    placeTiles(state, {
       tile: "junk-room",
       floor: "ground",
       ...neighbourCell(hall, "top"),
       rotation: 0,
     });
     put(state, 0, "junk-room");
-    explorer(state, 0).cards.push("angel-feather", "axe");
+    give(state, 0, "angel-feather", "axe");
     state.decks.item.draw = state.decks.item.draw.filter((c) => c !== "axe");
     return state;
   }
@@ -206,8 +208,8 @@ describe("Junk Room (rooms.md, rules p. 7)", () => {
 describe("Medallion and leaving (cards/omens.md)", () => {
   it("leaves the Graveyard without a roll", () => {
     const state = standingIn("graveyard", "ground");
-    explorer(state, 0).cards.push("medallion");
-    const after = start(ENGINE, { ...state, pending: null }, [
+    give(state, 0, "medallion");
+    const after = interject(ENGINE, state, [
       relocate(ZOE, "entrance-hall", { source: "card", card: "bottle" }),
     ]);
     expect(eventTypes(after)).not.toContain("rolled");

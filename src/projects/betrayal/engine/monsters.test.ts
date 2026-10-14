@@ -15,12 +15,13 @@ import { BASE_ENGINE } from "../game";
 import {
   choose,
   eventTypes,
-  explorer,
   offered,
   pendingDecision,
   put,
   waitingOn,
   spectator,
+  give,
+  interject,
 } from "../testing";
 import type {
   FigureDefinition,
@@ -33,7 +34,7 @@ import { describeDecision, describeEvent } from "./describe";
 import { chooseOne, damage, die, step } from "./effects";
 import { offerReplacement, spawn } from "./haunt";
 import { askNumber } from "./questions";
-import { start, type Engine } from "./step-loop";
+import { type Engine } from "./step-loop";
 import { viewFor } from "./view";
 
 // The monster turn and how monsters work (rules.md, pp. 18-19, and their
@@ -180,7 +181,7 @@ describe("a monster acting (rules.md, p. 18)", () => {
           (s) => {
             put(s, 2, "foyer");
             put(s, 0, "upper-landing");
-            explorer(s, 2).cards.push("angel-feather");
+            give(s, 2, "angel-feather");
           },
           { seed },
         ),
@@ -304,7 +305,7 @@ describe("a stunned monster (rules.md, p. 18)", () => {
   it("goes on when the seat's explorer dies partway through it: only the acting figure's death ends a turn", () => {
     let state = toMonsterTurn(toyBegun(TOY_ENGINE), TOY_ENGINE);
     state = choose(state, "Act with Phantom 1", TOY_ENGINE);
-    state = start(TOY_ENGINE, { ...state, pending: null }, [
+    state = interject(TOY_ENGINE, state, [
       die("ox-bellows", RULE),
       step<{ seat: number }>("turn-menu", { seat: 1 }),
     ]);
@@ -315,7 +316,7 @@ describe("a stunned monster (rules.md, p. 18)", () => {
   });
 
   it("is stunned by damage from anything, not only an attack (p. 18, ruling monster-traits)", () => {
-    const state = start(TOY_ENGINE, { ...toyBegun(TOY_ENGINE), pending: null }, [
+    const state = interject(TOY_ENGINE, toyBegun(TOY_ENGINE), [
       damage(PHANTOM_1, "physical", { points: 2 }, RULE),
     ]);
     expect(state.figures[PHANTOM_1].stunned).toBe(true);
@@ -325,7 +326,7 @@ describe("a stunned monster (rules.md, p. 18)", () => {
 describe("spawning a haunt's figures", () => {
   it("numbers each new figure with a number never used before, and stops at the supply in play", () => {
     let state = toyBegun(SCARCE_ENGINE);
-    state = start(SCARCE_ENGINE, { ...state, pending: null }, [
+    state = interject(SCARCE_ENGINE, state, [
       spawn("phantom", { count: 1, at: "traitor", owner: "traitor" }, RULE),
     ]);
     expect(Object.keys(state.figures)).not.toContain("phantom-2");
@@ -334,7 +335,7 @@ describe("spawning a haunt's figures", () => {
     );
     state.figures[PHANTOM_1].alive = false;
     state.figures[PHANTOM_1].place = null;
-    state = start(SCARCE_ENGINE, { ...state, pending: null }, [
+    state = interject(SCARCE_ENGINE, state, [
       spawn("phantom", { count: 1, at: "traitor", owner: "traitor" }, RULE),
     ]);
     expect(state.figures["phantom-2"]).toMatchObject({ alive: true, owner: 1 });
@@ -386,7 +387,7 @@ describe("a rule that names one seat or explorer of a group", () => {
     const state = toyBegun(TOY_ENGINE);
     state.seats[2] = { ...state.seats[2], side: "traitor", roles: [] };
     const run = (steps: Step[]) =>
-      start(TOY_ENGINE, { ...state, pending: null }, steps);
+      interject(TOY_ENGINE, state, steps);
     expect(() =>
       run([spawn("phantom", { count: 1, at: "traitor", owner: null }, RULE)]),
     ).toThrow("The traitor have 2 living explorers, not one to put Phantom beside");
@@ -396,7 +397,7 @@ describe("a rule that names one seat or explorer of a group", () => {
   });
 
   it("puts a seat's choice to that seat, whoever controls what", () => {
-    const state = start(TOY_ENGINE, { ...toyBegun(TOY_ENGINE), pending: null }, [
+    const state = interject(TOY_ENGINE, toyBegun(TOY_ENGINE), [
       chooseOne({ seat: 0 }, [
         { label: "Aye", steps: [] },
         { label: "Nay", steps: [] },

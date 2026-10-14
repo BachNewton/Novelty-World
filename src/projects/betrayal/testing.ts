@@ -1,21 +1,28 @@
 import { newGame } from "./engine/exploration";
 import { figureOf, placeOf, seatExplorer } from "./engine/figures";
-import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
+import { step } from "./engine/effects";
+import { apply, choices, start, type Choice, type Engine } from "./engine/step-loop";
 import { ENGINE } from "./game";
 import type { Scenario } from "./engine/scenario";
 import { viewFor, type GameView } from "./engine/view";
+import { checkWrite } from "./test/invariants";
 import type {
+  CardType,
   Decision,
   Edge,
   Figure,
   FigureTraits,
   GameState,
   Place,
+  PlacedTile,
+  Step,
 } from "./types";
 
 // Scenario helpers for tests: start a game from a scenario (stacked decks and
 // room stack, placed explorers, a haunt already revealed), then play it by
-// picking the offered choices.
+// picking the offered choices. Every write made through them is checked
+// against the invariants every game must hold (test/invariants.ts), so each
+// test that plays through them guards those too.
 
 export interface TestGame extends Scenario {
   seed?: string;
@@ -35,7 +42,7 @@ export const DEFAULT_CHARACTERS = [
 export function testGame(options: TestGame = {}): GameState {
   const { seed, characters = DEFAULT_CHARACTERS, engine = ENGINE, chosenHaunt, ...scenario } =
     options;
-  return newGame(engine, {
+  const state = newGame(engine, {
     gameId: "test",
     seed: seed ?? "test-seed",
     sets: ["base"],
@@ -45,6 +52,8 @@ export function testGame(options: TestGame = {}): GameState {
     scenario,
     ...(chosenHaunt === undefined ? {} : { chosenHaunt }),
   });
+  checkWrite(engine, null, state);
+  return state;
 }
 
 export function pendingDecision(state: GameState): Decision {
@@ -93,7 +102,22 @@ export function choose(
     throw new Error(
       `"${match.label}" was offered but rejected: ${result.reason}`,
     );
+  checkWrite(engine, state, result.state);
   return result.state;
+}
+
+/** Runs work in the middle of the turn, as a test's setup does to have a
+ *  card, room or attack act out of the blue: the pending decision makes way
+ *  for it, and the turn's choices come back once it is done, as they do
+ *  after any action. */
+export function interject(engine: Engine, state: GameState, work: Step[]): GameState {
+  const seat = state.turn?.seat;
+  const after = start(engine, { ...state, pending: null }, [
+    ...work,
+    ...(seat === undefined ? [] : [step("turn-menu", { seat })]),
+  ]);
+  checkWrite(engine, state, after);
+  return after;
 }
 
 /** A seat confirms the pending ready wait. */
@@ -109,6 +133,7 @@ export function ready(
     seat,
   });
   if (!result.ok) throw new Error(`Seat ${seat} couldn't confirm: ${result.reason}`);
+  checkWrite(engine, state, result.state);
   return result.state;
 }
 
@@ -159,4 +184,58 @@ export function put(
   side: Edge | null = null,
 ): void {
   explorer(state, seat).place = { room, side };
+}
+
+/** Takes a card out of wherever it is: a deck, a hand, a pile, play. */
+function takeCard(state: GameState, card: string): void {
+  for (const type of ["omen", "item", "event"] as CardType[]) {
+    const deck = state.decks[type];
+    deck.draw = deck.draw.filter((c) => c !== card);
+    deck.discard = deck.discard.filter((c) => c !== card);
+  }
+  for (const figure of Object.values(state.figures))
+    figure.cards = figure.cards.filter((c) => c !== card);
+  for (const room of Object.keys(state.piles))
+    state.piles[room] = state.piles[room].filter((c) => c !== card);
+  state.ongoing = state.ongoing.filter((c) => c !== card);
+  state.aside = state.aside.filter((a) => a.card !== card);
+}
+
+/** Gives the seat's explorer cards, as a test's setup, taking each from
+ *  wherever it was, so every card stays in one place. */
+export function give(state: GameState, seat: number, ...cards: string[]): void {
+  for (const card of cards) takeCard(state, card);
+  explorer(state, seat).cards.push(...cards);
+}
+
+/** Puts cards on a room's pile, as a test's setup, taking each from wherever
+ *  it was, so every card stays in one place. */
+export function pile(state: GameState, room: string, ...cards: string[]): void {
+  for (const card of cards) takeCard(state, card);
+  state.piles[room] = [...(state.piles[room] ?? []), ...cards];
+}
+
+/** Takes cards out of wherever they are, as a test's setup does for cards
+ *  that the work it runs has just drawn: they are in hand, on their way to
+ *  where that work puts them. */
+export function drawn(state: GameState, ...cards: string[]): void {
+  for (const card of cards) takeCard(state, card);
+}
+
+/** Puts cards on their discard piles, as a test's setup does for a card
+ *  whose effect it runs out of the blue: the card has been played. */
+export function discard(state: GameState, ...cards: string[]): void {
+  for (const card of cards) {
+    takeCard(state, card);
+    state.decks[ENGINE.catalog.cards[card].type].discard.push(card);
+  }
+}
+
+/** Puts room tiles in the house, as a test's setup, taking each from the
+ *  stack or the discards, so every tile stays in one place. */
+export function placeTiles(state: GameState, ...tiles: PlacedTile[]): void {
+  const ids = tiles.map((t) => t.tile);
+  state.board.stack = state.board.stack.filter((t) => !ids.includes(t));
+  state.board.discards = state.board.discards.filter((t) => !ids.includes(t));
+  state.board.tiles.push(...tiles);
 }

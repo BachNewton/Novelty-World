@@ -5,7 +5,6 @@ import { hauntRule, matchesRoom, secretValue } from "../../engine/haunt";
 import { moveCloser } from "../../engine/movement";
 import { askNumber, askStructured } from "../../engine/questions";
 import { local } from "../../engine/sources";
-import { start } from "../../engine/step-loop";
 import { placeOptions } from "../../engine/tiles";
 import { viewFor } from "../../engine/view";
 import { ENGINE } from "../../game";
@@ -22,6 +21,9 @@ import {
   testGame,
   waitingOn,
   type TestGame,
+  placeTiles,
+  interject,
+  pile,
 } from "../../testing";
 import type { GameState, RuleRef, Step } from "../../types";
 
@@ -64,7 +66,7 @@ function dreaming(
 
 /** Runs effects on a game, as a rule would, with nothing pending. */
 function run(state: GameState, steps: Step[]): GameState {
-  return start(ENGINE, { ...state, pending: null }, steps);
+  return interject(ENGINE, state, steps);
 }
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
@@ -200,7 +202,8 @@ describe("the sleeping body", () => {
     const pushed = run(dreaming(), [
       local("dark-dice", "push", { figure: FATHER }),
     ]);
-    expect(pushed.pending).toBeNull();
+    // Nothing more is asked: the turn carries on.
+    expect(pendingDecision(pushed).kind).toBe("turn");
   });
 });
 
@@ -306,7 +309,7 @@ describe("how Nightmares escape", () => {
         except: null,
       })[0];
       s.board.stack = s.board.stack.filter((t) => t !== "gardens");
-      s.board.tiles.push({ tile: "gardens", ...where });
+      placeTiles(s, { tile: "gardens", ...where });
       placeIn(s, N1, "gardens");
     });
     state = choose(state, "Escape from the house");
@@ -403,7 +406,7 @@ describe("waking the dreamer", () => {
   it("can't be tried with the Holy Symbol lying on a pile, nor away from the body", () => {
     const dropped = bedside();
     dropped.figures[ZOE].cards = [];
-    dropped.piles["entrance-hall"] = ["holy-symbol"];
+    pile(dropped, "entrance-hall", "holy-symbol");
     expect(labels(dropped)).not.toContain(WAKE_SANITY);
     const away = bedside();
     put(away, 2, "foyer");

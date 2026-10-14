@@ -6,7 +6,13 @@ import { TOKENS } from "../data/tokens";
 import { describeEvent } from "../engine/describe";
 import { viewFor } from "../engine/view";
 import { ENGINE } from "../game";
-import { choose, put, testGame } from "../testing";
+import {
+  choose,
+  put,
+  testGame,
+  placeTiles,
+  pile,
+} from "../testing";
 import type { GameState } from "../types";
 import { firstSpots, nextSpots } from "./spots";
 import { CLUSTER_SHOWN, clusterId, clusterReach, edgeSpot, nextClusters, PRESENCE, roomThings, shownObjects, shownThings, type Cluster } from "./things";
@@ -29,7 +35,7 @@ describe("what lives in rooms", () => {
 
   it("names the dropped cards as objects in their card's colour, and the tokens by their kind", () => {
     const state = withThings((s) => {
-      s.piles["entrance-hall"] = ["revolver", "skull"];
+      pile(s, "entrance-hall", "revolver", "skull");
       s.tokens.push({ token: "blessing", room: "foyer" }, { token: "secret-passage", room: "foyer", link: { room: "entrance-hall", side: null } }, { token: "closet", room: "foyer" });
     });
     const things = roomThings(ENGINE, viewOf(state));
@@ -57,7 +63,7 @@ describe("what lives in rooms", () => {
 
   it("never shows an explorer token as a thing on the floor: ending a turn in the Gymnasium (rooms.md) leaves one, shown on the room's badge", () => {
     let state = testGame();
-    state.board.tiles.push({ tile: "gymnasium", floor: "basement", x: 0, y: -1, rotation: 0 });
+    placeTiles(state, { tile: "gymnasium", floor: "basement", x: 0, y: -1, rotation: 0 });
     put(state, 0, "gymnasium");
     state = choose(state, "End your turn");
     expect(state.tokens).toContainEqual({ token: "explorer-yellow", room: "gymnasium" });
@@ -90,7 +96,7 @@ describe("what lives in rooms", () => {
 
 describe("objects on the floor", () => {
   const dropped = withThings((s) => {
-    s.piles["entrance-hall"] = ["revolver"];
+    pile(s, "entrance-hall", "revolver");
   });
 
   it("cluster off the prime place, and the figures stand round them, rings clear", () => {
@@ -112,13 +118,13 @@ describe("objects on the floor", () => {
     const spots = firstSpots(view, FLOORS);
     const first = nextClusters({}, roomThings(ENGINE, view), spots, FLOORS);
     const more = viewOf(withThings((s) => {
-      s.piles["entrance-hall"] = ["revolver", "skull", "candle"];
+      pile(s, "entrance-hall", "revolver", "skull", "candle");
     }));
     const joined = nextClusters(first, roomThings(ENGINE, more), spots, FLOORS);
     const id = clusterId("entrance-hall", null);
     expect(joined[id]).toMatchObject({ x: first[id].x, z: first[id].z, things: ["card:revolver", "card:skull", "card:candle"] });
     const fewer = viewOf(withThings((s) => {
-      s.piles["entrance-hall"] = ["candle", "revolver"];
+      pile(s, "entrance-hall", "candle", "revolver");
     }));
     expect(nextClusters(joined, roomThings(ENGINE, fewer), spots, FLOORS)[id]).toMatchObject({ x: first[id].x, things: ["card:revolver", "card:candle"] });
     expect(nextClusters(joined, [], spots, FLOORS)).toEqual({});

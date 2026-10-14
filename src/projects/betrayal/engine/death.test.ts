@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { choose, eventTypes, explorer, inHaunt, testGame, spectator } from "../testing";
+import {
+  choose,
+  eventTypes,
+  explorer,
+  inHaunt,
+  testGame,
+  spectator,
+  interject,
+  discard,
+} from "../testing";
 import type { GameState, RuleRef, Step } from "../types";
 import { describeEvent } from "./describe";
 import {
@@ -15,7 +24,7 @@ import {
   step,
 } from "./effects";
 import { explorersFrom } from "./figures";
-import { start, type Engine } from "./step-loop";
+import { type Engine } from "./step-loop";
 
 // Death (rules pp. 5, 16, 19): before the haunt a trait stops at its lowest
 // value; from the haunt on, a trait at the skull kills, unless a rule says
@@ -27,9 +36,12 @@ const FATHER = "father-rhinehardt";
 const BELL: RuleRef = { source: "card", card: "bell" };
 const ATTACK: RuleRef = { source: "rulebook", page: 13 };
 
-/** Runs effects on a game with nothing pending. */
+/** Runs effects on a game with nothing pending, the Bell's among them, so the
+ *  Bell has been played. */
 function run(state: GameState, steps: Step[], engine: Engine = ENGINE) {
-  return start(engine, { ...state, pending: null }, steps);
+  if (!Object.values(state.figures).some((f) => f.cards.includes("bell")))
+    discard(state, "bell");
+  return interject(engine, state, steps);
 }
 
 /** Zoe at her lowest Might and Speed, in the Foyer, holding the cards
@@ -100,8 +112,8 @@ describe("a trait at the skull", () => {
       damage(ZOE, "mental", { dice: 2 }, BELL),
       gain(ZOE, "sanity", 1, BELL),
     ]);
-    expect(after.turn?.over).toBe(true);
     expect(eventTypes(after)).toContain("turn-cut-short");
+    expect(eventTypes(after)).toContain("turn-ended");
     expect(eventTypes(after)).not.toContain("rolled");
     expect(eventTypes(after).filter((t) => t === "trait-changed")).toHaveLength(1);
     const cut = after.lastEvents.find((e) => e.type === "turn-cut-short");

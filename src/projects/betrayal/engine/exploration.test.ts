@@ -10,6 +10,11 @@ import {
   put,
   testGame,
   waitingOn,
+  give,
+  placeTiles,
+  interject,
+  pile,
+  drawn,
 } from "../testing";
 import type { GameState } from "../types";
 import { traitValue } from "./questions";
@@ -127,8 +132,8 @@ describe("forced steps and the player's acts", () => {
       },
     };
     const state = testGame();
-    explorer(state, 0).cards = ["axe"];
-    explorer(state, 1).cards = ["lucky-stone"];
+    give(state, 0, "axe");
+    give(state, 1, "lucky-stone");
     const after = choose(
       state,
       "Offer Ox Bellows your Axe for their Lucky Stone",
@@ -223,7 +228,7 @@ describe("omens and the haunt roll", () => {
 
   it("has whoever drew the omen make its roll, at the end of the turn it was drawn on (rules.md's project ruling)", () => {
     const base = testGame({ decks: { omen: ["book"] } });
-    base.board.tiles.push({
+    placeTiles(base, {
       tile: "abandoned-room",
       floor: "ground",
       x: 9,
@@ -233,7 +238,7 @@ describe("omens and the haunt roll", () => {
     put(base, 1, "abandoned-room");
     base.omensDrawn = 12;
     // Ox draws the Book on Zoe's turn.
-    let state = start(ENGINE, { ...base, pending: null }, [
+    let state = interject(ENGINE, base, [
       drawCard(OX, "omen", { source: "rulebook", page: 10 }),
       step("turn-menu", { seat: 0 }),
     ]);
@@ -264,8 +269,8 @@ describe("omens and the haunt roll", () => {
 describe("items", () => {
   function twoInTheHall(): GameState {
     const state = testGame();
-    explorer(state, 0).cards = ["axe"];
-    explorer(state, 1).cards = ["lucky-stone"];
+    give(state, 0, "axe");
+    give(state, 1, "lucky-stone");
     return state;
   }
 
@@ -296,7 +301,7 @@ describe("items", () => {
 
   it("won't let a companion be traded or dropped", () => {
     const state = testGame();
-    explorer(state, 0).cards = ["dog"];
+    give(state, 0, "dog");
     expect(
       labels(state).filter((l) => /^(Drop|Offer|Give).*Dog/.test(l)),
     ).toEqual([]);
@@ -306,7 +311,7 @@ describe("items", () => {
 describe("damage", () => {
   it("lets the player split it, offering each different outcome once", () => {
     const state = testGame();
-    const after = start(ENGINE, { ...state, pending: null }, [
+    const after = interject(ENGINE, state, [
       damage(ZOE, "physical", { points: 2 }, { source: "rulebook", page: 5 }),
     ]);
     expect(choices(ENGINE, after, 0).map((c) => c.label)).toEqual([
@@ -320,10 +325,11 @@ describe("damage", () => {
     const state = testGame();
     explorer(state, 0).traits.clips.might = 0;
     explorer(state, 0).traits.clips.speed = 0;
-    const after = start(ENGINE, { ...state, pending: null }, [
+    const after = interject(ENGINE, state, [
       damage(ZOE, "physical", { points: 2 }, { source: "rulebook", page: 5 }),
     ]);
-    expect(after.pending).toBeNull();
+    // Nothing more is asked: the turn carries on.
+    expect(pendingDecision(after).kind).toBe("turn");
     expect(eventTypes(after)).toEqual(["forced", "damaged"]);
   });
 });
@@ -332,7 +338,7 @@ describe("effects", () => {
   const rule = { source: "rulebook", page: 5 } as const;
 
   it("chooseOne offers each option by its label and runs the chosen option's steps", () => {
-    const state = start(ENGINE, { ...testGame(), pending: null }, [
+    const state = interject(ENGINE, testGame(), [
       chooseOne(
         ZOE,
         [
@@ -348,11 +354,11 @@ describe("effects", () => {
   });
 
   it("keeps an ongoing event out of the discard pile until it ends", () => {
-    const state = start(ENGINE, { ...testGame(), pending: null }, [
-      startOngoing("angry-being"),
-    ]);
+    const drawing = testGame();
+    drawn(drawing, "angry-being");
+    const state = interject(ENGINE, drawing, [startOngoing("angry-being")]);
     expect(state.ongoing).toEqual(["angry-being"]);
-    const ended = start(ENGINE, state, [endOngoing("angry-being")]);
+    const ended = interject(ENGINE, state, [endOngoing("angry-being")]);
     expect(ended.ongoing).toEqual([]);
     expect(ended.decks.event.discard).toContain("angry-being");
   });
@@ -398,15 +404,15 @@ describe("cards changing hands", () => {
     const kept = start(ENGINE, idle(base), [keepCard(ZOE, "lights-out")]);
     expect(gained(kept)).toEqual([{ figure: ZOE, card: "lights-out", by: "kept" }]);
 
-    const pile = testGame();
-    pile.piles["entrance-hall"] = ["axe"];
-    expect(gained(choose(pile, "Pick up the Axe"))).toEqual([
+    const piled = testGame();
+    pile(piled, "entrance-hall", "axe");
+    expect(gained(choose(piled, "Pick up the Axe"))).toEqual([
       { figure: ZOE, card: "axe", by: "picked-up" },
     ]);
 
     const trade = testGame();
-    explorer(trade, 0).cards = ["axe"];
-    explorer(trade, 1).cards = ["lucky-stone"];
+    give(trade, 0, "axe");
+    give(trade, 1, "lucky-stone");
     const traded = choose(
       choose(trade, "Offer Ox Bellows your Axe for their Lucky Stone"),
       "Accept the trade",
@@ -419,7 +425,7 @@ describe("cards changing hands", () => {
 
   it("keeps a card's marks for as long as they last", () => {
     const state = testGame();
-    explorer(state, 0).cards = ["axe", "lucky-stone"];
+    give(state, 0, "axe", "lucky-stone");
     const marked = start(ENGINE, idle(state), [
       markCard("axe", "held", true, "holder", rule),
       markCard("axe", "count", 2, "play", rule),
@@ -444,7 +450,7 @@ describe("cards changing hands", () => {
   it("returns a held card to its deck, shuffles the deck, and runs the card's onLose", () => {
     const state = testGame();
     state.decks.item.draw = state.decks.item.draw.filter((c) => c !== "bell");
-    explorer(state, 0).cards = ["bell"];
+    give(state, 0, "bell");
     const before = explorer(state, 0).traits.clips.sanity;
     const after = start(ENGINE, idle(state), [returnToDeck(ZOE, "bell", rule)]);
     expect(explorer(after, 0).cards).toEqual([]);

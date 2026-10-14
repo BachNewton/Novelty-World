@@ -3,7 +3,13 @@ import { logLines } from "../components/describe";
 import { BASE_ENGINE, ENGINE } from "../game";
 import { withHaunts } from "../kit/haunt";
 import { simulate } from "../simulation";
-import { choose, put, testGame, waitingOn } from "../testing";
+import {
+  choose,
+  put,
+  testGame,
+  waitingOn,
+  interject,
+} from "../testing";
 import {
   ALL_TOY_ENGINE,
   HEROES_ONLY,
@@ -20,7 +26,7 @@ import type { Decision, GameEvent, GameState, Json, RuleRef, Step } from "../typ
 import { describeDecision, describeWaiting } from "./describe";
 import { offerReplacement } from "./haunt";
 import { pullMonsters } from "./monsters";
-import { apply, start, type Engine } from "./step-loop";
+import { apply, type Engine } from "./step-loop";
 import { viewFor } from "./view";
 
 // Each kind of hidden material is looked for in the serialized view itself:
@@ -216,7 +222,7 @@ describe("a hidden traitor's monsters", () => {
     (f) => f.kind === "explorer" && f.owner === traitor,
   )?.id ?? "";
   const run = (state: GameState, steps: Step[]) =>
-    start(HIDDEN_ENGINE, { ...state, pending: null }, steps);
+    interject(HIDDEN_ENGINE, state, steps);
   const RULE: RuleRef = { source: "haunt", haunt: 13, section: "Rules" };
 
   it("keeps the haunt section behind the traitor's status, and its data, from the heroes", () => {

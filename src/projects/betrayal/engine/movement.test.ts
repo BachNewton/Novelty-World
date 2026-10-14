@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { at, choose, offered, put, testGame } from "../testing";
+import {
+  at,
+  choose,
+  offered,
+  put,
+  testGame,
+  placeTiles,
+  interject,
+  discard,
+} from "../testing";
 import type { GameState, RuleRef } from "../types";
 import { moveCloser, routeDistances } from "./movement";
 import { start } from "./step-loop";
@@ -10,8 +19,11 @@ const RULE: RuleRef = { source: "card", card: "bell" };
 const ZOE = "zoe-ingstrom";
 const OX = "ox-bellows";
 
-const run = (state: GameState, ...steps: Parameters<typeof start>[2]) =>
-  start(ENGINE, { ...state, pending: null }, steps);
+/** Runs the Bell's effects, so the Bell has been played. */
+const run = (state: GameState, ...steps: Parameters<typeof start>[2]) => {
+  discard(state, "bell");
+  return interject(ENGINE, state, steps);
+};
 
 describe("routeDistances", () => {
   it("counts spaces along connections, stairs included", () => {
@@ -33,7 +45,7 @@ describe("routeDistances", () => {
 
   it("counts crossing a barrier room as no space, when crossing is allowed", () => {
     const state = testGame();
-    state.board.tiles.push(
+    placeTiles(state, 
       { tile: "chasm", floor: "basement", x: 1, y: 0, rotation: 0 },
       { tile: "furnace-room", floor: "basement", x: 2, y: 0, rotation: 0 },
     );
@@ -60,7 +72,7 @@ describe("moveCloser (the Bell's 5+)", () => {
   it("lets the chooser pick between routes that tie", () => {
     const state = testGame();
     // The Ballroom joins the Entrance Hall and the Foyer's north doors to the room north of both.
-    state.board.tiles.push(
+    placeTiles(state, 
       { tile: "ballroom", floor: "ground", x: 2, y: -1, rotation: 0 },
       { tile: "abandoned-room", floor: "ground", x: 1, y: -1, rotation: 0 },
     );

@@ -3,13 +3,12 @@ import { distances, doorwaySpot, freeDoorways } from "./engine/board";
 import { describeDecision, describeEvent } from "./engine/describe";
 import { newGame, type TurnChoice } from "./engine/exploration";
 import { allFigures, roomOf } from "./engine/figures";
-import { migrate } from "./engine/format";
-import { activeHaunt } from "./engine/haunt";
 import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
 import { bestPlacements } from "./engine/tiles";
 import { viewFor } from "./engine/view";
+import { checkState } from "./test/invariants";
 import { ENGINE } from "./game";
-import type { Action, CardType, FloorId, GameState, Json } from "./types";
+import type { Action, FloorId, GameState, Json } from "./types";
 
 // Plays whole games headlessly with a random but legal policy on every seat,
 // checking the engine's invariants after every write. Seeded, so a failing
@@ -388,96 +387,6 @@ function houseFull(engine: Engine, state: GameState): boolean {
       f.place === null ||
       distanceTo(engine, state, f.place.room, open) === Infinity,
   );
-}
-
-/** What must hold after every write. */
-function checkState(engine: Engine, state: GameState): void {
-  const saved = JSON.parse(JSON.stringify(state)) as { [key: string]: Json };
-  if (JSON.stringify(migrate(saved)) !== JSON.stringify(state))
-    throw new Error("The state doesn't survive saving and loading");
-
-  if (state.status === "exploring") {
-    if (state.haunt !== null)
-      throw new Error("A haunt is recorded before the haunt");
-    if (state.pending === null)
-      throw new Error("Exploration stopped with nothing pending");
-  } else if (state.status === "haunt") {
-    // Only a haunt that isn't built yet stops the game at its reveal.
-    if (state.pending === null && activeHaunt(engine, state) !== null)
-      throw new Error("The haunt stopped with nothing pending");
-  } else if (state.status === "finished") {
-    if (state.result === null) throw new Error("A finished game has no result");
-    if (state.pending !== null || state.work.length > 0)
-      throw new Error("A finished game still has something to do");
-  } else {
-    throw new Error(`Unexpected status ${state.status}`);
-  }
-  if (state.status !== "finished" && state.result !== null)
-    throw new Error("A game still being played has a result");
-  // Before the haunt only a card or room may make an attack (p. 13).
-  if (
-    state.status === "exploring" &&
-    state.lastEvents.some(
-      (e) => e.type === "attacked" && e.rule.source === "rulebook",
-    )
-  )
-    throw new Error("An explorer took the attack action before the haunt");
-
-  // A game that has ended drops its unfinished work, cards and tiles in
-  // transit included, so only a game still being played is counted.
-  if (state.status === "finished") return;
-
-  // Every card is in exactly one place.
-  const places: string[] = [
-    ...(["omen", "item", "event"] as CardType[]).flatMap((type) => [
-      ...state.decks[type].draw,
-      ...state.decks[type].discard,
-    ]),
-    ...allFigures(state).flatMap((f) => f.cards),
-    ...Object.values(state.piles).flat(),
-    ...state.ongoing,
-    ...state.aside.map((a) => a.card),
-  ];
-  const cards = Object.values(engine.catalog.cards)
-    .filter((c) => state.sets.includes(c.set))
-    .map((c) => c.id);
-  // A card or tile drawn but not yet placed lives in the unfinished work.
-  const inTransit = JSON.stringify([state.pending, state.work]);
-  const held = (id: string) => inTransit.includes(`"${id}"`);
-  const missing = cards.filter((c) => !places.includes(c) && !held(c));
-  const doubled = places.filter((c, i) => places.indexOf(c) !== i);
-  if (missing.length > 0 || doubled.length > 0)
-    throw new Error(
-      `Cards out of place: missing ${missing.join(", ") || "none"}; doubled ${doubled.join(", ") || "none"}`,
-    );
-
-  // Every room tile is in exactly one place.
-  const tiles = [
-    ...state.board.tiles.map((t) => t.tile),
-    ...state.board.stack,
-    ...state.board.discards,
-  ];
-  const tileDoubled = tiles.filter((t, i) => tiles.indexOf(t) !== i);
-  if (tileDoubled.length > 0)
-    throw new Error(`Room tiles doubled: ${tileDoubled.join(", ")}`);
-  const rooms = Object.values(engine.catalog.rooms).filter((r) =>
-    state.sets.includes(r.set),
-  );
-  const tileMissing = rooms
-    .map((r) => r.id)
-    .filter((r) => !tiles.includes(r) && !held(r));
-  if (tileMissing.length > 0)
-    throw new Error(`Room tiles missing: ${tileMissing.join(", ")}`);
-
-  for (const figure of allFigures(state)) {
-    if (
-      figure.place !== null &&
-      !state.board.tiles.some((t) => t.tile === figure.place?.room)
-    )
-      throw new Error(
-        `${figure.id} is in ${figure.place.room}, which isn't in the house`,
-      );
-  }
 }
 
 function record(

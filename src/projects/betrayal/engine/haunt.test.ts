@@ -11,6 +11,7 @@ import {
   testGame,
   type TestGame,
   spectator,
+  interject,
 } from "../testing";
 import type { Action, GameEvent, GameState, TurnKind } from "../types";
 import { describeEvent } from "./describe";
@@ -19,7 +20,7 @@ import { die, removeStatus } from "./effects";
 import { hauntRule, revealSecret } from "./haunt";
 import { escapeTheHouse } from "../kit/rules";
 import { hauntSourceId, local } from "./sources";
-import { apply, start, type Engine } from "./step-loop";
+import { apply, type Engine } from "./step-loop";
 
 // The haunt framework, played through a toy haunt built from the kit
 // (test/toy-haunt.ts): the reveal in the order rules.md settles it, the
@@ -113,7 +114,7 @@ describe("the haunt's reveal", () => {
 
   it("shows a secret to everyone, and takes a status off, saying so", () => {
     const rule = { source: "haunt", haunt: 13, section: "Rules" } as const;
-    const state = start(TOY_ENGINE, { ...readyAll(hauntGame()), pending: null }, [
+    const state = interject(TOY_ENGINE, readyAll(hauntGame()), [
       revealSecret("target", rule),
       removeStatus(OX, "dozing", rule),
     ]);
@@ -421,7 +422,7 @@ describe("conditions and the result", () => {
   it("counts a hero who changed sides with the traitor's side, who wins with it", () => {
     const state = readyAll(hauntGame());
     state.seats[2] = { ...state.seats[2], side: "traitor", roles: [] };
-    const after = start(TOY_ENGINE, { ...state, pending: null }, [
+    const after = interject(TOY_ENGINE, state, [
       die(ZOE, { source: "scenario" }),
     ]);
     expect(after.result?.winners).toEqual([1, 2]);
