@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { TEACHING_RAMP } from "../coop-courses/teaching-ramp";
+import { BLOCK_PARTY } from "../coop-courses/block-party";
+import type { DesignedCourse } from "../coop-courses/design";
+import { LONG_AND_SHORT } from "../coop-courses/long-and-short";
+import { TEA_FOR_TWO } from "../coop-courses/tea-for-two";
 import { tickTiming } from "../ticks";
 import { rowSolids } from "../traffic";
 import { TUNING } from "../tuning";
@@ -8,6 +11,15 @@ import { DEFAULT_SLOT } from "./solver";
 import type { TeamPose } from "./team-plan";
 
 const AIR_SLOTS = tickTiming(TUNING).hopAirtime / DEFAULT_SLOT;
+
+const ANALYSED = new Map([BLOCK_PARTY, TEA_FOR_TWO, LONG_AND_SHORT].map((course) => [course, analyseCoopCourse(course, TUNING, AIR_SLOTS)]));
+
+// A designed course's row, analysed, by its lesson.
+function rowOf(course: DesignedCourse, lesson: string) {
+  const row = ANALYSED.get(course)?.find((r) => r.lesson === lesson);
+  if (row === undefined) throw new Error(`${course.id} has no row "${lesson}"`);
+  return row;
+}
 
 describe("coupling and decoys", () => {
   it("reads two Os on a narrow road: free either side of the middle, with spots that strand the partner", () => {
@@ -29,38 +41,29 @@ describe("coupling and decoys", () => {
     });
   });
 
-  it("reads the teaching ramp's side-by-side rows as parallel solo, and its one-up rows and finale as coupled or full of decoys", () => {
-    const rows = analyseCoopCourse(TEACHING_RAMP, TUNING, AIR_SLOTS);
-    const byLesson = (lesson: string) => {
-      const row = rows.find((r) => r.lesson === lesson);
-      if (row === undefined) throw new Error(`no row "${lesson}"`);
-      return row;
-    };
-    expect(byLesson("jump together").coupling.label).toBe("parallel solo");
-    expect(byLesson("each stands up").coupling.label).toBe("parallel solo");
-    expect(byLesson("both up, each its own").coupling.label).toBe("parallel solo");
-    for (const lesson of ["noses together", "make room on the left", "Sprout goes up", "Splash up, far right"]) {
-      expect(byLesson(lesson).coupling.label, lesson).toBe("partly coupled");
-      expect(byLesson(lesson).coupling.coupling, lesson).toBeGreaterThan(0.3);
+  it("reads the designed courses' rows each their own way: parallel solo, coupled, or fully coupled", () => {
+    expect(rowOf(TEA_FOR_TWO, "jump together").coupling.label).toBe("parallel solo");
+    expect(rowOf(TEA_FOR_TWO, "each stands up").coupling.label).toBe("parallel solo");
+    expect(rowOf(LONG_AND_SHORT, "stand tall, hop high").coupling.label).toBe("parallel solo");
+    for (const lesson of ["Splash points down", "Sprout points down", "Splash leans in"]) {
+      expect(rowOf(TEA_FOR_TWO, lesson).coupling.label, lesson).toBe("partly coupled");
+      expect(rowOf(TEA_FOR_TWO, lesson).coupling.coupling, lesson).toBeGreaterThan(0.3);
     }
-    const finale = byLesson("both up, back to back");
+    const finale = rowOf(LONG_AND_SHORT, "the plank and the block");
     expect(finale.passes).toBe(1);
-    expect(finale.coupling.decoys).toEqual([2, 2]);
-    expect(finale.coupling.label).toBe("partly coupled");
+    expect(finale.coupling.decoys).toEqual([2, 1]);
+    expect(finale.coupling.label).toBe("fully coupled");
   });
 });
 
 describe("coordination kinds", () => {
-  const rows = analyseCoopCourse(TEACHING_RAMP, TUNING, AIR_SLOTS);
-  const kindsOf = (lesson: string) => rows.find((row) => row.lesson === lesson)?.answer;
-
-  it("reads the teaching ramp's answers", () => {
-    expect(kindsOf("jump together")).toEqual([]);
-    expect(kindsOf("hop together")).toEqual(["both up"]);
-    expect(kindsOf("noses together")).toEqual(["interlock"]);
-    expect(kindsOf("make room on the left")).toEqual(["interlock", "order"]);
-    expect(kindsOf("Sprout goes up")).toEqual(["perch", "interlock"]);
-    expect(kindsOf("both up, back to back")).toEqual(["both up", "interlock"]);
+  it("reads the designed courses' answers", () => {
+    expect(rowOf(BLOCK_PARTY, "jump together").answer).toEqual([]);
+    expect(rowOf(BLOCK_PARTY, "hop together").answer).toEqual(["both up"]);
+    expect(rowOf(BLOCK_PARTY, "shoulder to shoulder").answer).toEqual(["interlock"]);
+    expect(rowOf(BLOCK_PARTY, "make room on the right").answer).toEqual(["interlock", "order"]);
+    expect(rowOf(TEA_FOR_TWO, "Splash points down").answer).toEqual(["interlock"]);
+    expect(rowOf(LONG_AND_SHORT, "Splash steps onto the plank").answer).toEqual(["perch", "interlock", "order"]);
   });
 
   it("sees the frogs swap sides", () => {
@@ -78,19 +81,20 @@ describe("coordination kinds", () => {
 
   it("tells a perch from both frogs up with nothing under them", () => {
     const start: TeamPose = [
-      { kind: "O", col: 0, rotation: 0, air: null },
-      { kind: "O", col: 3, rotation: 0, air: null },
+      { kind: "I", col: 0, rotation: 0, air: null },
+      { kind: "O", col: 5, rotation: 0, air: null },
     ];
-    // An O up one cell over a grounded O's top: standing on it.
+    // An O up one cell over a flat I: standing on it. (An O can't stand on
+    // an O: it is two cells tall, and a hop lifts it one.)
     const perched: TeamPose = [
-      { kind: "O", col: 0, rotation: 0, air: 0 },
-      { kind: "O", col: 1, rotation: 0, air: null },
+      { kind: "I", col: 0, rotation: 0, air: null },
+      { kind: "O", col: 1, rotation: 0, air: 0 },
     ];
-    expect(coordinationKinds(start, perched, 6, AIR_SLOTS)).toContain("perch");
+    expect(coordinationKinds(start, perched, 7, AIR_SLOTS)).toContain("perch");
     const bothUp: TeamPose = [
-      { kind: "O", col: 0, rotation: 0, air: 0 },
-      { kind: "O", col: 3, rotation: 0, air: 0 },
+      { kind: "I", col: 0, rotation: 0, air: 0 },
+      { kind: "O", col: 5, rotation: 0, air: 0 },
     ];
-    expect(coordinationKinds(start, bothUp, 6, AIR_SLOTS)).toEqual(["both up"]);
+    expect(coordinationKinds(start, bothUp, 7, AIR_SLOTS)).toEqual(["both up"]);
   });
 });

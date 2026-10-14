@@ -11,9 +11,9 @@ import type { Theme } from "./song";
 const FINISH_FADE_SECONDS = 1.5;
 
 // Renders a theme ahead, in a menu, so it is ready when the game plays it.
-export function usePreparedMusic(theme: Theme | null): void {
+export function usePreparedMusic(theme: Theme): void {
   useEffect(() => {
-    if (theme !== null) void prepareTheme(theme);
+    void prepareTheme(theme);
   }, [theme]);
 }
 
@@ -21,9 +21,8 @@ export function usePreparedMusic(theme: Theme | null): void {
 // overpass, looping, until the finish line, where it fades out under the
 // finish fanfare. A restart stops it, and the next drop starts it again from
 // the top. The overpass and the done screen are quiet.
-export function useGameMusic(session: Session, theme: Theme | null): void {
+export function useGameMusic(session: Session, theme: Theme): void {
   useEffect(() => {
-    if (theme === null) return;
     void prepareTheme(theme);
     // Moves on whenever the music stops, so a render finishing later doesn't
     // start a theme that is no longer wanted.

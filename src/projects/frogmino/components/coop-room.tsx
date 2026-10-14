@@ -9,6 +9,7 @@ import { cn } from "@/shared/lib/utils";
 import { COOP_CAPACITY, type HostSeat } from "../coop";
 import { coopCourseById } from "../coop-courses";
 import { CourseCard, CoursePicker } from "./course-picker";
+import { StickyActions } from "./sticky-actions";
 
 interface CoopRoomProps {
   status: RoomStatus;
@@ -143,17 +144,19 @@ export function CoopRoom({ status, isHost, selfId, players, seat, course, onCour
       {notice && <p className="font-bold text-brand-pink">{notice}</p>}
       <PlayerList players={shown} selfId={selfId} />
       {status === "connected" && <CourseChoice isHost={isHost} course={course} onCourse={onCourse} />}
-      {status === "connected" &&
-        (isHost ? (
-          <Button onClick={onStart} disabled={seat.partnerPeerId === null} className="px-8 py-3 text-lg font-bold">
-            Start
-          </Button>
-        ) : (
-          <p className="animate-pulse text-text-secondary">Waiting for the host to start…</p>
-        ))}
-      <Button variant="ghost" onClick={onLeave}>
-        Leave
-      </Button>
+      <StickyActions>
+        {status === "connected" &&
+          (isHost ? (
+            <Button onClick={onStart} disabled={seat.partnerPeerId === null} className="px-8 py-3 text-lg font-bold">
+              Start
+            </Button>
+          ) : (
+            <p className="animate-pulse text-text-secondary">Waiting for the host to start…</p>
+          ))}
+        <Button variant="ghost" onClick={onLeave}>
+          Leave
+        </Button>
+      </StickyActions>
     </Screen>
   );
 }

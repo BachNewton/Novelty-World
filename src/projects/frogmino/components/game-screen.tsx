@@ -89,7 +89,7 @@ export function GameScreen({
   children,
 }: {
   session: Session;
-  music: Theme | null;
+  music: Theme;
   seating: Seating;
   keyboard: KeyboardLayout;
   touch: boolean;

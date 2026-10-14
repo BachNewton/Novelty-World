@@ -1,14 +1,18 @@
 import { TUNING } from "../tuning";
+import { BLOCK_PARTY } from "./block-party";
 import { checkCoopCourse } from "./check";
 import { COURSE_TIERS, type DesignedCourse } from "./design";
-import { TEACHING_RAMP } from "./teaching-ramp";
+import { LONG_AND_SHORT } from "./long-and-short";
+import { TEA_FOR_TWO } from "./tea-for-two";
 
 // Every designed co-op course, the picker's list. A course is its own file in
 // this folder and one line here (see "Adding a co-op course" in the project's
 // CLAUDE.md). Each is checked as the list is built, so a broken course fails
 // loudly before anyone plays it.
 const COURSES: readonly DesignedCourse[] = [
-  TEACHING_RAMP,
+  BLOCK_PARTY,
+  TEA_FOR_TWO,
+  LONG_AND_SHORT,
 ];
 
 export function buildCoopRegistry(courses: readonly DesignedCourse[]): readonly DesignedCourse[] {

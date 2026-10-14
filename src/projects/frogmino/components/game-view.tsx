@@ -21,7 +21,7 @@ const FrogminoScene = dynamic(() => import("./scene").then((m) => m.FrogminoScen
 // what every way of playing shares, whoever its players are. What goes
 // between the scene and the corner controls (input layers, legends,
 // overlays) is the caller's.
-export function GameView({ session, music, children }: { session: Session; music: Theme | null; children?: ReactNode }) {
+export function GameView({ session, music, children }: { session: Session; music: Theme; children?: ReactNode }) {
   // The team's state, mirrored on the page for the end-to-end tests to wait
   // on: its depth, each frog's column, when each frog last hopped, the rows
   // passed and the last bonk.

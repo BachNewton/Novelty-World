@@ -13,6 +13,7 @@ import { EMPTY_LINEUP, isFull, join, leave, type Lineup } from "../input/lineup"
 import { courseMusic } from "../audio/music/course-music";
 import { usePreparedMusic } from "../audio/music/use-game-music";
 import { CoursePicker } from "./course-picker";
+import { StickyActions } from "./sticky-actions";
 
 // Local co-op's join screen: each device on this computer (either half of
 // the keyboard, each controller) presses its join button to take the next
@@ -145,7 +146,7 @@ export function LocalJoin({
       <section aria-label="Course" className="w-full max-w-md">
         <CoursePicker selected={course} onSelect={setCourse} />
       </section>
-      <div className="flex flex-wrap justify-center gap-3">
+      <StickyActions>
         <Button onClick={onBack} variant="ghost">
           Back to lobby
         </Button>
@@ -158,7 +159,7 @@ export function LocalJoin({
         >
           Start
         </Button>
-      </div>
+      </StickyActions>
     </div>
   );
 }

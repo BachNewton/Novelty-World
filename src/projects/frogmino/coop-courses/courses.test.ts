@@ -75,6 +75,11 @@ describe("every registered co-op course", () => {
     for (const row of analyseCoopCourse(course, TUNING, AIR_SLOTS)) expect(row.answerReachable, row.lesson).toBe(true);
   });
 
+  it("lists the easy courses gentlest first, Block Party leading", () => {
+    expect(COOP_COURSES.filter((course) => course.tier === "easy").map((course) => course.id)).toEqual(["block-party", "tea-for-two", "long-and-short"]);
+    expect(DEFAULT_COOP_COURSE).toBe("block-party");
+  });
+
   it("starts the picker on the first easy course", () => {
     expect(coopCourseById(DEFAULT_COOP_COURSE).tier).toBe("easy");
     expect(DEFAULT_COOP_COURSE).toBe(COOP_COURSES.find((course) => course.tier === "easy")?.id);
@@ -83,8 +88,8 @@ describe("every registered co-op course", () => {
 
 describe("the registry", () => {
   it("finds a course by id, and fails loudly on one it doesn't have, naming those it does", () => {
-    expect(coopCourseById("teaching-ramp").name).toBe("Teaching Ramp");
-    expect(() => coopCourseById("nowhere")).toThrow(/no co-op course "nowhere"; the courses are teaching-ramp/);
+    expect(coopCourseById("block-party").name).toBe("Block Party");
+    expect(() => coopCourseById("nowhere")).toThrow(/no co-op course "nowhere"; the courses are block-party/);
   });
 
   it("refuses two courses with one id, or none at all", () => {

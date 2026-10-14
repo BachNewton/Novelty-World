@@ -1,24 +1,27 @@
-import { TEACHING_RAMP } from "../coop-courses/teaching-ramp";
+import { LONG_AND_SHORT } from "../coop-courses/long-and-short";
 import { courseOf, startRun } from "../courses";
 import { playTo, type TimedInput } from "../run";
 import type { ReplayData } from "./replay-data";
 
-// The perch, in its simplest form: Sprout stands on Splash. It is the
-// solver's proof of the teaching ramp, the first co-op course, up to the row
-// where Sprout goes up, its foot on Splash's foot, played with two jumps
-// fewer before that row. The row then comes later than the plan's hop allows for, so Sprout's hop runs
-// out first, with Splash's foot already under it: it can't land, so it
-// stands on Splash until the row arrives, and passes. A hop pressed early is
-// forgiven whenever the partner is underneath.
+// The perch, in its simplest form: Splash's O stands on Sprout's flat I. It
+// is the solver's proof of Long and Short up to the row where Splash steps
+// onto the plank, played with two jumps fewer before that row. The row then
+// comes later than the plan's hop allows for, so Splash's hop runs out
+// first, with the plank already under it: it can't land, so it stands on
+// Sprout until the row arrives, and passes. A hop pressed early is forgiven
+// whenever the partner is underneath.
 
-export const PERCH_ROW = TEACHING_RAMP.rows.findIndex((row) => row.lesson === "Sprout goes up");
+export const PERCH_COURSE = LONG_AND_SHORT;
+export const PERCH_ROW = PERCH_COURSE.rows.findIndex((row) => row.lesson === "Splash steps onto the plank");
+// The frog that stands on its partner.
+export const PERCHER = 1;
 
 const JUMPS_FEWER = 2;
 // How long the replay runs on after the perch row passes, in ticks.
 const TAIL = 200;
 
 export function perchReplay(proof: ReplayData): ReplayData {
-  if (PERCH_ROW === -1) throw new Error("The teaching ramp has no row where Sprout goes up");
+  if (PERCH_ROW === -1) throw new Error(`${PERCH_COURSE.name} has no row where Splash steps onto the plank`);
   const course = courseOf(proof.course);
   // Ticks up to the moment the team has passed `rows` rows.
   const passed = (log: readonly TimedInput[], rows: number): number => {
@@ -35,7 +38,7 @@ export function perchReplay(proof: ReplayData): ReplayData {
   const dropped = new Set(jumps.slice(-JUMPS_FEWER));
   const log = proof.log.filter((input) => input.tick <= through && !dropped.has(input));
   return {
-    description: "Local co-op: Sprout hops early onto Splash's foot and stands there until the row arrives, the perch in its simplest form.",
+    description: "Local co-op: Splash hops early onto Sprout's plank and stands there until the row arrives, the perch in its simplest form.",
     course: proof.course,
     log,
     until: passed(log, PERCH_ROW + 1) + TAIL,
