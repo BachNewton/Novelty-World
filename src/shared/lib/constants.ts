@@ -152,6 +152,13 @@ export const PROJECTS: Project[] = [
     categorySlug: "tools",
     icon: "Gamepad2",
   },
+  {
+    name: "Connection Test",
+    slug: "connection-test",
+    description: "Host and join a room from two devices and measure the round trip between them",
+    categorySlug: "tools",
+    icon: "Activity",
+  },
 ];
 
 /** Build the full URL path for a project (e.g., "/games/monopoly") */
