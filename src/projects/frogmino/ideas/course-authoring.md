@@ -47,23 +47,92 @@ How the rest builds on it:
 - **Play** grows from the solver: today it plays at one fixed pace and only between rows; the automated player for medals needs the fastest route, moves made while a row overlaps the team, and recovery after a bonk. Until it has them, each course's medal times are provisional, set from the solver's proof and the held-jump floor, which the prove CLI prints (see Courses and medals in the project's CLAUDE.md).
 - **Preview** grows from the ASCII faces into pictures of rows and courses.
 
-## Designing co-op rows
+## Designing co-op courses
 
-What designing the first co-op course, a teaching ramp for an L and a J on ten lanes since replaced by the courses in `coop-courses/`, taught, for the skill to come. The steps for adding a course are Adding a co-op course in the project's `CLAUDE.md`.
+What designing co-op courses has taught: first a teaching ramp for an L and a J (since replaced), then the three easy and two medium courses in `coop-courses/`. These notes gather it in one place ahead of a course-design skill. The steps for adding a course are Adding a co-op course in the project's `CLAUDE.md`. The courses themselves are the worked examples: read a course's file and its CLI summary together.
 
-- **Openings are lanes.** A vehicle fills its lanes from the road up and never hangs over an empty one, so an opening is mostly whole free lanes, the space above low vehicles, and the odd roof under an overhang (a car carrier's deck, a crane's arm). A shape the frogs make together reads only where each lane of it starts on the road or on a low vehicle; a hole under a piece, such as the gap beneath a bar, is a cell no vehicle can fill, so it stays open and lets other answers through.
-- **So the pair's shapes are few.** For the L and the J, no interlock with both frogs on the road leaves no hole. The clean shapes are side by side, touching (noses together, a cup, a lean, a bridge over a low vehicle), and one up, one down (a foot on the partner's foot, lying across a low vehicle onto it). Answer-first works: choose the pair's pose, then the vehicles that outline it.
-- **The air above is open.** Everything above a low vehicle or a free lane is open to the top of the face, so raised poses pass alongside the intended one. Count them with the pose count rather than fight them: a row stays readable if its intended answer is the shape the opening shows.
-- **Mirror images.** The L and the J are mirror images, and on an even road the frogs start as mirror images too, so a row mirrored about the middle sets both frogs the same task. It is the quickest read there is, and the place to start a ramp.
-- **Who goes where.** Frogs keep their sides of each other, except where a turn kicks two lanes through the partner; answers keep Sprout on the left. Making room (one frog moving aside before its partner can pass) is a lesson of its own.
-- **Timing is a co-op idea too.** A frog up with nothing under it must hop within its airtime of the row, so two frogs up at once must hop together; a frog up on its partner's foot can hop as early as it likes (the perch). Both are worth a row.
-- **Pacing.** One idea a row, each new idea first where it is easy to see, then combined, ending on the row with one answer. Early rows get more reading room. A course's finish is its own: put it just past the last row, which the course checks hold to a team jumping flat out meeting every row first. A slow team meets the rows again after the last, every row unless the course says only its last few.
-- **Prove in the answers,** and count each row's passing poses: hundreds is a warm-up, a handful a puzzle, one a finale.
-- **Measure whether a row needs both frogs.** The pose count says how hard a row is, not whether it is co-op. Coupling says how far the frogs' ways through depend on each other: 0, parallel solo, means a lane line splits the road and each frog can take any of its own ways; near 1, every way through has the frogs sharing lanes. Selfish decoys count the ways a frog alone fits that leave its partner nowhere, the row's traps for a player not watching the other. The coordination kinds say what the designed answer asks: a perch, both up, an interlock, order or crossing. On the teaching ramp, the side-by-side rows read parallel solo, as meant. The one-up rows read partly coupled with many decoys: their answer is a perch, but a few ways through keep the frogs in their own lanes, a raised frog to one side of its partner. Hopping together over low vehicles reads partly coupled too, since the open air over them lets raised frogs drift into each other's lanes. The finale has one way through and four decoys, its frogs in lanes of their own, so the coordination it asks is the timing of two frogs up at once. To make a row truly need both frogs, close the ways through that keep the frogs apart: an answer that shares lanes and the fewest free pairings.
+### What makes a co-op course good
+
+- **Neither frog can get through alone.** Co-op is Brain Wall's pairs: two players making a shape neither could make by themselves. A row the frogs can pass as two separate solo puzzles is *parallel solo*. That's fine as a warm-up or a breather, and wrong as the substance of a course.
+- **Fun is the call-outs.** "You go up, I'll go under", "wait, let me move first". The shared jump makes the team agree a pace, and the shared bonk makes one player's slip cost both. That shared stake is only fair when the opening's shape makes each frog's job readable, so a bonk shows which frog didn't fit.
+- **Interesting is variety in how the frogs coordinate,** not just new vehicle layouts. The kinds:
+  - **interlock:** fitting the two pieces into one shape;
+  - **order:** one frog must move before the other can reach its spot ("make room");
+  - **timing:** both hop together, with nothing under either;
+  - **support (the perch):** one frog stands on the other, which also forgives an early hop;
+  - **pace:** the gaps make the team hurry or wait as one.
+- **No designed answer needs a crossing.** The frogs only swap sides by a turn kicking two lanes through the partner, an open rules question, so answers keep each frog on its own side, Sprout on the left.
+- **Challenging means coordination difficulty:**
+  - **Good:** a team pose that's hard to find, steps that must come in order, both players committing to a plan before the row arrives, and selfish decoys (a pose that fits one frog well and strands its partner), from medium on.
+  - **Not co-op difficulty:** individual dexterity, each player's reflexes tested separately.
+  - **Tight both-up timing is harder online,** where each player sees the partner late. Keep it rare, give it reading room, and design it so players call it out ("hop on three") rather than react to each other.
+- **Satisfying is the interlock clicking into place.** That needs an answer the opening's shape suggests (the vehicles outline where each frog goes), and *chains*, where the pose one row leaves the team in sets up the next.
+
+### Courses, tiers and medals
+
+- **Each co-op course fixes its pair of pieces,** with no gates (see Open questions in the project's `CLAUDE.md`). The pair is the course's identity, so choose it first, for what its shapes can do (below).
+- **The arc:** warm-up, build, breather, climax. One idea a row, each new idea first where it's easy to see, then repeated, then combined. Reading room is longest early and shrinks as the course goes. End on the course's hardest, most coupled row.
+- **Short courses.** A medal is chased by retrying, and a retry is the whole course, so courses stay around one to two minutes:
+
+  | Tier | Rows | Coupled rows | Gaps | Passing poses per row |
+  |---|---|---|---|---|
+  | Easy | 8–10 | about half; mirrored rows welcome | long (`READ_SLOW`, `READ`) | tens to hundreds |
+  | Medium | 12–14 | most, apart from one or two breathers | `READ` shrinking to `PACE` | about 5–14, with 2–4 in order |
+  | Hard | 14–16 | nearly all | `PACE`, with 10-unit bursts in chains | one, or a short-gap chain into one |
+
+- **Medium rows** are fully coupled, every in-order way through is the same kind (all perches, say), and the row's decoy is the habit from the row before.
+- **The finish** sits about five units past where a team jumping flat out meets the last row; the course checks hold every row to coming before it.
+- **Medal times,** the same rule for every course so the tiers compare, from the proof's time and the held-jump floor the CLI prints, rounded to five seconds:
+  - gold about halfway between the floor and the proof;
+  - silver about 90% of the proof;
+  - bronze about 125% of the proof.
+
+  So the solver's own careful run earns bronze. They stay provisional until playtesting.
+
+### The shapes the road allows
+
+- **Openings are lanes.** A vehicle fills its lanes from the road up and never hangs over an empty one, so an opening is mostly whole free lanes, the space above low vehicles, and the odd roof under an overhang. A shape the frogs make together reads only where each lane of it starts on the road or on a low vehicle. A hole under a piece, such as the gap beneath a bar, is a cell no vehicle can fill, so it stays open and lets other answers through.
+- **The open air above is what fights tight rows.** Nothing roofs rows 2 and 3 over three or more lanes, so a grounded answer with nothing over it lets raised poses through (two nested Ts on the road pass 72 ways). Rows go tight when the answer itself reaches row 2 (a perch, a lean) and buses pin its sides.
+- **Ceilings come only from overhangs.** The vocabulary of single-cell overhangs is small:
+  - **Over a lone lane at row 1,** with the road open under it: Z1 and S1 give two-cell overhangs (Z1 over its right lane, S1 its left); Z0, S0 and T2's arms give one cell; J2 and L2 overhang two lanes.
+  - **At row 2:** only the J1 and L3 arms.
+  - **Low lanes (blocked at row 0 only):** J3's left lane, L1's right lane, the J0 and L0 feet, T0's arms, and I0.
+  - **A two-lane roof at row 2** needs J1 and L3 together. That costs four lanes, which caps how often such a "garage" fits on a narrow road.
+- **A perch needs a one-cell-tall part underneath.** A hop lifts a frog one cell, so a raised frog can stand only on a flat I, a T's arm or nose, or an L's or J's foot. A two-cell-tall piece can't perch on another: a raised O always overlaps a grounded O.
+- **Answer-first works:** choose the team's pose, then the vehicles that outline it.
+
+### What each pair is good at
+
+| Pair | Good at | Bad at |
+|---|---|---|
+| L + J (mirror pair) | Side-by-side touching shapes (noses together, a cup, a lean, a bridge over a low vehicle); one up, one down (a foot on the partner's foot). Mirrored rows on an even road set both frogs the same task, the quickest read there is. | No interlock with both frogs on the road leaves no hole. |
+| O + O | Reads at once; make-room chains work well. All placement and order. | No perch, and no real coupling: "one up, one down" is only a step, the two blocks side by side, one a cell higher. |
+| T + T | Two strong shapes: the nest (one pointing up, one down, offset into a parallelogram, outlined by an S1 or Z1 overhang over one end and a J3 or L1 low lane under the other) and the lean (one T on its side, the other up a cell with its nose on the first's). | The nest leaves holes under the arms that need specific vehicles. On 8 lanes the start is off-centre. A T kicks through its partner easily, so half its passes are crossed. |
+| I + O | The clearest roles and the best perch: the O on a flat I. Tight answers are easy to force, since the I is only a flat bar or a full-height pole. | A row with the O beside the I uses a lot of road. |
+| S + Z (mirror pair) | Stacks: one flat on the other's step, or on the partner standing as a tower. These read fully coupled with decoys, and swapping who's on top gives order and habit traps for free. | Low pass counts. The V and the bridge stay at 13–27 passes, tall-plus-flat hooks at about 19, and every tower row keeps a second in-order pass (the S flat with the Z upright on it). No S + Z row with a single in-order pass has been found, so its finales are hard by chain and swap. |
+| T + L | The L leaning on, hooking or resting on the T: fully coupled rows, perches that can be forced, and a hook with one pass. Chains well, since the T often holds still while the L changes. | The T on top of the L always lets a side-by-side raised pose through: the L climbs, the T supports. |
+
+### Reading the measures
+
+`npm run frogmino:prove -- <id> --brief` prints per row: the passing poses (in order and crossed), coupling with its label, selfish decoys per frog, and the coordination kinds of the designed answer.
+
+- **Coupling only sees shared lanes.** At its best lane line, it compares the team's ways through with every free pairing of the frogs' solo ways. 0 means a line splits the road and each frog picks freely; 1 means every way through shares a lane.
+- **Read coupling with the kinds and the pass count, never alone.** It reads 0 for a both-up timing row that truly needs both frogs. It stays near 0 for any pair that can't share a lane (two Os, two flat pieces), whose coordination shows only as order, interlock and decoys. It reads low on a perch row where a raised frog can sit beside its partner instead of on it.
+- **A lesson row must force its kind.** If the lesson is the perch, the side-by-side raised alternative must not pass (the teaching ramp's one-up rows failed this). Check the in-order passes, not the total: crossed passes need a kick through the partner. Printing every in-order passing pose under the row's face shows which alternatives are still open.
+- **The kinds count any perch,** so read the pass list to see which frog is up.
+- **Hundreds of passing poses** is a warm-up, **a handful** a puzzle, **one** a finale.
+
+### How to work
+
+- **Search, then hand-finish.** The medium courses were found with a throwaway script: given an answer pose, it samples rows that keep that pose open and scores them with `analyse.ts`. A filter rejects any row where an in-order pass has a raised frog not on its partner, which is how to force a perch. That was far faster than editing a course file and rerunning the CLI. A row-search tool along those lines is worth building into `proof/`, along with a `--passes` flag that prints a row's in-order passing poses.
+- **The CLI doesn't check that an answer passes while drafting;** only the course check does, once the course is registered. Mark the cells where a frog would sit in a vehicle as you draft, so a broken answer shows before it's registered.
+- **Chains create order for free.** Pick the next row's answer so that one frog's target overlaps where its partner was left standing.
+- **Short gaps (10) work** and still prove, as long as each answer is one move from the last. Use them for chains, not for travel. Moving a stack four or more lanes in a 13-unit gap is fine for the solver, and it's where players will bonk.
+- **Prove in the answers,** and save the proof as a replay to watch it played.
 
 ## Claude's skill
 
-A project skill that teaches course design for Frogmino: what makes a row interesting (one clean answer, a tempting decoy, a forced rotation, a hop that riding forgives), how to pace a course (warm-up, build, breather, climax), how to use gates as a puzzle (sometimes needed later, sometimes a trap, sometimes a shortcut), how to design for co-op pairs, and how to set medal times from the automated player. It ends with the tools: design, validate, analyse, play, revise.
+Not yet: the lessons gather in Designing co-op courses first, course by course, and become a skill once there are enough of them to be sure. The skill would teach course design for Frogmino: what makes a row interesting (one clean answer, a tempting decoy, a forced rotation, a hop that riding forgives), how to pace a course (warm-up, build, breather, climax), how to use gates as a puzzle (sometimes needed later, sometimes a trap, sometimes a shortcut), how to design for co-op pairs, and how to set medal times from the automated player. It ends with the tools: design, validate, analyse, play, revise.
 
 The goal is a spread of courses from gentle to brutal, each one hand-shaped rather than random.
 
