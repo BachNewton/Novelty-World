@@ -1,7 +1,7 @@
 /**
  * Runs the relay: `PORT` (default 8080; 0 lets the OS pick, as e2e runs do)
  * on `HOST` (default every interface; the server binds it to 127.0.0.1, behind
- * Tailscale Funnel). Prints its port once listening, which Playwright waits for.
+ * Caddy). Prints its port once listening, which Playwright waits for.
  */
 
 import { execFile } from "node:child_process";

@@ -94,7 +94,7 @@ export interface Room<HostMessage, GuestMessage> {
 type Envelope = { kind: "players"; players: Player[] } | { kind: "message"; message: unknown };
 
 /** Novelty World's relay, on its Oracle Cloud server (infra/oracle/README.md). */
-export const RELAY_URL = "wss://novelty-world.tailb0aa46.ts.net";
+export const RELAY_URL = "wss://novelty-world.mooo.com";
 
 /** Test/dev only: `?relay=local:<port>` uses a relay on this computer (each e2e run starts its own). */
 export const RELAY_PARAM = "relay";

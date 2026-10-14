@@ -92,6 +92,17 @@ export default function CreditsPage() {
             </ul>
           </section>
         ))}
+
+        <section>
+          <h2 className="mb-3 text-2xl font-semibold">Services</h2>
+          <p className="text-text-secondary">
+            The multiplayer server&apos;s address is provided by{" "}
+            <a href="https://freedns.afraid.org/" className="text-text-primary underline hover:text-brand-blue">
+              Free DNS
+            </a>
+            .
+          </p>
+        </section>
       </main>
     </div>
   );

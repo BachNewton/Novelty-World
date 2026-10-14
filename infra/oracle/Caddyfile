@@ -1,0 +1,6 @@
+# Caddy on the Oracle server (infra/oracle/README.md): the relay's public
+# address. Caddy gets and renews the certificate itself, and passes the
+# secure WebSocket through to the relay on localhost.
+novelty-world.mooo.com {
+	reverse_proxy 127.0.0.1:8080
+}
