@@ -8,6 +8,11 @@ export function parsePingMessage(value: unknown): PingMessage | null {
   return { kind, sentAt };
 }
 
+/** Milliseconds since a ping this device sent left, by the same clock. */
+export function roundTripSince(sentAt: number): number {
+  return performance.now() - sentAt;
+}
+
 /** How many recent round trips a player's figures are drawn from. */
 export const SAMPLE_WINDOW = 30;
 
@@ -30,4 +35,21 @@ export function summarise(window: readonly number[]): RoundTrips | null {
   const middle = Math.floor(sorted.length / 2);
   const median = sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   return { last, best: sorted[0], median, samples: window.length };
+}
+
+/** The most players a test room lists itself for. */
+export const ROOM_CAPACITY = 8;
+
+interface ListingSource {
+  role: "host" | "guest" | null;
+  status: string;
+  code: string | null;
+  hostName: string;
+  players: number;
+}
+
+/** The host's entry on the open-rooms list: while it is connected and has a free seat. */
+export function openListing({ role, status, code, hostName, players }: ListingSource) {
+  if (role !== "host" || status !== "connected" || code === null || players >= ROOM_CAPACITY) return null;
+  return { code, hostName, players, capacity: ROOM_CAPACITY };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addSample, parsePingMessage, SAMPLE_WINDOW, summarise } from "./logic";
+import { addSample, openListing, parsePingMessage, ROOM_CAPACITY, SAMPLE_WINDOW, summarise } from "./logic";
 
 describe("ping messages", () => {
   it("parses pings and pongs, and nothing else", () => {
@@ -26,5 +26,19 @@ describe("round trips", () => {
     for (let i = 0; i < SAMPLE_WINDOW + 5; i++) window = addSample(window, i);
     expect(window).toHaveLength(SAMPLE_WINDOW);
     expect(window[0]).toBe(5);
+  });
+});
+
+describe("the open-rooms listing", () => {
+  const host = { role: "host" as const, status: "connected", code: "ABCD", hostName: "Kyle", players: 2 };
+
+  it("lists a connected host's room with its player count", () => {
+    expect(openListing(host)).toEqual({ code: "ABCD", hostName: "Kyle", players: 2, capacity: ROOM_CAPACITY });
+  });
+
+  it("lists nothing for a guest, a host still connecting, or a full room", () => {
+    expect(openListing({ ...host, role: "guest" })).toBeNull();
+    expect(openListing({ ...host, status: "connecting" })).toBeNull();
+    expect(openListing({ ...host, players: ROOM_CAPACITY })).toBeNull();
   });
 });

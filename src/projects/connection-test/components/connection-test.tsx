@@ -7,8 +7,9 @@ import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { useRoom, type Player, type RoomStatus } from "@/shared/lib/peer";
 import { useProfile } from "@/shared/lib/profile";
+import { useRoomList } from "@/shared/lib/room-list";
 import { cn } from "@/shared/lib/utils";
-import { addSample, parsePingMessage, summarise, type PingMessage } from "../logic";
+import { addSample, openListing, parsePingMessage, roundTripSince, summarise, type PingMessage } from "../logic";
 
 /** How often each player pings: the host every guest, a guest its host. */
 const PING_MS = 1000;
@@ -29,7 +30,7 @@ export function ConnectionTest() {
   const [roundTrips, setRoundTrips] = useState<Record<string, number[]>>({});
 
   function record(peerId: string, sentAt: number) {
-    const ms = performance.now() - sentAt;
+    const ms = roundTripSince(sentAt);
     setRoundTrips((all) => ({ ...all, [peerId]: addSample(all[peerId] ?? [], ms) }));
   }
 
@@ -52,6 +53,17 @@ export function ConnectionTest() {
     onGuestLeft(player) {
       setRoundTrips(({ [player.peerId]: _, ...rest }) => rest);
     },
+  });
+
+  const openRooms = useRoomList({
+    game: "connection-test",
+    listing: openListing({
+      role: room.role,
+      status: room.status,
+      code: room.code,
+      hostName: profile.name,
+      players: room.players.length,
+    }),
   });
 
   const ping = useEffectEvent(() => {
@@ -79,8 +91,8 @@ export function ConnectionTest() {
         subtitle="Host a room on one device, join it from another, and see how fast messages get through."
         onCreate={room.create}
         createLabel="Host a room"
-        onJoin={room.join}
-        notice={room.status === "not-found" ? `No room with code ${room.code}` : null}
+        openRooms={{ list: openRooms, onJoin: room.join }}
+        notice={room.status === "not-found" ? "That room has closed. Pick another!" : null}
       />
     );
   }
@@ -90,7 +102,7 @@ export function ConnectionTest() {
       <header className="space-y-3 text-center">
         <h1 className="text-3xl font-bold">Connection Test</h1>
         <p className="text-text-secondary">
-          {room.role === "host" ? "You're hosting. Join this code from another device:" : "You joined room"}
+          {room.role === "host" ? "You're hosting. Open this tool on another device and join your room." : "You joined room"}
         </p>
         <p data-testid="room-code" className="font-mono text-5xl font-bold tracking-widest text-brand-green">
           {room.code}
