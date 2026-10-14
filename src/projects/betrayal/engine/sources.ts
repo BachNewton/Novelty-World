@@ -14,7 +14,7 @@ import type {
 import { beyondWall, roomAt } from "./board";
 import { allFigures } from "./figures";
 import type { CardDestination } from "./effects";
-import type { Engine, StepHandler } from "./step-loop";
+import type { Engine, StepKind } from "./step-loop";
 import type { Modifier } from "./questions";
 
 // A rule source is anything in play whose text changes the game: a held or
@@ -273,7 +273,7 @@ export interface Behaviour {
   /** What a status makes its bearer, in words ("asleep"), for the log. */
   name?: string;
   /** Steps only this source uses, registered under the source's id. */
-  steps?: Record<string, StepHandler>;
+  steps?: Record<string, StepKind>;
   /** A card lying in a room still acts from there (an open Music Box). Other
    *  cards act only while someone holds them or they are ongoing. */
   actsFromRoom?: boolean;

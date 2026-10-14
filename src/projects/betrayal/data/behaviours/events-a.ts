@@ -47,7 +47,7 @@ import {
   type BehaviourGroup,
   type Reaction,
 } from "../../engine/sources";
-import type { StepHandler } from "../../engine/step-loop";
+import type { StepKind } from "../../engine/step-loop";
 import { drawRoomTile, enterNewRoom } from "../../engine/tiles";
 import type {
   CardType,
@@ -78,7 +78,7 @@ function traitRoll(
 }
 
 /** A kept card can be told to go by several triggers in one write; only the first discards it. */
-function discardIfHeld(cardId: string): StepHandler {
+function discardIfHeld(cardId: string): StepKind {
   return defineStep<{ figure: FigureId }>((state, p, ctx) => {
     if (figureOf(state, p.figure).cards.includes(cardId))
       ctx.push(discardCard(p.figure, cardId));

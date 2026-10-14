@@ -4,7 +4,7 @@ import { allFigures, figureName, figureOf, placeOf } from "./figures";
 import { distanceTo, moveCloser } from "./movement";
 import { askStructured, barrierSides } from "./questions";
 import { inPlay } from "./sides";
-import type { Engine, StepHandler } from "./step-loop";
+import type { Engine, StepKind } from "./step-loop";
 
 // The monster turn (rules pp. 18-19, and its project ruling): at its start
 // each monster stunned before it begins misses it, and one movement roll is
@@ -89,7 +89,7 @@ export function pullMonsters(
   return step<Pull>("pull-monsters", { toward, rule, skipOwn });
 }
 
-export const MONSTER_STEPS: Record<string, StepHandler> = {
+export const MONSTER_STEPS: Record<string, StepKind> = {
   "monster-turn-start": defineStep<null>((state, _p, ctx) => {
     const turn = state.turn;
     if (turn === null) throw new Error("No monster turn to start");

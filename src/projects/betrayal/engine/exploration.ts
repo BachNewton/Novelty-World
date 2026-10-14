@@ -86,7 +86,7 @@ import {
   start,
   type DecisionKind,
   type Engine,
-  type StepHandler,
+  type StepKind,
 } from "./step-loop";
 
 // Exploration, before the haunt: setup, turns, moving, discovering rooms,
@@ -625,7 +625,7 @@ type Trade = {
 type Drop = { figure: FigureId; card: string };
 type HauntRoll = { figure: FigureId; omen: string; room: string };
 
-export const EXPLORATION_STEPS: Record<string, StepHandler> = {
+export const EXPLORATION_STEPS: Record<string, StepKind> = {
   setup: defineStep<Setup>((state, p, ctx) => {
     const random = ctx.random;
     state.board = startingBoard(ctx.catalog, state.sets, random);

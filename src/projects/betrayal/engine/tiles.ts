@@ -42,9 +42,9 @@ import {
   leaveRoom,
   step,
 } from "./effects";
-import { figureOf, placeOf, putFigure } from "./figures";
+import { placeOf, putFigure } from "./figures";
 import { barrierSides } from "./questions";
-import type { DecisionKind, StepContext, StepHandler } from "./step-loop";
+import type { DecisionKind, StepContext, StepKind } from "./step-loop";
 
 // Putting room tiles in the house and moving them: discovering through a
 // doorway, a card that puts a drawn tile in the house, a room that moves.
@@ -291,11 +291,8 @@ export function placeRoom(
   });
 }
 
-export const TILE_STEPS: Record<string, StepHandler> = {
+export const TILE_STEPS: Record<string, StepKind> = {
   arrive: defineStep<Arrive>((state, p, ctx) => {
-    // A figure that died on the way (a card drawn for the room) takes no
-    // further part: its arrival lapses (rules p. 19, dead-explorers-body).
-    if (!figureOf(state, p.figure).alive) return;
     // A card drawn for the room may have sent the figure on (Mystic
     // Slide): it is no longer there, so the room's text doesn't apply to it.
     if (placeOf(state, p.figure).room !== p.room) return;
@@ -364,16 +361,21 @@ export const TILE_STEPS: Record<string, StepHandler> = {
     );
   }),
 
-  "place-room": defineStep<PlaceRoom>((state, p, ctx) => {
-    if (placeOptions(ctx.catalog, state.board, p.tile, p.where).length > 0) {
-      if ("seat" in p) ctx.decide([p.seat], "place-tile", p, p.rule);
-      else ctx.decideFor(p.figure, "place-tile", p, p.rule);
-      return;
-    }
-    if (placed(state.board, p.tile))
-      ctx.emit("room-stayed", p.rule, { tile: p.tile });
-    ctx.push(...p.otherwise);
-  }),
+  // The tile is already out of the stack, so it can't lapse with a chooser
+  // who has died: that fails loudly.
+  "place-room": defineStep<PlaceRoom>(
+    (state, p, ctx) => {
+      if (placeOptions(ctx.catalog, state.board, p.tile, p.where).length > 0) {
+        if ("seat" in p) ctx.decide([p.seat], "place-tile", p, p.rule);
+        else ctx.decideFor(p.figure, "place-tile", p, p.rule);
+        return;
+      }
+      if (placed(state.board, p.tile))
+        ctx.emit("room-stayed", p.rule, { tile: p.tile });
+      ctx.push(...p.otherwise);
+    },
+    { subject: () => null },
+  ),
 };
 
 /** Where a cell is, by a room next to it: one with a door toward it if any. */

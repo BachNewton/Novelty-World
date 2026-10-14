@@ -49,12 +49,15 @@ function holdOffHaunt(engine: Engine): Engine {
       ...engine.rules,
       steps: {
         ...engine.rules.steps,
-        "haunt-check": (state, params, ctx) => {
-          check(
-            state,
-            { ...(params as { [key: string]: Json }), result: 99 },
-            ctx,
-          );
+        "haunt-check": {
+          ...check,
+          run: (state, params, ctx) => {
+            check.run(
+              state,
+              { ...(params as { [key: string]: Json }), result: 99 },
+              ctx,
+            );
+          },
         },
       },
     },

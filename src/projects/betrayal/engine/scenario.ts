@@ -13,7 +13,7 @@ import { placed } from "./board";
 import { defineStep, gainCard } from "./effects";
 import { putFigure, seatExplorer, trackTraits, TRAITS } from "./figures";
 import { barrierSides } from "./questions";
-import type { Engine, StepHandler } from "./step-loop";
+import type { Engine, StepKind } from "./step-loop";
 import { placeOptions } from "./tiles";
 
 // A scenario starts a game somewhere other than the default deal, for
@@ -294,7 +294,7 @@ export function stackScenario(state: GameState, scenario: PreparedScenario): voi
   ];
 }
 
-export const SCENARIO_STEPS: Record<string, StepHandler> = {
+export const SCENARIO_STEPS: Record<string, StepKind> = {
   scenario: defineStep<PreparedScenario>((state, p, ctx) => {
     for (const id of p.rooms) {
       if (placed(state.board, id)) continue;

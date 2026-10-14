@@ -38,7 +38,7 @@ import type {
   DecisionKind,
   Engine,
   StepContext,
-  StepHandler,
+  StepKind,
 } from "./step-loop";
 import { placeOptions, placeRoom } from "./tiles";
 
@@ -754,7 +754,7 @@ function winningSide(seats: Seat[], winners: number[]): Seat["side"] {
 
 type Side = "traitor" | "heroes";
 
-export const HAUNT_STEPS: Record<string, StepHandler> = {
+export const HAUNT_STEPS: Record<string, StepKind> = {
   // A haunt not built yet is swapped at its reveal for one that is, which
   // the revealer chooses; with none built, or with sides a scenario already
   // set (which a built haunt would decide afresh), the game stops there.
