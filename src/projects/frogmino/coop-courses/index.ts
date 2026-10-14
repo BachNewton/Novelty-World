@@ -1,7 +1,9 @@
 import { TUNING } from "../tuning";
 import { checkCoopCourse } from "./check";
 import { COURSE_TIERS, type DesignedCourse } from "./design";
+import { CHAIN_REACTION } from "./chain-reaction";
 import { TEACHING_RAMP } from "./teaching-ramp";
+import { ZIG_ZAG_ALLEY } from "./zig-zag-alley";
 
 // Every designed co-op course, the picker's list. A course is its own file in
 // this folder and one line here (see "Adding a co-op course" in the project's
@@ -9,6 +11,8 @@ import { TEACHING_RAMP } from "./teaching-ramp";
 // loudly before anyone plays it.
 const COURSES: readonly DesignedCourse[] = [
   TEACHING_RAMP,
+  ZIG_ZAG_ALLEY,
+  CHAIN_REACTION,
 ];
 
 export function buildCoopRegistry(courses: readonly DesignedCourse[]): readonly DesignedCourse[] {
