@@ -6,14 +6,15 @@ import {
   gain,
   gainCard,
   handle,
+  IN_HAND,
   isHandled,
   loseCard,
   markCard,
+  moveCard,
   placeToken,
   removeToken,
   roll,
   table,
-  takeFromPile,
   type CardDestination,
 } from "../../engine/effects";
 import { figureOf, placeOf, roomOf } from "../../engine/figures";
@@ -206,7 +207,7 @@ const DOG_BEHAVIOUR: Behaviour = {
     }),
     // The holder gets what the Dog fetches when it comes back to them.
     fetch: defineStep<DogCarry>((state, p, ctx) => {
-      takeFromPile(state, p.room, p.card);
+      moveCard(state, p.card, { at: "pile", room: p.room }, IN_HAND);
       handle(state, p.card);
       ctx.push(gainCard(p.figure, p.card, "picked-up", DOG));
     }),

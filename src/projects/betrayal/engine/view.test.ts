@@ -5,6 +5,7 @@ import { withHaunts } from "../kit/haunt";
 import { simulate } from "../simulation";
 import {
   choose,
+  drawn,
   put,
   testGame,
   waitingOn,
@@ -60,6 +61,18 @@ describe("before the haunt", () => {
       expect(text).not.toContain(state.seed);
       for (const key of ["seed", "work", "nextId", "memory"])
         expect(text).not.toContain(`"${key}":`);
+    }
+  });
+
+  it("leaves out the cards in hand and the tile drawn: the events and the decision placing them show them", () => {
+    const between = testGame({ stack, decks: { item: items } });
+    drawn(between, "revolver");
+    between.board.stack = between.board.stack.filter((t) => t !== "vault");
+    between.board.drawn = "vault";
+    for (const seat of SEATS) {
+      const text = json(ENGINE, between, seat);
+      for (const key of ["inHand", "drawn"]) expect(text).not.toContain(`"${key}":`);
+      for (const id of ["revolver", "vault"]) expect(text).not.toContain(`"${id}"`);
     }
   });
 

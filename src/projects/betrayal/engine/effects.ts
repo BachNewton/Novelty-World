@@ -16,7 +16,6 @@ import type {
 import { sideName } from "./board";
 import { rollName, traitName } from "./describe";
 import {
-  allFigures,
   figureOf,
   MENTAL,
   moveClip,
@@ -207,17 +206,95 @@ export function endMovementOf(state: GameState, figure: FigureId): void {
     state.turn.movementEnded.push(figure);
 }
 
-/** Takes a card out of a room's item pile. */
-export function takeFromPile(
+/** A place a card can be. Every card in the game is in exactly one. */
+export type CardPlace =
+  | { at: "deck"; type: CardType }
+  | { at: "discard"; type: CardType }
+  | { at: "figure"; figure: FigureId }
+  | { at: "pile"; room: string }
+  | { at: "ongoing" }
+  | { at: "aside"; room: string | null }
+  | { at: "hand" };
+
+export const IN_HAND: CardPlace = { at: "hand" };
+
+/** Moves a card from one place to another. Every card the engine moves
+ *  goes through here, and a card that isn't where the move says is a bug. */
+export function moveCard(
   state: GameState,
-  room: string,
   card: string,
+  from: CardPlace,
+  to: CardPlace,
 ): void {
-  const pile = state.piles[room] ?? [];
-  if (!pile.includes(card)) throw new Error(`No ${card} in the ${room} pile`);
-  const rest = pile.filter((c) => c !== card);
-  if (rest.length > 0) state.piles[room] = rest;
-  else delete state.piles[room];
+  takeCard(state, card, from);
+  putCard(state, card, to);
+}
+
+function takeCard(state: GameState, card: string, from: CardPlace): void {
+  const without = (cards: string[]) => {
+    if (!cards.includes(card))
+      throw new Error(`${card} isn't where it is taken from: ${JSON.stringify(from)}`);
+    return cards.filter((c) => c !== card);
+  };
+  switch (from.at) {
+    case "deck":
+      state.decks[from.type].draw = without(state.decks[from.type].draw);
+      return;
+    case "discard":
+      state.decks[from.type].discard = without(state.decks[from.type].discard);
+      return;
+    case "figure": {
+      const holder = figureOf(state, from.figure);
+      holder.cards = without(holder.cards);
+      return;
+    }
+    case "pile": {
+      const rest = without(state.piles[from.room] ?? []);
+      if (rest.length > 0) state.piles[from.room] = rest;
+      else delete state.piles[from.room];
+      return;
+    }
+    case "ongoing":
+      state.ongoing = without(state.ongoing);
+      return;
+    case "aside": {
+      const index = state.aside.findIndex(
+        (a) => a.card === card && a.room === from.room,
+      );
+      if (index < 0) throw new Error(`${card} isn't set aside in ${from.room}`);
+      state.aside.splice(index, 1);
+      return;
+    }
+    case "hand":
+      state.inHand = without(state.inHand);
+      return;
+  }
+}
+
+function putCard(state: GameState, card: string, to: CardPlace): void {
+  switch (to.at) {
+    case "deck":
+      state.decks[to.type].draw.push(card);
+      return;
+    case "discard":
+      state.decks[to.type].discard.push(card);
+      return;
+    case "figure":
+      figureOf(state, to.figure).cards.push(card);
+      return;
+    case "pile":
+      state.piles[to.room] = [...(state.piles[to.room] ?? []), card];
+      return;
+    case "ongoing":
+      state.ongoing.push(card);
+      return;
+    case "aside":
+      state.aside.push({ card, room: to.room });
+      return;
+    case "hand":
+      state.inHand.push(card);
+      return;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1353,11 +1430,12 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
       deck.draw = ctx.random.shuffle(deck.discard);
       deck.discard = [];
     }
-    const card = deck.draw.shift();
+    const card = deck.draw.at(0);
     if (card === undefined) {
       ctx.emit("deck-empty", p.rule, { type: p.type });
       return;
     }
+    moveCard(state, card, { at: "deck", type: p.type }, IN_HAND);
     const room = placeOf(state, p.figure).room;
     endMovementOf(state, p.figure);
     ctx.emit("card-drawn", p.rule, { figure: p.figure, card, type: p.type });
@@ -1386,21 +1464,15 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
     );
   }),
 
+  // A card kept, or in play as an ongoing event, has left the hand already.
   "settle-event": defineStep<{ card: string }>((state, p) => {
-    const kept =
-      allFigures(state).some((f) => f.cards.includes(p.card)) ||
-      state.ongoing.includes(p.card);
-    if (kept) return;
-    state.decks.event.discard.push(p.card);
+    if (!state.inHand.includes(p.card)) return;
+    moveCard(state, p.card, IN_HAND, { at: "discard", type: "event" });
     clearMarks(state, p.card, "all");
   }),
 
   "take-custody": defineStep<Custody>((state, p, ctx) => {
-    const index = state.aside.findIndex(
-      (a) => a.card === p.card && a.room === p.room,
-    );
-    if (index < 0) throw new Error(`${p.card} isn't waiting in ${p.room}`);
-    state.aside.splice(index, 1);
+    moveCard(state, p.card, { at: "aside", room: p.room }, IN_HAND);
     ctx.push(gainCard(p.figure, p.card, "custody", rulebook(19)));
   }),
 
@@ -1408,10 +1480,9 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
   // runs, so a card handed to a body would be a bug.
   "gain-card": defineStep<GainCard>(
     (state, p, ctx) => {
-      const taker = figureOf(state, p.figure);
-      if (!taker.alive)
+      if (!figureOf(state, p.figure).alive)
         throw new Error(`${p.card} was handed to ${p.figure}, who is dead`);
-      taker.cards.push(p.card);
+      moveCard(state, p.card, IN_HAND, { at: "figure", figure: p.figure });
     ctx.emit("card-gained", p.rule, { figure: p.figure, card: p.card, by: p.by });
       ctx.push(
         ...(ctx.engine.behaviours.cards[p.card]?.onGain?.(state, p.figure) ??
@@ -1437,27 +1508,30 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
         p.figure,
         p.destination,
       ) ?? [];
-    holder.cards = holder.cards.filter((c) => c !== p.card);
-    const deck = state.decks[ctx.catalog.cards[p.card].type];
+    const from: CardPlace = { at: "figure", figure: p.figure };
+    const type = ctx.catalog.cards[p.card].type;
     const where = p.destination;
     switch (where.to) {
       case "discard":
-        deck.discard.push(p.card);
+        moveCard(state, p.card, from, { at: "discard", type });
         clearMarks(state, p.card, "all");
         break;
       case "deck":
-        deck.draw = ctx.random.shuffle([...deck.draw, p.card]);
+        moveCard(state, p.card, from, { at: "deck", type });
+        state.decks[type].draw = ctx.random.shuffle(state.decks[type].draw);
         clearMarks(state, p.card, "all");
         break;
       case "room":
-        state.piles[where.room] = [...(state.piles[where.room] ?? []), p.card];
+        moveCard(state, p.card, from, { at: "pile", room: where.room });
         clearMarks(state, p.card, "holder");
         break;
       case "figure":
+        // In hand until the taker gains it, once the card's onLose is done.
+        moveCard(state, p.card, from, IN_HAND);
         clearMarks(state, p.card, "holder");
         break;
       case "aside":
-        state.aside.push({ card: p.card, room: where.room });
+        moveCard(state, p.card, from, { at: "aside", room: where.room });
         clearMarks(state, p.card, "holder");
         break;
     }
@@ -1673,14 +1747,11 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
   ),
 
   "start-ongoing": defineStep<{ card: string }>((state, p) => {
-    state.ongoing.push(p.card);
+    moveCard(state, p.card, IN_HAND, { at: "ongoing" });
   }),
 
   "end-ongoing": defineStep<{ card: string }>((state, p, ctx) => {
-    if (!state.ongoing.includes(p.card))
-      throw new Error(`${p.card} isn't ongoing`);
-    state.ongoing = state.ongoing.filter((c) => c !== p.card);
-    state.decks.event.discard.push(p.card);
+    moveCard(state, p.card, { at: "ongoing" }, { at: "discard", type: "event" });
     clearMarks(state, p.card, "all");
     ctx.emit(
       "ongoing-ended",

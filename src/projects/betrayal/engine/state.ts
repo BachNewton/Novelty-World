@@ -15,7 +15,7 @@ export function emptyState(
     status: "exploring",
     seats: [],
     figures: {},
-    board: { tiles: [], stack: [], discards: [] },
+    board: { tiles: [], stack: [], discards: [], drawn: null },
     decks: {
       omen: { draw: [], discard: [] },
       item: { draw: [], discard: [] },
@@ -25,6 +25,7 @@ export function emptyState(
     tokens: [],
     ongoing: [],
     aside: [],
+    inHand: [],
     cardMarks: {},
     turn: null,
     insertedTurns: [],

@@ -206,6 +206,8 @@ export interface Board {
   /** Room stack, top first. */
   stack: string[];
   discards: string[];
+  /** The tile drawn and not yet put in the house. */
+  drawn: string | null;
 }
 
 /** A unit of the engine's unfinished work: a registered kind and its parameters. */
@@ -517,6 +519,10 @@ export interface GameState {
   /** Ongoing event cards in play that no explorer holds. */
   ongoing: string[];
   aside: AsideCard[];
+  /** Cards in someone's hand for a moment, between two places: drawn and
+   *  not yet taken or put away (an event card being read), or on their way
+   *  from one holder to the next. */
+  inHand: string[];
   /** Counters and flags on cards in play, by card id, then by name. */
   cardMarks: Partial<Record<string, Record<string, CardMark>>>;
   turn: Turn | null;

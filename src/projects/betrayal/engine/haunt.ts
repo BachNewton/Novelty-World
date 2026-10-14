@@ -40,7 +40,7 @@ import type {
   StepContext,
   StepKind,
 } from "./step-loop";
-import { placeOptions, placeRoom } from "./tiles";
+import { drawTile, placeOptions, placeRoom } from "./tiles";
 
 // The haunt, from its reveal to the end of the game: choosing the traitor,
 // the ready wait, each side's setup, the haunt's own state (secrets and
@@ -156,6 +156,10 @@ export function revealHaunt(
   ctx: StepContext,
   reveal: HauntReveal,
 ): void {
+  // The haunt roll comes once the turn's work is done, so none of the work
+  // dropped here was still to put a card or tile where it goes.
+  if (state.inHand.length > 0 || state.board.drawn !== null)
+    throw new Error("The haunt began with a card or tile between two places");
   state.haunt = { ...reveal, secrets: [], counters: {} };
   state.status = "haunt";
   state.work = [];
@@ -1020,13 +1024,7 @@ export const HAUNT_STEPS: Record<string, StepKind> = {
   }),
 
   "take-room-tile": defineStep<{ tile: string }>((state, p) => {
-    const { board } = state;
-    if (board.stack.includes(p.tile))
-      board.stack = board.stack.filter((t) => t !== p.tile);
-    else if (board.discards.includes(p.tile))
-      board.discards = board.discards.filter((t) => t !== p.tile);
-    else
-      throw new Error(`The ${p.tile} is in neither the stack nor the discards`);
+    drawTile(state.board, p.tile);
   }),
 
   "drop-items": defineStep<GroupRule>((state, p, ctx) => {

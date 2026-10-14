@@ -58,9 +58,7 @@ function stateViolations(engine: Engine, state: GameState): string[] {
   traits(engine, state, found);
   theDead(state, found);
   supply(engine, state, found);
-  // A game that has ended drops its unfinished work, cards and tiles in
-  // transit included, so only a game still being played is counted.
-  if (state.status !== "finished") cardsAndTiles(engine, state, found);
+  cardsAndTiles(engine, state, found);
   return found;
 }
 
@@ -143,14 +141,13 @@ function supply(engine: Engine, state: GameState, found: string[]): void {
 /** Every card and every room tile is in exactly one place, and every figure
  *  stands in a room that is in the house. */
 function cardsAndTiles(engine: Engine, state: GameState, found: string[]): void {
-  // A card or tile drawn but not yet placed lives in the unfinished work.
-  const inTransit = JSON.stringify([state.pending, state.work]);
-  const held = (id: string) => inTransit.includes(`"${id}"`);
   const once = (what: string, places: string[], all: string[]) => {
+    const seen = new Map<string, number>();
+    for (const id of places) seen.set(id, (seen.get(id) ?? 0) + 1);
     for (const id of all)
-      if (!places.includes(id) && !held(id)) found.push(`The ${what} ${id} is nowhere`);
-    for (const [i, id] of places.entries())
-      if (places.indexOf(id) !== i) found.push(`The ${what} ${id} is in two places`);
+      if (!seen.has(id)) found.push(`The ${what} ${id} is nowhere`);
+    for (const [id, times] of seen)
+      if (times > 1) found.push(`The ${what} ${id} is in ${times} places`);
   };
 
   once(
@@ -164,6 +161,7 @@ function cardsAndTiles(engine: Engine, state: GameState, found: string[]): void 
       ...Object.values(state.piles).flat(),
       ...state.ongoing,
       ...state.aside.map((a) => a.card),
+      ...state.inHand,
     ],
     Object.values(engine.catalog.cards)
       .filter((c) => state.sets.includes(c.set))
@@ -175,6 +173,7 @@ function cardsAndTiles(engine: Engine, state: GameState, found: string[]): void 
       ...state.board.tiles.map((t) => t.tile),
       ...state.board.stack,
       ...state.board.discards,
+      ...(state.board.drawn === null ? [] : [state.board.drawn]),
     ],
     Object.values(engine.catalog.rooms)
       .filter((r) => state.sets.includes(r.set))

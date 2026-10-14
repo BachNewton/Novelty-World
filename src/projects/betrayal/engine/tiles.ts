@@ -5,6 +5,7 @@ import type {
   FigureId,
   FloorId,
   GameState,
+  PlacedTile,
   Rotation,
   RuleRef,
   Step,
@@ -124,39 +125,70 @@ export function placeOptions(
   return result;
 }
 
+/** Takes a room tile from the stack or the discards: it is the tile drawn
+ *  until it is put in the house. One tile is drawn at a time. */
+export function drawTile(board: Board, tile: string): void {
+  if (board.drawn !== null)
+    throw new Error(`The ${tile} was drawn while the ${board.drawn} is still to place`);
+  if (board.stack.includes(tile))
+    board.stack = board.stack.filter((t) => t !== tile);
+  else if (board.discards.includes(tile))
+    board.discards = board.discards.filter((t) => t !== tile);
+  else throw new Error(`The ${tile} is in neither the stack nor the discards`);
+  board.drawn = tile;
+}
+
+/** Puts the tile drawn in the house. */
+export function placeDrawnTile(board: Board, tile: PlacedTile): void {
+  if (board.drawn !== tile.tile)
+    throw new Error(`The ${tile.tile} is put in the house, but it isn't the tile drawn`);
+  board.drawn = null;
+  board.tiles.push(tile);
+}
+
 /** Draws room tiles from the top of the stack until one passes, putting the
  *  rest on the discard pile (p. 8). An empty stack is refilled from the
  *  shuffled discards (p. 9), unless the rule makes one pass through the stack.
- *  Null when no tile passes. */
+ *  The tile that passes is the tile drawn; null when none does. */
 export function drawRoom(
   state: GameState,
   shuffle: <T>(items: readonly T[]) => T[],
   passes: (tile: string) => boolean,
   reshuffle = true,
 ): string | null {
+  const { board } = state;
   if (!reshuffle) {
     for (;;) {
-      const tile = state.board.stack.shift();
+      const tile = board.stack.at(0);
       if (tile === undefined) return null;
-      if (passes(tile)) return tile;
-      state.board.discards.push(tile);
+      if (passes(tile)) return drawn(board, tile);
+      discardTop(board, tile);
     }
   }
-  if (![...state.board.stack, ...state.board.discards].some(passes))
-    return null;
+  if (![...board.stack, ...board.discards].some(passes)) return null;
   for (;;) {
-    if (state.board.stack.length === 0) {
-      state.board.stack = shuffle(state.board.discards);
-      state.board.discards = [];
+    if (board.stack.length === 0) {
+      board.stack = shuffle(board.discards);
+      board.discards = [];
     }
-    const tile = state.board.stack.shift();
+    const tile = board.stack.at(0);
     if (tile === undefined)
       throw new Error(
         "Room stack ran dry with a passing tile still unaccounted for",
       );
-    if (passes(tile)) return tile;
-    state.board.discards.push(tile);
+    if (passes(tile)) return drawn(board, tile);
+    discardTop(board, tile);
   }
+}
+
+function drawn(board: Board, tile: string): string {
+  drawTile(board, tile);
+  return tile;
+}
+
+function discardTop(board: Board, tile: string): void {
+  board.stack = board.stack.slice(1);
+  board.discards.push(tile);
 }
 
 type Arrive = { figure: FigureId; room: string; moved: boolean; rule: RuleRef };
@@ -361,8 +393,9 @@ export const TILE_STEPS: Record<string, StepKind> = {
     );
   }),
 
-  // The tile is already out of the stack, so it can't lapse with a chooser
-  // who has died: that fails loudly.
+  // A tile drawn is already out of the stack, so it can't lapse with a
+  // chooser who has died, and it can't be left with nowhere to go: both
+  // fail loudly.
   "place-room": defineStep<PlaceRoom>(
     (state, p, ctx) => {
       if (placeOptions(ctx.catalog, state.board, p.tile, p.where).length > 0) {
@@ -370,8 +403,9 @@ export const TILE_STEPS: Record<string, StepKind> = {
         else ctx.decideFor(p.figure, "place-tile", p, p.rule);
         return;
       }
-      if (placed(state.board, p.tile))
-        ctx.emit("room-stayed", p.rule, { tile: p.tile });
+      if (!placed(state.board, p.tile))
+        throw new Error(`The ${p.tile} was drawn, but it can go nowhere`);
+      ctx.emit("room-stayed", p.rule, { tile: p.tile });
       ctx.push(...p.otherwise);
     },
     { subject: () => null },
@@ -431,7 +465,7 @@ export const TILE_DECISIONS: Record<string, DecisionKind> = {
         Object.assign(tile, at);
         ctx.emit("room-moved", p.rule, { tile: p.tile, from, floor: at.floor });
       } else {
-        state.board.tiles.push({ tile: p.tile, ...at });
+        placeDrawnTile(state.board, { tile: p.tile, ...at });
         ctx.emit("room-placed", p.rule, { tile: p.tile, floor: at.floor });
       }
       ctx.push(...p.then);
