@@ -21,8 +21,11 @@ import {
 
 const RULE: RuleRef = { source: "rulebook", page: 6 };
 
+/** The options a toy decision was raised with, but "bad", which is never legal. */
 const options = (decision: Decision) =>
-  (decision.params as { options: string[] }).options;
+  (decision.params as { options: string[] }).options.filter(
+    (option) => option !== "bad",
+  );
 
 /** A toy rule set: just enough to drive the loop. */
 const RULES: Rules = {
@@ -38,31 +41,26 @@ const RULES: Rules = {
   },
   decisions: {
     pick: {
-      candidates: (_state, decision) => options(decision),
+      legal: (_state, decision) => options(decision),
       label: (_state, _decision, choice) => `Pick ${String(choice)}`,
       resolve: (_state, decision, ctx) => {
         const choice = decision.answers[0];
-        if (choice === "bad") return "bad is never allowed";
         ctx.emit("picked", RULE, { choice, roll: ctx.random.dice(3) });
-        return null;
       },
     },
     act: {
-      candidates: (_state, decision) => options(decision),
+      legal: (_state, decision) => options(decision),
       label: (_state, _decision, choice) => `Do ${String(choice)}`,
       alwaysAsks: () => true,
       resolve: (_state, decision, ctx) => {
-        if (decision.answers[0] === "bad") return "bad is never allowed";
         ctx.emit("acted", RULE, decision.answers[0]);
-        return null;
       },
     },
     vote: {
-      candidates: () => ["red", "blue"],
+      legal: () => ["red", "blue"],
       label: (_state, _decision, choice) => String(choice),
       resolve: (_state, decision, ctx) => {
         ctx.emit("votes", RULE, decision.answers as Json);
-        return null;
       },
     },
   },
@@ -126,7 +124,7 @@ describe("the step loop", () => {
   });
 
   it("takes a decision with exactly one legal choice itself", () => {
-    // "bad" is offered but can't apply, so "ok" is the only legal choice.
+    // "bad" is never legal, so "ok" is the only legal choice.
     const state = start(ENGINE, fresh(), [ask("bad", "ok"), note("after")]);
     expect(state.pending).toBeNull();
     expect(state.lastEvents.map((e) => e.type)).toEqual([
@@ -150,12 +148,12 @@ describe("the step loop", () => {
     expect(next.lastEvents.map((e) => e.type)).toEqual(["acted", "note"]);
   });
 
-  it("lists only choices that apply, and rejects the rest", () => {
+  it("lists only the legal choices, and rejects the rest", () => {
     const state = start(ENGINE, fresh(), [ask("a", "bad", "c")]);
     expect(choices(ENGINE, state, 0).map((c) => c.choice)).toEqual(["a", "c"]);
     expect(apply(ENGINE, state, pick(state, "bad"))).toEqual({
       ok: false,
-      reason: "bad is never allowed",
+      reason: "That choice isn't offered",
     });
     expect(apply(ENGINE, state, pick(state, "z"))).toEqual({
       ok: false,
@@ -204,6 +202,12 @@ describe("the step loop", () => {
     while (state.pending) state = applied(state, pick(state, "a"));
     expect(state.answered).toHaveLength(ANSWERS_KEPT);
     expect(state.answered.at(-1)?.decision).toBe(`d${ANSWERS_KEPT + 4}`);
+  });
+
+  it("fails loudly on a decision with no legal choice", () => {
+    expect(() => start(ENGINE, fresh(), [ask("bad")])).toThrow(
+      /no legal choice/,
+    );
   });
 
   it("fails loudly on a loop that never pauses", () => {
