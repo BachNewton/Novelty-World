@@ -49,7 +49,7 @@ How the rest builds on it:
 
 ## Designing co-op rows
 
-What designing the teaching ramp (`coop-courses/teaching-ramp.ts`), the first co-op course, taught, for the skill to come. The steps for adding a course are Adding a co-op course in the project's `CLAUDE.md`.
+What designing the first co-op course, a teaching ramp for an L and a J on ten lanes since replaced by the courses in `coop-courses/`, taught, for the skill to come. The steps for adding a course are Adding a co-op course in the project's `CLAUDE.md`.
 
 - **Openings are lanes.** A vehicle fills its lanes from the road up and never hangs over an empty one, so an opening is mostly whole free lanes, the space above low vehicles, and the odd roof under an overhang (a car carrier's deck, a crane's arm). A shape the frogs make together reads only where each lane of it starts on the road or on a low vehicle; a hole under a piece, such as the gap beneath a bar, is a cell no vehicle can fill, so it stays open and lets other answers through.
 - **So the pair's shapes are few.** For the L and the J, no interlock with both frogs on the road leaves no hole. The clean shapes are side by side, touching (noses together, a cup, a lean, a bridge over a low vehicle), and one up, one down (a foot on the partner's foot, lying across a low vehicle onto it). Answer-first works: choose the pair's pose, then the vehicles that outline it.

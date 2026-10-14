@@ -11,12 +11,12 @@ const LOBBY = "/games/3d-games/frogmino";
 const TIMEOUT = 30_000;
 
 test("?play=local opens the join screen, where both halves of the keyboard join and start", async ({ page }) => {
-  await page.goto(`${LOBBY}?play=local&course=teaching-ramp`);
+  await page.goto(`${LOBBY}?play=local&course=tea-for-two`);
   const start = page.getByRole("button", { name: "Start", exact: true });
   await expect(start).toBeDisabled({ timeout: TIMEOUT });
   // The course the URL names is picked.
-  const ramp = page.locator('[data-course="teaching-ramp"]');
-  await expect(ramp).toHaveAttribute("aria-pressed", "true");
+  const picked = page.locator('[data-course="tea-for-two"]');
+  await expect(picked).toHaveAttribute("aria-pressed", "true");
 
   const sprout = page.getByTestId("slot-1");
   const splash = page.getByTestId("slot-2");
@@ -92,4 +92,13 @@ test("the join screen lists the co-op courses by tier, and the keys and a click 
   await page.keyboard.press("Space");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("frogmino-game")).toHaveAttribute("data-depth", "0", { timeout: TIMEOUT });
+});
+
+test("on a phone, Start stays in view however long the course list", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.goto(`${LOBBY}?play=local`);
+  const start = page.getByRole("button", { name: "Start", exact: true });
+  await expect(start).toBeVisible({ timeout: TIMEOUT });
+  await expect(page.locator("[data-course]").first()).toBeVisible();
+  expect(await start.evaluate((el) => el.getBoundingClientRect().bottom)).toBeLessThanOrEqual(640);
 });

@@ -159,7 +159,15 @@ function timing(course: Course, proof: Proof, tuning: Tuning): string {
 function main(): void {
   const { jobs, options } = parse(process.argv.slice(2));
   const tuning = TUNING;
-  const saved: Record<string, ReplayData> = { ...SAVED_REPLAYS };
+  // A saved proof of a co-op course that no longer exists can't be played,
+  // so it is dropped as the file is written again.
+  const saved: Record<string, ReplayData> = Object.fromEntries(
+    Object.entries(SAVED_REPLAYS).filter(([name, { course: spec }]) => {
+      const gone = spec.kind === "coop" && !COOP_COURSES.some((course) => course.id === spec.id);
+      if (gone && options.save !== undefined) console.log(`dropped ?replay=${name}: its course is gone`);
+      return !gone;
+    }),
+  );
   let stuck = false;
   for (const { spec, label } of jobs) {
     const design = designOf(spec);

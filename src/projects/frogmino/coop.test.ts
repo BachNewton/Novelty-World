@@ -15,7 +15,7 @@ import {
 } from "./coop";
 import type { CourseSpec } from "./courses";
 
-const COURSE: CourseSpec = { kind: "coop", id: "teaching-ramp" };
+const COURSE: CourseSpec = { kind: "coop", id: "block-party" };
 
 const EMPTY: HostSeat = { phase: WAITING, partnerPeerId: null };
 const PAIRED: HostSeat = { phase: WAITING, partnerPeerId: "guest-1" };
@@ -54,7 +54,7 @@ describe("the wire", () => {
     expect(() => parseHostMessage("start")).toThrow();
     expect(() => parseHostMessage({ kind: "start", course: { kind: "moon" } })).toThrow(/not a course/);
     expect(() => parseHostMessage({ kind: "course", course: { kind: "coop" } })).toThrow(/not a course/);
-    expect(() => parseHostMessage({ kind: "start", course: { kind: "coop", id: "nowhere" } })).toThrow(/no co-op course "nowhere"; the courses are teaching-ramp/);
+    expect(() => parseHostMessage({ kind: "start", course: { kind: "coop", id: "nowhere" } })).toThrow(/no co-op course "nowhere"; the courses are block-party/);
     expect(() => parseHostMessage({ kind: "confirm", seq: 1, tick: -50, hash: 1 })).toThrow();
     expect(() => parseHostMessage({ kind: "input", seq: 1, tick: 1, player: 0, input: { kind: "act", action: "fly" } })).toThrow(/not a player input/);
     expect(() => parseGuestMessage({ kind: "input", seq: 0, round: 0, id: 0, tick: 1.5, input: { kind: "releaseAll" } })).toThrow();

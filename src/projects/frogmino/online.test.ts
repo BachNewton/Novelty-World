@@ -13,7 +13,7 @@ import { TUNING, type Tuning } from "./tuning";
 // delayed by its own seeded amount, so messages overtake each other.
 
 const TICK = 1 / 100;
-const SPEC: CourseSpec = { kind: "coop", id: "teaching-ramp" };
+const SPEC: CourseSpec = { kind: "coop", id: "block-party" };
 
 interface Link {
   // Each message takes `delay` ticks, plus up to `jitter` more.

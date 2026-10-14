@@ -7,7 +7,7 @@ import { freshRun } from "./session";
 import { TUNING } from "./tuning";
 
 const ACTS: readonly FrogAction[] = ["left", "right", "rotateCcw", "rotateCw", "hop", "forward", "back"];
-const start = () => freshRun(coopCourse("teaching-ramp"), TUNING);
+const start = () => freshRun(coopCourse("block-party"), TUNING);
 
 describe("a timeline", () => {
   it("takes inputs late, in their place, to exactly the run a straight replay gives", () => {

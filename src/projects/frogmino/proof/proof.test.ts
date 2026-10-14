@@ -1,51 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { TEACHING_RAMP } from "../coop-courses/teaching-ramp";
-import { coopCourse, courseOf, designedAnswers, designedRowAt, soloCourse, type Course } from "../courses";
+import { LONG_AND_SHORT } from "../coop-courses/long-and-short";
+import { cellKey, frogCells } from "../logic";
+import type { Frog } from "../types";
+import { coopCourse, courseOf, designedAnswers, soloCourse, type Course } from "../courses";
 import { hopHeight, playTo, replay } from "../run";
 import { tickTiming } from "../ticks";
 import { rowSolids, type Row } from "../traffic";
 import { TUNING } from "../tuning";
 import { passingPoses, reachablePoses } from "./analyse";
-import { PERCH_ROW } from "./perch";
+import { PERCH_COURSE, PERCH_ROW, PERCHER } from "./perch";
 import { REPLAYS, findReplay } from "./replays";
 import { describeProof, describeStep, drawFace } from "./route";
 import { courseRun, DEFAULT_SLOT, proveCourse, replayVerdict } from "./solver";
 import { planShape, type TeamPose } from "./team-plan";
 
 const AIR_SLOTS = tickTiming(TUNING).hopAirtime / DEFAULT_SLOT;
-const RAMP = coopCourse(TEACHING_RAMP.id);
-const answers = designedAnswers(TEACHING_RAMP);
+const COURSE = coopCourse(LONG_AND_SHORT.id);
+const answers = designedAnswers(LONG_AND_SHORT);
 
-// The team as it starts the teaching ramp, for the planner.
-function rampStart(): TeamPose {
-  return courseRun(RAMP).frogs.map((frog) => ({ kind: frog.kind, col: frog.col, rotation: frog.rotation, air: null }));
+// The team as it starts the course, for the planner.
+function courseStart(): TeamPose {
+  return courseRun(COURSE).frogs.map((frog) => ({ kind: frog.kind, col: frog.col, rotation: frog.rotation, air: null }));
 }
 
-describe("the teaching ramp", () => {
-  const { lanes } = TEACHING_RAMP;
-
-  it("ramps to a finale with one way through, the frogs up back to back", () => {
-    const reachable = reachablePoses(rampStart(), lanes, AIR_SLOTS);
-    const finale = TEACHING_RAMP.rows.at(-1);
+describe("a designed course", () => {
+  it("ramps from a first row with room to spare to a finale with one way through", () => {
+    const reachable = reachablePoses(courseStart(), LONG_AND_SHORT.lanes, AIR_SLOTS);
+    const finale = LONG_AND_SHORT.rows.at(-1);
     if (finale === undefined) throw new Error("The course has no rows");
     const through = passingPoses(reachable, rowSolids(finale.vehicles), TUNING.wallRows);
-    expect(through.map((pose) => pose.map(planShape).map(({ col, rotation, hop }) => ({ col, rotation, hop })))).toEqual([finale.answer]);
-    const first = passingPoses(reachable, rowSolids(TEACHING_RAMP.rows[0].vehicles), TUNING.wallRows);
-    expect(first.length).toBeGreaterThan(100);
-  });
-
-  it("goes round its last eight rows again once they are all met", () => {
-    const { length } = TEACHING_RAMP.rows;
-    expect(designedRowAt(TEACHING_RAMP, 0)).toBe(0);
-    expect(designedRowAt(TEACHING_RAMP, length - 1)).toBe(length - 1);
-    expect(designedRowAt(TEACHING_RAMP, length)).toBe(length - 8);
-    expect(designedRowAt(TEACHING_RAMP, length + 8)).toBe(length - 8);
-    expect(() => designedRowAt(TEACHING_RAMP, -1)).toThrow(/No row -1/);
+    const cells = (frogs: readonly Frog[]) => frogs.map((frog) => frogCells(frog).map(cellKey).sort());
+    expect(through.map((pose) => cells(pose.map(planShape)))).toEqual([cells(finale.answer.map((pose, i) => ({ kind: LONG_AND_SHORT.kinds[i], ...pose })))]);
+    const first = passingPoses(reachable, rowSolids(LONG_AND_SHORT.rows[0].vehicles), TUNING.wallRows);
+    expect(first.length).toBeGreaterThan(50);
   });
 });
 
 describe("the perch", () => {
-  it("has Sprout standing on Splash, its hop long over, as the row arrives, and passes with no bonk", () => {
+  it("has Splash standing on Sprout, its hop long over, as the row arrives, and passes with no bonk", () => {
     const perch = findReplay("perch");
     const course = courseOf(perch.course);
     const verdict = replayVerdict(course, perch.log, perch.until);
@@ -57,23 +49,17 @@ describe("the perch", () => {
       if (next.passes > PERCH_ROW) break;
       run = next;
     }
-    const [sprout, splash] = run.frogs;
-    expect(hopHeight(sprout)).toBe(1);
-    expect(run.tick - (sprout.latestHop?.startedAt ?? run.tick)).toBeGreaterThan(tickTiming(TUNING).hopAirtime);
-    const answer = TEACHING_RAMP.rows[PERCH_ROW].answer;
-    expect([sprout.col, sprout.rotation, splash.col, splash.rotation, hopHeight(splash)]).toEqual([
-      answer[0].col,
-      answer[0].rotation,
-      answer[1].col,
-      answer[1].rotation,
-      0,
-    ]);
+    const percher = run.frogs[PERCHER];
+    expect(hopHeight(percher)).toBe(1);
+    expect(run.tick - (percher.latestHop?.startedAt ?? run.tick)).toBeGreaterThan(tickTiming(TUNING).hopAirtime);
+    const answer = PERCH_COURSE.rows[PERCH_ROW].answer;
+    expect(run.frogs.map((frog) => [frog.col, frog.rotation, hopHeight(frog)])).toEqual(answer.map((pose) => [pose.col, pose.rotation, pose.hop]));
   });
 });
 
 describe("the solver", () => {
-  it("proves the teaching ramp by any passing poses too, over the finish", () => {
-    const result = proveCourse(RAMP);
+  it("proves a designed course by any passing poses too, over the finish", () => {
+    const result = proveCourse(COURSE);
     expect(result.ok && result.proof.finished).toBe(true);
   }, 30_000);
 
@@ -85,7 +71,7 @@ describe("the solver", () => {
   });
 
   it("stops after as many rows as asked", () => {
-    const result = proveCourse(RAMP, { rows: 3 });
+    const result = proveCourse(COURSE, { rows: 3 });
     expect(result.ok && result.proof.rows.length).toBe(3);
     expect(result.ok && result.proof.finished).toBe(false);
   });
@@ -109,7 +95,7 @@ describe("the solver", () => {
   });
 
   it("fails loudly when a row's search would look at more poses than allowed", () => {
-    expect(() => proveCourse(RAMP, { maxPoses: 5 })).toThrow(/No route found within 5 team poses/);
+    expect(() => proveCourse(COURSE, { maxPoses: 5 })).toThrow(/No route found within 5 team poses/);
   });
 });
 
@@ -124,10 +110,10 @@ describe("a readable route", () => {
   });
 
   it("says each step in words, landings included", () => {
-    const route = describeProof(proveCourse(RAMP, { rows: 3, answers }), TEACHING_RAMP.lanes, TUNING.wallRows);
+    const route = describeProof(proveCourse(COURSE, { rows: 3, answers }), LONG_AND_SHORT.lanes, TUNING.wallRows);
     expect(route).toMatch(/Sprout hops/);
-    expect(route).toMatch(/Splash turns anticlockwise/);
-    expect(route).toMatch(/Sprout slides right/);
+    expect(route).toMatch(/Sprout turns clockwise/);
+    expect(route).toMatch(/Splash slides left/);
     expect(route).toMatch(/PROVED: 3 rows passed with no bonk/);
   });
 
@@ -155,6 +141,6 @@ describe("the replays", () => {
 
   it("fails loudly on a replay that doesn't exist, naming those that do", () => {
     expect(findReplay("perch")).toBe(REPLAYS.perch);
-    expect(() => findReplay("nope")).toThrow(/no replay "nope"; the replays are perch, proof-solo, proof-teaching-ramp/);
+    expect(() => findReplay("nope")).toThrow(/no replay "nope"; the replays are perch, proof-block-party, proof-long-and-short, proof-solo, proof-tea-for-two/);
   });
 });
