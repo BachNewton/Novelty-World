@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./test";
 import type { PlayReadout } from "../src/projects/betrayal/components/play/play-screen";
-import { PAGE, padTo } from "./betrayal-game";
+import { PAGE, padTo, SAVED, shareCode } from "./betrayal-game";
 
 /**
  * Betrayal's hot-seat game with two controllers on one device: seats claimed
@@ -14,8 +14,6 @@ import { PAGE, padTo } from "./betrayal-game";
  * event), never a pause.
  */
 
-const SAVED = "nw:betrayal:hot-seat";
-
 test.use({
   launchOptions: {
     args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"],
@@ -25,7 +23,6 @@ test.setTimeout(120_000);
 
 /** Zoe Ingstrom goes first, then Ox Bellows, then Father Rhinehardt. */
 const GAME = {
-  format: 3,
   game: {
     seed: "e2e-pads",
     sets: ["base"],
@@ -38,7 +35,7 @@ const GAME = {
   },
   actions: [],
 };
-const code = Buffer.from(JSON.stringify(GAME)).toString("base64url");
+const code = shareCode(GAME);
 
 const BUTTON = { A: 0, B: 1, X: 2, Menu: 9, DpadDown: 13, DpadLeft: 14, DpadRight: 15 } as const;
 const X = BUTTON.X;

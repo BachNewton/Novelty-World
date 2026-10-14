@@ -5,7 +5,7 @@ import { getProjectStorage } from "@/shared/lib/storage";
 import { ENGINE } from "../../game";
 import type { InputKind } from "../../input/controls";
 import { createPlayStore, type PlayStore } from "../../play/store";
-import { decodeGame, type SharedGame } from "../../share";
+import { decodeGame, OutdatedGameError, type SharedGame } from "../../share";
 import { errorText } from "../pending-panel";
 import { BETRAYAL_THEME } from "../theme";
 import { PlayScreen } from "./play-screen";
@@ -24,20 +24,27 @@ import { trimSeats } from "../../play/pads";
  */
 
 const storage = getProjectStorage("betrayal");
-const SAVED = "hot-seat";
+const SAVED = "saved-game";
+/** Where development builds kept the game before saves started over at v1. A game there is
+ *  read only to say it is outdated, and goes once a game is saved in its place. */
+const OLD_SAVED = "hot-seat";
 
 const save = (code: string) => {
   storage.set(SAVED, code);
+  storage.remove(OLD_SAVED);
 };
+
+/** Why a game can't be opened: an outdated one says so plainly, anything else fails loudly with its stack. */
+const problemText = (problem: unknown) => (problem instanceof OutdatedGameError ? problem.message : errorText(problem));
 
 /** The saved game, read back, or why it can't be. */
 function savedGame(): SavedGame {
-  const code = storage.get<string>(SAVED);
+  const code = storage.get<string>(SAVED) ?? storage.get<string>(OLD_SAVED);
   if (code === null) return { game: null, error: null };
   try {
     return { game: decodeGame(code), error: null };
   } catch (error) {
-    return { game: null, error: `The saved game can't be resumed: ${errorText(error)}` };
+    return { game: null, error: `The saved game can't be resumed: ${problemText(error)}` };
   }
 }
 
@@ -49,7 +56,7 @@ function linkedGame(code: string | null): { store: PlayStore | null; error: stri
   try {
     return { store: createPlayStore(ENGINE, decodeGame(code), keepInMemory), error: null };
   } catch (problem) {
-    return { store: null, error: `The linked game can't be opened: ${errorText(problem)}` };
+    return { store: null, error: `The linked game can't be opened: ${problemText(problem)}` };
   }
 }
 

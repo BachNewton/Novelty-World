@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./test";
-import { PAGE } from "./betrayal-game";
+import { PAGE, SAVED, shareCode } from "./betrayal-game";
 import type { PlayReadout } from "../src/projects/betrayal/components/play/play-screen";
 
 /**
@@ -13,15 +13,12 @@ import type { PlayReadout } from "../src/projects/betrayal/components/play/play-
  * never a pause.
  */
 
-const SAVED = "nw:betrayal:hot-seat";
-
 test.use({ launchOptions: { args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] } });
 test.setTimeout(120_000);
 
 /** Zoe goes first (it is her birthday), the room stack is the Game Room, and
  *  the event deck starts with Something Hidden, which asks a question. */
 const GAME = {
-  format: 3,
   game: {
     seed: "e2e-play",
     sets: ["base"],
@@ -36,7 +33,7 @@ const GAME = {
   actions: [],
 };
 
-const code = Buffer.from(JSON.stringify(GAME)).toString("base64url");
+const code = shareCode(GAME);
 
 const readout = (page: Page): Promise<PlayReadout> =>
   page.evaluate(() => {
@@ -230,17 +227,18 @@ test("a seeded game: a discovery, an event card, a move and ended turns, with ke
   await until(page, `play.version === ${version} && play.holder === 0`);
 });
 
-test("a game saved by an older engine is refused, not replayed", async ({ page }) => {
+test("a game saved by a development build from before v1 is marked outdated, not replayed", async ({ page }) => {
   page.on("pageerror", (error) => {
     throw error;
   });
   await page.goto(PAGE);
-  const old = Buffer.from(JSON.stringify({ ...GAME, format: 2 })).toString("base64url");
+  const old = Buffer.from(JSON.stringify({ ...GAME, format: 3 })).toString("base64url");
   await page.evaluate(([key, value]) => {
-    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.removeItem(key);
+    localStorage.setItem("nw:betrayal:hot-seat", JSON.stringify(value));
   }, [SAVED, old] as const);
   await page.reload();
-  await expect(page.getByText("The saved game can't be resumed", { exact: false })).toBeVisible();
+  await expect(page.getByText("The saved game can't be resumed: That game is from an older version of the engine and can't be replayed", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Resume" })).toHaveCount(0);
 });
 
@@ -285,7 +283,7 @@ const savedShare = (page: Page) =>
     const stored = localStorage.getItem(key);
     if (stored === null) throw new Error("No saved game");
     const code = JSON.parse(stored) as string;
-    return JSON.parse(atob(code.replace(/-/g, "+").replace(/_/g, "/"))) as { game: { seats: { character: string }[]; chosenHaunt?: number } };
+    return JSON.parse(atob(code.replace(/^v\d+\./, "").replace(/-/g, "+").replace(/_/g, "/"))) as { game: { seats: { character: string }[]; chosenHaunt?: number } };
   }, SAVED);
 
 test("setup: characters chosen by portrait, one per card, and a chosen haunt carried into the game", async ({ page }) => {
@@ -335,7 +333,7 @@ test("the haunt's reveal: the light is the haunt's, the traitor is named, and ea
   await page.goto(PAGE);
   await page.evaluate(([key, value]) => {
     localStorage.setItem(key, JSON.stringify(value));
-  }, [SAVED, Buffer.from(JSON.stringify(haunted)).toString("base64url")] as const);
+  }, [SAVED, shareCode(haunted)] as const);
   await page.reload();
   await page.getByRole("button", { name: "Resume" }).click();
   await until(page, "play.pending?.type === 'ready' && play.holder === 0");
@@ -489,7 +487,7 @@ test.describe("the rotation ghost", () => {
     await page.goto(PAGE);
     await page.evaluate(([key, value]) => {
       localStorage.setItem(key, JSON.stringify(value));
-    }, [SAVED, Buffer.from(JSON.stringify(oneWay)).toString("base64url")] as const);
+    }, [SAVED, shareCode(oneWay)] as const);
     await page.reload();
     await page.getByRole("button", { name: "Resume" }).click();
     await until(page, "play.holder === 0 && play.pending?.kind === 'turn'");

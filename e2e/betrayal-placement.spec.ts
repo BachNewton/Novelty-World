@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./test";
-import { PAGE } from "./betrayal-game";
+import { PAGE, SAVED, shareCode } from "./betrayal-game";
 import type { PlayReadout } from "../src/projects/betrayal/components/play/play-screen";
 
 /**
@@ -13,8 +13,6 @@ import type { PlayReadout } from "../src/projects/betrayal/components/play/play-
  * own state (window.__betrayalPlay), never a pause.
  */
 
-const SAVED = "nw:betrayal:hot-seat";
-
 test.use({ launchOptions: { args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] } });
 test.setTimeout(120_000);
 
@@ -23,8 +21,7 @@ const SEEDS = { upper: "e2e-elevator-0", ground: "e2e-elevator-2", basement: "e2
 
 function gameCode(seed: string, scenario: object): string {
   const game = {
-    format: 3,
-    game: {
+      game: {
       seed,
       sets: ["base"],
       seats: [
@@ -37,7 +34,7 @@ function gameCode(seed: string, scenario: object): string {
     },
     actions: [],
   };
-  return Buffer.from(JSON.stringify(game)).toString("base64url");
+  return shareCode(game);
 }
 
 const readout = (page: Page): Promise<PlayReadout> =>

@@ -14,37 +14,66 @@ export interface SharedGame {
 }
 
 /** Raise it whenever recorded actions may mean something else to the engine,
- *  so an older code fails plainly instead of replaying into a different game. */
-const SHARE_FORMAT = 3;
+ *  so an older code fails plainly instead of replaying into a different game.
+ *  It leads the code as its prefix (`v1.<payload>`). */
+const SHARE_FORMAT = 1;
+
+const PREFIXED = /^v(\d+)\.(.+)$/;
+
+/** A code from an older version of the engine: not a bug, so it is shown as it is, never with a stack. */
+export class OutdatedGameError extends Error {
+  constructor() {
+    super("That game is from an older version of the engine and can't be replayed");
+  }
+}
 
 export function encodeGame(shared: SharedGame): string {
-  const json = JSON.stringify({ format: SHARE_FORMAT, ...shared });
-  const bytes = new TextEncoder().encode(json);
+  const bytes = new TextEncoder().encode(JSON.stringify(shared));
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary)
+  const payload = btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
+  return `v${SHARE_FORMAT}.${payload}`;
+}
+
+/** A code's payload, read back as JSON. Throws on anything that isn't one. */
+function payloadOf(payload: string): unknown {
+  const binary = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+/** A code from before codes had a prefix: its payload is the whole code, carrying its format inside. */
+function unprefixed(code: string): boolean {
+  try {
+    const parsed = payloadOf(code);
+    return typeof parsed === "object" && parsed !== null && "format" in parsed && typeof parsed.format === "number";
+  } catch {
+    return false;
+  }
 }
 
 /** Reads a shared game back. Throws, saying what is wrong, on anything else. */
 export function decodeGame(code: string): SharedGame {
+  const trimmed = code.trim();
+  const prefixed = PREFIXED.exec(trimmed);
+  if (!prefixed) {
+    if (unprefixed(trimmed)) throw new OutdatedGameError();
+    throw new Error("That isn't a shared game code");
+  }
+  const format = Number(prefixed[1]);
+  if (format < SHARE_FORMAT) throw new OutdatedGameError();
+  if (format !== SHARE_FORMAT)
+    throw new Error(`Unknown shared game format ${String(format)}`);
   let parsed: unknown;
   try {
-    const binary = atob(code.trim().replace(/-/g, "+").replace(/_/g, "/"));
-    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    parsed = JSON.parse(new TextDecoder().decode(bytes));
+    parsed = payloadOf(prefixed[2]);
   } catch {
     throw new Error("That isn't a shared game code");
   }
   const root = record(parsed, "the code");
-  if (typeof root.format === "number" && root.format < SHARE_FORMAT)
-    throw new Error(
-      "That game was shared from an older version of the engine and can't be replayed",
-    );
-  if (root.format !== SHARE_FORMAT)
-    throw new Error(`Unknown shared game format ${String(root.format)}`);
   const game = record(root.game, "game");
   const today = record(game.today, "game.today");
   return {
@@ -55,7 +84,6 @@ export function decodeGame(code: string): SharedGame {
           throw new Error(`game.sets[${i}] is not a set`);
         return set;
       }),
-      // A code from before seats were named by their explorers still carries names, ignored.
       seats: list(game.seats, "game.seats").map((seat, i) => {
         const s = record(seat, `game.seats[${i}]`);
         return {
