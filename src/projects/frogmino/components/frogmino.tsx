@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
+import { courseMusic } from "../audio/music/course-music";
 import { localSession } from "../session";
 import { coopCourse, soloCourse, type Course } from "../courses";
 import { SOLO_SEATING } from "../input/devices";
@@ -96,7 +97,7 @@ function soloCourseOnce(): Course {
 // opens on a fresh session, so coming back starts a fresh run.
 function SoloGame() {
   const [session] = useState(() => localSession(soloCourseOnce()));
-  return <GameScreen session={session} seating={SOLO_SEATING} keyboard="solo" touch />;
+  return <GameScreen session={session} music={courseMusic({ kind: "solo" })} seating={SOLO_SEATING} keyboard="solo" touch />;
 }
 
 // Local co-op: a local session with a player per joined device, on the co-op
@@ -104,5 +105,7 @@ function SoloGame() {
 function LocalCoopGame({ lineup, course }: { lineup: Lineup; course: string }) {
   const [session] = useState(() => localSession(coopCourse(course)));
   const seating = useMemo(() => lineupSeating(lineup), [lineup]);
-  return <GameScreen session={session} seating={seating} keyboard="split" touch={false} />;
+  return (
+    <GameScreen session={session} music={courseMusic({ kind: "coop", id: course })} seating={seating} keyboard="split" touch={false} />
+  );
 }

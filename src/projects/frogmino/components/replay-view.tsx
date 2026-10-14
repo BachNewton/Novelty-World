@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { isTextEntryTarget } from "@/shared/lib/utils";
+import { courseMusic } from "../audio/music/course-music";
 import { courseOf } from "../courses";
 import { RESTART_KEY } from "../input/keyboard";
 import { findReplay } from "../proof/replays";
@@ -49,7 +50,7 @@ export function ReplayView({ name }: { name: string }) {
   }, [session]);
 
   return (
-    <GameView session={session}>
+    <GameView session={session} music={courseMusic(replay.course)}>
       {done && (
         <div className="pointer-events-none absolute inset-x-4 top-16 flex justify-center">
           <SessionResult session={session} />
