@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { attack } from "../../engine/combat";
 import { damage, discardCard, relocate, step } from "../../engine/effects";
-import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import {
   choose,
@@ -9,6 +8,10 @@ import {
   offered,
   pendingDecision,
   testGame,
+  give,
+  interject,
+  inHaunt,
+  discard,
 } from "../../testing";
 import type { GameState, Trait } from "../../types";
 
@@ -16,6 +19,7 @@ import type { GameState, Trait } from "../../types";
 
 const ZOE = "zoe-ingstrom";
 const OX = "ox-bellows";
+const OX_SEAT = 1;
 const FATHER = "father-rhinehardt";
 
 /** Zoe explores north from the Entrance Hall into the Abandoned Room, which has an omen symbol. */
@@ -28,7 +32,7 @@ function drawOmen(omen: string): GameState {
 }
 
 function lose(state: GameState, omen: string): GameState {
-  return start(ENGINE, { ...state, pending: null }, [discardCard(ZOE, omen)]);
+  return interject(ENGINE, state, [discardCard(ZOE, omen)]);
 }
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
@@ -76,7 +80,7 @@ describe("Madman (cards/omens.md)", () => {
 describe("Spirit Board (cards/omens.md)", () => {
   function holding(): GameState {
     const state = testGame({ stack: ["ballroom", "kitchen"] });
-    explorer(state, 0).cards.push("spirit-board");
+    give(state, 0, "spirit-board");
     return state;
   }
 
@@ -94,7 +98,7 @@ describe("Spirit Board (cards/omens.md)", () => {
   });
 
   it("can still be used after being put in a room without spending movement (the card's project ruling)", () => {
-    const state = start(ENGINE, { ...holding(), pending: null }, [
+    const state = interject(ENGINE, holding(), [
       relocate(ZOE, "foyer", { source: "card", card: "dark-dice" }),
       step("turn-menu", { seat: 0 }),
     ]);
@@ -117,7 +121,7 @@ describe("Crystal Ball (cards/omens.md)", () => {
 
   function holding(seed: string): GameState {
     const state = testGame({ seed });
-    explorer(state, 0).cards.push("crystal-ball");
+    give(state, 0, "crystal-ball");
     return state;
   }
 
@@ -167,7 +171,7 @@ describe("Mask (cards/omens.md)", () => {
   function masked(): GameState {
     const state = testGame();
     explorer(state, 0).traits.clips = { speed: 3, might: 3, sanity: 3, knowledge: 3 };
-    explorer(state, 0).cards.push("mask", "angel-feather");
+    give(state, 0, "mask", "angel-feather");
     return state;
   }
   const useWith = (state: GameState, result: number) =>
@@ -199,7 +203,7 @@ describe("Mask (cards/omens.md)", () => {
   it("takes it off on a later turn: gain 2 Sanity and lose 2 Knowledge", () => {
     let state = choose(useWith(masked(), 5), "Put on the Mask");
     for (let i = 0; i < 3; i++) state = choose(state, "End your turn");
-    explorer(state, 0).cards.push("angel-feather");
+    give(state, 0, "angel-feather");
     const rolled = useWith(state, 6);
     expect(labels(rolled)).toEqual(["Take off the Mask", "Keep the Mask on"]);
     const off = choose(rolled, "Take off the Mask");
@@ -224,8 +228,9 @@ describe("Skull (cards/omens.md)", () => {
     points: number,
   ): GameState {
     const state = testGame();
-    explorer(state, 0).cards.push(...cards);
-    return start(ENGINE, { ...state, pending: null }, [
+    give(state, 0, ...cards);
+    discard(state, "angry-being");
+    return interject(ENGINE, state, [
       damage(ZOE, kind, { points }, RULE),
     ]);
   }
@@ -263,9 +268,10 @@ describe("Skull (cards/omens.md)", () => {
   });
 });
 
-/** Starts Zoe's attack on Ox in the middle of her turn. */
+/** Starts Zoe's attack on Ox in the middle of her turn, in the haunt, with
+ *  Ox the traitor: an explorer's attack waits for the haunt (p. 13). */
 function attackOx(state: GameState): GameState {
-  return start(ENGINE, { ...state, pending: null }, [
+  return interject(ENGINE, inHaunt(state, OX_SEAT), [
     attack({ kind: "figure", figure: ZOE }, OX, {
       source: "rulebook",
       page: 13,
@@ -305,7 +311,7 @@ describe("Bite (cards/omens.md)", () => {
 describe("Ring (cards/omens.md)", () => {
   it("attacks with Sanity instead of Might; the opponent defends with Sanity, and the damage is mental", () => {
     const state = testGame();
-    explorer(state, 0).cards.push("ring");
+    give(state, 0, "ring");
     let next = attackOx(state);
     expect(labels(next)).toEqual([
       "Attack with Might",
@@ -326,7 +332,7 @@ describe("Ring (cards/omens.md)", () => {
 describe("Spear (cards/omens.md)", () => {
   it("rolls 2 extra dice on a Might attack made with it", () => {
     const state = testGame();
-    explorer(state, 0).cards.push("spear");
+    give(state, 0, "spear");
     const next = choose(attackOx(state), "using the Spear");
     expect(rollsMade(next)).toEqual([
       { figure: ZOE, dice: 5 },

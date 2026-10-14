@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { connections } from "../../engine/board";
 import { describeEvent } from "../../engine/describe";
 import { drawCard, gain } from "../../engine/effects";
-import { start, type Engine } from "../../engine/step-loop";
+import { type Engine } from "../../engine/step-loop";
 import { BASE_ENGINE, ENGINE } from "../../game";
 import { withHaunts } from "../../kit/haunt";
 import {
@@ -20,6 +20,8 @@ import {
   put,
   waitingOn,
   spectator,
+  give,
+  interject,
 } from "../../testing";
 import type { GameEvent, GameState, RuleRef } from "../../types";
 
@@ -172,7 +174,7 @@ describe("room text on a monster", () => {
   });
 
   it("can't raise its traits, nor lose them but to damage (p. 19, ruling monster-traits)", () => {
-    const state = start(TOY_ENGINE, { ...toyBegun(TOY_ENGINE), pending: null }, [
+    const state = interject(TOY_ENGINE, toyBegun(TOY_ENGINE), [
       gain(PHANTOM_1, "might", 1, RULE),
     ]);
     expect(eventTypes(state)).toContain("traits-fixed");
@@ -183,7 +185,7 @@ describe("room text on a monster", () => {
 describe("card text naming explorers (rules.md, p. 5: a rule for one kind names it)", () => {
   it("the Medical Kit heals explorers in the room, never a monster there", () => {
     const state = toyBegun(TOY_ENGINE, (s) => {
-      explorer(s, 2).cards.push("medical-kit");
+      give(s, 2, "medical-kit");
       explorer(s, 0).traits.clips.might = 0;
       explorer(s, 2).traits.clips.might = 0;
     });
@@ -196,7 +198,7 @@ describe("card text naming explorers (rules.md, p. 5: a rule for one kind names 
 
   it("the Dark Dice's 5 moves another explorer, never a monster", () => {
     let state = toyBegun(TOY_ENGINE, (s) => {
-      explorer(s, 2).cards.push("dark-dice", "angel-feather");
+      give(s, 2, "dark-dice", "angel-feather");
     });
     state = choose(state, "Dark Dice", TOY_ENGINE);
     state = choose(state, "the result is 5", TOY_ENGINE);
@@ -209,7 +211,7 @@ describe("card text naming explorers (rules.md, p. 5: a rule for one kind names 
     let state = toyBegun(TOY_ENGINE, (s) => {
       put(s, 2, "foyer");
       phantomIn(s, "foyer");
-      explorer(s, 2).cards.push("lights-out");
+      give(s, 2, "lights-out");
     });
     state = choose(state, "End your turn", TOY_ENGINE);
     expect(state.figures[FATHER].cards).toContain("lights-out");
@@ -226,7 +228,7 @@ describe("card text naming explorers (rules.md, p. 5: a rule for one kind names 
         },
         { seed, decks: { event: ["footsteps"] }, rooms: ["chapel"] },
       );
-      state = start(TOY_ENGINE, { ...state, pending: null }, [
+      state = interject(TOY_ENGINE, state, [
         drawCard(FATHER, "event", DRAW_RULE),
       ]);
       const rolled = state.lastEvents.find((e) => e.type === "rolled");
@@ -251,7 +253,7 @@ describe("the Bell's and the Spirit Board's pulls (cards/items.md, cards/omens.m
   /** Father, holding the card, a room away from the Phantom. */
   const holding = (card: string) => (s: GameState) => {
     put(s, 2, "foyer");
-    explorer(s, 2).cards.push(card, "angel-feather");
+    give(s, 2, card, "angel-feather");
   };
 
   it("a Bell rung for 0-4 lets the traitor pull his monster a room nearer, spending none of its movement", () => {
@@ -272,7 +274,7 @@ describe("the Bell's and the Spirit Board's pulls (cards/items.md, cards/omens.m
   it("a Bell the traitor rings for 0-4 moves no monster of his", () => {
     let state = toyBegun(AWAKE_ENGINE, (s) => {
       put(s, 1, "foyer");
-      explorer(s, 1).cards.push("bell", "angel-feather");
+      give(s, 1, "bell", "angel-feather");
     });
     state = toMonsterTurn(state, AWAKE_ENGINE);
     expect(state.turn).toMatchObject({ seat: 1, kind: "traitor" });
@@ -333,7 +335,7 @@ describe("the traitor's new powers (rules.md, p. 17)", () => {
 
   it("may choose not to be affected by an event card, before its rolls (ruling traitor-events)", () => {
     let state = toyBegun(AWAKE_ENGINE, () => {}, { decks: { event: ["rotten"] } });
-    state = start(AWAKE_ENGINE, { ...state, pending: null }, [
+    state = interject(AWAKE_ENGINE, state, [
       drawCard(OX, "event", DRAW_RULE),
     ]);
     expect(labels(state, AWAKE_ENGINE)).toEqual([
@@ -347,7 +349,7 @@ describe("the traitor's new powers (rules.md, p. 17)", () => {
 
   it("but a hero drawing it is affected", () => {
     let state = toyBegun(AWAKE_ENGINE, () => {}, { decks: { event: ["rotten"] } });
-    state = start(AWAKE_ENGINE, { ...state, pending: null }, [
+    state = interject(AWAKE_ENGINE, state, [
       drawCard(FATHER, "event", DRAW_RULE),
     ]);
     expect(eventTypes(state)).toContain("rolled");

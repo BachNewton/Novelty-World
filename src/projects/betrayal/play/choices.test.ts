@@ -2,10 +2,20 @@ import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
 import { placed } from "../engine/board";
 import { relocate } from "../engine/effects";
-import { apply, start } from "../engine/step-loop";
+import { apply } from "../engine/step-loop";
 import { viewFor } from "../engine/view";
 import { traitValue } from "../engine/questions";
-import { choose, explorer, inHaunt, offered, put, testGame, waitingOn } from "../testing";
+import {
+  choose,
+  explorer,
+  inHaunt,
+  offered,
+  put,
+  testGame,
+  waitingOn,
+  placeTiles,
+  interject,
+} from "../testing";
 import type { GameState } from "../types";
 import type { Layout } from "../engine/board";
 import type { Edge } from "../types";
@@ -157,7 +167,7 @@ describe("playChoices", () => {
   it("offers the Slide as every room below it, each taking the one roll", () => {
     // Zoe stands in the Attic, where a Slide lies: the ground floor and the basement are below.
     const state = testGame();
-    state.board.tiles.push({ tile: "attic", floor: "upper", x: 9, y: 9, rotation: 0 });
+    placeTiles(state, { tile: "attic", floor: "upper", x: 9, y: 9, rotation: 0 });
     put(state, 0, "attic");
     state.tokens.push({ token: "slide", room: "attic" });
     const { targets, panel } = choicesOf(state);
@@ -175,7 +185,7 @@ describe("playChoices", () => {
   it("offers each side of a barrier room a figure lands in as its own place", () => {
     const state = testGame({ rooms: ["tower"] });
     const zoe = explorer(state, 0).id;
-    const landing = start(ENGINE, { ...state, pending: null }, [relocate(zoe, "tower", { source: "rulebook", page: 7 })]);
+    const landing = interject(ENGINE, state, [relocate(zoe, "tower", { source: "rulebook", page: 7 })]);
     const { targets, panel } = choicesOf(landing);
     expect(panel).toEqual([]);
     expect(targets.map((t) => (t.kind === "room" ? [t.room, t.side] : t.kind)).sort()).toEqual(ENGINE.catalog.rooms.tower.doors.map((side) => ["tower", side]).sort());

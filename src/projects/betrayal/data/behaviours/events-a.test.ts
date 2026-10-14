@@ -11,6 +11,9 @@ import {
   pendingDecision,
   put,
   testGame,
+  give,
+  placeTiles,
+  pile,
 } from "../../testing";
 import type { CardType, GameEvent, GameState, Trait } from "../../types";
 
@@ -89,7 +92,7 @@ function landing(
 /** Zoe also holds the Axe, which she could drop, so her turn never ends by itself. */
 function holdingAxe(state: GameState): void {
   state.decks.item.draw = state.decks.item.draw.filter((c) => c !== "axe");
-  explorer(state, 0).cards.push("axe");
+  give(state, 0, "axe");
 }
 
 /** Splits every damage the first way offered until something else is pending; returns every event on the way. */
@@ -127,7 +130,7 @@ function placeTile(
   x: number,
   y: number,
 ): void {
-  state.board.tiles.push({ tile, floor, x, y, rotation: 0 });
+  placeTiles(state, { tile, floor, x, y, rotation: 0 });
 }
 
 function endTurns(start: GameState, count: number): GameState {
@@ -332,7 +335,7 @@ describe("Creepy Puppet (cards/events.md)", () => {
   const outcome = (state: GameState) =>
     state.lastEvents.find((e) => e.type === "attack-outcome")?.data as
       { loser: string | null } | undefined;
-  const ox = (s: GameState) => explorer(s, 1).cards.push("spear");
+  const ox = (s: GameState) => give(s, 1, "spear");
 
   it("the player on your right makes a Might 4 attack against you", () => {
     const state = play("test-seed");
@@ -364,7 +367,7 @@ describe("Creepy Puppet (cards/events.md)", () => {
 
   it("not if you have the Spear yourself", () => {
     const hurt = firstSeed(
-      (seed) => play(seed, (s) => explorer(s, 0).cards.push("spear")),
+      (seed) => play(seed, (s) => give(s, 0, "spear")),
       (s) => outcome(s)?.loser === "defender",
     );
     const { events } = settle(hurt);
@@ -403,13 +406,13 @@ describe("Debris (cards/events.md)", () => {
   /** Zoe's turn, buried in the Entrance Hall with the others. */
   const buried = (setUp: (s: GameState) => void = () => undefined) => {
     const state = testGame();
-    explorer(state, 0).cards.push("debris");
+    give(state, 0, "debris");
     setUp(state);
     return state;
   };
 
   it("while buried you can do nothing but try to dig yourself out, once a turn", () => {
-    const state = buried((s) => explorer(s, 0).cards.push("axe"));
+    const state = buried((s) => give(s, 0, "axe"));
     expect(labels(state)).toEqual([DIG, "End your turn"]);
     // A failed attempt leaves only the end of the turn.
     const failed = firstSeed(
@@ -421,7 +424,7 @@ describe("Debris (cards/events.md)", () => {
   });
 
   it("an explorer in your room may make the Might roll on their turn; 4+ frees you", () => {
-    let state = buried((s) => explorer(s, 1).cards.push("angel-feather"));
+    let state = buried((s) => give(s, 1, "angel-feather"));
     state = choose(state, "End your turn");
     expect(labels(state)).toContain(DIG);
     state = choose(choose(state, DIG), "the result is 4");
@@ -636,6 +639,19 @@ describe("Funeral (cards/events.md)", () => {
     state = choose(state, "Go to the Crypt");
     expect(at(state, 0).room).toBe("crypt");
   });
+  it("puts no one anywhere on 0-1 when the losses kill you: the choice of room lapses", () => {
+    // In the haunt, Zoe at her lowest Sanity dies of the loss.
+    const state = landing(0, 1, (seed) =>
+      draw(seed, (s) => {
+        inHaunt(s, 1);
+        explorer(s, 0).traits.clips.sanity = 0;
+        placeTile(s, "graveyard", "ground", 5, 5);
+        placeTile(s, "crypt", "basement", 5, 5);
+      }),
+    );
+    expect(state.figures["zoe-ingstrom"].alive).toBe(false);
+    expect(pendingDecision(state).kind).not.toBe("choose-one");
+  });
 });
 
 describe("Grave Dirt (cards/events.md)", () => {
@@ -676,7 +692,7 @@ describe("Grave Dirt (cards/events.md)", () => {
 
   it("is discarded once when an item card raises your traits", () => {
     let state = kept();
-    state.piles.ballroom = ["amulet-of-the-ages"];
+    pile(state, "ballroom", "amulet-of-the-ages");
     state = choose(state, "Pick up the Amulet of the Ages");
     expect(explorer(state, 0).cards).not.toContain("grave-dirt");
     expect(
@@ -749,7 +765,7 @@ describe("Image in the Mirror, the one that gives (cards/events.md)", () => {
       state.decks.item.draw = state.decks.item.draw.filter((d) => d !== c);
       state.decks.omen.draw = state.decks.omen.draw.filter((d) => d !== c);
     }
-    explorer(state, seat).cards.push(...cards);
+    give(state, seat, ...cards);
   };
 
   it("puts one of your item cards into the item stack, shuffles it, and you gain 1 Knowledge", () => {
@@ -825,7 +841,7 @@ describe("Jonah's Turn (cards/events.md)", () => {
       decks: { item: ["candle"] },
       setUp: (s) => {
         s.decks.item.draw = s.decks.item.draw.filter((c) => c !== "puzzle-box");
-        explorer(s, 1).cards.push("puzzle-box");
+        give(s, 1, "puzzle-box");
       },
     });
     expect(explorer(state, 1).cards).toEqual(["candle"]);
@@ -867,7 +883,7 @@ describe("Lights Out (cards/events.md)", () => {
 
   it("is discarded when you get the Candle", () => {
     let state = draw();
-    state.piles.ballroom = ["candle"];
+    pile(state, "ballroom", "candle");
     state = choose(state, "Pick up the Candle");
     expect(explorer(state, 0).cards).toEqual(["axe", "candle"]);
   });
@@ -876,7 +892,7 @@ describe("Lights Out (cards/events.md)", () => {
     const state = drawEvent("lights-out", {
       setUp: (s) => {
         s.decks.item.draw = s.decks.item.draw.filter((c) => c !== "candle");
-        explorer(s, 0).cards.push("candle");
+        give(s, 0, "candle");
       },
     });
     expect(explorer(state, 0).cards).toEqual(["candle"]);
@@ -958,7 +974,7 @@ describe("Mists from the Walls (cards/events.md)", () => {
 describe("Groundskeeper (cards/events.md)", () => {
   it("on 0-3, the player on your right makes a Might 4 attack against you, and you defend with your Might", () => {
     let state = drawEvent("groundskeeper", {
-      setUp: (s) => explorer(s, 0).cards.push("angel-feather"),
+      setUp: (s) => give(s, 0, "angel-feather"),
     });
     state = choose(state, "the result is 3");
     expect(attacked(state.lastEvents)).toEqual([
@@ -978,7 +994,7 @@ describe("Groundskeeper (cards/events.md)", () => {
 
   it("makes a Knowledge roll; on 4+ you draw an item", () => {
     let state = drawEvent("groundskeeper", {
-      setUp: (s) => explorer(s, 0).cards.push("angel-feather"),
+      setUp: (s) => give(s, 0, "angel-feather"),
     });
     expect(pendingDecision(state).params).toMatchObject({
       spec: { kind: "trait", trait: "knowledge" },
@@ -997,7 +1013,7 @@ describe("Groundskeeper (cards/events.md)", () => {
   it("an explorer in the Gardens rolls 2 fewer dice", () => {
     const state = drawEvent("groundskeeper", {
       stack: ["gardens"],
-      setUp: (s) => explorer(s, 0).cards.push("angel-feather"),
+      setUp: (s) => give(s, 0, "angel-feather"),
     });
     expect(pendingDecision(state).params).toMatchObject({ pool: 1 });
   });
@@ -1052,7 +1068,7 @@ describe("It Is Meant to Be (cards/events.md)", () => {
     return drawEvent(event, {
       ...options,
       setUp: (s) => {
-        explorer(s, 0).cards.push("it-is-meant-to-be");
+        give(s, 0, "it-is-meant-to-be");
         s.decks.event.draw = s.decks.event.draw.filter(
           (c) => c !== "it-is-meant-to-be",
         );

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { pendingDecision, testGame } from "../testing";
+import {
+  pendingDecision,
+  testGame,
+  interject,
+} from "../testing";
 import type { RuleRef } from "../types";
 import { damage } from "./effects";
 import { figureName } from "./figures";
@@ -12,7 +16,7 @@ import {
   onTurn,
   traitValue,
 } from "./questions";
-import { start, type Engine } from "./step-loop";
+import { type Engine } from "./step-loop";
 
 // Who decides for a figure is the controller question, not a stored seat:
 // its base answer is the owner, and a rule source can change it, as
@@ -55,7 +59,7 @@ describe("the controller question", () => {
     });
     expect(controllerOf(handedOver, state, ZOE)).toBe(2);
     expect(onTurn(handedOver, state, ZOE)).toBe(false);
-    const hurt = start(handedOver, { ...state, pending: null }, [
+    const hurt = interject(handedOver, state, [
       damage(ZOE, "physical", { points: 2 }, RULE),
     ]);
     const split = pendingDecision(hurt);

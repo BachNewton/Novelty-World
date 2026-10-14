@@ -9,7 +9,7 @@ import { rerollCards, rerollChoice, rollMeaning, rollOffers, rollShown, type Rol
 /** Zoe, holding the Lucky Stone and the Skull, explores into the Game Room
  *  and draws Skeletons: a die of mental damage, which the Stone can reroll. */
 function skeletons(): GameState {
-  let state = testGame({ seed: "dice", stack: ["game-room"], decks: { event: ["skeletons"] }, explorers: [{ seat: 0, cards: ["lucky-stone", "skull"] }] });
+  let state = testGame({ seed: "dice-box", stack: ["game-room"], decks: { event: ["skeletons"] }, explorers: [{ seat: 0, cards: ["lucky-stone", "skull"] }] });
   state = choose(state, "Explore through the north door");
   return choose(state, "turned 0°");
 }

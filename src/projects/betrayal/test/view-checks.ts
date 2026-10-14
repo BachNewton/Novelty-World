@@ -58,15 +58,16 @@ export function checkView(engine: Engine, state: GameState, viewer: number | nul
   const text = JSON.stringify(view);
   if (JSON.stringify(JSON.parse(text)) !== text) fail("doesn't survive JSON");
   const all = leaves(view);
-  if (all.includes(state.seed)) fail("carries the seed");
+  if (all.includes(state.seed)) fail(`carries the seed "${state.seed}" (a seed that is also a word the view uses can't be checked: give the test another)`);
 
   // The order of the stacks: none of their contents, only their sizes.
   const shown = new Set(leaves(standing(view)));
   const decks: CardType[] = ["omen", "item", "event"];
+  // The omen that revealed the haunt is public, wherever it is now.
   const hidden = unambiguous(engine, [
     ...state.board.stack,
     ...decks.flatMap((type) => state.decks[type].draw),
-  ]);
+  ]).filter((id) => id !== state.haunt?.omen);
   const seen = hidden.filter((id) => shown.has(id));
   if (seen.length > 0) fail(`shows what is in the stacks: ${seen.join(", ")}`);
 

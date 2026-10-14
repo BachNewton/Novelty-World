@@ -4,7 +4,6 @@ import { attack } from "../../engine/combat";
 import { discardCard } from "../../engine/effects";
 import { traitValue } from "../../engine/questions";
 import { askNumber } from "../../engine/questions";
-import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import {
   at,
@@ -17,6 +16,11 @@ import {
   put,
   testGame,
   type TestGame,
+  give,
+  placeTiles,
+  interject,
+  pile,
+  discard,
 } from "../../testing";
 import type { GameState, Trait } from "../../types";
 
@@ -33,7 +37,7 @@ const FATHER_ID = "father-rhinehardt";
 /** Zoe's turn, in the Entrance Hall with the other explorers, holding these cards. */
 function holding(cards: string[], options: TestGame = {}): GameState {
   const state = testGame(options);
-  explorer(state, ZOE).cards.push(...cards);
+  give(state, ZOE, ...cards);
   return state;
 }
 
@@ -62,9 +66,10 @@ function rolled(state: GameState): {
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
 
-/** Starts Zoe's attack on Ox in the middle of her turn. */
+/** Starts Zoe's attack on Ox in the middle of her turn, in the haunt, with
+ *  Ox the traitor: an explorer's attack waits for the haunt (p. 13). */
 function attackOx(state: GameState): GameState {
-  return start(ENGINE, { ...state, pending: null }, [
+  return interject(ENGINE, inHaunt(state, OX), [
     attack({ kind: "figure", figure: ZOE_ID }, OX_ID, {
       source: "rulebook",
       page: 13,
@@ -166,10 +171,10 @@ describe("Bell (cards/items.md)", () => {
     const state = inHaunt(holding(["bell", "angel-feather"]), 1);
     put(state, OX, "foyer");
     put(state, 2, "foyer");
-    explorer(state, 2).cards.push("debris");
+    give(state, 2, "debris");
     let rung = actWithNamedRoll(state, "Ring the Bell (Sanity roll)", 5);
     expect(eventTypes(rung)).not.toContain("entered");
-    explorer(state, 2).cards.pop();
+    discard(state, "debris");
     rung = actWithNamedRoll(state, "Ring the Bell (Sanity roll)", 5);
     expect(labels(rung)).toEqual([
       "Call Father Rhinehardt 1 space closer",
@@ -249,7 +254,7 @@ describe("Dark Dice (cards/items.md)", () => {
 
   it("on a 6, can take you across a barrier to an explorer on its other side", () => {
     const state = holding(["dark-dice", "angel-feather"]);
-    state.board.tiles.push({
+    placeTiles(state, {
       tile: "chasm",
       floor: "basement",
       x: 9,
@@ -491,7 +496,7 @@ describe("Rabbit's Foot (cards/items.md)", () => {
 
   it("is not offered on another explorer's turn", () => {
     const state = testGame();
-    explorer(state, OX).cards.push("rabbits-foot");
+    give(state, OX, "rabbits-foot");
     // Ox defends against Zoe's attack on her turn: no reroll is offered.
     expect(eventTypes(attackOx(state))).toContain("attack-outcome");
   });
@@ -514,13 +519,13 @@ describe("Candle (cards/items.md)", () => {
 
   it("with the Bell, the Book and the Candle, you gain 2 in each trait", () => {
     const state = withSet(["bell", "book"]);
-    state.piles["entrance-hall"] = ["candle"];
+    pile(state, "entrance-hall", "candle");
     expect(clips(choose(state, "Pick up the Candle"))).toEqual(each(5));
   });
 
   it("the first time you lose one of the three later, you lose 2 from each trait", () => {
     const state = withSet(["bell", "candle"]);
-    state.piles["entrance-hall"] = ["book"];
+    pile(state, "entrance-hall", "book");
     let after = choose(state, "Pick up the Book");
     // The Book itself: gain 2 Knowledge.
     expect(clips(after)).toEqual({ ...each(5), knowledge: 7 });
@@ -528,7 +533,7 @@ describe("Candle (cards/items.md)", () => {
     // The Bell itself: lose 1 Sanity.
     expect(clips(after)).toEqual({ ...each(3), sanity: 2, knowledge: 5 });
     // The Book was picked up this turn, so it can't also be dropped: an event takes it.
-    after = start(ENGINE, { ...after, pending: null }, [
+    after = interject(ENGINE, after, [
       discardCard(ZOE_ID, "book"),
     ]);
     // Only the Book's own loss now: lose 2 Knowledge.
@@ -537,7 +542,7 @@ describe("Candle (cards/items.md)", () => {
 
   it("losing the Candle itself also costs the set's 2 in each trait", () => {
     const state = withSet(["bell", "book"]);
-    state.piles["entrance-hall"] = ["candle"];
+    pile(state, "entrance-hall", "candle");
     const after = choose(choose(state, "Pick up the Candle"), "End your turn");
     const dropped = choose(
       choose(choose(after, "End your turn"), "End your turn"),
@@ -583,7 +588,7 @@ describe("Candle (cards/items.md)", () => {
       [FATHER_ID, sanity(FATHER_ID)],
     ]);
     const state = holding([]);
-    explorer(state, OX).cards.push("candle");
+    give(state, OX, "candle");
     expect(sanityRolls(drawEvent(state, "hideous-shriek"))).toEqual([
       [ZOE_ID, sanity(ZOE_ID)],
       [OX_ID, sanity(OX_ID)],
@@ -710,7 +715,7 @@ describe("Music Box (cards/items.md)", () => {
     const passed = firstSeed(
       (seed) => {
         const state = holding([], { seed });
-        explorer(state, OX).cards.push("music-box");
+        give(state, OX, "music-box");
         put(state, OX, "foyer");
         state.cardMarks["music-box"] = { open: { value: true, lasts: "play" } };
         return choose(state, "Move to the Foyer");
@@ -895,7 +900,7 @@ describe("Pickpoket's Gloves (cards/items.md)", () => {
     "Discard the Pickpocket's Gloves to take an item from an explorer in your room";
   const withOx = (cards: string[]) => {
     const state = holding(["pickpokets-gloves"]);
-    explorer(state, OX).cards.push(...cards);
+    give(state, OX, ...cards);
     return state;
   };
 

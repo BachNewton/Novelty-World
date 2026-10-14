@@ -15,6 +15,11 @@ import {
   put,
   testGame,
   spectator,
+  give,
+  placeTiles,
+  interject,
+  pile,
+  drawn,
 } from "../../testing";
 import type { GameState, PlacedTile, RuleRef } from "../../types";
 
@@ -67,7 +72,7 @@ function findSeed(
 
 /** Lays tiles out by hand, taking them out of the room stack. */
 function lay(state: GameState, tiles: PlacedTile[]): void {
-  state.board.tiles.push(...tiles);
+  placeTiles(state, ...tiles);
   state.board.stack = state.board.stack.filter(
     (t) => !tiles.some((tile) => tile.tile === t),
   );
@@ -75,7 +80,7 @@ function lay(state: GameState, tiles: PlacedTile[]): void {
 
 /** Runs effects in the middle of seat 0's turn, outside the turn's own flow. */
 const run = (state: GameState, ...steps: Parameters<typeof start>[2]) =>
-  start(ENGINE, { ...state, pending: null }, steps);
+  interject(ENGINE, state, steps);
 
 const roomOf = (state: GameState, seat = 0) => at(state, seat).room;
 const explorerMoves = (state: GameState, seat = 0) =>
@@ -154,7 +159,7 @@ describe("Barrier rooms: the Chasm (rooms.md, rules.md p. 7)", () => {
 
   it("keeps explorers on opposite sides from trading", () => {
     const state = nextToChasm();
-    explorer(state, 0).cards = ["axe"];
+    give(state, 0, "axe");
     put(state, 0, "chasm", "left");
     put(state, 1, "chasm", "right");
     expect(labels(state).some((l) => l.includes("Ox Bellows"))).toBe(false);
@@ -376,7 +381,7 @@ describe("Dog (cards/omens.md)", () => {
   function withDog(setUp?: (state: GameState) => void): GameState {
     const state = testGame({ stack: ["dining-room"], decks: { omen: ["dog"] } });
     state.decks.item.draw = state.decks.item.draw.filter((c) => c !== "axe");
-    state.piles.foyer = ["axe"];
+    pile(state, "foyer", "axe");
     setUp?.(state);
     let next = choose(state, "Explore through the north door");
     if (kind(next) === "rotation") next = choose(next, "Place the Dining Room");
@@ -410,7 +415,7 @@ describe("Dog (cards/omens.md)", () => {
 
   it("can leave an item its holder gives it in a room it reaches", () => {
     let state = withDog((s) => {
-      explorer(s, 0).cards = ["revolver"];
+      give(s, 0, "revolver");
       s.decks.item.draw = s.decks.item.draw.filter((c) => c !== "revolver");
     });
     state = choose(choose(state, SEND), "Send the Dog to the Foyer");
@@ -444,8 +449,8 @@ describe("Dog (cards/omens.md)", () => {
 
   it("fetches or leaves an item, never an omen (the card's project ruling)", () => {
     const state = withDog((s) => {
-      s.piles.foyer = ["axe", "skull"];
-      explorer(s, 0).cards = ["revolver", "book"];
+      pile(s, "foyer", "axe", "skull");
+      give(s, 0, "revolver", "book");
       s.decks.item.draw = s.decks.item.draw.filter((c) => c !== "revolver");
       s.decks.omen.draw = s.decks.omen.draw.filter(
         (c) => c !== "skull" && c !== "book",
@@ -477,7 +482,9 @@ describe("Dog (cards/omens.md)", () => {
   });
 
   it("gives a token to whoever gains it", () => {
-    const state = run(testGame(), gainCard(OX, "dog", "given", RULE));
+    const giving = testGame();
+    drawn(giving, "dog");
+    const state = run(giving, gainCard(OX, "dog", "given", RULE));
     expect(dogToken(state)).toMatchObject({ room: "entrance-hall", holder: OX });
   });
 });

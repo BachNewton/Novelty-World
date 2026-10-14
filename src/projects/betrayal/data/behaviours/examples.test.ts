@@ -10,6 +10,8 @@ import {
   pendingDecision,
   put,
   testGame,
+  give,
+  placeTiles,
 } from "../../testing";
 import type { GameState } from "../../types";
 
@@ -69,7 +71,7 @@ describe("Angry Being (cards/events.md)", () => {
 describe("Adrenaline Shot (cards/items.md)", () => {
   it("adds 4 to a trait roll when used, and is discarded after use", () => {
     let state = drawEvent("angry-being", (s) =>
-      explorer(s, 0).cards.push("adrenaline-shot"),
+      give(s, 0, "adrenaline-shot"),
     );
     expect(pendingDecision(state).kind).toBe("roll-before");
     expect(offered(state).map((c) => c.label)).toEqual([
@@ -138,7 +140,7 @@ describe("Book (cards/omens.md)", () => {
 describe("Larder (rooms.md)", () => {
   function inTheLarder(): GameState {
     const state = testGame();
-    state.board.tiles.push({
+    placeTiles(state, {
       tile: "larder",
       floor: "basement",
       x: 0,

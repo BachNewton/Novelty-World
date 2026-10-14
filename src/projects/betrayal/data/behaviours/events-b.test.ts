@@ -10,6 +10,8 @@ import {
   pendingDecision,
   put,
   testGame,
+  give,
+  placeTiles,
 } from "../../testing";
 import type { GameState, Trait } from "../../types";
 
@@ -508,7 +510,7 @@ describe("Shrieking Wind", () => {
     const state = drawEvent("shrieking-wind", "test-seed", (s) => {
       // The Grand Staircase's window faces an empty space.
       put(s, 1, "grand-staircase");
-      s.board.tiles.push({
+      placeTiles(s, {
         tile: "gardens",
         floor: "ground",
         x: 9,
@@ -531,7 +533,7 @@ describe("Shrieking Wind", () => {
   it("ignores a window with a room against it, which is a false window", () => {
     const state = drawEvent("shrieking-wind", "test-seed", (s) => {
       put(s, 1, "grand-staircase");
-      s.board.tiles.push({
+      placeTiles(s, {
         tile: "dining-room",
         floor: "ground",
         x: 0,
@@ -595,7 +597,7 @@ describe("Shrieking Wind", () => {
         setUp: (s) => {
           put(s, 1, "grand-staircase");
           explorer(s, 1).traits.clips.might = 2;
-          explorer(s, 1).cards = ["bottle", "axe", "book"];
+          give(s, 1, "bottle", "axe", "book");
         },
       },
     );
@@ -709,7 +711,7 @@ describe("Whoops!", () => {
     const lost = new Set<string>();
     for (const seed of SEEDS.slice(0, 20)) {
       const state = drawEvent("whoops", seed, (s) => {
-        explorer(s, 0).cards = ["axe", "book", "bottle"];
+        give(s, 0, "axe", "book", "bottle");
       });
       const kept = explorer(state, 0).cards;
       expect(kept).toContain("book");
@@ -725,7 +727,7 @@ describe("Whoops!", () => {
 
   it("does nothing to an explorer with no items", () => {
     const state = drawEvent("whoops", "test-seed", (s) => {
-      explorer(s, 0).cards = ["book"];
+      give(s, 0, "book");
     });
     expect(explorer(state, 0).cards).toEqual(["book"]);
   });
@@ -748,7 +750,7 @@ describe("Webs (cards/events.md)", () => {
   /** Zoe's turn, stuck in the Entrance Hall with the others after failing the draw's roll. */
   const stuck = (setUp: (s: GameState) => void = () => undefined) => {
     const state = testGame();
-    explorer(state, 0).cards.push("webs");
+    give(state, 0, "webs");
     state.cardMarks.webs = { failed: { value: 1, lasts: "holder" } };
     setUp(state);
     return state;
@@ -768,12 +770,12 @@ describe("Webs (cards/events.md)", () => {
   });
 
   it("while stuck you can do nothing but try to break free, once a turn", () => {
-    const state = stuck((s) => explorer(s, 0).cards.push("axe"));
+    const state = stuck((s) => give(s, 0, "axe"));
     expect(labels(state)).toEqual([FREE, "End your turn"]);
   });
 
   it("another explorer in your room may try on their turn; 4+ frees you without the Might", () => {
-    let state = stuck((s) => explorer(s, 1).cards.push("angel-feather"));
+    let state = stuck((s) => give(s, 1, "angel-feather"));
     state = choose(state, "End your turn");
     state = choose(choose(state, FREE), "the result is 5");
     expect(explorer(state, 0).cards).not.toContain("webs");
@@ -783,7 +785,7 @@ describe("Webs (cards/events.md)", () => {
 
   it("anyone who fails can't move for the rest of that turn", () => {
     // Ox also holds the Axe, so his turn doesn't end by itself.
-    let state = stuck((s) => explorer(s, 1).cards.push("angel-feather", "axe"));
+    let state = stuck((s) => give(s, 1, "angel-feather", "axe"));
     state = choose(state, "End your turn");
     state = choose(choose(state, FREE), "the result is 3");
     expect(state.cardMarks.webs?.failed.value).toBe(2);
@@ -792,7 +794,7 @@ describe("Webs (cards/events.md)", () => {
   });
 
   it("after 3 failed attempts you break free on your next turn and take it normally", () => {
-    let state = stuck((s) => explorer(s, 1).cards.push("angel-feather"));
+    let state = stuck((s) => give(s, 1, "angel-feather"));
     state = choose(state, "End your turn");
     // Ox fails, and with nothing left to do he ends his turn.
     state = choose(choose(state, FREE), "the result is 0");

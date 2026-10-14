@@ -15,13 +15,16 @@ import {
   waitingOn,
   type TestGame,
   spectator,
+  give,
+  interject,
+  discard,
 } from "../testing";
 import type { GameEvent, GameState, RuleRef } from "../types";
 import { lineOfSight } from "./board";
 import { describeEvent } from "./describe";
 import { sideOf } from "./sides";
 import { local, type Behaviour } from "./sources";
-import { start, type Engine } from "./step-loop";
+import { type Engine } from "./step-loop";
 
 // The turn's own attack (rules.md, "Make an Attack", p. 13) and combat
 // between any figures, played through the toy haunt (test/toy-haunt.ts):
@@ -106,7 +109,7 @@ function begun(
   state = state.seats.reduce((s, _seat, i) => ready(s, i, engine), state);
   // The revealer starts where the haunt was revealed; bring her back.
   put(state, 0, "entrance-hall");
-  explorer(state, 2).cards.push("angel-feather");
+  give(state, 2, "angel-feather");
   setUp(state);
   return state;
 }
@@ -182,7 +185,7 @@ describe("the turn's attack (rules.md, p. 13)", () => {
 
   it("offers each weapon the attacker holds as a real choice", () => {
     const state = choose(
-      begun(TOY_ENGINE, (s) => explorer(s, 2).cards.push("axe", "spear")),
+      begun(TOY_ENGINE, (s) => give(s, 2, "axe", "spear")),
       "Attack Ox Bellows",
       TOY_ENGINE,
     );
@@ -325,7 +328,7 @@ describe("attacking a monster (rules.md, pp. 13 and 18)", () => {
   it("no one may attack with a trait the monster lacks", () => {
     // The Phantom has no Knowledge, but has Sanity, so the Ring works on it.
     const state = choose(
-      begun(TOY_ENGINE, (s) => explorer(s, 2).cards.push("ring")),
+      begun(TOY_ENGINE, (s) => give(s, 2, "ring")),
       "Attack Phantom 1",
       TOY_ENGINE,
     );
@@ -397,7 +400,7 @@ describe("a haunt's rules for its monster (haunt 13's, on the toy Phantom)", () 
       let state = begun(
         NIGHTMARE_ENGINE,
         (s) => {
-          explorer(s, 2).cards.push("dynamite");
+          give(s, 2, "dynamite");
           s.figures[PHANTOM_1].place = { room: "foyer", side: null };
         },
         { seed },
@@ -419,7 +422,7 @@ describe("a haunt's rules for its monster (haunt 13's, on the toy Phantom)", () 
       let state = begun(
         TOY_ENGINE,
         (s) => {
-          explorer(s, 2).cards.push("dynamite");
+          give(s, 2, "dynamite");
           s.figures[PHANTOM_1].place = { room: "foyer", side: null };
         },
         { seed },
@@ -444,7 +447,7 @@ describe("a distance attack with the Revolver (cards/items.md, rules.md p. 13)",
   };
   const armed = (s: GameState) => {
     apart(s);
-    explorer(s, 2).cards.push("revolver");
+    give(s, 2, "revolver");
   };
   const farRoom = (state: GameState) =>
     ENGINE.catalog.rooms[state.figures[OX].place?.room ?? ""].name;
@@ -479,7 +482,8 @@ describe("a distance attack with the Revolver (cards/items.md, rules.md p. 13)",
 describe("the Bloody Vision's attack, after the haunt (cards/events.md)", () => {
   const vision = (engine: Engine, setUp: SetUp) => {
     const state = begun(engine, setUp);
-    return start(engine, { ...state, pending: null }, [
+    discard(state, "bloody-vision");
+    return interject(engine, state, [
       local("bloody-vision", "attack", { figure: FATHER }),
     ]);
   };
@@ -522,7 +526,7 @@ describe("choices match legality in attack states", () => {
       TOY_ENGINE,
       begun(TOY_ENGINE, (s) => {
         s.figures[PHANTOM_1].stunned = true;
-        explorer(s, 2).cards.push("revolver");
+        give(s, 2, "revolver");
         put(s, 1, lineOfSight(s.board, ENGINE.catalog, "entrance-hall")[0]);
       }),
     );
@@ -542,7 +546,7 @@ describe("choices match legality in attack states", () => {
 
   it("the choice of weapon, and of stealing", () => {
     const moding = choose(
-      begun(TOY_ENGINE, (s) => explorer(s, 2).cards.push("axe", "spear", "ring")),
+      begun(TOY_ENGINE, (s) => give(s, 2, "axe", "spear", "ring")),
       "Attack Ox Bellows",
       TOY_ENGINE,
     );
@@ -552,7 +556,7 @@ describe("choices match legality in attack states", () => {
       ["Attack Ox Bellows"],
       8,
       (d) => d <= 6,
-      (s) => explorer(s, 1).cards.push("axe"),
+      (s) => give(s, 1, "axe"),
     );
     expect(pendingDecision(stealing).kind).toBe("attack-steal");
     check(TOY_ENGINE, stealing);

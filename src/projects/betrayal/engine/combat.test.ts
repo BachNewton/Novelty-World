@@ -10,11 +10,13 @@ import {
   testGame,
   waitingOn,
   spectator,
+  give,
+  interject,
+  inHaunt,
 } from "../testing";
 import type { GameState, RuleRef } from "../types";
 import { attack, cardAttack, playerOnRight } from "./combat";
 import { describeDecision, describeEvent } from "./describe";
-import { start } from "./step-loop";
 
 // The attack rules of content/rules.md, "Make an Attack" and "Special
 // Attacks" (p. 13). The attacker holds the Angel Feather, which names their
@@ -37,14 +39,15 @@ type SetUp = (state: GameState) => void;
 /** Zoe's turn, everyone in the Entrance Hall, Zoe holding the Angel Feather. */
 function table(setUp: SetUp = () => {}, seed?: string): GameState {
   const state = testGame({ seed });
-  explorer(state, ZOE).cards.push("angel-feather");
+  give(state, ZOE, "angel-feather");
   setUp(state);
   return state;
 }
 
-/** Starts Zoe's attack on Ox in the middle of her turn. */
+/** Starts Zoe's attack on Ox in the middle of her turn, in the haunt, with
+ *  Ox the traitor: an explorer's attack waits for the haunt (p. 13). */
 function attackOn(state: GameState): GameState {
-  return start(ENGINE, { ...state, pending: null }, [
+  return interject(ENGINE, inHaunt(state, OX), [
     attack({ kind: "figure", figure: ZOE_FIGURE }, OX_FIGURE, RULE),
   ]);
 }
@@ -116,7 +119,8 @@ describe("Make an Attack (rules.md, p. 13)", () => {
   it("a tie hurts no one", () => {
     const state = fight(4, (d) => d === 4);
     expect(outcome(state)).toMatchObject({ loser: null, harm: null });
-    expect(state.pending).toBeNull();
+    // Nothing more is asked: the turn carries on.
+    expect(pendingDecision(state).kind).toBe("turn");
     expect(eventTypes(state)).not.toContain("damaged");
   });
 
@@ -134,7 +138,7 @@ describe("Make an Attack (rules.md, p. 13)", () => {
 
 describe("Stealing Items (rules.md, p. 13)", () => {
   const armed: SetUp = (s) =>
-    explorer(s, OX).cards.push("axe", "armor", "bite");
+    give(s, OX, "axe", "armor", "bite");
 
   it("an attack that would deal 2 or more physical damage may steal a tradable item instead", () => {
     let state = fight(8, (d) => d <= 6, { setUp: armed });
@@ -168,7 +172,7 @@ describe("Stealing Items (rules.md, p. 13)", () => {
 
   it("not at a margin of 1", () => {
     const state = fight(8, (d) => d === 7, {
-      setUp: (s) => explorer(s, OX).cards.push("axe"),
+      setUp: (s) => give(s, OX, "axe"),
     });
     expect(pendingDecision(state)).toMatchObject({
       kind: "split-damage",
@@ -178,7 +182,7 @@ describe("Stealing Items (rules.md, p. 13)", () => {
 
   it("a defender who wins deals damage but never steals", () => {
     const state = fight(0, (d) => d >= 2, {
-      setUp: (s) => explorer(s, ZOE).cards.push("lucky-stone"),
+      setUp: (s) => give(s, ZOE, "lucky-stone"),
     });
     expect(pendingDecision(state)).toMatchObject({
       kind: "split-damage",
@@ -189,7 +193,7 @@ describe("Stealing Items (rules.md, p. 13)", () => {
   it("not from a mental attack", () => {
     const state = fight(8, (d) => d <= 6, {
       setUp: (s) => {
-        explorer(s, ZOE).cards.push("ring");
+        give(s, ZOE, "ring");
         armed(s);
       },
       mode: "using the Ring",
@@ -204,13 +208,14 @@ describe("Stealing Items (rules.md, p. 13)", () => {
 describe("Distance Attacks (rules.md, p. 13)", () => {
   const apart: SetUp = (s) => {
     put(s, OX, "upper-landing");
-    explorer(s, OX).cards.push("axe");
+    give(s, OX, "axe");
   };
 
   it("an attacker beaten by a target in another room takes no damage", () => {
     const state = fight(0, (d) => d === 4, { setUp: apart });
     expect(outcome(state)).toMatchObject({ loser: "attacker", harm: null });
-    expect(state.pending).toBeNull();
+    // Nothing more is asked: the turn carries on.
+    expect(pendingDecision(state).kind).toBe("turn");
     expect(
       state.lastEvents
         .filter((e) => e.type === "attack-outcome")
@@ -231,7 +236,7 @@ describe("Distance Attacks (rules.md, p. 13)", () => {
 
 describe("Weapons (rules.md, p. 12)", () => {
   const holding = (...cards: string[]) =>
-    attackOn(table((s) => explorer(s, ZOE).cards.push(...cards)));
+    attackOn(table((s) => give(s, ZOE, ...cards)));
 
   it("are optional, and only one is used per attack", () => {
     const state = holding("axe", "spear");
@@ -247,7 +252,7 @@ describe("Weapons (rules.md, p. 12)", () => {
 
   it("are never used to defend", () => {
     const armed = testGame();
-    explorer(armed, OX).cards.push("axe");
+    give(armed, OX, "axe");
     const state = attackOn(armed);
     // Ox is offered nothing: he defends with his own 5 Might.
     const defence = state.lastEvents.filter((e) => e.type === "rolled")[1]
@@ -267,7 +272,7 @@ describe("Weapons (rules.md, p. 12)", () => {
   it("one used this turn can't be used again", () => {
     const state = attackOn(
       table((s) => {
-        explorer(s, ZOE).cards.push("axe");
+        give(s, ZOE, "axe");
         s.turn?.handled.push("axe");
       }),
     );
@@ -280,7 +285,7 @@ describe("Using an item on another player's turn (cards/items.md)", () => {
   // Zoe holds nothing, so her attack roll is made at once and Ox defends.
   const defending = (...cards: string[]) => {
     const state = testGame();
-    explorer(state, OX).cards.push(...cards);
+    give(state, OX, ...cards);
     const after = attackOn(state);
     expect(after.turn?.seat).toBe(ZOE);
     return after;
@@ -321,8 +326,10 @@ describe("A card's attacker (cards that attack on behalf of something)", () => {
   });
 
   it("rolls its fixed dice, untouched by the roller's cards, and takes no damage when beaten", () => {
-    let state = table((s) => explorer(s, FATHER).cards.push("idol"));
-    state = start(ENGINE, { ...state, pending: null }, [
+    // Zoe drew the Bite, so she keeps it.
+    let state = table((s) => give(s, FATHER, "idol"));
+    give(state, ZOE, "bite");
+    state = interject(ENGINE, state, [
       cardAttack(ZOE_FIGURE, "might", 4, { source: "card", card: "bite" }),
     ]);
     // Father Rhinehardt throws the attack's dice at once; Zoe defends.
@@ -336,14 +343,15 @@ describe("A card's attacker (cards that attack on behalf of something)", () => {
 
   it("takes no damage when beaten", () => {
     for (const seed of SEEDS) {
-      let state = table(() => {}, seed);
-      state = start(ENGINE, { ...state, pending: null }, [
+      let state = table((s) => give(s, ZOE, "bite"), seed);
+      state = interject(ENGINE, state, [
         cardAttack(ZOE_FIGURE, "might", 4, { source: "card", card: "bite" }),
       ]);
       state = choose(state, "the result is 8");
       if (outcome(state).loser !== "attacker") continue;
       expect(outcome(state).harm).toBeNull();
-      expect(state.pending).toBeNull();
+      // Nothing more is asked: the turn carries on.
+      expect(pendingDecision(state).kind).toBe("turn");
       return;
     }
     throw new Error("No seed has the attack beaten");

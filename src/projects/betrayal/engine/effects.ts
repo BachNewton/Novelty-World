@@ -1668,7 +1668,10 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     (state, p, ctx) => {
       if (p.options.length === 0) throw new Error("A choice with no options");
       if ("seat" in p) ctx.decide([p.seat], "choose-one", p, p.rule);
-      else ctx.decideFor(p.figure, "choose-one", p, p.rule);
+      // A figure that died since this was queued is asked nothing: what was
+      // still to happen to it lapses (rules p. 19, dead-explorers-body).
+      else if (takesPart(state, p.figure))
+        ctx.decideFor(p.figure, "choose-one", p, p.rule);
     },
   ),
 

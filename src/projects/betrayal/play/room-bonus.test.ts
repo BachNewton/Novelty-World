@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { describeEvent } from "../engine/describe";
 import { viewFor } from "../engine/view";
 import { ENGINE } from "../game";
-import { choose, explorer, put, testGame } from "../testing";
+import {
+  choose,
+  explorer,
+  put,
+  testGame,
+  placeTiles,
+} from "../testing";
 import type { GameState } from "../types";
 import { statChanges } from "./cards";
 import { badgeSpot, bonusBadges, bonusRooms, bonusRow, bonusState, bonusTakers } from "./room-bonus";
@@ -18,7 +24,7 @@ const tokenOf = (state: GameState, seat: number) => {
 /** A game with the Gymnasium and the Library in the house, and Zoe (seat 0) having taken the Gymnasium's bonus. */
 function gymTaken(): GameState {
   const state = testGame();
-  state.board.tiles.push({ tile: "gymnasium", floor: "basement", x: 0, y: -1, rotation: 0 }, { tile: "library", floor: "upper", x: 0, y: -1, rotation: 0 });
+  placeTiles(state, { tile: "gymnasium", floor: "basement", x: 0, y: -1, rotation: 0 }, { tile: "library", floor: "upper", x: 0, y: -1, rotation: 0 });
   state.tokens.push({ token: tokenOf(state, 0), room: "gymnasium" });
   return state;
 }
@@ -80,14 +86,14 @@ describe("room bonuses", () => {
 describe("taking a room bonus", () => {
   it("gains the trait once, floated over the figure, then tells why ending a turn there again gains nothing", () => {
     let state = testGame();
-    state.board.tiles.push({ tile: "gymnasium", floor: "basement", x: 0, y: -1, rotation: 0 });
+    placeTiles(state, { tile: "gymnasium", floor: "basement", x: 0, y: -1, rotation: 0 });
     put(state, 0, "gymnasium");
     state = choose(state, "End your turn");
     const taken = viewOf(state);
     expect(statChanges(taken.events)).toMatchObject([{ figure: explorer(state, 0).id, trait: "speed", spaces: 1 }]);
 
     let again = testGame();
-    again.board.tiles.push({ tile: "gymnasium", floor: "basement", x: 0, y: -1, rotation: 0 });
+    placeTiles(again, { tile: "gymnasium", floor: "basement", x: 0, y: -1, rotation: 0 });
     again.tokens.push({ token: tokenOf(again, 0), room: "gymnasium" });
     put(again, 0, "gymnasium");
     again = choose(again, "End your turn");
