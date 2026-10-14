@@ -3,8 +3,8 @@ import { resultsDir } from "./e2e/run-dir";
 
 /**
  * Every run is self-contained, so any number can go at once: it builds and
- * serves the app itself (e2e/next-server.ts) and starts its own PeerJS
- * signalling server (e2e/peer-server.ts), each on a port the OS picks, and
+ * serves the app itself (e2e/next-server.ts) and starts its own multiplayer
+ * relay (relay/main.ts), each on a port the OS picks, and
  * writes to its own folders: the build to `.next-e2e/run-<id>/` (deleted when
  * the run ends) and test output to `test-results/run-<id>/` (traces and
  * screenshots only when a test failed; Playwright's own `.last-run.json` is
@@ -32,18 +32,15 @@ export default defineConfig({
   use: {
     // Set in the runner by the Next server's startup line (below), before any worker starts; or by hand.
     baseURL: process.env.E2E_BASE_URL,
-    // Disable mDNS so WebRTC works on the same machine
-    launchOptions: {
-      args: ["--disable-features=WebRtcHideLocalIpsWithMdns"],
-    },
   },
   webServer: [
     {
-      name: "PeerJS",
-      command: "npx tsx e2e/peer-server.ts",
-      // Playwright stores a startup line's named groups as env vars: E2E_PEER_PORT here, E2E_BASE_URL below.
+      name: "Relay",
+      command: "npx tsx relay/main.ts",
+      env: { PORT: "0" },
+      // Playwright stores a startup line's named groups as env vars: E2E_RELAY_PORT here, E2E_BASE_URL below.
       // `new RegExp` because the tsconfig's ES2017 target rejects named groups in a regex literal.
-      wait: { stdout: new RegExp("listening on port (?<e2e_peer_port>\\d+)") },
+      wait: { stdout: new RegExp("listening on port (?<e2e_relay_port>\\d+)") },
     },
     ...(ownServer
       ? [

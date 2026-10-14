@@ -80,3 +80,6 @@ __pycache__/
 
 # Monopoly AI scenario runs (full call records; the scoreboards are committed)
 /src/projects/monopoly/bots/ai/eval/runs/
+
+# The relay bundle relay/deploy.sh builds
+.relay-dist/

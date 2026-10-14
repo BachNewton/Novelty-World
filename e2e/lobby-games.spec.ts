@@ -1,20 +1,20 @@
 import { test, expect } from "./test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
-import { PEER_SIGNAL } from "./peer-signal";
+import { LOCAL_RELAY } from "./relay";
 
 /**
- * Room-code games on the shared PeerJS room (`src/shared/lib/peer`): a host
+ * Room-code games on the shared relay room (`src/shared/lib/peer`): a host
  * creates a room, guests join by typing its code, and they play for real.
  *
- * Offline by design: `?peer-signal=local:<port>` points PeerJS at the local
- * PeerServer this run started, with no STUN or TURN. Every wait is
+ * Offline by design: `?relay=local:<port>` points the rooms at the local
+ * relay this run started. Every wait is
  * on a DOM state the game renders; there are no fixed pauses.
  */
 test.describe.configure({ mode: "serial" });
 
-const SIGNAL = `?${PEER_SIGNAL}`;
-const TIC_TAC_TOE = `/games/tic-tac-toe${SIGNAL}`;
-const EUCHRE = `/games/card-games/euchre${SIGNAL}`;
+const RELAY = `?${LOCAL_RELAY}`;
+const TIC_TAC_TOE = `/games/tic-tac-toe${RELAY}`;
+const EUCHRE = `/games/card-games/euchre${RELAY}`;
 const CONNECT_TIMEOUT = 15_000;
 
 interface Client {
@@ -85,7 +85,7 @@ test.describe("Tic Tac Toe", () => {
         await expect(page.getByText(/You are [XO]/)).toBeVisible();
       }
 
-      // Closing the page (not the context) tears its WebRTC channels down at once.
+      // Closing the page (not the context) closes its relay socket at once.
       await guest.page.close();
       await expect(host.page.getByText("Your opponent left")).toBeVisible({ timeout: CONNECT_TIMEOUT });
       await expect(host.page.getByTestId("room-code")).toHaveText(code);

@@ -2,13 +2,13 @@ import { test, expect } from "./test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import nextEnv from "@next/env";
 import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
-import { PEER_SIGNAL } from "./peer-signal";
+import { LOCAL_RELAY } from "./relay";
 
 /**
  * Frogmino's lobby: solo play, and co-op rooms found through the live list
- * of open games (Supabase presence) and joined over the shared PeerJS room.
+ * of open games (Supabase presence) and joined over the shared relay room.
  *
- * `?peer-signal=local:<port>` keeps PeerJS on the local PeerServer this run
+ * `?relay=local:<port>` keeps the rooms on the local relay this run
  * started. The open-games list is real Supabase presence, so each test
  * lists its rooms on a channel of its own (`?room-list=<unique>`): real
  * players never see the tests' rooms, and no test sees another's. Every wait
@@ -20,7 +20,7 @@ const LOBBY = "/games/3d-games/frogmino";
 const TIMEOUT = 15_000;
 
 function lobbyUrl(channel: string): string {
-  return `${LOBBY}?${PEER_SIGNAL}&room-list=${channel}`;
+  return `${LOBBY}?${LOCAL_RELAY}&room-list=${channel}`;
 }
 
 function uniqueChannel(): string {
@@ -135,7 +135,7 @@ test("the guest learns when the host leaves", async ({ browser }) => {
 
 test("joining a listed game whose host is gone says so", async ({ browser }) => {
   const channel = uniqueChannel();
-  // A listing with no PeerJS host behind it, as a host that vanished
+  // A listing with no host behind it, as a host that vanished
   // between being listed and being clicked leaves.
   nextEnv.loadEnvConfig(process.cwd());
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

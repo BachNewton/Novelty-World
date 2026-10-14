@@ -92,7 +92,7 @@ Not required: "working end to end" means every seat is a human. A seat held by a
 
 ## Online play
 
-Server-authoritative: a route handler is the single writer, using the pure engine to validate actions, and clients read and subscribe to one shared game-state row. Not PeerJS, because games are long and players must be able to drop out and rejoin without the game dying with a host's tab, and because the Widow's Walk star haunt needs a record that lasts between games (which seasonal haunts each explorer has played).
+Server-authoritative: a route handler is the single writer, using the pure engine to validate actions, and clients read and subscribe to one shared game-state row. Not the shared relay rooms, because games are long and players must be able to drop out and rejoin without the game dying with a host's tab, and because the Widow's Walk star haunt needs a record that lasts between games (which seasonal haunts each explorer has played).
 
 Players are trusted to act in good faith and look only at what the UI shows them. So all state, hidden information included (the traitor's half of a haunt, a player's cards), lives in that one public row, and the UI decides what each player sees. There is no per-player secret storage.
 

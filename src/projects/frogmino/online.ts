@@ -66,7 +66,7 @@ export interface GuestSession extends Session {
 }
 
 // Messages are numbered from 0 by their sender and handled in that order,
-// whatever order the network brings them in. PeerJS's reliable channel is
+// whatever order the network brings them in. The relay's WebSocket is
 // ordered already; the numbers make the protocol not depend on it.
 function inOrder<Message extends { seq: number }>(handle: (message: Message) => void): (message: Message) => void {
   let next = 0;

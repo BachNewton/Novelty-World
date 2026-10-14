@@ -9,7 +9,7 @@ import { DEFAULT_CHARACTER_ID } from './characters';
 import { MAP_COLS, MAP_ROWS, createStoredMapStore } from './world-map';
 import { roomIdFromSearch } from './coop/protocol';
 import { createCoopSession, type CoopSession } from './coop/session';
-import { createRoom, peerOptionsFromSearch, stopOnPageHide } from '@/shared/lib/peer';
+import { createRoom, relayUrlFromSearch, stopOnPageHide } from '@/shared/lib/peer';
 import { useProfile } from '@/shared/lib/profile';
 
 export function RpgGame() {
@@ -30,7 +30,7 @@ function RpgSession() {
           target: { mode: 'claim', code: roomIdFromSearch(search) },
           profile: useProfile.getState(),
           events,
-          peerOptions: peerOptionsFromSearch(search),
+          relayUrl: relayUrlFromSearch(search),
         }),
       spawn: {
         x: (MAP_COLS * CELL_PX) / 2,

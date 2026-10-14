@@ -4,7 +4,7 @@ import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react"
 import type { PlayerProfile } from "@/shared/lib/profile";
 import {
   createRoom,
-  peerOptionsFromSearch,
+  relayUrlFromSearch,
   stopOnPageHide,
   type Player,
   type Room,
@@ -68,7 +68,7 @@ export function useRoom<HostMessage, GuestMessage>(
       game,
       target,
       profile: profile(),
-      peerOptions: peerOptionsFromSearch(window.location.search),
+      relayUrl: relayUrlFromSearch(window.location.search),
       events: {
         onState: (state) => setLatest({ target, state }),
         onGuestJoined: (player) => guestJoined(player),

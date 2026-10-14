@@ -93,10 +93,12 @@ const eslintConfig = defineConfig([
   // `.next-bench/**`: build output from an alternate `distDir` (NEXT_DIST_DIR), used to run a production
   // server for the Shipwright perf sweep alongside the dev server. Same generated code as `.next`.
   // `.next-e2e/**`: each e2e run's own build (e2e/next-server.ts); `test-results/**`: e2e run output.
+  // `.relay-dist/**`: the relay bundle relay/deploy.sh builds.
   globalIgnores([
     ".next/**",
     ".next-bench/**",
     ".next-e2e/**",
+    ".relay-dist/**",
     "test-results/**",
     "out/**",
     "build/**",

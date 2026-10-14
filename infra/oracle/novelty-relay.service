@@ -1,0 +1,25 @@
+# The multiplayer relay (relay/ in Novelty-World), installed by relay/deploy.sh.
+[Unit]
+Description=Novelty World multiplayer relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+# The relay reports ready through systemd-notify, a child process.
+NotifyAccess=all
+TimeoutStartSec=30
+User=relay
+Environment=PORT=8080
+Environment=HOST=127.0.0.1
+ExecStart=/usr/local/bin/node /opt/novelty-relay/relay.cjs
+Restart=always
+RestartSec=2
+MemoryMax=150M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

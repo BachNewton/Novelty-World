@@ -1,13 +1,13 @@
 import { test, expect } from "./test";
 import type { Page, Browser, BrowserContext } from "@playwright/test";
-import { PEER_SIGNAL } from "./peer-signal";
+import { LOCAL_RELAY } from "./relay";
 
 /**
- * RPG co-op E2E (PeerJS star, one room per test via `?coop-room=`).
+ * RPG co-op E2E (a star room on the relay, one room per test via `?coop-room=`).
  *
- * Offline by design: `?peer-signal=local:<port>` points PeerJS at the local
- * PeerServer this run started (`e2e/peer-server.ts`), with no STUN or
- * TURN, so the suite never touches the public PeerJS cloud.
+ * Offline by design: `?relay=local:<port>` points the room at the local
+ * relay this run started (`relay/main.ts`), so the suite never touches the
+ * real one.
  *
  * Route: `/rpg` (`src/app/rpg/page.tsx` -> `RpgGame`). Play/edit toggles with
  * `~` (Backquote). Edit hooks used: `map-canvas`, `palette-cell`,
@@ -24,7 +24,7 @@ test.describe.configure({ mode: "serial" });
 const RPG_URL = "/rpg";
 const COOP_ROOM_PARAM = "coop-room";
 
-/** Each test gets its own co-op room so PeerJS meshes never leak between tests. */
+/** Each test gets its own co-op room so rooms never leak between tests. */
 let roomCounter = 0;
 function uniqueRoom(): string {
   return `rpg-${Date.now()}-${roomCounter++}`;
@@ -60,7 +60,7 @@ async function newPeer(browser: Browser): Promise<{ ctx: BrowserContext; page: P
 }
 
 async function gotoRpg(page: Page, room: string): Promise<void> {
-  await page.goto(`${RPG_URL}?${COOP_ROOM_PARAM}=${encodeURIComponent(room)}&${PEER_SIGNAL}`);
+  await page.goto(`${RPG_URL}?${COOP_ROOM_PARAM}=${encodeURIComponent(room)}&${LOCAL_RELAY}`);
   await page.waitForLoadState("domcontentloaded");
   // Play mode is the default: the play canvas mounts (edit chrome absent).
   await expect(page.getByTestId("play-canvas")).toBeVisible({ timeout: 10_000 });
@@ -422,7 +422,7 @@ test.describe("RPG co-op", () => {
 
       // Close A -> remote despawns on B (host emits peer-left, or B prunes
       // the orphan after re-electing; either way the strip goes dark).
-      // Use page.close() so WebRTC close handlers fire; context cleanup
+      // Use page.close() so the relay socket closes at once; context cleanup
       // happens in the finally block.
       await a.page.close();
       await expect

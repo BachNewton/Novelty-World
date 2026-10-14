@@ -1,10 +1,10 @@
 import { test, expect } from "./test";
 import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
-import { PEER_SIGNAL } from "./peer-signal";
+import { LOCAL_RELAY } from "./relay";
 
 /**
  * Frogmino's online co-op: two browsers host and join a game over the local
- * PeerServer, start it, and each player's keys move their own frog on both
+ * relay, start it, and each player's keys move their own frog on both
  * screens. The game mirrors each frog's column (`data-cols`, Sprout's then
  * Splash's) and the team's depth on its root, so every wait is on the game's
  * own state, never a pause.
@@ -30,7 +30,7 @@ async function open(browser: Browser, url: string, name: string): Promise<Client
 
 /** Hoppy hosts, Leapy joins, Hoppy starts: both are in the game. */
 async function startGame(browser: Browser): Promise<{ host: Client; guest: Client }> {
-  const url = `${LOBBY}?${PEER_SIGNAL}&room-list=e2e-${crypto.randomUUID()}`;
+  const url = `${LOBBY}?${LOCAL_RELAY}&room-list=e2e-${crypto.randomUUID()}`;
   const host = await open(browser, url, "Hoppy");
   const guest = await open(browser, url, "Leapy");
   await host.page.getByRole("button", { name: "Host co-op" }).click();

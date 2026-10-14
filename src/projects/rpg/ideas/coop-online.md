@@ -1,16 +1,16 @@
-# Online Co-op via PeerJS (2–4 players)
+# Online Co-op (2–4 players)
 
 Status: implemented; unit tests and `e2e/rpg-coop.spec.ts` green.
 
 Production rule: one global room, no codes/lobby/invites. `?coop-room=`
-exists for testing/dev isolation only; `?peer-signal=local` points PeerJS at
-the e2e suite's local PeerServer.
+exists for testing/dev isolation only; `?relay=local:<port>` points the room
+at the e2e suite's local relay.
 
 ## Design
 
-- **Transport**: the shared PeerJS star room (`src/shared/lib/peer`) in its
-  claim mode. Every tab claims the room's fixed code; the server grants it
-  to one tab (the host) and refuses the rest, who join the host as guests.
+- **Transport**: the shared star room on the relay (`src/shared/lib/peer`)
+  in its claim mode. Every tab claims the room's fixed name; the relay gives
+  it to the first tab to ask (the host), and the rest join the host as guests.
   When the host leaves, its guests race to claim the code again, so
   re-election is the same path as the first join. The RPG keeps only its
   own protocol and session on top.
@@ -30,16 +30,8 @@ the e2e suite's local PeerServer.
 
 - **Unclean host loss.** A tab that closes normally tells its peers at once
   (`pagehide` stops the session). A host that crashes or drops off the
-  network is noticed only when WebRTC gives up on the channel (~30 s). A
-  guest re-claiming during that window may dial a host id the signalling
-  server hasn't expired yet; if the offer is never answered, PeerJS emits
-  nothing and the guest sits in `reconnecting`. Fixing that needs a
-  connect timeout — the one timer this design would admit.
-- **Public PeerJS cloud.** It rate-limits per IP (HTTP 429 for about an hour
-  after bursts of connections) and is STUN-only, so symmetric-NAT users
-  (~10–20%) may fail to connect. A self-hosted PeerServer (the `peer`
-  package, already used by e2e) and a TURN entry in the PeerJS `config` fix
-  both without touching the architecture.
+  network is noticed when the relay's heartbeat drops its socket, within
+  two heartbeats; its guests then re-claim the room.
 
 ## Remaining work
 
