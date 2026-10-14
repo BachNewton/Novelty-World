@@ -9,10 +9,11 @@ Claude manages the machine entirely from the command line, over SSH and the OCI 
 - **Shape:** `VM.Standard.E2.1.Micro`, Always Free. x86_64, one OCPU (two vCPUs as Linux sees it), 1 GB of memory with no swap, and a 45 GB disk.
 - **System:** Ubuntu 24.04 LTS, with unattended upgrades on.
 - **Region:** `eu-stockholm-1`, about 10 ms round trip from the owner in Finland.
-- **Names in Oracle:** the instance is `happy-place-server` and its network is `happy-place-vcn`, after its first tenant (see Tenants).
+- **Names in Oracle:** everything is named after Novelty World: the instance `novelty-world` (also its Linux hostname), the network `novelty-world-vcn`, its subnet, gateway and defaults to match. The network's internal DNS label is still `happyplace`, from the machine's first life as a game server: Oracle can't change a DNS label after creation, and nothing here uses it.
 - **Installed:** Go (in `/usr/local/go`), git, and `iptables-persistent`. Node, Tailscale and any web server are not installed.
+- **Runs:** nothing of Novelty World's yet; only Ubuntu's and Oracle's own agents.
 
-Memory is the tight resource. The machine has a few hundred MB to spare, so anything new must be small, and must be measured once it is running.
+Memory is the tight resource: about 570 MB is free with nothing of ours running. Anything new must be small, and must be measured once it is running.
 
 ## Access
 
@@ -23,22 +24,13 @@ Memory is the tight resource. The machine has a few hundred MB to spare, so anyt
 
 A port is reachable from the internet only if both firewalls let it through:
 
-1. **The cloud firewall:** the security list `Default Security List for happy-place-vcn`, changed with `oci network security-list update`. That command replaces the whole rule list, so read the current rules first and send them back with the new one added.
+1. **The cloud firewall:** the security list `Default Security List for novelty-world-vcn`, changed with `oci network security-list update`. That command replaces the whole rule list, so read the current rules first and send them back with the new one added.
 2. **The machine's iptables:** Oracle's Ubuntu image ends the `INPUT` chain with a reject-everything-else rule, so a new allow rule must be inserted before it. Save the rules with `sudo netfilter-persistent save` (to `/etc/iptables/rules.v4`), or they are lost on reboot.
 
-Open now: 22 (SSH), 2222 and 2223 (Happy Place).
-
-## Tenants
-
-| Service | Port | systemd unit | Checkout on the machine | Deploys from |
-|---|---|---|---|---|
-| Happy Place 2 | 2222 | `happy-place` | `~/Happy-Place-2` | `main` of `BachNewton/Happy-Place-2` |
-| Happy Place 2 (dev) | 2223 | `happy-place-dev` | `~/Happy-Place-2-dev` | `dev` of `BachNewton/Happy-Place-2` |
-
-Happy Place is a separate repo: a multiplayer game players reach over SSH. Its own GitHub Actions deploy it: on a push, they SSH in, pull, build with Go and restart its unit. Its players stay connected while they play, so restarting its units or rebooting the machine drops them.
+Open now: 22 (SSH) only.
 
 ## Rules
 
 - **Record every change here, in the same change:** a package installed, a unit added, a port opened. If the machine is lost, it is rebuilt from this page.
-- **Never reboot the machine, or restart another tenant's unit, to fix something of ours.** Restart only the unit that is misbehaving.
+- **Restart the unit that is misbehaving, not the machine.** A reboot drops every connected player of every service on it.
 - **Each service gets its own systemd unit,** with `Restart=always`, so it comes back after a crash or a reboot.
