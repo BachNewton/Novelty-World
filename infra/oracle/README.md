@@ -9,7 +9,7 @@ Claude manages the machine entirely from the command line, over SSH and the OCI 
 - **Shape:** `VM.Standard.E2.1.Micro`, Always Free. x86_64, one OCPU (two vCPUs as Linux sees it), 1 GB of memory with no swap, and a 45 GB disk.
 - **System:** Ubuntu 24.04 LTS, with unattended upgrades on.
 - **Region:** `eu-stockholm-1`, about 10 ms round trip from the owner in Finland.
-- **Names in Oracle:** everything is named after Novelty World: the instance `novelty-world` (also its Linux hostname), the network `novelty-world-vcn`, its subnet, gateway and defaults to match. The network's internal DNS label is still `happyplace`, from the machine's first life as a game server: Oracle can't change a DNS label after creation, and nothing here uses it.
+- **Names in Oracle:** everything is named after Novelty World: the instance `novelty-world` (also its Linux hostname), the network `novelty-world-vcn`, its subnet, gateway and defaults to match. The internal DNS labels are still `happyplace` (the network) and `hpsub` (the subnet), from the machine's first life as a game server: Oracle can't change a DNS label after creation, recreating the network means terminating the machine, and nothing here uses them.
 - **Installed:** Go (in `/usr/local/go`), git, and `iptables-persistent`. Node, Tailscale and any web server are not installed.
 - **Runs:** nothing of Novelty World's yet; only Ubuntu's and Oracle's own agents.
 
