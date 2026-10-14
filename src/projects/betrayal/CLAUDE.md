@@ -152,7 +152,7 @@ A green check runs only what the change can reach, a trial rule for this project
 - **E2E** runs Betrayal's specs only (`npx playwright test e2e/betrayal-`). Playwright's `--only-changed` doesn't fit: its specs load the app by URL, not by import, so the graph never links a change in `src/projects/betrayal/` to them.
 - **The whole suite** runs when the change reaches above one project: `src/shared/`, `package.json` or the lockfile (a dependency update), or test, build or TypeScript config.
 - After a failure, rerun only the failing files, never the whole suite.
-- **The random simulation sweep** (`simulation.slow.test.ts`) is opt-in, for engine changes, and skipped otherwise: `BETRAYAL_SWEEP=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/simulation.slow.test.ts` (in PowerShell, `$env:BETRAYAL_SWEEP=1` first). It plays about 690 random games, around 20 minutes on one core.
+- **The random simulation sweep** (`simulation.slow.test.ts`) is opt-in, for engine changes, and skipped otherwise: `BETRAYAL_SWEEP=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/simulation.slow.test.ts` (in PowerShell, `$env:BETRAYAL_SWEEP=1` first). It plays about 690 random games, around 7 minutes on one core.
 
 ## Next step
 

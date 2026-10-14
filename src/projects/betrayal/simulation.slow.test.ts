@@ -9,8 +9,8 @@ import { ALL_TOY_ENGINE } from "./test/toy-haunt";
 //   BETRAYAL_SWEEP=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/simulation.slow.test.ts
 // A failure names its seed, which replays the same game: simulate("s123").
 
-/** The longest games, a long haunt 13 played out with every choice dry-run
- *  at every decision, take about 15 seconds; most take under 2. A game is
+/** The longest games, a long haunt 13 played out, take about 6 seconds;
+ *  most take under 2. A game is
  *  synchronous, so vitest can't stop one that runs over: it fails it once it
  *  finishes. A game stuck in a loop is stopped by the simulation's own turn
  *  limits. */
