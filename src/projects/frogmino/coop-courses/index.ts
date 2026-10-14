@@ -1,8 +1,10 @@
 import { TUNING } from "../tuning";
+import { BLOCK_PARTY } from "./block-party";
 import { checkCoopCourse } from "./check";
 import { COURSE_TIERS, type DesignedCourse } from "./design";
 import { CHAIN_REACTION } from "./chain-reaction";
-import { TEACHING_RAMP } from "./teaching-ramp";
+import { LONG_AND_SHORT } from "./long-and-short";
+import { TEA_FOR_TWO } from "./tea-for-two";
 import { ZIG_ZAG_ALLEY } from "./zig-zag-alley";
 
 // Every designed co-op course, the picker's list. A course is its own file in
@@ -10,7 +12,9 @@ import { ZIG_ZAG_ALLEY } from "./zig-zag-alley";
 // CLAUDE.md). Each is checked as the list is built, so a broken course fails
 // loudly before anyone plays it.
 const COURSES: readonly DesignedCourse[] = [
-  TEACHING_RAMP,
+  BLOCK_PARTY,
+  TEA_FOR_TWO,
+  LONG_AND_SHORT,
   ZIG_ZAG_ALLEY,
   CHAIN_REACTION,
 ];

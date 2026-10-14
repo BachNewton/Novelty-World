@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useStore } from "zustand";
 import { MuteButton } from "../audio/mute-button";
+import type { Theme } from "../audio/music/song";
+import { useGameMusic } from "../audio/music/use-game-music";
 import { useGameSounds } from "../audio/use-game-sounds";
 import type { Session } from "../session";
 import { RunTimer } from "./run-clock";
@@ -14,11 +16,12 @@ const FrogminoScene = dynamic(() => import("./scene").then((m) => m.FrogminoScen
   ssr: false,
 });
 
-// A session's run on screen, with its sound, its timer and the mute button:
+// A session's run on screen, with its sound and its course's music (none for
+// a silent course), its timer and the mute button:
 // what every way of playing shares, whoever its players are. What goes
 // between the scene and the corner controls (input layers, legends,
 // overlays) is the caller's.
-export function GameView({ session, children }: { session: Session; children?: ReactNode }) {
+export function GameView({ session, music, children }: { session: Session; music: Theme; children?: ReactNode }) {
   // The team's state, mirrored on the page for the end-to-end tests to wait
   // on: its depth, each frog's column, when each frog last hopped, the rows
   // passed and the last bonk.
@@ -28,6 +31,7 @@ export function GameView({ session, children }: { session: Session; children?: R
   const passes = useStore(session.store, (s) => s.run.passes);
   const bonkedAt = useStore(session.store, (s) => String(s.run.lastBonk?.tick ?? ""));
   useGameSounds(session);
+  useGameMusic(session, music);
 
   return (
     <div

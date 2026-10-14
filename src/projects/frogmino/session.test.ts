@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "@/shared/lib/seeded-random";
-import { coopCourse, courseOf, soloCourse } from "./courses";
+import { coopCourse, courseOf, soloCourse, startRun } from "./courses";
 import { seatedSink, SOLO_SEATING } from "./input/devices";
 import { EMPTY_LINEUP, join, lineupSeating } from "./input/lineup";
-import { createRun, replay, type FrogAction, type HeldAction, type PlayerInput } from "./run";
+import { replay, type FrogAction, type HeldAction, type PlayerInput } from "./run";
 import { localSession, replaySession } from "./session";
 import { TUNING } from "./tuning";
 import { PERCH_ROW } from "./proof/perch";
@@ -58,16 +58,16 @@ describe("a solo session", () => {
 
 describe("a local co-op session", () => {
   it("plays local co-op's course on its road, a frog per player", () => {
-    const course = coopCourse("teaching-ramp");
+    const course = coopCourse("long-and-short");
     const { run } = localSession(course).store.getState();
     expect(run.lanes).toBe(course.lanes);
-    expect(run.frogs.map((frog) => frog.kind)).toEqual(["L", "J"]);
-    // Side by side: the flat L's three lanes, then the J.
-    expect(run.frogs[1].col).toBeGreaterThanOrEqual(run.frogs[0].col + 3);
+    expect(run.frogs.map((frog) => frog.kind)).toEqual(["I", "O"]);
+    // Side by side: the flat I's four lanes, then the O.
+    expect(run.frogs[1].col).toBeGreaterThanOrEqual(run.frogs[0].col + 4);
   });
 
   it("routes each joined device to its own frog, and drops an unseated one's inputs", () => {
-    const session = localSession(coopCourse("teaching-ramp"));
+    const session = localSession(coopCourse("long-and-short"));
     const sink = seatedSink(lineupSeating(join(join(EMPTY_LINEUP, "keys:right"), "pad:0")), session);
     sink.input("pad:0", { kind: "act", action: "right" });
     sink.input("keys:right", { kind: "act", action: "left" });
@@ -76,14 +76,14 @@ describe("a local co-op session", () => {
   });
 
   it("fails loudly on an input for a player with no frog", () => {
-    const session = localSession(coopCourse("teaching-ramp"));
+    const session = localSession(coopCourse("long-and-short"));
     expect(() => {
       session.input(2, { kind: "act", action: "hop" });
     }).toThrow(/no frog for player 2/);
   });
 
   it("replays its recorded log to exactly the run it played, whatever the frames", () => {
-    const course = coopCourse("teaching-ramp");
+    const course = coopCourse("long-and-short");
     const session = localSession(course);
     const random = createRng("frogmino-session-replay").next;
     const ACTS: readonly FrogAction[] = ["left", "right", "rotateCcw", "rotateCw", "hop", "forward", "back"];
@@ -109,15 +109,14 @@ describe("a local co-op session", () => {
     const { run, log } = session.store.getState();
     expect(new Set(log.map((input) => input.player))).toEqual(new Set([0, 1]));
     expect(run.passes + (run.lastBonk === null ? 0 : 1)).toBeGreaterThan(0);
-    const start = createRun(course.row, TUNING, { kinds: course.kinds, lanes: course.lanes });
-    expect(replay(start, log, run.tick)).toEqual(run);
+    expect(replay(startRun(course), log, run.tick)).toEqual(run);
   }, 30_000);
 });
 
 describe("a replay session", () => {
   const PERCH = findReplay("perch");
   const course = courseOf(PERCH.course);
-  const start = () => createRun(course.row, TUNING, { kinds: course.kinds, lanes: course.lanes });
+  const start = () => startRun(course);
 
   it("plays its log as if its players pressed those keys at those ticks, whatever the frames", () => {
     const session = replaySession(course, PERCH.log, PERCH.until);

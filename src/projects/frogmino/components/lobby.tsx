@@ -20,6 +20,8 @@ import {
   WAITING,
   type HostMessage,
 } from "../coop";
+import { courseMusic } from "../audio/music/course-music";
+import { usePreparedMusic } from "../audio/music/use-game-music";
 import { useCoopStore } from "../coop-store";
 import type { CourseSpec } from "../courses";
 import { coopCourseParam } from "../view";
@@ -132,6 +134,10 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
     }),
   });
 
+  // The theme the next game will play, rendered while the players are here:
+  // solo's in the lobby, the picked course's in a waiting room.
+  usePreparedMusic(courseMusic(course === null ? { kind: "solo" } : coopSpec(course)));
+
   // The store outlives the page; leaving it forgets the room.
   useEffect(() => () => useCoopStore.getState().reset(), []);
 
@@ -207,7 +213,14 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
   }
 
   if (seat.phase.kind === "started" && game !== null && room.status !== "disconnected" && room.status !== "offline") {
-    return <OnlineGame session={game.session} slot={game.role === "host" ? HOST_SLOT : GUEST_SLOT} onLeave={leave} />;
+    return (
+      <OnlineGame
+        session={game.session}
+        course={seat.phase.course}
+        slot={game.role === "host" ? HOST_SLOT : GUEST_SLOT}
+        onLeave={leave}
+      />
+    );
   }
 
   return (

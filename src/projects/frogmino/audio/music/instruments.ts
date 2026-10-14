@@ -72,3 +72,35 @@ export const BELL: Instrument = {
   base: "B5",
   zzfx: { volume: 0.4, attack: 0.003, decay: 0.1, sustainVolume: 0.3, sustain: 0.1, release: 0.35, delay: 0.06 },
 };
+
+// A soft square lead, for the Game Boy's pulse channels: a square wave, the
+// one brighter shape here, kept quiet and through a low-pass so it rings
+// rather than beeps.
+export const PULSE: Instrument = {
+  name: "Pulse",
+  base: "B4",
+  zzfx: {
+    volume: 0.28,
+    attack: 0.005,
+    decay: 0.05,
+    sustain: 0.12,
+    sustainVolume: 0.6,
+    release: 0.08,
+    shape: Shape.square,
+    filter: -2600,
+  },
+};
+
+// A soft snare: a short burst of filtered noise.
+export const SNARE: Instrument = {
+  name: "Snare",
+  base: "B4",
+  zzfx: { volume: 0.22, attack: 0.001, decay: 0.03, sustainVolume: 0.3, release: 0.07, shape: Shape.noise, filter: -3200 },
+};
+
+// A small plucked triangle, for quick arpeggios.
+export const PLUCK: Instrument = {
+  name: "Pluck",
+  base: "B4",
+  zzfx: { volume: 0.4, attack: 0.002, decay: 0.06, sustainVolume: 0.2, sustain: 0.02, release: 0.05, shape: Shape.triangle, filter: -3000 },
+};

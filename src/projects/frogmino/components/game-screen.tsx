@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
+import type { Theme } from "../audio/music/song";
 import { useStore } from "zustand";
 import { FROG_LOOKS } from "../frog/look";
 import { seatedSink, type Seating } from "../input/devices";
@@ -81,12 +82,14 @@ function DoneOverlay({ session }: { session: Session }) {
 
 export function GameScreen({
   session,
+  music,
   seating,
   keyboard,
   touch,
   children,
 }: {
   session: Session;
+  music: Theme;
   seating: Seating;
   keyboard: KeyboardLayout;
   touch: boolean;
@@ -98,7 +101,7 @@ export function GameScreen({
   useGamepadSource(sink);
 
   return (
-    <GameView session={session}>
+    <GameView session={session} music={music}>
       {touch && <TouchControls sink={sink} done={done} />}
       {keyboard === "solo" ? <SoloLegend /> : <CoopLegend />}
       {done && <DoneOverlay session={session} />}
