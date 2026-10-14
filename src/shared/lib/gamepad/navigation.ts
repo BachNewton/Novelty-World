@@ -94,9 +94,16 @@ export interface NavHold {
   direction: Direction | null;
   /** When the held direction next moves the focus, in milliseconds. */
   nextAt: number;
+  /** Frames the direction has been seen held since it was pressed. */
+  frames: number;
 }
 
-export const NAV_AT_REST: NavHold = { x: null, y: null, direction: null, nextAt: 0 };
+export const NAV_AT_REST: NavHold = { x: null, y: null, direction: null, nextAt: 0, frames: 0 };
+
+/** A repeat needs the way seen held on this many frames after its press, so
+ *  a tap that a single slow frame spans (a busy page can take longer than
+ *  the delay to draw one) isn't taken for a hold. */
+const REPEAT_FRAMES = 2;
 
 /**
  * One frame of a pad pointing round a menu, at `now` milliseconds: the d-pad
@@ -104,7 +111,9 @@ export const NAV_AT_REST: NavHold = { x: null, y: null, direction: null, nextAt:
  * moves this frame. A new way moves at once, and a held way again after the
  * delay, then every interval. Pointing two ways at once, the way held longer
  * keeps moving, and a way just added takes over; letting go of the moving
- * way leaves the other to repeat after a delay. A missing pad (one that
+ * way leaves the other to repeat after a delay. A held way repeats only once
+ * seen on a couple of frames after its press, so a slow frame never turns a
+ * tap into a hold. A missing pad (one that
  * disconnected), or one whose layout isn't standard, points nowhere.
  */
 export function navStep(prev: NavHold, pad: PadSnapshot | null, now: number, tuning: NavTuning = NAV_TUNING): { hold: NavHold; move: Direction | null } {
@@ -116,10 +125,11 @@ export function navStep(prev: NavHold, pad: PadSnapshot | null, now: number, tun
   const y = axisWay(leftStick.y, buttons.DpadUp.pressed, buttons.DpadDown.pressed, ["up", "down"], prev.y, tuning);
   const fresh = [y !== prev.y ? y : null, x !== prev.x ? x : null].find((way) => way !== null) ?? null;
   const direction = fresh ?? (prev.direction !== null && (prev.direction === x || prev.direction === y) ? prev.direction : (y ?? x));
-  if (direction === null) return { hold: { x, y, direction, nextAt: 0 }, move: null };
+  if (direction === null) return { hold: { x, y, direction, nextAt: 0, frames: 0 }, move: null };
   // A way left held as the other lets go waits a repeat's delay: it was
   // already held, so it isn't a new press.
-  if (direction !== prev.direction) return { hold: { x, y, direction, nextAt: now + tuning.delay }, move: fresh };
-  if (now >= prev.nextAt) return { hold: { x, y, direction, nextAt: now + tuning.interval }, move: direction };
-  return { hold: { x, y, direction, nextAt: prev.nextAt }, move: null };
+  if (direction !== prev.direction) return { hold: { x, y, direction, nextAt: now + tuning.delay, frames: 0 }, move: fresh };
+  const frames = prev.frames + 1;
+  if (now >= prev.nextAt && frames >= REPEAT_FRAMES) return { hold: { x, y, direction, nextAt: now + tuning.interval, frames }, move: direction };
+  return { hold: { x, y, direction, nextAt: prev.nextAt, frames }, move: null };
 }

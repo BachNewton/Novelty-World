@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 /**
  * Simulated game controllers for the e2e suites: `navigator.getGamepads`
@@ -67,4 +67,28 @@ async function setButton(page: Page, pad: number, button: ButtonName, down: bool
 export async function press(page: Page, button: ButtonName, pad = 0): Promise<void> {
   await setButton(page, pad, button, true);
   await setButton(page, pad, button, false);
+}
+
+/**
+ * Moves a pad's focus onto `target` with the d-pad, steering by where the
+ * focus is now after every press: a page under load can draw a frame slowly
+ * enough that one press is held into a repeat, so a fixed count of presses
+ * could overshoot.
+ */
+export async function padTo(page: Page, target: Locator, pad = 0): Promise<void> {
+  for (let steps = 0; ; steps++) {
+    const direction = await target.evaluate((element) => {
+      const active = document.activeElement;
+      if (active === element) return null;
+      if (!(active instanceof HTMLElement) || active === document.body) return "DpadDown";
+      const [a, b] = [active.getBoundingClientRect(), element.getBoundingClientRect()];
+      const [ay, by] = [(a.top + a.bottom) / 2, (b.top + b.bottom) / 2];
+      const sameRow = (ay > b.top && ay < b.bottom) || (by > a.top && by < a.bottom);
+      if (!sameRow) return by > ay ? "DpadDown" : "DpadUp";
+      return (b.left + b.right) / 2 > (a.left + a.right) / 2 ? "DpadRight" : "DpadLeft";
+    });
+    if (direction === null) return;
+    if (steps > 40) throw new Error(`The d-pad never reached ${String(target)}`);
+    await press(page, direction, pad);
+  }
 }

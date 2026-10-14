@@ -78,10 +78,14 @@ function pair({ seed, link, guestTuning = TUNING, events }: { seed: string; link
   const rng = createRng(seed);
   const toGuest = wire<HostPlay>(link, rng, (value) => {
     const message = parseHostMessage(value);
-    if (message.kind === "course" || message.kind === "start" || message.kind === "full") throw new Error("not a message of play");
+    if (message.kind === "course" || message.kind === "start" || message.kind === "full" || message.kind === "room") throw new Error("not a message of play");
     return message;
   });
-  const toHost = wire<GuestMessage>(link, rng, parseGuestMessage);
+  const toHost = wire<GuestMessage>(link, rng, (value) => {
+    const message = parseGuestMessage(value);
+    if (message.kind === "room") throw new Error("not a message of play");
+    return message;
+  });
   const fail: OnlineEvents = {
     onDesync: (desync) => {
       throw new Error(`out of sync at ${String(desync.tick)}`);

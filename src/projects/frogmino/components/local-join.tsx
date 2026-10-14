@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { PadHints } from "@/shared/components/pad-hints";
-import { subscribeGamepads, usePadNavigation, type ButtonEdge } from "@/shared/lib/gamepad";
+import { gamepadSupport, subscribeGamepads, usePadNavigation, type ButtonEdge } from "@/shared/lib/gamepad";
 import { cn, isTextEntryTarget } from "@/shared/lib/utils";
 import { FROG_LOOKS, FROG_VARIANTS } from "../frog/look";
 import { padDevice, type DeviceId } from "../input/devices";
@@ -36,6 +36,16 @@ function deviceName(device: DeviceId): string {
   throw new Error(`Frogmino: ${device} can't join local co-op`);
 }
 
+function connectedPads(): readonly { index: number }[] {
+  if (gamepadSupport() !== "supported") return [];
+  return navigator.getGamepads().filter((pad) => pad !== null);
+}
+
+function withoutGonePads(lineup: Lineup, pads: readonly { index: number }[]): Lineup {
+  const connected = new Set(pads.map((pad) => padDevice(pad.index)));
+  return lineup.reduce((next, device) => (device?.startsWith("pad:") && !connected.has(device) ? leave(next, device) : next), lineup);
+}
+
 const JOIN_HINTS = [
   ["A", "Join, then select"],
   ["B", "Leave, then back"],
@@ -47,15 +57,19 @@ const JOIN_HINTS = [
 const SLOT_TONE = ["border-brand-green text-brand-green", "border-brand-blue text-brand-blue"] as const;
 
 export function LocalJoin({
+  initialLineup = EMPTY_LINEUP,
   initialCourse,
   onStart,
   onBack,
 }: {
+  /** The players already in, coming back from a game to pick another course. */
+  initialLineup?: Lineup;
   initialCourse: string;
   onStart: (lineup: Lineup, course: string) => void;
   onBack: () => void;
 }) {
-  const [lineup, setLineup] = useState<Lineup>(EMPTY_LINEUP);
+  // A controller unplugged during the game comes back without its slot.
+  const [lineup, setLineup] = useState<Lineup>(() => withoutGonePads(initialLineup, connectedPads()));
   const [course, setCourse] = useState(() => coopCourseById(initialCourse).id);
   // The picked course's theme, rendered while the players are here.
   usePreparedMusic(courseMusic({ kind: "coop", id: course }));
@@ -104,8 +118,7 @@ export function LocalJoin({
     const unsubscribe = subscribeGamepads({
       // A controller that disconnects leaves its slot.
       onConnectionChange: (pads) => {
-        const connected = new Set(pads.map((pad) => padDevice(pad.index)));
-        setLineup((now) => now.reduce((next, device) => (device?.startsWith("pad:") && !connected.has(device) ? leave(next, device) : next), now));
+        setLineup((now) => withoutGonePads(now, pads));
       },
     });
     return () => {

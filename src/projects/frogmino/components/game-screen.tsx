@@ -63,7 +63,8 @@ function CoopLegend() {
   );
 }
 
-// How a player leaves the game: back to the lobby, or out of an online room.
+// A way out of the game: back to the course select with the players still
+// in, back to the lobby, or out of an online room.
 export interface GameExit {
   label: string;
   onExit: () => void;
@@ -73,10 +74,10 @@ const OVERLAY_BUTTON = "pointer-events-auto touch-manipulation rounded-full px-6
 const MAIN_BUTTON = `${OVERLAY_BUTTON} bg-brand-green text-surface-primary`;
 const OTHER_BUTTON = `${OVERLAY_BUTTON} border-2 border-border-hover bg-surface-secondary/90 text-text-primary`;
 
-// The run's result, and how to go again or leave. A controller moves between
-// the two, and Menu restarts as in play; the focus waits for the first press,
+// The run's result, and how to go again or out. A controller moves between
+// the buttons, and Menu restarts as in play; the focus waits for the first press,
 // so a hop pressed as the team crossed the line doesn't restart the run.
-function DoneOverlay({ session, exit }: { session: Session; exit: GameExit }) {
+function DoneOverlay({ session, exits }: { session: Session; exits: readonly GameExit[] }) {
   const root = useRef<HTMLDivElement>(null);
   usePadNavigation(root);
   return (
@@ -89,9 +90,11 @@ function DoneOverlay({ session, exit }: { session: Session; exit: GameExit }) {
         <button type="button" onClick={session.restart} data-pad-start data-pad-menu className={MAIN_BUTTON}>
           Restart
         </button>
-        <button type="button" onClick={exit.onExit} className={OTHER_BUTTON}>
-          {exit.label}
-        </button>
+        {exits.map((exit) => (
+          <button key={exit.label} type="button" onClick={exit.onExit} className={OTHER_BUTTON}>
+            {exit.label}
+          </button>
+        ))}
       </div>
       <PadHints hints={DONE_HINTS} className="rounded-lg bg-surface-secondary/90 px-3 py-1.5" />
     </div>
@@ -108,9 +111,9 @@ const MENU_HINTS = [
 ] as const;
 
 // A controller's menu over the game, opened with View, since the pads are
-// busy playing: keep playing, restart, or leave. The game runs on under it,
+// busy playing: keep playing, restart, or a way out. The game runs on under it,
 // online can't pause, and while it is open the pads drive no frog.
-function GameMenu({ session, exit, onClose }: { session: Session; exit: GameExit; onClose: () => void }) {
+function GameMenu({ session, exits, onClose }: { session: Session; exits: readonly GameExit[]; onClose: () => void }) {
   const root = useRef<HTMLDivElement>(null);
   usePadNavigation(root, { reveal: true });
   return (
@@ -130,9 +133,11 @@ function GameMenu({ session, exit, onClose }: { session: Session; exit: GameExit
         >
           Restart
         </button>
-        <button type="button" onClick={exit.onExit} className={OTHER_BUTTON}>
-          {exit.label}
-        </button>
+        {exits.map((exit) => (
+          <button key={exit.label} type="button" onClick={exit.onExit} className={OTHER_BUTTON}>
+            {exit.label}
+          </button>
+        ))}
         <PadHints hints={MENU_HINTS} />
       </div>
     </div>
@@ -145,7 +150,7 @@ export function GameScreen({
   seating,
   keyboard,
   touch,
-  exit,
+  exits,
   children,
 }: {
   session: Session;
@@ -153,7 +158,7 @@ export function GameScreen({
   seating: Seating;
   keyboard: KeyboardLayout;
   touch: boolean;
-  exit: GameExit;
+  exits: readonly GameExit[];
   children?: ReactNode;
 }) {
   const done = useStore(session.store, (s) => isDone(s.run));
@@ -185,11 +190,11 @@ export function GameScreen({
     <GameView session={session} music={music}>
       {touch && <TouchControls sink={sink} done={done} />}
       {keyboard === "solo" ? <SoloLegend /> : <CoopLegend />}
-      {done && <DoneOverlay session={session} exit={exit} />}
+      {done && <DoneOverlay session={session} exits={exits} />}
       {menuOpen && (
         <GameMenu
           session={session}
-          exit={exit}
+          exits={exits}
           onClose={() => {
             setMenuRun(null);
           }}

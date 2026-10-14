@@ -10,6 +10,7 @@ import { useRoomList } from "@/shared/lib/room-list";
 import {
   admitGuest,
   COOP_GAME,
+  endRound,
   GUEST_SLOT,
   HOST_SLOT,
   openListing,
@@ -96,7 +97,8 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
       // What the partner sent before it learned the round had stopped.
       if (store.game === null) return;
       if (store.game.role !== "host") throw new Error("frogmino co-op: a guest's message reached a guest");
-      store.game.session.receive(message);
+      if (message.kind === "room") backToRoom();
+      else store.game.session.receive(message);
     },
     onHostMessage(raw) {
       const message = parseHostMessage(raw);
@@ -113,6 +115,10 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
         case "full":
           room.leave();
           store.reset("That game just filled up. Try another!");
+          return;
+        case "room":
+          store.setGame(null);
+          store.setSeat({ ...store.seat, phase: WAITING });
           return;
         default:
           // What the host sent before it learned the round had stopped.
@@ -173,6 +179,17 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
     useCoopStore.getState().reset();
   }
 
+  // The host ends the round and goes back to the waiting room with its
+  // partner, who follows, for the host to pick the next course.
+  function backToRoom() {
+    const store = useCoopStore.getState();
+    const partner = store.seat.partnerPeerId;
+    if (partner === null) throw new Error("frogmino co-op: back to the room without a partner");
+    store.setGame(null);
+    store.setSeat(endRound(store.seat));
+    sendToGuest(partner, { kind: "room" });
+  }
+
   function sendToGuest(peerId: string, message: HostMessage) {
     room.sendTo(peerId, message);
   }
@@ -218,6 +235,11 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
         session={game.session}
         course={seat.phase.course}
         slot={game.role === "host" ? HOST_SLOT : GUEST_SLOT}
+        toRoom={{
+          label: "Course select",
+          // The guest asks; the host decides, and takes both back.
+          onExit: game.role === "host" ? backToRoom : () => room.sendToHost({ kind: "room" }),
+        }}
         onLeave={leave}
       />
     );

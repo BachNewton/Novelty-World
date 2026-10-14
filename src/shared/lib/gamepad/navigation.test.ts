@@ -89,8 +89,13 @@ describe("navStep", () => {
   });
 
   it("repeats a held way after the delay, then every interval, a move a frame at most", () => {
-    const frames: [number, PadSnapshot][] = [[0, down], [delay, down], [delay + interval - 1, down], [delay + interval, down], [delay + 10 * interval, down], [delay + 10 * interval + 1, down]];
-    expect(moves(frames)).toEqual(["down", "down", null, "down", "down", null]);
+    const frames: [number, PadSnapshot][] = [[0, down], [16, down], [delay, down], [delay + interval - 1, down], [delay + interval, down], [delay + 10 * interval, down], [delay + 10 * interval + 1, down]];
+    expect(moves(frames)).toEqual(["down", null, "down", null, "down", "down", null]);
+  });
+
+  it("never repeats a tap that one slow frame spans", () => {
+    expect(moves([[0, down], [delay + 100, down], [delay + 116, pad()]])).toEqual(["down", null, null]);
+    expect(moves([[0, down], [delay + 100, down], [delay + 116, down]])).toEqual(["down", null, "down"]);
   });
 
   it("moves at once on a new press after a release, or a flick to the other way", () => {
@@ -107,7 +112,7 @@ describe("navStep", () => {
   it("lets a way added to a held one take over, and the one left held wait a delay", () => {
     const both = pad({ held: ["DpadDown", "DpadRight"] });
     const right = pad({ held: ["DpadRight"] });
-    expect(moves([[0, down], [10, both], [20, right], [20 + delay, right]])).toEqual(["down", "right", null, "right"]);
+    expect(moves([[0, down], [10, both], [20, right], [30, right], [20 + delay, right]])).toEqual(["down", "right", null, null, "right"]);
   });
 
   it("points nowhere for a pad that left, or one whose layout isn't standard", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   admitGuest,
   COOP_CAPACITY,
+  endRound,
   openListing,
   parseGuestMessage,
   parseHostMessage,
@@ -9,6 +10,7 @@ import {
   startRound,
   WAITING,
   type GuestMessage,
+  type GuestRequest,
   type HostMessage,
   type HostSeat,
   type ListingSource,
@@ -29,6 +31,7 @@ describe("the wire", () => {
       { kind: "start", course: COURSE },
       { kind: "start", course: { kind: "solo" } },
       { kind: "full" },
+      { kind: "room" },
       { kind: "input", seq: 3, tick: 120, player: 0, input: { kind: "act", action: "rotateCw" } },
       { kind: "input", seq: 4, tick: 125, player: 1, input: { kind: "press", action: "forward" }, id: 2 },
       { kind: "input", seq: 5, tick: 130, player: 1, input: { kind: "releaseAll" } },
@@ -40,11 +43,12 @@ describe("the wire", () => {
   });
 
   it("carries every guest message through unchanged", () => {
-    const messages: GuestMessage[] = [
+    const messages: (GuestMessage | GuestRequest)[] = [
       { kind: "input", seq: 0, round: 1, id: 0, tick: 12, input: { kind: "release", action: "left" } },
       { kind: "restart", seq: 1, round: 1 },
       { kind: "ping", seq: 2, at: 40 },
       { kind: "desync", seq: 3, tick: 50 },
+      { kind: "room" },
     ];
     for (const message of messages) expect(parseGuestMessage(offTheWire(message))).toEqual(message);
   });
@@ -96,6 +100,19 @@ describe("startRound", () => {
   it("refuses to start alone, or twice", () => {
     expect(() => startRound(EMPTY, COURSE)).toThrow();
     expect(() => startRound(startRound(PAIRED, COURSE), COURSE)).toThrow();
+  });
+});
+
+describe("endRound", () => {
+  it("goes back to waiting with the partner still seated, off the open-games list, ready to start again", () => {
+    const back = endRound(startRound(PAIRED, COURSE));
+    expect(back).toEqual(PAIRED);
+    expect(openListing({ role: "host", status: "connected", code: "ABCD", hostName: "Host", seat: back })).toBeNull();
+    expect(startRound(back, COURSE).phase.kind).toBe("started");
+  });
+
+  it("refuses with no round going", () => {
+    expect(() => endRound(PAIRED)).toThrow();
   });
 });
 
