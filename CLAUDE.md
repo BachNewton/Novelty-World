@@ -10,6 +10,8 @@ Next.js's own docs for the installed version are bundled in `node_modules/next/d
 
 **Hosting:** the app is deployed on **Vercel**. Server-side code (route handlers, server actions) runs in Vercel's environment, so any server env var — e.g. `SUPABASE_SERVICE_ROLE_KEY` — must be set in **Vercel → Project Settings → Environment Variables**, not just in local `.env.local`. Env var changes only take effect on the next deployment.
 
+**The server:** Vercel only runs short-lived functions, so anything that needs a long-lived server runs on Novelty World's own Oracle Cloud machine, which Claude manages from the command line. `infra/oracle/README.md` covers the machine, how to reach it, its firewalls, what else runs on it, and the rules for changing it.
+
 ## Commands
 
 | Task | Command |
