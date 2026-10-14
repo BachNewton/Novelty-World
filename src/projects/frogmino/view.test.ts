@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frogminoView, replayName } from "./view";
+import { coopCourseParam, frogminoView, replayName } from "./view";
 
 describe("frogminoView", () => {
   it("opens on the lobby", () => {
@@ -63,5 +63,16 @@ describe("replayName", () => {
   it("fails loudly on a ?replay with no name", () => {
     expect(() => replayName("?replay")).toThrow(/needs a replay's name/);
     expect(() => replayName("?replay=")).toThrow(/needs a replay's name/);
+  });
+});
+
+describe("coopCourseParam", () => {
+  it("picks the default co-op course, or the one ?course names", () => {
+    expect(coopCourseParam("?play=local")).toBe("teaching-ramp");
+    expect(coopCourseParam("?play=local&course=teaching-ramp")).toBe("teaching-ramp");
+  });
+
+  it("fails loudly on a course that doesn't exist, naming those that do", () => {
+    expect(() => coopCourseParam("?course=nowhere")).toThrow(/no co-op course "nowhere"; the courses are teaching-ramp/);
   });
 });

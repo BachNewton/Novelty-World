@@ -102,6 +102,9 @@ export const JOIN_KEYS: Record<"keys:left" | "keys:right", { join: string; leave
 };
 // Enter starts local co-op once both players are in.
 export const START_KEY = "Enter";
+// On the join screen, either half's rotate keys pick the previous or next
+// course.
+export const COURSE_KEYS: Readonly<Partial<Record<string, -1 | 1>>> = { KeyQ: -1, Comma: -1, KeyE: 1, Period: 1 };
 
 export type Legend = readonly (readonly [keys: string, action: string])[];
 

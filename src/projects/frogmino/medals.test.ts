@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { coopCourse, courseOf, soloCourse } from "./courses";
+import { COOP_COURSES } from "./coop-courses";
+import { coopCourse, courseOf, soloCourse, startRun } from "./courses";
 import { checkMedalTimes, formatTime, heldJumpTicks, medalFor, type MedalTimes } from "./medals";
 import { SAVED_REPLAYS } from "./proof/saved-replays";
 import { applyAction, createRun, playTo, pressHeld, replay, runTime, type Run, type RuleRows } from "./run";
@@ -43,13 +44,21 @@ describe("the run's clock", () => {
   it("times a held jump on an empty road at the held-jump floor", () => {
     let run = pressHeld(playTo(emptyRun(), 80), "forward");
     while (run.finishedAt === null) run = playTo(run, run.tick + 1);
-    expect(runTime(run)).toBe(heldJumpTicks(TUNING));
+    expect(runTime(run)).toBe(heldJumpTicks(TUNING, TUNING.courseLength));
+  });
+
+  it("times a held jump to a course's own finish, where the course puts it", () => {
+    let run = pressHeld(playTo(createRun(EMPTY_ROAD, TUNING, { courseLength: 100 }), 80), "forward");
+    while (run.finishedAt === null) run = playTo(run, run.tick + 1);
+    expect(run.depth).toBeGreaterThanOrEqual(100);
+    expect(run.depth).toBeLessThan(100 + TUNING.depthStep);
+    expect(runTime(run)).toBe(heldJumpTicks(TUNING, 100));
   });
 
   it.each(Object.keys(SAVED_REPLAYS))("gives %s the same time however its frames are chunked", (name) => {
     const proof = SAVED_REPLAYS[name];
     const course = courseOf(proof.course);
-    const start = () => createRun(course.row, TUNING, { kinds: course.kinds, lanes: course.lanes });
+    const start = () => startRun(course);
     const whole = replay(start(), proof.log, proof.until);
     expect(whole.finishedAt).not.toBeNull();
     for (const chunk of [1, 7, 100, 1013]) {
@@ -66,7 +75,7 @@ describe("the run's clock", () => {
     for (let i = 0; i < 400; i++) session.frame((1 / 60) * (0.5 + (i % 3)));
     const { run, log, course } = session.store.getState();
     expect(runTime(run)).toBeGreaterThan(0);
-    const replayed = replay(createRun(course.row, TUNING, { kinds: course.kinds, lanes: course.lanes }), log, run.tick);
+    const replayed = replay(startRun(course), log, run.tick);
     expect(runTime(replayed)).toBe(runTime(run));
   });
 });
@@ -91,11 +100,11 @@ describe("medals", () => {
   });
 
   it("has every playable course declare medal times in order", () => {
-    for (const course of [soloCourse(), coopCourse()]) expect(checkMedalTimes(course.medals)).toBe(course.medals);
+    for (const course of [soloCourse(), ...COOP_COURSES.map((c) => coopCourse(c.id))]) expect(checkMedalTimes(course.medals)).toBe(course.medals);
   });
 
   it("sets every course's gold slower than a held jump with nothing in its way", () => {
-    for (const course of [soloCourse(), coopCourse()]) expect(toTicks(course.medals.gold)).toBeGreaterThan(heldJumpTicks(TUNING));
+    for (const course of [soloCourse(), ...COOP_COURSES.map((c) => coopCourse(c.id))]) expect(toTicks(course.medals.gold)).toBeGreaterThan(heldJumpTicks(TUNING, course.length));
   });
 });
 

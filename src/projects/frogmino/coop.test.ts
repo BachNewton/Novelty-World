@@ -15,7 +15,7 @@ import {
 } from "./coop";
 import type { CourseSpec } from "./courses";
 
-const COURSE: CourseSpec = { kind: "coop" };
+const COURSE: CourseSpec = { kind: "coop", id: "teaching-ramp" };
 
 const EMPTY: HostSeat = { phase: WAITING, partnerPeerId: null };
 const PAIRED: HostSeat = { phase: WAITING, partnerPeerId: "guest-1" };
@@ -25,7 +25,9 @@ describe("the wire", () => {
 
   it("carries every host message through unchanged", () => {
     const messages: HostMessage[] = [
+      { kind: "course", course: COURSE },
       { kind: "start", course: COURSE },
+      { kind: "start", course: { kind: "solo" } },
       { kind: "full" },
       { kind: "input", seq: 3, tick: 120, player: 0, input: { kind: "act", action: "rotateCw" } },
       { kind: "input", seq: 4, tick: 125, player: 1, input: { kind: "press", action: "forward" }, id: 2 },
@@ -51,6 +53,8 @@ describe("the wire", () => {
     expect(() => parseHostMessage({ kind: "teleport" })).toThrow(/not a host message/);
     expect(() => parseHostMessage("start")).toThrow();
     expect(() => parseHostMessage({ kind: "start", course: { kind: "moon" } })).toThrow(/not a course/);
+    expect(() => parseHostMessage({ kind: "course", course: { kind: "coop" } })).toThrow(/not a course/);
+    expect(() => parseHostMessage({ kind: "start", course: { kind: "coop", id: "nowhere" } })).toThrow(/no co-op course "nowhere"; the courses are teaching-ramp/);
     expect(() => parseHostMessage({ kind: "confirm", seq: 1, tick: -50, hash: 1 })).toThrow();
     expect(() => parseHostMessage({ kind: "input", seq: 1, tick: 1, player: 0, input: { kind: "act", action: "fly" } })).toThrow(/not a player input/);
     expect(() => parseGuestMessage({ kind: "input", seq: 0, round: 0, id: 0, tick: 1.5, input: { kind: "releaseAll" } })).toThrow();

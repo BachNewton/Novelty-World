@@ -13,7 +13,7 @@ import { TUNING, type Tuning } from "./tuning";
 // delayed by its own seeded amount, so messages overtake each other.
 
 const TICK = 1 / 100;
-const SPEC: CourseSpec = { kind: "coop" };
+const SPEC: CourseSpec = { kind: "coop", id: "teaching-ramp" };
 
 interface Link {
   // Each message takes `delay` ticks, plus up to `jitter` more.
@@ -78,7 +78,7 @@ function pair({ seed, link, guestTuning = TUNING, events }: { seed: string; link
   const rng = createRng(seed);
   const toGuest = wire<HostPlay>(link, rng, (value) => {
     const message = parseHostMessage(value);
-    if (message.kind === "start" || message.kind === "full") throw new Error("not a message of play");
+    if (message.kind === "course" || message.kind === "start" || message.kind === "full") throw new Error("not a message of play");
     return message;
   });
   const toHost = wire<GuestMessage>(link, rng, parseGuestMessage);

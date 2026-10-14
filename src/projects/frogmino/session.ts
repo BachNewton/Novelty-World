@@ -1,6 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Course } from "./courses";
-import { applyInput, createRun, playTo, replay, type InputLog, type PlayerInput, type Run } from "./run";
+import { startRun, type Course } from "./courses";
+import { applyInput, playTo, replay, type InputLog, type PlayerInput, type Run } from "./run";
 import { frameTicks } from "./ticks";
 import { TUNING, type Tuning } from "./tuning";
 
@@ -38,7 +38,7 @@ export interface Session {
 }
 
 export function freshRun(course: Course, tuning: Tuning): Run {
-  return createRun(course.row, tuning, { kinds: course.kinds, lanes: course.lanes });
+  return startRun(course, tuning);
 }
 
 // Solo is a local session with one player; local co-op, one with a player

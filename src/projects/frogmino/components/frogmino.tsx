@@ -3,11 +3,10 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { localSession } from "../session";
-import { COOP_COURSE } from "../coop-course";
 import { coopCourse, soloCourse, type Course } from "../courses";
 import { SOLO_SEATING } from "../input/devices";
 import { lineupSeating, type Lineup } from "../input/lineup";
-import { frogminoView, replayName } from "../view";
+import { coopCourseParam, frogminoView, replayName } from "../view";
 import { GameScreen } from "./game-screen";
 import { FrogminoLobby } from "./lobby";
 import { LocalJoin } from "./local-join";
@@ -51,7 +50,7 @@ export function Frogmino() {
   }
 }
 
-type Screen = { kind: "lobby" } | { kind: "solo" } | { kind: "join" } | { kind: "local"; lineup: Lineup };
+type Screen = { kind: "lobby" } | { kind: "solo" } | { kind: "join" } | { kind: "local"; lineup: Lineup; course: string };
 
 function FrogminoEntry({ opening }: { opening: "lobby" | "solo" | "local" }) {
   const [screen, setScreen] = useState<Screen>(opening === "local" ? { kind: "join" } : { kind: opening });
@@ -70,9 +69,9 @@ function FrogminoEntry({ opening }: { opening: "lobby" | "solo" | "local" }) {
     case "join":
       return (
         <LocalJoin
-          lanes={COOP_COURSE.lanes}
-          onStart={(lineup) => {
-            setScreen({ kind: "local", lineup });
+          initialCourse={coopCourseParam(window.location.search)}
+          onStart={(lineup, course) => {
+            setScreen({ kind: "local", lineup, course });
           }}
           onBack={() => {
             setScreen({ kind: "lobby" });
@@ -82,7 +81,7 @@ function FrogminoEntry({ opening }: { opening: "lobby" | "solo" | "local" }) {
     case "solo":
       return <SoloGame />;
     case "local":
-      return <LocalCoopGame lineup={screen.lineup} />;
+      return <LocalCoopGame lineup={screen.lineup} course={screen.course} />;
   }
 }
 
@@ -101,9 +100,9 @@ function SoloGame() {
 }
 
 // Local co-op: a local session with a player per joined device, on the co-op
-// course. Touch plays solo only.
-function LocalCoopGame({ lineup }: { lineup: Lineup }) {
-  const [session] = useState(() => localSession(coopCourse()));
+// course picked on the join screen. Touch plays solo only.
+function LocalCoopGame({ lineup, course }: { lineup: Lineup; course: string }) {
+  const [session] = useState(() => localSession(coopCourse(course)));
   const seating = useMemo(() => lineupSeating(lineup), [lineup]);
   return <GameScreen session={session} seating={seating} keyboard="split" touch={false} />;
 }

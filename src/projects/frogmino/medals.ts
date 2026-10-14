@@ -30,14 +30,15 @@ export function medalFor(ticks: number, times: MedalTimes): Medal | null {
   return MEDALS.find((medal) => ticks <= toTicks(times[medal])) ?? null;
 }
 
-// The time a held jump takes from the drop to the finish line with nothing in
-// its way, in ticks: the drop, its leap, then a jump every repeat interval.
+// The time a held jump takes from the drop to a finish line `length` down the
+// road with nothing in its way, in ticks: the drop, its leap, then a jump
+// every repeat interval.
 // Every row in the way slows a run down from it, and only tapping faster than
 // the key repeats beats it, so it is the floor medal times are set against,
 // beside the solver's proofs.
-export function heldJumpTicks(tuning: Tuning): number {
+export function heldJumpTicks(tuning: Tuning, length: number): number {
   const timing = tickTiming(tuning);
-  const jumps = Math.ceil((tuning.courseLength - tuning.dropDistance) / tuning.depthStep);
+  const jumps = Math.ceil((length - tuning.dropDistance) / tuning.depthStep);
   return timing.dropDuration + (jumps - 1) * timing.holdRepeat;
 }
 

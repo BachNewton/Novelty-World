@@ -22,12 +22,21 @@ import {
 } from "../coop";
 import { useCoopStore } from "../coop-store";
 import type { CourseSpec } from "../courses";
+import { coopCourseParam } from "../view";
 import { guestSession, hostSession, type OnlineEvents } from "../online";
 import { CoopRoom } from "./coop-room";
 import { OnlineGame } from "./online-game";
 
-// Online co-op plays the co-op course.
-const COOP_COURSE: CourseSpec = { kind: "coop" };
+// Online co-op plays a designed co-op course, the host's pick.
+function coopSpec(id: string): CourseSpec {
+  return { kind: "coop", id };
+}
+
+// The co-op course a spec from the host names: online co-op plays nothing else.
+function coopId(spec: CourseSpec): string {
+  if (spec.kind !== "coop") throw new Error("frogmino co-op: the host named solo's course");
+  return spec.id;
+}
 
 // A round whose two runs fell out of sync stops for both players, back in
 // the waiting room, where the host can start another.
@@ -51,6 +60,7 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
   const seat = useCoopStore((s) => s.seat);
   const notice = useCoopStore((s) => s.notice);
   const game = useCoopStore((s) => s.game);
+  const course = useCoopStore((s) => s.course);
 
   // What arrives is checked as the protocol's before anything reads it.
   const room = useRoom<unknown, unknown>({
@@ -65,6 +75,7 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
       }
       store.setSeat(next);
       store.setNotice(null);
+      sendToGuest(player.peerId, { kind: "course", course: coopSpec(hostCourse()) });
     },
     onGuestLeft(player) {
       const store = useCoopStore.getState();
@@ -89,7 +100,11 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
       const message = parseHostMessage(raw);
       const store = useCoopStore.getState();
       switch (message.kind) {
+        case "course":
+          store.setCourse(coopId(message.course));
+          return;
         case "start":
+          store.setCourse(coopId(message.course));
           store.setGame({ role: "guest", session: guestSession(message.course, (play) => room.sendToHost(play), OUT_OF_SYNC) });
           store.setSeat({ ...store.seat, phase: { kind: "started", course: message.course } });
           return;
@@ -121,8 +136,25 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
   useEffect(() => () => useCoopStore.getState().reset(), []);
 
   function host() {
-    useCoopStore.getState().reset();
+    const store = useCoopStore.getState();
+    store.reset();
+    store.setCourse(coopCourseParam(window.location.search));
     room.create();
+  }
+
+  // The host's pick; the host always has one.
+  function hostCourse(): string {
+    const { course } = useCoopStore.getState();
+    if (course === null) throw new Error("frogmino co-op: the host has no course picked");
+    return course;
+  }
+
+  // The host picks another course, and tells its partner.
+  function pickCourse(id: string) {
+    const store = useCoopStore.getState();
+    store.setCourse(id);
+    const partner = store.seat.partnerPeerId;
+    if (partner !== null) sendToGuest(partner, { kind: "course", course: coopSpec(id) });
   }
 
   function join(code: string) {
@@ -143,10 +175,11 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
     const store = useCoopStore.getState();
     const partner = store.seat.partnerPeerId;
     if (partner === null) throw new Error("frogmino co-op: Start without a partner");
-    store.setSeat(startRound(store.seat, COOP_COURSE));
+    const course = coopSpec(hostCourse());
+    store.setSeat(startRound(store.seat, course));
     // The host's clock starts now, the guest's as the start reaches it.
-    store.setGame({ role: "host", session: hostSession(COOP_COURSE, (play) => sendToGuest(partner, play), OUT_OF_SYNC) });
-    sendToGuest(partner, { kind: "start", course: COOP_COURSE });
+    store.setGame({ role: "host", session: hostSession(course, (play) => sendToGuest(partner, play), OUT_OF_SYNC) });
+    sendToGuest(partner, { kind: "start", course });
   }
 
   if (room.code === null || room.status === "not-found") {
@@ -184,6 +217,8 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
       selfId={room.selfId}
       players={room.players}
       seat={seat}
+      course={course}
+      onCourse={pickCourse}
       notice={notice}
       onStart={start}
       onLeave={leave}

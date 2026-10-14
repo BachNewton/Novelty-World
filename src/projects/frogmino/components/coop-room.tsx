@@ -7,6 +7,8 @@ import { Card } from "@/shared/components/ui/card";
 import type { Player, RoomStatus } from "@/shared/lib/peer";
 import { cn } from "@/shared/lib/utils";
 import { COOP_CAPACITY, type HostSeat } from "../coop";
+import { coopCourseById } from "../coop-courses";
+import { CourseCard, CoursePicker } from "./course-picker";
 
 interface CoopRoomProps {
   status: RoomStatus;
@@ -14,6 +16,10 @@ interface CoopRoomProps {
   selfId: string | null;
   players: readonly Player[];
   seat: HostSeat;
+  /** The course picked, by id: the host's, or the one its host last named. */
+  course: string | null;
+  /** The host picks another course. */
+  onCourse: (id: string) => void;
   notice: string | null;
   onStart: () => void;
   onLeave: () => void;
@@ -94,7 +100,30 @@ function roomPlayers(players: readonly Player[], isHost: boolean, seat: HostSeat
   return players.slice(0, COOP_CAPACITY);
 }
 
-export function CoopRoom({ status, isHost, selfId, players, seat, notice, onStart, onLeave }: CoopRoomProps) {
+// The course: the host picks it, and the guest sees the pick.
+function CourseChoice({ isHost, course, onCourse }: Pick<CoopRoomProps, "isHost" | "course" | "onCourse">) {
+  if (isHost) {
+    if (course === null) throw new Error("frogmino co-op: the host has no course picked");
+    return (
+      <section aria-label="Course" className="flex w-full max-w-md flex-col gap-2">
+        <h2 className="text-lg font-bold text-text-primary">Pick a course</h2>
+        <CoursePicker selected={course} onSelect={onCourse} />
+      </section>
+    );
+  }
+  return (
+    <section aria-label="Course" className="flex w-full max-w-md flex-col gap-2">
+      <h2 className="text-lg font-bold text-text-primary">The course, picked by the host</h2>
+      {course === null ? (
+        <p className="animate-pulse text-text-secondary">The host is picking a course…</p>
+      ) : (
+        <CourseCard course={coopCourseById(course)} />
+      )}
+    </section>
+  );
+}
+
+export function CoopRoom({ status, isHost, selfId, players, seat, course, onCourse, notice, onStart, onLeave }: CoopRoomProps) {
   if (status === "disconnected" || status === "offline") {
     return (
       <Screen>
@@ -113,6 +142,7 @@ export function CoopRoom({ status, isHost, selfId, players, seat, notice, onStar
       <StatusBadge status={status} />
       {notice && <p className="font-bold text-brand-pink">{notice}</p>}
       <PlayerList players={shown} selfId={selfId} />
+      {status === "connected" && <CourseChoice isHost={isHost} course={course} onCourse={onCourse} />}
       {status === "connected" &&
         (isHost ? (
           <Button onClick={onStart} disabled={seat.partnerPeerId === null} className="px-8 py-3 text-lg font-bold">

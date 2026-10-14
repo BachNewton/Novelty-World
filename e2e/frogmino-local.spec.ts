@@ -11,10 +11,12 @@ const LOBBY = "/games/3d-games/frogmino";
 const TIMEOUT = 30_000;
 
 test("?play=local opens the join screen, where both halves of the keyboard join and start", async ({ page }) => {
-  await page.goto(`${LOBBY}?play=local`);
+  await page.goto(`${LOBBY}?play=local&course=teaching-ramp`);
   const start = page.getByRole("button", { name: "Start", exact: true });
   await expect(start).toBeDisabled({ timeout: TIMEOUT });
-  await expect(page.getByText("Road: 10 lanes")).toBeVisible();
+  // The course the URL names is picked.
+  const ramp = page.locator('[data-course="teaching-ramp"]');
+  await expect(ramp).toHaveAttribute("aria-pressed", "true");
 
   const sprout = page.getByTestId("slot-1");
   const splash = page.getByTestId("slot-2");
@@ -54,7 +56,40 @@ test("Local co-op from the lobby opens the join screen, and Back returns", async
   // room-list channel of the test's own.
   await page.goto(`${LOBBY}?${LOCAL_RELAY}&room-list=e2e-${crypto.randomUUID()}`);
   await page.getByRole("button", { name: "Local co-op" }).click();
-  await expect(page.getByText("Road: 10 lanes")).toBeVisible({ timeout: TIMEOUT });
+  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeDisabled({ timeout: TIMEOUT });
   await page.getByRole("button", { name: "Back to lobby" }).click();
   await expect(page.getByRole("button", { name: "Play solo" })).toBeVisible();
+});
+
+test("the join screen lists the co-op courses by tier, and the keys and a click pick one", async ({ page }) => {
+  await page.goto(`${LOBBY}?play=local`);
+  const courses = page.locator("[data-course]");
+  await expect(courses.first()).toBeVisible({ timeout: TIMEOUT });
+  // Each course shows its tier, description and medal times; the first
+  // easy course starts picked.
+  await expect(page.getByRole("region", { name: "Easy courses" })).toBeVisible();
+  const first = courses.first();
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expect(first.getByLabel("Gold")).toBeVisible();
+  const ids = await courses.evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-course")));
+  const picked = () => page.locator('[data-course][aria-pressed="true"]');
+  await expect(picked()).toHaveCount(1);
+
+  // E and . step forward through the list, Q and , back, round the ends.
+  await page.keyboard.press("KeyE");
+  await expect(picked()).toHaveAttribute("data-course", ids[1 % ids.length] ?? "");
+  await page.keyboard.press("Comma");
+  await expect(picked()).toHaveAttribute("data-course", ids[0] ?? "");
+  await page.keyboard.press("KeyQ");
+  await expect(picked()).toHaveAttribute("data-course", ids[ids.length - 1] ?? "");
+
+  // A click picks the course clicked.
+  await first.click();
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+
+  // Both join, and Enter starts the game on it.
+  await page.keyboard.press("Slash");
+  await page.keyboard.press("Space");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("frogmino-game")).toHaveAttribute("data-depth", "0", { timeout: TIMEOUT });
 });

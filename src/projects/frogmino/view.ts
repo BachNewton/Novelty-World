@@ -1,3 +1,5 @@
+import { coopCourseById, DEFAULT_COOP_COURSE } from "./coop-courses";
+
 // Which screen the page opens on, from its URL. With no switch it is the
 // lobby; the switches exist so a developer lands straight on what they are
 // working on.
@@ -37,4 +39,15 @@ export function replayName(search: string): string {
   const name = new URLSearchParams(search).get(REPLAY_PARAM);
   if (name === null || name === "") throw new Error(`Frogmino: ?${REPLAY_PARAM} needs a replay's name, as in ?${REPLAY_PARAM}=perch`);
   return name;
+}
+
+/** `?course=<id>` picks the co-op course the local join screen and a host's
+ *  waiting room start on (see `coop-courses/`). */
+export const COURSE_PARAM = "course";
+
+/** The co-op course the URL picks, or the default. Fails loudly on an id no
+ *  course has, naming those there are. */
+export function coopCourseParam(search: string): string {
+  const id = new URLSearchParams(search).get(COURSE_PARAM);
+  return id === null ? DEFAULT_COOP_COURSE : coopCourseById(id).id;
 }

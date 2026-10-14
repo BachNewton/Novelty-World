@@ -96,6 +96,14 @@ test("a hosted game is listed live, joined with a click, and started", async ({ 
     await expect(openGame(watcher.page, "Hoppy")).toHaveCount(0, { timeout: TIMEOUT });
     await expect(guest.page.getByText("Waiting for the host to start")).toBeVisible();
 
+    // The host picks the course; the guest sees the pick.
+    const pick = host.page.locator("[data-course]").first();
+    await expect(pick).toHaveAttribute("aria-pressed", "true");
+    const name = await pick.getByTestId("course-name").textContent();
+    await expect(guest.page.getByTestId("course-chosen")).toContainText(name ?? "", { timeout: TIMEOUT });
+    await pick.click();
+    await expect(guest.page.getByTestId("course-chosen")).toContainText(name ?? "");
+
     await host.page.getByRole("button", { name: "Start", exact: true }).click();
     for (const { page } of [host, guest]) {
       await expect(page.getByTestId("frogmino-game")).toBeVisible({ timeout: TIMEOUT });

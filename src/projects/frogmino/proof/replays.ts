@@ -3,8 +3,8 @@ import type { ReplayData } from "./replay-data";
 import { SAVED_REPLAYS } from "./saved-replays";
 
 // Every replay `?replay=<name>` can show: the solver's proofs saved by the
-// prove CLI, and the perch, made from the co-op course's proof.
-export const REPLAYS: Readonly<Record<string, ReplayData>> = { perch: perchReplay(savedProof("proof-coop")), ...SAVED_REPLAYS };
+// prove CLI, and the perch, made from the teaching ramp's proof.
+export const REPLAYS: Readonly<Record<string, ReplayData>> = { perch: perchReplay(savedProof("proof-teaching-ramp")), ...SAVED_REPLAYS };
 
 function savedProof(name: string): ReplayData {
   if (!Object.hasOwn(SAVED_REPLAYS, name)) throw new Error(`Frogmino: no saved proof "${name}"; save it with the prove CLI`);

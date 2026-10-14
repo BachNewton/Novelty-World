@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { COOP_COURSE } from "../coop-course";
+import { TEACHING_RAMP } from "../coop-courses/teaching-ramp";
 import { coopCourse, courseOf, designedAnswers, designedRowAt, soloCourse, type Course } from "../courses";
-import { cellKey, frogCells } from "../logic";
-import { fitsRow, hopHeight, playTo, replay } from "../run";
+import { hopHeight, playTo, replay } from "../run";
 import { tickTiming } from "../ticks";
-import { rowLength, rowSolids, type Row } from "../traffic";
+import { rowSolids, type Row } from "../traffic";
 import { TUNING } from "../tuning";
 import { passingPoses, reachablePoses } from "./analyse";
 import { PERCH_ROW } from "./perch";
@@ -13,67 +12,35 @@ import { describeProof, describeStep, drawFace } from "./route";
 import { courseRun, DEFAULT_SLOT, proveCourse, replayVerdict } from "./solver";
 import { planShape, type TeamPose } from "./team-plan";
 
-const answers = designedAnswers(COOP_COURSE);
 const AIR_SLOTS = tickTiming(TUNING).hopAirtime / DEFAULT_SLOT;
+const RAMP = coopCourse(TEACHING_RAMP.id);
+const answers = designedAnswers(TEACHING_RAMP);
 
-// The team as it starts local co-op's course, for the planner.
-function coopStart(): TeamPose {
-  return courseRun(coopCourse()).frogs.map((frog) => ({ kind: frog.kind, col: frog.col, rotation: frog.rotation, air: null }));
+// The team as it starts the teaching ramp, for the planner.
+function rampStart(): TeamPose {
+  return courseRun(RAMP).frogs.map((frog) => ({ kind: frog.kind, col: frog.col, rotation: frog.rotation, air: null }));
 }
 
-describe("local co-op's course", () => {
-  const { kinds, lanes } = COOP_COURSE;
-
-  it("lets the team through every row in the answer it was designed around, the frogs clear of each other", () => {
-    for (const [i, row] of COOP_COURSE.rows.entries()) {
-      const frogs = row.answer.map((pose, player) => ({ kind: kinds[player], ...pose }));
-      const solids = rowSolids(row.vehicles);
-      expect(frogs.every((frog) => fitsRow(frog, solids, TUNING.wallRows)), row.lesson).toBe(true);
-      expect(frogs.every((frog) => frogCells(frog).every((cell) => cell.col >= 0 && cell.col < lanes)), row.lesson).toBe(true);
-      const cells = frogs.flatMap((frog) => frogCells(frog).map(cellKey));
-      expect(new Set(cells).size, `${String(i)}: ${row.lesson}`).toBe(cells.length);
-    }
-  });
-
-  it("is proved to the finish in its designed answers, meeting every row it was designed with", () => {
-    const result = proveCourse(coopCourse(), { answers });
-    if (!result.ok) throw new Error(`stuck at row ${String(result.stuck.index)}: ${result.stuck.reason}`);
-    expect(result.proof.finished).toBe(true);
-    const met = new Set(result.proof.rows.map((row) => row.index));
-    COOP_COURSE.rows.forEach((row, i) => {
-      expect(met.has(i), row.lesson).toBe(true);
-    });
-  }, 60_000);
-
-  it("puts every designed row before the finish, even for a team jumping flat out", () => {
-    let back = 0;
-    let front = 0;
-    COOP_COURSE.rows.forEach((row, i) => {
-      front = i === 0 ? row.gap : back + row.gap;
-      back = front + rowLength(rowSolids(row.vehicles));
-    });
-    const flatOut = TUNING.depthStep / TUNING.holdRepeatInterval;
-    // Where a team that never stops jumping meets the last row, driving at it.
-    expect((front * flatOut) / (flatOut + TUNING.wallSpeed)).toBeLessThan(TUNING.courseLength);
-  });
+describe("the teaching ramp", () => {
+  const { lanes } = TEACHING_RAMP;
 
   it("ramps to a finale with one way through, the frogs up back to back", () => {
-    const reachable = reachablePoses(coopStart(), lanes, AIR_SLOTS);
-    const finale = COOP_COURSE.rows.at(-1);
+    const reachable = reachablePoses(rampStart(), lanes, AIR_SLOTS);
+    const finale = TEACHING_RAMP.rows.at(-1);
     if (finale === undefined) throw new Error("The course has no rows");
     const through = passingPoses(reachable, rowSolids(finale.vehicles), TUNING.wallRows);
     expect(through.map((pose) => pose.map(planShape).map(({ col, rotation, hop }) => ({ col, rotation, hop })))).toEqual([finale.answer]);
-    const first = passingPoses(reachable, rowSolids(COOP_COURSE.rows[0].vehicles), TUNING.wallRows);
+    const first = passingPoses(reachable, rowSolids(TEACHING_RAMP.rows[0].vehicles), TUNING.wallRows);
     expect(first.length).toBeGreaterThan(100);
   });
 
-  it("goes round its last rows again once they are all met", () => {
-    const { length } = COOP_COURSE.rows;
-    expect(designedRowAt(COOP_COURSE, 0)).toBe(0);
-    expect(designedRowAt(COOP_COURSE, length - 1)).toBe(length - 1);
-    expect(designedRowAt(COOP_COURSE, length)).toBe(length - COOP_COURSE.repeat);
-    expect(designedRowAt(COOP_COURSE, length + COOP_COURSE.repeat)).toBe(length - COOP_COURSE.repeat);
-    expect(() => designedRowAt(COOP_COURSE, -1)).toThrow(/No row -1/);
+  it("goes round its last eight rows again once they are all met", () => {
+    const { length } = TEACHING_RAMP.rows;
+    expect(designedRowAt(TEACHING_RAMP, 0)).toBe(0);
+    expect(designedRowAt(TEACHING_RAMP, length - 1)).toBe(length - 1);
+    expect(designedRowAt(TEACHING_RAMP, length)).toBe(length - 8);
+    expect(designedRowAt(TEACHING_RAMP, length + 8)).toBe(length - 8);
+    expect(() => designedRowAt(TEACHING_RAMP, -1)).toThrow(/No row -1/);
   });
 });
 
@@ -93,7 +60,7 @@ describe("the perch", () => {
     const [sprout, splash] = run.frogs;
     expect(hopHeight(sprout)).toBe(1);
     expect(run.tick - (sprout.latestHop?.startedAt ?? run.tick)).toBeGreaterThan(tickTiming(TUNING).hopAirtime);
-    const answer = COOP_COURSE.rows[PERCH_ROW].answer;
+    const answer = TEACHING_RAMP.rows[PERCH_ROW].answer;
     expect([sprout.col, sprout.rotation, splash.col, splash.rotation, hopHeight(splash)]).toEqual([
       answer[0].col,
       answer[0].rotation,
@@ -105,8 +72,8 @@ describe("the perch", () => {
 });
 
 describe("the solver", () => {
-  it("proves local co-op's course by any passing poses too, over the finish", () => {
-    const result = proveCourse(coopCourse());
+  it("proves the teaching ramp by any passing poses too, over the finish", () => {
+    const result = proveCourse(RAMP);
     expect(result.ok && result.proof.finished).toBe(true);
   }, 30_000);
 
@@ -118,7 +85,7 @@ describe("the solver", () => {
   });
 
   it("stops after as many rows as asked", () => {
-    const result = proveCourse(coopCourse(), { rows: 3 });
+    const result = proveCourse(RAMP, { rows: 3 });
     expect(result.ok && result.proof.rows.length).toBe(3);
     expect(result.ok && result.proof.finished).toBe(false);
   });
@@ -130,6 +97,7 @@ describe("the solver", () => {
       lanes: 4,
       kinds: ["L"],
       row: (index) => ({ vehicles: wall, gates: [], solids: rowSolids(wall), gap: index === 0 ? TUNING.firstWallDepth : TUNING.wallSpacing }),
+      length: TUNING.courseLength,
       medals: { gold: 60, silver: 80, bronze: 100 },
     };
     const result = proveCourse(blocked);
@@ -141,7 +109,7 @@ describe("the solver", () => {
   });
 
   it("fails loudly when a row's search would look at more poses than allowed", () => {
-    expect(() => proveCourse(coopCourse(), { maxPoses: 5 })).toThrow(/No route found within 5 team poses/);
+    expect(() => proveCourse(RAMP, { maxPoses: 5 })).toThrow(/No route found within 5 team poses/);
   });
 });
 
@@ -156,7 +124,7 @@ describe("a readable route", () => {
   });
 
   it("says each step in words, landings included", () => {
-    const route = describeProof(proveCourse(coopCourse(), { rows: 3, answers }), COOP_COURSE.lanes, TUNING.wallRows);
+    const route = describeProof(proveCourse(RAMP, { rows: 3, answers }), TEACHING_RAMP.lanes, TUNING.wallRows);
     expect(route).toMatch(/Sprout hops/);
     expect(route).toMatch(/Splash turns anticlockwise/);
     expect(route).toMatch(/Sprout slides right/);
@@ -187,6 +155,6 @@ describe("the replays", () => {
 
   it("fails loudly on a replay that doesn't exist, naming those that do", () => {
     expect(findReplay("perch")).toBe(REPLAYS.perch);
-    expect(() => findReplay("nope")).toThrow(/no replay "nope"; the replays are perch, proof-coop/);
+    expect(() => findReplay("nope")).toThrow(/no replay "nope"; the replays are perch, proof-solo, proof-teaching-ramp/);
   });
 });

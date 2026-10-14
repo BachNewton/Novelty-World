@@ -199,6 +199,9 @@ export interface RunOptions {
   // width, which the row stream is built for, unless the course says
   // otherwise.
   lanes?: number;
+  // Where the finish line is, which a course sets; the tuning's course
+  // length, solo's, unless the course says otherwise.
+  courseLength?: number;
 }
 
 const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
@@ -235,11 +238,12 @@ function lineUpTraffic(rows: RuleRows, tuning: Tuning): Wall[] {
 
 export function createRun(rows: RuleRows, tuning: Tuning, options: RunOptions = {}): Run {
   checkTuning(tuning);
-  const { kinds = ["L"], lanes = tuning.corridorCols } = options;
+  const { kinds = ["L"], lanes = tuning.corridorCols, courseLength = tuning.courseLength } = options;
   if (kinds.length === 0) throw new Error("A run needs at least one frog");
   if (!Number.isInteger(lanes) || lanes < 1) throw new Error(`A road can't be ${String(lanes)} lanes wide`);
   return {
-    tuning,
+    // The run's knobs, its finish the course's.
+    tuning: courseLength === tuning.courseLength ? tuning : { ...tuning, courseLength },
     lanes,
     tick: 0,
     frogs: startPlacements(kinds, lanes).map((placement, i) => ({ kind: kinds[i], ...placement, latestHop: null })),

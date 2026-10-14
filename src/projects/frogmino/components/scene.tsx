@@ -58,7 +58,6 @@ import { FrogminoWorld } from "./world/world";
 // of its own, each as deep as the rules count it, so the two touch when their
 // depths meet and overlap exactly when the rules say they do. Everything drawn
 // in the cell grid stands the ground clearance above the ground under it.
-const { courseLength } = TUNING;
 const INITIAL_EYE = cameraEye(TUNING, 0, DECK_TOP);
 
 // The road's middle, which the camera rides over.
@@ -303,7 +302,7 @@ function TeamFrog({
       const duration = toSeconds(leap === d.leap ? timing.finishLeap : timing.dropDuration);
       const progress = leapProgress(now - leap.startedAt, duration);
       const at =
-        leap === d.leap ? finishLeapPose(leap, courseLength, progress) : dropPose(leap, target.depth, progress);
+        leap === d.leap ? finishLeapPose(leap, run.tuning.courseLength, progress) : dropPose(leap, target.depth, progress);
       d.depth = at.depth;
       d.level = at.level;
       height = at.height;
@@ -470,7 +469,7 @@ function Game({ session }: { session: Session }) {
 
   return (
     <>
-      <FrogminoWorld courseLength={courseLength} seed={course.seed} lanes={course.lanes} />
+      <FrogminoWorld courseLength={course.length} seed={course.seed} lanes={course.lanes} />
       {Array.from({ length: players }, (_, player) => (
         <TeamFrog
           key={player}

@@ -1,5 +1,6 @@
 import type { RoomRole, RoomStatus } from "@/shared/lib/peer";
 import type { Listing } from "@/shared/lib/room-list";
+import { coopCourseById } from "./coop-courses";
 import type { CourseSpec } from "./courses";
 import type { FrogAction, HeldAction, PlayerInput } from "./run";
 
@@ -34,6 +35,9 @@ export type HostPlay =
 
 /** Host to guest. */
 export type HostMessage =
+  /** In the waiting room: the course the host has picked, sent as the
+   * partner is seated and again whenever the host picks another. */
+  | { kind: "course"; course: CourseSpec }
   /** The round begins on this course. The host's clock starts as it sends
    * it, the guest's as it arrives. */
   | { kind: "start"; course: CourseSpec }
@@ -95,8 +99,12 @@ function parseInput(value: unknown): PlayerInput {
   return bad("player input", value);
 }
 
+// A course spec off the wire: solo's, or a co-op course by an id this
+// device knows, failing loudly on any other.
 function parseCourse(value: unknown): CourseSpec {
-  if (isRecord(value) && (value.kind === "solo" || value.kind === "coop")) return { kind: value.kind };
+  if (!isRecord(value)) return bad("course", value);
+  if (value.kind === "solo") return { kind: "solo" };
+  if (value.kind === "coop" && typeof value.id === "string") return { kind: "coop", id: coopCourseById(value.id).id };
   return bad("course", value);
 }
 
@@ -105,6 +113,8 @@ export function parseHostMessage(value: unknown): HostMessage {
   const what = "host message";
   if (!isRecord(value)) bad(what, value);
   switch (value.kind) {
+    case "course":
+      return { kind: "course", course: parseCourse(value.course) };
     case "start":
       return { kind: "start", course: parseCourse(value.course) };
     case "full":

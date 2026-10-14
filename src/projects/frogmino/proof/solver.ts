@@ -1,9 +1,8 @@
-import type { Course } from "../courses";
+import { startRun, type Course } from "../courses";
 import { insideGate } from "../traffic";
 import { frogCells } from "../logic";
 import {
   applyInput,
-  createRun,
   crossedFinish,
   fitsRow,
   frogShape,
@@ -331,7 +330,7 @@ function search(ctx: Context, track: Track, rows: RowProof[]): { track: Track; r
 
 // The run a course starts with, as a session starts it.
 export function courseRun(course: Course, tuning: Tuning = TUNING): Run {
-  return createRun(course.row, tuning, { kinds: course.kinds, lanes: course.lanes });
+  return startRun(course, tuning);
 }
 
 // Finds an input log taking the team through the course's rows without a

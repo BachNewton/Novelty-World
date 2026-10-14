@@ -1,54 +1,21 @@
-import type { MedalTimes } from "./medals";
-import type { Row } from "./traffic";
-import { TUNING } from "./tuning";
-import type { Frog, TetrominoKind } from "./types";
+import { TUNING } from "../tuning";
+import { PACE, pose, READ, READ_SLOW, type DesignedCourse } from "./design";
 
-// Local co-op's course, designed by hand for Sprout's L and Splash's J on a
-// road ten lanes wide: a teaching ramp, one idea a row, then the ideas
+// The first co-op course, a teaching ramp designed by hand for Sprout's L and
+// Splash's J on a road ten lanes wide: one idea a row, then the ideas
 // combined. Ten lanes split the road into two even halves of five, so the
 // frogs start mirror images of each other, and a row mirrored about the
 // middle gives each frog the same task mirrored; the L and the J are mirror
 // images too. See Co-op in the project's CLAUDE.md for the ramp.
 
-// A frog's pose on the row's face; its piece is the course's.
-export type Pose = Omit<Frog, "kind">;
-
-export interface DesignedRow {
-  // What the row teaches, in a few words: the prove CLI prints it.
-  lesson: string;
-  vehicles: Row;
-  // The pose each frog is meant to pass in, one per player: the answer the
-  // row was designed around, which the proof plays. Others may pass too.
-  answer: readonly Pose[];
-  // From the back of the row before to this row's front, in units; for the
-  // first row, where its front starts. Early rows get more reading room.
-  gap: number;
-}
-
-export interface DesignedCourse {
-  lanes: number;
-  // One starting piece per player.
-  kinds: readonly TetrominoKind[];
-  rows: readonly DesignedRow[];
-  // How many of the last rows go round again, in order, for as long as the
-  // run goes on: the stream never runs out, and a slow team meets more rows
-  // before the finish than the course has.
-  repeat: number;
-  // The time to beat for each medal, in seconds (see `medals.ts`).
-  medals: MedalTimes;
-}
-
-function pose(col: number, rotation: Pose["rotation"], hop: Pose["hop"] = 0): Pose {
-  return { col, rotation, hop };
-}
-
-const READ_SLOW = 18;
-const READ = 16;
-const PACE = 13;
-
-export const COOP_COURSE: DesignedCourse = {
+export const TEACHING_RAMP: DesignedCourse = {
+  id: "teaching-ramp",
+  name: "Teaching Ramp",
+  tier: "easy",
+  description: "Every co-op move, one idea a row: jump and hop together, make room, one up and one down, then both up at once.",
   lanes: 10,
   kinds: ["L", "J"],
+  length: 214,
   repeat: 8,
   // Provisional (see Courses and medals in the project's CLAUDE.md).
   medals: { gold: 60, silver: 85, bronze: 120 },

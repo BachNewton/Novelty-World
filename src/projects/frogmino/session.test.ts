@@ -58,7 +58,7 @@ describe("a solo session", () => {
 
 describe("a local co-op session", () => {
   it("plays local co-op's course on its road, a frog per player", () => {
-    const course = coopCourse();
+    const course = coopCourse("teaching-ramp");
     const { run } = localSession(course).store.getState();
     expect(run.lanes).toBe(course.lanes);
     expect(run.frogs.map((frog) => frog.kind)).toEqual(["L", "J"]);
@@ -67,7 +67,7 @@ describe("a local co-op session", () => {
   });
 
   it("routes each joined device to its own frog, and drops an unseated one's inputs", () => {
-    const session = localSession(coopCourse());
+    const session = localSession(coopCourse("teaching-ramp"));
     const sink = seatedSink(lineupSeating(join(join(EMPTY_LINEUP, "keys:right"), "pad:0")), session);
     sink.input("pad:0", { kind: "act", action: "right" });
     sink.input("keys:right", { kind: "act", action: "left" });
@@ -76,14 +76,14 @@ describe("a local co-op session", () => {
   });
 
   it("fails loudly on an input for a player with no frog", () => {
-    const session = localSession(coopCourse());
+    const session = localSession(coopCourse("teaching-ramp"));
     expect(() => {
       session.input(2, { kind: "act", action: "hop" });
     }).toThrow(/no frog for player 2/);
   });
 
   it("replays its recorded log to exactly the run it played, whatever the frames", () => {
-    const course = coopCourse();
+    const course = coopCourse("teaching-ramp");
     const session = localSession(course);
     const random = createRng("frogmino-session-replay").next;
     const ACTS: readonly FrogAction[] = ["left", "right", "rotateCcw", "rotateCw", "hop", "forward", "back"];

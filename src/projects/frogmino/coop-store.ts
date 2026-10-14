@@ -12,11 +12,15 @@ export type OnlineRound = { role: "host"; session: HostSession } | { role: "gues
 interface CoopStore {
   /** The host's seat; a guest keeps only the phase the host sends it. */
   seat: HostSeat;
+  /** The co-op course the host has picked, by id: the host's own pick, or
+   * what the host last told a guest; null while a guest hasn't heard. */
+  course: string | null;
   /** Why the player is back in the lobby, or what just changed in the room. */
   notice: string | null;
   /** This device's side of the round being played, if one is. */
   game: OnlineRound | null;
   setSeat(seat: HostSeat): void;
+  setCourse(course: string | null): void;
   setGame(game: OnlineRound | null): void;
   setNotice(notice: string | null): void;
   reset(notice?: string | null): void;
@@ -26,10 +30,12 @@ const EMPTY_SEAT: HostSeat = { phase: WAITING, partnerPeerId: null };
 
 export const useCoopStore = create<CoopStore>()((set) => ({
   seat: EMPTY_SEAT,
+  course: null,
   notice: null,
   game: null,
   setSeat: (seat) => set({ seat }),
+  setCourse: (course) => set({ course }),
   setGame: (game) => set({ game }),
   setNotice: (notice) => set({ notice }),
-  reset: (notice = null) => set({ seat: EMPTY_SEAT, notice, game: null }),
+  reset: (notice = null) => set({ seat: EMPTY_SEAT, course: null, notice, game: null }),
 }));

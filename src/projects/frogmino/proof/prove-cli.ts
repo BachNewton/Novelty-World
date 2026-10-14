@@ -1,38 +1,48 @@
 import { writeFileSync } from "node:fs";
-import { COOP_COURSE } from "../coop-course";
-import { courseOf, designedAnswers, designedRowAt, type Course, type CourseSpec } from "../courses";
-import { formatTime, heldJumpTicks, medalFor, MEDALS } from "../medals";
+import { COOP_COURSES } from "../coop-courses";
+import type { DesignedCourse } from "../coop-courses/design";
+import { courseOf, designedAnswers, designedRowAt, designOf, type Course, type CourseSpec } from "../courses";
+import { heldJumpTicks } from "../medals";
 import { replay, runTime } from "../run";
-import { tickTiming, toTicks } from "../ticks";
+import { tickTiming } from "../ticks";
 import { TUNING, type Tuning } from "../tuning";
-import { passingPoses, reachablePoses } from "./analyse";
+import { analyseCoopCourse, passingPoses, reachablePoses, startPose, type RowAnalysis } from "./analyse";
 import type { ReplayData } from "./replay-data";
+import { courseHeading, courseSummary, kindsText, routeKinds, rowNumbers, timingText } from "./report";
 import { describeProof, describeStep, summary } from "./route";
 import { SAVED_REPLAYS } from "./saved-replays";
 import { courseRun, DEFAULT_SLOT, proveCourse, type Proof, type ProofResult } from "./solver";
 import { endSlot, type TeamPose } from "./team-plan";
 
 // Proves courses can be beaten: finds an input log through every row and over
-// the finish, replays it in the real rules, and prints the route per row.
+// the finish, replays it in the real rules, and prints the route per row and,
+// for a designed co-op course, its summary for a designer.
 //
-//   npm run frogmino:prove -- coop             local co-op's course
+//   npm run frogmino:prove -- <course id>      one co-op course, by its id
+//   npm run frogmino:prove -- coop-all         every co-op course
 //   npm run frogmino:prove -- solo             solo's row stream, to the finish
-//   npm run frogmino:prove -- all              both
+//   npm run frogmino:prove -- all              every course, solo's too
 //
 // Options: --rows N stops after N rows; --length U puts the finish U units
 // down the road, for a longer stretch of the course; --brief prints a line
 // per row instead of the faces; --save NAME (or bare --save, as
 // proof-<course>) keeps the proof as a replay, watched at ?replay=NAME.
 //
-// Each row's line says how many team poses the team can reach that pass it
-// (`analyse.ts`): one is a single answer, dozens a row with room to spare.
+// Each row's line says how many team poses the team can reach that pass it,
+// and for a co-op course how coupled it is, its selfish decoys and the
+// coordination its answer needs (`analyse.ts`).
 
-const USAGE = "usage: frogmino:prove -- coop | solo | all [--rows N] [--length U] [--brief] [--save [NAME]]";
+const USAGE = [
+  "usage: frogmino:prove -- <course id> | coop-all | solo | all [--rows N] [--length U] [--brief] [--save [NAME]]",
+  `co-op courses: ${COOP_COURSES.map((course) => course.id).join(", ")}`,
+].join("\n");
 
 interface Job {
   spec: CourseSpec;
   label: string;
 }
+
+const AIR_SLOTS = tickTiming(TUNING).hopAirtime / DEFAULT_SLOT;
 
 function fail(message: string): never {
   console.error(message);
@@ -46,20 +56,26 @@ function parseNumber(text: string | undefined, what: string): number {
   return value;
 }
 
+const SOLO_JOB: Job = { spec: { kind: "solo" }, label: "solo" };
+const COOP_JOBS: Job[] = COOP_COURSES.map((course) => ({ spec: { kind: "coop", id: course.id }, label: course.id }));
+const COURSE_ARGS = new Set(["solo", "coop-all", "all", ...COOP_JOBS.map((job) => job.label)]);
+
 function parse(args: readonly string[]) {
   const jobs: Job[] = [];
   const options: { rows?: number; length?: number; brief: boolean; save: string | null | undefined } = { brief: false, save: undefined };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === "coop") jobs.push({ spec: { kind: "coop" }, label: "coop" });
-    else if (arg === "solo") jobs.push({ spec: { kind: "solo" }, label: "solo" });
-    else if (arg === "all") jobs.push({ spec: { kind: "coop" }, label: "coop" }, { spec: { kind: "solo" }, label: "solo" });
+    const coop = COOP_JOBS.find((job) => job.label === arg);
+    if (coop !== undefined) jobs.push(coop);
+    else if (arg === "coop-all") jobs.push(...COOP_JOBS);
+    else if (arg === "solo") jobs.push(SOLO_JOB);
+    else if (arg === "all") jobs.push(...COOP_JOBS, SOLO_JOB);
     else if (arg === "--rows") options.rows = parseNumber(args[++i], "--rows");
     else if (arg === "--length") options.length = parseNumber(args[++i], "--length");
     else if (arg === "--brief") options.brief = true;
     else if (arg === "--save") {
       const name = args[i + 1] as string | undefined;
-      options.save = name === undefined || name.startsWith("-") || ["coop", "solo", "all"].includes(name) ? null : name;
+      options.save = name === undefined || name.startsWith("-") || COURSE_ARGS.has(name) ? null : name;
       if (options.save !== null) i++;
     } else fail(`unknown argument ${arg}`);
   }
@@ -69,12 +85,23 @@ function parse(args: readonly string[]) {
   return { jobs, options };
 }
 
-// What a row of the proof is: its lesson, for a designed course.
-function lessonOf(spec: CourseSpec, index: number): string {
-  return spec.kind === "coop" ? ` "${COOP_COURSE.rows[designedRowAt(COOP_COURSE, index)].lesson}"` : "";
+// A proof row's place in its course: for a designed course, its row and
+// lesson.
+function rowName(design: DesignedCourse | null, index: number): string {
+  if (design === null) return `course row ${String(index)}`;
+  const row = designedRowAt(design, index);
+  return `course row ${String(row)} "${design.rows[row].lesson}"`;
 }
 
-function brief(result: ProofResult, spec: CourseSpec, reachable: readonly TeamPose[], wallRows: number): string {
+interface Analysed {
+  design: DesignedCourse | null;
+  analysis: readonly RowAnalysis[] | null;
+  lanes: number;
+  reachable: readonly TeamPose[];
+  wallRows: number;
+}
+
+function brief(result: ProofResult, { design, analysis, lanes, reachable, wallRows }: Analysed): string {
   const rows = result.ok ? result.proof.rows : result.rows;
   const lines = rows.map((row, i) => {
     let before = row.start;
@@ -84,8 +111,13 @@ function brief(result: ProofResult, spec: CourseSpec, reachable: readonly TeamPo
       return said;
     });
     const gates = row.gates.some((gate) => gate !== null) ? " [through the gate]" : "";
-    const poses = passingPoses(reachable, row.wall.solids, wallRows).length;
-    return `  row ${String(i + 1)} (course row ${String(row.index)}${lessonOf(spec, row.index)}, ${String(poses)} passing poses): ${String(row.jumps)} jumps, ${steps.length === 0 ? "no steps" : steps.join(" -> ")}${gates}`;
+    const designed = design === null || analysis === null ? null : analysis[designedRowAt(design, row.index)];
+    const numbers =
+      designed === null
+        ? `${String(passingPoses(reachable, row.wall.solids, wallRows).length)} passing poses`
+        : `${rowNumbers(designed)}; route: ${kindsText(routeKinds(row, lanes, AIR_SLOTS))}`;
+    const route = `${String(row.jumps)} jumps, ${steps.length === 0 ? "no steps" : steps.join(" -> ")}${gates}`;
+    return `  row ${String(i + 1)} (${rowName(design, row.index)}): ${numbers}\n    ${route}`;
   });
   const end = result.ok ? summary(result.proof) : `STUCK at course row ${String(result.stuck.index)}: ${result.stuck.reason}.`;
   return [...lines, end].join("\n");
@@ -121,41 +153,47 @@ function savedFile(replays: Readonly<Record<string, ReplayData>>): string {
 // reference points the medal times are set from.
 function timing(course: Course, proof: Proof, tuning: Tuning): string {
   const time = runTime(replay(courseRun(course, tuning), proof.log, proof.until));
-  const medal = medalFor(time, course.medals);
-  const medals = MEDALS.map((m) => `${m} ${formatTime(toTicks(course.medals[m]))}`).join(", ");
-  return [
-    `proof's time ${formatTime(time)} (${medal ?? "no medal"}); medals ${medals}`,
-    `a held jump with nothing in its way: ${formatTime(heldJumpTicks(tuning))}`,
-  ].join("\n");
+  return timingText(time, course.medals, heldJumpTicks(tuning, course.length));
 }
 
 function main(): void {
   const { jobs, options } = parse(process.argv.slice(2));
-  const tuning: Tuning = options.length === undefined ? TUNING : { ...TUNING, courseLength: options.length };
+  const tuning = TUNING;
   const saved: Record<string, ReplayData> = { ...SAVED_REPLAYS };
   let stuck = false;
   for (const { spec, label } of jobs) {
-    const course = courseOf(spec, tuning);
+    const design = designOf(spec);
+    const played = courseOf(spec, tuning);
+    const course: Course = options.length === undefined ? played : { ...played, length: options.length };
     const started = performance.now();
     // A designed course is proved as designed: every row in its answer.
-    const answers = spec.kind === "coop" ? designedAnswers(COOP_COURSE) : undefined;
+    const answers = design === null ? undefined : designedAnswers(design);
     const result = proveCourse(course, { rows: options.rows, answers }, tuning);
     const took = ((performance.now() - started) / 1000).toFixed(1);
-    console.log(`\n=== ${label}: ${String(course.lanes)} lanes, ${course.kinds.join(" and ")} (${took} s) ===`);
-    const start = courseRun(course, tuning).frogs.map((frog) => ({ kind: frog.kind, col: frog.col, rotation: frog.rotation, air: null }));
-    const reachable = reachablePoses(start, course.lanes, tickTiming(tuning).hopAirtime / DEFAULT_SLOT);
-    console.log(options.brief ? brief(result, spec, reachable, tuning.wallRows) : describeProof(result, course.lanes, tuning.wallRows));
+    const heading = design === null ? `solo's row stream, ${String(course.lanes)} lanes, ${course.kinds.join(" and ")}` : courseHeading(design);
+    console.log(`\n=== ${label}: ${heading} (proved in ${took} s) ===`);
+    const analysed: Analysed = {
+      design,
+      analysis: design === null ? null : analyseCoopCourse(design, tuning, AIR_SLOTS),
+      lanes: course.lanes,
+      reachable: reachablePoses(startPose(course.kinds, course.lanes), course.lanes, AIR_SLOTS),
+      wallRows: tuning.wallRows,
+    };
+    console.log(options.brief ? brief(result, analysed) : describeProof(result, course.lanes, tuning.wallRows));
+    // Medal times are for the course as the game plays it, not a longer stretch.
+    const proved = result.ok && result.proof.finished && options.length === undefined ? timing(course, result.proof, tuning) : null;
+    if (design !== null && analysed.analysis !== null) console.log(`\n${courseSummary(design, analysed.analysis, proved)}`);
+    else if (proved !== null) console.log(proved);
     if (!result.ok) {
       stuck = true;
       continue;
     }
-    // Medal times are for the course as the game plays it, not a longer stretch.
-    if (result.proof.finished && options.length === undefined) console.log(timing(course, result.proof, tuning));
     if (options.save !== undefined) {
       const name = options.save ?? `proof-${label}`;
       const { proof } = result;
+      const what = design === null ? "solo's row stream" : `the co-op course ${design.name}, every row in its designed answer`;
       saved[name] = {
-        description: `The solver's proof of ${label === "solo" ? "solo's row stream" : "local co-op's course, every row in its designed answer"}: ${String(proof.rows.length)} rows with no bonk${proof.finished ? ", over the finish" : ""}.`,
+        description: `The solver's proof of ${what}: ${String(proof.rows.length)} rows with no bonk${proof.finished ? ", over the finish" : ""}.`,
         course: spec,
         log: proof.log,
         until: proof.until,

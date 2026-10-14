@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { COOP_COURSES } from "../coop-courses";
 import { frogCells } from "../logic";
 import { TUNING } from "../tuning";
 import type { Frog } from "../types";
@@ -29,10 +30,19 @@ import { ROAD_TILE, roadTile, roadTiles, structuresNear, type WorldPlan } from "
 import { SCENERY_TILE, cloudPlace, clouds, sceneryTile } from "./scenery";
 import { DECK_TOP, DECK_UNDERSIDE, HEADROOM, MARK_THICKNESS, VEHICLE_TOP, gantryBoxes, overpassBoxes } from "./structures";
 
-// The world is laid out for a road of any width: the game's own, and the
-// wider roads the preview tries for co-op.
-describe.each(PREVIEW_LANES)("beside a road %d lanes wide", (lanes) => {
-  const PLAN: WorldPlan = { seed: 20260930, courseLength: 214, lanes };
+// The world is laid out for a road of any width and a finish anywhere: the
+// preview's roads to solo's finish, and every co-op course's own road and
+// finish.
+const ROADS = [
+  ...new Map(
+    [...PREVIEW_LANES.map((lanes) => ({ lanes, courseLength: TUNING.courseLength })), ...COOP_COURSES.map((c) => ({ lanes: c.lanes, courseLength: c.length }))].map(
+      (road) => [`${String(road.lanes)}:${String(road.courseLength)}`, road] as const,
+    ),
+  ).values(),
+];
+
+describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLength", ({ lanes, courseLength }) => {
+  const PLAN: WorldPlan = { seed: 20260930, courseLength, lanes };
 
   // Every tile from well behind the start to well past the finish.
   const COURSE_TILES = Array.from({ length: 16 }, (_, i) => i - 4);

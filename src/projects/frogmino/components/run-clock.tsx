@@ -12,8 +12,8 @@ import { toTicks } from "../ticks";
 // result on the done screen, its time, the medal it earned and the three
 // times to beat.
 
-const MEDAL_NAMES: Record<Medal, string> = { gold: "Gold", silver: "Silver", bronze: "Bronze" };
-const MEDAL_TEXT: Record<Medal, string> = {
+export const MEDAL_NAMES: Record<Medal, string> = { gold: "Gold", silver: "Silver", bronze: "Bronze" };
+export const MEDAL_TEXT: Record<Medal, string> = {
   gold: "text-frogmino-medal-gold",
   silver: "text-frogmino-medal-silver",
   bronze: "text-frogmino-medal-bronze",
