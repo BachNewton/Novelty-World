@@ -141,6 +141,6 @@ describe("the replays", () => {
 
   it("fails loudly on a replay that doesn't exist, naming those that do", () => {
     expect(findReplay("perch")).toBe(REPLAYS.perch);
-    expect(() => findReplay("nope")).toThrow(/no replay "nope"; the replays are perch, proof-block-party, proof-long-and-short, proof-solo, proof-tea-for-two/);
+    expect(() => findReplay("nope")).toThrow(`no replay "nope"; the replays are ${Object.keys(REPLAYS).join(", ")}`);
   });
 });
