@@ -52,7 +52,7 @@ const NOTE_STEPS: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9,
 const NOTE = /^([A-G])(#|b|)(\d)((?:\.\d)?)$/;
 
 // Semitones from C0, and how far the note is turned down.
-function parseNote(token: string): { semitone: number; quieter: number } {
+export function parseNote(token: string): { semitone: number; quieter: number } {
   const match = NOTE.exec(token);
   if (match === null) throw new Error(`Not a note: "${token}"`);
   // An absent fraction is the empty string, which Number reads as 0.

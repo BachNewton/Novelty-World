@@ -11,6 +11,8 @@ import { padDevice, type DeviceId } from "../input/devices";
 import { COURSE_KEYS, JOIN_KEYS, START_KEY } from "../input/keyboard";
 import { coopCourseById, stepCoopCourse } from "../coop-courses";
 import { EMPTY_LINEUP, isFull, join, leave, seatOf, type Lineup } from "../input/lineup";
+import { courseMusic } from "../audio/music/course-music";
+import { usePreparedMusic } from "../audio/music/use-game-music";
 import { CoursePicker } from "./course-picker";
 import { StickyActions } from "./sticky-actions";
 
@@ -55,6 +57,8 @@ export function LocalJoin({
 }) {
   const [lineup, setLineup] = useState<Lineup>(EMPTY_LINEUP);
   const [course, setCourse] = useState(() => coopCourseById(initialCourse).id);
+  // The picked course's theme, rendered while the players are here.
+  usePreparedMusic(courseMusic({ kind: "coop", id: course }));
   const latest = useRef({ lineup, course });
   const root = useRef<HTMLDivElement>(null);
   const onStartRef = useRef(onStart);

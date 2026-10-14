@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { Theme } from "../audio/music/song";
 import { useStore } from "zustand";
 import { PadHints } from "@/shared/components/pad-hints";
 import { subscribeGamepads, usePadNavigation } from "@/shared/lib/gamepad";
@@ -140,6 +141,7 @@ function GameMenu({ session, exit, onClose }: { session: Session; exit: GameExit
 
 export function GameScreen({
   session,
+  music,
   seating,
   keyboard,
   touch,
@@ -147,6 +149,7 @@ export function GameScreen({
   children,
 }: {
   session: Session;
+  music: Theme;
   seating: Seating;
   keyboard: KeyboardLayout;
   touch: boolean;
@@ -179,7 +182,7 @@ export function GameScreen({
   );
 
   return (
-    <GameView session={session}>
+    <GameView session={session} music={music}>
       {touch && <TouchControls sink={sink} done={done} />}
       {keyboard === "solo" ? <SoloLegend /> : <CoopLegend />}
       {done && <DoneOverlay session={session} exit={exit} />}
