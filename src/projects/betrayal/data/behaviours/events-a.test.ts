@@ -639,6 +639,19 @@ describe("Funeral (cards/events.md)", () => {
     state = choose(state, "Go to the Crypt");
     expect(at(state, 0).room).toBe("crypt");
   });
+  it("puts no one anywhere on 0-1 when the losses kill you: the choice of room lapses", () => {
+    // In the haunt, Zoe at her lowest Sanity dies of the loss.
+    const state = landing(0, 1, (seed) =>
+      draw(seed, (s) => {
+        inHaunt(s, 1);
+        explorer(s, 0).traits.clips.sanity = 0;
+        placeTile(s, "graveyard", "ground", 5, 5);
+        placeTile(s, "crypt", "basement", 5, 5);
+      }),
+    );
+    expect(state.figures["zoe-ingstrom"].alive).toBe(false);
+    expect(pendingDecision(state).kind).not.toBe("choose-one");
+  });
 });
 
 describe("Grave Dirt (cards/events.md)", () => {
