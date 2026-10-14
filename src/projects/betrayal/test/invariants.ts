@@ -36,16 +36,10 @@ export function checkState(engine: Engine, state: GameState): void {
 
 /** Every rule the state or a seat's view of it breaks, each named once per
  *  card, tile or figure, so a test's own setup can be told from the write.
- *  The views checked are the spectator's and those of the seats the pending
- *  decision isn't put to: an addressee's view lists its choices, found by
- *  trying every candidate, which is the cost of a whole decision's dry run
- *  at every write. The random games in view.test.ts check the addressees'. */
+ *  Every seat's view is checked, and the spectator's. */
 function violations(engine: Engine, state: GameState): string[] {
   const found = stateViolations(engine, state);
-  const pending = state.pending;
-  const addressed = (seat: number) =>
-    pending?.type === "decision" && pending.seats.includes(seat);
-  const viewers = state.seats.map((_s, i) => i).filter((seat) => !addressed(seat));
+  const viewers = state.seats.map((_s, i) => i);
   for (const viewer of [...viewers, null])
     try {
       checkView(engine, state, viewer);
