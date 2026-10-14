@@ -8,7 +8,7 @@ import { local } from "../../engine/sources";
 import { placeOptions } from "../../engine/tiles";
 import { viewFor } from "../../engine/view";
 import { ENGINE } from "../../game";
-import { simulate } from "../../simulation";
+import { checkListedApply, simulate } from "../../simulation";
 import {
   choose,
   eventTypes,
@@ -339,6 +339,7 @@ describe("unleashing Nightmares", () => {
       "Bring in another Nightmare, in the Entrance Hall",
       "Don't bring in another Nightmare: the chance is lost",
     ]);
+    checkListedApply(ENGINE, state, waitingOn(state), offered(state));
     state = choose(state, "Bring in another Nightmare");
     expect(state.figures["nightmare-4"].place?.room).toBe("entrance-hall");
     expect(state.turn?.actors).not.toContain("nightmare-4");
