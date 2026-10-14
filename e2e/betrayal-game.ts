@@ -14,12 +14,15 @@ import type { PlayReadout } from "../src/projects/betrayal/components/play/play-
 export const PAGE = "/board-games/betrayal?lightmap=test";
 /** The house view prototype, at the same density. */
 export const HOUSE = `${PAGE}&house`;
-const SAVED = "nw:betrayal:hot-seat";
+/** Where the page saves its game, as its share code. */
+export const SAVED = "nw:betrayal:saved-game";
+
+/** A game as the page's share code (`share.ts`): its format's prefix, then the game as base64url JSON. */
+export const shareCode = (game: object): string => `v1.${Buffer.from(JSON.stringify(game)).toString("base64url")}`;
 
 /** A game for the share code: Zoe goes first (it is her birthday), then Ox, then Father Rhinehardt. */
 export function seededGame(scenario: object, seed = "e2e-play") {
   return {
-    format: 3,
     game: {
       seed,
       sets: ["base"],
@@ -85,7 +88,7 @@ export async function resume(page: Page, game: object): Promise<void> {
   await expect(page.getByRole("heading", { name: "New game" })).toBeVisible();
   await page.evaluate(([key, value]) => {
     localStorage.setItem(key, JSON.stringify(value));
-  }, [SAVED, Buffer.from(JSON.stringify(game)).toString("base64url")] as const);
+  }, [SAVED, shareCode(game)] as const);
   await page.reload();
   await page.getByRole("button", { name: "Resume" }).click();
 }

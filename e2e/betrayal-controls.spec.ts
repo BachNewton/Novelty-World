@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./test";
-import { BUTTON, drawnCard, holdButton, onePad, PAGE, padTo, pointOf, readout, resume, seededGame, setButton, tapButton, until, wakePad, watchDebugPanel, whilePlaying, withPad } from "./betrayal-game";
+import { BUTTON, drawnCard, holdButton, onePad, PAGE, padTo, pointOf, readout, resume, SAVED, seededGame, setButton, shareCode, tapButton, until, wakePad, watchDebugPanel, whilePlaying, withPad } from "./betrayal-game";
 
 /**
  * Each input method is complete on its own. The owner's playtest case (an
@@ -34,9 +34,9 @@ async function resumeByPad(page: Page, game: object, url = PAGE): Promise<void> 
   });
   await page.goto(url);
   await expect(page.getByRole("heading", { name: "New game" })).toBeVisible();
-  await page.evaluate((value) => {
-    localStorage.setItem("nw:betrayal:hot-seat", JSON.stringify(value));
-  }, Buffer.from(JSON.stringify(game)).toString("base64url"));
+  await page.evaluate(([key, value]) => {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [SAVED, shareCode(game)] as const);
   await page.reload();
   await padTo(page.getByRole("button", { name: "Resume" }), onePad(page));
   await tapButton(page, BUTTON.A);

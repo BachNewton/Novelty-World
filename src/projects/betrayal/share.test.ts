@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "./game";
-import { decodeGame, encodeGame, replay, type SharedGame } from "./share";
+import { decodeGame, encodeGame, OutdatedGameError, replay, type SharedGame } from "./share";
 import { offered, pendingDecision, waitingOn } from "./testing";
 import type { Action } from "./types";
 
@@ -26,13 +26,8 @@ const shared: SharedGame = {
 describe("a shared game", () => {
   it("survives encoding as URL-safe text", () => {
     const code = encodeGame(shared);
-    expect(code).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(code).toMatch(/^v1\.[A-Za-z0-9_-]+$/);
     expect(decodeGame(code)).toEqual(shared);
-  });
-
-  it("reads a code from when seats had typed names, accents and all, without them", () => {
-    const named = { ...shared, game: { ...shared.game, seats: shared.game.seats.map((seat, i) => ({ name: ["Zoë", "Ox", "Père"][i], ...seat })) } };
-    expect(decodeGame(encodeGame(named))).toEqual(shared);
   });
 
   it("carries a haunt scenario's sides and roles, secrets included", () => {
@@ -94,12 +89,17 @@ describe("a shared game", () => {
     ).toThrow(/game.seed/);
   });
 
-  it("refuses a code shared by an older engine rather than misreplay it", () => {
+  it("refuses a code from before codes had a prefix rather than misreplay it", () => {
     const bytes = new TextEncoder().encode(
-      JSON.stringify({ ...shared, format: 2 }),
+      JSON.stringify({ ...shared, format: 3 }),
     );
     const old = btoa(String.fromCharCode(...bytes));
-    expect(() => decodeGame(old)).toThrow(/older version/);
+    expect(() => decodeGame(old)).toThrow(OutdatedGameError);
+  });
+
+  it("refuses a code from a newer engine", () => {
+    const code = encodeGame(shared).replace(/^v1\./, "v2.");
+    expect(() => decodeGame(code)).toThrow(/Unknown shared game format 2/);
   });
 
   it("names the action a replay rejects", () => {

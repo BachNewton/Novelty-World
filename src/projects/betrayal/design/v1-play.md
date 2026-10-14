@@ -58,7 +58,7 @@ P8, haunt 13 in the house, is last.
 
 **Before launch:**
 
-- **Saves start over at v1.** The save format resets to v1 and its migrations are deleted; a save from an older format is marked outdated; and the localStorage key and the share code's prefix are new, so an old development save can't pass as the new v1.
+- **Saves start over at v1.** Done. The save format resets to v1 and its migrations are deleted; a save from an older format is marked outdated; and the localStorage key and the share code's prefix are new, so an old development save can't pass as the new v1.
 - **The frame meter defaults to off.**
 
 **The art review list,** not blocking:
