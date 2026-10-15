@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { perBar, repeat, Scale, spread, transpose } from "./writing";
+import { perBar, repeat, restrike, Scale, spread, transpose } from "./writing";
 
 describe("writing themes", () => {
   it("spreads a line onto a coarser grid, keeping bar lines", () => {
@@ -12,6 +12,10 @@ describe("writing themes", () => {
 
   it("repeats a bar", () => {
     expect(repeat("C5 . | x -", 2)).toBe("C5 . | x - | C5 . | x -");
+  });
+
+  it("strikes held notes again, short, on a grid", () => {
+    expect(restrike("C5 . . . | . . E5 - | . . . .", 2)).toBe("C5 - C5 - | C5 - E5 - | . . . .");
   });
 
   it("transposes notes, keeping rests, releases, drum hits and how much quieter a note is", () => {

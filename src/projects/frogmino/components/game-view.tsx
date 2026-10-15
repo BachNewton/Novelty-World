@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useStore } from "zustand";
+import { MusicButton } from "../audio/music-button";
 import { MuteButton } from "../audio/mute-button";
 import type { Theme } from "../audio/music/song";
 import { useGameMusic } from "../audio/music/use-game-music";
@@ -17,7 +18,7 @@ const FrogminoScene = dynamic(() => import("./scene").then((m) => m.FrogminoScen
 });
 
 // A session's run on screen, with its sound and its course's music (none for
-// a silent course), its timer and the mute button:
+// a silent course), its timer and the music and mute buttons:
 // what every way of playing shares, whoever its players are. What goes
 // between the scene and the corner controls (input layers, legends,
 // overlays) is the caller's.
@@ -49,7 +50,10 @@ export function GameView({ session, music, children }: { session: Session; music
       {children}
       <h1 className="pointer-events-none absolute left-4 top-4 text-xl font-bold text-brand-green">Frogmino</h1>
       <RunTimer session={session} />
-      <MuteButton className="absolute right-4 top-4" />
+      <div className="absolute right-4 top-4 flex gap-2">
+        <MusicButton />
+        <MuteButton />
+      </div>
     </div>
   );
 }

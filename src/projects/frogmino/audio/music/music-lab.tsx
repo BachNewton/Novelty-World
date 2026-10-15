@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { coopCourseById } from "../../coop-courses";
 import { MuteButton } from "../mute-button";
 import { unlockAudio } from "../sound-board";
-import { VolumeSlider } from "../volume-slider";
+import { MusicSlider, VolumeSlider } from "../volume-slider";
 import { themeCourse } from "./course-music";
 import { isRendered, playMusic, prepareTheme, setMusicLoop, stopMusic } from "./music-board";
 import { themeSeconds, zzfxmSource, type Theme } from "./song";
@@ -78,7 +78,7 @@ function ThemeCard({ theme, playing, rendering, loop, onPlay, onStop, onLoop }: 
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
         <dt className="text-text-muted">Key</dt>
         <dd className="text-text-secondary">
-          {theme.key}, {theme.beatsPerBar}/4
+          {theme.key}, {theme.metre}
         </dd>
         <dt className="text-text-muted">Tempo</dt>
         <dd className="text-text-secondary">{theme.bpm} BPM</dd>
@@ -182,6 +182,7 @@ export function MusicLab() {
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <VolumeSlider />
+            <MusicSlider readout />
             <MuteButton />
           </div>
         </header>

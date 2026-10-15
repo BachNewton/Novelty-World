@@ -101,14 +101,14 @@ describe("SoundPlayer", () => {
 
   it("plays nothing while muted", () => {
     const output = fakeOutput();
-    const player = playerOn(output, { muted: true, volume: 1 });
+    const player = playerOn(output, { muted: true, volume: 1, music: 1 });
     expect(player.play("finish")).toBe(false);
     expect(output.played).toEqual([]);
   });
 
-  it("scales the gain by the master volume and shifts the rate by semitones", () => {
+  it("scales the gain by the master volume, not the music volume, and shifts the rate by semitones", () => {
     const output = fakeOutput();
-    const player = playerOn(output, { muted: false, volume: 0.5 }, () => 0.5);
+    const player = playerOn(output, { muted: false, volume: 0.5, music: 0 }, () => 0.5);
     player.play("finish", { semitones: 12 });
     const [{ rate, gain }] = output.played;
     expect(rate).toBeCloseTo(2);

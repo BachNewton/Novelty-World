@@ -71,6 +71,7 @@ describe("compileTheme", () => {
     kind: "loop",
     bpm: 120,
     beatsPerBar: 1,
+    metre: "1/4",
     instruments: [{ name: "Test", base, zzfx: {} }],
     patterns: [[{ instrument: 0, pan: 0.5, notes }]],
     sequence: [0],

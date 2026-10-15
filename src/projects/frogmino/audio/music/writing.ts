@@ -52,6 +52,29 @@ export function repeat(notes: string, times: number): string {
   return Array.from({ length: times }, () => notes).join(" | ");
 }
 
+// The line with every note struck short and again every `rows` rows for as
+// long as it was held, on the grid from the line's start: a held line
+// turned into repeated hops. Each strike lasts one row.
+export function restrike(notes: string, rows: number): string {
+  let held: string | null = null;
+  let row = 0;
+  return notes
+    .split("|")
+    .map((bar) =>
+      tokens(bar)
+        .map((token) => {
+          const at = row++ % rows;
+          if (token === "-") held = null;
+          else if (token !== ".") held = token;
+          if (held === null) return token;
+          return at === 0 ? held : at === 1 ? "-" : ".";
+        })
+        .join(" "),
+    )
+    .filter((bar) => bar !== "")
+    .join(" | ");
+}
+
 // The line moved by `semitones`.
 export function transpose(notes: string, semitones: number): string {
   return mapNotes(notes, (token) => {
