@@ -1,7 +1,7 @@
 import { devices } from "@playwright/test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { test, expect } from "./test";
-import { LOCAL_RELAY } from "./relay";
+import { localRoomList } from "./relay";
 
 /**
  * Frogmino's touch controls on an emulated phone, in online co-op, where
@@ -48,7 +48,7 @@ async function drag(page: Page, x: number, fromY: number, toY: number): Promise<
 }
 
 test("on a phone, a drag up jumps the team out of the helicopter, and then a tap in the centre hops", async ({ browser }) => {
-  const url = `${LOBBY}?${LOCAL_RELAY}&room-list=e2e-${crypto.randomUUID()}`;
+  const url = `${LOBBY}?${localRoomList()}`;
   const host = await open(browser, url, "Hoppy", true);
   const guest = await open(browser, url, "Leapy", false);
   try {

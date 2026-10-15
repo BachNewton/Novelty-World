@@ -1,5 +1,5 @@
 import { test, expect } from "./test";
-import { LOCAL_RELAY } from "./relay";
+import { localRoomList } from "./relay";
 
 /**
  * Frogmino's local co-op: two players on one keyboard, each half joining
@@ -53,8 +53,8 @@ test("?play=local opens the join screen, where both halves of the keyboard join 
 
 test("Local co-op from the lobby opens the join screen, and Back returns", async ({ page }) => {
   // The lobby lists online games too: on the local relay, and on a
-  // room-list channel of the test's own.
-  await page.goto(`${LOBBY}?${LOCAL_RELAY}&room-list=e2e-${crypto.randomUUID()}`);
+  // room list of the test's own, on the relay's local stand-in.
+  await page.goto(`${LOBBY}?${localRoomList()}`);
   await page.getByRole("button", { name: "Local co-op" }).click();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeDisabled({ timeout: TIMEOUT });
   await page.getByRole("button", { name: "Back to lobby" }).click();

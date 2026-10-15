@@ -1,18 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { roomListChannel, roomsFromPresence, type ListedRoom } from "./room-list";
+import { roomListSource, roomsFromPresence, type ListedRoom } from "./room-list";
 
 function room(code: string, listedAt: number): ListedRoom {
   return { code, hostName: `Host ${code}`, players: 1, capacity: 2, listedAt };
 }
 
-describe("roomListChannel", () => {
-  it("is one channel per game", () => {
-    expect(roomListChannel("frogmino", "")).toBe("lobby:frogmino");
-    expect(roomListChannel("euchre", "?relay=local:51234")).toBe("lobby:euchre");
+describe("roomListSource", () => {
+  it("is Supabase presence, one channel per game", () => {
+    expect(roomListSource("frogmino", "")).toEqual({ kind: "supabase", channel: "lobby:frogmino" });
+    expect(roomListSource("euchre", "?relay=local:51234")).toEqual({ kind: "supabase", channel: "lobby:euchre" });
   });
 
-  it("moves to a channel of its own with ?room-list", () => {
-    expect(roomListChannel("frogmino", "?relay=local:51234&room-list=run-7")).toBe("lobby:frogmino:run-7");
+  it("moves to the local relay's stand-in, on a channel of its own, with ?room-list=local:<name>", () => {
+    expect(roomListSource("frogmino", "?relay=local:51234&room-list=local:run-7")).toEqual({
+      kind: "local",
+      url: "ws://localhost:51234/room-list",
+      channel: "frogmino:run-7",
+    });
+  });
+
+  it("fails loudly on a list that isn't local, or a local list with no local relay", () => {
+    expect(() => roomListSource("frogmino", "?relay=local:51234&room-list=run-7")).toThrow(/local:<name>/);
+    expect(() => roomListSource("frogmino", "?room-list=local:run-7")).toThrow(/relay=local/);
   });
 });
 

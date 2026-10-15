@@ -1,13 +1,13 @@
 import { test, expect } from "./test";
-import { LOCAL_RELAY } from "./relay";
+import { localRoomList } from "./relay";
 
 /**
  * The Connection Test tool: one browser hosts, another joins it from the list of open rooms, and
  * both see a round trip measured through the run's own relay. Every wait is
  * on what the page renders.
  */
-/** Each run lists its rooms on a channel of its own, so real players never see them. */
-const URL = `/tools/connection-test?${LOCAL_RELAY}&room-list=e2e-${crypto.randomUUID()}`;
+/** The room list is the run relay's local stand-in, on a list of the test's own. */
+const URL = `/tools/connection-test?${localRoomList()}`;
 
 test("a guest joins a host from the open-rooms list and each sees a round trip", async ({ browser }) => {
   const hostCtx = await browser.newContext();
