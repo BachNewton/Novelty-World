@@ -29,7 +29,7 @@ Risk has its own style, separate from Novelty World's bright, quirky one: a war 
 The engine is built in stages, each one earning the next:
 
 1. **The rules spec** (`RULES.md`).
-2. **A reference engine**: slow and written to be read, one rule at a time, with a test for each rule and invariant checks (army counts, ownership, card counts, turn order) run on every state it produces. Its job is to be obviously correct, not fast.
+2. **A reference engine**: slow and written to be read, one rule at a time, with a test for each rule and invariant checks (army counts, ownership, card counts, turn order) run on every state it produces. Its job is to be obviously correct, not fast. It lives in `engine/`: `invariants.ts` checks `RULES.md`'s INV-* on every step, and `test-kit.ts` holds scripted positions, scripted dice, a model of what the options allow, and the random-legal player the fuzz tests use.
 3. **A speed spike**: the same core written as fast TypeScript, as Rust native and as Rust compiled to WASM, measured on the laptop (gauntlet throughput) and in the server's runtime (how much search fits in a bot's turn). The numbers pick the language; nothing is assumed in advance.
 4. **The fast engine** in the winning language, differential-tested against the reference engine over many seeded games: the same seed must give the same game in both, move for move.
 
