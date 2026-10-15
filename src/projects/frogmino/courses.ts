@@ -1,16 +1,17 @@
 import { coopCourseById } from "./coop-courses";
 import type { DesignedCourse, Pose } from "./coop-courses/design";
-import { COURSE_SEED } from "./course";
 import { checkMedalTimes, type MedalTimes } from "./medals";
 import { createRun, type RuleRow, type Run } from "./run";
-import { rowStream } from "./stream";
 import { rowSolids, type Row } from "./traffic";
 import { TUNING, type Tuning } from "./tuning";
 import type { TetrominoKind } from "./types";
 
-// What a session plays: the road's width, each player's starting piece, the
+// What a session plays: the road's width, each player's piece, the
 // rows, each with its vehicles for drawing and its solids for the rules, and
 // where the finish is. The seed lays out the world around the road.
+
+// The seed every course's world is laid out from.
+export const COURSE_SEED = 20260930;
 
 export interface PlayRow extends RuleRow {
   vehicles: Row;
@@ -19,28 +20,14 @@ export interface PlayRow extends RuleRow {
 export interface Course {
   seed: number;
   lanes: number;
-  // One starting piece per player: how many frogs the run has.
+  // One piece per player, kept for the whole course: how many frogs the run
+  // has.
   kinds: readonly TetrominoKind[];
   row: (index: number) => PlayRow;
   // Where the finish line is, in units down the road from the start.
   length: number;
   // The time to beat for each medal (see `medals.ts`).
   medals: MedalTimes;
-}
-
-// Solo: the row stream from the demo seed, on the road the stream is built
-// for, to the tuning's finish. Its medal times are provisional (see Courses
-// and medals in the project's CLAUDE.md).
-export function soloCourse(tuning: Tuning = TUNING): Course {
-  const stream = rowStream(COURSE_SEED, tuning);
-  return {
-    seed: stream.seed,
-    lanes: tuning.corridorCols,
-    kinds: [stream.start],
-    row: stream.row,
-    length: tuning.courseLength,
-    medals: checkMedalTimes({ gold: 60, silver: 80, bronze: 115 }),
-  };
 }
 
 // How many of a designed course's last rows go round again once all are met.
@@ -61,7 +48,7 @@ export function designedRowAt(course: Pick<DesignedCourse, "rows" | "repeat">, i
 
 // A course designed by hand, as a session plays it.
 export function designedCourse(course: DesignedCourse): Course {
-  const rows = course.rows.map(({ vehicles, gap }) => ({ vehicles, gap, gates: [], solids: rowSolids(vehicles) }));
+  const rows = course.rows.map(({ vehicles, gap }) => ({ vehicles, gap, solids: rowSolids(vehicles) }));
   return {
     seed: COURSE_SEED,
     lanes: course.lanes,
@@ -80,17 +67,18 @@ export function designedAnswers(course: DesignedCourse): (index: number) => read
 // A course named as plain data: for a replay to say which course it plays,
 // and for the online `start` to say which course both devices build. A
 // co-op course is named by its id (`coop-courses/`).
-export type CourseSpec = { kind: "solo" } | { kind: "coop"; id: string };
-
-// The designed course a spec names, or null for solo's stream. Fails loudly
-// on an id no course has.
-export function designOf(spec: CourseSpec): DesignedCourse | null {
-  return spec.kind === "solo" ? null : coopCourseById(spec.id);
+export interface CourseSpec {
+  kind: "coop";
+  id: string;
 }
 
-export function courseOf(spec: CourseSpec, tuning: Tuning = TUNING): Course {
-  const design = designOf(spec);
-  return design === null ? soloCourse(tuning) : designedCourse(design);
+// The designed course a spec names. Fails loudly on an id no course has.
+export function designOf(spec: CourseSpec): DesignedCourse {
+  return coopCourseById(spec.id);
+}
+
+export function courseOf(spec: CourseSpec): Course {
+  return designedCourse(designOf(spec));
 }
 
 // A designed co-op course by id, as a session plays it.

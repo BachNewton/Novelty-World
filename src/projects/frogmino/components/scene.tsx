@@ -24,7 +24,6 @@ import { cellKey, frogCells } from "../logic";
 import { FROG_THICKNESS, crossedFinish, frogShape, nextWall, placedFrog } from "../run";
 import type { Session } from "../session";
 import { tickTiming, toSeconds } from "../ticks";
-import { rowLength } from "../traffic";
 import { TUNING } from "../tuning";
 import type { Cell } from "../types";
 import { DECK_TOP } from "../world/structures";
@@ -43,11 +42,9 @@ import {
   seeBonk,
   snapped,
   withHop,
-  withPiece,
 } from "./drawn-frog";
 import { FrogBody, type FrogHandle } from "./frog/frog-body";
 import { frogDrawnIn, makeFrogAssets, type FrogDrawing } from "./frog/frog-assets";
-import { GateView, makeGateAssets } from "./gate";
 import { Vehicle } from "./vehicle";
 import { makeVehicleAssets } from "./vehicle-assets";
 import { FrogminoWorld } from "./world/world";
@@ -227,14 +224,11 @@ function TeamFrog({
     let d = drawn.current;
     if (d === null) throw new Error("The drawn frog wasn't set");
     // The frog's model is rendered by React from the store, so it shows a
-    // new piece or rotation only from the frame after the rules take it.
-    // Until then the drawn frog holds its pose, or the old model would be
-    // drawn for a frame in the new pose's place.
+    // new rotation only from the frame after the rules take it. Until then
+    // the drawn frog holds its pose, or the old model would be drawn for a
+    // frame in the new pose's place.
     const modelPosed = kind === ruleFrog.kind && rotation === ruleFrog.rotation;
-    if (modelPosed && d.kind !== kind) {
-      d = withPiece(d, ruleFrog);
-      drawn.current = d;
-    } else if (modelPosed && d.rotation !== rotation) {
+    if (modelPosed && d.rotation !== rotation) {
       // The frog is drawn at once in its new rotation, so it starts swung
       // back to where it was and swings the short way round to rest.
       const quarterTurns = (rotation - d.rotation + 4) % 4;
@@ -409,7 +403,6 @@ function Game({ session }: { session: Session }) {
   const assets = useMemo(() => makeAssets(), []);
   const vehicleAssets = useMemo(() => makeVehicleAssets(), []);
   const frogAssets = useMemo(() => makeFrogAssets(), []);
-  const gateAssets = useMemo(() => makeGateAssets(), []);
   const silhouettes = useMemo(
     () => Object.fromEntries(FROG_VARIANTS.map((variant) => [variant, frogDrawnIn(frogAssets, assets.silhouettes[variant])])) as Record<FrogVariant, FrogDrawing>,
     [frogAssets, assets],
@@ -428,9 +421,8 @@ function Game({ session }: { session: Session }) {
     () => () => {
       vehicleAssets.dispose();
       frogAssets.dispose();
-      gateAssets.dispose();
     },
-    [vehicleAssets, frogAssets, gateAssets],
+    [vehicleAssets, frogAssets],
   );
 
   const wallRefs = useRef<(Group | null)[]>([]);
@@ -498,14 +490,6 @@ function Game({ session }: { session: Session }) {
                 depth={0}
                 assets={vehicleAssets}
                 rumbleSeed={`${String(index)}:${String(lane)}`}
-              />
-            ))}
-            {row.gates.map((gate) => (
-              <GateView
-                key={`${String(index)}:${String(gate.lane)}`}
-                gate={gate}
-                length={rowLength(row.solids)}
-                assets={gateAssets}
               />
             ))}
           </group>

@@ -1,6 +1,4 @@
 import { startRun, type Course } from "../courses";
-import { insideGate } from "../traffic";
-import { frogCells } from "../logic";
 import {
   applyInput,
   crossedFinish,
@@ -19,7 +17,7 @@ import {
 } from "../run";
 import { TICK_RATE, tickTiming } from "../ticks";
 import { TUNING, type Tuning } from "../tuning";
-import type { Frog, Gate } from "../types";
+import type { Frog } from "../types";
 import { planShape, planTeam, type PlanStep, type TeamPose } from "./team-plan";
 
 // The solver proves a course can be beaten by finding an input log that takes
@@ -34,10 +32,9 @@ import { planShape, planTeam, type PlanStep, type TeamPose } from "./team-plan";
 // plan's actions a slot apart, timed so the row arrives just after the last
 // one, while every hop the pose needs is still up. The engine plays them, and
 // the row must pass: any step where the engine's team differs from the plan's
-// is a disagreement between the planner and the rules, and fails loudly. At
-// a row with a gate it tries the frogs keeping their pieces first, then going
-// through the gate, and backs up to the last gate when a later row has no
-// route, so a needs-gate row is met holding the gate's piece.
+// is a disagreement between the planner and the rules, and fails loudly. It
+// goes row after row, never back: a row with no route from where the team
+// stands ends the search there, naming the row and why.
 
 export interface ProofOptions {
   // Ticks between the plan's actions: one slot. The hop's airtime must be a
@@ -45,8 +42,6 @@ export interface ProofOptions {
   slot?: number;
   // Stop once the team has passed this many rows, rather than at the finish.
   rows?: number;
-  // The most rows the search may plan, counting the ones it backs up from.
-  maxRowSearches?: number;
   // The most team poses one row's plan may look at.
   maxPoses?: number;
   // The pose each frog must pass a row in, by the row's index: a designed
@@ -55,22 +50,17 @@ export interface ProofOptions {
   answers?: (index: number) => readonly Omit<Frog, "kind">[] | undefined;
 }
 
-// Which gate, if any, each frog goes through as the row passes it: null to
-// keep its piece.
-export type GateChoice = readonly (Gate | null)[];
-
 // How the team passed one row.
 export interface RowProof {
   // Which row of the course: its index in the course's rows.
   index: number;
   // The row as the rules saw it.
-  wall: Pick<Wall, "solids" | "gates">;
+  wall: Pick<Wall, "solids">;
   // The team as the plan started, and each slot of the plan.
   start: TeamPose;
   steps: PlanStep[];
   // How many times the team jumped forward before the plan.
   jumps: number;
-  gates: GateChoice;
   // The inputs for this row: the jumps and the plan.
   inputs: TimedInput[];
   // The tick the row reached the team and passed it.
@@ -92,7 +82,7 @@ export interface Stuck {
   reason: string;
 }
 
-export type ProofResult = { ok: true; proof: Proof } | { ok: false; stuck: Stuck; rows: RowProof[]; searches: number };
+export type ProofResult = { ok: true; proof: Proof } | { ok: false; stuck: Stuck; rows: RowProof[] };
 
 // Ticks between the plan's actions, unless the options say otherwise.
 export const DEFAULT_SLOT = 14;
@@ -161,43 +151,14 @@ function settle(track: Track): Track {
   return { run: next, log: track.log };
 }
 
-// Each frog's gate choices at a row: keep its piece, or go through any of the
-// row's gates that sets a different piece.
-function gateChoices(run: Run, gates: readonly Gate[]): GateChoice[] {
-  let choices: GateChoice[] = [[]];
-  for (const frog of run.frogs) {
-    const options = [null, ...gates.filter((gate) => gate.kind !== frog.kind)];
-    choices = choices.flatMap((choice) => options.map((option) => [...choice, option]));
-  }
-  return choices;
-}
-
-// Whether a frog's shape goes through the gate it chose, or through none.
-function takesChoice(cells: ReturnType<typeof frogCells>, gates: readonly Gate[], choice: Gate | null, kind: string): boolean {
-  if (choice !== null) return insideGate(cells, choice);
-  return gates.every((gate) => gate.kind === kind || !insideGate(cells, gate));
-}
-
 interface Context {
   tuning: Tuning;
   slot: number;
   airSlots: number;
   holdRepeat: number;
   rowLimit: number | null;
-  maxRowSearches: number;
   maxPoses: number;
   answers: ProofOptions["answers"];
-  searches: number;
-  // The furthest row the search got stuck at, and the rows passed to get
-  // there.
-  furthest: { stuck: Stuck; rows: RowProof[] } | null;
-}
-
-function stuckAt(ctx: Context, rows: RowProof[], index: number, reason: string): void {
-  const { furthest } = ctx;
-  if (furthest !== null && index < furthest.stuck.index) return;
-  const said = furthest !== null && furthest.stuck.index === index ? `${furthest.stuck.reason}; ` : "";
-  ctx.furthest = { stuck: { index, reason: `${said}${reason}` }, rows };
 }
 
 // Jumps forward a held key's repeat apart for as long as `room` allows each
@@ -269,11 +230,9 @@ function dash(track: Track): Track | null {
   return crossedFinish(next.run) ? next : null;
 }
 
-function search(ctx: Context, track: Track, rows: RowProof[]): { track: Track; rows: RowProof[] } | null {
-  if (crossedFinish(track.run) || (ctx.rowLimit !== null && rows.length >= ctx.rowLimit)) return { track, rows };
-  const settled = settle(track);
-  const dashed = dash(settled);
-  if (dashed !== null) return { track: dashed, rows };
+// Plans and plays the team through the next row; the row's proof and the
+// run after it, or why no route was found.
+function passRow(ctx: Context, settled: Track): { track: Track; proof: RowProof } | Stuck {
   const wallAt = nextWall(settled.run);
   if (wallAt === null) throw new Error("No row ahead of the team");
   const wall = settled.run.walls[wallAt];
@@ -281,51 +240,50 @@ function search(ctx: Context, track: Track, rows: RowProof[]): { track: Track; r
   const answer = ctx.answers?.(wall.index);
   const isAnswer = (shape: Frog, i: number): boolean =>
     answer === undefined || (shape.col === answer[i].col && shape.rotation === answer[i].rotation && shape.hop === answer[i].hop);
-  for (const choice of gateChoices(settled.run, wall.gates)) {
-    ctx.searches++;
-    if (ctx.searches > ctx.maxRowSearches) {
-      stuckAt(ctx, rows, wall.index, `no route found within ${String(ctx.maxRowSearches)} row searches`);
-      return null;
-    }
-    const plan = planTeam({
-      start,
-      lanes: settled.run.lanes,
-      airSlots: ctx.airSlots,
-      maxPoses: ctx.maxPoses,
-      goal: (pose) =>
-        pose.every((frog, i) => {
-          const shape = planShape(frog);
-          return (
-            isAnswer(shape, i) &&
-            fitsRow(shape, wall.solids, ctx.tuning.wallRows) &&
-            takesChoice(frogCells(shape), wall.gates, choice[i], frog.kind)
-          );
-        }),
-    });
-    const gateNote = `${choice.some((g) => g !== null) ? " through its gate" : ""}${answer === undefined ? "" : " in its designed answer"}`;
-    if (plan === null) {
-      stuckAt(ctx, rows, wall.index, `no team pose reachable from ${describePose(start.map(planShape))} passes it${gateNote}`);
-      continue;
-    }
-    const played = playPlan(ctx, settled, wallAt, plan.steps);
-    if (played === null) {
-      stuckAt(ctx, rows, wall.index, `the row comes too soon for a ${String(plan.steps.length)}-slot plan${gateNote}`);
-      continue;
-    }
-    const proof: RowProof = {
+  const plan = planTeam({
+    start,
+    lanes: settled.run.lanes,
+    airSlots: ctx.airSlots,
+    maxPoses: ctx.maxPoses,
+    goal: (pose) =>
+      pose.every((frog, i) => {
+        const shape = planShape(frog);
+        return isAnswer(shape, i) && fitsRow(shape, wall.solids, ctx.tuning.wallRows);
+      }),
+  });
+  const note = answer === undefined ? "" : " in its designed answer";
+  if (plan === null) return { index: wall.index, reason: `no team pose reachable from ${describePose(start.map(planShape))} passes it${note}` };
+  const played = playPlan(ctx, settled, wallAt, plan.steps);
+  if (played === null) return { index: wall.index, reason: `the row comes too soon for a ${String(plan.steps.length)}-slot plan${note}` };
+  return {
+    track: played.track,
+    proof: {
       index: wall.index,
-      wall: { solids: wall.solids, gates: wall.gates },
+      wall: { solids: wall.solids },
       start,
       steps: plan.steps,
       jumps: played.jumps,
-      gates: choice,
       inputs: played.inputs,
       passedAt: played.track.run.tick,
-    };
-    const found = search(ctx, played.track, [...rows, proof]);
-    if (found !== null) return found;
+    },
+  };
+}
+
+// The team through the course row after row, to the finish or the row
+// limit; the rows passed, and where it got stuck if it did.
+function search(ctx: Context, from: Track): { track: Track; rows: RowProof[]; stuck: Stuck | null } {
+  const rows: RowProof[] = [];
+  let track = from;
+  while (!crossedFinish(track.run) && (ctx.rowLimit === null || rows.length < ctx.rowLimit)) {
+    const settled = settle(track);
+    const dashed = dash(settled);
+    if (dashed !== null) return { track: dashed, rows, stuck: null };
+    const passed = passRow(ctx, settled);
+    if (!("proof" in passed)) return { track: settled, rows, stuck: passed };
+    rows.push(passed.proof);
+    track = passed.track;
   }
-  return null;
+  return { track, rows, stuck: null };
 }
 
 // The run a course starts with, as a session starts it.
@@ -346,21 +304,14 @@ export function proveCourse(course: Course, options: ProofOptions = {}, tuning: 
     airSlots: timing.hopAirtime / slot,
     holdRepeat: timing.holdRepeat,
     rowLimit: options.rows ?? null,
-    maxRowSearches: options.maxRowSearches ?? 500,
     maxPoses: options.maxPoses ?? 200_000,
     answers: options.answers,
-    searches: 0,
-    furthest: null,
   };
   const start: Track = { run: courseRun(course, tuning), log: [] };
   const dropped = act(waitTo(start, DROP_TICK), 0, { kind: "act", action: "forward" });
   const landed = waitTo(dropped, DROP_TICK + timing.dropDuration);
-  const found = search(ctx, landed, []);
-  if (found === null) {
-    if (ctx.furthest === null) throw new Error("The search found no route and no row it got stuck at");
-    return { ok: false, ...ctx.furthest, searches: ctx.searches };
-  }
-  const { track, rows } = found;
+  const { track, rows, stuck } = search(ctx, landed);
+  if (stuck !== null) return { ok: false, stuck, rows };
   const finished = crossedFinish(track.run);
   const until = finished ? (track.run.finishedAt ?? 0) + timing.finishLeap : track.run.tick + TAIL;
   const proof: Proof = { log: track.log, rows, until, finished };

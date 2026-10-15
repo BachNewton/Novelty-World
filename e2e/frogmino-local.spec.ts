@@ -58,7 +58,7 @@ test("Local co-op from the lobby opens the join screen, and Back returns", async
   await page.getByRole("button", { name: "Local co-op" }).click();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeDisabled({ timeout: TIMEOUT });
   await page.getByRole("button", { name: "Back to lobby" }).click();
-  await expect(page.getByRole("button", { name: "Play solo" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Local co-op" })).toBeVisible();
 });
 
 test("the join screen lists the co-op courses by tier, and the keys and a click pick one", async ({ page }) => {

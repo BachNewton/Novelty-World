@@ -4,8 +4,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { courseMusic } from "../audio/music/course-music";
 import { localSession } from "../session";
-import { coopCourse, soloCourse, type Course } from "../courses";
-import { SOLO_SEATING } from "../input/devices";
+import { coopCourse } from "../courses";
 import { lineupSeating, type Lineup } from "../input/lineup";
 import { coopCourseParam, frogminoView, replayName } from "../view";
 import { GameScreen, type GameExit } from "./game-screen";
@@ -23,8 +22,8 @@ function subscribeToNothing(): () => void {
   return () => undefined;
 }
 
-// The page opens on the screen its URL names (see `view.ts`): the lobby, solo
-// play with `?play=solo`, local co-op's join screen with `?play=local`, or a
+// The page opens on the screen its URL names (see `view.ts`): the lobby,
+// local co-op's join screen with `?play=local`, or a
 // dev view in place of the game. The server render has no URL, so it renders
 // nothing and the page picks after hydrating.
 export function Frogmino() {
@@ -45,7 +44,6 @@ export function Frogmino() {
     case "replay":
       return <ReplayView name={replayName(window.location.search)} />;
     case "lobby":
-    case "solo":
     case "local":
       return <FrogminoEntry opening={view} />;
   }
@@ -55,7 +53,6 @@ export function Frogmino() {
 // and their course still picked when they come back from a game.
 type Screen =
   | { kind: "lobby" }
-  | { kind: "solo" }
   | { kind: "join"; lineup?: Lineup; course?: string }
   | { kind: "local"; lineup: Lineup; course: string };
 
@@ -63,7 +60,7 @@ type Screen =
 // from the green that marks a course picked.
 const PAD_FOCUS_LOOK = "[--color-pad-focus:var(--color-frogmino-sunflower)]";
 
-function FrogminoEntry({ opening }: { opening: "lobby" | "solo" | "local" }) {
+function FrogminoEntry({ opening }: { opening: "lobby" | "local" }) {
   return (
     <div className={PAD_FOCUS_LOOK}>
       <EntryScreen opening={opening} />
@@ -71,16 +68,13 @@ function FrogminoEntry({ opening }: { opening: "lobby" | "solo" | "local" }) {
   );
 }
 
-function EntryScreen({ opening }: { opening: "lobby" | "solo" | "local" }) {
-  const [screen, setScreen] = useState<Screen>(opening === "local" ? { kind: "join" } : { kind: opening });
+function EntryScreen({ opening }: { opening: "lobby" | "local" }) {
+  const [screen, setScreen] = useState<Screen>(opening === "local" ? { kind: "join" } : { kind: "lobby" });
   const toLobby: GameExit = { label: "Back to lobby", onExit: () => setScreen({ kind: "lobby" }) };
   switch (screen.kind) {
     case "lobby":
       return (
         <FrogminoLobby
-          onPlaySolo={() => {
-            setScreen({ kind: "solo" });
-          }}
           onLocalCoop={() => {
             setScreen({ kind: "join" });
           }}
@@ -99,8 +93,6 @@ function EntryScreen({ opening }: { opening: "lobby" | "solo" | "local" }) {
           }}
         />
       );
-    case "solo":
-      return <SoloGame exits={[toLobby]} />;
     case "local": {
       const { lineup, course } = screen;
       const toCourses: GameExit = { label: "Course select", onExit: () => setScreen({ kind: "join", lineup, course }) };
@@ -109,22 +101,9 @@ function EntryScreen({ opening }: { opening: "lobby" | "solo" | "local" }) {
   }
 }
 
-// The row stream is pure, so solo's course is built once and kept.
-let solo: Course | null = null;
-function soloCourseOnce(): Course {
-  solo ??= soloCourse();
-  return solo;
-}
-
-// Solo: a local session with one player, whom every device drives. Each game
-// opens on a fresh session, so coming back starts a fresh run.
-function SoloGame({ exits }: { exits: readonly GameExit[] }) {
-  const [session] = useState(() => localSession(soloCourseOnce()));
-  return <GameScreen session={session} music={courseMusic({ kind: "solo" })} seating={SOLO_SEATING} keyboard="solo" touch exits={exits} />;
-}
-
 // Local co-op: a local session with a player per joined device, on the co-op
-// course picked on the join screen. Touch plays solo only.
+// course picked on the join screen. Touch doesn't join it: the players
+// share one screen.
 function LocalCoopGame({ lineup, course, exits }: { lineup: Lineup; course: string; exits: readonly GameExit[] }) {
   const [session] = useState(() => localSession(coopCourse(course)));
   const seating = useMemo(() => lineupSeating(lineup), [lineup]);

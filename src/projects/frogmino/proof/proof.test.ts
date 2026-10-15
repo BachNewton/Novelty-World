@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LONG_AND_SHORT } from "../coop-courses/long-and-short";
 import { cellKey, frogCells } from "../logic";
 import type { Frog } from "../types";
-import { coopCourse, courseOf, designedAnswers, soloCourse, type Course } from "../courses";
+import { coopCourse, courseOf, designedAnswers, type Course } from "../courses";
 import { hopHeight, playTo, replay } from "../run";
 import { tickTiming } from "../ticks";
 import { rowSolids, type Row } from "../traffic";
@@ -63,13 +63,6 @@ describe("the solver", () => {
     expect(result.ok && result.proof.finished).toBe(true);
   }, 30_000);
 
-  it("proves solo's row stream to the finish, through the gates its needs-gate rows need", () => {
-    const result = proveCourse(soloCourse());
-    if (!result.ok) throw new Error(`stuck at row ${String(result.stuck.index)}: ${result.stuck.reason}`);
-    expect(result.proof.finished).toBe(true);
-    expect(result.proof.rows.some((row) => row.gates.some((gate) => gate !== null))).toBe(true);
-  });
-
   it("stops after as many rows as asked", () => {
     const result = proveCourse(COURSE, { rows: 3 });
     expect(result.ok && result.proof.rows.length).toBe(3);
@@ -82,7 +75,7 @@ describe("the solver", () => {
       seed: 1,
       lanes: 4,
       kinds: ["L"],
-      row: (index) => ({ vehicles: wall, gates: [], solids: rowSolids(wall), gap: index === 0 ? TUNING.firstWallDepth : TUNING.wallSpacing }),
+      row: (index) => ({ vehicles: wall, solids: rowSolids(wall), gap: index === 0 ? TUNING.firstWallDepth : TUNING.wallSpacing }),
       length: TUNING.courseLength,
       medals: { gold: 60, silver: 80, bronze: 100 },
     };
@@ -106,7 +99,7 @@ describe("a readable route", () => {
       { kind: "I", col: 2, rotation: 0, air: null },
       { kind: "O", col: 0, rotation: 0, air: 3 },
     ];
-    expect(drawFace(pose, rowSolids(row), [], 6, 4)).toEqual(["......", "22....", "xx....", "##1111"]);
+    expect(drawFace(pose, rowSolids(row), 6, 4)).toEqual(["......", "22....", "xx....", "##1111"]);
   });
 
   it("says each step in words, landings included", () => {

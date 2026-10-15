@@ -15,7 +15,7 @@ import {
 } from "../run";
 import { toSeconds } from "../ticks";
 import { keepsClear } from "../traffic";
-import type { HopHeight, Rotation, Solid, TetrominoKind } from "../types";
+import type { HopHeight, Rotation, Solid } from "../types";
 import { DECK_TOP } from "../world/structures";
 
 // The drawn frog keeps time on the drawing's clock, in seconds: the rules'
@@ -52,13 +52,12 @@ export function drawnRuleFrog(run: Run, drawn: Pick<DrawnFrog, "player">): Place
 }
 
 // What the drawn frog last saw of the rule frog, to tell what has moved.
-export type SeenFrog = Pick<PlacedFrog, "kind" | "rotation" | "col" | "depth">;
+export type SeenFrog = Pick<PlacedFrog, "rotation" | "col" | "depth">;
 
 export interface DrawnFrog {
   // Whose frog it is.
   player: number;
-  // The piece and rotation drawn.
-  kind: TetrominoKind;
+  // The rotation drawn.
   rotation: Rotation;
   x: number;
   y: number;
@@ -97,8 +96,8 @@ export function frogTarget(frog: PlacedFrog): { x: number; y: number; depth: num
   return { x: col + (width - 1) / 2, y: height / 2, depth };
 }
 
-function seenOf({ kind, rotation, col, depth }: PlacedFrog): SeenFrog {
-  return { kind, rotation, col, depth };
+function seenOf({ rotation, col, depth }: PlacedFrog): SeenFrog {
+  return { rotation, col, depth };
 }
 
 // A player's drawn frog at the start of a run: exactly as the rules have it.
@@ -107,7 +106,6 @@ export function snapped(run: Run, player: number): DrawnFrog {
   return {
     ...frogTarget(frog),
     player,
-    kind: frog.kind,
     rotation: frog.rotation,
     level: onOverpass(run) ? DECK_TOP : 0,
     swing: 0,
@@ -125,21 +123,13 @@ export function snapped(run: Run, player: number): DrawnFrog {
   };
 }
 
-// A gate's new piece is drawn at once in its rule pose, across and up, since
-// its box differs from the old piece's. Everything else carries on: the
-// depth still eases, and a hop, bonk, drop or leap goes on being drawn.
-export function withPiece(drawn: DrawnFrog, frog: PlacedFrog): DrawnFrog {
-  const { x, y } = frogTarget(frog);
-  return { ...drawn, kind: frog.kind, rotation: frog.rotation, x, y, swing: 0, glideX: null };
-}
-
 // The everyday moves the rules have made since the drawn frog last looked: a
-// slide, to a new column in the same piece and rotation (a turn's kick is no
+// slide, to a new column in the same rotation (a turn's kick is no
 // slide), and a jump, to a new depth. A bonk's knock-back, the drop and the
 // finish leap change the depth too, and are drawn as their own motions; the
 // scene tells those apart.
 export function movesSince(seen: SeenFrog, frog: PlacedFrog): { slid: boolean; jumped: boolean } {
-  const samePose = seen.kind === frog.kind && seen.rotation === frog.rotation;
+  const samePose = seen.rotation === frog.rotation;
   return { slid: samePose && seen.col !== frog.col, jumped: seen.depth !== frog.depth };
 }
 
@@ -205,14 +195,13 @@ export function amongVehicles(run: Run, depth: number): boolean {
 }
 
 // Whether the frog in its rule pose, `hop` cells up and drawn at `depth`,
-// would be inside a vehicle overlapping it there, across a gate's post, or
-// above the face.
+// would be inside a vehicle overlapping it there, or above the face.
 function drawnInVehicle(run: Run, drawn: DrawnFrog, depth: number, hop: HopHeight): boolean {
   const cells = frogCells({ ...frogShape(drawnRuleFrog(run, drawn)), hop });
   const onFace = cells.every((cell) => cell.row < run.tuning.wallRows);
   return run.walls.some((wall) => {
     const solids = overlappingDrawn(wall, depth);
-    return solids.length > 0 && !(onFace && keepsClear(cells, cells, solids));
+    return solids.length > 0 && !(onFace && keepsClear(cells, solids));
   });
 }
 

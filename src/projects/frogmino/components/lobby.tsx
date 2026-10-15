@@ -23,6 +23,7 @@ import {
 } from "../coop";
 import { courseMusic } from "../audio/music/course-music";
 import { usePreparedMusic } from "../audio/music/use-game-music";
+import { DEFAULT_COOP_COURSE } from "../coop-courses";
 import { useCoopStore } from "../coop-store";
 import type { CourseSpec } from "../courses";
 import { coopCourseParam } from "../view";
@@ -35,9 +36,8 @@ function coopSpec(id: string): CourseSpec {
   return { kind: "coop", id };
 }
 
-// The co-op course a spec from the host names: online co-op plays nothing else.
+// The co-op course a spec from the host names.
 function coopId(spec: CourseSpec): string {
-  if (spec.kind !== "coop") throw new Error("frogmino co-op: the host named solo's course");
   return spec.id;
 }
 
@@ -53,12 +53,12 @@ const OUT_OF_SYNC: OnlineEvents = {
 };
 
 /**
- * The screen before the game: play solo, play local co-op on this computer,
+ * The screen before the game: play local co-op on this computer,
  * host an online co-op game, or join one from the live list of open games. A
  * hosted game is listed until it has a partner or starts. Start plays the
  * round over the room, on an online session on each side (`online.ts`).
  */
-export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => void; onLocalCoop: () => void }) {
+export function FrogminoLobby({ onLocalCoop }: { onLocalCoop: () => void }) {
   const profile = useProfile();
   const seat = useCoopStore((s) => s.seat);
   const notice = useCoopStore((s) => s.notice);
@@ -141,8 +141,8 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
   });
 
   // The theme the next game will play, rendered while the players are here:
-  // solo's in the lobby, the picked course's in a waiting room.
-  usePreparedMusic(courseMusic(course === null ? { kind: "solo" } : coopSpec(course)));
+  // the default course's in the lobby, the picked course's in a waiting room.
+  usePreparedMusic(courseMusic(coopSpec(course ?? DEFAULT_COOP_COURSE)));
 
   // The store outlives the page; leaving it forgets the room.
   useEffect(() => () => useCoopStore.getState().reset(), []);
@@ -210,16 +210,11 @@ export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => v
       <GameLobby
         icon={<Blocks size={32} />}
         title="Frogmino"
-        subtitle="Hop, turn and squeeze through the traffic, alone or with a friend"
+        subtitle="Hop, turn and squeeze through the traffic with a friend"
         actions={
-          <>
-            <Button onClick={onPlaySolo} className="bg-brand-green hover:bg-brand-green/90">
-              Play solo
-            </Button>
-            <Button onClick={onLocalCoop} className="bg-brand-blue hover:bg-brand-blue/90">
-              Local co-op
-            </Button>
-          </>
+          <Button onClick={onLocalCoop} className="bg-brand-green hover:bg-brand-green/90">
+            Local co-op
+          </Button>
         }
         onCreate={host}
         createLabel="Host co-op"

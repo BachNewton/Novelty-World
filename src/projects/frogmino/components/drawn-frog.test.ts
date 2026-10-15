@@ -18,58 +18,8 @@ import {
   seeMoves,
   snapped,
   withHop,
-  withPiece,
   type DrawnFrog,
 } from "./drawn-frog";
-
-describe("a gate's new piece in the drawn frog", () => {
-  // Mid-jump, mid-hop, swinging out of a turn and knocked back by a bonk,
-  // after the drop: everything a piece change could catch in progress.
-  const drawn: DrawnFrog = {
-    player: 0,
-    kind: "L",
-    rotation: 0,
-    x: 3.4,
-    y: 1,
-    depth: 6.2,
-    level: 0,
-    swing: 0.3,
-    lift: 0.6,
-    rodeUntil: null,
-    glideX: { from: 3, to: 3.5, startedAt: 4.1 },
-    glideDepth: { from: 5, to: 6.5, startedAt: 4.1 },
-    moveHops: [4.1],
-    seen: { kind: "L", rotation: 0, col: 3, depth: 6.5 },
-    hopAt: 4,
-    bonk: { tick: 300, depth: 8 },
-    bonkMotion: { from: 8, to: 5, startedAt: 3 },
-    drop: { fromDepth: -1, fromLevel: 2, startedAt: 1, landed: true },
-    leap: null,
-  };
-  const frog: PlacedFrog = { kind: "I", col: 4, rotation: 1, depth: 8, latestHop: { startedAt: 4, landedAt: null } };
-
-  it("draws the new piece at once, in its rule pose", () => {
-    const next = withPiece(drawn, frog);
-    const { x, y } = frogTarget(frog);
-    expect(next).toMatchObject({ kind: "I", rotation: 1, x, y, swing: 0, glideX: null });
-  });
-
-  it("carries on easing the depth and drawing the hop, bonk, drop and leap", () => {
-    const next = withPiece(drawn, frog);
-    expect(next).toMatchObject({
-      depth: drawn.depth,
-      level: drawn.level,
-      lift: drawn.lift,
-      glideDepth: drawn.glideDepth,
-      moveHops: drawn.moveHops,
-      hopAt: drawn.hopAt,
-      bonk: drawn.bonk,
-      bonkMotion: drawn.bonkMotion,
-      drop: drawn.drop,
-      leap: drawn.leap,
-    });
-  });
-});
 
 describe("the drawn frog's moves", () => {
   const stride = moveDuration(TUNING);
@@ -77,7 +27,6 @@ describe("the drawn frog's moves", () => {
   const resting: DrawnFrog = {
     ...frogTarget(start),
     player: 0,
-    kind: "T",
     rotation: 0,
     level: 0,
     swing: 0,
@@ -86,7 +35,7 @@ describe("the drawn frog's moves", () => {
     glideX: null,
     glideDepth: null,
     moveHops: [],
-    seen: { kind: "T", rotation: 0, col: 2, depth: 3 },
+    seen: { rotation: 0, col: 2, depth: 3 },
     hopAt: null,
     bonk: null,
     bonkMotion: null,
@@ -229,7 +178,6 @@ describe("the drawn frog riding a row and jumping off it", () => {
   // frog: the frog must hop to pass it, and rides it once passed.
   const lowCar = {
     solids: [{ cells: Array.from({ length: TUNING.corridorCols }, (_, col) => ({ col, row: 0 })), length: 3 }],
-    gates: [],
   };
   // Riding from when the car arrives, the first jump forward keeps the frog
   // on it and the second carries it clear, where the rules land it, while the
@@ -281,7 +229,6 @@ describe("the drawn frog bonked while it moves", () => {
         length: 2,
       },
     ],
-    gates: [],
   };
   const forward = (run: Run) => applyAction(run, "forward");
   const fastest = Math.max(GLIDE_FRAME, KNOCK_BACK_FRAME);

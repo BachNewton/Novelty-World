@@ -9,8 +9,8 @@ import type { Seating } from "../input/devices";
 import type { Session } from "../session";
 import { GameScreen, type GameExit } from "./game-screen";
 
-// Online co-op on this device: one player, whom every device here drives, as
-// in solo, as the frog of their slot. The session is online; the game can't
+// Online co-op on this device: one player, whom every device here drives,
+// as the frog of their slot. The session is online; the game can't
 // tell. `toRoom` is the host's way back to the waiting room with its
 // partner, or the guest's asking for it.
 export function OnlineGame({
@@ -29,7 +29,7 @@ export function OnlineGame({
   const seating = useMemo<Seating>(() => () => slot, [slot]);
   const look = slot === 0 ? FROG_LOOKS.p1 : FROG_LOOKS.p2;
   return (
-    <GameScreen session={session} music={courseMusic(course)} seating={seating} keyboard="solo" touch exits={[toRoom, { label: "Leave the game", onExit: onLeave }]}>
+    <GameScreen session={session} music={courseMusic(course)} seating={seating} keyboard="whole" touch exits={[toRoom, { label: "Leave the game", onExit: onLeave }]}>
       <p
         data-testid="playing-as"
         className={cn(

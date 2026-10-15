@@ -6,7 +6,7 @@ import { TUNING, type Tuning } from "./tuning";
 
 // A session owns one run of a course: its input log and its stepping. The
 // game reads the run from it and sends it each player's inputs, by slot, and
-// never knows where a player is. A local session, solo or local co-op, has
+// never knows where a player is. A local session, local co-op's, has
 // every player on this device: an input takes effect at once, at the run's
 // current tick, and goes into the log there. An online session will sit
 // behind the same interface, owning the log the host orders. A replay
@@ -41,8 +41,7 @@ export function freshRun(course: Course, tuning: Tuning): Run {
   return startRun(course, tuning);
 }
 
-// Solo is a local session with one player; local co-op, one with a player
-// per frog on this device.
+// Local co-op is a local session with a player per frog on this device.
 export function localSession(course: Course, tuning: Tuning = TUNING): Session {
   const store = createStore<SessionState>()(() => ({
     course,

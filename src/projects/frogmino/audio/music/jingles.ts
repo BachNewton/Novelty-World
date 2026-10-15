@@ -1,32 +1,7 @@
-import { BASS, BELL, LEAD, PAD, THUMP } from "./instruments";
+import { BASS, LEAD, PAD, THUMP } from "./instruments";
 import type { Theme } from "./song";
 
-// The two jingles: short, played once, for moments rather than for a mood.
-
-export const GATE_SHIMMER: Theme = {
-  id: "gate-shimmer",
-  name: "Gate Shimmer",
-  use: "A gate jingle, as the frog becomes the gate's piece (a fuller take on the gate sound).",
-  mood: "Magical and quick: a sparkle that rises and rings out.",
-  style: [
-    "Frogger (arcade): a short arcade jingle marking an event, over in a breath",
-    "A rising arpeggio with the lydian raised fourth (F#), the classic sound of a transformation",
-    "Bell echoes that fade down, echoing the gate sound's sparkle",
-  ],
-  key: "C lydian",
-  kind: "jingle",
-  bpm: 140,
-  beatsPerBar: 4,
-  instruments: [BELL, PAD, BASS],
-  patterns: [
-    [
-      { instrument: 0, pan: 0, notes: "C5 E5 G5 B5 D6 F#6 . . G6 . . . . . . . | B6.3 . . . G6.5 . . . . . . . . . . ." },
-      { instrument: 1, pan: -0.3, notes: "E4 . . . . . . . G4 . . . . . . . | B4.4 . . . . . . . . . . . . . . ." },
-      { instrument: 2, pan: 0, notes: "C3 . . . . . . . . . . . . . . . | C3.5 . . . . . . . . . . . . . . ." },
-    ],
-  ],
-  sequence: [0],
-};
+// The jingles: short, played once, for moments rather than for a mood.
 
 export const GANTRY_FANFARE: Theme = {
   id: "gantry-fanfare",

@@ -7,7 +7,7 @@ import { PadHints } from "@/shared/components/pad-hints";
 import { subscribeGamepads, usePadNavigation } from "@/shared/lib/gamepad";
 import { FROG_LOOKS } from "../frog/look";
 import { seatedSink, type Seating } from "../input/devices";
-import { COOP_LEGEND, SOLO_LEGEND, type KeyboardLayout } from "../input/keyboard";
+import { COOP_LEGEND, WHOLE_LEGEND, type KeyboardLayout } from "../input/keyboard";
 import { MENU_BUTTON } from "../input/gamepad";
 import { useGamepadSource } from "../input/use-gamepad-source";
 import { useKeyboardSource } from "../input/use-keyboard-source";
@@ -26,11 +26,11 @@ const LEGEND_BOX =
   "pointer-events-none absolute bottom-4 left-4 pointer-coarse:hidden rounded-lg bg-surface-secondary/80 px-3 py-2 text-xs";
 const PAD_LEGEND = "Controller: stick or D-pad to move and jump, A hop, X B or LB RB rotate, Menu restart, View menu";
 
-function SoloLegend() {
+function WholeLegend() {
   return (
     <div className={LEGEND_BOX}>
       <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5">
-        {SOLO_LEGEND.map(([keys, action]) => (
+        {WHOLE_LEGEND.map(([keys, action]) => (
           <div key={action} className="contents">
             <dt className="font-mono text-text-primary">{keys}</dt>
             <dd className="text-text-secondary">{action}</dd>
@@ -189,7 +189,7 @@ export function GameScreen({
   return (
     <GameView session={session} music={music}>
       {touch && <TouchControls sink={sink} done={done} />}
-      {keyboard === "solo" ? <SoloLegend /> : <CoopLegend />}
+      {keyboard === "whole" ? <WholeLegend /> : <CoopLegend />}
       {done && <DoneOverlay session={session} exits={exits} />}
       {menuOpen && (
         <GameMenu

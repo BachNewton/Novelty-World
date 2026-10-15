@@ -29,7 +29,6 @@ describe("the wire", () => {
     const messages: HostMessage[] = [
       { kind: "course", course: COURSE },
       { kind: "start", course: COURSE },
-      { kind: "start", course: { kind: "solo" } },
       { kind: "full" },
       { kind: "room" },
       { kind: "input", seq: 3, tick: 120, player: 0, input: { kind: "act", action: "rotateCw" } },
@@ -56,7 +55,7 @@ describe("the wire", () => {
   it("fails loudly on anything that isn't a message of the protocol", () => {
     expect(() => parseHostMessage({ kind: "teleport" })).toThrow(/not a host message/);
     expect(() => parseHostMessage("start")).toThrow();
-    expect(() => parseHostMessage({ kind: "start", course: { kind: "moon" } })).toThrow(/not a course/);
+    expect(() => parseHostMessage({ kind: "start", course: { kind: "solo" } })).toThrow(/not a course/);
     expect(() => parseHostMessage({ kind: "course", course: { kind: "coop" } })).toThrow(/not a course/);
     expect(() => parseHostMessage({ kind: "start", course: { kind: "coop", id: "nowhere" } })).toThrow(/no co-op course "nowhere"; the courses are block-party/);
     expect(() => parseHostMessage({ kind: "confirm", seq: 1, tick: -50, hash: 1 })).toThrow();

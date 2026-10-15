@@ -84,9 +84,9 @@ describe("SoundPlayer", () => {
   it("holds the gap for plays scheduled ahead", () => {
     const output = fakeOutput();
     const player = playerOn(output);
-    expect(player.play("gate", { delay: 1 })).toBe(true);
-    expect(player.play("gate", { delay: 1 + SOUNDS.gate.minGap / 2 })).toBe(false);
-    expect(player.play("gate", { delay: 1 + SOUNDS.gate.minGap })).toBe(true);
+    expect(player.play("bonk", { delay: 1 })).toBe(true);
+    expect(player.play("bonk", { delay: 1 + SOUNDS.bonk.minGap / 2 })).toBe(false);
+    expect(player.play("bonk", { delay: 1 + SOUNDS.bonk.minGap })).toBe(true);
   });
 
   it("plays nothing while muted", () => {

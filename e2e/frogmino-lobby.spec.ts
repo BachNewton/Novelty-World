@@ -5,7 +5,7 @@ import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
 import { LOCAL_RELAY } from "./relay";
 
 /**
- * Frogmino's lobby: solo play, and co-op rooms found through the live list
+ * Frogmino's lobby: co-op rooms found through the live list
  * of open games (Supabase presence) and joined over the shared relay room.
  *
  * `?relay=local:<port>` keeps the rooms on the local relay this run
@@ -45,30 +45,6 @@ async function open(browser: Browser, url: string, name: string): Promise<Client
 function openGame(page: Page, host: string) {
   return page.getByRole("button", { name: `Join ${host}'s game` });
 }
-
-async function expectInGame(page: Page): Promise<void> {
-  await expect(page.locator("canvas")).toBeVisible({ timeout: TIMEOUT });
-  await expect(page.getByRole("button", { name: "Host co-op" })).toHaveCount(0);
-}
-
-test("Play solo from the lobby starts the game", async ({ browser }) => {
-  const player = await open(browser, lobbyUrl(uniqueChannel()), "Solo");
-  try {
-    await player.page.getByRole("button", { name: "Play solo" }).click();
-    await expectInGame(player.page);
-  } finally {
-    await player.ctx.close();
-  }
-});
-
-test("?play=solo skips the lobby", async ({ browser }) => {
-  const player = await open(browser, `${LOBBY}?play=solo`, "Solo");
-  try {
-    await expectInGame(player.page);
-  } finally {
-    await player.ctx.close();
-  }
-});
 
 test("a hosted game is listed live, joined with a click, and started", async ({ browser }) => {
   const url = lobbyUrl(uniqueChannel());

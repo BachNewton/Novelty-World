@@ -7,16 +7,12 @@ describe("frogminoView", () => {
     expect(frogminoView("?relay=local:51234")).toBe("lobby");
   });
 
-  it("skips the lobby with ?play=solo", () => {
-    expect(frogminoView("?play=solo")).toBe("solo");
-  });
-
   it("opens local co-op's join screen with ?play=local", () => {
     expect(frogminoView("?play=local")).toBe("local");
   });
 
   it("fails loudly on a ?play it doesn't know", () => {
-    expect(() => frogminoView("?play=coop")).toThrow(/play=solo and \?play=local/);
+    expect(() => frogminoView("?play=solo")).toThrow(/the only one is \?play=local/);
   });
 
   it("shows the garage with ?garage", () => {
@@ -43,10 +39,6 @@ describe("frogminoView", () => {
     expect(frogminoView("?frog&music&sounds&world")).toBe("world");
     expect(frogminoView("?frog&music&sounds")).toBe("sounds");
     expect(frogminoView("?frog&music")).toBe("music");
-  });
-
-  it("lets a dev view win over ?play=solo", () => {
-    expect(frogminoView("?play=solo&sounds")).toBe("sounds");
   });
 
   it("lets a dev view win over ?play=local", () => {

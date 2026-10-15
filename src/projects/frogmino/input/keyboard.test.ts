@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { focusLost, JOIN_KEYS, KEYBOARDS, keyDown, keyUp, RESTART_KEY, START_KEY } from "./keyboard";
 
-describe("the solo keyboard", () => {
+describe("the whole keyboard, one player's", () => {
   it("is one device, with WASD and the arrows both moving and jumping", () => {
-    expect(keyDown("solo", "KeyW")).toEqual({ device: "keys", input: { kind: "press", action: "forward" } });
-    expect(keyDown("solo", "ArrowUp")).toEqual({ device: "keys", input: { kind: "press", action: "forward" } });
-    expect(keyDown("solo", "ArrowLeft")).toEqual({ device: "keys", input: { kind: "press", action: "left" } });
-    expect(keyDown("solo", "KeyQ")).toEqual({ device: "keys", input: { kind: "act", action: "rotateCcw" } });
-    expect(keyDown("solo", "Space")).toEqual({ device: "keys", input: { kind: "act", action: "hop" } });
+    expect(keyDown("whole", "KeyW")).toEqual({ device: "keys", input: { kind: "press", action: "forward" } });
+    expect(keyDown("whole", "ArrowUp")).toEqual({ device: "keys", input: { kind: "press", action: "forward" } });
+    expect(keyDown("whole", "ArrowLeft")).toEqual({ device: "keys", input: { kind: "press", action: "left" } });
+    expect(keyDown("whole", "KeyQ")).toEqual({ device: "keys", input: { kind: "act", action: "rotateCcw" } });
+    expect(keyDown("whole", "Space")).toEqual({ device: "keys", input: { kind: "act", action: "hop" } });
   });
 
-  it("keeps solo's keys as they were: the right half's extra keys do nothing", () => {
-    expect(keyDown("solo", "Slash")).toBeNull();
-    expect(keyDown("solo", "Comma")).toBeNull();
+  it("leaves the right half's extra keys doing nothing", () => {
+    expect(keyDown("whole", "Slash")).toBeNull();
+    expect(keyDown("whole", "Comma")).toBeNull();
   });
 
   it("lets go of a held key on release, and of nothing else", () => {
-    expect(keyUp("solo", "KeyD")).toEqual({ device: "keys", input: { kind: "release", action: "right" } });
-    expect(keyUp("solo", "Space")).toBeNull();
-    expect(keyUp("solo", "KeyX")).toBeNull();
+    expect(keyUp("whole", "KeyD")).toEqual({ device: "keys", input: { kind: "release", action: "right" } });
+    expect(keyUp("whole", "Space")).toBeNull();
+    expect(keyUp("whole", "KeyX")).toBeNull();
   });
 });
 
@@ -46,7 +46,7 @@ describe("the split keyboard", () => {
   });
 
   it("keeps restart, mute, joining and starting off the play keys", () => {
-    for (const layout of ["solo", "split"] as const) {
+    for (const layout of ["whole", "split"] as const) {
       for (const key of [RESTART_KEY, "KeyM", START_KEY]) expect(keyDown(layout, key)).toBeNull();
     }
     expect(keyDown("split", JOIN_KEYS["keys:left"].join)?.device).toBe("keys:left");
@@ -60,6 +60,6 @@ describe("the split keyboard", () => {
       { device: "keys:left", input: { kind: "releaseAll" } },
       { device: "keys:right", input: { kind: "releaseAll" } },
     ]);
-    expect(focusLost("solo")).toEqual([{ device: "keys", input: { kind: "releaseAll" } }]);
+    expect(focusLost("whole")).toEqual([{ device: "keys", input: { kind: "releaseAll" } }]);
   });
 });

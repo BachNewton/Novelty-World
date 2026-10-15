@@ -24,14 +24,14 @@ import {
 } from "./geometry";
 import { LAY_BY_INNER, layByArea, layByProps, layBySurface, type LayBy } from "./lay-bys";
 import { WORLD_PAINTS, worldToken } from "./paints";
-import { PREVIEW_LANES, PREVIEW_PIECES, PREVIEW_ROWS, passingPoses, type PreviewTeam } from "./preview-rows";
+import { PREVIEW_LANES, PREVIEW_PIECES, PREVIEW_ROWS, passingPoses } from "./preview-rows";
 import { propBoxes, type PropKind } from "./props";
 import { ROAD_TILE, roadTile, roadTiles, structuresNear, type WorldPlan } from "./road";
 import { SCENERY_TILE, cloudPlace, clouds, sceneryTile } from "./scenery";
 import { DECK_TOP, DECK_UNDERSIDE, HEADROOM, MARK_THICKNESS, VEHICLE_TOP, gantryBoxes, overpassBoxes } from "./structures";
 
 // The world is laid out for a road of any width and a finish anywhere: the
-// preview's roads to solo's finish, and every co-op course's own road and
+// preview's roads to the tuning's finish, and every co-op course's own road and
 // finish.
 const ROADS = [
   ...new Map(
@@ -315,17 +315,16 @@ describe("the world's paints", () => {
 });
 
 describe("the preview's rows", () => {
-  const TEAMS: readonly PreviewTeam[] = ["solo", "coop"];
-  const cases = TEAMS.flatMap((team) => PREVIEW_LANES.flatMap((lanes) => PREVIEW_ROWS[team][lanes].map((row, i) => [team, lanes, i, row] as const)));
+  const cases = PREVIEW_LANES.flatMap((lanes) => PREVIEW_ROWS[lanes].map((row, i) => [lanes, i, row] as const));
 
-  it.each(cases)("%s, %d lanes: row %d lets its frogs through together, on the road", (team, lanes, _, row) => {
-    expect(passingPoses(row, lanes, PREVIEW_PIECES[team])).not.toBeNull();
+  it.each(cases)("%d lanes: row %d lets the pair through together, on the road", (lanes, _, row) => {
+    expect(passingPoses(row, lanes, PREVIEW_PIECES)).not.toBeNull();
   });
 
   it.each(PREVIEW_LANES)("for the co-op pair on %d lanes, alternate side by side and interlocked", (lanes) => {
     const span = (frog: Frog) => frogCells(frog).map((cell) => cell.col);
-    PREVIEW_ROWS.coop[lanes].forEach((row, i) => {
-      const poses = passingPoses(row, lanes, PREVIEW_PIECES.coop);
+    PREVIEW_ROWS[lanes].forEach((row, i) => {
+      const poses = passingPoses(row, lanes, PREVIEW_PIECES);
       if (poses === null) throw new Error(`Row ${String(i)} lets the pair through nowhere`);
       const [a, b] = poses.map(span);
       const sideBySide = Math.max(...a) < Math.min(...b) || Math.max(...b) < Math.min(...a);

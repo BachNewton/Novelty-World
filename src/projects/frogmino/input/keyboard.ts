@@ -2,7 +2,7 @@ import type { FrogAction, HeldAction, PlayerInput } from "../run";
 import type { DeviceId } from "./devices";
 
 // The keyboard controls, by physical key, so the WASD block stays put on
-// other keyboard layouts, and the legends the game shows for them. In solo
+// other keyboard layouts, and the legends the game shows for them. Online
 // the whole keyboard is one player's: WASD or the arrows, Q and E, Space. In
 // local co-op it splits in two: the left half, WASD with Q, E and Space, is
 // one device, and the right half, the arrows with , . and /, is another, so
@@ -12,7 +12,7 @@ import type { DeviceId } from "./devices";
 // while it is held.
 export type KeyControl = { kind: "act"; action: FrogAction } | { kind: "hold"; action: HeldAction };
 
-export type KeyboardLayout = "solo" | "split";
+export type KeyboardLayout = "whole" | "split";
 
 const act = (action: FrogAction): KeyControl => ({ kind: "act", action });
 const hold = (action: HeldAction): KeyControl => ({ kind: "hold", action });
@@ -41,7 +41,7 @@ const RIGHT_EXTRAS: readonly (readonly [string, KeyControl])[] = [
 ];
 
 export const KEYBOARDS: Record<KeyboardLayout, ReadonlyMap<DeviceId, ReadonlyMap<string, KeyControl>>> = {
-  solo: new Map([["keys", new Map([...WASD, ...ARROWS, ...LEFT_EXTRAS])]]),
+  whole: new Map([["keys", new Map([...WASD, ...ARROWS, ...LEFT_EXTRAS])]]),
   split: new Map([
     ["keys:left", new Map([...WASD, ...LEFT_EXTRAS])],
     ["keys:right", new Map([...ARROWS, ...RIGHT_EXTRAS])],
@@ -108,7 +108,7 @@ export const COURSE_KEYS: Readonly<Partial<Record<string, -1 | 1>>> = { KeyQ: -1
 
 export type Legend = readonly (readonly [keys: string, action: string])[];
 
-export const SOLO_LEGEND: Legend = [
+export const WHOLE_LEGEND: Legend = [
   ["A D / ← →", "move (hold to repeat)"],
   ["Q E", "rotate"],
   ["Space", "hop"],

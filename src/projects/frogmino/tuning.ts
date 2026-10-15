@@ -18,8 +18,7 @@ export interface Tuning {
   courseLength: number;
   // How far behind the frog a row's back must be before it is recycled:
   // well behind the camera, which follows the frog, so a row never vanishes
-  // on screen, and further than a frog knocked back by a needs-gate row ever
-  // is from the gate it needs, so that row is still there to go back for.
+  // on screen.
   recycleBehind: number;
   // How far ahead of the frog a recycled row reappears, at the least: beyond
   // the world's fog, so a row never appears on screen. The traffic is laid
