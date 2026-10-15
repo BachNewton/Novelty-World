@@ -14,19 +14,28 @@ import { applyPoseAction, endSlot, planShape, poseCode, type PlanFrog, type Pose
 //
 // For a co-op row, beside the pose count:
 //
-// - **Coupling** says how far the frogs' ways through depend on each other.
-//   A frog's solo passes are the poses it passes the row in alone, its
-//   partner absent. For a lane line across the road, the free pairings are
-//   every solo pass of Sprout's wholly left of the line with every one of
-//   Splash's wholly right of it: ways each frog can choose without looking at
-//   the other. The row's in-order passes are its team passes with Sprout's
-//   leftmost lane no further right than Splash's (the rest have the frogs
-//   swapped, and count as crossed). A line's coupling is the share of the
-//   in-order passes and free pairings together that aren't free pairings
-//   passing as a team; the row's is its best line's. 0 is parallel solo: a
-//   line splits the road so that each frog picks any of its own ways and the
-//   team passes, and nothing else passes. 1: every way through has the frogs
-//   sharing a lane, so where one goes decides where the other can.
+// - **Coupling** says how far the frogs' ways through depend on each other,
+//   side by side. A frog's solo passes are the poses it passes the row in
+//   alone, its partner absent: on the road, or up a hop. For a lane line
+//   across the road, the free pairings are every solo pass of Sprout's
+//   wholly left of the line with every one of Splash's wholly right of it:
+//   ways each frog can choose without looking at the other. The row's side
+//   by side passes are its team passes with neither frog standing on the
+//   other and each no higher than its own hop lifts it, so each frog in a
+//   place it could take alone; the rest are stacked: a frog on its partner,
+//   or higher than its own hop reaches. The side by side passes are in order, with Sprout's
+//   leftmost lane no further right than Splash's, or crossed. A line's
+//   coupling is the share of the in-order side by side passes and free
+//   pairings together that aren't free pairings passing as a team; the
+//   row's is its best line's. 0 is parallel solo: a line splits the road so
+//   that each frog picks any of its own ways and the team passes, and
+//   nothing else passes side by side. 1: every way through side by side has
+//   the frogs sharing a lane, or there is none and only a stack passes.
+//   Stacked ways are left out because stacks share lanes and vastly
+//   outnumber the ways side by side whenever the pieces can stack, so they
+//   would read every row fully coupled; the stacked count and the
+//   coordination kinds (perch, stack, double jump, carry) say what a row
+//   asks of a stack.
 // - **Selfish decoys:** a frog's solo passes with which the team has no way
 //   through: the frog fits, but its partner then fits nowhere.
 // - **Coordination kinds** of a pose the team passes in, from the pose it
@@ -156,9 +165,13 @@ const PARALLEL_BELOW = 0.2;
 const FULLY_FROM = 0.8;
 
 export interface RowCoupling {
-  // Team passes: in order, Sprout no further right than Splash, and crossed.
+  // Team passes side by side: in order, Sprout no further right than
+  // Splash, and crossed.
   inOrder: number;
   crossed: number;
+  // Team passes with a frog standing on its partner, or higher than its
+  // own hop lifts it.
+  stacked: number;
   // Each frog's solo passes.
   solo: readonly number[];
   // The lane line the coupling is read at (the left edge of lane `line`),
@@ -175,6 +188,17 @@ function teamKey(pose: TeamPose): number {
   return shapeKey(pose);
 }
 
+// How high a frog's own hop lifts it off the road.
+const SOLO_HEIGHT = 1;
+
+// Whether each frog of a pose is where it could be alone: standing on no
+// partner, and no higher than its own hop lifts it.
+function apart(pose: TeamPose): boolean {
+  return pose.every(
+    (frog, player) => frog.height <= SOLO_HEIGHT && !pose.some((other, i) => i !== player && standsOn(planShape(frog), planShape(other))),
+  );
+}
+
 // Coupling and decoys for a co-op row of two frogs, from the team's
 // reachable poses and each frog's solo shapes (see the top of this file).
 export function rowCoupling(
@@ -186,7 +210,8 @@ export function rowCoupling(
   if (solo.length !== 2) throw new Error(`Coupling is for a pair of frogs, not ${String(solo.length)}`);
   const passes = passingPoses(reachable, solids);
   const team = new Set(passes.map(teamKey));
-  const inOrder = passes.filter((pose) => laneSpan(pose[0]).first <= laneSpan(pose[1]).first).length;
+  const sideBySide = passes.filter(apart);
+  const inOrder = sideBySide.filter((pose) => laneSpan(pose[0]).first <= laneSpan(pose[1]).first).length;
   const own = solo.map((shapes) => shapes.filter((frog) => fitsRow(planShape(frog), solids)));
   const [sprout, splash] = own;
 
@@ -209,7 +234,16 @@ export function rowCoupling(
   const decoys = own.map((shapes, player) => shapes.filter((frog) => !usedBy[player].has(frogKey(frog))).length);
   const label: CouplingLabel =
     coupling >= FULLY_FROM ? "fully coupled" : coupling < PARALLEL_BELOW && decoys.every((d) => d === 0) ? "parallel solo" : "partly coupled";
-  return { inOrder, crossed: passes.length - inOrder, solo: own.map((shapes) => shapes.length), line, coupling, label, decoys };
+  return {
+    inOrder,
+    crossed: sideBySide.length - inOrder,
+    stacked: passes.length - sideBySide.length,
+    solo: own.map((shapes) => shapes.length),
+    line,
+    coupling,
+    label,
+    decoys,
+  };
 }
 
 // Every coordination kind, in the order a report lists them.

@@ -24,7 +24,7 @@ export function rowNumbers(row: RowAnalysis): string {
   const line = coupling.line === null ? "" : `, free ${String(coupling.line.left)}x${String(coupling.line.right)} at lane line ${String(coupling.line.at)}`;
   return [
     `gap ${String(row.gap)}`,
-    `${String(row.passes)} passing (${String(coupling.inOrder)} in order, ${String(coupling.crossed)} crossed)`,
+    `${String(row.passes)} passing: ${String(coupling.inOrder + coupling.crossed)} side by side (${String(coupling.inOrder)} in order, ${String(coupling.crossed)} crossed), ${String(coupling.stacked)} stacked`,
     `coupling ${coupling.coupling.toFixed(2)} ${coupling.label}${line}`,
     `decoys ${coupling.decoys.join("+")}`,
     `answer: ${kindsText(row.answer)}${row.answerReachable ? "" : " (UNREACHABLE)"}`,

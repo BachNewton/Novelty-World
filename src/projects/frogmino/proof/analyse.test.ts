@@ -30,6 +30,7 @@ describe("coupling and decoys", () => {
     expect(coupling).toEqual({
       inOrder: 4,
       crossed: 0,
+      stacked: 0,
       // Lanes 0, 1 or 2, down or up.
       solo: [6, 6],
       line: { at: 2, left: 2, right: 2, free: 4 },
@@ -41,12 +42,29 @@ describe("coupling and decoys", () => {
     });
   });
 
-  it("reads stacked ways through as coupled: two Ts stack in many ways, two Os in none", () => {
+  it("leaves the stacked ways out: two Ts stack in thousands of ways, which would read every row fully coupled", () => {
     // A T stands on a T in a great many ways, each with the frogs sharing
-    // lanes, and they outnumber the ways side by side. An O is two cells
-    // tall and a hop lifts it one, so two Os never stand on each other.
-    expect(rowOf(TEA_FOR_TWO, "jump together").coupling.label).toBe("fully coupled");
-    expect(rowOf(BLOCK_PARTY, "jump together").coupling.coupling).toBe(0);
+    // lanes. Side by side, an open road lets each T go its own way.
+    const open = rowOf(TEA_FOR_TWO, "jump together").coupling;
+    expect(open.stacked).toBeGreaterThan(10 * (open.inOrder + open.crossed));
+    expect(open.label).toBe("parallel solo");
+    // An O is two cells tall and a hop lifts it one, so two Os never stack.
+    expect(rowOf(BLOCK_PARTY, "jump together").coupling.stacked).toBe(0);
+  });
+
+  it("reads a row only a stack passes as fully coupled", () => {
+    // Six lanes, an ice-cream van two cells tall in lanes 1 and 2 and a bus
+    // in lane 4: no two free lanes sit side by side, so the O fits nowhere
+    // on the road, and its own hop lifts it one cell, into the van. It gets
+    // through only up on the I.
+    const kinds = ["I", "O"] as const;
+    const start = startPose(kinds, 6);
+    const row = rowSolids([{ id: "O0", lane: 1 }, { id: "I1", lane: 4 }]);
+    const coupling = rowCoupling(reachablePoses(start, 6, AIR_SLOTS), soloReachable(start, 6, AIR_SLOTS), row, 6);
+    expect(coupling.inOrder + coupling.crossed).toBe(0);
+    expect(coupling.stacked).toBeGreaterThan(0);
+    expect(coupling.coupling).toBe(1);
+    expect(coupling.label).toBe("fully coupled");
   });
 });
 
