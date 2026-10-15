@@ -10,7 +10,7 @@ test("?music renders a course's theme in its worker and plays it", async ({ page
   const errors: Error[] = [];
   page.on("pageerror", (error) => errors.push(error));
   await page.goto("/games/3d-games/frogmino?music");
-  const card = page.locator("li", { has: page.getByRole("heading", { name: "Hop Along Route" }) });
+  const card = page.locator("li", { has: page.getByRole("heading", { level: 3 }) }).first();
   await card.getByRole("button", { name: "Play" }).click();
   await expect(card.getByRole("button", { name: "Stop" })).toBeVisible({ timeout: 30_000 });
   await card.getByRole("button", { name: "Stop" }).click();

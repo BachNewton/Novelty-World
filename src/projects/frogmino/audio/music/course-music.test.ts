@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COOP_COURSES } from "../../coop-courses";
-import { COOP_MUSIC, courseMusic, PLACEHOLDER_MUSIC, PLANNED_COOP_MUSIC } from "./course-music";
-import { COURSE_THEMES, SPARE_THEMES } from "./themes";
+import { COOP_MUSIC, courseMusic, themeCourse } from "./course-music";
+import { THEMES } from "./themes";
 
 const registered = COOP_COURSES.map((course) => course.id);
 
@@ -14,7 +14,7 @@ describe("course music", () => {
   });
 
   it("names only courses that are registered", () => {
-    for (const id of [...COOP_MUSIC.keys(), ...PLACEHOLDER_MUSIC]) {
+    for (const id of COOP_MUSIC.keys()) {
       expect(registered, `course-music.ts names "${id}", which no co-op course is`).toContain(id);
     }
   });
@@ -23,14 +23,12 @@ describe("course music", () => {
     expect(() => courseMusic({ kind: "coop", id: "no-such-course" })).toThrow(/no-such-course/);
   });
 
-  it("gives each course its own theme, from the courses' themes, but for the placeholders", () => {
-    const own = [...COOP_MUSIC].filter(([id]) => !PLACEHOLDER_MUSIC.has(id)).map(([, theme]) => theme);
-    const used = [...own, ...[...PLANNED_COOP_MUSIC.values()].map((planned) => planned.theme)];
-    expect(new Set(used.map((theme) => theme.id)).size).toBe(used.length);
-    expect(used.map((theme) => theme.id).sort()).toEqual(COURSE_THEMES.map((theme) => theme.id).sort());
+  it("gives each course a theme of its own, listing the themes in the picker's order", () => {
+    expect(THEMES.map(themeCourse)).toEqual(registered);
+    expect(new Set(THEMES.map((theme) => theme.id)).size).toBe(THEMES.length);
   });
 
-  it("gives the courses' themes a course's length, round and round", () => {
-    for (const theme of [...COURSE_THEMES, ...SPARE_THEMES]) expect(theme.kind, theme.id).toBe("loop");
+  it("loops every theme round and round", () => {
+    for (const theme of THEMES) expect(theme.kind, theme.id).toBe("loop");
   });
 });

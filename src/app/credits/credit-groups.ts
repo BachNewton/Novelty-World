@@ -1,5 +1,4 @@
 import { FAMILY_TREE_CREDITS } from "@/projects/family-tree/credits";
-import { FROGMINO_CREDITS } from "@/projects/frogmino/credits";
 import { HALO_CREDITS } from "@/projects/halo/credits";
 import { POKEMON_CREDITS } from "@/projects/pokemon/credits";
 import { RPG_CREDITS } from "@/projects/rpg/credits";
@@ -11,7 +10,6 @@ import { SITE_CREDITS, type Credit } from "@/shared/lib/credits";
 // else's work registers its list here.
 export const PROJECT_CREDITS: Partial<Record<string, readonly Credit[]>> = {
   "family-tree": FAMILY_TREE_CREDITS,
-  frogmino: FROGMINO_CREDITS,
   halo: HALO_CREDITS,
   pokemon: POKEMON_CREDITS,
   rpg: RPG_CREDITS,
