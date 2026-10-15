@@ -113,7 +113,7 @@ export function passingPoses(reachable: readonly TeamPose[], solids: readonly So
   return reachable.filter((pose) => pose.every((frog) => fitsRow(planShape(frog), solids)));
 }
 
-// The team as a course starts it: each frog on the overpass, on the road.
+// The team as a course starts it: each frog aboard the helicopter, as on the road.
 export function startPose(kinds: DesignedCourse["kinds"], lanes: number): TeamPose {
   return startPlacements(kinds, lanes).map((placement, i) => ({ kind: kinds[i], ...placement, height: 0, air: 0 }));
 }

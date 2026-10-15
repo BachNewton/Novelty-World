@@ -89,6 +89,9 @@ function checkCourse(course: DesignedCourse, tuning: Tuning): void {
   });
 
   if (!(course.length > tuning.dropDistance)) fail(`its finish at ${String(course.length)} comes before the drop lands`);
+  if (course.rows[0].gap < tuning.firstWallDepth) {
+    fail(`its first row stands at ${String(course.rows[0].gap)}, short of the reading room beyond the drop's landing (${String(tuning.firstWallDepth)})`);
+  }
   const fronts = rowFronts(course);
   const last = fronts[fronts.length - 1];
   if (flatOutMeeting(last, tuning) >= course.length) {

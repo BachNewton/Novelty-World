@@ -47,7 +47,7 @@ async function drag(page: Page, x: number, fromY: number, toY: number): Promise<
   await cdp.detach();
 }
 
-test("on a phone, a drag up drops the team from the overpass, and then a tap in the centre hops", async ({ browser }) => {
+test("on a phone, a drag up jumps the team out of the helicopter, and then a tap in the centre hops", async ({ browser }) => {
   const url = `${LOBBY}?${LOCAL_RELAY}&room-list=e2e-${crypto.randomUUID()}`;
   const host = await open(browser, url, "Hoppy", true);
   const guest = await open(browser, url, "Leapy", false);
@@ -67,8 +67,8 @@ test("on a phone, a drag up drops the team from the overpass, and then a tap in 
     const centreX = box.x + box.width / 2;
     const centreY = box.y + box.height / 2;
 
-    // The team starts on the overpass, where a hop does nothing; a jump
-    // forward drops it onto the road.
+    // The team starts aboard the helicopter, where a hop does nothing; a jump
+    // forward jumps it out onto the road.
     await expect(game).toHaveAttribute("data-depth", "0");
     await drag(page, centreX, centreY + 20, centreY - 30);
     await expect(game).not.toHaveAttribute("data-depth", "0", { timeout: TIMEOUT });

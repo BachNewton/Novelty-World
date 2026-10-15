@@ -171,6 +171,11 @@ describe("a co-op course's checks", () => {
     expect(broken({ length: 10 })).toThrow(/comes before the drop lands/);
   });
 
+  it("fails loudly on a first row nearer than the reading room beyond the drop's landing", () => {
+    expect(withRow(0, { gap: TUNING.dropDistance })).toThrow(/"o-pair": its first row stands at 15, short of the reading room/);
+    expect(withRow(0, { gap: TUNING.firstWallDepth - 1 })).toThrow(/short of the reading room/);
+  });
+
   it("goes round every row again by default, or as many of its last rows as it says", () => {
     expect(designedRowAt(O_PAIR, 3)).toBe(0);
     expect(designedRowAt(O_PAIR, 5)).toBe(2);

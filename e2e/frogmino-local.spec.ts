@@ -41,7 +41,7 @@ test("?play=local opens the join screen, where both halves of the keyboard join 
   await expect(game).toHaveAttribute("data-depth", "0", { timeout: TIMEOUT });
   await expect(game).toHaveAttribute("data-hopped-at", ",");
 
-  // Either player's jump forward drops the team off the overpass.
+  // Either player's jump forward jumps the team out of the helicopter.
   await page.keyboard.press("KeyW");
   await expect(game).not.toHaveAttribute("data-depth", "0");
   // The arrows are Sprout's here, so / hops Sprout, and Space Splash.

@@ -1,12 +1,14 @@
 // The knobs that set how Frogmino feels. Depths and distances are in world
 // units: one unit is one cube, the width of a corridor column. Depth is
-// measured forward from the course's start, at the foot of the overpass.
+// measured forward from the course's start, where the team stands aboard the
+// helicopter.
 // Times are in seconds; the rules count them in whole ticks (see `ticks.ts`).
 export interface Tuning {
   // How fast the walls come at the frog, in units per second.
   wallSpeed: number;
-  // Where the first row's front starts: beyond where the drop lands the
-  // frog, by the reading room it has before the first row.
+  // Where the first row's front stands until the team jumps out: beyond
+  // where the drop lands it, by the reading room it has before the first
+  // row. No row is ever placed between the deck and the landing.
   firstWallDepth: number;
   // The gap from one row's back (its longest vehicle's) to the next row's
   // front, in units: the reading time between rows, whatever their vehicles'
@@ -41,13 +43,11 @@ export interface Tuning {
   // The longest frame the game runs the rules' ticks for, in seconds, so
   // returning to a backgrounded tab doesn't lurch the walls forward.
   maxFrameDelta: number;
-  // How far ahead of where it stood on the overpass the frog's first jump
-  // forward lands it on the road, in units: far enough that the camera,
-  // following it, is past the overpass's deck when it lands, and still is
-  // after a bonk as it lands.
+  // How far ahead of where it stood aboard the helicopter the frog's first
+  // jump forward, the jump out, lands it on the road, in units.
   dropDistance: number;
-  // How long the drawn frog's leap from the overpass to the road takes, in
-  // seconds. A held key repeats only once it lands.
+  // How long the drawn frog's leap out of the helicopter onto the road
+  // takes, in seconds. A held key repeats only once it lands.
   dropDuration: number;
   // How long the drawn frog's leap from the spring pad onto the finish
   // gantry takes, in seconds. The done screen waits for it to land.

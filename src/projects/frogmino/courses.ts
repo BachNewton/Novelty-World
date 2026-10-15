@@ -86,7 +86,7 @@ export function coopCourse(id: string): Course {
   return designedCourse(coopCourseById(id));
 }
 
-// The run a course starts with: its frogs on the overpass, its rows lined
+// The run a course starts with: its frogs aboard the helicopter, its rows lined
 // up, its finish where the course has it.
 export function startRun(course: Course, tuning: Tuning = TUNING): Run {
   return createRun(course.row, tuning, { kinds: course.kinds, lanes: course.lanes, courseLength: course.length });

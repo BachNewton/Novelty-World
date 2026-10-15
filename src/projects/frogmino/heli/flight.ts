@@ -1,48 +1,44 @@
-import { dropPose, leapProgress, type LeapPose } from "../frog/leaps";
+import { FROG_THICKNESS } from "../run";
 import { TUNING } from "../tuning";
 import { HEADROOM, VEHICLE_TOP } from "../world/structures";
 import { DECK_THICKNESS } from "./model";
 
-// The `?heli` preview's flight, as pure functions of time: the Lily Lifter
-// cruising down the road with the traffic, the frogs leaping off it onto the
-// road along the game's own drop, and the helicopter, lightened, swinging
-// round and flying off up the road. Depths run forward along the course, and
-// heights up from the road, in the scene's units.
+// The Lily Lifter's part in a run, as pure functions of the rules' clock, in
+// seconds: cruising down the road with the traffic while the team lines up
+// aboard, and, lightened once the team has jumped out, swinging round and
+// flying off up the road. Depths run forward along the course, as the rules
+// count them, and heights up from the road, in the scene's units.
+//
+// The rules hold the team and the rows still until the jump out (see
+// `run.ts`): the helicopter keeps pace with the traffic, so relative to the
+// team only the road beneath moves. So the drawing scrolls the road and its
+// scenery under the cruising helicopter, and stops it at the jump, from when
+// the course's frame is the road's.
 
-const { wallSpeed, dropDistance, dropDuration } = TUNING;
+const { wallSpeed } = TUNING;
 
 // It bobs gently on the air, this much each way.
 export const BOB = 0.12;
 const BOB_PERIOD = 2.4;
 
 // The deck's top: as low as it can fly, the tallest vehicle clearing its
-// underside, with the overpass's headroom, at the bottom of its bob.
+// underside, with the finish gantry's headroom, at the bottom of its bob.
 export const HELI_DECK_TOP = VEHICLE_TOP + HEADROOM + DECK_THICKNESS + BOB;
 
 export function bob(time: number): number {
   return BOB * Math.sin((2 * Math.PI * time) / BOB_PERIOD);
 }
 
-// It cruises down the road at the traffic's speed, so the traffic beneath
-// holds still under the frogs and they can jump out whenever they're ready.
-export function cruiseDepth(startDepth: number, time: number): number {
-  return startDepth - wallSpeed * time;
-}
+// Where the deck's middle is along the course while the team is aboard, at
+// the course's start: the frogs, a cell deep, stand in the middle of it, their
+// front faces on the start.
+export const DECK_CENTRE = -FROG_THICKNESS / 2;
 
-// Where the frogs stand aboard: the middle of the deck, their front faces half
-// a cell ahead of it.
-export function aboardFrogDepth(heliDepth: number): number {
-  return heliDepth + 0.5;
-}
-
-// The frogs' leap off the deck, `seconds` after jumping from `fromDepth` at
-// `fromLevel`: the game's drop, the drop distance ahead.
-export function frogLeap(fromDepth: number, fromLevel: number, seconds: number): LeapPose {
-  return dropPose({ fromDepth, fromLevel }, fromDepth + dropDistance, leapProgress(seconds, dropDuration));
-}
-
-export function landed(seconds: number): boolean {
-  return seconds >= dropDuration;
+// How far the road has gone by beneath the helicopter, `time` seconds into
+// the run, the team having jumped out at `jumpedAt` if it has: the road is
+// drawn this far up the course from where it lies. It stops at the jump.
+export function roadCruise(time: number, jumpedAt: number | null): number {
+  return wallSpeed * Math.min(time, jumpedAt ?? time);
 }
 
 // The helicopter's pose: across the road, height, depth, and how it is turned.
@@ -89,16 +85,17 @@ function accelerated(seconds: number): number {
   return (ACCELERATION * reach ** 2) / 2 + TOP_SPEED * (seconds - reach);
 }
 
-// The helicopter `time` seconds into the preview, from `startDepth`, its
-// deck centred over the road's middle lane line `middle`; `jumpedAt`, when
-// the frogs jumped, if they have.
-export function heliPose(startDepth: number, middle: number, time: number, jumpedAt: number | null): HeliPose {
+// The helicopter `time` seconds into the run, its deck centred over the
+// road's middle lane line `middle`; `jumpedAt`, when the team jumped out, if
+// it has. Aboard, it holds still over the start in the course's frame, which
+// is cruising with the traffic; after the jump the course's frame is the
+// road's, so it carries on with the traffic, brakes, and flies off.
+export function heliPose(middle: number, time: number, jumpedAt: number | null): HeliPose {
   const hover = HELI_DECK_TOP + bob(time);
   if (jumpedAt === null || time <= jumpedAt) {
-    return { x: middle, y: hover, depth: cruiseDepth(startDepth, time), yaw: 0, pitch: 0, roll: 0 };
+    return { x: middle, y: hover, depth: DECK_CENTRE, yaw: 0, pitch: 0, roll: 0 };
   }
   const s = time - jumpedAt;
-  const from = cruiseDepth(startDepth, jumpedAt);
   // Down the road with the traffic, braking to a stop, then off up it.
   const braking = Math.min(s, BRAKE);
   const back = wallSpeed * (braking - braking ** 2 / (2 * BRAKE));
@@ -106,28 +103,9 @@ export function heliPose(startDepth: number, middle: number, time: number, jumpe
   return {
     x: middle + VEER * smoothstep(0.2, 3, s),
     y: hover + POP * smoothstep(0, 0.8, s) - SINK * smoothstep(1.5, 3.5, s) + CLIMB * Math.max(0, s - 3.5),
-    depth: from - back + ahead,
+    depth: DECK_CENTRE - back + ahead,
     yaw: Math.PI * smoothstep(TURN.from, TURN.to, s),
     pitch: DIVE * smoothstep(BRAKE, BRAKE + 1, s),
     roll: -LEAN * bell(TURN.from, TURN.to + 0.6, s),
   };
-}
-
-// The preview's traffic: rows a fixed spacing apart along the road, driving
-// at the traffic's speed, laid out so that the frogs aboard hover over a
-// gap, and land in the next gap ahead, a reading room short of the row after.
-export const ROW_SPACING = 17;
-// The first row's front, ahead of the frogs aboard.
-export const FIRST_ROW_AHEAD = 9;
-// Rows go round: they vanish this far behind the frogs, behind the camera,
-// and come back far up the road.
-const ROWS_BEHIND = 40;
-
-// How far ahead of the frogs row `index` of `count` is, `time` seconds in,
-// with the frogs at `frogDepth` and the helicopter having set off from
-// `startDepth`.
-export function rowAhead(index: number, count: number, time: number, startDepth: number, frogDepth: number): number {
-  const span = count * ROW_SPACING;
-  const depth = aboardFrogDepth(startDepth) + FIRST_ROW_AHEAD + index * ROW_SPACING - wallSpeed * time;
-  return ((((depth - frogDepth + ROWS_BEHIND) % span) + span) % span) - ROWS_BEHIND;
 }

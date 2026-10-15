@@ -21,12 +21,12 @@ import { FROG_LOOKS, FROG_VARIANTS, type FrogVariant } from "../frog/look";
 import { frogModel, frogPivot } from "../frog/model";
 import { moveDuration } from "../frog/moves";
 import { cellKey, frogCells } from "../logic";
-import { FROG_THICKNESS, crossedFinish, frogShape, nextWall, placedFrog } from "../run";
+import { HELI_DECK_TOP, bob, heliPose, roadCruise } from "../heli/flight";
+import { FROG_THICKNESS, aboard, crossedFinish, frogShape, nextWall, placedFrog, type Run } from "../run";
 import type { Session } from "../session";
 import { tickTiming, toSeconds } from "../ticks";
 import { TUNING } from "../tuning";
 import type { Cell } from "../types";
-import { DECK_TOP } from "../world/structures";
 import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, cameraEye, easedCameraHeight, fittedFov } from "./camera-fit";
 import {
   type DrawnFrog,
@@ -47,7 +47,8 @@ import { FrogBody, type FrogHandle } from "./frog/frog-body";
 import { frogDrawnIn, makeFrogAssets, type FrogDrawing } from "./frog/frog-assets";
 import { Vehicle } from "./vehicle";
 import { makeVehicleAssets } from "./vehicle-assets";
-import { FrogminoWorld } from "./world/world";
+import { Helicopter } from "./heli/helicopter";
+import { FrogminoWorld, type RoadCruise } from "./world/world";
 
 // World axes: x runs across the corridor (one unit per column), y up (one unit
 // per row), and the traffic comes at the frog from -z. A rule depth d sits at
@@ -55,11 +56,28 @@ import { FrogminoWorld } from "./world/world";
 // of its own, each as deep as the rules count it, so the two touch when their
 // depths meet and overlap exactly when the rules say they do. Everything drawn
 // in the cell grid stands the ground clearance above the ground under it.
-const INITIAL_EYE = cameraEye(TUNING, 0, DECK_TOP);
+const INITIAL_EYE = cameraEye(TUNING, 0, HELI_DECK_TOP);
 
 // The road's middle, which the camera rides over.
 function roadMiddle(lanes: number): number {
   return (lanes - 1) / 2;
+}
+
+// The drawing's clock, in seconds: the rules' time and on into the tick
+// under way.
+function drawnTime(run: Run, carry: number): number {
+  return toSeconds(run.tick + carry);
+}
+
+// When the team jumped out, on the drawing's clock; null while aboard.
+function jumpedAt(run: Run): number | null {
+  return run.droppedAt === null ? null : toSeconds(run.droppedAt);
+}
+
+// How far the traffic has come on into the tick under way. Aboard, it holds
+// still relative to the team.
+function travelInTick(run: Run, carry: number): number {
+  return aboard(run) ? 0 : run.tuning.wallSpeed * toSeconds(carry);
 }
 
 // Each frame runs in this order: the rules' ticks and the traffic, then each
@@ -208,7 +226,7 @@ function TeamFrog({
   useFrame((_, delta) => {
     const { run, runId, carry } = session.store.getState();
     const ruleFrog = placedFrog(run, player);
-    const now = toSeconds(run.tick + carry);
+    const now = drawnTime(run, carry);
     const timing = tickTiming(run.tuning);
     const play = (action: Parameters<FrogHandle["play"]>[0]): void => {
       bodyRef.current?.play(action);
@@ -253,8 +271,10 @@ function TeamFrog({
       drawn.current = d;
       if (run.lastBonk !== null) play("bonk");
     }
-    if (run.droppedAt !== null && d.drop === null && d.level > 0) {
-      d.drop = { fromDepth: d.depth, fromLevel: d.level, startedAt: toSeconds(run.droppedAt), landed: false };
+    const jumped = jumpedAt(run);
+    if (jumped !== null && d.drop === null && d.level > 0) {
+      // It leaps from the deck as it bobbed at that moment.
+      d.drop = { fromDepth: d.depth, fromLevel: d.level + bob(jumped), startedAt: jumped, landed: false };
       play("hop");
     }
     if (run.finishedAt !== null && d.leap === null) {
@@ -338,7 +358,9 @@ function TeamFrog({
     if (frog !== null) {
       const bonkLift = pose === null ? 0 : pose.lift;
       const lift = Math.max(d.lift, stepLift) + bonkLift;
-      frog.position.set(d.x, height + GROUND_CLEARANCE + d.y + lift, -d.depth + FROG_THICKNESS / 2);
+      // Aboard, the frog rides the deck's bob; the camera doesn't.
+      const ride = aboard(run) ? bob(now) : 0;
+      frog.position.set(d.x, height + ride + GROUND_CLEARANCE + d.y + lift, -d.depth + FROG_THICKNESS / 2);
       frog.rotation.set(0, spin, d.swing);
     }
 
@@ -347,8 +369,7 @@ function TeamFrog({
     const next = nextWall(run);
     fit.visible = next !== null && !crossedFinish(run);
     if (next === null) return;
-    const travel = run.tuning.wallSpeed * toSeconds(carry);
-    fit.position.z = -(run.walls[next].depth - travel) + FIT_OUTLINE_LIFT;
+    fit.position.z = -(run.walls[next].depth - travelInTick(run, carry)) + FIT_OUTLINE_LIFT;
     const cells = frogCells(frogShape(ruleFrog));
     const shape = cells.map(cellKey).join(";");
     if (shape !== fitShape.current) {
@@ -397,6 +418,7 @@ function TeamFrog({
 function Game({ session }: { session: Session }) {
   const course = useStore(session.store, (s) => s.course);
   const players = useStore(session.store, (s) => s.run.frogs.length);
+  const dropped = useStore(session.store, (s) => s.run.droppedAt !== null);
   // Which row of the course each wall is: changes only when a wall is
   // recycled as the next row.
   const traffic = useStore(session.store, useShallow((s) => s.run.walls.map((wall) => wall.index)));
@@ -433,11 +455,28 @@ function Game({ session }: { session: Session }) {
   }, []);
   const cameraRunId = useRef(-1);
 
+  // The road goes by beneath the cruising helicopter until the team jumps
+  // out, and the helicopter then flies off, both on the drawing's clock.
+  const cruise: RoadCruise = useMemo(
+    () => ({
+      shift: () => {
+        const { run, carry } = session.store.getState();
+        return roadCruise(drawnTime(run, carry), jumpedAt(run));
+      },
+      stopped: dropped,
+    }),
+    [session, dropped],
+  );
+  const heli = useCallback(() => {
+    const { run, carry } = session.store.getState();
+    return heliPose(roadMiddle(run.lanes), drawnTime(run, carry), jumpedAt(run));
+  }, [session]);
+
   useFrame((_, delta) => {
     session.frame(delta);
     const { run, carry } = session.store.getState();
     // The traffic is drawn as far on into the tick as real time has got.
-    const travel = run.tuning.wallSpeed * toSeconds(carry);
+    const travel = travelInTick(run, carry);
     run.walls.forEach((wall, i) => {
       const group = wallRefs.current[i];
       if (group) group.position.z = -(wall.depth - travel);
@@ -462,7 +501,8 @@ function Game({ session }: { session: Session }) {
 
   return (
     <>
-      <FrogminoWorld courseLength={course.length} seed={course.seed} lanes={course.lanes} />
+      <FrogminoWorld courseLength={course.length} seed={course.seed} lanes={course.lanes} cruise={cruise} />
+      <Helicopter lanes={course.lanes} pose={heli} />
       {Array.from({ length: players }, (_, player) => (
         <TeamFrog
           key={player}

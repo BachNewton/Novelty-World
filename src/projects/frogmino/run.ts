@@ -39,10 +39,15 @@ import type { Tuning } from "./tuning";
 // stands on it when it hops or slides (see `team.ts`). Wherever the rules
 // below say "the frog", each frog of the team is meant, at the team's depth.
 //
-// The team starts out of play on the overpass above the start, and drops to
-// the road with its first jump forward; there is no way back up. It is out
-// of play again once it crosses the finish line, when it leaps up onto the
-// finish gantry. Out of play, no row touches it: the traffic goes by beneath.
+// The team starts out of play aboard the helicopter, cruising down the road
+// at the traffic's speed above the start, and jumps out onto the road with
+// its first jump forward; there is no way back up. The course counts from
+// that jump: until it, the traffic holds still relative to the team (the
+// helicopter keeps pace with it, and only the scenery drawn beneath moves),
+// so however long the team waits aboard, it meets the same rows at the same
+// places after the jump. No row stands between the deck and the landing.
+// The team is out of play again once it crosses the finish line, when it
+// leaps up onto the finish gantry, where the traffic goes by beneath it.
 
 // How deep the frog is along the course, in units. The scene draws it this
 // deep too.
@@ -136,8 +141,8 @@ export interface Run {
   // The keys held down, in the order pressed: at most one jump, the team's,
   // whoever pressed it, and a slide for each player.
   holds: readonly Hold[];
-  // When the team dropped from the overpass to the road; null while it is
-  // still up there.
+  // When the team jumped out of the helicopter onto the road, and the
+  // traffic's clock started; null while it is still aboard.
   droppedAt: number | null;
   // When the team crossed the finish line; null until it does.
   finishedAt: number | null;
@@ -177,6 +182,7 @@ function checkTuning(tuning: Tuning): void {
   if (tuning.bonkKnockback <= 0) throw new Error("A bonk must knock the frog back");
   if (tickTiming(tuning).holdRepeat < 1) throw new Error("A held key must wait at least a tick between repeats");
   if (tuning.dropDistance < tuning.depthStep) throw new Error("The drop must reach at least a jump ahead");
+  if (tuning.firstWallDepth <= tuning.dropDistance) throw new Error("The first row must stand beyond where the drop lands");
   const closestGap = tuning.wallSpacing - tuning.wallJitter;
   const bonkReach = tuning.bonkKnockback * tuning.depthStep + FROG_THICKNESS;
   if (closestGap < bonkReach) {
@@ -200,7 +206,7 @@ export interface RunOptions {
 
 const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
 
-// Where each frog starts on the overpass, on a road `lanes` wide: each in the
+// Where each frog starts aboard the helicopter, on a road `lanes` wide: each in the
 // middle of its own share of the road, rounded down, in its piece's first
 // rotation no wider than the share. So a lone frog starts in the middle of
 // the road, and a team's frogs side by side, never overlapping.
@@ -215,7 +221,8 @@ export function startPlacements(kinds: readonly TetrominoKind[], lanes: number):
 
 // The stream's rows in order, each its gap beyond the back of the one
 // before, until the traffic reaches the traffic horizon from the start. So a
-// row recycled behind the frontmost one comes back out of sight.
+// row recycled behind the frontmost one comes back out of sight. The rows
+// hold still until the team jumps out, when they are set going.
 function lineUpTraffic(rows: RuleRows, tuning: Tuning): Wall[] {
   const walls: Wall[] = [];
   let back = 0;
@@ -268,8 +275,8 @@ export function frogShape(frog: RuleFrog): Frog {
   return { kind: frog.kind, col: frog.col, rotation: frog.rotation, height: frog.height };
 }
 
-// Whether the team is still up on the overpass, before its drop.
-export function onOverpass(run: Run): boolean {
+// Whether the team is still aboard the helicopter, before its jump out.
+export function aboard(run: Run): boolean {
   return run.droppedAt === null;
 }
 
@@ -278,10 +285,10 @@ export function crossedFinish(run: Run): boolean {
   return run.finishedAt !== null;
 }
 
-// Whether the team is on the road among the traffic: dropped from the
-// overpass and not yet over the finish line.
+// Whether the team is on the road among the traffic: jumped out of the
+// helicopter and not yet over the finish line.
 export function inPlay(run: Run): boolean {
-  return !onOverpass(run) && !crossedFinish(run);
+  return !aboard(run) && !crossedFinish(run);
 }
 
 // Whether the run is over: the team has crossed the finish line and its leap
@@ -291,14 +298,34 @@ export function isDone(run: Run): boolean {
   return run.finishedAt !== null && run.tick >= run.finishedAt + tickTiming(run.tuning).finishLeap;
 }
 
-// The run's time, in ticks: the course is timed from the team's drop off the
-// overpass to its crossing of the finish line. Lining up on the deck is free,
+// The run's time, in ticks: the course is timed from the team's jump out of
+// the helicopter to its crossing of the finish line. Lining up aboard is free,
 // and the clock stops at the line, while the rules' own clock runs on under
 // the finish leap. It is read off the rule state, so a replay and both
 // devices online agree on it to the tick.
 export function runTime(run: Run): number {
   if (run.droppedAt === null) return 0;
   return (run.finishedAt ?? run.tick) - run.droppedAt;
+}
+
+// The run as the course counts it, from the jump out: every tick it keeps
+// counted from the drop. The traffic holds still until then, so two runs
+// whose teams lined up the same, jumped out at different ticks and played the
+// same since are equal under it, tick for tick. Null while still aboard.
+export function sinceJump(run: Run): Run | null {
+  const { droppedAt } = run;
+  if (droppedAt === null) return null;
+  const at = (tick: number): number => tick - droppedAt;
+  return {
+    ...run,
+    tick: at(run.tick),
+    frogs: run.frogs.map((frog) => (frog.latestHop === null ? frog : { ...frog, latestHop: { startedAt: at(frog.latestHop.startedAt) } })),
+    walls: run.walls.map((wall) => ({ ...wall, placedAt: at(wall.placedAt) })),
+    lastBonk: run.lastBonk === null ? null : { ...run.lastBonk, tick: at(run.lastBonk.tick) },
+    holds: run.holds.map((hold) => ({ ...hold, nextAt: at(hold.nextAt) })),
+    droppedAt: 0,
+    finishedAt: run.finishedAt === null ? null : at(run.finishedAt),
+  };
 }
 
 // The wall the team meets next: the nearest one it hasn't passed. Null only
@@ -357,7 +384,7 @@ function pass(run: Run, index: number): Run {
   return { ...withWall(run, index, { passed: true }), passes: run.passes + 1 };
 }
 
-// The wall goes by beneath a team out of play, unjudged.
+// The wall goes by beneath a team on the finish gantry, unjudged.
 function goBy(run: Run, index: number): Run {
   return withWall(run, index, { passed: true });
 }
@@ -490,32 +517,31 @@ function jumpBack(run: Run): Run {
   return next;
 }
 
-// The first jump forward drops the team from the overpass onto the road,
-// the drop distance ahead of where it stood, and puts it in play. It leaps
-// over the traffic: the rows it flies over go by beneath it, unjudged, and
-// the last jump's worth of the leap is a jump forward, so one onto a row's
-// face is judged like any other. A drop that would land any frog in a
-// vehicle is refused, like a move off the corridor edge. A held key repeats
-// once the leap has landed.
+// The first jump forward is the jump out of the helicopter: the team leaps
+// down onto the road the drop distance ahead of where it stood, and is in
+// play. The traffic, held still until now, is set going from where it
+// stands, so the course counts from this tick. The road between the deck and
+// the landing is always empty: a course whose first row stands there is
+// malformed, and fails loudly. A held key repeats once the leap has landed.
 function drop(run: Run): Run {
   const { tick, tuning } = run;
   const target = run.depth + tuning.dropDistance;
-  const approach = target - tuning.depthStep;
-  let flown: Run = { ...run, droppedAt: tick };
-  run.walls.forEach((wall, index) => {
-    if (!wall.passed && wall.depth <= approach) flown = goBy(flown, index);
-  });
-  if (!teamClearAt(flown, target)) return run;
-  return jumpForward({
-    ...flown,
-    depth: approach,
+  const between = run.walls.find((wall) => wall.depth <= target);
+  if (between !== undefined) {
+    throw new Error(`Row ${String(between.index)} stands at ${String(between.depth)}, between the deck and the landing at ${String(target)}`);
+  }
+  return {
+    ...run,
+    droppedAt: tick,
+    depth: target,
+    walls: run.walls.map((wall) => ({ ...wall, placedAt: tick })),
     holds: run.holds.map((hold) => ({ ...hold, nextAt: tick + tickTiming(tuning).dropDuration })),
-  });
+  };
 }
 
 // A player's action. The slides, turns and hops are the player's own frog's;
-// the jumps are the team's. On the overpass the frogs can line themselves up
-// and drop; nothing else.
+// the jumps are the team's. Aboard, the frogs can line themselves up and
+// jump out; nothing else.
 function act(run: Run, player: number, action: FrogAction): Run {
   switch (action) {
     case "left":
@@ -527,11 +553,11 @@ function act(run: Run, player: number, action: FrogAction): Run {
     case "rotateCw":
       return rotate(run, player, 1);
     case "hop":
-      return onOverpass(run) ? run : hop(run, player);
+      return aboard(run) ? run : hop(run, player);
     case "forward":
-      return onOverpass(run) ? drop(run) : jumpForward(run);
+      return aboard(run) ? drop(run) : jumpForward(run);
     case "back":
-      return onOverpass(run) ? run : jumpBack(run);
+      return aboard(run) ? run : jumpBack(run);
   }
 }
 
@@ -606,9 +632,12 @@ function recycle(run: Run): Run {
   return next;
 }
 
-// The clock moves on a tick, carrying every wall toward the start.
+// The clock moves on a tick, carrying every wall toward the start once the
+// team has jumped out. Aboard, the helicopter keeps pace with the traffic, so
+// the rows hold still relative to the team.
 function moveWalls(run: Run): Run {
   const tick = run.tick + 1;
+  if (aboard(run)) return { ...run, tick };
   const { wallSpeed } = run.tuning;
   return {
     ...run,
@@ -618,7 +647,7 @@ function moveWalls(run: Run): Run {
 }
 
 // Each wall that has reached the team's face: judged in play, and going by
-// beneath out of play. The spacing lets only one arrive at a time, but each
+// beneath the team on the finish gantry. The spacing lets only one arrive at a time, but each
 // is met in turn, nearest first, and a bonk takes the team back from the
 // face, so none is ever carried past the team unjudged.
 function arrive(run: Run): Run {

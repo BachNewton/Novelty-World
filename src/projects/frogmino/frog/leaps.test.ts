@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { HELI_DECK_TOP } from "../heli/flight";
 import { FROG_THICKNESS } from "../run";
 import { DECK_LENGTH, DECK_TOP } from "../world/structures";
 import { FULL_TURN, dropPose, finishLeapPose, finishLeapSpin, gantryStand, leapProgress } from "./leaps";
@@ -15,10 +16,10 @@ describe("leapProgress", () => {
 });
 
 describe("the drop", () => {
-  const start = { fromDepth: -1, fromLevel: DECK_TOP };
+  const start = { fromDepth: -1, fromLevel: HELI_DECK_TOP };
 
   it("starts on the deck where the frog stood", () => {
-    expect(dropPose(start, 0.5, 0)).toEqual({ depth: -1, level: DECK_TOP, height: DECK_TOP, spin: 0 });
+    expect(dropPose(start, 0.5, 0)).toEqual({ depth: -1, level: HELI_DECK_TOP, height: HELI_DECK_TOP, spin: 0 });
   });
 
   it("lands on the road at the rules' depth", () => {
@@ -29,7 +30,7 @@ describe("the drop", () => {
   });
 
   it("leaps well up off the deck before it falls, and never turns", () => {
-    expect(Math.max(...STEPS.map((p) => dropPose(start, 0.5, p).height))).toBeGreaterThan(DECK_TOP + 1);
+    expect(Math.max(...STEPS.map((p) => dropPose(start, 0.5, p).height))).toBeGreaterThan(HELI_DECK_TOP + 1);
     STEPS.forEach((p) => {
       expect(dropPose(start, 0.5, p).spin).toBe(0);
     });

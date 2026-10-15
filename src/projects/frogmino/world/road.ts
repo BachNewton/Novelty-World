@@ -18,18 +18,27 @@ import {
 } from "./geometry";
 import { layByIn, layByKeepOut, layByProps, layBySurface, type LayBy } from "./lay-bys";
 import { RAIL_SEGMENT, propBoxes, type Prop, type PropKind } from "./props";
-import { FINISH_LINE, finishMarkings, finishZone, gantryBoxes, mark, overpassBoxes, structureKeepOuts } from "./structures";
+import { mark, structureKeepOuts } from "./structures";
 import type { WorldPaint } from "./paints";
 
 // The road never ends, either way: whichever way the camera goes, the road
 // around it is built from tiles, each laid out from the course seed and its
 // own index alone, so a tile comes back the same every time it is rebuilt.
+//
+// The road is laid out in its own frame. The course's frame (the rows and
+// the finish gantry) runs with it once the team has jumped out of the
+// helicopter, but until then the road goes by beneath the cruising
+// helicopter (see `heli/flight.ts`), so the gantry's place on the road is
+// passed in: the roadside keeps clear of it there.
 
 export interface WorldPlan {
   seed: number;
   courseLength: number;
   // How many lanes wide the road is.
   lanes: number;
+  // Where the finish gantry stands on the road: the course's length, less
+  // however far the road went by beneath the helicopter.
+  finishAt: number;
 }
 
 export const ROAD_TILE = 24;
@@ -113,21 +122,6 @@ function pick<T>(rng: Rng, weighted: readonly [T, number][]): T {
   return weighted[weighted.length - 1][0];
 }
 
-// What is left of near..far once the gaps are cut out of it.
-function cutGaps(near: number, far: number, gaps: readonly [number, number][]): [number, number][] {
-  let pieces: [number, number][] = [[near, far]];
-  for (const [g0, g1] of gaps) {
-    pieces = pieces.flatMap(([a, b]): [number, number][] => {
-      if (g1 <= a || g0 >= b) return [[a, b]];
-      return [
-        ...(g0 > a ? [[a, g0] as [number, number]] : []),
-        ...(g1 < b ? [[g1, b] as [number, number]] : []),
-      ];
-    });
-  }
-  return pieces;
-}
-
 function surfaceBox(x0: number, x1: number, top: number, near: number, far: number, paint: WorldPaint): WorldBox {
   return box([(x0 + x1) / 2, (top - GROUND_DROP) / 2, -(near + far) / 2], [x1 - x0, top + GROUND_DROP, far - near], paint);
 }
@@ -148,34 +142,29 @@ function roadSurfaces(lanes: number, near: number, far: number): WorldBox[] {
   return surfaces;
 }
 
+// The road's own paint: faint dashes between the lanes and solid edge lines.
+// The finish is painted over them in the course's frame (see
+// `finishMarkings`), a layer up.
 function roadMarkings(plan: WorldPlan, near: number, far: number): WorldBox[] {
-  const finish = finishZone(plan.courseLength);
   const marks: WorldBox[] = [];
-  // Faint dashes between the lanes, stopping for the finish.
   for (let lane = 1; lane < plan.lanes; lane++) {
     const x = ROAD_LEFT + lane;
     for (let n = Math.floor(near / DASH_PERIOD); n * DASH_PERIOD < far; n++) {
       const [d0, d1] = [n * DASH_PERIOD, n * DASH_PERIOD + DASH_LENGTH];
       if (d0 < near || d1 > far) continue;
-      if (d1 > finish.near && d0 < finish.far) continue;
       marks.push(mark(x, (d0 + d1) / 2, DASH_WIDTH, DASH_LENGTH, "lane-dash"));
     }
   }
-  // Solid edge lines, stopping for the chequered finish line painted from
-  // edge to edge.
-  const finishLine: [number, number] = [plan.courseLength + FINISH_LINE.near, plan.courseLength + FINISH_LINE.far];
   for (const side of ["left", "right"] as const) {
-    const x = sideX(plan.lanes, side, 0);
-    for (const [a, b] of cutGaps(near, far, [finishLine])) marks.push(mark(x, (a + b) / 2, EDGE_LINE_WIDTH, b - a, "edge-line"));
+    marks.push(mark(sideX(plan.lanes, side, 0), (near + far) / 2, EDGE_LINE_WIDTH, far - near, "edge-line"));
   }
-  if (plan.courseLength >= near && plan.courseLength < far) marks.push(...finishMarkings(plan.lanes, plan.courseLength));
   return marks;
 }
 
-// Where the roadside may not put anything: the road and the structures'
-// footprints.
+// Where the roadside may not put anything: the road and the finish gantry's
+// footprint.
 export function keepOuts(plan: WorldPlan, near: number, far: number): Area[] {
-  return [roadArea(plan.lanes, near - 1, far + 1), ...structureKeepOuts(plan.lanes, plan.courseLength)];
+  return [roadArea(plan.lanes, near - 1, far + 1), ...structureKeepOuts(plan.lanes, plan.finishAt)];
 }
 
 function allowed(boxes: readonly WorldBox[], blocked: readonly Area[]): boolean {
@@ -239,7 +228,7 @@ function placeProps(rng: Rng, lanes: number, near: number, far: number): Prop[] 
 
 export function roadTile(plan: WorldPlan, index: number): RoadTile {
   const [near, far] = [index * ROAD_TILE, (index + 1) * ROAD_TILE];
-  const layBy = layByIn(tileRng(plan.seed, "lay-by", index), plan.lanes, near, far, structureKeepOuts(plan.lanes, plan.courseLength));
+  const layBy = layByIn(tileRng(plan.seed, "lay-by", index), plan.lanes, near, far, structureKeepOuts(plan.lanes, plan.finishAt));
   const blocked = [...keepOuts(plan, near, far), ...(layBy === null ? [] : [layByKeepOut(plan.lanes, layBy)])];
   const props = placeProps(tileRng(plan.seed, "road", index), plan.lanes, near, far)
     .map(propBoxes)
@@ -251,13 +240,4 @@ export function roadTile(plan: WorldPlan, index: number): RoadTile {
     props: [...props, ...(layBy === null ? [] : layByProps(plan.lanes, layBy))],
     layBy,
   };
-}
-
-// The structures, when the road around the camera reaches them.
-export function structuresNear(plan: WorldPlan, tiles: readonly number[]): WorldBox[] {
-  const [near, far] = [tiles[0] * ROAD_TILE, (tiles[tiles.length - 1] + 1) * ROAD_TILE];
-  return [
-    ...(near <= 0 && far >= 0 ? overpassBoxes(plan.lanes) : []),
-    ...(near <= plan.courseLength && far >= plan.courseLength ? gantryBoxes(plan.lanes, plan.courseLength) : []),
-  ];
 }

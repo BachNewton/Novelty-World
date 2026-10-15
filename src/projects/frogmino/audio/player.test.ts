@@ -49,6 +49,16 @@ describe("vary", () => {
 });
 
 describe("SoundPlayer", () => {
+  it("keeps each voice's minimum gap apart, so one frog's sound never swallows its partner's", () => {
+    const output = fakeOutput();
+    const player = playerOn(output);
+    expect(player.play("hop", { voice: 0 })).toBe(true);
+    output.time = SOUNDS.hop.minGap / 2;
+    expect(player.play("hop", { voice: 1 })).toBe(true);
+    expect(player.play("hop", { voice: 0 })).toBe(false);
+    expect(player.play("hop", { voice: 1 })).toBe(false);
+  });
+
   it("drops a play sooner than the sound's minimum gap, on the audio clock", () => {
     const output = fakeOutput();
     const player = playerOn(output);

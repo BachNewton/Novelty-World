@@ -20,7 +20,7 @@ import type { Frog } from "../types";
 import { planShape, planTeam, type PlanStep, type TeamPose } from "./team-plan";
 
 // The solver proves a course can be beaten by finding an input log that takes
-// the team from the overpass through every row without a bonk, and over the
+// the team from the helicopter through every row without a bonk, and over the
 // finish line, and the proof is that log: the rules are a pure function of
 // the course and the log, so replaying it is the verification.
 //
@@ -86,7 +86,7 @@ export type ProofResult = { ok: true; proof: Proof } | { ok: false; stuck: Stuck
 // Ticks between the plan's actions, unless the options say otherwise.
 export const DEFAULT_SLOT = 14;
 
-// When the team drops off the overpass: a second in, so a watcher sees it
+// When the team jumps out of the helicopter: a second in, so a watcher sees it
 // start.
 const DROP_TICK = 100;
 // How long a run may wait for a row to go by before something is wrong.

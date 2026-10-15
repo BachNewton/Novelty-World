@@ -3,6 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { TETROMINOES, cellKey, frogCells, insideLanes, pieceSize, rectOpening as rect } from "./logic";
 import {
   FROG_THICKNESS,
+  aboard,
   applyAction,
   createRun,
   crossedFinish,
@@ -12,7 +13,6 @@ import {
   isDone,
   isRiding,
   nextWall,
-  onOverpass,
   overlappingSolids,
   placedFrog,
   applyInput,
@@ -20,6 +20,7 @@ import {
   pressHeld,
   releaseHeld,
   replay,
+  sinceJump,
   type FrogAction,
   type PlacedFrog,
   type PlayerInput,
@@ -157,10 +158,10 @@ function act(run: Run, ...actions: FrogAction[]): Run {
 }
 
 describe("a run", () => {
-  it("starts with the frog centred on the overpass, out of play, and the stream's rows where their gaps put them", () => {
+  it("starts with the frog centred aboard the helicopter, out of play, and the stream's rows where their gaps put them", () => {
     const run = createRun(rowsOf([{ opening: FITS, depth: 12 }, { opening: FITS, depth: 30 }]), TEST_TUNING);
     expect(placedFrog(run, 0)).toMatchObject({ col: 2, rotation: 0, depth: 0 });
-    expect(onOverpass(run)).toBe(true);
+    expect(aboard(run)).toBe(true);
     expect(inPlay(run)).toBe(false);
     expect(run.walls.slice(0, 2).map((w) => w.depth)).toEqual([12, 30]);
     expect(run.lastBonk).toBeNull();
@@ -180,6 +181,7 @@ describe("a run", () => {
     expect(() => createRun(NO_TRAFFIC, { ...TEST_TUNING, wallSpacing: 5 })).toThrow();
     expect(() => createRun(NO_TRAFFIC, { ...TEST_TUNING, bonkKnockback: 0 })).toThrow();
     expect(() => createRun(NO_TRAFFIC, { ...TEST_TUNING, holdRepeatInterval: 0 })).toThrow();
+    expect(() => createRun(NO_TRAFFIC, { ...TEST_TUNING, firstWallDepth: TEST_TUNING.dropDistance })).toThrow(/beyond where the drop lands/);
     expect(() => createRun(NO_TRAFFIC, TUNING)).not.toThrow();
   });
 
@@ -857,11 +859,11 @@ describe("a held slide", () => {
     }
   });
 
-  it("keeps repeating at the corridor edge, and on the overpass", () => {
-    // From column 2 on the overpass: 1 on the press, 0 at 0.25 s, then the
-    // edge refuses it, and the key is still held.
+  it("keeps repeating at the corridor edge, and aboard the helicopter", () => {
+    // From column 2 aboard: 1 on the press, 0 at 0.25 s, then the edge
+    // refuses it, and the key is still held.
     const run = advanceBy(pressHeld(createRun(NO_TRAFFIC, TEST_TUNING), "left"), 0.6);
-    expect(onOverpass(run)).toBe(true);
+    expect(aboard(run)).toBe(true);
     expect(run.frogs[0].col).toBe(0);
     expect(run.holds.map((hold) => hold.action)).toEqual(["left"]);
     expect(advanceBy(releaseHeld(run, "left"), 1).frogs[0].col).toBe(0);
@@ -967,17 +969,17 @@ describe("the finish", () => {
   });
 });
 
-describe("the overpass", () => {
+describe("the helicopter", () => {
   // A drop four jumps long, whose leap takes half a second.
   const tuning: Tuning = { ...TEST_TUNING, dropDistance: 4, dropDuration: 0.5 };
   const start = (walls: readonly TestWall[] = []): Run => createRun(walls.length === 0 ? NO_TRAFFIC : rowsOf(walls), tuning);
 
-  it("holds the frog out of play: the traffic goes by beneath, unjudged", () => {
-    const run = advanceBy(start([{ opening: [], depth: 2 }]), 5);
-    expect(onOverpass(run)).toBe(true);
-    expect(run.walls[0].passed).toBe(true);
+  it("holds the frog out of play, and the traffic still relative to it, for as long as it waits aboard", () => {
+    const fresh = start([{ opening: [], depth: 6 }, { opening: [], depth: 20 }]);
+    const run = advanceBy(fresh, 30);
+    expect(aboard(run)).toBe(true);
+    expect(run.walls).toEqual(fresh.walls);
     expect(run.lastBonk).toBeNull();
-    expect(run.passes).toBe(0);
     expect(run.depth).toBe(0);
   });
 
@@ -988,55 +990,30 @@ describe("the overpass", () => {
     for (const action of ["hop", "back"] as const) expect(applyAction(run, action)).toBe(run);
   });
 
-  it("drops the frog onto the road with its first jump forward, the drop distance ahead, into play", () => {
-    const run = advanceBy(start(), 0.5);
+  it("jumps the frog out onto the road with its first jump forward, the drop distance ahead, into play, and sets the traffic going", () => {
+    const run = advanceBy(start([{ opening: FITS, depth: 6 }]), 0.5);
     const dropped = applyAction(run, "forward");
     expect(at(dropped.droppedAt)).toBeCloseTo(0.5);
     expect(inPlay(dropped)).toBe(true);
     expect(dropped.depth).toBe(4);
-    // A held jump drops, and keeps jumping along the road once the leap lands.
+    // The row comes on from where it stood, a unit a second.
+    expect(advanceBy(dropped, 1).walls[0].depth).toBeCloseTo(5);
+    // A held jump jumps out, and keeps jumping along the road once the leap lands.
     const held = pressHeld(start(), "forward");
     expect(advanceBy(held, 0.3).depth).toBe(4);
     expect(advanceBy(held, 0.6).depth).toBe(5);
   });
 
-  it("has no way back up: once dropped, a jump back goes along the road behind the start", () => {
+  it("has no way back up: once out, a jump back goes along the road behind the start", () => {
     const run = act(start(), "forward", "back", "back", "back", "back", "back", "back");
     expect(run.droppedAt).toBe(0);
-    expect(onOverpass(run)).toBe(false);
+    expect(aboard(run)).toBe(false);
     expect(run.depth).toBe(-2);
   });
 
-  it("flies over the rows between, which go by beneath it unjudged", () => {
-    const run = applyAction(start([{ opening: [], depth: 2 }]), "forward");
-    expect(run.depth).toBe(4);
-    expect(run.walls[0].passed).toBe(true);
-    expect(run.lastBonk).toBeNull();
-    expect(run.passes).toBe(0);
-  });
-
-  it("refuses a drop onto a vehicle going by beneath, and lets one into a gap in it", () => {
-    // A long row, flown over, still beneath where the frog would land.
-    const under = advanceBy(start([{ opening: BLOCKED, depth: 1.5, length: 5 }]), 1);
-    expect(applyAction(under, "forward")).toBe(under);
-    const gap = applyAction(advanceBy(start([{ opening: FITS, depth: 1.5, length: 5 }]), 1), "forward");
-    expect(inPlay(gap)).toBe(true);
-    expect(gap.depth).toBe(4);
-    expect(gap.lastBonk).toBeNull();
-    // One gone under the deck before the drop, likewise.
-    const gone = advanceBy(start([{ opening: BLOCKED, depth: 0.5, length: 6 }]), 1);
-    expect(gone.walls[0].passed).toBe(true);
-    expect(applyAction(gone, "forward")).toBe(gone);
-  });
-
-  it("judges a row whose face the leap's last jump lands on, like any jump forward", () => {
-    const bonked = applyAction(advanceBy(start([{ opening: BLOCKED, depth: 4.5 }]), 1), "forward");
-    expect(bonked.lastBonk?.depth).toBeCloseTo(3.5);
-    expect(bonked.depth).toBeCloseTo(0.5);
-    expect(inPlay(bonked)).toBe(true);
-    const passed = applyAction(advanceBy(start([{ opening: FITS, depth: 4.5 }]), 1), "forward");
-    expect(passed.passes).toBe(1);
-    expect(passed.depth).toBe(4);
+  it("fails loudly on a row standing between the deck and the landing", () => {
+    expect(() => applyAction(start([{ opening: FITS, depth: 4 }]), "forward")).toThrow(/between the deck and the landing/);
+    expect(applyAction(start([{ opening: FITS, depth: 4.5 }]), "forward").depth).toBe(4);
   });
 });
 
@@ -1301,14 +1278,14 @@ const SPLASH: Frog = { kind: "J", col: 4, rotation: 0, height: 0 };
 const PAIR = [SPROUT, SPLASH];
 
 describe("a team of frogs", () => {
-  it("starts each frog on the overpass in the middle of its own share of the road, side by side", () => {
+  it("starts each frog aboard the helicopter in the middle of its own share of the road, side by side", () => {
     const run = createRun(NO_TRAFFIC, TEST_TUNING, { kinds: ["L", "J"] });
     expect(run.frogs).toEqual([
       { kind: "L", col: 0, rotation: 0, height: 0, latestHop: null },
       { kind: "J", col: 3, rotation: 0, height: 0, latestHop: null },
     ]);
     expect(run.depth).toBe(0);
-    expect(onOverpass(run)).toBe(true);
+    expect(aboard(run)).toBe(true);
     // A piece too wide for its share starts in its first rotation that fits.
     expect(createRun(NO_TRAFFIC, TEST_TUNING, { kinds: ["I", "I"] }).frogs.map(({ col, rotation }) => ({ col, rotation }))).toEqual([
       { col: 1, rotation: 1 },
@@ -1325,7 +1302,7 @@ describe("a team of frogs", () => {
     for (const player of [2, -1, 0.5]) expect(() => applyInput(run, { tick: 0, player, input: left })).toThrow();
   });
 
-  it("keeps the frogs out of each other's cells as they slide, on the overpass as on the road", () => {
+  it("keeps the frogs out of each other's cells as they slide, aboard as on the road", () => {
     let run = createRun(NO_TRAFFIC, TEST_TUNING, { kinds: ["L", "J"] });
     // The L's raised end would land on the J's foot, and the J's raised end
     // on the L's.
@@ -1496,18 +1473,15 @@ describe("a team of frogs", () => {
     expect(landsAt(run)).toBeCloseTo(0.5);
   });
 
-  it("drops off the overpass together, refused if any frog would land in a vehicle", () => {
+  it("jumps out of the helicopter together, on either player's jump forward", () => {
     const tuning: Tuning = { ...TEST_TUNING, dropDistance: 4, dropDuration: 0.5 };
-    const start = (opening: Opening): Run =>
-      advanceBy(createRun(rowsOf([{ opening, depth: 1.5, length: 5 }]), tuning, { kinds: ["L", "J"] }), 1);
-    // A long row going by beneath, open only under the L.
-    const underJ = start(rect([0, 2], [0, 1]));
-    expect(by(underJ, 0, "forward")).toBe(underJ);
-    expect(by(underJ, 1, "forward")).toBe(underJ);
-    const dropped = by(start(rect([0, 5], [0, 1])), 1, "forward");
-    expect(inPlay(dropped)).toBe(true);
-    expect(dropped.depth).toBe(4);
-    expect(dropped.frogs.map((frog) => frog.col)).toEqual([0, 3]);
+    const start = advanceBy(createRun(NO_TRAFFIC, tuning, { kinds: ["L", "J"] }), 1);
+    for (const player of [0, 1]) {
+      const dropped = by(start, player, "forward");
+      expect(inPlay(dropped)).toBe(true);
+      expect(dropped.depth).toBe(4);
+      expect(dropped.frogs.map((frog) => frog.col)).toEqual([0, 3]);
+    }
   });
 
   it("crosses the finish together as the shared depth reaches the line, bringing every frog down", () => {
@@ -1738,5 +1712,34 @@ describe("a team's rules' clock", () => {
     expect(replayInChunks(log, end, () => 1)).toEqual(run);
     expect(replayInChunks(log, end, () => toTicks(TUNING.maxFrameDelta))).toEqual(run);
     expect(replayInChunks(log, end, (call) => (call % 7 === 6 ? 900 : 1 + Math.floor(uneven() * 30)))).toEqual(run);
+  }, RANDOM_PLAY_TIMEOUT);
+
+  it("counts the course from the jump out: waiting aboard longer plays the same run from the jump on, tick for tick", () => {
+    const { run: played, log } = playTeamByInputs(21);
+    const jump = played.droppedAt;
+    if (jump === null) throw new Error("The play never jumped out");
+    // The team lined up aboard before it jumped.
+    expect(log.some((input) => input.tick < jump)).toBe(true);
+    const end = played.tick;
+    const later = (input: TimedInput, wait: number): TimedInput => ({ ...input, tick: input.tick + wait });
+    // The same team waiting longer before anything at all, and lining up as
+    // before but waiting longer to jump.
+    const variants = [337, 1201].flatMap((wait) => [
+      { wait, log: log.map((input) => later(input, wait)) },
+      { wait, log: log.map((input) => (input.tick < jump ? input : later(input, wait))) },
+    ]);
+    // No slide is held over the jump, so the team stands at the jump the
+    // same however long it waits.
+    expect(replay(fresh(), log, jump).holds.filter((hold) => hold.action === "left" || hold.action === "right")).toEqual([]);
+    for (const variant of variants) {
+      let a = replay(fresh(), log, jump);
+      let b = replay(fresh(), variant.log, jump + variant.wait);
+      expect(sinceJump(b)).toEqual(sinceJump(a));
+      while (a.tick < end) {
+        a = playTo(a, a.tick + 1, log);
+        b = playTo(b, b.tick + 1, variant.log);
+        expect(sinceJump(b)).toEqual(sinceJump(a));
+      }
+    }
   }, RANDOM_PLAY_TIMEOUT);
 });

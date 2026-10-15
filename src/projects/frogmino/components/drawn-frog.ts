@@ -3,9 +3,9 @@ import { glide, moveDuration, moveHopLift, moveProgress } from "../frog/moves";
 import { frogCells, pieceSize } from "../logic";
 import {
   FROG_THICKNESS,
+  aboard,
   frogShape,
   inPlay,
-  onOverpass,
   placedFrog,
   type Bonk,
   type PlacedFrog,
@@ -15,7 +15,7 @@ import {
 import { toSeconds } from "../ticks";
 import { keepsClear } from "../traffic";
 import type { Rotation, Solid } from "../types";
-import { DECK_TOP } from "../world/structures";
+import { HELI_DECK_TOP } from "../heli/flight";
 
 // The drawn frog keeps time on the drawing's clock, in seconds: the rules'
 // time, and on into the tick under way (see `ticks.ts`), so its glides and
@@ -27,8 +27,8 @@ export interface BonkMotion {
   startedAt: number;
 }
 
-// A jump off one level onto another, drawn over its own time: the drop from
-// the overpass and the leap onto the finish gantry.
+// A jump off one level onto another, drawn over its own time: the jump out
+// of the helicopter and the leap onto the finish gantry.
 export interface Leap extends LeapStart {
   startedAt: number;
   landed: boolean;
@@ -68,7 +68,8 @@ export interface DrawnFrog {
   x: number;
   y: number;
   depth: number;
-  // The ground under the frog: the overpass's deck, the road or the gantry's.
+  // The ground under the frog: the helicopter's deck (at rest, not bobbing),
+  // the road or the gantry's deck.
   level: number;
   // How far the drawn frog still has to swing to reach the rule rotation,
   // which the frog is already drawn in.
@@ -113,7 +114,7 @@ export function snapped(run: Run, player: number): DrawnFrog {
     ...frogTarget(frog),
     player,
     rotation: frog.rotation,
-    level: onOverpass(run) ? DECK_TOP : 0,
+    level: aboard(run) ? HELI_DECK_TOP : 0,
     swing: 0,
     lift: frog.height,
     vertical: null,

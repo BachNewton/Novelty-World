@@ -1,17 +1,16 @@
 import type { PartShape, Vec3 } from "../vehicles/parts";
 import { LAYER } from "../vehicles/parts";
 
-// An art prototype (`?heli`): a helicopter to start a course from instead of
-// the overpass, carrying the two frogs side by side across the whole road and
-// dropping them onto it. Nothing in the game uses it yet.
+// The helicopter every course starts from, carrying the two frogs side by
+// side across the whole road and dropping them onto it (see `flight.ts`).
 //
 // The Lily Lifter is a twin-fuselage heavy lifter: an open deck spans the
-// road, as the overpass's does, and everything else, the two fuselages, their
+// road, and everything else, the two fuselages, their
 // rotors, tails and skids, flies beside the road on short wings. The gameplay
 // camera rides over the middle of the road, so a ray from it through anything
 // beyond the road's edges only ever meets the ground further out: nothing but
-// the deck can hide a lane, a vehicle or a frog. The deck is as deep as the
-// overpass's and as low as it can be while the traffic clears it.
+// the deck can hide a lane, a vehicle or a frog. The deck is three cells deep
+// and as low as it can be while the traffic clears it.
 //
 // It is built in its own frame: x across the road in lanes, as the scene's,
 // so lane k is centred on x = k; y up from the deck's top, where the frogs
@@ -51,8 +50,8 @@ export interface HeliModel {
   rotors: Rotor[];
 }
 
-// The deck: as deep along the road as the overpass's, and thick enough to be
-// the wing spar it hangs from.
+// The deck: three cells deep along the road, and thick enough to be the wing
+// spar it hangs from.
 export const DECK_HALF_LENGTH = 1.5;
 export const DECK_THICKNESS = 0.6;
 // The striped lip along the deck's front edge, the edge the frogs jump from.

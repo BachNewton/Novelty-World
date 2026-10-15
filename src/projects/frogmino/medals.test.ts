@@ -18,14 +18,14 @@ function emptyRun(): Run {
 }
 
 describe("the run's clock", () => {
-  it("doesn't start while the team lines up on the overpass", () => {
+  it("doesn't start while the team lines up aboard the helicopter", () => {
     let run = playTo(emptyRun(), 300);
     run = applyAction(applyAction(run, "left"), "rotateCw");
     run = playTo(run, 450);
     expect(runTime(run)).toBe(0);
   });
 
-  it("starts as the team drops off the overpass, and counts the rules' ticks from there", () => {
+  it("starts as the team jumps out of the helicopter, and counts the rules' ticks from there", () => {
     const dropped = applyAction(playTo(emptyRun(), 250), "forward");
     expect(dropped.droppedAt).toBe(250);
     expect(runTime(dropped)).toBe(0);

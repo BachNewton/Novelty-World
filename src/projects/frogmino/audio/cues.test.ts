@@ -5,6 +5,9 @@ import { toTicks } from "../ticks";
 import { TUNING } from "../tuning";
 import type { Cell } from "../types";
 import { soundCues, type GameMoment, type SoundCue } from "./cues";
+import { SoundPlayer } from "./player";
+import { DEFAULT_SOUND_SETTINGS } from "./settings";
+import { SOUNDS, type SoundId } from "./sounds";
 
 // Two ticks a frame.
 const FRAME = 0.02;
@@ -79,16 +82,33 @@ describe("soundCues", () => {
     expect(hearFrames(hopping)).toEqual([]);
   });
 
-  it("sounds each new hop of a stacked pair, the double jump's too, and none for a frog carried up", () => {
+  it("sounds each new hop of a stacked pair in the hopper's voice, the double jump's too, and none for a frog carried up", () => {
     // Sprout's flat I with Splash's O standing on it.
     const start = applyAction(createRun(NOTHING, TUNING, { kinds: ["I", "O"], lanes: 10 }), "forward");
     const stacked: Run = { ...start, frogs: [{ ...start.frogs[0], col: 0, rotation: 0 }, { ...start.frogs[1], col: 1, height: 1 }] };
     const carrying = applyAction(stacked, "hop", 0);
     expect(carrying.frogs.map((frog) => frog.height)).toEqual([1, 2]);
-    expect(soundsOf(soundCues({ run: stacked, runId: 0 }, { run: carrying, runId: 0 }, 0).cues)).toEqual(["hop"]);
+    expect(soundCues({ run: stacked, runId: 0 }, { run: carrying, runId: 0 }, 0).cues).toEqual([{ sound: "hop", voice: 0 }]);
     const doubled = applyAction(carrying, "hop", 1);
     expect(doubled.frogs.map((frog) => frog.height)).toEqual([1, 3]);
-    expect(soundsOf(soundCues({ run: carrying, runId: 0 }, { run: doubled, runId: 0 }, 0).cues)).toEqual(["hop"]);
+    expect(soundCues({ run: carrying, runId: 0 }, { run: doubled, runId: 0 }, 0).cues).toEqual([{ sound: "hop", voice: 1 }]);
+  });
+
+  it("sounds both frogs' hops when the partners hop together, each in its own voice, and the player hears both", () => {
+    const start = applyAction(createRun(NOTHING, TUNING, { kinds: ["L", "J"] }), "forward");
+    const both = applyAction(applyAction(start, "hop", 0), "hop", 1);
+    const cues = soundCues({ run: start, runId: 0 }, { run: both, runId: 0 }, 0).cues;
+    expect(cues).toEqual([
+      { sound: "hop", voice: 0 },
+      { sound: "hop", voice: 1 },
+    ]);
+    // Within the hop's minimum gap of each other, both still play.
+    const output = { time: 0, played: [] as SoundId[], now: () => output.time, play: (id: SoundId) => output.played.push(id) };
+    const player = new SoundPlayer(output, () => DEFAULT_SOUND_SETTINGS, () => 0.5);
+    for (const cue of cues) player.play(cue.sound, { voice: cue.voice });
+    output.time = SOUNDS.hop.minGap / 2;
+    expect(player.play("hop", { voice: 1 })).toBe(false);
+    expect(output.played).toEqual(["hop", "hop"]);
   });
 
   it("climbs the scale on clean passes in a row, and a bonk starts it over", () => {
@@ -107,7 +127,7 @@ describe("soundCues", () => {
     expect(soundCues({ run: finished, runId: 0 }, { run: fresh, runId: 1 }, 5)).toEqual({ cues: [], streak: 0 });
   });
 
-  it("sounds the drop once, as the frog leaves the overpass", () => {
+  it("sounds the drop once, as the team jumps out of the helicopter", () => {
     const up = createRun(openOrSolid(true), TUNING);
     const dropped = applyAction(up, "forward");
     expect(soundsOf(soundCues({ run: up, runId: 0 }, { run: dropped, runId: 0 }, 0).cues)).toEqual(["drop"]);
@@ -115,7 +135,7 @@ describe("soundCues", () => {
     expect(soundsOf(hearFrames(pressHeld(dropped, "forward"), 3))).not.toContain("drop");
   });
 
-  it("is silent while rows go by beneath the frog on the overpass", () => {
+  it("is silent while the team waits aboard the helicopter", () => {
     expect(hearFrames(createRun(openOrSolid(false), TUNING))).toEqual([]);
   });
 

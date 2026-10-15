@@ -71,7 +71,7 @@ export function passingPoses(row: Row, lanes: number, kinds: readonly TetrominoK
   return place([], new Set());
 }
 
-// The frogs as they wait on the overpass, where the rules start them: each
+// The frogs as they wait aboard the helicopter, where the rules start them: each
 // in the middle of its own share of the road.
 export function startPoses(lanes: number, kinds: readonly TetrominoKind[]): Frog[] {
   return startPlacements(kinds, lanes).map((placement, i) => ({ kind: kinds[i], ...placement, height: 0 }));

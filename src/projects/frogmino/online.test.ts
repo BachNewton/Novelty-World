@@ -4,7 +4,7 @@ import { GUEST_SLOT, HOST_SLOT, parseGuestMessage, parseHostMessage, type GuestM
 import { courseOf, type CourseSpec } from "./courses";
 import { CONFIRM_TICKS, guestSession, hostSession, REWIND_WINDOW, type GuestSession, type HostSession, type OnlineEvents } from "./online";
 import { runHash } from "./rollback";
-import { replay, type FrogAction, type HeldAction, type PlayerInput } from "./run";
+import { replay, sinceJump, type FrogAction, type HeldAction, type PlayerInput, type Run } from "./run";
 import { freshRun } from "./session";
 import { TUNING, type Tuning } from "./tuning";
 
@@ -241,11 +241,39 @@ describe("online co-op over a simulated network", () => {
         guest: { onDesync: (d) => desyncs.push(`guest ${String(d.tick)}`) },
       },
     });
-    // The first confirmation, of tick 50, goes at the host's tick 100.
-    sim.play(150);
-    expect(desyncs).toEqual(["guest 50", "host 50 0"]);
+    // The traffic drives only once the team has jumped out, which the host
+    // does at once. The first confirmation, of tick 50, goes at the host's
+    // tick 100.
+    sim.play(1);
+    sim.host.input(HOST_SLOT, { kind: "act", action: "forward" });
+    sim.play(149);
+    expect(desyncs).toEqual(["guest 50", "host 50 1"]);
     expect(errors).toHaveBeenCalledTimes(2);
     errors.mockRestore();
+  });
+
+  it("plays the course from the jump out, however long after the host the guest started", () => {
+    // The guest starts as the start message reaches it, well after the
+    // host's tick 0, and jumps the team out once it has caught up.
+    const sim = pair({ seed: "late-start", link: { delay: 40, jitter: 5 } });
+    sim.play(160);
+    sim.guest.input(GUEST_SLOT, { kind: "act", action: "forward" });
+    sim.play(900, 0.04);
+    sim.settle();
+    expectConverged(sim);
+    const { run, log } = sim.host.store.getState();
+    const jump = run.droppedAt;
+    if (jump === null) throw new Error("The team never jumped out");
+    expect(jump).toBeGreaterThan(40);
+    // The same inputs with the jump at the host's very first tick play the
+    // same run from the jump on.
+    const atOnce = log.map((input) => ({ ...input, tick: input.tick - jump }));
+    const counted = (from: Run): number => {
+      const since = sinceJump(from);
+      if (since === null) throw new Error("The team never jumped out");
+      return runHash(since);
+    };
+    expect(counted(replayed(SPEC, atOnce, run.tick - jump))).toBe(counted(run));
   });
 
   it("refuses an input for the partner's frog", () => {

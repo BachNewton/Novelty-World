@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { dropPose, leapProgress } from "../frog/leaps";
 import { frogCells } from "../logic";
+import { FROG_THICKNESS } from "../run";
 import { TUNING } from "../tuning";
 import { LAYER, type Vec3 } from "../vehicles/parts";
-import { VEHICLES } from "../vehicles";
 import { faceClashes, spanning } from "../world/coplanar";
-import { PREVIEW_PIECES, PREVIEW_ROWS, startPoses } from "../world/preview-rows";
+import { PREVIEW_PIECES, startPoses } from "../world/preview-rows";
 import { HEADROOM, VEHICLE_TOP } from "../world/structures";
-import { BOB, HELI_DECK_TOP, aboardFrogDepth, cruiseDepth, frogLeap, heliPose, rowAhead } from "./flight";
+import { BOB, DECK_CENTRE, HELI_DECK_TOP, heliPose, roadCruise } from "./flight";
 import { DECK_HALF_LENGTH, DECK_THICKNESS, RAIL_TOP, heliModel, type HeliPart, type Rotor } from "./model";
 
 const LANES = 10;
@@ -33,7 +34,7 @@ describe("the Lily Lifter", () => {
     });
   });
 
-  it("carries the traffic clear under its deck, with the overpass's headroom, as it bobs", () => {
+  it("carries the traffic clear under its deck, with the finish gantry's headroom, as it bobs", () => {
     expect(HELI_DECK_TOP - BOB - DECK_THICKNESS).toBeGreaterThanOrEqual(VEHICLE_TOP + HEADROOM - EPSILON);
   });
 
@@ -59,10 +60,10 @@ describe("the Lily Lifter", () => {
         expect(col).toBeLessThan(((i + 1) * LANES) / 2);
       });
     });
-    // The frogs are a cell deep, centred on the deck.
-    const front = aboardFrogDepth(0);
-    expect(front).toBeLessThanOrEqual(DECK_HALF_LENGTH);
-    expect(front - 1).toBeGreaterThanOrEqual(-DECK_HALF_LENGTH);
+    // The frogs are a cell deep, their fronts on the start, centred on the
+    // deck.
+    expect(0 - DECK_CENTRE).toBeLessThanOrEqual(DECK_HALF_LENGTH);
+    expect(0 - FROG_THICKNESS - DECK_CENTRE).toBeGreaterThanOrEqual(-DECK_HALF_LENGTH);
   });
 
   it("lays no two faces of different paints in one plane", () => {
@@ -81,22 +82,14 @@ describe("the Lily Lifter", () => {
 });
 
 describe("the flight", () => {
-  const START = -1000;
-  const rows = [...PREVIEW_ROWS[10], ...PREVIEW_ROWS[10]];
-  const rowLength = (i: number) => Math.max(...rows[i].map((v) => VEHICLES[v.id].length));
+  const middle = (LANES - 1) / 2;
 
-  it("lands the frogs in a gap in the traffic, with a reading room before the next row, whenever they jump", () => {
-    for (const jumpedAt of [0, 1.3, 7.9, 30]) {
-      const from = aboardFrogDepth(cruiseDepth(START, jumpedAt));
-      const landing = frogLeap(from, HELI_DECK_TOP, TUNING.dropDuration);
-      const landedAt = jumpedAt + TUNING.dropDuration;
-      const ahead = rows.map((_, i) => rowAhead(i, rows.length, landedAt, START, landing.depth));
-      rows.forEach((_, i) => {
-        // Either wholly behind the frogs' backs, or its front ahead of theirs.
-        const clear = ahead[i] + rowLength(i) < -1 || ahead[i] > 0;
-        expect(clear).toBe(true);
-      });
-      expect(Math.min(...ahead.filter((a) => a > 0))).toBeGreaterThanOrEqual(5);
+  it("holds still over the start while the team is aboard, bobbing, as the road goes by beneath until the jump", () => {
+    for (const time of [0, 1.3, 7.9, 30]) {
+      expect(heliPose(middle, time, null)).toMatchObject({ x: middle, depth: DECK_CENTRE, yaw: 0 });
+      expect(Math.abs(heliPose(middle, time, null).y - HELI_DECK_TOP)).toBeLessThanOrEqual(BOB);
+      expect(roadCruise(time, null)).toBeCloseTo(TUNING.wallSpeed * time);
+      expect(roadCruise(time + 5, time)).toBeCloseTo(TUNING.wallSpeed * time);
     }
   });
 
@@ -110,14 +103,13 @@ describe("the flight", () => {
         [r.centre[0] + r.radius, 0, r.centre[2] + r.radius] as Vec3,
       ]),
     ];
-    const middle = (LANES - 1) / 2;
     const reach = Math.max(...corners.map(([x, , z]) => Math.hypot(Math.abs(x - middle) + 0.5, Math.abs(z) + 0.5)));
     const jumpedAt = 4;
-    const from = aboardFrogDepth(cruiseDepth(START, jumpedAt));
-    const camera = frogLeap(from, HELI_DECK_TOP, TUNING.dropDuration).depth - TUNING.cameraFollow;
+    const landing = dropPose({ fromDepth: 0, fromLevel: HELI_DECK_TOP }, TUNING.dropDistance, leapProgress(1, 1));
+    const camera = landing.depth - TUNING.cameraFollow;
     let ahead = 0;
     for (let s = 0; s < 12; s += 0.05) {
-      const pose = heliPose(START, middle, jumpedAt + s, jumpedAt);
+      const pose = heliPose(middle, jumpedAt + s, jumpedAt);
       if (pose.depth - reach > camera) {
         ahead++;
         expect(pose.x - reach).toBeGreaterThan(ROAD_RIGHT);
