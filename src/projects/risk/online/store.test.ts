@@ -3,11 +3,10 @@ import type { GameIo } from "./client";
 import type { Request } from "./protocol";
 import { drive, handle } from "./server";
 import { createOnlineStore } from "./store";
-import { stubEngine } from "./stub-engine";
+import { ENGINE } from "../play-engine";
 import type { GameRow } from "./table";
 import { memoryStore, testDeps } from "./testing";
 
-const ENGINE = stubEngine;
 const ALICE = { id: "alice", name: "Alice" };
 
 /** The real server logic over a memory database, as the phone's IO, with each call recorded. */

@@ -10,14 +10,16 @@ import type { Move } from "../contract";
 import { BOTS } from "./bots";
 import type { Response } from "./protocol";
 import { browserIo } from "./client";
-import { ENGINE } from "./engine";
+import { ENGINE } from "../play-engine";
 import { browserWake, createOnlineStore, type OnlineSnapshot, type OnlineStore } from "./store";
 import { MAX_PLAYERS, MIN_PLAYERS } from "./table";
 
-/** What the game screen is given: the game as this player sees it, and how to move. */
+/** What the game screen is given: the game as this player sees it, how to move, and how to
+ *  leave the table. */
 export interface OnlineGameProps {
   snapshot: OnlineSnapshot;
   act: (move: Move) => void;
+  onLeave: () => void;
 }
 
 /** One online game, connected while the component is mounted. */
@@ -56,9 +58,9 @@ function navigate(id: string | null) {
  * Risk online: create a game or join one by its code, gather the table
  * (people and bots, 3 to 6 seats), start, then play on `Game`. The game's
  * code lives in the URL (`?game=`), so a reload or a shared link comes back
- * to the same table.
+ * to the same table. `actions` go on the lobby beside creating and joining.
  */
-export function RiskOnline({ Game }: { Game: ComponentType<OnlineGameProps> }) {
+export function RiskOnline({ Game, actions }: { Game: ComponentType<OnlineGameProps>; actions?: ReactNode }) {
   const gameId = useSyncExternalStore(subscribeNav, readGameParam, () => null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -87,6 +89,7 @@ export function RiskOnline({ Game }: { Game: ComponentType<OnlineGameProps> }) {
       onCreate={() => enter(() => browserIo.post({ op: "create", profile: useProfile.getState() }))}
       onJoin={(code) => enter(() => browserIo.post({ op: "join", game: code, profile: useProfile.getState() }))}
       notice={notice}
+      actions={actions}
     />
   );
 }
@@ -104,7 +107,7 @@ function Table({ id, Game }: { id: string; Game: ComponentType<OnlineGameProps> 
       </Centered>
     );
   }
-  if (table.status !== "lobby") return <Game snapshot={snapshot} act={store.act} />;
+  if (table.status !== "lobby") return <Game snapshot={snapshot} act={store.act} onLeave={() => navigate(null)} />;
 
   const seated = snapshot.seat !== null;
   const full = table.seats.length >= MAX_PLAYERS;

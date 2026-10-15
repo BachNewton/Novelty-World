@@ -21,7 +21,7 @@ import { BUTTON, DISPLAY, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
 import { useRiskInput, type FocusZone } from "./use-risk-input";
 
 /** What the game screen plays: the game as the seat at the device sees it, and how to move. A
- *  local game (`use-local-game.ts`) and an online one both give it this. */
+ *  local game (`use-local-game.ts`) and an online one (`use-online-feed.ts`) both give it this. */
 export interface GameFeed {
   view: GameView;
   /** The seat's choices, or null while it waits on someone else. */
@@ -35,6 +35,9 @@ export interface GameFeed {
   act: (move: Move) => void;
   /** A move the engine or server refused, or a connection problem, in words. */
   problem: string | null;
+  /** Who plays each seat, online, where each player has a seat of their own (`view.viewer`). A
+   *  game passed round one device has none: the seat shown is whoever's turn it is. */
+  players?: readonly string[];
 }
 
 type Dialog = { kind: "cards" } | { kind: "menu" } | { kind: "log" } | { kind: "why"; rule: string } | null;
@@ -185,6 +188,8 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
 
   const why = (rule: string) => setDialog({ kind: "why", rule });
   const active = view.active;
+  const { players } = feed;
+  const you = players ? view.viewer : null;
 
   return (
     <div
@@ -196,6 +201,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
         <h1 className={cn(DISPLAY, "hidden text-[1.3em] text-(--rk-brass) sm:block")}>Risk</h1>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-[0.6em] gap-y-[0.1em]">
           {view.phase !== "game-over" && <SeatName seat={active} className="text-[1.1em]" />}
+          {view.phase !== "game-over" && players && <span className="truncate">{active === you ? "you" : players[active]}</span>}
           <span className="text-(--rk-muted)">
             {phaseName(view.phase)}
             {view.turn > 0 && view.phase !== "game-over" && ` · turn ${view.turn}`}
@@ -216,6 +222,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
           return (
             <li key={seat} className={cn("inline-flex items-center gap-[0.25em] tabular-nums", s.eliminated && "line-through opacity-40", seat === active && "font-bold text-(--rk-brass-bright)")}>
               <SeatMark seat={seat} />
+              {seat === you && <span className="font-bold">you</span>}
               {s.territories}
               <span className="text-(--rk-muted)">/{s.armies}</span>
             </li>
@@ -278,6 +285,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
                     <tr key={seat} className={cn(s.eliminated && "line-through opacity-40", seat === active && "text-(--rk-brass-bright)")}>
                       <td>
                         <SeatName seat={seat} />
+                        {players && <span className="block max-w-[10em] truncate text-[0.85em] text-(--rk-muted)">{seat === you ? "you" : players[seat]}</span>}
                       </td>
                       <td className="text-right">{s.territories}</td>
                       <td className="text-right">{s.armies}</td>

@@ -1,14 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Answer, Move, RiskEngine } from "../contract";
+import type { Answer, Move } from "../contract";
 import { BOTS } from "./bots";
 import { replay, STALE_DECISION } from "./game";
 import type { Request } from "./protocol";
 import { COMMIT_ATTEMPTS, commit, drive, DRIVE_DECISIONS, handle, type ServerDeps } from "./server";
-import { stubEngine } from "./stub-engine";
+import { ENGINE } from "../play-engine";
 import { botToMove, type GameRow } from "./table";
 import { memoryStore, testDeps } from "./testing";
 
-const ENGINE: RiskEngine = stubEngine;
 const ALICE = { id: "alice", name: "Alice" };
 const BOB = { id: "bob", name: "Bob" };
 const CAROL = { id: "carol", name: "Carol" };

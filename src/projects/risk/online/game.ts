@@ -36,6 +36,9 @@ export const STALE_DECISION = "That decision is no longer pending";
 const logged = (decision: DecisionId, events: readonly GameEvent[]): LoggedEvent[] =>
   events.map((event, i) => ({ id: `${decision.toString()}:${i.toString()}`, event }));
 
+/** The decision whose answer caused a logged event: -1 for the game's start. */
+export const causedBy = (event: LoggedEvent): DecisionId => Number(event.id.slice(0, event.id.indexOf(":")));
+
 export function newOnlineGame(engine: RiskEngine, players: number, seed: string): OnlineGame {
   const { state, events } = engine.newGame({ players }, seed);
   return { seed, players, engine: state, decision: 0, lastEvents: logged(-1, events), answered: [] };

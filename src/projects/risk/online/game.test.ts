@@ -5,9 +5,8 @@ import type { Answer } from "../contract";
 import { BOTS } from "./bots";
 import { botInput } from "./drive-input";
 import { ANSWERS_KEPT, applyAnswer, newOnlineGame, pendingSeat, STALE_DECISION, syncRules, tookAnswer, type OnlineGame } from "./game";
-import { stubEngine } from "./stub-engine";
+import { ENGINE } from "../play-engine";
 
-const ENGINE = stubEngine;
 const RULES = syncRules(ENGINE);
 
 /** A game played from its start by random answers: `games[i]` after `answers[i - 1]`. */

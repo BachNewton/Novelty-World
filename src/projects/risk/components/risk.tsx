@@ -1,29 +1,36 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { cn } from "@/shared/lib/utils";
-import type { GameEvent, GameState } from "../contract";
-import { LOCAL } from "../local-engine";
+import { RiskOnline, type OnlineGameProps } from "../online/risk-online";
+import { MAX_PLAYERS, MIN_PLAYERS } from "../online/table";
 import { SEAT_LOOKS } from "../ui/seats";
 import { SeatMark } from "./bits";
 import { GameScreen } from "./game-screen";
 import { BUTTON, DISPLAY, DISPLAY_FONT, PANEL, PRIMARY, RISK_THEME } from "./theme";
 import { useLocalGame } from "./use-local-game";
+import { useOnlineFeed } from "./use-online-feed";
 
-type Start = () => { state: GameState; events: readonly GameEvent[] };
+const PLAYER_COUNTS = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, i) => MIN_PLAYERS + i);
 
-function LocalGame({ start, onLeave }: { start: Start; onLeave: () => void }) {
-  const feed = useLocalGame(start);
+function OnlineGame({ snapshot, act, onLeave }: OnlineGameProps) {
+  const feed = useOnlineFeed(snapshot, act);
   return <GameScreen feed={feed} onLeave={onLeave} />;
 }
 
-/** The war room's door: a local game for 3 to 6 players on this device, passed round. */
-function StartScreen({ onStart }: { onStart: (start: Start) => void }) {
+function LocalGame({ players, onLeave }: { players: number; onLeave: () => void }) {
+  const feed = useLocalGame(players);
+  return <GameScreen feed={feed} onLeave={onLeave} />;
+}
+
+/** A game on this device for 3 to 6 players, passed round. */
+function LocalStart({ onStart, onBack }: { onStart: (players: number) => void; onBack: () => void }) {
   const root = useRef<HTMLDivElement>(null);
   usePadNavigation(root);
   const [players, setPlayers] = useState(4);
-  const begin = () => onStart(() => LOCAL.engine.newGame({ players }, crypto.randomUUID()));
+  const begin = () => onStart(players);
 
   return (
     <div style={RISK_THEME} className={cn(DISPLAY_FONT.variable, "min-h-dvh bg-(--rk-bg) text-[16px] text-(--rk-text) min-[1800px]:text-[24px]")}>
@@ -43,7 +50,7 @@ function StartScreen({ onStart }: { onStart: (start: Start) => void }) {
           <p className="text-[0.9em] text-(--rk-muted)">Pass it round: the screen shows whoever&apos;s turn it is, their cards included.</p>
           <div className="flex flex-wrap items-center gap-[0.4em]" role="group" aria-label="Players">
             <span className="mr-[0.4em]">Players</span>
-            {[3, 4, 5, 6].map((n) => (
+            {PLAYER_COUNTS.map((n) => (
               <button key={n} type="button" aria-pressed={players === n} className={cn(BUTTON, "min-w-[2.6em]", players === n && "border-(--rk-brass) text-(--rk-brass-bright)")} onClick={() => setPlayers(n)}>
                 {n}
               </button>
@@ -54,28 +61,28 @@ function StartScreen({ onStart }: { onStart: (start: Start) => void }) {
           </button>
         </section>
 
-        {LOCAL.scenes.length > 0 && (
-          <section className={cn(PANEL, "space-y-[0.6em] p-[1em]")}>
-            <h2 className={cn(DISPLAY, "text-[1.1em]")}>Jump to a moment</h2>
-            <p className="text-[0.85em] text-(--rk-muted)">Hand-made positions on the stand-in engine, for trying each screen.</p>
-            <ul className="grid gap-[0.4em] sm:grid-cols-2">
-              {LOCAL.scenes.map((scene) => (
-                <li key={scene.id}>
-                  <button type="button" className={cn(BUTTON, "w-full justify-start text-left text-[0.9em]")} onClick={() => onStart(scene.start)} data-scene={scene.id}>
-                    {scene.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <button type="button" data-pad-back className={cn(BUTTON, "self-center")} onClick={onBack}>
+          Back
+        </button>
       </div>
     </div>
   );
 }
 
+/** Risk online (create or join a table by its code, with bots in any seat), or a game passed
+ *  round this device. */
 export function Risk() {
-  const [game, setGame] = useState<{ id: number; start: Start } | null>(null);
-  if (game) return <LocalGame key={game.id} start={game.start} onLeave={() => setGame(null)} />;
-  return <StartScreen onStart={(start) => setGame({ id: Date.now(), start })} />;
+  const [local, setLocal] = useState<{ players: number } | "choosing" | null>(null);
+  if (local === "choosing") return <LocalStart onStart={(players) => setLocal({ players })} onBack={() => setLocal(null)} />;
+  if (local) return <LocalGame players={local.players} onLeave={() => setLocal(null)} />;
+  return (
+    <RiskOnline
+      Game={OnlineGame}
+      actions={
+        <Button variant="ghost" onClick={() => setLocal("choosing")}>
+          Play on this device
+        </Button>
+      }
+    />
+  );
 }

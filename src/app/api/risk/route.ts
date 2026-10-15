@@ -1,7 +1,7 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 import { generateRoomCode } from "@/shared/lib/peer/protocol";
 import { createAdminClient } from "@/shared/lib/supabase/server-admin";
-import { ENGINE } from "@/projects/risk/online/engine";
+import { ENGINE } from "@/projects/risk/play-engine";
 import { parseRequest, type Response } from "@/projects/risk/online/protocol";
 import { drive, handle, type ServerDeps } from "@/projects/risk/online/server";
 import { botToMove } from "@/projects/risk/online/table";

@@ -1,6 +1,8 @@
 # Risk
 
-The board game Risk: its rules, its engine, and a game screen playable on touch, keyboard and mouse, and a controller.
+The board game Risk: its rules, its engine, and a game screen playable on touch, keyboard and mouse, and a controller, online with people and bots or passed round one device.
+
+**One engine for every real game.** `play-engine.ts` is the single place the engine real games play on is chosen: the reference engine (`engine/`). The server route, a phone applying its own moves ahead of the server, and a game on one device all take it from there. There are no stand-in engines.
 
 ## Rules
 
@@ -31,14 +33,17 @@ Risk has its own style, separate from Novelty World's bright, quirky one: a war 
 
 ## The game screen and input
 
-The screen is built against the contract alone. It shows a seat's `GameView`, lights the territories its `Options` offer and never works out legality for itself (`ui/selection.ts`), sends `Move`s, and tells the events, each with its rule a Why away (the rules' text comes out of `RULES.md`, `ui/rules-data.ts`). It takes a feed (the view, the options, the events and a way to move), so a local game and an online one drive the same screen. `local-engine.ts` is the one place a local game picks its engine: a stand-in (`stub/`), with hand-made scenes for each phase, until the real engine replaces it.
+The screen is built against the contract alone. It shows a seat's `GameView`, lights the territories its `Options` offer and never works out legality for itself (`ui/selection.ts`), sends `Move`s, and tells the events, each with its rule a Why away (the rules' text comes out of `RULES.md`, `ui/rules-data.ts`). It takes a feed (the view, the options, the events and a way to move), so a local game and an online one drive the same screen.
+
+- **How a game reaches the screen.** `components/risk.tsx` opens on the online lobby (`RiskOnline`, on the shared `GameLobby`): create a table or join one by its code, add bots, start with 3 to 6 seats. Once the table starts, the online store's snapshot (`{ snapshot, act }`) is turned into the screen's feed by `components/use-online-feed.ts`: the seat's view and options, the events shown so far, which of them the latest move caused, and who plays each seat. The lobby also offers a game on this device, whose feed is `components/use-local-game.ts`.
 
 - **Places are picked on the map; everything else is one status box**: what to do now, the amounts and dice, the latest news with its Why, and ending the phase. Cards, the log and the menu are dialogs. The card dialog shows everything public (`public-cards`): every hand's size, the sets traded, the next set's value and the discard pile.
 - **Three input methods, each complete on its own**, following Betrayal's model and controller map wherever the two games share a meaning, so a player moving between them finds the same controls doing the same things. Hints follow the last-used input, drawn with the site's prompt glyphs from one map of meanings to controls (`ui/bindings.ts`); touch shows none.
 - **One meaning per control.** The d-pad, left stick and arrow keys move the focus: between the territories on offer while a territory is to be picked (spatially, by screen direction, the board wrapping east to west so Alaska's west is Kamchatka), round the status box's buttons while it asks for something, and round a dialog's while one is open. A, Enter and Space press the focus; B and Esc back out. Tab steps through the territories on offer. Unlike Betrayal, whose left stick pans its camera round a reticle, a flat map is navigated by focus, so the right stick pans and the triggers zoom (Betrayal's zoom), View and C show the whole board (Betrayal's Follow, the camera's home), Y and I open the cards (Betrayal's explorer), Menu and M the menu, LB and RB (or the bracket keys) step an amount down and up, and ending the attack or the turn is a hold of X or Backspace, as Betrayal's End turn is. The number keys roll that many dice and B blitzes.
 - **Touch and the mouse** pick a territory with a tap or click, a small territory's marker reaching a fingertip's width round it; a drag pans, two fingers pinch, the wheel zooms.
 - **A couch-distance layout** at 1920 wide and up: larger type, markers and buttons (sized in ems, so they scale with the type), a margin clear of the screen's edges, and a focus that shows plainly.
-- **Hot-seat**: a local game shows the view of the seat whose turn it is, cards included, and any controller acts for it. Assigning controllers to seats (Betrayal's pad assignment) is not built yet.
+- **Online, each player sees their own seat**: its view and cards, their name and the bots' beside each seat, and "Waiting…" while another seat moves. A phone shows only the events since it loaded the game, so its log starts there.
+- **Hot-seat**: a game on one device shows the view of the seat whose turn it is, cards included, and any controller acts for it. It has no bots: they play only online, where the server drives them. Assigning controllers to seats (Betrayal's pad assignment) is not built yet.
 
 ## Engine plan
 

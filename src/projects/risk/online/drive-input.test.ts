@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "@/shared/lib/seeded-random";
-import type { CardId, GameEvent, Seat } from "../contract";
+import type { GameEvent, Seat } from "../contract";
+import { wrap } from "../engine/state";
+import { inside } from "../engine/test-kit";
 import { BOTS } from "./bots";
 import { botInput } from "./drive-input";
 import { applyAnswer, newOnlineGame, pendingSeat, type OnlineGame } from "./game";
-import { stubEngine } from "./stub-engine";
-
-const ENGINE = stubEngine;
+import { ENGINE } from "../play-engine";
 
 /** A game played by bots until some seat holds cards and the last write drew one. */
 function gameWithHands(seed: string): OnlineGame {
@@ -25,28 +25,23 @@ function gameWithHands(seed: string): OnlineGame {
   throw new Error("No game reached hands worth hiding");
 }
 
-interface Hidden {
-  deck: CardId[];
-  hands: CardId[][];
-}
-
-/** The same game with everything `viewer` can't see dealt differently: the deck's order, other
+/** The same game with everything `viewer` can't see dealt differently: the draw pile's order, other
  *  hands' cards, and the cards other seats drew in the last write. */
 function redealtFor(game: OnlineGame, viewer: Seat, seed: string): OnlineGame {
-  const state = structuredClone(game.engine.engineState) as Hidden;
+  const state = structuredClone(inside(game.engine));
   const others = state.hands.map((_, seat) => seat).filter((seat) => seat !== viewer);
-  const pool = [...state.deck, ...others.flatMap((seat) => state.hands[seat])];
+  const pool = [...state.drawPile, ...others.flatMap((seat) => state.hands[seat])];
   const rng = createRng(seed);
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(rng.next() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   for (const seat of others) state.hands[seat] = pool.splice(0, state.hands[seat].length);
-  state.deck = pool;
+  state.drawPile = pool;
   const lastEvents = game.lastEvents.map(({ id, event }): { id: string; event: GameEvent } =>
     event.kind === "card-drawn" && event.seat !== viewer ? { id, event: { ...event, card: "wild-2" } } : { id, event },
   );
-  return { ...game, engine: { engineState: state }, lastEvents };
+  return { ...game, engine: wrap(state), lastEvents };
 }
 
 describe("what a bot is given", () => {
@@ -65,7 +60,7 @@ describe("what a bot is given", () => {
     if (seat === null) throw new Error("The game is over");
     const input = botInput(ENGINE, game, seat, "x");
     expect(input.view.viewer).toBe(seat);
-    expect(input.view.cards.hand).toEqual((game.engine.engineState as Hidden).hands[seat]);
+    expect(input.view.cards.hand).toEqual(inside(game.engine).hands[seat]);
     expect(Object.keys(input).sort()).toEqual(["events", "options", "seat", "seed", "view"]);
     expect(JSON.stringify(input)).not.toContain("engineState");
   });
