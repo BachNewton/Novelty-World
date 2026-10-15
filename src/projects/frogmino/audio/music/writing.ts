@@ -75,6 +75,37 @@ export function restrike(notes: string, rows: number): string {
     .join(" | ");
 }
 
+// The line backwards, for an answer that retraces it: its bars in reverse
+// order, and each bar's notes in reverse order on that bar's own rhythm, so
+// every note stays over the chord it was written over.
+export function retrograde(notes: string): string {
+  const isNote = (token: string): boolean => token !== "." && token !== "-" && token !== "x";
+  return notes
+    .split("|")
+    .map(tokens)
+    .filter((bar) => bar.length > 0)
+    .reverse()
+    .map((bar) => {
+      const backwards = bar.filter(isNote).reverse();
+      let next = 0;
+      return bar.map((token) => (isNote(token) ? backwards[next++] : token)).join(" ");
+    })
+    .join(" | ");
+}
+
+// The line entering `rows` rows later, for a canon: rests before it, and as
+// much cut from its end, so it keeps its length and its bar lines.
+export function delay(notes: string, rows: number): string {
+  const bars = notes
+    .split("|")
+    .map(tokens)
+    .filter((bar) => bar.length > 0);
+  const line = bars.flat();
+  const later = [...Array.from({ length: rows }, () => "."), ...line].slice(0, line.length);
+  let at = 0;
+  return bars.map((bar) => later.slice(at, (at += bar.length)).join(" ")).join(" | ");
+}
+
 // The line moved by `semitones`.
 export function transpose(notes: string, semitones: number): string {
   return mapNotes(notes, (token) => {
