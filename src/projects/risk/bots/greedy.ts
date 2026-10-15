@@ -57,9 +57,6 @@ function stackTerritory(view: GameView, seat: Seat, own: readonly TerritoryId[])
 export const greedyBot: Bot = ({ seat, view, options }): Move => {
   const armies = (t: TerritoryId) => view.territories[t].armies;
   switch (options.kind) {
-    case "setup-place":
-      return { kind: "place", territory: stackTerritory(view, seat, options.ownTerritories), armies: 1 };
-
     case "reinforce": {
       if (options.sets.length > 0) {
         return tradeMove(options.sets[0], options.bonusTerritories, (choices) => choices[0]);

@@ -60,10 +60,6 @@ describe("stepOf", () => {
 });
 
 describe("pick", () => {
-  it("places a setup army with one pick", () => {
-    expect(pick({ kind: "setup-place", ownTerritories: ["peru"], ownArmiesLeft: 4 }, NO_SELECTION, "peru")).toEqual({ move: { kind: "place", territory: "peru", armies: 1 } });
-  });
-
   it("ignores territories the options don't offer", () => {
     expect(pick(attack, NO_SELECTION, "peru")).toBeNull();
     expect(pick(reinforce(), NO_SELECTION, "peru")).toBeNull();

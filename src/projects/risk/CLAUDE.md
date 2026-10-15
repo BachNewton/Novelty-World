@@ -8,7 +8,7 @@ The board game Risk: its rules, its engine, and a game screen playable on touch,
 
 ## Rules
 
-Classic Risk, with escalating card values for set trades. `RULES.md` in this folder is the source of truth for the rules: the engine, its tests and the bots follow it, and a question about a rule is settled there, not in code.
+Classic Risk, with escalating card values for set trades, set up as RISK: Global Domination's Auto Placement does: the territories are dealt and the starting armies placed at random, so nobody makes a setup decision and a new game begins at the first player's first turn (`newGame` plays the whole setup from the seed; the screen shows the board already set up, its deal playing as it mounts). `RULES.md` in this folder is the source of truth for the rules: the engine, its tests and the bots follow it, and a question about a rule is settled there, not in code.
 
 Ambiguities are settled the way Betrayal settles them: a note beside the rule, and a resolution labelled with its authority (official, official digital, community, project or unresolved). Where the rulebooks are unclear, the official digital game, RISK: Global Domination, is deferred to before community practice or a project ruling. `RULES.md` opens with the method. Claude makes the project rulings as a game designer would, and brings one to the owner only when it would fork the engine or the architecture.
 

@@ -11,8 +11,6 @@ const between = (rng: Rng, low: number, high: number) => low + Math.floor(rng.ne
 export const randomBot: Bot = ({ options, view, seed }) => {
   const rng = createRng(seed);
   switch (options.kind) {
-    case "setup-place":
-      return { kind: "place", territory: pick(rng, options.ownTerritories), armies: 1 };
     case "reinforce": {
       if (options.sets.length > 0 && (options.mustTrade || rng.next() < 0.5)) {
         return tradeMove(pick(rng, options.sets), options.bonusTerritories, (choices) => pick(rng, choices));

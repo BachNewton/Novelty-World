@@ -77,7 +77,7 @@ describe("the online store", () => {
     expect(snap.table?.status).toBe("playing");
     expect(snap.seat).toBe(0);
     expect(snap.waitingOn).toBe(0);
-    expect(snap.options?.kind).toBe("setup-place");
+    expect(snap.options?.kind).toBe("reinforce");
     expect(snap.events.length).toBeGreaterThan(0);
   });
 
@@ -104,7 +104,7 @@ describe("the online store", () => {
     await h.settle();
     const before = h.store.snapshot();
     const options = before.options;
-    if (options?.kind !== "setup-place") throw new Error("Expected setup");
+    if (options?.kind !== "reinforce") throw new Error("Expected a reinforcement");
     h.store.act({ kind: "place", territory: options.ownTerritories[0], armies: 1 });
     const territory = options.ownTerritories[0];
     expect(h.store.snapshot().view?.territories[territory].armies).toBe((before.view?.territories[territory].armies ?? 0) + 1);
@@ -121,7 +121,7 @@ describe("the online store", () => {
     h.store.connect();
     await h.settle();
     const options = h.store.snapshot().options;
-    if (options?.kind !== "setup-place") throw new Error("Expected setup");
+    if (options?.kind !== "reinforce") throw new Error("Expected a reinforcement");
     h.setOffline(true);
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     h.store.act({ kind: "place", territory: options.ownTerritories[0], armies: 1 });

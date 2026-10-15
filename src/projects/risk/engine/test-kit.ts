@@ -49,8 +49,7 @@ export function position(p: Position): GameState {
     eliminated: seats.map((seat) => p.eliminated?.includes(seat) ?? false),
     turn: 0,
     active: p.active ?? 0,
-    phase: "setup-place",
-    setupArmiesLeft: null,
+    phase: "reinforce",
     reinforce: null,
     occupying: null,
     capturedThisTurn: false,
@@ -111,14 +110,6 @@ const isInt = (n: number) => Number.isInteger(n);
 export function optionsAllow(options: Options | null, view: GameView, move: Move): boolean {
   if (!options) return false;
   switch (options.kind) {
-    case "setup-place":
-      return (
-        move.kind === "place" &&
-        options.ownTerritories.includes(move.territory) &&
-        isInt(move.armies) &&
-        move.armies >= 1 &&
-        move.armies <= options.ownArmiesLeft
-      );
     case "reinforce":
       if (move.kind === "place") {
         return (
@@ -168,8 +159,6 @@ export function randomLegalMove(options: Options, view: GameView, rng: Rng): Mov
   const armies = (t: TerritoryId) => view.territories[t].armies;
   const planned = rng.next() < 0.85;
   switch (options.kind) {
-    case "setup-place":
-      return { kind: "place", territory: pick(rng, options.ownTerritories), armies: between(rng, 1, options.ownArmiesLeft) };
     case "reinforce": {
       if (options.sets.length > 0 && (options.mustTrade || rng.next() < 0.6)) {
         const cards = pick(rng, options.sets);
@@ -213,7 +202,6 @@ export function randomLegalMove(options: Options, view: GameView, rng: Rng): Mov
 export function plausibleMove(options: Options | null, view: GameView, rng: Rng): Move {
   const territory = (): TerritoryId => {
     const near: TerritoryId[] = [];
-    if (options?.kind === "setup-place") near.push(...options.ownTerritories);
     if (options?.kind === "reinforce") near.push(...options.ownTerritories, ...options.bonusTerritories);
     if (options?.kind === "attack") for (const a of options.attacks) near.push(a.from, a.to);
     if (options?.kind === "fortify") for (const m of options.moves) near.push(m.from, m.to);
