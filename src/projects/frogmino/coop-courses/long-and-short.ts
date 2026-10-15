@@ -9,7 +9,6 @@ import { pose, READ, READ_SLOW, type DesignedCourse } from "./design";
 export const LONG_AND_SHORT: DesignedCourse = {
   id: "long-and-short",
   name: "Long and Short",
-  tier: "easy",
   description: "A plank and a block with different jobs: the I stands tall or lies low, and the O steps up onto it.",
   lanes: 9,
   kinds: ["I", "O"],

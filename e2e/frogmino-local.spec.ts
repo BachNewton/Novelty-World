@@ -61,15 +61,15 @@ test("Local co-op from the lobby opens the join screen, and Back returns", async
   await expect(page.getByRole("button", { name: "Local co-op" })).toBeVisible();
 });
 
-test("the join screen lists the co-op courses by tier, and the keys and a click pick one", async ({ page }) => {
+test("the join screen lists the co-op courses, and the keys and a click pick one", async ({ page }) => {
   await page.goto(`${LOBBY}?play=local`);
   const courses = page.locator("[data-course]");
   await expect(courses.first()).toBeVisible({ timeout: TIMEOUT });
-  // Each course shows its tier, description and medal times; the first
-  // easy course starts picked.
-  await expect(page.getByRole("region", { name: "Easy courses" })).toBeVisible();
+  // Each course shows its pieces, rows, road and medal times as symbols;
+  // the first in the list starts picked.
   const first = courses.first();
   await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expect(first.getByRole("img", { name: /^Sprout: / })).toBeVisible();
   await expect(first.getByLabel("Gold")).toBeVisible();
   const ids = await courses.evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-course")));
   const picked = () => page.locator('[data-course][aria-pressed="true"]');

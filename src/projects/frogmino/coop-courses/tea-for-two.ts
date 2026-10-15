@@ -9,7 +9,6 @@ import { pose, READ, READ_SLOW, type DesignedCourse } from "./design";
 export const TEA_FOR_TWO: DesignedCourse = {
   id: "tea-for-two",
   name: "Tea for Two",
-  tier: "easy",
   description: "Two Ts that fit together: one points up and one points down, then one leans its nose on the other's.",
   lanes: 8,
   kinds: ["T", "T"],

@@ -111,8 +111,8 @@
    leaf-green tree frog with a sunny belly and orange feet, and an azure dart
    frog with a pale belly and pink feet, apart in lightness as well as hue so
    they tell apart for a colour-blind player too. The frog's colours never
-   change with its piece, and no skin is near a Tetris piece colour. Read only by the 3D scene
-   through themeColor, so declared outside @theme. */
+   change with its piece, and no skin is near a Tetris piece colour. Read by the 3D scene
+   through themeColor, and the course picker's pieces by variable, so declared outside @theme. */
 :root {
   --color-frogmino-frog-p1-skin: #5cc23f;
   --color-frogmino-frog-p1-mark: #2e7d32;

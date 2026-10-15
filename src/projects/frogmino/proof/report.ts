@@ -32,7 +32,7 @@ export function rowNumbers(row: RowAnalysis): string {
 }
 
 export function courseHeading(course: DesignedCourse): string {
-  return `${course.name} (${course.id}), ${course.tier}: ${String(course.rows.length)} rows on ${String(course.lanes)} lanes, ${course.kinds.join(" and ")}, finish at ${String(course.length)}`;
+  return `${course.name} (${course.id}): ${String(course.rows.length)} rows on ${String(course.lanes)} lanes, ${course.kinds.join(" and ")}, finish at ${String(course.length)}`;
 }
 
 // The proof's time beside the course's medal times and the held-jump floor.

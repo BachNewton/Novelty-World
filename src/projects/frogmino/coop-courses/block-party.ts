@@ -12,7 +12,6 @@ import { pose, READ, READ_SLOW, type DesignedCourse } from "./design";
 export const BLOCK_PARTY: DesignedCourse = {
   id: "block-party",
   name: "Block Party",
-  tier: "easy",
   description: "Two blocks, nothing to turn: jump and hop together, squeeze in shoulder to shoulder, make room, and step up beside each other.",
   lanes: 8,
   kinds: ["O", "O"],

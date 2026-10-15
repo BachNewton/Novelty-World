@@ -4,7 +4,7 @@ import { fitsRow, startPlacements } from "../run";
 import { toSeconds, toTicks } from "../ticks";
 import { checkRow, rowLength, rowSolids } from "../traffic";
 import type { Tuning } from "../tuning";
-import { COURSE_TIERS, type DesignedCourse } from "./design";
+import type { DesignedCourse } from "./design";
 
 // The checks every designed co-op course passes as the registry is built, so
 // a broken course fails loudly, naming itself, before anyone plays it. They
@@ -56,7 +56,6 @@ function checkCourse(course: DesignedCourse, tuning: Tuning): void {
   if (!isId(course.id)) fail("its id must be lower-case words joined by hyphens");
   if (course.name.trim() === "") fail("it needs a name");
   if (course.description.trim() === "") fail("it needs a description");
-  if (!COURSE_TIERS.includes(course.tier)) fail(`its tier must be one of ${COURSE_TIERS.join(", ")}`);
   if (course.kinds.length !== PLAYERS) fail(`co-op is ${String(PLAYERS)} frogs, but it starts ${String(course.kinds.length)}`);
   if (!Number.isInteger(course.lanes) || course.lanes < 1) fail(`a road can't be ${String(course.lanes)} lanes wide`);
   // Fails loudly on a piece too wide for its half of the road.

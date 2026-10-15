@@ -1,13 +1,13 @@
 import { TUNING } from "../tuning";
 import { BLOCK_PARTY } from "./block-party";
 import { checkCoopCourse } from "./check";
-import { COURSE_TIERS, type DesignedCourse } from "./design";
+import type { DesignedCourse } from "./design";
 import { CHAIN_REACTION } from "./chain-reaction";
 import { LONG_AND_SHORT } from "./long-and-short";
 import { TEA_FOR_TWO } from "./tea-for-two";
 import { ZIG_ZAG_ALLEY } from "./zig-zag-alley";
 
-// Every designed co-op course, the picker's list. A course is its own file in
+// Every designed co-op course, in the picker's order. A course is its own file in
 // this folder and one line here (see "Adding a co-op course" in the project's
 // CLAUDE.md). Each is checked as the list is built, so a broken course fails
 // loudly before anyone plays it.
@@ -27,9 +27,7 @@ export function buildCoopRegistry(courses: readonly DesignedCourse[]): readonly 
     ids.add(course.id);
     checkCoopCourse(course, TUNING);
   }
-  // In the picker's order: by tier, easiest first, and in the order listed
-  // within a tier.
-  return COURSE_TIERS.flatMap((tier) => courses.filter((course) => course.tier === tier));
+  return courses;
 }
 
 export const COOP_COURSES: readonly DesignedCourse[] = buildCoopRegistry(COURSES);
@@ -44,8 +42,8 @@ export function coopCourseById(id: string): DesignedCourse {
   return course;
 }
 
-// The course the picker starts on: the first easy one.
-export const DEFAULT_COOP_COURSE: string = (COOP_COURSES.find((c) => c.tier === "easy") ?? COOP_COURSES[0]).id;
+// The course the picker starts on: the first.
+export const DEFAULT_COOP_COURSE: string = COOP_COURSES[0].id;
 
 // The course `step` places along the picker's list from `id`, going round.
 export function stepCoopCourse(id: string, step: number): string {

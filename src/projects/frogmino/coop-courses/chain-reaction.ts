@@ -10,7 +10,6 @@ import { PACE, pose, READ, type DesignedCourse } from "./design";
 export const CHAIN_REACTION: DesignedCourse = {
   id: "chain-reaction",
   name: "Chain Reaction",
-  tier: "medium",
   description: "Sprout's T and Splash's L lean, climb and hook together, each pose setting up the next, as the traffic bunches up.",
   lanes: 9,
   kinds: ["T", "L"],

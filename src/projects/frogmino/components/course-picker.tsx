@@ -1,27 +1,60 @@
 "use client";
 
-import { Medal as MedalIcon } from "lucide-react";
+import { CarFront, Medal as MedalIcon, Road } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { COOP_COURSES } from "../coop-courses";
-import { COURSE_TIERS, type CourseTier, type DesignedCourse } from "../coop-courses/design";
+import type { DesignedCourse } from "../coop-courses/design";
+import { pieceShape } from "../logic";
 import { formatTime, MEDALS } from "../medals";
 import { toTicks } from "../ticks";
+import type { TetrominoKind } from "../types";
 import { MEDAL_NAMES, MEDAL_TEXT } from "./run-clock";
 
-// Picking a co-op course: every designed course, grouped by tier, easiest
-// first, each with its name, tier, description, road and medal times. The
-// local join screen and the online host's waiting room pick with it; the
-// online guest sees the host's pick as a single card.
+// Picking a co-op course: every designed course, in the registry's order,
+// each with its name, description, its pair of pieces, rows, road and medal
+// times, shown as symbols. The local join screen and the online host's
+// waiting room pick with it; the online guest sees the host's pick as a
+// single card.
 
-const TIER_NAMES: Record<CourseTier, string> = { easy: "Easy", medium: "Medium", hard: "Hard" };
-const TIER_TONE: Record<CourseTier, string> = {
-  easy: "border-brand-green text-brand-green",
-  medium: "border-brand-orange text-brand-orange",
-  hard: "border-brand-pink text-brand-pink",
-};
+// Each player's piece in its frog's skin: Sprout's first.
+const PLAYER_FILL = ["fill-(--color-frogmino-frog-p1-skin)", "fill-(--color-frogmino-frog-p2-skin)"] as const;
+const PLAYER_NAMES = ["Sprout", "Splash"] as const;
 
-function TierBadge({ tier }: { tier: CourseTier }) {
-  return <span className={cn("shrink-0 rounded-full border px-2 text-xs font-bold", TIER_TONE[tier])}>{TIER_NAMES[tier]}</span>;
+// A glyph's cell, in CSS pixels, so every piece is drawn to one scale.
+const GLYPH_CELL = 6;
+
+// A piece as the picker draws it: its first rotation, one square a cell.
+function PieceGlyph({ kind, player }: { kind: TetrominoKind; player: number }) {
+  const cells = pieceShape(kind, 0);
+  const cols = Math.max(...cells.map((cell) => cell.col)) + 1;
+  const rows = Math.max(...cells.map((cell) => cell.row)) + 1;
+  const name = `${PLAYER_NAMES[player]}: ${kind}`;
+  return (
+    <svg
+      role="img"
+      aria-label={name}
+      viewBox={`0 0 ${String(cols)} ${String(rows)}`}
+      width={cols * GLYPH_CELL}
+      height={rows * GLYPH_CELL}
+      className={PLAYER_FILL[player]}
+    >
+      <title>{name}</title>
+      {cells.map((cell) => (
+        <rect key={`${String(cell.col)}-${String(cell.row)}`} x={cell.col + 0.06} y={rows - 1 - cell.row + 0.06} width={0.88} height={0.88} rx={0.15} />
+      ))}
+    </svg>
+  );
+}
+
+// A count beside the symbol it counts, named for a screen reader and a tooltip.
+function Count({ icon: Icon, count, label }: { icon: typeof CarFront; count: number; label: string }) {
+  const name = `${String(count)} ${label}`;
+  return (
+    <span role="img" aria-label={name} title={name} className="flex items-center gap-1 font-mono tabular-nums">
+      <Icon aria-hidden className="h-3.5 w-3.5" />
+      {count}
+    </span>
+  );
 }
 
 function MedalTimesLine({ course }: { course: DesignedCourse }) {
@@ -41,13 +74,20 @@ function CourseDetails({ course }: { course: DesignedCourse }) {
   return (
     <span className="flex min-w-0 flex-col gap-1 text-left">
       <span className="flex items-center justify-between gap-2">
-        <span data-testid="course-name" className="truncate font-bold text-text-primary">{course.name}</span>
-        <TierBadge tier={course.tier} />
+        <span data-testid="course-name" className="truncate font-bold text-text-primary">
+          {course.name}
+        </span>
+        <span className="flex shrink-0 items-end gap-1.5">
+          {course.kinds.map((kind, player) => (
+            <PieceGlyph key={player} kind={kind} player={player} />
+          ))}
+        </span>
       </span>
       <span className="text-sm text-text-secondary">{course.description}</span>
       <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <span className="text-xs text-text-muted">
-          {course.rows.length} rows · {course.lanes} lanes · {course.kinds.join(" + ")}
+        <span className="flex items-center gap-3 text-xs text-text-muted">
+          <Count icon={CarFront} count={course.rows.length} label="rows of traffic" />
+          <Count icon={Road} count={course.lanes} label="lanes" />
         </span>
         <MedalTimesLine course={course} />
       </span>
@@ -70,40 +110,29 @@ export function CourseCard({ course }: { course: DesignedCourse }) {
 // picked.
 export function CoursePicker({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) {
   return (
-    <div className="flex w-full flex-col gap-3">
-      {COURSE_TIERS.map((tier) => {
-        const courses = COOP_COURSES.filter((course) => course.tier === tier);
-        if (courses.length === 0) return null;
+    <ul className="flex w-full flex-col gap-2">
+      {COOP_COURSES.map((course) => {
+        const picked = course.id === selected;
         return (
-          <section key={tier} aria-label={`${TIER_NAMES[tier]} courses`} className="flex flex-col gap-2">
-            <h3 className="text-left text-xs font-bold uppercase tracking-wide text-text-muted">{TIER_NAMES[tier]}</h3>
-            <ul className="flex flex-col gap-2">
-              {courses.map((course) => {
-                const picked = course.id === selected;
-                return (
-                  <li key={course.id}>
-                    <button
-                      type="button"
-                      aria-pressed={picked}
-                      data-course={course.id}
-                      data-pad-start={picked || undefined}
-                      onClick={() => {
-                        onSelect(course.id);
-                      }}
-                      className={cn(
-                        "w-full rounded-lg border-2 bg-surface-secondary p-3 transition-colors hover:bg-surface-tertiary focus-visible:outline-2 focus-visible:outline-brand-blue",
-                        picked ? "border-brand-green bg-surface-tertiary" : "border-border-default",
-                      )}
-                    >
-                      <CourseDetails course={course} />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+          <li key={course.id}>
+            <button
+              type="button"
+              aria-pressed={picked}
+              data-course={course.id}
+              data-pad-start={picked || undefined}
+              onClick={() => {
+                onSelect(course.id);
+              }}
+              className={cn(
+                "w-full rounded-lg border-2 bg-surface-secondary p-3 transition-colors hover:bg-surface-tertiary focus-visible:outline-2 focus-visible:outline-brand-blue",
+                picked ? "border-brand-green bg-surface-tertiary" : "border-border-default",
+              )}
+            >
+              <CourseDetails course={course} />
+            </button>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }

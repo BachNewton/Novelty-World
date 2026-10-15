@@ -12,7 +12,6 @@ import { PACE, pose, READ, type DesignedCourse } from "./design";
 export const ZIG_ZAG_ALLEY: DesignedCourse = {
   id: "zig-zag-alley",
   name: "Zig Zag Alley",
-  tier: "medium",
   description: "Sprout's S and Splash's Z nest, stack and swap who stands on whom.",
   lanes: 10,
   kinds: ["S", "Z"],
