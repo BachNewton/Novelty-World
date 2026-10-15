@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Answer, Move, RiskEngine } from "../contract";
 import { BOTS } from "./bots";
-import { STALE_DECISION } from "./game";
+import { replay, STALE_DECISION } from "./game";
 import type { Request } from "./protocol";
 import { COMMIT_ATTEMPTS, commit, drive, DRIVE_DECISIONS, handle, type ServerDeps } from "./server";
 import { stubEngine } from "./stub-engine";
@@ -138,7 +138,7 @@ describe("moves", () => {
 
   it("fails loudly when it loses the race every time", async () => {
     const { db } = await humanGame();
-    const step = () => ({ kind: "changed" as const, change: { status: "playing" as const, seats: [], game: null } });
+    const step = () => ({ kind: "changed" as const, change: { status: "playing" as const, seats: [], game: null }, answer: null });
     const always = { ...db.store, write: vi.fn(() => Promise.resolve(null)) };
     await expect(commit(always, "GAME", step)).rejects.toThrow(/lost the write race/);
     expect(always.write).toHaveBeenCalledTimes(COMMIT_ATTEMPTS);
@@ -154,6 +154,39 @@ async function botGame(bots: number) {
   const row = await ok(deps, { op: "start", game: "GAME", profile: ALICE });
   return { db, deps, row };
 }
+
+describe("the move log", () => {
+  it("logs every accepted answer once, with who gave it, and replays to the row's game", async () => {
+    const { deps, db } = await botGame(2);
+    await drive(deps, "GAME");
+    const row = db.rows.get("GAME");
+    if (!row?.game) throw new Error("No game");
+    const human = nextMove(row);
+    // Alice's answer, sent twice: the repeat lands nothing.
+    expect(human.answer.seat).toBe(0);
+    await ok(deps, human.request);
+    await ok(deps, human.request);
+    await drive(deps, "GAME");
+    const after = db.rows.get("GAME");
+    const log = db.moves.get("GAME") ?? [];
+    if (!after?.game) throw new Error("No game");
+    expect(log.map((m) => m.decision)).toEqual(Array.from({ length: after.game.decision }, (_, i) => i));
+    expect(log.find((m) => m.decision === human.answer.decision)?.controller).toEqual({ kind: "human", profile: ALICE });
+    expect(log.filter((m) => m.controller.kind === "bot").length).toBe(log.length - 1);
+    expect(replay(ENGINE, after.game.players, after.game.seed, log)).toEqual(after.game);
+  });
+
+  it("replays a long run of bot decisions", async () => {
+    const { deps, db } = await botGame(2);
+    const row = db.rows.get("GAME");
+    if (!row) throw new Error("No game");
+    db.rows.set("GAME", { ...row, seats: row.seats.map(() => ({ kind: "bot", bot: "random" })) });
+    await drive(deps, "GAME");
+    const after = db.rows.get("GAME");
+    if (!after?.game) throw new Error("No game");
+    expect(replay(ENGINE, after.game.players, after.game.seed, db.moves.get("GAME") ?? [])).toEqual(after.game);
+  });
+});
 
 describe("driving bot seats", () => {
   it("plays the bots until the game waits on a person", async () => {

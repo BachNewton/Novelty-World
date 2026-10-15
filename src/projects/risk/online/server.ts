@@ -3,7 +3,7 @@ import { BOTS, DEFAULT_BOT } from "./bots";
 import { botInput } from "./drive-input";
 import { applyAnswer, newOnlineGame, pendingSeat, STALE_DECISION, tookAnswer } from "./game";
 import type { Request, Response } from "./protocol";
-import { botToMove, controllerOf, MAX_PLAYERS, MIN_PLAYERS, seatOf, type Controller, type GameRow, type Status } from "./table";
+import { botToMove, controllerOf, MAX_PLAYERS, MIN_PLAYERS, seatOf, type Controller, type GameRow, type LoggedMove, type Status } from "./table";
 
 /*
  * The single writer's logic, behind two seams: the engine, and the database
@@ -17,13 +17,17 @@ export type RowChange = Pick<GameRow, "status" | "seats" | "game">;
 
 export interface RowStore {
   read: (id: string) => Promise<GameRow | null>;
-  /** Writes only if the row is still at `fromVersion`; null when another write got there first. */
-  write: (id: string, fromVersion: number, change: RowChange) => Promise<GameRow | null>;
+  /** Writes only if the row is still at `fromVersion`, and logs the answer the write takes in
+   *  the same transaction; null when another write got there first. */
+  write: (id: string, fromVersion: number, change: RowChange, answer: LoggedMove | null) => Promise<GameRow | null>;
   /** Creates a row at version 0; null when the id is taken. */
   insert: (id: string, change: RowChange) => Promise<GameRow | null>;
 }
 
-export type Step = { kind: "rejected"; reason: string } | { kind: "unchanged" } | { kind: "changed"; change: RowChange };
+export type Step =
+  | { kind: "rejected"; reason: string }
+  | { kind: "unchanged" }
+  | { kind: "changed"; change: RowChange; answer: LoggedMove | null };
 
 /** How many times a commit re-reads after losing the race to another write. Each loss means
  *  another write landed, so the game is moving; the bound turns a storm of them into an error. */
@@ -36,16 +40,17 @@ export async function commit(store: RowStore, id: string, step: (row: GameRow) =
     const next = step(row);
     if (next.kind === "rejected") return { ok: false, reason: next.reason, row };
     if (next.kind === "unchanged") return { ok: true, row };
-    const written = await store.write(id, row.version, next.change);
+    const written = await store.write(id, row.version, next.change, next.answer);
     if (written) return { ok: true, row: written };
   }
   throw new Error(`Game ${id}: lost the write race ${COMMIT_ATTEMPTS.toString()} times running`);
 }
 
 const rejected = (reason: string): Step => ({ kind: "rejected", reason });
-const changed = (row: GameRow, change: Partial<RowChange>): Step => ({
+const changed = (row: GameRow, change: Partial<RowChange>, answer: LoggedMove | null = null): Step => ({
   kind: "changed",
   change: { status: row.status, seats: row.seats, game: row.game, ...change },
+  answer,
 });
 
 function inLobby(row: GameRow, profileId: string, then: () => Step): Step {
@@ -62,7 +67,7 @@ export function answerStep(engine: RiskEngine, row: GameRow, answer: Answer): St
   const result = applyAnswer(engine, row.game, answer);
   if (!result.ok) return rejected(result.reason);
   const status: Status = pendingSeat(engine, result.game) === null ? "over" : "playing";
-  return changed(row, { game: result.game, status });
+  return changed(row, { game: result.game, status }, { ...answer, controller: controllerOf(row, answer.seat) });
 }
 
 export interface ServerDeps {

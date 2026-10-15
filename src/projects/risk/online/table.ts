@@ -1,5 +1,5 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
-import type { RiskEngine, Seat } from "../contract";
+import type { DecisionId, Move, RiskEngine, Seat } from "../contract";
 import type { BotId } from "./bots/bot";
 import { pendingSeat, type OnlineGame } from "./game";
 
@@ -22,6 +22,15 @@ export interface GameRow {
   seats: readonly Controller[];
   /** Null until the game starts. */
   game: OnlineGame | null;
+}
+
+/** One accepted answer, as the move log (`risk_moves`) keeps it: with the game's seed, the log
+ *  replays the game. Who answered is kept as the seat's controller at the time. */
+export interface LoggedMove {
+  decision: DecisionId;
+  seat: Seat;
+  controller: Controller;
+  move: Move;
 }
 
 export const MIN_PLAYERS = 3;

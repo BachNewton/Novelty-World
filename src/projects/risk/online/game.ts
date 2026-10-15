@@ -16,6 +16,9 @@ export interface LoggedEvent {
 }
 
 export interface OnlineGame {
+  /** What the game was started from: with the move log (`risk_moves`), enough to replay it. */
+  seed: string;
+  players: number;
   engine: GameState;
   /** The decision pending: the number of answers the game has taken. */
   decision: DecisionId;
@@ -35,7 +38,18 @@ const logged = (decision: DecisionId, events: readonly GameEvent[]): LoggedEvent
 
 export function newOnlineGame(engine: RiskEngine, players: number, seed: string): OnlineGame {
   const { state, events } = engine.newGame({ players }, seed);
-  return { engine: state, decision: 0, lastEvents: logged(-1, events), answered: [] };
+  return { seed, players, engine: state, decision: 0, lastEvents: logged(-1, events), answered: [] };
+}
+
+/** A game rebuilt from its seed and the answers it took, in order: the move log's replay. */
+export function replay(engine: RiskEngine, players: number, seed: string, answers: readonly Answer[]): OnlineGame {
+  let game = newOnlineGame(engine, players, seed);
+  for (const { decision, seat, move } of answers) {
+    const result = applyAnswer(engine, game, { decision, seat, move });
+    if (!result.ok) throw new Error(`Replaying decision ${decision.toString()}: ${result.reason}`);
+    game = result.game;
+  }
+  return game;
 }
 
 export function applyAnswer(engine: RiskEngine, game: OnlineGame, answer: Answer): { ok: true; game: OnlineGame } | { ok: false; reason: string } {
@@ -45,6 +59,7 @@ export function applyAnswer(engine: RiskEngine, game: OnlineGame, answer: Answer
   return {
     ok: true,
     game: {
+      ...game,
       engine: result.state,
       decision: game.decision + 1,
       lastEvents: logged(game.decision, result.events),
