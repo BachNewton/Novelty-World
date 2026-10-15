@@ -1,11 +1,13 @@
 import type { Bot } from "./bot";
 import { greedyBot } from "./greedy";
 import { randomBot } from "./random";
+import { ruleV1Bot } from "./rule-v1";
 
 /** Every bot the measuring harness can seat, by label. */
 export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   random: randomBot,
   greedy: greedyBot,
+  "rule-v1": ruleV1Bot,
 };
 
 export function riskBot(label: string): Bot {

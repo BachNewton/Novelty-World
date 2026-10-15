@@ -93,6 +93,8 @@ const eslintConfig = defineConfig([
   // the project that holds or makes a state (the engine, the online game, the server, the harness).
   {
     files: ["src/projects/risk/bots/**/*.ts"],
+    // A bot's tests build positions with the engine's test kit; the bot code they test can't.
+    ignores: ["**/*.test.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -100,6 +102,25 @@ const eslintConfig = defineConfig([
           patterns: [
             {
               regex: "^(\\.\\./|@/projects/)(?!(contract|map)$)",
+              message: "A bot may import only the contract and the map from Risk: it sees its seat's view, never the state.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // A bot in a folder of its own reaches the seam and shared bot code one level up, and the contract
+  // and the map two levels up, and still nothing that holds a state.
+  {
+    files: ["src/projects/risk/bots/*/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(\\.\\./\\.\\./|@/projects/)(?!(contract|map)$)",
               message: "A bot may import only the contract and the map from Risk: it sees its seat's view, never the state.",
             },
           ],
