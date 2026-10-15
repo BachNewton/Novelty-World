@@ -8,16 +8,13 @@ import type { ContinentId, TerritoryId } from "./map";
 /** A seat at the table, 0-based in seat order. Turn order is drawn at setup (`SETUP-3`). */
 export type Seat = number;
 
-/** Who holds a territory: a seat, or the 2-player game's neutral army (`TWO-*`). */
-export type Owner = Seat | "neutral";
-
 export type CardSymbol = "infantry" | "cavalry" | "artillery";
 
 /** A territory card is named by its territory; the two wilds have their own ids. */
 export type CardId = TerritoryId | "wild-1" | "wild-2";
 
 export interface GameConfig {
-  /** 2–6. Two players adds the neutral army (`TWO-*`). */
+  /** 3–6 (`SETUP-1`): there is no 2-player game. */
   players: number;
 }
 
@@ -31,14 +28,14 @@ export type GameState = { readonly engineState: unknown };
 // ---------------------------------------------------------------------------
 
 export type Phase =
-  | "setup-place" // SETUP-5 / TWO-3: placing the remaining starting armies, once territories are dealt
+  | "setup-place" // SETUP-5: placing the remaining starting armies, once territories are dealt
   | "reinforce" // REINF-*, CARDS-5: trading and placing armies; also mid-attack after ELIM-3
   | "attack" // COMBAT-*
   | "fortify" // FORT-*
   | "game-over";
 
 export interface TerritoryView {
-  owner: Owner;
+  owner: Seat;
   armies: number;
 }
 
@@ -85,10 +82,8 @@ export interface GameView {
  *  second source of legality. Moves the rules leave no choice over (moving into a territory
  *  when the minimum equals the maximum, the defender's dice) are taken by the engine itself. */
 export type Move =
-  /** Setup and reinforcement placement. In setup `armies` is 1 (`SETUP-5`); in the 2-player
-   *  setup a turn places 2 of one's own armies, then 1 neutral (`TWO-3`). */
+  /** Setup and reinforcement placement. In setup `armies` is 1 (`SETUP-5`). */
   | { kind: "place"; territory: TerritoryId; armies: number }
-  | { kind: "place-neutral"; territory: TerritoryId }
   /** `bonusTerritory` picks which owned, pictured territory gets the +2 (`CARDS-7`) when more
    *  than one qualifies; the engine picks when only one does. */
   | { kind: "trade"; cards: readonly [CardId, CardId, CardId]; bonusTerritory?: TerritoryId }
@@ -112,9 +107,6 @@ export type Options =
       kind: "setup-place";
       ownTerritories: readonly TerritoryId[];
       ownArmiesLeft: number;
-      /** 2-player setup only: neutral territories that may take this turn's neutral army. */
-      neutralTerritories: readonly TerritoryId[];
-      neutralArmiesLeft: number;
     }
   | {
       kind: "reinforce";
@@ -143,9 +135,9 @@ export type Options =
  *  it. Events carry only what the seat they are shown to may see: see `redact`. */
 export type GameEvent = { rule: string } & (
   | { kind: "turn-order"; order: readonly Seat[] }
-  /** The setup deal (`SETUP-4`, `TWO-2`): each territory's first owner, with 1 army on it. */
-  | { kind: "dealt"; owners: Readonly<Record<TerritoryId, Owner>> }
-  | { kind: "placed"; owner: Owner; territory: TerritoryId; armies: number }
+  /** The setup deal (`SETUP-4`): each territory's first owner, with 1 army on it. */
+  | { kind: "dealt"; owners: Readonly<Record<TerritoryId, Seat>> }
+  | { kind: "placed"; owner: Seat; territory: TerritoryId; armies: number }
   | {
       kind: "reinforcements";
       seat: Seat;
@@ -168,7 +160,7 @@ export type GameEvent = { rule: string } & (
       attackerLosses: number;
       defenderLosses: number;
     }
-  | { kind: "captured"; seat: Seat; territory: TerritoryId; from: Owner }
+  | { kind: "captured"; seat: Seat; territory: TerritoryId; from: Seat }
   | { kind: "occupied"; from: TerritoryId; to: TerritoryId; armies: number }
   | { kind: "eliminated"; seat: Seat; by: Seat; cardsTaken: number }
   /** `card` is present only for the seat that drew it. */
