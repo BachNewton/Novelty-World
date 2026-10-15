@@ -15,25 +15,14 @@ export interface BotInput {
   readonly options: Options;
   /** The latest write's events, redacted for this seat. */
   readonly events: readonly GameEvent[];
-  /** Work still to spend this turn (nodes, rollouts, iterations: the bot's own unit), never time,
-   *  so the same position and seed always give the same move on any machine. */
-  readonly budget: number;
   /** For a bot's own random choices: the same seed and position give the same move. Not the game's seed. */
   readonly seed: string;
 }
 
-export interface BotDecision {
-  move: Move;
-  /** Work spent on this decision, taken from the turn's budget. */
-  work: number;
-}
-
-export type Bot = (input: BotInput) => BotDecision;
+export type Bot = (input: BotInput) => Move;
 
 export interface BotEntry {
   name: string;
-  /** The work a turn may spend. */
-  budget: number;
   bot: Bot;
 }
 

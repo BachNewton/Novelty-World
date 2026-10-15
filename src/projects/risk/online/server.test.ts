@@ -197,7 +197,7 @@ describe("driving bot seats", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const real = BOTS.random.bot;
     let calls = 0;
-    BOTS.random.bot = (input) => (calls++ === 0 ? { move: { kind: "end-turn" }, work: 1 } : real(input));
+    BOTS.random.bot = (input) => (calls++ === 0 ? { kind: "end-turn" } : real(input));
     let logged: number;
     try {
       await drive(deps, "GAME");

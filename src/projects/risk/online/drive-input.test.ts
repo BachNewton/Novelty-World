@@ -14,7 +14,7 @@ function gameWithHands(seed: string): OnlineGame {
   for (let i = 0; i < 5000; i++) {
     const seat = pendingSeat(ENGINE, game);
     if (seat === null) break;
-    const { move } = BOTS.random.bot(botInput(ENGINE, game, seat, 1000, `${seed}/${i.toString()}`));
+    const move = BOTS.random.bot(botInput(ENGINE, game, seat, `${seed}/${i.toString()}`));
     const result = applyAnswer(ENGINE, game, { decision: game.decision, seat, move });
     if (!result.ok) throw new Error(result.reason);
     game = result.game;
@@ -56,17 +56,17 @@ describe("what a bot is given", () => {
     if (seat === null) throw new Error("The game is over");
     const other = redealtFor(game, seat, `redeal/${seed}`);
     expect(JSON.stringify(other.engine)).not.toBe(JSON.stringify(game.engine));
-    expect(botInput(ENGINE, other, seat, 10, "x")).toEqual(botInput(ENGINE, game, seat, 10, "x"));
+    expect(botInput(ENGINE, other, seat, "x")).toEqual(botInput(ENGINE, game, seat, "x"));
   });
 
   it("holds its own hand and the public board, and no state", () => {
     const game = gameWithHands("own");
     const seat = pendingSeat(ENGINE, game);
     if (seat === null) throw new Error("The game is over");
-    const input = botInput(ENGINE, game, seat, 10, "x");
+    const input = botInput(ENGINE, game, seat, "x");
     expect(input.view.viewer).toBe(seat);
     expect(input.view.cards.hand).toEqual((game.engine.engineState as Hidden).hands[seat]);
-    expect(Object.keys(input).sort()).toEqual(["budget", "events", "options", "seat", "seed", "view"]);
+    expect(Object.keys(input).sort()).toEqual(["events", "options", "seat", "seed", "view"]);
     expect(JSON.stringify(input)).not.toContain("engineState");
   });
 });

@@ -146,11 +146,10 @@ export const DRIVE_DECISIONS = 300;
  * Plays the bot seats while the game waits on one. Idempotent: it acts only
  * on the decision pending, and its answer names it, so a drive that runs
  * twice, or alongside another, only ever lands one answer per decision. Each
- * bot sees only its seat's view (`botInput`), and spends its budget a turn.
+ * bot sees only its seat's view (`botInput`).
  */
 export async function drive(deps: Pick<ServerDeps, "engine" | "store">, id: string): Promise<"done" | "more"> {
   const { engine, store } = deps;
-  const spent = new Map<string, number>();
   for (let made = 0; made < DRIVE_DECISIONS; made++) {
     const row = await store.read(id);
     if (!row) return "done";
@@ -160,15 +159,12 @@ export async function drive(deps: Pick<ServerDeps, "engine" | "store">, id: stri
     const controller = controllerOf(row, seat);
     if (controller.kind !== "bot") throw new Error("A bot seat lost its bot mid-drive");
     const entry = BOTS[controller.bot];
-    const turn = `${seat.toString()}/${engine.view(game.engine, null).turn.toString()}`;
-    const input = botInput(engine, game, seat, entry.budget - (spent.get(turn) ?? 0), `${id}/${game.decision.toString()}`);
-    const decision = entry.bot(input);
-    spent.set(turn, (spent.get(turn) ?? 0) + decision.work);
-    let answer: Answer = { decision: game.decision, seat, move: decision.move };
+    const input = botInput(engine, game, seat, `${id}/${game.decision.toString()}`);
+    let answer: Answer = { decision: game.decision, seat, move: entry.bot(input) };
     const tried = applyAnswer(engine, game, answer);
     if (!tried.ok) {
-      console.error(`Risk game ${id}: bot ${controller.bot} made an illegal move (${tried.reason}); playing the random bot's instead`, decision.move);
-      answer = { ...answer, move: BOTS.random.bot(input).move };
+      console.error(`Risk game ${id}: bot ${controller.bot} made an illegal move (${tried.reason}); playing the random bot's instead`, answer.move);
+      answer = { ...answer, move: BOTS.random.bot(input) };
     }
     const result = await commit(store, id, (current) => answerStep(engine, current, answer));
     // Rejected only because the decision moved on (another drive answered it): read again.

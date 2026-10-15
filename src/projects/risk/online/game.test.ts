@@ -18,7 +18,7 @@ function history(seed: string, length: number): { games: OnlineGame[]; answers: 
     const game = games[i];
     const seat = pendingSeat(ENGINE, game);
     if (seat === null) throw new Error("The game ended early");
-    const answer = { decision: game.decision, seat, move: BOTS.random.bot(botInput(ENGINE, game, seat, 1, `${seed}/${i.toString()}`)).move };
+    const answer = { decision: game.decision, seat, move: BOTS.random.bot(botInput(ENGINE, game, seat, `${seed}/${i.toString()}`)) };
     const result = applyAnswer(ENGINE, game, answer);
     if (!result.ok) throw new Error(result.reason);
     answers.push(answer);
