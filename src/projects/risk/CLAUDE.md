@@ -28,7 +28,7 @@ Risk has its own style, separate from Novelty World's bright, quirky one: a war 
 
 **Ultrawide monitors are a primary device too** (21:9, such as a 3440×1440 panel at 125% scaling, which a browser sees as 2752×1152 CSS pixels; and 32:9, such as 5120×1440). The extra width is spent on information, not on stretching the board: the board stays at its most readable size, and panels beside it show what a narrower screen keeps behind a tap (the battle log, every player's standing, continent control, the odds of a planned attack).
 
-**The iPad is a primary device**, in both orientations (iPad about 820×1180, iPad mini 744×1133), with touch as its input. Every iPad browser runs on WebKit, Safari's engine, so Risk is checked in WebKit as well as Chromium.
+**The iPad is a primary device**, in both orientations (iPad about 820×1180, iPad mini 744×1133), with touch as its input. Every iPad browser runs on WebKit, Safari's engine, so Risk is checked in WebKit as well as Chromium: Playwright's `webkit` project runs Risk's e2e specs (`e2e/risk-*.spec.ts`), and only those.
 
 **Risk's width floor is 375px**, raising the site's 360px floor for this project only: the whole board has to stay readable and tappable, and 42 territories are its hardest layout problem.
 
