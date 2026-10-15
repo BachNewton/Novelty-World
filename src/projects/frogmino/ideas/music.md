@@ -22,7 +22,7 @@ What composing the courses' themes has taught, gathered ahead of a skill for wri
   | Zig Zag Alley (S + Z) | Mirror, Mirror | A two-part invention where each phrase is answered by its mirror image, like the S and the Z | Kirkhope haunted-house harpsichord, E minor |
   | Chain Reaction (T + L) | Hurry Up and Wait | A ride, a half-time wait, a sixteenth-note dash and a stop-go break, as the course's gaps hurry and hold the team | Pokémon bicycle and Surf, D major |
   | The hard course (to come) | Final Stretch | Everything at full tilt, with a heroic turn and a last lift up a key | Pokémon trainer battle, A minor, 168 BPM |
-  | Solo | Hop Along Route | An adventure: out on the road, then a quiet town section | Pokémon route march, C major |
+  | A course to come | Hop Along Route | An adventure: out on the road, then a quiet town section | Pokémon route march, C major |
 
 - **Borrow traits, never tunes.** Name the traits a theme takes from each touchstone:
   - **Kirkhope:** walking tuba or bass, chromatic staccato tunes, cheeky woodwind-like leads, jazzy changes, sudden key shifts.

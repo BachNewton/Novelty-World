@@ -24,14 +24,15 @@ import {
 } from "./geometry";
 import { LAY_BY_INNER, layByArea, layByProps, layBySurface, type LayBy } from "./lay-bys";
 import { WORLD_PAINTS, worldToken } from "./paints";
-import { PREVIEW_LANES, PREVIEW_PIECES, PREVIEW_ROWS, passingPoses, type PreviewTeam } from "./preview-rows";
+import { PREVIEW_LANES, PREVIEW_PIECES, PREVIEW_ROWS, passingPoses } from "./preview-rows";
 import { propBoxes, type PropKind } from "./props";
-import { ROAD_TILE, roadTile, roadTiles, structuresNear, type WorldPlan } from "./road";
+import { ROAD_TILE, roadTile, roadTiles, type WorldPlan } from "./road";
 import { SCENERY_TILE, cloudPlace, clouds, sceneryTile } from "./scenery";
-import { DECK_TOP, DECK_UNDERSIDE, HEADROOM, MARK_THICKNESS, VEHICLE_TOP, gantryBoxes, overpassBoxes } from "./structures";
+import { HELI_DECK_TOP } from "../heli/flight";
+import { DECK_TOP, DECK_UNDERSIDE, HEADROOM, MARK_THICKNESS, VEHICLE_TOP, finishMarkings, gantryBoxes } from "./structures";
 
 // The world is laid out for a road of any width and a finish anywhere: the
-// preview's roads to solo's finish, and every co-op course's own road and
+// preview's roads to the tuning's finish, and every co-op course's own road and
 // finish.
 const ROADS = [
   ...new Map(
@@ -42,7 +43,7 @@ const ROADS = [
 ];
 
 describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLength", ({ lanes, courseLength }) => {
-  const PLAN: WorldPlan = { seed: 20260930, courseLength, lanes };
+  const PLAN: WorldPlan = { seed: 20260930, courseLength, lanes, finishAt: courseLength };
 
   // Every tile from well behind the start to well past the finish.
   const COURSE_TILES = Array.from({ length: 16 }, (_, i) => i - 4);
@@ -98,12 +99,12 @@ describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLeng
       expect(right).toBeLessThan(layBys.length);
     });
 
-    it("lie beyond the kerb, off the road and clear of the structures", () => {
+    it("lie beyond the kerb, off the road and clear of the finish gantry", () => {
       for (const layBy of layBys) {
         const area = layByArea(lanes, layBy);
         expect(overlaps(area, roadArea(lanes, -Infinity, Infinity))).toBe(false);
         expect(Math.min(Math.abs(area.minX - ROAD_LEFT), Math.abs(area.minX - roadRight(lanes)), Math.abs(area.maxX - ROAD_LEFT), Math.abs(area.maxX - roadRight(lanes)))).toBeCloseTo(LAY_BY_INNER);
-        for (const structure of [...overpassBoxes(lanes), ...gantryBoxes(lanes, PLAN.courseLength)]) expect(overlaps(area, boxArea(structure))).toBe(false);
+        for (const structure of gantryBoxes(lanes, PLAN.finishAt)) expect(overlaps(area, boxArea(structure))).toBe(false);
       }
     });
 
@@ -191,36 +192,39 @@ describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLeng
     });
   });
 
-  describe("the structures", () => {
-    it("let the tallest vehicle, lifted, pass under with headroom", () => {
+  describe("the finish gantry", () => {
+    const gantry = gantryBoxes(lanes, PLAN.courseLength);
+
+    it("lets the tallest vehicle, lifted, pass under with headroom", () => {
       expect(DECK_UNDERSIDE).toBeGreaterThanOrEqual(VEHICLE_TOP + HEADROOM);
     });
 
-    it("stand clear of the lanes and verges below their decks", () => {
-      for (const boxes of [overpassBoxes(lanes), gantryBoxes(lanes, PLAN.courseLength)]) {
-        const below = boxes.filter((b) => boxBottom(b) < DECK_UNDERSIDE - 1e-9);
-        expect(below.filter((b) => overlaps(boxArea(b), roadArea(lanes, -Infinity, Infinity)))).toEqual([]);
-      }
+    it("stands clear of the lanes and verges below its deck", () => {
+      const below = gantry.filter((b) => boxBottom(b) < DECK_UNDERSIDE - 1e-9);
+      expect(below.filter((b) => overlaps(boxArea(b), roadArea(lanes, -Infinity, Infinity)))).toEqual([]);
     });
 
-    it("have decks wide and deep enough for a frog across every lane", () => {
-      const deck = (boxes: WorldBox[]): Area => boxArea(boxes[0]);
-      for (const area of [deck(overpassBoxes(lanes)), deck(gantryBoxes(lanes, PLAN.courseLength))]) {
-        expect(area.minX).toBeLessThan(ROAD_LEFT);
-        expect(area.maxX).toBeGreaterThan(roadRight(lanes));
-        expect(area.maxDepth - area.minDepth).toBeGreaterThanOrEqual(2);
-      }
+    it("has a deck wide and deep enough for a frog across every lane", () => {
+      const deck = boxArea(gantry[0]);
+      expect(deck.minX).toBeLessThan(ROAD_LEFT);
+      expect(deck.maxX).toBeGreaterThan(roadRight(lanes));
+      expect(deck.maxDepth - deck.minDepth).toBeGreaterThanOrEqual(2);
     });
 
-    it("appear when the camera is near them", () => {
-      expect(structuresNear(PLAN, roadTiles(-8)).length).toBeGreaterThan(0);
-      expect(structuresNear(PLAN, roadTiles(-5000))).toEqual([]);
+    it("keeps the roadside clear of it wherever the road stopped beneath the helicopter", () => {
+      for (const shift of [0, 7.3, 61.25, 240]) {
+        const plan = { ...PLAN, finishAt: PLAN.courseLength - shift };
+        const tiles = Array.from({ length: 6 }, (_, i) => Math.floor(plan.finishAt / ROAD_TILE) - 2 + i);
+        const roadside = tiles.flatMap((k) => roadTile(plan, k).props);
+        const footprint = gantryBoxes(lanes, plan.finishAt).map(boxArea);
+        expect(roadside.filter((b) => footprint.some((area) => overlaps(boxArea(b), area)))).toEqual([]);
+      }
     });
   });
 
   describe("depth fighting", () => {
     // The camera rides at its height above the road, or above a deck.
-    const EYE: EyeHeights = { lowest: TUNING.cameraHeight, highest: DECK_TOP + TUNING.cameraHeight };
+    const EYE: EyeHeights = { lowest: TUNING.cameraHeight, highest: Math.max(DECK_TOP, HELI_DECK_TOP) + TUNING.cameraHeight };
     // The land under everything, drawn as a plane whose top is this box's.
     const ground = box([0, -GROUND_DROP - 0.5, 0], [4000, 1, 4000], "meadow");
     const ALL_TILES = Array.from({ length: 16 }, (_, i) => i - 4);
@@ -268,11 +272,21 @@ describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLeng
       expect(scan([slab, decal, box([0.25, 0.5, 1.0175], [0.5, 0.25, 0.035], "sign-ink")])).toBe(1);
     });
 
-    it("keeps the hand-built parts at least a paint layer apart", () => {
-      const finishTiles = [-1, 0, Math.floor(PLAN.courseLength / ROAD_TILE), Math.floor(PLAN.courseLength / ROAD_TILE) + 1];
-      const road = roadOf(PLAN, finishTiles);
-      const built = [ground, ...road.surfaces, ...road.markings, ...overpassBoxes(lanes), ...gantryBoxes(lanes, PLAN.courseLength)];
-      expect(visible(faceClashes(built, MARK_THICKNESS, EYE), road.markings).map(describeClash)).toEqual([]);
+    // The road's boxes as drawn when it has gone `shift` up the course
+    // beneath the helicopter.
+    const shiftedBy = (boxes: readonly WorldBox[], shift: number): WorldBox[] =>
+      boxes.map((b) => ({ ...b, center: [b.center[0], b.center[1], b.center[2] - shift] }));
+
+    it.each([0, 0.37, 1.9, 61.25])("keeps the hand-built parts at least a paint layer apart, the road gone %d by beneath the helicopter", (shift) => {
+      const plan = { ...PLAN, finishAt: PLAN.courseLength - shift };
+      const finishTile = Math.floor(plan.finishAt / ROAD_TILE);
+      const road = roadOf(plan, [finishTile - 1, finishTile, finishTile + 1]);
+      const markings = [...shiftedBy(road.markings, shift), ...finishMarkings(lanes, PLAN.courseLength)];
+      const built = [ground, ...shiftedBy(road.surfaces, shift), ...markings, ...gantryBoxes(lanes, PLAN.courseLength)];
+      expect(visible(faceClashes(built, MARK_THICKNESS, EYE), markings).map(describeClash)).toEqual([]);
+    });
+
+    it("keeps the props at least a paint layer apart", () => {
 
       const kinds: PropKind[] = ["guardRail", "reflectorPost", "frogSign", "blockSign", "cone", "rock", "shrub", "mailbox", "roundTree", "pine"];
       for (const kind of kinds) {
@@ -289,6 +303,7 @@ describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLeng
     it.each([PLAN.seed, 1, 2, 3])("lays no two faces of the whole world in one plane, for seed %d", (seed) => {
       const plan = { ...PLAN, seed };
       const road = roadOf(plan, ALL_TILES);
+      const finish = finishMarkings(lanes, plan.courseLength);
       const sky = clouds(seed).flatMap((cloud) => {
         const { x, depth } = cloudPlace(cloud, 0, 0);
         return cloud.boxes.map((b) => box([x + b.center[0], cloud.y + b.center[1], -depth + b.center[2]], b.size, b.paint));
@@ -298,11 +313,12 @@ describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLeng
         ...road.surfaces,
         ...road.markings,
         ...road.props,
-        ...structuresNear(plan, ALL_TILES),
+        ...gantryBoxes(lanes, plan.courseLength),
+        ...finish,
         ...[-2, -1, 0, 1, 2, 3, 4].flatMap((k) => sceneryTile(plan, k)),
         ...sky,
       ];
-      expect(visible(faceClashes(world, 1e-4, EYE), road.markings).map(describeClash)).toEqual([]);
+      expect(visible(faceClashes(world, 1e-4, EYE), [...road.markings, ...finish]).map(describeClash)).toEqual([]);
     });
   });
 });
@@ -315,17 +331,16 @@ describe("the world's paints", () => {
 });
 
 describe("the preview's rows", () => {
-  const TEAMS: readonly PreviewTeam[] = ["solo", "coop"];
-  const cases = TEAMS.flatMap((team) => PREVIEW_LANES.flatMap((lanes) => PREVIEW_ROWS[team][lanes].map((row, i) => [team, lanes, i, row] as const)));
+  const cases = PREVIEW_LANES.flatMap((lanes) => PREVIEW_ROWS[lanes].map((row, i) => [lanes, i, row] as const));
 
-  it.each(cases)("%s, %d lanes: row %d lets its frogs through together, on the road", (team, lanes, _, row) => {
-    expect(passingPoses(row, lanes, PREVIEW_PIECES[team])).not.toBeNull();
+  it.each(cases)("%d lanes: row %d lets the pair through together, on the road", (lanes, _, row) => {
+    expect(passingPoses(row, lanes, PREVIEW_PIECES)).not.toBeNull();
   });
 
   it.each(PREVIEW_LANES)("for the co-op pair on %d lanes, alternate side by side and interlocked", (lanes) => {
     const span = (frog: Frog) => frogCells(frog).map((cell) => cell.col);
-    PREVIEW_ROWS.coop[lanes].forEach((row, i) => {
-      const poses = passingPoses(row, lanes, PREVIEW_PIECES.coop);
+    PREVIEW_ROWS[lanes].forEach((row, i) => {
+      const poses = passingPoses(row, lanes, PREVIEW_PIECES);
       if (poses === null) throw new Error(`Row ${String(i)} lets the pair through nowhere`);
       const [a, b] = poses.map(span);
       const sideBySide = Math.max(...a) < Math.min(...b) || Math.max(...b) < Math.min(...a);

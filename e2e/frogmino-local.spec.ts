@@ -41,7 +41,7 @@ test("?play=local opens the join screen, where both halves of the keyboard join 
   await expect(game).toHaveAttribute("data-depth", "0", { timeout: TIMEOUT });
   await expect(game).toHaveAttribute("data-hopped-at", ",");
 
-  // Either player's jump forward drops the team off the overpass.
+  // Either player's jump forward jumps the team out of the helicopter.
   await page.keyboard.press("KeyW");
   await expect(game).not.toHaveAttribute("data-depth", "0");
   // The arrows are Sprout's here, so / hops Sprout, and Space Splash.
@@ -58,7 +58,7 @@ test("Local co-op from the lobby opens the join screen, and Back returns", async
   await page.getByRole("button", { name: "Local co-op" }).click();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeDisabled({ timeout: TIMEOUT });
   await page.getByRole("button", { name: "Back to lobby" }).click();
-  await expect(page.getByRole("button", { name: "Play solo" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Local co-op" })).toBeVisible();
 });
 
 test("the join screen lists the co-op courses by tier, and the keys and a click pick one", async ({ page }) => {

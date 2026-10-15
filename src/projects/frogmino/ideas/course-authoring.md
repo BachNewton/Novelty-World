@@ -8,9 +8,8 @@ Claude is the game's main course designer. Courses made by people are a bonus: w
 
 ## One course format
 
-A course is data, not code: an ordered list of rows (which vehicles sit in which lanes, and any gates with the piece each sets), the spacing between rows, the starting piece, the course length, gold, silver and bronze times, a difficulty label, and whether it's solo, co-op or both. Every source of courses produces this same format:
+A course is data, not code: an ordered list of rows (which vehicles sit in which lanes), the spacing between rows, each player's piece, the course length, gold, silver and bronze times and a difficulty tier. Every source of courses produces this same format:
 
-- the seeded generator (endless variety, quick play);
 - Claude, designing courses on purpose;
 - a human, through the editor.
 
@@ -20,8 +19,8 @@ Because the format is shared, every course gets the same checks and plays the sa
 
 Claude designs a course, runs the tools, reads what they say, and revises, the way a level designer iterates. The tools, all runnable from the command line:
 
-- **Validate:** the course is legal (vehicles only from the fleet, one per lane, gates wide enough) and completable. Completable means every row can be passed by every piece the player could be holding there, with gates optional. For co-op it means every pair of pieces the partners could be holding, given that a gate closes behind the first frog through. Fails loudly, naming the row and the stuck piece.
-- **Analyse:** per row, the number of ways through, which moves it demands (slide, rotate, hop, riding), decoys and near misses, whether a gate is needed later, and a difficulty curve across the whole course, so Claude can see whether it ramps, rests and peaks as intended.
+- **Validate:** the course is legal (vehicles only from the fleet, one per lane) and completable: the team can pass every row. Fails loudly, naming the row.
+- **Analyse:** per row, the number of ways through, which moves it demands (slide, rotate, hop, riding), decoys and near misses, and a difficulty curve across the whole course, so Claude can see whether it ramps, rests and peaks as intended.
 - **Play:** an automated player that finds a good route through the course and reports its time, bonks, and where it struggled. Its times anchor the medal thresholds.
 - **Preview:** a picture of each row (head-on silhouettes) and of the course as a whole, readable without running the game.
 - **Prove and watch:** seeing is believing. A course is proved beatable by an input log that takes the team through every row without a bonk and over the finish, found by a solver and verified by replaying it in the real rules; and any log can be watched played out in the real game scene.
@@ -30,7 +29,7 @@ Claude designs a course, runs the tools, reads what they say, and revises, the w
 
 The foundation, in `proof/` and `coop-courses/` (see Courses and medals, Proving courses and Adding a co-op course in the project's `CLAUDE.md`):
 
-- **The solver** proves a course, solo or co-op, row by row in the real engine: a breadth-first search over the team's poses per row (slides, turns with kicks, hops, perching on a partner), compiled to timed inputs, checked step by step against the engine, backing up to take a gate a later row needs, to the finish, then the whole log replayed from the start. It runs from a test or the CLI (`npm run frogmino:prove`), and names any row with no route.
+- **The solver** proves a course row by row in the real engine: a breadth-first search over the team's poses per row (slides, turns with kicks, hops, perching on a partner), compiled to timed inputs, checked step by step against the engine, to the finish, then the whole log replayed from the start. It runs from a test or the CLI (`npm run frogmino:prove`), and names any row with no route.
 - **Designed answers:** a course designed by hand names, per row, the pose each frog is meant to pass in, and the solver can be held to it, so the proof plays the course as designed.
 - **The pose count:** how many team poses that the team can reach pass a row, the first seed of Analyse and the difficulty measure, printed per row by the CLI.
 - **Readable routes:** per row, the steps in words, the row's face in ASCII at each stage, and the inputs. The first seed of Preview, as text.
@@ -38,11 +37,11 @@ The foundation, in `proof/` and `coop-courses/` (see Courses and medals, Proving
 - **The co-op measures:** per row, its coupling (how far the frogs' ways through depend on each other, from parallel solo to fully coupled), its selfish decoys (a frog's ways through that strand its partner) and the coordination kinds of its designed answer and the solver's route (perch, both up, interlock, order, crossing), printed with the proof's time against the medal times in the CLI's course summary.
 - **Replays:** a replay is plain data (a course spec, an input log, an end tick), and `?replay=<name>` plays it in the game scene at real speed, slower or paused. The CLI saves a proof as a replay, so a person can watch what the solver found.
 
-What it proves today: every designed co-op course to its finish, every row in its designed answer, and solo's row stream to the finish, through the gates its needs-gate rows need.
+What it proves today: every designed co-op course to its finish, every row in its designed answer.
 
 How the rest builds on it:
 
-- **Validate** is the solver run per row against every piece, or pair of pieces, the team could hold there, with the legality checks the row format already makes (`traffic.ts`); for co-op courses without gates it is built.
+- **Validate** is the solver run per row, with the legality checks the row format already makes (`traffic.ts`); it is built.
 - **Analyse** reads the planner's search: how many poses pass, and for co-op its coupling, selfish decoys and coordination kinds (built); still to come, how far the shortest route is, which moves it needs (a hop, a kick), near misses, and a difficulty curve across the course.
 - **Play** grows from the solver: today it plays at one fixed pace and only between rows; the automated player for medals needs the fastest route, moves made while a row overlaps the team, and recovery after a bonk. Until it has them, each course's medal times are provisional, set from the solver's proof and the held-jump floor, which the prove CLI prints (see Courses and medals in the project's CLAUDE.md).
 - **Preview** grows from the ASCII faces into pictures of rows and courses.
@@ -70,7 +69,7 @@ What designing co-op courses has taught: first a teaching ramp for an L and a J 
 
 ### Courses, tiers and medals
 
-- **Each co-op course fixes its pair of pieces,** with no gates (see Open questions in the project's `CLAUDE.md`). The pair is the course's identity, so choose it first, for what its shapes can do (below).
+- **Each co-op course fixes its pair of pieces** for the whole course. The pair is the course's identity, so choose it first, for what its shapes can do (below).
 - **The arc:** warm-up, build, breather, climax. One idea a row, each new idea first where it's easy to see, then repeated, then combined. Reading room is longest early and shrinks as the course goes. End on the course's hardest, most coupled row.
 - **Short courses.** A medal is chased by retrying, and a retry is the whole course, so courses stay around one to two minutes:
 
@@ -132,10 +131,10 @@ What designing co-op courses has taught: first a teaching ramp for an L and a J 
 
 ## Claude's skill
 
-Not yet: the lessons gather in Designing co-op courses first, course by course, and become a skill once there are enough of them to be sure. The skill would teach course design for Frogmino: what makes a row interesting (one clean answer, a tempting decoy, a forced rotation, a hop that riding forgives), how to pace a course (warm-up, build, breather, climax), how to use gates as a puzzle (sometimes needed later, sometimes a trap, sometimes a shortcut), how to design for co-op pairs, and how to set medal times from the automated player. It ends with the tools: design, validate, analyse, play, revise.
+Not yet: the lessons gather in Designing co-op courses first, course by course, and become a skill once there are enough of them to be sure. The skill would teach course design for Frogmino: what makes a row interesting (one clean answer, a tempting decoy, a forced rotation, a hop that riding forgives), how to pace a course (warm-up, build, breather, climax), how to design for co-op pairs, and how to set medal times from the automated player. It ends with the tools: design, validate, analyse, play, revise.
 
 The goal is a spread of courses from gentle to brutal, each one hand-shaped rather than random.
 
 ## The human editor (later)
 
-A visual editor for the owner's friend and anyone else who wants to build: place vehicles and gates row by row, see the fit analysis and validation live, test-play instantly, and save to the same course format. It reuses Claude's validate, analyse and play tools, so a human-made course is held to the same standard.
+A visual editor for the owner's friend and anyone else who wants to build: place vehicles row by row, see the fit analysis and validation live, test-play instantly, and save to the same course format. It reuses Claude's validate, analyse and play tools, so a human-made course is held to the same standard.

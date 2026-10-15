@@ -2,7 +2,7 @@ import { cellKey, frogCells } from "../logic";
 import { checkMedalTimes, heldJumpTicks } from "../medals";
 import { fitsRow, startPlacements } from "../run";
 import { toSeconds, toTicks } from "../ticks";
-import { rowLength, rowOpening, rowSolids } from "../traffic";
+import { checkRow, rowLength, rowSolids } from "../traffic";
 import type { Tuning } from "../tuning";
 import { COURSE_TIERS, type DesignedCourse } from "./design";
 
@@ -72,7 +72,7 @@ function checkCourse(course: DesignedCourse, tuning: Tuning): void {
     const where = `row ${String(i)} ("${row.lesson}")`;
     if (row.vehicles.length === 0) fail(`${where} has no vehicles`);
     try {
-      rowOpening(row.vehicles, course.lanes, tuning.wallRows);
+      checkRow(row.vehicles, course.lanes);
     } catch (error) {
       throw new Error(`${where} isn't a legal row: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
     }
@@ -82,13 +82,16 @@ function checkCourse(course: DesignedCourse, tuning: Tuning): void {
     const frogs = row.answer.map((pose, player) => ({ kind: course.kinds[player], ...pose }));
     frogs.forEach((frog, player) => {
       if (!frogCells(frog).every((cell) => cell.col >= 0 && cell.col < course.lanes)) fail(`${where}: frog ${String(player + 1)}'s answer leaves the road`);
-      if (!fitsRow(frog, solids, tuning.wallRows)) fail(`${where}: frog ${String(player + 1)}'s answer doesn't pass it`);
+      if (!fitsRow(frog, solids)) fail(`${where}: frog ${String(player + 1)}'s answer doesn't pass it`);
     });
     const cells = frogs.flatMap((frog) => frogCells(frog).map(cellKey));
     if (new Set(cells).size !== cells.length) fail(`${where}: the frogs overlap in its answer`);
   });
 
   if (!(course.length > tuning.dropDistance)) fail(`its finish at ${String(course.length)} comes before the drop lands`);
+  if (course.rows[0].gap < tuning.firstWallDepth) {
+    fail(`its first row stands at ${String(course.rows[0].gap)}, short of the reading room beyond the drop's landing (${String(tuning.firstWallDepth)})`);
+  }
   const fronts = rowFronts(course);
   const last = fronts[fronts.length - 1];
   if (flatOutMeeting(last, tuning) >= course.length) {

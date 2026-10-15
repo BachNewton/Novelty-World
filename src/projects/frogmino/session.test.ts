@@ -1,27 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "@/shared/lib/seeded-random";
-import { coopCourse, courseOf, soloCourse, startRun } from "./courses";
-import { seatedSink, SOLO_SEATING } from "./input/devices";
+import { coopCourse, courseOf, startRun } from "./courses";
+import { seatedSink } from "./input/devices";
 import { EMPTY_LINEUP, join, lineupSeating } from "./input/lineup";
 import { replay, type FrogAction, type HeldAction, type PlayerInput } from "./run";
 import { localSession, replaySession } from "./session";
-import { TUNING } from "./tuning";
 import { PERCH_ROW } from "./proof/perch";
 import { findReplay } from "./proof/replays";
 
 const FRAME = 1 / 60;
 
-describe("a solo session", () => {
-  it("plays the row stream on its own road with one frog, as solo always has", () => {
-    const session = localSession(soloCourse());
-    const { run, log } = session.store.getState();
-    expect(run.frogs).toHaveLength(1);
-    expect(run.lanes).toBe(TUNING.corridorCols);
-    expect(log).toEqual([]);
-  });
-
+describe("a session", () => {
   it("applies an input at once, at the run's tick, and logs it there", () => {
-    const session = localSession(soloCourse());
+    const session = localSession(coopCourse("long-and-short"));
     // A long frame is clamped, so a backgrounded tab doesn't lurch on.
     session.frame(0.1);
     session.frame(5);
@@ -34,17 +25,17 @@ describe("a solo session", () => {
     expect(log).toEqual([{ tick, player: 0, input: { kind: "act", action: "forward" } }]);
   });
 
-  it("drives player 0 from every device", () => {
-    const session = localSession(soloCourse());
-    const sink = seatedSink(SOLO_SEATING, session);
+  it("drives one player from every device, as online co-op seats them", () => {
+    const session = localSession(coopCourse("long-and-short"));
+    const sink = seatedSink(() => 1, session);
     sink.input("keys", { kind: "act", action: "rotateCw" });
     sink.input("touch", { kind: "act", action: "rotateCw" });
     sink.input("pad:3", { kind: "act", action: "rotateCw" });
-    expect(session.store.getState().log.map((input) => input.player)).toEqual([0, 0, 0]);
+    expect(session.store.getState().log.map((input) => input.player)).toEqual([1, 1, 1]);
   });
 
   it("starts afresh on a restart, and says so", () => {
-    const session = localSession(soloCourse());
+    const session = localSession(coopCourse("long-and-short"));
     session.frame(0.1);
     session.input(0, { kind: "act", action: "left" });
     session.restart();

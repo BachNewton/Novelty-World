@@ -70,7 +70,7 @@ test("each player's keys move their own frog, on both screens", async ({ browser
     for (const { page } of [host, guest]) {
       await expect(game(page)).toHaveAttribute("data-cols", `${String(sprout - 1)},${String(splash + 1)}`, { timeout: TIMEOUT });
     }
-    // Either player's jump forward drops the whole team off the overpass.
+    // Either player's jump forward jumps the whole team out of the helicopter.
     await guest.page.keyboard.press("KeyW");
     for (const { page } of [guest, host]) {
       await expect(game(page)).not.toHaveAttribute("data-depth", "0", { timeout: TIMEOUT });

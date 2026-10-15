@@ -140,6 +140,10 @@ Tailwind CSS v4. Novelty World's own visual identity, the home page, shared UI a
 
 **Rule: docs state what is decided, not when.** No decision dates, "as of" stamps or change logs in CLAUDE.md, skills, commands or design docs: what's decided is decided, and git history holds the when. Dates stay only where the date is the data: a measurement's context, a record's `asOf`, or a log whose whole point is the timeline.
 
+### Tests never rely on a network connection
+
+**Rule: no test, unit or e2e, may depend on anything outside this machine.** A test that reaches the live database, the production relay or any internet service fails when the network does, writes into real data, and measures someone else's server. Servers a test run starts for itself on localhost (the e2e app server, the local relay) are fine; external services are replaced by local stand-ins the run controls. Specs that still reach the live Supabase project (Frogmino's and Connection Test's room list) are refactor targets.
+
 ### Code, tests and tools wait for EVENTS, not clocks
 
 **Rule: never use a timer, delay, clock-based retry or polling loop to handle a race condition or a flaky test, in app logic or in tests.** This matters most in networking and async code. A race is an ordering bug, and the fix is correct ordering: register handlers before starting what fires them, queue work until the event that makes it valid (a connection's `open`, a promise resolving), and derive "ready" from events, never from elapsed time. Timers that are the feature itself (a game's countdown, an animation frame loop) are fine; a timer whose job is to let something else "probably finish first" never is.

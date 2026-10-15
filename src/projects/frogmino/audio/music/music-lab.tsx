@@ -8,10 +8,10 @@ import { VolumeSlider } from "../volume-slider";
 import { themeCourses } from "./course-music";
 import { isRendered, playMusic, prepareTheme, setMusicLoop, stopMusic } from "./music-board";
 import { themeSeconds, zzfxmSource, type Theme } from "./song";
-import { COURSE_THEMES, SKETCHES, THEMES } from "./themes";
+import { COURSE_THEMES, SKETCHES, SPARE_THEMES, THEMES } from "./themes";
 
-// The `?music` page: the courses' themes, as the game plays them, and the
-// earlier sketches, which it doesn't.
+// The `?music` page: the courses' themes, as the game plays them, the
+// themes ready for a course to come, and the earlier sketches.
 
 type Loops = Readonly<Record<string, boolean>>;
 
@@ -199,6 +199,7 @@ export function MusicLab() {
           </div>
         </header>
         <ThemeList title="The courses' themes" themes={COURSE_THEMES} card={card} />
+        <ThemeList title="For a course to come" note="Course themes no course plays yet." themes={SPARE_THEMES} card={card} />
         <ThemeList
           title="Earlier sketches"
           note="Ideas from before the courses had themes, kept to listen to; none plays in the game. The two Frog Polkkas arrange the Finnish folk tune Ievan Polkka."

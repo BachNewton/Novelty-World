@@ -72,7 +72,7 @@ describe("every registered co-op course", () => {
   });
 
   it.each(COOP_COURSES.map((course) => [course.id, course] as const))("%s has every designed answer within the team's reach", (_, course) => {
-    for (const row of analyseCoopCourse(course, TUNING, AIR_SLOTS)) expect(row.answerReachable, row.lesson).toBe(true);
+    for (const row of analyseCoopCourse(course, AIR_SLOTS)) expect(row.answerReachable, row.lesson).toBe(true);
   });
 
   it("lists the easy courses gentlest first, Block Party leading", () => {
@@ -117,11 +117,11 @@ describe("a co-op course of any pair of pieces, on any road", () => {
     const result = proveCourse(course, { answers: designedAnswers(design) });
     if (!result.ok) throw new Error(`stuck at row ${String(result.stuck.index)}: ${result.stuck.reason}`);
     expect(result.proof.finished).toBe(true);
-    for (const row of analyseCoopCourse(design, TUNING, AIR_SLOTS)) expect(row.answerReachable, row.lesson).toBe(true);
+    for (const row of analyseCoopCourse(design, AIR_SLOTS)) expect(row.answerReachable, row.lesson).toBe(true);
   });
 
   it("reads the coordination a narrow road's rows ask for", () => {
-    const [still, shuffle, up] = analyseCoopCourse(O_PAIR, TUNING, AIR_SLOTS);
+    const [still, shuffle, up] = analyseCoopCourse(O_PAIR, AIR_SLOTS);
     expect(still.answer).toEqual(["interlock"]);
     expect(shuffle.answer).toEqual(["interlock", "order"]);
     expect(up.answer).toEqual(["both up", "interlock", "order"]);
@@ -169,6 +169,11 @@ describe("a co-op course's checks", () => {
     expect(meeting).toBeLessThan(O_PAIR.length);
     expect(broken({ length: Math.floor(meeting) })).toThrow(/"o-pair": a team jumping flat out meets its last row at .*past its finish/);
     expect(broken({ length: 10 })).toThrow(/comes before the drop lands/);
+  });
+
+  it("fails loudly on a first row nearer than the reading room beyond the drop's landing", () => {
+    expect(withRow(0, { gap: TUNING.dropDistance })).toThrow(/"o-pair": its first row stands at 15, short of the reading room/);
+    expect(withRow(0, { gap: TUNING.firstWallDepth - 1 })).toThrow(/short of the reading room/);
   });
 
   it("goes round every row again by default, or as many of its last rows as it says", () => {

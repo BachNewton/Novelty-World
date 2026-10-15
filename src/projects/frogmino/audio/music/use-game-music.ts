@@ -17,10 +17,10 @@ export function usePreparedMusic(theme: Theme): void {
   }, [theme]);
 }
 
-// Plays a course's theme while the team is in play: from the drop off the
-// overpass, looping, until the finish line, where it fades out under the
-// finish fanfare. A restart stops it, and the next drop starts it again from
-// the top. The overpass and the done screen are quiet.
+// Plays a course's theme while the team is in play: from the jump out of the
+// helicopter, looping, until the finish line, where it fades out under the
+// finish fanfare. A restart stops it, and the next jump starts it again from
+// the top. Lining up aboard and the done screen are quiet.
 export function useGameMusic(session: Session, theme: Theme): void {
   useEffect(() => {
     void prepareTheme(theme);

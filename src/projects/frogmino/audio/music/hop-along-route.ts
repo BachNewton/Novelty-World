@@ -3,7 +3,7 @@ import { MOTIF_ANSWER, MOTIF_CALL } from "./motif";
 import type { Channel, Theme } from "./song";
 import { perBar, spread, transpose } from "./writing";
 
-// Solo's theme: one frog setting out down the road. A route march, the motif
+// A theme for a course still to come: setting out down the road. A route march, the motif
 // in its plainest form, with a quiet town to pass through on the way.
 
 interface Chord {
@@ -82,7 +82,7 @@ const [MOTIF_START] = MOTIF_ANSWER.split(" | ");
 export const HOP_ALONG_ROUTE: Theme = {
   id: "hop-along-route",
   name: "Hop Along Route",
-  use: "Solo: one frog's run down the road.",
+  use: "No course yet: a run down the road, for a course to come.",
   mood: "Bright and adventurous: setting out, with somewhere to get to.",
   style: [
     "Pokémon's routes (Junichi Masuda, Go Ichinose): a catchy pulse-wave hook over a punchy marching bass and snare, in an adventurous major key",

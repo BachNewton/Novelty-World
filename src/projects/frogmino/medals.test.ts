@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COOP_COURSES } from "./coop-courses";
-import { coopCourse, courseOf, soloCourse, startRun } from "./courses";
+import { coopCourse, courseOf, startRun } from "./courses";
 import { checkMedalTimes, formatTime, heldJumpTicks, medalFor, type MedalTimes } from "./medals";
 import { SAVED_REPLAYS } from "./proof/saved-replays";
 import { applyAction, createRun, playTo, pressHeld, replay, runTime, type Run, type RuleRows } from "./run";
@@ -11,21 +11,21 @@ import { TUNING } from "./tuning";
 const TIMES: MedalTimes = { gold: 60, silver: 80, bronze: 115 };
 
 // A road with no traffic on it: a single empty row far beyond the finish.
-const EMPTY_ROAD: RuleRows = () => ({ solids: [{ cells: [], length: 1 }], gates: [], gap: 1e6 });
+const EMPTY_ROAD: RuleRows = () => ({ solids: [{ cells: [], length: 1 }], gap: 1e6 });
 
 function emptyRun(): Run {
   return createRun(EMPTY_ROAD, TUNING);
 }
 
 describe("the run's clock", () => {
-  it("doesn't start while the team lines up on the overpass", () => {
+  it("doesn't start while the team lines up aboard the helicopter", () => {
     let run = playTo(emptyRun(), 300);
     run = applyAction(applyAction(run, "left"), "rotateCw");
     run = playTo(run, 450);
     expect(runTime(run)).toBe(0);
   });
 
-  it("starts as the team drops off the overpass, and counts the rules' ticks from there", () => {
+  it("starts as the team jumps out of the helicopter, and counts the rules' ticks from there", () => {
     const dropped = applyAction(playTo(emptyRun(), 250), "forward");
     expect(dropped.droppedAt).toBe(250);
     expect(runTime(dropped)).toBe(0);
@@ -69,7 +69,7 @@ describe("the run's clock", () => {
   });
 
   it("is the same in a session played frame by frame as in a replay of its log", () => {
-    const session = localSession(soloCourse());
+    const session = localSession(coopCourse("long-and-short"));
     session.frame(0.5);
     session.input(0, { kind: "press", action: "forward" });
     for (let i = 0; i < 400; i++) session.frame((1 / 60) * (0.5 + (i % 3)));
@@ -100,11 +100,11 @@ describe("medals", () => {
   });
 
   it("has every playable course declare medal times in order", () => {
-    for (const course of [soloCourse(), ...COOP_COURSES.map((c) => coopCourse(c.id))]) expect(checkMedalTimes(course.medals)).toBe(course.medals);
+    for (const course of COOP_COURSES.map((c) => coopCourse(c.id))) expect(checkMedalTimes(course.medals)).toBe(course.medals);
   });
 
   it("sets every course's gold slower than a held jump with nothing in its way", () => {
-    for (const course of [soloCourse(), ...COOP_COURSES.map((c) => coopCourse(c.id))]) expect(toTicks(course.medals.gold)).toBeGreaterThan(heldJumpTicks(TUNING, course.length));
+    for (const course of COOP_COURSES.map((c) => coopCourse(c.id))) expect(toTicks(course.medals.gold)).toBeGreaterThan(heldJumpTicks(TUNING, course.length));
   });
 });
 

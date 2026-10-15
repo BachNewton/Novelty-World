@@ -51,8 +51,10 @@ export interface DesignedCourse {
   repeat?: number;
 }
 
-export function pose(col: number, rotation: Pose["rotation"], hop: Pose["hop"] = 0): Pose {
-  return { col, rotation, hop };
+// A frog's pose: its leftmost lane, its rotation and how many cells above the
+// road it is.
+export function pose(col: number, rotation: Pose["rotation"], height = 0): Pose {
+  return { col, rotation, height };
 }
 
 // Reading room, the gap before a row: the most generous first, then less as

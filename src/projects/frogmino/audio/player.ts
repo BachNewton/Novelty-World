@@ -15,6 +15,9 @@ export interface PlayOptions {
   semitones?: number;
   // How long from now to play it, in seconds.
   delay?: number;
+  // Whose it is, as a player's slot: each voice keeps its own minimum gap,
+  // so one frog's hop never swallows its partner's.
+  voice?: number;
 }
 
 // One play's random strays: a playback rate within `pitch` of 1 either way,
@@ -28,9 +31,9 @@ export function vary(variation: SoundDesign["variation"], random: () => number):
 
 // Plays the rendered sounds with the anti-annoyance rules: a random stray in
 // pitch and volume on every play, and a minimum gap between two plays of one
-// sound, measured on the audio clock. Muted, nothing plays.
+// sound in one voice, measured on the audio clock. Muted, nothing plays.
 export class SoundPlayer {
-  private readonly lastPlayed = new Map<SoundId, number>();
+  private readonly lastPlayed = new Map<string, number>();
 
   constructor(
     private readonly output: AudioOutput,
@@ -39,15 +42,16 @@ export class SoundPlayer {
   ) {}
 
   // Whether the sound played; it is dropped when muted or too soon after the
-  // last play of the same sound.
+  // last play of the same sound in the same voice.
   play(id: SoundId, options: PlayOptions = {}): boolean {
     const { muted, volume } = this.settings();
     if (muted) return false;
     const design = SOUNDS[id];
     const at = this.output.now() + (options.delay ?? 0);
-    const last = this.lastPlayed.get(id);
+    const key = `${id}:${String(options.voice ?? 0)}`;
+    const last = this.lastPlayed.get(key);
     if (last !== undefined && Math.abs(at - last) < design.minGap) return false;
-    this.lastPlayed.set(id, at);
+    this.lastPlayed.set(key, at);
     const { rate, gain } = vary(design.variation, this.random);
     this.output.play(id, at, rate * 2 ** ((options.semitones ?? 0) / 12), gain * volume);
     return true;

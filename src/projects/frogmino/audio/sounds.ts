@@ -71,7 +71,7 @@ export interface SoundDesign {
   busiestEvery: number;
 }
 
-export const SOUND_IDS = ["hop", "bonk", "pass", "drop", "gate", "finish"] as const;
+export const SOUND_IDS = ["hop", "bonk", "pass", "drop", "finish"] as const;
 export type SoundId = (typeof SOUND_IDS)[number];
 
 // Each clean pass in a row climbs the major pentatonic scale, in semitones,
@@ -93,7 +93,7 @@ function note(at: number, frequency: number, hold: number, release: number): Sou
 export const SOUNDS: Record<SoundId, SoundDesign> = {
   hop: {
     label: "Hop",
-    trigger: "The frog hops up (Space).",
+    trigger: "A frog hops up (Space), each frog in its own voice.",
     layers: [
       {
         at: 0,
@@ -158,8 +158,8 @@ export const SOUNDS: Record<SoundId, SoundDesign> = {
     busiestEvery: 0.9,
   },
   drop: {
-    label: "Drop onto the road",
-    trigger: "The frog drops from the start overpass onto the road.",
+    label: "Jump out onto the road",
+    trigger: "The team jumps out of the helicopter onto the road.",
     layers: [
       { at: 0, zzfx: { volume: 0.5, frequency: 760, attack: 0.01, sustain: 0.04, release: 0.12, slide: -6, filter: -3000 } },
       { at: 0.15, zzfx: { volume: 0.5, frequency: 180, release: 0.08, slide: -1 } },
@@ -167,46 +167,6 @@ export const SOUNDS: Record<SoundId, SoundDesign> = {
     variation: { pitch: 0.05, volume: 0.15 },
     minGap: 0.4,
     busiestEvery: 2,
-  },
-  gate: {
-    label: "Gate",
-    trigger: "The frog passes through a gate, either way, and becomes the gate's piece.",
-    layers: [
-      // A soft rising whoosh of breathy air...
-      {
-        at: 0,
-        zzfx: {
-          volume: 0.3,
-          frequency: 260,
-          attack: 0.06,
-          sustain: 0.08,
-          release: 0.16,
-          slide: 3,
-          noise: 3,
-          filter: -1600,
-        },
-      },
-      // ...with a sparkle of quick high notes climbing over it.
-      {
-        at: 0.05,
-        zzfx: {
-          volume: 0.22,
-          frequency: 1046.5,
-          attack: 0.01,
-          sustain: 0.12,
-          release: 0.18,
-          shape: Shape.triangle,
-          pitchJump: 262,
-          pitchJumpTime: 0.04,
-          repeatTime: 0.04,
-          tremolo: 0.4,
-          filter: -5000,
-        },
-      },
-    ],
-    variation: { pitch: 0.04, volume: 0.15 },
-    minGap: 0.3,
-    busiestEvery: 1.5,
   },
   finish: {
     label: "Finish",
