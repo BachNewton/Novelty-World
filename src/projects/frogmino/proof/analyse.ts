@@ -3,8 +3,8 @@ import { fitsRow, startPlacements } from "../run";
 import { frogCells, pieceShape } from "../logic";
 import { rowSolids } from "../traffic";
 import type { Cell, Rotation, Solid, TetrominoKind } from "../types";
-import { restingHeight, standsOn } from "../team";
-import { applyPoseAction, endSlot, planShape, poseCode, type PlanFrog, type PoseAction, type TeamPose } from "./team-plan";
+import { standsOn } from "../team";
+import { applyPoseAction, endSlot, planShape, poseCode, type PlanFrog, type PoseAction, type StackMove, type TeamPose } from "./team-plan";
 
 // How hard a row is for a team, and how much it needs both frogs, read off
 // the planner's pose space (`team-plan.ts`): every team pose the team can
@@ -39,17 +39,17 @@ import { applyPoseAction, endSlot, planShape, poseCode, type PlanFrog, type Pose
 // - **Selfish decoys:** a frog's solo passes with which the team has no way
 //   through: the frog fits, but its partner then fits nowhere.
 // - **Coordination kinds** of a pose the team passes in, from the pose it
-//   started the row in: a perch (a frog standing on its partner one cell up,
-//   where a hop off the road leaves it), a stack (a frog standing on its
-//   partner higher than that, which only stacking reaches), a double jump (a
-//   frog at least two cells above the support it would fall to), both up
-//   (every frog up and none on a partner, so the hops must be timed
-//   together), an interlock (the frogs' cells touching side to side or top
-//   to bottom), order (a frog can't reach its place while its partner stays
-//   where it started: the partner must move first) and crossing (the frogs
-//   swap sides). A route adds a carry (a slide that takes a rider along, or
-//   a hop that lifts a partner), and a perch, a stack or a double jump
-//   anywhere along the way (see `report.ts`).
+//   started the row in: a perch (a frog standing on its partner one cell
+//   up, where a hop off the road leaves it), a stack (a frog standing on its
+//   partner higher than that), both up (every frog up and none on a
+//   partner, so the hops must be timed together), an interlock (the frogs'
+//   cells touching side to side or top to bottom), order (a frog can't
+//   reach its place while its partner stays where it started: the partner
+//   must move first) and crossing (the frogs swap sides). Beside those, the
+//   stacking moves the pose needs: a carry, a hop off or a double jump (see
+//   `team-plan.ts`) is needed when the team can't reach the pose at all
+//   without one. A route adds every stacking move its steps made, and a
+//   perch or a stack wherever one stood along the way (see `report.ts`).
 //
 // Why the pairings test against the frogs alone rather than each frog's own
 // side: alone, each frog can reach every shape on the road, and the team can
@@ -93,16 +93,23 @@ function stateKey(pose: TeamPose): number {
 
 // Every distinct team pose a row arriving in some slot could judge, reachable
 // from `start` by the planner's moves of the `players` who act (all of them
-// unless told; the others hold still, though their hops still land). Between
+// unless told; the others hold still, though their hops still land), without
+// the `refused` stacking moves. Between
 // rows nothing but the road's edges and the partners is in the way, so it is
 // the same for every row.
-export function reachablePoses(start: TeamPose, lanes: number, airSlots: number, players: readonly number[] = start.map((_, i) => i)): TeamPose[] {
+export function reachablePoses(
+  start: TeamPose,
+  lanes: number,
+  airSlots: number,
+  players: readonly number[] = start.map((_, i) => i),
+  refused: readonly StackMove[] = [],
+): TeamPose[] {
   const poses = new Map<number, TeamPose>([[shapeKey(start), start]]);
   const seen = new Set([stateKey(start)]);
   const queue: TeamPose[] = [start];
   for (let pose = queue.pop(); pose !== undefined; pose = queue.pop()) {
     const from = pose;
-    const acted = players.flatMap((player) => ACTIONS.map((action) => applyPoseAction(from, lanes, player, action, airSlots)));
+    const acted = players.flatMap((player) => ACTIONS.map((action) => applyPoseAction(from, lanes, player, action, airSlots, refused)));
     // A refused action is a wait.
     for (const next of [from, ...acted.filter((next) => next !== from)]) {
       const key = shapeKey(next);
@@ -194,19 +201,12 @@ const SOLO_HEIGHT = 1;
 // Whether each frog of a pose is where it could be alone: standing on no
 // partner, and no higher than its own hop lifts it.
 function apart(pose: TeamPose): boolean {
-  return pose.every(
-    (frog, player) => frog.height <= SOLO_HEIGHT && !pose.some((other, i) => i !== player && standsOn(planShape(frog), planShape(other))),
-  );
+  return pose.every((frog, player) => frog.height <= SOLO_HEIGHT && !pose.some((other, i) => i !== player && standsOn(planShape(frog), planShape(other))));
 }
 
 // Coupling and decoys for a co-op row of two frogs, from the team's
 // reachable poses and each frog's solo shapes (see the top of this file).
-export function rowCoupling(
-  reachable: readonly TeamPose[],
-  solo: readonly (readonly PlanFrog[])[],
-  solids: readonly Solid[],
-  lanes: number,
-): RowCoupling {
+export function rowCoupling(reachable: readonly TeamPose[], solo: readonly (readonly PlanFrog[])[], solids: readonly Solid[], lanes: number): RowCoupling {
   if (solo.length !== 2) throw new Error(`Coupling is for a pair of frogs, not ${String(solo.length)}`);
   const passes = passingPoses(reachable, solids);
   const team = new Set(passes.map(teamKey));
@@ -247,8 +247,10 @@ export function rowCoupling(
 }
 
 // Every coordination kind, in the order a report lists them.
-export const COORDINATION_KINDS = ["perch", "stack", "double jump", "carry", "both up", "interlock", "order", "crossing"] as const;
+export const COORDINATION_KINDS = ["perch", "stack", "carry", "hop off", "double jump", "both up", "interlock", "order", "crossing"] as const;
 export type CoordinationKind = (typeof COORDINATION_KINDS)[number];
+
+const STACK_MOVES: readonly StackMove[] = ["carry", "hop off", "double jump"];
 
 function touches(a: readonly Cell[], b: readonly Cell[]): boolean {
   return a.some((p) => b.some((q) => Math.abs(p.col - q.col) + Math.abs(p.row - q.row) === 1));
@@ -264,20 +266,25 @@ function standing(pose: TeamPose, player: number): "perch" | "stack" | null {
   return frog.height === 1 ? "perch" : "stack";
 }
 
-// Whether a frog is at least two cells above the support it would fall to:
-// up off its partner, or carried and then up again.
-function doubleJumped(pose: TeamPose, player: number): boolean {
-  return pose[player].height - restingHeight(pose.map(planShape), player) >= 2;
+// The kinds a pose shows on its own: a perch and a stack.
+export function poseKinds(pose: TeamPose): CoordinationKind[] {
+  const shown: CoordinationKind[] = pose.flatMap((_, player) => standing(pose, player) ?? []);
+  return COORDINATION_KINDS.filter((kind) => shown.includes(kind));
 }
 
-// The kinds a pose shows on its own: perch, stack and double jump.
-export function poseKinds(pose: TeamPose): CoordinationKind[] {
-  const kinds: CoordinationKind[] = [];
-  const stands = pose.map((_, player) => standing(pose, player));
-  if (stands.includes("perch")) kinds.push("perch");
-  if (stands.includes("stack")) kinds.push("stack");
-  if (pose.some((_, player) => doubleJumped(pose, player))) kinds.push("double jump");
-  return kinds;
+// What the team reaches without each stacking move, by shape, to tell which
+// moves a pose needs.
+export type ReachWithout = ReadonlyMap<StackMove, ReadonlySet<number>>;
+
+export function reachWithout(start: TeamPose, lanes: number, airSlots: number): ReachWithout {
+  const players = start.map((_, i) => i);
+  return new Map(STACK_MOVES.map((move) => [move, new Set(reachablePoses(start, lanes, airSlots, players, [move]).map(teamKey))]));
+}
+
+// The stacking moves without which the team can't reach a pose at all.
+export function movesNeeded(pose: TeamPose, without: ReachWithout): StackMove[] {
+  const key = teamKey(pose);
+  return STACK_MOVES.filter((move) => without.get(move)?.has(key) === false);
 }
 
 // Which side of each other the frogs are on: -1 with Sprout left, 1 with
@@ -290,10 +297,11 @@ function sides(pose: TeamPose): number {
 }
 
 // The coordination a pair of frogs needs to go from `start` to `end`, the
-// pose they pass a row in (see the top of this file).
-export function coordinationKinds(start: TeamPose, end: TeamPose, lanes: number, airSlots: number): CoordinationKind[] {
+// pose they pass a row in, with the stacking moves `end` needs (see the top
+// of this file).
+export function coordinationKinds(start: TeamPose, end: TeamPose, lanes: number, airSlots: number, needed: readonly StackMove[] = []): CoordinationKind[] {
   if (end.length !== 2) throw new Error(`Coordination is for a pair of frogs, not ${String(end.length)}`);
-  const kinds = poseKinds(end);
+  const kinds: CoordinationKind[] = [...poseKinds(end), ...needed];
   const onPartner = end.some((_, player) => standing(end, player) !== null);
   if (!onPartner && end.every((frog) => frog.height > 0)) kinds.push("both up");
   if (touches(cellsOf(end[0]), cellsOf(end[1]))) kinds.push("interlock");
@@ -303,7 +311,7 @@ export function coordinationKinds(start: TeamPose, end: TeamPose, lanes: number,
   });
   if (needsPartner) kinds.push("order");
   if (sides(start) * sides(end) === -1) kinds.push("crossing");
-  return kinds;
+  return COORDINATION_KINDS.filter((kind) => kinds.includes(kind));
 }
 
 export interface RowAnalysis {
@@ -320,12 +328,20 @@ export interface RowAnalysis {
   answerReachable: boolean;
 }
 
+// The rows of a designed course whose answer the team can't reach, by
+// index: the cheap part of the analysis, for the course checks' tests.
+export function unreachableAnswers(course: DesignedCourse, airSlots: number): number[] {
+  const reachable = new Set(reachablePoses(startPose(course.kinds, course.lanes), course.lanes, airSlots).map(teamKey));
+  return course.rows.flatMap((row, index) => (reachable.has(teamKey(answerPose(course.kinds, row.answer))) ? [] : [index]));
+}
+
 // Every row of a designed co-op course, analysed from its data alone.
 export function analyseCoopCourse(course: DesignedCourse, airSlots: number): RowAnalysis[] {
   const start = startPose(course.kinds, course.lanes);
   const reachable = reachablePoses(start, course.lanes, airSlots);
   const reachableKeys = new Set(reachable.map(teamKey));
   const solo = soloReachable(start, course.lanes, airSlots);
+  const without = reachWithout(start, course.lanes, airSlots);
   let before = start;
   return course.rows.map((row, index) => {
     const solids = rowSolids(row.vehicles);
@@ -336,7 +352,7 @@ export function analyseCoopCourse(course: DesignedCourse, airSlots: number): Row
       gap: row.gap,
       passes: passingPoses(reachable, solids).length,
       coupling: rowCoupling(reachable, solo, solids, course.lanes),
-      answer: coordinationKinds(before, end, course.lanes, airSlots),
+      answer: coordinationKinds(before, end, course.lanes, airSlots, movesNeeded(end, without)),
       answerReachable: reachableKeys.has(teamKey(end)),
     };
     before = settledPose(end);

@@ -3,7 +3,7 @@ import { coopCourse, designedAnswers, designedCourse, designedRowAt, startRun } 
 import { heldJumpTicks } from "../medals";
 import { tickTiming, toTicks } from "../ticks";
 import { TUNING } from "../tuning";
-import { analyseCoopCourse } from "../proof/analyse";
+import { analyseCoopCourse, unreachableAnswers } from "../proof/analyse";
 import { DEFAULT_SLOT, proveCourse } from "../proof/solver";
 import { checkCoopCourse, flatOutMeeting, rowFronts } from "./check";
 import { pose, type DesignedCourse } from "./design";
@@ -67,7 +67,7 @@ describe("every registered co-op course", () => {
   });
 
   it.each(COOP_COURSES.map((course) => [course.id, course] as const))("%s has every designed answer within the team's reach", (_, course) => {
-    for (const row of analyseCoopCourse(course, AIR_SLOTS)) expect(row.answerReachable, row.lesson).toBe(true);
+    expect(unreachableAnswers(course, AIR_SLOTS)).toEqual([]);
   });
 
   it("starts the picker on the first course in the list", () => {
@@ -106,7 +106,7 @@ describe("a co-op course of any pair of pieces, on any road", () => {
     const result = proveCourse(course, { answers: designedAnswers(design) });
     if (!result.ok) throw new Error(`stuck at row ${String(result.stuck.index)}: ${result.stuck.reason}`);
     expect(result.proof.finished).toBe(true);
-    for (const row of analyseCoopCourse(design, AIR_SLOTS)) expect(row.answerReachable, row.lesson).toBe(true);
+    expect(unreachableAnswers(design, AIR_SLOTS)).toEqual([]);
   });
 
   it("reads the coordination a narrow road's rows ask for", () => {

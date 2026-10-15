@@ -6,9 +6,9 @@ import { TEA_FOR_TWO } from "../coop-courses/tea-for-two";
 import { tickTiming } from "../ticks";
 import { rowSolids } from "../traffic";
 import { TUNING } from "../tuning";
-import { analyseCoopCourse, coordinationKinds, reachablePoses, rowCoupling, soloReachable, startPose } from "./analyse";
+import { analyseCoopCourse, coordinationKinds, movesNeeded, reachablePoses, reachWithout, rowCoupling, soloReachable, startPose } from "./analyse";
 import { DEFAULT_SLOT } from "./solver";
-import { applyPoseAction, carriedIn, type PoseAction, type TeamPose } from "./team-plan";
+import { applyPoseAction, carriedIn, stepStackMoves, type PlanFrog, type PoseAction, type TeamPose } from "./team-plan";
 
 const AIR_SLOTS = tickTiming(TUNING).hopAirtime / DEFAULT_SLOT;
 
@@ -59,7 +59,10 @@ describe("coupling and decoys", () => {
     // through only up on the I.
     const kinds = ["I", "O"] as const;
     const start = startPose(kinds, 6);
-    const row = rowSolids([{ id: "O0", lane: 1 }, { id: "I1", lane: 4 }]);
+    const row = rowSolids([
+      { id: "O0", lane: 1 },
+      { id: "I1", lane: 4 },
+    ]);
     const coupling = rowCoupling(reachablePoses(start, 6, AIR_SLOTS), soloReachable(start, 6, AIR_SLOTS), row, 6);
     expect(coupling.inOrder + coupling.crossed).toBe(0);
     expect(coupling.stacked).toBeGreaterThan(0);
@@ -110,7 +113,7 @@ describe("coordination kinds", () => {
     expect(coordinationKinds(start, bothUp, 7, AIR_SLOTS)).toEqual(["both up"]);
   });
 
-  it("tells a stack and a double jump from a perch, and an overhang on the road from either", () => {
+  it("tells a stack from a perch, and an overhang on the road from either", () => {
     const start: TeamPose = [
       { kind: "I", col: 0, rotation: 1, height: 0, air: 0 },
       { kind: "O", col: 5, rotation: 0, height: 0, air: 0 },
@@ -118,9 +121,6 @@ describe("coordination kinds", () => {
     // An O on an upright I: four cells up, higher than a hop off the road.
     const stacked: TeamPose = [start[0], { kind: "O", col: 0, rotation: 0, height: 4, air: 0 }];
     expect(coordinationKinds(start, stacked, 7, AIR_SLOTS)).toEqual(["stack", "interlock", "order"]);
-    // Up off it, two cells above where it would stand.
-    const doubled: TeamPose = [start[0], { kind: "O", col: 0, rotation: 0, height: 6, air: 3 }];
-    expect(coordinationKinds(start, doubled, 7, AIR_SLOTS)).toEqual(["double jump", "order"]);
     // A T pointing down beside a flat T, its arm over the flat T's end: on
     // the road, standing on nothing but the road.
     const overhang: TeamPose = [
@@ -128,6 +128,22 @@ describe("coordination kinds", () => {
       { kind: "T", col: 4, rotation: 2, height: 0, air: 0 },
     ];
     expect(coordinationKinds(overhang, overhang, 8, AIR_SLOTS)).toEqual(["interlock"]);
+  });
+
+  it("tells which stacking moves a pose can't be reached without", () => {
+    const without = reachWithout(startPose(["I", "O"], 7), 7, AIR_SLOTS);
+    const team = (i: Omit<PlanFrog, "kind" | "air">, o: Omit<PlanFrog, "kind" | "air">): TeamPose => [
+      { kind: "I", air: 0, ...i },
+      { kind: "O", air: 0, ...o },
+    ];
+    // The O perched on a flat I, or lifted on it, which a hop off and a
+    // hop of the I's beneath it reach as well as a carry does.
+    expect(movesNeeded(team({ col: 0, rotation: 0, height: 0 }, { col: 1, rotation: 0, height: 1 }), without)).toEqual([]);
+    expect(movesNeeded(team({ col: 0, rotation: 0, height: 1 }, { col: 1, rotation: 0, height: 2 }), without)).toEqual([]);
+    // With the I standing upright apart, the O two cells up came off the
+    // flat I, and three cells up off the I in the air.
+    expect(movesNeeded(team({ col: 0, rotation: 1, height: 0 }, { col: 4, rotation: 0, height: 2 }), without)).toEqual(["hop off"]);
+    expect(movesNeeded(team({ col: 0, rotation: 1, height: 0 }, { col: 4, rotation: 0, height: 3 }), without)).toEqual(["double jump"]);
   });
 
   it("sees a carry in a step that slides a rider along or lifts a partner", () => {
@@ -144,5 +160,32 @@ describe("coordination kinds", () => {
     expect(carriedIn(stacked, step(0, "hop"))).toEqual([1]);
     expect(carriedIn(stacked, step(1, "right"))).toEqual([]);
     expect(carriedIn(stacked, step(0, "rotateCw"))).toEqual([]);
+    expect(stepStackMoves(stacked, step(0, "hop"))).toEqual(["carry"]);
+  });
+
+  it("tells a hop off a partner on its support from a double jump off one in the air", () => {
+    const perched: TeamPose = [
+      { kind: "I", col: 0, rotation: 0, height: 0, air: 0 },
+      { kind: "O", col: 1, rotation: 0, height: 1, air: 0 },
+    ];
+    const hop = (from: TeamPose, player: number) => ({
+      move: { kind: "act" as const, player, action: "hop" as const },
+      pose: applyPoseAction(from, 7, player, "hop", AIR_SLOTS),
+    });
+    expect(stepStackMoves(perched, hop(perched, 1))).toEqual(["hop off"]);
+    const lifted = hop(perched, 0).pose;
+    expect(stepStackMoves(lifted, hop(lifted, 1))).toEqual(["double jump"]);
+    expect(hop(lifted, 1).pose[1].height).toBe(3);
+  });
+
+  it("refuses the stacking moves it is asked to leave out", () => {
+    const perched: TeamPose = [
+      { kind: "I", col: 0, rotation: 0, height: 0, air: 0 },
+      { kind: "O", col: 1, rotation: 0, height: 1, air: 0 },
+    ];
+    expect(applyPoseAction(perched, 7, 0, "hop", AIR_SLOTS, ["carry"])).toBe(perched);
+    expect(applyPoseAction(perched, 7, 0, "right", AIR_SLOTS, ["carry"])).toBe(perched);
+    expect(applyPoseAction(perched, 7, 1, "hop", AIR_SLOTS, ["hop off"])).toBe(perched);
+    expect(applyPoseAction(perched, 7, 1, "hop", AIR_SLOTS, ["carry", "double jump"])).not.toBe(perched);
   });
 });

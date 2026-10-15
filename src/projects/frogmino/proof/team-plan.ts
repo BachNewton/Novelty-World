@@ -1,4 +1,4 @@
-import { lift, settleTeam, slide, supported, turn } from "../team";
+import { lift, settleTeam, slide, standsOn, supported, turn } from "../team";
 import type { Frog, Rotation, TetrominoKind } from "../types";
 
 // The team's poses as the planner sees them, between rows, with no vehicle
@@ -71,11 +71,43 @@ function settle(pose: TeamPose): TeamPose {
   return settleTeam(pose, (player) => pose[player].air === 0);
 }
 
+// The stacking moves: a carry, a hop that lifts a partner or a slide that
+// takes a rider along; a hop off, a frog hopping from a partner standing on
+// its support; and a double jump, a frog hopping from a partner still in its
+// own airtime.
+export type StackMove = "carry" | "hop off" | "double jump";
+
+const NO_MOVES: readonly StackMove[] = [];
+
+// The stacking moves a player's action made, from the team before it to the
+// team after it.
+export function stackMovesOf(before: TeamPose, player: number, action: PoseAction, after: TeamPose): StackMove[] {
+  if (after === before) return [];
+  const moves: StackMove[] = [];
+  if (after.some((frog, i) => i !== player && (frog.col !== before[i].col || frog.height > before[i].height))) moves.push("carry");
+  if (action === "hop") {
+    const hopper = planShape(before[player]);
+    const under = before.filter((frog, i) => i !== player && standsOn(hopper, planShape(frog)));
+    if (under.some((frog) => frog.air > 0)) moves.push("double jump");
+    else if (under.length > 0) moves.push("hop off");
+  }
+  return moves;
+}
+
 // A player's action, as the run applies it: a slide carries its riders where
 // they have room, a turn kicks and carries nothing, a hop needs the frog
 // supported and out of its airtime and lifts what stands on it, and after
-// any action a frog out of its airtime with nothing under it falls.
-export function applyPoseAction(pose: TeamPose, lanes: number, player: number, action: PoseAction, airSlots: number): TeamPose {
+// any action a frog out of its airtime with nothing under it falls. An
+// action making one of the `refused` stacking moves is refused, for asking
+// what the team can reach without them.
+export function applyPoseAction(
+  pose: TeamPose,
+  lanes: number,
+  player: number,
+  action: PoseAction,
+  airSlots: number,
+  refused: readonly StackMove[] = NO_MOVES,
+): TeamPose {
   const road = { first: 0, last: lanes - 1 };
   let moved: PlanFrog[] | null = null;
   switch (action) {
@@ -92,7 +124,9 @@ export function applyPoseAction(pose: TeamPose, lanes: number, player: number, a
       if (moved !== null) moved[player] = { ...moved[player], air: airSlots };
       break;
   }
-  return moved === null ? pose : settle(moved);
+  if (moved === null) return pose;
+  const after = settle(moved);
+  return refused.length > 0 && stackMovesOf(pose, player, action, after).some((move) => refused.includes(move)) ? pose : after;
 }
 
 // The slot ends: each frog in its airtime uses a slot of it, and once it is
@@ -170,4 +204,9 @@ export function carriedIn(before: TeamPose, step: PlanStep): number[] {
   const { move, pose } = step;
   if (move.kind === "wait") return [];
   return pose.flatMap((frog, i) => (i !== move.player && (frog.col !== before[i].col || frog.height > before[i].height) ? [i] : []));
+}
+
+// The stacking moves a step made.
+export function stepStackMoves(before: TeamPose, step: PlanStep): StackMove[] {
+  return step.move.kind === "wait" ? [] : stackMovesOf(before, step.move.player, step.move.action, step.pose);
 }
