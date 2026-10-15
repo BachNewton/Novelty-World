@@ -5,8 +5,7 @@ and its test suite can be held to. Every rule has a stable ID; a test names the 
 "Must" is a requirement, "may" is a choice the acting player makes, "must not" is forbidden.
 
 **What is decided:** classic World Domination Risk for 3–6 players, escalating card-set values,
-player-chosen trades with the official forced trades, and the official 2-player game with a
-neutral army.
+and player-chosen trades with the official forced trades. There is no 2-player game.
 
 ## Ambiguities and digital rulings
 
@@ -74,7 +73,7 @@ they are invariants an engine must hold.
 
 - **Army**: one unit on a territory. Piece denominations (infantry 1, cavalry 5, artillery 10)
   are a counting aid only and have no rules effect. [R93]
-- **Owner**: the player (or, in the 2-player game, the neutral) whose armies occupy a territory.
+- **Owner**: the player whose armies occupy a territory.
 - **Active player**: the player whose turn it is.
 - **Set**: three cards that form a valid combination (`CARDS-3`).
 - **Battle**: one roll of the dice between one attacking and one defending territory.
@@ -221,11 +220,12 @@ unlimited: running out of pieces never limits a player ([H15] FAQ: use substitut
 
 ---
 
-## 3. Setup (3–6 players)
+## 3. Setup
 
 ### SETUP-1 Player count and starting armies
 
-The game is for 3–6 players (2 players: section 10). Each player starts with: [R93]
+The game is for **3–6 players**; a game with fewer must not start. Each player starts with:
+[R93]
 
 | Players | Armies each |
 |---|---|
@@ -236,6 +236,12 @@ The game is for 3–6 players (2 players: section 10). Each player starts with: 
 
 ([H15] has the same values for 3–5 and has no 6-player game. [GD] sets its starting troops by
 player count too, but its numbers could not be confirmed.)
+
+> Note [two-players]: both rulebooks have a 2-player game, played with a third, neutral army as
+> a buffer.
+> Resolution (owner): no 2-player game. With bots to fill seats, two people who want to play
+> can always fill a table, so a 2-player variant would only add rules of its own to build, test
+> and tune bots for.
 
 ### SETUP-2 Seat order
 
@@ -370,8 +376,7 @@ must not be placed on a territory the player does not own. [R93], [H15]
 At the end of a turn's attack phase, a player who **captured at least one territory** during
 that turn draws the **top card of the draw pile**: exactly one card, no matter how many
 territories they captured. A player who captured none draws nothing. The card is drawn before
-the fortify phase. [R93], [H15] Capturing a neutral territory (2-player game) counts.
-*(derived)*
+the fortify phase. [R93], [H15]
 
 ### CARDS-2 Hands
 
@@ -489,7 +494,7 @@ The active player may declare a battle from territory `S` to territory `D` only 
 [H15]
 
 - the active player owns `S`;
-- `D` is owned by someone else (an opponent, or the neutral in the 2-player game);
+- `D` is owned by an opponent;
 - `S` and `D` are adjacent (`MAP-2`);
 - `S` holds **at least 2** armies.
 
@@ -624,7 +629,7 @@ from 8 to 10, and so on; the player chooses only which cards.
 If the card drawn at the end of the attack phase (`CARDS-1`) brings a hand to 6, the player
 must wait until their next turn to trade. Only `ELIM-3` permits a mid-turn trade. [R93], [H15]
 
-### WIN-1 Winning (3–6 players)
+### WIN-1 Winning
 
 A player wins the moment they own all 42 territories, which is the moment the last opponent is
 eliminated. The game ends at once: no card is drawn and no forced trade or fortify follows.
@@ -632,68 +637,10 @@ eliminated. The game ends at once: no card is drawn and no forced trade or forti
 
 ---
 
-## 10. The 2-player game
+## 10. The 2-player game (retired)
 
-The 2-player game is the classic game with one change: a third, **neutral** army sits on the
-board as a buffer. All other rules apply unchanged. [R93], [H15]
-
-### TWO-1 Armies
-
-Each player takes 40 armies, and the neutral has 40. [R93], [H15]
-
-### TWO-2 Dealing territories
-
-Remove the 2 wilds. Shuffle the 42 territory cards and deal them into **three piles of 14**:
-one for each player and one for the neutral. Each player places 1 army on each of their 14
-territories, and 1 neutral army goes on each of the neutral's 14. [R93], [H15]
-
-### TWO-3 Placing the rest
-
-The two players then alternate turns of placement. In each placement turn a player: [R93]
-
-1. places **2** of their own armies, on one or two territories they own;
-2. then places **1** neutral army on any neutral territory.
-
-This repeats until all armies are placed. *(derived)* Each side has 26 armies left after
-dealing, so each player has exactly 13 placement turns, and the neutral's 26 are exactly used
-up (13 placed by each player).
-
-The engine picks which player places first at random, each equally likely.
-
-> Note [two-player-placement]: [H15] orders placement differently (both players place all
-> their own armies first, then alternate neutral ones), and neither rulebook says who places
-> first.
-> Resolution (project): the [R93] interleaved order, the classic one, where each neutral
-> placement answers the board as it develops. Who places first is picked at random, as in
-> `SETUP-3`. Whether [GD]'s 2-player game uses a neutral army at all could not be confirmed:
-> its 1v1 games are described by players as the two splitting the map, and its "Neutral"
-> setting is the bot that takes over an inactive player, not a neutral army.
-
-### TWO-4 Deck
-
-After placement, the 2 wilds are returned and the 44 cards shuffled as the draw pile. [R93],
-[H15]
-
-### TWO-5 First turn
-
-The player who placed first takes the first turn, mirroring `SETUP-7`.
-
-### TWO-6 The neutral in play
-
-- The neutral never takes a turn: it never reinforces, attacks, fortifies, draws or holds
-  cards, and receives no continent bonus. [R93], [H15]
-- A player may attack a neutral territory under the normal rules (`COMBAT-1`).
-- When a neutral territory is attacked, it defends with the maximum dice like any defender
-  (`COMBAT-3`). [R93] and [H15] have the other player choose the neutral's dice and roll for
-  it; with no dice choice left (note `defender-dice`), that role disappears.
-- Capturing a neutral territory follows `COMBAT-6` and counts toward `CARDS-1`.
-- The neutral losing its last territory is not an elimination under `ELIM-*`: no cards change
-  hands *(derived: the neutral holds none)*.
-
-### TWO-7 Winning
-
-A player wins the moment they eliminate their opponent. The neutral need not be eliminated; any
-neutral territories left over do not matter. [R93], [H15]
+The rulebooks' 2-player game is not offered (note `two-players`). Its rule ids, `TWO-1` to
+`TWO-7`, are retired.
 
 ---
 
@@ -702,13 +649,12 @@ neutral territories left over do not matter. [R93], [H15]
 These follow from the rules above; the engine must hold them after every action, and tests
 should check them after every step of random and scripted games.
 
-- **INV-1 Ownership.** After setup, every territory has exactly one owner (a player, or the
-  neutral) and at least 1 army. No territory is ever empty or owned by nobody, including in the
-  moment of capture (`COMBAT-6`).
+- **INV-1 Ownership.** After setup, every territory has exactly one owner and at least 1 army.
+  No territory is ever empty or owned by nobody, including in the moment of capture
+  (`COMBAT-6`).
 - **INV-2 Army conservation.** The total armies on the board change only by: reinforcement
   placement (+), and combat losses (− exactly `min(attacker dice, defender dice)` per battle).
-  Capture move-ins and fortifying moves change no total. The neutral's total never increases
-  after setup.
+  Capture move-ins and fortifying moves change no total.
 - **INV-3 Phase order.** Within a turn, phases occur in the order of `TURN-1`; no battle before
   all reinforcements are placed; no battle after fortifying; at most one fortifying move.
 - **INV-4 Cards conserved.** Exactly 44 cards across draw pile, discard pile and hands
@@ -722,8 +668,8 @@ should check them after every step of random and scripted games.
 - **INV-7 Bonus cap.** At most 2 occupied-territory bonus armies per set traded (`CARDS-7`).
 - **INV-8 Elimination.** A player with no territories takes no turn and holds no cards; a player
   with at least one territory is in the game.
-- **INV-9 Game end.** The game ends exactly when one player remains (2-player: when one player
-  owns no territories), and no action is legal afterwards.
+- **INV-9 Game end.** The game ends exactly when one player remains, and no action is legal
+  afterwards.
 - **INV-10 Determinism.** Given the same seeded dice and shuffle sources and the same decisions,
   a game replays identically. *(Not a rule of Risk; an engine requirement that makes the rules
   testable.)*
@@ -795,5 +741,5 @@ applies. These are those decisions; the rules above already state them.
   or blitzed, not [GD]'s Balanced Blitz. Balanced dice change the odds the game's strategy
   rests on, and [GD] doesn't publish how it balances them. A balanced mode of our own, with
   odds we define, could be added later as an option.
-- **2-player neutral** (section 10, note `two-player-placement`): the neutral army of both
-  rulebooks stays. [GD]'s 1v1 games appear to be played without one (unconfirmed).
+- **Two players** (`SETUP-1`, note `two-players`): **not offered**; a game needs 3 to 6
+  players, with bots filling seats. Both rulebooks and [GD] have a 2-player game.
