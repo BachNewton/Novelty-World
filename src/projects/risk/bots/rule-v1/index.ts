@@ -3,7 +3,6 @@ import type { Move } from "../../contract";
 import type { Bot } from "../bot";
 import { ADJ, fromView, idx, IDS, type Board } from "./board";
 import { afterTrade, chooseBonus, chooseFortify, chooseOccupy, chooseSet } from "./decisions";
-import { setupPlacement } from "./setup";
 import { expectedLoss, pathRun } from "./odds";
 import { V1_PARAMS, type Params } from "./params";
 import { bestPlan, type Plan } from "./planner";
@@ -59,9 +58,6 @@ export function ruleBot(params: Params): Bot {
     const rng = createRng(seed);
     const b = fromView(view);
     switch (options.kind) {
-      case "setup-place":
-        return { kind: "place", territory: setupPlacement(b, seat, options.ownTerritories, params), armies: 1 };
-
       case "reinforce": {
         if (options.sets.length > 0) {
           const hand = view.cards.hand ?? [];

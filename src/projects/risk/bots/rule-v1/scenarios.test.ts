@@ -12,7 +12,7 @@ import { plans } from "./planner";
 // The design's test scenarios (`ideas/rule-bot-v1.md` §5): positions where expert
 // play is clear, each checking the move an expert would make. Unless a scenario says
 // otherwise the game has 5 players and v1 is seat 0, to move. Scenario 11 (setup
-// placement) is gone with setup decisions: the deal places every army.
+// placement) is gone with setup decisions: the deal places every army (Auto Placement).
 
 type Layout = Partial<Record<TerritoryId, [Seat, number]>>;
 

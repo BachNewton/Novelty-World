@@ -13,8 +13,7 @@ export interface Preferences {
    *  payoffs from cards I'd take, trade-or-hold, next-turn kill opportunity. Others'
    *  cards are always valued objectively. */
   myCardWeight: number;
-  /** Multiplies MY continent bonuses only. Read by: my power, setup's continent rule
-   *  (as a switch). Breaking someone else's continent is valued by their objective
+  /** Multiplies MY continent bonuses only. Read by: my power. Breaking someone else's continent is valued by their objective
    *  income loss, never by this. */
   myContinentWeight: number;
   /** A kill plan must beat the best plan that isn't a kill by this much equity. Read
@@ -29,8 +28,6 @@ export interface Preferences {
   /** Armies with no enemy neighbour do nothing: how much that costs. Read by: my equity
    *  (the stack-structure term) → fortify, occupy. */
   idleWeight: number;
-  /** Stack seeds built in setup, by player count. Read by: setup only. */
-  stackTarget: Readonly<Record<number, number>>;
   /** Worth of next turn's best kill, as a share of its payoff. Read by: my equity's kill
    *  opportunity → fortify, occupy, placement. */
   opportunityWeight: number;
@@ -82,7 +79,6 @@ export const V1_PARAMS: Params = {
     vulnerabilityWeight: 1,
     borderWeight: 0.5,
     idleWeight: 0.3,
-    stackTarget: { 3: 2, 4: 3, 5: 3, 6: 3 },
     opportunityWeight: 0.5,
     commonThreatWeight: 1,
     leadPenaltyWeight: 0.1,
