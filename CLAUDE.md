@@ -78,7 +78,7 @@ The module owns **connection bookkeeping only**: codes, the relay's address, the
 
 Everything in the browser is event-driven (the socket's `open` / `message` / `close`); there are no timers. The relay notices a player whose connection died without closing (a closed laptop lid, a phone that lost signal) by pinging every socket on a heartbeat and dropping one that missed a ping, which frees its room or its seat. The heartbeat is the liveness check itself, not a guard against a race.
 
-The relay has no room discovery. A game that lists its open rooms, rather than asking for a typed code, uses the separate shared room list (`src/shared/lib/room-list/`, `useRoomList`): hosts advertise a listing over Supabase Realtime presence on a per-game lobby channel, and the lobby renders the live list with `GameLobby`'s `openRooms`. Frogmino and Connection Test use it; e2e runs put it on a channel of their own with `?room-list=<name>`.
+The relay has no room discovery. A game that lists its open rooms, rather than asking for a typed code, uses the separate shared room list (`src/shared/lib/room-list/`, `useRoomList`): hosts advertise a listing over Supabase Realtime presence on a per-game lobby channel, and the lobby renders the live list with `GameLobby`'s `openRooms`. Frogmino and Connection Test use it. E2E runs never reach Supabase for it: the run's own relay also serves a local stand-in for that presence (`relay/room-list.ts`, only where `ROOM_LIST=local`, as the e2e run sets; the production relay has none), and `?room-list=local:<name>` (with `?relay=local:<port>`) puts a page's list there, on a list of the test's own, so no two tests see each other's rooms.
 
 Monopoly is the exception: it is turn-based on one authoritative Supabase row, not on the relay.
 
@@ -144,7 +144,7 @@ Tailwind CSS v4. Novelty World's own visual identity, the home page, shared UI a
 
 ### Tests never rely on a network connection
 
-**Rule: no test, unit or e2e, may depend on anything outside this machine.** A test that reaches the live database, the production relay or any internet service fails when the network does, writes into real data, and measures someone else's server. Servers a test run starts for itself on localhost (the e2e app server, the local relay) are fine; external services are replaced by local stand-ins the run controls. Specs that still reach the live Supabase project (Frogmino's and Connection Test's room list) are refactor targets.
+**Rule: no test, unit or e2e, may depend on anything outside this machine.** A test that reaches the live database, the production relay or any internet service fails when the network does, writes into real data, and measures someone else's server. Servers a test run starts for itself on localhost (the e2e app server, the local relay) are fine; external services are replaced by local stand-ins the run controls. The shared room list is one: e2e runs list rooms on the local relay's stand-in for Supabase presence (see Multiplayer).
 
 ### Code, tests and tools wait for EVENTS, not clocks
 

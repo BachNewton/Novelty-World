@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./test";
 import { padTo, press, withPads } from "./gamepad";
-import { LOCAL_RELAY } from "./relay";
+import { localRoomList } from "./relay";
 
 /**
  * Frogmino's menus by controller alone: the d-pad moves a focus round each
@@ -13,7 +13,7 @@ const LOBBY = "/games/3d-games/frogmino";
 const TIMEOUT = 30_000;
 
 function lobbyUrl(): string {
-  return `${LOBBY}?${LOCAL_RELAY}&room-list=e2e-${crypto.randomUUID()}`;
+  return `${LOBBY}?${localRoomList()}`;
 }
 
 const focusedCourse = (page: Page) => page.evaluate(() => document.activeElement?.getAttribute("data-course") ?? null);
@@ -152,7 +152,7 @@ test("local co-op: Course select from the game keeps both controllers in, and Me
 test("online co-op: the guest's Course select takes both back to the waiting room, partner seated, and the host starts another course", async ({ browser }) => {
   // Two browsers each load the game twice.
   test.setTimeout(120_000);
-  const url = `${LOBBY}?${LOCAL_RELAY}&room-list=e2e-${crypto.randomUUID()}`;
+  const url = `${LOBBY}?${localRoomList()}`;
   const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
   try {
     const [host, guest] = await Promise.all(

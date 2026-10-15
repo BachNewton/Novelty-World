@@ -37,7 +37,8 @@ export default defineConfig({
     {
       name: "Relay",
       command: "npx tsx relay/main.ts",
-      env: { PORT: "0" },
+      // ROOM_LIST=local serves the room list's local stand-in too, so no spec reaches Supabase.
+      env: { PORT: "0", ROOM_LIST: "local" },
       // Playwright stores a startup line's named groups as env vars: E2E_RELAY_PORT here, E2E_BASE_URL below.
       // `new RegExp` because the tsconfig's ES2017 target rejects named groups in a regex literal.
       wait: { stdout: new RegExp("listening on port (?<e2e_relay_port>\\d+)") },
