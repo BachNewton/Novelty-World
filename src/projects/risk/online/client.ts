@@ -13,6 +13,18 @@ export interface GameIo {
   post: (request: Request) => Promise<Response>;
 }
 
+/** Traces the game's connection and the rows it hears, in development with `?risk-diag` in the
+ *  address. It is for a page that once sat on "Waiting…" while the bots' moves reached the
+ *  database: its subscription said SUBSCRIBED, yet no write reached it again. The trace says
+ *  which part went quiet: the channel's status changes, Realtime's own word on the database
+ *  subscription (a "system" message), each row heard (with its version), and each row the store
+ *  takes against the version it holds. */
+export function riskDiag(...parts: unknown[]): void {
+  if (process.env.NODE_ENV !== "development" || typeof window === "undefined") return;
+  if (!new URLSearchParams(window.location.search).has("risk-diag")) return;
+  console.info("[risk-diag]", ...parts);
+}
+
 const TABLE = "risk_games";
 const COLUMNS = "id, version, status, seats, game";
 
@@ -27,13 +39,20 @@ export const browserIo: GameIo = {
   subscribe: (id, onRow, onConnected) => {
     const supabase = createClient();
     const channel = supabase.channel(`risk:${id}`);
+    riskDiag("subscribe", id);
     channel.on("postgres_changes", { event: "*", schema: "public", table: TABLE, filter: `id=eq.${id}` }, (payload: RealtimePostgresChangesPayload<Row>) => {
+      riskDiag("realtime row", payload.eventType, payload.eventType === "DELETE" ? "" : payload.new.version);
       if (payload.eventType !== "DELETE") onRow(payload.new);
     });
-    channel.subscribe((status) => {
+    channel.on("system", {}, (payload: unknown) => riskDiag("realtime system", payload));
+    channel.subscribe((status, error) => {
+      riskDiag("channel status", status, error?.message ?? "");
       if (status === "SUBSCRIBED") onConnected();
     });
-    return () => void supabase.removeChannel(channel);
+    return () => {
+      riskDiag("unsubscribe", id);
+      void supabase.removeChannel(channel);
+    };
   },
   post: async (request) => {
     const response = await fetch("/api/risk", {

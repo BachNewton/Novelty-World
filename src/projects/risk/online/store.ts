@@ -1,7 +1,7 @@
 import { EMPTY_CLIENT, reduce, shown, type ClientState, type SyncEvent } from "@/shared/lib/client-sync";
 import type { PlayerProfile } from "@/shared/lib/profile";
 import type { Answer, GameView, Move, Options, RiskEngine, Seat } from "../contract";
-import type { GameIo } from "./client";
+import { riskDiag, type GameIo } from "./client";
 import { pendingSeat, syncRules, type LoggedEvent, type OnlineGame } from "./game";
 import type { Request, Response } from "./protocol";
 import { botToMove, seatOf, type GameRow } from "./table";
@@ -110,6 +110,7 @@ export function createOnlineStore(deps: StoreDeps): OnlineStore {
 
   function publish() {
     snapshot = compute();
+    riskDiag("snapshot of row", row?.version, "confirmed", client.confirmed?.version, "waiting on", snapshot.waitingOn, "seat", snapshot.seat);
     for (const listener of listeners) listener();
   }
 
@@ -156,12 +157,14 @@ export function createOnlineStore(deps: StoreDeps): OnlineStore {
   }
 
   function received(next: GameRow) {
+    riskDiag("received row", next.version, next.status, "decision", next.game?.decision, "held row", row?.version);
     takeRow(next);
     if (next.game) dispatch({ type: "server-state", version: next.version, state: next.game });
     publish();
   }
 
   function reload() {
+    riskDiag("reload");
     io.load(id)
       .then((next) => {
         loaded = true;
