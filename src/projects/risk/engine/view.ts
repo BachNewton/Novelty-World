@@ -39,6 +39,7 @@ export function view(s: EngineState, viewer: Seat | null): GameView {
       hand: viewer === null ? null : [...s.hands[viewer]],
     },
     occupying: o ? { from: o.from, to: o.to, min: o.min, max: o.max } : null,
+    cardEarned: s.capturedThisTurn,
     winner: s.winner,
   };
 }

@@ -73,6 +73,9 @@ export interface GameView {
    *  in with the capture, so `territories` shows it (no territory is ever empty, `INV-1`); `min`
    *  and `max` bound the total that an `occupy` move names. */
   occupying: { from: TerritoryId; to: TerritoryId; min: number; max: number } | null;
+  /** Whether the active seat has captured a territory this turn, so draws a card when its attack
+   *  ends (`CARDS-1`). Public: every capture is seen. */
+  cardEarned: boolean;
   winner: Seat | null;
 }
 

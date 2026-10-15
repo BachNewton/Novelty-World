@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { shuffleArray } from "@/shared/lib/utils";
 import type { CardId, GameEvent, GameState, Seat } from "../contract";
 import { referenceEngine as engine } from ".";
-import { inside, playRandomGame } from "./test-kit";
+import { inside, play, playRandomGame, position, withDice } from "./test-kit";
 import { wrap } from "./state";
 
 /** States from one random game, with cards in hands and in both piles. */
@@ -74,9 +74,16 @@ describe("views (CARDS-2, note public-cards)", () => {
   it("hold exactly the contract's fields", () => {
     const v = engine.view(states[0], 0);
     expect(Object.keys(v).sort()).toEqual(
-      ["active", "armiesToPlace", "cards", "occupying", "phase", "seats", "territories", "turn", "turnOrder", "viewer", "winner"].sort(),
+      ["active", "armiesToPlace", "cardEarned", "cards", "occupying", "phase", "seats", "territories", "turn", "turnOrder", "viewer", "winner"].sort(),
     );
     expect(Object.keys(v.cards).sort()).toEqual(["discardPile", "drawPile", "hand", "nextSetValue", "setsTraded"]);
+  });
+
+  it("say whether the active seat has earned this turn's card (CARDS-1)", () => {
+    const start = position({ board: { japan: [0, 10], kamchatka: [1, 1] }, rest: [2, 3], phase: "attack" });
+    expect(engine.view(start, 1).cardEarned).toBe(false);
+    const captured = play(engine, withDice(start, [6, 6, 6, 1]), 0, { kind: "attack", from: "japan", to: "kamchatka", dice: 3 }).state;
+    expect(engine.view(captured, 1).cardEarned).toBe(true);
   });
 
   it("refuse a seat that is not at the table", () => {
