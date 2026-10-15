@@ -41,6 +41,12 @@ export function seatOf(row: Pick<GameRow, "seats">, profileId: string): Seat | n
   return seat === -1 ? null : seat;
 }
 
+/** The table's first person seated: the one who made it, unless they were removed. */
+export function firstPerson(seats: GameRow["seats"]): PlayerProfile | null {
+  for (const controller of seats) if (controller.kind === "human") return controller.profile;
+  return null;
+}
+
 export function controllerOf(row: Pick<GameRow, "seats">, seat: Seat): Controller {
   const controller = seat >= 0 ? row.seats.at(seat) : undefined;
   if (!controller) throw new Error(`Seat ${seat.toString()} isn't at the table`);

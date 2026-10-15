@@ -17,7 +17,9 @@ export type Request =
   | { op: "start"; game: string; profile: PlayerProfile }
   | { op: "move"; game: string; profile: PlayerProfile; answer: Answer }
   /** Restarts a stalled bot drive. Idempotent: anyone may send it, any number of times. */
-  | { op: "nudge"; game: string };
+  | { op: "nudge"; game: string }
+  /** Deletes the game for everyone, its move log with it. Anyone may, from the lobby. */
+  | { op: "delete"; game: string };
 
 export type Response = { ok: true; row: GameRow } | { ok: false; reason: string; row: GameRow | null };
 
@@ -76,7 +78,7 @@ export function parseRequest(v: unknown): Request | null {
   }
   if (!isString(v.game)) return null;
   const game = v.game;
-  if (v.op === "nudge") return { op: "nudge", game };
+  if (v.op === "nudge" || v.op === "delete") return { op: v.op, game };
   const profile = parseProfile(v.profile);
   if (!profile) return null;
   switch (v.op) {

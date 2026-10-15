@@ -163,13 +163,20 @@ export function createOnlineStore(deps: StoreDeps): OnlineStore {
     publish();
   }
 
+  function gone() {
+    loaded = true;
+    row = null;
+    client = EMPTY_CLIENT;
+    publish();
+  }
+
   function reload() {
     riskDiag("reload");
     io.load(id)
       .then((next) => {
         loaded = true;
         if (!next) {
-          publish();
+          gone();
           return;
         }
         received(next);
@@ -214,7 +221,7 @@ export function createOnlineStore(deps: StoreDeps): OnlineStore {
     removeSeat: (seat) => request((profile) => ({ op: "remove-seat", game: id, profile, seat })),
     start: () => request((profile) => ({ op: "start", game: id, profile })),
     connect: () => {
-      const unsubscribe = io.subscribe(id, received, reload);
+      const unsubscribe = io.subscribe(id, { onRow: received, onGone: gone, onConnected: reload });
       const unwake = deps.onWake(reload);
       reload();
       return () => {

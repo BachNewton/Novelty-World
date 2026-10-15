@@ -27,6 +27,8 @@ interface GameLobbyProps {
   actions?: ReactNode;
   /** Why the last attempt to join ended, when it did. */
   notice?: string | null;
+  /** A game's own list of its games, for one that lists them its own way. */
+  children?: ReactNode;
 }
 
 export function GameLobby({
@@ -39,6 +41,7 @@ export function GameLobby({
   openRooms,
   actions,
   notice,
+  children,
 }: GameLobbyProps) {
   // A controller moves round the lobby's buttons; a room code still needs a keyboard.
   const root = useRef<HTMLDivElement>(null);
@@ -61,6 +64,8 @@ export function GameLobby({
 
       {notice && !onJoin && <p className="text-sm text-brand-pink">{notice}</p>}
       {openRooms && <OpenRoomList list={openRooms.list} onJoin={openRooms.onJoin} />}
+
+      {children}
 
       {onJoin && <JoinByCode onJoin={onJoin} notice={notice} />}
 

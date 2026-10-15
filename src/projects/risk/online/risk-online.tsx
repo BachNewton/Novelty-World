@@ -6,15 +6,15 @@ import { GameLobby } from "@/shared/components/game-lobby";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { useProfile } from "@/shared/lib/profile";
-import { useRoomList, type RoomList } from "@/shared/lib/room-list";
 import type { Move } from "../contract";
 import { SEAT_BOTS } from "./seat-bots";
 import type { Response } from "./protocol";
-import { browserIo } from "./client";
+import { browserIo, browserLobbyIo } from "./client";
+import type { OpenAction, TableSummary } from "./lobby";
+import { DeleteConfirm, TableList, useLobbyTables } from "./lobby-list";
 import { ENGINE } from "../play-engine";
 import { browserWake, createOnlineStore, type OnlineSnapshot, type OnlineStore } from "./store";
-import { firstPerson, RISK_LOBBY, tableListing } from "./listing";
-import { MAX_PLAYERS, MIN_PLAYERS } from "./table";
+import { firstPerson, MAX_PLAYERS, MIN_PLAYERS } from "./table";
 
 /** What the game screen is given: the game as this player sees it, how to move, and how to
  *  leave the table. */
@@ -57,10 +57,11 @@ function navigate(id: string | null) {
 }
 
 /**
- * Risk online: create a table or join one from the live list of open tables,
- * gather it (people and bots, 3 to 6 seats), start, then play on `Game`. The
- * table this page is at lives in the URL (`?game=`, the row's id, never shown),
- * so a reload comes back to it. `actions` go on the lobby beside creating.
+ * Risk online: the lobby lists every game, live. Create a table or tap one to
+ * take a seat, come back to your own or watch; gather the table (people and
+ * bots, 3 to 6 seats), start, then play on `Game`. The game this page is at
+ * lives in the URL (`?game=`, the row's id, never shown), so a reload comes
+ * back to it. `actions` go on the lobby beside creating.
  */
 export function RiskOnline({ Game, actions }: { Game: ComponentType<OnlineGameProps>; actions?: ReactNode }) {
   const gameId = useSyncExternalStore(subscribeNav, readGameParam, () => null);
@@ -85,7 +86,10 @@ export function RiskOnline({ Game, actions }: { Game: ComponentType<OnlineGamePr
   return (
     <Lobby
       onCreate={() => enter(() => browserIo.post({ op: "create", profile: useProfile.getState() }))}
-      onJoin={(id) => enter(() => browserIo.post({ op: "join", game: id, profile: useProfile.getState() }))}
+      onOpen={(table, action) => {
+        if (action === "join") enter(() => browserIo.post({ op: "join", game: table.id, profile: useProfile.getState() }));
+        else navigate(table.id);
+      }}
       notice={notice}
       actions={actions}
     />
@@ -94,18 +98,25 @@ export function RiskOnline({ Game, actions }: { Game: ComponentType<OnlineGamePr
 
 interface LobbyProps {
   onCreate: () => void;
-  onJoin: (id: string) => void;
+  onOpen: (table: TableSummary, action: OpenAction) => void;
   notice: string | null;
   actions?: ReactNode;
 }
 
-function Lobby(props: LobbyProps) {
-  const tables = useRoomList({ game: RISK_LOBBY, listing: null });
-  return <RiskLobby tables={tables} {...props} />;
-}
+function Lobby({ onCreate, onOpen, notice, actions }: LobbyProps) {
+  const { tables, problem } = useLobbyTables(browserLobbyIo);
+  const [deleting, setDeleting] = useState<TableSummary | null>(null);
 
-/** The lobby screen, given the open tables. */
-export function RiskLobby({ tables, onCreate, onJoin, notice, actions }: LobbyProps & { tables: RoomList }) {
+  if (deleting) {
+    const remove = async () => {
+      const response = await browserIo.post({ op: "delete", game: deleting.id });
+      if (!response.ok) return response.reason;
+      setDeleting(null);
+      return null;
+    };
+    return <DeleteConfirm table={deleting} onDelete={remove} onCancel={() => setDeleting(null)} />;
+  }
+
   return (
     <GameLobby
       icon={<Globe size={32} />}
@@ -113,10 +124,11 @@ export function RiskLobby({ tables, onCreate, onJoin, notice, actions }: LobbyPr
       subtitle="The classic game of world domination, for 3 to 6 players."
       createLabel="New Game"
       onCreate={onCreate}
-      openRooms={{ list: tables, onJoin }}
       notice={notice}
       actions={actions}
-    />
+    >
+      <TableList tables={tables} problem={problem} onOpen={onOpen} onDelete={setDeleting} />
+    </GameLobby>
   );
 }
 
@@ -137,18 +149,15 @@ function Table({ id, Game }: { id: string; Game: ComponentType<OnlineGameProps> 
   return <Gathering snapshot={snapshot} table={table} store={store} />;
 }
 
-/** A table gathering players, listed in the open lobby while this page advertises it. */
+/** A table gathering players. */
 function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table: NonNullable<OnlineSnapshot["table"]>; store: OnlineStore }) {
-  const profileId = useProfile((profile) => profile.id);
-  useRoomList({ game: RISK_LOBBY, listing: tableListing(table, profileId) });
-
   const seated = snapshot.seat !== null;
   const full = table.seats.length >= MAX_PLAYERS;
   return (
     <Centered>
       <header className="space-y-1 text-center">
         <h1 className="text-3xl font-bold">{hostName(table)}&apos;s game</h1>
-        <p className="text-sm text-text-secondary">Players find it in the open lobby; bots fill the empty seats.</p>
+        <p className="text-sm text-text-secondary">Others find it in the lobby; bots fill the empty seats.</p>
       </header>
       <Card className="w-full max-w-sm space-y-2 p-4">
         <h2 className="font-medium">

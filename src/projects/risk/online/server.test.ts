@@ -86,6 +86,17 @@ describe("the lobby", () => {
     const deps = testDeps(ENGINE, memoryStore().store);
     expect(await handle(deps, { op: "join", game: "NONE", profile: ALICE })).toEqual({ ok: false, reason: "That table is gone", row: null });
   });
+
+  it("deletes a game and its move log for everyone", async () => {
+    const { db, deps, row } = await humanGame();
+    await ok(deps, nextMove(row).request);
+    expect(db.moves.get("GAME")).toHaveLength(1);
+    expect(await handle(deps, { op: "delete", game: "GAME" })).toMatchObject({ ok: true, row: { id: "GAME" } });
+    expect(db.rows.has("GAME")).toBe(false);
+    expect(db.moves.has("GAME")).toBe(false);
+    expect(await handle(deps, { op: "delete", game: "GAME" })).toMatchObject({ ok: false, reason: "That table is gone" });
+    expect(await handle(deps, { op: "join", game: "GAME", profile: ALICE })).toMatchObject({ ok: false, reason: "That table is gone" });
+  });
 });
 
 describe("moves", () => {

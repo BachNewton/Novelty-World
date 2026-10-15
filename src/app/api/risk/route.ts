@@ -40,6 +40,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<Response>
   if (!parsed) return NextResponse.json({ ok: false, reason: "That isn't a Risk request", row: null }, { status: 400 });
   const server = deps();
   const response = await handle(server, parsed);
-  if (response.row && botToMove(server.engine, response.row)) driveAfter(server, response.row.id, request.nextUrl.origin);
+  if (parsed.op !== "delete" && response.row && botToMove(server.engine, response.row)) driveAfter(server, response.row.id, request.nextUrl.origin);
   return NextResponse.json(response);
 }

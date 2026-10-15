@@ -22,6 +22,8 @@ export interface RowStore {
   write: (id: string, fromVersion: number, change: RowChange, answer: LoggedMove | null) => Promise<GameRow | null>;
   /** Creates a row at version 0; null when the id is taken. */
   insert: (id: string, change: RowChange) => Promise<GameRow | null>;
+  /** Deletes the row and its move log; the row as it was, or null when there was none. */
+  remove: (id: string) => Promise<GameRow | null>;
 }
 
 export type Step =
@@ -36,7 +38,7 @@ export const COMMIT_ATTEMPTS = 8;
 export async function commit(store: RowStore, id: string, step: (row: GameRow) => Step): Promise<Response> {
   for (let attempt = 0; attempt < COMMIT_ATTEMPTS; attempt++) {
     const row = await store.read(id);
-    if (!row) return { ok: false, reason: "That table is gone", row: null };
+    if (!row) return { ok: false, reason: GONE, row: null };
     const next = step(row);
     if (next.kind === "rejected") return { ok: false, reason: next.reason, row };
     if (next.kind === "unchanged") return { ok: true, row };
@@ -45,6 +47,8 @@ export async function commit(store: RowStore, id: string, step: (row: GameRow) =
   }
   throw new Error(`Game ${id}: lost the write race ${COMMIT_ATTEMPTS.toString()} times running`);
 }
+
+const GONE = "That table is gone";
 
 const rejected = (reason: string): Step => ({ kind: "rejected", reason });
 const changed = (row: GameRow, change: Partial<RowChange>, answer: LoggedMove | null = null): Step => ({
@@ -82,7 +86,8 @@ export interface ServerDeps {
 /** How many fresh ids creating a game tries before it gives up loudly. */
 const CREATE_ATTEMPTS = 8;
 
-/** Handles one request. The caller drives the bots afterwards when `botToMove` says so. */
+/** Handles one request. The caller drives the bots afterwards when `botToMove` says so, unless
+ *  the request deleted the game: a delete answers with the row as it was. */
 export async function handle(deps: ServerDeps, request: Request): Promise<Response> {
   const { engine, store } = deps;
   switch (request.op) {
@@ -138,7 +143,11 @@ export async function handle(deps: ServerDeps, request: Request): Promise<Respon
       });
     case "nudge": {
       const row = await store.read(request.game);
-      return row ? { ok: true, row } : { ok: false, reason: "That table is gone", row: null };
+      return row ? { ok: true, row } : { ok: false, reason: GONE, row: null };
+    }
+    case "delete": {
+      const row = await store.remove(request.game);
+      return row ? { ok: true, row } : { ok: false, reason: GONE, row: null };
     }
   }
 }

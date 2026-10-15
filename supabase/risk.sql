@@ -3,7 +3,7 @@
 -- seat only its own view). Idempotent: safe to re-run.
 
 create table if not exists public.risk_games (
-  -- The game's code, as players type it to join.
+  -- The game's id: internal, never shown to players (the lobby lists every row).
   id text primary key,
   -- Raised by every write. The route (/api/risk) writes with
   -- `update ... where version = <the version it read>` and re-reads when
