@@ -229,9 +229,12 @@ On top of that, the guardrails:
 
 ### What's built (Session A, 2026-06-20)
 
-The ruler above is now real, not a plan. The pieces, all under `bots/`:
+The ruler above is now real, not a plan. The game-agnostic pieces (the pool, the
+SPRT, the Elo fit and the gauntlet's pairing loop and crown gate) are the shared
+bot-lab core in `src/shared/lib/bot-lab/`, which Risk measures its bots with too;
+Monopoly's own side (its game runner, seatings, field and CLIs) is under `bots/eval/`.
 
-- **`parallel.ts` / `worker.ts` — CPU parallelism via `worker_threads`.** A pool
+- **`pool.ts` (shared), `parallel.ts` / `worker.ts` — CPU parallelism via `worker_threads`.** A pool
   of `cpus−2` workers (14 on the 16-core box) runs the pure `simulateGame` and
   hands back compact outcomes; the main thread owns the game stream and the
   SPRT/Elo aggregation. **Verified bit-identical to single-threaded** play
@@ -239,7 +242,7 @@ The ruler above is now real, not a plan. The pieces, all under `bots/`:
   nothing about *which* games are played, only how fast. Games are chunked
   work-stealing across workers so a straggler (a capped game runs the full turn
   cap) doesn't idle the pool.
-- **`sprt.ts` — SPRT in Elo terms.** **Crucial correction made here:** a single
+- **`sprt.ts` (shared) — SPRT in Elo terms.** **Crucial correction made here:** a single
   *symmetric* SPRT `[−E, +E]` is the WRONG tool — its boundary sits at ±E/2 net
   wins, so a true coin flip crosses one side by luck and it would "accept" a
   win-neutral change ~half the time (it did exactly this in a first cut, calling
@@ -252,11 +255,11 @@ The ruler above is now real, not a plan. The pieces, all under `bots/`:
   improvement, and a win-neutral one is rejected with probability ≥ 1−α. The walk
   stops at the first crossing in the deterministic stream, so the verdict is
   **batch-size / pool-size independent** (unit-tested).
-- **`elo.ts` — Elo across the field.** Bradley–Terry MLE by the parameter-free
+- **`elo.ts` (shared) — Elo across the field.** Bradley–Terry MLE by the parameter-free
   Zermelo/MM iteration, anchored so **v1 = 0**; "champion" = highest Elo, robust
   to non-transitivity (unit-tested, incl. a non-transitive case the head-to-head
   would miss).
-- **`gauntlet.ts` / `gauntlet-cli.ts` — the gauntlet.** A candidate plays the
+- **`gauntlet.ts` (shared loop and crown gate; Monopoly's field) / `gauntlet-cli.ts` — the gauntlet.** A candidate plays the
   whole **field** (`npm run sim:gauntlet -- <cand> [--field …] [--base …]`); each
   candidate pairing is an SPRT, field-internal pairings are fixed-N just to anchor
   the Elo fit. Accept iff **improves vs base AND regresses against none**. **Floor

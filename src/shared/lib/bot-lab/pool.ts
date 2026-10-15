@@ -1,0 +1,115 @@
+import os from "node:os";
+import { Worker } from "node:worker_threads";
+
+// ---------------------------------------------------------------------------
+// CPU parallelism for bot measurement. A simulated game is a PURE, deterministic
+// function of its spec (seed, seating, bots), so games are embarrassingly
+// parallel: distribute them across a pool of worker threads and the result is
+// bit-identical regardless of which worker ran which game. The main thread owns
+// the stream of games to play and the SPRT/Elo aggregation; the workers only run
+// the game's pure runner and hand back a compact result.
+//
+// The pool is generic over a game: each game supplies a worker module (built with
+// `serveGames`) and its own spec/result types. A spec and its result carry a
+// global `index`, so results map back regardless of which worker finished first.
+// ---------------------------------------------------------------------------
+
+export interface Indexed {
+  index: number;
+}
+
+/** Something that plays a batch of games and resolves with their results, sorted
+ *  by `index`: the worker pool, or the same runner inline on this thread (the
+ *  single-threaded reference a parallel run is checked against). */
+export interface GameRunner<Spec extends Indexed, Result extends Indexed> {
+  readonly size: number;
+  run(specs: readonly Spec[]): Promise<Result[]>;
+  close(): Promise<void>;
+}
+
+/** Default worker count: leave 1–2 logical cores for the main thread and OS on a
+ *  16-core box (AMD Ryzen 7 7840U → 14 workers). Never below 1. */
+export function defaultWorkerCount(): number {
+  return Math.max(1, os.cpus().length - 2);
+}
+
+/** A reusable pool of worker threads, each running `workerModule` (a module that
+ *  calls `serveGames`). Spawn once, call `run` repeatedly (each call distributes a
+ *  batch of games across all workers and resolves when they all complete), then
+ *  `close`. Reusing one pool across many SPRT batches keeps the workers (and their
+ *  imported engine) warm instead of paying spawn cost per round. One `run` at a
+ *  time — the gauntlet drives it sequentially. */
+export class WorkerPool<Spec extends Indexed, Result extends Indexed>
+  implements GameRunner<Spec, Result>
+{
+  private readonly workers: Worker[];
+  readonly size: number;
+
+  constructor(workerModule: URL, size: number = defaultWorkerCount()) {
+    this.size = Math.max(1, size);
+    this.workers = Array.from({ length: this.size }, () => new Worker(workerModule));
+  }
+
+  /** Play every spec across the pool and resolve with all results, sorted by
+   *  `index`. Specs are chunked so each worker pulls several chunks over the run
+   *  (work-stealing), which load-balances when games vary wildly in length. */
+  run(specs: readonly Spec[]): Promise<Result[]> {
+    if (specs.length === 0) return Promise.resolve([]);
+    // A few chunks per worker so a worker that draws short games comes back for
+    // more rather than idling while one straggler finishes a long game.
+    const chunksPerWorker = 4;
+    const chunkSize = Math.max(1, Math.ceil(specs.length / (this.size * chunksPerWorker)));
+    const chunks: Spec[][] = [];
+    for (let i = 0; i < specs.length; i += chunkSize) {
+      chunks.push(specs.slice(i, i + chunkSize));
+    }
+
+    const out: Result[] = [];
+    let nextChunk = 0;
+    let active = 0;
+
+    return new Promise<Result[]>((resolve, reject) => {
+      const assign = (w: Worker): void => {
+        if (nextChunk >= chunks.length) return;
+        const chunk = chunks[nextChunk++];
+        active++;
+        const onMessage = (msg: { results: Result[] }): void => {
+          w.off("message", onMessage);
+          w.off("error", onError);
+          out.push(...msg.results);
+          active--;
+          if (nextChunk < chunks.length) assign(w);
+          else if (active === 0) {
+            out.sort((p, q) => p.index - q.index);
+            resolve(out);
+          }
+        };
+        const onError = (err: Error): void => {
+          w.off("message", onMessage);
+          w.off("error", onError);
+          reject(err);
+        };
+        w.on("message", onMessage);
+        w.on("error", onError);
+        w.postMessage({ specs: chunk });
+      };
+      for (const w of this.workers) assign(w);
+    });
+  }
+
+  async close(): Promise<void> {
+    await Promise.all(this.workers.map((w) => w.terminate()));
+  }
+}
+
+/** The same game runner on this thread, one game after another: the
+ *  single-threaded reference for a determinism check, and a pool for tests. */
+export function inlineRunner<Spec extends Indexed, Result extends Indexed>(
+  runOne: (spec: Spec) => Result,
+): GameRunner<Spec, Result> {
+  return {
+    size: 1,
+    run: (specs) => Promise.resolve(specs.map((spec) => runOne(spec)).sort((p, q) => p.index - q.index)),
+    close: () => Promise.resolve(),
+  };
+}
