@@ -42,6 +42,14 @@ export const BETRAYAL_THEME = {
   "--bt-prompt-b": "#e5534b",
   "--bt-prompt-x": "#4a9ae8",
   "--bt-prompt-y": "#f2c53d",
+  /** The site's button prompts, painted in Betrayal's tokens. */
+  "--prompt-body": "var(--bt-bg)",
+  "--prompt-ink": "var(--bt-ink)",
+  "--prompt-a": "var(--bt-prompt-a)",
+  "--prompt-b": "var(--bt-prompt-b)",
+  "--prompt-x": "var(--bt-prompt-x)",
+  "--prompt-y": "var(--bt-prompt-y)",
+  "--prompt-hold": "var(--bt-accent)",
 } as CSSProperties;
 
 /** Seat colours as whole class names, so Tailwind sees each one. */

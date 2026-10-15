@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { InputKind } from "../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import { PromptButton } from "./prompts";
 
 /**

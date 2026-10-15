@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cycleChoice, pickTarget, stepFloor, type ScreenPoint, type Target } from "./navigate";
+import { cycleChoice, pickTarget, type ScreenPoint, type Target } from "./navigate";
 
 const square = (id: string, x: number, y: number, size: number): Target => ({
   id,
@@ -77,23 +77,5 @@ describe("cycleChoice", () => {
 
   it("returns null with no choices", () => {
     expect(cycleChoice([], null, 1, centre)).toBeNull();
-  });
-});
-
-describe("stepFloor", () => {
-  const floors = ["basement", "ground", "upper"] as const;
-
-  it("goes up and down a floor", () => {
-    expect(stepFloor(floors, "ground", 1, "ground")).toBe("upper");
-    expect(stepFloor(floors, "ground", -1, "ground")).toBe("basement");
-  });
-
-  it("stays at the top and the bottom", () => {
-    expect(stepFloor(floors, "upper", 1, "ground")).toBe("upper");
-    expect(stepFloor(floors, "basement", -1, "ground")).toBe("basement");
-  });
-
-  it("goes from every floor at once to the home floor", () => {
-    expect(stepFloor(floors, "all", 1, "basement")).toBe("basement");
   });
 });

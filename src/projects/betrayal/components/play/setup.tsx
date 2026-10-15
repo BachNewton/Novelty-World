@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useRef, useState } from "react";
 import { builtHaunts, requireBuilt } from "../../engine/haunt";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import { portraitOf } from "../../play/portraits";
 import { takenBy } from "../../play/setup";
 import { characterTracks } from "../../play/tracks";

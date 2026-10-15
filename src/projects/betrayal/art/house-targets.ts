@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { Layout } from "../engine/board";
 import { placed } from "../engine/board";
 import type { ChoiceLayout } from "../input/controls";
-import type { Point, ScreenPoint, Target as PointerTarget } from "../input/navigate";
+import type { Point, ScreenPoint, Target as PointerTarget } from "@/shared/lib/input";
 import type { GhostDoor } from "../play/ghost";
 import { wallSpot } from "../play/things";
 import type { Edge, FloorId, Rotation } from "../types";

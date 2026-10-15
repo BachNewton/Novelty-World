@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { subscribeGamepads } from "@/shared/lib/gamepad";
-import type { InputKind } from "../../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import { enterLayer, padFocused, padPress, topLayer } from "./pad-focus";
 
 /*
