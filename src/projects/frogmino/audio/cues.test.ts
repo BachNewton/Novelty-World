@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TALLEST_VEHICLE } from "../fleet";
 import { applyAction, createRun, playTo, pressHeld, type RuleRow, type RuleRows, type Run } from "../run";
 import { toTicks } from "../ticks";
 import { TUNING } from "../tuning";
@@ -18,7 +19,7 @@ const WALL_DEPTH = TUNING.dropDistance + ROW_AHEAD;
 function wholeFace(): Cell[] {
   const cells: Cell[] = [];
   for (let col = 0; col < TUNING.corridorCols; col++) {
-    for (let row = 0; row < TUNING.wallRows; row++) cells.push({ col, row });
+    for (let row = 0; row < TALLEST_VEHICLE; row++) cells.push({ col, row });
   }
   return cells;
 }

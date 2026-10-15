@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { createRng } from "@/shared/lib/seeded-random";
-import { TETROMINOES, cellKey, frogCells, frogPasses, insideLanes, pieceSize, rectOpening as rect } from "./logic";
+import { TETROMINOES, cellKey, frogCells, insideLanes, pieceSize, rectOpening as rect } from "./logic";
 import {
   FROG_THICKNESS,
   applyAction,
   createRun,
   crossedFinish,
+  fitsRow,
   frogShape,
   hopHeight,
   inPlay,
@@ -30,7 +31,7 @@ import {
   type Run,
   type Wall,
 } from "./run";
-import { rowBack, rowOpening, rowSolids, type Row } from "./traffic";
+import { rowBack, rowSolids, type Row } from "./traffic";
 import { frameTicks, toSeconds, toTicks } from "./ticks";
 import { TUNING, type Tuning } from "./tuning";
 import type { Cell, Frog, Opening, Solid, TetrominoKind } from "./types";
@@ -72,7 +73,8 @@ const UPRIGHT_AT_EDGE = rect([0, 1], [0, 2]);
 // Fits the flat L one column to the left of where it starts.
 const LEFT_OF_START = rect([1, 3], [0, 1]);
 
-// Every cell of the 7 × 4 face that `opening` leaves out.
+// Every cell of a 7 × 4 face that `opening` leaves out: the test rows are
+// four cells tall, and above them is open air.
 function closed(opening: Opening, cols: readonly number[] = [0, 1, 2, 3, 4, 5, 6]): Cell[] {
   const open = new Set(opening.map(cellKey));
   return cols.flatMap((col) => [0, 1, 2, 3].map((row) => ({ col, row }))).filter((cell) => !open.has(cellKey(cell)));
@@ -431,7 +433,7 @@ function readRow(run: Run): Run {
 function playRandomly(start: Run, seed: number, extra: FrogAction[]) {
   const random = createRng(seed).next;
   const actions: FrogAction[] = ["left", "right", "rotateCw", "rotateCcw", "hop", "forward", "forward", "back", ...extra];
-  const { recycleBehind, trafficHorizon, wallSpeed, wallRows, maxFrameDelta, corridorCols } = start.tuning;
+  const { recycleBehind, trafficHorizon, wallSpeed, maxFrameDelta, corridorCols } = start.tuning;
   let run = start;
   const counts = { bonks: 0, passes: 0, returns: 0, furthestBack: start.depth };
   for (let step = 0; step < 10000; step++) {
@@ -462,10 +464,7 @@ function playRandomly(start: Run, seed: number, extra: FrogAction[]) {
       else expect(w.depth).toBeGreaterThanOrEqual(frog - 1e-9);
       const solid = new Set(overlapping(w, frog).flatMap((v) => v.cells.map(cellKey)));
       if (solid.size === 0) return;
-      for (const c of cells) {
-        expect(solid.has(cellKey(c))).toBe(false);
-        expect(c.row).toBeLessThan(wallRows);
-      }
+      for (const c of cells) expect(solid.has(cellKey(c))).toBe(false);
     });
     expect(insideLanes(run.frogs[0].kind, run.frogs[0], { first: 0, last: corridorCols - 1 })).toBe(true);
   }
@@ -1127,11 +1126,11 @@ describe("pieces other than the L", () => {
 });
 
 // Every pose of a piece on the road that passes an opening.
-function posesThrough(kind: TetrominoKind, opening: Opening, lanes = TUNING.corridorCols): Frog[] {
+function posesThrough(kind: TetrominoKind, solids: readonly Solid[], lanes = TUNING.corridorCols): Frog[] {
   return ([0, 1, 2, 3] as const).flatMap((rotation) =>
     ([0, 1] as const).flatMap((hop) =>
       Array.from({ length: lanes }, (_, col): Frog => ({ kind, col, rotation, hop })).filter(
-        (frog) => insideLanes(kind, frog, { first: 0, last: lanes - 1 }) && frogPasses(frog, opening),
+        (frog) => insideLanes(kind, frog, { first: 0, last: lanes - 1 }) && fitsRow(frog, solids),
       ),
     ),
   );
@@ -1512,8 +1511,8 @@ describe("a team's rules' clock", () => {
 
   // A pose for each frog that passes the row, Sprout's left of Splash's.
   function teamPlan(run: Run, index: number, random: () => number): Frog[] | null {
-    const opening = rowOpening(WALLS[index % WALLS.length], TUNING.corridorCols, TUNING.wallRows);
-    const [left, right] = run.frogs.map((frog) => posesThrough(frog.kind, opening));
+    const solids = rowSolids(WALLS[index % WALLS.length]);
+    const [left, right] = run.frogs.map((frog) => posesThrough(frog.kind, solids));
     const pairs = left.flatMap((a) => right.filter((b) => leftOf(a, b)).map((b) => [a, b]));
     return pairs.at(Math.floor(random() * pairs.length)) ?? null;
   }

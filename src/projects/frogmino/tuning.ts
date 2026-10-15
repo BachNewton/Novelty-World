@@ -32,8 +32,6 @@ export interface Tuning {
   easeDuration: number;
   // Columns across the corridor.
   corridorCols: number;
-  // Rows of cubes in a wall.
-  wallRows: number;
   // How far one jump carries the frog, in units.
   depthStep: number;
   // How often a held jump or slide key acts again, in seconds.
@@ -55,7 +53,7 @@ export interface Tuning {
   // gantry takes, in seconds. The done screen waits for it to land.
   finishLeapDuration: number;
   // The camera's height above the floor. It must stay above the tallest
-  // wall so walls pass beneath it.
+  // vehicle so the traffic passes beneath it.
   cameraHeight: number;
   // How far behind the frog the camera follows.
   cameraFollow: number;
@@ -75,7 +73,6 @@ export const TUNING: Tuning = {
   hopAirtime: 0.7,
   easeDuration: 0.1,
   corridorCols: 7,
-  wallRows: 4,
   depthStep: 1.5,
   holdRepeatInterval: 0.22,
   bonkKnockback: 3,

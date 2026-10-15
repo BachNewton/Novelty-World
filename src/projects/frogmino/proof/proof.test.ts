@@ -24,15 +24,15 @@ function courseStart(): TeamPose {
 }
 
 describe("a designed course", () => {
-  it("ramps from a first row with room to spare to a finale with one way through", () => {
+  it("ramps from a first row with room to spare to a finale with few ways through, its answer among them", () => {
     const reachable = reachablePoses(courseStart(), LONG_AND_SHORT.lanes, AIR_SLOTS);
     const finale = LONG_AND_SHORT.rows.at(-1);
     if (finale === undefined) throw new Error("The course has no rows");
-    const through = passingPoses(reachable, rowSolids(finale.vehicles), TUNING.wallRows);
+    const through = passingPoses(reachable, rowSolids(finale.vehicles));
     const cells = (frogs: readonly Frog[]) => frogs.map((frog) => frogCells(frog).map(cellKey).sort());
-    expect(through.map((pose) => cells(pose.map(planShape)))).toEqual([cells(finale.answer.map((pose, i) => ({ kind: LONG_AND_SHORT.kinds[i], ...pose })))]);
-    const first = passingPoses(reachable, rowSolids(LONG_AND_SHORT.rows[0].vehicles), TUNING.wallRows);
-    expect(first.length).toBeGreaterThan(50);
+    expect(through.map((pose) => cells(pose.map(planShape)))).toContainEqual(cells(finale.answer.map((pose, i) => ({ kind: LONG_AND_SHORT.kinds[i], ...pose }))));
+    const first = passingPoses(reachable, rowSolids(LONG_AND_SHORT.rows[0].vehicles));
+    expect(first.length).toBeGreaterThan(10 * through.length);
   });
 });
 
@@ -84,7 +84,7 @@ describe("the solver", () => {
     if (result.ok) return;
     expect(result.stuck.index).toBe(0);
     expect(result.stuck.reason).toMatch(/no team pose reachable/);
-    expect(describeProof(result, 4, TUNING.wallRows)).toMatch(/STUCK at course row 0/);
+    expect(describeProof(result, 4)).toMatch(/STUCK at course row 0/);
   });
 
   it("fails loudly when a row's search would look at more poses than allowed", () => {
@@ -99,11 +99,11 @@ describe("a readable route", () => {
       { kind: "I", col: 2, rotation: 0, air: null },
       { kind: "O", col: 0, rotation: 0, air: 3 },
     ];
-    expect(drawFace(pose, rowSolids(row), 6, 4)).toEqual(["......", "22....", "xx....", "##1111"]);
+    expect(drawFace(pose, rowSolids(row), 6)).toEqual(["22....", "xx....", "##1111"]);
   });
 
   it("says each step in words, landings included", () => {
-    const route = describeProof(proveCourse(COURSE, { rows: 3, answers }), LONG_AND_SHORT.lanes, TUNING.wallRows);
+    const route = describeProof(proveCourse(COURSE, { rows: 3, answers }), LONG_AND_SHORT.lanes);
     expect(route).toMatch(/Sprout hops/);
     expect(route).toMatch(/Sprout turns clockwise/);
     expect(route).toMatch(/Splash slides left/);

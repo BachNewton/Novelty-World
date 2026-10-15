@@ -18,15 +18,16 @@ export function playerName(player: number): string {
   return FROG_LOOKS[variant].name;
 }
 
-// The row's face with the team on it, top row first, as many rows as the
-// face has or the frogs reach.
-export function drawFace(pose: TeamPose, solids: readonly Solid[], lanes: number, wallRows: number): string[] {
+// The row's face with the team on it, top row first, as high as its
+// vehicles or the frogs reach: above the vehicles is open air.
+export function drawFace(pose: TeamPose, solids: readonly Solid[], lanes: number): string[] {
   const vehicles = new Set(solids.flatMap((solid) => solid.cells.map(cellKey)));
   const frogs = new Map<string, number>();
   pose.forEach((frog, player) => {
     for (const cell of frogCells(planShape(frog))) frogs.set(cellKey(cell), player);
   });
-  const top = Math.max(wallRows, ...[...frogs.keys()].map((key) => Number(key.split(",")[1]) + 1));
+  const filled = [...solids.flatMap((solid) => solid.cells), ...pose.flatMap((frog) => frogCells(planShape(frog)))];
+  const top = Math.max(...filled.map((cell) => cell.row + 1));
   const lines: string[] = [];
   for (let row = top - 1; row >= 0; row--) {
     let line = "";
@@ -34,7 +35,6 @@ export function drawFace(pose: TeamPose, solids: readonly Solid[], lanes: number
       const key = cellKey({ col, row });
       const player = frogs.get(key);
       if (player !== undefined) line += vehicles.has(key) ? "x" : String(player + 1);
-      else if (row >= wallRows) line += " ";
       else line += vehicles.has(key) ? "#" : ".";
     }
     lines.push(line);
@@ -126,8 +126,8 @@ function inputWords(row: RowProof): string {
 }
 
 // One row's route: the steps in words, the faces at each stage, the inputs.
-export function describeRow(row: RowProof, lanes: number, wallRows: number, number: number): string[] {
-  const draw = (pose: TeamPose): string[] => drawFace(pose, row.wall.solids, lanes, wallRows);
+export function describeRow(row: RowProof, lanes: number, number: number): string[] {
+  const draw = (pose: TeamPose): string[] => drawFace(pose, row.wall.solids, lanes);
   const jumps = row.jumps === 0 ? "" : `after ${String(row.jumps)} jump${row.jumps === 1 ? "" : "s"} forward, `;
   const out = [
     `Row ${String(number)} (course row ${String(row.index)}): passed at ${toSeconds(row.passedAt).toFixed(2)} s, ${jumps}${row.steps.length === 0 ? "already in a passing pose" : `${String(row.steps.length)} step${row.steps.length === 1 ? "" : "s"}`}.`,
@@ -149,11 +149,11 @@ export function describeRow(row: RowProof, lanes: number, wallRows: number, numb
 }
 
 // The whole proof, or where the search got stuck, as a report.
-export function describeProof(result: ProofResult, lanes: number, wallRows: number): string {
+export function describeProof(result: ProofResult, lanes: number): string {
   const rows = result.ok ? result.proof.rows : result.rows;
   const out = [FACE_LEGEND, ""];
   rows.forEach((row, i) => {
-    out.push(...describeRow(row, lanes, wallRows, i + 1), "");
+    out.push(...describeRow(row, lanes, i + 1), "");
   });
   if (result.ok) out.push(summary(result.proof));
   else out.push(`STUCK at course row ${String(result.stuck.index)}: ${result.stuck.reason}.`);

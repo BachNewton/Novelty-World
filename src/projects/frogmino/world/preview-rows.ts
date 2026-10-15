@@ -1,7 +1,6 @@
-import { cellKey, frogCells, frogPasses } from "../logic";
-import { startPlacements } from "../run";
-import { rowOpening, type Row } from "../traffic";
-import { TUNING } from "../tuning";
+import { cellKey, frogCells, insideLanes } from "../logic";
+import { fitsRow, startPlacements } from "../run";
+import { checkRow, rowSolids, type Row } from "../traffic";
 import type { Frog, HopHeight, Rotation, TetrominoKind } from "../types";
 
 // The `?world` preview's traffic, independent of the courses: a few fixed
@@ -49,7 +48,9 @@ const HOPS: readonly HopHeight[] = [0, 1];
 // with every frog clear of the others, as the frogs are solid to each other:
 // the first found, each frog grounded before hopping.
 export function passingPoses(row: Row, lanes: number, kinds: readonly TetrominoKind[]): Frog[] | null {
-  const opening = rowOpening(row, lanes, TUNING.wallRows);
+  checkRow(row, lanes);
+  const solids = rowSolids(row);
+  const road = { first: 0, last: lanes - 1 };
   const place = (placed: Frog[], taken: ReadonlySet<string>): Frog[] | null => {
     if (placed.length === kinds.length) return placed;
     const kind = kinds[placed.length];
@@ -58,7 +59,7 @@ export function passingPoses(row: Row, lanes: number, kinds: readonly TetrominoK
         for (let col = 0; col < lanes; col++) {
           const frog: Frog = { kind, col, rotation, hop };
           const cells = frogCells(frog).map(cellKey);
-          if (!frogPasses(frog, opening) || cells.some((cell) => taken.has(cell))) continue;
+          if (!insideLanes(kind, frog, road) || !fitsRow(frog, solids) || cells.some((cell) => taken.has(cell))) continue;
           const found = place([...placed, frog], new Set([...taken, ...cells]));
           if (found !== null) return found;
         }

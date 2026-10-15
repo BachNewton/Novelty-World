@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GROUND_CLEARANCE } from "../clearance";
 import { dropPose, leapProgress } from "../frog/leaps";
+import { TALLEST_VEHICLE } from "../fleet";
 import { FROG_THICKNESS } from "../run";
 import { TUNING } from "../tuning";
 import { ROAD_LEFT, roadRight } from "../world/geometry";
@@ -93,7 +94,7 @@ function dropFrames(): Frame[] {
     frames.push({
       eye: { depth: -eye.z, y: eyeY },
       frog: { depth: pose.depth - FROG_THICKNESS / 2, y: feet + 0.5 },
-      frogTop: { depth: pose.depth - FROG_THICKNESS, y: feet + TUNING.wallRows },
+      frogTop: { depth: pose.depth - FROG_THICKNESS, y: feet + TALLEST_VEHICLE },
     });
   }
   return frames;

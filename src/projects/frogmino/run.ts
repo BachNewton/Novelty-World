@@ -312,12 +312,6 @@ function roadLanes(run: Run): Lanes {
   return { first: 0, last: run.lanes - 1 };
 }
 
-// The pass test against some of a row's solids, for a frog taking `shape`:
-// each cell on the row's face and in no vehicle's cells.
-function fitsAmong(run: Run, shape: Frog, solids: readonly Solid[]): boolean {
-  return solids.length === 0 || fitsRow(shape, solids, run.tuning.wallRows);
-}
-
 // The vehicles of a wall the team has passed that still overlap it, with its
 // front face at `depth`: those whose back hasn't yet gone by its back. For a
 // team jumping back to `depth`, they are also every vehicle it would meet on
@@ -330,7 +324,7 @@ export function overlappingSolids(wall: Wall, depth: number): readonly Solid[] {
 // Whether a frog could take this shape with the team's front face at
 // `depth`: inside the opening the overlapping vehicles leave.
 function clearOfWallsAt(run: Run, shape: Frog, depth: number): boolean {
-  return run.walls.every((wall) => fitsAmong(run, shape, overlappingSolids(wall, depth)));
+  return run.walls.every((wall) => fitsRow(shape, overlappingSolids(wall, depth)));
 }
 
 // Out of play, no vehicle touches the frogs.
@@ -399,18 +393,17 @@ function bonk(run: Run, index: number): Run {
   };
 }
 
-// The pass test for one frog as a row reaches it: every cell on the row's
-// face and in no vehicle's cells.
-export function fitsRow(shape: Frog, solids: readonly Solid[], wallRows: number): boolean {
-  const cells = frogCells(shape);
-  return cells.every((cell) => cell.row < wallRows) && keepsClear(cells, solids);
+// The pass test for one frog as a row reaches it: none of its cells in a
+// vehicle's cells. Above the vehicles is open air, however high.
+export function fitsRow(shape: Frog, solids: readonly Solid[]): boolean {
+  return keepsClear(frogCells(shape), solids);
 }
 
 // Judges the next wall at the team's face, now, against all its vehicles:
 // it passes only if every frog fits, and bonks the whole team otherwise.
 function meet(run: Run, index: number): Run {
   const { solids } = run.walls[index];
-  const fit = run.frogs.every((frog) => fitsRow(frogShape(frog), solids, run.tuning.wallRows));
+  const fit = run.frogs.every((frog) => fitsRow(frogShape(frog), solids));
   return fit ? pass(run, index) : bonk(run, index);
 }
 

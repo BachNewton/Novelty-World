@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOVE_HOP_HEIGHT, moveDuration } from "../frog/moves";
+import { TALLEST_VEHICLE } from "../fleet";
 import { applyAction, createRun, hopHeight, playTo, pressHeld, type PlacedFrog, type RuleRow, type Run } from "../run";
 import { frameTicks, toSeconds } from "../ticks";
 import { TUNING } from "../tuning";
@@ -222,7 +223,7 @@ describe("the drawn frog bonked while it moves", () => {
   const solid = {
     solids: [
       {
-        cells: Array.from({ length: TUNING.corridorCols * TUNING.wallRows }, (_, i) => ({
+        cells: Array.from({ length: TUNING.corridorCols * TALLEST_VEHICLE }, (_, i) => ({
           col: i % TUNING.corridorCols,
           row: Math.floor(i / TUNING.corridorCols),
         })),

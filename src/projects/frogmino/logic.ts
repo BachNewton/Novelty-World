@@ -49,13 +49,6 @@ export function rectOpening(cols: [number, number], rows: [number, number]): Ope
   return cells;
 }
 
-// The core rule: the frog passes a wall only if every cell it covers is
-// inside the opening; any cell that meets the wall is a bonk.
-export function frogPasses(frog: Frog, opening: Opening): boolean {
-  const open = new Set(opening.map(cellKey));
-  return frogCells(frog).every((c) => open.has(cellKey(c)));
-}
-
 // The width and height of a piece's bounding box in a rotation.
 export function pieceSize(kind: TetrominoKind, rotation: Rotation): { width: number; height: number } {
   const cells = pieceCells(kind, rotation);

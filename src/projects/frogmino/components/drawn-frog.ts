@@ -195,14 +195,10 @@ export function amongVehicles(run: Run, depth: number): boolean {
 }
 
 // Whether the frog in its rule pose, `hop` cells up and drawn at `depth`,
-// would be inside a vehicle overlapping it there, or above the face.
+// would be inside a vehicle overlapping it there.
 function drawnInVehicle(run: Run, drawn: DrawnFrog, depth: number, hop: HopHeight): boolean {
   const cells = frogCells({ ...frogShape(drawnRuleFrog(run, drawn)), hop });
-  const onFace = cells.every((cell) => cell.row < run.tuning.wallRows);
-  return run.walls.some((wall) => {
-    const solids = overlappingDrawn(wall, depth);
-    return solids.length > 0 && !(onFace && keepsClear(cells, solids));
-  });
+  return run.walls.some((wall) => !keepsClear(cells, overlappingDrawn(wall, depth)));
 }
 
 // How high the drawn frog is among vehicles at `depth`: as high as the rules

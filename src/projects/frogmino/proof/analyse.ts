@@ -2,7 +2,6 @@ import type { DesignedCourse, Pose } from "../coop-courses/design";
 import { fitsRow, startPlacements } from "../run";
 import { cellKey, frogCells } from "../logic";
 import { rowSolids } from "../traffic";
-import type { Tuning } from "../tuning";
 import type { Cell, Solid } from "../types";
 import { applyPoseAction, endSlot, planShape, type PlanFrog, type PoseAction, type TeamPose } from "./team-plan";
 
@@ -90,8 +89,8 @@ export function reachablePoses(start: TeamPose, lanes: number, airSlots: number,
 }
 
 // The reachable poses that pass a row of `solids`.
-export function passingPoses(reachable: readonly TeamPose[], solids: readonly Solid[], wallRows: number): TeamPose[] {
-  return reachable.filter((pose) => pose.every((frog) => fitsRow(planShape(frog), solids, wallRows)));
+export function passingPoses(reachable: readonly TeamPose[], solids: readonly Solid[]): TeamPose[] {
+  return reachable.filter((pose) => pose.every((frog) => fitsRow(planShape(frog), solids)));
 }
 
 // The team as a course starts it: each frog on the overpass, on the road.
@@ -163,13 +162,12 @@ export function rowCoupling(
   solo: readonly (readonly PlanFrog[])[],
   solids: readonly Solid[],
   lanes: number,
-  wallRows: number,
 ): RowCoupling {
   if (solo.length !== 2) throw new Error(`Coupling is for a pair of frogs, not ${String(solo.length)}`);
-  const passes = passingPoses(reachable, solids, wallRows);
+  const passes = passingPoses(reachable, solids);
   const team = new Set(passes.map(teamKey));
   const inOrder = passes.filter((pose) => laneSpan(pose[0]).first <= laneSpan(pose[1]).first).length;
-  const own = solo.map((shapes) => shapes.filter((frog) => fitsRow(planShape(frog), solids, wallRows)));
+  const own = solo.map((shapes) => shapes.filter((frog) => fitsRow(planShape(frog), solids)));
   const [sprout, splash] = own;
 
   let line: RowCoupling["line"] = null;
@@ -250,7 +248,7 @@ export interface RowAnalysis {
 }
 
 // Every row of a designed co-op course, analysed from its data alone.
-export function analyseCoopCourse(course: DesignedCourse, tuning: Tuning, airSlots: number): RowAnalysis[] {
+export function analyseCoopCourse(course: DesignedCourse, airSlots: number): RowAnalysis[] {
   const start = startPose(course.kinds, course.lanes);
   const reachable = reachablePoses(start, course.lanes, airSlots);
   const reachableKeys = new Set(reachable.map(teamKey));
@@ -263,8 +261,8 @@ export function analyseCoopCourse(course: DesignedCourse, tuning: Tuning, airSlo
       index,
       lesson: row.lesson,
       gap: row.gap,
-      passes: passingPoses(reachable, solids, tuning.wallRows).length,
-      coupling: rowCoupling(reachable, solo, solids, course.lanes, tuning.wallRows),
+      passes: passingPoses(reachable, solids).length,
+      coupling: rowCoupling(reachable, solo, solids, course.lanes),
       answer: coordinationKinds(before, end, course.lanes, airSlots),
       answerReachable: reachableKeys.has(teamKey(end)),
     };

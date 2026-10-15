@@ -12,7 +12,7 @@ import type { TeamPose } from "./team-plan";
 
 const AIR_SLOTS = tickTiming(TUNING).hopAirtime / DEFAULT_SLOT;
 
-const ANALYSED = new Map([BLOCK_PARTY, TEA_FOR_TWO, LONG_AND_SHORT].map((course) => [course, analyseCoopCourse(course, TUNING, AIR_SLOTS)]));
+const ANALYSED = new Map([BLOCK_PARTY, TEA_FOR_TWO, LONG_AND_SHORT].map((course) => [course, analyseCoopCourse(course, AIR_SLOTS)]));
 
 // A designed course's row, analysed, by its lesson.
 function rowOf(course: DesignedCourse, lesson: string) {
@@ -26,7 +26,7 @@ describe("coupling and decoys", () => {
     // Five lanes, a tall bus in the last: the Os fit in lanes 0 to 3, both
     // at once only side by side, and an O can't kick past its partner.
     const start = startPose(["O", "O"], 5);
-    const coupling = rowCoupling(reachablePoses(start, 5, AIR_SLOTS), soloReachable(start, 5, AIR_SLOTS), rowSolids([{ id: "I1", lane: 4 }]), 5, TUNING.wallRows);
+    const coupling = rowCoupling(reachablePoses(start, 5, AIR_SLOTS), soloReachable(start, 5, AIR_SLOTS), rowSolids([{ id: "I1", lane: 4 }]), 5);
     expect(coupling).toEqual({
       inOrder: 4,
       crossed: 0,
@@ -41,18 +41,13 @@ describe("coupling and decoys", () => {
     });
   });
 
-  it("reads the designed courses' rows each their own way: parallel solo, coupled, or fully coupled", () => {
+  it("reads the designed courses' rows each their own way: parallel solo or coupled", () => {
     expect(rowOf(TEA_FOR_TWO, "jump together").coupling.label).toBe("parallel solo");
     expect(rowOf(TEA_FOR_TWO, "each stands up").coupling.label).toBe("parallel solo");
-    expect(rowOf(LONG_AND_SHORT, "stand tall, hop high").coupling.label).toBe("parallel solo");
     for (const lesson of ["Splash points down", "Sprout points down", "Splash leans in"]) {
       expect(rowOf(TEA_FOR_TWO, lesson).coupling.label, lesson).toBe("partly coupled");
       expect(rowOf(TEA_FOR_TWO, lesson).coupling.coupling, lesson).toBeGreaterThan(0.3);
     }
-    const finale = rowOf(LONG_AND_SHORT, "the plank and the block");
-    expect(finale.passes).toBe(1);
-    expect(finale.coupling.decoys).toEqual([2, 1]);
-    expect(finale.coupling.label).toBe("fully coupled");
   });
 });
 

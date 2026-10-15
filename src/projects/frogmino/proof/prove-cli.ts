@@ -163,8 +163,8 @@ function main(): void {
     const result = proveCourse(course, { rows: options.rows, answers: designedAnswers(design) }, tuning);
     const took = ((performance.now() - started) / 1000).toFixed(1);
     console.log(`\n=== ${label}: ${courseHeading(design)} (proved in ${took} s) ===`);
-    const analysed: Analysed = { design, analysis: analyseCoopCourse(design, tuning, AIR_SLOTS), lanes: course.lanes };
-    console.log(options.brief ? brief(result, analysed) : describeProof(result, course.lanes, tuning.wallRows));
+    const analysed: Analysed = { design, analysis: analyseCoopCourse(design, AIR_SLOTS), lanes: course.lanes };
+    console.log(options.brief ? brief(result, analysed) : describeProof(result, course.lanes));
     // Medal times are for the course as the game plays it, not a longer stretch.
     const proved = result.ok && result.proof.finished && options.length === undefined ? timing(course, result.proof, tuning) : null;
     console.log(`\n${courseSummary(design, analysed.analysis, proved)}`);

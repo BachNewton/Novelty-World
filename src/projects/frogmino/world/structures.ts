@@ -1,5 +1,5 @@
 import { GROUND_CLEARANCE } from "../clearance";
-import { TUNING } from "../tuning";
+import { TALLEST_VEHICLE } from "../fleet";
 import {
   GROUND_DROP,
   ROAD_LEFT,
@@ -24,7 +24,7 @@ const DECK_THICKNESS = 0.45;
 export const DECK_UNDERSIDE = DECK_TOP - DECK_THICKNESS;
 // The tallest vehicle, lifted by the ground clearance, and the least room
 // left above it.
-export const VEHICLE_TOP = TUNING.wallRows + GROUND_CLEARANCE;
+export const VEHICLE_TOP = TALLEST_VEHICLE + GROUND_CLEARANCE;
 export const HEADROOM = 0.25;
 
 // Each deck spans a stretch of the course this long.

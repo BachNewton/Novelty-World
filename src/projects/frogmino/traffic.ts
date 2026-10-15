@@ -1,6 +1,6 @@
 import { VEHICLE_LENGTHS, vehicleCells, type VehicleId } from "./fleet";
 import { cellKey } from "./logic";
-import type { Cell, Opening, Solid } from "./types";
+import type { Cell, Solid } from "./types";
 
 // One vehicle in a row, its leftmost lane at `lane`.
 export interface RowVehicle {
@@ -28,30 +28,18 @@ export function vehicleCellsAt(placed: RowVehicle): Cell[] {
   return vehicleCells(placed.id).map((c) => ({ col: c.col + placed.lane, row: c.row }));
 }
 
-// The row's opening: every cell of the `cols` × `rows` face that none of its
-// vehicles fills. A vehicle outside the road, or two sharing a lane, is a
-// broken row, not a row with an odd opening.
-export function rowOpening(row: Row, cols: number, rows: number): Opening {
+// Fails loudly on a broken row: a vehicle outside a road `lanes` wide, or
+// two sharing a lane. Everything a row's vehicles don't fill is open, up into
+// the air above them.
+export function checkRow(row: Row, lanes: number): void {
   const used = new Set<number>();
-  const solid = new Set<string>();
   for (const placed of row) {
     for (const lane of lanesOf(placed)) {
-      if (lane < 0 || lane >= cols) throw new Error(`${placed.id} at lane ${String(placed.lane)} leaves the road`);
+      if (lane < 0 || lane >= lanes) throw new Error(`${placed.id} at lane ${String(placed.lane)} leaves the road`);
       if (used.has(lane)) throw new Error(`Lane ${String(lane)} holds two vehicles`);
       used.add(lane);
     }
-    for (const cell of vehicleCellsAt(placed)) {
-      if (cell.row >= rows) throw new Error(`${placed.id} is taller than ${String(rows)} rows`);
-      solid.add(cellKey(cell));
-    }
   }
-  const open: Cell[] = [];
-  for (let col = 0; col < cols; col++) {
-    for (let row = 0; row < rows; row++) {
-      if (!solid.has(cellKey({ col, row }))) open.push({ col, row });
-    }
-  }
-  return open;
 }
 
 // How far a row reaches back along the course from its front: its longest

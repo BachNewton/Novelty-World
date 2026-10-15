@@ -248,7 +248,7 @@ function passRow(ctx: Context, settled: Track): { track: Track; proof: RowProof 
     goal: (pose) =>
       pose.every((frog, i) => {
         const shape = planShape(frog);
-        return isAnswer(shape, i) && fitsRow(shape, wall.solids, ctx.tuning.wallRows);
+        return isAnswer(shape, i) && fitsRow(shape, wall.solids);
       }),
   });
   const note = answer === undefined ? "" : " in its designed answer";

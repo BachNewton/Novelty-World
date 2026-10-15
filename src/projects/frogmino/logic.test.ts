@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { TETROMINOES, cellKey, frogCells, frogPasses, pieceCells, insideLanes, rectOpening as rect, turnWithKicks, type Placement } from "./logic";
-import type { Cell, Frog, Lanes, Opening, Rotation, TetrominoKind } from "./types";
+import { TETROMINOES, cellKey, frogCells, pieceCells, insideLanes, rectOpening as rect, turnWithKicks, type Placement } from "./logic";
+import type { Cell, Frog, Lanes, Rotation, TetrominoKind } from "./types";
 
 const KINDS = Object.keys(TETROMINOES) as TetrominoKind[];
 const ROTATIONS: Rotation[] = [0, 1, 2, 3];
@@ -57,61 +57,11 @@ describe("tetrominoes", () => {
   });
 });
 
-describe("frogPasses", () => {
-  it("passes when every cell is inside a larger opening", () => {
-    expect(frogPasses(frog({ kind: "T", col: 2 }), rect([1, 5], [0, 2]))).toBe(true);
-  });
-
-  it("passes an opening exactly the frog's shape", () => {
-    const piece = frog({ kind: "S", col: 4 });
-    expect(frogPasses(piece, frogCells(piece))).toBe(true);
-  });
-
-  it("bonks when any cell meets the wall", () => {
-    // One column too far right: the T's right end hits the wall.
-    expect(frogPasses(frog({ kind: "T", col: 4 }), rect([1, 5], [0, 2]))).toBe(false);
-  });
-
-  it("bonks a piece that is too wide for the opening", () => {
-    expect(frogPasses(frog({ kind: "I", col: 2 }), rect([2, 4], [0, 3]))).toBe(false);
-  });
-
-  it("rectOpening covers every cell of the rectangle", () => {
+describe("rectOpening", () => {
+  it("covers every cell of the rectangle", () => {
     expect(sorted(rect([1, 2], [0, 1]))).toEqual(
       sorted([{ col: 1, row: 0 }, { col: 1, row: 1 }, { col: 2, row: 0 }, { col: 2, row: 1 }]),
     );
-  });
-
-  it("bonks with no opening at all", () => {
-    expect(frogPasses(frog({ kind: "O" }), [])).toBe(false);
-  });
-
-  it("passes a tall slot only when rotated to fit", () => {
-    const slot = rect([3, 3], [0, 3]);
-    expect(frogPasses(frog({ kind: "I", col: 3, rotation: 0 }), slot)).toBe(false);
-    expect(frogPasses(frog({ kind: "I", col: 3, rotation: 1 }), slot)).toBe(true);
-    expect(frogPasses(frog({ kind: "I", col: 3, rotation: 3 }), slot)).toBe(true);
-  });
-
-  it("a notch only lets through the rotation that matches it", () => {
-    // An upside-down T shaped hole: three wide on top, one cell below.
-    const notch: Opening = [
-      { col: 2, row: 1 }, { col: 3, row: 1 }, { col: 4, row: 1 }, { col: 3, row: 0 },
-    ];
-    expect(frogPasses(frog({ kind: "T", col: 2, rotation: 2 }), notch)).toBe(true);
-    expect(frogPasses(frog({ kind: "T", col: 2, rotation: 0 }), notch)).toBe(false);
-  });
-
-  it("a raised opening needs a hop", () => {
-    const raised = rect([1, 3], [1, 2]);
-    expect(frogPasses(frog({ kind: "O", col: 1, hop: 0 }), raised)).toBe(false);
-    expect(frogPasses(frog({ kind: "O", col: 1, hop: 1 }), raised)).toBe(true);
-  });
-
-  it("hopping at a floor-level opening with no headroom bonks", () => {
-    const floor = rect([1, 2], [0, 1]);
-    expect(frogPasses(frog({ kind: "O", col: 1, hop: 0 }), floor)).toBe(true);
-    expect(frogPasses(frog({ kind: "O", col: 1, hop: 1 }), floor)).toBe(false);
   });
 });
 
