@@ -3,24 +3,29 @@ import { getProjectStorage } from "@/shared/lib/storage/project-storage";
 
 export interface SoundSettings {
   muted: boolean;
-  // The master volume, from 0 to 1.
+  // The master volume, from 0 to 1, for the effects and the music.
   volume: number;
+  // The music's own volume under the master, from 0 to 1.
+  music: number;
 }
 
-export const DEFAULT_SOUND_SETTINGS: SoundSettings = { muted: false, volume: 0.8 };
+export const DEFAULT_SOUND_SETTINGS: SoundSettings = { muted: false, volume: 0.8, music: 1 };
 
 const KEY = "sound";
 
-function isSoundSettings(value: unknown): value is SoundSettings {
-  if (typeof value !== "object" || value === null) return false;
-  const { muted, volume } = value as Record<string, unknown>;
-  return typeof muted === "boolean" && typeof volume === "number" && volume >= 0 && volume <= 1;
+function isLevel(value: unknown): value is number {
+  return typeof value === "number" && value >= 0 && value <= 1;
 }
 
 // Settings saved by an earlier visit, or the defaults if there are none.
+// Settings saved before the music had its own volume keep their mute and
+// master volume, with the music at its default.
 export function loadSoundSettings(): SoundSettings {
   const saved = getProjectStorage("frogmino").get<unknown>(KEY);
-  return isSoundSettings(saved) ? saved : DEFAULT_SOUND_SETTINGS;
+  if (typeof saved !== "object" || saved === null) return DEFAULT_SOUND_SETTINGS;
+  const { muted, volume, music = DEFAULT_SOUND_SETTINGS.music } = saved as Record<string, unknown>;
+  if (typeof muted !== "boolean" || !isLevel(volume) || !isLevel(music)) return DEFAULT_SOUND_SETTINGS;
+  return { muted, volume, music };
 }
 
 export function saveSoundSettings(settings: SoundSettings): void {
@@ -37,6 +42,11 @@ interface SoundSettingsStore {
   settings: SoundSettings;
   toggleMuted: () => void;
   setVolume: (volume: number) => void;
+  setMusic: (music: number) => void;
+}
+
+function clampLevel(level: number): number {
+  return Math.min(Math.max(level, 0), 1);
 }
 
 function update(settings: SoundSettings): { settings: SoundSettings } {
@@ -49,5 +59,6 @@ function update(settings: SoundSettings): { settings: SoundSettings } {
 export const useSoundSettings = create<SoundSettingsStore>()((set) => ({
   settings: typeof window === "undefined" ? DEFAULT_SOUND_SETTINGS : loadSoundSettings(),
   toggleMuted: () => set((s) => update({ ...s.settings, muted: !s.settings.muted })),
-  setVolume: (volume) => set((s) => update({ ...s.settings, volume: Math.min(Math.max(volume, 0), 1) })),
+  setVolume: (volume) => set((s) => update({ ...s.settings, volume: clampLevel(volume) })),
+  setMusic: (music) => set((s) => update({ ...s.settings, music: clampLevel(music) })),
 }));

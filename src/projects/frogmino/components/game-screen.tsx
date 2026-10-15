@@ -8,6 +8,7 @@ import { subscribeGamepads, usePadNavigation } from "@/shared/lib/gamepad";
 import { FROG_LOOKS } from "../frog/look";
 import { seatedSink, type Seating } from "../input/devices";
 import { COOP_LEGEND, WHOLE_LEGEND, type KeyboardLayout } from "../input/keyboard";
+import { MusicSteppers } from "../audio/music-button";
 import { MENU_BUTTON } from "../input/gamepad";
 import { useGamepadSource } from "../input/use-gamepad-source";
 import { useKeyboardSource } from "../input/use-keyboard-source";
@@ -111,7 +112,7 @@ const MENU_HINTS = [
 ] as const;
 
 // A controller's menu over the game, opened with View, since the pads are
-// busy playing: keep playing, restart, or a way out. The game runs on under it,
+// busy playing: keep playing, restart, a way out, or the music's volume. The game runs on under it,
 // online can't pause, and while it is open the pads drive no frog.
 function GameMenu({ session, exits, onClose }: { session: Session; exits: readonly GameExit[]; onClose: () => void }) {
   const root = useRef<HTMLDivElement>(null);
@@ -138,6 +139,7 @@ function GameMenu({ session, exits, onClose }: { session: Session; exits: readon
             {exit.label}
           </button>
         ))}
+        <MusicSteppers />
         <PadHints hints={MENU_HINTS} />
       </div>
     </div>

@@ -4,7 +4,7 @@ import { MuteButton } from "./mute-button";
 import type { PlayOptions } from "./player";
 import { soundPlayer } from "./sound-board";
 import { passStreakSemitones, SOUND_IDS, SOUNDS, zzfxParams, type SoundId } from "./sounds";
-import { VolumeSlider } from "./volume-slider";
+import { MusicSlider, VolumeSlider } from "./volume-slider";
 
 // The `?sounds` page: every sound with its trigger and ZzFX parameters, to
 // audition and tweak. Plays go through the game's own player, so they carry
@@ -89,6 +89,7 @@ export function SoundLab() {
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <VolumeSlider />
+            <MusicSlider readout />
             <MuteButton />
           </div>
         </header>

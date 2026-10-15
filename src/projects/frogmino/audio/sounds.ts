@@ -98,7 +98,7 @@ export const SOUNDS: Record<SoundId, SoundDesign> = {
       {
         at: 0,
         zzfx: {
-          volume: 0.5,
+          volume: 0.75,
           frequency: 240,
           attack: 0.01,
           decay: 0.04,
@@ -152,7 +152,7 @@ export const SOUNDS: Record<SoundId, SoundDesign> = {
   pass: {
     label: "Row passed",
     trigger: "The frog fits through a row. Each clean pass in a row climbs a note; a bonk resets it.",
-    layers: [{ at: 0, zzfx: { volume: 0.45, frequency: 520, attack: 0.005, sustain: 0.015, release: 0.07, slide: 1.5 } }],
+    layers: [{ at: 0, zzfx: { volume: 0.58, frequency: 520, attack: 0.005, sustain: 0.015, release: 0.07, slide: 1.5 } }],
     variation: { pitch: 0.012, volume: 0.12 },
     minGap: 0.08,
     busiestEvery: 0.9,

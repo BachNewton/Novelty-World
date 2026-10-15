@@ -1,17 +1,13 @@
-import { useSoundSettings, type SoundSettings } from "../settings";
+import { useSoundSettings } from "../settings";
+import { musicGain } from "./mix";
 import type { RenderReply, RenderRequest } from "./render.worker";
 import { compileTheme, type Theme } from "./song";
 
 // The music in the browser, for the game and the `?music` page. Themes render
 // in a worker, so rendering never holds up a frame, and play through ZzFX's
 // AudioContext, the game's one context, which the sound board unlocks. One
-// gain follows the sound settings' volume and mute, at the music's mix level.
-// One theme plays at a time.
-
-// The music's level under the master volume. The themes are about as loud as
-// the sound effects, so this keeps them some 9 dB under, and the effects
-// clear.
-export const MUSIC_LEVEL = 0.35;
+// gain follows the sound settings, at the music's place in the mix
+// (`mix.ts`). One theme plays at a time.
 
 // How many rendered themes to keep. A full-length theme is some 30 MB of
 // samples, and a game only needs the one it plays.
@@ -26,20 +22,16 @@ const rendered = new Map<string, Promise<AudioBuffer>>();
 let output: Output | null = null;
 let current: { source: AudioBufferSourceNode; fade: GainNode } | null = null;
 
-function level({ muted, volume }: SoundSettings): number {
-  return muted ? 0 : volume * MUSIC_LEVEL;
-}
-
 async function musicOutput(): Promise<Output> {
   // Imported here, not at the top: ZzFX creates its AudioContext as it loads,
   // which can't happen on the server.
   const { ZZFX } = await import("zzfx");
   if (output === null) {
     const context = ZZFX.audioContext;
-    const gain = new GainNode(context, { gain: level(useSoundSettings.getState().settings) });
+    const gain = new GainNode(context, { gain: musicGain(useSoundSettings.getState().settings) });
     gain.connect(context.destination);
     useSoundSettings.subscribe(({ settings }) => {
-      gain.gain.value = level(settings);
+      gain.gain.value = musicGain(settings);
     });
     output = { context, gain };
   }
