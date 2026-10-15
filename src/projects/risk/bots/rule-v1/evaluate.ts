@@ -92,27 +92,38 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
     power[p] = armiesOf(b, p) + H * territoryIncome + cards;
   }
 
-  // Before my next turn, each opponent takes the best kill of a third player it can
-  // reach, as the opponent model would: the victim's power goes, its cards go to the
-  // killer. So damage I leave on a card-holder counts as a gift to whoever can finish it.
+  // Before my next turn, each opponent goes for the one kill that pays it best (a
+  // player takes one victim a turn, not every one it could reach): the chance it lands,
+  // as the opponent model weighs it, times the cards it would take. Me included: that
+  // is my kill exposure. A third player's death moves its power and cards to the
+  // killer, so damage I leave on a card-holder counts as a gift to whoever finishes it.
   // `spared[v]`: the chance v outlives every opponent's turn before mine.
   const spared = new Array<number>(b.players).fill(1);
+  const myCount = countOf(b, me);
   for (const q of opponents) {
     let best = 0;
     let victim = -1;
-    for (const v of opponents) {
-      if (v === q || b.handSize[v] === 0) continue;
+    let bestTaken = 0;
+    for (const v of alive) {
+      if (v === q) continue;
+      const hand = v === me ? myHand : b.handSize[v];
+      if (hand === 0 && v !== me) continue;
       const p = killChance(b, q, v, Math.round(income[q]));
-      const taken = p * (p >= om.killBar || b.handSize[v] + b.handSize[q] >= 6 ? 1 : om.unpaidKillChance);
-      spared[v] *= 1 - taken;
-      if (taken > best) {
-        best = taken;
+      if (p === 0) continue;
+      const pays = hand + b.handSize[q] >= 6 || hand >= 3 || (v === me && myCount <= 2);
+      const taken = p * (p >= om.killBar || pays ? 1 : om.unpaidKillChance);
+      const worth = taken * (hand + 1);
+      if (worth > best) {
+        best = worth;
+        bestTaken = taken;
         victim = v;
       }
     }
     if (victim < 0) continue;
-    power[q] += best * (b.handSize[victim] / 3) * nextSet;
-    power[victim] *= 1 - best;
+    spared[victim] *= 1 - bestTaken;
+    if (victim === me) continue;
+    power[q] += bestTaken * (b.handSize[victim] / 3) * nextSet;
+    power[victim] *= 1 - bestTaken;
   }
   let total = 0;
   for (const p of alive) total += power[p];
@@ -122,8 +133,6 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
   for (const p of alive) {
     if (alive.every((q) => q === p || power[p] > ratio * power[q])) commonThreat = p;
   }
-
-  const myCount = countOf(b, me);
 
   // Border exposure: each opponent's best single blow against me, weighted by how
   // likely I am the one they hit.
@@ -148,14 +157,7 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
   }
 
   // Kill exposure: the chance someone eliminates me before my next turn.
-  let survive = 1;
-  for (const q of opponents) {
-    const p = killChance(b, q, me, Math.round(income[q]));
-    if (p === 0) continue;
-    const pays = myHand + b.handSize[q] >= 6 || myHand >= 3 || myCount <= 2;
-    survive *= 1 - p * (p >= om.killBar || pays ? 1 : om.unpaidKillChance);
-  }
-  const killExposure = 1 - survive;
+  const killExposure = 1 - spared[me];
 
   // Next turn's best kill, valued by the cards it would take.
   let opportunity = 0;
