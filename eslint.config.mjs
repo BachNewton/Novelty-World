@@ -71,6 +71,23 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Risk's engine is deterministic too (`INV-10`): its randomness is the seeded source in its state.
+  {
+    files: ["src/projects/risk/engine/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        { object: "Math", property: "random", message: "Use the game's seeded random source (state.rng)." },
+        { object: "Date", property: "now", message: "The engine has no clock." },
+        { object: "performance", property: "now", message: "The engine has no clock." },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        { selector: "NewExpression[callee.name='Date']", message: "The engine has no clock." },
+      ],
+    },
+  },
   // The e2e harness manages its own run folders (builds, test output), every path built from its
   // own constants and process ids: the rule guards against paths from outside input, which it has none of.
   {

@@ -1,6 +1,6 @@
-# Risk engine speed spike: what it measured, and why TypeScript
+# Risk engine speed spike: what it measured
 
-A record of stage 3 of the engine plan (the project's `CLAUDE.md`): a speed spike meant to pick the fast engine's language from measurements. It was stopped before its full measurement finished, and the language was decided on principles instead: **TypeScript**. The numbers below are the partial results it had, kept as context for that decision and for any later look at moving one hot kernel to Rust. The spike's code was deleted once this was written; git history holds it.
+A record of stage 3 of the engine plan (the project's `CLAUDE.md`): a speed spike meant to pick the fast engine's language from measurements. It was stopped before its full measurement finished. The language was then decided separately: **TypeScript** (`language-decision.md`). The numbers below are the partial results it had, kept as context. The spike's code was deleted once this was written; git history holds it.
 
 ## What was built
 
@@ -56,9 +56,9 @@ What the numbers suggested, for the record: the evaluation kernel is where Rust'
 
 The laptop never gave a sustained clean, quiet window. Other agents' work (builds, test runs, a dev server and screenshots) loaded the CPU intermittently, so most runs in the full measurement were rejected for load during the run, or for a machine that never settled within five minutes. The hottest ACPI zone sat at 90–100 °C under any sustained load, and all-core clocks fell as the chip throttled. The owner judged that measurements taken on this laptop were not a sound basis for the language choice, and stopped the spike.
 
-## The decision: TypeScript
+## The case made for TypeScript
 
-The language was decided on principles, not on these numbers:
+TypeScript was proposed on principles, not on these numbers, and briefly recorded as decided before the owner put the decision on hold. The case as made:
 
 - **The gain is a constant factor.** Even at face value, Rust's lead is about 2–3.4× on this hardware: it changes how long a gauntlet takes, not which experiments are possible. Better algorithms (search pruning, cheaper evaluation features, the exact tables) move the bots further than a constant factor does.
 - **One language is simpler.** The reference engine, the contract, the UI, the server route and the bots are TypeScript. A TypeScript fast engine means one toolchain, one test runner, and differential tests that compare two TypeScript engines in one process. There is no second build, no WASM packaging on Vercel, and no boundary to design around.

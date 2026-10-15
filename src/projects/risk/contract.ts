@@ -69,7 +69,9 @@ export interface GameView {
     /** The viewer's own hand; null for a spectator. */
     hand: readonly CardId[] | null;
   };
-  /** Set after a capture until the attacker moves in (`COMBAT-6`). */
+  /** Set after a capture until the attacker moves in (`COMBAT-6`). The minimum has already moved
+   *  in with the capture, so `territories` shows it (no territory is ever empty, `INV-1`); `min`
+   *  and `max` bound the total that an `occupy` move names. */
   occupying: { from: TerritoryId; to: TerritoryId; min: number; max: number } | null;
   winner: Seat | null;
 }
@@ -93,6 +95,7 @@ export type Move =
    *  attacking territory is down to `keepAtLeast` armies (at least 1). One move, so a whole
    *  assault costs the server one request. */
   | { kind: "blitz"; from: TerritoryId; to: TerritoryId; keepAtLeast: number }
+  /** The total armies in the captured territory once moved in, `min` to `max` of `occupying`. */
   | { kind: "occupy"; armies: number }
   | { kind: "end-attack" }
   | { kind: "fortify"; from: TerritoryId; to: TerritoryId; armies: number }
@@ -101,7 +104,9 @@ export type Move =
 
 /** The legal moves for one seat right now, grouped so a screen can highlight targets
  *  without trying moves one by one. Every move these allow is accepted by `apply`, and no
- *  other move is (a test holds the two together). Null when the seat has nothing to do. */
+ *  other move is (a test holds the two together). Null when the seat has nothing to do.
+ *  `end-attack` is allowed whenever the kind is "attack", and `end-turn` whenever it is
+ *  "fortify". A phase with nothing to do but end it is ended by the engine. */
 export type Options =
   | {
       kind: "setup-place";
@@ -116,6 +121,10 @@ export type Options =
       ownTerritories: readonly TerritoryId[];
       mustTrade: boolean;
       sets: readonly (readonly [CardId, CardId, CardId])[];
+      /** Owned territories pictured on cards in hand, which can take the occupied-territory
+       *  bonus (`CARDS-7`): a set's `bonusTerritory` must be one of its own cards' territories in
+       *  this list, and is required when the set has two or more. */
+      bonusTerritories: readonly TerritoryId[];
     }
   | {
       kind: "attack";
