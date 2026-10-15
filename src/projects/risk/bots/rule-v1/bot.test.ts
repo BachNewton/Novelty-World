@@ -92,7 +92,7 @@ describe("rule-v1", () => {
   });
 
   it("plays whole games against itself to a winner", () => {
-    for (const players of [4]) {
+    for (const players of [3]) {
       let state = engine.newGame({ players }, `self-${players}`).state;
       for (let step = 0; ; step++) {
         const view = engine.view(state, null);
