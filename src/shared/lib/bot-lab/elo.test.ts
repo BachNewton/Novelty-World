@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitElo, pairsFromFinishes, topRated, type PairResult } from "./elo";
+import { fitElo, pairsFromFinishes, pairsFromWinner, topRated, type PairResult } from "./elo";
 
 describe("fitElo", () => {
   it("anchors the floor at 0 Elo", () => {
@@ -112,5 +112,41 @@ describe("pairsFromFinishes", () => {
     expect(elo["b"]).toBeCloseTo(400 * Math.log10(2), 0);
     expect(elo["a"]).toBeCloseTo(400 * Math.log10(4), 0);
     expect(topRated(elo, labels)).toBe("a");
+  });
+});
+
+describe("pairsFromWinner", () => {
+  it("compares the winner with every other label's seats, once per seat", () => {
+    const pairs = pairsFromWinner([
+      { label: "cand", place: 1 },
+      { label: "base", place: 2 },
+      { label: "base", place: 3 },
+      { label: "cand", place: 4 },
+    ]);
+    expect(pairs).toEqual([
+      { a: "cand", b: "base", aWins: 1, bWins: 0 },
+      { a: "cand", b: "base", aWins: 1, bWins: 0 },
+    ]);
+  });
+
+  it("compares nothing in a game with no single winner", () => {
+    expect(pairsFromWinner([{ label: "a", place: 1 }, { label: "b", place: 1 }, { label: "c", place: 3 }])).toEqual([]);
+  });
+
+  it("recovers the Luce edge from one candidate among five base seats", () => {
+    // Luce at +100 Elo: the lone candidate wins r/(r+5) of games, r = 10^(100/400).
+    const r = Math.pow(10, 100 / 400);
+    const games = 1_000_000;
+    const candWins = Math.round((games * r) / (r + 5));
+    const results: PairResult[] = [];
+    const lone = (winner: "cand" | "base") =>
+      pairsFromWinner([
+        { label: "cand", place: winner === "cand" ? 1 : 2 },
+        ...Array.from({ length: 5 }, (_, i) => ({ label: "base", place: winner === "base" && i === 0 ? 1 : 2 })),
+      ]);
+    for (const p of lone("cand")) results.push({ ...p, aWins: p.aWins * candWins, bWins: p.bWins * candWins });
+    for (const p of lone("base")) results.push({ ...p, aWins: p.aWins * (games - candWins), bWins: p.bWins * (games - candWins) });
+    const elo = fitElo(["base", "cand"], results, { anchor: "base" });
+    expect(elo["cand"]).toBeCloseTo(100, 0);
   });
 });

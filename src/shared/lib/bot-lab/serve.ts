@@ -14,6 +14,6 @@ export function serveGames<Spec extends Indexed, Result extends Indexed>(
   }
   const port = parentPort;
   port.on("message", (msg: { specs: Spec[] }) => {
-    port.postMessage({ results: msg.specs.map(runOne) });
+    port.postMessage({ results: msg.specs.map((spec) => runOne(spec)) });
   });
 }

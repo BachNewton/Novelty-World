@@ -109,7 +109,7 @@ export function inlineRunner<Spec extends Indexed, Result extends Indexed>(
 ): GameRunner<Spec, Result> {
   return {
     size: 1,
-    run: (specs) => Promise.resolve(specs.map(runOne).sort((p, q) => p.index - q.index)),
+    run: (specs) => Promise.resolve(specs.map((spec) => runOne(spec)).sort((p, q) => p.index - q.index)),
     close: () => Promise.resolve(),
   };
 }

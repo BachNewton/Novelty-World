@@ -132,6 +132,8 @@ export interface GauntletWalk {
   wins: number;
   losses: number;
   decisive: number;
+  /** Groups walked to the stop point (games, when every group is one game). */
+  groups: number;
   /** Log-likelihood ratios of the improvement and regression tests at the stop. */
   llrImprove: number;
   llrRegress: number;
@@ -173,15 +175,18 @@ export function walkGroupedSprt(
   const regress: SprtConfig = { elo0: 0, elo1: -cfg.margin, alpha: cfg.alpha, beta: cfg.beta };
   let wins = 0;
   let losses = 0;
+  let walked = 0;
   const at = (verdict: GauntletVerdict, si: SprtState, sr: SprtState): GauntletWalk => ({
     verdict,
     wins,
     losses,
     decisive: wins + losses,
+    groups: walked,
     llrImprove: si.llr,
     llrRegress: sr.llr,
   });
   for (const group of groups) {
+    walked++;
     for (const won of group) {
       if (won) wins++;
       else losses++;

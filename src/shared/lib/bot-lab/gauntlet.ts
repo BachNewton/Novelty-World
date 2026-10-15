@@ -48,6 +48,9 @@ export interface SprtPairingRun {
    *  as the deadlock health metric. */
   draws: number;
   errors: number;
+  /** Games up to the stop point, draws and errors included: the games the verdict
+   *  rests on, the same whatever the batch size. */
+  games: number;
   /** Total games generated (including any past the stop point and any draws). */
   generated: number;
   /** LLRs of the improvement ([0,+E]) and regression ([0,−E]) tests at the stop. */
@@ -112,6 +115,7 @@ export async function runSprtPairing(opts: SprtPairingOptions): Promise<SprtPair
     decisive: walk.decisive,
     draws,
     errors,
+    games: walk.groups * groupSize,
     generated,
     llrImprove: walk.llrImprove,
     llrRegress: walk.llrRegress,

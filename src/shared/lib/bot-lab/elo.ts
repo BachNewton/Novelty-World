@@ -119,6 +119,17 @@ export function pairsFromFinishes(finishes: readonly Finish[]): PairResult[] {
   return pairs;
 }
 
+/** Only the winner's comparisons: the winning seat beat every seat with another
+ *  label, and nothing else is compared ("top-1 breaking"). Fed to the
+ *  Bradley–Terry fit, this recovers the Luce model's strengths, the one the SPRT
+ *  tests: P(a seat wins) = γ / Σγ over the table, copies counted. A game with no
+ *  winner compares nothing. */
+export function pairsFromWinner(finishes: readonly Finish[]): PairResult[] {
+  const winners = finishes.filter((f) => f.place === 1);
+  if (winners.length !== 1) return [];
+  return pairsFromFinishes(finishes.map((f) => ({ label: f.label, place: f.place === 1 ? 1 : 2 })));
+}
+
 /** The highest-Elo label: the field's champion. */
 export function topRated(elo: Readonly<Record<string, number>>, labels: readonly string[]): string {
   return labels.reduce((best, l) => (elo[l] > elo[best] ? l : best), labels[0]);
