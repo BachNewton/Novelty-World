@@ -1,7 +1,7 @@
 "use client";
 
 import { Maximize2, Menu, Minus, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Prompt, PromptButton } from "@/shared/components/prompts";
 import { usePadNavigation, type Direction } from "@/shared/lib/gamepad";
 import { cycleChoice, type InputKind } from "@/shared/lib/input";
@@ -15,7 +15,7 @@ import { alsoPickable, back as backOut, keepSelection, NO_SELECTION, phaseEnd, p
 import { nearestTo, nextTerritory } from "../ui/territory-nav";
 import { SeatMark, SeatName } from "./bits";
 import { GraphBoard } from "./graph-board";
-import { CardsDialog, LogDialog, MenuDialog, WhyDialog } from "./overlays";
+import { CardsDialog, LogDialog, MenuDialog } from "./overlays";
 import { StatusBox } from "./status-box";
 import { BUTTON, DISPLAY, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
 import type { BoardHandle, Marks } from "./use-board-camera";
@@ -38,14 +38,24 @@ export interface GameFeed {
   problem: string | null;
 }
 
-type Dialog = { kind: "cards" } | { kind: "menu" } | { kind: "log" } | { kind: "why"; rule: string } | null;
+type Dialog = { kind: "cards" } | { kind: "menu" } | { kind: "log" } | null;
+
+const COARSE = "(pointer: coarse)";
+function subscribeCoarse(changed: () => void) {
+  const query = window.matchMedia(COARSE);
+  query.addEventListener("change", changed);
+  return () => query.removeEventListener("change", changed);
+}
 
 export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => void }) {
   const { view, options, act: send } = feed;
   const board = useRef<BoardHandle>(null);
   const box = useRef<HTMLDivElement>(null);
 
-  const [input, setInput] = useState<InputKind>("keyboard-mouse");
+  // Until something is used, hints suit the device: none on a touch screen, keys elsewhere.
+  const coarse = useSyncExternalStore(subscribeCoarse, () => window.matchMedia(COARSE).matches, () => false);
+  const [used, setInput] = useState<InputKind | null>(null);
+  const input = used ?? (coarse ? "touch" : "keyboard-mouse");
   const [byKeys, setByKeys] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [selection, setSelection] = useState<Selection>(NO_SELECTION);
@@ -135,7 +145,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     cards: () => setDialog((open) => (open?.kind === "cards" ? null : { kind: "cards" })),
     menu: () => setDialog((open) => (open?.kind === "menu" ? null : { kind: "menu" })),
     log: () => setDialog({ kind: "log" }),
-    why: () => latestLine && setDialog({ kind: "why", rule: latestLine.rule }),
     overview: () => board.current?.overview(),
     less: () => {
       if (step.kind === "battle") setKeep(Math.max(1, keep - 1));
@@ -169,7 +178,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     setByKeys(false);
   }, []);
 
-  const why = (rule: string) => setDialog({ kind: "why", rule });
   const active = view.active;
 
   return (
@@ -213,13 +221,13 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
         <div className={cn(PANEL, "relative min-h-[45vh] flex-1 overflow-hidden")}>
           <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} dealKey={feed.dealKey} />
           <div className="absolute right-[0.4em] bottom-[0.4em] flex flex-col gap-[0.3em] text-[0.9em]">
-            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[2.2em] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1.4)} aria-label="Zoom in">
+            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1.4)} aria-label="Zoom in">
               <Plus size="1em" />
             </button>
-            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[2.2em] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1 / 1.4)} aria-label="Zoom out">
+            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1 / 1.4)} aria-label="Zoom out">
               <Minus size="1em" />
             </button>
-            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[2.2em] px-[0.5em] opacity-85")} onClick={() => board.current?.overview()} aria-label="Whole map">
+            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.overview()} aria-label="Whole map">
               <Prompt binding={BINDINGS.overview} input={input} />
               <Maximize2 size="1em" />
             </button>
@@ -239,7 +247,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
             act={act}
             back={() => setSelection(backOut(selection) ?? NO_SELECTION)}
             news={latestLine ? [latestLine] : []}
-            onWhy={why}
             onCards={() => setDialog({ kind: "cards" })}
             endHold={{ holding, onHeld: () => ending && act(ending) }}
             input={input}
@@ -289,10 +296,9 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
         </aside>
       </div>
 
-      {dialog?.kind === "cards" && <CardsDialog view={view} options={options} act={act} onClose={() => setDialog(null)} onWhy={why} input={input} />}
-      {dialog?.kind === "menu" && <MenuDialog onClose={() => setDialog(null)} onLog={() => setDialog({ kind: "log" })} onQuit={onLeave} onRules={() => why("TURN-1")} input={input} />}
-      {dialog?.kind === "log" && <LogDialog log={feed.events} onClose={() => setDialog(null)} onWhy={why} input={input} />}
-      {dialog?.kind === "why" && <WhyDialog rule={dialog.rule} onClose={() => setDialog(null)} input={input} />}
+      {dialog?.kind === "cards" && <CardsDialog view={view} options={options} act={act} onClose={() => setDialog(null)} input={input} />}
+      {dialog?.kind === "menu" && <MenuDialog onClose={() => setDialog(null)} onLog={() => setDialog({ kind: "log" })} onQuit={onLeave} input={input} />}
+      {dialog?.kind === "log" && <LogDialog log={feed.events} onClose={() => setDialog(null)} input={input} />}
     </div>
   );
 }

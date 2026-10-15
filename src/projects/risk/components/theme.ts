@@ -80,8 +80,9 @@ export const SEAT_TEXT = ["text-(--rk-seat-0)", "text-(--rk-seat-1)", "text-(--r
 
 /** A panel's frame: dark leather with a brass edge. */
 export const PANEL = "rounded-[0.5em] border border-(--rk-line) bg-(--rk-panel)";
-/** The war room's buttons, sized in ems so the couch-distance layout scales them with its text. */
+/** The war room's buttons, sized in ems so the couch-distance layout scales them with its text,
+ *  and never smaller than a fingertip's 44 px. */
 export const BUTTON =
-  "inline-flex min-h-[2.6em] items-center justify-center gap-[0.4em] rounded-[0.4em] border border-(--rk-brass-dim) bg-(--rk-panel-raised) px-[0.9em] font-semibold text-(--rk-text) transition-colors hover:border-(--rk-brass) hover:bg-(--rk-line) disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-(--rk-brass-bright)";
+  "inline-flex min-h-[max(2.6em,44px)] min-w-[44px] items-center justify-center gap-[0.4em] rounded-[0.4em] border border-(--rk-brass-dim) bg-(--rk-panel-raised) px-[0.9em] font-semibold text-(--rk-text) transition-colors hover:border-(--rk-brass) hover:bg-(--rk-line) disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-(--rk-brass-bright)";
 export const PRIMARY = "border-(--rk-brass) bg-(--rk-brass) text-(--rk-ink) hover:bg-(--rk-brass-bright) hover:border-(--rk-brass-bright)";
 export const DISPLAY = "font-(family-name:--rk-font-display) tracking-wide";

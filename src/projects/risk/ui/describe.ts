@@ -4,14 +4,12 @@ import { seatName } from "./seats";
 
 /*
  * What happened, in words: each engine event as a line for the log and the status box, with the
- * rule behind it (its Why) and the seat it is about. A run of battles between the same two
+ * seat it is about. A run of battles between the same two
  * territories, as a blitz makes, reads as one line.
  */
 
 export interface Line {
   text: string;
-  /** The rule or note the event cites (`RULES.md`), for its Why. */
-  rule: string;
   seat: Seat | null;
   /** The dice of the battle the line tells, the last one of a run. */
   dice?: { attacker: readonly number[]; defender: readonly number[]; attackerLosses: number; defenderLosses: number };
@@ -55,7 +53,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const armies = (n: number) => `${n} ${n === 1 ? "army" : "armies"}`;
 
 function describe(event: GameEvent): Line | null {
-  const line = (text: string, seat: Seat | null, headline = false): Line => ({ text, rule: event.rule, seat, headline });
+  const line = (text: string, seat: Seat | null, headline = false): Line => ({ text, seat, headline });
   switch (event.kind) {
     case "turn-order":
       return line(`Turn order: ${event.order.map(seatName).join(", ")}.`, null, true);

@@ -9,7 +9,7 @@ describe("describeEvents", () => {
     expect(lines).toHaveLength(2);
     expect(lines[0].text).toBe("Brazil attacked Peru 3 times: attacker lost 3, defender lost 3.");
     expect(lines[0].dice?.defender).toEqual([5, 4]);
-    expect(lines[1]).toMatchObject({ text: "Crimson captured Peru from Cobalt.", rule: "COMBAT-6" });
+    expect(lines[1]).toMatchObject({ text: "Crimson captured Peru from Cobalt." });
   });
 
   it("breaks reinforcements down by where they come from", () => {
