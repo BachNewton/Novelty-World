@@ -1,6 +1,5 @@
 import { readPad, subscribeGamepads, type PadSnapshot, type StandardButton } from "@/shared/lib/gamepad";
-import { isDrag, NO_PARTS, partsUnderWay, spanOf, tapAction, type Span, type TwoFingerParts } from "./gestures";
-import { pickTarget, type Point, type ScreenPoint, type Target } from "./navigate";
+import { isDrag, NO_PARTS, partsUnderWay, pointAt, spanOf, tapAction, type InputKind, type Point, type ScreenPoint, type Span, type Target, type TwoFingerParts } from "@/shared/lib/input";
 
 /*
  * Every input method drives a free camera over the house, and picks among a
@@ -12,9 +11,6 @@ import { pickTarget, type Point, type ScreenPoint, type Target } from "./navigat
  * where the choices are on screen, and turns its screen-space intents into
  * camera moves.
  */
-
-/** The three input methods: a keyboard and mouse are one, used together. */
-export type InputKind = "keyboard-mouse" | "touch" | "pad";
 
 /** Whether the screen-centre reticle is the selection: only for a controller. A mouse and a finger point instead. */
 export function usesReticle(kind: InputKind): boolean {
@@ -91,22 +87,6 @@ export interface ControlHandlers {
   inspecting?: () => boolean;
 }
 
-/** Pointer targets reach at least this far round a choice: a 48 px circle, a fingertip. */
-const FINGER_REACH = 24;
-
-/** The choice a pointer at this point picks: the mouse, a finger, and the controller's reticle at the screen's centre all pick this one way. */
-export function pointAt(targets: readonly Target[], point: Point): string | null {
-  return pickTarget(targets, point, FINGER_REACH);
-}
-
-/** What a pointer picks among layers of targets: the first layer with one under it, so a thing or a figure wins over the room it is in. */
-export function pointAtFirst(layers: readonly (readonly Target[])[], point: Point): string | null {
-  for (const layer of layers) {
-    const id = pointAt(layer, point);
-    if (id !== null) return id;
-  }
-  return null;
-}
 const ORBIT_PER_PIXEL = 0.004;
 /** Radians a two-finger drag turns the camera across the screen's full width: a half turn. */
 const TURN_PER_WIDTH = Math.PI;
@@ -483,4 +463,25 @@ export function attachControls(element: HTMLElement, handlers: ControlHandlers):
       unsubscribe();
     },
   };
+}
+
+/**
+ * The move across the floor, in scene x and z, that a push on the screen
+ * means: `right` along the screen's right and `down` towards its bottom,
+ * seen by a camera at angle `yaw` round the vertical (its back direction
+ * along the floor being sin and cos of the yaw). Pushing up moves the view
+ * away from the camera, into the screen.
+ */
+export function panOnFloor(right: number, down: number, yaw: number): { x: number; z: number } {
+  const [sin, cos] = [Math.sin(yaw), Math.cos(yaw)];
+  return { x: right * cos + down * sin, z: -right * sin + down * cos };
+}
+
+/** The floor a floor-up (1) or floor-down (-1) control shows, from `floors`
+ *  listed bottom to top; from a view of every floor, it goes to `home`. It
+ *  stays at the top and bottom rather than wrapping. */
+export function stepFloor<F extends string>(floors: readonly F[], showing: F | "all", step: 1 | -1, home: F): F {
+  if (showing === "all") return home;
+  const at = floors.indexOf(showing);
+  return floors[Math.min(floors.length - 1, Math.max(0, at + step))];
 }

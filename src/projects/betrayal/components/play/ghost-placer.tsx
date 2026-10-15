@@ -7,7 +7,7 @@ import { paletteHex } from "../../art/palette";
 import { placed, type Spot } from "../../engine/board";
 import type { GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import type { GhostCell, GhostChoice, GhostOption } from "../../play/choices";
 import { countDoors, cycle, ghostDoors, stepWay, type GhostDoor, type GhostDoorway } from "../../play/ghost";
 import type { Action, Rotation } from "../../types";

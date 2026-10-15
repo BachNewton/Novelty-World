@@ -63,11 +63,19 @@ export function cycleChoice(points: readonly ScreenPoint[], current: string | nu
   return (past ?? (step === 1 ? order[0] : order[order.length - 1])).id;
 }
 
-/** The floor a floor-up (1) or floor-down (-1) control shows, from `floors`
- *  listed bottom to top; from a view of every floor, it goes to `home`. It
- *  stays at the top and bottom rather than wrapping. */
-export function stepFloor<F extends string>(floors: readonly F[], showing: F | "all", step: 1 | -1, home: F): F {
-  if (showing === "all") return home;
-  const at = floors.indexOf(showing);
-  return floors[Math.min(floors.length - 1, Math.max(0, at + step))];
+/** Pointer targets reach at least this far round a choice: a 48 px circle, a fingertip. */
+const FINGER_REACH = 24;
+
+/** The choice a pointer at this point picks: the mouse, a finger, and a controller's reticle all pick this one way. */
+export function pointAt(targets: readonly Target[], point: Point): string | null {
+  return pickTarget(targets, point, FINGER_REACH);
+}
+
+/** What a pointer picks among layers of targets: the first layer with one under it, so a thing or a figure wins over the room it is in. */
+export function pointAtFirst(layers: readonly (readonly Target[])[], point: Point): string | null {
+  for (const layer of layers) {
+    const id = pointAt(layer, point);
+    if (id !== null) return id;
+  }
+  return null;
 }

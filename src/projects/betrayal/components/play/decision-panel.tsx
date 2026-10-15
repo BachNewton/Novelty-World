@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { RuleNotes } from "../../data/rule-notes";
 import type { GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import { cardMood, consequence } from "../../play/cards";
 import type { PanelChoice } from "../../play/choices";
 import { DAMAGE_TRAITS, damageTracks, evenStop, landsAs, splitOf, splitStops, type DamageKind } from "../../play/damage";
