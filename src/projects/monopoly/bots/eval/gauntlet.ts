@@ -1,6 +1,16 @@
-import { fitElo, type PairResult } from "./elo";
-import { pairingSpecs, type WorkerPool } from "./parallel";
-import { walkGauntletSprt, type GauntletSprtConfig, type GauntletVerdict } from "./sprt";
+import { fitElo, topRated, type PairResult } from "@/shared/lib/bot-lab/elo";
+import {
+  crownGate,
+  runSprtPairing,
+  type PairVerdict,
+  type SprtPairingRun,
+  type TrialOutcome,
+} from "@/shared/lib/bot-lab/gauntlet";
+import type { GameRunner } from "@/shared/lib/bot-lab/pool";
+import type { GauntletSprtConfig } from "@/shared/lib/bot-lab/sprt";
+import { pairingSpecs, type GameResult, type GameSpec } from "./parallel";
+
+export type { PairVerdict };
 
 // ---------------------------------------------------------------------------
 // The gauntlet — the selection half of the evolution loop (see EVOLUTION.md
@@ -17,37 +27,14 @@ import { walkGauntletSprt, type GauntletSprtConfig, type GauntletVerdict } from 
 //
 // On top of accept/reject we fit an Elo rating across the whole field, so
 // "champion" means HIGHEST Elo (robust to non-transitivity), not "beat the last
-// guy". Games run on the parallel pool; the math here is pure.
+// guy". Games run on the parallel pool. The SPRT pairing loop, the crown gate and
+// the Elo fit are the shared bot-lab core (`src/shared/lib/bot-lab/`); this file
+// is Monopoly's field: its 2 + 2 seatings, its floor anchor, and its report.
 // ---------------------------------------------------------------------------
 
-/** A decision-ready reading of a single pairing's SPRT outcome. `even` is a
- *  CONFIDENT tie (both one-sided tests rejected ±E); `inconclusive` ran out of
- *  games. Both mean "not an improvement and not a regression". */
-export type PairVerdict = "better" | "worse" | "even" | "inconclusive";
-
-function classify(v: GauntletVerdict): PairVerdict {
-  if (v === "better" || v === "worse" || v === "even") return v;
-  return "inconclusive"; // inconclusive or (defensively) need-more
-}
-
 /** One candidate-vs-opponent SPRT pairing, fully resolved. */
-export interface PairingRun {
+export interface PairingRun extends SprtPairingRun {
   opponent: string;
-  verdict: PairVerdict;
-  /** Candidate wins / losses AT the SPRT stop point (the sample the verdict and
-   *  the Elo estimate are built from). */
-  wins: number;
-  losses: number;
-  decisive: number;
-  /** Capped games seen across the whole run — discarded from the test, reported
-   *  as the deadlock health metric. */
-  draws: number;
-  errors: number;
-  /** Total games generated (including any past the stop point and any draws). */
-  generated: number;
-  /** LLRs of the improvement ([0,+E]) and regression ([0,−E]) tests at the stop. */
-  llrImprove: number;
-  llrRegress: number;
 }
 
 export interface GauntletOptions {
@@ -74,7 +61,7 @@ export interface GauntletOptions {
   /** Games generated per SPRT round; bigger = fewer round-trips, more overshoot
    *  past the crossing. Defaults to a few per worker. */
   batchGames?: number;
-  pool: WorkerPool;
+  pool: GameRunner<GameSpec, GameResult>;
   /** Optional live-progress hook, fired after every SPRT batch and when each
    *  pairing resolves — purely cosmetic (a CLI progress line), never affects the
    *  deterministic game stream or verdict. */
@@ -124,12 +111,12 @@ export interface GauntletReport {
   accepted: boolean;
 }
 
-/** Run one candidate-vs-opponent pairing to an SPRT verdict, generating games in
- *  batches until the test crosses a boundary or hits the decisive cap. The stop
- *  point is a deterministic function of the (seeded) game stream, so the verdict
- *  reproduces regardless of `batchGames` or pool size. */
+/** Run one candidate-vs-opponent pairing to an SPRT verdict on the shared
+ *  pairing loop. The game stream is seeded `${prefix}:${candidate}-vs-${opponent}-N`
+ *  with the 2 + 2 seatings cycled, so the verdict reproduces regardless of
+ *  `batchGames` or pool size. */
 async function sprtPairing(
-  pool: WorkerPool,
+  pool: GameRunner<GameSpec, GameResult>,
   candidate: string,
   opponent: string,
   cfg: GauntletSprtConfig,
@@ -140,56 +127,36 @@ async function sprtPairing(
   progress?: { emit: (p: GauntletProgress) => void; pairIndex: number; pairTotal: number },
 ): Promise<PairingRun> {
   const seedPrefix = `${prefix}:${candidate}-vs-${opponent}`;
-  const aWon: boolean[] = [];
-  let draws = 0;
-  let errors = 0;
-  let generated = 0;
-  // Bound generation so an all-draws pathology can't loop forever; ~0% cap among
-  // real bots means this is only a safety net.
-  const hardCap = maxDecisive * 3 + 300;
-
-  let walk = walkGauntletSprt(aWon, cfg, maxDecisive);
-  while (walk.verdict === "need-more") {
-    const specs = pairingSpecs(candidate, opponent, seedPrefix, generated, batchGames, maxTurns);
-    generated += batchGames;
-    const results = await pool.run(specs);
-    for (const r of results) {
-      if (r.error !== undefined) errors++;
-      else if (r.winnerLabel === candidate) aWon.push(true);
-      else if (r.winnerLabel === opponent) aWon.push(false);
-      else draws++;
-    }
-    walk = walkGauntletSprt(aWon, cfg, maxDecisive);
-    if (progress) {
-      progress.emit({
-        kind: "candidate",
-        opponent,
-        pairIndex: progress.pairIndex,
-        pairTotal: progress.pairTotal,
-        decisive: walk.decisive,
-        wins: walk.wins,
-        losses: walk.losses,
-        draws,
-        maxDecisive,
-        llrImprove: walk.llrImprove,
-        llrRegress: walk.llrRegress,
-        done: false,
-      });
-    }
-    if (walk.verdict === "need-more" && generated >= hardCap) break;
-  }
-
+  const outcome = (r: GameResult): TrialOutcome => {
+    if (r.error !== undefined) return "error";
+    if (r.winnerLabel === candidate) return "win";
+    if (r.winnerLabel === opponent) return "loss";
+    return "draw";
+  };
   const run: PairingRun = {
     opponent,
-    verdict: classify(walk.verdict),
-    wins: walk.wins,
-    losses: walk.losses,
-    decisive: walk.decisive,
-    draws,
-    errors,
-    generated,
-    llrImprove: walk.llrImprove,
-    llrRegress: walk.llrRegress,
+    ...(await runSprtPairing({
+      play: async (from, count) =>
+        (await pool.run(pairingSpecs(candidate, opponent, seedPrefix, from, count, maxTurns))).map(outcome),
+      sprt: cfg,
+      maxDecisive,
+      batchGames,
+      onRound: (walk, draws) =>
+        progress?.emit({
+          kind: "candidate",
+          opponent,
+          pairIndex: progress.pairIndex,
+          pairTotal: progress.pairTotal,
+          decisive: walk.decisive,
+          wins: walk.wins,
+          losses: walk.losses,
+          draws,
+          maxDecisive,
+          llrImprove: walk.llrImprove,
+          llrRegress: walk.llrRegress,
+          done: false,
+        }),
+    })),
   };
   if (progress) {
     progress.emit({
@@ -200,7 +167,7 @@ async function sprtPairing(
       decisive: run.decisive,
       wins: run.wins,
       losses: run.losses,
-      draws,
+      draws: run.draws,
       maxDecisive,
       llrImprove: run.llrImprove,
       llrRegress: run.llrRegress,
@@ -214,7 +181,7 @@ async function sprtPairing(
 /** Play a fixed number of games for a field-internal pairing — not under test,
  *  just enough to give the Elo fit a real edge between two field members. */
 async function fixedPairing(
-  pool: WorkerPool,
+  pool: GameRunner<GameSpec, GameResult>,
   a: string,
   b: string,
   prefix: string,
@@ -308,13 +275,10 @@ export async function runGauntlet(opts: GauntletOptions): Promise<GauntletReport
   ];
   const anchor = opts.field.includes("claude-v1") ? "claude-v1" : opts.base;
   const elo = fitElo(labels, pairResults, { anchor });
-  const champion = labels.reduce((best, l) => (elo[l] > elo[best] ? l : best), labels[0]);
+  const champion = topRated(elo, labels);
 
   // 4. The promotion bar.
-  const baseRun = pairings.find((p) => p.opponent === opts.base);
-  const improvesVsBase = baseRun?.verdict === "better";
-  const regressions = pairings.filter((p) => p.verdict === "worse").map((p) => p.opponent);
-  const accepted = improvesVsBase && regressions.length === 0;
+  const { improvesVsBase, regressions, accepted } = crownGate(pairings, opts.base);
 
   return {
     candidate: opts.candidate,

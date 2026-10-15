@@ -1,5 +1,5 @@
 import process from "node:process";
-import { pairingSpecs, WorkerPool } from "./parallel";
+import { monopolyPool, pairingSpecs } from "./parallel";
 import { runHeadToHead } from "./tournament";
 import { versionBot } from "../versions";
 
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
   });
 
   // Parallel — same seed+seating scheme (prefix "vs", index 0..N-1).
-  const pool = new WorkerPool(args.workers || undefined);
+  const pool = monopolyPool(args.workers || undefined);
   let mismatches = 0;
   try {
     const specs = pairingSpecs(args.a, args.b, "vs", 0, args.seeds, args.maxTurns);

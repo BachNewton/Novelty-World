@@ -1,20 +1,13 @@
-import { parentPort } from "node:worker_threads";
+import { serveGames } from "@/shared/lib/bot-lab/serve";
 import { simulateGame, type Contender } from "./simulate";
 import { versionBot } from "../versions";
 import type { GameResult, GameSpec } from "./parallel";
 
 // ---------------------------------------------------------------------------
-// The worker side of the parallel evaluator (see `parallel.ts`). It imports the
-// SAME pure `simulateGame` and the SAME version archive as the main thread, runs
-// the games it's handed, and posts back compact `GameResult`s. It holds no state
-// between batches — every game is independent and deterministic — so worker
-// assignment can never change an outcome.
+// The worker side of Monopoly's pool (see `parallel.ts`). It imports the SAME pure
+// `simulateGame` and the SAME version archive as the main thread, and serves
+// compact `GameResult`s through the shared `serveGames`.
 // ---------------------------------------------------------------------------
-
-if (!parentPort) {
-  throw new Error("worker.ts must run as a worker thread (no parentPort)");
-}
-const port = parentPort;
 
 function runOne(spec: GameSpec): GameResult {
   const base = {
@@ -57,7 +50,4 @@ function runOne(spec: GameSpec): GameResult {
   }
 }
 
-port.on("message", (msg: { specs: GameSpec[] }) => {
-  const results = msg.specs.map(runOne);
-  port.postMessage({ results });
-});
+serveGames(runOne);

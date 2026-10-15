@@ -1,6 +1,7 @@
 import { FAMILY_TREE_CREDITS } from "@/projects/family-tree/credits";
 import { HALO_CREDITS } from "@/projects/halo/credits";
 import { POKEMON_CREDITS } from "@/projects/pokemon/credits";
+import { RISK_CREDITS } from "@/projects/risk/credits";
 import { RPG_CREDITS } from "@/projects/rpg/credits";
 import { SHIPWRIGHT_CREDITS } from "@/projects/shipwright/credits";
 import { getProjectPath, PROJECTS } from "@/shared/lib/constants";
@@ -12,6 +13,7 @@ export const PROJECT_CREDITS: Partial<Record<string, readonly Credit[]>> = {
   "family-tree": FAMILY_TREE_CREDITS,
   halo: HALO_CREDITS,
   pokemon: POKEMON_CREDITS,
+  risk: RISK_CREDITS,
   rpg: RPG_CREDITS,
   shipwright: SHIPWRIGHT_CREDITS,
 };

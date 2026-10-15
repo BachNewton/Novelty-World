@@ -5,7 +5,7 @@ import type { RuleNotes } from "../../data/rule-notes";
 import { describeDecision } from "../../engine/describe";
 import { seatName, viewExplorer, type EventView, type GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import type { PlayChoices } from "../../play/choices";
 import { costText, warningLines, type RoutePreview } from "../../play/preview";
 import { lineText, whyItems, type WhyItem } from "../../play/status";

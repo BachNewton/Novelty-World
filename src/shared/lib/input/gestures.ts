@@ -2,8 +2,7 @@ import type { Point } from "./navigate";
 
 /*
  * Reading what a hand means, as pure functions: whether a press was a tap or a
- * drag, which of two fingers' turn, tilt and zoom have begun, what a tap on a choice does, and
- * which way across the floor a push on the screen moves the camera.
+ * drag, which of two fingers' turn, tilt and zoom have begun, and what a tap on a choice does.
  */
 
 /** A press that moves less than this, in CSS pixels, is a tap or a click, not a drag. */
@@ -61,16 +60,4 @@ export function partsUnderWay(start: Span, now: Span, already: TwoFingerParts): 
  */
 export function tapAction(kind: "mouse" | "touch", id: string, focused: string | null, choices: number): "commit" | "focus" {
   return kind === "mouse" || id === focused || choices === 1 ? "commit" : "focus";
-}
-
-/**
- * The move across the floor, in scene x and z, that a push on the screen
- * means: `right` along the screen's right and `down` towards its bottom,
- * seen by a camera at angle `yaw` round the vertical (its back direction
- * along the floor being sin and cos of the yaw). Pushing up moves the view
- * away from the camera, into the screen.
- */
-export function panOnFloor(right: number, down: number, yaw: number): { x: number; z: number } {
-  const [sin, cos] = [Math.sin(yaw), Math.cos(yaw)];
-  return { x: right * cos + down * sin, z: -right * sin + down * cos };
 }

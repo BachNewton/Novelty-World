@@ -3,7 +3,7 @@
 import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { traitName } from "../../engine/describe";
-import type { InputKind } from "../../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import { nearestStop, stepStop, type SplitStop } from "../../play/damage";
 import type { Trait } from "../../types";
 import { Prompt } from "../prompts";
