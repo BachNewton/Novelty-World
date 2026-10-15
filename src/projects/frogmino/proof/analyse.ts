@@ -272,19 +272,45 @@ export function poseKinds(pose: TeamPose): CoordinationKind[] {
   return COORDINATION_KINDS.filter((kind) => shown.includes(kind));
 }
 
-// What the team reaches without each stacking move, by shape, to tell which
-// moves a pose needs.
-export type ReachWithout = ReadonlyMap<StackMove, ReadonlySet<number>>;
+// What the team reaches without each stacking move, and without any, by
+// shape: which moves a pose needs, and how simple a way through is.
+export interface StackReach {
+  without: ReadonlyMap<StackMove, ReadonlySet<number>>;
+  stackless: ReadonlySet<number>;
+}
 
-export function reachWithout(start: TeamPose, lanes: number, airSlots: number): ReachWithout {
+export function stackReach(start: TeamPose, lanes: number, airSlots: number): StackReach {
   const players = start.map((_, i) => i);
-  return new Map(STACK_MOVES.map((move) => [move, new Set(reachablePoses(start, lanes, airSlots, players, [move]).map(teamKey))]));
+  const reach = (refused: readonly StackMove[]) => new Set(reachablePoses(start, lanes, airSlots, players, refused).map(teamKey));
+  return { without: new Map(STACK_MOVES.map((move) => [move, reach([move])])), stackless: reach(STACK_MOVES) };
 }
 
 // The stacking moves without which the team can't reach a pose at all.
-export function movesNeeded(pose: TeamPose, without: ReachWithout): StackMove[] {
+export function movesNeeded(pose: TeamPose, reach: StackReach): StackMove[] {
   const key = teamKey(pose);
-  return STACK_MOVES.filter((move) => without.get(move)?.has(key) === false);
+  return STACK_MOVES.filter((move) => reach.without.get(move)?.has(key) === false);
+}
+
+// How much stacking a way through takes, simplest first: none, each frog in
+// a place its own hop reaches (solo); a frog standing on its partner where
+// its own hop left it (perch); a stacking move, a carry or a hop off
+// (lift); or a double jump.
+export const STACKING_LEVELS = ["solo", "perch", "lift", "double jump"] as const;
+export type StackingLevel = (typeof STACKING_LEVELS)[number];
+
+export function stackingLevel(pose: TeamPose, reach: StackReach): StackingLevel {
+  if (movesNeeded(pose, reach).includes("double jump")) return "double jump";
+  if (!reach.stackless.has(teamKey(pose))) return "lift";
+  return poseKinds(pose).length > 0 ? "perch" : "solo";
+}
+
+// The simplest level any of a row's ways through takes, and how many take
+// it: what the row asks of the pair at the least.
+export function simplestWay(passes: readonly TeamPose[], reach: StackReach): { level: StackingLevel; ways: number } | null {
+  const levels = passes.map((pose) => STACKING_LEVELS.indexOf(stackingLevel(pose, reach)));
+  if (levels.length === 0) return null;
+  const least = Math.min(...levels);
+  return { level: STACKING_LEVELS[least], ways: levels.filter((level) => level === least).length };
 }
 
 // Which side of each other the frogs are on: -1 with Sprout left, 1 with
@@ -320,6 +346,9 @@ export interface RowAnalysis {
   gap: number;
   // Every team pass, counted once per shape.
   passes: number;
+  // The least stacking any way through takes, and how many ways take it;
+  // null for a row nothing passes.
+  simplest: { level: StackingLevel; ways: number } | null;
   coupling: RowCoupling;
   // The designed answer's coordination, from the team in the previous row's
   // answer (the course's start, for the first row), every hop landed.
@@ -341,18 +370,20 @@ export function analyseCoopCourse(course: DesignedCourse, airSlots: number): Row
   const reachable = reachablePoses(start, course.lanes, airSlots);
   const reachableKeys = new Set(reachable.map(teamKey));
   const solo = soloReachable(start, course.lanes, airSlots);
-  const without = reachWithout(start, course.lanes, airSlots);
+  const stacking = stackReach(start, course.lanes, airSlots);
   let before = start;
   return course.rows.map((row, index) => {
     const solids = rowSolids(row.vehicles);
     const end = answerPose(course.kinds, row.answer);
+    const passes = passingPoses(reachable, solids);
     const analysis: RowAnalysis = {
       index,
       lesson: row.lesson,
       gap: row.gap,
-      passes: passingPoses(reachable, solids).length,
+      passes: passes.length,
+      simplest: simplestWay(passes, stacking),
       coupling: rowCoupling(reachable, solo, solids, course.lanes),
-      answer: coordinationKinds(before, end, course.lanes, airSlots, movesNeeded(end, without)),
+      answer: coordinationKinds(before, end, course.lanes, airSlots, movesNeeded(end, stacking)),
       answerReachable: reachableKeys.has(teamKey(end)),
     };
     before = settledPose(end);

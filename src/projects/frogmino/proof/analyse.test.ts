@@ -6,7 +6,7 @@ import { TEA_FOR_TWO } from "../coop-courses/tea-for-two";
 import { tickTiming } from "../ticks";
 import { rowSolids } from "../traffic";
 import { TUNING } from "../tuning";
-import { analyseCoopCourse, coordinationKinds, movesNeeded, reachablePoses, reachWithout, rowCoupling, soloReachable, startPose } from "./analyse";
+import { analyseCoopCourse, coordinationKinds, movesNeeded, passingPoses, reachablePoses, rowCoupling, simplestWay, soloReachable, stackReach, startPose } from "./analyse";
 import { DEFAULT_SLOT } from "./solver";
 import { applyPoseAction, carriedIn, stepStackMoves, type PlanFrog, type PoseAction, type TeamPose } from "./team-plan";
 
@@ -131,7 +131,7 @@ describe("coordination kinds", () => {
   });
 
   it("tells which stacking moves a pose can't be reached without", () => {
-    const without = reachWithout(startPose(["I", "O"], 7), 7, AIR_SLOTS);
+    const without = stackReach(startPose(["I", "O"], 7), 7, AIR_SLOTS);
     const team = (i: Omit<PlanFrog, "kind" | "air">, o: Omit<PlanFrog, "kind" | "air">): TeamPose => [
       { kind: "I", air: 0, ...i },
       { kind: "O", air: 0, ...o },
@@ -144,6 +144,22 @@ describe("coordination kinds", () => {
     // flat I, and three cells up off the I in the air.
     expect(movesNeeded(team({ col: 0, rotation: 1, height: 0 }, { col: 4, rotation: 0, height: 2 }), without)).toEqual(["hop off"]);
     expect(movesNeeded(team({ col: 0, rotation: 1, height: 0 }, { col: 4, rotation: 0, height: 3 }), without)).toEqual(["double jump"]);
+  });
+
+  it("reads how much stacking the simplest way through a row takes", () => {
+    const start = startPose(["I", "O"], 7);
+    const reach = stackReach(start, 7, AIR_SLOTS);
+    const reachable = reachablePoses(start, 7, AIR_SLOTS);
+    const simplest = (vehicles: Parameters<typeof rowSolids>[0]) => simplestWay(passingPoses(reachable, rowSolids(vehicles)), reach);
+    // Open road: each frog its own way.
+    expect(simplest([{ id: "I1", lane: 6 }])?.level).toBe("solo");
+    // A wall of buses with a slot for the upright I in lane 2, and a crane
+    // in lanes 4 and 5 three cells tall: the O clears it only off the I
+    // in the air.
+    const wall = [0, 1, 3, 6].map((lane) => ({ id: "I1" as const, lane }));
+    expect(simplest([...wall, { id: "J1", lane: 4 }])).toEqual({ level: "double jump", ways: 2 });
+    // Two cells tall instead: a hop off the flat I clears it.
+    expect(simplest([...wall, { id: "O0", lane: 4 }])?.level).toBe("lift");
   });
 
   it("sees a carry in a step that slides a rider along or lifts a partner", () => {

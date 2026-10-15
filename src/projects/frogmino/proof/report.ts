@@ -25,6 +25,7 @@ export function rowNumbers(row: RowAnalysis): string {
   return [
     `gap ${String(row.gap)}`,
     `${String(row.passes)} passing: ${String(coupling.inOrder + coupling.crossed)} side by side (${String(coupling.inOrder)} in order, ${String(coupling.crossed)} crossed), ${String(coupling.stacked)} stacked`,
+    `simplest ${row.simplest === null ? "none" : `${row.simplest.level} (${String(row.simplest.ways)})`}`,
     `coupling ${coupling.coupling.toFixed(2)} ${coupling.label}${line}`,
     `decoys ${coupling.decoys.join("+")}`,
     `answer: ${kindsText(row.answer)}${row.answerReachable ? "" : " (UNREACHABLE)"}`,
