@@ -22,8 +22,8 @@ export interface GameConfig {
 }
 
 /** The engine's whole game: hidden information included (the deck's order, every hand). It is
- *  plain JSON, so it can be stored and sent between server and engine, but it never reaches a
- *  player's device: players only ever see a `GameView`. Its shape is the engine's own. */
+ *  plain JSON, stored in the game row every player can read; by good faith, a screen only
+ *  ever shows a player their own `GameView`. Its shape is the engine's own. */
 export type GameState = { readonly engineState: unknown };
 
 // ---------------------------------------------------------------------------
