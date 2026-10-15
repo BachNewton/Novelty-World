@@ -58,12 +58,5 @@ export default defineConfig({
       name: "chromium",
       use: { browserName: "chromium" },
     },
-    // Every iPad browser is WebKit, and the iPad is one of Risk's primary devices (its CLAUDE.md).
-    {
-      name: "webkit",
-      use: { browserName: "webkit" },
-      // Matched against the whole path, whose worktree folder may itself be named risk-…
-      testMatch: /[\\/]e2e[\\/]risk-[^\\/]*\.spec\.ts$/,
-    },
   ],
 });

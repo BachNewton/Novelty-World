@@ -33,8 +33,6 @@ export interface GameFeed {
   events: readonly GameEvent[];
   /** Where the last move's events start in `events`. */
   latestFrom: number;
-  /** Changes when territories were dealt, to play the deal. */
-  dealKey: number;
   act: (move: Move) => void;
   /** A move the engine or server refused, or a connection problem, in words. */
   problem: string | null;
@@ -228,7 +226,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
       <div className="flex min-h-0 flex-1 flex-col gap-[0.5em] lg:flex-row">
         {/* A tablet held upright gives the board the height it needs, and the panels the rest. */}
         <div className={cn(PANEL, "relative min-h-[45vh] flex-1 overflow-hidden min-[700px]:max-lg:flex-none min-[700px]:max-lg:aspect-(--rk-board-aspect)")} style={{ "--rk-board-aspect": `${GRAPH_WIDTH} / ${GRAPH_HEIGHT}` } as CSSProperties}>
-          <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} dealKey={feed.dealKey} />
+          <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} />
           <div className="absolute right-[0.4em] bottom-[0.4em] flex flex-col gap-[0.3em] text-[0.9em]">
             <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1.4)} aria-label="Zoom in">
               <Plus size="1em" />

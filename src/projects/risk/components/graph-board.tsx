@@ -106,11 +106,9 @@ interface Props {
   showFocus: boolean;
   onPick: (territory: TerritoryId) => void;
   onTouch: (kind: "touch" | "mouse") => void;
-  /** Changes when the board was just dealt, to play the deal. */
-  dealKey: number;
 }
 
-export const GraphBoard = forwardRef<BoardHandle, Props>(function GraphBoard({ view, marks, focus, showFocus, onPick, onTouch, dealKey }, ref) {
+export const GraphBoard = forwardRef<BoardHandle, Props>(function GraphBoard({ view, marks, focus, showFocus, onPick, onTouch }, ref) {
   const pickable = [...marks.choices, ...marks.also];
   const onTap = (point: Point, camera: Camera) => {
     // A tap takes the nearest territory on offer within half a border's length of it, or a
@@ -158,7 +156,8 @@ export const GraphBoard = forwardRef<BoardHandle, Props>(function GraphBoard({ v
                 )),
               )}
             </g>
-            <g key={dealKey}>
+            {/* The deal plays once, as the board mounts: a game screen only ever mounts on a game already dealt. */}
+            <g>
               {IDS.map((id, i) => {
                 const t = view.territories[id];
                 return (

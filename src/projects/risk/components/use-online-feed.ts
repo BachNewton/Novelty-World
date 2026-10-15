@@ -20,7 +20,6 @@ export function useOnlineFeed(snapshot: OnlineSnapshot, act: (move: Move) => voi
     const last = events.at(-1);
     return last ? events.findIndex((logged) => causedBy(logged) === causedBy(last)) : 0;
   }, [events]);
-  const dealKey = useMemo(() => shown.filter((event) => event.kind === "dealt").length, [shown]);
   const seats = table?.seats;
   const players = useMemo(
     () => (seats ?? []).map((controller) => (controller.kind === "human" ? controller.profile.name : `${SEAT_BOTS[controller.bot].name} (bot)`)),
@@ -28,5 +27,5 @@ export function useOnlineFeed(snapshot: OnlineSnapshot, act: (move: Move) => voi
   );
 
   if (!view) throw new Error("The game screen was shown before the game started");
-  return { view, options, events: shown, latestFrom, dealKey, act, problem, players };
+  return { view, options, events: shown, latestFrom, act, problem, players };
 }
