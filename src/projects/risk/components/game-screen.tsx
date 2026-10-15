@@ -1,12 +1,13 @@
 "use client";
 
 import { Maximize2, Menu, Minus, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { Prompt, PromptButton } from "@/shared/components/prompts";
 import { usePadNavigation, type Direction } from "@/shared/lib/gamepad";
 import { cycleChoice, type InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
 import { locate, WRAP_WIDTH } from "../board/graph";
+import { GRAPH_HEIGHT, GRAPH_WIDTH } from "../board/graph-layout";
 import type { GameEvent, GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
 import { BINDINGS } from "../ui/bindings";
@@ -15,6 +16,7 @@ import { alsoPickable, back as backOut, keepSelection, NO_SELECTION, phaseEnd, p
 import { nearestTo, nextTerritory } from "../ui/territory-nav";
 import { SeatMark, SeatName } from "./bits";
 import { GraphBoard } from "./graph-board";
+import { IntelPanels } from "./intel";
 import { CardsDialog, LogDialog, MenuDialog } from "./overlays";
 import { StatusBox } from "./status-box";
 import { BUTTON, DISPLAY, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
@@ -204,7 +206,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
         </PromptButton>
       </header>
 
-      <ol className="flex flex-wrap gap-x-[0.9em] gap-y-[0.2em] text-[0.85em] lg:hidden" aria-label="Players">
+      <ol className="flex flex-wrap gap-x-[0.9em] gap-y-[0.2em] text-[0.85em] min-[700px]:hidden" aria-label="Players">
         {view.turnOrder.map((seat) => {
           const s = view.seats[seat];
           return (
@@ -218,7 +220,8 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
       </ol>
 
       <div className="flex min-h-0 flex-1 flex-col gap-[0.5em] lg:flex-row">
-        <div className={cn(PANEL, "relative min-h-[45vh] flex-1 overflow-hidden")}>
+        {/* A tablet held upright gives the board the height it needs, and the panels the rest. */}
+        <div className={cn(PANEL, "relative min-h-[45vh] flex-1 overflow-hidden min-[700px]:max-lg:flex-none min-[700px]:max-lg:aspect-(--rk-board-aspect)")} style={{ "--rk-board-aspect": `${GRAPH_WIDTH} / ${GRAPH_HEIGHT}` } as CSSProperties}>
           <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} dealKey={feed.dealKey} />
           <div className="absolute right-[0.4em] bottom-[0.4em] flex flex-col gap-[0.3em] text-[0.9em]">
             <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1.4)} aria-label="Zoom in">
@@ -253,7 +256,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
             onNewGame={onLeave}
             error={feed.problem}
           />
-          <section className={cn(PANEL, "hidden flex-col gap-[0.3em] p-[0.75em] lg:flex")} aria-label="Players">
+          <section className={cn(PANEL, "hidden flex-col gap-[0.3em] p-[0.75em] min-[700px]:flex min-[2400px]:hidden")} aria-label="Players">
             <h2 className={cn(DISPLAY, "text-(--rk-muted)")}>Players</h2>
             <table className="w-full text-left text-[0.95em] tabular-nums">
               <thead className="text-[0.8em] text-(--rk-muted)">
@@ -285,7 +288,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
             </p>
           </section>
           {news.length > 1 && (
-            <section className={cn(PANEL, "hidden max-h-[14em] flex-col gap-[0.25em] overflow-y-auto p-[0.75em] text-[0.85em] lg:flex")} aria-label="What just happened">
+            <section className={cn(PANEL, "hidden max-h-[14em] flex-col gap-[0.25em] overflow-y-auto p-[0.75em] text-[0.85em] min-[700px]:flex min-[2400px]:hidden")} aria-label="What just happened">
               {news.slice(0, -1).map((line, i) => (
                 <p key={i} className="text-(--rk-muted)">
                   {line.text}
@@ -294,6 +297,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
             </section>
           )}
         </aside>
+        <IntelPanels view={view} events={feed.events} step={step} from={selection.from} keep={keep} className="hidden min-[2400px]:flex" />
       </div>
 
       {dialog?.kind === "cards" && <CardsDialog view={view} options={options} act={act} onClose={() => setDialog(null)} input={input} />}

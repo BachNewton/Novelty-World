@@ -13,6 +13,8 @@ export interface Line {
   seat: Seat | null;
   /** The dice of the battle the line tells, the last one of a run. */
   dice?: { attacker: readonly number[]; defender: readonly number[]; attackerLosses: number; defenderLosses: number };
+  /** The battle or run of battles the line tells, with the armies each side lost in all of it. */
+  battle?: { from: TerritoryId; to: TerritoryId; battles: number; attackerLost: number; defenderLost: number };
   /** Whether it is news worth the status box: captures, eliminations, cards, a battle. */
   headline: boolean;
 }
@@ -77,6 +79,7 @@ function describe(event: GameEvent): Line | null {
       return {
         ...line(`${territoryName(event.from)} attacked ${territoryName(event.to)}: attacker lost ${event.attackerLosses}, defender lost ${event.defenderLosses}.`, null, true),
         dice: { attacker: event.attackerDice, defender: event.defenderDice, attackerLosses: event.attackerLosses, defenderLosses: event.defenderLosses },
+        battle: { from: event.from, to: event.to, battles: 1, attackerLost: event.attackerLosses, defenderLost: event.defenderLosses },
       };
     case "captured":
       return line(`${seatName(event.seat)} captured ${territoryName(event.territory)} from ${seatName(event.from)}.`, event.seat, true);
@@ -113,6 +116,7 @@ export function describeEvents(events: readonly GameEvent[]): Line[] {
       lines[lines.length - 1] = {
         ...line,
         text: `${territoryName(event.from)} attacked ${territoryName(event.to)} ${run.battles} times: attacker lost ${run.attackerLost}, defender lost ${run.defenderLost}.`,
+        battle: { ...run },
       };
       continue;
     }
