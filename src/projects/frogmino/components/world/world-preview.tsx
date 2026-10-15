@@ -264,7 +264,7 @@ function BareRoad({ lanes }: { lanes: number }) {
   );
 }
 
-function PreviewButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+export function PreviewButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
   return (
     <button
       type="button"

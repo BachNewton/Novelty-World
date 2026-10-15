@@ -15,7 +15,7 @@ const PLAYS = ["solo", "local"] as const;
 export const REPLAY_PARAM = "replay";
 
 /** Dev views that replace the game entirely, in order of precedence. */
-const DEV_VIEWS = ["garage", "world", "sounds", "music", "frog", REPLAY_PARAM] as const;
+const DEV_VIEWS = ["garage", "world", "sounds", "music", "frog", "heli", REPLAY_PARAM] as const;
 type DevView = (typeof DEV_VIEWS)[number];
 
 function isPlay(play: string): play is (typeof PLAYS)[number] {

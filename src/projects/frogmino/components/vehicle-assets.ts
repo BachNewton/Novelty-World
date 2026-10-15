@@ -93,7 +93,10 @@ export function makeVehicleAssets() {
 
 export type VehicleAssets = ReturnType<typeof makeVehicleAssets>;
 
-function partGeometry(part: Part): BufferGeometry {
+// A part's shape and place, whatever it is painted.
+type Shaped = Pick<Part, "shape" | "min" | "max">;
+
+function partGeometry(part: Shaped): BufferGeometry {
   const geometry = part.shape === "box" ? new BoxGeometry(1, 1, 1) : new CylinderGeometry(0.5, 0.5, 1, DRUM_SEGMENTS);
   // A cylinder's axis runs along y; turn it onto the drum's axis.
   if (part.shape === "drumX") geometry.rotateZ(Math.PI / 2);
@@ -105,10 +108,12 @@ function partGeometry(part: Part): BufferGeometry {
   return geometry;
 }
 
-// A vehicle's parts merged into one geometry per paint, so a vehicle draws in
+// Parts (a vehicle's, or the helicopter's) merged into one geometry per paint, so a vehicle draws in
 // a handful of calls however many details it has.
-export function mergedParts(parts: readonly Part[]): { paint: Paint; geometry: BufferGeometry }[] {
-  const byPaint = new Map<Paint, BufferGeometry[]>();
+export function mergedParts<P extends string = Paint>(
+  parts: readonly (Shaped & { paint: P })[],
+): { paint: P; geometry: BufferGeometry }[] {
+  const byPaint = new Map<P, BufferGeometry[]>();
   for (const part of parts) {
     const list = byPaint.get(part.paint) ?? [];
     list.push(partGeometry(part));
