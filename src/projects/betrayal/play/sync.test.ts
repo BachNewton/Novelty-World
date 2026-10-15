@@ -4,7 +4,10 @@ import { ENGINE } from "../game";
 import { apply, choices } from "../engine/step-loop";
 import { testGame } from "../testing";
 import type { Action, GameState } from "../types";
-import { EMPTY_CLIENT, localTransport, reduce, shown, type ClientState, type SyncEvent } from "./sync";
+import { EMPTY_CLIENT, localTransport, reduce, shown } from "@/shared/lib/client-sync";
+import { syncRules, type ClientState, type SyncEvent } from "./sync";
+
+const RULES = syncRules(ENGINE);
 
 const below = (rng: Rng, n: number) => Math.floor(rng.next() * n);
 
@@ -34,27 +37,27 @@ function history(seed: string, length: number): { states: GameState[]; actions: 
   return { states, actions };
 }
 
-const run = (client: ClientState, events: SyncEvent[]) => events.reduce((c, e) => reduce(ENGINE, c, e), client);
+const run = (client: ClientState, events: SyncEvent[]) => events.reduce((c, e) => reduce(RULES, c, e), client);
 const same = (a: GameState | null, b: GameState) => expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-const started = (state: GameState) => reduce(ENGINE, EMPTY_CLIENT, { type: "server-state", version: 0, state });
+const started = (state: GameState) => reduce(RULES, EMPTY_CLIENT, { type: "server-state", version: 0, state });
 
 describe("client sync", () => {
   it("shows a local action at once, and keeps showing it once the server confirms it", () => {
     const { states, actions } = history("at-once", 1);
-    let client = reduce(ENGINE, started(states[0]), { type: "local-action", action: actions[0] });
-    same(shown(ENGINE, client), states[1]);
+    let client = reduce(RULES, started(states[0]), { type: "local-action", action: actions[0] });
+    same(shown(RULES, client), states[1]);
     expect(client.inFlight).toEqual(actions[0]);
-    client = reduce(ENGINE, client, { type: "accepted", action: actions[0], version: 1, state: states[1] });
+    client = reduce(RULES, client, { type: "accepted", action: actions[0], version: 1, state: states[1] });
     expect(client.queue).toEqual([]);
     expect(client.inFlight).toBeNull();
-    same(shown(ENGINE, client), states[1]);
+    same(shown(RULES, client), states[1]);
   });
 
   it("sends one action at a time, in order", () => {
     const { states, actions } = history("in-order", 2);
     let client = run(started(states[0]), actions.map((action) => ({ type: "local-action", action })));
     expect(client.inFlight).toEqual(actions[0]);
-    client = reduce(ENGINE, client, { type: "accepted", action: actions[0], version: 1, state: states[1] });
+    client = reduce(RULES, client, { type: "accepted", action: actions[0], version: 1, state: states[1] });
     expect(client.inFlight).toEqual(actions[1]);
   });
 
@@ -67,24 +70,24 @@ describe("client sync", () => {
     const elsewhere = apply(ENGINE, states[0], other);
     if (!elsewhere.ok) throw new Error(elsewhere.reason);
     let client = run(started(states[0]), actions.map((action) => ({ type: "local-action", action })));
-    client = reduce(ENGINE, client, { type: "rejected", action: actions[0], reason: "That decision is no longer pending", version: 1, state: elsewhere.state });
+    client = reduce(RULES, client, { type: "rejected", action: actions[0], reason: "That decision is no longer pending", version: 1, state: elsewhere.state });
     expect(client.queue).toEqual([]);
     expect(client.problem).toBe("That decision is no longer pending");
-    same(shown(ENGINE, client), elsewhere.state);
+    same(shown(RULES, client), elsewhere.state);
   });
 
   it("refuses a local action that doesn't apply to what it shows", () => {
     const { states, actions } = history("refuse", 2);
-    const client = reduce(ENGINE, started(states[0]), { type: "local-action", action: actions[1] });
+    const client = reduce(RULES, started(states[0]), { type: "local-action", action: actions[1] });
     expect(client.queue).toEqual([]);
     expect(client.problem).not.toBeNull();
   });
 
   it("ignores a server state no newer than the one it has", () => {
     const { states } = history("stale", 2);
-    const client = reduce(ENGINE, started(states[0]), { type: "server-state", version: 2, state: states[2] });
-    expect(reduce(ENGINE, client, { type: "server-state", version: 1, state: states[1] })).toBe(client);
-    expect(reduce(ENGINE, client, { type: "server-state", version: 2, state: states[2] })).toBe(client);
+    const client = reduce(RULES, started(states[0]), { type: "server-state", version: 2, state: states[2] });
+    expect(reduce(RULES, client, { type: "server-state", version: 1, state: states[1] })).toBe(client);
+    expect(reduce(RULES, client, { type: "server-state", version: 2, state: states[2] })).toBe(client);
   });
 
   // The property: however the server's answers and echoes arrive (twice,
@@ -104,17 +107,17 @@ describe("client sync", () => {
       // Drop it, deliver it and keep it for a duplicate, or deliver it once.
       if (roll < 0.2 || roll >= 0.5) pool.splice(pool.indexOf(event), 1);
       if (roll < 0.2) return;
-      client = reduce(ENGINE, client, event);
+      client = reduce(RULES, client, event);
       if (event.type !== "local-action") newest = Math.max(newest, event.version);
     };
     while (taken < length || pool.length > 0) {
       if (taken < length && (pool.length === 0 || rng.next() < 0.5)) {
         const action = actions[taken];
-        client = reduce(ENGINE, client, { type: "local-action", action });
+        client = reduce(RULES, client, { type: "local-action", action });
         taken++;
         pool.push({ type: "accepted", action, version: taken, state: states[taken] }, { type: "server-state", version: taken, state: states[taken] });
       } else deliver();
-      same(shown(ENGINE, client), states[taken]);
+      same(shown(RULES, client), states[taken]);
       expect(client.confirmed?.version).toBe(newest);
       const ids = client.feed.map((event) => event.id);
       expect(new Set(ids).size).toBe(ids.length);
@@ -126,7 +129,7 @@ describe("client sync", () => {
 describe("localTransport", () => {
   it("accepts a legal action with the next version, and rejects one that doesn't apply with the state as it is", async () => {
     const { states, actions } = history("transport", 2);
-    const local = localTransport(ENGINE, states[0]);
+    const local = localTransport(RULES, states[0]);
     const rejected = await local.transport.send(actions[1]);
     expect(rejected).toMatchObject({ type: "rejected", version: 0 });
     const accepted = await local.transport.send(actions[0]);

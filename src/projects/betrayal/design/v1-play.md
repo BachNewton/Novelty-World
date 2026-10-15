@@ -124,7 +124,7 @@ The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 
 ## The architecture as built
 
 **`play/`, the client.** Nothing in it knows about three.js.
-- `sync.ts`: client sync as one pure function over four events (a server state, a local action, accepted, rejected), with `shown` working out what the screen shows. A local transport stands in for the server.
+- `sync.ts`: Betrayal's binding of the shared client sync (`src/shared/lib/client-sync.ts`), one pure function over four events (a server state, a local action, accepted, rejected), with `shown` working out what the screen shows. The binding says how an action applies and which answers are the same; a local transport stands in for the server.
 - `store.ts`: the game as a store for `useSyncExternalStore`, holding the sync state, the seat holding the device and that seat's view, which is all the screen renders. Every accepted write saves the game as its share code in localStorage, so closing the tab loses nothing; a review link's game is kept in memory instead.
 - `seat.ts`: the holder follows whoever the game waits on. Ending a turn is passing the device, with no handover screen; a question for another seat mid-turn names that seat in its prompt.
 - `choices.ts`: the pending decision split by where it is answered: places become house targets, a tile to place becomes a ghost, everything else goes to the box, and End turn is an action of its own. A target's id names the choice, never the room.
