@@ -805,16 +805,18 @@ stands, and the difference is listed here for the owner to confirm.
   rule, [GD] offers it, and its opening draft is real strategy.
 - **Card bonus** (`CARDS-6`). Both rulebooks: escalating values. [GD]'s default is reported to
   be **Fixed** (4 / 6 / 8 / 10 by the set's symbols); Progressive is its option for the
-  escalating values, which its help calls "the default board game settings". Recommendation:
-  keep escalating values, as decided.
+  escalating values, which its help calls "the default board game settings". **Decided by the
+  owner: escalating values.**
 - **Occupied-territory bonus cap** (`CARDS-7`, note `territory-bonus`). [R93]: at most **2
   per turn**. [GD]: at most 2 **per trade**; [H15]: no cap. They differ only on a turn with
   two or more trades. Recommendation: keep the classic cap; it is rare enough that the classic
   rule costs nothing, and the cap is already an invariant (`INV-7`).
 - **Dice** (`DECK-3`, `COMBAT-4`). The rulebooks: fair dice. [GD] offers **Balanced Blitz**,
   which trims unlikely outcomes of a blitzed battle; which dice setting is its default could
-  not be confirmed. Recommendation: fair dice always; balanced dice change the odds the whole
-  game's strategy rests on.
+  not be confirmed. **Decided by the owner: true dice**, independent and fair, in every attack,
+  single or blitzed. Balanced dice change the odds the game's strategy rests on, and [GD] doesn't
+  publish how it balances them. A balanced mode of our own, with odds we define, could be added
+  later as an option.
 - **2-player neutral** (section 10, note `two-player-placement`), unconfirmed. Both
   rulebooks: a neutral army. [GD]'s 1v1 games appear to be played without one.
   Recommendation: keep the neutral army, as decided.
