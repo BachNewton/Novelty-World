@@ -5,7 +5,7 @@ import { fortify, skipFortify } from "./fortify";
 import { attacks, fortifyMoves } from "./legal";
 import { options } from "./options";
 import { placeReinforcements, trade } from "./reinforce";
-import { newGame, setupPlace } from "./setup";
+import { newGame } from "./setup";
 import { unwrap, wrap, type Ctx, type EngineState } from "./state";
 import { endAttackPhase, endTurn } from "./turn";
 import { redact, view } from "./view";
@@ -42,9 +42,7 @@ function applyMove(ctx: Ctx, seat: Seat, move: Move): string | null {
   const wrongPhase = `"${move.kind}" is not a move in the ${phase} phase`;
   switch (move.kind) {
     case "place":
-      if (phase === "setup-place") return setupPlace(ctx, seat, move);
-      if (phase === "reinforce") return placeReinforcements(ctx, seat, move);
-      return wrongPhase;
+      return phase === "reinforce" ? placeReinforcements(ctx, seat, move) : wrongPhase;
     case "trade":
       return phase === "reinforce" ? trade(ctx, seat, move) : wrongPhase;
     case "attack":

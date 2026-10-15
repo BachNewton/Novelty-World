@@ -1,17 +1,18 @@
-import { createRng } from "@/shared/lib/seeded-random";
+import { createRng, pick } from "@/shared/lib/seeded-random";
 import { shuffleArray } from "@/shared/lib/utils";
-import type { GameConfig, GameEvent, GameState, Move, Seat } from "../contract";
+import type { GameConfig, GameEvent, GameState, Seat } from "../contract";
 import type { TerritoryId } from "../map";
 import { FULL_DECK, TERRITORY_CARDS } from "./cards";
-import { isTerritoryId, nextSeat, ownerOf, setPhase, wrap, type Ctx, type EngineState, type Holding } from "./state";
+import { TERRITORY_IDS, wrap, type Ctx, type Holding } from "./state";
 import { startTurn } from "./turn";
 
 /** `SETUP-1`: starting armies by player count. */
 export const STARTING_ARMIES: Record<number, number> = { 3: 35, 4: 30, 5: 25, 6: 20 };
 
-/** A new game, at its first placement. The random source is drawn on in this order: the seat
- *  order (`SETUP-3`), the deal of the 42 territory cards (`SETUP-4`), and, once every army is
- *  placed, the 44-card deck (`SETUP-6`). */
+/** A new game, set up and waiting on the first player's first reinforcement. Setup takes no
+ *  decisions (note `auto-placement`). The random source is drawn on in this order: the seat
+ *  order (`SETUP-3`), the deal of the 42 territory cards (`SETUP-4`), each starting army's
+ *  territory (`SETUP-5`), and the 44-card deck (`SETUP-6`). */
 export function newGame(config: GameConfig, seed: string): { state: GameState; events: readonly GameEvent[] } {
   const players = config.players;
   if (!Number.isInteger(players) || players < 3 || players > 6) {
@@ -35,7 +36,17 @@ export function newGame(config: GameConfig, seed: string): { state: GameState; e
     owners: Object.fromEntries(dealt.map((t, i) => [t, owners[i]])) as Record<TerritoryId, Seat>,
   });
 
-  const dealtTo = (seat: Seat) => owners.filter((owner) => owner === seat).length;
+  // SETUP-5: each player's remaining armies, one at a time, on a random territory of their own.
+  for (const seat of turnOrder) {
+    const own = dealt.filter((_, i) => owners[i] === seat);
+    for (let left = STARTING_ARMIES[players] - own.length; left > 0; left--) board[pick(rng, own)].armies += 1;
+  }
+  events.push({
+    rule: "SETUP-5",
+    kind: "starting-armies",
+    armies: Object.fromEntries(TERRITORY_IDS.map((t) => [t, board[t].armies])) as Record<TerritoryId, number>,
+  });
+
   const ctx: Ctx = {
     s: {
       players,
@@ -43,16 +54,14 @@ export function newGame(config: GameConfig, seed: string): { state: GameState; e
       turnOrder,
       board,
       hands: seats.map(() => []),
-      // The whole deck waits here, in box order, until it is shuffled after setup (SETUP-6), so
-      // all 44 cards are always somewhere (INV-4).
-      drawPile: [...FULL_DECK],
+      // SETUP-6: the wilds returned and all 44 cards shuffled as the draw pile.
+      drawPile: shuffleArray(FULL_DECK, rng.next),
       discardPile: [],
       setsTraded: 0,
       eliminated: seats.map(() => false),
       turn: 0,
       active: turnOrder[0],
-      phase: "setup-place",
-      setupArmiesLeft: seats.map((seat) => STARTING_ARMIES[players] - dealtTo(seat)),
+      phase: "reinforce",
       reinforce: null,
       occupying: null,
       capturedThisTurn: false,
@@ -61,48 +70,8 @@ export function newGame(config: GameConfig, seed: string): { state: GameState; e
     rng,
     events,
   };
-  setPhase(ctx, "setup-place", "SETUP-5");
-  // Note placement-start: placing begins with the player after the one dealt the last card.
-  advanceSetupPlacement(ctx, owners[owners.length - 1]);
+  events.push({ rule: "SETUP-6", kind: "deck-reshuffled" });
+  startTurn(ctx, turnOrder[0], "SETUP-7");
   ctx.s.rng = rng.getState();
   return { state: wrap(ctx.s), events };
-}
-
-function armiesLeft(s: EngineState): number[] {
-  if (!s.setupArmiesLeft) throw new Error(`setup is over (phase ${s.phase})`);
-  return s.setupArmiesLeft;
-}
-
-/** `SETUP-5`: the next seat round the order with armies left to place; a seat with none is
- *  skipped, and when no seat has any, setup is done. */
-function advanceSetupPlacement(ctx: Ctx, after: Seat): void {
-  const left = armiesLeft(ctx.s);
-  const next = nextSeat(ctx.s, after, (seat) => left[seat] > 0);
-  if (next === null) finishSetup(ctx);
-  else ctx.s.active = next;
-}
-
-/** `SETUP-6`: the wilds returned and all 44 cards shuffled as the draw pile; then the first
- *  player's turn (`SETUP-7`). */
-function finishSetup(ctx: Ctx): void {
-  const s = ctx.s;
-  s.setupArmiesLeft = null;
-  s.drawPile = shuffleArray(s.drawPile, ctx.rng.next);
-  ctx.events.push({ rule: "SETUP-6", kind: "deck-reshuffled" });
-  startTurn(ctx, s.turnOrder[0], "SETUP-7");
-}
-
-/** `SETUP-5`: exactly one army, on a territory the player owns. */
-export function setupPlace(ctx: Ctx, seat: Seat, move: Extract<Move, { kind: "place" }>): string | null {
-  const s = ctx.s;
-  if (!isTerritoryId(move.territory) || ownerOf(s, move.territory) !== seat) {
-    return "armies can only be placed on a territory you own";
-  }
-  if (move.armies !== 1) return "setup armies are placed one at a time";
-
-  s.board[move.territory].armies += 1;
-  ctx.events.push({ rule: "SETUP-5", kind: "placed", owner: seat, territory: move.territory, armies: 1 });
-  armiesLeft(s)[seat] -= 1;
-  advanceSetupPlacement(ctx, seat);
-  return null;
 }

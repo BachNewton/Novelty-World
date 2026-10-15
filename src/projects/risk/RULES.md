@@ -4,8 +4,9 @@ The rules of classic Risk (the 42-territory world map), written as a specificati
 and its test suite can be held to. Every rule has a stable ID; a test names the rule it proves.
 "Must" is a requirement, "may" is a choice the acting player makes, "must not" is forbidden.
 
-**What is decided:** classic World Domination Risk for 3–6 players, escalating card-set values,
-and player-chosen trades with the official forced trades. There is no 2-player game.
+**What is decided:** classic World Domination Risk for 3–6 players, set up at random (territories
+dealt and starting armies placed at random, as [GD]'s Auto Placement does), escalating card-set
+values, and player-chosen trades with the official forced trades. There is no 2-player game.
 
 ## Ambiguities and digital rulings
 
@@ -54,9 +55,10 @@ The rules come from two official rulebooks, cited by tag after each section:
 
 [GD] is configurable. The settings that match this spec are: **Card Bonus: Progressive** (the
 escalating values; [GD]'s help calls it "the default board game settings", though the game's
-own default is reported to be Fixed), **Semi-automatic placement** (territories dealt, armies placed by the players, `SETUP-4`),
-**Dice Rolls: True Random**, and no modifiers. The rest of its options are **not** part of
-this game: Fixed, Exponential and Per-Player card bonuses; Automatic and Manual placement; Balanced Blitz dice (which
+own default is reported to be Fixed), **Auto Placement** (territories and starting troops
+placed at random, `SETUP-4`, `SETUP-5`), **Dice Rolls: True Random**, and no modifiers. The rest
+of its options are **not** part of this game: Fixed, Exponential and Per-Player card bonuses;
+Manual Placement; Balanced Blitz dice (which
 trims unlikely battle outcomes, so combat is no longer fair dice, `DECK-3`); Blizzards, Portals
 and Fog of War; the Capitals, Secret Mission, Secret Assassin and Zombie modes; 70% domination
 and limited-turn victories; alliances; Sandbox's custom starting troops, continent bonuses and
@@ -247,7 +249,7 @@ player count too, but its numbers could not be confirmed.)
 
 Players sit in a fixed cyclic order, drawn at the start of the game (`SETUP-3`) and kept for
 the whole game. "To the left" means the next player in that order. All rotation (dealing,
-placing, turns) follows it.
+turns) follows it.
 
 ### SETUP-3 Player order
 
@@ -265,44 +267,46 @@ seeded random source. The first seat is the **first player**.
 ### SETUP-4 Dealing territories
 
 The 2 wilds are set aside and the 42 territory cards shuffled and dealt one at a time round the
-seat order, starting with the first player. Each player places **1 army on each territory dealt
-to them**, which they then own. With 4 or 5 players the deal comes out uneven: the first two in
+seat order, starting with the first player. Each territory dealt to a player gets **1 army** of
+theirs, and they own it. With 4 or 5 players the deal comes out uneven: the first two in
 rotation receive one territory more (4 players: 11, 11, 10, 10; 5 players: 9, 9, 8, 8, 8);
 with 3 and 6 players everyone receives 14 or 7.
 
-> Note [dealt-setup]: the classic rulebook has players claim territories one at a time; both
-> rulebooks deal them only in the Secret Mission game.
-> Resolution (owner): territories are dealt, as in [GD]'s Semi-automatic placement (random
-> territories, armies placed by the players). Claiming 42 territories in turn is slow online,
-> where every human pick waits on that player. Dealing keeps the opening placement decisions:
-> only who owns what at the start is left to chance. [GD]'s default, Automatic placement, also
-> places the armies at random, and is not used.
-
 ### SETUP-5 Placing the remaining armies
 
-Once the territories are dealt, players take turns round the seat order, each placing
-**exactly one army on a territory they own**, until every player has placed all their starting
-armies. A player with none left is skipped. There is no limit on armies per territory.
-Placement starts with the player after the one dealt the last territory. [R93], [H15]
+Then each player's remaining starting armies (`SETUP-1`, less the armies on their dealt
+territories) are placed **one at a time, each on a territory they own chosen uniformly at
+random**, from the game's seeded random source. There is no limit on armies per territory.
+Nobody makes a decision during setup: the game begins at the first player's first turn
+(`SETUP-7`).
 
-> Note [placement-start]: the rules don't say who places first after the territories are out.
-> Resolution (project): one unbroken rotation, continuing from the player after the last
-> territory dealt. Players dealt an extra territory have one army fewer to place, and starting
-> placement with them would add an early placement on top. [GD]'s order here could not be
-> confirmed.
+> Note [auto-placement]: the classic rulebook has players claim the territories one at a time
+> and then place their remaining armies one at a time in rotation; both rulebooks deal the
+> territories only in the Secret Mission game. [GD] offers two setups: **Auto Placement**, where
+> territories and starting troops are placed at random and the first turn starts at once, and
+> **Manual Placement**, where players claim one territory at a time and then place troops one at
+> a time (the Level Winner guide). Auto is what players report as its default (a player review:
+> "random placement" is on by default) and what ranked play uses (a ranked player's filters
+> show "Manual Placement: AUTO").
+> Resolution (owner): Auto Placement, as in [GD]. Setup by hand is the slowest part of an online
+> game, every pick waiting on that player, and random setup is what [GD]'s own players choose
+> for competitive play. Manual Placement is not built: a claim phase, and then players placing
+> their dealt territories' armies, existed early on and were removed; git history keeps them.
+> [GD] has no "Semi-automatic" placement (territories dealt, troops placed by the players), as
+> this spec once said: the only trace of one is a player's request for it on Steam.
 
-> Note [placement-pace]: placing one army at a time in rotation is design, not a table
-> limitation: each placement answers the others'. It stays one at a time in the rules; how the
-> screen lets a player make those placements quickly is a UI matter.
+Notes `dealt-setup`, `placement-start` and `placement-pace` are retired with the players'
+placement.
 
 ### SETUP-6 The deck
 
-After the deal, the 2 wilds are returned and all 44 cards (`DECK-1`) shuffled and placed face
-down as the draw pile. [R93]
+After the starting armies are placed, the 2 wilds are returned and all 44 cards (`DECK-1`)
+shuffled and placed face down as the draw pile. [R93]
 
 ### SETUP-7 First turn
 
-The first player (`SETUP-3`) takes the first turn; play proceeds in seat order. [R93], [H15]
+The first player (`SETUP-3`) takes the first turn, straight after setup; play proceeds in seat
+order. [R93], [H15]
 
 ### SETUP-8 (retired)
 
@@ -310,7 +314,8 @@ Formerly "dealt territories are not used"; dealing is now the setup (`SETUP-4`).
 
 ### SETUP-9 Setup invariants *(derived)*
 
-At the end of setup: every territory has exactly one owner and at least 1 army; each player's
+At the end of setup, which is the game as it begins: every territory has exactly one owner, its
+dealt one (`SETUP-4`), and at least 1 army; each player's
 army total on the board equals their `SETUP-1` count; the draw pile holds all 44 cards and
 every hand is empty; the set-trade counter is 0.
 
@@ -463,8 +468,8 @@ qualify.
 > trading help).
 > Resolution (official digital): the trading player picks which qualifying card earns the 2,
 > as in [GD], where a player with several matching cards picks one (a Steam discussion of
-> [GD]). It also agrees with every other placement of a player's own armies being theirs to
-> choose.
+> [GD]). It also agrees with every other placement of a player's armies in play being theirs
+> to choose.
 
 ### CARDS-8 Traded cards and the draw pile
 
@@ -649,11 +654,11 @@ The rulebooks' 2-player game is not offered (note `two-players`). Its rule ids, 
 These follow from the rules above; the engine must hold them after every action, and tests
 should check them after every step of random and scripted games.
 
-- **INV-1 Ownership.** After setup, every territory has exactly one owner and at least 1 army.
+- **INV-1 Ownership.** From the start of the game, every territory has exactly one owner and at least 1 army.
   No territory is ever empty or owned by nobody, including in the moment of capture
   (`COMBAT-6`).
-- **INV-2 Army conservation.** The total armies on the board change only by: reinforcement
-  placement (+), and combat losses (− exactly `min(attacker dice, defender dice)` per battle).
+- **INV-2 Army conservation.** Once the game has begun, the total armies on the board change
+  only by: reinforcement placement (+), and combat losses (− exactly `min(attacker dice, defender dice)` per battle).
   Capture move-ins and fortifying moves change no total.
 - **INV-3 Phase order.** Within a turn, phases occur in the order of `TURN-1`; no battle before
   all reinforcements are placed; no battle after fortifying; at most one fortifying move.
@@ -709,7 +714,7 @@ should check them after every step of random and scripted games.
     bonus (11000024864, 11000025058); each at
     `https://smgstudio.freshdesk.com/support/solutions/articles/<id>`;
   - the game's FAQ page: <https://www.hasbrorisk.com/faq>;
-  - patch notes on Steam: v2.8 (battle log), v3.9 (Semi-automatic placement), "Sandbox is
+  - patch notes on Steam: v2.8 (battle log), "Sandbox is
     here!" (card modes, starting-troop modes, wild-card count), and "Blitz Dice Updates"
     (Balanced Blitz): <https://steamcommunity.com/app/1128810/allnews/>.
 - [GD] community sources, labelled where cited: Steam discussions
@@ -718,7 +723,14 @@ should check them after every step of random and scripted games.
   <https://steamcommunity.com/app/1128810/discussions/0/5154944131318165492/> (wild cards in
   sets); the Level Winner player guide
   <https://www.levelwinner.com/risk-global-domination-guide-tips-tricks-strategies/> (default
-  settings, claiming one at a time, connected fortify); the fan wiki
+  settings, claiming one at a time, connected fortify) and its Auto and Manual Placement
+  <https://www.levelwinner.com/?p=79004>; Steam discussions on placement: a ranked player's
+  filters showing Manual Placement: AUTO
+  <https://steamcommunity.com/app/1128810/discussions/0/787664259085522442>, a review saying
+  random placement is on by default
+  <https://steamcommunity.com/app/1128810/discussions/0/2639622942685356416>, and the 2020
+  request for a semi-automatic mode
+  <https://steamcommunity.com/app/1128810/discussions/0/2259061617876729615>; the fan wiki
   <https://risk-global-domination.fandom.com/> (1v1 play).
 
 ---
@@ -728,9 +740,9 @@ should check them after every step of random and scripted games.
 Where [GD] differs from a rule the classic rulebook states clearly, the owner decided which
 applies. These are those decisions; the rules above already state them.
 
-- **Setup** (`SETUP-4`, note `dealt-setup`): territories are **dealt**, as in [GD]'s
-  Semi-automatic placement, not claimed one at a time as in [R93]; players still place their
-  remaining armies one at a time.
+- **Setup** (`SETUP-4`, `SETUP-5`, note `auto-placement`): territories are **dealt** and the
+  remaining starting armies **placed at random**, as in [GD]'s Auto Placement, not claimed and
+  placed by the players one at a time as in [R93].
 - **Fortify reach** (`FORT-1`, note `fortify-reach`): along a **connected path** of owned
   territories, as in [GD] and [H15], not only to an adjacent one as in [R93].
 - **Occupied-territory bonus** (`CARDS-7`, note `territory-bonus`): at most 2 **per trade**, as

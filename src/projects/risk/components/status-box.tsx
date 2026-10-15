@@ -43,8 +43,6 @@ function prompt(step: Step, view: GameView): string {
       return "Trade a set of cards first.";
     case "pick":
       switch (step.purpose) {
-        case "setup-place":
-          return `Place an army on one of your territories (${view.armiesToPlace} left).`;
         case "place":
           return `Place ${view.armiesToPlace} ${view.armiesToPlace === 1 ? "army" : "armies"}: pick a territory.`;
         case "attack-from":

@@ -37,7 +37,7 @@ function nextMove(row: GameRow): { request: Request; answer: Answer } {
   if (!row.game) throw new Error("Not started");
   const seat = ENGINE.view(row.game.engine, null).active;
   const options = ENGINE.options(row.game.engine, seat);
-  if (options?.kind !== "setup-place") throw new Error(`Expected setup, got ${String(options?.kind)}`);
+  if (options?.kind !== "reinforce") throw new Error(`Expected a reinforcement, got ${String(options?.kind)}`);
   const move: Move = { kind: "place", territory: options.ownTerritories[0], armies: 1 };
   const answer = { decision: row.game.decision, seat, move };
   return { answer, request: { op: "move", game: row.id, profile: PROFILES[seat], answer } };
@@ -105,7 +105,7 @@ describe("moves", () => {
     expect(await handle(deps, request)).toEqual({ ok: true, row: landed });
     expect(db.hooks.writes).toBe(writes);
     const options = ENGINE.options(row.game?.engine ?? { engineState: null }, answer.seat);
-    if (options?.kind !== "setup-place") throw new Error("Expected setup");
+    if (options?.kind !== "reinforce") throw new Error("Expected a reinforcement");
     const other: Answer = { ...answer, move: { kind: "place", territory: options.ownTerritories[1], armies: 1 } };
     expect(await handle(deps, { op: "move", game: row.id, profile: PROFILES[answer.seat], answer: other })).toMatchObject({
       ok: false,

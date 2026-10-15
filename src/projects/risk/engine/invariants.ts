@@ -8,7 +8,6 @@ import { seatsInGame, TERRITORY_IDS, unwrap, type EngineState } from "./state";
 // one game from `newGame` on and throws, naming the invariant, at the first break.
 
 const PHASE_STEPS: Record<Phase, readonly Phase[]> = {
-  "setup-place": ["reinforce"],
   reinforce: ["attack"],
   attack: ["fortify", "reinforce", "game-over"],
   fortify: ["reinforce"],
@@ -26,9 +25,10 @@ export class InvariantChecker {
 
   start(state: GameState, events: readonly GameEvent[]): void {
     const s = unwrap(state);
-    if (s.turn > 1) fail("INV-3", "a new game starts in setup or its first turn");
+    if (s.turn !== 1 || s.phase !== "reinforce") fail("INV-3", "a new game starts at its first reinforce phase");
     this.walk(null, s, events);
     this.checkState(s);
+    checkSetupDone(s, events);
   }
 
   step(before: GameState, after: GameState, events: readonly GameEvent[]): void {
@@ -98,6 +98,7 @@ export class InvariantChecker {
           break;
         case "turn-order":
         case "dealt":
+        case "starting-armies":
         case "captured":
         case "occupied":
         case "eliminated":
@@ -132,7 +133,6 @@ export class InvariantChecker {
     checkBoard(s);
     checkCards(s);
     checkSeats(s);
-    if (s.turn === 1 && s.phase === "reinforce" && !s.reinforce?.placedAny && s.setsTraded === 0) checkSetupDone(s);
   }
 }
 
@@ -200,11 +200,20 @@ function checkSeats(s: EngineState): void {
   if (s.phase === "game-over" && s.winner !== left[0]) fail("INV-9", `winner ${s.winner}, last seat ${left[0]}`);
 }
 
-/** SETUP-9, checked as the first turn begins. */
-function checkSetupDone(s: EngineState): void {
+/** SETUP-9, on the game `newGame` returns; and the setup events tell the board it starts on. */
+function checkSetupDone(s: EngineState, events: readonly GameEvent[]): void {
   for (let seat = 0; seat < s.players; seat++) {
     if (total(s, seat) !== STARTING_ARMIES[s.players]) fail("SETUP-9", `seat ${seat} has ${total(s, seat)} armies`);
   }
   if (s.drawPile.length !== 44) fail("SETUP-9", `the draw pile holds ${s.drawPile.length}`);
   if (s.hands.some((hand) => hand.length > 0)) fail("SETUP-9", "a hand is not empty");
+  if (s.setsTraded !== 0) fail("SETUP-9", `the trade counter is ${s.setsTraded}`);
+  const dealt = events.find((e) => e.kind === "dealt");
+  const starting = events.find((e) => e.kind === "starting-armies");
+  for (const t of TERRITORY_IDS) {
+    if (dealt?.kind !== "dealt" || dealt.owners[t] !== s.board[t].owner) fail("SETUP-4", `${t} is not held by its dealt owner`);
+    if (starting?.kind !== "starting-armies" || starting.armies[t] !== s.board[t].armies) {
+      fail("SETUP-5", `${t} does not hold its starting armies`);
+    }
+  }
 }

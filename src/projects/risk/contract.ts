@@ -27,8 +27,8 @@ export type GameState = { readonly engineState: unknown };
 // What a player sees
 // ---------------------------------------------------------------------------
 
+/** Setup takes no decisions (`SETUP-4`, `SETUP-5`), so a game starts in its first reinforce phase. */
 export type Phase =
-  | "setup-place" // SETUP-5: placing the remaining starting armies, once territories are dealt
   | "reinforce" // REINF-*, CARDS-5: trading and placing armies; also mid-attack after ELIM-3
   | "attack" // COMBAT-*
   | "fortify" // FORT-*
@@ -84,7 +84,7 @@ export interface GameView {
  *  second source of legality. Moves the rules leave no choice over (moving into a territory
  *  when the minimum equals the maximum, the defender's dice) are taken by the engine itself. */
 export type Move =
-  /** Setup and reinforcement placement. In setup `armies` is 1 (`SETUP-5`). */
+  /** Placing reinforcements (`REINF-5`). */
   | { kind: "place"; territory: TerritoryId; armies: number }
   /** `bonusTerritory` picks which owned, pictured territory gets the +2 (`CARDS-7`) when more
    *  than one qualifies; the engine picks when only one does. */
@@ -108,11 +108,6 @@ export type Move =
  *  `end-attack` is allowed whenever the kind is "attack", and `end-turn` whenever it is
  *  "fortify". A phase with nothing to do but end it is ended by the engine. */
 export type Options =
-  | {
-      kind: "setup-place";
-      ownTerritories: readonly TerritoryId[];
-      ownArmiesLeft: number;
-    }
   | {
       kind: "reinforce";
       armiesToPlace: number;
@@ -146,6 +141,9 @@ export type GameEvent = { rule: string } & (
   | { kind: "turn-order"; order: readonly Seat[] }
   /** The setup deal (`SETUP-4`): each territory's first owner, with 1 army on it. */
   | { kind: "dealt"; owners: Readonly<Record<TerritoryId, Seat>> }
+  /** The starting armies placed at random after the deal (`SETUP-5`): each territory's armies
+   *  once setup is done. */
+  | { kind: "starting-armies"; armies: Readonly<Record<TerritoryId, number>> }
   | { kind: "placed"; owner: Seat; territory: TerritoryId; armies: number }
   | {
       kind: "reinforcements";
