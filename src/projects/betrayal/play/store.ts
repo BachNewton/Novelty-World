@@ -3,7 +3,8 @@ import type { Engine } from "../engine/step-loop";
 import { viewFor, type GameView } from "../engine/view";
 import type { Action, GameState } from "../types";
 import { nextHolder } from "./seat";
-import { EMPTY_CLIENT, localTransport, reduce, shown, type ClientState, type SyncEvent } from "./sync";
+import { EMPTY_CLIENT, localTransport, reduce, shown } from "@/shared/lib/client-sync";
+import { syncRules, type ClientState, type SyncEvent } from "./sync";
 
 /*
  * A hot-seat game in this browser, as a store for `useSyncExternalStore`:
@@ -35,25 +36,26 @@ export interface PlayStore {
 }
 
 export function createPlayStore(engine: Engine, shared: SharedGame, save: (code: string) => void): PlayStore {
+  const rules = syncRules(engine);
   const states = replay(engine, shared, crypto.randomUUID());
-  const local = localTransport(engine, states[states.length - 1], shared.actions);
+  const local = localTransport(rules, states[states.length - 1], shared.actions);
   const codeNow = () => encodeGame({ game: shared.game, actions: local.actions() });
   const listeners = new Set<() => void>();
 
   const snapshotOf = (client: ClientState, holder: number, code: string): PlaySnapshot => {
-    const state = shown(engine, client);
+    const state = shown(rules, client);
     if (!state) throw new Error("The game has no confirmed state");
     const next = nextHolder(holder, viewFor(engine, state, null));
     return { client, state, holder: next, view: viewFor(engine, state, next), code };
   };
 
   const { version, state: start } = local.current();
-  let snapshot = snapshotOf(reduce(engine, EMPTY_CLIENT, { type: "server-state", version, state: start }), 0, codeNow());
+  let snapshot = snapshotOf(reduce(rules, EMPTY_CLIENT, { type: "server-state", version, state: start }), 0, codeNow());
   save(snapshot.code);
 
   function dispatch(event: SyncEvent) {
     const before = snapshot.client;
-    const client = reduce(engine, before, event);
+    const client = reduce(rules, before, event);
     if (client === before) return;
     let code = snapshot.code;
     if (event.type === "accepted") {

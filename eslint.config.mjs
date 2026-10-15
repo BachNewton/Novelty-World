@@ -88,6 +88,25 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Risk's bots see only what their seat may legally see: they are handed a view, never the game
+  // state. So bot code reaches the contract's types, the map and shared helpers, and nothing in
+  // the project that holds or makes a state (the engine, the online game, the server).
+  {
+    files: ["src/projects/risk/online/bots/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(\\.\\./|@/projects/)(?!\\.\\./(contract|map)$)",
+              message: "A bot may import only the contract and the map from Risk: it sees its seat's view, never the state.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // The e2e harness manages its own run folders (builds, test output), every path built from its
   // own constants and process ids: the rule guards against paths from outside input, which it has none of.
   {

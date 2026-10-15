@@ -200,3 +200,23 @@ export interface RiskEngine {
   /** The events as `viewer` may see them: cards drawn by others lose their face. */
   redact(events: readonly GameEvent[], viewer: Seat | null): readonly GameEvent[];
 }
+
+// ---------------------------------------------------------------------------
+// Answers over the network
+// ---------------------------------------------------------------------------
+
+/** Names a pending decision: how many moves the game had applied when it was asked. Every
+ *  accepted move answers one decision and raises the next, so the count is the id. Whoever
+ *  applies moves (the server route, and a phone replaying its own moves ahead of the server)
+ *  keeps it beside the engine's state; the engine needn't. */
+export type DecisionId = number;
+
+/** A move as it is sent: it names the decision it answers, so an answer to a decision that is
+ *  no longer pending is rejected, and a slow or repeated answer is harmless. Only one seat acts
+ *  at a time, and the random source lives in the state, so a phone applying its own answer
+ *  computes the same dice the server will. */
+export interface Answer {
+  decision: DecisionId;
+  seat: Seat;
+  move: Move;
+}
