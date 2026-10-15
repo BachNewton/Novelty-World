@@ -22,6 +22,8 @@ Ambiguities are settled the way Betrayal settles them: a note beside the rule, a
 
 Risk has its own style, separate from Novelty World's bright, quirky one: a war room, campaign maps, brass and parchment. Its colours come from its own design tokens, scoped to the project. The map is our own, never Hasbro's board art: drawn as SVG from public-domain world geography (Natural Earth), with territories grouped by `RULES.md`'s borders, and credited on the credits page.
 
+**The iPad is a primary device**, in both orientations (iPad about 820×1180, iPad mini 744×1133), with touch as its input. Every iPad browser runs on WebKit, Safari's engine, so Risk is checked in WebKit as well as Chromium.
+
 **Risk's width floor is 375px**, raising the site's 360px floor for this project only: the whole board has to stay readable and tappable, and 42 territories are its hardest layout problem.
 
 ## Engine plan
