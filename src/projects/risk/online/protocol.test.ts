@@ -7,6 +7,7 @@ describe("parseRequest", () => {
   it("reads every request", () => {
     expect(parseRequest({ op: "create", profile })).toEqual({ op: "create", profile });
     expect(parseRequest({ op: "nudge", game: "ABCD" })).toEqual({ op: "nudge", game: "ABCD" });
+    expect(parseRequest({ op: "delete", game: "ABCD" })).toEqual({ op: "delete", game: "ABCD" });
     expect(parseRequest({ op: "remove-seat", game: "ABCD", profile, seat: 2 })).toEqual({ op: "remove-seat", game: "ABCD", profile, seat: 2 });
     const answer = { decision: 4, seat: 1, move: { kind: "blitz", from: "alaska", to: "kamchatka", keepAtLeast: 1 } };
     expect(parseRequest({ op: "move", game: "ABCD", profile, answer })).toEqual({ op: "move", game: "ABCD", profile, answer });
@@ -19,6 +20,7 @@ describe("parseRequest", () => {
       "create",
       { op: "create" },
       { op: "join", profile },
+      { op: "delete" },
       { op: "fly", game: "ABCD", profile },
       { op: "remove-seat", game: "ABCD", profile, seat: -1 },
       answer({ kind: "place", territory: "atlantis", armies: 1 }),

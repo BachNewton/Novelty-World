@@ -9,7 +9,7 @@ function OnlineGame({ snapshot, act, onLeave }: OnlineGameProps) {
   return <GameScreen feed={feed} onLeave={onLeave} />;
 }
 
-/** Risk online: create or join a table by its code, with bots in any seat, and play. */
+/** Risk online: create a table or join one from the open lobby, with bots in any seat, and play. */
 export function Risk() {
   return <RiskOnline Game={OnlineGame} />;
 }
