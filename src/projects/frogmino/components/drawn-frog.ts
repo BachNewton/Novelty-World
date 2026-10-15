@@ -4,7 +4,6 @@ import { frogCells, pieceSize } from "../logic";
 import {
   FROG_THICKNESS,
   frogShape,
-  hopHeight,
   inPlay,
   onOverpass,
   placedFrog,
@@ -15,7 +14,7 @@ import {
 } from "../run";
 import { toSeconds } from "../ticks";
 import { keepsClear } from "../traffic";
-import type { HopHeight, Rotation, Solid } from "../types";
+import type { Rotation, Solid } from "../types";
 import { DECK_TOP } from "../world/structures";
 
 // The drawn frog keeps time on the drawing's clock, in seconds: the rules'
@@ -33,6 +32,13 @@ export interface BonkMotion {
 export interface Leap extends LeapStart {
   startedAt: number;
   landed: boolean;
+}
+
+// The drawn frog's way up or down to a new height, in cells.
+export interface Vertical {
+  from: number;
+  to: number;
+  startedAt: number;
 }
 
 // A move's glide from where the frog was drawn to its new place, along one
@@ -67,11 +73,11 @@ export interface DrawnFrog {
   // How far the drawn frog still has to swing to reach the rule rotation,
   // which the frog is already drawn in.
   swing: number;
+  // How many cells above the ground under it the frog is drawn, from its
+  // hops, its partner and riding: the rules' height, on the way there.
   lift: number;
-  // The latest time the drawn frog rode on up among a row's vehicles after
-  // the rules had landed it; its fall starts from then, not from the rules'
-  // landing.
-  rodeUntil: number | null;
+  // The rise or fall under way to the rules' height.
+  vertical: Vertical | null;
   // The glides of the latest slide and jump, until they arrive.
   glideX: Glide | null;
   glideDepth: Glide | null;
@@ -109,8 +115,8 @@ export function snapped(run: Run, player: number): DrawnFrog {
     rotation: frog.rotation,
     level: onOverpass(run) ? DECK_TOP : 0,
     swing: 0,
-    lift: hopHeight(frog),
-    rodeUntil: null,
+    lift: frog.height,
+    vertical: null,
     glideX: null,
     glideDepth: null,
     moveHops: [],
@@ -167,20 +173,31 @@ export function moveLift(hops: readonly number[], time: number, duration: number
   return Math.max(0, ...hops.map((startedAt) => moveHopLift(moveProgress(time - startedAt, duration))));
 }
 
-// The hop arc overshoots a sine and is capped at one cell, so the drawn frog
+// The hop arc overshoots a sine and is capped at its top, so the drawn frog
 // rises quickly to a full cell, as the rules count it, and falls the same way
 // once it comes down.
 const HOP_ARC_OVERSHOOT = 1.3;
 
-// The rising half of the hop arc, `seconds` into it.
+// The rising half of the hop arc, from 0 to 1, `seconds` into it.
 function hopArc(seconds: number, airtime: number): number {
   const progress = Math.min(0.5, Math.max(0, seconds / airtime));
   return Math.min(1, HOP_ARC_OVERSHOOT * Math.sin(Math.PI * progress));
 }
 
-// How long the arc takes to reach a full cell.
+// How long the arc takes to reach its top.
 function hopRiseTime(airtime: number): number {
   return (airtime * Math.asin(1 / HOP_ARC_OVERSHOOT)) / Math.PI;
+}
+
+// How far along a rise or a fall the drawn frog is, from 0 to 1. It rises
+// along the hop arc, and falls along it backwards, slowly at first and
+// fastest as it lands. A longer way takes longer, as the square root of its
+// cells, as a fall under gravity does.
+function verticalProgress({ from, to, startedAt }: Vertical, now: number, airtime: number): number {
+  const seconds = (now - startedAt) / Math.sqrt(Math.abs(to - from));
+  if (to > from) return hopArc(seconds, airtime);
+  const rise = hopRiseTime(airtime);
+  return seconds >= rise ? 1 : 1 - hopArc(rise - seconds, airtime);
 }
 
 // A wall's solids overlapping the frog drawn with its front at `depth`.
@@ -194,22 +211,23 @@ export function amongVehicles(run: Run, depth: number): boolean {
   return inPlay(run) && run.walls.some((wall) => overlappingDrawn(wall, depth).length > 0);
 }
 
-// Whether the frog in its rule pose, `hop` cells up and drawn at `depth`,
+// Whether the frog in its rule pose, `height` cells up and drawn at `depth`,
 // would be inside a vehicle overlapping it there.
-function drawnInVehicle(run: Run, drawn: DrawnFrog, depth: number, hop: HopHeight): boolean {
-  const cells = frogCells({ ...frogShape(drawnRuleFrog(run, drawn)), hop });
+function drawnInVehicle(run: Run, drawn: DrawnFrog, depth: number, height: number): boolean {
+  const cells = frogCells({ ...frogShape(drawnRuleFrog(run, drawn)), height });
   return run.walls.some((wall) => !keepsClear(cells, overlappingDrawn(wall, depth)));
 }
 
 // How high the drawn frog is among vehicles at `depth`: as high as the rules
-// have it, except that a drawn frog riding a row, a full cell up, rides on
-// while it stays clear. The rules land a riding frog the tick the row has
-// gone by its rule depth, or a jump forward carries it clear, but a move's
-// glide trails the rules, so the drawn frog can still be among the row's
-// vehicles then; dropping it there would put it inside them.
-function heightAmong(run: Run, drawn: DrawnFrog, depth: number): HopHeight {
-  if (hopHeight(drawnRuleFrog(run, drawn)) === 1) return 1;
-  return drawn.lift === 1 && !drawnInVehicle(run, drawn, depth, 1) ? 1 : 0;
+// have it, except that a drawn frog riding a row higher up rides on there
+// while it stays clear. The rules bring a riding frog down the tick the row
+// has gone by its rule depth, or a jump forward carries it clear, but a
+// move's glide trails the rules, so the drawn frog can still be among the
+// row's vehicles then; dropping it there would put it inside them.
+function heightAmong(run: Run, drawn: DrawnFrog, depth: number): number {
+  const height = drawnRuleFrog(run, drawn).height;
+  const held = drawn.lift > height && Number.isInteger(drawn.lift) && !drawnInVehicle(run, drawn, depth, drawn.lift);
+  return held ? drawn.lift : height;
 }
 
 // A frog that has just jumped clear of a vehicle and then slid into its
@@ -220,24 +238,24 @@ export function keptOutOfVehicles(run: Run, drawn: DrawnFrog): DrawnFrog {
   return { ...drawn, depth: frogTarget(drawnRuleFrog(run, drawn)).depth, glideDepth: null };
 }
 
-// The drawn frog's hop at `now`. Among vehicles it is exactly as high as it
-// is there. Otherwise it rises along the arc while the rules have it up, and
-// falls back along it once it has come down: when the rules landed it, or
-// later, when it last rode on among the row. Each only ever moves the drawn
-// frog one way, so it carries on smoothly from wherever it was left.
+// The drawn frog's height at `now`. Among vehicles it is exactly as high as
+// it is there. Otherwise it follows the rules' height: whenever that changes
+// (a hop, being carried up or down, a fall onto a partner or the road), it
+// rises or falls there along the hop arc from wherever it is drawn, so a hop
+// off a partner still in the air springs on from mid-rise. It comes down
+// once it has left the vehicles, when it rode on among them after the rules
+// had it lower.
 export function withHop(run: Run, drawn: DrawnFrog, now: number): DrawnFrog {
-  const hop = drawnRuleFrog(run, drawn).latestHop;
-  if (hop === null) return { ...drawn, lift: 0 };
-  if (amongVehicles(run, drawn.depth)) {
-    const height = heightAmong(run, drawn, drawn.depth);
-    const ridingOn = height === 1 && hop.landedAt !== null;
-    return { ...drawn, lift: height, rodeUntil: ridingOn ? now : drawn.rodeUntil };
+  if (amongVehicles(run, drawn.depth)) return { ...drawn, lift: heightAmong(run, drawn, drawn.depth), vertical: null };
+  const target = drawnRuleFrog(run, drawn).height;
+  let vertical = drawn.vertical;
+  if (vertical === null || vertical.to !== target) {
+    if (drawn.lift === target) return { ...drawn, vertical: null };
+    vertical = { from: drawn.lift, to: target, startedAt: now };
   }
-  const airtime = run.tuning.hopAirtime;
-  if (hop.landedAt === null) return { ...drawn, lift: Math.max(drawn.lift, hopArc(now - toSeconds(hop.startedAt), airtime)) };
-  const landed = toSeconds(hop.landedAt);
-  const down = Math.max(landed, drawn.rodeUntil ?? landed);
-  return { ...drawn, lift: Math.min(drawn.lift, hopArc(hopRiseTime(airtime) - (now - down), airtime)) };
+  const progress = verticalProgress(vertical, now, run.tuning.hopAirtime);
+  if (progress === 1) return { ...drawn, lift: target, vertical: null };
+  return { ...drawn, lift: vertical.from + (target - vertical.from) * progress, vertical };
 }
 
 // A bonk knocks the drawn frog back along a low arc over this long; the frog

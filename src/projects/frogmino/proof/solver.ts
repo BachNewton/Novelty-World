@@ -4,7 +4,6 @@ import {
   crossedFinish,
   fitsRow,
   frogShape,
-  hopHeight,
   isDone,
   nextWall,
   overlappingSolids,
@@ -98,19 +97,19 @@ const TAIL = 200;
 // The team pose the planner starts from: the run's frogs, every hop's
 // airtime over.
 function poseOf(run: Run): TeamPose {
-  return run.frogs.map((frog) => ({ kind: frog.kind, col: frog.col, rotation: frog.rotation, air: hopHeight(frog) === 1 ? 0 : null }));
+  return run.frogs.map((frog) => ({ kind: frog.kind, col: frog.col, rotation: frog.rotation, height: frog.height, air: 0 }));
 }
 
 function samePose(run: Run, pose: TeamPose): boolean {
   return run.frogs.every((frog, i) => {
     const planned = planShape(pose[i]);
     const shape = frogShape(frog);
-    return shape.kind === planned.kind && shape.col === planned.col && shape.rotation === planned.rotation && shape.hop === planned.hop;
+    return shape.kind === planned.kind && shape.col === planned.col && shape.rotation === planned.rotation && shape.height === planned.height;
   });
 }
 
-function describePose(pose: readonly { kind: string; col: number; rotation: number; hop: number }[]): string {
-  return pose.map((f) => `${f.kind} r${String(f.rotation)} c${String(f.col)}${f.hop === 1 ? " up" : ""}`).join(", ");
+function describePose(pose: readonly Frog[]): string {
+  return pose.map((f) => `${f.kind} r${String(f.rotation)} c${String(f.col)}${f.height > 0 ? ` up ${String(f.height)}` : ""}`).join(", ");
 }
 
 // The first tick at which the wall's front reaches a team at `depth`, as the
@@ -239,7 +238,7 @@ function passRow(ctx: Context, settled: Track): { track: Track; proof: RowProof 
   const start = poseOf(settled.run);
   const answer = ctx.answers?.(wall.index);
   const isAnswer = (shape: Frog, i: number): boolean =>
-    answer === undefined || (shape.col === answer[i].col && shape.rotation === answer[i].rotation && shape.hop === answer[i].hop);
+    answer === undefined || (shape.col === answer[i].col && shape.rotation === answer[i].rotation && shape.height === answer[i].height);
   const plan = planTeam({
     start,
     lanes: settled.run.lanes,

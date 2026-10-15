@@ -1,9 +1,9 @@
 import type { DesignedCourse } from "../coop-courses/design";
 import { formatTime, medalFor, MEDALS, type MedalTimes } from "../medals";
 import { toTicks } from "../ticks";
-import { coordinationKinds, type CoordinationKind, type RowAnalysis } from "./analyse";
+import { COORDINATION_KINDS, coordinationKinds, poseKinds, type CoordinationKind, type RowAnalysis } from "./analyse";
 import type { RowProof } from "./solver";
-import { endSlot } from "./team-plan";
+import { carriedIn, endSlot } from "./team-plan";
 
 // A designed co-op course's numbers as text, for a designer to read: per row
 // its passing poses, coupling, selfish decoys, the designed answer's
@@ -43,13 +43,19 @@ export function timingText(time: number, medals: MedalTimes, floor: number): str
 }
 
 // The coordination the solver's route through a row used: its pose's kinds
-// from where the row's plan started, and a perch whenever a frog stood on
-// its partner along the way.
+// from where the row's plan started, a carry whenever a step took a partner
+// along, and a perch, a stack or a double jump whenever one stood along the
+// way.
 export function routeKinds(row: RowProof, lanes: number, airSlots: number): CoordinationKind[] {
   const end = row.steps.at(-1)?.pose ?? row.start;
-  const kinds = coordinationKinds(row.start, end, lanes, airSlots);
-  const stood = row.steps.slice(0, -1).some((step) => endSlot(step.pose).some((frog) => frog.air === 0));
-  return stood && !kinds.includes("perch") ? ["perch", ...kinds] : kinds;
+  const kinds = new Set(coordinationKinds(row.start, end, lanes, airSlots));
+  let before = row.start;
+  for (const step of row.steps) {
+    if (carriedIn(before, step).length > 0) kinds.add("carry");
+    for (const kind of poseKinds(step.pose)) kinds.add(kind);
+    before = endSlot(step.pose);
+  }
+  return COORDINATION_KINDS.filter((kind) => kinds.has(kind));
 }
 
 // The whole course's summary: a line per row, then the proof's timing, if

@@ -227,7 +227,7 @@ function PreviewTraffic({
       {/* The frogs move as one; each stands in its own lanes, a cell up when its pose hops. */}
       <group ref={frogsRef}>
         {poses.map((frog, i) => (
-          <group key={i} position={[frog.col - 0.5, frog.hop, 0]}>
+          <group key={i} position={[frog.col - 0.5, frog.height, 0]}>
             <FrogBody kind={frog.kind} rotation={frog.rotation} variant={FROG_VARIANTS[i]} seed={i} assets={frogAssets} />
           </group>
         ))}

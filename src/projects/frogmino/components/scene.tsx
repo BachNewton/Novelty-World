@@ -316,7 +316,7 @@ function TeamFrog({
     // the drawn frog in play, it is drawn exactly as the rules have it across
     // the face, and the rules keep that inside the opening. Its height is the
     // rules' too, unless it rides on past their landing (see `withHop`).
-    const wasUp = d.lift > 0;
+    const wasLift = d.lift;
     const among = amongVehicles(run, d.depth);
     if (among && modelPosed) {
       d.x = target.x;
@@ -327,7 +327,8 @@ function TeamFrog({
     d = withHop(run, d, now);
     drawn.current = d;
     onDrawn(player, d);
-    if (wasUp && d.lift === 0 && (leap === null || leap.landed)) play("land");
+    // Coming down onto the road or onto a partner reads as a landing.
+    if (d.lift < wasLift && d.vertical === null && (leap === null || leap.landed)) play("land");
     // A move's hop never lifts the frog among vehicles, and never plays over
     // a bonk's knock-back, the drop or the finish leap. A hop's arc already
     // lifts it higher, so the two never add up.

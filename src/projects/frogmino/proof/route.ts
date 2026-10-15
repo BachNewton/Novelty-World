@@ -3,7 +3,8 @@ import { cellKey, frogCells, pieceSize } from "../logic";
 import { toSeconds } from "../ticks";
 import type { Solid } from "../types";
 import type { Proof, ProofResult, RowProof } from "./solver";
-import { endSlot, planShape, type PlanStep, type TeamPose } from "./team-plan";
+import { standsOn } from "../team";
+import { carriedIn, endSlot, planShape, type PlanStep, type TeamPose } from "./team-plan";
 
 // A proof as a person reads it: per row, the route as steps in words ("Sprout
 // hops; Splash slides left"), each stage drawn as the row's face in ASCII,
@@ -56,6 +57,24 @@ function lanesWord(n: number): string {
   return n === 1 ? "1 lane" : `${String(n)} lanes`;
 }
 
+// Who stands on whom after a fall, for the words: "on Sprout", or nothing
+// for the road.
+function landsOn(pose: TeamPose, player: number): string {
+  const team = pose.map(planShape);
+  const under = team.findIndex((other, i) => i !== player && standsOn(team[player], other));
+  return under === -1 ? "" : ` on ${playerName(under)}`;
+}
+
+// The frogs that came down between two poses, in words.
+function landings(before: TeamPose, after: TeamPose): string[] {
+  return after.flatMap((frog, player) => (frog.height < before[player].height ? [`${playerName(player)} lands${landsOn(after, player)}`] : []));
+}
+
+function carrying(before: TeamPose, step: PlanStep, verb: string): string {
+  const riders = carriedIn(before, step);
+  return riders.length === 0 ? "" : `, ${verb} ${riders.map(playerName).join(" and ")}`;
+}
+
 // What a slot does, in words, from the team at the slot's start.
 export function describeStep(before: TeamPose, step: PlanStep): string {
   const { move, pose } = step;
@@ -67,10 +86,10 @@ export function describeStep(before: TeamPose, step: PlanStep): string {
     switch (move.action) {
       case "left":
       case "right":
-        said.push(`${name} slides ${move.action}`);
+        said.push(`${name} slides ${move.action}${carrying(before, step, "carrying")}`);
         break;
       case "hop":
-        said.push(`${name} hops`);
+        said.push(`${name} hops${carrying(before, step, "lifting")}`);
         break;
       case "rotateCw":
       case "rotateCcw": {
@@ -81,22 +100,17 @@ export function describeStep(before: TeamPose, step: PlanStep): string {
       }
     }
   }
-  pose.forEach((frog, player) => {
-    if (before[player].air !== null && frog.air === null) said.push(`${playerName(player)} lands`);
-  });
+  said.push(...landings(before, pose));
   return said.join("; ");
 }
 
-// What happens between slots: hops whose airtime runs out land, or stand on
-// a partner.
+// What happens between slots: frogs whose airtime runs out with nothing
+// under them fall, and those with a partner under them stand on it.
 function describeSlotEnd(mid: TeamPose, after: TeamPose): string[] {
-  const said: string[] = [];
+  const said = landings(mid, after);
   after.forEach((frog, player) => {
-    const was = mid[player].air;
-    if (was !== null && frog.air === null) said.push(`${playerName(player)} lands`);
-    else if (was !== null && was > 0 && frog.air === 0) {
-      const partner = after.findIndex((_, i) => i !== player);
-      said.push(`${playerName(player)}'s hop is over: it stands on ${partner === -1 ? "its partner" : playerName(partner)}`);
+    if (mid[player].air === 1 && frog.air === 0 && frog.height === mid[player].height && frog.height > 0) {
+      said.push(`${playerName(player)}'s hop is over: it stands${landsOn(after, player)}`);
     }
   });
   return said;

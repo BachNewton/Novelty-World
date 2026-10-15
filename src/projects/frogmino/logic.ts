@@ -18,9 +18,7 @@ function normalize(cells: readonly Cell[]): Cell[] {
   return cells.map((c) => ({ col: c.col - minCol, row: c.row - minRow }));
 }
 
-// A piece's cells after `rotation` clockwise quarter turns, normalized so it
-// still rests on row 0 from column 0.
-export function pieceCells(kind: TetrominoKind, rotation: Rotation): Cell[] {
+function turned(kind: TetrominoKind, rotation: Rotation): Cell[] {
   let cells: readonly Cell[] = TETROMINOES[kind];
   for (let turn = 0; turn < rotation; turn++) {
     cells = cells.map((c) => ({ col: c.row, row: -c.col }));
@@ -28,11 +26,46 @@ export function pieceCells(kind: TetrominoKind, rotation: Rotation): Cell[] {
   return normalize(cells);
 }
 
+// Every piece in every rotation, worked out once: the planner and the
+// stacking rules ask for them in their innermost loops.
+const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
+const allTurns = (kind: TetrominoKind): readonly (readonly Cell[])[] => ROTATIONS.map((rotation) => turned(kind, rotation));
+const PIECE_CELLS: Record<TetrominoKind, readonly (readonly Cell[])[]> = {
+  I: allTurns("I"),
+  O: allTurns("O"),
+  T: allTurns("T"),
+  S: allTurns("S"),
+  Z: allTurns("Z"),
+  J: allTurns("J"),
+  L: allTurns("L"),
+};
+const sizes = (kind: TetrominoKind): readonly { width: number; height: number }[] => PIECE_CELLS[kind].map(sizeOf);
+const PIECE_SIZES: Record<TetrominoKind, readonly { width: number; height: number }[]> = {
+  I: sizes("I"),
+  O: sizes("O"),
+  T: sizes("T"),
+  S: sizes("S"),
+  Z: sizes("Z"),
+  J: sizes("J"),
+  L: sizes("L"),
+};
+
+// A piece's cells after `rotation` clockwise quarter turns, normalized so it
+// still rests on row 0 from column 0.
+export function pieceCells(kind: TetrominoKind, rotation: Rotation): Cell[] {
+  return pieceShape(kind, rotation).map((c) => ({ ...c }));
+}
+
+// The same cells, shared rather than copied, for loops that only read them.
+export function pieceShape(kind: TetrominoKind, rotation: Rotation): readonly Cell[] {
+  return PIECE_CELLS[kind][rotation];
+}
+
 // The wall-face cells the frog covers.
 export function frogCells(frog: Frog): Cell[] {
-  return pieceCells(frog.kind, frog.rotation).map((c) => ({
+  return PIECE_CELLS[frog.kind][frog.rotation].map((c) => ({
     col: c.col + frog.col,
-    row: c.row + frog.hop,
+    row: c.row + frog.height,
   }));
 }
 
@@ -51,11 +84,11 @@ export function rectOpening(cols: [number, number], rows: [number, number]): Ope
 
 // The width and height of a piece's bounding box in a rotation.
 export function pieceSize(kind: TetrominoKind, rotation: Rotation): { width: number; height: number } {
-  const cells = pieceCells(kind, rotation);
-  return {
-    width: Math.max(...cells.map((c) => c.col)) + 1,
-    height: Math.max(...cells.map((c) => c.row)) + 1,
-  };
+  return PIECE_SIZES[kind][rotation];
+}
+
+function sizeOf(cells: readonly Cell[]): { width: number; height: number } {
+  return { width: Math.max(...cells.map((c) => c.col)) + 1, height: Math.max(...cells.map((c) => c.row)) + 1 };
 }
 
 // A quarter turn: +1 is clockwise, -1 counter-clockwise.
@@ -74,11 +107,12 @@ export function insideLanes(kind: TetrominoKind, placement: Placement, lanes: La
 }
 
 // The lane offsets a turn tries, in order, from where the turned piece is
-// centred: Tetris-style kicks. Only sideways: a frog's height is its hop's,
-// so a kick never lifts or drops it. Two lanes is the most any piece needs to
-// turn against the road's edge (the I, between four lanes wide and one). A
-// clockwise turn tries right first and a counter-clockwise turn left first,
-// so a turn and its mirror image kick mirror-image ways.
+// centred: Tetris-style kicks. Only sideways: a frog's height comes from its
+// hops and what it stands on, so a kick never lifts or drops it. Two lanes is
+// the most any piece needs to turn against the road's edge (the I, between
+// four lanes wide and one). A clockwise turn tries right first and a
+// counter-clockwise turn left first, so a turn and its mirror image kick
+// mirror-image ways.
 export function turnKicks(turn: Turn): readonly number[] {
   return turn === 1 ? [0, 1, -1, 2, -2] : [0, -1, 1, -2, 2];
 }

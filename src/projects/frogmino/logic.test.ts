@@ -10,7 +10,7 @@ function sorted(cells: readonly Cell[]): Cell[] {
 }
 
 function frog(overrides: Partial<Frog> & Pick<Frog, "kind">): Frog {
-  return { col: 0, rotation: 0, hop: 0, ...overrides };
+  return { col: 0, rotation: 0, height: 0, ...overrides };
 }
 
 describe("tetrominoes", () => {
@@ -51,7 +51,7 @@ describe("tetrominoes", () => {
   });
 
   it("frog cells are the piece moved to the frog's column and hop height", () => {
-    expect(sorted(frogCells(frog({ kind: "T", col: 3, hop: 1 })))).toEqual(
+    expect(sorted(frogCells(frog({ kind: "T", col: 3, height: 1 })))).toEqual(
       sorted([{ col: 3, row: 1 }, { col: 4, row: 1 }, { col: 5, row: 1 }, { col: 4, row: 2 }]),
     );
   });
@@ -72,7 +72,7 @@ const ROAD: Lanes = { first: 0, last: 6 };
 function turn(kind: TetrominoKind, placement: Placement, by: 1 | -1, lanes: Lanes = ROAD, blocked: readonly Cell[] = []): Placement | null {
   const solid = new Set(blocked.map(cellKey));
   return turnWithKicks(kind, placement, by, (p) =>
-    insideLanes(kind, p, lanes) && frogCells({ kind, ...p, hop: 0 }).every((c) => !solid.has(cellKey(c))),
+    insideLanes(kind, p, lanes) && frogCells({ kind, ...p, height: 0 }).every((c) => !solid.has(cellKey(c))),
   );
 }
 

@@ -10,15 +10,14 @@ export type TetrominoKind = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
 // Quarter turns clockwise, as the player sees the frog from behind.
 export type Rotation = 0 | 1 | 2 | 3;
 
-// A hop lifts the frog exactly one cell.
-export type HopHeight = 0 | 1;
-
 export interface Frog {
   kind: TetrominoKind;
   // The column of the frog's leftmost cell.
   col: number;
   rotation: Rotation;
-  hop: HopHeight;
+  // How many whole cells above the road the frog's lowest cells are: 0 on the
+  // road, more on a hop, on its partner, or both.
+  height: number;
 }
 
 // A span of lanes across the road, inclusive at both ends. The traffic lanes

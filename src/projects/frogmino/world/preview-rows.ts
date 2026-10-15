@@ -1,7 +1,7 @@
 import { cellKey, frogCells, insideLanes } from "../logic";
 import { fitsRow, startPlacements } from "../run";
 import { checkRow, rowSolids, type Row } from "../traffic";
-import type { Frog, HopHeight, Rotation, TetrominoKind } from "../types";
+import type { Frog, Rotation, TetrominoKind } from "../types";
 
 // The `?world` preview's traffic, independent of the courses: a few fixed
 // rows for the co-op pair on each road width it shows, each letting the
@@ -42,7 +42,8 @@ export const PREVIEW_ROWS: Record<PreviewLanes, readonly Row[]> = {
 };
 
 const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
-const HOPS: readonly HopHeight[] = [0, 1];
+// On the road, or a hop up.
+const HEIGHTS: readonly number[] = [0, 1];
 
 // A pose for each piece in turn, on a road `lanes` wide, that passes the row
 // with every frog clear of the others, as the frogs are solid to each other:
@@ -54,10 +55,10 @@ export function passingPoses(row: Row, lanes: number, kinds: readonly TetrominoK
   const place = (placed: Frog[], taken: ReadonlySet<string>): Frog[] | null => {
     if (placed.length === kinds.length) return placed;
     const kind = kinds[placed.length];
-    for (const hop of HOPS) {
+    for (const height of HEIGHTS) {
       for (const rotation of ROTATIONS) {
         for (let col = 0; col < lanes; col++) {
-          const frog: Frog = { kind, col, rotation, hop };
+          const frog: Frog = { kind, col, rotation, height };
           const cells = frogCells(frog).map(cellKey);
           if (!insideLanes(kind, frog, road) || !fitsRow(frog, solids) || cells.some((cell) => taken.has(cell))) continue;
           const found = place([...placed, frog], new Set([...taken, ...cells]));
@@ -73,5 +74,5 @@ export function passingPoses(row: Row, lanes: number, kinds: readonly TetrominoK
 // The frogs as they wait on the overpass, where the rules start them: each
 // in the middle of its own share of the road.
 export function startPoses(lanes: number, kinds: readonly TetrominoKind[]): Frog[] {
-  return startPlacements(kinds, lanes).map((placement, i) => ({ kind: kinds[i], ...placement, hop: 0 }));
+  return startPlacements(kinds, lanes).map((placement, i) => ({ kind: kinds[i], ...placement, height: 0 }));
 }

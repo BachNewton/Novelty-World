@@ -8,7 +8,6 @@ import {
   crossedFinish,
   fitsRow,
   frogShape,
-  hopHeight,
   inPlay,
   isDone,
   isRiding,
@@ -132,6 +131,18 @@ function advanceBy(run: Run, seconds: number, chunk = 0.05): Run {
 function at(tick: number | null | undefined): number {
   if (tick === null || tick === undefined) return Number.NaN;
   return toSeconds(tick);
+}
+
+// When a frog next comes down from where it is in `run`: the first tick, in
+// seconds, at which its height drops.
+function landsAt(run: Run, player = 0): number {
+  const from = run.frogs[player].height;
+  let next = run;
+  while (next.frogs[player].height >= from) {
+    if (next.tick > run.tick + toTicks(10)) throw new Error("The frog never came down");
+    next = playTo(next, next.tick + 1);
+  }
+  return at(next.tick);
 }
 
 // The vehicles of a wall whose depth range and the frog's intersect, by more
@@ -377,11 +388,11 @@ describe("traffic", () => {
 // passes in a known pose, its answer, which a seed picks for each row along
 // with its length and its gap, so the rows vary as a course's do.
 const PLAY_ROWS: readonly { opening: Opening; answer: Omit<Frog, "kind"> }[] = [
-  { opening: FITS, answer: { col: 2, rotation: 0, hop: 0 } },
-  { opening: LEFT_OF_START, answer: { col: 1, rotation: 0, hop: 0 } },
-  { opening: RAISED, answer: { col: 2, rotation: 0, hop: 1 } },
-  { opening: UPRIGHT_AT_EDGE, answer: { col: 0, rotation: 1, hop: 0 } },
-  { opening: rect([4, 6], [0, 1]), answer: { col: 4, rotation: 0, hop: 0 } },
+  { opening: FITS, answer: { col: 2, rotation: 0, height: 0 } },
+  { opening: LEFT_OF_START, answer: { col: 1, rotation: 0, height: 0 } },
+  { opening: RAISED, answer: { col: 2, rotation: 0, height: 1 } },
+  { opening: UPRIGHT_AT_EDGE, answer: { col: 0, rotation: 1, height: 0 } },
+  { opening: rect([4, 6], [0, 1]), answer: { col: 4, rotation: 0, height: 0 } },
 ];
 
 interface PlayRow extends RuleRow {
@@ -475,13 +486,13 @@ describe("hop", () => {
   it("keeps the frog up for the tuning's airtime", () => {
     expect(TUNING.hopAirtime).toBe(0.7);
     const run = applyAction(onRoad(createRun(NO_TRAFFIC, TUNING)), "hop");
-    expect(hopHeight(advanceBy(run, 0.69, 0.01).frogs[0])).toBe(1);
+    expect(advanceBy(run, 0.69, 0.01).frogs[0].height).toBe(1);
     const landed = advanceBy(run, 0.71, 0.01).frogs[0];
-    expect(hopHeight(landed)).toBe(0);
-    expect(at(landed.latestHop?.landedAt)).toBeCloseTo(0.7);
+    expect(landed.height).toBe(0);
+    expect(landsAt(run)).toBeCloseTo(0.7);
     const short = applyAction(onRoad(createRun(NO_TRAFFIC, TEST_TUNING)), "hop");
-    expect(hopHeight(advanceBy(short, 0.49, 0.01).frogs[0])).toBe(1);
-    expect(hopHeight(advanceBy(short, 0.51, 0.01).frogs[0])).toBe(0);
+    expect(advanceBy(short, 0.49, 0.01).frogs[0].height).toBe(1);
+    expect(advanceBy(short, 0.51, 0.01).frogs[0].height).toBe(0);
   });
 
   it("passes a raised opening mid-hop", () => {
@@ -585,20 +596,23 @@ describe("a wall overlapping the frog", () => {
   it("refuses a hop into its solid cells, and allows one inside its opening", () => {
     const run = passedInto(FITS);
     expect(applyAction(run, "hop")).toBe(run);
-    expect(hopHeight(applyAction(passedInto(TALL), "hop").frogs[0])).toBe(1);
+    expect(applyAction(passedInto(TALL), "hop").frogs[0].height).toBe(1);
   });
 
   it("rides a frog that passed a raised opening across it until it has gone by, then lands it", () => {
     // Up from 0 s, the frog passes at 0.2 s; its airtime ends at 0.5 s.
     const run = passedInto(RAISED, "hop");
-    expect(hopHeight(advanceBy(run, 1.8).frogs[0])).toBe(1);
+    expect(advanceBy(run, 1.8).frogs[0].height).toBe(1);
     const landed = advanceBy(run, 2).frogs[0];
-    expect(hopHeight(landed)).toBe(0);
-    expect(at(landed.latestHop?.landedAt)).toBeCloseTo(2.2);
+    expect(landed.height).toBe(0);
+    expect(landsAt(run)).toBeCloseTo(2.2);
     // One long catch-up lands it at the same tick.
-    const long = playFor(applyAction(runWithWall(RAISED, 5.2, 5), "hop"), 3);
+    const hopped = applyAction(runWithWall(RAISED, 5.2, 5), "hop");
+    const long = playFor(hopped, 3);
     expect(long.walls[0].passed).toBe(true);
-    expect(at(long.frogs[0].latestHop?.landedAt)).toBeCloseTo(2.2);
+    expect(long.frogs[0].height).toBe(0);
+    expect(playFor(hopped, 2.19).frogs[0].height).toBe(1);
+    expect(playFor(hopped, 2.2).frogs[0].height).toBe(0);
     expect(advanceBy(run, 2).lastBonk).toBeNull();
   });
 
@@ -609,11 +623,11 @@ describe("a wall overlapping the frog", () => {
     expect(run.walls[0].passed).toBe(true);
     expect(isRiding(run)).toBe(true);
     const across = advanceBy(run, 1.9, 0.01);
-    expect(hopHeight(across.frogs[0])).toBe(1);
+    expect(across.frogs[0].height).toBe(1);
     expect(across.lastBonk).toBeNull();
     const landed = advanceBy(run, 2, 0.01).frogs[0];
-    expect(hopHeight(landed)).toBe(0);
-    expect(at(landed.latestHop?.landedAt)).toBeCloseTo(2.45);
+    expect(landed.height).toBe(0);
+    expect(landsAt(run)).toBeCloseTo(2.45);
   });
 
   it("rides even where landing would fit, and keeps riding through a slide", () => {
@@ -622,8 +636,8 @@ describe("a wall overlapping the frog", () => {
     const slid = applyAction(advanceBy(run, 0.5), "left");
     expect(slid.frogs[0].col).toBe(1);
     expect(isRiding(slid)).toBe(true);
-    expect(hopHeight(advanceBy(slid, 1).frogs[0])).toBe(1);
-    expect(hopHeight(advanceBy(slid, 1.5).frogs[0])).toBe(0);
+    expect(advanceBy(slid, 1).frogs[0].height).toBe(1);
+    expect(advanceBy(slid, 1.5).frogs[0].height).toBe(0);
   });
 
   it("jumps a riding frog forward in its pose and height, clearing the wall sooner", () => {
@@ -637,8 +651,7 @@ describe("a wall overlapping the frog", () => {
     expect(isRiding(once)).toBe(true);
     const twice = applyAction(once, "forward");
     expect(twice.depth).toBe(7);
-    expect(hopHeight(twice.frogs[0])).toBe(0);
-    expect(at(twice.frogs[0].latestHop?.landedAt)).toBeCloseTo(0.6);
+    expect(twice.frogs[0].height).toBe(0);
   });
 
   it("repeats a held jump while riding", () => {
@@ -649,7 +662,8 @@ describe("a wall overlapping the frog", () => {
     expect(isRiding(riding)).toBe(true);
     const repeated = advanceBy(riding, 0.25, 0.01);
     expect(repeated.depth).toBe(7);
-    expect(at(repeated.frogs[0].latestHop?.landedAt)).toBeCloseTo(0.55);
+    expect(repeated.frogs[0].height).toBe(0);
+    expect(landsAt(riding)).toBeCloseTo(0.55);
   });
 
   it("refuses a hop while riding", () => {
@@ -930,7 +944,7 @@ describe("the finish", () => {
     run = advanceBy(applyAction(run, "hop"), 0.25, 0.01);
     expect(crossedFinish(run)).toBe(true);
     expect(run.holds).toEqual([]);
-    expect(hopHeight(run.frogs[0])).toBe(0);
+    expect(run.frogs[0].height).toBe(0);
     expect(advanceBy(run, 2).frogs[0]).toEqual(run.frogs[0]);
   });
 
@@ -1074,10 +1088,10 @@ describe("a row's vehicles, each its own length", () => {
   it("carries a riding frog until the last of its vehicles has gone by", () => {
     const run = advanceBy(applyAction(row([SHORT, LONG]), "hop"), 0.3, 0.01);
     expect(isRiding(run)).toBe(true);
-    expect(hopHeight(advanceBy(run, 3.8, 0.01).frogs[0])).toBe(1);
+    expect(advanceBy(run, 3.8, 0.01).frogs[0].height).toBe(1);
     const landed = advanceBy(run, 4, 0.01).frogs[0];
-    expect(hopHeight(landed)).toBe(0);
-    expect(at(landed.latestHop?.landedAt)).toBeCloseTo(4.2);
+    expect(landed.height).toBe(0);
+    expect(landsAt(run)).toBeCloseTo(4.2);
   });
 
   it("refuses a jump back into a vehicle it has passed until that vehicle's own back is clear", () => {
@@ -1128,8 +1142,8 @@ describe("pieces other than the L", () => {
 // Every pose of a piece on the road that passes an opening.
 function posesThrough(kind: TetrominoKind, solids: readonly Solid[], lanes = TUNING.corridorCols): Frog[] {
   return ([0, 1, 2, 3] as const).flatMap((rotation) =>
-    ([0, 1] as const).flatMap((hop) =>
-      Array.from({ length: lanes }, (_, col): Frog => ({ kind, col, rotation, hop })).filter(
+    [0, 1].flatMap((height) =>
+      Array.from({ length: lanes }, (_, col): Frog => ({ kind, col, rotation, height })).filter(
         (frog) => insideLanes(kind, frog, { first: 0, last: lanes - 1 }) && fitsRow(frog, solids),
       ),
     ),
@@ -1168,7 +1182,7 @@ describe("the rules' clock", () => {
       if (next !== null && plan?.index !== run.walls[next].index) {
         const index: number = run.walls[next].index;
         const pose: Frog = { kind: run.frogs[0].kind, ...rows(index).answer };
-        const fumbled: Frog = { kind: run.frogs[0].kind, rotation: ROTATIONS[Math.floor(random() * 4)], col: Math.floor(random() * 4), hop: 0 };
+        const fumbled: Frog = { kind: run.frogs[0].kind, rotation: ROTATIONS[Math.floor(random() * 4)], col: Math.floor(random() * 4), height: 0 };
         plan = { index, pose: random() < 0.25 ? fumbled : pose };
       }
       const pose = plan?.pose ?? null;
@@ -1178,7 +1192,7 @@ describe("the rules' clock", () => {
           input({ kind: "act", action: run.frogs[0].col < pose.col ? "right" : "left" });
         }
         const arriving = next === null ? Infinity : (run.walls[next].depth - run.depth) / tuning.wallSpeed;
-        if (pose.hop === 1 && hopHeight(run.frogs[0]) === 0 && arriving < tuning.hopAirtime / 2) input({ kind: "act", action: "hop" });
+        if (pose.height === 1 && run.frogs[0].height === 0 && arriving < tuning.hopAirtime / 2) input({ kind: "act", action: "hop" });
       }
       const roll = random();
       if (run.holds.length === 0 && roll < 0.2) input({ kind: "press", action: "forward" });
@@ -1252,9 +1266,10 @@ function trafficRows(walls: readonly TrafficWall[]): RuleRows {
   };
 }
 
-// A frog in a pose, hopping if the pose is one cell up.
-function posed(frog: RuleFrog, { hop, ...pose }: Partial<Frog>, tick: number): RuleFrog {
-  return { ...frog, ...pose, latestHop: hop === 1 ? { startedAt: tick, landedAt: null } : frog.latestHop };
+// A frog in a pose, in a hop's airtime if the pose is up off the road.
+function posed(frog: RuleFrog, pose: Partial<Frog>, tick: number): RuleFrog {
+  const height = pose.height ?? 0;
+  return { ...frog, ...pose, height, latestHop: height > 0 ? { startedAt: tick } : frog.latestHop };
 }
 
 // A team dropped onto the road at `depth`, each frog in its pose; its pieces
@@ -1281,16 +1296,16 @@ function heldKeys(run: Run): { player: number; action: string }[] {
 }
 
 // Sprout as the flat L in lanes 0 to 2, Splash as the flat J in lanes 4 to 6.
-const SPROUT: Frog = { kind: "L", col: 0, rotation: 0, hop: 0 };
-const SPLASH: Frog = { kind: "J", col: 4, rotation: 0, hop: 0 };
+const SPROUT: Frog = { kind: "L", col: 0, rotation: 0, height: 0 };
+const SPLASH: Frog = { kind: "J", col: 4, rotation: 0, height: 0 };
 const PAIR = [SPROUT, SPLASH];
 
 describe("a team of frogs", () => {
   it("starts each frog on the overpass in the middle of its own share of the road, side by side", () => {
     const run = createRun(NO_TRAFFIC, TEST_TUNING, { kinds: ["L", "J"] });
     expect(run.frogs).toEqual([
-      { kind: "L", col: 0, rotation: 0, latestHop: null },
-      { kind: "J", col: 3, rotation: 0, latestHop: null },
+      { kind: "L", col: 0, rotation: 0, height: 0, latestHop: null },
+      { kind: "J", col: 3, rotation: 0, height: 0, latestHop: null },
     ]);
     expect(run.depth).toBe(0);
     expect(onOverpass(run)).toBe(true);
@@ -1333,22 +1348,39 @@ describe("a team of frogs", () => {
     expect(by(hemmed, 0, "rotateCcw")).toBe(hemmed);
   });
 
-  it("refuses a hop into the partner above, and stands a frog that is up on a partner that slid in under it", () => {
+  it("stands a frog that is up on a partner that slid in under it, for as long as the partner is under it", () => {
     // The O hops; the flat I slides in under it.
     let run = by(team(NO_TRAFFIC, [{ kind: "I", rotation: 0, col: 2 }, { kind: "O", col: 0 }]), 1, "hop");
     run = by(run, 0, "left", "left");
     expect(run.frogs[0].col).toBe(0);
-    expect(hopHeight(by(run, 0, "hop").frogs[0])).toBe(0);
-    // Its airtime over, the O stays up on the I until the I has slid out
-    // from under it, then lands.
+    // Its airtime over, the O stays up, standing on the I.
     run = advanceBy(run, 0.6, 0.01);
-    expect(hopHeight(run.frogs[1])).toBe(1);
-    run = by(run, 0, "right");
-    expect(hopHeight(advanceBy(run, 0.05, 0.01).frogs[1])).toBe(1);
-    // It lands the moment the I is out from under it.
-    run = by(run, 0, "right");
-    expect(hopHeight(run.frogs[1])).toBe(0);
-    expect(run.frogs[1].latestHop?.landedAt).toBe(run.tick);
+    expect(run.frogs.map((frog) => frog.height)).toEqual([0, 1]);
+    expect(isRiding(run, 1)).toBe(false);
+    // The I turns upright, which carries nothing: the O falls to the road
+    // beside it at once.
+    const turned = by(run, 0, "rotateCw");
+    expect(turned.frogs[0]).toMatchObject({ rotation: 1, height: 0 });
+    expect(turned.frogs[1].height).toBe(0);
+  });
+
+  it("hops a frog off its partner, and its partner up into it", () => {
+    // The O hops and the I slides in under it; once its airtime is over the
+    // O hops off the I, one cell above it, and may hop again only once it is
+    // out of its airtime and standing on something.
+    let run = by(team(NO_TRAFFIC, [{ kind: "I", rotation: 0, col: 2 }, { kind: "O", col: 0 }]), 1, "hop");
+    run = advanceBy(by(run, 0, "left", "left"), 0.6, 0.01);
+    run = by(run, 1, "hop");
+    expect(run.frogs.map((frog) => frog.height)).toEqual([0, 2]);
+    expect(by(run, 1, "hop")).toBe(run);
+    // A cell between them: the I's hop meets nothing, and rises into
+    // touching the O, which now stands on it.
+    const under = by(run, 0, "hop");
+    expect(under.frogs.map((frog) => frog.height)).toEqual([1, 2]);
+    // Its airtime over and nothing under it, the O falls back onto the I,
+    // two cells, and stands there.
+    const later = advanceBy(run, 0.71, 0.01);
+    expect(later.frogs.map((frog) => frog.height)).toEqual([0, 1]);
   });
 
   it("passes a row only if every frog fits, once for the team, and bonks the whole team if any doesn't", () => {
@@ -1375,7 +1407,7 @@ describe("a team of frogs", () => {
     for (const row of PREVIEW_ROWS[7]) {
       const poses = passingPoses(row, 7, ["L", "J"]);
       if (poses === null) throw new Error("A co-op preview row lets the pair through nowhere");
-      hopped += poses.filter((pose) => pose.hop === 1).length;
+      hopped += poses.filter((pose) => pose.height === 1).length;
       const run = advanceBy(team(trafficRows([{ row, depth: 5.2 }]), poses), 0.3);
       expect(run.walls[0].passed).toBe(true);
       expect(run.lastBonk).toBeNull();
@@ -1447,10 +1479,10 @@ describe("a team of frogs", () => {
     expect(run.walls[0].passed).toBe(true);
     expect(isRiding(run, 0)).toBe(true);
     expect(isRiding(run, 1)).toBe(false);
-    expect(hopHeight(advanceBy(run, 2.8, 0.01).frogs[0])).toBe(1);
+    expect(advanceBy(run, 2.8, 0.01).frogs[0].height).toBe(1);
     const landed = advanceBy(run, 3, 0.01);
-    expect(hopHeight(landed.frogs[0])).toBe(0);
-    expect(at(landed.frogs[0].latestHop?.landedAt)).toBeCloseTo(3.2);
+    expect(landed.frogs[0].height).toBe(0);
+    expect(landsAt(run)).toBeCloseTo(3.2);
     // The J may hop and ride the same row too.
     expect(isRiding(by(run, 1, "hop"), 1)).toBe(true);
   });
@@ -1460,8 +1492,8 @@ describe("a team of frogs", () => {
     const run = advanceBy(by(team(rows, PAIR), 0, "hop"), 0.3, 0.01);
     expect(at(run.lastBonk?.tick)).toBeCloseTo(0.2);
     expect(run.depth).toBeCloseTo(2);
-    expect(hopHeight(run.frogs[0])).toBe(1);
-    expect(at(advanceBy(run, 0.3, 0.01).frogs[0].latestHop?.landedAt)).toBeCloseTo(0.5);
+    expect(run.frogs[0].height).toBe(1);
+    expect(landsAt(run)).toBeCloseTo(0.5);
   });
 
   it("drops off the overpass together, refused if any frog would land in a vehicle", () => {
@@ -1478,15 +1510,102 @@ describe("a team of frogs", () => {
     expect(dropped.frogs.map((frog) => frog.col)).toEqual([0, 3]);
   });
 
-  it("crosses the finish together as the shared depth reaches the line, landing every hop", () => {
+  it("crosses the finish together as the shared depth reaches the line, bringing every frog down", () => {
     let run = by(team(NO_TRAFFIC, PAIR, 99.5), 1, "hop");
     run = input(run, 0, { kind: "press", action: "back" });
     run = by(run, 1, "forward", "forward");
     expect(crossedFinish(run)).toBe(true);
     expect(run.depth).toBe(100.5);
     expect(run.holds).toEqual([]);
-    expect(run.frogs.map(hopHeight)).toEqual([0, 0]);
+    expect(run.frogs.map((frog) => frog.height)).toEqual([0, 0]);
     expect(by(run, 0, "left")).toBe(run);
+  });
+});
+
+describe("stacking", () => {
+  // Sprout's flat I in lanes 0 to 3, Splash's O on it in lanes 1 and 2, its
+  // airtime long over.
+  const stacked = (depth = 5, rows: RuleRows = NO_TRAFFIC): Run =>
+    advanceBy(team(rows, [{ kind: "I", rotation: 0, col: 0 }, { kind: "O", col: 1, height: 1 }], depth), 0.6, 0.01);
+  const heights = (run: Run): number[] => run.frogs.map((frog) => frog.height);
+
+  it("carries a frog standing on the hopper up with it, and down with it as it lands", () => {
+    const run = stacked();
+    expect(heights(run)).toEqual([0, 1]);
+    const up = by(run, 0, "hop");
+    expect(heights(up)).toEqual([1, 2]);
+    // Carried, not hopping: Splash's own airtime hasn't started.
+    expect(up.frogs[1].latestHop).toEqual(run.frogs[1].latestHop);
+    // The lower frog settles first, so both come down the same tick.
+    expect(landsAt(up, 0)).toBeCloseTo(at(up.tick) + 0.5);
+    expect(landsAt(up, 1)).toBe(landsAt(up, 0));
+    expect(heights(advanceBy(up, 0.6, 0.01))).toEqual([0, 1]);
+  });
+
+  it("double jumps: the top frog hops off its partner while the partner is still in the air", () => {
+    const up = advanceBy(by(stacked(), 0, "hop"), 0.2, 0.01);
+    const double = by(up, 1, "hop");
+    // Two cells above where it stood on the I, one hop each.
+    expect(heights(double)).toEqual([1, 3]);
+    expect(at(double.frogs[1].latestHop?.startedAt)).toBeCloseTo(at(up.tick));
+    // The I lands at the end of its airtime; Splash comes down at the end of
+    // its own, onto the I.
+    expect(heights(advanceBy(double, 0.35, 0.01))).toEqual([0, 3]);
+    expect(heights(advanceBy(double, 0.55, 0.01))).toEqual([0, 1]);
+  });
+
+  it("hops the top frog alone off its partner, one cell above it, and never a frog with nothing under it", () => {
+    const off = by(stacked(), 1, "hop");
+    expect(heights(off)).toEqual([0, 2]);
+    expect(by(off, 1, "hop")).toBe(off);
+    // Off its partner, out of its airtime, a frog over nothing falls at once.
+    const slid = by(stacked(), 1, "right", "right");
+    expect(slid.frogs[1]).toMatchObject({ col: 3, height: 1 });
+    expect(by(slid, 1, "right").frogs[1]).toMatchObject({ col: 4, height: 0 });
+  });
+
+  it("slides a frog's rider along with it, and slides without a rider that has no room", () => {
+    const run = stacked();
+    const along = by(run, 0, "right", "right");
+    expect(along.frogs.map((frog) => frog.col)).toEqual([2, 3]);
+    expect(heights(along)).toEqual([0, 1]);
+    // At the road's edge the rider can't go on, but its partner still
+    // slides, out from under it: here the rider still stands on its end.
+    const edge = team(NO_TRAFFIC, [{ kind: "O", col: 3 }, { kind: "I", rotation: 0, col: 3, height: 2 }]);
+    const blocked = by(advanceBy(edge, 0.6, 0.01), 0, "right");
+    expect(blocked.frogs.map((frog) => frog.col)).toEqual([4, 3]);
+    expect(heights(blocked)).toEqual([0, 2]);
+  });
+
+  it("refuses a hop that would lift its rider into a vehicle overlapping the team", () => {
+    // A crane truck in lane 0 hangs its jib over lane 1 two cells up, right
+    // above the rider's left end.
+    const rows = trafficRows([{ row: [{ id: "J1", lane: 0 }], depth: 5.2 }]);
+    const pile = (traffic: RuleRows): Run => advanceBy(team(traffic, [{ kind: "I", rotation: 0, col: 1 }, { kind: "I", rotation: 0, col: 1, height: 1 }]), 0.6, 0.01);
+    const run = pile(rows);
+    expect(run.passes).toBe(1);
+    expect(by(run, 0, "hop")).toBe(run);
+    expect(by(run, 1, "hop")).toBe(run);
+    expect(heights(by(pile(NO_TRAFFIC), 0, "hop"))).toEqual([1, 2]);
+  });
+
+  it("keeps a frog that has lost its support up while a row overlaps the team, then lets it fall", () => {
+    // A tall bus in lane 6, arriving at 0.2 s and going by at 4.2 s.
+    const rows = trafficRows([{ row: [{ id: "I1", lane: 6 }], depth: 5.2 }]);
+    const run = by(stacked(5, rows), 1, "right", "right", "right");
+    expect(run.passes).toBe(1);
+    expect(run.frogs[1]).toMatchObject({ col: 4, height: 1 });
+    expect(isRiding(run, 1)).toBe(true);
+    expect(landsAt(run, 1)).toBeCloseTo(4.2);
+  });
+
+  it("brings every frog down onto its support as the team crosses the finish", () => {
+    let run = by(stacked(99.5), 0, "hop");
+    run = by(run, 1, "hop");
+    expect(heights(run)).toEqual([1, 3]);
+    run = by(run, 0, "forward");
+    expect(crossedFinish(run)).toBe(true);
+    expect(heights(run)).toEqual([0, 1]);
   });
 });
 
@@ -1542,7 +1661,7 @@ describe("a team's rules' clock", () => {
       if (next !== null && plan?.index !== run.walls[next].index) {
         const index: number = run.walls[next].index;
         const poses = teamPlan(run, index, random);
-        const fumbled = (kind: TetrominoKind): Frog => ({ kind, rotation: ([0, 1, 2, 3] as const)[Math.floor(random() * 4)], col: Math.floor(random() * 5), hop: 0 });
+        const fumbled = (kind: TetrominoKind): Frog => ({ kind, rotation: ([0, 1, 2, 3] as const)[Math.floor(random() * 4)], col: Math.floor(random() * 5), height: 0 });
         plan = { index, poses: run.frogs.map((frog, player) => (random() < 0.15 ? fumbled(frog.kind) : (poses?.[player] ?? null))) };
       }
       if (plan !== null && !overlappedTeam(run)) {
@@ -1559,7 +1678,7 @@ describe("a team's rules' clock", () => {
         }
         const arriving = next === null ? Infinity : (run.walls[next].depth - run.depth) / tuning.wallSpeed;
         poses.forEach((pose, player) => {
-          if (pose?.hop === 1 && hopHeight(run.frogs[player]) === 0 && arriving < tuning.hopAirtime / 2) send(player, { kind: "act", action: "hop" });
+          if (pose?.height === 1 && run.frogs[player].height === 0 && arriving < tuning.hopAirtime / 2) send(player, { kind: "act", action: "hop" });
         });
       }
       const roll = random();

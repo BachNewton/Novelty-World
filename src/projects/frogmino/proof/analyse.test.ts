@@ -8,7 +8,7 @@ import { rowSolids } from "../traffic";
 import { TUNING } from "../tuning";
 import { analyseCoopCourse, coordinationKinds, reachablePoses, rowCoupling, soloReachable, startPose } from "./analyse";
 import { DEFAULT_SLOT } from "./solver";
-import type { TeamPose } from "./team-plan";
+import { applyPoseAction, carriedIn, type PoseAction, type TeamPose } from "./team-plan";
 
 const AIR_SLOTS = tickTiming(TUNING).hopAirtime / DEFAULT_SLOT;
 
@@ -41,13 +41,12 @@ describe("coupling and decoys", () => {
     });
   });
 
-  it("reads the designed courses' rows each their own way: parallel solo or coupled", () => {
-    expect(rowOf(TEA_FOR_TWO, "jump together").coupling.label).toBe("parallel solo");
-    expect(rowOf(TEA_FOR_TWO, "each stands up").coupling.label).toBe("parallel solo");
-    for (const lesson of ["Splash points down", "Sprout points down", "Splash leans in"]) {
-      expect(rowOf(TEA_FOR_TWO, lesson).coupling.label, lesson).toBe("partly coupled");
-      expect(rowOf(TEA_FOR_TWO, lesson).coupling.coupling, lesson).toBeGreaterThan(0.3);
-    }
+  it("reads stacked ways through as coupled: two Ts stack in many ways, two Os in none", () => {
+    // A T stands on a T in a great many ways, each with the frogs sharing
+    // lanes, and they outnumber the ways side by side. An O is two cells
+    // tall and a hop lifts it one, so two Os never stand on each other.
+    expect(rowOf(TEA_FOR_TWO, "jump together").coupling.label).toBe("fully coupled");
+    expect(rowOf(BLOCK_PARTY, "jump together").coupling.coupling).toBe(0);
   });
 });
 
@@ -63,12 +62,12 @@ describe("coordination kinds", () => {
 
   it("sees the frogs swap sides", () => {
     const start: TeamPose = [
-      { kind: "O", col: 0, rotation: 0, air: null },
-      { kind: "O", col: 4, rotation: 0, air: null },
+      { kind: "O", col: 0, rotation: 0, height: 0, air: 0 },
+      { kind: "O", col: 4, rotation: 0, height: 0, air: 0 },
     ];
     const swapped: TeamPose = [
-      { kind: "O", col: 4, rotation: 0, air: null },
-      { kind: "O", col: 0, rotation: 0, air: null },
+      { kind: "O", col: 4, rotation: 0, height: 0, air: 0 },
+      { kind: "O", col: 0, rotation: 0, height: 0, air: 0 },
     ];
     expect(coordinationKinds(start, swapped, 6, AIR_SLOTS)).toEqual(["order", "crossing"]);
     expect(coordinationKinds(start, start, 6, AIR_SLOTS)).toEqual([]);
@@ -76,20 +75,56 @@ describe("coordination kinds", () => {
 
   it("tells a perch from both frogs up with nothing under them", () => {
     const start: TeamPose = [
-      { kind: "I", col: 0, rotation: 0, air: null },
-      { kind: "O", col: 5, rotation: 0, air: null },
+      { kind: "I", col: 0, rotation: 0, height: 0, air: 0 },
+      { kind: "O", col: 5, rotation: 0, height: 0, air: 0 },
     ];
     // An O up one cell over a flat I: standing on it. (An O can't stand on
     // an O: it is two cells tall, and a hop lifts it one.)
     const perched: TeamPose = [
-      { kind: "I", col: 0, rotation: 0, air: null },
-      { kind: "O", col: 1, rotation: 0, air: 0 },
+      { kind: "I", col: 0, rotation: 0, height: 0, air: 0 },
+      { kind: "O", col: 1, rotation: 0, height: 1, air: 0 },
     ];
     expect(coordinationKinds(start, perched, 7, AIR_SLOTS)).toContain("perch");
     const bothUp: TeamPose = [
-      { kind: "I", col: 0, rotation: 0, air: 0 },
-      { kind: "O", col: 5, rotation: 0, air: 0 },
+      { kind: "I", col: 0, rotation: 0, height: 1, air: 0 },
+      { kind: "O", col: 5, rotation: 0, height: 1, air: 0 },
     ];
     expect(coordinationKinds(start, bothUp, 7, AIR_SLOTS)).toEqual(["both up"]);
+  });
+
+  it("tells a stack and a double jump from a perch, and an overhang on the road from either", () => {
+    const start: TeamPose = [
+      { kind: "I", col: 0, rotation: 1, height: 0, air: 0 },
+      { kind: "O", col: 5, rotation: 0, height: 0, air: 0 },
+    ];
+    // An O on an upright I: four cells up, higher than a hop off the road.
+    const stacked: TeamPose = [start[0], { kind: "O", col: 0, rotation: 0, height: 4, air: 0 }];
+    expect(coordinationKinds(start, stacked, 7, AIR_SLOTS)).toEqual(["stack", "interlock", "order"]);
+    // Up off it, two cells above where it would stand.
+    const doubled: TeamPose = [start[0], { kind: "O", col: 0, rotation: 0, height: 6, air: 3 }];
+    expect(coordinationKinds(start, doubled, 7, AIR_SLOTS)).toEqual(["double jump", "order"]);
+    // A T pointing down beside a flat T, its arm over the flat T's end: on
+    // the road, standing on nothing but the road.
+    const overhang: TeamPose = [
+      { kind: "T", col: 2, rotation: 0, height: 0, air: 0 },
+      { kind: "T", col: 4, rotation: 2, height: 0, air: 0 },
+    ];
+    expect(coordinationKinds(overhang, overhang, 8, AIR_SLOTS)).toEqual(["interlock"]);
+  });
+
+  it("sees a carry in a step that slides a rider along or lifts a partner", () => {
+    // Splash's O standing on Sprout's flat I.
+    const stacked: TeamPose = [
+      { kind: "I", col: 0, rotation: 0, height: 0, air: 0 },
+      { kind: "O", col: 1, rotation: 0, height: 1, air: 0 },
+    ];
+    const step = (player: number, action: PoseAction) => ({
+      move: { kind: "act" as const, player, action },
+      pose: applyPoseAction(stacked, 7, player, action, AIR_SLOTS),
+    });
+    expect(carriedIn(stacked, step(0, "right"))).toEqual([1]);
+    expect(carriedIn(stacked, step(0, "hop"))).toEqual([1]);
+    expect(carriedIn(stacked, step(1, "right"))).toEqual([]);
+    expect(carriedIn(stacked, step(0, "rotateCw"))).toEqual([]);
   });
 });

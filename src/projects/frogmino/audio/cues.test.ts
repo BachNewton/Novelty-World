@@ -79,6 +79,18 @@ describe("soundCues", () => {
     expect(hearFrames(hopping)).toEqual([]);
   });
 
+  it("sounds each new hop of a stacked pair, the double jump's too, and none for a frog carried up", () => {
+    // Sprout's flat I with Splash's O standing on it.
+    const start = applyAction(createRun(NOTHING, TUNING, { kinds: ["I", "O"], lanes: 10 }), "forward");
+    const stacked: Run = { ...start, frogs: [{ ...start.frogs[0], col: 0, rotation: 0 }, { ...start.frogs[1], col: 1, height: 1 }] };
+    const carrying = applyAction(stacked, "hop", 0);
+    expect(carrying.frogs.map((frog) => frog.height)).toEqual([1, 2]);
+    expect(soundsOf(soundCues({ run: stacked, runId: 0 }, { run: carrying, runId: 0 }, 0).cues)).toEqual(["hop"]);
+    const doubled = applyAction(carrying, "hop", 1);
+    expect(doubled.frogs.map((frog) => frog.height)).toEqual([1, 3]);
+    expect(soundsOf(soundCues({ run: carrying, runId: 0 }, { run: doubled, runId: 0 }, 0).cues)).toEqual(["hop"]);
+  });
+
   it("climbs the scale on clean passes in a row, and a bonk starts it over", () => {
     const before = runWithOneRow(true);
     const passed: Run = { ...before, walls: before.walls.map((wall) => ({ ...wall, passed: true })), passes: before.passes + 1 };
