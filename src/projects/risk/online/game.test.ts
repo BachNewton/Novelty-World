@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_CLIENT, reduce, shown, type SyncEvent } from "@/shared/lib/client-sync";
 import { createRng } from "@/shared/lib/seeded-random";
 import type { Answer } from "../contract";
-import { BOTS } from "./bots";
+import { randomBot } from "../bots/random";
 import { botInput } from "./drive-input";
 import { ANSWERS_KEPT, applyAnswer, newOnlineGame, pendingSeat, STALE_DECISION, syncRules, tookAnswer, type OnlineGame } from "./game";
 import { ENGINE } from "../play-engine";
@@ -17,7 +17,7 @@ function history(seed: string, length: number): { games: OnlineGame[]; answers: 
     const game = games[i];
     const seat = pendingSeat(ENGINE, game);
     if (seat === null) throw new Error("The game ended early");
-    const answer = { decision: game.decision, seat, move: BOTS.random.bot(botInput(ENGINE, game, seat, `${seed}/${i.toString()}`)) };
+    const answer = { decision: game.decision, seat, move: randomBot(botInput(ENGINE, game, seat, `${seed}/${i.toString()}`)) };
     const result = applyAnswer(ENGINE, game, answer);
     if (!result.ok) throw new Error(result.reason);
     answers.push(answer);

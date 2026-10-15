@@ -1,6 +1,6 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
 import type { DecisionId, Move, RiskEngine, Seat } from "../contract";
-import type { BotId } from "./bots/bot";
+import type { BotId } from "./seat-bots";
 import { pendingSeat, type OnlineGame } from "./game";
 
 /*

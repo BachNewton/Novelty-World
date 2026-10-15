@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Answer, Move } from "../contract";
-import { BOTS } from "./bots";
-import { replay, STALE_DECISION } from "./game";
+import type { Answer, CardId, Move } from "../contract";
+import { position } from "../engine/test-kit";
+import { replay, STALE_DECISION, type OnlineGame } from "./game";
 import type { Request } from "./protocol";
 import { COMMIT_ATTEMPTS, commit, drive, DRIVE_DECISIONS, handle, type ServerDeps } from "./server";
 import { ENGINE } from "../play-engine";
+import { SEAT_BOTS } from "./seat-bots";
 import { botToMove, type GameRow } from "./table";
 import { memoryStore, testDeps } from "./testing";
 
@@ -224,21 +225,39 @@ describe("driving bot seats", () => {
     if (result === "more") expect(after?.game?.decision).toBe(DRIVE_DECISIONS);
   });
 
-  it("plays the random bot's move instead of an illegal one, and says so", async () => {
+  it("fails loudly on a bot's illegal move, rather than playing on", async () => {
     const { deps, db } = await botGame(2);
-    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const real = BOTS.random.bot;
-    let calls = 0;
-    BOTS.random.bot = (input) => (calls++ === 0 ? { kind: "end-turn" } : real(input));
-    let logged: number;
+    const real = SEAT_BOTS.random.bot;
+    SEAT_BOTS.random.bot = () => ({ kind: "end-turn" });
     try {
-      await drive(deps, "GAME");
-      logged = error.mock.calls.length;
+      await expect(drive(deps, "GAME")).rejects.toThrow(/bot "random" at seat \d made an illegal move at decision 0/);
     } finally {
-      BOTS.random.bot = real;
-      error.mockRestore();
+      SEAT_BOTS.random.bot = real;
     }
-    expect(logged).toBe(1);
-    expect(db.rows.get("GAME")?.game?.decision).toBeGreaterThan(0);
+    expect(db.rows.get("GAME")?.game?.decision).toBe(0);
+  });
+
+  it("plays a bot through a trade that must name its +2 territory", async () => {
+    // Seat 0, a bot, holds five cards picturing its own territories: it must trade, and every
+    // set it can make pictures three of its territories, so the trade must say which takes the
+    // bonus (`CARDS-7`).
+    const hand: CardId[] = ["alaska", "northwest-territory", "greenland", "alberta", "ontario"];
+    const engine = position({
+      hands: [hand, [], []],
+      board: { ...Object.fromEntries(hand.map((t) => [t, [0, 3]])), brazil: [2, 2], peru: [2, 2], argentina: [2, 2] },
+      rest: [1, 2],
+    });
+    const db = memoryStore();
+    const deps = testDeps(ENGINE, db.store);
+    const game: OnlineGame = { seed: "trade", players: 3, engine, decision: 0, lastEvents: [], answered: [] };
+    db.rows.set("GAME", { id: "GAME", version: 1, status: "playing", seats: [{ kind: "bot", bot: "random" }, { kind: "human", profile: BOB }, { kind: "human", profile: CAROL }], game });
+    expect(ENGINE.options(engine, 0)).toMatchObject({ kind: "reinforce", mustTrade: true });
+
+    await drive(deps, "GAME");
+
+    const trade = db.moves.get("GAME")?.[0]?.move;
+    expect(trade).toMatchObject({ kind: "trade" });
+    expect(trade?.kind === "trade" && trade.bonusTerritory).toBeTruthy();
+    expect(ENGINE.view(db.rows.get("GAME")?.game?.engine ?? engine, null).active).not.toBe(0);
   });
 });

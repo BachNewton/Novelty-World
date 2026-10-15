@@ -90,16 +90,16 @@ const eslintConfig = defineConfig([
   },
   // Risk's bots see only what their seat may legally see: they are handed a view, never the game
   // state. So bot code reaches the contract's types, the map and shared helpers, and nothing in
-  // the project that holds or makes a state (the engine, the online game, the server).
+  // the project that holds or makes a state (the engine, the online game, the server, the harness).
   {
-    files: ["src/projects/risk/online/bots/**/*.ts"],
+    files: ["src/projects/risk/bots/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              regex: "^(\\.\\./|@/projects/)(?!\\.\\./(contract|map)$)",
+              regex: "^(\\.\\./|@/projects/)(?!(contract|map)$)",
               message: "A bot may import only the contract and the map from Risk: it sees its seat's view, never the state.",
             },
           ],

@@ -7,7 +7,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { useProfile } from "@/shared/lib/profile";
 import type { Move } from "../contract";
-import { BOTS } from "./bots";
+import { SEAT_BOTS } from "./seat-bots";
 import type { Response } from "./protocol";
 import { browserIo } from "./client";
 import { ENGINE } from "../play-engine";
@@ -127,7 +127,7 @@ function Table({ id, Game }: { id: string; Game: ComponentType<OnlineGameProps> 
             <li key={seat} className="flex items-center gap-3 rounded-md bg-surface-secondary px-3 py-2">
               {controller.kind === "human" ? <User size={18} /> : <Bot size={18} />}
               <span className="flex-1 truncate">
-                {controller.kind === "human" ? controller.profile.name : `${BOTS[controller.bot].name} (bot)`}
+                {controller.kind === "human" ? controller.profile.name : `${SEAT_BOTS[controller.bot].name} (bot)`}
                 {seat === snapshot.seat && <span className="text-text-secondary"> (you)</span>}
               </span>
               {seated && (

@@ -1,5 +1,5 @@
 import type { RiskEngine, Seat } from "../contract";
-import type { BotInput } from "./bots/bot";
+import type { BotInput } from "../bots/bot";
 import type { OnlineGame } from "./game";
 
 /** What a bot is given: its seat's view, options and redacted events, and nothing else of the

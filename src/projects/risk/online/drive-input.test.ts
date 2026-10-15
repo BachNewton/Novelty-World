@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import type { GameEvent, Seat } from "../contract";
 import { wrap } from "../engine/state";
 import { inside } from "../engine/test-kit";
-import { BOTS } from "./bots";
+import { randomBot } from "../bots/random";
 import { botInput } from "./drive-input";
 import { applyAnswer, newOnlineGame, pendingSeat, type OnlineGame } from "./game";
 import { ENGINE } from "../play-engine";
@@ -14,7 +14,7 @@ function gameWithHands(seed: string): OnlineGame {
   for (let i = 0; i < 5000; i++) {
     const seat = pendingSeat(ENGINE, game);
     if (seat === null) break;
-    const move = BOTS.random.bot(botInput(ENGINE, game, seat, `${seed}/${i.toString()}`));
+    const move = randomBot(botInput(ENGINE, game, seat, `${seed}/${i.toString()}`));
     const result = applyAnswer(ENGINE, game, { decision: game.decision, seat, move });
     if (!result.ok) throw new Error(result.reason);
     game = result.game;

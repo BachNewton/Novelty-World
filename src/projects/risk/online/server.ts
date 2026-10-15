@@ -1,5 +1,5 @@
 import type { Answer, RiskEngine } from "../contract";
-import { BOTS, DEFAULT_BOT } from "./bots";
+import { DEFAULT_BOT, SEAT_BOTS } from "./seat-bots";
 import { botInput } from "./drive-input";
 import { applyAnswer, newOnlineGame, pendingSeat, STALE_DECISION, tookAnswer } from "./game";
 import type { Request, Response } from "./protocol";
@@ -152,6 +152,10 @@ export const DRIVE_DECISIONS = 300;
  * on the decision pending, and its answer names it, so a drive that runs
  * twice, or alongside another, only ever lands one answer per decision. Each
  * bot sees only its seat's view (`botInput`).
+ *
+ * A bot's illegal move is a bug in the bot, and the drive fails loudly on it:
+ * a bot is deterministic, so asking it again gives the same move, and playing
+ * another bot's move instead would hide the bug behind a game that plays on.
  */
 export async function drive(deps: Pick<ServerDeps, "engine" | "store">, id: string): Promise<"done" | "more"> {
   const { engine, store } = deps;
@@ -163,17 +167,15 @@ export async function drive(deps: Pick<ServerDeps, "engine" | "store">, id: stri
     const { seat, game } = toMove;
     const controller = controllerOf(row, seat);
     if (controller.kind !== "bot") throw new Error("A bot seat lost its bot mid-drive");
-    const entry = BOTS[controller.bot];
     const input = botInput(engine, game, seat, `${id}/${game.decision.toString()}`);
-    let answer: Answer = { decision: game.decision, seat, move: entry.bot(input) };
+    const answer: Answer = { decision: game.decision, seat, move: SEAT_BOTS[controller.bot].bot(input) };
     const tried = applyAnswer(engine, game, answer);
     if (!tried.ok) {
-      console.error(`Risk game ${id}: bot ${controller.bot} made an illegal move (${tried.reason}); playing the random bot's instead`, answer.move);
-      answer = { ...answer, move: BOTS.random.bot(input) };
+      throw new Error(`Risk game ${id}: bot "${controller.bot}" at seat ${seat.toString()} made an illegal move at decision ${game.decision.toString()} (${tried.reason}): ${JSON.stringify(answer.move)}`);
     }
     const result = await commit(store, id, (current) => answerStep(engine, current, answer));
     // Rejected only because the decision moved on (another drive answered it): read again.
-    if (!result.ok && result.reason !== STALE_DECISION) throw new Error(`Risk game ${id}: the bot's fallback move was rejected: ${result.reason}`);
+    if (!result.ok && result.reason !== STALE_DECISION) throw new Error(`Risk game ${id}: the bot's move was rejected: ${result.reason}`);
   }
   return "more";
 }
