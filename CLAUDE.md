@@ -114,6 +114,8 @@ Verify with `... -c "\d public.<table>"`. Editing a `supabase/*.sql` file is not
 
 Tailwind CSS v4. Novelty World's own visual identity, the home page, shared UI and site chrome, is colorful, bold, fun, and quirky; lean into that there. The design system tokens (brand colors, surfaces, text, borders) are defined in `globals.css`.
 
+**Show, don't tell.** The owner would rather see information than read it: prefer icons, symbols, colour with a second cue, bars, counts and position over words. Text is for what only text can say (names, a rule's explanation behind a "why"), and a label that repeats what a symbol already shows is cut. Every symbol still needs an accessible name, and a meaning that isn't obvious gets a tooltip or a "why", not a caption.
+
 **A project may have its own style.** When a project's goals are better served by its own visual direction, its style overrides the repo's within that project. For example, a game with an identifiable aesthetic of its own gets its own style. A tool or idea that doesn't need to carry its own aesthetic reuses the repo's style.
 
 **Rule: Never use raw Tailwind color classes (e.g. `text-sky-400`, `bg-red-500`) or hardcoded hex values.** All colors come from semantic tokens: the ones defined in `globals.css` (`text-text`, `bg-surface`, etc.), or, for a project with its own style, that project's own tokens, defined once and scoped to the project. This keeps each design system a single source of truth.

@@ -24,6 +24,10 @@ Ambiguities are settled the way Betrayal settles them: a note beside the rule, a
 
 Risk has its own style, separate from Novelty World's bright, quirky one: a war room, campaign maps, brass and parchment. Its colours come from its own design tokens, scoped to the project. The map is our own, never Hasbro's board art: drawn as SVG from public-domain world geography (Natural Earth), with territories grouped by `RULES.md`'s borders, and credited on the credits page.
 
+**Ultrawide monitors are a primary device too** (21:9, such as a 3440×1440 panel at 125% scaling, which a browser sees as 2752×1152 CSS pixels; and 32:9, such as 5120×1440). The extra width is spent on information, not on stretching the board: the board stays at its most readable size, and panels beside it show what a narrower screen keeps behind a tap (the battle log, every player's standing, continent control, the odds of a planned attack).
+
+**The iPad is a primary device**, in both orientations (iPad about 820×1180, iPad mini 744×1133), with touch as its input. Every iPad browser runs on WebKit, Safari's engine, so Risk is checked in WebKit as well as Chromium.
+
 **Risk's width floor is 375px**, raising the site's 360px floor for this project only: the whole board has to stay readable and tappable, and 42 territories are its hardest layout problem.
 
 - **The board is generated.** `board/generate.py` draws it from Natural Earth's admin-1 provinces (downloaded into a directory of its own, never committed), and only its simplified output, `board/board-data.ts`, is in the repo. It is stylised as Risk boards are: projected with the Bering Strait as the board's edge, magnified smoothly round the crowded places (Europe, Central America, the Malay archipelago, Japan) by lenses that only stretch the plane, archipelagos closed up into chunkier land, small islands dropped and a few scaled up. The generator checks the result against `map.ts`: territories that touch must be neighbours, and neighbours that don't touch get a sea line.
