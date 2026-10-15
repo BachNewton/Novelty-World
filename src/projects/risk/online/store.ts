@@ -22,7 +22,7 @@ export interface OnlineSnapshot {
   id: string;
   /** False until the first load answers. */
   loaded: boolean;
-  /** The row as last seen, its game aside; null when there's no game with this code. */
+  /** The row as last seen, its game aside; null when the table is gone. */
   table: Omit<GameRow, "game"> | null;
   /** This player's seat, or null for a spectator. */
   seat: Seat | null;

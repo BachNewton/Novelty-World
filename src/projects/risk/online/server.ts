@@ -36,7 +36,7 @@ export const COMMIT_ATTEMPTS = 8;
 export async function commit(store: RowStore, id: string, step: (row: GameRow) => Step): Promise<Response> {
   for (let attempt = 0; attempt < COMMIT_ATTEMPTS; attempt++) {
     const row = await store.read(id);
-    if (!row) return { ok: false, reason: "There's no game with that code", row: null };
+    if (!row) return { ok: false, reason: "That table is gone", row: null };
     const next = step(row);
     if (next.kind === "rejected") return { ok: false, reason: next.reason, row };
     if (next.kind === "unchanged") return { ok: true, row };
@@ -73,13 +73,13 @@ export function answerStep(engine: RiskEngine, row: GameRow, answer: Answer): St
 export interface ServerDeps {
   engine: RiskEngine;
   store: RowStore;
-  /** A fresh game code. */
+  /** A fresh row id: the table's key in the database and the open lobby, never shown. */
   newId: () => string;
   /** A fresh game seed. */
   newSeed: () => string;
 }
 
-/** How many fresh codes creating a game tries before it gives up loudly. */
+/** How many fresh ids creating a game tries before it gives up loudly. */
 const CREATE_ATTEMPTS = 8;
 
 /** Handles one request. The caller drives the bots afterwards when `botToMove` says so. */
@@ -92,7 +92,7 @@ export async function handle(deps: ServerDeps, request: Request): Promise<Respon
         const row = await store.insert(deps.newId(), { status: "lobby", seats, game: null });
         if (row) return { ok: true, row };
       }
-      throw new Error(`Couldn't find a free game code in ${CREATE_ATTEMPTS.toString()} tries`);
+      throw new Error(`Couldn't find a free row id in ${CREATE_ATTEMPTS.toString()} tries`);
     }
     case "join":
       return commit(store, request.game, (row) => {
@@ -138,7 +138,7 @@ export async function handle(deps: ServerDeps, request: Request): Promise<Respon
       });
     case "nudge": {
       const row = await store.read(request.game);
-      return row ? { ok: true, row } : { ok: false, reason: "There's no game with that code", row: null };
+      return row ? { ok: true, row } : { ok: false, reason: "That table is gone", row: null };
     }
   }
 }

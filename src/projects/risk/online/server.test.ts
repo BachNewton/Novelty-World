@@ -84,7 +84,7 @@ describe("the lobby", () => {
 
   it("says when there is no such game", async () => {
     const deps = testDeps(ENGINE, memoryStore().store);
-    expect(await handle(deps, { op: "join", game: "NONE", profile: ALICE })).toEqual({ ok: false, reason: "There's no game with that code", row: null });
+    expect(await handle(deps, { op: "join", game: "NONE", profile: ALICE })).toEqual({ ok: false, reason: "That table is gone", row: null });
   });
 });
 
