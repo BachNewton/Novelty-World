@@ -7,7 +7,7 @@ import type { Binding } from "@/shared/components/prompts";
  * Space) and backing out (B, Esc) go without saying and show no glyph.
  */
 
-export type Meaning = "end-phase" | "cards" | "menu" | "overview" | "less" | "more" | "choices" | "zoom-out" | "zoom-in" | "why" | "blitz" | "log";
+export type Meaning = "end-phase" | "cards" | "menu" | "overview" | "less" | "more" | "choices" | "zoom-out" | "zoom-in" | "blitz" | "log";
 
 export const BINDINGS: Record<Meaning, Binding> = {
   /** Ending the attack or the turn is a hold, as Betrayal's End turn is: there is no undo. */
@@ -21,7 +21,6 @@ export const BINDINGS: Record<Meaning, Binding> = {
   choices: { pad: "DpadLeftRight", key: "Tab", fills: false },
   "zoom-out": { pad: "LT", key: "-", fills: false },
   "zoom-in": { pad: "RT", key: "+", fills: false },
-  why: { pad: null, key: "H", fills: false },
   blitz: { pad: null, key: "B", fills: false },
   log: { pad: null, key: "L", fills: false },
 };
@@ -34,7 +33,6 @@ export const KEY_CODES = {
   overview: ["KeyC", "Home"],
   less: "BracketLeft",
   more: "BracketRight",
-  why: "KeyH",
   blitz: "KeyB",
   log: "KeyL",
   pan: { KeyW: [0, -1], KeyA: [-1, 0], KeyS: [0, 1], KeyD: [1, 0] } as Record<string, readonly [number, number]>,

@@ -1,12 +1,13 @@
 "use client";
 
 import { Maximize2, Menu, Minus, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { Prompt, PromptButton } from "@/shared/components/prompts";
 import { usePadNavigation, type Direction } from "@/shared/lib/gamepad";
 import { cycleChoice, type InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
-import { BOARD_WIDTH, TERRITORY_SHAPES } from "../board/board-data";
+import { locate, WRAP_WIDTH } from "../board/graph";
+import { GRAPH_HEIGHT, GRAPH_WIDTH } from "../board/graph-layout";
 import type { GameEvent, GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
 import { BINDINGS } from "../ui/bindings";
@@ -14,10 +15,12 @@ import { describeEvents, phaseName } from "../ui/describe";
 import { alsoPickable, back as backOut, keepSelection, NO_SELECTION, phaseEnd, pick, stepOf, type Selection } from "../ui/selection";
 import { nearestTo, nextTerritory } from "../ui/territory-nav";
 import { SeatMark, SeatName } from "./bits";
-import { BoardMap, type BoardHandle, type Marks } from "./board-map";
-import { CardsDialog, LogDialog, MenuDialog, WhyDialog } from "./overlays";
+import { GraphBoard } from "./graph-board";
+import { IntelPanels } from "./intel";
+import { CardsDialog, LogDialog, MenuDialog } from "./overlays";
 import { StatusBox } from "./status-box";
 import { BUTTON, DISPLAY, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
+import type { BoardHandle, Marks } from "./use-board-camera";
 import { useRiskInput, type FocusZone } from "./use-risk-input";
 
 /** What the game screen plays: the game as this player's seat sees it, and how to move. An
@@ -39,28 +42,24 @@ export interface GameFeed {
   players: readonly string[];
 }
 
-type Dialog = { kind: "cards" } | { kind: "menu" } | { kind: "log" } | { kind: "why"; rule: string } | null;
+type Dialog = { kind: "cards" } | { kind: "menu" } | { kind: "log" } | null;
 
-/** The marker size on the screen: big enough for a fingertip, and for a couch on a TV. */
-function useMarkerSize(): number {
-  const [size, setSize] = useState(24);
-  useEffect(() => {
-    const tv = window.matchMedia("(min-width: 1800px)");
-    const update = () => setSize(tv.matches ? 34 : 24);
-    update();
-    tv.addEventListener("change", update);
-    return () => tv.removeEventListener("change", update);
-  }, []);
-  return size;
+const COARSE = "(pointer: coarse)";
+function subscribeCoarse(changed: () => void) {
+  const query = window.matchMedia(COARSE);
+  query.addEventListener("change", changed);
+  return () => query.removeEventListener("change", changed);
 }
 
 export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => void }) {
   const { view, options, act: send } = feed;
   const board = useRef<BoardHandle>(null);
   const box = useRef<HTMLDivElement>(null);
-  const markerSize = useMarkerSize();
 
-  const [input, setInput] = useState<InputKind>("keyboard-mouse");
+  // Until something is used, hints suit the device: none on a touch screen, keys elsewhere.
+  const coarse = useSyncExternalStore(subscribeCoarse, () => window.matchMedia(COARSE).matches, () => false);
+  const [used, setInput] = useState<InputKind | null>(null);
+  const input = used ?? (coarse ? "touch" : "keyboard-mouse");
   const [byKeys, setByKeys] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [selection, setSelection] = useState<Selection>(NO_SELECTION);
@@ -109,7 +108,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     else setSelection(result.selection);
   };
 
-  const placed = (ids: readonly TerritoryId[]) => ids.map((id) => ({ id, x: TERRITORY_SHAPES[id].label[0], y: TERRITORY_SHAPES[id].label[1] }));
+  const placed = (ids: readonly TerritoryId[]) => ids.map((id) => ({ id, ...locate(id) }));
   const focusOn = (id: TerritoryId | null) => {
     setFocus(id);
     if (id) board.current?.reveal(id);
@@ -117,9 +116,8 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
   const currentFocus = focus !== null && choices.includes(focus) ? focus : null;
   const moveFocus = (direction: Direction) => {
     if (choices.length === 0) return;
-    if (!showFocus || currentFocus === null) return focusOn(nearestTo(placed(choices), board.current?.centre() ?? { x: BOARD_WIDTH / 2, y: 300 }) as TerritoryId | null);
-    const [x, y] = TERRITORY_SHAPES[currentFocus].label;
-    const next = nextTerritory(placed(choices), { x, y }, direction, BOARD_WIDTH) as TerritoryId | null;
+    if (!showFocus || currentFocus === null) return focusOn(nearestTo(placed(choices), board.current?.centre() ?? { x: WRAP_WIDTH / 2, y: 300 }) as TerritoryId | null);
+    const next = nextTerritory(placed(choices), locate(currentFocus), direction, WRAP_WIDTH) as TerritoryId | null;
     if (next) focusOn(next);
   };
 
@@ -151,7 +149,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     cards: () => setDialog((open) => (open?.kind === "cards" ? null : { kind: "cards" })),
     menu: () => setDialog((open) => (open?.kind === "menu" ? null : { kind: "menu" })),
     log: () => setDialog({ kind: "log" }),
-    why: () => latestLine && setDialog({ kind: "why", rule: latestLine.rule }),
     overview: () => board.current?.overview(),
     less: () => {
       if (step.kind === "battle") setKeep(Math.max(1, keep - 1));
@@ -185,7 +182,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     setByKeys(false);
   }, []);
 
-  const why = (rule: string) => setDialog({ kind: "why", rule });
   const active = view.active;
   const { players } = feed;
   const you = view.viewer;
@@ -215,7 +211,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
         </PromptButton>
       </header>
 
-      <ol className="flex flex-wrap gap-x-[0.9em] gap-y-[0.2em] text-[0.85em] lg:hidden" aria-label="Players">
+      <ol className="flex flex-wrap gap-x-[0.9em] gap-y-[0.2em] text-[0.85em] min-[700px]:hidden" aria-label="Players">
         {view.turnOrder.map((seat) => {
           const s = view.seats[seat];
           return (
@@ -230,16 +226,17 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
       </ol>
 
       <div className="flex min-h-0 flex-1 flex-col gap-[0.5em] lg:flex-row">
-        <div className={cn(PANEL, "relative min-h-[45vh] flex-1 overflow-hidden")}>
-          <BoardMap ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} markerSize={markerSize} onPick={choose} onTouch={onTouch} dealKey={feed.dealKey} />
+        {/* A tablet held upright gives the board the height it needs, and the panels the rest. */}
+        <div className={cn(PANEL, "relative min-h-[45vh] flex-1 overflow-hidden min-[700px]:max-lg:flex-none min-[700px]:max-lg:aspect-(--rk-board-aspect)")} style={{ "--rk-board-aspect": `${GRAPH_WIDTH} / ${GRAPH_HEIGHT}` } as CSSProperties}>
+          <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} dealKey={feed.dealKey} />
           <div className="absolute right-[0.4em] bottom-[0.4em] flex flex-col gap-[0.3em] text-[0.9em]">
-            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[2.2em] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1.4)} aria-label="Zoom in">
+            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1.4)} aria-label="Zoom in">
               <Plus size="1em" />
             </button>
-            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[2.2em] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1 / 1.4)} aria-label="Zoom out">
+            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1 / 1.4)} aria-label="Zoom out">
               <Minus size="1em" />
             </button>
-            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[2.2em] px-[0.5em] opacity-85")} onClick={() => board.current?.overview()} aria-label="Whole map">
+            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.overview()} aria-label="Whole map">
               <Prompt binding={BINDINGS.overview} input={input} />
               <Maximize2 size="1em" />
             </button>
@@ -259,14 +256,13 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
             act={act}
             back={() => setSelection(backOut(selection) ?? NO_SELECTION)}
             news={latestLine ? [latestLine] : []}
-            onWhy={why}
             onCards={() => setDialog({ kind: "cards" })}
             endHold={{ holding, onHeld: () => ending && act(ending) }}
             input={input}
             onNewGame={onLeave}
             error={feed.problem}
           />
-          <section className={cn(PANEL, "hidden flex-col gap-[0.3em] p-[0.75em] lg:flex")} aria-label="Players">
+          <section className={cn(PANEL, "hidden flex-col gap-[0.3em] p-[0.75em] min-[700px]:flex min-[2400px]:hidden")} aria-label="Players">
             <h2 className={cn(DISPLAY, "text-(--rk-muted)")}>Players</h2>
             <table className="w-full text-left text-[0.95em] tabular-nums">
               <thead className="text-[0.8em] text-(--rk-muted)">
@@ -299,7 +295,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
             </p>
           </section>
           {news.length > 1 && (
-            <section className={cn(PANEL, "hidden max-h-[14em] flex-col gap-[0.25em] overflow-y-auto p-[0.75em] text-[0.85em] lg:flex")} aria-label="What just happened">
+            <section className={cn(PANEL, "hidden max-h-[14em] flex-col gap-[0.25em] overflow-y-auto p-[0.75em] text-[0.85em] min-[700px]:flex min-[2400px]:hidden")} aria-label="What just happened">
               {news.slice(0, -1).map((line, i) => (
                 <p key={i} className="text-(--rk-muted)">
                   {line.text}
@@ -308,12 +304,12 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
             </section>
           )}
         </aside>
+        <IntelPanels view={view} events={feed.events} step={step} from={selection.from} keep={keep} className="hidden min-[2400px]:flex" />
       </div>
 
-      {dialog?.kind === "cards" && <CardsDialog view={view} options={options} act={act} onClose={() => setDialog(null)} onWhy={why} input={input} />}
-      {dialog?.kind === "menu" && <MenuDialog onClose={() => setDialog(null)} onLog={() => setDialog({ kind: "log" })} onQuit={onLeave} onRules={() => why("TURN-1")} input={input} />}
-      {dialog?.kind === "log" && <LogDialog log={feed.events} onClose={() => setDialog(null)} onWhy={why} input={input} />}
-      {dialog?.kind === "why" && <WhyDialog rule={dialog.rule} onClose={() => setDialog(null)} input={input} />}
+      {dialog?.kind === "cards" && <CardsDialog view={view} options={options} act={act} onClose={() => setDialog(null)} input={input} />}
+      {dialog?.kind === "menu" && <MenuDialog onClose={() => setDialog(null)} onLog={() => setDialog({ kind: "log" })} onQuit={onLeave} input={input} />}
+      {dialog?.kind === "log" && <LogDialog log={feed.events} onClose={() => setDialog(null)} input={input} />}
     </div>
   );
 }

@@ -8,7 +8,6 @@ import { cn } from "@/shared/lib/utils";
 import type { CardId, GameEvent, GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
 import { describeEvents, isWild, territoryName } from "../ui/describe";
-import { RULES } from "../ui/rules-data";
 import { CardChip, DiceRow, SeatName } from "./bits";
 import { BUTTON, DISPLAY, PANEL, PRIMARY } from "./theme";
 
@@ -22,7 +21,7 @@ function Dialog({ title, onClose, input, children, wide }: { title: string; onCl
       <div ref={root} role="dialog" aria-label={title} className={cn(PANEL, "flex max-h-full w-full flex-col overflow-hidden shadow-2xl", wide ? "max-w-[46em]" : "max-w-[34em]")}>
         <header className="flex items-center justify-between gap-[0.5em] border-b border-(--rk-line) px-[1em] py-[0.6em]">
           <h2 className={cn(DISPLAY, "text-[1.25em] text-(--rk-brass)")}>{title}</h2>
-          <button type="button" data-pad-back className={cn(BUTTON, "min-h-[2.2em] px-[0.5em]")} onClick={onClose} aria-label="Close">
+          <button type="button" data-pad-back className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em]")} onClick={onClose} aria-label="Close">
             <X size="1.1em" />
           </button>
         </header>
@@ -34,7 +33,7 @@ function Dialog({ title, onClose, input, children, wide }: { title: string; onCl
 
 /** The hand, the trades open to it, and what every player can see of the cards (note
  *  `public-cards`): each hand's size, the sets traded, the next set's value and the discard pile. */
-export function CardsDialog({ view, options, act, onClose, onWhy, input }: { view: GameView; options: Options | null; act: (move: Move) => void; onClose: () => void; onWhy: (rule: string) => void; input: InputKind }) {
+export function CardsDialog({ view, options, act, onClose, input }: { view: GameView; options: Options | null; act: (move: Move) => void; onClose: () => void; input: InputKind }) {
   const hand = view.cards.hand ?? [];
   const owned = (card: CardId) => !isWild(card) && view.territories[card as TerritoryId].owner === view.viewer;
   const trading = options?.kind === "reinforce" ? options : null;
@@ -55,10 +54,7 @@ export function CardsDialog({ view, options, act, onClose, onWhy, input }: { vie
       <div className="space-y-[1em]">
         {trading?.mustTrade && (
           <p className="rounded-[0.4em] border border-(--rk-danger) px-[0.7em] py-[0.4em] text-(--rk-danger)">
-            You hold {hand.length} cards: you must trade a set before placing.{" "}
-            <button type="button" className="underline" onClick={() => onWhy("CARDS-5")}>
-              Why?
-            </button>
+            You hold {hand.length} cards: you must trade a set before placing.
           </p>
         )}
         <section>
@@ -140,11 +136,6 @@ export function CardsDialog({ view, options, act, onClose, onWhy, input }: { vie
             <dd className="font-bold text-(--rk-brass) tabular-nums">{view.cards.nextSetValue}</dd>
             <dt className="text-(--rk-muted)">Draw pile</dt>
             <dd className="tabular-nums">{view.cards.drawPile}</dd>
-            <dd className="col-span-2">
-              <button type="button" className="text-[0.85em] underline" onClick={() => onWhy("CARDS-6")}>
-                How sets are valued
-              </button>
-            </dd>
           </dl>
         </section>
         <section>
@@ -164,26 +155,8 @@ export function CardsDialog({ view, options, act, onClose, onWhy, input }: { vie
   );
 }
 
-/** The rule behind an event, in full, from `RULES.md`. */
-export function WhyDialog({ rule, onClose, input }: { rule: string; onClose: () => void; input: InputKind }) {
-  const text = RULES[rule] as (typeof RULES)[string] | undefined;
-  return (
-    <Dialog title={text ? `${rule}: ${text.title}` : rule} onClose={onClose} input={input}>
-      {text ? (
-        <div className="space-y-[0.6em] leading-relaxed">
-          {text.paragraphs.map((paragraph, i) => (
-            <p key={i}>{paragraph}</p>
-          ))}
-        </div>
-      ) : (
-        <p>The rules don&apos;t have a section {rule}.</p>
-      )}
-    </Dialog>
-  );
-}
-
-/** Everything that has happened, newest first, each with its rule a tap away. */
-export function LogDialog({ log, onClose, onWhy, input }: { log: readonly GameEvent[]; onClose: () => void; onWhy: (rule: string) => void; input: InputKind }) {
+/** Everything that has happened, newest first. */
+export function LogDialog({ log, onClose, input }: { log: readonly GameEvent[]; onClose: () => void; input: InputKind }) {
   const lines = describeEvents(log).reverse().slice(0, 200);
   return (
     <Dialog title="Battle log" onClose={onClose} input={input} wide>
@@ -194,9 +167,6 @@ export function LogDialog({ log, onClose, onWhy, input }: { log: readonly GameEv
               <span className="block">{line.text}</span>
               {line.dice && <DiceRow attacker={line.dice.attacker} defender={line.dice.defender} />}
             </span>
-            <button type="button" className={cn(BUTTON, "min-h-[2em] shrink-0 px-[0.5em] text-[0.8em]")} onClick={() => onWhy(line.rule)}>
-              Why
-            </button>
           </li>
         ))}
       </ol>
@@ -204,7 +174,7 @@ export function LogDialog({ log, onClose, onWhy, input }: { log: readonly GameEv
   );
 }
 
-export function MenuDialog({ onClose, onLog, onQuit, onRules, input }: { onClose: () => void; onLog: () => void; onQuit: () => void; onRules: () => void; input: InputKind }) {
+export function MenuDialog({ onClose, onLog, onQuit, input }: { onClose: () => void; onLog: () => void; onQuit: () => void; input: InputKind }) {
   return (
     <Dialog title="War room" onClose={onClose} input={input}>
       <div className="flex flex-col gap-[0.5em]">
@@ -213,9 +183,6 @@ export function MenuDialog({ onClose, onLog, onQuit, onRules, input }: { onClose
         </button>
         <button type="button" className={BUTTON} onClick={onLog}>
           Battle log
-        </button>
-        <button type="button" className={BUTTON} onClick={onRules}>
-          How turns go
         </button>
         <button type="button" className={BUTTON} onClick={onQuit}>
           Leave this game

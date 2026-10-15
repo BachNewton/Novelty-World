@@ -33,7 +33,6 @@ export interface InputIntents {
   cards: () => void;
   menu: () => void;
   log: () => void;
-  why: () => void;
   overview: () => void;
   less: () => void;
   more: () => void;
@@ -80,7 +79,6 @@ export function useRiskInput(intents: InputIntents): void {
       }
       if (code === "Escape") return handled(it.back);
       if (code === KEY_CODES.log) return handled(it.log);
-      if (code === KEY_CODES.why) return handled(it.why);
       if ((KEY_CODES.overview as readonly string[]).includes(code)) return handled(it.overview);
       if (code === KEY_CODES.less) return handled(it.less);
       if (code === KEY_CODES.more) return handled(it.more);

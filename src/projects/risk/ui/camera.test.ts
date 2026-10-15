@@ -13,9 +13,11 @@ describe("the map's camera", () => {
     expect(camera.top).toBe(150);
   });
 
-  it("starts a phone in portrait filling the map's height, panned across", () => {
-    expect(startScale(board, phone)).toBeCloseTo(phone.height / board.height);
-    expect(startScale(board, desktop)).toBe(fitScale(board, desktop));
+  it("starts on the whole board while that is readable, else a phone in portrait filling the map's height", () => {
+    expect(startScale(board, desktop, 0.5)).toBe(fitScale(board, desktop));
+    expect(startScale(board, phone, 0.5)).toBeCloseTo(phone.height / board.height);
+    expect(startScale(board, phone, 0.2)).toBe(fitScale(board, phone));
+    expect(startScale(board, { width: 700, height: 300 }, 0.8)).toBe(0.8);
   });
 
   it("never zooms out past the whole board or in past its limit", () => {

@@ -13,7 +13,7 @@ import { BUTTON, DISPLAY, PANEL, PRIMARY } from "./theme";
 
 /*
  * The one box for everything that isn't a place on the map: what to do now, the amount and dice
- * choices, the latest news with its Why, and ending the phase. Decisions about places are made
+ * choices, the latest news, and ending the phase. Decisions about places are made
  * on the map itself.
  */
 
@@ -28,7 +28,6 @@ interface Props {
   act: (move: Move) => void;
   back: () => void;
   news: readonly Line[];
-  onWhy: (rule: string) => void;
   onCards: () => void;
   endHold: Hold;
   input: InputKind;
@@ -69,7 +68,7 @@ function prompt(step: Step, view: GameView): string {
   }
 }
 
-export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onWhy, onCards, endHold, input, onNewGame, error }, ref) {
+export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onCards, endHold, input, onNewGame, error }, ref) {
   const ending = phaseEnd(options);
   const latest = news.at(-1);
   const backButton = (
@@ -86,9 +85,6 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
             <p className="text-(--rk-muted)">{latest.text}</p>
             {latest.dice && <DiceRow attacker={latest.dice.attacker} defender={latest.dice.defender} />}
           </div>
-          <PromptButton binding={BINDINGS.why} input={input} className={cn(BUTTON, "min-h-[2em] shrink-0 px-[0.5em] text-[0.85em]")} onClick={() => onWhy(latest.rule)}>
-            Why
-          </PromptButton>
         </div>
       )}
 
@@ -149,9 +145,6 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
           <Stepper value={amount} min={step.min} max={step.max} onChange={setAmount} input={input} label={`Armies in ${territoryName(step.to)}`} />
           <button type="button" data-pad-start className={cn(BUTTON, PRIMARY)} onClick={() => act({ kind: "occupy", armies: amount })}>
             Hold with {amount}
-          </button>
-          <button type="button" className="text-[0.85em] underline" onClick={() => onWhy("COMBAT-6")}>
-            Why at least {step.min}?
           </button>
         </div>
       )}

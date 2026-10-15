@@ -27,11 +27,13 @@ export function fitScale(board: Size, view: Size): number {
   return Math.min(view.width / board.width, view.height / board.height);
 }
 
-/** The scale a camera starts at: the whole board, except in a portrait box (a phone held
- *  upright), where the board would be a thin strip, so it fills the box's height and is panned
- *  across instead. */
-export function startScale(board: Size, view: Size): number {
-  return view.width < view.height ? view.height / board.height : fitScale(board, view);
+/** The scale a camera starts at: the whole board when that is still readable (at least
+ *  `readable`). Otherwise a phone held upright fills the map's height and is panned across, and
+ *  any other box starts at the readable scale, panned. */
+export function startScale(board: Size, view: Size, readable: number): number {
+  const fit = fitScale(board, view);
+  if (fit >= readable) return fit;
+  return view.width < view.height ? Math.max(readable, view.height / board.height) : readable;
 }
 
 /** Keeps the board on the screen: never smaller than fitting the box, never past `MAX_ZOOM`,

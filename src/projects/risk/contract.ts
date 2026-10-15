@@ -140,8 +140,8 @@ export type Options =
 // What happened
 // ---------------------------------------------------------------------------
 
-/** Every event names the rule (or `RULES.md` note) that caused it, so the screen can explain
- *  it. Events carry only what the seat they are shown to may see: see `redact`. */
+/** Every event names the rule (or `RULES.md` note) that caused it, for tracing a game against
+ *  the rules. Events carry only what the seat they are shown to may see: see `redact`. */
 export type GameEvent = { rule: string } & (
   | { kind: "turn-order"; order: readonly Seat[] }
   /** The setup deal (`SETUP-4`): each territory's first owner, with 1 army on it. */
