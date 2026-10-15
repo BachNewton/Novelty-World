@@ -2,10 +2,11 @@ import type { PlayerInput } from "../run";
 
 // Input sources turn a device's presses into the rules' player inputs. Each
 // source speaks for its devices, never for a player: the seating says which
-// player slot a device drives, so the same sources serve solo (every device
-// is player 0) and local co-op (each device the slot it joined).
+// player slot a device drives, so the same sources serve online co-op (every
+// device here is this player's) and local co-op (each device the slot it
+// joined).
 
-// The keyboard is one device in solo, and two in local co-op, its left half
+// The keyboard is one device online, and two in local co-op, its left half
 // (WASD) and its right half (the arrows). Each controller is its own device,
 // by its slot.
 export type DeviceId = "keys" | "keys:left" | "keys:right" | "touch" | `pad:${number}`;
@@ -17,8 +18,6 @@ export function padDevice(index: number): DeviceId {
 // Which player slot a device drives; null for a device with no seat, whose
 // inputs go nowhere.
 export type Seating = (device: DeviceId) => number | null;
-
-export const SOLO_SEATING: Seating = () => 0;
 
 // Where the sources send what they hear.
 export interface InputSink {

@@ -1,25 +1,24 @@
 import { TUNING } from "../tuning";
-import { PACE, pose, READ, type DesignedCourse } from "./design";
+import { PACE, pose, READ, READ_SLOW, type DesignedCourse } from "./design";
 
-// A medium co-op course for Sprout's S and Splash's Z on ten lanes. The S
-// and the Z make few clean shapes with each other: a bridge, a V, and above
-// all stacks, one frog standing up on the other's step, flat on flat or on a
-// partner turned upright like a tower. So the course is mostly stacks, and
-// who stands on whom keeps swapping: each row's answer leaves the frogs in the
-// row before's pose as a selfish decoy, and moving into the new one needs one
-// of them to make room first.
+// Sprout's S and Splash's Z on ten lanes: the crossing and back. The S and
+// the Z make few clean shapes with each other, a bridge and a lean, and
+// stacks, one standing on the other's step. Standing up, each fits a slot
+// shaped like it, and the other hops off it over a van. Then the slots swap
+// sides: the S's slot is on the Z's side, so the team must cross over, the
+// one in the air going over the other, and in the last row cross back. The
+// pieces are mirror images, so the climb one way is not the climb the other.
 
 export const ZIG_ZAG_ALLEY: DesignedCourse = {
   id: "zig-zag-alley",
   name: "Zig Zag Alley",
-  tier: "medium",
-  description: "Sprout's S and Splash's Z nest, stack and swap who stands on whom.",
+  description: "An S and a Z climb each other's steps, then cross over to the other side, and back.",
   lanes: 10,
   kinds: ["S", "Z"],
-  length: 166,
-  medals: { gold: 45, silver: 55, bronze: 80 },
+  length: 125,
+  // Provisional (see Courses and medals in the project's CLAUDE.md).
+  medals: { gold: 30, silver: 40, bronze: 55 },
   rows: [
-    // Nesting, side by side.
     {
       lesson: "the bridge",
       answer: [pose(2, 0), pose(5, 0)],
@@ -29,71 +28,56 @@ export const ZIG_ZAG_ALLEY: DesignedCourse = {
     {
       lesson: "lean in",
       answer: [pose(3, 1), pose(5, 1)],
-      gap: READ,
+      gap: READ_SLOW,
       vehicles: [{ id: "O0", lane: 0 }, { id: "L1", lane: 2 }, { id: "J3", lane: 6 }, { id: "O0", lane: 8 }],
     },
-    // Stacks: one on the other's step, then swapped.
     {
-      lesson: "Splash climbs",
+      lesson: "Splash climbs Sprout's step",
       answer: [pose(2, 0), pose(4, 0, 1)],
-      gap: READ,
+      gap: READ_SLOW,
       vehicles: [{ id: "I1", lane: 0 }, { id: "Z1", lane: 1 }, { id: "L3", lane: 6 }, { id: "J3", lane: 8 }],
     },
     {
-      lesson: "Sprout climbs",
+      lesson: "Sprout climbs Splash's step",
       answer: [pose(2, 0, 1), pose(4, 0)],
-      gap: READ,
+      gap: READ_SLOW,
       vehicles: [{ id: "J1", lane: 1 }, { id: "S1", lane: 6 }, { id: "T1", lane: 8 }],
     },
     {
-      lesson: "breather",
-      answer: [pose(1, 0), pose(6, 0)],
+      lesson: "Splash hops off, over the van",
+      answer: [pose(2, 1), pose(5, 1, 2)],
       gap: READ,
-      vehicles: [{ id: "Z1", lane: 0 }, { id: "L3", lane: 3 }, { id: "J1", lane: 5 }, { id: "S1", lane: 8 }],
-    },
-    // Towers: one stands upright and the other climbs it.
-    {
-      lesson: "Sprout on the tower",
-      answer: [pose(2, 0, 1), pose(4, 1)],
-      gap: 15,
-      vehicles: [{ id: "J1", lane: 1 }, { id: "J3", lane: 5 }, { id: "J2", lane: 7 }],
+      vehicles: [
+        { id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "L3", lane: 3 }, { id: "O0", lane: 5 },
+        { id: "I1", lane: 7 }, { id: "I1", lane: 8 }, { id: "I1", lane: 9 },
+      ],
     },
     {
-      lesson: "Splash on the tower",
-      answer: [pose(3, 1), pose(4, 0, 1)],
-      gap: 15,
-      vehicles: [{ id: "T3", lane: 0 }, { id: "L1", lane: 2 }, { id: "L3", lane: 6 }, { id: "T1", lane: 8 }],
-    },
-    // Moving the stack across the road: whoever is in the way goes first.
-    {
-      lesson: "make room on the right",
-      answer: [pose(4, 0, 1), pose(6, 0)],
-      gap: 14,
-      vehicles: [{ id: "T2", lane: 0 }, { id: "J1", lane: 3 }, { id: "S1", lane: 8 }],
+      lesson: "Sprout hops off, over the van",
+      answer: [pose(3, 1, 2), pose(6, 1)],
+      gap: READ,
+      vehicles: [
+        { id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "I1", lane: 2 }, { id: "O0", lane: 3 }, { id: "J1", lane: 5 },
+        { id: "I1", lane: 8 }, { id: "I1", lane: 9 },
+      ],
     },
     {
-      lesson: "both up, leaning in",
-      answer: [pose(3, 1, 1), pose(5, 1, 1)],
-      gap: 14,
-      vehicles: [{ id: "J2", lane: 0 }, { id: "S0", lane: 5 }, { id: "T3", lane: 8 }],
+      lesson: "cross over: Sprout's slot is on the right",
+      answer: [pose(6, 1), pose(3, 1, 2)],
+      gap: READ,
+      vehicles: [
+        { id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "I1", lane: 2 }, { id: "O0", lane: 3 }, { id: "I1", lane: 5 },
+        { id: "L3", lane: 7 }, { id: "I1", lane: 9 },
+      ],
     },
     {
-      lesson: "Splash on the tower, right",
-      answer: [pose(5, 1), pose(6, 0, 1)],
+      lesson: "and cross back",
+      answer: [pose(2, 1), pose(5, 1, 2)],
       gap: PACE,
-      vehicles: [{ id: "J3", lane: 0 }, { id: "S1", lane: 2 }, { id: "L1", lane: 4 }, { id: "L3", lane: 8 }],
-    },
-    {
-      lesson: "make room on the left",
-      answer: [pose(1, 1), pose(2, 0, 1)],
-      gap: PACE,
-      vehicles: [{ id: "L1", lane: 0 }, { id: "L3", lane: 4 }, { id: "L3", lane: 6 }, { id: "L1", lane: 8 }],
-    },
-    {
-      lesson: "swap on top",
-      answer: [pose(2, 0, 1), pose(4, 1)],
-      gap: PACE,
-      vehicles: [{ id: "J1", lane: 1 }, { id: "J3", lane: 5 }, { id: "T3", lane: 7 }],
+      vehicles: [
+        { id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "L3", lane: 3 }, { id: "O0", lane: 5 },
+        { id: "I1", lane: 7 }, { id: "I1", lane: 8 }, { id: "I1", lane: 9 },
+      ],
     },
   ],
 };

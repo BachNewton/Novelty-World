@@ -1,8 +1,10 @@
 import { TUNING } from "../tuning";
 import { pose, READ, READ_SLOW, type DesignedCourse } from "./design";
 
-// The gentlest co-op course: two Os on a road eight lanes wide, so there is
-// nothing to turn and the coordination is all there is to read. Each half of
+// Two Os on a road eight lanes wide, the one pair that can't stack, so it
+// stays on the ground: nothing to turn and nothing to climb, and the
+// coordination is all there is to read. It comes after the stacking lesson
+// as the gentle one. Each half of
 // the road is four lanes, an O's width twice over, so a slot four lanes wide
 // fits the pair only shoulder to shoulder, and one moved to a side makes one
 // frog move first. An O can't stand on an O (it is two cells tall and a hop
@@ -12,8 +14,7 @@ import { pose, READ, READ_SLOW, type DesignedCourse } from "./design";
 export const BLOCK_PARTY: DesignedCourse = {
   id: "block-party",
   name: "Block Party",
-  tier: "easy",
-  description: "Two blocks, nothing to turn: jump and hop together, squeeze in shoulder to shoulder, make room, and step up beside each other.",
+  description: "Two blocks that can't climb each other: hop together, squeeze in shoulder to shoulder, make room, step up side by side.",
   lanes: 8,
   kinds: ["O", "O"],
   length: 144,

@@ -8,7 +8,7 @@ import { HELI_PAINTS, heliModel, heliToken, type HeliPaint, type HeliPart, type 
 import { borderMask, mergedParts } from "../vehicle-assets";
 
 // The world's blocks carry this faint a border; the helicopter's big boxes
-// share it, so it reads as built from the same blocks as the overpass.
+// share it, so it reads as built from the same blocks as the finish gantry.
 const BORDER_SHADE = 0.78;
 
 function useHeliMaterials() {

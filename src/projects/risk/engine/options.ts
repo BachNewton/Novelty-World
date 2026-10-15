@@ -9,10 +9,6 @@ export function options(s: EngineState, seat: Seat): Options | null {
   if (s.phase === "game-over" || seat !== s.active) return null;
 
   switch (s.phase) {
-    case "setup-place":
-      // SETUP-5: one army at a time.
-      return { kind: "setup-place", ownTerritories: ownedBy(s, seat), ownArmiesLeft: 1 };
-
     case "reinforce": {
       const r = reinforceState(s);
       const hand = s.hands[seat];

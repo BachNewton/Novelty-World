@@ -22,15 +22,14 @@ const picked = (page: Page) => page.locator('[data-course][aria-pressed="true"]'
 test("lobby, local co-op join, a course and Start, then the game's menu back to the lobby, by controller", async ({ page }) => {
   await withPads(page, 2);
   await page.goto(lobbyUrl());
-  const solo = page.getByRole("button", { name: "Play solo" });
-  await expect(solo).toBeVisible({ timeout: TIMEOUT });
+  const local = page.getByRole("button", { name: "Local co-op" });
+  await expect(local).toBeVisible({ timeout: TIMEOUT });
   await expect(page.getByTestId("pad-hints")).toBeVisible();
 
   // The first press only shows the focus, on the first button.
   await press(page, "A");
-  await expect(solo).toBeFocused();
+  await expect(local).toBeFocused();
   await expect(page.locator("html")).toHaveAttribute("data-pad-nav", "");
-  await padTo(page, page.getByRole("button", { name: "Local co-op" }));
   await press(page, "A");
 
   // On the join screen, A joins a controller that isn't in, pressing nothing.
@@ -77,7 +76,7 @@ test("lobby, local co-op join, a course and Start, then the game's menu back to 
   await expect(menu.getByRole("button", { name: "Keep playing" })).toBeFocused();
   await padTo(page, menu.getByRole("button", { name: "Back to lobby" }));
   await press(page, "A");
-  await expect(solo).toBeVisible();
+  await expect(local).toBeVisible();
 });
 
 test("on the join screen B leaves a controller's slot, then goes back to the lobby", async ({ page }) => {
@@ -90,13 +89,13 @@ test("on the join screen B leaves a controller's slot, then goes back to the lob
   await press(page, "B");
   await expect(sprout).toHaveText("Press to join");
   await press(page, "B");
-  await expect(page.getByRole("button", { name: "Play solo" })).toBeVisible({ timeout: TIMEOUT });
+  await expect(page.getByRole("button", { name: "Local co-op" })).toBeVisible({ timeout: TIMEOUT });
 });
 
 test("lobby, host co-op, and a course picked in the waiting room, by controller", async ({ page }) => {
   await withPads(page);
   await page.goto(lobbyUrl());
-  await expect(page.getByRole("button", { name: "Play solo" })).toBeVisible({ timeout: TIMEOUT });
+  await expect(page.getByRole("button", { name: "Local co-op" })).toBeVisible({ timeout: TIMEOUT });
   await padTo(page, page.getByRole("button", { name: "Host co-op" }));
   await press(page, "A");
 

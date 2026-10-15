@@ -21,7 +21,7 @@ export function useGameSounds(session: Session): void {
     const unsubscribe = session.store.subscribe((after, before) => {
       const heard = soundCues(before, after, streak);
       streak = heard.streak;
-      for (const { sound, semitones } of heard.cues) playSound(sound, { semitones });
+      for (const { sound, semitones, voice } of heard.cues) playSound(sound, { semitones, voice });
     });
     return () => {
       unsubscribe();

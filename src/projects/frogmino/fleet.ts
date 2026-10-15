@@ -55,6 +55,10 @@ export function vehicleCells(id: VehicleId): Cell[] {
   return pieceCells(kind, rotation);
 }
 
+// How many cells tall the tallest vehicle stands: the art above the road
+// (the decks the traffic drives under) is built over it.
+export const TALLEST_VEHICLE = Math.max(...VEHICLE_IDS.flatMap((id) => vehicleCells(id).map((cell) => cell.row + 1)));
+
 // How far each vehicle stretches back along the road from its front, in
 // cells: its archetype's length, two or three. The rules keep a vehicle solid
 // for as long as its length overlaps the frog, and the art is built this long.

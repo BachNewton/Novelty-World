@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { coopCourseById } from "../../coop-courses";
 import { MuteButton } from "../mute-button";
 import { unlockAudio } from "../sound-board";
-import { VolumeSlider } from "../volume-slider";
-import { themeCourses } from "./course-music";
+import { MusicSlider, VolumeSlider } from "../volume-slider";
+import { themeCourse } from "./course-music";
 import { isRendered, playMusic, prepareTheme, setMusicLoop, stopMusic } from "./music-board";
 import { themeSeconds, zzfxmSource, type Theme } from "./song";
-import { COURSE_THEMES, SKETCHES, THEMES } from "./themes";
+import { THEMES } from "./themes";
 
-// The `?music` page: the courses' themes, as the game plays them, and the
-// earlier sketches, which it doesn't.
+// The `?music` page: the courses' themes, as the game plays them.
 
 type Loops = Readonly<Record<string, boolean>>;
 
@@ -32,7 +31,7 @@ interface CardProps {
 function ThemeCard({ theme, playing, rendering, loop, onPlay, onStop, onLoop }: CardProps) {
   const [copied, setCopied] = useState(false);
   const seconds = themeSeconds(theme);
-  const playsOn = themeCourses(theme, (id) => coopCourseById(id).name);
+  const course = coopCourseById(themeCourse(theme));
   return (
     <li className="flex flex-col gap-3 rounded-xl border border-border-default bg-surface-secondary p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -41,9 +40,9 @@ function ThemeCard({ theme, playing, rendering, loop, onPlay, onStop, onLoop }: 
           {theme.kind === "loop" ? "Loop" : "Jingle"}
         </span>
       </div>
-      {playsOn.length > 0 && (
-        <p className="text-sm font-bold text-brand-green">Plays on: {playsOn.join("; ")}</p>
-      )}
+      <p className="text-sm font-bold text-brand-green">
+        {course.name} ({course.kinds.join(" + ")})
+      </p>
       <p className="text-sm text-text-secondary">
         <span className="font-bold text-text-primary">{theme.use}</span> {theme.mood}
       </p>
@@ -79,7 +78,7 @@ function ThemeCard({ theme, playing, rendering, loop, onPlay, onStop, onLoop }: 
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
         <dt className="text-text-muted">Key</dt>
         <dd className="text-text-secondary">
-          {theme.key}, {theme.beatsPerBar}/4
+          {theme.key}, {theme.metre}
         </dd>
         <dt className="text-text-muted">Tempo</dt>
         <dd className="text-text-secondary">{theme.bpm} BPM</dd>
@@ -99,16 +98,6 @@ function ThemeCard({ theme, playing, rendering, loop, onPlay, onStop, onLoop }: 
         </ul>
       </div>
     </li>
-  );
-}
-
-function ThemeList({ title, note, themes, card }: { title: string; note?: string; themes: readonly Theme[]; card: (theme: Theme) => ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-xl font-bold text-text-primary">{title}</h2>
-      {note !== undefined && <p className="text-sm text-text-secondary">{note}</p>}
-      <ul className="grid gap-4 md:grid-cols-2">{themes.map(card)}</ul>
-    </section>
   );
 }
 
@@ -185,26 +174,19 @@ export function MusicLab() {
         <header className="flex flex-col gap-3">
           <h1 className="text-2xl font-bold text-brand-green">Frogmino music</h1>
           <p className="text-sm text-text-secondary">
-            Each course has a theme of its own, playing under the sound effects from the drop to the finish line. They all
-            rework one Frogmino motif (hop, hop, leap, and tumble down) in their own style, borrowing the <em>style</em> of
-            Grant Kirkhope&rsquo;s Banjo-Kazooie music and the Pok&eacute;mon games (listed on each card), never their melodies. Each
-            is made with ZzFXM, a tiny tracker built on ZzFX, the library behind the sound effects, so it is code, not an audio
-            file, and renders off the page&rsquo;s thread the first time it plays. &ldquo;Copy for the tracker&rdquo; copies the
-            song for the ZzFXM tracker, which plays it a little brighter, since it has no low-pass filter. Edit the themes in{" "}
+            Each course has a theme of its own, playing from the drop to the finish line. Each is made with ZzFXM, a tiny
+            tracker built on ZzFX, the library behind the sound effects, so it is code, not an audio file, and renders off the
+            page&rsquo;s thread the first time it plays. &ldquo;Copy for the tracker&rdquo; copies the song for the ZzFXM
+            tracker, which plays it a little brighter, since it has no low-pass filter. Edit the themes in{" "}
             <code>audio/music/</code>.
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <VolumeSlider />
+            <MusicSlider readout />
             <MuteButton />
           </div>
         </header>
-        <ThemeList title="The courses' themes" themes={COURSE_THEMES} card={card} />
-        <ThemeList
-          title="Earlier sketches"
-          note="Ideas from before the courses had themes, kept to listen to; none plays in the game. The two Frog Polkkas arrange the Finnish folk tune Ievan Polkka."
-          themes={SKETCHES}
-          card={card}
-        />
+        <ul className="grid gap-4 md:grid-cols-2">{THEMES.map(card)}</ul>
       </div>
     </main>
   );

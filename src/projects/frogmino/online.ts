@@ -93,7 +93,7 @@ function report(spec: CourseSpec, log: InputLog, tick: number, side: string): De
 // The host's session: player 0, Sprout, and the authority on the order of
 // every input.
 export function hostSession(spec: CourseSpec, send: (message: HostPlay) => void, events: OnlineEvents, tuning: Tuning = TUNING): HostSession {
-  const course = courseOf(spec, tuning);
+  const course = courseOf(spec);
   let timeline: Timeline = startTimeline(freshRun(course, tuning));
   // The final inputs before the timeline's confirmed run.
   let history: InputLog = [];
@@ -191,7 +191,7 @@ interface Pending {
 // The guest's session: player 1, Splash. It runs its own inputs at once and
 // the host's as they come, and corrects to the host's order.
 export function guestSession(spec: CourseSpec, send: (message: GuestMessage) => void, events: OnlineEvents, tuning: Tuning = TUNING): GuestSession {
-  const course = courseOf(spec, tuning);
+  const course = courseOf(spec);
   let round = 0;
   let seq = 0;
   let nextId = 0;

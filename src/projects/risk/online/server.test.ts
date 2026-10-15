@@ -37,7 +37,7 @@ function nextMove(row: GameRow): { request: Request; answer: Answer } {
   if (!row.game) throw new Error("Not started");
   const seat = ENGINE.view(row.game.engine, null).active;
   const options = ENGINE.options(row.game.engine, seat);
-  if (options?.kind !== "setup-place") throw new Error(`Expected setup, got ${String(options?.kind)}`);
+  if (options?.kind !== "reinforce") throw new Error(`Expected a reinforcement, got ${String(options?.kind)}`);
   const move: Move = { kind: "place", territory: options.ownTerritories[0], armies: 1 };
   const answer = { decision: row.game.decision, seat, move };
   return { answer, request: { op: "move", game: row.id, profile: PROFILES[seat], answer } };
@@ -84,7 +84,18 @@ describe("the lobby", () => {
 
   it("says when there is no such game", async () => {
     const deps = testDeps(ENGINE, memoryStore().store);
-    expect(await handle(deps, { op: "join", game: "NONE", profile: ALICE })).toEqual({ ok: false, reason: "There's no game with that code", row: null });
+    expect(await handle(deps, { op: "join", game: "NONE", profile: ALICE })).toEqual({ ok: false, reason: "That table is gone", row: null });
+  });
+
+  it("deletes a game and its move log for everyone", async () => {
+    const { db, deps, row } = await humanGame();
+    await ok(deps, nextMove(row).request);
+    expect(db.moves.get("GAME")).toHaveLength(1);
+    expect(await handle(deps, { op: "delete", game: "GAME" })).toMatchObject({ ok: true, row: { id: "GAME" } });
+    expect(db.rows.has("GAME")).toBe(false);
+    expect(db.moves.has("GAME")).toBe(false);
+    expect(await handle(deps, { op: "delete", game: "GAME" })).toMatchObject({ ok: false, reason: "That table is gone" });
+    expect(await handle(deps, { op: "join", game: "GAME", profile: ALICE })).toMatchObject({ ok: false, reason: "That table is gone" });
   });
 });
 
@@ -105,7 +116,7 @@ describe("moves", () => {
     expect(await handle(deps, request)).toEqual({ ok: true, row: landed });
     expect(db.hooks.writes).toBe(writes);
     const options = ENGINE.options(row.game?.engine ?? { engineState: null }, answer.seat);
-    if (options?.kind !== "setup-place") throw new Error("Expected setup");
+    if (options?.kind !== "reinforce") throw new Error("Expected a reinforcement");
     const other: Answer = { ...answer, move: { kind: "place", territory: options.ownTerritories[1], armies: 1 } };
     expect(await handle(deps, { op: "move", game: row.id, profile: PROFILES[answer.seat], answer: other })).toMatchObject({
       ok: false,

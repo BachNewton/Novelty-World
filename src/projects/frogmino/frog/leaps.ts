@@ -2,7 +2,7 @@ import { FROG_THICKNESS } from "../run";
 import { DECK_LENGTH, DECK_TOP } from "../world/structures";
 
 // The drawn frog's two set pieces, each a pure function of how far through it
-// is, from 0 to 1: the leap off the overpass to the road at the start, and
+// is, from 0 to 1: the jump out of the helicopter onto the road at the start, and
 // the leap from the spring pad onto the finish gantry's deck. Depths run
 // forward along the course, and levels and heights up from the road, in the
 // scene's units.
@@ -24,7 +24,7 @@ export interface LeapPose {
   spin: number;
 }
 
-// The drop leaps this high above the deck at the top of its arc.
+// The drop leaps this high above the helicopter's deck at the top of its arc.
 const DROP_PEAK = 3;
 // The camera rides the drop's arc, this much lower at its middle: it rises a
 // little with the frog, keeping it in view, rather than swooping with it.
@@ -44,7 +44,7 @@ export function leapProgress(seconds: number, duration: number): number {
   return Math.min(1, seconds / duration);
 }
 
-// The drop off the overpass, `progress` of the way down to the road at
+// The jump out of the helicopter, `progress` of the way down to the road at
 // `toDepth`: a big leap off the deck, up along a falling body's arc and
 // down onto the road, sweeping forward fastest in the middle and gently at
 // either end, so the camera following it glides forward over the deck.

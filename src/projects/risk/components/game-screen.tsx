@@ -197,7 +197,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
           {view.phase !== "game-over" && <span className="truncate">{active === you ? "you" : players[active]}</span>}
           <span className="text-(--rk-muted)">
             {phaseName(view.phase)}
-            {view.turn > 0 && view.phase !== "game-over" && ` · turn ${view.turn}`}
+            {view.phase !== "game-over" && ` · turn ${view.turn}`}
             {view.armiesToPlace > 0 && ` · ${view.armiesToPlace} to place`}
           </span>
         </div>

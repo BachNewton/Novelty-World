@@ -118,6 +118,8 @@ Tailwind CSS v4. Novelty World's own visual identity, the home page, shared UI a
 
 **Show, don't tell.** The owner would rather see information than read it: prefer icons, symbols, colour with a second cue, bars, counts and position over words. Text is for what only text can say (names, a rule's explanation behind a "why"), and a label that repeats what a symbol already shows is cut. Every symbol still needs an accessible name, and a meaning that isn't obvious gets a tooltip or a "why", not a caption.
 
+**Games animate regardless of the OS's reduced-motion setting.** In a game, motion carries information (a roll, a capture, an army on the move), so a game ignores `prefers-reduced-motion`; if a player ever needs less motion, the game offers its own setting. Tools and the site's chrome still honour the OS preference.
+
 **A project may have its own style.** When a project's goals are better served by its own visual direction, its style overrides the repo's within that project. For example, a game with an identifiable aesthetic of its own gets its own style. A tool or idea that doesn't need to carry its own aesthetic reuses the repo's style.
 
 **Rule: Never use raw Tailwind color classes (e.g. `text-sky-400`, `bg-red-500`) or hardcoded hex values.** All colors come from semantic tokens: the ones defined in `globals.css` (`text-text`, `bg-surface`, etc.), or, for a project with its own style, that project's own tokens, defined once and scoped to the project. This keeps each design system a single source of truth.
@@ -139,6 +141,10 @@ Tailwind CSS v4. Novelty World's own visual identity, the home page, shared UI a
 **Rule: docs and CLAUDE.md explain concepts and invariants; they never duplicate code.** Never cite line numbers, and never paste real code into prose — a copied snippet forks the truth and rots silently, and so does prose that narrates today's implementation detail. When an example helps, make it generic and inline (shaped like code, referencing nothing real). Naming real things follows stability: file/module names are the routing map and are encouraged; exported symbol names are fine where routing matters, because a rename makes the reference fail a grep — staleness that announces itself. When renaming or moving anything, grep the docs for the old name in the same change.
 
 **Rule: docs state what is decided, not when.** No decision dates, "as of" stamps or change logs in CLAUDE.md, skills, commands or design docs: what's decided is decided, and git history holds the when. Dates stay only where the date is the data: a measurement's context, a record's `asOf`, or a log whose whole point is the timeline.
+
+### Tests never rely on a network connection
+
+**Rule: no test, unit or e2e, may depend on anything outside this machine.** A test that reaches the live database, the production relay or any internet service fails when the network does, writes into real data, and measures someone else's server. Servers a test run starts for itself on localhost (the e2e app server, the local relay) are fine; external services are replaced by local stand-ins the run controls. Specs that still reach the live Supabase project (Frogmino's and Connection Test's room list) are refactor targets.
 
 ### Code, tests and tools wait for EVENTS, not clocks
 

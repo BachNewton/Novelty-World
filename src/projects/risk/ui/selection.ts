@@ -15,7 +15,7 @@ export interface Selection {
 
 export const NO_SELECTION: Selection = { from: null, to: null };
 
-export type Purpose = "setup-place" | "place" | "attack-from" | "attack-to" | "fortify-from" | "fortify-to";
+export type Purpose = "place" | "attack-from" | "attack-to" | "fortify-from" | "fortify-to";
 
 export type Step =
   /** Nothing to do: another seat's turn, or the game is over. */
@@ -35,8 +35,6 @@ export function stepOf(options: Options | null, selection: Selection): Step {
   if (options === null) return { kind: "wait" };
   const { from, to } = selection;
   switch (options.kind) {
-    case "setup-place":
-      return options.ownArmiesLeft > 0 ? { kind: "pick", purpose: "setup-place", choices: options.ownTerritories } : { kind: "wait" };
     case "reinforce":
       if (options.mustTrade || !options.mayPlace) return { kind: "must-trade" };
       if (from !== null && options.ownTerritories.includes(from)) return { kind: "place", territory: from, max: options.armiesToPlace };
@@ -81,8 +79,6 @@ export function pick(options: Options | null, selection: Selection, territory: T
   if (options === null) return null;
   const { from } = selection;
   switch (options.kind) {
-    case "setup-place":
-      return options.ownArmiesLeft > 0 && options.ownTerritories.includes(territory) ? { move: { kind: "place", territory, armies: 1 } } : null;
     case "reinforce":
       if (options.mustTrade || !options.mayPlace || !options.ownTerritories.includes(territory)) return null;
       return { selection: { from: territory, to: null } };

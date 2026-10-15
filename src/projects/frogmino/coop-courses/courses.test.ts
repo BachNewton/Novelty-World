@@ -3,7 +3,7 @@ import { coopCourse, designedAnswers, designedCourse, designedRowAt, startRun } 
 import { heldJumpTicks } from "../medals";
 import { tickTiming, toTicks } from "../ticks";
 import { TUNING } from "../tuning";
-import { analyseCoopCourse } from "../proof/analyse";
+import { analyseCoopCourse, unreachableAnswers } from "../proof/analyse";
 import { DEFAULT_SLOT, proveCourse } from "../proof/solver";
 import { checkCoopCourse, flatOutMeeting, rowFronts } from "./check";
 import { pose, type DesignedCourse } from "./design";
@@ -17,7 +17,6 @@ const AIR_SLOTS = tickTiming(TUNING).hopAirtime / DEFAULT_SLOT;
 const O_PAIR: DesignedCourse = {
   id: "o-pair",
   name: "O Pair",
-  tier: "easy",
   description: "Two Os on a narrow road.",
   lanes: 5,
   kinds: ["O", "O"],
@@ -34,7 +33,6 @@ const O_PAIR: DesignedCourse = {
 const T_PAIR: DesignedCourse = {
   id: "t-pair",
   name: "T Pair",
-  tier: "medium",
   description: "Two Ts.",
   lanes: 8,
   kinds: ["T", "T"],
@@ -51,7 +49,6 @@ const T_PAIR: DesignedCourse = {
 const I_AND_S: DesignedCourse = {
   id: "i-and-s",
   name: "I and S",
-  tier: "hard",
   description: "Different pieces, an odd road.",
   lanes: 9,
   kinds: ["I", "S"],
@@ -61,9 +58,7 @@ const I_AND_S: DesignedCourse = {
 };
 
 describe("every registered co-op course", () => {
-  it("is listed by tier, easiest first, with distinct ids", () => {
-    const tiers = COOP_COURSES.map((course) => ["easy", "medium", "hard"].indexOf(course.tier));
-    expect(tiers).toEqual([...tiers].sort((a, b) => a - b));
+  it("has distinct ids", () => {
     expect(new Set(COOP_COURSES.map((course) => course.id)).size).toBe(COOP_COURSES.length);
   });
 
@@ -72,24 +67,18 @@ describe("every registered co-op course", () => {
   });
 
   it.each(COOP_COURSES.map((course) => [course.id, course] as const))("%s has every designed answer within the team's reach", (_, course) => {
-    for (const row of analyseCoopCourse(course, TUNING, AIR_SLOTS)) expect(row.answerReachable, row.lesson).toBe(true);
+    expect(unreachableAnswers(course, AIR_SLOTS)).toEqual([]);
   });
 
-  it("lists the easy courses gentlest first, Block Party leading", () => {
-    expect(COOP_COURSES.filter((course) => course.tier === "easy").map((course) => course.id)).toEqual(["block-party", "tea-for-two", "long-and-short"]);
-    expect(DEFAULT_COOP_COURSE).toBe("block-party");
-  });
-
-  it("starts the picker on the first easy course", () => {
-    expect(coopCourseById(DEFAULT_COOP_COURSE).tier).toBe("easy");
-    expect(DEFAULT_COOP_COURSE).toBe(COOP_COURSES.find((course) => course.tier === "easy")?.id);
+  it("starts the picker on the first course in the list", () => {
+    expect(DEFAULT_COOP_COURSE).toBe(COOP_COURSES[0].id);
   });
 });
 
 describe("the registry", () => {
   it("finds a course by id, and fails loudly on one it doesn't have, naming those it does", () => {
     expect(coopCourseById("block-party").name).toBe("Block Party");
-    expect(() => coopCourseById("nowhere")).toThrow(/no co-op course "nowhere"; the courses are block-party/);
+    expect(() => coopCourseById("nowhere")).toThrow(/no co-op course "nowhere"; the courses are long-and-short, block-party/);
   });
 
   it("refuses two courses with one id, or none at all", () => {
@@ -97,9 +86,9 @@ describe("the registry", () => {
     expect(() => buildCoopRegistry([])).toThrow(/no co-op courses/);
   });
 
-  it("orders courses by tier and steps through them round and round", () => {
+  it("keeps the courses in the order listed and steps through them round and round", () => {
     const listed = buildCoopRegistry([I_AND_S, T_PAIR, O_PAIR]);
-    expect(listed.map((course) => course.id)).toEqual(["o-pair", "t-pair", "i-and-s"]);
+    expect(listed.map((course) => course.id)).toEqual(["i-and-s", "t-pair", "o-pair"]);
     const only = COOP_COURSES[0].id;
     expect(stepCoopCourse(only, 1)).toBe(COOP_COURSES[1 % COOP_COURSES.length].id);
     expect(stepCoopCourse(only, -1)).toBe(COOP_COURSES[COOP_COURSES.length - 1].id);
@@ -117,11 +106,11 @@ describe("a co-op course of any pair of pieces, on any road", () => {
     const result = proveCourse(course, { answers: designedAnswers(design) });
     if (!result.ok) throw new Error(`stuck at row ${String(result.stuck.index)}: ${result.stuck.reason}`);
     expect(result.proof.finished).toBe(true);
-    for (const row of analyseCoopCourse(design, TUNING, AIR_SLOTS)) expect(row.answerReachable, row.lesson).toBe(true);
+    expect(unreachableAnswers(design, AIR_SLOTS)).toEqual([]);
   });
 
   it("reads the coordination a narrow road's rows ask for", () => {
-    const [still, shuffle, up] = analyseCoopCourse(O_PAIR, TUNING, AIR_SLOTS);
+    const [still, shuffle, up] = analyseCoopCourse(O_PAIR, AIR_SLOTS);
     expect(still.answer).toEqual(["interlock"]);
     expect(shuffle.answer).toEqual(["interlock", "order"]);
     expect(up.answer).toEqual(["both up", "interlock", "order"]);
@@ -142,7 +131,7 @@ describe("a co-op course's checks", () => {
     expect(checkCoopCourse(O_PAIR, TUNING)).toBe(O_PAIR);
   });
 
-  it("fails loudly on a bad id, name, tier or description", () => {
+  it("fails loudly on a bad id, name or description", () => {
     expect(broken({ id: "O Pair" })).toThrow(/"O Pair": its id must be lower-case words/);
     expect(broken({ name: " " })).toThrow(/needs a name/);
     expect(broken({ description: "" })).toThrow(/needs a description/);
@@ -169,6 +158,11 @@ describe("a co-op course's checks", () => {
     expect(meeting).toBeLessThan(O_PAIR.length);
     expect(broken({ length: Math.floor(meeting) })).toThrow(/"o-pair": a team jumping flat out meets its last row at .*past its finish/);
     expect(broken({ length: 10 })).toThrow(/comes before the drop lands/);
+  });
+
+  it("fails loudly on a first row nearer than the reading room beyond the drop's landing", () => {
+    expect(withRow(0, { gap: TUNING.dropDistance })).toThrow(/"o-pair": its first row stands at 15, short of the reading room/);
+    expect(withRow(0, { gap: TUNING.firstWallDepth - 1 })).toThrow(/short of the reading room/);
   });
 
   it("goes round every row again by default, or as many of its last rows as it says", () => {

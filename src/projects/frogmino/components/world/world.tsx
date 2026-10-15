@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import type { Mesh } from "three";
+import type { Group, Mesh } from "three";
 import { GROUND_DROP } from "../../world/geometry";
-import { roadTile, roadTiles, structuresNear, type WorldPlan } from "../../world/road";
+import { roadTile, roadTiles, type WorldPlan } from "../../world/road";
 import { sceneryTile, sceneryTiles } from "../../world/scenery";
-import { gantryBoxes, overpassBoxes } from "../../world/structures";
+import { finishMarkings, gantryBoxes } from "../../world/structures";
 import { BoxInstances } from "./box-instances";
 import { Clouds, Sky } from "./sky";
 import { makeWorldMaterials, readWorldPalette, type WorldMaterials, type WorldPalette } from "./world-assets";
@@ -19,19 +19,40 @@ const FOG_NEAR = 90;
 export const FOG_FAR = 520;
 const GROUND_SIZE = 1400;
 
+// The road going by beneath the cruising helicopter (see `heli/flight.ts`):
+// how far it has gone up the course, read each frame, and whether it has
+// stopped, as it does when the team jumps out.
+export interface RoadCruise {
+  shift: () => number;
+  stopped: boolean;
+}
+
+const STILL: RoadCruise = { shift: () => 0, stopped: true };
+
 function sameTiles(a: readonly number[], b: readonly number[]): boolean {
   return a.length === b.length && a[0] === b[0];
 }
 
-// The tiles around the camera, updated only when it moves onto another tile.
-function useTilesAroundCamera(tilesAt: (cameraDepth: number) => number[]): number[] {
+interface TilesView {
+  keys: number[];
+  // How far the road had gone by when they were laid out.
+  shift: number;
+}
+
+// The tiles around the camera, where it is over the road, updated only when
+// it moves onto another tile, or when the road stops beneath it.
+function useTilesAroundCamera(tilesAt: (cameraDepth: number) => number[], cruise: RoadCruise): TilesView {
   const camera = useThree((s) => s.camera);
-  const [tiles, setTiles] = useState(() => tilesAt(-camera.position.z));
-  useFrame(() => {
-    const next = tilesAt(-camera.position.z);
-    if (!sameTiles(next, tiles)) setTiles(next);
+  const [view, setView] = useState<TilesView>(() => {
+    const shift = cruise.shift();
+    return { keys: tilesAt(-camera.position.z - shift), shift };
   });
-  return tiles;
+  useFrame(() => {
+    const shift = cruise.shift();
+    const keys = tilesAt(-camera.position.z - shift);
+    if (!sameTiles(keys, view.keys) || (cruise.stopped && shift !== view.shift)) setView({ keys, shift });
+  });
+  return view;
 }
 
 function useWorldAssets(): { palette: WorldPalette; materials: WorldMaterials } {
@@ -61,25 +82,38 @@ function Ground({ palette }: { palette: WorldPalette }) {
 }
 
 // The world around the road: the road itself with its markings, the
-// roadside and its lay-bys, the land in layers out to the mountains, the sky, and the two
-// structures, the overpass at the start and the finish gantry. It is drawn in
-// the game scene's axes and needs the scene's lights. The road and land are
+// roadside and its lay-bys, the land in layers out to the mountains, the sky,
+// and the finish gantry with the finish painted under it. It is drawn in the
+// game scene's axes and needs the scene's lights. The road and land are
 // rebuilt around the camera as it moves, so they go on forever both ways.
-export function FrogminoWorld({ courseLength, seed, lanes }: { courseLength: number; seed: number; lanes: number }) {
+//
+// The road and land are drawn shifted up the course by however far the road
+// has gone by beneath the helicopter; the gantry and the finish stay in the
+// course's frame, with the rows. The roadside keeps clear of the gantry where
+// it stood as the tiles were last laid out, which is exact once the road has
+// stopped.
+export function FrogminoWorld({ courseLength, seed, lanes, cruise = STILL }: { courseLength: number; seed: number; lanes: number; cruise?: RoadCruise }) {
   const { palette, materials } = useWorldAssets();
-  const plan: WorldPlan = useMemo(() => ({ seed, courseLength, lanes }), [seed, courseLength, lanes]);
-  const roadKeys = useTilesAroundCamera(roadTiles);
-  const sceneryKeys = useTilesAroundCamera(sceneryTiles);
+  const road = useTilesAroundCamera(roadTiles, cruise);
+  const scenery = useTilesAroundCamera(sceneryTiles, cruise);
+  const roadPlan: WorldPlan = useMemo(() => ({ seed, courseLength, lanes, finishAt: courseLength - road.shift }), [seed, courseLength, lanes, road.shift]);
+  const landPlan: WorldPlan = useMemo(() => ({ seed, courseLength, lanes, finishAt: courseLength }), [seed, courseLength, lanes]);
+  const shifted = useRef<Group>(null);
 
-  const road = useMemo(() => {
-    const tiles = roadKeys.map((k) => roadTile(plan, k));
+  const tiles = useMemo(() => {
+    const built = road.keys.map((k) => roadTile(roadPlan, k));
     return {
-      surfaces: tiles.flatMap((t) => t.surfaces),
-      markings: tiles.flatMap((t) => t.markings),
-      props: [...tiles.flatMap((t) => t.props), ...structuresNear(plan, roadKeys)],
+      surfaces: built.flatMap((t) => t.surfaces),
+      markings: built.flatMap((t) => t.markings),
+      props: built.flatMap((t) => t.props),
     };
-  }, [plan, roadKeys]);
-  const land = useMemo(() => sceneryKeys.flatMap((k) => sceneryTile(plan, k)), [plan, sceneryKeys]);
+  }, [roadPlan, road.keys]);
+  const land = useMemo(() => scenery.keys.flatMap((k) => sceneryTile(landPlan, k)), [landPlan, scenery.keys]);
+  const finish = useMemo(() => ({ gantry: gantryBoxes(lanes, courseLength), markings: finishMarkings(lanes, courseLength) }), [lanes, courseLength]);
+
+  useFrame(() => {
+    if (shifted.current !== null) shifted.current.position.z = -cruise.shift();
+  });
 
   return (
     <>
@@ -87,17 +121,26 @@ export function FrogminoWorld({ courseLength, seed, lanes }: { courseLength: num
       <Sky palette={palette} />
       <Ground palette={palette} />
       <Clouds seed={seed} palette={palette} material={materials.scenery} />
-      <BoxInstances boxes={road.surfaces} palette={palette} material={materials.surface} />
-      <BoxInstances boxes={road.markings} palette={palette} material={materials.marking} />
-      <BoxInstances boxes={road.props} palette={palette} material={materials.scenery} />
-      <BoxInstances boxes={land} palette={palette} material={materials.scenery} />
+      <group ref={shifted}>
+        <BoxInstances boxes={tiles.surfaces} palette={palette} material={materials.surface} />
+        <BoxInstances boxes={tiles.markings} palette={palette} material={materials.marking} />
+        <BoxInstances boxes={tiles.props} palette={palette} material={materials.scenery} />
+        <BoxInstances boxes={land} palette={palette} material={materials.scenery} />
+      </group>
+      <BoxInstances boxes={finish.markings} palette={palette} material={materials.marking} />
+      <BoxInstances boxes={finish.gantry} palette={palette} material={materials.scenery} />
     </>
   );
 }
 
-// Just the overpass and the finish gantry, for a scene without the world.
+// Just the finish gantry and the finish, for a scene without the world.
 export function FrogminoStructures({ courseLength, lanes }: { courseLength: number; lanes: number }) {
   const { palette, materials } = useWorldAssets();
-  const boxes = useMemo(() => [...overpassBoxes(lanes), ...gantryBoxes(lanes, courseLength)], [courseLength, lanes]);
-  return <BoxInstances boxes={boxes} palette={palette} material={materials.scenery} />;
+  const finish = useMemo(() => ({ gantry: gantryBoxes(lanes, courseLength), markings: finishMarkings(lanes, courseLength) }), [lanes, courseLength]);
+  return (
+    <>
+      <BoxInstances boxes={finish.markings} palette={palette} material={materials.marking} />
+      <BoxInstances boxes={finish.gantry} palette={palette} material={materials.scenery} />
+    </>
+  );
 }

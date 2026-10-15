@@ -41,8 +41,12 @@ export interface Theme {
   kind: "loop" | "jingle";
   // Beats per minute, four rows to the beat.
   bpm: number;
-  // Quarter-note beats to the bar: 2 for 2/4, 4 for 4/4.
+  // Quarter-note beats to the bar, four rows each: 2 for 2/4, 4 for 4/4. A
+  // bar of twelve rows is 3, whether it is felt as 3/4, 6/8 or four swung
+  // beats of triplets.
   beatsPerBar: number;
+  // How the bar is felt, as the page shows it: "3/4", "6/8", "4/4 swung".
+  metre: string;
   instruments: readonly Instrument[];
   patterns: readonly (readonly Channel[])[];
   sequence: readonly number[];

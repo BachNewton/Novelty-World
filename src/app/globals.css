@@ -107,26 +107,12 @@
   --color-frogmino-snow: #fafafa;
 }
 
-/* Frogmino: the gates, which travel with their rows and set the frog's
-   piece. A frame round the gate's two lanes, banded in deep violet and
-   lilac, a pattern no vehicle and nothing in the world wears, so a gate
-   never reads as traffic or scenery; a cream sign on its lintel that the
-   piece's icon stands out on; and a faint lilac shimmer in the gap that
-   never hides the fit. Read only by the 3D scene through themeColor, so
-   declared outside @theme. */
-:root {
-  --color-frogmino-gate-frame: #6d3fd6;
-  --color-frogmino-gate-frame-light: #b99bff;
-  --color-frogmino-gate-sign: #fff6e2;
-  --color-frogmino-gate-shimmer: #d9c6ff;
-}
-
 /* Frogmino: the frogs. The two players are a matched pair of real frogs: a
    leaf-green tree frog with a sunny belly and orange feet, and an azure dart
    frog with a pale belly and pink feet, apart in lightness as well as hue so
    they tell apart for a colour-blind player too. The frog's colours never
-   change with its piece, and no skin is near a Tetris piece colour. Read only by the 3D scene
-   through themeColor, so declared outside @theme. */
+   change with its piece, and no skin is near a Tetris piece colour. Read by the 3D scene
+   through themeColor, and the course picker's pieces by variable, so declared outside @theme. */
 :root {
   --color-frogmino-frog-p1-skin: #5cc23f;
   --color-frogmino-frog-p1-mark: #2e7d32;
@@ -214,7 +200,6 @@
   --color-frogmino-world-mailbox: #6f8fbb;
   --color-frogmino-world-mailbox-flag: #d8675d;
   --color-frogmino-world-bridge: #cdbfa8;
-  --color-frogmino-world-bridge-dark: #a8998a;
 }
 
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —
@@ -333,11 +318,4 @@ body {
 }
 .rk-focus-ring {
   animation: rk-focus-ring 1s linear infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .rk-deal,
-  .rk-lit,
-  .rk-focus-ring {
-    animation: none;
-  }
 }

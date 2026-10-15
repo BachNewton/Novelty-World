@@ -43,12 +43,10 @@ export interface EngineState {
   discardPile: CardId[];
   setsTraded: number;
   eliminated: boolean[];
-  /** 0 during setup; the first turn is 1. */
+  /** The first turn is 1. */
   turn: number;
   active: Seat;
   phase: Phase;
-  /** During setup, the starting armies each seat has not yet placed (`SETUP-5`); null after. */
-  setupArmiesLeft: number[] | null;
   reinforce: ReinforceState | null;
   occupying: Occupying | null;
   /** Whether the active seat has captured a territory this turn (`CARDS-1`). */

@@ -14,7 +14,7 @@ function harness() {
   const db = memoryStore();
   const server = testDeps(ENGINE, db.store);
   const sent: Request[] = [];
-  const subscription = { onRow: null as ((row: GameRow) => void) | null, onConnected: null as (() => void) | null };
+  const subscription = { onRow: null as ((row: GameRow) => void) | null, onGone: null as (() => void) | null, onConnected: null as (() => void) | null };
   let wake: (() => void) | null = null;
   let offline = false;
   let open = 0;
@@ -24,8 +24,9 @@ function harness() {
   };
   const io: GameIo = {
     load: (id) => track(db.store.read(id)),
-    subscribe: (_id, onRow, onConnected) => {
+    subscribe: (_id, { onRow, onGone, onConnected }) => {
       subscription.onRow = onRow;
+      subscription.onGone = onGone;
       subscription.onConnected = onConnected;
       return () => undefined;
     },
@@ -76,7 +77,7 @@ describe("the online store", () => {
     expect(snap.table?.status).toBe("playing");
     expect(snap.seat).toBe(0);
     expect(snap.waitingOn).toBe(0);
-    expect(snap.options?.kind).toBe("setup-place");
+    expect(snap.options?.kind).toBe("reinforce");
     expect(snap.events.length).toBeGreaterThan(0);
   });
 
@@ -103,7 +104,7 @@ describe("the online store", () => {
     await h.settle();
     const before = h.store.snapshot();
     const options = before.options;
-    if (options?.kind !== "setup-place") throw new Error("Expected setup");
+    if (options?.kind !== "reinforce") throw new Error("Expected a reinforcement");
     h.store.act({ kind: "place", territory: options.ownTerritories[0], armies: 1 });
     const territory = options.ownTerritories[0];
     expect(h.store.snapshot().view?.territories[territory].armies).toBe((before.view?.territories[territory].armies ?? 0) + 1);
@@ -120,7 +121,7 @@ describe("the online store", () => {
     h.store.connect();
     await h.settle();
     const options = h.store.snapshot().options;
-    if (options?.kind !== "setup-place") throw new Error("Expected setup");
+    if (options?.kind !== "reinforce") throw new Error("Expected a reinforcement");
     h.setOffline(true);
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     h.store.act({ kind: "place", territory: options.ownTerritories[0], armies: 1 });
@@ -128,6 +129,19 @@ describe("the online store", () => {
     error.mockRestore();
     expect(h.store.snapshot().problem).toBe("Couldn't reach the server");
     expect(h.store.snapshot().waitingOn).toBe(0);
+  });
+
+  it("shows the table gone once the game is deleted", async () => {
+    const h = await started(2);
+    h.store.connect();
+    await h.settle();
+    await handle(h.server, { op: "delete", game: "GAME" });
+    h.subscription.onGone?.();
+    expect(h.store.snapshot().table).toBeNull();
+    expect(h.store.snapshot().view).toBeNull();
+    h.wake();
+    await h.settle();
+    expect(h.store.snapshot().table).toBeNull();
   });
 
   it("joins, adds a bot and starts from the lobby", async () => {

@@ -5,9 +5,10 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import type { Group, Mesh } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { COURSE_SEED } from "../../course";
+import { COURSE_SEED } from "../../courses";
 import { FROG_VARIANTS } from "../../frog/look";
 import { dropPose, type LeapStart } from "../../frog/leaps";
+import { HELI_DECK_TOP, heliPose } from "../../heli/flight";
 import { cellKey, frogCells } from "../../logic";
 import type { Row } from "../../traffic";
 import { TUNING } from "../../tuning";
@@ -20,20 +21,19 @@ import {
   passingPoses,
   startPoses,
   type PreviewLanes,
-  type PreviewTeam,
 } from "../../world/preview-rows";
-import { DECK_TOP, OVERPASS_FAR, OVERPASS_NEAR } from "../../world/structures";
 import { CAMERA_FAR, CAMERA_NEAR, cameraEye, cameraPitch, fittedFov, type CameraKnobs } from "../camera-fit";
 import { makeFrogAssets } from "../frog/frog-assets";
 import { FrogBody } from "../frog/frog-body";
+import { Helicopter } from "../heli/helicopter";
 import { Vehicle } from "../vehicle";
 import { makeVehicleAssets } from "../vehicle-assets";
 import { CAMERA_KNOB_KEYS, CAMERA_KNOB_RANGES, TUNED_CAMERA, formatKnob, tuningSnippet } from "./camera-knobs";
 import { FrogminoStructures, FrogminoWorld } from "./world";
 
 // `?world`: the world around the road, seen from the gameplay camera as it
-// drives down the road, with rows of traffic coming at the player's frog, or
-// at the co-op pair side by side, always in the poses that fit the next row.
+// drives down the road, with rows of traffic coming at the co-op pair side by
+// side, always in the poses that fit the next row.
 // It is for judging whether the world frames the gameplay without distracting
 // from it, so it can be switched off to compare against the bare road, and
 // how wide a road reads right for co-op. Its camera controls drive the
@@ -54,12 +54,11 @@ const DRIVES = {
 } as const;
 type Drive = keyof typeof DRIVES;
 
-const TEAMS: Record<PreviewTeam, string> = { solo: "Solo", coop: "Co-op pair" };
-
-// The frogs wait on the overpass's deck a moment, then jump down to the road.
-const FROG_DECK_DEPTH = (OVERPASS_NEAR + OVERPASS_FAR) / 2 + 0.5;
+// The frogs wait aboard the helicopter a moment, over the course's start,
+// then jump out onto the road, and the helicopter flies off.
+const FROG_DECK_DEPTH = 0;
 const DECK_WAIT = 2.5;
-const DROP_START: LeapStart = { fromDepth: FROG_DECK_DEPTH, fromLevel: DECK_TOP };
+const DROP_START: LeapStart = { fromDepth: FROG_DECK_DEPTH, fromLevel: HELI_DECK_TOP };
 const DROP_LANDING = FROG_DECK_DEPTH + TUNING.dropDistance;
 
 // A few rows loop around the frogs: they vanish well behind the camera and
@@ -74,14 +73,16 @@ interface Motion {
   y: number;
   // The level the camera rides above.
   level: number;
-  // Seconds left on the deck; null once the frogs have jumped down.
+  // Seconds left on the deck; null once the frogs have jumped out.
   deckWait: number | null;
+  // When they jumped out; null while aboard.
+  jumpedAt: number | null;
   // How far through the jump down, from 0 to 1; null when not jumping.
   drop: number | null;
 }
 
 function startMotion(): Motion {
-  return { time: 0, depth: FROG_DECK_DEPTH, y: DECK_TOP, level: DECK_TOP, deckWait: DECK_WAIT, drop: null };
+  return { time: 0, depth: FROG_DECK_DEPTH, y: HELI_DECK_TOP, level: HELI_DECK_TOP, deckWait: DECK_WAIT, jumpedAt: null, drop: null };
 }
 
 function rowLength(row: Row): number {
@@ -101,6 +102,7 @@ function advanceMotion(m: Motion, speed: number, delta: number): void {
     m.deckWait = speed < 0 ? 0 : m.deckWait - delta;
     if (m.deckWait <= 0) {
       m.deckWait = null;
+      m.jumpedAt = m.time;
       m.drop = 0;
     }
     return;
@@ -123,7 +125,7 @@ function PreviewCamera({ knobs, lanes, onFov }: { knobs: CameraKnobs; lanes: num
   const aspect = useThree((s) => s.size.width / s.size.height);
   const fov = fittedFov(aspect, lanes);
   useEffect(() => onFov(fov), [fov, onFov]);
-  const eye = cameraEye(knobs, FROG_DECK_DEPTH, DECK_TOP);
+  const eye = cameraEye(knobs, FROG_DECK_DEPTH, HELI_DECK_TOP);
   return (
     <PerspectiveCamera
       makeDefault
@@ -142,29 +144,27 @@ function posesKey(frogs: readonly Frog[]): string {
 }
 
 // The traffic and the frogs, from the start: it is mounted afresh for each
-// road width, team and restart.
+// road width and restart.
 function PreviewTraffic({
   drive,
   knobs,
   lanes,
-  team,
   onDepth,
 }: {
   drive: Drive;
   knobs: CameraKnobs;
   lanes: PreviewLanes;
-  team: PreviewTeam;
   onDepth: (depth: number) => void;
 }) {
-  const kinds = PREVIEW_PIECES[team];
+  const kinds = PREVIEW_PIECES;
   const rows = useMemo(
     () =>
-      PREVIEW_ROWS[team][lanes].map((vehicles) => {
+      PREVIEW_ROWS[lanes].map((vehicles) => {
         const poses = passingPoses(vehicles, lanes, kinds);
         if (poses === null) throw new Error("A preview row doesn't let its frogs through");
         return { vehicles, poses, length: rowLength(vehicles) };
       }),
-    [team, lanes, kinds],
+    [lanes, kinds],
   );
   const start = useMemo(() => startPoses(lanes, kinds), [lanes, kinds]);
   const vehicleAssets = useMemo(() => makeVehicleAssets(), []);
@@ -184,6 +184,7 @@ function PreviewTraffic({
   const motion = useRef(startMotion());
   const rowRefs = useRef<(Group | null)[]>([]);
   const frogsRef = useRef<Group>(null);
+  const heli = useCallback(() => heliPose(roadMiddle(lanes), motion.current.time, motion.current.jumpedAt), [lanes]);
 
   useFrame(({ camera }, delta) => {
     const m = motion.current;
@@ -229,10 +230,11 @@ function PreviewTraffic({
           ))}
         </group>
       ))}
+      <Helicopter lanes={lanes} pose={heli} />
       {/* The frogs move as one; each stands in its own lanes, a cell up when its pose hops. */}
       <group ref={frogsRef}>
         {poses.map((frog, i) => (
-          <group key={i} position={[frog.col - 0.5, frog.hop, 0]}>
+          <group key={i} position={[frog.col - 0.5, frog.height, 0]}>
             <FrogBody kind={frog.kind} rotation={frog.rotation} variant={FROG_VARIANTS[i]} seed={i} assets={frogAssets} />
           </group>
         ))}
@@ -264,7 +266,7 @@ function BareRoad({ lanes }: { lanes: number }) {
   );
 }
 
-export function PreviewButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+function PreviewButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
   return (
     <button
       type="button"
@@ -348,7 +350,6 @@ export function WorldPreview() {
   const [drive, setDrive] = useState<Drive>("forward");
   const [restarts, setRestarts] = useState(0);
   const [lanes, setLanes] = useState<PreviewLanes>(PREVIEW_LANES[0]);
-  const [team, setTeam] = useState<PreviewTeam>("solo");
   const [knobs, setKnobs] = useState<CameraKnobs>(TUNED_CAMERA);
   const [fov, setFov] = useState<number | null>(null);
   const readout = useRef<HTMLSpanElement>(null);
@@ -357,7 +358,7 @@ export function WorldPreview() {
     const element = readout.current;
     if (element !== null) element.textContent = `depth ${depth.toFixed(0)}`;
   }, []);
-  // Each change of road or team starts the drive over, from the overpass.
+  // Each change of road starts the drive over, from the helicopter.
   const restart = () => {
     setRestarts((n) => n + 1);
     setDrive("forward");
@@ -375,7 +376,7 @@ export function WorldPreview() {
           ) : (
             <BareRoad lanes={lanes} />
           )}
-          <PreviewTraffic key={restarts} drive={drive} knobs={knobs} lanes={lanes} team={team} onDepth={showDepth} />
+          <PreviewTraffic key={restarts} drive={drive} knobs={knobs} lanes={lanes} onDepth={showDepth} />
         </Canvas>
       </div>
       <div className="pointer-events-none absolute inset-x-4 top-4 flex flex-col items-start gap-2">
@@ -400,18 +401,6 @@ export function WorldPreview() {
               }}
             >
               {String(width)}
-            </PreviewButton>
-          ))}
-          {(Object.keys(TEAMS) as PreviewTeam[]).map((key) => (
-            <PreviewButton
-              key={key}
-              active={team === key}
-              onClick={() => {
-                setTeam(key);
-                restart();
-              }}
-            >
-              {TEAMS[key]}
             </PreviewButton>
           ))}
         </div>

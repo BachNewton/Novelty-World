@@ -40,7 +40,6 @@ export function cardName(card: CardId): string {
 }
 
 const PHASE_NAME: Record<Phase, string> = {
-  "setup-place": "Placing starting armies",
   reinforce: "Reinforce",
   attack: "Attack",
   fortify: "Fortify",
@@ -64,6 +63,8 @@ function describe(event: GameEvent): Line | null {
       for (const owner of Object.values(event.owners)) counts.set(owner, (counts.get(owner) ?? 0) + 1);
       return line(`Territories dealt: ${[...counts].sort(([a], [b]) => a - b).map(([seat, n]) => `${seatName(seat)} ${n}`).join(", ")}.`, null, true);
     }
+    case "starting-armies":
+      return line("Starting armies placed at random.", null, true);
     case "placed":
       return line(`${seatName(event.owner)} placed ${armies(event.armies)} on ${territoryName(event.territory)}.`, event.owner);
     case "reinforcements": {

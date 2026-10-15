@@ -6,10 +6,6 @@ import type { Frog, TetrominoKind } from "../types";
 // file in this folder, gathered in `index.ts`. See "Adding a co-op course" in
 // the project's CLAUDE.md.
 
-// How hard a course is, for the picker: easiest first.
-export const COURSE_TIERS = ["easy", "medium", "hard"] as const;
-export type CourseTier = (typeof COURSE_TIERS)[number];
-
 // A frog's pose on the row's face; its piece is the course's.
 export type Pose = Omit<Frog, "kind">;
 
@@ -31,7 +27,6 @@ export interface DesignedCourse {
   id: string;
   // What the picker calls it.
   name: string;
-  tier: CourseTier;
   // A line for the picker: what the course is about.
   description: string;
   // The road's width in lanes.
@@ -51,8 +46,10 @@ export interface DesignedCourse {
   repeat?: number;
 }
 
-export function pose(col: number, rotation: Pose["rotation"], hop: Pose["hop"] = 0): Pose {
-  return { col, rotation, hop };
+// A frog's pose: its leftmost lane, its rotation and how many cells above the
+// road it is.
+export function pose(col: number, rotation: Pose["rotation"], height = 0): Pose {
+  return { col, rotation, height };
 }
 
 // Reading room, the gap before a row: the most generous first, then less as

@@ -98,7 +98,7 @@ describe("Risk's client sync", () => {
     let client = reduce(RULES, EMPTY_CLIENT, { type: "server-state", version: 0, state: games[0] });
     client = reduce(RULES, client, { type: "local-action", action: answers[0] });
     const options = ENGINE.options(games[0].engine, answers[0].seat);
-    if (options?.kind !== "setup-place") throw new Error("Expected setup");
+    if (options?.kind !== "reinforce") throw new Error("Expected a reinforcement");
     const elsewhere = applyAnswer(ENGINE, games[0], { ...answers[0], move: { kind: "place", territory: options.ownTerritories.at(-1) ?? "alaska", armies: 1 } });
     if (!elsewhere.ok) throw new Error(elsewhere.reason);
     client = reduce(RULES, client, { type: "server-state", version: 1, state: elsewhere.game });

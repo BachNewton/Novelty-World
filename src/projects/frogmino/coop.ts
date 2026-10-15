@@ -107,11 +107,10 @@ function parseInput(value: unknown): PlayerInput {
   return bad("player input", value);
 }
 
-// A course spec off the wire: solo's, or a co-op course by an id this
-// device knows, failing loudly on any other.
+// A course spec off the wire: a co-op course by an id this device knows,
+// failing loudly on any other.
 function parseCourse(value: unknown): CourseSpec {
   if (!isRecord(value)) return bad("course", value);
-  if (value.kind === "solo") return { kind: "solo" };
   if (value.kind === "coop" && typeof value.id === "string") return { kind: "coop", id: coopCourseById(value.id).id };
   return bad("course", value);
 }

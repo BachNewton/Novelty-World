@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { LONG_AND_SHORT } from "../coop-courses/long-and-short";
 import { cellKey, frogCells } from "../logic";
 import type { Frog } from "../types";
-import { coopCourse, courseOf, designedAnswers, soloCourse, type Course } from "../courses";
-import { hopHeight, playTo, replay } from "../run";
+import { coopCourse, courseOf, designedAnswers, type Course } from "../courses";
+import { playTo, replay } from "../run";
 import { tickTiming } from "../ticks";
 import { rowSolids, type Row } from "../traffic";
 import { TUNING } from "../tuning";
@@ -20,19 +20,19 @@ const answers = designedAnswers(LONG_AND_SHORT);
 
 // The team as it starts the course, for the planner.
 function courseStart(): TeamPose {
-  return courseRun(COURSE).frogs.map((frog) => ({ kind: frog.kind, col: frog.col, rotation: frog.rotation, air: null }));
+  return courseRun(COURSE).frogs.map((frog) => ({ kind: frog.kind, col: frog.col, rotation: frog.rotation, height: 0, air: 0 }));
 }
 
 describe("a designed course", () => {
-  it("ramps from a first row with room to spare to a finale with one way through", () => {
+  it("ramps from a first row with room to spare to a finale with few ways through, its answer among them", () => {
     const reachable = reachablePoses(courseStart(), LONG_AND_SHORT.lanes, AIR_SLOTS);
     const finale = LONG_AND_SHORT.rows.at(-1);
     if (finale === undefined) throw new Error("The course has no rows");
-    const through = passingPoses(reachable, rowSolids(finale.vehicles), TUNING.wallRows);
+    const through = passingPoses(reachable, rowSolids(finale.vehicles));
     const cells = (frogs: readonly Frog[]) => frogs.map((frog) => frogCells(frog).map(cellKey).sort());
-    expect(through.map((pose) => cells(pose.map(planShape)))).toEqual([cells(finale.answer.map((pose, i) => ({ kind: LONG_AND_SHORT.kinds[i], ...pose })))]);
-    const first = passingPoses(reachable, rowSolids(LONG_AND_SHORT.rows[0].vehicles), TUNING.wallRows);
-    expect(first.length).toBeGreaterThan(50);
+    expect(through.map((pose) => cells(pose.map(planShape)))).toContainEqual(cells(finale.answer.map((pose, i) => ({ kind: LONG_AND_SHORT.kinds[i], ...pose }))));
+    const first = passingPoses(reachable, rowSolids(LONG_AND_SHORT.rows[0].vehicles));
+    expect(first.length).toBeGreaterThan(2 * through.length);
   });
 });
 
@@ -50,10 +50,10 @@ describe("the perch", () => {
       run = next;
     }
     const percher = run.frogs[PERCHER];
-    expect(hopHeight(percher)).toBe(1);
+    expect(percher.height).toBe(1);
     expect(run.tick - (percher.latestHop?.startedAt ?? run.tick)).toBeGreaterThan(tickTiming(TUNING).hopAirtime);
     const answer = PERCH_COURSE.rows[PERCH_ROW].answer;
-    expect(run.frogs.map((frog) => [frog.col, frog.rotation, hopHeight(frog)])).toEqual(answer.map((pose) => [pose.col, pose.rotation, pose.hop]));
+    expect(run.frogs.map((frog) => [frog.col, frog.rotation, frog.height])).toEqual(answer.map((pose) => [pose.col, pose.rotation, pose.height]));
   });
 });
 
@@ -62,13 +62,6 @@ describe("the solver", () => {
     const result = proveCourse(COURSE);
     expect(result.ok && result.proof.finished).toBe(true);
   }, 30_000);
-
-  it("proves solo's row stream to the finish, through the gates its needs-gate rows need", () => {
-    const result = proveCourse(soloCourse());
-    if (!result.ok) throw new Error(`stuck at row ${String(result.stuck.index)}: ${result.stuck.reason}`);
-    expect(result.proof.finished).toBe(true);
-    expect(result.proof.rows.some((row) => row.gates.some((gate) => gate !== null))).toBe(true);
-  });
 
   it("stops after as many rows as asked", () => {
     const result = proveCourse(COURSE, { rows: 3 });
@@ -82,7 +75,7 @@ describe("the solver", () => {
       seed: 1,
       lanes: 4,
       kinds: ["L"],
-      row: (index) => ({ vehicles: wall, gates: [], solids: rowSolids(wall), gap: index === 0 ? TUNING.firstWallDepth : TUNING.wallSpacing }),
+      row: (index) => ({ vehicles: wall, solids: rowSolids(wall), gap: index === 0 ? TUNING.firstWallDepth : TUNING.wallSpacing }),
       length: TUNING.courseLength,
       medals: { gold: 60, silver: 80, bronze: 100 },
     };
@@ -91,7 +84,7 @@ describe("the solver", () => {
     if (result.ok) return;
     expect(result.stuck.index).toBe(0);
     expect(result.stuck.reason).toMatch(/no team pose reachable/);
-    expect(describeProof(result, 4, TUNING.wallRows)).toMatch(/STUCK at course row 0/);
+    expect(describeProof(result, 4)).toMatch(/STUCK at course row 0/);
   });
 
   it("fails loudly when a row's search would look at more poses than allowed", () => {
@@ -103,26 +96,26 @@ describe("a readable route", () => {
   it("draws the row's face with the team on it, a raised frog above it", () => {
     const row: Row = [{ id: "O0", lane: 0 }];
     const pose: TeamPose = [
-      { kind: "I", col: 2, rotation: 0, air: null },
-      { kind: "O", col: 0, rotation: 0, air: 3 },
+      { kind: "I", col: 2, rotation: 0, height: 0, air: 0 },
+      { kind: "O", col: 0, rotation: 0, height: 1, air: 3 },
     ];
-    expect(drawFace(pose, rowSolids(row), [], 6, 4)).toEqual(["......", "22....", "xx....", "##1111"]);
+    expect(drawFace(pose, rowSolids(row), 6)).toEqual(["22....", "xx....", "##1111"]);
   });
 
   it("says each step in words, landings included", () => {
-    const route = describeProof(proveCourse(COURSE, { rows: 3, answers }), LONG_AND_SHORT.lanes, TUNING.wallRows);
-    expect(route).toMatch(/Sprout hops/);
+    const route = describeProof(proveCourse(COURSE, { rows: 3, answers }), LONG_AND_SHORT.lanes);
+    expect(route).toMatch(/Splash hops/);
+    expect(route).toMatch(/Sprout slides right, carrying Splash/);
     expect(route).toMatch(/Sprout turns clockwise/);
-    expect(route).toMatch(/Splash slides left/);
     expect(route).toMatch(/PROVED: 3 rows passed with no bonk/);
   });
 
   it("says how far a turn kicked", () => {
     const standing: TeamPose = [
-      { kind: "L", col: 2, rotation: 2, air: 0 },
-      { kind: "J", col: 3, rotation: 0, air: null },
+      { kind: "L", col: 2, rotation: 2, height: 1, air: 0 },
+      { kind: "J", col: 3, rotation: 0, height: 0, air: 0 },
     ];
-    const turned: TeamPose = [{ kind: "L", col: 3, rotation: 3, air: 0 }, standing[1]];
+    const turned: TeamPose = [{ kind: "L", col: 3, rotation: 3, height: 1, air: 0 }, standing[1]];
     expect(describeStep(standing, { move: { kind: "act", player: 0, action: "rotateCw" }, pose: turned })).toBe(
       "Sprout turns clockwise, kicking 1 lane right",
     );

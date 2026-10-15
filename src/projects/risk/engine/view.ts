@@ -44,12 +44,9 @@ export function view(s: EngineState, viewer: Seat | null): GameView {
   };
 }
 
-/** In setup, the active seat's starting armies still to place; in a reinforce phase, the
- *  armies still to place in it. */
+/** In a reinforce phase, the armies still to place in it. */
 function armiesToPlace(s: EngineState): number {
-  if (s.setupArmiesLeft) return s.setupArmiesLeft[s.active];
-  if (s.reinforce) return s.reinforce.armiesToPlace;
-  return 0;
+  return s.reinforce?.armiesToPlace ?? 0;
 }
 
 /** Events as `viewer` may see them: a card drawn by anyone else loses its face. */

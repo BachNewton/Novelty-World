@@ -1,9 +1,9 @@
 import type { DesignedCourse } from "../coop-courses/design";
 import { formatTime, medalFor, MEDALS, type MedalTimes } from "../medals";
 import { toTicks } from "../ticks";
-import { coordinationKinds, type CoordinationKind, type RowAnalysis } from "./analyse";
+import { COORDINATION_KINDS, coordinationKinds, poseKinds, type CoordinationKind, type RowAnalysis } from "./analyse";
 import type { RowProof } from "./solver";
-import { endSlot } from "./team-plan";
+import { endSlot, stepStackMoves } from "./team-plan";
 
 // A designed co-op course's numbers as text, for a designer to read: per row
 // its passing poses, coupling, selfish decoys, the designed answer's
@@ -24,7 +24,8 @@ export function rowNumbers(row: RowAnalysis): string {
   const line = coupling.line === null ? "" : `, free ${String(coupling.line.left)}x${String(coupling.line.right)} at lane line ${String(coupling.line.at)}`;
   return [
     `gap ${String(row.gap)}`,
-    `${String(row.passes)} passing (${String(coupling.inOrder)} in order, ${String(coupling.crossed)} crossed)`,
+    `${String(row.passes)} passing: ${String(coupling.inOrder + coupling.crossed)} side by side (${String(coupling.inOrder)} in order, ${String(coupling.crossed)} crossed), ${String(coupling.stacked)} stacked`,
+    `simplest ${row.simplest === null ? "none" : `${row.simplest.level} (${String(row.simplest.ways)})`}`,
     `coupling ${coupling.coupling.toFixed(2)} ${coupling.label}${line}`,
     `decoys ${coupling.decoys.join("+")}`,
     `answer: ${kindsText(row.answer)}${row.answerReachable ? "" : " (UNREACHABLE)"}`,
@@ -32,7 +33,7 @@ export function rowNumbers(row: RowAnalysis): string {
 }
 
 export function courseHeading(course: DesignedCourse): string {
-  return `${course.name} (${course.id}), ${course.tier}: ${String(course.rows.length)} rows on ${String(course.lanes)} lanes, ${course.kinds.join(" and ")}, finish at ${String(course.length)}`;
+  return `${course.name} (${course.id}): ${String(course.rows.length)} rows on ${String(course.lanes)} lanes, ${course.kinds.join(" and ")}, finish at ${String(course.length)}`;
 }
 
 // The proof's time beside the course's medal times and the held-jump floor.
@@ -43,13 +44,17 @@ export function timingText(time: number, medals: MedalTimes, floor: number): str
 }
 
 // The coordination the solver's route through a row used: its pose's kinds
-// from where the row's plan started, and a perch whenever a frog stood on
-// its partner along the way.
+// from where the row's plan started, every stacking move a step made, and a
+// perch or a stack wherever one stood along the way.
 export function routeKinds(row: RowProof, lanes: number, airSlots: number): CoordinationKind[] {
   const end = row.steps.at(-1)?.pose ?? row.start;
-  const kinds = coordinationKinds(row.start, end, lanes, airSlots);
-  const stood = row.steps.slice(0, -1).some((step) => endSlot(step.pose).some((frog) => frog.air === 0));
-  return stood && !kinds.includes("perch") ? ["perch", ...kinds] : kinds;
+  const kinds = new Set(coordinationKinds(row.start, end, lanes, airSlots));
+  let before = row.start;
+  for (const step of row.steps) {
+    for (const kind of [...stepStackMoves(before, step), ...poseKinds(step.pose)]) kinds.add(kind);
+    before = endSlot(step.pose);
+  }
+  return COORDINATION_KINDS.filter((kind) => kinds.has(kind));
 }
 
 // The whole course's summary: a line per row, then the proof's timing, if
