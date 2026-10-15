@@ -319,10 +319,3 @@ body {
 .rk-focus-ring {
   animation: rk-focus-ring 1s linear infinite;
 }
-@media (prefers-reduced-motion: reduce) {
-  .rk-deal,
-  .rk-lit,
-  .rk-focus-ring {
-    animation: none;
-  }
-}
