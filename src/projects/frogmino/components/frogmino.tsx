@@ -17,6 +17,7 @@ const WorldPreview = dynamic(() => import("./world/world-preview").then((m) => m
 const SoundLab = dynamic(() => import("../audio/sound-lab").then((m) => m.SoundLab), { ssr: false });
 const MusicLab = dynamic(() => import("../audio/music/music-lab").then((m) => m.MusicLab), { ssr: false });
 const FrogPreview = dynamic(() => import("./frog/frog-preview").then((m) => m.FrogPreview), { ssr: false });
+const HeliPreview = dynamic(() => import("./heli/heli-preview").then((m) => m.HeliPreview), { ssr: false });
 const ReplayView = dynamic(() => import("./replay-view").then((m) => m.ReplayView), { ssr: false });
 
 function subscribeToNothing(): () => void {
@@ -42,6 +43,8 @@ export function Frogmino() {
       return <MusicLab />;
     case "frog":
       return <FrogPreview />;
+    case "heli":
+      return <HeliPreview />;
     case "replay":
       return <ReplayView name={replayName(window.location.search)} />;
     case "lobby":
