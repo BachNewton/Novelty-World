@@ -136,6 +136,23 @@
   --color-frogmino-frog-p2-silhouette: #9fd0ff;
 }
 
+/* Frogmino: the Lily Lifter, the helicopter of the `?heli` art prototype.
+   A bold coral body with sunny trim and a teal tail, bright beside the
+   world's muted paints and apart from both frogs' skins; a cream deck with
+   ink stripes, so the green and the azure frog both stand out on it; light
+   sky glass for its bubble canopies. Read only by the 3D scene through
+   themeColor, so declared outside @theme. */
+:root {
+  --color-frogmino-heli-body: #ff6247;
+  --color-frogmino-heli-trim: #ffc93c;
+  --color-frogmino-heli-accent: #2ec4b6;
+  --color-frogmino-heli-deck: #fff3dc;
+  --color-frogmino-heli-ink: #2c2e3a;
+  --color-frogmino-heli-glass: #8fd8f7;
+  --color-frogmino-heli-eye: #fffaf0;
+  --color-frogmino-heli-lamp: #fff2a6;
+}
+
 /* Frogmino: the world around the road, a mountain road at golden hour. Soft
    and muted beside the fleet's paints, so the traffic and the frog pop and
    nothing by the road reads as a vehicle; the further a layer, the paler and

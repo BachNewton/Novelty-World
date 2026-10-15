@@ -29,6 +29,12 @@ describe("frogminoView", () => {
     expect(frogminoView("?frog")).toBe("frog");
   });
 
+  it("shows the helicopter preview with ?heli", () => {
+    expect(frogminoView("?heli")).toBe("heli");
+    expect(frogminoView("?replay=perch&heli")).toBe("heli");
+    expect(frogminoView("?heli&frog")).toBe("frog");
+  });
+
   it("plays a replay with ?replay", () => {
     expect(frogminoView("?replay=perch")).toBe("replay");
   });
