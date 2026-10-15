@@ -33,6 +33,8 @@ E2E tests (Playwright) are self-contained: each run builds the app (a snapshot o
 
 ## Principles
 
+- **The owner works at the level of architecture, not implementation.** The owner doesn't read implementation code and is language-agnostic; engineering discussions are about software engineering principles, repo conventions and product decisions. Choose languages, tools, patterns and workflows on technical merit and on how well Claude, as a language model, can build and maintain them, never on whether the owner can read them. Explain tradeoffs in those terms, not in code.
+- **A board game here is a digital adaptation, not a recreation of the physical table.** Rules that exist because of the table (rolling to pick who goes first, announcing dice, finite pieces, remembering public information, choices no player would rationally make that only pace the table) are replaced by whatever serves the game best. Rules that express the designers' intent are kept as written. When a rule's text is ambiguous, tell the two kinds apart before ruling on it.
 - **Simplicity first.** Keep code clean and straightforward. Complexity needs a good justification.
 - **Code is its own documentation.** Good code is obvious by reading it. Only add comments when the *why* isn't clear from the code itself — workarounds for framework bugs, environment quirks, or browser behavior are the main case: the reason lives outside the codebase, so it always needs the comment.
 - **Share code aggressively.** This platform has many projects and will keep growing. When patterns repeat across projects, refactor them into `src/shared/`. Look for reuse opportunities proactively.

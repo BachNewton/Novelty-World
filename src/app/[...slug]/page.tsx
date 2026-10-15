@@ -44,6 +44,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   betrayal: dynamic(() =>
     import("@/projects/betrayal").then((m) => ({ default: m.Betrayal })),
   ),
+  risk: dynamic(() =>
+    import("@/projects/risk").then((m) => ({ default: m.Risk })),
+  ),
   "for-the-stats-2": dynamic(() =>
     import("@/projects/for-the-stats-2").then((m) => ({ default: m.ForTheStats2 })),
   ),

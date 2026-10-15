@@ -1,6 +1,6 @@
 # Risk bot: which AI method fits
 
-Research, not decided. No Risk project exists yet; this is the investigation behind one. The question it answers: which game-AI method suits a Risk bot (3 to 6 players, dice, alliances, playable in the browser), built by Claude, trained on the owner's laptop (Ryzen 7 7840U plus an RTX 4070 eGPU) in about a week of overnight runs, aiming for expert play. The sources are linked inline; the stage-gate thresholds are proposals to retune once the engine's speed is measured.
+Research, not a decision: the investigation behind the Risk project's bot. The bot direction itself, a rules-based bot, is decided in the project's `CLAUDE.md`; this survey stays as the evidence for that choice and for anything stronger later. The question it answers: which game-AI method suits a Risk bot (3 to 6 players, dice, alliances, playable in the browser), built by Claude, trained on the owner's laptop (Ryzen 7 7840U plus an RTX 4070 eGPU) in about a week of overnight runs, aiming for expert play. The sources are linked inline; the stage-gate thresholds are proposals to retune once the engine's speed is measured.
 
 ## The answer: build a searching Risk bot, not AlphaZero
 

@@ -76,6 +76,13 @@ export const PROJECTS: Project[] = [
     icon: "Ghost",
   },
   {
+    name: "Risk",
+    slug: "risk",
+    description: "The classic game of world domination",
+    categorySlug: "board-games",
+    icon: "Globe",
+  },
+  {
     name: "Flag Game",
     slug: "flag-game",
     description: "Test your knowledge of world flags",
