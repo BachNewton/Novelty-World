@@ -73,7 +73,12 @@ export interface BattleOutcome {
   win: Float64Array;
   fail: Float64Array;
   pWin: number;
+  /** The fewest survivors with a chance worth counting: below it `win` is negligible. */
+  winFrom: number;
 }
+
+/** Chances below this are dropped: far under any decision's resolution. */
+const NEGLIGIBLE = 1e-12;
 
 const outcomes = new Map<number, BattleOutcome>();
 
@@ -106,7 +111,9 @@ export function battleOutcome(a: number, d: number): BattleOutcome {
   }
   let pWin = 0;
   for (const p of win) pWin += p;
-  const result = { win, fail, pWin };
+  let winFrom = 1;
+  while (winFrom < a && win[winFrom] < NEGLIGIBLE) winFrom++;
+  const result = { win, fail, pWin, winFrom };
   if (outcomes.size > 20_000) outcomes.clear();
   outcomes.set(key, result);
   return result;
@@ -123,7 +130,21 @@ export interface PathRun {
   stopAt: Float64Array;
 }
 
+const runs = new Map<string, PathRun>();
+
+/** Path runs are pure and the planner asks for the same ones over and over (every
+ *  plan's threat model checks the same kills), so they are remembered. */
 export function pathRun(armies: number, defenders: readonly number[]): PathRun {
+  const key = `${armies}:${defenders.join(",")}`;
+  const known = runs.get(key);
+  if (known) return known;
+  const run = computePathRun(armies, defenders);
+  if (runs.size > 100_000) runs.clear();
+  runs.set(key, run);
+  return run;
+}
+
+function computePathRun(armies: number, defenders: readonly number[]): PathRun {
   // dist[x]: the chance x attackers (the holder's armies less the one left behind) are ready.
   const attackers = Math.max(0, armies - 1);
   let dist = new Float64Array(attackers + 1);
@@ -134,7 +155,7 @@ export function pathRun(armies: number, defenders: readonly number[]): PathRun {
     let lost = 0;
     for (let x = 0; x < dist.length; x++) {
       const m = dist[x];
-      if (m === 0) continue;
+      if (m < NEGLIGIBLE) continue;
       if (x === 0) {
         lost += m;
         continue;
@@ -142,7 +163,7 @@ export function pathRun(armies: number, defenders: readonly number[]): PathRun {
       const o = battleOutcome(x, defenders[i]);
       lost += m * (1 - o.pWin);
       // x' survivors move in; x' − 1 of them can attack the next defender.
-      for (let s = 1; s < o.win.length; s++) if (o.win[s] > 0) next[s - 1] += m * o.win[s];
+      for (let s = o.winFrom; s < o.win.length; s++) next[s - 1] += m * o.win[s];
     }
     stopAt[i] = lost;
     dist = next;
