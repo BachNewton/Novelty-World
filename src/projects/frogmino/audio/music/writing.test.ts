@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { perBar, Scale, spread, transpose } from "./writing";
+import { perBar, repeat, Scale, spread, transpose } from "./writing";
 
 describe("writing themes", () => {
   it("spreads a line onto a coarser grid, keeping bar lines", () => {
@@ -8,6 +8,10 @@ describe("writing themes", () => {
 
   it("writes a bar per chord", () => {
     expect(perBar(["C3", "G2"], (root, i) => `${root} ${String(i)}`)).toBe("C3 0 | G2 1");
+  });
+
+  it("repeats a bar", () => {
+    expect(repeat("C5 . | x -", 2)).toBe("C5 . | x - | C5 . | x -");
   });
 
   it("transposes notes, keeping rests, releases, drum hits and how much quieter a note is", () => {

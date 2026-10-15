@@ -47,6 +47,11 @@ export function perBar<T>(chords: readonly T[], bar: (chord: T, index: number) =
   return chords.map(bar).join(" | ");
 }
 
+// A bar, or a line of bars, played `times` times over.
+export function repeat(notes: string, times: number): string {
+  return Array.from({ length: times }, () => notes).join(" | ");
+}
+
 // The line moved by `semitones`.
 export function transpose(notes: string, semitones: number): string {
   return mapNotes(notes, (token) => {
