@@ -30,8 +30,8 @@ The engine is built in stages, each one earning the next:
 
 1. **The rules spec** (`RULES.md`).
 2. **A reference engine**: slow and written to be read, one rule at a time, with a test for each rule and invariant checks (army counts, ownership, card counts, turn order) run on every state it produces. Its job is to be obviously correct, not fast.
-3. **The language of the fast engine and the bots is on hold.** A speed spike compared TypeScript with Rust native and Rust compiled to WASM, but the laptop never gave a clean, quiet run (`ideas/speed-spike.md`, with the partial results and the case made for TypeScript). The owner has not decided; nothing depending on the choice is built until they do. The reference engine is TypeScript either way.
-4. **The fast engine** in the chosen language, differential-tested against the reference engine over many seeded games, move for move.
+3. **TypeScript for the fast engine and the bots** (`ideas/language-decision.md`, made by an independent review; `ideas/speed-spike.md` holds the partial measurements). One bounded exception: a single hot, pure kernel (position scoring, say) may later move to Rust compiled to WASM, the same binary everywhere with the TypeScript kernel kept as its differential oracle, and only when all three hold: the bot measurably keeps gaining from more work, real bot turns on the server use their allowed time after the TypeScript is tuned, and a profile puts most of a turn inside that kernel. Bots are never written in Rust.
+4. **The fast engine**, TypeScript, built when gauntlets need it: flat typed-array state, allocation-free hot loops, benchmarks pinning each kernel's throughput, and differential tests against the reference engine over many seeded games, move for move. It is for simulation only; real games use the reference engine.
 
 ## Bots
 

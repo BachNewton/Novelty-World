@@ -1,6 +1,6 @@
 # Risk engine speed spike: what it measured
 
-A record of stage 3 of the engine plan (the project's `CLAUDE.md`): a speed spike meant to pick the fast engine's language from measurements. It was stopped before its full measurement finished. The language for the fast engine and the bots is **on hold**: the owner has not decided it. The numbers below are the partial results it had, kept as context for that decision. The spike's code was deleted once this was written; git history holds it.
+A record of stage 3 of the engine plan (the project's `CLAUDE.md`): a speed spike meant to pick the fast engine's language from measurements. It was stopped before its full measurement finished. The language was then decided separately: **TypeScript** (`language-decision.md`). The numbers below are the partial results it had, kept as context. The spike's code was deleted once this was written; git history holds it.
 
 ## What was built
 
