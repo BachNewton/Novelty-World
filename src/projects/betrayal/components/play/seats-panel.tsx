@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { seatName, viewExplorer, type GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import { padMayAct, padName, padOf } from "../../play/pads";
 import { PadPicker } from "./pad-picker";
 import { seatDot } from "./seat-colour";

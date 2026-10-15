@@ -1,8 +1,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { fitElo, type PairResult } from "./elo";
-import { defaultWorkerCount, pairingSpecs, WorkerPool } from "./parallel";
+import { fitElo, type PairResult } from "@/shared/lib/bot-lab/elo";
+import { defaultWorkerCount, type GameRunner } from "@/shared/lib/bot-lab/pool";
+import { monopolyPool, pairingSpecs, type GameResult, type GameSpec } from "./parallel";
 import { RATING_EXCLUDED, RATING_PANEL, VERSIONS } from "../versions";
 
 // ---------------------------------------------------------------------------
@@ -197,7 +198,7 @@ function setCached(
 
 /** Play a fixed round-robin pairing and tally decisive results (draws ignored). */
 async function pairing(
-  pool: WorkerPool,
+  pool: GameRunner<GameSpec, GameResult>,
   a: string,
   b: string,
   prefix: string,
@@ -289,7 +290,7 @@ async function main(): Promise<void> {
   );
 
   const cache = loadCache();
-  const pool = new WorkerPool(args.workers);
+  const pool = monopolyPool(args.workers);
   const start = process.hrtime.bigint();
   try {
     const results: PairResult[] = [];

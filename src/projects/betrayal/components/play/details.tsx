@@ -6,7 +6,7 @@ import type { HouseScene, Pin } from "../../art/house-scene";
 import { FLOOR_NAMES, FLOORS } from "../../engine/board";
 import type { GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import type { RuleNotes } from "../../data/rule-notes";
 import { inspectRoomId, roomLines, thingLines } from "../../play/inspect";
 import type { ShownThing } from "../../play/things";

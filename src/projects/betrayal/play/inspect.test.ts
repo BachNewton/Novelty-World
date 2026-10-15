@@ -3,7 +3,7 @@ import notesJson from "../data/rule-notes.json";
 import type { RuleNotes } from "../data/rule-notes";
 import { viewFor } from "../engine/view";
 import { ENGINE } from "../game";
-import { pointAtFirst } from "../input/controls";
+import { pointAtFirst } from "@/shared/lib/input";
 import { explorer, testGame } from "../testing";
 import { bonusLines, figureLines, roomLines, showsPointingTag, thingLines } from "./inspect";
 

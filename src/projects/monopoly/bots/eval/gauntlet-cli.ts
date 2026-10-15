@@ -1,6 +1,7 @@
 import process from "node:process";
 import { formatGauntlet, type GauntletProgress, runGauntlet } from "./gauntlet";
-import { defaultWorkerCount, WorkerPool } from "./parallel";
+import { defaultWorkerCount } from "@/shared/lib/bot-lab/pool";
+import { monopolyPool } from "./parallel";
 import { RATING_EXCLUDED, RATING_PANEL, VERSIONS } from "../versions";
 
 /** A live progress line for a gauntlet run (so a long run isn't a black box). On a
@@ -177,7 +178,7 @@ async function main(): Promise<void> {
       `Seeds: "${args.prefix}:*"   Workers: ${args.workers}   Max turns: ${args.maxTurns}\n`,
   );
 
-  const pool = new WorkerPool(args.workers);
+  const pool = monopolyPool(args.workers);
   const start = process.hrtime.bigint();
   try {
     const report = await runGauntlet({

@@ -624,11 +624,10 @@ bots/eval/adversary.ts     PURE human-facing LEAKAGE scorer — probeLeakage(lab
 bots/eval/probe-gate-cli.ts  `npm run sim:probe-gate -- <labels…>` — the human-facing leakage SCOREBOARD over adversary.ts. A candidate must not raise its total leakage above its base's; the automated complement to the hand-played `/monopoly-probe` fleet
 bots/eval/tournament.ts    head-to-head A/B between versions: win share vs the 50% null
 bots/eval/versus-cli.ts    `npm run sim:versus -- claude-v2 claude-v1` — run the A/B over many seeds
-bots/eval/parallel.ts      worker_threads pool: pure games distributed across cores
-bots/eval/worker.ts        worker entry — runs simulateGame, posts back compact results
-bots/eval/sprt.ts          SPRT in Elo (dual one-sided fishtest test) — pure, tested
-bots/eval/elo.ts           Bradley–Terry Elo fit across the field — pure, tested
-bots/eval/gauntlet.ts      candidate-vs-field gauntlet: parallel + SPRT + Elo + verdict
+bots/eval/parallel.ts      Monopoly's game spec/result, its pool (the shared bot-lab WorkerPool on worker.ts), the 2+2 seatings
+bots/eval/worker.ts        worker entry — runs simulateGame, posts back compact results (shared serveGames)
+bots/eval/gauntlet.ts      candidate-vs-field gauntlet: Monopoly's field, anchor and report on the shared bot-lab core
+                           (the pool, the SPRT, the Bradley–Terry Elo fit and the crown gate live in src/shared/lib/bot-lab/)
 bots/eval/gauntlet-cli.ts  `npm run sim:gauntlet -- claude-v3` — run the gauntlet on the pool
 bots/eval/verify-cli.ts    `npm run sim:verify -- claude-v2 claude-v1` — prove parallel == single
 bots/eval/ratings-cli.ts   `npm run sim:ratings` — cached round-robin Elo over the whole archive → writes ratings.ts
