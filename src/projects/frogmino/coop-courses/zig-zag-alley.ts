@@ -15,7 +15,7 @@ export const ZIG_ZAG_ALLEY: DesignedCourse = {
   description: "An S and a Z climb each other's steps, then cross over to the other side, and back.",
   lanes: 10,
   kinds: ["S", "Z"],
-  length: 126,
+  length: 125,
   // Provisional (see Courses and medals in the project's CLAUDE.md).
   medals: { gold: 30, silver: 40, bronze: 55 },
   rows: [

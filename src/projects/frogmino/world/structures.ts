@@ -107,9 +107,18 @@ export function gantryBoxes(lanes: number, courseLength: number): WorldBox[] {
 // Where the finish is painted on the road: a spring pad just short of the
 // line, then a chequered line under the gantry's near face. It is painted in
 // the course's frame, with the gantry, over the road's own paint, so it lies a
-// layer above the lane dashes and edge lines, wherever they fall under it.
+// layer above the edge lines, wherever they fall under it. The road leaves
+// its lane dashes off along it (`finishPaintSpan`): a pad or a check whose
+// edge across the road fell exactly on a dash's end would put their end
+// faces in one plane, which depth-fights.
 export const SPRING_PAD_NEAR = -3.25;
 export const FINISH_LINE = { near: -0.75, far: 0.25 };
+
+// The stretch of road the finish paint covers, from the spring pad's near
+// edge to the finish line's far one.
+export function finishPaintSpan(courseLength: number): { near: number; far: number } {
+  return { near: courseLength + SPRING_PAD_NEAR, far: courseLength + FINISH_LINE.far };
+}
 const CHECK = 0.5;
 const CHEVRON_ARM = 0.42;
 
@@ -124,7 +133,7 @@ export function finishMarkings(lanes: number, courseLength: number): WorldBox[] 
   }
   // The spring pad: a band across the road with a chevron per lane pointing
   // up the course, like a boost pad.
-  const padNear = courseLength + SPRING_PAD_NEAR;
+  const padNear = finishPaintSpan(courseLength).near;
   const padFar = lineNear - 0.15;
   marks.push(mark((ROAD_LEFT + roadRight(lanes)) / 2, (padNear + padFar) / 2, lanes - 0.1, padFar - padNear, "spring-pad", 2));
   const middle = (padNear + padFar) / 2;

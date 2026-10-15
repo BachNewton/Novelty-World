@@ -18,7 +18,7 @@ import {
 } from "./geometry";
 import { layByIn, layByKeepOut, layByProps, layBySurface, type LayBy } from "./lay-bys";
 import { RAIL_SEGMENT, propBoxes, type Prop, type PropKind } from "./props";
-import { mark, structureKeepOuts } from "./structures";
+import { finishPaintSpan, mark, structureKeepOuts } from "./structures";
 import type { WorldPaint } from "./paints";
 
 // The road never ends, either way: whichever way the camera goes, the road
@@ -143,15 +143,18 @@ function roadSurfaces(lanes: number, near: number, far: number): WorldBox[] {
 }
 
 // The road's own paint: faint dashes between the lanes and solid edge lines.
-// The finish is painted over them in the course's frame (see
-// `finishMarkings`), a layer up.
+// The finish is painted over the edge lines in the course's frame (see
+// `finishMarkings`), a layer up, and the dashes stop short of it, wherever
+// the road last had the finish.
 function roadMarkings(plan: WorldPlan, near: number, far: number): WorldBox[] {
   const marks: WorldBox[] = [];
+  const finish = finishPaintSpan(plan.finishAt);
   for (let lane = 1; lane < plan.lanes; lane++) {
     const x = ROAD_LEFT + lane;
     for (let n = Math.floor(near / DASH_PERIOD); n * DASH_PERIOD < far; n++) {
       const [d0, d1] = [n * DASH_PERIOD, n * DASH_PERIOD + DASH_LENGTH];
       if (d0 < near || d1 > far) continue;
+      if (d1 > finish.near && d0 < finish.far) continue;
       marks.push(mark(x, (d0 + d1) / 2, DASH_WIDTH, DASH_LENGTH, "lane-dash"));
     }
   }

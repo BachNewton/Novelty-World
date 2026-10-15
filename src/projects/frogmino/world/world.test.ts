@@ -348,3 +348,26 @@ describe("the preview's rows", () => {
     });
   });
 });
+
+// The finish paint's edges across the road fall wherever a course's length
+// puts them, and a lane dash's end in the same plane depth-fights. The dashes
+// repeat every 3 units and the road's tiles every 24, so whole and half units
+// over one tile's span cover every way a finish meets them, at each preview
+// width, in about two seconds.
+describe("the finish paint, at any course length", () => {
+  const EYE: EyeHeights = { lowest: TUNING.cameraHeight, highest: Math.max(DECK_TOP, HELI_DECK_TOP) + TUNING.cameraHeight };
+  const LENGTHS = Array.from({ length: 2 * ROAD_TILE }, (_, i) => 4 * ROAD_TILE + i / 2);
+
+  it.each(PREVIEW_LANES)("never lies in one plane with a lane dash on a road %d lanes wide", (lanes) => {
+    const clashes = LENGTHS.flatMap((courseLength) => {
+      const plan: WorldPlan = { seed: 1, courseLength, lanes, finishAt: courseLength };
+      const tile = Math.floor(courseLength / ROAD_TILE);
+      const dashes = [tile - 1, tile, tile + 1].flatMap((k) => roadTile(plan, k).markings).filter((b) => b.paint === "lane-dash");
+      const finish = finishMarkings(lanes, courseLength).filter((b) => b.paint !== "spring-arrow");
+      return faceClashes([...dashes, ...finish], MARK_THICKNESS, EYE)
+        .filter(({ a, b }) => a.paint !== b.paint)
+        .map(({ a, b }) => `finish at ${String(courseLength)}: ${a.paint} ~ ${b.paint}`);
+    });
+    expect(clashes).toEqual([]);
+  });
+});
