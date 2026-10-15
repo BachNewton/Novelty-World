@@ -8,6 +8,21 @@ Classic Risk, with escalating card values for set trades. `RULES.md` in this fol
 
 Ambiguities are settled the way Betrayal settles them: a note beside the rule, and a resolution labelled with its authority (official, official digital, community, project or unresolved). Where the rulebooks are unclear, the official digital game, RISK: Global Domination, is deferred to before community practice or a project ruling. `RULES.md` opens with the method. Claude makes the project rulings as a game designer would, and brings one to the owner only when it would fork the engine or the architecture.
 
+## The engine contract
+
+`contract.ts` is the boundary between the engine and everything that uses it: the UI, the server route that plays real games, and the bots. They never read the engine's state; they ask for a seat's **view** (what that seat may see), its **options** (the legal moves, grouped so a screen can highlight targets), and **apply** a move, getting back the new state and the **events** that happened, each naming the rule behind it. `map.ts` is the board as data, shared by both sides. The contract is the same whichever language the fast engine ends up in, so the UI and the engine are built in parallel against it.
+
+- **One source of legality.** A move is legal exactly when `apply` accepts it; the options are a convenience a test holds equal to that. A step the rules leave no choice over is taken by the engine, not offered.
+- **Hidden information stays on the server.** The full state holds the deck order and every hand, so it never reaches a player's device: players get views, and events with other players' drawn cards removed. A database row a player can read must therefore hold views, not the full state (unlike Monopoly, which has no hidden information).
+- **Moves are sized for a network.** Every move is a round trip to the server, so a whole assault is one move (blitz: attack until captured, or down to a chosen number of armies), alongside the single battle.
+- **The reference engine runs real games; the fast engine runs bots.** Real games, on the server and for legality on the phone, use the reference engine, which is TypeScript and obviously correct. The fast engine exists for bot speed, and the differential tests keep the two identical.
+
+## Visual style and map
+
+Risk has its own style, separate from Novelty World's bright, quirky one: a war room, campaign maps, brass and parchment. Its colours come from its own design tokens, scoped to the project. The map is our own, never Hasbro's board art: drawn as SVG from public-domain world geography (Natural Earth), with territories grouped by `RULES.md`'s borders, and credited on the credits page.
+
+**Risk's width floor is 375px**, raising the site's 360px floor for this project only: the whole board has to stay readable and tappable, and 42 territories are its hardest layout problem.
+
 ## Engine plan
 
 The engine is built in stages, each one earning the next:
