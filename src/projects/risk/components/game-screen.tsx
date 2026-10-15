@@ -6,7 +6,7 @@ import { Prompt, PromptButton } from "@/shared/components/prompts";
 import { usePadNavigation, type Direction } from "@/shared/lib/gamepad";
 import { cycleChoice, type InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
-import { BOARD_WIDTH, TERRITORY_SHAPES } from "../board/board-data";
+import { locate, WRAP_WIDTH } from "../board/graph";
 import type { GameEvent, GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
 import { BINDINGS } from "../ui/bindings";
@@ -14,10 +14,11 @@ import { describeEvents, phaseName } from "../ui/describe";
 import { alsoPickable, back as backOut, keepSelection, NO_SELECTION, phaseEnd, pick, stepOf, type Selection } from "../ui/selection";
 import { nearestTo, nextTerritory } from "../ui/territory-nav";
 import { SeatMark, SeatName } from "./bits";
-import { BoardMap, type BoardHandle, type Marks } from "./board-map";
+import { GraphBoard } from "./graph-board";
 import { CardsDialog, LogDialog, MenuDialog, WhyDialog } from "./overlays";
 import { StatusBox } from "./status-box";
 import { BUTTON, DISPLAY, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
+import type { BoardHandle, Marks } from "./use-board-camera";
 import { useRiskInput, type FocusZone } from "./use-risk-input";
 
 /** What the game screen plays: the game as the seat at the device sees it, and how to move. A
@@ -39,24 +40,10 @@ export interface GameFeed {
 
 type Dialog = { kind: "cards" } | { kind: "menu" } | { kind: "log" } | { kind: "why"; rule: string } | null;
 
-/** The marker size on the screen: big enough for a fingertip, and for a couch on a TV. */
-function useMarkerSize(): number {
-  const [size, setSize] = useState(24);
-  useEffect(() => {
-    const tv = window.matchMedia("(min-width: 1800px)");
-    const update = () => setSize(tv.matches ? 34 : 24);
-    update();
-    tv.addEventListener("change", update);
-    return () => tv.removeEventListener("change", update);
-  }, []);
-  return size;
-}
-
 export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => void }) {
   const { view, options, act: send } = feed;
   const board = useRef<BoardHandle>(null);
   const box = useRef<HTMLDivElement>(null);
-  const markerSize = useMarkerSize();
 
   const [input, setInput] = useState<InputKind>("keyboard-mouse");
   const [byKeys, setByKeys] = useState(false);
@@ -107,7 +94,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     else setSelection(result.selection);
   };
 
-  const placed = (ids: readonly TerritoryId[]) => ids.map((id) => ({ id, x: TERRITORY_SHAPES[id].label[0], y: TERRITORY_SHAPES[id].label[1] }));
+  const placed = (ids: readonly TerritoryId[]) => ids.map((id) => ({ id, ...locate(id) }));
   const focusOn = (id: TerritoryId | null) => {
     setFocus(id);
     if (id) board.current?.reveal(id);
@@ -115,9 +102,8 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
   const currentFocus = focus !== null && choices.includes(focus) ? focus : null;
   const moveFocus = (direction: Direction) => {
     if (choices.length === 0) return;
-    if (!showFocus || currentFocus === null) return focusOn(nearestTo(placed(choices), board.current?.centre() ?? { x: BOARD_WIDTH / 2, y: 300 }) as TerritoryId | null);
-    const [x, y] = TERRITORY_SHAPES[currentFocus].label;
-    const next = nextTerritory(placed(choices), { x, y }, direction, BOARD_WIDTH) as TerritoryId | null;
+    if (!showFocus || currentFocus === null) return focusOn(nearestTo(placed(choices), board.current?.centre() ?? { x: WRAP_WIDTH / 2, y: 300 }) as TerritoryId | null);
+    const next = nextTerritory(placed(choices), locate(currentFocus), direction, WRAP_WIDTH) as TerritoryId | null;
     if (next) focusOn(next);
   };
 
@@ -225,7 +211,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
 
       <div className="flex min-h-0 flex-1 flex-col gap-[0.5em] lg:flex-row">
         <div className={cn(PANEL, "relative min-h-[45vh] flex-1 overflow-hidden")}>
-          <BoardMap ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} markerSize={markerSize} onPick={choose} onTouch={onTouch} dealKey={feed.dealKey} />
+          <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} dealKey={feed.dealKey} />
           <div className="absolute right-[0.4em] bottom-[0.4em] flex flex-col gap-[0.3em] text-[0.9em]">
             <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[2.2em] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1.4)} aria-label="Zoom in">
               <Plus size="1em" />

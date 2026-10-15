@@ -26,6 +26,23 @@ export const RISK_THEME = {
   /** Territory borders, and the heavier line round each continent. */
   "--rk-border": "#2a2018",
   "--rk-coast": "#0a1216",
+  /** The board as a graph: each continent's region (a dark tint, its edge and its name in a
+   *  lighter one, in the colours Risk players know them by), the borders inside a continent, and
+   *  the brighter borders between continents. */
+  "--rk-region-north-america": "#2f2d14",
+  "--rk-region-edge-north-america": "#b7a548",
+  "--rk-region-south-america": "#371a17",
+  "--rk-region-edge-south-america": "#c4654f",
+  "--rk-region-europe": "#17253a",
+  "--rk-region-edge-europe": "#6f93c8",
+  "--rk-region-africa": "#352414",
+  "--rk-region-edge-africa": "#c88a4a",
+  "--rk-region-asia": "#18301c",
+  "--rk-region-edge-asia": "#6dab69",
+  "--rk-region-australia": "#2a1d38",
+  "--rk-region-edge-australia": "#a585cf",
+  "--rk-edge": "#8d8270",
+  "--rk-edge-between": "#e8d9b5",
   /** The seats' inks: apart in lightness as well as hue, and each paired with a shape and a
    *  hatching (`ui/seats.ts`), so no player needs to tell colours apart. */
   "--rk-seat-0": "#c8352a",
