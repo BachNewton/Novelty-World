@@ -77,8 +77,19 @@ describe("coordination kinds", () => {
     expect(rowOf(BLOCK_PARTY, "hop together").answer).toEqual(["both up"]);
     expect(rowOf(BLOCK_PARTY, "shoulder to shoulder").answer).toEqual(["interlock"]);
     expect(rowOf(BLOCK_PARTY, "make room on the right").answer).toEqual(["interlock", "order"]);
-    expect(rowOf(TEA_FOR_TWO, "Splash points down").answer).toEqual(["interlock"]);
+    expect(rowOf(TEA_FOR_TWO, "the nest").answer).toEqual(["interlock", "order"]);
     expect(rowOf(LONG_AND_SHORT, "Splash steps onto the plank").answer).toEqual(["perch", "interlock", "order"]);
+  });
+
+  it("reads each stacking lesson of the course that teaches them, and nothing simpler through its row", () => {
+    const lesson = (name: string) => {
+      const row = rowOf(LONG_AND_SHORT, name);
+      return { answer: row.answer, simplest: row.simplest?.level };
+    };
+    expect(lesson("Splash steps onto the plank")).toEqual({ answer: ["perch", "interlock", "order"], simplest: "perch" });
+    expect(lesson("Splash hops off the plank")).toEqual({ answer: ["hop off"], simplest: "lift" });
+    expect(lesson("Sprout lifts Splash").answer).toEqual(["stack", "interlock", "order"]);
+    expect(lesson("the double jump")).toEqual({ answer: ["double jump", "order"], simplest: "double jump" });
   });
 
   it("sees the frogs swap sides", () => {

@@ -104,9 +104,9 @@ describe("a readable route", () => {
 
   it("says each step in words, landings included", () => {
     const route = describeProof(proveCourse(COURSE, { rows: 3, answers }), LONG_AND_SHORT.lanes);
-    expect(route).toMatch(/Sprout hops/);
+    expect(route).toMatch(/Splash hops/);
+    expect(route).toMatch(/Sprout slides right, carrying Splash/);
     expect(route).toMatch(/Sprout turns clockwise/);
-    expect(route).toMatch(/Splash slides left/);
     expect(route).toMatch(/PROVED: 3 rows passed with no bonk/);
   });
 

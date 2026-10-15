@@ -3,6 +3,8 @@ import { BLOCK_PARTY } from "./block-party";
 import { checkCoopCourse } from "./check";
 import type { DesignedCourse } from "./design";
 import { CHAIN_REACTION } from "./chain-reaction";
+import { HIGH_RISE } from "./high-rise";
+import { LEG_UP } from "./leg-up";
 import { LONG_AND_SHORT } from "./long-and-short";
 import { TEA_FOR_TWO } from "./tea-for-two";
 import { ZIG_ZAG_ALLEY } from "./zig-zag-alley";
@@ -12,9 +14,11 @@ import { ZIG_ZAG_ALLEY } from "./zig-zag-alley";
 // CLAUDE.md). Each is checked as the list is built, so a broken course fails
 // loudly before anyone plays it.
 const COURSES: readonly DesignedCourse[] = [
+  LONG_AND_SHORT,
   BLOCK_PARTY,
   TEA_FOR_TWO,
-  LONG_AND_SHORT,
+  LEG_UP,
+  HIGH_RISE,
   ZIG_ZAG_ALLEY,
   CHAIN_REACTION,
 ];

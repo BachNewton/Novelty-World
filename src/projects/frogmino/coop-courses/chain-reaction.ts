@@ -1,20 +1,22 @@
 import { TUNING } from "../tuning";
-import { PACE, pose, READ, type DesignedCourse } from "./design";
+import { PACE, pose, READ, READ_SLOW, type DesignedCourse } from "./design";
 
-// A medium co-op course for Sprout's T and Splash's L on nine lanes, an
-// asymmetric pair: the L leans and hooks onto the T far more readily than the
-// T climbs onto the L. The rows chain, each answer the natural start of the
-// next, and the gaps change: bursts of rows close together, where the chain
-// is one move each, then room to regroup.
+// Sprout's T and Splash's L on nine lanes: everything together, as the last
+// course. The L leans on the T and the T climbs onto the L; the L is lifted
+// onto the T's nose; each stands in a slot shaped like it while the other
+// hops off it over a van; and the slots swap sides, so the team crosses
+// over and back. The rows chain, each answer the natural start of the next,
+// and the gaps shrink to a closing burst.
 
 export const CHAIN_REACTION: DesignedCourse = {
   id: "chain-reaction",
   name: "Chain Reaction",
-  description: "Sprout's T and Splash's L lean, climb and hook together, each pose setting up the next, as the traffic bunches up.",
+  description: "A T and an L lean, climb, lift and hop off each other, cross over and back, in a chain that speeds up.",
   lanes: 9,
   kinds: ["T", "L"],
-  length: 162,
-  medals: { gold: 40, silver: 55, bronze: 75 },
+  length: 148,
+  // Provisional (see Courses and medals in the project's CLAUDE.md).
+  medals: { gold: 40, silver: 50, bronze: 70 },
   rows: [
     {
       lesson: "shoulder to shoulder",
@@ -22,18 +24,29 @@ export const CHAIN_REACTION: DesignedCourse = {
       gap: TUNING.firstWallDepth,
       vehicles: [{ id: "I1", lane: 0 }, { id: "Z1", lane: 1 }, { id: "L3", lane: 7 }],
     },
-    // The L leans on the T: a perch with no way through side by side.
     {
       lesson: "lean on me",
       answer: [pose(2, 0), pose(4, 2, 1)],
-      gap: READ,
+      gap: READ_SLOW,
       vehicles: [{ id: "I1", lane: 0 }, { id: "Z1", lane: 1 }, { id: "O0", lane: 5 }, { id: "T1", lane: 7 }],
     },
     {
       lesson: "Sprout on top",
       answer: [pose(3, 2, 1), pose(4, 0)],
-      gap: READ,
+      gap: READ_SLOW,
       vehicles: [{ id: "S1", lane: 0 }, { id: "O0", lane: 2 }, { id: "L3", lane: 6 }, { id: "I1", lane: 8 }],
+    },
+    {
+      lesson: "Sprout lifts Splash onto the nose",
+      answer: [pose(3, 0), pose(4, 1, 2)],
+      gap: READ,
+      vehicles: [{ id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "T1", lane: 2 }, { id: "T3", lane: 5 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 }],
+    },
+    {
+      lesson: "Splash hops off, over the van",
+      answer: [pose(2, 1), pose(5, 1, 2)],
+      gap: READ,
+      vehicles: [{ id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "L3", lane: 3 }, { id: "O0", lane: 5 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 }],
     },
     {
       lesson: "breather",
@@ -42,53 +55,27 @@ export const CHAIN_REACTION: DesignedCourse = {
       vehicles: [{ id: "Z1", lane: 0 }, { id: "T2", lane: 3 }, { id: "L3", lane: 7 }],
     },
     {
+      lesson: "cross over: Sprout hops off to the right",
+      answer: [pose(5, 1, 2), pose(2, 1)],
+      gap: READ,
+      vehicles: [{ id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "T3", lane: 3 }, { id: "O0", lane: 5 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 }],
+    },
+    {
+      lesson: "and cross back",
+      answer: [pose(2, 1), pose(5, 1, 2)],
+      gap: PACE,
+      vehicles: [{ id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "L3", lane: 3 }, { id: "O0", lane: 5 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 }],
+    },
+    {
       lesson: "Splash on the arm",
       answer: [pose(3, 0), pose(5, 1, 1)],
-      gap: 15,
+      gap: PACE,
       vehicles: [{ id: "J3", lane: 0 }, { id: "Z1", lane: 2 }, { id: "L3", lane: 6 }, { id: "I1", lane: 8 }],
-    },
-    // A burst: back to back, then a hop at a time.
-    {
-      lesson: "back to back",
-      answer: [pose(2, 3), pose(4, 1)],
-      gap: 15,
-      vehicles: [{ id: "J1", lane: 1 }, { id: "S1", lane: 5 }, { id: "J1", lane: 7 }],
-    },
-    {
-      lesson: "quick, Sprout hops",
-      answer: [pose(2, 3, 1), pose(4, 1)],
-      gap: 10,
-      vehicles: [{ id: "T2", lane: 0 }, { id: "S1", lane: 5 }, { id: "Z1", lane: 7 }],
-    },
-    {
-      lesson: "quick, both hop",
-      answer: [pose(2, 3, 1), pose(4, 1, 1)],
-      gap: 10,
-      vehicles: [{ id: "I1", lane: 0 }, { id: "J0", lane: 2 }, { id: "L3", lane: 5 }, { id: "L3", lane: 7 }],
-    },
-    {
-      lesson: "catch your breath, Splash hops",
-      answer: [pose(2, 3), pose(4, 1, 1)],
-      gap: 18,
-      vehicles: [{ id: "J1", lane: 1 }, { id: "L3", lane: 5 }, { id: "T1", lane: 7 }],
-    },
-    // The climb: across the road, then the last two rows chained.
-    {
-      lesson: "lean on me, over there",
-      answer: [pose(4, 0), pose(6, 2, 1)],
-      gap: PACE,
-      vehicles: [{ id: "T2", lane: 0 }, { id: "Z1", lane: 3 }, { id: "O0", lane: 7 }],
-    },
-    {
-      lesson: "nose under the arm",
-      answer: [pose(3, 1), pose(4, 3)],
-      gap: PACE,
-      vehicles: [{ id: "Z1", lane: 0 }, { id: "I1", lane: 2 }, { id: "I1", lane: 6 }, { id: "I1", lane: 8 }],
     },
     {
       lesson: "hook on the post",
       answer: [pose(3, 3), pose(4, 3, 1)],
-      gap: 10,
+      gap: PACE,
       vehicles: [{ id: "L3", lane: 0 }, { id: "J1", lane: 2 }, { id: "J3", lane: 5 }, { id: "T1", lane: 7 }],
     },
   ],

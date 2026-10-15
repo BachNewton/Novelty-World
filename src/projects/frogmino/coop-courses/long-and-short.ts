@@ -1,15 +1,17 @@
 import { TUNING } from "../tuning";
 import { pose, READ, READ_SLOW, type DesignedCourse } from "./design";
 
-// An I and an O on a road nine lanes wide: two pieces with different jobs.
-// The I stands tall in a lane of its own, lies low under a roof, or hops up
-// as a bridge, and the O, too tall to go under anything, steps up onto the
-// flat I. Nothing is mirrored: who goes where is the question each row asks.
+// An I and an O on a road nine lanes wide, the course that teaches stacking:
+// the I is a plank the O stands on, and every stacking move comes in turn,
+// one a row, each first where nothing simpler gets through. Standing on the
+// partner; hopping off it, over a van; the partner's hop lifting the rider;
+// and the double jump, the O hopping off the plank while the plank is still
+// in the air. Then the moves again, mixed.
 
 export const LONG_AND_SHORT: DesignedCourse = {
   id: "long-and-short",
   name: "Long and Short",
-  description: "A plank and a block with different jobs: the I stands tall or lies low, and the O steps up onto it.",
+  description: "A plank and a block learn to stack: stand on the plank, hop off it, ride it up, and the double jump.",
   lanes: 9,
   kinds: ["I", "O"],
   length: 130,
@@ -23,49 +25,58 @@ export const LONG_AND_SHORT: DesignedCourse = {
       vehicles: [{ id: "I1", lane: 4 }, { id: "I1", lane: 8 }],
     },
     {
-      lesson: "hop together",
-      answer: [pose(0, 0, 1), pose(5, 0, 1)],
-      gap: READ_SLOW,
-      vehicles: [{ id: "I0", lane: 0 }, { id: "I1", lane: 4 }, { id: "I0", lane: 5 }],
-    },
-    {
-      lesson: "Sprout stands up to make room",
-      answer: [pose(2, 1), pose(3, 0)],
-      gap: READ_SLOW,
-      vehicles: [
-        { id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "I1", lane: 5 },
-        { id: "I1", lane: 6 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 },
-      ],
-    },
-    {
       lesson: "Splash steps onto the plank",
       answer: [pose(2, 0), pose(3, 0, 1)],
       gap: READ_SLOW,
-      vehicles: [{ id: "S0", lane: 0 }, { id: "I1", lane: 6 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 }],
+      vehicles: [{ id: "I1", lane: 0 }, { id: "T1", lane: 1 }, { id: "T3", lane: 5 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 }],
     },
     {
-      lesson: "Sprout hops, Splash ducks",
-      answer: [pose(0, 0, 1), pose(4, 0)],
+      lesson: "Splash hops off the plank",
+      answer: [pose(4, 1), pose(6, 0, 2)],
       gap: READ_SLOW,
-      vehicles: [{ id: "I0", lane: 0 }, { id: "L3", lane: 5 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 }],
+      vehicles: [
+        { id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "I1", lane: 2 }, { id: "I1", lane: 3 },
+        { id: "I1", lane: 5 }, { id: "O0", lane: 6 }, { id: "I1", lane: 8 },
+      ],
     },
     {
-      lesson: "Splash makes room to lie low",
-      answer: [pose(2, 0), pose(7, 0)],
-      gap: READ,
-      vehicles: [{ id: "I1", lane: 0 }, { id: "L2", lane: 1 }, { id: "J2", lane: 4 }],
+      lesson: "Sprout lifts Splash",
+      answer: [pose(2, 0, 1), pose(3, 0, 2)],
+      gap: READ_SLOW,
+      vehicles: [{ id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "I0", lane: 2 }, { id: "I1", lane: 6 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 }],
     },
     {
-      lesson: "stand tall, hop high",
-      answer: [pose(2, 1), pose(5, 0, 1)],
-      gap: READ,
-      vehicles: [{ id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "I1", lane: 3 }, { id: "J0", lane: 4 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 }],
+      lesson: "the double jump",
+      answer: [pose(4, 1), pose(6, 0, 3)],
+      gap: READ_SLOW,
+      vehicles: [
+        { id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "I1", lane: 2 }, { id: "I1", lane: 3 },
+        { id: "I1", lane: 5 }, { id: "J1", lane: 6 }, { id: "I1", lane: 8 },
+      ],
     },
     {
-      lesson: "the plank and the block",
-      answer: [pose(2, 0), pose(3, 0, 1)],
+      lesson: "breather: hop together",
+      answer: [pose(0, 0, 1), pose(5, 0, 1)],
       gap: READ,
-      vehicles: [{ id: "S0", lane: 0 }, { id: "Z0", lane: 5 }, { id: "I1", lane: 8 }],
+      vehicles: [{ id: "I0", lane: 0 }, { id: "I1", lane: 4 }, { id: "I0", lane: 5 }],
+    },
+    {
+      lesson: "Splash hops off to the left",
+      answer: [pose(6, 1), pose(2, 0, 2)],
+      gap: READ,
+      vehicles: [
+        { id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "O0", lane: 2 }, { id: "I1", lane: 4 },
+        { id: "I1", lane: 5 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 },
+      ],
+    },
+    {
+      lesson: "the double jump, back to the right",
+      answer: [pose(2, 1), pose(4, 0, 3)],
+      gap: READ,
+      vehicles: [
+        { id: "I1", lane: 0 }, { id: "I1", lane: 1 }, { id: "I1", lane: 3 }, { id: "J1", lane: 4 },
+        { id: "I1", lane: 6 }, { id: "I1", lane: 7 }, { id: "I1", lane: 8 },
+      ],
     },
   ],
 };

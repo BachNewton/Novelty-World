@@ -66,11 +66,11 @@ describe("replayName", () => {
 
 describe("coopCourseParam", () => {
   it("picks the default co-op course, or the one ?course names", () => {
-    expect(coopCourseParam("?play=local")).toBe("block-party");
+    expect(coopCourseParam("?play=local")).toBe("long-and-short");
     expect(coopCourseParam("?play=local&course=tea-for-two")).toBe("tea-for-two");
   });
 
   it("fails loudly on a course that doesn't exist, naming those that do", () => {
-    expect(() => coopCourseParam("?course=nowhere")).toThrow(/no co-op course "nowhere"; the courses are block-party/);
+    expect(() => coopCourseParam("?course=nowhere")).toThrow(/no co-op course "nowhere"; the courses are long-and-short, block-party/);
   });
 });

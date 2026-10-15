@@ -78,7 +78,7 @@ describe("every registered co-op course", () => {
 describe("the registry", () => {
   it("finds a course by id, and fails loudly on one it doesn't have, naming those it does", () => {
     expect(coopCourseById("block-party").name).toBe("Block Party");
-    expect(() => coopCourseById("nowhere")).toThrow(/no co-op course "nowhere"; the courses are block-party/);
+    expect(() => coopCourseById("nowhere")).toThrow(/no co-op course "nowhere"; the courses are long-and-short, block-party/);
   });
 
   it("refuses two courses with one id, or none at all", () => {

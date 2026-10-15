@@ -17,7 +17,14 @@ export const COOP_MUSIC: ReadonlyMap<string, Theme> = new Map<string, Theme>([
   ["long-and-short", TALL_AND_SQUARE],
   ["zig-zag-alley", MIRROR_MIRROR],
   ["chain-reaction", HURRY_UP_AND_WAIT],
+  // Placeholders (see `PLACEHOLDER_MUSIC`).
+  ["leg-up", MIRROR_MIRROR],
+  ["high-rise", TALL_AND_SQUARE],
 ]);
+
+// PLACEHOLDERS: the courses with no theme of their own yet, each borrowing
+// another course's until one is composed for it.
+export const PLACEHOLDER_MUSIC: ReadonlySet<string> = new Set(["leg-up", "high-rise"]);
 
 // The themes for the courses the co-op course brief plans, under the brief's
 // names for them until the courses exist. When a course lands, move its theme
