@@ -21,7 +21,8 @@ Where the sources are ambiguous, editions disagree, or a rule is bound to the ph
 the rule carries a `> Note [id]:` saying so, and a `> Resolution (authority):` line giving the
 answer, labelled **official** (a rulebook or official FAQ), **official digital** (the
 Hasbro-licensed digital game, `[GD]`), **community** (an established community answer),
-**project** (a ruling made here, with its reasoning) or **unresolved**.
+**project** (a ruling made here, with its reasoning), **owner** (the owner's decision, which
+outranks every other authority) or **unresolved**.
 
 The authorities rank in that order: **official rulebook → official digital → community →
 project**. Where the rulebooks are clear, they are the rule. Where they are unclear (ambiguous,
@@ -31,7 +32,7 @@ play uses where that is the better guide. Where neither settles it, an establish
 answer does. When research finds none of these, the ruling is made as a game designer would:
 keep the heart of the game, weigh it from the players' standpoint, and draw on modern digital
 adaptations. [GD] never overrides a rule the classic rulebook states clearly; where its default
-differs from one, the difference is listed under "Conflicts for the owner". A ruling goes to
+differs from one, the owner decides, and "Decided against the rulebook" lists those decisions. A ruling goes to
 the owner only when it would fork the engine or the technical architecture. The engine is
 definitive: an ambiguity is never put to players at runtime. An engine event that applies a
 ruling may cite its note id.
@@ -54,9 +55,9 @@ The rules come from two official rulebooks, cited by tag after each section:
 
 [GD] is configurable. The settings that match this spec are: **Card Bonus: Progressive** (the
 escalating values; [GD]'s help calls it "the default board game settings", though the game's
-own default is reported to be Fixed), **Manual Placement: On** (claiming, `SETUP-4`),
+own default is reported to be Fixed), **Semi-automatic placement** (territories dealt, armies placed by the players, `SETUP-4`),
 **Dice Rolls: True Random**, and no modifiers. The rest of its options are **not** part of
-this game: Fixed, Exponential and Per-Player card bonuses; Automatic and Semi-automatic placement; Balanced Blitz dice (which
+this game: Fixed, Exponential and Per-Player card bonuses; Automatic and Manual placement; Balanced Blitz dice (which
 trims unlikely battle outcomes, so combat is no longer fair dice, `DECK-3`); Blizzards, Portals
 and Fog of War; the Capitals, Secret Mission, Secret Assassin and Zombie modes; 70% domination
 and limited-turn victories; alliances; Sandbox's custom starting troops, continent bonuses and
@@ -239,7 +240,7 @@ player count too, but its numbers could not be confirmed.)
 ### SETUP-2 Seat order
 
 Players sit in a fixed cyclic order, drawn at the start of the game (`SETUP-3`) and kept for
-the whole game. "To the left" means the next player in that order. All rotation (claiming,
+the whole game. "To the left" means the next player in that order. All rotation (dealing,
 placing, turns) follows it.
 
 ### SETUP-3 Player order
@@ -255,57 +256,51 @@ seeded random source. The first seat is the **first player**.
 > rule, and costs players nothing to watch; drawing the whole order, not only the first player,
 > also replaces the table's seating, which a screen does not have.
 
-### SETUP-4 Claiming territories
+### SETUP-4 Dealing territories
 
-Starting with the first player and going round the seat order, each player in turn places
-**exactly one army on an unoccupied territory**, claiming it. A player must not place on an
-occupied territory while any territory is unoccupied. Claiming continues until all 42
-territories are claimed. [R93], [H15]
+The 2 wilds are set aside and the 42 territory cards shuffled and dealt one at a time round the
+seat order, starting with the first player. Each player places **1 army on each territory dealt
+to them**, which they then own. With 4 or 5 players the deal comes out uneven: the first two in
+rotation receive one territory more (4 players: 11, 11, 10, 10; 5 players: 9, 9, 8, 8, 8);
+with 3 and 6 players everyone receives 14 or 7.
 
-*(derived)* Claims are spread as evenly as rotation allows: with 4 players the first two in
-rotation claim 11 and the others 10; with 5 players the first two claim 9 and the others 8;
-with 3 and 6 players everyone claims 14 and 7.
+> Note [dealt-setup]: the classic rulebook has players claim territories one at a time; both
+> rulebooks deal them only in the Secret Mission game.
+> Resolution (owner): territories are dealt, as in [GD]'s Semi-automatic placement (random
+> territories, armies placed by the players). Claiming 42 territories in turn is slow online,
+> where every human pick waits on that player. Dealing keeps the opening placement decisions:
+> only who owns what at the start is left to chance. [GD]'s default, Automatic placement, also
+> places the armies at random, and is not used.
 
 ### SETUP-5 Placing the remaining armies
 
-After all 42 are claimed, players continue in turn, each placing **exactly one army on a
-territory they already own**, until every player has placed all their starting armies. A
-player with none left is skipped. There is no limit on armies per territory. Rotation continues
-from the player after the one who claimed the 42nd territory. [R93], [H15]
+Once the territories are dealt, players take turns round the seat order, each placing
+**exactly one army on a territory they own**, until every player has placed all their starting
+armies. A player with none left is skipped. There is no limit on armies per territory.
+Placement starts with the player after the one dealt the last territory. [R93], [H15]
 
-> Note [placement-start]: the rules say "each player in turn" places after the last claim, but
-> not who begins.
-> Resolution (project): one unbroken rotation, continuing from the player after the 42nd claim.
-> Restarting at the first player would hand the first player an extra early placement for no
-> design reason. [GD]'s order here, under Manual Placement, could not be confirmed.
+> Note [placement-start]: the rules don't say who places first after the territories are out.
+> Resolution (project): one unbroken rotation, continuing from the player after the last
+> territory dealt. Players dealt an extra territory have one army fewer to place, and starting
+> placement with them would add an early placement on top. [GD]'s order here could not be
+> confirmed.
 
 > Note [placement-pace]: placing one army at a time in rotation is design, not a table
 > limitation: each placement answers the others'. It stays one at a time in the rules; how the
-> screen lets a player make those placements quickly is a UI matter. [GD]'s Manual Placement
-> claims territories one at a time in turn (a player guide's report); whether it places the
-> remaining armies one at a time could not be confirmed.
+> screen lets a player make those placements quickly is a UI matter.
 
 ### SETUP-6 The deck
 
-The 44-card deck (`DECK-1`) is shuffled and placed face down as the draw pile. [R93]
+After the deal, the 2 wilds are returned and all 44 cards (`DECK-1`) shuffled and placed face
+down as the draw pile. [R93]
 
 ### SETUP-7 First turn
 
-The player who placed the first army (the first player, `SETUP-3`) takes the first turn; play
-proceeds in seat order. [R93], [H15]
+The first player (`SETUP-3`) takes the first turn; play proceeds in seat order. [R93], [H15]
 
-### SETUP-8 Dealt territories are not used
+### SETUP-8 (retired)
 
-The official rulebooks deal territories instead of claiming them in the Secret Mission game,
-not in the classic game. [R93], [H15]
-
-> Note [dealt-setup]: dealing is faster at a table, and some groups use it for the classic game.
-> Resolution (project): not built. Claiming (`SETUP-4`) is the classic rule and its opening
-> draft is real strategy, which a screen makes no slower to play. A dealt setup can be added if
-> a need appears. [GD] defaults to Automatic placement (territories and armies placed at
-> random), with Semi-automatic (random territories, armies placed by the players) and Manual
-> (claiming) as options; the rulebook is clear here, so this stays, and the difference is
-> listed under "Conflicts for the owner".
+Formerly "dealt territories are not used"; dealing is now the setup (`SETUP-4`).
 
 ### SETUP-9 Setup invariants *(derived)*
 
@@ -452,20 +447,19 @@ If any of the three cards in a traded set shows a territory the trading player o
 of the trade, the player receives **2 extra armies**, which must both be placed on that
 territory. [R93], [H15]
 
-On a single turn a player may receive **no more than 2** such extra armies in total, however
-many sets they trade or cards they hold that match. [R93] When more than one card qualifies,
-the trading player chooses which territory gets the 2. Wild cards show no territory and never
+Each set traded earns this bonus **at most once**: a set showing several owned territories
+still earns only 2 extra armies, on one of them, which the trading player chooses. A player
+trading two sets in one turn can earn it once for each. Wild cards show no territory and never
 qualify.
 
-> Note [territory-bonus]: [H15] drops the per-turn cap, and neither rulebook says who picks the
-> territory when several cards qualify.
-> Resolution (project): the classic cap, as the classic game is the one decided. [GD] caps the
-> bonus per trade instead, not per turn ("will only apply once per card trade", SMG's card
-> trading help); that difference is listed under "Conflicts for the owner".
+> Note [territory-bonus]: [R93] caps the bonus at 2 per turn, [H15] has no cap at all, and
+> neither rulebook says who picks the territory when several cards qualify.
+> Resolution (owner): 2 per trade, as in [GD] ("will only apply once per card trade", SMG's card
+> trading help).
 > Resolution (official digital): the trading player picks which qualifying card earns the 2,
 > as in [GD], where a player with several matching cards picks one (a Steam discussion of
-> [GD]; SMG's help says only that the bonus applies once per trade). It also agrees with every
-> other placement of a player's own armies being theirs to choose.
+> [GD]). It also agrees with every other placement of a player's own armies being theirs to
+> choose.
 
 ### CARDS-8 Traded cards and the draw pile
 
@@ -567,28 +561,23 @@ like any other owned territory. [R93]
 
 ## 8. Fortify
 
-### FORT-1 The fortifying move (classic)
+### FORT-1 The fortifying move
 
 In the fortify phase the active player **may** make **one** move: move any number of armies
-from one territory they own to **one adjacent** territory they own, leaving at least 1 army in
-the territory moved from. It is optional, and it is allowed whether or not the player attacked
-or captured anything. [R93]
+from one territory they own to another territory they own that is **connected to it through a
+chain of territories the player owns** (adjacent territories included), leaving at least 1
+army in the territory moved from. It is optional, and it is allowed whether or not the player
+attacked or captured anything. [H15], [GD]
 
-### FORT-2 Edition difference: connected path
+### FORT-2 Edition difference: adjacent only
 
-[H15] allows the move to reach any owned territory **connected to the source through a chain
-of territories the player owns** (still one source, one destination, any number of armies,
-leaving at least 1). [FAQ] reports the same rule in the 1980 US edition, and the [R93] "expert
-variations" offer a wider version (several moves).
+[R93], the classic rulebook, allows the move only to an **adjacent** territory. [FAQ] reports
+the connected path in the 1980 US edition too.
 
 > Note [fortify-reach]: the editions disagree on how far a fortifying move reaches.
-> Resolution (project): the classic adjacent move of `FORT-1`, since the classic game is the
-> one decided. The reach is a design choice, not a table limitation: both versions are equally
-> easy to play at a table. The connected-path rule is not built; it would change strategy
-> enough that bots tuned under one rule could not be compared with bots tuned under the other.
-> [GD] uses the connected path, with no adjacent-only option (SMG's fortify help: troops
-> "travel between connecting territories"; a player request for an adjacent-only option went
-> unanswered); that difference is listed under "Conflicts for the owner".
+> Resolution (owner): the connected path, as in [H15] and [GD] (SMG's fortify help: troops
+> "travel between connecting territories"). It is what players of the official digital game
+> expect.
 
 ### FORT-3 End of turn
 
@@ -730,7 +719,7 @@ should check them after every step of random and scripted games.
   reinforce phase, at most 4; after an `ELIM-3` trade, at most 4; at any other point in the
   attack phase, at most 5; after the end-of-attack draw, at most 6 *(derived from `CARDS-1`,
   `CARDS-5`, `ELIM-3`)*.
-- **INV-7 Bonus cap.** At most 2 occupied-territory bonus armies per turn (`CARDS-7`).
+- **INV-7 Bonus cap.** At most 2 occupied-territory bonus armies per set traded (`CARDS-7`).
 - **INV-8 Elimination.** A player with no territories takes no turn and holds no cards; a player
   with at least one territory is in the game.
 - **INV-9 Game end.** The game ends exactly when one player remains (2-player: when one player
@@ -788,33 +777,23 @@ should check them after every step of random and scripted games.
 
 ---
 
-## Conflicts for the owner
+## Decided against the rulebook
 
-Where [GD]'s default differs from a rule the classic rulebook states clearly, the classic rule
-stands, and the difference is listed here for the owner to confirm.
+Where [GD] differs from a rule the classic rulebook states clearly, the owner decided which
+applies. These are those decisions; the rules above already state them.
 
-- **Fortify reach** (`FORT-1`, note `fortify-reach`). [R93]: one move to an **adjacent**
-  territory. [GD]: one move along a **connected path** of owned territories, with no
-  adjacent-only option; [H15] agrees with [GD]. Recommendation: keep the adjacent move, as the
-  classic game was decided; but this is the difference [GD] players will notice first, so if
-  familiarity matters more than the classic rule, switching is a one-rule change best made
-  before any bot is tuned.
-- **Setup** (`SETUP-4`, note `dealt-setup`). [R93]: players **claim** territories one at a
-  time. [GD]'s default: **Automatic** placement, territories and armies placed at random;
-  claiming is its Manual Placement option. Recommendation: keep claiming; it is the classic
-  rule, [GD] offers it, and its opening draft is real strategy.
-- **Card bonus** (`CARDS-6`). Both rulebooks: escalating values. [GD]'s default is reported to
-  be **Fixed** (4 / 6 / 8 / 10 by the set's symbols); Progressive is its option for the
-  escalating values, which its help calls "the default board game settings". Recommendation:
-  keep escalating values, as decided.
-- **Occupied-territory bonus cap** (`CARDS-7`, note `territory-bonus`). [R93]: at most **2
-  per turn**. [GD]: at most 2 **per trade**; [H15]: no cap. They differ only on a turn with
-  two or more trades. Recommendation: keep the classic cap; it is rare enough that the classic
-  rule costs nothing, and the cap is already an invariant (`INV-7`).
-- **Dice** (`DECK-3`, `COMBAT-4`). The rulebooks: fair dice. [GD] offers **Balanced Blitz**,
-  which trims unlikely outcomes of a blitzed battle; which dice setting is its default could
-  not be confirmed. Recommendation: fair dice always; balanced dice change the odds the whole
-  game's strategy rests on.
-- **2-player neutral** (section 10, note `two-player-placement`), unconfirmed. Both
-  rulebooks: a neutral army. [GD]'s 1v1 games appear to be played without one.
-  Recommendation: keep the neutral army, as decided.
+- **Setup** (`SETUP-4`, note `dealt-setup`): territories are **dealt**, as in [GD]'s
+  Semi-automatic placement, not claimed one at a time as in [R93]; players still place their
+  remaining armies one at a time.
+- **Fortify reach** (`FORT-1`, note `fortify-reach`): along a **connected path** of owned
+  territories, as in [GD] and [H15], not only to an adjacent one as in [R93].
+- **Occupied-territory bonus** (`CARDS-7`, note `territory-bonus`): at most 2 **per trade**, as
+  in [GD], not 2 per turn as in [R93].
+- **Card values** (`CARDS-6`): **escalating**, as in both rulebooks, not [GD]'s reported
+  default of Fixed.
+- **Dice** (`DECK-3`, `COMBAT-4`): **true dice**, independent and fair, in every attack, single
+  or blitzed, not [GD]'s Balanced Blitz. Balanced dice change the odds the game's strategy
+  rests on, and [GD] doesn't publish how it balances them. A balanced mode of our own, with
+  odds we define, could be added later as an option.
+- **2-player neutral** (section 10, note `two-player-placement`): the neutral army of both
+  rulebooks stays. [GD]'s 1v1 games appear to be played without one (unconfirmed).

@@ -31,8 +31,7 @@ export type GameState = { readonly engineState: unknown };
 // ---------------------------------------------------------------------------
 
 export type Phase =
-  | "claim" // SETUP-4: taking empty territories one army at a time
-  | "setup-place" // SETUP-5 / TWO-3: placing the remaining starting armies
+  | "setup-place" // SETUP-5 / TWO-3: placing the remaining starting armies, once territories are dealt
   | "reinforce" // REINF-*, CARDS-5: trading and placing armies; also mid-attack after ELIM-3
   | "attack" // COMBAT-*
   | "fortify" // FORT-*
@@ -58,8 +57,7 @@ export interface GameView {
   /** Seat order: `turnOrder[0]` played first. */
   turnOrder: readonly Seat[];
   seats: readonly SeatView[];
-  /** Unclaimed territories are absent during the claim phase. */
-  territories: Partial<Record<TerritoryId, TerritoryView>>;
+  territories: Record<TerritoryId, TerritoryView>;
   turn: number;
   active: Seat;
   phase: Phase;
@@ -87,7 +85,6 @@ export interface GameView {
  *  second source of legality. Moves the rules leave no choice over (moving into a territory
  *  when the minimum equals the maximum, the defender's dice) are taken by the engine itself. */
 export type Move =
-  | { kind: "claim"; territory: TerritoryId }
   /** Setup and reinforcement placement. In setup `armies` is 1 (`SETUP-5`); in the 2-player
    *  setup a turn places 2 of one's own armies, then 1 neutral (`TWO-3`). */
   | { kind: "place"; territory: TerritoryId; armies: number }
@@ -111,7 +108,6 @@ export type Move =
  *  without trying moves one by one. Every move these allow is accepted by `apply`, and no
  *  other move is (a test holds the two together). Null when the seat has nothing to do. */
 export type Options =
-  | { kind: "claim"; territories: readonly TerritoryId[] }
   | {
       kind: "setup-place";
       ownTerritories: readonly TerritoryId[];
@@ -147,7 +143,8 @@ export type Options =
  *  it. Events carry only what the seat they are shown to may see: see `redact`. */
 export type GameEvent = { rule: string } & (
   | { kind: "turn-order"; order: readonly Seat[] }
-  | { kind: "claimed"; seat: Seat; territory: TerritoryId }
+  /** The setup deal (`SETUP-4`, `TWO-2`): each territory's first owner, with 1 army on it. */
+  | { kind: "dealt"; owners: Readonly<Record<TerritoryId, Owner>> }
   | { kind: "placed"; owner: Owner; territory: TerritoryId; armies: number }
   | {
       kind: "reinforcements";
