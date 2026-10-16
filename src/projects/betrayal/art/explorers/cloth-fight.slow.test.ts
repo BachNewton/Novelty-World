@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { beforeAll, expect, it } from "vitest";
+import { beforeAll, expect } from "vitest";
+import { artCheck } from "./art-checks";
 import { animationOf, type Animation } from "../animate";
 import { solidOf } from "../forms";
 import { stubCanvas } from "../headless";
@@ -20,7 +21,7 @@ const TOUCHING = 0.002;
 /** How alike two surfaces must face to fight: within about 25°. */
 const ALIKE = 0.9;
 
-it("never lies along her robe", { timeout: 120_000 }, () => {
+artCheck("never lies along her robe", { timeout: 120_000 }, () => {
   const figure = onCourse((seed, gait) => banshee(seed, gait, { cloth: "net" }))("banshee");
   const animations: Animation[] = [];
   figure.traverse((object) => {

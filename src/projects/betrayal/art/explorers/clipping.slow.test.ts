@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
+import { artChecks } from "./art-checks";
 import { animationOf } from "../animate";
 import { loft, mergeAll, solidOf, surfaceAt, type Section, type Vec3 } from "../forms";
 import { partsOf } from "../figure-parts";
@@ -71,7 +72,7 @@ const LIMIT = { timeout: 30_000 };
 /** The longest one figure's meshing may take, under a full run's load. */
 const MESHING = 60_000;
 
-describe.each(Object.entries(EXPLORERS))("%s", (name, own) => {
+artChecks.each(Object.entries(EXPLORERS))("%s", (name, own) => {
   const build = CHECKED[name] ?? own;
   // Meshing the parts is the slow step, done once a session: it belongs to no one check. It takes up to
   // about 6 s alone (Peter's).
@@ -107,7 +108,7 @@ describe.each(Object.entries(EXPLORERS))("%s", (name, own) => {
  * by their middles 11 mm off it, are rebuilt here as they were and must be
  * caught, while the ends as built pass.
  */
-describe("longfellow's scarf", () => {
+artChecks("longfellow's scarf", () => {
   const scarfOf = (figure: THREE.Object3D) => {
     const found = figure.getObjectByName("scarf");
     const coat = figure.getObjectByName("torso");
@@ -150,7 +151,7 @@ describe("longfellow's scarf", () => {
  * nor any of its points inside her arm or her cardigan, at any moment of her
  * idle, cued bursts, walk or run. Only her hand's own parts may touch it.
  */
-describe("jenny's book", () => {
+artChecks("jenny's book", () => {
   /** How deep one part's surface lies inside another's solid, at its deepest. */
   function deepest(a: THREE.Mesh, b: THREE.Mesh): number {
     const solid = solidOf(b.geometry as THREE.BufferGeometry);

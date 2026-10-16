@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { beforeAll, expect, it } from "vitest";
+import { beforeAll, expect } from "vitest";
+import { artCheck } from "./art-checks";
 import { animationOf, type Animation } from "../animate";
 import { stubCanvas } from "../headless";
 import { clothBodyOf } from "./cloth-sim";
@@ -22,7 +23,7 @@ const WHO: Record<string, [ExplorerBuilder, string, number]> = {
   banshee: [(s, g) => banshee(s, g, { cloth: "net" }), "veil", 12],
   rhinehardt: [(s, g) => rhinehardt(s, g, { cloth: "net" }), "robe", 16],
 };
-it("keeps where the cloth is pinned on the body, at 60, 75 and 144 frames a second", { timeout: 120_000 }, () => {
+artCheck("keeps where the cloth is pinned on the body, at 60, 75 and 144 frames a second", { timeout: 120_000 }, () => {
   for (const [name, [build, part, around]] of Object.entries(WHO)) {
     for (const hz of [60, 75, 144]) {
       const figure = onCourse(build)("x");
