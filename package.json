@@ -37,7 +37,8 @@
     "frogmino:prove": "tsx src/projects/frogmino/proof/prove-cli.ts",
     "setup:family-tree-solver": "python src/projects/family-tree/layout/solver/setup_venv.py",
     "test:e2e": "playwright test",
-    "test:all": "vitest run && vitest run --config vitest.slow.config.ts && playwright test"
+    "test:all": "vitest run && vitest run --config vitest.slow.config.ts && playwright test",
+    "load": "node scripts/load.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
