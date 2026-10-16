@@ -848,8 +848,8 @@ describe("Revolver (cards/items.md)", () => {
       { figure: OX_ID, dice: 4 },
     ]);
     const outcome = state.lastEvents.find((e) => e.type === "attack-outcome")
-      ?.data as { damage: { kind: string } | null };
-    if (outcome.damage) expect(outcome.damage.kind).toBe("physical");
+      ?.data as { harm: unknown };
+    expect(outcome.harm).toMatchObject({ kind: "damage", damage: "physical" });
   });
 });
 
