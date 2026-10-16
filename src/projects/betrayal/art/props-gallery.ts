@@ -5,7 +5,7 @@
  * and the pieces from different places that look like one piece built twice.
  */
 import * as THREE from "three";
-import { candelabra, candle, chamberstick, lantern } from "./kit/candles";
+import { candelabra, candle, chamberstick, lantern, oilLamp } from "./kit/candles";
 import { cobweb } from "./kit/cobweb";
 import { fire, flame } from "./kit/flame";
 import { pictureFrame, rug, windowPool } from "./kit/decor";
@@ -55,6 +55,7 @@ const KIT_PIECES: { file: string; name: string; build: () => THREE.Object3D }[] 
   { file: "candles.ts", name: "candelabra, five arms", build: () => candelabra({ arms: 5 }) },
   { file: "candles.ts", name: "chamberstick", build: () => chamberstick() },
   { file: "candles.ts", name: "lantern", build: () => lantern() },
+  { file: "candles.ts", name: "oil lamp", build: () => oilLamp() },
   { file: "flame.ts", name: "fire", build: () => fire({ width: 0.5 }) },
   { file: "flame.ts", name: "torch flame", build: () => flame("torch") },
   { file: "cobweb.ts", name: "cobweb, slung", build: () => cobweb({ form: "slung" }) },
