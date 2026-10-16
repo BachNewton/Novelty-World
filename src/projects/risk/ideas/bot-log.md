@@ -33,7 +33,7 @@ A 6-player self-play game first averaged 78ms a decision (worst 4.8s), 95% of it
 
 ### Against greedy (gauntlet, 2026-10-16)
 
-`risk:gauntlet -- rule-v1 --field greedy --base greedy`, train seeds, 14 workers. Every pairing that finished was decided **better** for v1 at the ±30 Elo SPRT, and most within a few dozen decisive games, which a 30-Elo test only does when the edge is far larger than 30 Elo:
+`risk:gauntlet -- rule-v1 --field greedy,random --base greedy`, train seeds, 14 workers (random was named by mistake; the run was stopped before any of its pairings). Every pairing that finished was decided **better** for v1 at the ±30 Elo SPRT, and most within a few dozen decisive games, which a 30-Elo test only does when the edge is far larger than 30 Elo:
 
 | Pairing | Decisive games to decide |
 |---|---|
