@@ -34,9 +34,10 @@ const DRAUGHT = { heading: 0.6, period: 7.5, swing: 0.075, breath: 23 };
 /**
  * The unseen presence among the ropes: where it stands on the boards, in room
  * metres (between the three ropes, a little towards the room from the
- * corner's bonus badge), and the height of its middle in the air.
+ * corner's bonus badge), and the height its teal light falls from. Nothing
+ * there is drawn: only its light on the ropes and the boards shows it.
  */
-const PRESENCE = { at: [-1.45, -1.6] as [x: number, z: number], middle: 1.15 };
+const PRESENCE = { at: [-1.45, -1.6] as [x: number, z: number], height: 1.15 };
 const WALL_BARS = { along: -1.05, bays: 2, bay: 0.9, top: 2.6, rung: 0.15 };
 
 /** The ceiling's iron eye a rope hangs from, its origin at the ceiling. */
@@ -97,31 +98,6 @@ function spectreColours(geometry: THREE.BufferGeometry, strength: number, fall: 
     colours.set([colour.r * f, colour.g * f, colour.b * f], i * 3);
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
-}
-
-/**
- * The unseen presence standing among the ropes: a faint column of spectral
- * teal hanging in the air about a person's height, thickest at its middle and
- * thinning to nothing above and below, with no source and no shape inside it;
- * it breathes, rising and sinking a few centimetres. Origin on the boards
- * under it.
- */
-function presence(): THREE.Group {
-  // Nested veils, the outer ones far the faintest, so the light thickens towards the middle and its edge has no rim.
-  const veils = Array.from({ length: 10 }, (_, k) => {
-    const radius = 0.34 - k * 0.03;
-    const half = 0.8 - k * 0.04;
-    const geometry = new THREE.SphereGeometry(1, 20, 14).scale(radius, half, radius);
-    spectreColours(geometry, 0.0009 * (k + 1) ** 1.4, (_x, y) => Math.max(0, 1 - (y / half) ** 2) ** 1.5);
-    const veil = new THREE.Mesh(geometry, lightMaterial(1, { vertexColors: true }));
-    veil.userData.noShadow = true;
-    return veil;
-  });
-  const column = group(...veils);
-  column.position.y = PRESENCE.middle;
-  return animated(group(column), (seconds) => {
-    column.position.y = PRESENCE.middle + 0.04 * Math.sin((2 * Math.PI * seconds) / 9);
-  });
 }
 
 /** A soft round pool of spectral teal on the boards under the presence, fading out from its middle; it has no source. Lies flat, its middle at the origin. */
@@ -372,8 +348,8 @@ function clubTrophy(): THREE.Group {
 
 /** The Gymnasium: a worn leather vaulting horse under a frosted gas globe,
  *  climbing ropes beside it swinging slowly in a draught that stirs nothing
- *  else, and among them a faint column of spectral teal hanging in the air,
- *  as if someone unseen stood there. */
+ *  else, and among them spectral teal falling on the ropes and the boards
+ *  from nowhere, as if someone unseen stood there. */
 export const GYMNASIUM: RoomDefinition = {
   id: "gymnasium",
   floor: () => woodPlanks({ ramp: ["woodDark", "wood", "woodMid", "woodLight"], plankPx: 5, seed: SEED, glints: false }),
@@ -384,7 +360,6 @@ export const GYMNASIUM: RoomDefinition = {
     { build: vaultingHorse, at: HORSE.at, turn: HORSE.turn },
     { build: gasPendant, at: HORSE.at },
     ...ROPES.map(({ at, end, lag }) => ({ build: () => swayingRope(end, lag), name: "climbing rope", at })),
-    { build: presence, at: PRESENCE.at },
     { build: presencePool, at: PRESENCE.at },
     { build: wallBarsBase, ...onWall("left", WALL_BARS.along) },
     { build: wallBarsAbove, ...onWall("left", WALL_BARS.along, { y: CUT_HEIGHT }) },
@@ -397,7 +372,7 @@ export const GYMNASIUM: RoomDefinition = {
   ],
   focus: [-0.6, 1.0, -0.6],
   prime: [1.3, -0.85],
-  lights: [{ at: [PRESENCE.at[0], PRESENCE.middle, PRESENCE.at[1]], colour: "spectre", intensity: 3.5, range: 5, flicker: 0.1, signal: 2, kind: "glow" }],
+  lights: [{ at: [PRESENCE.at[0], PRESENCE.height, PRESENCE.at[1]], colour: "spectre", intensity: 3.5, range: 5, flicker: 0.1, signal: 2, kind: "glow" }],
   // Under the swinging ropes, so no figure stands where they sweep.
   keepClear: [
     { from: ROPES[0].at, to: ROPES[2].at, radius: 0.45 },

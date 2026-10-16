@@ -29,7 +29,9 @@ The goal: a fully playable local hot-seat game, with all its UI and art up to an
 
 P8, haunt 13 in the house, is last.
 
-**Next session: the playtest goes on, UI first.** The owner plays on from setup and reports what they see; each finding becomes work, done in the agents' own worktrees under the playtest's working rules (the project's `CLAUDE.md`, "Working on long tasks"). Placeholder art is allowed wherever art isn't ready. Known to need work, picked up as the playtest reaches it:
+**The second session** reviewed the first's art on the bench (Missy, Madame Zostra beside Vivian, Jenny's book, the Gymnasium, the Crypt, the laboratories and the shared flame), approved after these changes: the Gymnasium's presence became teal light from nowhere among its ropes, with no visible source; the Research Laboratory's lamps became Victorian oil lamps with glass chimneys standing on its bench (the kit's `oilLamp`), since every light in the house is a flame; and the Drawing Room's firebox became hollow, so its fire no longer burns inside a black box. The bench gained `?casters`, to see what casts a hidden shadow, and with it the Operating Laboratory's hidden figure became two, a surgeon with a raised knife over an unwilling patient, told only by their shadows: that one still awaits the owner's look, the first item next session. Hard shadows stay, with their staircase edges accepted (`lighting.md`).
+
+**Next session: the playtest goes on, UI first.** It opens with the in-play review the second session didn't reach: a new game, played on the controller, checking what the first session built in play (roll tables with odds before and the hit row after; the card rework; the damage slider; room bonus badges, and Details with inspecting; the Wall Switch and the Mystic Slide as house targets; tile placement; rule-caused moves as beats the camera follows; the stairs keeping their heading; End turn with the frame meter and "Refining light"; Why as a dialog; a placed room solid at once; a discovery's line naming the room). The owner plays on from setup and reports what they see; each finding becomes work, done in the agents' own worktrees under the playtest's working rules (the project's `CLAUDE.md`, "Working on long tasks"). Placeholder art is allowed wherever art isn't ready. Known to need work, picked up as the playtest reaches it:
 
 - **A UI-size setting** for TV play: in the game menu, on every input, saved per device, scaling all UI and touch targets; 100% by default.
 - **The phone and desktop layout** round the status box.
@@ -51,7 +53,6 @@ P8, haunt 13 in the house, is last.
 - The phone layout round the status box.
 - The lake's water look (`?water=`).
 - The backlight: on by default, `?backlight=off` to compare.
-- Soft or hard shadows (`?shadows=soft`).
 - Card-driven moves (`presentation.md`, "Gait"): agreed in principle, to confirm in play.
 - An instant floor swap: whether changing floor should cut rather than glide between floors 7 m apart (the owner has looked at all the floors at once through the page hook).
 - Showing at setup who goes first, and why.
@@ -93,6 +94,8 @@ Not blocking; taken up when the game plays.
 - The props gallery's duplicate groups merged into the kit.
 - A house-wide variety pass on the rooms' uncanny notes, each settled against the ledger, not just its colour.
 - Candle shadows that move with the flame: baked from two or three flame positions and blended.
+- The Junk Room's and the Foyer's oil lamps onto the kit's `oilLamp`.
+- The figure viewer's explorer ids mix full names (`missy-dubourde`) and short ones (`vivian`): one form for all.
 - The other slow test files of a minute or two each (the explorers' overlap, gait, clipping and cloth, and `play/lookahead`) get the same review the sweep had: what each catches that a faster test can't, sized by measurement.
 
 ## The decisions and events
