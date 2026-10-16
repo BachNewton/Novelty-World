@@ -8,7 +8,10 @@ import path from "path";
 import { FORCE_RERUN_TRIGGERS, NESTED_CHECKOUTS } from "./vitest.config";
 
 const CORES = availableParallelism();
-const WORKERS = Math.max(1, Math.round(CORES / 2));
+// VITEST_MAX_WORKERS is vitest's own override of maxWorkers, so the solver's share below follows it.
+const WORKERS = process.env.VITEST_MAX_WORKERS === undefined
+  ? Math.max(1, Math.round(CORES / 2))
+  : Number.parseInt(process.env.VITEST_MAX_WORKERS);
 
 export default defineConfig({
   resolve: {

@@ -12,7 +12,6 @@
 // scales badly (or stops being deterministic) fails here rather than on the
 // next write to the live tree.
 
-import { availableParallelism } from "node:os";
 import { beforeAll, describe, it, expect } from "vitest";
 import {
   BRACKET_DEPTH,
@@ -25,7 +24,6 @@ import {
 } from "./edge-geometry";
 import { LINE_CLEARANCE } from "./layout/coord";
 import { NODE_W, SPOUSE_GAP, computeLayout, solveLayout, type SolvedLayout } from "./layout/compute-layout";
-import type { SolverOptions } from "./layout/solver-process";
 import { currentPartnerIds } from "./logic";
 import type { LaidOutNode, Layout, Tree } from "./types";
 import {
@@ -167,13 +165,13 @@ function meet(s: [Point, Point], t: [Point, Point]): boolean {
  *  solver's own time limit would otherwise let run for half an hour. */
 const LIMIT = { timeout: 180_000 };
 
-function defineLayoutInvariants(name: string, build: () => Tree, options: SolverOptions = {}): void {
+function defineLayoutInvariants(name: string, build: () => Tree): void {
   let tree: Tree;
   let layout: Layout;
   let solved: SolvedLayout;
   beforeAll(() => {
     tree = build();
-    solved = solveLayout(tree, options);
+    solved = solveLayout(tree);
     layout = solved.layout;
   }, LIMIT.timeout);
 
@@ -418,8 +416,8 @@ function defineLayoutInvariants(name: string, build: () => Tree, options: Solver
     "is deterministic across repeated runs",
     LIMIT,
     () => {
-      const a = computeLayout(build(), options);
-      const b = computeLayout(build(), options);
+      const a = computeLayout(build());
+      const b = computeLayout(build());
       const fmt = (l: Layout): string =>
         l.nodes
           .slice()
@@ -563,16 +561,15 @@ describe("partners past a card's two sides", LIMIT, () => {
 // The fixtures near the live tree's size, whose exact solves need every core, as the CLI's do: opt-in (see
 // FULL_SOLVES).
 describe.runIf(FULL_SOLVES)("at the live tree's size", () => {
-  const options = { threads: availableParallelism() };
   describe("computeLayout invariants — productionTree", () => {
-    defineLayoutInvariants("productionTree", productionTree, options);
+    defineLayoutInvariants("productionTree", productionTree);
   });
 
   describe("computeLayout invariants — familyNetwork", () => {
-    defineLayoutInvariants("familyNetwork", () => familyNetwork(), options);
+    defineLayoutInvariants("familyNetwork", () => familyNetwork());
   });
 
   describe("computeLayout invariants — productionWithOverflow", () => {
-    defineLayoutInvariants("productionWithOverflow", productionWithOverflow, options);
+    defineLayoutInvariants("productionWithOverflow", productionWithOverflow);
   });
 });

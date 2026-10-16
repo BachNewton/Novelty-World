@@ -539,8 +539,8 @@ export function remarriedExes(): Tree {
 //
 // Solving a tree this size exactly needs CP-SAT's search on every core, as the
 // CLI gives it, not a test worker's share. So the slow tests that solve one
-// are opt-in, and run alone:
-//   FAMILY_TREE_FULL_SOLVES=1 npx vitest run --config vitest.slow.config.ts --maxWorkers=1 src/projects/family-tree/layout-
+// are opt-in, and run on one worker, whose share is then every core:
+//   FAMILY_TREE_FULL_SOLVES=1 VITEST_MAX_WORKERS=1 npx vitest run --config vitest.slow.config.ts src/projects/family-tree/layout-
 export const FULL_SOLVES = process.env.FAMILY_TREE_FULL_SOLVES;
 
 // Refresh via:
