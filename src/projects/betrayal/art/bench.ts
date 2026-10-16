@@ -18,6 +18,7 @@ import { texturesUnder } from "./textures";
 import { group, shownBounds } from "./shapes";
 import { blowsOn, roomWind } from "./wind";
 import { depthRange, FIELD_OF_VIEW } from "./house-camera";
+import { createCasterOverlay } from "./caster-overlay";
 import { createPathOverlay, type PathLegend, type PathOverlay, type SolvedRoom } from "./path-overlay";
 import { checkFloor } from "./overlap";
 import { backdropKind, createBackdrop } from "./backdrop";
@@ -79,6 +80,8 @@ export interface BenchSnapshot {
   /** Whether the paths overlay shows (`&paths`), and its legend once drawn. */
   paths: boolean;
   pathLegend: PathLegend | null;
+  /** Whether the room's bake-only shadow casters show (`&casters`), drawn see-through over the room. */
+  casters: boolean;
 }
 
 export interface BenchApi {
@@ -96,6 +99,8 @@ export interface BenchApi {
   freezeClock: (seconds: number | null) => void;
   /** Shows or hides where figures stand and walk over the room (see `path-overlay.ts`). */
   setPaths: (on: boolean) => void;
+  /** Shows or hides the room's bake-only shadow casters (see `caster-overlay.ts`). */
+  setCasters: (on: boolean) => void;
   isReady: () => boolean;
   rooms: () => string[];
   explorers: () => string[];
@@ -137,6 +142,8 @@ function standCrowd(def: RoomDefinition, crowd: readonly CrowdFigure[]): { at: [
 function benchStage(def: RoomDefinition, figures: readonly CrowdFigure[], bakes: BakeScheduler) {
   const { at, solved } = standCrowd(def, figures);
   const part = buildRoom(def, { explorer: null });
+  // Read before freezing, which frees the casters' geometry.
+  const casters = createCasterOverlay(part.root);
   // Everyone in the room stands in its air, for cloth that blows in it.
   const wind = roomWind(def);
   const frozen = freezeRoom(def.id, part);
@@ -173,7 +180,7 @@ function benchStage(def: RoomDefinition, figures: readonly CrowdFigure[], bakes:
   if (explorer) overExplorer.position.copy(explorer.getWorldPosition(new THREE.Vector3())).add(EXPLORER_LIGHT_OFFSET);
   overExplorer.visible = explorer !== null;
   return {
-    root: group(floor.root, fillLight(), overExplorer, ...crowd.map(({ figure }) => figure), ...marks),
+    root: group(floor.root, fillLight(), overExplorer, ...crowd.map(({ figure }) => figure), ...marks, casters.root),
     fog,
     background: fog.color.clone(),
     setCutaway: (cameraDirection: THREE.Vector2) => {
@@ -194,8 +201,12 @@ function benchStage(def: RoomDefinition, figures: readonly CrowdFigure[], bakes:
     // Ready once the room shows its whole light, the bounce included, so a screenshot shows it.
     ready: Promise.all([frozen.ready, ...crowd.map(({ figure }) => texturesUnder(figure)), bake.then(cut), bake.then((done) => done.bounce)]).then(() => undefined),
     solved,
+    showCasters: (on: boolean) => {
+      casters.root.visible = on;
+    },
     dispose: () => {
       floor.dispose();
+      casters.dispose();
       for (const { figure } of crowd) disposeTree(figure);
       for (const mark of marks) {
         if (mark instanceof THREE.Sprite) {
@@ -254,7 +265,7 @@ function explorer(id: string): BenchExplorer {
 /** The art bench: one room on its own, under an orbit camera that the presets
  *  (four views, zoom, framing) place and the user can drag from there.
  *  Plain state outside React, so the page and screenshot tools drive the same thing. */
-export function createBench(initialRoom: string, initialExplorer: string | null = null, framing: string | null = null, paths = false) {
+export function createBench(initialRoom: string, initialExplorer: string | null = null, framing: string | null = null, paths = false, casters = false) {
   const firstRoom = benchRoom(initialRoom) ? initialRoom : BENCH_ROOMS[0].id;
   let snapshot: BenchSnapshot = {
     roomId: firstRoom,
@@ -268,6 +279,7 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
     frozenAt: null,
     paths,
     pathLegend: null,
+    casters,
   };
   const listeners = new Set<() => void>();
   let mounted: {
@@ -275,6 +287,7 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
     settle: () => void;
     applyResolution: () => void;
     showPaths: () => void;
+    showCasters: () => void;
   } | null = null;
   let stageReady = false;
   let lastBake: Rebake | null = null;
@@ -334,6 +347,11 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
       setSearchParam("paths", on ? "" : null);
       mounted?.showPaths();
     },
+    setCasters: (on) => {
+      update({ ...snapshot, casters: on });
+      setSearchParam("casters", on ? "" : null);
+      mounted?.showCasters();
+    },
     isReady: () => stageReady && settled,
     rooms: () => BENCH_ROOMS.map((room) => room.id),
     explorers: () => [...BENCH_EXPLORERS, ...PLACEMENT_PRESETS].map((figure) => figure.id),
@@ -370,6 +388,7 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
         if (stage === built) lastBake = bake;
       });
       stage = built;
+      built.showCasters(snapshot.casters);
       scene.add(built.root);
       scene.fog = built.fog;
       scene.background = built.background;
@@ -529,7 +548,9 @@ export function createBench(initialRoom: string, initialExplorer: string | null 
       update({ ...snapshot, pathLegend: paths?.legend ?? null });
     };
 
-    mounted = { rebuild, settle, applyResolution, showPaths };
+    const showCasters = () => stage?.showCasters(snapshot.casters);
+
+    mounted = { rebuild, settle, applyResolution, showPaths, showCasters };
     rebuild();
     showPaths();
     window.__betrayalBench = api;
