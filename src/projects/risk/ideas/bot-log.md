@@ -94,3 +94,16 @@ Real games: `risk_games` holds none, so there is no human evidence yet; every ju
 Stopped there: the crown needs better than the base at every table, so it could no longer be crowned. A lone v2 among v1 copies gains at 3 players, where being the worse target among two neighbours sends both v1s' attacks at each other, but a v2 majority, or a lone v2 at 4, gains nothing a 30-Elo test can see. The point tested: target share as proportional to the opponent's best blow on each neighbour, with v1's weights. Not refuted as an idea: a sharper model of whom an opponent hits (its whole plan, not one blow) is still open.
 
 The first tuning run (`risk:tune`, 10 candidates of 208 games each) was stopped after one generation: a candidate's worst table rested on about 70 games, a standard error near 60 Elo, so its ranking was mostly noise; and weights tuned for v1 would be for the wrong bot if a structural change wins. The rerun uses 416 games a candidate.
+
+## Reading v1's games (`risk:review`, 2026-10-17)
+
+`risk:review` replays any measured game as a record (each turn's standings, every move, a rule bot's plans with their odds and scores). Three readers went through eight games: three 6-player losses of a lone v1 among five GD Continentals, three 4-player losses among three GD Stackers, and v1 against itself at 4 and 6. Their findings agree with each other and with the records:
+
+- **Over-extension is the main loss.** After a good kill or trade v1 sweeps through five to eight territories on one army each and ends the income leader with the longest thin border; the next round each opponent takes back three to eight of them. Biggest stack 2 to 3 for fifteen turns in one game, armies 29 to 9; GD blitzes aimed at v1 44 to 70% of the time against an even 20 to 33%. The losses to Stackers were early collapses, not stalemates.
+- **Cause, in the evaluation:** border exposure charges each opponent's single best blow, so thin territories past the first cost nothing; an opponent's neighbour on one army counts as no threat though its income lands there.
+- **Planner faults it exposed:** a forked run pictured as one line (all armies on the last target), placed armies beyond a route's needs dropped from the success board (the same board scored differently placing and attacking), and one stack launching two groups beside two different stacks.
+- **Also seen, not yet acted on:** kills started and abandoned, leaving a card-rich victim for the next seat; fortifies that pull a continent's only stack off its gate; no plan to strike an enemy stack; single captures admitted at 25%.
+
+These became v2's candidate B (`rule-bot-v2.md`).
+
+**Tuning, second run, stopped:** `risk:tune` with 8 candidates of 416 games took 25 minutes for one generation (the first run's 208-game generations took 4): some weight vectors stall games toward the turn cap. Tuning waits for the structure; a stalling candidate is a health signal the tuner should report.

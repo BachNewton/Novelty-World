@@ -167,9 +167,19 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
       }
     }
     if (!seen.has(me)) continue;
-    const aim =
-      commonThreat === me ? 1 : commonThreat !== null && commonThreat !== q ? 0.25 : 1 / Math.max(1, neighbours);
     const qIncome = Math.round(income[q]);
+    // How likely q's turn goes against me: everyone hits the common threat, and its
+    // neighbours a quarter as often; otherwise q hits whoever its turn hurts most, so my
+    // share of what it could do to each neighbour, each weighed as q sees it (v2).
+    let aim: number;
+    if (commonThreat === me) aim = 1;
+    else if (commonThreat !== null && commonThreat !== q) aim = 0.25;
+    else {
+      const hurt = (v: Seat) => Math.max(bestBlow(b, v, q, qIncome, H), sweepLoss(b, v, q, qIncome, H, 1));
+      let all = 0;
+      for (const v of seen) all += hurt(v);
+      aim = all > 0 ? hurt(me) / all : 1 / Math.max(1, neighbours);
+    }
     const horizon = H * prefs.myContinentWeight;
     borderLoss += aim * Math.max(bestBlow(b, me, q, qIncome, horizon), sweepLoss(b, me, q, qIncome, H, prefs.myContinentWeight));
   }

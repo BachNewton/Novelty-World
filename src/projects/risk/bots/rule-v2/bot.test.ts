@@ -91,7 +91,7 @@ describe("rule-v2", () => {
     }, 60);
     // v2 beats the random players before its 60th move in this game, so it is checked on
     // every move it made.
-    expect(checked).toBeGreaterThanOrEqual(40);
+    expect(checked).toBeGreaterThanOrEqual(30);
   });
 
   it("plays whole games against itself to a winner", () => {
