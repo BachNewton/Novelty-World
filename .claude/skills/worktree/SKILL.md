@@ -56,3 +56,5 @@ Conflicts are resolved in the worktree, never in the main checkout, where a half
 ```
 
 It refuses a worktree with uncommitted changes or a branch that isn't merged (`-Force` overrides both; `-KeepBranch` keeps the branch). It deletes the folder with `rmdir /s`, which removes a junction without entering it, rather than `git worktree remove`, which follows one: no junction should exist, but a build in the worktree can make some under `.next`. Then it prunes the worktree and deletes the branch.
+
+When Windows refuses the delete, some process still has the folder as its working directory, most often one left by an interrupted command (a test run, a dev server, a solver), which keeps running in the folder it started in. Teardown then lists those processes (`holders.ps1`, which also runs on its own with `-Path <folder>`), so the right ones can be stopped before rerunning it. Stop only processes that belong to this worktree's work: another session's are its owner's.
