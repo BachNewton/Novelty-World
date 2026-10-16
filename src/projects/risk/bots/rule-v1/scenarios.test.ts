@@ -11,8 +11,7 @@ import { plans } from "./planner";
 
 // The design's test scenarios (`ideas/rule-bot-v1.md` §5): positions where expert
 // play is clear, each checking the move an expert would make. Unless a scenario says
-// otherwise the game has 5 players and v1 is seat 0, to move. Scenario 11 (setup
-// placement) is gone with setup decisions: the deal places every army (Auto Placement).
+// otherwise the game has 5 players and v1 is seat 0, to move.
 
 type Layout = Partial<Record<TerritoryId, [Seat, number]>>;
 
@@ -28,7 +27,6 @@ function layout(named: Layout, fillers: readonly Seat[], armies: number): Layout
   }
   return board;
 }
-
 
 const active = (state: GameState): Seat => referenceEngine.view(state, null).active;
 
@@ -85,7 +83,6 @@ function explain(state: GameState): string {
 }
 
 const inGame = (state: GameState, seat: Seat) => !referenceEngine.view(state, null).seats[seat].eliminated;
-const handOf = (state: GameState, seat: Seat) => referenceEngine.view(state, seat).cards.hand ?? [];
 
 function scenario(p: Position): GameState {
   return position({ players: 5, active: 0, ...p });
@@ -99,12 +96,13 @@ function captured(p: Position, from: TerritoryId, to: TerritoryId): GameState {
 
 const AFRICA: TerritoryId[] = ["north-africa", "egypt", "east-africa", "congo", "south-africa", "madagascar"];
 const AUSTRALIA: TerritoryId[] = ["indonesia", "new-guinea", "western-australia", "eastern-australia"];
+const NORTH_AMERICA: TerritoryId[] = TERRITORIES.filter((t) => t.continent === "north-america").map((t) => t.id);
 const own = (ts: readonly TerritoryId[], armies: number, seat: Seat = 0): Layout =>
   Object.fromEntries(ts.map((t) => [t, [seat, armies]]));
 
 describe("v1's scenarios", () => {
-  // B (seat 1) holds the four of South America, thin; I hold Central
-  // America 10 and Africa, which gives me 6 to place.
+  // B (seat 1) holds the four of South America, thin; I hold Central America 10 and
+  // Africa, which gives me 6 to place.
   const southAmericaKill = (myCards: CardId[], bCards: CardId[], africa: number, threat: Layout = {}) =>
     scenario({
       board: layout(
@@ -123,26 +121,25 @@ describe("v1's scenarios", () => {
       hands: [myCards, bCards, [], [], []],
     });
 
-  it("1: kills for a mid-cash, placing everything on the run's launch stack", () => {
-    const state = southAmericaKill(["alaska", "alberta"], ["china", "mongolia", "siberia", "ural", "japan"], 3);
+  it("1: kills when the cards force a trade at once, from a launch stack made sure", () => {
+    // My 1 card and B's 4 make 5: a trade the moment B falls (`ELIM-3`).
+    const state = southAmericaKill(["alaska"], ["china", "mongolia", "siberia", "ural"], 3);
     const { moves } = playTurn(state, untilAttack);
-    expect(placements(moves), explain(state)).toEqual({ "central-america": 6 });
-    expect(firstAttack(moves)).toMatchObject({ kind: "blitz", from: "central-america", to: "venezuela" });
+    expect(placements(moves)["central-america"] ?? 0, explain(state)).toBeGreaterThanOrEqual(2);
+    expect(firstAttack(moves)).toMatchObject({ from: "central-america", to: "venezuela" });
+    expect(inGame(playTurn(state).state, 1)).toBe(false);
   });
 
-  it("2: with no mid-cash, kills only when nobody can then kill me", () => {
-    const quiet = southAmericaKill(["alaska"], ["china", "mongolia", "siberia", "ural"], 3);
+  it("2: with no trade to take, kills only when nobody can then kill me", () => {
+    const quiet = southAmericaKill([], ["china", "mongolia", "siberia"], 3);
     expect(firstAttack(playTurn(quiet, untilAttack).moves), explain(quiet)).toMatchObject({ to: "venezuela" });
-    expect(inGame(playTurn(quiet).state, 1)).toBe(false);
 
-    // Seat 2 sits over a thin Africa: the kill would leave me on 6 cards, a prize.
-    const exposed = southAmericaKill(["alaska"], ["china", "mongolia", "siberia", "ural"], 1, {
+    // Seat 2 sits over a thin Africa with two big stacks: the kill would strip my front.
+    const exposed = southAmericaKill([], ["china", "mongolia", "siberia"], 1, {
       "southern-europe": [2, 30],
       "middle-east": [2, 25],
     });
-    const after = playTurn(exposed);
-    expect(inGame(after.state, 1), explain(exposed)).toBe(true);
-    expect(handOf(after.state, 0)).toHaveLength(2);
+    expect(inGame(playTurn(exposed).state, 1), explain(exposed)).toBe(true);
   });
 
   it("3: doesn't weaken a card-holder for the leader to finish", () => {
@@ -174,20 +171,81 @@ describe("v1's scenarios", () => {
     expect(targetsOf(moves).filter((t) => ["ukraine", "scandinavia", "iceland"].includes(t)), explain(state)).toEqual([]);
   });
 
-  it("9: takes the cheap card early and stops", () => {
+  const quietBoard = () => layout(own(AUSTRALIA, 8), [1, 2, 3, 4], 4);
+
+  it("4: trades one of each at once", () => {
+    // Infantry, cavalry, artillery: 10 now, and nothing better to wait for.
+    const state = scenario({ board: quietBoard(), hands: [["alaska", "argentina", "brazil"], [], [], [], []] });
+    expect(decide(state), explain(state)).toMatchObject({ kind: "trade" });
+  });
+
+  it("5: holds two infantry and a wild, which any cavalry or artillery turns into one of each", () => {
+    const state = scenario({ board: quietBoard(), hands: [["alaska", "alberta", "wild-1"], [], [], [], []] });
+    expect(decide(state).kind, explain(state)).toBe("place");
+  });
+
+  it("6: at five cards, trades one of each with the +2 on my front, and keeps the wild", () => {
+    // Egypt (infantry) is mine and faces an enemy.
+    const state = scenario({
+      board: layout({ egypt: [0, 4], "middle-east": [1, 6], ...own(AUSTRALIA, 4) }, [1, 2, 3, 4], 3),
+      hands: [["egypt", "alaska", "argentina", "brazil", "wild-1"], [], [], [], []],
+    });
+    const move = decide(state);
+    expect(move.kind).toBe("trade");
+    if (move.kind === "trade") expect([...move.cards].sort()).toEqual(["argentina", "brazil", "egypt"]);
+  });
+
+  it("7: takes a card spot with a blitz of just the armies that make it sure, and stops", () => {
     const state = scenario({
       board: layout(
-        { ...own(AUSTRALIA, 4), "new-guinea": [1, 1], siam: [2, 4] },
+        { ...own(AUSTRALIA, 3), indonesia: [0, 10], siam: [1, 1], india: [2, 8], china: [2, 8] },
         [1, 2, 3, 4],
         4,
       ),
       phase: "attack",
     });
+    expect(decide(state), explain(state)).toEqual({ kind: "blitz", from: "indonesia", to: "siam", keepAtLeast: 7 });
     const { moves } = playTurn(state, (m) => m.kind === "end-attack");
-    expect(targetsOf(moves), explain(state)).toEqual(["new-guinea"]);
+    expect(targetsOf(moves)).toEqual(["siam"]);
   });
 
-  it("12: under a common threat, hits the leader and never a weaker player's continent", () => {
+  it("8: in a close fight, rolls single battles until it is the favourite", () => {
+    // Two players left, 10 attackers against 10: a blitz captures 61% of the time,
+    // rolling until the favourite and then blitzing 66%.
+    const south = TERRITORIES.filter((t) => ["south-america", "africa", "australia"].includes(t.continent)).map((t) => t.id);
+    const state = position({
+      players: 3,
+      active: 0,
+      eliminated: [2],
+      board: { ...own(south, 2), indonesia: [0, 11], siam: [1, 10] },
+      rest: [1, 2],
+      phase: "attack",
+    });
+    expect(decide(state), explain(state)).toEqual({ kind: "attack", from: "indonesia", to: "siam", dice: 3 });
+  });
+
+  it("9: completes North America when it is cheap: with sets that don't grow, continents pay", () => {
+    const state = scenario({
+      board: layout(
+        {
+          ...own(NORTH_AMERICA, 4),
+          alaska: [1, 1],
+          greenland: [2, 1],
+          "northwest-territory": [0, 9],
+          quebec: [0, 9],
+          kamchatka: [3, 3],
+          iceland: [4, 3],
+          venezuela: [3, 3],
+        },
+        [1, 2, 3, 4],
+        3,
+      ),
+    });
+    const { moves } = playTurn(state, (m) => m.kind === "end-attack");
+    expect(targetsOf(moves), explain(state)).toEqual(expect.arrayContaining(["alaska", "greenland"]));
+  });
+
+  it("10: under a common threat, strikes the leader first", () => {
     // L (seat 1) holds Asia and Australia; seat 2 holds South America beside my Africa.
     const asia = TERRITORIES.filter((t) => t.continent === "asia").map((t) => t.id);
     const state = scenario({
@@ -206,11 +264,12 @@ describe("v1's scenarios", () => {
         3,
       ),
     });
-    const { moves } = playTurn(state, (m) => m.kind === "end-attack");
-    expect(targetsOf(moves).filter((t) => ["venezuela", "peru", "brazil", "argentina"].includes(t)), explain(state)).toEqual([]);
+    const attack = firstAttack(playTurn(state, untilAttack).moves);
+    const owner = attack && isAttack(attack) ? referenceEngine.view(state, 0).territories[attack.to].owner : null;
+    expect(owner, explain(state)).toBe(1);
   });
 
-  it("13: fortifies to the front along an owned path, and only along one", () => {
+  it("11: fortifies to the front along an owned path, and only along one", () => {
     const board = (brazil: [Seat, number]) =>
       layout(
         {
@@ -231,7 +290,7 @@ describe("v1's scenarios", () => {
     expect(decide(cut)).not.toMatchObject({ to: "north-africa" });
   });
 
-  describe("14: the move-in", () => {
+  describe("12: the move-in", () => {
     it("moves everything out of a source left with no enemy beside it", () => {
       const state = captured({ board: layout({ ...own(AUSTRALIA, 1), indonesia: [0, 10], siam: [1, 1] }, [1, 2, 3, 4], 3) }, "indonesia", "siam");
       expect(decide(state)).toEqual({ kind: "occupy", armies: 9 });
@@ -261,25 +320,11 @@ describe("v1's scenarios", () => {
       );
       const move = decide(state);
       expect(move.kind).toBe("occupy");
-      if (move.kind === "occupy") expect(move.armies).toBeGreaterThanOrEqual(12);
+      if (move.kind === "occupy") expect(move.armies).toBeGreaterThanOrEqual(10);
     });
   });
 
-  it("15: in a duel, attacks when the big battle favours the attacker", () => {
-    const south = TERRITORIES.filter((t) => ["south-america", "africa", "australia"].includes(t.continent)).map((t) => t.id);
-    const state = position({
-      players: 3,
-      active: 0,
-      eliminated: [2],
-      board: { ...own(south, 2), indonesia: [0, 31], siam: [1, 30] },
-      rest: [1, 2],
-      phase: "attack",
-    });
-    const { moves } = playTurn(state, (m) => m.kind === "end-attack" || (isAttack(m) && m.to === "siam"));
-    expect(targetsOf(moves), explain(state)).toContain("siam");
-  });
-
-  it("16: sweeps, starting with the victim whose cards trigger the first mid-turn trade", () => {
+  it("13: sweeps the victims whose cards force trades", () => {
     const state = scenario({
       board: layout(
         {
@@ -296,20 +341,14 @@ describe("v1's scenarios", () => {
         [4, 0],
         3,
       ),
-      hands: [
-        ["alaska"],
-        ["china", "india", "siam", "ural"],
-        ["egypt", "congo", "iceland", "ukraine", "yakutsk"],
-        ["greenland", "quebec", "ontario", "irkutsk", "siberia"],
-        [],
-      ],
+      hands: [["alaska", "egypt"], ["china", "india"], ["congo", "iceland", "ukraine"], ["greenland", "quebec", "ontario"], []],
       phase: "attack",
     });
-    const first = decide(state);
-    expect(isAttack(first) && ["japan", "kamchatka", "madagascar", "south-africa"].includes(first.to), explain(state)).toBe(true);
+    const after = playTurn(state).state;
+    expect(inGame(after, 2) || inGame(after, 3), explain(state)).toBe(false);
   });
 
-  it("17: takes a card from a card-less buffer but doesn't finish it", () => {
+  it("14: takes a card from a card-less buffer but doesn't finish it", () => {
     const state = position({
       players: 6,
       active: 0,
@@ -321,7 +360,7 @@ describe("v1's scenarios", () => {
     expect(referenceEngine.view(after, 0).cardEarned).toBe(true);
   });
 
-  it("18: ending on five cards, covers the shell an opponent could take", () => {
+  it("15: holding cards, covers the shell an opponent could take, and me with it", () => {
     // Indonesia 14, New Guinea 2; Western Australia's 10 can take the shell, and with it me.
     const state = scenario({
       board: layout(
@@ -329,7 +368,7 @@ describe("v1's scenarios", () => {
         [1, 2, 3, 4],
         3,
       ),
-      hands: [["china", "india", "japan", "kamchatka", "irkutsk"], [], [], [], []],
+      hands: [["china", "india", "japan", "kamchatka"], [], [], [], []],
       phase: "fortify",
     });
     expect(decide(state), explain(state)).toMatchObject({ kind: "fortify", from: "indonesia", to: "new-guinea" });

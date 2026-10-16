@@ -6,45 +6,60 @@ import {
   CONTINENT_BONUS,
   CONTINENT_MEMBERS,
   countOf,
+  firstTurnBonus,
   hasEnemyNeighbour,
   holdsContinent,
   N,
   opponentsInOrder,
   type Board,
 } from "./board";
-import { setChance, setValue } from "./cards";
+import { CARD_DISCOUNT, CARD_WORTH, DRAW_CHANCE, handWorth, hiddenHand, policyTrade, type Shape } from "./cards";
 import { exchange, pathRun, winProb } from "./odds";
-import { incomeHorizon, leaderRatio, type Params } from "./params";
+import type { Params } from "./params";
 import { killChance } from "./routes";
 
 // The one yardstick (`ideas/rule-bot-v1.md` §3): my equity in a position at the end
-// of my turn. Power is armies, income over a horizon, and card equity; equity is my
-// share of everyone's power, cut by the chance I am eliminated before my next turn
-// and by my expected border losses, raised by next turn's best kill. Every decision
-// (placement, attacks, trades, occupy, fortify) is scored by it, so they can't
-// disagree with each other.
+// of my turn. Power is armies, income over a horizon, and the armies cards in hand
+// will become; equity is my share of everyone's power, cut by the chance I am
+// eliminated before my next turn and by my expected border losses, raised by next
+// turn's best kill. Every decision (placement, attacks, trades, occupy, fortify) is
+// scored by it, so they can't disagree with each other.
 
-/** Each other player's expected armies next turn, in turn order after `me`: territory
- *  and continent income, and a set at the printed value times the chance they hold one.
- *  Objective: it models them, so no preference of mine enters it. */
+const EMPTY: Shape = [0, 0, 0, 0];
+/** What an empty hand is worth: the cards to come, which every player draws alike and
+ *  income counts instead. A hand is worth what it adds to that. */
+const NO_HAND = handWorth(EMPTY, 0);
+
+/** What `n` cards nobody but their holder has seen are worth, in armies now. */
+export function hiddenCards(n: number): number {
+  return CARD_DISCOUNT * (hiddenHand(n).worth - NO_HAND);
+}
+
+/** What my hand is worth in armies now: the cards I know, any I have taken unseen, and
+ *  the card this turn's capture draws as it ends. */
+export function myCards(b: Board, me: Seat): number {
+  const known = b.known[0] + b.known[1] + b.known[2] + b.known[3];
+  const unknown = b.handSize[me] - known + (b.cardEarned ? 1 : 0);
+  return CARD_DISCOUNT * (handWorth(b.known, unknown) - NO_HAND);
+}
+
+/** The armies my hand is expected to trade at the start of my next turn. */
+function myNextTrade(b: Board, me: Seat): number {
+  const known = b.known[0] + b.known[1] + b.known[2] + b.known[3];
+  if (known === b.handSize[me] && !b.cardEarned) return policyTrade(b.known)?.value ?? 0;
+  return hiddenHand(b.handSize[me] + (b.cardEarned ? 1 : 0)).nextTrade;
+}
+
+/** Each player's expected armies next turn: territory and continent income, the set
+ *  their hand is expected to trade, and a later seat's first-turn bonus. Objective: it
+ *  models them, so no preference of mine enters it. */
 export function expectedIncome(b: Board, me: Seat): number[] {
   const income = new Array<number>(b.players).fill(0);
-  let trades = 0;
   for (const q of opponentsInOrder(b, me)) {
-    const p = setChance(b.handSize[q]);
-    income[q] = boardIncome(b, q) + p * setValue(b.setsTraded + 1 + Math.round(trades));
-    trades += p;
+    income[q] = boardIncome(b, q) + hiddenHand(b.handSize[q]).nextTrade + firstTurnBonus(b, q);
   }
   income[me] = boardIncome(b, me);
   return income;
-}
-
-/** The set value I expect to trade at on my next turn: the others' likely trades
- *  come first. */
-export function myFutureSetValue(b: Board, me: Seat): number {
-  let trades = 0;
-  for (const q of opponentsInOrder(b, me)) trades += setChance(b.handSize[q]);
-  return setValue(b.setsTraded + 1 + Math.round(trades));
 }
 
 export interface Breakdown {
@@ -69,11 +84,11 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
   if (!b.alive[me]) return none;
   if (alive.length === 1) return { ...none, value: 1, share: 1, killExposure: 0 };
 
-  const nextSet = setValue(b.setsTraded + 1);
-  const H = incomeHorizon(prefs, nextSet);
-  const future = myFutureSetValue(b, me);
+  const H = prefs.incomeHorizon;
   // The card drawn at the end of this turn (`CARDS-1`) is mine already.
   const myHand = b.handSize[me] + (b.cardEarned ? 1 : 0);
+  // Every player draws about a card a turn, worth its share of a set.
+  const cardIncome = DRAW_CHANCE * CARD_WORTH;
 
   const income = expectedIncome(b, me);
   const opponents = opponentsInOrder(b, me);
@@ -85,11 +100,8 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
     for (let c = 0; c < CONTINENT_BONUS.length; c++) {
       if (holdsContinent(b, p, c)) territoryIncome += CONTINENT_BONUS[c] * (p === me ? prefs.myContinentWeight : 1);
     }
-    // Others' cards: the hand they hold and the cards they will draw over the horizon,
-    // at the next set's value, so my trade, which raises it, raises their worth.
-    const cards =
-      p === me ? prefs.myCardWeight * (myHand / 3) * future : ((b.handSize[p] + om.drawsPerTurn * H) / 3) * nextSet;
-    power[p] = armiesOf(b, p) + H * territoryIncome + cards;
+    const cards = p === me ? prefs.myCardWeight * myCards(b, me) : hiddenCards(b.handSize[p]);
+    power[p] = armiesOf(b, p) + H * (territoryIncome + cardIncome) + cards;
   }
 
   // Before my next turn, each opponent goes for the one kill that pays it best (a
@@ -110,7 +122,9 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
       if (hand === 0 && v !== me) continue;
       const p = killChance(b, q, v, Math.round(income[q]));
       if (p === 0) continue;
-      const pays = hand + b.handSize[q] >= 6 || hand >= 3 || (v === me && myCount <= 2);
+      // A kill pays when the cards it takes force a trade at once (`ELIM-3`), or the
+      // victim's hand is worth taking.
+      const pays = hand + b.handSize[q] >= 5 || hand >= 3 || (v === me && myCount <= 2);
       const taken = p * (p >= om.killBar || pays ? 1 : om.unpaidKillChance);
       const worth = taken * (hand + 1);
       if (worth > best) {
@@ -122,13 +136,13 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
     if (victim < 0) continue;
     spared[victim] *= 1 - bestTaken;
     if (victim === me) continue;
-    power[q] += bestTaken * (b.handSize[victim] / 3) * nextSet;
+    power[q] += bestTaken * hiddenCards(b.handSize[victim]);
     power[victim] *= 1 - bestTaken;
   }
   let total = 0;
   for (const p of alive) total += power[p];
 
-  const ratio = leaderRatio(om, nextSet);
+  const ratio = om.leaderRatio + om.leaderRatioPerPlayer * (alive.length - 4);
   let commonThreat: Seat | null = null;
   for (const p of alive) {
     if (alive.every((q) => q === p || power[p] > ratio * power[q])) commonThreat = p;
@@ -161,12 +175,12 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
 
   // Next turn's best kill, valued by the cards it would take.
   let opportunity = 0;
-  const myNext = boardIncome(b, me) + (myHand >= 3 ? setChance(myHand) * future : 0);
+  const myNext = boardIncome(b, me) + myNextTrade(b, me);
   for (const v of opponents) {
     if (b.handSize[v] === 0) continue;
     const p = killChance(b, me, v, Math.round(myNext));
     // A kill someone moving before me can take first is worth only the chance they don't.
-    opportunity = Math.max(opportunity, p * spared[v] * prefs.myCardWeight * (b.handSize[v] / 3) * future);
+    opportunity = Math.max(opportunity, p * spared[v] * prefs.myCardWeight * hiddenCards(b.handSize[v]));
   }
 
   let idle = 0;
