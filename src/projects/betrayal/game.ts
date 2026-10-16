@@ -10,14 +10,14 @@ import { MOVEMENT_STEPS } from "./engine/movement";
 import { SCENARIO_STEPS } from "./engine/scenario";
 import { localStep, type Behaviours } from "./engine/sources";
 import { TILE_DECISIONS, TILE_STEPS } from "./engine/tiles";
-import type { Engine, Rules, StepHandler } from "./engine/step-loop";
+import type { Engine, Rules, StepKind } from "./engine/step-loop";
 import { viewFor as engineView, type GameView } from "./engine/view";
 import type { GameState } from "./types";
 import { withHaunts } from "./kit/haunt";
 
 /** Every source's own steps, registered under the source's id. */
-function localSteps(behaviours: Behaviours): Record<string, StepHandler> {
-  const result: Record<string, StepHandler> = {};
+function localSteps(behaviours: Behaviours): Record<string, StepKind> {
+  const result: Record<string, StepKind> = {};
   for (const group of [
     behaviours.rulebook,
     behaviours.cards,

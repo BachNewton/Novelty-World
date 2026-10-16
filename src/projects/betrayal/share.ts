@@ -15,8 +15,8 @@ export interface SharedGame {
 
 /** Raise it whenever recorded actions may mean something else to the engine,
  *  so an older code fails plainly instead of replaying into a different game.
- *  It leads the code as its prefix (`v1.<payload>`). */
-const SHARE_FORMAT = 1;
+ *  It leads the code as its prefix (`v2.<payload>`). */
+const SHARE_FORMAT = 2;
 
 const PREFIXED = /^v(\d+)\.(.+)$/;
 

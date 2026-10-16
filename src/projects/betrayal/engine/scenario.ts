@@ -10,11 +10,11 @@ import type {
   Trait,
 } from "../types";
 import { placed } from "./board";
-import { defineStep, gainCard } from "./effects";
+import { defineStep, gainCard, IN_HAND, moveCard } from "./effects";
 import { putFigure, seatExplorer, trackTraits, TRAITS } from "./figures";
 import { barrierSides } from "./questions";
-import type { Engine, StepHandler } from "./step-loop";
-import { placeOptions } from "./tiles";
+import type { Engine, StepKind } from "./step-loop";
+import { drawTile, placeDrawnTile, placeOptions } from "./tiles";
 
 // A scenario starts a game somewhere other than the default deal, for
 // playtesting and tests: stacked decks and room stack, rooms already in the
@@ -276,25 +276,30 @@ export function hauntNumbers(catalog: Catalog): number[] {
 }
 
 /** Puts the scenario's chosen cards and rooms on top of the shuffled decks
- *  and room stack, and takes the cards it deals out of them. */
-export function stackScenario(state: GameState, scenario: PreparedScenario): void {
-  const dealt = new Set(scenario.explorers.flatMap((e) => e.cards));
+ *  and room stack, and takes the cards it deals out of them into hand, to
+ *  be gained in order. */
+export function stackScenario(
+  catalog: Catalog,
+  state: GameState,
+  scenario: PreparedScenario,
+): void {
+  for (const card of scenario.explorers.flatMap((e) => e.cards))
+    moveCard(state, card, { at: "deck", type: catalog.cards[card].type }, IN_HAND);
   for (const type of CARD_TYPES) {
     const top = scenario.decks[type];
     state.decks[type].draw = [
       ...top,
-      ...state.decks[type].draw.filter((c) => !top.includes(c) && !dealt.has(c)),
+      ...state.decks[type].draw.filter((c) => !top.includes(c)),
     ];
   }
   const top = scenario.stack;
-  const house = new Set(scenario.rooms);
   state.board.stack = [
     ...top,
-    ...state.board.stack.filter((t) => !top.includes(t) && !house.has(t)),
+    ...state.board.stack.filter((t) => !top.includes(t)),
   ];
 }
 
-export const SCENARIO_STEPS: Record<string, StepHandler> = {
+export const SCENARIO_STEPS: Record<string, StepKind> = {
   scenario: defineStep<PreparedScenario>((state, p, ctx) => {
     for (const id of p.rooms) {
       if (placed(state.board, id)) continue;
@@ -305,7 +310,8 @@ export const SCENARIO_STEPS: Record<string, StepHandler> = {
       }).at(0);
       if (!where)
         throw new Error(`The scenario can't fit the ${id} into the house`);
-      state.board.tiles.push({ tile: id, ...where });
+      drawTile(state.board, id);
+      placeDrawnTile(state.board, { tile: id, ...where });
       ctx.emit("room-placed", SCENARIO_RULE, { tile: id, floor: where.floor });
     }
     for (const setup of p.explorers) {

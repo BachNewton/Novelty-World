@@ -27,6 +27,7 @@ import {
   drawCard,
   endOngoing,
   gain,
+  gainCard,
   keepCard,
   loseCard,
   markCard,
@@ -398,10 +399,12 @@ describe("cards changing hands", () => {
 
   it("raises card-gained however a card is gained", () => {
     const base = testGame({ decks: { item: ["axe"] } });
-    const drawn = start(ENGINE, idle(base), [drawCard(ZOE, "item", rule)]);
-    expect(gained(drawn)).toEqual([{ figure: ZOE, card: "axe", by: "drawn" }]);
+    const drew = start(ENGINE, idle(base), [drawCard(ZOE, "item", rule)]);
+    expect(gained(drew)).toEqual([{ figure: ZOE, card: "axe", by: "drawn" }]);
 
-    const kept = start(ENGINE, idle(base), [keepCard(ZOE, "lights-out")]);
+    const reading = idle(structuredClone(base));
+    drawn(reading, "lights-out");
+    const kept = start(ENGINE, reading, [keepCard(ZOE, "lights-out")]);
     expect(gained(kept)).toEqual([{ figure: ZOE, card: "lights-out", by: "kept" }]);
 
     const piled = testGame();
@@ -421,6 +424,13 @@ describe("cards changing hands", () => {
       { figure: OX, card: "axe", by: "traded" },
       { figure: ZOE, card: "lucky-stone", by: "traded" },
     ]);
+  });
+
+  it("gives a figure only a card that is in hand", () => {
+    const state = idle(testGame());
+    expect(() => start(ENGINE, state, [gainCard(ZOE, "axe", "given", rule)])).toThrow(
+      "axe isn't where it is taken from",
+    );
   });
 
   it("keeps a card's marks for as long as they last", () => {

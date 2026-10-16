@@ -46,6 +46,7 @@ export function startingBoard(
       inPlay.filter((room) => !room.start).map((room) => room.id),
     ),
     discards: [],
+    drawn: null,
   };
 }
 

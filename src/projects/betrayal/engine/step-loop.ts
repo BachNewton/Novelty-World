@@ -9,6 +9,7 @@ import type {
   RuleRef,
   Step,
 } from "../types";
+import { figureOf } from "./figures";
 import { checkConditions, type Haunts } from "./haunt";
 import { controllerOf } from "./questions";
 import { randomFor, SETUP_KEY, type Random } from "./random";
@@ -24,7 +25,7 @@ export interface StepContext {
   push: (...steps: Step[]) => void;
   /** Pause on a decision put to seats. The engine stops running steps
    *  until it is answered. `about` names the figure it is about, where it
-   *  is about one. */
+   *  is about one, which must still be alive. */
   decide: (
     seats: number[],
     kind: string,
@@ -32,7 +33,7 @@ export interface StepContext {
     rule: RuleRef,
     about?: FigureId | null,
   ) => void;
-  /** Pause on a decision about a figure, put to the seat controlling it. */
+  /** Pause on a decision about a living figure, put to the seat controlling it. */
   decideFor: (figure: FigureId, kind: string, params: Json, rule: RuleRef) => void;
   /** Pause until these seats have read something and confirmed. */
   waitForReady: (seats: number[], rule: RuleRef) => void;
@@ -44,6 +45,16 @@ export type StepHandler = (
   params: Json,
   ctx: StepContext,
 ) => void;
+
+/** A kind of step, registered by name. */
+export interface StepKind {
+  run: StepHandler;
+  /** The figure whose work the step is, read from its parameters; null for
+   *  work that is no one figure's. Once that figure has died the loop skips
+   *  the step: a dead figure takes no further part, and what was still to
+   *  happen to it lapses (rules p. 19, dead-explorers-body). */
+  subject: (params: Json) => FigureId | null;
+}
 
 export interface DecisionKind {
   /** Every legal answer a seat can give, in the order offered: the one
@@ -80,7 +91,7 @@ export interface DecisionKind {
 
 /** Every step and decision kind, registered by name so unfinished work can be stored as data. */
 export interface Rules {
-  steps: Partial<Record<string, StepHandler>>;
+  steps: Partial<Record<string, StepKind>>;
   decisions: Partial<Record<string, DecisionKind>>;
 }
 
@@ -280,6 +291,7 @@ function beginWrite(
     about = null,
   ) => {
     assertNothingPending(draft);
+    if (about !== null) assertAlive(draft, about, kind);
     draft.pending = {
       type: "decision",
       id: `d${nextId()}`,
@@ -303,6 +315,7 @@ function beginWrite(
     },
     decide,
     decideFor: (figure, kind, params, rule) => {
+      assertAlive(draft, figure, kind);
       decide([controllerOf(engine, draft, figure)], kind, params, rule, figure);
     },
     waitForReady: (seats, rule) => {
@@ -311,6 +324,13 @@ function beginWrite(
     },
   };
   return { ctx, reacted: 0 };
+}
+
+/** No one decides for a dead figure: the loop skips the work queued for
+ *  it, so a decision about one is a bug. */
+function assertAlive(draft: GameState, figure: FigureId, kind: string): void {
+  if (!figureOf(draft, figure).alive)
+    throw new Error(`Raised a decision (${kind}) about ${figure}, who is dead`);
 }
 
 function assertNothingPending(draft: GameState): void {
@@ -342,7 +362,8 @@ function answer(
 
 /** Runs queued work until the game pauses or the work runs out. A decision
  *  with exactly one legal choice is a forced step, which the engine takes,
- *  unless its kind always asks.
+ *  unless its kind always asks. A step for a figure that has died is
+ *  skipped.
  *  Conditions are checked after every step, so a goal met partway through
  *  a move ends the game there. */
 function run(engine: Engine, draft: GameState, write: Write): void {
@@ -378,9 +399,11 @@ function run(engine: Engine, draft: GameState, write: Write): void {
     if (pending) return;
     const step = draft.work.pop();
     if (!step) return;
-    const handler = engine.rules.steps[step.kind];
-    if (!handler) throw new Error(`No step kind named ${step.kind}`);
-    handler(draft, step.params, write.ctx);
+    const kind = engine.rules.steps[step.kind];
+    if (!kind) throw new Error(`No step kind named ${step.kind}`);
+    const subject = kind.subject(step.params);
+    if (subject !== null && !figureOf(draft, subject).alive) continue;
+    kind.run(draft, step.params, write.ctx);
   }
 }
 

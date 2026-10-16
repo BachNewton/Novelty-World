@@ -24,6 +24,7 @@ import {
   step,
 } from "./effects";
 import { explorersFrom } from "./figures";
+import { local } from "./sources";
 import { type Engine } from "./step-loop";
 
 // Death (rules pp. 5, 16, 19): before the haunt a trait stops at its lowest
@@ -238,5 +239,73 @@ describe("a roll whose roller dies partway through it", () => {
     expect(after.figures[ZOE].alive).toBe(false);
     expect(eventTypes(after)).not.toContain("rolled");
     expect(after.pending?.type === "decision" && after.pending.kind).not.toBe("choose-one");
+  });
+});
+
+describe("a card on its way to a figure that dies first", () => {
+  it("stays with the other side of a trade when the giver dies of the card given (the Amulet of the Ages)", () => {
+    const state = inHaunt(
+      testGame({
+        explorers: [
+          { seat: 0, room: "foyer", clips: { speed: 0 }, cards: ["amulet-of-the-ages"] },
+          { seat: 1, room: "foyer", cards: ["dark-dice"] },
+        ],
+      }),
+      1,
+    );
+    const offeredTrade = run(state, [
+      step("offer-trade", {
+        from: ZOE,
+        to: OX,
+        give: "amulet-of-the-ages",
+        take: "dark-dice",
+      }),
+    ]);
+    const after = choose(offeredTrade, "Accept the trade");
+    expect(after.figures[ZOE].alive).toBe(false);
+    expect(after.figures[ZOE].cards).not.toContain("dark-dice");
+    expect(after.figures[OX].cards).toEqual(
+      expect.arrayContaining(["amulet-of-the-ages", "dark-dice"]),
+    );
+  });
+
+  it("waits in the room when the companion taken before it kills its new keeper (the Madman)", () => {
+    const state = inHaunt(
+      testGame({
+        explorers: [
+          { seat: 0, room: "foyer", clips: { might: 0, speed: 0 }, cards: ["madman", "girl"] },
+          { seat: 2, room: "entrance-hall", clips: { sanity: 0 } },
+        ],
+      }),
+      0,
+    );
+    const dead = run(state, [die(ZOE, BELL)]);
+    expect(dead.aside.map((a) => a.card)).toEqual(["madman", "girl"]);
+    const after = run(dead, [relocate(FATHER, "foyer", BELL)]);
+    expect(after.figures[FATHER].alive).toBe(false);
+    expect(after.figures[FATHER].cards).not.toContain("girl");
+    expect(after.aside).toContainEqual({ card: "girl", room: "foyer" });
+  });
+});
+
+describe("a kept event its dead holder was to discard", () => {
+  it("stays with the body, doing nothing more", () => {
+    const after = run(weakZoe(["lights-out"]), [
+      die(ZOE, BELL),
+      local("lights-out", "discard", { figure: ZOE }),
+    ]);
+    expect(after.figures[ZOE].cards).toEqual(["lights-out"]);
+    expect(after.decks.event.discard).not.toContain("lights-out");
+  });
+});
+
+describe("a decision about a dead figure", () => {
+  it("is never raised: it fails loudly", () => {
+    expect(() =>
+      run(weakZoe(), [
+        die(ZOE, BELL),
+        step("offer-trade", { from: OX, to: ZOE, give: null, take: null }),
+      ]),
+    ).toThrow(/about zoe-ingstrom, who is dead/);
   });
 });

@@ -5,6 +5,7 @@ import type {
   FigureId,
   FloorId,
   GameState,
+  PlacedTile,
   Rotation,
   RuleRef,
   Step,
@@ -42,9 +43,9 @@ import {
   leaveRoom,
   step,
 } from "./effects";
-import { figureOf, placeOf, putFigure } from "./figures";
+import { placeOf, putFigure } from "./figures";
 import { barrierSides } from "./questions";
-import type { DecisionKind, StepContext, StepHandler } from "./step-loop";
+import type { DecisionKind, StepContext, StepKind } from "./step-loop";
 
 // Putting room tiles in the house and moving them: discovering through a
 // doorway, a card that puts a drawn tile in the house, a room that moves.
@@ -124,39 +125,70 @@ export function placeOptions(
   return result;
 }
 
+/** Takes a room tile from the stack or the discards: it is the tile drawn
+ *  until it is put in the house. One tile is drawn at a time. */
+export function drawTile(board: Board, tile: string): void {
+  if (board.drawn !== null)
+    throw new Error(`The ${tile} was drawn while the ${board.drawn} is still to place`);
+  if (board.stack.includes(tile))
+    board.stack = board.stack.filter((t) => t !== tile);
+  else if (board.discards.includes(tile))
+    board.discards = board.discards.filter((t) => t !== tile);
+  else throw new Error(`The ${tile} is in neither the stack nor the discards`);
+  board.drawn = tile;
+}
+
+/** Puts the tile drawn in the house. */
+export function placeDrawnTile(board: Board, tile: PlacedTile): void {
+  if (board.drawn !== tile.tile)
+    throw new Error(`The ${tile.tile} is put in the house, but it isn't the tile drawn`);
+  board.drawn = null;
+  board.tiles.push(tile);
+}
+
 /** Draws room tiles from the top of the stack until one passes, putting the
  *  rest on the discard pile (p. 8). An empty stack is refilled from the
  *  shuffled discards (p. 9), unless the rule makes one pass through the stack.
- *  Null when no tile passes. */
+ *  The tile that passes is the tile drawn; null when none does. */
 export function drawRoom(
   state: GameState,
   shuffle: <T>(items: readonly T[]) => T[],
   passes: (tile: string) => boolean,
   reshuffle = true,
 ): string | null {
+  const { board } = state;
   if (!reshuffle) {
     for (;;) {
-      const tile = state.board.stack.shift();
+      const tile = board.stack.at(0);
       if (tile === undefined) return null;
-      if (passes(tile)) return tile;
-      state.board.discards.push(tile);
+      if (passes(tile)) return drawn(board, tile);
+      discardTop(board, tile);
     }
   }
-  if (![...state.board.stack, ...state.board.discards].some(passes))
-    return null;
+  if (![...board.stack, ...board.discards].some(passes)) return null;
   for (;;) {
-    if (state.board.stack.length === 0) {
-      state.board.stack = shuffle(state.board.discards);
-      state.board.discards = [];
+    if (board.stack.length === 0) {
+      board.stack = shuffle(board.discards);
+      board.discards = [];
     }
-    const tile = state.board.stack.shift();
+    const tile = board.stack.at(0);
     if (tile === undefined)
       throw new Error(
         "Room stack ran dry with a passing tile still unaccounted for",
       );
-    if (passes(tile)) return tile;
-    state.board.discards.push(tile);
+    if (passes(tile)) return drawn(board, tile);
+    discardTop(board, tile);
   }
+}
+
+function drawn(board: Board, tile: string): string {
+  drawTile(board, tile);
+  return tile;
+}
+
+function discardTop(board: Board, tile: string): void {
+  board.stack = board.stack.slice(1);
+  board.discards.push(tile);
 }
 
 type Arrive = { figure: FigureId; room: string; moved: boolean; rule: RuleRef };
@@ -291,11 +323,8 @@ export function placeRoom(
   });
 }
 
-export const TILE_STEPS: Record<string, StepHandler> = {
+export const TILE_STEPS: Record<string, StepKind> = {
   arrive: defineStep<Arrive>((state, p, ctx) => {
-    // A figure that died on the way (a card drawn for the room) takes no
-    // further part: its arrival lapses (rules p. 19, dead-explorers-body).
-    if (!figureOf(state, p.figure).alive) return;
     // A card drawn for the room may have sent the figure on (Mystic
     // Slide): it is no longer there, so the room's text doesn't apply to it.
     if (placeOf(state, p.figure).room !== p.room) return;
@@ -364,16 +393,23 @@ export const TILE_STEPS: Record<string, StepHandler> = {
     );
   }),
 
-  "place-room": defineStep<PlaceRoom>((state, p, ctx) => {
-    if (placeOptions(ctx.catalog, state.board, p.tile, p.where).length > 0) {
-      if ("seat" in p) ctx.decide([p.seat], "place-tile", p, p.rule);
-      else ctx.decideFor(p.figure, "place-tile", p, p.rule);
-      return;
-    }
-    if (placed(state.board, p.tile))
+  // A tile drawn is already out of the stack, so it can't lapse with a
+  // chooser who has died, and it can't be left with nowhere to go: both
+  // fail loudly.
+  "place-room": defineStep<PlaceRoom>(
+    (state, p, ctx) => {
+      if (placeOptions(ctx.catalog, state.board, p.tile, p.where).length > 0) {
+        if ("seat" in p) ctx.decide([p.seat], "place-tile", p, p.rule);
+        else ctx.decideFor(p.figure, "place-tile", p, p.rule);
+        return;
+      }
+      if (!placed(state.board, p.tile))
+        throw new Error(`The ${p.tile} was drawn, but it can go nowhere`);
       ctx.emit("room-stayed", p.rule, { tile: p.tile });
-    ctx.push(...p.otherwise);
-  }),
+      ctx.push(...p.otherwise);
+    },
+    { subject: () => null },
+  ),
 };
 
 /** Where a cell is, by a room next to it: one with a door toward it if any. */
@@ -429,7 +465,7 @@ export const TILE_DECISIONS: Record<string, DecisionKind> = {
         Object.assign(tile, at);
         ctx.emit("room-moved", p.rule, { tile: p.tile, from, floor: at.floor });
       } else {
-        state.board.tiles.push({ tile: p.tile, ...at });
+        placeDrawnTile(state.board, { tile: p.tile, ...at });
         ctx.emit("room-placed", p.rule, { tile: p.tile, floor: at.floor });
       }
       ctx.push(...p.then);

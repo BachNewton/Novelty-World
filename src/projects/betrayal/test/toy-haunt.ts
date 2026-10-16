@@ -1,4 +1,4 @@
-import { die } from "../engine/effects";
+import { defineStep, die } from "../engine/effects";
 import { figureOf } from "../engine/figures";
 import {
   addToCounter,
@@ -194,7 +194,7 @@ export function toyHaunt(
     },
     steps: {
       // One step that meets both sides' goals.
-      both: (state, _params, ctx) => {
+      both: defineStep((state, _params, ctx) => {
         const haunt = state.haunt;
         if (haunt === null) throw new Error("No haunt");
         haunt.counters.wakes = state.seats.length;
@@ -202,7 +202,7 @@ export function toyHaunt(
           of: "secret",
           secret: "target",
         });
-      },
+      }),
     },
     goals: [
       {

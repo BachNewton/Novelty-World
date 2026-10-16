@@ -35,7 +35,7 @@ import {
   type Modifier,
 } from "./questions";
 import { inPlay, isOpponent } from "./sides";
-import type { DecisionKind, Engine, StepHandler } from "./step-loop";
+import type { DecisionKind, Engine, StepKind } from "./step-loop";
 
 // An attack (p. 13): both sides roll, the higher result wins, and the loser
 // suffers the difference as damage (a monster is stunned instead, p. 18), or
@@ -354,7 +354,7 @@ function harmSteps(
   }
 }
 
-export const COMBAT_STEPS: Record<string, StepHandler> = {
+export const COMBAT_STEPS: Record<string, StepKind> = {
   // The turn's own attack uses up the attacker's one attack of the turn
   // when it is declared, whatever then happens (p. 13).
   "turn-attack": defineStep<Attack>((state, p, ctx) => {

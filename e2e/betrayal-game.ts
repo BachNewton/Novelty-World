@@ -18,7 +18,7 @@ export const HOUSE = `${PAGE}&house`;
 export const SAVED = "nw:betrayal:saved-game";
 
 /** A game as the page's share code (`share.ts`): its format's prefix, then the game as base64url JSON. */
-export const shareCode = (game: object): string => `v1.${Buffer.from(JSON.stringify(game)).toString("base64url")}`;
+export const shareCode = (game: object): string => `v2.${Buffer.from(JSON.stringify(game)).toString("base64url")}`;
 
 /** A game for the share code: Zoe goes first (it is her birthday), then Ox, then Father Rhinehardt. */
 export function seededGame(scenario: object, seed = "e2e-play") {

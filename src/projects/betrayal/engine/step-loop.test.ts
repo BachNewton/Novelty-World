@@ -8,6 +8,7 @@ import type {
   RuleRef,
   Step,
 } from "../types";
+import { defineStep } from "./effects";
 import { randomFor } from "./random";
 import { emptyState } from "./state";
 import {
@@ -30,14 +31,24 @@ const options = (decision: Decision) =>
 /** A toy rule set: just enough to drive the loop. */
 const RULES: Rules = {
   steps: {
-    ask: (_state, params, ctx) => ctx.decide([0], "pick", params, RULE),
-    "ask-act": (_state, params, ctx) => ctx.decide([0], "act", params, RULE),
-    "ask-all": (_state, _params, ctx) =>
-      ctx.decide([0, 1, 2], "vote", null, RULE),
-    "wait-all": (_state, _params, ctx) => ctx.waitForReady([0, 1], RULE),
-    note: (_state, params, ctx) => ctx.emit("note", RULE, params),
-    forever: (_state, _params, ctx) =>
-      ctx.push({ kind: "forever", params: null }),
+    ask: defineStep((_state, params, ctx) => {
+      ctx.decide([0], "pick", params, RULE);
+    }),
+    "ask-act": defineStep((_state, params, ctx) => {
+      ctx.decide([0], "act", params, RULE);
+    }),
+    "ask-all": defineStep((_state, _params, ctx) => {
+      ctx.decide([0, 1, 2], "vote", null, RULE);
+    }),
+    "wait-all": defineStep((_state, _params, ctx) => {
+      ctx.waitForReady([0, 1], RULE);
+    }),
+    note: defineStep((_state, params, ctx) => {
+      ctx.emit("note", RULE, params);
+    }),
+    forever: defineStep((_state, _params, ctx) => {
+      ctx.push({ kind: "forever", params: null });
+    }),
   },
   decisions: {
     pick: {

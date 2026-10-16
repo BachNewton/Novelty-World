@@ -41,7 +41,7 @@ import {
   type Reaction,
   type SourceAction,
 } from "../engine/sources";
-import type { Engine, StepHandler } from "../engine/step-loop";
+import type { Engine, StepKind } from "../engine/step-loop";
 
 // The haunt parts kit: a haunt is typed data assembled from these parts, with
 // small local functions only where the kit doesn't cover something. Each
@@ -144,7 +144,7 @@ export interface HauntDefinition {
   /** Conditions that do something other than end the game. */
   conditions?: Condition[];
   /** Its own steps, run with `local(hauntSourceId(number), name)`. */
-  steps?: Record<string, StepHandler>;
+  steps?: Record<string, StepKind>;
   /** Wording for events its rules cause, where the general wording says too
    *  little. */
   describe?: Behaviour["describe"];

@@ -56,6 +56,7 @@ import {
 import type { Engine } from "../../engine/step-loop";
 import {
   drawRoomTile,
+  drawTile,
   enterNewRoom,
   placeOptions,
   placeRoom,
@@ -752,15 +753,8 @@ export const EVENTS_B: BehaviourGroup = {
             placeOptions(ctx.catalog, state.board, "patio", where).length === 0
           )
             return;
-          const { stack, discards } = state.board;
-          if (![...stack, ...discards].includes("patio"))
-            throw new Error(
-              "The Patio is neither in the house nor left to draw",
-            );
-          state.board.stack = ctx.random.shuffle(
-            stack.filter((t) => t !== "patio"),
-          );
-          state.board.discards = discards.filter((t) => t !== "patio");
+          drawTile(state.board, "patio");
+          state.board.stack = ctx.random.shuffle(state.board.stack);
           ctx.push(
             placeRoom(p.figure, "patio", where, rule, {
               then: [

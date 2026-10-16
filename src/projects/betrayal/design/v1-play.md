@@ -36,12 +36,13 @@ P8, haunt 13 in the house, is last.
 - **Roll tables' last cases:** Hanged Men's four results, and each explorer's roll, stacked into one view.
 - **The open questions** below, each brought up only when the playtest reaches it.
 
-**Engine testing, its own session** (not UI). The slow simulation sweep plays about 690 random games and takes 30 minutes or more under load, blocking any agent that runs it, yet it can only check that the engine stays consistent, never that a rule is right; its game counts were never measured against what they find. The plan:
+**Engine testing,** its own session, is done (`engine.md`, sections 3 and 11):
 
-- Review the engine for invariants the design could make impossible to break instead of checking them: a card's place as one field rather than separate lists, and an offered choice that is accepted simply because it is offered, so the dry run of every candidate at every decision isn't needed.
-- A targeted scenario test for each decision kind, replacing the sweep's "every kind was answered".
-- The remaining invariants run inside every engine test, with universal game rules added to them (a trait stays on its track, a dead explorer never acts).
-- The random sweep shrinks to a small consistency check sized by measurement, the full run opt-in for engine changes; each bug a random game finds becomes a targeted test.
+- **Legality by construction.** Each decision kind lists exactly its legal choices, built by the code that applies them; a listed choice that fails to apply throws. The dry run of every candidate at every decision is gone.
+- **Work for a dead figure lapses** in the step loop, by each step's subject, in place of checks written into each step.
+- **Every card and tile is in one place:** a card between two places is in `inHand`, a drawn tile in the board's `drawn`, and every card move goes through one function.
+- **Saves started over at v1** now rather than at launch: state format 1, the migration chain empty, an old save shown as outdated, and a new save key and share-code prefix.
+- **Tests:** an invariant harness checks every write an engine test makes; setups are reachable states built through the setup helpers; each decision kind and turn act has a targeted scenario test; the random sweep is opt-in, for engine changes, and each bug a random game finds becomes a targeted test.
 
 **Open questions,** the owner's call:
 
@@ -55,10 +56,12 @@ P8, haunt 13 in the house, is last.
 - An instant floor swap: whether changing floor should cut rather than glide between floors 7 m apart (the owner has looked at all the floors at once through the page hook).
 - Showing at setup who goes first, and why.
 - The frame meter's default: on while playtesting, off before the game is done.
+- **A dead figure stays in its room** while a decision its death raised (a Nightmare's replacement) is pending, with leaving the board queued behind it. Deferred by the owner: changing it touches the order of cards' `onLose`.
+- **Typed steps and events** (optional): tie each step's name to its parameters' type and each event type to its data, so a misspelt step or wrong parameters fail at compile time (about 159 steps and 86 places that emit events).
+- **The name `inHand`** reads like a player's hand; a clearer one (such as `inTransit`) is a small rename.
 
 **Before launch:**
 
-- **Saves start over at v1.** Done. The save format resets to v1 and its migrations are deleted; a save from an older format is marked outdated; and the localStorage key and the share code's prefix are new, so an old development save can't pass as the new v1.
 - **The frame meter defaults to off.**
 
 **The art review list,** not blocking:
@@ -90,10 +93,11 @@ Not blocking; taken up when the game plays.
 - The props gallery's duplicate groups merged into the kit.
 - A house-wide variety pass on the rooms' uncanny notes, each settled against the ledger, not just its colour.
 - Candle shadows that move with the flame: baked from two or three flame positions and blended.
+- The other slow test files of a minute or two each (the explorers' overlap, gait, clipping and cloth, and `play/lookahead`) get the same review the sweep had: what each catches that a faster test can't, sized by measurement.
 
 ## The decisions and events
 
-The engine raises 14 decision kinds, plus a ready wait; the `turn` decision has 10 sub-acts (`TurnChoice`).
+The engine raises 12 decision kinds, plus a ready wait; the `turn` decision has 10 sub-acts (`TurnChoice`).
 
 **Places, chosen in the house**
 - `turn` move: reachable rooms and the cells beyond them glow, a room on another floor glows as its staircase, and each half of a barrier room is its own target. Shown by walking.

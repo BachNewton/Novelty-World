@@ -16,7 +16,6 @@ import type {
 import { sideName } from "./board";
 import { rollName, traitName } from "./describe";
 import {
-  allFigures,
   figureOf,
   MENTAL,
   moveClip,
@@ -48,18 +47,34 @@ import type {
   DecisionKind,
   Engine,
   StepContext,
-  StepHandler,
+  StepKind,
 } from "./step-loop";
 
 // The primitive effects every rule is built from: trait changes, damage,
 // rolls, card draws, tokens. Each is a registered step, so an effect that
 // pauses for a decision halfway through is stored as data and resumes later.
 
-/** A step handler with typed parameters. Parameters are stored as JSON, so the type is the step's contract. */
+/** A step kind with typed parameters. Parameters are stored as JSON, so the
+ *  type is the step's contract. The step's subject is its `figure`
+ *  parameter unless it names another, or none for a step that must run
+ *  whether or not a figure has died (see `StepKind`). */
 export function defineStep<P extends Json>(
-  handler: (state: GameState, params: P, ctx: StepContext) => void,
-): StepHandler {
-  return (state, params, ctx) => handler(state, params as P, ctx);
+  run: (state: GameState, params: P, ctx: StepContext) => void,
+  { subject = figureParameter }: { subject?: (params: P) => FigureId | null } = {},
+): StepKind {
+  return {
+    run: (state, params, ctx) => {
+      run(state, params as P, ctx);
+    },
+    subject: (params) => subject(params as P),
+  };
+}
+
+function figureParameter(params: Json): FigureId | null {
+  if (params === null || typeof params !== "object" || Array.isArray(params))
+    return null;
+  const { figure } = params;
+  return typeof figure === "string" ? figure : null;
 }
 
 export function step<P extends Json>(kind: string, params: P): Step {
@@ -191,17 +206,95 @@ export function endMovementOf(state: GameState, figure: FigureId): void {
     state.turn.movementEnded.push(figure);
 }
 
-/** Takes a card out of a room's item pile. */
-export function takeFromPile(
+/** A place a card can be. Every card in the game is in exactly one. */
+export type CardPlace =
+  | { at: "deck"; type: CardType }
+  | { at: "discard"; type: CardType }
+  | { at: "figure"; figure: FigureId }
+  | { at: "pile"; room: string }
+  | { at: "ongoing" }
+  | { at: "aside"; room: string | null }
+  | { at: "hand" };
+
+export const IN_HAND: CardPlace = { at: "hand" };
+
+/** Moves a card from one place to another. Every card the engine moves
+ *  goes through here, and a card that isn't where the move says is a bug. */
+export function moveCard(
   state: GameState,
-  room: string,
   card: string,
+  from: CardPlace,
+  to: CardPlace,
 ): void {
-  const pile = state.piles[room] ?? [];
-  if (!pile.includes(card)) throw new Error(`No ${card} in the ${room} pile`);
-  const rest = pile.filter((c) => c !== card);
-  if (rest.length > 0) state.piles[room] = rest;
-  else delete state.piles[room];
+  takeCard(state, card, from);
+  putCard(state, card, to);
+}
+
+function takeCard(state: GameState, card: string, from: CardPlace): void {
+  const without = (cards: string[]) => {
+    if (!cards.includes(card))
+      throw new Error(`${card} isn't where it is taken from: ${JSON.stringify(from)}`);
+    return cards.filter((c) => c !== card);
+  };
+  switch (from.at) {
+    case "deck":
+      state.decks[from.type].draw = without(state.decks[from.type].draw);
+      return;
+    case "discard":
+      state.decks[from.type].discard = without(state.decks[from.type].discard);
+      return;
+    case "figure": {
+      const holder = figureOf(state, from.figure);
+      holder.cards = without(holder.cards);
+      return;
+    }
+    case "pile": {
+      const rest = without(state.piles[from.room] ?? []);
+      if (rest.length > 0) state.piles[from.room] = rest;
+      else delete state.piles[from.room];
+      return;
+    }
+    case "ongoing":
+      state.ongoing = without(state.ongoing);
+      return;
+    case "aside": {
+      const index = state.aside.findIndex(
+        (a) => a.card === card && a.room === from.room,
+      );
+      if (index < 0) throw new Error(`${card} isn't set aside in ${from.room}`);
+      state.aside.splice(index, 1);
+      return;
+    }
+    case "hand":
+      state.inHand = without(state.inHand);
+      return;
+  }
+}
+
+function putCard(state: GameState, card: string, to: CardPlace): void {
+  switch (to.at) {
+    case "deck":
+      state.decks[to.type].draw.push(card);
+      return;
+    case "discard":
+      state.decks[to.type].discard.push(card);
+      return;
+    case "figure":
+      figureOf(state, to.figure).cards.push(card);
+      return;
+    case "pile":
+      state.piles[to.room] = [...(state.piles[to.room] ?? []), card];
+      return;
+    case "ongoing":
+      state.ongoing.push(card);
+      return;
+    case "aside":
+      state.aside.push({ card, room: to.room });
+      return;
+    case "hand":
+      state.inHand.push(card);
+      return;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -926,13 +1019,6 @@ const rulebook = (page: number, ruling?: string): RuleRef =>
     ? { source: "rulebook", page }
     : { source: "rulebook", page, ruling };
 
-/** Whether a figure still takes part. A dead explorer takes no further part
- *  (p. 16): what was still to happen to it (more damage from the same card,
- *  a roll it was to make, a card it was to draw) lapses. */
-function takesPart(state: GameState, figure: FigureId): boolean {
-  return figureOf(state, figure).alive;
-}
-
 type Die = {
   figure: FigureId;
   trait: Trait | null;
@@ -1053,21 +1139,24 @@ function dropOnDeath(
   return [loseCard(figure, card, { to: "room", room }, rule)];
 }
 
-/** A figure has come into a room: a living explorer takes custody of any
- *  dead explorer's companion waiting there (p. 19). */
+type Custody = { figure: FigureId; card: string; room: string };
+
+/** A figure has come into a room: an explorer takes custody of any dead
+ *  explorer's companion waiting there (p. 19), one at a time, since taking
+ *  one can kill (the Madman's Sanity). */
 export function arrived(
   state: GameState,
   ctx: StepContext,
   figure: FigureId,
   room: string,
 ): void {
-  const you = figureOf(state, figure);
-  if (you.kind !== "explorer" || !you.alive) return;
-  const waiting = state.aside.filter((a) => a.room === room);
-  if (waiting.length === 0) return;
-  state.aside = state.aside.filter((a) => a.room !== room);
+  if (figureOf(state, figure).kind !== "explorer") return;
   ctx.push(
-    ...waiting.map((a) => gainCard(figure, a.card, "custody", rulebook(19))),
+    ...state.aside
+      .filter((a) => a.room === room)
+      .map((a) =>
+        step<Custody>("take-custody", { figure, card: a.card, room }),
+      ),
   );
 }
 
@@ -1143,9 +1232,8 @@ function learnTrait(
 // Registry
 // ---------------------------------------------------------------------------
 
-export const EFFECT_STEPS: Record<string, StepHandler> = {
+export const EFFECT_STEPS: Record<string, StepKind> = {
   gain: defineStep<Gain>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     // A monster's traits are fixed: it can't benefit from a gain (p. 19),
     // and a loss that isn't damage leaves it as it is (ruling
     // monster-traits).
@@ -1173,7 +1261,6 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   damage: defineStep<Damage>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     if (p.dice !== null) {
       ctx.push(
         roll(
@@ -1249,7 +1336,6 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   roll: defineStep<Roll>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     if (p.id !== null) {
       if (attempted(state, p.figure, p.id))
         throw new Error(`${p.figure} already attempted roll ${p.id} this turn`);
@@ -1271,10 +1357,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     );
   }),
 
-  // The roller can die between the roll's steps (the Idol's cost, paid as
-  // it is used), and a roll a dead figure was to make lapses.
   "roll-before": defineStep<RollInProgress>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     if (rollOptions(ctx.engine, state, p, "before").length === 0) {
       // A roll with nothing to add to it is made at once; what it is for
       // shows first. A result named in place of rolling has nothing coming.
@@ -1297,13 +1380,11 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "roll-dice": defineStep<RollInProgress>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     const dice = p.named === null ? ctx.random.dice(p.pool) : [];
     ctx.push(step<RollInProgress>("roll-after", { ...p, dice }));
   }),
 
   "roll-after": defineStep<RollInProgress>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     const offered =
       rollOptions(ctx.engine, state, p, "after").some(
         (o) => o.option.effect.kind === "reroll",
@@ -1319,7 +1400,6 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "roll-done": defineStep<RollInProgress>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     const result = rollTotal(p);
     learnTrait(state, ctx, p);
     ctx.emit("rolled", p.rule, {
@@ -1345,17 +1425,17 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "draw-card": defineStep<DrawCard>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     const deck = state.decks[p.type];
     if (deck.draw.length === 0) {
       deck.draw = ctx.random.shuffle(deck.discard);
       deck.discard = [];
     }
-    const card = deck.draw.shift();
+    const card = deck.draw.at(0);
     if (card === undefined) {
       ctx.emit("deck-empty", p.rule, { type: p.type });
       return;
     }
+    moveCard(state, card, { at: "deck", type: p.type }, IN_HAND);
     const room = placeOf(state, p.figure).room;
     endMovementOf(state, p.figure);
     ctx.emit("card-drawn", p.rule, { figure: p.figure, card, type: p.type });
@@ -1384,23 +1464,36 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     );
   }),
 
+  // A card kept, or in play as an ongoing event, has left the hand already.
   "settle-event": defineStep<{ card: string }>((state, p) => {
-    const kept =
-      allFigures(state).some((f) => f.cards.includes(p.card)) ||
-      state.ongoing.includes(p.card);
-    if (kept) return;
-    state.decks.event.discard.push(p.card);
+    if (!state.inHand.includes(p.card)) return;
+    moveCard(state, p.card, IN_HAND, { at: "discard", type: "event" });
     clearMarks(state, p.card, "all");
   }),
 
-  "gain-card": defineStep<GainCard>((state, p, ctx) => {
-    figureOf(state, p.figure).cards.push(p.card);
-    ctx.emit("card-gained", p.rule, { figure: p.figure, card: p.card, by: p.by });
-    ctx.push(
-      ...(ctx.engine.behaviours.cards[p.card]?.onGain?.(state, p.figure) ?? []),
-    );
+  "take-custody": defineStep<Custody>((state, p, ctx) => {
+    moveCard(state, p.card, { at: "aside", room: p.room }, IN_HAND);
+    ctx.push(gainCard(p.figure, p.card, "custody", rulebook(19)));
   }),
 
+  // Every way a card comes to a figure lapses for a dead one before this
+  // runs, so a card handed to a body would be a bug.
+  "gain-card": defineStep<GainCard>(
+    (state, p, ctx) => {
+      if (!figureOf(state, p.figure).alive)
+        throw new Error(`${p.card} was handed to ${p.figure}, who is dead`);
+      moveCard(state, p.card, IN_HAND, { at: "figure", figure: p.figure });
+    ctx.emit("card-gained", p.rule, { figure: p.figure, card: p.card, by: p.by });
+      ctx.push(
+        ...(ctx.engine.behaviours.cards[p.card]?.onGain?.(state, p.figure) ??
+          []),
+      );
+    },
+    { subject: () => null },
+  ),
+
+  // A dead figure's cards still drop from its body, so the step is the
+  // taker's: a card on its way to a figure who has died stays where it is.
   "lose-card": defineStep<LoseCard>((state, p, ctx) => {
     const holder = figureOf(state, p.figure);
     // A figure that died since this was queued dropped its cards then;
@@ -1415,27 +1508,30 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
         p.figure,
         p.destination,
       ) ?? [];
-    holder.cards = holder.cards.filter((c) => c !== p.card);
-    const deck = state.decks[ctx.catalog.cards[p.card].type];
+    const from: CardPlace = { at: "figure", figure: p.figure };
+    const type = ctx.catalog.cards[p.card].type;
     const where = p.destination;
     switch (where.to) {
       case "discard":
-        deck.discard.push(p.card);
+        moveCard(state, p.card, from, { at: "discard", type });
         clearMarks(state, p.card, "all");
         break;
       case "deck":
-        deck.draw = ctx.random.shuffle([...deck.draw, p.card]);
+        moveCard(state, p.card, from, { at: "deck", type });
+        state.decks[type].draw = ctx.random.shuffle(state.decks[type].draw);
         clearMarks(state, p.card, "all");
         break;
       case "room":
-        state.piles[where.room] = [...(state.piles[where.room] ?? []), p.card];
+        moveCard(state, p.card, from, { at: "pile", room: where.room });
         clearMarks(state, p.card, "holder");
         break;
       case "figure":
+        // In hand until the taker gains it, once the card's onLose is done.
+        moveCard(state, p.card, from, IN_HAND);
         clearMarks(state, p.card, "holder");
         break;
       case "aside":
-        state.aside.push({ card: p.card, room: where.room });
+        moveCard(state, p.card, from, { at: "aside", room: where.room });
         clearMarks(state, p.card, "holder");
         break;
     }
@@ -1450,6 +1546,9 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
         ? [gainCard(where.figure, p.card, where.by, p.rule)]
         : []),
     );
+  }, {
+    subject: ({ destination }) =>
+      destination.to === "figure" ? destination.figure : null,
   }),
 
   steal: defineStep<{
@@ -1514,7 +1613,6 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   ),
 
   leave: defineStep<{ figure: FigureId; then: Step }>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     ctx.push(
       step<Leave>("leave-heard", {
         figure: p.figure,
@@ -1526,7 +1624,6 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "leave-heard": defineStep<Leave>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     if (placeOf(state, p.figure).room !== p.room)
       throw new Error(`${p.figure} left ${p.room} before its rules said so`);
     const next = liveSources(ctx.engine, state, "beforeLeave").find(
@@ -1556,7 +1653,6 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   displace: defineStep<{ figure: FigureId; then: Step }>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     const moved = askPermission(ctx.engine, state, "canBeMoved", {
       figure: p.figure,
     });
@@ -1608,9 +1704,9 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   die: defineStep<Die>((state, p, ctx) => {
+    // A figure dies once, however many of its traits reach the skull at
+    // once: its death is its last step.
     const figure = figureOf(state, p.figure);
-    // A figure dies once, however many of its traits reach the skull at once.
-    if (!figure.alive) return;
     const room = placeOf(state, p.figure).room;
     figure.alive = false;
     state.memory.deaths.push({ ...p, room });
@@ -1636,26 +1732,26 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   // A figure already stunned stays so.
   stun: defineStep<{ figure: FigureId; rule: RuleRef }>((state, p, ctx) => {
     const figure = figureOf(state, p.figure);
-    if (!takesPart(state, p.figure) || figure.stunned) return;
+    if (figure.stunned) return;
     figure.stunned = true;
     ctx.emit("stunned", p.rule, { figure: p.figure });
   }),
 
   // A dead figure leaves the board: it is in no room, so it slows no one
   // and nothing can reach it.
-  "leave-board": defineStep<{ figure: FigureId }>((state, p) => {
-    figureOf(state, p.figure).place = null;
-  }),
+  "leave-board": defineStep<{ figure: FigureId }>(
+    (state, p) => {
+      figureOf(state, p.figure).place = null;
+    },
+    { subject: () => null },
+  ),
 
   "start-ongoing": defineStep<{ card: string }>((state, p) => {
-    state.ongoing.push(p.card);
+    moveCard(state, p.card, IN_HAND, { at: "ongoing" });
   }),
 
   "end-ongoing": defineStep<{ card: string }>((state, p, ctx) => {
-    if (!state.ongoing.includes(p.card))
-      throw new Error(`${p.card} isn't ongoing`);
-    state.ongoing = state.ongoing.filter((c) => c !== p.card);
-    state.decks.event.discard.push(p.card);
+    moveCard(state, p.card, { at: "ongoing" }, { at: "discard", type: "event" });
     clearMarks(state, p.card, "all");
     ctx.emit(
       "ongoing-ended",
@@ -1668,10 +1764,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     (state, p, ctx) => {
       if (p.options.length === 0) throw new Error("A choice with no options");
       if ("seat" in p) ctx.decide([p.seat], "choose-one", p, p.rule);
-      // A figure that died since this was queued is asked nothing: what was
-      // still to happen to it lapses (rules p. 19, dead-explorers-body).
-      else if (takesPart(state, p.figure))
-        ctx.decideFor(p.figure, "choose-one", p, p.rule);
+      else ctx.decideFor(p.figure, "choose-one", p, p.rule);
     },
   ),
 
@@ -1710,7 +1803,6 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   ),
 
   harmful: defineStep<Harmful>((state, p, ctx) => {
-    if (!takesPart(state, p.figure)) return;
     const binding = askStructured(ctx.engine, state, "bindingText", {
       figure: p.figure,
       rule: p.rule,
@@ -1748,6 +1840,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     recordAttempt(state, p.figure, p.id);
   }),
 
+  // A death ends its figure's turn, so this runs for the dead.
   "end-turn-now": defineStep<{ figure: FigureId; rule: RuleRef }>(
     (state, p, ctx) => {
       if (!state.turn || !onTurn(ctx.engine, state, p.figure)) return;
@@ -1757,6 +1850,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
         kind: state.turn.kind,
       });
     },
+    { subject: () => null },
   ),
 };
 

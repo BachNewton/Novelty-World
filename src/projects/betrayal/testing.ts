@@ -186,7 +186,8 @@ export function put(
   explorer(state, seat).place = { room, side };
 }
 
-/** Takes a card out of wherever it is: a deck, a hand, a pile, play. */
+/** Takes a card out of wherever it is: a deck, a figure, a pile, play, a
+ *  hand. */
 function takeCard(state: GameState, card: string): void {
   for (const type of ["omen", "item", "event"] as CardType[]) {
     const deck = state.decks[type];
@@ -199,6 +200,7 @@ function takeCard(state: GameState, card: string): void {
     state.piles[room] = state.piles[room].filter((c) => c !== card);
   state.ongoing = state.ongoing.filter((c) => c !== card);
   state.aside = state.aside.filter((a) => a.card !== card);
+  state.inHand = state.inHand.filter((c) => c !== card);
 }
 
 /** Gives the seat's explorer cards, as a test's setup, taking each from
@@ -215,11 +217,12 @@ export function pile(state: GameState, room: string, ...cards: string[]): void {
   state.piles[room] = [...(state.piles[room] ?? []), ...cards];
 }
 
-/** Takes cards out of wherever they are, as a test's setup does for cards
- *  that the work it runs has just drawn: they are in hand, on their way to
- *  where that work puts them. */
+/** Puts cards in hand, taking each from wherever it was, as a test's setup
+ *  does for cards that the work it runs has just drawn: they are on their
+ *  way to where that work puts them. */
 export function drawn(state: GameState, ...cards: string[]): void {
   for (const card of cards) takeCard(state, card);
+  state.inHand.push(...cards);
 }
 
 /** Puts cards on their discard piles, as a test's setup does for a card

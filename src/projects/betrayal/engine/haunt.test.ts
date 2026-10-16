@@ -16,7 +16,7 @@ import {
 import type { Action, GameEvent, GameState, TurnKind } from "../types";
 import { describeEvent } from "./describe";
 import { traitValue } from "./questions";
-import { die, removeStatus } from "./effects";
+import { defineStep, die, removeStatus } from "./effects";
 import { hauntRule, revealSecret } from "./haunt";
 import { escapeTheHouse } from "../kit/rules";
 import { hauntSourceId, local } from "./sources";
@@ -392,11 +392,11 @@ describe("conditions and the result", () => {
           },
         },
         steps: {
-          doom: (state) => {
+          doom: defineStep((state) => {
             for (const figure of [ZOE, FATHER]) kill(state, figure);
             if (!state.haunt) throw new Error("No haunt");
             state.haunt.counters.escapes = 3;
-          },
+          }),
         },
       }),
     ]);

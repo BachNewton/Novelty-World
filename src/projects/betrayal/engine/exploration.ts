@@ -43,8 +43,9 @@ import {
   isHandled,
   leaveRoom,
   roll,
+  IN_HAND,
+  moveCard,
   step,
-  takeFromPile,
 } from "./effects";
 import { attackTargets, turnAttack } from "./combat";
 import {
@@ -80,13 +81,13 @@ import {
   type Scenario,
 } from "./scenario";
 import { emptyState } from "./state";
-import { bestPlacements, discoverRoom, drawRoom } from "./tiles";
+import { bestPlacements, discoverRoom, drawRoom, placeDrawnTile } from "./tiles";
 import { turnAfter } from "./turns";
 import {
   start,
   type DecisionKind,
   type Engine,
-  type StepHandler,
+  type StepKind,
 } from "./step-loop";
 
 // Exploration, before the haunt: setup, turns, moving, discovering rooms,
@@ -625,7 +626,7 @@ type Trade = {
 type Drop = { figure: FigureId; card: string };
 type HauntRoll = { figure: FigureId; omen: string; room: string };
 
-export const EXPLORATION_STEPS: Record<string, StepHandler> = {
+export const EXPLORATION_STEPS: Record<string, StepKind> = {
   setup: defineStep<Setup>((state, p, ctx) => {
     const random = ctx.random;
     state.board = startingBoard(ctx.catalog, state.sets, random);
@@ -636,7 +637,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
         .sort();
       state.decks[type] = { draw: random.shuffle(cards), discard: [] };
     }
-    if (p.scenario) stackScenario(state, p.scenario);
+    if (p.scenario) stackScenario(ctx.catalog, state, p.scenario);
     state.figures = Object.fromEntries(
       p.characters.map((character, seat): [FigureId, Figure] => [
         character,
@@ -794,7 +795,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
 
   pickup: defineStep<Drop>((state, p, ctx) => {
     const room = placeOf(state, p.figure).room;
-    takeFromPile(state, room, p.card);
+    moveCard(state, p.card, { at: "pile", room }, IN_HAND);
     handle(state, p.card);
     if (state.turn) state.turn.pickupRoom = room;
     ctx.push(gainCard(p.figure, p.card, "picked-up", RULEBOOK(11)));
@@ -919,7 +920,7 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
       `Place the ${engine.catalog.rooms[p.tile].name} turned ${rotation * 90}°`,
     resolve: (state, p, rotation, ctx) => {
       const { spot } = doorwaySpot(state.board, p.doorway);
-      state.board.tiles.push({ tile: p.tile, ...spot, rotation });
+      placeDrawnTile(state.board, { tile: p.tile, ...spot, rotation });
       discoverRoom(state, ctx, p.figure, p.tile, RULEBOOK(6), {
         moved: true,
         draws: true,

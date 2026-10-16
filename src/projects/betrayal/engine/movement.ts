@@ -3,7 +3,7 @@ import { sideName } from "./board";
 import { chooseOne, defineStep, displace, optionPlace, relocate, step } from "./effects";
 import { figureName, figureOf, placeOf } from "./figures";
 import { askSet, barrierSides, type Mover } from "./questions";
-import type { Engine, StepHandler } from "./step-loop";
+import type { Engine, StepKind } from "./step-loop";
 
 // Routes through the house, barrier crossings and moves that aren't a
 // player's own movement. Every route follows the connections question, so
@@ -104,7 +104,7 @@ export function crossBarrier(
   return step<Cross>("cross-barrier", { figure, side, rule });
 }
 
-export const MOVEMENT_STEPS: Record<string, StepHandler> = {
+export const MOVEMENT_STEPS: Record<string, StepKind> = {
   "move-closer": defineStep<Closer>((state, p, ctx) => {
     const mover: Mover = { kind: "figure", figure: p.figure };
     const away = (from: Place) =>

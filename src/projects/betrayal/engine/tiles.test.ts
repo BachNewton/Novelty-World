@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CATALOG } from "../data";
 import { testGame } from "../testing";
 import type { Board, PlacedTile } from "../types";
-import { drawRoom, placeOptions, type Where } from "./tiles";
+import { drawRoom, drawTile, placeDrawnTile, placeOptions, type Where } from "./tiles";
 
 // The one placement rule every way of putting a tile in the house shares.
 
@@ -18,6 +18,7 @@ function board(...tiles: PlacedTile[]): Board {
     tiles: [upper("upper-landing", 0, 0), ...tiles],
     stack: [],
     discards: [],
+    drawn: null,
   };
 }
 
@@ -119,7 +120,32 @@ describe("drawRoom", () => {
       (t) => t === "kitchen",
     );
     expect(tile).toBe("kitchen");
+    expect(state.board.drawn).toBe("kitchen");
     expect(state.board.discards).toEqual([]);
     expect(state.board.stack).toEqual(["crypt"]);
+  });
+});
+
+describe("the tile drawn", () => {
+  const at = { floor: "ground", x: 5, y: 5, rotation: 0 } as const;
+
+  it("is drawn one at a time, and only from the stack or the discards", () => {
+    const state = testGame();
+    state.board.stack = ["crypt", "larder"];
+    drawTile(state.board, "crypt");
+    expect(() => { drawTile(state.board, "larder"); }).toThrow("still to place");
+    expect(() => { drawTile(testGame().board, "entrance-hall"); }).toThrow("neither");
+  });
+
+  it("is the only tile put in the house from outside it", () => {
+    const state = testGame();
+    state.board.stack = ["crypt", "larder"];
+    expect(() => { placeDrawnTile(state.board, { tile: "crypt", ...at }); }).toThrow(
+      "isn't the tile drawn",
+    );
+    drawTile(state.board, "crypt");
+    placeDrawnTile(state.board, { tile: "crypt", ...at });
+    expect(state.board.drawn).toBeNull();
+    expect(state.board.tiles.at(-1)?.tile).toBe("crypt");
   });
 });
