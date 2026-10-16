@@ -1,7 +1,15 @@
-// Exact battle odds (`COMBAT-2` to `COMBAT-5`, the defender always rolling the most
-// dice, note `defender-dice`). "a against d" means a armies able to attack (the
-// source holds a + its floor) against d defenders, fought with the most dice until
-// one side is out: exactly what a blitz does.
+import { balancedFight, captureChance, fairFight } from "../../blitz";
+
+// Exact attack odds under the ranked rules: a blitz is resolved by Balanced Blitz
+// (`COMBAT-8`, `blitz.ts`), a single battle by fair dice (`COMBAT-4`). "a against d"
+// means a armies able to attack (the source holds a + the number it keeps) against
+// d defenders.
+//
+// The two can be mixed, and the mix beats either: balancing favours the favourite,
+// so an attacker that is not yet the favourite rolls single battles, fair, until it
+// is, and then blitzes. The bot's capture odds are those of that best mix: at every
+// (a, d), whichever of "blitz now" and "roll one battle, then play on as well" has
+// the better chance of the capture. A favourite always blitzes.
 
 /** For each attacker dice (1–3) and defender dice (1–2): the chance the attacker loses
  *  k armies, k = 0 … pairs. Worked out by enumerating every roll. */
@@ -33,90 +41,129 @@ export function rollOdds(a: number, d: number): readonly number[] {
   return ROLL[Math.min(3, a)][Math.min(2, d)];
 }
 
-// Win probabilities, filled bottom-up and grown on demand.
-let winSize = 0;
-let winTable = new Float64Array(0);
-
-function growWin(size: number): void {
-  const table = new Float64Array(size * size);
-  for (let a = 0; a < size; a++) {
-    for (let d = 0; d < size; d++) {
-      if (d === 0) table[a * size + d] = a > 0 ? 1 : 0;
-      else if (a === 0) table[a * size + d] = 0;
-      else {
-        const odds = rollOdds(a, d);
-        const pairs = odds.length - 1;
-        let p = 0;
-        for (let k = 0; k <= pairs; k++) p += odds[k] * table[(a - k) * size + (d - (pairs - k))];
-        table[a * size + d] = p;
-      }
-    }
-  }
-  winTable = table;
-  winSize = size;
-}
-
-/** The chance `a` attackers capture a territory held by `d`. */
-export function winProb(a: number, d: number): number {
-  if (d <= 0) return 1;
-  if (a <= 0) return 0;
-  if (a >= winSize || d >= winSize) {
-    if (Math.max(a, d) > 400) return winProb(Math.round((a * 400) / Math.max(a, d)), Math.round((d * 400) / Math.max(a, d)));
-    growWin(Math.max(a, d, winSize * 2, 64) + 1);
-  }
-  return winTable[a * winSize + d];
-}
-
-/** How a blitz of `a` against `d` ends: `win[x]` is the chance it captures with x
- *  attackers left (x ≥ 1), `fail[y]` the chance it runs out with y defenders left. */
+/** How an attack of `a` against `d` ends when played the best way: `win[x]` is the
+ *  chance it captures with x attackers left (x ≥ 1), `fail[y]` the chance it runs out
+ *  with y defenders left. */
 export interface BattleOutcome {
   win: Float64Array;
   fail: Float64Array;
   pWin: number;
   /** The fewest survivors with a chance worth counting: below it `win` is negligible. */
   winFrom: number;
+  /** Whether the best way starts with a single battle rather than a blitz. */
+  roll: boolean;
 }
 
 /** Chances below this are dropped: far under any decision's resolution. */
 const NEGLIGIBLE = 1e-12;
+/** Past this many armies a side, rolling is not weighed: the table it needs grows as
+ *  the square of the fight, and a fight that large is never close for long. */
+const ROLL_LIMIT = 60;
+
+/** Past this many armies in all, a fight is worked out at the same ratio scaled down to it:
+ *  an exact balanced fight costs as much as its two sides multiplied, and a stalemate's
+ *  stacks of hundreds would make a single decision take seconds. A fight that large is
+ *  decided by its ratio. */
+const EXACT_LIMIT = 300;
 
 const outcomes = new Map<number, BattleOutcome>();
 
-export function battleOutcome(a: number, d: number): BattleOutcome {
-  const key = a * 100_000 + d;
-  const known = outcomes.get(key);
-  if (known) return known;
-  const width = d + 1;
-  const mass = new Float64Array((a + 1) * width);
-  mass[a * width + d] = 1;
+/** A large fight's outcome from the same fight scaled down, its survivors scaled back up. */
+function scaledOutcome(a: number, d: number): BattleOutcome {
+  const f = EXACT_LIMIT / (a + d);
+  const sa = Math.max(1, Math.round(a * f));
+  const sd = Math.max(1, Math.round(d * f));
+  const small = battleOutcome(sa, sd);
   const win = new Float64Array(a + 1);
   const fail = new Float64Array(d + 1);
-  for (let total = a + d; total >= 1; total--) {
-    for (let x = Math.min(a, total); x >= 0 && total - x <= d; x--) {
-      const y = total - x;
-      const m = mass[x * width + y];
-      if (m === 0) continue;
-      if (y === 0) {
-        win[x] += m;
-        continue;
-      }
-      if (x === 0) {
-        fail[y] += m;
-        continue;
-      }
-      const odds = rollOdds(x, y);
-      const pairs = odds.length - 1;
-      for (let k = 0; k <= pairs; k++) mass[(x - k) * width + (y - (pairs - k))] += m * odds[k];
-    }
-  }
+  for (let x = 1; x <= sa; x++) win[Math.min(a, Math.max(1, Math.round((x * a) / sa)))] += small.win[x];
+  for (let y = 1; y <= sd; y++) fail[Math.min(d, Math.max(1, Math.round((y * d) / sd)))] += small.fail[y];
+  return finish(win, fail, small.roll);
+}
+
+function blitzOutcome(a: number, d: number): BattleOutcome {
+  const fight = balancedFight(a, d) ?? fairFight(a, d);
+  const win = new Float64Array(a + 1);
+  const fail = new Float64Array(d + 1);
+  for (let lost = 0; lost < a; lost++) win[a - lost] = fight.attackerLost[lost];
+  for (let lost = 0; lost < d; lost++) fail[d - lost] = fight.defenderLost[lost];
+  return finish(win, fail, false);
+}
+
+function finish(win: Float64Array, fail: Float64Array, roll: boolean): BattleOutcome {
   let pWin = 0;
   for (const p of win) pWin += p;
   let winFrom = 1;
-  while (winFrom < a && win[winFrom] < NEGLIGIBLE) winFrom++;
-  const result = { win, fail, pWin, winFrom };
-  if (outcomes.size > 20_000) outcomes.clear();
-  outcomes.set(key, result);
+  while (winFrom < win.length - 1 && win[winFrom] < NEGLIGIBLE) winFrom++;
+  return { win, fail, pWin, winFrom, roll };
+}
+
+/** One battle with the most dice, then the best play from wherever it leaves the fight. */
+function rollOutcome(a: number, d: number): BattleOutcome {
+  const win = new Float64Array(a + 1);
+  const fail = new Float64Array(d + 1);
+  const odds = rollOdds(a, d);
+  const pairs = odds.length - 1;
+  for (let k = 0; k <= pairs; k++) {
+    const x = a - k;
+    const y = d - (pairs - k);
+    const p = odds[k];
+    if (y === 0) win[x] += p;
+    else if (x === 0) fail[y] += p;
+    else {
+      const next = battleOutcome(x, y);
+      for (let s = 1; s <= x; s++) win[s] += p * next.win[s];
+      for (let s = 1; s <= y; s++) fail[s] += p * next.fail[s];
+    }
+  }
+  return finish(win, fail, true);
+}
+
+export function battleOutcome(a: number, d: number): BattleOutcome {
+  const id = a * 100_000 + d;
+  const known = outcomes.get(id);
+  if (known) return known;
+  if (a + d > EXACT_LIMIT) {
+    const scaled = scaledOutcome(a, d);
+    outcomes.set(id, scaled);
+    return scaled;
+  }
+  const blitz = blitzOutcome(a, d);
+  let result = blitz;
+  if (a <= ROLL_LIMIT && d <= ROLL_LIMIT && blitz.pWin < 1) {
+    const roll = rollOutcome(a, d);
+    if (roll.pWin > blitz.pWin + 1e-9) result = roll;
+  }
+  if (outcomes.size > 50_000) outcomes.clear();
+  outcomes.set(id, result);
   return result;
+}
+
+/** The chance `a` attackers capture a territory held by `d`, played the best way. */
+export function winProb(a: number, d: number): number {
+  if (d <= 0) return 1;
+  if (a <= 0) return 0;
+  return battleOutcome(a, d).pWin;
+}
+
+/** The fewest attackers whose blitz is as sure of the capture as committing all `a`:
+ *  the rest stay home whatever happens, and a smaller blitz costs no more. The chance
+ *  grows with the attackers, so the fewest is found by halving. Past `EXACT_LIMIT` the
+ *  exact odds are weighed only up to it: a blitz that is sure within it is sure, and
+ *  otherwise every army goes. */
+export function blitzCommit(a: number, d: number): number {
+  const most = Math.min(a, EXACT_LIMIT - d);
+  if (most < 1) return a;
+  const best = captureChance(most, d);
+  if (most < a && best < 0.995) return a;
+  let lo = 1;
+  let hi = most;
+  while (lo < hi) {
+    const k = (lo + hi) >> 1;
+    if (captureChance(k, d) >= best - 0.005) hi = k;
+    else lo = k + 1;
+  }
+  return lo;
 }
 
 /** A run along a path: `armies` stand on the launch territory, the defenders are
@@ -135,12 +182,12 @@ const runs = new Map<string, PathRun>();
 /** Path runs are pure and the planner asks for the same ones over and over (every
  *  plan's threat model checks the same kills), so they are remembered. */
 export function pathRun(armies: number, defenders: readonly number[]): PathRun {
-  const key = `${armies}:${defenders.join(",")}`;
-  const known = runs.get(key);
+  const id = `${armies}:${defenders.join(",")}`;
+  const known = runs.get(id);
   if (known) return known;
   const run = computePathRun(armies, defenders);
   if (runs.size > 100_000) runs.clear();
-  runs.set(key, run);
+  runs.set(id, run);
   return run;
 }
 

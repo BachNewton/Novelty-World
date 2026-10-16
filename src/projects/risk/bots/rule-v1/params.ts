@@ -5,13 +5,12 @@
 // place that reads it.
 
 export interface Preferences {
-  /** Turns of income a player's power counts (H), at set values up to `fallFrom`;
-   *  it falls by one every `fallPer` of set value after, to `min`. Read by: power
-   *  (every player's alike, so one job). */
-  incomeHorizon: { base: number; min: number; fallFrom: number; fallPer: number };
+  /** Turns of income a player's power counts (H). Read by: power (every player's alike,
+   *  so one job), and the turns a held continent of mine is worth when broken. */
+  incomeHorizon: number;
   /** Multiplies the worth of MY cards only. Read by: my card equity → card grabs, kill
    *  payoffs from cards I'd take, trade-or-hold, next-turn kill opportunity. Others'
-   *  cards are always valued objectively. */
+   *  cards are always valued objectively (`cards.ts`). */
   myCardWeight: number;
   /** Multiplies MY continent bonuses only. Read by: my power. Breaking someone else's continent is valued by their objective
    *  income loss, never by this. */
@@ -41,23 +40,21 @@ export interface Preferences {
 
 /** Fixed by reasoning, out of any search: it models other players, not me. */
 export interface OpponentModel {
-  /** A player whose power is this many times every other's is everyone's target. Read
-   *  by: the common-threat test, for others (my gang-up) and for me (theirs). Rises from
-   *  `early` at set values up to 10 to `late` from 25. */
-  leaderRatio: { early: number; late: number };
+  /** A player whose power is this many times every other's is everyone's target, at 4
+   *  players; the bar rises by `leaderRatioPerPlayer` for each player more (Domination's
+   *  fixed-card AI is "more lenient with more players"). Read by: the common-threat test,
+   *  for others (my gang-up) and for me (theirs). */
+  leaderRatio: number;
+  leaderRatioPerPlayer: number;
   /** An opponent takes a kill of this chance or better whether or not it pays; below it,
-   *  only a kill that pays (a mid-cash, or my hand) is likely. Read by: kill exposure. */
+   *  only a kill that pays (its cards force a trade, or the victim's hand is worth taking) is likely. Read by: kill exposure. */
   killBar: number;
   /** How likely an opponent goes for a kill below the bar that doesn't pay. */
   unpaidKillChance: number;
-  /** Cards a player draws per turn, on average. Read by: others' card equity. */
-  drawsPerTurn: number;
 }
 
 /** Engineering, not strategy: it changes cost, never what a good move is. */
 export interface Engine {
-  /** A blitz stops when the rest of its run falls below this chance, to re-plan. */
-  continueBar: number;
   /** Outcomes sampled per plan; 0 scores a plan on its success and a typical failure,
    *  computed exactly. The one work knob, measured before it may grow (CLAUDE.md:
    *  "More thinking is earned, not assumed"). */
@@ -72,7 +69,7 @@ export interface Params {
 
 export const V1_PARAMS: Params = {
   prefs: {
-    incomeHorizon: { base: 3, min: 1, fallFrom: 10, fallPer: 10 },
+    incomeHorizon: 3,
     myCardWeight: 1,
     myContinentWeight: 1,
     killCommitMargin: 0,
@@ -84,23 +81,12 @@ export const V1_PARAMS: Params = {
     leadPenaltyWeight: 0.1,
   },
   opponents: {
-    leaderRatio: { early: 1.5, late: 1.8 },
+    leaderRatio: 1.3,
+    leaderRatioPerPlayer: 0.1,
     killBar: 0.6,
     unpaidKillChance: 0.5,
-    drawsPerTurn: 0.8,
   },
   engine: {
-    continueBar: 0.15,
     outcomeSamples: 0,
   },
 };
-
-export function incomeHorizon(p: Preferences, nextSet: number): number {
-  const h = p.incomeHorizon;
-  return Math.max(h.min, Math.min(h.base, h.base - (nextSet - h.fallFrom) / h.fallPer));
-}
-
-export function leaderRatio(o: OpponentModel, nextSet: number): number {
-  const t = Math.max(0, Math.min(1, (nextSet - 10) / 15));
-  return o.leaderRatio.early + t * (o.leaderRatio.late - o.leaderRatio.early);
-}

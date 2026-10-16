@@ -4,43 +4,60 @@ What was tried on Risk's bots and what each measured, negative results included,
 
 ## v1, the rule-based bot (`bots/rule-v1/`)
 
-v1 is the design in `rule-bot-v1.md`, built in one pass, then corrected where its scenario tests (`bots/rule-v1/scenarios.test.ts`) showed a judgement an expert wouldn't make. Each correction below came from a scenario, with the reasoning that fixed it.
+v1 is the design in `rule-bot-v1.md`: a turn planner over expert-shaped plans, priced with the exact odds of Balanced Blitz, scored by one evaluation with a one-round threat model. Each correction below came from a scenario (`bots/rule-v1/scenarios.test.ts`) or a measurement, with the reasoning that fixed it.
 
-### Built differently from the design, and why
+### Built differently from the design's first sketch, and why
 
-- **Re-planning.** A bot is a pure function of its view, so v1 keeps no plan between decisions: it plans afresh at every one (each placement, after every blitz, at every move-in). The design's "re-plan after a blitz that falls short" is that, every time. Each blitz stops early enough (about one and a half times the capture's expected cost, or when the rest of the run falls under a 15% chance) for the next decision to look again.
-- **Chains** are not rolled out. A kill whose cards force a mid-turn trade is scored with the trade's armies on the board; the next kill is planned when the bot is next asked, from the board as it is. The one work knob is instead **outcomes sampled per plan** (0: a plan is scored on its success and its likeliest failure, both exact; n: n sampled ends).
-- **Setup placement** (§2.1) was built and then removed: setup became the deal's automatic placement (RISK: Global Domination's Auto Placement), with no decision left in it, so `stackTarget` went with it. Scenario 11 went too.
-- **The view gained `cardEarned`** (whether the seat to move has captured this turn). It is public, and without it a stateless bot can't tell whether a capture earns a card.
+- **Re-planning.** A bot is a pure function of its view, so v1 keeps no plan between decisions: it plans afresh at every one (each placement, each attack, each move-in). Under Balanced Blitz a capture is one atomic fight, so there is nothing to stop part way: a blitz commits the sure amount or everything, and the next decision looks again.
+- **Chains** are not rolled out. A kill whose cards force a mid-turn trade is scored with the trade's armies on the board; the next kill is planned when the bot is next asked. The one work knob is **outcomes sampled per plan** (0: a plan is scored on its success and its likeliest failure, both exact).
+- **The hand model is solved, not estimated.** A small decision process over the hand's symbols, solved once at load by value iteration (about 120 hands of up to 5 cards), prices any hand and gives the trade policy: trade a 10, 8 or 6 at once; hold three infantry, and two of a kind with a wild. A card is worth 2.87 armies in the long run, in line with Conquer Club's flat-rate estimate of 2.82.
+- **The attack odds include rolling.** The odds are those of the best mix of single fair battles and a balanced blitz, worked out exactly, so the bot slow-rolls where GD's Grandmasters do (and finds more: 10 against 10 is 61% blitzed, 66% rolled first).
 
 ### Corrections the scenarios forced
 
-- **Lead penalty** was a cut of my whole share once I became the common threat: in scenario 1 that made a sure mid-cash kill (share 0.26 → 0.49) look worse than taking one territory. It now counts only the power past the point that turns the table on me, at weight 0.1. The threat model already makes everyone aim at a leader, so most of the lead's cost is modelled, not a penalty.
-- **Common threat** subtracted the leader's whole power, which jumped when the test flipped: a kill that happened to drop the leader's ratio below the trigger gained the whole term. It now counts the leader's power past the trigger, which is continuous.
-- **Forced-trade armies** were put on the last territory a run took, usually interior after a kill, so the idle-army term punished the kill. They now go on the front stack, as the bot would place them.
-- **Border exposure** priced a territory's armies as the stake, so reinforcing a threatened territory raised its stake and looked useless (scenario 13 fortified away from the larger threat). It is now each opponent's best blow: the armies it would win from me in the exchange (big battles favour the attacker), or a held continent of mine broken, reached through at most one of my territories.
-- **Third parties.** Scenario 3 committed a 42% kill of a card-holder sitting beside the leader. Two pieces of the design's threat model were missing: each opponent taking the best kill of a third player before my next turn (the victim's power goes, its cards go to the killer), and the next-turn kill opportunity discounted by the chance an earlier opponent takes it first. With both, the damage I'd leave is priced as a gift to the leader.
-- **Others' cards** were their hand only, so a trade, which raises the next set's value, cost nothing when nobody else held cards. Others' card equity now counts the cards they will draw over the income horizon (0.8 a turn, pinned in the opponent model).
-- **Card-less buffers** (scenario 17): the design's filter is now in the plan generator: at 5 or 6 players, no plan finishes a victim with no cards.
-
-### Open: holding cards (scenarios 4 and 7)
-
-v1 trades at 4 cards, and trades a second set at 6, whenever the armies buy the smallest edge: its evaluation counts a card as a third of the set value it will trade at, the same as the armies the trade gives, so holding is worth almost nothing when nobody else is about to trade. Experts hold. Whether a price for holding makes v1 stronger is a measurement; the scenarios are marked as expected failures until it is made.
+- **The common threat** was priced only through the evaluation, and that let v1 break a weaker player's continent while the leader held two: share of power counts any opponent's loss as my gain. The plan generator now treats everyone else as an ally while a common threat stands (their territory only for the turn's card, never a continent break, a kill only when its cards force a trade), as Domination's AI does. The leader ratio became Domination's fixed-card rule: 1.3 at 4 players, 0.1 more a player.
+- **Near-sure kills.** Scenario 1 placed for a 93% run and spent the rest on defence; a few more armies make the run certain under Balanced Blitz. Placement now also offers a variant that places until the plan is 99% likely, and the evaluation takes it.
+- **Hidden cards conditioned on mine.** Pricing my hand plus a victim's unseen cards drew the unseen ones from the whole deck, so a hand holding both wilds could "draw" a third. Unseen cards are drawn from the cards not in my hand.
 
 ### Speed
 
-A 6-player self-play game first averaged 78ms a decision (worst 4.8s), 95% of it in path runs the threat model asked for again and again. Remembering path runs (they are pure) and dropping chances under 10⁻¹² brought that to 6.5ms (worst 123ms), with the engine about 2% of a game.
+A blitz's exact balanced odds cost its two sides multiplied, and the commitment search tried every army count: with stacks of 800 a decision took 10 seconds, and one A/B game (a stalemate of giant stacks) ran 30 CPU-minutes before it was stopped. Fights past 300 armies in all are now worked out at the same ratio scaled down to 300, and the commitment is found by halving: a decision over stacks of 3,000 takes under a second.
 
-### Against greedy (gauntlet, 2026-10-16)
+Per decision, one core, 2026-10-16: 2.8ms mean (worst 33ms) over 3,000 decisions of six 6-player self-play games; 3.4ms mean (worst 47ms) over 1,400 decisions of 4-player games against greedy. With 8 sampled outcomes a plan: 9.2ms mean, worst 111ms.
 
-`risk:gauntlet -- rule-v1 --field greedy,random --base greedy`, train seeds, 14 workers (random was named by mistake; the run was stopped before any of its pairings). Every pairing that finished was decided **better** for v1 at the ±30 Elo SPRT, and most within a few dozen decisive games, which a 30-Elo test only does when the edge is far larger than 30 Elo:
+### Income horizon (A/B, 2026-10-16)
 
-| Pairing | Decisive games to decide |
-|---|---|
-| 1 v1 vs 2 greedy (3p) | 69 |
-| 2 v1 vs 1 greedy (3p) | 435 |
-| 1 v1 vs 3 greedy (4p) | 48 |
-| 3 v1 vs 1 greedy (4p) | 148 |
-| 1 v1 vs 5 greedy (6p) | 36 |
+v1 with H = 2 and H = 4 against v1 with H = 3, rotation groups on `ab:*` seeds, as per-seat Elo of the variant with a 95% interval that treats games as independent (so wider than the truth):
 
-The sixth pairing (5 v1 vs 1 greedy, 6p) was stopped after about 40 minutes, with the pool running on about 3 of its 14 cores: tables of five v1s are the costliest games there are, and a few long ones held each batch. No Elo was fitted, since the run did not finish. greedy has done its job as v1's bar; like `random`, it now stays out of v1's successors' fields, which are v1 and later versions, and is named only for a floor check. The slow 6-player tail is a speed question for v1 (where its time goes), not a reason to add weaker opponents.
+| Variant | 4p one-in | 4p one-out | 6p one-in | 6p one-out |
+|---|---|---|---|---|
+| H = 4 | −21 [−89, +35] (180 games) | −20 [−73, +42] (180) | −29 [−97, +24] (270) | −26 [−75, +33] (270) |
+| H = 2 | −5 [−71, +50] (180) | −5 [−59, +59] (180) | not finished | not finished |
+
+Neither is better; H = 4 leans worse at every table. H stays 3. The 6-player H = 2 run was stopped by the stalemate above.
+
+### Sampled outcomes, the work knob (A/B, 2026-10-16)
+
+v1 scoring each plan on 8 sampled ends against v1 scoring its success and likeliest failure exactly (the default), on the same harness, two runs pooled (25 rotation groups a pairing):
+
+| Table | one-in | one-out |
+|---|---|---|
+| 4 players | +46 [+1, +87] (300 games) | +26 [−18, +77] (300) |
+| 6 players | +4 [−43, +44] (448) | −6 [−46, +41] (449) |
+
+A lean at 4 players and nothing at 6, at about three times the cost per decision (9.2ms against 2.8ms). Not enough to give v1 a work budget ("more thinking is earned"); it stays at 0. The 4-player lean is worth a proper gauntlet of its own, with the sampled bot registered as a candidate, and a look at 3 players, which this run left out.
+
+### Against greedy and random (gauntlet, 2026-10-16)
+
+`risk:gauntlet -- rule-v1 --field greedy --base greedy`, train seeds, 10 workers, ±30 Elo SPRT. Every pairing decided **better**, most within a hundred decisive games, which a 30-Elo test only does when the edge is far larger:
+
+| Pairing | Win share (95%) | Par | Decisive games | Cap |
+|---|---|---|---|---|
+| 1 v1 vs 2 greedy (3p) | 58.7% [47.4–69.1] | 33.3% | 75 | 0% |
+| 2 v1 vs 1 greedy (3p) | 84.7% [76.8–90.2] | 66.7% | 111 | 0% |
+| 1 v1 vs 3 greedy (4p) | 54.4% [42.7–65.7] | 25.0% | 68 | 0% |
+| 3 v1 vs 1 greedy (4p) | 89.7% [83.5–93.8] | 75.0% | 136 | 0% |
+| 1 v1 vs 5 greedy (6p) | 58.3% [44.3–71.2] | 16.7% | 48 | 0% |
+| 5 v1 vs 1 greedy (6p) | 97.7% [93.5–99.2] | 83.3% | 132 | 0% |
+
+Win Elo +239 over greedy (finishing-order Elo +123). The SPRT stops as soon as it is sure, so the Elo is loose: the lone v1 seat's win shares, read through the Luce model, are +181 a seat at 3 players [+102, +260], +221 at 4 [+140, +304] and +338 at 6 [+240, +437]. `rule-v1 --field random`: every game won at every table (24 to 114 games a pairing, cap 0%).
