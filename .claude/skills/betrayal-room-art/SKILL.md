@@ -115,7 +115,8 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   the same pose). An animated piece is kept out of the merge and lit by
   light probes of its own.
 - `kit/`: pieces several rooms share. Lights: `candle`, `candelabra`,
-  `chamberstick`, `lantern`. Flames: `flame` (presets candle, oilLamp,
+  `chamberstick`, `lantern`, `oilLamp` (a table lamp, its flame in a clear
+  glass chimney). Flames: `flame` (presets candle, oilLamp,
   gasJet, torch, hearth; a `tint` for violet or wraith flames) and `fire`
   (a bed of hearth flames), in `kit/flame.ts`, judged on `?bench=flames`. Furniture: `table`, `chair`. Stores: `crate`,
   `cask`. Rope: `strand` and `slung` (into a batch), `coil`. Floor openings:
@@ -278,7 +279,7 @@ lightmap density were in flux; re-measure the house once they settle.
 | Larder | basement: red quarry tiles, cold blue limewash (`moon`), a slate dado | a long slate thrall down one wall, heaped with cheeses, a ham, a pie and eggs, crocks beneath | amber glowing from inside the jars of preserves on it, lit by nothing; everything on it has had one bite taken | normal (proposed) | 4.3 (0.8–24.9) |
 | Crypt | basement: big dressed stone slabs in staggered courses, dark coursed-stone walls, a stone bench round three walls under sealed burial niches cut with names | a stone sarcophagus on a plinth in the middle, its lid shoved askew off the head end | sickly green (`wraith`), the rot welling out of the open tomb and lying round its plinth; amber candles on the bench, and the mason's candle by a pale new tablet whose name is only half cut (a place made ready, not something moving) | normal | 4.5 (0.6–23.2) |
 | Operating Laboratory | the laboratories' dress, upper or basement: plain grey quarry tiles, pale grey glazed tile walls, a dark green tiled dado with a band | an iron operating table across a corner, its straps undone, under a standing lamp with a deep dark shade | the lamp's sickly green (`wraithLight`), a cone of light round the table; in it, the baked shadow of someone leaning over the table, though no one is there (a `bakeOnly` caster); one amber chamberstick on the bench | normal (proposed) | 3.8 (0.7–20.1) |
-| Research Laboratory | the laboratories' dress (as the Operating Laboratory) | a tall glowing bell jar on a pedestal, beside an island bench of apparatus and a wall of specimen jars | violet from a presence caught under the bell jar (occult science), glass shards at its foot where the jar has begun to give; two amber lamps hung under a reagent rack over the bench, and a spirit lamp under a brewing flask | normal (proposed) | 4.9 (0.8–21.1) |
+| Research Laboratory | the laboratories' dress (as the Operating Laboratory) | a tall glowing bell jar on a pedestal, beside an island bench of apparatus and a wall of specimen jars | violet from a presence caught under the bell jar (occult science), glass shards at its foot where the jar has begun to give; two brass oil lamps (the kit's `oilLamp`) standing on the bench under its reagent rack, their amber flames burning inside tall clear glass chimneys, and a spirit lamp under a brewing flask | normal (proposed) | 5.0 (0.8–21.1) |
 
 Four rooms (the starting hall and the Upper Landing) share one dress and one
 amber light, so telling them apart rests on their shapes alone. Green is the
