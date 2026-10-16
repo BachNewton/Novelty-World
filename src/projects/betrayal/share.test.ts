@@ -26,7 +26,7 @@ const shared: SharedGame = {
 describe("a shared game", () => {
   it("survives encoding as URL-safe text", () => {
     const code = encodeGame(shared);
-    expect(code).toMatch(/^v1\.[A-Za-z0-9_-]+$/);
+    expect(code).toMatch(/^v2\.[A-Za-z0-9_-]+$/);
     expect(decodeGame(code)).toEqual(shared);
   });
 
@@ -97,9 +97,14 @@ describe("a shared game", () => {
     expect(() => decodeGame(old)).toThrow(OutdatedGameError);
   });
 
+  it("refuses a code from an older engine rather than misreplay it", () => {
+    const code = encodeGame(shared).replace(/^v2\./, "v1.");
+    expect(() => decodeGame(code)).toThrow(OutdatedGameError);
+  });
+
   it("refuses a code from a newer engine", () => {
-    const code = encodeGame(shared).replace(/^v1\./, "v2.");
-    expect(() => decodeGame(code)).toThrow(/Unknown shared game format 2/);
+    const code = encodeGame(shared).replace(/^v2\./, "v3.");
+    expect(() => decodeGame(code)).toThrow(/Unknown shared game format 3/);
   });
 
   it("names the action a replay rejects", () => {

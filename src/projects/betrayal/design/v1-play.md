@@ -56,7 +56,6 @@ P8, haunt 13 in the house, is last.
 - An instant floor swap: whether changing floor should cut rather than glide between floors 7 m apart (the owner has looked at all the floors at once through the page hook).
 - Showing at setup who goes first, and why.
 - The frame meter's default: on while playtesting, off before the game is done.
-- **`SHARE_FORMAT` for the dead-work fixes.** Three latent bugs fixed with work for a dead figure lapsing (a two-way trade where the giver dies of the card given; companions taken one at a time when custody kills the keeper; a dead holder's kept event staying with the body) change how 8 of the sweep's 690 games replay, so the project's rule says raise `SHARE_FORMAT` to 2. Not raised yet. Recommended: raise it, since v1 links exist only since the save reset. Separately, `inHand` and the board's `drawn` change the state's shape at format 1, so a format-1 save made before they landed won't load. Recommended: accept it, as only development saves exist.
 - **The Angel Feather and `roll-before`.** Once the Feather names a result, `roll-before` is raised again and still offers the Idol (which costs Sanity and adds nothing) and "Make the roll (N dice)". Recommended: once a result is named, offer only the cards that still change something, and settle the roll at once if none do.
 - **A dead figure stays in its room** while a decision its death raised (a Nightmare's replacement) is pending, with leaving the board queued behind it. Deferred by the owner: changing it touches the order of cards' `onLose`.
 - **Typed steps and events** (optional): tie each step's name to its parameters' type and each event type to its data, so a misspelt step or wrong parameters fail at compile time (about 159 steps and 86 places that emit events).
@@ -206,4 +205,4 @@ The engine raises 12 decision kinds, plus a ready wait; the `turn` decision has 
 6. `choose-one` and other opaque parameters need engine metadata.
 7. Touch targets overlapping on phones: picking needs a priority by kind.
 8. Art coverage: rooms not built yet show as plain shells.
-9. Saved games: an engine change to recorded actions must raise `SHARE_FORMAT` (see the open questions).
+9. Saved games: an engine change to recorded actions must raise `SHARE_FORMAT`.
