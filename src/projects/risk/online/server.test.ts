@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Answer, CardId, Move } from "../contract";
-import { position } from "../engine/test-kit";
-import { replay, STALE_DECISION, type OnlineGame } from "./game";
+import type { Answer, Move, Options } from "../contract";
+import { randomBot } from "../bots/random";
+import { botInput, extendHistory, replayHistory } from "./drive-input";
+import { applyAnswer, newOnlineGame, pendingSeat, replay, STALE_DECISION, type OnlineGame } from "./game";
 import type { Request } from "./protocol";
 import { COMMIT_ATTEMPTS, commit, drive, DRIVE_DECISIONS, handle, type ServerDeps } from "./server";
 import { ENGINE } from "../play-engine";
 import { BOT_IDS, SEAT_BOTS, type BotId } from "./seat-bots";
-import { botToMove, type GameRow } from "./table";
+import { botToMove, type GameRow, type LoggedMove } from "./table";
 import { memoryStore, testDeps } from "./testing";
 
 const ALICE = { id: "alice", name: "Alice" };
@@ -311,26 +312,47 @@ describe("driving bot seats", () => {
   });
 
   it("plays a bot through a trade that must name its +2 territory", async () => {
-    // Seat 0, a bot, holds five cards picturing its own territories: it must trade, and every
-    // set it can make pictures three of its territories, so the trade must say which takes the
-    // bonus (`CARDS-7`).
-    const hand: CardId[] = ["alaska", "northwest-territory", "greenland", "alberta", "ontario"];
-    const engine = position({
-      hands: [hand, [], []],
-      board: { ...Object.fromEntries(hand.map((t) => [t, [0, 3]])), brazil: [2, 2], peru: [2, 2], argentina: [2, 2] },
-      rest: [1, 2],
+    // A real game, played by bots until a bot must trade (`CARDS-5`) a set picturing two or more
+    // of its own territories, so its trade must say which takes the bonus (`CARDS-7`). The row
+    // and its move log are planted together, as the route would have written them.
+    const { game, log } = gameUntil((options) => {
+      if (options.kind !== "reinforce" || !options.mustTrade) return false;
+      return options.sets.every((set) => set.filter((card) => (options.bonusTerritories as readonly string[]).includes(card)).length >= 2);
     });
     const db = memoryStore();
     const deps = testDeps(ENGINE, db.store);
-    const game: OnlineGame = { seed: "trade", players: 3, engine, decision: 0, lastEvents: [], answered: [] };
-    db.rows.set("GAME", { id: "GAME", version: 1, status: "playing", seats: [{ kind: "bot", bot: "random" }, { kind: "human", profile: BOB }, { kind: "human", profile: CAROL }], game });
-    expect(ENGINE.options(engine, 0)).toMatchObject({ kind: "reinforce", mustTrade: true });
+    const seat = ENGINE.view(game.engine, null).active;
+    const seats: GameRow["seats"] = [0, 1, 2].map((s) => (s === seat ? { kind: "bot", bot: "random" } : { kind: "human", profile: [ALICE, BOB, CAROL][s] }));
+    db.rows.set("GAME", { id: "GAME", version: 1, status: "playing", seats, game });
+    db.moves.set("GAME", log);
 
     await drive(deps, "GAME");
 
-    const trade = db.moves.get("GAME")?.[0]?.move;
+    const trade = db.moves.get("GAME")?.[log.length]?.move;
     expect(trade).toMatchObject({ kind: "trade" });
     expect(trade?.kind === "trade" && trade.bonusTerritory).toBeTruthy();
-    expect(ENGINE.view(db.rows.get("GAME")?.game?.engine ?? engine, null).active).not.toBe(0);
   });
 });
+
+/** A 3-player game played by random bots, over seeds, until the pending seat's options satisfy
+ *  `wanted`; with the move log that reaches it. */
+function gameUntil(wanted: (options: Options) => boolean): { game: OnlineGame; log: LoggedMove[] } {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    let game = newOnlineGame(ENGINE, 3, `until/${attempt.toString()}`);
+    const log: LoggedMove[] = [];
+    let history = replayHistory(ENGINE, game, []);
+    for (let i = 0; i < 3000; i++) {
+      const seat = pendingSeat(ENGINE, game);
+      if (seat === null) break;
+      const options = ENGINE.options(game.engine, seat);
+      if (options && wanted(options)) return { game, log };
+      const move = randomBot(botInput(ENGINE, game, history, [false, false, false], seat, `${attempt.toString()}/${i.toString()}`));
+      const result = applyAnswer(ENGINE, game, { decision: game.decision, seat, move });
+      if (!result.ok) throw new Error(result.reason);
+      log.push({ decision: game.decision, seat, controller: { kind: "bot", bot: "random" }, move });
+      game = result.game;
+      history = extendHistory(history, game) ?? replayHistory(ENGINE, game, log);
+    }
+  }
+  throw new Error("No game reached the position wanted");
+}

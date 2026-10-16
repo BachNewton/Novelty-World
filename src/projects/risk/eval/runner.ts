@@ -6,9 +6,9 @@ import { riskBot } from "../bots";
 
 // The game runner the measuring harness plays: one seeded game, a bot per seat,
 // on the engine contract. It is the only code that holds the game state; each bot
-// is given only what its seat may see (its view, its options, the latest write's
-// events redacted for it) and a seed of its own, the same input the online bot
-// seat gets. A game is a pure function of its seed and its seating, so it can run
+// is given only what its seat may see (its view, its options, the game's history
+// redacted for it) and a seed of its own, the same input the online bot seat gets.
+// Every seat is a bot here. A game is a pure function of its seed and its seating, so it can run
 // on any worker and give the same result.
 
 export interface GameRecord {
@@ -38,7 +38,19 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine }: Pla
   const players = bots.length;
   const started = engine.newGame({ players }, seed);
   let state = started.state;
-  let latest: readonly GameEvent[] = started.events;
+  // Each seat's redacted history, grown write by write rather than redacted whole
+  // for every decision.
+  const histories: GameEvent[][] = Array.from({ length: players }, () => []);
+  let latest: (readonly GameEvent[])[] = [];
+  const record = (events: readonly GameEvent[]) => {
+    latest = histories.map((history, seat) => {
+      const redacted = engine.redact(events, seat);
+      history.push(...redacted);
+      return redacted;
+    });
+  };
+  record(started.events);
+  const humans: readonly boolean[] = Array.from({ length: players }, () => false);
   // The bots' own random stream: derived from the game's seed through a hash, so
   // it is fixed per game but nothing about the game's dice or deck can be read
   // from it.
@@ -69,7 +81,9 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine }: Pla
       seat,
       view,
       options,
-      events: engine.redact(latest, seat),
+      events: latest[seat],
+      history: histories[seat],
+      humans,
       seed: `${botSeed}/${decision}`,
     });
     const result = engine.apply(state, seat, move);
@@ -80,7 +94,7 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine }: Pla
       if (event.kind === "eliminated") places[event.seat] = inGame--;
     }
     state = result.state;
-    latest = result.events;
+    record(result.events);
   }
 }
 

@@ -8,6 +8,9 @@ export const COLUMNS = "id, version, status, seats, game";
 
 type Db = ReturnType<typeof createAdminClient>;
 
+/** Moves read per request: the API's default row limit. */
+const MOVES_PAGE = 1000;
+
 // Postgres's unique-violation code: the id is taken.
 const UNIQUE_VIOLATION = "23505";
 
@@ -57,6 +60,23 @@ export function supabaseStore(db: Db): RowStore {
       if (error?.code === UNIQUE_VIOLATION) return null;
       if (error) throw new Error(`Creating Risk game ${id}: ${error.message}`);
       return data;
+    },
+    // Read a page at a time: the API returns at most its row limit per request, and a long game
+    // logs more moves than that.
+    moves: async (id) => {
+      const moves: LoggedMove[] = [];
+      for (;;) {
+        const { data, error } = await db
+          .from("risk_moves")
+          .select("decision, seat, controller, move")
+          .eq("game_id", id)
+          .order("decision")
+          .range(moves.length, moves.length + MOVES_PAGE - 1)
+          .returns<LoggedMove[]>();
+        if (error) throw new Error(`Reading Risk game ${id}'s moves: ${error.message}`);
+        moves.push(...data);
+        if (data.length < MOVES_PAGE) return moves;
+      }
     },
     // The move log goes with it (`on delete cascade`).
     remove: async (id) => {

@@ -334,32 +334,49 @@ function stretch(source: Float64Array, s0: number, s1: number, dest: Float64Arra
   }
 }
 
-/** GD's estimate of the fair odds of `a` against `d`: ten exactly worked smaller fights of the
- *  same proportions, a fitted capture chance, and the largest one's shape stretched to size. GD's
- *  arrays copy the defender's side one place off, and that is kept, so the odds match the game's. */
-function estimateFight(a: number, d: number): Fight {
-  const n = a + d;
+interface EstimateSteps {
+  xs: number[];
+  ws: number[];
+  best: number[];
+  mid: number[];
+  worst: number[];
+  largest: Float64Array;
+}
+
+/** The ten exactly worked smaller fights of the proportions of `a` against `d` that GD fits its
+ *  estimate to. */
+function estimateSteps(a: number, d: number): EstimateSteps {
   const ratio = Math.fround(Math.fround(a) / Math.fround(d));
-  const xs: number[] = [];
-  const ws: number[] = [];
-  const best: number[] = [];
-  const mid: number[] = [];
-  const worst: number[] = [];
-  let largest: Float64Array = new Float64Array(0);
+  const steps: EstimateSteps = { xs: [], ws: [], best: [], mid: [], worst: [], largest: new Float64Array(0) };
   for (let i = 0; i < 10; i++) {
     const total = i * (1900 / 9) + 100;
     const stepA = Math.max(1, roundHalfEven((ratio * total) / (ratio + 1)));
     const stepD = Math.max(1, roundHalfEven(total - roundHalfEven((ratio * total) / (ratio + 1))));
     const fight = fairFight(stepA, stepD);
     const combined = combinedOrder(fight);
-    xs.push(stepA + stepD);
-    ws.push(Math.min(1, Math.max(0, fight.defenderLost[stepD])));
-    best.push(outcomeIndex(combined, 0.01));
-    mid.push(outcomeIndex(combined, 0.5));
-    worst.push(outcomeIndex(combined, 0.99));
-    largest = combined;
+    steps.xs.push(stepA + stepD);
+    steps.ws.push(Math.min(1, Math.max(0, fight.defenderLost[stepD])));
+    steps.best.push(outcomeIndex(combined, 0.01));
+    steps.mid.push(outcomeIndex(combined, 0.5));
+    steps.worst.push(outcomeIndex(combined, 0.99));
+    steps.largest = combined;
   }
+  return steps;
+}
 
+/** GD's `EstimateAttackWinChance`: the fair capture chance of `a` against `d` from its fitted
+ *  model, unclamped. GD's AI reads it, balanced, for fights too large to work out. */
+export function estimatedWinChance(a: number, d: number): number {
+  const { xs, ws } = estimateSteps(a, d);
+  return winChanceModel(xs, ws)(a + d);
+}
+
+/** GD's estimate of the fair odds of `a` against `d`: ten exactly worked smaller fights of the
+ *  same proportions, a fitted capture chance, and the largest one's shape stretched to size. GD's
+ *  arrays copy the defender's side one place off, and that is kept, so the odds match the game's. */
+function estimateFight(a: number, d: number): Fight {
+  const n = a + d;
+  const { xs, ws, best, mid, worst, largest } = estimateSteps(a, d);
   const winChance = Math.min(1, Math.max(0, winChanceModel(xs, ws)(n)));
   const at = (ys: readonly number[]) => {
     const { slope, intercept } = fitLine(xs, ys);

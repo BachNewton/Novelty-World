@@ -8,15 +8,17 @@ import { playGame, runSpec } from "./runner";
 
 /** The reference engine, remembering the state of the latest write so a test can
  *  hold a bot's input against what the engine says that seat may see. */
-function spyEngine(): { engine: RiskEngine; latest: () => { state: GameState; events: readonly GameEvent[] } } {
+function spyEngine(): { engine: RiskEngine; latest: () => { state: GameState; events: readonly GameEvent[]; all: readonly GameEvent[] } } {
   let state: GameState | null = null;
   let events: readonly GameEvent[] = [];
+  const all: GameEvent[] = [];
   const engine: RiskEngine = {
     ...referenceEngine,
     newGame: (config, seed) => {
       const started = referenceEngine.newGame(config, seed);
       state = started.state;
       events = started.events;
+      all.push(...events);
       return started;
     },
     apply: (s, seat, move) => {
@@ -24,6 +26,7 @@ function spyEngine(): { engine: RiskEngine; latest: () => { state: GameState; ev
       if (result.ok) {
         state = result.state;
         events = result.events;
+        all.push(...events);
       }
       return result;
     },
@@ -32,18 +35,20 @@ function spyEngine(): { engine: RiskEngine; latest: () => { state: GameState; ev
     engine,
     latest: () => {
       if (state === null) throw new Error("no game started");
-      return { state, events };
+      return { state, events, all };
     },
   };
 }
 
 describe("playGame", () => {
-  it("gives a bot only its seat's view, options and redacted events, and a seed of its own", () => {
+  it("gives a bot only its seat's view, options and redacted history, and a seed of its own", () => {
     const spy = spyEngine();
     let checked = 0;
     const watching: Bot = (input) => {
-      const { state, events } = spy.latest();
-      expect(Object.keys(input).sort()).toEqual(["events", "options", "seat", "seed", "view"]);
+      const { state, events, all } = spy.latest();
+      expect(Object.keys(input).sort()).toEqual(["events", "history", "humans", "options", "seat", "seed", "view"]);
+      expect(input.history).toEqual(referenceEngine.redact(all, input.seat));
+      expect(input.humans).toEqual([false, false, false, false]);
       expect(input.view).toEqual(referenceEngine.view(state, input.seat));
       expect(input.view.viewer).toBe(input.seat);
       expect(input.options).toEqual(referenceEngine.options(state, input.seat));

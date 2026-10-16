@@ -1,6 +1,6 @@
 import type { Answer, RiskEngine } from "../contract";
 import { isBotId, seatBot } from "./seat-bots";
-import { botInput } from "./drive-input";
+import { botInput, extendHistory, replayHistory, type History } from "./drive-input";
 import { applyAnswer, newOnlineGame, pendingSeat, STALE_DECISION, tookAnswer } from "./game";
 import type { Request, Response } from "./protocol";
 import { botToMove, controllerOf, MAX_PLAYERS, MIN_PLAYERS, seatOf, type Controller, type GameRow, type LoggedMove, type Status } from "./table";
@@ -22,6 +22,8 @@ export interface RowStore {
   write: (id: string, fromVersion: number, change: RowChange, answer: LoggedMove | null) => Promise<GameRow | null>;
   /** Creates a row at version 0; null when the id is taken. */
   insert: (id: string, change: RowChange) => Promise<GameRow | null>;
+  /** The game's move log, in decision order. */
+  moves: (id: string) => Promise<LoggedMove[]>;
   /** Deletes the row and its move log; the row as it was, or null when there was none. */
   remove: (id: string) => Promise<GameRow | null>;
 }
@@ -175,7 +177,8 @@ export const DRIVE_DECISIONS = 300;
  * Plays the bot seats while the game waits on one. Idempotent: it acts only
  * on the decision pending, and its answer names it, so a drive that runs
  * twice, or alongside another, only ever lands one answer per decision. Each
- * bot sees only its seat's view (`botInput`).
+ * bot sees only what its seat may know (`botInput`): the game's history is
+ * replayed from the move log once per drive, then grown by each answer it lands.
  *
  * A bot's illegal move is a bug in the bot, and the drive fails loudly on it:
  * a bot is deterministic, so asking it again gives the same move, and playing
@@ -183,6 +186,7 @@ export const DRIVE_DECISIONS = 300;
  */
 export async function drive(deps: Pick<ServerDeps, "engine" | "store">, id: string): Promise<"done" | "more"> {
   const { engine, store } = deps;
+  let history: History | null = null;
   for (let made = 0; made < DRIVE_DECISIONS; made++) {
     const row = await store.read(id);
     if (!row) return "done";
@@ -191,7 +195,9 @@ export async function drive(deps: Pick<ServerDeps, "engine" | "store">, id: stri
     const { seat, game } = toMove;
     const controller = controllerOf(row, seat);
     if (controller.kind !== "bot") throw new Error("A bot seat lost its bot mid-drive");
-    const input = botInput(engine, game, seat, `${id}/${game.decision.toString()}`);
+    history = (history && extendHistory(history, game)) ?? replayHistory(engine, game, await store.moves(id));
+    const humans = row.seats.map((c) => c.kind === "human");
+    const input = botInput(engine, game, history, humans, seat, `${id}/${game.decision.toString()}`);
     const answer: Answer = { decision: game.decision, seat, move: seatBot(controller.bot).bot(input) };
     const tried = applyAnswer(engine, game, answer);
     if (!tried.ok) {
