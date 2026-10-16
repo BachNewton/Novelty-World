@@ -80,3 +80,17 @@ Win Elo +239 over greedy (finishing-order Elo +123). The SPRT stops as soon as i
 What the lobby now shows: every seatable bot (`online/seat-bots.ts`) by rank, name and version, with its strength among them as bars over its Elo, the strongest first by default. The Elo lives in `bots/ratings.json`, and a test holds it to exactly the seatable bots that can win. By Elo order: Random Baseline is Recruit, GD Defensive Private, GD Aggressive Corporal, Greedy Sergeant, GD Continental Staff Sergeant, GD Stacker Sergeant First Class, Rule v1 Master Sergeant.
 
 Real games: `risk_games` holds none, so there is no human evidence yet; every judgement below is bot against bot.
+
+## v2 candidate: a worse target than the neighbours (gauntlet, 2026-10-17): even, not crowned
+
+`rule-v2` with one change from v1 (`rule-bot-v2.md` §1): each opponent's blow against me weighed by my share of the blows it could land on all its neighbours, instead of `1 / its number of neighbouring players`. `risk:gauntlet -- rule-v2 --base rule-v1 --field rule-v1,gd-defensive,gd-continental,gd-aggressive,gd-stacker`, train seeds, ±30 Elo:
+
+| Pairing | Verdict | Decisive games |
+|---|---|---|
+| 1 v2 vs 2 v1 (3p) | better | 147 |
+| 2 v2 vs 1 v1 (3p) | even | 954 |
+| 1 v2 vs 3 v1 (4p) | even | 1,528 |
+
+Stopped there: the crown needs better than the base at every table, so it could no longer be crowned. A lone v2 among v1 copies gains at 3 players, where being the worse target among two neighbours sends both v1s' attacks at each other, but a v2 majority, or a lone v2 at 4, gains nothing a 30-Elo test can see. The point tested: target share as proportional to the opponent's best blow on each neighbour, with v1's weights. Not refuted as an idea: a sharper model of whom an opponent hits (its whole plan, not one blow) is still open.
+
+The first tuning run (`risk:tune`, 10 candidates of 208 games each) was stopped after one generation: a candidate's worst table rested on about 70 games, a standard error near 60 Elo, so its ranking was mostly noise; and weights tuned for v1 would be for the wrong bot if a structural change wins. The rerun uses 416 games a candidate.

@@ -1,7 +1,7 @@
 import { createRng } from "@/shared/lib/seeded-random";
-import type { GameEvent, RiskEngine, Seat } from "../contract";
+import type { GameEvent, GameView, Move, RiskEngine, Seat } from "../contract";
 import { referenceEngine } from "../engine";
-import type { Bot } from "../bots/bot";
+import type { Bot, BotInput } from "../bots/bot";
 import { riskBot } from "../bots";
 
 // The game runner the measuring harness plays: one seeded game, a bot per seat,
@@ -30,11 +30,20 @@ export interface PlayOptions {
   /** Past this many player-turns the game is stopped and counted a draw. */
   maxTurns: number;
   engine?: RiskEngine;
+  /** Watches the game as it is played (the review tool): each bot's input and move, and the
+   *  events each move caused with the board after it, as a spectator sees it. */
+  observe?: Observer;
+}
+
+export interface Observer {
+  decided?(input: BotInput, move: Move): void;
+  applied?(seat: Seat, move: Move, events: readonly GameEvent[], board: GameView): void;
+  started?(events: readonly GameEvent[], board: GameView): void;
 }
 
 /** Plays one game to its end or the turn cap. A bot's illegal move throws: it is a
  *  bug in the bot, never a move to be quietly replaced. */
-export function playGame({ seed, bots, maxTurns, engine = referenceEngine }: PlayOptions): GameRecord {
+export function playGame({ seed, bots, maxTurns, engine = referenceEngine, observe }: PlayOptions): GameRecord {
   const players = bots.length;
   const started = engine.newGame({ players }, seed);
   let state = started.state;
@@ -50,6 +59,7 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine }: Pla
     });
   };
   record(started.events);
+  observe?.started?.(started.events, engine.view(state, null));
   const humans: readonly boolean[] = Array.from({ length: players }, () => false);
   // The bots' own random stream: derived from the game's seed through a hash, so
   // it is fixed per game but nothing about the game's dice or deck can be read
@@ -77,7 +87,7 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine }: Pla
     }
     const options = engine.options(state, seat);
     if (!options) throw new Error(`seat ${seat} is to move but has no options (${view.phase})`);
-    const move = bots[seat]({
+    const input: BotInput = {
       seat,
       view,
       options,
@@ -85,7 +95,9 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine }: Pla
       history: histories[seat],
       humans,
       seed: `${botSeed}/${decision}`,
-    });
+    };
+    const move = bots[seat](input);
+    observe?.decided?.(input, move);
     const result = engine.apply(state, seat, move);
     if (!result.ok) {
       throw new Error(`seat ${seat}'s bot made an illegal move (${result.reason}): ${JSON.stringify(move)}`);
@@ -95,6 +107,7 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine }: Pla
     }
     state = result.state;
     record(result.events);
+    observe?.applied?.(seat, move, result.events, engine.view(state, null));
   }
 }
 
