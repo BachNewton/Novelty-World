@@ -113,8 +113,8 @@ The whole archive was hand-tuned **one or two constants at a time**, SPRT-gating
 step — manual hill-climbing that structurally cannot explore *combinatorial* parameter
 interactions. `opt-v1` (lineage `opt-v`, paradigm-named for the **method**) applied a
 **Separable Natural Evolution Strategy (SNES)** to claude-v38's **full 15-parameter
-vector jointly** (`optimize/` harness: `params.ts`/`snes.ts`/`fitness.ts`/`worker.ts`/
-`bot.ts`; a `param-fidelity.test.ts` pins that the default vector reproduces claude-v38
+vector jointly** (`optimize/` harness: `params.ts`/`fitness.ts`/`worker.ts`/
+`bot.ts`, with SNES itself in the shared `bot-lab/snes.ts`; a `param-fidelity.test.ts` pins that the default vector reproduces claude-v38
 byte-for-byte, so the ES optimizes the *real* bot). Fitness = win-share vs the anchor
 panel. The frozen `opt-v1` reuses the *exact* parameterized factory bound to the winning
 vector (fidelity by construction, not hand-transcription).

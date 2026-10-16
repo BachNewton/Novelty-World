@@ -61,3 +61,22 @@ A lean at 4 players and nothing at 6, at about three times the cost per decision
 | 5 v1 vs 1 greedy (6p) | 97.7% [93.5–99.2] | 83.3% | 132 | 0% |
 
 Win Elo +239 over greedy (finishing-order Elo +123). The SPRT stops as soon as it is sure, so the Elo is loose: the lone v1 seat's win shares, read through the Luce model, are +181 a seat at 3 players [+102, +260], +221 at 4 [+140, +304] and +338 at 6 [+240, +437]. `rule-v1 --field random`: every game won at every table (24 to 114 games a pairing, cap 0%).
+
+## Every current bot head to head (ratings, 2026-10-16)
+
+`risk:ratings -- greedy rule-v1 gd-defensive gd-continental gd-aggressive gd-stacker --groups 100 --anchor greedy` on `d99b065c`: every pair at 3, 4 and 6 players, each bot alone among copies of the other, 100 rotation groups a table, 39,000 games in 23 minutes on 14 workers (`eval/runs.jsonl`). Win Elo, greedy at 1000, with a 95% interval from a parametric bootstrap of the 90 matchups' counts (games treated as independent, which the rotation makes conservative):
+
+| Bot | Win Elo | 95% | Finishing-order Elo |
+|---|---|---|---|
+| rule-v1 | 1348 | [1337, 1359] | 1177 |
+| GD Stacker | 1103 | [1092, 1114] | 1121 |
+| GD Continental | 1073 | [1062, 1083] | 1061 |
+| greedy | 1000 | anchor | 1000 |
+| GD Aggressive | 996 | [986, 1007] | 1050 |
+| GD Defensive | 965 | [955, 975] | 1045 |
+
+**rule-v1 beats every GD Expert persona, at every table, in both mixtures**, and by more than any interval. Alone among copies of a persona it wins 64 to 83% at 3 players (par 33%), 51 to 67% at 4 (par 25%) and 50 to 61% at 6 (par 17%); a lone persona among copies of rule-v1 wins 0.2 to 9%. Its hardest opponents are Continental and Stacker, which hold it to about half its games when it is alone among five of them. The persona order matches the earlier gauntlets against greedy (Stacker +112, Continental +71, Aggressive 0, Defensive −27). Aggressive and greedy are within noise of each other. Caps: 2 games in 39,000.
+
+What the lobby now shows: every seatable bot (`online/seat-bots.ts`) by rank, name and version, with its strength among them as bars over its Elo, the strongest first by default. The Elo lives in `bots/ratings.json`, and a test holds it to exactly the seatable bots that can win. By Elo order: Random Baseline is Recruit, GD Defensive Private, GD Aggressive Corporal, Greedy Sergeant, GD Continental Staff Sergeant, GD Stacker Sergeant First Class, Rule v1 Master Sergeant.
+
+Real games: `risk_games` holds none, so there is no human evidence yet; every judgement below is bot against bot.

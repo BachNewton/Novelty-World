@@ -1,6 +1,8 @@
 import type { Bot } from "../bots/bot";
+import { gdAggressiveBot, gdContinentalBot, gdDefensiveBot, gdStackerBot } from "../bots/gd";
 import { greedyBot } from "../bots/greedy";
 import { randomBot } from "../bots/random";
+import RATINGS from "../bots/ratings.json";
 import { ruleV1Bot } from "../bots/rule-v1";
 
 /** The ranks a seated bot is named by, weakest first. A bot takes the rung its measured
@@ -31,34 +33,45 @@ export const RANKS = [
 
 export type Rank = (typeof RANKS)[number];
 
-/** A bot a table can seat, by the id its row keeps. The bots themselves live in `bots/`, the
- *  one home of every Risk bot, measured or played. */
-export type BotId = "random" | "greedy" | "rule-v1";
+/** A bot a table can seat, by the id its row keeps: the label the measuring harness seats it
+ *  by. The bots themselves live in `bots/`, the one home of every Risk bot, measured or played. */
+export type BotId = "random" | "greedy" | "rule-v1" | "gd-defensive" | "gd-continental" | "gd-aggressive" | "gd-stacker";
 
 export interface SeatBot {
-  rank: Rank;
+  /** What players call it, with its version beside it. */
+  name: string;
+  version: string;
   bot: Bot;
 }
 
-/** Each a rung above the one before: a bot is seated only once the gauntlet shows it beats
- *  the one below. */
+/** Every bot a table can seat. GD's four Expert personas stay seatable whatever they rank:
+ *  they are the yardstick players know. */
 export const SEAT_BOTS: Record<BotId, SeatBot> = {
-  random: { rank: "Recruit", bot: randomBot },
-  greedy: { rank: "Private", bot: greedyBot },
-  "rule-v1": { rank: "Corporal", bot: ruleV1Bot },
+  random: { name: "Random", version: "Baseline", bot: randomBot },
+  greedy: { name: "Greedy", version: "Baseline", bot: greedyBot },
+  "rule-v1": { name: "Rule", version: "v1", bot: ruleV1Bot },
+  "gd-defensive": { name: "GD Defensive", version: "Expert", bot: gdDefensiveBot },
+  "gd-continental": { name: "GD Continental", version: "Expert", bot: gdContinentalBot },
+  "gd-aggressive": { name: "GD Aggressive", version: "Expert", bot: gdAggressiveBot },
+  "gd-stacker": { name: "GD Stacker", version: "Expert", bot: gdStackerBot },
 };
 
-const rung = (id: BotId) => RANKS.indexOf(SEAT_BOTS[id].rank);
-
-/** The seatable bots, weakest first. */
-export const BOT_IDS: readonly BotId[] = (Object.keys(SEAT_BOTS) as BotId[]).sort((a, b) => rung(a) - rung(b));
-
-/** A new bot seat's bot: the strongest. */
-export const DEFAULT_BOT: BotId = BOT_IDS[BOT_IDS.length - 1];
+/** The bots' measured strength (`bots/ratings.json`, written by `risk:ratings -- --seatable`):
+ *  each seatable bot's win Elo from one ratings run over all of them, greedy anchored at 1000.
+ *  Random never wins, so it has none. */
+export const ELO: Readonly<Partial<Record<BotId, number>>> = RATINGS.elo;
 
 export function isBotId(id: string): id is BotId {
   return Object.hasOwn(SEAT_BOTS, id);
 }
+
+/** The seatable bots, weakest first: by measured Elo, the unrated below every rated bot. */
+export const BOT_IDS: readonly BotId[] = (Object.keys(SEAT_BOTS) as BotId[]).sort(
+  (a, b) => (ELO[a] ?? -Infinity) - (ELO[b] ?? -Infinity) || a.localeCompare(b),
+);
+
+/** A new bot seat's bot: the strongest. */
+export const DEFAULT_BOT: BotId = BOT_IDS[BOT_IDS.length - 1];
 
 /** The bot a row's seat names. A row naming a bot no longer seated fails loudly: playing or
  *  showing another bot in its place would change the game behind its players' backs. */
@@ -69,8 +82,26 @@ export function seatBot(id: BotId): SeatBot {
 
 /** How strong a bot is among those a table can seat: 1 for the weakest, up to `BOT_IDS.length`. */
 export function strength(id: BotId): number {
+  seatBot(id);
   return BOT_IDS.indexOf(id) + 1;
 }
 
-/** The name players see for a bot seat. */
-export const botName = (id: BotId) => `${seatBot(id).rank} (bot)`;
+/** The rank a bot's place in the Elo order earns. */
+export function rankOf(id: BotId): Rank {
+  return RANKS[strength(id) - 1];
+}
+
+/** Its measured Elo, or null for a bot that never wins. */
+export function eloOf(id: BotId): number | null {
+  seatBot(id);
+  return ELO[id] ?? null;
+}
+
+/** "Rule v1": the name and version together. */
+export function fullName(id: BotId): string {
+  const { name, version } = seatBot(id);
+  return `${name} ${version}`;
+}
+
+/** The name players see for a bot seat: its rank and name, "Sergeant · Rule v1". */
+export const botName = (id: BotId) => `${rankOf(id)} · ${fullName(id)}`;

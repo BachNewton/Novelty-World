@@ -40,7 +40,11 @@ if ($dirty -and -not $Force) {
 # build can make some (Turbopack links bundled-around packages into .next\node_modules, as junctions on
 # Windows without Developer Mode). `rmdir /s` removes a junction it meets without entering it.
 cmd /c "rmdir /s /q `"$target`""
-if (Test-Path -LiteralPath $target) { throw "could not delete ${target}: stop any dev server or build running in it, then rerun" }
+if (Test-Path -LiteralPath $target) {
+  $holders = & (Join-Path $PSScriptRoot 'holders.ps1') -Path $target
+  if ($holders) { $holders | Format-Table -AutoSize -Wrap | Out-String | Write-Host }
+  throw "could not delete ${target}: $(if ($holders) { 'the processes above hold it; stop them, then rerun' } else { 'no process has it as its working directory, so something holds a file in it (an editor, a file watcher): close that, then rerun' })"
+}
 git -C $root worktree prune
 
 if (-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\next\package.json'))) {
