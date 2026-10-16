@@ -180,13 +180,13 @@ The house is lit by baked light: lamps' light and shadows baked into each room's
 |---|---|
 | Cold moon blue | the baseline: night, the house itself |
 | Warm amber | human and safe-ish: candles, lamps, explorers |
-| Spectral teal | an unseen presence, and only that (the Bedroom's glow under the bed, the Gymnasium's empty corner) |
+| Spectral teal | an unseen presence, and only that (the Bedroom's glow under the bed, the Gymnasium's light from nowhere among its ropes) |
 | Sickly green | death, decay and the corrupt: rot, poison, the ghoulish (the Crypt's open tomb) |
 | Red | danger, blood, the traitor |
 | Violet | magic, omens, and the occult or trapped (the Research Laboratory's bell jar) |
 | Gold | the holy: the Blessing, the Holy Symbol, the Chapel |
 
-A flame that looks lit always lights something. Lean into coloured, dynamic light, faked where it can be (glows, additive pools, lights that last a second or two). Only permanent signature lights count against a room's budget. The opportunities:
+A flame that looks lit always lights something, and every light in the house is a flame (candles, oil lamps, fires): the house has no electric light. Lean into coloured, dynamic light, faked where it can be (glows, additive pools, lights that last a second or two). Only permanent signature lights count against a room's budget. The opportunities:
 
 - signature room lights (the Furnace Room, Pentagram Chamber, Underground Lake, laboratories, Conservatory, the charred and bloody rooms, Graveyard, Ballroom);
 - event moments (Lights Out, Burning Man, Bloody Vision, Shrieking Wind, Night View, A Moment of Hope, Mists, Smoke, Image in the Mirror, Possession, The Beckoning);
@@ -260,12 +260,11 @@ Shelved, with what was learnt, for when they are picked up again.
 
 ## Open questions
 
-`v1-play.md` lists the questions still open from the playtest: the reveal's light, pacing, the phone layout, the lake's water look, the backlight, soft or hard shadows, card-driven moves, an instant floor swap, showing who goes first, and the frame meter's default. The longer-standing ones:
+`v1-play.md` lists the questions still open from the playtest: the reveal's light, pacing, the phone layout, the lake's water look, the backlight, card-driven moves, an instant floor swap, showing who goes first, and the frame meter's default. The longer-standing ones:
 
 - **One device per player, a shared screen with phones as controllers, or both**, once online play comes. A TV could show what everyone may see (the house, whose turn it is) as a spectator client of the game row, while each phone renders its own seat's `viewFor`: its cards, its choices and, after the reveal, its side's half of the haunt. That suits the server-authoritative design and the traitor's secrets, and could sit beside one device per player.
 - **The layout on phones and on wide screens**, around the status box: how much of a phone it may cover, and what extra width shows.
 - **The reveal's light:** the house turned red (the default) or its moon blue pushed deeper (`?mood=cold`).
 - **The lake's water look:** `shader` or `shader-palette` (`?water=`).
 - **Whether to light a figure lit only from behind** with a rim (the backlight, on by default; `?backlight=off` to compare). Bounce light gives figures some fill from below.
-- **Soft or hard shadows** (`lighting.md`).
 

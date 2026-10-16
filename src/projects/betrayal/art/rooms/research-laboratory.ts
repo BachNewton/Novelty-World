@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { createRng, pick } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { instrumentTray, LAB_SHELL, labBench, labGlass, labGlassMaterial } from "../kit/laboratory";
+import { oilLamp } from "../kit/candles";
 import { flame } from "../kit/flame";
 import { solidLathe } from "../kit/vessel";
 import { lightAnchor } from "../light-anchor";
@@ -219,10 +220,9 @@ function notes(seed: string): THREE.Group {
 const RACK = { shelf: 0.95, posts: [-1.1, 1.1] };
 
 /**
- * A reagent rack over the island bench, the way a laboratory works by night:
- * two iron uprights from the slate, a shelf of bottles across their tops,
- * and two brass lamps hung under it, throwing their amber straight down on
- * the apparatus. Open below the shelf, so the bench shows from every side.
+ * A reagent rack over the island bench: two iron uprights from the slate and
+ * a shelf of bottles across their tops. Open below the shelf, so the bench
+ * and its lamps show from every side.
  * In the bench's frame (long along x), base on the slate.
  */
 function reagentRack(): THREE.Group {
@@ -237,24 +237,10 @@ function reagentRack(): THREE.Group {
     bottle.position.set(-1.0 + k * 0.2, RACK.shelf + 0.03, (k % 2) * 0.05 - 0.02);
     result.add(bottle);
   }
-  for (const x of [-0.5, 0.45]) {
-    const lamp = group(
-      cylinder(0.008, 0.16, metal, [0, RACK.shelf - 0.16, 0], { sides: 4 }),
-      solidLathe([[0.13, 0], [0.11, 0.04], [0.05, 0.11], [0.02, 0.13]], brass(), 12),
-      new THREE.Mesh(new THREE.CircleGeometry(0.11, 12).rotateX(Math.PI / 2).translate(0, 0.006, 0), glow("amber")),
-      flame("oilLamp").translateY(-0.06),
-    );
-    // The shade hangs below its rod; its parts hold the light, so they cast no shadow.
-    for (const part of lamp.children.slice(1)) part.position.y += RACK.shelf - 0.29;
-    lamp.traverse((part) => (part.userData.noShadow = true));
-    lamp.position.x = x;
-    lamp.add(lightAnchor({ colour: "amber", intensity: 3.5, range: 6, flicker: 0.05, kind: "lamp" }, [0, RACK.shelf - 0.42, 0]));
-    result.add(lamp);
-  }
   return result;
 }
 
-/** Everything on the island bench's slate, in the bench's frame (long along x, the room side +z), base on the slate. */
+/** Everything on the island bench's slate but its lamps, in the bench's frame (long along x, the room side +z), base on the slate. */
 function benchApparatus(): THREE.Group {
   const result = group();
   const place = (piece: THREE.Object3D, x: number, z: number, turn = 0) => {
@@ -272,6 +258,17 @@ function benchApparatus(): THREE.Group {
   place(notes("bench"), 0.78, -0.18, 0.4);
   place(labGlass("jar", { fill: 0.85, fluid: "wraithDark", scale: 0.8, lid: "brass" }), 0.92, 0.05);
   return result;
+}
+
+/** The two oil lamps the bench's work is done by at night, their flames burning in tall glass chimneys under the rack.
+ *  In the bench's frame, base on the slate. */
+function benchLamps(): THREE.Group {
+  const lamps = [[-0.35, 0.2], [0.47, 0.06]].map(([x, z]) => {
+    const lamp = oilLamp({ shine: SHINES.tarnishedBrass });
+    lamp.position.set(x, 0, z);
+    return lamp;
+  });
+  return group(...lamps);
 }
 
 /** Specimen jars in a row along x, `length` long, of mixed sizes and murky fluids, a gap or two, and none where an upright stands (`posts`, as x). Base at y = 0. */
@@ -370,6 +367,7 @@ export const RESEARCH_LABORATORY: RoomDefinition = {
   props: [
     { build: () => labBench({ length: ISLAND.length, depth: ISLAND.depth, height: ISLAND.height, doubleSided: true }), name: "labBench", at: ISLAND.at, turn: 90 },
     { build: benchApparatus, at: ISLAND.at, y: ISLAND.height, turn: 90 },
+    { build: benchLamps, at: ISLAND.at, y: ISLAND.height, turn: 90 },
     { build: reagentRack, at: ISLAND.at, y: ISLAND.height, turn: 90 },
     { build: bellJar, at: JAR_AT },
     { build: presence, at: JAR_AT },

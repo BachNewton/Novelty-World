@@ -19,21 +19,26 @@ function fireplace(): THREE.Group {
     box([0.3, 1.15, 0.4], stone, [0.65, 0, 0.2]),
     // The lintel spans between the jambs, and the hearth stands a little wider than them, so no faces meet in one plane.
     box([1.0, 0.3, 0.4], stone, [0, 0.85, 0.2]),
-    box([1.0, 0.85, 0.3], soot, [0, 0, 0.16]),
+    // The firebox is hollow, lined with soot on its back, sides and roof, so the fire burns inside it.
+    box([1.0, 0.85, 0.06], soot, [0, 0, 0.03]),
+    box([0.03, 0.85, 0.34], soot, [-0.485, 0, 0.2]),
+    box([0.03, 0.85, 0.34], soot, [0.485, 0, 0.2]),
+    box([0.94, 0.03, 0.34], soot, [0, 0.82, 0.2]),
     box([1.8, 0.08, 0.5], mantel, [0, 1.15, 0.25]),
     box([1.64, 0.04, 0.55], stone, [0, 0, 0.3]),
   );
   const log = flat("wood");
-  for (const [x, turn] of [[-0.15, 0.3], [0.15, -0.25]]) {
+  // The second log rests a little higher, across the first, so their tops never meet in one plane.
+  for (const [x, y, turn] of [[-0.15, 0.05, 0.3], [0.15, 0.07, -0.25]]) {
     const piece = box([0.55, 0.1, 0.1], log, [0, 0, 0]);
-    piece.position.set(x, 0.05, 0.25);
+    piece.position.set(x, y, 0.25);
     piece.rotation.y = turn;
     result.add(piece);
   }
   const flames = fire({ width: 0.5, depth: 0.18, height: 0.42, signal: FIRE_SIGNAL });
   flames.position.set(0, 0.1, 0.24);
   result.add(flames);
-  result.add(box([0.6, 0.06, 0.22], glow("ember"), [0, 0.04, 0.25]));
+  result.add(box([0.5, 0.05, 0.18], glow("ember"), [0, 0.04, 0.23]));
   for (const x of [-0.6, 0.6]) {
     const taper = candle({ height: 0.24, light: false });
     taper.position.set(x, 1.23, 0.3);

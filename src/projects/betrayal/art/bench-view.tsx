@@ -25,12 +25,12 @@ const SHINE_BENCH = "shine";
 const FLAME_BENCH = "flames";
 
 /** The art bench (`?bench=<room-id>`, optionally `&explorer=<id>`,
- *  `&frame=explorer` and `&paths`): one room, full screen, to judge its art.
+ *  `&frame=explorer`, `&paths` and `&casters`): one room, full screen, to judge its art.
  *  `?bench=props` opens the props gallery instead (`&show=kit|duplicates|<room-id>`, `&q=<search>`), and
  *  `?bench=figures` the figure viewer (see `figure-viewer.ts`), and `?bench=shine` the shine bench
  *  (every floor, matte, under a light to pick and move, with a shine to try on them, see `shine-bench.ts`), and
  *  `?bench=flames` the flame bench (the kit's shader flames beside today's diamonds, see `flame-bench.ts`). */
-export function ArtBench(props: { room: string; explorer: string | null; frame: string | null; paths: boolean }) {
+export function ArtBench(props: { room: string; explorer: string | null; frame: string | null; paths: boolean; casters: boolean }) {
   if (props.room === FIGURES_BENCH) return <FigureViewer />;
   if (props.room === SHINE_BENCH) return <ShineBenchView />;
   if (props.room === FLAME_BENCH) return <FlameBenchView />;
@@ -42,13 +42,15 @@ function RoomBench({
   explorer,
   frame,
   paths,
+  casters,
 }: {
   room: string;
   explorer: string | null;
   frame: string | null;
   paths: boolean;
+  casters: boolean;
 }) {
-  const [bench] = useState(() => createBench(room, explorer, frame, paths));
+  const [bench] = useState(() => createBench(room, explorer, frame, paths, casters));
   const state = useSyncExternalStore(bench.subscribe, bench.snapshot, bench.snapshot);
   const containerRef = useThreeScene(bench.mount, { antialias: false, maxPixelRatio: 4 });
   const zoomIndex = bench.zooms.indexOf(state.zoom);
@@ -122,6 +124,14 @@ function RoomBench({
           className="pointer-events-auto rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 text-sm"
         >
           {state.paths ? "Paths: on" : "Paths: off"}
+        </button>
+        <button
+          type="button"
+          aria-pressed={state.casters}
+          onClick={() => bench.api.setCasters(!state.casters)}
+          className="pointer-events-auto rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 text-sm"
+        >
+          {state.casters ? "Casters: on" : "Casters: off"}
         </button>
         <span className="rounded border border-(--bt-danger) px-2 text-xs font-semibold tracking-wide text-(--bt-danger) uppercase">
           Art bench
