@@ -1,55 +1,81 @@
-import { useSoundSettings, type SoundSettings } from "../settings";
-import { unlockAudio } from "../sound-board";
+import { useSoundSettings } from "../settings";
+import { musicGain } from "./mix";
+import type { RenderReply, RenderRequest } from "./render.worker";
 import { compileTheme, type Theme } from "./song";
-import { zzfxm } from "./zzfxm";
 
-// The music themes in the browser, for the `?music` page. They play through
-// ZzFX's AudioContext, the game's one context, which the sound board unlocks,
-// and one gain that follows the sound settings' volume and mute. One theme
-// plays at a time. A theme is rendered the first time it is played, then
-// kept.
+// The music in the browser, for the game and the `?music` page. Themes render
+// in a worker, so rendering never holds up a frame, and play through ZzFX's
+// AudioContext, the game's one context, which the sound board unlocks. One
+// gain follows the sound settings, at the music's place in the mix
+// (`mix.ts`). One theme plays at a time.
 
-const rendered = new Map<string, Promise<AudioBuffer>>();
-let output: { context: AudioContext; gain: GainNode } | null = null;
-let current: AudioBufferSourceNode | null = null;
+// How many rendered themes to keep. A full-length theme is some 30 MB of
+// samples, and a game only needs the one it plays.
+const KEEP = 3;
 
-function level({ muted, volume }: SoundSettings): number {
-  return muted ? 0 : volume;
+interface Output {
+  context: AudioContext;
+  gain: GainNode;
 }
 
-async function musicOutput(): Promise<{ context: AudioContext; gain: GainNode }> {
+const rendered = new Map<string, Promise<AudioBuffer>>();
+let output: Output | null = null;
+let current: { source: AudioBufferSourceNode; fade: GainNode } | null = null;
+
+async function musicOutput(): Promise<Output> {
+  // Imported here, not at the top: ZzFX creates its AudioContext as it loads,
+  // which can't happen on the server.
   const { ZZFX } = await import("zzfx");
   if (output === null) {
     const context = ZZFX.audioContext;
-    const gain = new GainNode(context, { gain: level(useSoundSettings.getState().settings) });
+    const gain = new GainNode(context, { gain: musicGain(useSoundSettings.getState().settings) });
     gain.connect(context.destination);
     useSoundSettings.subscribe(({ settings }) => {
-      gain.gain.value = level(settings);
+      gain.gain.value = musicGain(settings);
     });
     output = { context, gain };
   }
   return output;
 }
 
-// Resolves once the browser has painted the next frame. A second animation
-// frame's callback runs after the first frame has painted, so work started
-// there doesn't hold back what the page has just shown.
-function afterNextPaint(): Promise<void> {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        resolve();
-      });
-    });
-  });
+type Samples = Extract<RenderReply, { left: unknown }>;
+
+let worker: Worker | null = null;
+let nextJob = 0;
+const jobs = new Map<number, { resolve: (samples: Samples) => void; reject: (error: Error) => void }>();
+
+// The render worker, started on the first render. It renders one theme at a
+// time, in the order asked.
+function renderWorker(): Worker {
+  if (worker === null) {
+    worker = new Worker(new URL("./render.worker.ts", import.meta.url), { type: "module" });
+    worker.onmessage = ({ data }: MessageEvent<RenderReply>) => {
+      const job = jobs.get(data.id);
+      if (job === undefined) throw new Error(`Frogmino music: a render no one asked for (${String(data.id)})`);
+      jobs.delete(data.id);
+      if ("error" in data) job.reject(new Error(`Frogmino music: a theme failed to render: ${data.error}`));
+      else job.resolve(data);
+    };
+    worker.onerror = (event) => {
+      const error = new Error(`Frogmino music: the render worker failed: ${event.message}`);
+      for (const job of jobs.values()) job.reject(error);
+      jobs.clear();
+    };
+  }
+  return worker;
 }
 
 async function render(theme: Theme): Promise<AudioBuffer> {
-  const { ZZFX } = await import("zzfx");
-  const { context } = await musicOutput();
-  await afterNextPaint();
-  const [left, right] = zzfxm(compileTheme(theme), ZZFX.sampleRate, (params) => ZZFX.buildSamples(...params));
-  const buffer = context.createBuffer(2, left.length, ZZFX.sampleRate);
+  const [{ left, right, sampleRate }] = await Promise.all([
+    new Promise<Samples>((resolve, reject) => {
+      const id = nextJob++;
+      jobs.set(id, { resolve, reject });
+      const request: RenderRequest = { id, song: compileTheme(theme) };
+      renderWorker().postMessage(request);
+    }),
+    musicOutput(),
+  ]);
+  const buffer = new AudioBuffer({ numberOfChannels: 2, length: left.length, sampleRate });
   buffer.copyToChannel(left, 0);
   buffer.copyToChannel(right, 1);
   return buffer;
@@ -59,40 +85,56 @@ export function isRendered(theme: Theme): boolean {
   return rendered.has(theme.id);
 }
 
-// Call from the play button's click: it unlocks audio inside the input event,
-// then renders the theme off the event, once the page has shown it rendering.
-export function renderTheme(theme: Theme): Promise<AudioBuffer> {
-  unlockAudio();
-  let buffer = rendered.get(theme.id);
-  if (buffer === undefined) {
-    buffer = render(theme);
-    rendered.set(theme.id, buffer);
+// Renders a theme, if it isn't rendered or rendering already, and resolves
+// once it is ready to play. Needs no input: the game calls it ahead, while
+// the players are still in a menu, so the theme is ready by the time it plays.
+export function prepareTheme(theme: Theme): Promise<AudioBuffer> {
+  const buffer = rendered.get(theme.id) ?? render(theme);
+  // Most recently wanted last, so the oldest go first.
+  rendered.delete(theme.id);
+  rendered.set(theme.id, buffer);
+  for (const id of rendered.keys()) {
+    if (rendered.size <= KEEP) break;
+    rendered.delete(id);
   }
   return buffer;
 }
 
-// Plays a rendered theme from the start, stopping whatever was playing.
+// Plays a prepared theme from the start, stopping whatever was playing.
 // `onEnded` comes only when it reaches its end by itself, not looping.
-export async function playMusic(buffer: AudioBuffer, loop: boolean, onEnded: () => void): Promise<void> {
-  const { context, gain } = await musicOutput();
+export function playMusic(buffer: AudioBuffer, loop: boolean, onEnded: () => void): void {
+  if (output === null) throw new Error("Frogmino music: a theme played before any was prepared");
   stopMusic();
+  const { context, gain } = output;
   const source = new AudioBufferSourceNode(context, { buffer, loop });
-  source.connect(gain);
+  const fade = new GainNode(context);
+  source.connect(fade).connect(gain);
   source.onended = () => {
-    if (current !== source) return;
+    if (current?.source !== source) return;
     current = null;
     onEnded();
   };
   source.start();
-  current = source;
+  current = { source, fade };
 }
 
-export function stopMusic(): void {
-  current?.stop();
+// Stops the playing theme, at once or fading out over `fadeSeconds` on the
+// audio clock.
+export function stopMusic(fadeSeconds = 0): void {
+  if (current === null || output === null) return;
+  const { source, fade } = current;
   current = null;
+  if (fadeSeconds <= 0) {
+    source.stop();
+    return;
+  }
+  const now = output.context.currentTime;
+  fade.gain.setValueAtTime(fade.gain.value, now);
+  fade.gain.linearRampToValueAtTime(0, now + fadeSeconds);
+  source.stop(now + fadeSeconds);
 }
 
 // Whether the playing theme goes round again when it reaches its end.
 export function setMusicLoop(loop: boolean): void {
-  if (current !== null) current.loop = loop;
+  if (current !== null) current.source.loop = loop;
 }

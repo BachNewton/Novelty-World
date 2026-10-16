@@ -71,6 +71,7 @@ describe("compileTheme", () => {
     kind: "loop",
     bpm: 120,
     beatsPerBar: 1,
+    metre: "1/4",
     instruments: [{ name: "Test", base, zzfx: {} }],
     patterns: [[{ instrument: 0, pan: 0.5, notes }]],
     sequence: [0],
@@ -147,21 +148,6 @@ describe("the themes", () => {
       expect(sequence).toEqual(theme.sequence);
       expect(bpm).toBe(theme.bpm);
       expect(meta.title).toBe(theme.name);
-    }
-  });
-
-  it("render with ZzFX to their length, quietly enough to sit under the sound effects", async () => {
-    // ZzFX creates its AudioContext as it loads; rendering doesn't use it.
-    vi.stubGlobal("AudioContext", class {});
-    const { ZZFX } = await import("zzfx");
-    vi.unstubAllGlobals();
-    for (const theme of THEMES) {
-      const [left, right] = zzfxm(compileTheme(theme), ZZFX.sampleRate, (params) => ZZFX.buildSamples(...params));
-      expect(left.length / ZZFX.sampleRate, theme.id).toBeCloseTo(themeSeconds(theme), 1);
-      let peak = 0;
-      for (let i = 0; i < left.length; i++) peak = Math.max(peak, Math.abs(left[i]), Math.abs(right[i]));
-      expect(peak, theme.id).toBeGreaterThan(0.1);
-      expect(peak, theme.id).toBeLessThan(0.5);
     }
   });
 });

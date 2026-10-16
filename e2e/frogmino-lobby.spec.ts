@@ -1,30 +1,27 @@
 import { test, expect } from "./test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
-import nextEnv from "@next/env";
-import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
-import { LOCAL_RELAY } from "./relay";
+import { listRoom, localRoomList } from "./relay";
 
 /**
- * Frogmino's lobby: solo play, and co-op rooms found through the live list
- * of open games (Supabase presence) and joined over the shared relay room.
+ * Frogmino's lobby: co-op rooms found through the live list
+ * of open games and joined over the shared relay room.
  *
- * `?relay=local:<port>` keeps the rooms on the local relay this run
- * started. The open-games list is real Supabase presence, so each test
- * lists its rooms on a channel of its own (`?room-list=<unique>`): real
- * players never see the tests' rooms, and no test sees another's. Every wait
- * is on a DOM state the page renders or an event; there are no fixed pauses.
+ * Both are this run's own: the rooms are on the local relay it started, and
+ * the open-games list on that relay's stand-in for Supabase presence, a list
+ * of each test's own, so no test sees another's rooms. Every wait is on a DOM
+ * state the page renders or an event; there are no fixed pauses.
  */
 test.describe.configure({ mode: "serial" });
 
 const LOBBY = "/games/3d-games/frogmino";
 const TIMEOUT = 15_000;
 
-function lobbyUrl(channel: string): string {
-  return `${LOBBY}?${LOCAL_RELAY}&room-list=${channel}`;
+function lobbyUrl(list: string): string {
+  return `${LOBBY}?${localRoomList(list)}`;
 }
 
-function uniqueChannel(): string {
-  return `e2e-${crypto.randomUUID()}`;
+function uniqueList(): string {
+  return crypto.randomUUID();
 }
 
 interface Client {
@@ -46,32 +43,8 @@ function openGame(page: Page, host: string) {
   return page.getByRole("button", { name: `Join ${host}'s game` });
 }
 
-async function expectInGame(page: Page): Promise<void> {
-  await expect(page.locator("canvas")).toBeVisible({ timeout: TIMEOUT });
-  await expect(page.getByRole("button", { name: "Host co-op" })).toHaveCount(0);
-}
-
-test("Play solo from the lobby starts the game", async ({ browser }) => {
-  const player = await open(browser, lobbyUrl(uniqueChannel()), "Solo");
-  try {
-    await player.page.getByRole("button", { name: "Play solo" }).click();
-    await expectInGame(player.page);
-  } finally {
-    await player.ctx.close();
-  }
-});
-
-test("?play=solo skips the lobby", async ({ browser }) => {
-  const player = await open(browser, `${LOBBY}?play=solo`, "Solo");
-  try {
-    await expectInGame(player.page);
-  } finally {
-    await player.ctx.close();
-  }
-});
-
 test("a hosted game is listed live, joined with a click, and started", async ({ browser }) => {
-  const url = lobbyUrl(uniqueChannel());
+  const url = lobbyUrl(uniqueList());
   const host = await open(browser, url, "Hoppy");
   const guest = await open(browser, url, "Leapy");
   const watcher = await open(browser, url, "Watcher");
@@ -96,6 +69,14 @@ test("a hosted game is listed live, joined with a click, and started", async ({ 
     await expect(openGame(watcher.page, "Hoppy")).toHaveCount(0, { timeout: TIMEOUT });
     await expect(guest.page.getByText("Waiting for the host to start")).toBeVisible();
 
+    // The host picks the course; the guest sees the pick.
+    const pick = host.page.locator("[data-course]").first();
+    await expect(pick).toHaveAttribute("aria-pressed", "true");
+    const name = await pick.getByTestId("course-name").textContent();
+    await expect(guest.page.getByTestId("course-chosen")).toContainText(name ?? "", { timeout: TIMEOUT });
+    await pick.click();
+    await expect(guest.page.getByTestId("course-chosen")).toContainText(name ?? "");
+
     await host.page.getByRole("button", { name: "Start", exact: true }).click();
     for (const { page } of [host, guest]) {
       await expect(page.getByTestId("frogmino-game")).toBeVisible({ timeout: TIMEOUT });
@@ -116,7 +97,7 @@ test("a hosted game is listed live, joined with a click, and started", async ({ 
 });
 
 test("the guest learns when the host leaves", async ({ browser }) => {
-  const url = lobbyUrl(uniqueChannel());
+  const url = lobbyUrl(uniqueList());
   const host = await open(browser, url, "Hoppy");
   const guest = await open(browser, url, "Leapy");
   try {
@@ -134,31 +115,23 @@ test("the guest learns when the host leaves", async ({ browser }) => {
 });
 
 test("joining a listed game whose host is gone says so", async ({ browser }) => {
-  const channel = uniqueChannel();
+  const list = uniqueList();
   // A listing with no host behind it, as a host that vanished
   // between being listed and being clicked leaves.
-  nextEnv.loadEnvConfig(process.cwd());
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (url === undefined || key === undefined) throw new Error("e2e: Supabase env vars are missing");
-  const supabase = createClient(url, key);
-  const ghost: RealtimeChannel = supabase.channel(`lobby:frogmino:${channel}`);
-  await new Promise<void>((resolve, reject) => {
-    ghost.subscribe((status, err) => {
-      if (status === "SUBSCRIBED") resolve();
-      else if (status !== "CLOSED") reject(err ?? new Error(`ghost listing channel: ${status}`));
-    });
+  const unlist = await listRoom("frogmino", list, {
+    code: "ZZZZ",
+    hostName: "Ghost",
+    players: 1,
+    capacity: 2,
+    listedAt: Date.now(),
   });
-  expect(await ghost.track({ code: "ZZZZ", hostName: "Ghost", players: 1, capacity: 2, listedAt: Date.now() })).toBe(
-    "ok",
-  );
 
-  const guest = await open(browser, lobbyUrl(channel), "Leapy");
+  const guest = await open(browser, lobbyUrl(list), "Leapy");
   try {
     await openGame(guest.page, "Ghost").click();
     await expect(guest.page.getByText("That game has closed. Pick another!")).toBeVisible({ timeout: TIMEOUT });
   } finally {
     await guest.ctx.close();
-    await supabase.removeAllChannels();
+    unlist();
   }
 });

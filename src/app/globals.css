@@ -25,6 +25,11 @@
   --radius-md: 0.5rem;
   --radius-sm: 0.25rem;
 
+  /* Frogmino: the medals' colours, on the run's timer and the done screen. */
+  --color-frogmino-medal-gold: #ffc83d;
+  --color-frogmino-medal-silver: #c3ccd8;
+  --color-frogmino-medal-bronze: #d4884a;
+
   /* Family Tree: the view root's direct line (its links and card borders).
      Full brand orange shouts against the grey links; mixed toward the
      background it marks the line without taking over the tree. */
@@ -102,26 +107,12 @@
   --color-frogmino-snow: #fafafa;
 }
 
-/* Frogmino: the gates, which travel with their rows and set the frog's
-   piece. A frame round the gate's two lanes, banded in deep violet and
-   lilac, a pattern no vehicle and nothing in the world wears, so a gate
-   never reads as traffic or scenery; a cream sign on its lintel that the
-   piece's icon stands out on; and a faint lilac shimmer in the gap that
-   never hides the fit. Read only by the 3D scene through themeColor, so
-   declared outside @theme. */
-:root {
-  --color-frogmino-gate-frame: #6d3fd6;
-  --color-frogmino-gate-frame-light: #b99bff;
-  --color-frogmino-gate-sign: #fff6e2;
-  --color-frogmino-gate-shimmer: #d9c6ff;
-}
-
 /* Frogmino: the frogs. The two players are a matched pair of real frogs: a
    leaf-green tree frog with a sunny belly and orange feet, and an azure dart
    frog with a pale belly and pink feet, apart in lightness as well as hue so
    they tell apart for a colour-blind player too. The frog's colours never
-   change with its piece, and no skin is near a Tetris piece colour. Read only by the 3D scene
-   through themeColor, so declared outside @theme. */
+   change with its piece, and no skin is near a Tetris piece colour. Read by the 3D scene
+   through themeColor, and the course picker's pieces by variable, so declared outside @theme. */
 :root {
   --color-frogmino-frog-p1-skin: #5cc23f;
   --color-frogmino-frog-p1-mark: #2e7d32;
@@ -143,6 +134,23 @@
 :root {
   --color-frogmino-frog-p1-silhouette: #b4f59a;
   --color-frogmino-frog-p2-silhouette: #9fd0ff;
+}
+
+/* Frogmino: the Lily Lifter, the helicopter of the `?heli` art prototype.
+   A bold coral body with sunny trim and a teal tail, bright beside the
+   world's muted paints and apart from both frogs' skins; a cream deck with
+   ink stripes, so the green and the azure frog both stand out on it; light
+   sky glass for its bubble canopies. Read only by the 3D scene through
+   themeColor, so declared outside @theme. */
+:root {
+  --color-frogmino-heli-body: #ff6247;
+  --color-frogmino-heli-trim: #ffc93c;
+  --color-frogmino-heli-accent: #2ec4b6;
+  --color-frogmino-heli-deck: #fff3dc;
+  --color-frogmino-heli-ink: #2c2e3a;
+  --color-frogmino-heli-glass: #8fd8f7;
+  --color-frogmino-heli-eye: #fffaf0;
+  --color-frogmino-heli-lamp: #fff2a6;
 }
 
 /* Frogmino: the world around the road, a mountain road at golden hour. Soft
@@ -192,7 +200,6 @@
   --color-frogmino-world-mailbox: #6f8fbb;
   --color-frogmino-world-mailbox-flag: #d8675d;
   --color-frogmino-world-bridge: #cdbfa8;
-  --color-frogmino-world-bridge-dark: #a8998a;
 }
 
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —
@@ -261,4 +268,54 @@ body {
 .lil-gui .controller.option select option {
   background-color: var(--background-color);
   color: var(--text-color);
+}
+
+/* A game controller's focus on a menu (src/shared/lib/gamepad/pad-focus.ts):
+   a bright ring and glow, off the control, so it reads on any button. A
+   project with a style of its own sets --color-pad-focus to one of its own
+   tokens. Read by the rule below, never by a Tailwind class, so declared
+   outside @theme. The focus shows only while a controller was the last thing
+   used, which marks the document data-pad-nav. A control it focuses keeps
+   clear of a screen's sticky bars as it scrolls into view. */
+:root {
+  --color-pad-focus: var(--color-text-primary);
+}
+[data-pad-nav] :is(button, a[href]):focus {
+  outline: 3px solid var(--color-pad-focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--color-pad-focus) 35%, transparent);
+}
+[data-pad-nav] :is(button, a[href]) {
+  scroll-margin-top: 1.5rem;
+  scroll-margin-bottom: 10rem;
+}
+
+/* Risk: the deal, as each territory takes its first owner's ink; the brass glow of a
+   territory on offer; and the turning dashes of the keyboard's or controller's focus. */
+@keyframes rk-deal {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+.rk-deal {
+  animation: rk-deal 0.45s ease-out both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes rk-lit {
+  50% {
+    fill-opacity: 0.3;
+  }
+}
+.rk-lit {
+  animation: rk-lit 1.6s ease-in-out infinite;
+}
+@keyframes rk-focus-ring {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.rk-focus-ring {
+  animation: rk-focus-ring 1s linear infinite;
 }

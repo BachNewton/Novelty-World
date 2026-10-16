@@ -76,6 +76,13 @@ export const PROJECTS: Project[] = [
     icon: "Ghost",
   },
   {
+    name: "Risk",
+    slug: "risk",
+    description: "The classic game of world domination",
+    categorySlug: "board-games",
+    icon: "Globe",
+  },
+  {
     name: "Flag Game",
     slug: "flag-game",
     description: "Test your knowledge of world flags",
@@ -113,7 +120,7 @@ export const PROJECTS: Project[] = [
   {
     name: "Frogmino",
     slug: "frogmino",
-    description: "Hop, turn and squeeze your block-shaped frog through the holes in oncoming walls",
+    description: "Hop, turn and squeeze your block-shaped frogs through the gaps in oncoming traffic, with a friend",
     categorySlug: "3d-games",
     icon: "Blocks",
   },

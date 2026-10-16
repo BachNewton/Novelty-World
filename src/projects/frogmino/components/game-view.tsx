@@ -3,9 +3,13 @@
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useStore } from "zustand";
+import { MusicButton } from "../audio/music-button";
 import { MuteButton } from "../audio/mute-button";
+import type { Theme } from "../audio/music/song";
+import { useGameMusic } from "../audio/music/use-game-music";
 import { useGameSounds } from "../audio/use-game-sounds";
 import type { Session } from "../session";
+import { RunTimer } from "./run-clock";
 
 // The scene reads its colours from the live stylesheet, so it only renders in
 // the browser.
@@ -13,11 +17,12 @@ const FrogminoScene = dynamic(() => import("./scene").then((m) => m.FrogminoScen
   ssr: false,
 });
 
-// A session's run on screen, with its sound and the mute button: what every
-// way of playing shares, whoever its players are. What goes between the
-// scene and the corner controls (input layers, legends, overlays) is the
-// caller's.
-export function GameView({ session, children }: { session: Session; children?: ReactNode }) {
+// A session's run on screen, with its sound and its course's music (none for
+// a silent course), its timer and the music and mute buttons:
+// what every way of playing shares, whoever its players are. What goes
+// between the scene and the corner controls (input layers, legends,
+// overlays) is the caller's.
+export function GameView({ session, music, children }: { session: Session; music: Theme; children?: ReactNode }) {
   // The team's state, mirrored on the page for the end-to-end tests to wait
   // on: its depth, each frog's column, when each frog last hopped, the rows
   // passed and the last bonk.
@@ -27,6 +32,7 @@ export function GameView({ session, children }: { session: Session; children?: R
   const passes = useStore(session.store, (s) => s.run.passes);
   const bonkedAt = useStore(session.store, (s) => String(s.run.lastBonk?.tick ?? ""));
   useGameSounds(session);
+  useGameMusic(session, music);
 
   return (
     <div
@@ -43,7 +49,11 @@ export function GameView({ session, children }: { session: Session; children?: R
       </div>
       {children}
       <h1 className="pointer-events-none absolute left-4 top-4 text-xl font-bold text-brand-green">Frogmino</h1>
-      <MuteButton className="absolute right-4 top-4" />
+      <RunTimer session={session} />
+      <div className="absolute right-4 top-4 flex gap-2">
+        <MusicButton />
+        <MuteButton />
+      </div>
     </div>
   );
 }

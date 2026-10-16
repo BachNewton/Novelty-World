@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { OpenRoomList } from "@/shared/components/open-room-list";
+import { PadHints } from "@/shared/components/pad-hints";
+import { usePadNavigation } from "@/shared/lib/gamepad";
 import { parseRoomCode } from "@/shared/lib/peer";
 import type { RoomList } from "@/shared/lib/room-list";
 
@@ -25,6 +27,8 @@ interface GameLobbyProps {
   actions?: ReactNode;
   /** Why the last attempt to join ended, when it did. */
   notice?: string | null;
+  /** A game's own list of its games, for one that lists them its own way. */
+  children?: ReactNode;
 }
 
 export function GameLobby({
@@ -37,9 +41,14 @@ export function GameLobby({
   openRooms,
   actions,
   notice,
+  children,
 }: GameLobbyProps) {
+  // A controller moves round the lobby's buttons; a room code still needs a keyboard.
+  const root = useRef<HTMLDivElement>(null);
+  usePadNavigation(root);
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-12">
+    <div ref={root} className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-12">
       <div className="text-center space-y-3">
         <div className="mx-auto w-fit rounded-md bg-surface-elevated p-3 text-brand-orange">
           {icon}
@@ -56,11 +65,22 @@ export function GameLobby({
       {notice && !onJoin && <p className="text-sm text-brand-pink">{notice}</p>}
       {openRooms && <OpenRoomList list={openRooms.list} onJoin={openRooms.onJoin} />}
 
+      {children}
+
       {onJoin && <JoinByCode onJoin={onJoin} notice={notice} />}
 
       <Link href="/">
-        <Button variant="ghost">Back to Novelty World</Button>
+        <Button variant="ghost" data-pad-back>
+          Back to Novelty World
+        </Button>
       </Link>
+
+      <PadHints
+        hints={[
+          ["A", "Select"],
+          ["B", "Back"],
+        ]}
+      />
     </div>
   );
 }

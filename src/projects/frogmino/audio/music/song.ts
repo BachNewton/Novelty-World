@@ -41,8 +41,12 @@ export interface Theme {
   kind: "loop" | "jingle";
   // Beats per minute, four rows to the beat.
   bpm: number;
-  // Quarter-note beats to the bar: 2 for 2/4, 4 for 4/4.
+  // Quarter-note beats to the bar, four rows each: 2 for 2/4, 4 for 4/4. A
+  // bar of twelve rows is 3, whether it is felt as 3/4, 6/8 or four swung
+  // beats of triplets.
   beatsPerBar: number;
+  // How the bar is felt, as the page shows it: "3/4", "6/8", "4/4 swung".
+  metre: string;
   instruments: readonly Instrument[];
   patterns: readonly (readonly Channel[])[];
   sequence: readonly number[];
@@ -52,7 +56,7 @@ const NOTE_STEPS: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9,
 const NOTE = /^([A-G])(#|b|)(\d)((?:\.\d)?)$/;
 
 // Semitones from C0, and how far the note is turned down.
-function parseNote(token: string): { semitone: number; quieter: number } {
+export function parseNote(token: string): { semitone: number; quieter: number } {
   const match = NOTE.exec(token);
   if (match === null) throw new Error(`Not a note: "${token}"`);
   // An absent fraction is the empty string, which Number reads as 0.

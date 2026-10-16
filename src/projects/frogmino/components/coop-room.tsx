@@ -1,12 +1,17 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Crown } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
+import { PadHints, type HintButton } from "@/shared/components/pad-hints";
+import { usePadNavigation, type ButtonEdge } from "@/shared/lib/gamepad";
 import type { Player, RoomStatus } from "@/shared/lib/peer";
 import { cn } from "@/shared/lib/utils";
 import { COOP_CAPACITY, type HostSeat } from "../coop";
+import { coopCourseById, stepCoopCourse } from "../coop-courses";
+import { CourseCard, CoursePicker } from "./course-picker";
+import { StickyActions } from "./sticky-actions";
 
 interface CoopRoomProps {
   status: RoomStatus;
@@ -14,6 +19,10 @@ interface CoopRoomProps {
   selfId: string | null;
   players: readonly Player[];
   seat: HostSeat;
+  /** The course picked, by id: the host's, or the one its host last named. */
+  course: string | null;
+  /** The host picks another course. */
+  onCourse: (id: string) => void;
   notice: string | null;
   onStart: () => void;
   onLeave: () => void;
@@ -29,9 +38,13 @@ const STATUS_LABEL: Record<RoomStatus, string> = {
   disconnected: "The host left",
 };
 
-function Screen({ children }: { children: ReactNode }) {
+// A controller moves round the screen's buttons: B leaves, and the host's
+// Menu starts and LB and RB step the course, as on the local join screen.
+function Screen({ children, onPadButton }: { children: ReactNode; onPadButton?: (edge: ButtonEdge) => boolean }) {
+  const root = useRef<HTMLDivElement>(null);
+  usePadNavigation(root, { intercept: onPadButton });
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-12 text-center">
+    <div ref={root} className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-12 text-center">
       <h1 className="text-3xl font-bold text-brand-green">Frogmino co-op</h1>
       {children}
     </div>
@@ -94,36 +107,87 @@ function roomPlayers(players: readonly Player[], isHost: boolean, seat: HostSeat
   return players.slice(0, COOP_CAPACITY);
 }
 
-export function CoopRoom({ status, isHost, selfId, players, seat, notice, onStart, onLeave }: CoopRoomProps) {
+// The course: the host picks it, and the guest sees the pick.
+function CourseChoice({ isHost, course, onCourse }: Pick<CoopRoomProps, "isHost" | "course" | "onCourse">) {
+  if (isHost) {
+    if (course === null) throw new Error("frogmino co-op: the host has no course picked");
+    return (
+      <section aria-label="Course" className="flex w-full max-w-md flex-col gap-2">
+        <h2 className="text-lg font-bold text-text-primary">Pick a course</h2>
+        <CoursePicker selected={course} onSelect={onCourse} />
+      </section>
+    );
+  }
+  return (
+    <section aria-label="Course" className="flex w-full max-w-md flex-col gap-2">
+      <h2 className="text-lg font-bold text-text-primary">The course, picked by the host</h2>
+      {course === null ? (
+        <p className="animate-pulse text-text-secondary">The host is picking a course…</p>
+      ) : (
+        <CourseCard course={coopCourseById(course)} />
+      )}
+    </section>
+  );
+}
+
+const BACK_HINTS: readonly (readonly [HintButton, string])[] = [["B", "Back"]];
+const GUEST_HINTS: readonly (readonly [HintButton, string])[] = [
+  ["A", "Select"],
+  ["B", "Leave"],
+];
+const HOST_HINTS: readonly (readonly [HintButton, string])[] = [
+  ["A", "Select"],
+  ["B", "Leave"],
+  ["LB", "Previous course"],
+  ["RB", "Next course"],
+  ["Menu", "Start"],
+];
+
+// The host's bumpers step through the courses, as on the local join screen.
+function stepCourse({ name }: ButtonEdge, course: string, onCourse: (id: string) => void): boolean {
+  if (name !== "LB" && name !== "RB") return false;
+  onCourse(stepCoopCourse(course, name === "LB" ? -1 : 1));
+  return true;
+}
+
+export function CoopRoom({ status, isHost, selfId, players, seat, course, onCourse, notice, onStart, onLeave }: CoopRoomProps) {
   if (status === "disconnected" || status === "offline") {
     return (
       <Screen>
         <p className="text-lg font-bold text-brand-pink">
           {status === "disconnected" ? "The host left the game" : STATUS_LABEL.offline}
         </p>
-        <Button onClick={onLeave}>Back to lobby</Button>
+        <Button onClick={onLeave} data-pad-back>
+          Back to lobby
+        </Button>
+        <PadHints hints={BACK_HINTS} />
       </Screen>
     );
   }
 
   const shown = roomPlayers(players, isHost, seat);
+  const picking = isHost && status === "connected" && course !== null;
 
   return (
-    <Screen>
+    <Screen onPadButton={picking ? (edge) => stepCourse(edge, course, onCourse) : undefined}>
       <StatusBadge status={status} />
       {notice && <p className="font-bold text-brand-pink">{notice}</p>}
       <PlayerList players={shown} selfId={selfId} />
-      {status === "connected" &&
-        (isHost ? (
-          <Button onClick={onStart} disabled={seat.partnerPeerId === null} className="px-8 py-3 text-lg font-bold">
-            Start
-          </Button>
-        ) : (
-          <p className="animate-pulse text-text-secondary">Waiting for the host to start…</p>
-        ))}
-      <Button variant="ghost" onClick={onLeave}>
-        Leave
-      </Button>
+      {status === "connected" && <CourseChoice isHost={isHost} course={course} onCourse={onCourse} />}
+      <StickyActions>
+        {status === "connected" &&
+          (isHost ? (
+            <Button onClick={onStart} disabled={seat.partnerPeerId === null} data-pad-menu className="px-8 py-3 text-lg font-bold">
+              Start
+            </Button>
+          ) : (
+            <p className="animate-pulse text-text-secondary">Waiting for the host to start…</p>
+          ))}
+        <Button variant="ghost" onClick={onLeave} data-pad-back>
+          Leave
+        </Button>
+        <PadHints hints={picking ? HOST_HINTS : GUEST_HINTS} className="w-full" />
+      </StickyActions>
     </Screen>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frogminoView, replayName } from "./view";
+import { coopCourseParam, frogminoView, replayName } from "./view";
 
 describe("frogminoView", () => {
   it("opens on the lobby", () => {
@@ -7,16 +7,12 @@ describe("frogminoView", () => {
     expect(frogminoView("?relay=local:51234")).toBe("lobby");
   });
 
-  it("skips the lobby with ?play=solo", () => {
-    expect(frogminoView("?play=solo")).toBe("solo");
-  });
-
   it("opens local co-op's join screen with ?play=local", () => {
     expect(frogminoView("?play=local")).toBe("local");
   });
 
   it("fails loudly on a ?play it doesn't know", () => {
-    expect(() => frogminoView("?play=coop")).toThrow(/play=solo and \?play=local/);
+    expect(() => frogminoView("?play=solo")).toThrow(/the only one is \?play=local/);
   });
 
   it("shows the garage with ?garage", () => {
@@ -33,6 +29,12 @@ describe("frogminoView", () => {
     expect(frogminoView("?frog")).toBe("frog");
   });
 
+  it("shows the helicopter preview with ?heli", () => {
+    expect(frogminoView("?heli")).toBe("heli");
+    expect(frogminoView("?replay=perch&heli")).toBe("heli");
+    expect(frogminoView("?heli&frog")).toBe("frog");
+  });
+
   it("plays a replay with ?replay", () => {
     expect(frogminoView("?replay=perch")).toBe("replay");
   });
@@ -43,10 +45,6 @@ describe("frogminoView", () => {
     expect(frogminoView("?frog&music&sounds&world")).toBe("world");
     expect(frogminoView("?frog&music&sounds")).toBe("sounds");
     expect(frogminoView("?frog&music")).toBe("music");
-  });
-
-  it("lets a dev view win over ?play=solo", () => {
-    expect(frogminoView("?play=solo&sounds")).toBe("sounds");
   });
 
   it("lets a dev view win over ?play=local", () => {
@@ -63,5 +61,16 @@ describe("replayName", () => {
   it("fails loudly on a ?replay with no name", () => {
     expect(() => replayName("?replay")).toThrow(/needs a replay's name/);
     expect(() => replayName("?replay=")).toThrow(/needs a replay's name/);
+  });
+});
+
+describe("coopCourseParam", () => {
+  it("picks the default co-op course, or the one ?course names", () => {
+    expect(coopCourseParam("?play=local")).toBe("long-and-short");
+    expect(coopCourseParam("?play=local&course=tea-for-two")).toBe("tea-for-two");
+  });
+
+  it("fails loudly on a course that doesn't exist, naming those that do", () => {
+    expect(() => coopCourseParam("?course=nowhere")).toThrow(/no co-op course "nowhere"; the courses are long-and-short, block-party/);
   });
 });

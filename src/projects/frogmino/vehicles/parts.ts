@@ -86,8 +86,8 @@ export const OVERLAY = layers(2);
 // far inside the lines, and nothing on them stands prouder: its details,
 // wheels included, reach the lane line at most and never cross it. So two
 // vehicles side by side share no space, and none of the one's faces lies in
-// a plane of the other's, however each rumbles; nor do the frog or a gate's
-// post beside it. Two layers, as a wheel's hub and an overlay stand proud.
+// a plane of the other's, however each rumbles; nor does the frog beside
+// it. Two layers, as a wheel's hub and an overlay stand proud.
 export const SIDE_INSET = layers(2);
 
 // A rectangle on a face in the cell's own units, 0 to 1 across each way.

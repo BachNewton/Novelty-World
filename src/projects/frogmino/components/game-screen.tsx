@@ -1,15 +1,21 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { Theme } from "../audio/music/song";
 import { useStore } from "zustand";
+import { PadHints } from "@/shared/components/pad-hints";
+import { subscribeGamepads, usePadNavigation } from "@/shared/lib/gamepad";
 import { FROG_LOOKS } from "../frog/look";
 import { seatedSink, type Seating } from "../input/devices";
-import { COOP_LEGEND, SOLO_LEGEND, type KeyboardLayout } from "../input/keyboard";
+import { COOP_LEGEND, WHOLE_LEGEND, type KeyboardLayout } from "../input/keyboard";
+import { MusicSteppers } from "../audio/music-button";
+import { MENU_BUTTON } from "../input/gamepad";
 import { useGamepadSource } from "../input/use-gamepad-source";
 import { useKeyboardSource } from "../input/use-keyboard-source";
 import { isDone } from "../run";
 import type { Session } from "../session";
 import { GameView } from "./game-view";
+import { SessionResult } from "./run-clock";
 import { TouchControls } from "./touch-controls";
 
 // A game being played, whichever way: a session's run on screen, driven by
@@ -19,13 +25,13 @@ import { TouchControls } from "./touch-controls";
 
 const LEGEND_BOX =
   "pointer-events-none absolute bottom-4 left-4 pointer-coarse:hidden rounded-lg bg-surface-secondary/80 px-3 py-2 text-xs";
-const PAD_LEGEND = "Controller: stick or D-pad to move and jump, A hop, X B or LB RB rotate, Menu restart";
+const PAD_LEGEND = "Controller: stick or D-pad to move and jump, A hop, X B or LB RB rotate, Menu restart, View menu";
 
-function SoloLegend() {
+function WholeLegend() {
   return (
     <div className={LEGEND_BOX}>
       <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5">
-        {SOLO_LEGEND.map(([keys, action]) => (
+        {WHOLE_LEGEND.map(([keys, action]) => (
           <div key={action} className="contents">
             <dt className="font-mono text-text-primary">{keys}</dt>
             <dd className="text-text-secondary">{action}</dd>
@@ -58,47 +64,144 @@ function CoopLegend() {
   );
 }
 
-// Touch screens have no R key, so they get a Restart button instead.
-function DoneOverlay({ onRestart }: { onRestart: () => void }) {
+// A way out of the game: back to the course select with the players still
+// in, back to the lobby, or out of an online room.
+export interface GameExit {
+  label: string;
+  onExit: () => void;
+}
+
+const OVERLAY_BUTTON = "pointer-events-auto touch-manipulation rounded-full px-6 py-2.5 font-bold";
+const MAIN_BUTTON = `${OVERLAY_BUTTON} bg-brand-green text-surface-primary`;
+const OTHER_BUTTON = `${OVERLAY_BUTTON} border-2 border-border-hover bg-surface-secondary/90 text-text-primary`;
+
+// The run's result, and how to go again or out. A controller moves between
+// the buttons, and Menu restarts as in play; the focus waits for the first press,
+// so a hop pressed as the team crossed the line doesn't restart the run.
+function DoneOverlay({ session, exits }: { session: Session; exits: readonly GameExit[] }) {
+  const root = useRef<HTMLDivElement>(null);
+  usePadNavigation(root);
   return (
-    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-      <p className="rounded-xl border-2 border-brand-green bg-surface-secondary/90 px-6 py-4 text-center text-lg font-bold text-text-primary">
-        Done<span className="pointer-coarse:hidden"> — press <span className="text-brand-green">R</span> to restart</span>
+    <div ref={root} className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
+      <SessionResult session={session} />
+      <p className="rounded-lg bg-surface-secondary/90 px-4 py-2 text-center font-bold text-text-primary pointer-coarse:hidden">
+        Done: press <span className="text-brand-green">R</span> to restart
       </p>
-      <button
-        type="button"
-        onClick={onRestart}
-        className="pointer-events-auto hidden touch-manipulation rounded-full bg-brand-green px-8 py-3 text-lg font-bold text-surface-primary pointer-coarse:block"
-      >
-        Restart
-      </button>
+      <div className="flex flex-wrap justify-center gap-3">
+        <button type="button" onClick={session.restart} data-pad-start data-pad-menu className={MAIN_BUTTON}>
+          Restart
+        </button>
+        {exits.map((exit) => (
+          <button key={exit.label} type="button" onClick={exit.onExit} className={OTHER_BUTTON}>
+            {exit.label}
+          </button>
+        ))}
+      </div>
+      <PadHints hints={DONE_HINTS} className="rounded-lg bg-surface-secondary/90 px-3 py-1.5" />
+    </div>
+  );
+}
+
+const DONE_HINTS = [
+  ["A", "Select"],
+  ["Menu", "Restart"],
+] as const;
+const MENU_HINTS = [
+  ["A", "Select"],
+  ["B", "Back"],
+] as const;
+
+// A controller's menu over the game, opened with View, since the pads are
+// busy playing: keep playing, restart, a way out, or the music's volume. The game runs on under it,
+// online can't pause, and while it is open the pads drive no frog.
+function GameMenu({ session, exits, onClose }: { session: Session; exits: readonly GameExit[]; onClose: () => void }) {
+  const root = useRef<HTMLDivElement>(null);
+  usePadNavigation(root, { reveal: true });
+  return (
+    <div ref={root} role="dialog" aria-label="Game menu" className="absolute inset-0 z-20 flex items-center justify-center bg-surface-primary/60 p-4">
+      <div className="flex w-full max-w-64 flex-col gap-3 rounded-2xl border-2 border-brand-green bg-surface-secondary p-5">
+        <h2 className="text-center text-lg font-bold text-brand-green">Menu</h2>
+        <button type="button" onClick={onClose} data-pad-start data-pad-back className={MAIN_BUTTON}>
+          Keep playing
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            session.restart();
+          }}
+          className={OTHER_BUTTON}
+        >
+          Restart
+        </button>
+        {exits.map((exit) => (
+          <button key={exit.label} type="button" onClick={exit.onExit} className={OTHER_BUTTON}>
+            {exit.label}
+          </button>
+        ))}
+        <MusicSteppers />
+        <PadHints hints={MENU_HINTS} />
+      </div>
     </div>
   );
 }
 
 export function GameScreen({
   session,
+  music,
   seating,
   keyboard,
   touch,
+  exits,
   children,
 }: {
   session: Session;
+  music: Theme;
   seating: Seating;
   keyboard: KeyboardLayout;
   touch: boolean;
+  exits: readonly GameExit[];
   children?: ReactNode;
 }) {
   const done = useStore(session.store, (s) => isDone(s.run));
+  const runId = useStore(session.store, (s) => s.runId);
+  // The run the controller's menu was opened over: a restart, from anywhere, closes it.
+  const [menuRun, setMenuRun] = useState<number | null>(null);
+  const menuOpen = menuRun === runId && !done;
   const sink = useMemo(() => seatedSink(seating, session), [seating, session]);
   useKeyboardSource(keyboard, sink);
-  useGamepadSource(sink);
+  useGamepadSource(sink, !done && !menuOpen);
+
+  const latest = useRef({ runId, done });
+  useEffect(() => {
+    latest.current = { runId, done };
+  }, [runId, done]);
+  useEffect(
+    () =>
+      subscribeGamepads({
+        onButton: ({ name, pressed }) => {
+          if (!pressed || name !== MENU_BUTTON || latest.current.done) return;
+          const { runId: run } = latest.current;
+          setMenuRun((open) => (open === run ? null : run));
+        },
+      }),
+    [],
+  );
 
   return (
-    <GameView session={session}>
+    <GameView session={session} music={music}>
       {touch && <TouchControls sink={sink} done={done} />}
-      {keyboard === "solo" ? <SoloLegend /> : <CoopLegend />}
-      {done && <DoneOverlay onRestart={session.restart} />}
+      {keyboard === "whole" ? <WholeLegend /> : <CoopLegend />}
+      {done && <DoneOverlay session={session} exits={exits} />}
+      {menuOpen && (
+        <GameMenu
+          session={session}
+          exits={exits}
+          onClose={() => {
+            setMenuRun(null);
+          }}
+        />
+      )}
       {children}
     </GameView>
   );

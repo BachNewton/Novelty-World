@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { isTextEntryTarget } from "@/shared/lib/utils";
+import { courseMusic } from "../audio/music/course-music";
 import { courseOf } from "../courses";
 import { RESTART_KEY } from "../input/keyboard";
 import { findReplay } from "../proof/replays";
+import { isDone } from "../run";
 import { replaySession } from "../session";
 import { toSeconds } from "../ticks";
 import { GameView } from "./game-view";
+import { SessionResult } from "./run-clock";
 
 const SPEEDS = [0.25, 0.5, 1] as const;
 const PAUSE_KEY = "KeyP";
@@ -28,6 +31,7 @@ export function ReplayView({ name }: { name: string }) {
   // A tenth of a second at a time is enough for the clock on the panel.
   const tenths = useStore(session.store, (s) => Math.floor(s.run.tick / 10));
   const over = useStore(session.store, (s) => s.run.tick >= session.until);
+  const done = useStore(session.store, (s) => isDone(s.run));
 
   useEffect(() => {
     session.setSpeed(paused ? 0 : speed);
@@ -46,7 +50,12 @@ export function ReplayView({ name }: { name: string }) {
   }, [session]);
 
   return (
-    <GameView session={session}>
+    <GameView session={session} music={courseMusic(replay.course)}>
+      {done && (
+        <div className="pointer-events-none absolute inset-x-4 top-16 flex justify-center">
+          <SessionResult session={session} />
+        </div>
+      )}
       <div
         data-testid="frogmino-replay"
         data-replay-over={over}

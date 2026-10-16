@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MOVE_HOP_HEIGHT, moveDuration } from "../frog/moves";
-import { applyAction, createRun, hopHeight, playTo, pressHeld, type PlacedFrog, type RuleRow, type Run } from "../run";
+import { TALLEST_VEHICLE } from "../fleet";
+import { applyAction, createRun, playTo, pressHeld, type PlacedFrog, type RuleRow, type Run } from "../run";
 import { frameTicks, toSeconds } from "../ticks";
 import { TUNING } from "../tuning";
 import {
@@ -18,75 +19,24 @@ import {
   seeMoves,
   snapped,
   withHop,
-  withPiece,
   type DrawnFrog,
 } from "./drawn-frog";
 
-describe("a gate's new piece in the drawn frog", () => {
-  // Mid-jump, mid-hop, swinging out of a turn and knocked back by a bonk,
-  // after the drop: everything a piece change could catch in progress.
-  const drawn: DrawnFrog = {
-    player: 0,
-    kind: "L",
-    rotation: 0,
-    x: 3.4,
-    y: 1,
-    depth: 6.2,
-    level: 0,
-    swing: 0.3,
-    lift: 0.6,
-    rodeUntil: null,
-    glideX: { from: 3, to: 3.5, startedAt: 4.1 },
-    glideDepth: { from: 5, to: 6.5, startedAt: 4.1 },
-    moveHops: [4.1],
-    seen: { kind: "L", rotation: 0, col: 3, depth: 6.5 },
-    hopAt: 4,
-    bonk: { tick: 300, depth: 8 },
-    bonkMotion: { from: 8, to: 5, startedAt: 3 },
-    drop: { fromDepth: -1, fromLevel: 2, startedAt: 1, landed: true },
-    leap: null,
-  };
-  const frog: PlacedFrog = { kind: "I", col: 4, rotation: 1, depth: 8, latestHop: { startedAt: 4, landedAt: null } };
-
-  it("draws the new piece at once, in its rule pose", () => {
-    const next = withPiece(drawn, frog);
-    const { x, y } = frogTarget(frog);
-    expect(next).toMatchObject({ kind: "I", rotation: 1, x, y, swing: 0, glideX: null });
-  });
-
-  it("carries on easing the depth and drawing the hop, bonk, drop and leap", () => {
-    const next = withPiece(drawn, frog);
-    expect(next).toMatchObject({
-      depth: drawn.depth,
-      level: drawn.level,
-      lift: drawn.lift,
-      glideDepth: drawn.glideDepth,
-      moveHops: drawn.moveHops,
-      hopAt: drawn.hopAt,
-      bonk: drawn.bonk,
-      bonkMotion: drawn.bonkMotion,
-      drop: drawn.drop,
-      leap: drawn.leap,
-    });
-  });
-});
-
 describe("the drawn frog's moves", () => {
   const stride = moveDuration(TUNING);
-  const start: PlacedFrog = { kind: "T", col: 2, rotation: 0, depth: 3, latestHop: null };
+  const start: PlacedFrog = { kind: "T", col: 2, rotation: 0, height: 0, depth: 3, latestHop: null };
   const resting: DrawnFrog = {
     ...frogTarget(start),
     player: 0,
-    kind: "T",
     rotation: 0,
     level: 0,
     swing: 0,
     lift: 0,
-    rodeUntil: null,
+    vertical: null,
     glideX: null,
     glideDepth: null,
     moveHops: [],
-    seen: { kind: "T", rotation: 0, col: 2, depth: 3 },
+    seen: { rotation: 0, col: 2, depth: 3 },
     hopAt: null,
     bonk: null,
     bonkMotion: null,
@@ -201,7 +151,7 @@ function drive(first: Run, seconds: number, act: (run: Run) => Run = (run) => ru
     const pose = bonkPose(drawn.bonkMotion, run, now);
     if (pose === null) drawn = { ...drawn, bonkMotion: null };
     drawn = withHop(run, followDepth(drawn, run, now, pose, FRAME), now);
-    frames.push({ depth: drawn.depth, lift: drawn.lift, among: amongVehicles(run, drawn.depth), up: hopHeight(run.frogs[0]) === 1 });
+    frames.push({ depth: drawn.depth, lift: drawn.lift, among: amongVehicles(run, drawn.depth), up: run.frogs[0].height === 1 });
   }
   return { run, frames };
 }
@@ -229,7 +179,6 @@ describe("the drawn frog riding a row and jumping off it", () => {
   // frog: the frog must hop to pass it, and rides it once passed.
   const lowCar = {
     solids: [{ cells: Array.from({ length: TUNING.corridorCols }, (_, col) => ({ col, row: 0 })), length: 3 }],
-    gates: [],
   };
   // Riding from when the car arrives, the first jump forward keeps the frog
   // on it and the second carries it clear, where the rules land it, while the
@@ -248,7 +197,7 @@ describe("the drawn frog riding a row and jumping off it", () => {
     const { run, frames } = play();
     expect(run.walls[0].passed).toBe(true);
     expect(run.depth).toBe(5 + 2 * TUNING.depthStep);
-    expect(toSeconds(run.frogs[0].latestHop?.landedAt ?? 0)).toBeCloseTo(secondJump, 1);
+    expect(run.frogs[0].height).toBe(0);
     expect(frames.some((frame) => !frame.up && frame.among)).toBe(true);
   });
 
@@ -274,14 +223,13 @@ describe("the drawn frog bonked while it moves", () => {
   const solid = {
     solids: [
       {
-        cells: Array.from({ length: TUNING.corridorCols * TUNING.wallRows }, (_, i) => ({
+        cells: Array.from({ length: TUNING.corridorCols * TALLEST_VEHICLE }, (_, i) => ({
           col: i % TUNING.corridorCols,
           row: Math.floor(i / TUNING.corridorCols),
         })),
         length: 2,
       },
     ],
-    gates: [],
   };
   const forward = (run: Run) => applyAction(run, "forward");
   const fastest = Math.max(GLIDE_FRAME, KNOCK_BACK_FRAME);
@@ -325,5 +273,56 @@ describe("the drawn frog bonked while it moves", () => {
     const seen = seeBonk(drawn, run);
     expect(seeBonk(seen, { ...run, lastBonk: { ...bonk } })).toBe(seen);
     expect(seeBonk(seen, { ...run, lastBonk: { ...bonk, tick: bonk.tick + 1 } })).not.toBe(seen);
+  });
+});
+
+describe("the drawn frogs stacking", () => {
+  // Sprout's flat I on the road, with Splash's O standing on it.
+  function stacked(): Run {
+    const start = createRun(() => ({ solids: [{ cells: [{ col: 0, row: 0 }], length: 1 }], gap: 1e6 }), TUNING, { kinds: ["I", "O"], lanes: 10 });
+    return { ...start, droppedAt: 0, depth: 5, frogs: [{ ...start.frogs[0], col: 0, rotation: 0 }, { ...start.frogs[1], col: 1, height: 1 }] };
+  }
+
+  // Sprout hops at 0.1 s, carrying Splash, and Splash hops off it at 0.3 s,
+  // still in Sprout's airtime: the double jump. Each frame, both drawn
+  // frogs' heights.
+  function play(): { run: Run; lifts: [number, number][]; times: number[] } {
+    let run = stacked();
+    const sprout = at(0.1, (r) => applyAction(r, "hop", 0));
+    const splash = at(0.3, (r) => applyAction(r, "hop", 1));
+    let drawn = [snapped(run, 0), snapped(run, 1)];
+    const lifts: [number, number][] = [];
+    const times: number[] = [];
+    let carry = 0;
+    for (let k = 1; k * FRAME < 2.5; k++) {
+      const due = frameTicks(carry, FRAME, TUNING.maxFrameDelta);
+      carry = due.carry;
+      run = splash(sprout(playTo(run, run.tick + due.ticks)));
+      const now = toSeconds(run.tick + carry);
+      drawn = drawn.map((d) => withHop(run, d, now));
+      lifts.push([drawn[0].lift, drawn[1].lift]);
+      times.push(now);
+    }
+    return { run, lifts, times };
+  }
+
+  it("carries the frog standing on the hopper up with it, a cell above it all the way", () => {
+    const { lifts, times } = play();
+    lifts.forEach(([sprout, splash], i) => {
+      if (times[i] < 0.3) expect(splash - sprout).toBeCloseTo(1);
+    });
+  });
+
+  it("springs the double jump on from mid-rise, three cells up, and brings both down smoothly onto each other", () => {
+    const { run, lifts } = play();
+    expect(Math.max(...lifts.map(([, splash]) => splash))).toBe(3);
+    // The arc's steepest slope is its overshoot times pi over the airtime; a
+    // fall of two cells takes the square root of two times as long.
+    const steepest = (1.3 * Math.PI * FRAME * Math.SQRT2) / TUNING.hopAirtime;
+    for (const player of [0, 1]) {
+      for (const change of steps(lifts.map((lift) => lift[player]))) expect(Math.abs(change)).toBeLessThanOrEqual(steepest * 1.01);
+    }
+    expect(run.frogs.map((frog) => frog.height)).toEqual([0, 1]);
+    expect(lifts.at(-1)).toEqual([0, 1]);
   });
 });

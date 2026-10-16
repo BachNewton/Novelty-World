@@ -15,7 +15,7 @@ import { dropPose, finishLeapPose, leapProgress, type LeapPose, type LeapStart }
 import { glide, moveDuration, moveHopLift, moveProgress } from "../../frog/moves";
 import { FROG_LOOKS, FROG_VARIANTS, type FrogVariant } from "../../frog/look";
 import { frogModel, frogPivot } from "../../frog/model";
-import { DECK_TOP } from "../../world/structures";
+import { HELI_DECK_TOP } from "../../heli/flight";
 import { FrogBody, type FrogHandle } from "./frog-body";
 import { makeFrogAssets, type FrogAssets } from "./frog-assets";
 
@@ -45,11 +45,11 @@ const HOP_TIME = 0.6;
 const DEGREES = Math.PI / 180;
 
 // The game's set pieces, played with the frog's resting place as the road
-// under it: the drop starts on a deck the drop distance back and lands where the frog
+// under it: the drop starts on the helicopter's deck the drop distance back and lands where the frog
 // rests, and the finish leap starts where it rests, on the finish line, and
 // lands on a deck over it. There is no deck drawn, so after the leap lands
 // the frog stands in the air a moment, then goes back to rest.
-const DROP_START: LeapStart = { fromDepth: -TUNING.dropDistance, fromLevel: DECK_TOP };
+const DROP_START: LeapStart = { fromDepth: -TUNING.dropDistance, fromLevel: HELI_DECK_TOP };
 const LEAP_START: LeapStart = { fromDepth: 0, fromLevel: 0 };
 const LEAP_HOLD = 0.6;
 

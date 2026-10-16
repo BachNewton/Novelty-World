@@ -1,5 +1,6 @@
 import type { RoomRole, RoomStatus } from "@/shared/lib/peer";
 import type { Listing } from "@/shared/lib/room-list";
+import { coopCourseById } from "./coop-courses";
 import type { CourseSpec } from "./courses";
 import type { FrogAction, HeldAction, PlayerInput } from "./run";
 
@@ -34,12 +35,18 @@ export type HostPlay =
 
 /** Host to guest. */
 export type HostMessage =
+  /** In the waiting room: the course the host has picked, sent as the
+   * partner is seated and again whenever the host picks another. */
+  | { kind: "course"; course: CourseSpec }
   /** The round begins on this course. The host's clock starts as it sends
    * it, the guest's as it arrives. */
   | { kind: "start"; course: CourseSpec }
   /** The guest is turned away: the game already has its partner, or has
    * started. */
   | { kind: "full" }
+  /** The round ends, and both go back to the waiting room, the partner
+   * still seated, for the host to pick the next course. */
+  | { kind: "room" }
   | HostPlay;
 
 /** Guest to host: intents, which the host validates, numbered from 0 like
@@ -54,6 +61,11 @@ export type GuestMessage =
   | { kind: "ping"; seq: number; at: number }
   /** The guest's run disagreed with the host's at a confirmed tick. */
   | { kind: "desync"; seq: number; tick: number };
+
+/** Guest to host, outside the round's numbered messages: please end the
+ * round and go back to the waiting room. The host, which decides, answers
+ * with its own `room`; one arriving once the round has stopped is dropped. */
+export type GuestRequest = { kind: "room" };
 
 type Fields = Record<string, unknown>;
 
@@ -95,8 +107,11 @@ function parseInput(value: unknown): PlayerInput {
   return bad("player input", value);
 }
 
+// A course spec off the wire: a co-op course by an id this device knows,
+// failing loudly on any other.
 function parseCourse(value: unknown): CourseSpec {
-  if (isRecord(value) && (value.kind === "solo" || value.kind === "coop")) return { kind: value.kind };
+  if (!isRecord(value)) return bad("course", value);
+  if (value.kind === "coop" && typeof value.id === "string") return { kind: "coop", id: coopCourseById(value.id).id };
   return bad("course", value);
 }
 
@@ -105,10 +120,14 @@ export function parseHostMessage(value: unknown): HostMessage {
   const what = "host message";
   if (!isRecord(value)) bad(what, value);
   switch (value.kind) {
+    case "course":
+      return { kind: "course", course: parseCourse(value.course) };
     case "start":
       return { kind: "start", course: parseCourse(value.course) };
     case "full":
       return { kind: "full" };
+    case "room":
+      return { kind: "room" };
     case "input": {
       const message: HostPlay = {
         kind: "input",
@@ -130,7 +149,7 @@ export function parseHostMessage(value: unknown): HostMessage {
 }
 
 /** A guest message off the wire, checked. */
-export function parseGuestMessage(value: unknown): GuestMessage {
+export function parseGuestMessage(value: unknown): GuestMessage | GuestRequest {
   const what = "guest message";
   if (!isRecord(value)) bad(what, value);
   switch (value.kind) {
@@ -149,6 +168,8 @@ export function parseGuestMessage(value: unknown): GuestMessage {
       return { kind: "ping", seq: whole(value, "seq", what), at: whole(value, "at", what) };
     case "desync":
       return { kind: "desync", seq: whole(value, "seq", what), tick: whole(value, "tick", what) };
+    case "room":
+      return { kind: "room" };
   }
   return bad(what, value);
 }
@@ -182,6 +203,13 @@ export function startRound(seat: HostSeat, course: CourseSpec): HostSeat {
   if (seat.partnerPeerId === null) throw new Error("frogmino co-op: can't start without a partner");
   if (seat.phase.kind !== "waiting") throw new Error("frogmino co-op: the round has already started");
   return { ...seat, phase: { kind: "started", course } };
+}
+
+/** The round ends and the pair goes back to the waiting room: the partner
+ * keeps its seat, so the game stays off the open-games list. */
+export function endRound(seat: HostSeat): HostSeat {
+  if (seat.phase.kind !== "started") throw new Error("frogmino co-op: no round to end");
+  return { ...seat, phase: WAITING };
 }
 
 export interface ListingSource {

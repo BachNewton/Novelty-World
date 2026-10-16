@@ -1,6 +1,7 @@
-import { cellKey, frogCells, insideLanes, pieceSize, turnWithKicks, type Placement } from "./logic";
-import { gateLanes, insideGate, keepsClear, rowBack } from "./traffic";
-import type { Frog, Gate, HopHeight, Lanes, Rotation, Solid, TetrominoKind } from "./types";
+import { frogCells, pieceSize, type Placement } from "./logic";
+import { lift, settleTeam, slide, supported, turn, type Clear } from "./team";
+import { keepsClear, rowBack } from "./traffic";
+import type { Cell, Frog, Lanes, Rotation, Solid, TetrominoKind } from "./types";
 import { TICK_RATE, tickTiming } from "./ticks";
 import type { Tuning } from "./tuning";
 
@@ -26,38 +27,36 @@ import type { Tuning } from "./tuning";
 // passed is behind it. Each rule below keeps that true, so a wall is judged
 // exactly once each time it reaches the frog. And the frog's cells are
 // always inside the opening left by the vehicles overlapping it: an action
-// that would break that is refused. A frog that is up while a vehicle
-// overlaps it rides: it stays up until the last one has gone by.
+// that would break that is refused. A frog above its support while a vehicle
+// overlaps it rides: it stays at its height until the last one has gone by.
 //
-// A row may hold gates: gaps two lanes wide and the face's full height,
-// framed by a post on the lane line either side. A post is solid like a
-// vehicle, for as long as the row overlaps the frog, so a frog meets a gate
-// wholly in it or wholly out of it. A frog that crosses a row's front with
-// every cell in a gate's lanes, either way, takes the gate's piece.
-//
-// The rules are written for a team of frogs, one per player; solo is a team
-// of one. The frogs share one depth: the jumps are the team's, and a row
+// The rules are written for a team of frogs, one per player, of any size.
+// The frogs share one depth: the jumps are the team's, and a row
 // reaching them passes only if every frog fits, or bonks the whole team
 // back. Slides, turns and hops are each frog's own, and the frogs are solid
 // to each other as vehicles are: no action may put one frog's cells into
-// another's. Wherever the rules below say "the frog", each frog of the team
-// is meant, at the team's depth.
+// another's. A frog may stand on a partner, and a partner carries what
+// stands on it when it hops or slides (see `team.ts`). Wherever the rules
+// below say "the frog", each frog of the team is meant, at the team's depth.
 //
-// The team starts out of play on the overpass above the start, and drops to
-// the road with its first jump forward; there is no way back up. It is out
-// of play again once it crosses the finish line, when it leaps up onto the
-// finish gantry. Out of play, no row touches it: the traffic goes by beneath.
+// The team starts out of play aboard the helicopter, cruising down the road
+// at the traffic's speed above the start, and jumps out onto the road with
+// its first jump forward; there is no way back up. The course counts from
+// that jump: until it, the traffic holds still relative to the team (the
+// helicopter keeps pace with it, and only the scenery drawn beneath moves),
+// so however long the team waits aboard, it meets the same rows at the same
+// places after the jump. No row stands between the deck and the landing.
+// The team is out of play again once it crosses the finish line, when it
+// leaps up onto the finish gantry, where the traffic goes by beneath it.
 
 // How deep the frog is along the course, in units. The scene draws it this
 // deep too.
 export const FROG_THICKNESS = 1;
 
-// What the rules need of a row: its solids (its vehicles' cells and its
-// gates' posts, with their lengths), its gates, and how far its front comes
-// after the back of the row before it.
+// What the rules need of a row: its solids (its vehicles' cells and
+// lengths), and how far its front comes after the back of the row before it.
 export interface RuleRow {
   solids: readonly Solid[];
-  gates: readonly Gate[];
   gap: number;
 }
 
@@ -66,9 +65,8 @@ export interface RuleRow {
 export type RuleRows = (index: number) => RuleRow;
 
 export interface Wall {
-  // The row's vehicles and gate posts, their fronts all at `depth`.
+  // The row's vehicles, their fronts all at `depth`.
   solids: readonly Solid[];
-  gates: readonly Gate[];
   // Falls as the wall comes at the frog: where it was placed, less the
   // traffic's travel since. Worked out afresh from those each tick, so no
   // rounding builds up along the way.
@@ -86,16 +84,18 @@ export interface Wall {
 
 // Times in the rules are ticks.
 export interface Hop {
+  // The frog's own airtime runs from here for the tuning's hop airtime.
   startedAt: number;
-  // When the frog came down; null while it is up.
-  landedAt: number | null;
 }
 
 export interface RuleFrog {
   kind: TetrominoKind;
   col: number;
   rotation: Rotation;
-  // The latest hop; null if the frog never hopped.
+  // Whole cells above the road (see `Frog`).
+  height: number;
+  // The frog's latest hop of its own, not one it was carried up by; null if
+  // it never hopped.
   latestHop: Hop | null;
 }
 
@@ -127,7 +127,7 @@ export interface Run {
   lanes: number;
   // Ticks of play so far.
   tick: number;
-  // The team, one frog per player in player order; solo is a team of one.
+  // The team, one frog per player in player order.
   frogs: readonly RuleFrog[];
   // How far along the course the team is: every frog's front face. It moves
   // a jump or a bonk at a time.
@@ -141,8 +141,8 @@ export interface Run {
   // The keys held down, in the order pressed: at most one jump, the team's,
   // whoever pressed it, and a slide for each player.
   holds: readonly Hold[];
-  // When the team dropped from the overpass to the road; null while it is
-  // still up there.
+  // When the team jumped out of the helicopter onto the road, and the
+  // traffic's clock started; null while it is still aboard.
   droppedAt: number | null;
   // When the team crossed the finish line; null until it does.
   finishedAt: number | null;
@@ -182,6 +182,7 @@ function checkTuning(tuning: Tuning): void {
   if (tuning.bonkKnockback <= 0) throw new Error("A bonk must knock the frog back");
   if (tickTiming(tuning).holdRepeat < 1) throw new Error("A held key must wait at least a tick between repeats");
   if (tuning.dropDistance < tuning.depthStep) throw new Error("The drop must reach at least a jump ahead");
+  if (tuning.firstWallDepth <= tuning.dropDistance) throw new Error("The first row must stand beyond where the drop lands");
   const closestGap = tuning.wallSpacing - tuning.wallJitter;
   const bonkReach = tuning.bonkKnockback * tuning.depthStep + FROG_THICKNESS;
   if (closestGap < bonkReach) {
@@ -192,18 +193,20 @@ function checkTuning(tuning: Tuning): void {
 }
 
 export interface RunOptions {
-  // Each frog's starting piece, one per player; a lone L unless the course
-  // says otherwise.
+  // Each frog's piece, one per player, kept for the whole run; a lone L
+  // unless the course says otherwise.
   kinds?: readonly TetrominoKind[];
   // The road's width in lanes, which a course sets; the tuning's corridor
-  // width, which the row stream is built for, unless the course says
-  // otherwise.
+  // width unless the course says otherwise.
   lanes?: number;
+  // Where the finish line is, which a course sets; the tuning's course
+  // length unless the course says otherwise.
+  courseLength?: number;
 }
 
 const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
 
-// Where each frog starts on the overpass, on a road `lanes` wide: each in the
+// Where each frog starts aboard the helicopter, on a road `lanes` wide: each in the
 // middle of its own share of the road, rounded down, in its piece's first
 // rotation no wider than the share. So a lone frog starts in the middle of
 // the road, and a team's frogs side by side, never overlapping.
@@ -218,7 +221,8 @@ export function startPlacements(kinds: readonly TetrominoKind[], lanes: number):
 
 // The stream's rows in order, each its gap beyond the back of the one
 // before, until the traffic reaches the traffic horizon from the start. So a
-// row recycled behind the frontmost one comes back out of sight.
+// row recycled behind the frontmost one comes back out of sight. The rows
+// hold still until the team jumps out, when they are set going.
 function lineUpTraffic(rows: RuleRows, tuning: Tuning): Wall[] {
   const walls: Wall[] = [];
   let back = 0;
@@ -226,7 +230,7 @@ function lineUpTraffic(rows: RuleRows, tuning: Tuning): Wall[] {
     const index = walls.length;
     const row = rows(index);
     const depth = index === 0 ? row.gap : back + row.gap;
-    const wall: Wall = { solids: row.solids, gates: row.gates, depth, placedDepth: depth, placedAt: 0, passed: false, index };
+    const wall: Wall = { solids: row.solids, depth, placedDepth: depth, placedAt: 0, passed: false, index };
     walls.push(wall);
     back = rowBack(wall);
   } while (back < tuning.trafficHorizon);
@@ -235,14 +239,15 @@ function lineUpTraffic(rows: RuleRows, tuning: Tuning): Wall[] {
 
 export function createRun(rows: RuleRows, tuning: Tuning, options: RunOptions = {}): Run {
   checkTuning(tuning);
-  const { kinds = ["L"], lanes = tuning.corridorCols } = options;
+  const { kinds = ["L"], lanes = tuning.corridorCols, courseLength = tuning.courseLength } = options;
   if (kinds.length === 0) throw new Error("A run needs at least one frog");
   if (!Number.isInteger(lanes) || lanes < 1) throw new Error(`A road can't be ${String(lanes)} lanes wide`);
   return {
-    tuning,
+    // The run's knobs, its finish the course's.
+    tuning: courseLength === tuning.courseLength ? tuning : { ...tuning, courseLength },
     lanes,
     tick: 0,
-    frogs: startPlacements(kinds, lanes).map((placement, i) => ({ kind: kinds[i], ...placement, latestHop: null })),
+    frogs: startPlacements(kinds, lanes).map((placement, i) => ({ kind: kinds[i], ...placement, height: 0, latestHop: null })),
     depth: 0,
     walls: lineUpTraffic(rows, tuning),
     rows,
@@ -259,18 +264,19 @@ export function placedFrog(run: Run, player: number): PlacedFrog {
   return { ...run.frogs[player], depth: run.depth };
 }
 
-// A hopping frog is one cell up until it lands.
-export function hopHeight(frog: RuleFrog): HopHeight {
-  return frog.latestHop !== null && frog.latestHop.landedAt === null ? 1 : 0;
+// Whether a frog is in its own hop's airtime, which holds it up whatever is
+// under it.
+export function inAirtime(run: Run, frog: RuleFrog): boolean {
+  return frog.latestHop !== null && run.tick < frog.latestHop.startedAt + tickTiming(run.tuning).hopAirtime;
 }
 
 // The frog as the wall face sees it.
 export function frogShape(frog: RuleFrog): Frog {
-  return { kind: frog.kind, col: frog.col, rotation: frog.rotation, hop: hopHeight(frog) };
+  return { kind: frog.kind, col: frog.col, rotation: frog.rotation, height: frog.height };
 }
 
-// Whether the team is still up on the overpass, before its drop.
-export function onOverpass(run: Run): boolean {
+// Whether the team is still aboard the helicopter, before its jump out.
+export function aboard(run: Run): boolean {
   return run.droppedAt === null;
 }
 
@@ -279,10 +285,10 @@ export function crossedFinish(run: Run): boolean {
   return run.finishedAt !== null;
 }
 
-// Whether the team is on the road among the traffic: dropped from the
-// overpass and not yet over the finish line.
+// Whether the team is on the road among the traffic: jumped out of the
+// helicopter and not yet over the finish line.
 export function inPlay(run: Run): boolean {
-  return !onOverpass(run) && !crossedFinish(run);
+  return !aboard(run) && !crossedFinish(run);
 }
 
 // Whether the run is over: the team has crossed the finish line and its leap
@@ -290,6 +296,36 @@ export function inPlay(run: Run): boolean {
 // crossing, and the traffic with it.
 export function isDone(run: Run): boolean {
   return run.finishedAt !== null && run.tick >= run.finishedAt + tickTiming(run.tuning).finishLeap;
+}
+
+// The run's time, in ticks: the course is timed from the team's jump out of
+// the helicopter to its crossing of the finish line. Lining up aboard is free,
+// and the clock stops at the line, while the rules' own clock runs on under
+// the finish leap. It is read off the rule state, so a replay and both
+// devices online agree on it to the tick.
+export function runTime(run: Run): number {
+  if (run.droppedAt === null) return 0;
+  return (run.finishedAt ?? run.tick) - run.droppedAt;
+}
+
+// The run as the course counts it, from the jump out: every tick it keeps
+// counted from the drop. The traffic holds still until then, so two runs
+// whose teams lined up the same, jumped out at different ticks and played the
+// same since are equal under it, tick for tick. Null while still aboard.
+export function sinceJump(run: Run): Run | null {
+  const { droppedAt } = run;
+  if (droppedAt === null) return null;
+  const at = (tick: number): number => tick - droppedAt;
+  return {
+    ...run,
+    tick: at(run.tick),
+    frogs: run.frogs.map((frog) => (frog.latestHop === null ? frog : { ...frog, latestHop: { startedAt: at(frog.latestHop.startedAt) } })),
+    walls: run.walls.map((wall) => ({ ...wall, placedAt: at(wall.placedAt) })),
+    lastBonk: run.lastBonk === null ? null : { ...run.lastBonk, tick: at(run.lastBonk.tick) },
+    holds: run.holds.map((hold) => ({ ...hold, nextAt: at(hold.nextAt) })),
+    droppedAt: 0,
+    finishedAt: run.finishedAt === null ? null : at(run.finishedAt),
+  };
 }
 
 // The wall the team meets next: the nearest one it hasn't passed. Null only
@@ -308,16 +344,6 @@ function roadLanes(run: Run): Lanes {
   return { first: 0, last: run.lanes - 1 };
 }
 
-// The pass test against some of a row's solids, for a player's frog taking
-// `shape` from its pose now: each cell on the row's face and in no vehicle's
-// cells, and nothing standing or moving across a gate's post.
-function fitsAmong(run: Run, player: number, shape: Frog, solids: readonly Solid[]): boolean {
-  if (solids.length === 0) return true;
-  const cells = frogCells(shape);
-  const from = frogCells(frogShape(run.frogs[player]));
-  return cells.every((cell) => cell.row < run.tuning.wallRows) && keepsClear(from, cells, solids);
-}
-
 // The vehicles of a wall the team has passed that still overlap it, with its
 // front face at `depth`: those whose back hasn't yet gone by its back. For a
 // team jumping back to `depth`, they are also every vehicle it would meet on
@@ -327,28 +353,22 @@ export function overlappingSolids(wall: Wall, depth: number): readonly Solid[] {
   return wall.solids.filter((solid) => wall.depth + solid.length > depth - FROG_THICKNESS);
 }
 
-// Whether a player's frog could take this shape with the team's front face
-// at `depth`: inside the opening the overlapping vehicles leave.
-function clearOfWallsAt(run: Run, player: number, shape: Frog, depth: number): boolean {
-  return run.walls.every((wall) => fitsAmong(run, player, shape, overlappingSolids(wall, depth)));
+// Whether cells keep clear of the vehicles that would overlap the team with
+// its front face at `depth`: inside the opening they leave.
+function cellsClearAt(run: Run, cells: readonly Cell[], depth: number): boolean {
+  return run.walls.every((wall) => keepsClear(cells, overlappingSolids(wall, depth)));
 }
 
-// Out of play, no vehicle touches the frogs.
-function clearOfWalls(run: Run, player: number, shape: Frog): boolean {
-  return !inPlay(run) || clearOfWallsAt(run, player, shape, run.depth);
+// Whether a frog could take this shape with the team's front face at
+// `depth`.
+function clearOfWallsAt(run: Run, shape: Frog, depth: number): boolean {
+  return cellsClearAt(run, frogCells(shape), depth);
 }
 
-// Whether a player's frog in this shape keeps out of every other frog's
-// cells: the frogs are solid to each other, on the road and off it.
-function clearOfPartners(run: Run, player: number, shape: Frog): boolean {
-  const cells = new Set(frogCells(shape).map(cellKey));
-  return run.frogs.every((frog, other) => other === player || frogCells(frogShape(frog)).every((cell) => !cells.has(cellKey(cell))));
-}
-
-// Whether a player's frog may take this shape where it stands: clear of the
-// vehicles overlapping it and of its partners.
-function roomFor(run: Run, player: number, shape: Frog): boolean {
-  return clearOfWalls(run, player, shape) && clearOfPartners(run, player, shape);
+// What is in the way of the frogs where the team stands: the vehicles
+// overlapping it, in play. Out of play, no vehicle touches the frogs.
+function inTheWay(run: Run): Clear {
+  return (cells) => !inPlay(run) || cellsClearAt(run, cells, run.depth);
 }
 
 function withFrog(run: Run, player: number, frog: Partial<RuleFrog>): Run {
@@ -359,90 +379,12 @@ function withWall(run: Run, index: number, wall: Partial<Wall>): Run {
   return { ...run, walls: run.walls.map((w, i) => (i === index ? { ...w, ...wall } : w)) };
 }
 
-function landNow(run: Run, player: number): Run {
-  const hopping = run.frogs[player].latestHop;
-  if (hopping === null || hopping.landedAt !== null) return run;
-  return withFrog(run, player, { latestHop: { ...hopping, landedAt: run.tick } });
-}
-
-// A frog that is up lands, unless landing would put it into a partner under
-// it: it stands on its partner until the partner moves out from under it.
-function landIfClear(run: Run, player: number): Run {
-  const frog = run.frogs[player];
-  if (hopHeight(frog) === 0 || !clearOfPartners(run, player, { ...frogShape(frog), hop: 0 })) return run;
-  return landNow(run, player);
-}
-
-// Where the gate's piece stands in the gate: the frog's rotation, column and
-// height if it fits there, inside the gate's lanes, on the face and clear of
-// its partners; otherwise the first rotation, then column, that does at the
-// frog's height, or, when none does (an I, one cell up), on the road. Null
-// if none fits at all.
-function placeInGate(run: Run, player: number, kind: TetrominoKind, gate: Gate): Frog | null {
-  const lanes = gateLanes(gate);
-  const fits = (frog: Frog): boolean =>
-    insideLanes(kind, frog, lanes) &&
-    pieceSize(kind, frog.rotation).height + frog.hop <= run.tuning.wallRows &&
-    clearOfPartners(run, player, frog);
-  const current = run.frogs[player];
-  const hop = hopHeight(current);
-  const kept: Frog = { kind, col: current.col, rotation: current.rotation, hop };
-  if (fits(kept)) return kept;
-  for (const height of hop === 1 ? ([1, 0] as const) : ([0] as const)) {
-    for (const rotation of ROTATIONS) {
-      for (let col = lanes.first; col <= lanes.last; col++) {
-        const frog: Frog = { kind, col, rotation, hop: height };
-        if (fits(frog)) return frog;
-      }
-    }
-  }
-  return null;
-}
-
-// Whether any of a player's partners has a cell in the gate's lanes.
-function partnerInGate(run: Run, player: number, gate: Gate): boolean {
-  const { first, last } = gateLanes(gate);
-  return run.frogs.some((frog, other) => other !== player && frogCells(frogShape(frog)).some((cell) => cell.col >= first && cell.col <= last));
-}
-
-// The frog takes the gate's piece. A gate sets the piece rather than
-// swapping it, so going through one twice is harmless. A lone frog in a gate
-// always has room for its new piece: every piece has an upright pose two
-// lanes wide or narrower, and the gate is the face's full height. Two frogs
-// in a gate together fill its two lanes exactly, so neither new piece has
-// room beside the other, and both keep their pieces.
-function takeGate(run: Run, player: number, gate: Gate): Run {
-  const current = run.frogs[player];
-  if (current.kind === gate.kind) return run;
-  const frog = placeInGate(run, player, gate.kind, gate);
-  if (frog === null) {
-    if (partnerInGate(run, player, gate)) return run;
-    throw new Error(`A ${gate.kind} fits nowhere in a gate`);
-  }
-  const landed = frog.hop === hopHeight(current) ? run : landNow(run, player);
-  const next = withFrog(landed, player, { kind: frog.kind, col: frog.col, rotation: frog.rotation });
-  if (!clearOfWalls(next, player, frog)) throw new Error(`A ${gate.kind} taken from a gate is inside a vehicle`);
-  return next;
-}
-
-// Each frog crossing the wall's front with every cell in one of its gates'
-// lanes takes that gate's piece.
-function crossFront(run: Run, wall: Wall): Run {
-  let next = run;
-  for (let player = 0; player < next.frogs.length; player++) {
-    const cells = frogCells(frogShape(next.frogs[player]));
-    const gate = wall.gates.find((g) => insideGate(cells, g));
-    if (gate !== undefined) next = takeGate(next, player, gate);
-  }
-  return next;
-}
-
 // The wall passes around the team.
 function pass(run: Run, index: number): Run {
-  return crossFront({ ...withWall(run, index, { passed: true }), passes: run.passes + 1 }, run.walls[index]);
+  return { ...withWall(run, index, { passed: true }), passes: run.passes + 1 };
 }
 
-// The wall goes by beneath a team out of play, unjudged.
+// The wall goes by beneath a team on the finish gantry, unjudged.
 function goBy(run: Run, index: number): Run {
   return withWall(run, index, { passed: true });
 }
@@ -463,81 +405,77 @@ function bonk(run: Run, index: number): Run {
   };
 }
 
-// The pass test for one frog standing still as a row reaches it: every cell
-// on the row's face, in no vehicle's cells and across no gate's post.
-export function fitsRow(shape: Frog, solids: readonly Solid[], wallRows: number): boolean {
-  const cells = frogCells(shape);
-  return cells.every((cell) => cell.row < wallRows) && keepsClear(cells, cells, solids);
+// The pass test for one frog as a row reaches it: none of its cells in a
+// vehicle's cells. Above the vehicles is open air, however high.
+export function fitsRow(shape: Frog, solids: readonly Solid[]): boolean {
+  return keepsClear(frogCells(shape), solids);
 }
 
 // Judges the next wall at the team's face, now, against all its vehicles:
 // it passes only if every frog fits, and bonks the whole team otherwise.
 function meet(run: Run, index: number): Run {
   const { solids } = run.walls[index];
-  const fit = run.frogs.every((frog) => fitsRow(frogShape(frog), solids, run.tuning.wallRows));
+  const fit = run.frogs.every((frog) => fitsRow(frogShape(frog), solids));
   return fit ? pass(run, index) : bonk(run, index);
 }
 
 // A slide off the road's edge, into a vehicle overlapping the frog or into a
-// partner, is refused.
+// partner, is refused. What stands on the frog rides along where it has room
+// (see `team.ts`).
 function moveColumn(run: Run, player: number, by: number): Run {
-  const frog = run.frogs[player];
-  const placement = { col: frog.col + by, rotation: frog.rotation };
-  if (!insideLanes(frog.kind, placement, roadLanes(run))) return run;
-  return roomFor(run, player, { ...frogShape(frog), ...placement }) ? withFrog(run, player, placement) : run;
+  const frogs = slide(run.frogs, player, by, roadLanes(run), inTheWay(run));
+  return frogs === null ? run : { ...run, frogs };
 }
 
 // A turn takes the first of its kicks that stays on the road, clear of the
 // vehicles overlapping the frog and of its partners; if none does, it fails.
-function rotate(run: Run, player: number, turn: 1 | -1): Run {
-  const frog = run.frogs[player];
-  const shape = frogShape(frog);
-  const placement = turnWithKicks(
-    frog.kind,
-    frog,
-    turn,
-    (p) => insideLanes(frog.kind, p, roadLanes(run)) && roomFor(run, player, { ...shape, ...p }),
-  );
-  return placement === null ? run : withFrog(run, player, placement);
+// It carries nothing.
+function rotate(run: Run, player: number, way: 1 | -1): Run {
+  const frogs = turn(run.frogs, player, way, roadLanes(run), inTheWay(run));
+  return frogs === null ? run : { ...run, frogs };
 }
 
+// A frog standing on the road or a partner, and not in its own airtime,
+// rises a cell and its airtime starts; whatever stands on it rises with it.
+// Refused if any of them would rise into a vehicle overlapping the team or
+// into a frog that stays put.
 function hop(run: Run, player: number): Run {
-  const frog = run.frogs[player];
-  if (hopHeight(frog) === 1) return run;
-  if (!roomFor(run, player, { ...frogShape(frog), hop: 1 })) return run;
-  return withFrog(run, player, { latestHop: { startedAt: run.tick, landedAt: null } });
+  if (!supported(run.frogs, player) || inAirtime(run, run.frogs[player])) return run;
+  const frogs = lift(run.frogs, player, roadLanes(run), inTheWay(run));
+  if (frogs === null) return run;
+  return withFrog({ ...run, frogs }, player, { latestHop: { startedAt: run.tick } });
 }
 
-// Riding: a frog that is up while a vehicle overlaps it stays up, gliding
-// across the vehicles' low parts, until the last of them has gone by or a
-// jump forward carries the team off. So a hop's timing is forgiving: one
-// pressed early, whose airtime would end mid-overlap, still carries the frog
-// across. Each frog rides on its own: its partner may stand on the road
-// between the same row's vehicles. Player 0's unless said: solo's.
+// Whether any vehicle overlaps the team, in play.
+function amidRow(run: Run): boolean {
+  return inPlay(run) && run.walls.some((wall) => overlappingSolids(wall, run.depth).length > 0);
+}
+
+// Riding: a frog above its support while a vehicle overlaps the team stays
+// at its height, gliding across the vehicles' low parts, until the last of
+// them has gone by or a jump forward carries the team off. So a hop's timing
+// is forgiving: one pressed early, whose airtime would end mid-overlap, still
+// carries the frog across. Each frog rides on its own: its partner may stand
+// on the road between the same row's vehicles. Player 0's unless said.
 export function isRiding(run: Run, player = 0): boolean {
-  return inPlay(run) && hopHeight(run.frogs[player]) === 1 && run.walls.some((wall) => overlappingSolids(wall, run.depth).length > 0);
+  return amidRow(run) && !supported(run.frogs, player);
 }
 
-// Each hop whose airtime is over lands, unless the frog is riding or would
-// land on its partner.
+// Every frog out of its own airtime with nothing under it falls to the
+// highest support below it, the lowest first; but not while a row overlaps
+// the team, when it rides (see `team.ts`).
 function settle(run: Run): Run {
-  let next = run;
-  for (let player = 0; player < next.frogs.length; player++) {
-    const hopping = next.frogs[player].latestHop;
-    if (hopping === null || hopping.landedAt !== null) continue;
-    if (next.tick < hopping.startedAt + tickTiming(next.tuning).hopAirtime) continue;
-    if (!isRiding(next, player)) next = landIfClear(next, player);
-  }
-  return next;
+  if (amidRow(run)) return run;
+  const frogs = settleTeam(run.frogs, (player) => !inAirtime(run, run.frogs[player]));
+  return frogs === run.frogs ? run : { ...run, frogs };
 }
 
 // The team crosses the finish line: the rules stop, so no row judges it
-// again, every held key lets go, and every hop lands, but on a partner. It
-// leaps onto the finish gantry, where the traffic goes by beneath it.
+// again, every held key lets go, and every frog comes down onto its support,
+// a partner or the road, airtime or not. It leaps onto the finish gantry,
+// where the traffic goes by beneath it.
 function finish(run: Run): Run {
-  let next: Run = { ...run, holds: [], finishedAt: run.tick };
-  for (let player = 0; player < next.frogs.length; player++) next = landIfClear(next, player);
-  return next;
+  return { ...run, frogs: settleTeam(run.frogs, () => true), holds: [], finishedAt: run.tick };
 }
 
 // Each wall whose front face the jump reaches is judged at once, nearest
@@ -559,52 +497,51 @@ function jumpForward(run: Run): Run {
 // `depth`, clear of every vehicle of the passed walls it would meet getting
 // there.
 function teamClearAt(run: Run, depth: number): boolean {
-  return run.frogs.every((frog, player) => clearOfWallsAt(run, player, frogShape(frog), depth));
+  return run.frogs.every((frog) => clearOfWallsAt(run, frogShape(frog), depth));
 }
 
 // A jump back may carry the team into a wall it has passed, or back through
 // it, wherever every frog fits: it is refused if it would put any frog's
 // cell into a vehicle on the way, like a move off the corridor edge. A wall
 // whose front the team jumps back across is ahead of it again, to be judged
-// afresh when it arrives, and a gate a frog crosses back through gives it
-// its piece. Behind the start the road goes on, and so may the team.
+// afresh when it arrives. Behind the start the road goes on, and so may the
+// team.
 function jumpBack(run: Run): Run {
   const target = run.depth - run.tuning.depthStep;
   if (!teamClearAt(run, target)) return run;
   let next: Run = { ...run, depth: target };
   run.walls.forEach((wall, index) => {
     if (!wall.passed || wall.depth < target) return;
-    next = crossFront(withWall(next, index, { passed: false }), wall);
+    next = withWall(next, index, { passed: false });
   });
   return next;
 }
 
-// The first jump forward drops the team from the overpass onto the road,
-// the drop distance ahead of where it stood, and puts it in play. It leaps
-// over the traffic: the rows it flies over go by beneath it, unjudged, and
-// the last jump's worth of the leap is a jump forward, so one onto a row's
-// face is judged like any other. A drop that would land any frog in a
-// vehicle is refused, like a move off the corridor edge. A held key repeats
-// once the leap has landed.
+// The first jump forward is the jump out of the helicopter: the team leaps
+// down onto the road the drop distance ahead of where it stood, and is in
+// play. The traffic, held still until now, is set going from where it
+// stands, so the course counts from this tick. The road between the deck and
+// the landing is always empty: a course whose first row stands there is
+// malformed, and fails loudly. A held key repeats once the leap has landed.
 function drop(run: Run): Run {
   const { tick, tuning } = run;
   const target = run.depth + tuning.dropDistance;
-  const approach = target - tuning.depthStep;
-  let flown: Run = { ...run, droppedAt: tick };
-  run.walls.forEach((wall, index) => {
-    if (!wall.passed && wall.depth <= approach) flown = goBy(flown, index);
-  });
-  if (!teamClearAt(flown, target)) return run;
-  return jumpForward({
-    ...flown,
-    depth: approach,
+  const between = run.walls.find((wall) => wall.depth <= target);
+  if (between !== undefined) {
+    throw new Error(`Row ${String(between.index)} stands at ${String(between.depth)}, between the deck and the landing at ${String(target)}`);
+  }
+  return {
+    ...run,
+    droppedAt: tick,
+    depth: target,
+    walls: run.walls.map((wall) => ({ ...wall, placedAt: tick })),
     holds: run.holds.map((hold) => ({ ...hold, nextAt: tick + tickTiming(tuning).dropDuration })),
-  });
+  };
 }
 
 // A player's action. The slides, turns and hops are the player's own frog's;
-// the jumps are the team's. On the overpass the frogs can line themselves up
-// and drop; nothing else.
+// the jumps are the team's. Aboard, the frogs can line themselves up and
+// jump out; nothing else.
 function act(run: Run, player: number, action: FrogAction): Run {
   switch (action) {
     case "left":
@@ -616,15 +553,15 @@ function act(run: Run, player: number, action: FrogAction): Run {
     case "rotateCw":
       return rotate(run, player, 1);
     case "hop":
-      return onOverpass(run) ? run : hop(run, player);
+      return aboard(run) ? run : hop(run, player);
     case "forward":
-      return onOverpass(run) ? drop(run) : jumpForward(run);
+      return aboard(run) ? drop(run) : jumpForward(run);
     case "back":
-      return onOverpass(run) ? run : jumpBack(run);
+      return aboard(run) ? run : jumpBack(run);
   }
 }
 
-// A player's action, player 0's unless said: solo's. A jump forward can
+// A player's action, player 0's unless said. A jump forward can
 // carry a riding frog off its wall, so it lands straight after.
 export function applyAction(run: Run, action: FrogAction, player = 0): Run {
   if (crossedFinish(run)) return run;
@@ -685,7 +622,6 @@ function recycle(run: Run): Run {
     const depth = Math.max(Math.max(...others.map(rowBack)) + row.gap, next.depth + next.tuning.trafficHorizon);
     next = withWall(next, index, {
       solids: row.solids,
-      gates: row.gates,
       depth,
       placedDepth: depth,
       placedAt: next.tick,
@@ -696,9 +632,12 @@ function recycle(run: Run): Run {
   return next;
 }
 
-// The clock moves on a tick, carrying every wall toward the start.
+// The clock moves on a tick, carrying every wall toward the start once the
+// team has jumped out. Aboard, the helicopter keeps pace with the traffic, so
+// the rows hold still relative to the team.
 function moveWalls(run: Run): Run {
   const tick = run.tick + 1;
+  if (aboard(run)) return { ...run, tick };
   const { wallSpeed } = run.tuning;
   return {
     ...run,
@@ -708,7 +647,7 @@ function moveWalls(run: Run): Run {
 }
 
 // Each wall that has reached the team's face: judged in play, and going by
-// beneath out of play. The spacing lets only one arrive at a time, but each
+// beneath the team on the finish gantry. The spacing lets only one arrive at a time, but each
 // is met in turn, nearest first, and a bonk takes the team back from the
 // face, so none is ever carried past the team unjudged.
 function arrive(run: Run): Run {

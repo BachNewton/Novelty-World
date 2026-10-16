@@ -42,7 +42,6 @@ export const WORLD_PAINTS = [
   "mailbox",
   "mailbox-flag",
   "bridge",
-  "bridge-dark",
 ] as const;
 
 export type WorldPaint = (typeof WORLD_PAINTS)[number];

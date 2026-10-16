@@ -49,6 +49,16 @@ describe("vary", () => {
 });
 
 describe("SoundPlayer", () => {
+  it("keeps each voice's minimum gap apart, so one frog's sound never swallows its partner's", () => {
+    const output = fakeOutput();
+    const player = playerOn(output);
+    expect(player.play("hop", { voice: 0 })).toBe(true);
+    output.time = SOUNDS.hop.minGap / 2;
+    expect(player.play("hop", { voice: 1 })).toBe(true);
+    expect(player.play("hop", { voice: 0 })).toBe(false);
+    expect(player.play("hop", { voice: 1 })).toBe(false);
+  });
+
   it("drops a play sooner than the sound's minimum gap, on the audio clock", () => {
     const output = fakeOutput();
     const player = playerOn(output);
@@ -84,21 +94,21 @@ describe("SoundPlayer", () => {
   it("holds the gap for plays scheduled ahead", () => {
     const output = fakeOutput();
     const player = playerOn(output);
-    expect(player.play("gate", { delay: 1 })).toBe(true);
-    expect(player.play("gate", { delay: 1 + SOUNDS.gate.minGap / 2 })).toBe(false);
-    expect(player.play("gate", { delay: 1 + SOUNDS.gate.minGap })).toBe(true);
+    expect(player.play("bonk", { delay: 1 })).toBe(true);
+    expect(player.play("bonk", { delay: 1 + SOUNDS.bonk.minGap / 2 })).toBe(false);
+    expect(player.play("bonk", { delay: 1 + SOUNDS.bonk.minGap })).toBe(true);
   });
 
   it("plays nothing while muted", () => {
     const output = fakeOutput();
-    const player = playerOn(output, { muted: true, volume: 1 });
+    const player = playerOn(output, { muted: true, volume: 1, music: 1 });
     expect(player.play("finish")).toBe(false);
     expect(output.played).toEqual([]);
   });
 
-  it("scales the gain by the master volume and shifts the rate by semitones", () => {
+  it("scales the gain by the master volume, not the music volume, and shifts the rate by semitones", () => {
     const output = fakeOutput();
-    const player = playerOn(output, { muted: false, volume: 0.5 }, () => 0.5);
+    const player = playerOn(output, { muted: false, volume: 0.5, music: 0 }, () => 0.5);
     player.play("finish", { semitones: 12 });
     const [{ rate, gain }] = output.played;
     expect(rate).toBeCloseTo(2);

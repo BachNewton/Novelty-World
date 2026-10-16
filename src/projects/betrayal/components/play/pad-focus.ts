@@ -1,5 +1,4 @@
-import type { StandardButton } from "@/shared/lib/gamepad";
-import { nextInDirection, type Direction } from "../../input/navigate";
+import { nextInDirection, type Direction, type StandardButton } from "@/shared/lib/gamepad";
 
 /*
  * A controller's focus on the page's own controls. There is one focus: on a

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import { BETRAYAL_THEME } from "../components/theme";
 import { FLOOR_NAMES, FLOORS } from "../engine/board";
-import type { InputKind } from "../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import { BenchButton } from "./bench-view";
 import { BakeDebug } from "./bake-debug";
 import { BakeIndicator } from "./bake-indicator";
@@ -13,7 +13,7 @@ import { CATALOG } from "../data";
 import { HOUSE_FIXTURE, MARKINGS_LAYOUT, reviewHouse, SPILL_LAYOUTS } from "./house-layout";
 import { createHouseDemo, FIXTURE_STARTS, type Phase } from "./house-demo";
 import { RaiseWallsButton } from "../components/raise-walls-button";
-import { ControlGlyph } from "../components/prompts";
+import { ControlGlyph } from "@/shared/components/prompts";
 import type { FloorChoice } from "./house-scene";
 import { BENCH_ROOMS } from "./rooms";
 

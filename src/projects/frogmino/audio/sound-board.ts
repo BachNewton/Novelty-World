@@ -7,7 +7,7 @@ import { useSoundSettings } from "./settings";
 // context, and renders every sound once into an AudioBuffer. Creating the
 // first AudioContext of a browser session blocks the page for a tenth of a
 // second or more while the browser starts its audio, so it must not wait for
-// the player's first key press, which is usually the drop off the overpass.
+// the player's first key press, which is usually the jump out of the helicopter.
 // Browsers keep a context created before any input suspended, and the first
 // input, through `unlockAudio`, resumes it. From then on a play is a buffer
 // source started through a gain, cheap on older phones.

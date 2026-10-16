@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STANDARD_BUTTONS, type PadSnapshot, type StandardButton } from "@/shared/lib/gamepad";
-import { PAD_AT_REST, PAD_TUNING, padStep, type PadHold } from "./gamepad";
+import { PAD_AT_REST, PAD_TUNING, padArrival, padStep, type PadHold } from "./gamepad";
 
 function pad({ held = [], axes = [0, 0, 0, 0], standard = true }: { held?: StandardButton[]; axes?: number[]; standard?: boolean } = {}): PadSnapshot {
   return {
@@ -142,5 +142,19 @@ describe("a controller disconnecting", () => {
       { kind: "release", action: "forward" },
     ]);
     expect(hold).toEqual(PAD_AT_REST);
+  });
+});
+
+describe("a controller the game first sees", () => {
+  it("holds the buttons already down, so they act only on their next press", () => {
+    const start = padArrival(pad({ held: ["A", "Menu"] }));
+    expect(padStep(start, pad({ held: ["A", "Menu"] }))).toMatchObject({ inputs: [], restart: false });
+    const again = padStep(padStep(start, pad()).hold, pad({ held: ["A"] }));
+    expect(again.inputs).toEqual([{ kind: "act", action: "hop" }]);
+  });
+
+  it("still moves the frog on a direction already held", () => {
+    const start = padArrival(pad({ held: ["DpadRight"] }));
+    expect(padStep(start, pad({ held: ["DpadRight"] })).inputs).toEqual([{ kind: "press", action: "right" }]);
   });
 });

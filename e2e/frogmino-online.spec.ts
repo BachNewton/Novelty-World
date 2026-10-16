@@ -1,6 +1,6 @@
 import { test, expect } from "./test";
 import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
-import { LOCAL_RELAY } from "./relay";
+import { localRoomList } from "./relay";
 
 /**
  * Frogmino's online co-op: two browsers host and join a game over the local
@@ -30,7 +30,7 @@ async function open(browser: Browser, url: string, name: string): Promise<Client
 
 /** Hoppy hosts, Leapy joins, Hoppy starts: both are in the game. */
 async function startGame(browser: Browser): Promise<{ host: Client; guest: Client }> {
-  const url = `${LOBBY}?${LOCAL_RELAY}&room-list=e2e-${crypto.randomUUID()}`;
+  const url = `${LOBBY}?${localRoomList()}`;
   const host = await open(browser, url, "Hoppy");
   const guest = await open(browser, url, "Leapy");
   await host.page.getByRole("button", { name: "Host co-op" }).click();
@@ -65,12 +65,13 @@ test("each player's keys move their own frog, on both screens", async ({ browser
     for (const { page } of [guest, host]) {
       await expect(game(page)).toHaveAttribute("data-cols", `${String(sprout)},${String(splash + 1)}`, { timeout: TIMEOUT });
     }
-    // Sprout slides left, the same way round.
-    await host.page.keyboard.press("ArrowLeft");
+    // Sprout slides right, the same way round: it may start against the road's left edge (a flat I on the first
+    // course fills its half of the road but for half a lane), and Splash has moved out of its way.
+    await host.page.keyboard.press("ArrowRight");
     for (const { page } of [host, guest]) {
-      await expect(game(page)).toHaveAttribute("data-cols", `${String(sprout - 1)},${String(splash + 1)}`, { timeout: TIMEOUT });
+      await expect(game(page)).toHaveAttribute("data-cols", `${String(sprout + 1)},${String(splash + 1)}`, { timeout: TIMEOUT });
     }
-    // Either player's jump forward drops the whole team off the overpass.
+    // Either player's jump forward jumps the whole team out of the helicopter.
     await guest.page.keyboard.press("KeyW");
     for (const { page } of [guest, host]) {
       await expect(game(page)).not.toHaveAttribute("data-depth", "0", { timeout: TIMEOUT });

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { TALLEST_VEHICLE } from "../fleet";
 import { applyAction, createRun, playTo, pressHeld, type RuleRow, type RuleRows, type Run } from "../run";
 import { toTicks } from "../ticks";
 import { TUNING } from "../tuning";
-import type { Cell, Gate } from "../types";
+import type { Cell } from "../types";
 import { soundCues, type GameMoment, type SoundCue } from "./cues";
+import { SoundPlayer } from "./player";
+import { DEFAULT_SOUND_SETTINGS } from "./settings";
+import { SOUNDS, type SoundId } from "./sounds";
 
 // Two ticks a frame.
 const FRAME = 0.02;
@@ -18,15 +22,14 @@ const WALL_DEPTH = TUNING.dropDistance + ROW_AHEAD;
 function wholeFace(): Cell[] {
   const cells: Cell[] = [];
   for (let col = 0; col < TUNING.corridorCols; col++) {
-    for (let row = 0; row < TUNING.wallRows; row++) cells.push({ col, row });
+    for (let row = 0; row < TALLEST_VEHICLE; row++) cells.push({ col, row });
   }
   return cells;
 }
 
-// One row coming, then nothing within reach: a row with `cells` filled and
-// `gates`.
-function oneRow(cells: readonly Cell[], gates: readonly Gate[] = []): RuleRows {
-  return (index): RuleRow => ({ solids: [{ cells, length: 2 }], gates, gap: index === 0 ? WALL_DEPTH : 1e6 });
+// One row coming, then nothing within reach: a row with `cells` filled.
+function oneRow(cells: readonly Cell[]): RuleRows {
+  return (index): RuleRow => ({ solids: [{ cells, length: 2 }], gap: index === 0 ? WALL_DEPTH : 1e6 });
 }
 
 // One row: no vehicle at all, or one filling the whole face.
@@ -35,19 +38,11 @@ function openOrSolid(open: boolean): RuleRows {
 }
 
 // No traffic within reach: one solid row far up the road.
-const NOTHING: RuleRows = () => ({ solids: [{ cells: wholeFace(), length: 2 }], gates: [], gap: 1e6 });
+const NOTHING: RuleRows = () => ({ solids: [{ cells: wholeFace(), length: 2 }], gap: 1e6 });
 
 // A frog dropped onto the road, with one row coming: wide open, or solid.
 function runWithOneRow(open: boolean): Run {
   return applyAction(createRun(openOrSolid(open), TUNING), "forward");
-}
-
-// A row with a gate for the O in lanes 3 and 4, and every other cell filled.
-function gateRow(): RuleRows {
-  return oneRow(
-    wholeFace().filter((cell) => cell.col !== 3 && cell.col !== 4),
-    [{ lane: 3, kind: "O" }],
-  );
 }
 
 // Plays frames until the row has reached the frog and gone by, but not so
@@ -87,6 +82,35 @@ describe("soundCues", () => {
     expect(hearFrames(hopping)).toEqual([]);
   });
 
+  it("sounds each new hop of a stacked pair in the hopper's voice, the double jump's too, and none for a frog carried up", () => {
+    // Sprout's flat I with Splash's O standing on it.
+    const start = applyAction(createRun(NOTHING, TUNING, { kinds: ["I", "O"], lanes: 10 }), "forward");
+    const stacked: Run = { ...start, frogs: [{ ...start.frogs[0], col: 0, rotation: 0 }, { ...start.frogs[1], col: 1, height: 1 }] };
+    const carrying = applyAction(stacked, "hop", 0);
+    expect(carrying.frogs.map((frog) => frog.height)).toEqual([1, 2]);
+    expect(soundCues({ run: stacked, runId: 0 }, { run: carrying, runId: 0 }, 0).cues).toEqual([{ sound: "hop", voice: 0 }]);
+    const doubled = applyAction(carrying, "hop", 1);
+    expect(doubled.frogs.map((frog) => frog.height)).toEqual([1, 3]);
+    expect(soundCues({ run: carrying, runId: 0 }, { run: doubled, runId: 0 }, 0).cues).toEqual([{ sound: "hop", voice: 1 }]);
+  });
+
+  it("sounds both frogs' hops when the partners hop together, each in its own voice, and the player hears both", () => {
+    const start = applyAction(createRun(NOTHING, TUNING, { kinds: ["L", "J"] }), "forward");
+    const both = applyAction(applyAction(start, "hop", 0), "hop", 1);
+    const cues = soundCues({ run: start, runId: 0 }, { run: both, runId: 0 }, 0).cues;
+    expect(cues).toEqual([
+      { sound: "hop", voice: 0 },
+      { sound: "hop", voice: 1 },
+    ]);
+    // Within the hop's minimum gap of each other, both still play.
+    const output = { time: 0, played: [] as SoundId[], now: () => output.time, play: (id: SoundId) => output.played.push(id) };
+    const player = new SoundPlayer(output, () => DEFAULT_SOUND_SETTINGS, () => 0.5);
+    for (const cue of cues) player.play(cue.sound, { voice: cue.voice });
+    output.time = SOUNDS.hop.minGap / 2;
+    expect(player.play("hop", { voice: 1 })).toBe(false);
+    expect(output.played).toEqual(["hop", "hop"]);
+  });
+
   it("climbs the scale on clean passes in a row, and a bonk starts it over", () => {
     const before = runWithOneRow(true);
     const passed: Run = { ...before, walls: before.walls.map((wall) => ({ ...wall, passed: true })), passes: before.passes + 1 };
@@ -103,30 +127,7 @@ describe("soundCues", () => {
     expect(soundCues({ run: finished, runId: 0 }, { run: fresh, runId: 1 }, 5)).toEqual({ cues: [], streak: 0 });
   });
 
-  it("sounds the gate once as the frog passes through one and becomes its piece", () => {
-    // The upright L lined up with the gate.
-    const lined = applyAction(applyAction(createRun(gateRow(), TUNING), "rotateCw"), "right");
-    expect(lined.frogs[0]).toMatchObject({ col: 3, rotation: 1 });
-    expect(soundsOf(hearFrames(applyAction(lined, "forward")))).toEqual(["pass", "gate"]);
-  });
-
-  it("sounds the gate once as the frog goes back through one, and not when the gate gives it the piece it has", () => {
-    // Through the gate as the O, the frog jumps back out of it: the gate sets
-    // the piece it already has, which is no transformation.
-    const lined = applyAction(applyAction(createRun(gateRow(), TUNING), "rotateCw"), "right");
-    let run = applyAction(lined, "forward");
-    while (run.passes === 0) run = advance(run, FRAME);
-    const back = applyAction(run, "back");
-    expect(back.walls[0].passed).toBe(false);
-    expect(soundCues({ run, runId: 0 }, { run: back, runId: 0 }, 0).cues).toEqual([]);
-    // As an L, going back through the gate turns it into the O, once.
-    const asL: Run = { ...run, frogs: [{ ...run.frogs[0], kind: "L", rotation: 1 }] };
-    const turned = applyAction(asL, "back");
-    expect(turned.frogs[0].kind).toBe("O");
-    expect(soundsOf(soundCues({ run: asL, runId: 0 }, { run: turned, runId: 0 }, 0).cues)).toEqual(["gate"]);
-  });
-
-  it("sounds the drop once, as the frog leaves the overpass", () => {
+  it("sounds the drop once, as the team jumps out of the helicopter", () => {
     const up = createRun(openOrSolid(true), TUNING);
     const dropped = applyAction(up, "forward");
     expect(soundsOf(soundCues({ run: up, runId: 0 }, { run: dropped, runId: 0 }, 0).cues)).toEqual(["drop"]);
@@ -134,7 +135,7 @@ describe("soundCues", () => {
     expect(soundsOf(hearFrames(pressHeld(dropped, "forward"), 3))).not.toContain("drop");
   });
 
-  it("is silent while rows go by beneath the frog on the overpass", () => {
+  it("is silent while the team waits aboard the helicopter", () => {
     expect(hearFrames(createRun(openOrSolid(false), TUNING))).toEqual([]);
   });
 

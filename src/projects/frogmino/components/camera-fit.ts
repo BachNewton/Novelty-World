@@ -19,7 +19,7 @@ export function cameraEye(knobs: CameraKnobs, frogDepth: number, ground: number)
   return { y: ground + knobs.cameraHeight, z: -frogDepth + knobs.cameraFollow };
 }
 
-// The camera rises and falls with the ground under the frog (the overpass,
+// The camera rises and falls with the ground under the frog (the helicopter,
 // the road, the finish gantry) over about this long, in seconds.
 const CAMERA_LEVEL_EASE = 0.6;
 

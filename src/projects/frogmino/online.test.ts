@@ -4,7 +4,7 @@ import { GUEST_SLOT, HOST_SLOT, parseGuestMessage, parseHostMessage, type GuestM
 import { courseOf, type CourseSpec } from "./courses";
 import { CONFIRM_TICKS, guestSession, hostSession, REWIND_WINDOW, type GuestSession, type HostSession, type OnlineEvents } from "./online";
 import { runHash } from "./rollback";
-import { replay, type FrogAction, type HeldAction, type PlayerInput } from "./run";
+import { replay, sinceJump, type FrogAction, type HeldAction, type PlayerInput, type Run } from "./run";
 import { freshRun } from "./session";
 import { TUNING, type Tuning } from "./tuning";
 
@@ -13,7 +13,7 @@ import { TUNING, type Tuning } from "./tuning";
 // delayed by its own seeded amount, so messages overtake each other.
 
 const TICK = 1 / 100;
-const SPEC: CourseSpec = { kind: "coop" };
+const SPEC: CourseSpec = { kind: "coop", id: "block-party" };
 
 interface Link {
   // Each message takes `delay` ticks, plus up to `jitter` more.
@@ -78,10 +78,14 @@ function pair({ seed, link, guestTuning = TUNING, events }: { seed: string; link
   const rng = createRng(seed);
   const toGuest = wire<HostPlay>(link, rng, (value) => {
     const message = parseHostMessage(value);
-    if (message.kind === "start" || message.kind === "full") throw new Error("not a message of play");
+    if (message.kind === "course" || message.kind === "start" || message.kind === "full" || message.kind === "room") throw new Error("not a message of play");
     return message;
   });
-  const toHost = wire<GuestMessage>(link, rng, parseGuestMessage);
+  const toHost = wire<GuestMessage>(link, rng, (value) => {
+    const message = parseGuestMessage(value);
+    if (message.kind === "room") throw new Error("not a message of play");
+    return message;
+  });
   const fail: OnlineEvents = {
     onDesync: (desync) => {
       throw new Error(`out of sync at ${String(desync.tick)}`);
@@ -135,6 +139,9 @@ function expectConverged({ host, guest }: Pair): void {
   expect(guestState.log).toEqual(hostState.log);
   expect(runHash(hostState.run)).toBe(runHash(replayed(SPEC, hostState.log, hostState.run.tick)));
   expect(runHash(guestState.run)).toBe(runHash(replayed(SPEC, hostState.log, guestState.run.tick)));
+  // The run's clock reads the rule state, so both players' timers count from
+  // the same drop.
+  expect(guestState.run.droppedAt).toBe(hostState.run.droppedAt);
 }
 
 describe("online co-op over a simulated network", () => {
@@ -154,6 +161,7 @@ describe("online co-op over a simulated network", () => {
         const log = sim.host.store.getState().log;
         expect(log.some((input) => input.player === HOST_SLOT)).toBe(true);
         expect(log.some((input) => input.player === GUEST_SLOT)).toBe(true);
+        expect(sim.host.store.getState().run.droppedAt).not.toBeNull();
       });
     }
   }
@@ -233,11 +241,39 @@ describe("online co-op over a simulated network", () => {
         guest: { onDesync: (d) => desyncs.push(`guest ${String(d.tick)}`) },
       },
     });
-    // The first confirmation, of tick 50, goes at the host's tick 100.
-    sim.play(150);
-    expect(desyncs).toEqual(["guest 50", "host 50 0"]);
+    // The traffic drives only once the team has jumped out, which the host
+    // does at once. The first confirmation, of tick 50, goes at the host's
+    // tick 100.
+    sim.play(1);
+    sim.host.input(HOST_SLOT, { kind: "act", action: "forward" });
+    sim.play(149);
+    expect(desyncs).toEqual(["guest 50", "host 50 1"]);
     expect(errors).toHaveBeenCalledTimes(2);
     errors.mockRestore();
+  });
+
+  it("plays the course from the jump out, however long after the host the guest started", () => {
+    // The guest starts as the start message reaches it, well after the
+    // host's tick 0, and jumps the team out once it has caught up.
+    const sim = pair({ seed: "late-start", link: { delay: 40, jitter: 5 } });
+    sim.play(160);
+    sim.guest.input(GUEST_SLOT, { kind: "act", action: "forward" });
+    sim.play(900, 0.04);
+    sim.settle();
+    expectConverged(sim);
+    const { run, log } = sim.host.store.getState();
+    const jump = run.droppedAt;
+    if (jump === null) throw new Error("The team never jumped out");
+    expect(jump).toBeGreaterThan(40);
+    // The same inputs with the jump at the host's very first tick play the
+    // same run from the jump on.
+    const atOnce = log.map((input) => ({ ...input, tick: input.tick - jump }));
+    const counted = (from: Run): number => {
+      const since = sinceJump(from);
+      if (since === null) throw new Error("The team never jumped out");
+      return runHash(since);
+    };
+    expect(counted(replayed(SPEC, atOnce, run.tick - jump))).toBe(counted(run));
   });
 
   it("refuses an input for the partner's frog", () => {

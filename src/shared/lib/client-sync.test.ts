@@ -1,0 +1,153 @@
+import { describe, expect, it } from "vitest";
+import { createRng, type Rng } from "./seeded-random";
+import { EMPTY_CLIENT, localTransport, reduce, shown, type ClientState, type SyncEvent, type SyncRules } from "./client-sync";
+
+// A toy game: each decision asks one seat (turns alternate) for a number, which
+// is appended with a roll drawn from the state's own seed, as a real engine's dice are.
+interface Toy {
+  decision: number;
+  picks: { pick: number; roll: number }[];
+  lastEvents: { id: string }[];
+  answered: { decision: number; seat: number }[];
+}
+interface Pick {
+  decision: number;
+  seat: number;
+  pick: number;
+}
+
+const START: Toy = { decision: 0, picks: [], lastEvents: [], answered: [] };
+
+const RULES: SyncRules<Toy, Pick, { id: string }> = {
+  apply: (state, action) => {
+    if (action.decision !== state.decision) return { ok: false, reason: "That decision is no longer pending" };
+    if (action.seat !== state.decision % 2) return { ok: false, reason: "Not your turn" };
+    const roll = Math.floor(createRng(`toy/${state.decision.toString()}`).next() * 6);
+    return {
+      ok: true,
+      state: {
+        decision: state.decision + 1,
+        picks: [...state.picks, { pick: action.pick, roll }],
+        lastEvents: [{ id: `${state.decision.toString()}:0` }, { id: `${state.decision.toString()}:1` }],
+        answered: [...state.answered, { decision: action.decision, seat: action.seat }],
+      },
+    };
+  },
+  sameAnswer: (a, b) => a.decision === b.decision && a.seat === b.seat,
+  included: (state, action) => state.answered.some((a) => a.decision === action.decision && a.seat === action.seat),
+  lastEvents: (state) => state.lastEvents,
+  eventId: (event) => event.id,
+};
+
+const below = (rng: Rng, n: number) => Math.floor(rng.next() * n);
+
+function history(seed: string, length: number): { states: Toy[]; actions: Pick[] } {
+  const rng = createRng(`history/${seed}`);
+  const states = [START];
+  const actions: Pick[] = [];
+  for (let i = 0; i < length; i++) {
+    const action = { decision: i, seat: i % 2, pick: below(rng, 10) };
+    const result = RULES.apply(states[i], action);
+    if (!result.ok) throw new Error(result.reason);
+    actions.push(action);
+    states.push(result.state);
+  }
+  return { states, actions };
+}
+
+type Client = ClientState<Toy, Pick, { id: string }>;
+const run = (client: Client, events: SyncEvent<Toy, Pick>[]) => events.reduce((c, e) => reduce(RULES, c, e), client);
+const started = (state: Toy): Client => reduce(RULES, EMPTY_CLIENT, { type: "server-state", version: 0, state });
+
+describe("client sync", () => {
+  it("shows a local action at once, and keeps showing it once the server confirms it", () => {
+    const { states, actions } = history("at-once", 1);
+    let client = reduce(RULES, started(states[0]), { type: "local-action", action: actions[0] });
+    expect(shown(RULES, client)).toEqual(states[1]);
+    expect(client.inFlight).toEqual(actions[0]);
+    expect(client.feed.map((e) => e.id)).toEqual(["0:0", "0:1"]);
+    client = reduce(RULES, client, { type: "accepted", action: actions[0], version: 1, state: states[1] });
+    expect(client.queue).toEqual([]);
+    expect(client.inFlight).toBeNull();
+    expect(shown(RULES, client)).toEqual(states[1]);
+    expect(client.feed.map((e) => e.id)).toEqual(["0:0", "0:1"]);
+  });
+
+  it("sends one action at a time, in order", () => {
+    const { states, actions } = history("in-order", 2);
+    let client = run(started(states[0]), actions.map((action) => ({ type: "local-action", action })));
+    expect(client.inFlight).toEqual(actions[0]);
+    client = reduce(RULES, client, { type: "accepted", action: actions[0], version: 1, state: states[1] });
+    expect(client.inFlight).toEqual(actions[1]);
+  });
+
+  it("drops a rejected action and everything queued after it, and says why", () => {
+    const { states, actions } = history("rejected", 3);
+    const elsewhere = RULES.apply(states[0], { ...actions[0], pick: actions[0].pick + 1 });
+    if (!elsewhere.ok) throw new Error(elsewhere.reason);
+    let client = run(started(states[0]), actions.map((action) => ({ type: "local-action", action })));
+    client = reduce(RULES, client, { type: "rejected", action: actions[0], reason: "That decision is no longer pending", version: 1, state: elsewhere.state });
+    expect(client.queue).toEqual([]);
+    expect(client.problem).toBe("That decision is no longer pending");
+    expect(shown(RULES, client)).toEqual(elsewhere.state);
+  });
+
+  it("refuses a local action that doesn't apply to what it shows", () => {
+    const { states, actions } = history("refuse", 2);
+    const client = reduce(RULES, started(states[0]), { type: "local-action", action: actions[1] });
+    expect(client.queue).toEqual([]);
+    expect(client.problem).not.toBeNull();
+  });
+
+  it("ignores a server state no newer than the one it has", () => {
+    const { states } = history("stale", 2);
+    const client = reduce(RULES, started(states[0]), { type: "server-state", version: 2, state: states[2] });
+    expect(reduce(RULES, client, { type: "server-state", version: 1, state: states[1] })).toBe(client);
+    expect(reduce(RULES, client, { type: "server-state", version: 2, state: states[2] })).toBe(client);
+  });
+
+  // However the server's answers and echoes arrive (twice, out of order, or
+  // not at all), the client shows exactly the game its own actions make,
+  // never a state the server has moved past, and plays each event once.
+  it.each(Array.from({ length: 24 }, (_, i) => `property-${i.toString()}`))("shows its own game through duplicated, reordered and dropped updates (%s)", (seed) => {
+    const rng = createRng(seed);
+    const length = 6 + below(rng, 10);
+    const { states, actions } = history(seed, length);
+    let client = started(states[0]);
+    const pool: SyncEvent<Toy, Pick>[] = [];
+    let taken = 0;
+    let newest = 0;
+    const deliver = () => {
+      const event = pool[below(rng, pool.length)];
+      const roll = rng.next();
+      if (roll < 0.2 || roll >= 0.5) pool.splice(pool.indexOf(event), 1);
+      if (roll < 0.2) return;
+      client = reduce(RULES, client, event);
+      if (event.type !== "local-action") newest = Math.max(newest, event.version);
+    };
+    while (taken < length || pool.length > 0) {
+      if (taken < length && (pool.length === 0 || rng.next() < 0.5)) {
+        const action = actions[taken];
+        client = reduce(RULES, client, { type: "local-action", action });
+        taken++;
+        pool.push({ type: "accepted", action, version: taken, state: states[taken] }, { type: "server-state", version: taken, state: states[taken] });
+      } else deliver();
+      expect(shown(RULES, client)).toEqual(states[taken]);
+      expect(client.confirmed?.version).toBe(newest);
+      const ids = client.feed.map((event) => event.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+    expect(client.queue.length).toBe(taken - newest);
+  });
+});
+
+describe("localTransport", () => {
+  it("accepts a legal action with the next version, and rejects one that doesn't apply with the state as it is", async () => {
+    const { states, actions } = history("transport", 2);
+    const local = localTransport(RULES, states[0]);
+    expect(await local.transport.send(actions[1])).toMatchObject({ type: "rejected", version: 0 });
+    expect(await local.transport.send(actions[0])).toMatchObject({ type: "accepted", version: 1 });
+    expect(local.actions()).toEqual([actions[0]]);
+    expect((await local.transport.load()).version).toBe(1);
+  });
+});

@@ -71,6 +71,63 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Risk's engine is deterministic too (`INV-10`): its randomness is the seeded source in its state.
+  {
+    files: ["src/projects/risk/engine/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        { object: "Math", property: "random", message: "Use the game's seeded random source (state.rng)." },
+        { object: "Date", property: "now", message: "The engine has no clock." },
+        { object: "performance", property: "now", message: "The engine has no clock." },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        { selector: "NewExpression[callee.name='Date']", message: "The engine has no clock." },
+      ],
+    },
+  },
+  // Risk's bots see only what their seat may legally see: they are handed a view, never the game
+  // state. So bot code reaches the contract's types, the map and shared helpers, and nothing in
+  // the project that holds or makes a state (the engine, the online game, the server, the harness).
+  {
+    files: ["src/projects/risk/bots/**/*.ts"],
+    // A bot's tests build positions with the engine's test kit; the bot code they test can't.
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(\\.\\./|@/projects/)(?!(contract|map)$)",
+              message: "A bot may import only the contract and the map from Risk: it sees its seat's view, never the state.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // A bot in a folder of its own reaches the seam and shared bot code one level up, and the contract
+  // and the map two levels up, and still nothing that holds a state.
+  {
+    files: ["src/projects/risk/bots/*/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(\\.\\./\\.\\./|@/projects/)(?!(contract|map)$)",
+              message: "A bot may import only the contract and the map from Risk: it sees its seat's view, never the state.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // The e2e harness manages its own run folders (builds, test output), every path built from its
   // own constants and process ids: the rule guards against paths from outside input, which it has none of.
   {

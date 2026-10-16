@@ -16,6 +16,7 @@ import {
   type RelayFrame,
 } from "../src/shared/lib/peer/protocol";
 import type { PlayerProfile } from "../src/shared/lib/profile";
+import { serveWebSockets } from "./serve";
 
 /** Big enough for any game's state snapshot (the RPG's map), small enough to refuse abuse. */
 const MAX_FRAME_BYTES = 1024 * 1024;
@@ -46,11 +47,19 @@ export interface RelayOptions {
   allowOrigin(origin: string | undefined): boolean;
 }
 
+/** The relay on its own HTTP server, taking every WebSocket upgrade. */
 export function startRelay(server: Server, options: RelayOptions): WebSocketServer {
+  const wss = createRelay(options);
+  serveWebSockets(server, () => wss);
+  return wss;
+}
+
+/** The relay, unattached: `serveWebSockets` hands it its connections. */
+export function createRelay(options: RelayOptions): WebSocketServer {
   const rooms = new Map<string, Room>();
   const clients = new Set<Client>();
   const wss = new WebSocketServer({
-    server,
+    noServer: true,
     maxPayload: MAX_FRAME_BYTES,
     verifyClient: ({ req }: { req: IncomingMessage }) => options.allowOrigin(req.headers.origin),
   });

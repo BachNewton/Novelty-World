@@ -1,12 +1,12 @@
-import { CROAKERS_CROSSING } from "./croakers-crossing";
-import { FROG_POLKKA_A_CAPPELLA, FROG_POLKKA_ELECTRO } from "./frog-polkka";
-import { GRIDLOCK } from "./gridlock";
-import { GANTRY_FANFARE, GATE_SHIMMER } from "./jingles";
-import { LILY_PAD_LOBBY } from "./lily-pad-lobby";
-import { RUSH_HOUR } from "./rush-hour";
-import { SAMMAKKOPOLKKA } from "./sammakkopolkka";
+import { BLOCK_PARTY } from "./block-party";
+import { CHAIN_REACTION } from "./chain-reaction";
+import { HIGH_RISE } from "./high-rise";
+import { LEG_UP } from "./leg-up";
+import { LONG_AND_SHORT } from "./long-and-short";
 import type { Theme } from "./song";
-import { TWO_FROGS } from "./two-frogs";
+import { TEA_FOR_TWO } from "./tea-for-two";
+import { ZIG_ZAG_ALLEY } from "./zig-zag-alley";
 
-// Every theme the `?music` page offers, in the order a run meets them.
-export const THEMES: readonly Theme[] = [LILY_PAD_LOBBY, CROAKERS_CROSSING, RUSH_HOUR, FROG_POLKKA_A_CAPPELLA, FROG_POLKKA_ELECTRO, SAMMAKKOPOLKKA, GRIDLOCK, TWO_FROGS, GATE_SHIMMER, GANTRY_FANFARE];
+// The courses' themes, one per co-op course, in the picker's order: the
+// themes the game plays (see `course-music.ts`) and the `?music` page lists.
+export const THEMES: readonly Theme[] = [LONG_AND_SHORT, BLOCK_PARTY, TEA_FOR_TWO, LEG_UP, HIGH_RISE, ZIG_ZAG_ALLEY, CHAIN_REACTION];

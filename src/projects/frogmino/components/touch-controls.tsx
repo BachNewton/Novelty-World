@@ -62,7 +62,8 @@ function TouchHint() {
 // The touch layer over the play area: it takes every finger that lands on
 // the game, stops the browser scrolling, zooming or selecting, and shows the
 // hint. It sits under the other overlays, so the mute button and the done
-// screen keep their own taps. Touch plays solo only.
+// screen keep their own taps. Touch plays online co-op only, where each
+// player has a device of their own.
 export function TouchControls({ sink, done }: { sink: InputSink; done: boolean }) {
   const [gestures, setGestures] = useState(0);
   const countGesture = useCallback(() => {

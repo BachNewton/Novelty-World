@@ -1,0 +1,349 @@
+import type { Rng } from "@/shared/lib/seeded-random";
+import type { Seat } from "../../contract";
+import {
+  ADJ,
+  CONTINENT_BONUS,
+  CONTINENT_MEMBERS,
+  CONTINENT_OF,
+  copyBoard,
+  eliminateIfEmpty,
+  hasEnemyNeighbour,
+  holdsContinent,
+  N,
+  type Board,
+} from "./board";
+import { setValue } from "./cards";
+import { evaluate, expectedIncome } from "./evaluate";
+import { rollOdds, winProb } from "./odds";
+import { incomeHorizon, type Params } from "./params";
+import { killChance, planCapture, type CapturePlan } from "./routes";
+
+// The turn planner (`ideas/rule-bot-v1.md` §2.4): a few dozen whole-turn plans, each
+// one coherent intent (hold, take a card spot or break a continent, take a small
+// continent, eliminate a player), each with its own placement, scored by the
+// evaluation over the turn's possible ends, the best committed. A bot is a pure
+// function of its view, so it plans afresh at every decision: placing, after every
+// blitz, at every move-in. That is the design's re-plan after a blitz that fell
+// short, taken every time.
+
+export type PlanKind = "hold" | "capture" | "continent" | "kill";
+
+export interface Plan {
+  kind: PlanKind;
+  /** The territories the plan takes; empty for a hold. */
+  targets: number[];
+  capture: CapturePlan | null;
+  /** Armies to place, by territory. */
+  place: Map<number, number>;
+  value: number;
+}
+
+// The continents worth taking in an escalating game (§1, *First Four Moves*): South
+// America and Australia, and Africa at 3 players.
+const SOUTH_AMERICA = 1;
+const AFRICA = 3;
+const AUSTRALIA = 5;
+
+function addPlace(place: Map<number, number>, t: number, armies: number): void {
+  if (armies > 0) place.set(t, (place.get(t) ?? 0) + armies);
+}
+
+/** Leftover armies onto the front stack: the biggest territory with an enemy beside it. */
+function stackAllocation(b: Board, me: Seat, armies: number, place: Map<number, number>): void {
+  if (armies <= 0) return;
+  let best = -1;
+  for (let t = 0; t < N; t++) {
+    if (b.owner[t] !== me || !hasEnemyNeighbour(b, t)) continue;
+    const here = b.armies[t] + (place.get(t) ?? 0);
+    if (best < 0 || here > b.armies[best] + (place.get(best) ?? 0)) best = t;
+  }
+  if (best < 0) best = b.owner.indexOf(me);
+  addPlace(place, best, armies);
+}
+
+/** Leftover armies where they most cut the expected loss to each territory's
+ *  strongest attacker (with that attacker's reinforcements), in chunks. */
+function guardAllocation(b: Board, me: Seat, armies: number, place: Map<number, number>, income: number[], H: number): void {
+  if (armies <= 0) return;
+  const front: { t: number; attackers: number; bonus: number }[] = [];
+  for (let t = 0; t < N; t++) {
+    if (b.owner[t] !== me) continue;
+    let attackers = 0;
+    for (const n of ADJ[t]) {
+      if (b.owner[n] !== me) attackers = Math.max(attackers, b.armies[n] - 1 + Math.round(income[b.owner[n]]));
+    }
+    if (attackers === 0) continue;
+    const c = CONTINENT_OF[t];
+    front.push({ t, attackers, bonus: holdsContinent(b, me, c) ? H * CONTINENT_BONUS[c] : 0 });
+  }
+  if (front.length === 0) return stackAllocation(b, me, armies, place);
+  const loss = (f: (typeof front)[number], extra: number) => {
+    const held = b.armies[f.t] + (place.get(f.t) ?? 0) + extra;
+    return winProb(f.attackers, held) * (held + f.bonus);
+  };
+  let left = armies;
+  const chunk = Math.max(1, Math.ceil(armies / 4));
+  while (left > 0) {
+    const step = Math.min(chunk, left);
+    let best = front[0];
+    let bestGain = -Infinity;
+    for (const f of front) {
+      const gain = loss(f, 0) - loss(f, step) + step;
+      if (gain > bestGain) {
+        bestGain = gain;
+        best = f;
+      }
+    }
+    addPlace(place, best.t, step);
+    left -= step;
+  }
+}
+
+export function placed(b: Board, place: Map<number, number>): Board {
+  const out = copyBoard(b);
+  for (const [t, a] of place) out.armies[t] += a;
+  return out;
+}
+
+/** The forced trades of `ELIM-3`, their armies placed on my front stack. */
+function forcedTrades(b: Board, me: Seat): void {
+  let armies = 0;
+  while (b.handSize[me] >= 6) {
+    b.handSize[me] -= 3;
+    b.setsTraded++;
+    armies += setValue(b.setsTraded);
+  }
+  if (armies === 0) return;
+  const place = new Map<number, number>();
+  stackAllocation(b, me, armies, place);
+  for (const [t, a] of place) b.armies[t] += a;
+}
+
+/** Takes `t` from `from` with `survivors` armies arriving. A run moves them all on; a
+ *  single capture (`split`) divides them as the move-in would: the least into a
+ *  territory with no enemy beside it, everything out of a source left with none,
+ *  otherwise half each. */
+function takeOne(b: Board, me: Seat, from: number, t: number, survivors: number, split: boolean): void {
+  const victim = b.owner[t];
+  b.owner[t] = me;
+  let into = survivors;
+  if (split) {
+    if (!hasEnemyNeighbour(b, t)) into = Math.min(3, survivors);
+    else if (hasEnemyNeighbour(b, from)) into = Math.ceil(survivors / 2);
+  }
+  into = Math.max(1, into);
+  b.armies[t] = into;
+  b.armies[from] = 1 + Math.max(0, survivors - into);
+  if (eliminateIfEmpty(b, victim, me)) forcedTrades(b, me);
+  b.cardEarned = true;
+}
+
+/** Route `r` run on `b`, taking its first `upTo` territories, the last arriving with
+ *  `arrive` armies (the rest keep one each). */
+function runRoute(b: Board, me: Seat, r: CapturePlan["routes"][number], upTo: number, arrive: number): void {
+  let from = r.source;
+  for (let k = 0; k < upTo; k++) {
+    const t = r.path[k];
+    takeOne(b, me, from, t, k === upTo - 1 ? arrive : 1, r.path.length === 1);
+    from = t;
+  }
+}
+
+/** The board when every route succeeds, each arriving with its expected armies. */
+export function successBoard(b: Board, me: Seat, cp: CapturePlan): Board {
+  const out = copyBoard(b);
+  cp.routes.forEach((r, i) => runRoute(out, me, r, r.path.length, Math.max(1, Math.round(cp.arrive[i]))));
+  return out;
+}
+
+/** The board when the plan falls short in its likeliest way: routes better than even
+ *  succeed, the rest stop at their likeliest stopping place (at least one stops). */
+export function failureBoard(b: Board, me: Seat, cp: CapturePlan): Board {
+  const out = copyBoard(b);
+  let weakest = 0;
+  cp.pRoute.forEach((p, i) => {
+    if (p < cp.pRoute[weakest]) weakest = i;
+  });
+  const allSucceed = cp.pRoute.every((p) => p >= 0.5);
+  cp.routes.forEach((r, i) => {
+    const fails = cp.pRoute[i] < 0.5 || (allSucceed && i === weakest);
+    if (!fails) {
+      runRoute(out, me, r, r.path.length, Math.max(1, Math.round(cp.arrive[i])));
+      return;
+    }
+    const at = stopIndex(out.armies[r.source], r.path.map((t) => out.armies[t]));
+    const stopped = r.path[at];
+    const half = Math.max(1, Math.ceil(out.armies[stopped] / 2));
+    runRoute(out, me, r, at, 1);
+    out.armies[at === 0 ? r.source : r.path[at - 1]] = 1;
+    out.armies[stopped] = half;
+  });
+  return out;
+}
+
+function stopIndex(armies: number, defenders: readonly number[]): number {
+  // The defender at which the run is likeliest to stop, approximated by walking the
+  // expected armies forward (exact stop chances are in `pathRun`; this keeps it cheap).
+  let a = armies - 1;
+  for (let i = 0; i < defenders.length; i++) {
+    const p = winProb(a, defenders[i]);
+    if (p < 0.5) return i;
+    a -= defenders[i] + 1;
+    if (a <= 0) return Math.min(i + 1, defenders.length - 1);
+  }
+  return defenders.length - 1;
+}
+
+/** One sampled blitz: the attackers and defenders left. */
+function sampleBattle(a: number, d: number, rng: Rng): [number, number] {
+  while (a > 0 && d > 0) {
+    const odds = rollOdds(a, d);
+    const pairs = odds.length - 1;
+    let r = rng.next();
+    let lost = 0;
+    while (lost < pairs && r >= odds[lost]) {
+      r -= odds[lost];
+      lost++;
+    }
+    a -= lost;
+    d -= pairs - lost;
+  }
+  return [a, d];
+}
+
+/** One end of the plan with sampled dice. */
+function sampledBoard(b: Board, me: Seat, cp: CapturePlan, rng: Rng): Board {
+  const out = copyBoard(b);
+  for (const r of cp.routes) {
+    let from = r.source;
+    for (let k = 0; k < r.path.length; k++) {
+      const t = r.path[k];
+      const [a, d] = sampleBattle(out.armies[from] - 1, out.armies[t], rng);
+      if (d > 0) {
+        out.armies[from] = a + 1;
+        out.armies[t] = d;
+        break;
+      }
+      takeOne(out, me, from, t, a, r.path.length === 1);
+      from = t;
+    }
+  }
+  return out;
+}
+
+function scorePlan(b: Board, me: Seat, plan: Plan, params: Params, rng: Rng): number {
+  const after = placed(b, plan.place);
+  const cp = plan.capture;
+  if (cp === null) return evaluate(after, me, params);
+  const samples = params.engine.outcomeSamples;
+  if (samples > 0) {
+    let sum = 0;
+    for (let i = 0; i < samples; i++) sum += evaluate(sampledBoard(after, me, cp, rng), me, params);
+    return sum / samples;
+  }
+  const p = cp.pSuccess;
+  const win = p > 0.001 ? evaluate(successBoard(after, me, cp), me, params) : 0;
+  const lose = p < 0.999 ? evaluate(failureBoard(after, me, cp), me, params) : 0;
+  return p * win + (1 - p) * lose;
+}
+
+/** Target sets worth a plan: single captures, small continents to complete, victims. */
+function candidateTargets(b: Board, me: Seat, toPlace: number): { kind: PlanKind; targets: number[] }[] {
+  const out: { kind: PlanKind; targets: number[] }[] = [];
+  // A card-less victim at a table of 5 or 6 is left as a buffer (Domination drops
+  // card-less elimination targets): its kill pays nothing, and it absorbs the others.
+  const buffers = new Set<Seat>();
+  const alive = b.alive.filter(Boolean).length;
+  for (let v = 0; v < b.players; v++) if (v !== me && b.alive[v] && b.handSize[v] === 0 && alive >= 5) buffers.add(v);
+  const finishesBuffer = (targets: readonly number[]) =>
+    [...buffers].some((v) => {
+      for (let t = 0; t < N; t++) if (b.owner[t] === v && !targets.includes(t)) return false;
+      return true;
+    });
+
+  const singles: { t: number; score: number }[] = [];
+  for (let t = 0; t < N; t++) {
+    if (b.owner[t] === me) continue;
+    let source = 0;
+    for (const n of ADJ[t]) if (b.owner[n] === me) source = Math.max(source, b.armies[n]);
+    if (source === 0 || finishesBuffer([t])) continue;
+    const p = winProb(source - 1 + toPlace, b.armies[t]);
+    if (p < 0.25) continue;
+    const c = CONTINENT_OF[t];
+    const breaks = holdsContinent(b, b.owner[t], c) ? 1 : 0;
+    singles.push({ t, score: p * (1 + breaks) - 0.05 * b.armies[t] });
+  }
+  singles.sort((x, y) => y.score - x.score || x.t - y.t);
+  for (const s of singles.slice(0, 8)) out.push({ kind: "capture", targets: [s.t] });
+
+  const continents = b.players === 3 ? [SOUTH_AMERICA, AFRICA, AUSTRALIA] : [SOUTH_AMERICA, AUSTRALIA];
+  for (const c of continents) {
+    const missing = CONTINENT_MEMBERS[c].filter((t) => b.owner[t] !== me);
+    if (missing.length >= 2 && missing.length <= Math.ceil(CONTINENT_MEMBERS[c].length / 2) && !finishesBuffer(missing)) {
+      out.push({ kind: "continent", targets: missing });
+    }
+  }
+
+  for (let v = 0; v < b.players; v++) {
+    if (v === me || !b.alive[v] || buffers.has(v)) continue;
+    if (killChance(b, me, v, toPlace) > 0.02) {
+      const targets: number[] = [];
+      for (let t = 0; t < N; t++) if (b.owner[t] === v) targets.push(t);
+      if (targets.length > 1) out.push({ kind: "kill", targets });
+    }
+  }
+  return out;
+}
+
+/** Every plan for this position, scored. */
+export function plans(b: Board, me: Seat, toPlace: number, params: Params, rng: Rng): Plan[] {
+  const income = expectedIncome(b, me);
+  const H = incomeHorizon(params.prefs, setValue(b.setsTraded + 1));
+  const out: Plan[] = [];
+  const add = (kind: PlanKind, targets: number[], capture: CapturePlan | null, place: Map<number, number>) => {
+    const plan: Plan = { kind, targets, capture, place, value: 0 };
+    plan.value = scorePlan(b, me, plan, params, rng);
+    out.push(plan);
+  };
+
+  const stack = new Map<number, number>();
+  stackAllocation(b, me, toPlace, stack);
+  add("hold", [], null, stack);
+  if (toPlace > 0) {
+    const guard = new Map<number, number>();
+    guardAllocation(b, me, toPlace, guard, income, H);
+    add("hold", [], null, guard);
+  }
+
+  for (const { kind, targets } of candidateTargets(b, me, toPlace)) {
+    const variants = toPlace > 0 ? [0.9, 1] : [1];
+    for (const enough of variants) {
+      const cp = planCapture(b, me, targets, toPlace, enough);
+      if (cp === null) continue;
+      // A run needs its launch stack able to attack once placing is done.
+      if (cp.routes.some((r, i) => b.armies[r.source] + cp.alloc[i] < 2)) continue;
+      const place = new Map<number, number>();
+      cp.routes.forEach((r, i) => addPlace(place, r.source, cp.alloc[i]));
+      if (enough < 1) guardAllocation(b, me, cp.leftover, place, income, H);
+      else if (cp.routes.length > 0) addPlace(place, cp.routes[0].source, cp.leftover);
+      add(kind, targets, cp, place);
+      if (cp.leftover === 0 && enough < 1) break;
+    }
+  }
+  return out;
+}
+
+/** The plan to commit to: the best, with a kill held to the commit margin. */
+export function bestPlan(b: Board, me: Seat, toPlace: number, params: Params, rng: Rng): Plan {
+  const all = plans(b, me, toPlace, params, rng);
+  let best: Plan | null = null;
+  let bestKill: Plan | null = null;
+  for (const p of all) {
+    if (p.kind === "kill") {
+      if (bestKill === null || p.value > bestKill.value) bestKill = p;
+    } else if (best === null || p.value > best.value) best = p;
+  }
+  if (best === null) throw new Error("the planner always has a hold");
+  if (bestKill !== null && bestKill.value > best.value + params.prefs.killCommitMargin) return bestKill;
+  return best;
+}

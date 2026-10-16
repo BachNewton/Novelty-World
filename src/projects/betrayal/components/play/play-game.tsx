@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { getProjectStorage } from "@/shared/lib/storage";
 import { ENGINE } from "../../game";
-import type { InputKind } from "../../input/controls";
+import type { InputKind } from "@/shared/lib/input";
 import { createPlayStore, type PlayStore } from "../../play/store";
 import { decodeGame, OutdatedGameError, type SharedGame } from "../../share";
 import { errorText } from "../pending-panel";
