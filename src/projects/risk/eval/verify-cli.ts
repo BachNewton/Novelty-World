@@ -1,6 +1,7 @@
 import process from "node:process";
 import { inlineRunner } from "@/shared/lib/bot-lab/pool";
-import { checkBots, commonDefaults, commonFlag, number } from "./cli-args";
+import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
+import { checkBots, commonDefaults, commonFlag, number, riskRunLog } from "./cli-args";
 import { riskPool, tableSpecs } from "./parallel";
 import { runSpec, type RiskGameResult, type RiskGameSpec } from "./runner";
 
@@ -64,8 +65,15 @@ function mean(xs: readonly number[]): number {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const inline = inlineRunner(runSpec);
-  const pool = riskPool(args.common.workers);
+  const log = riskRunLog({
+    tool: "risk:verify",
+    bots: args.labels,
+    tables: args.common.players.map((n) => `${n.toString()}p`),
+    seeds: args.common.prefix,
+    workers: args.common.workers,
+  });
+  const inline = log.watch(inlineRunner(runSpec), (r) => r.decisions);
+  const pool = log.watch(riskPool(args.common.workers), (r) => r.decisions);
   let mismatches = 0;
   let errors = 0;
   console.log(
@@ -108,6 +116,7 @@ async function main(): Promise<void> {
   } finally {
     await pool.close();
   }
+  console.log(`\n${formatRunRecord(log.finish())}`);
   if (mismatches > 0 || errors > 0) {
     console.log(`\n  ❌ ${mismatches} games diverged, ${errors} games threw\n`);
     process.exit(1);

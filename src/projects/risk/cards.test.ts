@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { CardId, CardSymbol } from "../contract";
-import { TERRITORIES } from "../map";
+import type { CardId, CardSymbol } from "./contract";
+import { TERRITORIES } from "./map";
 import { FULL_DECK, isValidSet, setsIn, setValue, symbolOf } from "./cards";
 
 const of = (symbol: CardSymbol) => TERRITORIES.filter((t) => t.symbol === symbol).map((t) => t.id as CardId);
@@ -55,8 +55,18 @@ describe("CARDS-4: every hand of five holds a set", () => {
   });
 });
 
-describe("CARDS-6: set values escalate game-wide", () => {
-  it("4, 6, 8, 10, 12, 15, then 5 more each", () => {
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(setValue)).toEqual([4, 6, 8, 10, 12, 15, 20, 25, 30, 35]);
+describe("CARDS-6: fixed set values", () => {
+  it("three infantry 4, three cavalry 6, three artillery 8, one of each 10", () => {
+    expect(setValue([inf[0], inf[1], inf[2]])).toBe(4);
+    expect(setValue([cav[0], cav[1], cav[2]])).toBe(6);
+    expect(setValue([art[0], art[1], art[2]])).toBe(8);
+    expect(setValue([inf[0], cav[0], art[0]])).toBe(10);
+  });
+  it("a wild counts as whichever symbol is worth most", () => {
+    expect(setValue([inf[0], inf[1], "wild-1"])).toBe(4);
+    expect(setValue([cav[0], "wild-1", cav[1]])).toBe(6);
+    expect(setValue(["wild-2", art[0], art[1]])).toBe(8);
+    expect(setValue([inf[0], art[0], "wild-1"])).toBe(10);
+    expect(setValue([inf[0], "wild-1", "wild-2"])).toBe(10);
   });
 });

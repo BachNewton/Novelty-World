@@ -66,7 +66,7 @@ export function cardTable(card: string, after: readonly EventView[], pending: Ga
   const byCard = (rule: RuleView) => rule.source === "card" && rule.card === card;
   for (const event of after) {
     if ((event.type !== "roll-coming" && event.type !== "table-row") || !byCard(event.rule)) continue;
-    const rows = (event.data as { rows: RowSummary[] | null }).rows;
+    const { rows } = event.data;
     if (rows !== null) return rows;
   }
   if (pending?.type === "decision" && pending.detail !== null && (pending.kind === "roll-before" || pending.kind === "roll-after") && byCard(pending.rule))

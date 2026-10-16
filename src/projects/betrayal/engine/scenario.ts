@@ -10,7 +10,7 @@ import type {
   Trait,
 } from "../types";
 import { placed } from "./board";
-import { defineStep, gainCard, IN_HAND, moveCard } from "./effects";
+import { defineStep, gainCard, IN_TRANSIT, moveCard } from "./effects";
 import { putFigure, seatExplorer, trackTraits, TRAITS } from "./figures";
 import { barrierSides } from "./questions";
 import type { Engine, StepKind } from "./step-loop";
@@ -284,7 +284,7 @@ export function stackScenario(
   scenario: PreparedScenario,
 ): void {
   for (const card of scenario.explorers.flatMap((e) => e.cards))
-    moveCard(state, card, { at: "deck", type: catalog.cards[card].type }, IN_HAND);
+    moveCard(state, card, { at: "deck", type: catalog.cards[card].type }, IN_TRANSIT);
   for (const type of CARD_TYPES) {
     const top = scenario.decks[type];
     state.decks[type].draw = [
@@ -299,7 +299,7 @@ export function stackScenario(
   ];
 }
 
-export const SCENARIO_STEPS: Record<string, StepKind> = {
+export const SCENARIO_STEPS = {
   scenario: defineStep<PreparedScenario>((state, p, ctx) => {
     for (const id of p.rooms) {
       if (placed(state.board, id)) continue;
@@ -344,7 +344,7 @@ export const SCENARIO_STEPS: Record<string, StepKind> = {
       .filter((card) => ctx.catalog.cards[card].type === "omen").length;
     ctx.push(...gains);
   }),
-};
+} satisfies Record<string, StepKind>;
 
 /** In a barrier room, a placed explorer stands by its first door. */
 function firstSide(engine: Engine, room: string) {

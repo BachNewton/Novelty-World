@@ -116,11 +116,11 @@ export interface StatChange {
 export function statChanges(events: readonly EventView[]): StatChange[] {
   return events.flatMap((event): StatChange[] => {
     if (event.type === "trait-changed") {
-      const { figure, trait, spaces } = event.data as { figure: FigureId; trait: Trait; spaces: number };
+      const { figure, trait, spaces } = event.data;
       return spaces === 0 ? [] : [{ id: event.id, figure, trait, spaces }];
     }
     if (event.type === "damaged") {
-      const { figure, split } = event.data as { figure: FigureId; split: Partial<Record<Trait, number>> };
+      const { figure, split } = event.data;
       return Object.entries(split).flatMap(([trait, spaces]) => (spaces > 0 ? [{ id: `${event.id}:${trait}`, figure, trait: trait as Trait, spaces: -spaces }] : []));
     }
     return [];
@@ -129,6 +129,5 @@ export function statChanges(events: readonly EventView[]): StatChange[] {
 
 /** The card a card-drawn event drew, and who drew it. */
 export function drawnCard(event: EventView): { figure: FigureId; card: string; type: CardType } | null {
-  if (event.type !== "card-drawn") return null;
-  return event.data as { figure: FigureId; card: string; type: CardType };
+  return event.type === "card-drawn" ? event.data : null;
 }

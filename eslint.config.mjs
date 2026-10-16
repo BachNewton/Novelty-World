@@ -89,7 +89,7 @@ const eslintConfig = defineConfig([
     },
   },
   // Risk's bots see only what their seat may legally see: they are handed a view, never the game
-  // state. So bot code reaches the contract's types, the map and shared helpers, and nothing in
+  // state. So bot code reaches the contract's types, the map, the card rules, the blitz odds and shared helpers, and nothing in
   // the project that holds or makes a state (the engine, the online game, the server, the harness).
   {
     files: ["src/projects/risk/bots/**/*.ts"],
@@ -101,8 +101,8 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              regex: "^(\\.\\./|@/projects/)(?!(contract|map)$)",
-              message: "A bot may import only the contract and the map from Risk: it sees its seat's view, never the state.",
+              regex: "^(\\.\\./|@/projects/)(?!(contract|map|blitz|cards)$)",
+              message: "A bot may import only the contract, the map, the cards and the blitz odds from Risk: it sees its seat's view, never the state.",
             },
           ],
         },
@@ -120,8 +120,8 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              regex: "^(\\.\\./\\.\\./|@/projects/)(?!(contract|map)$)",
-              message: "A bot may import only the contract and the map from Risk: it sees its seat's view, never the state.",
+              regex: "^(\\.\\./\\.\\./|@/projects/)(?!(contract|map|blitz|cards)$)",
+              message: "A bot may import only the contract, the map, the cards and the blitz odds from Risk: it sees its seat's view, never the state.",
             },
           ],
         },

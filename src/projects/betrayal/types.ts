@@ -1,3 +1,5 @@
+import type { EventOf } from "./engine/events";
+
 // ---------------------------------------------------------------------------
 // Content: the static catalogue, referenced from game state by id
 // ---------------------------------------------------------------------------
@@ -248,13 +250,9 @@ export interface Answered {
   choice: Json;
 }
 
-export interface GameEvent {
-  /** The decision whose answer produced it and its index within that write. */
-  id: string;
-  type: string;
-  rule: RuleRef;
-  data: Json;
-}
+/** Something that happened, of one of the types the engine names
+ *  (`engine/events.ts`), with that type's data. */
+export type GameEvent = EventOf;
 
 /** Which side a seat plays for, once the haunt gives it one. A neutral seat
  *  is no one's opponent. */
@@ -522,7 +520,7 @@ export interface GameState {
   /** Cards in someone's hand for a moment, between two places: drawn and
    *  not yet taken or put away (an event card being read), or on their way
    *  from one holder to the next. */
-  inHand: string[];
+  inTransit: string[];
   /** Counters and flags on cards in play, by card id, then by name. */
   cardMarks: Partial<Record<string, Record<string, CardMark>>>;
   turn: Turn | null;

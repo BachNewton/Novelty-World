@@ -161,7 +161,7 @@ function cardsAndTiles(engine: Engine, state: GameState, found: string[]): void 
       ...Object.values(state.piles).flat(),
       ...state.ongoing,
       ...state.aside.map((a) => a.card),
-      ...state.inHand,
+      ...state.inTransit,
     ],
     Object.values(engine.catalog.cards)
       .filter((c) => state.sets.includes(c.set))

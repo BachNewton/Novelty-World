@@ -70,9 +70,8 @@ describe("the classic map (MAP-3)", () => {
     expect(crossing).toEqual(expected);
   });
 
-  it("has 14 cards of each symbol (DECK-2)", () => {
-    for (const symbol of ["infantry", "cavalry", "artillery"]) {
-      expect(TERRITORIES.filter((t) => t.symbol === symbol)).toHaveLength(14);
-    }
+  it("has GD's deck: 13 infantry, 14 cavalry and 15 artillery (DECK-2)", () => {
+    const count = (symbol: string) => TERRITORIES.filter((t) => t.symbol === symbol).length;
+    expect([count("infantry"), count("cavalry"), count("artillery")]).toEqual([13, 14, 15]);
   });
 });

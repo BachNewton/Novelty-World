@@ -1,5 +1,6 @@
-import type { CardId, GameView, Seat } from "../../contract";
+import type { GameView, Seat } from "../../contract";
 import { ADJACENCY, CONTINENTS, TERRITORIES, type TerritoryId } from "../../map";
+import { shapeOf, type Shape } from "./cards";
 
 // The bot's own board: the map as indices, and a position as flat arrays it can
 // copy and change cheaply while it weighs plans. Built only from a seat's view.
@@ -30,10 +31,14 @@ export interface Board {
   armies: Int32Array;
   alive: boolean[];
   handSize: number[];
-  /** Sets traded so far in the game (`CARDS-6`). */
-  setsTraded: number;
-  /** Whether the seat to move has captured this turn (`CARDS-1`). */
+  /** The symbols of the cards the bot knows are in its own hand: all of them, until a
+   *  plan takes a victim's unseen cards. */
+  known: Shape;
+  /** Whether the seat to move has captured this turn, so draws a card as it ends (`CARDS-1`). */
   cardEarned: boolean;
+  /** Turns begun in the game: a seat whose place in the order is at or past it has not had
+   *  its first turn (`REINF-6`). */
+  turn: number;
 }
 
 export function fromView(view: GameView): Board {
@@ -52,8 +57,9 @@ export function fromView(view: GameView): Board {
     armies,
     alive: view.seats.map((s) => !s.eliminated),
     handSize: view.seats.map((s) => s.handSize),
-    setsTraded: view.cards.setsTraded,
+    known: shapeOf(view.cards.hand ?? []),
     cardEarned: view.cardEarned,
+    turn: view.turn,
   };
   // A seat whose last territory was just taken is out once the move-in is made
   // (`ELIM-2`): its cards are the capturer's already.
@@ -69,8 +75,9 @@ export function copyBoard(b: Board): Board {
     armies: b.armies.slice(),
     alive: b.alive.slice(),
     handSize: b.handSize.slice(),
-    setsTraded: b.setsTraded,
+    known: b.known,
     cardEarned: b.cardEarned,
+    turn: b.turn,
   };
 }
 
@@ -128,4 +135,10 @@ export function eliminateIfEmpty(b: Board, victim: Seat, by: Seat): boolean {
   return true;
 }
 
-export type Hand = readonly CardId[];
+/** `REINF-6`: the extra armies `seat` gets on its first turn, if it is still to come. */
+export function firstTurnBonus(b: Board, seat: Seat): number {
+  const at = b.order.indexOf(seat);
+  if (at < b.turn) return 0;
+  const table: Record<number, readonly number[]> = { 3: [0, 0, 1], 4: [0, 0, 0, 1], 5: [0, 0, 0, 1, 2], 6: [0, 0, 0, 1, 2, 3] };
+  return table[b.order.length][at];
+}

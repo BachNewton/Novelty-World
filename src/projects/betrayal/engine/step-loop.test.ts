@@ -18,7 +18,9 @@ import {
   start,
   type Engine,
   type Rules,
+  type StepContext,
 } from "./step-loop";
+import type { EventType } from "./events";
 
 const RULE: RuleRef = { source: "rulebook", page: 6 };
 
@@ -28,13 +30,19 @@ const options = (decision: Decision) =>
     (option) => option !== "bad",
   );
 
+/** Emits one of the toy rule set's own events, which no real rule emits:
+ *  the loop carries any event as it is given. */
+function emitToy(ctx: StepContext, type: string, data: Json): void {
+  ctx.emit(type as EventType, RULE, data as never);
+}
+
 /** A toy rule set: just enough to drive the loop. */
 const RULES: Rules = {
   steps: {
-    ask: defineStep((_state, params, ctx) => {
+    ask: defineStep<Json>((_state, params, ctx) => {
       ctx.decide([0], "pick", params, RULE);
     }),
-    "ask-act": defineStep((_state, params, ctx) => {
+    "ask-act": defineStep<Json>((_state, params, ctx) => {
       ctx.decide([0], "act", params, RULE);
     }),
     "ask-all": defineStep((_state, _params, ctx) => {
@@ -43,8 +51,8 @@ const RULES: Rules = {
     "wait-all": defineStep((_state, _params, ctx) => {
       ctx.waitForReady([0, 1], RULE);
     }),
-    note: defineStep((_state, params, ctx) => {
-      ctx.emit("note", RULE, params);
+    note: defineStep<Json>((_state, params, ctx) => {
+      emitToy(ctx, "note", params);
     }),
     forever: defineStep((_state, _params, ctx) => {
       ctx.push({ kind: "forever", params: null });
@@ -56,7 +64,7 @@ const RULES: Rules = {
       label: (_state, _decision, choice) => `Pick ${String(choice)}`,
       resolve: (_state, decision, ctx) => {
         const choice = decision.answers[0];
-        ctx.emit("picked", RULE, { choice, roll: ctx.random.dice(3) });
+        emitToy(ctx, "picked", { choice, roll: ctx.random.dice(3) });
       },
     },
     act: {
@@ -64,14 +72,14 @@ const RULES: Rules = {
       label: (_state, _decision, choice) => `Do ${String(choice)}`,
       alwaysAsks: () => true,
       resolve: (_state, decision, ctx) => {
-        ctx.emit("acted", RULE, decision.answers[0]);
+        emitToy(ctx, "acted", decision.answers[0]);
       },
     },
     vote: {
       legal: () => ["red", "blue"],
       label: (_state, _decision, choice) => String(choice),
       resolve: (_state, decision, ctx) => {
-        ctx.emit("votes", RULE, decision.answers as Json);
+        emitToy(ctx, "votes", decision.answers as Json);
       },
     },
   },

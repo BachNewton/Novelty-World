@@ -324,8 +324,8 @@ describe("Ring (cards/omens.md)", () => {
       { figure: OX, dice: 3 },
     ]);
     const outcome = next.lastEvents.find((e) => e.type === "attack-outcome")
-      ?.data as { damage: { kind: string } | null };
-    if (outcome.damage) expect(outcome.damage.kind).toBe("mental");
+      ?.data as { harm: unknown };
+    expect(outcome.harm).toMatchObject({ kind: "damage", damage: "mental" });
   });
 });
 

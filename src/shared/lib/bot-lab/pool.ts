@@ -1,4 +1,5 @@
 import os from "node:os";
+import process from "node:process";
 import { Worker } from "node:worker_threads";
 
 // ---------------------------------------------------------------------------
@@ -33,6 +34,9 @@ export function defaultWorkerCount(): number {
   return Math.max(1, os.cpus().length - 2);
 }
 
+/** The signals that stop a run: Ctrl-C, a kill, and Windows' Ctrl-Break and console close. */
+const STOP_SIGNALS: readonly NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGBREAK", "SIGHUP"];
+
 /** A reusable pool of worker threads, each running `workerModule` (a module that
  *  calls `serveGames`). Spawn once, call `run` repeatedly (each call distributes a
  *  batch of games across all workers and resolves when they all complete), then
@@ -48,6 +52,20 @@ export class WorkerPool<Spec extends Indexed, Result extends Indexed>
   constructor(workerModule: URL, size: number = defaultWorkerCount()) {
     this.size = Math.max(1, size);
     this.workers = Array.from({ length: this.size }, () => new Worker(workerModule));
+    for (const signal of STOP_SIGNALS) process.on(signal, this.onSignal);
+  }
+
+  private readonly onSignal = (signal: NodeJS.Signals): void => {
+    this.stop(128 + os.constants.signals[signal]);
+  };
+
+  /** A run told to stop exits at once, its workers with it, rather than playing
+   *  games nobody will read. Exiting, not a signal's default, so the process's
+   *  `exit` handlers run (the run log's among them). A run killed outright gets no
+   *  signal: see the root CLAUDE.md's Bot measurement on launching long runs. */
+  private stop(code: number): void {
+    for (const w of this.workers) void w.terminate();
+    process.exit(code);
   }
 
   /** Play every spec across the pool and resolve with all results, sorted by
@@ -98,6 +116,7 @@ export class WorkerPool<Spec extends Indexed, Result extends Indexed>
   }
 
   async close(): Promise<void> {
+    for (const signal of STOP_SIGNALS) process.off(signal, this.onSignal);
     await Promise.all(this.workers.map((w) => w.terminate()));
   }
 }

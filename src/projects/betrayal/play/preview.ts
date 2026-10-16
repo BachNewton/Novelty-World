@@ -38,7 +38,7 @@ export function costText(preview: Pick<RoutePreview, "spaces" | "left">): string
 
 /** Each rule a route sets off, in one plain sentence with its source named first, once each. */
 export function warningLines(engine: Engine, notes: RuleNotes | null, preview: Pick<RoutePreview, "warnings">): string[] {
-  const lines = preview.warnings.map(({ rule, event }) => ruleStatement(engine, notes, rule, event === null ? null : { type: event, data: {} }));
+  const lines = preview.warnings.map(({ rule, event }) => ruleStatement(engine, notes, rule, event));
   return lines.filter((line, i) => lines.indexOf(line) === i);
 }
 

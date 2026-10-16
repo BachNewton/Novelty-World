@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CardId, CardSymbol, Seat } from "../contract";
 import { CONTINENTS, TERRITORIES, type TerritoryId } from "../map";
 import { referenceEngine as engine } from ".";
-import { position, play } from "./test-kit";
+import { inside, position, play } from "./test-kit";
 
 const of = (symbol: CardSymbol) => TERRITORIES.filter((t) => t.symbol === symbol).map((t) => t.id);
 const [inf, cav, art] = [of("infantry"), of("cavalry"), of("artillery")];
@@ -34,6 +34,13 @@ describe("reinforcement", () => {
     expect(v.phase).toBe("reinforce");
   });
 
+  it("REINF-6: on the first round, later seats in the turn order get extra armies", () => {
+    // Seat 0 holds the whole board, so every other seat earns the minimum 3 plus its bonus.
+    const extra = (active: Seat, round: number) => engine.view(position({ players: 6, active, round, rest: [0, 1] }), null).armiesToPlace - 3;
+    expect([1, 2, 3, 4, 5].map((seat) => extra(seat, 0))).toEqual([0, 0, 1, 2, 3]);
+    expect(extra(5, 1)).toBe(0);
+  });
+
   it("REINF-1: every reinforcement is placed before the first battle", () => {
     const state = position({ board: owning(["japan"], 0, 5) });
     expect(engine.apply(state, 0, { kind: "attack", from: "japan", to: "kamchatka", dice: 3 }).ok).toBe(false);
@@ -58,7 +65,7 @@ describe("reinforcement", () => {
 describe("trading", () => {
   const set: CardId[] = [inf[0], inf[1], inf[2]];
 
-  it("CARDS-5: 3 or 4 cards may trade one set, before placing, or not at all", () => {
+  it("CARDS-5: 3 or 4 cards may trade, before placing, or not at all", () => {
     const state = position({ board: owning(["japan"]), hands: [[...set, cav[0]]] });
     const options = engine.options(state, 0);
     expect(options).toMatchObject({ kind: "reinforce", mustTrade: false, mayPlace: true });
@@ -77,7 +84,7 @@ describe("trading", () => {
     expect(engine.options(traded, 0)).toMatchObject({ mustTrade: false, mayPlace: true, sets: [] });
   });
 
-  it("CARDS-5: 6 cards must trade one set and may trade a second", () => {
+  it("CARDS-5: any sets held may be traded, one after another", () => {
     const second: CardId[] = [cav[0], cav[1], cav[2]];
     const state = position({ board: owning(["japan"]), hands: [[...set, ...second]] });
     const once = play(engine, state, 0, { kind: "trade", cards: [set[0], set[1], set[2]] }).state;
@@ -99,18 +106,24 @@ describe("trading", () => {
     expect(engine.apply(state, 0, { kind: "trade", cards: [inf[0], cav[0], art[3]] }).ok).toBe(true);
   });
 
-  it("CARDS-6: the value counts every set anyone has traded", () => {
-    const state = position({ board: owning(["japan"]), hands: [[...set]], setsTraded: 5 });
-    expect(engine.view(state, null).cards.nextSetValue).toBe(15);
-    const traded = play(engine, state, 0, { kind: "trade", cards: [set[0], set[1], set[2]] });
-    expect(traded.events.find((e) => e.kind === "traded")).toMatchObject({ armies: 15 });
-    expect(engine.view(traded.state, null).cards).toMatchObject({ setsTraded: 6, nextSetValue: 20 });
+  it("CARDS-6: a set is worth its fixed value, however many were traded before it", () => {
+    const one: CardId[] = [inf[3], cav[3], art[3]];
+    const state = position({ board: owning(["japan"]), hands: [[...set, ...one]] });
+    const first = play(engine, state, 0, { kind: "trade", cards: [one[0], one[1], one[2]] });
+    expect(first.events.find((e) => e.kind === "traded")).toMatchObject({ armies: 10 });
+    const second = play(engine, first.state, 0, { kind: "trade", cards: [set[0], set[1], set[2]] });
+    expect(second.events.find((e) => e.kind === "traded")).toMatchObject({ armies: 4 });
   });
 
-  it("CARDS-8: traded cards go face up on the discard pile", () => {
+  it("CARDS-8: traded cards go back into the deck below its top 3, and the trade is public", () => {
     const state = position({ board: owning(["japan"]), hands: [[...set]] });
+    const top = inside(state).deck.slice(0, 3);
     const traded = play(engine, state, 0, { kind: "trade", cards: [set[0], set[1], set[2]] }).state;
-    expect(engine.view(traded, 1).cards.discardPile).toEqual(set);
+    const deck = inside(traded).deck;
+    expect(deck).toHaveLength(44);
+    expect(deck.slice(0, 3)).toEqual(top);
+    expect(set.every((card) => deck.includes(card))).toBe(true);
+    expect(engine.view(traded, 1).cards).toMatchObject({ deck: 44, traded: [{ seat: 0, cards: set }] });
     expect(engine.view(traded, 0).cards.hand).toEqual([]);
   });
 });

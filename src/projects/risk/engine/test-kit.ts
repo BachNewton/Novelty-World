@@ -1,7 +1,7 @@
 import { createRng, pick, type Rng } from "@/shared/lib/seeded-random";
 import type { CardId, GameEvent, GameState, GameView, Move, Options, RiskEngine, Seat } from "../contract";
 import { ADJACENCY, type TerritoryId } from "../map";
-import { FULL_DECK } from "./cards";
+import { FULL_DECK } from "../cards";
 import { referenceEngine } from "./index";
 import { InvariantChecker } from "./invariants";
 import { rollDie, TERRITORY_IDS, unwrap, wrap, type Ctx, type EngineState } from "./state";
@@ -17,15 +17,16 @@ export interface Position {
   /** Owner and armies of every other territory. */
   rest?: [Seat, number];
   hands?: CardId[][];
-  setsTraded?: number;
   eliminated?: Seat[];
+  /** Rounds completed: 1 by default, so the first-turn bonus (`REINF-6`) is over. */
+  round?: number;
   /** Whose turn begins (its reinforce phase, `REINF-1`). */
   active?: Seat;
   /** The random source's state as the turn begins: see `rngForDice`. */
   rng?: number;
-  /** The draw pile, top first; every card in no hand and not here is in the discard pile. By
-   *  default every card in no hand, in deck order. */
-  drawPile?: CardId[];
+  /** The deck, top first: by default every card in no hand, in deck order. Every card in no hand
+   *  must be in it (`INV-4`). */
+  deck?: CardId[];
   /** Skips ahead in the turn: straight to its attack or fortify phase. */
   phase?: "reinforce" | "attack" | "fortify";
   capturedThisTurn?: boolean;
@@ -43,11 +44,11 @@ export function position(p: Position): GameState {
     turnOrder: seats,
     board: {} as EngineState["board"],
     hands: seats.map((seat) => [...(hands[seat] ?? [])]),
-    drawPile: p.drawPile ?? FULL_DECK.filter((c) => !held.has(c)),
-    discardPile: FULL_DECK.filter((c) => !held.has(c) && p.drawPile !== undefined && !p.drawPile.includes(c)),
-    setsTraded: p.setsTraded ?? 0,
+    deck: p.deck ?? FULL_DECK.filter((c) => !held.has(c)),
+    trades: [],
     eliminated: seats.map((seat) => p.eliminated?.includes(seat) ?? false),
     turn: 0,
+    round: p.round ?? 1,
     active: p.active ?? 0,
     phase: "reinforce",
     reinforce: null,

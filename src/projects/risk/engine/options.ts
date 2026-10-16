@@ -1,5 +1,5 @@
 import type { Options, Seat } from "../contract";
-import { setsIn } from "./cards";
+import { setsIn } from "../cards";
 import { attacks, bonusTerritories, fortifyMoves, mayTrade, mustTrade, reinforceState } from "./legal";
 import { ownedBy, type EngineState } from "./state";
 

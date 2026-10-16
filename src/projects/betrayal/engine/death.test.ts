@@ -24,7 +24,7 @@ import {
   step,
 } from "./effects";
 import { explorersFrom } from "./figures";
-import { local } from "./sources";
+import { LIGHTS_OUT } from "../data/behaviours/events-a";
 import { type Engine } from "./step-loop";
 
 // Death (rules pp. 5, 16, 19): before the haunt a trait stops at its lowest
@@ -292,7 +292,7 @@ describe("a kept event its dead holder was to discard", () => {
   it("stays with the body, doing nothing more", () => {
     const after = run(weakZoe(["lights-out"]), [
       die(ZOE, BELL),
-      local("lights-out", "discard", { figure: ZOE }),
+      LIGHTS_OUT.step("discard", { figure: ZOE }),
     ]);
     expect(after.figures[ZOE].cards).toEqual(["lights-out"]);
     expect(after.decks.event.discard).not.toContain("lights-out");

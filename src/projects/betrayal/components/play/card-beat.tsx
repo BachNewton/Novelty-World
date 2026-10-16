@@ -56,8 +56,8 @@ export interface CardBeatProps {
  *  it was drawn in, the cause). */
 export function drawnIn(told: readonly EventView[], drawn: EventView, figure: string): string | null {
   const before = told.slice(0, told.indexOf(drawn));
-  const entered = before.findLast((candidate) => (candidate.type === "entered" || candidate.type === "discovered") && (candidate.data as { figure?: string }).figure === figure);
-  return entered ? (entered.data as { room: string }).room : null;
+  const entered = before.findLast((candidate) => (candidate.type === "entered" || candidate.type === "discovered") && candidate.data.figure === figure);
+  return entered?.type === "entered" || entered?.type === "discovered" ? entered.data.room : null;
 }
 
 export function CardBeat({ scene, card: shown, goOn, act }: CardBeatProps) {

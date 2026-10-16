@@ -227,7 +227,7 @@ export function discoverRoom(
   ctx.push(
     ...how.after,
     ...symbols.map((type) => drawCard(figure, type, RULEBOOK(10))),
-    step<Arrive>("arrive", { figure, room, moved: how.moved, rule }),
+    step("arrive", { figure, room, moved: how.moved, rule }),
   );
 }
 
@@ -253,7 +253,7 @@ export function enterNewRoom(
   rule: RuleRef,
   how: { draws: boolean; after?: Step[] },
 ): Step {
-  return step<EnterNewRoom>("enter-new-room", {
+  return step("enter-new-room", {
     figure,
     room,
     rule,
@@ -282,7 +282,7 @@ export function drawRoomTile(
   rule: RuleRef,
   next: { then: Step; otherwise: Step[] | null; reshuffle?: boolean },
 ): Step {
-  return step<DrawRoomTile>("draw-room-tile", {
+  return step("draw-room-tile", {
     figure,
     where,
     reshuffle: next.reshuffle ?? true,
@@ -312,7 +312,7 @@ export function placeRoom(
   rule: RuleRef,
   next: { then?: Step[]; otherwise?: Step[]; stay?: boolean } = {},
 ): Step {
-  return step<PlaceRoom>("place-room", {
+  return step("place-room", {
     ...chosenBy(chooser),
     tile,
     where,
@@ -323,7 +323,7 @@ export function placeRoom(
   });
 }
 
-export const TILE_STEPS: Record<string, StepKind> = {
+export const TILE_STEPS = {
   arrive: defineStep<Arrive>((state, p, ctx) => {
     // A card drawn for the room may have sent the figure on (Mystic
     // Slide): it is no longer there, so the room's text doesn't apply to it.
@@ -342,7 +342,7 @@ export const TILE_STEPS: Record<string, StepKind> = {
     ctx.push(
       displace(
         p.figure,
-        leaveRoom(p.figure, step<EnterNewRoom>("into-new-room", p)),
+        leaveRoom(p.figure, step("into-new-room", p)),
       ),
     );
   }),
@@ -358,7 +358,7 @@ export const TILE_STEPS: Record<string, StepKind> = {
           p.room,
           sides,
           p.rule,
-          step<EnterNewRoom>("into-new-room", p),
+          step("into-new-room", p),
           ctx.catalog.rooms[p.room].name,
         ),
       );
@@ -410,7 +410,7 @@ export const TILE_STEPS: Record<string, StepKind> = {
     },
     { subject: () => null },
   ),
-};
+} satisfies Record<string, StepKind>;
 
 /** Where a cell is, by a room next to it: one with a door toward it if any. */
 function spotLabel(

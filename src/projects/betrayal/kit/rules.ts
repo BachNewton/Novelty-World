@@ -1,6 +1,6 @@
+import type { EventOf } from "../engine/events";
 import type {
   FigureId,
-  GameEvent,
   GameState,
   RuleRef,
   Side,
@@ -26,7 +26,7 @@ import {
 } from "../engine/haunt";
 import { askPermission, type DamageKind, type Modifier } from "../engine/questions";
 import { sideOf } from "../engine/sides";
-import { eventData, type Reaction } from "../engine/sources";
+import { type Reaction } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
 import type { ObjectiveAction } from "./haunt";
 
@@ -166,11 +166,9 @@ export function replaceWhenLost(how: {
   keepOne?: true;
   rule: RuleRef;
 }): Reaction[] {
-  const lost = (state: GameState, event: GameEvent) =>
-    isA(state, eventData<{ figure: FigureId }>(event).figure, how.figure);
-  return ["died", "escaped"].map((type) => ({
-    event: type,
-    when: (state, event) => lost(state, event),
+  const lost = {
+    when: (state: GameState, event: EventOf<"died" | "escaped">) =>
+      isA(state, event.data.figure, how.figure),
     steps: () => [
       offerReplacement(
         how.figure,
@@ -182,7 +180,11 @@ export function replaceWhenLost(how: {
         how.rule,
       ),
     ],
-  }));
+  };
+  return [
+    { event: "died", ...lost },
+    { event: "escaped", ...lost },
+  ];
 }
 
 /** A task roll (rules p. 13): a trait roll against a target, attempted at

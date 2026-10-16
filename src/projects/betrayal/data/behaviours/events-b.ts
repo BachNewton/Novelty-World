@@ -48,9 +48,9 @@ import {
   barrierSides,
 } from "../../engine/questions";
 import {
-  local,
   type Behaviour,
   type BehaviourGroup,
+  ownSteps,
   type Source,
 } from "../../engine/sources";
 import type { Engine } from "../../engine/step-loop";
@@ -155,6 +155,47 @@ function linkRooms(
   after: (figure: FigureId) => Step[],
 ) {
   const rule = card(id);
+  const own = ownSteps(id, {
+    link: defineStep<Linked>((state, p, ctx) => {
+      const here = placeOf(state, p.figure);
+      const same = here.room === p.there.room && here.side === p.there.side;
+      ctx.push(
+        placeToken(token, here.room, rule, {
+          side: here.side,
+          link: p.there,
+        }),
+        placeToken(token, p.there.room, rule, {
+          side: p.there.side,
+          link: here,
+        }),
+        ...(same
+          ? []
+          : [
+              chooseOne(
+                p.figure,
+                [
+                  {
+                    label: `Go through to ${placeLabel(state, p.there)}`,
+                    steps: [
+                      relocate(p.figure, p.there.room, rule, p.there.side),
+                      own.step("arrived", p),
+                    ],
+                    ...optionPlace(p.there),
+                  },
+                  { label: "Stay here", steps: [] },
+                ],
+                rule,
+              ),
+            ]),
+      );
+    }),
+    // A rule for leaving may have kept them where they were, or killed
+    // them on the way (a trait lost to the Attic's roll in a haunt).
+    arrived: defineStep<Linked>((state, p, ctx) => {
+      if (figureOf(state, p.figure).place?.room === p.there.room)
+        ctx.push(...after(p.figure));
+    }),
+  });
   return {
     otherEnd: (
       engine: Engine,
@@ -166,58 +207,18 @@ function linkRooms(
         figure,
         placesIn(engine, rooms).map((there) => ({
           label: `Put the other ${CATALOG.tokens[token].name} token in ${placeLabel(state, there)}`,
-          steps: [local(id, "link", { figure, there })],
+          steps: [own.step("link", { figure, there })],
           ...optionPlace(there),
         })),
         rule,
       ),
-    steps: {
-      link: defineStep<Linked>((state, p, ctx) => {
-        const here = placeOf(state, p.figure);
-        const same = here.room === p.there.room && here.side === p.there.side;
-        ctx.push(
-          placeToken(token, here.room, rule, {
-            side: here.side,
-            link: p.there,
-          }),
-          placeToken(token, p.there.room, rule, {
-            side: p.there.side,
-            link: here,
-          }),
-          ...(same
-            ? []
-            : [
-                chooseOne(
-                  p.figure,
-                  [
-                    {
-                      label: `Go through to ${placeLabel(state, p.there)}`,
-                      steps: [
-                        relocate(p.figure, p.there.room, rule, p.there.side),
-                        local(id, "arrived", p),
-                      ],
-                      ...optionPlace(p.there),
-                    },
-                    { label: "Stay here", steps: [] },
-                  ],
-                  rule,
-                ),
-              ]),
-        );
-      }),
-      // A rule for leaving may have kept them where they were, or killed
-      // them on the way (a trait lost to the Attic's roll in a haunt).
-      arrived: defineStep<Linked>((state, p, ctx) => {
-        if (figureOf(state, p.figure).place?.room === p.there.room)
-          ctx.push(...after(p.figure));
-      }),
-    },
+    steps: own.steps,
   };
 }
 
-const SECRET_PASSAGE = linkRooms("secret-passage", "secret-passage", () => []);
+const PASSAGE_LINK = linkRooms("secret-passage", "secret-passage", () => []);
 // Only the drawer, only going through at once, draws (the card's resolution).
-const SECRET_STAIRS = linkRooms("secret-stairs", "secret-stairs", (figure) => [
+const STAIRS_LINK = linkRooms("secret-stairs", "secret-stairs", (figure) => [
   drawCard(figure, "event", card("secret-stairs")),
 ]);
 
@@ -291,6 +292,181 @@ function roomCanGo(catalog: Catalog, state: GameState, where: Where): boolean {
 type SwitchParams = { figure: FigureId; room: string; wall: Edge[] };
 type PossessionParams = { figure: FigureId; trait: Trait };
 
+const POSSESSION = ownSteps("possession", {
+  // Read when the result lands, not when the card was drawn: the clip is wherever it is then.
+  "drop-to-lowest": defineStep<PossessionParams>((state, p, ctx) => {
+    const rule = card("possession");
+    const clips = trackTraits(ctx.catalog, state, p.figure).live.clips;
+    if (clips[p.trait] > 0) {
+      ctx.push(gain(p.figure, p.trait, -clips[p.trait], rule));
+      return;
+    }
+    // You choose the different trait (the card's resolution).
+    const others = TRAITS.filter((t) => t !== p.trait && clips[t] > 0);
+    if (others.length === 0) return;
+    ctx.push(
+      chooseOne(
+        p.figure,
+        others.map((t) => ({
+          label: `Lower ${traitName(t)} to its lowest value`,
+          steps: [gain(p.figure, t, -clips[t], rule)],
+        })),
+        rule,
+      ),
+    );
+  }),
+});
+
+const REVOLVING_WALL = ownSteps("revolving-wall", {
+  switch: defineStep<SwitchParams>((state, p, ctx) => {
+    const rule = card("revolving-wall");
+    const there = beyond(state, p.room, p.wall);
+    ctx.push(
+      placeWallToken("wall-switch", p.room, p.wall, rule),
+      there.room
+        ? relocate(p.figure, there.room.tile, rule)
+        : drawRoomTile(p.figure, { kind: "cell", spot: there.spot }, rule, {
+            then: enterNewRoom(p.figure, null, rule, { draws: true }),
+            otherwise: null,
+          }),
+    );
+  }),
+});
+
+const SHRIEKING_WIND = ownSteps("shrieking-wind", {
+  "blow-item-away": defineStep<SeatParams>((state, p, ctx) => {
+    const items = heldItems(state, p.figure);
+    if (items.length === 0) return;
+    ctx.push(
+      chooseOne(
+        p.figure,
+        items.map((item) => ({
+          label: `Put the ${ctx.catalog.cards[item].name} in the Entrance Hall`,
+          steps: [
+            loseCard(
+              p.figure,
+              item,
+              { to: "room", room: "entrance-hall" },
+              card("shrieking-wind"),
+            ),
+          ],
+        })),
+        card("shrieking-wind"),
+      ),
+    );
+  }),
+});
+
+const SECRET_PASSAGE = ownSteps("secret-passage", {
+  ...PASSAGE_LINK.steps,
+  "other-end": defineStep<{ figure: FigureId; floors: FloorId[] | null }>(
+    (state, p, ctx) => {
+      ctx.push(
+        PASSAGE_LINK.otherEnd(
+          ctx.engine,
+          state,
+          p.figure,
+          roomsOn(state, p.floors),
+        ),
+      );
+    },
+  ),
+});
+
+const SECRET_STAIRS = ownSteps("secret-stairs", {
+  ...STAIRS_LINK.steps,
+  "other-end": defineStep<SeatParams>((state, p, ctx) => {
+    const floor = floorOf(state, roomOf(state, p.figure));
+    ctx.push(
+      STAIRS_LINK.otherEnd(
+        ctx.engine,
+        state,
+        p.figure,
+        roomsOn(
+          state,
+          FLOORS.filter((f) => f !== floor),
+        ),
+      ),
+    );
+  }),
+});
+
+const THE_BECKONING = ownSteps("the-beckoning", {
+  jump: defineStep<SeatParams>((state, p, ctx) => {
+    const rule = card("the-beckoning");
+    const hurt = damage(p.figure, "physical", { dice: 1 }, rule);
+    if (placed(state.board, "patio")) {
+      ctx.push(relocate(p.figure, "patio", rule, null, [hurt]));
+      return;
+    }
+    const where: Where = {
+      kind: "doorways",
+      floors: ["ground"],
+      except: null,
+    };
+    // With nowhere to put the Patio there is nowhere to jump (the card's resolution).
+    if (
+      placeOptions(ctx.catalog, state.board, "patio", where).length === 0
+    )
+      return;
+    drawTile(state.board, "patio");
+    state.board.stack = ctx.random.shuffle(state.board.stack);
+    ctx.push(
+      placeRoom(p.figure, "patio", where, rule, {
+        then: [
+          enterNewRoom(p.figure, "patio", rule, {
+            draws: true,
+            after: [hurt],
+          }),
+        ],
+      }),
+    );
+  }),
+});
+
+const WHAT_THE = ownSteps("what-the", {
+  lift: defineStep<SeatParams>((state, p, ctx) => {
+    const rule = card("what-the");
+    const room = roomOf(state, p.figure);
+    // The starting tiles never move (the card's resolution).
+    if (ctx.catalog.rooms[room].start !== null) {
+      ctx.emit("room-stayed", rule, { tile: room });
+      return;
+    }
+    const here = spotOf(state.board, room);
+    const sameFloor: Where = {
+      kind: "doorways",
+      floors: [here.floor],
+      except: here,
+    };
+    const otherFloors: Where = {
+      kind: "doorways",
+      floors: ctx.catalog.rooms[room].floors.filter(
+        (f) => f !== here.floor,
+      ),
+      except: null,
+    };
+    ctx.push(
+      placeRoom(
+        p.figure,
+        room,
+        placeOptions(ctx.catalog, state.board, room, sameFloor).length > 0
+          ? sameFloor
+          : otherFloors,
+        rule,
+      ),
+    );
+  }),
+});
+
+const WHOOPS = ownSteps("whoops", {
+  "lose-random-item": defineStep<SeatParams>((state, p, ctx) => {
+    const items = heldItems(state, p.figure);
+    if (items.length === 0) return;
+    ctx.push(discardCard(p.figure, ctx.random.shuffle(items)[0]));
+  }),
+});
+
 /** Event cards B of the base game, from content/cards/events.md. */
 export const EVENTS_B: BehaviourGroup = {
   cards: {
@@ -361,7 +537,7 @@ export const EVENTS_B: BehaviourGroup = {
                     min: 0,
                     max: 3,
                     steps: [
-                      local("possession", "drop-to-lowest", { figure, trait }),
+                      POSSESSION.step("drop-to-lowest", { figure, trait }),
                     ],
                     does: "drop-to-lowest",
                   },
@@ -372,30 +548,7 @@ export const EVENTS_B: BehaviourGroup = {
           ),
         ];
       },
-      steps: {
-        // Read when the result lands, not when the card was drawn: the clip is wherever it is then.
-        "drop-to-lowest": defineStep<PossessionParams>((state, p, ctx) => {
-          const rule = card("possession");
-          const clips = trackTraits(ctx.catalog, state, p.figure).live.clips;
-          if (clips[p.trait] > 0) {
-            ctx.push(gain(p.figure, p.trait, -clips[p.trait], rule));
-            return;
-          }
-          // You choose the different trait (the card's resolution).
-          const others = TRAITS.filter((t) => t !== p.trait && clips[t] > 0);
-          if (others.length === 0) return;
-          ctx.push(
-            chooseOne(
-              p.figure,
-              others.map((t) => ({
-                label: `Lower ${traitName(t)} to its lowest value`,
-                steps: [gain(p.figure, t, -clips[t], rule)],
-              })),
-              rule,
-            ),
-          );
-        }),
-      },
+      steps: POSSESSION.steps,
     },
 
     "revolving-wall": {
@@ -417,7 +570,7 @@ export const EVENTS_B: BehaviourGroup = {
             figure,
             usable.map((wall) => ({
               label: `Put the Wall Switch on the ${wallName(state.board, room, wall)} of the ${CATALOG.rooms[room].name}`,
-              steps: [local("revolving-wall", "switch", { figure, room, wall })],
+              steps: [REVOLVING_WALL.step("switch", { figure, room, wall })],
               room,
               wall,
               token: "wall-switch",
@@ -427,21 +580,7 @@ export const EVENTS_B: BehaviourGroup = {
           ),
         ];
       },
-      steps: {
-        switch: defineStep<SwitchParams>((state, p, ctx) => {
-          const rule = card("revolving-wall");
-          const there = beyond(state, p.room, p.wall);
-          ctx.push(
-            placeWallToken("wall-switch", p.room, p.wall, rule),
-            there.room
-              ? relocate(p.figure, there.room.tile, rule)
-              : drawRoomTile(p.figure, { kind: "cell", spot: there.spot }, rule, {
-                  then: enterNewRoom(p.figure, null, rule, { draws: true }),
-                  otherwise: null,
-                }),
-          );
-        }),
-      },
+      steps: REVOLVING_WALL.steps,
     },
 
     rotten: {
@@ -498,36 +637,14 @@ export const EVENTS_B: BehaviourGroup = {
                 max: 0,
                 steps: [
                   damage(s, "physical", { dice: 1 }, rule),
-                  local("shrieking-wind", "blow-item-away", { figure: s }),
+                  SHRIEKING_WIND.step("blow-item-away", { figure: s }),
                 ],
                 does: "item-blown",
               },
             ]),
           );
       },
-      steps: {
-        "blow-item-away": defineStep<SeatParams>((state, p, ctx) => {
-          const items = heldItems(state, p.figure);
-          if (items.length === 0) return;
-          ctx.push(
-            chooseOne(
-              p.figure,
-              items.map((item) => ({
-                label: `Put the ${ctx.catalog.cards[item].name} in the Entrance Hall`,
-                steps: [
-                  loseCard(
-                    p.figure,
-                    item,
-                    { to: "room", room: "entrance-hall" },
-                    card("shrieking-wind"),
-                  ),
-                ],
-              })),
-              card("shrieking-wind"),
-            ),
-          );
-        }),
-      },
+      steps: SHRIEKING_WIND.steps,
     },
 
     silence: {
@@ -568,7 +685,7 @@ export const EVENTS_B: BehaviourGroup = {
     "secret-passage": {
       onDraw: (_state, figure) => {
         const on = (floors: FloorId[] | null) => [
-          local("secret-passage", "other-end", { figure, floors }),
+          SECRET_PASSAGE.step("other-end", { figure, floors }),
         ];
         return [
           roll(
@@ -589,42 +706,12 @@ export const EVENTS_B: BehaviourGroup = {
           ),
         ];
       },
-      steps: {
-        ...SECRET_PASSAGE.steps,
-        "other-end": defineStep<{ figure: FigureId; floors: FloorId[] | null }>(
-          (state, p, ctx) => {
-            ctx.push(
-              SECRET_PASSAGE.otherEnd(
-                ctx.engine,
-                state,
-                p.figure,
-                roomsOn(state, p.floors),
-              ),
-            );
-          },
-        ),
-      },
+      steps: SECRET_PASSAGE.steps,
     },
 
     "secret-stairs": {
-      onDraw: (_state, figure) => [local("secret-stairs", "other-end", { figure })],
-      steps: {
-        ...SECRET_STAIRS.steps,
-        "other-end": defineStep<SeatParams>((state, p, ctx) => {
-          const floor = floorOf(state, roomOf(state, p.figure));
-          ctx.push(
-            SECRET_STAIRS.otherEnd(
-              ctx.engine,
-              state,
-              p.figure,
-              roomsOn(
-                state,
-                FLOORS.filter((f) => f !== floor),
-              ),
-            ),
-          );
-        }),
-      },
+      onDraw: (_state, figure) => [SECRET_STAIRS.step("other-end", { figure })],
+      steps: SECRET_STAIRS.steps,
     },
 
     // The Smoke token's rules are its own behaviour, under tokens.
@@ -729,44 +816,13 @@ export const EVENTS_B: BehaviourGroup = {
               {
                 min: 0,
                 max: 2,
-                steps: [local("the-beckoning", "jump", { figure: s })],
+                steps: [THE_BECKONING.step("jump", { figure: s })],
                 does: "jump",
               },
             ]),
           );
       },
-      steps: {
-        jump: defineStep<SeatParams>((state, p, ctx) => {
-          const rule = card("the-beckoning");
-          const hurt = damage(p.figure, "physical", { dice: 1 }, rule);
-          if (placed(state.board, "patio")) {
-            ctx.push(relocate(p.figure, "patio", rule, null, [hurt]));
-            return;
-          }
-          const where: Where = {
-            kind: "doorways",
-            floors: ["ground"],
-            except: null,
-          };
-          // With nowhere to put the Patio there is nowhere to jump (the card's resolution).
-          if (
-            placeOptions(ctx.catalog, state.board, "patio", where).length === 0
-          )
-            return;
-          drawTile(state.board, "patio");
-          state.board.stack = ctx.random.shuffle(state.board.stack);
-          ctx.push(
-            placeRoom(p.figure, "patio", where, rule, {
-              then: [
-                enterNewRoom(p.figure, "patio", rule, {
-                  draws: true,
-                  after: [hurt],
-                }),
-              ],
-            }),
-          );
-        }),
-      },
+      steps: THE_BECKONING.steps,
     },
 
     "the-lost-one": {
@@ -877,52 +933,13 @@ export const EVENTS_B: BehaviourGroup = {
     },
 
     "what-the": {
-      onDraw: (_state, figure) => [local("what-the", "lift", { figure })],
-      steps: {
-        lift: defineStep<SeatParams>((state, p, ctx) => {
-          const rule = card("what-the");
-          const room = roomOf(state, p.figure);
-          // The starting tiles never move (the card's resolution).
-          if (ctx.catalog.rooms[room].start !== null) {
-            ctx.emit("room-stayed", rule, { tile: room });
-            return;
-          }
-          const here = spotOf(state.board, room);
-          const sameFloor: Where = {
-            kind: "doorways",
-            floors: [here.floor],
-            except: here,
-          };
-          const otherFloors: Where = {
-            kind: "doorways",
-            floors: ctx.catalog.rooms[room].floors.filter(
-              (f) => f !== here.floor,
-            ),
-            except: null,
-          };
-          ctx.push(
-            placeRoom(
-              p.figure,
-              room,
-              placeOptions(ctx.catalog, state.board, room, sameFloor).length > 0
-                ? sameFloor
-                : otherFloors,
-              rule,
-            ),
-          );
-        }),
-      },
+      onDraw: (_state, figure) => [WHAT_THE.step("lift", { figure })],
+      steps: WHAT_THE.steps,
     },
 
     whoops: {
-      onDraw: (_state, figure) => [local("whoops", "lose-random-item", { figure })],
-      steps: {
-        "lose-random-item": defineStep<SeatParams>((state, p, ctx) => {
-          const items = heldItems(state, p.figure);
-          if (items.length === 0) return;
-          ctx.push(discardCard(p.figure, ctx.random.shuffle(items)[0]));
-        }),
-      },
+      onDraw: (_state, figure) => [WHOOPS.step("lose-random-item", { figure })],
+      steps: WHOOPS.steps,
     },
   },
 

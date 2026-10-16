@@ -8,6 +8,7 @@ import type {
   HauntTexts,
   InsertedTurn,
   Json,
+  Role,
   RuleRef,
   Seat,
   Status,
@@ -158,14 +159,14 @@ export function revealHaunt(
 ): void {
   // The haunt roll comes once the turn's work is done, so none of the work
   // dropped here was still to put a card or tile where it goes.
-  if (state.inHand.length > 0 || state.board.drawn !== null)
+  if (state.inTransit.length > 0 || state.board.drawn !== null)
     throw new Error("The haunt began with a card or tile between two places");
   state.haunt = { ...reveal, secrets: [], counters: {} };
   state.status = "haunt";
   state.work = [];
   state.turn = null;
   state.insertedTurns = [];
-  ctx.push(step<null>("haunt-begins", null));
+  ctx.push(step("haunt-begins", null));
 }
 
 /** Seats who could become the traitor under a chart rule. A tie goes to the
@@ -430,19 +431,19 @@ export function setSecret(
   knownBy: SeatGroup,
   rule: RuleRef,
 ): Step {
-  return step<SetSecret>("set-secret", { secret, value, knownBy, rule });
+  return step("set-secret", { secret, value, knownBy, rule });
 }
 
 /** A secret is shown to everyone. */
 export function revealSecret(secret: string, rule: RuleRef): Step {
-  return step<{ secret: string; rule: RuleRef }>("reveal-secret", {
+  return step("reveal-secret", {
     secret,
     rule,
   });
 }
 
 export function setCounter(counter: string, value: Count, rule: RuleRef): Step {
-  return step<SetCounter>("set-counter", { counter, value, rule });
+  return step("set-counter", { counter, value, rule });
 }
 
 export function addToCounter(
@@ -450,12 +451,12 @@ export function addToCounter(
   amount: number,
   rule: RuleRef,
 ): Step {
-  return step<AddCounter>("add-to-counter", { counter, amount, rule });
+  return step("add-to-counter", { counter, amount, rule });
 }
 
 /** Puts a status on each living explorer of a group. */
 export function statusOnGroup(who: FigureGroup, status: Status): Step {
-  return step<GroupStatus>("group-status", { who, status });
+  return step("group-status", { who, status });
 }
 
 type Spawn = {
@@ -478,12 +479,12 @@ export function spawn(
   how: { count: Count; at: FigureGroup; owner: SeatGroup | null },
   rule: RuleRef,
 ): Step {
-  return step<Spawn>("spawn", { definition, ...how, rule });
+  return step("spawn", { definition, ...how, rule });
 }
 
 /** Puts a turn into the order, taken at the next turn boundary. */
 export function insertTurn(turn: InsertedTurn): Step {
-  return step<InsertedTurn>("insert-turn", turn);
+  return step("insert-turn", turn);
 }
 
 /** Whether the haunt's setup is under way: it has been revealed and its
@@ -514,7 +515,7 @@ export function topUpRooms(
   chooser: SeatGroup,
   rule: RuleRef,
 ): Step {
-  return step<TopUp>("top-up-rooms", {
+  return step("top-up-rooms", {
     match,
     atLeast,
     chooser,
@@ -528,12 +529,12 @@ type GroupRule = { who: FigureGroup; rule: RuleRef };
 /** Each explorer of a group drops every card that works as an item onto
  *  its room's pile, as a dead explorer's would (rules p. 19). */
 export function dropItems(who: FigureGroup, rule: RuleRef): Step {
-  return step<GroupRule>("drop-items", { who, rule });
+  return step("drop-items", { who, rule });
 }
 
 /** Each explorer of a group sets its companions aside, out of the game. */
 export function setAsideCompanions(who: FigureGroup, rule: RuleRef): Step {
-  return step<GroupRule>("set-aside-companions", { who, rule });
+  return step("set-aside-companions", { who, rule });
 }
 
 /** What an escape leaves behind: a token in the room, marking it used, and
@@ -550,7 +551,7 @@ type Escape = EscapeMarks & { figure: FigureId; rule: RuleRef };
  *  dying. Run it as a departure (`leaveRoom`), so the room's rules for
  *  leaving have their say first. */
 export function escape(figure: FigureId, marks: EscapeMarks, rule: RuleRef): Step {
-  return step<Escape>("escape", { figure, ...marks, rule });
+  return step("escape", { figure, ...marks, rule });
 }
 
 type Replacement = {
@@ -571,10 +572,10 @@ export function offerReplacement(
   how: { at: FigureGroup; owner: SeatGroup; keepOne?: true },
   rule: RuleRef,
 ): Step {
-  return step<Replacement>("offer-replacement", { definition, ...how, rule });
+  return step("offer-replacement", { definition, ...how, rule });
 }
 
-type TaskResult = {
+export type TaskResult = {
   figure: FigureId;
   /** What the roll is for, in words ("wake the dreamer"). */
   task: string;
@@ -591,7 +592,7 @@ export function taskResult(
   outcome: { success: boolean; token: string | null },
   rule: RuleRef,
 ): Step {
-  return step<TaskResult>("task-result", { figure, task, ...outcome, rule });
+  return step("task-result", { figure, task, ...outcome, rule });
 }
 
 /** How many figures of a definition are in play. */
@@ -758,7 +759,7 @@ function winningSide(seats: Seat[], winners: number[]): Seat["side"] {
 
 type Side = "traitor" | "heroes";
 
-export const HAUNT_STEPS: Record<string, StepKind> = {
+export const HAUNT_STEPS = {
   // A haunt not built yet is swapped at its reveal for one that is, which
   // the revealer chooses; with none built, or with sides a scenario already
   // set (which a built haunt would decide afresh), the game stops there.
@@ -774,7 +775,7 @@ export const HAUNT_STEPS: Record<string, StepKind> = {
           { seat: haunt.revealer },
           built.map((number) => ({
             label: `Haunt ${number}: ${requireBuilt(ctx.engine, number).name}`,
-            steps: [step<{ number: number }>("haunt-chosen", { number })],
+            steps: [step("haunt-chosen", { number })],
           })),
           PLAYERS_CHOICE,
           `haunt ${haunt.number} isn't built yet: choose the haunt to play`,
@@ -787,12 +788,12 @@ export const HAUNT_STEPS: Record<string, StepKind> = {
         `Haunt ${haunt.number} decides the sides at its reveal, so a scenario that starts it can't set them`,
       );
     ctx.push(
-      step<null>("choose-traitor", null),
-      step<null>("traitor-freed", null),
-      step<null>("haunt-ready", null),
-      step<{ side: Side }>("haunt-setup", { side: "traitor" }),
-      step<{ side: Side }>("haunt-setup", { side: "heroes" }),
-      step<null>("next-turn", null),
+      step("choose-traitor", null),
+      step("traitor-freed", null),
+      step("haunt-ready", null),
+      step("haunt-setup", { side: "traitor" }),
+      step("haunt-setup", { side: "heroes" }),
+      step("next-turn", null),
     );
   }),
 
@@ -801,7 +802,7 @@ export const HAUNT_STEPS: Record<string, StepKind> = {
     const haunt = hauntState(state);
     ctx.emit("haunt-chosen", PLAYERS_CHOICE, { haunt: p.number, instead: haunt.number });
     haunt.number = p.number;
-    ctx.push(step<null>("haunt-begins", null));
+    ctx.push(step("haunt-begins", null));
   }),
 
   // The chart picks the traitor from the explorers' traits as they stand
@@ -826,18 +827,18 @@ export const HAUNT_STEPS: Record<string, StepKind> = {
         seat: chosen.traitors[0],
       });
     const traitor = chosen.traitors.at(0);
-    state.seats = state.seats.map((seat, i) => {
-      const isTraitor = chosen.traitors.includes(i);
-      return {
-        ...seat,
-        side: isTraitor ? "traitor" : "heroes",
-        roles: isTraitor ? ["traitor"] : [],
-        knownBy:
-          chosen.hidden && traitor !== undefined
-            ? hiddenKnowledge(i, traitor)
-            : null,
-      };
-    });
+    const dealt = (seat: number): { side: Side; roles: Role[] } =>
+      chosen.traitors.includes(seat)
+        ? { side: "traitor", roles: ["traitor"] }
+        : { side: "heroes", roles: [] };
+    state.seats = state.seats.map((seat, i) => ({
+      ...seat,
+      ...dealt(i),
+      knownBy:
+        chosen.hidden && traitor !== undefined
+          ? hiddenKnowledge(i, traitor)
+          : null,
+    }));
     if (chosen.hidden) {
       ctx.emit("sides-dealt", rulebook(17), {});
       return;
@@ -846,10 +847,8 @@ export const HAUNT_STEPS: Record<string, StepKind> = {
       ...chosen.traitors,
       ...state.seats.map((_s, i) => i).filter((i) => !chosen.traitors.includes(i)),
     ];
-    for (const seat of order) {
-      const { side, roles } = state.seats[seat];
-      ctx.emit("side-set", rulebook(15), { seat, side, roles, secret: false });
-    }
+    for (const seat of order)
+      ctx.emit("side-set", rulebook(15), { seat, ...dealt(seat), secret: false });
   }),
 
   // The traitor's explorer is freed from the event cards impeding them
@@ -1002,9 +1001,9 @@ export const HAUNT_STEPS: Record<string, StepKind> = {
           candidates.map((tile) => ({
             label: `Add the ${ctx.catalog.rooms[tile].name} to the house`,
             steps: [
-              step<{ tile: string }>("take-room-tile", { tile }),
+              step("take-room-tile", { tile }),
               placeRoom(chooser, tile, topUpPlaces(ctx.catalog, tile), p.rule, {
-                then: [step<TopUp>("top-up-rooms", { ...p, searched: true })],
+                then: [step("top-up-rooms", { ...p, searched: true })],
               }),
             ],
           })),
@@ -1082,7 +1081,7 @@ export const HAUNT_STEPS: Record<string, StepKind> = {
     const { rule, ...data } = p;
     ctx.emit("task-result", rule, data);
   }),
-};
+} satisfies Record<string, StepKind>;
 
 export const HAUNT_DECISIONS: Record<string, DecisionKind> = {
   "replace-figure": defineDecision<Replacement, boolean>({

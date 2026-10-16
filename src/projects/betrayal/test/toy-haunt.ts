@@ -9,9 +9,8 @@ import {
 import { hauntNumbers } from "../engine/scenario";
 import { sideOf } from "../engine/sides";
 import {
-  eventData,
   hauntSourceId,
-  local,
+  ownSteps,
   type Behaviour,
 } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
@@ -24,10 +23,8 @@ import {
 import { choose, put, ready, testGame, type TestGame } from "../testing";
 import type {
   FigureDefinition,
-  FigureId,
   GameState,
   HauntTexts,
-  TurnKind,
 } from "../types";
 
 // A small haunt built from the kit, for testing the haunt framework without
@@ -109,6 +106,18 @@ export function toyHaunt(
   { phantom = true }: { phantom?: boolean } = {},
 ): HauntDefinition {
   const rule = hauntRule(number, "Rules");
+  const own = ownSteps(hauntSourceId(number), {
+    // One step that meets both sides' goals.
+    both: defineStep((state, _params, ctx) => {
+      const haunt = state.haunt;
+      if (haunt === null) throw new Error("No haunt");
+      haunt.counters.wakes = state.seats.length;
+      haunt.counters.escapes = count(ctx.engine, state, {
+        of: "secret",
+        secret: "target",
+      });
+    }),
+  });
   return {
     number,
     name: "Toy haunt",
@@ -157,7 +166,7 @@ export function toyHaunt(
       {
         event: "entered",
         when: (state, event, _source, engine) => {
-          const d = eventData<{ figure: FigureId; moved: boolean }>(event);
+          const d = event.data;
           return d.moved && sideOf(engine, state, d.figure) === "heroes";
         },
         steps: () => [addToCounter("wakes", 1, rule)],
@@ -165,7 +174,7 @@ export function toyHaunt(
       {
         event: "turn-started",
         when: (_state, event) =>
-          eventData<{ kind: TurnKind }>(event).kind === "monster",
+          event.data.kind === "monster",
         steps: () => [addToCounter("escapes", 1, rule)],
       },
     ],
@@ -184,7 +193,7 @@ export function toyHaunt(
       both: {
         label: "Meet both goals at once",
         side: "any",
-        steps: () => [local(hauntSourceId(number), "both")],
+        steps: () => [own.step("both", null)],
       },
       perish: {
         label: "Drop dead",
@@ -192,18 +201,7 @@ export function toyHaunt(
         steps: (_state, figure) => [die(figure, rule)],
       },
     },
-    steps: {
-      // One step that meets both sides' goals.
-      both: defineStep((state, _params, ctx) => {
-        const haunt = state.haunt;
-        if (haunt === null) throw new Error("No haunt");
-        haunt.counters.wakes = state.seats.length;
-        haunt.counters.escapes = count(ctx.engine, state, {
-          of: "secret",
-          secret: "target",
-        });
-      }),
-    },
+    steps: own.steps,
     goals: [
       {
         id: "woken",

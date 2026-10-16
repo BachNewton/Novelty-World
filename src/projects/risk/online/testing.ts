@@ -33,6 +33,7 @@ export function memoryStore() {
       return Promise.resolve(put({ ...row, ...change, version: fromVersion + 1 }));
     },
     insert: (id, change) => Promise.resolve(rows.has(id) ? null : put({ id, version: 0, ...change })),
+    moves: (id) => Promise.resolve(structuredClone(moves.get(id) ?? [])),
     remove: (id) => {
       const row = rows.get(id) ?? null;
       rows.delete(id);

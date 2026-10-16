@@ -89,7 +89,7 @@ export function moveCloser(
 ): Step {
   return displace(
     figure,
-    step<Closer>("move-closer", { figure, toward, chooser, rule }),
+    step("move-closer", { figure, toward, chooser, rule }),
   );
 }
 
@@ -101,10 +101,10 @@ export function crossBarrier(
   side: Edge,
   rule: RuleRef,
 ): Step {
-  return step<Cross>("cross-barrier", { figure, side, rule });
+  return step("cross-barrier", { figure, side, rule });
 }
 
-export const MOVEMENT_STEPS: Record<string, StepKind> = {
+export const MOVEMENT_STEPS = {
   "move-closer": defineStep<Closer>((state, p, ctx) => {
     const mover: Mover = { kind: "figure", figure: p.figure };
     const away = (from: Place) =>
@@ -140,4 +140,4 @@ export const MOVEMENT_STEPS: Record<string, StepKind> = {
     figureOf(state, p.figure).place = { room, side: p.side };
     ctx.emit("crossed", p.rule, { figure: p.figure, room, side: p.side });
   }),
-};
+} satisfies Record<string, StepKind>;

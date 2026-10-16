@@ -9,18 +9,25 @@ import type {
   RuleRef,
   Step,
 } from "../types";
+import { ofType, type EventData, type EventOf, type EventType } from "./events";
 import { figureOf } from "./figures";
 import { checkConditions, type Haunts } from "./haunt";
 import { controllerOf } from "./questions";
 import { randomFor, SETUP_KEY, type Random } from "./random";
-import { liveSources, type Behaviours, type Through } from "./sources";
+import {
+  liveSources,
+  type Behaviours,
+  type ReactionTo,
+  type Source,
+  type Through,
+} from "./sources";
 
 /** What a step or a decision's resolution can do while the engine works. */
 export interface StepContext {
   engine: Engine;
   catalog: Catalog;
   random: Random;
-  emit: (type: string, rule: RuleRef, data?: Json) => void;
+  emit: <K extends EventType>(type: K, rule: RuleRef, data: EventData[K]) => void;
   /** Queue work. The steps run in the order given, before anything already queued. */
   push: (...steps: Step[]) => void;
   /** Pause on a decision put to seats. The engine stops running steps
@@ -39,22 +46,33 @@ export interface StepContext {
   waitForReady: (seats: number[], rule: RuleRef) => void;
 }
 
-/** Runs one step against the working copy of the state. */
-export type StepHandler = (
-  state: GameState,
-  params: Json,
-  ctx: StepContext,
-) => void;
-
-/** A kind of step, registered by name. */
-export interface StepKind {
-  run: StepHandler;
+/** A kind of step, registered by name, taking parameters of type `P`.
+ *  Its members are methods so that a kind with any parameters registers
+ *  among the rest: the loop hands each the parameters its stored step
+ *  carries, which the typed `step` that created it vouched for. */
+export interface StepKind<P extends Json = Json> {
+  /** Runs one step against the working copy of the state. */
+  run(state: GameState, params: P, ctx: StepContext): void;
   /** The figure whose work the step is, read from its parameters; null for
    *  work that is no one figure's. Once that figure has died the loop skips
    *  the step: a dead figure takes no further part, and what was still to
    *  happen to it lapses (rules p. 19, dead-explorers-body). */
-  subject: (params: Json) => FigureId | null;
+  subject(params: P): FigureId | null;
 }
+
+/** The parameters a step kind takes. */
+export type ParamsOf<K> = K extends StepKind<infer P extends Json> ? P : never;
+
+/** The names among the step kinds `S` whose parameters include all of
+ *  `V`'s: the steps that a step adding `V` may continue into. */
+export type Awaiting<S, V> = {
+  [K in keyof S]: ParamsOf<S[K]> extends V ? K : never;
+}[keyof S] &
+  string;
+
+/** A step's parameters as they are given before the step that continues
+ *  into it adds `V`'s (`continueWith`): a roll its result, say. */
+export type Unfinished<P, V> = Omit<P, keyof V> & Json;
 
 export interface DecisionKind {
   /** Every legal answer a seat can give, in the order offered: the one
@@ -307,8 +325,16 @@ function beginWrite(
     engine,
     catalog: engine.catalog,
     random: randomFor(draft.seed, randomKey),
-    emit: (type, rule, data = null) => {
-      events.push({ id: `${eventKey}:${events.length}`, type, rule, data });
+    emit: <K extends EventType>(type: K, rule: RuleRef, data: EventData[K]) => {
+      const event: EventOf<K> = {
+        id: `${eventKey}:${events.length}`,
+        type,
+        rule,
+        data,
+      };
+      // An event of one type is an event: TypeScript can't widen the
+      // generic type to the union of every type on its own.
+      events.push(event as GameEvent);
     },
     push: (...steps) => {
       draft.work.push(...[...steps].reverse());
@@ -416,16 +442,27 @@ function react(engine: Engine, draft: GameState, write: Write): void {
   const sources = liveSources(engine, draft, "reactions");
   const steps = events.flatMap((event) =>
     sources.flatMap(({ source, behaviour }) =>
-      (behaviour.reactions ?? [])
-        .filter(
-          (r) =>
-            r.event === event.type &&
-            (!r.when || r.when(draft, event, source, engine)),
-        )
-        .flatMap((r) => r.steps(draft, event, source, engine)),
+      (behaviour.reactions ?? []).flatMap((reaction) =>
+        reactionSteps(engine, draft, reaction, event, source),
+      ),
     ),
   );
   write.ctx.push(...steps);
+}
+
+/** A reaction's steps for an event: none for an event of another type, or
+ *  one its filter turns away. */
+function reactionSteps<K extends EventType>(
+  engine: Engine,
+  state: GameState,
+  reaction: ReactionTo<K>,
+  event: GameEvent,
+  source: Source,
+): Step[] {
+  const heard = ofType(event, reaction.event);
+  if (heard === null) return [];
+  if (reaction.when && !reaction.when(state, heard, source, engine)) return [];
+  return reaction.steps(state, heard, source, engine);
 }
 
 /** A deep copy of the state, which is plain JSON throughout (the saved

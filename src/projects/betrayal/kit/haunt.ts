@@ -34,7 +34,6 @@ import type { Modifier } from "../engine/questions";
 import { sideOf } from "../engine/sides";
 import {
   hauntSourceId,
-  local,
   localStep,
   type Behaviour,
   type Condition,
@@ -75,8 +74,9 @@ export type SetupPart = (
    *  rooms chosen from the stack and the discards and placed by a group's
    *  one seat. */
   | { part: "rooms"; match: RoomMatch; atLeast: Count; chooser: SeatGroup }
-  /** One of the haunt's own steps, for what the kit doesn't cover. */
-  | { part: "local"; step: string; params?: Json }
+  /** One of the haunt's own steps (`ownSteps`), for what the kit doesn't
+   *  cover. */
+  | { part: "local"; step: Step }
 ) & { ruling?: string };
 
 /** When a goal is met. */
@@ -143,7 +143,7 @@ export interface HauntDefinition {
   goals?: Goal[];
   /** Conditions that do something other than end the game. */
   conditions?: Condition[];
-  /** Its own steps, run with `local(hauntSourceId(number), name)`. */
+  /** Its own steps, made with `ownSteps(hauntSourceId(number), steps)`. */
   steps?: Record<string, StepKind>;
   /** Wording for events its rules cause, where the general wording says too
    *  little. */
@@ -194,11 +194,7 @@ function setupSteps(
       case "rooms":
         return topUpRooms(part.match, part.atLeast, part.chooser, rule);
       case "local":
-        return local(
-          hauntSourceId(definition.number),
-          part.step,
-          part.params ?? null,
-        );
+        return part.step;
     }
   });
 }

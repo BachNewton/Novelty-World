@@ -3,36 +3,21 @@ import type { Move } from "../../contract";
 import type { Bot } from "../bot";
 import { ADJ, fromView, idx, IDS, type Board } from "./board";
 import { afterTrade, chooseBonus, chooseFortify, chooseOccupy, chooseSet } from "./decisions";
-import { expectedLoss, pathRun } from "./odds";
+import { battleOutcome, blitzCommit } from "./odds";
 import { V1_PARAMS, type Params } from "./params";
 import { bestPlan, type Plan } from "./planner";
 
 // v1, the rule-based bot designed in `ideas/rule-bot-v1.md`: a turn planner over
-// expert-shaped plans, priced with exact battle odds and scored by one evaluation
-// with a one-round threat model. It sees only its seat's view; its only randomness
+// expert-shaped plans, priced with the exact odds of Balanced Blitz and scored by one
+// evaluation with a one-round threat model. It sees only its seat's view; its only randomness
 // (sampled outcomes, when the work knob asks for them) comes from its seed.
 
-/** How low a blitz may take its source before the bot stops to plan again: once the
- *  rest of the run has fallen below the continue bar, or once it has spent about one
- *  and a half times the capture's expected cost. */
-function blitzFloor(b: Board, from: number, path: readonly number[], params: Params): number {
-  const armies = b.armies[from];
-  const d = b.armies[path[0]];
-  const step = Math.max(4, Math.ceil(1.5 * expectedLoss(armies - 1, d)) + 2);
-  let floor = armies - step;
-  const rest = [Math.ceil(d / 2), ...path.slice(1).map((t) => b.armies[t])];
-  for (let k = 2; k < armies; k++) {
-    if (pathRun(k, rest).pSuccess >= params.engine.continueBar) {
-      floor = Math.max(floor, k - 1);
-      break;
-    }
-  }
-  return Math.min(armies - 1, Math.max(1, floor));
-}
-
-/** The plan's next battle: its first route's next territory, from the strongest of
- *  my territories beside it. */
-function nextBlitz(b: Board, plan: Plan, params: Params): Move | null {
+/** The plan's next attack: its first route's next territory, from the strongest of my
+ *  territories beside it. A favourite blitzes, committing only the armies that make the
+ *  capture as sure as committing all of them, so the rest stay home whatever happens
+ *  and the move-in decides how many follow; an attacker not yet the favourite rolls a
+ *  single battle with every die, and blitzes once it is (`odds.ts`). */
+function nextAttack(b: Board, plan: Plan): Move | null {
   const route = plan.capture?.routes.find((r) => r.path.length > 0);
   if (!route) return null;
   const target = route.path[0];
@@ -41,7 +26,10 @@ function nextBlitz(b: Board, plan: Plan, params: Params): Move | null {
     if (b.owner[n] === b.owner[route.source] && (from < 0 || b.armies[n] > b.armies[from])) from = n;
   }
   if (from < 0 || b.armies[from] < 2) return null;
-  return { kind: "blitz", from: IDS[from], to: IDS[target], keepAtLeast: blitzFloor(b, from, route.path, params) };
+  const a = b.armies[from] - 1;
+  const d = b.armies[target];
+  if (battleOutcome(a, d).roll) return { kind: "attack", from: IDS[from], to: IDS[target], dice: Math.min(3, a) as 1 | 2 | 3 };
+  return { kind: "blitz", from: IDS[from], to: IDS[target], keepAtLeast: b.armies[from] - blitzCommit(a, d) };
 }
 
 function placeFromPlan(plan: Plan): { territory: number; armies: number } {
@@ -67,7 +55,7 @@ export function ruleBot(params: Params): Bot {
           let trade = options.mustTrade;
           if (!trade) {
             const hold = bestPlan(b, seat, options.armiesToPlace, params, rng).value;
-            const traded = afterTrade(b, seat);
+            const traded = afterTrade(b, seat, set);
             if (bonus !== null) traded.board.armies[idx(bonus)] += 2;
             trade = bestPlan(traded.board, seat, options.armiesToPlace + traded.armies, params, rng).value > hold;
           }
@@ -84,7 +72,7 @@ export function ruleBot(params: Params): Bot {
 
       case "attack": {
         const plan = bestPlan(b, seat, 0, params, rng);
-        const move = plan.kind === "hold" ? null : nextBlitz(b, plan, params);
+        const move = plan.kind === "hold" ? null : nextAttack(b, plan);
         return move ?? { kind: "end-attack" };
       }
 

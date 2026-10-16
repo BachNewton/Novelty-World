@@ -1,6 +1,5 @@
-import type { GameEvent, GameView, Seat, TerritoryView } from "../contract";
+import type { CardId, GameEvent, GameView, Seat, TerritoryView } from "../contract";
 import type { TerritoryId } from "../map";
-import { setValue } from "./cards";
 import { ownedBy, TERRITORY_IDS, type EngineState } from "./state";
 
 /** What `viewer` may see (`CARDS-2`, note `public-cards`): everything public, and only their own
@@ -32,10 +31,8 @@ export function view(s: EngineState, viewer: Seat | null): GameView {
     phase: s.phase,
     armiesToPlace: armiesToPlace(s),
     cards: {
-      drawPile: s.drawPile.length,
-      discardPile: [...s.discardPile],
-      setsTraded: s.setsTraded,
-      nextSetValue: setValue(s.setsTraded + 1),
+      deck: s.deck.length,
+      traded: s.trades.map((t) => ({ seat: t.seat, cards: [...t.cards] as [CardId, CardId, CardId] })),
       hand: viewer === null ? null : [...s.hands[viewer]],
     },
     occupying: o ? { from: o.from, to: o.to, min: o.min, max: o.max } : null,

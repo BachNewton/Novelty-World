@@ -1,4 +1,7 @@
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { defaultWorkerCount } from "@/shared/lib/bot-lab/pool";
+import { RunLog, type RunDescription } from "@/shared/lib/bot-lab/run-log";
 import { RISK_BOTS } from "../bots";
 import { FORMATS, type Format } from "./parallel";
 
@@ -66,4 +69,12 @@ export function checkBots(labels: readonly string[]): void {
   for (const l of labels) {
     if (!Object.hasOwn(RISK_BOTS, l)) throw new Error(`unknown bot "${l}" (known: ${Object.keys(RISK_BOTS).join(", ")})`);
   }
+}
+
+/** Every measuring run's record (`run-log.ts`): what ran, how fast, on what machine. */
+const RUN_LOG = fileURLToPath(new URL("./runs.jsonl", import.meta.url));
+
+/** Starts recording a run of one of Risk's CLIs into the committed run log. */
+export function riskRunLog(run: Omit<RunDescription, "args">): RunLog {
+  return new RunLog(RUN_LOG, { ...run, args: process.argv.slice(2) });
 }

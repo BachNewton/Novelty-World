@@ -3,7 +3,7 @@ import { EMPTY_CLIENT, reduce, shown, type SyncEvent } from "@/shared/lib/client
 import { createRng } from "@/shared/lib/seeded-random";
 import type { Answer } from "../contract";
 import { randomBot } from "../bots/random";
-import { botInput } from "./drive-input";
+import { botInput, extendHistory, replayHistory } from "./drive-input";
 import { ANSWERS_KEPT, applyAnswer, newOnlineGame, pendingSeat, STALE_DECISION, syncRules, tookAnswer, type OnlineGame } from "./game";
 import { ENGINE } from "../play-engine";
 
@@ -13,15 +13,20 @@ const RULES = syncRules(ENGINE);
 function history(seed: string, length: number): { games: OnlineGame[]; answers: Answer[] } {
   const games = [newOnlineGame(ENGINE, 3, seed)];
   const answers: Answer[] = [];
+  let known = replayHistory(ENGINE, games[0], []);
   for (let i = 0; i < length; i++) {
     const game = games[i];
     const seat = pendingSeat(ENGINE, game);
     if (seat === null) throw new Error("The game ended early");
-    const answer = { decision: game.decision, seat, move: randomBot(botInput(ENGINE, game, seat, `${seed}/${i.toString()}`)) };
+    const input = botInput(ENGINE, game, known, [false, false, false], seat, `${seed}/${i.toString()}`);
+    const answer = { decision: game.decision, seat, move: randomBot(input) };
     const result = applyAnswer(ENGINE, game, answer);
     if (!result.ok) throw new Error(result.reason);
     answers.push(answer);
     games.push(result.game);
+    const next = extendHistory(known, result.game);
+    if (!next) throw new Error("The history fell behind");
+    known = next;
   }
   return { games, answers };
 }

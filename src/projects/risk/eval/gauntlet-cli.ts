@@ -1,6 +1,7 @@
 import process from "node:process";
 import { RISK_BOTS } from "../bots";
-import { checkBots, commonDefaults, commonFlag, formats, list, number, type CommonArgs } from "./cli-args";
+import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
+import { checkBots, commonDefaults, commonFlag, formats, list, number, riskRunLog, type CommonArgs } from "./cli-args";
 import { formatRiskGauntlet, formatTable, runRiskGauntlet, type RiskGauntletProgress } from "./gauntlet";
 import { FORMATS, riskPool, type Format } from "./parallel";
 
@@ -99,8 +100,14 @@ async function main(): Promise<void> {
       `Seeds: "${args.prefix}:*"   Workers: ${args.workers}   Max turns: ${args.maxTurns}\n`,
   );
 
-  const pool = riskPool(args.workers);
-  const start = process.hrtime.bigint();
+  const log = riskRunLog({
+    tool: "risk:gauntlet",
+    bots: [args.candidate, ...field],
+    tables: args.players.flatMap((n) => args.formats.map((f) => `${n.toString()}p ${f}`)),
+    seeds: args.prefix,
+    workers: args.workers,
+  });
+  const pool = log.watch(riskPool(args.workers), (r) => r.decisions);
   try {
     const report = await runRiskGauntlet({
       candidate: args.candidate,
@@ -119,9 +126,8 @@ async function main(): Promise<void> {
       pool,
       onProgress: progressLine(),
     });
-    const secs = Number(process.hrtime.bigint() - start) / 1e9;
     console.log(formatRiskGauntlet(report));
-    console.log(`\n  (${secs.toFixed(1)}s on ${pool.size} workers)\n`);
+    console.log(`\n${formatRunRecord(log.finish())}\n`);
     if (report.errors > 0) process.exitCode = 1;
   } finally {
     await pool.close();

@@ -8,7 +8,8 @@ import {
   IDS,
   type Board,
 } from "./board";
-import { isWild, setChanceAfterDraw, setValue } from "./cards";
+import { setValue, territoryOf } from "../../cards";
+import { CARD_DISCOUNT, handWorth, shapeOf, sub } from "./cards";
 import { evaluate } from "./evaluate";
 import type { Params } from "./params";
 import { bestPlan } from "./planner";
@@ -16,9 +17,9 @@ import { bestPlan } from "./planner";
 // The small decisions: which cards, the move-in, the fortify.
 // Each is a cheap rule or a short list of choices scored by the same evaluation.
 
-/** Which set to trade (§2.2): keep the remaining hand most likely to make a set next
- *  turn (so wilds stay unless needed), earn the +2 on a territory that faces an
- *  enemy, then spend cards picturing others' territories. */
+/** Which set to trade (§2.2): the one whose armies, with the +2 when it pictures a
+ *  territory of mine that faces an enemy, plus what the cards kept are worth, come to
+ *  most. So a wild is kept unless it is what makes the set worth more. */
 export function chooseSet(
   b: Board,
   me: Seat,
@@ -30,15 +31,12 @@ export function chooseSet(
   for (const set of sets) {
     const rest = hand.filter((c) => !set.includes(c));
     let bonus = 0;
-    let foreign = 0;
     for (const c of set) {
-      if (isWild(c)) continue;
-      const t = idx(c as TerritoryId);
-      if (b.owner[t] === me) bonus = Math.max(bonus, hasEnemyNeighbour(b, t) ? 1 : 0.6);
-      else foreign++;
+      const t = territoryOf(c);
+      if (t !== null && b.owner[idx(t)] === me) bonus = Math.max(bonus, hasEnemyNeighbour(b, idx(t)) ? 2 : 1);
     }
-    const score = 10 * setChanceAfterDraw(rest) + 5 * bonus + 0.5 * foreign;
-    if (score > bestScore) {
+    const score = setValue(set) + bonus + CARD_DISCOUNT * handWorth(shapeOf(rest), 0);
+    if (score > bestScore + 1e-9) {
       bestScore = score;
       best = set;
     }
@@ -59,12 +57,12 @@ export function chooseBonus(b: Board, choices: readonly TerritoryId[], launch: n
   return IDS[best];
 }
 
-/** The trade's board: the set gone, its armies to place, the counter on. */
-export function afterTrade(b: Board, me: Seat): { board: Board; armies: number } {
+/** The board once `set` is traded: its cards gone from my hand, its armies to place. */
+export function afterTrade(b: Board, me: Seat, set: readonly CardId[]): { board: Board; armies: number } {
   const out = copyBoard(b);
   out.handSize[me] -= 3;
-  out.setsTraded++;
-  return { board: out, armies: setValue(out.setsTraded) };
+  out.known = sub(out.known, shapeOf(set));
+  return { board: out, armies: setValue(set) };
 }
 
 /** The move-in (§2.5): the totals worth weighing, each scored by the best plan from

@@ -44,11 +44,9 @@ import { distanceTo, moveCloser } from "../../engine/movement";
 import { askPermission, askSet, hasTrait } from "../../engine/questions";
 import { heroes, inPlay, revealedAs } from "../../engine/sides";
 import {
-  eventData,
-  local,
-  turnFigure,
   type Behaviour,
   type BehaviourGroup,
+  ownSteps,
   type Reaction,
   type Source,
 } from "../../engine/sources";
@@ -78,7 +76,7 @@ const roomName = (room: string) => CATALOG.rooms[room].name;
 function discardAfterUse(id: string): Reaction {
   return {
     event: "card-used",
-    when: (_state, event) => eventData<{ card: string }>(event).card === id,
+    when: (_state, event) => event.data.card === id,
     steps: (_state, _event, source) =>
       source.holder === null ? [] : [discardCard(source.holder, id)],
   };
@@ -242,12 +240,286 @@ function hearMusicBox(figure: FigureId): Step {
       {
         min: 0,
         max: 3,
-        steps: [local("music-box", "mesmerized", { figure })],
+        steps: [MUSIC_BOX.step("mesmerized", { figure })],
         does: "mesmerized",
       },
     ]),
   );
 }
+
+const BELL = ownSteps("bell", {
+  // The ringer picks which unimpeded heroes come, each 1 space closer
+  // to them: those who could move on their own (the card's ruling),
+  // and who have a way closer.
+  "call-heroes": defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const rule = card("bell");
+    const here = roomOf(state, p.figure);
+    const callable = heroes(ctx.engine, state).filter((hero) => {
+      const away = distanceTo(
+        ctx.engine,
+        state,
+        { kind: "figure", figure: hero.id },
+        placeOf(state, hero.id),
+        here,
+      );
+      return (
+        hero.id !== p.figure &&
+        away !== null &&
+        away > 0 &&
+        askPermission(ctx.engine, state, "canAct", { figure: hero.id })
+          .allowed
+      );
+    });
+    ctx.push(
+      ...callable.map((hero) =>
+        chooseOne(
+          p.figure,
+          [
+            {
+              label: `Call ${explorerName(hero)} 1 space closer`,
+              steps: [moveCloser(hero.id, here, p.figure, rule)],
+              figure: hero.id,
+            },
+            { label: `Leave ${explorerName(hero)} be`, steps: [] },
+          ],
+          rule,
+        ),
+      ),
+    );
+  }),
+  // The traitor may pull any number of monsters 1 space closer to
+  // the ringer; a traitor ringing it pulls none; with no traitor,
+  // every monster comes.
+  "call-monsters": defineStep<{ figure: FigureId }>((_state, p, ctx) => {
+    ctx.push(pullMonsters(p.figure, card("bell"), { skipOwn: true }));
+  }),
+});
+
+const BOTTLE = ownSteps("bottle", {
+  // Any room, your own included: choosing it leaves you where you are.
+  anywhere: defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const here = roomOf(state, p.figure);
+    ctx.push(
+      chooseOne(
+        p.figure,
+        state.board.tiles.map((t) =>
+          t.tile === here
+            ? { label: `Stay in the ${roomName(t.tile)}`, steps: [], room: t.tile }
+            : {
+                label: `Put your explorer in the ${roomName(t.tile)}`,
+                steps: [relocate(p.figure, t.tile, card("bottle"))],
+                room: t.tile,
+              },
+        ),
+        card("bottle"),
+      ),
+    );
+  }),
+});
+
+export const DARK_DICE = ownSteps("dark-dice", {
+  // Any explorer still in play who isn't a revealed traitor: a hidden
+  // traitor can be joined, since no one knows.
+  join: defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const you = figureOf(state, p.figure);
+    const options = allFigures(state)
+      .filter(
+        (e) =>
+          e.kind === "explorer" &&
+          inPlay(e) &&
+          e.id !== p.figure &&
+          !together(e, you) &&
+          !revealedAs(state, e.id, "traitor"),
+      )
+      .map((e) => ({
+        label: `Move to ${explorerName(e)} in the ${roomName(placeOf(state, e.id).room)}`,
+        steps: [
+          relocate(
+            p.figure,
+            placeOf(state, e.id).room,
+            card("dark-dice"),
+            placeOf(state, e.id).side,
+          ),
+        ],
+        figure: e.id,
+      }));
+    if (options.length > 0)
+      ctx.push(chooseOne(p.figure, options, card("dark-dice")));
+  }),
+  // One other explorer: a monster isn't one (rules p. 5).
+  push: defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const you = figureOf(state, p.figure);
+    const options = allFigures(state)
+      .filter(
+        (e) =>
+          e.id !== p.figure &&
+          e.kind === "explorer" &&
+          together(e, you) &&
+          canBeMoved(ctx.engine, state, e.id),
+      )
+      .flatMap((e) =>
+        askSet(ctx.engine, state, "adjacency", {
+          room: roomOf(state, p.figure),
+        }).map((room) => ({
+          label: `Move ${explorerName(e)} into the ${roomName(room)}`,
+          steps: [relocate(e.id, room, card("dark-dice"))],
+        })),
+      );
+    if (options.length > 0)
+      ctx.push(chooseOne(p.figure, options, card("dark-dice")));
+  }),
+  step: defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const options = askSet(ctx.engine, state, "adjacency", {
+      room: roomOf(state, p.figure),
+    }).map((room) => ({
+      label: `Move into the ${roomName(room)}`,
+      steps: [relocate(p.figure, room, card("dark-dice"))],
+      room,
+    }));
+    if (options.length > 0)
+      ctx.push(chooseOne(p.figure, options, card("dark-dice")));
+  }),
+  "bottom-out": defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const { clips } = trackTraits(ctx.catalog, state, p.figure).live;
+    ctx.push(
+      ...TRAITS.map((t) =>
+        gain(p.figure, t, -clips[t], card("dark-dice")),
+      ),
+    );
+  }),
+});
+
+const DYNAMITE = ownSteps("dynamite", {
+  aim: defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const rule = card("dynamite");
+    if (state.turn) state.turn.attacked.push(p.figure);
+    ctx.push(
+      chooseOne(
+        p.figure,
+        dynamiteTargets(ctx.engine, state, p.figure).map((place) => ({
+          label: `Throw the Dynamite into the ${roomName(place.room)}`,
+          steps: [
+            DYNAMITE.step("blast", { place, thrower: p.figure }),
+          ],
+          ...optionPlace(place),
+        })),
+        rule,
+      ),
+      discardCard(p.figure, "dynamite"),
+    );
+  }),
+  // Only a figure with both Might and Speed rolls, and one that can't
+  // be attacked is untouched. A monster that fails is beaten as if in
+  // physical combat by the thrower (the card's official ruling).
+  blast: defineStep<{ place: Place; thrower: FigureId }>(
+    (state, { place, thrower }, ctx) => {
+      const rule = card("dynamite");
+      const caught = allFigures(state).filter((e) => {
+        const at = e.place;
+        return (
+          at !== null &&
+          at.room === place.room &&
+          (place.side === null || at.side === place.side) &&
+          hasTrait(ctx.engine, state, e.id, "might") &&
+          hasTrait(ctx.engine, state, e.id, "speed") &&
+          askPermission(ctx.engine, state, "canAttack", {
+            attacker: thrower,
+            target: { kind: "figure", figure: e.id },
+          }).allowed
+        );
+      });
+      ctx.push(
+        ...caught.map((e) =>
+          roll(
+            e.id,
+            { kind: "trait", trait: "speed" },
+            rule,
+            table([
+              { min: 5, max: null, steps: [] },
+              {
+                min: 0,
+                max: 4,
+                steps: [
+                  takesDamage(ctx.catalog, state, e.id)
+                    ? damage(e.id, "physical", { points: 4 }, rule, thrower)
+                    : beaten(thrower, e.id, 4, rule),
+                ],
+              },
+            ]),
+          ),
+        ),
+      );
+    },
+  ),
+});
+
+const MEDICAL_KIT = ownSteps("medical-kit", {
+  heal: defineStep<{ figure: FigureId; target: FigureId; points: number }>(
+    (state, p, ctx) => {
+      const rule = card("medical-kit");
+      const target = figureOf(state, p.target);
+      const might = spacesBelowStart(state, target, "might");
+      const speed = spacesBelowStart(state, target, "speed");
+      const options: Option[] = [];
+      for (let m = Math.min(might, p.points); m >= 0; m--)
+        for (let s = Math.min(speed, p.points - m); s >= 0; s--) {
+          if (m + s === 0) continue;
+          const parts = [
+            ...(m > 0 ? [`${m} Might`] : []),
+            ...(s > 0 ? [`${s} Speed`] : []),
+          ];
+          options.push({
+            label: `${explorerName(target)} gains ${parts.join(" and ")}`,
+            steps: [
+              ...(m > 0 ? [gain(p.target, "might", m, rule)] : []),
+              ...(s > 0 ? [gain(p.target, "speed", s, rule)] : []),
+            ],
+          });
+        }
+      if (options.length > 0) ctx.push(chooseOne(p.figure, options, rule));
+    },
+  ),
+});
+
+const MUSIC_BOX = ownSteps("music-box", {
+  mesmerized: defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
+    const rule = card("music-box");
+    const explorer = figureOf(state, figure);
+    ctx.push(
+      ...(explorer.cards.includes("music-box")
+        ? [
+            loseCard(
+              figure,
+              "music-box",
+              { to: "room", room: roomOf(state, figure) },
+              rule,
+            ),
+          ]
+        : []),
+      endTurnNow(figure, rule),
+    );
+  }),
+});
+
+const PICKPOCKETS_GLOVES = ownSteps("pickpokets-gloves", {
+  // Taking is stealing without an attack (the card's project ruling).
+  take: defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const rule = card("pickpokets-gloves");
+    ctx.push(
+      chooseOne(
+        p.figure,
+        glovesTakes(ctx.engine, state, p.figure).map(({ from, item }) => ({
+          label: `Take ${explorerName(figureOf(state, from))}'s ${CATALOG.cards[item].name}`,
+          steps: [
+            discardCard(p.figure, "pickpokets-gloves"),
+            steal(from, p.figure, item, rule),
+          ],
+        })),
+        rule,
+      ),
+    );
+  }),
+});
 
 /** Item cards, from content/cards/items.md. */
 export const ITEMS: BehaviourGroup = {
@@ -330,13 +602,13 @@ export const ITEMS: BehaviourGroup = {
                 {
                   min: 5,
                   max: null,
-                  steps: [local("bell", "call-heroes", { figure })],
+                  steps: [BELL.step("call-heroes", { figure })],
                   does: "call-heroes",
                 },
                 {
                   min: 0,
                   max: 4,
-                  steps: [local("bell", "call-monsters", { figure })],
+                  steps: [BELL.step("call-monsters", { figure })],
                   does: "call-monsters",
                 },
               ]),
@@ -345,53 +617,7 @@ export const ITEMS: BehaviourGroup = {
           ],
         },
       },
-      steps: {
-        // The ringer picks which unimpeded heroes come, each 1 space closer
-        // to them: those who could move on their own (the card's ruling),
-        // and who have a way closer.
-        "call-heroes": defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const rule = card("bell");
-          const here = roomOf(state, p.figure);
-          const callable = heroes(ctx.engine, state).filter((hero) => {
-            const away = distanceTo(
-              ctx.engine,
-              state,
-              { kind: "figure", figure: hero.id },
-              placeOf(state, hero.id),
-              here,
-            );
-            return (
-              hero.id !== p.figure &&
-              away !== null &&
-              away > 0 &&
-              askPermission(ctx.engine, state, "canAct", { figure: hero.id })
-                .allowed
-            );
-          });
-          ctx.push(
-            ...callable.map((hero) =>
-              chooseOne(
-                p.figure,
-                [
-                  {
-                    label: `Call ${explorerName(hero)} 1 space closer`,
-                    steps: [moveCloser(hero.id, here, p.figure, rule)],
-                    figure: hero.id,
-                  },
-                  { label: `Leave ${explorerName(hero)} be`, steps: [] },
-                ],
-                rule,
-              ),
-            ),
-          );
-        }),
-        // The traitor may pull any number of monsters 1 space closer to
-        // the ringer; a traitor ringing it pulls none; with no traitor,
-        // every monster comes.
-        "call-monsters": defineStep<{ figure: FigureId }>((_state, p, ctx) => {
-          ctx.push(pullMonsters(p.figure, card("bell"), { skipOwn: true }));
-        }),
-      },
+      steps: BELL.steps,
     },
 
     "blood-dagger": {
@@ -424,7 +650,7 @@ export const ITEMS: BehaviourGroup = {
                   {
                     min: 6,
                     max: 6,
-                    steps: [local("bottle", "anywhere", { figure })],
+                    steps: [BOTTLE.step("anywhere", { figure })],
                     does: "choose-room",
                   },
                   { min: 5, max: 5, steps: both(["might", "speed"], 2) },
@@ -447,27 +673,7 @@ export const ITEMS: BehaviourGroup = {
           },
         },
       },
-      steps: {
-        // Any room, your own included: choosing it leaves you where you are.
-        anywhere: defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const here = roomOf(state, p.figure);
-          ctx.push(
-            chooseOne(
-              p.figure,
-              state.board.tiles.map((t) =>
-                t.tile === here
-                  ? { label: `Stay in the ${roomName(t.tile)}`, steps: [], room: t.tile }
-                  : {
-                      label: `Put your explorer in the ${roomName(t.tile)}`,
-                      steps: [relocate(p.figure, t.tile, card("bottle"))],
-                      room: t.tile,
-                    },
-              ),
-              card("bottle"),
-            ),
-          );
-        }),
-      },
+      steps: BOTTLE.steps,
     },
 
     candle: {
@@ -485,7 +691,7 @@ export const ITEMS: BehaviourGroup = {
         {
           event: "card-gained",
           when: (state, event, source) =>
-            eventData<{ figure: FigureId }>(event).figure === source.holder &&
+            event.data.figure === source.holder &&
             !cardFlag(state, "candle", SET_BONUS) &&
             SET.every((c) =>
               figureOf(state, holder(source)).cards.includes(c),
@@ -495,7 +701,7 @@ export const ITEMS: BehaviourGroup = {
         {
           event: "card-lost",
           when: (state, event, source) => {
-            const lost = eventData<{ figure: FigureId; card: string }>(event);
+            const lost = event.data;
             return (
               lost.figure === source.holder &&
               SET.includes(lost.card) &&
@@ -525,13 +731,13 @@ export const ITEMS: BehaviourGroup = {
                   {
                     min: 6,
                     max: 6,
-                    steps: [local("dark-dice", "join", { figure })],
+                    steps: [DARK_DICE.step("join", { figure })],
                     does: "join-others",
                   },
                   {
                     min: 5,
                     max: 5,
-                    steps: [local("dark-dice", "push", { figure })],
+                    steps: [DARK_DICE.step("push", { figure })],
                     does: "push",
                   },
                   {
@@ -542,7 +748,7 @@ export const ITEMS: BehaviourGroup = {
                   {
                     min: 3,
                     max: 3,
-                    steps: [local("dark-dice", "step", { figure })],
+                    steps: [DARK_DICE.step("step", { figure })],
                     does: "step",
                   },
                   { min: 2, max: 2, steps: [chooseTrait(figure, MENTAL, rule)] },
@@ -551,7 +757,7 @@ export const ITEMS: BehaviourGroup = {
                     min: 0,
                     max: 0,
                     steps: [
-                      local("dark-dice", "bottom-out", { figure }),
+                      DARK_DICE.step("bottom-out", { figure }),
                       discardCard(figure, "dark-dice"),
                     ],
                     does: "bottom-out",
@@ -562,77 +768,7 @@ export const ITEMS: BehaviourGroup = {
           },
         },
       },
-      steps: {
-        // Any explorer still in play who isn't a revealed traitor: a hidden
-        // traitor can be joined, since no one knows.
-        join: defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const you = figureOf(state, p.figure);
-          const options = allFigures(state)
-            .filter(
-              (e) =>
-                e.kind === "explorer" &&
-                inPlay(e) &&
-                e.id !== p.figure &&
-                !together(e, you) &&
-                !revealedAs(state, e.id, "traitor"),
-            )
-            .map((e) => ({
-              label: `Move to ${explorerName(e)} in the ${roomName(placeOf(state, e.id).room)}`,
-              steps: [
-                relocate(
-                  p.figure,
-                  placeOf(state, e.id).room,
-                  card("dark-dice"),
-                  placeOf(state, e.id).side,
-                ),
-              ],
-              figure: e.id,
-            }));
-          if (options.length > 0)
-            ctx.push(chooseOne(p.figure, options, card("dark-dice")));
-        }),
-        // One other explorer: a monster isn't one (rules p. 5).
-        push: defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const you = figureOf(state, p.figure);
-          const options = allFigures(state)
-            .filter(
-              (e) =>
-                e.id !== p.figure &&
-                e.kind === "explorer" &&
-                together(e, you) &&
-                canBeMoved(ctx.engine, state, e.id),
-            )
-            .flatMap((e) =>
-              askSet(ctx.engine, state, "adjacency", {
-                room: roomOf(state, p.figure),
-              }).map((room) => ({
-                label: `Move ${explorerName(e)} into the ${roomName(room)}`,
-                steps: [relocate(e.id, room, card("dark-dice"))],
-              })),
-            );
-          if (options.length > 0)
-            ctx.push(chooseOne(p.figure, options, card("dark-dice")));
-        }),
-        step: defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const options = askSet(ctx.engine, state, "adjacency", {
-            room: roomOf(state, p.figure),
-          }).map((room) => ({
-            label: `Move into the ${roomName(room)}`,
-            steps: [relocate(p.figure, room, card("dark-dice"))],
-            room,
-          }));
-          if (options.length > 0)
-            ctx.push(chooseOne(p.figure, options, card("dark-dice")));
-        }),
-        "bottom-out": defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const { clips } = trackTraits(ctx.catalog, state, p.figure).live;
-          ctx.push(
-            ...TRAITS.map((t) =>
-              gain(p.figure, t, -clips[t], card("dark-dice")),
-            ),
-          );
-        }),
-      },
+      steps: DARK_DICE.steps,
     },
 
     dynamite: {
@@ -643,72 +779,10 @@ export const ITEMS: BehaviourGroup = {
           available: (state, figure, _source, engine) =>
             mayAttackNow(engine, state, figure) &&
             dynamiteTargets(engine, state, figure).length > 0,
-          steps: (_state, figure) => [local("dynamite", "aim", { figure })],
+          steps: (_state, figure) => [DYNAMITE.step("aim", { figure })],
         },
       },
-      steps: {
-        aim: defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const rule = card("dynamite");
-          if (state.turn) state.turn.attacked.push(p.figure);
-          ctx.push(
-            chooseOne(
-              p.figure,
-              dynamiteTargets(ctx.engine, state, p.figure).map((place) => ({
-                label: `Throw the Dynamite into the ${roomName(place.room)}`,
-                steps: [
-                  local("dynamite", "blast", { place, thrower: p.figure }),
-                ],
-                ...optionPlace(place),
-              })),
-              rule,
-            ),
-            discardCard(p.figure, "dynamite"),
-          );
-        }),
-        // Only a figure with both Might and Speed rolls, and one that can't
-        // be attacked is untouched. A monster that fails is beaten as if in
-        // physical combat by the thrower (the card's official ruling).
-        blast: defineStep<{ place: Place; thrower: FigureId }>(
-          (state, { place, thrower }, ctx) => {
-            const rule = card("dynamite");
-            const caught = allFigures(state).filter((e) => {
-              const at = e.place;
-              return (
-                at !== null &&
-                at.room === place.room &&
-                (place.side === null || at.side === place.side) &&
-                hasTrait(ctx.engine, state, e.id, "might") &&
-                hasTrait(ctx.engine, state, e.id, "speed") &&
-                askPermission(ctx.engine, state, "canAttack", {
-                  attacker: thrower,
-                  target: { kind: "figure", figure: e.id },
-                }).allowed
-              );
-            });
-            ctx.push(
-              ...caught.map((e) =>
-                roll(
-                  e.id,
-                  { kind: "trait", trait: "speed" },
-                  rule,
-                  table([
-                    { min: 5, max: null, steps: [] },
-                    {
-                      min: 0,
-                      max: 4,
-                      steps: [
-                        takesDamage(ctx.catalog, state, e.id)
-                          ? damage(e.id, "physical", { points: 4 }, rule, thrower)
-                          : beaten(thrower, e.id, 4, rule),
-                      ],
-                    },
-                  ]),
-                ),
-              ),
-            );
-          },
-        ),
-      },
+      steps: DYNAMITE.steps,
     },
 
     "healing-salve": restorer(
@@ -735,10 +809,10 @@ export const ITEMS: BehaviourGroup = {
         {
           event: "card-used",
           when: (_state, event) =>
-            eventData<{ card: string }>(event).card === "idol",
+            event.data.card === "idol",
           steps: (_state, event) => [
             gain(
-              eventData<{ figure: FigureId }>(event).figure,
+              event.data.figure,
               "sanity",
               -1,
               card("idol"),
@@ -772,7 +846,7 @@ export const ITEMS: BehaviourGroup = {
             const rule = card("medical-kit");
             // Healing is gaining physical traits back, up to their starting values.
             const heal = (target: FigureId, points: number) => ({
-              steps: [local("medical-kit", "heal", { figure, target, points })],
+              steps: [MEDICAL_KIT.step("heal", { figure, target, points })],
               does: [
                 { kind: "gain", trait: "physical", amount: points },
               ] satisfies RowOutcome[],
@@ -807,33 +881,7 @@ export const ITEMS: BehaviourGroup = {
           },
         },
       },
-      steps: {
-        heal: defineStep<{ figure: FigureId; target: FigureId; points: number }>(
-          (state, p, ctx) => {
-            const rule = card("medical-kit");
-            const target = figureOf(state, p.target);
-            const might = spacesBelowStart(state, target, "might");
-            const speed = spacesBelowStart(state, target, "speed");
-            const options: Option[] = [];
-            for (let m = Math.min(might, p.points); m >= 0; m--)
-              for (let s = Math.min(speed, p.points - m); s >= 0; s--) {
-                if (m + s === 0) continue;
-                const parts = [
-                  ...(m > 0 ? [`${m} Might`] : []),
-                  ...(s > 0 ? [`${s} Speed`] : []),
-                ];
-                options.push({
-                  label: `${explorerName(target)} gains ${parts.join(" and ")}`,
-                  steps: [
-                    ...(m > 0 ? [gain(p.target, "might", m, rule)] : []),
-                    ...(s > 0 ? [gain(p.target, "speed", s, rule)] : []),
-                  ],
-                });
-              }
-            if (options.length > 0) ctx.push(chooseOne(p.figure, options, rule));
-          },
-        ),
-      },
+      steps: MEDICAL_KIT.steps,
     },
 
     "music-box": {
@@ -859,45 +907,27 @@ export const ITEMS: BehaviourGroup = {
           event: "entered",
           when: (state, event, source) =>
             cardFlag(state, "music-box", "open") &&
-            eventData<{ room: string }>(event).room ===
+            event.data.room ===
               musicBoxRoom(state, source),
           steps: (_state, event) => [
-            hearMusicBox(eventData<{ figure: FigureId }>(event).figure),
+            hearMusicBox(event.data.figure),
           ],
         },
         {
           event: "turn-started",
           when: (state, event, source) =>
             cardFlag(state, "music-box", "open") &&
-            hearsMusicBox(state, turnFigure(event), source),
+            hearsMusicBox(state, event.data.figure, source),
           steps: (_state, event) => {
-            const figure = turnFigure(event);
+            const { figure } = event.data;
             return figure === null ? [] : [hearMusicBox(figure)];
           },
         },
       ],
-      steps: {
-        mesmerized: defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
-          const rule = card("music-box");
-          const explorer = figureOf(state, figure);
-          ctx.push(
-            ...(explorer.cards.includes("music-box")
-              ? [
-                  loseCard(
-                    figure,
-                    "music-box",
-                    { to: "room", room: roomOf(state, figure) },
-                    rule,
-                  ),
-                ]
-              : []),
-            endTurnNow(figure, rule),
-          );
-        }),
-      },
+      steps: MUSIC_BOX.steps,
       describe: {
         "card-marked": (event) =>
-          eventData<{ value: boolean }>(event).value
+          event.data.value
             ? "The Music Box is opened"
             : "The Music Box is closed",
       },
@@ -911,29 +941,11 @@ export const ITEMS: BehaviourGroup = {
           available: (state, figure, _source, engine) =>
             glovesTakes(engine, state, figure).length > 0,
           steps: (_state, figure) => [
-            local("pickpokets-gloves", "take", { figure }),
+            PICKPOCKETS_GLOVES.step("take", { figure }),
           ],
         },
       },
-      steps: {
-        // Taking is stealing without an attack (the card's project ruling).
-        take: defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const rule = card("pickpokets-gloves");
-          ctx.push(
-            chooseOne(
-              p.figure,
-              glovesTakes(ctx.engine, state, p.figure).map(({ from, item }) => ({
-                label: `Take ${explorerName(figureOf(state, from))}'s ${CATALOG.cards[item].name}`,
-                steps: [
-                  discardCard(p.figure, "pickpokets-gloves"),
-                  steal(from, p.figure, item, rule),
-                ],
-              })),
-              rule,
-            ),
-          );
-        }),
-      },
+      steps: PICKPOCKETS_GLOVES.steps,
     },
 
     "puzzle-box": {

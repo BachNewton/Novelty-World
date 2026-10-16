@@ -1,4 +1,5 @@
 import type { Bot } from "./bot";
+import { gdAggressiveBot, gdContinentalBot, gdDefensiveBot, gdStackerBot } from "./gd";
 import { greedyBot } from "./greedy";
 import { randomBot } from "./random";
 import { ruleV1Bot } from "./rule-v1";
@@ -8,6 +9,10 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   random: randomBot,
   greedy: greedyBot,
   "rule-v1": ruleV1Bot,
+  "gd-defensive": gdDefensiveBot,
+  "gd-continental": gdContinentalBot,
+  "gd-aggressive": gdAggressiveBot,
+  "gd-stacker": gdStackerBot,
 };
 
 export function riskBot(label: string): Bot {

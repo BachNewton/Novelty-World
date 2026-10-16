@@ -11,9 +11,6 @@ export interface Holding {
  *  one after an elimination (`ELIM-3`). */
 export interface ReinforceState {
   armiesToPlace: number;
-  /** Hand size when the phase began: 5 or more must trade and may trade twice (`CARDS-5`). */
-  handAtStart: number;
-  tradesMade: number;
   /** Trades come before placing (`CARDS-5`): the first placement closes trading. */
   placedAny: boolean;
   afterElimination: boolean;
@@ -38,13 +35,15 @@ export interface EngineState {
   turnOrder: Seat[];
   board: Record<TerritoryId, Holding>;
   hands: CardId[][];
-  /** `drawPile[0]` is the top card. */
-  drawPile: CardId[];
-  discardPile: CardId[];
-  setsTraded: number;
+  /** `deck[0]` is the top card. */
+  deck: CardId[];
+  /** Every set traded, oldest first: public (`CARDS-2`). */
+  trades: { seat: Seat; cards: [CardId, CardId, CardId] }[];
   eliminated: boolean[];
   /** The first turn is 1. */
   turn: number;
+  /** Rounds of the turn order completed: 0 during every seat's first turn (`REINF-6`). */
+  round: number;
   active: Seat;
   phase: Phase;
   reinforce: ReinforceState | null;

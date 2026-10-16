@@ -3,11 +3,10 @@ import { referenceEngine as engine } from ".";
 import { checkOptionsMatchApply, MAX_STEPS, playRandomGame } from "./test-kit";
 
 // The fast suite's random games, many times over. Its four games reach every event, but the rare
-// ones only a handful of times: about 7 forced trades after an elimination (ELIM-3) and 7 deck
-// reshuffles between them. These 48 games (about 15s) reach roughly 60 of each, in far more
-// combinations: two forced trades in a row, reshuffles of small discard piles, eliminations
-// mid-blitz. As the oracle the fast engine is tested against, the reference engine's rare paths
-// are the ones worth the time.
+// ones, the forced trades after an elimination (ELIM-3), only a handful of times. These 48 games
+// reach many more, in far more combinations: two forced trades in a row, eliminations mid-attack.
+// As the oracle the fast engine is tested against, the reference engine's rare paths are the ones
+// worth the time.
 
 const SEEDS_PER_COUNT = 12;
 

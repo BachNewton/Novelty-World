@@ -4,8 +4,7 @@ import { seatName } from "./seats";
 
 /*
  * What happened, in words: each engine event as a line for the log and the status box, with the
- * seat it is about. A run of battles between the same two
- * territories, as a blitz makes, reads as one line.
+ * seat it is about. A run of battles between the same two territories reads as one line.
  */
 
 export interface Line {
@@ -69,8 +68,9 @@ function describe(event: GameEvent): Line | null {
       return line(`${seatName(event.owner)} placed ${armies(event.armies)} on ${territoryName(event.territory)}.`, event.owner);
     case "reinforcements": {
       const continents = event.fromContinents.map((c) => ` + ${c.bonus} for ${CONTINENT_NAME.get(c.continent) ?? c.continent}`).join("");
-      const total = event.fromTerritories + event.fromContinents.reduce((sum, c) => sum + c.bonus, 0);
-      return line(`${seatName(event.seat)} gets ${total}: ${event.fromTerritories} for territories${continents}.`, event.seat, true);
+      const firstTurn = event.firstTurnBonus > 0 ? ` + ${event.firstTurnBonus} for moving later` : "";
+      const total = event.fromTerritories + event.fromContinents.reduce((sum, c) => sum + c.bonus, 0) + event.firstTurnBonus;
+      return line(`${seatName(event.seat)} gets ${total}: ${event.fromTerritories} for territories${continents}${firstTurn}.`, event.seat, true);
     }
     case "traded": {
       const bonus = event.bonus ? `, and 2 more on ${territoryName(event.bonus.territory)}` : "";
@@ -82,6 +82,11 @@ function describe(event: GameEvent): Line | null {
         dice: { attacker: event.attackerDice, defender: event.defenderDice, attackerLosses: event.attackerLosses, defenderLosses: event.defenderLosses },
         battle: { from: event.from, to: event.to, battles: 1, attackerLost: event.attackerLosses, defenderLost: event.defenderLosses },
       };
+    case "blitzed":
+      return {
+        ...line(`${territoryName(event.from)} blitzed ${territoryName(event.to)}: attacker lost ${event.attackerLosses}, defender lost ${event.defenderLosses}.`, null, true),
+        battle: { from: event.from, to: event.to, battles: 1, attackerLost: event.attackerLosses, defenderLost: event.defenderLosses },
+      };
     case "captured":
       return line(`${seatName(event.seat)} captured ${territoryName(event.territory)} from ${seatName(event.from)}.`, event.seat, true);
     case "occupied":
@@ -91,7 +96,7 @@ function describe(event: GameEvent): Line | null {
     case "card-drawn":
       return line(event.card ? `${seatName(event.seat)} drew ${cardName(event.card)} (${cardSymbol(event.card)}).` : `${seatName(event.seat)} drew a card.`, event.seat, true);
     case "deck-reshuffled":
-      return line("The traded cards were shuffled into a new draw pile.", null);
+      return line("The deck was shuffled.", null);
     case "fortified":
       return line(`${armies(event.armies)} moved from ${territoryName(event.from)} to ${territoryName(event.to)}.`, null, true);
     case "turn-started":

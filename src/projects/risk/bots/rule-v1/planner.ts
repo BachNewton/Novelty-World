@@ -12,10 +12,10 @@ import {
   N,
   type Board,
 } from "./board";
-import { setValue } from "./cards";
-import { evaluate, expectedIncome } from "./evaluate";
-import { rollOdds, winProb } from "./odds";
-import { incomeHorizon, type Params } from "./params";
+import { forcedTrade } from "./cards";
+import { breakdown, evaluate, expectedIncome } from "./evaluate";
+import { battleOutcome, winProb } from "./odds";
+import type { Params } from "./params";
 import { killChance, planCapture, type CapturePlan } from "./routes";
 
 // The turn planner (`ideas/rule-bot-v1.md` §2.4): a few dozen whole-turn plans, each
@@ -37,12 +37,6 @@ export interface Plan {
   place: Map<number, number>;
   value: number;
 }
-
-// The continents worth taking in an escalating game (§1, *First Four Moves*): South
-// America and Australia, and Africa at 3 players.
-const SOUTH_AMERICA = 1;
-const AFRICA = 3;
-const AUSTRALIA = 5;
 
 function addPlace(place: Map<number, number>, t: number, armies: number): void {
   if (armies > 0) place.set(t, (place.get(t) ?? 0) + armies);
@@ -105,15 +99,13 @@ export function placed(b: Board, place: Map<number, number>): Board {
   return out;
 }
 
-/** The forced trades of `ELIM-3`, their armies placed on my front stack. */
+/** The forced trades of `ELIM-3`, their armies placed on my front stack. The victim's
+ *  cards are unseen, so the hand kept is counted as unseen too. */
 function forcedTrades(b: Board, me: Seat): void {
-  let armies = 0;
-  while (b.handSize[me] >= 6) {
-    b.handSize[me] -= 3;
-    b.setsTraded++;
-    armies += setValue(b.setsTraded);
-  }
+  const { armies, kept } = forcedTrade(b.handSize[me]);
   if (armies === 0) return;
+  b.handSize[me] = kept;
+  b.known = [0, 0, 0, 0];
   const place = new Map<number, number>();
   stackAllocation(b, me, armies, place);
   for (const [t, a] of place) b.armies[t] += a;
@@ -194,21 +186,20 @@ function stopIndex(armies: number, defenders: readonly number[]): number {
   return defenders.length - 1;
 }
 
-/** One sampled blitz: the attackers and defenders left. */
+/** One sampled attack, played the best way: the attackers and defenders left. */
 function sampleBattle(a: number, d: number, rng: Rng): [number, number] {
-  while (a > 0 && d > 0) {
-    const odds = rollOdds(a, d);
-    const pairs = odds.length - 1;
-    let r = rng.next();
-    let lost = 0;
-    while (lost < pairs && r >= odds[lost]) {
-      r -= odds[lost];
-      lost++;
-    }
-    a -= lost;
-    d -= pairs - lost;
+  if (a <= 0) return [0, d];
+  const o = battleOutcome(a, d);
+  let r = rng.next();
+  for (let x = o.win.length - 1; x >= 1; x--) {
+    if (r < o.win[x]) return [x, 0];
+    r -= o.win[x];
   }
-  return [a, d];
+  for (let y = 1; y < o.fail.length; y++) {
+    if (r < o.fail[y]) return [0, y];
+    r -= o.fail[y];
+  }
+  return [0, d];
 }
 
 /** One end of the plan with sampled dice. */
@@ -248,8 +239,20 @@ function scorePlan(b: Board, me: Seat, plan: Plan, params: Params, rng: Rng): nu
 }
 
 /** Target sets worth a plan: single captures, small continents to complete, victims. */
-function candidateTargets(b: Board, me: Seat, toPlace: number): { kind: PlanKind; targets: number[] }[] {
+function candidateTargets(
+  b: Board,
+  me: Seat,
+  toPlace: number,
+  threat: Seat | null,
+): { kind: PlanKind; targets: number[] }[] {
   const out: { kind: PlanKind; targets: number[] }[] = [];
+  // Under a common threat everyone else is my ally against it (Domination's AI; Risk4Ever:
+  // "target the strongest player"): another player's territory is taken only for the
+  // turn's card, never to break their continent, and they are finished only when their
+  // cards force a trade at once (`ELIM-3`).
+  const ally = (t: number) => threat !== null && threat !== me && b.owner[t] !== threat;
+  const allyBlocked = (targets: readonly number[]) =>
+    targets.some((t) => ally(t) && (b.cardEarned || holdsContinent(b, b.owner[t], CONTINENT_OF[t])));
   // A card-less victim at a table of 5 or 6 is left as a buffer (Domination drops
   // card-less elimination targets): its kill pays nothing, and it absorbs the others.
   const buffers = new Set<Seat>();
@@ -266,7 +269,7 @@ function candidateTargets(b: Board, me: Seat, toPlace: number): { kind: PlanKind
     if (b.owner[t] === me) continue;
     let source = 0;
     for (const n of ADJ[t]) if (b.owner[n] === me) source = Math.max(source, b.armies[n]);
-    if (source === 0 || finishesBuffer([t])) continue;
+    if (source === 0 || finishesBuffer([t]) || allyBlocked([t])) continue;
     const p = winProb(source - 1 + toPlace, b.armies[t]);
     if (p < 0.25) continue;
     const c = CONTINENT_OF[t];
@@ -276,16 +279,21 @@ function candidateTargets(b: Board, me: Seat, toPlace: number): { kind: PlanKind
   singles.sort((x, y) => y.score - x.score || x.t - y.t);
   for (const s of singles.slice(0, 8)) out.push({ kind: "capture", targets: [s.t] });
 
-  const continents = b.players === 3 ? [SOUTH_AMERICA, AFRICA, AUSTRALIA] : [SOUTH_AMERICA, AUSTRALIA];
-  for (const c of continents) {
+  for (let c = 0; c < CONTINENT_MEMBERS.length; c++) {
     const missing = CONTINENT_MEMBERS[c].filter((t) => b.owner[t] !== me);
-    if (missing.length >= 2 && missing.length <= Math.ceil(CONTINENT_MEMBERS[c].length / 2) && !finishesBuffer(missing)) {
+    if (
+      missing.length >= 2 &&
+      missing.length <= Math.ceil(CONTINENT_MEMBERS[c].length / 2) &&
+      !finishesBuffer(missing) &&
+      !allyBlocked(missing)
+    ) {
       out.push({ kind: "continent", targets: missing });
     }
   }
 
   for (let v = 0; v < b.players; v++) {
     if (v === me || !b.alive[v] || buffers.has(v)) continue;
+    if (threat !== null && threat !== me && v !== threat && b.handSize[v] + b.handSize[me] < 5) continue;
     if (killChance(b, me, v, toPlace) > 0.02) {
       const targets: number[] = [];
       for (let t = 0; t < N; t++) if (b.owner[t] === v) targets.push(t);
@@ -298,7 +306,8 @@ function candidateTargets(b: Board, me: Seat, toPlace: number): { kind: PlanKind
 /** Every plan for this position, scored. */
 export function plans(b: Board, me: Seat, toPlace: number, params: Params, rng: Rng): Plan[] {
   const income = expectedIncome(b, me);
-  const H = incomeHorizon(params.prefs, setValue(b.setsTraded + 1));
+  const threat = breakdown(b, me, params).commonThreat;
+  const H = params.prefs.incomeHorizon;
   const out: Plan[] = [];
   const add = (kind: PlanKind, targets: number[], capture: CapturePlan | null, place: Map<number, number>) => {
     const plan: Plan = { kind, targets, capture, place, value: 0 };
@@ -315,8 +324,9 @@ export function plans(b: Board, me: Seat, toPlace: number, params: Params, rng: 
     add("hold", [], null, guard);
   }
 
-  for (const { kind, targets } of candidateTargets(b, me, toPlace)) {
-    const variants = toPlace > 0 ? [0.9, 1] : [1];
+  for (const { kind, targets } of candidateTargets(b, me, toPlace, threat)) {
+    // Placing until the plan is likely, until it is all but sure, or everything that helps.
+    const variants = toPlace > 0 ? [0.9, 0.99, 1] : [1];
     for (const enough of variants) {
       const cp = planCapture(b, me, targets, toPlace, enough);
       if (cp === null) continue;

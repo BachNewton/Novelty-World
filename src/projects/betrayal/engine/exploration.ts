@@ -33,18 +33,19 @@ import {
   together,
 } from "./figures";
 import {
+  afterRoll,
   arrived,
-  goOut,
   defineDecision,
   defineStep,
   gainCard,
+  goOut,
   handle,
-  loseCard,
+  IN_TRANSIT,
   isHandled,
   leaveRoom,
-  roll,
-  IN_HAND,
+  loseCard,
   moveCard,
+  roll,
   step,
 } from "./effects";
 import { attackTargets, turnAttack } from "./combat";
@@ -126,7 +127,7 @@ export function newGame(engine: Engine, game: NewGame): GameState {
   }));
   const characters = game.seats.map((s) => s.character);
   return start(engine, state, [
-    step<Setup>("setup", {
+    step("setup", {
       characters,
       today: game.today,
       scenario: game.scenario
@@ -478,7 +479,7 @@ function turnWork(
   if (choice.act === "end")
     return [
       ...(turn.acting === null ? [] : [finishActing()]),
-      step<TurnParams>("end-turn", { seat }),
+      step("end-turn", { seat }),
     ];
   if (choice.act === "activate") return [activate(choice.figure)];
   if (choice.act === "done") return [finishActing()];
@@ -488,14 +489,14 @@ function turnWork(
       return [
         leaveRoom(
           figure,
-          step<Move>("move", { figure, to: choice.to, side: choice.side }),
+          step("move", { figure, to: choice.to, side: choice.side }),
         ),
       ];
     case "discover":
       return [
         leaveRoom(
           figure,
-          step<Discover>("discover", { figure, direction: choice.direction }),
+          step("discover", { figure, direction: choice.direction }),
         ),
       ];
     case "action": {
@@ -515,7 +516,7 @@ function turnWork(
       return [turnAttack(figure, choice.target)];
     case "trade":
       return [
-        step<Trade>("offer-trade", {
+        step("offer-trade", {
           from: figure,
           to: choice.with,
           give: choice.give,
@@ -523,9 +524,9 @@ function turnWork(
         }),
       ];
     case "drop":
-      return [step<Drop>("drop", { figure, card: choice.card })];
+      return [step("drop", { figure, card: choice.card })];
     case "pickup":
-      return [step<Drop>("pickup", { figure, card: choice.card })];
+      return [step("pickup", { figure, card: choice.card })];
   }
 }
 
@@ -617,7 +618,7 @@ function describeTurnChoice(
 type Move = { figure: FigureId; to: string; side: Edge | null };
 type Discover = { figure: FigureId; direction: Edge };
 type Placing = { figure: FigureId; tile: string; doorway: Doorway };
-type Trade = {
+export type Trade = {
   from: FigureId;
   to: FigureId;
   give: string | null;
@@ -626,7 +627,7 @@ type Trade = {
 type Drop = { figure: FigureId; card: string };
 type HauntRoll = { figure: FigureId; omen: string; room: string };
 
-export const EXPLORATION_STEPS: Record<string, StepKind> = {
+export const EXPLORATION_STEPS = {
   setup: defineStep<Setup>((state, p, ctx) => {
     const random = ctx.random;
     state.board = startingBoard(ctx.catalog, state.sets, random);
@@ -668,10 +669,10 @@ export const EXPLORATION_STEPS: Record<string, StepKind> = {
     });
     const haunt = p.scenario?.haunt ?? null;
     ctx.push(
-      ...(p.scenario ? [step<PreparedScenario>("scenario", p.scenario)] : []),
+      ...(p.scenario ? [step("scenario", p.scenario)] : []),
       haunt
-        ? step<HauntReveal>("start-haunt", haunt)
-        : step<TurnStart>("turn-start", {
+        ? step("start-haunt", haunt)
+        : step("turn-start", {
             seat: first,
             kind: "explorer",
             follows: null,
@@ -724,7 +725,7 @@ export const EXPLORATION_STEPS: Record<string, StepKind> = {
     });
     ctx.push(
       ...(p.kind === "monster" ? [monsterTurnStart()] : []),
-      step<TurnParams>("turn-menu", { seat: p.seat }),
+      step("turn-menu", { seat: p.seat }),
     );
   }),
 
@@ -733,7 +734,7 @@ export const EXPLORATION_STEPS: Record<string, StepKind> = {
   "turn-menu": defineStep<TurnParams>((state, p, ctx) => {
     const turn = state.turn;
     if (turn?.over) {
-      ctx.push(step<TurnParams>("end-turn", p));
+      ctx.push(step("end-turn", p));
       return;
     }
     const figure = turn?.acting ?? null;
@@ -742,7 +743,7 @@ export const EXPLORATION_STEPS: Record<string, StepKind> = {
       figure !== null &&
       (!inPlay(figureOf(state, figure)) || figureOf(state, figure).stunned)
     ) {
-      ctx.push(finishActing(), step<TurnParams>("turn-menu", p));
+      ctx.push(finishActing(), step("turn-menu", p));
       return;
     }
     ctx.decide([p.seat], "turn", p, RULEBOOK(6), figure);
@@ -795,7 +796,7 @@ export const EXPLORATION_STEPS: Record<string, StepKind> = {
 
   pickup: defineStep<Drop>((state, p, ctx) => {
     const room = placeOf(state, p.figure).room;
-    moveCard(state, p.card, { at: "pile", room }, IN_HAND);
+    moveCard(state, p.card, { at: "pile", room }, IN_TRANSIT);
     handle(state, p.card);
     if (state.turn) state.turn.pickupRoom = room;
     ctx.push(gainCard(p.figure, p.card, "picked-up", RULEBOOK(11)));
@@ -813,14 +814,14 @@ export const EXPLORATION_STEPS: Record<string, StepKind> = {
     });
     ctx.push(
       ...turn.omens.map((o) =>
-        step<HauntRoll>("haunt-roll", {
+        step("haunt-roll", {
           figure: o.figure,
           omen: o.card,
           room: o.room,
         }),
       ),
       ...(turn.recovering.length > 0 ? [recoverStunned()] : []),
-      step<null>("next-turn", null),
+      step("next-turn", null),
     );
   }),
 
@@ -831,7 +832,7 @@ export const EXPLORATION_STEPS: Record<string, StepKind> = {
         p.figure,
         { kind: "haunt" },
         RULEBOOK(15),
-        step<HauntRoll>("haunt-check", p),
+        afterRoll("haunt-check", p),
       ),
     );
   }),
@@ -877,7 +878,7 @@ export const EXPLORATION_STEPS: Record<string, StepKind> = {
       turn === null ? null : (turn.follows ?? { seat: turn.seat, kind: turn.kind });
     if (inserted) {
       ctx.push(
-        step<TurnStart>("turn-start", {
+        step("turn-start", {
           seat: inserted.seat,
           kind: inserted.kind,
           follows: current,
@@ -887,13 +888,13 @@ export const EXPLORATION_STEPS: Record<string, StepKind> = {
     }
     const round = askStructured(ctx.engine, state, "turnOrder", {});
     ctx.push(
-      step<TurnStart>("turn-start", {
+      step("turn-start", {
         ...turnAfter(state, round, current),
         follows: null,
       }),
     );
   }),
-};
+} satisfies Record<string, StepKind>;
 
 export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
   turn: defineDecision<TurnParams, TurnChoice>({
@@ -906,7 +907,7 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
     resolve: (state, p, choice, ctx) => {
       ctx.push(
         ...turnWork(ctx.engine, state, p.seat, choice),
-        ...(choice.act === "end" ? [] : [step<TurnParams>("turn-menu", p)]),
+        ...(choice.act === "end" ? [] : [step("turn-menu", p)]),
       );
     },
   }),

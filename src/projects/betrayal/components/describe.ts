@@ -51,7 +51,7 @@ export function logGroups(view: GameView, lines: LogLine[]): LogGroup[] {
     if (event.type === "turn-started") {
       turns += 1;
       // A hidden side's monster turn doesn't say whose it is.
-      const { seat, kind } = event.data as { seat?: number; kind: TurnKind };
+      const { seat, kind } = event.data;
       groups.push({
         key: event.id,
         title: `Turn ${turns}: ${seat === undefined ? "A player" : seatName(view, seat)}${KIND_TITLES[kind]}`,

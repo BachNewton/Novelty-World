@@ -1,15 +1,13 @@
 import { CATALOG } from "./data";
 import { BEHAVIOURS } from "./data/behaviours";
 import { HAUNTS } from "./data/haunts";
-import { COMBAT_DECISIONS, COMBAT_STEPS } from "./engine/combat";
-import { EXPLORATION_DECISIONS, EXPLORATION_STEPS } from "./engine/exploration";
-import { EFFECT_DECISIONS, EFFECT_STEPS } from "./engine/effects";
-import { HAUNT_DECISIONS, HAUNT_STEPS } from "./engine/haunt";
-import { MONSTER_STEPS } from "./engine/monsters";
-import { MOVEMENT_STEPS } from "./engine/movement";
-import { SCENARIO_STEPS } from "./engine/scenario";
+import { COMBAT_DECISIONS } from "./engine/combat";
+import { EXPLORATION_DECISIONS } from "./engine/exploration";
+import { EFFECT_DECISIONS } from "./engine/effects";
+import { HAUNT_DECISIONS } from "./engine/haunt";
 import { localStep, type Behaviours } from "./engine/sources";
-import { TILE_DECISIONS, TILE_STEPS } from "./engine/tiles";
+import { ENGINE_STEPS } from "./engine/steps";
+import { TILE_DECISIONS } from "./engine/tiles";
 import type { Engine, Rules, StepKind } from "./engine/step-loop";
 import { viewFor as engineView, type GameView } from "./engine/view";
 import type { GameState } from "./types";
@@ -35,16 +33,7 @@ function localSteps(behaviours: Behaviours): Record<string, StepKind> {
 }
 
 export function buildRules(behaviours: Behaviours): Rules {
-  const steps = {
-    ...EFFECT_STEPS,
-    ...COMBAT_STEPS,
-    ...EXPLORATION_STEPS,
-    ...TILE_STEPS,
-    ...MOVEMENT_STEPS,
-    ...MONSTER_STEPS,
-    ...SCENARIO_STEPS,
-    ...HAUNT_STEPS,
-  };
+  const steps: Record<string, StepKind> = { ...ENGINE_STEPS };
   for (const [name, handler] of Object.entries(localSteps(behaviours))) {
     if (name in steps) throw new Error(`Step ${name} is registered twice`);
     steps[name] = handler;

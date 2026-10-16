@@ -1,5 +1,5 @@
-import type { CardId, CardSymbol } from "../contract";
-import { TERRITORIES, type TerritoryId } from "../map";
+import type { CardId, CardSymbol } from "./contract";
+import { TERRITORIES, type TerritoryId } from "./map";
 
 export const WILDS = ["wild-1", "wild-2"] as const satisfies readonly CardId[];
 
@@ -48,8 +48,18 @@ export function setsIn(hand: readonly CardId[]): [CardId, CardId, CardId][] {
   return sets;
 }
 
-/** `CARDS-6`: what the n-th set traded in the game (1-based) is worth. */
-export function setValue(n: number): number {
-  const opening = [4, 6, 8, 10, 12, 15];
-  return n <= opening.length ? opening[n - 1] : 15 + 5 * (n - 6);
+const THREE_OF: Record<CardSymbol, number> = { infantry: 4, cavalry: 6, artillery: 8 };
+const ONE_OF_EACH = 10;
+
+/** `CARDS-6`: what a valid set is worth, fixed by its symbols, a wild counting as whichever symbol
+ *  makes it worth most. */
+export function setValue(cards: readonly CardId[]): number {
+  const symbols = cards.map(symbolOf).filter((symbol) => symbol !== null);
+  const distinct = new Set(symbols);
+  const wilds = cards.length - symbols.length;
+  if (distinct.size + wilds === 3 && (distinct.size > 1 || wilds > 1)) return ONE_OF_EACH;
+  return THREE_OF[symbols[0]];
 }
+
+/** The most a set can be worth (`CARDS-6`). */
+export const MAX_SET_VALUE = ONE_OF_EACH;

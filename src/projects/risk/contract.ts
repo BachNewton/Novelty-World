@@ -61,11 +61,10 @@ export interface GameView {
   /** Armies the active seat still has to place this phase. */
   armiesToPlace: number;
   cards: {
-    drawPile: number;
-    discardPile: readonly CardId[];
-    setsTraded: number;
-    /** What the next set traded is worth (`CARDS-6`). */
-    nextSetValue: number;
+    /** Cards left in the deck. */
+    deck: number;
+    /** Every set traded so far, oldest first (`CARDS-2`): its cards went back into the deck. */
+    traded: readonly { seat: Seat; cards: readonly [CardId, CardId, CardId] }[];
     /** The viewer's own hand; null for a spectator. */
     hand: readonly CardId[] | null;
   };
@@ -94,9 +93,9 @@ export type Move =
   | { kind: "trade"; cards: readonly [CardId, CardId, CardId]; bonusTerritory?: TerritoryId }
   /** One battle (`COMBAT-4`) with the attacker's chosen dice. */
   | { kind: "attack"; from: TerritoryId; to: TerritoryId; dice: 1 | 2 | 3 }
-  /** Battles with the most dice allowed, repeated until the territory is captured or the
-   *  attacking territory is down to `keepAtLeast` armies (at least 1). One move, so a whole
-   *  assault costs the server one request. */
+  /** A blitz (`COMBAT-8`): fight until the territory is captured or the attacking territory is
+   *  down to `keepAtLeast` armies (at least 1), resolved at once by Balanced Blitz. One move, so a
+   *  whole assault costs the server one request. */
   | { kind: "blitz"; from: TerritoryId; to: TerritoryId; keepAtLeast: number }
   /** The total armies in the captured territory once moved in, `min` to `max` of `occupying`. */
   | { kind: "occupy"; armies: number }
@@ -153,6 +152,8 @@ export type GameEvent = { rule: string } & (
       seat: Seat;
       fromTerritories: number;
       fromContinents: readonly { continent: ContinentId; bonus: number }[];
+      /** A later seat's extra armies on its first turn (`REINF-6`); 0 otherwise. */
+      firstTurnBonus: number;
     }
   | {
       kind: "traded";
@@ -170,6 +171,8 @@ export type GameEvent = { rule: string } & (
       attackerLosses: number;
       defenderLosses: number;
     }
+  /** A blitz (`COMBAT-8`), resolved at once: no dice are rolled. */
+  | { kind: "blitzed"; from: TerritoryId; to: TerritoryId; attackerLosses: number; defenderLosses: number }
   | { kind: "captured"; seat: Seat; territory: TerritoryId; from: Seat }
   | { kind: "occupied"; from: TerritoryId; to: TerritoryId; armies: number }
   | { kind: "eliminated"; seat: Seat; by: Seat; cardsTaken: number }
