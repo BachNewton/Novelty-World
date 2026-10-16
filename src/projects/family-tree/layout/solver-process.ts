@@ -31,6 +31,8 @@ export function findVenvPython(from: string): string {
 export interface SolverOptions {
   // Stream the solver's search progress to stderr, so a long solve isn't silent.
   progress?: boolean;
+  // The search threads, when the caller owns a share other than the default one.
+  threads?: number;
 }
 
 // The search threads a solve may use: the share of the machine its caller owns. The CLI owns the whole machine;
@@ -48,7 +50,7 @@ function solverThreads(): number {
 export function runSolver(script: string, input: unknown, options: SolverOptions): unknown {
   const progress = options.progress === true;
   const python = findVenvPython(dirname(fileURLToPath(import.meta.url)));
-  const run = spawnSync(python, [solverPath(script), "--workers", String(solverThreads()), ...(progress ? ["--progress"] : [])], {
+  const run = spawnSync(python, [solverPath(script), "--workers", String(options.threads ?? solverThreads()), ...(progress ? ["--progress"] : [])], {
     input: JSON.stringify(input),
     stdio: ["pipe", "pipe", progress ? "inherit" : "pipe"],
     encoding: "utf8",
