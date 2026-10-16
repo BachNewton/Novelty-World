@@ -1,9 +1,10 @@
 import process from "node:process";
 import { RISK_BOTS } from "../bots";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
-import { checkBots, commonDefaults, commonFlag, formats, list, number, riskRunLog, type CommonArgs } from "./cli-args";
-import { formatRiskGauntlet, formatTable, runRiskGauntlet, type RiskGauntletProgress } from "./gauntlet";
-import { FORMATS, riskPool, type Format } from "./parallel";
+import { dualVerdict, sprtBounds } from "@/shared/lib/bot-lab/sprt";
+import { checkBots, commonDefaults, commonFlag, formats, list, number, riskRun, type CommonArgs } from "./cli-args";
+import { formatRiskGauntlet, formatTable, gauntletTables, runRiskGauntlet, type RiskGauntletProgress } from "./gauntlet";
+import { candidateSeats, FORMATS, riskPool, type Format } from "./parallel";
 
 /** `npm run risk:gauntlet` — a candidate against the field at each table size in
  *  both mixtures, each pairing an SPRT on win share against par, then a
@@ -93,21 +94,58 @@ async function main(): Promise<void> {
   const base = args.base ?? field[field.length - 1];
 
   console.log(
-    `\nRisk — gauntlet\n` +
-      `Candidate: ${args.candidate}   Base: ${base}   Field: [${field.join(", ")}]\n` +
-      `Tables: ${args.players.join(", ")} players × ${args.formats.join(", ")}\n` +
-      `SPRT: ±${args.margin} Elo per seat (Luce par), α=${args.alpha}, β=${args.beta}, max ${args.maxDecisive} decisive/pairing\n` +
-      `Seeds: "${args.prefix}:*"   Workers: ${args.workers}   Max turns: ${args.maxTurns}\n`,
+    `
+Risk — gauntlet
+` +
+      `Candidate: ${args.candidate}   Base: ${base}   Field: [${field.join(", ")}]
+` +
+      `Tables: ${args.players.join(", ")} players × ${args.formats.join(", ")}
+` +
+      `SPRT: ±${args.margin} Elo per seat (Luce par), α=${args.alpha}, β=${args.beta}, max ${args.maxDecisive} decisive/pairing
+` +
+      `Seeds: "${args.prefix}:*"   Workers: ${args.workers}   Max turns: ${args.maxTurns}
+`,
   );
 
-  const log = riskRunLog({
+  const live = riskRun({
     tool: "risk:gauntlet",
     bots: [args.candidate, ...field],
     tables: args.players.flatMap((n) => args.formats.map((f) => `${n.toString()}p ${f}`)),
     seeds: args.prefix,
     workers: args.workers,
   });
-  const pool = log.watch(riskPool(args.workers), (r) => r.decisions);
+  // The pairings each count as one step of the run, however long their SPRT plays,
+  // and the field's own games, whose number is fixed, as one more.
+  const pairings = gauntletTables(field, args.players, args.formats).length;
+  const playerGames = args.players.reduce((s, n) => s + n, 0);
+  const fieldGames = field.length * (field.length - 1) * args.fieldGroups * playerGames;
+  const steps = pairings + (fieldGames > 0 ? 1 : 0);
+  const bounds = sprtBounds(args.alpha, args.beta);
+  let decided = 0;
+  let fieldFrom: number | null = null;
+  live.setProgress(() => {
+    const fieldDone = fieldFrom === null || fieldGames === 0 ? 0 : (live.counts().games - fieldFrom) / fieldGames;
+    return (decided + Math.min(1, fieldDone)) / steps;
+  });
+  const line = progressLine();
+  const onProgress = (p: RiskGauntletProgress): void => {
+    line(p);
+    const seats = candidateSeats(p.table.format, p.table.players);
+    live.step(p.index - 1, {
+      table: `${p.table.players.toString()}p`,
+      pairing: { bot: args.candidate, against: p.table.opponent, seats, players: p.table.players },
+      games: p.wins + p.losses + p.draws,
+      record: { wins: p.wins, losses: p.losses, draws: p.draws, par: seats / p.table.players },
+      sprt: { llrImprove: p.llrImprove, llrRegress: p.llrRegress, ...bounds },
+      ...(p.done ? { verdict: dualVerdict(p.llrImprove, p.llrRegress, bounds) ?? "inconclusive" } : {}),
+      done: p.done,
+    });
+    if (!p.done) return;
+    decided = p.index;
+    if (p.index === p.total) fieldFrom = live.counts().games;
+  };
+
+  const pool = live.watch(riskPool(args.workers), (r) => r.decisions);
   try {
     const report = await runRiskGauntlet({
       candidate: args.candidate,
@@ -124,11 +162,28 @@ async function main(): Promise<void> {
       maxTurns: args.maxTurns,
       batchGames: args.batch,
       pool,
-      onProgress: progressLine(),
+      onProgress,
     });
     console.log(formatRiskGauntlet(report));
-    console.log(`\n${formatRunRecord(log.finish())}\n`);
+    const record = await live.finish({
+      elo: { anchor: base, ratings: report.elo },
+      crown: {
+        candidate: report.candidate,
+        base: report.base,
+        improvesVsBase: report.improvesVsBase,
+        regressions: [...report.regressions],
+        accepted: report.accepted,
+        champion: report.champion,
+      },
+      errors: report.errors,
+    });
+    console.log(`
+${formatRunRecord(record)}
+`);
     if (report.errors > 0) process.exitCode = 1;
+  } catch (e) {
+    await live.fail(e);
+    throw e;
   } finally {
     await pool.close();
   }

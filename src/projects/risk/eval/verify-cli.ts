@@ -1,7 +1,7 @@
 import process from "node:process";
 import { inlineRunner } from "@/shared/lib/bot-lab/pool";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
-import { checkBots, commonDefaults, commonFlag, number, riskRunLog } from "./cli-args";
+import { checkBots, commonDefaults, commonFlag, number, riskRun } from "./cli-args";
 import { riskPool, tableSpecs } from "./parallel";
 import { runSpec, type RiskGameResult, type RiskGameSpec } from "./runner";
 
@@ -65,29 +65,39 @@ function mean(xs: readonly number[]): number {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const log = riskRunLog({
+  const live = riskRun({
     tool: "risk:verify",
     bots: args.labels,
     tables: args.common.players.map((n) => `${n.toString()}p`),
     seeds: args.common.prefix,
     workers: args.common.workers,
   });
-  const inline = log.watch(inlineRunner(runSpec), (r) => r.decisions);
-  const pool = log.watch(riskPool(args.common.workers), (r) => r.decisions);
+  const inline = live.watch(inlineRunner(runSpec), (r) => r.decisions);
+  const pool = live.watch(riskPool(args.common.workers), (r) => r.decisions);
+  // Every table's games play twice, once on each path, after a warm-up of each.
+  const warmUp = [specsFor({ ...args, groups: 1 }, 4), specsFor({ ...args, groups: pool.size }, 4)];
+  const totalGames =
+    warmUp[0].length + warmUp[1].length + args.common.players.reduce((s, n) => s + 2 * specsFor(args, n).length, 0);
+  live.setProgress(() => live.counts().games / totalGames);
   let mismatches = 0;
   let errors = 0;
   console.log(
-    `\nRisk — parallel determinism and throughput\n` +
-      `Bots: ${args.labels.join(" vs ")}   ${args.groups} seed groups per table   Workers: ${pool.size}   Max turns: ${args.common.maxTurns}\n`,
+    `
+Risk — parallel determinism and throughput
+` +
+      `Bots: ${args.labels.join(" vs ")}   ${args.groups} seed groups per table   Workers: ${pool.size}   Max turns: ${args.common.maxTurns}
+`,
   );
   try {
     // Warm both paths up (the first games pay for loading and compiling the engine)
     // so the timings below measure play, not start-up.
-    await inline.run(specsFor({ ...args, groups: 1 }, 4));
-    await pool.run(specsFor({ ...args, groups: pool.size }, 4));
+    await inline.run(warmUp[0]);
+    await pool.run(warmUp[1]);
 
-    for (const players of args.common.players) {
+    for (const [step, players] of args.common.players.entries()) {
       const specs = specsFor(args, players);
+      const table = { table: `${players.toString()}p`, games: specs.length };
+      live.step(step, { ...table, done: false });
       let t = performance.now();
       const single = await inline.run(specs);
       const singleSecs = (performance.now() - t) / 1000;
@@ -104,24 +114,34 @@ async function main(): Promise<void> {
       for (const r of single.filter((g) => g.error !== undefined).slice(0, 5)) console.log(`  ⚠ ${r.seed}: ${r.error}`);
       const caps = played.filter((r) => r.winner === null).length;
       const decisions = played.reduce((s, r) => s + r.decisions, 0);
+      live.step(step, { ...table, check: diverged.length === 0 && played.length === single.length, done: true });
 
       console.log(
         `  ${players}p  ${specs.length} games  ${diverged.length === 0 ? "bit-identical ✓" : `${diverged.length} diverged ✗`}` +
           `   turns/game ${mean(played.map((r) => r.turns)).toFixed(1)}   moves/game ${(decisions / Math.max(1, played.length)).toFixed(0)}` +
-          `   capped ${caps}\n` +
+          `   capped ${caps}
+` +
           `       one core: ${(specs.length / singleSecs).toFixed(1)} games/s (${((decisions / singleSecs) / 1000).toFixed(1)}k moves/s)` +
           `   pool: ${(specs.length / poolSecs).toFixed(1)} games/s (${(specs.length / poolSecs / pool.size).toFixed(1)} per worker)`,
       );
     }
+  } catch (e) {
+    await live.fail(e);
+    throw e;
   } finally {
     await pool.close();
   }
-  console.log(`\n${formatRunRecord(log.finish())}`);
+  console.log(`
+${formatRunRecord(await live.finish({ errors }))}`);
   if (mismatches > 0 || errors > 0) {
-    console.log(`\n  ❌ ${mismatches} games diverged, ${errors} games threw\n`);
+    console.log(`
+  ❌ ${mismatches} games diverged, ${errors} games threw
+`);
     process.exit(1);
   }
-  console.log(`\n  ✅ every game bit-identical (parallel == single-threaded)\n`);
+  console.log(`
+  ✅ every game bit-identical (parallel == single-threaded)
+`);
 }
 
 main().catch((e: unknown) => {

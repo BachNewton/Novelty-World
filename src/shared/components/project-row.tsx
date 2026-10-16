@@ -26,6 +26,7 @@ import {
   Blocks,
   Gamepad2,
   Ghost,
+  FlaskConical,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -52,6 +53,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Blocks,
   Gamepad2,
   Ghost,
+  FlaskConical,
 };
 
 interface ProjectRowProps {

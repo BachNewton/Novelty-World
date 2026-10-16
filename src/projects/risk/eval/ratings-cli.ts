@@ -3,7 +3,7 @@ import { fitElo, pairsFromFinishes, pairsFromWinner, type PairResult } from "@/s
 import { wilsonInterval } from "@/shared/lib/bot-lab/stats";
 import { RISK_BOTS } from "../bots";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
-import { checkBots, commonDefaults, commonFlag, number, riskRunLog, type CommonArgs } from "./cli-args";
+import { checkBots, commonDefaults, commonFlag, number, riskRun, type CommonArgs } from "./cli-args";
 import { eloLine } from "./gauntlet";
 import { finishesOf, outcomeFor, riskPool, tableSpecs } from "./parallel";
 
@@ -50,22 +50,28 @@ async function main(): Promise<void> {
       `Bots: [${args.labels.join(", ")}]   Tables: ${args.players.join(", ")} players, each bot alone among the other\n` +
       `${args.groups} seed groups per table   Seeds: "${args.prefix}:*"   Workers: ${args.workers}   Max turns: ${args.maxTurns}\n`,
   );
-  const log = riskRunLog({
+  const live = riskRun({
     tool: "risk:ratings",
     bots: args.labels,
     tables: args.players.map((n) => `${n.toString()}p one-in`),
     seeds: args.prefix,
     workers: args.workers,
   });
-  const pool = log.watch(riskPool(args.workers), (r) => r.decisions);
+  const playerGames = args.players.reduce((s, n) => s + n, 0);
+  const totalGames = args.labels.length * (args.labels.length - 1) * args.groups * playerGames;
+  live.setProgress(() => live.counts().games / totalGames);
+  const pool = live.watch(riskPool(args.workers), (r) => r.decisions);
   const winPairs: PairResult[] = [];
   const finishPairs: PairResult[] = [];
   let errors = 0;
+  let step = 0;
   try {
     for (let i = 0; i < args.labels.length; i++) {
       for (let j = i + 1; j < args.labels.length; j++) {
         for (const n of args.players) {
           for (const [lone, rest] of [[args.labels[i], args.labels[j]], [args.labels[j], args.labels[i]]]) {
+            const matchup = { table: `${n.toString()}p`, pairing: { bot: lone, against: rest, seats: 1, players: n }, games: args.groups * n };
+            live.step(step, { ...matchup, record: { wins: 0, losses: 0, draws: 0, par: 1 / n }, done: false });
             const prefix = `${args.prefix}:${lone}-in-${rest}:${n}p`;
             const results = await pool.run(tableSpecs(lone, rest, "one-in", n, prefix, 0, args.groups * n, args.maxTurns));
             let wins = 0;
@@ -83,6 +89,7 @@ async function main(): Promise<void> {
               winPairs.push(...pairsFromWinner(finishesOf(r)));
               finishPairs.push(...pairsFromFinishes(finishesOf(r)));
             }
+            live.step(step++, { ...matchup, record: { wins, losses, draws, par: 1 / n }, done: true });
             const ci = wilsonInterval(wins, wins + losses);
             const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
             console.log(
@@ -93,16 +100,24 @@ async function main(): Promise<void> {
         }
       }
     }
+    const winElo = fitElo(args.labels, winPairs, { anchor });
+    console.log(`
+  Win Elo (${anchor} = 0):              ${eloLine(winElo)}`);
+    console.log(`  Finishing-order Elo (${anchor} = 0):  ${eloLine(fitElo(args.labels, finishPairs, { anchor }))}`);
+    if (errors > 0) {
+      console.log(`  ⚠ ${errors} games threw and were excluded: a bot or engine bug`);
+      process.exitCode = 1;
+    }
+    const record = await live.finish({ elo: { anchor, ratings: winElo }, errors });
+    console.log(`
+${formatRunRecord(record)}
+`);
+  } catch (e) {
+    await live.fail(e);
+    throw e;
   } finally {
     await pool.close();
   }
-  console.log(`\n  Win Elo (${anchor} = 0):              ${eloLine(fitElo(args.labels, winPairs, { anchor }))}`);
-  console.log(`  Finishing-order Elo (${anchor} = 0):  ${eloLine(fitElo(args.labels, finishPairs, { anchor }))}`);
-  if (errors > 0) {
-    console.log(`  ⚠ ${errors} games threw and were excluded: a bot or engine bug`);
-    process.exitCode = 1;
-  }
-  console.log(`\n${formatRunRecord(log.finish())}\n`);
 }
 
 main().catch((e: unknown) => {

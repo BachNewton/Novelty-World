@@ -73,7 +73,7 @@ const round = (x: number, places: number) => Math.round(x * 10 ** places) / 10 *
 
 /** A run being recorded: count what it plays (`watch` does it for a game runner), then `finish`. */
 export class RunLog {
-  private readonly startedAt = new Date();
+  readonly startedAt = new Date();
   private readonly startNs = process.hrtime.bigint();
   private games = 0;
   private decisions = 0;
@@ -91,7 +91,7 @@ export class RunLog {
 
   constructor(
     private readonly path: string,
-    private readonly run: RunDescription,
+    readonly run: RunDescription,
   ) {
     this.sampler = setInterval(() => this.sample(), SAMPLE_MS);
     this.sampler.unref();
@@ -111,6 +111,11 @@ export class RunLog {
     this.lastCpu = process.cpuUsage();
     this.lastNs = now;
     this.lastMachine = machine;
+  }
+
+  /** Games played so far and the decisions in them. */
+  counts(): { games: number; decisions: number } {
+    return { games: this.games, decisions: this.decisions };
   }
 
   /** Counts games played and the decisions in them. */
@@ -138,6 +143,11 @@ export class RunLog {
   /** Appends the run's record to the log. */
   finish(): RunRecord {
     return this.write(false);
+  }
+
+  /** Appends the record of a run that ended before it finished, with what it played. */
+  stop(): RunRecord {
+    return this.write(true);
   }
 
   private write(stopped: boolean): RunRecord {
