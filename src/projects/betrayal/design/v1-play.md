@@ -56,7 +56,6 @@ P8, haunt 13 in the house, is last.
 - An instant floor swap: whether changing floor should cut rather than glide between floors 7 m apart (the owner has looked at all the floors at once through the page hook).
 - Showing at setup who goes first, and why.
 - The frame meter's default: on while playtesting, off before the game is done.
-- **The Angel Feather and `roll-before`.** Once the Feather names a result, `roll-before` is raised again and still offers the Idol (which costs Sanity and adds nothing) and "Make the roll (N dice)". Recommended: once a result is named, offer only the cards that still change something, and settle the roll at once if none do.
 - **A dead figure stays in its room** while a decision its death raised (a Nightmare's replacement) is pending, with leaving the board queued behind it. Deferred by the owner: changing it touches the order of cards' `onLose`.
 - **Typed steps and events** (optional): tie each step's name to its parameters' type and each event type to its data, so a misspelt step or wrong parameters fail at compile time (about 159 steps and 86 places that emit events).
 - **The name `inHand`** reads like a player's hand; a clearer one (such as `inTransit`) is a small rename.
