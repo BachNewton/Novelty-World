@@ -2,7 +2,7 @@ import { createRng, pick } from "@/shared/lib/seeded-random";
 import { shuffleArray } from "@/shared/lib/utils";
 import type { GameConfig, GameEvent, GameState, Seat } from "../contract";
 import type { TerritoryId } from "../map";
-import { FULL_DECK, TERRITORY_CARDS } from "./cards";
+import { FULL_DECK, TERRITORY_CARDS } from "../cards";
 import { TERRITORY_IDS, wrap, type Ctx, type Holding } from "./state";
 import { startTurn } from "./turn";
 
@@ -54,12 +54,12 @@ export function newGame(config: GameConfig, seed: string): { state: GameState; e
       turnOrder,
       board,
       hands: seats.map(() => []),
-      // SETUP-6: the wilds returned and all 44 cards shuffled as the draw pile.
-      drawPile: shuffleArray(FULL_DECK, rng.next),
-      discardPile: [],
-      setsTraded: 0,
+      // SETUP-6: the wilds returned and all 44 cards shuffled as the deck.
+      deck: shuffleArray(FULL_DECK, rng.next),
+      trades: [],
       eliminated: seats.map(() => false),
       turn: 0,
+      round: 0,
       active: turnOrder[0],
       phase: "reinforce",
       reinforce: null,

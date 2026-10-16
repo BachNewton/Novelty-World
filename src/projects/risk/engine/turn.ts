@@ -1,4 +1,3 @@
-import { shuffleArray } from "@/shared/lib/utils";
 import type { Seat } from "../contract";
 import { beginReinforce } from "./reinforce";
 import { nextSeat, setPhase, type Ctx } from "./state";
@@ -13,33 +12,28 @@ export function startTurn(ctx: Ctx, seat: Seat, rule: string): void {
   beginReinforce(ctx, seat);
 }
 
-/** `CARDS-1`: the end of the attack phase draws one card if the turn captured anything; then the
- *  fortify phase. */
+/** The end of the attack phase: on to the fortify phase (`TURN-1`). */
 export function endAttackPhase(ctx: Ctx): void {
-  if (ctx.s.capturedThisTurn) drawCard(ctx);
   setPhase(ctx, "fortify", "TURN-1");
 }
 
-/** `CARDS-8` and note `empty-deck`: an empty draw pile is replaced by the shuffled discard pile;
- *  with both empty, no card is drawn. */
+/** `CARDS-1` and `CARDS-8`: as the turn ends, one card from the top of the deck if the turn
+ *  captured anything; none when the deck is empty. */
 function drawCard(ctx: Ctx): void {
   const s = ctx.s;
-  if (s.drawPile.length === 0) {
-    if (s.discardPile.length === 0) return;
-    s.drawPile = shuffleArray(s.discardPile, ctx.rng.next);
-    s.discardPile = [];
-    ctx.events.push({ rule: "empty-deck", kind: "deck-reshuffled" });
-  }
-  const card = s.drawPile.shift();
-  if (card === undefined) throw new Error("the draw pile is empty after a reshuffle");
+  const card = s.deck.shift();
+  if (card === undefined) return;
   s.hands[s.active].push(card);
   ctx.events.push({ rule: "CARDS-1", kind: "card-drawn", seat: s.active, card });
 }
 
-/** `FORT-3` and `TURN-2`: the turn passes to the next seat still in the game. */
+/** `FORT-3`, `CARDS-1` and `TURN-2`: the turn's card, then the turn passes to the next seat still
+ *  in the game, a new round beginning when the turn order wraps round (`REINF-6`). */
 export function endTurn(ctx: Ctx): void {
   const s = ctx.s;
+  if (s.capturedThisTurn) drawCard(ctx);
   const next = nextSeat(s, s.active, (seat) => !s.eliminated[seat]);
   if (next === null) throw new Error("no seat is left to take a turn");
+  if (s.turnOrder.indexOf(next) <= s.turnOrder.indexOf(s.active)) s.round++;
   startTurn(ctx, next, "TURN-2");
 }

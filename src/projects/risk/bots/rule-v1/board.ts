@@ -52,7 +52,7 @@ export function fromView(view: GameView): Board {
     armies,
     alive: view.seats.map((s) => !s.eliminated),
     handSize: view.seats.map((s) => s.handSize),
-    setsTraded: view.cards.setsTraded,
+    setsTraded: view.cards.traded.length,
     cardEarned: view.cardEarned,
   };
   // A seat whose last territory was just taken is out once the move-in is made

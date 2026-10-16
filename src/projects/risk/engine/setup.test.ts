@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GameEvent, Seat } from "../contract";
 import { TERRITORIES, type TerritoryId } from "../map";
 import { referenceEngine as engine } from ".";
-import { FULL_DECK } from "./cards";
+import { FULL_DECK } from "../cards";
 import { inside } from "./test-kit";
 
 function dealtOwners(events: readonly GameEvent[]): Record<TerritoryId, Seat> {
@@ -89,15 +89,15 @@ describe("setup", () => {
       const v = engine.view(state, null);
       expect(events.map((e) => e.kind).slice(0, 5)).toEqual(["turn-order", "dealt", "starting-armies", "deck-reshuffled", "turn-started"]);
       expect(events.some((e) => e.kind === "deck-reshuffled" && e.rule === "SETUP-6")).toBe(true);
-      expect(s.drawPile).toHaveLength(44);
-      expect(s.drawPile).not.toEqual(FULL_DECK);
-      expect([...s.drawPile].sort()).toEqual([...FULL_DECK].sort());
+      expect(s.deck).toHaveLength(44);
+      expect(s.deck).not.toEqual(FULL_DECK);
+      expect([...s.deck].sort()).toEqual([...FULL_DECK].sort());
       expect(v.turn).toBe(1);
       expect(v.active).toBe(v.turnOrder[0]);
       expect(v.phase).toBe("reinforce");
       expect(engine.options(state, v.active)?.kind).toBe("reinforce");
       expect(v.seats.every((seat) => seat.handSize === 0)).toBe(true);
-      expect(v.cards.setsTraded).toBe(0);
+      expect(v.cards).toMatchObject({ deck: 44, traded: [] });
     }
   });
 

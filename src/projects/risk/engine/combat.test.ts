@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { createRng } from "@/shared/lib/seeded-random";
+import { resolveBlitz } from "../blitz";
 import type { CardId, CardSymbol, GameEvent, GameState, Seat } from "../contract";
 import { TERRITORIES, type TerritoryId } from "../map";
 import { referenceEngine as engine } from ".";
-import { FULL_DECK } from "./cards";
+import { FULL_DECK } from "../cards";
 import { inside, play, position, withDice, type Position } from "./test-kit";
 
 const of = (symbol: CardSymbol) => TERRITORIES.filter((t) => t.symbol === symbol).map((t) => t.id as CardId);
@@ -120,27 +122,45 @@ describe("capture", () => {
   });
 });
 
-describe("blitz", () => {
-  it("attacks with the most dice until the territory falls", () => {
-    const state = withDice(front(10, 1), [6, 6, 6, 1]);
-    const result = play(engine, state, 0, { kind: "blitz", from: "japan", to: "kamchatka", keepAtLeast: 1 });
-    expect(find(result.events, "battle")).toHaveLength(1);
-    expect(find(result.events, "battle")[0].attackerDice).toHaveLength(3);
+describe("COMBAT-8: blitz", () => {
+  it("is resolved at once, rolling no dice", () => {
+    const result = play(engine, front(10, 1), 0, { kind: "blitz", from: "japan", to: "kamchatka", keepAtLeast: 1 });
+    expect(find(result.events, "battle")).toEqual([]);
+    expect(find(result.events, "blitzed")).toHaveLength(1);
     expect(owner(result.state, "kamchatka")).toBe(0);
-    expect(engine.options(result.state, 0)).toMatchObject({ kind: "occupy", min: 3, max: 9 });
   });
 
-  it("stops at keepAtLeast, never below it, rolling fewer dice as it nears the floor", () => {
-    for (let seed = 0; seed < 20; seed++) {
-      const state = front(6, 40, { rng: seed });
-      const result = play(engine, state, 0, { kind: "blitz", from: "japan", to: "kamchatka", keepAtLeast: 3 });
-      expect(armies(result.state, "japan")).toBe(3);
-      let left = 6;
-      for (const battle of find(result.events, "battle")) {
-        expect(battle.attackerDice).toHaveLength(Math.min(3, left - 3));
-        left -= battle.attackerLosses;
-      }
+  it("draws its outcome from the balanced odds with the next random number", () => {
+    for (let seed = 0; seed < 30; seed++) {
+      const rng = createRng(seed);
+      const expected = resolveBlitz(7, 5, rng.next(), rng.next);
+      const result = play(engine, front(8, 5, { rng: seed }), 0, { kind: "blitz", from: "japan", to: "kamchatka", keepAtLeast: 1 });
+      expect(find(result.events, "blitzed")[0]).toMatchObject({ rule: "COMBAT-8", from: "japan", to: "kamchatka", ...expected });
     }
+  });
+
+  it("stops at keepAtLeast, never below it", () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const result = play(engine, front(6, 40, { rng: seed }), 0, { kind: "blitz", from: "japan", to: "kamchatka", keepAtLeast: 3 });
+      expect(armies(result.state, "japan")).toBe(3);
+      expect(owner(result.state, "kamchatka")).toBe(1);
+    }
+  });
+
+  it("never wins a long shot and never loses a sure thing", () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const longShot = play(engine, front(3, 12, { rng: seed }), 0, { kind: "blitz", from: "japan", to: "kamchatka", keepAtLeast: 1 });
+      expect(owner(longShot.state, "kamchatka")).toBe(1);
+      const sure = play(engine, front(20, 2, { rng: seed }), 0, { kind: "blitz", from: "japan", to: "kamchatka", keepAtLeast: 1 });
+      expect(owner(sure.state, "kamchatka")).toBe(0);
+    }
+  });
+
+  it("COMBAT-6: a capture by blitz moves in at least 3, or all that can move if fewer", () => {
+    const wide = play(engine, front(20, 1), 0, { kind: "blitz", from: "japan", to: "kamchatka", keepAtLeast: 1 });
+    expect(engine.options(wide.state, 0)).toMatchObject({ kind: "occupy", min: 3 });
+    const narrow = play(engine, front(20, 1), 0, { kind: "blitz", from: "japan", to: "kamchatka", keepAtLeast: 18 });
+    expect(engine.options(narrow.state, 0)).toMatchObject({ kind: "occupy", min: 2 });
   });
 
   it("refuses a floor below 1 or at the territory's armies", () => {
@@ -152,50 +172,48 @@ describe("blitz", () => {
 });
 
 describe("cards earned", () => {
-  const endAttack = (extra: Position) => play(engine, front(5, 3, extra), 0, { kind: "end-attack" });
+  /** Ends seat 0's attack and then its turn, without fortifying. */
+  const endTurn = (extra: Position) => {
+    const attacked = play(engine, front(5, 3, extra), 0, { kind: "end-attack" });
+    if (engine.view(attacked.state, null).phase !== "fortify") return attacked;
+    return play(engine, attacked.state, 0, { kind: "end-turn" });
+  };
 
-  it("CARDS-1: a turn that captured draws the top card as the attack phase ends, before fortifying", () => {
-    const result = endAttack({ capturedThisTurn: true });
+  it("CARDS-1: a turn that captured draws the top card as it ends, after fortifying", () => {
+    const result = endTurn({ capturedThisTurn: true, board: { mongolia: [0, 1] } });
     const top = FULL_DECK.find((c) => c !== "wild-1") as CardId;
     expect(find(result.events, "card-drawn")).toEqual([{ rule: "CARDS-1", kind: "card-drawn", seat: 0, card: top }]);
     expect(engine.view(result.state, 0).cards.hand).toEqual([top]);
-    const kinds = result.events.map((e) => (e.kind === "phase" ? e.phase : e.kind));
-    expect(kinds.indexOf("card-drawn")).toBeLessThan(kinds.indexOf("fortify"));
+    const kinds = result.events.map((e) => e.kind);
+    expect(kinds.indexOf("card-drawn")).toBeLessThan(kinds.indexOf("turn-started"));
   });
 
   it("CARDS-1: one card however many captures, none without one", () => {
-    expect(find(endAttack({}).events, "card-drawn")).toEqual([]);
+    expect(find(endTurn({}).events, "card-drawn")).toEqual([]);
     const first = play(engine, withDice(front(10, 1, { board: { "western-australia": [0, 1] } }), [6, 6, 6, 1]), 0, {
-      kind: "blitz",
+      kind: "attack",
       from: "japan",
       to: "kamchatka",
-      keepAtLeast: 1,
+      dice: 3,
     }).state;
     const moved = play(engine, first, 0, { kind: "occupy", armies: 5 }).state;
     const second = play(engine, withDice(moved, [6, 6, 6, 1]), 0, { kind: "attack", from: "japan", to: "mongolia", dice: 3 }).state;
     const settled = engine.options(second, 0)?.kind === "occupy" ? play(engine, second, 0, { kind: "occupy", armies: 3 }).state : second;
     const ended = play(engine, settled, 0, { kind: "end-attack" });
-    expect(find(ended.events, "card-drawn")).toHaveLength(1);
+    const turnOver = engine.view(ended.state, null).phase === "fortify" ? play(engine, ended.state, 0, { kind: "end-turn" }) : ended;
+    expect(find(turnOver.events, "card-drawn")).toHaveLength(1);
   });
 
-  it("CARDS-8: an empty draw pile is the discard pile reshuffled; with both empty, no card", () => {
-    const reshuffled = endAttack({ capturedThisTurn: true, drawPile: [] });
-    expect(find(reshuffled.events, "deck-reshuffled")).toEqual([{ rule: "empty-deck", kind: "deck-reshuffled" }]);
-    expect(find(reshuffled.events, "card-drawn")).toHaveLength(1);
-    expect(engine.view(reshuffled.state, null).cards).toMatchObject({ drawPile: 43, discardPile: [] });
-
-    const everyCardHeld = endAttack({ capturedThisTurn: true, drawPile: [], hands: [[], FULL_DECK.slice(0, 22), FULL_DECK.slice(22)] });
+  it("CARDS-8: traded cards go back into the deck, so it runs dry only when every card is held", () => {
+    const everyCardHeld = endTurn({ capturedThisTurn: true, deck: [], hands: [[], FULL_DECK.slice(0, 22), FULL_DECK.slice(22)] });
     expect(find(everyCardHeld.events, "card-drawn")).toEqual([]);
-    expect(find(everyCardHeld.events, "deck-reshuffled")).toEqual([]);
   });
 
-  it("ELIM-4: a drawn card that makes 6 waits for the next turn's trade", () => {
-    const hand: CardId[] = [inf[0], inf[1], inf[2], cav[0], cav[1]];
-    // Mongolia gives the fortify phase a move, so the turn waits there.
-    const result = endAttack({ capturedThisTurn: true, hands: [hand], board: { mongolia: [0, 1] } });
-    expect(engine.view(result.state, 0).cards.hand).toHaveLength(6);
-    expect(engine.view(result.state, null).phase).toBe("fortify");
-    expect(engine.apply(result.state, 0, { kind: "trade", cards: [inf[0], inf[1], inf[2]] }).ok).toBe(false);
+  it("ELIM-4: a drawn card that makes 5 waits for the next turn's trade", () => {
+    const hand: CardId[] = [inf[0], inf[1], inf[2], cav[0]];
+    const result = endTurn({ capturedThisTurn: true, hands: [hand] });
+    expect(engine.view(result.state, 0).cards.hand).toHaveLength(5);
+    expect(engine.view(result.state, null).active).toBe(1);
   });
 });
 
@@ -224,7 +242,7 @@ describe("elimination and winning", () => {
     expect(engine.view(next, null)).toMatchObject({ active: 2, turn: 2 });
   });
 
-  it("ELIM-3: 6 or more cards force trades down to 4 or fewer, placed at once, then the attack goes on", () => {
+  it("ELIM-3: 5 or more cards force trades down to 4 or fewer, placed at once, then the attack goes on", () => {
     const mine: CardId[] = [inf[0], inf[1], inf[2], cav[0]];
     const theirs: CardId[] = [cav[1], cav[2], art[0]];
     const moved = play(engine, eliminate([mine, theirs]).state, 0, { kind: "occupy", armies: 3 });
@@ -250,11 +268,18 @@ describe("elimination and winning", () => {
     expect(engine.options(once, 0)).toMatchObject({ mustTrade: true, mayPlace: false });
     const twice = play(engine, once, 0, { kind: "trade", cards: [art[0], art[1], art[2]] }).state;
     expect(engine.view(twice, 0).cards.hand).toHaveLength(3);
-    expect(engine.options(twice, 0)).toMatchObject({ mustTrade: false, sets: [], armiesToPlace: 4 + 6 });
+    expect(engine.options(twice, 0)).toMatchObject({ mustTrade: false, sets: [], armiesToPlace: 4 + 8 });
   });
 
-  it("ELIM-3: with 5 or fewer cards there is no trade until the next turn", () => {
+  it("ELIM-3: exactly 5 cards force a trade", () => {
     const moved = play(engine, eliminate([[inf[0], inf[1], inf[2]], [cav[0], cav[1]]]).state, 0, { kind: "occupy", armies: 3 }).state;
+    expect(engine.options(moved, 0)).toMatchObject({ kind: "reinforce", mustTrade: true });
+    const traded = play(engine, moved, 0, { kind: "trade", cards: [inf[0], inf[1], inf[2]] }).state;
+    expect(engine.options(traded, 0)).toMatchObject({ mustTrade: false, sets: [], armiesToPlace: 4 });
+  });
+
+  it("ELIM-3: with 4 or fewer cards there is no trade until the next turn", () => {
+    const moved = play(engine, eliminate([[inf[0], inf[1]], [inf[2], cav[1]]]).state, 0, { kind: "occupy", armies: 3 }).state;
     expect(engine.view(moved, null).phase).toBe("attack");
     expect(engine.apply(moved, 0, { kind: "trade", cards: [inf[0], inf[1], inf[2]] }).ok).toBe(false);
   });

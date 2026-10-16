@@ -161,7 +161,7 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
         <div className="flex flex-wrap items-center gap-[0.5em] border-t border-(--rk-line) pt-[0.6em]">
           {options?.kind === "reinforce" && options.sets.length > 0 && !options.mustTrade && (
             <PromptButton binding={BINDINGS.cards} input={input} className={BUTTON} onClick={onCards}>
-              Trade cards (+{view.cards.nextSetValue})
+              Trade cards
             </PromptButton>
           )}
           {ending && (

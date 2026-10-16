@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "@/shared/lib/seeded-random";
-import { setValue as engineSetValue } from "../../engine/cards";
-import { setValue } from "./cards";
 import { battleOutcome, exchange, pathRun, winProb } from "./odds";
 
 // The bot's battle tables are exact; these pin them to the figures the design quotes
@@ -52,11 +50,5 @@ describe("v1's battle odds", () => {
     expect(exchange(30, 30)).toBeGreaterThan(exchange(5, 5));
     expect(exchange(14, 3)).toBeGreaterThan(0);
     expect(exchange(3, 14)).toBe(0);
-  });
-});
-
-describe("v1's set values", () => {
-  it("are the engine's (`CARDS-6`)", () => {
-    for (let n = 1; n <= 30; n++) expect(setValue(n)).toBe(engineSetValue(n));
   });
 });

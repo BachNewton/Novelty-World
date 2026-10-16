@@ -17,17 +17,17 @@ function ask(bot: Bot, state: GameState, seat: Seat, seed: string): Move {
 }
 
 /** The same game with everything `seat` can't see dealt again: the other hands (same
- *  sizes) and the draw pile's order, shuffled together. */
+ *  sizes) and the deck's order, shuffled together. */
 function redealHidden(state: GameState, seat: Seat, rng: Rng): GameState {
   const s = structuredClone(inside(state)) as EngineState;
-  const hidden = [...s.drawPile, ...s.hands.flatMap((h, i) => (i === seat ? [] : h))];
+  const hidden = [...s.deck, ...s.hands.flatMap((h, i) => (i === seat ? [] : h))];
   for (let i = hidden.length - 1; i > 0; i--) {
     const j = Math.floor(rng.next() * (i + 1));
     [hidden[i], hidden[j]] = [hidden[j], hidden[i]];
   }
   let k = 0;
   s.hands = s.hands.map((h, i) => (i === seat ? h : h.map(() => hidden[k++])));
-  s.drawPile = hidden.slice(k);
+  s.deck = hidden.slice(k);
   return { engineState: s };
 }
 

@@ -288,9 +288,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
                 })}
               </tbody>
             </table>
-            <p className="text-[0.85em] text-(--rk-muted)">
-              Next set: <span className="font-bold text-(--rk-brass)">{view.cards.nextSetValue}</span> armies · {view.cards.setsTraded} traded
-            </p>
           </section>
           {news.length > 1 && (
             <section className={cn(PANEL, "hidden max-h-[14em] flex-col gap-[0.25em] overflow-y-auto p-[0.75em] text-[0.85em] min-[700px]:flex min-[2400px]:hidden")} aria-label="What just happened">

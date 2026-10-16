@@ -1,3 +1,4 @@
+import { resolveBlitz } from "../blitz";
 import type { Move, Seat } from "../contract";
 import type { TerritoryId } from "../map";
 import { findAttack } from "./legal";
@@ -19,9 +20,8 @@ export function attack(ctx: Ctx, seat: Seat, move: Extract<Move, { kind: "attack
   return null;
 }
 
-/** Battles with the most dice allowed until `to` is captured or `from` is down to `keepAtLeast`.
- *  The dice are capped so that a battle can never take `from` below `keepAtLeast`: the attacker
- *  loses at most one army per die rolled (`COMBAT-4`). */
+/** `COMBAT-8`: a fight until `to` is captured or `from` is down to `keepAtLeast`, resolved at
+ *  once by Balanced Blitz from one draw of the random source. */
 export function blitz(ctx: Ctx, seat: Seat, move: Extract<Move, { kind: "blitz" }>): string | null {
   const s = ctx.s;
   if (s.occupying) return "move armies into the captured territory first";
@@ -32,11 +32,15 @@ export function blitz(ctx: Ctx, seat: Seat, move: Extract<Move, { kind: "blitz" 
     return `keep between 1 and ${from.armies - 1} armies`;
   }
 
-  for (;;) {
-    const dice = Math.min(3, from.armies - move.keepAtLeast);
-    const captured = battle(ctx, seat, move.from, move.to, dice);
-    if (captured || from.armies <= move.keepAtLeast) return null;
-  }
+  const to = holding(s, move.to);
+  const attackers = from.armies - move.keepAtLeast;
+  const { attackerLosses, defenderLosses } = resolveBlitz(attackers, to.armies, ctx.rng.next(), ctx.rng.next);
+  from.armies -= attackerLosses;
+  to.armies -= defenderLosses;
+  ctx.events.push({ rule: "COMBAT-8", kind: "blitzed", from: move.from, to: move.to, attackerLosses, defenderLosses });
+  // COMBAT-6: a blitz rolls no dice, so the move-in is at least 3, or all that can move.
+  if (to.armies === 0) capture(ctx, seat, move.from, move.to, Math.min(3, attackers, from.armies - 1));
+  return null;
 }
 
 /** `COMBAT-3` and `COMBAT-4`: the defender rolls the most dice it may (note `defender-dice`), the
@@ -77,18 +81,18 @@ function rollDice(ctx: Ctx, count: number): number[] {
   return dice.sort((a, b) => b - a);
 }
 
-/** `COMBAT-6`: the attacker takes the territory at once, moving in at least the dice just rolled.
+/** `COMBAT-6`: the attacker takes the territory at once, moving in at least `minimum` armies.
  *  That minimum moves in with the capture, so no territory is ever empty (`INV-1`); the attacker
  *  then picks the total (`occupy`), unless the minimum is also the maximum. */
-function capture(ctx: Ctx, seat: Seat, fromId: TerritoryId, toId: TerritoryId, dice: number): void {
+function capture(ctx: Ctx, seat: Seat, fromId: TerritoryId, toId: TerritoryId, minimum: number): void {
   const s = ctx.s;
   const from = holding(s, fromId);
   const to = holding(s, toId);
   const previous = to.owner;
   const max = from.armies - 1;
   to.owner = seat;
-  to.armies = dice;
-  from.armies -= dice;
+  to.armies = minimum;
+  from.armies -= minimum;
   s.capturedThisTurn = true;
   ctx.events.push({ rule: "COMBAT-6", kind: "captured", seat, territory: toId, from: previous });
 
@@ -101,10 +105,10 @@ function capture(ctx: Ctx, seat: Seat, fromId: TerritoryId, toId: TerritoryId, d
     ctx.events.push({ rule: "WIN-1", kind: "game-over", winner: seat });
     return;
   }
-  s.occupying = { from: fromId, to: toId, min: dice, max, eliminating };
+  s.occupying = { from: fromId, to: toId, min: minimum, max, eliminating };
 }
 
-/** `COMBAT-6`: the total armies moving in, between the dice rolled and all but one. */
+/** `COMBAT-6`: the total armies moving in, between the minimum and all but one. */
 export function occupy(ctx: Ctx, move: Extract<Move, { kind: "occupy" }>): string | null {
   const o = ctx.s.occupying;
   if (!o) return "there is no captured territory to move into";
@@ -128,7 +132,7 @@ export function moveIn(ctx: Ctx, armies: number): void {
 
   if (o.eliminating === null) return;
   eliminate(ctx, o.eliminating);
-  if (s.hands[s.active].length >= 6) beginForcedTrade(ctx);
+  if (s.hands[s.active].length >= 5) beginForcedTrade(ctx);
 }
 
 /** `ELIM-1` and `ELIM-2`: out of the game, with every card going to the capturer. */

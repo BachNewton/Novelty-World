@@ -27,8 +27,8 @@ function sampleStates(): GameState[] {
 function scramble(state: GameState, viewer: Seat | null, seed: number): GameState {
   const s = structuredClone(inside(state));
   const others = s.hands.map((_, seat) => seat).filter((seat) => seat !== viewer);
-  const pool: CardId[] = shuffleArray([...s.drawPile, ...others.flatMap((seat) => s.hands[seat])], createRng(seed).next);
-  s.drawPile = pool.splice(0, s.drawPile.length);
+  const pool: CardId[] = shuffleArray([...s.deck, ...others.flatMap((seat) => s.hands[seat])], createRng(seed).next);
+  s.deck = pool.splice(0, s.deck.length);
   for (const seat of others) s.hands[seat] = pool.splice(0, s.hands[seat].length);
   s.rng = seed;
   return wrap(s);
@@ -61,14 +61,10 @@ describe("views (CARDS-2, note public-cards)", () => {
     expect(engine.view(state, null).cards.hand).toBeNull();
   });
 
-  it("show the public card state: draw pile size, discard pile, trades and the next value", () => {
+  it("show the public card state: the deck's size and every trade made", () => {
     const state = states.at(-1) as GameState;
     const s = inside(state);
-    expect(engine.view(state, 0).cards).toMatchObject({
-      drawPile: s.drawPile.length,
-      discardPile: s.discardPile,
-      setsTraded: s.setsTraded,
-    });
+    expect(engine.view(state, 0).cards).toMatchObject({ deck: s.deck.length, traded: s.trades });
   });
 
   it("hold exactly the contract's fields", () => {
@@ -76,7 +72,7 @@ describe("views (CARDS-2, note public-cards)", () => {
     expect(Object.keys(v).sort()).toEqual(
       ["active", "armiesToPlace", "cardEarned", "cards", "occupying", "phase", "seats", "territories", "turn", "turnOrder", "viewer", "winner"].sort(),
     );
-    expect(Object.keys(v.cards).sort()).toEqual(["discardPile", "drawPile", "hand", "nextSetValue", "setsTraded"]);
+    expect(Object.keys(v.cards).sort()).toEqual(["deck", "hand", "traded"]);
   });
 
   it("say whether the active seat has earned this turn's card (CARDS-1)", () => {

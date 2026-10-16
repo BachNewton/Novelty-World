@@ -1,5 +1,5 @@
 import type { GameEvent, GameState, Phase } from "../contract";
-import { FULL_DECK, setValue } from "./cards";
+import { FULL_DECK, setValue } from "../cards";
 import { STARTING_ARMIES } from "./setup";
 import { seatsInGame, TERRITORY_IDS, unwrap, type EngineState } from "./state";
 
@@ -15,7 +15,6 @@ const PHASE_STEPS: Record<Phase, readonly Phase[]> = {
 };
 
 export class InvariantChecker {
-  private setsTraded = 0;
   private turn = 0;
   private cardsDrawnThisTurn = 0;
   private fortifiesThisTurn = 0;
@@ -72,12 +71,11 @@ export class InvariantChecker {
           this.placed = 0;
           break;
         case "reinforcements":
-          this.earned += e.fromTerritories + e.fromContinents.reduce((sum, c) => sum + c.bonus, 0);
+          this.earned += e.fromTerritories + e.fromContinents.reduce((sum, c) => sum + c.bonus, 0) + e.firstTurnBonus;
           break;
         case "traded": {
           if (phase !== "reinforce") fail("CARDS-5", `a trade in the ${phase} phase`);
-          this.setsTraded++;
-          if (e.armies !== setValue(this.setsTraded)) fail("INV-5", `set ${this.setsTraded} was worth ${e.armies}`);
+          if (e.armies !== setValue(e.cards)) fail("INV-5", `${e.cards.join()} was worth ${e.armies}`);
           this.earned += e.armies;
           if (e.bonus && e.bonus.armies !== 2) fail("INV-7", `a set earned ${e.bonus.armies} bonus armies`);
           break;
@@ -86,10 +84,11 @@ export class InvariantChecker {
           if (phase === "reinforce") this.placed += e.armies;
           break;
         case "battle":
+        case "blitzed":
           if (phase !== "attack") fail("INV-3", `a battle in the ${phase} phase`);
           break;
         case "card-drawn":
-          if (phase !== "attack") fail("CARDS-1", `a card drawn in the ${phase} phase`);
+          if (phase !== "fortify") fail("CARDS-1", `a card drawn in the ${phase} phase`);
           if (++this.cardsDrawnThisTurn > 1) fail("INV-4", "two cards drawn in one turn");
           break;
         case "fortified":
@@ -107,12 +106,11 @@ export class InvariantChecker {
           break;
       }
     }
-    if (this.setsTraded !== after.setsTraded) fail("INV-5", `counter ${after.setsTraded}, ${this.setsTraded} traded`);
     if (phase !== after.phase) fail("INV-3", `events end in ${phase}, the state is in ${after.phase}`);
     if (after.turn !== this.turn) fail("INV-3", `the state is on turn ${after.turn}, the events on ${this.turn}`);
   }
 
-  /** INV-2: the board's total moves only by placements and battle losses. */
+  /** INV-2: the board's total moves only by placements, battle losses and blitz losses. */
   private checkArmies(b: EngineState, a: EngineState, events: readonly GameEvent[]): void {
     let change = 0;
     for (const e of events) {
@@ -125,6 +123,7 @@ export class InvariantChecker {
         }
         change -= lost;
       }
+      if (e.kind === "blitzed") change -= e.attackerLosses + e.defenderLosses;
     }
     if (total(a) - total(b) !== change) fail("INV-2", `the board changed by ${total(a) - total(b)}, events say ${change}`);
   }
@@ -160,23 +159,23 @@ function checkBoard(s: EngineState): void {
 
 /** INV-4 and INV-6. */
 function checkCards(s: EngineState): void {
-  const all = [...s.drawPile, ...s.discardPile, ...s.hands.flat()];
+  const all = [...s.deck, ...s.hands.flat()];
   if (all.length !== 44 || new Set(all).size !== 44 || !FULL_DECK.every((c) => all.includes(c))) {
     fail("INV-4", `${all.length} cards, ${new Set(all).size} distinct`);
   }
   const hand = s.hands[s.active].length;
   for (const [seat, cards] of s.hands.entries()) {
-    if (seat !== s.active && cards.length > 6) fail("INV-6", `seat ${seat} holds ${cards.length} off turn`);
+    if (seat !== s.active && cards.length > 5) fail("INV-6", `seat ${seat} holds ${cards.length} off turn`);
   }
   if (s.phase === "reinforce") {
     const r = s.reinforce;
     if (!r) fail("INV-3", "a reinforce phase without its state");
-    if (!r.afterElimination && r.handAtStart > 6) fail("INV-6", `a turn began with ${r.handAtStart} cards`);
+    if (!r.afterElimination && hand > 5) fail("INV-6", `${hand} cards in a turn's reinforce phase`);
     // ELIM-3: forced trades stop as soon as the hand is down to 4, 3 or 2.
     if (r.afterElimination && hand < 2) fail("ELIM-3", `traded down to ${hand}`);
   }
-  if (s.phase === "attack" && !s.reinforce && hand > 5) fail("INV-6", `${hand} cards in the attack phase`);
-  if (s.phase === "fortify" && hand > 6) fail("INV-6", `${hand} cards in the fortify phase`);
+  if (s.phase === "attack" && !s.reinforce && hand > 4) fail("INV-6", `${hand} cards in the attack phase`);
+  if (s.phase === "fortify" && hand > 4) fail("INV-6", `${hand} cards in the fortify phase`);
 }
 
 /** INV-8 and INV-9. */
@@ -205,9 +204,8 @@ function checkSetupDone(s: EngineState, events: readonly GameEvent[]): void {
   for (let seat = 0; seat < s.players; seat++) {
     if (total(s, seat) !== STARTING_ARMIES[s.players]) fail("SETUP-9", `seat ${seat} has ${total(s, seat)} armies`);
   }
-  if (s.drawPile.length !== 44) fail("SETUP-9", `the draw pile holds ${s.drawPile.length}`);
+  if (s.deck.length !== 44) fail("SETUP-9", `the deck holds ${s.deck.length}`);
   if (s.hands.some((hand) => hand.length > 0)) fail("SETUP-9", "a hand is not empty");
-  if (s.setsTraded !== 0) fail("SETUP-9", `the trade counter is ${s.setsTraded}`);
   const dealt = events.find((e) => e.kind === "dealt");
   const starting = events.find((e) => e.kind === "starting-armies");
   for (const t of TERRITORY_IDS) {

@@ -1,6 +1,6 @@
 import type { Seat } from "../contract";
 import { ADJACENCY, type TerritoryId } from "../map";
-import { territoryOf } from "./cards";
+import { territoryOf } from "../cards";
 import { holding, ownedBy, ownerOf, type EngineState, type ReinforceState } from "./state";
 
 // What is legal right now. `options` lists these and `apply` checks moves against them, so the
@@ -73,22 +73,16 @@ export function reinforceState(s: EngineState): ReinforceState {
   return s.reinforce;
 }
 
-/** `CARDS-5`: 5 or more cards must trade at least one set before placing. `ELIM-3`: after taking
- *  an eliminated player's cards, trade until holding 4 or fewer. */
+/** `CARDS-5` and `ELIM-3`: a hand of 5 or more must trade until it holds 4 or fewer. */
 export function mustTrade(s: EngineState): boolean {
-  const r = reinforceState(s);
-  const hand = s.hands[s.active].length;
-  if (r.afterElimination) return hand >= 5;
-  return r.handAtStart >= 5 && r.tradesMade === 0;
+  reinforceState(s);
+  return s.hands[s.active].length >= 5;
 }
 
-/** `CARDS-5`: trades come before placing; one set from 3 or 4 cards, up to two from 5 or 6.
- *  `ELIM-3`: only the forced trades, stopping at 4 or fewer cards. */
+/** `CARDS-5`: any sets, before placing. `ELIM-3`: only the forced trades. */
 export function mayTrade(s: EngineState): boolean {
   const r = reinforceState(s);
-  if (r.afterElimination) return mustTrade(s);
-  const allowed = r.handAtStart >= 5 ? 2 : 1;
-  return !r.placedAny && r.tradesMade < allowed;
+  return r.afterElimination ? mustTrade(s) : !r.placedAny;
 }
 
 /** `CARDS-7`: the territories pictured among `cards` that the trading seat owns, any one of which

@@ -25,19 +25,19 @@ function gameWithHands(seed: string): OnlineGame {
   throw new Error("No game reached hands worth hiding");
 }
 
-/** The same game with everything `viewer` can't see dealt differently: the draw pile's order, other
+/** The same game with everything `viewer` can't see dealt differently: the deck's order, other
  *  hands' cards, and the cards other seats drew in the last write. */
 function redealtFor(game: OnlineGame, viewer: Seat, seed: string): OnlineGame {
   const state = structuredClone(inside(game.engine));
   const others = state.hands.map((_, seat) => seat).filter((seat) => seat !== viewer);
-  const pool = [...state.drawPile, ...others.flatMap((seat) => state.hands[seat])];
+  const pool = [...state.deck, ...others.flatMap((seat) => state.hands[seat])];
   const rng = createRng(seed);
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(rng.next() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   for (const seat of others) state.hands[seat] = pool.splice(0, state.hands[seat].length);
-  state.drawPile = pool;
+  state.deck = pool;
   const lastEvents = game.lastEvents.map(({ id, event }): { id: string; event: GameEvent } =>
     event.kind === "card-drawn" && event.seat !== viewer ? { id, event: { ...event, card: "wild-2" } } : { id, event },
   );
