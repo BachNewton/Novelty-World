@@ -57,7 +57,6 @@ P8, haunt 13 in the house, is last.
 - Showing at setup who goes first, and why.
 - The frame meter's default: on while playtesting, off before the game is done.
 - **A dead figure stays in its room** while a decision its death raised (a Nightmare's replacement) is pending, with leaving the board queued behind it. Deferred by the owner: changing it touches the order of cards' `onLose`.
-- **Typed steps and events** (optional): tie each step's name to its parameters' type and each event type to its data, so a misspelt step or wrong parameters fail at compile time (about 159 steps and 86 places that emit events).
 - **The name `inHand`** reads like a player's hand; a clearer one (such as `inTransit`) is a small rename.
 
 **Before launch:**
