@@ -299,7 +299,7 @@ export function stackScenario(
   ];
 }
 
-export const SCENARIO_STEPS: Record<string, StepKind> = {
+export const SCENARIO_STEPS = {
   scenario: defineStep<PreparedScenario>((state, p, ctx) => {
     for (const id of p.rooms) {
       if (placed(state.board, id)) continue;
@@ -344,7 +344,7 @@ export const SCENARIO_STEPS: Record<string, StepKind> = {
       .filter((card) => ctx.catalog.cards[card].type === "omen").length;
     ctx.push(...gains);
   }),
-};
+} satisfies Record<string, StepKind>;
 
 /** In a barrier room, a placed explorer stands by its first door. */
 function firstSide(engine: Engine, room: string) {

@@ -31,10 +31,10 @@ const options = (decision: Decision) =>
 /** A toy rule set: just enough to drive the loop. */
 const RULES: Rules = {
   steps: {
-    ask: defineStep((_state, params, ctx) => {
+    ask: defineStep<Json>((_state, params, ctx) => {
       ctx.decide([0], "pick", params, RULE);
     }),
-    "ask-act": defineStep((_state, params, ctx) => {
+    "ask-act": defineStep<Json>((_state, params, ctx) => {
       ctx.decide([0], "act", params, RULE);
     }),
     "ask-all": defineStep((_state, _params, ctx) => {
@@ -43,7 +43,7 @@ const RULES: Rules = {
     "wait-all": defineStep((_state, _params, ctx) => {
       ctx.waitForReady([0, 1], RULE);
     }),
-    note: defineStep((_state, params, ctx) => {
+    note: defineStep<Json>((_state, params, ctx) => {
       ctx.emit("note", RULE, params);
     }),
     forever: defineStep((_state, _params, ctx) => {

@@ -307,7 +307,7 @@ describe("a stunned monster (rules.md, p. 18)", () => {
     state = choose(state, "Act with Phantom 1", TOY_ENGINE);
     state = interject(TOY_ENGINE, state, [
       die("ox-bellows", RULE),
-      step<{ seat: number }>("turn-menu", { seat: 1 }),
+      step("turn-menu", { seat: 1 }),
     ]);
     expect(state.turn?.over).toBe(false);
     expect(eventTypes(state)).not.toContain("turn-cut-short");

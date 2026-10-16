@@ -30,6 +30,7 @@ import {
   askPermission,
   askStructured,
   barrierSides,
+  type CombatOutcome,
   MAX_DICE,
   moveCost,
   onTurn,
@@ -46,28 +47,28 @@ import {
 import type {
   DecisionKind,
   Engine,
+  Awaiting,
+  ParamsOf,
   StepContext,
   StepKind,
+  Unfinished,
 } from "./step-loop";
+import type { ENGINE_STEPS } from "./steps";
 
 // The primitive effects every rule is built from: trait changes, damage,
 // rolls, card draws, tokens. Each is a registered step, so an effect that
 // pauses for a decision halfway through is stored as data and resumes later.
 
 /** A step kind with typed parameters. Parameters are stored as JSON, so the
- *  type is the step's contract. The step's subject is its `figure`
- *  parameter unless it names another, or none for a step that must run
- *  whether or not a figure has died (see `StepKind`). */
-export function defineStep<P extends Json>(
+ *  type is the step's contract, which `step` holds every caller to. The
+ *  step's subject is its `figure` parameter unless it names another, or none
+ *  for a step that must run whether or not a figure has died (see
+ *  `StepKind`). */
+export function defineStep<P extends Json = null>(
   run: (state: GameState, params: P, ctx: StepContext) => void,
   { subject = figureParameter }: { subject?: (params: P) => FigureId | null } = {},
-): StepKind {
-  return {
-    run: (state, params, ctx) => {
-      run(state, params as P, ctx);
-    },
-    subject: (params) => subject(params as P),
-  };
+): StepKind<P> {
+  return { run, subject };
 }
 
 function figureParameter(params: Json): FigureId | null {
@@ -77,7 +78,35 @@ function figureParameter(params: Json): FigureId | null {
   return typeof figure === "string" ? figure : null;
 }
 
-export function step<P extends Json>(kind: string, params: P): Step {
+/** The parameters each of the engine's own step kinds takes, by name. */
+export type StepParams = {
+  [K in keyof EngineSteps]: ParamsOf<EngineSteps[K]>;
+};
+
+/** One of the engine's own steps, to queue. */
+export function step<K extends keyof StepParams>(
+  kind: K,
+  params: StepParams[K],
+): Step {
+  return { kind, params };
+}
+
+type EngineSteps = typeof ENGINE_STEPS;
+
+/** A step a roll continues into, which the roll gives its `result`. */
+export function afterRoll<K extends Awaiting<EngineSteps, RollResult>>(
+  kind: K,
+  params: Unfinished<StepParams[K], RollResult>,
+): Step {
+  return { kind, params };
+}
+
+/** A step a choice of a barrier room's side continues into, which the
+ *  choice gives the `side`. */
+export function afterSide<K extends Awaiting<EngineSteps, ChosenSide>>(
+  kind: K,
+  params: Unfinished<StepParams[K], ChosenSide>,
+): Step {
   return { kind, params };
 }
 
@@ -137,6 +166,14 @@ export function defineDecision<P extends Json, C extends Json>(kind: {
     },
   };
 }
+
+// What each step that finishes another adds to its parameters.
+/** A roll's total. */
+export type RollResult = { result: number };
+/** The side of a barrier room chosen to land on. */
+export type ChosenSide = { side: Edge };
+/** How a fight came out. */
+export type FoughtOutcome = { outcome: CombatOutcome };
 
 /** Continues with a step, adding a value to its parameters (a roll's result, a drawn tile). */
 export function continueWith(
@@ -317,7 +354,7 @@ export function gain(
   rule: RuleRef,
   card: string | null = null,
 ): Step {
-  return step<Gain>("gain", { figure, trait, amount, card, rule });
+  return step("gain", { figure, trait, amount, card, rule });
 }
 
 type Damage = {
@@ -339,7 +376,7 @@ export function damage(
   rule: RuleRef,
   by: FigureId | null = null,
 ): Step {
-  return step<Damage>("damage", {
+  return step("damage", {
     figure,
     damage: kind,
     amount: "points" in amount ? amount.points : null,
@@ -447,7 +484,7 @@ export function roll(
   then: Step,
   options: { id?: string; extraDice?: number } = {},
 ): Step {
-  return step<Roll>("roll", {
+  return step("roll", {
     figure,
     spec,
     rule,
@@ -489,7 +526,7 @@ export type StoredRow = RowSummary & { steps: Step[] };
 /** Continues a roll into its outcome table, each row with what it does read
  *  off its steps. Throws on a row it can't read (see `rowOutcome`). */
 export function table(rows: TableRow[]): Step {
-  return step<{ rows: StoredRow[] }>("table", {
+  return afterRoll("table", {
     rows: rows.map(({ min, max, steps, does }) => ({
       min,
       max,
@@ -600,7 +637,7 @@ const highestResult = (pool: number) => pool * 2;
 type DrawCard = { figure: FigureId; type: CardType; rule: RuleRef };
 
 export function drawCard(figure: FigureId, type: CardType, rule: RuleRef): Step {
-  return step<DrawCard>("draw-card", { figure, type, rule });
+  return step("draw-card", { figure, type, rule });
 }
 
 /** How a card came to its holder. "custody": a dead explorer's companion,
@@ -624,7 +661,7 @@ export function gainCard(
   by: GainedBy,
   rule: RuleRef,
 ): Step {
-  return step<GainCard>("gain-card", { figure, card, by, rule });
+  return step("gain-card", { figure, card, by, rule });
 }
 
 /** Where a card goes when its holder loses it. */
@@ -653,7 +690,7 @@ export function loseCard(
   destination: CardDestination,
   rule: RuleRef,
 ): Step {
-  return step<LoseCard>("lose-card", { figure, card, destination, rule });
+  return step("lose-card", { figure, card, destination, rule });
 }
 
 /** An event card the drawer keeps in front of them (for example while buried). */
@@ -685,7 +722,7 @@ export function steal(
   card: string,
   rule: RuleRef,
 ): Step {
-  return step<{ from: FigureId; to: FigureId; card: string; rule: RuleRef }>(
+  return step(
     "steal",
     { from, to, card, rule },
   );
@@ -707,7 +744,7 @@ export function markCard(
   lasts: CardMark["lasts"],
   rule: RuleRef,
 ): Step {
-  return step<MarkCard>("mark-card", { card, name, value, lasts, rule });
+  return step("mark-card", { card, name, value, lasts, rule });
 }
 
 export function cardFlag(
@@ -773,7 +810,7 @@ export function placeToken(
   rule: RuleRef,
   how: { side?: Edge | null; link?: Place; holder?: FigureId } = {},
 ): Step {
-  return step<PlaceToken>("place-token", {
+  return step("place-token", {
     token,
     room,
     wall: null,
@@ -792,7 +829,7 @@ export function placeWallToken(
   wall: Edge[],
   rule: RuleRef,
 ): Step {
-  return step<PlaceToken>("place-token", {
+  return step("place-token", {
     token,
     room,
     wall,
@@ -804,7 +841,7 @@ export function placeWallToken(
 }
 
 export function removeToken(token: string, room: string, rule: RuleRef): Step {
-  return step<{ token: string; room: string; rule: RuleRef }>("remove-token", {
+  return step("remove-token", {
     token,
     room,
     rule,
@@ -835,7 +872,7 @@ export function relocate(
     figure,
     leaveRoom(
       figure,
-      step<Relocate>("relocate", { figure, room, rule, side, after }),
+      step("relocate", { figure, room, rule, side, after }),
     ),
   );
 }
@@ -844,7 +881,7 @@ export function relocate(
  *  canBeMoved question says nothing may (haunt 13's sleeping body): then the
  *  figure stays where it is, and the move lapses. */
 export function displace(figure: FigureId, then: Step): Step {
-  return step<{ figure: FigureId; then: Step }>("displace", { figure, then });
+  return step("displace", { figure, then });
 }
 
 /** Whether an effect may move a figure out of its room. */
@@ -892,23 +929,23 @@ type Leave = {
  *  say over leaving it (a room's roll to leave) has had it. A source can keep
  *  the figure in the room by not continuing. */
 export function leaveRoom(figure: FigureId, then: Step): Step {
-  return step<{ figure: FigureId; then: Step }>("leave", { figure, then });
+  return step("leave", { figure, then });
 }
 
 /** The figure stays in the room it was leaving, and moves no further this
  *  turn: it tries again on a later turn. */
 export function stayInRoom(figure: FigureId, rule: RuleRef): Step {
-  return step<{ figure: FigureId; rule: RuleRef }>("stay", { figure, rule });
+  return step("stay", { figure, rule });
 }
 
 /** An event card that stays in play, held by no one, until something ends it. */
 export function startOngoing(card: string): Step {
-  return step<{ card: string }>("start-ongoing", { card });
+  return step("start-ongoing", { card });
 }
 
 /** Ends an ongoing event, to the event discard pile. */
 export function endOngoing(card: string): Step {
-  return step<{ card: string }>("end-ongoing", { card });
+  return step("end-ongoing", { card });
 }
 
 /** One option of a choice, and the place in the house it is, where taking
@@ -965,7 +1002,7 @@ export function chooseOne(
   prompt?: string,
 ): Step {
   const by = chosenBy(chooser);
-  return step<ChooseOne>(
+  return step(
     "choose-one",
     prompt === undefined
       ? { ...by, options, rule }
@@ -974,7 +1011,7 @@ export function chooseOne(
 }
 
 export function endMovement(figure: FigureId, rule: RuleRef): Step {
-  return step<{ figure: FigureId; rule: RuleRef }>("end-movement", {
+  return step("end-movement", {
     figure,
     rule,
   });
@@ -983,7 +1020,7 @@ export function endMovement(figure: FigureId, rule: RuleRef): Step {
 /** Ends the turn of the seat controlling the figure at its next chance to
  *  act. Off that seat's turn, it does nothing. */
 export function endTurnNow(figure: FigureId, rule: RuleRef): Step {
-  return step<{ figure: FigureId; rule: RuleRef }>("end-turn-now", {
+  return step("end-turn-now", {
     figure,
     rule,
   });
@@ -992,7 +1029,7 @@ export function endTurnNow(figure: FigureId, rule: RuleRef): Step {
 /** Puts a status on a figure: a named condition with its rule and its own
  *  data, which acts as a rule source while the figure has it. */
 export function addStatus(figure: FigureId, status: Status): Step {
-  return step<{ figure: FigureId; status: Status }>("add-status", {
+  return step("add-status", {
     figure,
     status,
   });
@@ -1004,7 +1041,7 @@ export function removeStatus(
   status: string,
   rule: RuleRef,
 ): Step {
-  return step<{ figure: FigureId; status: string; rule: RuleRef }>(
+  return step(
     "remove-status",
     { figure, status, rule },
   );
@@ -1042,7 +1079,7 @@ function reachSkull(
     cause,
   });
   if (outcome.kind === "death")
-    ctx.push(step<Die>("die", { figure, trait, cause, killer }));
+    ctx.push(step("die", { figure, trait, cause, killer }));
 }
 
 /** A figure dies, with the rule that killed it and the figure that dealt
@@ -1052,7 +1089,7 @@ export function die(
   cause: RuleRef,
   killer: FigureId | null = null,
 ): Step {
-  return step<Die>("die", { figure, trait: null, cause, killer });
+  return step("die", { figure, trait: null, cause, killer });
 }
 
 type Harmful = {
@@ -1073,14 +1110,14 @@ export function harmful(
   rule: RuleRef,
   text: { what: string; apply: Option; ignore: Option },
 ): Step {
-  return step<Harmful>("harmful", { figure, rule, ...text });
+  return step("harmful", { figure, rule, ...text });
 }
 
 /** Records a once-a-turn use made without a roll (passing the Wall Switch
  *  without rolling), so it counts as the figure's attempt at that roll
  *  (p. 12). */
 export function attempt(figure: FigureId, id: string): Step {
-  return step<{ figure: FigureId; id: string }>("attempt", { figure, id });
+  return step("attempt", { figure, id });
 }
 
 /** Whether a figure has attempted a roll this turn: each may attempt the
@@ -1103,7 +1140,7 @@ function recordAttempt(state: GameState, figure: FigureId, id: string): void {
 /** A figure is stunned (p. 18): it gets in no one's way, and misses its next
  *  monster turn, at whose end it recovers. */
 export function stun(figure: FigureId, rule: RuleRef): Step {
-  return step<{ figure: FigureId; rule: RuleRef }>("stun", { figure, rule });
+  return step("stun", { figure, rule });
 }
 
 /** Whether a card works as an item: every item, and every omen but the
@@ -1155,7 +1192,7 @@ export function arrived(
     ...state.aside
       .filter((a) => a.room === room)
       .map((a) =>
-        step<Custody>("take-custody", { figure, card: a.card, room }),
+        step("take-custody", { figure, card: a.card, room }),
       ),
   );
 }
@@ -1232,7 +1269,7 @@ function learnTrait(
 // Registry
 // ---------------------------------------------------------------------------
 
-export const EFFECT_STEPS: Record<string, StepKind> = {
+export const EFFECT_STEPS = {
   gain: defineStep<Gain>((state, p, ctx) => {
     // A monster's traits are fixed: it can't benefit from a gain (p. 19),
     // and a loss that isn't damage leaves it as it is (ruling
@@ -1267,7 +1304,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
           p.figure,
           { kind: "dice", count: p.dice },
           p.rule,
-          step("damage-rolled", {
+          afterRoll("damage-rolled", {
             figure: p.figure,
             damage: p.damage,
             rule: p.rule,
@@ -1291,7 +1328,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
       return;
     }
     ctx.push(
-      step<DamageLands>("damage-lands", {
+      step("damage-lands", {
         figure: p.figure,
         damage: p.damage,
         points,
@@ -1346,7 +1383,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
       roll: { spec: p.spec, rule: p.rule, extraDice: p.extraDice },
     });
     ctx.push(
-      step<RollInProgress>("roll-before", {
+      step("roll-before", {
         ...p,
         pool,
         bonus: 0,
@@ -1381,7 +1418,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
 
   "roll-dice": defineStep<RollInProgress>((state, p, ctx) => {
     const dice = p.named === null ? ctx.random.dice(p.pool) : [];
-    ctx.push(step<RollInProgress>("roll-after", { ...p, dice }));
+    ctx.push(step("roll-after", { ...p, dice }));
   }),
 
   "roll-after": defineStep<RollInProgress>((state, p, ctx) => {
@@ -1614,7 +1651,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
 
   leave: defineStep<{ figure: FigureId; then: Step }>((state, p, ctx) => {
     ctx.push(
-      step<Leave>("leave-heard", {
+      step("leave-heard", {
         figure: p.figure,
         room: placeOf(state, p.figure).room,
         then: p.then,
@@ -1644,7 +1681,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
         state,
         p.figure,
         source,
-        step<Leave>("leave-heard", {
+        step("leave-heard", {
           ...p,
           heard: [...p.heard, `${source.kind}:${source.id}`],
         }),
@@ -1687,7 +1724,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
           p.room,
           sides,
           p.rule,
-          step<Relocate>("relocate", p),
+          step("relocate", p),
           ctx.catalog.rooms[p.room].name,
         ),
       );
@@ -1717,7 +1754,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
       ...figure.cards.flatMap((card) =>
         dropOnDeath(ctx.catalog, p.figure, card, room),
       ),
-      step<{ figure: FigureId }>("leave-board", { figure: p.figure }),
+      step("leave-board", { figure: p.figure }),
       // The turn's acting figure dying ends the turn, unless others are
       // still to act on it: a monster killed on its own turn leaves the
       // rest of the monster turn to the others. Any other figure's death,
@@ -1807,7 +1844,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
       figure: p.figure,
       rule: p.rule,
     });
-    const ignored = step<{ figure: FigureId; what: string; rule: RuleRef }>(
+    const ignored = step(
       "text-ignored",
       { figure: p.figure, what: p.what, rule: p.rule },
     );
@@ -1852,7 +1889,7 @@ export const EFFECT_STEPS: Record<string, StepKind> = {
     },
     { subject: () => null },
   ),
-};
+} satisfies Record<string, StepKind>;
 
 function cardName(engine: Engine, card: string): string {
   return engine.catalog.cards[card].name;
@@ -1891,7 +1928,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
     },
     resolve: (state, p, card, ctx) => {
       if (card === null) {
-        ctx.push(step<DamageLands>("damage-lands", p));
+        ctx.push(step("damage-lands", p));
         return;
       }
       const to = ctx.engine.behaviours.cards[card]?.damageAs;
@@ -1901,7 +1938,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
         { source: "card", card },
         { figure: p.figure, from: p.damage, to },
       );
-      ctx.push(step<DamageLands>("damage-lands", { ...p, damage: to }));
+      ctx.push(step("damage-lands", { ...p, damage: to }));
     },
   }),
 
@@ -2011,7 +2048,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
       );
       const dice = [...kept, ...ctx.random.dice(c.faces.length)];
       ctx.push(
-        step<RollInProgress>("roll-after", {
+        step("roll-after", {
           ...r,
           dice,
           used: [...r.used, c.card],

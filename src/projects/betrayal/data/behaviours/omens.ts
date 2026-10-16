@@ -22,10 +22,10 @@ import { pullMonsters } from "../../engine/monsters";
 import { routeDistances } from "../../engine/movement";
 import type { Mover } from "../../engine/questions";
 import {
-  eventData,
-  local,
   type Behaviour,
   type BehaviourGroup,
+  eventData,
+  ownSteps,
 } from "../../engine/sources";
 import type { Engine } from "../../engine/step-loop";
 import type { FigureId, GameState, RuleRef, Step, Trait } from "../../types";
@@ -130,6 +130,62 @@ const dogTraits = (figure: FigureId, sign: 1 | -1) => [
 type DogRun = { figure: FigureId; room: string };
 type DogCarry = DogRun & { card: string };
 
+const DOG_STEPS = ownSteps("dog", {
+  run: defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    ctx.push(
+      chooseOne(
+        p.figure,
+        dogRuns(ctx.engine, state, p.figure).map((room) => ({
+          label: `Send the Dog to the ${CATALOG.rooms[room].name}`,
+          steps: [DOG_STEPS.step("there", { figure: p.figure, room })],
+          room,
+        })),
+        DOG,
+      ),
+    );
+  }),
+  there: defineStep<DogRun>((state, p, ctx) => {
+    ctx.emit("dog-ran", DOG, p);
+    const isItem = (c: string) => CATALOG.cards[c].type === "item";
+    const fetch = (state.piles[p.room] ?? [])
+      .filter((c) => isItem(c) && !isHandled(state, c))
+      .map((c) => ({
+        label: `The Dog brings back the ${CATALOG.cards[c].name}`,
+        steps: [DOG_STEPS.step("fetch", { ...p, card: c })],
+      }));
+    const leave = figureOf(state, p.figure)
+      .cards.filter(
+        (c) =>
+          isItem(c) && CATALOG.cards[c].transfer.drop && !isHandled(state, c),
+      )
+      .map((c) => ({
+        label: `The Dog leaves your ${CATALOG.cards[c].name} there`,
+        steps: [DOG_STEPS.step("leave", { ...p, card: c })],
+      }));
+    ctx.push(
+      chooseOne(
+        p.figure,
+        [
+          ...fetch,
+          ...leave,
+          { label: "The Dog comes back with nothing", steps: [] },
+        ],
+        DOG,
+      ),
+    );
+  }),
+  // The holder gets what the Dog fetches when it comes back to them.
+  fetch: defineStep<DogCarry>((state, p, ctx) => {
+    moveCard(state, p.card, { at: "pile", room: p.room }, IN_HAND);
+    handle(state, p.card);
+    ctx.push(gainCard(p.figure, p.card, "picked-up", DOG));
+  }),
+  leave: defineStep<DogCarry>((state, p, ctx) => {
+    handle(state, p.card);
+    ctx.push(loseCard(p.figure, p.card, { to: "room", room: p.room }, DOG));
+  }),
+});
+
 /** The Dog: its token follows its holder, and once a turn it runs to a room
  *  and back, fetching or leaving one item, never an omen. The run ends back
  *  with its holder, so it never holds an item between turns (the card's
@@ -158,64 +214,10 @@ const DOG_BEHAVIOUR: Behaviour = {
       label: `Send the Dog to a room up to ${DOG_RANGE} spaces away and back`,
       available: (state, figure, _source, engine) =>
         dogRuns(engine, state, figure).length > 0,
-      steps: (_state, figure) => [local("dog", "run", { figure })],
+      steps: (_state, figure) => [DOG_STEPS.step("run", { figure })],
     },
   },
-  steps: {
-    run: defineStep<{ figure: FigureId }>((state, p, ctx) => {
-      ctx.push(
-        chooseOne(
-          p.figure,
-          dogRuns(ctx.engine, state, p.figure).map((room) => ({
-            label: `Send the Dog to the ${CATALOG.rooms[room].name}`,
-            steps: [local("dog", "there", { figure: p.figure, room })],
-            room,
-          })),
-          DOG,
-        ),
-      );
-    }),
-    there: defineStep<DogRun>((state, p, ctx) => {
-      ctx.emit("dog-ran", DOG, p);
-      const isItem = (c: string) => CATALOG.cards[c].type === "item";
-      const fetch = (state.piles[p.room] ?? [])
-        .filter((c) => isItem(c) && !isHandled(state, c))
-        .map((c) => ({
-          label: `The Dog brings back the ${CATALOG.cards[c].name}`,
-          steps: [local("dog", "fetch", { ...p, card: c })],
-        }));
-      const leave = figureOf(state, p.figure)
-        .cards.filter(
-          (c) =>
-            isItem(c) && CATALOG.cards[c].transfer.drop && !isHandled(state, c),
-        )
-        .map((c) => ({
-          label: `The Dog leaves your ${CATALOG.cards[c].name} there`,
-          steps: [local("dog", "leave", { ...p, card: c })],
-        }));
-      ctx.push(
-        chooseOne(
-          p.figure,
-          [
-            ...fetch,
-            ...leave,
-            { label: "The Dog comes back with nothing", steps: [] },
-          ],
-          DOG,
-        ),
-      );
-    }),
-    // The holder gets what the Dog fetches when it comes back to them.
-    fetch: defineStep<DogCarry>((state, p, ctx) => {
-      moveCard(state, p.card, { at: "pile", room: p.room }, IN_HAND);
-      handle(state, p.card);
-      ctx.push(gainCard(p.figure, p.card, "picked-up", DOG));
-    }),
-    leave: defineStep<DogCarry>((state, p, ctx) => {
-      handle(state, p.card);
-      ctx.push(loseCard(p.figure, p.card, { to: "room", room: p.room }, DOG));
-    }),
-  },
+  steps: DOG_STEPS.steps,
   describe: {
     "dog-ran": (event, words) => {
       const d = eventData<DogRun>(event);
@@ -238,6 +240,88 @@ const DOG_BEHAVIOUR: Behaviour = {
     },
   },
 };
+
+const CRYSTAL_BALL = ownSteps("crystal-ball", {
+  // Only the undrawn stack is searched, never the discards (1st-edition FAQ).
+  search: defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
+    const rule = card("crystal-ball");
+    const types = (["item", "event"] as const).filter(
+      (type) => state.decks[type].draw.length > 0,
+    );
+    if (types.length === 0) {
+      ctx.emit("search-found-nothing", rule, { figure });
+      return;
+    }
+    ctx.push(
+      chooseOne(
+        figure,
+        types.map((type) => ({
+          label: `Search the ${type} stack`,
+          steps: [CRYSTAL_BALL.step("pick", { figure, type })],
+        })),
+        rule,
+      ),
+    );
+  }),
+  pick: defineStep<Search>((state, { figure, type }, ctx) => {
+    ctx.push(
+      chooseOne(
+        figure,
+        state.decks[type].draw.map((chosen) => ({
+          label: `Put the ${CATALOG.cards[chosen].name} on top of the ${type} stack`,
+          steps: [
+            CRYSTAL_BALL.step("stack", { figure, type, card: chosen }),
+          ],
+        })),
+        card("crystal-ball"),
+      ),
+    );
+  }),
+  stack: defineStep<Search & { card: string }>((state, p, ctx) => {
+    const deck = state.decks[p.type];
+    deck.draw = [
+      p.card,
+      ...ctx.random.shuffle(deck.draw.filter((c) => c !== p.card)),
+    ];
+    ctx.emit("deck-stacked", card("crystal-ball"), {
+      figure: p.figure,
+      type: p.type,
+      card: p.card,
+    });
+  }),
+});
+
+const MASK = ownSteps("mask", {
+  "put-on-or-off": defineStep<{ figure: FigureId }>(
+    (state, { figure }, ctx) => {
+      const worn = cardFlag(state, "mask", "worn");
+      ctx.push(
+        chooseOne(
+          figure,
+          [
+            worn
+              ? { label: "Take off the Mask", steps: maskOff(figure) }
+              : { label: "Put on the Mask", steps: maskOn(figure) },
+            {
+              label: worn ? "Keep the Mask on" : "Leave the Mask off",
+              steps: [],
+            },
+          ],
+          card("mask"),
+        ),
+      );
+    },
+  ),
+});
+
+const SPIRIT_BOARD = ownSteps("spirit-board", {
+  look: defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
+    ctx.emit("room-stack-seen", card("spirit-board"), {
+      figure,
+      tile: state.board.stack[0],
+    });
+  }),
+});
 
 /** Omen cards, from content/cards/omens.md. Every omen also triggers the haunt roll, which the engine makes. */
 export const OMENS: BehaviourGroup = {
@@ -277,7 +361,7 @@ export const OMENS: BehaviourGroup = {
                   {
                     min: 4,
                     max: null,
-                    steps: [local("crystal-ball", "search", { figure })],
+                    steps: [CRYSTAL_BALL.step("search", { figure })],
                     does: "search",
                   },
                   { min: 1, max: 3, steps: [gain(figure, "sanity", -1, rule)] },
@@ -288,55 +372,7 @@ export const OMENS: BehaviourGroup = {
           },
         },
       },
-      steps: {
-        // Only the undrawn stack is searched, never the discards (1st-edition FAQ).
-        search: defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
-          const rule = card("crystal-ball");
-          const types = (["item", "event"] as const).filter(
-            (type) => state.decks[type].draw.length > 0,
-          );
-          if (types.length === 0) {
-            ctx.emit("search-found-nothing", rule, { figure });
-            return;
-          }
-          ctx.push(
-            chooseOne(
-              figure,
-              types.map((type) => ({
-                label: `Search the ${type} stack`,
-                steps: [local("crystal-ball", "pick", { figure, type })],
-              })),
-              rule,
-            ),
-          );
-        }),
-        pick: defineStep<Search>((state, { figure, type }, ctx) => {
-          ctx.push(
-            chooseOne(
-              figure,
-              state.decks[type].draw.map((chosen) => ({
-                label: `Put the ${CATALOG.cards[chosen].name} on top of the ${type} stack`,
-                steps: [
-                  local("crystal-ball", "stack", { figure, type, card: chosen }),
-                ],
-              })),
-              card("crystal-ball"),
-            ),
-          );
-        }),
-        stack: defineStep<Search & { card: string }>((state, p, ctx) => {
-          const deck = state.decks[p.type];
-          deck.draw = [
-            p.card,
-            ...ctx.random.shuffle(deck.draw.filter((c) => c !== p.card)),
-          ];
-          ctx.emit("deck-stacked", card("crystal-ball"), {
-            figure: p.figure,
-            type: p.type,
-            card: p.card,
-          });
-        }),
-      },
+      steps: CRYSTAL_BALL.steps,
     },
 
     mask: {
@@ -353,7 +389,7 @@ export const OMENS: BehaviourGroup = {
                 {
                   min: 4,
                   max: null,
-                  steps: [local("mask", "put-on-or-off", { figure })],
+                  steps: [MASK.step("put-on-or-off", { figure })],
                   does: "mask",
                 },
                 { min: 0, max: 3, steps: [] },
@@ -362,28 +398,7 @@ export const OMENS: BehaviourGroup = {
           ],
         },
       },
-      steps: {
-        "put-on-or-off": defineStep<{ figure: FigureId }>(
-          (state, { figure }, ctx) => {
-            const worn = cardFlag(state, "mask", "worn");
-            ctx.push(
-              chooseOne(
-                figure,
-                [
-                  worn
-                    ? { label: "Take off the Mask", steps: maskOff(figure) }
-                    : { label: "Put on the Mask", steps: maskOn(figure) },
-                  {
-                    label: worn ? "Keep the Mask on" : "Leave the Mask off",
-                    steps: [],
-                  },
-                ],
-                card("mask"),
-              ),
-            );
-          },
-        ),
-      },
+      steps: MASK.steps,
       // A project ruling: losing the Mask while wearing it takes it off.
       onLose: (state, figure) =>
         cardFlag(state, "mask", "worn") ? maskTraits(figure, -1) : [],
@@ -415,21 +430,14 @@ export const OMENS: BehaviourGroup = {
             (state.turn.moved[figure] ?? 0) === 0 &&
             state.board.stack.length > 0,
           steps: (state, figure) => [
-            local("spirit-board", "look", { figure }),
+            SPIRIT_BOARD.step("look", { figure }),
             ...(state.status === "haunt"
               ? [pullMonsters(figure, card("spirit-board"))]
               : []),
           ],
         },
       },
-      steps: {
-        look: defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
-          ctx.emit("room-stack-seen", card("spirit-board"), {
-            figure,
-            tile: state.board.stack[0],
-          });
-        }),
-      },
+      steps: SPIRIT_BOARD.steps,
     },
   },
 };

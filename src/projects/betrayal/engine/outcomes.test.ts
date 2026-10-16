@@ -5,8 +5,9 @@ import type { GameState, Json, RuleRef } from "../types";
 import { attack, beaten } from "./combat";
 import { chooseOne, damage, drawCard, endMovement, gain, keepCard, loseCard, relocate, removeToken, roll, stayInRoom, step, table, tableOf } from "./effects";
 import { taskResult } from "./haunt";
+import { crossBarrier } from "./movement";
 import { rowOutcome } from "./outcomes";
-import { local } from "./sources";
+import { BLOODY_VISION } from "../data/behaviours/events-a";
 
 const rule: RuleRef = { source: "card", card: "bloody-vision" };
 const zoe = "zoe-ingstrom";
@@ -21,7 +22,7 @@ describe("a table row's outcome, read off its steps", () => {
     expect(rowOutcome([keepCard(zoe, "debris")], null)).toEqual([{ kind: "keep", card: "debris" }]);
     expect(rowOutcome([loseCard(zoe, "dark-dice", { to: "discard" }, rule)], null)).toEqual([{ kind: "lose", card: "dark-dice" }]);
     expect(rowOutcome([relocate(zoe, "entrance-hall", rule)], null)).toEqual([{ kind: "move", room: "entrance-hall" }]);
-    expect(rowOutcome([step("cross-barrier", { figure: zoe })], null)).toEqual([{ kind: "move", room: null }]);
+    expect(rowOutcome([crossBarrier(zoe, "top", rule)], null)).toEqual([{ kind: "move", room: null }]);
     expect(rowOutcome([endMovement(zoe, rule)], null)).toEqual([{ kind: "stop" }]);
     expect(rowOutcome([stayInRoom(zoe, rule)], null)).toEqual([{ kind: "stop" }]);
     expect(rowOutcome([roll(zoe, { kind: "dice", count: 3 }, rule, table([{ min: 0, max: null, steps: [] }]))], null)).toEqual([{ kind: "roll", spec: { kind: "dice", count: 3 } }]);
@@ -42,7 +43,7 @@ describe("a table row's outcome, read off its steps", () => {
     expect(rowOutcome([traits(["sanity", "knowledge"], 1)], null)).toEqual([{ kind: "gain", trait: "mental", amount: 1 }]);
     expect(rowOutcome([traits(["might", "speed", "knowledge", "sanity"], -1)], null)).toEqual([{ kind: "gain", trait: "choice", amount: -1 }]);
     const stayOrGo = chooseOne(zoe, [
-      { label: "go", steps: [gain(zoe, "speed", -1, rule), step("leave-heard", { figure: zoe })] },
+      { label: "go", steps: [gain(zoe, "speed", -1, rule), step("leave-heard", { figure: zoe, room: "entrance-hall", then: endMovement(zoe, rule), heard: [] })] },
       { label: "stay", steps: [stayInRoom(zoe, rule)] },
     ], rule);
     expect(rowOutcome([stayOrGo], null)).toEqual([{ kind: "choice", options: [[{ kind: "gain", trait: "speed", amount: -1 }, { kind: "move", room: null }], [{ kind: "stop" }]] }]);
@@ -54,7 +55,7 @@ describe("a table row's outcome, read off its steps", () => {
   });
 
   it("fails loudly on a source's own step with nothing said for it, and reads what is said", () => {
-    const own = local("bloody-vision", "attack", { figure: zoe });
+    const own = BLOODY_VISION.step("attack", { figure: zoe });
     expect(() => rowOutcome([own], null)).toThrow(/bloody-vision:attack/);
     expect(() => table([{ min: 0, max: 1, steps: [own] }])).toThrow(/no note/);
     expect(rowOutcome([own], "attack")).toEqual([{ kind: "note", note: "attack" }]);
@@ -62,7 +63,7 @@ describe("a table row's outcome, read off its steps", () => {
   });
 
   it("fails loudly on a step kind it can't read", () => {
-    expect(() => rowOutcome([step("nonsense", null)], null)).toThrow(/nonsense/);
+    expect(() => rowOutcome([{ kind: "nonsense", params: null }], null)).toThrow(/nonsense/);
   });
 
   it("carries each row's outcome on the table, and gives it without the steps", () => {
@@ -71,7 +72,7 @@ describe("a table row's outcome, read off its steps", () => {
       { min: 4, max: null, outcome: [{ kind: "gain", trait: "sanity", amount: 1 }] },
       { min: 0, max: 3, outcome: [] },
     ]);
-    expect(tableOf(step("damage-rolled", null))).toBeNull();
+    expect(tableOf(gain(zoe, "sanity", 1, rule))).toBeNull();
   });
 });
 

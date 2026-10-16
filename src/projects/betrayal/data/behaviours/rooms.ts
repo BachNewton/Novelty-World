@@ -19,7 +19,7 @@ import {
 } from "../../engine/effects";
 import {
   eventData,
-  local,
+  ownSteps,
   type Behaviour,
   type BehaviourGroup,
   type Source,
@@ -67,6 +67,13 @@ function endedHere(event: GameEvent, room: string): FigureId | null {
   return ended.room === room ? ended.figure : null;
 }
 
+/** The steps of every room that gives its bonus once per game. */
+const ONCE_PER_GAME_STEPS = {
+  spent: defineStep<{ figure: FigureId; room: string }>((_state, p, ctx) => {
+    ctx.emit("room-bonus-spent", { source: "room", room: p.room }, p);
+  }),
+};
+
 /** Once per game for each explorer, ending a turn here gains 1 in a trait
  *  (the explorer's pick, where it offers several); their explorer token
  *  marks that they have (Widow's Walk FAQ). Ending a turn here again gains
@@ -83,7 +90,12 @@ function oncePerGame(...traits: [Trait, ...Trait[]]): Behaviour {
           if (figure === null) return [];
           const token = explorerToken(state, figure);
           if (state.tokens.some((t) => t.room === source.id && t.token === token)) {
-            return [local(source.id, "spent", { figure, room: source.id })];
+            return [
+              ownSteps(source.id, ONCE_PER_GAME_STEPS).step("spent", {
+                figure,
+                room: source.id,
+              }),
+            ];
           }
           const gains = traits.map((trait) => gain(figure, trait, 1, source.rule));
           return [
@@ -99,11 +111,7 @@ function oncePerGame(...traits: [Trait, ...Trait[]]): Behaviour {
         },
       },
     ],
-    steps: {
-      spent: defineStep<{ figure: FigureId; room: string }>((_state, p, ctx) => {
-        ctx.emit("room-bonus-spent", { source: "room", room: p.room }, p);
-      }),
-    },
+    steps: ONCE_PER_GAME_STEPS,
   };
 }
 
@@ -312,6 +320,169 @@ function climb(
   };
 }
 
+const COLLAPSED_ROOM = ownSteps(COLLAPSED, {
+  // Falling spends no movement, but deals the damage (p. 7). Only the
+  // first to fall puts a basement tile in the house, next to any
+  // basement room, and marks where they land; later falls land there.
+  // A figure that can't discover rooms (a monster) falls into a
+  // basement room already there (p. 7).
+  fall: defineStep<Subject>((state, p, ctx) => {
+    const rule = COLLAPSED_RULE;
+    const hurt = fallDamage(p.figure, rule);
+    const below = state.tokens.find((t) => t.token === BELOW);
+    if (below) {
+      ctx.push(
+        relocate(p.figure, below.room, rule, below.side ?? null, [hurt]),
+      );
+      return;
+    }
+    if (
+      !askPermission(ctx.engine, state, "canDiscover", {
+        figure: p.figure,
+      }).allowed
+    ) {
+      ctx.push(COLLAPSED_ROOM.step("land", p));
+      return;
+    }
+    ctx.push(
+      drawRoomTile(
+        p.figure,
+        { kind: "doorways", floors: ["basement"], except: null },
+        rule,
+        {
+          then: enterNewRoom(p.figure, null, rule, {
+            draws: true,
+            after: [COLLAPSED_ROOM.step("mark", p), hurt],
+          }),
+          otherwise: [COLLAPSED_ROOM.step("land", p)],
+        },
+      ),
+    );
+  }),
+  // In a barrier room the token stays on the side they landed on (p. 7).
+  mark: defineStep<Subject>((state, p, ctx) => {
+    const { room, side } = placeOf(state, p.figure);
+    ctx.push(placeToken(BELOW, room, COLLAPSED_RULE, { side }));
+  }),
+  // Every basement tile is placed: the faller chooses a basement room.
+  land: defineStep<Subject>((state, p, ctx) => {
+    const rule = COLLAPSED_RULE;
+    ctx.push(
+      chooseOne(
+        p.figure,
+        state.board.tiles
+          .filter((t) => t.floor === "basement")
+          .map((t) => ({
+            label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
+            steps: [
+              relocate(p.figure, t.tile, rule, null, [
+                COLLAPSED_ROOM.step("mark", p),
+                fallDamage(p.figure, rule),
+              ]),
+            ],
+            room: t.tile,
+          })),
+        rule,
+      ),
+    );
+  }),
+});
+
+const MYSTIC_ELEVATOR = ownSteps(ELEVATOR, {
+  send: defineStep<Subject>((state, p, ctx) => {
+    if (state.turn === null) throw new Error("No turn to send it on");
+    state.turn.setUses.push(ELEVATOR);
+    ctx.push(
+      chooseOne(
+        p.figure,
+        ctx.catalog.rooms[ELEVATOR].floors.map((floor) => ({
+          label: `Send the elevator to the ${FLOOR_NAMES[floor]}`,
+          steps: [
+            MYSTIC_ELEVATOR.step("move", {
+              figure: p.figure,
+              floor,
+              shake: false,
+            }),
+          ],
+        })),
+        ELEVATOR_RULE,
+      ),
+    );
+  }),
+  ride: defineStep<Subject>((_state, p, ctx) => {
+    const rule = ELEVATOR_RULE;
+    const go = (floor: FloorId, shake = false) =>
+      MYSTIC_ELEVATOR.step("move", { figure: p.figure, floor, shake });
+    ctx.push(
+      roll(
+        p.figure,
+        { kind: "dice", count: 2 },
+        rule,
+        table([
+          {
+            min: 4,
+            max: 4,
+            steps: [
+              chooseOne(
+                p.figure,
+                ctx.catalog.rooms[ELEVATOR].floors.map((floor) => ({
+                  label: `Send the elevator to the ${FLOOR_NAMES[floor]}`,
+                  steps: [go(floor)],
+                })),
+                rule,
+              ),
+            ],
+            does: "floor-any",
+          },
+          { min: 3, max: 3, steps: [go("upper")], does: "floor-upper" },
+          { min: 2, max: 2, steps: [go("ground")], does: "floor-ground" },
+          {
+            min: 1,
+            max: 1,
+            steps: [go("basement")],
+            does: "floor-basement",
+          },
+          {
+            min: 0,
+            max: 0,
+            steps: [go("basement", true)],
+            does: [
+              { kind: "note", note: "floor-basement" },
+              { kind: "note", note: "shake" },
+            ],
+          },
+        ]),
+        { id: ELEVATOR },
+      ),
+    );
+  }),
+  // It goes next to an open door on the floor rolled, never sealing a
+  // floor; with nowhere to go it stays. On its own floor it may stay.
+  move: defineStep<{ figure: FigureId; floor: FloorId; shake: boolean }>(
+    (state, p, ctx) => {
+      const here = spotOf(state.board, ELEVATOR);
+      ctx.push(
+        placeRoom(
+          p.figure,
+          ELEVATOR,
+          { kind: "doorways", floors: [p.floor], except: here },
+          ELEVATOR_RULE,
+          { stay: here.floor === p.floor },
+        ),
+        ...(p.shake ? [MYSTIC_ELEVATOR.step("shake", null)] : []),
+      );
+    },
+  ),
+  // On a 0, everyone in the elevator takes the damage (p. 8).
+  shake: defineStep((state, _p, ctx) => {
+    ctx.push(
+      ...allFigures(state)
+        .filter((e) => e.place?.room === ELEVATOR)
+        .map((e) => fallDamage(e.id, ELEVATOR_RULE)),
+    );
+  }),
+});
+
 /** Room tiles with text, from content/rooms.md. */
 export const ROOMS: BehaviourGroup = {
   rooms: {
@@ -422,7 +593,7 @@ export const ROOMS: BehaviourGroup = {
                         {
                           min: 0,
                           max: 4,
-                          steps: [local(COLLAPSED, "fall", { figure })],
+                          steps: [COLLAPSED_ROOM.step("fall", { figure })],
                           does: "fall",
                         },
                       ]),
@@ -440,76 +611,10 @@ export const ROOMS: BehaviourGroup = {
         fall: {
           label: "Fall to the basement (1 die of physical damage)",
           available: () => true,
-          steps: (_state, figure) => [local(COLLAPSED, "fall", { figure })],
+          steps: (_state, figure) => [COLLAPSED_ROOM.step("fall", { figure })],
         },
       },
-      steps: {
-        // Falling spends no movement, but deals the damage (p. 7). Only the
-        // first to fall puts a basement tile in the house, next to any
-        // basement room, and marks where they land; later falls land there.
-        // A figure that can't discover rooms (a monster) falls into a
-        // basement room already there (p. 7).
-        fall: defineStep<Subject>((state, p, ctx) => {
-          const rule = COLLAPSED_RULE;
-          const hurt = fallDamage(p.figure, rule);
-          const below = state.tokens.find((t) => t.token === BELOW);
-          if (below) {
-            ctx.push(
-              relocate(p.figure, below.room, rule, below.side ?? null, [hurt]),
-            );
-            return;
-          }
-          if (
-            !askPermission(ctx.engine, state, "canDiscover", {
-              figure: p.figure,
-            }).allowed
-          ) {
-            ctx.push(local(COLLAPSED, "land", p));
-            return;
-          }
-          ctx.push(
-            drawRoomTile(
-              p.figure,
-              { kind: "doorways", floors: ["basement"], except: null },
-              rule,
-              {
-                then: enterNewRoom(p.figure, null, rule, {
-                  draws: true,
-                  after: [local(COLLAPSED, "mark", p), hurt],
-                }),
-                otherwise: [local(COLLAPSED, "land", p)],
-              },
-            ),
-          );
-        }),
-        // In a barrier room the token stays on the side they landed on (p. 7).
-        mark: defineStep<Subject>((state, p, ctx) => {
-          const { room, side } = placeOf(state, p.figure);
-          ctx.push(placeToken(BELOW, room, COLLAPSED_RULE, { side }));
-        }),
-        // Every basement tile is placed: the faller chooses a basement room.
-        land: defineStep<Subject>((state, p, ctx) => {
-          const rule = COLLAPSED_RULE;
-          ctx.push(
-            chooseOne(
-              p.figure,
-              state.board.tiles
-                .filter((t) => t.floor === "basement")
-                .map((t) => ({
-                  label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
-                  steps: [
-                    relocate(p.figure, t.tile, rule, null, [
-                      local(COLLAPSED, "mark", p),
-                      fallDamage(p.figure, rule),
-                    ]),
-                  ],
-                  room: t.tile,
-                })),
-              rule,
-            ),
-          );
-        }),
-      },
+      steps: COLLAPSED_ROOM.steps,
     },
 
     "mystic-elevator": {
@@ -546,108 +651,13 @@ export const ROOMS: BehaviourGroup = {
           const figure = arrivedOrEnded(event, source.id);
           if (figure === null) return [];
           return [
-            local(
-              ELEVATOR,
-              freeRider(engine, state, figure) ? "send" : "ride",
+            MYSTIC_ELEVATOR.step(freeRider(engine, state, figure) ? "send" : "ride",
               { figure },
             ),
           ];
         },
       })),
-      steps: {
-        send: defineStep<Subject>((state, p, ctx) => {
-          if (state.turn === null) throw new Error("No turn to send it on");
-          state.turn.setUses.push(ELEVATOR);
-          ctx.push(
-            chooseOne(
-              p.figure,
-              ctx.catalog.rooms[ELEVATOR].floors.map((floor) => ({
-                label: `Send the elevator to the ${FLOOR_NAMES[floor]}`,
-                steps: [
-                  local(ELEVATOR, "move", {
-                    figure: p.figure,
-                    floor,
-                    shake: false,
-                  }),
-                ],
-              })),
-              ELEVATOR_RULE,
-            ),
-          );
-        }),
-        ride: defineStep<Subject>((_state, p, ctx) => {
-          const rule = ELEVATOR_RULE;
-          const go = (floor: FloorId, shake = false) =>
-            local(ELEVATOR, "move", { figure: p.figure, floor, shake });
-          ctx.push(
-            roll(
-              p.figure,
-              { kind: "dice", count: 2 },
-              rule,
-              table([
-                {
-                  min: 4,
-                  max: 4,
-                  steps: [
-                    chooseOne(
-                      p.figure,
-                      ctx.catalog.rooms[ELEVATOR].floors.map((floor) => ({
-                        label: `Send the elevator to the ${FLOOR_NAMES[floor]}`,
-                        steps: [go(floor)],
-                      })),
-                      rule,
-                    ),
-                  ],
-                  does: "floor-any",
-                },
-                { min: 3, max: 3, steps: [go("upper")], does: "floor-upper" },
-                { min: 2, max: 2, steps: [go("ground")], does: "floor-ground" },
-                {
-                  min: 1,
-                  max: 1,
-                  steps: [go("basement")],
-                  does: "floor-basement",
-                },
-                {
-                  min: 0,
-                  max: 0,
-                  steps: [go("basement", true)],
-                  does: [
-                    { kind: "note", note: "floor-basement" },
-                    { kind: "note", note: "shake" },
-                  ],
-                },
-              ]),
-              { id: ELEVATOR },
-            ),
-          );
-        }),
-        // It goes next to an open door on the floor rolled, never sealing a
-        // floor; with nowhere to go it stays. On its own floor it may stay.
-        move: defineStep<{ figure: FigureId; floor: FloorId; shake: boolean }>(
-          (state, p, ctx) => {
-            const here = spotOf(state.board, ELEVATOR);
-            ctx.push(
-              placeRoom(
-                p.figure,
-                ELEVATOR,
-                { kind: "doorways", floors: [p.floor], except: here },
-                ELEVATOR_RULE,
-                { stay: here.floor === p.floor },
-              ),
-              ...(p.shake ? [local(ELEVATOR, "shake", null)] : []),
-            );
-          },
-        ),
-        // On a 0, everyone in the elevator takes the damage (p. 8).
-        shake: defineStep((state, _p, ctx) => {
-          ctx.push(
-            ...allFigures(state)
-              .filter((e) => e.place?.room === ELEVATOR)
-              .map((e) => fallDamage(e.id, ELEVATOR_RULE)),
-          );
-        }),
-      },
+      steps: MYSTIC_ELEVATOR.steps,
     },
 
     "coal-chute": {

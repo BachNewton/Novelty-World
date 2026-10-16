@@ -41,10 +41,11 @@ import {
   type CombatOutcome,
 } from "../../engine/questions";
 import {
-  eventData,
-  local,
   type Behaviour,
   type BehaviourGroup,
+  eventData,
+  ownSteps,
+  type OwnSteps,
   type Reaction,
 } from "../../engine/sources";
 import type { StepKind } from "../../engine/step-loop";
@@ -78,17 +79,18 @@ function traitRoll(
 }
 
 /** A kept card can be told to go by several triggers in one write; only the first discards it. */
-function discardIfHeld(cardId: string): StepKind {
+function discardIfHeld(cardId: string): StepKind<{ figure: FigureId }> {
   return defineStep<{ figure: FigureId }>((state, p, ctx) => {
     if (figureOf(state, p.figure).cards.includes(cardId))
       ctx.push(discardCard(p.figure, cardId));
   });
 }
 
-/** A turn-ended reaction for the card's holder, in one of these rooms or meeting a condition. */
+/** A turn-ended reaction for the card's holder, in one of these rooms or
+ *  meeting a condition, that discards the card. */
 function holderTurnEnded(
   when: (state: GameState, figure: FigureId, room: string) => boolean,
-  cardId: string,
+  card: OwnSteps<{ discard: StepKind<{ figure: FigureId }> }>,
 ): Reaction[] {
   return [
     {
@@ -106,7 +108,7 @@ function holderTurnEnded(
         );
       },
       steps: (_state, event) => [
-        local(cardId, "discard", {
+        card.step("discard", {
           figure: eventData<{ figure: FigureId }>(event).figure,
         }),
       ],
@@ -231,7 +233,7 @@ function slideRoll(
       {
         min: SLIDE_CONTROLLED,
         max: null,
-        steps: [local(SLIDE, "control", { figure, room })],
+        steps: [MYSTIC_SLIDE.step("control", { figure, room })],
         does: "choose-landing",
       },
       {
@@ -247,7 +249,7 @@ function slideRoll(
                 draws,
                 after: [damage(figure, "physical", { dice: 1 }, rule)],
               }),
-              otherwise: [local(SLIDE, "fall-to-basement", { figure })],
+              otherwise: [MYSTIC_SLIDE.step("fall-to-basement", { figure })],
             },
           ),
         ],
@@ -256,6 +258,258 @@ function slideRoll(
     { id },
   );
 }
+
+export const BLOODY_VISION = ownSteps("bloody-vision", {
+  // An explorer comes first, the one with the lowest Might, a fellow
+  // hero or the sleeping traitor included; only with no explorer in
+  // reach is a monster attacked, of your choice. "If you can" is a
+  // target you are able to attack. The attack is the card's, outside
+  // your one attack of the turn (the card's project rulings).
+  attack: defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const rule = card("bloody-vision");
+    const you = figureOf(state, p.figure);
+    const adjacent = askSet(ctx.engine, state, "adjacency", {
+      room: roomOf(state, p.figure),
+    });
+    const inReach = allFigures(state).filter(
+      (e) =>
+        (together(e, you) ||
+          (e.place !== null && adjacent.includes(e.place.room))) &&
+        canBeAttacked(ctx.engine, state, p.figure, e.id),
+    );
+    const explorers = inReach.filter((e) => e.kind === "explorer");
+    const might = (figure: FigureId) =>
+      traitValue(ctx.engine, state, figure, "might");
+    const lowest = Math.min(...explorers.map((e) => might(e.id)));
+    const targets =
+      explorers.length > 0
+        ? explorers.filter((e) => might(e.id) === lowest)
+        : inReach.filter((e) => e.kind === "monster");
+    if (targets.length === 0) return;
+    const attackOn = (figure: FigureId) =>
+      attack({ kind: "figure", figure: p.figure }, figure, rule);
+    ctx.push(
+      targets.length === 1
+        ? attackOn(targets[0].id)
+        : chooseOne(
+            p.figure,
+            targets.map((e) => ({
+              label: `Attack ${figureName(ctx.catalog, state, e.id)}`,
+              steps: [attackOn(e.id)],
+              figure: e.id,
+            })),
+            rule,
+          ),
+    );
+  }),
+});
+
+const CREEPY_PUPPET = ownSteps("creepy-puppet", {
+  // The Spear's holder gains only if the attack dealt the drawer
+  // damage; with no holder the gain lapses (the card's project ruling).
+  spear: defineStep<{ figure: FigureId; outcome: CombatOutcome }>(
+    (state, p, ctx) => {
+      const rule = card("creepy-puppet");
+      const { loser, harm } = p.outcome;
+      const hurt =
+        loser === "defender" &&
+        harm?.kind === "damage" &&
+        askNumber(ctx.engine, state, "damageAmount", {
+          figure: p.figure,
+          damage: harm.damage,
+          amount: harm.points,
+          rule,
+        }) > 0;
+      const spear = allFigures(state).find((e) =>
+        e.cards.includes("spear"),
+      );
+      if (hurt && spear && spear.id !== p.figure)
+        ctx.push(gain(spear.id, "might", 2, rule));
+    },
+  ),
+});
+
+const FOOTSTEPS = ownSteps("footsteps", {
+  // Nearest is the fewest rooms along a route; the drawer breaks a tie.
+  nearest: defineStep<{ figure: FigureId; trait: Trait; amount: number }>(
+    (state, p, ctx) => {
+      const rule = card("footsteps");
+      const from = placeOf(state, p.figure);
+      // The card names explorers, so a monster is never the nearest
+      // (rules p. 5).
+      const others = allFigures(state).flatMap((e) => {
+        if (e.id === p.figure || e.place === null || e.kind !== "explorer")
+          return [];
+        const distance = distanceTo(
+          ctx.engine,
+          state,
+          { kind: "figure", figure: p.figure },
+          from,
+          roomOf(state, e.id),
+        );
+        return distance === null ? [] : [{ e, distance }];
+      });
+      // With no explorer reachable by any route, no one is nearest
+      // (the card's project ruling).
+      if (others.length === 0) return;
+      const closest = Math.min(...others.map((o) => o.distance));
+      ctx.push(
+        chooseOne(
+          p.figure,
+          others
+            .filter((o) => o.distance === closest)
+            .map(({ e }) => ({
+              label: `${explorerName(state, e.id)} is the nearest explorer`,
+              steps: [gain(e.id, p.trait, p.amount, rule)],
+              figure: e.id,
+            })),
+          rule,
+        ),
+      );
+    },
+  ),
+});
+
+const GRAVE_DIRT = ownSteps("grave-dirt", { discard: discardIfHeld("grave-dirt") });
+
+const HANGED_MEN = ownSteps("hanged-men", {
+  next: defineStep<{ figure: FigureId; traits: Trait[]; passed: boolean }>(
+    (_state, p, ctx) => {
+      const rule = card("hanged-men");
+      if (p.traits.length > 0) {
+        ctx.push(
+          roll(
+            p.figure,
+            { kind: "trait", trait: p.traits[0] },
+            rule,
+            HANGED_MEN.afterRoll("rolled", p),
+          ),
+        );
+      } else if (p.passed) {
+        ctx.push(
+          chooseOne(
+            p.figure,
+            TRAITS.map((trait) => ({
+              label: `Gain 1 ${traitName(trait)}`,
+              steps: [gain(p.figure, trait, 1, rule)],
+            })),
+            rule,
+          ),
+        );
+      }
+    },
+  ),
+  rolled: defineStep<{
+    figure: FigureId;
+    traits: Trait[];
+    passed: boolean;
+    result: number;
+  }>((_state, p, ctx) => {
+    const [trait, ...rest] = p.traits;
+    if (p.result <= 1)
+      ctx.push(gain(p.figure, trait, -1, card("hanged-men")));
+    ctx.push(
+      HANGED_MEN.step("next", {
+        figure: p.figure,
+        traits: rest,
+        passed: p.passed && p.result >= 2,
+      }),
+    );
+  }),
+});
+
+const IT_IS_MEANT_TO_BE = ownSteps(MEANT, {
+  "pick-stack": defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
+    ctx.push(
+      chooseOne(
+        figure,
+        stacks(state).map((stack) => ({
+          label: `Look at the top of the ${STACK_NAMES[stack]}`,
+          steps: [IT_IS_MEANT_TO_BE.step("look", { figure, stack })],
+        })),
+        card(MEANT),
+      ),
+    );
+  }),
+  look: defineStep<{ figure: FigureId; stack: Stack }>((state, p, ctx) => {
+    const orders = permutations(stackOf(state, p.stack).slice(0, 3));
+    const putBack = (order: string[]) =>
+      IT_IS_MEANT_TO_BE.step("put-back", { ...p, order });
+    if (orders.length === 1) {
+      ctx.push(putBack(orders[0]));
+      return;
+    }
+    ctx.push(
+      chooseOne(
+        p.figure,
+        orders.map((order) => ({
+          label: `Put them back, top first: ${order.map((id) => stackItemName(p.stack, id)).join(", ")}`,
+          steps: [putBack(order)],
+        })),
+        card(MEANT),
+      ),
+    );
+  }),
+  "put-back": defineStep<{ figure: FigureId; stack: Stack; order: string[] }>(
+    (state, p, ctx) => {
+      const pile = stackOf(state, p.stack);
+      const top = pile.slice(0, p.order.length);
+      if ([...top].sort().join() !== [...p.order].sort().join())
+        throw new Error(`The top of the ${p.stack} stack has changed`);
+      pile.splice(0, p.order.length, ...p.order);
+      ctx.emit("stack-reordered", card(MEANT), {
+        figure: p.figure,
+        stack: p.stack,
+      });
+    },
+  ),
+  record: defineStep<{ figure: FigureId; result: number }>(
+    (_state, p, ctx) => {
+      ctx.push(
+        keepCard(p.figure, MEANT),
+        markCard(MEANT, RECORDED, p.result, "holder", card(MEANT)),
+      );
+    },
+  ),
+});
+
+export const LIGHTS_OUT = ownSteps("lights-out", { discard: discardIfHeld("lights-out") });
+
+const MYSTIC_SLIDE = ownSteps(SLIDE, {
+  control: defineStep<{ figure: FigureId; room: string }>((state, p, ctx) => {
+    ctx.push(
+      chooseOne(
+        p.figure,
+        roomsBelow(state, p.room).map((room) => ({
+          label: `Slide down to the ${ctx.catalog.rooms[room].name}`,
+          steps: [relocate(p.figure, room, card(SLIDE))],
+          room,
+        })),
+        card(SLIDE),
+      ),
+    );
+  }),
+  "fall-to-basement": defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    const rule = card(SLIDE);
+    ctx.push(
+      chooseOne(
+        p.figure,
+        state.board.tiles
+          .filter((t) => t.floor === "basement")
+          .map((t) => ({
+            label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
+            steps: [
+              relocate(p.figure, t.tile, rule, null, [
+                damage(p.figure, "physical", { dice: 1 }, rule),
+              ]),
+            ],
+            room: t.tile,
+          })),
+        rule,
+      ),
+    );
+  }),
+});
 
 /** Event cards A of the base game, from content/cards/events.md. */
 export const EVENTS_A: BehaviourGroup = {
@@ -286,55 +540,12 @@ export const EVENTS_A: BehaviourGroup = {
           {
             min: 0,
             max: 1,
-            steps: [local("bloody-vision", "attack", { figure })],
+            steps: [BLOODY_VISION.step("attack", { figure })],
             does: "attack",
           },
         ]),
       ],
-      steps: {
-        // An explorer comes first, the one with the lowest Might, a fellow
-        // hero or the sleeping traitor included; only with no explorer in
-        // reach is a monster attacked, of your choice. "If you can" is a
-        // target you are able to attack. The attack is the card's, outside
-        // your one attack of the turn (the card's project rulings).
-        attack: defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const rule = card("bloody-vision");
-          const you = figureOf(state, p.figure);
-          const adjacent = askSet(ctx.engine, state, "adjacency", {
-            room: roomOf(state, p.figure),
-          });
-          const inReach = allFigures(state).filter(
-            (e) =>
-              (together(e, you) ||
-                (e.place !== null && adjacent.includes(e.place.room))) &&
-              canBeAttacked(ctx.engine, state, p.figure, e.id),
-          );
-          const explorers = inReach.filter((e) => e.kind === "explorer");
-          const might = (figure: FigureId) =>
-            traitValue(ctx.engine, state, figure, "might");
-          const lowest = Math.min(...explorers.map((e) => might(e.id)));
-          const targets =
-            explorers.length > 0
-              ? explorers.filter((e) => might(e.id) === lowest)
-              : inReach.filter((e) => e.kind === "monster");
-          if (targets.length === 0) return;
-          const attackOn = (figure: FigureId) =>
-            attack({ kind: "figure", figure: p.figure }, figure, rule);
-          ctx.push(
-            targets.length === 1
-              ? attackOn(targets[0].id)
-              : chooseOne(
-                  p.figure,
-                  targets.map((e) => ({
-                    label: `Attack ${figureName(ctx.catalog, state, e.id)}`,
-                    steps: [attackOn(e.id)],
-                    figure: e.id,
-                  })),
-                  rule,
-                ),
-          );
-        }),
-      },
+      steps: BLOODY_VISION.steps,
     },
 
     "burning-man": {
@@ -374,33 +585,10 @@ export const EVENTS_A: BehaviourGroup = {
           "might",
           4,
           card("creepy-puppet"),
-          local("creepy-puppet", "spear", { figure }),
+          CREEPY_PUPPET.afterFight("spear", { figure }),
         ),
       ],
-      steps: {
-        // The Spear's holder gains only if the attack dealt the drawer
-        // damage; with no holder the gain lapses (the card's project ruling).
-        spear: defineStep<{ figure: FigureId; outcome: CombatOutcome }>(
-          (state, p, ctx) => {
-            const rule = card("creepy-puppet");
-            const { loser, harm } = p.outcome;
-            const hurt =
-              loser === "defender" &&
-              harm?.kind === "damage" &&
-              askNumber(ctx.engine, state, "damageAmount", {
-                figure: p.figure,
-                damage: harm.damage,
-                amount: harm.points,
-                rule,
-              }) > 0;
-            const spear = allFigures(state).find((e) =>
-              e.cards.includes("spear"),
-            );
-            if (hurt && spear && spear.id !== p.figure)
-              ctx.push(gain(spear.id, "might", 2, rule));
-          },
-        ),
-      },
+      steps: CREEPY_PUPPET.steps,
     },
 
     "creepy-crawlies": {
@@ -479,7 +667,7 @@ export const EVENTS_A: BehaviourGroup = {
         const rule = card("footsteps");
         const inChapel = roomOf(state, figure) === "chapel";
         const nearest = (trait: Trait, amount: number) =>
-          local("footsteps", "nearest", { figure, trait, amount });
+          FOOTSTEPS.step("nearest", { figure, trait, amount });
         return [
           roll(
             figure,
@@ -518,46 +706,7 @@ export const EVENTS_A: BehaviourGroup = {
           ),
         ];
       },
-      steps: {
-        // Nearest is the fewest rooms along a route; the drawer breaks a tie.
-        nearest: defineStep<{ figure: FigureId; trait: Trait; amount: number }>(
-          (state, p, ctx) => {
-            const rule = card("footsteps");
-            const from = placeOf(state, p.figure);
-            // The card names explorers, so a monster is never the nearest
-            // (rules p. 5).
-            const others = allFigures(state).flatMap((e) => {
-              if (e.id === p.figure || e.place === null || e.kind !== "explorer")
-                return [];
-              const distance = distanceTo(
-                ctx.engine,
-                state,
-                { kind: "figure", figure: p.figure },
-                from,
-                roomOf(state, e.id),
-              );
-              return distance === null ? [] : [{ e, distance }];
-            });
-            // With no explorer reachable by any route, no one is nearest
-            // (the card's project ruling).
-            if (others.length === 0) return;
-            const closest = Math.min(...others.map((o) => o.distance));
-            ctx.push(
-              chooseOne(
-                p.figure,
-                others
-                  .filter((o) => o.distance === closest)
-                  .map(({ e }) => ({
-                    label: `${explorerName(state, e.id)} is the nearest explorer`,
-                    steps: [gain(e.id, p.trait, p.amount, rule)],
-                    figure: e.id,
-                  })),
-                rule,
-              ),
-            );
-          },
-        ),
-      },
+      steps: FOOTSTEPS.steps,
     },
 
     funeral: {
@@ -640,17 +789,17 @@ export const EVENTS_A: BehaviourGroup = {
             );
           },
           steps: (_state, event) => [
-            local("grave-dirt", "discard", {
+            GRAVE_DIRT.step("discard", {
               figure: eventData<{ figure: FigureId }>(event).figure,
             }),
           ],
         },
         ...holderTurnEnded(
           (_state, _seat, room) => GRAVE_DIRT_ROOMS.includes(room),
-          "grave-dirt",
+          GRAVE_DIRT,
         ),
       ],
-      steps: { discard: discardIfHeld("grave-dirt") },
+      steps: GRAVE_DIRT.steps,
     },
 
     groundskeeper: {
@@ -681,57 +830,13 @@ export const EVENTS_A: BehaviourGroup = {
 
     "hanged-men": {
       onDraw: (_state, figure) => [
-        local("hanged-men", "next", {
+        HANGED_MEN.step("next", {
           figure,
           traits: [...TRAITS],
           passed: true,
         }),
       ],
-      steps: {
-        next: defineStep<{ figure: FigureId; traits: Trait[]; passed: boolean }>(
-          (_state, p, ctx) => {
-            const rule = card("hanged-men");
-            if (p.traits.length > 0) {
-              ctx.push(
-                roll(
-                  p.figure,
-                  { kind: "trait", trait: p.traits[0] },
-                  rule,
-                  local("hanged-men", "rolled", p),
-                ),
-              );
-            } else if (p.passed) {
-              ctx.push(
-                chooseOne(
-                  p.figure,
-                  TRAITS.map((trait) => ({
-                    label: `Gain 1 ${traitName(trait)}`,
-                    steps: [gain(p.figure, trait, 1, rule)],
-                  })),
-                  rule,
-                ),
-              );
-            }
-          },
-        ),
-        rolled: defineStep<{
-          figure: FigureId;
-          traits: Trait[];
-          passed: boolean;
-          result: number;
-        }>((_state, p, ctx) => {
-          const [trait, ...rest] = p.traits;
-          if (p.result <= 1)
-            ctx.push(gain(p.figure, trait, -1, card("hanged-men")));
-          ctx.push(
-            local("hanged-men", "next", {
-              figure: p.figure,
-              traits: rest,
-              passed: p.passed && p.result >= 2,
-            }),
-          );
-        }),
-      },
+      steps: HANGED_MEN.steps,
     },
 
     "hideous-shriek": {
@@ -796,7 +901,7 @@ export const EVENTS_A: BehaviourGroup = {
                     {
                       label:
                         "Look at the top 3 tiles or cards of a stack and put them back in any order",
-                      steps: [local(MEANT, "pick-stack", { figure })],
+                      steps: [IT_IS_MEANT_TO_BE.step("pick-stack", { figure })],
                     },
                   ]
                 : []),
@@ -807,7 +912,7 @@ export const EVENTS_A: BehaviourGroup = {
                     figure,
                     { kind: "dice", count: 4 },
                     rule,
-                    local(MEANT, "record", { figure }),
+                    IT_IS_MEANT_TO_BE.afterRoll("record", { figure }),
                   ),
                 ],
               },
@@ -833,60 +938,7 @@ export const EVENTS_A: BehaviourGroup = {
           ],
         },
       ],
-      steps: {
-        "pick-stack": defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
-          ctx.push(
-            chooseOne(
-              figure,
-              stacks(state).map((stack) => ({
-                label: `Look at the top of the ${STACK_NAMES[stack]}`,
-                steps: [local(MEANT, "look", { figure, stack })],
-              })),
-              card(MEANT),
-            ),
-          );
-        }),
-        look: defineStep<{ figure: FigureId; stack: Stack }>((state, p, ctx) => {
-          const orders = permutations(stackOf(state, p.stack).slice(0, 3));
-          const putBack = (order: string[]) =>
-            local(MEANT, "put-back", { ...p, order });
-          if (orders.length === 1) {
-            ctx.push(putBack(orders[0]));
-            return;
-          }
-          ctx.push(
-            chooseOne(
-              p.figure,
-              orders.map((order) => ({
-                label: `Put them back, top first: ${order.map((id) => stackItemName(p.stack, id)).join(", ")}`,
-                steps: [putBack(order)],
-              })),
-              card(MEANT),
-            ),
-          );
-        }),
-        "put-back": defineStep<{ figure: FigureId; stack: Stack; order: string[] }>(
-          (state, p, ctx) => {
-            const pile = stackOf(state, p.stack);
-            const top = pile.slice(0, p.order.length);
-            if ([...top].sort().join() !== [...p.order].sort().join())
-              throw new Error(`The top of the ${p.stack} stack has changed`);
-            pile.splice(0, p.order.length, ...p.order);
-            ctx.emit("stack-reordered", card(MEANT), {
-              figure: p.figure,
-              stack: p.stack,
-            });
-          },
-        ),
-        record: defineStep<{ figure: FigureId; result: number }>(
-          (_state, p, ctx) => {
-            ctx.push(
-              keepCard(p.figure, MEANT),
-              markCard(MEANT, RECORDED, p.result, "holder", card(MEANT)),
-            );
-          },
-        ),
-      },
+      steps: IT_IS_MEANT_TO_BE.steps,
       describe: {
         "card-marked": (event) =>
           `The total ${String(eventData<{ value: number }>(event).value)} is recorded for a later roll`,
@@ -936,7 +988,7 @@ export const EVENTS_A: BehaviourGroup = {
                 e.kind === "explorer" &&
                 together(e, figureOf(state, figure)),
             ),
-          "lights-out",
+          LIGHTS_OUT,
         ),
         {
           event: "card-gained",
@@ -944,12 +996,14 @@ export const EVENTS_A: BehaviourGroup = {
             const gained = eventData<{ figure: FigureId; card: string }>(event);
             return gained.card === "candle" && gained.figure === source.holder;
           },
-          steps: (_state, _event, source) => [
-            local("lights-out", "discard", { figure: source.holder }),
+          steps: (_state, event) => [
+            LIGHTS_OUT.step("discard", {
+              figure: eventData<{ figure: FigureId }>(event).figure,
+            }),
           ],
         },
       ],
-      steps: { discard: discardIfHeld("lights-out") },
+      steps: LIGHTS_OUT.steps,
     },
 
     "locked-safe": {
@@ -1000,41 +1054,7 @@ export const EVENTS_A: BehaviourGroup = {
           slideRoll(state, affected, room, onTurn(engine, state, affected)),
         ];
       },
-      steps: {
-        control: defineStep<{ figure: FigureId; room: string }>((state, p, ctx) => {
-          ctx.push(
-            chooseOne(
-              p.figure,
-              roomsBelow(state, p.room).map((room) => ({
-                label: `Slide down to the ${ctx.catalog.rooms[room].name}`,
-                steps: [relocate(p.figure, room, card(SLIDE))],
-                room,
-              })),
-              card(SLIDE),
-            ),
-          );
-        }),
-        "fall-to-basement": defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const rule = card(SLIDE);
-          ctx.push(
-            chooseOne(
-              p.figure,
-              state.board.tiles
-                .filter((t) => t.floor === "basement")
-                .map((t) => ({
-                  label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
-                  steps: [
-                    relocate(p.figure, t.tile, rule, null, [
-                      damage(p.figure, "physical", { dice: 1 }, rule),
-                    ]),
-                  ],
-                  room: t.tile,
-                })),
-              rule,
-            ),
-          );
-        }),
-      },
+      steps: MYSTIC_SLIDE.steps,
     },
   },
 

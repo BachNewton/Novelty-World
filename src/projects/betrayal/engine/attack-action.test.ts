@@ -23,7 +23,8 @@ import type { GameEvent, GameState, RuleRef } from "../types";
 import { lineOfSight } from "./board";
 import { describeEvent } from "./describe";
 import { sideOf } from "./sides";
-import { local, type Behaviour } from "./sources";
+import { BLOODY_VISION } from "../data/behaviours/events-a";
+import type { Behaviour } from "./sources";
 import { type Engine } from "./step-loop";
 
 // The turn's own attack (rules.md, "Make an Attack", p. 13) and combat
@@ -484,7 +485,7 @@ describe("the Bloody Vision's attack, after the haunt (cards/events.md)", () => 
     const state = begun(engine, setUp);
     discard(state, "bloody-vision");
     return interject(engine, state, [
-      local("bloody-vision", "attack", { figure: FATHER }),
+      BLOODY_VISION.step("attack", { figure: FATHER }),
     ]);
   };
 

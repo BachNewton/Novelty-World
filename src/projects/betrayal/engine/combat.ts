@@ -1,6 +1,7 @@
 import type { FigureId, GameState, RuleRef, Step, Trait } from "../types";
 import { traitName } from "./describe";
 import {
+  afterRoll,
   continueWith,
   damage,
   defineDecision,
@@ -81,7 +82,7 @@ export function attack(
   rule: RuleRef,
   then: Step | null = null,
 ): Step {
-  return step<Attack>("attack", {
+  return step("attack", {
     attacker,
     defender,
     rule,
@@ -302,7 +303,7 @@ export function attackTargets(
  *  attacker's one attack of the turn. */
 export function turnAttack(attacker: FigureId, target: AttackTarget): Step {
   if (target.kind !== "figure") throw new Error("Only a figure can be attacked");
-  return step<Attack>("turn-attack", {
+  return step("turn-attack", {
     attacker: { kind: "figure", figure: attacker },
     defender: target.figure,
     rule: ATTACK_RULE,
@@ -314,7 +315,7 @@ export function turnAttack(attacker: FigureId, target: AttackTarget): Step {
 /** A figure can't attack again this turn (the Sacrificial Dagger twisting
  *  in the hand): its one attack of the turn is used up. */
 export function attackSpent(figure: FigureId): Step {
-  return step<{ figure: FigureId }>("attack-spent", { figure });
+  return step("attack-spent", { figure });
 }
 
 type Beaten = {
@@ -333,7 +334,7 @@ export function beaten(
   points: number,
   rule: RuleRef,
 ): Step {
-  return step<Beaten>("beaten", { winner, loser, points, rule });
+  return step("beaten", { winner, loser, points, rule });
 }
 
 /** The steps that carry out what the loser of an attack suffers. */
@@ -354,14 +355,14 @@ function harmSteps(
   }
 }
 
-export const COMBAT_STEPS: Record<string, StepKind> = {
+export const COMBAT_STEPS = {
   // The turn's own attack uses up the attacker's one attack of the turn
   // when it is declared, whatever then happens (p. 13).
   "turn-attack": defineStep<Attack>((state, p, ctx) => {
     if (p.attacker.kind !== "figure" || state.turn === null)
       throw new Error("The turn's attack is a figure's, on its turn");
     state.turn.attacked.push(p.attacker.figure);
-    ctx.push(step<Attack>("attack", p));
+    ctx.push(step("attack", p));
   }),
 
   "attack-spent": defineStep<{ figure: FigureId }>((state, p) => {
@@ -379,7 +380,7 @@ export const COMBAT_STEPS: Record<string, StepKind> = {
     });
     if (p.attacker.kind === "card") {
       ctx.push(
-        step<Moded>("attack-roll", {
+        step("attack-roll", {
           ...p,
           mode: { trait: p.attacker.trait, card: null, reach: "room" },
           roller,
@@ -402,7 +403,7 @@ export const COMBAT_STEPS: Record<string, StepKind> = {
           dice: p.attacker.kind === "card" ? p.attacker.dice : null,
         },
         p.rule,
-        step<Moded>("attack-defend", p),
+        afterRoll("attack-defend", p),
       ),
     );
   }),
@@ -422,7 +423,7 @@ export const COMBAT_STEPS: Record<string, StepKind> = {
           dice: null,
         },
         p.rule,
-        step<Moded & { attackResult: number }>("attack-compare", {
+        afterRoll("attack-compare", {
           ...rest,
           attackResult: result,
         }),
@@ -467,7 +468,7 @@ export const COMBAT_STEPS: Record<string, StepKind> = {
       ctx.decideFor(attacker, "attack-steal", settle, p.rule);
       return;
     }
-    ctx.push(step<Settle>("attack-settle", settle));
+    ctx.push(step("attack-settle", settle));
   }),
 
   "attack-settle": defineStep<Settle>((_state, p, ctx) => {
@@ -492,7 +493,7 @@ export const COMBAT_STEPS: Record<string, StepKind> = {
     });
     if (harm !== null) ctx.push(...harmSteps(p.loser, p.winner, harm));
   }),
-};
+} satisfies Record<string, StepKind>;
 
 type Settle = Moded & { outcome: CombatOutcome };
 
@@ -536,7 +537,7 @@ export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
       if (p.attacker.kind !== "figure")
         throw new Error("A card's attacker has no choice");
       const attacker = p.attacker.figure;
-      const go = step<Moded>("attack-roll", { ...p, mode, roller: attacker });
+      const go = step("attack-roll", { ...p, mode, roller: attacker });
       if (mode.card === null) {
         ctx.push(go);
         return;
@@ -569,7 +570,7 @@ export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
     },
     resolve: (state, p, card, ctx) => {
       if (card === null) {
-        ctx.push(step<Settle>("attack-settle", p));
+        ctx.push(step("attack-settle", p));
         return;
       }
       const thief = subject(p).attacker;

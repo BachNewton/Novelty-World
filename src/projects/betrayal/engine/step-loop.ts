@@ -39,22 +39,33 @@ export interface StepContext {
   waitForReady: (seats: number[], rule: RuleRef) => void;
 }
 
-/** Runs one step against the working copy of the state. */
-export type StepHandler = (
-  state: GameState,
-  params: Json,
-  ctx: StepContext,
-) => void;
-
-/** A kind of step, registered by name. */
-export interface StepKind {
-  run: StepHandler;
+/** A kind of step, registered by name, taking parameters of type `P`.
+ *  Its members are methods so that a kind with any parameters registers
+ *  among the rest: the loop hands each the parameters its stored step
+ *  carries, which the typed `step` that created it vouched for. */
+export interface StepKind<P extends Json = Json> {
+  /** Runs one step against the working copy of the state. */
+  run(state: GameState, params: P, ctx: StepContext): void;
   /** The figure whose work the step is, read from its parameters; null for
    *  work that is no one figure's. Once that figure has died the loop skips
    *  the step: a dead figure takes no further part, and what was still to
    *  happen to it lapses (rules p. 19, dead-explorers-body). */
-  subject: (params: Json) => FigureId | null;
+  subject(params: P): FigureId | null;
 }
+
+/** The parameters a step kind takes. */
+export type ParamsOf<K> = K extends StepKind<infer P extends Json> ? P : never;
+
+/** The names among the step kinds `S` whose parameters include all of
+ *  `V`'s: the steps that a step adding `V` may continue into. */
+export type Awaiting<S, V> = {
+  [K in keyof S]: ParamsOf<S[K]> extends V ? K : never;
+}[keyof S] &
+  string;
+
+/** A step's parameters as they are given before the step that continues
+ *  into it adds `V`'s (`continueWith`): a roll its result, say. */
+export type Unfinished<P, V> = Omit<P, keyof V> & Json;
 
 export interface DecisionKind {
   /** Every legal answer a seat can give, in the order offered: the one

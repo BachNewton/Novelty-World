@@ -11,7 +11,7 @@ import { sideOf } from "../engine/sides";
 import {
   eventData,
   hauntSourceId,
-  local,
+  ownSteps,
   type Behaviour,
 } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
@@ -109,6 +109,18 @@ export function toyHaunt(
   { phantom = true }: { phantom?: boolean } = {},
 ): HauntDefinition {
   const rule = hauntRule(number, "Rules");
+  const own = ownSteps(hauntSourceId(number), {
+    // One step that meets both sides' goals.
+    both: defineStep((state, _params, ctx) => {
+      const haunt = state.haunt;
+      if (haunt === null) throw new Error("No haunt");
+      haunt.counters.wakes = state.seats.length;
+      haunt.counters.escapes = count(ctx.engine, state, {
+        of: "secret",
+        secret: "target",
+      });
+    }),
+  });
   return {
     number,
     name: "Toy haunt",
@@ -184,7 +196,7 @@ export function toyHaunt(
       both: {
         label: "Meet both goals at once",
         side: "any",
-        steps: () => [local(hauntSourceId(number), "both")],
+        steps: () => [own.step("both", null)],
       },
       perish: {
         label: "Drop dead",
@@ -192,18 +204,7 @@ export function toyHaunt(
         steps: (_state, figure) => [die(figure, rule)],
       },
     },
-    steps: {
-      // One step that meets both sides' goals.
-      both: defineStep((state, _params, ctx) => {
-        const haunt = state.haunt;
-        if (haunt === null) throw new Error("No haunt");
-        haunt.counters.wakes = state.seats.length;
-        haunt.counters.escapes = count(ctx.engine, state, {
-          of: "secret",
-          secret: "target",
-        });
-      }),
-    },
+    steps: own.steps,
     goals: [
       {
         id: "woken",

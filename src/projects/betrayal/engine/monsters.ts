@@ -1,5 +1,13 @@
 import type { Edge, FigureId, GameState, RuleRef, Step } from "../types";
-import { chooseOne, chooseSide, defineStep, roll, step } from "./effects";
+import {
+  afterRoll,
+  afterSide,
+  chooseOne,
+  chooseSide,
+  defineStep,
+  roll,
+  step,
+} from "./effects";
 import { allFigures, figureName, figureOf, placeOf } from "./figures";
 import { distanceTo, moveCloser } from "./movement";
 import { askStructured, barrierSides } from "./questions";
@@ -48,23 +56,23 @@ export function readyActors(state: GameState): FigureId[] {
 
 /** Sets up a monster turn: who misses it, who acts, and the movement rolls. */
 export function monsterTurnStart(): Step {
-  return step<null>("monster-turn-start", null);
+  return step("monster-turn-start", null);
 }
 
 /** A figure starts taking its actions. */
 export function activate(figure: FigureId): Step {
-  return step<{ figure: FigureId }>("activate", { figure });
+  return step("activate", { figure });
 }
 
 /** The figure acting has finished. A monster that ends its movement in a
  *  barrier room is put on the side its controller chooses (p. 7). */
 export function finishActing(): Step {
-  return step<null>("finish-acting", null);
+  return step("finish-acting", null);
 }
 
 /** At a monster turn's end, the monsters that missed it recover (p. 18). */
 export function recoverStunned(): Step {
-  return step<null>("recover-stunned", null);
+  return step("recover-stunned", null);
 }
 
 type Pull = {
@@ -86,10 +94,10 @@ export function pullMonsters(
   rule: RuleRef,
   { skipOwn = false }: { skipOwn?: boolean } = {},
 ): Step {
-  return step<Pull>("pull-monsters", { toward, rule, skipOwn });
+  return step("pull-monsters", { toward, rule, skipOwn });
 }
 
-export const MONSTER_STEPS: Record<string, StepKind> = {
+export const MONSTER_STEPS = {
   "monster-turn-start": defineStep<null>((state, _p, ctx) => {
     const turn = state.turn;
     if (turn === null) throw new Error("No monster turn to start");
@@ -112,7 +120,7 @@ export const MONSTER_STEPS: Record<string, StepKind> = {
           first,
           { kind: "movement" },
           RULEBOOK(18),
-          step<{ definition: string }>("movement-rolled", { definition }),
+          afterRoll("movement-rolled", { definition }),
         );
       }),
     );
@@ -156,7 +164,7 @@ export const MONSTER_STEPS: Record<string, StepKind> = {
         place.room,
         sides,
         RULEBOOK(7),
-        step<{ figure: FigureId }>("settle-side", { figure }),
+        afterSide("settle-side", { figure }),
         ctx.catalog.rooms[place.room].name,
       ),
     );
@@ -229,4 +237,4 @@ export const MONSTER_STEPS: Record<string, StepKind> = {
       );
     }
   }),
-};
+} satisfies Record<string, StepKind>;

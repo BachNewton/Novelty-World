@@ -19,7 +19,7 @@ import { traitValue } from "./questions";
 import { defineStep, die, removeStatus } from "./effects";
 import { hauntRule, revealSecret } from "./haunt";
 import { escapeTheHouse } from "../kit/rules";
-import { hauntSourceId, local } from "./sources";
+import { hauntSourceId, ownSteps } from "./sources";
 import { apply, type Engine } from "./step-loop";
 
 // The haunt framework, played through a toy haunt built from the kit
@@ -374,6 +374,13 @@ describe("conditions and the result", () => {
     // The last heroes fall in the step that brings the escapes up to the
     // traitor's number: the rulebook's goal and the haunt's both go to the
     // traitor, and the haunt's still shows everyone the number.
+    const own = ownSteps(hauntSourceId(13), {
+      doom: defineStep((state) => {
+        for (const figure of [ZOE, FATHER]) kill(state, figure);
+        if (!state.haunt) throw new Error("No haunt");
+        state.haunt.counters.escapes = 3;
+      }),
+    });
     const doom = withHaunts(BASE_ENGINE, [
       toyHaunt(13, {
         goals: [
@@ -388,16 +395,10 @@ describe("conditions and the result", () => {
           doom: {
             label: "Bring doom",
             side: "heroes",
-            steps: () => [local(hauntSourceId(13), "doom")],
+            steps: () => [own.step("doom", null)],
           },
         },
-        steps: {
-          doom: defineStep((state) => {
-            for (const figure of [ZOE, FATHER]) kill(state, figure);
-            if (!state.haunt) throw new Error("No haunt");
-            state.haunt.counters.escapes = 3;
-          }),
-        },
+        steps: own.steps,
       }),
     ]);
     let state = readyAll(hauntGame({ engine: doom }), doom);

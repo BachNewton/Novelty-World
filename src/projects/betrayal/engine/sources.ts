@@ -13,8 +13,18 @@ import type {
 } from "../types";
 import { beyondWall, roomAt } from "./board";
 import { allFigures } from "./figures";
-import type { CardDestination } from "./effects";
-import type { Engine, StepKind } from "./step-loop";
+import type {
+  CardDestination,
+  FoughtOutcome,
+  RollResult,
+} from "./effects";
+import type {
+  Awaiting,
+  Engine,
+  ParamsOf,
+  StepKind,
+  Unfinished,
+} from "./step-loop";
 import type { Modifier } from "./questions";
 
 // A rule source is anything in play whose text changes the game: a held or
@@ -567,11 +577,40 @@ export function localStep(sourceId: string, name: string): string {
   return `${sourceId}:${name}`;
 }
 
-/** A step that runs one of a source's own steps. */
-export function local(
+/** A source's own steps, to register under its id, and the typed ways to
+ *  queue them. */
+export interface OwnSteps<S extends Record<string, StepKind>> {
+  steps: S;
+  /** One of the steps, to queue. */
+  step: <K extends keyof S & string>(name: K, params: ParamsOf<S[K]>) => Step;
+  /** One a roll continues into, which the roll gives its result. */
+  afterRoll: Continuation<S, RollResult>;
+  /** One a fight continues into, which the fight gives its outcome. */
+  afterFight: Continuation<S, FoughtOutcome>;
+}
+
+/** Queues a step that another finishes: everything but `V`'s values, which
+ *  the step that continues into it adds. */
+type Continuation<S, V> = <K extends Awaiting<S, V>>(
+  name: K,
+  params: Unfinished<ParamsOf<S[K]>, V>,
+) => Step;
+
+/** Gives a source steps of its own: `steps` goes on its behaviour (or its
+ *  haunt's definition), which registers them under the source's id, and
+ *  the rest queue one by its name. */
+export function ownSteps<S extends Record<string, StepKind>>(
   sourceId: string,
-  name: string,
-  params: Json = null,
-): Step {
-  return { kind: localStep(sourceId, name), params };
+  steps: S,
+): OwnSteps<S> {
+  const queue = (name: string, params: Json): Step => ({
+    kind: localStep(sourceId, name),
+    params,
+  });
+  return {
+    steps,
+    step: queue,
+    afterRoll: queue,
+    afterFight: queue,
+  };
 }

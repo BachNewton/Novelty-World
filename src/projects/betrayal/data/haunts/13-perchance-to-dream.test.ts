@@ -4,7 +4,8 @@ import { die, discardCard, relocate } from "../../engine/effects";
 import { hauntRule, matchesRoom, secretValue } from "../../engine/haunt";
 import { moveCloser } from "../../engine/movement";
 import { askNumber, askStructured } from "../../engine/questions";
-import { local } from "../../engine/sources";
+import { BLOODY_VISION } from "../behaviours/events-a";
+import { DARK_DICE } from "../behaviours/items";
 import { placeOptions } from "../../engine/tiles";
 import { viewFor } from "../../engine/view";
 import { ENGINE } from "../../game";
@@ -201,7 +202,7 @@ describe("the sleeping body", () => {
     }
     // The Dark Dice's 5, rolled beside the body, has no one to push.
     const pushed = run(dreaming(), [
-      local("dark-dice", "push", { figure: FATHER }),
+      DARK_DICE.step("push", { figure: FATHER }),
     ]);
     // Nothing more is asked: the turn carries on.
     expect(pendingDecision(pushed).kind).toBe("turn");
@@ -517,7 +518,7 @@ describe("a card that names the haunt's figures", () => {
       },
     });
     discard(state, "bloody-vision");
-    state = interject(ENGINE, state, [local("bloody-vision", "attack", { figure: FATHER })]);
+    state = interject(ENGINE, state, [BLOODY_VISION.step("attack", { figure: FATHER })]);
     expect(pendingDecision(state).kind).toBe("choose-one");
     expect(labels(state)).toEqual(["Attack Nightmare 1", "Attack Nightmare 2"]);
   });

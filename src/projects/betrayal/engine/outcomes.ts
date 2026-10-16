@@ -4,7 +4,7 @@ import type { RollSpec } from "./sources";
 // What a row of a roll table does, in a few typed words the screen can draw
 // as icons: read off the row's own steps, so the table a player sees before
 // a roll is the table the engine applies after it. A source's own step
-// (`local`) is opaque, so a row holding one names what it does with a note.
+// (`ownSteps`) is opaque, so a row holding one names what it does with a note.
 
 /** What a source's own step in a table row does, where its typed steps can't say it. */
 export type OutcomeNote =
@@ -190,7 +190,7 @@ function stepsOutcomes(steps: readonly Step[], note: LocalOutcome | null): RowOu
   return said.map((each) => each.outcome);
 }
 
-/** What a row's own steps (`local`) do, said by hand: a note, or typed outcomes where they say it (the Medical Kit's heal is a physical gain). */
+/** What a row's own steps (`ownSteps`) do, said by hand: a note, or typed outcomes where they say it (the Medical Kit's heal is a physical gain). */
 export type LocalOutcome = OutcomeNote | RowOutcome[];
 
 /** What a table row does, read off its steps. Throws when a step can't be
