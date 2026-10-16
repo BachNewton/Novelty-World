@@ -4,6 +4,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { dirname, join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -32,11 +33,22 @@ export interface SolverOptions {
   progress?: boolean;
 }
 
+// The search threads a solve may use: the share of the machine its caller owns. The CLI owns the whole machine;
+// a test runner whose workers already fill the cores gives each worker's solves that worker's share instead, through
+// FAMILY_TREE_SOLVER_THREADS (the vitest configs), since a solve blocks its worker but runs threads of its own.
+function solverThreads(): number {
+  const share = process.env.FAMILY_TREE_SOLVER_THREADS;
+  if (share === undefined) return availableParallelism();
+  const threads = Number(share);
+  if (!Number.isInteger(threads) || threads < 1) throw new Error(`FAMILY_TREE_SOLVER_THREADS must be a whole number of threads, not "${share}"`);
+  return threads;
+}
+
 // Hands `input` to the script as JSON on stdin and parses its JSON answer.
 export function runSolver(script: string, input: unknown, options: SolverOptions): unknown {
   const progress = options.progress === true;
   const python = findVenvPython(dirname(fileURLToPath(import.meta.url)));
-  const run = spawnSync(python, [solverPath(script), ...(progress ? ["--progress"] : [])], {
+  const run = spawnSync(python, [solverPath(script), "--workers", String(solverThreads()), ...(progress ? ["--progress"] : [])], {
     input: JSON.stringify(input),
     stdio: ["pipe", "pipe", progress ? "inherit" : "pipe"],
     encoding: "utf8",

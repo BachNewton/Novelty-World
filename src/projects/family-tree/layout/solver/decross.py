@@ -44,7 +44,8 @@ bounded below by 0 or 1 and are minimized, so every optimum puts them at 0 or
 1, and booleans give the same optimum. The integer objective (crossings scaled
 above the tiebreak's range) makes CP-SAT's optimality proof exact.
 
-Pass --progress to report the search on stderr while it runs.
+Pass --workers N for the search threads (the caller's share of the machine), and
+--progress to report the search on stderr while it runs.
 """
 
 import json
@@ -58,7 +59,8 @@ from ortools.sat.python import cp_model
 # something changed drastically, and the status says so rather than a
 # half-proved layout being used.
 TIME_LIMIT_S = 1800
-WORKERS = 16
+# The caller's share of the machine: a solve must not take more cores than whoever started it owns.
+WORKERS = int(sys.argv[sys.argv.index("--workers") + 1])
 HEARTBEAT_S = 10
 
 
