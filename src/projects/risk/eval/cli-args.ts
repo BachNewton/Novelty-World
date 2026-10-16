@@ -4,7 +4,7 @@ import { defaultWorkerCount } from "@/shared/lib/bot-lab/pool";
 import { LiveReporter } from "@/shared/lib/bot-lab/live";
 import { liveSinkFromEnv } from "@/shared/lib/bot-lab/live-supabase";
 import { RunLog, type RunDescription } from "@/shared/lib/bot-lab/run-log";
-import { RISK_BOTS } from "../bots";
+import { riskBot } from "../bots";
 import { FORMATS, type Format } from "./parallel";
 
 // The flags Risk's measurement CLIs share.
@@ -67,10 +67,9 @@ export function formats(value: string | undefined): Format[] {
   return chosen as Format[];
 }
 
+/** Fails on a label the registry can't seat: a bot's own, or a tuned one (`rule-v1~{...}`). */
 export function checkBots(labels: readonly string[]): void {
-  for (const l of labels) {
-    if (!Object.hasOwn(RISK_BOTS, l)) throw new Error(`unknown bot "${l}" (known: ${Object.keys(RISK_BOTS).join(", ")})`);
-  }
+  for (const l of labels) riskBot(l);
 }
 
 /** Every measuring run's record (`run-log.ts`): what ran, how fast, on what machine. */

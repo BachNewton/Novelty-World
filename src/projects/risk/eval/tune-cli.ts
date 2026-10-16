@@ -3,7 +3,7 @@ import process from "node:process";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
 import { Snes } from "@/shared/lib/bot-lab/snes";
 import { tunedLabel, TUNABLE_BOTS } from "../bots";
-import { checkBots, commonDefaults, commonFlag, list, number, riskRunLog, type CommonArgs } from "./cli-args";
+import { checkBots, commonDefaults, commonFlag, list, number, riskRun, type CommonArgs } from "./cli-args";
 import { riskPool } from "./parallel";
 import { candidateSpecs, cellScores, cellsFor, fitness, fromUnit, PREF_KEYS, toUnit, type PrefKey } from "./tune";
 
@@ -83,11 +83,14 @@ async function main(): Promise<void> {
       `Tables: ${args.players.join(", ")} players × one-in, one-out   ${args.groups.toString()} groups a cell (${gamesPerCandidate.toString()} games a candidate)\n` +
       `SNES: pop ${args.pop.toString()}, σ ${args.sigma.toString()}, seed ${args.seed.toString()}   Seeds: "${args.prefix}:g*"   Workers: ${args.workers.toString()}\n`,
   );
-  const log = riskRunLog({ tool: "risk:tune", bots: [args.tunable, args.opponent], tables: cells.map((c) => `${c.players.toString()}p ${c.format}`), seeds: args.prefix, workers: args.workers });
-  const pool = log.watch(riskPool(args.workers), (r) => r.decisions);
+  const live = riskRun({ tool: "risk:tune", bots: [args.tunable, args.opponent], tables: cells.map((c) => `${c.players.toString()}p ${c.format}`), seeds: args.prefix, workers: args.workers });
+  let gensDone = 0;
+  live.setProgress(() => gensDone / args.gens);
+  const pool = live.watch(riskPool(args.workers), (r) => r.decisions);
   const history: unknown[] = [];
   try {
     for (let gen = 1; gen <= args.gens; gen++) {
+      live.step(gen - 1, { table: `generation ${gen.toString()}`, games: (args.pop + 1) * gamesPerCandidate, done: false });
       const samples = snes.ask();
       const labels = [...samples.map((s) => s.x), snes.mu].map((x) => tunedLabel(args.tunable, fromUnit(x, args.keys)));
       const prefix = `${args.prefix}:g${gen.toString()}`;
@@ -106,15 +109,20 @@ async function main(): Promise<void> {
           `σ̄ ${(snes.sigma.reduce((s, x) => s + x, 0) / snes.sigma.length).toFixed(3)}\n` +
           `        ${args.keys.map((k) => `${k} ${String(meanPrefs[k])}`).join("  ")}`,
       );
+      gensDone = gen;
+      live.step(gen - 1, { table: `generation ${gen.toString()}: mean ${fmt(mean.fitness)}, best ${fmt(best.fitness)}`, games: (args.pop + 1) * gamesPerCandidate, done: true });
       history.push({ gen, meanFitness: mean.fitness, meanCells: mean.scores, bestFitness: best.fitness, best: best.label, mean: meanPrefs, sigma: [...snes.sigma] });
       // eslint-disable-next-line security/detect-non-literal-fs-filename -- the output file named on the command line by whoever runs the tuner
       if (args.out) writeFileSync(args.out, JSON.stringify({ args, history, mean: meanPrefs }, null, 2));
     }
+    console.log(`\nFinal mean: ${JSON.stringify(fromUnit(snes.mu, args.keys))}\n`);
+    console.log(`${formatRunRecord(await live.finish({}))}\n`);
+  } catch (e) {
+    await live.fail(e);
+    throw e;
   } finally {
     await pool.close();
   }
-  console.log(`\nFinal mean: ${JSON.stringify(fromUnit(snes.mu, args.keys))}\n`);
-  console.log(`${formatRunRecord(log.finish())}\n`);
 }
 
 main().catch((e: unknown) => {
