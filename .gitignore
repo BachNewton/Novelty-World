@@ -75,8 +75,8 @@ __pycache__/
 # family tree genealogy research (living people, public repo)
 /src/projects/family-tree/research/
 
-# family tree layout solver venv (npm run setup:family-tree-solver)
-/src/projects/family-tree/layout/solver/.venv/
+# the repo's Python venv, used by the family tree layout solver (npm run setup:family-tree-solver)
+/.venv/
 
 # Monopoly AI scenario runs (full call records; the scoreboards are committed)
 /src/projects/monopoly/bots/ai/eval/runs/

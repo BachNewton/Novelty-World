@@ -1,16 +1,31 @@
 // Runs one of the CP-SAT models in solver/ in a Python child process from the
-// venv beside them (`npm run setup:family-tree-solver` creates it). d3-dag's
+// repo's venv (`npm run setup:family-tree-solver` creates it). d3-dag's
 // operators are synchronous, hence spawnSync.
 
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const solverPath = (relative: string): string =>
   fileURLToPath(new URL(`./solver/${relative}`, import.meta.url));
-const PYTHON = solverPath(
-  process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python",
-);
+
+// The nearest `.venv` above `from`, the way Node finds node_modules, so a
+// worktree nested in the main checkout uses the main checkout's venv.
+export function findVenvPython(from: string): string {
+  const python = process.platform === "win32" ? join("Scripts", "python.exe") : join("bin", "python");
+  for (let dir = from; ; dir = dirname(dir)) {
+    const candidate = join(dir, ".venv", python);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- the path is this file's own folder and its ancestors, never outside input
+    if (existsSync(candidate)) return candidate;
+    if (dirname(dir) === dir) {
+      throw new Error(
+        `No Python venv in any folder above ${from}. Run \`npm run setup:family-tree-solver\` (layout/solver/setup_venv.py) from the repo root.`,
+      );
+    }
+  }
+}
 
 export interface SolverOptions {
   // Stream the solver's search progress to stderr, so a long solve isn't silent.
@@ -20,19 +35,15 @@ export interface SolverOptions {
 // Hands `input` to the script as JSON on stdin and parses its JSON answer.
 export function runSolver(script: string, input: unknown, options: SolverOptions): unknown {
   const progress = options.progress === true;
-  const run = spawnSync(PYTHON, [solverPath(script), ...(progress ? ["--progress"] : [])], {
+  const python = findVenvPython(dirname(fileURLToPath(import.meta.url)));
+  const run = spawnSync(python, [solverPath(script), ...(progress ? ["--progress"] : [])], {
     input: JSON.stringify(input),
     stdio: ["pipe", "pipe", progress ? "inherit" : "pipe"],
     encoding: "utf8",
     maxBuffer: 256 * 1024 * 1024,
   });
   if (run.error !== undefined) {
-    const missing = (run.error as NodeJS.ErrnoException).code === "ENOENT";
-    throw new Error(
-      missing
-        ? `The layout solver's Python venv is missing (${PYTHON}). Run \`npm run setup:family-tree-solver\` from the repo root.`
-        : `Could not run the layout solver: ${run.error.message}`,
-    );
+    throw new Error(`Could not run the layout solver (${python}): ${run.error.message}`);
   }
   if (run.status !== 0) {
     // With progress on, stderr went straight to the terminal.

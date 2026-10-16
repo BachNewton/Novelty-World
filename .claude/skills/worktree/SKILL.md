@@ -23,7 +23,7 @@ It creates `.claude/worktrees/<name>` on a new branch from the current `HEAD`, c
 
 ## Dependencies: none to install
 
-A worktree has no `node_modules` of its own. It sits inside the main checkout, so Node resolves packages upward and finds the main checkout's install. Nothing is copied or linked, so nothing is at risk. It is safe because every tool that walks the main checkout leaves nested checkouts alone:
+A worktree has no `node_modules` of its own. It sits inside the main checkout, so Node resolves packages upward and finds the main checkout's install. The repo's Python venv (`.venv` at the root, for the family tree's layout solver) is found upward the same way. Nothing is copied or linked, so nothing is at risk. It is safe because every tool that walks the main checkout leaves nested checkouts alone:
 
 - `.gitignore` ignores `.claude/*` (skills and commands are un-ignored, worktrees are not).
 - Lint ignores `.claude/**` (`eslint.config.mjs`), vitest excludes `NESTED_CHECKOUTS` (`vitest.config.ts`), `tsconfig.json` excludes `.claude/worktrees`, and Playwright only looks in `e2e/`. Without the tsconfig exclude the main checkout type-checks worktree files against its own `@/*` paths and reports phantom errors under `.claude/worktrees/`; if those ever appear, the exclude was dropped.

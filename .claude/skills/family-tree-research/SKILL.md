@@ -162,8 +162,8 @@ from the research document, and research must not write on top of either.
 9. **Write the round's lessons** (see Self-improvement).
 
 If the layout solve fails, nothing was written: the message says why. A
-missing solver venv needs `npm run setup:family-tree-solver` (once per
-machine); anything else is a bug to report, not to work around.
+missing solver venv (the repo-root `.venv`) needs
+`npm run setup:family-tree-solver` (once per machine); anything else is a bug to report, not to work around.
 
 If `--write` reports the tree changed since it loaded, someone saved in the
 meantime: re-run the dry run against the latest tree and re-check it. Never
