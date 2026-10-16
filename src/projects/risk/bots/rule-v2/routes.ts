@@ -174,7 +174,10 @@ export function planCapture(
 }
 
 /** The chance `attacker` eliminates `victim` this turn with `toPlace` armies, or 0
- *  when its armies near the victim plainly can't cover the cost. */
+ *  when its armies near the victim plainly can't cover the cost. Near means as far as a
+ *  route reaches: beside the victim, or one third player's territory away, less what
+ *  breaking through it costs (v2). v1 counted only stacks beside the victim, so it saw no
+ *  kill whose way in crossed a third player, though its routes take that way. */
 export function killChance(b: Board, attacker: Seat, victim: Seat, toPlace: number): number {
   const targets: number[] = [];
   let need = 0;
@@ -192,6 +195,17 @@ export function killChance(b: Board, attacker: Seat, victim: Seat, toPlace: numb
       if (b.owner[n] === attacker && !counted.has(n)) {
         counted.add(n);
         force += b.armies[n] - 1;
+      }
+    }
+  }
+  for (const t of targets) {
+    for (const n of ADJ[t]) {
+      if (b.owner[n] === attacker || b.owner[n] === victim) continue;
+      for (const s of ADJ[n]) {
+        if (b.owner[s] === attacker && !counted.has(s)) {
+          counted.add(s);
+          force += Math.max(0, b.armies[s] - 1 - (b.armies[n] + 1));
+        }
       }
     }
   }

@@ -107,3 +107,17 @@ The first tuning run (`risk:tune`, 10 candidates of 208 games each) was stopped 
 These became v2's candidate B (`rule-bot-v2.md`).
 
 **Tuning, second run, stopped:** `risk:tune` with 8 candidates of 416 games took 25 minutes for one generation (the first run's 208-game generations took 4): some weight vectors stall games toward the turn cap. Tuning waits for the structure; a stalling candidate is a health signal the tuner should report.
+
+## v2 candidate B: the sweep threat model (gauntlet, 2026-10-17): better at 6, even at 3 and 4
+
+`rule-v2` with `rule-bot-v2.md` §1 and §2 (each opponent's turn priced as the larger of its best blow and its sweep of sure captures; forked runs, carried armies and launch stacks fixed), aim as v1. Train seeds, ±30 Elo, against v1 only:
+
+| Pairing | Verdict | Win share vs par | Decisive games |
+|---|---|---|---|
+| 1 v2 vs 2 v1 (3p) | even | (stopped) | 1,757 |
+| 1 v2 vs 5 v1 (6p) | **better** | 21.2% [17.9, 24.8] vs 16.7% | 534 |
+| 5 v2 vs 1 v1 (6p) | **better** | 88.2% [85.0, 90.8] vs 83.3% | 468 |
+| 1 v2 vs 3 v1 (4p) | even | 25.1% vs 25.0% | 1,144 |
+| 3 v2 vs 1 v1 (4p) | even | 75.0% vs 75.0% | 1,100 |
+
+Win Elo +19.5 a seat over v1 (finishing order +38.6), all from 6 players, where a thin player faces five sweeps a round. Not crowned: the gate needs every table. Candidate A (target share) was better alone at 3 and even elsewhere, so the two are complementary; candidate C combines them.
