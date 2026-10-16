@@ -146,7 +146,7 @@ const eslintConfig = defineConfig([
     },
   },
   // `.claude/**` is Claude Code's working area (git worktrees, settings) — never project source to lint.
-  // The family tree layout solver's Python venv holds third-party files, never project source.
+  // The repo's Python venv (the family tree layout solver's) holds third-party files, never project source.
   // `.next-bench/**`: build output from an alternate `distDir` (NEXT_DIST_DIR), used to run a production
   // server for the Shipwright perf sweep alongside the dev server. Same generated code as `.next`.
   // `.next-e2e/**`: each e2e run's own build (e2e/next-server.ts); `test-results/**`: e2e run output.
@@ -163,7 +163,7 @@ const eslintConfig = defineConfig([
     "scripts/**",
     ".claude/**",
     ".opencode/worktrees/**",
-    "src/projects/family-tree/layout/solver/.venv/**",
+    ".venv/**",
     // Gitignored genealogy research (living people): never part of the build.
     "src/projects/family-tree/research/**",
   ]),

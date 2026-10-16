@@ -534,9 +534,19 @@ character is, from the data, and how they read at a glance. Then, in order:
    a pawn); add it to the line-ups and the overlap, clipping and gait
    tests.
 
-**Run the clipping check** after every change: `npx vitest run
+**The art checks are opt-in.** The overlap, gait, clipping and cloth checks
+(`overlap`, `gait`, `clipping`, `cloth`, `cloth-fight`, `cloth-strobe` and
+`cloth-trial`, each a `.slow.test.ts` in `art/explorers/`) are tools for art
+work, so an ordinary test run skips them: they run only with
+`BETRAYAL_ART_CHECKS=1` set. Building or reworking a figure runs them all
+before it is done:
+`BETRAYAL_ART_CHECKS=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/explorers`
+(in PowerShell, `$env:BETRAYAL_ART_CHECKS=1` first). One check alone takes
+the same variable with its own file.
+
+**Run the clipping check** after every change: `BETRAYAL_ART_CHECKS=1 npx vitest run
 --config vitest.slow.config.ts src/projects/betrayal/art/explorers/clipping.slow.test.ts` (and
-`monsters/clipping.test.ts`). It asks each part's surface points how deep
+`monsters/clipping.test.ts`, which always runs). It asks each part's surface points how deep
 they lie inside every other part's solid, in that part's frame, and reports
 two parts whose surfaces cross (each partly inside the other) by more than
 2 mm, away from every declared joint; a part tucked wholly inside another
@@ -554,7 +564,7 @@ the shape, the pivot or the pose, never a joint's reach, unless the crossing
 really is the joint folding.
 
 **Run the overlap check** too:
-`npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/explorers/overlap.slow.test.ts` poses
+`BETRAYAL_ART_CHECKS=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/explorers/overlap.slow.test.ts` poses
 each figure at moments through its idle, standing, walking and running (and
 each monster standing and stunned), and fails on any two of its parts whose
 surfaces of different colour lie within a millimetre of each other, facing
@@ -698,7 +708,7 @@ e2e/betrayal-house.spec.ts`, all clean.
 
 The figure reads at a glance in the house and on the phone, distinct in the
 line-ups; its idle, walk and run play without a broken frame; the
-clipping, gait and overlap checks pass; lint, typecheck, the art tests and the house e2e are clean;
+art checks pass (the opt-in run in "Build it": clipping, gait, overlap and cloth); lint, typecheck, the art tests and the house e2e are clean;
 it is registered and in the line-ups; its portrait is re-shot; and any
 temporary cast change is reverted. The builder reports back:
 

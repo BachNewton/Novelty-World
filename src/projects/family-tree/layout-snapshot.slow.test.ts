@@ -1,13 +1,13 @@
-// Pixel-exact snapshot of computeLayout against productionTree. The exact
-// solve takes seconds, too long for the default suite, so it is kept here as
-// a quality tripwire. Run with `npm run test:slow`.
+// Pixel-exact snapshot of computeLayout against productionTree, a quality
+// tripwire, among the opt-in layout checks.
 
-import { describe, it, expect } from "vitest";
+import { it, expect } from "vitest";
+import { layoutChecks } from "./layout-checks";
 import { computeLayout } from "./layout/compute-layout";
 import { productionTree } from "./__fixtures__/trees";
 import { serializeLayout } from "./layout-snapshot.helpers";
 
-describe("productionTree layout — fancy", () => {
+layoutChecks("productionTree layout — fancy", () => {
   it(
     "matches the pinned snapshot",
     { timeout: 180_000 },

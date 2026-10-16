@@ -20,17 +20,29 @@ Next.js's own docs for the installed version are bundled in `node_modules/next/d
 | Build | `npm run build` |
 | Lint | `npm run lint` |
 | Type-check | `npm run typecheck` |
-| Unit tests | `npm run test` (skips `*.slow.test.ts`) |
-| Slow unit tests | `npm run test:slow` (only `*.slow.test.ts`: heavy geometry, simulations, production-sized fixtures) |
+| Unit tests | `npm run test` (the tests the change reaches, see "Checking a change"; skips `*.slow.test.ts`) |
+| Slow unit tests | `npm run test:slow` (the same, for only `*.slow.test.ts`: heavy geometry, simulations, production-sized fixtures) |
+| Every unit or slow test | `npx vitest run`, or `npx vitest run --config vitest.slow.config.ts` |
 | Single test file | `npx vitest run src/projects/euchre/logic.test.ts` |
 | Single slow test file | `npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/lighting.slow.test.ts` |
 | Watch mode | `npm run test:watch` |
 | E2E tests | `npm run test:e2e` (builds its own server each run; `--workers=N` overrides the worker count) |
 | E2E against the dev server | `E2E_BASE_URL=http://localhost:3001 npm run test:e2e` |
-| All tests | `npm run test:all` (unit, slow, then e2e) |
+| All tests | `npm run test:all` (every unit, slow and e2e test, unscoped) |
 | Machine load | `npm run load` (CPU use and the test runs in progress, by checkout: read before blaming a timeout on the test) |
 
 E2E tests (Playwright) are self-contained: each run builds the app (a snapshot of the code when the run starts) and serves it, along with a local multiplayer relay, on ports the OS picks, so a run never touches the dev server and any number can run at once. `E2E_BASE_URL` points a run at a server that is already up instead. Workers default to half the logical cores, and every test page reports a fair share of the cores as `navigator.hardwareConcurrency`, so specs import `test` and `expect` from `e2e/test.ts`, not from Playwright. Multiplayer pages opt into the local relay with `?relay=local:<port>` (`e2e/relay.ts`), so the suites never touch the real one.
+
+### Checking a change
+
+A green check runs what the change can reach:
+
+- **Lint and typecheck** always run whole: they are fast, and catch a broken import anywhere.
+- **Unit and slow tests** are scoped by their scripts: `npm run test` and `npm run test:slow` run only the tests whose imports reach a file changed against `main`, committed or not (Vitest's `--changed main`), and pass with nothing to run. A change to a file every test depends on without importing it (`package.json`, the lockfile, `tsconfig*.json`, either vitest config) runs them all: those are the `forceRerunTriggers` in `vitest.config.ts`.
+- **E2E** runs the specs of the project changed: `npx playwright test e2e/<project>`. Specs are named for their project (`e2e/<project>-<topic>.spec.ts`, or `e2e/<project>.spec.ts` for a single one), except `lobby-games.spec.ts`, which plays the room-code games (Tic-Tac-Toe and Euchre). Playwright's `--only-changed` doesn't fit: specs load the app by URL, not by import. Every spec runs when the change reaches `src/shared/`, the dependencies (`package.json`, the lockfile), or test, build or TypeScript config.
+- After a failure, rerun only the failing files, never the whole suite.
+
+The one gap: the graph sees only imports. A test that reaches something by another route, a file read by path or a Python process (the family tree's layout tests run `layout/solver/`), isn't selected when that changes. A test imports what it uses wherever it can, and a change to something reached another way runs its tests by name.
 
 ## Principles
 

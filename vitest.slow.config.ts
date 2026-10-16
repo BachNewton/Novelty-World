@@ -4,7 +4,7 @@
 // suite.
 import { defineConfig } from "vitest/config";
 import path from "path";
-import { NESTED_CHECKOUTS } from "./vitest.config";
+import { FORCE_RERUN_TRIGGERS, NESTED_CHECKOUTS } from "./vitest.config";
 
 export default defineConfig({
   resolve: {
@@ -19,5 +19,6 @@ export default defineConfig({
     // The longest file, the simulation's seeds, sets the suite's length either way.
     maxWorkers: "50%",
     exclude: ["e2e/**", "node_modules/**", ...NESTED_CHECKOUTS],
+    forceRerunTriggers: FORCE_RERUN_TRIGGERS,
   },
 });

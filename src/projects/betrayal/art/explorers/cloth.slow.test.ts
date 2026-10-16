@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
+import { artChecks } from "./art-checks";
 import { animationOf } from "../animate";
 import { stubCanvas } from "../headless";
 import { SPEED_VALUES } from "../house-walk";
@@ -108,7 +109,7 @@ function clothMotion(figure: THREE.Object3D, name: string): { acceleration: numb
   return { acceleration, jerk };
 }
 
-describe("cloth the legs push", () => {
+artChecks("cloth the legs push", () => {
   for (const [name, build] of Object.entries(EXPLORERS)) {
     for (const pace of ["walk", "run"] as Pace[]) {
       it.each(SPEEDS)(`swings smoothly on ${name} ${pace === "run" ? "running" : "walking"} at Speed %d`, { timeout: 20_000 }, (speed) => {

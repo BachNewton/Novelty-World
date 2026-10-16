@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
+import { artChecks } from "./art-checks";
 import { animationOf, type Animation } from "../animate";
 import { solidOf } from "../forms";
 import { stubCanvas } from "../headless";
@@ -137,7 +138,7 @@ function skirtNow(figure: THREE.Object3D): number[] {
 }
 
 for (const [name, { build, legs, covered, near }] of Object.entries(CASES)) {
-  describe(`${name}'s simulated cloth`, () => {
+  artChecks(`${name}'s simulated cloth`, () => {
     const cloth = "net";
     if (legs) {
       for (const pace of ["walk", "run"] as Pace[]) {

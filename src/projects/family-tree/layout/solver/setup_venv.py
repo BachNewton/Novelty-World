@@ -1,5 +1,7 @@
-"""Create (or update) the layout solver's venv beside this script and install
-the pinned requirements into it. Run through `npm run setup:family-tree-solver`.
+"""Create (or update) the repo's Python venv (`.venv` at the repo root) and
+install the layout solver's pinned requirements into it. Run through
+`npm run setup:family-tree-solver`. The solver finds it by looking upward from
+its own folder, so a worktree nested in the main checkout uses this one.
 """
 
 import os
@@ -7,7 +9,8 @@ import subprocess
 import venv
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VENV = os.path.join(HERE, ".venv")
+REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", "..", ".."))
+VENV = os.path.join(REPO_ROOT, ".venv")
 BIN = "Scripts" if os.name == "nt" else "bin"
 PYTHON = os.path.join(VENV, BIN, "python.exe" if os.name == "nt" else "python")
 

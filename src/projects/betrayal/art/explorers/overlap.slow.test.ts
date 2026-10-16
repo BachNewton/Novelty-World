@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
+import { artChecks } from "./art-checks";
 import { animationOf } from "../animate";
 import { partsOf } from "../figure-parts";
 import { figureMaterial, form, painted } from "../forms";
@@ -38,7 +39,7 @@ function sphere(colour: "blood" | "moon", radius = 0.1): THREE.Mesh {
   return form(figureMaterial(), painted(new THREE.SphereGeometry(radius, 32, 16), colour));
 }
 
-describe("the fighting-faces check", () => {
+artChecks("the fighting-faces check", () => {
   it("finds two parts of different colour in one place", () => {
     expect(fightingFaces(group(sphere("blood"), sphere("moon")))).toHaveLength(1);
   });
@@ -60,7 +61,7 @@ const MESHING = 60_000;
 /** A check poses its figure at six moments and compares every pair of its parts' faces: two to four seconds alone, with its parts meshed before it. */
 const LIMIT = { timeout: 15_000 };
 
-describe("figures", () => {
+artChecks("figures", () => {
   const striding: Gait = () => ({ phase: Math.PI / 2, amount: 1 });
   const running: Gait = () => ({ phase: Math.PI / 2, amount: 1, running: true });
   for (const [name, build] of Object.entries(EXPLORERS)) {

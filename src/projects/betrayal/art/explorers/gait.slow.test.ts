@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
+import { artChecks } from "./art-checks";
 import { animationOf } from "../animate";
 import { partsOf as meshedParts } from "../figure-parts";
 import { stubCanvas } from "../headless";
@@ -115,7 +116,7 @@ function largestJump(build: ExplorerBuilder, name: string, pace: Pace, speed: nu
   return worst;
 }
 
-describe.each(Object.entries(EXPLORERS))("%s", (name, build) => {
+artChecks.each(Object.entries(EXPLORERS))("%s", (name, build) => {
   for (const pace of ["walk", "run"] as const) {
     it.each(SPEEDS)(`never jumps ${pace === "run" ? "running" : "walking"} at Speed %d, from the ease in to the ease out`, { timeout: 30_000 }, (speed) => {
       const jump = largestJump(build, name, pace, speed);
@@ -124,7 +125,7 @@ describe.each(Object.entries(EXPLORERS))("%s", (name, build) => {
   }
 });
 
-describe("the base", () => {
+artChecks("the base", () => {
   // Meshing the explorers' parts is the slow step, done once a session: it belongs to no one check. All seven take
   // about 25 s alone.
   beforeAll(() => {
