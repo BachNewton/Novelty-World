@@ -14,9 +14,9 @@ import {
   type Board,
 } from "../rule-v1/board";
 import { CARD_DISCOUNT, CARD_WORTH, DRAW_CHANCE, handWorth, hiddenHand, policyTrade, type Shape } from "../rule-v1/cards";
-import { exchange, pathRun, winProb } from "../rule-v1/odds";
+import { battleOutcome, exchange, pathRun, winProb } from "../rule-v1/odds";
 import type { Params } from "./params";
-import { killChance } from "../rule-v1/routes";
+import { killChance } from "./routes";
 
 // The one yardstick (`ideas/rule-bot-v1.md` §3, with v2's changes in `ideas/rule-bot-v2.md`): my equity in a position at the end
 // of my turn. Power is armies, income over a horizon, and the armies cards in hand
@@ -148,32 +148,30 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
     if (alive.every((q) => q === p || power[p] > ratio * power[q])) commonThreat = p;
   }
 
-  // Border exposure: each opponent's best single blow against me, weighted by how
-  // likely I am the one they hit. An opponent hits the neighbour its best blow hurts
-  // most, so my share of the blows it could land on its neighbours is my chance of being
-  // hit (v2): a worse target than my neighbours turns their attacks onto them. The blows
-  // are weighed as the opponent sees them, every continent at its plain bonus.
+  // Border exposure: each opponent's turn against me, weighted by how likely I am the
+  // one they hit: its best single blow, or the sweep of certain captures it can chain
+  // through my thin territories, whichever costs me more (v2). Summed over opponents:
+  // each takes its own turn.
   let borderLoss = 0;
   for (const q of opponents) {
+    let neighbours = 0;
     const seen = new Set<Seat>();
     for (let t = 0; t < N; t++) {
       if (b.owner[t] !== q) continue;
       for (const n of ADJ[t]) {
         const o = b.owner[n];
-        if (o !== q) seen.add(o);
+        if (o !== q && !seen.has(o)) {
+          seen.add(o);
+          neighbours++;
+        }
       }
     }
     if (!seen.has(me)) continue;
+    const aim =
+      commonThreat === me ? 1 : commonThreat !== null && commonThreat !== q ? 0.25 : 1 / Math.max(1, neighbours);
     const qIncome = Math.round(income[q]);
-    let aim: number;
-    if (commonThreat === me) aim = 1;
-    else if (commonThreat !== null && commonThreat !== q) aim = 0.25;
-    else {
-      let all = 0;
-      for (const v of seen) all += bestBlow(b, v, q, qIncome, H);
-      aim = all > 0 ? bestBlow(b, me, q, qIncome, H) / all : 1 / seen.size;
-    }
-    borderLoss += aim * bestBlow(b, me, q, qIncome, H * prefs.myContinentWeight);
+    const horizon = H * prefs.myContinentWeight;
+    borderLoss += aim * Math.max(bestBlow(b, me, q, qIncome, horizon), sweepLoss(b, me, q, qIncome, H, prefs.myContinentWeight));
   }
 
   // Kill exposure: the chance someone eliminates me before my next turn.
@@ -221,30 +219,94 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
  *  failed attack costs the attacker as much. */
 export function bestBlow(b: Board, me: Seat, q: Seat, qIncome: number, horizon: number): number {
   let worst = 0;
+  // The armies q's strongest neighbour of `t` can attack with, or -1 with none beside it.
+  // A neighbour on one army is still a threat (v2): q's income lands on it first.
   const strongest = (t: number) => {
-    let a = 0;
+    let a = -1;
     for (const n of ADJ[t]) if (b.owner[n] === q) a = Math.max(a, b.armies[n] - 1);
     return a;
   };
   for (let t = 0; t < N; t++) {
     if (b.owner[t] !== me) continue;
     const a = strongest(t);
-    if (a > 0) worst = Math.max(worst, exchange(a + qIncome, b.armies[t]));
+    if (a >= 0 && a + qIncome > 0) worst = Math.max(worst, exchange(a + qIncome, b.armies[t]));
   }
   for (let c = 0; c < CONTINENT_BONUS.length; c++) {
     if (!holdsContinent(b, me, c)) continue;
     const stake = horizon * CONTINENT_BONUS[c];
     for (const m of CONTINENT_MEMBERS[c]) {
       const direct = strongest(m);
-      if (direct > 0) worst = Math.max(worst, winProb(direct + qIncome, b.armies[m]) * stake);
+      if (direct >= 0 && direct + qIncome > 0) worst = Math.max(worst, winProb(direct + qIncome, b.armies[m]) * stake);
       for (const n of ADJ[m]) {
         if (b.owner[n] !== me) continue;
         const via = strongest(n);
-        if (via > 0) worst = Math.max(worst, pathRun(via + 1 + qIncome, [b.armies[n], b.armies[m]]).pSuccess * stake);
+        if (via >= 0 && via + qIncome > 0) worst = Math.max(worst, pathRun(via + 1 + qIncome, [b.armies[n], b.armies[m]]).pSuccess * stake);
       }
     }
   }
   return worst;
+}
+
+/** A capture the sweep counts as certain: Balanced Blitz makes the favourite's fight sure,
+ *  so an opponent takes every such territory it can reach. */
+const SWEEP_SURE = 0.9;
+/** The most captures one opponent's sweep counts in a turn. */
+const SWEEP_MOST = 8;
+
+/** The armies a sure capture of `d` by `a` brings in, on average. */
+function arriving(a: number, d: number): number {
+  const o = battleOutcome(a, d);
+  let armies = 0;
+  for (let x = 1; x < o.win.length; x++) armies += o.win[x] * x;
+  return o.pWin > 0 ? armies / o.pWin : 0;
+}
+
+/** What `q`'s sweep through my thin territories costs me (v2): from its stacks beside me,
+ *  its income on the biggest, it takes the cheapest territory it is sure of, moves in, and
+ *  goes on from there, as GD's bots and strong players do with stacks beside a spread-out
+ *  player. The cost is the armies I lose there, and my income lost over `horizon` turns:
+ *  the territory count's and every continent of mine it breaks, mine weighted by my
+ *  continent weight. One blow (`bestBlow`) misses this: once one territory sits on one
+ *  army, every other thin one adds nothing to it, so a sweep on 1s looked free. */
+export function sweepLoss(b: Board, me: Seat, q: Seat, qIncome: number, horizon: number, continentWeight: number): number {
+  const owner = [...b.owner];
+  const ready = new Array<number>(N).fill(0);
+  let biggest = -1;
+  for (let t = 0; t < N; t++) {
+    if (owner[t] !== q || !ADJ[t].some((n) => owner[n] === me)) continue;
+    ready[t] = b.armies[t] - 1;
+    if (biggest < 0 || b.armies[t] > b.armies[biggest]) biggest = t;
+  }
+  if (biggest < 0) return 0;
+  ready[biggest] += qIncome;
+  let lost = 0;
+  for (let k = 0; k < SWEEP_MOST; k++) {
+    let best: { from: number; to: number } | null = null;
+    for (let t = 0; t < N; t++) {
+      if (owner[t] !== me) continue;
+      let from = -1;
+      for (const n of ADJ[t]) if (owner[n] === q && ready[n] > 0 && (from < 0 || ready[n] > ready[from])) from = n;
+      if (from < 0 || winProb(ready[from], b.armies[t]) < SWEEP_SURE) continue;
+      if (best === null || b.armies[t] < b.armies[best.to]) best = { from, to: t };
+    }
+    if (best === null) break;
+    const moved = arriving(ready[best.from], b.armies[best.to]);
+    lost += b.armies[best.to];
+    owner[best.to] = q;
+    ready[best.from] = 0;
+    ready[best.to] = Math.max(0, Math.floor(moved) - 1);
+  }
+  if (lost === 0) return 0;
+  const incomeOf = (own: ArrayLike<number>) => {
+    let count = 0;
+    for (let t = 0; t < N; t++) if (own[t] === me) count++;
+    let income = Math.max(3, Math.floor(count / 3));
+    for (let c = 0; c < CONTINENT_BONUS.length; c++) {
+      if (CONTINENT_MEMBERS[c].every((t) => own[t] === me)) income += CONTINENT_BONUS[c] * continentWeight;
+    }
+    return income;
+  };
+  return lost + horizon * (incomeOf(b.owner) - incomeOf(owner));
 }
 
 /** Members of continent `c` not held by `seat`. */

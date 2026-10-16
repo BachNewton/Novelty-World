@@ -321,7 +321,10 @@ describe("v2's scenarios", () => {
       );
       const move = decide(state);
       expect(move.kind).toBe("occupy");
-      if (move.kind === "occupy") expect(move.armies).toBeGreaterThanOrEqual(10);
+      // v2 moves on enough to take Peru and Argentina's single armies for sure under Balanced
+      // Blitz, and may keep the rest on Central America, the gate (rule-bot-v2.md §2); v1
+      // moved everything.
+      if (move.kind === "occupy") expect(move.armies).toBeGreaterThanOrEqual(6);
     });
   });
 

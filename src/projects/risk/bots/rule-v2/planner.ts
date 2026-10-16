@@ -16,7 +16,7 @@ import { forcedTrade } from "../rule-v1/cards";
 import { breakdown, evaluate, expectedIncome } from "./evaluate";
 import { battleOutcome, winProb } from "../rule-v1/odds";
 import type { Params } from "./params";
-import { killChance, planCapture, type CapturePlan } from "../rule-v1/routes";
+import { killChance, planCapture, type CapturePlan } from "./routes";
 
 // The turn planner (`ideas/rule-bot-v1.md` §2.4): a few dozen whole-turn plans, each
 // one coherent intent (hold, take a card spot or break a continent, take a small
@@ -133,11 +133,24 @@ function takeOne(b: Board, me: Seat, from: number, t: number, survivors: number,
 /** Route `r` run on `b`, taking its first `upTo` territories, the last arriving with
  *  `arrive` armies (the rest keep one each). */
 function runRoute(b: Board, me: Seat, r: CapturePlan["routes"][number], upTo: number, arrive: number): void {
-  let from = r.source;
+  // A route forks where its next target isn't beside the last one taken (two targets of one
+  // launch stack, say): the armies can't march from one branch's end to the next, so they
+  // finish shared among the branch ends, not all on the last (v2). v1 pictured them all on
+  // the last, leaving every other end on one army.
+  const ends: number[] = [];
+  for (let k = 0; k < upTo; k++) {
+    if (k === upTo - 1 || !ADJ[r.path[k]].includes(r.path[k + 1])) ends.push(k);
+  }
+  const visited = [r.source];
   for (let k = 0; k < upTo; k++) {
     const t = r.path[k];
-    takeOne(b, me, from, t, k === upTo - 1 ? arrive : 1, r.path.length === 1);
-    from = t;
+    // The attack comes from the latest territory of the run beside it: after a fork, the
+    // launch stack it forked from.
+    const from = visited.findLast((v) => ADJ[v].includes(t)) ?? visited[visited.length - 1];
+    const end = ends.indexOf(k);
+    const share = end < 0 ? 1 : Math.max(1, Math.floor(arrive / ends.length) + (end < arrive % ends.length ? 1 : 0));
+    takeOne(b, me, from, t, share, r.path.length === 1);
+    visited.push(t);
   }
 }
 
@@ -222,6 +235,21 @@ function sampledBoard(b: Board, me: Seat, cp: CapturePlan, rng: Rng): Board {
   return out;
 }
 
+/** The plan with the armies placed on its launch stacks beyond what its routes were costed
+ *  with carried along each stack's first route (v2): in play they march with the run, and
+ *  the move-ins decide where they stop. v1's success board dropped them, so the same
+ *  position scored lower while placing than once placed. */
+function carrying(b: Board, after: Board, cp: CapturePlan): CapturePlan {
+  const spare = new Map<number, number>();
+  cp.routes.forEach((r, i) => spare.set(r.source, (spare.get(r.source) ?? after.armies[r.source] - b.armies[r.source]) - cp.alloc[i]));
+  const arrive = cp.routes.map((r, i) => {
+    const extra = Math.max(0, spare.get(r.source) ?? 0);
+    spare.delete(r.source);
+    return cp.arrive[i] + extra;
+  });
+  return { ...cp, arrive };
+}
+
 function scorePlan(b: Board, me: Seat, plan: Plan, params: Params, rng: Rng): number {
   const after = placed(b, plan.place);
   const cp = plan.capture;
@@ -233,7 +261,7 @@ function scorePlan(b: Board, me: Seat, plan: Plan, params: Params, rng: Rng): nu
     return sum / samples;
   }
   const p = cp.pSuccess;
-  const win = p > 0.001 ? evaluate(successBoard(after, me, cp), me, params) : 0;
+  const win = p > 0.001 ? evaluate(successBoard(after, me, carrying(b, after, cp)), me, params) : 0;
   const lose = p < 0.999 ? evaluate(failureBoard(after, me, cp), me, params) : 0;
   return p * win + (1 - p) * lose;
 }
