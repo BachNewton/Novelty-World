@@ -145,15 +145,10 @@ Keep the main session thin. Delegate each substantial unit of work (a phase, an 
 
 ## Checking the tree
 
-A green check runs only what the change can reach, a trial rule for this project to be lifted to the repo if it works well:
+A check follows the repo's rule ("Checking a change" in the root `CLAUDE.md`), with E2E as `npx playwright test e2e/betrayal-`. Two slow suites are opt-in tools, skipped unless their variable is set (in PowerShell, `$env:NAME=1` first):
 
-- **Lint and typecheck** always run whole: they are fast, and catch a broken import anywhere.
-- **Unit and slow tests** run by the import graph: `npx vitest run --changed`, and the same with `--config vitest.slow.config.ts` (`--changed <ref>` for a branch's commits). A test no change reaches isn't run.
-- **E2E** runs Betrayal's specs only (`npx playwright test e2e/betrayal-`). Playwright's `--only-changed` doesn't fit: its specs load the app by URL, not by import, so the graph never links a change in `src/projects/betrayal/` to them.
-- **The whole suite** runs when the change reaches above one project: `src/shared/`, `package.json` or the lockfile (a dependency update), or test, build or TypeScript config.
-- After a failure, rerun only the failing files, never the whole suite.
-- **The explorer art checks** (`art/explorers/`: `overlap`, `gait`, `clipping`, `cloth`, `cloth-fight`, `cloth-strobe` and `cloth-trial`, each a `.slow.test.ts`) are opt-in tools for art work, skipped otherwise: building or reworking a figure runs them (`BETRAYAL_ART_CHECKS=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/explorers`), as the `betrayal-figure-art` skill says. `bursts.slow.test.ts` beside them guards a real breakage, not looks, and always runs.
-- **The random simulation sweep** (`simulation.slow.test.ts`) is opt-in, for engine changes, and skipped otherwise: `BETRAYAL_SWEEP=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/simulation.slow.test.ts` (in PowerShell, `$env:BETRAYAL_SWEEP=1` first). It plays about 690 random games, around 7 minutes on one core.
+- **The explorer art checks** (`art/explorers/`: `overlap`, `gait`, `clipping`, `cloth`, `cloth-fight`, `cloth-strobe` and `cloth-trial`, each a `.slow.test.ts`) are for art work: building or reworking a figure runs them (`BETRAYAL_ART_CHECKS=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/art/explorers`), as the `betrayal-figure-art` skill says. `bursts.slow.test.ts` beside them guards a real breakage, not looks, and always runs.
+- **The random simulation sweep** (`simulation.slow.test.ts`) is for engine changes: `BETRAYAL_SWEEP=1 npx vitest run --config vitest.slow.config.ts src/projects/betrayal/simulation.slow.test.ts`. It plays about 690 random games, around 7 minutes on one core.
 
 ## Next step
 

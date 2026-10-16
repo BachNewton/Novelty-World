@@ -10,9 +10,9 @@
     "postinstall": "node scripts/fix-tfjs-windows.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --changed main --passWithNoTests",
     "test:watch": "vitest",
-    "test:slow": "vitest run --config vitest.slow.config.ts",
+    "test:slow": "vitest run --config vitest.slow.config.ts --changed main --passWithNoTests",
     "sim": "tsx src/projects/monopoly/bots/eval/simulate-cli.ts",
     "sim:versus": "tsx src/projects/monopoly/bots/eval/versus-cli.ts",
     "sim:gauntlet": "tsx src/projects/monopoly/bots/eval/gauntlet-cli.ts",
@@ -37,7 +37,7 @@
     "frogmino:prove": "tsx src/projects/frogmino/proof/prove-cli.ts",
     "setup:family-tree-solver": "python src/projects/family-tree/layout/solver/setup_venv.py",
     "test:e2e": "playwright test",
-    "test:all": "vitest run && npm run test:slow && playwright test"
+    "test:all": "vitest run && vitest run --config vitest.slow.config.ts && playwright test"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
