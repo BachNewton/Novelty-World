@@ -2,7 +2,8 @@ import process from "node:process";
 import { fitElo, pairsFromFinishes, pairsFromWinner, type PairResult } from "@/shared/lib/bot-lab/elo";
 import { wilsonInterval } from "@/shared/lib/bot-lab/stats";
 import { RISK_BOTS } from "../bots";
-import { checkBots, commonDefaults, commonFlag, number, type CommonArgs } from "./cli-args";
+import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
+import { checkBots, commonDefaults, commonFlag, number, riskRunLog, type CommonArgs } from "./cli-args";
 import { eloLine } from "./gauntlet";
 import { finishesOf, outcomeFor, riskPool, tableSpecs } from "./parallel";
 
@@ -49,8 +50,14 @@ async function main(): Promise<void> {
       `Bots: [${args.labels.join(", ")}]   Tables: ${args.players.join(", ")} players, each bot alone among the other\n` +
       `${args.groups} seed groups per table   Seeds: "${args.prefix}:*"   Workers: ${args.workers}   Max turns: ${args.maxTurns}\n`,
   );
-  const pool = riskPool(args.workers);
-  const start = process.hrtime.bigint();
+  const log = riskRunLog({
+    tool: "risk:ratings",
+    bots: args.labels,
+    tables: args.players.map((n) => `${n.toString()}p one-in`),
+    seeds: args.prefix,
+    workers: args.workers,
+  });
+  const pool = log.watch(riskPool(args.workers), (r) => r.decisions);
   const winPairs: PairResult[] = [];
   const finishPairs: PairResult[] = [];
   let errors = 0;
@@ -89,14 +96,13 @@ async function main(): Promise<void> {
   } finally {
     await pool.close();
   }
-  const secs = Number(process.hrtime.bigint() - start) / 1e9;
   console.log(`\n  Win Elo (${anchor} = 0):              ${eloLine(fitElo(args.labels, winPairs, { anchor }))}`);
   console.log(`  Finishing-order Elo (${anchor} = 0):  ${eloLine(fitElo(args.labels, finishPairs, { anchor }))}`);
   if (errors > 0) {
     console.log(`  ⚠ ${errors} games threw and were excluded: a bot or engine bug`);
     process.exitCode = 1;
   }
-  console.log(`\n  (${secs.toFixed(1)}s on ${pool.size} workers)\n`);
+  console.log(`\n${formatRunRecord(log.finish())}\n`);
 }
 
 main().catch((e: unknown) => {
