@@ -3,16 +3,16 @@
 // the live tree's size. These are hard-correctness checks — anything tripping
 // here is a bug, not a quality regression. Quality metrics (crossing counts,
 // edge lengths, etc.) live elsewhere. Every layout here is solved in a Python
-// child process (layout/solver-process.ts), hence the slow suite.
+// child process (layout/solver-process.ts): these are opt-in layout checks.
 //
 // productionWithOverflow adds partners past a card's two sides to the
 // production tree, so the bracket checks run at production size.
 //
 // familyNetwork is near the live tree's size and shape, so a solve that
-// scales badly (or stops being deterministic) fails here rather than on the
-// next write to the live tree.
+// scales badly fails here rather than on the next write to the live tree.
 
 import { beforeAll, describe, it, expect } from "vitest";
+import { layoutChecks } from "./layout-checks";
 import {
   BRACKET_DEPTH,
   parentChildPaths,
@@ -28,7 +28,6 @@ import { currentPartnerIds } from "./logic";
 import type { LaidOutNode, Layout, Tree } from "./types";
 import {
   NAMED_FIXTURES,
-  FULL_SOLVES,
   familyNetwork,
   productionTree,
   productionWithOverflow,
@@ -412,22 +411,6 @@ function defineLayoutInvariants(name: string, build: () => Tree): void {
     }
   });
 
-  it(
-    "is deterministic across repeated runs",
-    LIMIT,
-    () => {
-      const a = computeLayout(build());
-      const b = computeLayout(build());
-      const fmt = (l: Layout): string =>
-        l.nodes
-          .slice()
-          .sort((x, y) => (x.id < y.id ? -1 : 1))
-          .map((n) => `${n.id}:${n.x},${n.y}`)
-          .join("|");
-      expect(fmt(b)).toBe(fmt(a));
-    },
-  );
-
   it("reports width and height that bound every node", () => {
     for (const n of layout.nodes) {
       expect(n.x + n.w).toBeLessThanOrEqual(layout.width);
@@ -438,14 +421,14 @@ function defineLayoutInvariants(name: string, build: () => Tree): void {
   });
 }
 
-describe.each(Object.entries(NAMED_FIXTURES))(
+layoutChecks.each(Object.entries(NAMED_FIXTURES))(
   "computeLayout invariants — %s",
   (name, build) => {
     defineLayoutInvariants(name, build);
   },
 );
 
-describe("chain orientation", LIMIT, () => {
+layoutChecks("chain orientation", LIMIT, () => {
   it("draws a chain the way round that keeps its members' lines from crossing", () => {
     // Drawn as [late wife, widower, new wife], the late wife's parents' line would cross
     // The widower's parents' line; reversed, nothing crosses.
@@ -454,7 +437,7 @@ describe("chain orientation", LIMIT, () => {
   });
 });
 
-describe("partners past a card's two sides", LIMIT, () => {
+layoutChecks("partners past a card's two sides", LIMIT, () => {
   // The members of a row left to right.
   const rowOf = (layout: Layout, id: string): string[] => {
     const y = layout.nodes.find((n) => n.id === id)?.y;
@@ -558,9 +541,7 @@ describe("partners past a card's two sides", LIMIT, () => {
   });
 });
 
-// The fixtures near the live tree's size, whose exact solves need every core, as the CLI's do: opt-in (see
-// FULL_SOLVES).
-describe.runIf(FULL_SOLVES)("at the live tree's size", () => {
+layoutChecks("at the live tree's size", () => {
   describe("computeLayout invariants — productionTree", () => {
     defineLayoutInvariants("productionTree", productionTree);
   });

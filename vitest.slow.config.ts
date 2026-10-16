@@ -3,15 +3,8 @@
 // tests take tens of seconds and are run on demand, not in the regular
 // suite.
 import { defineConfig } from "vitest/config";
-import { availableParallelism } from "node:os";
 import path from "path";
 import { FORCE_RERUN_TRIGGERS, NESTED_CHECKOUTS } from "./vitest.config";
-
-const CORES = availableParallelism();
-// VITEST_MAX_WORKERS is vitest's own override of maxWorkers, so the solver's share below follows it.
-const WORKERS = process.env.VITEST_MAX_WORKERS === undefined
-  ? Math.max(1, Math.round(CORES / 2))
-  : Number.parseInt(process.env.VITEST_MAX_WORKERS);
 
 export default defineConfig({
   resolve: {
@@ -24,9 +17,7 @@ export default defineConfig({
     // Every file here is CPU-bound for seconds at a time, and several hold per-test limits: half the
     // logical cores (about one file per physical core) gives each test the CPU its limit was set for.
     // The longest file, the simulation's seeds, sets the suite's length either way.
-    maxWorkers: WORKERS,
-    // A layout solve blocks the worker that started it but runs threads of its own: it gets that worker's share.
-    env: { FAMILY_TREE_SOLVER_THREADS: String(Math.floor(CORES / WORKERS)) },
+    maxWorkers: "50%",
     exclude: ["e2e/**", "node_modules/**", ...NESTED_CHECKOUTS],
     forceRerunTriggers: FORCE_RERUN_TRIGGERS,
   },

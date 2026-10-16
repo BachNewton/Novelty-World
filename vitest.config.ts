@@ -28,8 +28,6 @@ export default defineConfig({
     // tens of seconds and are run explicitly via `npm run test:slow`.
     exclude: ["e2e/**", "node_modules/**", "**/*.slow.test.ts", ...NESTED_CHECKOUTS],
     forceRerunTriggers: FORCE_RERUN_TRIGGERS,
-    // A run's workers fill the cores (one less than there are), so each worker's layout solves get one thread.
-    env: { FAMILY_TREE_SOLVER_THREADS: "1" },
     // `vitest bench` discovers files independently of `test.exclude`.
     benchmark: {
       exclude: ["node_modules/**", ...NESTED_CHECKOUTS],

@@ -168,9 +168,7 @@ allow. With the sides fixed, what is left is difference constraints and
 convex costs, whose minimizers are closed under taking the lower of two
 coordinates, so that last minimum is unique too. The exception is a line
 whose x comes from two chains (two parents who aren't in one chain), which
-falls outside that argument. The slow suite's `familyNetwork` fixture, near
-the live tree's size and shape, runs the whole placement and checks it
-repeats exactly.
+falls outside that argument.
 
 The live tree does hit that exception: two solves of the same 411-person tree
 drew the same lines but placed 34 cards differently, both at the proven

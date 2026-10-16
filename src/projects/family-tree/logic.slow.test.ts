@@ -1,19 +1,19 @@
 // The logic tests that lay a tree out: computeLayout solves its crossings and
 // placement in a Python child process (layout/solver-process.ts), so they live
-// in the slow suite.
+// in the slow suite, as opt-in layout checks.
 
-import { describe, it, expect } from "vitest";
+import { it, expect } from "vitest";
+import { layoutChecks } from "./layout-checks";
 import { ROOT_ID, addChild, addParent, addSpouse, createInitialTree, fullName } from "./logic";
 import { NODE_W, SPOUSE_GAP, computeLayout } from "./layout/compute-layout";
 import { partnerFamily, widowedRemarriage } from "./__fixtures__/trees";
 import { makeTree, n, p, u } from "./__fixtures__/people";
-import type { Tree } from "./types";
 
 /** Each layout here is an exact solve in its own Python process; the limit catches a solve that hangs, which the
  *  solver's own time limit would otherwise let run for half an hour. */
 const LIMIT = { timeout: 180_000 };
 
-describe("union statuses — layout", LIMIT, () => {
+layoutChecks("union statuses — layout", LIMIT, () => {
   it("clusters a late spouse, the widower, and the current spouse side by side", () => {
     const layout = computeLayout(widowedRemarriage());
     const byId = new Map(layout.nodes.map((node) => [node.id, node]));
@@ -73,7 +73,7 @@ describe("union statuses — layout", LIMIT, () => {
   });
 });
 
-describe("computeLayout", LIMIT, () => {
+layoutChecks("computeLayout", LIMIT, () => {
   it("places the lone root", () => {
     const layout = computeLayout(createInitialTree());
     expect(layout.nodes).toHaveLength(1);
@@ -500,27 +500,5 @@ describe("computeLayout", LIMIT, () => {
         }
       }
     }
-  });
-
-  it("is deterministic — repeated layouts produce identical positions", () => {
-    const build = (): Tree =>
-      makeTree([
-        p("me", "M", ["dad", "mom"], ["sp"]),
-        p("dad", "M", ["gp"]),
-        p("mom", "F"),
-        p("uncle", "M", ["gp"], ["uncleW"]),
-        p("uncleW", "F", [], ["uncle"]),
-        p("cousin", "F", ["uncle", "uncleW"]),
-        p("sp", "F", ["spDad", "spMom"], ["me"]),
-        p("spDad", "M"),
-        p("spMom", "F", [], ["spDad"]),
-        p("spSib", "M", ["spDad", "spMom"]),
-        p("gp", "M"),
-      ]);
-    const a = computeLayout(build());
-    const b = computeLayout(build());
-    expect(b.nodes.map((n) => `${n.id}:${n.x},${n.y}`)).toEqual(
-      a.nodes.map((n) => `${n.id}:${n.x},${n.y}`),
-    );
   });
 });

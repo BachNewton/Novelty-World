@@ -39,8 +39,7 @@ CP-SAT's parallel workers finds it first (a line's x from two nodes, parents
 in two chains, is the one case outside that argument). Coordinates are
 integers: every width, gap and offset in the layout is.
 
-Pass --workers N for the search threads (the caller's share of the machine), and
---progress to report each solve's time on stderr.
+Pass --progress to report each solve's time on stderr.
 """
 
 import json
@@ -51,8 +50,7 @@ from ortools.sat.python import cp_model
 
 # Far above any real solve (the live tree's four solves take seconds).
 TIME_LIMIT_S = 600
-# The caller's share of the machine: a solve must not take more cores than whoever started it owns.
-WORKERS = int(sys.argv[sys.argv.index("--workers") + 1])
+WORKERS = 16
 # Solve 3 weighs each side boolean by a power of two, which int64 bounds.
 MAX_PAIRS = 60
 
