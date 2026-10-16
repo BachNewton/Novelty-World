@@ -56,6 +56,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   "connection-test": dynamic(() =>
     import("@/projects/connection-test").then((m) => ({ default: m.ConnectionTest })),
   ),
+  "bot-lab": dynamic(() =>
+    import("@/projects/bot-lab").then((m) => ({ default: m.BotLab })),
+  ),
 };
 
 interface Props {

@@ -67,6 +67,18 @@ export function luceWinProb(seats: number, players: number): WinProb {
   };
 }
 
+export interface SprtBounds {
+  /** At or below it, the test accepts H0. */
+  lower: number;
+  /** At or above it, the test accepts H1. */
+  upper: number;
+}
+
+/** Wald's acceptance bounds on the LLR for error rates α and β. */
+export function sprtBounds(alpha: number, beta: number): SprtBounds {
+  return { lower: Math.log(beta / (1 - alpha)), upper: Math.log((1 - beta) / alpha) };
+}
+
 /** Wald's SPRT for a Bernoulli stream. The LLR after `wins`/`losses` decisive
  *  games is `wins·ln(p1/p0) + losses·ln((1−p1)/(1−p0))`, with the classic
  *  acceptance bounds `ln(β/(1−α))` and `ln((1−β)/α)`. */
@@ -80,8 +92,7 @@ export function sprt(
   const p1 = winProb(cfg.elo1);
   const llr =
     wins * Math.log(p1 / p0) + losses * Math.log((1 - p1) / (1 - p0));
-  const lower = Math.log(cfg.beta / (1 - cfg.alpha));
-  const upper = Math.log((1 - cfg.beta) / cfg.alpha);
+  const { lower, upper } = sprtBounds(cfg.alpha, cfg.beta);
   const verdict: SprtVerdict =
     llr >= upper ? "accept-h1" : llr <= lower ? "accept-h0" : "continue";
   return { wins, losses, llr, lower, upper, verdict };
@@ -139,6 +150,21 @@ export interface GauntletWalk {
   llrRegress: number;
 }
 
+/** The pair of one-sided tests read at their LLRs: `better` once the improvement
+ *  test accepts its H1, `worse` once the regression test does, `even` once both
+ *  confidently reject their ±E alternative (a true tie), and null while neither
+ *  has decided. Both tests share the bounds, as they share α and β. */
+export function dualVerdict(
+  llrImprove: number,
+  llrRegress: number,
+  { lower, upper }: SprtBounds,
+): "better" | "worse" | "even" | null {
+  if (llrImprove >= upper) return "better";
+  if (llrRegress >= upper) return "worse";
+  if (llrImprove <= lower && llrRegress <= lower) return "even";
+  return null;
+}
+
 /** Walk a stream of decisive outcomes (`true` = candidate A won) IN ORDER,
  *  applying the dual one-sided SPRT after each game, and stop at the first of: a
  *  decisive verdict (better / worse / even), `maxDecisive` games, or the end of
@@ -193,10 +219,8 @@ export function walkGroupedSprt(
     }
     const si = sprt(wins, losses, improve, winProb);
     const sr = sprt(wins, losses, regress, winProb);
-    if (si.verdict === "accept-h1") return at("better", si, sr);
-    if (sr.verdict === "accept-h1") return at("worse", si, sr);
-    // Both tests confidently reject their +E/−E alternative → a true tie.
-    if (si.verdict === "accept-h0" && sr.verdict === "accept-h0") return at("even", si, sr);
+    const decided = dualVerdict(si.llr, sr.llr, si);
+    if (decided !== null) return at(decided, si, sr);
     if (wins + losses >= maxDecisive) return at("inconclusive", si, sr);
   }
   return at(

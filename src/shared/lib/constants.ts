@@ -166,6 +166,13 @@ export const PROJECTS: Project[] = [
     categorySlug: "tools",
     icon: "Activity",
   },
+  {
+    name: "Bot Lab",
+    slug: "bot-lab",
+    description: "Watch the bots' measuring runs play out, live",
+    categorySlug: "tools",
+    icon: "FlaskConical",
+  },
 ];
 
 /** Build the full URL path for a project (e.g., "/games/monopoly") */

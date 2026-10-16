@@ -37,6 +37,17 @@ export function defaultWorkerCount(): number {
 /** The signals that stop a run: Ctrl-C, a kill, and Windows' Ctrl-Break and console close. */
 const STOP_SIGNALS: readonly NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGBREAK", "SIGHUP"];
 
+const stopHooks = new Set<() => Promise<void>>();
+let stopping = false;
+
+/** Runs `hook` when a run is told to stop, after its workers are gone and before
+ *  it exits: the last word of something that must be told asynchronously, such as
+ *  the live page. Returns the unregistering function. */
+export function onRunStop(hook: () => Promise<void>): () => void {
+  stopHooks.add(hook);
+  return () => stopHooks.delete(hook);
+}
+
 /** A reusable pool of worker threads, each running `workerModule` (a module that
  *  calls `serveGames`). Spawn once, call `run` repeatedly (each call distributes a
  *  batch of games across all workers and resolves when they all complete), then
@@ -59,13 +70,17 @@ export class WorkerPool<Spec extends Indexed, Result extends Indexed>
     this.stop(128 + os.constants.signals[signal]);
   };
 
-  /** A run told to stop exits at once, its workers with it, rather than playing
-   *  games nobody will read. Exiting, not a signal's default, so the process's
-   *  `exit` handlers run (the run log's among them). A run killed outright gets no
-   *  signal: see the root CLAUDE.md's Bot measurement on launching long runs. */
+  /** A run told to stop ends its workers at once, rather than playing games
+   *  nobody will read, lets its stop hooks have their last word, and exits. Exiting,
+   *  not a signal's default, so the process's `exit` handlers run (the run log's
+   *  among them). Told twice, it exits without waiting for the hooks. A run killed
+   *  outright gets no signal: see the root CLAUDE.md's Bot measurement on launching
+   *  long runs. */
   private stop(code: number): void {
+    if (stopping) process.exit(code);
+    stopping = true;
     for (const w of this.workers) void w.terminate();
-    process.exit(code);
+    void Promise.allSettled([...stopHooks].map((hook) => hook())).then(() => process.exit(code));
   }
 
   /** Play every spec across the pool and resolve with all results, sorted by
@@ -122,13 +137,23 @@ export class WorkerPool<Spec extends Indexed, Result extends Indexed>
 }
 
 /** The same game runner on this thread, one game after another: the
- *  single-threaded reference for a determinism check, and a pool for tests. */
+ *  single-threaded reference for a determinism check, and a pool for tests. It
+ *  gives the event loop a turn after every game, so what runs beside it (the run
+ *  log's sampler, the live page's heartbeat, a stop signal) isn't held off for the
+ *  length of a whole batch. */
 export function inlineRunner<Spec extends Indexed, Result extends Indexed>(
   runOne: (spec: Spec) => Result,
 ): GameRunner<Spec, Result> {
   return {
     size: 1,
-    run: (specs) => Promise.resolve(specs.map((spec) => runOne(spec)).sort((p, q) => p.index - q.index)),
+    run: async (specs) => {
+      const results: Result[] = [];
+      for (const spec of specs) {
+        results.push(runOne(spec));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      return results.sort((p, q) => p.index - q.index);
+    },
     close: () => Promise.resolve(),
   };
 }

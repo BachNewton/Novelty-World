@@ -1,6 +1,8 @@
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { defaultWorkerCount } from "@/shared/lib/bot-lab/pool";
+import { LiveReporter } from "@/shared/lib/bot-lab/live";
+import { liveSinkFromEnv } from "@/shared/lib/bot-lab/live-supabase";
 import { RunLog, type RunDescription } from "@/shared/lib/bot-lab/run-log";
 import { RISK_BOTS } from "../bots";
 import { FORMATS, type Format } from "./parallel";
@@ -74,7 +76,12 @@ export function checkBots(labels: readonly string[]): void {
 /** Every measuring run's record (`run-log.ts`): what ran, how fast, on what machine. */
 const RUN_LOG = fileURLToPath(new URL("./runs.jsonl", import.meta.url));
 
-/** Starts recording a run of one of Risk's CLIs into the committed run log. */
-export function riskRunLog(run: Omit<RunDescription, "args">): RunLog {
-  return new RunLog(RUN_LOG, { ...run, args: process.argv.slice(2) });
+/** The checkout's keys, for publishing a run to the live page. */
+const ENV_FILE = fileURLToPath(new URL("../../../../.env.local", import.meta.url));
+
+/** Starts a run of one of Risk's CLIs: recorded into the committed run log, and
+ *  published live to the Bot Lab page (`live.ts`). */
+export function riskRun(run: Omit<RunDescription, "args">): LiveReporter {
+  const log = new RunLog(RUN_LOG, { ...run, args: process.argv.slice(2) });
+  return new LiveReporter(liveSinkFromEnv(ENV_FILE), log, "risk");
 }
