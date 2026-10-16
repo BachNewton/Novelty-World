@@ -1056,7 +1056,7 @@ const rulebook = (page: number, ruling?: string): RuleRef =>
     ? { source: "rulebook", page }
     : { source: "rulebook", page, ruling };
 
-type Die = {
+export type Die = {
   figure: FigureId;
   trait: Trait | null;
   cause: RuleRef;

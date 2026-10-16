@@ -162,7 +162,7 @@ function shows(type: string): Shown {
 const SHOWN_BY_WHAT_FOLLOWS = new Set(["rotation", "turn", "split-damage", "damage-kind"]);
 
 /** A forced step shown by what follows it rather than a line of its own. */
-export const shownByWhatFollows = (event: Pick<EventView, "type" | "data">) => event.type === "forced" && SHOWN_BY_WHAT_FOLLOWS.has((event.data as { kind: string }).kind);
+export const shownByWhatFollows = (event: EventView) => event.type === "forced" && SHOWN_BY_WHAT_FOLLOWS.has(event.data.kind);
 
 /** How a line shows, or null for one with nothing to say: a room placed the
  *  only way it fits, which its appearing already showed, or an event with no
@@ -176,9 +176,9 @@ function lineShow(engine: Engine, view: GameView, event: EventView): LineShow | 
   if (event.type === "card-drawn") return "card";
   // A roll made at once shows what it is for first, when that is a table;
   // any other roll's line says it all.
-  if (event.type === "roll-coming") return (event.data as { rows: unknown }).rows === null ? null : "table";
+  if (event.type === "roll-coming") return event.data.rows === null ? null : "table";
   if (event.type === "rolled") {
-    const { dice, named } = event.data as { dice: number[]; named: number | null };
+    const { dice, named } = event.data;
     return named === null && dice.length > 0 ? "dice" : "words";
   }
   return statChanges([event]).length > 0 ? "float" : "words";
@@ -245,10 +245,9 @@ export function startPresentation(engine: Engine, view: GameView, floors: RoomFl
  *  (p. 9), which may be writes later, after a decision a card raised: the
  *  figure walks in at `discovered`, before the card. */
 function arrival(event: EventView): { figure: FigureId; room: string } | null {
-  if (event.type === "discovered") return event.data as { figure: FigureId; room: string };
+  if (event.type === "discovered") return event.data;
   if (event.type !== "entered") return null;
-  const data = event.data as { figure: FigureId; room: string; discovered?: boolean };
-  return data.discovered === true ? null : data;
+  return event.data.discovered === true ? null : event.data;
 }
 
 /** The rooms figures arrive in among the events not yet presented: a room
@@ -274,9 +273,10 @@ interface Leg {
 function legsOf(events: readonly EventView[]): Map<FigureId, Leg[]> {
   const legs = new Map<FigureId, Leg[]>();
   for (const event of events) {
-    if (event.type !== "left" && event.type !== "crossed" && arrival(event) === null) continue;
-    const { figure, room, moved } = event.data as { figure: FigureId; room: string; moved?: boolean };
-    const put = moved === false;
+    if (event.type !== "left" && event.type !== "crossed" && event.type !== "entered" && event.type !== "discovered") continue;
+    if (arrival(event) === null && event.type !== "left" && event.type !== "crossed") continue;
+    const { figure, room } = event.data;
+    const put = (event.type === "left" || event.type === "entered") && !event.data.moved;
     const list = legs.get(figure) ?? [];
     legs.set(figure, list);
     let leg = list.at(-1);
@@ -353,7 +353,7 @@ export function present(engine: Engine, before: Presentation, events: readonly E
 
   for (const event of fresh) {
     if (event.type !== "room-moved") continue;
-    add({ kind: "move", room: (event.data as { tile: string }).tile, line: describeEvent(engine, next, event) === null ? null : event.id, events: [event.id] });
+    add({ kind: "move", room: event.data.tile, line: describeEvent(engine, next, event) === null ? null : event.id, events: [event.id] });
   }
 
   const turns = fresh.filter((event) => shows(event.type) === "turn").map((event) => event.id);

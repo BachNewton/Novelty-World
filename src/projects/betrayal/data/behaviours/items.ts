@@ -46,11 +46,9 @@ import { heroes, inPlay, revealedAs } from "../../engine/sides";
 import {
   type Behaviour,
   type BehaviourGroup,
-  eventData,
   ownSteps,
   type Reaction,
   type Source,
-  turnFigure,
 } from "../../engine/sources";
 import type { Engine } from "../../engine/step-loop";
 import type {
@@ -78,7 +76,7 @@ const roomName = (room: string) => CATALOG.rooms[room].name;
 function discardAfterUse(id: string): Reaction {
   return {
     event: "card-used",
-    when: (_state, event) => eventData<{ card: string }>(event).card === id,
+    when: (_state, event) => event.data.card === id,
     steps: (_state, _event, source) =>
       source.holder === null ? [] : [discardCard(source.holder, id)],
   };
@@ -693,7 +691,7 @@ export const ITEMS: BehaviourGroup = {
         {
           event: "card-gained",
           when: (state, event, source) =>
-            eventData<{ figure: FigureId }>(event).figure === source.holder &&
+            event.data.figure === source.holder &&
             !cardFlag(state, "candle", SET_BONUS) &&
             SET.every((c) =>
               figureOf(state, holder(source)).cards.includes(c),
@@ -703,7 +701,7 @@ export const ITEMS: BehaviourGroup = {
         {
           event: "card-lost",
           when: (state, event, source) => {
-            const lost = eventData<{ figure: FigureId; card: string }>(event);
+            const lost = event.data;
             return (
               lost.figure === source.holder &&
               SET.includes(lost.card) &&
@@ -811,10 +809,10 @@ export const ITEMS: BehaviourGroup = {
         {
           event: "card-used",
           when: (_state, event) =>
-            eventData<{ card: string }>(event).card === "idol",
+            event.data.card === "idol",
           steps: (_state, event) => [
             gain(
-              eventData<{ figure: FigureId }>(event).figure,
+              event.data.figure,
               "sanity",
               -1,
               card("idol"),
@@ -909,19 +907,19 @@ export const ITEMS: BehaviourGroup = {
           event: "entered",
           when: (state, event, source) =>
             cardFlag(state, "music-box", "open") &&
-            eventData<{ room: string }>(event).room ===
+            event.data.room ===
               musicBoxRoom(state, source),
           steps: (_state, event) => [
-            hearMusicBox(eventData<{ figure: FigureId }>(event).figure),
+            hearMusicBox(event.data.figure),
           ],
         },
         {
           event: "turn-started",
           when: (state, event, source) =>
             cardFlag(state, "music-box", "open") &&
-            hearsMusicBox(state, turnFigure(event), source),
+            hearsMusicBox(state, event.data.figure, source),
           steps: (_state, event) => {
-            const figure = turnFigure(event);
+            const { figure } = event.data;
             return figure === null ? [] : [hearMusicBox(figure)];
           },
         },
@@ -929,7 +927,7 @@ export const ITEMS: BehaviourGroup = {
       steps: MUSIC_BOX.steps,
       describe: {
         "card-marked": (event) =>
-          eventData<{ value: boolean }>(event).value
+          event.data.value
             ? "The Music Box is opened"
             : "The Music Box is closed",
       },

@@ -1,7 +1,5 @@
-import type { FigureId } from "../types";
+import type { EventType } from "../engine/events";
 import { describeEvent, describeRule, landedText, rollName } from "../engine/describe";
-import type { RowSummary } from "../engine/outcomes";
-import type { RollSpec } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
 import type { EventView, GameView, RuleView } from "../engine/view";
 import { ruleDetail, ruleTexts, type RuleNotes } from "../data/rule-notes";
@@ -33,15 +31,6 @@ export function isRuleDriven(event: Pick<EventView, "type" | "rule">): boolean {
   return event.rule.source !== "rulebook" || !PLAIN.has(event.type);
 }
 
-interface Rolled {
-  figure: FigureId;
-  spec: RollSpec;
-  dice: number[];
-  named: number | null;
-  bonus: number;
-  result: number;
-}
-
 const capital = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
 /** The first sentence of a rule's text, whole, with its markdown emphasis dropped. */
@@ -59,8 +48,8 @@ export function ownLines(notes: RuleNotes, rule: RuleView): string[] {
   return ruleTexts(notes, rule).flatMap((text) => text.lines);
 }
 
-function rollText(engine: Engine, view: GameView, event: EventView): string | null {
-  const d = event.data as unknown as Rolled;
+function rollText(engine: Engine, view: GameView, event: EventView<"rolled">): string | null {
+  const d = event.data;
   // A named result, no dice at all, or a card's attacker's dice thrown for it read as the engine words them.
   if (d.named !== null || d.dice.length === 0 || (d.spec.kind === "attack" && d.spec.dice !== null)) return null;
   const bonus = d.bonus === 0 ? "" : d.bonus > 0 ? ` + ${d.bonus}` : ` - ${-d.bonus}`;
@@ -74,8 +63,8 @@ function rollText(engine: Engine, view: GameView, event: EventView): string | nu
 export function lineText(engine: Engine, view: GameView, event: EventView, beat: readonly EventView[] = []): string | null {
   const text = (event.type === "rolled" ? rollText(engine, view, event) : null) ?? describeEvent(engine, view, event);
   const row = event.type === "rolled" ? beat.find((other) => other.type === "table-row") : undefined;
-  if (text === null || row === undefined) return text;
-  const { rows, index } = row.data as unknown as { rows: RowSummary[]; index: number };
+  if (text === null || row?.type !== "table-row") return text;
+  const { rows, index } = row.data;
   return `${text} ${landedText(engine, rows[index])}`;
 }
 
@@ -91,10 +80,12 @@ const RULEBOOK: Partial<Record<string, string>> = {
 
 const HAUNT_ROLL_EVENTS = new Set(["haunt-held-off", "haunt-revealed"]);
 
-function rulebookKey(event: Pick<EventView, "type" | "data">): string {
-  const data = event.data as { kind?: string; spec?: RollSpec };
-  if (HAUNT_ROLL_EVENTS.has(event.type) || (event.type === "rolled" && data.spec?.kind === "haunt")) return "haunt-roll";
-  if (event.type === "forced" && data.kind === "rotation") return "forced:rotation";
+/** The rulebook's wording for an event, or for a type of event where only
+ *  its type is known. */
+function rulebookKey(event: EventView | EventType): string {
+  if (typeof event === "string") return HAUNT_ROLL_EVENTS.has(event) ? "haunt-roll" : event;
+  if (HAUNT_ROLL_EVENTS.has(event.type) || (event.type === "rolled" && event.data.spec.kind === "haunt")) return "haunt-roll";
+  if (event.type === "forced" && event.data.kind === "rotation") return "forced:rotation";
   return event.type;
 }
 
@@ -112,7 +103,7 @@ export function ruleName(engine: Engine, notes: RuleNotes | null, rule: RuleView
 /** A rule in one plain sentence: a room's, card's or token's opens with
  *  its name, then its text; a ruling is its resolution; the rulebook's are
  *  worded per event, or else named by the sections of its page. */
-export function ruleStatement(engine: Engine, notes: RuleNotes | null, rule: RuleView, event: Pick<EventView, "type" | "data"> | null): string {
+export function ruleStatement(engine: Engine, notes: RuleNotes | null, rule: RuleView, event: EventView | EventType | null): string {
   const source = ruleName(engine, notes, rule);
   if (rule.hiddenRuling) return `${source}: a ruling from one side's half of the haunt, which only that side may read.`;
   if (notes !== null && rule.ruling !== undefined) {
@@ -144,7 +135,7 @@ export function ruleStatement(engine: Engine, notes: RuleNotes | null, rule: Rul
  *  pending decision when it is a room's, card's, token's or haunt's. */
 export function whyItems(engine: Engine, notes: RuleNotes | null, events: readonly EventView[], decision: RuleView | null): WhyItem[] {
   const items: WhyItem[] = [];
-  const add = (rule: RuleView, event: Pick<EventView, "type" | "data"> | null) => {
+  const add = (rule: RuleView, event: EventView | null) => {
     const statement = ruleStatement(engine, notes, rule, event);
     if (!items.some((item) => item.statement === statement)) items.push({ rule, name: ruleName(engine, notes, rule), statement });
   };

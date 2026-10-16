@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
 import { pendingDecision, testGame, waitingOn, spectator } from "../testing";
-import type { GameEvent, GameState, Json, RuleRef } from "../types";
+import type { GameEvent, GameState, RuleRef } from "../types";
+import type { EventData, EventOf, EventType } from "./events";
 import { describeDecision, describeEvent, describeRule } from "./describe";
 import { apply, choices } from "./step-loop";
 
-const event = (type: string, rule: RuleRef, data: Json): GameEvent => ({
-  id: "d0.0:0",
-  type,
-  rule,
-  data,
-});
+const event = <K extends EventType>(
+  type: K,
+  rule: RuleRef,
+  data: EventData[K],
+): EventOf<K> => ({ id: "d0.0:0", type, rule, data });
 
 const text = (e: GameEvent, state: GameState = testGame()) =>
   describeEvent(ENGINE, spectator(state, ENGINE), e);
@@ -163,6 +163,7 @@ describe("describeEvent", () => {
       {
         seat: 0,
         kind: "split-damage",
+        about: null,
         choice: null,
         label: "Take 1 Might and 0 Speed",
       },
@@ -201,7 +202,13 @@ describe("describeEvent", () => {
 
   it("fails loudly on an event type it can't describe", () => {
     expect(() =>
-      text(event("nonsense", { source: "rulebook", page: 1 }, null)),
+      // A type no rule emits, as a stored event could carry.
+      text({
+        id: "d0.0:0",
+        type: "nonsense",
+        rule: { source: "rulebook", page: 1 },
+        data: null,
+      } as unknown as GameEvent),
     ).toThrow(/nonsense/);
   });
 

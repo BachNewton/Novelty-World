@@ -9,7 +9,6 @@ import {
 import { hauntNumbers } from "../engine/scenario";
 import { sideOf } from "../engine/sides";
 import {
-  eventData,
   hauntSourceId,
   ownSteps,
   type Behaviour,
@@ -24,10 +23,8 @@ import {
 import { choose, put, ready, testGame, type TestGame } from "../testing";
 import type {
   FigureDefinition,
-  FigureId,
   GameState,
   HauntTexts,
-  TurnKind,
 } from "../types";
 
 // A small haunt built from the kit, for testing the haunt framework without
@@ -169,7 +166,7 @@ export function toyHaunt(
       {
         event: "entered",
         when: (state, event, _source, engine) => {
-          const d = eventData<{ figure: FigureId; moved: boolean }>(event);
+          const d = event.data;
           return d.moved && sideOf(engine, state, d.figure) === "heroes";
         },
         steps: () => [addToCounter("wakes", 1, rule)],
@@ -177,7 +174,7 @@ export function toyHaunt(
       {
         event: "turn-started",
         when: (_state, event) =>
-          eventData<{ kind: TurnKind }>(event).kind === "monster",
+          event.data.kind === "monster",
         steps: () => [addToCounter("escapes", 1, rule)],
       },
     ],

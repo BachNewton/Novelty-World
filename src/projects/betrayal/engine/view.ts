@@ -30,6 +30,7 @@ import { allFigures, explorerOf, figureName, TRAITS } from "./figures";
 import { activeHaunt } from "./haunt";
 import { askStructured, hasTrait, traitValue } from "./questions";
 import { sideOf } from "./sides";
+import type { EventData, EventType } from "./events";
 import { choices, type Choice, type Engine } from "./step-loop";
 
 // What one seat may see of a game: the UI renders it, and bots and AI
@@ -57,7 +58,48 @@ export type RuleView =
       hiddenSection?: true;
     };
 
-export type EventView = Omit<GameEvent, "rule"> & { rule: RuleView };
+/** Fields of event types' data, by event type, held to the data's type. */
+type FieldsOf<T extends {
+  [K in keyof T]: K extends EventType ? keyof EventData[K] : never;
+}> = T;
+
+/** What a viewer may be kept from in an event's data, by event type: the
+ *  rest is everyone's (`REDACTIONS`). */
+type Withheld = FieldsOf<{
+  "side-set": "side" | "roles";
+  "secret-set": "knownBy";
+  forced: "seat" | "about" | "choice" | "label";
+  "turn-started": "seat";
+  "turn-ended": "seat";
+  "turn-cut-short": "seat";
+  "turn-inserted": "seat";
+  "deck-stacked": "card";
+  "room-stack-seen": "tile";
+}>;
+
+/** Data as a viewer sees it: every rule reference in it is their view of it. */
+type Viewed<T> = T extends RuleRef
+  ? RuleView
+  : T extends (infer Item)[]
+    ? Viewed<Item>[]
+    : T extends object
+      ? { [P in keyof T]: Viewed<T[P]> }
+      : T;
+
+/** An event's data as a viewer sees it: what they may be kept from may be
+ *  missing. */
+type Shown<K extends EventType> = Viewed<
+  K extends keyof Withheld
+    ? Omit<EventData[K], Withheld[K]> & {
+        [P in Withheld[K] & keyof EventData[K]]?: EventData[K][P];
+      }
+    : EventData[K]
+>;
+
+/** An event as a viewer sees it: checking its type gives its data's shape. */
+export type EventView<K extends EventType = EventType> = {
+  [T in K]: { id: string; type: T; rule: RuleView; data: Shown<T> };
+}[K];
 
 /** A seat as a viewer sees it. */
 export interface SeatView {
@@ -491,16 +533,14 @@ function pendingView(
 
 /** Events that carry something only some seats may see, and what the rest
  *  see of them. Every other event is public. */
-const REDACTIONS: Partial<
-  Record<
-    string,
-    (
-      data: { [key: string]: Json },
-      viewer: number | null,
-      state: GameState,
-      engine: Engine,
-    ) => { [key: string]: Json }
-  >
+const REDACTIONS: Record<
+  keyof Withheld,
+  (
+    data: { [key: string]: Json },
+    viewer: number | null,
+    state: GameState,
+    engine: Engine,
+  ) => { [key: string]: Json }
 > = {
   // A side a scenario sets in secret.
   "side-set": (data, viewer, state) =>
@@ -552,12 +592,10 @@ function turnSeat(
   return rest;
 }
 
-/** Events whose rule's haunt section would give away the side of the
- *  figure they are about: a status put on it, or taken off. */
-const SECTION_KEPT: Partial<Record<string, true>> = {
-  "status-added": true,
-  "status-removed": true,
-};
+/** Whether some viewers may be kept from part of an event of this type. */
+function withheld(type: EventType): type is keyof Withheld {
+  return type in REDACTIONS;
+}
 
 /** The seat that saw what a figure looked at: the one controlling it. */
 function looker(engine: Engine, state: GameState, figure: FigureId): number | null {
@@ -570,23 +608,23 @@ function eventView(
   viewer: number | null,
   event: GameEvent,
 ): EventView {
-  const redact = REDACTIONS[event.type];
   const { data } = event;
-  let seen = data;
-  if (redact) {
-    if (typeof data !== "object" || data === null || Array.isArray(data))
-      throw new Error(`The ${event.type} event has no data to redact`);
-    seen = redact(data, viewer, state, engine);
-  }
+  const seen = withheld(event.type)
+    ? REDACTIONS[event.type](data, viewer, state, engine)
+    : data;
+  // A status put on a figure, or taken off: its rule's haunt section would
+  // give away the side of the figure it is about.
   const hideSection =
-    SECTION_KEPT[event.type] === true &&
-    sideHiddenOf(state, viewer, (data as { figure: FigureId }).figure);
+    (event.type === "status-added" || event.type === "status-removed") &&
+    sideHiddenOf(state, viewer, event.data.figure);
+  // The view keeps each event's data in its shape: what it withholds is
+  // what `Withheld` names, and each rule reference becomes the viewer's.
   return {
     id: event.id,
     type: event.type,
     rule: ruleView(engine, state, viewer, event.rule, hideSection),
     data: jsonView(engine, state, viewer, seen),
-  };
+  } as EventView;
 }
 
 /** Events as a viewer may see them, read against a state: for a screen

@@ -8,7 +8,6 @@ import {
   table,
 } from "../../engine/effects";
 import {
-  eventData,
   ownSteps,
   type Behaviour,
   type Source,
@@ -97,21 +96,21 @@ export function trap(
       {
         event: "turn-started",
         when: (state, event, source) =>
-          eventData<{ figure: FigureId }>(event).figure === source.holder &&
+          event.data.figure === source.holder &&
           failedAttempts(state, id) >= ATTEMPTS,
-        steps: (_state, event) => [
-          own.step("freed", { figure: eventData<{ figure: FigureId }>(event).figure }),
+        steps: (_state, _event, source) => [
+          own.step("freed", { figure: holder(source) }),
         ],
       },
     ],
     steps: own.steps,
     describe: {
       "card-marked": (event) => {
-        const count = eventData<{ value: number }>(event).value;
+        const count = event.data.value;
         return `${count} failed ${count === 1 ? "attempt" : "attempts"} to break free so far`;
       },
       "card-lost": (event, words) =>
-        `${words.figure(eventData<{ figure: FigureId }>(event).figure)} is free, and discards the card`,
+        `${words.figure(event.data.figure)} is free, and discards the card`,
     },
   };
 }

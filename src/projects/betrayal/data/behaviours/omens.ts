@@ -15,7 +15,6 @@ import {
   removeToken,
   roll,
   table,
-  type CardDestination,
 } from "../../engine/effects";
 import { figureOf, placeOf, roomOf } from "../../engine/figures";
 import { pullMonsters } from "../../engine/monsters";
@@ -24,7 +23,6 @@ import type { Mover } from "../../engine/questions";
 import {
   type Behaviour,
   type BehaviourGroup,
-  eventData,
   ownSteps,
 } from "../../engine/sources";
 import type { Engine } from "../../engine/step-loop";
@@ -220,20 +218,18 @@ const DOG_BEHAVIOUR: Behaviour = {
   steps: DOG_STEPS.steps,
   describe: {
     "dog-ran": (event, words) => {
-      const d = eventData<DogRun>(event);
+      const d = event.data;
       return `${words.figure(d.figure)}'s Dog runs to the ${words.room(d.room)}`;
     },
     "token-placed": (event, words) =>
-      `The Dog's token goes in the ${words.room(eventData<{ room: string }>(event).room)}, and goes wherever its holder goes`,
+      `The Dog's token goes in the ${words.room(event.data.room)}, and goes wherever its holder goes`,
     "token-removed": () => "The Dog's token is taken away",
     "card-gained": (event, words) => {
-      const d = eventData<{ figure: FigureId; card: string }>(event);
+      const d = event.data;
       return `The Dog brings ${words.figure(d.figure)} the ${words.card(d.card)}`;
     },
     "card-lost": (event, words) => {
-      const d = eventData<{ card: string; destination: CardDestination }>(
-        event,
-      );
+      const d = event.data;
       if (d.destination.to !== "room")
         throw new Error("The Dog only leaves items in rooms");
       return `The Dog leaves the ${words.card(d.card)} in the ${words.room(d.destination.room)}`;
@@ -404,7 +400,7 @@ export const OMENS: BehaviourGroup = {
         cardFlag(state, "mask", "worn") ? maskTraits(figure, -1) : [],
       describe: {
         "card-marked": (event) =>
-          eventData<{ value: boolean }>(event).value
+          event.data.value
             ? "The Mask is put on"
             : "The Mask is taken off",
       },

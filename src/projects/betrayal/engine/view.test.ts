@@ -24,6 +24,7 @@ import {
 } from "../test/toy-haunt";
 import { checkViews } from "../test/view-checks";
 import type { Decision, GameEvent, GameState, Json, RuleRef, Step } from "../types";
+import type { EventData, EventOf, EventType } from "./events";
 import { describeDecision, describeWaiting } from "./describe";
 import { offerReplacement } from "./haunt";
 import { pullMonsters } from "./monsters";
@@ -384,9 +385,9 @@ describe("a shared decision", () => {
 });
 
 describe("events only some seats may see", () => {
-  const withEvent = (type: string, data: Json): GameState => {
-    const event: GameEvent = { id: "x:0", type, rule: { source: "scenario" }, data };
-    return { ...testGame(), lastEvents: [event] };
+  const withEvent = <K extends EventType>(type: K, data: EventData[K]): GameState => {
+    const event: EventOf<K> = { id: "x:0", type, rule: { source: "scenario" }, data };
+    return { ...testGame(), lastEvents: [event as GameEvent] };
   };
 
   it("shows what a figure looked at only to its seat", () => {
@@ -408,6 +409,7 @@ describe("events only some seats may see", () => {
     const forced = withEvent("forced", {
       seat: 2,
       kind: "choose-one",
+      about: null,
       choice: 0,
       label: "Put the Revolver on top of the item stack",
     });

@@ -1,20 +1,16 @@
 import type {
   CardType,
-  Edge,
   FigureId,
-  FloorId,
-  GameEvent,
   Json,
-  Role,
   Side,
   Trait,
   TurnKind,
 } from "../types";
+import type { EventType } from "./events";
 import type { Attacker } from "./combat";
 import type { CardDestination, ChosenBy, GainedBy } from "./effects";
-import type { Harm } from "./questions";
 import type { GainTrait, OutcomeNote, RowOutcome, RowSummary } from "./outcomes";
-import type { RollSpec, Words } from "./sources";
+import type { RollSpec, Wordings, Words } from "./sources";
 import type { Engine } from "./step-loop";
 import { requireBuilt } from "./haunt";
 import {
@@ -231,8 +227,12 @@ const STACK: Record<CardType, string> = {
   omen: "omen stack",
 };
 
-const data = <T extends Json>(event: Pick<GameEvent, "data">): T =>
-  event.data as T;
+/** A token by name: an explorer's own, or a kind of token. */
+function tokenName(engine: Engine, view: GameView, token: string): string {
+  return isExplorerToken(token)
+    ? `${explorerOfToken(engine, view, token).name}'s explorer token`
+    : `The ${engine.catalog.tokens[token].name} token`;
+}
 
 const capital = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
@@ -243,6 +243,17 @@ function list(items: string[]): string {
     : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
+/** An event in the words of the rule behind it, where it has its own for
+ *  events of this type. */
+function ownWords<K extends EventType>(
+  wordings: Wordings | undefined,
+  event: EventView<K>,
+  words: Words,
+): string | null {
+  const own = wordings?.[event.type];
+  return own ? own(event, words) : null;
+}
+
 /** One event in plain language, or null for bookkeeping another event in the
  *  same write already tells (a drawn card's gain, a trade's two hand-overs). */
 export function describeEvent(
@@ -251,13 +262,16 @@ export function describeEvent(
   event: EventView,
 ): string | null {
   const words = wordsFor(engine, view);
-  const own =
+  const own = ownWords(
     event.rule.source === "card"
-      ? engine.behaviours.cards[event.rule.card]?.describe?.[event.type]
+      ? engine.behaviours.cards[event.rule.card]?.describe
       : event.rule.source === "haunt"
-        ? engine.haunts[event.rule.haunt]?.behaviour.describe?.[event.type]
-        : undefined;
-  if (own) return withRule(engine, event.rule, `${own(event, words)}.`);
+        ? engine.haunts[event.rule.haunt]?.behaviour.describe
+        : undefined,
+    event,
+    words,
+  );
+  if (own !== null) return withRule(engine, event.rule, `${own}.`);
 
   const who = (figure: FigureId) => words.figure(figure);
   // A seat a view keeps back (whose monster turn it is, who was put a
@@ -270,20 +284,20 @@ export function describeEvent(
   switch (event.type) {
     case "game-started":
       return sentence(
-        `The game begins. ${seat(data<{ first: number }>(event).first)} goes first`,
+        `The game begins. ${seat(event.data.first)} goes first`,
       );
     case "turn-started": {
-      const d = data<{ seat?: number; kind: TurnKind }>(event);
+      const d = event.data;
       return sentence(`${seat(d.seat)}'s ${TURN_WORDS[d.kind]}`);
     }
     case "turn-inserted": {
-      const d = data<{ seat?: number; kind: TurnKind }>(event);
+      const d = event.data;
       return sentence(
         `${seat(d.seat)} takes an extra ${TURN_WORDS[d.kind]} next`,
       );
     }
     case "turn-ended": {
-      const d = data<{ seat?: number; room: string | null }>(event);
+      const d = event.data;
       return sentence(
         d.room === null
           ? `${seat(d.seat)} ends the turn`
@@ -292,16 +306,16 @@ export function describeEvent(
     }
     case "turn-cut-short":
       return sentence(
-        `${seat(data<{ seat?: number }>(event).seat)}'s turn ends at once`,
+        `${seat(event.data.seat)}'s turn ends at once`,
       );
     case "ready":
-      return sentence(`${seat(data<{ seat: number }>(event).seat)} is ready`);
+      return sentence(`${seat(event.data.seat)} is ready`);
     case "forced": {
       // Told as what happens in the game, never as the engine taking a
       // choice: a turn with nothing left to do passes, anything else is the
       // one thing that could happen.
       // Its one outcome reaches only the seat it was put to.
-      const d = data<{ seat?: number; kind?: string; about?: FigureId | null; label?: string }>(event);
+      const d = event.data;
       const by = d.about === undefined || d.about === null ? seat(d.seat) : who(d.about);
       if (d.kind === "turn") return sentence(`${by} can do nothing more this turn`);
       return d.label === undefined ? sentence(`${by} settles something only they may see`) : sentence(`${by}: ${d.label}`);
@@ -309,7 +323,7 @@ export function describeEvent(
     case "left":
       return null;
     case "entered": {
-      const d = data<{ figure: FigureId; room: string; moved: boolean }>(event);
+      const d = event.data;
       return sentence(
         d.moved
           ? `${who(d.figure)} enters the ${words.room(d.room)}`
@@ -317,32 +331,32 @@ export function describeEvent(
       );
     }
     case "crossed": {
-      const d = data<{ figure: FigureId; room: string }>(event);
+      const d = event.data;
       return sentence(`${who(d.figure)} crosses the ${words.room(d.room)}`);
     }
     case "discovered": {
-      const d = data<{ figure: FigureId; room: string }>(event);
+      const d = event.data;
       return sentence(`${who(d.figure)} discovers the ${words.room(d.room)}`);
     }
     case "stayed": {
-      const d = data<{ figure: FigureId; room: string }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} stays in the ${words.room(d.room)} and moves no further this turn`,
       );
     }
     case "movement-ended":
       return sentence(
-        `${who(data<{ figure: FigureId }>(event).figure)} can't move any further this turn`,
+        `${who(event.data.figure)} can't move any further this turn`,
       );
     case "card-drawn": {
-      const d = data<{ figure: FigureId; card: string; type: CardType }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} draws ${d.type === "event" ? "the event" : `the ${d.type}`} ${words.card(d.card)}`,
         d.card,
       );
     }
     case "card-gained": {
-      const d = data<{ figure: FigureId; card: string; by: GainedBy }>(event);
+      const d = event.data;
       const gained: Record<GainedBy, string | null> = {
         drawn: null,
         traded: null,
@@ -356,38 +370,27 @@ export function describeEvent(
       return text === null ? null : sentence(text, d.card);
     }
     case "card-lost": {
-      const d = data<{
-        figure: FigureId;
-        card: string;
-        destination: CardDestination;
-      }>(event);
+      const d = event.data;
       const text = lostText(engine, words, d.figure, d.card, d.destination);
       return text === null ? null : sentence(text, d.card);
     }
     case "card-marked": {
-      const d = data<{ card: string; name: string; value: number | boolean }>(
-        event,
-      );
+      const d = event.data;
       return sentence(
         `The ${words.card(d.card)}'s ${d.name} is now ${String(d.value)}`,
         d.card,
       );
     }
     case "card-used": {
-      const d = data<{ figure: FigureId; card: string }>(event);
+      const d = event.data;
       return sentence(`${who(d.figure)} uses the ${words.card(d.card)}`, d.card);
     }
     case "ongoing-ended": {
-      const d = data<{ card: string }>(event);
+      const d = event.data;
       return sentence(`The ${words.card(d.card)} ends`, d.card);
     }
     case "traded": {
-      const d = data<{
-        from: FigureId;
-        to: FigureId;
-        give: string | null;
-        take: string | null;
-      }>(event);
+      const d = event.data;
       const give = d.give === null ? null : `the ${words.card(d.give)}`;
       const take = d.take === null ? null : `the ${words.card(d.take)}`;
       if (give && take)
@@ -399,11 +402,11 @@ export function describeEvent(
         : sentence(`${who(d.to)} gives ${who(d.from)} ${take ?? ""}`);
     }
     case "trade-declined": {
-      const d = data<{ from: FigureId; to: FigureId }>(event);
+      const d = event.data;
       return sentence(`${who(d.to)} declines ${who(d.from)}'s trade`);
     }
     case "trait-changed": {
-      const d = data<{ figure: FigureId; trait: Trait; spaces: number }>(event);
+      const d = event.data;
       if (d.spaces === 0)
         return sentence(
           `${who(d.figure)}'s ${traitName(d.trait)} can't go any further`,
@@ -413,11 +416,7 @@ export function describeEvent(
       );
     }
     case "damaged": {
-      const d = data<{
-        figure: FigureId;
-        damage: string;
-        split: { [trait: string]: number };
-      }>(event);
+      const d = event.data;
       const total = Object.values(d.split).reduce((a, b) => a + b, 0);
       const parts = Object.entries(d.split)
         .filter(([, n]) => n > 0)
@@ -427,24 +426,17 @@ export function describeEvent(
       );
     }
     case "damage-converted": {
-      const d = data<{ figure: FigureId; from: string; to: string }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} takes the ${d.from} damage as ${d.to} damage instead`,
       );
     }
     case "damage-prevented": {
-      const d = data<{ figure: FigureId; damage: string }>(event);
+      const d = event.data;
       return sentence(`${who(d.figure)} takes no ${d.damage} damage`);
     }
     case "rolled": {
-      const d = data<{
-        figure: FigureId;
-        spec: RollSpec;
-        dice: number[];
-        named: number | null;
-        bonus: number;
-        result: number;
-      }>(event);
+      const d = event.data;
       const how =
         d.named === null
           ? `rolls ${d.result}${d.dice.length > 0 ? ` (dice ${d.dice.join(", ")}${d.bonus ? `, +${d.bonus}` : ""})` : ""}`
@@ -457,21 +449,17 @@ export function describeEvent(
       return sentence(`${who(d.figure)}'s ${rollName(d.spec)}: ${how}`);
     }
     case "roll-coming": {
-      const d = data<{ figure: FigureId; spec: RollSpec; pool: number }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} makes a ${rollName(d.spec)} with ${d.pool} ${d.pool === 1 ? "die" : "dice"}`,
       );
     }
     case "table-row": {
-      const d = data<{ figure: FigureId; rows: RowSummary[]; index: number }>(event);
+      const d = event.data;
       return withRule(engine, event.rule, landedText(engine, d.rows[d.index]));
     }
     case "attacked": {
-      const d = data<{
-        attacker: Attacker;
-        defender: FigureId;
-        roller: FigureId;
-      }>(event);
+      const d = event.data;
       return sentence(
         d.attacker.kind === "figure"
           ? `${who(d.attacker.figure)} attacks ${who(d.defender)}`
@@ -479,15 +467,7 @@ export function describeEvent(
       );
     }
     case "attack-outcome": {
-      const d = data<{
-        attacker: FigureId | null;
-        defender: FigureId;
-        attackResult: number;
-        defenceResult: number;
-        loser: "attacker" | "defender" | null;
-        harm: Harm | null;
-        near: boolean;
-      }>(event);
+      const d = event.data;
       const attacker = d.attacker === null ? "the attack" : who(d.attacker);
       const defender = who(d.defender);
       const score = (a: number, b: number) => `${a} to ${b}`;
@@ -509,15 +489,10 @@ export function describeEvent(
     }
     case "stunned":
       return sentence(
-        `${who(data<{ figure: FigureId }>(event).figure)} is stunned`,
+        `${who(event.data.figure)} is stunned`,
       );
     case "spawned": {
-      const d = data<{
-        definition: string;
-        figures: FigureId[];
-        room: string;
-        short: number;
-      }>(event);
+      const d = event.data;
       const name = engine.catalog.figures[d.definition].name;
       const where = `in the ${words.room(d.room)}`;
       const appear =
@@ -534,91 +509,85 @@ export function describeEvent(
     }
     case "turn-missed":
       return sentence(
-        `${who(data<{ figure: FigureId }>(event).figure)} is stunned and misses this turn`,
+        `${who(event.data.figure)} is stunned and misses this turn`,
       );
     case "recovered":
       return sentence(
-        `${who(data<{ figure: FigureId }>(event).figure)} recovers from being stunned`,
+        `${who(event.data.figure)} recovers from being stunned`,
       );
     case "acting": {
-      const d = data<{ figure: FigureId; room: string }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} acts, from the ${words.room(d.room)}`,
       );
     }
     case "side-chosen": {
-      const d = data<{ figure: FigureId; room: string; side: Edge }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} stops on the ${sideName(view.board, d.room, d.side)} side of the ${words.room(d.room)}`,
       );
     }
     case "text-ignored": {
-      const d = data<{ figure: FigureId; what: string }>(event);
+      const d = event.data;
       return sentence(`${who(d.figure)} ignores ${d.what}`);
     }
     case "traits-fixed": {
-      const d = data<{ figure: FigureId; trait: Trait }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)}'s ${traitName(d.trait)} doesn't change`,
       );
     }
     case "trait-known": {
-      const d = data<{ definition: string; trait: Trait; value: number }>(
-        event,
-      );
+      const d = event.data;
       return sentence(
         `Everyone now knows the ${engine.catalog.figures[d.definition].name}'s ${traitName(d.trait)}: ${d.value}`,
       );
     }
     case "deck-empty":
       return sentence(
-        `The ${STACK[data<{ type: CardType }>(event).type]} is empty`,
+        `The ${STACK[event.data.type]} is empty`,
       );
     case "deck-stacked": {
-      const d = data<{ figure: FigureId; type: CardType; card: string }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} puts a chosen card on top of the ${STACK[d.type]}`,
       );
     }
     case "room-stack-seen":
       return sentence(
-        `${who(data<{ figure: FigureId }>(event).figure)} looks at the top room tile`,
+        `${who(event.data.figure)} looks at the top room tile`,
       );
     case "room-bonus-spent": {
-      const d = data<{ figure: FigureId; room: string }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} has already taken the ${words.room(d.room)}'s bonus this game, so gains nothing`,
       );
     }
     case "search-found-nothing":
       return sentence(
-        `${who(data<{ figure: FigureId }>(event).figure)} finds nothing to search`,
+        `${who(event.data.figure)} finds nothing to search`,
       );
-    case "token-placed":
+    case "token-placed": {
+      const { token, room, wall } = event.data;
+      const where = wall
+        ? `on a ${wall.length === 2 ? "corner" : "wall"} of the ${words.room(room)}`
+        : `in the ${words.room(room)}`;
+      return sentence(`${tokenName(engine, view, token)} is placed ${where}`);
+    }
     case "token-removed": {
-      const d = data<{ token: string; room: string; wall?: Edge[] | null }>(
-        event,
-      );
-      const name = isExplorerToken(d.token)
-        ? `${explorerOfToken(engine, view, d.token).name}'s explorer token`
-        : `The ${engine.catalog.tokens[d.token].name} token`;
-      const where = d.wall
-        ? `on a ${d.wall.length === 2 ? "corner" : "wall"} of the ${words.room(d.room)}`
-        : `in the ${words.room(d.room)}`;
+      const { token, room } = event.data;
       return sentence(
-        event.type === "token-placed"
-          ? `${name} is placed ${where}`
-          : `${name} is removed from the ${words.room(d.room)}`,
+        `${tokenName(engine, view, token)} is removed from the ${words.room(room)}`,
       );
     }
     case "room-placed": {
-      const d = data<{ tile: string; floor: FloorId }>(event);
+      const d = event.data;
       return sentence(
         `The ${words.room(d.tile)} is put in the house, on the ${FLOOR_NAMES[d.floor]}`,
       );
     }
     case "room-moved": {
-      const d = data<{ tile: string; from: FloorId; floor: FloorId }>(event);
+      const d = event.data;
       return sentence(
         d.from === d.floor
           ? `The ${words.room(d.tile)} moves elsewhere on the ${FLOOR_NAMES[d.floor]}, with everything in it`
@@ -627,20 +596,18 @@ export function describeEvent(
     }
     case "room-stayed":
       return sentence(
-        `The ${words.room(data<{ tile: string }>(event).tile)} stays where it is`,
+        `The ${words.room(event.data.tile)} stays where it is`,
       );
     case "room-not-found":
       return sentence("No room tile is left that can go there");
     case "haunt-held-off": {
-      const d = data<{ figure: FigureId; result: number; omens: number }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} rolls ${d.result} for the haunt, not under the ${d.omens} omens drawn: the haunt holds off`,
       );
     }
     case "explorer-set-up": {
-      const d = data<{ figure: FigureId; room: string | null; traits: Trait[] }>(
-        event,
-      );
+      const d = event.data;
       const traits = d.traits.map(
         (t) => `${traitName(t)} ${String(figureIn(view, d.figure).traits[t])}`,
       );
@@ -651,19 +618,13 @@ export function describeEvent(
       return sentence(`${who(d.figure)} ${parts.join(" and ")}`);
     }
     case "slowed": {
-      const d = data<{ figure: FigureId; room: string; extra: number }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} spends ${d.extra} more ${d.extra === 1 ? "space" : "spaces"} of movement to get past opponents in the ${words.room(d.room)}`,
       );
     }
     case "died": {
-      const d = data<{
-        figure: FigureId;
-        trait: Trait | null;
-        cause: RuleView;
-        killer: FigureId | null;
-        room: string;
-      }>(event);
+      const d = event.data;
       const how =
         d.trait === null ? "" : ` as ${traitName(d.trait)} reaches the skull`;
       const by =
@@ -678,12 +639,7 @@ export function describeEvent(
     }
     case "side-set": {
       // A side set in secret comes without it for the seats it is kept from.
-      const d = data<{
-        seat: number;
-        side?: Side;
-        roles?: Role[];
-        secret: boolean;
-      }>(event);
+      const d = event.data;
       if (d.side === undefined || d.roles === undefined)
         return sentence(`${seat(d.seat)} is given a side in secret`);
       const what = d.roles.includes("traitor")
@@ -694,30 +650,25 @@ export function describeEvent(
       );
     }
     case "haunt-started": {
-      const d = data<{
-        number: number;
-        revealer: number;
-        omen: string;
-        room: string;
-      }>(event);
+      const d = event.data;
       return sentence(
         `Haunt ${d.number} begins, revealed by ${seat(d.revealer)} with the ${words.card(d.omen)} in the ${words.room(d.room)}`,
       );
     }
     case "haunt-unbuilt": {
-      const d = data<{ haunt: number; stops: boolean }>(event);
+      const d = event.data;
       return sentence(
         `Haunt ${d.haunt} isn't built yet, so ${d.stops ? "the game stops here" : "a haunt that is built is played instead"}`,
       );
     }
     case "haunt-chosen": {
-      const d = data<{ haunt: number; instead: number }>(event);
+      const d = event.data;
       return sentence(
         `Haunt ${d.haunt}, ${requireBuilt(engine, d.haunt).name}, is played in place of haunt ${d.instead}`,
       );
     }
     case "traitor-tie": {
-      const d = data<{ tied: number[]; seat: number }>(event);
+      const d = event.data;
       return sentence(
         `${list(d.tied.map(seat))} tie to be the traitor; it goes to ${seat(d.seat)}, ${d.seat === view.haunt?.revealer ? "who revealed the haunt" : "nearest the revealer's left"}`,
       );
@@ -728,13 +679,13 @@ export function describeEvent(
       );
     case "haunt-setup":
       return sentence(
-        data<{ side: "traitor" | "heroes" }>(event).side === "traitor"
+        event.data.side === "traitor"
           ? "The traitor carries out the haunt's setup"
           : "The heroes carry out the haunt's setup",
       );
     case "secret-set": {
       // Who knows it is left out where it would give away a hidden side.
-      const d = data<{ secret: string; knownBy?: number[] | null }>(event);
+      const d = event.data;
       const name = hauntName(engine, view, "secrets", d.secret);
       if (d.knownBy === undefined)
         return sentence(`The ${name} is written down in secret`);
@@ -743,7 +694,7 @@ export function describeEvent(
       return sentence(`The ${name} is written down, known to ${who}`);
     }
     case "secret-revealed": {
-      const d = data<{ secret: string }>(event);
+      const d = event.data;
       const secret = view.haunt?.secrets.find((s) => s.id === d.secret);
       if (!secret?.known)
         throw new Error(`The haunt secret ${d.secret} isn't known to this view`);
@@ -752,14 +703,14 @@ export function describeEvent(
       );
     }
     case "counter-changed": {
-      const d = data<{ counter: string; value: number }>(event);
+      const d = event.data;
       return sentence(
         `${capital(hauntName(engine, view, "counters", d.counter))}: ${d.value}`,
       );
     }
     case "status-added":
     case "status-removed": {
-      const d = data<{ figure: FigureId; status: string }>(event);
+      const d = event.data;
       const name = engine.behaviours.statuses[d.status]?.name;
       if (name === undefined)
         throw new Error(`The status ${d.status} has no name to describe it by`);
@@ -770,9 +721,7 @@ export function describeEvent(
       );
     }
     case "game-over": {
-      const d = data<{ winners: number[]; side: Side | null; tied: boolean }>(
-        event,
-      );
+      const d = event.data;
       const winners =
         d.side === "heroes"
           ? "The heroes win"
@@ -788,20 +737,13 @@ export function describeEvent(
       );
     }
     case "not-moved": {
-      const d = data<{ figure: FigureId; room: string }>(event);
+      const d = event.data;
       return sentence(
         `${who(d.figure)} can't be moved out of the ${words.room(d.room)}`,
       );
     }
     case "escaped": {
-      const d = data<{
-        figure: FigureId;
-        room: string;
-        marker: string | null;
-        counter: string | null;
-        value: number | null;
-        of: string | null;
-      }>(event);
+      const d = event.data;
       const room = words.room(d.room);
       const tile = engine.catalog.rooms[d.room];
       const way =
@@ -831,18 +773,13 @@ export function describeEvent(
     case "room-stack-shuffled":
       return sentence("The room stack is shuffled");
     case "replacement-declined": {
-      const d = data<{ definition: string }>(event);
+      const d = event.data;
       return sentence(
         `No other ${engine.catalog.figures[d.definition].name} is brought in: the chance is lost`,
       );
     }
     case "task-result": {
-      const d = data<{
-        figure: FigureId;
-        task: string;
-        success: boolean;
-        token: string | null;
-      }>(event);
+      const d = event.data;
       const won =
         d.token === null ? "" : `, and takes a ${engine.catalog.tokens[d.token].name} token`;
       return sentence(
@@ -852,15 +789,9 @@ export function describeEvent(
       );
     }
     case "haunt-revealed": {
-      const d = data<{
-        figure: FigureId;
-        result: number;
-        omens: number;
-        haunt: number;
-        charted?: number;
-      }>(event);
+      const d = event.data;
       const chosen =
-        d.charted === undefined || d.charted === d.haunt
+        d.charted === d.haunt
           ? ""
           : `, the haunt chosen for this game (the chart gave haunt ${d.charted})`;
       return sentence(

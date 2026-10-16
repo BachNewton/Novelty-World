@@ -2,7 +2,6 @@ import type {
   CardType,
   Edge,
   FigureId,
-  GameEvent,
   GameState,
   Json,
   RoomToken,
@@ -12,6 +11,7 @@ import type {
   Trait,
 } from "../types";
 import { beyondWall, roomAt } from "./board";
+import type { EventOf, EventType } from "./events";
 import { allFigures } from "./figures";
 import type {
   CardDestination,
@@ -26,6 +26,7 @@ import type {
   Unfinished,
 } from "./step-loop";
 import type { Modifier } from "./questions";
+import type { EventView } from "./view";
 
 // A rule source is anything in play whose text changes the game: a held or
 // ongoing card, a room on the board, a token in a room, a status on a figure,
@@ -191,20 +192,26 @@ export type Through = {
   roll: { trait: Trait; dice: number; min: number } | null;
 };
 
-export interface Reaction {
-  event: string;
-  when?: (
+/** A source's reaction to the events of one type: its steps, run for each
+ *  such event that passes its filter. */
+export type Reaction = { [K in EventType]: ReactionTo<K> }[EventType];
+
+/** Its members are methods so that a reaction to any one type of event is a
+ *  reaction: the loop hands each only the events of its type. */
+export interface ReactionTo<K extends EventType> {
+  event: K;
+  when?(
     state: GameState,
-    event: GameEvent,
+    event: EventOf<K>,
     source: Source,
     engine: Engine,
-  ) => boolean;
-  steps: (
+  ): boolean;
+  steps(
     state: GameState,
-    event: GameEvent,
+    event: EventOf<K>,
     source: Source,
     engine: Engine,
-  ) => Step[];
+  ): Step[];
 }
 
 /** A predicate over the state, checked after every step (section 5 of the
@@ -289,10 +296,13 @@ export interface Behaviour {
   actsFromRoom?: boolean;
   /** Plain-language wording for events this source names as their rule,
    *  where the general wording of the event type would say too little. */
-  describe?: Partial<
-    Record<string, (event: Pick<GameEvent, "type" | "data">, words: Words) => string>
-  >;
+  describe?: Wordings;
 }
+
+/** A source's own wording for events of some types, as a viewer sees them. */
+export type Wordings = {
+  [K in EventType]?: (event: EventView<K>, words: Words) => string;
+};
 
 /** Names for the things an event refers to by id. */
 export interface Words {
@@ -554,22 +564,11 @@ export function atSource(source: Source, room: string): boolean {
   return source.room === room || source.beside === room;
 }
 
-/** An event's data, typed by the event's contract. Events are stored as JSON, so the type is the emitter's promise. */
-export function eventData<T extends Json>(event: Pick<GameEvent, "data">): T {
-  return event.data as T;
-}
-
 /** A status source's data, typed by its behaviour's contract. Statuses are
  *  stored as JSON, so the type is the applying rule's promise. */
 export function statusData<T extends Json>(source: Source): T {
   if (source.status === null) throw new Error(`${source.id} isn't a status`);
   return source.status.params as T;
-}
-
-/** The figure a turn event is about: the turn's seat's explorer, if it has
- *  one. */
-export function turnFigure(event: GameEvent): FigureId | null {
-  return eventData<{ figure: FigureId | null }>(event).figure;
 }
 
 /** The registered name of a source's own step. */

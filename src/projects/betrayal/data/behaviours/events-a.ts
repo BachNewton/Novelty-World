@@ -43,7 +43,6 @@ import {
 import {
   type Behaviour,
   type BehaviourGroup,
-  eventData,
   ownSteps,
   type OwnSteps,
   type Reaction,
@@ -96,10 +95,7 @@ function holderTurnEnded(
     {
       event: "turn-ended",
       when: (state, event, source) => {
-        const { figure, room } = eventData<{
-          figure: FigureId | null;
-          room: string | null;
-        }>(event);
+        const { figure, room } = event.data;
         return (
           figure !== null &&
           room !== null &&
@@ -107,11 +103,10 @@ function holderTurnEnded(
           when(state, figure, room)
         );
       },
-      steps: (_state, event) => [
-        card.step("discard", {
-          figure: eventData<{ figure: FigureId }>(event).figure,
-        }),
-      ],
+      steps: (_state, event) => {
+        const { figure } = event.data;
+        return figure === null ? [] : [card.step("discard", { figure })];
+      },
     },
   ];
 }
@@ -764,23 +759,18 @@ export const EVENTS_A: BehaviourGroup = {
         {
           event: "turn-started",
           when: (_state, event, source) =>
-            eventData<{ figure: FigureId }>(event).figure === source.holder,
-          steps: (_state, event) => [
-            damage(
-              eventData<{ figure: FigureId }>(event).figure,
-              "physical",
-              { points: 1 },
-              card("grave-dirt"),
-            ),
-          ],
+            event.data.figure === source.holder,
+          steps: (_state, event) => {
+            const { figure } = event.data;
+            return figure === null
+              ? []
+              : [damage(figure, "physical", { points: 1 }, card("grave-dirt"))];
+          },
         },
         {
           event: "trait-changed",
           when: (_state, event, source) => {
-            const { figure, spaces } = eventData<{
-              figure: FigureId;
-              spaces: number;
-            }>(event);
+            const { figure, spaces } = event.data;
             return (
               figure === source.holder &&
               spaces > 0 &&
@@ -790,7 +780,7 @@ export const EVENTS_A: BehaviourGroup = {
           },
           steps: (_state, event) => [
             GRAVE_DIRT.step("discard", {
-              figure: eventData<{ figure: FigureId }>(event).figure,
+              figure: event.data.figure,
             }),
           ],
         },
@@ -932,18 +922,18 @@ export const EVENTS_A: BehaviourGroup = {
         {
           event: "card-used",
           when: (_state, event) =>
-            eventData<{ card: string }>(event).card === MEANT,
+            event.data.card === MEANT,
           steps: (_state, event) => [
-            discardCard(eventData<{ figure: FigureId }>(event).figure, MEANT),
+            discardCard(event.data.figure, MEANT),
           ],
         },
       ],
       steps: IT_IS_MEANT_TO_BE.steps,
       describe: {
         "card-marked": (event) =>
-          `The total ${String(eventData<{ value: number }>(event).value)} is recorded for a later roll`,
+          `The total ${String(event.data.value)} is recorded for a later roll`,
         "stack-reordered": (event, words) => {
-          const d = eventData<{ figure: FigureId; stack: Stack }>(event);
+          const d = event.data;
           return `${words.figure(d.figure)} looks at the top of the ${STACK_NAMES[d.stack]} and puts them back in an order only they know`;
         },
       },
@@ -993,12 +983,12 @@ export const EVENTS_A: BehaviourGroup = {
         {
           event: "card-gained",
           when: (_state, event, source) => {
-            const gained = eventData<{ figure: FigureId; card: string }>(event);
+            const gained = event.data;
             return gained.card === "candle" && gained.figure === source.holder;
           },
           steps: (_state, event) => [
             LIGHTS_OUT.step("discard", {
-              figure: eventData<{ figure: FigureId }>(event).figure,
+              figure: event.data.figure,
             }),
           ],
         },

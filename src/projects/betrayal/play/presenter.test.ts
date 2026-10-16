@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { describeEvent } from "../engine/describe";
-import { eventsFor, viewFor } from "../engine/view";
+import { eventsFor, viewFor, type EventView } from "../engine/view";
 import { ENGINE } from "../game";
 import { choose, explorer, inHaunt, offered, testGame } from "../testing";
 import type { GameEvent, GameState } from "../types";
@@ -307,7 +307,8 @@ describe("present", () => {
 
   it("fails loudly on an event type it has no way to show", () => {
     const view = viewFor(ENGINE, testGame(), 0);
-    const strange = { id: "x:0", type: "nonsense", rule: { source: "rulebook" as const, page: 1 }, data: null };
+    // A type no rule emits, as a stored event could carry.
+    const strange = { id: "x:0", type: "nonsense", rule: { source: "rulebook", page: 1 }, data: null } as unknown as EventView;
     expect(() => present(ENGINE, startPresentation(ENGINE, view, FLOORS), [strange], view, FLOORS)).toThrow(/nonsense/);
   });
 });

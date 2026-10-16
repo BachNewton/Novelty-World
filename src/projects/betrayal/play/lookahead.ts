@@ -1,3 +1,4 @@
+import type { EventType } from "../engine/events";
 import type { TurnChoice } from "../engine/exploration";
 import { placeOf } from "../engine/figures";
 import { askNumber, barrierSides, moveCost } from "../engine/questions";
@@ -26,7 +27,7 @@ import { isRuleDriven } from "./status";
 export interface RouteWarning {
   room: string;
   rule: RuleView;
-  event: string | null;
+  event: EventType | null;
 }
 
 /** Where a route ends: moving into a place, or exploring through one of a room's unexplored doorways. */

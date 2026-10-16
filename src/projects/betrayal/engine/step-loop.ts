@@ -9,18 +9,25 @@ import type {
   RuleRef,
   Step,
 } from "../types";
+import { ofType, type EventData, type EventOf, type EventType } from "./events";
 import { figureOf } from "./figures";
 import { checkConditions, type Haunts } from "./haunt";
 import { controllerOf } from "./questions";
 import { randomFor, SETUP_KEY, type Random } from "./random";
-import { liveSources, type Behaviours, type Through } from "./sources";
+import {
+  liveSources,
+  type Behaviours,
+  type ReactionTo,
+  type Source,
+  type Through,
+} from "./sources";
 
 /** What a step or a decision's resolution can do while the engine works. */
 export interface StepContext {
   engine: Engine;
   catalog: Catalog;
   random: Random;
-  emit: (type: string, rule: RuleRef, data?: Json) => void;
+  emit: <K extends EventType>(type: K, rule: RuleRef, data: EventData[K]) => void;
   /** Queue work. The steps run in the order given, before anything already queued. */
   push: (...steps: Step[]) => void;
   /** Pause on a decision put to seats. The engine stops running steps
@@ -318,8 +325,16 @@ function beginWrite(
     engine,
     catalog: engine.catalog,
     random: randomFor(draft.seed, randomKey),
-    emit: (type, rule, data = null) => {
-      events.push({ id: `${eventKey}:${events.length}`, type, rule, data });
+    emit: <K extends EventType>(type: K, rule: RuleRef, data: EventData[K]) => {
+      const event: EventOf<K> = {
+        id: `${eventKey}:${events.length}`,
+        type,
+        rule,
+        data,
+      };
+      // An event of one type is an event: TypeScript can't widen the
+      // generic type to the union of every type on its own.
+      events.push(event as GameEvent);
     },
     push: (...steps) => {
       draft.work.push(...[...steps].reverse());
@@ -427,16 +442,27 @@ function react(engine: Engine, draft: GameState, write: Write): void {
   const sources = liveSources(engine, draft, "reactions");
   const steps = events.flatMap((event) =>
     sources.flatMap(({ source, behaviour }) =>
-      (behaviour.reactions ?? [])
-        .filter(
-          (r) =>
-            r.event === event.type &&
-            (!r.when || r.when(draft, event, source, engine)),
-        )
-        .flatMap((r) => r.steps(draft, event, source, engine)),
+      (behaviour.reactions ?? []).flatMap((reaction) =>
+        reactionSteps(engine, draft, reaction, event, source),
+      ),
     ),
   );
   write.ctx.push(...steps);
+}
+
+/** A reaction's steps for an event: none for an event of another type, or
+ *  one its filter turns away. */
+function reactionSteps<K extends EventType>(
+  engine: Engine,
+  state: GameState,
+  reaction: ReactionTo<K>,
+  event: GameEvent,
+  source: Source,
+): Step[] {
+  const heard = ofType(event, reaction.event);
+  if (heard === null) return [];
+  if (reaction.when && !reaction.when(state, heard, source, engine)) return [];
+  return reaction.steps(state, heard, source, engine);
 }
 
 /** A deep copy of the state, which is plain JSON throughout (the saved

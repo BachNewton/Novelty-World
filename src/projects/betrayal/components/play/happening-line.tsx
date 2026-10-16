@@ -1,6 +1,4 @@
 import { rollName } from "../../engine/describe";
-import type { RowSummary } from "../../engine/outcomes";
-import type { RollSpec } from "../../engine/sources";
 import type { EventView, GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import { rollMeaning } from "../../play/dice";
@@ -21,43 +19,20 @@ import { RollTable } from "./roll-table";
  * row with its odds; once rolled, the row it landed on lit.
  */
 
-interface Coming {
-  figure: FigureId;
-  spec: RollSpec;
-  pool: number;
-  bonus: number;
-  rows: RowSummary[] | null;
-}
-
-interface TableRowData {
-  figure: FigureId;
-  rows: RowSummary[];
-  index: number;
-}
-
 /** The table under a beat's line: a roll's coming, with each row's odds, or its result, with its row lit. Null for a beat with none. */
 export function HappeningTable({ event, events }: { event: EventView; events: readonly EventView[] }) {
   if (event.type === "roll-coming") {
-    const d = event.data as unknown as Coming;
+    const d = event.data;
     if (d.rows === null) return null;
     return <RollTable rows={d.rows} odds={rowOdds(d.rows, d.pool, d.bonus)} />;
   }
   if (event.type === "rolled") {
     const row = events.find((other) => other.type === "table-row");
-    if (!row) return null;
-    const d = row.data as unknown as TableRowData;
+    if (row?.type !== "table-row") return null;
+    const d = row.data;
     return <RollTable rows={d.rows} lit={d.index} />;
   }
   return null;
-}
-
-interface Rolled {
-  figure: FigureId;
-  spec: RollSpec;
-  dice: number[];
-  named: number | null;
-  bonus: number;
-  result: number;
 }
 
 /** A room's name, as large as a discovery shows it. */
@@ -77,7 +52,7 @@ export function HappeningLine({ event, events, text, view, turnUp }: { event: Ev
   const name = (figure: FigureId) => view.figures[figure].name;
 
   if (event.type === "discovered") {
-    const d = event.data as { figure: FigureId; room: string };
+    const d = event.data;
     return (
       <span className="inline-flex flex-wrap items-baseline gap-1.5">
         <span className="sr-only">{text}</span>
@@ -90,7 +65,7 @@ export function HappeningLine({ event, events, text, view, turnUp }: { event: Ev
   }
 
   if (event.type === "roll-coming") {
-    const d = event.data as unknown as Coming;
+    const d = event.data;
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
         <span className="sr-only">{text}</span>
@@ -107,7 +82,7 @@ export function HappeningLine({ event, events, text, view, turnUp }: { event: Ev
   }
 
   if (event.type === "rolled") {
-    const d = event.data as unknown as Rolled;
+    const d = event.data;
     // A card's attacker's dice thrown for it read as the engine words them.
     if (d.spec.kind === "attack" && d.spec.dice !== null) return text;
     // A roll with a table says what it means by the row lit under the line.
@@ -129,14 +104,19 @@ export function HappeningLine({ event, events, text, view, turnUp }: { event: Ev
   }
 
   if (event.type === "damaged" || event.type === "trait-changed") {
-    const d = event.data as { figure: FigureId; damage?: "physical" | "mental"; split?: Partial<Record<Trait, number>>; trait?: Trait; spaces?: number };
-    const changes = d.split ? Object.entries(d.split).flatMap(([trait, n]) => (n > 0 ? [[trait as Trait, -n] as const] : [])) : d.trait && d.spaces ? [[d.trait, d.spaces] as const] : [];
+    const damage = event.type === "damaged" ? event.data.damage : null;
+    const changes =
+      event.type === "damaged"
+        ? Object.entries(event.data.split).flatMap(([trait, n]) => (n > 0 ? [[trait as Trait, -n] as const] : []))
+        : event.data.spaces !== 0
+          ? [[event.data.trait, event.data.spaces] as const]
+          : [];
     if (changes.length === 0) return text;
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
         <span className="sr-only">{text}</span>
-        <span aria-hidden>{name(d.figure)}</span>
-        {d.damage && <DamageIcon kind={d.damage} className="size-4 text-(--bt-danger)" />}
+        <span aria-hidden>{name(event.data.figure)}</span>
+        {damage && <DamageIcon kind={damage} className="size-4 text-(--bt-danger)" />}
         {changes.map(([trait, spaces]) => (
           <span key={trait} aria-hidden className={`inline-flex items-center gap-0.5 font-semibold ${spaces > 0 ? "text-(--bt-mood-supernatural)" : "text-(--bt-danger)"}`}>
             {spaces > 0 ? "+" : "−"}

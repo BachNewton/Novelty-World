@@ -618,7 +618,7 @@ function describeTurnChoice(
 type Move = { figure: FigureId; to: string; side: Edge | null };
 type Discover = { figure: FigureId; direction: Edge };
 type Placing = { figure: FigureId; tile: string; doorway: Doorway };
-type Trade = {
+export type Trade = {
   from: FigureId;
   to: FigureId;
   give: string | null;

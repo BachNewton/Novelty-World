@@ -1,3 +1,4 @@
+import type { EventOf } from "../../engine/events";
 import { FLOOR_NAMES, placed } from "../../engine/board";
 import { allFigures, figureDefinition, placeOf } from "../../engine/figures";
 import {
@@ -18,7 +19,6 @@ import {
   table,
 } from "../../engine/effects";
 import {
-  eventData,
   ownSteps,
   type Behaviour,
   type BehaviourGroup,
@@ -41,7 +41,6 @@ import {
 import type {
   FigureId,
   FloorId,
-  GameEvent,
   GameState,
   RuleRef,
   Step,
@@ -60,10 +59,8 @@ function explorerToken(state: GameState, figure: FigureId): string {
 
 /** The figure that ended its seat's turn in this room, if one did: the
  *  seat's explorer. */
-function endedHere(event: GameEvent, room: string): FigureId | null {
-  const ended = eventData<{ figure: FigureId | null; room: string | null }>(
-    event,
-  );
+function endedHere(event: EventOf<"turn-ended">, room: string): FigureId | null {
+  const ended = event.data;
   return ended.room === room ? ended.figure : null;
 }
 
@@ -258,14 +255,16 @@ function barrierRoom(trait: Trait, target: number): Behaviour {
 }
 
 type Subject = { figure: FigureId };
-type Entered = { figure: FigureId; room: string; discovered?: boolean };
 
 /** The figure that entered this room, or ended its seat's turn in it. */
-function arrivedOrEnded(event: GameEvent, room: string): FigureId | null {
+function arrivedOrEnded(
+  event: EventOf<"entered" | "turn-ended">,
+  room: string,
+): FigureId | null {
   return event.type === "turn-ended"
     ? endedHere(event, room)
-    : eventData<Entered>(event).room === room
-      ? eventData<Entered>(event).figure
+    : event.data.room === room
+      ? event.data.figure
       : null;
 }
 
@@ -483,6 +482,42 @@ const MYSTIC_ELEVATOR = ownSteps(ELEVATOR, {
   }),
 });
 
+/** The Mystic Elevator's ride, for whoever enters it or ends a turn in it. */
+const ELEVATOR_RIDE = {
+  when: (
+    state: GameState,
+    event: EventOf<"entered" | "turn-ended">,
+    source: Source,
+    engine: Engine,
+  ) => {
+    const figure = arrivedOrEnded(event, source.id);
+    if (
+      figure === null ||
+      state.turn === null ||
+      !onTurn(engine, state, figure)
+    )
+      return false;
+    return freeRider(engine, state, figure)
+      ? event.type === "entered" && !state.turn.setUses.includes(ELEVATOR)
+      : !attempted(state, figure, ELEVATOR);
+  },
+  steps: (
+    state: GameState,
+    event: EventOf<"entered" | "turn-ended">,
+    source: Source,
+    engine: Engine,
+  ) => {
+    const figure = arrivedOrEnded(event, source.id);
+    if (figure === null) return [];
+    return [
+      MYSTIC_ELEVATOR.step(
+        freeRider(engine, state, figure) ? "send" : "ride",
+        { figure },
+      ),
+    ];
+  },
+};
+
 /** Room tiles with text, from content/rooms.md. */
 export const ROOMS: BehaviourGroup = {
   rooms: {
@@ -573,11 +608,11 @@ export const ROOMS: BehaviourGroup = {
           // roll is harmful text.
           event: "entered",
           when: (_state, event, source) => {
-            const d = eventData<Entered>(event);
+            const d = event.data;
             return d.room === source.id && d.discovered === true;
           },
           steps: (_state, event, source) => {
-            const { figure } = eventData<Entered>(event);
+            const { figure } = event.data;
             return [
               harmful(figure, source.rule, {
                 what: "the roll to avoid falling",
@@ -623,40 +658,10 @@ export const ROOMS: BehaviourGroup = {
       // traitor and monsters, whom its text doesn't bind, send it where they
       // choose without rolling when they enter it, once over the traitor's
       // turn and the monster turn after it (p. 8, ruling harmful-text).
-      reactions: (["entered", "turn-ended"] as const).map((type) => ({
-        event: type,
-        when: (
-          state: GameState,
-          event: GameEvent,
-          source: Source,
-          engine: Engine,
-        ) => {
-          const figure = arrivedOrEnded(event, source.id);
-          if (
-            figure === null ||
-            state.turn === null ||
-            !onTurn(engine, state, figure)
-          )
-            return false;
-          return freeRider(engine, state, figure)
-            ? type === "entered" && !state.turn.setUses.includes(ELEVATOR)
-            : !attempted(state, figure, ELEVATOR);
-        },
-        steps: (
-          state: GameState,
-          event: GameEvent,
-          source: Source,
-          engine: Engine,
-        ) => {
-          const figure = arrivedOrEnded(event, source.id);
-          if (figure === null) return [];
-          return [
-            MYSTIC_ELEVATOR.step(freeRider(engine, state, figure) ? "send" : "ride",
-              { figure },
-            ),
-          ];
-        },
-      })),
+      reactions: [
+        { event: "entered", ...ELEVATOR_RIDE },
+        { event: "turn-ended", ...ELEVATOR_RIDE },
+      ],
       steps: MYSTIC_ELEVATOR.steps,
     },
 
@@ -673,12 +678,12 @@ export const ROOMS: BehaviourGroup = {
           // spends no movement (p. 7). Climbing up into it isn't sliding.
           event: "entered",
           when: (_state, event, source) => {
-            const d = eventData<{ room: string; from?: string }>(event);
+            const d = event.data;
             return d.room === source.id && d.from !== LANDING;
           },
           steps: (_state, event, source) => [
             relocate(
-              eventData<{ figure: FigureId }>(event).figure,
+              event.data.figure,
               LANDING,
               source.rule,
             ),

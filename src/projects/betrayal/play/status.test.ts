@@ -86,7 +86,7 @@ describe("ruleStatement", () => {
 
   it("names a rulebook rule by its page's sections, never the page", () => {
     expect(ruleName(ENGINE, notes, { source: "rulebook", page: 6 })).toBe("On Your Turn, Move, Discover a New Room");
-    expect(ruleStatement(ENGINE, notes, { source: "rulebook", page: 6 }, { type: "stayed", data: {} })).toBe("On Your Turn, Move, Discover a New Room.");
+    expect(ruleStatement(ENGINE, notes, { source: "rulebook", page: 6 }, "stayed")).toBe("On Your Turn, Move, Discover a New Room.");
   });
 });
 

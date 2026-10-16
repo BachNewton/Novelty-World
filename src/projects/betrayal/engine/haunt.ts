@@ -8,6 +8,7 @@ import type {
   HauntTexts,
   InsertedTurn,
   Json,
+  Role,
   RuleRef,
   Seat,
   Status,
@@ -574,7 +575,7 @@ export function offerReplacement(
   return step("offer-replacement", { definition, ...how, rule });
 }
 
-type TaskResult = {
+export type TaskResult = {
   figure: FigureId;
   /** What the roll is for, in words ("wake the dreamer"). */
   task: string;
@@ -826,18 +827,18 @@ export const HAUNT_STEPS = {
         seat: chosen.traitors[0],
       });
     const traitor = chosen.traitors.at(0);
-    state.seats = state.seats.map((seat, i) => {
-      const isTraitor = chosen.traitors.includes(i);
-      return {
-        ...seat,
-        side: isTraitor ? "traitor" : "heroes",
-        roles: isTraitor ? ["traitor"] : [],
-        knownBy:
-          chosen.hidden && traitor !== undefined
-            ? hiddenKnowledge(i, traitor)
-            : null,
-      };
-    });
+    const dealt = (seat: number): { side: Side; roles: Role[] } =>
+      chosen.traitors.includes(seat)
+        ? { side: "traitor", roles: ["traitor"] }
+        : { side: "heroes", roles: [] };
+    state.seats = state.seats.map((seat, i) => ({
+      ...seat,
+      ...dealt(i),
+      knownBy:
+        chosen.hidden && traitor !== undefined
+          ? hiddenKnowledge(i, traitor)
+          : null,
+    }));
     if (chosen.hidden) {
       ctx.emit("sides-dealt", rulebook(17), {});
       return;
@@ -846,10 +847,8 @@ export const HAUNT_STEPS = {
       ...chosen.traitors,
       ...state.seats.map((_s, i) => i).filter((i) => !chosen.traitors.includes(i)),
     ];
-    for (const seat of order) {
-      const { side, roles } = state.seats[seat];
-      ctx.emit("side-set", rulebook(15), { seat, side, roles, secret: false });
-    }
+    for (const seat of order)
+      ctx.emit("side-set", rulebook(15), { seat, ...dealt(seat), secret: false });
   }),
 
   // The traitor's explorer is freed from the event cards impeding them
