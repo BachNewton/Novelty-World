@@ -30,3 +30,17 @@ v1 trades at 4 cards, and trades a second set at 6, whenever the armies buy the 
 ### Speed
 
 A 6-player self-play game first averaged 78ms a decision (worst 4.8s), 95% of it in path runs the threat model asked for again and again. Remembering path runs (they are pure) and dropping chances under 10⁻¹² brought that to 6.5ms (worst 123ms), with the engine about 2% of a game.
+
+### Against greedy (gauntlet, 2026-10-16)
+
+`risk:gauntlet -- rule-v1 --field greedy --base greedy`, train seeds, 14 workers. Every pairing that finished was decided **better** for v1 at the ±30 Elo SPRT, and most within a few dozen decisive games, which a 30-Elo test only does when the edge is far larger than 30 Elo:
+
+| Pairing | Decisive games to decide |
+|---|---|
+| 1 v1 vs 2 greedy (3p) | 69 |
+| 2 v1 vs 1 greedy (3p) | 435 |
+| 1 v1 vs 3 greedy (4p) | 48 |
+| 3 v1 vs 1 greedy (4p) | 148 |
+| 1 v1 vs 5 greedy (6p) | 36 |
+
+The sixth pairing (5 v1 vs 1 greedy, 6p) was stopped after about 40 minutes, with the pool running on about 3 of its 14 cores: tables of five v1s are the costliest games there are, and a few long ones held each batch. No Elo was fitted, since the run did not finish. greedy has done its job as v1's bar; like `random`, it now stays out of v1's successors' fields, which are v1 and later versions, and is named only for a floor check. The slow 6-player tail is a speed question for v1 (where its time goes), not a reason to add weaker opponents.
