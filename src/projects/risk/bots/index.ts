@@ -2,7 +2,8 @@ import type { Bot } from "./bot";
 import { gdAggressiveBot, gdContinentalBot, gdDefensiveBot, gdStackerBot } from "./gd";
 import { greedyBot } from "./greedy";
 import { randomBot } from "./random";
-import { ruleV1Bot } from "./rule-v1";
+import { ruleBot, ruleV1Bot } from "./rule-v1";
+import { V1_PARAMS, type Engine, type Preferences } from "./rule-v1/params";
 
 /** Every bot the measuring harness can seat, by label. */
 export const RISK_BOTS: Readonly<Record<string, Bot>> = {
@@ -15,7 +16,45 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "gd-stacker": gdStackerBot,
 };
 
+/** The rule bots a measuring run may seat with some settings moved, each by its code and
+ *  its own settings: its preferences and its work knob. Never its opponent model, which is
+ *  pinned (`rule-v1/params.ts`). */
+export const TUNABLE_BOTS: Readonly<Record<string, { prefs: Preferences; engine: Engine; build: (prefs: Preferences, engine: Engine) => Bot }>> = {
+  "rule-v1": { prefs: V1_PARAMS.prefs, engine: V1_PARAMS.engine, build: (prefs, engine) => ruleBot({ ...V1_PARAMS, prefs, engine }) },
+};
+
+export type Overrides = Partial<Preferences & Engine>;
+
+/** The label that seats `base` with some settings overridden: `rule-v1~{"borderWeight":0.7}`. */
+export function tunedLabel(base: string, overrides: Overrides): string {
+  return `${base}~${JSON.stringify(overrides)}`;
+}
+
+const tuned = new Map<string, Bot>();
+
+function tunedBot(label: string): Bot | null {
+  const at = label.indexOf("~");
+  if (at < 0) return null;
+  const base = label.slice(0, at);
+  if (!Object.hasOwn(TUNABLE_BOTS, base)) throw new Error(`no tunable Risk bot "${base}" (tunable: ${Object.keys(TUNABLE_BOTS).join(", ")})`);
+  const known = tuned.get(label);
+  if (known) return known;
+  const overrides = JSON.parse(label.slice(at + 1)) as Record<string, number>;
+  const { prefs, engine, build } = TUNABLE_BOTS[base];
+  const moved = { prefs: { ...prefs }, engine: { ...engine } };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (Object.hasOwn(prefs, key)) moved.prefs[key as keyof Preferences] = value;
+    else if (Object.hasOwn(engine, key)) moved.engine[key as keyof Engine] = value;
+    else throw new Error(`"${base}" has no setting "${key}"`);
+  }
+  const bot = build(moved.prefs, moved.engine);
+  tuned.set(label, bot);
+  return bot;
+}
+
 export function riskBot(label: string): Bot {
+  const bot = tunedBot(label);
+  if (bot) return bot;
   if (!Object.hasOwn(RISK_BOTS, label)) {
     throw new Error(`no Risk bot "${label}" (known: ${Object.keys(RISK_BOTS).join(", ")})`);
   }

@@ -86,10 +86,15 @@ describe("the lobby", () => {
   it("seats the bot asked for, and only a bot it knows", async () => {
     const deps = testDeps(ENGINE, memoryStore().store);
     await ok(deps, { op: "create", profile: ALICE });
-    for (const bot of BOT_IDS) await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot });
+    // More bots are seatable than one table holds, so each takes the free seat in turn.
+    for (const bot of BOT_IDS) {
+      const added = await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot });
+      expect(added.seats[1]).toEqual({ kind: "bot", bot });
+      await ok(deps, { op: "remove-seat", game: "GAME", profile: ALICE, seat: 1 });
+    }
     const row = await handle(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot: "skynet" });
     expect(row).toMatchObject({ ok: false, reason: "There's no such bot" });
-    expect(row.row?.seats.slice(1)).toEqual(BOT_IDS.map((bot) => ({ kind: "bot", bot })));
+    expect(row.row?.seats).toHaveLength(1);
   });
 
   it("changes a bot seat's bot while the table gathers, and nothing else", async () => {
@@ -275,30 +280,35 @@ describe("driving bot seats", () => {
   });
 
   it("plays each seat with the bot its row names", async () => {
-    const { deps, db } = await botGame(2);
-    const row = db.rows.get("GAME");
-    if (!row) throw new Error("No game");
-    // Every seat a bot, so the drive plays them all.
-    db.rows.set("GAME", { ...row, seats: BOT_IDS.map((bot) => ({ kind: "bot", bot })) });
-    const asked: BotId[] = [];
-    const real = BOT_IDS.map((id) => SEAT_BOTS[id].bot);
-    for (const id of BOT_IDS) {
-      const bot = SEAT_BOTS[id].bot;
-      SEAT_BOTS[id].bot = (input) => {
-        asked.push(id);
-        return bot(input);
-      };
+    // A 3-seat game at a time, every seatable bot in some seat.
+    for (let from = 0; from < BOT_IDS.length; from += 3) {
+      const seats = [0, 1, 2].map((k) => BOT_IDS[(from + k) % BOT_IDS.length]);
+      const { deps, db } = await botGame(2);
+      const row = db.rows.get("GAME");
+      if (!row) throw new Error("No game");
+      // Every seat a bot, so the drive plays them all.
+      db.rows.set("GAME", { ...row, seats: seats.map((bot) => ({ kind: "bot", bot })) });
+      const asked: BotId[] = [];
+      const real = seats.map((id) => SEAT_BOTS[id].bot);
+      for (const id of new Set(seats)) {
+        const bot = SEAT_BOTS[id].bot;
+        SEAT_BOTS[id].bot = (input) => {
+          asked.push(id);
+          return bot(input);
+        };
+      }
+      try {
+        await drive(deps, "GAME");
+      } finally {
+        seats.forEach((id, i) => (SEAT_BOTS[id].bot = real[i]));
+      }
+      const log = db.moves.get("GAME") ?? [];
+      expect(new Set(asked)).toEqual(new Set(seats));
+      expect(log.map((m) => m.controller)).toEqual(log.map((m) => ({ kind: "bot", bot: seats[m.seat] })));
+      expect(asked).toEqual(log.map((m) => seats[m.seat]));
     }
-    try {
-      await drive(deps, "GAME");
-    } finally {
-      BOT_IDS.forEach((id, i) => (SEAT_BOTS[id].bot = real[i]));
-    }
-    const log = db.moves.get("GAME") ?? [];
-    expect(new Set(asked)).toEqual(new Set(BOT_IDS));
-    expect(log.map((m) => m.controller)).toEqual(log.map((m) => ({ kind: "bot", bot: BOT_IDS[m.seat] })));
-    expect(asked).toEqual(log.map((m) => BOT_IDS[m.seat]));
   });
+
 
   it("fails loudly on a row that names a bot no longer seated", async () => {
     const { deps, db } = await botGame(2);

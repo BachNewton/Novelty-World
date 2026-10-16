@@ -2,7 +2,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 
 // ---------------------------------------------------------------------------
 // SNES — Separable Natural Evolution Strategy (Schaul et al. 2011), a compact,
-// robust black-box optimizer for the bot's parameter vector. It maintains a
+// robust black-box optimizer for a bot's parameter vector (Monopoly's and Risk's). It maintains a
 // per-dimension Gaussian (mean μ, std σ) in NORMALIZED [0,1] space (so every
 // parameter shares one scale regardless of its real-world units), samples a
 // population each generation, ranks them by fitness, and follows the

@@ -8,7 +8,7 @@ import {
   FitnessPool,
   type MaximinOutcome,
 } from "../optimize/fitness";
-import { Snes } from "../optimize/snes";
+import { Snes } from "@/shared/lib/bot-lab/snes";
 import {
   clampParams,
   DEFAULT_PARAMS,

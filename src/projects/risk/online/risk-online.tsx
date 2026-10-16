@@ -10,7 +10,7 @@ import { usePadNavigation } from "@/shared/lib/gamepad";
 import { useProfile } from "@/shared/lib/profile";
 import type { Move } from "../contract";
 import { BotBadge, BotStepper } from "./bot-picker";
-import { DEFAULT_BOT, seatBot, type BotId } from "./seat-bots";
+import { botName, DEFAULT_BOT, type BotId } from "./seat-bots";
 import type { Response } from "./protocol";
 import { browserIo, browserLobbyIo } from "./client";
 import type { OpenAction, TableSummary } from "./lobby";
@@ -206,7 +206,7 @@ function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table
         {seated && !full && (
           <div className="flex justify-center">
             <BotStepper bot={nextBot} onChange={setNextBot}>
-              <Button variant="ghost" aria-label={`Add a ${seatBot(nextBot).rank} bot`} title="Add a bot" onClick={() => store.addBot(nextBot)} className="min-w-0 gap-2" data-pad-start>
+              <Button variant="ghost" aria-label={`Add ${botName(nextBot)}`} title="Add a bot" onClick={() => store.addBot(nextBot)} className="min-w-0 gap-2" data-pad-start>
                 <Plus aria-hidden size={18} className="shrink-0" />
                 <Bot aria-hidden size={18} className="shrink-0" />
                 <BotBadge bot={nextBot} />

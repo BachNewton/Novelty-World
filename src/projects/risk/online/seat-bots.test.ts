@@ -1,12 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { RISK_BOTS } from "../bots";
-import { BOT_IDS, botName, DEFAULT_BOT, RANKS, SEAT_BOTS, seatBot, strength, type BotId } from "./seat-bots";
+import { BOT_IDS, botName, DEFAULT_BOT, ELO, eloOf, RANKS, rankOf, SEAT_BOTS, seatBot, strength, type BotId } from "./seat-bots";
 
 describe("the seatable bots", () => {
-  it("take the lowest rungs of the ladder, one each, in order of strength", () => {
+  it("take the lowest rungs of the ladder, one each, in order of measured Elo", () => {
     expect(new Set(RANKS).size).toBe(RANKS.length);
-    expect(BOT_IDS.map((id) => SEAT_BOTS[id].rank)).toEqual(RANKS.slice(0, BOT_IDS.length));
+    expect(BOT_IDS.map(rankOf)).toEqual(RANKS.slice(0, BOT_IDS.length));
     expect(BOT_IDS.map(strength)).toEqual(BOT_IDS.map((_, i) => i + 1));
+    const rated = BOT_IDS.filter((id) => eloOf(id) !== null);
+    expect(rated.map((id) => eloOf(id))).toEqual(rated.map((id) => eloOf(id)).sort((a, b) => (a ?? 0) - (b ?? 0)));
+  });
+
+  it("each have a measured Elo, except random, which never wins and ranks below them all", () => {
+    expect(Object.keys(ELO).sort()).toEqual(BOT_IDS.filter((id) => id !== "random").sort());
+    expect(eloOf("random")).toBeNull();
+    expect(BOT_IDS[0]).toBe("random");
+    expect(eloOf("greedy")).toBe(1000);
+  });
+
+  it("include GD's four Expert personas, whatever they rank", () => {
+    for (const id of ["gd-defensive", "gd-continental", "gd-aggressive", "gd-stacker"] as const) {
+      expect(BOT_IDS).toContain(id);
+      expect(seatBot(id).version).toBe("Expert");
+    }
   });
 
   it("are the measured bots themselves", () => {
@@ -14,12 +30,13 @@ describe("the seatable bots", () => {
   });
 
   it("seat the strongest by default", () => {
-    expect(DEFAULT_BOT).toBe("rule-v1");
     expect(strength(DEFAULT_BOT)).toBe(BOT_IDS.length);
+    for (const id of BOT_IDS) expect(eloOf(id) ?? -Infinity).toBeLessThanOrEqual(eloOf(DEFAULT_BOT) ?? -Infinity);
   });
 
-  it("fail loudly on a bot no longer seated", () => {
-    expect(botName("random")).toBe("Recruit (bot)");
+  it("are named by rank, name and version, and fail loudly on a bot no longer seated", () => {
+    expect(botName("random")).toBe("Recruit · Random Baseline");
+    expect(botName("rule-v1")).toBe(`${rankOf("rule-v1")} · Rule v1`);
     expect(() => seatBot("retired" as BotId)).toThrow(/no seatable bot "retired"/);
   });
 });

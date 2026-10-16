@@ -32,6 +32,7 @@
     "risk:gauntlet": "tsx src/projects/risk/eval/gauntlet-cli.ts",
     "risk:ratings": "tsx src/projects/risk/eval/ratings-cli.ts",
     "risk:verify": "tsx src/projects/risk/eval/verify-cli.ts",
+    "risk:tune": "tsx src/projects/risk/eval/tune-cli.ts",
     "bench": "vitest bench --run",
     "relay:deploy": "bash relay/deploy.sh",
     "frogmino:prove": "tsx src/projects/frogmino/proof/prove-cli.ts",

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
-import { BOT_IDS, seatBot, strength, type BotId } from "./seat-bots";
+import { BOT_IDS, eloOf, fullName, rankOf, strength, type BotId } from "./seat-bots";
 
 /** A bot's strength among the bots a table can seat, as rising bars: the weakest lights one,
  *  the strongest all. */
@@ -19,12 +19,23 @@ export function StrengthBars({ bot }: { bot: BotId }) {
   );
 }
 
-/** A bot's rank and its strength. */
+/** A bot's rank and name over its version, beside its strength among the seatable bots
+ *  as bars over its measured Elo (a dash for a bot that never wins). */
 export function BotBadge({ bot }: { bot: BotId }) {
+  const elo = eloOf(bot);
+  const eloLabel = elo === null ? "Never wins, so it has no Elo" : `Elo ${Math.round(elo).toString()} (Greedy is 1000)`;
   return (
-    <span className="flex min-w-0 items-center gap-2">
-      <span className="truncate">{seatBot(bot).rank}</span>
-      <StrengthBars bot={bot} />
+    <span className="flex min-w-0 items-center gap-2 text-left leading-tight">
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate font-medium">{rankOf(bot)}</span>
+        <span className="truncate text-xs text-text-secondary">{fullName(bot)}</span>
+      </span>
+      <span className="flex shrink-0 flex-col items-center gap-0.5">
+        <StrengthBars bot={bot} />
+        <span role="img" aria-label={eloLabel} title={eloLabel} className="text-xs tabular-nums text-text-secondary">
+          {elo === null ? "–" : Math.round(elo).toString()}
+        </span>
+      </span>
     </span>
   );
 }
