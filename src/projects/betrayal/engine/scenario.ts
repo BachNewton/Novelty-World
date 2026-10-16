@@ -10,7 +10,7 @@ import type {
   Trait,
 } from "../types";
 import { placed } from "./board";
-import { defineStep, gainCard, IN_HAND, moveCard } from "./effects";
+import { defineStep, gainCard, IN_TRANSIT, moveCard } from "./effects";
 import { putFigure, seatExplorer, trackTraits, TRAITS } from "./figures";
 import { barrierSides } from "./questions";
 import type { Engine, StepKind } from "./step-loop";
@@ -284,7 +284,7 @@ export function stackScenario(
   scenario: PreparedScenario,
 ): void {
   for (const card of scenario.explorers.flatMap((e) => e.cards))
-    moveCard(state, card, { at: "deck", type: catalog.cards[card].type }, IN_HAND);
+    moveCard(state, card, { at: "deck", type: catalog.cards[card].type }, IN_TRANSIT);
   for (const type of CARD_TYPES) {
     const top = scenario.decks[type];
     state.decks[type].draw = [

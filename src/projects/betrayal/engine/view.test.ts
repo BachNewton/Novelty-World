@@ -72,7 +72,7 @@ describe("before the haunt", () => {
     between.board.drawn = "vault";
     for (const seat of SEATS) {
       const text = json(ENGINE, between, seat);
-      for (const key of ["inHand", "drawn"]) expect(text).not.toContain(`"${key}":`);
+      for (const key of ["inTransit", "drawn"]) expect(text).not.toContain(`"${key}":`);
       for (const id of ["revolver", "vault"]) expect(text).not.toContain(`"${id}"`);
     }
   });

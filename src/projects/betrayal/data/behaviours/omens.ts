@@ -6,7 +6,7 @@ import {
   gain,
   gainCard,
   handle,
-  IN_HAND,
+  IN_TRANSIT,
   isHandled,
   loseCard,
   markCard,
@@ -174,7 +174,7 @@ const DOG_STEPS = ownSteps("dog", {
   }),
   // The holder gets what the Dog fetches when it comes back to them.
   fetch: defineStep<DogCarry>((state, p, ctx) => {
-    moveCard(state, p.card, { at: "pile", room: p.room }, IN_HAND);
+    moveCard(state, p.card, { at: "pile", room: p.room }, IN_TRANSIT);
     handle(state, p.card);
     ctx.push(gainCard(p.figure, p.card, "picked-up", DOG));
   }),

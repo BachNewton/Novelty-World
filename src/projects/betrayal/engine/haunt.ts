@@ -159,7 +159,7 @@ export function revealHaunt(
 ): void {
   // The haunt roll comes once the turn's work is done, so none of the work
   // dropped here was still to put a card or tile where it goes.
-  if (state.inHand.length > 0 || state.board.drawn !== null)
+  if (state.inTransit.length > 0 || state.board.drawn !== null)
     throw new Error("The haunt began with a card or tile between two places");
   state.haunt = { ...reveal, secrets: [], counters: {} };
   state.status = "haunt";

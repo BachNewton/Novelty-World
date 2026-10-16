@@ -40,7 +40,7 @@ import {
   gainCard,
   goOut,
   handle,
-  IN_HAND,
+  IN_TRANSIT,
   isHandled,
   leaveRoom,
   loseCard,
@@ -796,7 +796,7 @@ export const EXPLORATION_STEPS = {
 
   pickup: defineStep<Drop>((state, p, ctx) => {
     const room = placeOf(state, p.figure).room;
-    moveCard(state, p.card, { at: "pile", room }, IN_HAND);
+    moveCard(state, p.card, { at: "pile", room }, IN_TRANSIT);
     handle(state, p.card);
     if (state.turn) state.turn.pickupRoom = room;
     ctx.push(gainCard(p.figure, p.card, "picked-up", RULEBOOK(11)));

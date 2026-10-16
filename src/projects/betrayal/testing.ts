@@ -200,7 +200,7 @@ function takeCard(state: GameState, card: string): void {
     state.piles[room] = state.piles[room].filter((c) => c !== card);
   state.ongoing = state.ongoing.filter((c) => c !== card);
   state.aside = state.aside.filter((a) => a.card !== card);
-  state.inHand = state.inHand.filter((c) => c !== card);
+  state.inTransit = state.inTransit.filter((c) => c !== card);
 }
 
 /** Gives the seat's explorer cards, as a test's setup, taking each from
@@ -222,7 +222,7 @@ export function pile(state: GameState, room: string, ...cards: string[]): void {
  *  way to where that work puts them. */
 export function drawn(state: GameState, ...cards: string[]): void {
   for (const card of cards) takeCard(state, card);
-  state.inHand.push(...cards);
+  state.inTransit.push(...cards);
 }
 
 /** Puts cards on their discard piles, as a test's setup does for a card

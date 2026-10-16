@@ -25,7 +25,7 @@ export function emptyState(
     tokens: [],
     ongoing: [],
     aside: [],
-    inHand: [],
+    inTransit: [],
     cardMarks: {},
     turn: null,
     insertedTurns: [],

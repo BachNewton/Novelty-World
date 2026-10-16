@@ -520,7 +520,7 @@ export interface GameState {
   /** Cards in someone's hand for a moment, between two places: drawn and
    *  not yet taken or put away (an event card being read), or on their way
    *  from one holder to the next. */
-  inHand: string[];
+  inTransit: string[];
   /** Counters and flags on cards in play, by card id, then by name. */
   cardMarks: Partial<Record<string, Record<string, CardMark>>>;
   turn: Turn | null;

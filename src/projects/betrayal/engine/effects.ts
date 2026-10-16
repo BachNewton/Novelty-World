@@ -251,9 +251,9 @@ export type CardPlace =
   | { at: "pile"; room: string }
   | { at: "ongoing" }
   | { at: "aside"; room: string | null }
-  | { at: "hand" };
+  | { at: "transit" };
 
-export const IN_HAND: CardPlace = { at: "hand" };
+export const IN_TRANSIT: CardPlace = { at: "transit" };
 
 /** Moves a card from one place to another. Every card the engine moves
  *  goes through here, and a card that isn't where the move says is a bug. */
@@ -302,8 +302,8 @@ function takeCard(state: GameState, card: string, from: CardPlace): void {
       state.aside.splice(index, 1);
       return;
     }
-    case "hand":
-      state.inHand = without(state.inHand);
+    case "transit":
+      state.inTransit = without(state.inTransit);
       return;
   }
 }
@@ -328,8 +328,8 @@ function putCard(state: GameState, card: string, to: CardPlace): void {
     case "aside":
       state.aside.push({ card, room: to.room });
       return;
-    case "hand":
-      state.inHand.push(card);
+    case "transit":
+      state.inTransit.push(card);
       return;
   }
 }
@@ -1472,7 +1472,7 @@ export const EFFECT_STEPS = {
       ctx.emit("deck-empty", p.rule, { type: p.type });
       return;
     }
-    moveCard(state, card, { at: "deck", type: p.type }, IN_HAND);
+    moveCard(state, card, { at: "deck", type: p.type }, IN_TRANSIT);
     const room = placeOf(state, p.figure).room;
     endMovementOf(state, p.figure);
     ctx.emit("card-drawn", p.rule, { figure: p.figure, card, type: p.type });
@@ -1503,13 +1503,13 @@ export const EFFECT_STEPS = {
 
   // A card kept, or in play as an ongoing event, has left the hand already.
   "settle-event": defineStep<{ card: string }>((state, p) => {
-    if (!state.inHand.includes(p.card)) return;
-    moveCard(state, p.card, IN_HAND, { at: "discard", type: "event" });
+    if (!state.inTransit.includes(p.card)) return;
+    moveCard(state, p.card, IN_TRANSIT, { at: "discard", type: "event" });
     clearMarks(state, p.card, "all");
   }),
 
   "take-custody": defineStep<Custody>((state, p, ctx) => {
-    moveCard(state, p.card, { at: "aside", room: p.room }, IN_HAND);
+    moveCard(state, p.card, { at: "aside", room: p.room }, IN_TRANSIT);
     ctx.push(gainCard(p.figure, p.card, "custody", rulebook(19)));
   }),
 
@@ -1519,7 +1519,7 @@ export const EFFECT_STEPS = {
     (state, p, ctx) => {
       if (!figureOf(state, p.figure).alive)
         throw new Error(`${p.card} was handed to ${p.figure}, who is dead`);
-      moveCard(state, p.card, IN_HAND, { at: "figure", figure: p.figure });
+      moveCard(state, p.card, IN_TRANSIT, { at: "figure", figure: p.figure });
     ctx.emit("card-gained", p.rule, { figure: p.figure, card: p.card, by: p.by });
       ctx.push(
         ...(ctx.engine.behaviours.cards[p.card]?.onGain?.(state, p.figure) ??
@@ -1564,7 +1564,7 @@ export const EFFECT_STEPS = {
         break;
       case "figure":
         // In hand until the taker gains it, once the card's onLose is done.
-        moveCard(state, p.card, from, IN_HAND);
+        moveCard(state, p.card, from, IN_TRANSIT);
         clearMarks(state, p.card, "holder");
         break;
       case "aside":
@@ -1784,7 +1784,7 @@ export const EFFECT_STEPS = {
   ),
 
   "start-ongoing": defineStep<{ card: string }>((state, p) => {
-    moveCard(state, p.card, IN_HAND, { at: "ongoing" });
+    moveCard(state, p.card, IN_TRANSIT, { at: "ongoing" });
   }),
 
   "end-ongoing": defineStep<{ card: string }>((state, p, ctx) => {

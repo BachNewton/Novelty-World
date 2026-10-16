@@ -42,7 +42,7 @@ P8, haunt 13 in the house, is last.
 
 - **Legality by construction.** Each decision kind lists exactly its legal choices, built by the code that applies them; a listed choice that fails to apply throws. The dry run of every candidate at every decision is gone.
 - **Work for a dead figure lapses** in the step loop, by each step's subject, in place of checks written into each step.
-- **Every card and tile is in one place:** a card between two places is in `inHand`, a drawn tile in the board's `drawn`, and every card move goes through one function.
+- **Every card and tile is in one place:** a card between two places is in `inTransit`, a drawn tile in the board's `drawn`, and every card move goes through one function.
 - **Saves started over at v1** now rather than at launch: state format 1, the migration chain empty, an old save shown as outdated, and a new save key and share-code prefix.
 - **Tests:** an invariant harness checks every write an engine test makes; setups are reachable states built through the setup helpers; each decision kind and turn act has a targeted scenario test; the random sweep is opt-in, for engine changes, and each bug a random game finds becomes a targeted test.
 
@@ -58,7 +58,6 @@ P8, haunt 13 in the house, is last.
 - Showing at setup who goes first, and why.
 - The frame meter's default: on while playtesting, off before the game is done.
 - **A dead figure stays in its room** while a decision its death raised (a Nightmare's replacement) is pending, with leaving the board queued behind it. Deferred by the owner: changing it touches the order of cards' `onLose`.
-- **The name `inHand`** reads like a player's hand; a clearer one (such as `inTransit`) is a small rename.
 
 **Before launch:**
 
