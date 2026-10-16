@@ -34,7 +34,8 @@ function decide(state: GameState, seed = "scenario"): Move {
   const seat = active(state);
   const options = referenceEngine.options(state, seat);
   if (!options) throw new Error("the active seat has no options");
-  return ruleV1Bot({ seat, view: referenceEngine.view(state, seat), options, events: [], seed });
+  const view = referenceEngine.view(state, seat);
+  return ruleV1Bot({ seat, view, options, events: [], history: [], humans: view.seats.map(() => false), seed });
 }
 
 /** v1's moves from `state` until its turn ends or `stop` says so (checked on each move

@@ -13,7 +13,8 @@ import { ruleV1Bot } from "./index";
 function ask(bot: Bot, state: GameState, seat: Seat, seed: string): Move {
   const options = engine.options(state, seat);
   if (!options) throw new Error(`seat ${seat} has no options`);
-  return bot({ seat, view: engine.view(state, seat), options, events: [], seed });
+  const view = engine.view(state, seat);
+  return bot({ seat, view, options, events: [], history: [], humans: view.seats.map(() => false), seed });
 }
 
 /** The same game with everything `seat` can't see dealt again: the other hands (same
