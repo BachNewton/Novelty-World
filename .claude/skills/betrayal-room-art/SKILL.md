@@ -146,6 +146,9 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `paths` (the prime place, the keep-clear areas, each figure's footprint
   coloured by how crowded it stands, and the walks across the room, drawn
   over it; `tools/placement-shots.mjs` shoots every crowd in a room),
+  `casters` (the room's bake-only shadow casters, drawn see-through over
+  it, to judge the shape a hidden caster's shadow comes from; `shots.mjs
+  --query=casters` shoots it),
   `bounce=off` and `water=<style>`. The house takes `bake-debug`, which shows
   the bake at work.
 - `house*.ts`: the house view and its layouts. Read them to know what the
