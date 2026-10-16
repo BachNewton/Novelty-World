@@ -180,7 +180,7 @@ The house is lit by baked light: lamps' light and shadows baked into each room's
 |---|---|
 | Cold moon blue | the baseline: night, the house itself |
 | Warm amber | human and safe-ish: candles, lamps, explorers |
-| Spectral teal | an unseen presence, and only that (the Bedroom's glow under the bed, the Gymnasium's empty corner) |
+| Spectral teal | an unseen presence, and only that (the Bedroom's glow under the bed, the Gymnasium's presence among its ropes) |
 | Sickly green | death, decay and the corrupt: rot, poison, the ghoulish (the Crypt's open tomb) |
 | Red | danger, blood, the traitor |
 | Violet | magic, omens, and the occult or trapped (the Research Laboratory's bell jar) |

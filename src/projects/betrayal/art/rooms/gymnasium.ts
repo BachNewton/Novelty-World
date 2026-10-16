@@ -4,7 +4,7 @@ import { cobweb, strand, TWIST } from "../kit";
 import { solidLathe } from "../kit/vessel";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, type PaletteKey } from "../palette";
-import { CUT_HEIGHT, INNER, WALL_HEIGHT, onWall, type RoomDefinition } from "../room";
+import { CUT_HEIGHT, WALL_HEIGHT, onWall, type RoomDefinition } from "../room";
 import { shiny, SHINES } from "../shine";
 import { batch, box, cylinder, flat, glow, group, lightMaterial, type Batch } from "../shapes";
 import { panelling, plaster, woodPlanks } from "../textures";
@@ -31,8 +31,12 @@ const ROPES: { at: [x: number, z: number]; end: number; lag: number }[] = [
  * still (`wind.ts`), so nothing else in the room stirs.
  */
 const DRAUGHT = { heading: 0.6, period: 7.5, swing: 0.075, breath: 23 };
-/** The spectral teal welling up in the bottom-right corner, from nothing: the floor's middle of it, in room metres. */
-const GLOW_CORNER: [x: number, z: number] = [INNER - 0.01, INNER - 0.01];
+/**
+ * The unseen presence among the ropes: where it stands on the boards, in room
+ * metres (between the three ropes, a little towards the room from the
+ * corner's bonus badge), and the height of its middle in the air.
+ */
+const PRESENCE = { at: [-1.45, -1.6] as [x: number, z: number], middle: 1.15 };
 const WALL_BARS = { along: -1.05, bays: 2, bay: 0.9, top: 2.6, rung: 0.15 };
 
 /** The ceiling's iron eye a rope hangs from, its origin at the ceiling. */
@@ -83,20 +87,49 @@ function swayingRope(end: number, lag: number): THREE.Group {
   return group(eye.mesh(), rope);
 }
 
-/** A soft pool of spectral teal on the boards in a corner, brightest in the corner itself and fading out across the floor; it has no source. Lies flat, the corner at the origin, spreading towards -x and -z. */
-function cornerGlow(): THREE.Mesh {
-  const reach = 1.6;
-  const geometry = new THREE.PlaneGeometry(reach, reach, 12, 12);
-  geometry.rotateX(-Math.PI / 2);
-  geometry.translate(-reach / 2, 0.012, -reach / 2);
+/** Spectral teal on a geometry's vertices, `strength` of the full colour times `fall` of each vertex. */
+function spectreColours(geometry: THREE.BufferGeometry, strength: number, fall: (x: number, y: number, z: number) => number): void {
   const position = geometry.getAttribute("position");
-  const colour = new THREE.Color(paletteHex("spectre")).multiplyScalar(0.4);
+  const colour = new THREE.Color(paletteHex("spectre")).multiplyScalar(strength);
   const colours = new Float32Array(position.count * 3);
   for (let i = 0; i < position.count; i++) {
-    const fall = Math.max(0, 1 - Math.hypot(position.getX(i), position.getZ(i)) / reach) ** 1.6;
-    colours.set([colour.r * fall, colour.g * fall, colour.b * fall], i * 3);
+    const f = fall(position.getX(i), position.getY(i), position.getZ(i));
+    colours.set([colour.r * f, colour.g * f, colour.b * f], i * 3);
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+}
+
+/**
+ * The unseen presence standing among the ropes: a faint column of spectral
+ * teal hanging in the air about a person's height, thickest at its middle and
+ * thinning to nothing above and below, with no source and no shape inside it;
+ * it breathes, rising and sinking a few centimetres. Origin on the boards
+ * under it.
+ */
+function presence(): THREE.Group {
+  // Nested veils, the outer ones far the faintest, so the light thickens towards the middle and its edge has no rim.
+  const veils = Array.from({ length: 10 }, (_, k) => {
+    const radius = 0.34 - k * 0.03;
+    const half = 0.8 - k * 0.04;
+    const geometry = new THREE.SphereGeometry(1, 20, 14).scale(radius, half, radius);
+    spectreColours(geometry, 0.0009 * (k + 1) ** 1.4, (_x, y) => Math.max(0, 1 - (y / half) ** 2) ** 1.5);
+    const veil = new THREE.Mesh(geometry, lightMaterial(1, { vertexColors: true }));
+    veil.userData.noShadow = true;
+    return veil;
+  });
+  const column = group(...veils);
+  column.position.y = PRESENCE.middle;
+  return animated(group(column), (seconds) => {
+    column.position.y = PRESENCE.middle + 0.04 * Math.sin((2 * Math.PI * seconds) / 9);
+  });
+}
+
+/** A soft round pool of spectral teal on the boards under the presence, fading out from its middle; it has no source. Lies flat, its middle at the origin. */
+function presencePool(): THREE.Mesh {
+  const reach = 0.8;
+  // A disc in rings, so the fall grades across it rather than from one middle vertex.
+  const geometry = new THREE.RingGeometry(0, reach, 20, 6).rotateX(-Math.PI / 2).translate(0, 0.012, 0);
+  spectreColours(geometry, 0.28, (x, _y, z) => Math.max(0, 1 - Math.hypot(x, z) / reach) ** 1.6);
   const mesh = new THREE.Mesh(geometry, lightMaterial(1, { vertexColors: true }));
   mesh.userData.noShadow = true;
   return mesh;
@@ -339,7 +372,8 @@ function clubTrophy(): THREE.Group {
 
 /** The Gymnasium: a worn leather vaulting horse under a frosted gas globe,
  *  climbing ropes beside it swinging slowly in a draught that stirs nothing
- *  else, and spectral teal welling up in a corner from nothing. */
+ *  else, and among them a faint column of spectral teal hanging in the air,
+ *  as if someone unseen stood there. */
 export const GYMNASIUM: RoomDefinition = {
   id: "gymnasium",
   floor: () => woodPlanks({ ramp: ["woodDark", "wood", "woodMid", "woodLight"], plankPx: 5, seed: SEED, glints: false }),
@@ -350,7 +384,8 @@ export const GYMNASIUM: RoomDefinition = {
     { build: vaultingHorse, at: HORSE.at, turn: HORSE.turn },
     { build: gasPendant, at: HORSE.at },
     ...ROPES.map(({ at, end, lag }) => ({ build: () => swayingRope(end, lag), name: "climbing rope", at })),
-    { build: cornerGlow, at: GLOW_CORNER },
+    { build: presence, at: PRESENCE.at },
+    { build: presencePool, at: PRESENCE.at },
     { build: wallBarsBase, ...onWall("left", WALL_BARS.along) },
     { build: wallBarsAbove, ...onWall("left", WALL_BARS.along, { y: CUT_HEIGHT }) },
     { build: form, ...onWall("top", 0.15) },
@@ -362,7 +397,7 @@ export const GYMNASIUM: RoomDefinition = {
   ],
   focus: [-0.6, 1.0, -0.6],
   prime: [1.3, -0.85],
-  lights: [{ at: [GLOW_CORNER[0] - 0.35, 0.55, GLOW_CORNER[1] - 0.35], colour: "spectre", intensity: 3.5, range: 5, flicker: 0.1, signal: 2, kind: "glow" }],
+  lights: [{ at: [PRESENCE.at[0], PRESENCE.middle, PRESENCE.at[1]], colour: "spectre", intensity: 3.5, range: 5, flicker: 0.1, signal: 2, kind: "glow" }],
   // Under the swinging ropes, so no figure stands where they sweep.
   keepClear: [
     { from: ROPES[0].at, to: ROPES[2].at, radius: 0.45 },
