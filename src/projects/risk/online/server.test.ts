@@ -5,7 +5,7 @@ import { replay, STALE_DECISION, type OnlineGame } from "./game";
 import type { Request } from "./protocol";
 import { COMMIT_ATTEMPTS, commit, drive, DRIVE_DECISIONS, handle, type ServerDeps } from "./server";
 import { ENGINE } from "../play-engine";
-import { SEAT_BOTS } from "./seat-bots";
+import { BOT_IDS, SEAT_BOTS, type BotId } from "./seat-bots";
 import { botToMove, type GameRow } from "./table";
 import { memoryStore, testDeps } from "./testing";
 
@@ -65,10 +65,10 @@ describe("the lobby", () => {
     const db = memoryStore();
     const deps = testDeps(ENGINE, db.store);
     await ok(deps, { op: "create", profile: ALICE });
-    await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE });
+    await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot: "random" });
     expect(await handle(deps, { op: "start", game: "GAME", profile: ALICE })).toMatchObject({ ok: false });
-    for (let i = 0; i < 4; i++) await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE });
-    expect(await handle(deps, { op: "add-bot", game: "GAME", profile: ALICE })).toMatchObject({ ok: false, reason: "The table is full" });
+    for (let i = 0; i < 4; i++) await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot: "random" });
+    expect(await handle(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot: "random" })).toMatchObject({ ok: false, reason: "The table is full" });
     const row = await ok(deps, { op: "start", game: "GAME", profile: ALICE });
     expect(row.status).toBe("playing");
     expect(ENGINE.view(row.game?.engine ?? { engineState: null }, null).seats).toHaveLength(6);
@@ -78,8 +78,33 @@ describe("the lobby", () => {
     const db = memoryStore();
     const deps = testDeps(ENGINE, db.store);
     await ok(deps, { op: "create", profile: ALICE });
-    expect(await handle(deps, { op: "add-bot", game: "GAME", profile: BOB })).toMatchObject({ ok: false, reason: "Join the game first" });
+    expect(await handle(deps, { op: "add-bot", game: "GAME", profile: BOB, bot: "random" })).toMatchObject({ ok: false, reason: "Join the game first" });
     expect(await handle(deps, { op: "remove-seat", game: "GAME", profile: ALICE, seat: 0 })).toMatchObject({ ok: false });
+  });
+
+  it("seats the bot asked for, and only a bot it knows", async () => {
+    const deps = testDeps(ENGINE, memoryStore().store);
+    await ok(deps, { op: "create", profile: ALICE });
+    for (const bot of BOT_IDS) await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot });
+    const row = await handle(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot: "skynet" });
+    expect(row).toMatchObject({ ok: false, reason: "There's no such bot" });
+    expect(row.row?.seats.slice(1)).toEqual(BOT_IDS.map((bot) => ({ kind: "bot", bot })));
+  });
+
+  it("changes a bot seat's bot while the table gathers, and nothing else", async () => {
+    const deps = testDeps(ENGINE, memoryStore().store);
+    await ok(deps, { op: "create", profile: ALICE });
+    await ok(deps, { op: "join", game: "GAME", profile: BOB });
+    const added = await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot: "random" });
+    const changed = await ok(deps, { op: "set-bot", game: "GAME", profile: BOB, seat: 2, bot: "rule-v1" });
+    expect(changed.seats).toEqual([...added.seats.slice(0, 2), { kind: "bot", bot: "rule-v1" }]);
+    expect(await handle(deps, { op: "set-bot", game: "GAME", profile: BOB, seat: 2, bot: "rule-v1" })).toEqual({ ok: true, row: changed });
+    expect(await handle(deps, { op: "set-bot", game: "GAME", profile: ALICE, seat: 2, bot: "skynet" })).toMatchObject({ ok: false, reason: "There's no such bot", row: changed });
+    expect(await handle(deps, { op: "set-bot", game: "GAME", profile: ALICE, seat: 1, bot: "greedy" })).toMatchObject({ ok: false, reason: "That seat isn't a bot's" });
+    expect(await handle(deps, { op: "set-bot", game: "GAME", profile: ALICE, seat: 3, bot: "greedy" })).toMatchObject({ ok: false, reason: "That seat isn't a bot's" });
+    expect(await handle(deps, { op: "set-bot", game: "GAME", profile: CAROL, seat: 2, bot: "greedy" })).toMatchObject({ ok: false, reason: "Join the game first" });
+    await ok(deps, { op: "start", game: "GAME", profile: ALICE });
+    expect(await handle(deps, { op: "set-bot", game: "GAME", profile: ALICE, seat: 2, bot: "greedy" })).toMatchObject({ ok: false, reason: "The game has already started" });
   });
 
   it("says when there is no such game", async () => {
@@ -161,7 +186,7 @@ async function botGame(bots: number) {
   const db = memoryStore();
   const deps = testDeps(ENGINE, db.store);
   await ok(deps, { op: "create", profile: ALICE });
-  for (let i = 0; i < bots; i++) await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE });
+  for (let i = 0; i < bots; i++) await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot: "random" });
   const row = await ok(deps, { op: "start", game: "GAME", profile: ALICE });
   return { db, deps, row };
 }
@@ -246,6 +271,43 @@ describe("driving bot seats", () => {
       SEAT_BOTS.random.bot = real;
     }
     expect(db.rows.get("GAME")?.game?.decision).toBe(0);
+  });
+
+  it("plays each seat with the bot its row names", async () => {
+    const { deps, db } = await botGame(2);
+    const row = db.rows.get("GAME");
+    if (!row) throw new Error("No game");
+    // Every seat a bot, so the drive plays them all.
+    db.rows.set("GAME", { ...row, seats: BOT_IDS.map((bot) => ({ kind: "bot", bot })) });
+    const asked: BotId[] = [];
+    const real = BOT_IDS.map((id) => SEAT_BOTS[id].bot);
+    for (const id of BOT_IDS) {
+      const bot = SEAT_BOTS[id].bot;
+      SEAT_BOTS[id].bot = (input) => {
+        asked.push(id);
+        return bot(input);
+      };
+    }
+    try {
+      await drive(deps, "GAME");
+    } finally {
+      BOT_IDS.forEach((id, i) => (SEAT_BOTS[id].bot = real[i]));
+    }
+    const log = db.moves.get("GAME") ?? [];
+    expect(new Set(asked)).toEqual(new Set(BOT_IDS));
+    expect(log.map((m) => m.controller)).toEqual(log.map((m) => ({ kind: "bot", bot: BOT_IDS[m.seat] })));
+    expect(asked).toEqual(log.map((m) => BOT_IDS[m.seat]));
+  });
+
+  it("fails loudly on a row that names a bot no longer seated", async () => {
+    const { deps, db } = await botGame(2);
+    const row = db.rows.get("GAME");
+    if (!row?.game) throw new Error("No game");
+    const active = ENGINE.view(row.game.engine, null).active;
+    // As a row saved before a bot was retired would read.
+    const retired = { kind: "bot", bot: "retired" } as unknown as GameRow["seats"][number];
+    db.rows.set("GAME", { ...row, seats: row.seats.with(active, retired) });
+    await expect(drive(deps, "GAME")).rejects.toThrow(/no seatable bot "retired"/);
   });
 
   it("plays a bot through a trade that must name its +2 territory", async () => {

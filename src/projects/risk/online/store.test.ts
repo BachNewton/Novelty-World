@@ -56,7 +56,7 @@ function harness() {
 async function started(bots: number) {
   const h = harness();
   await handle(h.server, { op: "create", profile: ALICE });
-  for (let i = 0; i < bots; i++) await handle(h.server, { op: "add-bot", game: "GAME", profile: ALICE });
+  for (let i = 0; i < bots; i++) await handle(h.server, { op: "add-bot", game: "GAME", profile: ALICE, bot: "random" });
   await handle(h.server, { op: "start", game: "GAME", profile: ALICE });
   return h;
 }
@@ -144,7 +144,7 @@ describe("the online store", () => {
     expect(h.store.snapshot().table).toBeNull();
   });
 
-  it("joins, adds a bot and starts from the lobby", async () => {
+  it("joins, adds a bot, changes it and starts from the lobby", async () => {
     const h = harness();
     await handle(h.server, { op: "create", profile: { id: "bob", name: "Bob" } });
     h.store.connect();
@@ -156,8 +156,12 @@ describe("the online store", () => {
     h.store.start();
     await h.settle();
     expect(h.store.snapshot().notice).toMatch(/at least 3/);
-    h.store.addBot();
+    h.store.addBot("greedy");
     await h.settle();
+    expect(h.store.snapshot().table?.seats[2]).toEqual({ kind: "bot", bot: "greedy" });
+    h.store.setBot(2, "rule-v1");
+    await h.settle();
+    expect(h.store.snapshot().table?.seats[2]).toEqual({ kind: "bot", bot: "rule-v1" });
     h.store.start();
     await h.settle();
     expect(h.store.snapshot().table?.status).toBe("playing");

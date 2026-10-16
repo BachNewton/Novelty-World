@@ -1,5 +1,5 @@
 import type { Answer, RiskEngine } from "../contract";
-import { DEFAULT_BOT, SEAT_BOTS } from "./seat-bots";
+import { isBotId, seatBot } from "./seat-bots";
 import { botInput } from "./drive-input";
 import { applyAnswer, newOnlineGame, pendingSeat, STALE_DECISION, tookAnswer } from "./game";
 import type { Request, Response } from "./protocol";
@@ -49,6 +49,7 @@ export async function commit(store: RowStore, id: string, step: (row: GameRow) =
 }
 
 const GONE = "That table is gone";
+const NO_SUCH_BOT = "There's no such bot";
 
 const rejected = (reason: string): Step => ({ kind: "rejected", reason });
 const changed = (row: GameRow, change: Partial<RowChange>, answer: LoggedMove | null = null): Step => ({
@@ -110,12 +111,26 @@ export async function handle(deps: ServerDeps, request: Request): Promise<Respon
         if (row.seats.length >= MAX_PLAYERS) return rejected("The table is full");
         return changed(row, { seats: [...row.seats, { kind: "human", profile: request.profile }] });
       });
-    case "add-bot":
+    case "add-bot": {
+      const { bot } = request;
       return commit(store, request.game, (row) =>
-        inLobby(row, request.profile.id, () =>
-          row.seats.length >= MAX_PLAYERS ? rejected("The table is full") : changed(row, { seats: [...row.seats, { kind: "bot", bot: DEFAULT_BOT }] }),
-        ),
+        inLobby(row, request.profile.id, () => {
+          if (!isBotId(bot)) return rejected(NO_SUCH_BOT);
+          return row.seats.length >= MAX_PLAYERS ? rejected("The table is full") : changed(row, { seats: [...row.seats, { kind: "bot", bot }] });
+        }),
       );
+    }
+    case "set-bot": {
+      const { bot, seat } = request;
+      return commit(store, request.game, (row) =>
+        inLobby(row, request.profile.id, () => {
+          if (!isBotId(bot)) return rejected(NO_SUCH_BOT);
+          const controller = row.seats.at(seat);
+          if (controller?.kind !== "bot") return rejected("That seat isn't a bot's");
+          return controller.bot === bot ? { kind: "unchanged" } : changed(row, { seats: row.seats.with(seat, { kind: "bot", bot }) });
+        }),
+      );
+    }
     case "remove-seat":
       return commit(store, request.game, (row) =>
         inLobby(row, request.profile.id, () => {
@@ -177,7 +192,7 @@ export async function drive(deps: Pick<ServerDeps, "engine" | "store">, id: stri
     const controller = controllerOf(row, seat);
     if (controller.kind !== "bot") throw new Error("A bot seat lost its bot mid-drive");
     const input = botInput(engine, game, seat, `${id}/${game.decision.toString()}`);
-    const answer: Answer = { decision: game.decision, seat, move: SEAT_BOTS[controller.bot].bot(input) };
+    const answer: Answer = { decision: game.decision, seat, move: seatBot(controller.bot).bot(input) };
     const tried = applyAnswer(engine, game, answer);
     if (!tried.ok) {
       throw new Error(`Risk game ${id}: bot "${controller.bot}" at seat ${seat.toString()} made an illegal move at decision ${game.decision.toString()} (${tried.reason}): ${JSON.stringify(answer.move)}`);

@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
-import { Bot, Globe, User, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode, type Ref } from "react";
+import { Bot, Globe, Plus, User, X } from "lucide-react";
 import { GameLobby } from "@/shared/components/game-lobby";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
+import { PadHints } from "@/shared/components/pad-hints";
+import { usePadNavigation } from "@/shared/lib/gamepad";
 import { useProfile } from "@/shared/lib/profile";
 import type { Move } from "../contract";
-import { SEAT_BOTS } from "./seat-bots";
+import { BotBadge, BotStepper } from "./bot-picker";
+import { DEFAULT_BOT, seatBot, type BotId } from "./seat-bots";
 import type { Response } from "./protocol";
 import { browserIo, browserLobbyIo } from "./client";
 import type { OpenAction, TableSummary } from "./lobby";
@@ -149,12 +152,16 @@ function Table({ id, Game }: { id: string; Game: ComponentType<OnlineGameProps> 
   return <Gathering snapshot={snapshot} table={table} store={store} />;
 }
 
-/** A table gathering players. */
+/** A table gathering players. Its seated players add bots, each of a chosen rank, and change
+ *  a bot seat's rank until the game starts. */
 function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table: NonNullable<OnlineSnapshot["table"]>; store: OnlineStore }) {
+  const root = useRef<HTMLDivElement>(null);
+  usePadNavigation(root);
+  const [nextBot, setNextBot] = useState<BotId>(DEFAULT_BOT);
   const seated = snapshot.seat !== null;
   const full = table.seats.length >= MAX_PLAYERS;
   return (
-    <Centered>
+    <Centered ref={root}>
       <header className="space-y-1 text-center">
         <h1 className="text-3xl font-bold">{hostName(table)}&apos;s game</h1>
         <p className="text-sm text-text-secondary">Others find it in the lobby; bots fill the empty seats.</p>
@@ -165,30 +172,53 @@ function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table
         </h2>
         <ol className="space-y-2">
           {table.seats.map((controller, seat) => (
-            <li key={seat} className="flex items-center gap-3 rounded-md bg-surface-secondary px-3 py-2">
-              {controller.kind === "human" ? <User size={18} /> : <Bot size={18} />}
-              <span className="flex-1 truncate">
-                {controller.kind === "human" ? controller.profile.name : `${SEAT_BOTS[controller.bot].name} (bot)`}
-                {seat === snapshot.seat && <span className="text-text-secondary"> (you)</span>}
-              </span>
+            <li key={seat} className="flex min-h-11 items-center gap-2 rounded-md bg-surface-secondary px-3 py-1">
+              {controller.kind === "human" ? (
+                <>
+                  <User aria-hidden size={18} className="shrink-0" />
+                  <span className="flex-1 truncate">
+                    {controller.profile.name}
+                    {seat === snapshot.seat && <span className="text-text-secondary"> (you)</span>}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Bot aria-label="Bot" size={18} className="shrink-0" />
+                  <span className="flex min-w-0 flex-1">
+                    {seated ? (
+                      <BotStepper bot={controller.bot} onChange={(bot) => store.setBot(seat, bot)}>
+                        <BotBadge bot={controller.bot} />
+                      </BotStepper>
+                    ) : (
+                      <BotBadge bot={controller.bot} />
+                    )}
+                  </span>
+                </>
+              )}
               {seated && (
-                <button aria-label="Remove from the table" className="text-text-secondary hover:text-text-primary" onClick={() => store.removeSeat(seat)}>
-                  <X size={18} />
+                <button aria-label="Remove from the table" title="Remove from the table" className="flex size-11 shrink-0 items-center justify-center text-text-secondary hover:text-text-primary" onClick={() => store.removeSeat(seat)}>
+                  <X aria-hidden size={18} />
                 </button>
               )}
             </li>
           ))}
         </ol>
+        {seated && !full && (
+          <div className="flex justify-center">
+            <BotStepper bot={nextBot} onChange={setNextBot}>
+              <Button variant="ghost" aria-label={`Add a ${seatBot(nextBot).rank} bot`} title="Add a bot" onClick={() => store.addBot(nextBot)} className="min-w-0 gap-2" data-pad-start>
+                <Plus aria-hidden size={18} className="shrink-0" />
+                <Bot aria-hidden size={18} className="shrink-0" />
+                <BotBadge bot={nextBot} />
+              </Button>
+            </BotStepper>
+          </div>
+        )}
       </Card>
       <div className="flex flex-wrap justify-center gap-3">
         {!seated && (
           <Button onClick={store.join} disabled={full}>
             Take a seat
-          </Button>
-        )}
-        {seated && (
-          <Button variant="ghost" onClick={store.addBot} disabled={full}>
-            Add a bot
           </Button>
         )}
         {seated && (
@@ -199,9 +229,15 @@ function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table
       </div>
       {table.seats.length < MIN_PLAYERS && <p className="text-sm text-text-secondary">Risk needs at least {MIN_PLAYERS.toString()} players.</p>}
       {snapshot.notice && <p className="text-sm text-brand-pink">{snapshot.notice}</p>}
-      <Button variant="ghost" onClick={() => navigate(null)}>
+      <Button variant="ghost" onClick={() => navigate(null)} data-pad-back>
         Leave
       </Button>
+      <PadHints
+        hints={[
+          ["A", "Select"],
+          ["B", "Leave"],
+        ]}
+      />
     </Centered>
   );
 }
@@ -213,6 +249,10 @@ function hostName(table: NonNullable<OnlineSnapshot["table"]>): string {
   return first.name;
 }
 
-function Centered({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-12">{children}</div>;
+function Centered({ children, ref }: { children: ReactNode; ref?: Ref<HTMLDivElement> }) {
+  return (
+    <div ref={ref} className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-12">
+      {children}
+    </div>
+  );
 }

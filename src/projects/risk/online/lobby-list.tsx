@@ -12,7 +12,7 @@ import { SeatMark } from "../components/bits";
 import { RISK_THEME } from "../components/theme";
 import type { LobbyIo } from "./client";
 import { applyLobbyChange, EMPTY_LOBBY, lobbyTables, openAction, type OpenAction, type TableSummary } from "./lobby";
-import { SEAT_BOTS } from "./seat-bots";
+import { botName } from "./seat-bots";
 import { MAX_PLAYERS, type Controller, type Status } from "./table";
 
 /** Every game, live: null while the first load is out. */
@@ -58,7 +58,7 @@ const ACTION: Record<OpenAction, { icon: LucideIcon; name: string }> = {
   watch: { icon: Eye, name: "Watch" },
 };
 
-const controllerName = (controller: Controller) => (controller.kind === "human" ? controller.profile.name : `${SEAT_BOTS[controller.bot].name} (bot)`);
+const controllerName = (controller: Controller) => (controller.kind === "human" ? controller.profile.name : botName(controller.bot));
 
 /** "Jun 14, 3:42 PM", in the viewer's locale and timezone. */
 function lastActive(iso: string): string {

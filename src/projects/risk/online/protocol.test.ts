@@ -9,6 +9,8 @@ describe("parseRequest", () => {
     expect(parseRequest({ op: "nudge", game: "ABCD" })).toEqual({ op: "nudge", game: "ABCD" });
     expect(parseRequest({ op: "delete", game: "ABCD" })).toEqual({ op: "delete", game: "ABCD" });
     expect(parseRequest({ op: "remove-seat", game: "ABCD", profile, seat: 2 })).toEqual({ op: "remove-seat", game: "ABCD", profile, seat: 2 });
+    expect(parseRequest({ op: "add-bot", game: "ABCD", profile, bot: "greedy" })).toEqual({ op: "add-bot", game: "ABCD", profile, bot: "greedy" });
+    expect(parseRequest({ op: "set-bot", game: "ABCD", profile, seat: 1, bot: "random" })).toEqual({ op: "set-bot", game: "ABCD", profile, seat: 1, bot: "random" });
     const answer = { decision: 4, seat: 1, move: { kind: "blitz", from: "alaska", to: "kamchatka", keepAtLeast: 1 } };
     expect(parseRequest({ op: "move", game: "ABCD", profile, answer })).toEqual({ op: "move", game: "ABCD", profile, answer });
   });
@@ -23,6 +25,10 @@ describe("parseRequest", () => {
       { op: "delete" },
       { op: "fly", game: "ABCD", profile },
       { op: "remove-seat", game: "ABCD", profile, seat: -1 },
+      { op: "add-bot", game: "ABCD", profile },
+      { op: "add-bot", game: "ABCD", profile, bot: 3 },
+      { op: "set-bot", game: "ABCD", profile, bot: "random" },
+      { op: "set-bot", game: "ABCD", profile, seat: 1 },
       answer({ kind: "place", territory: "atlantis", armies: 1 }),
       answer({ kind: "attack", from: "alaska", to: "kamchatka", dice: 4 }),
       answer({ kind: "end-turn", extra: 1 }),

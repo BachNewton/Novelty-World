@@ -12,7 +12,10 @@ import type { GameRow } from "./table";
 export type Request =
   | { op: "create"; profile: PlayerProfile }
   | { op: "join"; game: string; profile: PlayerProfile }
-  | { op: "add-bot"; game: string; profile: PlayerProfile }
+  /** `bot` names a seatable bot (`seat-bots.ts`); whether it is one is the server's to say. */
+  | { op: "add-bot"; game: string; profile: PlayerProfile; bot: string }
+  /** Seats another bot in a bot seat, while the table gathers. */
+  | { op: "set-bot"; game: string; profile: PlayerProfile; seat: Seat; bot: string }
   | { op: "remove-seat"; game: string; profile: PlayerProfile; seat: Seat }
   | { op: "start"; game: string; profile: PlayerProfile }
   | { op: "move"; game: string; profile: PlayerProfile; answer: Answer }
@@ -83,9 +86,12 @@ export function parseRequest(v: unknown): Request | null {
   if (!profile) return null;
   switch (v.op) {
     case "join":
-    case "add-bot":
     case "start":
       return { op: v.op, game, profile };
+    case "add-bot":
+      return isString(v.bot) ? { op: "add-bot", game, profile, bot: v.bot } : null;
+    case "set-bot":
+      return isCount(v.seat) && isString(v.bot) ? { op: "set-bot", game, profile, seat: v.seat, bot: v.bot } : null;
     case "remove-seat":
       return isCount(v.seat) ? { op: "remove-seat", game, profile, seat: v.seat } : null;
     case "move": {
