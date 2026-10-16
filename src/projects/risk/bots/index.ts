@@ -4,12 +4,15 @@ import { greedyBot } from "./greedy";
 import { randomBot } from "./random";
 import { ruleBot, ruleV1Bot } from "./rule-v1";
 import { V1_PARAMS, type Engine, type Preferences } from "./rule-v1/params";
+import { ruleBot as ruleV2, ruleV2Bot } from "./rule-v2";
+import { V2_PARAMS } from "./rule-v2/params";
 
 /** Every bot the measuring harness can seat, by label. */
 export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   random: randomBot,
   greedy: greedyBot,
   "rule-v1": ruleV1Bot,
+  "rule-v2": ruleV2Bot,
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
   "gd-aggressive": gdAggressiveBot,
@@ -21,6 +24,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
  *  pinned (`rule-v1/params.ts`). */
 export const TUNABLE_BOTS: Readonly<Record<string, { prefs: Preferences; engine: Engine; build: (prefs: Preferences, engine: Engine) => Bot }>> = {
   "rule-v1": { prefs: V1_PARAMS.prefs, engine: V1_PARAMS.engine, build: (prefs, engine) => ruleBot({ ...V1_PARAMS, prefs, engine }) },
+  "rule-v2": { prefs: V2_PARAMS.prefs, engine: V2_PARAMS.engine, build: (prefs, engine) => ruleV2({ ...V2_PARAMS, prefs, engine }) },
 };
 
 export type Overrides = Partial<Preferences & Engine>;
