@@ -72,7 +72,8 @@ function parseArgs(argv: readonly string[]): Args {
   return a;
 }
 
-/** One progress line per pairing on stderr, rewritten in place on a terminal. */
+/** A progress line on stderr for each pairing as it is decided; on a terminal, the
+ *  latest round of whichever pairing last played one is rewritten in place. */
 function progressLine(): (p: RiskGauntletProgress) => void {
   const tty = process.stderr.isTTY === true;
   return (p) => {
@@ -141,8 +142,8 @@ Risk — gauntlet
       done: p.done,
     });
     if (!p.done) return;
-    decided = p.index;
-    if (p.index === p.total) fieldFrom = live.counts().games;
+    decided++;
+    if (decided === p.total) fieldFrom = live.counts().games;
   };
 
   const pool = live.watch(riskPool(args.workers), (r) => r.decisions);

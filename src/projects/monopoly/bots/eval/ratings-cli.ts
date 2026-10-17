@@ -293,29 +293,32 @@ async function main(): Promise<void> {
   const pool = monopolyPool(args.workers);
   const start = process.hrtime.bigint();
   try {
-    const results: PairResult[] = [];
+    // Every uncached pairing plays at once, so the pool always has games; the
+    // results stay in pairing order for the fit.
     let done = 0;
     let played = 0;
     let cached = 0;
-    for (const [a, b] of pairList) {
-      const hit = getCached(cache, args.prefix, args.games, args.maxTurns, a, b);
-      let res: PairResult;
-      if (hit) {
-        res = hit;
-        cached++;
-      } else {
-        res = await pairing(pool, a, b, args.prefix, args.games, args.maxTurns);
-        setCached(cache, args.prefix, args.games, args.maxTurns, res);
-        // Persist after every newly-played pairing so a long run is resumable.
-        saveCache(cache);
-        played++;
-      }
-      results.push(res);
-      done++;
-      process.stderr.write(
-        `\r  ${done.toString()}/${pairList.length.toString()} pairings  (${res.a} ${res.aWins.toString()}–${res.bWins.toString()} ${res.b})${hit ? " [cached]" : ""}`.padEnd(70),
-      );
-    }
+    const results = await Promise.all(
+      pairList.map(async ([a, b]) => {
+        const hit = getCached(cache, args.prefix, args.games, args.maxTurns, a, b);
+        let res: PairResult;
+        if (hit) {
+          res = hit;
+          cached++;
+        } else {
+          res = await pairing(pool, a, b, args.prefix, args.games, args.maxTurns);
+          setCached(cache, args.prefix, args.games, args.maxTurns, res);
+          // Persist after every newly-played pairing so a long run is resumable.
+          saveCache(cache);
+          played++;
+        }
+        done++;
+        process.stderr.write(
+          `\r  ${done.toString()}/${pairList.length.toString()} pairings  (${res.a} ${res.aWins.toString()}–${res.bWins.toString()} ${res.b})${hit ? " [cached]" : ""}`.padEnd(70),
+        );
+        return res;
+      }),
+    );
     process.stderr.write("\n");
 
     const elo = fitElo(args.versions, results, { anchor: ANCHOR });

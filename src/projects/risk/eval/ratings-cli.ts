@@ -1,14 +1,15 @@
 import { writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { fitElo, pairsFromFinishes, pairsFromWinner, type PairResult } from "@/shared/lib/bot-lab/elo";
+import { fitElo } from "@/shared/lib/bot-lab/elo";
 import { wilsonInterval } from "@/shared/lib/bot-lab/stats";
 import { RISK_BOTS } from "../bots";
 import { SEAT_BOTS } from "../online/seat-bots";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
 import { checkBots, commonDefaults, commonFlag, number, riskRun, type CommonArgs } from "./cli-args";
 import { eloLine } from "./gauntlet";
-import { finishesOf, outcomeFor, riskPool, tableSpecs } from "./parallel";
+import { riskPool } from "./parallel";
+import { playLadder } from "./ratings";
 
 /** `npm run risk:ratings` — a ladder of Risk bots: every pair plays a fixed number
  *  of seed groups at each table size, each bot alone among copies of the other,
@@ -79,45 +80,28 @@ async function main(): Promise<void> {
   const totalGames = args.labels.length * (args.labels.length - 1) * args.groups * playerGames;
   live.setProgress(() => live.counts().games / totalGames);
   const pool = live.watch(riskPool(args.workers), (r) => r.decisions);
-  const winPairs: PairResult[] = [];
-  const finishPairs: PairResult[] = [];
-  let errors = 0;
-  let step = 0;
   try {
-    for (let i = 0; i < args.labels.length; i++) {
-      for (let j = i + 1; j < args.labels.length; j++) {
-        for (const n of args.players) {
-          for (const [lone, rest] of [[args.labels[i], args.labels[j]], [args.labels[j], args.labels[i]]]) {
-            const matchup = { table: `${n.toString()}p`, pairing: { bot: lone, against: rest, seats: 1, players: n }, games: args.groups * n };
-            live.step(step, { ...matchup, record: { wins: 0, losses: 0, draws: 0, par: 1 / n }, done: false });
-            const prefix = `${args.prefix}:${lone}-in-${rest}:${n}p`;
-            const results = await pool.run(tableSpecs(lone, rest, "one-in", n, prefix, 0, args.groups * n, args.maxTurns));
-            let wins = 0;
-            let losses = 0;
-            let draws = 0;
-            for (const r of results) {
-              const o = outcomeFor(r, lone);
-              if (o === "error") {
-                errors++;
-                continue;
-              }
-              if (o === "win") wins++;
-              else if (o === "loss") losses++;
-              else draws++;
-              winPairs.push(...pairsFromWinner(finishesOf(r)));
-              finishPairs.push(...pairsFromFinishes(finishesOf(r)));
-            }
-            live.step(step++, { ...matchup, record: { wins, losses, draws, par: 1 / n }, done: true });
-            const ci = wilsonInterval(wins, wins + losses);
-            const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
-            console.log(
-              `  ${n}p  ${lone} alone among ${rest}: wins ${pct(ci.share)} [${pct(ci.low)}–${pct(ci.high)}] vs par ${pct(1 / n)}` +
-                `   (${wins}–${losses}, ${draws} capped)`,
-            );
-          }
-        }
-      }
-    }
+    const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
+    const { winPairs, finishPairs, errors } = await playLadder({
+      pool,
+      labels: args.labels,
+      players: args.players,
+      groups: args.groups,
+      prefix: args.prefix,
+      maxTurns: args.maxTurns,
+      // The matchups play at once, so each line is printed as its matchup finishes.
+      onMatchup: (step, { lone, rest, players: n }, tally) => {
+        const matchup = { table: `${n.toString()}p`, pairing: { bot: lone, against: rest, seats: 1, players: n }, games: args.groups * n };
+        const { wins, losses, draws } = tally ?? { wins: 0, losses: 0, draws: 0 };
+        live.step(step, { ...matchup, record: { wins, losses, draws, par: 1 / n }, done: tally !== null });
+        if (tally === null) return;
+        const ci = wilsonInterval(wins, wins + losses);
+        console.log(
+          `  ${n}p  ${lone} alone among ${rest}: wins ${pct(ci.share)} [${pct(ci.low)}–${pct(ci.high)}] vs par ${pct(1 / n)}` +
+            `   (${wins}–${losses}, ${draws} capped)`,
+        );
+      },
+    });
     const winElo = fitElo(args.labels, winPairs, { anchor });
     console.log(`
   Win Elo (${anchor} = 0):              ${eloLine(winElo)}`);
