@@ -1,4 +1,5 @@
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
+import { spread, trait } from "../animals/genes";
 import { coatOf, drawGenotype, type Coat, type Genotype, type Sex } from "./genetics";
 
 /*
@@ -40,11 +41,6 @@ export interface Cat {
   personality: Personality;
 }
 
-/** Roughly normal, from −1 to 1, most cats near the middle. */
-function spread(rng: Rng): number {
-  return (rng.next() + rng.next() + rng.next()) / 1.5 - 1;
-}
-
 function buildOf(rng: Rng, sex: Sex): Build {
   const tom = sex === "male";
   const stockiness = 1 + spread(rng) * 0.13 + (tom ? 0.04 : 0);
@@ -62,8 +58,7 @@ function buildOf(rng: Rng, sex: Sex): Build {
 }
 
 function personalityOf(rng: Rng): Personality {
-  const trait = () => Math.max(-1, Math.min(1, spread(rng) * 1.3));
-  return { boldness: trait(), energy: trait(), affection: trait() };
+  return { boldness: trait(rng), energy: trait(rng), affection: trait(rng) };
 }
 
 export function generateCat(seed: string): Cat {

@@ -1,4 +1,5 @@
 import type { Rng } from "@/shared/lib/seeded-random";
+import { allele, both, has, pair, weighted, type Pair } from "../animals/genes";
 
 /*
  * A cat's coat from simplified but real cat coat genetics. Each locus holds
@@ -23,8 +24,6 @@ import type { Rng } from "@/shared/lib/seeded-random";
  */
 
 export type Sex = "female" | "male";
-
-type Pair<T extends string> = readonly [T, T];
 
 export interface Genotype {
   sex: Sex;
@@ -57,19 +56,6 @@ const FREQUENCIES = {
   hair: [["L", 0.6], ["l", 0.4]],
 } as const;
 
-function allele<T extends string>(rng: Rng, table: readonly (readonly [T, number])[]): T {
-  let roll = rng.next();
-  for (const [value, frequency] of table) {
-    roll -= frequency;
-    if (roll < 0) return value;
-  }
-  return table[table.length - 1][0];
-}
-
-function pair<T extends string>(rng: Rng, table: readonly (readonly [T, number])[]): Pair<T> {
-  return [allele(rng, table), allele(rng, table)];
-}
-
 export function drawGenotype(rng: Rng): Genotype {
   const sex: Sex = rng.next() < 0.5 ? "female" : "male";
   return {
@@ -87,9 +73,6 @@ export function drawGenotype(rng: Rng): Genotype {
     hair: pair(rng, FREQUENCIES.hair),
   };
 }
-
-const has = <T extends string>(alleles: readonly T[], value: T) => alleles.includes(value);
-const both = <T extends string>(alleles: readonly T[], value: T) => alleles.every((a) => a === value);
 
 /** The eumelanin's colour: black, chocolate or cinnamon, or their dilutes. */
 export type Eumelanin = "black" | "chocolate" | "cinnamon" | "blue" | "lilac" | "fawn";
@@ -128,16 +111,6 @@ function whiteGrade(rng: Rng, white: Genotype["white"]): number {
   if (copies === 0) return rng.next() < 0.2 ? 0.03 + rng.next() * 0.07 : 0;
   if (copies === 1) return 0.15 + rng.next() * 0.45;
   return 0.6 + rng.next() * 0.35;
-}
-
-function weighted<T>(rng: Rng, table: readonly (readonly [T, number])[]): T {
-  const total = table.reduce((sum, [, weight]) => sum + weight, 0);
-  let roll = rng.next() * total;
-  for (const [value, weight] of table) {
-    roll -= weight;
-    if (roll < 0) return value;
-  }
-  return table[table.length - 1][0];
 }
 
 /** Eyes follow the coat: points are always blue, high white is often blue or
