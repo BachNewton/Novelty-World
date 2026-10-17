@@ -132,7 +132,7 @@ export function battleOutcome(a: number, d: number): BattleOutcome {
   const result = a + d > EXACT_LIMIT ? scaledOutcome(a, d) : bestOutcome(a, d);
   if (small) dense[id] = result;
   else {
-    if (outcomes.size > 50_000) outcomes.clear();
+    if (outcomes.size > 1_500) outcomes.clear();
     outcomes.set(id, result);
   }
   return result;
@@ -205,7 +205,7 @@ function child(node: RunNode, key: number): RunNode {
 /** Path runs are pure and the planner asks for the same ones over and over (every
  *  plan's threat model checks the same kills), so they are remembered. */
 export function pathRun(armies: number, defenders: readonly number[]): PathRun {
-  if (remembered > 100_000) {
+  if (remembered > 3_000) {
     runs = newNode();
     remembered = 0;
   }

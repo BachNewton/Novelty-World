@@ -382,7 +382,7 @@ const bestPlans = new WeakMap<Params, Memo<Plan>>();
  *  weighs the board the attack after it plans from. */
 export function bestPlan(b: Board, me: Seat, toPlace: number, params: Params, rng: Rng): Plan {
   if (params.engine.outcomeSamples > 0) return choosePlan(b, me, toPlace, params, rng);
-  return memoFor(bestPlans, params, 1_000).get(`${me.toString()}|${toPlace.toString()}|${boardKey(b)}`, () =>
+  return memoFor(bestPlans, params, 30).get(`${me.toString()}|${toPlace.toString()}|${boardKey(b)}`, () =>
     choosePlan(b, me, toPlace, params, rng),
   );
 }
