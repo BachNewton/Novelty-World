@@ -21,8 +21,9 @@ import type { Walker } from "./walker";
  * The berries and mushrooms round the walker, streamed by chunk and drawn
  * instanced, one draw per design and part, each spot drawn as it is today
  * (ripe, bare, cut or not up at all). Each frame it finds what Elliott is
- * looking at to offer for picking, answers a tap on the screen with what was
- * tapped, and plays each pick's pop into the basket.
+ * looking at to offer for picking (unless something else, an animal, is
+ * offered more strongly), answers a tap on the screen with what was tapped,
+ * and plays each pick's pop into the basket.
  */
 
 /** How far round the camera forage is drawn, in metres. */
@@ -66,6 +67,7 @@ export function WorldForage({
   clock,
   walker,
   input,
+  rival,
 }: {
   foraging: Foraging;
   palette: ForagePalette;
@@ -73,6 +75,8 @@ export function WorldForage({
   clock: ValleyClock;
   walker: Walker;
   input: RefObject<WalkState>;
+  /** How strongly something else (an animal) is on offer this frame, by the same rule; a spot is offered only if it is offered more strongly. */
+  rival?: () => number;
 }) {
   const group = useMemo(() => new Group(), []);
   // A berry bush's leaves and its fruit sway and take the light together, as foliage; a mushroom stands still.
@@ -162,7 +166,7 @@ export function WorldForage({
 
     const viewer: Viewer | null =
       walker.view !== "walk" ? null : input.current.pointOfView === "first" ? { pointOfView: "first", eye: at, look: eye.getWorldDirection(new Vector3()) } : { pointOfView: "third", x: walker.x, z: walker.z, heading: walker.heading };
-    offer(foraging, viewer ? targetSpot(foraging.forage.spotsNear(walker.x, walker.z, REACH.first + 1), viewer, foraging.foraged, time) : null);
+    offer(foraging, viewer ? targetSpot(foraging.forage.spotsNear(walker.x, walker.z, REACH.first + 1), viewer, foraging.foraged, time, rival?.() ?? Infinity) : null);
 
     for (const spot of takePopping(foraging)) {
       const design = designs.get(designId(spot.kind, spot.variant, FORAGE_FORM[spot.kind] === "berry" ? "fruit" : "plant"));

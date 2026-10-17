@@ -33,7 +33,8 @@ export function makeAtmosphere(): AtmosphereUniforms {
     uHwSunColor: { value: new Color() },
     uHwSunDir: { value: new Vector3(0, 1, 0) },
     uHwHazeDensity: { value: 0.004 },
-    uHwHazeFalloff: { value: 0.016 },
+    // Thinning over about 1,800 m, so the air still lies between the eye and mountains 2,500 m high.
+    uHwHazeFalloff: { value: 1 / 1800 },
     uHwShadowTint: { value: new Color() },
     uHwTime: { value: 0 },
     uHwSkyLight: { value: new Color(1, 1, 1) },

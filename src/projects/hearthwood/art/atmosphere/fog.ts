@@ -32,11 +32,11 @@ import { blendByRegion, weatherColours } from "./colours";
 export const SKY_DISTANCE = 100_000;
 
 /** The clear air's density at the valley floor on a crisp day (per metre), and how it thins with height (its scale height, in metres). */
-export const AIR = { density: 1.4e-5, height: 1600 } as const;
+export const AIR = { density: 1.4e-5, height: 2000 } as const;
 /** The thickest valley mist (per metre: a hundred metres or so of sight) and the depth of its layer. */
-export const MIST = { density: 0.03, height: 32 } as const;
+export const MIST = { density: 0.03, height: 45 } as const;
 /** The veil of rain or snow at its heaviest, and the depth of its layer. */
-const VEIL = { density: 1.2e-3, height: 700 } as const;
+const VEIL = { density: 1.2e-3, height: 1000 } as const;
 
 export const FOG_GLSL = /* glsl */ `
 uniform vec3 uHwFogAir;

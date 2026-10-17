@@ -89,3 +89,64 @@ export function lerp(a: number, b: number, t: number): number {
 export function clamp(x: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, x));
 }
+
+/** A stripe pattern's value at a point, and how fast it changes, per unit, along x and y. */
+export interface Stripes {
+  value: number;
+  dx: number;
+  dy: number;
+}
+
+/**
+ * Stripes one unit apart that run along a direction (a unit vector), their phase jittered cell by cell and blended,
+ * so they wander, fork and fade in and out like gullies down a mountainside: the value is about -1 in a gully and 1
+ * on the spur between two. Turned along the way a slope falls, they carve the valleys and spurs that run down it.
+ */
+export function gullyNoise(seed: string): (x: number, y: number, alongX: number, alongY: number, out: Stripes) => Stripes {
+  const rng = createRng(seed);
+  const jitterX = new Float32Array(TABLE);
+  const jitterY = new Float32Array(TABLE);
+  const perm = new Uint8Array(TABLE * 2);
+  for (let i = 0; i < TABLE; i++) {
+    jitterX[i] = rng.next() * 0.5;
+    jitterY[i] = rng.next() * 0.5;
+    perm[i] = i;
+  }
+  for (let i = TABLE - 1; i > 0; i--) {
+    const j = Math.floor(rng.next() * (i + 1));
+    [perm[i], perm[j]] = [perm[j], perm[i]];
+  }
+  for (let i = 0; i < TABLE; i++) perm[TABLE + i] = perm[i];
+  const tau = Math.PI * 2;
+  return (x, y, alongX, alongY, out) => {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = x - ix;
+    const fy = y - iy;
+    // Across the stripes: the stripes run along (alongX, alongY), so they change only across it.
+    const acrossX = -alongY;
+    const acrossY = alongX;
+    let value = 0;
+    let slope = 0;
+    let total = 0;
+    for (let j = -1; j <= 2; j++) {
+      for (let i = -1; i <= 2; i++) {
+        const cell = perm[perm[(ix + i) & 255] + ((iy + j) & 255)];
+        const px = fx - i - jitterX[cell];
+        const py = fy - j - jitterY[cell];
+        // A weight that falls to nothing within 1.5 cells, so no cell outside the four by four read here would add any.
+        const fade = Math.max(0, 1 - (px * px + py * py) / 2.25);
+        const w = fade * fade * fade;
+        const phase = tau * (px * acrossX + py * acrossY);
+        value += Math.cos(phase) * w;
+        slope -= tau * Math.sin(phase) * w;
+        total += w;
+      }
+    }
+    const share = total > 0 ? 1 / total : 0;
+    out.value = value * share;
+    out.dx = slope * share * acrossX;
+    out.dy = slope * share * acrossY;
+    return out;
+  };
+}

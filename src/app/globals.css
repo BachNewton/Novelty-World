@@ -474,6 +474,13 @@
   --color-hearthwood-forage-basket: #c08a4e;
 }
 
+/* Hearthwood: the companions' marks, the heart that rises as an animal warms
+   to Elliott and the paw a companion answers a pet with. */
+:root {
+  --color-hearthwood-companion-heart: #f2708a;
+  --color-hearthwood-companion-paw: #ffd9a8;
+}
+
 /* Hearthwood: a kind just picked swells in the basket and settles. */
 @keyframes hearthwood-forage-pop {
   0% {

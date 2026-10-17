@@ -152,7 +152,7 @@ export function updateCloudField({ weather, day }: FeatureFrame): void {
   }
   lastMotion = motion;
   // Damp air clouds over lower; heaped clouds tower, layered ones lie thin.
-  const base = 1000 + 800 * (1 - w.humidity);
+  const base = 1500 + 1100 * (1 - w.humidity);
   CLOUD_FIELD.uHwCloudShape.value.set(w.cloudCover, w.heaped, base, base + 220 + 680 * w.heaped);
 }
 

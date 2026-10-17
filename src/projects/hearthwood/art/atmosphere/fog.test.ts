@@ -32,7 +32,7 @@ describe("the fog's layers", () => {
 
   it("thin with height, so the mist lies in the valleys and a ridge stands out of it", () => {
     const valley = fogLayerDepth(MIST.density, 40, MIST.height, 42, 42, 500);
-    const ridge = fogLayerDepth(MIST.density, 40, MIST.height, 240, 240, 500);
+    const ridge = fogLayerDepth(MIST.density, 40, MIST.height, 340, 340, 500);
     expect(1 - Math.exp(-valley)).toBeGreaterThan(0.99);
     expect(1 - Math.exp(-ridge)).toBeLessThan(0.05);
   });

@@ -154,13 +154,14 @@ function suits(kind: Exclude<PlaceKind, "waterfall">, ground: PlaceGround, x: nu
     }
     case "seter": {
       // A high green valley: level ground among the mountains, below the treeline.
-      if (s.mountainous < 0.25 || s.height > ALTITUDE.treeline - 5 || s.height < ALTITUDE.treeline - 190) return null;
+      const banded = s.height - s.bands;
+      if (s.mountainous < 0.25 || banded > ALTITUDE.treeline - 5 || banded < ALTITUDE.treeline - 420) return null;
       const rough = roughness(land, x, z, 12, scratch);
       return rough > 4 ? null : s.mountainous * 3 - rough + s.height * 0.004;
     }
     case "tarn": {
       // A hollow high up: a cirque's floor, lower than the ground all round it.
-      if (s.height < ALTITUDE.treeline - 40) return null;
+      if (s.height - s.bands < ALTITUDE.treeline - 60) return null;
       const hollow = ringMean(land, x, z, 40, scratch) - s.height;
       if (hollow < 3 || roughness(land, x, z, 10, scratch) > 9) return null;
       return hollow;
