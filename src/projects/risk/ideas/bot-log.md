@@ -180,3 +180,20 @@ v2 against v1 head to head: alone among v1s it wins 40.3% at 3 players (par 33.3
 - **Direct ways in and last-territory kills** (v3 candidate B: a way in through a third player's territory costs 30 route-score points, so a direct one wins near ties; a victim's last territory is offered as a kill plan): **better than v2 at five tables of six**, even alone at 3 players (34.1% [31.7, 36.6] vs 33.3%, 1,452 games). Win Elo +23.7 a seat. Kept; not crowned. 6-player games among v2s run about 108 turns, the turtling a reader measured (7 to 16% of turns on 3 or fewer territories with most armies in one stack).
 - **The gift priced as a forced trade** (v3 candidate C, on B: a card-rich victim left weakened for the next seat valued as the forced trade it hands over, not the cards' long-run worth): **even** with v2 alone at 3 players (1,584 decisive games); stopped, reverted. The point tested: forced-trade armies plus the kept hand, against v2's `hiddenCards`.
 - **8 sampled outcomes a plan** on candidate B (the work knob, +46 for v1 alone at 4 players earlier): **even** with v2 alone at 3 players (975 decisive games); stopped. More work doesn't buy the 3-player lone seat either.
+
+## v3, not crowned: candidates D and E, and the night's summary (2026-10-17)
+
+**Summary of the night.** Crowned: **rule-v2**, +71 Elo a seat over rule-v1 on holdout (+90 on train), better in all 30 gauntlet pairings on both seed streams, now the lobby's default (Sergeant Major). Every Elo now (greedy 1000): Rule v2 1410, Rule v1 1334, GD Stacker 1097, GD Continental 1069, Greedy 1000, GD Aggressive 997, GD Defensive 966; Random none. rule-v1 already beat every GD Expert persona at every table; v2 beats them by more (a lone v2 wins 47 to 83% among copies of any persona). **rule-v3** is measured but not crowned: better than v2 at most tables, never at all six at once. Tried and failed: target share alone, the sweep alone (each incomplete, then combined into v2); v2 with border weight 1 (worse); striking enemy stacks, the forced-trade gift, 8 sampled outcomes (each even at 3 players alone); tuned weights everywhere (even at 6 alone), and keyed to small tables (D: even at 3 alone and at 4; E: even at 4 alone). **Most promising next step:** the 3-player lone seat is near a ceiling set by the dice, so the next gain is the opponent model at small tables (two v2s gang up on a leader far less than v2 assumes), measured with more games per candidate than tonight's tuner gave; and, for speed, profiling v2/v3's threat model (the sweep runs again for every neighbour on every plan scored), now that the pool keeps every worker busy.
+
+Candidates D and E, both v3-B (`rule-bot-v3.md` §1 and §2) with the 3-player tuned preferences keyed to tables of 4 or fewer. Train seeds, ±30 Elo, field v2, v1 and the four GD personas:
+
+| Pairing vs v2 | D (v2's preferences in a 2-player endgame) | E (tuned preferences in the endgame too) |
+|---|---|---|
+| 1 v3 vs 2 v2 (3p) | even, 33.9% [31.4, 36.5] vs 33.3% (1,281 games) | **better** (2,552) |
+| 2 v3 vs 1 v2 (3p) | **better**, 70.1% vs 66.7% (1,092) | **better** (708) |
+| 1 v3 vs 3 v2 (4p) | even, 25.1% vs 25.0% (1,088) | even (2,015); stopped |
+| 3 v3 vs 1 v2 (4p) | even, 75.8% vs 75.0% (2,296) | **better** (1,896) |
+| 1 v3 vs 5 v2 (6p) | **better**, 18.9% [17.2, 20.9] vs 16.7% (1,728) | (B's preferences, as D) |
+| 5 v3 vs 1 v2 (6p) | **better**, 85.8% vs 83.3% (1,392) | (as D) |
+
+D: win Elo +18.1 over v2, better than v1 and every GD persona at every table. The tuned vector read better at 4 players alone in 407 games and not in 2,015: the tuner's samples (240 games a cell) were too small to trust at the margin, the lesson Monopoly's record already holds. `rule-v3` stays in the registry at candidate D, which passes every expert scenario; it is not seatable. The gauntlet record of candidate B is missing from `eval/runs.jsonl` (9,677 games, 3.4 games a second): the revert of candidate C removed it.
