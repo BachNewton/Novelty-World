@@ -1,3 +1,4 @@
+import { V3_PARAMS } from "../rule-v3/params";
 import type { TakenRecord } from "./beliefs";
 
 // v4's parameters, v1's kinds (`ideas/rule-bot-v1.md` §3, and Monopoly's
@@ -102,23 +103,24 @@ export interface Params {
   record: TakenRecord | null;
 }
 
-/** v4: v3's preferences and opponent model, with the beliefs `ideas/rule-bot-v4.md` measured. */
+/** v4: v3's opponent model with the beliefs `ideas/rule-bot-v4.md` measured, and the
+ *  small-table preferences retuned on them; above the small table, v3's preferences. */
 export const V4_PARAMS: Params = {
   smallTable: {
     players: 4,
-    // `risk:tune -- --tunable rule-v3 --opponent rule-v2 --players 3 --gens 12 --pop 8
+    // `risk:tune -- --tunable rule-v4-small --opponent rule-v3 --players 3,4 --gens 10 --pop 8
     // --groups 40`, the final mean (`ideas/bot-log.md`).
     prefs: {
-      incomeHorizon: 2.4354,
-      myCardWeight: 0.9316,
-      myContinentWeight: 1.4007,
-      killCommitMargin: -0.0188,
-      vulnerabilityWeight: 1.184,
-      borderWeight: 0.347,
-      idleWeight: 0.2522,
-      opportunityWeight: 0.5712,
-      commonThreatWeight: 0.6661,
-      leadPenaltyWeight: 0.0982,
+      incomeHorizon: 2.0556,
+      myCardWeight: 1.4948,
+      myContinentWeight: 2.0759,
+      killCommitMargin: -0.0138,
+      vulnerabilityWeight: 2.2528,
+      borderWeight: 1.1178,
+      idleWeight: 0,
+      opportunityWeight: 0,
+      commonThreatWeight: 0.0096,
+      leadPenaltyWeight: 0,
     },
   },
   prefs: {
@@ -156,22 +158,6 @@ export const V4_PARAMS: Params = {
   record: null,
 };
 
-/** v3's model on v4's code, for measuring against: the same moves as rule-v3. */
-export const AS_V3_PARAMS: Params = { ...V4_PARAMS, opponents: { ...V4_PARAMS.opponents, beliefs: null } };
+/** v3's model and preferences on v4's code, for measuring against: the same moves as rule-v3. */
+export const AS_V3_PARAMS: Params = { ...V4_PARAMS, smallTable: V3_PARAMS.smallTable, opponents: { ...V4_PARAMS.opponents, beliefs: null } };
 
-/** v3's model written as beliefs: each at the value that leaves v3's model as it was. */
-const V3_BELIEFS: Beliefs = { aimSlope: 1, leaderAim: 1, allyAim: 0.25, historyPrior: null, historyDecay: 0.7, killRate: 1, myKillRate: 1 };
-
-function withBeliefs(changed: Partial<Beliefs>): Params {
-  return { ...V4_PARAMS, opponents: { ...V4_PARAMS.opponents, beliefs: { ...V3_BELIEFS, ...changed } } };
-}
-
-/** v4 with some of its beliefs, the rest v3's: which of them costs or pays (`ideas/bot-log.md`). */
-export const BELIEF_VARIANTS: Readonly<Record<string, Params>> = {
-  kills: withBeliefs({ killRate: 0.25, myKillRate: 0.5 }),
-  leader: withBeliefs({ leaderAim: 0.7, allyAim: 0.3 }),
-  aim: withBeliefs({ aimSlope: 0.5 }),
-  record: withBeliefs({ historyPrior: 6, historyDecay: 0.7 }),
-  // Every belief of v4's but the aim's pull toward an even split, the one that lost alone.
-  "no-aim": withBeliefs({ ...V4_PARAMS.opponents.beliefs, aimSlope: 1 }),
-};

@@ -9,7 +9,7 @@ import { V2_PARAMS } from "./rule-v2/params";
 import { ruleBot as ruleV3, ruleV3Bot } from "./rule-v3";
 import { V3_PARAMS } from "./rule-v3/params";
 import { ruleBot as ruleV4, ruleV4Bot } from "./rule-v4";
-import { BELIEF_VARIANTS, V4_PARAMS, type Params as Params4 } from "./rule-v4/params";
+import { V4_PARAMS } from "./rule-v4/params";
 
 /** Every bot the measuring harness can seat, by label. */
 export const RISK_BOTS: Readonly<Record<string, Bot>> = {
@@ -19,7 +19,6 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v2": ruleV2Bot,
   "rule-v3": ruleV3Bot,
   "rule-v4": ruleV4Bot,
-  ...Object.fromEntries(Object.entries(BELIEF_VARIANTS).map(([belief, params]) => [`rule-v4-${belief}`, ruleV4(params)])),
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
   "gd-aggressive": gdAggressiveBot,
@@ -35,34 +34,11 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v2": "rule-v2/index.ts",
   "rule-v3": "rule-v3/index.ts",
   "rule-v4": "rule-v4/index.ts",
-  ...Object.fromEntries(Object.keys(BELIEF_VARIANTS).map((belief) => [`rule-v4-${belief}`, "rule-v4/index.ts"])),
   "gd-defensive": "gd/index.ts",
   "gd-continental": "gd/index.ts",
   "gd-aggressive": "gd/index.ts",
   "gd-stacker": "gd/index.ts",
 };
-
-/** v4 and its belief variants, by label. */
-const V4_FAMILY: Readonly<Record<string, Params4>> = {
-  "rule-v4": V4_PARAMS,
-  ...Object.fromEntries(Object.entries(BELIEF_VARIANTS).map(([belief, params]) => [`rule-v4-${belief}`, params])),
-};
-
-/** A v4 bot is tunable twice: its preferences above the small table, and (`<label>-small`)
- *  the small table's own. */
-function v4Tunables(label: string, params: Params4): [string, Tunable][] {
-  return [
-    [label, { prefs: params.prefs, engine: params.engine, build: (prefs, engine) => ruleV4({ ...params, prefs, engine }) }],
-    [
-      `${label}-small`,
-      {
-        prefs: params.smallTable.prefs,
-        engine: params.engine,
-        build: (prefs, engine) => ruleV4({ ...params, smallTable: { ...params.smallTable, prefs }, engine }),
-      },
-    ],
-  ];
-}
 
 interface Tunable {
   prefs: Preferences;
@@ -77,7 +53,13 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
   "rule-v1": { prefs: V1_PARAMS.prefs, engine: V1_PARAMS.engine, build: (prefs, engine) => ruleBot({ ...V1_PARAMS, prefs, engine }) },
   "rule-v2": { prefs: V2_PARAMS.prefs, engine: V2_PARAMS.engine, build: (prefs, engine) => ruleV2({ ...V2_PARAMS, prefs, engine }) },
   "rule-v3": { prefs: V3_PARAMS.prefs, engine: V3_PARAMS.engine, build: (prefs, engine) => ruleV3({ ...V3_PARAMS, prefs, engine }) },
-  ...Object.fromEntries(Object.entries(V4_FAMILY).flatMap(([label, params]) => v4Tunables(label, params))),
+  "rule-v4": { prefs: V4_PARAMS.prefs, engine: V4_PARAMS.engine, build: (prefs, engine) => ruleV4({ ...V4_PARAMS, prefs, engine }) },
+  // v4 at the small table, where its own preferences are `smallTable.prefs`.
+  "rule-v4-small": {
+    prefs: V4_PARAMS.smallTable.prefs,
+    engine: V4_PARAMS.engine,
+    build: (prefs, engine) => ruleV4({ ...V4_PARAMS, smallTable: { ...V4_PARAMS.smallTable, prefs }, engine }),
+  },
 };
 
 export type Overrides = Partial<Preferences & Engine>;
