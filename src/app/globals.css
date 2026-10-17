@@ -406,3 +406,52 @@ body {
     transform: translate(var(--fx-x1), var(--fx-y1));
   }
 }
+
+/* Hearthwood: the cats. A real cat's coat colours, warmed a little for the
+   game's storybook light: the eumelanins (black, chocolate, cinnamon and their
+   dilutes), each with the agouti ground a tabby shows between its stripes, the
+   phaeomelanins (red and cream) with theirs, white, the colourpoint's pale
+   body, the eyes, the nose leather and the inside of an ear. Then the preview's
+   meadow and its soft warm light. Read only by the 3D scene through themeColor,
+   so declared outside @theme. */
+:root {
+  --color-hearthwood-cat-black: #302a27;
+  --color-hearthwood-cat-chocolate: #5c3a28;
+  --color-hearthwood-cat-cinnamon: #8e5a36;
+  --color-hearthwood-cat-blue: #7f8792;
+  --color-hearthwood-cat-lilac: #b4a8a6;
+  --color-hearthwood-cat-fawn: #c7a98d;
+  --color-hearthwood-cat-black-ground: #9a7f5d;
+  --color-hearthwood-cat-chocolate-ground: #b39070;
+  --color-hearthwood-cat-cinnamon-ground: #d2a578;
+  --color-hearthwood-cat-blue-ground: #bcb3a7;
+  --color-hearthwood-cat-lilac-ground: #dacdc2;
+  --color-hearthwood-cat-fawn-ground: #e4cfb3;
+  --color-hearthwood-cat-red: #d4702f;
+  --color-hearthwood-cat-cream: #e8bf8a;
+  --color-hearthwood-cat-red-ground: #eba25d;
+  --color-hearthwood-cat-cream-ground: #f5ddb8;
+  --color-hearthwood-cat-white: #f7f2ea;
+  --color-hearthwood-cat-point-body: #f0e6d4;
+  --color-hearthwood-cat-eye-blue: #6cb6ea;
+  --color-hearthwood-cat-eye-green: #93c44b;
+  --color-hearthwood-cat-eye-hazel: #bfa83a;
+  --color-hearthwood-cat-eye-gold: #eab93a;
+  --color-hearthwood-cat-eye-copper: #dc8429;
+  --color-hearthwood-cat-pupil: #171211;
+  --color-hearthwood-cat-glint: #fffaf0;
+  --color-hearthwood-cat-nose-pink: #e7979a;
+  --color-hearthwood-cat-nose-brick: #b25a4a;
+  --color-hearthwood-cat-nose-dark: #3b2b2a;
+  --color-hearthwood-cat-nose-rose: #b9827f;
+  --color-hearthwood-cat-inner-ear: #eaa79f;
+  --color-hearthwood-cat-shadow: #4a3a2c;
+
+  --color-hearthwood-preview-sky: #f4e2c4;
+  --color-hearthwood-preview-meadow: #a3b66c;
+  --color-hearthwood-preview-meadow-edge: #c9c486;
+  --color-hearthwood-preview-key: #ffe6bf;
+  --color-hearthwood-preview-fill: #c7d6ef;
+  --color-hearthwood-preview-ambient-sky: #fff1d9;
+  --color-hearthwood-preview-ambient-ground: #a8936a;
+}
