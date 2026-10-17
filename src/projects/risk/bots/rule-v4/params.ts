@@ -158,3 +158,18 @@ export const V4_PARAMS: Params = {
 
 /** v3's model on v4's code, for measuring against: the same moves as rule-v3. */
 export const AS_V3_PARAMS: Params = { ...V4_PARAMS, opponents: { ...V4_PARAMS.opponents, beliefs: null } };
+
+/** v3's model written as beliefs: each at the value that leaves v3's model as it was. */
+const V3_BELIEFS: Beliefs = { aimSlope: 1, leaderAim: 1, allyAim: 0.25, historyPrior: null, historyDecay: 0.7, killRate: 1, myKillRate: 1 };
+
+function withBeliefs(changed: Partial<Beliefs>): Params {
+  return { ...V4_PARAMS, opponents: { ...V4_PARAMS.opponents, beliefs: { ...V3_BELIEFS, ...changed } } };
+}
+
+/** v4 with one of its beliefs, the rest v3's: which of them costs or pays (`ideas/bot-log.md`). */
+export const ONE_BELIEF_PARAMS: Readonly<Record<string, Params>> = {
+  kills: withBeliefs({ killRate: 0.25, myKillRate: 0.5 }),
+  leader: withBeliefs({ leaderAim: 0.7, allyAim: 0.3 }),
+  aim: withBeliefs({ aimSlope: 0.5 }),
+  record: withBeliefs({ historyPrior: 6, historyDecay: 0.7 }),
+};
