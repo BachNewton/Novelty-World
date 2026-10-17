@@ -621,7 +621,10 @@ async function companionShots(page, phone) {
     await page.evaluate((at) => window.__hearthwoodWorld.placeWalker(at.x, at.z, at.heading), stand);
     await page.evaluate(() => window.__hearthwoodWorld.companions.simulate(6));
     await holdWhenSettled(page, 1.2, cat.key);
-    await capture(page, "companions-stray-cat-watching", { hour: 10.5, walker: stand, orbit: { yaw: heading, pitch: 0.12, distance: 6 }, keepMotion: true });
+    const cam = await page.evaluate((key) => window.__hearthwoodWorld.companions.animals().find((a) => a.key === key), cat.key);
+    // From beside Elliott and a little behind, low, with the cat beyond.
+    const eye = { x: stand.x + Math.cos(heading) * 1.6 - Math.sin(heading) * 1.5, z: stand.z - Math.sin(heading) * 1.6 - Math.cos(heading) * 1.5 };
+    await capture(page, "companions-stray-cat-watching", { hour: 10.5, walker: stand, free: { ...eye, y: cam.y + 1.1, lookX: cam.x, lookY: cam.y + 0.25, lookZ: cam.z }, keepMotion: true });
     await capture(page, "companions-stray-cat-watching-fp", { hour: 10.5, pov: "first", walker: stand, look: { yaw: heading, pitch: -0.08 }, keepMotion: true });
   }
 
@@ -731,8 +734,11 @@ async function companionShots(page, phone) {
       await page.evaluate(() => window.__hearthwoodWorld.holdMotion(window.__hearthwoodWorld.motion()));
       await page.keyboard.up("KeyW");
       const here = await page.evaluate(() => window.__hearthwoodWorld.walker());
-      // Looking back over a shoulder at them, behind in third person, through Elliott's eyes in first.
-      await capture(page, name, { hour: 10.5, pov, walker: { x: here.x, z: here.z, heading: way }, ...view, keepMotion: true, chrome: pov === "first" });
+      // Third person from out to one side and ahead, low, the party crossing the view; first person looking back over a shoulder at them.
+      const ground = await page.evaluate(({ x, z }) => window.__hearthwoodWorld.at(x, z).height, here);
+      const side = { x: here.x + Math.sin(way) * 3 + Math.cos(way) * 5.5, z: here.z + Math.cos(way) * 3 - Math.sin(way) * 5.5 };
+      const free = pov === "third" ? { ...side, y: ground + 1.3, lookX: here.x - Math.sin(way) * 2, lookY: ground + 0.5, lookZ: here.z - Math.cos(way) * 2 } : null;
+      await capture(page, name, { hour: 10.5, pov, walker: { x: here.x, z: here.z, heading: way }, ...(free ? { free } : view), keepMotion: true, chrome: pov === "first" });
     }
   }
 
