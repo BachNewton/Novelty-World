@@ -8,7 +8,7 @@ It lives at Games → 3D Games → Hearthwood, in Three.js through `@react-three
 
 Hearthwood is a gift from the owner to their partner, **Elliott**, who uses **they/them** pronouns: always write and speak of Elliott, and of the witch, as they. The witch is **Elliott the Witch**: the player plays as Elliott.
 
-Everything in the game is chosen for what Elliott loves: cats and dogs, and befriending animals that then follow them; nature, forests and mountains; hiking; cooking and campfires; magic, witchy and pagan things; and cozy, relaxing, chill games. Elliott is very social: they like talking to people and helping them, so the land has people in it with stories to tell and help to ask for.
+Everything in the game is chosen for what Elliott loves: cats and dogs, and befriending animals that then follow them; nature, forests and mountains; hiking; cooking and campfires; magic, witchy and pagan things; and cozy, relaxing, chill games. Elliott is very social: they like talking to people and helping them, so the land has people in it with stories to tell and help to ask for. And Elliott loves a good mystery, with a soft spot for Sherlock Holmes, so some of those stories are mysteries to solve.
 
 Elliott plays on a Pixel 8 Pro (touch), on a laptop (keyboard and mouse) and on a laptop on the TV with an Xbox controller.
 
@@ -107,6 +107,17 @@ The land has people in it, met along the way: travellers on the road, a shepherd
 - **Rewards are friendship, not currency:** a story, a recipe, a spell, a seedling, a place to stay, a cat or dog who needs a home. There is nothing to grind.
 - **Who writes them:** Claude writes the people and their stories as data, a growing library, the way it designs other games' content; where a person stands and how they look come from the world's generation, so the land keeps meeting Elliott with someone new. (Writing conversation live with a language model while playing is possible but needs a server and costs per conversation; it is not planned.)
 - **How they look:** storybook figures, rounded and simple, with hats, hoods, scarves and aprons that say who they are, and faces of a few simple shapes (dot eyes, a little blush) that read well even face to face in first person, the way simple faces work in A Short Hike. In conversation the camera eases to frame the person and the words appear in a storybook panel.
+
+## Mysteries
+
+Some of the stories people tell are **mysteries**, and Elliott the Witch solves them the way Holmes would: by noticing, gathering and reasoning, with a witch's tools besides. They are cozy mysteries: nobody is hurt and nothing is grim. Who has been taking the beekeeper's honey? Why does the old mill's bell ring on windless nights? Where did the ferryman go, and why is his boat on the wrong shore? What are the lights moving on the fell?
+
+- **Clues are found in the world**, not handed over: tracks in mud or snow, a tuft of fur on a fence, a dropped button, a door left open, a smell, what the weather and the season say, and what people tell, which is not always the whole truth.
+- **Companions help:** a dog follows a scent trail, a cat slips into the places Elliott can't and comes back with something, and either may notice what Elliott walked past.
+- **Witchcraft helps without solving it:** a scrying bowl shows a glimpse of the past at a place, a pendulum leans towards what is hidden, a tarot draw offers a hint to think about. Magic opens a way to look; the reasoning stays Elliott's.
+- **The casebook** is where the deducing happens, in the spirit of Holmes: every clue goes into it, and Elliott connects clues into deductions ("the tracks are a badger's" plus "the honey jars were opened, not broken" says no badger did it). A deduction is checked when it is made, so the player always knows when they have it right; a wrong guess just isn't accepted, never punished.
+- **The reveal** is a small scene with the people involved, where Elliott lays out how they worked it out, and it ends kindly: the honey thief was a lonely child feeding a fox cub, the bell was a jackdaw's nest. Solving a mystery is a friendship made, and often a home found for someone, animal or person.
+- **Written like the stories**: Claude writes each mystery as data (its truth, its clues and where they lie, the deductions that join them), placed in the world by its generation, and every mystery is checked for being solvable from its clues alone. A nod to Holmes here and there is welcome: a deerstalker to find, a fiddle by a cottage fire, a dog called Watson.
 
 ## Foraging and cooking
 
