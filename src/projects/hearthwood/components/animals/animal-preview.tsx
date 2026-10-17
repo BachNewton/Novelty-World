@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
-import { Armchair, ArrowUp, Eye, TreePine, ArrowLeft, BedDouble, Dices, Footprints, Hand, PawPrint, PersonStanding, Rabbit, RotateCw, Rows3, Squirrel, Wind, Zap } from "lucide-react";
+import { Armchair, ArrowUp, Eye, Sprout, TreePine, ArrowLeft, BedDouble, Dices, Footprints, Hand, PawPrint, PersonStanding, Rabbit, RotateCw, Rows3, Squirrel, Wind, Zap } from "lucide-react";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { EVERY_SPECIES, shownCat, shownDog, type Shown } from "./preview-species";
 import { makeAtmosphere } from "../../art/atmosphere";
@@ -226,7 +226,7 @@ function cameraFor(view: Mode | "focus", aspect: number, size: number): { from: 
   const narrow = Math.max(1, 1.5 / aspect);
   if (view === "focus") return { from: new THREE.Vector3(0.75, 0.42, 0.95).multiplyScalar(size * narrow ** 0.6), target: new THREE.Vector3(0, 0.2 * size, 0) };
   if (view === "lineup") return { from: new THREE.Vector3(0, 0.8, 6.8).multiplyScalar(narrow ** 0.9), target: new THREE.Vector3(0, 0.32, 0) };
-  if (view === "everyone") return { from: new THREE.Vector3(0, 1.1, 8.2).multiplyScalar(narrow ** 0.9), target: new THREE.Vector3(0, 0.3, 0) };
+  if (view === "everyone") return { from: new THREE.Vector3(0, 1.4, 11).multiplyScalar(narrow ** 0.9), target: new THREE.Vector3(0, 0.35, 0) };
   return { from: new THREE.Vector3(4.4, 3.9 * narrow ** 0.5, 6.6).multiplyScalar(narrow ** 0.55), target: new THREE.Vector3(0, 0.2, 0) };
 }
 
@@ -270,6 +270,7 @@ const ACTIVITY_BUTTONS: Record<string, { label: string; icon: ReactNode }> = {
   loaf: { label: "Loaf", icon: <Squirrel size={20} /> },
   lie: { label: "Lie down", icon: <BedDouble size={20} /> },
   pounce: { label: "Pounce", icon: <Zap size={20} /> },
+  graze: { label: "Graze", icon: <Sprout size={20} /> },
   peek: { label: "Peek out", icon: <Eye size={20} /> },
   climb: { label: "Climb", icon: <ArrowUp size={20} /> },
   cling: { label: "Cling to a trunk", icon: <TreePine size={20} /> },

@@ -126,6 +126,67 @@ function HedgehogHead({ p }: { p: Portrait }) {
   );
 }
 
+/** A red squirrel's head: round, with tufted ears and a cream chin. */
+function SquirrelHead({ p }: { p: Portrait }) {
+  const line = { stroke: RIM, strokeWidth: 0.9, strokeLinejoin: "round" as const };
+  return (
+    <>
+      <path d="M8 13 9 4 13 10Z M24 13 23 4 19 10Z" fill={v(p.coat)} {...line} />
+      <path d="M9 4 8.5 0.8 10.5 3.5Z M23 4 23.5 0.8 21.5 3.5Z" fill={v(p.cap ?? p.coat)} {...line} />
+      <ellipse cx={16} cy={18} rx={10} ry={9.5} fill={v(p.coat)} {...line} />
+      {p.muzzle && <ellipse cx={16} cy={23.5} rx={5.5} ry={4} fill={v(p.muzzle)} />}
+      {[11.5, 20.5].map((x) => (
+        <g key={x}>
+          <circle cx={x} cy={16.5} r={2.6} fill={v(p.muzzle ?? p.coat)} />
+          <circle cx={x} cy={16.5} r={2} fill={v(p.eye)} />
+          <circle cx={x - 0.6} cy={15.8} r={0.55} fill="var(--color-hearthwood-squirrel-glint)" />
+        </g>
+      ))}
+      <ellipse cx={16} cy={21.5} rx={1.4} ry={1} fill={v(p.nose)} />
+    </>
+  );
+}
+
+/** A mountain hare's head: tall black-tipped ears, a soft muzzle, big eyes at the sides. */
+function HareHead({ p }: { p: Portrait }) {
+  const line = { stroke: RIM, strokeWidth: 0.9, strokeLinejoin: "round" as const };
+  return (
+    <>
+      <path d="M10 14C7 8 7 2 9.5 0.5 12 2 13 8 13.5 13Z M22 14C25 8 25 2 22.5 0.5 20 2 19 8 18.5 13Z" fill={v(p.coat)} {...line} />
+      <path d="M8.3 3.5C8.6 1.8 9 0.8 9.5 0.5 10.4 1 11 2.2 11.3 3.6Z M23.7 3.5C23.4 1.8 23 0.8 22.5 0.5 21.6 1 21 2.2 20.7 3.6Z" fill={v(p.cap ?? p.coat)} />
+      <ellipse cx={16} cy={20} rx={10} ry={9} fill={v(p.coat)} {...line} />
+      {p.muzzle && <ellipse cx={16} cy={25} rx={4.6} ry={3.4} fill={v(p.muzzle)} />}
+      {[9.5, 22.5].map((x) => (
+        <g key={x}>
+          <circle cx={x} cy={18} r={2.2} fill={v(p.eye)} />
+          <circle cx={x} cy={18} r={1.1} fill="var(--color-hearthwood-hare-tips)" />
+        </g>
+      ))}
+      <path d="M14.6 23h2.8L16 24.6Z" fill={v(p.nose)} />
+    </>
+  );
+}
+
+/** A roe deer's head: big ears out to the sides, a long face down to a black nose ringed with white, and a buck's antlers. */
+function DeerHead({ p }: { p: Portrait }) {
+  const line = { stroke: RIM, strokeWidth: 0.9, strokeLinejoin: "round" as const };
+  return (
+    <>
+      {p.patch && <path d="M13 8 12 1.5M12.3 4.5 10 3M12.6 2.5 14 0.8M19 8 20 1.5M19.7 4.5 22 3M19.4 2.5 18 0.8" stroke={v(p.patch)} strokeWidth={1.4} strokeLinecap="round" fill="none" />}
+      <path d="M11 10 2 7 4 12.5 10.5 13Z M21 10 30 7 28 12.5 21.5 13Z" fill={v(p.coat)} {...line} />
+      <path d="M16 7c4.5 0 7 3 7 7 0 5-3 12-7 15-4-3-7-10-7-15 0-4 2.5-7 7-7Z" fill={v(p.coat)} {...line} />
+      {p.muzzle && <ellipse cx={16} cy={26} rx={3.6} ry={2.6} fill={v(p.muzzle)} />}
+      <ellipse cx={16} cy={27.4} rx={2.4} ry={1.6} fill={v(p.nose)} />
+      {[12, 20].map((x) => (
+        <g key={x}>
+          <ellipse cx={x} cy={14.5} rx={1.6} ry={1.8} fill={v(p.eye)} />
+          <circle cx={x - 0.4} cy={14} r={0.45} fill="var(--color-hearthwood-deer-glint)" />
+        </g>
+      ))}
+    </>
+  );
+}
+
 function Head({ portrait, clip }: { portrait: Portrait; clip: string }) {
   switch (portrait.species) {
     case "cat":
@@ -136,6 +197,12 @@ function Head({ portrait, clip }: { portrait: Portrait; clip: string }) {
       return <FoxHead p={portrait} />;
     case "hedgehog":
       return <HedgehogHead p={portrait} />;
+    case "squirrel":
+      return <SquirrelHead p={portrait} />;
+    case "hare":
+      return <HareHead p={portrait} />;
+    case "deer":
+      return <DeerHead p={portrait} />;
   }
 }
 

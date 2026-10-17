@@ -52,7 +52,7 @@ describe("befriending a hedgehog", () => {
   });
 
   it("curls up where it is when Elliott comes running, rather than running off", () => {
-    const nature: Nature = { species: "hedgehog", size: 1.2, boldness: -0.2, energy: 0, affection: 0, seed: 3 };
+    const nature: Nature<"hedgehog"> = { species: "hedgehog", size: 1.2, boldness: -0.2, energy: 0, affection: 0, seed: 3 };
     const body = bodyAt(0, 0, 0);
     const mind = strayMind();
     const elliott: Elliott = { x: 0, z: 3, speed: 6, calm: false, aloft: false };

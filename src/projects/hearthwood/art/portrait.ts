@@ -2,6 +2,7 @@ import type { Cat } from "../cats/cat";
 import type { Dog, EarType } from "../dogs/dog";
 import type { Fox } from "../foxes/fox";
 import type { Hedgehog } from "../hedgehogs/hedgehog";
+import type { Deer } from "../deer/deer";
 
 /*
  * A companion's portrait, as plain data for a small drawn head: the colour
@@ -12,7 +13,7 @@ import type { Hedgehog } from "../hedgehogs/hedgehog";
  */
 
 export interface Portrait {
-  species: "cat" | "dog" | "fox" | "hedgehog";
+  species: "cat" | "dog" | "fox" | "hedgehog" | "squirrel" | "hare" | "deer";
   /** The coat over the head. */
   coat: string;
   /** A second colour in patches (a tortoiseshell's, a merle's), or null. */
@@ -114,4 +115,21 @@ export function hedgehogPortrait(hedgehog: Hedgehog): Portrait {
     nose: HEDGEHOG("nose"),
     ears: "wild",
   };
+}
+
+const WILD = (animal: string, name: string) => `--color-hearthwood-${animal}-${name}`;
+
+/** A red squirrel's face: its russet, a cream chin, dark tufted ears. */
+export function squirrelPortrait(): Portrait {
+  return { species: "squirrel", coat: WILD("squirrel", "red"), patch: null, stripes: null, cap: WILD("squirrel", "dark"), muzzle: WILD("squirrel", "belly"), white: 0, eye: WILD("squirrel", "eye"), nose: WILD("squirrel", "nose"), ears: "wild" };
+}
+
+/** A mountain hare's face, in its summer brown: the portrait keeps to one coat. */
+export function harePortrait(): Portrait {
+  return { species: "hare", coat: WILD("hare", "brown"), patch: null, stripes: null, cap: WILD("hare", "tips"), muzzle: WILD("hare", "white"), white: 0, eye: WILD("hare", "eye"), nose: WILD("hare", "nose"), ears: "wild" };
+}
+
+/** A roe deer's face: its red, the white band round its black nose, and a buck's antlers. */
+export function deerPortrait(deer: Deer): Portrait {
+  return { species: "deer", coat: WILD("deer", "red"), patch: deer.build.antlers > 0 ? WILD("deer", "antler") : null, stripes: null, cap: null, muzzle: WILD("deer", "white"), white: 0, eye: WILD("deer", "eye"), nose: WILD("deer", "dark"), ears: "wild" };
 }

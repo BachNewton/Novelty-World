@@ -60,10 +60,10 @@ export function strayMind(): StrayMind {
 }
 
 /** How near a stray comes to see Elliott, in metres from them. */
-export const comeTo = (nature: Nature) => PACES[nature.species].near(nature.size);
+export const comeTo = (nature: Nature<Species>) => PACES[nature.species].near(nature.size);
 
 /** The next thing it does round home, and for how long. */
-function idlePlan(nature: Nature, body: Body, home: { x: number; z: number }, roam: number, picks: number): { plan: Aim; seconds: number } {
+function idlePlan(nature: Nature<Species>, body: Body, home: { x: number; z: number }, roam: number, picks: number): { plan: Aim; seconds: number } {
   const busy = (nature.energy + 1) / 2;
   const lazy = 1 - busy;
   const away = Math.hypot(body.x - home.x, body.z - home.z);
@@ -101,7 +101,7 @@ function backAway(body: Body, elliott: Elliott, keep: number, home: { x: number;
 }
 
 /** What a stray does about Elliott, near enough to notice them. */
-function reaction(body: Body, nature: Nature, temper: Temper, bond: Bond, elliott: Elliott, tempted: boolean, home: { x: number; z: number }, roam: number): Aim {
+function reaction(body: Body, nature: Nature<Species>, temper: Temper, bond: Bond, elliott: Elliott, tempted: boolean, home: { x: number; z: number }, roam: number): Aim {
   const d = Math.hypot(body.x - elliott.x, body.z - elliott.z);
   const face = Math.atan2(elliott.x - body.x, elliott.z - body.z);
   const shy = keepsOff(temper, bond) * (tempted ? TEMPTED : 1);
@@ -124,7 +124,7 @@ function reaction(body: Body, nature: Nature, temper: Temper, bond: Bond, elliot
 }
 
 /** How a stray holds itself watching Elliott: a cat sits unless it is shy and Elliott close; a fox stands alert, sitting only once at ease; a hedgehog stays curled a while after Elliott comes close; a dog stands or sits. */
-function watching(nature: Nature, temper: Temper, d: number, keep: number): "stand" | "sit" | "lie" {
+function watching(nature: Nature<Species>, temper: Temper, d: number, keep: number): "stand" | "sit" | "lie" {
   switch (nature.species) {
     case "cat":
       return temper.boldness < -0.3 && d < keep + 2 ? "stand" : "sit";
@@ -145,7 +145,7 @@ function watching(nature: Nature, temper: Temper, d: number, keep: number): "sta
 export function stepStray(
   body: Body,
   mind: StrayMind,
-  nature: Nature,
+  nature: Nature<Species>,
   temper: Temper,
   bond: Bond,
   home: { x: number; z: number },

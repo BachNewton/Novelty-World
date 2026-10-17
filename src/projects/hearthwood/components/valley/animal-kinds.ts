@@ -6,9 +6,14 @@ import { generateFox, type Fox } from "../../foxes/fox";
 import type { FoxActivity } from "../../foxes/motion";
 import { generateHedgehog, type Hedgehog } from "../../hedgehogs/hedgehog";
 import type { HedgehogActivity } from "../../hedgehogs/motion";
-import type { Species } from "../../engine/strays";
-import type { Doing } from "../../gameplay/behaviour";
-import { catPortrait, dogPortrait, foxPortrait, hedgehogPortrait, type Portrait } from "../../art/portrait";
+import { generateSquirrel, type Squirrel } from "../../squirrels/squirrel";
+import type { SquirrelActivity } from "../../squirrels/motion";
+import { generateHare, type Hare } from "../../hares/hare";
+import type { HareActivity } from "../../hares/motion";
+import { generateDeer, type Deer } from "../../deer/deer";
+import type { DeerActivity } from "../../deer/motion";
+import type { Doing, Kind } from "../../gameplay/behaviour";
+import { catPortrait, deerPortrait, dogPortrait, foxPortrait, harePortrait, hedgehogPortrait, squirrelPortrait, type Portrait } from "../../art/portrait";
 import type { AnimalDrive } from "../animals/animal-body";
 
 /*
@@ -25,14 +30,21 @@ export type AnimalLook =
   | { species: "cat"; cat: Cat; drive: Drive<CatActivity> }
   | { species: "dog"; dog: Dog; drive: Drive<DogActivity> }
   | { species: "fox"; fox: Fox; drive: Drive<FoxActivity> }
-  | { species: "hedgehog"; hedgehog: Hedgehog; drive: Drive<HedgehogActivity> };
+  | { species: "hedgehog"; hedgehog: Hedgehog; drive: Drive<HedgehogActivity> }
+  | { species: "squirrel"; squirrel: Squirrel; drive: Drive<SquirrelActivity> }
+  | { species: "hare"; hare: Hare; drive: Drive<HareActivity> }
+  | { species: "deer"; deer: Deer; drive: Drive<DeerActivity> };
 
 /** What each kind's body shows for what behaviour says it is doing. A cat trots as a quick walk and lies as a loaf; a hedgehog lying is curled up. */
-export const ACTIVITY: { [S in Species]: Record<Doing, Extract<AnimalLook, { species: S }>["drive"]["current"]["activity"]> } = {
+export const ACTIVITY: { [S in Kind]: Record<Doing, Extract<AnimalLook, { species: S }>["drive"]["current"]["activity"]> } = {
   cat: { stand: "stand", walk: "walk", trot: "walk", run: "run", sit: "sit", lie: "loaf" },
   dog: { stand: "stand", walk: "walk", trot: "trot", run: "run", sit: "sit", lie: "lie" },
   fox: { stand: "stand", walk: "walk", trot: "trot", run: "run", sit: "sit", lie: "lie" },
   hedgehog: { stand: "stand", walk: "walk", trot: "walk", run: "run", sit: "sit", lie: "lie" },
+  squirrel: { stand: "stand", walk: "walk", trot: "run", run: "run", sit: "sit", lie: "lie" },
+  hare: { stand: "stand", walk: "walk", trot: "run", run: "run", sit: "sit", lie: "lie" },
+  // A deer sitting is grazing, its head down to the grass.
+  deer: { stand: "stand", walk: "walk", trot: "trot", run: "run", sit: "graze", lie: "lie" },
 };
 
 /** An animal of a kind from its seed: its look, its size in the world before it is drawn larger, and its three traits. */
@@ -46,7 +58,7 @@ export interface Born {
 
 const drive = <A extends string>(activity: A): Drive<A> => ({ current: { activity, speed: 0, travelled: 0, greeting: false } });
 
-export function bornOf(species: Species, seed: string, rest: Doing): Born {
+export function bornOf(species: Kind, seed: string, rest: Doing): Born {
   switch (species) {
     case "cat": {
       const cat = generateCat(seed);
@@ -66,6 +78,18 @@ export function bornOf(species: Species, seed: string, rest: Doing): Born {
       const hedgehog = generateHedgehog(seed);
       return { look: { species, hedgehog, drive: drive(ACTIVITY.hedgehog[rest]) }, size: hedgehog.build.size, ...hedgehog.personality };
     }
+    case "squirrel": {
+      const squirrel = generateSquirrel(seed);
+      return { look: { species, squirrel, drive: drive(ACTIVITY.squirrel[rest]) }, size: squirrel.build.size, ...squirrel.personality };
+    }
+    case "hare": {
+      const hare = generateHare(seed);
+      return { look: { species, hare, drive: drive(ACTIVITY.hare[rest]) }, size: hare.build.size, ...hare.personality };
+    }
+    case "deer": {
+      const deer = generateDeer(seed);
+      return { look: { species, deer, drive: drive(ACTIVITY.deer[rest]) }, size: deer.build.size, ...deer.personality };
+    }
   }
 }
 
@@ -79,5 +103,11 @@ export function portraitOfLook(look: AnimalLook): Portrait {
       return foxPortrait(look.fox);
     case "hedgehog":
       return hedgehogPortrait(look.hedgehog);
+    case "squirrel":
+      return squirrelPortrait();
+    case "hare":
+      return harePortrait();
+    case "deer":
+      return deerPortrait(look.deer);
   }
 }

@@ -5,9 +5,10 @@ import { sculptFox } from "../../foxes/sculpt";
 import { sculptHedgehog } from "../../hedgehogs/sculpt";
 import { sculptSquirrel } from "../../squirrels/sculpt";
 import { sculptHare } from "../../hares/sculpt";
+import { sculptDeer, type DeerSculpture } from "../../deer/sculpt";
 
 /** Which sculpture to mesh: a cat's for its hair length, a dog's for its ears and coat, or a wild animal's. */
-export type MeshRequest = { species: "cat"; longHair: boolean } | ({ species: "dog" } & DogSculpture) | { species: "fox" } | { species: "hedgehog" } | { species: "squirrel" } | { species: "hare" };
+export type MeshRequest = { species: "cat"; longHair: boolean } | ({ species: "dog" } & DogSculpture) | { species: "fox" } | { species: "hedgehog" } | { species: "squirrel" } | { species: "hare" } | ({ species: "deer" } & DeerSculpture);
 
 /** What `animal-geometry.ts` hears back: the mesh, or why it couldn't be meshed. */
 export type MeshReply = { mesh: AnimalMesh } | { error: string };
@@ -31,6 +32,8 @@ function meshOf(request: MeshRequest): AnimalMesh {
       return sculptSquirrel();
     case "hare":
       return sculptHare();
+    case "deer":
+      return sculptDeer(request);
   }
 }
 

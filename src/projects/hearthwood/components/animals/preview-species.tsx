@@ -23,6 +23,9 @@ import { SquirrelBody } from "../squirrels/squirrel-body";
 import { generateHare, hareCoatName } from "../../hares/hare";
 import { HARE_ACTIVITIES, type HareActivity } from "../../hares/motion";
 import { HareBody } from "../hares/hare-body";
+import { deerName, generateDeer } from "../../deer/deer";
+import { DEER_ACTIVITIES, type DeerActivity } from "../../deer/motion";
+import { DeerBody } from "../deer/deer-body";
 
 /*
  * Every species the `?cats` preview shows, each as one entry: how to make an
@@ -251,5 +254,28 @@ export function shownHare(seed: string, white = 0): Shown {
   };
 }
 
+/** A roe deer, a buck or a doe as asked, in its summer coat or its winter one. */
+export function shownDeer(seed: string, sex: "male" | "female", winter = 0): Shown {
+  const born = generateDeer(seed);
+  const deer = { ...born, sex, build: { ...born.build, antlers: sex === "male" ? Math.max(0.85, born.build.antlers) : 0 } };
+  const { energy, boldness, affection } = deer.personality;
+  const name = `${deerName(deer)}${winter > 0.5 ? ", winter coat" : ""}`;
+  return {
+    species: "deer",
+    name,
+    describe: `deer: ${name}, size ${deer.build.size.toFixed(2)}`,
+    activities: DEER_ACTIVITIES,
+    idle: "stand",
+    size: deer.build.size,
+    face: [0.45, 0.25],
+    speed: (a) => ({ walk: 1, trot: 2.6, run: 7 })[a] ?? 1,
+    moving: (a) => a === "walk" || a === "trot" || a === "run",
+    fieldSpeed: 1,
+    greets: false,
+    body: (ask) => <DeerBody deer={deer} coatSeason={{ winter, white: 0 }} {...ask} activity={ask.activity as DeerActivity} />,
+    details: () => <Details name={name} sex={deer.sex} traits={[["Shy to bold", boldness], ["Calm to busy", energy], ["Aloof to friendly", affection]]} />,
+  };
+}
+
 /** One of every species, side by side, for the line-up of them all: its seed's name and how to make it. */
-export const EVERY_SPECIES: readonly ((seed: string) => Shown)[] = [shownCat, shownDog, (seed) => shownFox(seed), (seed) => shownFox(seed, "cross"), (seed) => shownFox(seed, "silver"), shownHedgehog, (seed) => shownHedgehog(`${seed}-dark`), (seed) => shownSquirrel(seed), (seed) => shownSquirrel(seed, 1), (seed) => shownHare(seed), (seed) => shownHare(seed, 1)];
+export const EVERY_SPECIES: readonly ((seed: string) => Shown)[] = [shownCat, shownDog, (seed) => shownFox(seed), (seed) => shownFox(seed, "cross"), (seed) => shownFox(seed, "silver"), shownHedgehog, (seed) => shownHedgehog(`${seed}-dark`), (seed) => shownSquirrel(seed), (seed) => shownSquirrel(seed, 1), (seed) => shownHare(seed), (seed) => shownHare(seed, 1), (seed) => shownDeer(seed, "male"), (seed) => shownDeer(`${seed}-doe`, "female", 1)];

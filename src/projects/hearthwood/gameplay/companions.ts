@@ -95,7 +95,7 @@ export function followMind(seedTime = 0): FollowMind {
 }
 
 /** How far from Elliott it likes to keep, in metres. */
-export function keepsNear(nature: Nature): number {
+export function keepsNear(nature: Nature<Species>): number {
   const base = { cat: 3.2, dog: 2.4 + 0.4 * nature.size, fox: 3.8, hedgehog: 1.5 }[nature.species];
   return Math.max(1.4, base - 1.1 * nature.affection);
 }
@@ -115,7 +115,7 @@ export function firesideSpot(hearth: Hearth, index: number, count: number): { x:
 }
 
 /** Where it keeps while Elliott walks: behind them, on its own side, at its own distance. */
-function trailSpot(leader: Leader, nature: Nature, index: number): { x: number; z: number } {
+function trailSpot(leader: Leader, nature: Nature<Species>, index: number): { x: number; z: number } {
   const angle = leader.heading + Math.PI + sideOf(index);
   const distance = keepsNear(nature);
   return { x: leader.x + Math.sin(angle) * distance, z: leader.z + Math.cos(angle) * distance };
@@ -139,7 +139,7 @@ export function catchUpSpot(leader: Leader, ground: WalkGround, seen: (x: number
 }
 
 /** One step of a companion following Elliott: what it aims for, and its body moved by it. */
-export function stepCompanion(body: Body, mind: FollowMind, nature: Nature, context: FollowContext, seconds: number): void {
+export function stepCompanion(body: Body, mind: FollowMind, nature: Nature<Species>, context: FollowContext, seconds: number): void {
   const { leader, hearth, index, count, time, ground, obstacles, seen } = context;
   const d = Math.hypot(body.x - leader.x, body.z - leader.z);
 

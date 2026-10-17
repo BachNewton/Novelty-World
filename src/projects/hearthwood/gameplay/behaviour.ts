@@ -1,5 +1,6 @@
 import { hash } from "../animals/motion";
 import type { Species } from "../engine/strays";
+import type { FriendSpecies } from "../engine/wildlife";
 import { walk, type WalkGround } from "./walking";
 
 /*
@@ -16,9 +17,12 @@ import { walk, type WalkGround } from "./walking";
 /** What an animal is doing, as its body shows it. A cat trots as a quick walk, and lies down as a loaf; a hedgehog lying down is curled in a ball. */
 export type Doing = "stand" | "walk" | "trot" | "run" | "sit" | "lie";
 
-/** What behaviour knows of an animal: its species, its size in the world, and its nature from its personality. */
-export interface Nature {
-  species: Species;
+/** Every kind of animal that gets about on the ground: those who can follow Elliott, and the forest friends who stay home. */
+export type Kind = Species | FriendSpecies;
+
+/** What behaviour knows of an animal: its kind, its size in the world, and its nature from its personality. */
+export interface Nature<K extends Kind = Kind> {
+  species: K;
   /** The body's scale: 1 for an average cat or a small dog, up to 2 for a big dog. */
   size: number;
   /** Shy (−1) to bold (1). */
@@ -58,13 +62,21 @@ export interface Obstacle {
 }
 
 /** The fastest each species goes, in metres a second: quicker than Elliott's run, so it can always catch up. */
-export const TOP_SPEED: Record<Species, number> = { cat: 8, dog: 9.5, fox: 9.5, hedgehog: 2 };
+export const TOP_SPEED: Record<Kind, number> = { cat: 8, dog: 9.5, fox: 9.5, hedgehog: 2, squirrel: 5, hare: 11, deer: 12 };
 /** How quickly it turns, in radians a second, and changes pace, in metres a second each second. */
-const TURN: Record<Species, number> = { cat: 6, dog: 4.5, fox: 5.5, hedgehog: 3.5 };
+const TURN: Record<Kind, number> = { cat: 6, dog: 4.5, fox: 5.5, hedgehog: 3.5, squirrel: 8, hare: 6, deer: 4 };
 const ACCELERATION = 7;
 const DECELERATION = 9;
 /** Within this of where it is going, it has arrived. */
 const ARRIVED = 0.35;
+
+const FRIEND_KINDS: readonly Kind[] = ["squirrel", "hare", "deer"];
+
+/** An animal's nature as one who can follow Elliott: a forest friend never can, and asking is a bug. */
+export function ofSpecies(nature: Nature): Nature<Species> {
+  if (FRIEND_KINDS.includes(nature.species)) throw new Error(`A ${nature.species} is a forest friend, not one who can follow`);
+  return nature as Nature<Species>;
+}
 
 /** A seeded number in [0, 1) for one of an animal's choices. */
 export function choice(nature: Nature, name: number, count: number): number {
@@ -74,8 +86,8 @@ export function choice(nature: Nature, name: number, count: number): number {
 const turnBetween = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from));
 
 /** The ground an animal walks on: Elliott's rules, with a cat refusing water a dog would wade. */
-export function animalGround(ground: WalkGround, species: Species): WalkGround {
-  if (species === "dog" || species === "fox") return ground;
+export function animalGround(ground: WalkGround, species: Kind): WalkGround {
+  if (species === "dog" || species === "fox" || species === "deer") return ground;
   // A cat or a hedgehog keeps its paws out of anything deeper than a puddle: its water stands higher than it is.
   return { heightAt: ground.heightAt, waterAt: (x, z) => ground.waterAt(x, z) + 0.3 };
 }
@@ -86,6 +98,7 @@ export function doingFor(nature: Nature, body: Body): Doing {
   if (own < 0.06) return body.rest;
   if (nature.species === "cat") return body.speed < 1.4 ? "walk" : "run";
   if (nature.species === "hedgehog") return body.speed < 0.9 ? "walk" : "run";
+  if (nature.species === "squirrel" || nature.species === "hare") return body.speed < 1.8 ? "walk" : "run";
   return own < 0.95 ? "walk" : own < 2.3 ? "trot" : "run";
 }
 

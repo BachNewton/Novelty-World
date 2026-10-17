@@ -26,7 +26,7 @@ import type { Streaming } from "./world-land";
 import type { WeatherKind } from "../../engine/weather";
 import type { SceneWeather } from "./world-weather";
 import type { WeatherNow } from "../../art/weather/now";
-import { anotherName, companionOf, forgetFriends, keepName, petAnimal, setCompanionsOpen, straysAround, treatAnimal, winStray, type Companionship } from "./companionship";
+import { anotherName, companionOf, forgetFriends, friendsAround, knowFriend, keepName, petAnimal, setCompanionsOpen, straysAround, treatAnimal, winStray, type Companionship } from "./companionship";
 import { walk as walkOn } from "../../gameplay/walking";
 
 /*
@@ -144,8 +144,8 @@ export interface WorldProbe {
 export interface AnimalReading {
   key: string;
   species: string;
-  /** A stray, a companion following, or one resting at camp. */
-  kind: "stray" | "following" | "resting";
+  /** A stray, a companion following, one resting at camp, or a forest friend. */
+  kind: "stray" | "following" | "resting" | "friend";
   name: string | null;
   x: number;
   y: number;
@@ -160,11 +160,20 @@ export interface AnimalReading {
   affection: number;
   favourite: string | null;
   home: { x: number; z: number } | null;
+  /** A hedgehog's ride in the basket, and a squirrel's height up its trunk, or null. */
+  ride: string | null;
+  climb: number | null;
 }
 
 export interface CompanionsProbe {
   /** Every live animal: the strays round Elliott and the companions. */
   animals: () => AnimalReading[];
+  /** The forest friends whose homes lie within `radius` of a point, live or not: a squirrel's trunk and a deer's bed with them. */
+  friendsNear: (x: number, z: number, radius: number) => { id: string; species: string; x: number; z: number; trunk: { x: number; z: number; radius: number; bare: number } | null; bed: { x: number; z: number } | null }[];
+  /** Makes a forest friend know Elliott, as three visits would. */
+  know: (key: string) => void;
+  /** Holds a squirrel up its trunk at a height, facing a way out from it, until it is let go (`null`). */
+  climb: (key: string, height: number | null, side?: number) => void;
   /** The strays whose homes lie within `radius` of a point, live or not. */
   straysNear: (x: number, z: number, radius: number) => { id: string; species: string; x: number; z: number; roam: number }[];
   /** Steps the animals' rules on the spot for some seconds, Elliott standing where they are. */
@@ -525,7 +534,9 @@ export function WorldProbeHandle({
             return {
               key: a.key,
               species: a.species,
-              kind: a.stray ? "stray" : companion?.following === false ? "resting" : "following",
+              kind: a.friend ? "friend" : a.stray ? "stray" : companion?.following === false ? "resting" : "following",
+              ride: a.ride?.phase ?? null,
+              climb: a.friend?.mind.climb?.height ?? null,
               name: companion?.name ?? null,
               x: a.body.x,
               y: a.y,
@@ -534,13 +545,22 @@ export function WorldProbeHandle({
               activity: a.look.drive.current.activity,
               held: clock.motion - a.changedAt,
               warmth: a.bond.warmth,
-              boldness: a.temper.boldness,
-              affection: a.temper.affection,
+              boldness: a.nature.boldness,
+              affection: a.nature.affection,
               favourite: a.tastes.favourite,
               home: a.stray?.home ?? null,
             };
           }),
         straysNear: (x, z, radius) => straysAround(companionship, x, z, radius).map((s) => ({ id: s.id, species: s.species, x: s.home.x, z: s.home.z, roam: s.roam })),
+        friendsNear: (x, z, radius) => friendsAround(companionship, x, z, radius).map((f) => ({ id: f.id, species: f.species, x: f.home.x, z: f.home.z, trunk: f.trunk && { x: f.trunk.x, z: f.trunk.z, radius: f.trunk.radius, bare: f.trunk.bare }, bed: f.bed })),
+        know: (key) => {
+          knowFriend(companionship, key);
+        },
+        climb: (key, height, side = 0) => {
+          const animal = companionship.animals.get(key);
+          if (!animal?.friend?.place.trunk) throw new Error(`No live squirrel ${key} with a trunk to climb`);
+          animal.friend.mind.climb = height === null ? null : { height, goal: height, side, until: Infinity };
+        },
         simulate: (seconds) => {
           if (!companionship.simulate) throw new Error("The animals are not in the scene to step");
           companionship.simulate(seconds);

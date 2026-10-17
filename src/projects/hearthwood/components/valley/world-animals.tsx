@@ -13,12 +13,16 @@ import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { World } from "../../engine/world";
 import {
   animalGround,
+  ofSpecies,
   stepBody,
   type Obstacle,
 } from "../../gameplay/behaviour";
 import { stepCompanion, type Leader } from "../../gameplay/companions";
 import { bestOffered, type Viewer } from "../../gameplay/offering";
 import { stepStray, type Elliott } from "../../gameplay/roaming";
+import { climbing, stepFriend, type Climb } from "../../gameplay/forest-friends";
+import type { Trunk } from "../../engine/wildlife";
+import { COAT_SEASON } from "../animals/coat-season";
 import { hopAt, offTheGround, stepRide, type Ride } from "../../gameplay/riding";
 import { WALK_SPEED } from "../../input/walk-controls";
 import type { WalkState } from "../../input/use-walk-input";
@@ -26,6 +30,9 @@ import { CatBody } from "../cats/cat-body";
 import { DogBody } from "../dogs/dog-body";
 import { FoxBody } from "../foxes/fox-body";
 import { HedgehogBody } from "../hedgehogs/hedgehog-body";
+import { SquirrelBody } from "../squirrels/squirrel-body";
+import { HareBody } from "../hares/hare-body";
+import { DeerBody } from "../deer/deer-body";
 import type { AnimalLook } from "./animal-kinds";
 import type { ValleyClock } from "./clock";
 import {
@@ -41,6 +48,10 @@ import {
   straysAround,
   wakeCompanion,
   wakeStray,
+  wakeFriend,
+  friendsAround,
+  isCompanion,
+  wildDay,
   warmByPatience,
   companionOf,
   DRAWN_LARGER,
@@ -52,8 +63,8 @@ import type { Foraging } from "./foraging";
 import type { Walker } from "./walker";
 
 /*
- * The cats and dogs round Elliott: the strays streamed in by area as they
- * walk, and the companions, each stepped every frame by its rules (a
+ * The animals round Elliott: the strays and the forest friends streamed in
+ * by area as they walk, and the companions, each stepped every frame by its rules (a
  * stray's day and its warming to Elliott, a companion's following) and
  * drawn on its own body, driven from the rules without re-rendering. It
  * finds the animal on offer to pet or treat, to weigh against forage's
@@ -77,7 +88,7 @@ const TAP_REACH = 4.5;
 const CLEAR = { elliott: 0.95, animal: 0.55 } as const;
 /** A hedgehog rides this much smaller than it walks, sitting this far down in the basket, in metres, so its head peeks over the rim. */
 const RIDING_SCALE = 0.72;
-const BASKET_SINK = 0.075;
+const BASKET_SINK = 0.055;
 /** Steps the rules are cut into, at most, in seconds. */
 const STEP = 1 / 20;
 
@@ -146,19 +157,22 @@ function stream(
       STRAY_REACH,
     ))
       if (!animals.has(stray.id)) wakeStray(companionship, stray);
-    for (const [key, animal] of animals)
-      if (
-        animal.stray &&
-        Math.hypot(
-          animal.stray.home.x - walker.x,
-          animal.stray.home.z - walker.z,
-        ) > STRAY_GONE
-      )
+    for (const friend of friendsAround(
+      companionship,
+      walker.x,
+      walker.z,
+      STRAY_REACH,
+    ))
+      if (!animals.has(friend.id)) wakeFriend(companionship, friend);
+    for (const [key, animal] of animals) {
+      const home = animal.stray?.home ?? animal.friend?.place.home;
+      if (home && Math.hypot(home.x - walker.x, home.z - walker.z) > STRAY_GONE)
         animals.delete(key);
+    }
   }
   const kept = new Set(companionship.friends.companions.map((c) => c.id));
   for (const [key, animal] of animals)
-    if (animal.stray === null && !kept.has(key)) animals.delete(key);
+    if (isCompanion(animal) && !kept.has(key)) animals.delete(key);
   let following = 0;
   let resting = 0;
   for (const companion of companionship.friends.companions) {
@@ -270,13 +284,29 @@ export function stepAnimals(
           obstacles,
           dt,
         );
-      } else if (animal.stray) {
+      } else if (animal.friend) {
+        warmByPatience(companionship, animal, d, elliott.calm && !aloft, dt);
+        stepFriend(
+          animal.friend.species,
+          animal.body,
+          animal.friend.mind,
+          animal.nature,
+          animal.bond,
+          animal.friend.place,
+          elliott,
+          companionship.abroad,
+          time,
+          ground,
+          obstacles,
+          dt,
+        );
+      } else if (animal.stray && animal.temper) {
         warmByPatience(companionship, animal, d, elliott.calm && !aloft, dt);
         const tempted = hand !== null && hand === animal.tastes.favourite;
         stepStray(
           animal.body,
           animal.stray.mind,
-          animal.nature,
+          ofSpecies(animal.nature),
           animal.temper,
           animal.bond,
           animal.stray.home,
@@ -313,7 +343,7 @@ export function stepAnimals(
           };
           // Waiting at camp, they lie by the fire from the first.
           animal.follow.still = Math.max(animal.follow.still, 30);
-          stepCompanion(animal.body, animal.follow, animal.nature, context, dt);
+          stepCompanion(animal.body, animal.follow, ofSpecies(animal.nature), context, dt);
         } else if (animal.ride && rideAlong(animal, animal.ride, leader, d, time, dt)) {
           // In the basket, or hopping in or out of it: carried, not walking.
         } else {
@@ -321,7 +351,7 @@ export function stepAnimals(
           stepCompanion(
             animal.body,
             animal.follow,
-            animal.nature,
+            ofSpecies(animal.nature),
             {
               leader,
               hearth: camp,
@@ -411,6 +441,12 @@ function LookBody({ look, clock, atmosphere }: { look: AnimalLook; clock: () => 
       return <FoxBody fox={look.fox} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
     case "hedgehog":
       return <HedgehogBody hedgehog={look.hedgehog} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+    case "squirrel":
+      return <SquirrelBody squirrel={look.squirrel} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+    case "hare":
+      return <HareBody hare={look.hare} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+    case "deer":
+      return <DeerBody deer={look.deer} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
   }
 }
 
@@ -538,6 +574,9 @@ function frameAnimals(
   scene.lastMotion = clock.motion;
   const seconds =
     last === null ? 0 : Math.min(0.1, Math.max(0, clock.motion - last));
+  const coats = wildDay(companionship, clock.date.realDayOfYear, clock.sky.sun.elevation);
+  COAT_SEASON.uWinter.value = coats.winter;
+  COAT_SEASON.uWhite.value = coats.white;
   stepAnimals(
     companionship,
     world,
@@ -562,6 +601,10 @@ function frameAnimals(
       ) < DRAW_REACH;
     if (animal.ride && offTheGround(animal.ride))
       placeInBasket(group, animal, animal.ride, walker, companionship.time);
+    const climb = animal.friend?.mind.climb;
+    if (climb && animal.friend?.place.trunk && climbing(animal.friend.mind))
+      placeOnTrunk(group, animal.friend.place.trunk, climb);
+    else group.rotation.order = "XYZ";
   }
 
   const viewer: Viewer | null =
@@ -585,6 +628,20 @@ function frameAnimals(
   if (keys === scene.drawnKeys) return null;
   scene.drawnKeys = keys;
   return [...companionship.animals.values()];
+}
+
+/**
+ * A squirrel up its trunk, stood on the bark: its belly to the trunk, its
+ * head up as it climbs or clings, or down as it comes down head-first, as
+ * squirrels do.
+ */
+function placeOnTrunk(group: Group, trunk: Trunk, climb: Climb): void {
+  const taper = 1 - 0.35 * Math.min(1, climb.height / Math.max(1, trunk.height));
+  const out = trunk.radius * taper + 0.01;
+  group.position.set(trunk.x + Math.sin(climb.side) * out, trunk.y + climb.height, trunk.z + Math.cos(climb.side) * out);
+  const down = climb.goal < climb.height - 0.02;
+  group.rotation.order = "YXZ";
+  group.rotation.set(down ? Math.PI / 2 : -Math.PI / 2, down ? climb.side : climb.side + Math.PI, 0);
 }
 
 const inBasket = new Vector3();
