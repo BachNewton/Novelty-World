@@ -331,16 +331,16 @@ export interface GroundSeason {
 /** How far the snow line moves through the year: down the mountains in autumn, below everything all winter, and up again in spring's melt. */
 export const SNOW_LINE: Curve = [
   [d(3, 1), -300],
-  [d(3, 24), 30],
-  [d(4, 12), 150],
-  [d(4, 28), 270],
-  [d(5, 25), 440],
+  [d(3, 24), 90],
+  [d(4, 12), ALTITUDE.treeline * 0.55],
+  [d(4, 28), ALTITUDE.treeline + 40],
+  [d(5, 25), ALTITUDE.rock + 80],
   [d(6, 25), ALTITUDE.snow + 120],
   [d(9, 20), ALTITUDE.snow + 120],
-  [d(10, 8), 540],
-  [d(10, 28), 400],
-  [d(11, 12), 240],
-  [d(11, 25), 40],
+  [d(10, 8), ALTITUDE.rock + 330],
+  [d(10, 28), ALTITUDE.rock - 30],
+  [d(11, 12), ALTITUDE.treeline - 50],
+  [d(11, 25), 120],
   [d(12, 5), -300],
 ];
 

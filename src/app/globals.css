@@ -340,6 +340,35 @@
   --color-hearthwood-gallery-ground-edge: #b4ab95;
 }
 
+/* Hearthwood's sky and light: the tints laid over the physical sky and its
+   light (the sun's rose-gold low in the morning and evening, the lilac of
+   the blue hour, the moon's cool light), the night sky's own glow, what is
+   drawn in it (the moon's two greys and the earthshine on its dark side,
+   the stars' warm and cool ends, the Milky Way, the aurora's green and
+   violet, the noctilucent clouds' electric blue), the ground's colour the
+   sky's light bounces back from, and the blue the woods turn by night.
+   Read only by the 3D scene through themeColor, so declared outside
+   @theme. */
+:root {
+  --color-hearthwood-sky-sun-morning: #ffb4a0;
+  --color-hearthwood-sky-sun-evening: #ffc28a;
+  --color-hearthwood-sky-blue-hour: #b8a2e8;
+  --color-hearthwood-sky-moonlight: #a8c0f0;
+  --color-hearthwood-sky-airglow: #0c1430;
+  --color-hearthwood-sky-ground-bounce: #6c7448;
+  --color-hearthwood-sky-moon-highland: #f4f0e2;
+  --color-hearthwood-sky-moon-mare: #a8a8a4;
+  --color-hearthwood-sky-earthshine: #4a6488;
+  --color-hearthwood-sky-moon-halo: #c8d0e8;
+  --color-hearthwood-sky-star-warm: #ffd2a0;
+  --color-hearthwood-sky-star-cool: #b4ccff;
+  --color-hearthwood-sky-milky-way: #b8c0dc;
+  --color-hearthwood-sky-aurora-green: #4cf09a;
+  --color-hearthwood-sky-aurora-violet: #b46cf0;
+  --color-hearthwood-sky-noctilucent: #9ad8ff;
+  --color-hearthwood-sky-night-vision: #7c9cd8;
+}
+
 /* Hearthwood's seasons: each kind of plant's young spring green, its two
    autumn colours (one or the other by the tree), and its bare winter twigs
    (or, for heather, its faded bells); the summer green of the plants whose
@@ -428,6 +457,13 @@
   --color-hearthwood-forage-cut: #f4e8c8;
   --color-hearthwood-forage-sparkle: #fff2b8;
   --color-hearthwood-forage-basket: #c08a4e;
+}
+
+/* Hearthwood: the companions' marks, the heart that rises as an animal warms
+   to Elliott and the paw a companion answers a pet with. */
+:root {
+  --color-hearthwood-companion-heart: #f2708a;
+  --color-hearthwood-companion-paw: #ffd9a8;
 }
 
 /* Hearthwood: a kind just picked swells in the basket and settles. */

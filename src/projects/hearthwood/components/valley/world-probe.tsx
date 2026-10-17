@@ -21,6 +21,8 @@ import { forageTime, forgetForaging, goToDayOfYear, pickSpot, setBasketOpen, typ
 import type { CameraView, Walker } from "./walker";
 import type { Streaming } from "./world-land";
 import type { Weather } from "./world-view";
+import { anotherName, companionOf, forgetFriends, keepName, petAnimal, setCompanionsOpen, straysAround, treatAnimal, winStray, type Companionship } from "./companionship";
+import { walk as walkOn } from "../../gameplay/walking";
 
 /*
  * The world's handle for screenshots and tests, on `window.__hearthwoodWorld`:
@@ -30,7 +32,10 @@ import type { Weather } from "./world-view";
  * the walker stands, the point of view and where it looks, a jump or a glide begun from a spot (and held there), a free camera, readings of the world at a point, a
  * map of an area drawn from the world itself, and foraging: a real day of the
  * year to go to, the spots near a point and how each shows, what is on offer, picking,
- * the basket and forgetting it. Waiting on these is waiting on
+ * the basket and forgetting it; and the companions: the live animals, the strays near a
+ * point, stepping their rules on the spot or walking Elliott with them, placing one,
+ * winning, petting and treating one, the naming card, the companions' row, and whether
+ * the animals have settled into their poses. Waiting on these is waiting on
  * events, never on time.
  */
 
@@ -120,6 +125,59 @@ export interface WorldProbe {
   /** A top-down map of an area, as a PNG data URL: regions, woods, water, rock and snow, shaded by the lie of the land. */
   map: (request: MapRequest) => string;
   forage: ForageProbe;
+  companions: CompanionsProbe;
+  /** The motion clock's seconds now, to hold motion where it is. */
+  motion: () => number;
+}
+
+/** A live animal, as the probe reports it. */
+export interface AnimalReading {
+  key: string;
+  species: string;
+  /** A stray, a companion following, or one resting at camp. */
+  kind: "stray" | "following" | "resting";
+  name: string | null;
+  x: number;
+  y: number;
+  z: number;
+  heading: number;
+  activity: string;
+  /** Seconds of motion since it last changed what it was doing, or its greeting. */
+  held: number;
+  warmth: number;
+  /** A stray's personality, for choosing one to shoot. */
+  boldness: number;
+  affection: number;
+  favourite: string | null;
+  home: { x: number; z: number } | null;
+}
+
+export interface CompanionsProbe {
+  /** Every live animal: the strays round Elliott and the companions. */
+  animals: () => AnimalReading[];
+  /** The strays whose homes lie within `radius` of a point, live or not. */
+  straysNear: (x: number, z: number, radius: number) => { id: string; species: string; x: number; z: number; roam: number }[];
+  /** Steps the animals' rules on the spot for some seconds, Elliott standing where they are. */
+  simulate: (seconds: number) => void;
+  /** Walks Elliott along a heading for some metres at a pace (metres a second), the animals following as they would. */
+  walk: (heading: number, metres: number, pace: number) => void;
+  /** Puts a live animal somewhere, facing a way, at rest in a posture. */
+  place: (key: string, x: number, z: number, heading: number, rest?: "stand" | "sit" | "lie") => void;
+  /** Wins a live stray over at once, opening the naming card. */
+  win: (key: string) => void;
+  pet: (key: string) => void;
+  treat: (key: string) => void;
+  /** What is offered for an animal, if anything. */
+  offer: () => { key: string; canPet: boolean; treat: string | null } | null;
+  /** The naming card's suggestion showing, if it is up; another one; keeping a name. */
+  naming: () => string | null;
+  another: () => void;
+  keep: (name?: string) => void;
+  setOpen: (open: boolean) => void;
+  /** Whether every animal in view is drawn, and every one (or the one named) has held what it is doing for `seconds` of motion. */
+  settled: (seconds: number, key?: string) => boolean;
+  /** Forgets every companion and every stray's warmth. */
+  forget: () => void;
 }
 
 export interface ForageProbe {
@@ -144,6 +202,8 @@ declare global {
 }
 
 const KEPT_FRAME_TIMES = 120;
+/** The height the relief map shows white, about the highest peaks', in metres. */
+const RELIEF_TOP = 2600;
 const FREE_CAMERA_PRIORITY = -2;
 
 function drawMap(world: World, palette: Palette, { x, z, size, pixels, places = false, relief = false }: MapRequest): string {
@@ -177,9 +237,11 @@ function drawMap(world: World, palette: Palette, { x, z, size, pixels, places = 
         colour.g += part.g * weights[r];
         colour.b += part.b * weights[r];
       });
-      if (relief) colour.setScalar(0.15 + 0.85 * Math.min(1, Math.max(0, h / 300)));
-      if (h > ALTITUDE.rock) colour.lerp(palette.things["ground-rock"], Math.min(1, (h - ALTITUDE.rock) / 15));
-      if (h > ALTITUDE.snow) colour.lerp(palette.things["ground-snow"], Math.min(1, (h - ALTITUDE.snow) / 10));
+      // Relief from the lowlands to the highest peaks, with more of its shades given to the lower ground.
+      if (relief) colour.setScalar(0.15 + 0.85 * Math.sqrt(Math.min(1, Math.max(0, h / RELIEF_TOP))));
+      const banded = h - land.bands;
+      if (banded > ALTITUDE.rock) colour.lerp(palette.things["ground-rock"], Math.min(1, (banded - ALTITUDE.rock) / 15));
+      if (banded > ALTITUDE.snow) colour.lerp(palette.things["ground-snow"], Math.min(1, (banded - ALTITUDE.snow) / 10));
       if (land.water > land.height) colour.copy(palette.things["water-deep"]).lerp(palette.things["water-shallow"], 0.3);
       // Lit from the north-west, as a map is.
       const shade = Math.min(1.35, Math.max(0.45, 1 + (dx + dz) * -0.9));
@@ -215,6 +277,7 @@ export function WorldProbeHandle({
   freeCamera,
   weather,
   foraging,
+  companionship,
   costs,
   setPointOfView,
 }: {
@@ -226,6 +289,7 @@ export function WorldProbeHandle({
   freeCamera: { at: FreeCamera | null };
   weather: Weather;
   foraging: Foraging;
+  companionship: Companionship;
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
@@ -369,13 +433,93 @@ export function WorldProbeHandle({
           forgetForaging(foraging);
         },
       },
+      motion: () => clock.motion,
+      companions: {
+        animals: () =>
+          [...companionship.animals.values()].map((a) => {
+            const companion = companionOf(companionship, a.key);
+            return {
+              key: a.key,
+              species: a.species,
+              kind: a.stray ? "stray" : companion?.following === false ? "resting" : "following",
+              name: companion?.name ?? null,
+              x: a.body.x,
+              y: a.y,
+              z: a.body.z,
+              heading: a.body.heading,
+              activity: a.look.drive.current.activity,
+              held: clock.motion - a.changedAt,
+              warmth: a.bond.warmth,
+              boldness: a.temper.boldness,
+              affection: a.temper.affection,
+              favourite: a.favourite,
+              home: a.stray?.home ?? null,
+            };
+          }),
+        straysNear: (x, z, radius) => straysAround(companionship, x, z, radius).map((s) => ({ id: s.id, species: s.species, x: s.home.x, z: s.home.z, roam: s.roam })),
+        simulate: (seconds) => {
+          if (!companionship.simulate) throw new Error("The animals are not in the scene to step");
+          companionship.simulate(seconds);
+        },
+        walk: (heading, metres, pace) => {
+          const simulate = companionship.simulate;
+          if (!simulate) throw new Error("The animals are not in the scene to step");
+          const step = pace / 30;
+          for (let gone = 0; gone < metres; gone += step) {
+            const to = walkOn(world, walker, Math.sin(heading) * step, Math.cos(heading) * step);
+            walker.x = to.x;
+            walker.z = to.z;
+            walker.heading = heading;
+            simulate(1 / 30);
+          }
+        },
+        place: (key, x, z, heading, rest = "stand") => {
+          const animal = companionship.animals.get(key);
+          if (!animal) throw new Error(`No live animal ${key} to place`);
+          Object.assign(animal.body, { x, z, heading, speed: 0, rest });
+          animal.y = world.heightAt(x, z);
+        },
+        win: (key) => {
+          winStray(companionship, key);
+        },
+        pet: (key) => {
+          petAnimal(companionship, key);
+        },
+        treat: (key) => {
+          treatAnimal(companionship, key);
+        },
+        offer: () => {
+          const offer = companionship.shown.offer;
+          return offer && { key: offer.key, canPet: offer.canPet, treat: offer.treat };
+        },
+        naming: () => {
+          const naming = companionship.shown.naming;
+          return naming && naming.suggestions[naming.index];
+        },
+        another: () => {
+          anotherName(companionship, 1);
+        },
+        keep: (name) => {
+          const naming = companionship.shown.naming;
+          if (!naming) throw new Error("No naming card is up");
+          keepName(companionship, name ?? naming.suggestions[naming.index]);
+        },
+        setOpen: (open) => {
+          setCompanionsOpen(companionship, open);
+        },
+        settled: (seconds, key) =>
+          (companionship.meshed?.() ?? false) && [...companionship.animals.values()].every((a) => (key !== undefined && a.key !== key) || clock.motion - a.changedAt >= seconds),
+        forget: () => {
+          forgetFriends(companionship);
+        },
+      },
     };
     return () => {
       live = false;
       stopWatching?.();
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, costs, setPointOfView]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, costs, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;

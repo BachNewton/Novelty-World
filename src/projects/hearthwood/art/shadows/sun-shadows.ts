@@ -1,5 +1,5 @@
 import type { FeatureArt, MaterialKind } from "../feature-art";
-import { KEY_LIGHT_GLSL, KEY_LIGHT_UNIFORMS, updateKeyLight } from "./key-light";
+import { KEY_LIGHT_GLSL } from "./key-light";
 import { SHADOW_GLSL, SHADOW_UNIFORMS, shadowLight, shadowMapPass } from "./shadow-map";
 
 /*
@@ -25,7 +25,7 @@ export function smooth(edge0: number, edge1: number, x: number): number {
 
 export const SUN_SHADOWS_ART: FeatureArt = {
   feature: "sunShadows",
-  uniforms: { ...SHADOW_UNIFORMS, ...KEY_LIGHT_UNIFORMS },
+  uniforms: SHADOW_UNIFORMS,
   chunks: [
     { kinds: SHADOW_RECEIVERS, fragmentHead: `${KEY_LIGHT_GLSL}\n${SHADOW_GLSL}` },
     {
@@ -45,7 +45,6 @@ export const SUN_SHADOWS_ART: FeatureArt = {
     },
   ],
   frame: (frame) => {
-    updateKeyLight(frame);
     const { key } = frame.day.sky;
     shadowLight.casting = key.body === "sun";
     shadowLight.angle = SUN_ANGLE;

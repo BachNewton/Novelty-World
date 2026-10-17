@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore, type RefObject } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Hand, ShoppingBasket } from "lucide-react";
 import { Prompt, type Binding } from "@/shared/components/prompts";
 import type { InputKind } from "@/shared/lib/input";
 import { FORAGE_KINDS } from "../../engine/regions";
 import { basketTotal } from "../../gameplay/basket";
-import { useInteractInput } from "../../input/interact";
 import type { ValleyClock } from "./clock";
 import { FORAGE_NAMES, ForageIcon } from "./forage-icons";
 import { forageTime, pickSpot, setBasketOpen, subscribeForaging, type Foraging } from "./foraging";
@@ -15,7 +14,9 @@ import { forageTime, pickSpot, setBasketOpen, subscribeForaging, type Foraging }
  * Foraging over the scene: the prompt to pick what Elliott is looking at (a
  * button of its own on touch), and the basket, a row of what has been
  * picked and how many, which shows for a while after each pick and whenever
- * it is opened (Tab, the controller's Y, or its button on touch).
+ * it is opened (Tab, the controller's Y, or its button on touch). The keys,
+ * buttons and taps that pick are heard with everything else Elliott can use
+ * (see `interactions.tsx`).
  */
 
 const INTERACT: Binding = { pad: "X", key: "F", fills: false };
@@ -27,7 +28,7 @@ const SHOWN_AFTER_PICK = 3500;
 const INK = "text-(--color-hearthwood-valley-ui-ink)";
 const PANEL = "rounded-2xl bg-(--color-hearthwood-valley-ui-shade)/60 backdrop-blur-sm";
 
-export function ForageOverlay({ foraging, clock, surface, input }: { foraging: Foraging; clock: ValleyClock; surface: RefObject<HTMLElement | null>; input: InputKind }) {
+export function ForageOverlay({ foraging, clock, input }: { foraging: Foraging; clock: ValleyClock; input: InputKind }) {
   const subscribe = useCallback((listener: () => void) => subscribeForaging(foraging, listener), [foraging]);
   const shown = useSyncExternalStore(subscribe, () => foraging.shown);
   // The picks the basket has finished showing; it lingers while there are newer ones.
@@ -37,17 +38,6 @@ export function ForageOverlay({ foraging, clock, surface, input }: { foraging: F
   const pickOffered = () => {
     if (foraging.target) pickSpot(foraging, foraging.target, forageTime(clock));
   };
-  useInteractInput(surface, {
-    onInteract: pickOffered,
-    onTap: ({ x, y }) => {
-      const spot = foraging.tapAt?.(x, y) ?? null;
-      if (spot) pickSpot(foraging, spot, forageTime(clock));
-    },
-    onBasket: () => {
-      setBasketOpen(foraging, !foraging.shown.open);
-    },
-  });
-
   useEffect(() => {
     if (!lingering) return;
     // How long the basket lingers after a pick is the feature itself.

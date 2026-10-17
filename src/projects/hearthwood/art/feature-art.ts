@@ -1,8 +1,8 @@
 import type { Camera, DepthTexture, IUniform, Scene, Texture, WebGLRenderer, WebGLRenderTarget } from "three";
 import type { FeatureId } from "../features";
 import type { AtmosphereUniforms } from "./atmosphere";
-import type { DayState } from "./daylight";
-import type { SkyUniforms } from "./sky";
+import type { DayState } from "./light/daylight";
+import type { SkyUniforms } from "./sky/sky";
 
 /*
  * What a feature brings to the drawing, as plain declarations: GLSL for the

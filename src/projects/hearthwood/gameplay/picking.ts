@@ -1,6 +1,7 @@
 import { FORAGE_FORM, inSeason, type ForageSpot } from "../engine/forage";
 import type { ForageKind } from "../engine/regions";
 import type { Foraged } from "./basket";
+import { bestOffered, type Offerable, type Point3, type Viewer } from "./offering";
 
 /*
  * Picking, as rules: which spot Elliott is looking at and can reach, whether
@@ -52,11 +53,6 @@ const SPREAD: Record<ForageKind, number> = {
   "fly-agaric": 0.2,
 };
 
-/** Looking within this angle of a spot's middle always looks at it, however far it is. */
-const LOOK_SLACK = 0.1;
-/** In third person, only spots within this angle either side of the way Elliott faces are in front of them. */
-const FRONT = 1.4;
-
 export function isPicked(foraged: Foraged, id: string, day: number): boolean {
   const at = foraged.picked[id] as number | undefined;
   return at !== undefined && day - at < REGROW_DAYS;
@@ -93,57 +89,32 @@ export function regrow(foraged: Foraged, day: number): Foraged {
   return { basket: foraged.basket, picked: Object.fromEntries(kept) };
 }
 
-interface Point3 {
-  x: number;
-  y: number;
-  z: number;
+export type { Viewer } from "./offering";
+
+/** What a spot is to the eye, to be offered by the rule every offered thing shares. */
+function offerableSpot(spot: ForageSpot): Offerable {
+  return { heart: heartOf(spot), spread: SPREAD[spot.kind] * spot.size, reach: REACH };
 }
 
-/** Where Elliott looks from: their eyes and the way they look (a unit vector) in first person, or where they stand and face in third. */
-export type Viewer = { pointOfView: "first"; eye: Point3; look: Point3 } | { pointOfView: "third"; x: number; z: number; heading: number };
+/**
+ * The spot Elliott is looking at and can pick, with how strongly it is
+ * offered, if any: in first person the one nearest the middle of the view,
+ * in third the nearest one in front of them. Only a spot offered more
+ * strongly than `beat` (something else on offer) counts.
+ */
+export function offeredSpot(spots: readonly ForageSpot[], viewer: Viewer, foraged: Foraged, time: ForageTime, beat = Infinity): { spot: ForageSpot; score: number } | null {
+  const best = bestOffered(spots, viewer, (spot) => (canPick(spot, foraged, time) ? offerableSpot(spot) : null), beat);
+  return best && { spot: best.offered, score: best.score };
+}
 
-/** The spot Elliott is looking at and can pick, if any: in first person the one nearest the middle of the view, in third the nearest one in front of them. */
-export function targetSpot(spots: readonly ForageSpot[], viewer: Viewer, foraged: Foraged, time: ForageTime): ForageSpot | null {
-  let best: ForageSpot | null = null;
-  let bestScore = Infinity;
-  for (const spot of spots) {
-    if (!canPick(spot, foraged, time)) continue;
-    let score: number;
-    if (viewer.pointOfView === "first") {
-      const dx = spot.x - viewer.eye.x;
-      const dy = spot.y + HEART[spot.kind] * spot.size - viewer.eye.y;
-      const dz = spot.z - viewer.eye.z;
-      const distance = Math.hypot(dx, dy, dz);
-      if (distance > REACH.first || distance === 0) continue;
-      const along = (dx * viewer.look.x + dy * viewer.look.y + dz * viewer.look.z) / distance;
-      const angle = Math.acos(Math.min(1, Math.max(-1, along)));
-      if (angle > Math.max(LOOK_SLACK, Math.atan((SPREAD[spot.kind] * spot.size) / distance))) continue;
-      score = angle;
-    } else {
-      const dx = spot.x - viewer.x;
-      const dz = spot.z - viewer.z;
-      const distance = Math.hypot(dx, dz);
-      if (distance > REACH.third) continue;
-      const off = distance === 0 ? 0 : Math.abs(angleBetween(viewer.heading, Math.atan2(dx, dz)));
-      if (off > FRONT) continue;
-      score = distance * (1 + off);
-    }
-    if (score < bestScore) {
-      bestScore = score;
-      best = spot;
-    }
-  }
-  return best;
+/** The spot Elliott is looking at and can pick, if any (see `offeredSpot`). */
+export function targetSpot(spots: readonly ForageSpot[], viewer: Viewer, foraged: Foraged, time: ForageTime, beat = Infinity): ForageSpot | null {
+  return offeredSpot(spots, viewer, foraged, time, beat)?.spot ?? null;
 }
 
 /** Whether a spot is near enough to where Elliott stands to pick by tapping it. */
 export function withinTapReach(spot: ForageSpot, x: number, z: number): boolean {
   return Math.hypot(spot.x - x, spot.z - z) <= REACH.tap;
-}
-
-/** The turn from one heading to another, the short way round, in radians. */
-function angleBetween(from: number, to: number): number {
-  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
 }
 
 /** Where on a spot the eye aims, above its ground. */
