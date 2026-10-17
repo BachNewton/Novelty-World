@@ -4,17 +4,17 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { type Camera, CircleGeometry, MeshLambertMaterial, NeutralToneMapping, type Scene, SkinnedMesh, Spherical, Vector3 } from "three";
+import { type Camera, CircleGeometry, MeshLambertMaterial, type Scene, SkinnedMesh, Spherical, Vector3 } from "three";
 import { ArrowLeft, RotateCw } from "lucide-react";
 import { readPad, subscribeGamepads } from "@/shared/lib/gamepad";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { makeAtmosphere } from "../../art/atmosphere";
 import { shadeLambert } from "../../art/shading";
-import { Daylight, type Air, type Focus } from "../../art/daylight";
+import { Daylight, type Air, type Focus } from "../../art/light/daylight";
 import { readPalette } from "../../art/palette";
-import { makeSkyUniforms, Sky } from "../../art/sky";
+import { makeSkyUniforms, Sky } from "../../art/sky/sky";
 import { FrameCosts } from "../../art/passes";
-import { waterMaterial } from "../../art/water";
+import { waterMaterial } from "../../art/water/water";
 import { QUALITY } from "../../quality";
 import { parseDate } from "../../engine/calendar";
 import { advanceClock, holdHour, makeClock, type ValleyClock } from "../valley/clock";
@@ -330,15 +330,11 @@ export function ArtGallery() {
     <div className="relative h-dvh w-full touch-none overflow-hidden select-none" data-testid="hearthwood-art">
       <Canvas
         dpr={[1, QUALITY.maxPixelRatio]}
-        shadows="percentage"
         gl={{ antialias: true, powerPreference: "high-performance", reversedDepthBuffer: true }}
         camera={{ fov: 45, near: 0.1, far: 4000 }}
-        onCreated={({ gl }) => {
-          gl.toneMapping = NeutralToneMapping;
-        }}
       >
         <Ticker clock={clock} />
-        <Daylight day={clock} palette={context.palette} atmosphere={context.atmosphere} sky={context.sky} focus={focusPoint} air={air} shadows={{ map: QUALITY.shadowMap, reach: chosen ? 20 : Math.max(layout.width, layout.depth) * 0.6 }} />
+        <Daylight day={clock} palette={context.palette} atmosphere={context.atmosphere} sky={context.sky} focus={focusPoint} air={air} />
         <Sky atmosphere={context.atmosphere} sky={context.sky} />
         <FeatureRenderer day={clock} atmosphere={context.atmosphere} sky={context.sky} costs={debug.costs} />
         <Floor size={Math.max(layout.width, layout.depth) * 0.75} context={context} />

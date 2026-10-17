@@ -3,6 +3,7 @@ import { ALTITUDE } from "../engine/land";
 import { REGIONS, type Region } from "../engine/regions";
 import type { LandTile } from "../engine/tiles";
 import type { AtmosphereUniforms } from "./atmosphere";
+import { regionFall } from "./features/seasons";
 import type { Palette, RegionGround, Thing } from "./palette";
 import { shadeLambert } from "./shading";
 
@@ -47,6 +48,9 @@ export function terrainGeometry(tile: LandTile, palette: Palette, morph: Morph):
   const own = [...OWN_GROUNDS, "canopy"].map(() => new Float32Array(total * 3));
   const fields = new Float32Array(total * 4);
   const morphs = new Float32Array(total * 3);
+  // The seasons' ground: the colour the region's woods turn, and how much of them are broadleaves.
+  const fall = new Float32Array(total * 4);
+  const falls = REGIONS.map(regionFall);
 
   for (let v = 0; v < count; v++) {
     positions.set([x0 + (v % side) * spacing, tile.heights[v], z0 + Math.floor(v / side) * spacing], v * 3);
@@ -67,6 +71,11 @@ export function terrainGeometry(tile: LandTile, palette: Palette, morph: Morph):
       own[3][v * 3] += canopy.r * share;
       own[3][v * 3 + 1] += canopy.g * share;
       own[3][v * 3 + 2] += canopy.b * share;
+      const { colour, share: broad } = falls[r];
+      fall[v * 4] += colour.r * share;
+      fall[v * 4 + 1] += colour.g * share;
+      fall[v * 4 + 2] += colour.b * share;
+      fall[v * 4 + 3] += broad * share;
     }
     fields.set([tile.woodland[v], tile.water[v], tile.river[v], tile.wobble[v]], v * 4);
     morphs.set([tile.parentHeights[v], morph.start, morph.end], v * 3);
@@ -84,6 +93,7 @@ export function terrainGeometry(tile: LandTile, palette: Palette, morph: Morph):
     positions.set([positions[v * 3], positions[v * 3 + 1] - drop, positions[v * 3 + 2]], s * 3);
     for (const a of [normals, meadow, ...own]) a.set(a.subarray(v * 3, v * 3 + 3), s * 3);
     fields.set(fields.subarray(v * 4, v * 4 + 4), s * 4);
+    fall.set(fall.subarray(v * 4, v * 4 + 4), s * 4);
     morphs.set([morphs[v * 3] - drop, morph.start, morph.end], s * 3);
   });
 
@@ -118,6 +128,7 @@ export function terrainGeometry(tile: LandTile, palette: Palette, morph: Morph):
   geometry.setAttribute("canopy", new BufferAttribute(own[3], 3));
   geometry.setAttribute("fields", new BufferAttribute(fields, 4));
   geometry.setAttribute("morph", new BufferAttribute(morphs, 3));
+  geometry.setAttribute("hwSeasonFall", new BufferAttribute(fall, 4));
   geometry.setIndex(new BufferAttribute(indices, 1));
   geometry.computeBoundingSphere();
   return geometry;
@@ -179,13 +190,50 @@ varying vec3 vForest;
 varying vec3 vAlpine;
 varying vec4 vFields;
 varying vec3 vUp;
+
+// How much of a pattern shows whose cycles are a given number of pixels' width apart: fading out before they
+// come closer than a couple of pixels, so far faces never shimmer.
+float hwShows(float cyclesPerPixel) { return 1.0 - smoothstep(0.18, 0.45, cyclesPerPixel); }
+
+// A soft band of uneven width along s (one unit about one band): value noise along it, sharpened towards its
+// edges no more than the pixels allow, faded to its mean where the bands come too close to draw.
+float hwBands(float s, float seed) {
+  float w = fwidth(s);
+  float n = hwValueNoise(vec2(s, seed));
+  float sharp = mix(n, smoothstep(0.3, 0.7, n), hwShows(w * 2.0));
+  return mix(0.5, sharp, hwShows(w));
+}
+
+// Mountain rock as a storybook paints it: beds of uneven width that dip and wander across a face and are broken
+// up along it, over large-scale tone (pale buttresses, darker gullies running down the faces), steep walls
+// darker and scree paler below them.
+vec3 hwStone(vec2 p, float h, float slope, float fine) {
+  float pixel = length(fwidth(p));
+  // Where a bed lies: its height, tilted gently across the land and warped, so the beds dip and wander.
+  float bed = h + dot(p, vec2(0.09, -0.05)) + (hwValueNoise(p / 700.0) - 0.5) * 220.0 + (hwValueNoise(p / 170.0 + 3.7) - 0.5) * 80.0 + (hwValueNoise(p / 55.0 - 1.9) - 0.5) * 14.0;
+  // Broken along the face: each set of beds shows strongly in some stretches and fades in others.
+  float broken = smoothstep(0.3, 0.7, hwValueNoise(p / 190.0 + 11.3));
+  float patchy = smoothstep(0.3, 0.7, hwValueNoise(p / 75.0 - 4.1));
+  float beds = (hwBands(bed / 55.0, 1.7) - 0.5) * (0.1 + 0.22 * broken)
+             + (hwBands(bed / 13.0 + 0.4, 7.3) - 0.5) * 0.16 * patchy
+             + (hwBands(bed / 4.2, 3.9) - 0.5) * 0.08 * broken * patchy;
+  // The beds read on the walls, where they are cut across; scree and gentle rock are a speckle.
+  float walls = smoothstep(0.45, 1.1, slope);
+  // Buttresses pale and dark, and gullies: on a steep face the land's breadth hardly changes down it, so a pattern
+  // across it runs straight down the face, as gullies and the ribs between them do.
+  float buttress = hwValueNoise(p / 320.0 + 5.5) * 0.6 + (hwValueNoise(p / 95.0 - 2.2) - 0.5) * 0.8 * hwShows(pixel / 95.0) + 0.2;
+  float gully = (1.0 - smoothstep(0.15, 0.5, hwValueNoise(p / 26.0 + 8.8))) * hwShows(pixel / 26.0) * walls;
+  float tone = 0.7 + 0.42 * buttress + beds * walls - 0.2 * gully + (fine - 0.5) * 0.3;
+  return uRock * tone * mix(1.08, 0.9, smoothstep(0.8, 1.6, slope));
+}
 `;
 
 /** Which ground shows, per pixel, from the fields; then darker under the woods. */
 const GROUND = /* glsl */ `
   vec2 hwP = vHwWorld.xz;
   float hwWave = hwValueNoise(hwP * 0.31);
-  float hwFine = hwValueNoise(hwP * 1.7);
+  // The fine noise every edge wavers by, faded where it is finer than the pixels, so far edges stay soft and still.
+  float hwFine = mix(0.5, hwValueNoise(hwP * 1.7), hwShows(length(fwidth(hwP)) * 1.7));
   float hwWood = vFields.x;
   float hwH = vHwWorld.y;
   vec3 hwUp = normalize(vUp);
@@ -196,12 +244,9 @@ const GROUND = /* glsl */ `
   hwGround = mix(hwGround, vForest, smoothstep(0.28, 0.5, hwWood + (hwFine - 0.5) * 0.18));
   hwGround = mix(hwGround, vAlpine, smoothstep(uBands.x - 6.0 + hwBand, uBands.x + 8.0 + hwBand, hwH));
   float hwRock = max(smoothstep(uBands.y - 5.0 + hwBand, uBands.y + 5.0 + hwBand, hwH), smoothstep(1.0, 1.35, hwSlope + (hwFine - 0.5) * 0.3));
-  // Rock in weathered bands, darker and lighter by height, with scree paler below the cliffs.
-  float hwStrata = hwValueNoise(vec2(hwH * 0.22 + hwP.x * 0.004, hwP.y * 0.004)) * 0.6 + hwFine * 0.4;
-  vec3 hwStone = uRock * (0.78 + 0.4 * hwStrata) * mix(1.08, 0.9, smoothstep(0.8, 1.6, hwSlope));
-  hwGround = mix(hwGround, hwStone, hwRock);
-  // Snow lies on the flatter ground at first, and the higher it goes the steeper the ground it clings to.
-  float hwCling = 0.7 * smoothstep(uBands.z, uBands.z + 260.0, hwH);
+  hwGround = mix(hwGround, hwStone(hwP, hwH, hwSlope, hwFine), hwRock);
+  // Snow lies on the flatter ground at first, and the higher it goes above its line the steeper the ground it clings to.
+  float hwCling = 0.7 * smoothstep(0.0, 600.0, hwH - uBands.z - hwBand);
   float hwSnow = smoothstep(uBands.z - 6.0 + hwBand, uBands.z + 3.0 + hwBand, hwH) * (1.0 - smoothstep(0.55 + hwCling, 0.85 + hwCling, hwSlope + (hwFine - 0.5) * 0.2));
   hwGround = mix(hwGround, uSnow, hwSnow);
   float hwAbove = hwH - vFields.y + (hwWave - 0.5) * 0.5;

@@ -1,8 +1,9 @@
-import { ShaderMaterial, type IUniform, type Material, type MeshLambertMaterial, type ShaderMaterialParameters, type WebGLProgramParametersWithUniforms } from "three";
+import { DoubleSide, MeshDepthMaterial, ShaderMaterial, type IUniform, type Material, type MeshLambertMaterial, type ShaderMaterialParameters, type WebGLProgramParametersWithUniforms } from "three";
 import { featureDefine, liveFeatures, type FeatureSwitches, type FeatureToggles } from "../features";
 import { ATMOSPHERE_GLSL, ATMOSPHERE_UNIFORMS_GLSL, NOISE_GLSL, type AtmosphereUniforms } from "./atmosphere";
 import { HOOKS, SKY_HOOKS, type FeatureArt, type Hook, type MaterialKind } from "./feature-art";
 import { FEATURE_ART } from "./features";
+import { patchCaster } from "./shadows/caster-depth";
 
 /*
  * The shared materials, and the features' GLSL compiled into them. Every
@@ -128,12 +129,15 @@ const GRAIN = /* glsl */ `
   diffuseColor.rgb *= 0.82 + 0.36 * hwGrain;
 `;
 
+/** Patches any of three's vertex shaders with the vertex hooks of a kind and a material's own vertex GLSL, so whatever moves a vertex there moves it here too. */
+export function patchVertex(vertexShader: string, art: readonly FeatureArt[], kind: MaterialKind, own: OwnGlsl | null): string {
+  const vertex = inject(vertexShader, "#include <common>", `${VERTEX_DECLARATIONS}\n${own?.vertexHead ?? ""}\n${guarded(art, kind, "vertexHead")}`);
+  return inject(vertex, "#include <begin_vertex>", `${own?.vertex ?? ""}\n${guarded(art, kind, "vertex")}`);
+}
+
 /** Patches three's Lambert shader with the hooks of a kind, and the material's own GLSL. */
 export function patchLambert(shader: { vertexShader: string; fragmentShader: string }, art: readonly FeatureArt[], kind: MaterialKind, own: OwnGlsl | null): void {
-  let vertex = shader.vertexShader;
-  vertex = inject(vertex, "#include <common>", `${VERTEX_DECLARATIONS}\n${own?.vertexHead ?? ""}\n${guarded(art, kind, "vertexHead")}`);
-  vertex = inject(vertex, "#include <begin_vertex>", `${own?.vertex ?? ""}\n${guarded(art, kind, "vertex")}`);
-  vertex = inject(vertex, "#include <fog_vertex>", WORLD_POSITION);
+  const vertex = inject(patchVertex(shader.vertexShader, art, kind, own), "#include <fog_vertex>", WORLD_POSITION);
 
   const grained = kind === "land" || kind === "ground";
   let fragment = shader.fragmentShader;
@@ -214,6 +218,9 @@ export function shadingVariants(): ShadingVariants {
 
 export type LambertKind = Extract<MaterialKind, "land" | "ground" | "foliage" | "solid">;
 
+/** What each shared Lambert material was made from, so its shadow depth can move its vertices the same way. */
+const LAMBERTS = new WeakMap<Material, { kind: LambertKind; atmosphere: AtmosphereUniforms; uniforms: Record<string, IUniform>; own: OwnGlsl | null }>();
+
 /** A Lambert material made one of the shared kinds: it ends in the world's air and takes every feature's GLSL for its kind. */
 export function shadeLambert<M extends MeshLambertMaterial>(material: M, kind: LambertKind, atmosphere: AtmosphereUniforms, own: OwnGlsl | null = null): M {
   const variants = shadingVariants();
@@ -224,7 +231,58 @@ export function shadeLambert<M extends MeshLambertMaterial>(material: M, kind: L
   };
   material.customProgramCacheKey = () => `hearthwood:${kind}:${own?.key ?? ""}`;
   variants.track(material, kind);
+  LAMBERTS.set(material, { kind, atmosphere, uniforms, own });
   return material;
+}
+
+const depths = new WeakMap<AtmosphereUniforms, Partial<Record<LambertKind, MeshDepthMaterial>>>();
+const ownDepths = new WeakMap<Material, MeshDepthMaterial>();
+
+/** Three's depth material with a kind's vertex hooks (and a material's own vertex GLSL) compiled in under `HW_DEPTH`, made ready for the shadow maps. */
+function depthMaterial(kind: LambertKind, uniforms: Record<string, IUniform>, own: OwnGlsl | null): MeshDepthMaterial {
+  const variants = shadingVariants();
+  // Both faces cast, so open shapes (a trunk, the land's skirts, a leaf) cast from either side.
+  const material = new MeshDepthMaterial({ side: DoubleSide });
+  material.defines = { HW_DEPTH: "" };
+  material.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = patchVertex(shader.vertexShader, variants.art, kind, own);
+    patchCaster(shader);
+  };
+  material.customProgramCacheKey = () => `hearthwood:depth:${kind}:${own?.key ?? ""}`;
+  variants.track(material, kind);
+  return material;
+}
+
+/**
+ * The depth a kind's things cast their shadows with: three's own, with the
+ * kind's vertex hooks compiled in under `HW_DEPTH` (no colour and no normal
+ * there), so whatever a feature moves or shrinks casts its shadow where it is
+ * drawn. One per kind and air, shared by every mesh that casts with it.
+ */
+export function shadowDepth(kind: LambertKind, atmosphere: AtmosphereUniforms): MeshDepthMaterial {
+  let byKind = depths.get(atmosphere);
+  if (!byKind) {
+    byKind = {};
+    depths.set(atmosphere, byKind);
+  }
+  const known = byKind[kind];
+  if (known) return known;
+  const material = depthMaterial(kind, { ...atmosphere, ...featureUniforms(shadingVariants().art, kind) }, null);
+  byKind[kind] = material;
+  return material;
+}
+
+/** The shadow depth of one shared Lambert material, with its own vertex GLSL too (the land's geomorph and the earth's curve), made once; null for any other material. */
+export function shadowDepthOf(material: Material): MeshDepthMaterial | null {
+  const known = ownDepths.get(material);
+  if (known) return known;
+  const made = LAMBERTS.get(material);
+  if (!made) return null;
+  const depth = made.own ? depthMaterial(made.kind, made.uniforms, made.own) : shadowDepth(made.kind, made.atmosphere);
+  if (made.own) material.addEventListener("dispose", () => depth.dispose());
+  ownDepths.set(material, depth);
+  return depth;
 }
 
 export type CustomKind = Extract<MaterialKind, "water" | "sky">;
@@ -241,4 +299,3 @@ export function shadeCustom(kind: CustomKind, atmosphere: AtmosphereUniforms, pa
   variants.track(material, kind);
   return material;
 }
-

@@ -9,6 +9,11 @@ import type { Plant } from "../../engine/life";
 import { FORAGE_KINDS, PLACE_KINDS, PLANT_KINDS, REGION_CHARACTER, REGIONS, TREE_KINDS, type ForageKind, type PlaceKind, type PlantKind, type TreeKind } from "../../engine/regions";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { Campfire, type FireState } from "../../art/campfire";
+import { COOKWARE_LARGER, panShape, stickShape } from "../../art/cookware";
+import { readDishPalette } from "../../art/dish-looks";
+import { dishShape } from "../../art/dishes";
+import { DISH_SHOWN_LARGER } from "../../art/hearth-cooking";
+import { humbleId, type DishId } from "../../gameplay/recipes";
 import { forageShape, readForagePalette, type ForagePart } from "../../art/forage-shapes";
 import { Fireflies } from "../../art/fireflies";
 import { paint } from "../../art/painted";
@@ -16,11 +21,14 @@ import type { Palette } from "../../art/palette";
 import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import { fallRibbon, placeGeometry, type PlaceLook } from "../../art/place-shapes";
-import type { SkyUniforms } from "../../art/sky";
-import { poolGeometry } from "../../art/water";
+import type { SkyUniforms } from "../../art/sky/sky";
+import { shadowDepth } from "../../art/shading";
+import { poolGeometry, waterMesh } from "../../art/water/water";
 import { Broom } from "../../art/broom";
 import { Witch, type WitchPose } from "../../art/witch";
 import { CatBody } from "../cats/cat-body";
+import { useFeature } from "../valley/feature-renderer";
+import { dishName } from "../valley/cooking-icons";
 import { FORAGE_NAMES } from "../valley/forage-icons";
 
 /*
@@ -56,7 +64,7 @@ export interface ArtPiece {
 }
 
 const TREE_HEIGHT: Record<TreeKind, number> = { conifer: 12, pine: 13, broadleaf: 9, birch: 9.5, aspen: 10.5, maple: 9 };
-const SMALL_SIZE: Record<Exclude<PlantKind, TreeKind>, number> = { bush: 1.3, heather: 1.3, fern: 0.9, mushroom: 1, flowers: 1.1, rock: 1.2 };
+const SMALL_SIZE: Record<Exclude<PlantKind, TreeKind>, number> = { bush: 1.3, heather: 1.3, fern: 0.9, flowers: 1.1, rock: 1.2 };
 
 function plantOf(kind: PlantKind, variant: number): Plant {
   const tree = (TREE_KINDS as readonly PlantKind[]).includes(kind);
@@ -66,8 +74,9 @@ function plantOf(kind: PlantKind, variant: number): Plant {
 
 /** One plant of a design, drawn as an instance so it sways in the breeze as it does in the world. */
 function PlantPiece({ kind, variant, context }: { kind: PlantKind; variant: number; context: ArtContext }) {
+  const seasonal = useFeature("seasonalFoliage");
   const mesh = useMemo(() => {
-    const geometry = plantShape(kind, variant, "near", context.palette);
+    const geometry = plantShape(kind, variant, "near", context.palette, seasonal);
     if (geometry === null) throw new Error(`No near shape for ${kind} ${variant}`);
     const instanced = new InstancedMesh(geometry, kind === "rock" ? context.materials.stone : context.materials.foliage, 1);
     const plant = plantOf(kind, variant);
@@ -76,9 +85,10 @@ function PlantPiece({ kind, variant, context }: { kind: PlantKind; variant: numb
     plantColour(plant, colour, 0);
     instanced.instanceColor = new InstancedBufferAttribute(colour, 3);
     instanced.castShadow = true;
+    instanced.customDepthMaterial = shadowDepth(kind === "rock" ? "solid" : "foliage", context.atmosphere);
     instanced.frustumCulled = false;
     return instanced;
-  }, [kind, variant, context]);
+  }, [kind, variant, context, seasonal]);
   useEffect(() => () => mesh.geometry.dispose(), [mesh]);
   return <primitive object={mesh} />;
 }
@@ -105,7 +115,7 @@ function PlacePiece({ kind, context }: { kind: PlaceKind; context: ArtContext })
     let ground = (_x: number, _z: number) => 0;
     if (kind === "tarn") {
       look.pool = { level: 0, radius: 8 };
-      const water = new Mesh(poolGeometry(8), context.materials.water);
+      const water = waterMesh(poolGeometry(8), context.materials.water);
       water.position.y = 0.05;
       meshes.push(water);
     }
@@ -114,7 +124,7 @@ function PlacePiece({ kind, context }: { kind: PlaceKind; context: ArtContext })
       look.turn = 0;
       look.fall = fall;
       ground = slope;
-      meshes.push(new Mesh(ledge(context.palette, kind === "cascade" ? 9 : 4), context.materials.place), new Mesh(fallRibbon(fall), context.materials.water));
+      meshes.push(new Mesh(ledge(context.palette, kind === "cascade" ? 9 : 4), context.materials.place), waterMesh(fallRibbon(fall), context.materials.water));
     }
     const mesh = new Mesh(placeGeometry(look, ground, context.palette), context.materials.place);
     mesh.castShadow = true;
@@ -154,6 +164,23 @@ function ForagePiece({ kind, variant, picked, context }: { kind: ForageKind; var
   );
 }
 
+/** A dish as it is served before the fire, or the cookware it is made in, drawn as large as the fire shows it. */
+function CookingPiece({ thing, context }: { thing: DishId | "pan" | "stick"; context: ArtContext }) {
+  const mesh = useMemo(() => {
+    const palette = readDishPalette();
+    const geometry = thing === "pan" ? panShape(palette) : thing === "stick" ? stickShape(palette, 1.9) : dishShape(thing, palette);
+    const made = new Mesh(geometry, context.materials.stone);
+    made.scale.setScalar(thing === "pan" ? COOKWARE_LARGER : thing === "stick" ? 1 : DISH_SHOWN_LARGER);
+    if (thing === "stick") made.rotation.z = -1.2;
+    made.castShadow = true;
+    return made;
+  }, [thing, context]);
+  useEffect(() => () => mesh.geometry.dispose(), [mesh]);
+  return <primitive object={mesh} />;
+}
+
+const GALLERY_DISHES: DishId[] = ["blueberry-pie", "lingonberry-porridge", "cloudberry-pancakes", "strawberries-and-cream", "chanterelle-toast", "mushroom-soup", "berry-tea", "lingonberry-stick-bread", "mushroom-skewers", humbleId("pan", "porcini")];
+
 const PLACE_NAMES: Record<PlaceKind, string> = {
   "stone-circle": "Stone circle",
   cairn: "Cairn and bench",
@@ -190,7 +217,6 @@ const PLANT_NAMES: Record<PlantKind, string> = {
   bush: "Bush",
   heather: "Heather",
   fern: "Fern",
-  mushroom: "Mushrooms",
   flowers: "Flowers",
   rock: "Rock",
 };
@@ -265,6 +291,30 @@ export const ART_PIECES: ArtPiece[] = [
     render: (context) => <Campfire at={{ x: 0, y: 0, z: 0 }} seed="hearthwood/gallery/camp" palette={context.palette} atmosphere={context.atmosphere} fire={context.fire} />,
   },
   {
+    id: "cooking/pan",
+    group: "Cooking",
+    label: "Cast-iron pan",
+    radius: 0.6,
+    height: 0.2,
+    render: (context) => <CookingPiece thing="pan" context={context} />,
+  },
+  {
+    id: "cooking/stick",
+    group: "Cooking",
+    label: "Roasting stick",
+    radius: 1,
+    height: 0.8,
+    render: (context) => <CookingPiece thing="stick" context={context} />,
+  },
+  ...GALLERY_DISHES.map((dish) => ({
+    id: `cooking/${dish}`,
+    group: "Cooking",
+    label: dishName(dish),
+    radius: dish.includes("stick") || dish.includes("skewers") ? 0.65 : 0.45,
+    height: 0.3,
+    render: (context: ArtContext) => <CookingPiece thing={dish} context={context} />,
+  })),
+  {
     id: "camp/fireflies",
     group: "Camp",
     label: "Fireflies (at night)",
@@ -306,6 +356,6 @@ export const ART_PIECES: ArtPiece[] = [
     label: `Cat ${i + 1}`,
     radius: 0.7,
     height: 0.5,
-    render: (context: ArtContext) => <CatBody cat={generateCat(seed)} activity={activity} speed={0.4} clock={context.clock} />,
+    render: (context: ArtContext) => <CatBody cat={generateCat(seed)} activity={activity} speed={0.4} clock={context.clock} atmosphere={context.atmosphere} />,
   })),
 ];

@@ -32,11 +32,11 @@ export interface LandTile {
   water: Float32Array;
   /** How much of a river channel each vertex lies in, 0 to 1. */
   river: Float32Array;
-  /** The wobble of the altitude bands at each vertex, in metres. */
+  /** How far the altitude bands sit from their usual altitudes at each vertex (the land's own shift of them and their wobble), in metres. */
   wobble: Float32Array;
   /** Whether any of the tile lies under water. */
   wet: boolean;
-  /** Per vertex: the river's way (x, z, scaled by how much river is there), and how steeply the water drops to a neighbour, in metres per metre. */
+  /** Per vertex: the river's way (x, z, scaled by how much river is there), and how steeply the water drops to a neighbour under water, in metres per metre. */
   flow: Float32Array;
   fall: Float32Array;
   minHeight: number;
@@ -92,7 +92,7 @@ export function landTile(world: World, key: TileKey): LandTile {
       world.regionAt(x, z, land, weights);
       regions.set(weights, v * REGIONS.length);
       woodland[v] = world.woodlandAt(x, z, land, weights, slope, fine);
-      wobble[v] = world.bandWobble(x, z);
+      wobble[v] = land.bands + world.bandWobble(x, z);
     }
   }
 
@@ -124,7 +124,10 @@ export function landTile(world: World, key: TileKey): LandTile {
           const ni = i + di;
           const nj = j + dj;
           if (ni < 0 || nj < 0 || ni >= side || nj >= side) continue;
-          drop = Math.max(drop, Math.abs(water[v] - water[nj * side + ni]));
+          const n = nj * side + ni;
+          // Only to water: a dry neighbour's water table is another terrace's, under its ground.
+          if (water[n] <= heights[n]) continue;
+          drop = Math.max(drop, Math.abs(water[v] - water[n]));
         }
         fall[v] = drop / spacing;
       }

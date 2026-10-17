@@ -1,5 +1,5 @@
 import { createRng } from "@/shared/lib/seeded-random";
-import { clamp, fbm, gradientNoise, ridged, smoothstep, type Noise2 } from "./noise";
+import { clamp, fbm, gradientNoise, gullyNoise, lerp, ridged, smoothstep, type Noise2, type Stripes } from "./noise";
 import { makeRivers, type RiverReach } from "./rivers";
 
 /*
@@ -23,14 +23,18 @@ export const TERRACE = 9;
 /** How deep a river's water is at the middle of its channel: always shallow enough to wade. */
 export const RIVER_DEPTH = 0.4;
 
-/** Altitudes the land's bands sit at, before each band's own wobble. */
+/**
+ * Altitudes the land's bands sit at in a high alpine range, before the land's own shift of them (`LandSample.bands`) and
+ * each band's wobble. The lowlands lie at about 30 to 70 m, so the woods reach some 700 m up a range and most of a big
+ * mountain stands above them.
+ */
 export const ALTITUDE = {
   /** The trees thin out to alpine grass. */
-  treeline: 255,
-  /** Grass gives way to bare rock. */
-  rock: 420,
+  treeline: 780,
+  /** Grass gives way to scree and bare rock. */
+  rock: 1150,
   /** Snow lies on whatever is flat enough to hold it. */
-  snow: 610,
+  snow: 1650,
 } as const;
 
 /** Everything the land knows about one point. */
@@ -47,10 +51,12 @@ export interface LandSample {
   wetness: number;
   /** 0 (flat) to 1 (hill country). */
   hilly: number;
+  /** How far the altitude bands sit above (or below) ALTITUDE here, in metres. */
+  bands: number;
 }
 
 export function emptySample(): LandSample {
-  return { height: 0, water: 0, river: 0, mountainous: 0, wetness: 0, hilly: 0 };
+  return { height: 0, water: 0, river: 0, mountainous: 0, wetness: 0, hilly: 0, bands: 0 };
 }
 
 /** The world is lowland round its origin, where camp is: the ranges begin some way out. */
@@ -65,7 +71,9 @@ interface Noises {
   wet: Noise2;
   warp: Noise2;
   range: Noise2;
+  peaks: Noise2;
   crest: Noise2;
+  climate: Noise2;
   hills: Noise2;
   detail: Noise2;
   basin: Noise2;
@@ -82,6 +90,79 @@ export interface Land {
   base: (x: number, z: number) => number;
   /** Which way a river flows at a point (a unit vector), or zero away from rivers. */
   flowAt: (x: number, z: number) => { x: number; z: number };
+}
+
+/** How high a big alpine range rises above the lowlands at its highest, and how far its flanks reach out from its crest, in metres. */
+const RANGE_HEIGHT = 2300;
+const RANGE_REACH = 4600;
+/** The size of the broad field the alpine crests follow, in metres. */
+const ALPINE_FIELD = 10000;
+/** The spacing of the glacial valleys down a range's flanks, and of the side valleys down their walls, in metres. */
+const VALLEY = 2200;
+/** How far the crest is rounded over, as a share of how far the flanks reach. */
+const CREST_ROUND = 0.03;
+/** How high the cols at the valley heads lie, as a share of the crest's height. */
+const COL = 0.7;
+const SIDE_VALLEY = 900;
+/** How deep the side valleys cut into the walls, as a share of the wall. */
+const SIDE_DEPTH = 0.3;
+/** How much of the way from a valley's middle to the spur beside it is the valley's flat floor. */
+const TROUGH_FLOOR = 0.16;
+/** The spacing of the ribs and gullies that flute a range's faces, and how high they stand, in metres. */
+const RIBS = 260;
+const RIB_HEIGHT = 55;
+/** The flutes' octaves: how much finer than RIBS each is, how strong, and an offset so no two line up. */
+const FLUTES = [
+  [1, 1, 0],
+  [2.7, 0.3, 9.1],
+  [6.5, 0.1, -2.3],
+] as const;
+/** How high crags and horns stand off a range's walls and ridges, in metres. */
+const CRAGS = 190;
+/** How high the horns rise from where the spurs meet the crest, in metres. */
+const HORNS = 200;
+/** How high the fells rise. */
+const FELL_HEIGHT = 430;
+/** Folded country: the spacing of its ridges, the swell of upland they stand on and how high they rise from it, in metres. */
+const FOLD = 2300;
+const FOLD_SWELL = 260;
+const FOLD_RIDGE = 420;
+/** How far the bands sit from ALTITUDE on the fells and in folded country, how far they wander with the climate, and how far
+ * down the ice reaches into a range's high valleys, in metres. */
+const BANDS_FELL = -480;
+const BANDS_FOLDED = 260;
+const BANDS_CLIMATE = 150;
+const BANDS_ICE = 420;
+
+/** What an alpine range makes of a point. */
+interface RangeSample {
+  height: number;
+  mountainous: number;
+  /** How much the point lies in a high valley's head, where the snow and ice reach down, 0 to 1. */
+  ice: number;
+}
+
+const NO_RANGE: RangeSample = { height: 0, mountainous: 0, ice: 0 };
+
+/** What land sampled every `spacing` metres can show. */
+interface Sampling {
+  /** How many octaves of noise whose first is `scale` metres across it can show. */
+  octaves: (scale: number, most: number) => number;
+  /** How much of a feature `wavelength` metres across it can show: all of it, fading to none. */
+  shows: (wavelength: number) => number;
+}
+
+const FULL_DETAIL = makeSampling(0);
+
+function samplingAt(spacing: number): Sampling {
+  return spacing === 0 ? FULL_DETAIL : makeSampling(spacing);
+}
+
+function makeSampling(spacing: number): Sampling {
+  return {
+    octaves: (scale, most) => Math.max(1, Math.min(most, Math.floor(Math.log2(scale / Math.max(1, 2 * spacing))) + 1)),
+    shows: (wavelength) => 1 - smoothstep(wavelength / 5, wavelength / 2.5, spacing),
+  };
 }
 
 /** A smooth minimum: the lower of two values, rounded where they meet over about `k`. */
@@ -101,7 +182,9 @@ export function makeLand(seed: string): Land {
     wet: gradientNoise(`${seed}/wet`),
     warp: gradientNoise(`${seed}/warp`),
     range: gradientNoise(`${seed}/range`),
+    peaks: gradientNoise(`${seed}/peaks`),
     crest: gradientNoise(`${seed}/crest`),
+    climate: gradientNoise(`${seed}/climate`),
     hills: gradientNoise(`${seed}/hills`),
     detail: gradientNoise(`${seed}/detail`),
     basin: gradientNoise(`${seed}/basin`),
@@ -115,19 +198,117 @@ export function makeLand(seed: string): Land {
   const foldX = Math.cos(foldAngle);
   const foldZ = Math.sin(foldAngle);
   const reach: RiverReach = { distance: 0, size: 0, alongX: 0, alongZ: 0 };
+  const gullies = gullyNoise(`${seed}/gullies`);
+  const valleys: Stripes = { value: 0, dx: 0, dy: 0 };
+  const sideValleys: Stripes = { value: 0, dx: 0, dy: 0 };
+  const ribs: Stripes = { value: 0, dx: 0, dy: 0 };
+  const ranged: RangeSample = { height: 0, mountainous: 0, ice: 0 };
+
+  /** The broad field whose zero lines the ranges run along. */
+  const rangeField = (x: number, z: number): number => {
+    const wx = x + 500 * fbm(n.warp, x / 2600 + 7.7, z / 2600, 2);
+    const wz = z + 500 * fbm(n.warp, x / 2600, z / 2600 - 3.3, 2);
+    return fbm(n.mount, wx / 6000, wz / 6000, 3);
+  };
+  /** The broader, smoother field the alpine ranges' crests follow: they are big enough to need the room. */
+  const alpineField = (x: number, z: number): number => {
+    const wx = x + 700 * fbm(n.warp, x / 3400 - 2.1, z / 3400 + 5.5, 2);
+    const wz = z + 700 * fbm(n.warp, x / 3400 + 4.4, z / 3400 - 8.8, 2);
+    return n.mount(wx / ALPINE_FIELD + 31.7, wz / ALPINE_FIELD - 17.3);
+  };
+
+  /**
+   * A high alpine range, like the Tetons, Jotunheimen or the Alps: a massif rising from its foot to a crest along a broad
+   * field's zero line, its height wandering along the crest. Glacial valleys run down its flanks from the crest, flat-floored
+   * between steep walls, their floors climbing to cirques under the crest, where valleys from either side meet at a col, the
+   * pass over. Side valleys come down the walls and hang above the main valley's floor. The spurs between the valleys are
+   * the ridges a walker climbs, and crags and horns stand off the upper walls and ridges. Where the range thins out along its
+   * length (`chain`), it narrows as it lowers, so its ends are no steeper than its flanks.
+   */
+  const alpineRange = (x: number, z: number, chain: number, sampling: Sampling): RangeSample => {
+    const e = 20;
+    const field = alpineField(x, z);
+    const fx = (alpineField(x + e, z) - field) / e;
+    const fz = (alpineField(x, z + e) - field) / e;
+    const steep = Math.max(Math.hypot(fx, fz), 1e-9);
+    // How far the crest is, as a share of how far the flanks reach; where the field turns, between two crests, it is
+    // read as no nearer than its usual steepness says, so the land between them comes down smoothly.
+    const reachOut = RANGE_REACH * (0.5 + 0.5 * chain);
+    const t = Math.hypot(Math.abs(field) / Math.max(steep, 0.75 / ALPINE_FIELD) / reachOut, CREST_ROUND) - CREST_ROUND;
+    if (t >= 1) return NO_RANGE;
+    // Across the range, the way its flanks fall: the valleys and spurs run this way.
+    const acrossX = fx / steep;
+    const acrossZ = fz / steep;
+    const peaks = chain * (0.5 + 0.5 * smoothstep(-0.55, 0.5, fbm(n.peaks, x / 5200, z / 5200, sampling.octaves(5200, 3))));
+    const top = RANGE_HEIGHT * peaks;
+    // The spurs climb steadily from the range's foot to the crest; the valley floors between them stay low far into the
+    // range, then climb to cirques under the crest, where the valleys from either side meet at a col.
+    const spur = (1 - t) * smoothstep(1, 0.7, t);
+    const floor = COL * (1 - t) ** 2.3;
+
+    gullies(x / VALLEY, z / VALLEY, acrossX, acrossZ, valleys);
+    // Where the field turns on itself the way across is lost, and the valleys fade out rather than meet in a star.
+    const showsValleys = sampling.shows(VALLEY) * smoothstep(0.25, 0.6, steep * ALPINE_FIELD);
+    // Where a point lies between a valley's middle (0) and the crest of the spur beside it (1), evenly across.
+    // (Kept a little short of the ends, where the arc's cosine turns infinitely steep: the crest would be a knife's edge.)
+    const a = 0.62 + ((1 - Math.acos(0.98 * clamp(valleys.value / 0.85, -1, 1)) / Math.PI) / 0.936 - 0.62) * showsValleys;
+    // A glacier's trough: a flat floor, walls steepening as they rise, and a narrow rounded crest along the spur above,
+    // the ridge a walker follows up.
+    const across = clamp((a - TROUGH_FLOOR) / (1 - TROUGH_FLOOR), 0, 1);
+    const u = smoothstep(0, 1, across ** 0.85);
+    // Up on the crest, from each col to the peaks either side, the walls ease into an even arête, a way along the crest.
+    const wall = lerp(smin(u ** 1.6, 0.9, 0.24) / 0.8, across, smoothstep(0.16, 0, t));
+    // Side valleys come down the main valleys' walls, the way the land falls there. That way turns about at the crest, so
+    // what follows it fades out just short of the crest, to meet the other side's without a step.
+    const offCrest = smoothstep(0, 0.03, t);
+    const flank = (Math.sign(field) * (0.85 * (spur - floor) * wall + 2.3 * floor)) / Math.max(1 - t, 0.05) / reachOut;
+    const wallFall = (1.6 * (spur - floor) * showsValleys) / VALLEY;
+    const fallX = acrossX * flank + wallFall * valleys.dx;
+    const fallZ = acrossZ * flank + wallFall * valleys.dy;
+    const fall = Math.max(Math.hypot(fallX, fallZ), 1e-9);
+    const fallsHere = smoothstep(0.05, 0.3, fall * VALLEY) * offCrest;
+    // The finer patterns are only worked out where they show.
+    const onWalls = smoothstep(0.1, 0.4, wall) * (1 - smoothstep(0.6, 0.85, wall));
+    let shape = wall;
+    if (onWalls * fallsHere > 0) {
+      // Where the land hardly falls at all (a spur's crest, a valley's middle, up on the crest) the side valleys have no
+      // way to run, and fade out rather than meet in a star.
+      gullies(x / SIDE_VALLEY, z / SIDE_VALLEY, fallX / fall, fallZ / fall, sideValleys);
+      const side = 0.5 + 0.5 * sideValleys.value * sampling.shows(SIDE_VALLEY) * fallsHere;
+      shape = wall * (1 - SIDE_DEPTH * onWalls * (1 - smoothstep(0.2, 0.7, side)));
+    }
+    // Ribs and gullies flute the faces, running straight down them, so they roughen a face without steepening the way up it.
+    // The way down turns about on a spur's crest, as on the range's, so they fade out before it.
+    const faces = smoothstep(0.25, 0.7, spur) * smoothstep(0.08, 0.45, wall) * (1 - smoothstep(0.72, 0.93, wall)) * fallsHere * chain;
+    let fluting = 0;
+    for (const [scale, strength, shift] of FLUTES) {
+      const shows = faces > 0 ? sampling.shows(RIBS / scale) : 0;
+      if (shows === 0) continue;
+      gullies((x * scale) / RIBS + shift, (z * scale) / RIBS - shift, fallX / fall, fallZ / fall, ribs);
+      fluting += strength * RIB_HEIGHT * ribs.value * shows;
+    }
+    // Crags stand off the high walls in patches, leaving the spurs' crests and ways up between them clear.
+    const patches = smoothstep(-0.15, 0.3, fbm(n.peaks, x / 1100 + 3.1, z / 1100 - 7.7, sampling.octaves(1100, 2)));
+    const high = smoothstep(0.3, 0.75, spur) * smoothstep(0.1, 0.4, wall) * (1 - smoothstep(0.8, 0.97, wall)) * patches;
+    const crags = CRAGS * ridged(n.range, x / 520, z / 520, sampling.octaves(520, 4)) ** 2 * high * chain;
+    const rise = floor + (spur - floor) * shape;
+    // Horns: where the spurs meet the crest, the peaks rise to a point.
+    const horn = HORNS * peaks * clamp((a - 0.7) / 0.3, 0, 1) * Math.max(0, 1 - t / 0.2) ** 1.3;
+
+    ranged.height = top * rise + crags + horn + fluting * faces;
+    ranged.mountainous = smoothstep(0, 0.5, spur) * Math.min(1, chain * 1.5);
+    ranged.ice = (1 - u) * smoothstep(0.3, 0.75, floor / COL) * smoothstep(0.7, 0.95, peaks);
+    return ranged;
+  };
 
   const sample = (x: number, z: number, out: LandSample = emptySample(), spacing = 0): LandSample => {
-    /** How many octaves of noise whose first is `scale` metres across a sampling this coarse can show. */
-    const octaves = (scale: number, most: number) => Math.max(1, Math.min(most, Math.floor(Math.log2(scale / Math.max(1, 2 * spacing))) + 1));
-    /** How much of a feature `wavelength` metres across a sampling this coarse can show: all of it, fading to none. */
-    const shows = (wavelength: number) => 1 - smoothstep(wavelength / 5, wavelength / 2.5, spacing);
+    const sampling = samplingAt(spacing);
+    const { octaves, shows } = sampling;
     const home = smoothstep(HOME_FLAT[0], HOME_FLAT[1], Math.hypot(x, z));
     const wetness = smoothstep(-0.4, 0.45, fbm(n.wet, x / 1900, z / 1900, 2));
     // Ranges: long winding belts along the lines where a broad field crosses zero, each rising and falling along its length, so they
     // part in wide gaps here and there and the lowlands between them stay open. A slow field of its own sets each range's character.
-    const bx0 = x + 500 * fbm(n.warp, x / 2600 + 7.7, z / 2600, 2);
-    const bz0 = z + 500 * fbm(n.warp, x / 2600, z / 2600 - 3.3, 2);
-    const field = fbm(n.mount, bx0 / 6000, bz0 / 6000, 3);
+    const field = rangeField(x, z);
     const belt = Math.max(0, 1 - Math.abs(field) / 0.3);
     const chain = home * smoothstep(-0.35, 0.15, fbm(n.chain, x / 4200, z / 4200, 2));
     const style = fbm(n.style, x / 9000, z / 9000, 2);
@@ -137,22 +318,30 @@ export function makeLand(seed: string): Land {
     // Along a crest its height wanders, and where it dips there is a pass.
     const crest = 0.35 + 0.65 * smoothstep(-0.55, 0.4, fbm(n.crest, x / 700, z / 700, octaves(700, 2)));
 
-    // High alpine ranges: jagged peaks rising steeply out of the forest far above the treeline, their flanks cut by ridged spurs.
-    const jagged = ridged(n.range, x / 560, z / 560, octaves(560, 4));
-    const alpineHeight = 760 * belt ** 2.6 * crest + 210 * smoothstep(0.15, 0.95, belt) * jagged ** 1.8;
+    // High alpine ranges: see `alpineRange`.
+    const alpineChain = home * smoothstep(-0.55, 0.05, fbm(n.chain, x / 11000 - 5.2, z / 11000 + 9.4, 2));
+    const range = alpine > 0 && alpineChain > 0 ? alpineRange(x, z, alpineChain, sampling) : NO_RANGE;
     // Fells: broad rounded tops rising bare above the trees.
-    const fellHeight = 330 * smoothstep(0, 1, belt) ** 1.5 * (0.7 + 0.3 * crest);
-    // Long rounded ridges side by side, all running roughly one way across the world as folded country does, bending as they go,
-    // layered into the distance and wooded to their tops.
+    const fellHeight = FELL_HEIGHT * smoothstep(0, 1, belt) ** 1.5 * (0.7 + 0.3 * crest);
+    // Folded country: long rounded ridges side by side, all running roughly one way across the world as folded country does,
+    // bending as they go, on a broad swell of upland, layered into the distance and wooded to their tops.
     const zone = Math.max(0, 1 - Math.abs(field) / 0.45);
-    const across = (x * foldX + z * foldZ) / 720 + 2.4 * fbm(n.crest, x / 2600, z / 2600, 2);
-    const folds = 0.5 + 0.5 * Math.cos(across * Math.PI * 2) * shows(720);
-    const layeredHeight = 150 * smoothstep(0, 0.7, zone) * folds ** 1.6 * (0.7 + 0.3 * crest);
-    const mountains = chain * (alpine * alpineHeight + fell * fellHeight + layered * layeredHeight);
-    const mountainous = chain * (alpine * smoothstep(0, 0.7, belt) + fell * 0.6 * smoothstep(0, 0.7, belt) + layered * 0.45 * smoothstep(0, 0.6, zone));
+    const across = (x * foldX + z * foldZ) / FOLD + 1.2 * fbm(n.crest, x / 5200, z / 5200, 2);
+    const folds = 0.5 + 0.5 * Math.cos(across * Math.PI * 2);
+    const ribs = 0.5 + 0.5 * Math.cos(across * Math.PI * 6 + 1.3) * shows(FOLD / 3);
+    const swell = smoothstep(0, 0.8, zone);
+    const layeredHeight = swell * (FOLD_SWELL + FOLD_RIDGE * (folds ** 1.4 * (0.82 + 0.18 * ribs)) * (0.65 + 0.35 * crest));
+    const mountains = alpine * range.height + chain * (fell * fellHeight + layered * layeredHeight);
+    const mountainous = alpine * range.mountainous + chain * (fell * 0.6 * smoothstep(0, 0.7, belt) + layered * 0.5 * swell);
+    // The bands sit lowest on the fells, as on Lapland's, highest in the folded country, wooded to its tops, and wander
+    // up and down with the climate; up in an alpine range the snow and ice reach down its valley heads into the cirques.
+    const bands =
+      BANDS_FELL * fell + BANDS_FOLDED * layered + BANDS_CLIMATE * fbm(n.climate, x / 14000, z / 14000, 2) - alpine * BANDS_ICE * range.ice;
     const hilly = smoothstep(0.05, 0.6, mountainous * 0.8 + 0.45 * (0.5 + 0.5 * fbm(n.hilly, x / 1500, z / 1500, 2)) * (0.35 + 0.65 * home));
-    const hills = (2.5 + 26 * hilly) * (0.5 + 0.5 * fbm(n.hills, x / 330, z / 330, octaves(330, 4)) * shows(330));
-    const detail = spacing > 18 ? 0 : (0.8 + 1.4 * hilly) * fbm(n.detail, x / 36, z / 36, 2) * shows(36);
+    // Up in an alpine range its own valleys and crags shape the land, and the hills' lumps would only roughen its ridges.
+    const lumpy = 1 - 0.75 * alpine * range.mountainous;
+    const hills = (2.5 + 26 * hilly * lumpy) * (0.5 + 0.5 * fbm(n.hills, x / 330, z / 330, octaves(330, 4)) * shows(330));
+    const detail = spacing > 18 ? 0 : (0.8 + 1.4 * hilly * lumpy) * fbm(n.detail, x / 36, z / 36, 2) * shows(36);
     const floor = 2 + 3 * (1 - wetness);
     const basins = wetness * 15 * smoothstep(0.0, 0.5, fbm(n.basin, x / 340, z / 340, octaves(340, 2))) * shows(340);
     const b = base(x, z);
@@ -188,6 +377,7 @@ export function makeLand(seed: string): Land {
     out.mountainous = mountainous;
     out.wetness = wetness;
     out.hilly = hilly;
+    out.bands = bands;
     return out;
   };
 

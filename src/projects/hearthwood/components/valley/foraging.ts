@@ -2,7 +2,7 @@ import { gameDayOfReal } from "../../engine/calendar";
 import { makeForage, type Forage, type ForageSpot } from "../../engine/forage";
 import type { ForageKind } from "../../engine/regions";
 import type { World } from "../../engine/world";
-import { emptyForaged, loadForaged, saveForaged, type Basket, type Foraged } from "../../gameplay/basket";
+import { emptyForaged, loadForaged, saveForaged, takeOne, type Basket, type Foraged } from "../../gameplay/basket";
 import { pick, regrow, type ForageTime } from "../../gameplay/picking";
 import { setDay, type ValleyClock } from "./clock";
 
@@ -98,6 +98,27 @@ export function pickSpot(foraging: Foraging, spot: ForageSpot, time: ForageTime)
   foraging.popping.push(spot);
   if (foraging.target === spot) offer(foraging, null);
   show(foraging, { basket: foraging.foraged.basket, lastPicked: spot.kind, picks: foraging.shown.picks + 1 });
+}
+
+/** One of a kind taken from the basket, given to an animal as a treat. */
+export function takeTreat(foraging: Foraging, kind: ForageKind): void {
+  foraging.foraged = takeOne(foraging.foraged, kind);
+  saveForaged(foraging.foraged);
+  show(foraging, { basket: foraging.foraged.basket });
+}
+
+/** Food taken from the basket into the pan, one of each kind. */
+export function takeIngredients(foraging: Foraging, kinds: readonly ForageKind[]): void {
+  foraging.foraged = kinds.reduce(takeOne, foraging.foraged);
+  saveForaged(foraging.foraged);
+  show(foraging, { basket: foraging.foraged.basket });
+}
+
+/** Puts some of a kind in the basket as if picked: for screenshots and tests. */
+export function stockBasket(foraging: Foraging, kind: ForageKind, count: number): void {
+  foraging.foraged = { ...foraging.foraged, basket: { ...foraging.foraged.basket, [kind]: foraging.foraged.basket[kind] + count } };
+  saveForaged(foraging.foraged);
+  show(foraging, { basket: foraging.foraged.basket });
 }
 
 export function setBasketOpen(foraging: Foraging, open: boolean): void {

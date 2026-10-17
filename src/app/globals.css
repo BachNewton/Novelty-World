@@ -333,11 +333,114 @@
   --color-hearthwood-valley-broom-handle: #b08458;
   --color-hearthwood-valley-broom-bristle: #dcb866;
 
+  /* The weather: each region's mist (blended across their borders), the
+     clouds lit and in their own shade, rain, snow, the lightning's flash and
+     standing water. */
+  --color-hearthwood-valley-mist-greenwood: #e9efe6;
+  --color-hearthwood-valley-mist-birchvale: #eff1e6;
+  --color-hearthwood-valley-mist-highlands: #dbe3ec;
+  --color-hearthwood-valley-mist-heath: #f2eadf;
+  --color-hearthwood-valley-mist-maplewood: #f4e8dc;
+  --color-hearthwood-valley-cloud: #fffaf2;
+  --color-hearthwood-valley-cloud-shade: #8a93a8;
+  --color-hearthwood-valley-rain: #c8d4e2;
+  --color-hearthwood-valley-snow: #fbfcff;
+  --color-hearthwood-valley-lightning: #dfe4ff;
+  --color-hearthwood-valley-puddle: #4a5560;
+
   --color-hearthwood-valley-ui-ink: #fff6e4;
   --color-hearthwood-valley-ui-shade: #2a2236;
 
   --color-hearthwood-gallery-ground: #cbc3b0;
   --color-hearthwood-gallery-ground-edge: #b4ab95;
+}
+
+/* Hearthwood's sky and light: the tints laid over the physical sky and its
+   light (the sun's rose-gold low in the morning and evening, the lilac of
+   the blue hour, the moon's cool light), the night sky's own glow, what is
+   drawn in it (the moon's two greys and the earthshine on its dark side,
+   the stars' warm and cool ends, the Milky Way, the aurora's green and
+   violet, the noctilucent clouds' electric blue), the ground's colour the
+   sky's light bounces back from, and the blue the woods turn by night.
+   Read only by the 3D scene through themeColor, so declared outside
+   @theme. */
+:root {
+  --color-hearthwood-sky-sun-morning: #ffb4a0;
+  --color-hearthwood-sky-sun-evening: #ffc28a;
+  --color-hearthwood-sky-blue-hour: #b8a2e8;
+  --color-hearthwood-sky-moonlight: #a8c0f0;
+  --color-hearthwood-sky-airglow: #0c1430;
+  --color-hearthwood-sky-ground-bounce: #6c7448;
+  --color-hearthwood-sky-moon-highland: #f4f0e2;
+  --color-hearthwood-sky-moon-mare: #a8a8a4;
+  --color-hearthwood-sky-earthshine: #4a6488;
+  --color-hearthwood-sky-moon-halo: #c8d0e8;
+  --color-hearthwood-sky-star-warm: #ffd2a0;
+  --color-hearthwood-sky-star-cool: #b4ccff;
+  --color-hearthwood-sky-milky-way: #b8c0dc;
+  --color-hearthwood-sky-aurora-green: #4cf09a;
+  --color-hearthwood-sky-aurora-violet: #b46cf0;
+  --color-hearthwood-sky-noctilucent: #9ad8ff;
+  --color-hearthwood-sky-night-vision: #7c9cd8;
+}
+
+/* Hearthwood's seasons: each kind of plant's young spring green, its two
+   autumn colours (one or the other by the tree), and its bare winter twigs
+   (or, for heather, its faded bells); the summer green of the plants whose
+   shapes are painted in their autumn colours; and the ground's dormant
+   straw, new green and autumn gold and russet, and a bare wood seen from
+   afar. Read only
+   by the 3D scene through themeColor. */
+:root {
+  --color-hearthwood-valley-season-birch-fresh: #c6e27a;
+  --color-hearthwood-valley-season-birch-autumn: #f1c53c;
+  --color-hearthwood-valley-season-birch-autumn-alt: #e49a2c;
+  --color-hearthwood-valley-season-birch-bare: #8a7376;
+  --color-hearthwood-valley-season-aspen-summer: #93bf58;
+  --color-hearthwood-valley-season-aspen-fresh: #cde684;
+  --color-hearthwood-valley-season-aspen-autumn-alt: #e8862a;
+  --color-hearthwood-valley-season-aspen-bare: #8c8478;
+  --color-hearthwood-valley-season-oak-fresh: #b9d873;
+  --color-hearthwood-valley-season-oak-autumn: #a3542c;
+  --color-hearthwood-valley-season-oak-autumn-alt: #c48038;
+  --color-hearthwood-valley-season-oak-bare: #6f5a4c;
+  --color-hearthwood-valley-season-maple-summer: #5f9a46;
+  --color-hearthwood-valley-season-maple-fresh: #b2d66c;
+  --color-hearthwood-valley-season-maple-autumn-alt: #b02a26;
+  --color-hearthwood-valley-season-maple-bare: #7a5e58;
+  --color-hearthwood-valley-season-conifer-fresh: #6c9c62;
+  --color-hearthwood-valley-season-conifer-autumn: #2c4c46;
+  --color-hearthwood-valley-season-conifer-autumn-alt: #34544a;
+  --color-hearthwood-valley-season-conifer-bare: #2c4c46;
+  --color-hearthwood-valley-season-pine-fresh: #6a9474;
+  --color-hearthwood-valley-season-pine-autumn: #33524c;
+  --color-hearthwood-valley-season-pine-autumn-alt: #3a5a50;
+  --color-hearthwood-valley-season-pine-bare: #33524c;
+  --color-hearthwood-valley-season-heather-fresh: #8c9e58;
+  --color-hearthwood-valley-season-heather-autumn: #6c5242;
+  --color-hearthwood-valley-season-heather-autumn-alt: #5f4a3e;
+  --color-hearthwood-valley-season-heather-bare: #85605a;
+  --color-hearthwood-valley-season-flowers-fresh: #9fd05e;
+  --color-hearthwood-valley-season-flowers-autumn: #a08448;
+  --color-hearthwood-valley-season-flowers-autumn-alt: #8c6c40;
+  --color-hearthwood-valley-season-flowers-bare: #8c7a52;
+  --color-hearthwood-valley-season-fern-fresh: #acd462;
+  --color-hearthwood-valley-season-fern-autumn: #bc7430;
+  --color-hearthwood-valley-season-fern-autumn-alt: #c89c48;
+  --color-hearthwood-valley-season-fern-bare: #8a6440;
+  --color-hearthwood-valley-season-bracken-summer: #74a44a;
+  --color-hearthwood-valley-season-bracken-fresh: #a8ce60;
+  --color-hearthwood-valley-season-bracken-autumn-alt: #a04e26;
+  --color-hearthwood-valley-season-bracken-bare: #845a3a;
+  --color-hearthwood-valley-season-bush-fresh: #a2ce5e;
+  --color-hearthwood-valley-season-bush-autumn: #a8442e;
+  --color-hearthwood-valley-season-bush-autumn-alt: #bc7c3a;
+  --color-hearthwood-valley-season-bush-bare: #75604c;
+  --color-hearthwood-valley-season-ground-dormant: #b9a676;
+  --color-hearthwood-valley-season-ground-fresh: #a2cf66;
+  --color-hearthwood-valley-season-ground-gold: #cfae58;
+  --color-hearthwood-valley-season-ground-russet: #b77a46;
+  --color-hearthwood-valley-season-wood-bare: #7e6c6a;
 }
 
 /* Hearthwood: what there is to pick in its forests, each berry and mushroom
@@ -369,6 +472,65 @@
   --color-hearthwood-forage-cut: #f4e8c8;
   --color-hearthwood-forage-sparkle: #fff2b8;
   --color-hearthwood-forage-basket: #c08a4e;
+}
+
+/* Hearthwood: the companions' marks, the heart that rises as an animal warms
+   to Elliott and the paw a companion answers a pet with. */
+:root {
+  --color-hearthwood-companion-heart: #f2708a;
+  --color-hearthwood-companion-paw: #ffd9a8;
+}
+
+/* Hearthwood: cooking at the fire. The cast-iron pan and its grip, the
+   roasting stick, and the birch-wood plates, bowls, boards and kuksa cups
+   the dishes are served in; the staples Elliott carries (oats and flour in
+   their sacks, butter, honey in its jar, cream in its jug, eggs); the
+   dishes' own colours (pastry, crumble, pancakes, toast, stick-bread dough,
+   porridges, soups, sauce, tea, a sprig of dill); the steam and the
+   sizzle; and the recipe book's page and ink. Read by the 3D scene through
+   themeColor and by the cooking overlay's drawings. */
+:root {
+  --color-hearthwood-cooking-iron: #3a3740;
+  --color-hearthwood-cooking-grip: #8a5a36;
+  --color-hearthwood-cooking-stick: #a7784a;
+  --color-hearthwood-cooking-birch: #e8cf9e;
+  --color-hearthwood-cooking-kuksa: #bb8450;
+  --color-hearthwood-cooking-oats: #dcc28e;
+  --color-hearthwood-cooking-flour: #f6f0e2;
+  --color-hearthwood-cooking-sack: #c4a676;
+  --color-hearthwood-cooking-butter: #f7dd84;
+  --color-hearthwood-cooking-honey: #f0a62a;
+  --color-hearthwood-cooking-jar: #cfe3d4;
+  --color-hearthwood-cooking-cream: #fdf4e0;
+  --color-hearthwood-cooking-jug: #7f9fc4;
+  --color-hearthwood-cooking-egg: #f2e2c4;
+  --color-hearthwood-cooking-yolk: #f7b42a;
+  --color-hearthwood-cooking-pastry: #e6aa56;
+  --color-hearthwood-cooking-crumb: #d29848;
+  --color-hearthwood-cooking-pancake: #f2c674;
+  --color-hearthwood-cooking-toast: #d48c44;
+  --color-hearthwood-cooking-dough: #f0d49c;
+  --color-hearthwood-cooking-porridge: #e9d4a6;
+  --color-hearthwood-cooking-pink-porridge: #e8a0a8;
+  --color-hearthwood-cooking-soup: #e8cc94;
+  --color-hearthwood-cooking-sauce: #f0bf58;
+  --color-hearthwood-cooking-berry-soup: #4e3080;
+  --color-hearthwood-cooking-tea: #c64c36;
+  --color-hearthwood-cooking-dill: #6aa044;
+  --color-hearthwood-cooking-steam: #fbf6ee;
+  --color-hearthwood-cooking-sizzle: #fff0b0;
+  --color-hearthwood-cooking-page: #f6ead0;
+  --color-hearthwood-cooking-ink: #5a4232;
+}
+
+/* Hearthwood: the bar that fills while a dish cooks at the fire. */
+@keyframes hearthwood-cook-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 
 /* Hearthwood: a kind just picked swells in the basket and settles. */
@@ -629,13 +791,8 @@ body {
   --color-hearthwood-cat-inner-ear: #eaa79f;
   --color-hearthwood-cat-shadow: #4a3a2c;
 
-  --color-hearthwood-preview-sky: #f4e2c4;
   --color-hearthwood-preview-meadow: #a3b66c;
   --color-hearthwood-preview-meadow-edge: #c9c486;
-  --color-hearthwood-preview-key: #ffe6bf;
-  --color-hearthwood-preview-fill: #c7d6ef;
-  --color-hearthwood-preview-ambient-sky: #fff1d9;
-  --color-hearthwood-preview-ambient-ground: #a8936a;
 }
 
 /* Hearthwood: the dogs. A real dog's coat colours, warmed a little like the

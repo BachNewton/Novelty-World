@@ -169,7 +169,8 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
         switchView();
         return;
       }
-      if (!WALK_KEYS.includes(event.code)) return;
+      // Typing a name into a field is typing, not walking.
+      if (!WALK_KEYS.includes(event.code) || isTextEntryTarget(event.target)) return;
       event.preventDefault();
       held.add(event.code);
       setKind("keyboard-mouse");

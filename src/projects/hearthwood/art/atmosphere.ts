@@ -1,11 +1,12 @@
 import { Color, Vector3 } from "three";
+import { featureDefine } from "../features";
 
 /*
  * The valley's air, shared by everything drawn in it: a haze that lies
  * thickest low in the valley and thins up the mountains, warmed towards the
- * sun, and a gentle grade that tints the shadows towards the moment's own
- * colour. Every material in the valley ends in it (see `shading.ts`), so
- * one set of uniforms moves the whole scene's mood.
+ * sun. Every material in the valley ends in it (see `shading.ts`), so one
+ * set of uniforms moves the whole scene's mood. The colour grade, shadows'
+ * tint and all, is a pass over the finished frame (`light/grade.ts`).
  */
 
 export interface AtmosphereUniforms {
@@ -22,6 +23,8 @@ export interface AtmosphereUniforms {
   /** The light falling on a surface that lights itself in its own shader (water): from the sky and the ground all round, and from the sun (or moon). */
   uHwSkyLight: { value: Color };
   uHwSunLight: { value: Color };
+  /** The key light's colour times its intensity, exactly as the directional light shines it (the sun's or the moon's). */
+  uHwKeyLight: { value: Color };
 }
 
 export function makeAtmosphere(): AtmosphereUniforms {
@@ -30,11 +33,13 @@ export function makeAtmosphere(): AtmosphereUniforms {
     uHwSunColor: { value: new Color() },
     uHwSunDir: { value: new Vector3(0, 1, 0) },
     uHwHazeDensity: { value: 0.004 },
-    uHwHazeFalloff: { value: 0.016 },
+    // Thinning over about 1,800 m, so the air still lies between the eye and mountains 2,500 m high.
+    uHwHazeFalloff: { value: 1 / 1800 },
     uHwShadowTint: { value: new Color() },
     uHwTime: { value: 0 },
     uHwSkyLight: { value: new Color(1, 1, 1) },
     uHwSunLight: { value: new Color() },
+    uHwKeyLight: { value: new Color() },
   };
 }
 
@@ -49,6 +54,7 @@ uniform vec3 uHwShadowTint;
 uniform float uHwTime;
 uniform vec3 uHwSkyLight;
 uniform vec3 uHwSunLight;
+uniform vec3 uHwKeyLight;
 `;
 
 /** Value noise, for anything drawn that wants a little unevenness. */
@@ -62,7 +68,7 @@ float hwValueNoise(vec2 p) {
 }
 `;
 
-/** The air's uniforms and the functions that end a colour in it: the haze, then the grade. */
+/** The air's uniforms and the functions that end a colour in it: the haze. */
 export const ATMOSPHERE_GLSL = /* glsl */ `
 ${ATMOSPHERE_UNIFORMS_GLSL}
 
@@ -83,15 +89,13 @@ float hwHazeAmount(vec3 eye, vec3 world) {
   return 1.0 - exp(-uHwHazeDensity * base * along * dist);
 }
 
-vec3 hwGrade(vec3 colour) {
-  float luma = dot(colour, vec3(0.299, 0.587, 0.114));
-  vec3 graded = mix(vec3(luma), colour, 1.12);
-  return graded + uHwShadowTint * 0.18 * (1.0 - smoothstep(0.0, 0.45, luma));
-}
-
 vec3 hwAtmosphere(vec3 colour, vec3 world) {
-  vec3 dir = normalize(world - cameraPosition);
-  vec3 hazed = mix(colour, hwHazeColour(dir), hwHazeAmount(cameraPosition, world));
-  return hwGrade(hazed);
+  // With the fog feature on, its own air takes the haze's place, at the colour hook.
+  #ifdef ${featureDefine("fog")}
+    return colour;
+  #else
+    vec3 dir = normalize(world - cameraPosition);
+    return mix(colour, hwHazeColour(dir), hwHazeAmount(cameraPosition, world));
+  #endif
 }
 `;

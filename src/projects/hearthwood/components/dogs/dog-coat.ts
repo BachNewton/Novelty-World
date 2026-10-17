@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { DogCoatLook } from "../../dogs/coat-look";
 import { EAR, HIP, MOUTH_Y, NOSE, NOSE_RADII, PRICK_EAR, SHOULDER, SKULL, TAIL_ROOT } from "../../dogs/rig";
 import { coatMaterial, glslEar, glslFloat, glslVec, type CoatShader } from "../animals/coat-material";
@@ -244,7 +245,7 @@ vec3 faceColour(vec3 p, vec3 coat, inout float glint) {
 };
 
 /** A dog's coat material. Each dog has its own, sharing one compiled program. */
-export function dogCoatMaterial(look: DogCoatLook) {
+export function dogCoatMaterial(look: DogCoatLook, atmosphere: AtmosphereUniforms) {
   const c = look.colours;
   const colour = (token: string) => ({ value: themeColor(token) });
   const uniforms = {
@@ -270,5 +271,5 @@ export function dogCoatMaterial(look: DogCoatLook) {
     uEars: { value: look.ears },
     uMarks: { value: new THREE.Vector3(...look.marks) },
   };
-  return coatMaterial(DOG_COAT, uniforms, 0.26 + 0.08 * look.length);
+  return coatMaterial(DOG_COAT, uniforms, 0.26 + 0.08 * look.length, atmosphere);
 }

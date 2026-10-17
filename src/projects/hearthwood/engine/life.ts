@@ -57,7 +57,7 @@ export interface LifeGround {
 }
 
 /** How the band edges wander up and down the slopes, in metres. */
-const BAND_WOBBLE = 16;
+const BAND_WOBBLE = 30;
 
 export function makeWoodland(seed: string) {
   const groves = gradientNoise(`${seed}/groves`);
@@ -74,7 +74,7 @@ export function makeWoodland(seed: string) {
       let d = smoothstep(1 - cover - 0.12, 1 - cover + 0.12, g);
       d *= 1 - 0.85 * smoothstep(0.2, 0.45, fbm(glades, x / 48, z / 48, 2));
       const w = BAND_WOBBLE * fbm(wobble, x / 140, z / 140, 3);
-      d *= 1 - smoothstep(ALTITUDE.treeline - 12 + w, ALTITUDE.treeline + 4 + w, land.height);
+      d *= 1 - smoothstep(ALTITUDE.treeline - 30 + w, ALTITUDE.treeline + 6 + w, land.height - land.bands);
       d *= 1 - smoothstep(0.75, 1.05, slope);
       d *= smoothstep(0.6, 2.4, land.height - land.water) * (1 - land.river);
       return d;
@@ -116,14 +116,13 @@ const SMALL_SIZE: Record<Exclude<PlantKind, TreeKind>, [number, number]> = {
   bush: [0.8, 1.7],
   heather: [0.9, 1.7],
   fern: [0.6, 1.15],
-  mushroom: [0.7, 1.1],
   flowers: [0.8, 1.3],
   rock: [0.5, 1.4],
 };
 
 function makePlant(kind: PlantKind, x: number, y: number, z: number, size: number, variant: number, rng: Rng): Plant {
   const next = () => rng.next();
-  const upright = kind === "rock" || kind === "flowers" || kind === "mushroom" || kind === "heather";
+  const upright = kind === "rock" || kind === "flowers" || kind === "heather";
   return {
     kind,
     x,
@@ -187,7 +186,9 @@ export function scatterChunk(ground: LifeGround, chunkX: number, chunkZ: number)
       const land = ground.sampleAt(x, z, s);
       const { height: h } = land;
       if (h < land.water + 0.3 || land.river > 0.02) continue;
-      if (h > ALTITUDE.snow + 20) continue;
+      // How high it grows against the bands where it is.
+      const banded = h - land.bands;
+      if (banded > ALTITUDE.snow + 20) continue;
       const open = ground.openness(x, z);
       if (open < 0.4) continue;
       const slope = coarseSlope(coarse, x0, z0, x, z);
@@ -197,16 +198,16 @@ export function scatterChunk(ground: LifeGround, chunkX: number, chunkZ: number)
       const variant = Math.floor(rng.next() * PLANT_VARIANTS);
 
       if (roll < d * 0.78) {
-        const high = smoothstep(ALTITUDE.treeline - 70, ALTITUDE.treeline - 10, h);
+        const high = smoothstep(ALTITUDE.treeline - 120, ALTITUDE.treeline - 15, banded);
         const kinds = rng.next() < high ? character.highTrees : character.trees;
         const kind = pickWeighted(rng, kinds) ?? "conifer";
-        const shrink = 1 - 0.4 * smoothstep(ALTITUDE.treeline - 25, ALTITUDE.treeline + 4, h);
+        const shrink = 1 - 0.4 * smoothstep(ALTITUDE.treeline - 45, ALTITUDE.treeline + 6, banded);
         const [low, top] = TREE_SIZE[kind];
         plants.push(makePlant(kind, x, h, z, uniform(rng, low, top) * shrink, variant, rng));
         continue;
       }
-      if (d < 0.3 && slope < 0.45 && h < ALTITUDE.treeline) meadows.push(x, h, z);
-      const alpine = smoothstep(ALTITUDE.treeline - 10, ALTITUDE.rock, h);
+      if (d < 0.3 && slope < 0.45 && banded < ALTITUDE.treeline) meadows.push(x, h, z);
+      const alpine = smoothstep(ALTITUDE.treeline - 10, ALTITUDE.rock, banded);
       const chances = d > 0.35 ? character.underTrees : character.open;
       let left = pick;
       let chosen: Exclude<PlantKind, TreeKind> | null = null;

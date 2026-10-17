@@ -8,8 +8,8 @@ import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { Palette } from "../../art/palette";
 import { placeGeometry, placeMaterial, placeWater } from "../../art/place-shapes";
-import type { SkyUniforms } from "../../art/sky";
-import { waterMaterial } from "../../art/water";
+import type { SkyUniforms } from "../../art/sky/sky";
+import { waterMaterial, waterMesh } from "../../art/water/water";
 import { report, type Streaming } from "./world-land";
 
 /*
@@ -62,7 +62,7 @@ export function WorldPlaces({ world, palette, atmosphere, sky, streaming }: { wo
       mesh.receiveShadow = true;
       built.add(mesh);
       const water = placeWater(place);
-      if (water) built.add(new Mesh(water, materials.water));
+      if (water) built.add(waterMesh(water, materials.water));
       s.built.set(placeId(place), built);
       group.add(built);
     }
