@@ -81,6 +81,12 @@ export function copyBoard(b: Board): Board {
   };
 }
 
+/** Everything a position holds, as a key: two boards with the same key are the same
+ *  position, so a pure function of a board may remember its answer by it. */
+export function boardKey(b: Board): string {
+  return `${b.order.join("")}|${b.owner.join("")}|${b.armies.join(",")}|${b.alive.map(Number).join("")}|${b.handSize.join(",")}|${b.known.join(",")}|${String(b.cardEarned)}|${b.turn.toString()}`;
+}
+
 export function territoriesOf(b: Board, seat: Seat): number[] {
   const out: number[] = [];
   for (let i = 0; i < N; i++) if (b.owner[i] === seat) out.push(i);

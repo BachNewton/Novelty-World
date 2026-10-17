@@ -1,0 +1,19 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`seated bots are frozen > gd-aggressive plays the moves it was rated on 1`] = `"778f4510fec96faf63d56986d6b0b2dc"`;
+
+exports[`seated bots are frozen > gd-continental plays the moves it was rated on 1`] = `"b356706f20927461ce97e2ea97db9f56"`;
+
+exports[`seated bots are frozen > gd-defensive plays the moves it was rated on 1`] = `"1cd8a25b57a08aba6717ef59aec5ede5"`;
+
+exports[`seated bots are frozen > gd-stacker plays the moves it was rated on 1`] = `"d718ff5314ae2a2e4f04b9c56a3a5f3a"`;
+
+exports[`seated bots are frozen > greedy plays the moves it was rated on 1`] = `"8f9c4d7264da8dc3a2261730bbfeee24"`;
+
+exports[`seated bots are frozen > random plays the moves it was rated on 1`] = `"15656c6b00872fc96c940de7408031e4"`;
+
+exports[`seated bots are frozen > rule-v1 plays the moves it was rated on 1`] = `"a7eb17218b2cddc68032098af324a775"`;
+
+exports[`seated bots are frozen > rule-v2 plays the moves it was rated on 1`] = `"a0206850c9711fa4545a0dfcc1f7e880"`;
+
+exports[`seated bots are frozen > rule-v3 plays the moves it was rated on 1`] = `"53ec4842a8866c49d03079ffe9a1ac21"`;

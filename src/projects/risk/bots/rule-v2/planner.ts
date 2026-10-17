@@ -10,8 +10,10 @@ import {
   hasEnemyNeighbour,
   holdsContinent,
   N,
+  boardKey,
   type Board,
 } from "../rule-v1/board";
+import { Memo, memoFor } from "../memo";
 import { forcedTrade } from "../rule-v1/cards";
 import { breakdown, evaluate, expectedIncome } from "./evaluate";
 import { battleOutcome, winProb } from "../rule-v1/odds";
@@ -371,8 +373,19 @@ export function plans(b: Board, me: Seat, toPlace: number, params: Params, rng: 
   return out;
 }
 
-/** The plan to commit to: the best, with a kill held to the commit margin. */
+const bestPlans = new WeakMap<Params, Memo<Plan>>();
+
+/** The plan to commit to: the best, with a kill held to the commit margin. Without sampled
+ *  outcomes the plan is a pure function of the board, so it is remembered: each move-in
+ *  weighs the board the attack after it plans from. */
 export function bestPlan(b: Board, me: Seat, toPlace: number, params: Params, rng: Rng): Plan {
+  if (params.engine.outcomeSamples > 0) return choosePlan(b, me, toPlace, params, rng);
+  return memoFor(bestPlans, params, 1_000).get(`${me.toString()}|${toPlace.toString()}|${boardKey(b)}`, () =>
+    choosePlan(b, me, toPlace, params, rng),
+  );
+}
+
+function choosePlan(b: Board, me: Seat, toPlace: number, params: Params, rng: Rng): Plan {
   const all = plans(b, me, toPlace, params, rng);
   let best: Plan | null = null;
   let bestKill: Plan | null = null;

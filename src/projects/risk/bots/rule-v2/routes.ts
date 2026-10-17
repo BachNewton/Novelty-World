@@ -34,16 +34,18 @@ export interface CapturePlan {
 /** The order a run takes a connected group of targets from `entry`: always the
  *  next target with the fewest untaken target neighbours, so the run stays a path
  *  where the group allows; at a dead end it branches from the latest capture that can. */
-function coverOrder(b: Board, group: Set<number>, entry: number): number[] {
+function coverOrder(b: Board, group: Group, entry: number): number[] {
   const order = [entry];
-  const taken = new Set([entry]);
-  while (taken.size < group.size) {
+  const taken = new Uint8Array(b.owner.length);
+  taken[entry] = 1;
+  while (order.length < group.members.length) {
     let next = -1;
     for (let k = order.length - 1; k >= 0 && next < 0; k--) {
       let best = Infinity;
       for (const n of ADJ[order[k]]) {
-        if (!group.has(n) || taken.has(n)) continue;
-        const onward = ADJ[n].filter((m) => group.has(m) && !taken.has(m)).length;
+        if (group.has[n] === 0 || taken[n] === 1) continue;
+        let onward = 0;
+        for (const m of ADJ[n]) if (group.has[m] === 1 && taken[m] === 0) onward++;
         const score = onward * 1000 + b.armies[n];
         if (score < best) {
           best = score;
@@ -53,25 +55,35 @@ function coverOrder(b: Board, group: Set<number>, entry: number): number[] {
     }
     if (next < 0) break;
     order.push(next);
-    taken.add(next);
+    taken[next] = 1;
   }
   return order;
 }
 
-function groups(targets: readonly number[]): Set<number>[] {
-  const left = new Set(targets);
-  const out: Set<number>[] = [];
+/** A connected group of targets: its members in the order the search found them, and
+ *  a flag per territory for whether it is one. */
+interface Group {
+  members: number[];
+  has: Uint8Array;
+}
+
+function groups(targets: readonly number[], territories: number): Group[] {
+  const left = new Uint8Array(territories);
+  for (const t of targets) left[t] = 1;
+  const out: Group[] = [];
   for (const start of targets) {
-    if (!left.has(start)) continue;
-    const g = new Set([start]);
-    left.delete(start);
+    if (left[start] === 0) continue;
+    const g: Group = { members: [start], has: new Uint8Array(territories) };
+    g.has[start] = 1;
+    left[start] = 0;
     const stack = [start];
     while (stack.length > 0) {
       const t = stack.pop() as number;
       for (const n of ADJ[t]) {
-        if (left.has(n)) {
-          left.delete(n);
-          g.add(n);
+        if (left[n] === 1) {
+          left[n] = 0;
+          g.members.push(n);
+          g.has[n] = 1;
           stack.push(n);
         }
       }
@@ -95,12 +107,14 @@ export function planCapture(
 ): CapturePlan | null {
   const routes: Route[] = [];
   const used = new Set<number>();
-  for (const group of groups(targets)) {
+  const isTarget = new Uint8Array(b.owner.length);
+  for (const t of targets) isTarget[t] = 1;
+  for (const group of groups(targets, b.owner.length)) {
     const entries: { source: number; prefix: number[]; entry: number }[] = [];
-    for (const e of group) {
+    for (const e of group.members) {
       for (const s of ADJ[e]) {
         if (b.owner[s] === seat) entries.push({ source: s, prefix: [], entry: e });
-        else if (!group.has(s) && !targets.includes(s)) {
+        else if (group.has[s] === 0 && isTarget[s] === 0) {
           // One territory of a third player's on the way in.
           for (const s2 of ADJ[s]) if (b.owner[s2] === seat) entries.push({ source: s2, prefix: [s], entry: e });
         }
@@ -108,8 +122,12 @@ export function planCapture(
     }
     let route: Route | null = null;
     let bestScore = -Infinity;
+    // Many launch stacks share a way in, and the order from it is the same for each.
+    const orders = new Map<number, number[]>();
     for (const { source, prefix, entry } of entries) {
-      const path = [...prefix, ...coverOrder(b, group, entry)];
+      let order = orders.get(entry);
+      if (order === undefined) orders.set(entry, (order = coverOrder(b, group, entry)));
+      const path = [...prefix, ...order];
       // A stack already leading another route keeps its armies to place for that one, and
       // has only what that route leaves it (v2): its defenders, and an army on each
       // territory it takes. v1 counted the whole stack again, so two groups beside
@@ -132,7 +150,8 @@ export function planCapture(
   }
 
   const alloc = routes.map(() => 0);
-  const runs = routes.map((r) => pathRun(b.armies[r.source], defendersOf(b, r.path)));
+  const defenders = routes.map((r) => defendersOf(b, r.path));
+  const runs = routes.map((r, i) => pathRun(b.armies[r.source], defenders[i]));
   const product = () => runs.reduce((p, r) => p * r.pSuccess, 1);
   let left = toPlace;
   const chunk = Math.max(1, Math.ceil(toPlace / 10));
@@ -145,7 +164,7 @@ export function planCapture(
     let weakest = 0;
     for (let i = 0; i < routes.length; i++) {
       if (runs[i].pSuccess < runs[weakest].pSuccess) weakest = i;
-      const run = pathRun(b.armies[routes[i].source] + alloc[i] + step, defendersOf(b, routes[i].path));
+      const run = pathRun(b.armies[routes[i].source] + alloc[i] + step, defenders[i]);
       const p = runs.reduce((q, r, j) => q * (j === i ? run.pSuccess : r.pSuccess), 1);
       if (p > bestP + 1e-9) {
         bestP = p;
@@ -157,7 +176,7 @@ export function planCapture(
       // While two routes are both hopeless no single chunk shows a gain: feed the weaker.
       if (current > 0 || runs[weakest].pSuccess >= 0.999) break;
       bestI = weakest;
-      bestRun = pathRun(b.armies[routes[weakest].source] + alloc[weakest] + step, defendersOf(b, routes[weakest].path));
+      bestRun = pathRun(b.armies[routes[weakest].source] + alloc[weakest] + step, defenders[weakest]);
     }
     alloc[bestI] += step;
     left -= step;
@@ -189,11 +208,11 @@ export function killChance(b: Board, attacker: Seat, victim: Seat, toPlace: numb
   }
   if (targets.length === 0) return 0;
   let force = toPlace;
-  const counted = new Set<number>();
+  const counted = new Uint8Array(b.owner.length);
   for (const t of targets) {
     for (const n of ADJ[t]) {
-      if (b.owner[n] === attacker && !counted.has(n)) {
-        counted.add(n);
+      if (b.owner[n] === attacker && counted[n] === 0) {
+        counted[n] = 1;
         force += b.armies[n] - 1;
       }
     }
@@ -202,8 +221,8 @@ export function killChance(b: Board, attacker: Seat, victim: Seat, toPlace: numb
     for (const n of ADJ[t]) {
       if (b.owner[n] === attacker || b.owner[n] === victim) continue;
       for (const s of ADJ[n]) {
-        if (b.owner[s] === attacker && !counted.has(s)) {
-          counted.add(s);
+        if (b.owner[s] === attacker && counted[s] === 0) {
+          counted[s] = 1;
           force += Math.max(0, b.armies[s] - 1 - (b.armies[n] + 1));
         }
       }

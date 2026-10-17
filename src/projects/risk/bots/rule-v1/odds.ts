@@ -119,24 +119,32 @@ function rollOutcome(a: number, d: number): BattleOutcome {
   return finish(win, fail, true);
 }
 
+/** Below this many armies a side, outcomes are kept in a flat table rather than the map:
+ *  the path runs ask for small fights millions of times, and an index costs less than a lookup. */
+const DENSE = 100;
+const dense = new Array<BattleOutcome | undefined>(DENSE * DENSE);
+
 export function battleOutcome(a: number, d: number): BattleOutcome {
-  const id = a * 100_000 + d;
-  const known = outcomes.get(id);
+  const small = a < DENSE && d < DENSE;
+  const id = small ? a * DENSE + d : a * 100_000 + d;
+  const known = small ? dense[id] : outcomes.get(id);
   if (known) return known;
-  if (a + d > EXACT_LIMIT) {
-    const scaled = scaledOutcome(a, d);
-    outcomes.set(id, scaled);
-    return scaled;
+  const result = a + d > EXACT_LIMIT ? scaledOutcome(a, d) : bestOutcome(a, d);
+  if (small) dense[id] = result;
+  else {
+    if (outcomes.size > 50_000) outcomes.clear();
+    outcomes.set(id, result);
   }
+  return result;
+}
+
+function bestOutcome(a: number, d: number): BattleOutcome {
   const blitz = blitzOutcome(a, d);
-  let result = blitz;
   if (a <= ROLL_LIMIT && d <= ROLL_LIMIT && blitz.pWin < 1) {
     const roll = rollOutcome(a, d);
-    if (roll.pWin > blitz.pWin + 1e-9) result = roll;
+    if (roll.pWin > blitz.pWin + 1e-9) return roll;
   }
-  if (outcomes.size > 50_000) outcomes.clear();
-  outcomes.set(id, result);
-  return result;
+  return blitz;
 }
 
 /** The chance `a` attackers capture a territory held by `d`, played the best way. */
@@ -177,18 +185,37 @@ export interface PathRun {
   stopAt: Float64Array;
 }
 
-const runs = new Map<string, PathRun>();
+/** A node of the remembered runs, keyed by the armies and then each defender in turn:
+ *  integer keys at every step, where a string key built per lookup cost more than most runs. */
+interface RunNode {
+  next: Map<number, RunNode>;
+  run: PathRun | null;
+}
+
+const newNode = (): RunNode => ({ next: new Map(), run: null });
+let runs = newNode();
+let remembered = 0;
+
+function child(node: RunNode, key: number): RunNode {
+  let next = node.next.get(key);
+  if (next === undefined) node.next.set(key, (next = newNode()));
+  return next;
+}
 
 /** Path runs are pure and the planner asks for the same ones over and over (every
  *  plan's threat model checks the same kills), so they are remembered. */
 export function pathRun(armies: number, defenders: readonly number[]): PathRun {
-  const id = `${armies}:${defenders.join(",")}`;
-  const known = runs.get(id);
-  if (known) return known;
-  const run = computePathRun(armies, defenders);
-  if (runs.size > 100_000) runs.clear();
-  runs.set(id, run);
-  return run;
+  if (remembered > 100_000) {
+    runs = newNode();
+    remembered = 0;
+  }
+  let node = child(runs, armies);
+  for (const d of defenders) node = child(node, d);
+  if (node.run === null) {
+    node.run = computePathRun(armies, defenders);
+    remembered++;
+  }
+  return node.run;
 }
 
 function computePathRun(armies: number, defenders: readonly number[]): PathRun {
