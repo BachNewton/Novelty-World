@@ -172,3 +172,8 @@ Before crowning, the three v1 scenarios v2 now plays differently were looked at 
 | Random | Recruit | none | | |
 
 v2 against v1 head to head: alone among v1s it wins 40.3% at 3 players (par 33.3%), 32.7% at 4 (25%) and 29.6% at 6 (16.7%); a lone v1 among v2s wins 31.0%, 14.5% and 5.2%. The lobby now seats Rule v2 by default. The run's wall time was twice the first ratings' for 40% more games, with the machine half busy on average: a few long games hold up each matchup's batch, a tooling lead (work-stealing across matchups) for later.
+
+## v3 probes (2026-10-17)
+
+- **v2 with `borderWeight` 1** (the sweep charged at full weight, since it measured calibrated): **worse** than v2 alone at 3 players in 171 decisive games; stopped. Fearing the sweep more makes v2 too cautious. The point tested: 1.0, every other weight v2's.
+- **Strike enemy stacks** (v3 candidate A: up to four enemy stacks of 5+ armies I am the favourite against offered as capture plans beyond the eight best singles): **even** with v2 at 3 players in both mixtures (1,029 and 1,353 decisive games); stopped, since the crown needs better everywhere. The evaluation already takes such a blow when it pays.

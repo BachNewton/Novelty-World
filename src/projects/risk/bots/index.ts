@@ -6,6 +6,8 @@ import { ruleBot, ruleV1Bot } from "./rule-v1";
 import { V1_PARAMS, type Engine, type Preferences } from "./rule-v1/params";
 import { ruleBot as ruleV2, ruleV2Bot } from "./rule-v2";
 import { V2_PARAMS } from "./rule-v2/params";
+import { ruleBot as ruleV3, ruleV3Bot } from "./rule-v3";
+import { V3_PARAMS } from "./rule-v3/params";
 
 /** Every bot the measuring harness can seat, by label. */
 export const RISK_BOTS: Readonly<Record<string, Bot>> = {
@@ -13,6 +15,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   greedy: greedyBot,
   "rule-v1": ruleV1Bot,
   "rule-v2": ruleV2Bot,
+  "rule-v3": ruleV3Bot,
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
   "gd-aggressive": gdAggressiveBot,
@@ -25,6 +28,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
 export const TUNABLE_BOTS: Readonly<Record<string, { prefs: Preferences; engine: Engine; build: (prefs: Preferences, engine: Engine) => Bot }>> = {
   "rule-v1": { prefs: V1_PARAMS.prefs, engine: V1_PARAMS.engine, build: (prefs, engine) => ruleBot({ ...V1_PARAMS, prefs, engine }) },
   "rule-v2": { prefs: V2_PARAMS.prefs, engine: V2_PARAMS.engine, build: (prefs, engine) => ruleV2({ ...V2_PARAMS, prefs, engine }) },
+  "rule-v3": { prefs: V3_PARAMS.prefs, engine: V3_PARAMS.engine, build: (prefs, engine) => ruleV3({ ...V3_PARAMS, prefs, engine }) },
 };
 
 export type Overrides = Partial<Preferences & Engine>;
