@@ -1,5 +1,7 @@
 import type { Cat } from "../cats/cat";
 import type { Dog, EarType } from "../dogs/dog";
+import type { Fox } from "../foxes/fox";
+import type { Hedgehog } from "../hedgehogs/hedgehog";
 
 /*
  * A companion's portrait, as plain data for a small drawn head: the colour
@@ -10,7 +12,7 @@ import type { Dog, EarType } from "../dogs/dog";
  */
 
 export interface Portrait {
-  species: "cat" | "dog";
+  species: "cat" | "dog" | "fox" | "hedgehog";
   /** The coat over the head. */
   coat: string;
   /** A second colour in patches (a tortoiseshell's, a merle's), or null. */
@@ -25,7 +27,7 @@ export interface Portrait {
   white: number;
   eye: string;
   nose: string;
-  ears: EarType | "cat";
+  ears: EarType | "cat" | "wild";
 }
 
 const CAT = (name: string) => `--color-hearthwood-cat-${name}`;
@@ -75,5 +77,41 @@ export function dogPortrait(dog: Dog): Portrait {
     eye: DOG(`eye-${coat.eyes[0]}`),
     nose: DOG(`nose-${coat.nose}`),
     ears: dog.ears,
+  };
+}
+
+const FOX = (name: string) => `--color-hearthwood-fox-${name}`;
+const HEDGEHOG = (name: string) => `--color-hearthwood-hedgehog-${name}`;
+
+/** A fox's face: its red (or a silver fox's black), the white of its cheeks, and the dark backs of its ears. */
+export function foxPortrait(fox: Fox): Portrait {
+  const silver = fox.coat.phase === "silver";
+  return {
+    species: "fox",
+    coat: silver ? FOX("silver") : FOX("red"),
+    patch: null,
+    stripes: null,
+    cap: FOX(silver ? "silver" : "dark"),
+    muzzle: silver ? FOX("frost") : FOX("white"),
+    white: silver ? 0 : 1,
+    eye: FOX("eye"),
+    nose: FOX("nose"),
+    ears: "wild",
+  };
+}
+
+/** A hedgehog's face: the pale fur of its face under the dark cap of its spines. */
+export function hedgehogPortrait(hedgehog: Hedgehog): Portrait {
+  return {
+    species: "hedgehog",
+    coat: hedgehog.coat.face > 0.5 ? HEDGEHOG("fur-pale") : HEDGEHOG("fur"),
+    patch: null,
+    stripes: HEDGEHOG("tip"),
+    cap: HEDGEHOG("band"),
+    muzzle: HEDGEHOG("mask"),
+    white: 0,
+    eye: HEDGEHOG("eye"),
+    nose: HEDGEHOG("nose"),
+    ears: "wild",
   };
 }

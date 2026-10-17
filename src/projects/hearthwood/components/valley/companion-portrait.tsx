@@ -2,8 +2,8 @@ import { useId } from "react";
 import type { Portrait } from "../../art/portrait";
 
 /*
- * A companion's face, small: a cat's or a dog's head (a dog's ears pricked,
- * folded or dropped) in its own coat's colours, from its portrait, so each
+ * A companion's face, small: a cat's, a dog's (its ears pricked, folded or
+ * dropped), a fox's or a hedgehog's head in its own coat's colours, from its portrait, so each
  * companion in the corner is known at a glance by its coat.
  */
 
@@ -85,11 +85,65 @@ function DogHead({ p, clip }: { p: Portrait; clip: string }) {
   );
 }
 
+/** A fox's head: big dark-backed ears, broad white cheeks narrowing to a long muzzle. */
+function FoxHead({ p }: { p: Portrait }) {
+  const line = { stroke: RIM, strokeWidth: 0.9, strokeLinejoin: "round" as const };
+  return (
+    <>
+      <path d="M4 2 13 10 6 15Z M28 2 19 10 26 15Z" fill={v(p.cap ?? p.coat)} {...line} />
+      <path d="M6.5 6 11 10 7.5 12.5Z M25.5 6 21 10 24.5 12.5Z" fill={v(p.muzzle ?? p.coat)} opacity={0.85} />
+      <path d="M16 8c6 0 10.5 3.5 11 8.5L16 29 5 16.5C5.5 11.5 10 8 16 8Z" fill={v(p.coat)} {...line} />
+      {p.muzzle && <path d="M5.8 17.5 16 29l10.2-11.5c-3 1.2-6 1.8-10.2 1.8S8.8 18.7 5.8 17.5Z" fill={v(p.muzzle)} />}
+      {[11.5, 20.5].map((x) => (
+        <g key={x}>
+          <ellipse cx={x} cy={15} rx={1.9} ry={1.6} fill={v(p.eye)} />
+          <ellipse cx={x} cy={15} rx={0.5} ry={1.4} fill="var(--color-hearthwood-fox-pupil)" />
+        </g>
+      ))}
+      <ellipse cx={16} cy={27.4} rx={1.8} ry={1.3} fill={v(p.nose)} />
+    </>
+  );
+}
+
+/** A hedgehog's head: a pointed pale face under a bristling dark cap of spines, a black button nose. */
+function HedgehogHead({ p }: { p: Portrait }) {
+  const line = { stroke: RIM, strokeWidth: 0.9, strokeLinejoin: "round" as const };
+  const spikes = "M2 20 4 13 3 9 7 9 8 4 12 6 15 2 18 6 22 3 24 8 28 7 28 12 30 15 29 20 24 16 16 14 8 16Z";
+  return (
+    <>
+      <path d={spikes} fill={v(p.cap ?? p.coat)} {...line} />
+      {p.stripes && <path d="M7 10 9 13M12 7 13 11M17 6 17 10M22 7 21 11M26 11 24 13" stroke={v(p.stripes)} strokeWidth={1.1} strokeLinecap="round" />}
+      <path d="M8 16c2-2 5-3 8-3s6 1 8 3c1 3 0 6-3 8l-5 6-5-6c-3-2-4-5-3-8Z" fill={v(p.coat)} {...line} />
+      {p.muzzle && <path d="M10 17.5c1.5-1.2 3-1.5 4-1M22 17.5c-1.5-1.2-3-1.5-4-1" stroke={v(p.muzzle)} strokeWidth={2.4} strokeLinecap="round" fill="none" />}
+      {[12, 20].map((x) => (
+        <g key={x}>
+          <circle cx={x} cy={18.5} r={1.5} fill={v(p.eye)} />
+          <circle cx={x - 0.4} cy={18} r={0.4} fill="var(--color-hearthwood-hedgehog-glint)" />
+        </g>
+      ))}
+      <circle cx={16} cy={28.6} r={1.9} fill={v(p.nose)} />
+    </>
+  );
+}
+
+function Head({ portrait, clip }: { portrait: Portrait; clip: string }) {
+  switch (portrait.species) {
+    case "cat":
+      return <CatHead p={portrait} clip={clip} />;
+    case "dog":
+      return <DogHead p={portrait} clip={clip} />;
+    case "fox":
+      return <FoxHead p={portrait} />;
+    case "hedgehog":
+      return <HedgehogHead p={portrait} />;
+  }
+}
+
 export function CompanionPortrait({ portrait, className = "size-8" }: { portrait: Portrait; className?: string }) {
   const clip = `portrait-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
     <svg viewBox="0 0 32 32" aria-hidden className={`shrink-0 ${className}`}>
-      {portrait.species === "cat" ? <CatHead p={portrait} clip={clip} /> : <DogHead p={portrait} clip={clip} />}
+      <Head portrait={portrait} clip={clip} />
     </svg>
   );
 }

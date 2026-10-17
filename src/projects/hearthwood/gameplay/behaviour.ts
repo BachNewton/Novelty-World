@@ -3,7 +3,7 @@ import type { Species } from "../engine/strays";
 import { walk, type WalkGround } from "./walking";
 
 /*
- * How a cat or a dog gets about, as rules shared by strays and companions:
+ * How a cat, a dog, a fox or a hedgehog gets about, as rules shared by strays and companions:
  * its place and heading, what it is doing (standing, walking, trotting,
  * running, sitting or lying down), and steering over the land by the
  * walking rules (no deep water, no cliffs; a cat keeps its paws drier than a
@@ -13,7 +13,7 @@ import { walk, type WalkGround } from "./walking";
  * worth of steps comes out the same however it is cut up.
  */
 
-/** What an animal is doing, as its body shows it. A cat trots as a quick walk, and lies down as a loaf. */
+/** What an animal is doing, as its body shows it. A cat trots as a quick walk, and lies down as a loaf; a hedgehog lying down is curled in a ball. */
 export type Doing = "stand" | "walk" | "trot" | "run" | "sit" | "lie";
 
 /** What behaviour knows of an animal: its species, its size in the world, and its nature from its personality. */
@@ -58,9 +58,9 @@ export interface Obstacle {
 }
 
 /** The fastest each species goes, in metres a second: quicker than Elliott's run, so it can always catch up. */
-export const TOP_SPEED: Record<Species, number> = { cat: 8, dog: 9.5 };
+export const TOP_SPEED: Record<Species, number> = { cat: 8, dog: 9.5, fox: 9.5, hedgehog: 2 };
 /** How quickly it turns, in radians a second, and changes pace, in metres a second each second. */
-const TURN = { cat: 6, dog: 4.5 } as const;
+const TURN: Record<Species, number> = { cat: 6, dog: 4.5, fox: 5.5, hedgehog: 3.5 };
 const ACCELERATION = 7;
 const DECELERATION = 9;
 /** Within this of where it is going, it has arrived. */
@@ -75,8 +75,8 @@ const turnBetween = (from: number, to: number) => Math.atan2(Math.sin(to - from)
 
 /** The ground an animal walks on: Elliott's rules, with a cat refusing water a dog would wade. */
 export function animalGround(ground: WalkGround, species: Species): WalkGround {
-  if (species === "dog") return ground;
-  // A cat keeps its paws out of anything deeper than a puddle: its water stands higher than it is.
+  if (species === "dog" || species === "fox") return ground;
+  // A cat or a hedgehog keeps its paws out of anything deeper than a puddle: its water stands higher than it is.
   return { heightAt: ground.heightAt, waterAt: (x, z) => ground.waterAt(x, z) + 0.3 };
 }
 
@@ -85,6 +85,7 @@ export function doingFor(nature: Nature, body: Body): Doing {
   const own = body.speed / nature.size;
   if (own < 0.06) return body.rest;
   if (nature.species === "cat") return body.speed < 1.4 ? "walk" : "run";
+  if (nature.species === "hedgehog") return body.speed < 0.9 ? "walk" : "run";
   return own < 0.95 ? "walk" : own < 2.3 ? "trot" : "run";
 }
 

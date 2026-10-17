@@ -5,42 +5,30 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
-import { Armchair, ArrowLeft, BedDouble, Dices, Footprints, Hand, PersonStanding, Rabbit, RotateCw, Rows3, Squirrel, Wind } from "lucide-react";
+import { Armchair, ArrowUp, Eye, TreePine, ArrowLeft, BedDouble, Dices, Footprints, Hand, PawPrint, PersonStanding, Rabbit, RotateCw, Rows3, Squirrel, Wind, Zap } from "lucide-react";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { generateCat, type Cat } from "../../cats/cat";
-import { coatName } from "../../cats/genetics";
-import type { Activity as CatActivity } from "../../cats/motion";
-import { generateDog, kindOf, type Dog } from "../../dogs/dog";
-import { coatName as dogCoatName } from "../../dogs/genetics";
-import type { DogActivity } from "../../dogs/motion";
-import { CatBody } from "../cats/cat-body";
-import { DogBody } from "../dogs/dog-body";
+import { EVERY_SPECIES, shownCat, shownDog, type Shown } from "./preview-species";
 
 // The animals preview (`?cats`): a meadow of generated cats and dogs to judge
-// their art by. Reroll for a new field; line the dogs up to compare their
-// builds; pick an animal to see it alone on a turntable, in each of its
+// their art by, and every other species beside them. Reroll for a new field;
+// line the dogs up to compare their builds, or every species to compare them
+// all; pick an animal to see it alone on a turntable, in each of its
 // species' activities, greeting or not.
 
-type Placed =
-  | { kind: "cat"; cat: Cat; activity: CatActivity; at: [number, number]; facing: number; greeting: boolean; circle: number; speed: number }
-  | { kind: "dog"; dog: Dog; activity: DogActivity; at: [number, number]; facing: number; greeting: boolean; circle: number; speed: number };
+interface Placed {
+  shown: Shown;
+  activity: string;
+  at: [number, number];
+  facing: number;
+  greeting: boolean;
+  circle: number;
+  speed: number;
+}
 
-type Mode = "field" | "lineup";
+type Mode = "field" | "lineup" | "everyone";
 
 const FIELD_SIZE = 13;
 const LINEUP_SIZE = 5;
-const CAT_ACTIVITIES: readonly CatActivity[] = ["stand", "walk", "run", "sit", "loaf"];
-const DOG_ACTIVITIES: readonly DogActivity[] = ["stand", "walk", "trot", "run", "sit", "lie"];
-
-function catActivity(cat: Cat): CatActivity {
-  const { energy, boldness } = cat.personality;
-  return energy > 0.35 ? "walk" : energy < -0.4 ? "loaf" : boldness < -0.2 ? "sit" : "stand";
-}
-
-function dogActivity(dog: Dog): DogActivity {
-  const { playfulness, boldness } = dog.personality;
-  return playfulness > 0.8 ? "trot" : playfulness > 0.4 ? "walk" : playfulness < -0.45 ? "lie" : boldness < -0.25 ? "sit" : "stand";
-}
 
 function placeAt(i: number): { at: [number, number]; facing: number } {
   const ring = i === 0 ? 0 : i < 5 ? 1.15 : 2.3;
@@ -51,30 +39,9 @@ function placeAt(i: number): { at: [number, number]; facing: number } {
 function animalAt(seed: string, i: number): Placed {
   const place = placeAt(i);
   // About half and half, a dog first so the middle of every field has one.
-  if (i % 2 === 0) {
-    const dog = generateDog(`${seed}-dog-${i}`);
-    const activity = dogActivity(dog);
-    return {
-      kind: "dog",
-      dog,
-      activity,
-      ...place,
-      greeting: dog.personality.affection > 0.35 && activity !== "lie",
-      circle: activity === "trot" ? 0.85 : 0.55,
-      speed: (activity === "trot" ? 1.5 : 0.75) * (0.6 + dog.build.size * 0.25),
-    };
-  }
-  const cat = generateCat(`${seed}-${i}`);
-  const activity = catActivity(cat);
-  return {
-    kind: "cat",
-    cat,
-    activity,
-    ...place,
-    greeting: cat.personality.affection > 0.4 && activity !== "loaf",
-    circle: 0.35 + (i % 3) * 0.12,
-    speed: 0.28 + (cat.personality.energy + 1) * 0.12,
-  };
+  const shown = i % 2 === 0 ? shownDog(`${seed}-dog-${i}`) : shownCat(`${seed}-${i}`);
+  const activity = shown.idle;
+  return { shown, activity, ...place, greeting: shown.greets, circle: shown.species === "dog" ? (activity === "trot" ? 0.85 : 0.55) : 0.35 + (i % 3) * 0.12, speed: shown.fieldSpeed };
 }
 
 function fieldOf(seed: string): Placed[] {
@@ -83,14 +50,24 @@ function fieldOf(seed: string): Placed[] {
 
 /** Dogs side by side, facing the same way, to compare their builds. */
 function lineupOf(seed: string): Placed[] {
-  return Array.from({ length: LINEUP_SIZE }, (_, i) => {
-    const dog = generateDog(`${seed}-line-${i}`);
-    return { kind: "dog", dog, activity: "stand", at: [(i - (LINEUP_SIZE - 1) / 2) * 1.3, 0], facing: Math.PI / 2, greeting: false, circle: 0, speed: 0 };
+  return Array.from({ length: LINEUP_SIZE }, (_, i) => ({ shown: shownDog(`${seed}-line-${i}`), activity: "stand", at: [(i - (LINEUP_SIZE - 1) / 2) * 1.3, 0], facing: Math.PI / 2, greeting: false, circle: 0, speed: 0 }));
+}
+
+/** One of every species side by side, each spaced by its size, to see them all together. */
+function everyoneOf(seed: string): Placed[] {
+  const shown = EVERY_SPECIES.map((make, i) => make(`${seed}-every-${i}`));
+  const widths = shown.map((s) => 0.35 + s.size * 0.42);
+  const total = widths.reduce((a, b) => a + b, 0);
+  let x = -total / 2;
+  return shown.map((s, i) => {
+    const at: [number, number] = [x + widths[i] / 2, 0];
+    x += widths[i];
+    return { shown: s, activity: s.activities.includes("stand") ? "stand" : s.activities[0], at, facing: Math.PI / 2, greeting: false, circle: 0, speed: 0 };
   });
 }
 
-const nameOf = (p: Placed) => (p.kind === "cat" ? coatName(p.cat.coat) : dogCoatName(p.dog.coat));
-const moving = (p: Placed) => p.activity === "walk" || p.activity === "trot" || p.activity === "run";
+const nameOf = (p: Placed) => p.shown.name;
+const moving = (p: Placed) => p.shown.moving(p.activity);
 
 /** The preview's clock: live, or frozen at a moment for screenshots. */
 interface PreviewClock {
@@ -116,6 +93,8 @@ interface PreviewControl {
    *  looking at the animal's middle, or at its face with `face`. */
   setView: (azimuth: number, elevation: number, distance: number, face?: boolean) => void;
   animals: () => string[];
+  /** The activities the animal at an index has. */
+  activitiesOf: (index: number) => readonly string[];
 }
 
 declare global {
@@ -193,14 +172,9 @@ function Meadow() {
   );
 }
 
-/** One animal of either species, drawn where it is told. */
+/** One animal of any species, drawn where it is told. */
 function Body({ placed, clock, activity, greeting, speed, position, rotation }: { placed: Placed; clock: PreviewClock; activity?: string; greeting: boolean; speed?: number; position?: [number, number, number]; rotation?: number }) {
-  const common = { greeting, clock: clock.now, speed, position, rotation };
-  return placed.kind === "cat" ? (
-    <CatBody cat={placed.cat} activity={(activity as CatActivity | undefined) ?? placed.activity} {...common} />
-  ) : (
-    <DogBody dog={placed.dog} activity={(activity as DogActivity | undefined) ?? placed.activity} {...common} />
-  );
+  return placed.shown.body({ activity: activity ?? placed.activity, greeting, clock: clock.now, speed, position, rotation });
 }
 
 /** An animal going round a circle at its own pace. */
@@ -227,9 +201,9 @@ function Field({ field, clock, onPick }: { field: Placed[]; clock: PreviewClock;
     <>
       {field.map((placed, i) =>
         moving(placed) ? (
-          <Walker key={`${placed.kind}-${i}`} placed={placed} clock={clock} onPick={() => onPick(i)} />
+          <Walker key={`${placed.shown.species}-${i}`} placed={placed} clock={clock} onPick={() => onPick(i)} />
         ) : (
-          <group key={`${placed.kind}-${i}`} onClick={() => onPick(i)}>
+          <group key={`${placed.shown.species}-${i}`} onClick={() => onPick(i)}>
             <Body placed={placed} clock={clock} greeting={placed.greeting} position={[placed.at[0], 0, placed.at[1]]} rotation={placed.facing} />
           </group>
         ),
@@ -253,16 +227,17 @@ function bodiesIn(scene: THREE.Scene): number {
 }
 
 /** The camera's default for each view: the field, the line-up, or one animal of a size. */
-function cameraFor(view: "field" | "lineup" | "focus", aspect: number, size: number): { from: THREE.Vector3; target: THREE.Vector3 } {
+function cameraFor(view: Mode | "focus", aspect: number, size: number): { from: THREE.Vector3; target: THREE.Vector3 } {
   // A narrow screen stands further back and looks further down, so the scene fills its height.
   const narrow = Math.max(1, 1.5 / aspect);
   if (view === "focus") return { from: new THREE.Vector3(0.75, 0.42, 0.95).multiplyScalar(size * narrow ** 0.6), target: new THREE.Vector3(0, 0.2 * size, 0) };
   if (view === "lineup") return { from: new THREE.Vector3(0, 0.8, 6.8).multiplyScalar(narrow ** 0.9), target: new THREE.Vector3(0, 0.32, 0) };
+  if (view === "everyone") return { from: new THREE.Vector3(0, 1.1, 8.2).multiplyScalar(narrow ** 0.9), target: new THREE.Vector3(0, 0.3, 0) };
   return { from: new THREE.Vector3(4.4, 3.9 * narrow ** 0.5, 6.6).multiplyScalar(narrow ** 0.55), target: new THREE.Vector3(0, 0.2, 0) };
 }
 
 /** Hands the camera to the control surface, and points it at the field, the line-up or the one animal. */
-function CameraRig({ view, size, controls, onCamera }: { view: "field" | "lineup" | "focus"; size: number; controls: React.RefObject<OrbitControlsImpl | null>; onCamera: (camera: THREE.Camera) => void }) {
+function CameraRig({ view, size, controls, onCamera }: { view: Mode | "focus"; size: number; controls: React.RefObject<OrbitControlsImpl | null>; onCamera: (camera: THREE.Camera) => void }) {
   const camera = useThree((s) => s.camera);
   const aspect = useThree((s) => s.size.width / s.size.height);
   useEffect(() => {
@@ -292,17 +267,6 @@ function IconButton({ label, active, onClick, children }: { label: string; activ
   );
 }
 
-function Trait({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center gap-1" title={label}>
-      <span className="sr-only">{label}</span>
-      <div className="relative h-1.5 w-12 rounded-sm bg-surface-elevated">
-        <div className="absolute top-0 h-1.5 w-1.5 rounded-sm bg-brand-orange" style={{ left: `${((value + 1) / 2) * 100}%`, transform: "translateX(-50%)" }} />
-      </div>
-    </div>
-  );
-}
-
 const ACTIVITY_BUTTONS: Record<string, { label: string; icon: ReactNode }> = {
   stand: { label: "Stand", icon: <PersonStanding size={20} /> },
   walk: { label: "Walk", icon: <Footprints size={20} /> },
@@ -311,44 +275,16 @@ const ACTIVITY_BUTTONS: Record<string, { label: string; icon: ReactNode }> = {
   sit: { label: "Sit", icon: <Armchair size={20} /> },
   loaf: { label: "Loaf", icon: <Squirrel size={20} /> },
   lie: { label: "Lie down", icon: <BedDouble size={20} /> },
+  pounce: { label: "Pounce", icon: <Zap size={20} /> },
+  peek: { label: "Peek out", icon: <Eye size={20} /> },
+  climb: { label: "Climb", icon: <ArrowUp size={20} /> },
+  cling: { label: "Cling to a trunk", icon: <TreePine size={20} /> },
 };
-
-function Details({ placed }: { placed: Placed }) {
-  if (placed.kind === "cat") {
-    const { cat } = placed;
-    return (
-      <>
-        <span className="text-sm">
-          {coatName(cat.coat)} {cat.sex === "female" ? "♀" : "♂"}
-        </span>
-        <div className="flex gap-2">
-          <Trait label="Shy to bold" value={cat.personality.boldness} />
-          <Trait label="Lazy to busy" value={cat.personality.energy} />
-          <Trait label="Aloof to cuddly" value={cat.personality.affection} />
-        </div>
-      </>
-    );
-  }
-  const { dog } = placed;
-  return (
-    <>
-      <span className="text-sm">
-        {dogCoatName(dog.coat)} {dog.sex === "female" ? "♀" : "♂"}
-      </span>
-      <span className="text-xs text-text-secondary">{kindOf(dog)}</span>
-      <div className="flex gap-2">
-        <Trait label="Shy to bold" value={dog.personality.boldness} />
-        <Trait label="Calm to playful" value={dog.personality.playfulness} />
-        <Trait label="Independent to cuddly" value={dog.personality.affection} />
-      </div>
-    </>
-  );
-}
 
 export function AnimalPreview() {
   const [seed, setSeed] = useState("hearthwood");
   const [mode, setMode] = useState<Mode>("field");
-  const animals = useMemo(() => (mode === "field" ? fieldOf(seed) : lineupOf(seed)), [seed, mode]);
+  const animals = useMemo(() => (mode === "field" ? fieldOf(seed) : mode === "lineup" ? lineupOf(seed) : everyoneOf(seed)), [seed, mode]);
   const [focus, setFocus] = useState<number | null>(null);
   const [activity, setActivity] = useState<string>("stand");
   const [greeting, setGreeting] = useState(false);
@@ -359,10 +295,9 @@ export function AnimalPreview() {
   const bodies = useRef(0);
   const clock = useMemo(() => previewClock(), []);
   const chosen = focus === null ? null : (animals[focus] ?? null);
-  const size = chosen ? (chosen.kind === "cat" ? chosen.cat.build.size : chosen.dog.build.size) : 1;
+  const size = chosen ? chosen.shown.size : 1;
 
   useEffect(() => {
-    const activities = (p: Placed): readonly string[] => (p.kind === "cat" ? CAT_ACTIVITIES : DOG_ACTIVITIES);
     // Ready once a frame drawn after this was shown holds every body, not only once they are meshed.
     const shownAt = frames.current;
     window.__hearthwoodAnimals = {
@@ -382,7 +317,7 @@ export function AnimalPreview() {
         if (index !== null) setActivity(animals[index].activity);
       },
       setActivity: (next) => {
-        if (chosen && !activities(chosen).includes(next)) throw new Error(`A ${chosen.kind} can't ${next}`);
+        if (chosen && !chosen.shown.activities.includes(next)) throw new Error(`A ${chosen.shown.species} can't ${next}`);
         setActivity(next);
       },
       setGreeting,
@@ -390,7 +325,7 @@ export function AnimalPreview() {
       setView: (azimuth, elevation, distance, face = false) => {
         const target = controls.current?.target ?? new THREE.Vector3();
         if (chosen) {
-          if (face) target.set(0, (chosen.kind === "cat" ? 0.33 : 0.36) * size, (chosen.kind === "cat" ? 0.22 : 0.25) * size);
+          if (face) target.set(0, chosen.shown.face[0] * size, chosen.shown.face[1] * size);
           else target.set(0, 0.2 * size, 0);
         }
         const a = (azimuth * Math.PI) / 180;
@@ -399,7 +334,8 @@ export function AnimalPreview() {
         camera.current?.position.set(target.x + Math.sin(a) * Math.cos(e) * d, target.y + Math.sin(e) * d, target.z + Math.cos(a) * Math.cos(e) * d);
         controls.current?.update();
       },
-      animals: () => animals.map((p) => (p.kind === "cat" ? `cat: ${nameOf(p)} (${p.cat.sex}, ${p.activity})` : `dog: ${nameOf(p)}, ${kindOf(p.dog)}, ${p.dog.ears} ears, ${p.dog.tail} tail, ${p.dog.coat.length} coat, size ${p.dog.build.size.toFixed(2)} (${p.dog.sex}, ${p.activity})`)),
+      animals: () => animals.map((p) => p.shown.describe),
+      activitiesOf: (index) => animals[index].shown.activities,
     };
     return () => {
       delete window.__hearthwoodAnimals;
@@ -407,7 +343,7 @@ export function AnimalPreview() {
   }, [clock, animals, chosen, size, seed]);
 
   const sky = useMemo(() => themeColor("--color-hearthwood-preview-sky"), []);
-  const activities = chosen ? (chosen.kind === "cat" ? CAT_ACTIVITIES : DOG_ACTIVITIES) : [];
+  const activities = chosen ? chosen.shown.activities : [];
 
   return (
     <div className="relative h-dvh w-full" data-testid="hearthwood-animals">
@@ -415,7 +351,7 @@ export function AnimalPreview() {
         <Lights />
         <Meadow />
         {chosen ? (
-          <Body key={`${chosen.kind}-${focus}`} placed={chosen} clock={clock} activity={activity} greeting={greeting} speed={chosen.kind === "cat" ? (activity === "run" ? 3 : 0.45) : { walk: 0.9, trot: 1.8, run: 3.6 }[activity] ?? 0.9} />
+          <Body key={`${chosen.shown.species}-${focus}`} placed={chosen} clock={clock} activity={activity} greeting={greeting} speed={chosen.shown.speed(activity)} />
         ) : mode === "field" ? (
           <Field
             field={animals}
@@ -453,13 +389,18 @@ export function AnimalPreview() {
         </div>
         {chosen && (
           <div className="pointer-events-auto flex flex-col items-center gap-1 rounded-md bg-surface-secondary/80 px-3 py-2 text-text-primary" title={nameOf(chosen)}>
-            <Details placed={chosen} />
+            {chosen.shown.details()}
           </div>
         )}
         <div className="pointer-events-auto flex gap-2">
           {!chosen && (
             <IconButton label="Line the dogs up" active={mode === "lineup"} onClick={() => setMode(mode === "lineup" ? "field" : "lineup")}>
               <Rows3 size={20} />
+            </IconButton>
+          )}
+          {!chosen && (
+            <IconButton label="Every species side by side" active={mode === "everyone"} onClick={() => setMode(mode === "everyone" ? "field" : "everyone")}>
+              <PawPrint size={20} />
             </IconButton>
           )}
           <IconButton
@@ -481,7 +422,7 @@ export function AnimalPreview() {
               {ACTIVITY_BUTTONS[a].icon}
             </IconButton>
           ))}
-          <IconButton label={chosen.kind === "cat" ? "Tail up in greeting" : "Happy greeting"} active={greeting} onClick={() => setGreeting(!greeting)}>
+          <IconButton label="Greeting" active={greeting} onClick={() => setGreeting(!greeting)}>
             <Hand size={20} />
           </IconButton>
           <IconButton label="Turntable" active={turntable} onClick={() => setTurntable(!turntable)}>

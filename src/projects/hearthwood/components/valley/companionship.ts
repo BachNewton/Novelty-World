@@ -1,20 +1,18 @@
-import { generateCat, type Cat } from "../../cats/cat";
-import type { Activity as CatActivity } from "../../cats/motion";
-import { generateDog, type Dog } from "../../dogs/dog";
-import type { DogActivity } from "../../dogs/motion";
 import type { ForageKind } from "../../engine/regions";
 import { straysInCell, straysNear, type Species, type Stray } from "../../engine/strays";
 import { remembered, type World } from "../../engine/world";
 import { motionSeed } from "../../animals/motion";
 import { allowsPet, bePatient, favouriteTreat, firstBond, giveTreat, isWon, pet, treatInHand, type Bond, type Relish, type Temper } from "../../gameplay/befriending";
-import { bodyAt, doingFor, greeting, type Body, type Doing, type Nature } from "../../gameplay/behaviour";
+import { bodyAt, doingFor, greeting, type Body, type Nature } from "../../gameplay/behaviour";
 import { comeAlong, firesideSpot, followers, followMind, join, rename, type Companion, type FollowMind } from "../../gameplay/companions";
 import { loadFriends, saveFriends, type Friends } from "../../gameplay/friends";
 import { suggestedNames } from "../../gameplay/names";
 import type { Offerable } from "../../gameplay/offering";
 import { strayMind, type StrayMind } from "../../gameplay/roaming";
-import { catPortrait, dogPortrait, type Portrait } from "../../art/portrait";
+import type { Portrait } from "../../art/portrait";
 import type { AnimalDrive } from "../animals/animal-body";
+import { ACTIVITY, bornOf, portraitOfLook, type AnimalLook } from "./animal-kinds";
+import { offTheGround, walkingRide, type Ride } from "../../gameplay/riding";
 import { takeTreat, type Foraging } from "./foraging";
 
 /*
@@ -34,16 +32,18 @@ export interface Animal {
   species: Species;
   seed: string;
   /** The generated animal its body is drawn from, and where the drawing is driven from each frame. */
-  look: { species: "cat"; cat: Cat; drive: { current: AnimalDrive<CatActivity> } } | { species: "dog"; dog: Dog; drive: { current: AnimalDrive<DogActivity> } };
+  look: AnimalLook;
   nature: Nature;
   temper: Temper;
-  /** A cat's favourite treat; a dog has none. */
+  /** A cat's, fox's or hedgehog's favourite treat; a dog has none. */
   favourite: ForageKind | null;
   body: Body;
   /** As a stray: its home, how far it roams and its mind; null once a companion. */
   stray: { home: { x: number; z: number }; roam: number; mind: StrayMind } | null;
   /** As a companion: its mind as it follows. */
   follow: FollowMind | null;
+  /** A hedgehog companion's ride in Elliott's basket; null for every other animal. */
+  ride: Ride | null;
   bond: Bond;
   /** Petted, it stops to be petted until then, facing Elliott. */
   pettedUntil: number;
@@ -136,8 +136,6 @@ export const MARK_LIFE = 1.6;
 /** How long a petted animal stops and answers, in seconds. */
 const PETTED = 2.6;
 
-const catActivity: Record<Doing, CatActivity> = { stand: "stand", walk: "walk", trot: "walk", run: "run", sit: "sit", lie: "loaf" };
-const dogActivity: Record<Doing, DogActivity> = { stand: "stand", walk: "walk", trot: "trot", run: "run", sit: "sit", lie: "lie" };
 
 export function createCompanionship(world: World, foraging: Foraging): Companionship {
   const friends = loadFriends();
@@ -168,42 +166,21 @@ export function createCompanionship(world: World, foraging: Foraging): Companion
 
 /** An animal generated from its seed, with what behaviour and befriending know of it. */
 function animalOf(key: string, species: Species, seed: string, body: Body, bond: Bond | null): Animal {
-  const ms = motionSeed(seed);
-  if (species === "cat") {
-    const cat = generateCat(seed);
-    const { boldness, energy, affection } = cat.personality;
-    const temper: Temper = { species, boldness, affection };
-    return {
-      key,
-      species,
-      seed,
-      look: { species, cat, drive: { current: { activity: catActivity[body.rest], speed: 0, travelled: 0, greeting: false } } },
-      nature: { species, size: cat.build.size * DRAWN_LARGER, boldness, energy, affection, seed: ms },
-      temper,
-      favourite: favouriteTreat(seed),
-      body,
-      stray: null,
-      follow: null,
-      bond: bond ?? firstBond(temper),
-      pettedUntil: -Infinity,
-      changedAt: -Infinity,
-      y: 0,
-    };
-  }
-  const dog = generateDog(seed);
-  const { boldness, playfulness, affection } = dog.personality;
+  const born = bornOf(species, seed, body.rest);
+  const { boldness, energy, affection } = born;
   const temper: Temper = { species, boldness, affection };
   return {
     key,
     species,
     seed,
-    look: { species, dog, drive: { current: { activity: dogActivity[body.rest], speed: 0, travelled: 0, greeting: false } } },
-    nature: { species, size: dog.build.size * DRAWN_LARGER, boldness, energy: playfulness, affection, seed: ms },
+    look: born.look,
+    nature: { species, size: born.size * DRAWN_LARGER, boldness, energy, affection, seed: motionSeed(seed) },
     temper,
-    favourite: null,
+    favourite: species === "dog" ? null : favouriteTreat(seed),
     body,
     stray: null,
     follow: null,
+    ride: null,
     bond: bond ?? firstBond(temper),
     pettedUntil: -Infinity,
     changedAt: -Infinity,
@@ -212,11 +189,11 @@ function animalOf(key: string, species: Species, seed: string, body: Body, bond:
 }
 
 export function portraitOf(animal: Animal): Portrait {
-  return animal.look.species === "cat" ? catPortrait(animal.look.cat) : dogPortrait(animal.look.dog);
+  return portraitOfLook(animal.look);
 }
 
 function portraitFor(companion: Companion): Portrait {
-  return companion.species === "cat" ? catPortrait(generateCat(companion.seed)) : dogPortrait(generateDog(companion.seed));
+  return portraitOfLook(bornOf(companion.species, companion.seed, "stand").look);
 }
 
 const portraits = new Map<string, Portrait>();
@@ -276,6 +253,7 @@ export function wakeCompanion(companionship: Companionship, companion: Companion
   }
   const animal = animalOf(companion.id, companion.species, companion.seed, body, { warmth: 1, visit: 0 });
   animal.follow = followMind(companionship.time + (index + 1) * 5);
+  if (companion.species === "hedgehog") animal.ride = walkingRide(companionship.time);
   companionship.animals.set(companion.id, animal);
   return animal;
 }
@@ -286,8 +264,8 @@ export function driveOf(animal: Animal, time: number, motion: number): void {
   const { look, body } = animal;
   const drive: AnimalDrive<string> = look.drive.current;
   const was = { activity: drive.activity, greeting: drive.greeting };
-  if (look.species === "cat") look.drive.current.activity = catActivity[doing];
-  else look.drive.current.activity = dogActivity[doing];
+  // In the basket a hedgehog peeks out over the rim; on its way in or out it is a ball.
+  drive.activity = animal.ride && offTheGround(animal.ride) ? (animal.ride.phase === "riding" ? "peek" : "lie") : ACTIVITY[look.species][doing];
   // The body is drawn larger than life, so its stride is its own: the ground it covers, scaled down to it.
   drive.speed = body.speed / DRAWN_LARGER;
   drive.travelled = body.travelled / DRAWN_LARGER;
@@ -439,6 +417,7 @@ function befriend(companionship: Companionship, animal: Animal): void {
   animal.stray = null;
   animal.bond = { warmth: 1, visit: 0 };
   animal.follow = followMind(companionship.time + 6);
+  if (animal.species === "hedgehog") animal.ride = walkingRide(companionship.time);
   // Anyone sent back to camp to make room walks there from where they are.
   mark(companionship, animal.key, "hearts");
   show(companionship, {

@@ -1,3 +1,4 @@
+import { SPECIES, type Species } from "../engine/strays";
 import type { Companion } from "./companions";
 
 /*
@@ -36,10 +37,10 @@ export function parseFriends(text: string): Friends {
   if (!Array.isArray(data.companions) || typeof data.warmth !== "object" || data.warmth === null) throw new Error(`The kept companions under ${FRIENDS_KEY} aren't a list and their warmth: ${text}`);
   const companions = data.companions.map((c: unknown): Companion => {
     const { id, species, seed, name, following, joined } = (c ?? {}) as Record<string, unknown>;
-    if (!isText(id) || (species !== "cat" && species !== "dog") || !isText(seed) || !isText(name) || typeof following !== "boolean" || typeof joined !== "number") {
+    if (!isText(id) || !SPECIES.includes(species as Species) || !isText(seed) || !isText(name) || typeof following !== "boolean" || typeof joined !== "number") {
       throw new Error(`A kept companion isn't one: ${JSON.stringify(c)}`);
     }
-    return { id, species, seed, name, following, joined };
+    return { id, species: species as Species, seed, name, following, joined };
   });
   const warmth: Record<string, number> = {};
   for (const [id, w] of Object.entries(data.warmth)) {
