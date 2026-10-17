@@ -1,12 +1,20 @@
 # Hearthwood
 
-A cozy 3D game about a wandering hedge-witch and the cats they meet. You live outdoors in a valley of forest and mountain made fresh from a seed: by day you walk and forage, by evening you cook and brew at your campfire, and the stray cats of the woods come round one by one, each won over by the dish it loves. When the valley has given what it has, you pack up camp and walk over the ridge into a new one.
+A cozy 3D game about a wandering hedge-witch, the cats and dogs they befriend, and the people they help along the way. You walk an endless northern land of forest and mountain made fresh from a seed: by day you wander and forage, meet travellers and help them with your magic, by evening you cook and brew at your campfire, and the animals you have won over follow you wherever you go.
 
 It lives at Games → 3D Games → Hearthwood, in Three.js through `@react-three/fiber`, like the site's other 3D games. The concept and the platform are decided; everything below them is the proposed design, open to the owner's review, with the undecided parts under Open questions.
 
+## Who it's for
+
+Hearthwood is a gift from the owner to their partner, **Elliott**, who uses **they/them** pronouns: always write and speak of Elliott, and of the witch, as they. The witch is **Elliott the Witch**: the player plays as Elliott.
+
+Everything in the game is chosen for what Elliott loves: cats and dogs, and befriending animals that then follow them; nature, forests and mountains; hiking; cooking and campfires; magic, witchy and pagan things; and cozy, relaxing, chill games. Elliott is very social: they like talking to people and helping them, so the land has people in it with stories to tell and help to ask for. And Elliott loves a good mystery, with a soft spot for Sherlock Holmes, so some of those stories are mysteries to solve.
+
+Elliott plays on a Pixel 8 Pro (touch), on a laptop (keyboard and mouse) and on a laptop on the TV with an Xbox controller.
+
 ## Pillars
 
-- **Nothing is ever lost.** No fail states, no combat, no hunger or health meter, no timer that punishes. A meal that comes out unexpected is a new dish, not a failure. A cat never runs away, falls ill or dies.
+- **Nothing is ever lost.** No fail states, no combat, no hunger or health meter, no timer that punishes. A meal that comes out unexpected is a new dish, not a failure. An animal never runs away, falls ill or dies.
 - **Cooking is for joy and for friendship, never for survival.**
 - **Every walk finds something.** The world is generated so that wandering always turns up a herb, a view, a cat or a ruin, and never a long empty stretch.
 - **Calm by default.** Soft sound, slow light, no notifications nagging for attention. The game waits as long as the player likes.
@@ -78,15 +86,22 @@ Big mountains are common enough to stand on most horizons, and a walk can reach 
 
 The journey part. Leaving a valley is a hike over a generated mountain trail to the next one: the trail climbs, crosses a pass with a view down over both valleys, and descends. A longer hike may take more than a day, with a camp on the way: a small fire on a ledge, a meal from what is in the pack, the stars from higher up. Some walks go to a summit for the view and nothing else.
 
-## Cats
+## Companions: cats and dogs
 
-The heart of the game. Every cat is generated, so no two are the same, and every one looks like a real cat because its coat is drawn from real cat coat genetics: the base colour and its dilute, orange and the tortoiseshell and calico it makes, tabby patterns (mackerel, classic, spotted, ticked), white markings from none to van, colourpoint, long or short hair, and eye colour. On top of the look, each cat has:
+The heart of the game. The woods hold stray **cats and dogs**, every one generated, so no two are the same, and the player befriends them, and once befriended they **follow**: they come along on walks, keep near, nose about, and wait and come running when the witch glides off a ridge. At camp they nap by the fire. Petting one is always available and always answered.
 
-- **A personality**, from a few traits (bold or shy, lazy or busy, cuddly or aloof) that show in how it moves, where it naps and how close it walks.
-- **A favourite dish**, and a few it likes. A stray is won over gradually: it watches from a distance, then comes closer for food, and joins the camp when it is given the dish it loves.
+**Cats** look like real cats because their coats are drawn from real cat coat genetics: the base colour and its dilute, orange and the tortoiseshell and calico it makes, tabby patterns (mackerel, classic, spotted, ticked), white markings from none to van, colourpoint, long or short hair, and eye colour.
+
+**Dogs** are the dogs of the north: a mixed population in which spitz types (prick ears, a tail curled over the back, a plush double coat, like a Lapphund, a Finnish Spitz or an elkhound) are common, among all sorts of mixes. Their build varies far more than a cat's (size from small to big, legs, body, muzzle length, ears pricked, folded or dropped, tails curled, plumed or straight), and their coats come from real dog coat genetics, simplified: black, liver and their dilutes, sable, fawn and red, black and tan and tricolour, brindle, a rare merle, white markings, and coat length.
+
+**One animal underneath.** Cats and dogs share one four-legged body, rig, motion and coat-shader approach, each species its own proportions, gait, postures, coat genetics and behaviour, so a third kind of animal later is a variant, not a new system.
+
+**Befriending** differs as the animals do:
+
+- **A cat** is won over gradually: it watches from a distance, then comes closer for food, and follows once it is given the dish it loves. Each cat has a favourite dish and a few it likes.
+- **A dog** comes more readily: a friendly one bounds up, a shy one needs a treat held out and patience; a game of fetch with a stick wins most dogs.
+- **Each has a personality** from a few traits that show in how it moves and how close it walks: for cats bold or shy, lazy or busy, cuddly or aloof; for dogs bold or shy, calm or playful, cuddly or independent.
 - **A name the player gives it.**
-
-Cats of the camp follow on walks, nap by the fire, sit on the player's pack and sometimes lead the way to something worth finding. Petting a cat is always available and always answered.
 
 **How a cat is made** (decided, built in `cats/`):
 
@@ -99,9 +114,70 @@ Cats of the camp follow on walks, nap by the fire, sit on the player's pack and 
 - **Motion** is pure functions of the cat's clock, the distance it has walked and its speed: postures for standing, walking (the lateral-sequence walk, each paw planted while it is down), sitting and loafing, blended over a second as the activity changes before the legs are solved to their paws, with the tail up in greeting over any of them, and breathing, blinks, ear flicks, look-arounds and tail sway laid on top as seeded occasional movements.
 - **Budget**: a cat is about 12,000 triangles short-haired, 15,000 long-haired, and two draws (its body and a soft blob shadow), with one compiled coat shader shared by every cat. Meshing a hair length takes about a second on a desktop and runs once a session in a worker. The coat's fragment shader is the heaviest part, a few layers of value noise; if several cats close up ever cost too much on the target phone, the pattern can move to the vertices.
 
+**The shared animal** (decided, built in `animals/`): every four-legged animal is one core with its species as data on it, so a cat and a dog, and the forest's animals after them, are variants rather than systems of their own.
+
+- **One skeleton**: the same bones in the same order for every species (pelvis, chest, neck, head, ears, three-segment legs, a seven-bone tail, and a muzzle, a jaw and a tongue), each species putting the pivots where its own anatomy has them. A bone a species has no use for (a cat's jaw) simply has nothing following it. An animal's build moves its bones and scales them along their own axes; a leg's scale stays equal down and forward, so it still bends without shearing.
+- **One sculpting**: a species gives its body as signed-distance forms in layers, each meshed on its own grid, and each form says which bone it follows; a form may also mark a part of its own for the shader (a dog's tongue). A sculpture serves every animal of its kind, meshed once a session in a worker of its own.
+- **One motion**: a species gives a posture for each of its activities; the core blends postures over a change of activity, steps the paws through a gait, solves the legs to their paws, and swings the tail (a slow sway, and a wag that is stiff from the root or whips down the tail). **A gait is a table**: when each paw lands in the cycle, how long it is down, how far it sweeps and how high it lifts, so a walk, a trot, a gallop or a hop is a new table, not new code. A dog's paw that is down stays planted: it sweeps back only as far as the body travels while it is down.
+- **One coat shader**: the core supplies the noise, a painted eye, an ear's cup, the hollows' shading and the fur's sheen; a species supplies its pattern functions of the bind-pose position.
+- **One preview**: `?cats` shows the cats and dogs together in the meadow, lines the dogs up to compare their builds, and focuses one animal to show each of its species' activities.
+
+**How a dog is made** (decided, built in `dogs/`):
+
+- **Everything from one seed**, each part from its own seeded stream, like a cat.
+- **Two parents' types.** The north's dogs come from a few working types: spitz (Lapphund, Finnish Spitz, elkhound and Karelian kinds), the commonest by far, then shepherd, hound, retriever, collie and the small farm terrier. A dog has a mother's and a father's type, the same for about a third of dogs (landrace dogs) and different for the rest (mixes). Every gene takes one allele from each parent's type's pool, so a mix inherits as a mix does, and its build lies halfway between the two types with its own variation.
+- **Genes**, simplified from real dog coat genetics: E (a mask, normal, or e/e: a clear red, fawn or cream with no eumelanin in the coat), K (dominant black, brindle, or the agouti series showing), A (sable, wolf grey, tan points, recessive black), a saddle modifier turning tan points into a black saddle, B and D (black, liver, blue, isabella), the red's intensity (red, fawn, cream), merle (rare, and hidden on a clear red), white spotting (S solid or a chest star, si Irish white, sp piebald, more white with each step down), a long coat, and a plush double coat. Eyes follow the coat: dark or brown, amber on liver and the dilutes, sometimes blue with merle or much white; the nose is the eumelanin's colour even on a red dog. A coat is named as breeders say it: "black and tan", "red sable", "wolf grey with black mask", "tricolour", "blue merle and white", "white and black"; a lightly shaded sable is called by its red, as a Finnish Spitz is.
+- **Build** varies far more than a cat's: size from about 30 cm at the shoulder to over 60, leg length, back length, muzzle length, skull breadth, stockiness, ear and tail size, and a small dog's head is big for its body. Ears are pricked, folded or dropped (a mix's ears fall between its parents': a prick-eared and a drop-eared parent mostly give folded ears); tails are curled over the back (a curl mostly comes through in a mix), sabre, straight, or a feathered plume on a long coat.
+- **Personality** is three traits from −1 to 1, each type leaning a little its own way: shy to bold, calm to playful, independent to cuddly.
+- **The model** is sculpted at a cat's scale (about 30 cm at the shoulder), so it has the cat's detail, and its size scales it into the world: a deep chest and a tucked-up loin, legs that stand tall with angulated hind legs, a skull with brows, a muzzle with a nose leather and upper lips, a jaw that opens and a tongue that comes out. One sculpture per kind of ear and length of coat, nine in all; a plush or long coat is a fuller silhouette (a spitz's ruff, britches, a brush of a tail, feathering behind the legs and along the belly) and a softly lumped surface.
+- **The coat is a shader**: where the eumelanin lies for the pattern (solid; clear; a sable's dark tips along the back, head, ears and tail; a wolf grey's banded saddle and cape with pale legs and cheeks; tan points, with their pips over the eyes, the cheeks, throat, chest, legs and under the tail; or a saddle), with brindle's broken streaks and a mask over it, merle's torn patchwork in the eumelanin, the white spotting growing from a chest star and the toes through the belly, muzzle, tail tip, legs, blaze and an Irish collar to the sides, leaving the head's cap, the ears and the tail's root for last, and fine streaks along the hair. The face is painted: dark round-pupilled eyes with a glint, the nose leather with its nostrils and a wet shine, the line of the mouth, which the jaw stretches into the mouth's dark as it opens, and the tongue.
+- **Motion**: standing, a walk (a lateral sequence like a cat's), a trot in diagonal pairs, a bounding gallop with the spine flexing, sitting, and lying down like a sphinx with the forearms out in front; a happy greeting puts the tail up and going, wiggles the hips with it, softens the ears back and opens a grin. The tail's carriage follows its kind and the dog's mood (a curl only loosens when shy; other tails tuck or rise), a curled tail wags stiffly from its root and a straight one whips, and at speed it streams out behind. Idles: panting, ear flicks, the tilted head, a look round, and the nose down to the ground, snuffling. A playful dog bounces, wags and looks about more; a calm one lies with its eyes half shut.
+- **Budget**: about a cat's: a dog is under 20,000 triangles and two draws, with one compiled coat shader for every dog; meshing a sculpture takes about half a second on a desktop.
+
+## The animals of the forest
+
+Elliott loves the animals of the forest, so the land is full of them: the animals a Nordic forest really holds, each where and when it really lives. **Nothing is hunted or harmed, and no animal is a threat**: the bear and the lynx are wonders to come across, not dangers.
+
+- **Companions that follow**, beside the cats and dogs: **a familiar**, a raven or an owl, who rides on Elliott's shoulder or pack, flies ahead, perches near and can spot clues from the air, and is met as a story moment rather than as a stray; **a fox**, shy and clever, won over with more patience than a cat; and **a hedgehog**, who trundles behind and curls up in the basket on long walks.
+- **Forest friends who stay home but know Elliott**: befriended, they come out to greet Elliott instead of fleeing. Red squirrels darting up trunks; mountain hares, brown in summer and white in winter; roe deer in the meadows at dawn and dusk; reindeer on the fells, sometimes with their herder; a moose wading in a lake; a badger at dusk; beavers with their lodge and dam on a stream; otters playing in a river; a lynx, rare and special; and a brown bear, seen rarely and from a distance, asleep through the winter.
+- **Life that makes the forest alive**: birds (a woodpecker drumming, jays, waxwings in winter berry trees, a capercaillie in the pines, ptarmigan that turn white in winter, swans on the lakes, cranes calling overhead in spring and autumn, songbirds), and small things (butterflies and bumblebees in summer meadows, dragonflies over water, frogs and a witch's toad by the ponds, fish rising at dusk, fireflies at night).
+- **The seasons move them**: coats turn white, the bear sleeps, the cranes come and go, the deer keep to dawn and dusk. The calendar changes the animals as it changes the land.
+- **One animal underneath, two bodies**: the four-legged animal the cats and dogs share becomes the fox, the lynx, the deer, reindeer and moose (long legs, antlers), the hare, the badger, the hedgehog and the squirrel, each a variant with its own proportions, gait and coat. Birds get one winged body of their own, which covers the familiar, the crane, the ptarmigan and the songbirds. Insects and fish are simple effects.
+- **First wave**: the fox and the hedgehog as companions, the familiar, squirrels, hares and roe deer as forest friends, and songbirds and butterflies for life; the rest follow.
+
+## People and their stories
+
+The land has people in it, met along the way: travellers on the road, a shepherd on the fell, a beekeeper among the hives, a fisher at a lake, a reindeer herder, a sauna keeper by the shore, an old cottager, a lost hiker. Each has **a story to tell**, and some are **in need of help**, and Elliott the Witch is glad to give it, with magic and with what they know and carry.
+
+- **Help is gentle and kind:** mend a broken bridge with a charm, brew a salve for a sick goat, cook a warm meal for a cold traveller, light a beacon that has gone out, help a lost dog find its way home, find a dropped ring with a companion's nose, make an orchard bloom again.
+- **Magic is Elliott's to use**: a growing set of gentle spells (mend, bloom, light, warm, calm, find) alongside the brews of the hearth. New spells, recipes and charms come from the people helped, as gifts and as things they teach.
+- **Talking is warm and short.** A conversation is a few lines, the choices are of tone, never of failure, and a person remembers Elliott and what was done for them, so meeting them again is meeting a friend.
+- **Rewards are friendship, not currency:** a story, a recipe, a spell, a seedling, a place to stay, a cat or dog who needs a home. There is nothing to grind.
+- **Who writes them:** Claude writes the people and their stories as data, a growing library, the way it designs other games' content; where a person stands and how they look come from the world's generation, so the land keeps meeting Elliott with someone new. (Writing conversation live with a language model while playing is possible but needs a server and costs per conversation; it is not planned.)
+- **How they look:** storybook figures, rounded and simple, with hats, hoods, scarves and aprons that say who they are, and faces of a few simple shapes (dot eyes, a little blush) that read well even face to face in first person, the way simple faces work in A Short Hike. In conversation the camera eases to frame the person and the words appear in a storybook panel.
+
+## Mysteries
+
+Some of the stories people tell are **mysteries**, and Elliott the Witch solves them the way Holmes would: by noticing, gathering and reasoning, with a witch's tools besides. They are cozy mysteries: nobody is hurt and nothing is grim. Who has been taking the beekeeper's honey? Why does the old mill's bell ring on windless nights? Where did the ferryman go, and why is his boat on the wrong shore? What are the lights moving on the fell?
+
+- **Clues are found in the world**, not handed over: tracks in mud or snow, a tuft of fur on a fence, a dropped button, a door left open, a smell, what the weather and the season say, and what people tell, which is not always the whole truth.
+- **Companions help:** a dog follows a scent trail, a cat slips into the places Elliott can't and comes back with something, and either may notice what Elliott walked past.
+- **Witchcraft helps without solving it:** a scrying bowl shows a glimpse of the past at a place, a pendulum leans towards what is hidden, a tarot draw offers a hint to think about. Magic opens a way to look; the reasoning stays Elliott's.
+- **The casebook** is where the deducing happens, in the spirit of Holmes: every clue goes into it, and Elliott connects clues into deductions ("the tracks are a badger's" plus "the honey jars were opened, not broken" says no badger did it). A deduction is checked when it is made, so the player always knows when they have it right; a wrong guess just isn't accepted, never punished.
+- **The reveal** is a small scene with the people involved, where Elliott lays out how they worked it out, and it ends kindly: the honey thief was a lonely child feeding a fox cub, the bell was a jackdaw's nest. Solving a mystery is a friendship made, and often a home found for someone, animal or person.
+- **Written like the stories**: Claude writes each mystery as data (its truth, its clues and where they lie, the deductions that join them), placed in the world by its generation, and every mystery is checked for being solvable from its clues alone. A nod to Holmes here and there is welcome: a deerstalker to find, a fiddle by a cottage fire, a dog called Watson.
+
 ## Foraging and cooking
 
 Ingredients are found, not bought: herbs, mushrooms, berries, roots, nuts, wild greens, river fish, eggs from a farm a valley might hold. What grows changes with the season.
+
+**The forests have berries and mushrooms to pick**, the ones a Nordic forest really has, each where it really grows:
+
+- **Berries:** bilberries in the shade of pine and spruce, lingonberries on dry heath and under pines, wild strawberries at sunny edges and clearings, raspberries in clearings and along paths, and cloudberries out on the bogs, rarer and prized.
+- **Mushrooms:** chanterelles under birch and spruce, porcini in the mixed woods, funnel chanterelles in damp spruce woods late in the year, and the fly agaric under birches, red with white spots, which is never eaten but is the witch's: a brewing ingredient, never a cooking one.
+- **By season:** nothing in winter, the first wild strawberries in early summer, the berries through high summer, and the mushrooms from late summer through autumn, with the funnel chanterelles last.
+- **Picking:** look at a ripe bush or a mushroom, and a prompt offers to pick it (a key, a controller button, or a tap). It goes into the witch's basket, and the bush shows it has been picked (its berries gone, the mushroom cut). A picked spot grows back after some days, in season.
+- **Placement** is part of the world's generation, by region, ground and season, so a spot always grows the same thing; what has been picked is the only thing the game has to remember. Patches cluster as they do in a real forest: a good bilberry slope, a chanterelle spot worth remembering.
 
 Cooking happens at the campfire in pans, a pot and on sticks over the flames, and is tactile and short: choose ingredients, cook them, see the dish. Recipes are discovered by trying combinations, and remembered in the player's recipe book once found. Cooking can't fail: a combination with no recipe makes a humble dish of its own, which a cat may still love.
 
@@ -109,28 +185,38 @@ Cooking happens at the campfire in pans, a pot and on sticks over the flames, an
 
 - **Brewing** at the hearth: teas, salves and charms from foraged things. A charm does something gentle and visible (makes flowers bloom round camp, calls fireflies, draws a shy cat closer, clears the fog from a view).
 - **The moon** goes through its phases night by night; some herbs are gathered only under a full moon.
-- **The Wheel of the Year** is the calendar (see Seasons).
+- **The Wheel of the Year** sits on the calendar as its festivals (see Seasons and the calendar).
 - **Rituals** at the festivals and at places of power (a stone circle, a sacred spring): small, quiet set pieces such as lighting a Beltane fire or leaving an offering at Mabon.
 
-## Seasons
+## Seasons and the calendar
 
-The game's year is the Wheel of the Year: its eight festivals (Samhain, Yule, Imbolc, Ostara, Beltane, Litha, Lughnasadh and Mabon) divide the seasons, and each changes the light, the weather, what grows and what can be brewed. Weather is seeded and gentle: mist, soft rain, snow, golden evenings. A season lasts long enough to enjoy and passes on its own.
+**Four Nordic seasons**: spring, summer, autumn and winter, and the world changes with them: the trees leaf out, turn and go bare (conifers stay green), the ground goes from snowmelt and new green through summer meadow and autumn gold to snow, the water freezes at the edges in winter, and the light and the colour grade follow. Weather is seeded and gentle: mist, soft rain, snow, golden evenings.
+
+**The sun and moon move as they really do at a latitude**, set once in the game's tuning and easy to change. It starts at **Helsinki's (about 60°N)**: around midsummer the sun is up for about nineteen hours and the short night never gets fully dark; around midwinter it is up for about six, low in the south. Day length, the sun's height and where it rises and sets all come from the latitude and the day of the year, not from hand-set seasons.
+
+**The calendar is the game's own, faster than real time**: a day still passes in minutes of play, a season in a number of days, and the year turns round in an evening or two of play, so a player sees every season. The day's length in minutes, the days in a season and the moon's cycle in days are one tuning each.
+
+**The Wheel of the Year** sits on that calendar as its eight festivals (Samhain, Yule, Imbolc, Ostara, Beltane, Litha, Lughnasadh and Mabon): the solstices, the equinoxes and the four days between, each a small occasion with what can be gathered, brewed and done on it.
 
 ## The night sky
 
-Each valley's sky is generated, and the stars form constellations the player can find and name by the fire. The moon's phase is shown truly.
+- **The moon is a real moon**: a lit sphere, so its phase is the sun lighting it from where the sun is, never a drawn crescent. It goes through its phases over its cycle, rises and sets at the times its phase gives it (a full moon rises at sunset, a new moon is up with the sun), lights the night by its phase, and shows a faint earthshine on a thin crescent. Its phase matters to witchcraft (see Witchcraft).
+- **Northern lights** come on clear nights, mostly in the long dark of autumn and winter, curtains of green with violet edges that drift and ripple, some nights faint and some nights a show, seeded so no two nights are alike.
+- **Stars** turn with the night, and form constellations the player can find and name by the fire.
 
 ## Controls
 
-The game plays on all three input methods (a controller, touch, and keyboard + mouse), switching to whichever was used last, through the shared input and gamepad libraries and the shared button prompts (see the root `CLAUDE.md`). It is a third-person game: the player walks, the camera follows and can be turned, and nearby things to pick up, pet or use are offered with a prompt.
+The game plays on all three input methods (a controller, touch, and keyboard + mouse), switching to whichever was used last, through the shared input and gamepad libraries and the shared button prompts (see the root `CLAUDE.md`). It plays in **first person** by default, through the witch's own eyes, with **third person** (the camera following behind them) a switch away; nearby things to pick up, pet or use are offered with a prompt.
 
-Walking, as built: the move goes the way the camera looks, and the witch turns to face where they walk.
+Walking, as built: the move goes the way the camera looks. In first person the camera is the witch's eyes at their eye height, they face where they look and are not drawn, their head bobs gently with their steps (more at a run, fading as they stop), and the view is wider (about 72° against third person's 55°). In third person they turn to face where they walk.
 
-- **Keyboard and mouse:** WASD or the arrows walk, Shift runs, dragging the mouse turns the camera, Q and E turn it too, and the wheel moves it in and out.
-- **Touch:** a stick appears under the thumb wherever it lands on the left half of the screen, walking at the push and running at its rim; dragging on the right half turns the camera, and pinching there moves it in and out.
-- **Controller:** the left stick walks at its push, the right stick turns the camera, and the right trigger runs.
-- The camera orbits the witch, within limits of tilt and distance, and comes in along its line where the land rises behind them rather than climbing over it.
-- How to walk is shown, for the input used last, as its controls beside a symbol of what each does, until that input has walked; on touch, as a ghost stick on the left and a turning symbol on the right.
+- **Keyboard and mouse:** WASD or the arrows walk, Shift runs, Q and E turn. In first person a click on the game locks the pointer and the mouse looks (round freely, up and down to just short of straight); Esc, the browser's own, frees it, and a prompt to click shows while it is free. Opening the ~ debug panel frees it too, and only a click locks it again. In third person dragging the mouse turns the camera and the wheel moves it in and out.
+- **Touch:** a stick appears under the thumb wherever it lands on the left half of the screen, walking at the push and running at its rim; dragging on the right half looks round in first person or turns the camera in third, where pinching moves it in and out. There is no pointer lock on touch.
+- **Controller:** the left stick walks at its push, the right stick looks or turns the camera, and the right trigger runs.
+- **Jumping and the broom:** jump (Space, the controller's A, a button on touch) is a small hop. Jumping again in the air takes out the broom and **glides**: a slow, gentle descent forward, steered by where the player looks, until the ground is reached or jump is pressed again to put it away. The broom never climbs, so mountains stay something to hike; gliding down off a ridge into the valley below is the reward for the climb. Real flight may come later as magic that is earned.
+- **Switching the view:** V, the controller's View button, or a small button at the top left on touch. The choice is kept on the device; without one, first person.
+- The third-person camera orbits the witch, within limits of tilt and distance, and comes in along its line where the land rises behind them rather than climbing over it. Both views share the way the player faces, so a switch keeps it.
+- How to walk is shown, for the input used last and the view, as its controls beside a symbol of what each does, until that input has walked; on touch, as a ghost stick on the left and a looking or turning symbol on the right. Before anything is used, a device whose main pointer is a finger is taken to be played by touch.
 
 ## Look
 
@@ -149,7 +235,7 @@ What carries the look, because code does it well:
 
 What the style stays away from, because code does it badly: realistic or detailed faces, photoreal materials, hand-painted detail, intricate one-off sculpts, and expressive acting. Characters are seen mostly at a distance or from behind; faces are a few simple shapes (eyes, a nose, ears) that read through pose and motion rather than expression.
 
-**Cats** are the hardest art in the game and its heart, so they get the most care: a stylised cat of a few smooth forms, recognisably a cat by its silhouette, ears and tail and by how it moves (the stretch, the loaf, the tail up in greeting). Its coat is a shader driven by its genetics (see Cats): a tabby's stripes and a calico's patches are pattern functions, which is exactly what code does well. The witch is a silhouette first: a cloak, a hat, a pack.
+**Cats and dogs** are the hardest art in the game and its heart, so they get the most care: a stylised cat of a few smooth forms, recognisably a cat by its silhouette, ears and tail and by how it moves (the stretch, the loaf, the tail up in greeting); a dog of the same smooth forms, recognisably a dog by its muzzle, ears and tail and by how it moves (the trot, the wag, the tilted head, the tongue out). Its coat is a shader driven by its genetics (see Cats): a tabby's stripes and a calico's patches are pattern functions, which is exactly what code does well. The witch is a silhouette first: a cloak, a hat, a pack.
 
 Art is reviewed from headless screenshots taken through the repo's own tooling and revised until it is done, the loop Betrayal's art skills follow; once Hearthwood's art has a working method, it becomes a skill of its own.
 
@@ -174,7 +260,7 @@ Single-player and saved on the device: the current valley's seed, camp, cats, re
 The smallest version that is already the game:
 
 - the endless world, with day and night;
-- walking in third person on all three input methods;
+- walking in first and third person on all three input methods;
 - a handful of ingredients to forage and a few recipes to cook at the campfire;
 - generated cats to meet, befriend with their favourite dish, and bring to camp;
 - saving.
@@ -183,23 +269,26 @@ The walks between valleys, brewing, seasons, festivals and the night sky follow,
 
 ## Open questions
 
-- **Who is the player?** A fixed witch, or one the player designs?
-- **The cats on screen:** how many can camp hold before it stops being cozy, and does camp ever outgrow its clearing?
+- **Companions on screen:** how many can follow at once before it stops being cozy, where the rest wait, and does camp ever outgrow its clearing?
+- **The familiar:** a raven or an owl first, and does Elliott choose?
 - **Do valleys ever repeat?** A valley left behind could be revisited by its seed, or every walk could lead somewhere new.
-- **Other people:** a valley could hold a few gentle characters (a beekeeper, a travelling tinker), or the game could be the witch and the cats alone. Since faces are the art's weak point, characters would have to work at a distance and through silhouette.
 - **Music:** generated, composed, or ambient sound only.
 
 ## Code map
 
-- `cats/`: the cats, pure where it can be. `genetics.ts` (the genotype, drawn at population frequencies, and the coat it makes; `coatName`), `cat.ts` (`generateCat`: genes, coat, build and personality from a seed), `coat-look.ts` (a coat as the shader's colour tokens and numbers), `rig.ts` (the skeleton's pivots and proportions; `rigOf` a cat's build), `sculpt.ts` (the body's signed-distance forms and their skinned mesh), `motion.ts` (`catPose`: postures, the walk, blends and fidgets, and the two-segment reach the legs are solved with).
-- `components/cats/`: `cat-body.tsx` (`CatBody`, one cat drawn and moving from props: activity, speed, greeting and an optional clock; whoever places it moves and turns its group), `skinned-cat.ts` (a cat's skinned mesh and skeleton, posed each frame), `coat-material.ts` (the coat shader), `cat-geometry.ts` and `cat-mesh.worker.ts` (the shared sculpture, meshed once per hair length in a worker), `cat-preview.tsx` (the `?cats` preview: a meadow of nine cats, reroll, and one cat on its own to stand, walk, sit, loaf, greet and turn).
-- `tools/cat-shots.mjs`: headless screenshots of the preview through its control surface (`window.__hearthwoodCats`), on a frozen clock: the field on desktop and on the target phone, and each chosen cat by activity and view, with a sheet of them all.
+- `animals/`: the shared four-legged animal, pure. `rig.ts` (the skeleton every species shares, `skeletonOf` a species' anatomy, and a rig's offsets and scales), `sculpt.ts` (forms, layers and the skinned mesh they make; the cupped ear), `motion.ts` (postures and their blending, gaits as footfall tables and the step, `solvePose` with the two-segment reach the legs are solved with, the tail's sway and wag, and the seeded occasional movements), `genes.ts` (alleles, pairs, weighted choices and traits).
+- `cats/`: the cats, pure where it can be. `genetics.ts` (the genotype, drawn at population frequencies, and the coat it makes; `coatName`), `cat.ts` (`generateCat`: genes, coat, build and personality from a seed), `coat-look.ts` (a coat as the shader's colour tokens and numbers), `rig.ts` (the cat's anatomy; `rigOf` a cat's build), `sculpt.ts` (the cat's signed-distance forms), `motion.ts` (`catPose`: its postures, the walk, the greeting and its fidgets).
+- `dogs/`: the dogs, pure where it can be. `dog.ts` (`generateDog`: the parents' types, genes, coat, build, ears, tail and personality from a seed; the types; `kindOf`), `genetics.ts` (the genotype from the parents' pools and the coat it makes; `coatName`), `coat-look.ts`, `rig.ts` (the dog's anatomy; `rigOf` a dog's build), `sculpt.ts` (the dog's forms for each kind of ear and coat), `motion.ts` (`dogPose`: its postures, gaits, greeting and idles).
+- `components/animals/`: `animal-body.tsx` (`AnimalBody`, one animal drawn and moving, which each species' body wraps), `skinned-animal.ts` (an animal's skinned mesh and skeleton, posed each frame), `coat-material.ts` (the shared coat shader), `animal-geometry.ts` and `animal-mesh.worker.ts` (the sculptures, each meshed once in a worker), `animal-preview.tsx` (the `?cats` preview: a meadow of cats and dogs, a line-up of dogs, reroll, and one animal on its own in each of its activities, greeting and turning).
+- `components/cats/`: `cat-body.tsx` (`CatBody`, one cat drawn and moving from props: activity, speed, greeting and an optional clock; whoever places it moves and turns its group), `cat-coat.ts` (the cat's patterns), `cat-preview.tsx` (where the `?cats` view loads the preview from).
+- `components/dogs/`: `dog-body.tsx` (`DogBody`, one dog drawn and moving, with the same props as `CatBody`), `dog-coat.ts` (the dog's patterns).
+- `tools/animal-shots.mjs`: headless screenshots of the preview through its control surface (`window.__hearthwoodAnimals`), on a frozen clock: the field on desktop and on the target phone, the dogs' line-up, each chosen animal by activity and view, and a strip of any gait, with a sheet of them all.
 - `engine/`: the world and time, pure and unit-tested, knowing nothing of looks. `world.ts` (`createWorld`: the land with camp and the places levelled in, regions, woods, places and plants by area, kept a while once worked out), `land.ts` (the broad fields, the ranges and their characters, hills, lakes, the water's terraces and the bands' altitudes, sampled band-limited from far off), `rivers.ts` (where rivers run), `regions.ts` (the regions, the kinds of plant and place, and each region's character as plain data), `places.ts` (camp, and each cell's place), `life.ts` (the woods' density and each chunk's plants and fireflies), `tiles.ts` (a tile of land as plain arrays for the art), `land-tile.worker.ts` (tiles worked out off the main thread), `streaming.ts` (which tiles and plant chunks the camera wants, and plant detail by distance), `day.ts` (the hour, the sun and moon, and each moment's light), `noise.ts`.
 - `gameplay/`: rules, with no Three.js. `walking.ts` (where a walker may go).
 - `quality.ts`: every look-for-speed knob in one profile.
-- `input/`: walking's input. `walk-controls.ts` (each input's meaning, pure) and `use-walk-input.ts` (all three inputs into one state, and the input used last).
+- `input/`: walking's input. `walk-controls.ts` (each input's meaning, pure), `point-of-view.ts` (first or third person, and keeping the choice on the device) and `use-walk-input.ts` (all three inputs into one state, the input used last, the point of view and the pointer lock).
 - `art/`: the art, plain data in and drawing out, deciding nothing. `palette.ts` (the tokens, each region's grounds and its air), `atmosphere.ts` (the haze and grade every material ends in), `daylight.tsx` (the day's light from the hour), `sky.tsx`, `terrain.ts` (a tile's mesh and the per-pixel ground, the far canopy, the geomorph and the earth's curve), `water.ts` (water's shader, a tile's water, a still pool), `plant-shapes.ts` and `plant-instances.ts` (the plant designs, and a plant's placing and colour), `place-shapes.ts` (the places, and falling water), `campfire.tsx`, `fireflies.tsx`, `witch.tsx` (Elliott, a placeholder silhouette), `painted.ts` (vertex-coloured shapes from pieces).
-- `components/valley/`: the world's scene, gluing the engine to the art. `world-view.tsx` (the canvas, its overlay, the clock and the air), `world-land.tsx` with `land-workers.ts` (the land streamed in from the workers), `world-plants.tsx` (plants streamed and instanced), `world-places.tsx`, `clock.ts`, `walker.tsx` and `follow-camera.ts` (walking and the camera), `walk-hints.tsx` (the prompts and the touch stick), `debug-panel.tsx`, `frame-stats.ts`, `world-probe.tsx` (`window.__hearthwoodWorld`: ready and settled, frames, what was drawn, switches for the hour, motion, haze, camera, a free camera and the walker, readings of the world at a point, and a top-down map of any area drawn from the world).
+- `components/valley/`: the world's scene, gluing the engine to the art. `world-view.tsx` (the canvas, its overlay, the clock and the air), `world-land.tsx` with `land-workers.ts` (the land streamed in from the workers), `world-plants.tsx` (plants streamed and instanced), `world-places.tsx`, `clock.ts`, `walker.tsx` (walking and the camera in either view), `first-person-camera.ts` (Elliott's eyes: looking, the head's bob, the fields of view, pure) and `follow-camera.ts` (the third-person orbit, pure), `walk-hints.tsx` (the prompts, the click to look, the touch view button and the touch stick), `debug-panel.tsx` (the ~ panel), `frame-stats.ts`, `world-probe.tsx` (`window.__hearthwoodWorld`: ready and settled, frames, what was drawn, switches for the hour, motion, haze, camera, point of view, look, a free camera and the walker, readings of the world at a point, and a top-down map of any area drawn from the world).
 - `components/gallery/`: the `?art` gallery. `pieces.tsx` (the one list of pieces) and `art-gallery.tsx` (the floor, the rows, the orbit and turntable, and `window.__hearthwoodArt`).
-- `tools/world-shots.mjs`: headless screenshots of the world through its probe, on a held hour and motion clock: top-down maps of 6 and 16 km (by region and by relief), camp through the day, a walk in each region at morning, golden hour and night, a range from afar, clear-day views from a valley floor, a ridge and a summit, each kind of place, and the touch controls on the target phone, with what each frame drew.
+- `tools/world-shots.mjs`: headless screenshots of the world through its probe, on a held hour and motion clock: top-down maps of 6 and 16 km (by region and by relief), camp through the day, a walk in each region at morning, golden hour and night, a range from afar, clear-day views from a valley floor, a ridge and a summit, each kind of place, the touch controls on the target phone, and camp through Elliott's eyes with the hints on desktop and the phone (the `fp-` shots), with what each frame drew.
 - `tools/art-shots.mjs`: headless screenshots of the gallery: the whole of it through the day, each row, and chosen pieces alone.

@@ -1,5 +1,5 @@
 import type { Point } from "@/shared/lib/input";
-import type { StandardControls } from "@/shared/lib/gamepad";
+import type { StandardButton, StandardControls } from "@/shared/lib/gamepad";
 
 /*
  * What each input means for walking, as pure functions: which way the player
@@ -23,9 +23,10 @@ export const STICK_RADIUS = 56;
 /** Past this share of its reach, a touch stick runs. */
 export const STICK_RUN = 0.92;
 
-/** How fast the camera turns: radians per pixel dragged, and per second at a full stick or a held key. */
+/** How fast the camera turns: radians per pixel dragged or moved with the pointer locked, and per second at a full stick or a held key. */
 export const LOOK = {
   mouse: 0.0055,
+  locked: 0.0024,
   touch: 0.008,
   stick: 2.6,
   keys: 1.8,
@@ -38,6 +39,9 @@ const KEYS_RIGHT = ["KeyD", "ArrowRight"];
 const KEYS_TURN_LEFT = ["KeyQ"];
 const KEYS_TURN_RIGHT = ["KeyE"];
 export const KEYS_RUN = ["ShiftLeft", "ShiftRight"];
+/** The key and the pad button that switch between first and third person. */
+export const KEY_VIEW = "KeyV";
+export const PAD_VIEW: StandardButton = "View";
 /** Every key walking listens to, so the page doesn't also scroll on them. */
 export const WALK_KEYS: readonly string[] = [...KEYS_AHEAD, ...KEYS_BACK, ...KEYS_LEFT, ...KEYS_RIGHT, ...KEYS_TURN_LEFT, ...KEYS_TURN_RIGHT, ...KEYS_RUN];
 

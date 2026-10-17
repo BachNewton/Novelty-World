@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { type Camera, CircleGeometry, MeshLambertMaterial, NeutralToneMapping, Spherical, Vector3 } from "three";
+import { type Camera, CircleGeometry, MeshLambertMaterial, NeutralToneMapping, type Scene, SkinnedMesh, Spherical, Vector3 } from "three";
 import { ArrowLeft, RotateCw } from "lucide-react";
 import { readPad, subscribeGamepads } from "@/shared/lib/gamepad";
 import { themeColor } from "@/shared/lib/three/theme-color";
@@ -14,7 +14,6 @@ import { readPalette } from "../../art/palette";
 import { makeSkyUniforms, Sky } from "../../art/sky";
 import { waterMaterial } from "../../art/water";
 import { QUALITY } from "../../quality";
-import { readyCatGeometry } from "../cats/cat-geometry";
 import { advanceClock, holdHour, makeClock, type ValleyClock } from "../valley/clock";
 import { DebugPanel } from "../valley/debug-panel";
 import { useFrameStats } from "../valley/frame-stats";
@@ -132,7 +131,7 @@ function Ticker({ clock }: { clock: ValleyClock }) {
 }
 
 /** Points the camera at the whole gallery or at one piece, and drives it from a pad: the right stick orbits, the left pans, the triggers zoom. */
-function CameraRig({ target, distance, controls, onFrame }: { target: Vector3; distance: number; controls: React.RefObject<OrbitControlsImpl | null>; onFrame: () => void }) {
+function CameraRig({ target, distance, controls, onFrame }: { target: Vector3; distance: number; controls: React.RefObject<OrbitControlsImpl | null>; onFrame: (scene: Scene) => void }) {
   const camera = useThree((s) => s.camera);
   const pad = useRef({ orbit: { x: 0, y: 0 }, pan: { x: 0, y: 0 }, zoom: 0 });
   useEffect(() => {
@@ -153,8 +152,8 @@ function CameraRig({ target, distance, controls, onFrame }: { target: Vector3; d
     [],
   );
   const scratch = useMemo(() => ({ spherical: new Spherical(), offset: new Vector3() }), []);
-  useFrame(({ camera: eye }, delta) => {
-    onFrame();
+  useFrame(({ camera: eye, scene }, delta) => {
+    onFrame(scene);
     if (controls.current) steerByPad(controls.current, eye, pad.current, delta, scratch);
   });
   return null;
@@ -182,6 +181,15 @@ function steerByPad(orbit: OrbitControlsImpl, camera: Camera, { orbit: turn, pan
   offset.setFromSpherical(spherical);
   camera.position.copy(orbit.target).add(offset);
   orbit.update();
+}
+
+/** How many animals' bodies the scene holds: each is meshed in a worker, and shows once its mesh is ready. */
+function bodiesIn(scene: Scene): number {
+  let count = 0;
+  scene.traverse((object) => {
+    if (object instanceof SkinnedMesh) count += 1;
+  });
+  return count;
 }
 
 /** Points the light's shadows at what the camera looks at. */
@@ -223,6 +231,7 @@ export function ArtGallery() {
   const [turntable, setTurntable] = useState(true);
   const controls = useRef<OrbitControlsImpl | null>(null);
   const frames = useRef(0);
+  const bodies = useRef(0);
   // The labels' own layer: drei's Html otherwise re-parents (and remounts) every label when the controls take over the canvas's events.
   const [labelLayer, setLabelLayer] = useState<HTMLDivElement | null>(null);
   const labels = labelLayer ? { current: labelLayer } : undefined;
@@ -273,7 +282,7 @@ export function ArtGallery() {
 
   useEffect(() => {
     window.__hearthwoodArt = {
-      isReady: () => frames.current > 3 && readyCatGeometry(false) !== null && readyCatGeometry(true) !== null,
+      isReady: () => frames.current > 3 && bodies.current === ART_PIECES.filter((p) => p.id.startsWith("folk/cat/")).length,
       frameCount: () => frames.current,
       pieces: () => layout.placed.map((p) => p.piece.id),
       holdHour: (hours) => holdHour(clock, hours),
@@ -340,7 +349,11 @@ export function ArtGallery() {
           </Html>
         ))}
         <OrbitControls ref={controls} makeDefault enableDamping={false} autoRotate={chosen !== null && turntable} autoRotateSpeed={1.2} maxPolarAngle={Math.PI * 0.49} minDistance={1.2} maxDistance={600} />
-        <CameraRig target={view.target} distance={view.distance} controls={controls} onFrame={() => (frames.current += 1)} />
+        <CameraRig target={view.target} distance={view.distance} controls={controls} onFrame={(scene) => {
+            frames.current += 1;
+            bodies.current = bodiesIn(scene);
+          }}
+        />
       </Canvas>
 
       <div ref={setLabelLayer} className="pointer-events-none absolute inset-0 overflow-hidden" />

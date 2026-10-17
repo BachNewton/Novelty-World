@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Color } from "three";
 import { ALTITUDE, emptySample } from "../../engine/land";
+import type { PointOfView } from "../../input/point-of-view";
 import { mainRegion, REGIONS } from "../../engine/regions";
 import type { World } from "../../engine/world";
 import type { Palette } from "../../art/palette";
@@ -18,7 +19,7 @@ import type { Weather } from "./world-view";
  * whether it is ready (its shaders compiled, everything the camera wants
  * streamed in, and a frame drawn), a frame counter to wait on, what the last
  * frame drew, switches for the hour, the motion clock, the camera and where
- * the walker stands, a free camera, readings of the world at a point, and a
+ * the walker stands, the point of view and where it looks, a free camera, readings of the world at a point, and a
  * map of an area drawn from the world itself. Waiting on these is waiting on
  * events, never on time.
  */
@@ -72,6 +73,9 @@ export interface WorldProbe {
   holdMotion: (seconds: number | null) => void;
   setView: (view: CameraView) => void;
   setOrbit: (orbit: Partial<Orbit>) => void;
+  setPointOfView: (view: PointOfView) => void;
+  /** Where the walker looks in first person: the yaw is the orbit's, shared by both views. */
+  setLook: (look: { yaw?: number; pitch?: number }) => void;
   placeWalker: (x: number, z: number, heading?: number) => void;
   walker: () => { x: number; z: number; heading: number };
   setFreeCamera: (camera: FreeCamera | null) => void;
@@ -165,6 +169,7 @@ export function WorldProbeHandle({
   streaming,
   freeCamera,
   weather,
+  setPointOfView,
 }: {
   world: World;
   palette: Palette;
@@ -173,6 +178,7 @@ export function WorldProbeHandle({
   streaming: Streaming;
   freeCamera: { at: FreeCamera | null };
   weather: Weather;
+  setPointOfView: (view: PointOfView) => void;
 }) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
@@ -216,6 +222,11 @@ export function WorldProbeHandle({
       },
       setOrbit: (orbit) => {
         walker.orbit = { ...FIRST_ORBIT, ...walker.orbit, ...orbit };
+      },
+      setPointOfView,
+      setLook: ({ yaw, pitch }) => {
+        if (yaw !== undefined) walker.orbit = { ...walker.orbit, yaw };
+        if (pitch !== undefined) walker.lookPitch = pitch;
       },
       placeWalker: (x, z, heading) => {
         walker.x = x;
@@ -264,7 +275,7 @@ export function WorldProbeHandle({
       live = false;
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;

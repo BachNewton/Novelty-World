@@ -2,22 +2,25 @@
 
 import { useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
-import type { Camera } from "three";
+import { PerspectiveCamera, type Camera } from "three";
 import type { World } from "../../engine/world";
 import { walk } from "../../gameplay/walking";
 import { takeTurn, type WalkState } from "../../input/use-walk-input";
 import { moveInWorld, RUN_SPEED, walkSpeed } from "../../input/walk-controls";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { Focus } from "../../art/daylight";
+import { eyePosition, FIELD_OF_VIEW, headBob, lookDirection, turnLook } from "./first-person-camera";
 import { catchUp, clampOrbit, eyeFor, LOOK_HEIGHT, turnBetween, type Orbit } from "./follow-camera";
 import type { Palette } from "../../art/palette";
 import { Witch, type WitchHandle } from "../../art/witch";
 
 /*
- * The walker and the camera behind her: each frame, the input's move goes
- * where the camera looks, the land decides how far she gets, she turns to
- * face her way, and the camera follows. A screenshot can instead look from
- * above the whole valley, or from high over its rim.
+ * The walker and the camera: each frame, the input's move goes where the
+ * camera looks and the land decides how far she gets. In first person the
+ * camera is her eyes, she faces where she looks and is not drawn; in third
+ * person she turns to face her way and the camera follows behind. A
+ * screenshot can instead look from above the whole valley, or from high
+ * over its rim.
  */
 
 export const WALKER_PRIORITY = -4;
@@ -29,7 +32,10 @@ export interface Walker {
   z: number;
   heading: number;
   stride: number;
+  /** The third-person camera's orbit; its yaw is also the way she looks in first person. */
   orbit: Orbit;
+  /** How far up she looks in first person, in radians from level. */
+  lookPitch: number;
   view: CameraView;
 }
 
@@ -43,8 +49,8 @@ interface Followed {
   x: number;
   y: number;
   z: number;
-  /** How far her hat lags behind her pace. */
-  hatLag: number;
+  /** Her pace, eased: how far her hat lags behind it, and how much her head bobs. */
+  easedPace: number;
 }
 
 interface Walking {
@@ -59,12 +65,19 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   const delta = Math.min(seconds, 0.1);
   const ground = world.surfaceAt;
 
+  const firstPerson = input.pointOfView === "first";
   const turn = takeTurn(input);
-  walker.orbit = clampOrbit({
-    yaw: walker.orbit.yaw - turn.yaw - input.turnRate.yaw * delta,
-    pitch: walker.orbit.pitch + turn.pitch + input.turnRate.pitch * delta,
-    distance: walker.orbit.distance * turn.zoom,
-  });
+  if (firstPerson) {
+    const look = turnLook({ yaw: walker.orbit.yaw, pitch: walker.lookPitch }, turn, input.turnRate, delta);
+    walker.orbit = { ...walker.orbit, yaw: look.yaw };
+    walker.lookPitch = look.pitch;
+  } else {
+    walker.orbit = clampOrbit({
+      yaw: walker.orbit.yaw - turn.yaw - input.turnRate.yaw * delta,
+      pitch: walker.orbit.pitch + turn.pitch + input.turnRate.pitch * delta,
+      distance: walker.orbit.distance * turn.zoom,
+    });
+  }
 
   const speed = walkSpeed(input.move, input.running);
   const way = moveInWorld(input.move, walker.orbit.yaw);
@@ -77,8 +90,9 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
     moved = Math.hypot(to.x - from.x, to.z - from.z);
     walker.x = to.x;
     walker.z = to.z;
-    walker.heading += turnBetween(walker.heading, Math.atan2(way.x, way.z)) * catchUp(TURN_RATE, delta);
+    if (!firstPerson) walker.heading += turnBetween(walker.heading, Math.atan2(way.x, way.z)) * catchUp(TURN_RATE, delta);
   }
+  if (firstPerson) walker.heading = walker.orbit.yaw;
   walker.stride += (moved / STRIDE_LENGTH) * Math.PI;
   const pace = delta > 0 && moved > 0 ? Math.min(1, moved / delta / RUN_SPEED + 0.35) : 0;
   const y = world.heightAt(walker.x, walker.z);
@@ -90,16 +104,33 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   followed.x += (walker.x - followed.x) * k;
   followed.y += (y + LOOK_HEIGHT - followed.y) * k;
   followed.z += (walker.z - followed.z) * k;
-  followed.hatLag += (pace - followed.hatLag) * catchUp(4, delta);
+  followed.easedPace += (pace - followed.easedPace) * catchUp(4, delta);
+
+  const throughHerEyes = firstPerson && walker.view === "walk";
+  if (camera instanceof PerspectiveCamera) {
+    const fov = FIELD_OF_VIEW[throughHerEyes ? "first" : "third"];
+    if (camera.fov !== fov) {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    }
+  }
 
   if (figure?.group) {
+    figure.group.visible = !throughHerEyes;
     figure.group.position.set(walker.x, y - 0.03, walker.z);
     figure.group.rotation.y = walker.heading;
-    figure.pose(walker.stride, pace, followed.hatLag);
+    figure.pose(walker.stride, pace, followed.easedPace);
   }
 
   switch (walker.view) {
     case "walk": {
+      if (firstPerson) {
+        const eye = eyePosition({ x: walker.x, y: followed.y - LOOK_HEIGHT, z: walker.z }, walker.orbit.yaw, headBob(walker.stride, followed.easedPace));
+        const ahead = lookDirection({ yaw: walker.orbit.yaw, pitch: walker.lookPitch });
+        camera.position.set(eye.x, eye.y, eye.z);
+        camera.lookAt(eye.x + ahead.x, eye.y + ahead.y, eye.z + ahead.z);
+        return;
+      }
       const eye = eyeFor(followed, walker.orbit, ground);
       camera.position.set(eye.x, eye.y, eye.z);
       camera.lookAt(followed.x, followed.y, followed.z);
@@ -119,7 +150,7 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
 
 export function WalkerAndCamera({ world, input, walker, focus, palette, atmosphere }: { world: World; input: RefObject<WalkState>; walker: Walker; focus: Focus; palette: Palette; atmosphere: AtmosphereUniforms }) {
   const witch = useRef<WitchHandle>(null);
-  const followed = useRef<Followed>({ x: walker.x, y: 0, z: walker.z, hatLag: 0 });
+  const followed = useRef<Followed>({ x: walker.x, y: world.heightAt(walker.x, walker.z) + LOOK_HEIGHT, z: walker.z, easedPace: 0 });
 
   useFrame(({ camera }, delta) => {
     stepWalker({ world, input: input.current, walker, focus }, witch.current, camera, followed.current, delta);

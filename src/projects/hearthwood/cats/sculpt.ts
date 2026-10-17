@@ -1,87 +1,20 @@
-import * as THREE from "three";
-import {
-  ball,
-  ellipsoid,
-  gradient,
-  occlusion,
-  outsideBox,
-  rod,
-  roughened,
-  settle,
-  smoothMin,
-  surfaceNet,
-  turned,
-  type Solid,
-} from "@/shared/lib/three/sdf";
-import { BONE_NAMES, EAR, EAR_SHAPE, FRONT_LEG, HIND_LEG, HIP, SHOULDER, SKULL, TAIL_ROOT, TAIL_SEGMENTS, TAIL_STEP, type BoneName, type Side, type Vec3 } from "./rig";
+import { ball, ellipsoid, rod, type Solid } from "@/shared/lib/three/sdf";
+import { TAIL_SEGMENTS, type BoneName, type Vec3 } from "../animals/rig";
+import { cuppedEar, onSide, PART, sculpt, SIDES as sides, type AnimalMesh, type Follows, type Form } from "../animals/sculpt";
+import { EAR, EAR_SHAPE, FRONT_LEG, HIND_LEG, HIP, SHOULDER, SKULL, TAIL_ROOT, TAIL_STEP } from "./rig";
 
 /*
- * The cat's body as smooth signed-distance forms round the rig's pivots, in
- * the bind pose, meshed into one skinned surface. Each form belongs to a bone
- * (or blends between two along its length), and each vertex of the mesh
- * follows the bones of the forms nearest it, softly, so the body bends
- * smoothly where its forms were blended: the shoulder into the chest, the
- * thigh into the haunch, the tail along its length.
- *
- * Two meshes make the cat: the body on a coarser grid, and the head with its
- * ears on a finer one, so the ears keep their edge. One sculpture per hair
- * length serves every cat; builds move the bones.
+ * The cat's body as smooth signed-distance forms round its rig's pivots, in
+ * the bind pose, meshed by the shared sculpting (`animals/sculpt.ts`) into one
+ * skinned surface: the body on a coarser grid, and the head with its ears on
+ * a finer one, so the ears keep their edge. One sculpture per hair length
+ * serves every cat; builds move the bones.
  */
 
-/** Which bone a form follows: one, or two blended along an axis between two points. */
-type Follows = BoneName | { from: BoneName; to: BoneName; start: Vec3; end: Vec3 };
-
-interface Form {
-  solid: Solid;
-  follows: Follows;
-  blend: number;
-}
-
-/** A surface's own region, for the coat shader: the body and legs, or the head and ears. */
-export const PART = { body: 0, head: 1 } as const;
-
-const WEIGHT_FALLOFF = 0.012;
-const MAX_INFLUENCES = 4;
-const OCCLUSION = { reach: 0.03, steps: 5, strength: 2, deepest: 0.6 };
 const BODY_CELL = 0.011;
 const HEAD_CELL = 0.0065;
 
-const mirror = ([x, y, z]: Vec3): Vec3 => [-x, y, z];
-const sides = ["L", "R"] as const;
-const onSide = (side: Side, v: Vec3): Vec3 => (side === "L" ? v : mirror(v));
-
-/** A cupped cone in an ear's own frame (base at the origin, tip up +y, open to +z), shrunk by `inset`. */
-function earCone(x: number, y: number, z: number, inset: number, lift: number, forward: number): number {
-  const { width, height, depth } = EAR_SHAPE;
-  const t = Math.min(1, Math.max(0, (y - lift) / height));
-  const r = Math.max(0.002, (width / 2) * (1 - t) + 0.005 * t - inset);
-  const rz = r * depth;
-  const radial = (Math.hypot(x / r, (z - forward) / rz) - 1) * rz;
-  return Math.max(radial, lift - y, y - lift - height);
-}
-
-/** An ear: a rounded cone, cupped at the front, tipped and turned out. */
-function ear(side: Side): Solid {
-  const base = onSide(side, EAR);
-  const { width, height, depth, splay, turn, cupInset, cupLift } = EAR_SHAPE;
-  const [bx, by, bz] = base;
-  const upright: Solid = {
-    distance: (x, y, z) => {
-      const px = x - bx;
-      const py = y - by;
-      const pz = z - bz;
-      const outer = earCone(px, py, pz, 0, -0.01, 0);
-      const cup = earCone(px, py, pz, cupInset, cupLift, width * depth * 0.42);
-      return Math.max(outer, -cup);
-    },
-    min: [bx - width, by - 0.012, bz - width],
-    max: [bx + width, by + height + 0.01, bz + width],
-  };
-  const mirrored = side === "L" ? 1 : -1;
-  return turned(upright, base, [0, turn * mirrored, splay * mirrored]);
-}
-
-interface Look {
+export interface Look {
   longHair: boolean;
 }
 
@@ -144,118 +77,17 @@ function headForms({ longHair }: Look): Form[] {
   for (const side of sides) {
     add(ellipsoid(onSide(side, [sx + 0.033, sy - 0.019, sz + 0.02]), [0.04 + (longHair ? 0.01 : 0), 0.034, 0.036]), "head", 0.025);
     add(ball(onSide(side, [sx + 0.0135, sy - 0.026, sz + 0.064]), 0.0175), "head", 0.016);
-    add(ear(side), `ear${side}`, 0.01);
+    add(cuppedEar(EAR_SHAPE, EAR, side), `ear${side}`, 0.01);
   }
   add(ellipsoid([sx, sy - 0.042, sz + 0.054], [0.016, 0.011, 0.014]), "head", 0.012);
   add(ellipsoid([sx, sy - 0.008, sz + 0.062], [0.013, 0.011, 0.012]), "head", 0.022);
   return forms;
 }
 
-function followsAt(follows: Follows, x: number, y: number, z: number, weight: number, out: Map<BoneName, number>) {
-  const put = (bone: BoneName, w: number) => out.set(bone, (out.get(bone) ?? 0) + w);
-  if (typeof follows === "string") return put(follows, weight);
-  const { start, end } = follows;
-  const ax = end[0] - start[0];
-  const ay = end[1] - start[1];
-  const az = end[2] - start[2];
-  const t = Math.min(1, Math.max(0, ((x - start[0]) * ax + (y - start[1]) * ay + (z - start[2]) * az) / (ax * ax + ay * ay + az * az)));
-  const s = t * t * (3 - 2 * t);
-  put(follows.from, weight * (1 - s));
-  put(follows.to, weight * s);
-}
-
-function distanceOf(forms: readonly Form[], roughness: number) {
-  const smooth = (x: number, y: number, z: number) => {
-    let d = Infinity;
-    for (const form of forms) {
-      if (outsideBox(x, y, z, form.solid.min, form.solid.max) > d + form.blend) continue;
-      d = smoothMin(d, form.solid.distance(x, y, z), form.blend);
-    }
-    return d;
-  };
-  if (roughness === 0) return smooth;
-  const all = { distance: smooth, min: [-1, -1, -1] as Vec3, max: [1, 1, 1] as Vec3 };
-  return roughened(all, roughness, 0.05).distance;
-}
-
-/** A cat's mesh, ready to be a skinned geometry: indexed, with each vertex's bones and how hollow it lies. */
-export interface CatMesh {
-  positions: Float32Array;
-  normals: Float32Array;
-  /** Four bones per vertex, as indices into `BONE_NAMES`, and their weights. */
-  skinIndex: Uint16Array;
-  skinWeight: Float32Array;
-  /** 1 in the open, less in a hollow. */
-  occlusion: Float32Array;
-  /** Which part a vertex is on (`PART`). */
-  part: Float32Array;
-  triangles: Uint32Array;
-}
-
-function meshForms(forms: readonly Form[], cell: number, part: number, roughness: number) {
-  const distance = distanceOf(forms, roughness);
-  const min = [0, 1, 2].map((i) => Math.min(...forms.map((f) => f.solid.min[i]))) as unknown as Vec3;
-  const max = [0, 1, 2].map((i) => Math.max(...forms.map((f) => f.solid.max[i]))) as unknown as Vec3;
-  const net = surfaceNet(distance, min, max, cell);
-  settle(net.positions, distance, cell);
-  const count = net.positions.length / 3;
-  const normals = new Float32Array(count * 3);
-  const skinIndex = new Uint16Array(count * MAX_INFLUENCES);
-  const skinWeight = new Float32Array(count * MAX_INFLUENCES);
-  const hollow = new Float32Array(count);
-  const g = new THREE.Vector3();
-  const weights = new Map<BoneName, number>();
-  const nearness = new Float64Array(forms.length);
-  for (let v = 0; v < count; v++) {
-    const x = net.positions[v * 3];
-    const y = net.positions[v * 3 + 1];
-    const z = net.positions[v * 3 + 2];
-    gradient(distance, x, y, z, cell * 0.25, g).normalize();
-    normals.set([g.x, g.y, g.z], v * 3);
-    hollow[v] = occlusion(distance, x, y, z, g, OCCLUSION);
-
-    let nearest = Infinity;
-    forms.forEach((form, i) => {
-      nearness[i] = form.solid.distance(x, y, z);
-      nearest = Math.min(nearest, nearness[i]);
-    });
-    weights.clear();
-    forms.forEach((form, i) => {
-      const w = Math.exp(-(nearness[i] - nearest) / WEIGHT_FALLOFF);
-      if (w > 1e-3) followsAt(form.follows, x, y, z, w, weights);
-    });
-    const strongest = [...weights].sort((a, b) => b[1] - a[1]).slice(0, MAX_INFLUENCES);
-    const total = strongest.reduce((sum, [, w]) => sum + w, 0);
-    strongest.forEach(([bone, w], i) => {
-      skinIndex[v * MAX_INFLUENCES + i] = BONE_NAMES.indexOf(bone);
-      skinWeight[v * MAX_INFLUENCES + i] = w / total;
-    });
-  }
-  return { positions: net.positions, normals, skinIndex, skinWeight, occlusion: hollow, part: new Float32Array(count).fill(part), triangles: net.triangles };
-}
-
-function concat<T extends Float32Array | Uint16Array>(a: T, b: T): T {
-  const out = new (a.constructor as new (n: number) => T)(a.length + b.length);
-  out.set(a);
-  out.set(b, a.length);
-  return out;
-}
-
 /** The cat's whole mesh for a hair length: body and head together. */
-export function sculptCat(look: Look): CatMesh {
-  const body = meshForms(bodyForms(look), BODY_CELL, PART.body, look.longHair ? 0.0028 : 0);
-  const head = meshForms(headForms(look), HEAD_CELL, PART.head, 0);
-  const offset = body.positions.length / 3;
-  const triangles = new Uint32Array(body.triangles.length + head.triangles.length);
-  triangles.set(body.triangles);
-  triangles.set(head.triangles.map((i) => i + offset), body.triangles.length);
-  return {
-    positions: concat(body.positions, head.positions),
-    normals: concat(body.normals, head.normals),
-    skinIndex: concat(body.skinIndex, head.skinIndex),
-    skinWeight: concat(body.skinWeight, head.skinWeight),
-    occlusion: concat(body.occlusion, head.occlusion),
-    part: concat(body.part, head.part),
-    triangles,
-  };
+export function sculptCat(look: Look): AnimalMesh {
+  return sculpt([
+    { forms: bodyForms(look), cell: BODY_CELL, part: PART.body, roughness: look.longHair ? 0.0028 : 0 },
+    { forms: headForms(look), cell: HEAD_CELL, part: PART.head, roughness: 0 },
+  ]);
 }

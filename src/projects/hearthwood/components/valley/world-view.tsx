@@ -26,7 +26,7 @@ import { WorldProbeHandle, type FreeCamera } from "./world-probe";
 
 /*
  * The endless world: generated from its seed as the camera goes, drawn, lit
- * by the turning day, and walked in third person from camp. `?seed=<text>`
+ * by the turning day, and walked in first or third person from camp. `?seed=<text>`
  * opens another world, `?hour=<0-24>` holds the day at an hour and
  * `?haze=<n>` scales the haze (0 is a perfectly clear day; dev switches for
  * judging the light and the far land), ~ opens the debug panel with the time on a
@@ -93,6 +93,7 @@ export function WorldView() {
       heading: Math.atan2(-3.4, -1.5),
       stride: 0,
       orbit: { ...FIRST_ORBIT, yaw: Math.atan2(-3.4, -1.5) },
+      lookPitch: 0,
       view: "walk",
     };
     const focus: Focus = { x: walker.x, y: camp.y, z: walker.z };
@@ -129,9 +130,9 @@ export function WorldView() {
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
-        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} />
+        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} setPointOfView={input.setPointOfView} />
       </Canvas>
-      <WalkHints kind={input.kind} show={!input.walkedWith.has(input.kind)} />
+      <WalkHints input={input} />
       <TouchStickView stick={input.stick} />
       <DebugPanel clock={clock} />
     </div>

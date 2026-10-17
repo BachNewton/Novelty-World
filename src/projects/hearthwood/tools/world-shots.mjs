@@ -1,7 +1,8 @@
 // Screenshots of Hearthwood's endless world, for judging its look without a browser open: camp through the
 // day, walking views in each region at morning, golden hour and night, a range seen from afar with a pass
-// in it, an aerial view, a top-down map of a few kilometres drawn from the world itself, and the phone's
-// touch controls on the target phone (a Pixel 8 Pro in Chrome, portrait and landscape). Prints what each
+// in it, an aerial view, a top-down map of a few kilometres drawn from the world itself, the phone's
+// touch controls on the target phone (a Pixel 8 Pro in Chrome, portrait and landscape), and camp through
+// Elliott's own eyes, with its hints (the `fp-` shots). Prints what each
 // frame drew (triangles, draw calls) and how long frames took (SHOTS_UNCAPPED=1 for the frame's own time).
 //
 // Drives the world's probe (window.__hearthwoodWorld, see ../components/valley/world-probe.tsx) over
@@ -60,7 +61,11 @@ async function openWorld(device) {
     if (m.type() === "error" || m.type() === "warning") console.error(`page ${m.type()}:`, m.text());
   });
   await page.goto(`${BASE}${SEED ? `?seed=${encodeURIComponent(SEED)}` : ""}`, { waitUntil: "load" });
-  await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
+  // The overlay (hints, buttons) is hidden unless a shot asks for it, by a rule rather than per element, so
+  // what mounts while a shot settles is hidden too.
+  await page.addStyleTag({
+    content: "nextjs-portal{display:none!important} html:not([data-shot-chrome]) [data-testid=hearthwood-world] > :not(div:first-child){visibility:hidden!important}",
+  });
   await page.waitForFunction(() => window.__hearthwoodWorld?.isReady() === true, null, { timeout: 300000 });
   return page;
 }
@@ -70,22 +75,23 @@ async function frames(page, count) {
   await page.waitForFunction((n) => window.__hearthwoodWorld.frameCount() >= n, start + count, { timeout: 120000 });
 }
 
-async function capture(page, name, { hour, view = "walk", orbit = null, walker = null, free = null, chrome = false, haze = 1 }) {
+// Most shots are from behind Elliott, in third person; the `fp-` ones are through their eyes, with `look` the way they look.
+async function capture(page, name, { hour, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1 }) {
   await page.evaluate(
-    ({ hour, view, orbit, walker, free, motion, chrome, haze }) => {
+    ({ hour, view, pov, orbit, look, walker, free, motion, chrome, haze }) => {
       const world = window.__hearthwoodWorld;
       world.holdHour(hour);
       world.setHaze(haze);
       world.holdMotion(motion);
       world.setView(view);
+      world.setPointOfView(pov);
       world.setFreeCamera(free);
       if (orbit) world.setOrbit(orbit);
+      if (look) world.setLook(look);
       if (walker) world.placeWalker(walker.x, walker.z, walker.heading);
-      document.querySelectorAll("[data-testid=hearthwood-world] > :not(div:first-child)").forEach((el) => {
-        el.style.visibility = chrome ? "" : "hidden";
-      });
+      document.documentElement.toggleAttribute("data-shot-chrome", chrome);
     },
-    { hour, view, orbit, walker, free, motion: MOTION_AT, chrome, haze },
+    { hour, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze },
   );
   // The camera eases after the walker, and the world streams in round wherever it ends up: give the
   // camera frames to arrive, then wait for the streaming to settle, then read a settled frame.
@@ -190,6 +196,16 @@ const shots = [
   ["camp-night-sky", { hour: 23, walker: atCamp, orbit: { ...outward, pitch: -0.1, distance: 6 } }],
   ["aerial-golden", { hour: 17.4, free: { x: camp.x - 260, y: 180, z: camp.z - 260, lookX: camp.x + 200, lookY: 20, lookZ: camp.z + 200 } }],
 ];
+// Through Elliott's eyes: at camp facing the fire, looking out of camp, walking out, and the hints.
+const towardsOut = { x: atCamp.x + Math.sin(outward.yaw) * 24, z: atCamp.z + Math.cos(outward.yaw) * 24, heading: outward.yaw };
+shots.push(
+  ["fp-golden-camp", { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 } }],
+  ["fp-golden-out", { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: outward.yaw, pitch: 0 } }],
+  ["fp-morning-walk", { hour: 8.3, pov: "first", walker: towardsOut, look: { yaw: outward.yaw, pitch: 0.04 } }],
+  ["fp-night-camp", { hour: 22.5, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.15 } }],
+  ["fp-hints", { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 }, chrome: true }],
+  ["tp-hints", { hour: 17.4, walker: atCamp, orbit: facingCamp, chrome: true }],
+);
 for (const [name, shot] of shots) if (want(name)) await capture(desktop, name, shot);
 
 for (const region of REGIONS) {
@@ -271,6 +287,18 @@ async function phoneShots(device, name) {
   await page.context().close();
 }
 await phoneShots(PHONE_PORTRAIT, "phone-portrait");
+
+// The target phone through Elliott's eyes: the touch hints and the view button.
+async function firstPersonPhoneShots(device, name) {
+  if (!want(name)) return;
+  const page = await openWorld(device);
+  const { width, height } = device.viewport;
+  await page.touchscreen.tap(width * 0.8, height * 0.4);
+  await capture(page, `${name}-hints`, { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 }, chrome: true });
+  await page.context().close();
+}
+await firstPersonPhoneShots(PHONE_PORTRAIT, "fp-phone-portrait");
+await firstPersonPhoneShots(PHONE_LANDSCAPE, "fp-phone-landscape");
 await phoneShots(PHONE_LANDSCAPE, "phone-landscape");
 
 await browser.close();
