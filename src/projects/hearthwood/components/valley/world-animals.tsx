@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { type Camera, type Group, Vector3 } from "three";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { World } from "../../engine/world";
 import {
   animalGround,
@@ -360,10 +361,12 @@ function findCandidate(
 function AnimalView({
   animal,
   clock,
+  atmosphere,
   register,
 }: {
   animal: Animal;
   clock: ValleyClock;
+  atmosphere: AtmosphereUniforms;
   register: (key: string, group: Group | null) => void;
 }) {
   const offset = useMemo(
@@ -385,6 +388,7 @@ function AnimalView({
             activity={look.drive.current.activity}
             drive={look.drive}
             clock={time}
+            atmosphere={atmosphere}
           />
         ) : (
           <DogBody
@@ -392,6 +396,7 @@ function AnimalView({
             activity={look.drive.current.activity}
             drive={look.drive}
             clock={time}
+            atmosphere={atmosphere}
           />
         )}
       </group>
@@ -621,6 +626,7 @@ export function WorldAnimals({
   walker,
   input,
   foraging,
+  atmosphere,
 }: {
   companionship: Companionship;
   world: World;
@@ -628,6 +634,7 @@ export function WorldAnimals({
   walker: Walker;
   input: RefObject<WalkState>;
   foraging: Foraging;
+  atmosphere: AtmosphereUniforms;
 }) {
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
@@ -680,6 +687,7 @@ export function WorldAnimals({
           key={animal.key}
           animal={animal}
           clock={clock}
+          atmosphere={atmosphere}
           register={register}
         />
       ))}

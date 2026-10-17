@@ -254,8 +254,10 @@ const LAND_SURFACE = /* glsl */ `
   // Snow down to the season's line, melting in soft patches, thin on steep ground and under the needles.
   float hwLie = hwH + (hwWave - 0.5) * uHwSeasonGroundSnow.z + (hwFine - 0.5) * uHwSeasonGroundSnow.z * 0.25;
   float hwCover = smoothstep(uHwSeasonGroundSnow.x - uHwSeasonGroundSnow.y, uHwSeasonGroundSnow.x + uHwSeasonGroundSnow.y, hwLie);
-  // The higher it lies, the steeper the ground it clings to, so only cliffs show bare up the mountains.
-  float hwHold = 0.5 * smoothstep(120.0, 480.0, hwH);
+  // The higher it lies against the bands where it is, the steeper the ground it clings to: up through the woods to the
+  // treeline, and further up to the lasting snow, so only cliffs show bare up the mountains.
+  float hwBanded = hwH - hwBand;
+  float hwHold = 0.5 * smoothstep(uBands.x * 0.25, uBands.x + 150.0, hwBanded) + 0.3 * smoothstep(uBands.x, uBands.z, hwBanded);
   hwCover *= 1.0 - smoothstep(0.85 + hwHold, 1.25 + hwHold, hwSlope + (hwFine - 0.5) * 0.3);
   hwCover *= 1.0 - 0.6 * smoothstep(0.35, 0.85, hwWood) * (1.0 - hwFallShare) * (0.6 + 0.4 * hwFine);
   hwCover *= smoothstep(0.0, 0.5, hwAbove);

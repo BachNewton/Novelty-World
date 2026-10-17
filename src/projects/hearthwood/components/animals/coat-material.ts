@@ -1,9 +1,11 @@
 import * as THREE from "three";
 import type { EarShape } from "../../animals/sculpt";
 import type { Vec3 } from "../../animals/rig";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
+import { shadeLambert } from "../../art/shading";
 
 /*
- * An animal's coat as a shader on a soft, rough standard material. Every
+ * An animal's coat as a shader on one of the shared solid materials. Every
  * marking is a pattern function of where a point lies on the animal in its
  * bind pose, so the coat moves with the body however it bends. A species
  * gives the patterns: `coatColour(p)` for the fur and `faceColour(p, coat,
@@ -118,36 +120,41 @@ export interface CoatShader {
   glsl: string;
 }
 
-/** An animal's coat material, from its species' shader and its own uniforms. Every animal of a species shares one compiled program. */
-export function coatMaterial(shader: CoatShader, own: Record<string, THREE.IUniform>, sheen: number): { material: THREE.MeshStandardMaterial; uniforms: CoatUniforms } {
+/*
+ * The coat is one of the shared solid materials (`shadeLambert`), so it ends
+ * in the world's air and takes every feature that reaches solid things: the
+ * key light's shadows, night vision, the rainbow, under the water. Its sheen
+ * and its eyes' glint follow the light round it (the sky's and the key
+ * light's), so a companion goes as dim as the land at dusk.
+ */
+const VERTEX = /* glsl */ `
+  vRest = position;
+  vRestNormal = normal;
+  vPart = aPart;
+  vOcclusion = aOcclusion;
+`;
+
+const SURFACE = /* glsl */ `
+  float glint = 0.0;
+  vec3 coat = faceColour(vRest, coatColour(vRest), glint);
+  diffuseColor.rgb = coat * mix(0.62, 1.0, vOcclusion);
+  float facing = clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0);
+  // A soft sheen at the silhouette reads as fur; a dark coat still catches a little.
+  vec3 sheen = max(diffuseColor.rgb, vec3(0.16));
+  vec3 around = (uHwSkyLight + uHwKeyLight) * RECIPROCAL_PI;
+  totalEmissiveRadiance += around * (sheen * pow(1.0 - facing, 2.5) * uSheen + uGlint * glint * 0.35);
+`;
+
+/** An animal's coat material, from its species' shader and its own uniforms, in the world's air. Every animal of a species shares one compiled program. */
+export function coatMaterial(shader: CoatShader, own: Record<string, THREE.IUniform>, sheen: number, atmosphere: AtmosphereUniforms): { material: THREE.MeshLambertMaterial; uniforms: CoatUniforms } {
   const uniforms: CoatUniforms = { ...own, uBlink: { value: 0 }, uSheen: { value: sheen } };
-  const material = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0 });
-  material.customProgramCacheKey = () => shader.key;
-  material.onBeforeCompile = (compiled) => {
-    Object.assign(compiled.uniforms, uniforms);
-    compiled.vertexShader = VERTEX_HEAD + compiled.vertexShader.replace(
-      "#include <begin_vertex>",
-      `#include <begin_vertex>
-      vRest = position;
-      vRestNormal = normal;
-      vPart = aPart;
-      vOcclusion = aOcclusion;`,
-    );
-    compiled.fragmentShader = PRELUDE + shader.glsl + compiled.fragmentShader
-      .replace(
-        "vec4 diffuseColor = vec4( diffuse, opacity );",
-        `float glint = 0.0;
-        vec3 coat = faceColour(vRest, coatColour(vRest), glint);
-        vec4 diffuseColor = vec4(coat * mix(0.62, 1.0, vOcclusion), opacity);`,
-      )
-      .replace(
-        "#include <emissivemap_fragment>",
-        `#include <emissivemap_fragment>
-        float facing = clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
-        // A soft sheen at the silhouette reads as fur; a dark coat still catches a little.
-        vec3 sheen = max(diffuseColor.rgb, vec3(0.16));
-        totalEmissiveRadiance += sheen * pow(1.0 - facing, 2.5) * uSheen + uGlint * glint * 0.35;`,
-      );
-  };
+  const material = shadeLambert(new THREE.MeshLambertMaterial(), "solid", atmosphere, {
+    key: shader.key,
+    uniforms,
+    vertexHead: VERTEX_HEAD,
+    vertex: VERTEX,
+    fragmentHead: PRELUDE + shader.glsl,
+    surface: SURFACE,
+  });
   return { material, uniforms };
 }

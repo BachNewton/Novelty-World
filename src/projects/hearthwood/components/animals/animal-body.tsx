@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { Pose } from "../../animals/motion";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { Rig } from "../../animals/rig";
 import type { CoatUniforms } from "./coat-material";
 import { SkinnedAnimal } from "./skinned-animal";
@@ -50,6 +51,8 @@ export interface AnimalProps<A extends string> {
   greeting?: boolean;
   /** The clock in seconds; the scene's own by default. A fixed clock freezes the animal. */
   clock?: () => number;
+  /** The air it is drawn in, as every material in the world is. */
+  atmosphere: AtmosphereUniforms;
   /** A soft shadow on the ground beneath it (default on). */
   shadow?: boolean;
   position?: readonly [number, number, number];

@@ -389,6 +389,10 @@ if (want("peaks")) {
     await capture(desktop, "peaks-meadow", { hour: 10, weather: "clear", walker: { x: meadow.x, z: meadow.z }, free: { ...towards, y: meadow.height + 2 } });
     await capture(desktop, "peaks-meadow-hazy", { hour: 10, walker: { x: meadow.x, z: meadow.z }, free: { ...towards, y: meadow.height + 2 } });
     await capture(desktop, "peaks-meadow-golden", { hour: 16.8, walker: { x: meadow.x, z: meadow.z }, free: { ...towards, y: meadow.height + 2 } });
+    // The seasons' snow line on the range through the year: the melt in early and late spring, high summer, coming down in autumn, deep winter.
+    for (const [season, date] of [["spring-early", "spring-4"], ["spring-late", "spring-6"], ["summer", "summer-4"], ["autumn", "autumn-4"], ["winter", "winter-4"]]) {
+      await capture(desktop, `peaks-meadow-${season}`, { hour: 12, date, weather: "clear", walker: { x: meadow.x, z: meadow.z }, free: { ...towards, y: meadow.height + 2 } });
+    }
   }
   if (valley) {
     console.log(`  valley floor ${valley.height.toFixed(0)} m at ${valley.x}, ${valley.z}`);
@@ -847,6 +851,45 @@ async function companionShots(page, phone) {
       const side = { x: here.x + Math.sin(way) * 3 + Math.cos(way) * 5.5, z: here.z + Math.cos(way) * 3 - Math.sin(way) * 5.5 };
       const free = pov === "third" ? { ...side, y: ground + 1.3, lookX: here.x - Math.sin(way) * 2, lookY: ground + 0.5, lookZ: here.z - Math.cos(way) * 2 } : null;
       await capture(page, name, { hour: 10.5, pov, walker: { x: here.x, z: here.z, heading: way }, ...(free ? { free } : view), keepMotion: true, chrome: pov === "first" });
+    }
+  }
+
+  if (want("companions-far")) {
+    // The party settled round Elliott out on the open meadow, seen from across it: in mist, and at golden hour
+    // against the low sun, so the companions are seen to sit in the same air and light as the land round them.
+    await letMotionRun(page);
+    // Out along the openest way from camp, where nothing stands between the camera and the party.
+    const way = await page.evaluate((c) => {
+      let best = { way: 0, wood: Infinity };
+      for (let k = 0; k < 16; k++) {
+        const way = (k / 16) * Math.PI * 2;
+        let wood = 0;
+        for (let r = 20; r <= 60; r += 4) wood += window.__hearthwoodWorld.at(c.x + Math.sin(way) * r, c.z + Math.cos(way) * r).woodland;
+        if (wood < best.wood) best = { way, wood };
+      }
+      return best.way;
+    }, atCamp);
+    const at = { x: atCamp.x + Math.sin(way) * 40, z: atCamp.z + Math.cos(way) * 40, heading: way + Math.PI };
+    await page.evaluate(
+      ({ at, party }) => {
+        const world = window.__hearthwoodWorld;
+        world.setFreeCamera(null);
+        world.setPointOfView("third");
+        world.placeWalker(at.x, at.z, at.heading);
+        party.forEach((a, i) => world.companions.place(a.key, at.x + (i - 1) * 1.6, at.z + 1.5, at.heading, "stand"));
+        world.companions.simulate(8);
+      },
+      { at, party },
+    );
+    await holdWhenSettled(page, 1.0);
+    const ground = await page.evaluate(({ x, z }) => window.__hearthwoodWorld.at(x, z).height, at);
+    for (const [name, hour, weather, distance, yaw] of [
+      ["companions-far-mist", 10.5, "mist", 18, way],
+      ["companions-far-golden", 16.8, "fair", 14, way],
+    ]) {
+      const eye = { x: at.x + Math.sin(yaw) * distance, z: at.z + Math.cos(yaw) * distance };
+      const eyeGround = await page.evaluate(({ x, z }) => window.__hearthwoodWorld.at(x, z).height, eye);
+      await capture(page, name, { hour, weather, walker: at, free: { ...eye, y: Math.max(eyeGround, ground) + 1.4, lookX: at.x, lookY: ground + 0.4, lookZ: at.z }, keepMotion: true });
     }
   }
 

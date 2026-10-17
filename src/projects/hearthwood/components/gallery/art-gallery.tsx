@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { type Camera, CircleGeometry, MeshLambertMaterial, NeutralToneMapping, type Scene, SkinnedMesh, Spherical, Vector3 } from "three";
+import { type Camera, CircleGeometry, MeshLambertMaterial, type Scene, SkinnedMesh, Spherical, Vector3 } from "three";
 import { ArrowLeft, RotateCw } from "lucide-react";
 import { readPad, subscribeGamepads } from "@/shared/lib/gamepad";
 import { themeColor } from "@/shared/lib/three/theme-color";
@@ -332,9 +332,6 @@ export function ArtGallery() {
         dpr={[1, QUALITY.maxPixelRatio]}
         gl={{ antialias: true, powerPreference: "high-performance", reversedDepthBuffer: true }}
         camera={{ fov: 45, near: 0.1, far: 4000 }}
-        onCreated={({ gl }) => {
-          gl.toneMapping = NeutralToneMapping;
-        }}
       >
         <Ticker clock={clock} />
         <Daylight day={clock} palette={context.palette} atmosphere={context.atmosphere} sky={context.sky} focus={focusPoint} air={air} />

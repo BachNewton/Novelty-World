@@ -23,11 +23,11 @@ export interface DogBodyProps extends AnimalProps<DogActivity> {
 
 const moves = (activity: DogActivity) => GAITS.includes(activity);
 
-export function DogBody({ dog, activity = "stand", ...props }: DogBodyProps) {
+export function DogBody({ dog, activity = "stand", atmosphere, ...props }: DogBodyProps) {
   const geometry = useAnimalGeometry({ species: "dog", ears: dog.ears, coat: dog.coat.length });
   const rig = useMemo(() => rigOf(dog.build), [dog.build]);
   const seed = useMemo(() => motionSeed(dog.seed), [dog.seed]);
-  const coat = useCallback(() => dogCoatMaterial(dogCoatLook(dog.coat, dog.ears)), [dog.coat, dog.ears]);
+  const coat = useCallback(() => dogCoatMaterial(dogCoatLook(dog.coat, dog.ears), atmosphere), [dog.coat, dog.ears, atmosphere]);
   const pose = useCallback(
     (clock: MotionClock<DogActivity>) => dogPose({ ...clock, personality: dog.personality, rig, tail: dog.tail, ears: dog.ears, seed }),
     [dog.personality, dog.tail, dog.ears, rig, seed],
@@ -36,6 +36,7 @@ export function DogBody({ dog, activity = "stand", ...props }: DogBodyProps) {
   return (
     <AnimalBody
       {...props}
+      atmosphere={atmosphere}
       activity={activity}
       geometry={geometry}
       coat={coat}

@@ -309,6 +309,6 @@ export const ART_PIECES: ArtPiece[] = [
     label: `Cat ${i + 1}`,
     radius: 0.7,
     height: 0.5,
-    render: (context: ArtContext) => <CatBody cat={generateCat(seed)} activity={activity} speed={0.4} clock={context.clock} />,
+    render: (context: ArtContext) => <CatBody cat={generateCat(seed)} activity={activity} speed={0.4} clock={context.clock} atmosphere={context.atmosphere} />,
   })),
 ];

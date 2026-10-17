@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState, type CSSProperties } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { NeutralToneMapping } from "three";
 import { useWalkInput } from "../../input/use-walk-input";
 import { REGIONS } from "../../engine/regions";
 import { emptySample } from "../../engine/land";
@@ -134,9 +133,6 @@ export function WorldView() {
         // A reversed depth buffer keeps depth precise from a hand's breadth to the horizon a hundred kilometres off.
         gl={{ antialias: true, powerPreference: "high-performance", reversedDepthBuffer: true }}
         camera={{ fov: 55, near: 0.2, far: QUALITY.viewDistance * 1.2 }}
-        onCreated={({ gl }) => {
-          gl.toneMapping = NeutralToneMapping;
-        }}
       >
         <Ticker clock={clock} world={world} />
         <WeatherTicker world={world} clock={clock} now={weather} air={air} />
@@ -148,7 +144,7 @@ export function WorldView() {
         <WorldPlants world={world} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />
         <WorldPlaces world={world} palette={palette} atmosphere={atmosphere} sky={sky} streaming={streaming} />
         <WorldForage foraging={foraging} palette={foragePalette} atmosphere={atmosphere} clock={clock} walker={walker} input={input.state} rival={() => companionship.candidate?.score ?? Infinity} />
-        <WorldAnimals companionship={companionship} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} />
+        <WorldAnimals companionship={companionship} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} atmosphere={atmosphere} />
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />

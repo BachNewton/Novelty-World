@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { CoatLook } from "../../cats/coat-look";
 import { EAR, EAR_SHAPE, HIP, SHOULDER, SKULL, TAIL_ROOT } from "../../cats/rig";
 import { coatMaterial, glslEar, glslVec, type CoatShader } from "../animals/coat-material";
@@ -216,7 +217,7 @@ vec3 faceColour(vec3 p, vec3 coat, inout float glint) {
 };
 
 /** A cat's coat material. Each cat has its own, sharing one compiled program. */
-export function catCoatMaterial(look: CoatLook) {
+export function catCoatMaterial(look: CoatLook, atmosphere: AtmosphereUniforms) {
   const c = look.colours;
   const colour = (token: string) => ({ value: themeColor(token) });
   const uniforms = {
@@ -242,5 +243,5 @@ export function catCoatMaterial(look: CoatLook) {
     uLongHair: { value: look.longHair },
     uMarks: { value: new THREE.Vector3(...look.marks) },
   };
-  return coatMaterial(CAT_COAT, uniforms, 0.28 + 0.15 * look.longHair);
+  return coatMaterial(CAT_COAT, uniforms, 0.28 + 0.15 * look.longHair, atmosphere);
 }
