@@ -9,7 +9,7 @@ import type { GameRunner } from "@/shared/lib/bot-lab/pool";
 import { luceWinProb } from "@/shared/lib/bot-lab/sprt";
 import { wilsonInterval, type ShareInterval } from "@/shared/lib/bot-lab/stats";
 import { candidateSeats, finishesOf, outcomeFor, tableSpecs, type Format } from "./parallel";
-import { playLadder } from "./ratings";
+import { playLadder, type LadderCache, type Matchup, type MatchupTally } from "./ratings";
 import type { RiskGameResult, RiskGameSpec } from "./runner";
 
 // Risk's gauntlet on the shared bot-lab core: a candidate plays every field member
@@ -57,6 +57,10 @@ export interface RiskGauntletOptions {
   beta: number;
   /** Decisive-game cap per pairing before it is inconclusive. */
   maxDecisive: number;
+  /** Matchups of the field's own games already played. */
+  fieldCache?: LadderCache;
+  /** Fired as each of the field's own matchups is done, `cached` when the cache answered it. */
+  onFieldMatchup?: (matchup: Matchup, tally: MatchupTally, cached: boolean) => void;
   /** Seed groups per field-internal table, played only to anchor the Elo fit. */
   fieldGroups: number;
   maxTurns: number;
@@ -217,6 +221,10 @@ export async function runRiskGauntlet(opts: RiskGauntletOptions): Promise<RiskGa
     groups: opts.fieldGroups,
     prefix: `${opts.prefix}:field`,
     maxTurns: opts.maxTurns,
+    cache: opts.fieldCache,
+    onMatchup: (_, matchup, tally, cached) => {
+      if (tally !== null) opts.onFieldMatchup?.(matchup, tally, cached);
+    },
   });
   winPairs.push(...ladder.winPairs);
   finishPairs.push(...ladder.finishPairs);

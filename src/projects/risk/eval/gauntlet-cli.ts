@@ -6,6 +6,7 @@ import { dualVerdict, sprtBounds } from "@/shared/lib/bot-lab/sprt";
 import { checkBots, commonDefaults, commonFlag, formats, list, number, riskRun, type CommonArgs } from "./cli-args";
 import { formatRiskGauntlet, formatTable, gauntletTables, runRiskGauntlet, type RiskGauntletProgress } from "./gauntlet";
 import { candidateSeats, FORMATS, riskPool, type Format } from "./parallel";
+import { fileLadderCache } from "./ratings-cache";
 
 /** `npm run risk:gauntlet` — a candidate against the field at each table size in
  *  both mixtures, each pairing an SPRT on win share against par, then a
@@ -135,8 +136,10 @@ Risk — gauntlet
   const bounds = sprtBounds(args.alpha, args.beta);
   let decided = 0;
   let fieldFrom: number | null = null;
+  let fieldCached = 0;
   live.setProgress(() => {
-    const fieldDone = fieldFrom === null || fieldGames === 0 ? 0 : (live.counts().games - fieldFrom) / fieldGames;
+    const toPlay = fieldGames - fieldCached;
+    const fieldDone = fieldFrom === null || toPlay <= 0 ? 0 : (live.counts().games - fieldFrom) / toPlay;
     return (decided + Math.min(1, fieldDone)) / steps;
   });
   const line = progressLine();
@@ -171,6 +174,10 @@ Risk — gauntlet
       beta: args.beta,
       maxDecisive: args.maxDecisive,
       fieldGroups: args.fieldGroups,
+      fieldCache: fileLadderCache(),
+      onFieldMatchup: (matchup, _, cached) => {
+        if (cached) fieldCached += args.fieldGroups * matchup.players;
+      },
       maxTurns: args.maxTurns,
       batchGames: args.batch,
       pool,

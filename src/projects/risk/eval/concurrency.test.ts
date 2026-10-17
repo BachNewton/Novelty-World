@@ -2,15 +2,17 @@ import { describe, expect, it } from "vitest";
 import type { GameRunner } from "@/shared/lib/bot-lab/pool";
 import { createRng } from "@/shared/lib/seeded-random";
 import { gauntletTables, runRiskGauntlet, type RiskGauntletOptions } from "./gauntlet";
-import { outcomeFor, tableSpecs } from "./parallel";
-import { ladderMatchups, playLadder } from "./ratings";
+import { fitElo, pairsFromFinishes, pairsFromWinner, type PairResult } from "@/shared/lib/bot-lab/elo";
+import { finishesOf, outcomeFor, tableSpecs } from "./parallel";
+import { ladderMatchups, playLadder, type LadderCache, type MatchupGames, type MatchupRecord } from "./ratings";
 import type { RiskGameResult, RiskGameSpec } from "./runner";
 
 // The gauntlet and the ladder play many tables through the pool at once. What they
 // report must not depend on that: a stand-in game (a pure function of its seed and
 // seating, like a real one, but instant) is played through a runner that takes one
 // call at a time, and through one that finishes concurrent calls in a scrambled
-// order, and the reports must match.
+// order, and the reports must match. The ladder's cache must change nothing either,
+// only which matchups are played.
 
 const STRENGTH: Readonly<Record<string, number>> = { cand: 1.6, base: 1, other: 0.8 };
 
@@ -132,5 +134,67 @@ describe("the ladder's matchups played at once", () => {
         draws: outcomes.filter((o) => o === "draw").length,
       });
     }
+  });
+});
+
+describe("the ladder with a cache", () => {
+  const LABELS = ["cand", "base", "other"];
+  const memoryCache = (): LadderCache & { records: Map<string, MatchupRecord> } => {
+    const records = new Map<string, MatchupRecord>();
+    const key = (g: MatchupGames) => `${g.seeds} ${g.groups.toString()} ${g.maxTurns.toString()}`;
+    return { records, get: (g) => records.get(key(g)) ?? null, set: (g, r) => records.set(key(g), r) };
+  };
+  const counting = () => {
+    let games = 0;
+    const runner = serialRunner();
+    return {
+      played: () => games,
+      pool: { ...runner, run: (specs: readonly RiskGameSpec[]) => ((games += specs.length), runner.run(specs)) },
+    };
+  };
+  const ladder = (pool: GameRunner<RiskGameSpec, RiskGameResult>, cache?: LadderCache) =>
+    playLadder({ pool, labels: LABELS, players: [3, 4], groups: 5, prefix: "lad", maxTurns: 600, cache });
+
+  it("rates the same from the cache, playing only the matchups it lacks", async () => {
+    const cache = memoryCache();
+    const first = await ladder(serialRunner(), cache);
+    expect(first.cached).toBe(0);
+    expect(cache.records.size).toBe(ladderMatchups(LABELS, [3, 4]).length);
+
+    const warm = counting();
+    expect({ ...(await ladder(warm.pool, cache)), cached: 0 }).toEqual(first);
+    expect(warm.played()).toBe(0);
+
+    const [forgotten] = cache.records.keys();
+    cache.records.delete(forgotten);
+    const partial = counting();
+    const again = await ladder(partial.pool, cache);
+    expect(again.cached).toBe(cache.records.size - 1);
+    expect(partial.played()).toBe(5 * Number(/:(\d)p /.exec(`${forgotten} `)?.[1]));
+    expect({ ...again, cached: 0 }).toEqual(first);
+  });
+
+  it("gives each matchup's comparisons summed, which fit the same Elo as every game's own", async () => {
+    const played = await ladder(serialRunner());
+    const games = ladderMatchups(LABELS, [3, 4]).flatMap(({ lone, rest, players }) =>
+      tableSpecs(lone, rest, "one-in", players, `lad:${lone}-in-${rest}:${players.toString()}p`, 0, 5 * players, 600).map(fakeGame),
+    );
+    const each = (pairs: (f: ReturnType<typeof finishesOf>) => PairResult[]) => games.flatMap((r) => pairs(finishesOf(r)));
+    expect(fitElo(LABELS, played.winPairs, { anchor: "base" })).toEqual(fitElo(LABELS, each(pairsFromWinner), { anchor: "base" }));
+    expect(fitElo(LABELS, played.finishPairs, { anchor: "base" })).toEqual(fitElo(LABELS, each(pairsFromFinishes), { anchor: "base" }));
+  });
+
+  it("never caches a matchup whose games threw", async () => {
+    const cache = memoryCache();
+    const runner = serialRunner();
+    const throwing = {
+      ...runner,
+      run: async (specs: readonly RiskGameSpec[]) =>
+        (await runner.run(specs)).map((r) => (r.seed === "lad:cand-in-base:3p-1" ? { ...r, error: "illegal move" } : r)),
+    };
+    const report = await ladder(throwing, cache);
+    expect(report.errors).toBeGreaterThan(0);
+    expect([...cache.records.keys()].some((k) => k.startsWith("lad:cand-in-base:3p "))).toBe(false);
+    expect(cache.records.size).toBe(ladderMatchups(LABELS, [3, 4]).length - 1);
   });
 });

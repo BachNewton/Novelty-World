@@ -22,6 +22,20 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "gd-stacker": gdStackerBot,
 };
 
+/** Each bot's own module in this folder, by label: where the code its games depend on
+ *  starts, which the ratings cache follows through its imports (`eval/ratings-cache.ts`). */
+export const BOT_MODULES: Readonly<Record<string, string>> = {
+  random: "random.ts",
+  greedy: "greedy.ts",
+  "rule-v1": "rule-v1/index.ts",
+  "rule-v2": "rule-v2/index.ts",
+  "rule-v3": "rule-v3/index.ts",
+  "gd-defensive": "gd/index.ts",
+  "gd-continental": "gd/index.ts",
+  "gd-aggressive": "gd/index.ts",
+  "gd-stacker": "gd/index.ts",
+};
+
 /** The rule bots a measuring run may seat with some settings moved, each by its code and
  *  its own settings: its preferences and its work knob. Never its opponent model, which is
  *  pinned (`rule-v1/params.ts`). */
