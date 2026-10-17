@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { type BufferGeometry, Group, InstancedBufferAttribute, InstancedMesh, MeshLambertMaterial, Object3D, Vector3 } from "three";
-import { FORAGE_FORM, FORAGE_VARIANTS, type ForageChunk, type ForageSpot } from "../../engine/forage";
+import { FORAGE_FORM, FORAGE_VARIANTS, type ForageChunk, type ForageForm, type ForageSpot } from "../../engine/forage";
 import { FORAGE_KINDS, type ForageKind } from "../../engine/regions";
 import { wantedChunks, type ChunkKey } from "../../engine/streaming";
 import type { Foraged } from "../../gameplay/basket";
@@ -44,6 +44,8 @@ interface Design {
   mesh: InstancedMesh | null;
 }
 
+type Materials = Record<ForageForm, MeshLambertMaterial>;
+
 const designId = (kind: ForageKind, variant: number, part: ForagePart) => `${kind}/${variant}/${part}`;
 const chunkId = (k: ChunkKey) => `${k.chunkX},${k.chunkZ}`;
 
@@ -73,7 +75,14 @@ export function WorldForage({
   input: RefObject<WalkState>;
 }) {
   const group = useMemo(() => new Group(), []);
-  const material = useMemo(() => shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere), [atmosphere]);
+  // A berry bush's leaves and its fruit sway and take the light together, as foliage; a mushroom stands still.
+  const materials = useMemo<Materials>(
+    () => ({
+      berry: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "foliage", atmosphere),
+      mushroom: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
+    }),
+    [atmosphere],
+  );
   const designs = useMemo(() => {
     const out = new Map<string, Design>();
     for (const kind of FORAGE_KINDS) {
@@ -94,9 +103,10 @@ export function WorldForage({
         design.geometry.dispose();
         design.mesh?.dispose();
       }
-      material.dispose();
+      materials.berry.dispose();
+      materials.mushroom.dispose();
     },
-    [designs, material],
+    [designs, materials],
   );
 
   useEffect(() => {
@@ -147,7 +157,7 @@ export function WorldForage({
     const chunks = [...s.chunks.keys()].join(";");
     if (chunks !== s.filled.chunks || foraging.foraged !== s.filled.foraged || hour !== s.filled.hour) {
       s.filled = { chunks, foraged: foraging.foraged, hour };
-      fill([...s.chunks.values()], foraging.foraged, time, designs, group, material, dummy);
+      fill([...s.chunks.values()], foraging.foraged, time, designs, group, materials, dummy);
     }
 
     const viewer: Viewer | null =
@@ -157,7 +167,7 @@ export function WorldForage({
     for (const spot of takePopping(foraging)) {
       const design = designs.get(designId(spot.kind, spot.variant, FORAGE_FORM[spot.kind] === "berry" ? "fruit" : "plant"));
       if (!design) throw new Error(`No design to pop for ${spot.kind}`);
-      const pop = makePop(design.geometry, material, spot, palette);
+      const pop = makePop(design.geometry, materials[FORAGE_FORM[spot.kind]], spot, palette);
       s.pops.push(pop);
       group.add(pop.group);
     }
@@ -173,7 +183,7 @@ export function WorldForage({
 }
 
 /** Copies every spot into its design's mesh as it shows today. */
-function fill(chunks: readonly ForageChunk[], foraged: Foraged, time: ForageTime, designs: Map<string, Design>, group: Group, material: MeshLambertMaterial, dummy: Object3D): void {
+function fill(chunks: readonly ForageChunk[], foraged: Foraged, time: ForageTime, designs: Map<string, Design>, group: Group, materials: Materials, dummy: Object3D): void {
   const placed = new Map<string, ForageSpot[]>();
   const add = (spot: ForageSpot, part: ForagePart) => {
     const id = designId(spot.kind, spot.variant, part);
@@ -200,7 +210,7 @@ function fill(chunks: readonly ForageChunk[], foraged: Foraged, time: ForageTime
         group.remove(mesh);
         mesh.dispose();
       }
-      mesh = new InstancedMesh(design.geometry, material, Math.max(64, 2 ** Math.ceil(Math.log2(spots.length * 1.25))));
+      mesh = new InstancedMesh(design.geometry, materials[FORAGE_FORM[design.kind]], Math.max(64, 2 ** Math.ceil(Math.log2(spots.length * 1.25))));
       mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(mesh.instanceMatrix.count * 3), 3);
       mesh.frustumCulled = false;
       mesh.castShadow = design.part !== "cut";

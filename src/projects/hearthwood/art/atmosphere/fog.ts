@@ -1,6 +1,8 @@
 import { Color, Vector3, Vector4 } from "three";
 import { REGIONS } from "../../engine/regions";
+import type { DayState } from "../daylight";
 import type { FeatureArt } from "../feature-art";
+import type { WeatherNow } from "../weather/now";
 import { REGION_AIR } from "../palette";
 import { smoothstep } from "../../engine/noise";
 import { blendByRegion, weatherColours } from "./colours";
@@ -89,6 +91,20 @@ export function fogLayerDepth(density: number, floorY: number, height: number, e
   return density * dist * mean;
 }
 
+/**
+ * The fog's layers now, from the weather: the clear air's, the mist's and the veil's densities at their floors (per
+ * metre), and the air's scale height, the mist's floor and the mist's and the veil's scale heights (metres). Read by
+ * anything that marches through the same air (the god rays).
+ */
+export function fogLayers(day: DayState, weather: WeatherNow, density: Vector3, layers: Vector4): void {
+  const w = weather.weather;
+  const regionAir = REGIONS.reduce((sum, region, i) => sum + weather.regions[i] * REGION_AIR[region], 0);
+  // The moments' own haze (thicker at dawn, thinner at noon) moves it half as much as it moves the plain haze.
+  const hour = 0.5 + 0.5 * day.light.haze;
+  density.set(AIR.density * Math.pow(w.haze / 0.3, 1.2) * regionAir * hour, MIST.density * Math.pow(w.mist, 1.5) * (0.6 + 0.4 * regionAir), VEIL.density * w.precipitation * (1 + w.snow));
+  layers.set(AIR.height, weather.floor, MIST.height * (1 + w.precipitation), VEIL.height);
+}
+
 const uniforms = {
   uHwFogAir: { value: new Color() },
   uHwFogSun: { value: new Color() },
@@ -121,15 +137,7 @@ export const FOG_ART: FeatureArt = {
   ],
   frame: ({ day, atmosphere, sky, weather }) => {
     const w = weather.weather;
-    const regionAir = REGIONS.reduce((sum, region, i) => sum + weather.regions[i] * REGION_AIR[region], 0);
-    // The moments' own haze (thicker at dawn, thinner at noon) moves it half as much as it moves the plain haze.
-    const hour = 0.5 + 0.5 * day.light.haze;
-    uniforms.uHwFogDensity.value.set(
-      AIR.density * Math.pow(w.haze / 0.3, 1.2) * regionAir * hour,
-      MIST.density * Math.pow(w.mist, 1.5) * (0.6 + 0.4 * regionAir),
-      VEIL.density * w.precipitation * (1 + w.snow),
-    );
-    uniforms.uHwFogLayers.value.set(AIR.height, weather.floor, MIST.height * (1 + w.precipitation), VEIL.height);
+    fogLayers(day, weather, uniforms.uHwFogDensity.value, uniforms.uHwFogLayers.value);
     // The air glows the horizon's colour, a little bluer overhead; the mist is lit by the sky and the sun.
     uniforms.uHwFogAir.value.copy(atmosphere.uHwHaze.value).lerp(sky.uSky.value, 0.2);
     // Under a closing sky the sun no longer shines into the air: its glow fades as the cloud covers it.
