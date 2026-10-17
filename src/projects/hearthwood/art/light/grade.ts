@@ -75,14 +75,15 @@ export function mixGrades(a: Grade, b: Grade, t: number): Grade {
 
 /** The grade for a mix of seasons (the engine's `seasonWeights`, summing to 1): each season's grade in its share. */
 export function gradeFor(weights: SeasonWeights): Grade {
-  let grade = SEASON_GRADES.spring;
-  let total = weights.spring;
-  for (const season of ["summer", "autumn", "winter"] as const) {
+  let grade: Grade | null = null;
+  let total = 0;
+  for (const season of ["spring", "summer", "autumn", "winter"] as const) {
     const w = weights[season];
     if (w <= 0) continue;
     total += w;
-    grade = mixGrades(grade, SEASON_GRADES[season], w / total);
+    grade = grade === null ? SEASON_GRADES[season] : mixGrades(grade, SEASON_GRADES[season], w / total);
   }
+  if (grade === null) throw new Error("A season's weights must not all be nothing");
   return grade;
 }
 
