@@ -92,16 +92,24 @@ Cooking happens at the campfire in pans, a pot and on sticks over the flames, an
 
 - **Brewing** at the hearth: teas, salves and charms from foraged things. A charm does something gentle and visible (makes flowers bloom round camp, calls fireflies, draws a shy cat closer, clears the fog from a view).
 - **The moon** goes through its phases night by night; some herbs are gathered only under a full moon.
-- **The Wheel of the Year** is the calendar (see Seasons).
+- **The Wheel of the Year** sits on the calendar as its festivals (see Seasons and the calendar).
 - **Rituals** at the festivals and at places of power (a stone circle, a sacred spring): small, quiet set pieces such as lighting a Beltane fire or leaving an offering at Mabon.
 
-## Seasons
+## Seasons and the calendar
 
-The game's year is the Wheel of the Year: its eight festivals (Samhain, Yule, Imbolc, Ostara, Beltane, Litha, Lughnasadh and Mabon) divide the seasons, and each changes the light, the weather, what grows and what can be brewed. Weather is seeded and gentle: mist, soft rain, snow, golden evenings. A season lasts long enough to enjoy and passes on its own.
+**Four Nordic seasons**: spring, summer, autumn and winter, and the world changes with them: the trees leaf out, turn and go bare (conifers stay green), the ground goes from snowmelt and new green through summer meadow and autumn gold to snow, the water freezes at the edges in winter, and the light and the colour grade follow. Weather is seeded and gentle: mist, soft rain, snow, golden evenings.
+
+**The sun and moon move as they really do at a latitude**, set once in the game's tuning and easy to change. It starts at **Helsinki's (about 60°N)**: around midsummer the sun is up for about nineteen hours and the short night never gets fully dark; around midwinter it is up for about six, low in the south. Day length, the sun's height and where it rises and sets all come from the latitude and the day of the year, not from hand-set seasons.
+
+**The calendar is the game's own, faster than real time**: a day still passes in minutes of play, a season in a number of days, and the year turns round in an evening or two of play, so a player sees every season. The day's length in minutes, the days in a season and the moon's cycle in days are one tuning each.
+
+**The Wheel of the Year** sits on that calendar as its eight festivals (Samhain, Yule, Imbolc, Ostara, Beltane, Litha, Lughnasadh and Mabon): the solstices, the equinoxes and the four days between, each a small occasion with what can be gathered, brewed and done on it.
 
 ## The night sky
 
-Each valley's sky is generated, and the stars form constellations the player can find and name by the fire. The moon's phase is shown truly.
+- **The moon is a real moon**: a lit sphere, so its phase is the sun lighting it from where the sun is, never a drawn crescent. It goes through its phases over its cycle, rises and sets at the times its phase gives it (a full moon rises at sunset, a new moon is up with the sun), lights the night by its phase, and shows a faint earthshine on a thin crescent. Its phase matters to witchcraft (see Witchcraft).
+- **Northern lights** come on clear nights, mostly in the long dark of autumn and winter, curtains of green with violet edges that drift and ripple, some nights faint and some nights a show, seeded so no two nights are alike.
+- **Stars** turn with the night, and form constellations the player can find and name by the fire.
 
 ## Controls
 
@@ -112,6 +120,7 @@ Walking, as built: the move goes the way the camera looks. In first person the c
 - **Keyboard and mouse:** WASD or the arrows walk, Shift runs, Q and E turn. In first person a click on the game locks the pointer and the mouse looks (round freely, up and down to just short of straight); Esc, the browser's own, frees it, and a prompt to click shows while it is free. Opening the ~ debug panel frees it too, and only a click locks it again. In third person dragging the mouse turns the camera and the wheel moves it in and out.
 - **Touch:** a stick appears under the thumb wherever it lands on the left half of the screen, walking at the push and running at its rim; dragging on the right half looks round in first person or turns the camera in third, where pinching moves it in and out. There is no pointer lock on touch.
 - **Controller:** the left stick walks at its push, the right stick looks or turns the camera, and the right trigger runs.
+- **Jumping and the broom:** jump (Space, the controller's A, a button on touch) is a small hop. Jumping again in the air takes out the broom and **glides**: a slow, gentle descent forward, steered by where the player looks, until the ground is reached or jump is pressed again to put it away. The broom never climbs, so mountains stay something to hike; gliding down off a ridge into the valley below is the reward for the climb. Real flight may come later as magic that is earned.
 - **Switching the view:** V, the controller's View button, or a small button at the top left on touch. The choice is kept on the device; without one, first person.
 - The third-person camera orbits the witch, within limits of tilt and distance, and comes in along its line where the land rises behind them rather than climbing over it. Both views share the way the player faces, so a switch keeps it.
 - How to walk is shown, for the input used last and the view, as its controls beside a symbol of what each does, until that input has walked; on touch, as a ghost stick on the left and a looking or turning symbol on the right. Before anything is used, a device whose main pointer is a finger is taken to be played by touch.
