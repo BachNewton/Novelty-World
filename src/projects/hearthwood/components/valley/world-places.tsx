@@ -8,7 +8,7 @@ import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { Palette } from "../../art/palette";
 import { placeGeometry, placeMaterial, placeWater } from "../../art/place-shapes";
-import type { SkyUniforms } from "../../art/sky";
+import type { SkyUniforms } from "../../art/sky/sky";
 import { waterMaterial } from "../../art/water";
 import { report, type Streaming } from "./world-land";
 

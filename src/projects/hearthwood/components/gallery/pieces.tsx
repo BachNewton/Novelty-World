@@ -14,7 +14,7 @@ import type { Palette } from "../../art/palette";
 import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import { fallRibbon, placeGeometry, type PlaceLook } from "../../art/place-shapes";
-import type { SkyUniforms } from "../../art/sky";
+import type { SkyUniforms } from "../../art/sky/sky";
 import { poolGeometry } from "../../art/water";
 import { Broom } from "../../art/broom";
 import { Witch, type WitchPose } from "../../art/witch";

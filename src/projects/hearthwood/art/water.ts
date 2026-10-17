@@ -4,7 +4,7 @@ import type { AtmosphereUniforms } from "./atmosphere";
 import { CURVATURE } from "./terrain";
 import type { Palette } from "./palette";
 import { shadeCustom } from "./shading";
-import type { SkyUniforms } from "./sky";
+import type { SkyUniforms } from "./sky/sky";
 
 /*
  * Water, opaque (no blending, so no overdraw) and lit by its own small

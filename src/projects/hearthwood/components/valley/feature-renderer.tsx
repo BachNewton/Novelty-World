@@ -5,10 +5,10 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { GpuTimer } from "@/shared/lib/three/gpu-timer";
 import { liveFeatures, type FeatureId } from "../../features";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
-import type { DayState } from "../../art/daylight";
+import type { DayState } from "../../art/light/daylight";
 import { FEATURE_ART } from "../../art/features";
 import { FrameRenderer, type FrameCosts } from "../../art/passes";
-import type { SkyUniforms } from "../../art/sky";
+import type { SkyUniforms } from "../../art/sky/sky";
 
 /*
  * The scene's render loop, in one component: it takes the frame over from

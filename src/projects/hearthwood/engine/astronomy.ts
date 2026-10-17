@@ -138,6 +138,21 @@ export function moonAt(dayOfYear: number, hour: number, age: number, latitude: n
   };
 }
 
+/** The sphere of the stars at a moment, as two directions in the world's axes: anything fixed among the stars is turned with it. */
+export interface CelestialFrame {
+  /** The celestial pole the sky turns round: due north, as high as the latitude. */
+  pole: Direction;
+  /** The March equinox's point on the celestial equator, where right ascension is 0. */
+  equinox: Direction;
+}
+
+/** Where the stars stand on a real day of the year at an hour: the sky turns once a sidereal day, a little faster than the sun, so the same stars rise about four minutes earlier each night. */
+export function celestialFrame(dayOfYear: number, hour: number, latitude: number): CelestialFrame {
+  const sun = equatorial(sunLongitude(dayOfYear), 0);
+  const sidereal = sunHourAngle(hour) + sun.rightAscension;
+  return { pole: seen(0, Math.PI / 2, latitude).direction, equinox: seen(sidereal, 0, latitude).direction };
+}
+
 /** When the sun rises past an elevation and sets below it again, in hours; or that it stays above or below it all day. */
 export type Crossing = { rises: number; sets: number } | "always-above" | "always-below";
 
