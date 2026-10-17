@@ -262,3 +262,26 @@ Whom an opponent hits is barely predictable beyond an even split (the best skill
 | the other five | unresolved when stopped | — |
 
 So calibrated beliefs on v3's preferences lose at the 3-player lone seat, the table v3's preferences were tuned for on v3's own beliefs. The likeliest reading: v3's small-table preferences (vulnerability 1.18, border 0.35, common-threat 0.67) compensate for v3's beliefs, and moving the beliefs under them double-counts; the preferences need retuning on the new beliefs before the beliefs can be judged. Not yet tested.
+
+## v4's beliefs scored as a whole (`risk:opponents`, 2026-10-17)
+
+`risk:opponents -- --games 400 --models v3,v4` on the three fields above (seeds `opp-*`, 10 workers; 389, 217 and 204 s). v3's model against v4's, the same turns:
+
+| Field, table | Aim skill v3 / v4 | Leader: v4 believed / taken | Loss caused ÷ priced, v3 / v4 | Loss MSE v3 / v4 / even split | Kill Brier v3 / v4 | My kill exposure: v3 / v4 believed, killed |
+|---|---|---|---|---|---|---|
+| mixed, 3p | −0.50 / +0.03 | 63% / 65% | 0.61 / 0.74 | 1048 / 1018 / 1073 | 0.68 / 0.16 | 13.6% / 8.6%, 6.5% |
+| mixed, 4p | −0.40 / +0.03 | 59% / 57% | 0.79 / 1.06 | 69.6 / 49.2 / 50.6 | 0.60 / 0.15 | 11.8% / 8.0%, 6.8% |
+| mixed, 6p | −0.17 / +0.03 | 63% / 62% | 0.83 / 1.05 | 58.8 / 51.7 / 63.1 | 0.55 / 0.15 | 12.6% / 9.1%, 9.0% |
+| v3s, 3p | −0.31 / +0.03 | 69% / 76% | 1.60 / 1.99 | 105 / 117 / 113 | 0.55 / 0.19 | 9.1% / 5.5%, 8.7% |
+| v3s, 4p | −0.17 / +0.04 | 64% / 69% | 1.52 / 1.88 | 61.1 / 65.4 / 64.6 | 0.50 / 0.18 | 8.5% / 5.7%, 8.8% |
+| v3s, 6p | −0.02 / +0.05 | 68% / 70% | 1.23 / 1.41 | 34.1 / 33.0 / 32.6 | 0.55 / 0.09 | 15.2% / 11.1%, 4.4% |
+| v3 among v2s, 3p | −0.30 / +0.03 | 66% / 73% | 1.40 / 1.72 | 212 / 171 / 133 | 0.57 / 0.15 | 10.4% / 6.3%, 7.3% |
+| v3 among v2s, 4p | −0.15 / +0.04 | 63% / 66% | 1.54 / 1.85 | 52.0 / 55.6 / 55.0 | 0.55 / 0.14 | 9.2% / 6.2%, 6.9% |
+| v3 among v2s, 6p | −0.02 / +0.05 | 66% / 67% | 1.26 / 1.46 | 31.1 / 30.9 / 30.7 | 0.57 / 0.09 | 14.9% / 11.3%, 4.8% |
+
+Read: the aim, the leader's gang-up and opponents' kills are better calibrated by v4 at every table of every field. Two beliefs are not, and both point the same way among the rule bots, the fields the gauntlet plays:
+
+- **The loss is underpriced, and v4 underprices it more.** Among rule bots an opponent's turn costs me 1.2 to 1.6 times what v3 prices it at; v3's too-confident aim (every opponent at the leader) partly made up for a hit that is too small. v4 fixes the aim, not the hit, so its priced loss falls further below the truth (1.7 to 2.0 at small tables), and its loss MSE gets worse there, not better. In the mixed field, where GD's personas hit softly, v4's loss is about right (1.05).
+- **My own kill exposure, at small tables among rule bots.** `myKillRate` 0.5 was measured on the mixed field; rule bots kill me nearer the rate v3 believed. Among v3s at 3 players v3 believed 9.1% and I was killed 8.7%; v4 believes 5.5%.
+
+So among rule bots v4 believes its border and its survival are safer than they are, which would make it bolder exactly where it lost. The ablations test which belief does it.
