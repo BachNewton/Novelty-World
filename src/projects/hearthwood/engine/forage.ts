@@ -233,7 +233,7 @@ function slopeAt(ground: ForageGround, x: number, z: number): number {
 
 /** Whether anything to pick can grow on the ground at a point: dry land below the bare rock, not too steep. */
 function growable(land: LandSample, slope: number): boolean {
-  return land.height > land.water + 0.15 && land.river < 0.02 && land.height < ALTITUDE.rock && slope < 0.7;
+  return land.height > land.water + 0.15 && land.river < 0.02 && land.height - land.bands < ALTITUDE.rock && slope < 0.7;
 }
 
 function habitatAt(ground: ForageGround, x: number, z: number, land: LandSample, weights: RegionWeights, slope: number, trees: readonly Tree[]): Habitat {
@@ -255,7 +255,7 @@ function habitatAt(ground: ForageGround, x: number, z: number, land: LandSample,
     ...shares,
     wet,
     bog: smoothstep(0.45, 0.8, wet) * low * (1 - smoothstep(0.15, 0.4, slope)),
-    alpine: smoothstep(ALTITUDE.treeline - 10, ALTITUDE.treeline + 30, land.height),
+    alpine: smoothstep(ALTITUDE.treeline - 10, ALTITUDE.treeline + 30, land.height - land.bands),
   };
 }
 

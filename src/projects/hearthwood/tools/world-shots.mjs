@@ -324,14 +324,19 @@ if (want("peaks")) {
         const x = peak.x + Math.cos(angle) * r;
         const z = peak.z + Math.sin(angle) * r;
         const here = world.at(x, z);
-        if (here.height - here.water < 1 || here.river > 0 || here.height > 250) continue;
+        if (here.height - here.water < 1 || here.river > 0 || here.height > 250 || here.woodland > 0.03) continue;
+        // Open ground on the way too, so the first trees don't hide the range.
+        const ax = (peak.x - x) / r;
+        const az = (peak.z - z) / r;
+        if ([40, 90, 160].some((d) => world.at(x + ax * d, z + az * d).woodland > 0.05)) continue;
+        if (Math.hypot(height(x + 15, z) - height(x - 15, z), height(x, z + 15) - height(x, z - 15)) / 30 > 0.12) continue;
         const aim = (peak.height - here.height) / r;
         let hidden = 0;
         for (let q = 1; q <= 30; q++) {
           const f = (q / 30) * 0.75;
           hidden = Math.max(hidden, (height(x + (peak.x - x) * f, z + (peak.z - z) * f) - here.height - 3) / (f * r) / aim);
         }
-        const score = hidden + here.woodland;
+        const score = hidden;
         if (meadow === null || score < meadow.score) meadow = { x, z, height: here.height, score };
       }
     }
@@ -341,7 +346,7 @@ if (want("peaks")) {
     for (let z = peak.z - 5000; z <= peak.z + 5000; z += 80) {
       for (let x = peak.x - 5000; x <= peak.x + 5000; x += 80) {
         const h = height(x, z);
-        if (h < peak.height * 0.2 || h > peak.height * 0.75) continue;
+        if (h < peak.height * 0.35 || h > peak.height * 0.75) continue;
         const e = 20;
         const slope = Math.hypot(height(x + e, z) - height(x - e, z), height(x, z + e) - height(x, z - e)) / (2 * e);
         if (slope > 0.3) continue;
@@ -361,7 +366,7 @@ if (want("peaks")) {
         }
         // Walls on either side: the land 500 m off across the valley rises well above the floor.
         const walls = Math.max(...[0, 1, 2, 3].map((k) => Math.min(rim[k], rim[k + 4]))) - h;
-        if (walls > 250 && (valley === null || walls + h * 0.2 > valley.score)) valley = { x, z, height: h, score: walls + h * 0.2, yaw: lowAngle + Math.PI };
+        if (walls > 250 && world.at(x, z).woodland < 0.2 && (valley === null || walls + h * 0.2 > valley.score)) valley = { x, z, height: h, score: walls + h * 0.2, yaw: lowAngle + Math.PI };
         // A col: lower than the land on two opposite sides and higher than the land on the other two.
         for (let k = 0; k < 4; k++) {
           const up = Math.min(rim[k], rim[k + 4]) - h;
