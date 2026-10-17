@@ -8,7 +8,7 @@ import { tileId, tileWidth, wantedTiles, type Eye, type TileKey } from "../../en
 import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { Palette } from "../../art/palette";
-import type { SkyUniforms } from "../../art/sky";
+import type { SkyUniforms } from "../../art/sky/sky";
 import { terrainGeometry, terrainMaterial, type Morph } from "../../art/terrain";
 import { farWaterMaterial } from "../../art/water/far-water";
 import { waterGeometry, waterMaterial, waterMesh } from "../../art/water/water";

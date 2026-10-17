@@ -4,7 +4,7 @@ import type { AtmosphereUniforms } from "../atmosphere";
 import { LATE_LAYER } from "../passes";
 import type { Palette } from "../palette";
 import { shadeCustom } from "../shading";
-import type { SkyUniforms } from "../sky";
+import { SKY_ALONG_GLSL, type SkyUniforms } from "../sky/sky";
 import { CURVATURE } from "../terrain";
 import { regionAbsorption, tileAbsorption } from "./absorption";
 
@@ -63,23 +63,8 @@ void main() {
 }
 `;
 
-/** The sky's colour along a direction, from the same uniforms the sky's dome is drawn from: what water mirrors and what shows through it from below. */
-export const WATER_SKY_GLSL = /* glsl */ `
-uniform vec3 uSky;
-uniform vec3 uMoonDir;
-uniform float uNight;
-uniform vec3 uMoon;
-vec3 hwSkyAlong(vec3 dir) {
-  float up = max(dir.y, 0.0);
-  vec3 colour = mix(uHwHaze, uSky, pow(smoothstep(0.0, 0.75, up), 0.7));
-  float toSun = max(dot(dir, uHwSunDir), 0.0);
-  float sunUp = smoothstep(-0.12, 0.1, uHwSunDir.y);
-  colour += uHwSunColor * (0.35 * pow(toSun, 8.0) + 0.25 * pow(toSun, 64.0)) * sunUp;
-  float toMoon = max(dot(dir, uMoonDir), 0.0);
-  colour += uMoon * 0.12 * pow(toMoon, 30.0) * uNight;
-  return colour;
-}
-`;
+/** The sky's colour along a direction, as the sky's dome draws it (`hwSkyAlong`): what water mirrors and what shows through it from below. */
+export const WATER_SKY_GLSL = SKY_ALONG_GLSL;
 
 const FRAGMENT = /* glsl */ `
 uniform vec3 uShallow;
@@ -223,9 +208,7 @@ export function poolGeometry(radius: number): BufferGeometry {
 export function waterUniforms(palette: Palette, sky: SkyUniforms) {
   return {
     uSky: sky.uSky,
-    uMoonDir: sky.uMoonDir,
-    uNight: sky.uNight,
-    uMoon: sky.uMoon,
+    uSunDir: sky.uSunDir,
     uShallow: { value: new Color().copy(palette.things["water-shallow"]) },
     uDeep: { value: new Color().copy(palette.things["water-deep"]) },
     uFoam: { value: new Color().copy(palette.things["water-foam"]) },

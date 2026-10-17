@@ -1,5 +1,5 @@
 import type { FeatureArt } from "../feature-art";
-import { KEY_LIGHT_GLSL, updateKeyLight } from "./key-light";
+import { KEY_LIGHT_GLSL } from "./key-light";
 
 /*
  * The far land's own shading: past where the shadow maps reach (or
@@ -23,5 +23,4 @@ hwIndirect *= 1.0 - 0.18 * hwTurned * hwBeyond;
 export const FAR_SHADING_ART: FeatureArt = {
   feature: "farShading",
   chunks: [{ kinds: ["land"], fragmentHead: KEY_LIGHT_GLSL, light: FAR_SHADING_GLSL }],
-  frame: updateKeyLight,
 };

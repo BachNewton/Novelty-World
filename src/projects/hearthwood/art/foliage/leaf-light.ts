@@ -1,5 +1,5 @@
 import type { FeatureArt } from "../feature-art";
-import { KEY_LIGHT_GLSL, updateKeyLight } from "../shadows/key-light";
+import { KEY_LIGHT_GLSL } from "../shadows/key-light";
 
 /*
  * Light through leaves: a leaf with the sun behind it glows, deeper in its
@@ -28,5 +28,4 @@ hwDirect += uHwKeyLight * hwLeaf * 0.3183098862 * hwThrough * hwGlow;
 export const LEAF_LIGHT_ART: FeatureArt = {
   feature: "leafLight",
   chunks: [{ kinds: ["foliage"], fragmentHead: KEY_LIGHT_GLSL, light: LEAF_LIGHT_GLSL }],
-  frame: updateKeyLight,
 };
