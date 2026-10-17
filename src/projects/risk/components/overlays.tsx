@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Rabbit, ScrollText, Turtle, Volume2, VolumeX, X, Zap } from "lucide-react";
+import { LogOut, Rabbit, ScrollText, Turtle, X, Zap } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import type { InputKind } from "@/shared/lib/input";
@@ -11,7 +11,6 @@ import type { TerritoryId } from "../map";
 import { describeEvents, isWild, territoryName } from "../ui/describe";
 import { SPEEDS } from "../ui/playback";
 import { CardChip, CardPips, DiceRow, SeatMark, SeatName, Slider } from "./bits";
-import { useRiskSoundSettings } from "./sound-board";
 import { BUTTON, DISPLAY, PANEL, PRIMARY } from "./theme";
 
 /** A panel over the game, holding a controller's focus while it is open: the d-pad moves round
@@ -56,21 +55,9 @@ function SpeedControl({ speed, setSpeed, input }: { speed: number; setSpeed: (sp
   );
 }
 
-/** Sound on or off: the speaker shows which, struck through while muted. */
-function MuteToggle() {
-  const muted = useRiskSoundSettings((s) => s.settings.muted);
-  const toggleMuted = useRiskSoundSettings((s) => s.toggleMuted);
-  const Icon = muted ? VolumeX : Volume2;
-  return (
-    <button type="button" className={HEADER_BUTTON} onClick={toggleMuted} aria-label="Mute sound" aria-pressed={muted} title={muted ? "Sound off" : "Sound on"}>
-      <Icon size="1.1em" aria-hidden className={cn(muted && "text-(--rk-muted)")} />
-    </button>
-  );
-}
-
 /** The war room, the game's one menu: the hand, the trades open to it (each with what it is
  *  worth), what every player can see of the cards (note `public-cards`: each hand's size, the
- *  deck's size and every trade made), the sound and the playback speed, and the way to the battle
+ *  deck's size and every trade made), the playback speed, and the way to the battle
  *  log and out of the game. */
 export function WarRoom({ view, options, act, onClose, onLog, onQuit, input, speed, setSpeed }: { view: GameView; options: Options | null; act: (move: Move) => void; onClose: () => void; onLog: () => void; onQuit: () => void; input: InputKind; speed: number; setSpeed: (speed: number) => void }) {
   const hand = view.cards.hand ?? [];
@@ -96,7 +83,6 @@ export function WarRoom({ view, options, act, onClose, onLog, onQuit, input, spe
       wide
       actions={
         <>
-          <MuteToggle />
           <button type="button" className={HEADER_BUTTON} onClick={onLog} aria-label="Battle log" title="Battle log">
             <ScrollText size="1.1em" />
           </button>

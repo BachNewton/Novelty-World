@@ -20,13 +20,11 @@ import type { Rect } from "../ui/camera";
 import { CardPips, SeatMark, SeatName } from "./bits";
 import { GraphBoard } from "./graph-board";
 import { LogDialog, WarRoom } from "./overlays";
-import { riskSounds } from "./sound-board";
 import { StatusBox } from "./status-box";
 import { BUTTON, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
 import type { BoardHandle, Marks } from "./use-board-camera";
 import { usePlayback, useSpeed } from "./use-playback";
 import { useRiskInput, type FocusZone } from "./use-risk-input";
-import { useRiskSounds } from "./use-risk-sounds";
 
 /** What the game screen plays: the game as this player's seat sees it, and how to move. An
  *  online game gives it this through `use-online-feed.ts`. */
@@ -99,7 +97,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
   const shown = useMemo(() => shownLog.map((logged) => logged.event), [shownLog]);
   const board = useRef<BoardHandle>(null);
   const box = useRef<HTMLDivElement>(null);
-  useRiskSounds(shownLog, view, feed.problem);
 
   // Until something is used, hints suit the device: none on a touch screen, keys elsewhere.
   const coarse = useSyncExternalStore(subscribeCoarse, () => window.matchMedia(COARSE).matches, () => false);
@@ -147,15 +144,9 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
 
   const choose = (territory: TerritoryId) => {
     const result = pick(options, selection, territory);
-    if (result === null) {
-      if (step.kind === "pick") riskSounds.play("invalid");
-      return;
-    }
+    if (result === null) return;
     if ("move" in result) act(result.move);
-    else {
-      riskSounds.play("select");
-      setSelection(result.selection);
-    }
+    else setSelection(result.selection);
   };
 
   const placed = (ids: readonly TerritoryId[]) => ids.map((id) => ({ id, ...locate(id) }));
