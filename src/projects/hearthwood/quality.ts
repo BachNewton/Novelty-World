@@ -17,13 +17,15 @@ export interface Quality {
   trees: PlantReach;
   /** Bushes, heather and rocks. */
   shrubs: PlantReach;
-  /** Flowers, ferns and mushrooms. */
+  /** Flowers and ferns. */
   small: PlantReach;
   /** The sharpest the world draws, in device pixels per CSS pixel. */
   maxPixelRatio: number;
-  /** The sun's shadow map, in texels a side, and how far round the walker it reaches, in metres. */
+  /** Each of the sun's shadow maps, in texels a side. */
   shadowMap: number;
+  /** How far from the camera the shadows reach, in metres: in four maps with the far shadows on (`shadowCascades`), in one without. */
   shadowReach: number;
+  shadowReachNear: number;
   /** How many tiles of land and chunks of plants are built in one frame while the world streams in. */
   buildsPerFrame: number;
 }
@@ -44,7 +46,8 @@ export const DESKTOP: Quality = {
   small: { near: 90, far: 200, thinFrom: Infinity, keep: 1 },
   maxPixelRatio: 2,
   shadowMap: 2048,
-  shadowReach: 60,
+  shadowReach: 900,
+  shadowReachNear: 60,
   buildsPerFrame: 8,
 };
 

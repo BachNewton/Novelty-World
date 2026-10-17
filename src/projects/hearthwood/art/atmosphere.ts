@@ -22,6 +22,8 @@ export interface AtmosphereUniforms {
   /** The light falling on a surface that lights itself in its own shader (water): from the sky and the ground all round, and from the sun (or moon). */
   uHwSkyLight: { value: Color };
   uHwSunLight: { value: Color };
+  /** The key light's colour times its intensity, exactly as the directional light shines it (the sun's or the moon's). */
+  uHwKeyLight: { value: Color };
 }
 
 export function makeAtmosphere(): AtmosphereUniforms {
@@ -35,6 +37,7 @@ export function makeAtmosphere(): AtmosphereUniforms {
     uHwTime: { value: 0 },
     uHwSkyLight: { value: new Color(1, 1, 1) },
     uHwSunLight: { value: new Color() },
+    uHwKeyLight: { value: new Color() },
   };
 }
 
@@ -49,6 +52,7 @@ uniform vec3 uHwShadowTint;
 uniform float uHwTime;
 uniform vec3 uHwSkyLight;
 uniform vec3 uHwSunLight;
+uniform vec3 uHwKeyLight;
 `;
 
 /** Value noise, for anything drawn that wants a little unevenness. */

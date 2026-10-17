@@ -7,6 +7,7 @@ import { liveFeatures, type FeatureId } from "../../features";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { DayState } from "../../art/light/daylight";
 import { FEATURE_ART } from "../../art/features";
+import type { FeatureFrame } from "../../art/feature-art";
 import { FrameRenderer, type FrameCosts } from "../../art/passes";
 import type { SkyUniforms } from "../../art/sky/sky";
 
@@ -21,12 +22,25 @@ import type { SkyUniforms } from "../../art/sky/sky";
 export const RENDER_PRIORITY = 1;
 export const AFTER_RENDER_PRIORITY = 2;
 
-export function FeatureRenderer({ day, atmosphere, sky, costs }: { day: DayState; atmosphere: AtmosphereUniforms; sky: SkyUniforms; costs: FrameCosts }) {
+export function FeatureRenderer({
+  day,
+  atmosphere,
+  sky,
+  costs,
+  player = null,
+}: {
+  day: DayState;
+  atmosphere: AtmosphereUniforms;
+  sky: SkyUniforms;
+  costs: FrameCosts;
+  /** Where Elliott stands, read every frame. */
+  player?: FeatureFrame["player"];
+}) {
   const gl = useThree((s) => s.gl);
   const renderer = useMemo(() => new FrameRenderer(gl, liveFeatures(), FEATURE_ART, new GpuTimer(gl)), [gl]);
   useEffect(() => () => renderer.dispose(), [renderer]);
   useFrame(({ scene, camera }, delta) => {
-    renderer.render({ gl, scene, camera, day, atmosphere, sky, delta }, costs);
+    renderer.render({ gl, scene, camera, day, atmosphere, sky, delta, player }, costs);
   }, RENDER_PRIORITY);
   return null;
 }

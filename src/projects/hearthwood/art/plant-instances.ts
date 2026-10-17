@@ -9,7 +9,7 @@ import type { Plant } from "../engine/life";
 
 /** Sets `dummy` to the plant's placing and returns its matrix. */
 export function plantMatrix(p: Plant, dummy: Object3D): Matrix4 {
-  const sink = p.kind === "rock" ? p.size * 0.12 : p.kind === "flowers" || p.kind === "mushroom" || p.kind === "fern" ? 0 : 0.12;
+  const sink = p.kind === "rock" ? p.size * 0.12 : p.kind === "flowers" || p.kind === "fern" ? 0 : 0.12;
   dummy.position.set(p.x, p.y - sink, p.z);
   dummy.rotation.set(Math.cos(p.leanToward) * p.lean, p.turn, Math.sin(p.leanToward) * p.lean);
   if (p.kind === "rock") dummy.scale.set(p.size, p.size * (0.6 + 0.5 * (p.stretch - 0.85)) * 1.4, p.size * p.stretch);

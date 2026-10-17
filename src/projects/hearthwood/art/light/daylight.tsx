@@ -15,7 +15,7 @@ import { airglowAmount, moonPhaseLight, rgb, skyColour, skyLighting, sunGlow, ty
 import type { SkyUniforms } from "../sky/sky";
 import { SKY_INPUTS } from "../sky/sky-inputs";
 import { skyColours } from "../sky/tokens";
-import { handoverAt, keyBody, raised } from "./handover";
+import { handoverAt } from "./handover";
 import { moonlight } from "./moonlight";
 import { AMBIENT_DIRECTIONS, irradianceAt, projectLight } from "./sky-ambient";
 import { smooth, sunlight, unitLuminance, type BodyLight } from "./sun";
@@ -24,7 +24,8 @@ import { toneMappingFor } from "./tone-mapping";
 /*
  * The day's light, set each frame from the calendar's sky before anything
  * is drawn, so the whole frame reads the same moment: the sun or the moon
- * and its shadows round a point of focus, the light from the sky and the
+ * shining on a point of focus (its shadows are a feature of their own, in
+ * `art/shadows/`), the light from the sky and the
  * ground all round, the haze's colour, the sky's colours and the stars'
  * turning, and the camera's exposure and tone curve.
  *
@@ -55,7 +56,7 @@ export interface DayState {
   motion: number;
 }
 
-/** Where the light centres its shadows. */
+/** Where the light shines towards. */
 export interface Focus {
   x: number;
   y: number;
@@ -67,13 +68,6 @@ export interface Air {
   thickness: number;
 }
 
-export interface Shadows {
-  /** Texels along each side of the shadow map. */
-  map: number;
-  /** How far round the focus the sun's shadows reach, in metres. */
-  reach: number;
-}
-
 interface DaylightParts {
   day: DayState;
   palette: Palette;
@@ -81,7 +75,6 @@ interface DaylightParts {
   sky: SkyUniforms;
   focus: Focus;
   air: Air;
-  shadows: Shadows;
 }
 
 interface Lights {
@@ -98,22 +91,10 @@ interface Lights {
 /** The light on a surface from the sky all round, against the sky's own colour as drawn (a hand-set match to the plain light's). */
 const SKY_AMBIENT = 0.8;
 const NIGHT_EYE = 1.5;
+const LOW_SUN_EYE = 0.6;
 /** The plain light's hemisphere, and the water's share of it. */
 const HEMISPHERE = 1.6;
 const WATER_SKY = 1.1;
-
-/** The sun's shadows cover a square round the focus, and follow it. */
-function aimShadows(light: DirectionalLight, target: Object3D, reach: number): void {
-  light.target = target;
-  const camera = light.shadow.camera;
-  camera.left = -reach;
-  camera.right = reach;
-  camera.top = reach;
-  camera.bottom = -reach;
-  camera.near = 1;
-  camera.far = 400;
-  camera.updateProjectionMatrix();
-}
 
 /** A colour blended from each moment's palette colour by the light's mix of moments. */
 function blend(palette: Palette, mix: DaySky["mix"], name: MomentPart, out: Color): Color {
@@ -201,18 +182,19 @@ function lightTheWorld(parts: DaylightParts, lights: Lights, switches: FeatureSw
   const sunLight = on("sunLight") ? sunlight(sun, unitLuminance(rgb(colours["sun-morning"])), unitLuminance(rgb(colours["sun-evening"]))) : plainSun;
   const handover = on("handover") ? handoverAt(sun, moon) : null;
   const moonLight = on("moonlight") ? moonlight(moon, unitLuminance(rgb(colours.moonlight))) : { colour: plainSun.colour, intensity: light.sun * (handover ? moonPhaseLight(moon) : 1) };
-  const body = handover ? keyBody(sun) : key.body;
+  // Which body lights the world, and from where, is the engine's (the shadows follow it too); the handover only shapes how each fades.
+  const body = key.body;
   const shining = body === "sun" ? sunLight : moonLight;
   const fade = handover ? (body === "sun" ? handover.sun : handover.moon) : key.strength;
   const intensity = shining.intensity * fade;
   const direction = body === "sun" ? sun.direction : moon.direction;
-  const from = handover ? raised(direction) : direction;
   atmosphere.uHwSunColor.value.setRGB(shining.colour[0], shining.colour[1], shining.colour[2]);
   atmosphere.uHwSunDir.value.set(direction.x, direction.y, direction.z);
+  atmosphere.uHwKeyLight.value.copy(atmosphere.uHwSunColor.value).multiplyScalar(intensity);
   if (lights.key) {
     lights.key.color.copy(atmosphere.uHwSunColor.value);
     lights.key.intensity = intensity;
-    lights.key.position.set(focus.x + from.x * 180, focus.y + from.y * 180, focus.z + from.z * 180);
+    lights.key.position.set(focus.x + direction.x * 180, focus.y + direction.y * 180, focus.z + direction.z * 180);
     lights.target.position.set(focus.x, focus.y, focus.z);
     lights.target.updateMatrixWorld();
   }
@@ -235,11 +217,13 @@ function lightTheWorld(parts: DaylightParts, lights: Lights, switches: FeatureSw
     };
     const keyLight: Rgb = [shining.colour[0] * intensity, shining.colour[1] * intensity, shining.colour[2] * intensity];
     // The eye opens up in the dark, so the night's faint sky lights the land a little more than its share.
-    const gain = SKY_AMBIENT * lift * moonNight * (1 + NIGHT_EYE * airglowAmount(sun.elevation));
+    // Round a low sun the woods stand in the long shadows; the eye opens up for them as it does at night, so shade under the trees stays readable.
+    const lowSun = smooth(-2, 3, sun.elevation) * (1 - smooth(8, 20, sun.elevation));
+    const gain = SKY_AMBIENT * lift * moonNight * (1 + NIGHT_EYE * airglowAmount(sun.elevation) + LOW_SUN_EYE * lowSun);
     const signature = [sun.direction.x, sun.direction.y, moon.direction.x, moon.direction.y, intensity, gain, aurora, lights.altitude / 50, lighting ? 1 : 0, atmosphere.uHwHaze.value.r, sky.uSky.value.b]
       .map((n) => Math.round(n * 400))
       .join(",");
-    ambient.update(skyAt, rgb(colours["ground-bounce"]), keyLight, from, gain, signature);
+    ambient.update(skyAt, rgb(colours["ground-bounce"]), keyLight, direction, gain, signature);
     if (lights.probe) lights.probe.sh.copy(ambient.sh);
     const up = irradianceAt(ambient.sh, { x: 0, y: 1, z: 0 });
     atmosphere.uHwSkyLight.value.setRGB(up[0], up[1], up[2]).multiplyScalar(WATER_SKY / HEMISPHERE);
@@ -254,7 +238,7 @@ function lightTheWorld(parts: DaylightParts, lights: Lights, switches: FeatureSw
     }
     atmosphere.uHwSkyLight.value.copy(skyLight).multiplyScalar(strength * WATER_SKY);
   }
-  atmosphere.uHwSunLight.value.copy(atmosphere.uHwSunColor.value).multiplyScalar(intensity * 0.3 * Math.max(0.2, from.y));
+  atmosphere.uHwSunLight.value.copy(atmosphere.uHwSunColor.value).multiplyScalar(intensity * 0.3 * Math.max(0.2, direction.y));
   lights.gl.toneMappingExposure = light.exposure;
   // Three recompiles what is tone mapped only when this changes.
   lights.gl.toneMapping = toneMappingFor(on("toneMapping"));
@@ -281,11 +265,9 @@ export function Daylight(parts: DaylightParts) {
   const ambient = useMemo(() => new SkyAmbient(), []);
   const scratch = useMemo(() => ({ sunColour: new Color(), skyLight: new Color(), size: new Vector2() }), []);
   const skyAmbient = useSwitch("skyAmbient");
-  const { map, reach } = parts.shadows;
-
   useEffect(() => {
-    if (key.current) aimShadows(key.current, target, reach);
-  }, [target, reach]);
+    if (key.current) key.current.target = target;
+  }, [target]);
 
   // The lights shine on every layer, so what is drawn late (see `passes.ts`) is lit like the rest.
   useEffect(() => {
@@ -309,7 +291,7 @@ export function Daylight(parts: DaylightParts) {
 
   return (
     <>
-      <directionalLight ref={key} castShadow shadow-mapSize={[map, map]} shadow-bias={-0.0008} shadow-normalBias={0.22} />
+      <directionalLight ref={key} />
       <primitive object={target} />
       {skyAmbient ? <lightProbe ref={probe} /> : <hemisphereLight ref={hemisphere} />}
     </>

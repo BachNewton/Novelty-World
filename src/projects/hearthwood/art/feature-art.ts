@@ -80,6 +80,8 @@ export interface FeatureFrame {
   sky: SkyUniforms;
   /** Seconds since the last frame. */
   delta: number;
+  /** Where Elliott stands, for anything that answers them (plants parting round their feet); null where nobody walks (the gallery). */
+  player: { x: number; y: number; z: number } | null;
 }
 
 /**

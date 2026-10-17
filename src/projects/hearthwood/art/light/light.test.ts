@@ -4,7 +4,7 @@ import { realDayOf } from "../../engine/calendar";
 import { seasonWeights } from "../../engine/seasons";
 import type { Rgb } from "../sky/scattering";
 import { gradeFor, SEASON_GRADES, whiteBalance } from "./grade";
-import { handoverAt, keyBody, LOWEST_LIGHT, raised } from "./handover";
+import { handoverAt } from "./handover";
 import { FULL_MOON, moonlight } from "./moonlight";
 import { irradianceAt, projectLight } from "./sky-ambient";
 import { sunBrightness, sunlight } from "./sun";
@@ -46,7 +46,7 @@ describe("the handover from sun to moon", () => {
   const moon = moonOf(1, 30);
   it("fades the sun out as it crosses the horizon, and the moon in only once it is gone", () => {
     expect(handoverAt(sunAtElevation(5), moon).sun).toBe(1);
-    expect(handoverAt(sunAtElevation(-1), moon).sun).toBe(0);
+    expect(handoverAt(sunAtElevation(0), moon).sun).toBe(0);
     expect(handoverAt(sunAtElevation(-1), moon).moon).toBe(0);
     expect(handoverAt(sunAtElevation(-8), moon).moon).toBe(1);
   });
@@ -62,21 +62,12 @@ describe("the handover from sun to moon", () => {
     }
   });
 
-  it("switches body only while neither gives any light", () => {
-    for (let elevation = -3; elevation <= 3; elevation += 0.05) {
+  it("gives no light from either body while the engine hands the key light over at the horizon", () => {
+    for (let elevation = -1.5; elevation <= 0; elevation += 0.05) {
       const h = handoverAt(sunAtElevation(elevation), moon);
-      if (keyBody(sunAtElevation(elevation)) === "sun") expect(h.moon).toBe(0);
-      else expect(h.sun).toBe(0);
+      expect(h.sun).toBe(0);
+      expect(h.moon).toBe(0);
     }
-  });
-
-  it("lights from no lower than a little above the horizon, keeping the bearing", () => {
-    const low = raised({ x: 1, y: 0.01, z: 0 });
-    expect((Math.asin(low.y) * 180) / Math.PI).toBeCloseTo(LOWEST_LIGHT, 6);
-    expect(low.z).toBeCloseTo(0, 9);
-    expect(Math.hypot(low.x, low.y, low.z)).toBeCloseTo(1, 9);
-    const high = { x: 0, y: 1, z: 0 };
-    expect(raised(high)).toBe(high);
   });
 });
 
