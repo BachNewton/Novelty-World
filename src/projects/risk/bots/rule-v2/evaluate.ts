@@ -83,7 +83,7 @@ const breakdowns = new WeakMap<Params, Memo<Breakdown>>();
 /** The breakdown, remembered: the planner scores the same end of turn under several plans,
  *  and the move-in and the attack after it score the same boards again. */
 export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
-  return memoFor(breakdowns, params, 10_000).get(`${me.toString()}|${boardKey(b)}`, () => computeBreakdown(b, me, params));
+  return memoFor(breakdowns, params, 300).get(`${me.toString()}|${boardKey(b)}`, () => computeBreakdown(b, me, params));
 }
 
 function computeBreakdown(b: Board, me: Seat, params: Params): Breakdown {
