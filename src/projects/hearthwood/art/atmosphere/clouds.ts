@@ -142,10 +142,11 @@ export const CLOUDS_ART: FeatureArt = {
   ],
   frame: (frame) => {
     updateCloudField(frame);
-    const { day, atmosphere, weather } = frame;
-    lighting.light.copy(atmosphere.uHwSunColor.value).multiplyScalar(day.light.sun * day.sky.key.strength * 0.55);
-    lighting.sky.copy(atmosphere.uHwSkyLight.value).multiplyScalar(0.95);
-    lighting.ground.copy(atmosphere.uHwSkyLight.value).multiplyScalar(0.55).add(atmosphere.uHwSunLight.value);
+    const { atmosphere, sky, weather } = frame;
+    // Lit by the key light as it shines, and by the sky round them: the horizon's colour (as the sky draws it) and the sky overhead.
+    lighting.light.copy(atmosphere.uHwKeyLight.value).multiplyScalar(0.55);
+    lighting.sky.copy(atmosphere.uHwHaze.value).lerp(sky.uSky.value, 0.4).multiplyScalar(0.8);
+    lighting.ground.copy(atmosphere.uHwHaze.value).multiplyScalar(0.4).add(atmosphere.uHwSunLight.value);
     lighting.flash.copy(weatherColours().lightning).multiplyScalar(weather.flash * 1.1);
   },
   passes: [

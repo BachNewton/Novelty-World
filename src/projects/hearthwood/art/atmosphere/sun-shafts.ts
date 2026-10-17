@@ -97,7 +97,7 @@ export const SUN_SHAFTS_ART: FeatureArt = {
           setSize: (width, height) => {
             target.setSize(Math.max(1, Math.ceil(width / 2)), Math.max(1, Math.ceil(height / 2)));
           },
-          render: ({ gl, camera, colour, depth, output, atmosphere, day, weather, width, height }) => {
+          render: ({ gl, camera, colour, depth, output, atmosphere, weather, width, height }) => {
             if (!colour || !depth) throw new Error("Sun shafts read the finished frame and its depth");
             // Where the sun (or the moon) stands on the screen, and how far it is in front of the camera.
             sunAt.copy(atmosphere.uHwSunDir.value).multiplyScalar(1000).add(camera.position).project(camera);
@@ -106,14 +106,14 @@ export const SUN_SHAFTS_ART: FeatureArt = {
             const up = Math.min(1, Math.max(0, atmosphere.uHwSunDir.value.y * 8 + 0.2));
             const w = weather.weather;
             const air = Math.min(1, 0.3 + w.mist * 0.8 + Math.max(0, w.haze - 0.3) * 0.25);
-            const strength = ahead * inFrame * up * air * day.sky.key.strength * (1 - 0.8 * w.precipitation);
+            const strength = ahead * inFrame * up * air * (1 - 0.8 * w.precipitation);
             const u = smear.material.uniforms;
             u.tColour.value = colour;
             u.tDepth.value = depth;
             (u.uSun.value as Vector2).set(sunAt.x * 0.5 + 0.5, sunAt.y * 0.5 + 0.5);
             u.uAspect.value = width / height;
             smear.render(gl, target);
-            tint.copy(atmosphere.uHwSunColor.value);
+            tint.copy(atmosphere.uHwKeyLight.value).multiplyScalar(0.4);
             const c = compose.material.uniforms;
             c.tColour.value = colour;
             c.tShafts.value = target.texture;

@@ -135,15 +135,16 @@ export const FOG_ART: FeatureArt = {
       `,
     },
   ],
-  frame: ({ day, atmosphere, sky, weather }) => {
+  frame: ({ day, atmosphere, weather }) => {
     const w = weather.weather;
     fogLayers(day, weather, uniforms.uHwFogDensity.value, uniforms.uHwFogLayers.value);
-    // The air glows the horizon's colour, a little bluer overhead; the mist is lit by the sky and the sun.
-    uniforms.uHwFogAir.value.copy(atmosphere.uHwHaze.value).lerp(sky.uSky.value, 0.2);
+    // The air glows the horizon's own colour, as the sky draws it, so the land melts into the sky; the mist is the same light, whiter.
+    uniforms.uHwFogAir.value.copy(atmosphere.uHwHaze.value);
     // Under a closing sky the sun no longer shines into the air: its glow fades as the cloud covers it.
     const through = 1 - 0.9 * smoothstep(0.6, 1, w.cloudCover);
-    uniforms.uHwFogSun.value.copy(atmosphere.uHwSunColor.value).multiplyScalar(day.light.sun * day.sky.key.strength * 0.4 * through);
-    light.copy(atmosphere.uHwSkyLight.value).multiplyScalar(0.85).add(sun.copy(atmosphere.uHwSunLight.value).multiplyScalar(0.9));
+    uniforms.uHwFogSun.value.copy(atmosphere.uHwKeyLight.value).multiplyScalar(0.25 * through);
+    const haze = atmosphere.uHwHaze.value;
+    light.copy(haze).lerp(sun.setScalar(0.2126 * haze.r + 0.7152 * haze.g + 0.0722 * haze.b), 0.6).multiplyScalar(0.9);
     uniforms.uHwFogMist.value.copy(light).multiply(blendByRegion(weatherColours().mist, weather.regions, tint));
     // A closed sky lets less light into the air: rain and overcast are grey, not glaring.
     const gloom = 1 - 0.4 * w.cloudCover * w.cloudCover;

@@ -120,7 +120,7 @@ export const CREPUSCULAR_RAYS_ART: FeatureArt = {
           }),
         );
         return {
-          render: ({ gl, camera, colour, depth, output, atmosphere, day, weather }) => {
+          render: ({ gl, camera, colour, depth, output, atmosphere, weather }) => {
             if (!colour || !depth) throw new Error("Crepuscular rays read the finished frame and its depth");
             const u = quad.material.uniforms;
             u.tColour.value = colour;
@@ -129,7 +129,7 @@ export const CREPUSCULAR_RAYS_ART: FeatureArt = {
             (u.uViewToWorld.value as Matrix4).copy(camera.matrixWorld);
             (u.uEye.value as Vector3).setFromMatrixPosition(camera.matrixWorld);
             (u.uSunDir.value as Vector3).copy(atmosphere.uHwSunDir.value);
-            sun.copy(atmosphere.uHwSunColor.value).multiplyScalar(day.light.sun * day.sky.key.strength * 0.18);
+            sun.copy(atmosphere.uHwKeyLight.value).multiplyScalar(0.18);
             const w = weather.weather;
             // The air's thickness along a ray, as the fog's clear air reckons it; the beams show most in broken cloud.
             u.uAir.value = 1.4e-5 * Math.pow(w.haze / 0.3, 1.2) * 5;

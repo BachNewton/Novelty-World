@@ -163,8 +163,8 @@ export const GOD_RAYS_ART: FeatureArt = {
             const casting = SHADOW_UNIFORMS.uHwShadowMap.value !== null;
             if (casting) march.render(gl, target);
             // The key light's colour and strength, as strong as its shadows are.
-            const strength = casting ? day.light.sun * day.sky.key.strength * SHADOW_UNIFORMS.uHwShadowStrength.value : 0;
-            light.copy(atmosphere.uHwSunColor.value).multiplyScalar(0.35 * strength * (1 - 0.6 * weather.weather.precipitation));
+            const strength = casting ? SHADOW_UNIFORMS.uHwShadowStrength.value : 0;
+            light.copy(atmosphere.uHwKeyLight.value).multiplyScalar(0.35 * strength * (1 - 0.6 * weather.weather.precipitation));
             const c = compose.material.uniforms;
             c.tColour.value = colour;
             c.tShafts.value = target.texture;
