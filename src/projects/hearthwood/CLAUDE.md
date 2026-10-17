@@ -12,6 +12,10 @@ It lives at Games → 3D Games → Hearthwood, in Three.js through `@react-three
 - **Calm by default.** Soft sound, slow light, no notifications nagging for attention. The game waits as long as the player likes.
 - **Witchcraft is gentle and earthy**: hedge-witchery, herbs, the moon and the Wheel of the Year, treated with warmth and respect, never as spooky set dressing.
 
+## Target device
+
+Hearthwood's floor, for both its UI and its performance, is a **Pixel 8 Pro** in Chrome, held upright or sideways. It replaces the site-wide floor of phones up to four years old within this project: layouts are designed and checked at its viewport, and the game must run smoothly on its GPU (Tensor G3's Mali-G715), including after several minutes of play, when a phone runs warm and slows. Laptops and a laptop on a TV with a controller are above that floor.
+
 ## The loop
 
 A day has a shape, though nothing forces it:
@@ -28,7 +32,7 @@ Each valley is generated from a seed with the site's `seeded-random`, as pure fu
 - **Life:** trees, shrubs, flowers and mushrooms placed by biome, with clearings kept open; ingredients grow where they would in nature (watercress by streams, chanterelles under birch, juniper on dry slopes).
 - **Places:** a handful of points of interest per valley, each a small reason to walk: a standing stone circle, a fallen giant tree, a waterfall, a forgotten shrine, a hilltop view.
 - **Trails** link camp to the places along the land's easy lines, so there is always a path to follow and always the choice to leave it.
-- **Phones up to 4 years old** set the budget: the land streams in chunks around the player, vegetation is instanced and thinned with distance, and far hills are cheap silhouettes.
+- **The Pixel 8 Pro** sets the budget (see Target device): the land streams in chunks around the player, vegetation is instanced and thinned with distance, and far hills are cheap silhouettes.
 
 ## Walks between valleys
 

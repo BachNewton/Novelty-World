@@ -1,4 +1,4 @@
-import { zzfxParams, type ZzfxSound } from "../sounds";
+import { zzfxParams, type ZzfxSound } from "@/shared/lib/sound";
 import type { ZzfxmChannel, ZzfxmSong } from "./zzfxm";
 
 // Frogmino's music themes as data, written for reading and compiled to

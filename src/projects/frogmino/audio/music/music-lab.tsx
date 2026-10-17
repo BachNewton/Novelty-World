@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { coopCourseById } from "../../coop-courses";
 import { MuteButton } from "../mute-button";
-import { unlockAudio } from "../sound-board";
+import { unlockAudio } from "@/shared/lib/sound";
 import { MusicSlider, VolumeSlider } from "../volume-slider";
 import { themeCourse } from "./course-music";
 import { isRendered, playMusic, prepareTheme, setMusicLoop, stopMusic } from "./music-board";

@@ -1,3 +1,4 @@
+import { audioContext } from "@/shared/lib/sound";
 import { useSoundSettings } from "../settings";
 import { musicGain } from "./mix";
 import type { RenderReply, RenderRequest } from "./render.worker";
@@ -23,11 +24,8 @@ let output: Output | null = null;
 let current: { source: AudioBufferSourceNode; fade: GainNode } | null = null;
 
 async function musicOutput(): Promise<Output> {
-  // Imported here, not at the top: ZzFX creates its AudioContext as it loads,
-  // which can't happen on the server.
-  const { ZZFX } = await import("zzfx");
+  const context = await audioContext();
   if (output === null) {
-    const context = ZZFX.audioContext;
     const gain = new GainNode(context, { gain: musicGain(useSoundSettings.getState().settings) });
     gain.connect(context.destination);
     useSoundSettings.subscribe(({ settings }) => {
