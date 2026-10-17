@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box3, type Camera, Frustum, Group, InstancedBufferAttribute, InstancedMesh, Matrix4, type MeshDepthMaterial, MeshLambertMaterial, Object3D, Vector3, type BufferGeometry } from "three";
 import { PLANT_CHUNK, PLANT_VARIANTS, type PlantChunk } from "../../engine/life";
 import { PLANT_KINDS, type PlantKind } from "../../engine/regions";
-import { chunkDetail, distanceToSquare, PLANT_CLASS, wantedChunks, type ChunkKey, type Detail } from "../../engine/streaming";
+import { castsIntoView, chunkDetail, distanceToSquare, PLANT_CLASS, wantedChunks, type ChunkKey, type Detail } from "../../engine/streaming";
 import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { shadeLambert, shadowDepth } from "../../art/shading";
@@ -20,9 +20,10 @@ import { report, type Streaming } from "./world-land";
  * The plants round the camera, streamed by chunk and instanced: one draw per
  * design and level of detail. Each chunk's plants are sorted by design once,
  * shuffled within it so any first share of them is an even thinning, and
- * each frame the chunks in view are copied into the meshes at the detail
- * their distance asks for; the copying only happens when that choice
- * changes. The fireflies of the nearest chunks are handed to the scene.
+ * each frame the chunks in view, or casting their shadows into it, are
+ * copied into the meshes at the detail their distance asks for; the copying
+ * only happens when that choice changes. The fireflies of the nearest
+ * chunks are handed to the scene.
  */
 
 const DETAILS: readonly Detail[] = ["near", "far"];
@@ -132,6 +133,10 @@ export function WorldPlants({
   const state = useRef<State>({ draws: new Map(), wanted: [], pending: [], from: null, plan: "", firefliesFrom: "" });
   const tools = useMemo(() => ({ dummy: new Object3D(), frustum: new Frustum(), matrix: new Matrix4() }), []);
   const reach = Math.max(quality.trees.far, quality.shrubs.far, quality.small.far);
+  // How far from the camera the key light's shadow maps reach, so how far a chunk out of view may still cast into it.
+  const shadowed = useFeature("sunShadows");
+  const cascades = useFeature("shadowCascades");
+  const shadowReach = shadowed ? (cascades ? quality.shadowReach : quality.shadowReachNear) : 0;
 
   useEffect(() => {
     // New designs start with no meshes, so the chunks are copied into them afresh.
@@ -173,7 +178,7 @@ export function WorldPlants({
       return;
     }
     report(streaming, "plants", true);
-    showChunks(s, designs, camera, quality, group, materials, tools);
+    showChunks(s, designs, camera, quality, shadowReach, atmosphere.uHwSunDir.value, group, materials, tools);
     const near = s.wanted.filter((k) => distanceToSquare(eye.x, eye.z, k.chunkX * PLANT_CHUNK, k.chunkZ * PLANT_CHUNK, PLANT_CHUNK) < FIREFLY_REACH);
     const nearIds = near.map(chunkId).join(";");
     if (nearIds !== s.firefliesFrom) {
@@ -186,12 +191,14 @@ export function WorldPlants({
   return <primitive object={group} />;
 }
 
-/** Copies the chunks in view into the meshes at the detail their distance asks for, when that has changed since last time. */
+/** Copies the chunks in view, or casting their shadows into it, into the meshes at the detail their distance asks for, when that has changed since last time. */
 function showChunks(
   s: State,
   designs: DesignMeshes[],
   camera: Camera,
   quality: Quality,
+  shadowReach: number,
+  toLight: Vector3,
   group: Group,
   materials: { foliage: MeshLambertMaterial; stone: MeshLambertMaterial; foliageDepth: MeshDepthMaterial; stoneDepth: MeshDepthMaterial },
   tools: { frustum: Frustum; matrix: Matrix4 },
@@ -206,7 +213,7 @@ function showChunks(
     const draw = s.draws.get(chunkId(key));
     if (!draw || draw.box.min.y > draw.box.max.y) return null;
     const distance = distanceToSquare(x, z, key.chunkX * PLANT_CHUNK, key.chunkZ * PLANT_CHUNK, PLANT_CHUNK);
-    const inView = distance < 40 || tools.frustum.intersectsBox(draw.box);
+    const inView = distance < 40 || tools.frustum.intersectsBox(draw.box) || (shadowReach > 0 && castsIntoView(draw.box, camera.position, tools.frustum.planes, toLight, shadowReach));
     if (!inView) return null;
     return { draw, details: classes.map((c) => chunkDetail(quality[c], distance)) };
   });

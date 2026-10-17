@@ -8,7 +8,7 @@ import { weatherInput } from "../shadows/weather-input";
  * and leaves flutter on top. Gusts roll across the land with the wind as
  * broad patches of stronger air, so a meadow ripples and a wood sways in
  * waves. How hard and which way it blows comes from the weather
- * (`weather-input.ts` until the weather has an engine). The plants' shadows
+ * (`weather-input.ts`, the engine's weather). The plants' shadows
  * move with them, as their shadow casters run this same code.
  */
 
@@ -69,8 +69,8 @@ export const SWAY_ART: FeatureArt = {
       vertex: SWAY_GLSL,
     },
   ],
-  frame: () => {
-    const { wind, windToward } = weatherInput();
+  frame: ({ weather }) => {
+    const { wind, windToward } = weatherInput(weather.weather);
     WIND_UNIFORMS.uHwWind.value = wind;
     WIND_UNIFORMS.uHwWindDir.value.set(Math.cos(windToward), Math.sin(windToward));
   },
