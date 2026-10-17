@@ -35,7 +35,7 @@ function harness() {
       return track(offline ? Promise.reject(new Error("offline")) : handle(server, request));
     },
   };
-  const store = createOnlineStore({ id: "GAME", profile: () => ALICE, engine: ENGINE, io, onWake: (w) => ((wake = w), () => undefined) });
+  const store = createOnlineStore({ id: "GAME", profile: () => ALICE, elo: () => 1234, engine: ENGINE, io, onWake: (w) => ((wake = w), () => undefined) });
   /** Runs every call in flight, and what their answers set off, to the end. */
   const settle = async () => {
     do await new Promise((resolve) => setImmediate(resolve));
@@ -153,6 +153,7 @@ describe("the online store", () => {
     h.store.join();
     await h.settle();
     expect(h.store.snapshot().seat).toBe(1);
+    expect(h.store.snapshot().table?.seats[1]).toEqual({ kind: "human", profile: ALICE, elo: 1234 });
     h.store.start();
     await h.settle();
     expect(h.store.snapshot().notice).toMatch(/at least 3/);

@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowLeft, Shield, Swords } from "lucide-react";
+import { ArrowLeft, ArrowRight, Minus, Shield, Swords, TrendingDown, TrendingUp } from "lucide-react";
 import { forwardRef } from "react";
 import { PromptButton, type Hold } from "@/shared/components/prompts";
 import type { InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
 import type { GameView, Move, Options } from "../contract";
+import { shownChange, type RatedGame } from "../online/rating";
 import { BINDINGS } from "../ui/bindings";
 import { territoryName, type Line } from "../ui/describe";
 import { blitzOdds } from "../ui/odds";
@@ -35,6 +36,7 @@ interface Props {
   input: InputKind;
   onNewGame: () => void;
   error: string | null;
+  rating: RatedGame | null;
 }
 
 function prompt(step: Step, view: GameView): string {
@@ -68,7 +70,27 @@ function prompt(step: Step, view: GameView): string {
   }
 }
 
-export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onMenu, endHold, input, onNewGame, error }, ref) {
+/** What the game did to the player's Elo: from, to, and the change, rising in brass or falling in red. */
+function EloChange({ rating }: { rating: RatedGame }) {
+  const from = Math.round(rating.from);
+  const to = Math.round(rating.to);
+  const change = shownChange(rating);
+  const Trend = to > from ? TrendingUp : to < from ? TrendingDown : Minus;
+  const tone = to > from ? "text-(--rk-brass-bright)" : to < from ? "text-(--rk-danger)" : "text-(--rk-muted)";
+  const label = `Your Elo: ${from.toString()} to ${to.toString()}, ${change}`;
+  return (
+    <p role="img" aria-label={label} title={label} className="flex flex-wrap items-center gap-[0.4em] tabular-nums" data-testid="risk-elo-change">
+      <Trend aria-hidden size="1.2em" className={tone} />
+      <span className={cn(DISPLAY, "text-[0.85em] text-(--rk-muted)")}>Elo</span>
+      <span>{from}</span>
+      <ArrowRight aria-hidden size="0.9em" className="text-(--rk-muted)" />
+      <span className="font-bold">{to}</span>
+      <span className={cn("font-bold", tone)}>{change}</span>
+    </p>
+  );
+}
+
+export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onMenu, endHold, input, onNewGame, error, rating }, ref) {
   const ending = phaseEnd(options);
   const latest = news.at(-1);
   const canTrade = options?.kind === "reinforce" && options.sets.length > 0 && !options.mustTrade;
@@ -120,6 +142,8 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
           </button>
         </div>
       )}
+
+      {rating && <EloChange rating={rating} />}
 
       {step.kind === "must-trade" && (
         <PromptButton binding={BINDINGS.menu} input={input} data-pad-start className={cn(BUTTON, PRIMARY, "self-start")} onClick={onMenu}>

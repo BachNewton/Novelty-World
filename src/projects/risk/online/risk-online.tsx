@@ -1,14 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode, type Ref } from "react";
-import { Bot, Globe, Plus, User, X } from "lucide-react";
+import { Bot, Globe, Plus, Trophy, User, X } from "lucide-react";
 import { GameLobby } from "@/shared/components/game-lobby";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { PadHints } from "@/shared/components/pad-hints";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { useProfile } from "@/shared/lib/profile";
+import { useHydrated } from "@/shared/lib/use-hydrated";
+import { cn } from "@/shared/lib/utils";
 import type { Move } from "../contract";
+import { currentElo, useEloLedger } from "./player-elo";
+import { seatElo } from "./rating";
 import { BotBadge, BotPicker } from "./bot-picker";
 import type { Response } from "./protocol";
 import { browserIo, browserLobbyIo } from "./client";
@@ -29,7 +33,7 @@ export interface OnlineGameProps {
 /** One online game, connected while the component is mounted. */
 export function useOnlineGame(id: string): { snapshot: OnlineSnapshot; store: OnlineStore } {
   const [store] = useState(() =>
-    createOnlineStore({ id, profile: () => useProfile.getState(), engine: ENGINE, io: browserIo, onWake: browserWake }),
+    createOnlineStore({ id, profile: () => useProfile.getState(), elo: currentElo, engine: ENGINE, io: browserIo, onWake: browserWake }),
   );
   useEffect(() => store.connect(), [store]);
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
@@ -87,9 +91,9 @@ export function RiskOnline({ Game, actions }: { Game: ComponentType<OnlineGamePr
 
   return (
     <Lobby
-      onCreate={() => enter(() => browserIo.post({ op: "create", profile: useProfile.getState() }))}
+      onCreate={() => enter(() => browserIo.post({ op: "create", profile: useProfile.getState(), elo: currentElo() }))}
       onOpen={(table, action) => {
-        if (action === "join") enter(() => browserIo.post({ op: "join", game: table.id, profile: useProfile.getState() }));
+        if (action === "join") enter(() => browserIo.post({ op: "join", game: table.id, profile: useProfile.getState(), elo: currentElo() }));
         else navigate(table.id);
       }}
       notice={notice}
@@ -129,8 +133,34 @@ function Lobby({ onCreate, onOpen, notice, actions }: LobbyProps) {
       notice={notice}
       actions={actions}
     >
+      <YourElo />
       <TableList tables={tables} problem={problem} onOpen={onOpen} onDelete={setDeleting} />
     </GameLobby>
+  );
+}
+
+/** An Elo as the lobby shows one, a person's or a bot's: the number, with what it is on hover. */
+function EloFigure({ elo, whose }: { elo: number; whose: string }) {
+  const label = `${whose} Elo ${Math.round(elo).toString()} (Greedy is 1000)`;
+  return (
+    <span role="img" aria-label={label} title={label} className="shrink-0 text-xs tabular-nums text-text-secondary">
+      {Math.round(elo)}
+    </span>
+  );
+}
+
+/** This device's player, by name, with their Elo on the bots' scale. */
+function YourElo() {
+  const name = useProfile((profile) => profile.name);
+  const { elo } = useEloLedger();
+  const hydrated = useHydrated();
+  return (
+    <p className={cn("flex items-center gap-2 rounded-md border border-border-default bg-surface-secondary px-3 py-2", !hydrated && "invisible")} data-testid="risk-your-elo">
+      <User aria-hidden size={18} className="shrink-0 text-brand-orange" />
+      <span className="max-w-48 truncate font-medium">{name}</span>
+      <Trophy aria-hidden size={16} className="shrink-0 text-text-secondary" />
+      <EloFigure elo={elo} whose="Your" />
+    </p>
   );
 }
 
@@ -190,6 +220,7 @@ function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table
                     {controller.profile.name}
                     {seat === snapshot.seat && <span className="text-text-secondary"> (you)</span>}
                   </span>
+                  <EloFigure elo={seatElo(controller)} whose={seat === snapshot.seat ? "Your" : `${controller.profile.name}'s`} />
                 </>
               ) : (
                 <>

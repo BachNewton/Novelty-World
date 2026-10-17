@@ -57,6 +57,8 @@ export interface OnlineStore {
 export interface StoreDeps {
   id: string;
   profile: () => PlayerProfile;
+  /** The player's Elo now (`rating.ts`), which a seat they take carries. */
+  elo: () => number;
   engine: RiskEngine;
   io: GameIo;
   /** Calls back whenever the page wakes or comes back online; returns its own removal. */
@@ -217,7 +219,7 @@ export function createOnlineStore(deps: StoreDeps): OnlineStore {
       dispatch({ type: "local-action", action: { decision: game.decision, seat, move } });
       publish();
     },
-    join: () => request((profile) => ({ op: "join", game: id, profile })),
+    join: () => request((profile) => ({ op: "join", game: id, profile, elo: deps.elo() })),
     addBot: (bot) => request((profile) => ({ op: "add-bot", game: id, profile, bot })),
     removeSeat: (seat) => request((profile) => ({ op: "remove-seat", game: id, profile, seat })),
     start: () => request((profile) => ({ op: "start", game: id, profile })),

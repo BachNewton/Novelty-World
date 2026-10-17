@@ -1,3 +1,4 @@
+import type { PlayerProfile } from "@/shared/lib/profile";
 import type { Answer, RiskEngine } from "../contract";
 import { isBotId, seatBot } from "./seat-bots";
 import { botInput, extendHistory, replayHistory, type History } from "./drive-input";
@@ -86,6 +87,10 @@ export interface ServerDeps {
   newSeed: () => string;
 }
 
+/** The seat a person takes, with the Elo their device brought. */
+const person = ({ profile, elo }: { profile: PlayerProfile; elo?: number }): Controller =>
+  elo === undefined ? { kind: "human", profile } : { kind: "human", profile, elo };
+
 /** How many fresh ids creating a game tries before it gives up loudly. */
 const CREATE_ATTEMPTS = 8;
 
@@ -95,7 +100,7 @@ export async function handle(deps: ServerDeps, request: Request): Promise<Respon
   const { engine, store } = deps;
   switch (request.op) {
     case "create": {
-      const seats: Controller[] = [{ kind: "human", profile: request.profile }];
+      const seats: Controller[] = [person(request)];
       for (let attempt = 0; attempt < CREATE_ATTEMPTS; attempt++) {
         const row = await store.insert(deps.newId(), { status: "lobby", seats, game: null });
         if (row) return { ok: true, row };
@@ -106,12 +111,15 @@ export async function handle(deps: ServerDeps, request: Request): Promise<Respon
       return commit(store, request.game, (row) => {
         const seat = seatOf(row, request.profile.id);
         if (seat !== null) {
-          const seats = row.seats.with(seat, { kind: "human", profile: request.profile });
+          // Coming back keeps the Elo the seat was taken with: it is what the table is rated at.
+          const current = controllerOf(row, seat);
+          const elo = current.kind === "human" ? current.elo : undefined;
+          const seats = row.seats.with(seat, person({ profile: request.profile, elo }));
           return JSON.stringify(seats) === JSON.stringify(row.seats) ? { kind: "unchanged" } : changed(row, { seats });
         }
         if (row.status !== "lobby") return rejected("The game has already started");
         if (row.seats.length >= MAX_PLAYERS) return rejected("The table is full");
-        return changed(row, { seats: [...row.seats, { kind: "human", profile: request.profile }] });
+        return changed(row, { seats: [...row.seats, person(request)] });
       });
     case "add-bot": {
       const { bot } = request;

@@ -9,9 +9,10 @@ import type { GameRow } from "./table";
  * ever "accepted, here is the row" or "rejected, here is the row".
  */
 
+/** Taking a seat brings the player's Elo with it (`rating.ts`), when their device sends one. */
 export type Request =
-  | { op: "create"; profile: PlayerProfile }
-  | { op: "join"; game: string; profile: PlayerProfile }
+  | { op: "create"; profile: PlayerProfile; elo?: number }
+  | { op: "join"; game: string; profile: PlayerProfile; elo?: number }
   /** `bot` names a seatable bot (`seat-bots.ts`); whether it is one is the server's to say. */
   | { op: "add-bot"; game: string; profile: PlayerProfile; bot: string }
   /** Seats another bot in a bot seat, while the table gathers. */
@@ -28,6 +29,7 @@ export type Response = { ok: true; row: GameRow } | { ok: false; reason: string;
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isString = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 200;
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
+const isElo = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= 10_000;
 const TERRITORY_IDS: ReadonlySet<unknown> = new Set(TERRITORIES.map((t) => t.id));
 const CARD_IDS: ReadonlySet<unknown> = new Set([...TERRITORY_IDS, "wild-1", "wild-2"]);
 const isTerritory = (v: unknown) => TERRITORY_IDS.has(v);
@@ -74,9 +76,11 @@ function parseAnswer(v: unknown): Answer | null {
 /** A request from the wire, or null when it isn't one. */
 export function parseRequest(v: unknown): Request | null {
   if (!isRecord(v)) return null;
+  // A page loaded before seats carried an Elo sends none: its seat is rated as a newcomer's.
+  const elo = v.elo === undefined ? {} : isElo(v.elo) ? { elo: v.elo } : null;
   if (v.op === "create") {
     const profile = parseProfile(v.profile);
-    return profile && { op: "create", profile };
+    return profile && elo && { op: "create", profile, ...elo };
   }
   if (!isString(v.game)) return null;
   const game = v.game;
@@ -85,6 +89,7 @@ export function parseRequest(v: unknown): Request | null {
   if (!profile) return null;
   switch (v.op) {
     case "join":
+      return elo && { op: "join", game, profile, ...elo };
     case "start":
       return { op: v.op, game, profile };
     case "add-bot":

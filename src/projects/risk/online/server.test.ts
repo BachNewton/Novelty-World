@@ -62,6 +62,20 @@ describe("the lobby", () => {
     expect(row.version).toBe(1);
   });
 
+  it("seats each person with the Elo they brought, and keeps it when they come back", async () => {
+    const deps = testDeps(ENGINE, memoryStore().store);
+    await ok(deps, { op: "create", profile: ALICE, elo: 1100 });
+    await ok(deps, { op: "join", game: "GAME", profile: BOB });
+    await ok(deps, { op: "join", game: "GAME", profile: CAROL, elo: 950 });
+    const renamed = { ...ALICE, name: "Alicia" };
+    const row = await ok(deps, { op: "join", game: "GAME", profile: renamed, elo: 1300 });
+    expect(row.seats).toEqual([
+      { kind: "human", profile: renamed, elo: 1100 },
+      { kind: "human", profile: BOB },
+      { kind: "human", profile: CAROL, elo: 950 },
+    ]);
+  });
+
   it("starts only with 3 to 6 seats, bots filling the table", async () => {
     const db = memoryStore();
     const deps = testDeps(ENGINE, db.store);

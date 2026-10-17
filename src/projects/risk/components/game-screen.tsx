@@ -9,6 +9,7 @@ import { cn } from "@/shared/lib/utils";
 import { locate, WRAP_WIDTH } from "../board/graph";
 import type { GameEvent, GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
+import type { RatedGame } from "../online/rating";
 import { BINDINGS } from "../ui/bindings";
 import { describeEvents, phaseName } from "../ui/describe";
 import { alsoPickable, back as backOut, keepSelection, NO_SELECTION, phaseEnd, pick, stepOf, type Selection } from "../ui/selection";
@@ -37,6 +38,9 @@ export interface GameFeed {
   problem: string | null;
   /** Who plays each seat; this player's own is `view.viewer`. */
   players: readonly Player[];
+  /** What this game did to the player's Elo, once their seat's game is over: null until then,
+   *  and for a spectator. */
+  rating: RatedGame | null;
 }
 
 /** A person by their name, or a bot by its name and version under its rank. */
@@ -297,6 +301,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
           input={input}
           onNewGame={onLeave}
           error={feed.problem}
+          rating={feed.rating}
         />
       </div>
 

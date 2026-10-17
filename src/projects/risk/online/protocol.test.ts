@@ -6,6 +6,9 @@ const profile = { id: "p1", name: "Alice" };
 describe("parseRequest", () => {
   it("reads every request", () => {
     expect(parseRequest({ op: "create", profile })).toEqual({ op: "create", profile });
+    expect(parseRequest({ op: "create", profile, elo: 1012.5 })).toEqual({ op: "create", profile, elo: 1012.5 });
+    expect(parseRequest({ op: "join", game: "ABCD", profile })).toEqual({ op: "join", game: "ABCD", profile });
+    expect(parseRequest({ op: "join", game: "ABCD", profile, elo: 980 })).toEqual({ op: "join", game: "ABCD", profile, elo: 980 });
     expect(parseRequest({ op: "nudge", game: "ABCD" })).toEqual({ op: "nudge", game: "ABCD" });
     expect(parseRequest({ op: "delete", game: "ABCD" })).toEqual({ op: "delete", game: "ABCD" });
     expect(parseRequest({ op: "remove-seat", game: "ABCD", profile, seat: 2 })).toEqual({ op: "remove-seat", game: "ABCD", profile, seat: 2 });
@@ -21,6 +24,9 @@ describe("parseRequest", () => {
       "create",
       { op: "create" },
       { op: "join", profile },
+      { op: "create", profile, elo: "1000" },
+      { op: "join", game: "ABCD", profile, elo: Number.NaN },
+      { op: "join", game: "ABCD", profile, elo: 1e9 },
       { op: "delete" },
       { op: "fly", game: "ABCD", profile },
       { op: "remove-seat", game: "ABCD", profile, seat: -1 },

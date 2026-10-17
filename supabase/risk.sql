@@ -11,7 +11,8 @@ create table if not exists public.risk_games (
   version integer not null default 0,
   -- 'lobby' while players gather, 'playing', then 'over'.
   status text not null default 'lobby',
-  -- The seats in order: each a human (with their profile) or a bot.
+  -- The seats in order: each a human (with their profile and the Elo they
+  -- brought) or a bot.
   seats jsonb not null default '[]'::jsonb,
   -- The game once started (src/projects/risk/online/game.ts): the engine's
   -- state, the pending decision's id, the latest write's events and the

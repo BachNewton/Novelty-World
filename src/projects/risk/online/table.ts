@@ -8,8 +8,10 @@ import { pendingSeat, type OnlineGame } from "./game";
  * the game is still gathering players, and the game itself once it starts.
  */
 
-/** Who answers a seat's decisions: a person on their own device, or a bot the server runs. */
-export type Controller = { kind: "human"; profile: PlayerProfile } | { kind: "bot"; bot: BotId };
+/** Who answers a seat's decisions: a person on their own device, or a bot the server runs. A
+ *  person's `elo` is the rating their device held when they took the seat (`rating.ts`): it lives
+ *  on their device, so it travels with the seat for the other players' devices to rate against. */
+export type Controller = { kind: "human"; profile: PlayerProfile; elo?: number } | { kind: "bot"; bot: BotId };
 
 export type Status = "lobby" | "playing" | "over";
 
