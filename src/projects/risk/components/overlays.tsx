@@ -57,7 +57,8 @@ function SpeedControl({ speed, setSpeed, input }: { speed: number; setSpeed: (sp
 
 /** The war room, the game's one menu: the hand, the trades open to it (each with what it is
  *  worth), what every player can see of the cards (note `public-cards`: each hand's size, the
- *  deck's size and every trade made), and the way to the battle log and out of the game. */
+ *  deck's size and every trade made), the playback speed, and the way to the battle
+ *  log and out of the game. */
 export function WarRoom({ view, options, act, onClose, onLog, onQuit, input, speed, setSpeed }: { view: GameView; options: Options | null; act: (move: Move) => void; onClose: () => void; onLog: () => void; onQuit: () => void; input: InputKind; speed: number; setSpeed: (speed: number) => void }) {
   const hand = view.cards.hand ?? [];
   const owned = (card: CardId) => !isWild(card) && view.territories[card as TerritoryId].owner === view.viewer;

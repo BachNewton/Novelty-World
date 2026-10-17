@@ -1,13 +1,19 @@
-import { SOUNDS, type SoundDesign, type SoundId } from "./sounds";
-import type { SoundSettings } from "./settings";
+import type { SoundDesign } from "./design";
+
+// What a player needs of the sound settings: whether sound is muted, and the
+// master volume, from 0 to 1.
+export interface SoundSettings {
+  muted: boolean;
+  volume: number;
+}
 
 // Where sounds go: the thin seam over Web Audio, so the rules for when and
 // how a sound plays are testable without an AudioContext.
-export interface AudioOutput {
+export interface AudioOutput<Id extends string = string> {
   // The audio clock, in seconds.
   now(): number;
   // Plays a rendered sound at time `at` on the audio clock.
-  play(id: SoundId, at: number, rate: number, gain: number): void;
+  play(id: Id, at: number, rate: number, gain: number): void;
 }
 
 export interface PlayOptions {
@@ -16,7 +22,7 @@ export interface PlayOptions {
   // How long from now to play it, in seconds.
   delay?: number;
   // Whose it is, as a player's slot: each voice keeps its own minimum gap,
-  // so one frog's hop never swallows its partner's.
+  // so one player's sound never swallows another's.
   voice?: number;
 }
 
@@ -32,21 +38,22 @@ export function vary(variation: SoundDesign["variation"], random: () => number):
 // Plays the rendered sounds with the anti-annoyance rules: a random stray in
 // pitch and volume on every play, and a minimum gap between two plays of one
 // sound in one voice, measured on the audio clock. Muted, nothing plays.
-export class SoundPlayer {
+export class SoundPlayer<Id extends string> {
   private readonly lastPlayed = new Map<string, number>();
 
   constructor(
-    private readonly output: AudioOutput,
+    private readonly designs: Readonly<Record<Id, SoundDesign>>,
+    private readonly output: AudioOutput<Id>,
     private readonly settings: () => SoundSettings,
     private readonly random: () => number = Math.random,
   ) {}
 
   // Whether the sound played; it is dropped when muted or too soon after the
   // last play of the same sound in the same voice.
-  play(id: SoundId, options: PlayOptions = {}): boolean {
+  play(id: Id, options: PlayOptions = {}): boolean {
     const { muted, volume } = this.settings();
     if (muted) return false;
-    const design = SOUNDS[id];
+    const design = this.designs[id];
     const at = this.output.now() + (options.delay ?? 0);
     const key = `${id}:${String(options.voice ?? 0)}`;
     const last = this.lastPlayed.get(key);

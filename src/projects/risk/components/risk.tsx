@@ -1,15 +1,27 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import { useSyncExternalStore } from "react";
 import { RiskOnline, type OnlineGameProps } from "../online/risk-online";
 import { GameScreen } from "./game-screen";
 import { useOnlineFeed } from "./use-online-feed";
+
+const RiskSoundLab = dynamic(() => import("./sound-lab").then((m) => m.RiskSoundLab), { ssr: false });
 
 function OnlineGame({ snapshot, act, onLeave }: OnlineGameProps) {
   const feed = useOnlineFeed(snapshot, act);
   return <GameScreen feed={feed} onLeave={onLeave} />;
 }
 
-/** Risk online: create a table or join one from the open lobby, with bots in any seat, and play. */
+const subscribeToNothing = () => () => {};
+const pageOf = () => (new URLSearchParams(window.location.search).has("sounds") ? "sounds" : "game");
+
+/** Risk online: create a table or join one from the open lobby, with bots in any seat, and play.
+ *  `?sounds` opens the sound audition instead. Which it is is known only in the browser, and the
+ *  server renders neither, so the audition never mounts the lobby, which goes online. */
 export function Risk() {
+  const page = useSyncExternalStore(subscribeToNothing, pageOf, () => null);
+  if (page === null) return null;
+  if (page === "sounds") return <RiskSoundLab />;
   return <RiskOnline Game={OnlineGame} />;
 }

@@ -28,6 +28,7 @@ import {
   Keyboard,
   Ghost,
   FlaskConical,
+  Cat,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -56,6 +57,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Keyboard,
   Ghost,
   FlaskConical,
+  Cat,
 };
 
 interface ProjectRowProps {

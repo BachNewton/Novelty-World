@@ -4,8 +4,8 @@ import { applyAction, createRun, playTo, pressHeld, type RuleRow, type RuleRows,
 import { toTicks } from "../ticks";
 import { TUNING } from "../tuning";
 import type { Cell } from "../types";
+import { SoundPlayer } from "@/shared/lib/sound";
 import { soundCues, type GameMoment, type SoundCue } from "./cues";
-import { SoundPlayer } from "./player";
 import { DEFAULT_SOUND_SETTINGS } from "./settings";
 import { SOUNDS, type SoundId } from "./sounds";
 
@@ -104,7 +104,7 @@ describe("soundCues", () => {
     ]);
     // Within the hop's minimum gap of each other, both still play.
     const output = { time: 0, played: [] as SoundId[], now: () => output.time, play: (id: SoundId) => output.played.push(id) };
-    const player = new SoundPlayer(output, () => DEFAULT_SOUND_SETTINGS, () => 0.5);
+    const player = new SoundPlayer(SOUNDS, output, () => DEFAULT_SOUND_SETTINGS, () => 0.5);
     for (const cue of cues) player.play(cue.sound, { voice: cue.voice });
     output.time = SOUNDS.hop.minGap / 2;
     expect(player.play("hop", { voice: 1 })).toBe(false);
