@@ -33,11 +33,14 @@ export function tileId({ level, i, j }: TileKey): string {
   return `${level}:${i}:${j}`;
 }
 
+/** The ground distance from a point to the nearest point of a rectangle. */
+function distanceToRect(x: number, z: number, minX: number, minZ: number, maxX: number, maxZ: number): number {
+  return Math.hypot(Math.max(minX - x, 0, x - maxX), Math.max(minZ - z, 0, z - maxZ));
+}
+
 /** The ground distance from a point to the nearest point of a square. */
 export function distanceToSquare(x: number, z: number, minX: number, minZ: number, size: number): number {
-  const dx = Math.max(minX - x, 0, x - (minX + size));
-  const dz = Math.max(minZ - z, 0, z - (minZ + size));
-  return Math.hypot(dx, dz);
+  return distanceToRect(x, z, minX, minZ, minX + size, minZ + size);
 }
 
 export interface Eye {
@@ -118,4 +121,64 @@ export function wantedChunks(x: number, z: number, reach: number): ChunkKey[] {
     }
   }
   return out.sort((a, b) => a.distance - b.distance).map(({ chunkX, chunkZ }) => ({ chunkX, chunkZ }));
+}
+
+export interface Point3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** A box, as its least and greatest corners. */
+export interface Bounds {
+  min: Point3;
+  max: Point3;
+}
+
+/** One side of a view: a point is inside where its dot with the normal plus the constant is not below zero (three's frustum planes are these). */
+export interface ViewPlane {
+  normal: Point3;
+  constant: number;
+}
+
+/** How far the land may fall away below a chunk and still catch its shadows, in metres: past that, its shadows are taken to have reached the ground. */
+const SHADOW_FALL = 60;
+
+/** Whether a box is at least partly inside every side of a view. */
+function boxInView(min: Point3, max: Point3, view: readonly ViewPlane[]): boolean {
+  return view.every(({ normal: n, constant }) => n.x * (n.x > 0 ? max.x : min.x) + n.y * (n.y > 0 ? max.y : min.y) + n.z * (n.z > 0 ? max.z : min.z) + constant >= 0);
+}
+
+/**
+ * Whether a chunk of plants shows in the view or casts a shadow into it, out
+ * to `reach` metres from the eye (where the shadows end). Its box is swept
+ * away from the light (`toLight` points towards it) in pieces, each the box
+ * over one stretch of the way, until the sweep has sunk its own height and
+ * the land's fall below the chunk, or has passed beyond the reach; the chunk
+ * casts into the view if a piece within the reach lies in it. So a low sun
+ * behind the camera brings in the woods behind it whose long shadows fall
+ * forward into the view, and a high one only the chunks just beside it.
+ */
+export function castsIntoView(box: Bounds, eye: { x: number; z: number }, view: readonly ViewPlane[], toLight: Point3, reach: number): boolean {
+  const width = Math.min(box.max.x - box.min.x, box.max.z - box.min.z);
+  const length = Math.hypot(toLight.x, toLight.y, toLight.z);
+  if (toLight.y <= 0) return false;
+  const away = { x: -toLight.x / length, y: -toLight.y / length, z: -toLight.z / length };
+  const across = Math.hypot(away.x, away.z);
+  const height = Math.max(1, box.max.y - box.min.y);
+  const end = Math.min((height + SHADOW_FALL) / -away.y, across > 0 ? (2 * reach + width) / across : Infinity);
+  const step = Math.min(across > 0 ? width / across : Infinity, height / -away.y);
+  const min = { x: 0, y: 0, z: 0 };
+  const max = { x: 0, y: 0, z: 0 };
+  for (let t = 0; t < end; t += step) {
+    const t1 = Math.min(t + step, end);
+    for (const axis of ["x", "y", "z"] as const) {
+      const a = away[axis] * t;
+      const b = away[axis] * t1;
+      min[axis] = box.min[axis] + Math.min(a, b);
+      max[axis] = box.max[axis] + Math.max(a, b);
+    }
+    if (distanceToRect(eye.x, eye.z, min.x, min.z, max.x, max.z) <= reach && boxInView(min, max, view)) return true;
+  }
+  return false;
 }
