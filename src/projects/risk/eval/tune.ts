@@ -6,7 +6,7 @@ import type { RiskGameResult, RiskGameSpec } from "./runner";
 // the games its bot plays against a fixed opponent, at every table size in both
 // mixtures, on seeds every candidate of a generation shares (common random numbers).
 // The score is the candidate's Elo per seat, read from its side's win share through the
-// Luce model the gauntlet's SPRT tests, so it measures the edge the crown gate asks for.
+// Luce model the gauntlet's SPRT tests, so it measures an edge per seat at every table.
 
 export type PrefKey = keyof Preferences;
 
@@ -96,9 +96,8 @@ export function cellScores(candidate: string, cells: readonly Cell[], results: r
 }
 
 /** The fitness: the candidate's worst table, each table read as the mean of its two
- *  mixtures. The crown gate asks for an edge at every table size, so an edge earned at
- *  one size can't pay for a loss at another (Monopoly's opt-v1 scored 75% on an average
- *  padded by easy wins, and was even with its base). */
+ *  mixtures, so an edge earned at one table size can't hide a loss at another (Monopoly's
+ *  opt-v1 scored 75% on an average padded by easy wins, and was even with its base). */
 export function fitness(scores: readonly CellScore[]): number {
   const tables = new Map<number, number[]>();
   for (const c of scores) tables.set(c.players, [...(tables.get(c.players) ?? []), c.elo]);

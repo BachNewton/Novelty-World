@@ -1,5 +1,6 @@
 import process from "node:process";
 import { RISK_BOTS } from "../bots";
+import RATINGS from "../bots/ratings.json";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
 import { dualVerdict, sprtBounds } from "@/shared/lib/bot-lab/sprt";
 import { checkBots, commonDefaults, commonFlag, formats, list, number, riskRun, type CommonArgs } from "./cli-args";
@@ -8,7 +9,7 @@ import { candidateSeats, FORMATS, riskPool, type Format } from "./parallel";
 
 /** `npm run risk:gauntlet` — a candidate against the field at each table size in
  *  both mixtures, each pairing an SPRT on win share against par, then a
- *  finishing-order Elo and the crown gate (see the project's CLAUDE.md, "Measuring
+ *  finishing-order Elo and the gate's verdict, an instrument, not a promotion (see the project's CLAUDE.md, "Measuring
  *  bots"). Deterministic by seed: the same arguments give the same table on any
  *  number of workers.
  *
@@ -21,7 +22,9 @@ import { candidateSeats, FORMATS, riskPool, type Format } from "./parallel";
  *
  *  The field defaults to every registered bot except the candidate and `random`,
  *  the sanity floor, which is never in a field (it plays only when named); the
- *  base defaults to the field's last member. */
+ *  base defaults to the field's strongest member by the seatable bots' Elo
+ *  (`bots/ratings.json`): a candidate is measured against the strongest bot, whatever it
+ *  descends from. */
 
 interface Args extends CommonArgs {
   candidate: string;
@@ -86,13 +89,21 @@ function progressLine(): (p: RiskGauntletProgress) => void {
   };
 }
 
+/** The field's strongest member by measured Elo, or its last when none is rated. */
+function strongest(field: readonly string[]): string {
+  const elo: Readonly<Record<string, number>> = RATINGS.elo;
+  const rated = field.filter((l) => Object.hasOwn(elo, l));
+  if (rated.length === 0) return field[field.length - 1];
+  return rated.reduce((best, l) => (elo[l] > elo[best] ? l : best));
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const field =
     args.field ?? Object.keys(RISK_BOTS).filter((l) => l !== "random" && l !== args.candidate);
   checkBots([args.candidate, ...field]);
   if (field.length === 0) throw new Error("empty field: name the opponents with --field");
-  const base = args.base ?? field[field.length - 1];
+  const base = args.base ?? strongest(field);
 
   console.log(
     `

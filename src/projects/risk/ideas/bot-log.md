@@ -199,3 +199,7 @@ Candidates D and E, both v3-B (`rule-bot-v3.md` §1 and §2) with the 3-player t
 | 5 v3 vs 1 v2 (6p) | **better**, 85.8% vs 83.3% (1,392) | (as D) |
 
 D: win Elo +18.1 over v2, better than v1 and every GD persona at every table. The tuned vector read better at 4 players alone in 407 games and not in 2,015: the tuner's samples (240 games a cell) were too small to trust at the margin, the lesson Monopoly's record already holds. `rule-v3` stays in the registry at candidate D, which passes every expert scenario; it is not seatable. The gauntlet record of candidate B is missing from `eval/runs.jsonl` (9,677 games, 3.4 games a second): the revert of candidate C removed it.
+
+## The method changes: bots and rankings (2026-10-17)
+
+The owner's call, after the night above: there is no crown and no lineage. Monopoly's loop, which this harness copied, carried each version forward from the last crowned one, a habit that suits human developers and constrains Claude for nothing. From here, there are bots and the Elo ladder; each new version may be written from scratch, copied from any bot, combined from several, retuned, or something entirely new, chosen from the ladder, the bots' code and their games. The gauntlet is an instrument for fast per-table verdicts while iterating, not a gate; a version worth seating is seated and the ratings rerun. Under this method v3, +18 Elo over v2 in the gauntlet and worse at no table, is seated and rated.

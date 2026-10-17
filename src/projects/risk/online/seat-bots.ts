@@ -5,6 +5,7 @@ import { randomBot } from "../bots/random";
 import RATINGS from "../bots/ratings.json";
 import { ruleV1Bot } from "../bots/rule-v1";
 import { ruleV2Bot } from "../bots/rule-v2";
+import { ruleV3Bot } from "../bots/rule-v3";
 
 /** The ranks a seated bot is named by, weakest first. A bot takes the rung its measured
  *  strength earns, so the names climb with strength; the rungs above the strongest bot wait
@@ -36,7 +37,7 @@ export type Rank = (typeof RANKS)[number];
 
 /** A bot a table can seat, by the id its row keeps: the label the measuring harness seats it
  *  by. The bots themselves live in `bots/`, the one home of every Risk bot, measured or played. */
-export type BotId = "random" | "greedy" | "rule-v1" | "rule-v2" | "gd-defensive" | "gd-continental" | "gd-aggressive" | "gd-stacker";
+export type BotId = "random" | "greedy" | "rule-v1" | "rule-v2" | "rule-v3" | "gd-defensive" | "gd-continental" | "gd-aggressive" | "gd-stacker";
 
 export interface SeatBot {
   /** What players call it, with its version beside it. */
@@ -52,6 +53,7 @@ export const SEAT_BOTS: Record<BotId, SeatBot> = {
   greedy: { name: "Greedy", version: "Baseline", bot: greedyBot },
   "rule-v1": { name: "Rule", version: "v1", bot: ruleV1Bot },
   "rule-v2": { name: "Rule", version: "v2", bot: ruleV2Bot },
+  "rule-v3": { name: "Rule", version: "v3", bot: ruleV3Bot },
   "gd-defensive": { name: "GD Defensive", version: "Expert", bot: gdDefensiveBot },
   "gd-continental": { name: "GD Continental", version: "Expert", bot: gdContinentalBot },
   "gd-aggressive": { name: "GD Aggressive", version: "Expert", bot: gdAggressiveBot },

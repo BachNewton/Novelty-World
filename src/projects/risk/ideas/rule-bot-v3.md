@@ -1,6 +1,6 @@
 # Risk bot v3: what changes from v2, and why
 
-**Not crowned.** v3 beats v2 at most tables but never at all six at once (`bot-log.md`); it stays a candidate in the measuring registry, not a seatable bot.
+v3 measured +18 Elo a seat over v2 in the gauntlet, better at three of six tables and worse at none (`bot-log.md`), and is seated; the ladder gives its standing.
 
 v3 (`bots/rule-v3/`) is v2 (`rule-bot-v2.md`) with the changes below. v2 is frozen, so v3 keeps only the files it changes (its planner, capture planner, evaluation, small decisions, entry point and parameters) and shares the rest from v1. `bot-log.md` holds every measurement, including the candidates tried and dropped.
 
