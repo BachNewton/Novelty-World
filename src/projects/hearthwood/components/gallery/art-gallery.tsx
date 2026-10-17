@@ -14,7 +14,7 @@ import { Daylight, type Air, type Focus } from "../../art/light/daylight";
 import { readPalette } from "../../art/palette";
 import { makeSkyUniforms, Sky } from "../../art/sky/sky";
 import { FrameCosts } from "../../art/passes";
-import { waterMaterial } from "../../art/water";
+import { waterMaterial } from "../../art/water/water";
 import { QUALITY } from "../../quality";
 import { parseDate } from "../../engine/calendar";
 import { advanceClock, holdHour, makeClock, type ValleyClock } from "../valley/clock";

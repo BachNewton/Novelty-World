@@ -45,6 +45,29 @@ export function makeSkyUniforms(palette: Palette): SkyUniforms {
   };
 }
 
+/**
+ * The plain sky's colour along a direction, from the sky's uniforms (`uSky`,
+ * `uSunDir`) and the air's: the dome draws it, and anything that shows the
+ * sky (the water's mirror) takes the same. While the physical sky is on, it
+ * is the physical sky's colour (`hwSkyRadiance`, which that feature declares
+ * in the sky's and the water's shaders).
+ */
+export const SKY_ALONG_GLSL = /* glsl */ `
+uniform vec3 uSky;
+uniform vec3 uSunDir;
+vec3 hwSkyAlong(vec3 dir) {
+  #ifdef HW_SKY_SCATTERING
+    return hwSkyRadiance(dir);
+  #else
+    float up = max(dir.y, 0.0);
+    vec3 colour = mix(uHwHaze, uSky, pow(smoothstep(0.0, 0.75, up), 0.7));
+    float toSun = max(dot(dir, uSunDir), 0.0);
+    float sunUp = smoothstep(-0.12, 0.1, uSunDir.y);
+    return colour + uHwSunColor * (0.35 * pow(toSun, 8.0) + 0.25 * pow(toSun, 64.0)) * sunUp;
+  #endif
+}
+`;
+
 const VERTEX = /* glsl */ `
 #include <hw_vertex_head>
 void main() {
@@ -61,21 +84,16 @@ void main() {
 `;
 
 const FRAGMENT = /* glsl */ `
-uniform vec3 uSky;
-uniform vec3 uSunDir;
 uniform vec3 uSunDisc;
 uniform mat3 uCelestial;
 uniform float uSkyPixel;
 #include <hw_fragment_head>
+${SKY_ALONG_GLSL}
 
 void main() {
   vec3 dir = normalize(vHwWorld - cameraPosition);
-  float up = max(dir.y, 0.0);
-  vec3 colour = mix(uHwHaze, uSky, pow(smoothstep(0.0, 0.75, up), 0.7));
   float toSun = max(dot(dir, uSunDir), 0.0);
-  float sunUp = smoothstep(-0.12, 0.1, uSunDir.y);
-  colour += uHwSunColor * (0.35 * pow(toSun, 8.0) + 0.25 * pow(toSun, 64.0)) * sunUp;
-  colour = mix(colour, uSunDisc * 3.0, smoothstep(0.9993, 0.9996, toSun) * sunUp);
+  vec3 colour = mix(hwSkyAlong(dir), uSunDisc * 3.0, smoothstep(0.9993, 0.9996, toSun) * smoothstep(-0.12, 0.1, uSunDir.y));
 
   vec3 hwColour = colour;
   #include <hw_colour>
