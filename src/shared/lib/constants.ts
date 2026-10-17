@@ -125,6 +125,13 @@ export const PROJECTS: Project[] = [
     icon: "Blocks",
   },
   {
+    name: "Hearthwood",
+    slug: "hearthwood",
+    description: "Wander forest and mountain as a hedge-witch: forage, cook by the campfire, and befriend the cats of the woods",
+    categorySlug: "3d-games",
+    icon: "Cat",
+  },
+  {
     name: "Pi Solver",
     slug: "pi-solver",
     description: "Compute digits of Pi with various algorithms",
