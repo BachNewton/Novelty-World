@@ -1,8 +1,9 @@
 // Screenshots of Hearthwood's endless world, for judging its look without a browser open: camp through the
 // day, walking views in each region at morning, golden hour and night, a range seen from afar with a pass
 // in it, an aerial view, a top-down map of a few kilometres drawn from the world itself, the phone's
-// touch controls on the target phone (a Pixel 8 Pro in Chrome, portrait and landscape), and camp through
-// Elliott's own eyes, with its hints (the `fp-` shots). Prints what each
+// touch controls on the target phone (a Pixel 8 Pro in Chrome, portrait and landscape) with the jump
+// button on the ground and on the broom, camp through Elliott's own eyes, with its hints (the `fp-` shots),
+// and a glide on the broom down off a ridge, behind them and through their eyes (the `glide-` shots). Prints what each
 // frame drew (triangles, draw calls) and how long frames took (SHOTS_UNCAPPED=1 for the frame's own time).
 //
 // Drives the world's probe (window.__hearthwoodWorld, see ../components/valley/world-probe.tsx) over
@@ -76,9 +77,10 @@ async function frames(page, count) {
 }
 
 // Most shots are from behind Elliott, in third person; the `fp-` ones are through their eyes, with `look` the way they look.
-async function capture(page, name, { hour, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1 }) {
+// `glide` puts them on the broom over a spot and holds them there, so the shot is mid-glide.
+async function capture(page, name, { hour, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1, glide = null }) {
   await page.evaluate(
-    ({ hour, view, pov, orbit, look, walker, free, motion, chrome, haze }) => {
+    ({ hour, view, pov, orbit, look, walker, free, motion, chrome, haze, glide }) => {
       const world = window.__hearthwoodWorld;
       world.holdHour(hour);
       world.setHaze(haze);
@@ -89,9 +91,11 @@ async function capture(page, name, { hour, view = "walk", pov = "third", orbit =
       if (orbit) world.setOrbit(orbit);
       if (look) world.setLook(look);
       if (walker) world.placeWalker(walker.x, walker.z, walker.heading);
+      world.holdWalker(glide !== null);
+      if (glide) world.glide(glide.x, glide.z, glide.above, glide.heading);
       document.documentElement.toggleAttribute("data-shot-chrome", chrome);
     },
-    { hour, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze },
+    { hour, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze, glide },
   );
   // The camera eases after the walker, and the world streams in round wherever it ends up: give the
   // camera frames to arrive, then wait for the streaming to settle, then read a settled frame.
@@ -167,6 +171,26 @@ async function findRange(page) {
       }
     }
     return { peak, view };
+  });
+}
+
+/** The ridge with the longest drop near camp: open ground to stand on, and the way the land falls away from it. */
+async function findRidge(page) {
+  return page.evaluate(() => {
+    const world = window.__hearthwoodWorld;
+    let best = null;
+    for (let z = -3000; z <= 3000; z += 150) {
+      for (let x = -3000; x <= 3000; x += 150) {
+        const here = world.at(x, z);
+        if (here.height - here.water < 1) continue;
+        for (let a = 0; a < 8; a++) {
+          const heading = (a / 8) * Math.PI * 2;
+          const drop = here.height - world.at(x + Math.sin(heading) * 600, z + Math.cos(heading) * 600).height;
+          if (best === null || drop > best.drop) best = { x, z, height: here.height, drop, heading };
+        }
+      }
+    }
+    return best;
   });
 }
 
@@ -270,6 +294,22 @@ if (want("place")) {
   }
 }
 
+if (want("glide")) {
+  const ridge = await findRidge(desktop);
+  console.log(`ridge: ${ridge.height.toFixed(0)} m at ${ridge.x}, ${ridge.z}, falling ${ridge.drop.toFixed(0)} m over 600 m`);
+  // Some way out from the ridge, a little below its top, high over the valley.
+  const out = 140;
+  const x = ridge.x + Math.sin(ridge.heading) * out;
+  const z = ridge.z + Math.cos(ridge.heading) * out;
+  const below = await desktop.evaluate(({ x, z }) => window.__hearthwoodWorld.at(x, z), { x, z });
+  const glide = { x, z, above: ridge.height - 30 - Math.max(below.height, below.water), heading: ridge.heading };
+  await capture(desktop, "glide-golden", { hour: 17.4, glide, orbit: { yaw: ridge.heading + 0.5, pitch: 0.2, distance: 6 } });
+  await capture(desktop, "glide-golden-side", { hour: 17.4, glide, orbit: { yaw: ridge.heading - 1.3, pitch: 0.08, distance: 5 } });
+  await capture(desktop, "glide-fp-golden", { hour: 17.4, pov: "first", glide, look: { yaw: ridge.heading, pitch: -0.12 } });
+  await capture(desktop, "glide-fp-morning", { hour: 9, pov: "first", glide, look: { yaw: ridge.heading, pitch: -0.05 } });
+  await capture(desktop, "glide-fp-hints", { hour: 17.4, pov: "first", glide, look: { yaw: ridge.heading, pitch: -0.2 }, chrome: true });
+}
+
 async function phoneShots(device, name) {
   if (!want(name)) return;
   const page = await openWorld(device);
@@ -284,6 +324,9 @@ async function phoneShots(device, name) {
   await capture(page, `${name}-stick`, { hour: 17.4, chrome: true });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await capture(page, `${name}-night`, { hour: 22.5, walker: atCamp, orbit: facingCamp });
+  // On the broom, the jump button shows it will put the broom away.
+  const out = { x: atCamp.x + Math.sin(outward.yaw) * 30, z: atCamp.z + Math.cos(outward.yaw) * 30, above: 12, heading: outward.yaw };
+  await capture(page, `${name}-glide`, { hour: 17.4, glide: out, orbit: { yaw: outward.yaw + 0.4, pitch: 0.25, distance: 6 }, chrome: true });
   await page.context().close();
 }
 await phoneShots(PHONE_PORTRAIT, "phone-portrait");

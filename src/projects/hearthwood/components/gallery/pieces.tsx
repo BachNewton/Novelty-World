@@ -16,7 +16,8 @@ import { plantShape } from "../../art/plant-shapes";
 import { fallRibbon, placeGeometry, type PlaceLook } from "../../art/place-shapes";
 import type { SkyUniforms } from "../../art/sky";
 import { poolGeometry } from "../../art/water";
-import { Witch } from "../../art/witch";
+import { Broom } from "../../art/broom";
+import { Witch, type WitchPose } from "../../art/witch";
 import { CatBody } from "../cats/cat-body";
 
 /*
@@ -26,6 +27,9 @@ import { CatBody } from "../cats/cat-body";
  * added at all. Each piece is drawn from the art layer alone, on flat ground
  * at its own origin, with plain data made up for it: no world is generated.
  */
+
+/** Elliott on the broom at full speed, the wind in their cloak. */
+const ON_THE_BROOM: Partial<WitchPose> = { ride: 1, wind: 1, seconds: 0.4 };
 
 export interface ArtContext {
   palette: Palette;
@@ -238,6 +242,26 @@ export const ART_PIECES: ArtPiece[] = [
     radius: 1.2,
     height: 1.8,
     render: (context) => <Witch palette={context.palette} atmosphere={context.atmosphere} />,
+  },
+  {
+    id: "folk/witch-on-broom",
+    group: "Elliott and the cats",
+    label: "Elliott on the broom",
+    radius: 1.3,
+    height: 2.2,
+    render: (context) => (
+      <group position={[0, 0.5, 0]}>
+        <Witch palette={context.palette} atmosphere={context.atmosphere} still={ON_THE_BROOM} />
+      </group>
+    ),
+  },
+  {
+    id: "folk/broom",
+    group: "Elliott and the cats",
+    label: "Broom",
+    radius: 1,
+    height: 0.5,
+    render: (context) => <Broom palette={context.palette} atmosphere={context.atmosphere} />,
   },
   ...CATS.map(({ seed, activity }, i) => ({
     id: `folk/cat/${i + 1}`,

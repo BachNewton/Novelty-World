@@ -19,7 +19,7 @@ import type { Weather } from "./world-view";
  * whether it is ready (its shaders compiled, everything the camera wants
  * streamed in, and a frame drawn), a frame counter to wait on, what the last
  * frame drew, switches for the hour, the motion clock, the camera and where
- * the walker stands, the point of view and where it looks, a free camera, readings of the world at a point, and a
+ * the walker stands, the point of view and where it looks, a jump or a glide begun from a spot (and held there), a free camera, readings of the world at a point, and a
  * map of an area drawn from the world itself. Waiting on these is waiting on
  * events, never on time.
  */
@@ -77,7 +77,13 @@ export interface WorldProbe {
   /** Where the walker looks in first person: the yaw is the orbit's, shared by both views. */
   setLook: (look: { yaw?: number; pitch?: number }) => void;
   placeWalker: (x: number, z: number, heading?: number) => void;
-  walker: () => { x: number; z: number; heading: number };
+  walker: () => { x: number; z: number; heading: number; mode: string; y: number };
+  /** Jumps, as the jump button does. */
+  jump: () => void;
+  /** Puts the walker on the broom `above` metres over a spot, flying along a heading. */
+  glide: (x: number, z: number, above: number, heading: number) => void;
+  /** Holds the walker where they are, in the air or not, while the camera and the world catch up; false lets them go on. */
+  holdWalker: (held: boolean) => void;
   setFreeCamera: (camera: FreeCamera | null) => void;
   /** How thick the haze is against the usual: 0 is a perfectly clear day. */
   setHaze: (haze: number) => void;
@@ -233,7 +239,17 @@ export function WorldProbeHandle({
         walker.z = z;
         if (heading !== undefined) walker.heading = heading;
       },
-      walker: () => ({ x: walker.x, z: walker.z, heading: walker.heading }),
+      walker: () => ({ x: walker.x, z: walker.z, heading: walker.heading, mode: walker.air?.mode ?? "ground", y: walker.air?.y ?? world.heightAt(walker.x, walker.z) }),
+      jump: () => {
+        walker.request = { kind: "jump" };
+      },
+      glide: (x, z, above, heading) => {
+        walker.request = { kind: "glide", x, z, above, heading };
+        walker.heading = heading;
+      },
+      holdWalker: (held) => {
+        walker.held = held;
+      },
       setFreeCamera: (at) => {
         freeCamera.at = at;
         // The streamed parts are only sure of what is wanted once they have seen the camera where it now is.
