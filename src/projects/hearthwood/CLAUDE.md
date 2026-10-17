@@ -97,6 +97,17 @@ The heart of the game. The woods hold stray **cats and dogs**, every one generat
 - **Motion** is pure functions of the cat's clock, the distance it has walked and its speed: postures for standing, walking (the lateral-sequence walk, each paw planted while it is down), sitting and loafing, blended over a second as the activity changes before the legs are solved to their paws, with the tail up in greeting over any of them, and breathing, blinks, ear flicks, look-arounds and tail sway laid on top as seeded occasional movements.
 - **Budget**: a cat is about 12,000 triangles short-haired, 15,000 long-haired, and two draws (its body and a soft blob shadow), with one compiled coat shader shared by every cat. Meshing a hair length takes about a second on a desktop and runs once a session in a worker. The coat's fragment shader is the heaviest part, a few layers of value noise; if several cats close up ever cost too much on the target phone, the pattern can move to the vertices.
 
+## The animals of the forest
+
+Elliott loves the animals of the forest, so the land is full of them: the animals a Nordic forest really holds, each where and when it really lives. **Nothing is hunted or harmed, and no animal is a threat**: the bear and the lynx are wonders to come across, not dangers.
+
+- **Companions that follow**, beside the cats and dogs: **a familiar**, a raven or an owl, who rides on Elliott's shoulder or pack, flies ahead, perches near and can spot clues from the air, and is met as a story moment rather than as a stray; **a fox**, shy and clever, won over with more patience than a cat; and **a hedgehog**, who trundles behind and curls up in the basket on long walks.
+- **Forest friends who stay home but know Elliott**: befriended, they come out to greet Elliott instead of fleeing. Red squirrels darting up trunks; mountain hares, brown in summer and white in winter; roe deer in the meadows at dawn and dusk; reindeer on the fells, sometimes with their herder; a moose wading in a lake; a badger at dusk; beavers with their lodge and dam on a stream; otters playing in a river; a lynx, rare and special; and a brown bear, seen rarely and from a distance, asleep through the winter.
+- **Life that makes the forest alive**: birds (a woodpecker drumming, jays, waxwings in winter berry trees, a capercaillie in the pines, ptarmigan that turn white in winter, swans on the lakes, cranes calling overhead in spring and autumn, songbirds), and small things (butterflies and bumblebees in summer meadows, dragonflies over water, frogs and a witch's toad by the ponds, fish rising at dusk, fireflies at night).
+- **The seasons move them**: coats turn white, the bear sleeps, the cranes come and go, the deer keep to dawn and dusk. The calendar changes the animals as it changes the land.
+- **One animal underneath, two bodies**: the four-legged animal the cats and dogs share becomes the fox, the lynx, the deer, reindeer and moose (long legs, antlers), the hare, the badger, the hedgehog and the squirrel, each a variant with its own proportions, gait and coat. Birds get one winged body of their own, which covers the familiar, the crane, the ptarmigan and the songbirds. Insects and fish are simple effects.
+- **First wave**: the fox and the hedgehog as companions, the familiar, squirrels, hares and roe deer as forest friends, and songbirds and butterflies for life; the rest follow.
+
 ## People and their stories
 
 The land has people in it, met along the way: travellers on the road, a shepherd on the fell, a beekeeper among the hives, a fisher at a lake, a reindeer herder, a sauna keeper by the shore, an old cottager, a lost hiker. Each has **a story to tell**, and some are **in need of help**, and Elliott the Witch is glad to give it, with magic and with what they know and carry.
@@ -219,7 +230,7 @@ The walks between valleys, brewing, seasons, festivals and the night sky follow,
 ## Open questions
 
 - **Companions on screen:** how many can follow at once before it stops being cozy, where the rest wait, and does camp ever outgrow its clearing?
-- **Other animals:** cats and dogs first; foxes, a hedgehog, a raven familiar or others could follow later as variants of the same animal.
+- **The familiar:** a raven or an owl first, and does Elliott choose?
 - **Do valleys ever repeat?** A valley left behind could be revisited by its seed, or every walk could lead somewhere new.
 - **Music:** generated, composed, or ambient sound only.
 
