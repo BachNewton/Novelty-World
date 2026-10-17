@@ -7,13 +7,13 @@ import { FORAGE_FORM, FORAGE_VARIANTS, type ForageChunk, type ForageSpot } from 
 import { FORAGE_KINDS, type ForageKind } from "../../engine/regions";
 import { wantedChunks, type ChunkKey } from "../../engine/streaming";
 import type { Foraged } from "../../gameplay/basket";
-import { canPick, heartOf, REACH, spotLook, targetSpot, withinTapReach, type Viewer } from "../../gameplay/picking";
+import { canPick, heartOf, REACH, spotLook, targetSpot, withinTapReach, type ForageTime, type Viewer } from "../../gameplay/picking";
 import type { WalkState } from "../../input/use-walk-input";
 import { breatheAtmosphere, type AtmosphereUniforms } from "../../art/atmosphere";
 import { forageColour, forageMatrix, forageShape, partsOf, type ForagePalette, type ForagePart } from "../../art/forage-shapes";
 import { agePop, disposePop, makePop, type PickPop } from "../../art/pick-pop";
 import type { ValleyClock } from "./clock";
-import { answerTaps, forageDay, offer, reportSettled, takePopping, type Foraging } from "./foraging";
+import { answerTaps, forageTime, offer, reportSettled, takePopping, type Foraging } from "./foraging";
 import type { Walker } from "./walker";
 
 /*
@@ -32,7 +32,7 @@ const RECHECK = 4;
 const BUILDS_PER_FRAME = 2;
 /** A tap lands on a spot within this many CSS pixels of where its middle is drawn. */
 const TAP_SLOP = 56;
-/** How finely through the day what is ripe is looked at again: every hour. */
+/** How finely through the day what is ripe and what has grown back is looked at again: every hour. */
 const LOOKS_PER_DAY = 24;
 
 interface Design {
@@ -102,11 +102,11 @@ export function WorldForage({
     const projected = new Vector3();
     answerTaps(foraging, (x, y) => {
       const rect = canvas.getBoundingClientRect();
-      const day = forageDay(foraging, clock);
+      const time = forageTime(clock);
       let best: ForageSpot | null = null;
       let nearest = TAP_SLOP;
       for (const spot of foraging.forage.spotsNear(walker.x, walker.z, REACH.tap)) {
-        if (!withinTapReach(spot, walker.x, walker.z) || !canPick(spot, foraging.foraged, day)) continue;
+        if (!withinTapReach(spot, walker.x, walker.z) || !canPick(spot, foraging.foraged, time)) continue;
         const heart = heartOf(spot);
         projected.set(heart.x, heart.y, heart.z).project(camera);
         if (projected.z > 1) continue;
@@ -141,17 +141,17 @@ export function WorldForage({
     }
     reportSettled(foraging, s.pending.length === 0);
 
-    const day = forageDay(foraging, clock);
-    const hour = Math.floor(day * LOOKS_PER_DAY);
+    const time = forageTime(clock);
+    const hour = Math.floor(time.day * LOOKS_PER_DAY);
     const chunks = [...s.chunks.keys()].join(";");
     if (chunks !== s.filled.chunks || foraging.foraged !== s.filled.foraged || hour !== s.filled.hour) {
       s.filled = { chunks, foraged: foraging.foraged, hour };
-      fill([...s.chunks.values()], foraging.foraged, day, designs, group, material, dummy);
+      fill([...s.chunks.values()], foraging.foraged, time, designs, group, material, dummy);
     }
 
     const viewer: Viewer | null =
       walker.view !== "walk" ? null : input.current.pointOfView === "first" ? { pointOfView: "first", eye: at, look: eye.getWorldDirection(new Vector3()) } : { pointOfView: "third", x: walker.x, z: walker.z, heading: walker.heading };
-    offer(foraging, viewer ? targetSpot(foraging.forage.spotsNear(walker.x, walker.z, REACH.first + 1), viewer, foraging.foraged, day) : null);
+    offer(foraging, viewer ? targetSpot(foraging.forage.spotsNear(walker.x, walker.z, REACH.first + 1), viewer, foraging.foraged, time) : null);
 
     for (const spot of takePopping(foraging)) {
       const design = designs.get(designId(spot.kind, spot.variant, FORAGE_FORM[spot.kind] === "berry" ? "fruit" : "plant"));
@@ -172,7 +172,7 @@ export function WorldForage({
 }
 
 /** Copies every spot into its design's mesh as it shows today. */
-function fill(chunks: readonly ForageChunk[], foraged: Foraged, day: number, designs: Map<string, Design>, group: Group, material: MeshLambertMaterial, dummy: Object3D): void {
+function fill(chunks: readonly ForageChunk[], foraged: Foraged, time: ForageTime, designs: Map<string, Design>, group: Group, material: MeshLambertMaterial, dummy: Object3D): void {
   const placed = new Map<string, ForageSpot[]>();
   const add = (spot: ForageSpot, part: ForagePart) => {
     const id = designId(spot.kind, spot.variant, part);
@@ -182,7 +182,7 @@ function fill(chunks: readonly ForageChunk[], foraged: Foraged, day: number, des
   };
   for (const chunk of chunks) {
     for (const spot of chunk.spots) {
-      const look = spotLook(spot, foraged, day);
+      const look = spotLook(spot, foraged, time);
       if (FORAGE_FORM[spot.kind] === "berry") {
         add(spot, "plant");
         if (look === "ripe") add(spot, "fruit");

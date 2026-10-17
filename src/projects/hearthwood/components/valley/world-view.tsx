@@ -14,12 +14,13 @@ import { readForagePalette } from "../../art/forage-shapes";
 import { readPalette, REGION_AIR } from "../../art/palette";
 import { makeSkyUniforms, Sky } from "../../art/sky";
 import { QUALITY } from "../../quality";
+import { parseDate } from "../../engine/calendar";
 import { advanceClock, makeClock, type ValleyClock } from "./clock";
 import { DebugPanel } from "./debug-panel";
 import { useFrameStats } from "./frame-stats";
 import { FIRST_ORBIT } from "./follow-camera";
 import { ForageOverlay } from "./forage-overlay";
-import { createForaging, readDayOfYear } from "./foraging";
+import { createForaging } from "./foraging";
 import { WalkerAndCamera, type Walker } from "./walker";
 import { TouchStickView, WalkHints } from "./walk-hints";
 import { WorldForage } from "./world-forage";
@@ -31,7 +32,8 @@ import { WorldProbeHandle, type FreeCamera } from "./world-probe";
 /*
  * The endless world: generated from its seed as the camera goes, drawn, lit
  * by the turning day, and walked in first or third person from camp. `?seed=<text>`
- * opens another world, `?hour=<0-24>` holds the day at an hour and
+ * opens another world, `?hour=<0-24>` holds the day at an hour, `?date=`
+ * starts on a date (`summer-2`, a festival such as `litha`, or a day number), and
  * `?haze=<n>` scales the haze (0 is a perfectly clear day; dev switches for
  * judging the light and the far land), ~ opens the debug panel with the time on a
  * slider, and the probe on window drives it for screenshots.
@@ -45,6 +47,8 @@ const CLOCK_PRIORITY = -6;
 interface Options {
   seed: string;
   hour: number | null;
+  /** The whole game day to start on, or null for a new game's. */
+  date: number | null;
   /** How thick the haze is against the usual, until the weather sets it. */
   haze: number;
 }
@@ -56,7 +60,8 @@ function readOptions(search: string): Options {
   if (parsed !== null && !(parsed >= 0 && parsed <= 24)) throw new Error(`?hour must be between 0 and 24, not ${hour ?? ""}`);
   const haze = Number(params.get("haze") ?? 1);
   if (!(haze >= 0)) throw new Error(`?haze must be 0 or more, not ${params.get("haze") ?? ""}`);
-  return { seed: params.get("seed") ?? DEFAULT_SEED, hour: parsed, haze };
+  const date = params.get("date");
+  return { seed: params.get("seed") ?? DEFAULT_SEED, hour: parsed, date: date === null ? null : parseDate(date), haze };
 }
 
 const PROMPT_COLOURS = {
@@ -90,7 +95,7 @@ export function WorldView() {
   const world = useMemo(() => createWorld(options.seed), [options.seed]);
   const palette = useMemo(() => readPalette(), []);
   const foragePalette = useMemo(() => readForagePalette(), []);
-  const foraging = useMemo(() => createForaging(world, readDayOfYear(window.location.search)), [world]);
+  const foraging = useMemo(() => createForaging(world), [world]);
   const shared = useMemo(() => {
     const { camp } = world;
     const walker: Walker = {
@@ -107,8 +112,8 @@ export function WorldView() {
     const air: Air = { thickness: 1 };
     const freeCamera: { at: FreeCamera | null } = { at: null };
     const weather: Weather = { haze: options.haze };
-    return { atmosphere: makeAtmosphere(), sky: makeSkyUniforms(palette), clock: makeClock(options.hour), walker, focus, streaming, air, freeCamera, weather };
-  }, [world, palette, options.hour, options.haze]);
+    return { atmosphere: makeAtmosphere(), sky: makeSkyUniforms(palette), clock: makeClock(options.hour, options.date), walker, focus, streaming, air, freeCamera, weather };
+  }, [world, palette, options.hour, options.date, options.haze]);
   const surface = useRef<HTMLDivElement>(null);
   const input = useWalkInput(surface);
   const [fireflies, setFireflies] = useState<Float32Array>(() => new Float32Array(0));

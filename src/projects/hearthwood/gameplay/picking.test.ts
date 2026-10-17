@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { ForageSpot } from "../engine/forage";
 import { basketTotal, emptyForaged, parseForaged, serializeForaged } from "./basket";
-import { canPick, heartOf, pick, REGROW_DAYS, regrow, spotLook, targetSpot, withinTapReach, type Viewer } from "./picking";
+import { canPick, heartOf, pick, REGROW_DAYS, regrow, spotLook, targetSpot, withinTapReach, type ForageTime, type Viewer } from "./picking";
 
-/** Late August, when bilberries and chanterelles are both ripe. */
-const AUGUST = 230;
-const WINTER = 20;
+/** A game day in late August, when bilberries and chanterelles are both ripe, and one in winter. */
+const AUGUST: ForageTime = { day: 40, dayOfYear: 230 };
+const WINTER: ForageTime = { day: 52, dayOfYear: 20 };
+/** Some game days after August, the real year moving on about thirteen days with each. */
+const later = (days: number): ForageTime => ({ day: AUGUST.day + days, dayOfYear: AUGUST.dayOfYear + days * 13 });
 
 const spot = (id: string, kind: ForageSpot["kind"], x: number, z: number): ForageSpot => ({ id, kind, x, y: 0, z, size: 1, turn: 0, variant: 0, shift: 0 });
 const bilberry = spot("0,0/0", "bilberry", 0, 2);
@@ -23,8 +25,8 @@ describe("picking", () => {
     const after = pick(emptyForaged(), bilberry, AUGUST);
     expect(after.basket.bilberry).toBe(1);
     expect(basketTotal(after.basket)).toBe(1);
-    expect(after.picked).toEqual({ [bilberry.id]: AUGUST });
-    expect(canPick(bilberry, after, AUGUST + 0.5)).toBe(false);
+    expect(after.picked).toEqual({ [bilberry.id]: AUGUST.day });
+    expect(canPick(bilberry, after, { day: AUGUST.day + 0.5, dayOfYear: AUGUST.dayOfYear })).toBe(false);
   });
 
   it("only picks what is ripe", () => {
@@ -34,12 +36,12 @@ describe("picking", () => {
 
   it("grows a picked spot back some days on, in season", () => {
     const after = pick(emptyForaged(), bilberry, AUGUST);
-    expect(canPick(bilberry, after, AUGUST + REGROW_DAYS - 0.1)).toBe(false);
-    expect(canPick(bilberry, after, AUGUST + REGROW_DAYS)).toBe(true);
-    // Grown back in winter is still not ripe.
-    expect(canPick(bilberry, after, AUGUST + 160)).toBe(false);
-    expect(regrow(after, AUGUST + 1)).toBe(after);
-    expect(regrow(after, AUGUST + REGROW_DAYS).picked).toEqual({});
+    expect(canPick(bilberry, after, { day: AUGUST.day + REGROW_DAYS - 0.1, dayOfYear: AUGUST.dayOfYear })).toBe(false);
+    expect(canPick(bilberry, after, { day: AUGUST.day + REGROW_DAYS, dayOfYear: AUGUST.dayOfYear })).toBe(true);
+    // Grown back once the season is over is still not ripe.
+    expect(canPick(bilberry, after, later(REGROW_DAYS + 3))).toBe(false);
+    expect(regrow(after, AUGUST.day + 1)).toBe(after);
+    expect(regrow(after, AUGUST.day + REGROW_DAYS).picked).toEqual({});
   });
 
   it("shows a bush bare and a mushroom cut once picked, and a mushroom not at all out of season", () => {
@@ -81,7 +83,7 @@ describe("what Elliott is looking at", () => {
 
 describe("keeping the basket", () => {
   it("reads back what it wrote", () => {
-    const foraged = pick(pick(emptyForaged(), bilberry, AUGUST), chanterelle, AUGUST + 0.25);
+    const foraged = pick(pick(emptyForaged(), bilberry, AUGUST), chanterelle, { day: AUGUST.day + 0.25, dayOfYear: AUGUST.dayOfYear });
     expect(parseForaged(serializeForaged(foraged))).toEqual(foraged);
   });
 

@@ -1,9 +1,10 @@
 "use client";
 
-import { Eye, Footprints, Rabbit, Rotate3d, SwitchCamera, type LucideIcon } from "lucide-react";
+import { ArrowBigDown, ArrowBigUp, Broom, Eye, Footprints, Rabbit, Rotate3d, SwitchCamera, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { ControlGlyph, Prompt, type Binding } from "@/shared/components/prompts";
 import type { InputKind } from "@/shared/lib/input";
+import type { AirMode } from "../../gameplay/airborne";
 import { otherView, type PointOfView } from "../../input/point-of-view";
 import type { TouchStick, WalkInput } from "../../input/use-walk-input";
 import { STICK_RADIUS } from "../../input/walk-controls";
@@ -12,18 +13,27 @@ import { STICK_RADIUS } from "../../input/walk-controls";
  * How to walk, shown as the controls themselves beside a symbol of what they
  * do, for whichever input was used last and the point of view, until that
  * input has walked; the prompt to click to look while a mouse is free in
- * first person; the touch button that switches the view; and the touch
+ * first person; what jump does next while in the air, until it has been
+ * done; the touch buttons that switch the view and jump; and the touch
  * stick under the thumb while it is held.
  */
 
 const RUN: Binding = { pad: "RT", key: "Shift", fills: false };
 const SWITCH_VIEW: Binding = { pad: "View", key: "V", fills: false };
+const JUMP: Binding = { pad: "A", key: "Space", fills: false };
 
 const INK = "text-(--color-hearthwood-valley-ui-ink)";
 const PANEL = "rounded-2xl bg-(--color-hearthwood-valley-ui-shade)/55 backdrop-blur-sm";
 
 const VIEW_NAME: Record<PointOfView, string> = { first: "first person", third: "third person" };
-/** What turning does in each view: look round, or turn the camera round her. */
+/** What jump does next: a hop from the ground, the broom out in the air, and put away on it. */
+const JUMP_DOES: Record<AirMode, { icon: LucideIcon; label: string }> = {
+  ground: { icon: ArrowBigUp, label: "Jump" },
+  air: { icon: Broom, label: "Jump again for the broom" },
+  broom: { icon: ArrowBigDown, label: "Put the broom away" },
+};
+
+/** What turning does in each view: look round, or turn the camera round them. */
 const TURN: Record<PointOfView, { icon: LucideIcon; label: string }> = {
   first: { icon: Eye, label: "Look around" },
   third: { icon: Rotate3d, label: "Turn the camera" },
@@ -65,6 +75,9 @@ function KeyHints({ view }: { view: PointOfView }) {
       <Hint icon={Rabbit} label="Run">
         <Prompt binding={RUN} input="keyboard-mouse" />
       </Hint>
+      <Hint icon={ArrowBigUp} label="Jump">
+        <Prompt binding={JUMP} input="keyboard-mouse" />
+      </Hint>
       <ViewHint view={view} input="keyboard-mouse" />
     </>
   );
@@ -81,6 +94,9 @@ function PadHints({ view }: { view: PointOfView }) {
       </Hint>
       <Hint icon={Rabbit} label="Run">
         <Prompt binding={RUN} input="pad" />
+      </Hint>
+      <Hint icon={ArrowBigUp} label="Jump">
+        <Prompt binding={JUMP} input="pad" />
       </Hint>
       <ViewHint view={view} input="pad" />
     </>
@@ -99,7 +115,7 @@ function TouchHints({ view }: { view: PointOfView }) {
       >
         <Footprints aria-hidden className="size-7 opacity-80" />
       </div>
-      <div aria-label={`${TURN[view].label}: drag on the right`} className="flex size-28 items-center justify-center">
+      <div aria-label={`${TURN[view].label}: drag on the right`} className="mb-24 flex size-28 items-center justify-center">
         <Turn aria-hidden className="size-9 opacity-80" />
       </div>
     </div>
@@ -107,7 +123,7 @@ function TouchHints({ view }: { view: PointOfView }) {
 }
 
 /** A mouse in first person looks once the pointer is locked to the game, which a click does. Low in the
- *  middle, clear of what she is looking at. */
+ *  middle, clear of what they are looking at. */
 function ClickToLook() {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-[18%] flex justify-center">
@@ -116,6 +132,41 @@ function ClickToLook() {
         <Eye aria-hidden className="size-6" />
       </div>
     </div>
+  );
+}
+
+/** In the air, what another jump does, until the player has done it: the broom out, then put away. */
+function AirHint({ air, input }: { air: AirMode; input: InputKind }) {
+  const does = JUMP_DOES[air];
+  const Icon = does.icon;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-[28%] flex justify-center">
+      <div aria-label={does.label} title={does.label} className={`flex items-center gap-2 px-3 py-2.5 text-base ${PANEL} ${INK}`}>
+        <Prompt binding={JUMP} input={input} />
+        <Icon aria-hidden className="size-6" />
+      </div>
+    </div>
+  );
+}
+
+/** On touch, jump is a button under the right thumb, showing what it will do: hop, take out the broom, or put it away. */
+function JumpButton({ air, onJump }: { air: AirMode; onJump: () => void }) {
+  const does = JUMP_DOES[air];
+  const Icon = does.icon;
+  return (
+    <button
+      type="button"
+      aria-label={does.label}
+      title={does.label}
+      // On the press, not the click: a jump is felt the moment the thumb lands.
+      onPointerDown={(event) => {
+        event.preventDefault();
+        onJump();
+      }}
+      className={`absolute right-6 bottom-8 flex size-[4.5rem] touch-none items-center justify-center rounded-full border-2 border-(--color-hearthwood-valley-ui-ink)/45 bg-(--color-hearthwood-valley-ui-shade)/45 backdrop-blur-sm ${INK}`}
+    >
+      <Icon aria-hidden className="size-9" />
+    </button>
   );
 }
 
@@ -136,8 +187,9 @@ function ViewButton({ view, onSwitch }: { view: PointOfView; onSwitch: () => voi
 }
 
 export function WalkHints({ input }: { input: WalkInput }) {
-  const { kind, pointOfView: view, locked } = input;
+  const { kind, pointOfView: view, locked, air, broomed } = input;
   const showHow = !input.walkedWith.has(kind);
+  const showAir = kind !== "touch" && ((air === "air" && !broomed.out) || (air === "broom" && !broomed.away));
   return (
     <>
       {showHow &&
@@ -149,13 +201,17 @@ export function WalkHints({ input }: { input: WalkInput }) {
           </div>
         ))}
       {kind === "keyboard-mouse" && view === "first" && !locked && <ClickToLook />}
+      {showAir && <AirHint air={air} input={kind} />}
       {kind === "touch" && (
-        <ViewButton
-          view={view}
-          onSwitch={() => {
-            input.setPointOfView(otherView(view));
-          }}
-        />
+        <>
+          <ViewButton
+            view={view}
+            onSwitch={() => {
+              input.setPointOfView(otherView(view));
+            }}
+          />
+          <JumpButton air={air} onJump={input.jump} />
+        </>
       )}
     </>
   );

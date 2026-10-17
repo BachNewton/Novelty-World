@@ -9,7 +9,7 @@ import { basketTotal } from "../../gameplay/basket";
 import { useInteractInput } from "../../input/interact";
 import type { ValleyClock } from "./clock";
 import { FORAGE_NAMES, ForageIcon } from "./forage-icons";
-import { forageDay, pickSpot, setBasketOpen, subscribeForaging, type Foraging } from "./foraging";
+import { forageTime, pickSpot, setBasketOpen, subscribeForaging, type Foraging } from "./foraging";
 
 /*
  * Foraging over the scene: the prompt to pick what Elliott is looking at (a
@@ -35,13 +35,13 @@ export function ForageOverlay({ foraging, clock, surface, input }: { foraging: F
   const lingering = shown.picks > shownPicks;
 
   const pickOffered = () => {
-    if (foraging.target) pickSpot(foraging, foraging.target, forageDay(foraging, clock));
+    if (foraging.target) pickSpot(foraging, foraging.target, forageTime(clock));
   };
   useInteractInput(surface, {
     onInteract: pickOffered,
     onTap: ({ x, y }) => {
       const spot = foraging.tapAt?.(x, y) ?? null;
-      if (spot) pickSpot(foraging, spot, forageDay(foraging, clock));
+      if (spot) pickSpot(foraging, spot, forageTime(clock));
     },
     onBasket: () => {
       setBasketOpen(foraging, !foraging.shown.open);

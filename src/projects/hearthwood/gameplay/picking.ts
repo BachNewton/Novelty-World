@@ -6,13 +6,22 @@ import type { Foraged } from "./basket";
  * Picking, as rules: which spot Elliott is looking at and can reach, whether
  * it can be picked (ripe, and not picked lately), what picking it does (one
  * more in the basket, and the spot remembered as picked that day) and when a
- * picked spot grows back (some days on, if it is in season then). Time is a
- * running count of days, fractional through each day; its day of the year
+ * picked spot grows back (some days on, if it is in season then). Time is
+ * the calendar's: the game days since it began, which a picked spot counts
+ * to grow back, and the real day of the year a game day stands for, which
  * says what is in season.
  */
 
-/** How many days a picked spot takes to grow back. */
-export const REGROW_DAYS = 3;
+/** How many game days a picked spot takes to grow back: about a month of the real year it stands for. */
+export const REGROW_DAYS = 2;
+
+/** When it is, for foraging. */
+export interface ForageTime {
+  /** Game days since the calendar began, fractional through the day. */
+  day: number;
+  /** The real day of the year the day stands for, 0 (1 January) to 365. */
+  dayOfYear: number;
+}
 
 /** How far Elliott can reach, in metres: from their eyes in first person, from where they stand in third, and to a spot tapped. */
 export const REACH = { first: 3, third: 2.2, tap: 3.4 } as const;
@@ -53,28 +62,28 @@ export function isPicked(foraged: Foraged, id: string, day: number): boolean {
   return at !== undefined && day - at < REGROW_DAYS;
 }
 
-export function isRipe(spot: ForageSpot, day: number): boolean {
-  return inSeason(spot.kind, day, spot.shift);
+export function isRipe(spot: ForageSpot, time: ForageTime): boolean {
+  return inSeason(spot.kind, time.dayOfYear, spot.shift);
 }
 
-export function canPick(spot: ForageSpot, foraged: Foraged, day: number): boolean {
-  return isRipe(spot, day) && !isPicked(foraged, spot.id, day);
+export function canPick(spot: ForageSpot, foraged: Foraged, time: ForageTime): boolean {
+  return isRipe(spot, time) && !isPicked(foraged, spot.id, time.day);
 }
 
 /** How a spot shows: a bush with its fruit or bare of it; a mushroom grown, cut, or not up at all. */
 export type SpotLook = "ripe" | "bare" | "cut" | "none";
 
-export function spotLook(spot: ForageSpot, foraged: Foraged, day: number): SpotLook {
-  const picked = isPicked(foraged, spot.id, day);
-  if (FORAGE_FORM[spot.kind] === "berry") return !picked && isRipe(spot, day) ? "ripe" : "bare";
+export function spotLook(spot: ForageSpot, foraged: Foraged, time: ForageTime): SpotLook {
+  const picked = isPicked(foraged, spot.id, time.day);
+  if (FORAGE_FORM[spot.kind] === "berry") return !picked && isRipe(spot, time) ? "ripe" : "bare";
   if (picked) return "cut";
-  return isRipe(spot, day) ? "ripe" : "none";
+  return isRipe(spot, time) ? "ripe" : "none";
 }
 
 /** Picking a spot: one more of its kind in the basket, and the spot remembered as picked today. */
-export function pick(foraged: Foraged, spot: ForageSpot, day: number): Foraged {
-  if (!canPick(spot, foraged, day)) throw new Error(`${spot.kind} at ${spot.id} can't be picked on day ${day}`);
-  return { basket: { ...foraged.basket, [spot.kind]: foraged.basket[spot.kind] + 1 }, picked: { ...foraged.picked, [spot.id]: day } };
+export function pick(foraged: Foraged, spot: ForageSpot, time: ForageTime): Foraged {
+  if (!canPick(spot, foraged, time)) throw new Error(`${spot.kind} at ${spot.id} can't be picked on day ${time.day} (${time.dayOfYear} of the year)`);
+  return { basket: { ...foraged.basket, [spot.kind]: foraged.basket[spot.kind] + 1 }, picked: { ...foraged.picked, [spot.id]: time.day } };
 }
 
 /** Forgets the spots that have grown back, so what is kept stays small; the same record when none have. */
@@ -94,11 +103,11 @@ interface Point3 {
 export type Viewer = { pointOfView: "first"; eye: Point3; look: Point3 } | { pointOfView: "third"; x: number; z: number; heading: number };
 
 /** The spot Elliott is looking at and can pick, if any: in first person the one nearest the middle of the view, in third the nearest one in front of them. */
-export function targetSpot(spots: readonly ForageSpot[], viewer: Viewer, foraged: Foraged, day: number): ForageSpot | null {
+export function targetSpot(spots: readonly ForageSpot[], viewer: Viewer, foraged: Foraged, time: ForageTime): ForageSpot | null {
   let best: ForageSpot | null = null;
   let bestScore = Infinity;
   for (const spot of spots) {
-    if (!canPick(spot, foraged, day)) continue;
+    if (!canPick(spot, foraged, time)) continue;
     let score: number;
     if (viewer.pointOfView === "first") {
       const dx = spot.x - viewer.eye.x;

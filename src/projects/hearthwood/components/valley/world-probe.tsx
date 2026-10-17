@@ -3,16 +3,18 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Color } from "three";
-import { dayOfYear } from "../../engine/forage";
 import { ALTITUDE, emptySample } from "../../engine/land";
 import type { PointOfView } from "../../input/point-of-view";
 import { mainRegion, REGIONS } from "../../engine/regions";
 import type { World } from "../../engine/world";
 import { canPick, spotLook, type SpotLook } from "../../gameplay/picking";
 import type { Palette } from "../../art/palette";
-import { holdHour, type ValleyClock } from "./clock";
+import type { SunDay } from "../../engine/astronomy";
+import { dateAt, parseDate, startTime, type CalendarDate } from "../../engine/calendar";
+import type { DaySky } from "../../engine/day";
+import { holdHour, setDay, type ValleyClock } from "./clock";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
-import { forageDay, forgetForaging, pickSpot, setBasketOpen, setDayOfYear, type Foraging } from "./foraging";
+import { forageTime, forgetForaging, goToDayOfYear, pickSpot, setBasketOpen, type Foraging } from "./foraging";
 import type { CameraView, Walker } from "./walker";
 import type { Streaming } from "./world-land";
 import type { Weather } from "./world-view";
@@ -21,10 +23,10 @@ import type { Weather } from "./world-view";
  * The world's handle for screenshots and tests, on `window.__hearthwoodWorld`:
  * whether it is ready (its shaders compiled, everything the camera wants
  * streamed in, and a frame drawn), a frame counter to wait on, what the last
- * frame drew, switches for the hour, the motion clock, the camera and where
- * the walker stands, the point of view and where it looks, a free camera, readings of the world at a point, and a
- * map of an area drawn from the world itself, and foraging: the day of the
- * year, the spots near a point and how each shows, what is on offer, picking,
+ * frame drew, switches for the hour, the date, the motion clock, the camera and where
+ * the walker stands, the point of view and where it looks, a jump or a glide begun from a spot (and held there), a free camera, readings of the world at a point, a
+ * map of an area drawn from the world itself, and foraging: a real day of the
+ * year to go to, the spots near a point and how each shows, what is on offer, picking,
  * the basket and forgetting it. Waiting on these is waiting on
  * events, never on time.
  */
@@ -74,6 +76,12 @@ export interface WorldProbe {
   hour: () => number;
   /** Holds the day at an hour, or lets it turn again from there with null. */
   holdHour: (hours: number | null) => void;
+  /** The date and hour now, the sky (sun, moon, key light, the light's moments) and today's sunrise, sunset and twilights. */
+  date: () => CalendarDate;
+  sky: () => DaySky;
+  today: () => SunDay;
+  /** Moves to a date at the same hour: a season and its day (`summer-2`), a festival (`litha`), a day number, or null for a new game's first day. */
+  setDate: (date: string | number | null) => void;
   /** Holds every motion (flames, water, the breeze) at a moment, or lets it run with null. */
   holdMotion: (seconds: number | null) => void;
   setView: (view: CameraView) => void;
@@ -82,7 +90,13 @@ export interface WorldProbe {
   /** Where the walker looks in first person: the yaw is the orbit's, shared by both views. */
   setLook: (look: { yaw?: number; pitch?: number }) => void;
   placeWalker: (x: number, z: number, heading?: number) => void;
-  walker: () => { x: number; z: number; heading: number };
+  walker: () => { x: number; z: number; heading: number; mode: string; y: number };
+  /** Jumps, as the jump button does. */
+  jump: () => void;
+  /** Puts the walker on the broom `above` metres over a spot, flying along a heading. */
+  glide: (x: number, z: number, above: number, heading: number) => void;
+  /** Holds the walker where they are, in the air or not, while the camera and the world catch up; false lets them go on. */
+  holdWalker: (held: boolean) => void;
   setFreeCamera: (camera: FreeCamera | null) => void;
   /** How thick the haze is against the usual: 0 is a perfectly clear day. */
   setHaze: (haze: number) => void;
@@ -99,9 +113,8 @@ export interface WorldProbe {
 }
 
 export interface ForageProbe {
-  /** The day of the year it is, and setting it. */
-  day: () => number;
-  setDay: (dayOfYear: number) => void;
+  /** Moves the calendar, at the same hour, to the game day this year that stands for a real day of the year (0 is 1 January). */
+  setDayOfYear: (dayOfYear: number) => void;
   /** The spots to pick near a point, and how each shows today. */
   spotsNear: (x: number, z: number, radius: number) => { id: string; kind: string; x: number; y: number; z: number; look: SpotLook }[];
   /** The id of the spot on offer, if any. */
@@ -238,6 +251,12 @@ export function WorldProbeHandle({
       holdHour: (hours) => {
         holdHour(clock, hours);
       },
+      date: () => clock.date,
+      sky: () => clock.sky,
+      today: () => clock.today,
+      setDate: (date) => {
+        setDay(clock, date === null ? dateAt(startTime()).day : typeof date === "number" ? date : parseDate(date));
+      },
       holdMotion: (seconds) => {
         clock.heldMotion = seconds;
       },
@@ -257,7 +276,17 @@ export function WorldProbeHandle({
         walker.z = z;
         if (heading !== undefined) walker.heading = heading;
       },
-      walker: () => ({ x: walker.x, z: walker.z, heading: walker.heading }),
+      walker: () => ({ x: walker.x, z: walker.z, heading: walker.heading, mode: walker.air?.mode ?? "ground", y: walker.air?.y ?? world.heightAt(walker.x, walker.z) }),
+      jump: () => {
+        walker.request = { kind: "jump" };
+      },
+      glide: (x, z, above, heading) => {
+        walker.request = { kind: "glide", x, z, above, heading };
+        walker.heading = heading;
+      },
+      holdWalker: (held) => {
+        walker.held = held;
+      },
       setFreeCamera: (at) => {
         freeCamera.at = at;
         // The streamed parts are only sure of what is wanted once they have seen the camera where it now is.
@@ -295,20 +324,19 @@ export function WorldProbeHandle({
       },
       map: (request) => drawMap(world, palette, request),
       forage: {
-        day: () => dayOfYear(forageDay(foraging, clock)),
-        setDay: (day) => {
-          setDayOfYear(foraging, clock, day);
+        setDayOfYear: (day) => {
+          goToDayOfYear(clock, day);
         },
         spotsNear: (x, z, radius) => {
-          const day = forageDay(foraging, clock);
-          return foraging.forage.spotsNear(x, z, radius).map((s) => ({ id: s.id, kind: s.kind, x: s.x, y: s.y, z: s.z, look: spotLook(s, foraging.foraged, day) }));
+          const time = forageTime(clock);
+          return foraging.forage.spotsNear(x, z, radius).map((s) => ({ id: s.id, kind: s.kind, x: s.x, y: s.y, z: s.z, look: spotLook(s, foraging.foraged, time) }));
         },
         target: () => foraging.target?.id ?? null,
         pick: (id) => {
-          const day = forageDay(foraging, clock);
+          const time = forageTime(clock);
           const spot = id === undefined ? foraging.target : (foraging.forage.spotsNear(walker.x, walker.z, 12).find((s) => s.id === id) ?? null);
-          if (!spot || !canPick(spot, foraging.foraged, day)) return false;
-          pickSpot(foraging, spot, day);
+          if (!spot || !canPick(spot, foraging.foraged, time)) return false;
+          pickSpot(foraging, spot, time);
           return true;
         },
         basket: () => ({ ...foraging.foraged.basket }),

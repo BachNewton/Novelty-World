@@ -1,15 +1,18 @@
 // Screenshots of Hearthwood's endless world, for judging its look without a browser open: camp through the
 // day, walking views in each region at morning, golden hour and night, a range seen from afar with a pass
 // in it, an aerial view, a top-down map of a few kilometres drawn from the world itself, the phone's
-// touch controls on the target phone (a Pixel 8 Pro in Chrome, portrait and landscape), and camp through
-// Elliott's own eyes, with its hints (the `fp-` shots), and foraging (the `forage-` shots: a patch of each of a few
-// kinds from behind Elliott, a close-up through their eyes before and after picking, and the basket on desktop
-// and the target phone). Prints what each
+// touch controls on the target phone (a Pixel 8 Pro in Chrome, portrait and landscape) with the jump
+// button on the ground and on the broom, camp through Elliott's own eyes, with its hints (the `fp-` shots),
+// a glide on the broom down off a ridge, behind them and through their eyes (the `glide-` shots), and foraging
+// (the `forage-` shots: a patch of each kind, a close-up through Elliott's eyes before and after picking, and the
+// basket on desktop and the target phone). Prints what each
 // frame drew (triangles, draw calls) and how long frames took (SHOTS_UNCAPPED=1 for the frame's own time).
 //
 // Drives the world's probe (window.__hearthwoodWorld, see ../components/valley/world-probe.tsx) over
 // Playwright and waits on its events (ready, streamed in, frames drawn), never a sleep. Every shot holds
-// the hour and the motion clock, so two runs differ only where the art does.
+// the date, the hour and the motion clock, so two runs differ only where the art does. The shots are on the
+// autumn equinox, whose day has every moment at its usual hour and a dark night, except the `calendar-`
+// shots, which show the light through the year: a midsummer evening, a midwinter noon and a spring morning.
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
 // `npx playwright install chromium` (one-time).
@@ -28,6 +31,7 @@ const ONLY = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--onl
 const OUTDIR = join(HERE, "..", ".shots", LABEL);
 const BASE = process.env.HEARTHWOOD_URL ?? "http://localhost:3001/games/3d-games/hearthwood";
 const MOTION_AT = 12;
+const DATE = "mabon";
 const REGIONS = ["greenwood", "birchvale", "highlands", "heath", "maplewood"];
 
 const DESKTOP = { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 };
@@ -78,11 +82,13 @@ async function frames(page, count) {
 }
 
 // Most shots are from behind Elliott, in third person; the `fp-` ones are through their eyes, with `look` the way they look.
-async function capture(page, name, { hour, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1 }) {
+// `glide` puts them on the broom over a spot and holds them there, so the shot is mid-glide.
+async function capture(page, name, { hour, date = DATE, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1, glide = null }) {
   await page.evaluate(
-    ({ hour, view, pov, orbit, look, walker, free, motion, chrome, haze }) => {
+    ({ hour, date, view, pov, orbit, look, walker, free, motion, chrome, haze, glide }) => {
       const world = window.__hearthwoodWorld;
       world.holdHour(hour);
+      world.setDate(date);
       world.setHaze(haze);
       world.holdMotion(motion);
       world.setView(view);
@@ -91,9 +97,11 @@ async function capture(page, name, { hour, view = "walk", pov = "third", orbit =
       if (orbit) world.setOrbit(orbit);
       if (look) world.setLook(look);
       if (walker) world.placeWalker(walker.x, walker.z, walker.heading);
+      world.holdWalker(glide !== null);
+      if (glide) world.glide(glide.x, glide.z, glide.above, glide.heading);
       document.documentElement.toggleAttribute("data-shot-chrome", chrome);
     },
-    { hour, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze },
+    { hour, date, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze, glide },
   );
   // The camera eases after the walker, and the world streams in round wherever it ends up: give the
   // camera frames to arrive, then wait for the streaming to settle, then read a settled frame.
@@ -101,11 +109,12 @@ async function capture(page, name, { hour, view = "walk", pov = "third", orbit =
   await page.waitForFunction(() => window.__hearthwoodWorld.settled(), null, { timeout: 300000 });
   await frames(page, 4);
   const drawn = await page.evaluate(() => window.__hearthwoodWorld.drawn());
+  const { sun, moon } = await page.evaluate(() => window.__hearthwoodWorld.sky());
   const path = join(OUTDIR, `${name}.png`);
   await page.screenshot({ path });
   const times = drawn.frameTimes.slice(-30).sort((a, b) => a - b);
   console.log(
-    `wrote ${path}  tris ${drawn.triangles}  calls ${drawn.calls}  points ${drawn.points}  buffer ${drawn.width}x${drawn.height}@${drawn.pixelRatio}  median frame ${times[Math.floor(times.length / 2)]?.toFixed(1)} ms`,
+    `wrote ${path}  sun ${sun.elevation.toFixed(1)}° (${sun.twilight})  moon ${moon.elevation.toFixed(1)}° ${moon.phase}  tris ${drawn.triangles}  calls ${drawn.calls}  points ${drawn.points}  buffer ${drawn.width}x${drawn.height}@${drawn.pixelRatio}  median frame ${times[Math.floor(times.length / 2)]?.toFixed(1)} ms`,
   );
 }
 
@@ -174,6 +183,26 @@ async function findRange(page) {
   });
 }
 
+/** The ridge with the longest drop near camp: open ground to stand on, and the way the land falls away from it. */
+async function findRidge(page) {
+  return page.evaluate(() => {
+    const world = window.__hearthwoodWorld;
+    let best = null;
+    for (let z = -3000; z <= 3000; z += 150) {
+      for (let x = -3000; x <= 3000; x += 150) {
+        const here = world.at(x, z);
+        if (here.height - here.water < 1) continue;
+        for (let a = 0; a < 8; a++) {
+          const heading = (a / 8) * Math.PI * 2;
+          const drop = here.height - world.at(x + Math.sin(heading) * 600, z + Math.cos(heading) * 600).height;
+          if (best === null || drop > best.drop) best = { x, z, height: here.height, drop, heading };
+        }
+      }
+    }
+    return best;
+  });
+}
+
 const desktop = await openWorld(DESKTOP);
 const camp = await desktop.evaluate(() => window.__hearthwoodWorld.camp());
 const atCamp = { x: camp.x + 3.4, z: camp.z + 1.5, heading: Math.atan2(-3.4, -1.5) };
@@ -192,23 +221,30 @@ if (want("map")) {
 
 const shots = [
   ["camp-morning", { hour: 8.3, walker: atCamp, orbit: facingCamp }],
-  ["camp-golden", { hour: 17.4, walker: atCamp, orbit: facingCamp }],
+  ["camp-golden", { hour: 16.8, walker: atCamp, orbit: facingCamp }],
   ["camp-dusk", { hour: 19.1, walker: atCamp, orbit: facingCamp }],
   ["camp-night", { hour: 22.5, walker: atCamp, orbit: facingCamp }],
   ["camp-out-morning", { hour: 8.3, walker: atCamp, orbit: outward }],
-  ["camp-out-golden", { hour: 17.4, walker: atCamp, orbit: outward }],
+  ["camp-out-golden", { hour: 16.8, walker: atCamp, orbit: outward }],
   ["camp-night-sky", { hour: 23, walker: atCamp, orbit: { ...outward, pitch: -0.1, distance: 6 } }],
-  ["aerial-golden", { hour: 17.4, free: { x: camp.x - 260, y: 180, z: camp.z - 260, lookX: camp.x + 200, lookY: 20, lookZ: camp.z + 200 } }],
+  ["aerial-golden", { hour: 16.8, free: { x: camp.x - 260, y: 180, z: camp.z - 260, lookX: camp.x + 200, lookY: 20, lookZ: camp.z + 200 } }],
+  // The light through the year, from the sun's real height at Helsinki's latitude.
+  ["calendar-midsummer-2230", { date: "litha", hour: 22.5, walker: atCamp, orbit: outward }],
+  ["calendar-midsummer-2230-camp", { date: "litha", hour: 22.5, walker: atCamp, orbit: facingCamp }],
+  ["calendar-midwinter-noon", { date: "yule", hour: 12, walker: atCamp, orbit: outward }],
+  ["calendar-midwinter-noon-camp", { date: "yule", hour: 12, walker: atCamp, orbit: facingCamp }],
+  ["calendar-spring-morning", { date: "spring-4", hour: 8.5, walker: atCamp, orbit: outward }],
+  ["calendar-spring-morning-camp", { date: "spring-4", hour: 8.5, walker: atCamp, orbit: facingCamp }],
 ];
 // Through Elliott's eyes: at camp facing the fire, looking out of camp, walking out, and the hints.
 const towardsOut = { x: atCamp.x + Math.sin(outward.yaw) * 24, z: atCamp.z + Math.cos(outward.yaw) * 24, heading: outward.yaw };
 shots.push(
-  ["fp-golden-camp", { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 } }],
-  ["fp-golden-out", { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: outward.yaw, pitch: 0 } }],
+  ["fp-golden-camp", { hour: 16.8, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 } }],
+  ["fp-golden-out", { hour: 16.8, pov: "first", walker: atCamp, look: { yaw: outward.yaw, pitch: 0 } }],
   ["fp-morning-walk", { hour: 8.3, pov: "first", walker: towardsOut, look: { yaw: outward.yaw, pitch: 0.04 } }],
   ["fp-night-camp", { hour: 22.5, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.15 } }],
-  ["fp-hints", { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 }, chrome: true }],
-  ["tp-hints", { hour: 17.4, walker: atCamp, orbit: facingCamp, chrome: true }],
+  ["fp-hints", { hour: 16.8, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 }, chrome: true }],
+  ["tp-hints", { hour: 16.8, walker: atCamp, orbit: facingCamp, chrome: true }],
 );
 for (const [name, shot] of shots) if (want(name)) await capture(desktop, name, shot);
 
@@ -221,7 +257,7 @@ for (const region of REGIONS) {
   }
   console.log(`${region}: standing at ${spot.x.toFixed(0)}, ${spot.z.toFixed(0)}`);
   const walker = { x: spot.x, z: spot.z, heading: spot.yaw };
-  for (const [moment, hour] of [["morning", 8.3], ["golden", 17.4], ["night", 22.5]]) {
+  for (const [moment, hour] of [["morning", 8.3], ["golden", 16.8], ["night", 22.5]]) {
     await capture(desktop, `region-${region}-${moment}`, { hour, walker, orbit: { yaw: spot.yaw, pitch: 0.1, distance: 7.5 } });
   }
 }
@@ -229,7 +265,7 @@ for (const region of REGIONS) {
 if (want("range")) {
   const { peak, view } = await findRange(desktop);
   console.log(`range: peak ${peak.height.toFixed(0)} m at ${peak.x}, ${peak.z}; viewing from ${view.x.toFixed(0)}, ${view.z.toFixed(0)}`);
-  for (const [moment, hour] of [["morning", 9], ["golden", 17.4]]) {
+  for (const [moment, hour] of [["morning", 9], ["golden", 16.8]]) {
     await capture(desktop, `range-${moment}`, { hour, walker: { x: view.x, z: view.z }, free: { x: view.x, y: view.height + 30, z: view.z, lookX: peak.x, lookY: peak.height * 0.6, lookZ: peak.z } });
   }
   // On a perfectly clear day, with no haze to hide anything, the land must hold up out to the horizon on its own:
@@ -272,6 +308,22 @@ if (want("place")) {
     const walker = { x: place.x + Math.sin(facing) * back, z: place.z + Math.cos(facing) * back, heading: facing + Math.PI };
     await capture(desktop, `place-${kind}`, { hour: 16.6, walker, orbit: { yaw: facing + Math.PI, pitch: kind === "waterfall" ? 0.05 : 0.2, distance: 7 } });
   }
+}
+
+if (want("glide")) {
+  const ridge = await findRidge(desktop);
+  console.log(`ridge: ${ridge.height.toFixed(0)} m at ${ridge.x}, ${ridge.z}, falling ${ridge.drop.toFixed(0)} m over 600 m`);
+  // Some way out from the ridge, a little below its top, high over the valley.
+  const out = 140;
+  const x = ridge.x + Math.sin(ridge.heading) * out;
+  const z = ridge.z + Math.cos(ridge.heading) * out;
+  const below = await desktop.evaluate(({ x, z }) => window.__hearthwoodWorld.at(x, z), { x, z });
+  const glide = { x, z, above: ridge.height - 30 - Math.max(below.height, below.water), heading: ridge.heading };
+  await capture(desktop, "glide-golden", { hour: 17.4, glide, orbit: { yaw: ridge.heading + 0.5, pitch: 0.2, distance: 6 } });
+  await capture(desktop, "glide-golden-side", { hour: 17.4, glide, orbit: { yaw: ridge.heading - 1.3, pitch: 0.08, distance: 5 } });
+  await capture(desktop, "glide-fp-golden", { hour: 17.4, pov: "first", glide, look: { yaw: ridge.heading, pitch: -0.12 } });
+  await capture(desktop, "glide-fp-morning", { hour: 9, pov: "first", glide, look: { yaw: ridge.heading, pitch: -0.05 } });
+  await capture(desktop, "glide-fp-hints", { hour: 17.4, pov: "first", glide, look: { yaw: ridge.heading, pitch: -0.2 }, chrome: true });
 }
 
 // Foraging. The basket starts empty for the run, the day is set for the kind (cloudberries ripen in July),
@@ -347,7 +399,7 @@ if (wantAny("forage")) {
   await desktop.evaluate(() => window.__hearthwoodWorld.forage.forget());
   for (const { kind, name, day, least } of FORAGE_SHOTS) {
     if (!want(`forage-${name}`)) continue;
-    await desktop.evaluate((d) => window.__hearthwoodWorld.forage.setDay(d), day);
+    await desktop.evaluate((d) => window.__hearthwoodWorld.forage.setDayOfYear(d), day);
     const patch = await findPatch(desktop, kind, least);
     if (patch === null) {
       console.log(`no patch of ${kind} found`);
@@ -383,7 +435,7 @@ async function forageOnPhone(device, name) {
   const page = await openWorld(device);
   const { width, height } = device.viewport;
   await page.touchscreen.tap(width * 0.8, height * 0.4);
-  await page.evaluate(() => window.__hearthwoodWorld.forage.setDay(236));
+  await page.evaluate(() => window.__hearthwoodWorld.forage.setDayOfYear(236));
   const patch = await findPatch(page, "bilberry", 20);
   const close = standBy(patch, 1.4);
   const look = await aimAt(page, close, patch.heart, 0.08);
@@ -408,13 +460,16 @@ async function phoneShots(device, name) {
   const { width, height } = device.viewport;
   // A tap on the right half makes touch the last input used, without walking, so its hints show.
   await page.touchscreen.tap(width * 0.8, height * 0.4);
-  await capture(page, `${name}-hints`, { hour: 17.4, walker: atCamp, orbit: facingCamp, chrome: true });
+  await capture(page, `${name}-hints`, { hour: 16.8, walker: atCamp, orbit: facingCamp, chrome: true });
   const thumb = { x: width * 0.22, y: height * 0.78 };
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [thumb] });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: thumb.x + 14, y: thumb.y - 40 }] });
-  await capture(page, `${name}-stick`, { hour: 17.4, chrome: true });
+  await capture(page, `${name}-stick`, { hour: 16.8, chrome: true });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await capture(page, `${name}-night`, { hour: 22.5, walker: atCamp, orbit: facingCamp });
+  // On the broom, the jump button shows it will put the broom away.
+  const out = { x: atCamp.x + Math.sin(outward.yaw) * 30, z: atCamp.z + Math.cos(outward.yaw) * 30, above: 12, heading: outward.yaw };
+  await capture(page, `${name}-glide`, { hour: 17.4, glide: out, orbit: { yaw: outward.yaw + 0.4, pitch: 0.25, distance: 6 }, chrome: true });
   await page.context().close();
 }
 await phoneShots(PHONE_PORTRAIT, "phone-portrait");
@@ -425,7 +480,7 @@ async function firstPersonPhoneShots(device, name) {
   const page = await openWorld(device);
   const { width, height } = device.viewport;
   await page.touchscreen.tap(width * 0.8, height * 0.4);
-  await capture(page, `${name}-hints`, { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 }, chrome: true });
+  await capture(page, `${name}-hints`, { hour: 16.8, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 }, chrome: true });
   await page.context().close();
 }
 await firstPersonPhoneShots(PHONE_PORTRAIT, "fp-phone-portrait");

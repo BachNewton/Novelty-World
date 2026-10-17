@@ -13,7 +13,7 @@ export type Basket = Record<ForageKind, number>;
 
 export interface Foraged {
   basket: Basket;
-  /** Each picked spot's id, with the day (a running count of days) it was picked. */
+  /** Each picked spot's id, with the game day (since the calendar began, fractional) it was picked. */
   picked: Record<string, number>;
 }
 
