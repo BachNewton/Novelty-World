@@ -340,6 +340,65 @@
   --color-hearthwood-gallery-ground-edge: #b4ab95;
 }
 
+/* Hearthwood's seasons: each kind of plant's young spring green, its two
+   autumn colours (one or the other by the tree), and its bare winter twigs
+   (or, for heather, its faded bells); the summer green of the plants whose
+   shapes are painted in their autumn colours; and the ground's dormant
+   straw, new green and autumn gold and russet, and a bare wood seen from
+   afar. Read only
+   by the 3D scene through themeColor. */
+:root {
+  --color-hearthwood-valley-season-birch-fresh: #c6e27a;
+  --color-hearthwood-valley-season-birch-autumn: #f1c53c;
+  --color-hearthwood-valley-season-birch-autumn-alt: #e49a2c;
+  --color-hearthwood-valley-season-birch-bare: #8a7376;
+  --color-hearthwood-valley-season-aspen-summer: #93bf58;
+  --color-hearthwood-valley-season-aspen-fresh: #cde684;
+  --color-hearthwood-valley-season-aspen-autumn-alt: #e8862a;
+  --color-hearthwood-valley-season-aspen-bare: #8c8478;
+  --color-hearthwood-valley-season-oak-fresh: #b9d873;
+  --color-hearthwood-valley-season-oak-autumn: #a3542c;
+  --color-hearthwood-valley-season-oak-autumn-alt: #c48038;
+  --color-hearthwood-valley-season-oak-bare: #6f5a4c;
+  --color-hearthwood-valley-season-maple-summer: #5f9a46;
+  --color-hearthwood-valley-season-maple-fresh: #b2d66c;
+  --color-hearthwood-valley-season-maple-autumn-alt: #b02a26;
+  --color-hearthwood-valley-season-maple-bare: #7a5e58;
+  --color-hearthwood-valley-season-conifer-fresh: #6c9c62;
+  --color-hearthwood-valley-season-conifer-autumn: #2c4c46;
+  --color-hearthwood-valley-season-conifer-autumn-alt: #34544a;
+  --color-hearthwood-valley-season-conifer-bare: #2c4c46;
+  --color-hearthwood-valley-season-pine-fresh: #6a9474;
+  --color-hearthwood-valley-season-pine-autumn: #33524c;
+  --color-hearthwood-valley-season-pine-autumn-alt: #3a5a50;
+  --color-hearthwood-valley-season-pine-bare: #33524c;
+  --color-hearthwood-valley-season-heather-fresh: #8c9e58;
+  --color-hearthwood-valley-season-heather-autumn: #6c5242;
+  --color-hearthwood-valley-season-heather-autumn-alt: #5f4a3e;
+  --color-hearthwood-valley-season-heather-bare: #85605a;
+  --color-hearthwood-valley-season-flowers-fresh: #9fd05e;
+  --color-hearthwood-valley-season-flowers-autumn: #a08448;
+  --color-hearthwood-valley-season-flowers-autumn-alt: #8c6c40;
+  --color-hearthwood-valley-season-flowers-bare: #8c7a52;
+  --color-hearthwood-valley-season-fern-fresh: #acd462;
+  --color-hearthwood-valley-season-fern-autumn: #bc7430;
+  --color-hearthwood-valley-season-fern-autumn-alt: #c89c48;
+  --color-hearthwood-valley-season-fern-bare: #8a6440;
+  --color-hearthwood-valley-season-bracken-summer: #74a44a;
+  --color-hearthwood-valley-season-bracken-fresh: #a8ce60;
+  --color-hearthwood-valley-season-bracken-autumn-alt: #a04e26;
+  --color-hearthwood-valley-season-bracken-bare: #845a3a;
+  --color-hearthwood-valley-season-bush-fresh: #a2ce5e;
+  --color-hearthwood-valley-season-bush-autumn: #a8442e;
+  --color-hearthwood-valley-season-bush-autumn-alt: #bc7c3a;
+  --color-hearthwood-valley-season-bush-bare: #75604c;
+  --color-hearthwood-valley-season-ground-dormant: #b9a676;
+  --color-hearthwood-valley-season-ground-fresh: #a2cf66;
+  --color-hearthwood-valley-season-ground-gold: #cfae58;
+  --color-hearthwood-valley-season-ground-russet: #b77a46;
+  --color-hearthwood-valley-season-wood-bare: #7e6c6a;
+}
+
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —
    used for a traded chip ("what changed in this trade", against the dense
    ownership grid) and for the active player's token. The --mono-* vars resolve

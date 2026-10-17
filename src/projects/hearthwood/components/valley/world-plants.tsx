@@ -2,17 +2,18 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Box3, type Camera, Frustum, Group, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshLambertMaterial, Object3D, Vector3, type BufferGeometry } from "three";
+import { Box3, type Camera, Frustum, Group, InstancedBufferAttribute, InstancedMesh, Matrix4, type MeshDepthMaterial, MeshLambertMaterial, Object3D, Vector3, type BufferGeometry } from "three";
 import { PLANT_CHUNK, PLANT_VARIANTS, type PlantChunk } from "../../engine/life";
 import { PLANT_KINDS, type PlantKind } from "../../engine/regions";
 import { chunkDetail, distanceToSquare, PLANT_CLASS, wantedChunks, type ChunkKey, type Detail } from "../../engine/streaming";
 import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
-import { shadeLambert } from "../../art/shading";
+import { shadeLambert, shadowDepth } from "../../art/shading";
 import type { Palette } from "../../art/palette";
 import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import type { Quality } from "../../quality";
+import { useFeature } from "./feature-renderer";
 import { report, type Streaming } from "./world-land";
 
 /*
@@ -107,37 +108,50 @@ export function WorldPlants({
     () => ({
       foliage: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "foliage", atmosphere),
       stone: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
+      foliageDepth: shadowDepth("foliage", atmosphere),
+      stoneDepth: shadowDepth("solid", atmosphere),
     }),
     [atmosphere],
   );
+  // The seasons build their plants with what each piece is and a bare tree's branches, so switching them rebuilds the designs.
+  const seasonal = useFeature("seasonalFoliage");
   const designs = useMemo<DesignMeshes[]>(
     () =>
       PLANT_KINDS.flatMap((kind) =>
         Array.from({ length: PLANT_VARIANTS }, (_, variant) => ({
           kind,
           geometry: Object.fromEntries(DETAILS.flatMap((d) => {
-            const g = plantShape(kind, variant, d, palette);
+            const g = plantShape(kind, variant, d, palette, seasonal);
             return g ? [[d, g]] : [];
           })) as DesignMeshes["geometry"],
           meshes: {},
         })),
       ),
-    [palette],
+    [palette, seasonal],
   );
   const state = useRef<State>({ draws: new Map(), wanted: [], pending: [], from: null, plan: "", firefliesFrom: "" });
   const tools = useMemo(() => ({ dummy: new Object3D(), frustum: new Frustum(), matrix: new Matrix4() }), []);
   const reach = Math.max(quality.trees.far, quality.shrubs.far, quality.small.far);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // New designs start with no meshes, so the chunks are copied into them afresh.
+    state.current.plan = "";
+    return () => {
       for (const design of designs) {
         for (const g of Object.values(design.geometry)) g.dispose();
-        for (const m of Object.values(design.meshes)) m.dispose();
+        for (const m of Object.values(design.meshes)) {
+          group.remove(m);
+          m.dispose();
+        }
       }
+    };
+  }, [designs, group]);
+  useEffect(
+    () => () => {
       materials.foliage.dispose();
       materials.stone.dispose();
     },
-    [designs, materials],
+    [materials],
   );
 
   useFrame(({ camera }) => {
@@ -179,7 +193,7 @@ function showChunks(
   camera: Camera,
   quality: Quality,
   group: Group,
-  materials: { foliage: MeshLambertMaterial; stone: MeshLambertMaterial },
+  materials: { foliage: MeshLambertMaterial; stone: MeshLambertMaterial; foliageDepth: MeshDepthMaterial; stoneDepth: MeshDepthMaterial },
   tools: { frustum: Frustum; matrix: Matrix4 },
 ): void {
   // Whatever moved the camera this frame may have left its world matrix a step behind (lookAt refreshes it before turning), so it is refreshed first.
@@ -220,6 +234,7 @@ function showChunks(
         mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(mesh.instanceMatrix.count * 3), 3);
         mesh.frustumCulled = false;
         mesh.castShadow = detail === "near" && design.kind !== "flowers" && design.kind !== "mushroom";
+        mesh.customDepthMaterial = design.kind === "rock" ? materials.stoneDepth : materials.foliageDepth;
         design.meshes[detail] = mesh;
         group.add(mesh);
       }

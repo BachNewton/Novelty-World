@@ -15,10 +15,12 @@ import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import { fallRibbon, placeGeometry, type PlaceLook } from "../../art/place-shapes";
 import type { SkyUniforms } from "../../art/sky";
+import { shadowDepth } from "../../art/shading";
 import { poolGeometry } from "../../art/water";
 import { Broom } from "../../art/broom";
 import { Witch, type WitchPose } from "../../art/witch";
 import { CatBody } from "../cats/cat-body";
+import { useFeature } from "../valley/feature-renderer";
 
 /*
  * Every piece the gallery shows, in one list: a new piece of art appears in
@@ -63,8 +65,9 @@ function plantOf(kind: PlantKind, variant: number): Plant {
 
 /** One plant of a design, drawn as an instance so it sways in the breeze as it does in the world. */
 function PlantPiece({ kind, variant, context }: { kind: PlantKind; variant: number; context: ArtContext }) {
+  const seasonal = useFeature("seasonalFoliage");
   const mesh = useMemo(() => {
-    const geometry = plantShape(kind, variant, "near", context.palette);
+    const geometry = plantShape(kind, variant, "near", context.palette, seasonal);
     if (geometry === null) throw new Error(`No near shape for ${kind} ${variant}`);
     const instanced = new InstancedMesh(geometry, kind === "rock" ? context.materials.stone : context.materials.foliage, 1);
     const plant = plantOf(kind, variant);
@@ -73,9 +76,10 @@ function PlantPiece({ kind, variant, context }: { kind: PlantKind; variant: numb
     plantColour(plant, colour, 0);
     instanced.instanceColor = new InstancedBufferAttribute(colour, 3);
     instanced.castShadow = true;
+    instanced.customDepthMaterial = shadowDepth(kind === "rock" ? "solid" : "foliage", context.atmosphere);
     instanced.frustumCulled = false;
     return instanced;
-  }, [kind, variant, context]);
+  }, [kind, variant, context, seasonal]);
   useEffect(() => () => mesh.geometry.dispose(), [mesh]);
   return <primitive object={mesh} />;
 }
