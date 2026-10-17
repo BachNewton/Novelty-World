@@ -59,6 +59,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   "connection-test": dynamic(() =>
     import("@/projects/connection-test").then((m) => ({ default: m.ConnectionTest })),
   ),
+  hearthwood: dynamic(() =>
+    import("@/projects/hearthwood").then((m) => ({ default: m.Hearthwood })),
+  ),
   "bot-lab": dynamic(() =>
     import("@/projects/bot-lab").then((m) => ({ default: m.BotLab })),
   ),
