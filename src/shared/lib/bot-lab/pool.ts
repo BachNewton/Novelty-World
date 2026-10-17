@@ -21,7 +21,8 @@ export interface Indexed {
 
 /** Something that plays a batch of games and resolves with their results, sorted
  *  by `index`: the worker pool, or the same runner inline on this thread (the
- *  single-threaded reference a parallel run is checked against). */
+ *  single-threaded reference a parallel run is checked against). Several calls
+ *  may be in flight at once, each resolving with its own results. */
 export interface GameRunner<Spec extends Indexed, Result extends Indexed> {
   readonly size: number;
   run(specs: readonly Spec[]): Promise<Result[]>;
@@ -48,21 +49,45 @@ export function onRunStop(hook: () => Promise<void>): () => void {
   return () => stopHooks.delete(hook);
 }
 
+/** One `run` call in flight: its results so far and the chunks still out. */
+interface Job<Result> {
+  results: Result[];
+  pending: number;
+  resolve: (results: Result[]) => void;
+  reject: (error: Error) => void;
+}
+
+/** A chunk of one job's games, queued for or played by a worker. */
+interface Chunk<Spec, Result> {
+  job: Job<Result>;
+  specs: Spec[];
+}
+
 /** A reusable pool of worker threads, each running `workerModule` (a module that
- *  calls `serveGames`). Spawn once, call `run` repeatedly (each call distributes a
- *  batch of games across all workers and resolves when they all complete), then
- *  `close`. Reusing one pool across many SPRT batches keeps the workers (and their
- *  imported engine) warm instead of paying spawn cost per round. One `run` at a
- *  time — the gauntlet drives it sequentially. */
+ *  calls `serveGames`). Spawn once, call `run` as often as wanted, then `close`.
+ *  Reusing one pool keeps the workers (and their imported engine) warm instead of
+ *  paying spawn cost per round. Any number of `run` calls may be in flight at once:
+ *  every call's games are cut into small chunks on one queue, and a worker that
+ *  finishes a chunk takes the next one, whichever call it belongs to, so no worker
+ *  idles while one call waits on its slowest game. */
 export class WorkerPool<Spec extends Indexed, Result extends Indexed>
   implements GameRunner<Spec, Result>
 {
   private readonly workers: Worker[];
   readonly size: number;
+  private readonly queue: Chunk<Spec, Result>[] = [];
+  private readonly idle: Worker[];
+  private readonly playing = new Map<Worker, Chunk<Spec, Result>>();
+  private failure: Error | null = null;
 
   constructor(workerModule: URL, size: number = defaultWorkerCount()) {
     this.size = Math.max(1, size);
     this.workers = Array.from({ length: this.size }, () => new Worker(workerModule));
+    this.idle = [...this.workers];
+    for (const w of this.workers) {
+      w.on("message", (msg: { results: Result[] }) => this.onResults(w, msg.results));
+      w.on("error", (err) => this.fail(err));
+    }
     for (const signal of STOP_SIGNALS) process.on(signal, this.onSignal);
   }
 
@@ -84,50 +109,54 @@ export class WorkerPool<Spec extends Indexed, Result extends Indexed>
   }
 
   /** Play every spec across the pool and resolve with all results, sorted by
-   *  `index`. Specs are chunked so each worker pulls several chunks over the run
+   *  `index`. The specs are chunked so each worker pulls several chunks of a call
    *  (work-stealing), which load-balances when games vary wildly in length. */
   run(specs: readonly Spec[]): Promise<Result[]> {
+    if (this.failure !== null) return Promise.reject(this.failure);
     if (specs.length === 0) return Promise.resolve([]);
-    // A few chunks per worker so a worker that draws short games comes back for
-    // more rather than idling while one straggler finishes a long game.
+    // A few chunks per worker, so a worker that draws short games comes back for
+    // more rather than idling while another finishes a long one.
     const chunksPerWorker = 4;
     const chunkSize = Math.max(1, Math.ceil(specs.length / (this.size * chunksPerWorker)));
-    const chunks: Spec[][] = [];
-    for (let i = 0; i < specs.length; i += chunkSize) {
-      chunks.push(specs.slice(i, i + chunkSize));
-    }
-
-    const out: Result[] = [];
-    let nextChunk = 0;
-    let active = 0;
-
     return new Promise<Result[]>((resolve, reject) => {
-      const assign = (w: Worker): void => {
-        if (nextChunk >= chunks.length) return;
-        const chunk = chunks[nextChunk++];
-        active++;
-        const onMessage = (msg: { results: Result[] }): void => {
-          w.off("message", onMessage);
-          w.off("error", onError);
-          out.push(...msg.results);
-          active--;
-          if (nextChunk < chunks.length) assign(w);
-          else if (active === 0) {
-            out.sort((p, q) => p.index - q.index);
-            resolve(out);
-          }
-        };
-        const onError = (err: Error): void => {
-          w.off("message", onMessage);
-          w.off("error", onError);
-          reject(err);
-        };
-        w.on("message", onMessage);
-        w.on("error", onError);
-        w.postMessage({ specs: chunk });
-      };
-      for (const w of this.workers) assign(w);
+      const job: Job<Result> = { results: [], pending: 0, resolve, reject };
+      for (let i = 0; i < specs.length; i += chunkSize) {
+        this.queue.push({ job, specs: specs.slice(i, i + chunkSize) });
+        job.pending++;
+      }
+      for (const w of this.idle.splice(0)) this.feed(w);
     });
+  }
+
+  /** Gives worker `w` the oldest queued chunk, or sets it idle when there is none. */
+  private feed(w: Worker): void {
+    const chunk = this.queue.shift();
+    if (chunk === undefined) {
+      this.idle.push(w);
+      return;
+    }
+    this.playing.set(w, chunk);
+    w.postMessage({ specs: chunk.specs });
+  }
+
+  private onResults(w: Worker, results: Result[]): void {
+    const chunk = this.playing.get(w);
+    if (chunk === undefined) throw new Error("a worker sent results it was never asked for");
+    this.playing.delete(w);
+    const { job } = chunk;
+    job.results.push(...results);
+    if (--job.pending === 0) job.resolve(job.results.sort((p, q) => p.index - q.index));
+    this.feed(w);
+  }
+
+  /** A worker that throws has died with its chunk, so every call in flight would
+   *  wait forever: they all fail with its error, and so does every later call. */
+  private fail(err: Error): void {
+    this.failure ??= err;
+    const jobs = new Set([...this.queue, ...this.playing.values()].map((c) => c.job));
+    this.queue.length = 0;
+    this.playing.clear();
+    for (const job of jobs) job.reject(err);
   }
 
   async close(): Promise<void> {

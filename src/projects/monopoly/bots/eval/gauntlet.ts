@@ -208,14 +208,15 @@ export async function runGauntlet(opts: GauntletOptions): Promise<GauntletReport
   };
   const batchGames = opts.batchGames ?? Math.max(8, opts.pool.size * 8);
 
-  // 1. Candidate vs every field member — the tests that decide promotion.
-  const pairings: PairingRun[] = [];
-  for (let i = 0; i < opts.field.length; i++) {
-    pairings.push(
-      await sprtPairing(
+  // 1. Candidate vs every field member — the tests that decide promotion. The
+  //    pairings play at once, each its own SPRT over its own rounds, so the pool
+  //    always has games; each pairing's verdict is the same as played alone.
+  const pairings = await Promise.all(
+    opts.field.map((opponent, i) =>
+      sprtPairing(
         opts.pool,
         opts.candidate,
-        opts.field[i],
+        opponent,
         cfg,
         opts.prefix,
         opts.maxDecisive,
@@ -225,31 +226,21 @@ export async function runGauntlet(opts: GauntletOptions): Promise<GauntletReport
           ? { emit: opts.onProgress, pairIndex: i + 1, pairTotal: opts.field.length }
           : undefined,
       ),
-    );
-  }
+    ),
+  );
 
   // 2. Field-internal pairings, only to anchor the Elo fit (a star graph centred
   //    on the candidate would leave field members' relative ratings ill-pinned).
-  const fieldResults: PairResult[] = [];
-  const fieldTotal = (opts.field.length * (opts.field.length - 1)) / 2;
-  let fieldIndex = 0;
-  for (let i = 0; i < opts.field.length; i++) {
-    for (let j = i + 1; j < opts.field.length; j++) {
-      const res = await fixedPairing(
-        opts.pool,
-        opts.field[i],
-        opts.field[j],
-        opts.prefix,
-        opts.fieldGames,
-        opts.maxTurns,
-      );
-      fieldResults.push(res);
-      fieldIndex++;
+  //    They too play at once.
+  const fieldPairs = opts.field.flatMap((a, i) => opts.field.slice(i + 1).map((b) => [a, b] as const));
+  const fieldResults = await Promise.all(
+    fieldPairs.map(async ([a, b], i) => {
+      const res = await fixedPairing(opts.pool, a, b, opts.prefix, opts.fieldGames, opts.maxTurns);
       opts.onProgress?.({
         kind: "field",
-        opponent: `${opts.field[i]}-vs-${opts.field[j]}`,
-        pairIndex: fieldIndex,
-        pairTotal: fieldTotal,
+        opponent: `${a}-vs-${b}`,
+        pairIndex: i + 1,
+        pairTotal: fieldPairs.length,
         decisive: res.aWins + res.bWins,
         wins: res.aWins,
         losses: res.bWins,
@@ -259,8 +250,9 @@ export async function runGauntlet(opts: GauntletOptions): Promise<GauntletReport
         llrRegress: 0,
         done: true,
       });
-    }
-  }
+      return res;
+    }),
+  );
 
   // 3. Elo across the whole field, anchored at the floor (v1 if present).
   const labels = [opts.candidate, ...opts.field];

@@ -9,6 +9,7 @@ import type { GameRunner } from "@/shared/lib/bot-lab/pool";
 import { luceWinProb } from "@/shared/lib/bot-lab/sprt";
 import { wilsonInterval, type ShareInterval } from "@/shared/lib/bot-lab/stats";
 import { candidateSeats, finishesOf, outcomeFor, tableSpecs, type Format } from "./parallel";
+import { playLadder } from "./ratings";
 import type { RiskGameResult, RiskGameSpec } from "./runner";
 
 // Risk's gauntlet on the shared bot-lab core: a candidate plays every field member
@@ -154,66 +155,72 @@ export async function runRiskGauntlet(opts: RiskGauntletOptions): Promise<RiskGa
     finishPairs.push(...pairsFromFinishes(finishesOf(r)));
   };
 
-  // 1. The candidate against every field member, in every table: the tests that decide.
+  // 1. The candidate against every field member, in every table: the tests that
+  //    decide. The pairings play at once, each its own SPRT over its own rounds, so
+  //    the pool always has games; each is rated in table order once all are done, so
+  //    the report is the same as playing them one after another.
   const tables = gauntletTables(opts.field, opts.players, opts.formats);
-  const pairings: RiskPairingRun[] = [];
-  for (const [i, table] of tables.entries()) {
-    const prefix = `${opts.prefix}:${opts.candidate}-vs-${table.opponent}:${table.players}p:${table.format}`;
-    const results: RiskGameResult[] = [];
-    const progress = (walk: { wins: number; losses: number; llrImprove: number; llrRegress: number }, draws: number, done: boolean) =>
-      opts.onProgress?.({
-        table,
-        index: i + 1,
-        total: tables.length,
-        wins: walk.wins,
-        losses: walk.losses,
-        draws,
+  const played = await Promise.all(
+    tables.map(async (table, i) => {
+      const prefix = `${opts.prefix}:${opts.candidate}-vs-${table.opponent}:${table.players}p:${table.format}`;
+      const results: RiskGameResult[] = [];
+      const progress = (walk: { wins: number; losses: number; llrImprove: number; llrRegress: number }, draws: number, done: boolean) =>
+        opts.onProgress?.({
+          table,
+          index: i + 1,
+          total: tables.length,
+          wins: walk.wins,
+          losses: walk.losses,
+          draws,
+          maxDecisive: opts.maxDecisive,
+          llrImprove: walk.llrImprove,
+          llrRegress: walk.llrRegress,
+          done,
+        });
+      const run = await runSprtPairing({
+        play: async (from, count) => {
+          const batch = await opts.pool.run(
+            tableSpecs(opts.candidate, table.opponent, table.format, table.players, prefix, from, count, opts.maxTurns),
+          );
+          results.push(...batch);
+          return batch.map((r) => outcomeFor(r, opts.candidate));
+        },
+        sprt: {
+          margin: opts.margin,
+          alpha: opts.alpha,
+          beta: opts.beta,
+          winProb: luceWinProb(candidateSeats(table.format, table.players), table.players),
+        },
         maxDecisive: opts.maxDecisive,
-        llrImprove: walk.llrImprove,
-        llrRegress: walk.llrRegress,
-        done,
+        batchGames,
+        groupSize: table.players,
+        onRound: (walk, draws) => progress(walk, draws, false),
       });
-    const run = await runSprtPairing({
-      play: async (from, count) => {
-        const batch = await opts.pool.run(
-          tableSpecs(opts.candidate, table.opponent, table.format, table.players, prefix, from, count, opts.maxTurns),
-        );
-        results.push(...batch);
-        return batch.map((r) => outcomeFor(r, opts.candidate));
-      },
-      sprt: {
-        margin: opts.margin,
-        alpha: opts.alpha,
-        beta: opts.beta,
-        winProb: luceWinProb(candidateSeats(table.format, table.players), table.players),
-      },
-      maxDecisive: opts.maxDecisive,
-      batchGames,
-      groupSize: table.players,
-      onRound: (walk, draws) => progress(walk, draws, false),
-    });
-    progress(run, run.draws, true);
-    // Only the games up to the stop point count, so the report doesn't depend on
-    // how far the last round overshot it.
-    const counted = results.slice(0, run.games);
+      progress(run, run.draws, true);
+      // Only the games up to the stop point count, so the report doesn't depend on
+      // how far the last round overshot it.
+      return { table, run, counted: results.slice(0, run.games) };
+    }),
+  );
+  const pairings = played.map(({ table, run, counted }) => {
     counted.forEach(rate);
-    pairings.push(summarize(counted, opts.candidate, run, table));
-  }
+    return summarize(counted, opts.candidate, run, table);
+  });
 
-  // 2. Field-internal tables, a fixed number of groups each, only to anchor the
-  //    Elo fit (a star centred on the candidate would leave the field's relative
-  //    ratings unpinned).
-  for (let i = 0; i < opts.field.length; i++) {
-    for (let j = i + 1; j < opts.field.length; j++) {
-      for (const n of opts.players) {
-        for (const [a, b] of [[opts.field[i], opts.field[j]], [opts.field[j], opts.field[i]]]) {
-          const prefix = `${opts.prefix}:field:${a}-in-${b}:${n}p`;
-          const results = await opts.pool.run(tableSpecs(a, b, "one-in", n, prefix, 0, opts.fieldGroups * n, opts.maxTurns));
-          results.forEach(rate);
-        }
-      }
-    }
-  }
+  // 2. The field's own ladder, a fixed number of groups a table, only to anchor
+  //    the Elo fit (a star centred on the candidate would leave the field's
+  //    relative ratings unpinned).
+  const ladder = await playLadder({
+    pool: opts.pool,
+    labels: opts.field,
+    players: opts.players,
+    groups: opts.fieldGroups,
+    prefix: `${opts.prefix}:field`,
+    maxTurns: opts.maxTurns,
+  });
+  winPairs.push(...ladder.winPairs);
+  finishPairs.push(...ladder.finishPairs);
+  errors += ladder.errors;
 
   // 3. Elo across the field, the base at 0, and the verdict.
   const labels = [opts.candidate, ...opts.field];
