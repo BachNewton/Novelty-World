@@ -399,7 +399,11 @@ if (wantAny("forage")) {
   await desktop.evaluate(() => window.__hearthwoodWorld.forage.forget());
   for (const { kind, name, day, least } of FORAGE_SHOTS) {
     if (!want(`forage-${name}`)) continue;
-    await desktop.evaluate((d) => window.__hearthwoodWorld.forage.setDayOfYear(d), day);
+    // The game day standing for that day of the year, which every capture holds.
+    const date = await desktop.evaluate((d) => {
+      window.__hearthwoodWorld.forage.setDayOfYear(d);
+      return window.__hearthwoodWorld.date().day;
+    }, day);
     const patch = await findPatch(desktop, kind, least);
     if (patch === null) {
       console.log(`no patch of ${kind} found`);
@@ -411,21 +415,21 @@ if (wantAny("forage")) {
     const from = standBy(patch, 7.5);
     const ground = await desktop.evaluate(({ x, z }) => window.__hearthwoodWorld.at(x, z).height, from);
     const free = { x: from.x, y: ground + 2.4, z: from.z, lookX: patch.heart.x, lookY: patch.heart.y + 0.3, lookZ: patch.heart.z };
-    await capture(desktop, `forage-${name}`, { hour: 10.5, walker: { x: beside.x + Math.cos(beside.yaw) * 1.2, z: beside.z - Math.sin(beside.yaw) * 1.2, heading: beside.yaw }, free });
+    await capture(desktop, `forage-${name}`, { date, hour: 10.5, walker: { x: beside.x + Math.cos(beside.yaw) * 1.2, z: beside.z - Math.sin(beside.yaw) * 1.2, heading: beside.yaw }, free });
     // Close up through Elliott's eyes, looking at the spot with the prompt up, then picked.
     const close = standBy(patch, kind === "raspberry" ? 1.6 : 1.4);
     const look = await aimAt(desktop, close, patch.heart, kind === "raspberry" ? 0.6 : 0.08);
-    await capture(desktop, `forage-${name}-close`, { hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
+    await capture(desktop, `forage-${name}-close`, { date, hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
     const target = await desktop.evaluate(() => window.__hearthwoodWorld.forage.target());
     if (target === null) console.log(`  nothing on offer looking at the ${kind}`);
     else {
       await desktop.evaluate(() => window.__hearthwoodWorld.forage.pick());
-      await capture(desktop, `forage-${name}-picked`, { hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
+      await capture(desktop, `forage-${name}-picked`, { date, hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
     }
   }
   if (want("forage-basket")) {
     await desktop.evaluate(() => window.__hearthwoodWorld.forage.setBasketOpen(true));
-    await capture(desktop, "forage-basket-desktop", { hour: 10.5, chrome: true });
+    await capture(desktop, "forage-basket-desktop", { date: await desktop.evaluate(() => window.__hearthwoodWorld.date().day), hour: 10.5, chrome: true });
     await desktop.evaluate(() => window.__hearthwoodWorld.forage.setBasketOpen(false));
   }
 }
@@ -435,12 +439,15 @@ async function forageOnPhone(device, name) {
   const page = await openWorld(device);
   const { width, height } = device.viewport;
   await page.touchscreen.tap(width * 0.8, height * 0.4);
-  await page.evaluate(() => window.__hearthwoodWorld.forage.setDayOfYear(236));
+  const date = await page.evaluate(() => {
+    window.__hearthwoodWorld.forage.setDayOfYear(236);
+    return window.__hearthwoodWorld.date().day;
+  });
   const patch = await findPatch(page, "bilberry", 20);
   const close = standBy(patch, 1.4);
   const look = await aimAt(page, close, patch.heart, 0.08);
   await page.evaluate(() => window.__hearthwoodWorld.forage.forget());
-  await capture(page, `${name}-prompt`, { hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
+  await capture(page, `${name}-prompt`, { date, hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
   // A few of what grows near, picked through the probe, so the basket has a row to show.
   await page.evaluate(() => {
     const forage = window.__hearthwoodWorld.forage;
@@ -448,7 +455,7 @@ async function forageOnPhone(device, name) {
     for (const spot of forage.spotsNear(here.x, here.z, 9).filter((s) => s.look === "ripe").slice(0, 6)) forage.pick(spot.id);
     forage.setBasketOpen(true);
   });
-  await capture(page, `${name}-basket`, { hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
+  await capture(page, `${name}-basket`, { date, hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
   await page.context().close();
 }
 if (want("forage")) await forageOnPhone(PHONE_PORTRAIT, "forage-phone");

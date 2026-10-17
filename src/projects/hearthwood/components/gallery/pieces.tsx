@@ -242,7 +242,7 @@ export const ART_PIECES: ArtPiece[] = [
         id: `forage/${kind}/${variant}${picked ? "/picked" : ""}`,
         group: "Foraging",
         label: `${FORAGE_NAMES[kind]} ${variant + 1}${picked ? ", picked" : ""}`,
-        radius: kind === "raspberry" ? 0.6 : 0.35,
+        radius: kind === "raspberry" ? 1 : 0.8,
         height: kind === "raspberry" ? 1.2 : 0.3,
         render: (context: ArtContext) => <ForagePiece kind={kind} variant={variant} picked={picked} context={context} />,
       })),
