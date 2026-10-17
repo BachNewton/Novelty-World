@@ -1,8 +1,16 @@
 # Hearthwood
 
-A cozy 3D game about a wandering hedge-witch and the cats they meet. You live outdoors in a valley of forest and mountain made fresh from a seed: by day you walk and forage, by evening you cook and brew at your campfire, and the stray cats of the woods come round one by one, each won over by the dish it loves. When the valley has given what it has, you pack up camp and walk over the ridge into a new one.
+A cozy 3D game about a wandering hedge-witch, the cats and dogs they befriend, and the people they help along the way. You walk an endless northern land of forest and mountain made fresh from a seed: by day you wander and forage, meet travellers and help them with your magic, by evening you cook and brew at your campfire, and the animals you have won over follow you wherever you go.
 
 It lives at Games → 3D Games → Hearthwood, in Three.js through `@react-three/fiber`, like the site's other 3D games. The concept and the platform are decided; everything below them is the proposed design, open to the owner's review, with the undecided parts under Open questions.
+
+## Who it's for
+
+Hearthwood is a gift from the owner to their partner, **Elliott**, who uses **they/them** pronouns: always write and speak of Elliott, and of the witch, as they. The witch is **Elliott the Witch**: the player plays as Elliott.
+
+Everything in the game is chosen for what Elliott loves: cats and dogs, and befriending animals that then follow them; nature, forests and mountains; hiking; cooking and campfires; magic, witchy and pagan things; and cozy, relaxing, chill games. Elliott is very social: they like talking to people and helping them, so the land has people in it with stories to tell and help to ask for.
+
+Elliott plays on a Pixel 8 Pro (touch), on a laptop (keyboard and mouse) and on a laptop on the TV with an Xbox controller.
 
 ## Pillars
 
@@ -88,6 +96,17 @@ The heart of the game. The woods hold stray **cats and dogs**, every one generat
 - **The coat is a shader**: every marking is a pattern function of where a point lies on the cat in its bind pose, so it moves with the body: the tortie's patches (brindled, or bigger and cleaner on a calico), the tabby pattern with its forehead M, cheek lines, leg bars and tail rings, the colourpoint's mask and points, and the white spotting, which grows from the chest and belly through the paws, legs, muzzle and blaze to the sides and back, leaving the head's cap and the tail for last. Long hair is a fuller silhouette (ruff, britches, plume) and a softly lumped surface; no fur cards.
 - **Motion** is pure functions of the cat's clock, the distance it has walked and its speed: postures for standing, walking (the lateral-sequence walk, each paw planted while it is down), sitting and loafing, blended over a second as the activity changes before the legs are solved to their paws, with the tail up in greeting over any of them, and breathing, blinks, ear flicks, look-arounds and tail sway laid on top as seeded occasional movements.
 - **Budget**: a cat is about 12,000 triangles short-haired, 15,000 long-haired, and two draws (its body and a soft blob shadow), with one compiled coat shader shared by every cat. Meshing a hair length takes about a second on a desktop and runs once a session in a worker. The coat's fragment shader is the heaviest part, a few layers of value noise; if several cats close up ever cost too much on the target phone, the pattern can move to the vertices.
+
+## People and their stories
+
+The land has people in it, met along the way: travellers on the road, a shepherd on the fell, a beekeeper among the hives, a fisher at a lake, a reindeer herder, a sauna keeper by the shore, an old cottager, a lost hiker. Each has **a story to tell**, and some are **in need of help**, and Elliott the Witch is glad to give it, with magic and with what they know and carry.
+
+- **Help is gentle and kind:** mend a broken bridge with a charm, brew a salve for a sick goat, cook a warm meal for a cold traveller, light a beacon that has gone out, help a lost dog find its way home, find a dropped ring with a companion's nose, make an orchard bloom again.
+- **Magic is Elliott's to use**: a growing set of gentle spells (mend, bloom, light, warm, calm, find) alongside the brews of the hearth. New spells, recipes and charms come from the people helped, as gifts and as things they teach.
+- **Talking is warm and short.** A conversation is a few lines, the choices are of tone, never of failure, and a person remembers Elliott and what was done for them, so meeting them again is meeting a friend.
+- **Rewards are friendship, not currency:** a story, a recipe, a spell, a seedling, a place to stay, a cat or dog who needs a home. There is nothing to grind.
+- **Who writes them:** Claude writes the people and their stories as data, a growing library, the way it designs other games' content; where a person stands and how they look come from the world's generation, so the land keeps meeting Elliott with someone new. (Writing conversation live with a language model while playing is possible but needs a server and costs per conversation; it is not planned.)
+- **How they look:** storybook figures, rounded and simple, with hats, hoods, scarves and aprons that say who they are, and faces of a few simple shapes (dot eyes, a little blush) that read well even face to face in first person, the way simple faces work in A Short Hike. In conversation the camera eases to frame the person and the words appear in a storybook panel.
 
 ## Foraging and cooking
 
@@ -188,11 +207,9 @@ The walks between valleys, brewing, seasons, festivals and the night sky follow,
 
 ## Open questions
 
-- **Who is the player?** A fixed witch, or one the player designs?
 - **Companions on screen:** how many can follow at once before it stops being cozy, where the rest wait, and does camp ever outgrow its clearing?
 - **Other animals:** cats and dogs first; foxes, a hedgehog, a raven familiar or others could follow later as variants of the same animal.
 - **Do valleys ever repeat?** A valley left behind could be revisited by its seed, or every walk could lead somewhere new.
-- **Other people:** a valley could hold a few gentle characters (a beekeeper, a travelling tinker), or the game could be the witch and the cats alone. Since faces are the art's weak point, characters would have to work at a distance and through silhouette.
 - **Music:** generated, composed, or ambient sound only.
 
 ## Code map
