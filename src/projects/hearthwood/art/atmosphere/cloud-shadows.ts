@@ -82,9 +82,14 @@ export const CLOUD_SHADOWS_ART: FeatureArt = {
       `,
     },
     {
+      // Water lights itself (see water/water.ts): the sun's glint goes in the shade, and the body darkens a little.
       kinds: ["water"],
       fragmentHead: SHADOW_GLSL,
-      light: /* glsl */ `hwDirect *= hwCloudShadow(vHwWorld);`,
+      light: /* glsl */ `
+        float hwShade = hwCloudShadow(vHwWorld);
+        hwSpecular *= hwShade;
+        hwBody *= mix(1.0, hwShade, 0.35);
+      `,
     },
   ],
   frame: updateCloudField,

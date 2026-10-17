@@ -77,7 +77,7 @@ export const BLOOMY_FOG_ART: FeatureArt = {
       // Before the frame's own grade and vignette, so they lie over the glow too.
       order: 100,
       create: () => {
-        const bright = new FullScreen(new ShaderMaterial({ uniforms: { tColour: { value: null }, uThreshold: { value: 0.7 } }, vertexShader: FULL_SCREEN_VERTEX, fragmentShader: BRIGHT }));
+        const bright = new FullScreen(new ShaderMaterial({ uniforms: { tColour: { value: null }, uThreshold: { value: 0.82 } }, vertexShader: FULL_SCREEN_VERTEX, fragmentShader: BRIGHT }));
         const blur = new FullScreen(
           new ShaderMaterial({
             uniforms: { tSource: { value: null }, uTexel: { value: new Vector2() }, tAdd: { value: null }, uAdd: { value: 0 } },

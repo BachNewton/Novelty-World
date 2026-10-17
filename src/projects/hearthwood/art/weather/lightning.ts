@@ -22,7 +22,8 @@ export const LIGHTNING_ART: FeatureArt = {
   uniforms,
   chunks: [
     { kinds: ["land", "ground", "foliage", "solid"], fragmentHead: HEAD, light: /* glsl */ `hwIndirect += diffuseColor.rgb * uHwFlash;` },
-    { kinds: ["water"], fragmentHead: HEAD, light: /* glsl */ `hwIndirect += diffuseColor.rgb * uHwFlash;` },
+    // Water lights itself (see water/water.ts): the flash shows in what it mirrors.
+    { kinds: ["water"], fragmentHead: HEAD, light: /* glsl */ `hwReflect += uHwFlash * 0.6;` },
     { kinds: ["sky"], fragmentHead: HEAD, colour: /* glsl */ `hwColour += uHwFlash * 0.18;` },
   ],
   frame: ({ weather }) => {

@@ -137,5 +137,9 @@ export const FOG_ART: FeatureArt = {
     uniforms.uHwFogSun.value.copy(atmosphere.uHwSunColor.value).multiplyScalar(day.light.sun * day.sky.key.strength * 0.4 * through);
     light.copy(atmosphere.uHwSkyLight.value).multiplyScalar(0.85).add(sun.copy(atmosphere.uHwSunLight.value).multiplyScalar(0.9));
     uniforms.uHwFogMist.value.copy(light).multiply(blendByRegion(weatherColours().mist, weather.regions, tint));
+    // A closed sky lets less light into the air: rain and overcast are grey, not glaring.
+    const gloom = 1 - 0.4 * w.cloudCover * w.cloudCover;
+    uniforms.uHwFogAir.value.multiplyScalar(gloom);
+    uniforms.uHwFogMist.value.multiplyScalar(gloom);
   },
 };
