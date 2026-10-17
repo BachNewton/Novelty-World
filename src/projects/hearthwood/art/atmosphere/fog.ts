@@ -2,6 +2,7 @@ import { Color, Vector3, Vector4 } from "three";
 import { REGIONS } from "../../engine/regions";
 import type { FeatureArt } from "../feature-art";
 import { REGION_AIR } from "../palette";
+import { smoothstep } from "../../engine/noise";
 import { blendByRegion, weatherColours } from "./colours";
 
 /*
@@ -26,12 +27,12 @@ import { blendByRegion, weatherColours } from "./colours";
  */
 
 /** How far a ray into the sky is taken through the air, in metres. */
-const SKY_DISTANCE = 100_000;
+export const SKY_DISTANCE = 100_000;
 
 /** The clear air's density at the valley floor on a crisp day (per metre), and how it thins with height (its scale height, in metres). */
-const AIR = { density: 1.4e-5, height: 1600 } as const;
+export const AIR = { density: 1.4e-5, height: 1600 } as const;
 /** The thickest valley mist (per metre: a hundred metres or so of sight) and the depth of its layer. */
-const MIST = { density: 0.03, height: 32 } as const;
+export const MIST = { density: 0.03, height: 32 } as const;
 /** The veil of rain or snow at its heaviest, and the depth of its layer. */
 const VEIL = { density: 1.2e-3, height: 700 } as const;
 
@@ -70,13 +71,23 @@ vec3 hwFog(vec3 colour, vec3 point, float dist) {
   vec3 airDepth = air * vec3(0.6, 0.85, 1.3);
   float cosine = dot(dir, uHwSunDir);
   vec3 airLight = uHwFogAir + uHwFogSun * 0.45 * pow(max(cosine, 0.0), 5.0);
-  vec3 wetLight = uHwFogMist + uHwFogSun * 0.12 * hwFogForward(cosine, 0.7);
+  vec3 wetLight = uHwFogMist + uHwFogSun * 0.07 * hwFogForward(cosine, 0.62);
   vec3 depth = airDepth + vec3(wet);
   vec3 through = exp(-depth);
   vec3 scattered = (airDepth * airLight + wet * wetLight) / max(depth, vec3(1e-6));
   return colour * through + scattered * (1.0 - through);
 }
 `;
+
+/** The depth of a layer whose density falls off exponentially above its floor, along a ray: `hwFogLayer` in the GLSL above, the same function. */
+export function fogLayerDepth(density: number, floorY: number, height: number, eyeY: number, pointY: number, dist: number): number {
+  const h0 = Math.max(eyeY - floorY, -height) / height;
+  const h1 = Math.max(pointY - floorY, -height) / height;
+  const dh = h1 - h0;
+  const e0 = Math.exp(-h0);
+  const mean = Math.abs(dh) > 1e-4 ? (e0 - Math.exp(-h1)) / dh : e0;
+  return density * dist * mean;
+}
 
 const uniforms = {
   uHwFogAir: { value: new Color() },
@@ -121,7 +132,9 @@ export const FOG_ART: FeatureArt = {
     uniforms.uHwFogLayers.value.set(AIR.height, weather.floor, MIST.height * (1 + w.precipitation), VEIL.height);
     // The air glows the horizon's colour, a little bluer overhead; the mist is lit by the sky and the sun.
     uniforms.uHwFogAir.value.copy(atmosphere.uHwHaze.value).lerp(sky.uSky.value, 0.2);
-    uniforms.uHwFogSun.value.copy(atmosphere.uHwSunColor.value).multiplyScalar(day.light.sun * day.sky.key.strength * 0.4);
+    // Under a closing sky the sun no longer shines into the air: its glow fades as the cloud covers it.
+    const through = 1 - 0.9 * smoothstep(0.6, 1, w.cloudCover);
+    uniforms.uHwFogSun.value.copy(atmosphere.uHwSunColor.value).multiplyScalar(day.light.sun * day.sky.key.strength * 0.4 * through);
     light.copy(atmosphere.uHwSkyLight.value).multiplyScalar(0.85).add(sun.copy(atmosphere.uHwSunLight.value).multiplyScalar(0.9));
     uniforms.uHwFogMist.value.copy(light).multiply(blendByRegion(weatherColours().mist, weather.regions, tint));
   },

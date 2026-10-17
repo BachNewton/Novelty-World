@@ -26,6 +26,6 @@ export const LIGHTNING_ART: FeatureArt = {
     { kinds: ["sky"], fragmentHead: HEAD, colour: /* glsl */ `hwColour += uHwFlash * 0.18;` },
   ],
   frame: ({ weather }) => {
-    uniforms.uHwFlash.value.copy(weatherColours().lightning).multiplyScalar(weather.flash * 1.6);
+    uniforms.uHwFlash.value.copy(weatherColours().lightning).multiplyScalar(weather.flash * 0.9);
   },
 };

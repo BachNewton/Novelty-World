@@ -1,5 +1,6 @@
 import { Color, Matrix4, ShaderMaterial, Vector3 } from "three";
 import { DEPTH_GLSL } from "../depth";
+import { AIR_MARCH_GLSL } from "./air-march";
 import type { FeatureArt } from "../feature-art";
 import { FULL_SCREEN_VERTEX, FullScreen } from "../passes";
 import { acquireCloudNoise, CLOUD_FIELD, CLOUD_FIELD_GLSL, releaseCloudNoise, updateCloudField } from "./cloud-field";
@@ -24,6 +25,7 @@ const REACH = 12000;
 
 const FRAGMENT = /* glsl */ `
 ${DEPTH_GLSL}
+${AIR_MARCH_GLSL}
 ${CLOUD_FIELD_GLSL}
 uniform sampler2D tColour;
 uniform sampler2D tDepth;
@@ -56,9 +58,9 @@ float sunlit(vec3 p) {
 void main() {
   vec4 colour = texture2D(tColour, vUv);
   float depth = texture2D(tDepth, vUv).r;
-  vec3 view = hwViewPosition(vUv, hwIsFar(depth) ? 0.5 : depth, uProjectionInverse);
-  vec3 dir = normalize((uViewToWorld * vec4(view, 0.0)).xyz);
-  float reach = hwIsFar(depth) ? ${REACH.toFixed(1)} : min(length(view), ${REACH.toFixed(1)});
+  vec4 ray = hwAirRay(vUv, depth, uProjectionInverse, ${REACH.toFixed(1)});
+  vec3 dir = normalize((uViewToWorld * vec4(ray.xyz, 0.0)).xyz);
+  float reach = ray.w;
   if (dir.y > 0.0) reach = min(reach, max(0.0, (uHwCloudShape.z - uEye.y) / dir.y));
 
   float lit = 0.0;

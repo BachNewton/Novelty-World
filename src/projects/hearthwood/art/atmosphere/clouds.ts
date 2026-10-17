@@ -146,7 +146,7 @@ export const CLOUDS_ART: FeatureArt = {
     lighting.light.copy(atmosphere.uHwSunColor.value).multiplyScalar(day.light.sun * day.sky.key.strength * 0.55);
     lighting.sky.copy(atmosphere.uHwSkyLight.value).multiplyScalar(0.95);
     lighting.ground.copy(atmosphere.uHwSkyLight.value).multiplyScalar(0.55).add(atmosphere.uHwSunLight.value);
-    lighting.flash.copy(weatherColours().lightning).multiplyScalar(weather.flash * 3);
+    lighting.flash.copy(weatherColours().lightning).multiplyScalar(weather.flash * 1.1);
   },
   passes: [
     {

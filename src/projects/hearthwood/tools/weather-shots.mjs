@@ -1,14 +1,15 @@
 // The weather and the air, for judging them without a browser open: each held weather (see ../engine/weather.ts)
 // at chosen hours, from a few views: camp from behind Elliott (`camp`), a high spot near camp looking out over
 // the land to the horizon (`vista`), the sky from camp (`sky`), the ground at Elliott's feet through their eyes
-// (`ground`), and the sun low through the trees (`trees`). Prints the weather each shot was drawn in.
+// (`ground`), the sun low through the trees (`trees`), and up at the sun from the high spot (`sun`); `--flash` holds
+// storm shots on a flash of lightning. Prints the weather each shot was drawn in.
 //
 // Drives the world's probe (window.__hearthwoodWorld) over Playwright and waits on its events, never a sleep.
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
 // `npx playwright install chromium` (one-time).
 // Usage:  node src/projects/hearthwood/tools/weather-shots.mjs [label] [--weather=<kind,...>] [--hours=<name,...>]
-//           [--views=<view,...>] [--features=<-id,+id,none,...>] [--date=<date>] [--motion=<seconds>]
+//           [--views=<view,...>] [--features=<-id,+id,none,...>] [--date=<date>] [--motion=<seconds>] [--flash]
 // Hours by name: dawn, morning, noon, golden, blue, night, or a number. Writes to
 // src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
@@ -29,6 +30,8 @@ const VIEWS = arg("views", "camp,vista,sky").split(",");
 const FEATURES = arg("features", null);
 const DATE = arg("date", "mabon");
 const MOTION = Number(arg("motion", "12"));
+// --flash: storm shots wait for a flash of lightning.
+const FLASH = process.argv.includes("--flash");
 const OUTDIR = join(HERE, "..", ".shots", LABEL);
 const BASE = process.env.HEARTHWOOD_URL ?? "http://localhost:3001/games/3d-games/hearthwood";
 
@@ -90,6 +93,7 @@ const VIEW_SETUP = {
   sky: ({ camp }) => ({ view: "walk", pov: "first", look: { pitch: 0.55 }, walker: { x: camp.x + 3.4, z: camp.z + 1.5 } }),
   ground: ({ camp }) => ({ view: "walk", pov: "first", look: { pitch: -0.45 }, walker: { x: camp.x + 9, z: camp.z + 6 } }),
   trees: ({ camp }) => ({ view: "walk", pov: "first", look: { pitch: 0.12 }, walker: { x: camp.x + 3.4, z: camp.z + 1.5 } }),
+  sun: ({ high }) => ({ view: "walk", pov: "first", walker: { x: high.x, z: high.z } }),
 };
 
 for (const weather of WEATHERS) {
@@ -108,10 +112,11 @@ for (const weather of WEATHERS) {
           if (setup.walker) world.placeWalker(setup.walker.x, setup.walker.z, setup.walker.heading);
           if (setup.orbit) world.setOrbit(setup.orbit);
           if (setup.look) world.setLook(setup.look);
-          // The trees view looks towards the sun, wherever it is.
-          if (viewName === "trees") {
+          // The trees and sun views look towards the sun (or the moon), wherever it is; the sun view up at it too.
+          if (viewName === "trees" || viewName === "sun") {
             const sun = world.sky().key.direction;
             world.setLook({ yaw: Math.atan2(-sun.x, -sun.z) });
+            if (viewName === "sun") world.setLook({ pitch: Math.min(0.9, Math.max(0.15, Math.asin(sun.y) + 0.1)) });
           }
         },
         { weather, hour, motion: MOTION, setup, viewName },
@@ -119,6 +124,14 @@ for (const weather of WEATHERS) {
       await frames(40);
       await page.waitForFunction(() => window.__hearthwoodWorld.settled(), null, { timeout: 300000 });
       await frames(6);
+      // In a storm, the motion clock is moved on to the next flash of lightning, so the shot shows one.
+      if (weather === "storm" && FLASH) {
+        for (let t = MOTION; t < MOTION + 90; t += 0.1) {
+          await page.evaluate((t) => window.__hearthwoodWorld.holdMotion(t), t);
+          await frames(2);
+          if ((await page.evaluate(() => window.__hearthwoodWorld.weather().flash)) > 0.5) break;
+        }
+      }
       const wanted = await page.evaluate(() => window.__hearthwoodWorld.weather());
       const path = join(OUTDIR, `${weather}-${viewName}-${hourName}.png`);
       await page.screenshot({ path });
