@@ -285,3 +285,31 @@ Read: the aim, the leader's gang-up and opponents' kills are better calibrated b
 - **My own kill exposure, at small tables among rule bots.** `myKillRate` 0.5 was measured on the mixed field; rule bots kill me nearer the rate v3 believed. Among v3s at 3 players v3 believed 9.1% and I was killed 8.7%; v4 believes 5.5%.
 
 So among rule bots v4 believes its border and its survival are safer than they are, which would make it bolder exactly where it lost. The ablations test which belief does it.
+
+## v4's beliefs one at a time (gauntlet, 2026-10-17)
+
+Each label is v4 with one belief and v3's model otherwise (`BELIEF_VARIANTS` in `rule-v4/params.ts`), against v3 alone at 3 players, the table v4 lost: `risk:gauntlet -- rule-v4-<belief> --base rule-v3 --field rule-v3 --players 3 --formats one-in`, train seeds, ±30 Elo, 10 workers.
+
+| Belief alone | Result | Win share vs par 33.3% | Win Elo a seat | Decisive games |
+|---|---|---|---|---|
+| kills (rate 0.25, mine 0.5) | even | 33.7% [30.9, 36.6] | +2.9 | 1,083 |
+| leader (0.7, ally 0.3) | even | 33.3% [30.4, 36.4] | +0.0 | 918 |
+| aim pulled half way to even | **worse** | 30.1% [27.6, 32.7] | −26.1 | 1,260 |
+| the game's record (prior 6, decay 0.7) | even | 33.1% [30.4, 35.9] | −1.9 | 1,098 |
+
+The aim's pull toward an even split is the belief that loses, by about as much as v4 as a whole did. It is the best-calibrated change of the four as a prediction of whom an opponent hits, and the worst for play: v3's lean, too confident as a prediction, puts defence where the big blows land, and the blows are underpriced among rule bots (caused ÷ priced 1.4 to 2.0 above), so the lean was doing the hit's work. The other three cost nothing on v3's preferences, and none pays alone either. Next: v4 with every belief but this one (`rule-v4-no-aim`), on all six tables.
+
+## v4 without the aim's pull (gauntlet, 2026-10-17)
+
+`risk:gauntlet -- rule-v4-no-aim --base rule-v3 --field rule-v3`, train seeds, ±30 Elo, 10 workers: 13,592 games in 95 minutes, almost all of it the 6-player tables (122 to 183 turns a game, against 23 to 35 at 3 and 4).
+
+| Pairing vs v3 | Result | Win share vs par | Decisive games |
+|---|---|---|---|
+| 1 no-aim vs 2 v3 (3p) | even | 33.3% [30.4, 36.4] vs 33.3% | 921 |
+| 2 no-aim vs 1 v3 (3p) | even | 67.6% [65.4, 69.7] vs 66.7% | 1,827 |
+| 1 no-aim vs 3 v3 (4p) | **worse** | 23.0% [21.7, 24.3] vs 25.0% | 3,992 |
+| 3 no-aim vs 1 v3 (4p) | even | 74.6% [72.2, 76.9] vs 75.0% | 1,352 |
+| 1 no-aim vs 5 v3 (6p) | even | 17.0% [15.3, 18.7] vs 16.7% | 1,860 |
+| 5 no-aim vs 1 v3 (6p) | **better** | 85.0% [83.7, 86.2] vs 83.3% | 3,570 |
+
+Win Elo +1.3 a seat, finishing-order Elo +19.2. Dropping the aim's pull mends the 3-player lone seat, but a lone seat at 4 players still loses, about −28 Elo, on the small-table preferences tuned for v3's beliefs at 3 players only. Five of them among one v3 at 6 players win more, but those games run long (183 turns, 7.5% to the cap) and the cap discards the stalemates. Next: retune the small-table preferences at 3 and 4 players on v4's beliefs, with and without the aim's pull (`rule-v4-small`, `rule-v4-no-aim-small`, newly tunable: the plan's `--tunable rule-v4` moves only the preferences above 4 players, which 3-player games never read).

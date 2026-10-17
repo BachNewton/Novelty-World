@@ -1,8 +1,9 @@
-import { ShaderMaterial, type IUniform, type Material, type MeshLambertMaterial, type ShaderMaterialParameters, type WebGLProgramParametersWithUniforms } from "three";
+import { DoubleSide, MeshDepthMaterial, ShaderMaterial, type IUniform, type Material, type MeshLambertMaterial, type ShaderMaterialParameters, type WebGLProgramParametersWithUniforms } from "three";
 import { featureDefine, liveFeatures, type FeatureSwitches, type FeatureToggles } from "../features";
 import { ATMOSPHERE_GLSL, ATMOSPHERE_UNIFORMS_GLSL, NOISE_GLSL, type AtmosphereUniforms } from "./atmosphere";
 import { HOOKS, SKY_HOOKS, type FeatureArt, type Hook, type MaterialKind } from "./feature-art";
 import { FEATURE_ART } from "./features";
+import { patchCaster } from "./shadows/caster-depth";
 
 /*
  * The shared materials, and the features' GLSL compiled into them. Every
@@ -217,8 +218,8 @@ export function shadingVariants(): ShadingVariants {
 
 export type LambertKind = Extract<MaterialKind, "land" | "ground" | "foliage" | "solid">;
 
-/** What each shared Lambert material was made from, so a twin of it (a shadow caster) can move its vertices the same way. */
-const LAMBERTS = new WeakMap<Material, { kind: LambertKind; uniforms: Record<string, IUniform>; own: OwnGlsl | null }>();
+/** What each shared Lambert material was made from, so its shadow depth can move its vertices the same way. */
+const LAMBERTS = new WeakMap<Material, { kind: LambertKind; atmosphere: AtmosphereUniforms; uniforms: Record<string, IUniform>; own: OwnGlsl | null }>();
 
 /** A Lambert material made one of the shared kinds: it ends in the world's air and takes every feature's GLSL for its kind. */
 export function shadeLambert<M extends MeshLambertMaterial>(material: M, kind: LambertKind, atmosphere: AtmosphereUniforms, own: OwnGlsl | null = null): M {
@@ -230,30 +231,58 @@ export function shadeLambert<M extends MeshLambertMaterial>(material: M, kind: L
   };
   material.customProgramCacheKey = () => `hearthwood:${kind}:${own?.key ?? ""}`;
   variants.track(material, kind);
-  LAMBERTS.set(material, { kind, uniforms, own });
+  LAMBERTS.set(material, { kind, atmosphere, uniforms, own });
+  return material;
+}
+
+const depths = new WeakMap<AtmosphereUniforms, Partial<Record<LambertKind, MeshDepthMaterial>>>();
+const ownDepths = new WeakMap<Material, MeshDepthMaterial>();
+
+/** Three's depth material with a kind's vertex hooks (and a material's own vertex GLSL) compiled in under `HW_DEPTH`, made ready for the shadow maps. */
+function depthMaterial(kind: LambertKind, uniforms: Record<string, IUniform>, own: OwnGlsl | null): MeshDepthMaterial {
+  const variants = shadingVariants();
+  // Both faces cast, so open shapes (a trunk, the land's skirts, a leaf) cast from either side.
+  const material = new MeshDepthMaterial({ side: DoubleSide });
+  material.defines = { HW_DEPTH: "" };
+  material.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = patchVertex(shader.vertexShader, variants.art, kind, own);
+    patchCaster(shader);
+  };
+  material.customProgramCacheKey = () => `hearthwood:depth:${kind}:${own?.key ?? ""}`;
+  variants.track(material, kind);
   return material;
 }
 
 /**
- * Makes `twin`, a material another pass draws the same meshes with (a shadow
- * caster's depth), move its vertices exactly as the shared Lambert material
- * `of` does: its own vertex GLSL and every feature's vertex chunks, under the
- * same defines, kept in step as features switch. `patch` adds the twin's own
- * changes; `key` names its programs apart. False when `of` isn't a shared
- * Lambert material.
+ * The depth a kind's things cast their shadows with: three's own, with the
+ * kind's vertex hooks compiled in under `HW_DEPTH` (no colour and no normal
+ * there), so whatever a feature moves or shrinks casts its shadow where it is
+ * drawn. One per kind and air, shared by every mesh that casts with it.
  */
-export function shadeTwin(twin: Material, of: Material, key: string, patch: (shader: WebGLProgramParametersWithUniforms) => void): boolean {
-  const made = LAMBERTS.get(of);
-  if (!made) return false;
-  const variants = shadingVariants();
-  twin.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms) => {
-    Object.assign(shader.uniforms, made.uniforms);
-    shader.vertexShader = patchVertex(shader.vertexShader, variants.art, made.kind, made.own);
-    patch(shader);
-  };
-  twin.customProgramCacheKey = () => `hearthwood:${key}:${made.kind}:${made.own?.key ?? ""}`;
-  variants.track(twin, made.kind);
-  return true;
+export function shadowDepth(kind: LambertKind, atmosphere: AtmosphereUniforms): MeshDepthMaterial {
+  let byKind = depths.get(atmosphere);
+  if (!byKind) {
+    byKind = {};
+    depths.set(atmosphere, byKind);
+  }
+  const known = byKind[kind];
+  if (known) return known;
+  const material = depthMaterial(kind, { ...atmosphere, ...featureUniforms(shadingVariants().art, kind) }, null);
+  byKind[kind] = material;
+  return material;
+}
+
+/** The shadow depth of one shared Lambert material, with its own vertex GLSL too (the land's geomorph and the earth's curve), made once; null for any other material. */
+export function shadowDepthOf(material: Material): MeshDepthMaterial | null {
+  const known = ownDepths.get(material);
+  if (known) return known;
+  const made = LAMBERTS.get(material);
+  if (!made) return null;
+  const depth = made.own ? depthMaterial(made.kind, made.uniforms, made.own) : shadowDepth(made.kind, made.atmosphere);
+  if (made.own) material.addEventListener("dispose", () => depth.dispose());
+  ownDepths.set(material, depth);
+  return depth;
 }
 
 export type CustomKind = Extract<MaterialKind, "water" | "sky">;

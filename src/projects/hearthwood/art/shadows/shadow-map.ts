@@ -18,7 +18,8 @@ import {
 import { liveFeatures } from "../../features";
 import { QUALITY } from "../../quality";
 import type { FeaturePass, PassFrame } from "../feature-art";
-import { castersOnly, CASTER_EYE } from "./casters";
+import { CASTER_EYE } from "./caster-depth";
+import { castersOnly } from "./casters";
 import { lightFrame, sliceSphere, snapToTexels, splitDistances, squareMatrix, steadyRadius } from "./cascades";
 
 /*

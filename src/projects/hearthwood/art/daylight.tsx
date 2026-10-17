@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { type Color, Object3D, type DirectionalLight, type HemisphereLight, type WebGLRenderer } from "three";
+import type { CalendarDate } from "../engine/calendar";
 import { MOMENTS, type DaySky, type MomentLight } from "../engine/day";
 import type { AtmosphereUniforms } from "./atmosphere";
 import type { MomentPart, Palette } from "./palette";
@@ -22,6 +23,8 @@ const HAZE_DENSITY = 0.0024;
 
 /** The moment of the day the light is drawn for: the scene keeps it, the light only reads it. */
 export interface DayState {
+  /** The date and hour: the real day of the year it stands for keys anything seasonal. */
+  date: CalendarDate;
   hours: number;
   light: MomentLight;
   /** Where the sun and moon are, the key light, and the mix of moments the light is in. */
