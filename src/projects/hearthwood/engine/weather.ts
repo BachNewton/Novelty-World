@@ -225,7 +225,7 @@ export function holdWeather(kind: WeatherKind, base: Weather): Weather {
     case "overcast":
       return { ...base, humidity: 0.75, cloudCover: 0.95, heaped: 0.1, precipitation: 0, storm: 0, haze: 1.4, mist: 0.15 };
     case "mist":
-      return { ...base, humidity: 0.95, cloudCover: 0.3, heaped: 0.4, precipitation: 0, storm: 0, haze: 1.8, mist: 1, wetness: 0.3, puddles: 0, wind: { ...calm, speed: 0.5 } };
+      return { ...base, humidity: 0.95, cloudCover: 0.3, heaped: 0.4, precipitation: 0, storm: 0, haze: 1.1, mist: 1, wetness: 0.3, puddles: 0, wind: { ...calm, speed: 0.5 } };
     case "rain":
       return { ...base, humidity: 0.95, cloudCover: 1, heaped: 0.2, precipitation: 0.7, snow: 0, storm: 0, haze: 2.4, mist: 0.4, wetness: 1, puddles: 0.8, wind: { ...base.wind, speed: 6 } };
     case "storm":

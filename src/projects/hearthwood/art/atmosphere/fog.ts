@@ -73,7 +73,7 @@ vec3 hwFog(vec3 colour, vec3 point, float dist) {
   vec3 airDepth = air * vec3(0.6, 0.85, 1.3);
   float cosine = dot(dir, uHwSunDir);
   vec3 airLight = uHwFogAir + uHwFogSun * 0.45 * pow(max(cosine, 0.0), 5.0);
-  vec3 wetLight = uHwFogMist + uHwFogSun * 0.07 * hwFogForward(cosine, 0.62);
+  vec3 wetLight = uHwFogMist + uHwFogSun * 0.04 * hwFogForward(cosine, 0.62);
   vec3 depth = airDepth + vec3(wet);
   vec3 through = exp(-depth);
   vec3 scattered = (airDepth * airLight + wet * wetLight) / max(depth, vec3(1e-6));
@@ -144,7 +144,7 @@ export const FOG_ART: FeatureArt = {
     const through = 1 - 0.9 * smoothstep(0.6, 1, w.cloudCover);
     uniforms.uHwFogSun.value.copy(atmosphere.uHwKeyLight.value).multiplyScalar(0.25 * through);
     const haze = atmosphere.uHwHaze.value;
-    light.copy(haze).lerp(sun.setScalar(0.2126 * haze.r + 0.7152 * haze.g + 0.0722 * haze.b), 0.6).multiplyScalar(0.9);
+    light.copy(haze).lerp(sun.setScalar(0.2126 * haze.r + 0.7152 * haze.g + 0.0722 * haze.b), 0.6).multiplyScalar(0.72);
     uniforms.uHwFogMist.value.copy(light).multiply(blendByRegion(weatherColours().mist, weather.regions, tint));
     // A closed sky lets less light into the air: rain and overcast are grey, not glaring.
     const gloom = 1 - 0.4 * w.cloudCover * w.cloudCover;
