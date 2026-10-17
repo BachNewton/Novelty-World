@@ -1,5 +1,6 @@
 import { ShaderMaterial, Vector3 } from "three";
 import type { Season } from "../../engine/calendar";
+import { seasonWeights, type SeasonWeights } from "../../engine/seasons";
 import type { FeatureArt, PassFrame } from "../feature-art";
 import { FULL_SCREEN_VERTEX, FullScreen } from "../passes";
 import { SRGB_GLSL } from "./srgb";
@@ -9,9 +10,10 @@ import { SRGB_GLSL } from "./srgb";
  * brightness, contrast, saturation and white balance, the oranges, teals
  * and greens each adjusted on their own, and the shadows leaning towards
  * the moment's own colour (`uHwShadowTint`). Each season has its grade, and
- * the grade blends from one to the next through the year, so a summer is
- * warm and full, an autumn golden with its greens gone to olive, and a
- * winter cool and quiet with the fire's orange the warmest thing in it.
+ * the grade hands over from one to the next as the engine's season weights
+ * do, so a summer is warm and full, an autumn golden with its greens gone
+ * to olive, and a winter cool and quiet, its snow drawn back to white from
+ * a low sun's golden haze, with the fire's orange the warmest thing in it.
  *
  * It works on the frame as the screen shows it, decoded to linear light and
  * encoded again, after the tone curve.
@@ -38,19 +40,18 @@ export interface Grade {
   greens: RangeGrade;
   /** How strongly the shadows lean to the moment's colour. */
   shadowTint: number;
+  /** How far bright, nearly colourless things (snow, a white cloud, a far snowfield) are drawn back to white from the warm light and haze on them. */
+  whites: number;
 }
 
 const range = (hue: number, saturation: number, lightness: number): RangeGrade => ({ hue, saturation, lightness });
 
 export const SEASON_GRADES: Record<Season, Grade> = {
-  spring: { exposure: 1.03, contrast: 1.0, saturation: 1.07, temperature: -0.04, tint: -0.03, oranges: range(0, 1.02, 1.0), teals: range(0, 1.06, 1.02), greens: range(5, 1.14, 1.05), shadowTint: 0.16 },
-  summer: { exposure: 1.03, contrast: 1.05, saturation: 1.12, temperature: 0.06, tint: 0, oranges: range(0, 1.1, 1.02), teals: range(-3, 1.12, 1.0), greens: range(2, 1.1, 1.02), shadowTint: 0.18 },
-  autumn: { exposure: 1.0, contrast: 1.06, saturation: 1.1, temperature: 0.1, tint: 0.02, oranges: range(-3, 1.24, 1.05), teals: range(0, 0.95, 1.0), greens: range(-12, 0.88, 0.98), shadowTint: 0.22 },
-  winter: { exposure: 1.01, contrast: 0.97, saturation: 0.88, temperature: -0.16, tint: 0.02, oranges: range(0, 1.12, 1.04), teals: range(0, 1.1, 1.03), greens: range(-4, 0.8, 0.98), shadowTint: 0.2 },
+  spring: { exposure: 1.03, contrast: 1.0, saturation: 1.07, temperature: -0.04, tint: -0.03, oranges: range(0, 1.02, 1.0), teals: range(0, 1.06, 1.02), greens: range(5, 1.14, 1.05), shadowTint: 0.16, whites: 0.2 },
+  summer: { exposure: 1.03, contrast: 1.05, saturation: 1.12, temperature: 0.06, tint: 0, oranges: range(0, 1.1, 1.02), teals: range(-3, 1.12, 1.0), greens: range(2, 1.1, 1.02), shadowTint: 0.18, whites: 0.15 },
+  autumn: { exposure: 1.0, contrast: 1.06, saturation: 1.1, temperature: 0.1, tint: 0.02, oranges: range(-3, 1.24, 1.05), teals: range(0, 0.95, 1.0), greens: range(-12, 0.88, 0.98), shadowTint: 0.22, whites: 0.25 },
+  winter: { exposure: 1.02, contrast: 0.97, saturation: 0.9, temperature: -0.2, tint: 0.02, oranges: range(0, 1.12, 1.04), teals: range(0, 1.1, 1.03), greens: range(-4, 0.8, 0.98), shadowTint: 0.2, whites: 0.75 },
 };
-
-/** The seasons in the year's order, each at its fullest halfway through. */
-const ORDER: readonly Season[] = ["spring", "summer", "autumn", "winter"];
 
 function mixRange(a: RangeGrade, b: RangeGrade, t: number): RangeGrade {
   return range(a.hue + (b.hue - a.hue) * t, a.saturation + (b.saturation - a.saturation) * t, a.lightness + (b.lightness - a.lightness) * t);
@@ -68,16 +69,21 @@ export function mixGrades(a: Grade, b: Grade, t: number): Grade {
     teals: mixRange(a.teals, b.teals, t),
     greens: mixRange(a.greens, b.greens, t),
     shadowTint: m(a.shadowTint, b.shadowTint),
+    whites: m(a.whites, b.whites),
   };
 }
 
-/** The grade at a point in the year, 0 the first of spring to 1: each season's at its middle, blending smoothly into the next. */
-export function gradeAt(yearProgress: number): Grade {
-  const seasons = ORDER.length;
-  const at = (((yearProgress * seasons - 0.5) % seasons) + seasons) % seasons;
-  const from = Math.floor(at);
-  const t = at - from;
-  return mixGrades(SEASON_GRADES[ORDER[from]], SEASON_GRADES[ORDER[(from + 1) % seasons]], t * t * (3 - 2 * t));
+/** The grade for a mix of seasons (the engine's `seasonWeights`, summing to 1): each season's grade in its share. */
+export function gradeFor(weights: SeasonWeights): Grade {
+  let grade = SEASON_GRADES.spring;
+  let total = weights.spring;
+  for (const season of ["summer", "autumn", "winter"] as const) {
+    const w = weights[season];
+    if (w <= 0) continue;
+    total += w;
+    grade = mixGrades(grade, SEASON_GRADES[season], w / total);
+  }
+  return grade;
 }
 
 /** The white balance's gains for a temperature and tint, keeping brightness. */
@@ -97,6 +103,7 @@ uniform vec3 uOranges;
 uniform vec3 uTeals;
 uniform vec3 uGreens;
 uniform vec3 uShadowTint;
+uniform float uWhites;
 varying vec2 vUv;
 ${SRGB_GLSL}
 
@@ -134,6 +141,8 @@ void main() {
   h.x = fract(h.x + (wo * uOranges.x + wt * uTeals.x + wg * uGreens.x) / 360.0);
   h.y = clamp(h.y * (1.0 + wo * (uOranges.y - 1.0) + wt * (uTeals.y - 1.0) + wg * (uGreens.y - 1.0)), 0.0, 1.0);
   h.z *= 1.0 + wo * (uOranges.z - 1.0) + wt * (uTeals.z - 1.0) + wg * (uGreens.z - 1.0);
+  // Bright, nearly colourless things back to white, from the warm light and haze on them.
+  h.y *= 1.0 - uWhites * smoothstep(0.45, 0.8, h.z) * (1.0 - smoothstep(0.12, 0.4, h.y));
   c = rgb(h);
   // The shadows lean to the moment's own colour.
   luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -166,6 +175,7 @@ export const COLOUR_GRADE_ART: FeatureArt = {
               uTeals: { value: new Vector3(0, 1, 1) },
               uGreens: { value: new Vector3(0, 1, 1) },
               uShadowTint: { value: new Vector3() },
+              uWhites: { value: 0 },
             },
             vertexShader: FULL_SCREEN_VERTEX,
             fragmentShader: FRAGMENT,
@@ -174,12 +184,13 @@ export const COLOUR_GRADE_ART: FeatureArt = {
         return {
           render: ({ gl, colour, output, day, atmosphere }: PassFrame) => {
             const u = quad.material.uniforms;
-            const grade = gradeAt(day.date.yearProgress);
+            const grade = gradeFor(seasonWeights(day.date.realDayOfYear));
             u.tColour.value = colour;
             (u.uBalance.value as Vector3).fromArray(whiteBalance(grade.temperature, grade.tint));
             u.uExposure.value = grade.exposure;
             u.uContrast.value = grade.contrast;
             u.uSaturation.value = grade.saturation;
+            u.uWhites.value = grade.whites;
             setRange(u.uOranges.value as Vector3, grade.oranges);
             setRange(u.uTeals.value as Vector3, grade.teals);
             setRange(u.uGreens.value as Vector3, grade.greens);
