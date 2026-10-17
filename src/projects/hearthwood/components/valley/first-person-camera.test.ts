@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EYE_HEIGHT, eyePosition, headBob, lookDirection, PITCH_LIMIT, turnLook } from "./first-person-camera";
+import { broomSway, EYE_HEIGHT, eyePosition, FIELD_OF_VIEW, fieldOfView, headBob, landingDip, lookDirection, PITCH_LIMIT, turnLook } from "./first-person-camera";
 
 describe("the first-person camera", () => {
   const level = { yaw: 0, pitch: 0 };
@@ -43,5 +43,26 @@ describe("the first-person camera", () => {
     expect(eyePosition({ x: 1, y: 2, z: 3 }, 0, { up: 0, side: 0 })).toEqual({ x: 1, y: 2 + EYE_HEIGHT, z: 3 });
     // Looking along +z, her right is -x.
     expect(eyePosition({ x: 0, y: 0, z: 0 }, 0, { up: 0, side: 0.1 }).x).toBeCloseTo(-0.1);
+  });
+});
+
+describe("the first-person camera in the air", () => {
+  it("dips softly on landing, deeper the harder they came down, and comes back up", () => {
+    expect(landingDip(0, 3)).toBeCloseTo(0);
+    expect(landingDip(0.17, 3)).toBeLessThan(0);
+    expect(landingDip(0.17, 6)).toBeLessThan(landingDip(0.17, 3));
+    expect(landingDip(0.17, 100)).toBeGreaterThanOrEqual(-0.13);
+    expect(landingDip(1, 6)).toBe(0);
+  });
+
+  it("widens the view in the broom's wind", () => {
+    expect(fieldOfView("first", 0)).toBe(FIELD_OF_VIEW.first);
+    expect(fieldOfView("first", 1)).toBeGreaterThan(FIELD_OF_VIEW.first);
+  });
+
+  it("leans into a turn, the way it turns, within bounds", () => {
+    expect(broomSway(0, 1, 0).roll).toBeGreaterThan(0);
+    expect(broomSway(0, -1, 0).roll).toBeLessThan(0);
+    expect(Math.abs(broomSway(0, 50, 0).roll)).toBeLessThanOrEqual(0.14);
   });
 });
