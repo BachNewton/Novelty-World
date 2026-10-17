@@ -5,6 +5,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { NeutralToneMapping } from "three";
 import { useWalkInput } from "../../input/use-walk-input";
 import { REGIONS } from "../../engine/regions";
+import { emptySample } from "../../engine/land";
 import { createWorld, type World } from "../../engine/world";
 import { makeAtmosphere } from "../../art/atmosphere";
 import { Campfire } from "../../art/campfire";
@@ -13,11 +14,13 @@ import { Fireflies } from "../../art/fireflies";
 import { readPalette, REGION_AIR } from "../../art/palette";
 import { FrameCosts } from "../../art/passes";
 import { makeSkyUniforms, Sky } from "../../art/sky";
+import { absorptionOf } from "../../art/water/absorption";
+import { setWaterAtEye } from "../../art/water/underwater";
 import { QUALITY } from "../../quality";
 import { parseDate } from "../../engine/calendar";
 import { advanceClock, makeClock, type ValleyClock } from "./clock";
 import { DebugPanel } from "./debug-panel";
-import { FeatureRenderer } from "./feature-renderer";
+import { FeatureRenderer, useFeature } from "./feature-renderer";
 import { useFrameStats } from "./frame-stats";
 import { FIRST_ORBIT } from "./follow-camera";
 import { WalkerAndCamera, type Walker } from "./walker";
@@ -78,12 +81,19 @@ function breathe(air: Air, weather: Weather, world: World, x: number, z: number,
   air.thickness = weather.haze * REGIONS.reduce((sum, region, i) => sum + weights[i] * REGION_AIR[region], 0);
 }
 
-/** The clock moves on, and the air thickens or clears with the weather and the region the camera is in. */
+/** The clock moves on, the air thickens or clears with the weather and the region the camera is in, and the water learns whether the camera is under it. */
 function Ticker({ clock, world, air, weather }: { clock: ValleyClock; world: World; air: Air; weather: Weather }) {
   const weights = useMemo(() => new Float32Array(REGIONS.length), []);
+  const land = useMemo(() => emptySample(), []);
+  const underwater = useFeature("underwaterFog");
   useFrame(({ camera }, delta) => {
     advanceClock(clock, Math.min(delta, 0.1));
-    breathe(air, weather, world, camera.position.x, camera.position.z, weights);
+    const { x, z } = camera.position;
+    breathe(air, weather, world, x, z, weights);
+    if (underwater) {
+      world.sampleAt(x, z, land);
+      setWaterAtEye(land.water > land.height ? land.water : null, absorptionOf(weights));
+    }
   }, CLOCK_PRIORITY);
   return null;
 }

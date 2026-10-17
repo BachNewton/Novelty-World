@@ -15,7 +15,7 @@ import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import { fallRibbon, placeGeometry, type PlaceLook } from "../../art/place-shapes";
 import type { SkyUniforms } from "../../art/sky";
-import { poolGeometry } from "../../art/water";
+import { poolGeometry, waterMesh } from "../../art/water/water";
 import { Broom } from "../../art/broom";
 import { Witch, type WitchPose } from "../../art/witch";
 import { CatBody } from "../cats/cat-body";
@@ -102,7 +102,7 @@ function PlacePiece({ kind, context }: { kind: PlaceKind; context: ArtContext })
     let ground = (_x: number, _z: number) => 0;
     if (kind === "tarn") {
       look.pool = { level: 0, radius: 8 };
-      const water = new Mesh(poolGeometry(8), context.materials.water);
+      const water = waterMesh(poolGeometry(8), context.materials.water);
       water.position.y = 0.05;
       meshes.push(water);
     }
@@ -111,7 +111,7 @@ function PlacePiece({ kind, context }: { kind: PlaceKind; context: ArtContext })
       look.turn = 0;
       look.fall = fall;
       ground = slope;
-      meshes.push(new Mesh(ledge(context.palette, kind === "cascade" ? 9 : 4), context.materials.place), new Mesh(fallRibbon(fall), context.materials.water));
+      meshes.push(new Mesh(ledge(context.palette, kind === "cascade" ? 9 : 4), context.materials.place), waterMesh(fallRibbon(fall), context.materials.water));
     }
     const mesh = new Mesh(placeGeometry(look, ground, context.palette), context.materials.place);
     mesh.castShadow = true;
