@@ -4,7 +4,9 @@ import { useMemo, useRef, useState, type CSSProperties } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { NeutralToneMapping } from "three";
 import { useWalkInput } from "../../input/use-walk-input";
-import { createWorld } from "../../engine/world";
+import { REGIONS } from "../../engine/regions";
+import { emptySample } from "../../engine/land";
+import { createWorld, type World } from "../../engine/world";
 import { parseWeather, type WeatherKind } from "../../engine/weather";
 import { makeAtmosphere } from "../../art/atmosphere";
 import { Campfire } from "../../art/campfire";
@@ -14,11 +16,13 @@ import { readForagePalette } from "../../art/forage-shapes";
 import { readPalette } from "../../art/palette";
 import { FrameCosts } from "../../art/passes";
 import { makeSkyUniforms, Sky } from "../../art/sky";
+import { absorptionOf } from "../../art/water/absorption";
+import { setWaterAtEye } from "../../art/water/underwater";
 import { QUALITY } from "../../quality";
 import { parseDate } from "../../engine/calendar";
 import { advanceClock, makeClock, type ValleyClock } from "./clock";
 import { DebugPanel } from "./debug-panel";
-import { FeatureRenderer } from "./feature-renderer";
+import { FeatureRenderer, useFeature } from "./feature-renderer";
 import { useFrameStats } from "./frame-stats";
 import { FIRST_ORBIT } from "./follow-camera";
 import { ForageOverlay } from "./forage-overlay";
@@ -70,10 +74,19 @@ const PROMPT_COLOURS = {
   "--prompt-ink": "var(--color-hearthwood-valley-ui-ink)",
 } as CSSProperties;
 
-/** The clock moves on. */
-function Ticker({ clock }: { clock: ValleyClock }) {
-  useFrame((_, delta) => {
+/** The clock moves on, and the water learns whether the camera is under it. */
+function Ticker({ clock, world }: { clock: ValleyClock; world: World }) {
+  const weights = useMemo(() => new Float32Array(REGIONS.length), []);
+  const land = useMemo(() => emptySample(), []);
+  const underwater = useFeature("underwaterFog");
+  useFrame(({ camera }, delta) => {
     advanceClock(clock, Math.min(delta, 0.1));
+    if (underwater) {
+      const { x, z } = camera.position;
+      world.sampleAt(x, z, land);
+      world.regionAt(x, z, land, weights);
+      setWaterAtEye(land.water > land.height ? land.water : null, absorptionOf(weights));
+    }
   }, CLOCK_PRIORITY);
   return null;
 }
@@ -121,7 +134,7 @@ export function WorldView() {
           gl.toneMapping = NeutralToneMapping;
         }}
       >
-        <Ticker clock={clock} />
+        <Ticker clock={clock} world={world} />
         <WeatherTicker world={world} clock={clock} now={weather} air={air} />
         <Daylight day={clock} palette={palette} atmosphere={atmosphere} sky={sky} focus={focus} air={air} shadows={{ map: QUALITY.shadowMap, reach: QUALITY.shadowReach }} />
         <Sky atmosphere={atmosphere} sky={sky} />
