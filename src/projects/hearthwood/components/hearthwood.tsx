@@ -4,8 +4,9 @@ import { useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { hearthwoodView } from "../view";
 
-const ValleyView = dynamic(() => import("./valley/valley-view").then((m) => m.ValleyView), { ssr: false });
+const WorldView = dynamic(() => import("./valley/world-view").then((m) => m.WorldView), { ssr: false });
 const CatPreview = dynamic(() => import("./cats/cat-preview").then((m) => m.CatPreview), { ssr: false });
+const ArtGallery = dynamic(() => import("./gallery/art-gallery").then((m) => m.ArtGallery), { ssr: false });
 
 function subscribeToNothing(): () => void {
   return () => undefined;
@@ -18,9 +19,11 @@ export function Hearthwood() {
   switch (view) {
     case null:
       return null;
-    case "valley":
-      return <ValleyView />;
+    case "world":
+      return <WorldView />;
     case "cats":
       return <CatPreview />;
+    case "art":
+      return <ArtGallery />;
   }
 }

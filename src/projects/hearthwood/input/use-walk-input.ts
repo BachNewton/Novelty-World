@@ -4,10 +4,13 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { readPad, subscribeGamepads } from "@/shared/lib/gamepad";
 import { spanOf, type InputKind, type Point } from "@/shared/lib/input";
 import { isTextEntryTarget } from "@/shared/lib/utils";
+import type { AirMode } from "../gameplay/airborne";
 import { otherView, savedPointOfView, savePointOfView, type PointOfView } from "./point-of-view";
 import {
+  KEY_JUMP,
   KEY_VIEW,
   LOOK,
+  PAD_JUMP,
   PAD_VIEW,
   STICK_RUN,
   STILL,
@@ -25,8 +28,10 @@ import {
 /*
  * Walking's input from all three methods at once, into one state the scene
  * reads each frame: the move asked for, whether running, the camera's turn
- * and the point of view. Whichever method was used last is the one the
- * prompts show.
+ * and the point of view, and jump, which the scene takes as it happens.
+ * Whichever method was used last is the one the prompts show; the scene
+ * tells the prompts back when the walker leaves the ground or takes the
+ * broom out, so they can show what jump does next.
  *
  * In first person a mouse looks with the pointer locked: a click on the
  * game locks it and Esc (the browser's own) frees it. The browser's
@@ -45,6 +50,10 @@ export interface WalkState {
   /** Zoom asked for since the scene last took it: above 1 moves the camera out. */
   zoom: number;
   pointOfView: PointOfView;
+  /** Jump pressed since the scene last took it. */
+  jump: boolean;
+  /** The scene says where the walker now is: on the ground, in the air, or on the broom. */
+  reportAir: (mode: AirMode) => void;
 }
 
 /** A touch stick, where it shows on the screen. */
@@ -65,6 +74,13 @@ export function takeTurn(state: WalkState): { yaw: number; pitch: number; zoom: 
   return taken;
 }
 
+/** Whether jump was pressed since the scene last took it, and takes it. */
+export function takeJump(state: WalkState): boolean {
+  const jumped = state.jump;
+  state.jump = false;
+  return jumped;
+}
+
 export interface WalkInput {
   state: RefObject<WalkState>;
   /** The input used last. */
@@ -77,6 +93,12 @@ export interface WalkInput {
   setPointOfView: (view: PointOfView) => void;
   /** Whether the pointer is locked to the game, the mouse looking. */
   locked: boolean;
+  /** Jump, from the touch button. */
+  jump: () => void;
+  /** Where the walker is: on the ground, in the air, or on the broom. */
+  air: AirMode;
+  /** Whether the player has taken out the broom, and put it away, so their hints can go. */
+  broomed: { out: boolean; away: boolean };
 }
 
 /** Before anything is used: a device whose main pointer is a finger is played by touch. */
@@ -86,7 +108,17 @@ function firstGuessInput(): InputKind {
 
 export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput {
   const [pointOfView, setShownView] = useState<PointOfView>(savedPointOfView);
-  const state = useRef<WalkState>({ move: STILL, running: false, turn: { yaw: 0, pitch: 0 }, turnRate: { yaw: 0, pitch: 0 }, zoom: 1, pointOfView });
+  const [air, setAir] = useState<AirMode>("ground");
+  const [broomed, setBroomed] = useState({ out: false, away: false });
+  const lastAir = useRef<AirMode>("ground");
+  const reportAir = useCallback((mode: AirMode) => {
+    const before = lastAir.current;
+    lastAir.current = mode;
+    setAir(mode);
+    if (mode === "broom") setBroomed((b) => (b.out ? b : { ...b, out: true }));
+    if (before === "broom" && mode === "air") setBroomed((b) => (b.away ? b : { ...b, away: true }));
+  }, []);
+  const state = useRef<WalkState>({ move: STILL, running: false, turn: { yaw: 0, pitch: 0 }, turnRate: { yaw: 0, pitch: 0 }, zoom: 1, pointOfView, jump: false, reportAir });
   const [kind, setKind] = useState<InputKind>(firstGuessInput);
   const [stick, setStick] = useState<TouchStick | null>(null);
   const [walkedWith, setWalkedWith] = useState<ReadonlySet<InputKind>>(new Set());
@@ -124,6 +156,13 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code === KEY_JUMP) {
+        if (event.metaKey || event.ctrlKey || event.altKey || isTextEntryTarget(event.target)) return;
+        event.preventDefault();
+        setKind("keyboard-mouse");
+        if (!event.repeat) state.current.jump = true;
+        return;
+      }
       if (event.code === KEY_VIEW) {
         if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || isTextEntryTarget(event.target)) return;
         setKind("keyboard-mouse");
@@ -246,6 +285,7 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
       },
       onButton(edge) {
         if (edge.name === PAD_VIEW && edge.pressed) switchView();
+        if (edge.name === PAD_JUMP && edge.pressed) state.current.jump = true;
       },
     });
 
@@ -275,5 +315,10 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
     };
   }, [surface, setPointOfView]);
 
-  return { state, kind, stick, walkedWith, pointOfView, setPointOfView, locked };
+  const jump = useCallback(() => {
+    setKind("touch");
+    state.current.jump = true;
+  }, []);
+
+  return { state, kind, stick, walkedWith, pointOfView, setPointOfView, locked, jump, air, broomed };
 }

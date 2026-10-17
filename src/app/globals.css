@@ -207,8 +207,10 @@
    haze (the fog and the horizon, one colour so the land melts into the sky),
    key light (the sun, or the moon at night), the light from the sky and the
    ground all round, and the tint the shadows lean to; the light blends
-   between neighbouring moments. Then what the valley is made of: grounds,
-   water, plants, stone, the fire, the witch, and the little UI over it. Read
+   between neighbouring moments. Then what the world is made of: each
+   region's grounds, the shared grounds and water, plants, stone, the
+   places, the fire, the witch, the little UI over it, and the art gallery's
+   floor. Read
    only by the 3D scene through themeColor and the valley's own overlay, so
    declared outside @theme. */
 :root {
@@ -249,10 +251,26 @@
   --color-hearthwood-valley-dusk-ground-light: #4a3a3c;
   --color-hearthwood-valley-dusk-shadow: #3c2c4e;
 
-  --color-hearthwood-valley-ground-meadow: #9cc46a;
-  --color-hearthwood-valley-ground-meadow-lush: #78ac56;
-  --color-hearthwood-valley-ground-forest: #5d7a3e;
-  --color-hearthwood-valley-ground-alpine: #a9b86e;
+  --color-hearthwood-valley-greenwood-meadow: #9cc46a;
+  --color-hearthwood-valley-greenwood-meadow-lush: #78ac56;
+  --color-hearthwood-valley-greenwood-forest: #5d7a3e;
+  --color-hearthwood-valley-greenwood-alpine: #a9b86e;
+  --color-hearthwood-valley-birchvale-meadow: #b3d06c;
+  --color-hearthwood-valley-birchvale-meadow-lush: #8cc060;
+  --color-hearthwood-valley-birchvale-forest: #7c9c4c;
+  --color-hearthwood-valley-birchvale-alpine: #b8c47a;
+  --color-hearthwood-valley-highlands-meadow: #88a86a;
+  --color-hearthwood-valley-highlands-meadow-lush: #6c9462;
+  --color-hearthwood-valley-highlands-forest: #43603f;
+  --color-hearthwood-valley-highlands-alpine: #9ca878;
+  --color-hearthwood-valley-heath-meadow: #bcab64;
+  --color-hearthwood-valley-heath-meadow-lush: #a88a6e;
+  --color-hearthwood-valley-heath-forest: #73694a;
+  --color-hearthwood-valley-heath-alpine: #a69c6c;
+  --color-hearthwood-valley-maplewood-meadow: #bdb45c;
+  --color-hearthwood-valley-maplewood-meadow-lush: #c88c4a;
+  --color-hearthwood-valley-maplewood-forest: #a15e36;
+  --color-hearthwood-valley-maplewood-alpine: #aaa26a;
   --color-hearthwood-valley-ground-rock: #a4a6ab;
   --color-hearthwood-valley-ground-snow: #f4f6fb;
   --color-hearthwood-valley-ground-shore: #d2c49c;
@@ -260,8 +278,7 @@
   --color-hearthwood-valley-water-shallow: #74bdb2;
   --color-hearthwood-valley-water-deep: #2c5a7a;
   --color-hearthwood-valley-water-foam: #f0f8f2;
-  --color-hearthwood-valley-far-ridge: #6f7fa6;
-
+  
   --color-hearthwood-valley-conifer: #3d6c4a;
   --color-hearthwood-valley-broadleaf: #6c9e48;
   --color-hearthwood-valley-birch-leaf: #a2c656;
@@ -274,6 +291,27 @@
   --color-hearthwood-valley-flower-white: #fbf6ea;
   --color-hearthwood-valley-flower-yellow: #f4cd48;
   --color-hearthwood-valley-flower-violet: #a98ad8;
+  --color-hearthwood-valley-pine-leaf: #46705a;
+  --color-hearthwood-valley-pine-bark: #a8683e;
+  --color-hearthwood-valley-maple-red: #cf4630;
+  --color-hearthwood-valley-maple-orange: #e57f2e;
+  --color-hearthwood-valley-maple-gold: #ebb93c;
+  --color-hearthwood-valley-aspen-gold: #f2c94a;
+  --color-hearthwood-valley-aspen-bark: #d9d6c6;
+  --color-hearthwood-valley-heather-purple: #9c5c9e;
+  --color-hearthwood-valley-heather-pink: #cc7cab;
+  --color-hearthwood-valley-gorse: #ecc544;
+  --color-hearthwood-valley-heather-stem: #6c5f3c;
+  --color-hearthwood-valley-fern: #6c9e46;
+  --color-hearthwood-valley-bracken: #bf7a3c;
+  --color-hearthwood-valley-mushroom-red: #cc432f;
+  --color-hearthwood-valley-mushroom-brown: #aa7c4c;
+  --color-hearthwood-valley-mushroom-gold: #e2a43c;
+  --color-hearthwood-valley-mushroom-spot: #f6eedf;
+  --color-hearthwood-valley-mushroom-stem: #efe4cc;
+  --color-hearthwood-valley-shrine-roof: #7c4c3a;
+  --color-hearthwood-valley-candle: #fff1c6;
+  --color-hearthwood-valley-ribbon: #d0584a;
 
   --color-hearthwood-valley-fire-core: #fff2c0;
   --color-hearthwood-valley-fire-flame: #ffa238;
@@ -292,9 +330,58 @@
   --color-hearthwood-valley-witch-skin: #f0c8a8;
   --color-hearthwood-valley-witch-pack: #8a5d3b;
   --color-hearthwood-valley-witch-bedroll: #d8c8a4;
+  --color-hearthwood-valley-broom-handle: #b08458;
+  --color-hearthwood-valley-broom-bristle: #dcb866;
 
   --color-hearthwood-valley-ui-ink: #fff6e4;
   --color-hearthwood-valley-ui-shade: #2a2236;
+
+  --color-hearthwood-gallery-ground: #cbc3b0;
+  --color-hearthwood-gallery-ground-edge: #b4ab95;
+}
+
+/* Hearthwood: what there is to pick in its forests, each berry and mushroom
+   in its own storybook colours (the berries bright enough to read at a
+   glance among the leaves), the cut flesh a picked mushroom leaves, and the
+   sparkle of a pick. Read by the 3D scene through themeColor and by the
+   basket's icons. */
+:root {
+  --color-hearthwood-forage-twig: #6b4f38;
+  --color-hearthwood-forage-bilberry-leaf: #5f9c3c;
+  --color-hearthwood-forage-bilberry: #3d55b4;
+  --color-hearthwood-forage-lingonberry-leaf: #2e5c36;
+  --color-hearthwood-forage-lingonberry: #dc2a3c;
+  --color-hearthwood-forage-strawberry-leaf: #4c9038;
+  --color-hearthwood-forage-strawberry: #ec3a36;
+  --color-hearthwood-forage-raspberry-leaf: #6ea24a;
+  --color-hearthwood-forage-raspberry-cane: #8c6a48;
+  --color-hearthwood-forage-raspberry: #d93a62;
+  --color-hearthwood-forage-cloudberry-leaf: #7ea84a;
+  --color-hearthwood-forage-cloudberry: #f4a234;
+  --color-hearthwood-forage-chanterelle: #f4b630;
+  --color-hearthwood-forage-porcini-cap: #8c5530;
+  --color-hearthwood-forage-porcini-stem: #eedcb4;
+  --color-hearthwood-forage-funnel-cap: #74583e;
+  --color-hearthwood-forage-funnel-stem: #e6ba46;
+  --color-hearthwood-forage-fly-agaric-cap: #e2321e;
+  --color-hearthwood-forage-fly-agaric-spot: #fbf6ea;
+  --color-hearthwood-forage-fly-agaric-stem: #f6efe0;
+  --color-hearthwood-forage-cut: #f4e8c8;
+  --color-hearthwood-forage-sparkle: #fff2b8;
+  --color-hearthwood-forage-basket: #c08a4e;
+}
+
+/* Hearthwood: a kind just picked swells in the basket and settles. */
+@keyframes hearthwood-forage-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.45);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —
