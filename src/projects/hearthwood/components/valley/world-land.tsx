@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Group, Mesh, type Material } from "three";
+import { Group, Mesh, type Material, type ShaderMaterial } from "three";
 import type { LandTile } from "../../engine/tiles";
 import { tileId, tileWidth, wantedTiles, type Eye, type TileKey } from "../../engine/streaming";
 import type { World } from "../../engine/world";
@@ -10,8 +10,10 @@ import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { Palette } from "../../art/palette";
 import type { SkyUniforms } from "../../art/sky";
 import { terrainGeometry, terrainMaterial, type Morph } from "../../art/terrain";
-import { waterGeometry, waterMaterial } from "../../art/water";
+import { farWaterMaterial } from "../../art/water/far-water";
+import { waterGeometry, waterMaterial, waterMesh } from "../../art/water/water";
 import type { Quality } from "../../quality";
+import { useFeature } from "./feature-renderer";
 import { landWorkers, type LandWorkers } from "./land-workers";
 
 /*
@@ -21,7 +23,9 @@ import { landWorkers, type LandWorkers } from "./land-workers";
  * at once when every one is ready, so no hole ever opens. Each tile eases
  * into its parent's shape towards the distance where it is swapped for it,
  * so the swap shows no step. Tiles no longer wanted are kept a while in case
- * the camera comes back, then dropped.
+ * the camera comes back, then dropped. Tiles too coarse for the water in
+ * full carry far water while that feature is on; switching it rebuilds
+ * them, the old ones drawn until the new set is ready.
  */
 
 /** How far the camera moves before the wanted tiles are worked out again, in metres. */
@@ -32,6 +36,7 @@ const KEPT = 600;
 const IN_FLIGHT = 12;
 
 interface Built {
+  level: number;
   land: Mesh;
   water: Mesh | null;
 }
@@ -53,6 +58,10 @@ interface State {
   arrived: LandTile[];
   asked: Set<string>;
   shown: Set<string>;
+  /** Built tiles replaced while still drawn, freed once the drawn set changes over. */
+  retired: Built[];
+  /** Whether the built tiles carry far water. */
+  farWater: boolean;
   wanted: TileKey[];
   pending: TileKey[];
   from: Eye | null;
@@ -72,10 +81,15 @@ function morphFor(level: number, quality: Quality): Morph {
 export function WorldLand({ world, palette, atmosphere, sky, quality, streaming }: { world: World; palette: Palette; atmosphere: AtmosphereUniforms; sky: SkyUniforms; quality: Quality; streaming: Streaming }) {
   const group = useMemo(() => new Group(), []);
   const materials = useMemo(
-    () => ({ land: terrainMaterial(atmosphere, palette, world.camp, quality.trees.far), water: waterMaterial(palette, atmosphere, sky) }),
+    () => ({
+      land: terrainMaterial(atmosphere, palette, world.camp, quality.trees.far),
+      water: waterMaterial(palette, atmosphere, sky),
+      farWater: farWaterMaterial(palette, atmosphere, sky),
+    }),
     [world, palette, atmosphere, sky, quality],
   );
-  const state = useRef<State>({ built: new Map(), arrived: [], asked: new Set(), shown: new Set(), wanted: [], pending: [], from: null });
+  const farWater = useFeature("farWater");
+  const state = useRef<State>({ built: new Map(), arrived: [], asked: new Set(), shown: new Set(), retired: [], farWater, wanted: [], pending: [], from: null });
   const workers = useRef<LandWorkers | null>(null);
 
   useEffect(() => {
@@ -85,8 +99,9 @@ export function WorldLand({ world, palette, atmosphere, sky, quality, streaming 
     return () => {
       pool.dispose();
       workers.current = null;
-      for (const tile of s.built.values()) dispose(tile);
+      for (const tile of [...s.built.values(), ...s.retired]) dispose(tile);
       s.built.clear();
+      s.retired.length = 0;
       s.asked.clear();
       s.shown.clear();
       s.arrived.length = 0;
@@ -94,6 +109,7 @@ export function WorldLand({ world, palette, atmosphere, sky, quality, streaming 
       group.clear();
       materials.land.dispose();
       materials.water.dispose();
+      materials.farWater.dispose();
     };
   }, [world, materials, group]);
 
@@ -101,6 +117,16 @@ export function WorldLand({ world, palette, atmosphere, sky, quality, streaming 
     const s = state.current;
     const pool = workers.current;
     if (!pool) return;
+    if (s.farWater !== farWater) {
+      s.farWater = farWater;
+      for (const [id, tile] of s.built) {
+        if (tile.level < quality.waterLevels) continue;
+        s.built.delete(id);
+        s.retired.push(tile);
+      }
+      s.shown = new Set();
+      s.from = null;
+    }
     const { x, y, z } = camera.position;
     const eye = { x, y: y - world.surfaceAt(x, z), z };
     if (s.from === null || Math.hypot(eye.x - s.from.x, eye.y - s.from.y, eye.z - s.from.z) > RECHECK) {
@@ -116,7 +142,7 @@ export function WorldLand({ world, palette, atmosphere, sky, quality, streaming 
     for (const tile of s.arrived.splice(0)) {
       const id = tileId(tile.key);
       s.asked.delete(id);
-      s.built.set(id, buildTile(tile, palette, materials, quality));
+      s.built.set(id, buildTile(tile, palette, materials, quality, s.farWater));
     }
     if (s.wanted.some((k) => !s.built.has(tileId(k)))) {
       report(streaming, "land", false);
@@ -132,6 +158,7 @@ export function WorldLand({ world, palette, atmosphere, sky, quality, streaming 
         if (tile.water) group.add(tile.water);
       }
       s.shown = ids;
+      for (const tile of s.retired.splice(0)) dispose(tile);
       if (s.built.size > ids.size + KEPT) {
         for (const [id, tile] of s.built) {
           if (s.built.size <= ids.size + KEPT) break;
@@ -147,13 +174,14 @@ export function WorldLand({ world, palette, atmosphere, sky, quality, streaming 
   return <primitive object={group} />;
 }
 
-function buildTile(tile: LandTile, palette: Palette, materials: { land: Material; water: Material }, quality: Quality): Built {
+function buildTile(tile: LandTile, palette: Palette, materials: { land: Material; water: ShaderMaterial; farWater: ShaderMaterial }, quality: Quality, farWater: boolean): Built {
   const { level } = tile.key;
   const land = new Mesh(terrainGeometry(tile, palette, morphFor(level, quality)), materials.land);
   land.receiveShadow = true;
   land.castShadow = true;
-  const wet = level < quality.waterLevels ? waterGeometry(tile) : null;
-  return { land, water: wet ? new Mesh(wet, materials.water) : null };
+  const near = level < quality.waterLevels;
+  const wet = near || farWater ? waterGeometry(tile) : null;
+  return { level, land, water: wet ? waterMesh(wet, near ? materials.water : materials.farWater) : null };
 }
 
 function dispose(tile: Built): void {

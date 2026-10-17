@@ -32,8 +32,17 @@ export const SUN_SHADOWS_ART: FeatureArt = {
       kinds: ["land", "ground", "foliage", "solid"],
       light: /* glsl */ `hwDirect -= hwKeyDirect(hwNormal, diffuseColor.rgb) * (1.0 - hwShadowAt(vHwWorld, hwNormal));`,
     },
-    // The water lights itself by the key light alone, so its shadow darkens all of its direct light.
-    { kinds: ["water"], light: /* glsl */ `hwDirect *= hwShadowAt(vHwWorld, vec3(0.0, 1.0, 0.0));` },
+    // The water lights itself from the sky's light and the key light's (`hwLight`): in shadow its body, its foam and its glints keep only the sky's.
+    {
+      kinds: ["water"],
+      light: /* glsl */ `
+        float hwLit = hwShadowAt(vHwWorld, vec3(0.0, 1.0, 0.0));
+        vec3 hwShaded = uHwSkyLight + uHwSunLight * hwLit;
+        hwBody *= hwShaded / max(hwLight, vec3(1e-4));
+        hwSpecular *= hwLit;
+        hwLight = hwShaded;
+      `,
+    },
   ],
   frame: (frame) => {
     updateKeyLight(frame);
