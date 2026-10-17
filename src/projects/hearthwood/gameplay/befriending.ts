@@ -1,7 +1,8 @@
 import { createRng } from "@/shared/lib/seeded-random";
-import { FORAGE_KINDS, type ForageKind } from "../engine/regions";
 import type { Species } from "../engine/strays";
 import type { Basket } from "./basket";
+import { dishesIn, type Larder } from "./cooking";
+import { DISHES, FOODS, isDish, isFood, RECIPE_IDS, type DishId, type Food, type RecipeId } from "./recipes";
 
 /*
  * Befriending a stray, as rules: how warm it is to Elliott, 0 (a stranger)
@@ -12,14 +13,16 @@ import type { Basket } from "./basket";
  * running) warms it slowly, so it lets them come closer; within a visit the
  * warming slows once it has come a good way, so a shy cat takes a few
  * visits or a long, quiet one. Once it is near and warm enough it allows a
- * pet, which warms it more, and a treat from the basket warms it too; each
- * cat has a favourite treat, which wins it at once. Until cooking comes,
- * a treat is anything foraged but the fly agaric (the witch's, never eaten);
- * a cat's favourite dish arrives with cooking.
+ * pet, which warms it more, and a treat from the basket warms it too: a
+ * dish cooked at the fire warms it more than anything raw from the forest,
+ * a dish it likes more again, and its favourite dish wins it at once. Each
+ * animal has a favourite dish and a few it likes, from its seed. The fly
+ * agaric is the witch's and never given.
  *
  * A dog comes readily if it is friendly: it starts a little warm, and a pet
- * or a treat wins most dogs at once. A shy dog needs patience first, as a
- * cat does, before it allows a pet. A game of fetch is for later.
+ * or any treat wins most dogs at once. A shy dog needs patience first, as a
+ * cat does, before it allows a pet, and is won by its favourite dish as a
+ * cat is. A game of fetch is for later.
  *
  * Warmth is only ever gained: nothing Elliott does cools an animal.
  */
@@ -40,8 +43,17 @@ export interface Bond {
   visit: number;
 }
 
-/** What can be given as a treat: anything foraged but the fly agaric. */
-export const TREATS: readonly ForageKind[] = FORAGE_KINDS.filter((kind) => kind !== "fly-agaric");
+/** What can be given as a treat: a dish from the basket, or anything foraged but the fly agaric. */
+export type Treat = DishId | Food;
+/** Every treat, in the order they are held out: the dishes first, then what is raw. */
+export const TREATS: readonly Treat[] = [...DISHES, ...FOODS];
+export const isTreat = (thing: string): thing is Treat => isDish(thing) || isFood(thing);
+
+/** An animal's tastes: the dish it loves above all, and a few more it likes. */
+export interface Tastes {
+  favourite: RecipeId;
+  likes: RecipeId[];
+}
 
 /** How near Elliott must be, in metres, for their being there to count as a visit, and how far they go for it to end. */
 export const VISIT = { near: 12, gone: 30 } as const;
@@ -61,10 +73,16 @@ export function firstBond(temper: Temper): Bond {
 
 export const isWon = (bond: Bond) => bond.warmth >= 1;
 
-/** A cat's favourite treat, from its seed. */
-export function favouriteTreat(seed: string): ForageKind {
-  const rng = createRng(`${seed}:favourite`);
-  return TREATS[Math.floor(rng.next() * TREATS.length)];
+/** How many dishes an animal likes, besides its favourite. */
+const LIKES = 3;
+
+/** An animal's tastes, from its seed. */
+export function tastesOf(seed: string): Tastes {
+  const rng = createRng(`${seed}:tastes`);
+  const left = [...RECIPE_IDS];
+  const draw = () => left.splice(Math.floor(rng.next() * left.length), 1)[0];
+  const favourite = draw();
+  return { favourite, likes: Array.from({ length: LIKES }, draw) };
 }
 
 /** How warm an animal must be to allow a pet: a friendly dog at once, a bold cat soon, a shy one late. */
@@ -111,25 +129,29 @@ export function pet(bond: Bond, temper: Temper): Bond {
   return { ...bond, warmth: Math.min(1, bond.warmth + gain) };
 }
 
-/** How a treat is taken: loved (a cat's favourite, or any treat to a friendly dog) or liked. */
+/** How a treat is taken: loved (its favourite dish, or any treat to a friendly dog) or liked. */
 export type Relish = "loved" | "liked";
 
-/** A treat given: a cat's favourite wins it at once, as any treat wins a friendly dog; anything else warms it. */
-export function giveTreat(bond: Bond, temper: Temper, kind: ForageKind, favourite: ForageKind | null): { bond: Bond; relish: Relish } {
-  if (!TREATS.includes(kind)) throw new Error(`${kind} is never given as a treat`);
-  const loved = temper.species === "cat" ? kind === favourite : friendlyDog(temper);
-  const gain = loved ? 1 : temper.species === "cat" ? 0.22 : 0.5;
+/** How much warmer a treat leaves an animal that doesn't love it: something raw, any dish, or a dish it likes. */
+const TREAT_WARMTH = { cat: { raw: 0.22, dish: 0.4, liked: 0.65 }, dog: { raw: 0.5, dish: 0.7, liked: 0.85 } } as const;
+
+/** A treat given: its favourite dish wins an animal at once, as any treat wins a friendly dog; anything else warms it, a dish more than something raw. */
+export function giveTreat(bond: Bond, temper: Temper, treat: string, tastes: Tastes): { bond: Bond; relish: Relish } {
+  if (!isTreat(treat)) throw new Error(`${treat} is never given as a treat`);
+  const loved = treat === tastes.favourite || friendlyDog(temper);
+  const warmth = TREAT_WARMTH[temper.species];
+  const gain = loved ? 1 : !isDish(treat) ? warmth.raw : (tastes.likes as readonly string[]).includes(treat) ? warmth.liked : warmth.dish;
   return { bond: { ...bond, warmth: Math.min(1, bond.warmth + gain) }, relish: loved ? "loved" : "liked" };
 }
 
-/** The treats in the basket, in the order they are held out. */
-export function treatsIn(basket: Basket): ForageKind[] {
-  return TREATS.filter((kind) => basket[kind] > 0);
+/** The treats in the basket, in the order they are held out: its dishes, then what is raw. */
+export function treatsIn(basket: Basket, larder: Larder): Treat[] {
+  return [...dishesIn(larder), ...FOODS.filter((kind) => basket[kind] > 0)];
 }
 
 /** The treat held out next: the one after the last given, round the basket, or null when there are none. */
-export function treatInHand(basket: Basket, last: ForageKind | null): ForageKind | null {
-  const treats = treatsIn(basket);
+export function treatInHand(basket: Basket, larder: Larder, last: Treat | null): Treat | null {
+  const treats = treatsIn(basket, larder);
   if (treats.length === 0) return null;
   if (last === null) return treats[0];
   const after = TREATS.indexOf(last);

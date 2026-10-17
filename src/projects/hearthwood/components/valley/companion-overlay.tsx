@@ -8,7 +8,7 @@ import type { InputKind } from "@/shared/lib/input";
 import { NAME_LENGTH } from "../../gameplay/names";
 import { CompanionPortrait } from "./companion-portrait";
 import { anotherName, keepName, petAnimal, setCompanionsOpen, subscribeCompanionship, treatAnimal, type Companionship, type Naming } from "./companionship";
-import { FORAGE_NAMES, ForageIcon } from "./forage-icons";
+import { TreatIcon, treatName } from "./cooking-icons";
 
 /*
  * The companions over the scene: the prompt to pet the animal offered or
@@ -214,12 +214,12 @@ export function CompanionOverlay({ companionship, input }: { companionship: Comp
                 onClick={() => {
                   treatAnimal(companionship, offer.key);
                 }}
-                aria-label={`Give a treat: ${FORAGE_NAMES[offer.treat]}`}
-                title={`Give a treat: ${FORAGE_NAMES[offer.treat]}`}
+                aria-label={`Give a treat: ${treatName(offer.treat)}`}
+                title={`Give a treat: ${treatName(offer.treat)}`}
                 className={`flex items-center gap-1.5 px-4 py-2.5 ${PANEL} ${INK}`}
               >
                 <Heart aria-hidden className={`size-5 ${HEART}`} />
-                <ForageIcon kind={offer.treat} className="size-8" />
+                <TreatIcon treat={offer.treat} className="size-8" />
               </button>
             )}
           </div>
@@ -234,10 +234,10 @@ export function CompanionOverlay({ companionship, input }: { companionship: Comp
                 </span>
               )}
               {offer.treat && (
-                <span aria-label={`Give a treat: ${FORAGE_NAMES[offer.treat]}`} title={`Give a treat: ${FORAGE_NAMES[offer.treat]}`} className="flex items-center gap-1.5">
+                <span aria-label={`Give a treat: ${treatName(offer.treat)}`} title={`Give a treat: ${treatName(offer.treat)}`} className="flex items-center gap-1.5">
                   <Prompt binding={TREAT} input={input} />
                   <Heart aria-hidden className={`size-5 ${HEART}`} />
-                  <ForageIcon kind={offer.treat} className="size-8" />
+                  <TreatIcon treat={offer.treat} className="size-8" />
                 </span>
               )}
             </div>
