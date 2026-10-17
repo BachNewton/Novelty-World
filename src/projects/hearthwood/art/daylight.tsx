@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Color, Object3D, type DirectionalLight, type HemisphereLight, type WebGLRenderer } from "three";
-import { blendAt, keyLight, moonDirection, type MomentLight } from "../engine/day";
+import { MOMENTS, type DaySky, type MomentLight } from "../engine/day";
 import type { AtmosphereUniforms } from "./atmosphere";
 import type { MomentPart, Palette } from "./palette";
 import type { SkyUniforms } from "./sky";
@@ -24,6 +24,8 @@ const HAZE_DENSITY = 0.0024;
 export interface DayState {
   hours: number;
   light: MomentLight;
+  /** Where the sun and moon are, the key light, and the mix of moments the light is in. */
+  sky: DaySky;
   /** Seconds of motion, for anything that moves. */
   motion: number;
 }
@@ -79,10 +81,16 @@ function aimShadows(light: DirectionalLight, target: Object3D, reach: number): v
 }
 
 function lightTheWorld({ day, palette, atmosphere, sky, focus, air }: DaylightParts, { sun, ambient, target, gl, scratch }: Lights): void {
-  const { from, to, t } = blendAt(day.hours);
-  const part = (name: MomentPart, out: Color) => out.copy(palette.moments[from][name]).lerp(palette.moments[to][name], t);
+  const { mix, key, moon } = day.sky;
+  const part = (name: MomentPart, out: Color) => {
+    out.setRGB(0, 0, 0);
+    for (const moment of MOMENTS) {
+      const c = palette.moments[moment][name];
+      out.setRGB(out.r + c.r * mix[moment], out.g + c.g * mix[moment], out.b + c.b * mix[moment]);
+    }
+    return out;
+  };
   const light = day.light;
-  const key = keyLight(day.hours);
 
   part("haze", atmosphere.uHwHaze.value);
   part("sun", atmosphere.uHwSunColor.value);
@@ -91,8 +99,7 @@ function lightTheWorld({ day, palette, atmosphere, sky, focus, air }: DaylightPa
   atmosphere.uHwSunDir.value.set(key.direction.x, key.direction.y, key.direction.z);
   atmosphere.uHwHazeDensity.value = HAZE_DENSITY * light.haze * air.thickness;
   atmosphere.uHwTime.value = day.motion;
-  const moon = moonDirection(day.hours);
-  sky.uMoonDir.value.set(moon.x, moon.y, moon.z);
+  sky.uMoonDir.value.set(moon.direction.x, moon.direction.y, moon.direction.z);
   sky.uNight.value = light.night;
 
   const keyStrength = light.sun * key.strength;
