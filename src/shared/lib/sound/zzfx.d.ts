@@ -1,5 +1,5 @@
 // The zzfx package ships plain JavaScript with no types. Only the part the
-// game uses is declared.
+// site uses is declared.
 declare module "zzfx" {
   export const ZZFX: {
     // Scales every sample buildSamples makes.

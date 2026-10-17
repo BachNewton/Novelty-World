@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { renderSound, SOUNDS, type SoundId } from "../sounds";
+import { renderSound } from "@/shared/lib/sound";
+import { SOUNDS, type SoundId } from "../sounds";
 import { MUSIC_LEVEL } from "./mix";
 import { compileTheme, themeSeconds, type Theme } from "./song";
 import { THEMES } from "./themes";
