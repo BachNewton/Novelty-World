@@ -65,7 +65,7 @@ function lastActive(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-/** Every game, most recently active first: tap one to open it, hold it (or its bin) to delete it. */
+/** Every game, most recently active first: tap one to open it, hold it (or press Delete on it) to delete it. */
 export function TableList({ tables, problem, onOpen, onDelete }: { tables: TableSummary[] | null; problem: string | null; onOpen: (table: TableSummary, action: OpenAction) => void; onDelete: (table: TableSummary) => void }) {
   return (
     <Card className="w-full max-w-lg space-y-3 p-4" style={SEAT_INKS}>
@@ -97,12 +97,15 @@ function TableEntry({ table, onOpen, onDelete }: { table: TableSummary; onOpen: 
   const label = `${status.name}: ${table.seats.map(controllerName).join(", ")}. ${table.seats.length.toString()} of ${MAX_PLAYERS.toString()} seats. Last active ${when}. ${act.name}; hold to delete.`;
 
   return (
-    <li className="flex items-stretch gap-2">
+    <li>
       <button
         type="button"
         {...handlers}
+        onKeyDown={(event) => {
+          if (event.key === "Delete") onDelete(table);
+        }}
         aria-label={label}
-        className="relative flex min-w-0 flex-1 select-none items-center gap-3 overflow-hidden rounded-md border border-border-default bg-surface-tertiary px-3 py-2 text-left transition-colors hover:border-border-hover"
+        className="relative flex w-full min-w-0 select-none items-center gap-3 overflow-hidden rounded-md border border-border-default bg-surface-tertiary px-3 py-2 text-left transition-colors hover:border-border-hover"
         style={{ WebkitTouchCallout: "none", touchAction: "manipulation" }}
       >
         {/* The hold's wash sweeps across while the press is held, and snaps away on release. */}
@@ -127,15 +130,6 @@ function TableEntry({ table, onOpen, onDelete }: { table: TableSummary; onOpen: 
           <span className="text-xs text-text-muted">{when}</span>
         </span>
         <act.icon aria-hidden size={20} className="relative shrink-0 text-brand-orange" />
-      </button>
-      <button
-        type="button"
-        aria-label="Delete this game"
-        title="Delete this game"
-        onClick={() => onDelete(table)}
-        className="shrink-0 rounded-md px-2 text-text-muted transition-colors hover:bg-surface-elevated hover:text-brand-pink"
-      >
-        <Trash2 aria-hidden size={18} />
       </button>
     </li>
   );

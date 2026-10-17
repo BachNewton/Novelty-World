@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { Move } from "../contract";
-import { botName } from "../online/seat-bots";
+import { fullName, rankOf } from "../online/seat-bots";
 import { causedBy } from "../online/game";
 import type { OnlineSnapshot } from "../online/store";
 import type { GameFeed } from "./game-screen";
@@ -22,7 +22,7 @@ export function useOnlineFeed(snapshot: OnlineSnapshot, act: (move: Move) => voi
   }, [events]);
   const seats = table?.seats;
   const players = useMemo(
-    () => (seats ?? []).map((controller) => (controller.kind === "human" ? controller.profile.name : botName(controller.bot))),
+    () => (seats ?? []).map((controller) => (controller.kind === "human" ? { name: controller.profile.name } : { name: fullName(controller.bot), rank: rankOf(controller.bot) })),
     [seats],
   );
 

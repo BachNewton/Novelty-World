@@ -37,8 +37,16 @@ export interface GameFeed {
   /** A move the engine or server refused, or a connection problem, in words. */
   problem: string | null;
   /** Who plays each seat; this player's own is `view.viewer`. */
-  players: readonly string[];
+  players: readonly Player[];
 }
+
+/** A person by their name, or a bot by its name and version under its rank. */
+export interface Player {
+  name: string;
+  rank?: string;
+}
+
+const playerLabel = ({ name, rank }: Player) => (rank ? `${rank} · ${name}` : name);
 
 type Dialog = { kind: "cards" } | { kind: "menu" } | { kind: "log" } | null;
 
@@ -194,7 +202,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
         <h1 className={cn(DISPLAY, "hidden text-[1.3em] text-(--rk-brass) sm:block")}>Risk</h1>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-[0.6em] gap-y-[0.1em]">
           {view.phase !== "game-over" && <SeatName seat={active} className="text-[1.1em]" />}
-          {view.phase !== "game-over" && <span className="truncate">{active === you ? "you" : players[active]}</span>}
+          {view.phase !== "game-over" && <span className="truncate">{active === you ? "you" : playerLabel(players[active])}</span>}
           <span className="text-(--rk-muted)">
             {phaseName(view.phase)}
             {view.phase !== "game-over" && ` · turn ${view.turn}`}
@@ -278,7 +286,14 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
                     <tr key={seat} className={cn(s.eliminated && "line-through opacity-40", seat === active && "text-(--rk-brass-bright)")}>
                       <td>
                         <SeatName seat={seat} />
-                        <span className="block max-w-[10em] truncate text-[0.85em] text-(--rk-muted)">{seat === you ? "you" : players[seat]}</span>
+                        <span className="block text-[0.85em] leading-tight text-(--rk-muted)">
+                          {seat === you ? "you" : (
+                            <>
+                              {players[seat].rank && <span className="block">{players[seat].rank}</span>}
+                              <span className="block">{players[seat].name}</span>
+                            </>
+                          )}
+                        </span>
                       </td>
                       <td className="text-right">{s.territories}</td>
                       <td className="text-right">{s.armies}</td>

@@ -56,7 +56,7 @@ function harness() {
 async function started(bots: number) {
   const h = harness();
   await handle(h.server, { op: "create", profile: ALICE });
-  for (let i = 0; i < bots; i++) await handle(h.server, { op: "add-bot", game: "GAME", profile: ALICE, bot: "random" });
+  for (let i = 0; i < bots; i++) await handle(h.server, { op: "add-bot", game: "GAME", profile: ALICE, bot: "greedy" });
   await handle(h.server, { op: "start", game: "GAME", profile: ALICE });
   return h;
 }
@@ -87,7 +87,7 @@ describe("the online store", () => {
     const row = h.db.rows.get("GAME");
     if (!row?.game) throw new Error("No game");
     const active = ENGINE.view(row.game.engine, null).active;
-    h.db.rows.set("GAME", { ...row, seats: row.seats.map((c, seat) => (seat === active ? { kind: "bot", bot: "random" } : c)) });
+    h.db.rows.set("GAME", { ...row, seats: row.seats.map((c, seat) => (seat === active ? { kind: "bot", bot: "greedy" } : c)) });
     h.store.connect();
     await h.settle();
     expect(h.sent.filter((r) => r.op === "nudge")).toHaveLength(1);
@@ -159,9 +159,6 @@ describe("the online store", () => {
     h.store.addBot("greedy");
     await h.settle();
     expect(h.store.snapshot().table?.seats[2]).toEqual({ kind: "bot", bot: "greedy" });
-    h.store.setBot(2, "rule-v1");
-    await h.settle();
-    expect(h.store.snapshot().table?.seats[2]).toEqual({ kind: "bot", bot: "rule-v1" });
     h.store.start();
     await h.settle();
     expect(h.store.snapshot().table?.status).toBe("playing");

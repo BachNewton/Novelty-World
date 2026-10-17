@@ -48,8 +48,6 @@ export interface OnlineStore {
   act: (move: Move) => void;
   join: () => void;
   addBot: (bot: BotId) => void;
-  /** Seats another bot in a bot seat, while the table gathers. */
-  setBot: (seat: Seat, bot: BotId) => void;
   removeSeat: (seat: Seat) => void;
   start: () => void;
   /** Starts loading and listening; the returned function stops. */
@@ -221,7 +219,6 @@ export function createOnlineStore(deps: StoreDeps): OnlineStore {
     },
     join: () => request((profile) => ({ op: "join", game: id, profile })),
     addBot: (bot) => request((profile) => ({ op: "add-bot", game: id, profile, bot })),
-    setBot: (seat, bot) => request((profile) => ({ op: "set-bot", game: id, profile, seat, bot })),
     removeSeat: (seat) => request((profile) => ({ op: "remove-seat", game: id, profile, seat })),
     start: () => request((profile) => ({ op: "start", game: id, profile })),
     connect: () => {

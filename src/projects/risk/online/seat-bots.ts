@@ -1,7 +1,6 @@
 import type { Bot } from "../bots/bot";
 import { gdAggressiveBot, gdContinentalBot, gdDefensiveBot, gdStackerBot } from "../bots/gd";
 import { greedyBot } from "../bots/greedy";
-import { randomBot } from "../bots/random";
 import RATINGS from "../bots/ratings.json";
 import { ruleV1Bot } from "../bots/rule-v1";
 import { ruleV2Bot } from "../bots/rule-v2";
@@ -37,7 +36,7 @@ export type Rank = (typeof RANKS)[number];
 
 /** A bot a table can seat, by the id its row keeps: the label the measuring harness seats it
  *  by. The bots themselves live in `bots/`, the one home of every Risk bot, measured or played. */
-export type BotId = "random" | "greedy" | "rule-v1" | "rule-v2" | "rule-v3" | "gd-defensive" | "gd-continental" | "gd-aggressive" | "gd-stacker";
+export type BotId = "greedy" | "rule-v1" | "rule-v2" | "rule-v3" | "gd-defensive" | "gd-continental" | "gd-aggressive" | "gd-stacker";
 
 export interface SeatBot {
   /** What players call it, with its version beside it. */
@@ -47,9 +46,9 @@ export interface SeatBot {
 }
 
 /** Every bot a table can seat. GD's four Expert personas stay seatable whatever they rank:
- *  they are the yardstick players know. */
+ *  they are the yardstick players know. Random isn't one: it never wins, so it is only the
+ *  harness's sanity floor. */
 export const SEAT_BOTS: Record<BotId, SeatBot> = {
-  random: { name: "Random", version: "Baseline", bot: randomBot },
   greedy: { name: "Greedy", version: "Baseline", bot: greedyBot },
   "rule-v1": { name: "Rule", version: "v1", bot: ruleV1Bot },
   "rule-v2": { name: "Rule", version: "v2", bot: ruleV2Bot },
@@ -61,18 +60,15 @@ export const SEAT_BOTS: Record<BotId, SeatBot> = {
 };
 
 /** The bots' measured strength (`bots/ratings.json`, written by `risk:ratings -- --seatable`):
- *  each seatable bot's win Elo from one ratings run over all of them, greedy anchored at 1000.
- *  Random never wins, so it has none. */
+ *  each seatable bot's win Elo from one ratings run over all of them, greedy anchored at 1000. */
 export const ELO: Readonly<Partial<Record<BotId, number>>> = RATINGS.elo;
 
 export function isBotId(id: string): id is BotId {
   return Object.hasOwn(SEAT_BOTS, id);
 }
 
-/** The seatable bots, weakest first: by measured Elo, the unrated below every rated bot. */
-export const BOT_IDS: readonly BotId[] = (Object.keys(SEAT_BOTS) as BotId[]).sort(
-  (a, b) => (ELO[a] ?? -Infinity) - (ELO[b] ?? -Infinity) || a.localeCompare(b),
-);
+/** The seatable bots, weakest first, by measured Elo. */
+export const BOT_IDS: readonly BotId[] = (Object.keys(SEAT_BOTS) as BotId[]).sort((a, b) => eloOf(a) - eloOf(b) || a.localeCompare(b));
 
 /** A new bot seat's bot: the strongest. */
 export const DEFAULT_BOT: BotId = BOT_IDS[BOT_IDS.length - 1];
@@ -95,10 +91,11 @@ export function rankOf(id: BotId): Rank {
   return RANKS[strength(id) - 1];
 }
 
-/** Its measured Elo, or null for a bot that never wins. */
-export function eloOf(id: BotId): number | null {
-  seatBot(id);
-  return ELO[id] ?? null;
+/** Its measured Elo. A seatable bot without one fails loudly: its rank would be a guess. */
+export function eloOf(id: BotId): number {
+  const elo = ELO[id];
+  if (elo === undefined) throw new Error(`Risk's seatable bot "${id}" has no measured Elo: run risk:ratings -- --seatable`);
+  return elo;
 }
 
 /** "Rule v1": the name and version together. */

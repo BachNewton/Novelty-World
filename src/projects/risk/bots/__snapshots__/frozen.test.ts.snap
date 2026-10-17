@@ -10,8 +10,6 @@ exports[`seated bots are frozen > gd-stacker plays the moves it was rated on 1`]
 
 exports[`seated bots are frozen > greedy plays the moves it was rated on 1`] = `"8f9c4d7264da8dc3a2261730bbfeee24"`;
 
-exports[`seated bots are frozen > random plays the moves it was rated on 1`] = `"15656c6b00872fc96c940de7408031e4"`;
-
 exports[`seated bots are frozen > rule-v1 plays the moves it was rated on 1`] = `"a7eb17218b2cddc68032098af324a775"`;
 
 exports[`seated bots are frozen > rule-v2 plays the moves it was rated on 1`] = `"a0206850c9711fa4545a0dfcc1f7e880"`;

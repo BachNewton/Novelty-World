@@ -1,7 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRef } from "react";
+import { Bot } from "lucide-react";
+import { Button } from "@/shared/components/ui/button";
+import { usePadNavigation } from "@/shared/lib/gamepad";
 import { cn } from "@/shared/lib/utils";
 import { BOT_IDS, eloOf, fullName, rankOf, strength, type BotId } from "./seat-bots";
 
@@ -19,62 +21,58 @@ export function StrengthBars({ bot }: { bot: BotId }) {
   );
 }
 
-/** A bot's rank and name over its version, beside its strength among the seatable bots
- *  as bars over its measured Elo (a dash for a bot that never wins). */
+/** A bot's rank over its name and version, beside its strength among the seatable bots
+ *  as bars over its measured Elo. Long names wrap rather
+ *  than cut off: a phone's row is narrow. */
 export function BotBadge({ bot }: { bot: BotId }) {
   const elo = eloOf(bot);
-  const eloLabel = elo === null ? "Never wins, so it has no Elo" : `Elo ${Math.round(elo).toString()} (Greedy is 1000)`;
+  const eloLabel = `Elo ${Math.round(elo).toString()} (Greedy is 1000)`;
   return (
-    <span className="flex min-w-0 items-center gap-2 text-left leading-tight">
-      <span className="flex min-w-0 flex-col">
-        <span className="truncate font-medium">{rankOf(bot)}</span>
-        <span className="truncate text-xs text-text-secondary">{fullName(bot)}</span>
+    <span className="flex min-w-0 flex-1 items-center gap-2 text-left leading-tight">
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-medium">{rankOf(bot)}</span>
+        <span className="text-xs text-text-secondary">{fullName(bot)}</span>
       </span>
       <span className="flex shrink-0 flex-col items-center gap-0.5">
         <StrengthBars bot={bot} />
         <span role="img" aria-label={eloLabel} title={eloLabel} className="text-xs tabular-nums text-text-secondary">
-          {elo === null ? "–" : Math.round(elo).toString()}
+          {Math.round(elo).toString()}
         </span>
       </span>
     </span>
   );
 }
 
-/**
- * Steps through the seatable bots round `children`: a weaker one to the left, a
- * stronger one to the right. At either end its arrow stays focusable but does
- * nothing, so a controller's focus isn't dropped by a button that disables itself.
- */
-export function BotStepper({ bot, onChange, children }: { bot: BotId; onChange: (bot: BotId) => void; children: ReactNode }) {
-  const at = BOT_IDS.indexOf(bot);
-  const weaker = BOT_IDS.at(at - 1);
-  const stronger = BOT_IDS.at(at + 1);
-  return (
-    <span className="flex min-w-0 items-center gap-1">
-      <StepButton label="A weaker bot" to={at > 0 ? weaker : undefined} onChange={onChange}>
-        <ChevronLeft aria-hidden size={20} />
-      </StepButton>
-      {children}
-      <StepButton label="A stronger bot" to={stronger} onChange={onChange}>
-        <ChevronRight aria-hidden size={20} />
-      </StepButton>
-    </span>
-  );
-}
+const STRONGEST_FIRST = [...BOT_IDS].reverse();
 
-function StepButton({ label, to, onChange, children }: { label: string; to: BotId | undefined; onChange: (bot: BotId) => void; children: ReactNode }) {
+/** The step of adding a bot: every seatable bot, strongest first, and a tap seats one. Its own
+ *  screen, so a controller's focus can't wander to the table behind it. */
+export function BotPicker({ onPick, onCancel }: { onPick: (bot: BotId) => void; onCancel: () => void }) {
+  const root = useRef<HTMLDivElement>(null);
+  usePadNavigation(root);
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      aria-disabled={to === undefined}
-      onClick={() => {
-        if (to) onChange(to);
-      }}
-      className={cn("flex size-11 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors", to ? "hover:bg-surface-elevated hover:text-text-primary" : "opacity-30")}
-    >
-      {children}
-    </button>
+    <div ref={root} role="dialog" aria-label="Add a bot" className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-12">
+      <h1 className="flex items-center gap-2 text-2xl font-bold">
+        <Bot aria-hidden size={28} />
+        Add a bot
+      </h1>
+      <ul className="w-full max-w-md space-y-2">
+        {STRONGEST_FIRST.map((bot, i) => (
+          <li key={bot}>
+            <button
+              type="button"
+              data-pad-start={i === 0 ? "" : undefined}
+              onClick={() => onPick(bot)}
+              className="flex min-h-11 w-full items-center rounded-md border border-border-default bg-surface-tertiary px-3 py-2 transition-colors hover:border-border-hover"
+            >
+              <BotBadge bot={bot} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <Button variant="ghost" onClick={onCancel} data-pad-back>
+        Cancel
+      </Button>
+    </div>
   );
 }

@@ -28,7 +28,7 @@ function gameWithHands(seed: string): Played {
     const move = randomBot(botInput(ENGINE, game, history, HUMANS, seat, `${seed}/${i.toString()}`));
     const result = applyAnswer(ENGINE, game, { decision: game.decision, seat, move });
     if (!result.ok) throw new Error(result.reason);
-    log.push({ decision: game.decision, seat, controller: { kind: "bot", bot: "random" }, move });
+    log.push({ decision: game.decision, seat, controller: { kind: "bot", bot: "greedy" }, move });
     game = result.game;
     const extended = extendHistory(history, game);
     if (!extended) throw new Error("The history fell behind the game");

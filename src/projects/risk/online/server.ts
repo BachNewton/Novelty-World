@@ -122,17 +122,6 @@ export async function handle(deps: ServerDeps, request: Request): Promise<Respon
         }),
       );
     }
-    case "set-bot": {
-      const { bot, seat } = request;
-      return commit(store, request.game, (row) =>
-        inLobby(row, request.profile.id, () => {
-          if (!isBotId(bot)) return rejected(NO_SUCH_BOT);
-          const controller = row.seats.at(seat);
-          if (controller?.kind !== "bot") return rejected("That seat isn't a bot's");
-          return controller.bot === bot ? { kind: "unchanged" } : changed(row, { seats: row.seats.with(seat, { kind: "bot", bot }) });
-        }),
-      );
-    }
     case "remove-seat":
       return commit(store, request.game, (row) =>
         inLobby(row, request.profile.id, () => {

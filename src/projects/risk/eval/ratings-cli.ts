@@ -58,8 +58,7 @@ function parseArgs(argv: readonly string[]): Args {
   }
   if (a.seatable) {
     if (a.labels.length > 0 || a.anchor !== undefined) throw new Error("--seatable rates every seatable bot against greedy: name no bots and no anchor");
-    // Random never wins, so it has no Elo and isn't rated.
-    a.labels = Object.keys(SEAT_BOTS).filter((l) => l !== "random");
+    a.labels = Object.keys(SEAT_BOTS);
     a.anchor = SEAT_ANCHOR;
   }
   if (a.labels.length === 0) a.labels = Object.keys(RISK_BOTS).filter((l) => l !== "random");

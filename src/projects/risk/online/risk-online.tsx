@@ -9,8 +9,7 @@ import { PadHints } from "@/shared/components/pad-hints";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { useProfile } from "@/shared/lib/profile";
 import type { Move } from "../contract";
-import { BotBadge, BotStepper } from "./bot-picker";
-import { botName, DEFAULT_BOT, type BotId } from "./seat-bots";
+import { BotBadge, BotPicker } from "./bot-picker";
 import type { Response } from "./protocol";
 import { browserIo, browserLobbyIo } from "./client";
 import type { OpenAction, TableSummary } from "./lobby";
@@ -124,7 +123,7 @@ function Lobby({ onCreate, onOpen, notice, actions }: LobbyProps) {
     <GameLobby
       icon={<Globe size={32} />}
       title="Risk"
-      subtitle="The classic game of world domination, for 3 to 6 players."
+      subtitle="The classic game of world domination"
       createLabel="New Game"
       onCreate={onCreate}
       notice={notice}
@@ -152,27 +151,38 @@ function Table({ id, Game }: { id: string; Game: ComponentType<OnlineGameProps> 
   return <Gathering snapshot={snapshot} table={table} store={store} />;
 }
 
-/** A table gathering players. Its seated players add bots, each of a chosen rank, and change
- *  a bot seat's rank until the game starts. */
+/** A table gathering players. Its seated players add bots, each picked from every seatable bot,
+ *  and remove seats until the game starts; a bot once seated stays the bot it is. */
 function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table: NonNullable<OnlineSnapshot["table"]>; store: OnlineStore }) {
   const root = useRef<HTMLDivElement>(null);
   usePadNavigation(root);
-  const [nextBot, setNextBot] = useState<BotId>(DEFAULT_BOT);
+  const [picking, setPicking] = useState(false);
   const seated = snapshot.seat !== null;
   const full = table.seats.length >= MAX_PLAYERS;
+  if (picking) {
+    return (
+      <BotPicker
+        onPick={(bot) => {
+          store.addBot(bot);
+          setPicking(false);
+        }}
+        onCancel={() => setPicking(false)}
+      />
+    );
+  }
   return (
     <Centered ref={root}>
       <header className="space-y-1 text-center">
         <h1 className="text-3xl font-bold">{hostName(table)}&apos;s game</h1>
         <p className="text-sm text-text-secondary">Others find it in the lobby; bots fill the empty seats.</p>
       </header>
-      <Card className="w-full max-w-sm space-y-2 p-4">
+      <Card className="w-full max-w-md space-y-2 p-3 sm:p-4">
         <h2 className="font-medium">
           Seats ({table.seats.length.toString()}/{MAX_PLAYERS.toString()})
         </h2>
         <ol className="space-y-2">
           {table.seats.map((controller, seat) => (
-            <li key={seat} className="flex min-h-11 items-center gap-2 rounded-md bg-surface-secondary px-3 py-1">
+            <li key={seat} className="flex min-h-11 items-center gap-2 rounded-md bg-surface-secondary px-2 py-1 sm:px-3">
               {controller.kind === "human" ? (
                 <>
                   <User aria-hidden size={18} className="shrink-0" />
@@ -185,13 +195,7 @@ function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table
                 <>
                   <Bot aria-label="Bot" size={18} className="shrink-0" />
                   <span className="flex min-w-0 flex-1">
-                    {seated ? (
-                      <BotStepper bot={controller.bot} onChange={(bot) => store.setBot(seat, bot)}>
-                        <BotBadge bot={controller.bot} />
-                      </BotStepper>
-                    ) : (
-                      <BotBadge bot={controller.bot} />
-                    )}
+                    <BotBadge bot={controller.bot} />
                   </span>
                 </>
               )}
@@ -204,15 +208,11 @@ function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table
           ))}
         </ol>
         {seated && !full && (
-          <div className="flex justify-center">
-            <BotStepper bot={nextBot} onChange={setNextBot}>
-              <Button variant="ghost" aria-label={`Add ${botName(nextBot)}`} title="Add a bot" onClick={() => store.addBot(nextBot)} className="min-w-0 gap-2" data-pad-start>
-                <Plus aria-hidden size={18} className="shrink-0" />
-                <Bot aria-hidden size={18} className="shrink-0" />
-                <BotBadge bot={nextBot} />
-              </Button>
-            </BotStepper>
-          </div>
+          <Button variant="ghost" onClick={() => setPicking(true)} className="w-full gap-2" data-pad-start>
+            <Plus aria-hidden size={18} />
+            <Bot aria-hidden size={18} />
+            Add a bot
+          </Button>
         )}
       </Card>
       <div className="flex flex-wrap justify-center gap-3">
