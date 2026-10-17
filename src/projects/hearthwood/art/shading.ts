@@ -1,4 +1,4 @@
-import { ShaderMaterial, type IUniform, type Material, type MeshLambertMaterial, type ShaderMaterialParameters, type WebGLProgramParametersWithUniforms } from "three";
+import { MeshDepthMaterial, ShaderMaterial, type IUniform, type Material, type MeshLambertMaterial, type ShaderMaterialParameters, type WebGLProgramParametersWithUniforms } from "three";
 import { featureDefine, liveFeatures, type FeatureSwitches, type FeatureToggles } from "../features";
 import { ATMOSPHERE_GLSL, ATMOSPHERE_UNIFORMS_GLSL, NOISE_GLSL, type AtmosphereUniforms } from "./atmosphere";
 import { HOOKS, SKY_HOOKS, type FeatureArt, type Hook, type MaterialKind } from "./feature-art";
@@ -224,6 +224,39 @@ export function shadeLambert<M extends MeshLambertMaterial>(material: M, kind: L
   };
   material.customProgramCacheKey = () => `hearthwood:${kind}:${own?.key ?? ""}`;
   variants.track(material, kind);
+  return material;
+}
+
+const depths = new WeakMap<AtmosphereUniforms, Partial<Record<LambertKind, MeshDepthMaterial>>>();
+
+/**
+ * The depth a kind's things cast their shadows with: three's own, with the
+ * kind's vertex hooks compiled in under `HW_DEPTH` (no colour and no normal
+ * there), so whatever a feature moves or shrinks casts its shadow where it is
+ * drawn. One per kind and air, shared by every mesh that casts with it.
+ */
+export function shadowDepth(kind: LambertKind, atmosphere: AtmosphereUniforms): MeshDepthMaterial {
+  let byKind = depths.get(atmosphere);
+  if (!byKind) {
+    byKind = {};
+    depths.set(atmosphere, byKind);
+  }
+  const known = byKind[kind];
+  if (known) return known;
+  const variants = shadingVariants();
+  const uniforms = { ...atmosphere, ...featureUniforms(variants.art, kind) };
+  const material = new MeshDepthMaterial();
+  material.defines = { HW_DEPTH: "" };
+  material.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms) => {
+    Object.assign(shader.uniforms, uniforms);
+    const head = inject(shader.vertexShader, "#include <common>", `${ATMOSPHERE_UNIFORMS_GLSL}
+${NOISE_GLSL}
+${guarded(variants.art, kind, "vertexHead")}`);
+    shader.vertexShader = inject(head, "#include <begin_vertex>", guarded(variants.art, kind, "vertex"));
+  };
+  material.customProgramCacheKey = () => `hearthwood:depth:${kind}`;
+  variants.track(material, kind);
+  byKind[kind] = material;
   return material;
 }
 

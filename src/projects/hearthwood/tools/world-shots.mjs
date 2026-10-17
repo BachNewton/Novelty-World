@@ -14,7 +14,10 @@
 // Playwright and waits on its events (ready, streamed in, frames drawn), never a sleep. Every shot holds
 // the date, the hour and the motion clock, so two runs differ only where the art does. The shots are on the
 // autumn equinox, whose day has every moment at its usual hour and a dark night, except the `calendar-`
-// shots, which show the light through the year: a midsummer evening, a midwinter noon and a spring morning.
+// shots, which show the light through the year: a midsummer evening, a midwinter noon and a spring morning,
+// and the `season-` shots, which show the land through the year: a mixed wood of birch and maple and a lowland
+// meadow with a range behind it, in spring, high summer, mid-autumn and deep winter, and with the seasons'
+// features off; and the ~ panel's Calendar and Quality sections on desktop and on the target phone.
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
 // `npx playwright install chromium` (one-time).
@@ -90,11 +93,13 @@ async function frames(page, count) {
 
 // Most shots are from behind Elliott, in third person; the `fp-` ones are through their eyes, with `look` the way they look.
 // `glide` puts them on the broom over a spot and holds them there, so the shot is mid-glide.
+// `features` switches some features for the shot (and leaves them so): { id: on }.
 // `keepMotion` leaves the motion clock as the shot set it (the companions' shots hold it themselves, mid-movement).
-async function capture(page, name, { hour, date = DATE, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1, glide = null, keepMotion = false }) {
+async function capture(page, name, { hour, date = DATE, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1, glide = null, features = null, keepMotion = false }) {
   await page.evaluate(
-    ({ hour, date, view, pov, orbit, look, walker, free, motion, chrome, haze, glide, keepMotion }) => {
+    ({ hour, date, view, pov, orbit, look, walker, free, motion, chrome, haze, glide, features, keepMotion }) => {
       const world = window.__hearthwoodWorld;
+      for (const [id, on] of Object.entries(features ?? {})) world.setFeature(id, on);
       world.holdHour(hour);
       world.setDate(date);
       world.setHaze(haze);
@@ -109,7 +114,7 @@ async function capture(page, name, { hour, date = DATE, view = "walk", pov = "th
       if (glide) world.glide(glide.x, glide.z, glide.above, glide.heading);
       document.documentElement.toggleAttribute("data-shot-chrome", chrome);
     },
-    { hour, date, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze, glide, keepMotion },
+    { hour, date, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze, glide, features, keepMotion },
   );
   // The camera eases after the walker, and the world streams in round wherever it ends up: give the
   // camera frames to arrive, then wait for the streaming to settle, then read a settled frame.
@@ -294,6 +299,78 @@ if (want("range")) {
   await capture(desktop, "clear-summit", { hour: 15, haze: 0, walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 6, z: peak.z, lookX: away.x, lookY: peak.height - 900, lookZ: away.z } });
   await capture(desktop, "clear-summit-hazy", { hour: 15, walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 6, z: peak.z, lookX: away.x, lookY: peak.height - 900, lookZ: away.z } });
 }
+
+/** The edge of a wood of birch and maple: where the two regions meet, open ground facing the trees. */
+async function findMixedWood(page) {
+  return page.evaluate(() => {
+    const world = window.__hearthwoodWorld;
+    let best = null;
+    for (let z = -7000; z <= 7000; z += 100) {
+      for (let x = -7000; x <= 7000; x += 100) {
+        const here = world.at(x, z);
+        const maple = here.regions.maplewood ?? 0;
+        const birch = here.regions.birchvale ?? 0;
+        if (maple < 0.2 || birch < 0.2 || here.woodland > 0.12 || here.height - here.water < 1.5 || here.river > 0) continue;
+        // Facing the thickest woods close by.
+        let face = null;
+        for (let a = 0; a < 16; a++) {
+          const ang = (a / 16) * Math.PI * 2;
+          const wood = world.at(x + Math.sin(ang) * 35, z + Math.cos(ang) * 35).woodland;
+          if (face === null || wood > face.wood) face = { ang, wood };
+        }
+        const score = Math.min(maple, birch) + face.wood;
+        if (face.wood > 0.45 && (best === null || score > best.score)) best = { x, z, yaw: face.ang, score };
+      }
+    }
+    return best;
+  });
+}
+
+const SEASON_DATES = [
+  ["spring", "spring-6", 11],
+  ["summer", "summer-4", 12],
+  ["autumn", "autumn-3", 12],
+  ["winter", "winter-4", 12],
+];
+const SEASONS_OFF = { seasonalFoliage: false, seasonalGround: false };
+const SEASONS_ON = { seasonalFoliage: true, seasonalGround: true };
+
+if (want("season")) {
+  const wood = await findMixedWood(desktop);
+  if (wood === null) console.log("no edge of a mixed birch and maple wood found");
+  else {
+    console.log(`mixed wood: standing at ${wood.x}, ${wood.z}`);
+    const shot = { walker: { x: wood.x, z: wood.z, heading: wood.yaw }, orbit: { yaw: wood.yaw, pitch: 0.06, distance: 9 } };
+    for (const [season, date, hour] of SEASON_DATES) await capture(desktop, `season-wood-${season}`, { ...shot, date, hour, features: SEASONS_ON });
+    for (const [season, date, hour] of SEASON_DATES.filter(([s]) => s === "autumn" || s === "winter")) await capture(desktop, `season-wood-${season}-off`, { ...shot, date, hour, features: SEASONS_OFF });
+  }
+  const { peak, view } = await findRange(desktop);
+  console.log(`meadow: at ${view.x.toFixed(0)}, ${view.z.toFixed(0)}, the range's peak ${peak.height.toFixed(0)} m behind`);
+  const meadow = { walker: { x: view.x, z: view.z }, free: { x: view.x, y: view.height + 3, z: view.z, lookX: peak.x, lookY: peak.height * 0.45, lookZ: peak.z } };
+  for (const [season, date, hour] of SEASON_DATES) await capture(desktop, `season-meadow-${season}`, { ...meadow, date, hour, features: SEASONS_ON });
+  for (const [season, date, hour] of SEASON_DATES.filter(([s]) => s === "autumn" || s === "winter")) await capture(desktop, `season-meadow-${season}-off`, { ...meadow, date, hour, features: SEASONS_OFF });
+  await capture(desktop, "season-camp-winter", { date: "winter-4", hour: 12, walker: atCamp, orbit: outward, features: SEASONS_ON });
+  await capture(desktop, "season-camp-spring", { date: "spring-4", hour: 12, walker: atCamp, orbit: outward, features: SEASONS_ON });
+}
+
+/** The ~ panel open, and scrolled to the section asked for. */
+async function panelShots(device, name) {
+  if (!want(name)) return;
+  const page = await openWorld(device);
+  await capture(page, `${name}-calendar`, { date: "autumn-3", hour: 17.2, walker: atCamp, orbit: facingCamp, chrome: true });
+  await page.keyboard.press("Backquote");
+  await page.waitForSelector("[data-testid=hearthwood-debug-calendar]");
+  await frames(page, 10);
+  await page.screenshot({ path: join(OUTDIR, `${name}-calendar.png`) });
+  console.log(`wrote ${join(OUTDIR, `${name}-calendar.png`)}`);
+  await page.evaluate(() => document.querySelector("[data-testid=hearthwood-debug-quality]").scrollIntoView({ block: "end" }));
+  await frames(page, 10);
+  await page.screenshot({ path: join(OUTDIR, `${name}-quality.png`) });
+  console.log(`wrote ${join(OUTDIR, `${name}-quality.png`)}`);
+  await page.context().close();
+}
+await panelShots(DESKTOP, "panel-desktop");
+await panelShots({ ...PHONE_PORTRAIT, viewport: { width: 448, height: 900 } }, "panel-phone");
 
 const placeKinds = ["stone-circle", "cairn", "tor", "shrine", "fallen-tree", "fairy-ring", "seter", "tarn", "cascade", "waterfall"];
 if (want("place")) {
