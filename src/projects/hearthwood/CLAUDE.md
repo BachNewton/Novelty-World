@@ -86,6 +86,14 @@ Cats of the camp follow on walks, nap by the fire, sit on the player's pack and 
 
 Ingredients are found, not bought: herbs, mushrooms, berries, roots, nuts, wild greens, river fish, eggs from a farm a valley might hold. What grows changes with the season.
 
+**The forests have berries and mushrooms to pick**, the ones a Nordic forest really has, each where it really grows:
+
+- **Berries:** bilberries in the shade of pine and spruce, lingonberries on dry heath and under pines, wild strawberries at sunny edges and clearings, raspberries in clearings and along paths, and cloudberries out on the bogs, rarer and prized.
+- **Mushrooms:** chanterelles under birch and spruce, porcini in the mixed woods, funnel chanterelles in damp spruce woods late in the year, and the fly agaric under birches, red with white spots, which is never eaten but is the witch's: a brewing ingredient, never a cooking one.
+- **By season:** nothing in winter, the first wild strawberries in early summer, the berries through high summer, and the mushrooms from late summer through autumn, with the funnel chanterelles last.
+- **Picking:** look at a ripe bush or a mushroom, and a prompt offers to pick it (a key, a controller button, or a tap). It goes into the witch's basket, and the bush shows it has been picked (its berries gone, the mushroom cut). A picked spot grows back after some days, in season.
+- **Placement** is part of the world's generation, by region, ground and season, so a spot always grows the same thing; what has been picked is the only thing the game has to remember. Patches cluster as they do in a real forest: a good bilberry slope, a chanterelle spot worth remembering.
+
 Cooking happens at the campfire in pans, a pot and on sticks over the flames, and is tactile and short: choose ingredients, cook them, see the dish. Recipes are discovered by trying combinations, and remembered in the player's recipe book once found. Cooking can't fail: a combination with no recipe makes a humble dish of its own, which a cat may still love.
 
 ## Witchcraft
