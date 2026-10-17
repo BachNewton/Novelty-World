@@ -54,7 +54,9 @@ The rules come from two official rulebooks, cited by tag after each section:
   (the reverse-engineering notes are kept outside this repo); then SMG's help pages (its
   support site and the game's FAQ page) and patch notes; community reports of how it behaves
   (Steam discussions, the fan wiki, player guides) are labelled as such where they are the only
-  source.
+  source. What a player may know is what [GD]'s screen shows them, never what its code holds:
+  its game state carries what no player is shown (other players' hands, the deck's order), so
+  a fact is public only when [GD] shows it to every player.
 
 [GD] is configurable. This spec follows **the settings its ranked games use**: Classic map,
 World Domination, **Auto Placement** (`SETUP-4`, `SETUP-5`), **Fixed** card bonus (`CARDS-6`),
@@ -409,16 +411,20 @@ play; the rulebooks say only that cards are held)*. Cards in hand are never lost
 trading or by being taken on elimination (`ELIM-2`).
 
 Public information is shown to every player: each hand's size, every trade made (its cards
-and any occupied-territory bonus), the cards taken on each elimination, and what each kind of
-set is worth (`CARDS-6`).
+and any occupied-territory bonus), how many cards were taken on each elimination, and what each
+kind of set is worth (`CARDS-6`). The cards taken on an elimination are seen only by the player
+who takes them, and stay hidden from everyone else until they are traded.
 
 > Note [public-cards]: at a table, traded cards go face up, so an attentive player can track
 > them, but only by memory.
 > Resolution (official digital): anything a player could legally see at the table is shown on
-> screen, as [GD] does: its battle log records every trade with its cards' combination, any
-> occupied-territory bonus, and the cards seized on an elimination (SMG's v2.8 patch notes and
-> support FAQ). Memory is a table limitation, not the game's skill. (With Fog of War, which is
-> not used here, [GD] hides these.)
+> screen, as [GD] does: its battle log records every trade with its cards' combination and any
+> occupied-territory bonus (SMG's v2.8 patch notes and support FAQ), and each elimination with
+> only the number of cards seized. Its shipped code shows the seized cards themselves to the
+> player who takes them alone: the battle log's elimination entry is given only a count, and the
+> announcement that shows the seized cards plays only on that player's own device. Memory is a
+> table limitation, not the game's skill. (With Fog of War, which is not used here, [GD] hides
+> these.)
 
 ### CARDS-3 Valid sets
 
