@@ -203,3 +203,21 @@ D: win Elo +18.1 over v2, better than v1 and every GD persona at every table. Th
 ## The method changes: bots and rankings (2026-10-17)
 
 The owner's call, after the night above: there is no crown and no lineage. Monopoly's loop, which this harness copied, carried each version forward from the last crowned one, a habit that suits human developers and constrains Claude for nothing. From here, there are bots and the Elo ladder; each new version may be written from scratch, copied from any bot, combined from several, retuned, or something entirely new, chosen from the ladder, the bots' code and their games. The gauntlet is an instrument for fast per-table verdicts while iterating, not a gate; a version worth seating is seated and the ratings rerun. Under this method v3, +18 Elo over v2 in the gauntlet and worse at no table, is seated and rated.
+
+## Ratings with v3 seated (2026-10-17)
+
+`risk:ratings -- --seatable --groups 100`: 72,800 games, 173 minutes, the pool's CPU at a mean of 32% of the machine (other work shared it for part of the run, but the ratings did not fill the machine on the new pool either: a lead for `sim-speed.md`). Win Elo, greedy at 1000, 95% bootstrap intervals:
+
+| Bot | Rank | Win Elo | 95% | Finishing-order Elo |
+|---|---|---|---|---|
+| Rule v3 | Warrant Officer | 1445 | [1436, 1453] | 1257 |
+| Rule v2 | Sergeant Major | 1406 | [1396, 1414] | 1247 |
+| Rule v1 | Master Sergeant | 1329 | [1321, 1337] | 1168 |
+| GD Stacker | Sergeant First Class | 1092 | [1083, 1099] | 1111 |
+| GD Continental | Staff Sergeant | 1068 | [1059, 1077] | 1061 |
+| Greedy | Sergeant | 1000 | anchor | 1000 |
+| GD Aggressive | Corporal | 996 | [987, 1004] | 1049 |
+| GD Defensive | Private | 965 | [956, 973] | 1047 |
+| Random | Recruit | none | | |
+
+v3 against v2 head to head: a lone v3 among v2s wins 36.5% at 3 players (par 33.3%), 26.3% at 4 (25.0%) and 19.8% at 6 (16.7%); a lone v2 among v3s wins 29.4%, 19.8% and 10.9%. The lobby now seats Rule v3 by default.
