@@ -5,7 +5,9 @@
 // button on the ground and on the broom, camp through Elliott's own eyes, with its hints (the `fp-` shots),
 // a glide on the broom down off a ridge, behind them and through their eyes (the `glide-` shots), and foraging
 // (the `forage-` shots: a patch of each kind, a close-up through Elliott's eyes before and after picking, and the
-// basket on desktop and the target phone). Prints what each
+// basket on desktop and the target phone), and the companions (the `companions-` shots: a stray cat watching from a
+// woodland edge, a dog bounding up, the naming card on desktop and the target phone, Elliott walking with their
+// companions in third and first person, the companions round the campfire, and a cat and a dog answering a pet). Prints what each
 // frame drew (triangles, draw calls) and how long frames took (SHOTS_UNCAPPED=1 for the frame's own time).
 //
 // Drives the world's probe (window.__hearthwoodWorld, see ../components/valley/world-probe.tsx) over
@@ -88,14 +90,15 @@ async function frames(page, count) {
 
 // Most shots are from behind Elliott, in third person; the `fp-` ones are through their eyes, with `look` the way they look.
 // `glide` puts them on the broom over a spot and holds them there, so the shot is mid-glide.
-async function capture(page, name, { hour, date = DATE, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1, glide = null }) {
+// `keepMotion` leaves the motion clock as the shot set it (the companions' shots hold it themselves, mid-movement).
+async function capture(page, name, { hour, date = DATE, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1, glide = null, keepMotion = false }) {
   await page.evaluate(
-    ({ hour, date, view, pov, orbit, look, walker, free, motion, chrome, haze, glide }) => {
+    ({ hour, date, view, pov, orbit, look, walker, free, motion, chrome, haze, glide, keepMotion }) => {
       const world = window.__hearthwoodWorld;
       world.holdHour(hour);
       world.setDate(date);
       world.setHaze(haze);
-      world.holdMotion(motion);
+      if (!keepMotion) world.holdMotion(motion);
       world.setView(view);
       world.setPointOfView(pov);
       world.setFreeCamera(free);
@@ -106,7 +109,7 @@ async function capture(page, name, { hour, date = DATE, view = "walk", pov = "th
       if (glide) world.glide(glide.x, glide.z, glide.above, glide.heading);
       document.documentElement.toggleAttribute("data-shot-chrome", chrome);
     },
-    { hour, date, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze, glide },
+    { hour, date, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze, glide, keepMotion },
   );
   // The camera eases after the walker, and the world streams in round wherever it ends up: give the
   // camera frames to arrive, then wait for the streaming to settle, then read a settled frame.
@@ -498,5 +501,225 @@ async function firstPersonPhoneShots(device, name) {
 await firstPersonPhoneShots(PHONE_PORTRAIT, "fp-phone-portrait");
 await firstPersonPhoneShots(PHONE_LANDSCAPE, "fp-phone-landscape");
 await phoneShots(PHONE_LANDSCAPE, "phone-landscape");
+
+// The companions. Their poses are staged by the probe and played in real frames (a body only blends into what it is
+// doing frame by frame), then the motion clock is held where it is for the shot.
+async function holdWhenSettled(page, seconds, key) {
+  await page.waitForFunction(({ seconds, key }) => window.__hearthwoodWorld.companions.settled(seconds, key ?? undefined), { seconds, key: key ?? null }, { timeout: 120000 });
+  await page.evaluate(() => window.__hearthwoodWorld.holdMotion(window.__hearthwoodWorld.motion()));
+}
+async function letMotionRun(page) {
+  await page.evaluate(() => {
+    window.__hearthwoodWorld.holdMotion(null);
+    window.__hearthwoodWorld.holdHour(10.5);
+  });
+}
+/** A spot `distance` metres from a point, back along a heading, facing it. */
+const facing = (at, distance, heading) => ({ x: at.x - Math.sin(heading) * distance, z: at.z - Math.cos(heading) * distance, heading });
+const towards = (from, to) => Math.atan2(to.x - from.x, to.z - from.z);
+
+async function companionShots(page, phone) {
+  await page.evaluate(() => window.__hearthwoodWorld.companions.forget());
+  await letMotionRun(page);
+  // Elliott at camp brings the strays round it to life.
+  await page.evaluate((at) => window.__hearthwoodWorld.placeWalker(at.x, at.z, at.heading), atCamp);
+  await frames(page, 10);
+  const strays = await page.evaluate((c) => window.__hearthwoodWorld.companions.animals().filter((a) => a.kind === "stray").sort((a, b) => Math.hypot(a.x - c.x, a.z - c.z) - Math.hypot(b.x - c.x, b.z - c.z)), camp);
+  const cat = strays.find((a) => a.species === "cat");
+  if (!cat) throw new Error("No stray cat near camp");
+  console.log(`cat ${cat.key} at ${cat.x.toFixed(0)}, ${cat.z.toFixed(0)}: boldness ${cat.boldness.toFixed(2)}, favourite ${cat.favourite}`);
+
+  if (phone) {
+    await page.evaluate((key) => window.__hearthwoodWorld.companions.win(key), cat.key);
+    await capture(page, "companions-naming-phone", { hour: 10.5, walker: atCamp, orbit: facingCamp, chrome: true });
+    return;
+  }
+
+  if (want("companions-stray")) {
+    // A stray cat at the edge of the woods by camp, watching Elliott come.
+    // Where it is now: it wanders round its home.
+    const now = await page.evaluate((key) => window.__hearthwoodWorld.companions.animals().find((a) => a.key === key), cat.key);
+    const heading = towards(atCamp, now) + 0.1;
+    const stand = facing(now, 6, heading);
+    await page.evaluate((at) => window.__hearthwoodWorld.placeWalker(at.x, at.z, at.heading), stand);
+    await page.evaluate(() => window.__hearthwoodWorld.companions.simulate(6));
+    await holdWhenSettled(page, 1.2, cat.key);
+    await capture(page, "companions-stray-cat-watching", { hour: 10.5, walker: stand, orbit: { yaw: heading, pitch: 0.12, distance: 6 }, keepMotion: true });
+    await capture(page, "companions-stray-cat-watching-fp", { hour: 10.5, pov: "first", walker: stand, look: { yaw: heading, pitch: -0.08 }, keepMotion: true });
+  }
+
+  // A friendly dog, the nearest to camp, bounding up to Elliott.
+  const dogs = await page.evaluate((c) => window.__hearthwoodWorld.companions.straysNear(c.x, c.z, 700).filter((s) => s.species === "dog"), camp);
+  let dog = null;
+  for (const candidate of dogs.sort((a, b) => Math.hypot(a.x - camp.x, a.z - camp.z) - Math.hypot(b.x - camp.x, b.z - camp.z))) {
+    await page.evaluate((at) => window.__hearthwoodWorld.placeWalker(at.x + 40, at.z, 0), candidate);
+    await frames(page, 4);
+    const live = await page.evaluate((id) => window.__hearthwoodWorld.companions.animals().find((a) => a.key === id) ?? null, candidate.id);
+    if (live && live.boldness > -0.1) {
+      dog = live;
+      break;
+    }
+  }
+  if (!dog) throw new Error("No friendly dog near camp");
+  console.log(`dog ${dog.key} at ${dog.home.x.toFixed(0)}, ${dog.home.z.toFixed(0)}: boldness ${dog.boldness.toFixed(2)}`);
+  if (want("companions-dog")) {
+    await letMotionRun(page);
+    const heading = Math.PI * 0.25;
+    const stand = facing(dog.home, 13, heading);
+    await page.evaluate((at) => window.__hearthwoodWorld.placeWalker(at.x, at.z, at.heading), stand);
+    await page.evaluate(({ key, home }) => window.__hearthwoodWorld.companions.place(key, home.x, home.z, Math.PI * 1.25, "stand"), dog);
+    await page.waitForFunction((key) => {
+      const a = window.__hearthwoodWorld.companions.animals().find((x) => x.key === key);
+      return a !== undefined && a.activity === "run" && a.held > 0.5;
+    }, dog.key, { timeout: 120000 });
+    await page.evaluate(() => window.__hearthwoodWorld.holdMotion(window.__hearthwoodWorld.motion()));
+    const at = await page.evaluate((key) => window.__hearthwoodWorld.companions.animals().find((a) => a.key === key), dog.key);
+    // From beside its way, low, a little ahead of it, with Elliott beyond.
+    const side = { x: at.x + Math.cos(heading) * 3.2 + Math.sin(heading) * -1.5, z: at.z - Math.sin(heading) * 3.2 + Math.cos(heading) * -1.5 };
+    const ground = await page.evaluate(({ x, z }) => window.__hearthwoodWorld.at(x, z).height, side);
+    await capture(page, "companions-dog-bounding", { hour: 10.5, walker: stand, free: { x: side.x, y: ground + 0.8, z: side.z, lookX: at.x - Math.sin(heading) * 0.5, lookY: at.y + 0.35, lookZ: at.z - Math.cos(heading) * 0.5 }, keepMotion: true });
+    await capture(page, "companions-dog-bounding-fp", { hour: 10.5, pov: "first", walker: stand, look: { yaw: heading, pitch: -0.12 }, keepMotion: true });
+  }
+
+  // Won over: the naming card.
+  await letMotionRun(page);
+  await page.evaluate((key) => window.__hearthwoodWorld.companions.win(key), dog.key);
+  if (want("companions-naming")) {
+    await capture(page, "companions-naming-desktop", { hour: 10.5, walker: null, orbit: { yaw: Math.PI * 0.25 + 0.35, pitch: 0.1, distance: 5.5 }, chrome: true, keepMotion: true });
+  }
+  const dogName = await page.evaluate(() => window.__hearthwoodWorld.companions.naming());
+  await page.evaluate(() => window.__hearthwoodWorld.companions.keep());
+  console.log(`the dog is ${dogName}`);
+
+  // Two cats too: the camp cat and the next nearest.
+  await page.evaluate((at) => window.__hearthwoodWorld.placeWalker(at.x, at.z, at.heading), atCamp);
+  await frames(page, 6);
+  const cats = await page.evaluate((c) => window.__hearthwoodWorld.companions.animals().filter((a) => a.kind === "stray" && a.species === "cat").sort((a, b) => Math.hypot(a.x - c.x, a.z - c.z) - Math.hypot(b.x - c.x, b.z - c.z)), camp);
+  for (const one of cats.slice(0, 2)) {
+    await page.evaluate((key) => {
+      window.__hearthwoodWorld.companions.win(key);
+      window.__hearthwoodWorld.companions.keep();
+    }, one.key);
+  }
+  // Up to three: the nearest other strays, brought to life by walking Elliott over to them.
+  const others = await page.evaluate((c) => window.__hearthwoodWorld.companions.straysNear(c.x, c.z, 900), camp);
+  for (const other of others.sort((a, b) => Math.hypot(a.x - camp.x, a.z - camp.z) - Math.hypot(b.x - camp.x, b.z - camp.z))) {
+    const count = await page.evaluate(() => window.__hearthwoodWorld.companions.animals().filter((a) => a.kind === "following").length);
+    if (count >= 3) break;
+    await page.evaluate((at) => window.__hearthwoodWorld.placeWalker(at.x + 30, at.z, 0), other);
+    await frames(page, 4);
+    await page.evaluate((key) => {
+      if (!window.__hearthwoodWorld.companions.animals().some((a) => a.key === key && a.kind === "stray")) return;
+      window.__hearthwoodWorld.companions.win(key);
+      window.__hearthwoodWorld.companions.keep();
+    }, other.id);
+  }
+  const party = await page.evaluate(() => window.__hearthwoodWorld.companions.animals().filter((a) => a.kind === "following"));
+  console.log(`following: ${party.map((a) => `${a.name} (${a.species})`).join(", ")}`);
+
+  if (want("companions-walk")) {
+    // Out of camp on the open meadow, walking with them: real frames, W held, then the motion held mid-stride.
+    // The openest way out of camp: the least wooded over the next forty metres.
+    const way = await page.evaluate((c) => {
+      let best = { way: 0, wood: Infinity };
+      for (let k = 0; k < 16; k++) {
+        const way = (k / 16) * Math.PI * 2;
+        let wood = 0;
+        for (let r = 8; r <= 48; r += 4) {
+          const here = window.__hearthwoodWorld.at(c.x + Math.sin(way) * r, c.z + Math.cos(way) * r);
+          wood += here.woodland + (here.water > here.height ? 5 : 0);
+        }
+        if (wood < best.wood) best = { way, wood };
+      }
+      return best.way;
+    }, atCamp);
+    const start = { x: atCamp.x + Math.sin(way) * 8, z: atCamp.z + Math.cos(way) * 8, heading: way };
+    for (const [pov, name, view] of [["third", "companions-walk", { orbit: { yaw: way + 2.0, pitch: 0.22, distance: 6.5 } }], ["first", "companions-walk-fp", { look: { yaw: way + Math.PI - 0.45, pitch: -0.22 } }]]) {
+      await letMotionRun(page);
+      await page.evaluate(
+        ({ start, way, party }) => {
+          const world = window.__hearthwoodWorld;
+          world.setView("walk");
+          world.setFreeCamera(null);
+          world.setPointOfView("third");
+          world.setOrbit({ yaw: way, pitch: 0.15, distance: 7 });
+          world.placeWalker(start.x, start.z, way);
+          party.forEach((a, i) => world.companions.place(a.key, start.x + (i - 1) * 1.5, start.z - 2.5, way, "stand"));
+        },
+        { start, way, party },
+      );
+      await frames(page, 5);
+      await page.keyboard.down("KeyW");
+      await frames(page, 120);
+      await page.evaluate(() => window.__hearthwoodWorld.holdMotion(window.__hearthwoodWorld.motion()));
+      await page.keyboard.up("KeyW");
+      const here = await page.evaluate(() => window.__hearthwoodWorld.walker());
+      // Looking back over a shoulder at them, behind in third person, through Elliott's eyes in first.
+      await capture(page, name, { hour: 10.5, pov, walker: { x: here.x, z: here.z, heading: way }, ...view, keepMotion: true, chrome: pov === "first" });
+    }
+  }
+
+  if (want("companions-campfire")) {
+    await letMotionRun(page);
+    await page.evaluate(
+      ({ at, party }) => {
+        const world = window.__hearthwoodWorld;
+        world.setPointOfView("third");
+        world.placeWalker(at.x, at.z, at.heading);
+        party.forEach((a, i) => world.companions.place(a.key, at.x - 3 + i * 1.2, at.z + 3, 0, "stand"));
+        world.companions.simulate(25);
+      },
+      { at: atCamp, party },
+    );
+    await holdWhenSettled(page, 1.5);
+    const fire = await page.evaluate(() => window.__hearthwoodWorld.camp());
+    const fy = await page.evaluate(({ x, z }) => window.__hearthwoodWorld.at(x, z).height, fire);
+    const view = { x: fire.x + Math.cos(Math.PI * 1.1) * 5.5, y: fy + 2.4, z: fire.z + Math.sin(Math.PI * 1.1) * 5.5, lookX: fire.x, lookY: fy + 0.3, lookZ: fire.z };
+    await capture(page, "companions-campfire", { hour: 18.4, walker: atCamp, free: view, keepMotion: true });
+    await capture(page, "companions-campfire-night", { hour: 22.5, walker: atCamp, free: view, keepMotion: true });
+  }
+
+  if (want("companions-pet")) {
+    // Each answering a pet: a cat's tail up and a slow blink, a dog's wag and wiggle; with the prompt to pet it.
+    for (const one of [party.find((a) => a.species === "cat"), party.find((a) => a.species === "dog")]) {
+      if (!one) continue;
+      await letMotionRun(page);
+      const spot = { x: atCamp.x + Math.sin(outward.yaw) * 12, z: atCamp.z + Math.cos(outward.yaw) * 12 };
+      const heading = outward.yaw;
+      const stand = facing(spot, one.species === "cat" ? 1.25 : 1.5, heading);
+      await page.evaluate(
+        ({ one, spot, stand, party }) => {
+          const world = window.__hearthwoodWorld;
+          world.placeWalker(stand.x, stand.z, stand.heading);
+          world.companions.place(one.key, spot.x, spot.z, stand.heading + Math.PI, one.species === "cat" ? "sit" : "stand");
+          // The others out of the way, behind Elliott.
+          party.filter((a) => a.key !== one.key).forEach((a, i) => world.companions.place(a.key, stand.x - Math.sin(stand.heading) * (4 + i), stand.z - Math.cos(stand.heading) * (4 + i), stand.heading, "sit"));
+          world.companions.pet(one.key);
+        },
+        { one, spot, stand, party },
+      );
+      await holdWhenSettled(page, one.species === "cat" ? 1.1 : 0.9, one.key);
+      const now = await page.evaluate((key) => window.__hearthwoodWorld.companions.animals().find((a) => a.key === key), one.key);
+      console.log(`  ${now.name} answering a pet: ${now.activity}, held ${now.held.toFixed(2)} s, ${Math.hypot(now.x - stand.x, now.z - stand.z).toFixed(2)} m from Elliott`);
+      const side = { x: spot.x + Math.cos(heading) * 2.1, z: spot.z - Math.sin(heading) * 2.1 };
+      await capture(page, `companions-pet-${one.species}`, { hour: 10.5, walker: stand, free: { x: side.x - Math.sin(heading) * 0.6, y: now.y + 0.9, z: side.z - Math.cos(heading) * 0.6, lookX: spot.x, lookY: now.y + 0.3, lookZ: spot.z }, keepMotion: true });
+      await capture(page, `companions-pet-${one.species}-fp`, { hour: 10.5, pov: "first", walker: stand, look: { yaw: heading, pitch: -0.72 }, keepMotion: true, chrome: true });
+    }
+  }
+
+  if (want("companions-row")) {
+    await page.evaluate(() => window.__hearthwoodWorld.companions.setOpen(true));
+    await capture(page, "companions-row-desktop", { hour: 10.5, walker: atCamp, orbit: facingCamp, chrome: true });
+    await page.evaluate(() => window.__hearthwoodWorld.companions.setOpen(false));
+  }
+}
+if (wantAny("companions")) await companionShots(desktop, false);
+if (want("companions-naming")) {
+  const page = await openWorld(PHONE_PORTRAIT);
+  const { width, height } = PHONE_PORTRAIT.viewport;
+  await page.touchscreen.tap(width * 0.8, height * 0.4);
+  await companionShots(page, true);
+  await page.context().close();
+}
 
 await browser.close();

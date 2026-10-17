@@ -29,7 +29,7 @@ type Mode = "field" | "lineup";
 
 const FIELD_SIZE = 13;
 const LINEUP_SIZE = 5;
-const CAT_ACTIVITIES: readonly CatActivity[] = ["stand", "walk", "sit", "loaf"];
+const CAT_ACTIVITIES: readonly CatActivity[] = ["stand", "walk", "run", "sit", "loaf"];
 const DOG_ACTIVITIES: readonly DogActivity[] = ["stand", "walk", "trot", "run", "sit", "lie"];
 
 function catActivity(cat: Cat): CatActivity {
@@ -415,7 +415,7 @@ export function AnimalPreview() {
         <Lights />
         <Meadow />
         {chosen ? (
-          <Body key={`${chosen.kind}-${focus}`} placed={chosen} clock={clock} activity={activity} greeting={greeting} speed={chosen.kind === "cat" ? 0.45 : { walk: 0.9, trot: 1.8, run: 3.6 }[activity] ?? 0.9} />
+          <Body key={`${chosen.kind}-${focus}`} placed={chosen} clock={clock} activity={activity} greeting={greeting} speed={chosen.kind === "cat" ? (activity === "run" ? 3 : 0.45) : { walk: 0.9, trot: 1.8, run: 3.6 }[activity] ?? 0.9} />
         ) : mode === "field" ? (
           <Field
             field={animals}
