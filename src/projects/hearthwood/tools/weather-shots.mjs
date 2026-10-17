@@ -112,11 +112,14 @@ for (const weather of WEATHERS) {
           if (setup.walker) world.placeWalker(setup.walker.x, setup.walker.z, setup.walker.heading);
           if (setup.orbit) world.setOrbit(setup.orbit);
           if (setup.look) world.setLook(setup.look);
-          // The trees and sun views look towards the sun (or the moon), wherever it is; the sun view up at it too.
+          // The trees and sun views look towards the sun (or the moon), wherever it is: through the trees from camp, and from the high spot.
           if (viewName === "trees" || viewName === "sun") {
             const sun = world.sky().key.direction;
-            world.setLook({ yaw: Math.atan2(-sun.x, -sun.z) });
-            if (viewName === "sun") world.setLook({ pitch: Math.min(0.9, Math.max(0.15, Math.asin(sun.y) + 0.1)) });
+            const at = world.walker();
+            const eye = { x: at.x, y: at.y + 1.6, z: at.z };
+            const rise = viewName === "sun" ? Math.max(sun.y, 0.12) : Math.max(sun.y, 0.05);
+            const flat = Math.hypot(sun.x, sun.z) || 1;
+            world.setFreeCamera({ ...eye, lookX: eye.x + (sun.x / flat) * 100, lookY: eye.y + rise * 100, lookZ: eye.z + (sun.z / flat) * 100 });
           }
         },
         { weather, hour, motion: MOTION, setup, viewName },

@@ -44,6 +44,11 @@ export const ATMOSPHERE_AND_WEATHER_FEATURES = featureGroup("atmosphere-and-weat
     description: "Rare flashes in a storm light up the land and the clouds.",
   },
   {
+    id: "sunShafts",
+    name: "Sun shafts",
+    description: "Cheap god rays: the open sky round the sun smeared towards it across the screen, so trees and ridges against a low sun cast streaks through its glow. A pass over the finished frame.",
+  },
+  {
     id: "crepuscularRays",
     name: "Crepuscular rays",
     description: "Beams of sunlight fan out from behind the clouds through the air. A pass over the finished frame, marched through the clouds' shadows.",
