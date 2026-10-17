@@ -1,8 +1,16 @@
 # Hearthwood
 
-A cozy 3D game about a wandering hedge-witch and the cats they meet. You live outdoors in a valley of forest and mountain made fresh from a seed: by day you walk and forage, by evening you cook and brew at your campfire, and the stray cats of the woods come round one by one, each won over by the dish it loves. When the valley has given what it has, you pack up camp and walk over the ridge into a new one.
+A cozy 3D game about a wandering hedge-witch, the cats and dogs they befriend, and the people they help along the way. You walk an endless northern land of forest and mountain made fresh from a seed: by day you wander and forage, meet travellers and help them with your magic, by evening you cook and brew at your campfire, and the animals you have won over follow you wherever you go.
 
 It lives at Games → 3D Games → Hearthwood, in Three.js through `@react-three/fiber`, like the site's other 3D games. The concept and the platform are decided; everything below them is the proposed design, open to the owner's review, with the undecided parts under Open questions.
+
+## Who it's for
+
+Hearthwood is a gift from the owner to their partner, **Elliott**, who uses **they/them** pronouns: always write and speak of Elliott, and of the witch, as they. The witch is **Elliott the Witch**: the player plays as Elliott.
+
+Everything in the game is chosen for what Elliott loves: cats and dogs, and befriending animals that then follow them; nature, forests and mountains; hiking; cooking and campfires; magic, witchy and pagan things; and cozy, relaxing, chill games. Elliott is very social: they like talking to people and helping them, so the land has people in it with stories to tell and help to ask for. And Elliott loves a good mystery, with a soft spot for Sherlock Holmes, so some of those stories are mysteries to solve.
+
+Elliott plays on a Pixel 8 Pro (touch), on a laptop (keyboard and mouse) and on a laptop on the TV with an Xbox controller.
 
 ## Pillars
 
@@ -109,6 +117,39 @@ The heart of the game. The woods hold stray **cats and dogs**, every one generat
 - **Motion**: standing, a walk (a lateral sequence like a cat's), a trot in diagonal pairs, a bounding gallop with the spine flexing, sitting, and lying down like a sphinx with the forearms out in front; a happy greeting puts the tail up and going, wiggles the hips with it, softens the ears back and opens a grin. The tail's carriage follows its kind and the dog's mood (a curl only loosens when shy; other tails tuck or rise), a curled tail wags stiffly from its root and a straight one whips, and at speed it streams out behind. Idles: panting, ear flicks, the tilted head, a look round, and the nose down to the ground, snuffling. A playful dog bounces, wags and looks about more; a calm one lies with its eyes half shut.
 - **Budget**: about a cat's: a dog is under 20,000 triangles and two draws, with one compiled coat shader for every dog; meshing a sculpture takes about half a second on a desktop.
 
+## The animals of the forest
+
+Elliott loves the animals of the forest, so the land is full of them: the animals a Nordic forest really holds, each where and when it really lives. **Nothing is hunted or harmed, and no animal is a threat**: the bear and the lynx are wonders to come across, not dangers.
+
+- **Companions that follow**, beside the cats and dogs: **a familiar**, a raven or an owl, who rides on Elliott's shoulder or pack, flies ahead, perches near and can spot clues from the air, and is met as a story moment rather than as a stray; **a fox**, shy and clever, won over with more patience than a cat; and **a hedgehog**, who trundles behind and curls up in the basket on long walks.
+- **Forest friends who stay home but know Elliott**: befriended, they come out to greet Elliott instead of fleeing. Red squirrels darting up trunks; mountain hares, brown in summer and white in winter; roe deer in the meadows at dawn and dusk; reindeer on the fells, sometimes with their herder; a moose wading in a lake; a badger at dusk; beavers with their lodge and dam on a stream; otters playing in a river; a lynx, rare and special; and a brown bear, seen rarely and from a distance, asleep through the winter.
+- **Life that makes the forest alive**: birds (a woodpecker drumming, jays, waxwings in winter berry trees, a capercaillie in the pines, ptarmigan that turn white in winter, swans on the lakes, cranes calling overhead in spring and autumn, songbirds), and small things (butterflies and bumblebees in summer meadows, dragonflies over water, frogs and a witch's toad by the ponds, fish rising at dusk, fireflies at night).
+- **The seasons move them**: coats turn white, the bear sleeps, the cranes come and go, the deer keep to dawn and dusk. The calendar changes the animals as it changes the land.
+- **One animal underneath, two bodies**: the four-legged animal the cats and dogs share becomes the fox, the lynx, the deer, reindeer and moose (long legs, antlers), the hare, the badger, the hedgehog and the squirrel, each a variant with its own proportions, gait and coat. Birds get one winged body of their own, which covers the familiar, the crane, the ptarmigan and the songbirds. Insects and fish are simple effects.
+- **First wave**: the fox and the hedgehog as companions, the familiar, squirrels, hares and roe deer as forest friends, and songbirds and butterflies for life; the rest follow.
+
+## People and their stories
+
+The land has people in it, met along the way: travellers on the road, a shepherd on the fell, a beekeeper among the hives, a fisher at a lake, a reindeer herder, a sauna keeper by the shore, an old cottager, a lost hiker. Each has **a story to tell**, and some are **in need of help**, and Elliott the Witch is glad to give it, with magic and with what they know and carry.
+
+- **Help is gentle and kind:** mend a broken bridge with a charm, brew a salve for a sick goat, cook a warm meal for a cold traveller, light a beacon that has gone out, help a lost dog find its way home, find a dropped ring with a companion's nose, make an orchard bloom again.
+- **Magic is Elliott's to use**: a growing set of gentle spells (mend, bloom, light, warm, calm, find) alongside the brews of the hearth. New spells, recipes and charms come from the people helped, as gifts and as things they teach.
+- **Talking is warm and short.** A conversation is a few lines, the choices are of tone, never of failure, and a person remembers Elliott and what was done for them, so meeting them again is meeting a friend.
+- **Rewards are friendship, not currency:** a story, a recipe, a spell, a seedling, a place to stay, a cat or dog who needs a home. There is nothing to grind.
+- **Who writes them:** Claude writes the people and their stories as data, a growing library, the way it designs other games' content; where a person stands and how they look come from the world's generation, so the land keeps meeting Elliott with someone new. (Writing conversation live with a language model while playing is possible but needs a server and costs per conversation; it is not planned.)
+- **How they look:** storybook figures, rounded and simple, with hats, hoods, scarves and aprons that say who they are, and faces of a few simple shapes (dot eyes, a little blush) that read well even face to face in first person, the way simple faces work in A Short Hike. In conversation the camera eases to frame the person and the words appear in a storybook panel.
+
+## Mysteries
+
+Some of the stories people tell are **mysteries**, and Elliott the Witch solves them the way Holmes would: by noticing, gathering and reasoning, with a witch's tools besides. They are cozy mysteries: nobody is hurt and nothing is grim. Who has been taking the beekeeper's honey? Why does the old mill's bell ring on windless nights? Where did the ferryman go, and why is his boat on the wrong shore? What are the lights moving on the fell?
+
+- **Clues are found in the world**, not handed over: tracks in mud or snow, a tuft of fur on a fence, a dropped button, a door left open, a smell, what the weather and the season say, and what people tell, which is not always the whole truth.
+- **Companions help:** a dog follows a scent trail, a cat slips into the places Elliott can't and comes back with something, and either may notice what Elliott walked past.
+- **Witchcraft helps without solving it:** a scrying bowl shows a glimpse of the past at a place, a pendulum leans towards what is hidden, a tarot draw offers a hint to think about. Magic opens a way to look; the reasoning stays Elliott's.
+- **The casebook** is where the deducing happens, in the spirit of Holmes: every clue goes into it, and Elliott connects clues into deductions ("the tracks are a badger's" plus "the honey jars were opened, not broken" says no badger did it). A deduction is checked when it is made, so the player always knows when they have it right; a wrong guess just isn't accepted, never punished.
+- **The reveal** is a small scene with the people involved, where Elliott lays out how they worked it out, and it ends kindly: the honey thief was a lonely child feeding a fox cub, the bell was a jackdaw's nest. Solving a mystery is a friendship made, and often a home found for someone, animal or person.
+- **Written like the stories**: Claude writes each mystery as data (its truth, its clues and where they lie, the deductions that join them), placed in the world by its generation, and every mystery is checked for being solvable from its clues alone. A nod to Holmes here and there is welcome: a deerstalker to find, a fiddle by a cottage fire, a dog called Watson.
+
 ## Foraging and cooking
 
 Ingredients are found, not bought: herbs, mushrooms, berries, roots, nuts, wild greens, river fish, eggs from a farm a valley might hold. What grows changes with the season.
@@ -208,11 +249,9 @@ The walks between valleys, brewing, seasons, festivals and the night sky follow,
 
 ## Open questions
 
-- **Who is the player?** A fixed witch, or one the player designs?
 - **Companions on screen:** how many can follow at once before it stops being cozy, where the rest wait, and does camp ever outgrow its clearing?
-- **Other animals:** cats and dogs first; foxes, a hedgehog, a raven familiar or others could follow later as variants of the same animal.
+- **The familiar:** a raven or an owl first, and does Elliott choose?
 - **Do valleys ever repeat?** A valley left behind could be revisited by its seed, or every walk could lead somewhere new.
-- **Other people:** a valley could hold a few gentle characters (a beekeeper, a travelling tinker), or the game could be the witch and the cats alone. Since faces are the art's weak point, characters would have to work at a distance and through silhouette.
 - **Music:** generated, composed, or ambient sound only.
 
 ## Code map
