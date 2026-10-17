@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { SquirrelCoatLook } from "../../squirrels/coat-look";
 import { EAR, EAR_SHAPE, NOSE, SKULL, TAIL_ROOT } from "../../squirrels/rig";
 import { coatMaterial, glslEar, glslVec, type CoatShader } from "../animals/coat-material";
@@ -76,7 +77,7 @@ vec3 faceColour(vec3 p, vec3 coat, inout float glint) {
 `,
 };
 
-export function squirrelCoatMaterial(look: SquirrelCoatLook, season: CoatSeasonUniforms) {
+export function squirrelCoatMaterial(look: SquirrelCoatLook, season: CoatSeasonUniforms, atmosphere: AtmosphereUniforms) {
   const c = look.colours;
   const colour = (token: string) => ({ value: themeColor(token) });
   const uniforms = {
@@ -93,5 +94,5 @@ export function squirrelCoatMaterial(look: SquirrelCoatLook, season: CoatSeasonU
     uWinter: season.uWinter,
     uMarks: { value: new THREE.Vector3(...look.marks) },
   };
-  return coatMaterial(SQUIRREL_COAT, uniforms, 0.3);
+  return coatMaterial(SQUIRREL_COAT, uniforms, 0.3, atmosphere);
 }

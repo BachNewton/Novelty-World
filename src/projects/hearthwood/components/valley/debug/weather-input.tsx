@@ -1,41 +1,56 @@
 "use client";
 
 import { useState } from "react";
-import { weatherInput, type WeatherInput } from "../../../art/shadows/weather-input";
+import { holdWeatherInput, weatherOverrides, type WeatherOverrides } from "../../../art/shadows/weather-input";
 import type { DebugSection } from "./section";
 
-const SLIDERS: readonly { key: keyof WeatherInput; label: string; max: number }[] = [
+const SLIDERS: readonly { key: keyof WeatherOverrides; label: string; max: number }[] = [
   { key: "clouds", label: "Clouds", max: 1 },
   { key: "wind", label: "Wind", max: 1 },
   { key: "windToward", label: "Wind toward", max: Math.PI * 2 },
 ];
 
-/** The weather the shadows and plants answer to, on sliders, until the weather has an engine to set it. */
+/** The clouds and wind the shadows and plants answer to: the weather's own, or each held on a slider for testing. */
 function WeatherSliders() {
-  const input = weatherInput();
-  const [values, setValues] = useState<WeatherInput>(() => ({ ...input }));
+  const [values, setValues] = useState<WeatherOverrides>(() => ({ ...weatherOverrides() }));
+  const set = (key: keyof WeatherOverrides, value: number | null) => {
+    setValues(holdWeatherInput(key, value));
+  };
   return (
     <>
-      {SLIDERS.map(({ key, label, max }) => (
-        <label key={key} className="flex flex-col gap-1">
-          <span className="flex justify-between">
-            <span>{label}</span>
-            <span>{values[key].toFixed(2)}</span>
-          </span>
-          <input
-            type="range"
-            aria-label={label}
-            min={0}
-            max={max}
-            step={0.01}
-            value={values[key]}
-            onChange={(e) => {
-              input[key] = Number(e.target.value);
-              setValues({ ...input });
-            }}
-          />
-        </label>
-      ))}
+      {SLIDERS.map(({ key, label, max }) => {
+        const held = values[key];
+        return (
+          <label key={key} className="flex flex-col gap-1">
+            <span className="flex items-center justify-between gap-2">
+              <span>{label}</span>
+              <span className="flex items-center gap-1 text-xs">
+                <input
+                  type="checkbox"
+                  aria-label={`Hold ${label.toLowerCase()}`}
+                  checked={held !== null}
+                  onChange={(e) => {
+                    set(key, e.target.checked ? max / 2 : null);
+                  }}
+                />
+                {held === null ? "weather" : held.toFixed(2)}
+              </span>
+            </span>
+            <input
+              type="range"
+              aria-label={label}
+              min={0}
+              max={max}
+              step={0.01}
+              disabled={held === null}
+              value={held ?? 0}
+              onChange={(e) => {
+                set(key, Number(e.target.value));
+              }}
+            />
+          </label>
+        );
+      })}
     </>
   );
 }

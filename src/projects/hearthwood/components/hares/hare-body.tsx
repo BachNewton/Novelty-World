@@ -23,17 +23,18 @@ export interface HareBodyProps extends AnimalProps<HareActivity> {
 
 const moves = (activity: HareActivity) => HARE_GAITS.includes(activity);
 
-export function HareBody({ hare, coatSeason, activity = "stand", ...props }: HareBodyProps) {
+export function HareBody({ hare, atmosphere, coatSeason, activity = "stand", ...props }: HareBodyProps) {
   const geometry = useAnimalGeometry({ species: "hare" });
   const rig = useMemo(() => rigOf(hare.build), [hare.build]);
   const seed = useMemo(() => motionSeed(hare.seed), [hare.seed]);
   const white = coatSeason?.white;
-  const coat = useCallback(() => hareCoatMaterial(hareCoatLook(hare.coat), coatSeasonFor(white === undefined ? undefined : { winter: 0, white })), [hare.coat, white]);
+  const coat = useCallback(() => hareCoatMaterial(hareCoatLook(hare.coat), coatSeasonFor(white === undefined ? undefined : { winter: 0, white }), atmosphere), [hare.coat, white, atmosphere]);
   const pose = useCallback((clock: MotionClock<HareActivity>) => harePose({ ...clock, personality: hare.personality, rig, seed }), [hare.personality, rig, seed]);
   if (!geometry) return null;
   return (
     <AnimalBody
       {...props}
+      atmosphere={atmosphere}
       activity={activity}
       geometry={geometry}
       coat={coat}

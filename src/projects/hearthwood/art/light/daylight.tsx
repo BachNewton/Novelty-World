@@ -42,7 +42,8 @@ import { toneMappingFor } from "./tone-mapping";
 
 export const DAYLIGHT_PRIORITY = -3;
 
-const HAZE_DENSITY = 0.0024;
+/** The plain haze's density at sea level on an ordinary day, per metre: thin enough that a clear day sees tens of kilometres, as the fog's clear air does. */
+const HAZE_DENSITY = 6e-5;
 
 /** The moment of the day the light is drawn for: the scene keeps it, the light only reads it. */
 export interface DayState {

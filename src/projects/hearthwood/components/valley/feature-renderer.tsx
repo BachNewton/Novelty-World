@@ -10,6 +10,7 @@ import { FEATURE_ART } from "../../art/features";
 import type { FeatureFrame } from "../../art/feature-art";
 import { FrameRenderer, type FrameCosts } from "../../art/passes";
 import type { SkyUniforms } from "../../art/sky/sky";
+import { calmWeather, type WeatherNow } from "../../art/weather/now";
 
 /*
  * The scene's render loop, in one component: it takes the frame over from
@@ -22,12 +23,16 @@ import type { SkyUniforms } from "../../art/sky/sky";
 export const RENDER_PRIORITY = 1;
 export const AFTER_RENDER_PRIORITY = 2;
 
+/** Where no weather is worked out (the art gallery), the features draw a still, fair day. */
+const CALM = calmWeather();
+
 export function FeatureRenderer({
   day,
   atmosphere,
   sky,
   costs,
   player = null,
+  weather = CALM,
 }: {
   day: DayState;
   atmosphere: AtmosphereUniforms;
@@ -35,12 +40,13 @@ export function FeatureRenderer({
   costs: FrameCosts;
   /** Where Elliott stands, read every frame. */
   player?: FeatureFrame["player"];
+  weather?: WeatherNow;
 }) {
   const gl = useThree((s) => s.gl);
   const renderer = useMemo(() => new FrameRenderer(gl, liveFeatures(), FEATURE_ART, new GpuTimer(gl)), [gl]);
   useEffect(() => () => renderer.dispose(), [renderer]);
   useFrame(({ scene, camera }, delta) => {
-    renderer.render({ gl, scene, camera, day, atmosphere, sky, delta, player }, costs);
+    renderer.render({ gl, scene, camera, day, atmosphere, sky, weather, delta, player }, costs);
   }, RENDER_PRIORITY);
   return null;
 }

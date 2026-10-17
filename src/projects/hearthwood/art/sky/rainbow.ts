@@ -15,7 +15,7 @@ import { SKY_INPUTS, type SkyInputs } from "./sky-inputs";
  * past it, so it is drawn on the land beyond a little way off as well as on
  * the sky.
  *
- * The rain comes from `SKY_INPUTS` until the engine's weather drives it.
+ * The rain and the sun out come from `SKY_INPUTS`, which the engine's weather drives.
  */
 
 /** How strong the bow is: the rain, the sun out, and the sun low enough to put the bow above the horizon. */

@@ -23,16 +23,17 @@ export interface CatBodyProps extends AnimalProps<Activity> {
 
 const walks = (activity: Activity) => CAT_GAITS.includes(activity);
 
-export function CatBody({ cat, activity = "stand", ...props }: CatBodyProps) {
+export function CatBody({ cat, activity = "stand", atmosphere, ...props }: CatBodyProps) {
   const geometry = useAnimalGeometry({ species: "cat", longHair: cat.coat.longHair });
   const rig = useMemo(() => rigOf(cat.build), [cat.build]);
   const seed = useMemo(() => motionSeed(cat.seed), [cat.seed]);
-  const coat = useCallback(() => catCoatMaterial(coatLook(cat.coat)), [cat.coat]);
+  const coat = useCallback(() => catCoatMaterial(coatLook(cat.coat), atmosphere), [cat.coat, atmosphere]);
   const pose = useCallback((clock: MotionClock<Activity>) => catPose({ ...clock, personality: cat.personality, rig, seed }), [cat.personality, rig, seed]);
   if (!geometry) return null;
   return (
     <AnimalBody
       {...props}
+      atmosphere={atmosphere}
       activity={activity}
       geometry={geometry}
       coat={coat}

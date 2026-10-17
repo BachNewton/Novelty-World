@@ -2,6 +2,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { generateCat } from "../../cats/cat";
 import { coatName } from "../../cats/genetics";
 import type { Activity as CatActivity } from "../../cats/motion";
@@ -34,6 +35,7 @@ import { HareBody } from "../hares/hare-body";
 /** How the preview asks for one animal to be drawn. */
 export interface BodyAsk {
   activity: string;
+  atmosphere: AtmosphereUniforms;
   greeting: boolean;
   clock: () => number;
   speed?: number;
@@ -217,7 +219,7 @@ export function shownSquirrel(seed: string, winter = 0): Shown {
           <PreviewTrunk radius={0.09} />
           {/* Stood on the bark: its front turned up the trunk, its belly to it. */}
           <group position={[0, 0.14, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <SquirrelBody squirrel={squirrel} coatSeason={{ winter, white: 0 }} activity={ask.activity} greeting={ask.greeting} clock={ask.clock} speed={ask.speed} />
+            <SquirrelBody squirrel={squirrel} coatSeason={{ winter, white: 0 }} activity={ask.activity} greeting={ask.greeting} clock={ask.clock} speed={ask.speed} atmosphere={ask.atmosphere} />
           </group>
         </group>
       ) : (

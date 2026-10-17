@@ -21,16 +21,17 @@ export interface FoxBodyProps extends AnimalProps<FoxActivity> {
 
 const moves = (activity: FoxActivity) => FOX_GAITS.includes(activity);
 
-export function FoxBody({ fox, activity = "stand", ...props }: FoxBodyProps) {
+export function FoxBody({ fox, atmosphere, activity = "stand", ...props }: FoxBodyProps) {
   const geometry = useAnimalGeometry({ species: "fox" });
   const rig = useMemo(() => rigOf(fox.build), [fox.build]);
   const seed = useMemo(() => motionSeed(fox.seed), [fox.seed]);
-  const coat = useCallback(() => foxCoatMaterial(foxCoatLook(fox.coat)), [fox.coat]);
+  const coat = useCallback(() => foxCoatMaterial(foxCoatLook(fox.coat), atmosphere), [fox.coat, atmosphere]);
   const pose = useCallback((clock: MotionClock<FoxActivity>) => foxPose({ ...clock, personality: fox.personality, rig, seed }), [fox.personality, rig, seed]);
   if (!geometry) return null;
   return (
     <AnimalBody
       {...props}
+      atmosphere={atmosphere}
       activity={activity}
       geometry={geometry}
       coat={coat}

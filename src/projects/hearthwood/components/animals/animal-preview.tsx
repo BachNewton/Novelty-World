@@ -8,6 +8,15 @@ import * as THREE from "three";
 import { Armchair, ArrowUp, Eye, TreePine, ArrowLeft, BedDouble, Dices, Footprints, Hand, PawPrint, PersonStanding, Rabbit, RotateCw, Rows3, Squirrel, Wind, Zap } from "lucide-react";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { EVERY_SPECIES, shownCat, shownDog, type Shown } from "./preview-species";
+import { makeAtmosphere } from "../../art/atmosphere";
+import { Daylight } from "../../art/light/daylight";
+import { readPalette } from "../../art/palette";
+import { FrameCosts } from "../../art/passes";
+import { shadeLambert } from "../../art/shading";
+import { makeSkyUniforms, Sky } from "../../art/sky/sky";
+import { parseDate } from "../../engine/calendar";
+import { makeClock } from "../valley/clock";
+import { FeatureRenderer } from "../valley/feature-renderer";
 
 // The animals preview (`?cats`): a meadow of generated cats and dogs to judge
 // their art by, and every other species beside them. Reroll for a new field;
@@ -116,65 +125,50 @@ function previewClock(): PreviewClock {
   return clock;
 }
 
-function Lights() {
-  const colours = useMemo(
-    () => ({
-      key: themeColor("--color-hearthwood-preview-key"),
-      fill: themeColor("--color-hearthwood-preview-fill"),
-      sky: themeColor("--color-hearthwood-preview-ambient-sky"),
-      ground: themeColor("--color-hearthwood-preview-ambient-ground"),
-    }),
-    [],
+/**
+ * The preview's stage, lit by the game's own day as the gallery is: its light and sky held at an autumn-equinox
+ * afternoon, its features' frame (the coat is a shared material, drawn through it), and a meadow underfoot.
+ */
+function PreviewStage() {
+  const stage = useMemo(() => {
+    const palette = readPalette();
+    const ground = (token: string) => shadeLambert(new THREE.MeshLambertMaterial({ color: themeColor(token) }), "ground", PREVIEW_AIR);
+    return {
+      palette,
+      sky: makeSkyUniforms(palette),
+      clock: makeClock(15.5, parseDate("mabon")),
+      focus: { x: 0, y: 0, z: 0 },
+      air: { thickness: 0.25 },
+      costs: new FrameCosts(),
+      meadow: ground("--color-hearthwood-preview-meadow"),
+      edge: ground("--color-hearthwood-preview-meadow-edge"),
+      inner: new THREE.CircleGeometry(5, 64).rotateX(-Math.PI / 2),
+      outer: new THREE.CircleGeometry(60, 64).rotateX(-Math.PI / 2),
+    };
+  }, []);
+  useEffect(
+    () => () => {
+      for (const a of [stage.meadow, stage.edge, stage.inner, stage.outer]) a.dispose();
+    },
+    [stage],
   );
   return (
     <>
-      <hemisphereLight args={[colours.sky, colours.ground, 1.5]} />
-      <directionalLight color={colours.key} intensity={2.4} position={[2.5, 4, 3]} />
-      <directionalLight color={colours.fill} intensity={0.7} position={[-3, 1.5, -2]} />
+      <Daylight day={stage.clock} palette={stage.palette} atmosphere={PREVIEW_AIR} sky={stage.sky} focus={stage.focus} air={stage.air} />
+      <Sky atmosphere={PREVIEW_AIR} sky={stage.sky} />
+      <FeatureRenderer day={stage.clock} atmosphere={PREVIEW_AIR} sky={stage.sky} costs={stage.costs} />
+      <mesh geometry={stage.inner} material={stage.meadow} receiveShadow position={[0, 0.005, 0]} />
+      <mesh geometry={stage.outer} material={stage.edge} receiveShadow />
     </>
   );
 }
 
-function Meadow() {
-  const material = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        uniforms: {
-          uMeadow: { value: themeColor("--color-hearthwood-preview-meadow") },
-          uEdge: { value: themeColor("--color-hearthwood-preview-meadow-edge") },
-          uSky: { value: themeColor("--color-hearthwood-preview-sky") },
-        },
-        vertexShader: /* glsl */ `
-          varying vec2 vXZ;
-          void main() {
-            vXZ = position.xy;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }`,
-        fragmentShader: /* glsl */ `
-          uniform vec3 uMeadow;
-          uniform vec3 uEdge;
-          uniform vec3 uSky;
-          varying vec2 vXZ;
-          void main() {
-            float r = length(vXZ);
-            vec3 grass = mix(uMeadow, uEdge, smoothstep(2.5, 5.5, r));
-            gl_FragColor = vec4(mix(grass, uSky, smoothstep(5.5, 12.0, r)), 1.0);
-            #include <colorspace_fragment>
-          }`,
-      }),
-    [],
-  );
-  useEffect(() => () => material.dispose(), [material]);
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} material={material}>
-      <circleGeometry args={[14, 64]} />
-    </mesh>
-  );
-}
+/** The air the animals are drawn in, which the game's day moves. */
+const PREVIEW_AIR = makeAtmosphere();
 
 /** One animal of any species, drawn where it is told. */
 function Body({ placed, clock, activity, greeting, speed, position, rotation }: { placed: Placed; clock: PreviewClock; activity?: string; greeting: boolean; speed?: number; position?: [number, number, number]; rotation?: number }) {
-  return placed.shown.body({ activity: activity ?? placed.activity, greeting, clock: clock.now, speed, position, rotation });
+  return placed.shown.body({ activity: activity ?? placed.activity, greeting, clock: clock.now, speed, position, rotation, atmosphere: PREVIEW_AIR });
 }
 
 /** An animal going round a circle at its own pace. */
@@ -342,14 +336,12 @@ export function AnimalPreview() {
     };
   }, [clock, animals, chosen, size, seed]);
 
-  const sky = useMemo(() => themeColor("--color-hearthwood-preview-sky"), []);
   const activities = chosen ? chosen.shown.activities : [];
 
   return (
     <div className="relative h-dvh w-full" data-testid="hearthwood-animals">
-      <Canvas dpr={[1, 2]} camera={{ fov: 35, near: 0.05, far: 80 }} gl={{ toneMapping: THREE.NeutralToneMapping }} onCreated={({ scene }) => (scene.background = sky)}>
-        <Lights />
-        <Meadow />
+      <Canvas dpr={[1, 2]} camera={{ fov: 35, near: 0.05, far: 4000 }} gl={{ antialias: true, reversedDepthBuffer: true }}>
+        <PreviewStage />
         {chosen ? (
           <Body key={`${chosen.shown.species}-${focus}`} placed={chosen} clock={clock} activity={activity} greeting={greeting} speed={chosen.shown.speed(activity)} />
         ) : mode === "field" ? (

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { HareCoatLook } from "../../hares/coat-look";
 import { EAR, EAR_SHAPE, NOSE, SKULL, TAIL_ROOT } from "../../hares/rig";
 import { coatMaterial, glslEar, glslVec, type CoatShader } from "../animals/coat-material";
@@ -76,7 +77,7 @@ vec3 faceColour(vec3 p, vec3 coat, inout float glint) {
 `,
 };
 
-export function hareCoatMaterial(look: HareCoatLook, season: CoatSeasonUniforms) {
+export function hareCoatMaterial(look: HareCoatLook, season: CoatSeasonUniforms, atmosphere: AtmosphereUniforms) {
   const c = look.colours;
   const colour = (token: string) => ({ value: themeColor(token) });
   const uniforms = {
@@ -93,5 +94,5 @@ export function hareCoatMaterial(look: HareCoatLook, season: CoatSeasonUniforms)
     uWhite: season.uWhite,
     uMarks: { value: new THREE.Vector3(...look.marks) },
   };
-  return coatMaterial(HARE_COAT, uniforms, 0.3);
+  return coatMaterial(HARE_COAT, uniforms, 0.3, atmosphere);
 }

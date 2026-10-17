@@ -52,7 +52,7 @@ const PACES: Record<Species, { wander: (busy: number, size: number) => number; n
 const HOMESICK = 1.9;
 /** Running at a shy stray startles it back this much further, in metres. */
 const STARTLE = 2.5;
-/** Held out, a cat's favourite treat tempts it this much nearer than it would otherwise come. */
+/** Held out, an animal's favourite dish tempts it this much nearer than it would otherwise come. */
 const TEMPTED = 0.45;
 
 export function strayMind(): StrayMind {
@@ -140,7 +140,7 @@ function watching(nature: Nature, temper: Temper, d: number, keep: number): "sta
 /**
  * One step of a stray: what it is doing, and its body moved by it. Patience
  * and the bond's warmth are befriending's (see `bePatient`). `tempted` is
- * whether Elliott holds out its favourite treat, which draws it nearer.
+ * whether Elliott holds out its favourite dish, which draws it nearer.
  */
 export function stepStray(
   body: Body,

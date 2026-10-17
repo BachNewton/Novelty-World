@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { type Camera, type Group, type Object3D, Vector3 } from "three";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { World } from "../../engine/world";
 import {
   animalGround,
@@ -21,7 +22,6 @@ import { stepStray, type Elliott } from "../../gameplay/roaming";
 import { hopAt, offTheGround, stepRide, type Ride } from "../../gameplay/riding";
 import { WALK_SPEED } from "../../input/walk-controls";
 import type { WalkState } from "../../input/use-walk-input";
-import { treatInHand } from "../../gameplay/befriending";
 import { CatBody } from "../cats/cat-body";
 import { DogBody } from "../dogs/dog-body";
 import { FoxBody } from "../foxes/fox-body";
@@ -33,6 +33,7 @@ import {
   followingAnimals,
   forgetMarks,
   hasOffer,
+  inHand,
   isResting,
   MARK_LIFE,
   offerableAnimal,
@@ -208,10 +209,7 @@ export function stepAnimals(
     calm: leading.speed <= WALK_SPEED * 1.08,
     aloft,
   };
-  const hand = treatInHand(
-    companionship.foraging.foraged.basket,
-    companionship.lastLiked,
-  );
+  const hand = inHand(companionship);
   const camp = world.camp;
   const following = followingAnimals(companionship);
   const resting = [...companionship.animals.values()].filter((a) =>
@@ -274,7 +272,7 @@ export function stepAnimals(
         );
       } else if (animal.stray) {
         warmByPatience(companionship, animal, d, elliott.calm && !aloft, dt);
-        const tempted = hand !== null && hand === animal.favourite;
+        const tempted = hand !== null && hand === animal.tastes.favourite;
         stepStray(
           animal.body,
           animal.stray.mind,
@@ -372,7 +370,7 @@ function rideAlong(animal: Animal, ride: Ride, leader: Leader, distance: number,
   return offTheGround(next);
 }
 
-/** The animal Elliott could pet or treat now, and how strongly it is offered, before forage has its say. */
+/** The animal Elliott could pet or treat now, and how strongly it is offered, if more strongly than the fire, before forage has its say. */
 function findCandidate(
   companionship: Companionship,
   viewer: Viewer | null,
@@ -389,7 +387,13 @@ function findCandidate(
       !(a.ride && offTheGround(a.ride)) &&
       hasOffer(companionship, a),
   );
-  const best = bestOffered(near, viewer, offerableAnimal);
+  // The fire, offered first, is the animals' rival as forage is.
+  const best = bestOffered(
+    near,
+    viewer,
+    offerableAnimal,
+    companionship.hearth.candidate ?? Infinity,
+  );
   companionship.candidate = best && {
     key: best.offered.key,
     score: best.score,
@@ -397,26 +401,28 @@ function findCandidate(
 }
 
 /** An animal's body for its kind, driven from the scene. */
-function LookBody({ look, clock }: { look: AnimalLook; clock: () => number }) {
+function LookBody({ look, clock, atmosphere }: { look: AnimalLook; clock: () => number; atmosphere: AtmosphereUniforms }) {
   switch (look.species) {
     case "cat":
-      return <CatBody cat={look.cat} activity={look.drive.current.activity} drive={look.drive} clock={clock} />;
+      return <CatBody cat={look.cat} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
     case "dog":
-      return <DogBody dog={look.dog} activity={look.drive.current.activity} drive={look.drive} clock={clock} />;
+      return <DogBody dog={look.dog} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
     case "fox":
-      return <FoxBody fox={look.fox} activity={look.drive.current.activity} drive={look.drive} clock={clock} />;
+      return <FoxBody fox={look.fox} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
     case "hedgehog":
-      return <HedgehogBody hedgehog={look.hedgehog} activity={look.drive.current.activity} drive={look.drive} clock={clock} />;
+      return <HedgehogBody hedgehog={look.hedgehog} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
   }
 }
 
 function AnimalView({
   animal,
   clock,
+  atmosphere,
   register,
 }: {
   animal: Animal;
   clock: ValleyClock;
+  atmosphere: AtmosphereUniforms;
   register: (key: string, group: Group | null) => void;
 }) {
   const offset = useMemo(
@@ -432,7 +438,7 @@ function AnimalView({
       }}
     >
       <group scale={DRAWN_LARGER}>
-        <LookBody look={look} clock={time} />
+        <LookBody look={look} clock={time} atmosphere={atmosphere} />
       </group>
     </group>
   );
@@ -701,6 +707,7 @@ export function WorldAnimals({
   walker,
   input,
   foraging,
+  atmosphere,
 }: {
   companionship: Companionship;
   world: World;
@@ -708,6 +715,7 @@ export function WorldAnimals({
   walker: Walker;
   input: RefObject<WalkState>;
   foraging: Foraging;
+  atmosphere: AtmosphereUniforms;
 }) {
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
@@ -760,6 +768,7 @@ export function WorldAnimals({
           key={animal.key}
           animal={animal}
           clock={clock}
+          atmosphere={atmosphere}
           register={register}
         />
       ))}

@@ -25,17 +25,18 @@ export interface SquirrelBodyProps extends AnimalProps<SquirrelActivity> {
 
 const moves = (activity: SquirrelActivity) => SQUIRREL_GAITS.includes(activity);
 
-export function SquirrelBody({ squirrel, coatSeason, activity = "stand", ...props }: SquirrelBodyProps) {
+export function SquirrelBody({ squirrel, atmosphere, coatSeason, activity = "stand", ...props }: SquirrelBodyProps) {
   const geometry = useAnimalGeometry({ species: "squirrel" });
   const rig = useMemo(() => rigOf(squirrel.build), [squirrel.build]);
   const seed = useMemo(() => motionSeed(squirrel.seed), [squirrel.seed]);
   const winter = coatSeason?.winter;
-  const coat = useCallback(() => squirrelCoatMaterial(squirrelCoatLook(squirrel.coat), coatSeasonFor(winter === undefined ? undefined : { winter, white: 0 })), [squirrel.coat, winter]);
+  const coat = useCallback(() => squirrelCoatMaterial(squirrelCoatLook(squirrel.coat), coatSeasonFor(winter === undefined ? undefined : { winter, white: 0 }), atmosphere), [squirrel.coat, winter, atmosphere]);
   const pose = useCallback((clock: MotionClock<SquirrelActivity>) => squirrelPose({ ...clock, personality: squirrel.personality, rig, seed }), [squirrel.personality, rig, seed]);
   if (!geometry) return null;
   return (
     <AnimalBody
       {...props}
+      atmosphere={atmosphere}
       activity={activity}
       geometry={geometry}
       coat={coat}

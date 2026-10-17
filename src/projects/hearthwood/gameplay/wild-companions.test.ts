@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowsPet, bePatient, favouriteTreat, firstBond, giveTreat, isWon, keepsOff, petWarmth, TREATS, type Bond, type Temper } from "./befriending";
+import { allowsPet, bePatient, firstBond, giveTreat, isWon, keepsOff, petWarmth, tastesOf, type Bond, type Temper } from "./befriending";
 import { bodyAt, type Nature } from "./behaviour";
 import type { Leader } from "./companions";
 import { hopAt, RIDE, stepRide, walkingRide, type Ride } from "./riding";
@@ -33,11 +33,10 @@ describe("befriending a fox", () => {
     expect(keepsOff(fox, firstBond(fox))).toBeGreaterThan(keepsOff(cat, firstBond(cat)));
   });
 
-  it("is helped by treats, its favourite most, though even that doesn't win it at once", () => {
-    const favourite = favouriteTreat("a fox");
-    const other = TREATS.find((k) => k !== favourite) ?? favourite;
-    const loved = giveTreat(firstBond(fox), fox, favourite, favourite);
-    const liked = giveTreat(firstBond(fox), fox, other, favourite);
+  it("is helped by treats, its favourite dish most, though even that doesn't win it at once", () => {
+    const tastes = tastesOf("a fox");
+    const loved = giveTreat(firstBond(fox), fox, tastes.favourite, tastes);
+    const liked = giveTreat(firstBond(fox), fox, "bilberry", tastes);
     expect(loved.relish).toBe("loved");
     expect(isWon(loved.bond)).toBe(false);
     expect(loved.bond.warmth).toBeGreaterThan(liked.bond.warmth);
@@ -46,10 +45,10 @@ describe("befriending a fox", () => {
 });
 
 describe("befriending a hedgehog", () => {
-  it("allows a pet soon, and is won at once by its favourite", () => {
+  it("allows a pet soon, and is won at once by its favourite dish", () => {
     expect(petWarmth(hedgehog)).toBeLessThan(petWarmth(fox));
-    const favourite = favouriteTreat("a hedgehog");
-    expect(isWon(giveTreat(firstBond(hedgehog), hedgehog, favourite, favourite).bond)).toBe(true);
+    const tastes = tastesOf("a hedgehog");
+    expect(isWon(giveTreat(firstBond(hedgehog), hedgehog, tastes.favourite, tastes).bond)).toBe(true);
   });
 
   it("curls up where it is when Elliott comes running, rather than running off", () => {

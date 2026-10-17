@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { FoxCoatLook } from "../../foxes/coat-look";
 import { EAR, EAR_SHAPE, HIP, MOUTH_Y, NOSE, NOSE_RADII, SHOULDER, SKULL, TAIL_ROOT } from "../../foxes/rig";
 import { coatMaterial, glslEar, glslFloat, glslVec, type CoatShader } from "../animals/coat-material";
@@ -154,7 +155,7 @@ vec3 faceColour(vec3 p, vec3 coat, inout float glint) {
 };
 
 /** A fox's coat material. Each fox has its own, sharing one compiled program. */
-export function foxCoatMaterial(look: FoxCoatLook) {
+export function foxCoatMaterial(look: FoxCoatLook, atmosphere: AtmosphereUniforms) {
   const c = look.colours;
   const colour = (token: string) => ({ value: themeColor(token) });
   const uniforms = {
@@ -176,5 +177,5 @@ export function foxCoatMaterial(look: FoxCoatLook) {
     uSocks: { value: look.socks },
     uMarks: { value: new THREE.Vector3(...look.marks) },
   };
-  return coatMaterial(FOX_COAT, uniforms, 0.3);
+  return coatMaterial(FOX_COAT, uniforms, 0.3, atmosphere);
 }

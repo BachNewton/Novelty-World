@@ -1,9 +1,11 @@
+import type { Weather } from "../../engine/weather";
+
 /*
- * The weather the shadows and the plants answer to, until the weather has an
- * engine of its own: how much of the sky is cloud, and how hard the wind
- * blows and which way. Set from the ~ panel, or for one visit by `?clouds=`
- * (0 to 1) and `?wind=` (0 to 1). When the weather's engine comes, it sets
- * these instead.
+ * The weather the shadows and the plants answer to: how much of the sky is
+ * cloud, and how hard the wind blows and which way. It is the engine's
+ * weather (`engine/weather.ts`, as each frame has it), unless overridden for
+ * testing: from the ~ panel, or for one visit by `?clouds=` (0 to 1) and
+ * `?wind=` (0 to 1).
  */
 
 export interface WeatherInput {
@@ -15,27 +17,51 @@ export interface WeatherInput {
   windToward: number;
 }
 
-/** A light breeze under a clear sky. */
-export const CALM: WeatherInput = { clouds: 0, wind: 0.35, windToward: 0.6 };
+/** What is held whatever the weather does: null follows the weather. */
+export type WeatherOverrides = { [K in keyof WeatherInput]: number | null };
 
-function fraction(params: URLSearchParams, name: string, otherwise: number): number {
+/** The wind's speed, in metres a second, that counts as a gale. */
+const GALE = 14;
+
+function fraction(params: URLSearchParams, name: string): number | null {
   const raw = params.get(name);
-  if (raw === null) return otherwise;
+  if (raw === null) return null;
   const value = Number(raw);
   if (!(value >= 0 && value <= 1)) throw new Error(`?${name} must be between 0 and 1, not ${raw}`);
   return value;
 }
 
-/** The weather a page starts with: calm, but for `?clouds=` and `?wind=`. */
-export function readWeatherInput(search: string): WeatherInput {
+/** The overrides a page starts with: none, but for `?clouds=` and `?wind=`. */
+export function readWeatherOverrides(search: string): WeatherOverrides {
   const params = new URLSearchParams(search);
-  return { ...CALM, clouds: fraction(params, "clouds", CALM.clouds), wind: fraction(params, "wind", CALM.wind) };
+  return { clouds: fraction(params, "clouds"), wind: fraction(params, "wind"), windToward: null };
 }
 
-let live: WeatherInput | null = null;
+/** The weather as the shadows and plants read it, with any overrides laid over it. */
+export function weatherInputOf(weather: Weather, overrides: WeatherOverrides): WeatherInput {
+  return {
+    clouds: overrides.clouds ?? weather.cloudCover,
+    wind: overrides.wind ?? Math.min(1, weather.wind.speed / GALE),
+    windToward: overrides.windToward ?? (Math.atan2(weather.wind.z, weather.wind.x) + Math.PI * 2) % (Math.PI * 2),
+  };
+}
 
-/** This page's weather input, read from its address the first time it is asked for. */
-export function weatherInput(): WeatherInput {
-  live ??= readWeatherInput(window.location.search);
+let live: WeatherOverrides | null = null;
+
+/** This page's overrides, read from its address the first time they are asked for. */
+export function weatherOverrides(): WeatherOverrides {
+  live ??= readWeatherOverrides(window.location.search);
   return live;
+}
+
+/** The weather the shadows and plants answer to this frame. */
+export function weatherInput(weather: Weather): WeatherInput {
+  return weatherInputOf(weather, weatherOverrides());
+}
+
+/** Holds one of the clouds and wind at a value for testing, or lets it follow the weather again with null. */
+export function holdWeatherInput(key: keyof WeatherOverrides, value: number | null): WeatherOverrides {
+  const overrides = weatherOverrides();
+  overrides[key] = value;
+  return { ...overrides };
 }

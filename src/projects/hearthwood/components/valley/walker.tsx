@@ -21,12 +21,13 @@ import { Witch, type WitchHandle } from "../../art/witch";
  * their eyes, they face where they look and only the broom is drawn; in
  * third person they turn to face their way and the camera follows behind.
  * A screenshot can instead look from above the whole valley, or from high
- * over its rim.
+ * over its rim. At the hearth, cooking, they stay where they are, drawn in
+ * either view, and the hearth moves the camera.
  */
 
 export const WALKER_PRIORITY = -4;
 
-export type CameraView = "walk" | "above" | "aerial";
+export type CameraView = "walk" | "above" | "aerial" | "hearth";
 
 /** Asked of the walker from outside, for screenshots: a jump, or a glide begun on the broom at a height above a spot. */
 export type WalkerRequest = { kind: "jump" } | { kind: "glide"; x: number; z: number; above: number; heading: number };
@@ -105,8 +106,12 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   motion.mover = mover;
 
   const firstPerson = input.pointOfView === "first";
+  // Seated at the hearth, nothing walks, jumps or turns them; what was asked is taken and let go.
+  const seated = walker.view === "hearth";
   const turn = takeTurn(input);
-  if (firstPerson) {
+  if (seated) {
+    // The hearth turns them to the fire.
+  } else if (firstPerson) {
     const look = turnLook({ yaw: walker.orbit.yaw, pitch: walker.lookPitch }, turn, input.turnRate, delta);
     walker.orbit = { ...walker.orbit, yaw: look.yaw };
     walker.lookPitch = look.pitch;
@@ -118,13 +123,13 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
     });
   }
 
-  const speed = walkSpeed(input.move, input.running);
+  const speed = seated ? 0 : walkSpeed(input.move, input.running);
   const way = moveInWorld(input.move, walker.orbit.yaw);
   const push = Math.hypot(way.x, way.z);
   const velocity = speed > 0 && push > 0 ? { x: (way.x / push) * speed, z: (way.z / push) * speed } : { x: 0, z: 0 };
   const steer = firstPerson ? walker.orbit.yaw : push > 0 ? Math.atan2(way.x, way.z) : null;
   const before = { heading: mover.heading };
-  const jump = takeJump(input) || pendingJump;
+  const jump = (takeJump(input) && !seated) || pendingJump;
   const moverSeconds = walker.held === true ? 0 : delta;
   const result = stepMover(mover, { jump, velocity, facing: walker.heading, steer }, world, moverSeconds);
   walker.x = mover.x;
@@ -140,7 +145,9 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
 
   const onBroom = mover.mode === "broom";
   if (onBroom) walker.heading = mover.heading;
-  else if (firstPerson) walker.heading = walker.orbit.yaw;
+  else if (seated) {
+    // The hearth keeps their heading.
+  } else if (firstPerson) walker.heading = walker.orbit.yaw;
   else if (push > 0) walker.heading += turnBetween(walker.heading, Math.atan2(way.x, way.z)) * catchUp(TURN_RATE, delta);
 
   const moved = mover.mode === "ground" ? result.moved : 0;
@@ -175,7 +182,9 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   const sway = broomSway(followed.seconds, followed.turning, followed.wind);
   walker.basket = figure?.basket ?? null;
   if (figure?.group) {
-    figure.group.visible = !throughTheirEyes || followed.ride > 0.02;
+    // The camera eases out of their eyes to the hearth and back: there they show once it is clear of their head.
+    const clear = Math.hypot(camera.position.x - walker.x, camera.position.z - walker.z) > 0.9;
+    figure.group.visible = clear || followed.ride > 0.02 || (!throughTheirEyes && walker.view !== "hearth");
     figure.group.position.set(walker.x, y - 0.03, walker.z);
     figure.group.rotation.y = walker.heading;
     figure.pose({
@@ -215,6 +224,8 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
       camera.lookAt(followed.x, followed.y, followed.z);
       return;
     }
+    case "hearth":
+      return;
     case "above":
       camera.position.set(0, 720, 0.01);
       camera.lookAt(0, 0, 0);

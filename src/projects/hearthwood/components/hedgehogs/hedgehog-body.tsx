@@ -21,16 +21,17 @@ export interface HedgehogBodyProps extends AnimalProps<HedgehogActivity> {
 
 const moves = (activity: HedgehogActivity) => HEDGEHOG_GAITS.includes(activity);
 
-export function HedgehogBody({ hedgehog, activity = "stand", ...props }: HedgehogBodyProps) {
+export function HedgehogBody({ hedgehog, atmosphere, activity = "stand", ...props }: HedgehogBodyProps) {
   const geometry = useAnimalGeometry({ species: "hedgehog" });
   const rig = useMemo(() => rigOf(hedgehog.build), [hedgehog.build]);
   const seed = useMemo(() => motionSeed(hedgehog.seed), [hedgehog.seed]);
-  const coat = useCallback(() => hedgehogCoatMaterial(hedgehogCoatLook(hedgehog.coat)), [hedgehog.coat]);
+  const coat = useCallback(() => hedgehogCoatMaterial(hedgehogCoatLook(hedgehog.coat), atmosphere), [hedgehog.coat, atmosphere]);
   const pose = useCallback((clock: MotionClock<HedgehogActivity>) => hedgehogPose({ ...clock, personality: hedgehog.personality, rig, seed }), [hedgehog.personality, rig, seed]);
   if (!geometry) return null;
   return (
     <AnimalBody
       {...props}
+      atmosphere={atmosphere}
       activity={activity}
       geometry={geometry}
       coat={coat}

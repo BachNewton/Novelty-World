@@ -17,10 +17,15 @@ import { liveFeatures, type FeatureId, type FeatureToggles } from "../../feature
 import type { FrameCosts } from "../../art/passes";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
-import { forageTime, forgetForaging, goToDayOfYear, pickSpot, setBasketOpen, type Foraging } from "./foraging";
+import { forageTime, forgetForaging, goToDayOfYear, pickSpot, setBasketOpen, stockBasket, type Foraging } from "./foraging";
+import { chooseIngredient, chooseWay, closeCooking, cook, cookedSoFar, cookMore, forgetCooking, holdCooking, openCooking, setBookOpen as setRecipeBookOpen, stockDish, type Hearth } from "./hearth";
+import { isDish, isFood, isStaple, type Cookware } from "../../gameplay/recipes";
+import type { ForageKind } from "../../engine/regions";
 import type { CameraView, Walker } from "./walker";
 import type { Streaming } from "./world-land";
-import type { Weather } from "./world-view";
+import type { WeatherKind } from "../../engine/weather";
+import type { SceneWeather } from "./world-weather";
+import type { WeatherNow } from "../../art/weather/now";
 import { anotherName, companionOf, forgetFriends, keepName, petAnimal, setCompanionsOpen, straysAround, treatAnimal, winStray, type Companionship } from "./companionship";
 import { walk as walkOn } from "../../gameplay/walking";
 
@@ -35,7 +40,9 @@ import { walk as walkOn } from "../../gameplay/walking";
  * the basket and forgetting it; and the companions: the live animals, the strays near a
  * point, stepping their rules on the spot or walking Elliott with them, placing one,
  * winning, petting and treating one, the naming card, the companions' row, and whether
- * the animals have settled into their poses. Waiting on these is waiting on
+ * the animals have settled into their poses; and cooking: whether the fire is offered,
+ * sitting down, choosing, cooking (held part-cooked if asked), the dish served, the
+ * recipe book, the larder, and dishes or forage put in the basket. Waiting on these is waiting on
  * events, never on time.
  */
 
@@ -106,8 +113,10 @@ export interface WorldProbe {
   /** Holds the walker where they are, in the air or not, while the camera and the world catch up; false lets them go on. */
   holdWalker: (held: boolean) => void;
   setFreeCamera: (camera: FreeCamera | null) => void;
-  /** How thick the haze is against the usual: 0 is a perfectly clear day. */
-  setHaze: (haze: number) => void;
+  /** Holds the weather at one kind (a clear day, mist, rain…), or lets the sky do as it will with null. */
+  holdWeather: (kind: WeatherKind | null) => void;
+  /** The weather now, as the art reads it. */
+  weather: () => Omit<WeatherNow, "regions">;
   /** Switches a feature (see features.ts) on or off for this visit. */
   setFeature: (id: FeatureId, on: boolean) => void;
   features: () => FeatureToggles;
@@ -126,6 +135,7 @@ export interface WorldProbe {
   map: (request: MapRequest) => string;
   forage: ForageProbe;
   companions: CompanionsProbe;
+  cooking: CookingProbe;
   /** The motion clock's seconds now, to hold motion where it is. */
   motion: () => number;
 }
@@ -192,6 +202,30 @@ export interface ForageProbe {
   basket: () => Record<string, number>;
   setBasketOpen: (open: boolean) => void;
   /** Empties the basket and forgets every pick. */
+  forget: () => void;
+  /** Puts some of a kind in the basket as if picked. */
+  stock: (kind: string, count: number) => void;
+}
+
+export interface CookingProbe {
+  /** Whether the fire is offered to cook at. */
+  offered: () => boolean;
+  /** Sits down at the fire, as using it does. */
+  open: () => void;
+  /** Chooses these ingredients (and a way to cook them) afresh. */
+  choose: (ingredients: string[], cookware?: string) => void;
+  cook: () => void;
+  /** The turn at the fire, if one is on, and how far the dish has cooked. */
+  state: () => { phase: string; chosen: string[]; cookware: string; dish: string | null; discovered: boolean; cooked: number } | null;
+  /** Holds a dish cooking this far (0 to 1), or lets it cook with null. */
+  hold: (at: number | null) => void;
+  again: () => void;
+  leave: () => void;
+  setBookOpen: (open: boolean) => void;
+  larder: () => { dishes: Record<string, number>; known: string[] };
+  /** Puts dishes in the basket as if cooked. */
+  stock: (dish: string, count?: number) => void;
+  /** Empties the larder and the recipe book. */
   forget: () => void;
 }
 
@@ -278,6 +312,7 @@ export function WorldProbeHandle({
   weather,
   foraging,
   companionship,
+  hearth,
   costs,
   setPointOfView,
 }: {
@@ -287,9 +322,10 @@ export function WorldProbeHandle({
   walker: Walker;
   streaming: Streaming;
   freeCamera: { at: FreeCamera | null };
-  weather: Weather;
+  weather: SceneWeather;
   foraging: Foraging;
   companionship: Companionship;
+  hearth: Hearth;
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
@@ -371,9 +407,10 @@ export function WorldProbeHandle({
         streaming.plants = false;
         streaming.places = false;
       },
-      setHaze: (haze) => {
-        weather.haze = haze;
+      holdWeather: (kind) => {
+        weather.hold(kind);
       },
+      weather: () => ({ weather: weather.weather, held: weather.held, flash: weather.flash, floor: weather.floor }),
       setFeature: (id, on) => {
         liveFeatures().set(id, on);
       },
@@ -432,6 +469,53 @@ export function WorldProbeHandle({
         forget: () => {
           forgetForaging(foraging);
         },
+        stock: (kind, count) => {
+          if (!isFood(kind) && kind !== "fly-agaric") throw new Error(`${kind} isn't forage`);
+          stockBasket(foraging, kind as ForageKind, count);
+        },
+      },
+      cooking: {
+        offered: () => hearth.shown.offered,
+        open: () => {
+          openCooking(hearth);
+        },
+        choose: (ingredients, cookware) => {
+          const session = hearth.shown.session;
+          if (session?.phase !== "choosing") throw new Error("Not choosing at the fire");
+          for (const i of session.chosen) chooseIngredient(hearth, i);
+          for (const i of ingredients) {
+            if (!isFood(i) && !isStaple(i)) throw new Error(`${i} is never cooked`);
+            chooseIngredient(hearth, i);
+          }
+          if (cookware !== undefined) chooseWay(hearth, cookware as Cookware);
+        },
+        cook: () => {
+          cook(hearth);
+        },
+        state: () => {
+          const s = hearth.shown.session;
+          return s && { phase: s.phase, chosen: [...s.chosen], cookware: s.cookware, dish: s.phase === "choosing" ? null : s.dish, discovered: s.phase !== "choosing" && s.discovered, cooked: cookedSoFar(hearth) };
+        },
+        hold: (at) => {
+          holdCooking(hearth, at);
+        },
+        again: () => {
+          cookMore(hearth);
+        },
+        leave: () => {
+          closeCooking(hearth);
+        },
+        setBookOpen: (open) => {
+          setRecipeBookOpen(hearth, open);
+        },
+        larder: () => ({ dishes: { ...hearth.shown.larder.dishes } as Record<string, number>, known: [...hearth.shown.larder.known] }),
+        stock: (dish, count = 1) => {
+          if (!isDish(dish)) throw new Error(`${dish} is no dish`);
+          stockDish(hearth, dish, count);
+        },
+        forget: () => {
+          forgetCooking(hearth);
+        },
       },
       motion: () => clock.motion,
       companions: {
@@ -452,7 +536,7 @@ export function WorldProbeHandle({
               warmth: a.bond.warmth,
               boldness: a.temper.boldness,
               affection: a.temper.affection,
-              favourite: a.favourite,
+              favourite: a.tastes.favourite,
               home: a.stray?.home ?? null,
             };
           }),
@@ -519,7 +603,7 @@ export function WorldProbeHandle({
       stopWatching?.();
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, costs, setPointOfView]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, costs, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;

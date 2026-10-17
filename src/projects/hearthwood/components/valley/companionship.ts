@@ -1,19 +1,20 @@
-import type { ForageKind } from "../../engine/regions";
 import { straysInCell, straysNear, type Species, type Stray } from "../../engine/strays";
 import { remembered, type World } from "../../engine/world";
 import { motionSeed } from "../../animals/motion";
-import { allowsPet, bePatient, favouriteTreat, firstBond, giveTreat, isWon, pet, treatInHand, type Bond, type Relish, type Temper } from "../../gameplay/befriending";
+import { allowsPet, bePatient, firstBond, giveTreat, isWon, pet, tastesOf, treatInHand, type Bond, type Relish, type Tastes, type Temper, type Treat } from "../../gameplay/befriending";
 import { bodyAt, doingFor, greeting, type Body, type Nature } from "../../gameplay/behaviour";
 import { comeAlong, firesideSpot, followers, followMind, join, rename, type Companion, type FollowMind } from "../../gameplay/companions";
 import { loadFriends, saveFriends, type Friends } from "../../gameplay/friends";
 import { suggestedNames } from "../../gameplay/names";
 import type { Offerable } from "../../gameplay/offering";
+import { isDish } from "../../gameplay/recipes";
 import { strayMind, type StrayMind } from "../../gameplay/roaming";
 import type { Portrait } from "../../art/portrait";
 import type { AnimalDrive } from "../animals/animal-body";
 import { ACTIVITY, bornOf, portraitOfLook, type AnimalLook } from "./animal-kinds";
 import { offTheGround, walkingRide, type Ride } from "../../gameplay/riding";
 import { takeTreat, type Foraging } from "./foraging";
+import { giveDish, type Hearth } from "./hearth";
 
 /*
  * The cats and dogs of a walk, between the scene, the overlay over it and
@@ -35,8 +36,8 @@ export interface Animal {
   look: AnimalLook;
   nature: Nature;
   temper: Temper;
-  /** A cat's, fox's or hedgehog's favourite treat; a dog has none. */
-  favourite: ForageKind | null;
+  /** Its favourite dish and the few it likes. */
+  tastes: Tastes;
   body: Body;
   /** As a stray: its home, how far it roams and its mind; null once a companion. */
   stray: { home: { x: number; z: number }; roam: number; mind: StrayMind } | null;
@@ -60,8 +61,8 @@ export interface AnimalOffer {
   /** The companion's name, or null for a stray. */
   name: string | null;
   canPet: boolean;
-  /** The treat held out, or null when there is none to give. */
-  treat: ForageKind | null;
+  /** The treat held out, a dish or something raw, or null when there is none to give. */
+  treat: Treat | null;
   portrait: Portrait;
 }
 
@@ -103,13 +104,14 @@ export interface CompanionShown {
 export interface Companionship {
   world: World;
   foraging: Foraging;
+  hearth: Hearth;
   friends: Friends;
   strayCell: (cellX: number, cellZ: number) => Stray[];
   animals: Map<string, Animal>;
   /** The animal that would be offered this frame and how strongly, before forage has had its say. */
   candidate: { key: string; score: number } | null;
   /** The treat given last that was only liked, so the next held out is another. */
-  lastLiked: ForageKind | null;
+  lastLiked: Treat | null;
   /** The motion clock's time, as the scene last stepped. */
   time: number;
   /** What a tap on the screen pets, given by the scene, which knows the camera. */
@@ -137,7 +139,7 @@ export const MARK_LIFE = 1.6;
 const PETTED = 2.6;
 
 
-export function createCompanionship(world: World, foraging: Foraging): Companionship {
+export function createCompanionship(world: World, foraging: Foraging, hearth: Hearth): Companionship {
   const friends = loadFriends();
   const strayCell = remembered(512, (key) => {
     const [cx, cz] = key.split(",").map(Number);
@@ -146,6 +148,7 @@ export function createCompanionship(world: World, foraging: Foraging): Companion
   const companionship: Companionship = {
     world,
     foraging,
+    hearth,
     friends,
     strayCell: (cx, cz) => strayCell(`${cx},${cz}`),
     animals: new Map(),
@@ -176,7 +179,7 @@ function animalOf(key: string, species: Species, seed: string, body: Body, bond:
     look: born.look,
     nature: { species, size: born.size * DRAWN_LARGER, boldness, energy, affection, seed: motionSeed(seed) },
     temper,
-    favourite: species === "dog" ? null : favouriteTreat(seed),
+    tastes: tastesOf(seed),
     body,
     stray: null,
     follow: null,
@@ -279,10 +282,15 @@ export function offerableAnimal(animal: Animal): Offerable {
   return { heart: { x: animal.body.x, y: animal.y + 0.2 * size, z: animal.body.z }, spread: 0.3 * size, reach: { first: 3.2, third: 2.6 } };
 }
 
+/** The treat Elliott holds out now: the next round the basket's dishes and its forage. */
+export function inHand(companionship: Companionship): Treat | null {
+  return treatInHand(companionship.foraging.foraged.basket, companionship.hearth.shown.larder, companionship.lastLiked);
+}
+
 /** Whether there is anything to offer for an animal: a companion always, a stray when it allows a pet or there is a treat to hold out. */
 export function hasOffer(companionship: Companionship, animal: Animal): boolean {
   if (animal.stray === null) return true;
-  return allowsPet(animal.bond, animal.temper) || treatInHand(companionship.foraging.foraged.basket, companionship.lastLiked) !== null;
+  return allowsPet(animal.bond, animal.temper) || inHand(companionship) !== null;
 }
 
 /** After forage has had its say: what is offered for an animal now, or nothing. */
@@ -302,7 +310,7 @@ function offerFor(companionship: Companionship, animal: Animal): AnimalOffer {
     species: animal.species,
     name: companion?.name ?? null,
     canPet: animal.stray === null || allowsPet(animal.bond, animal.temper),
-    treat: treatInHand(companionship.foraging.foraged.basket, companionship.lastLiked),
+    treat: inHand(companionship),
     portrait: portraitOf(animal),
   };
 }
@@ -365,16 +373,17 @@ export function petAnimal(companionship: Companionship, key: string): void {
 export function treatAnimal(companionship: Companionship, key: string): void {
   const animal = companionship.animals.get(key);
   if (!animal) throw new Error(`No animal ${key} to give a treat`);
-  const kind = treatInHand(companionship.foraging.foraged.basket, companionship.lastLiked);
+  const kind = inHand(companionship);
   if (kind === null) throw new Error("No treat in the basket to give");
-  takeTreat(companionship.foraging, kind);
+  if (isDish(kind)) giveDish(companionship.hearth, kind);
+  else takeTreat(companionship.foraging, kind);
   answer(animal, companionship.time);
   if (animal.stray === null) {
     companionship.lastLiked = kind;
     mark(companionship, key, "heart");
     return;
   }
-  const given = giveTreat(animal.bond, animal.temper, kind, animal.favourite);
+  const given = giveTreat(animal.bond, animal.temper, kind, animal.tastes);
   animal.bond = given.bond;
   companionship.lastLiked = given.relish === "liked" ? kind : null;
   afterWarming(companionship, animal, given.relish);
@@ -385,7 +394,7 @@ export function tapAnimal(companionship: Companionship, key: string): void {
   const animal = companionship.animals.get(key);
   if (!animal) throw new Error(`No animal ${key} to tap`);
   if (animal.stray === null || allowsPet(animal.bond, animal.temper)) petAnimal(companionship, key);
-  else if (treatInHand(companionship.foraging.foraged.basket, companionship.lastLiked) !== null) treatAnimal(companionship, key);
+  else if (inHand(companionship) !== null) treatAnimal(companionship, key);
 }
 
 function afterWarming(companionship: Companionship, animal: Animal, relish: Relish): void {

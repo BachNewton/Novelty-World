@@ -54,6 +54,8 @@ const waveTerms = WAVES.map(
 ).join("");
 
 const RIPPLE_HEAD = /* glsl */ `
+// How hard it rains (see engine/weather.ts): rain roughens the water.
+uniform float uHwRippleRain;
 // The ripples' height at a point of the surface, in metres. footprint is how much of the surface a pixel covers there.
 float hwRippleHeight(vec2 p, vec2 flowDir, float moving, float footprint) {
   float t = uHwTime;
@@ -61,7 +63,7 @@ float hwRippleHeight(vec2 p, vec2 flowDir, float moving, float footprint) {
   vec2 q = p - flowDir * moving * t * 1.3;
   float warp = (hwValueNoise(p * 0.09 + t * 0.03) - 0.5) * 5.0 + (hwValueNoise(p * 0.31 - t * 0.05) - 0.5) * 1.6;
   float chop = mix(0.35, 1.3, smoothstep(0.2, 0.8, hwValueNoise(p * 0.016 + vec2(t * 0.006, 0.0))));
-  chop *= 1.0 + 0.6 * moving;
+  chop *= (1.0 + 0.6 * moving) * (1.0 + 0.9 * uHwRippleRain);
   float h = 0.0;
   ${waveTerms}
   return h * chop;
@@ -80,9 +82,15 @@ const RIPPLE_NORMAL = /* glsl */ `
   hwNormal = normalize(mix(hwNormal, rippled, graze * (1.0 - hwFalling)));
 `;
 
+const rain = { uHwRippleRain: { value: 0 } };
+
 export const RIPPLES_ART: FeatureArt = {
   feature: "ripples",
+  uniforms: rain,
   chunks: [{ kinds: ["water"], fragmentHead: RIPPLE_HEAD, normal: RIPPLE_NORMAL }],
+  frame: ({ weather }) => {
+    rain.uHwRippleRain.value = weather.weather.precipitation * (1 - weather.weather.snow);
+  },
 };
 
 const PARALLAX_STEPS = 4;

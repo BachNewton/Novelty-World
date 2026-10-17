@@ -1,6 +1,8 @@
 /*
- * What the sky reads that isn't the calendar's: the rain (for the rainbow),
- * until the engine's weather drives it, and wishes to see a rare sight on
+ * What the sky reads that isn't the calendar's: the rain and whether the sun
+ * is out of the cloud (for the rainbow), set each frame from the engine's
+ * weather (`components/valley/world-weather.tsx`) unless `?rain=` holds the
+ * rain, and wishes to see a rare sight on
  * demand rather than on its seeded nights. One plain object for the page,
  * started from the address (`?rain=<0-1>`, `?aurora=on|off`,
  * `?noctilucent=on|off`) and set live from the ~ panel's Sky section and by

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { HedgehogCoatLook } from "../../hedgehogs/coat-look";
 import { NOSE, NOSE_RADII, SKULL } from "../../hedgehogs/rig";
 import { coatMaterial, glslVec, type CoatShader } from "../animals/coat-material";
@@ -86,7 +87,7 @@ vec3 faceColour(vec3 p, vec3 coat, inout float glint) {
 };
 
 /** A hedgehog's coat material. Each hedgehog has its own, sharing one compiled program. */
-export function hedgehogCoatMaterial(look: HedgehogCoatLook) {
+export function hedgehogCoatMaterial(look: HedgehogCoatLook, atmosphere: AtmosphereUniforms) {
   const c = look.colours;
   const colour = (token: string) => ({ value: themeColor(token) });
   const uniforms = {
@@ -104,5 +105,5 @@ export function hedgehogCoatMaterial(look: HedgehogCoatLook) {
     uFace: { value: look.face },
     uMarks: { value: new THREE.Vector3(...look.marks) },
   };
-  return coatMaterial(HEDGEHOG_COAT, uniforms, 0.18);
+  return coatMaterial(HEDGEHOG_COAT, uniforms, 0.18, atmosphere);
 }
