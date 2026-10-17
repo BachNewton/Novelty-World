@@ -22,8 +22,9 @@ import { ART_PIECES, type ArtContext, type ArtPiece } from "./pieces";
 /*
  * The art gallery (`?art`): every piece of the game's art on a plain floor,
  * in rows by kind, lit by the game's own day and air. Orbit and zoom with
- * the mouse, a finger or a pad; pick a piece (or step through them with the
- * pad's bumpers) to see it alone on a turntable, and go back. Built from the
+ * the mouse, a finger or a pad; look along a row (its names show then), pick
+ * a piece (or step through them with the pad's bumpers) to see it alone on a
+ * turntable, and go back. Built from the
  * art layer alone, with no world generated and no rules, so it shows the art
  * stands on its own. `?hour=<0-24>` and the ~ panel set the time of day.
  */
@@ -258,20 +259,32 @@ export function ArtGallery() {
   }, [chosen, layout, row]);
   useEffect(() => aimLight(focusPoint, view.target), [focusPoint, view]);
 
-  // A pad steps through the pieces with its bumpers and goes back to the whole gallery with B; Escape does too.
+  // A pad steps through the pieces with its bumpers and the rows with the d-pad, and goes back to the whole gallery with B; Escape does too.
   useEffect(() => {
     const ids = layout.placed.map((p) => p.piece.id);
+    const groups = layout.rows.map((g) => g.group);
     const step = (by: number) => setFocus((was) => ids[((was === null ? -1 : ids.indexOf(was)) + by + ids.length) % ids.length]);
+    const stepRow = (by: number) => {
+      setFocus(null);
+      setRow((was) => groups[((was === null ? -1 : groups.indexOf(was)) + by + groups.length) % groups.length]);
+    };
     const stopPad = subscribeGamepads({
       onButton(edge) {
         if (!edge.pressed) return;
         if (edge.name === "RB") step(1);
         if (edge.name === "LB") step(-1);
-        if (edge.name === "B") setFocus(null);
+        if (edge.name === "DpadDown") stepRow(1);
+        if (edge.name === "DpadUp") stepRow(-1);
+        if (edge.name === "B") {
+          setFocus(null);
+          setRow(null);
+        }
       },
     });
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFocus(null);
+      if (e.key !== "Escape") return;
+      setFocus(null);
+      setRow(null);
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -334,17 +347,17 @@ export function ArtGallery() {
             }}
           >
             {piece.render(context)}
-            <Html portal={labels} position={[0, -0.05, piece.radius + 0.6]} center distanceFactor={45} zIndexRange={[10, 0]}>
-              <div className="pointer-events-none rounded px-1.5 py-0.5 text-xs whitespace-nowrap opacity-90" style={{ ...LABEL_STYLE, display: chosen ? "none" : undefined }}>
+            <Html portal={labels} position={[0, -0.05, piece.radius + 0.6]} center zIndexRange={[10, 0]}>
+              <div className="pointer-events-none rounded px-1.5 py-0.5 text-xs whitespace-nowrap opacity-90" style={{ ...LABEL_STYLE, display: row === piece.group && !chosen ? undefined : "none" }}>
                 {piece.label}
               </div>
             </Html>
           </group>
         ))}
-        {layout.rows.map((row) => (
-          <Html key={row.group} portal={labels} position={[row.x, 0.2, row.z]} center={false} distanceFactor={110} zIndexRange={[20, 10]}>
-            <div className="pointer-events-none -translate-x-full rounded-md px-2 py-1 text-lg font-semibold whitespace-nowrap" style={{ ...LABEL_STYLE, display: chosen ? "none" : undefined }}>
-              {row.group}
+        {layout.rows.map((line) => (
+          <Html key={line.group} portal={labels} position={[line.x, 0.2, line.z]} center={false} zIndexRange={[20, 10]}>
+            <div className="pointer-events-none -translate-x-full rounded-md px-2 py-1 text-sm font-semibold whitespace-nowrap" style={{ ...LABEL_STYLE, display: chosen || (row !== null && row !== line.group) ? "none" : undefined }}>
+              {line.group}
             </div>
           </Html>
         ))}
@@ -385,6 +398,22 @@ export function ArtGallery() {
               <RotateCw size={20} />
             </button>
           </>
+        )}
+        {!chosen && (
+          <div className="pointer-events-auto flex max-w-full gap-1.5 overflow-x-auto">
+            {layout.rows.map((line) => (
+              <button
+                key={line.group}
+                type="button"
+                aria-pressed={row === line.group}
+                onClick={() => setRow(row === line.group ? null : line.group)}
+                className="shrink-0 rounded-md px-2.5 py-1.5 text-sm whitespace-nowrap"
+                style={{ ...LABEL_STYLE, opacity: row === null || row === line.group ? 1 : 0.65 }}
+              >
+                {line.group}
+              </button>
+            ))}
+          </div>
         )}
       </div>
       <DebugPanel clock={clock} />

@@ -133,7 +133,7 @@ export function Daylight(parts: DaylightParts) {
 
   return (
     <>
-      <directionalLight ref={sun} castShadow shadow-mapSize={[map, map]} shadow-bias={-0.0005} shadow-normalBias={0.05} />
+      <directionalLight ref={sun} castShadow shadow-mapSize={[map, map]} shadow-bias={-0.0008} shadow-normalBias={0.22} />
       <primitive object={target} />
       <hemisphereLight ref={ambient} />
     </>
