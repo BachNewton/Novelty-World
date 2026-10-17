@@ -7,6 +7,7 @@ import { ALTITUDE, emptySample } from "../../engine/land";
 import type { PointOfView } from "../../input/point-of-view";
 import { mainRegion, REGIONS } from "../../engine/regions";
 import type { World } from "../../engine/world";
+import { canPick, spotLook, type SpotLook } from "../../gameplay/picking";
 import type { Palette } from "../../art/palette";
 import type { SunDay } from "../../engine/astronomy";
 import { dateAt, parseDate, startTime, type CalendarDate } from "../../engine/calendar";
@@ -16,6 +17,7 @@ import { liveFeatures, type FeatureId, type FeatureToggles } from "../../feature
 import type { FrameCosts } from "../../art/passes";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
+import { forageTime, forgetForaging, goToDayOfYear, pickSpot, setBasketOpen, type Foraging } from "./foraging";
 import type { CameraView, Walker } from "./walker";
 import type { Streaming } from "./world-land";
 import type { WeatherKind } from "../../engine/weather";
@@ -27,8 +29,10 @@ import type { WeatherNow } from "../../art/weather/now";
  * whether it is ready (its shaders compiled, everything the camera wants
  * streamed in, and a frame drawn), a frame counter to wait on, what the last
  * frame drew, switches for the hour, the date, the motion clock, the camera and where
- * the walker stands, the point of view and where it looks, a jump or a glide begun from a spot (and held there), a free camera, readings of the world at a point, and a
- * map of an area drawn from the world itself. Waiting on these is waiting on
+ * the walker stands, the point of view and where it looks, a jump or a glide begun from a spot (and held there), a free camera, readings of the world at a point, a
+ * map of an area drawn from the world itself, and foraging: a real day of the
+ * year to go to, the spots near a point and how each shows, what is on offer, picking,
+ * the basket and forgetting it. Waiting on these is waiting on
  * events, never on time.
  */
 
@@ -119,6 +123,22 @@ export interface WorldProbe {
   at: (x: number, z: number) => { height: number; water: number; river: number; mountainous: number; woodland: number; region: string; regions: Record<string, number> };
   /** A top-down map of an area, as a PNG data URL: regions, woods, water, rock and snow, shaded by the lie of the land. */
   map: (request: MapRequest) => string;
+  forage: ForageProbe;
+}
+
+export interface ForageProbe {
+  /** Moves the calendar, at the same hour, to the game day this year that stands for a real day of the year (0 is 1 January). */
+  setDayOfYear: (dayOfYear: number) => void;
+  /** The spots to pick near a point, and how each shows today. */
+  spotsNear: (x: number, z: number, radius: number) => { id: string; kind: string; x: number; y: number; z: number; look: SpotLook }[];
+  /** The id of the spot on offer, if any. */
+  target: () => string | null;
+  /** Picks a spot by its id (one near the walker), or the one on offer; whether anything was picked. */
+  pick: (id?: string) => boolean;
+  basket: () => Record<string, number>;
+  setBasketOpen: (open: boolean) => void;
+  /** Empties the basket and forgets every pick. */
+  forget: () => void;
 }
 
 declare global {
@@ -198,6 +218,7 @@ export function WorldProbeHandle({
   streaming,
   freeCamera,
   weather,
+  foraging,
   costs,
   setPointOfView,
 }: {
@@ -208,6 +229,7 @@ export function WorldProbeHandle({
   streaming: Streaming;
   freeCamera: { at: FreeCamera | null };
   weather: SceneWeather;
+  foraging: Foraging;
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
@@ -225,7 +247,7 @@ export function WorldProbeHandle({
     void gl.compileAsync(scene, camera).then(() => {
       if (live) compiled.current = true;
     });
-    const settled = () => streaming.land && streaming.plants && streaming.places;
+    const settled = () => streaming.land && streaming.plants && streaming.places && foraging.settled;
     const weights = new Float32Array(REGIONS.length);
     let stopWatching: (() => void) | null = null;
     window.__hearthwoodWorld = {
@@ -328,13 +350,37 @@ export function WorldProbeHandle({
         };
       },
       map: (request) => drawMap(world, palette, request),
+      forage: {
+        setDayOfYear: (day) => {
+          goToDayOfYear(clock, day);
+        },
+        spotsNear: (x, z, radius) => {
+          const time = forageTime(clock);
+          return foraging.forage.spotsNear(x, z, radius).map((s) => ({ id: s.id, kind: s.kind, x: s.x, y: s.y, z: s.z, look: spotLook(s, foraging.foraged, time) }));
+        },
+        target: () => foraging.target?.id ?? null,
+        pick: (id) => {
+          const time = forageTime(clock);
+          const spot = id === undefined ? foraging.target : (foraging.forage.spotsNear(walker.x, walker.z, 12).find((s) => s.id === id) ?? null);
+          if (!spot || !canPick(spot, foraging.foraged, time)) return false;
+          pickSpot(foraging, spot, time);
+          return true;
+        },
+        basket: () => ({ ...foraging.foraged.basket }),
+        setBasketOpen: (open) => {
+          setBasketOpen(foraging, open);
+        },
+        forget: () => {
+          forgetForaging(foraging);
+        },
+      },
     };
     return () => {
       live = false;
       stopWatching?.();
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, costs, setPointOfView]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, costs, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;
