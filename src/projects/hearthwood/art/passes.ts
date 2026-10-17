@@ -130,6 +130,7 @@ export class FrameCosts {
   /** Whether this browser can time the GPU at all. */
   available = false;
   private readonly smoothed = new Map<string, number>();
+  private latest: ReadonlyMap<string, number> = new Map();
 
   /** Starts timing the frame, until the returned stop is called. */
   watch(): () => void {
@@ -144,6 +145,7 @@ export class FrameCosts {
   }
 
   record(readings: ReadonlyMap<string, number>): void {
+    this.latest = readings;
     for (const [name, ms] of readings) {
       const was = this.smoothed.get(name);
       this.smoothed.set(name, was === undefined ? ms : was + (ms - was) * 0.1);
@@ -153,6 +155,11 @@ export class FrameCosts {
   /** The smoothed milliseconds of a span, or null if it has never been timed. A pass that stops running falls to 0. */
   ms(name: string): number | null {
     return this.smoothed.get(name) ?? null;
+  }
+
+  /** The last reading of every span timed so far, by name, unsmoothed. */
+  lastReadings(): Record<string, number> {
+    return Object.fromEntries(this.latest);
   }
 
   total(): number {

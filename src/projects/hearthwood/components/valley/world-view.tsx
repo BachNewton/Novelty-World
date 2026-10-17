@@ -139,7 +139,7 @@ export function WorldView() {
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
-        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} setPointOfView={input.setPointOfView} />
+        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
       <WalkHints input={input} />
       <TouchStickView stick={input.stick} />
