@@ -109,11 +109,24 @@ export function phaseEnd(options: Options | null): Move | null {
   return null;
 }
 
-/** The selection still meaningful after the options change (a move was made): a source that
- *  can still act stays picked, so attacking again from it is one tap. */
-export function keepSelection(options: Options | null, selection: Selection): Selection {
-  const step = stepOf(options, selection);
+const attacksFrom = (options: Options | null, territory: TerritoryId | null): territory is TerritoryId =>
+  options?.kind === "attack" && options.attacks.some((a) => a.from === territory);
+
+/** The selection once the options change from `before` to `after` (a move was made). Within a
+ *  phase, a source that can still act stays picked, so attacking again from it is one tap. Into
+ *  an attack, the next one starts where the armies just went: the territory last placed on, or a
+ *  capture just moved into (falling back to the source it was taken from). Back steps out of it. */
+export function nextSelection(before: Options | null, after: Options | null, selection: Selection): Selection {
+  if (after?.kind === "attack") {
+    // A capture: a target became a source, its move-in made by the player or forced by the rules.
+    const captured = before?.kind === "occupy" ? before.to : before?.kind === "attack" ? selection.to : null;
+    const source = before?.kind === "occupy" ? before.from : selection.from;
+    if (attacksFrom(after, captured)) return { from: captured, to: null };
+    if (before?.kind === "reinforce" || before?.kind === "occupy") return attacksFrom(after, source) ? { from: source, to: null } : NO_SELECTION;
+  }
+  if (before?.kind !== after?.kind) return NO_SELECTION;
+  const step = stepOf(after, selection);
   if (step.kind === "battle" || step.kind === "fortify-amount" || step.kind === "place") return selection;
-  if (step.kind === "pick" && (step.purpose === "attack-to" || step.purpose === "fortify-to")) return selection;
+  if (step.kind === "pick" && (step.purpose === "attack-to" || step.purpose === "fortify-to")) return { from: selection.from, to: null };
   return NO_SELECTION;
 }

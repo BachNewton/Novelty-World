@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { ADJACENCY, CONTINENTS, TERRITORIES, type TerritoryId } from "../map";
 import { frameBoard, type Rect } from "../ui/camera";
 import { nextTerritory } from "../ui/territory-nav";
-import { DRAWN, FINGERTIP, FOOTPRINTS, locate, pathThrough, TOUCH_SCALE, WRAP_WIDTH } from "./graph";
-import { BORDERS, GRAPH_HEIGHT, GRAPH_WIDTH, NODES, REGIONS } from "./graph-layout";
+import { shortName } from "../ui/short-names";
+import { clashes, DRAWN, DRAWS, FINGERTIP, layoutAt, locate, pathThrough, TOUCH_SCALE, WRAP_WIDTH } from "./graph";
+import { BORDERS, GRAPH_HEIGHT, GRAPH_WIDTH, NODES } from "./graph-layout";
+import { LABEL_WIDTHS } from "./label-widths";
 
 const IDS = TERRITORIES.map((t) => t.id);
 const key = (a: string, b: string) => [a, b].sort().join("|");
@@ -29,7 +31,7 @@ describe("the board as a graph", () => {
     const fromMap = new Set(IDS.flatMap((a) => ADJACENCY[a].map((b) => key(a, b))));
     expect(fromMap.size).toBe(83);
     expect(new Set(BORDERS.map(([a, b]) => key(a, b)))).toEqual(fromMap);
-    expect(Object.keys(REGIONS).sort()).toEqual(CONTINENTS.map((c) => c.id).sort());
+    expect(Object.keys(layoutAt({ x: 1, y: 1 }).regions).sort()).toEqual(CONTINENTS.map((c) => c.id).sort());
   });
 
   it("puts every territory on the board", () => {
@@ -45,6 +47,14 @@ describe("the board as a graph", () => {
     expect(crossings()).toBe(0);
   });
 
+  it("knows how wide every territory's name is drawn", () => {
+    for (const id of IDS) expect(LABEL_WIDTHS[shortName(id)], shortName(id)).toBeGreaterThan(0);
+  });
+
+  it("covers no name or ring with another territory's, however the screen stretches it", () => {
+    for (const stretch of [{ x: 1, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 }, { x: 1.3, y: 1.7 }]) expect(clashes(layoutAt(stretch).nodes)).toEqual([]);
+  });
+
   it("runs Alaska–Kamchatka across the board's edge, about a border long", () => {
     expect(NODES.alaska[0]).toBeLessThan(GRAPH_WIDTH / 8);
     expect(NODES.kamchatka[0]).toBeGreaterThan((GRAPH_WIDTH * 7) / 8);
@@ -57,7 +67,7 @@ describe("the board as a graph", () => {
 
 describe("the board on a screen", () => {
   const board = { width: GRAPH_WIDTH, height: GRAPH_HEIGHT };
-  const frame = (width: number, height: number, overlays: Rect[]) => frameBoard({ board, view: { width, height }, overlays, footprints: FOOTPRINTS, touch: TOUCH_SCALE });
+  const frame = (width: number, height: number, overlays: Rect[]) => frameBoard({ board, view: { width, height }, overlays, places: IDS.map(locate), draws: IDS.map((id) => DRAWS[id]), touch: TOUCH_SCALE });
   let closest = Infinity;
   for (const a of IDS) for (const b of IDS) if (a < b) closest = Math.min(closest, Math.hypot(NODES[a][0] - NODES[b][0], NODES[a][1] - NODES[b][1]));
 
@@ -70,11 +80,21 @@ describe("the board on a screen", () => {
     expect(camera.top + GRAPH_HEIGHT * camera.scale).toBeLessThanOrEqual(420);
   });
 
-  it("shows a 16:9 desktop the whole board, its status box in the board's empty south-west", () => {
+  it("shows a 16:9 desktop the whole board, spread over most of the screen, its status box in the board's empty south-west", () => {
     const fit = Math.min(1920 / GRAPH_WIDTH, 960 / GRAPH_HEIGHT);
-    const { camera, pan } = frame(1920, 960, [{ left: 8, top: 8, right: 360, bottom: 64 }, { left: 1840, top: 8, right: 1912, bottom: 56 }, { left: 8, top: 700, right: 424, bottom: 952 }]);
+    const { camera, pan, stretch } = frame(1920, 960, [{ left: 8, top: 8, right: 424, bottom: 90 }, { left: 8, top: 768, right: 344, bottom: 952 }]);
     expect(pan.axis).toBe("none");
-    expect(camera.scale).toBeGreaterThan(fit * 0.85);
+    expect(camera.scale).toBeGreaterThan(fit * 0.75);
+    expect(GRAPH_WIDTH * stretch.x * camera.scale).toBeGreaterThan(1920 * 0.8);
+  });
+
+  it("fills an iPad mini either way up", () => {
+    for (const [width, height] of [[1024, 768], [768, 1024]]) {
+      const { camera, pan, stretch } = frame(width, height, [{ left: 8, top: 8, right: 424, bottom: 90 }, { left: 8, top: height - 192, right: 344, bottom: height - 8 }]);
+      expect(pan.axis).toBe("none");
+      expect(GRAPH_WIDTH * stretch.x * camera.scale).toBeGreaterThan(width * 0.75);
+      expect(GRAPH_HEIGHT * stretch.y * camera.scale).toBeGreaterThan(height * 0.75);
+    }
   });
 });
 

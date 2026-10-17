@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
 import { isDrag, type Point } from "@/shared/lib/input";
 import type { TerritoryId } from "../map";
-import { centreOf, frameBoard, keepInView, panBy, type Camera, type Frame, type Rect, type Size } from "../ui/camera";
+import { centreOf, frameBoard, keepInView, panBy, type BoardPoint, type Frame, type Rect, type Size } from "../ui/camera";
 
 /*
  * The board's camera and pointers: it frames the board on the screen (`ui/camera.ts`), pans
@@ -32,7 +32,9 @@ export interface BoardHandle {
 interface Options {
   ref: Ref<BoardHandle>;
   board: Size;
-  footprints: readonly Rect[];
+  /** Where each territory sits, and what it draws round its place, in board units. */
+  places: readonly BoardPoint[];
+  draws: readonly Rect[];
   touch: number;
   /** What floats over the map, in the box's CSS pixels. */
   overlays: readonly Rect[];
@@ -41,15 +43,15 @@ interface Options {
   revealMargin: number;
   onTouch: (kind: "touch" | "mouse") => void;
   /** A press that barely moved, at a point of the box. */
-  onTap: (at: Point, camera: Camera) => void;
+  onTap: (at: Point, frame: Frame) => void;
 }
 
-export function useBoardCamera({ ref, board, footprints, touch, overlays, locate, revealMargin, onTouch, onTap }: Options) {
+export function useBoardCamera({ ref, board, places, draws, touch, overlays, locate, revealMargin, onTouch, onTap }: Options) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size | null>(null);
   const [frame, setFrame] = useState<Frame | null>(null);
   const frameRef = useRef<Frame | null>(null);
-  const scene = useRef({ board, footprints, touch, overlays, view: { width: 0, height: 0 } });
+  const scene = useRef({ board, places, draws, touch, overlays, view: { width: 0, height: 0 } });
 
   const show = useCallback((next: Frame) => {
     frameRef.current = next;
@@ -57,19 +59,19 @@ export function useBoardCamera({ ref, board, footprints, touch, overlays, locate
   }, []);
 
   // A new screen size or new overlays frame the board afresh, keeping where it was panned to,
-  // along the way it pans, while the scale stays the same.
+  // along the way it pans, while the scale stays the same (a board that pans is never stretched).
   const reframe = useCallback(() => {
     const current = frameRef.current;
     const next = frameBoard(scene.current);
     if (current?.pan.axis !== next.pan.axis || current.camera.scale !== next.camera.scale || next.pan.axis === "none") return show(next);
     const kept = next.pan.axis === "x" ? { ...next.camera, left: current.camera.left } : { ...next.camera, top: current.camera.top };
-    show(panBy({ pan: next.pan, camera: kept }, 0, 0, scene.current.board));
+    show(panBy({ ...next, camera: kept }, 0, 0, scene.current.board));
   }, [show]);
 
   useLayoutEffect(() => {
-    scene.current = { ...scene.current, board, footprints, touch, overlays };
+    scene.current = { ...scene.current, board, places, draws, touch, overlays };
     if (scene.current.view.width > 0) reframe();
-  }, [board, footprints, touch, overlays, reframe]);
+  }, [board, places, draws, touch, overlays, reframe]);
 
   useLayoutEffect(() => {
     const element = box.current;
@@ -104,7 +106,7 @@ export function useBoardCamera({ ref, board, footprints, touch, overlays, locate
       centre: () => {
         const current = frameRef.current;
         const { view, board } = scene.current;
-        return current ? centreOf(current.camera, view, board) : { x: board.width / 2, y: board.height / 2 };
+        return current ? centreOf(current, view, board) : { x: board.width / 2, y: board.height / 2 };
       },
     }),
     [pan, show, locate, revealMargin],
@@ -147,7 +149,7 @@ export function useBoardCamera({ ref, board, footprints, touch, overlays, locate
       presses.delete(event.pointerId);
       if (presses.size > 0) return;
       const current = frameRef.current;
-      if (press && current && !dragged && !multi && !cancelled && event.button <= 0) tapRef.current(local(event), current.camera);
+      if (press && current && !dragged && !multi && !cancelled && event.button <= 0) tapRef.current(local(event), current);
       dragged = false;
       multi = false;
     };

@@ -40,12 +40,16 @@ export function nextTerritory(candidates: readonly Placed[], from: BoardPoint, d
   return best?.id ?? null;
 }
 
-/** Where a focus starts: the candidate nearest a point (the middle of what's on screen). */
-export function nearestTo(candidates: readonly Placed[], point: BoardPoint): string | null {
+/** Where a focus starts: the candidate nearest a point (the middle of what's on screen, or the
+ *  territory a target is being picked for), looking round the board's edge when given its `width`. */
+export function nearestTo(candidates: readonly Placed[], point: BoardPoint, width = 0): string | null {
+  const shifts = width > 0 ? [0, -width, width] : [0];
   let best: { id: string; distance: number } | null = null;
   for (const candidate of candidates) {
-    const distance = Math.hypot(candidate.x - point.x, candidate.y - point.y);
-    if (best === null || distance < best.distance) best = { id: candidate.id, distance };
+    for (const shift of shifts) {
+      const distance = Math.hypot(candidate.x + shift - point.x, candidate.y - point.y);
+      if (best === null || distance < best.distance) best = { id: candidate.id, distance };
+    }
   }
   return best?.id ?? null;
 }

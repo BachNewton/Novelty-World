@@ -54,4 +54,13 @@ describe("nearestTo", () => {
     expect(nearestTo([at("peru"), at("china")], { x: 300, y: 400 })).toBe("peru");
     expect(nearestTo([], { x: 0, y: 0 })).toBeNull();
   });
+
+  it("looks round the board's edge when given its width", () => {
+    const edges: Placed[] = [
+      { id: "west-edge", x: 10, y: 100 },
+      { id: "middle", x: 700, y: 100 },
+    ];
+    expect(nearestTo(edges, { x: 990, y: 100 })).toBe("middle");
+    expect(nearestTo(edges, { x: 990, y: 100 }, 1000)).toBe("west-edge");
+  });
 });

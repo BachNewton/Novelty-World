@@ -16,9 +16,12 @@ so players learn one board. It is tuned by editing SKETCH below and running this
 2. A relaxation evens it out: borders inside a continent pull towards one unit, territories
    closer than MIN_GAP push apart, a territory too near a border it isn't on is pushed off it,
    and everything is held near its sketched place so the lattice survives. A step that would add
-   a crossing is refused.
-3. Each continent gets a region: its territories' convex hull, grown by REGION_PAD with rounded
-   corners. Continents carry no labels: their bonuses are shown where they count.
+   a crossing is refused. Nothing a territory draws may cover another's: its lit ring keeps clear
+   of every other ring and every other name, and names keep clear of each other (RING and the
+   name's box are graph.ts's sizes; the names' widths are measured, in label-widths.ts).
+3. Each continent gets a region, drawn at runtime by graph.ts: its territories' convex hull,
+   grown by REGION_PAD with rounded corners. Here it only checks the regions keep apart. Continents
+   carry no labels: their bonuses are shown where they count.
 4. The board wraps east to west, as a globe does: Alaska sits at the left edge and Kamchatka at
    the right, and their border runs across the edge. The board's width is the period a screen
    that pans across repeats it at.
@@ -35,7 +38,12 @@ import sys
 import numpy as np
 
 UNIT = 100  # board units per lattice unit
-MIN_GAP = 1.0  # the least distance between two territories, in units
+ROW = 1.3  # how far apart the sketch's rows are, in units: room for a name under each territory
+RING = 0.53  # how far a territory's lit ring reaches from its middle, in units (graph.ts's)
+NAME_TOP, NAME_BOTTOM = 0.32, 0.64  # where its name's box sits below its middle, in units (graph.ts's)
+NAME_PAD = 0.025  # the halo round a name's letters, in units
+SPARE = 0.02  # what the relaxation keeps clear beyond the rules, so rounding never breaks them
+MIN_GAP = 2 * RING  # the least distance between two territories, in units: their rings clear
 CLEARANCE = 0.42  # the least distance from a territory to a border it isn't on
 REGION_PAD = 0.45  # how far a continent's region reaches past its outermost territories
 MARGIN = 0.25  # clear board round the regions and labels
@@ -102,6 +110,16 @@ WRAP = ("alaska", "kamchatka")
 
 def _map_ts():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "map.ts")
+
+
+def read_label_widths():
+    """Each territory's name's half width, in units, as the board draws it."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    names = dict(re.findall(r'\{ id: "([a-z-]+)", name: "([^"]+)"', open(_map_ts(), encoding="utf-8").read()))
+    short = open(os.path.join(here, "..", "ui", "short-names.ts"), encoding="utf-8").read()
+    names.update(re.findall(r'"([a-z-]+)": "([^"]+)",', short[short.index("SHORT_NAMES") :]))
+    widths = dict(re.findall(r'"([^"]+)": ([\d.]+),', open(os.path.join(here, "label-widths.ts"), encoding="utf-8").read()))
+    return {t: float(widths[n]) / UNIT / 2 + NAME_PAD for t, n in names.items() if t in SKETCH}
 
 
 def read_map():
@@ -196,6 +214,38 @@ def clearances(pos, edges):
     return sorted(worst)
 
 
+def name_box(p, half):
+    return (p[0] - half, p[1] + NAME_TOP - NAME_PAD, p[0] + half, p[1] + NAME_BOTTOM + NAME_PAD)
+
+
+def to_box(p, box):
+    """The nearest point of a box to p, and how far it is."""
+    c = (min(max(p[0], box[0]), box[2]), min(max(p[1], box[1]), box[3]))
+    return math.dist(p, c), c
+
+
+def clashes(pos, half, margin=0.0):
+    """Every ring over another territory's name, and every two names that meet, `margin` units
+    to spare: (how deep, a, b, kind)."""
+    out = []
+    ids = list(pos)
+    for a in ids:
+        box = name_box(pos[a], half[a])
+        for b in ids:
+            if a == b:
+                continue
+            d, _ = to_box(pos[b], box)
+            if d < RING + margin:
+                out.append((RING + margin - d, a, b, "ring over name"))
+            if a < b:
+                other = name_box(pos[b], half[b])
+                dx = min(box[2], other[2]) - max(box[0], other[0])
+                dy = min(box[3], other[3]) - max(box[1], other[1])
+                if dx > -margin and dy > -margin:
+                    out.append((min(dx, dy) + margin, a, b, "names meet"))
+    return sorted(out, reverse=True)
+
+
 def closest_pairs(pos):
     ids = list(pos)
     out = []
@@ -211,10 +261,10 @@ def closest_pairs(pos):
 # ---------------------------------------------------------------------------
 
 
-def relax(sketch, continent_of, edges, steps=400):
+def relax(sketch, continent_of, edges, half, steps=400):
     ids = list(sketch)
     index = {t: i for i, t in enumerate(ids)}
-    home = np.array([sketch[t] for t in ids], dtype=float)
+    home = np.array([sketch[t] for t in ids], dtype=float) * [1, ROW]
     x = home.copy()
     inner = [(index[a], index[b]) for a, b in edges if continent_of[a] == continent_of[b]]
 
@@ -222,15 +272,20 @@ def relax(sketch, continent_of, edges, steps=400):
         return {t: (float(arr[i, 0]), float(arr[i, 1])) for i, t in enumerate(ids)}
 
     base_crossings = len(crossings(as_pos(x), edges))
-    for _ in range(steps):
+    # The second half lets go of the lattice, so whatever still covers a name is pushed clear.
+    for step in range(steps):
+        settling = step >= steps // 2
+        if settling and not clashes(as_pos(x), half, SPARE):
+            break
         force = np.zeros_like(x)
         # Hold the lattice: a gentle pull home.
-        force += 0.05 * (home - x)
+        if not settling:
+            force += 0.05 * (home - x)
         # Borders inside a continent towards one unit.
-        for i, j in inner:
+        for i, j in [] if settling else inner:
             d = x[j] - x[i]
             length = np.linalg.norm(d)
-            pull = 0.08 * (length - 1.1) * d / length
+            pull = 0.08 * (length - 1.25) * d / length
             force[i] += pull
             force[j] -= pull
         # Territories apart.
@@ -251,47 +306,27 @@ def relax(sketch, continent_of, edges, steps=400):
             norm = np.linalg.norm(away)
             if norm > 0:
                 force[index[t]] += 0.3 * (CLEARANCE + 0.05 - d) * away / norm
+        # Rings off other territories' names, and names off each other.
+        for depth, a, b, kind in clashes(pos, half, SPARE):
+            i, j = index[a], index[b]
+            if kind == "ring over name":
+                _, c = to_box(pos[b], name_box(pos[a], half[a]))
+                away = np.array(pos[b]) - np.array(c)
+                if np.linalg.norm(away) == 0:
+                    away = np.array(pos[b]) - np.array(pos[a])
+            else:
+                away = np.array(pos[b]) - np.array(pos[a])
+            away = away / np.linalg.norm(away)
+            push = (0.6 if settling else 0.3) * (depth + 0.03) * away
+            force[j] += push
+            force[i] -= push
         trial = x + force
         # Alaska and Kamchatka stay level, so the line off one side lines up with the other's.
         a, k = index["alaska"], index["kamchatka"]
         trial[a, 1] = trial[k, 1] = (trial[a, 1] + trial[k, 1]) / 2
         if len(crossings(as_pos(trial), edges)) <= base_crossings:
             x = trial
-    return as_pos(np.round(x, 2))
-
-
-# ---------------------------------------------------------------------------
-# Regions and labels
-# ---------------------------------------------------------------------------
-
-
-def region_path(points, pad):
-    """A convex hull grown by `pad` with round corners, as an SVG path in board units."""
-    h = hull(points)
-    area = sum(_cross((0, 0), h[i - 1], h[i]) for i in range(len(h)))
-    turn = 1 if area > 0 else -1  # which side of each hull edge is outside
-
-    def outward(a, b):
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        length = math.hypot(dx, dy)
-        return (turn * dy / length, -turn * dx / length)
-
-    def u(v):
-        return f"{v * UNIT:.0f}"
-
-    n = len(h)
-    corners = []
-    for i in range(n):
-        prev, cur, nxt = h[i - 1], h[i], h[(i + 1) % n]
-        a, b = outward(prev, cur), outward(cur, nxt)
-        corners.append(((cur[0] + a[0] * pad, cur[1] + a[1] * pad), (cur[0] + b[0] * pad, cur[1] + b[1] * pad)))
-    sweep = 1 if area > 0 else 0
-    r = f"{pad * UNIT:.0f}"
-    d = f"M{u(corners[0][1][0])} {u(corners[0][1][1])}"
-    for i in range(1, n + 1):
-        start, end = corners[i % n]
-        d += f"L{u(start[0])} {u(start[1])}A{r} {r} 0 0 {sweep} {u(end[0])} {u(end[1])}"
-    return d + "Z"
+    return as_pos(np.round(x, 3))
 
 
 def main(out_path):
@@ -300,7 +335,8 @@ def main(out_path):
     print(f"{len(continent_of)} territories, {len(edges)} borders")
 
     sketch_crossings = crossings(SKETCH, edges)
-    pos = relax(SKETCH, continent_of, edges)
+    half = read_label_widths()
+    pos = relax(SKETCH, continent_of, edges, half)
 
     # Shift so the leftmost region edge sits at the margin.
     xs = [p[0] for p in pos.values()]
@@ -319,6 +355,7 @@ def main(out_path):
     between = [(a, b) for a, b in edges if continent_of[a] != continent_of[b]]
     print(f"crossings: sketch {len(sketch_crossings)}, layout {len(found)} {found}")
     print(f"closest territories: {pairs[0][0]:.2f} units ({pairs[0][1]}, {pairs[0][2]})")
+    print(f"names covered or meeting: {len(clashes(pos, half))} {clashes(pos, half)[:5]}")
     print(f"nearest to a border it isn't on: {clear[0][0]:.2f} units ({clear[0][1]} by {clear[0][2]})")
     print(f"borders inside continents: {min(inner):.2f}–{max(inner):.2f} units, mean {sum(inner) / len(inner):.2f}")
     print(f"borders between continents: {len(between)}")
@@ -333,13 +370,11 @@ def main(out_path):
     print(f"regions: the nearest a territory comes to another continent's hull is {gap[0]:.2f} units ({gap[1]} to {gap[2]}), so regions sit {gap[0] - 2 * REGION_PAD:.2f} apart at the least")
     print(f"board: {width:.2f} × {height:.2f} units")
 
-    regions = {cid: region_path([pos[t] for t, c in continent_of.items() if c == cid], REGION_PAD) for cid, _, _ in continents}
-
     lines = [
         "// Generated by layout_graph.py, the board as a graph. Don't edit by hand: change the",
         "// sketch there and run it again.",
         "",
-        'import type { ContinentId, TerritoryId } from "../map";',
+        'import type { TerritoryId } from "../map";',
         "",
         f"export const GRAPH_WIDTH = {width * UNIT:.0f};",
         f"export const GRAPH_HEIGHT = {height * UNIT:.0f};",
@@ -356,13 +391,9 @@ def main(out_path):
     lines += [
         "};",
         "",
-        "/** Each continent's region, as an SVG path. */",
-        "export const REGIONS: Record<ContinentId, string> = {",
-    ]
-    for cid, path in regions.items():
-        lines.append(f'  "{cid}": "{path}",')
-    lines += [
-        "};",
+        "/** How far a continent's region reaches past its outermost territories, in board units:",
+        " *  graph.ts draws each round its territories as they sit on the screen. */",
+        f"export const REGION_PAD = {REGION_PAD * UNIT:.0f};",
         "",
         "/** Every border, as map.ts has them: the layout was made for exactly these. */",
         "export const BORDERS: readonly (readonly [TerritoryId, TerritoryId])[] = [",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Options } from "../contract";
-import { alsoPickable, back, keepSelection, NO_SELECTION, phaseEnd, pick, stepOf } from "./selection";
+import type { TerritoryId } from "../map";
+import { alsoPickable, back, NO_SELECTION, nextSelection, phaseEnd, pick, stepOf } from "./selection";
 
 const attack: Options = {
   kind: "attack",
@@ -88,10 +89,6 @@ describe("the rest of a selection", () => {
     expect(alsoPickable(attack, NO_SELECTION)).toEqual([]);
   });
 
-  it("keeps attacking the same target after a battle that didn't take it", () => {
-    expect(keepSelection(attack, { from: "brazil", to: "peru" })).toEqual({ from: "brazil", to: "peru" });
-    expect(keepSelection(attack, { from: "argentina", to: "peru" })).toEqual(NO_SELECTION);
-  });
 
   it("ends the attack or the turn only where the options are those phases", () => {
     expect(phaseEnd(attack)).toEqual({ kind: "end-attack" });
@@ -99,3 +96,57 @@ describe("the rest of a selection", () => {
     expect(phaseEnd(reinforce())).toBeNull();
   });
 });
+
+describe("the selection after a move", () => {
+  const occupy = (from: TerritoryId, to: TerritoryId): Options => ({ kind: "occupy", from, to, min: 3, max: 8 });
+  const attacks = (...pairs: (readonly [TerritoryId, TerritoryId])[]): Options => ({ kind: "attack", attacks: pairs.map(([from, to]) => ({ from, to, maxDice: 3 as const })) });
+
+  it("keeps attacking the same target after a battle that didn't take it", () => {
+    expect(nextSelection(attack, attack, { from: "brazil", to: "peru" })).toEqual({ from: "brazil", to: "peru" });
+    expect(nextSelection(attack, attack, { from: "argentina", to: "peru" })).toEqual(NO_SELECTION);
+  });
+
+  it("keeps the source when its target is gone but it can still attack", () => {
+    expect(nextSelection(attack, attacks(["brazil", "north-africa"]), { from: "brazil", to: "peru" })).toEqual({ from: "brazil", to: null });
+  });
+
+  it("keeps placing on the same territory while armies are left", () => {
+    expect(nextSelection(reinforce(), reinforce({ armiesToPlace: 2 }), { from: "brazil", to: null })).toEqual({ from: "brazil", to: null });
+  });
+
+  it("starts the attack from the territory last placed on", () => {
+    const next = nextSelection(reinforce(), attack, { from: "brazil", to: null });
+    expect(next).toEqual({ from: "brazil", to: null });
+    expect(stepOf(attack, next)).toMatchObject({ kind: "pick", purpose: "attack-to" });
+  });
+
+  it("starts the attack with nothing picked when the last placement can't attack", () => {
+    expect(nextSelection(reinforce({ ownTerritories: ["brazil", "argentina"] }), attack, { from: "argentina", to: null })).toEqual(NO_SELECTION);
+  });
+
+  it("attacks on from a capture just moved into", () => {
+    expect(nextSelection(occupy("brazil", "peru"), attacks(["peru", "argentina"], ["brazil", "north-africa"]), NO_SELECTION)).toEqual({ from: "peru", to: null });
+  });
+
+  it("attacks on from a capture whose move-in the rules made", () => {
+    expect(nextSelection(attack, attacks(["peru", "argentina"]), { from: "brazil", to: "peru" })).toEqual({ from: "peru", to: null });
+  });
+
+  it("falls back to the source a capture came from, then to nothing", () => {
+    expect(nextSelection(occupy("brazil", "peru"), attacks(["brazil", "north-africa"]), NO_SELECTION)).toEqual({ from: "brazil", to: null });
+    expect(nextSelection(occupy("brazil", "peru"), attacks(["venezuela", "central-america"]), NO_SELECTION)).toEqual(NO_SELECTION);
+  });
+
+  it("drops the selection into any other phase", () => {
+    expect(nextSelection(attack, fortify, { from: "brazil", to: "peru" })).toEqual(NO_SELECTION);
+    expect(nextSelection(null, attack, { from: "brazil", to: null })).toEqual(NO_SELECTION);
+  });
+
+  it("backs out of a preselected source to picking one", () => {
+    const next = nextSelection(occupy("brazil", "peru"), attacks(["peru", "argentina"]), NO_SELECTION);
+    const backed = back(next);
+    expect(backed).toEqual(NO_SELECTION);
+    expect(stepOf(attack, backed ?? next)).toMatchObject({ kind: "pick", purpose: "attack-from" });
+  });
+});
+

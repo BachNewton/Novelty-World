@@ -1,14 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Prompt } from "@/shared/components/prompts";
-import type { InputKind } from "@/shared/lib/input";
+import { isDrag, type InputKind, type Point } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
 import type { CardId, Seat } from "../contract";
 import { BINDINGS } from "../ui/bindings";
 import { cardName, cardSymbol } from "../ui/describe";
 import { SEAT_LOOKS, seatColour, shapePath } from "../ui/seats";
-import { BUTTON } from "./theme";
 
 /** A seat's shape in its ink, as on its army markers: the cue that doesn't need colour. */
 export function SeatMark({ seat, className }: { seat: Seat; className?: string }) {
@@ -122,24 +121,101 @@ export function CardPips({ count, className }: { count: number; className?: stri
   );
 }
 
-/** A number to choose, with − and + buttons and LB / RB (or [ and ]) beside them. */
-export function Stepper({ value, min, max, onChange, input, label, all = true }: { value: number; min: number; max: number; onChange: (value: number) => void; input: InputKind; label: string; all?: boolean }) {
+/** A number to choose on a track, the number riding on its thumb and the most at its end, so
+ *  "all" is dragging to the end. A drag sets it; a tap either side of the thumb nudges it by one,
+ *  finer than a finger can drag. The arrow keys step it while it has the focus, and LB / RB (or
+ *  [ and ]) step it from anywhere, their glyphs at the track's ends. */
+export function Slider({ value, min, max, onChange, input, label, className, thumb, valueText, ends }: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+  input: InputKind;
+  label: string;
+  className?: string;
+  /** What the thumb shows, when not the number itself. */
+  thumb?: ReactNode;
+  valueText?: string;
+  /** What marks the track's two ends, when not the most at its end. */
+  ends?: readonly [ReactNode, ReactNode];
+}) {
+  const rail = useRef<HTMLDivElement>(null);
+  const press = useRef<{ start: Point; dragged: boolean } | null>(null);
+  const span = max - min;
+  const at = span > 0 ? (value - min) / span : 1;
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+  const valueAt = (x: number) => {
+    const box = rail.current?.getBoundingClientRect();
+    return box ? clamp(min + Math.round(((x - box.left) / box.width) * span)) : value;
+  };
+  const thumbX = () => {
+    const box = rail.current?.getBoundingClientRect();
+    return box ? box.left + at * box.width : 0;
+  };
+  const keys: Record<string, number> = { ArrowLeft: value - 1, ArrowDown: value - 1, ArrowRight: value + 1, ArrowUp: value + 1, Home: min, End: max, PageDown: value - 5, PageUp: value + 5 };
   return (
-    <div className="flex items-center gap-[0.4em]" role="group" aria-label={label}>
-      <button type="button" className={cn(BUTTON, "min-w-[2.6em] px-[0.5em]")} disabled={value <= min} onClick={() => onChange(value - 1)} aria-label={`Fewer: ${label}`}>
-        <Prompt binding={BINDINGS.less} input={input} />−
-      </button>
-      <output className="min-w-[2.2em] text-center text-[1.35em] font-bold tabular-nums" aria-live="polite">
-        {value}
-      </output>
-      <button type="button" className={cn(BUTTON, "min-w-[2.6em] px-[0.5em]")} disabled={value >= max} onClick={() => onChange(value + 1)} aria-label={`More: ${label}`}>
-        +<Prompt binding={BINDINGS.more} input={input} />
-      </button>
-      {all && max > min && (
-        <button type="button" className={cn(BUTTON, "px-[0.6em] text-[0.85em]")} disabled={value === max} onClick={() => onChange(max)}>
-          All
-        </button>
+    <div className={cn("flex min-w-0 items-center gap-[0.4em]", className)}>
+      <Prompt binding={BINDINGS.less} input={input} />
+      {ends?.[0]}
+      <div
+        role="slider"
+        tabIndex={span > 0 ? 0 : -1}
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={valueText}
+        aria-disabled={span === 0 || undefined}
+        className={cn("relative h-[max(2.4em,44px)] min-w-[6em] flex-1 touch-none rounded-full px-[1.2em] outline-offset-2 focus-visible:outline-2 focus-visible:outline-(--rk-brass-bright)", span > 0 ? "cursor-pointer" : "opacity-60")}
+        onKeyDown={(event) => {
+          if (!(event.key in keys)) return;
+          event.preventDefault();
+          onChange(clamp(keys[event.key]));
+        }}
+        onPointerDown={(event) => {
+          if (span === 0) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          press.current = { start: { x: event.clientX, y: event.clientY }, dragged: false };
+        }}
+        onPointerMove={(event) => {
+          const p = press.current;
+          if (!p) return;
+          if (!p.dragged && isDrag(p.start, { x: event.clientX, y: event.clientY })) p.dragged = true;
+          if (p.dragged) onChange(valueAt(event.clientX));
+        }}
+        onPointerUp={(event) => {
+          const p = press.current;
+          press.current = null;
+          if (!p || p.dragged) return;
+          const off = event.clientX - thumbX();
+          // A tap on the thumb itself changes nothing; either side of it, one step that way.
+          if (Math.abs(off) > event.currentTarget.clientHeight / 2) onChange(clamp(value + Math.sign(off)));
+        }}
+        onPointerCancel={() => {
+          press.current = null;
+        }}
+      >
+        <div ref={rail} className="absolute inset-x-[1.2em] top-1/2 h-[0.45em] -translate-y-1/2 rounded-full bg-(--rk-line)">
+          <div className="h-full rounded-full bg-(--rk-brass)" style={{ width: `${at * 100}%` }} />
+          <output
+            className="absolute top-1/2 flex h-[2.2em] min-w-[2.2em] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-(--rk-brass-bright) bg-(--rk-panel) px-[0.3em] text-[1.05em] font-bold tabular-nums text-(--rk-parchment) shadow"
+            style={{ left: `${at * 100}%` }}
+            aria-live="polite"
+          >
+            {/* Centred on the digits' own height, not the line's, which leaves room for letters
+                that rise and fall below them, so they would sit off centre by a pixel or two. */}
+            <span className="block [text-box:trim-both_cap_alphabetic]">{thumb ?? value}</span>
+          </output>
+        </div>
+      </div>
+      {ends ? (
+        ends[1]
+      ) : (
+        <span className="min-w-[1.6ch] text-right text-[0.85em] text-(--rk-muted) tabular-nums" aria-hidden>
+          {max}
+        </span>
       )}
+      <Prompt binding={BINDINGS.more} input={input} />
     </div>
   );
 }

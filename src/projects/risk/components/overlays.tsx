@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, ScrollText, X } from "lucide-react";
+import { LogOut, Rabbit, ScrollText, Turtle, X, Zap } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import type { InputKind } from "@/shared/lib/input";
@@ -9,7 +9,8 @@ import { setValue } from "../cards";
 import type { CardId, GameEvent, GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
 import { describeEvents, isWild, territoryName } from "../ui/describe";
-import { CardChip, CardPips, DiceRow, SeatMark, SeatName } from "./bits";
+import { SPEEDS } from "../ui/playback";
+import { CardChip, CardPips, DiceRow, SeatMark, SeatName, Slider } from "./bits";
 import { BUTTON, DISPLAY, PANEL, PRIMARY } from "./theme";
 
 /** A panel over the game, holding a controller's focus while it is open: the d-pad moves round
@@ -35,10 +36,29 @@ function Dialog({ title, onClose, input, children, wide, actions }: { title: str
 
 const HEADER_BUTTON = cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em]");
 
+/** How fast other seats' moves play out: a slider from the tortoise's pace to the hare's, the last
+ *  step playing them as fast as they arrive. LB / RB step it while the war room is open. */
+function SpeedControl({ speed, setSpeed, input }: { speed: number; setSpeed: (speed: number) => void; input: InputKind }) {
+  const { name, scale } = SPEEDS[speed];
+  return (
+    <Slider
+      value={speed + 1}
+      min={1}
+      max={SPEEDS.length}
+      onChange={(value) => setSpeed(value - 1)}
+      input={input}
+      label="Playback speed"
+      valueText={name}
+      thumb={scale === 0 ? <Zap size="1em" aria-hidden /> : undefined}
+      ends={[<Turtle key="slow" size="1.3em" aria-hidden className="shrink-0 text-(--rk-muted)" />, <Rabbit key="fast" size="1.3em" aria-hidden className="shrink-0 text-(--rk-muted)" />]}
+    />
+  );
+}
+
 /** The war room, the game's one menu: the hand, the trades open to it (each with what it is
  *  worth), what every player can see of the cards (note `public-cards`: each hand's size, the
  *  deck's size and every trade made), and the way to the battle log and out of the game. */
-export function WarRoom({ view, options, act, onClose, onLog, onQuit, input }: { view: GameView; options: Options | null; act: (move: Move) => void; onClose: () => void; onLog: () => void; onQuit: () => void; input: InputKind }) {
+export function WarRoom({ view, options, act, onClose, onLog, onQuit, input, speed, setSpeed }: { view: GameView; options: Options | null; act: (move: Move) => void; onClose: () => void; onLog: () => void; onQuit: () => void; input: InputKind; speed: number; setSpeed: (speed: number) => void }) {
   const hand = view.cards.hand ?? [];
   const owned = (card: CardId) => !isWild(card) && view.territories[card as TerritoryId].owner === view.viewer;
   const trading = options?.kind === "reinforce" ? options : null;
@@ -156,6 +176,7 @@ export function WarRoom({ view, options, act, onClose, onLog, onQuit, input }: {
             </ul>
           </section>
         )}
+        <SpeedControl speed={speed} setSpeed={setSpeed} input={input} />
       </div>
     </Dialog>
   );

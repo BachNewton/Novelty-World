@@ -7,12 +7,14 @@ import { usePadNavigation, type Direction } from "@/shared/lib/gamepad";
 import { cycleChoice, type InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
 import { locate, WRAP_WIDTH } from "../board/graph";
-import type { GameEvent, GameView, Move, Options } from "../contract";
+import type { GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
+import type { LoggedEvent } from "../online/game";
 import type { RatedGame } from "../online/rating";
 import { BINDINGS } from "../ui/bindings";
 import { describeEvents, phaseName } from "../ui/describe";
-import { alsoPickable, back as backOut, keepSelection, NO_SELECTION, phaseEnd, pick, stepOf, type Selection } from "../ui/selection";
+import { SPEEDS } from "../ui/playback";
+import { alsoPickable, back as backOut, NO_SELECTION, nextSelection, phaseEnd, pick, stepOf, type Selection } from "../ui/selection";
 import { nearestTo, nextTerritory } from "../ui/territory-nav";
 import type { Rect } from "../ui/camera";
 import { CardPips, SeatMark, SeatName } from "./bits";
@@ -21,6 +23,7 @@ import { LogDialog, WarRoom } from "./overlays";
 import { StatusBox } from "./status-box";
 import { BUTTON, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
 import type { BoardHandle, Marks } from "./use-board-camera";
+import { usePlayback, useSpeed } from "./use-playback";
 import { useRiskInput, type FocusZone } from "./use-risk-input";
 
 /** What the game screen plays: the game as this player's seat sees it, and how to move. An
@@ -29,10 +32,9 @@ export interface GameFeed {
   view: GameView;
   /** The seat's choices, or null while it waits on someone else. */
   options: Options | null;
-  /** Everything that happened, oldest first, as this seat may see it. */
-  events: readonly GameEvent[];
-  /** Where the last move's events start in `events`. */
-  latestFrom: number;
+  /** Everything that happened, oldest first, as this seat may see it, each with an id that
+   *  stays the same as the feed grows. */
+  events: readonly LoggedEvent[];
   act: (move: Move) => void;
   /** A move the engine or server refused, or a connection problem, in words. */
   problem: string | null;
@@ -54,39 +56,23 @@ const playerLabel = ({ name, rank }: Player) => (rank ? `${rank} · ${name}` : n
 type Dialog = { kind: "menu" } | { kind: "log" } | null;
 
 /** Where the overlays sit over the map, in its CSS pixels, so the board is framed clear of them.
- *  While the screen keeps its size each only grows: the status box changes height from step to
- *  step, and a board framed afresh at every step would jump about under the player. */
+ *  They are measured as the screen takes its size, and only then: the board moves when the player
+ *  pans it or the screen changes size, never because an overlay's content changed. */
 function useOverlays(root: RefObject<HTMLElement | null>, parts: readonly RefObject<HTMLElement | null>[]): Rect[] {
   const [rects, setRects] = useState<Rect[]>([]);
   useLayoutEffect(() => {
     const host = root.current;
     if (!host) return;
-    let screen = "";
-    let held: (Rect | null)[] = [];
-    let shown = "";
-    const measure = () => {
+    const observer = new ResizeObserver(() => {
       const frame = host.getBoundingClientRect();
-      const size = `${frame.width}x${frame.height}`;
-      if (size !== screen) {
-        screen = size;
-        held = [];
-      }
-      held = parts.map((part, i) => {
-        const box = part.current?.getBoundingClientRect();
-        if (!box) return null;
-        const now = { left: box.left - frame.left, top: box.top - frame.top, right: box.right - frame.left, bottom: box.bottom - frame.top };
-        const was = held.at(i);
-        return was ? { left: Math.min(was.left, now.left), top: Math.min(was.top, now.top), right: Math.max(was.right, now.right), bottom: Math.max(was.bottom, now.bottom) } : now;
-      });
-      const next = held.filter((rect): rect is Rect => rect !== null);
-      if (JSON.stringify(next) !== shown) {
-        shown = JSON.stringify(next);
-        setRects(next);
-      }
-    };
-    const observer = new ResizeObserver(measure);
+      setRects(
+        parts.flatMap((part) => {
+          const box = part.current?.getBoundingClientRect();
+          return box ? [{ left: box.left - frame.left, top: box.top - frame.top, right: box.right - frame.left, bottom: box.bottom - frame.top }] : [];
+        }),
+      );
+    });
     observer.observe(host);
-    for (const part of parts) if (part.current) observer.observe(part.current);
     return () => observer.disconnect();
   }, [root, parts]);
   return rects;
@@ -100,7 +86,15 @@ function subscribeCoarse(changed: () => void) {
 }
 
 export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => void }) {
-  const { view, options, act: send } = feed;
+  const { act: send } = feed;
+  // The game as presented: another seat's moves play a beat at a time (`ui/playback.ts`), and
+  // nothing is asked of the player until the screen has caught up with the game.
+  const [speed, setSpeed] = useSpeed();
+  const played = usePlayback(feed.view, feed.events, feed.view.viewer, speed);
+  const { board: presented, shown: shownLog, latestFrom, beat } = played.playback;
+  const view = presented.view;
+  const options = played.caughtUp ? feed.options : null;
+  const shown = useMemo(() => shownLog.map((logged) => logged.event), [shownLog]);
   const board = useRef<BoardHandle>(null);
   const box = useRef<HTMLDivElement>(null);
 
@@ -115,11 +109,10 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
   const [holding, setHolding] = useState(false);
   const [optionsSeen, setOptionsSeen] = useState(options);
 
-  // A move changes the options: keep a selection still meaningful (attack again from the same
-  // territory), and drop it when the phase moved on.
+  // A move changes the options: the selection carries on where the move leads (`nextSelection`).
   if (optionsSeen !== options) {
     setOptionsSeen(options);
-    setSelection(optionsSeen?.kind === options?.kind ? keepSelection(options, selection) : NO_SELECTION);
+    setSelection(nextSelection(optionsSeen, options, selection));
   }
 
   const step = stepOf(options, selection);
@@ -164,14 +157,19 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
   const currentFocus = focus !== null && choices.includes(focus) ? focus : null;
   const moveFocus = (direction: Direction) => {
     if (choices.length === 0) return;
-    if (!showFocus || currentFocus === null) return focusOn(nearestTo(placed(choices), board.current?.centre() ?? { x: WRAP_WIDTH / 2, y: 0 }) as TerritoryId | null);
+    if (!showFocus || currentFocus === null) {
+      const start = selection.from !== null && !choices.includes(selection.from) ? nearestTo(placed(choices), locate(selection.from), WRAP_WIDTH) : nearestTo(placed(choices), board.current?.centre() ?? { x: WRAP_WIDTH / 2, y: 0 });
+      return focusOn(start as TerritoryId | null);
+    }
     const next = nextTerritory(placed(choices), locate(currentFocus), direction, WRAP_WIDTH) as TerritoryId | null;
     if (next) focusOn(next);
   };
 
-  const ending = phaseEnd(options);
-  const news = describeEvents(feed.events.slice(feed.latestFrom));
-  const latestLine = news.at(-1) ?? describeEvents(feed.events).at(-1);
+  // Only picking a territory offers to end the phase: beside a fight or an amount on hand, "End
+  // attack" or "End turn" reads as ending that one move. Back steps out of it first.
+  const ending = step.kind === "pick" ? phaseEnd(options) : null;
+  const news = describeEvents(shown.slice(latestFrom));
+  const latestLine = news.at(-1) ?? describeEvents(shown).at(-1);
 
   useRiskInput({
     zone: () => zone,
@@ -196,13 +194,18 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     endHold: (held) => setHolding(held && ending !== null && dialog === null),
     menu: () => setDialog((open) => (open?.kind === "menu" ? null : { kind: "menu" })),
     log: () => setDialog({ kind: "log" }),
+    // An open dialog's one amount is the war room's playback speed.
     less: () => {
-      if (step.kind === "battle") setKeep(Math.max(1, keep - 1));
+      if (dialog !== null) {
+        if (dialog.kind === "menu") setSpeed(Math.max(0, speed - 1));
+      } else if (step.kind === "battle") setKeep(Math.max(1, keep - 1));
       else if (step.kind === "place" || step.kind === "fortify-amount") setAmount(Math.max(1, amount - 1));
       else if (step.kind === "occupy") setAmount(Math.max(step.min, amount - 1));
     },
     more: () => {
-      if (step.kind === "battle") setKeep(Math.min(Math.max(1, view.territories[step.from].armies - 1), keep + 1));
+      if (dialog !== null) {
+        if (dialog.kind === "menu") setSpeed(Math.min(SPEEDS.length - 1, speed + 1));
+      } else if (step.kind === "battle") setKeep(Math.min(Math.max(1, view.territories[step.from].armies - 1), keep + 1));
       else if (step.kind === "place" || step.kind === "fortify-amount" || step.kind === "occupy") setAmount(Math.min(step.max, amount + 1));
     },
     dice: (count) => {
@@ -244,18 +247,27 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
       className={cn(DISPLAY_FONT.variable, "fixed inset-0 overflow-hidden bg-(--rk-sea) text-[15px] text-(--rk-text) sm:text-base min-[1800px]:text-[23px]")}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} overlays={overlays} />
+      <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} overlays={overlays} beat={beat} />
 
       {/* What floats over the map: the turn, the players and the war room at the top, the status
           box at the bottom. The board is framed clear of them (`ui/camera.ts`). */}
-      <div ref={turn} className={cn(PANEL, "absolute top-[0.5em] left-[0.5em] flex flex-col gap-[0.2em] py-[0.3em] pr-[0.3em] pl-[0.7em] max-sm:right-[0.5em] min-[1800px]:top-[1.5em] min-[1800px]:left-[1.5em]")}>
+      <div ref={turn} className={cn(PANEL, "absolute top-[0.5em] left-[0.5em] flex flex-col gap-[0.2em] py-[0.3em] pr-[0.3em] pl-[0.7em] max-sm:right-[0.5em] sm:w-[26em] min-[1800px]:top-[1.5em] min-[1800px]:left-[1.5em]")}>
         <div className="flex items-center gap-[0.5em]">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-[0.5em]">
-            {view.phase !== "game-over" && <SeatName seat={active} />}
-            {view.phase !== "game-over" && <span className="truncate">{active === you ? "you" : playerLabel(players[active])}</span>}
-            <span className="text-(--rk-muted)">
-              {phaseName(view.phase)}
-              {view.phase !== "game-over" && ` · turn ${view.turn}`}
+          {/* Always two lines that cut short rather than wrap, so the panel never changes height
+              over the board framed clear of it. */}
+          <div className="flex min-w-0 flex-1 flex-col whitespace-nowrap">
+            <div className="flex h-[1.4em] min-w-0 items-center gap-x-[0.5em]">
+              {view.phase === "game-over" ? (
+                <span>{phaseName(view.phase)}</span>
+              ) : (
+                <>
+                  <SeatName seat={active} />
+                  <span className="truncate">{active === you ? "you" : playerLabel(players[active])}</span>
+                </>
+              )}
+            </div>
+            <span className="h-[1.4em] truncate text-(--rk-muted)">
+              {view.phase === "game-over" ? `turn ${view.turn}` : `${phaseName(view.phase)} · turn ${view.turn}`}
             </span>
           </div>
           <PromptButton binding={BINDINGS.menu} input={input} className={BUTTON} onClick={() => setDialog({ kind: "menu" })} aria-label={`War room: ${view.cards.hand?.length ?? 0} cards`}>
@@ -283,7 +295,9 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
         </ol>
       </div>
 
-      <div ref={status} className="absolute inset-x-[0.5em] bottom-[0.5em] sm:right-auto sm:w-[26em] min-[1800px]:bottom-[1.5em] min-[1800px]:left-[1.5em]">
+      {/* The status box's room: as tall as its tallest step, a battle, whatever the step now, so
+          the board is framed clear of it once and never moves as the box changes size. */}
+      <div ref={status} className="pointer-events-none absolute inset-x-[0.5em] bottom-[0.5em] flex h-[11.5em] flex-col justify-end sm:right-auto sm:w-[21em] min-[1800px]:bottom-[1.5em] min-[1800px]:left-[1.5em]">
         <StatusBox
           ref={box}
           view={view}
@@ -297,6 +311,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
           back={() => setSelection(backOut(selection) ?? NO_SELECTION)}
           news={latestLine ? [latestLine] : []}
           onMenu={() => setDialog({ kind: "menu" })}
+          ending={ending}
           endHold={{ holding, onHeld: () => ending && act(ending) }}
           input={input}
           onNewGame={onLeave}
@@ -305,8 +320,8 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
         />
       </div>
 
-      {dialog?.kind === "menu" && <WarRoom view={view} options={options} act={act} onClose={() => setDialog(null)} onLog={() => setDialog({ kind: "log" })} onQuit={onLeave} input={input} />}
-      {dialog?.kind === "log" && <LogDialog log={feed.events} onClose={() => setDialog(null)} input={input} />}
+      {dialog?.kind === "menu" && <WarRoom view={view} options={options} act={act} onClose={() => setDialog(null)} onLog={() => setDialog({ kind: "log" })} onQuit={onLeave} input={input} speed={speed} setSpeed={setSpeed} />}
+      {dialog?.kind === "log" && <LogDialog log={shown} onClose={() => setDialog(null)} input={input} />}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Minus, Shield, Swords, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowLeft, ArrowRight, Minus, Swords, TrendingDown, TrendingUp } from "lucide-react";
 import { forwardRef } from "react";
 import { PromptButton, type Hold } from "@/shared/components/prompts";
 import type { InputKind } from "@/shared/lib/input";
@@ -10,8 +10,9 @@ import { shownChange, type RatedGame } from "../online/rating";
 import { BINDINGS } from "../ui/bindings";
 import { territoryName, type Line } from "../ui/describe";
 import { blitzOdds } from "../ui/odds";
-import { phaseEnd, type Step } from "../ui/selection";
-import { DiceRow, SeatName, Stepper } from "./bits";
+import { shortName } from "../ui/short-names";
+import type { Step } from "../ui/selection";
+import { DiceRow, SeatName, Slider } from "./bits";
 import { BUTTON, DISPLAY, PANEL, PRIMARY } from "./theme";
 
 /*
@@ -32,6 +33,8 @@ interface Props {
   back: () => void;
   news: readonly Line[];
   onMenu: () => void;
+  /** The move that ends the phase, when the step offers it. */
+  ending: Move | null;
   endHold: Hold;
   input: InputKind;
   onNewGame: () => void;
@@ -39,7 +42,8 @@ interface Props {
   rating: RatedGame | null;
 }
 
-function prompt(step: Step, view: GameView): string {
+/** What a step that asks in words asks; a choice of an amount asks with its slider. */
+function prompt(step: Extract<Step, { kind: "wait" | "must-trade" | "pick" }>, view: GameView): string {
   switch (step.kind) {
     case "wait":
       return view.phase === "game-over" ? "The war is over." : "Waiting…";
@@ -58,15 +62,6 @@ function prompt(step: Step, view: GameView): string {
         case "fortify-to":
           return "Fortify where?";
       }
-      return "";
-    case "place":
-      return `How many on ${territoryName(step.territory)}?`;
-    case "battle":
-      return "";
-    case "occupy":
-      return `Captured ${territoryName(step.to)}! How many armies hold it?`;
-    case "fortify-amount":
-      return `Move armies from ${territoryName(step.from)} to ${territoryName(step.to)}.`;
   }
 }
 
@@ -90,49 +85,62 @@ function EloChange({ rating }: { rating: RatedGame }) {
   );
 }
 
-export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onMenu, endHold, input, onNewGame, error, rating }, ref) {
-  const ending = phaseEnd(options);
+export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onMenu, ending, endHold, input, onNewGame, error, rating }, ref) {
   const latest = news.at(-1);
   const canTrade = options?.kind === "reinforce" && options.sets.length > 0 && !options.mustTrade;
-  const canBack = step.kind === "place" || step.kind === "battle" || step.kind === "fortify-amount";
+  const backButton = (
+    <button type="button" data-pad-back className={cn(BUTTON, "shrink-0 px-[0.5em]")} onClick={back} aria-label="Back" title="Back">
+      <ArrowLeft size="1.1em" />
+    </button>
+  );
 
   return (
-    <div ref={ref} className={cn(PANEL, "flex flex-col gap-[0.6em] p-[0.75em]")} data-testid="risk-status">
+    <div ref={ref} className={cn(PANEL, "pointer-events-auto flex flex-col gap-[0.6em] p-[0.75em]")} data-testid="risk-status">
       {latest && (
-        <div className="flex flex-wrap items-center gap-x-[0.6em] gap-y-[0.25em] text-[0.9em]" aria-live="polite">
-          {latest.dice && <DiceRow attacker={latest.dice.attacker} defender={latest.dice.defender} />}
-          <p className="min-w-0 text-(--rk-muted)">{latest.text}</p>
+        // One row of a fixed budget, so the box always fits the room the screen keeps for it. A
+        // battle is drawn, not told: who fought (unless it is the fight on hand) and the dice, or
+        // a blitz's losses; other news is at most two lines of words.
+        <div className="flex min-h-[1.8em] items-center gap-x-[0.6em] text-[0.9em] text-(--rk-muted)" aria-live="polite" title={latest.text}>
+          {latest.battle ? (
+            <>
+              <span className="sr-only">{latest.text}</span>
+              {!(step.kind === "battle" && step.from === latest.battle.from && step.to === latest.battle.to) && (
+                <span aria-hidden className="inline-flex shrink-0 items-center gap-[0.3em] whitespace-nowrap">
+                  {shortName(latest.battle.from)}
+                  <Swords size="0.95em" className="shrink-0" />
+                  {shortName(latest.battle.to)}
+                </span>
+              )}
+              <span aria-hidden className="shrink-0 tabular-nums">
+                {latest.dice ? <DiceRow attacker={latest.dice.attacker} defender={latest.dice.defender} /> : `−${latest.battle.attackerLost} vs −${latest.battle.defenderLost}`}
+              </span>
+            </>
+          ) : (
+            <p className="line-clamp-2 min-w-0 flex-1">{latest.text}</p>
+          )}
         </div>
       )}
 
       {error && <p className="text-(--rk-danger)">The engine refused that move: {error}</p>}
 
-      <div className="flex flex-wrap items-center gap-[0.5em]">
-        {canBack && (
-          <button type="button" data-pad-back className={cn(BUTTON, "px-[0.5em]")} onClick={back} aria-label="Back" title="Back">
-            <ArrowLeft size="1.1em" />
-          </button>
-        )}
-        {step.kind === "battle" ? (
-          <p className={cn(DISPLAY, "mr-auto inline-flex flex-wrap items-center gap-x-[0.4em] text-[1.1em] text-(--rk-brass-bright)")}>
-            {territoryName(step.from)}
-            <Swords size="0.95em" aria-label="attacks" />
-            {territoryName(step.to)}
-          </p>
-        ) : (
-          <p className={cn(DISPLAY, "mr-auto text-[1.1em] text-(--rk-brass-bright)")}>{prompt(step, view)}</p>
-        )}
-        {canTrade && (
-          <PromptButton binding={BINDINGS.menu} input={input} className={BUTTON} onClick={onMenu}>
-            Trade cards
-          </PromptButton>
-        )}
-        {ending && (
-          <PromptButton binding={BINDINGS["end-phase"]} input={input} hold={endHold} className={BUTTON} onClick={() => act(ending)}>
-            {ending.kind === "end-attack" ? "End attack" : "End turn"}
-          </PromptButton>
-        )}
-      </div>
+      {/* Each row stays one row, so the box always fits the room the screen keeps for it. A
+          choice of an amount, a battle's included, has no words to say: the map lights where it
+          goes, and its slider shows how many. */}
+      {(step.kind === "wait" || step.kind === "must-trade" || step.kind === "pick") && (
+        <div className="flex items-center gap-[0.5em]">
+          <p className={cn(DISPLAY, "mr-auto line-clamp-2 min-w-0 text-[1.1em] text-(--rk-brass-bright)")}>{prompt(step, view)}</p>
+          {canTrade && (
+            <PromptButton binding={BINDINGS.menu} input={input} className={cn(BUTTON, "shrink-0")} onClick={onMenu}>
+              Trade cards
+            </PromptButton>
+          )}
+          {ending && (
+            <PromptButton binding={BINDINGS["end-phase"]} input={input} hold={endHold} className={cn(BUTTON, "shrink-0")} onClick={() => act(ending)}>
+              {ending.kind === "end-attack" ? "End attack" : "End turn"}
+            </PromptButton>
+          )}
+        </div>
+      )}
 
       {step.kind === "wait" && view.winner !== null && (
         <div className="flex flex-wrap items-center gap-[0.6em]">
@@ -152,55 +160,56 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
       )}
 
       {step.kind === "place" && (
-        <div className="flex flex-wrap items-center gap-[0.6em]">
-          <Stepper value={amount} min={1} max={step.max} onChange={setAmount} input={input} label="Armies to place" />
-          <button type="button" data-pad-start className={cn(BUTTON, PRIMARY)} onClick={() => act({ kind: "place", territory: step.territory, armies: amount })}>
-            Place {amount}
+        <div className="flex items-center gap-[0.5em]">
+          {backButton}
+          <Slider value={amount} min={1} max={step.max} onChange={setAmount} input={input} label={`Armies to place on ${territoryName(step.territory)}`} className="flex-1" />
+          <button type="button" data-pad-start className={cn(BUTTON, PRIMARY, "shrink-0")} onClick={() => act({ kind: "place", territory: step.territory, armies: amount })}>
+            Place
           </button>
         </div>
       )}
 
       {step.kind === "battle" && (
         <div className="flex flex-col gap-[0.6em]">
-          <div className="flex flex-wrap items-center gap-[0.4em]">
+          <div className="flex items-center gap-[0.4em]" role="group" aria-label={`${territoryName(step.from)} attacks ${territoryName(step.to)}`}>
+            {backButton}
             {([1, 2, 3] as const)
               .filter((dice) => dice <= step.maxDice)
               .map((dice) => (
-                <button key={dice} type="button" data-pad-start={dice === step.maxDice ? "" : undefined} className={cn(BUTTON, dice === step.maxDice && PRIMARY)} onClick={() => act({ kind: "attack", from: step.from, to: step.to, dice })}>
+                <button key={dice} type="button" className={cn(BUTTON, "min-w-0 flex-1 px-[0.4em]")} onClick={() => act({ kind: "attack", from: step.from, to: step.to, dice })}>
                   {input === "keyboard-mouse" && <kbd className="rounded border border-current px-[0.3em] text-[0.8em]">{dice}</kbd>}
                   Roll {dice}
                 </button>
               ))}
             </div>
-          <div className="flex flex-wrap items-center gap-[0.4em]">
-            <PromptButton binding={BINDINGS.blitz} input={input} className={BUTTON} onClick={() => act({ kind: "blitz", from: step.from, to: step.to, keepAtLeast: keep })}>
+          {/* The blitz is the usual way to fight, so it is the step's primary action. */}
+          <div className="flex items-center gap-[0.5em]">
+            <Slider value={keep} min={1} max={Math.max(1, view.territories[step.from].armies - 1)} onChange={setKeep} input={input} label={`Armies the blitz keeps back in ${territoryName(step.from)}`} className="flex-1" />
+            <PromptButton binding={BINDINGS.blitz} input={input} data-pad-start className={cn(BUTTON, PRIMARY, "shrink-0 px-[0.6em]")} onClick={() => act({ kind: "blitz", from: step.from, to: step.to, keepAtLeast: keep })}>
               Blitz
-              <span className="tabular-nums text-(--rk-muted)" title="The chance the blitz captures it">
+              <span className="inline-block w-[4ch] text-right tabular-nums" title="The chance the blitz captures it">
                 {Math.round(blitzOdds(view.territories[step.from].armies, view.territories[step.to].armies, keep).capture * 100)}%
               </span>
             </PromptButton>
-            <Shield size="1.1em" className="text-(--rk-muted)" aria-hidden>
-              <title>Keep at least this many back</title>
-            </Shield>
-            <Stepper value={keep} min={1} max={Math.max(1, view.territories[step.from].armies - 1)} onChange={setKeep} input={input} label="Armies to keep back" all={false} />
           </div>
         </div>
       )}
 
       {step.kind === "occupy" && (
-        <div className="flex flex-wrap items-center gap-[0.6em]">
-          <Stepper value={amount} min={step.min} max={step.max} onChange={setAmount} input={input} label={`Armies in ${territoryName(step.to)}`} />
-          <button type="button" data-pad-start className={cn(BUTTON, PRIMARY)} onClick={() => act({ kind: "occupy", armies: amount })}>
-            Hold with {amount}
+        <div className="flex items-center gap-[0.5em]">
+          <Slider value={amount} min={step.min} max={step.max} onChange={setAmount} input={input} label={`Armies to move into ${territoryName(step.to)}`} className="flex-1" />
+          <button type="button" data-pad-start className={cn(BUTTON, PRIMARY, "shrink-0")} onClick={() => act({ kind: "occupy", armies: amount })}>
+            Hold
           </button>
         </div>
       )}
 
       {step.kind === "fortify-amount" && (
-        <div className="flex flex-wrap items-center gap-[0.6em]">
-          <Stepper value={amount} min={1} max={step.max} onChange={setAmount} input={input} label="Armies to move" />
-          <button type="button" data-pad-start className={cn(BUTTON, PRIMARY)} onClick={() => act({ kind: "fortify", from: step.from, to: step.to, armies: amount })}>
-            Move {amount}
+        <div className="flex items-center gap-[0.5em]">
+          {backButton}
+          <Slider value={amount} min={1} max={step.max} onChange={setAmount} input={input} label={`Armies to march to ${territoryName(step.to)}`} className="flex-1" />
+          <button type="button" data-pad-start className={cn(BUTTON, PRIMARY, "shrink-0")} onClick={() => act({ kind: "fortify", from: step.from, to: step.to, armies: amount })}>
+            March
           </button>
         </div>
       )}

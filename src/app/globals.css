@@ -319,3 +319,90 @@ body {
 .rk-focus-ring {
   animation: rk-focus-ring 1s linear infinite;
 }
+
+/* Risk: what the map shows of each move as it plays out (src/projects/risk/ui/playback.ts):
+   armies arriving, a fight across a border, a capture, a march, a continent taken, a seat
+   falling. Each lasts the beat it belongs to, which the board sets on the element. A game
+   animates whatever the OS's reduced-motion setting: its motion is the news. */
+.rk-fx-ring,
+.rk-fx-burst {
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.rk-fx-ring {
+  animation-name: rk-fx-ring;
+}
+@keyframes rk-fx-ring {
+  from {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+.rk-fx-burst {
+  animation-name: rk-fx-burst;
+}
+@keyframes rk-fx-burst {
+  from {
+    transform: scale(0.3);
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.85;
+  }
+  to {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+.rk-fx-rise {
+  animation: rk-fx-rise ease-out both;
+}
+@keyframes rk-fx-rise {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  20%,
+  75% {
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-36px);
+    opacity: 0;
+  }
+}
+.rk-fx-flash {
+  animation: rk-fx-flash ease-in-out both;
+}
+@keyframes rk-fx-flash {
+  from,
+  to {
+    opacity: 0;
+  }
+  20%,
+  70% {
+    opacity: 1;
+  }
+}
+/* A marching token is unseen but for its own leg of the march. */
+.rk-fx-hop {
+  opacity: 0;
+  animation-name: rk-fx-hop;
+  animation-timing-function: ease-in-out;
+}
+@keyframes rk-fx-hop {
+  from {
+    opacity: 1;
+    transform: translate(var(--fx-x0), var(--fx-y0));
+  }
+  to {
+    opacity: 1;
+    transform: translate(var(--fx-x1), var(--fx-y1));
+  }
+}

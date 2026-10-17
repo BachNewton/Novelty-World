@@ -1,32 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { centreOf, copies, frameBoard, keepInView, panBy, toScreen, type Rect, type Scene } from "./camera";
+import { centreOf, copies, frameBoard, keepInView, panBy, stretched, toScreen, type Frame, type Rect, type Scene } from "./camera";
 
 const board = { width: 1200, height: 600 };
 // A territory every 100 board units, so a 0.44 scale keeps them a fingertip apart.
-const footprints: Rect[] = [];
-for (let x = 100; x < 1200; x += 100) for (let y = 100; y < 600; y += 100) footprints.push({ left: x - 40, right: x + 40, top: y - 40, bottom: y + 40 });
-const scene = (width: number, height: number, overlays: Rect[] = []): Scene => ({ board, view: { width, height }, overlays, footprints, touch: 0.44 });
+const places: { x: number; y: number }[] = [];
+for (let x = 100; x < 1200; x += 100) for (let y = 100; y < 600; y += 100) places.push({ x, y });
+const draw: Rect = { left: -40, right: 40, top: -40, bottom: 40 };
+const scene = (width: number, height: number, overlays: Rect[] = []): Scene => ({ board, view: { width, height }, overlays, places, draws: places.map(() => draw), touch: 0.44 });
 
-describe("framing the board", () => {
-  it("shows the whole board as large as the screen allows, centred", () => {
-    const { camera, pan } = frameBoard(scene(1200, 900));
-    expect(pan.axis).toBe("none");
-    expect(camera.scale).toBe(1);
-    expect(camera.left).toBe(0);
-    expect(camera.top).toBe(150);
+/** What each territory draws, where it shows. */
+const shown = (frame: Frame) =>
+  places.map((p) => {
+    const at = toScreen(frame, p);
+    const { scale } = frame.camera;
+    return { left: at.x + draw.left * scale, right: at.x + draw.right * scale, top: at.y + draw.top * scale, bottom: at.y + draw.bottom * scale };
   });
 
-  it("shrinks and shifts the board just enough to keep every territory clear of an overlay", () => {
-    const corner = { left: 0, top: 500, right: 300, bottom: 600 };
-    const { camera, pan } = frameBoard(scene(1200, 600, [corner]));
+describe("framing the board", () => {
+  it("shows the whole board as large as the screen allows, stretched to fill a screen of another shape", () => {
+    const { camera, pan, stretch } = frameBoard(scene(1200, 900));
     expect(pan.axis).toBe("none");
-    expect(camera.scale).toBeLessThan(1);
-    expect(camera.scale).toBeGreaterThan(0.85);
-    for (const f of footprints) {
-      const a = toScreen(camera, { x: f.left, y: f.top });
-      const b = toScreen(camera, { x: f.right, y: f.bottom });
-      expect(a.x >= corner.right || b.y <= corner.top).toBe(true);
-    }
+    expect(camera.scale).toBe(1);
+    expect(stretch).toEqual({ x: 1, y: 1.5 });
+    expect(camera.left).toBe(0);
+    expect(camera.top).toBe(0);
+  });
+
+  it("stretches one way at most twice the other, centring what is left over", () => {
+    const { camera, stretch } = frameBoard(scene(1200, 2000));
+    expect(stretch).toEqual({ x: 1, y: 2 });
+    expect(camera.top).toBe((2000 - 1200) / 2);
+  });
+
+  it("keeps every territory clear of an overlay, giving up a little size where that fills more of the screen", () => {
+    const corner = { left: 0, top: 500, right: 300, bottom: 600 };
+    const frame = frameBoard(scene(1200, 600, [corner]));
+    expect(frame.pan.axis).toBe("none");
+    expect(frame.camera.scale).toBeLessThan(1);
+    expect(frame.camera.scale).toBeGreaterThan(0.7);
+    for (const f of shown(frame)) expect(f.left >= corner.right || f.bottom <= corner.top).toBe(true);
+    const size = stretched(board, frame.stretch);
+    expect(size.width * frame.camera.scale * size.height * frame.camera.scale).toBeGreaterThan(1200 * 600 * 0.75);
   });
 
   it("pans a phone held upright across, filling the height between its top and bottom overlays", () => {
@@ -74,10 +88,10 @@ describe("panning", () => {
     const view = { width: 375, height: 650 };
     const frame = frameBoard(scene(375, 650));
     const period = board.width * frame.camera.scale;
-    const middle = centreOf(frame.camera, view, board);
+    const middle = centreOf(frame, view, board);
     const far = { x: (middle.x + board.width * 0.45) % board.width, y: 300 };
     const moved = keepInView(frame, far, 50, { board, view, overlays: [] });
-    const xs = [-1, 0, 1].map((k) => toScreen(moved.camera, far).x + k * period);
+    const xs = [-1, 0, 1].map((k) => toScreen(moved, far).x + k * period);
     expect(xs.some((x) => x >= 49 && x <= 326)).toBe(true);
     expect(keepInView(moved, far, 50, { board, view, overlays: [] })).toBe(moved);
   });

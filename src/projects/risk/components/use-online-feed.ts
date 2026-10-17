@@ -3,7 +3,6 @@
 import { useEffect, useMemo } from "react";
 import type { Move } from "../contract";
 import { fullName, rankOf } from "../online/seat-bots";
-import { causedBy } from "../online/game";
 import { settleGame, useEloLedger } from "../online/player-elo";
 import { outcomeOf, seatElo } from "../online/rating";
 import type { OnlineSnapshot } from "../online/store";
@@ -17,12 +16,6 @@ import type { GameFeed } from "./game-screen";
  */
 export function useOnlineFeed(snapshot: OnlineSnapshot, act: (move: Move) => void): GameFeed {
   const { id, view, options, events, problem, table, seat } = snapshot;
-  const shown = useMemo(() => events.map((logged) => logged.event), [events]);
-  // The latest move's events: those caused by the same decision as the last one shown.
-  const latestFrom = useMemo(() => {
-    const last = events.at(-1);
-    return last ? events.findIndex((logged) => causedBy(logged) === causedBy(last)) : 0;
-  }, [events]);
   const seats = table?.seats;
   const players = useMemo(
     () => (seats ?? []).map((controller) => (controller.kind === "human" ? { name: controller.profile.name } : { name: fullName(controller.bot), rank: rankOf(controller.bot) })),
@@ -37,5 +30,5 @@ export function useOnlineFeed(snapshot: OnlineSnapshot, act: (move: Move) => voi
   const rating = useEloLedger().games[id] ?? null;
 
   if (!view) throw new Error("The game screen was shown before the game started");
-  return { view, options, events: shown, latestFrom, act, problem, players, rating };
+  return { view, options, events, act, problem, players, rating };
 }

@@ -67,6 +67,8 @@ export function useRiskInput(intents: InputIntents): void {
       if (code === KEY_CODES.menu) return handled(() => !event.repeat && it.menu());
       if (zone === "dialog") {
         if (code === "Escape") handled(it.closeDialog);
+        else if (code === KEY_CODES.less) handled(it.less);
+        else if (code === KEY_CODES.more) handled(it.more);
         else it.usedInput("keyboard-mouse", true);
         return;
       }
@@ -115,9 +117,9 @@ export function useRiskInput(intents: InputIntents): void {
         it.usedInput("pad");
         const zone = it.zone();
         if (edge.name === "Menu") return it.menu();
-        if (zone === "dialog") return;
         if (edge.name === "LB") return it.less();
         if (edge.name === "RB") return it.more();
+        if (zone === "dialog") return;
         if (zone !== "map") return;
         if (edge.name === "A") return it.pickFocus();
         if (edge.name === "B") return it.back();
