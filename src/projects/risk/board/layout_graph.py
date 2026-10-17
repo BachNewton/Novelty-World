@@ -2,25 +2,26 @@
 
 Usage (from any directory; needs Python 3.12+ with numpy):
 
-    python -I layout_graph.py <out graph-layout.ts>
+    python layout_graph.py <out graph-layout.ts>
 
 The layout is computed here, once, and committed; the game never lays the board out at runtime,
 so players learn one board. It is tuned by editing SKETCH below and running this again.
 
-1. SKETCH places each territory on a loose lattice, one unit apart, by hand: the continents keep
-   their familiar places (North America left, South America below it, Europe and Africa in the
-   middle, Asia right, Australia lower right) and a gap of about one and a half units between
-   them, so each continent reads as a cluster. Within a continent, positions serve the graph,
-   not geography: neighbours sit a unit apart, round triangles, so borders are short and none
-   cross.
+1. SKETCH places each territory on a loose lattice, one unit apart, by hand. The arrangement
+   serves the screen, not geography: the board is about as wide as a desktop screen is for its
+   height, and it leaves its bottom-left corner empty, where the screen floats its status box over
+   the map. The continents still read as clusters, a gap of about one and a half units between
+   them, roughly where players expect them; within one, neighbours sit a unit apart, round
+   triangles, so borders are short and none cross.
 2. A relaxation evens it out: borders inside a continent pull towards one unit, territories
    closer than MIN_GAP push apart, a territory too near a border it isn't on is pushed off it,
    and everything is held near its sketched place so the lattice survives. A step that would add
    a crossing is refused.
 3. Each continent gets a region: its territories' convex hull, grown by REGION_PAD with rounded
-   corners, and a label with its name and bonus above or below it.
-4. Alaska–Kamchatka is drawn the way Risk boards draw it, off both sides: Alaska sits at the
-   left edge and Kamchatka at the right, each with a short line out to the board's edge.
+   corners. Continents carry no labels: their bonuses are shown where they count.
+4. The board wraps east to west, as a globe does: Alaska sits at the left edge and Kamchatka at
+   the right, and their border runs across the edge. The board's width is the period a screen
+   that pans across repeats it at.
 
 It prints the checks the tests repeat (crossings, the closest two territories, the nearest a
 territory comes to a border it isn't on) and writes the board as TypeScript.
@@ -38,13 +39,10 @@ MIN_GAP = 1.0  # the least distance between two territories, in units
 CLEARANCE = 0.42  # the least distance from a territory to a border it isn't on
 REGION_PAD = 0.45  # how far a continent's region reaches past its outermost territories
 MARGIN = 0.25  # clear board round the regions and labels
-LABEL_GAP = 0.32  # from a region's edge to its continent label's baseline side
-LABEL_ROOM = 0.55  # the height a continent label takes above or below its region
-WRAP_ROOM = 0.3  # extra board left and right, for Alaska's and Kamchatka's stubs and ghosts
-GHOST_INSET = 0.3  # where a ghost sits, in from the board's edge
+WRAP_ROOM = 0.3  # extra board left and right, so Alaska–Kamchatka is about a border long across the edge
 
 SKETCH = {
-    # North America
+    # North America, its south-west left open for the status box
     "alaska": (0.0, 0.0),
     "northwest-territory": (1.1, 0.0),
     "greenland": (2.3, 0.0),
@@ -53,12 +51,12 @@ SKETCH = {
     "quebec": (2.7, 1.0),
     "western-united-states": (0.9, 2.0),
     "eastern-united-states": (2.1, 2.0),
-    "central-america": (1.5, 3.0),
-    # South America
-    "venezuela": (1.7, 4.5),
-    "peru": (1.1, 5.5),
-    "brazil": (2.3, 5.5),
-    "argentina": (1.7, 6.5),
+    "central-america": (1.6, 3.0),
+    # South America, south-east of North America
+    "venezuela": (2.5, 3.7),
+    "peru": (2.1, 4.65),
+    "brazil": (3.25, 4.45),
+    "argentina": (2.75, 5.45),
     # Europe
     "iceland": (3.85, 0.0),
     "scandinavia": (4.95, 0.0),
@@ -68,12 +66,12 @@ SKETCH = {
     "southern-europe": (5.15, 2.0),
     "ukraine": (6.25, 1.0),
     # Africa
-    "north-africa": (4.05, 3.5),
-    "egypt": (5.25, 3.5),
-    "congo": (4.35, 4.5),
-    "east-africa": (5.55, 4.5),
-    "south-africa": (4.75, 5.5),
-    "madagascar": (5.95, 5.5),
+    "north-africa": (4.35, 3.25),
+    "egypt": (5.5, 3.2),
+    "congo": (4.55, 4.3),
+    "east-africa": (5.75, 4.25),
+    "south-africa": (5.0, 5.25),
+    "madagascar": (6.2, 5.2),
     # Asia
     "ural": (7.55, 0.2),
     "siberia": (8.65, 0.0),
@@ -84,24 +82,14 @@ SKETCH = {
     "japan": (10.85, 1.9),
     "afghanistan": (7.45, 1.4),
     "china": (8.55, 1.9),
-    "middle-east": (6.85, 2.7),
-    "india": (7.95, 2.9),
+    "middle-east": (6.95, 2.6),
+    "india": (7.95, 2.95),
     "siam": (9.05, 3.2),
     # Australia
-    "indonesia": (8.85, 4.7),
-    "new-guinea": (10.05, 4.5),
-    "western-australia": (9.15, 5.8),
-    "eastern-australia": (10.25, 5.7),
-}
-
-# Where each continent's label goes: above its region or below it.
-LABEL_SIDE = {
-    "north-america": "above",
-    "europe": "above",
-    "asia": "above",
-    "south-america": "below",
-    "africa": "below",
-    "australia": "below",
+    "indonesia": (8.95, 4.3),
+    "new-guinea": (10.15, 4.1),
+    "western-australia": (9.3, 5.3),
+    "eastern-australia": (10.45, 5.15),
 }
 
 WRAP = ("alaska", "kamchatka")
@@ -318,9 +306,9 @@ def main(out_path):
     xs = [p[0] for p in pos.values()]
     ys = [p[1] for p in pos.values()]
     left = min(xs) - REGION_PAD - MARGIN - WRAP_ROOM
-    top = min(ys) - REGION_PAD - LABEL_ROOM - MARGIN
+    top = min(ys) - REGION_PAD - MARGIN
     right = max(xs) + REGION_PAD + MARGIN + WRAP_ROOM
-    bottom = max(ys) + REGION_PAD + LABEL_ROOM + MARGIN
+    bottom = max(ys) + REGION_PAD + MARGIN
     pos = {t: (round(p[0] - left, 2), round(p[1] - top, 2)) for t, p in pos.items()}
     width, height = right - left, bottom - top
 
@@ -345,16 +333,7 @@ def main(out_path):
     print(f"regions: the nearest a territory comes to another continent's hull is {gap[0]:.2f} units ({gap[1]} to {gap[2]}), so regions sit {gap[0] - 2 * REGION_PAD:.2f} apart at the least")
     print(f"board: {width:.2f} × {height:.2f} units")
 
-    regions = {}
-    for cid, name, bonus in continents:
-        pts = [pos[t] for t, c in continent_of.items() if c == cid]
-        path = region_path(pts, REGION_PAD)
-        cx = (min(p[0] for p in pts) + max(p[0] for p in pts)) / 2
-        if LABEL_SIDE[cid] == "above":
-            ly = min(p[1] for p in pts) - REGION_PAD - LABEL_GAP * 0.4
-        else:
-            ly = max(p[1] for p in pts) + REGION_PAD + LABEL_GAP
-        regions[cid] = (path, (cx, ly), LABEL_SIDE[cid])
+    regions = {cid: region_path([pos[t] for t, c in continent_of.items() if c == cid], REGION_PAD) for cid, _, _ in continents}
 
     lines = [
         "// Generated by layout_graph.py, the board as a graph. Don't edit by hand: change the",
@@ -377,11 +356,11 @@ def main(out_path):
     lines += [
         "};",
         "",
-        "/** Each continent's region, and where its label sits: above the region or below it. */",
-        "export const REGIONS: Record<ContinentId, { path: string; label: readonly [number, number]; side: \"above\" | \"below\" }> = {",
+        "/** Each continent's region, as an SVG path. */",
+        "export const REGIONS: Record<ContinentId, string> = {",
     ]
-    for cid, (path, (lx, ly), side) in regions.items():
-        lines.append(f'  "{cid}": {{ path: "{path}", label: [{lx * UNIT:.0f}, {ly * UNIT:.0f}], side: "{side}" }},')
+    for cid, path in regions.items():
+        lines.append(f'  "{cid}": "{path}",')
     lines += [
         "};",
         "",
@@ -389,13 +368,6 @@ def main(out_path):
         "export const BORDERS: readonly (readonly [TerritoryId, TerritoryId])[] = [",
         *[f'  ["{a}", "{b}"],' for a, b in edges],
         "];",
-        "",
-        "/** Alaska–Kamchatka runs off both sides of the board: each end's stub leads to a ghost of the",
-        " *  territory across the edge, on that edge. */",
-        "export const WRAP_GHOSTS: Record<\"alaska\" | \"kamchatka\", readonly [number, number]> = {",
-        f'  "kamchatka": [{GHOST_INSET * UNIT:.0f}, {pos["alaska"][1] * UNIT:.0f}],',
-        f'  "alaska": [{(width - GHOST_INSET) * UNIT:.0f}, {pos["kamchatka"][1] * UNIT:.0f}],',
-        "};",
         "",
     ]
     open(out_path, "w", encoding="utf-8", newline="\n").write("\n".join(lines))

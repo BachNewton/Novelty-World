@@ -1,25 +1,24 @@
 "use client";
 
-import { Maximize2, Menu, Minus, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { Prompt, PromptButton } from "@/shared/components/prompts";
+import { Menu } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { PromptButton } from "@/shared/components/prompts";
 import { usePadNavigation, type Direction } from "@/shared/lib/gamepad";
 import { cycleChoice, type InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
 import { locate, WRAP_WIDTH } from "../board/graph";
-import { GRAPH_HEIGHT, GRAPH_WIDTH } from "../board/graph-layout";
 import type { GameEvent, GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
 import { BINDINGS } from "../ui/bindings";
 import { describeEvents, phaseName } from "../ui/describe";
 import { alsoPickable, back as backOut, keepSelection, NO_SELECTION, phaseEnd, pick, stepOf, type Selection } from "../ui/selection";
 import { nearestTo, nextTerritory } from "../ui/territory-nav";
-import { SeatMark, SeatName } from "./bits";
+import type { Rect } from "../ui/camera";
+import { CardPips, SeatMark, SeatName } from "./bits";
 import { GraphBoard } from "./graph-board";
-import { IntelPanels } from "./intel";
-import { CardsDialog, LogDialog, MenuDialog } from "./overlays";
+import { LogDialog, WarRoom } from "./overlays";
 import { StatusBox } from "./status-box";
-import { BUTTON, DISPLAY, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
+import { BUTTON, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
 import type { BoardHandle, Marks } from "./use-board-camera";
 import { useRiskInput, type FocusZone } from "./use-risk-input";
 
@@ -48,7 +47,46 @@ export interface Player {
 
 const playerLabel = ({ name, rank }: Player) => (rank ? `${rank} · ${name}` : name);
 
-type Dialog = { kind: "cards" } | { kind: "menu" } | { kind: "log" } | null;
+type Dialog = { kind: "menu" } | { kind: "log" } | null;
+
+/** Where the overlays sit over the map, in its CSS pixels, so the board is framed clear of them.
+ *  While the screen keeps its size each only grows: the status box changes height from step to
+ *  step, and a board framed afresh at every step would jump about under the player. */
+function useOverlays(root: RefObject<HTMLElement | null>, parts: readonly RefObject<HTMLElement | null>[]): Rect[] {
+  const [rects, setRects] = useState<Rect[]>([]);
+  useLayoutEffect(() => {
+    const host = root.current;
+    if (!host) return;
+    let screen = "";
+    let held: (Rect | null)[] = [];
+    let shown = "";
+    const measure = () => {
+      const frame = host.getBoundingClientRect();
+      const size = `${frame.width}x${frame.height}`;
+      if (size !== screen) {
+        screen = size;
+        held = [];
+      }
+      held = parts.map((part, i) => {
+        const box = part.current?.getBoundingClientRect();
+        if (!box) return null;
+        const now = { left: box.left - frame.left, top: box.top - frame.top, right: box.right - frame.left, bottom: box.bottom - frame.top };
+        const was = held.at(i);
+        return was ? { left: Math.min(was.left, now.left), top: Math.min(was.top, now.top), right: Math.max(was.right, now.right), bottom: Math.max(was.bottom, now.bottom) } : now;
+      });
+      const next = held.filter((rect): rect is Rect => rect !== null);
+      if (JSON.stringify(next) !== shown) {
+        shown = JSON.stringify(next);
+        setRects(next);
+      }
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    for (const part of parts) if (part.current) observer.observe(part.current);
+    return () => observer.disconnect();
+  }, [root, parts]);
+  return rects;
+}
 
 const COARSE = "(pointer: coarse)";
 function subscribeCoarse(changed: () => void) {
@@ -122,7 +160,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
   const currentFocus = focus !== null && choices.includes(focus) ? focus : null;
   const moveFocus = (direction: Direction) => {
     if (choices.length === 0) return;
-    if (!showFocus || currentFocus === null) return focusOn(nearestTo(placed(choices), board.current?.centre() ?? { x: WRAP_WIDTH / 2, y: 300 }) as TerritoryId | null);
+    if (!showFocus || currentFocus === null) return focusOn(nearestTo(placed(choices), board.current?.centre() ?? { x: WRAP_WIDTH / 2, y: 0 }) as TerritoryId | null);
     const next = nextTerritory(placed(choices), locate(currentFocus), direction, WRAP_WIDTH) as TerritoryId | null;
     if (next) focusOn(next);
   };
@@ -152,10 +190,8 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     },
     closeDialog: () => setDialog(null),
     endHold: (held) => setHolding(held && ending !== null && dialog === null),
-    cards: () => setDialog((open) => (open?.kind === "cards" ? null : { kind: "cards" })),
     menu: () => setDialog((open) => (open?.kind === "menu" ? null : { kind: "menu" })),
     log: () => setDialog({ kind: "log" }),
-    overview: () => board.current?.overview(),
     less: () => {
       if (step.kind === "battle") setKeep(Math.max(1, keep - 1));
       else if (step.kind === "place" || step.kind === "fortify-amount") setAmount(Math.max(1, amount - 1));
@@ -171,7 +207,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     blitz: () => {
       if (step.kind === "battle") act({ kind: "blitz", from: step.from, to: step.to, keepAtLeast: keep });
     },
-    zoom: (factor) => board.current?.zoom(factor),
     pan: (dx, dy) => board.current?.pan(dx, dy),
   });
 
@@ -188,137 +223,84 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     setByKeys(false);
   }, []);
 
+  const root = useRef<HTMLDivElement>(null);
+  const turn = useRef<HTMLDivElement>(null);
+  const status = useRef<HTMLDivElement>(null);
+  const parts = useMemo(() => [turn, status], []);
+  const overlays = useOverlays(root, parts);
+
   const active = view.active;
   const { players } = feed;
   const you = view.viewer;
 
   return (
     <div
+      ref={root}
       style={RISK_THEME}
-      className={cn(DISPLAY_FONT.variable, "fixed inset-0 flex flex-col gap-[0.5em] bg-(--rk-bg) p-[0.5em] text-[15px] text-(--rk-text) sm:text-base min-[1800px]:gap-[0.8em] min-[1800px]:px-[3vw] min-[1800px]:py-[3vh] min-[1800px]:text-[23px]")}
+      className={cn(DISPLAY_FONT.variable, "fixed inset-0 overflow-hidden bg-(--rk-sea) text-[15px] text-(--rk-text) sm:text-base min-[1800px]:text-[23px]")}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <header className="flex items-center gap-[0.6em]">
-        <h1 className={cn(DISPLAY, "hidden text-[1.3em] text-(--rk-brass) sm:block")}>Risk</h1>
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-[0.6em] gap-y-[0.1em]">
-          {view.phase !== "game-over" && <SeatName seat={active} className="text-[1.1em]" />}
-          {view.phase !== "game-over" && <span className="truncate">{active === you ? "you" : playerLabel(players[active])}</span>}
-          <span className="text-(--rk-muted)">
-            {phaseName(view.phase)}
-            {view.phase !== "game-over" && ` · turn ${view.turn}`}
-            {view.armiesToPlace > 0 && ` · ${view.armiesToPlace} to place`}
-          </span>
-        </div>
-        <PromptButton binding={BINDINGS.cards} input={input} className={BUTTON} onClick={() => setDialog({ kind: "cards" })} aria-label="Cards">
-          Cards <span className="tabular-nums">{view.cards.hand?.length ?? 0}</span>
-        </PromptButton>
-        <PromptButton binding={BINDINGS.menu} input={input} className={BUTTON} onClick={() => setDialog({ kind: "menu" })} aria-label="Menu">
-          <Menu size="1.1em" />
-        </PromptButton>
-      </header>
+      <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} overlays={overlays} />
 
-      <ol className="flex flex-wrap gap-x-[0.9em] gap-y-[0.2em] text-[0.85em] min-[700px]:hidden" aria-label="Players">
-        {view.turnOrder.map((seat) => {
-          const s = view.seats[seat];
-          return (
-            <li key={seat} className={cn("inline-flex items-center gap-[0.25em] tabular-nums", s.eliminated && "line-through opacity-40", seat === active && "font-bold text-(--rk-brass-bright)")}>
-              <SeatMark seat={seat} />
-              {seat === you && <span className="font-bold">you</span>}
-              {s.territories}
-              <span className="text-(--rk-muted)">/{s.armies}</span>
-            </li>
-          );
-        })}
-      </ol>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-[0.5em] lg:flex-row">
-        {/* A tablet held upright gives the board the height it needs, and the panels the rest. */}
-        <div className={cn(PANEL, "relative min-h-[45vh] flex-1 overflow-hidden min-[700px]:max-lg:flex-none min-[700px]:max-lg:aspect-(--rk-board-aspect)")} style={{ "--rk-board-aspect": `${GRAPH_WIDTH} / ${GRAPH_HEIGHT}` } as CSSProperties}>
-          <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} />
-          <div className="absolute right-[0.4em] bottom-[0.4em] flex flex-col gap-[0.3em] text-[0.9em]">
-            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1.4)} aria-label="Zoom in">
-              <Plus size="1em" />
-            </button>
-            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.zoom(1 / 1.4)} aria-label="Zoom out">
-              <Minus size="1em" />
-            </button>
-            <button type="button" tabIndex={-1} className={cn(BUTTON, "min-h-[max(2.2em,44px)] px-[0.5em] opacity-85")} onClick={() => board.current?.overview()} aria-label="Whole map">
-              <Prompt binding={BINDINGS.overview} input={input} />
-              <Maximize2 size="1em" />
-            </button>
+      {/* What floats over the map: the turn, the players and the war room at the top, the status
+          box at the bottom. The board is framed clear of them (`ui/camera.ts`). */}
+      <div ref={turn} className={cn(PANEL, "absolute top-[0.5em] left-[0.5em] flex flex-col gap-[0.2em] py-[0.3em] pr-[0.3em] pl-[0.7em] max-sm:right-[0.5em] min-[1800px]:top-[1.5em] min-[1800px]:left-[1.5em]")}>
+        <div className="flex items-center gap-[0.5em]">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-[0.5em]">
+            {view.phase !== "game-over" && <SeatName seat={active} />}
+            {view.phase !== "game-over" && <span className="truncate">{active === you ? "you" : playerLabel(players[active])}</span>}
+            <span className="text-(--rk-muted)">
+              {phaseName(view.phase)}
+              {view.phase !== "game-over" && ` · turn ${view.turn}`}
+            </span>
           </div>
+          <PromptButton binding={BINDINGS.menu} input={input} className={BUTTON} onClick={() => setDialog({ kind: "menu" })} aria-label={`War room: ${view.cards.hand?.length ?? 0} cards`}>
+            <Menu size="1.1em" />
+            <CardPips count={view.cards.hand?.length ?? 0} />
+          </PromptButton>
         </div>
-
-        <aside className="flex shrink-0 flex-col gap-[0.5em] lg:w-[24em] min-[1800px]:w-[26em]">
-          <StatusBox
-            ref={box}
-            view={view}
-            options={options}
-            step={step}
-            amount={amount}
-            setAmount={setAmount}
-            keep={keep}
-            setKeep={setKeep}
-            act={act}
-            back={() => setSelection(backOut(selection) ?? NO_SELECTION)}
-            news={latestLine ? [latestLine] : []}
-            onCards={() => setDialog({ kind: "cards" })}
-            endHold={{ holding, onHeld: () => ending && act(ending) }}
-            input={input}
-            onNewGame={onLeave}
-            error={feed.problem}
-          />
-          <section className={cn(PANEL, "hidden flex-col gap-[0.3em] p-[0.75em] min-[700px]:flex min-[2400px]:hidden")} aria-label="Players">
-            <h2 className={cn(DISPLAY, "text-(--rk-muted)")}>Players</h2>
-            <table className="w-full text-left text-[0.95em] tabular-nums">
-              <thead className="text-[0.8em] text-(--rk-muted)">
-                <tr>
-                  <th className="font-normal" />
-                  <th className="text-right font-normal">Lands</th>
-                  <th className="text-right font-normal">Armies</th>
-                  <th className="text-right font-normal">Cards</th>
-                </tr>
-              </thead>
-              <tbody>
-                {view.turnOrder.map((seat) => {
-                  const s = view.seats[seat];
-                  return (
-                    <tr key={seat} className={cn(s.eliminated && "line-through opacity-40", seat === active && "text-(--rk-brass-bright)")}>
-                      <td>
-                        <SeatName seat={seat} />
-                        <span className="block text-[0.85em] leading-tight text-(--rk-muted)">
-                          {seat === you ? "you" : (
-                            <>
-                              {players[seat].rank && <span className="block">{players[seat].rank}</span>}
-                              <span className="block">{players[seat].name}</span>
-                            </>
-                          )}
-                        </span>
-                      </td>
-                      <td className="text-right">{s.territories}</td>
-                      <td className="text-right">{s.armies}</td>
-                      <td className="text-right">{s.handSize}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
-          {news.length > 1 && (
-            <section className={cn(PANEL, "hidden max-h-[14em] flex-col gap-[0.25em] overflow-y-auto p-[0.75em] text-[0.85em] min-[700px]:flex min-[2400px]:hidden")} aria-label="What just happened">
-              {news.slice(0, -1).map((line, i) => (
-                <p key={i} className="text-(--rk-muted)">
-                  {line.text}
-                </p>
-              ))}
-            </section>
-          )}
-        </aside>
-        <IntelPanels view={view} events={feed.events} step={step} from={selection.from} keep={keep} className="hidden min-[2400px]:flex" />
+        <ol className="flex flex-wrap gap-x-[0.8em] gap-y-[0.1em] pr-[0.4em] pb-[0.1em] text-[0.85em]" aria-label="Players">
+          {view.turnOrder.map((seat) => {
+            const s = view.seats[seat];
+            const who = seat === you ? "you" : playerLabel(players[seat]);
+            return (
+              <li
+                key={seat}
+                title={`${who}: ${s.territories} territories, ${s.armies} armies, ${s.handSize} ${s.handSize === 1 ? "card" : "cards"}`}
+                className={cn("inline-flex items-center gap-[0.25em] tabular-nums", s.eliminated && "line-through opacity-40", seat === active && "font-bold text-(--rk-brass-bright)")}
+              >
+                <SeatMark seat={seat} />
+                {seat === you && <span className="font-bold">you</span>}
+                {s.territories}
+                <span className="text-(--rk-muted)">/{s.armies}</span>
+              </li>
+            );
+          })}
+        </ol>
       </div>
 
-      {dialog?.kind === "cards" && <CardsDialog view={view} options={options} act={act} onClose={() => setDialog(null)} input={input} />}
-      {dialog?.kind === "menu" && <MenuDialog onClose={() => setDialog(null)} onLog={() => setDialog({ kind: "log" })} onQuit={onLeave} input={input} />}
+      <div ref={status} className="absolute inset-x-[0.5em] bottom-[0.5em] sm:right-auto sm:w-[26em] min-[1800px]:bottom-[1.5em] min-[1800px]:left-[1.5em]">
+        <StatusBox
+          ref={box}
+          view={view}
+          options={options}
+          step={step}
+          amount={amount}
+          setAmount={setAmount}
+          keep={keep}
+          setKeep={setKeep}
+          act={act}
+          back={() => setSelection(backOut(selection) ?? NO_SELECTION)}
+          news={latestLine ? [latestLine] : []}
+          onMenu={() => setDialog({ kind: "menu" })}
+          endHold={{ holding, onHeld: () => ending && act(ending) }}
+          input={input}
+          onNewGame={onLeave}
+          error={feed.problem}
+        />
+      </div>
+
+      {dialog?.kind === "menu" && <WarRoom view={view} options={options} act={act} onClose={() => setDialog(null)} onLog={() => setDialog({ kind: "log" })} onQuit={onLeave} input={input} />}
       {dialog?.kind === "log" && <LogDialog log={feed.events} onClose={() => setDialog(null)} input={input} />}
     </div>
   );

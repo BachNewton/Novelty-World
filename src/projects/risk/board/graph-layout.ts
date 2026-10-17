@@ -3,66 +3,66 @@
 
 import type { ContinentId, TerritoryId } from "../map";
 
-export const GRAPH_WIDTH = 1293;
-export const GRAPH_HEIGHT = 926;
+export const GRAPH_WIDTH = 1292;
+export const GRAPH_HEIGHT = 719;
 
 /** The distance between neighbouring territories, in board units. */
 export const GRAPH_UNIT = 100;
 
 /** Where each territory sits. */
 export const NODES: Record<TerritoryId, readonly [number, number]> = {
-  "alaska": [100, 181],
-  "northwest-territory": [218, 163],
-  "greenland": [334, 161],
-  "alberta": [169, 265],
-  "ontario": [276, 258],
-  "quebec": [386, 259],
-  "western-united-states": [216, 359],
-  "eastern-united-states": [327, 356],
-  "central-america": [271, 456],
-  "venezuela": [284, 609],
-  "peru": [228, 705],
-  "brazil": [340, 705],
-  "argentina": [284, 801],
-  "iceland": [502, 136],
-  "great-britain": [505, 245],
-  "scandinavia": [610, 164],
-  "northern-europe": [606, 268],
-  "western-europe": [533, 352],
-  "southern-europe": [651, 368],
-  "ukraine": [715, 252],
-  "north-africa": [542, 511],
-  "egypt": [649, 493],
-  "east-africa": [643, 602],
-  "congo": [535, 619],
-  "south-africa": [598, 708],
-  "madagascar": [707, 698],
-  "ural": [882, 212],
-  "siberia": [992, 205],
-  "yakutsk": [1081, 125],
-  "kamchatka": [1185, 181],
-  "irkutsk": [1092, 231],
-  "mongolia": [1082, 330],
-  "japan": [1193, 312],
-  "afghanistan": [856, 318],
-  "china": [966, 325],
-  "middle-east": [797, 417],
-  "india": [907, 425],
-  "siam": [1014, 446],
-  "indonesia": [997, 620],
-  "new-guinea": [1107, 622],
-  "western-australia": [1036, 723],
-  "eastern-australia": [1146, 725],
+  "alaska": [100, 127],
+  "northwest-territory": [217, 108],
+  "greenland": [333, 105],
+  "alberta": [168, 211],
+  "ontario": [275, 203],
+  "quebec": [385, 203],
+  "western-united-states": [216, 305],
+  "eastern-united-states": [327, 300],
+  "central-america": [275, 399],
+  "venezuela": [364, 463],
+  "peru": [322, 565],
+  "brazil": [434, 548],
+  "argentina": [392, 649],
+  "iceland": [500, 81],
+  "great-britain": [503, 190],
+  "scandinavia": [609, 107],
+  "northern-europe": [604, 210],
+  "western-europe": [532, 296],
+  "southern-europe": [650, 310],
+  "ukraine": [714, 195],
+  "north-africa": [568, 433],
+  "egypt": [676, 415],
+  "east-africa": [665, 524],
+  "congo": [556, 541],
+  "south-africa": [621, 628],
+  "madagascar": [730, 616],
+  "ural": [882, 156],
+  "siberia": [991, 151],
+  "yakutsk": [1081, 70],
+  "kamchatka": [1185, 127],
+  "irkutsk": [1092, 177],
+  "mongolia": [1081, 275],
+  "japan": [1192, 257],
+  "afghanistan": [856, 262],
+  "china": [965, 270],
+  "middle-east": [799, 357],
+  "india": [907, 371],
+  "siam": [1015, 391],
+  "indonesia": [1006, 523],
+  "new-guinea": [1116, 520],
+  "western-australia": [1053, 622],
+  "eastern-australia": [1162, 619],
 };
 
-/** Each continent's region, and where its label sits: above the region or below it. */
-export const REGIONS: Record<ContinentId, { path: string; label: readonly [number, number]; side: "above" | "below" }> = {
-  "north-america": { path: "M93 137L211 119A45 45 0 0 1 217 118L333 116A45 45 0 0 1 374 140L426 238A45 45 0 0 1 425 282L310 479A45 45 0 0 1 233 480L62 205A45 45 0 0 1 93 137Z", label: [243, 103], side: "above" },
-  "south-america": { path: "M189 682L245 586A45 45 0 0 1 323 586L379 682A45 45 0 0 1 379 728L323 824A45 45 0 0 1 245 824L189 728A45 45 0 0 1 189 682Z", label: [284, 878], side: "below" },
-  "europe": { path: "M513 92L621 120A45 45 0 0 1 639 130L744 218A45 45 0 0 1 754 274L690 390A45 45 0 0 1 645 413L527 397A45 45 0 0 1 489 363L461 256A45 45 0 0 1 460 246L457 137A45 45 0 0 1 513 92Z", label: [608, 78], side: "above" },
-  "africa": { path: "M490 616L497 508A45 45 0 0 1 535 467L642 449A45 45 0 0 1 692 481L750 686A45 45 0 0 1 711 743L602 753A45 45 0 0 1 561 734L498 645A45 45 0 0 1 490 616Z", label: [621, 785], side: "below" },
-  "asia": { path: "M755 400L840 195A45 45 0 0 1 864 171L1063 84A45 45 0 0 1 1102 85L1206 141A45 45 0 0 1 1230 178L1238 309A45 45 0 0 1 1220 348L1041 482A45 45 0 0 1 1008 491L791 462A45 45 0 0 1 755 400Z", label: [995, 67], side: "above" },
-  "australia": { path: "M998 575L1108 577A45 45 0 0 1 1149 606L1188 709A45 45 0 0 1 1145 770L1035 768A45 45 0 0 1 994 739L955 636A45 45 0 0 1 998 575Z", label: [1072, 802], side: "below" },
+/** Each continent's region, as an SVG path. */
+export const REGIONS: Record<ContinentId, string> = {
+  "north-america": "M93 83L210 64A45 45 0 0 1 216 63L332 60A45 45 0 0 1 373 84L425 182A45 45 0 0 1 424 225L314 421A45 45 0 0 1 237 423L62 151A45 45 0 0 1 93 83Z",
+  "south-america": "M280 548L322 446A45 45 0 0 1 399 434L469 519A45 45 0 0 1 476 565L434 666A45 45 0 0 1 357 678L287 594A45 45 0 0 1 280 548Z",
+  "europe": "M510 37L619 63A45 45 0 0 1 638 73L743 161A45 45 0 0 1 753 217L689 332A45 45 0 0 1 645 355L527 341A45 45 0 0 1 489 308L460 202A45 45 0 0 1 458 191L455 82A45 45 0 0 1 510 37Z",
+  "africa": "M511 536L523 428A45 45 0 0 1 561 389L669 371A45 45 0 0 1 719 403L773 604A45 45 0 0 1 735 661L626 673A45 45 0 0 1 585 655L520 568A45 45 0 0 1 511 536Z",
+  "asia": "M757 340L840 139A45 45 0 0 1 864 115L1063 29A45 45 0 0 1 1103 31L1207 88A45 45 0 0 1 1230 125L1237 255A45 45 0 0 1 1219 293L1042 427A45 45 0 0 1 1008 435L792 401A45 45 0 0 1 757 340Z",
+  "australia": "M1005 478L1115 475A45 45 0 0 1 1157 501L1203 600A45 45 0 0 1 1163 664L1054 667A45 45 0 0 1 1012 641L965 542A45 45 0 0 1 1005 478Z",
 };
 
 /** Every border, as map.ts has them: the layout was made for exactly these. */
@@ -151,10 +151,3 @@ export const BORDERS: readonly (readonly [TerritoryId, TerritoryId])[] = [
   ["southern-europe", "western-europe"],
   ["ukraine", "ural"],
 ];
-
-/** Alaska–Kamchatka runs off both sides of the board: each end's stub leads to a ghost of the
- *  territory across the edge, on that edge. */
-export const WRAP_GHOSTS: Record<"alaska" | "kamchatka", readonly [number, number]> = {
-  "kamchatka": [30, 181],
-  "alaska": [1263, 181],
-};

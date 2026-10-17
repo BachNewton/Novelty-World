@@ -105,8 +105,25 @@ export function CardChip({ card, owned, className }: { card: CardId; owned?: boo
   );
 }
 
+/** The cards a hand holds at a turn's start. */
+const HAND_LIMIT = 5;
+
+/** A hand's size as cards: a slot for each card a hand holds at a turn's start, filled for each
+ *  card held, so a full row is a hand that must trade. Straight after taking an eliminated
+ *  player's cards a hand briefly holds up to 9, until it trades down, and the row grows to fit. */
+export function CardPips({ count, className }: { count: number; className?: string }) {
+  const label = `${count} ${count === 1 ? "card" : "cards"}`;
+  return (
+    <span role="img" aria-label={label} title={label} className={cn("inline-flex items-center gap-[0.12em]", className)}>
+      {Array.from({ length: Math.max(HAND_LIMIT, count) }, (_, i) => (
+        <span key={i} className={cn("inline-block h-[0.95em] w-[0.66em] rounded-[0.14em] border", i < count ? "border-(--rk-brass-bright) bg-(--rk-parchment)" : "border-(--rk-muted) opacity-40")} />
+      ))}
+    </span>
+  );
+}
+
 /** A number to choose, with − and + buttons and LB / RB (or [ and ]) beside them. */
-export function Stepper({ value, min, max, onChange, input, label }: { value: number; min: number; max: number; onChange: (value: number) => void; input: InputKind; label: string }) {
+export function Stepper({ value, min, max, onChange, input, label, all = true }: { value: number; min: number; max: number; onChange: (value: number) => void; input: InputKind; label: string; all?: boolean }) {
   return (
     <div className="flex items-center gap-[0.4em]" role="group" aria-label={label}>
       <button type="button" className={cn(BUTTON, "min-w-[2.6em] px-[0.5em]")} disabled={value <= min} onClick={() => onChange(value - 1)} aria-label={`Fewer: ${label}`}>
@@ -118,7 +135,7 @@ export function Stepper({ value, min, max, onChange, input, label }: { value: nu
       <button type="button" className={cn(BUTTON, "min-w-[2.6em] px-[0.5em]")} disabled={value >= max} onClick={() => onChange(value + 1)} aria-label={`More: ${label}`}>
         +<Prompt binding={BINDINGS.more} input={input} />
       </button>
-      {max > min && (
+      {all && max > min && (
         <button type="button" className={cn(BUTTON, "px-[0.6em] text-[0.85em]")} disabled={value === max} onClick={() => onChange(max)}>
           All
         </button>

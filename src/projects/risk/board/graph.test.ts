@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ADJACENCY, CONTINENTS, TERRITORIES, type TerritoryId } from "../map";
-import { startScale } from "../ui/camera";
+import { frameBoard, type Rect } from "../ui/camera";
 import { nextTerritory } from "../ui/territory-nav";
-import { DRAWN, locate, pathThrough, READABLE_SCALE, WRAP_WIDTH } from "./graph";
-import { BORDERS, GRAPH_HEIGHT, GRAPH_WIDTH, NODES, REGIONS, WRAP_GHOSTS } from "./graph-layout";
+import { DRAWN, FINGERTIP, FOOTPRINTS, locate, pathThrough, TOUCH_SCALE, WRAP_WIDTH } from "./graph";
+import { BORDERS, GRAPH_HEIGHT, GRAPH_WIDTH, NODES, REGIONS } from "./graph-layout";
 
 const IDS = TERRITORIES.map((t) => t.id);
 const key = (a: string, b: string) => [a, b].sort().join("|");
@@ -32,8 +32,8 @@ describe("the board as a graph", () => {
     expect(Object.keys(REGIONS).sort()).toEqual(CONTINENTS.map((c) => c.id).sort());
   });
 
-  it("puts every territory and ghost on the board", () => {
-    for (const [x, y] of [...Object.values(NODES), ...Object.values(WRAP_GHOSTS)]) {
+  it("puts every territory on the board", () => {
+    for (const [x, y] of Object.values(NODES)) {
       expect(x).toBeGreaterThan(0);
       expect(x).toBeLessThan(GRAPH_WIDTH);
       expect(y).toBeGreaterThan(0);
@@ -45,20 +45,36 @@ describe("the board as a graph", () => {
     expect(crossings()).toBe(0);
   });
 
-  it("keeps every territory a fingertip from the next on a 375 px phone as it starts", () => {
-    // The map's box on a 375×667 phone in portrait, measured in the game screen.
-    const phone = { width: 358, height: 414 };
-    const scale = startScale({ width: GRAPH_WIDTH, height: GRAPH_HEIGHT }, phone, READABLE_SCALE);
-    let closest = Infinity;
-    for (const a of IDS) for (const b of IDS) if (a < b) closest = Math.min(closest, Math.hypot(NODES[a][0] - NODES[b][0], NODES[a][1] - NODES[b][1]));
-    expect(closest * scale).toBeGreaterThanOrEqual(44);
-  });
-
-  it("runs Alaska–Kamchatka off both sides, Alaska west and Kamchatka east", () => {
+  it("runs Alaska–Kamchatka across the board's edge, about a border long", () => {
     expect(NODES.alaska[0]).toBeLessThan(GRAPH_WIDTH / 8);
     expect(NODES.kamchatka[0]).toBeGreaterThan((GRAPH_WIDTH * 7) / 8);
-    expect(WRAP_GHOSTS.kamchatka[0]).toBeLessThan(NODES.alaska[0]);
-    expect(WRAP_GHOSTS.alaska[0]).toBeGreaterThan(NODES.kamchatka[0]);
+    expect(NODES.alaska[1]).toBe(NODES.kamchatka[1]);
+    const across = NODES.alaska[0] + WRAP_WIDTH - NODES.kamchatka[0];
+    expect(across).toBeGreaterThan(100);
+    expect(across).toBeLessThan(250);
+  });
+});
+
+describe("the board on a screen", () => {
+  const board = { width: GRAPH_WIDTH, height: GRAPH_HEIGHT };
+  const frame = (width: number, height: number, overlays: Rect[]) => frameBoard({ board, view: { width, height }, overlays, footprints: FOOTPRINTS, touch: TOUCH_SCALE });
+  let closest = Infinity;
+  for (const a of IDS) for (const b of IDS) if (a < b) closest = Math.min(closest, Math.hypot(NODES[a][0] - NODES[b][0], NODES[a][1] - NODES[b][1]));
+
+  it("keeps every territory a fingertip from the next on the smallest phone, panning it across only", () => {
+    // The floor's 360×640 view in portrait, its top bar and status box over the map.
+    const { camera, pan } = frame(360, 640, [{ left: 8, top: 8, right: 352, bottom: 70 }, { left: 8, top: 420, right: 352, bottom: 632 }]);
+    expect(pan.axis).toBe("x");
+    expect(closest * camera.scale).toBeGreaterThanOrEqual(FINGERTIP);
+    expect(camera.top).toBeGreaterThanOrEqual(70);
+    expect(camera.top + GRAPH_HEIGHT * camera.scale).toBeLessThanOrEqual(420);
+  });
+
+  it("shows a 16:9 desktop the whole board, its status box in the board's empty south-west", () => {
+    const fit = Math.min(1920 / GRAPH_WIDTH, 960 / GRAPH_HEIGHT);
+    const { camera, pan } = frame(1920, 960, [{ left: 8, top: 8, right: 360, bottom: 64 }, { left: 1840, top: 8, right: 1912, bottom: 56 }, { left: 8, top: 700, right: 424, bottom: 952 }]);
+    expect(pan.axis).toBe("none");
+    expect(camera.scale).toBeGreaterThan(fit * 0.85);
   });
 });
 

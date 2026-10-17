@@ -8,7 +8,7 @@ import { KEY_CODES } from "../ui/bindings";
 
 /*
  * The keyboard and the controllers, each complete on its own, turned into the screen's intents.
- * Touch and the mouse act on the map (`board-map.tsx`) and on buttons directly. Each control
+ * Touch and the mouse act on the map (`graph-board.tsx`) and on buttons directly. Each control
  * means one thing everywhere (`ui/bindings.ts`); where the focus is decides only what "move the
  * focus" and "press it" reach:
  *
@@ -30,24 +30,18 @@ export interface InputIntents {
   back: () => void;
   closeDialog: () => void;
   endHold: (held: boolean) => void;
-  cards: () => void;
   menu: () => void;
   log: () => void;
-  overview: () => void;
   less: () => void;
   more: () => void;
   dice: (count: 1 | 2 | 3) => void;
   blitz: () => void;
-  zoom: (factor: number) => void;
   pan: (dx: number, dy: number) => void;
 }
 
-const KEY_ZOOM = 1.25;
 const KEY_PAN = 70;
 /** CSS pixels a second the right stick pans at full tilt. */
 const STICK_PAN = 900;
-/** Zoom doubles in about this fraction of a second on a full trigger, as in Betrayal. */
-const TRIGGER_ZOOM = 1.6;
 
 const ARROWS: Record<string, Direction> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
 
@@ -71,7 +65,6 @@ export function useRiskInput(intents: InputIntents): void {
       };
       if (code === KEY_CODES.endPhase) return handled(() => !event.repeat && it.endHold(true));
       if (code === KEY_CODES.menu) return handled(() => !event.repeat && it.menu());
-      if (code === KEY_CODES.cards) return handled(() => !event.repeat && it.cards());
       if (zone === "dialog") {
         if (code === "Escape") handled(it.closeDialog);
         else it.usedInput("keyboard-mouse", true);
@@ -79,13 +72,10 @@ export function useRiskInput(intents: InputIntents): void {
       }
       if (code === "Escape") return handled(it.back);
       if (code === KEY_CODES.log) return handled(it.log);
-      if ((KEY_CODES.overview as readonly string[]).includes(code)) return handled(it.overview);
       if (code === KEY_CODES.less) return handled(it.less);
       if (code === KEY_CODES.more) return handled(it.more);
       if (code === KEY_CODES.blitz) return handled(it.blitz);
       if (code in KEY_CODES.dice) return handled(() => it.dice(KEY_CODES.dice[code]));
-      if (event.key === "+" || event.key === "=") return handled(() => it.zoom(KEY_ZOOM));
-      if (event.key === "-" || event.key === "_") return handled(() => it.zoom(1 / KEY_ZOOM));
       if (code in KEY_CODES.pan) {
         const [x, y] = KEY_CODES.pan[code];
         return handled(() => it.pan(-x * KEY_PAN, -y * KEY_PAN));
@@ -125,17 +115,15 @@ export function useRiskInput(intents: InputIntents): void {
         it.usedInput("pad");
         const zone = it.zone();
         if (edge.name === "Menu") return it.menu();
-        if (edge.name === "Y") return it.cards();
         if (zone === "dialog") return;
-        if (edge.name === "View") return it.overview();
         if (edge.name === "LB") return it.less();
         if (edge.name === "RB") return it.more();
         if (zone !== "map") return;
         if (edge.name === "A") return it.pickFocus();
         if (edge.name === "B") return it.back();
       },
-      // The pads are read once per animation frame: the right stick and triggers move the camera
-      // as long as they are held, and a held d-pad repeats on the frames.
+      // The pads are read once per animation frame: the right stick pans the board as long as it
+      // is held, and a held d-pad repeats on the frames.
       onFrame: (pads) => {
         const now = performance.now();
         const delta = Math.min(0.1, (now - last) / 1000);
@@ -145,16 +133,10 @@ export function useRiskInput(intents: InputIntents): void {
         for (const pad of pads) {
           const controls = readPad(pad).controls;
           if (!controls) continue;
-          const { rightStick, leftTrigger, rightTrigger } = controls;
-          if (zone !== "dialog") {
-            if (rightStick.x !== 0 || rightStick.y !== 0) {
-              it.usedInput("pad");
-              it.pan(-rightStick.x * STICK_PAN * delta, -rightStick.y * STICK_PAN * delta);
-            }
-            if (rightTrigger !== leftTrigger) {
-              it.usedInput("pad");
-              it.zoom(Math.exp((rightTrigger - leftTrigger) * TRIGGER_ZOOM * delta));
-            }
+          const { rightStick } = controls;
+          if (zone !== "dialog" && (rightStick.x !== 0 || rightStick.y !== 0)) {
+            it.usedInput("pad");
+            it.pan(-rightStick.x * STICK_PAN * delta, -rightStick.y * STICK_PAN * delta);
           }
           const { hold, move } = navStep(holds.get(pad.index) ?? NAV_AT_REST, zone === "map" ? pad : null, now);
           holds.set(pad.index, hold);

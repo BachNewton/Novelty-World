@@ -1,19 +1,33 @@
 import type { Point } from "@/shared/lib/input";
 import type { GameView } from "../contract";
 import { ADJACENCY, type TerritoryId } from "../map";
-import { BORDERS, NODES, WRAP_GHOSTS } from "./graph-layout";
+import type { Rect } from "../ui/camera";
+import { BORDERS, GRAPH_WIDTH, NODES } from "./graph-layout";
 
 /*
  * The board as a graph, pure: where territories sit, the lines drawn between them, and the way a
  * fortifying army marches.
  */
 
-/** The scale below which the whole board stops being readable, names at about 10 px: a smaller
- *  box starts zoomed in, panned (`startScale`). */
-export const READABLE_SCALE = 0.45;
+/** A territory's marker and the short name under it, in board units (neighbours are about
+ *  `GRAPH_UNIT` apart). */
+export const MARKER = 62;
+export const NAME_SIZE = 21;
 
-/** How far a step left or right looks round the board's edge: Alaska's west is Kamchatka, where its ghost is. */
-export const WRAP_WIDTH = NODES.kamchatka[0] - WRAP_GHOSTS.kamchatka[0];
+/** What a territory draws round its place, lit ring and name included: the part of the board an
+ *  overlay must not cover. */
+const REACH = { side: 50, above: 50, below: MARKER / 2 + 8 + NAME_SIZE };
+export const FOOTPRINTS: readonly Rect[] = Object.values(NODES).map(([x, y]) => ({ left: x - REACH.side, right: x + REACH.side, top: y - REACH.above, bottom: y + REACH.below }));
+
+/** CSS pixels between the two closest territories that a fingertip needs to pick either. */
+export const FINGERTIP = 44;
+const values = Object.values(NODES);
+const CLOSEST = Math.min(...values.flatMap((a, i) => values.slice(i + 1).map((b) => Math.hypot(a[0] - b[0], a[1] - b[1]))));
+/** The least scale the board is shown at: the closest two territories a fingertip apart. */
+export const TOUCH_SCALE = FINGERTIP / CLOSEST;
+
+/** The board wraps east to west: Alaska's west is Kamchatka, one board width along. */
+export const WRAP_WIDTH = GRAPH_WIDTH;
 
 export function locate(territory: TerritoryId): Point {
   const [x, y] = NODES[territory];
@@ -24,12 +38,13 @@ export const isWrap = (a: TerritoryId, b: TerritoryId) => (a === "alaska" && b =
 
 type Segment = readonly [readonly [number, number], readonly [number, number]];
 
-/** The straight lines a border is drawn as: one, or Alaska–Kamchatka's two stubs off the edges. */
+/** The straight lines a border is drawn as: one, or Alaska–Kamchatka's two, each from one end
+ *  across the board's edge to where the other end's copy is. */
 export function borderLines(a: TerritoryId, b: TerritoryId): readonly Segment[] {
   if (!isWrap(a, b)) return [[NODES[a], NODES[b]]];
   return [
-    [NODES.alaska, WRAP_GHOSTS.kamchatka],
-    [NODES.kamchatka, WRAP_GHOSTS.alaska],
+    [NODES.alaska, [NODES.kamchatka[0] - WRAP_WIDTH, NODES.kamchatka[1]]],
+    [NODES.kamchatka, [NODES.alaska[0] + WRAP_WIDTH, NODES.alaska[1]]],
   ];
 }
 

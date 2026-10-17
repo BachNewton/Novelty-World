@@ -7,20 +7,16 @@ import type { Binding } from "@/shared/components/prompts";
  * Space) and backing out (B, Esc) go without saying and show no glyph.
  */
 
-export type Meaning = "end-phase" | "cards" | "menu" | "overview" | "less" | "more" | "choices" | "zoom-out" | "zoom-in" | "blitz" | "log";
+export type Meaning = "end-phase" | "menu" | "less" | "more" | "choices" | "blitz" | "log";
 
 export const BINDINGS: Record<Meaning, Binding> = {
   /** Ending the attack or the turn is a hold, as Betrayal's End turn is: there is no undo. */
   "end-phase": { pad: "X", key: "Backspace", fills: true },
-  cards: { pad: "Y", key: "I", fills: false },
+  /** The war room: the cards, the battle log and leaving, in one dialog. */
   menu: { pad: "Menu", key: "M", fills: false },
-  /** The whole board, as Betrayal's Follow brings the camera home. */
-  overview: { pad: "View", key: "C", fills: false },
   less: { pad: "LB", key: "[", fills: false },
   more: { pad: "RB", key: "]", fills: false },
   choices: { pad: "DpadLeftRight", key: "Tab", fills: false },
-  "zoom-out": { pad: "LT", key: "-", fills: false },
-  "zoom-in": { pad: "RT", key: "+", fills: false },
   blitz: { pad: null, key: "B", fills: false },
   log: { pad: null, key: "L", fills: false },
 };
@@ -28,9 +24,7 @@ export const BINDINGS: Record<Meaning, Binding> = {
 /** Keys by code for the meanings above, for the keyboard handler. */
 export const KEY_CODES = {
   endPhase: "Backspace",
-  cards: "KeyI",
   menu: "KeyM",
-  overview: ["KeyC", "Home"],
   less: "BracketLeft",
   more: "BracketRight",
   blitz: "KeyB",
