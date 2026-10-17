@@ -307,8 +307,6 @@ export function seasonGroupOf(kind: PlantKind, variant: number): SeasonGroup {
       return "oak";
     case "fern":
       return variant === 2 ? "bracken" : "fern";
-    case "mushroom":
-      return "flowers";
     default:
       return kind;
   }

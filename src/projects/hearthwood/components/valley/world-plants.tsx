@@ -233,7 +233,7 @@ function showChunks(
         mesh = new InstancedMesh(geometry, design.kind === "rock" ? materials.stone : materials.foliage, Math.max(256, 2 ** Math.ceil(Math.log2(needed * 1.25))));
         mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(mesh.instanceMatrix.count * 3), 3);
         mesh.frustumCulled = false;
-        mesh.castShadow = detail === "near" && design.kind !== "flowers" && design.kind !== "mushroom";
+        mesh.castShadow = design.kind !== "flowers";
         mesh.customDepthMaterial = design.kind === "rock" ? materials.stoneDepth : materials.foliageDepth;
         design.meshes[detail] = mesh;
         group.add(mesh);

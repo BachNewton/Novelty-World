@@ -9,12 +9,12 @@ import { emptySample } from "../../engine/land";
 import { createWorld, type World } from "../../engine/world";
 import { makeAtmosphere } from "../../art/atmosphere";
 import { Campfire } from "../../art/campfire";
-import { Daylight, type Air, type Focus } from "../../art/daylight";
+import { Daylight, type Air, type Focus } from "../../art/light/daylight";
 import { Fireflies } from "../../art/fireflies";
 import { readForagePalette } from "../../art/forage-shapes";
 import { readPalette, REGION_AIR } from "../../art/palette";
 import { FrameCosts } from "../../art/passes";
-import { makeSkyUniforms, Sky } from "../../art/sky";
+import { makeSkyUniforms, Sky } from "../../art/sky/sky";
 import { absorptionOf } from "../../art/water/absorption";
 import { setWaterAtEye } from "../../art/water/underwater";
 import { QUALITY } from "../../quality";
@@ -26,6 +26,10 @@ import { useFrameStats } from "./frame-stats";
 import { FIRST_ORBIT } from "./follow-camera";
 import { ForageOverlay } from "./forage-overlay";
 import { createForaging } from "./foraging";
+import { CompanionOverlay } from "./companion-overlay";
+import { createCompanionship } from "./companionship";
+import { Interactions } from "./interactions";
+import { WorldAnimals } from "./world-animals";
 import { WalkerAndCamera, type Walker } from "./walker";
 import { TouchStickView, WalkHints } from "./walk-hints";
 import { WorldForage } from "./world-forage";
@@ -108,6 +112,7 @@ export function WorldView() {
   const palette = useMemo(() => readPalette(), []);
   const foragePalette = useMemo(() => readForagePalette(), []);
   const foraging = useMemo(() => createForaging(world), [world]);
+  const companionship = useMemo(() => createCompanionship(world, foraging), [world, foraging]);
   const shared = useMemo(() => {
     const { camp } = world;
     const walker: Walker = {
@@ -137,7 +142,6 @@ export function WorldView() {
     <div ref={surface} data-testid="hearthwood-world" className="relative h-dvh w-full touch-none overflow-hidden select-none" style={PROMPT_COLOURS}>
       <Canvas
         dpr={[1, QUALITY.maxPixelRatio]}
-        shadows="percentage"
         // A reversed depth buffer keeps depth precise from a hand's breadth to the horizon a hundred kilometres off.
         gl={{ antialias: true, powerPreference: "high-performance", reversedDepthBuffer: true }}
         camera={{ fov: 55, near: 0.2, far: QUALITY.viewDistance * 1.2 }}
@@ -146,20 +150,23 @@ export function WorldView() {
         }}
       >
         <Ticker clock={clock} world={world} air={air} weather={weather} />
-        <Daylight day={clock} palette={palette} atmosphere={atmosphere} sky={sky} focus={focus} air={air} shadows={{ map: QUALITY.shadowMap, reach: QUALITY.shadowReach }} />
+        <Daylight day={clock} palette={palette} atmosphere={atmosphere} sky={sky} focus={focus} air={air} />
         <Sky atmosphere={atmosphere} sky={sky} />
-        <FeatureRenderer day={clock} atmosphere={atmosphere} sky={sky} costs={debug.costs} />
+        <FeatureRenderer day={clock} atmosphere={atmosphere} sky={sky} costs={debug.costs} player={focus} />
         <WorldLand world={world} palette={palette} atmosphere={atmosphere} sky={sky} quality={QUALITY} streaming={streaming} />
         <WorldPlants world={world} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />
         <WorldPlaces world={world} palette={palette} atmosphere={atmosphere} sky={sky} streaming={streaming} />
-        <WorldForage foraging={foraging} palette={foragePalette} atmosphere={atmosphere} clock={clock} walker={walker} input={input.state} />
+        <WorldForage foraging={foraging} palette={foragePalette} atmosphere={atmosphere} clock={clock} walker={walker} input={input.state} rival={() => companionship.candidate?.score ?? Infinity} />
+        <WorldAnimals companionship={companionship} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} />
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
-        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} costs={debug.costs} setPointOfView={input.setPointOfView} />
+        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
       <WalkHints input={input} />
-      <ForageOverlay foraging={foraging} clock={clock} surface={surface} input={input.kind} />
+      <ForageOverlay foraging={foraging} clock={clock} input={input.kind} />
+      <CompanionOverlay companionship={companionship} input={input.kind} />
+      <Interactions foraging={foraging} companionship={companionship} clock={clock} surface={surface} />
       <TouchStickView stick={input.stick} />
       <DebugPanel context={debug} />
     </div>

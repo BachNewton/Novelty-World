@@ -84,7 +84,6 @@ export const PLANT_CLASS: Record<PlantKind, PlantClass> = {
   heather: "shrubs",
   rock: "shrubs",
   fern: "small",
-  mushroom: "small",
   flowers: "small",
 };
 

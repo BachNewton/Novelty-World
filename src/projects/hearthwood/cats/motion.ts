@@ -5,11 +5,14 @@ import { HIP } from "./rig";
 
 /*
  * How a cat moves, on the shared four-legged motion (`animals/motion.ts`):
- * its postures for standing, walking, sitting and loafing, the tail up in
- * greeting, and its fidgets, as pure functions of its clock.
+ * its postures for standing, walking, bounding along at a run, sitting and
+ * loafing, the tail up in greeting with a slow blink, and its fidgets, as
+ * pure functions of its clock.
  */
 
-export type Activity = "stand" | "walk" | "sit" | "loaf";
+export type Activity = "stand" | "walk" | "run" | "sit" | "loaf";
+/** The activities that go over the ground, so the stride follows the distance. */
+export const CAT_GAITS: readonly Activity[] = ["walk", "run"];
 
 export interface MotionInput {
   /** The cat's own clock, in seconds. */
@@ -124,6 +127,48 @@ function walk(frame: Frame): Posture {
   };
 }
 
+/** A cat's run is a bound: the hind paws land almost together, then the fores, the back flexing with each leap. */
+const RUN_ORDER = { hindL: 0, hindR: 0.08, frontL: 0.48, frontR: 0.56 } as const;
+const RUN_HIND = { plant: -0.4, push: 0.6, pushStart: 0.2, pushRate: 1.6, fold: 0.8 };
+const RUN_FRONT = { plant: 0.1, push: -0.5, pushStart: 0.3, pushRate: 2, fold: 1.2 };
+
+function run(frame: Frame): Posture {
+  const { input, hipHeight, frontZ, hindZ } = frame;
+  const legs = hipHeight / 0.205;
+  const base = stand(frame);
+  const speed = Math.max(input.speed, 0.5);
+  const duty = 0.32;
+  // A planted paw sweeps back only as far as the body goes while it is down.
+  const stride = 0.2 * legs * (0.9 + 0.1 * clamp(speed / 3, 0, 2));
+  const phase = (input.travelled * duty) / stride;
+  const cycle = phase * Math.PI * 2;
+  const flex = Math.sin(cycle + 0.3);
+  return {
+    ...base,
+    pelvisY: hipHeight - 0.014 * legs + 0.014 * Math.sin(cycle - 0.6) * legs,
+    pitch: 0.05 + flex * 0.14,
+    roll: 0,
+    chestPitch: -flex * 0.2,
+    chestYaw: 0,
+    neckPitch: base.neckPitch + 0.3,
+    headPitch: base.headPitch - 0.18 - flex * 0.08,
+    paws: gaitPaws(
+      phase,
+      { footfalls: RUN_ORDER, duty, stride, lift: 0.06 * legs },
+      { hindL: hindZ - 0.02, hindR: hindZ - 0.02, frontL: frontZ + 0.01, frontR: frontZ + 0.01 },
+      { front: RUN_FRONT, hind: RUN_HIND },
+    ),
+    // The tail streams out behind, lifting at its end.
+    tailRoot: -0.2 + input.personality.boldness * 0.15,
+    tailBend: 0.05,
+    tailHook: 0.2,
+    tailSway: 0.06,
+    tailCurl: 0,
+    earsBack: base.earsBack + 0.3,
+    lids: 0,
+  };
+}
+
 function sit(frame: Frame): Posture {
   const { input } = frame;
   const legs = frame.hipHeight / 0.205;
@@ -194,7 +239,7 @@ function fidget(posture: Posture, input: MotionInput): Posture {
   const busy = (personality.energy + 1) / 2;
   const lookEvery = mix(9, 3.5, busy);
   const look = burst(seed, 1, time, lookEvery, mix(2.6, 1.6, busy), 0.85);
-  const lookYaw = (look.value * 2 - 1) * 0.75 * look.amount * (activity === "walk" ? 0.4 : 1);
+  const lookYaw = (look.value * 2 - 1) * 0.75 * look.amount * (activity === "walk" ? 0.4 : activity === "run" ? 0.1 : 1);
   const tilt = burst(seed, 2, time, 11, 2.2, 0.5);
   const twitch = burst(seed, 5, time, mix(6, 2, busy), 0.35, 0.8);
   const settle = activity === "loaf" ? 0.5 : 1;
@@ -221,13 +266,15 @@ function blinkOf(posture: Posture, input: MotionInput): number {
   const { time, seed, personality } = input;
   const quick = burst(seed, 8, time, mix(5.5, 3, (personality.energy + 1) / 2), 0.17, 0.95).amount;
   const slow = personality.affection > 0 ? burst(seed, 9, time, 9, 1.4, personality.affection * 0.7).amount * 0.9 : 0;
-  return clamp(Math.max(posture.lids, quick, slow), 0, 1);
+  // A greeting answers with a slow blink as the tail goes up, a cat's way of saying it is content.
+  const greeted = burst(seed, 12, time, 2.6, 1.5).amount * 0.9 * smooth(input.greeting);
+  return clamp(Math.max(posture.lids, quick, slow, greeted), 0, 1);
 }
 
 /** The posture the cat holds at this moment: its activity, blended in from the last, with its fidgets. */
 function postureAt(input: MotionInput): Posture {
   const frame = frameOf(input);
-  const postures = { stand: () => stand(frame), walk: () => walk(frame), sit: () => sit(frame), loaf: () => loaf(frame) };
+  const postures = { stand: () => stand(frame), walk: () => walk(frame), run: () => run(frame), sit: () => sit(frame), loaf: () => loaf(frame) };
   const blended = blendedPosture(postures, input.activity, input.previous, input.time, input.since, 0.012);
   const greeting = smooth(input.greeting);
   return fidget(

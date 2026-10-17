@@ -116,14 +116,13 @@ const SMALL_SIZE: Record<Exclude<PlantKind, TreeKind>, [number, number]> = {
   bush: [0.8, 1.7],
   heather: [0.9, 1.7],
   fern: [0.6, 1.15],
-  mushroom: [0.7, 1.1],
   flowers: [0.8, 1.3],
   rock: [0.5, 1.4],
 };
 
 function makePlant(kind: PlantKind, x: number, y: number, z: number, size: number, variant: number, rng: Rng): Plant {
   const next = () => rng.next();
-  const upright = kind === "rock" || kind === "flowers" || kind === "mushroom" || kind === "heather";
+  const upright = kind === "rock" || kind === "flowers" || kind === "heather";
   return {
     kind,
     x,

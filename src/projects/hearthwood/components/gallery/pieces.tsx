@@ -16,7 +16,7 @@ import type { Palette } from "../../art/palette";
 import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import { fallRibbon, placeGeometry, type PlaceLook } from "../../art/place-shapes";
-import type { SkyUniforms } from "../../art/sky";
+import type { SkyUniforms } from "../../art/sky/sky";
 import { shadowDepth } from "../../art/shading";
 import { poolGeometry, waterMesh } from "../../art/water/water";
 import { Broom } from "../../art/broom";
@@ -58,7 +58,7 @@ export interface ArtPiece {
 }
 
 const TREE_HEIGHT: Record<TreeKind, number> = { conifer: 12, pine: 13, broadleaf: 9, birch: 9.5, aspen: 10.5, maple: 9 };
-const SMALL_SIZE: Record<Exclude<PlantKind, TreeKind>, number> = { bush: 1.3, heather: 1.3, fern: 0.9, mushroom: 1, flowers: 1.1, rock: 1.2 };
+const SMALL_SIZE: Record<Exclude<PlantKind, TreeKind>, number> = { bush: 1.3, heather: 1.3, fern: 0.9, flowers: 1.1, rock: 1.2 };
 
 function plantOf(kind: PlantKind, variant: number): Plant {
   const tree = (TREE_KINDS as readonly PlantKind[]).includes(kind);
@@ -194,7 +194,6 @@ const PLANT_NAMES: Record<PlantKind, string> = {
   bush: "Bush",
   heather: "Heather",
   fern: "Fern",
-  mushroom: "Mushrooms",
   flowers: "Flowers",
   rock: "Rock",
 };

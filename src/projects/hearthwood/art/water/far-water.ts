@@ -2,7 +2,7 @@ import type { ShaderMaterial } from "three";
 import type { AtmosphereUniforms } from "../atmosphere";
 import type { Palette } from "../palette";
 import { shadeCustom } from "../shading";
-import type { SkyUniforms } from "../sky";
+import type { SkyUniforms } from "../sky/sky";
 import { CURVATURE } from "../terrain";
 import { WATER_COLUMN_GLSL } from "./absorption";
 import { WATER_SKY_GLSL, waterUniforms } from "./water";

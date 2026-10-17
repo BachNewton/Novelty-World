@@ -8,7 +8,7 @@ import { GLIDE, glidingMover, standingMover, stepMover, type AirMode, type Mover
 import { takeJump, takeTurn, type WalkState } from "../../input/use-walk-input";
 import { moveInWorld, RUN_SPEED, walkSpeed } from "../../input/walk-controls";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
-import type { Focus } from "../../art/daylight";
+import type { Focus } from "../../art/light/daylight";
 import { broomSway, eyePosition, EYE_HEIGHT, fieldOfView, headBob, landingDip, lookDirection, RIDING_EYE, turnLook } from "./first-person-camera";
 import { catchUp, clampOrbit, eyeFor, LOOK_HEIGHT, turnBetween, type Orbit } from "./follow-camera";
 import type { Palette } from "../../art/palette";

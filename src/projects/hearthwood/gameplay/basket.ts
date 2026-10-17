@@ -32,6 +32,12 @@ export function basketTotal(basket: Basket): number {
   return FORAGE_KINDS.reduce((sum, k) => sum + basket[k], 0);
 }
 
+/** One of a kind taken out of the basket (a treat given), which must hold one. */
+export function takeOne(foraged: Foraged, kind: ForageKind): Foraged {
+  if (foraged.basket[kind] <= 0) throw new Error(`The basket holds no ${kind} to take`);
+  return { basket: { ...foraged.basket, [kind]: foraged.basket[kind] - 1 }, picked: foraged.picked };
+}
+
 export function serializeForaged(foraged: Foraged): string {
   return JSON.stringify(foraged);
 }
