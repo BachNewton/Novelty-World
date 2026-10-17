@@ -166,10 +166,12 @@ function withBeliefs(changed: Partial<Beliefs>): Params {
   return { ...V4_PARAMS, opponents: { ...V4_PARAMS.opponents, beliefs: { ...V3_BELIEFS, ...changed } } };
 }
 
-/** v4 with one of its beliefs, the rest v3's: which of them costs or pays (`ideas/bot-log.md`). */
-export const ONE_BELIEF_PARAMS: Readonly<Record<string, Params>> = {
+/** v4 with some of its beliefs, the rest v3's: which of them costs or pays (`ideas/bot-log.md`). */
+export const BELIEF_VARIANTS: Readonly<Record<string, Params>> = {
   kills: withBeliefs({ killRate: 0.25, myKillRate: 0.5 }),
   leader: withBeliefs({ leaderAim: 0.7, allyAim: 0.3 }),
   aim: withBeliefs({ aimSlope: 0.5 }),
   record: withBeliefs({ historyPrior: 6, historyDecay: 0.7 }),
+  // Every belief of v4's but the aim's pull toward an even split, the one that lost alone.
+  "no-aim": withBeliefs({ ...V4_PARAMS.opponents.beliefs, aimSlope: 1 }),
 };

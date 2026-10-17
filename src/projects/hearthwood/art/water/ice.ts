@@ -1,34 +1,15 @@
+import { groundSeason } from "../../engine/seasons";
 import type { FeatureArt } from "../feature-art";
 
 /*
  * Winter ice at the edges of lakes and rivers. It grows out from the shore
- * into deeper water as winter comes on, from the middle of November to its
- * greatest in the depth of winter, holds through February, and melts back
- * from the open water through March and April, by the real day of the year
- * the calendar's date stands for. Running water freezes only along its
+ * into deeper water as winter comes on and melts back in spring, by the
+ * seasons' own ice on the ground's calendar (`engine/seasons.ts`), so the
+ * water freezes as the land's snow lies. Running water freezes only along its
  * edges, and a falling river never. The ice's edge wanders, it is pale and
  * matt with a dusting of snow and dark cracks, and its surface is flat, so
  * no ripple crosses it.
  */
-
-const DAYS = 365;
-/** Real days of the year (0 is 1 January), counted on past the year's end, so a winter runs in one piece. */
-const FREEZE_FROM = 319;
-const FROZEN_BY = 385;
-const THAW_FROM = 434;
-const OPEN_BY = 480;
-
-const ease = (from: number, to: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - from) / (to - from)));
-  return t * t * (3 - 2 * t);
-};
-
-/** How far the ice has grown, 0 (open water) to 1 (the depth of winter), on a real day of the year. */
-export function iceCover(realDayOfYear: number): number {
-  const day = ((realDayOfYear % DAYS) + DAYS) % DAYS;
-  const winter = day < 200 ? day + DAYS : day;
-  return ease(FREEZE_FROM, FROZEN_BY, winter) * (1 - ease(THAW_FROM, OPEN_BY, winter));
-}
 
 /** How deep the water is that the ice reaches out over at its greatest, in metres. */
 const ICE_REACH = 2.2;
@@ -71,6 +52,6 @@ export const ICE_ART: FeatureArt = {
   uniforms,
   chunks: [{ kinds: ["water"], fragmentHead: HEAD, normal: NORMAL, light: LIGHT }],
   frame: ({ day }) => {
-    uniforms.uHwIceCover.value = iceCover(day.date.realDayOfYear);
+    uniforms.uHwIceCover.value = groundSeason(day.date.realDayOfYear).ice;
   },
 };

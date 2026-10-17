@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { REGIONS } from "../../engine/regions";
 import type { LandTile } from "../../engine/tiles";
 import { absorptionOf, deepColourOf, REGION_ABSORPTION } from "./absorption";
-import { iceCover } from "./ice";
 import { DEPTH_GLSL } from "../depth";
 import { rippleWaves } from "./ripples";
 import { COPY_FRAGMENT, SKY_DISTANCE } from "./scene-copy";
@@ -61,25 +60,6 @@ describe("the ripples", () => {
         expect(Math.abs(ax * bx + az * bz)).toBeLessThan(0.99);
       }
     }
-  });
-});
-
-describe("winter ice", () => {
-  it("is open water from late spring to autumn", () => {
-    for (const day of [130, 180, 240, 300]) expect(iceCover(day)).toBe(0);
-  });
-
-  it("grows through late November and December, and holds through the depth of winter", () => {
-    expect(iceCover(330)).toBeGreaterThan(0);
-    expect(iceCover(330)).toBeLessThan(iceCover(350));
-    expect(iceCover(30)).toBe(1);
-    expect(iceCover(60)).toBe(1);
-  });
-
-  it("melts back through March and April", () => {
-    expect(iceCover(80)).toBeGreaterThan(iceCover(100));
-    expect(iceCover(100)).toBeGreaterThan(0);
-    expect(iceCover(118)).toBe(0);
   });
 });
 

@@ -3,14 +3,19 @@
 // in it, an aerial view, a top-down map of a few kilometres drawn from the world itself, the phone's
 // touch controls on the target phone (a Pixel 8 Pro in Chrome, portrait and landscape) with the jump
 // button on the ground and on the broom, camp through Elliott's own eyes, with its hints (the `fp-` shots),
-// and a glide on the broom down off a ridge, behind them and through their eyes (the `glide-` shots). Prints what each
+// a glide on the broom down off a ridge, behind them and through their eyes (the `glide-` shots), and foraging
+// (the `forage-` shots: a patch of each kind, a close-up through Elliott's eyes before and after picking, and the
+// basket on desktop and the target phone). Prints what each
 // frame drew (triangles, draw calls) and how long frames took (SHOTS_UNCAPPED=1 for the frame's own time).
 //
 // Drives the world's probe (window.__hearthwoodWorld, see ../components/valley/world-probe.tsx) over
 // Playwright and waits on its events (ready, streamed in, frames drawn), never a sleep. Every shot holds
 // the date, the hour and the motion clock, so two runs differ only where the art does. The shots are on the
 // autumn equinox, whose day has every moment at its usual hour and a dark night, except the `calendar-`
-// shots, which show the light through the year: a midsummer evening, a midwinter noon and a spring morning.
+// shots, which show the light through the year: a midsummer evening, a midwinter noon and a spring morning,
+// and the `season-` shots, which show the land through the year: a mixed wood of birch and maple and a lowland
+// meadow with a range behind it, in spring, high summer, mid-autumn and deep winter, and with the seasons'
+// features off; and the ~ panel's Calendar and Quality sections on desktop and on the target phone.
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
 // `npx playwright install chromium` (one-time).
@@ -86,10 +91,12 @@ async function frames(page, count) {
 
 // Most shots are from behind Elliott, in third person; the `fp-` ones are through their eyes, with `look` the way they look.
 // `glide` puts them on the broom over a spot and holds them there, so the shot is mid-glide.
-async function capture(page, name, { hour, date = DATE, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1, glide = null }) {
+// `features` switches some features for the shot (and leaves them so): { id: on }.
+async function capture(page, name, { hour, date = DATE, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1, glide = null, features = null }) {
   await page.evaluate(
-    ({ hour, date, view, pov, orbit, look, walker, free, motion, chrome, haze, glide }) => {
+    ({ hour, date, view, pov, orbit, look, walker, free, motion, chrome, haze, glide, features }) => {
       const world = window.__hearthwoodWorld;
+      for (const [id, on] of Object.entries(features ?? {})) world.setFeature(id, on);
       world.holdHour(hour);
       world.setDate(date);
       world.setHaze(haze);
@@ -104,7 +111,7 @@ async function capture(page, name, { hour, date = DATE, view = "walk", pov = "th
       if (glide) world.glide(glide.x, glide.z, glide.above, glide.heading);
       document.documentElement.toggleAttribute("data-shot-chrome", chrome);
     },
-    { hour, date, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze, glide },
+    { hour, date, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze, glide, features },
   );
   // The camera eases after the walker, and the world streams in round wherever it ends up: give the
   // camera frames to arrive, then wait for the streaming to settle, then read a settled frame.
@@ -122,6 +129,8 @@ async function capture(page, name, { hour, date = DATE, view = "walk", pov = "th
 }
 
 const want = (name) => ONLY === null || ONLY.some((o) => name.startsWith(o));
+/** Whether any shot under a prefix is wanted, for a group of shots that sets up once. */
+const wantAny = (prefix) => ONLY === null || ONLY.some((o) => o.startsWith(prefix) || prefix.startsWith(o));
 
 /** A dry, gentle spot deep in a region, searched for outwards from camp: where to stand, and the way down the land. */
 async function findRegionSpot(page, region) {
@@ -288,6 +297,78 @@ if (want("range")) {
   await capture(desktop, "clear-summit-hazy", { hour: 15, walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 6, z: peak.z, lookX: away.x, lookY: peak.height - 900, lookZ: away.z } });
 }
 
+/** The edge of a wood of birch and maple: where the two regions meet, open ground facing the trees. */
+async function findMixedWood(page) {
+  return page.evaluate(() => {
+    const world = window.__hearthwoodWorld;
+    let best = null;
+    for (let z = -7000; z <= 7000; z += 100) {
+      for (let x = -7000; x <= 7000; x += 100) {
+        const here = world.at(x, z);
+        const maple = here.regions.maplewood ?? 0;
+        const birch = here.regions.birchvale ?? 0;
+        if (maple < 0.2 || birch < 0.2 || here.woodland > 0.12 || here.height - here.water < 1.5 || here.river > 0) continue;
+        // Facing the thickest woods close by.
+        let face = null;
+        for (let a = 0; a < 16; a++) {
+          const ang = (a / 16) * Math.PI * 2;
+          const wood = world.at(x + Math.sin(ang) * 35, z + Math.cos(ang) * 35).woodland;
+          if (face === null || wood > face.wood) face = { ang, wood };
+        }
+        const score = Math.min(maple, birch) + face.wood;
+        if (face.wood > 0.45 && (best === null || score > best.score)) best = { x, z, yaw: face.ang, score };
+      }
+    }
+    return best;
+  });
+}
+
+const SEASON_DATES = [
+  ["spring", "spring-6", 11],
+  ["summer", "summer-4", 12],
+  ["autumn", "autumn-3", 12],
+  ["winter", "winter-4", 12],
+];
+const SEASONS_OFF = { seasonalFoliage: false, seasonalGround: false };
+const SEASONS_ON = { seasonalFoliage: true, seasonalGround: true };
+
+if (want("season")) {
+  const wood = await findMixedWood(desktop);
+  if (wood === null) console.log("no edge of a mixed birch and maple wood found");
+  else {
+    console.log(`mixed wood: standing at ${wood.x}, ${wood.z}`);
+    const shot = { walker: { x: wood.x, z: wood.z, heading: wood.yaw }, orbit: { yaw: wood.yaw, pitch: 0.06, distance: 9 } };
+    for (const [season, date, hour] of SEASON_DATES) await capture(desktop, `season-wood-${season}`, { ...shot, date, hour, features: SEASONS_ON });
+    for (const [season, date, hour] of SEASON_DATES.filter(([s]) => s === "autumn" || s === "winter")) await capture(desktop, `season-wood-${season}-off`, { ...shot, date, hour, features: SEASONS_OFF });
+  }
+  const { peak, view } = await findRange(desktop);
+  console.log(`meadow: at ${view.x.toFixed(0)}, ${view.z.toFixed(0)}, the range's peak ${peak.height.toFixed(0)} m behind`);
+  const meadow = { walker: { x: view.x, z: view.z }, free: { x: view.x, y: view.height + 3, z: view.z, lookX: peak.x, lookY: peak.height * 0.45, lookZ: peak.z } };
+  for (const [season, date, hour] of SEASON_DATES) await capture(desktop, `season-meadow-${season}`, { ...meadow, date, hour, features: SEASONS_ON });
+  for (const [season, date, hour] of SEASON_DATES.filter(([s]) => s === "autumn" || s === "winter")) await capture(desktop, `season-meadow-${season}-off`, { ...meadow, date, hour, features: SEASONS_OFF });
+  await capture(desktop, "season-camp-winter", { date: "winter-4", hour: 12, walker: atCamp, orbit: outward, features: SEASONS_ON });
+  await capture(desktop, "season-camp-spring", { date: "spring-4", hour: 12, walker: atCamp, orbit: outward, features: SEASONS_ON });
+}
+
+/** The ~ panel open, and scrolled to the section asked for. */
+async function panelShots(device, name) {
+  if (!want(name)) return;
+  const page = await openWorld(device);
+  await capture(page, `${name}-calendar`, { date: "autumn-3", hour: 17.2, walker: atCamp, orbit: facingCamp, chrome: true });
+  await page.keyboard.press("Backquote");
+  await page.waitForSelector("[data-testid=hearthwood-debug-calendar]");
+  await frames(page, 10);
+  await page.screenshot({ path: join(OUTDIR, `${name}-calendar.png`) });
+  console.log(`wrote ${join(OUTDIR, `${name}-calendar.png`)}`);
+  await page.evaluate(() => document.querySelector("[data-testid=hearthwood-debug-quality]").scrollIntoView({ block: "end" }));
+  await frames(page, 10);
+  await page.screenshot({ path: join(OUTDIR, `${name}-quality.png`) });
+  console.log(`wrote ${join(OUTDIR, `${name}-quality.png`)}`);
+  await page.context().close();
+}
+await panelShots(DESKTOP, "panel-desktop");
+await panelShots({ ...PHONE_PORTRAIT, viewport: { width: 448, height: 900 } }, "panel-phone");
+
 const placeKinds = ["stone-circle", "cairn", "tor", "shrine", "fallen-tree", "fairy-ring", "seter", "tarn", "cascade", "waterfall"];
 if (want("place")) {
   const places = await desktop.evaluate(() => window.__hearthwoodWorld.placesNear(0, 0, 9000));
@@ -326,6 +407,140 @@ if (want("glide")) {
   await capture(desktop, "glide-fp-morning", { hour: 9, pov: "first", glide, look: { yaw: ridge.heading, pitch: -0.05 } });
   await capture(desktop, "glide-fp-hints", { hour: 17.4, pov: "first", glide, look: { yaw: ridge.heading, pitch: -0.2 }, chrome: true });
 }
+
+// Foraging. The basket starts empty for the run, the day is set for the kind (cloudberries ripen in July),
+// and a patch is found by searching out from camp for the first place where a kind grows thick.
+async function findPatch(page, kind, least) {
+  return page.evaluate(({ kind, least }) => {
+    const world = window.__hearthwoodWorld;
+    for (let r = 0; r < 6000; r += 90) {
+      const steps = Math.max(1, Math.ceil((2 * Math.PI * r) / 90));
+      for (let k = 0; k < steps; k++) {
+        const angle = (k / steps) * Math.PI * 2;
+        const spots = world.forage.spotsNear(Math.cos(angle) * r, Math.sin(angle) * r, 45).filter((s) => s.kind === kind && s.look === "ripe");
+        if (spots.length < least) continue;
+        // The thickest part of the patch: the spot with the most of its kind within 4 m.
+        const crowd = (s) => spots.filter((o) => Math.hypot(o.x - s.x, o.z - s.z) < 4).length;
+        const heart = spots.reduce((best, s) => (crowd(s) > crowd(best) ? s : best));
+        // Stand on the side where the woods are thinnest, so no tree's boughs are in the way.
+        let away = null;
+        for (let a = 0; a < 24; a++) {
+          const ang = (a / 24) * Math.PI * 2;
+          let woodland = 0;
+          for (const out of [2.5, 4.5, 6.5, 8.5, 10.5]) {
+            const here = world.at(heart.x + Math.sin(ang) * out, heart.z + Math.cos(ang) * out);
+            woodland = Math.max(woodland, here.height < here.water + 0.3 ? 1 : here.woodland);
+          }
+          if (away === null || woodland < away.woodland) away = { angle: ang, woodland };
+        }
+        if (away === null || away.woodland > 0.2) continue;
+        return { heart, away: away.angle, count: spots.filter((o) => Math.hypot(o.x - heart.x, o.z - heart.z) < 6).length };
+      }
+    }
+    return null;
+  }, { kind, least });
+}
+
+/** Elliott `back` metres from the heart of a patch, on its open side, facing it. */
+function standBy(patch, back) {
+  const { heart, away } = patch;
+  const x = heart.x + Math.sin(away) * back;
+  const z = heart.z + Math.cos(away) * back;
+  return { x, z, yaw: Math.atan2(heart.x - x, heart.z - z) };
+}
+
+/** Where to look from Elliott's eyes, stood at `stand`, to look at a spot `lift` metres above its ground. */
+async function aimAt(page, stand, spot, lift) {
+  await page.evaluate(({ x, z, yaw }) => {
+    const world = window.__hearthwoodWorld;
+    world.setPointOfView("first");
+    world.setView("walk");
+    world.setFreeCamera(null);
+    world.placeWalker(x, z, yaw);
+    world.setLook({ yaw, pitch: 0 });
+  }, stand);
+  await frames(page, 30);
+  const eye = await page.evaluate(() => window.__hearthwoodWorld.camera());
+  const dx = spot.x - eye.x;
+  const dz = spot.z - eye.z;
+  return { yaw: Math.atan2(dx, dz), pitch: Math.atan2(spot.y + lift - eye.y, Math.hypot(dx, dz)) };
+}
+
+const FORAGE_SHOTS = [
+  { kind: "bilberry", name: "bilberry-slope", day: 236, least: 20 },
+  { kind: "chanterelle", name: "chanterelle-spot", day: 236, least: 8 },
+  { kind: "cloudberry", name: "cloudberry-bog", day: 205, least: 8 },
+  { kind: "fly-agaric", name: "fly-agaric-birches", day: 250, least: 4 },
+  { kind: "raspberry", name: "raspberry-canes", day: 236, least: 4 },
+  { kind: "wild-strawberry", name: "strawberry-edge", day: 190, least: 6 },
+  { kind: "lingonberry", name: "lingonberry-heath", day: 250, least: 12 },
+  { kind: "porcini", name: "porcini", day: 236, least: 3 },
+  { kind: "funnel-chanterelle", name: "funnel-chanterelles", day: 280, least: 5 },
+];
+if (wantAny("forage")) {
+  await desktop.evaluate(() => window.__hearthwoodWorld.forage.forget());
+  for (const { kind, name, day, least } of FORAGE_SHOTS) {
+    if (!want(`forage-${name}`)) continue;
+    // The game day standing for that day of the year, which every capture holds.
+    const date = await desktop.evaluate((d) => {
+      window.__hearthwoodWorld.forage.setDayOfYear(d);
+      return window.__hearthwoodWorld.date().day;
+    }, day);
+    const patch = await findPatch(desktop, kind, least);
+    if (patch === null) {
+      console.log(`no patch of ${kind} found`);
+      continue;
+    }
+    console.log(`${kind}: ${patch.count} round ${patch.heart.x.toFixed(0)}, ${patch.heart.z.toFixed(0)}`);
+    // From the open side, a little above, with Elliott at the patch's edge for scale.
+    const beside = standBy(patch, 2.6);
+    const from = standBy(patch, 7.5);
+    const ground = await desktop.evaluate(({ x, z }) => window.__hearthwoodWorld.at(x, z).height, from);
+    const free = { x: from.x, y: ground + 2.4, z: from.z, lookX: patch.heart.x, lookY: patch.heart.y + 0.3, lookZ: patch.heart.z };
+    await capture(desktop, `forage-${name}`, { date, hour: 10.5, walker: { x: beside.x + Math.cos(beside.yaw) * 1.2, z: beside.z - Math.sin(beside.yaw) * 1.2, heading: beside.yaw }, free });
+    // Close up through Elliott's eyes, looking at the spot with the prompt up, then picked.
+    const close = standBy(patch, kind === "raspberry" ? 1.6 : 1.4);
+    const look = await aimAt(desktop, close, patch.heart, kind === "raspberry" ? 0.6 : 0.08);
+    await capture(desktop, `forage-${name}-close`, { date, hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
+    const target = await desktop.evaluate(() => window.__hearthwoodWorld.forage.target());
+    if (target === null) console.log(`  nothing on offer looking at the ${kind}`);
+    else {
+      await desktop.evaluate(() => window.__hearthwoodWorld.forage.pick());
+      await capture(desktop, `forage-${name}-picked`, { date, hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
+    }
+  }
+  if (want("forage-basket")) {
+    await desktop.evaluate(() => window.__hearthwoodWorld.forage.setBasketOpen(true));
+    await capture(desktop, "forage-basket-desktop", { date: await desktop.evaluate(() => window.__hearthwoodWorld.date().day), hour: 10.5, chrome: true });
+    await desktop.evaluate(() => window.__hearthwoodWorld.forage.setBasketOpen(false));
+  }
+}
+
+async function forageOnPhone(device, name) {
+  if (!want(name)) return;
+  const page = await openWorld(device);
+  const { width, height } = device.viewport;
+  await page.touchscreen.tap(width * 0.8, height * 0.4);
+  const date = await page.evaluate(() => {
+    window.__hearthwoodWorld.forage.setDayOfYear(236);
+    return window.__hearthwoodWorld.date().day;
+  });
+  const patch = await findPatch(page, "bilberry", 20);
+  const close = standBy(patch, 1.4);
+  const look = await aimAt(page, close, patch.heart, 0.08);
+  await page.evaluate(() => window.__hearthwoodWorld.forage.forget());
+  await capture(page, `${name}-prompt`, { date, hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
+  // A few of what grows near, picked through the probe, so the basket has a row to show.
+  await page.evaluate(() => {
+    const forage = window.__hearthwoodWorld.forage;
+    const here = window.__hearthwoodWorld.walker();
+    for (const spot of forage.spotsNear(here.x, here.z, 9).filter((s) => s.look === "ripe").slice(0, 6)) forage.pick(spot.id);
+    forage.setBasketOpen(true);
+  });
+  await capture(page, `${name}-basket`, { date, hour: 10.5, pov: "first", walker: { x: close.x, z: close.z, heading: close.yaw }, look, chrome: true });
+  await page.context().close();
+}
+if (want("forage")) await forageOnPhone(PHONE_PORTRAIT, "forage-phone");
 
 async function phoneShots(device, name) {
   if (!want(name)) return;

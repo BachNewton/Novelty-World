@@ -44,7 +44,7 @@ const KEPT_PLACES = 4096;
 const KEPT_CHUNKS = 2048;
 
 /** A map that forgets what was asked for longest ago once it holds `limit`. */
-function remembered<V>(limit: number, make: (key: string) => V): (key: string) => V {
+export function remembered<V>(limit: number, make: (key: string) => V): (key: string) => V {
   const kept = new Map<string, V>();
   return (key) => {
     const known = kept.get(key);

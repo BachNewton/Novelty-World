@@ -3,6 +3,7 @@ import { ALTITUDE } from "../engine/land";
 import { REGIONS, type Region } from "../engine/regions";
 import type { LandTile } from "../engine/tiles";
 import type { AtmosphereUniforms } from "./atmosphere";
+import { regionFall } from "./features/seasons";
 import type { Palette, RegionGround, Thing } from "./palette";
 import { shadeLambert } from "./shading";
 
@@ -47,6 +48,9 @@ export function terrainGeometry(tile: LandTile, palette: Palette, morph: Morph):
   const own = [...OWN_GROUNDS, "canopy"].map(() => new Float32Array(total * 3));
   const fields = new Float32Array(total * 4);
   const morphs = new Float32Array(total * 3);
+  // The seasons' ground: the colour the region's woods turn, and how much of them are broadleaves.
+  const fall = new Float32Array(total * 4);
+  const falls = REGIONS.map(regionFall);
 
   for (let v = 0; v < count; v++) {
     positions.set([x0 + (v % side) * spacing, tile.heights[v], z0 + Math.floor(v / side) * spacing], v * 3);
@@ -67,6 +71,11 @@ export function terrainGeometry(tile: LandTile, palette: Palette, morph: Morph):
       own[3][v * 3] += canopy.r * share;
       own[3][v * 3 + 1] += canopy.g * share;
       own[3][v * 3 + 2] += canopy.b * share;
+      const { colour, share: broad } = falls[r];
+      fall[v * 4] += colour.r * share;
+      fall[v * 4 + 1] += colour.g * share;
+      fall[v * 4 + 2] += colour.b * share;
+      fall[v * 4 + 3] += broad * share;
     }
     fields.set([tile.woodland[v], tile.water[v], tile.river[v], tile.wobble[v]], v * 4);
     morphs.set([tile.parentHeights[v], morph.start, morph.end], v * 3);
@@ -84,6 +93,7 @@ export function terrainGeometry(tile: LandTile, palette: Palette, morph: Morph):
     positions.set([positions[v * 3], positions[v * 3 + 1] - drop, positions[v * 3 + 2]], s * 3);
     for (const a of [normals, meadow, ...own]) a.set(a.subarray(v * 3, v * 3 + 3), s * 3);
     fields.set(fields.subarray(v * 4, v * 4 + 4), s * 4);
+    fall.set(fall.subarray(v * 4, v * 4 + 4), s * 4);
     morphs.set([morphs[v * 3] - drop, morph.start, morph.end], s * 3);
   });
 
@@ -118,6 +128,7 @@ export function terrainGeometry(tile: LandTile, palette: Palette, morph: Morph):
   geometry.setAttribute("canopy", new BufferAttribute(own[3], 3));
   geometry.setAttribute("fields", new BufferAttribute(fields, 4));
   geometry.setAttribute("morph", new BufferAttribute(morphs, 3));
+  geometry.setAttribute("hwSeasonFall", new BufferAttribute(fall, 4));
   geometry.setIndex(new BufferAttribute(indices, 1));
   geometry.computeBoundingSphere();
   return geometry;

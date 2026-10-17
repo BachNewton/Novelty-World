@@ -23,7 +23,7 @@ const HAZE_DENSITY = 0.0024;
 
 /** The moment of the day the light is drawn for: the scene keeps it, the light only reads it. */
 export interface DayState {
-  /** The date and hour, for anything that changes with the season. */
+  /** The date and hour: the real day of the year it stands for keys anything seasonal. */
   date: CalendarDate;
   hours: number;
   light: MomentLight;

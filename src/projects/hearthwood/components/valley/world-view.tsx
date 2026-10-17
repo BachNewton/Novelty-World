@@ -11,6 +11,7 @@ import { makeAtmosphere } from "../../art/atmosphere";
 import { Campfire } from "../../art/campfire";
 import { Daylight, type Air, type Focus } from "../../art/daylight";
 import { Fireflies } from "../../art/fireflies";
+import { readForagePalette } from "../../art/forage-shapes";
 import { readPalette, REGION_AIR } from "../../art/palette";
 import { FrameCosts } from "../../art/passes";
 import { makeSkyUniforms, Sky } from "../../art/sky";
@@ -23,8 +24,11 @@ import { DebugPanel } from "./debug-panel";
 import { FeatureRenderer, useFeature } from "./feature-renderer";
 import { useFrameStats } from "./frame-stats";
 import { FIRST_ORBIT } from "./follow-camera";
+import { ForageOverlay } from "./forage-overlay";
+import { createForaging } from "./foraging";
 import { WalkerAndCamera, type Walker } from "./walker";
 import { TouchStickView, WalkHints } from "./walk-hints";
+import { WorldForage } from "./world-forage";
 import { WorldLand, type Streaming } from "./world-land";
 import { WorldPlaces } from "./world-places";
 import { WorldPlants } from "./world-plants";
@@ -102,6 +106,8 @@ export function WorldView() {
   const options = useMemo(() => readOptions(window.location.search), []);
   const world = useMemo(() => createWorld(options.seed), [options.seed]);
   const palette = useMemo(() => readPalette(), []);
+  const foragePalette = useMemo(() => readForagePalette(), []);
+  const foraging = useMemo(() => createForaging(world), [world]);
   const shared = useMemo(() => {
     const { camp } = world;
     const walker: Walker = {
@@ -146,12 +152,14 @@ export function WorldView() {
         <WorldLand world={world} palette={palette} atmosphere={atmosphere} sky={sky} quality={QUALITY} streaming={streaming} />
         <WorldPlants world={world} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />
         <WorldPlaces world={world} palette={palette} atmosphere={atmosphere} sky={sky} streaming={streaming} />
+        <WorldForage foraging={foraging} palette={foragePalette} atmosphere={atmosphere} clock={clock} walker={walker} input={input.state} />
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
-        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} costs={debug.costs} setPointOfView={input.setPointOfView} />
+        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
       <WalkHints input={input} />
+      <ForageOverlay foraging={foraging} clock={clock} surface={surface} input={input.kind} />
       <TouchStickView stick={input.stick} />
       <DebugPanel context={debug} />
     </div>
