@@ -399,6 +399,50 @@
   --color-hearthwood-valley-season-wood-bare: #7e6c6a;
 }
 
+/* Hearthwood: what there is to pick in its forests, each berry and mushroom
+   in its own storybook colours (the berries bright enough to read at a
+   glance among the leaves), the cut flesh a picked mushroom leaves, and the
+   sparkle of a pick. Read by the 3D scene through themeColor and by the
+   basket's icons. */
+:root {
+  --color-hearthwood-forage-twig: #6b4f38;
+  --color-hearthwood-forage-bilberry-leaf: #5f9c3c;
+  --color-hearthwood-forage-bilberry: #3d55b4;
+  --color-hearthwood-forage-lingonberry-leaf: #2e5c36;
+  --color-hearthwood-forage-lingonberry: #dc2a3c;
+  --color-hearthwood-forage-strawberry-leaf: #4c9038;
+  --color-hearthwood-forage-strawberry: #ec3a36;
+  --color-hearthwood-forage-raspberry-leaf: #6ea24a;
+  --color-hearthwood-forage-raspberry-cane: #8c6a48;
+  --color-hearthwood-forage-raspberry: #d93a62;
+  --color-hearthwood-forage-cloudberry-leaf: #7ea84a;
+  --color-hearthwood-forage-cloudberry: #f4a234;
+  --color-hearthwood-forage-chanterelle: #f4b630;
+  --color-hearthwood-forage-porcini-cap: #8c5530;
+  --color-hearthwood-forage-porcini-stem: #eedcb4;
+  --color-hearthwood-forage-funnel-cap: #74583e;
+  --color-hearthwood-forage-funnel-stem: #e6ba46;
+  --color-hearthwood-forage-fly-agaric-cap: #e2321e;
+  --color-hearthwood-forage-fly-agaric-spot: #fbf6ea;
+  --color-hearthwood-forage-fly-agaric-stem: #f6efe0;
+  --color-hearthwood-forage-cut: #f4e8c8;
+  --color-hearthwood-forage-sparkle: #fff2b8;
+  --color-hearthwood-forage-basket: #c08a4e;
+}
+
+/* Hearthwood: a kind just picked swells in the basket and settles. */
+@keyframes hearthwood-forage-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.45);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —
    used for a traded chip ("what changed in this trade", against the dense
    ownership grid) and for the active player's token. The --mono-* vars resolve

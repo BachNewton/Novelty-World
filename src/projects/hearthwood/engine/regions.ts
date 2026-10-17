@@ -19,6 +19,10 @@ export type PlantKind = (typeof PLANT_KINDS)[number];
 export type TreeKind = Extract<PlantKind, "conifer" | "pine" | "broadleaf" | "birch" | "aspen" | "maple">;
 export const TREE_KINDS: readonly TreeKind[] = ["conifer", "pine", "broadleaf", "birch", "aspen", "maple"];
 
+/** What can be picked in the forests: berries, and mushrooms (the fly agaric for brewing, never for eating). */
+export const FORAGE_KINDS = ["bilberry", "lingonberry", "wild-strawberry", "raspberry", "cloudberry", "chanterelle", "porcini", "funnel-chanterelle", "fly-agaric"] as const;
+export type ForageKind = (typeof FORAGE_KINDS)[number];
+
 export const PLACE_KINDS = ["stone-circle", "cairn", "tor", "shrine", "fallen-tree", "fairy-ring", "seter", "tarn", "cascade", "waterfall"] as const;
 export type PlaceKind = (typeof PLACE_KINDS)[number];
 
@@ -39,6 +43,8 @@ export interface RegionCharacter {
   places: Partial<Record<Exclude<PlaceKind, "waterfall">, number>>;
   /** Fireflies over its meadows at night, per scatter chunk. */
   fireflies: number;
+  /** How plentiful each thing to pick is here, where its ground suits it: about 1 is usual, 0 never. */
+  forage: Partial<Record<ForageKind, number>>;
 }
 
 export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
@@ -48,10 +54,11 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     trees: { broadleaf: 5, conifer: 2, birch: 2, aspen: 0.6 },
     highTrees: { conifer: 5, broadleaf: 1 },
     open: { flowers: 0.1, bush: 0.035, rock: 0.012 },
-    underTrees: { bush: 0.08, fern: 0.08, mushroom: 0.015 },
+    underTrees: { bush: 0.08, fern: 0.08 },
     flowers: [0, 1, 2],
     places: { "stone-circle": 2, shrine: 2, cairn: 2, "fallen-tree": 2, cascade: 1 },
     fireflies: 10,
+    forage: { "wild-strawberry": 1.3, raspberry: 1.3, bilberry: 0.7, porcini: 1.1, chanterelle: 0.7, "fly-agaric": 0.7, lingonberry: 0.3, "funnel-chanterelle": 0.3 },
   },
   birchvale: {
     name: "Birch vale",
@@ -59,10 +66,11 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     trees: { birch: 7, pine: 1.5, aspen: 1.5, conifer: 1 },
     highTrees: { birch: 3, conifer: 3 },
     open: { flowers: 0.2, bush: 0.02, rock: 0.008 },
-    underTrees: { fern: 0.1, mushroom: 0.04, flowers: 0.04 },
+    underTrees: { fern: 0.1, flowers: 0.04 },
     flowers: [0, 1],
     places: { "fairy-ring": 3, "stone-circle": 2, shrine: 1 },
     fireflies: 16,
+    forage: { chanterelle: 1.7, "fly-agaric": 1.5, cloudberry: 1.5, bilberry: 0.9, "wild-strawberry": 0.7, raspberry: 0.5, porcini: 0.6, lingonberry: 0.6, "funnel-chanterelle": 0.6 },
   },
   highlands: {
     name: "Pine highlands",
@@ -70,10 +78,11 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     trees: { pine: 5, conifer: 4, birch: 0.6, aspen: 0.6 },
     highTrees: { conifer: 6, pine: 1 },
     open: { rock: 0.06, heather: 0.03, flowers: 0.02, bush: 0.01 },
-    underTrees: { fern: 0.06, rock: 0.025, mushroom: 0.01 },
+    underTrees: { fern: 0.06, rock: 0.025 },
     flowers: [2],
     places: { seter: 3, tarn: 3, cascade: 3, cairn: 2, shrine: 1, tor: 1 },
     fireflies: 3,
+    forage: { bilberry: 1.7, lingonberry: 1.2, "funnel-chanterelle": 1.5, chanterelle: 0.9, cloudberry: 1, porcini: 0.6, "fly-agaric": 0.5, raspberry: 0.4, "wild-strawberry": 0.3 },
   },
   heath: {
     name: "Heath",
@@ -85,6 +94,7 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     flowers: [1, 2],
     places: { tor: 3, cairn: 2, "stone-circle": 2, tarn: 1 },
     fireflies: 4,
+    forage: { lingonberry: 1.4, bilberry: 0.7, cloudberry: 0.9, "fly-agaric": 0.5, "wild-strawberry": 0.4, chanterelle: 0.3 },
   },
   maplewood: {
     name: "Maple wood",
@@ -92,10 +102,11 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     trees: { maple: 6, aspen: 2.5, birch: 1.2, broadleaf: 1 },
     highTrees: { conifer: 3, maple: 2 },
     open: { flowers: 0.06, bush: 0.04, fern: 0.03, rock: 0.01 },
-    underTrees: { fern: 0.14, mushroom: 0.05, bush: 0.03 },
+    underTrees: { fern: 0.14, bush: 0.03 },
     flowers: [1],
     places: { "fallen-tree": 3, "fairy-ring": 2, shrine: 2 },
     fireflies: 8,
+    forage: { porcini: 1.5, raspberry: 1.1, chanterelle: 0.9, "wild-strawberry": 0.7, "fly-agaric": 0.6, bilberry: 0.3, "funnel-chanterelle": 0.3 },
   },
 };
 
