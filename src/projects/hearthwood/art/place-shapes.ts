@@ -1,9 +1,11 @@
 import { BoxGeometry, BufferAttribute, BufferGeometry, ConeGeometry, CylinderGeometry, IcosahedronGeometry, MeshLambertMaterial, OctahedronGeometry, SphereGeometry, TorusGeometry } from "three";
 import { createRng, uniform, type Rng } from "@/shared/lib/seeded-random";
 import type { PlaceKind } from "../engine/regions";
-import { breatheAtmosphere, type AtmosphereUniforms } from "./atmosphere";
+import type { AtmosphereUniforms } from "./atmosphere";
+import { shadeLambert } from "./shading";
 import { lumpy, paint, type Piece } from "./painted";
 import type { Palette } from "./palette";
+import { regionAbsorption } from "./water/absorption";
 
 /*
  * The places worth walking to, each one merged, vertex-coloured mesh set on
@@ -499,6 +501,7 @@ export function fallRibbon(fall: Float32Array): BufferGeometry {
   geometry.setAttribute("depth", new BufferAttribute(new Float32Array(depths), 1));
   geometry.setAttribute("flow", new BufferAttribute(new Float32Array(flows), 2));
   geometry.setAttribute("fall", new BufferAttribute(new Float32Array(falls), 1));
+  geometry.setAttribute("absorb", regionAbsorption("highlands", steps * 2));
   geometry.setIndex(indices);
   geometry.computeBoundingSphere();
   return geometry;
@@ -535,5 +538,5 @@ export function placeGeometry(look: PlaceLook, ground: GroundAt, palette: Palett
 }
 
 export function placeMaterial(atmosphere: AtmosphereUniforms): MeshLambertMaterial {
-  return breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true }), atmosphere);
+  return shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere);
 }

@@ -2,11 +2,12 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import { isTextEntryTarget } from "@/shared/lib/utils";
-import { holdHour, setHour, type ValleyClock } from "./clock";
+import type { DebugContext } from "./debug/section";
+import { DEBUG_SECTIONS } from "./debug/sections";
 
 // The developer's panel, opened and closed with ~ (the physical key left of
-// 1, whatever the layout): the hour of the day on a slider, and whether the
-// day holds there or turns on. Opening it frees a locked pointer.
+// 1, whatever the layout): its sections (`debug/sections.ts`), each its own
+// component under its own heading. Opening it frees a locked pointer.
 
 const PANEL_COLOURS = {
   background: "var(--color-hearthwood-valley-ui-shade)",
@@ -14,15 +15,8 @@ const PANEL_COLOURS = {
   accentColor: "var(--color-hearthwood-valley-witch-scarf)",
 } as CSSProperties;
 
-function clockFace(hours: number): string {
-  const minutes = Math.floor(hours * 60) % (24 * 60);
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-}
-
-export function DebugPanel({ clock }: { clock: ValleyClock }) {
+export function DebugPanel({ context }: { context: DebugContext }) {
   const [open, setOpen] = useState(false);
-  const [hours, setHours] = useState(clock.hours);
-  const [held, setHeld] = useState(clock.heldHour !== null);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -35,65 +29,25 @@ export function DebugPanel({ clock }: { clock: ValleyClock }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // The slider needs the pointer, so opening the panel hands a locked one back; only a click on the game locks it again.
+  // The controls need the pointer, so opening the panel hands a locked one back; only a click on the game locks it again.
   useEffect(() => {
     if (open && document.pointerLockElement !== null) document.exitPointerLock();
   }, [open]);
 
-  // While open, the slider follows the turning day, read once a frame.
-  useEffect(() => {
-    if (!open) return;
-    let raf = requestAnimationFrame(function follow() {
-      setHours(clock.hours);
-      raf = requestAnimationFrame(follow);
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [open, clock]);
-
   if (!open) return null;
-
-  const pickHour = (value: number): void => {
-    if (clock.heldHour === null) setHour(clock, value);
-    else holdHour(clock, value);
-    setHours(value);
-  };
-
-  const toggleHeld = (hold: boolean): void => {
-    holdHour(clock, hold ? clock.hours : null);
-    setHeld(hold);
-  };
 
   return (
     <div
       data-testid="hearthwood-debug-panel"
-      className="absolute top-2 left-2 z-40 flex w-64 flex-col gap-2 rounded-md p-3 font-mono text-sm shadow-lg"
+      className="absolute top-2 left-2 z-40 flex max-h-[calc(100%-1rem)] w-72 flex-col gap-3 overflow-y-auto rounded-md p-3 font-mono text-sm shadow-lg"
       style={PANEL_COLOURS}
     >
-      <label className="flex items-center justify-between gap-2">
-        <span>Time</span>
-        <span>{clockFace(hours)}</span>
-      </label>
-      <input
-        type="range"
-        aria-label="Hour of the day"
-        min={0}
-        max={24}
-        step={0.05}
-        value={hours}
-        onChange={(e) => {
-          pickHour(Number(e.target.value));
-        }}
-      />
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={held}
-          onChange={(e) => {
-            toggleHeld(e.target.checked);
-          }}
-        />
-        <span>Hold the time</span>
-      </label>
+      {DEBUG_SECTIONS.map(({ id, title, Section }) => (
+        <section key={id} data-testid={`hearthwood-debug-${id}`} className="flex flex-col gap-2">
+          <h2 className="text-xs font-bold uppercase opacity-80">{title}</h2>
+          <Section context={context} />
+        </section>
+      ))}
     </div>
   );
 }

@@ -4,10 +4,12 @@ import { useEffect, useMemo, type ReactNode } from "react";
 import { BoxGeometry, InstancedBufferAttribute, InstancedMesh, Mesh, Object3D, type Material } from "three";
 import { generateCat } from "../../cats/cat";
 import type { Activity } from "../../cats/motion";
+import { FORAGE_FORM, FORAGE_VARIANTS } from "../../engine/forage";
 import type { Plant } from "../../engine/life";
-import { PLACE_KINDS, PLANT_KINDS, REGION_CHARACTER, REGIONS, TREE_KINDS, type PlaceKind, type PlantKind, type TreeKind } from "../../engine/regions";
+import { FORAGE_KINDS, PLACE_KINDS, PLANT_KINDS, REGION_CHARACTER, REGIONS, TREE_KINDS, type ForageKind, type PlaceKind, type PlantKind, type TreeKind } from "../../engine/regions";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { Campfire, type FireState } from "../../art/campfire";
+import { forageShape, readForagePalette, type ForagePart } from "../../art/forage-shapes";
 import { Fireflies } from "../../art/fireflies";
 import { paint } from "../../art/painted";
 import type { Palette } from "../../art/palette";
@@ -15,9 +17,13 @@ import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import { fallRibbon, placeGeometry, type PlaceLook } from "../../art/place-shapes";
 import type { SkyUniforms } from "../../art/sky";
-import { poolGeometry } from "../../art/water";
-import { Witch } from "../../art/witch";
+import { shadowDepth } from "../../art/shading";
+import { poolGeometry, waterMesh } from "../../art/water/water";
+import { Broom } from "../../art/broom";
+import { Witch, type WitchPose } from "../../art/witch";
 import { CatBody } from "../cats/cat-body";
+import { useFeature } from "../valley/feature-renderer";
+import { FORAGE_NAMES } from "../valley/forage-icons";
 
 /*
  * Every piece the gallery shows, in one list: a new piece of art appears in
@@ -26,6 +32,9 @@ import { CatBody } from "../cats/cat-body";
  * added at all. Each piece is drawn from the art layer alone, on flat ground
  * at its own origin, with plain data made up for it: no world is generated.
  */
+
+/** Elliott on the broom at full speed, the wind in their cloak. */
+const ON_THE_BROOM: Partial<WitchPose> = { ride: 1, wind: 1, seconds: 0.4 };
 
 export interface ArtContext {
   palette: Palette;
@@ -59,8 +68,9 @@ function plantOf(kind: PlantKind, variant: number): Plant {
 
 /** One plant of a design, drawn as an instance so it sways in the breeze as it does in the world. */
 function PlantPiece({ kind, variant, context }: { kind: PlantKind; variant: number; context: ArtContext }) {
+  const seasonal = useFeature("seasonalFoliage");
   const mesh = useMemo(() => {
-    const geometry = plantShape(kind, variant, "near", context.palette);
+    const geometry = plantShape(kind, variant, "near", context.palette, seasonal);
     if (geometry === null) throw new Error(`No near shape for ${kind} ${variant}`);
     const instanced = new InstancedMesh(geometry, kind === "rock" ? context.materials.stone : context.materials.foliage, 1);
     const plant = plantOf(kind, variant);
@@ -69,9 +79,10 @@ function PlantPiece({ kind, variant, context }: { kind: PlantKind; variant: numb
     plantColour(plant, colour, 0);
     instanced.instanceColor = new InstancedBufferAttribute(colour, 3);
     instanced.castShadow = true;
+    instanced.customDepthMaterial = shadowDepth(kind === "rock" ? "solid" : "foliage", context.atmosphere);
     instanced.frustumCulled = false;
     return instanced;
-  }, [kind, variant, context]);
+  }, [kind, variant, context, seasonal]);
   useEffect(() => () => mesh.geometry.dispose(), [mesh]);
   return <primitive object={mesh} />;
 }
@@ -98,7 +109,7 @@ function PlacePiece({ kind, context }: { kind: PlaceKind; context: ArtContext })
     let ground = (_x: number, _z: number) => 0;
     if (kind === "tarn") {
       look.pool = { level: 0, radius: 8 };
-      const water = new Mesh(poolGeometry(8), context.materials.water);
+      const water = waterMesh(poolGeometry(8), context.materials.water);
       water.position.y = 0.05;
       meshes.push(water);
     }
@@ -107,7 +118,7 @@ function PlacePiece({ kind, context }: { kind: PlaceKind; context: ArtContext })
       look.turn = 0;
       look.fall = fall;
       ground = slope;
-      meshes.push(new Mesh(ledge(context.palette, kind === "cascade" ? 9 : 4), context.materials.place), new Mesh(fallRibbon(fall), context.materials.water));
+      meshes.push(new Mesh(ledge(context.palette, kind === "cascade" ? 9 : 4), context.materials.place), waterMesh(fallRibbon(fall), context.materials.water));
     }
     const mesh = new Mesh(placeGeometry(look, ground, context.palette), context.materials.place);
     mesh.castShadow = true;
@@ -119,6 +130,28 @@ function PlacePiece({ kind, context }: { kind: PlaceKind; context: ArtContext })
   return (
     <>
       {built.map((m) => (
+        <primitive key={m.uuid} object={m} />
+      ))}
+    </>
+  );
+}
+
+/** A berry bush or mushrooms to pick, as they are ripe or once picked. */
+function ForagePiece({ kind, variant, picked, context }: { kind: ForageKind; variant: number; picked: boolean; context: ArtContext }) {
+  const meshes = useMemo(() => {
+    const palette = readForagePalette();
+    const berry = FORAGE_FORM[kind] === "berry";
+    const parts: ForagePart[] = berry ? (picked ? ["plant"] : ["plant", "fruit"]) : [picked ? "cut" : "plant"];
+    return parts.map((part) => {
+      const mesh = new Mesh(forageShape(kind, variant, part, palette), context.materials.stone);
+      mesh.castShadow = true;
+      return mesh;
+    });
+  }, [kind, variant, picked, context]);
+  useEffect(() => () => meshes.forEach((m) => m.geometry.dispose()), [meshes]);
+  return (
+    <>
+      {meshes.map((m) => (
         <primitive key={m.uuid} object={m} />
       ))}
     </>
@@ -207,6 +240,18 @@ export const ART_PIECES: ArtPiece[] = [
     height: 1.2,
     render: (context: ArtContext) => <PlantPiece kind="rock" variant={variant} context={context} />,
   })),
+  ...FORAGE_KINDS.flatMap((kind) =>
+    Array.from({ length: FORAGE_VARIANTS }, (_, variant) =>
+      [false, true].map((picked) => ({
+        id: `forage/${kind}/${variant}${picked ? "/picked" : ""}`,
+        group: "Foraging",
+        label: `${FORAGE_NAMES[kind]} ${variant + 1}${picked ? ", picked" : ""}`,
+        radius: kind === "raspberry" ? 1 : 0.8,
+        height: kind === "raspberry" ? 1.2 : 0.3,
+        render: (context: ArtContext) => <ForagePiece kind={kind} variant={variant} picked={picked} context={context} />,
+      })),
+    ).flat(),
+  ),
   ...PLACE_KINDS.map((kind) => ({
     id: `places/${kind}`,
     group: "Places",
@@ -238,6 +283,26 @@ export const ART_PIECES: ArtPiece[] = [
     radius: 1.2,
     height: 1.8,
     render: (context) => <Witch palette={context.palette} atmosphere={context.atmosphere} />,
+  },
+  {
+    id: "folk/witch-on-broom",
+    group: "Elliott and the cats",
+    label: "Elliott on the broom",
+    radius: 1.3,
+    height: 2.2,
+    render: (context) => (
+      <group position={[0, 0.5, 0]}>
+        <Witch palette={context.palette} atmosphere={context.atmosphere} still={ON_THE_BROOM} />
+      </group>
+    ),
+  },
+  {
+    id: "folk/broom",
+    group: "Elliott and the cats",
+    label: "Broom",
+    radius: 1,
+    height: 0.5,
+    render: (context) => <Broom palette={context.palette} atmosphere={context.atmosphere} />,
   },
   ...CATS.map(({ seed, activity }, i) => ({
     id: `folk/cat/${i + 1}`,

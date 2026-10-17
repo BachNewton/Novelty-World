@@ -8,6 +8,8 @@ import { skyAt, type DaySky, type MomentLight } from "../../engine/day";
  * calendar's minutes per day; and the seconds that drive motion (flames,
  * water, the breeze). Either can be held still, for a screenshot or to look
  * at one hour for as long as you like: holding the hour holds the date too.
+ * The date can also be held on its own, the hours still turning: past
+ * midnight the same day comes round again.
  */
 
 export interface ValleyClock {
@@ -17,6 +19,8 @@ export interface ValleyClock {
   time: number;
   /** Held at this hour, or turning when null. */
   heldHour: number | null;
+  /** Held on this whole game day while the hours turn, or moving on when null. */
+  heldDay: number | null;
   /** Motion held at this many seconds, or running when null. */
   heldMotion: number | null;
   /** The date and hour now. */
@@ -53,7 +57,7 @@ export function makeClock(heldHour: number | null, day: number | null = null): V
   const time = day === null && heldHour === null ? start : timeOf(day ?? dateAt(start).day, heldHour ?? CALENDAR.start.hour);
   const date = dateAt(time);
   const sky = skyAt(date);
-  return { motion: 0, time, heldHour, heldMotion: null, date, hours: date.hour, sky, light: sky.light, today: todayOf(date.day), flicker: 1 };
+  return { motion: 0, time, heldHour, heldDay: null, heldMotion: null, date, hours: date.hour, sky, light: sky.light, today: todayOf(date.day), flicker: 1 };
 }
 
 /** The fire's flicker at a moment: a few unrelated waves, so it never repeats visibly. */
@@ -64,6 +68,7 @@ export function flickerAt(seconds: number): number {
 export function advanceClock(clock: ValleyClock, seconds: number): void {
   clock.motion = clock.heldMotion ?? clock.motion + seconds;
   if (clock.heldHour === null) clock.time += seconds;
+  if (clock.heldDay !== null) clock.time = timeOf(clock.heldDay, dateAt(clock.time).hour);
   refresh(clock);
   clock.flicker = flickerAt(clock.motion);
 }
@@ -83,5 +88,11 @@ export function holdHour(clock: ValleyClock, hours: number | null): void {
 /** Moves to a whole game day at the same hour, still held or turning. */
 export function setDay(clock: ValleyClock, day: number): void {
   clock.time = timeOf(day, clock.hours);
+  if (clock.heldDay !== null) clock.heldDay = day;
   refresh(clock);
+}
+
+/** Holds the date on today while the hours turn, or lets the days move on again. */
+export function holdDay(clock: ValleyClock, hold: boolean): void {
+  clock.heldDay = hold ? clock.date.day : null;
 }

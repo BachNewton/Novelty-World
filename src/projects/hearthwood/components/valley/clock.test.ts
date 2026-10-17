@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CALENDAR, parseDate, secondsPerDay } from "../../engine/calendar";
-import { advanceClock, holdHour, makeClock, setDay, setHour } from "./clock";
+import { advanceClock, holdDay, holdHour, makeClock, setDay, setHour } from "./clock";
 
 describe("the valley's clock", () => {
   it("starts a new game on the calendar's first morning, and turns on through the days", () => {
@@ -33,5 +33,20 @@ describe("the valley's clock", () => {
     expect(clock.date).toMatchObject({ season: "summer", dayOfSeason: 2, hour: 12 });
     expect(clock.today.dayLength).toBeGreaterThan(18);
     expect(clock.light).toBe(clock.sky.light);
+  });
+
+  it("holds the date while the hours turn, coming round to the same day past midnight", () => {
+    const clock = makeClock(null, parseDate("samhain"));
+    setHour(clock, 22);
+    holdDay(clock, true);
+    advanceClock(clock, (secondsPerDay() / 24) * 4);
+    expect(clock.date).toMatchObject({ season: "autumn", dayOfSeason: 5 });
+    expect(clock.hours).toBeCloseTo(2);
+    setDay(clock, parseDate("yule"));
+    advanceClock(clock, secondsPerDay());
+    expect(clock.date).toMatchObject({ season: "winter", dayOfSeason: 2 });
+    holdDay(clock, false);
+    advanceClock(clock, secondsPerDay());
+    expect(clock.date).toMatchObject({ season: "winter", dayOfSeason: 3 });
   });
 });

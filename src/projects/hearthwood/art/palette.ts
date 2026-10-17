@@ -73,6 +73,8 @@ const THINGS = [
   "witch-skin",
   "witch-pack",
   "witch-bedroll",
+  "broom-handle",
+  "broom-bristle",
 ] as const;
 export type Thing = (typeof THINGS)[number];
 

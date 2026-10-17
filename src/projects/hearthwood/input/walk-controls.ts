@@ -42,6 +42,11 @@ export const KEYS_RUN = ["ShiftLeft", "ShiftRight"];
 /** The key and the pad button that switch between first and third person. */
 export const KEY_VIEW = "KeyV";
 export const PAD_VIEW: StandardButton = "View";
+
+// Jumping, and the broom from a jump in the air.
+export const KEY_JUMP = "Space";
+export const PAD_JUMP: StandardButton = "A";
+
 /** Every key walking listens to, so the page doesn't also scroll on them. */
 export const WALK_KEYS: readonly string[] = [...KEYS_AHEAD, ...KEYS_BACK, ...KEYS_LEFT, ...KEYS_RIGHT, ...KEYS_TURN_LEFT, ...KEYS_TURN_RIGHT, ...KEYS_RUN];
 

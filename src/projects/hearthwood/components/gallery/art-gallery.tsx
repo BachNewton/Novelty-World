@@ -8,15 +8,18 @@ import { type Camera, CircleGeometry, MeshLambertMaterial, NeutralToneMapping, t
 import { ArrowLeft, RotateCw } from "lucide-react";
 import { readPad, subscribeGamepads } from "@/shared/lib/gamepad";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { breatheAtmosphere, makeAtmosphere } from "../../art/atmosphere";
+import { makeAtmosphere } from "../../art/atmosphere";
+import { shadeLambert } from "../../art/shading";
 import { Daylight, type Air, type Focus } from "../../art/daylight";
 import { readPalette } from "../../art/palette";
 import { makeSkyUniforms, Sky } from "../../art/sky";
-import { waterMaterial } from "../../art/water";
+import { FrameCosts } from "../../art/passes";
+import { waterMaterial } from "../../art/water/water";
 import { QUALITY } from "../../quality";
 import { parseDate } from "../../engine/calendar";
 import { advanceClock, holdHour, makeClock, type ValleyClock } from "../valley/clock";
 import { DebugPanel } from "../valley/debug-panel";
+import { FeatureRenderer } from "../valley/feature-renderer";
 import { useFrameStats } from "../valley/frame-stats";
 import { ART_PIECES, type ArtContext, type ArtPiece } from "./pieces";
 
@@ -109,8 +112,8 @@ const LABEL_STYLE: CSSProperties = {
 
 function Floor({ size, context }: { size: number; context: ArtContext }) {
   const assets = useMemo(() => {
-    const material = breatheAtmosphere(new MeshLambertMaterial({ color: themeColor("--color-hearthwood-gallery-ground") }), context.atmosphere, { grain: true });
-    const edge = breatheAtmosphere(new MeshLambertMaterial({ color: themeColor("--color-hearthwood-gallery-ground-edge") }), context.atmosphere, { grain: true });
+    const material = shadeLambert(new MeshLambertMaterial({ color: themeColor("--color-hearthwood-gallery-ground") }), "ground", context.atmosphere);
+    const edge = shadeLambert(new MeshLambertMaterial({ color: themeColor("--color-hearthwood-gallery-ground-edge") }), "ground", context.atmosphere);
     return { material, edge, inner: new CircleGeometry(size, 96).rotateX(-Math.PI / 2), outer: new CircleGeometry(size * 6, 96).rotateX(-Math.PI / 2) };
   }, [size, context]);
   useEffect(
@@ -218,17 +221,17 @@ export function ArtGallery() {
       fire: clock,
       clock: () => clock.motion,
       materials: {
-        foliage: breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true }), atmosphere, { sway: true }),
-        stone: breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true }), atmosphere),
-        place: breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true }), atmosphere),
+        foliage: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "foliage", atmosphere),
+        stone: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
+        place: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
         water: waterMaterial(palette, atmosphere, sky),
       },
     };
     const focusPoint: Focus = { x: 0, y: 0, z: 0 };
     const air: Air = { thickness: 0.25 };
-    return { context, clock, focusPoint, air, layout: layOut(ART_PIECES) };
+    return { context, clock, focusPoint, air, layout: layOut(ART_PIECES), debug: { clock, costs: new FrameCosts() } };
   }, [hour]);
-  const { context, clock, focusPoint, air, layout } = shared;
+  const { context, clock, focusPoint, air, layout, debug } = shared;
   const [focus, setFocus] = useState<string | null>(null);
   const [row, setRow] = useState<string | null>(null);
   const [turntable, setTurntable] = useState(true);
@@ -337,6 +340,7 @@ export function ArtGallery() {
         <Ticker clock={clock} />
         <Daylight day={clock} palette={context.palette} atmosphere={context.atmosphere} sky={context.sky} focus={focusPoint} air={air} shadows={{ map: QUALITY.shadowMap, reach: chosen ? 20 : Math.max(layout.width, layout.depth) * 0.6 }} />
         <Sky atmosphere={context.atmosphere} sky={context.sky} />
+        <FeatureRenderer day={clock} atmosphere={context.atmosphere} sky={context.sky} costs={debug.costs} />
         <Floor size={Math.max(layout.width, layout.depth) * 0.75} context={context} />
         {layout.placed.map(({ piece, x, z }) => (
           <group
@@ -418,7 +422,7 @@ export function ArtGallery() {
           </div>
         )}
       </div>
-      <DebugPanel clock={clock} />
+      <DebugPanel context={debug} />
     </div>
   );
 }
