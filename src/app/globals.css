@@ -550,3 +550,37 @@ body {
   --color-hearthwood-preview-ambient-sky: #fff1d9;
   --color-hearthwood-preview-ambient-ground: #a8936a;
 }
+
+/* Hearthwood: the dogs. A real dog's coat colours, warmed a little like the
+   cats': the eumelanins (black, liver and their dilutes, blue and isabella),
+   each with the pale ground merle thins it to, the phaeomelanins (red, fawn
+   and cream), white, the eyes, the nose leather in each eumelanin, the
+   tongue, the mouth and the inside of an ear. Read only by the 3D scene
+   through themeColor, so declared outside @theme. */
+:root {
+  --color-hearthwood-dog-black: #2a2523;
+  --color-hearthwood-dog-liver: #6e3f28;
+  --color-hearthwood-dog-blue: #6d7480;
+  --color-hearthwood-dog-isabella: #a88b78;
+  --color-hearthwood-dog-black-merle: #a3a9b1;
+  --color-hearthwood-dog-liver-merle: #cfa48a;
+  --color-hearthwood-dog-blue-merle: #c0c5cb;
+  --color-hearthwood-dog-isabella-merle: #dccabd;
+  --color-hearthwood-dog-red: #c8682c;
+  --color-hearthwood-dog-fawn: #dcaa66;
+  --color-hearthwood-dog-cream: #f0dfbe;
+  --color-hearthwood-dog-white: #f7f2ea;
+  --color-hearthwood-dog-eye-dark: #5a3419;
+  --color-hearthwood-dog-eye-brown: #7c4a1f;
+  --color-hearthwood-dog-eye-amber: #c98a2c;
+  --color-hearthwood-dog-eye-blue: #7cbbe2;
+  --color-hearthwood-dog-pupil: #120d0b;
+  --color-hearthwood-dog-glint: #fffaf0;
+  --color-hearthwood-dog-nose-black: #221c1b;
+  --color-hearthwood-dog-nose-liver: #7a4733;
+  --color-hearthwood-dog-nose-blue: #5a5d66;
+  --color-hearthwood-dog-nose-isabella: #a47a6a;
+  --color-hearthwood-dog-tongue: #e3727c;
+  --color-hearthwood-dog-mouth: #3b2123;
+  --color-hearthwood-dog-inner-ear: #dc9d93;
+}
