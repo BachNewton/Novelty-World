@@ -8,7 +8,10 @@ import type { PointOfView } from "../../input/point-of-view";
 import { mainRegion, REGIONS } from "../../engine/regions";
 import type { World } from "../../engine/world";
 import type { Palette } from "../../art/palette";
-import { holdHour, type ValleyClock } from "./clock";
+import type { SunDay } from "../../engine/astronomy";
+import { dateAt, parseDate, startTime, type CalendarDate } from "../../engine/calendar";
+import type { DaySky } from "../../engine/day";
+import { holdHour, setDay, type ValleyClock } from "./clock";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
 import type { CameraView, Walker } from "./walker";
@@ -19,7 +22,7 @@ import type { Weather } from "./world-view";
  * The world's handle for screenshots and tests, on `window.__hearthwoodWorld`:
  * whether it is ready (its shaders compiled, everything the camera wants
  * streamed in, and a frame drawn), a frame counter to wait on, what the last
- * frame drew, switches for the hour, the motion clock, the camera and where
+ * frame drew, switches for the hour, the date, the motion clock, the camera and where
  * the walker stands, the point of view and where it looks, a free camera, readings of the world at a point, and a
  * map of an area drawn from the world itself. Waiting on these is waiting on
  * events, never on time.
@@ -70,6 +73,12 @@ export interface WorldProbe {
   hour: () => number;
   /** Holds the day at an hour, or lets it turn again from there with null. */
   holdHour: (hours: number | null) => void;
+  /** The date and hour now, the sky (sun, moon, key light, the light's moments) and today's sunrise, sunset and twilights. */
+  date: () => CalendarDate;
+  sky: () => DaySky;
+  today: () => SunDay;
+  /** Moves to a date at the same hour: a season and its day (`summer-2`), a festival (`litha`), a day number, or null for a new game's first day. */
+  setDate: (date: string | number | null) => void;
   /** Holds every motion (flames, water, the breeze) at a moment, or lets it run with null. */
   holdMotion: (seconds: number | null) => void;
   setView: (view: CameraView) => void;
@@ -214,6 +223,12 @@ export function WorldProbeHandle({
       hour: () => clock.hours,
       holdHour: (hours) => {
         holdHour(clock, hours);
+      },
+      date: () => clock.date,
+      sky: () => clock.sky,
+      today: () => clock.today,
+      setDate: (date) => {
+        setDay(clock, date === null ? dateAt(startTime()).day : typeof date === "number" ? date : parseDate(date));
       },
       holdMotion: (seconds) => {
         clock.heldMotion = seconds;

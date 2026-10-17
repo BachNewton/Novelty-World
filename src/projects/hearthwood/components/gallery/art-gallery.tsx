@@ -16,6 +16,7 @@ import { makeSkyUniforms, Sky } from "../../art/sky";
 import { FrameCosts } from "../../art/passes";
 import { waterMaterial } from "../../art/water";
 import { QUALITY } from "../../quality";
+import { parseDate } from "../../engine/calendar";
 import { advanceClock, holdHour, makeClock, type ValleyClock } from "../valley/clock";
 import { DebugPanel } from "../valley/debug-panel";
 import { FeatureRenderer } from "../valley/feature-renderer";
@@ -211,7 +212,8 @@ export function ArtGallery() {
     const palette = readPalette();
     const atmosphere = makeAtmosphere();
     const sky = makeSkyUniforms(palette);
-    const clock = makeClock(hour);
+    // On the autumn equinox, so the gallery's day has every moment at its usual hour: sunrise at six, sunset at six, a dark night.
+    const clock = makeClock(hour, parseDate("mabon"));
     const context: ArtContext = {
       palette,
       atmosphere,

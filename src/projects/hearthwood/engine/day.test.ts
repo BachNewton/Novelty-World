@@ -1,44 +1,67 @@
 import { describe, expect, it } from "vitest";
-import { blendAt, DAY_SECONDS, FIRST_HOUR, hourAt, keyLight, lightAt, sunDirection } from "./day";
+import { dateAt, daysPerYear, parseDate, secondsPerDay, timeOf } from "./calendar";
+import { MOMENTS, skyAt, type DaySky, type Moment } from "./day";
 
-describe("the day", () => {
-  it("starts at its first hour and turns once in DAY_SECONDS", () => {
-    expect(hourAt(0)).toBe(FIRST_HOUR);
-    expect(hourAt(DAY_SECONDS)).toBeCloseTo(FIRST_HOUR);
-    expect(hourAt(DAY_SECONDS / 2)).toBeCloseTo((FIRST_HOUR + 12) % 24);
-  });
+function skyOn(date: string, hour: number): DaySky {
+  return skyAt(dateAt(timeOf(parseDate(date), hour)));
+}
 
-  it("has the sun up by day and down at night", () => {
-    expect(sunDirection(12.3).y).toBeGreaterThan(0.6);
-    expect(sunDirection(8).y).toBeGreaterThan(0);
-    expect(sunDirection(23).y).toBeLessThan(0);
-    expect(sunDirection(3).y).toBeLessThan(0);
-  });
+function strongest(sky: DaySky): Moment {
+  return MOMENTS.reduce((best, m) => (sky.mix[m] > sky.mix[best] ? m : best), MOMENTS[0]);
+}
 
-  it("lights the night by the moon, and hands over between them in the dark", () => {
-    expect(keyLight(0).direction.y).toBeGreaterThan(0.5);
-    expect(keyLight(0).strength).toBeGreaterThan(0.9);
-    for (let h = 17; h < 21; h += 0.01) {
-      const handover = keyLight(h).strength;
-      if (sunDirection(h).y > 0 && sunDirection(h + 0.01).y <= 0) expect(handover).toBeLessThan(0.05);
-    }
-  });
-
-  it("blends its light without a jump anywhere round the clock", () => {
-    let previous = lightAt(0);
-    for (let h = 0.02; h <= 24; h += 0.02) {
-      const now = lightAt(h);
-      expect(Math.abs(now.sun - previous.sun)).toBeLessThan(0.05);
-      expect(Math.abs(now.ambient - previous.ambient)).toBeLessThan(0.05);
+describe("the day's light", () => {
+  it("mixes its moments to a whole, without a jump anywhere through the year", () => {
+    const step = secondsPerDay() / 1000;
+    let previous = skyAt(dateAt(0));
+    for (let t = step; t <= secondsPerDay() * daysPerYear(); t += step) {
+      const now = skyAt(dateAt(t));
+      expect(MOMENTS.reduce((sum, m) => sum + now.mix[m], 0)).toBeCloseTo(1);
+      for (const m of MOMENTS) expect(Math.abs(now.mix[m] - previous.mix[m])).toBeLessThan(0.03);
+      expect(Math.abs(now.light.sun - previous.light.sun)).toBeLessThan(0.04);
+      expect(Math.abs(now.key.strength - previous.key.strength)).toBeLessThan(0.07);
       previous = now;
     }
-    expect(blendAt(0)).toEqual(blendAt(24));
   });
 
-  it("is brightest round noon and fire-lit at night", () => {
-    expect(lightAt(12.5).sun).toBeGreaterThan(lightAt(19).sun);
-    expect(lightAt(23).fire).toBeGreaterThan(lightAt(12).fire);
-    expect(lightAt(23).night).toBe(1);
-    expect(lightAt(12).night).toBe(0);
+  it("follows the sun's height: dawn and morning as it climbs, golden hour and dusk as it sinks", () => {
+    expect(strongest(skyOn("mabon", 6.3))).toBe("dawn");
+    expect(strongest(skyOn("mabon", 8.5))).toBe("morning");
+    expect(strongest(skyOn("mabon", 12))).toBe("noon");
+    expect(strongest(skyOn("mabon", 16.5))).toBe("golden");
+    expect(strongest(skyOn("mabon", 18.4))).toBe("dusk");
+    expect(skyOn("mabon", 23).mix.night).toBeCloseTo(1);
+  });
+
+  it("lingers on a midsummer evening: golden at eight, twilight at half past ten, never full night", () => {
+    expect(strongest(skyOn("litha", 20))).toBe("golden");
+    const late = skyOn("litha", 22.5);
+    expect(late.sun.twilight).toBe("civil");
+    expect(strongest(late)).toBe("dusk");
+    for (let hour = 0; hour < 24; hour += 0.25) expect(skyOn("litha", hour).light.night).toBeLessThan(0.75);
+  });
+
+  it("keeps a midwinter noon low and warm, between morning and golden hour, and dark by mid-afternoon", () => {
+    const noon = skyOn("yule", 12);
+    expect(noon.sun.elevation).toBeGreaterThan(4);
+    expect(noon.sun.elevation).toBeLessThan(9);
+    expect(noon.mix.noon).toBe(0);
+    expect(noon.mix.morning + noon.mix.golden).toBeGreaterThan(0.6);
+    expect(skyOn("yule", 17).mix.night).toBeGreaterThan(0.6);
+  });
+
+  it("lights the day by the sun, the night by the moon by its phase, and hands over in the dark", () => {
+    expect(skyOn("mabon", 12).key.body).toBe("sun");
+    const night = skyOn("mabon", 0);
+    expect(night.key.body).toBe("moon");
+    for (let t = 0; t < secondsPerDay() * 3; t += secondsPerDay() / 2000) {
+      const now = skyAt(dateAt(t));
+      const next = skyAt(dateAt(t + secondsPerDay() / 2000));
+      if (now.key.body !== next.key.body) expect(now.key.strength + next.key.strength).toBeLessThan(0.05);
+    }
+  });
+
+  it("is the same every time", () => {
+    expect(skyOn("samhain", 21.3)).toEqual(skyOn("samhain", 21.3));
   });
 });
