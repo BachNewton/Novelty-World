@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DESKTOP } from "../quality";
-import { chunkDetail, tileWidth, wantedChunks, wantedTiles } from "./streaming";
+import { castsIntoView, chunkDetail, tileWidth, wantedChunks, wantedTiles, type Bounds, type Point3, type ViewPlane } from "./streaming";
 
 describe("the land's tiles", () => {
   const eye = { x: 37, y: 30, z: -210 };
@@ -55,5 +55,35 @@ describe("plant detail by distance", () => {
     const chunks = wantedChunks(10, 10, 200);
     expect(chunks[0]).toEqual({ chunkX: 0, chunkZ: 0 });
     expect(chunks.length).toBeGreaterThan(20);
+  });
+});
+
+describe("plants casting shadows into the view", () => {
+  // A camera at the origin looking along +x, seeing 45° to each side and up and down, from a metre out.
+  const plane = (x: number, y: number, z: number, constant = 0): ViewPlane => {
+    const length = Math.hypot(x, y, z);
+    return { normal: { x: x / length, y: y / length, z: z / length }, constant };
+  };
+  const view = [plane(1, 0, 0, -1), plane(1, 0, 1), plane(1, 0, -1), plane(1, 1, 0), plane(1, -1, 0)];
+  const eye = { x: 0, z: 0 };
+  const chunk = (x: number, z: number): Bounds => ({ min: { x, y: 0, z }, max: { x: x + 64, y: 20, z: z + 64 } });
+  const sun = (x: number, y: number, z: number): Point3 => ({ x, y, z });
+  const behind = chunk(-120, -32);
+
+  it("brings in a wood behind the camera when a low sun behind it throws its shadows forward", () => {
+    expect(castsIntoView(behind, eye, view, sun(-1, 0.15, 0), 900)).toBe(true);
+  });
+
+  it("leaves it out when its shadows fall short, away from the view, or there is no light", () => {
+    expect(castsIntoView(behind, eye, view, sun(-1, 3, 0), 900)).toBe(false);
+    expect(castsIntoView(behind, eye, view, sun(1, 0.15, 0), 900)).toBe(false);
+    expect(castsIntoView(behind, eye, view, sun(0, 0.15, -1), 900)).toBe(false);
+    expect(castsIntoView(behind, eye, view, sun(-1, -0.1, 0), 900)).toBe(false);
+  });
+
+  it("counts a chunk in view itself, but only within the shadows' reach", () => {
+    expect(castsIntoView(chunk(200, -32), eye, view, sun(0, 1, 0), 900)).toBe(true);
+    expect(castsIntoView(chunk(1000, -32), eye, view, sun(0, 1, 0), 900)).toBe(false);
+    expect(castsIntoView(chunk(1000, -32), eye, view, sun(0, 1, 0), 1200)).toBe(true);
   });
 });
