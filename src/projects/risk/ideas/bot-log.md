@@ -221,3 +221,44 @@ The owner's call, after the night above: there is no crown and no lineage. Monop
 | Random | Recruit | none | | |
 
 v3 against v2 head to head: a lone v3 among v2s wins 36.5% at 3 players (par 33.3%), 26.3% at 4 (25.0%) and 19.8% at 6 (16.7%); a lone v2 among v3s wins 29.4%, 19.8% and 10.9%. The lobby now seats Rule v3 by default.
+
+## v3's opponent model, measured (`risk:opponents`, 2026-10-17)
+
+`risk:opponents` (`eval/opponent-model.ts`) scores an opponent model against the turns it predicts: at the end of every seat's turn, the model's belief about each opponent's coming turn is set beside what that turn did. The aim is scored against the share of the opponent's captures taken from me (squared error; "skill" is the improvement over v1's even split among the opponent's neighbours, negative when worse); the loss is the aim times the priced hit against the armies and income the turn cost me; kills against whether the named victim fell. 400 games a table size, seeds `opp-*`, three fields: every seat v3; v3 among v2s (`rule-v3,rule-v2×5` rotated); and a mixed field (`rule-v3,gd-stacker,rule-v2,gd-continental,rule-v1,gd-aggressive,gd-defensive` rotated).
+
+v3's model:
+
+| Field, table | Aim skill vs even split | Leader: believed / taken | Loss caused / priced (r) | Kills: believed / taken (Brier) | My kill exposure: believed / killed |
+|---|---|---|---|---|---|
+| v3s, 3p | −0.31 | 100% / 77% | 1.60 (0.65) | 85% / 27% (0.55) | 9.1% / 8.7% |
+| v3s, 4p | −0.17 | 100% / 73% | 1.52 (0.64) | 78% / 24% (0.50) | 8.5% / 8.8% |
+| v3s, 6p | −0.02 | 100% / 75% | 1.23 (0.50) | 69% / 6% (0.55) | 15.2% / 4.4% |
+| v3 among v2s, 3p | −0.30 | 100% / 74% | 1.40 (0.28) | 80% / 18% (0.57) | 10.4% / 7.3% |
+| v3 among v2s, 4p | −0.15 | 100% / 69% | 1.54 (0.64) | 76% / 15% (0.55) | 9.2% / 6.9% |
+| v3 among v2s, 6p | −0.02 | 100% / 73% | 1.26 (0.52) | 71% / 6% (0.57) | 14.9% / 4.8% |
+| mixed, 3p | −0.50 | 100% / 65% | 0.61 (0.11) | 85% / 13% (0.68) | 13.6% / 6.5% |
+| mixed, 4p | −0.40 | 100% / 58% | 0.79 (0.52) | 81% / 16% (0.60) | 11.8% / 6.8% |
+| mixed, 6p | −0.17 | 100% / 66% | 0.83 (0.43) | 78% / 18% (0.55) | 12.6% / 9.0% |
+
+Read: (1) **kills are the worst belief**: v3 believes an opponent takes a 60%+ kill whether or not it pays; kills it rated near certain were taken 31% of the time at 3 and 4 players among v3s, 9% at 6, and 17 to 25% in the mixed field. (2) **The leader's gang-up is milder than believed**: 58 to 77% of opponents' captures, not all. (3) **The share aim is overconfident**: its reliability slope is about 0.4 to 0.65 (what it rated 8% lost 25% of captures at 3 players, 84% lost 58%), so as a prediction it is worse than an even split at every table but 6 players among rule bots, where it ties. (4) The ally case (25%) is about right (27 to 41%). A model that is calibrated isn't the same as a bot that plays better: v3's preferences were tuned on top of these beliefs.
+
+Candidates scored on the mixed field, all with the aim pulled half way to the even split, leader aim 0.75, ally 0.3, kills at 0.3 of v3's chance (0.5 for my own): without the game's record ("cal") and with it (prior worth 3, 6 or 12 captures, decay 0.5 to 0.85 a turn). The record with a prior of 6 captures and decay 0.7 ("h6", v4's beliefs but for leader 0.7 and kill rate 0.25) scored best:
+
+| Mixed field | Aim skill: v3 / cal / h6 | Leader skill: v3 / h6 | Loss MSE: v3 / h6 / even split | Kill Brier: v3 / cal | My exposure: believed by cal / killed |
+|---|---|---|---|---|---|
+| 3p | −0.50 / −0.11 / +0.03 | −1.18 / +0.01 | 1048 / 1019 / 1073 | 0.68 / 0.16 | 8.5% / 6.5% |
+| 4p | −0.40 / −0.11 / +0.02 | −1.65 / −0.03 | 69.6 / 49.7 / 50.6 | 0.60 / 0.15 | 7.9% / 6.8% |
+| 6p | −0.17 / −0.03 / +0.03 | −1.18 / +0.02 | 58.8 / 51.8 / 63.1 | 0.55 / 0.15 | 8.8% / 9.0% |
+
+Whom an opponent hits is barely predictable beyond an even split (the best skill is +0.03 to +0.05), and the game's record is what lifts every candidate from below the even split to just above it, for every opponent bot alike. The calibrated beliefs became v4's (`rule-bot-v4.md`). The v4 model itself (leader 0.7, kill rate 0.25) has not yet been scored as a whole by the tool; its numbers should land between cal's and h6's.
+
+## v4 first gauntlet, stopped early (2026-10-17)
+
+`risk:gauntlet -- rule-v4 --base rule-v3 --field rule-v3`, train seeds, ±30 Elo. v4 here is v3's preferences with the beliefs above, untuned. **Stopped early when the work was paused; not a verdict except where noted.** Only one pairing resolved before the stop:
+
+| Pairing | Result | Decisive games |
+|---|---|---|
+| 1 v4 vs 2 v3 (3p) | **worse** (SPRT decided: LLR improve −6.4, regress +3.0) | 510 |
+| the other five | unresolved when stopped | — |
+
+So calibrated beliefs on v3's preferences lose at the 3-player lone seat, the table v3's preferences were tuned for on v3's own beliefs. The likeliest reading: v3's small-table preferences (vulnerability 1.18, border 0.35, common-threat 0.67) compensate for v3's beliefs, and moving the beliefs under them double-counts; the preferences need retuning on the new beliefs before the beliefs can be judged. Not yet tested.

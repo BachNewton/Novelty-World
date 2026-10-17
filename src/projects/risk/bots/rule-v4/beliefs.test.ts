@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { GameEvent } from "../../contract";
 import { readRecord } from "./beliefs";
 
-const turn = (seat: number): GameEvent => ({ kind: "turn-started", seat, turn: 0 });
-const took = (seat: number, from: number): GameEvent => ({ kind: "captured", seat, territory: "alaska", from });
+const turn = (seat: number): GameEvent => ({ kind: "turn-started", rule: "TURN-1", seat, turn: 0 });
+const took = (seat: number, from: number): GameEvent => ({ kind: "captured", rule: "ATTACK-5", seat, territory: "alaska", from });
 
 describe("the record of whom each opponent takes from", () => {
   it("counts each opponent's captures by victim, its older turns fading", () => {
