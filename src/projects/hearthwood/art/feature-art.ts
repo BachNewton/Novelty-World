@@ -3,6 +3,7 @@ import type { FeatureId } from "../features";
 import type { AtmosphereUniforms } from "./atmosphere";
 import type { DayState } from "./daylight";
 import type { SkyUniforms } from "./sky";
+import type { WeatherNow } from "./weather/now";
 
 /*
  * What a feature brings to the drawing, as plain declarations: GLSL for the
@@ -73,6 +74,8 @@ export interface FeatureFrame {
   day: DayState;
   atmosphere: AtmosphereUniforms;
   sky: SkyUniforms;
+  /** The weather where the camera is (see `weather/now.ts`). */
+  weather: WeatherNow;
   /** Seconds since the last frame. */
   delta: number;
 }

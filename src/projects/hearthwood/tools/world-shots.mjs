@@ -84,15 +84,16 @@ async function frames(page, count) {
   await page.waitForFunction((n) => window.__hearthwoodWorld.frameCount() >= n, start + count, { timeout: 120000 });
 }
 
+// Every shot holds the weather (fair, unless a shot asks for another), so the sky's own drift never changes a shot.
 // Most shots are from behind Elliott, in third person; the `fp-` ones are through their eyes, with `look` the way they look.
 // `glide` puts them on the broom over a spot and holds them there, so the shot is mid-glide.
-async function capture(page, name, { hour, date = DATE, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, haze = 1, glide = null }) {
+async function capture(page, name, { hour, date = DATE, view = "walk", pov = "third", orbit = null, look = null, walker = null, free = null, chrome = false, weather = "fair", glide = null }) {
   await page.evaluate(
-    ({ hour, date, view, pov, orbit, look, walker, free, motion, chrome, haze, glide }) => {
+    ({ hour, date, view, pov, orbit, look, walker, free, motion, chrome, weather, glide }) => {
       const world = window.__hearthwoodWorld;
       world.holdHour(hour);
       world.setDate(date);
-      world.setHaze(haze);
+      world.holdWeather(weather);
       world.holdMotion(motion);
       world.setView(view);
       world.setPointOfView(pov);
@@ -104,7 +105,7 @@ async function capture(page, name, { hour, date = DATE, view = "walk", pov = "th
       if (glide) world.glide(glide.x, glide.z, glide.above, glide.heading);
       document.documentElement.toggleAttribute("data-shot-chrome", chrome);
     },
-    { hour, date, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, haze, glide },
+    { hour, date, view, pov, orbit, look, walker, free, motion: MOTION_AT, chrome, weather, glide },
   );
   // The camera eases after the walker, and the world streams in round wherever it ends up: give the
   // camera frames to arrive, then wait for the streaming to settle, then read a settled frame.
@@ -269,7 +270,7 @@ if (want("range")) {
   for (const [moment, hour] of [["morning", 9], ["golden", 16.8]]) {
     await capture(desktop, `range-${moment}`, { hour, walker: { x: view.x, z: view.z }, free: { x: view.x, y: view.height + 30, z: view.z, lookX: peak.x, lookY: peak.height * 0.6, lookZ: peak.z } });
   }
-  // On a perfectly clear day, with no haze to hide anything, the land must hold up out to the horizon on its own:
+  // On a perfectly clear day, with the least haze the weather brings, the land must hold up out to the horizon on its own:
   // from the valley floor towards the range, from partway up looking out, and from the summit.
   const mid = await desktop.evaluate(({ peak, view }) => {
     // Partway up, on open ground: the first spot above the trees on the way from the valley floor to the peak.
@@ -282,9 +283,9 @@ if (want("range")) {
     return { x: (peak.x + view.x) / 2, z: (peak.z + view.z) / 2, height: window.__hearthwoodWorld.at((peak.x + view.x) / 2, (peak.z + view.z) / 2).height };
   }, { peak, view });
   const away = { x: view.x + (view.x - peak.x) * 10, z: view.z + (view.z - peak.z) * 10 };
-  await capture(desktop, "clear-floor", { hour: 11, haze: 0, walker: { x: view.x, z: view.z }, free: { x: view.x, y: view.height + 2.5, z: view.z, lookX: peak.x, lookY: peak.height * 0.55, lookZ: peak.z } });
-  await capture(desktop, "clear-ridge", { hour: 11, haze: 0, walker: { x: mid.x, z: mid.z }, free: { x: mid.x, y: mid.height + 4, z: mid.z, lookX: away.x, lookY: mid.height - 300, lookZ: away.z } });
-  await capture(desktop, "clear-summit", { hour: 15, haze: 0, walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 6, z: peak.z, lookX: away.x, lookY: peak.height - 900, lookZ: away.z } });
+  await capture(desktop, "clear-floor", { hour: 11, weather: "clear", walker: { x: view.x, z: view.z }, free: { x: view.x, y: view.height + 2.5, z: view.z, lookX: peak.x, lookY: peak.height * 0.55, lookZ: peak.z } });
+  await capture(desktop, "clear-ridge", { hour: 11, weather: "clear", walker: { x: mid.x, z: mid.z }, free: { x: mid.x, y: mid.height + 4, z: mid.z, lookX: away.x, lookY: mid.height - 300, lookZ: away.z } });
+  await capture(desktop, "clear-summit", { hour: 15, weather: "clear", walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 6, z: peak.z, lookX: away.x, lookY: peak.height - 900, lookZ: away.z } });
   await capture(desktop, "clear-summit-hazy", { hour: 15, walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 6, z: peak.z, lookX: away.x, lookY: peak.height - 900, lookZ: away.z } });
 }
 

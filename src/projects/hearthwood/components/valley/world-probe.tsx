@@ -18,7 +18,9 @@ import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
 import type { CameraView, Walker } from "./walker";
 import type { Streaming } from "./world-land";
-import type { Weather } from "./world-view";
+import type { WeatherKind } from "../../engine/weather";
+import type { SceneWeather } from "./world-weather";
+import type { WeatherNow } from "../../art/weather/now";
 
 /*
  * The world's handle for screenshots and tests, on `window.__hearthwoodWorld`:
@@ -97,8 +99,10 @@ export interface WorldProbe {
   /** Holds the walker where they are, in the air or not, while the camera and the world catch up; false lets them go on. */
   holdWalker: (held: boolean) => void;
   setFreeCamera: (camera: FreeCamera | null) => void;
-  /** How thick the haze is against the usual: 0 is a perfectly clear day. */
-  setHaze: (haze: number) => void;
+  /** Holds the weather at one kind (a clear day, mist, rain…), or lets the sky do as it will with null. */
+  holdWeather: (kind: WeatherKind | null) => void;
+  /** The weather now, as the art reads it. */
+  weather: () => Omit<WeatherNow, "regions">;
   /** Switches a feature (see features.ts) on or off for this visit. */
   setFeature: (id: FeatureId, on: boolean) => void;
   features: () => FeatureToggles;
@@ -203,7 +207,7 @@ export function WorldProbeHandle({
   walker: Walker;
   streaming: Streaming;
   freeCamera: { at: FreeCamera | null };
-  weather: Weather;
+  weather: SceneWeather;
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
@@ -285,9 +289,10 @@ export function WorldProbeHandle({
         streaming.plants = false;
         streaming.places = false;
       },
-      setHaze: (haze) => {
-        weather.haze = haze;
+      holdWeather: (kind) => {
+        weather.hold(kind);
       },
+      weather: () => ({ weather: weather.weather, held: weather.held, flash: weather.flash, floor: weather.floor }),
       setFeature: (id, on) => {
         liveFeatures().set(id, on);
       },

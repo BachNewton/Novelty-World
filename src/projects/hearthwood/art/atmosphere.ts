@@ -1,4 +1,5 @@
 import { Color, Vector3 } from "three";
+import { featureDefine } from "../features";
 
 /*
  * The valley's air, shared by everything drawn in it: a haze that lies
@@ -90,8 +91,13 @@ vec3 hwGrade(vec3 colour) {
 }
 
 vec3 hwAtmosphere(vec3 colour, vec3 world) {
-  vec3 dir = normalize(world - cameraPosition);
-  vec3 hazed = mix(colour, hwHazeColour(dir), hwHazeAmount(cameraPosition, world));
-  return hwGrade(hazed);
+  // With the fog feature on, its own air takes the haze's place, at the colour hook after the grade.
+  #ifdef ${featureDefine("fog")}
+    return hwGrade(colour);
+  #else
+    vec3 dir = normalize(world - cameraPosition);
+    vec3 hazed = mix(colour, hwHazeColour(dir), hwHazeAmount(cameraPosition, world));
+    return hwGrade(hazed);
+  #endif
 }
 `;

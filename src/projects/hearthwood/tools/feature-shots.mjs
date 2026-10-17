@@ -8,7 +8,7 @@
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
 // `npx playwright install chromium` (one-time).
-// Usage:  node src/projects/hearthwood/tools/feature-shots.mjs [label] [--only=<feature,...>] [--no-shots]
+// Usage:  node src/projects/hearthwood/tools/feature-shots.mjs [label] [--only=<feature,...>] [--weather=<kind>] [--no-shots]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
 import { chromium } from "playwright";
@@ -20,6 +20,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const [LABEL = "features"] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 const ONLY = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length).split(",") ?? null;
 const SHOTS = !process.argv.includes("--no-shots");
+// The weather held for every shot (see ../engine/weather.ts): fair unless asked.
+const WEATHER = process.argv.find((arg) => arg.startsWith("--weather="))?.slice("--weather=".length) ?? "fair";
 const OUTDIR = join(HERE, "..", ".shots", LABEL);
 const BASE = process.env.HEARTHWOOD_URL ?? "http://localhost:3001/games/3d-games/hearthwood";
 const HOURS = { noon: 12.5, golden: 17.4, blue: 19.4, night: 23 };
@@ -56,12 +58,13 @@ async function setFeatures(on) {
   }, on);
 }
 
-await page.evaluate(() => {
+await page.evaluate((weather) => {
   const world = window.__hearthwoodWorld;
+  world.holdWeather(weather);
   world.holdMotion(12);
   world.setView("walk");
   world.setPointOfView("third");
-});
+}, WEATHER);
 
 async function shoot(name, hour) {
   await page.evaluate((hour) => window.__hearthwoodWorld.holdHour(hour), hour);

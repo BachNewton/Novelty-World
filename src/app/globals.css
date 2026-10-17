@@ -333,6 +333,21 @@
   --color-hearthwood-valley-broom-handle: #b08458;
   --color-hearthwood-valley-broom-bristle: #dcb866;
 
+  /* The weather: each region's mist (blended across their borders), the
+     clouds lit and in their own shade, rain, snow, the lightning's flash and
+     standing water. */
+  --color-hearthwood-valley-mist-greenwood: #e9efe6;
+  --color-hearthwood-valley-mist-birchvale: #eff1e6;
+  --color-hearthwood-valley-mist-highlands: #dbe3ec;
+  --color-hearthwood-valley-mist-heath: #f2eadf;
+  --color-hearthwood-valley-mist-maplewood: #f4e8dc;
+  --color-hearthwood-valley-cloud: #fffaf2;
+  --color-hearthwood-valley-cloud-shade: #8a93a8;
+  --color-hearthwood-valley-rain: #c8d4e2;
+  --color-hearthwood-valley-snow: #fbfcff;
+  --color-hearthwood-valley-lightning: #dfe4ff;
+  --color-hearthwood-valley-puddle: #4a5560;
+
   --color-hearthwood-valley-ui-ink: #fff6e4;
   --color-hearthwood-valley-ui-shade: #2a2236;
 
