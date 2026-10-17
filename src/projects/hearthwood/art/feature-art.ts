@@ -56,6 +56,10 @@ export type MaterialKind = (typeof MATERIAL_KINDS)[number];
  * The sky takes only `vertexHead`, `fragmentHead` and `colour`, with
  * `vHwWorld` a point on its dome round the camera.
  *
+ * Water's own shader has no `hwDirect` or `hwIndirect`: at its `light` hook a
+ * chunk works on the water's own locals (its body, reflection, glints and
+ * foam), listed with the hook points in `water/water.ts`.
+ *
  * The depth a Lambert kind casts its shadows with (`shadowDepth` in
  * `shading.ts`) takes `vertexHead` and `vertex` too, so what moves casts its
  * shadow where it is drawn; there `HW_DEPTH` is defined, and there is no
