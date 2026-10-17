@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from "three";
+import { type Camera, Matrix4, PerspectiveCamera, Quaternion, Vector3 } from "three";
 import { offerScore, type Viewer } from "../../gameplay/offering";
 import type { WalkState } from "../../input/use-walk-input";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
@@ -12,7 +12,7 @@ import type { Companionship } from "./companionship";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { catchUp, turnBetween } from "./follow-camera";
 import type { Foraging } from "./foraging";
-import { offerableFire, settleFire, stepHearth, subscribeHearth, type Hearth } from "./hearth";
+import { answerFireTaps, offerableFire, settleFire, stepHearth, subscribeHearth, type Hearth } from "./hearth";
 import { HEARTH_FOV, hearthView, sideOf, towardFire } from "./hearth-camera";
 import type { Walker } from "./walker";
 
@@ -75,81 +75,26 @@ export function WorldHearth({
   // The side of the fire Elliott sat down on, fixed for the turn.
   const [side, setSide] = useState(0);
   const sideNow = useRef(0);
-  const scratch = useMemo(() => ({ matrix: new Matrix4(), quaternion: new Quaternion(), eye: new Vector3(), look: new Vector3(), up: new Vector3(0, 1, 0), heart: new Vector3() }), []);
+  const projected = useMemo(() => new Vector3(), []);
 
   useEffect(() => {
-    hearth.tapAt = (x, y) => {
+    answerFireTaps(hearth, (x, y) => {
       const { heart } = offerableFire(hearth);
       if (Math.hypot(heart.x - walker.x, heart.z - walker.z) > TAP_REACH) return false;
       const rect = canvas.getBoundingClientRect();
-      scratch.heart.set(heart.x, heart.y, heart.z).project(camera);
-      if (scratch.heart.z > 1) return false;
-      const sx = rect.left + ((scratch.heart.x + 1) / 2) * rect.width;
-      const sy = rect.top + ((1 - scratch.heart.y) / 2) * rect.height;
+      projected.set(heart.x, heart.y, heart.z).project(camera);
+      if (projected.z > 1) return false;
+      const sx = rect.left + ((projected.x + 1) / 2) * rect.width;
+      const sy = rect.top + ((1 - projected.y) / 2) * rect.height;
       return Math.hypot(sx - x, sy - y) < TAP_SLOP;
-    };
+    });
     return () => {
-      hearth.tapAt = null;
+      answerFireTaps(hearth, null);
     };
-  }, [hearth, walker, camera, canvas, scratch]);
+  }, [hearth, walker, camera, canvas, projected]);
 
   useFrame(({ camera: eye }, delta) => {
-    const seconds = Math.min(delta, 0.1);
-    stepHearth(hearth, seconds);
-    const session = hearth.shown.session;
-
-    const viewer: Viewer | null =
-      walker.view !== "walk" ? null : input.current.pointOfView === "first" ? { pointOfView: "first", eye: eye.position, look: eye.getWorldDirection(new Vector3()) } : { pointOfView: "third", x: walker.x, z: walker.z, heading: walker.heading };
-    hearth.candidate = viewer && companionship.shown.naming === null ? offerScore(viewer, offerableFire(hearth)) : null;
-
-    // Sitting down and getting up.
-    const fire = hearth.camp;
-    if (session && walker.view === "walk") {
-      walker.view = "hearth";
-      sideNow.current = sideOf(fire, walker);
-      setSide(sideNow.current);
-      pose.current.position.copy(eye.position);
-      pose.current.quaternion.copy(eye.quaternion);
-      pose.current.fov = eye instanceof PerspectiveCamera ? eye.fov : HEARTH_FOV;
-      pose.current.easing = true;
-    }
-    if (!session && walker.view === "hearth") walker.view = "walk";
-
-    const k = catchUp(EASE, seconds);
-    if (walker.view === "hearth") {
-      // Turned to the fire, looking down at it, so getting up they face it in either view.
-      const facing = towardFire(sideNow.current);
-      const turn = catchUp(TURN, seconds);
-      walker.heading += turnBetween(walker.heading, facing) * turn;
-      walker.orbit = { ...walker.orbit, yaw: walker.orbit.yaw + turnBetween(walker.orbit.yaw, facing) * turn };
-      walker.lookPitch += (LOOK_DOWN - walker.lookPitch) * turn;
-      const view = hearthView(fire, sideNow.current, Math.hypot(walker.x - fire.x, walker.z - fire.z));
-      scratch.eye.set(view.eye.x, view.eye.y, view.eye.z);
-      scratch.look.set(view.look.x, view.look.y, view.look.z);
-      scratch.matrix.lookAt(scratch.eye, scratch.look, scratch.up);
-      scratch.quaternion.setFromRotationMatrix(scratch.matrix);
-      ease(pose.current, scratch.eye, scratch.quaternion, HEARTH_FOV, k);
-      place(eye, pose.current);
-    } else if (pose.current.easing) {
-      // Back to wherever the walker put the camera this frame, until it is there.
-      const target = eye instanceof PerspectiveCamera ? eye.fov : HEARTH_FOV;
-      ease(pose.current, eye.position, eye.quaternion, target, k);
-      const arrived = pose.current.position.distanceTo(eye.position) < 0.01 && pose.current.quaternion.angleTo(eye.quaternion) < 0.003;
-      if (arrived) pose.current.easing = false;
-      else place(eye, pose.current);
-    }
-
-    // How hard it cooks, and how long the dish has been out.
-    const d = drive.current;
-    if (session?.phase === "served") {
-      servedAt.current ??= hearth.time;
-      d.served = hearth.time - servedAt.current;
-      d.heat *= 1 - catchUp(COOL, seconds);
-    } else {
-      servedAt.current = null;
-      d.served = null;
-      d.heat = session?.phase === "cooking" ? 1 : 0;
-    }
+    frameHearth({ hearth, companionship, walker, input: input.current, pose: pose.current, drive: drive.current, servedAt, side: sideNow, onSit: setSide }, eye, delta);
   }, HEARTH_PRIORITY);
 
   // After the frame: forage or an animal offered beats the fire, as they each had to beat it.
@@ -170,6 +115,80 @@ export function WorldHearth({
       drive={drive}
     />
   );
+}
+
+interface HearthFrame {
+  hearth: Hearth;
+  companionship: Companionship;
+  walker: Walker;
+  input: WalkState;
+  pose: CameraPose;
+  drive: CookingDrive;
+  servedAt: { current: number | null };
+  /** The side of the fire Elliott sat down on, fixed for the turn, and who hears it. */
+  side: { current: number };
+  onSit: (side: number) => void;
+}
+
+const scratch = { matrix: new Matrix4(), quaternion: new Quaternion(), eye: new Vector3(), look: new Vector3(), up: new Vector3(0, 1, 0) };
+
+/** One frame at the hearth: its clock, the fire's offer, sitting down and getting up, the camera, and how hard it cooks. */
+function frameHearth({ hearth, companionship, walker, input, pose, drive, servedAt, side, onSit }: HearthFrame, eye: Camera, delta: number): void {
+  const seconds = Math.min(delta, 0.1);
+  stepHearth(hearth, seconds);
+  const session = hearth.shown.session;
+
+  const viewer: Viewer | null =
+    walker.view !== "walk" ? null : input.pointOfView === "first" ? { pointOfView: "first", eye: eye.position, look: eye.getWorldDirection(new Vector3()) } : { pointOfView: "third", x: walker.x, z: walker.z, heading: walker.heading };
+  hearth.candidate = viewer && companionship.shown.naming === null ? offerScore(viewer, offerableFire(hearth)) : null;
+
+  // Sitting down and getting up.
+  const fire = hearth.camp;
+  if (session && walker.view === "walk") {
+    walker.view = "hearth";
+    side.current = sideOf(fire, walker);
+    onSit(side.current);
+    pose.position.copy(eye.position);
+    pose.quaternion.copy(eye.quaternion);
+    pose.fov = eye instanceof PerspectiveCamera ? eye.fov : HEARTH_FOV;
+    pose.easing = true;
+  }
+  if (!session && walker.view === "hearth") walker.view = "walk";
+
+  const k = catchUp(EASE, seconds);
+  if (walker.view === "hearth") {
+    // Turned to the fire, looking down at it, so getting up they face it in either view.
+    const facing = towardFire(side.current);
+    const turn = catchUp(TURN, seconds);
+    walker.heading += turnBetween(walker.heading, facing) * turn;
+    walker.orbit = { ...walker.orbit, yaw: walker.orbit.yaw + turnBetween(walker.orbit.yaw, facing) * turn };
+    walker.lookPitch += (LOOK_DOWN - walker.lookPitch) * turn;
+    const view = hearthView(fire, side.current, Math.hypot(walker.x - fire.x, walker.z - fire.z));
+    scratch.eye.set(view.eye.x, view.eye.y, view.eye.z);
+    scratch.look.set(view.look.x, view.look.y, view.look.z);
+    scratch.matrix.lookAt(scratch.eye, scratch.look, scratch.up);
+    scratch.quaternion.setFromRotationMatrix(scratch.matrix);
+    ease(pose, scratch.eye, scratch.quaternion, HEARTH_FOV, k);
+    place(eye, pose);
+  } else if (pose.easing) {
+    // Back to wherever the walker put the camera this frame, until it is there.
+    const target = eye instanceof PerspectiveCamera ? eye.fov : HEARTH_FOV;
+    ease(pose, eye.position, eye.quaternion, target, k);
+    const arrived = pose.position.distanceTo(eye.position) < 0.01 && pose.quaternion.angleTo(eye.quaternion) < 0.003;
+    if (arrived) pose.easing = false;
+    else place(eye, pose);
+  }
+
+  // How hard it cooks, and how long the dish has been out.
+  if (session?.phase === "served") {
+    servedAt.current ??= hearth.time;
+    drive.served = hearth.time - servedAt.current;
+    drive.heat *= 1 - catchUp(COOL, seconds);
+  } else {
+    servedAt.current = null;
+    drive.served = null;
+    drive.heat = session?.phase === "cooking" ? 1 : 0;
+  }
 }
 
 function ease(pose: CameraPose, position: Vector3, quaternion: Quaternion, fov: number, k: number): void {

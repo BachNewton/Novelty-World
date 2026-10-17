@@ -35,8 +35,8 @@ export function sideOf(fire: Point3, at: { x: number; z: number }): number {
 export function hearthView(fire: Point3, side: number, distance: number): { eye: Point3; look: Point3 } {
   const d = Math.min(STANDS.far, Math.max(STANDS.near, distance));
   return {
-    eye: fromFire(fire, side, { x: 0.85, y: 1.85, z: d + 1.0 }),
-    look: fromFire(fire, side, { x: -0.05, y: 0.25, z: 0.55 }),
+    eye: fromFire(fire, side, { x: 1.3, y: 1.9, z: d + 0.7 }),
+    look: fromFire(fire, side, { x: 0.1, y: 0.3, z: 0.6 }),
   };
 }
 

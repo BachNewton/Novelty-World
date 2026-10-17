@@ -30,7 +30,7 @@ import { ForageOverlay } from "./forage-overlay";
 import { createForaging } from "./foraging";
 import { CompanionOverlay } from "./companion-overlay";
 import { createCompanionship } from "./companionship";
-import { CookingOverlay } from "./cooking-overlay";
+import { CookingOverlay, useCookingOn } from "./cooking-overlay";
 import { createHearth } from "./hearth";
 import { Interactions } from "./interactions";
 import { WorldAnimals } from "./world-animals";
@@ -131,6 +131,7 @@ export function WorldView() {
   const input = useWalkInput(surface);
   const [fireflies, setFireflies] = useState<Float32Array>(() => new Float32Array(0));
   useFrameStats();
+  const cooking = useCookingOn(hearth);
   const { atmosphere, sky, clock, walker, focus, streaming, air, freeCamera, weather, debug } = shared;
 
   return (
@@ -161,7 +162,7 @@ export function WorldView() {
         <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
         <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
-      <WalkHints input={input} />
+      {!cooking && <WalkHints input={input} />}
       <ForageOverlay foraging={foraging} hearth={hearth} clock={clock} input={input.kind} />
       <CompanionOverlay companionship={companionship} input={input.kind} />
       <CookingOverlay hearth={hearth} foraging={foraging} input={input.kind} />

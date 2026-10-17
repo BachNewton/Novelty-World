@@ -84,6 +84,11 @@ export function subscribeHearth(hearth: Hearth, listener: () => void): () => voi
   };
 }
 
+/** The scene says what a tap on the screen says of the fire, or that it can't be tapped. */
+export function answerFireTaps(hearth: Hearth, tapAt: Hearth["tapAt"]): void {
+  hearth.tapAt = tapAt;
+}
+
 /** The fire as something offered, like a berry or a cat: aimed at over its flames, reached from a few steps off. */
 export function offerableFire(hearth: Hearth): Offerable {
   const { camp } = hearth;

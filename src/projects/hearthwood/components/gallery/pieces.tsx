@@ -9,6 +9,11 @@ import type { Plant } from "../../engine/life";
 import { FORAGE_KINDS, PLACE_KINDS, PLANT_KINDS, REGION_CHARACTER, REGIONS, TREE_KINDS, type ForageKind, type PlaceKind, type PlantKind, type TreeKind } from "../../engine/regions";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { Campfire, type FireState } from "../../art/campfire";
+import { COOKWARE_LARGER, panShape, stickShape } from "../../art/cookware";
+import { readDishPalette } from "../../art/dish-looks";
+import { dishShape } from "../../art/dishes";
+import { DISH_SHOWN_LARGER } from "../../art/hearth-cooking";
+import { humbleId, type DishId } from "../../gameplay/recipes";
 import { forageShape, readForagePalette, type ForagePart } from "../../art/forage-shapes";
 import { Fireflies } from "../../art/fireflies";
 import { paint } from "../../art/painted";
@@ -23,6 +28,7 @@ import { Broom } from "../../art/broom";
 import { Witch, type WitchPose } from "../../art/witch";
 import { CatBody } from "../cats/cat-body";
 import { useFeature } from "../valley/feature-renderer";
+import { dishName } from "../valley/cooking-icons";
 import { FORAGE_NAMES } from "../valley/forage-icons";
 
 /*
@@ -158,6 +164,23 @@ function ForagePiece({ kind, variant, picked, context }: { kind: ForageKind; var
   );
 }
 
+/** A dish as it is served before the fire, or the cookware it is made in, drawn as large as the fire shows it. */
+function CookingPiece({ thing, context }: { thing: DishId | "pan" | "stick"; context: ArtContext }) {
+  const mesh = useMemo(() => {
+    const palette = readDishPalette();
+    const geometry = thing === "pan" ? panShape(palette) : thing === "stick" ? stickShape(palette, 1.9) : dishShape(thing, palette);
+    const made = new Mesh(geometry, context.materials.stone);
+    made.scale.setScalar(thing === "pan" ? COOKWARE_LARGER : thing === "stick" ? 1 : DISH_SHOWN_LARGER);
+    if (thing === "stick") made.rotation.z = -1.2;
+    made.castShadow = true;
+    return made;
+  }, [thing, context]);
+  useEffect(() => () => mesh.geometry.dispose(), [mesh]);
+  return <primitive object={mesh} />;
+}
+
+const GALLERY_DISHES: DishId[] = ["blueberry-pie", "lingonberry-porridge", "cloudberry-pancakes", "strawberries-and-cream", "chanterelle-toast", "mushroom-soup", "berry-tea", "lingonberry-stick-bread", "mushroom-skewers", humbleId("pan", "porcini")];
+
 const PLACE_NAMES: Record<PlaceKind, string> = {
   "stone-circle": "Stone circle",
   cairn: "Cairn and bench",
@@ -267,6 +290,30 @@ export const ART_PIECES: ArtPiece[] = [
     height: 1.5,
     render: (context) => <Campfire at={{ x: 0, y: 0, z: 0 }} seed="hearthwood/gallery/camp" palette={context.palette} atmosphere={context.atmosphere} fire={context.fire} />,
   },
+  {
+    id: "cooking/pan",
+    group: "Cooking",
+    label: "Cast-iron pan",
+    radius: 0.6,
+    height: 0.2,
+    render: (context) => <CookingPiece thing="pan" context={context} />,
+  },
+  {
+    id: "cooking/stick",
+    group: "Cooking",
+    label: "Roasting stick",
+    radius: 1,
+    height: 0.8,
+    render: (context) => <CookingPiece thing="stick" context={context} />,
+  },
+  ...GALLERY_DISHES.map((dish) => ({
+    id: `cooking/${dish}`,
+    group: "Cooking",
+    label: dishName(dish),
+    radius: dish.includes("stick") || dish.includes("skewers") ? 0.65 : 0.45,
+    height: 0.3,
+    render: (context: ArtContext) => <CookingPiece thing={dish} context={context} />,
+  })),
   {
     id: "camp/fireflies",
     group: "Camp",

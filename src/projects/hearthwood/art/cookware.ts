@@ -14,7 +14,7 @@ import { lumpy, paint, type Piece } from "./painted";
  */
 
 /** How much larger than life the cookware and what is in it are drawn. */
-export const COOKWARE_LARGER = 1.35;
+export const COOKWARE_LARGER = 1.6;
 
 const UP = new Vector3(0, 1, 0);
 
@@ -23,7 +23,7 @@ export const STICK_LINE = { butt: new Vector3(0.55, 0, 1.75), tip: new Vector3(-
 
 /** Where each way of cooking sits in the fire's frame: what is in it, and where its steam rises from. */
 export const COOKWARE_AT: Record<Cookware, { contents: Vector3; steam: Vector3 }> = {
-  pan: { contents: new Vector3(0, 0.6, 0.08), steam: new Vector3(0, 0.66, 0.08) },
+  pan: { contents: new Vector3(0, 0.7, 0.08), steam: new Vector3(0, 0.76, 0.08) },
   // The pot that hangs from camp's tripod.
   pot: { contents: new Vector3(0, 1.12, 0), steam: new Vector3(0, 1.2, 0) },
   stick: { contents: STICK_LINE.tip.clone(), steam: STICK_LINE.tip.clone().add(new Vector3(0, 0.06, 0)) },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useSyncExternalStore, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { BookOpen, Check, Flame, Hand, RotateCcw, ShoppingBasket, Sparkles, X } from "lucide-react";
 import { Prompt, PromptButton, type Binding } from "@/shared/components/prompts";
 import { usePadNavigation } from "@/shared/lib/gamepad";
@@ -40,7 +40,7 @@ const CHIP = "rounded-xl bg-(--color-hearthwood-valley-ui-ink)/10";
 const CHOSEN = "bg-(--color-hearthwood-valley-ui-ink)/30 ring-2 ring-(--color-hearthwood-valley-ui-ink) -translate-y-0.5";
 const FLAME = "text-(--color-hearthwood-valley-fire-flame)";
 
-function Tray({ hearth, session, basket, input }: { hearth: Hearth; session: Session; basket: Foraging["foraged"]["basket"]; input: InputKind }) {
+function Tray({ hearth, session, basket }: { hearth: Hearth; session: Session; basket: Foraging["foraged"]["basket"] }) {
   const foods = FOODS.filter((f) => basket[f] > 0);
   const full = session.chosen.length >= MOST_INGREDIENTS;
   const item = (ingredient: Ingredient, first: boolean) => {
@@ -83,7 +83,7 @@ function Choosing({ hearth, session, basket, input }: { hearth: Hearth; session:
   const ready = readyToCook(hearth);
   return (
     <>
-      <Tray hearth={hearth} session={session} basket={basket} input={input} />
+      <Tray hearth={hearth} session={session} basket={basket} />
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-1" aria-label="Chosen">
           {Array.from({ length: MOST_INGREDIENTS }, (_, i) => {
@@ -288,7 +288,8 @@ function AtTheFire({ hearth, foraging, session, input }: { hearth: Hearth; forag
   const { basket } = useSyncExternalStore(subscribeBasket, () => foraging.shown);
   const subscribe = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
   const { book } = useSyncExternalStore(subscribe, () => hearth.shown);
-  const openedOn = useRef(input);
+  // The input the card opened on decides whether a pad's focus shows as it opens; the input used later doesn't.
+  const [openedOn] = useState(input);
 
   useEffect(() => {
     // Choosing with the mouse needs the pointer back from looking round.
@@ -322,7 +323,7 @@ function AtTheFire({ hearth, foraging, session, input }: { hearth: Hearth; forag
 
   usePadNavigation(root, {
     enabled: !book,
-    reveal: openedOn.current === "pad",
+    reveal: openedOn === "pad",
     intercept: (edge) => {
       const s = hearth.shown.session;
       if (s === null) return false;
@@ -342,7 +343,7 @@ function AtTheFire({ hearth, foraging, session, input }: { hearth: Hearth; forag
   return (
     <>
       <div className="absolute inset-x-0 bottom-3 flex justify-center px-3">
-        <div ref={root} role="dialog" aria-label="Cooking at the fire" className={`flex w-full max-w-2xl flex-col items-stretch gap-3 px-3 py-3 ${PANEL} ${INK}`}>
+        <div ref={root} role="dialog" aria-label="Cooking at the fire" className={`flex w-full max-w-3xl flex-col items-stretch gap-3 px-3 py-3 ${PANEL} ${INK}`}>
           {session.phase === "choosing" && <Choosing hearth={hearth} session={session} basket={basket} input={input} />}
           {session.phase === "cooking" && <Cooking key={session.since} session={session} />}
           {session.phase === "served" && <Served hearth={hearth} session={session} input={input} />}
@@ -382,6 +383,12 @@ function AtTheFire({ hearth, foraging, session, input }: { hearth: Hearth; forag
       {book && <RecipeBook hearth={hearth} input={input} />}
     </>
   );
+}
+
+/** Whether Elliott sits cooking at the fire: walking's hints and buttons step aside while they do. */
+export function useCookingOn(hearth: Hearth): boolean {
+  const subscribe = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
+  return useSyncExternalStore(subscribe, () => hearth.shown.session !== null);
 }
 
 export function CookingOverlay({ hearth, foraging, input }: { hearth: Hearth; foraging: Foraging; input: InputKind }) {

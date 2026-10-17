@@ -9,7 +9,9 @@ describe("the camera at the hearth", () => {
     const towards = fromFire(fire, side, { x: 0, y: 0, z: 2 });
     expect(towards.x).toBeCloseTo(12);
     expect(towards.z).toBeCloseTo(-4);
-    expect(towardFire(side)).toBeCloseTo(-Math.PI / 2);
+    // Facing the fire from the east is facing west.
+    expect(Math.sin(towardFire(side))).toBeCloseTo(-1);
+    expect(Math.cos(towardFire(side))).toBeCloseTo(0);
   });
 
   it("looks from behind Elliott and above, down towards the fire, wherever they stand round it", () => {

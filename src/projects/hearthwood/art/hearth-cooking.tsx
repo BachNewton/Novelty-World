@@ -44,9 +44,9 @@ export interface HearthCookingProps {
 }
 
 /** How much larger than life the dish served is drawn, to read before the fire. */
-export const DISH_SHOWN_LARGER = 2.4;
+export const DISH_SHOWN_LARGER = 1.9;
 /** Where the dish rises to, in the fire's frame: between the flames and Elliott, over the ring of stones. */
-const DISH_AT = new Vector3(0, 0.95, 1.05);
+const DISH_AT = new Vector3(0.45, 1.05, 1.1);
 /** How long the dish takes to rise out of the steam, in seconds. */
 const RISE = 0.9;
 
@@ -74,7 +74,7 @@ uniform float uStrength;
 varying float vLife;
 void main() {
   float d = length(gl_PointCoord - 0.5);
-  float a = smoothstep(0.5, 0.05, d) * smoothstep(0.0, 0.15, vLife) * (1.0 - vLife) * 0.32 * uStrength;
+  float a = smoothstep(0.5, 0.05, d) * smoothstep(0.0, 0.15, vLife) * (1.0 - vLife) * 0.55 * uStrength;
   gl_FragColor = vec4(uSteam, a);
 }
 `;
@@ -177,42 +177,14 @@ export function HearthCooking({ at, side, cookware, ingredients, dish, palette, 
   useEffect(() => () => served?.dispose(), [served]);
 
   useFrame(() => {
-    const { heat, served: since } = drive.current;
-    const t = atmosphere.uHwTime.value;
-    const out = since === null ? 0 : Math.min(1, since / RISE);
-    // Steam from what cooks, lingering a little after; sizzle only from the pan and the stick, over the flames.
-    shared.steamMaterial.uniforms.uStrength.value = cookware === null ? 0 : 0.25 + 0.75 * heat * (1 - out * 0.6);
-    shared.steamMaterial.uniforms.uSpread.value = cookware === "pot" ? 0.1 : 0.06;
-    shared.sizzleMaterial.uniforms.uStrength.value = cookware === "pot" ? 0.25 * heat : heat * (1 - out);
-    shared.sizzleMaterial.uniforms.uSpread.value = cookware === "stick" ? 0.09 : 0.16;
-    const burst = since === null ? 0 : Math.max(0, 1 - Math.abs(since - RISE * 0.8) / 1.6);
-    shared.burstMaterial.uniforms.uStrength.value = 1.6 * burst + (since === null ? 0 : 0.35);
-    shared.burstMaterial.uniforms.uSpread.value = 0.28 + 0.25 * out;
-    if (contents.current) {
-      // What cooks bubbles and jumps in the pan; it is gone into the dish once served.
-      contents.current.visible = since === null || since < RISE * 0.35;
-      contents.current.position.y = Math.abs(Math.sin(t * 11)) * 0.012 * heat;
-      contents.current.rotation.y = Math.sin(t * 3.1) * 0.15 * heat;
-    }
-    if (pan.current) {
-      pan.current.position.x = Math.sin(t * 9) * 0.012 * heat * (1 - out);
-      pan.current.rotation.y = -0.7 + Math.sin(t * 4.7) * 0.05 * heat * (1 - out);
-    }
-    if (stick.current) stick.current.rotation.y = t * 1.6 * heat;
-    if (dishGroup.current) {
-      dishGroup.current.visible = since !== null;
-      const ease = 1 - (1 - out) ** 3;
-      dishGroup.current.scale.setScalar(DISH_SHOWN_LARGER * (0.3 + 0.7 * ease));
-      dishGroup.current.position.set(DISH_AT.x, DISH_AT.y - 0.45 * (1 - ease) + Math.sin(t * 1.4) * 0.02 * ease, DISH_AT.z * ease + 0.1 * (1 - ease));
-      dishGroup.current.rotation.y = t * 0.45;
-    }
+    animate(shared, { contents: contents.current, pan: pan.current, stick: stick.current, dish: dishGroup.current }, cookware, drive.current, atmosphere.uHwTime.value);
   });
 
   const where = cookware ? COOKWARE_AT[cookware] : null;
   return (
     <group position={[at.x, at.y, at.z]} rotation={[0, side, 0]}>
       {cookware === "pan" && (
-        <group position={[0, 0.54, 0.08]}>
+        <group position={[0, 0.64, 0.08]}>
           <group ref={pan} rotation={[0, -0.7, 0]}>
             <mesh geometry={shared.pan} material={shared.material} scale={COOKWARE_LARGER} castShadow />
           </group>
@@ -248,4 +220,42 @@ export function HearthCooking({ at, side, cookware, ingredients, dish, palette, 
       )}
     </group>
   );
+}
+
+interface Moving {
+  contents: Group | null;
+  pan: Group | null;
+  stick: Group | null;
+  dish: Group | null;
+}
+
+/** This moment of the cooking: the steam and sizzle by the heat, what cooks bubbling, the pan shaking, the stick turning, and the dish rising. */
+function animate(shared: { steamMaterial: ShaderMaterial; sizzleMaterial: ShaderMaterial; burstMaterial: ShaderMaterial }, parts: Moving, cookware: Cookware | null, { heat, served: since }: CookingDrive, t: number): void {
+  const out = since === null ? 0 : Math.min(1, since / RISE);
+  // Steam from what cooks, lingering a little after; sizzle only from the pan and the stick, over the flames.
+  shared.steamMaterial.uniforms.uStrength.value = cookware === null ? 0 : 0.25 + 0.75 * heat * (1 - out * 0.6);
+  shared.steamMaterial.uniforms.uSpread.value = cookware === "pot" ? 0.1 : 0.06;
+  shared.sizzleMaterial.uniforms.uStrength.value = cookware === "pot" ? 0.25 * heat : heat * (1 - out);
+  shared.sizzleMaterial.uniforms.uSpread.value = cookware === "stick" ? 0.09 : 0.16;
+  const burst = since === null ? 0 : Math.max(0, 1 - Math.abs(since - RISE * 0.8) / 1.6);
+  shared.burstMaterial.uniforms.uStrength.value = 1.6 * burst + (since === null ? 0 : 0.35);
+  shared.burstMaterial.uniforms.uSpread.value = 0.28 + 0.25 * out;
+  if (parts.contents) {
+    // What cooks bubbles and jumps in the pan; it is gone into the dish once served.
+    parts.contents.visible = since === null || since < RISE * 0.35;
+    parts.contents.position.y = Math.abs(Math.sin(t * 11)) * 0.012 * heat;
+    parts.contents.rotation.y = Math.sin(t * 3.1) * 0.15 * heat;
+  }
+  if (parts.pan) {
+    parts.pan.position.x = Math.sin(t * 9) * 0.012 * heat * (1 - out);
+    parts.pan.rotation.y = -0.7 + Math.sin(t * 4.7) * 0.05 * heat * (1 - out);
+  }
+  if (parts.stick) parts.stick.rotation.y = t * 1.6 * heat;
+  if (parts.dish) {
+    parts.dish.visible = since !== null;
+    const ease = 1 - (1 - out) ** 3;
+    parts.dish.scale.setScalar(DISH_SHOWN_LARGER * (0.3 + 0.7 * ease));
+    parts.dish.position.set(DISH_AT.x * ease, DISH_AT.y - 0.45 * (1 - ease) + Math.sin(t * 1.4) * 0.02 * ease, DISH_AT.z * ease + 0.1 * (1 - ease));
+    parts.dish.rotation.y = t * 0.45;
+  }
 }
