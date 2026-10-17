@@ -13,7 +13,7 @@ import {
   opponentsInOrder,
   type Board,
 } from "../rule-v1/board";
-import { CARD_DISCOUNT, CARD_WORTH, DRAW_CHANCE, handWorth, hiddenHand, policyTrade, type Shape } from "../rule-v1/cards";
+import { CARD_DISCOUNT, CARD_WORTH, DRAW_CHANCE, forcedTrade, handWorth, hiddenHand, policyTrade, type Shape } from "../rule-v1/cards";
 import { battleOutcome, exchange, pathRun, winProb } from "../rule-v1/odds";
 import type { Params } from "./params";
 import { killChance } from "./routes";
@@ -29,6 +29,17 @@ const EMPTY: Shape = [0, 0, 0, 0];
 /** What an empty hand is worth: the cards to come, which every player draws alike and
  *  income counts instead. A hand is worth what it adds to that. */
 const NO_HAND = handWorth(EMPTY, 0);
+
+/** What a killer holding `own` cards gains from a victim's `taken` (v3): their worth as
+ *  cards, or, when the two hands make 5 or more, the forced trade at once (`ELIM-3`) and
+ *  what the hand kept is worth. v2 counted the cards only at their long-run worth, so a
+ *  card-rich player left weakened for the next seat to finish looked like a small gift,
+ *  though it hands that seat a set's armies in the middle of its turn. */
+export function gift(own: number, taken: number): number {
+  if (own + taken < 5) return hiddenCards(taken);
+  const { armies, kept } = forcedTrade(own + taken);
+  return armies + hiddenCards(kept) - hiddenCards(own);
+}
 
 /** What `n` cards nobody but their holder has seen are worth, in armies now. */
 export function hiddenCards(n: number): number {
@@ -136,7 +147,7 @@ export function breakdown(b: Board, me: Seat, params: Params): Breakdown {
     if (victim < 0) continue;
     spared[victim] *= 1 - bestTaken;
     if (victim === me) continue;
-    power[q] += bestTaken * hiddenCards(b.handSize[victim]);
+    power[q] += bestTaken * gift(b.handSize[q], b.handSize[victim]);
     power[victim] *= 1 - bestTaken;
   }
   let total = 0;
