@@ -2,6 +2,7 @@ import { sunDay } from "./astronomy";
 import { CALENDAR, dateAt, secondsPerDay, type CalendarDate, type CalendarTuning } from "./calendar";
 import { clamp, gradientNoise, lerp, smoothstep, type Noise2 } from "./noise";
 import { REGIONS, type Region, type RegionWeights } from "./regions";
+import { groundSeason } from "./seasons";
 
 /*
  * The weather, as pure functions of the world's seed and the calendar's
@@ -65,6 +66,9 @@ const DRIFT = {
   shower: 4,
 } as const;
 
+/** How much colder the air is per metre of height, °C. */
+const LAPSE = 0.0065;
+
 /** How each region nudges the weather over it. */
 const REGION_WEATHER: Record<Region, { humidity: number; cloud: number; temperature: number }> = {
   greenwood: { humidity: 0, cloud: 0, temperature: 0 },
@@ -82,8 +86,8 @@ const WET_MEMORY = 30;
 const WET_STEP = 1.5;
 
 export interface WeatherAt {
-  /** The weather at a time (seconds since the calendar began), over a point's mix of regions when given. */
-  at: (seconds: number, regions?: RegionWeights) => Weather;
+  /** The weather at a time (seconds since the calendar began), over a point's mix of regions when given, at a height (metres) when given: colder up high, and snow wherever the season's snow lies. */
+  at: (seconds: number, regions?: RegionWeights, altitude?: number) => Weather;
 }
 
 /** A slice through 2D noise along time, on a lane of its own, in about [-1, 1]. */
@@ -128,16 +132,17 @@ export function makeWeather(seed: string, tuning: CalendarTuning = CALENDAR): We
   const hoursOf = (seconds: number) => (seconds / secondsPerDay(tuning)) * 24;
 
   /** The fields that fall from the sky at a moment, before the ground and the air are worked out from them. */
-  const fields = (seconds: number, nudge: { humidity: number; cloud: number; temperature: number }): Fields => {
+  const fields = (seconds: number, nudge: { humidity: number; cloud: number; temperature: number }, altitude: number): Fields => {
     const hours = hoursOf(seconds);
     const date = dateAt(seconds, tuning);
     const cloudNoise = drift(noise, hours, DRIFT.cloud, 11);
+    const { snowLine } = groundSeason(date.realDayOfYear);
     const humidityNoise = drift(noise, hours, DRIFT.humidity, 7);
     const swing = dailySwing(date.hour, 1);
     // Cloud follows the humidity, and a season of its own: grey autumns, brighter summers.
     const cloudCover = clamp(0.45 + 0.95 * cloudNoise + 0.3 * humidityNoise + SEASON_CLOUD[date.season] + nudge.cloud, 0, 1);
     const amplitude = lerp(1.5, 4.5, smoothstep(40, 200, date.realDayOfYear) * (1 - smoothstep(230, 320, date.realDayOfYear))) * (1 - 0.6 * cloudCover);
-    const temperature = seasonalTemperature(date.realDayOfYear) + 4 * drift(noise, hours, DRIFT.temperature, 3) + swing * amplitude + nudge.temperature;
+    const temperature = seasonalTemperature(date.realDayOfYear) + 4 * drift(noise, hours, DRIFT.temperature, 3) + swing * amplitude + nudge.temperature - LAPSE * altitude;
     // Relative humidity rises as the air cools in the night, and under cloud.
     const humidity = clamp(0.58 + 0.3 * humidityNoise - 0.12 * swing + 0.15 * (cloudCover - 0.5) + nudge.humidity, 0, 1);
     // Showers come and go within a spell of rain, so a wet day has its breaks.
@@ -150,12 +155,13 @@ export function makeWeather(seed: string, tuning: CalendarTuning = CALENDAR): We
       cloudCover,
       heaped: clamp(0.55 + 0.6 * drift(noise, hours, DRIFT.heaped, 23) - 0.5 * smoothstep(0.75, 1, cloudCover) + 0.2 * smoothstep(8, 20, temperature), 0, 1),
       precipitation,
-      snow: smoothstep(2, -1, temperature),
+      // Snow when it is cold, and always where the season's snow lies on the ground, so what falls is what lies.
+      snow: Math.max(smoothstep(2, -1, temperature), smoothstep(snowLine - 120, snowLine + 60, altitude)),
     };
   };
 
   return {
-    at(seconds, regions) {
+    at(seconds, regions, altitude = 0) {
       const nudge = { humidity: 0, cloud: 0, temperature: 0 };
       if (regions) {
         REGIONS.forEach((region, i) => {
@@ -164,7 +170,7 @@ export function makeWeather(seed: string, tuning: CalendarTuning = CALENDAR): We
           nudge.temperature += REGION_WEATHER[region].temperature * regions[i];
         });
       }
-      const now = fields(seconds, nudge);
+      const now = fields(seconds, nudge, altitude);
       const hours = hoursOf(seconds);
       const date = dateAt(seconds, tuning);
 
@@ -172,7 +178,7 @@ export function makeWeather(seed: string, tuning: CalendarTuning = CALENDAR): We
       let wetness = 0;
       let puddles = 0;
       for (let back = WET_MEMORY; back >= 0; back -= WET_STEP) {
-        const then = back === 0 ? now : fields(seconds - (back / 24) * secondsPerDay(tuning), nudge);
+        const then = back === 0 ? now : fields(seconds - (back / 24) * secondsPerDay(tuning), nudge, altitude);
         const rain = then.precipitation * (1 - then.snow);
         const drying = (0.05 + 0.012 * Math.max(0, then.temperature)) * (1 - 0.5 * then.cloudCover);
         wetness = clamp(wetness + rain * 0.9 - drying * WET_STEP * 0.35, 0, 1);

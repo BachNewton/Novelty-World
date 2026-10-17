@@ -77,10 +77,10 @@ class WeatherWatch {
     this.lightning = makeLightning(world.seed);
   }
 
-  tick(clock: ValleyClock, x: number, z: number, delta: number): void {
+  tick(clock: ValleyClock, x: number, y: number, z: number, delta: number): void {
     const { world, now, floor } = this;
     world.regionAt(x, z, undefined, now.regions);
-    const drifting = this.sky.at(clock.time, now.regions);
+    const drifting = this.sky.at(clock.time, now.regions, y);
     now.weather = now.held === null ? drifting : holdWeather(now.held, drifting);
     // Without the lightning feature there is no flash at all, for the rain or anything else.
     now.flash = liveFeatures().isOn("lightning") ? this.lightning(clock.motion, now.weather.storm) : 0;
@@ -101,7 +101,7 @@ class WeatherWatch {
 export function WeatherTicker({ world, clock, now, air }: { world: World; clock: ValleyClock; now: SceneWeather; air: Air }) {
   const watch = useMemo(() => new WeatherWatch(world, now, air), [world, now, air]);
   useFrame(({ camera }, delta) => {
-    watch.tick(clock, camera.position.x, camera.position.z, delta);
+    watch.tick(clock, camera.position.x, camera.position.y, camera.position.z, delta);
   }, WEATHER_PRIORITY);
   return null;
 }

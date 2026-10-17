@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CALENDAR, dateAt, secondsPerDay, timeOf } from "./calendar";
 import { REGIONS } from "./regions";
+import { groundSeason } from "./seasons";
 import { dailySwing, holdWeather, makeLightning, makeWeather, mistHour, parseWeather, seasonalTemperature, WEATHER_KINDS, type Weather } from "./weather";
 
 const DAY = secondsPerDay();
@@ -55,12 +56,12 @@ describe("the weather", () => {
     expect(at(15)).toBeGreaterThan(at(5) + 2);
   });
 
-  it("rains some of the time and is dry most of it, and snows only when it is cold", () => {
+  it("rains some of the time and is dry most of it, and snows only when it is cold or the season's snow lies", () => {
     const wet = all.filter((s) => s.weather.precipitation > 0.1).length / all.length;
     expect(wet).toBeGreaterThan(0.04);
     expect(wet).toBeLessThan(0.45);
-    for (const { weather: w } of all) {
-      if (w.precipitation * w.snow > 0.05) expect(w.temperature).toBeLessThan(2);
+    for (const { seconds, weather: w } of all) {
+      if (w.precipitation * w.snow > 0.05) expect(w.temperature < 2 || groundSeason(dateAt(seconds).realDayOfYear).snowLine < 120).toBe(true);
       if (w.precipitation > 0) expect(w.cloudCover).toBeGreaterThan(0.5);
     }
   });
@@ -138,5 +139,15 @@ describe("lightning", () => {
     expect(lit).toBeLessThan(0.08);
     expect(Math.max(...readings)).toBeLessThanOrEqual(1);
     expect(flash(123.4, 1)).toBe(makeLightning("first-valley")(123.4, 1));
+  });
+});
+
+describe("the weather with height", () => {
+  it("runs colder up high, and snows where the season's snow lies", () => {
+    const t = timeOf(10, 12);
+    expect(sky.at(t, undefined, 800).temperature).toBeLessThan(sky.at(t, undefined, 0).temperature - 4);
+    // Deep in winter the snow lies everywhere, so whatever falls is snow.
+    const winter = timeOf(23, 12);
+    expect(sky.at(winter, undefined, 50).snow).toBe(1);
   });
 });
