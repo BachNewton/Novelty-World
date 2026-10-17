@@ -1,9 +1,10 @@
-import { BufferAttribute, BufferGeometry, DoubleSide, MeshLambertMaterial, Vector2, Vector3, type WebGLProgramParametersWithUniforms, type WebGLRenderer } from "three";
+import { BufferAttribute, BufferGeometry, DoubleSide, MeshLambertMaterial, Vector2, Vector3 } from "three";
 import { ALTITUDE } from "../engine/land";
 import { REGIONS, type Region } from "../engine/regions";
 import type { LandTile } from "../engine/tiles";
-import { breatheAtmosphere, type AtmosphereUniforms } from "./atmosphere";
+import type { AtmosphereUniforms } from "./atmosphere";
 import type { Palette, RegionGround, Thing } from "./palette";
+import { shadeLambert } from "./shading";
 
 /*
  * A tile of land as a mesh, and the material that paints it. Each vertex
@@ -228,18 +229,12 @@ export function terrainMaterial(atmosphere: AtmosphereUniforms, palette: Palette
     uTreeReach: { value: treeReach },
   };
   // Skirts face whichever way their edge runs, so the land is drawn from both sides.
-  const material = breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), atmosphere, { grain: true });
-  const breathe = material.onBeforeCompile.bind(material);
-  material.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms, renderer: WebGLRenderer) => {
-    breathe(shader, renderer);
-    Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${VERTEX_HEADER}`)
-      .replace("#include <begin_vertex>", `#include <begin_vertex>\n${VERTEX_MAIN}`);
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>\n${FRAGMENT_HEADER}`)
-      .replace("#include <color_fragment>", `#include <color_fragment>\n${GROUND}`);
-  };
-  material.customProgramCacheKey = () => "hearthwood:terrain";
-  return material;
+  return shadeLambert(new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), "land", atmosphere, {
+    key: "terrain",
+    uniforms,
+    vertexHead: VERTEX_HEADER,
+    vertex: VERTEX_MAIN,
+    fragmentHead: FRAGMENT_HEADER,
+    surface: GROUND,
+  });
 }

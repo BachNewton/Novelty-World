@@ -9,6 +9,7 @@ import { mainRegion, REGIONS } from "../../engine/regions";
 import type { World } from "../../engine/world";
 import type { Palette } from "../../art/palette";
 import { holdHour, type ValleyClock } from "./clock";
+import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
 import type { CameraView, Walker } from "./walker";
 import type { Streaming } from "./world-land";
@@ -294,6 +295,6 @@ export function WorldProbeHandle({
     }
     last.current = now;
     frames.current++;
-  });
+  }, AFTER_RENDER_PRIORITY);
   return null;
 }

@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { BackSide, Color, ShaderMaterial, SphereGeometry, Vector3, type Mesh } from "three";
+import { BackSide, Color, SphereGeometry, Vector3, type Mesh } from "three";
 import type { AtmosphereUniforms } from "./atmosphere";
 import type { Palette } from "./palette";
+import { shadeCustom } from "./shading";
 
 /*
  * The sky: a dome round the camera, from the haze at the horizon (so the
@@ -36,9 +37,11 @@ export function makeSkyUniforms(palette: Palette): SkyUniforms {
 
 const VERTEX = /* glsl */ `
 varying vec3 vDir;
+#include <hw_vertex_head>
 void main() {
   vDir = position;
   vec4 world = modelMatrix * vec4(position, 1.0);
+  vHwWorld = world.xyz;
   gl_Position = projectionMatrix * viewMatrix * world;
   // On the far plane, and drawn after everything else, so it only fills what nothing covers.
   #ifdef USE_REVERSED_DEPTH_BUFFER
@@ -50,10 +53,6 @@ void main() {
 `;
 
 const FRAGMENT = /* glsl */ `
-uniform vec3 uHwHaze;
-uniform vec3 uHwSunColor;
-uniform vec3 uHwSunDir;
-uniform float uHwTime;
 uniform vec3 uSky;
 uniform vec3 uMoonDir;
 uniform float uNight;
@@ -61,6 +60,7 @@ uniform vec3 uSunDisc;
 uniform vec3 uMoon;
 uniform vec3 uStar;
 varying vec3 vDir;
+#include <hw_fragment_head>
 
 float hash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 
@@ -84,7 +84,9 @@ void main() {
   float twinkle = 0.7 + 0.3 * sin(uHwTime * (1.5 + 3.0 * star) + star * 40.0);
   colour += uStar * spot * step(0.986, star) * twinkle * uNight * smoothstep(0.02, 0.25, up) * (0.6 + 2.0 * (star - 0.986) / 0.014);
 
-  gl_FragColor = vec4(colour, 1.0);
+  vec3 hwColour = colour;
+  #include <hw_colour>
+  gl_FragColor = vec4(hwColour, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }
@@ -95,8 +97,8 @@ export function Sky({ atmosphere, sky }: { atmosphere: AtmosphereUniforms; sky: 
   const assets = useMemo(
     () => ({
       geometry: new SphereGeometry(DOME_RADIUS, 32, 16),
-      material: new ShaderMaterial({
-        uniforms: { ...atmosphere, ...sky },
+      material: shadeCustom("sky", atmosphere, {
+        uniforms: { ...sky },
         vertexShader: VERTEX,
         fragmentShader: FRAGMENT,
         side: BackSide,
