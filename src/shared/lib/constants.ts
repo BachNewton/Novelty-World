@@ -160,6 +160,13 @@ export const PROJECTS: Project[] = [
     icon: "Gamepad2",
   },
   {
+    name: "Prompt Glyphs",
+    slug: "prompt-glyphs",
+    description: "Every key, button and mouse prompt the games draw, and what each game binds them to",
+    categorySlug: "tools",
+    icon: "Keyboard",
+  },
+  {
     name: "Connection Test",
     slug: "connection-test",
     description: "Host and join a room from two devices and measure the round trip between them",

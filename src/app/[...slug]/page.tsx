@@ -53,6 +53,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   "controller-tester": dynamic(() =>
     import("@/projects/controller-tester").then((m) => ({ default: m.ControllerTester })),
   ),
+  "prompt-glyphs": dynamic(() =>
+    import("@/projects/prompt-glyphs").then((m) => ({ default: m.PromptGlyphs })),
+  ),
   "connection-test": dynamic(() =>
     import("@/projects/connection-test").then((m) => ({ default: m.ConnectionTest })),
   ),

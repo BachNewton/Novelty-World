@@ -29,7 +29,9 @@ import { cn } from "@/shared/lib/utils";
  * site's tokens.
  */
 
-export type PadGlyph = "A" | "B" | "X" | "Y" | "LB" | "RB" | "LT" | "RT" | "L3" | "R3" | "View" | "Menu" | "DpadUp" | "DpadDown" | "DpadLeft" | "DpadRight" | "DpadLeftRight" | "DpadUpDown";
+/** Every pad glyph there is a drawing of. */
+export const PAD_GLYPHS = ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "L3", "R3", "View", "Menu", "DpadUp", "DpadDown", "DpadLeft", "DpadRight", "DpadLeftRight", "DpadUpDown"] as const;
+export type PadGlyph = (typeof PAD_GLYPHS)[number];
 
 /** The prompt scale: a glyph is this many ems tall, of the text it sits beside. */
 const GLYPH_EM = 1.5;
@@ -63,18 +65,49 @@ const FACE_COLOUR: Record<"A" | "B" | "X" | "Y", string> = {
 /** The height of a capital in the labels' font, Space Grotesk, in ems of its size. */
 const CAP_HEIGHT = 0.7;
 
-/** How far a label's ink sits off the middle of its advance in that font, in
- *  ems, measured: a letter's side bearings differ (an L's ink leans left), so
- *  centring the advance alone leaves it a fraction of a pixel off. */
-const INK_SHIFT: Partial<Record<string, number>> = { L: 0.024, R: 0.014, F: 0.018, LB: 0.013, RB: 0.013, LT: 0.021, RT: 0.021, Tab: -0.009, Enter: 0.022, Esc: 0.017 };
+/** How far a label's ink sits off the box it is centred by, in ems of that
+ *  font, measured (bold, from the canvas's ink bounds): across, off the middle
+ *  of its advance, as side bearings differ (an L's ink leans left); down, off
+ *  the capitals' middle, for a symbol, whose ink is nowhere near the capitals
+ *  (a bracket reaches above them and a quarter em below the baseline, a comma
+ *  sits on it). Words and letters keep the capitals' middle, so a Q's tail and
+ *  Space's p hang below it as text does. A label absent here is centred within
+ *  a hundredth of an em. */
+const INK_OFFSET: Partial<Record<string, readonly [x: number, y: number]>> = {
+  E: [0.02, 0],
+  F: [0.022, 0],
+  K: [0.031, 0],
+  L: [0.026, 0],
+  P: [0.018, 0],
+  R: [0.012, 0],
+  "1": [-0.031, 0],
+  LB: [0.012, 0],
+  RB: [0.012, 0],
+  LT: [0.018, 0],
+  RT: [0.018, 0],
+  Tab: [-0.014, 0],
+  Esc: [0.019, 0],
+  Enter: [0.021, 0],
+  "[": [0.024, 0.094],
+  "]": [-0.023, 0.094],
+  ";": [0, 0.172],
+  "'": [0, -0.203],
+  ",": [0, 0.336],
+  ".": [0, 0.266],
+  "/": [0, 0.102],
+  "\\": [0, 0.102],
+  "-": [0, 0.102],
+  "`": [0, -0.273],
+};
 
 /** A label filling its shape, its ink centred on (x, y): across by its
- *  measured ink, and down by the capitals' box. The font's own middle
- *  (`dominant-baseline: central`) sits below the capitals' middle, so the
- *  baseline is set from the capitals' height instead. */
+ *  measured ink, and down by the capitals' box, or a symbol's measured ink.
+ *  The font's own middle (`dominant-baseline: central`) sits below the
+ *  capitals' middle, so the baseline is set from the capitals' height instead. */
 function Label({ x, y, size, fill = INK, children }: { x: number; y: number; size: number; fill?: string; children: string }) {
+  const [inkX, inkY] = INK_OFFSET[children] ?? [0, 0];
   return (
-    <text x={x - (INK_SHIFT[children] ?? 0) * size} y={y + (CAP_HEIGHT * size) / 2} textAnchor="middle" fontSize={size} fontWeight={700} fill={fill} fontFamily="inherit">
+    <text x={x - inkX * size} y={y + (CAP_HEIGHT / 2 - inkY) * size} textAnchor="middle" fontSize={size} fontWeight={700} fill={fill} fontFamily="inherit">
       {children}
     </text>
   );
@@ -222,6 +255,8 @@ const KEY_SYMBOLS: Record<string, { width: number; shape: ReactNode }> = {
  *  takes an average letter's width. */
 const KEY_NAME_EM: Partial<Record<string, number>> = { Tab: 1.72, Esc: 1.66, Enter: 2.57, Space: 2.98 };
 const KEY_LETTER_EM = 0.6;
+/** The keys with a drawing or a measured cap of their own; any other label gets a plain keycap. */
+export const NAMED_KEYS: readonly string[] = [...Object.keys(KEY_SYMBOLS), ...Object.keys(KEY_NAME_EM)];
 /** The space either side of a long key name, inside its cap. */
 const KEY_PADDING = 5;
 
@@ -246,9 +281,12 @@ function keyShape(label: string): { width: number; shape: ReactNode } {
 }
 
 const MOUSE_BUTTONS = { left: "M12 2.75A6.25 6.25 0 0 0 5.75 9v1.5H12z", right: "M12 2.75A6.25 6.25 0 0 1 18.25 9v1.5H12z" };
+export type MouseGlyph = keyof typeof MOUSE_BUTTONS;
+/** Every mouse glyph there is a drawing of. */
+export const MOUSE_GLYPHS = Object.keys(MOUSE_BUTTONS) as MouseGlyph[];
 
 /** The mouse, its pressed button filled. */
-function mouseShape(pressed: "left" | "right"): { width: number; shape: ReactNode } {
+function mouseShape(pressed: MouseGlyph): { width: number; shape: ReactNode } {
   return {
     width: 24,
     shape: (
@@ -262,7 +300,7 @@ function mouseShape(pressed: "left" | "right"): { width: number; shape: ReactNod
 }
 
 /** A control as the player presses it: a pad button, a key, or a mouse button. */
-export type Control = { pad: PadGlyph } | { key: string } | { mouse: "left" | "right" };
+export type Control = { pad: PadGlyph } | { key: string } | { mouse: MouseGlyph };
 
 /** One control's glyph: the control's own shape, sized with the text beside it. */
 export function ControlGlyph({ control, className = "" }: { control: Control; className?: string }) {

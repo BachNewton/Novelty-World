@@ -25,6 +25,7 @@ import {
   Sailboat,
   Blocks,
   Gamepad2,
+  Keyboard,
   Ghost,
   FlaskConical,
   ChevronRight,
@@ -52,6 +53,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Sailboat,
   Blocks,
   Gamepad2,
+  Keyboard,
   Ghost,
   FlaskConical,
 };

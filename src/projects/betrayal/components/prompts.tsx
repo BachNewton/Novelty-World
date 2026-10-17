@@ -18,7 +18,7 @@ export type Meaning = "end-turn" | "explorer" | "menu" | "follow" | "details" | 
 /** Each meaning's control on a pad and on the keyboard, and whether it is a
  *  hold that fills before it acts. Touch has none, and a pad none for a
  *  button it reaches with the d-pad and presses with A (Why). */
-const MAP: Record<Meaning, Binding> = {
+export const BINDINGS: Record<Meaning, Binding> = {
   "end-turn": { pad: "X", key: "Backspace", fills: true },
   explorer: { pad: "Y", key: "I", fills: false },
   menu: { pad: "Menu", key: "M", fills: false },
@@ -33,17 +33,17 @@ const MAP: Record<Meaning, Binding> = {
 
 /** The control for a meaning on an input, or null where it has none (touch, or a key it lacks). */
 export function controlFor(meaning: Meaning, input: InputKind): Control | null {
-  return bindingControl(MAP[meaning], input);
+  return bindingControl(BINDINGS[meaning], input);
 }
 
 /** A meaning's glyph, for the input the player last used, or nothing on touch. */
 export function Prompt({ meaning, input, className }: { meaning: Meaning; input: InputKind; className?: string }) {
-  return <BindingPrompt binding={MAP[meaning]} input={input} className={className} />;
+  return <BindingPrompt binding={BINDINGS[meaning]} input={input} className={className} />;
 }
 
 /** A button with its meaning's prompt (the shared `PromptButton`). */
 export function PromptButton({ meaning, ...button }: ComponentProps<"button"> & { meaning: Meaning; input: InputKind; hold?: Hold }) {
-  return <BindingButton binding={MAP[meaning]} {...button} />;
+  return <BindingButton binding={BINDINGS[meaning]} {...button} />;
 }
 
 /** With a controller, the button its focus is on shows it plainly: a thick
