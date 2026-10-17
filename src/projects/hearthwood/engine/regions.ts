@@ -14,7 +14,7 @@ import type { LandSample } from "./land";
 export const REGIONS = ["greenwood", "birchvale", "highlands", "heath", "maplewood"] as const;
 export type Region = (typeof REGIONS)[number];
 
-export const PLANT_KINDS = ["conifer", "pine", "broadleaf", "birch", "aspen", "maple", "bush", "heather", "fern", "mushroom", "flowers", "rock"] as const;
+export const PLANT_KINDS = ["conifer", "pine", "broadleaf", "birch", "aspen", "maple", "bush", "heather", "fern", "flowers", "rock"] as const;
 export type PlantKind = (typeof PLANT_KINDS)[number];
 export type TreeKind = Extract<PlantKind, "conifer" | "pine" | "broadleaf" | "birch" | "aspen" | "maple">;
 export const TREE_KINDS: readonly TreeKind[] = ["conifer", "pine", "broadleaf", "birch", "aspen", "maple"];

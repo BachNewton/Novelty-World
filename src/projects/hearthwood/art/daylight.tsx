@@ -10,8 +10,8 @@ import type { MomentPart, Palette } from "./palette";
 import type { SkyUniforms } from "./sky";
 
 /*
- * The day's light, set each frame from the hour: the sun (or the moon) and
- * its shadows round a point of focus, the light from the sky and the ground,
+ * The day's light, set each frame from the hour: the sun (or the moon) shining
+ * on a point of focus, the light from the sky and the ground,
  * the haze and the shadows' tint, the sky's colours and the camera's
  * exposure. Runs before everything else that draws, so the whole frame reads
  * the same hour.
@@ -33,7 +33,7 @@ export interface DayState {
   motion: number;
 }
 
-/** Where the light centres its shadows. */
+/** Where the light shines towards. Its shadows are a feature of their own (`art/shadows/`), drawn round the camera's view. */
 export interface Focus {
   x: number;
   y: number;
@@ -45,13 +45,6 @@ export interface Air {
   thickness: number;
 }
 
-export interface Shadows {
-  /** Texels along each side of the shadow map. */
-  map: number;
-  /** How far round the focus the sun's shadows reach, in metres. */
-  reach: number;
-}
-
 interface DaylightParts {
   day: DayState;
   palette: Palette;
@@ -59,7 +52,6 @@ interface DaylightParts {
   sky: SkyUniforms;
   focus: Focus;
   air: Air;
-  shadows: Shadows;
 }
 
 interface Lights {
@@ -67,19 +59,6 @@ interface Lights {
   ambient: HemisphereLight | null;
   target: Object3D;
   gl: WebGLRenderer;
-}
-
-/** The sun's shadows cover a square round the focus, and follow it. */
-function aimShadows(light: DirectionalLight, target: Object3D, reach: number): void {
-  light.target = target;
-  const camera = light.shadow.camera;
-  camera.left = -reach;
-  camera.right = reach;
-  camera.top = reach;
-  camera.bottom = -reach;
-  camera.near = 1;
-  camera.far = 400;
-  camera.updateProjectionMatrix();
 }
 
 function lightTheWorld({ day, palette, atmosphere, sky, focus, air }: DaylightParts, { sun, ambient, target, gl }: Lights): void {
@@ -127,11 +106,10 @@ export function Daylight(parts: DaylightParts) {
   const ambient = useRef<HemisphereLight>(null);
   const gl = useThree((s) => s.gl);
   const target = useMemo(() => new Object3D(), []);
-  const { map, reach } = parts.shadows;
 
   useEffect(() => {
-    if (sun.current) aimShadows(sun.current, target, reach);
-  }, [target, reach]);
+    if (sun.current) sun.current.target = target;
+  }, [target]);
 
   // The lights shine on every layer, so what is drawn late (see `passes.ts`) is lit like the rest.
   useEffect(() => {
@@ -145,7 +123,7 @@ export function Daylight(parts: DaylightParts) {
 
   return (
     <>
-      <directionalLight ref={sun} castShadow shadow-mapSize={[map, map]} shadow-bias={-0.0008} shadow-normalBias={0.22} />
+      <directionalLight ref={sun} />
       <primitive object={target} />
       <hemisphereLight ref={ambient} />
     </>

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { allOn, FeatureSwitches, type FeatureId } from "../features";
 import type { FeatureArt } from "./feature-art";
 import { FEATURE_ART } from "./features";
-import { checkFeatureArt, featureUniforms, fillHooks, kindDefines, patchLambert, ShadingVariants } from "./shading";
+import { checkFeatureArt, featureUniforms, fillHooks, kindDefines, patchLambert, patchVertex, ShadingVariants } from "./shading";
 
 // Two stand-in features, under two of the real ids, so the tests hold whatever the real features do.
 const [A, B] = Object.keys(allOn()) as FeatureId[];
@@ -79,6 +79,14 @@ describe("the shared materials", () => {
     land.dispose();
     switches.set(B, false);
     expect(Object.keys(land.defines ?? {})).toHaveLength(2);
+  });
+
+  it("move a twin's vertices (a shadow caster's) as their own, from any of three's vertex shaders", () => {
+    const own = { key: "test", vertexHead: "uniform float uOwn;", vertex: "transformed.y += uOwn;" };
+    const depth = patchVertex(ShaderLib.depth.vertexShader, ART, "foliage", own);
+    expect(depth).toContain("transformed.y += uOwn;");
+    expect(depth).toMatch(/#ifdef HW_\w+\n\{\ntransformed\.x \+= uTestA;\n\}\n#endif/);
+    expect(depth.indexOf("transformed.y += uOwn;")).toBeGreaterThan(depth.indexOf("#include <begin_vertex>"));
   });
 
   it("refuse art that can't be compiled in", () => {

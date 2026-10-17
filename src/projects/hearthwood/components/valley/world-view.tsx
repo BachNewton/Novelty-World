@@ -142,7 +142,6 @@ export function WorldView() {
     <div ref={surface} data-testid="hearthwood-world" className="relative h-dvh w-full touch-none overflow-hidden select-none" style={PROMPT_COLOURS}>
       <Canvas
         dpr={[1, QUALITY.maxPixelRatio]}
-        shadows="percentage"
         // A reversed depth buffer keeps depth precise from a hand's breadth to the horizon a hundred kilometres off.
         gl={{ antialias: true, powerPreference: "high-performance", reversedDepthBuffer: true }}
         camera={{ fov: 55, near: 0.2, far: QUALITY.viewDistance * 1.2 }}
@@ -151,9 +150,9 @@ export function WorldView() {
         }}
       >
         <Ticker clock={clock} world={world} air={air} weather={weather} />
-        <Daylight day={clock} palette={palette} atmosphere={atmosphere} sky={sky} focus={focus} air={air} shadows={{ map: QUALITY.shadowMap, reach: QUALITY.shadowReach }} />
+        <Daylight day={clock} palette={palette} atmosphere={atmosphere} sky={sky} focus={focus} air={air} />
         <Sky atmosphere={atmosphere} sky={sky} />
-        <FeatureRenderer day={clock} atmosphere={atmosphere} sky={sky} costs={debug.costs} />
+        <FeatureRenderer day={clock} atmosphere={atmosphere} sky={sky} costs={debug.costs} player={focus} />
         <WorldLand world={world} palette={palette} atmosphere={atmosphere} sky={sky} quality={QUALITY} streaming={streaming} />
         <WorldPlants world={world} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />
         <WorldPlaces world={world} palette={palette} atmosphere={atmosphere} sky={sky} streaming={streaming} />
