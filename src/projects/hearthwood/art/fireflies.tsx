@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, ShaderMaterial } from "three";
 import type { AtmosphereUniforms } from "./atmosphere";
 import type { Palette } from "./palette";
-import type { SkyUniforms } from "./sky";
+import type { SkyUniforms } from "./sky/sky";
 
 /*
  * Fireflies drifting and blinking where they are put (x, y, z each), out

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moonAt, sunAt, sunDay, sunLongitude, type Crossing, type Direction } from "./astronomy";
+import { celestialFrame, moonAt, sunAt, sunDay, sunLongitude, type Crossing, type Direction } from "./astronomy";
 import { realDayOf } from "./calendar";
 
 const HELSINKI = 60.17;
@@ -134,5 +134,31 @@ describe("the moon", () => {
 
   it("is the same every time", () => {
     expect(moonAt(201.5, 2.5, 0.3, HELSINKI)).toEqual(moonAt(201.5, 2.5, 0.3, HELSINKI));
+  });
+});
+
+describe("the stars", () => {
+  it("turn round the pole, due north and as high as the latitude", () => {
+    for (const hour of [0, 6, 13.5, 22]) {
+      const { pole, equinox } = celestialFrame(MIDWINTER, hour, HELSINKI);
+      expect((Math.asin(pole.y) * 180) / Math.PI).toBeCloseTo(HELSINKI, 6);
+      expect(pole.x).toBeCloseTo(0, 9);
+      expect(pole.z).toBeLessThan(0);
+      expect(degreesBetween(pole, equinox)).toBeCloseTo(90, 6);
+    }
+  });
+
+  it("put the equinox's point where the sun is at the March equinox, and opposite it at the September one", () => {
+    for (const hour of [7, 12, 17]) {
+      expect(degreesBetween(celestialFrame(SPRING_EQUINOX, hour, HELSINKI).equinox, sunAt(SPRING_EQUINOX, hour, HELSINKI).direction)).toBeLessThan(1.5);
+      expect(degreesBetween(celestialFrame(AUTUMN_EQUINOX, hour, HELSINKI).equinox, sunAt(AUTUMN_EQUINOX, hour, HELSINKI).direction)).toBeGreaterThan(178.5);
+    }
+  });
+
+  it("rise about four minutes earlier each night", () => {
+    const tonight = celestialFrame(AUTUMN_EQUINOX, 23, HELSINKI).equinox;
+    const tomorrow = celestialFrame(AUTUMN_EQUINOX + 1, 23 - 3.94 / 60, HELSINKI).equinox;
+    expect(degreesBetween(tonight, tomorrow)).toBeLessThan(0.1);
+    expect(degreesBetween(tonight, celestialFrame(AUTUMN_EQUINOX + 1, 23, HELSINKI).equinox)).toBeGreaterThan(0.8);
   });
 });

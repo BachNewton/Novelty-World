@@ -8,8 +8,10 @@ import { REGIONS } from "../../engine/regions";
 import { holdWeather, makeLightning, makeWeather, type WeatherAt, type WeatherKind } from "../../engine/weather";
 import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
-import type { Air } from "../../art/daylight";
+import type { Air } from "../../art/light/daylight";
 import { REGION_AIR } from "../../art/palette";
+import { SKY_INPUTS } from "../../art/sky/sky-inputs";
+import { smoothstep } from "../../engine/noise";
 import { Rain } from "../../art/weather/rain";
 import { Snow } from "../../art/weather/snow";
 import { calmWeather, type WeatherNow } from "../../art/weather/now";
@@ -67,6 +69,7 @@ class WeatherWatch {
   private readonly sky: WeatherAt;
   private readonly lightning: (seconds: number, storm: number) => number;
   private readonly floor = { x: Infinity, z: Infinity, target: 0, ready: false };
+  private readonly rainHeld = new URLSearchParams(window.location.search).has("rain");
 
   constructor(
     private readonly world: World,
@@ -84,6 +87,9 @@ class WeatherWatch {
     now.weather = now.held === null ? drifting : holdWeather(now.held, drifting);
     // Without the lightning feature there is no flash at all, for the rain or anything else.
     now.flash = liveFeatures().isOn("lightning") ? this.lightning(clock.motion, now.weather.storm) : 0;
+    // The sky's rainbow wants the rain and the sun out of the cloud; `?rain=` holds the rain for a look.
+    if (!this.rainHeld) SKY_INPUTS.rain = now.weather.precipitation * (1 - now.weather.snow);
+    SKY_INPUTS.sunOut = 1 - smoothstep(0.45, 0.95, now.weather.cloudCover);
     this.air.thickness = now.weather.haze * REGIONS.reduce((sum, region, i) => sum + now.regions[i] * REGION_AIR[region], 0);
     if (Math.hypot(x - floor.x, z - floor.z) > FLOOR_STEP) {
       floor.x = x;

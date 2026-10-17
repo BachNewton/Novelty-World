@@ -1,6 +1,6 @@
 import { Color, Vector3, Vector4 } from "three";
 import { REGIONS } from "../../engine/regions";
-import type { DayState } from "../daylight";
+import type { DayState } from "../light/daylight";
 import type { FeatureArt } from "../feature-art";
 import type { WeatherNow } from "../weather/now";
 import { REGION_AIR } from "../palette";
