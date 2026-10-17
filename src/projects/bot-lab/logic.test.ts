@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STALE_MS, type LiveRow, type RunStatus } from "@/shared/lib/bot-lab/live-row";
-import { elapsedMs, formatDuration, formatElo, mergeRow, orderRuns } from "./logic";
+import { botLabel, elapsedMs, formatDuration, formatElo, mergeRow, orderRuns } from "./logic";
 
 const NOW = Date.parse("2026-10-16T12:00:00Z");
 const iso = (agoMs: number) => new Date(NOW - agoMs).toISOString();
@@ -70,5 +70,18 @@ describe("formatElo", () => {
   it("signs every rating", () => {
     expect(formatElo(12.4)).toBe("+12");
     expect(formatElo(-30.6)).toBe("−31");
+  });
+});
+
+describe("botLabel", () => {
+  it("leaves a plain bot whole", () => {
+    expect(botLabel("rule-v2")).toEqual({ base: "rule-v2", tuning: null });
+  });
+
+  it("splits a tuned bot into its base and its overrides", () => {
+    expect(botLabel('rule-v3~{"incomeHorizon":2.4354,"borderWeight":0.347}')).toEqual({
+      base: "rule-v3",
+      tuning: '{"incomeHorizon":2.4354,"borderWeight":0.347}',
+    });
   });
 });
