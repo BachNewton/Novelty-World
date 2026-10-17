@@ -107,6 +107,20 @@ export function takeTreat(foraging: Foraging, kind: ForageKind): void {
   show(foraging, { basket: foraging.foraged.basket });
 }
 
+/** Food taken from the basket into the pan, one of each kind. */
+export function takeIngredients(foraging: Foraging, kinds: readonly ForageKind[]): void {
+  foraging.foraged = kinds.reduce(takeOne, foraging.foraged);
+  saveForaged(foraging.foraged);
+  show(foraging, { basket: foraging.foraged.basket });
+}
+
+/** Puts some of a kind in the basket as if picked: for screenshots and tests. */
+export function stockBasket(foraging: Foraging, kind: ForageKind, count: number): void {
+  foraging.foraged = { ...foraging.foraged, basket: { ...foraging.foraged.basket, [kind]: foraging.foraged.basket[kind] + count } };
+  saveForaged(foraging.foraged);
+  show(foraging, { basket: foraging.foraged.basket });
+}
+
 export function setBasketOpen(foraging: Foraging, open: boolean): void {
   show(foraging, { open });
 }

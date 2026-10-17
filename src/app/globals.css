@@ -481,6 +481,58 @@
   --color-hearthwood-companion-paw: #ffd9a8;
 }
 
+/* Hearthwood: cooking at the fire. The cast-iron pan and its grip, the
+   roasting stick, and the birch-wood plates, bowls, boards and kuksa cups
+   the dishes are served in; the staples Elliott carries (oats and flour in
+   their sacks, butter, honey in its jar, cream in its jug, eggs); the
+   dishes' own colours (pastry, crumble, pancakes, toast, stick-bread dough,
+   porridges, soups, sauce, tea, a sprig of dill); the steam and the
+   sizzle; and the recipe book's page and ink. Read by the 3D scene through
+   themeColor and by the cooking overlay's drawings. */
+:root {
+  --color-hearthwood-cooking-iron: #3a3740;
+  --color-hearthwood-cooking-grip: #8a5a36;
+  --color-hearthwood-cooking-stick: #a7784a;
+  --color-hearthwood-cooking-birch: #e8cf9e;
+  --color-hearthwood-cooking-kuksa: #bb8450;
+  --color-hearthwood-cooking-oats: #dcc28e;
+  --color-hearthwood-cooking-flour: #f6f0e2;
+  --color-hearthwood-cooking-sack: #c4a676;
+  --color-hearthwood-cooking-butter: #f7dd84;
+  --color-hearthwood-cooking-honey: #f0a62a;
+  --color-hearthwood-cooking-jar: #cfe3d4;
+  --color-hearthwood-cooking-cream: #fdf4e0;
+  --color-hearthwood-cooking-jug: #7f9fc4;
+  --color-hearthwood-cooking-egg: #f2e2c4;
+  --color-hearthwood-cooking-yolk: #f7b42a;
+  --color-hearthwood-cooking-pastry: #e6aa56;
+  --color-hearthwood-cooking-crumb: #d29848;
+  --color-hearthwood-cooking-pancake: #f2c674;
+  --color-hearthwood-cooking-toast: #d48c44;
+  --color-hearthwood-cooking-dough: #f0d49c;
+  --color-hearthwood-cooking-porridge: #e9d4a6;
+  --color-hearthwood-cooking-pink-porridge: #e8a0a8;
+  --color-hearthwood-cooking-soup: #e8cc94;
+  --color-hearthwood-cooking-sauce: #f0bf58;
+  --color-hearthwood-cooking-berry-soup: #4e3080;
+  --color-hearthwood-cooking-tea: #c64c36;
+  --color-hearthwood-cooking-dill: #6aa044;
+  --color-hearthwood-cooking-steam: #fbf6ee;
+  --color-hearthwood-cooking-sizzle: #fff0b0;
+  --color-hearthwood-cooking-page: #f6ead0;
+  --color-hearthwood-cooking-ink: #5a4232;
+}
+
+/* Hearthwood: the bar that fills while a dish cooks at the fire. */
+@keyframes hearthwood-cook-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 /* Hearthwood: a kind just picked swells in the basket and settles. */
 @keyframes hearthwood-forage-pop {
   0% {

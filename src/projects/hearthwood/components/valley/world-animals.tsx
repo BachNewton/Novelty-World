@@ -21,7 +21,6 @@ import { bestOffered, type Viewer } from "../../gameplay/offering";
 import { stepStray, type Elliott } from "../../gameplay/roaming";
 import { WALK_SPEED } from "../../input/walk-controls";
 import type { WalkState } from "../../input/use-walk-input";
-import { treatInHand } from "../../gameplay/befriending";
 import { CatBody } from "../cats/cat-body";
 import { DogBody } from "../dogs/dog-body";
 import type { ValleyClock } from "./clock";
@@ -30,6 +29,7 @@ import {
   followingAnimals,
   forgetMarks,
   hasOffer,
+  inHand,
   isResting,
   MARK_LIFE,
   offerableAnimal,
@@ -202,10 +202,7 @@ export function stepAnimals(
     calm: leading.speed <= WALK_SPEED * 1.08,
     aloft,
   };
-  const hand = treatInHand(
-    companionship.foraging.foraged.basket,
-    companionship.lastLiked,
-  );
+  const hand = inHand(companionship);
   const camp = world.camp;
   const following = followingAnimals(companionship);
   const resting = [...companionship.animals.values()].filter((a) =>
@@ -268,7 +265,7 @@ export function stepAnimals(
         );
       } else if (animal.stray) {
         warmByPatience(companionship, animal, d, elliott.calm && !aloft, dt);
-        const tempted = hand !== null && hand === animal.favourite;
+        const tempted = hand !== null && hand === animal.tastes.favourite;
         stepStray(
           animal.body,
           animal.stray.mind,
@@ -335,7 +332,7 @@ export function stepAnimals(
   }
 }
 
-/** The animal Elliott could pet or treat now, and how strongly it is offered, before forage has its say. */
+/** The animal Elliott could pet or treat now, and how strongly it is offered, if more strongly than the fire, before forage has its say. */
 function findCandidate(
   companionship: Companionship,
   viewer: Viewer | null,
@@ -351,7 +348,13 @@ function findCandidate(
       Math.abs(a.body.z - walker.z) < 5 &&
       hasOffer(companionship, a),
   );
-  const best = bestOffered(near, viewer, offerableAnimal);
+  // The fire, offered first, is the animals' rival as forage is.
+  const best = bestOffered(
+    near,
+    viewer,
+    offerableAnimal,
+    companionship.hearth.candidate ?? Infinity,
+  );
   companionship.candidate = best && {
     key: best.offered.key,
     score: best.score,

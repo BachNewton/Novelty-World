@@ -40,7 +40,7 @@ export const NOTICE = { cat: 20, dog: 28 } as const;
 const HOMESICK = 1.9;
 /** Running at a shy stray startles it back this much further, in metres. */
 const STARTLE = 2.5;
-/** Held out, a cat's favourite treat tempts it this much nearer than it would otherwise come. */
+/** Held out, an animal's favourite dish tempts it this much nearer than it would otherwise come. */
 const TEMPTED = 0.45;
 
 export function strayMind(): StrayMind {
@@ -110,7 +110,7 @@ function reaction(body: Body, nature: Nature, temper: Temper, bond: Bond, elliot
 /**
  * One step of a stray: what it is doing, and its body moved by it. Patience
  * and the bond's warmth are befriending's (see `bePatient`). `tempted` is
- * whether Elliott holds out its favourite treat, which draws it nearer.
+ * whether Elliott holds out its favourite dish, which draws it nearer.
  */
 export function stepStray(
   body: Body,

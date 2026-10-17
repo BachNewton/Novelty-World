@@ -72,7 +72,7 @@ await capture("gallery-night", { hour: 22.5 });
 const rows = await page.evaluate(() => window.__hearthwoodArt.rows());
 for (const row of rows) await capture(`row-${row.toLowerCase().replace(/[^a-z]+/g, "-")}`, { hour: 16.5, row, view: [20, 18, null] });
 const pieces = await page.evaluate(() => window.__hearthwoodArt.pieces());
-const chosen = pieces.filter((id) => id.startsWith("places/") || id.startsWith("camp/") || id.startsWith("folk/") || /\/0$/.test(id));
+const chosen = pieces.filter((id) => id.startsWith("places/") || id.startsWith("camp/") || id.startsWith("cooking/") || id.startsWith("folk/") || /\/0$/.test(id));
 for (const id of chosen) {
   const name = `piece-${id.replace(/\//g, "-")}`;
   await capture(name, { hour: id.startsWith("camp/") ? 21.5 : 15.5, focus: id, view: [35, 16, null] });
