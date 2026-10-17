@@ -3,16 +3,15 @@
 import { useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Camera } from "three";
-import { sample } from "../../world/grid";
-import type { Valley } from "../../world/valley";
-import { walk } from "../../world/walking";
+import type { World } from "../../engine/world";
+import { walk } from "../../gameplay/walking";
 import { takeTurn, type WalkState } from "../../input/use-walk-input";
 import { moveInWorld, RUN_SPEED, walkSpeed } from "../../input/walk-controls";
-import type { AtmosphereUniforms } from "./atmosphere";
-import type { Focus } from "./daylight";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
+import type { Focus } from "../../art/daylight";
 import { catchUp, clampOrbit, eyeFor, LOOK_HEIGHT, turnBetween, type Orbit } from "./follow-camera";
-import type { Palette } from "./palette";
-import { Witch, type WitchHandle } from "./witch";
+import type { Palette } from "../../art/palette";
+import { Witch, type WitchHandle } from "../../art/witch";
 
 /*
  * The walker and the camera behind her: each frame, the input's move goes
@@ -49,16 +48,16 @@ interface Followed {
 }
 
 interface Walking {
-  valley: Valley;
+  world: World;
   input: WalkState;
   walker: Walker;
   focus: Focus;
 }
 
 /** One frame of walking: the camera turned, the move taken as far as the land allows, her pose, and the camera after her. */
-function stepWalker({ valley, input, walker, focus }: Walking, figure: WitchHandle | null, camera: Camera, followed: Followed, seconds: number): void {
+function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandle | null, camera: Camera, followed: Followed, seconds: number): void {
   const delta = Math.min(seconds, 0.1);
-  const ground = (x: number, z: number) => Math.max(sample(valley.heights, x, z), -0.2);
+  const ground = world.surfaceAt;
 
   const turn = takeTurn(input);
   walker.orbit = clampOrbit({
@@ -74,7 +73,7 @@ function stepWalker({ valley, input, walker, focus }: Walking, figure: WitchHand
   if (speed > 0 && push > 0) {
     const step = (speed * delta) / push;
     const from = { x: walker.x, z: walker.z };
-    const to = walk(valley.heights, from, way.x * step, way.z * step);
+    const to = walk(world, from, way.x * step, way.z * step);
     moved = Math.hypot(to.x - from.x, to.z - from.z);
     walker.x = to.x;
     walker.z = to.z;
@@ -82,7 +81,7 @@ function stepWalker({ valley, input, walker, focus }: Walking, figure: WitchHand
   }
   walker.stride += (moved / STRIDE_LENGTH) * Math.PI;
   const pace = delta > 0 && moved > 0 ? Math.min(1, moved / delta / RUN_SPEED + 0.35) : 0;
-  const y = sample(valley.heights, walker.x, walker.z);
+  const y = world.heightAt(walker.x, walker.z);
   focus.x = walker.x;
   focus.y = y;
   focus.z = walker.z;
@@ -111,19 +110,19 @@ function stepWalker({ valley, input, walker, focus }: Walking, figure: WitchHand
       camera.lookAt(0, 0, 0);
       return;
     case "aerial": {
-      const angle = Math.atan2(valley.camp.z, valley.camp.x) + Math.PI * 0.85;
+      const angle = Math.atan2(world.camp.z, world.camp.x) + Math.PI * 0.85;
       camera.position.set(Math.cos(angle) * 300, 210, Math.sin(angle) * 300);
-      camera.lookAt(valley.camp.x * 0.5, 0, valley.camp.z * 0.5);
+      camera.lookAt(world.camp.x * 0.5, 0, world.camp.z * 0.5);
     }
   }
 }
 
-export function WalkerAndCamera({ valley, input, walker, focus, palette, atmosphere }: { valley: Valley; input: RefObject<WalkState>; walker: Walker; focus: Focus; palette: Palette; atmosphere: AtmosphereUniforms }) {
+export function WalkerAndCamera({ world, input, walker, focus, palette, atmosphere }: { world: World; input: RefObject<WalkState>; walker: Walker; focus: Focus; palette: Palette; atmosphere: AtmosphereUniforms }) {
   const witch = useRef<WitchHandle>(null);
   const followed = useRef<Followed>({ x: walker.x, y: 0, z: walker.z, hatLag: 0 });
 
   useFrame(({ camera }, delta) => {
-    stepWalker({ valley, input: input.current, walker, focus }, witch.current, camera, followed.current, delta);
+    stepWalker({ world, input: input.current, walker, focus }, witch.current, camera, followed.current, delta);
   }, WALKER_PRIORITY);
 
   return <Witch ref={witch} palette={palette} atmosphere={atmosphere} />;

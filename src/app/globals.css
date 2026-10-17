@@ -207,8 +207,10 @@
    haze (the fog and the horizon, one colour so the land melts into the sky),
    key light (the sun, or the moon at night), the light from the sky and the
    ground all round, and the tint the shadows lean to; the light blends
-   between neighbouring moments. Then what the valley is made of: grounds,
-   water, plants, stone, the fire, the witch, and the little UI over it. Read
+   between neighbouring moments. Then what the world is made of: each
+   region's grounds, the shared grounds and water, plants, stone, the
+   places, the fire, the witch, the little UI over it, and the art gallery's
+   floor. Read
    only by the 3D scene through themeColor and the valley's own overlay, so
    declared outside @theme. */
 :root {
@@ -249,10 +251,26 @@
   --color-hearthwood-valley-dusk-ground-light: #4a3a3c;
   --color-hearthwood-valley-dusk-shadow: #3c2c4e;
 
-  --color-hearthwood-valley-ground-meadow: #9cc46a;
-  --color-hearthwood-valley-ground-meadow-lush: #78ac56;
-  --color-hearthwood-valley-ground-forest: #5d7a3e;
-  --color-hearthwood-valley-ground-alpine: #a9b86e;
+  --color-hearthwood-valley-greenwood-meadow: #9cc46a;
+  --color-hearthwood-valley-greenwood-meadow-lush: #78ac56;
+  --color-hearthwood-valley-greenwood-forest: #5d7a3e;
+  --color-hearthwood-valley-greenwood-alpine: #a9b86e;
+  --color-hearthwood-valley-birchvale-meadow: #b3d06c;
+  --color-hearthwood-valley-birchvale-meadow-lush: #8cc060;
+  --color-hearthwood-valley-birchvale-forest: #7c9c4c;
+  --color-hearthwood-valley-birchvale-alpine: #b8c47a;
+  --color-hearthwood-valley-highlands-meadow: #88a86a;
+  --color-hearthwood-valley-highlands-meadow-lush: #6c9462;
+  --color-hearthwood-valley-highlands-forest: #43603f;
+  --color-hearthwood-valley-highlands-alpine: #9ca878;
+  --color-hearthwood-valley-heath-meadow: #bcab64;
+  --color-hearthwood-valley-heath-meadow-lush: #a88a6e;
+  --color-hearthwood-valley-heath-forest: #73694a;
+  --color-hearthwood-valley-heath-alpine: #a69c6c;
+  --color-hearthwood-valley-maplewood-meadow: #bdb45c;
+  --color-hearthwood-valley-maplewood-meadow-lush: #c88c4a;
+  --color-hearthwood-valley-maplewood-forest: #a15e36;
+  --color-hearthwood-valley-maplewood-alpine: #aaa26a;
   --color-hearthwood-valley-ground-rock: #a4a6ab;
   --color-hearthwood-valley-ground-snow: #f4f6fb;
   --color-hearthwood-valley-ground-shore: #d2c49c;
@@ -260,8 +278,7 @@
   --color-hearthwood-valley-water-shallow: #74bdb2;
   --color-hearthwood-valley-water-deep: #2c5a7a;
   --color-hearthwood-valley-water-foam: #f0f8f2;
-  --color-hearthwood-valley-far-ridge: #6f7fa6;
-
+  
   --color-hearthwood-valley-conifer: #3d6c4a;
   --color-hearthwood-valley-broadleaf: #6c9e48;
   --color-hearthwood-valley-birch-leaf: #a2c656;
@@ -274,6 +291,27 @@
   --color-hearthwood-valley-flower-white: #fbf6ea;
   --color-hearthwood-valley-flower-yellow: #f4cd48;
   --color-hearthwood-valley-flower-violet: #a98ad8;
+  --color-hearthwood-valley-pine-leaf: #46705a;
+  --color-hearthwood-valley-pine-bark: #a8683e;
+  --color-hearthwood-valley-maple-red: #cf4630;
+  --color-hearthwood-valley-maple-orange: #e57f2e;
+  --color-hearthwood-valley-maple-gold: #ebb93c;
+  --color-hearthwood-valley-aspen-gold: #f2c94a;
+  --color-hearthwood-valley-aspen-bark: #d9d6c6;
+  --color-hearthwood-valley-heather-purple: #9c5c9e;
+  --color-hearthwood-valley-heather-pink: #cc7cab;
+  --color-hearthwood-valley-gorse: #ecc544;
+  --color-hearthwood-valley-heather-stem: #6c5f3c;
+  --color-hearthwood-valley-fern: #6c9e46;
+  --color-hearthwood-valley-bracken: #bf7a3c;
+  --color-hearthwood-valley-mushroom-red: #cc432f;
+  --color-hearthwood-valley-mushroom-brown: #aa7c4c;
+  --color-hearthwood-valley-mushroom-gold: #e2a43c;
+  --color-hearthwood-valley-mushroom-spot: #f6eedf;
+  --color-hearthwood-valley-mushroom-stem: #efe4cc;
+  --color-hearthwood-valley-shrine-roof: #7c4c3a;
+  --color-hearthwood-valley-candle: #fff1c6;
+  --color-hearthwood-valley-ribbon: #d0584a;
 
   --color-hearthwood-valley-fire-core: #fff2c0;
   --color-hearthwood-valley-fire-flame: #ffa238;
@@ -295,6 +333,9 @@
 
   --color-hearthwood-valley-ui-ink: #fff6e4;
   --color-hearthwood-valley-ui-shade: #2a2236;
+
+  --color-hearthwood-gallery-ground: #cbc3b0;
+  --color-hearthwood-gallery-ground-edge: #b4ab95;
 }
 
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —

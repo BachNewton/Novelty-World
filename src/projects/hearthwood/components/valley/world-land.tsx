@@ -1,0 +1,162 @@
+"use client";
+
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Group, Mesh, type Material } from "three";
+import type { LandTile } from "../../engine/tiles";
+import { tileId, tileWidth, wantedTiles, type Eye, type TileKey } from "../../engine/streaming";
+import type { World } from "../../engine/world";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
+import type { Palette } from "../../art/palette";
+import type { SkyUniforms } from "../../art/sky";
+import { terrainGeometry, terrainMaterial, type Morph } from "../../art/terrain";
+import { waterGeometry, waterMaterial } from "../../art/water";
+import type { Quality } from "../../quality";
+import { landWorkers, type LandWorkers } from "./land-workers";
+
+/*
+ * The land round the camera out to the horizon, streamed: the tiles the
+ * camera wants are worked out in workers, nearest and finest first, made
+ * into meshes as they come back, and the drawn set changes over to them all
+ * at once when every one is ready, so no hole ever opens. Each tile eases
+ * into its parent's shape towards the distance where it is swapped for it,
+ * so the swap shows no step. Tiles no longer wanted are kept a while in case
+ * the camera comes back, then dropped.
+ */
+
+/** How far the camera moves before the wanted tiles are worked out again, in metres. */
+const RECHECK = 4;
+/** How many built tiles are kept beyond those drawn. */
+const KEPT = 600;
+/** How many tiles are asked of the workers at once. */
+const IN_FLIGHT = 12;
+
+interface Built {
+  land: Mesh;
+  water: Mesh | null;
+}
+
+/** Whether each streamed part has built and drawn everything the camera wants. */
+export interface Streaming {
+  land: boolean;
+  plants: boolean;
+  places: boolean;
+}
+
+/** A streamed part says whether it has everything the camera wants. */
+export function report(streaming: Streaming, part: keyof Streaming, settled: boolean): void {
+  streaming[part] = settled;
+}
+
+interface State {
+  built: Map<string, Built>;
+  arrived: LandTile[];
+  asked: Set<string>;
+  shown: Set<string>;
+  wanted: TileKey[];
+  pending: TileKey[];
+  from: Eye | null;
+}
+
+function priority(eye: Eye, key: TileKey): number {
+  const size = tileWidth(key.level);
+  return Math.hypot((key.i + 0.5) * size - eye.x, (key.j + 0.5) * size - eye.z) / size;
+}
+
+/** A tile is drawn until the camera is within `tileSplit` of its parent's widths of it: it eases into the parent's shape over the last stretch before that. */
+function morphFor(level: number, quality: Quality): Morph {
+  const swap = tileWidth(level + 1) * quality.tileSplit;
+  return { start: swap * 0.62, end: swap * 0.92 };
+}
+
+export function WorldLand({ world, palette, atmosphere, sky, quality, streaming }: { world: World; palette: Palette; atmosphere: AtmosphereUniforms; sky: SkyUniforms; quality: Quality; streaming: Streaming }) {
+  const group = useMemo(() => new Group(), []);
+  const materials = useMemo(
+    () => ({ land: terrainMaterial(atmosphere, palette, world.camp, quality.trees.far), water: waterMaterial(palette, atmosphere, sky) }),
+    [world, palette, atmosphere, sky, quality],
+  );
+  const state = useRef<State>({ built: new Map(), arrived: [], asked: new Set(), shown: new Set(), wanted: [], pending: [], from: null });
+  const workers = useRef<LandWorkers | null>(null);
+
+  useEffect(() => {
+    const s = state.current;
+    const pool = landWorkers(world.seed, (tile) => s.arrived.push(tile));
+    workers.current = pool;
+    return () => {
+      pool.dispose();
+      workers.current = null;
+      for (const tile of s.built.values()) dispose(tile);
+      s.built.clear();
+      s.asked.clear();
+      s.shown.clear();
+      s.arrived.length = 0;
+      s.from = null;
+      group.clear();
+      materials.land.dispose();
+      materials.water.dispose();
+    };
+  }, [world, materials, group]);
+
+  useFrame(({ camera }) => {
+    const s = state.current;
+    const pool = workers.current;
+    if (!pool) return;
+    const { x, y, z } = camera.position;
+    const eye = { x, y: y - world.surfaceAt(x, z), z };
+    if (s.from === null || Math.hypot(eye.x - s.from.x, eye.y - s.from.y, eye.z - s.from.z) > RECHECK) {
+      s.from = eye;
+      s.wanted = wantedTiles(eye, quality);
+      s.pending = s.wanted.filter((k) => !s.built.has(tileId(k)) && !s.asked.has(tileId(k))).sort((a, b) => priority(eye, a) - priority(eye, b));
+    }
+    while (s.pending.length > 0 && pool.waiting() < IN_FLIGHT) {
+      const key = s.pending.shift() as TileKey;
+      s.asked.add(tileId(key));
+      pool.request(key);
+    }
+    for (const tile of s.arrived.splice(0)) {
+      const id = tileId(tile.key);
+      s.asked.delete(id);
+      s.built.set(id, buildTile(tile, palette, materials, quality));
+    }
+    if (s.wanted.some((k) => !s.built.has(tileId(k)))) {
+      report(streaming, "land", false);
+      return;
+    }
+    const ids = new Set(s.wanted.map(tileId));
+    if (ids.size !== s.shown.size || [...ids].some((id) => !s.shown.has(id))) {
+      group.clear();
+      for (const id of ids) {
+        const tile = s.built.get(id);
+        if (!tile) continue;
+        group.add(tile.land);
+        if (tile.water) group.add(tile.water);
+      }
+      s.shown = ids;
+      if (s.built.size > ids.size + KEPT) {
+        for (const [id, tile] of s.built) {
+          if (s.built.size <= ids.size + KEPT) break;
+          if (ids.has(id)) continue;
+          dispose(tile);
+          s.built.delete(id);
+        }
+      }
+    }
+    report(streaming, "land", true);
+  });
+
+  return <primitive object={group} />;
+}
+
+function buildTile(tile: LandTile, palette: Palette, materials: { land: Material; water: Material }, quality: Quality): Built {
+  const { level } = tile.key;
+  const land = new Mesh(terrainGeometry(tile, palette, morphFor(level, quality)), materials.land);
+  land.receiveShadow = true;
+  land.castShadow = level === 0;
+  const wet = level < quality.waterLevels ? waterGeometry(tile) : null;
+  return { land, water: wet ? new Mesh(wet, materials.water) : null };
+}
+
+function dispose(tile: Built): void {
+  tile.land.geometry.dispose();
+  tile.water?.geometry.dispose();
+}
