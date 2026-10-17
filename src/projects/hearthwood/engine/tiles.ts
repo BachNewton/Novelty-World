@@ -32,7 +32,7 @@ export interface LandTile {
   water: Float32Array;
   /** How much of a river channel each vertex lies in, 0 to 1. */
   river: Float32Array;
-  /** The wobble of the altitude bands at each vertex, in metres. */
+  /** How far the altitude bands sit from their usual altitudes at each vertex (the land's own shift of them and their wobble), in metres. */
   wobble: Float32Array;
   /** Whether any of the tile lies under water. */
   wet: boolean;
@@ -92,7 +92,7 @@ export function landTile(world: World, key: TileKey): LandTile {
       world.regionAt(x, z, land, weights);
       regions.set(weights, v * REGIONS.length);
       woodland[v] = world.woodlandAt(x, z, land, weights, slope, fine);
-      wobble[v] = world.bandWobble(x, z);
+      wobble[v] = land.bands + world.bandWobble(x, z);
     }
   }
 

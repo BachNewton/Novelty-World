@@ -108,6 +108,8 @@ declare global {
 }
 
 const KEPT_FRAME_TIMES = 120;
+/** The height the relief map shows white, about the highest peaks', in metres. */
+const RELIEF_TOP = 2600;
 const FREE_CAMERA_PRIORITY = -2;
 
 function drawMap(world: World, palette: Palette, { x, z, size, pixels, places = false, relief = false }: MapRequest): string {
@@ -141,9 +143,11 @@ function drawMap(world: World, palette: Palette, { x, z, size, pixels, places = 
         colour.g += part.g * weights[r];
         colour.b += part.b * weights[r];
       });
-      if (relief) colour.setScalar(0.15 + 0.85 * Math.min(1, Math.max(0, h / 300)));
-      if (h > ALTITUDE.rock) colour.lerp(palette.things["ground-rock"], Math.min(1, (h - ALTITUDE.rock) / 15));
-      if (h > ALTITUDE.snow) colour.lerp(palette.things["ground-snow"], Math.min(1, (h - ALTITUDE.snow) / 10));
+      // Relief from the lowlands to the highest peaks, with more of its shades given to the lower ground.
+      if (relief) colour.setScalar(0.15 + 0.85 * Math.sqrt(Math.min(1, Math.max(0, h / RELIEF_TOP))));
+      const banded = h - land.bands;
+      if (banded > ALTITUDE.rock) colour.lerp(palette.things["ground-rock"], Math.min(1, (banded - ALTITUDE.rock) / 15));
+      if (banded > ALTITUDE.snow) colour.lerp(palette.things["ground-snow"], Math.min(1, (banded - ALTITUDE.snow) / 10));
       if (land.water > land.height) colour.copy(palette.things["water-deep"]).lerp(palette.things["water-shallow"], 0.3);
       // Lit from the north-west, as a map is.
       const shade = Math.min(1.35, Math.max(0.45, 1 + (dx + dz) * -0.9));

@@ -259,6 +259,108 @@ if (want("range")) {
   await capture(desktop, "clear-summit-hazy", { hour: 15, walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 6, z: peak.z, lookX: away.x, lookY: peak.height - 900, lookZ: away.z } });
 }
 
+// The big mountains on a clear day: a high range seen from a lowland meadow 10 to 20 km off, as the Tetons rise over Jackson
+// Hole; a high valley's floor under its walls; a pass between two valleys; and the view out from the summit.
+if (want("peaks")) {
+  const spots = await desktop.evaluate(() => {
+    const world = window.__hearthwoodWorld;
+    const height = (x, z) => world.at(x, z).height;
+    let peak = null;
+    for (let z = -14000; z <= 14000; z += 250) {
+      for (let x = -14000; x <= 14000; x += 250) {
+        const h = height(x, z);
+        if (peak === null || h > peak.height) peak = { x, z, height: h };
+      }
+    }
+    for (let z = peak.z - 250; z <= peak.z + 250; z += 25) {
+      for (let x = peak.x - 250; x <= peak.x + 250; x += 25) {
+        const h = height(x, z);
+        if (h > peak.height) peak = { x, z, height: h };
+      }
+    }
+    // The meadow: low, dry, open ground 10 to 20 km off with the clearest view of the peak over what lies between.
+    let meadow = null;
+    for (let r = 10000; r <= 20000; r += 1000) {
+      for (let a = 0; a < 48; a++) {
+        const angle = (a / 48) * Math.PI * 2;
+        const x = peak.x + Math.cos(angle) * r;
+        const z = peak.z + Math.sin(angle) * r;
+        const here = world.at(x, z);
+        if (here.height - here.water < 1 || here.river > 0 || here.height > 250) continue;
+        const aim = (peak.height - here.height) / r;
+        let hidden = 0;
+        for (let q = 1; q <= 30; q++) {
+          const f = (q / 30) * 0.75;
+          hidden = Math.max(hidden, (height(x + (peak.x - x) * f, z + (peak.z - z) * f) - here.height - 3) / (f * r) / aim);
+        }
+        const score = hidden + here.woodland;
+        if (meadow === null || score < meadow.score) meadow = { x, z, height: here.height, score };
+      }
+    }
+    // A high valley's floor near the peak: level ground with the land rising far above it all round.
+    let valley = null;
+    let col = null;
+    for (let z = peak.z - 5000; z <= peak.z + 5000; z += 80) {
+      for (let x = peak.x - 5000; x <= peak.x + 5000; x += 80) {
+        const h = height(x, z);
+        if (h < peak.height * 0.2 || h > peak.height * 0.75) continue;
+        const e = 20;
+        const slope = Math.hypot(height(x + e, z) - height(x - e, z), height(x, z + e) - height(x, z - e)) / (2 * e);
+        if (slope > 0.3) continue;
+        let ring = Infinity;
+        let lowest = Infinity;
+        let lowAngle = 0;
+        const rim = [];
+        for (let k = 0; k < 8; k++) {
+          const angle = (k / 8) * Math.PI * 2;
+          const r = height(x + Math.sin(angle) * 500, z + Math.cos(angle) * 500);
+          rim.push(r);
+          ring = Math.min(ring, r);
+          if (r < lowest) {
+            lowest = r;
+            lowAngle = angle;
+          }
+        }
+        // Walls on either side: the land 500 m off across the valley rises well above the floor.
+        const walls = Math.max(...[0, 1, 2, 3].map((k) => Math.min(rim[k], rim[k + 4]))) - h;
+        if (walls > 250 && (valley === null || walls + h * 0.2 > valley.score)) valley = { x, z, height: h, score: walls + h * 0.2, yaw: lowAngle + Math.PI };
+        // A col: lower than the land on two opposite sides and higher than the land on the other two.
+        for (let k = 0; k < 4; k++) {
+          const up = Math.min(rim[k], rim[k + 4]) - h;
+          const down = h - Math.max(rim[(k + 2) % 8], rim[(k + 6) % 8]);
+          if (up > 120 && down > 60 && h > peak.height * 0.4 && (col === null || h + up > col.score)) col = { x, z, height: h, score: h + up, yaw: ((k + 2) / 8) * Math.PI * 2 };
+        }
+      }
+    }
+    return { peak, meadow, valley, col };
+  });
+  const { peak, meadow, valley, col } = spots;
+  console.log(`peaks: summit ${peak.height.toFixed(0)} m at ${peak.x}, ${peak.z}`);
+  if (meadow) {
+    console.log(`  meadow ${meadow.height.toFixed(0)} m, ${(Math.hypot(meadow.x - peak.x, meadow.z - peak.z) / 1000).toFixed(1)} km off`);
+    const towards = { x: meadow.x, z: meadow.z, lookX: peak.x, lookY: peak.height * 0.45, lookZ: peak.z };
+    await capture(desktop, "peaks-meadow", { hour: 10, haze: 0, walker: { x: meadow.x, z: meadow.z }, free: { ...towards, y: meadow.height + 2 } });
+    await capture(desktop, "peaks-meadow-hazy", { hour: 10, walker: { x: meadow.x, z: meadow.z }, free: { ...towards, y: meadow.height + 2 } });
+    await capture(desktop, "peaks-meadow-golden", { hour: 16.8, walker: { x: meadow.x, z: meadow.z }, free: { ...towards, y: meadow.height + 2 } });
+  }
+  if (valley) {
+    console.log(`  valley floor ${valley.height.toFixed(0)} m at ${valley.x}, ${valley.z}`);
+    const yaw = Math.atan2(peak.x - valley.x, peak.z - valley.z);
+    const look = { x: valley.x + Math.sin(yaw) * 1000, z: valley.z + Math.cos(yaw) * 1000 };
+    await capture(desktop, "peaks-valley", { hour: 11, haze: 0, walker: { x: valley.x, z: valley.z }, free: { x: valley.x, y: valley.height + 2, z: valley.z, lookX: look.x, lookY: valley.height + 350, lookZ: look.z } });
+    const down = { x: valley.x + Math.sin(valley.yaw) * 1000, z: valley.z + Math.cos(valley.yaw) * 1000 };
+    await capture(desktop, "peaks-valley-down", { hour: 11, haze: 0, walker: { x: valley.x, z: valley.z }, free: { x: valley.x, y: valley.height + 2, z: valley.z, lookX: down.x, lookY: valley.height + 60, lookZ: down.z } });
+  }
+  if (col) {
+    console.log(`  col ${col.height.toFixed(0)} m at ${col.x}, ${col.z}`);
+    const over = { x: col.x + Math.sin(col.yaw) * 1000, z: col.z + Math.cos(col.yaw) * 1000 };
+    await capture(desktop, "peaks-pass", { hour: 11, haze: 0, walker: { x: col.x, z: col.z }, free: { x: col.x, y: col.height + 2, z: col.z, lookX: over.x, lookY: col.height - 120, lookZ: over.z } });
+  }
+  const out = { x: peak.x + (meadow ? meadow.x - peak.x : 1000), z: peak.z + (meadow ? meadow.z - peak.z : 0) };
+  await capture(desktop, "peaks-summit", { hour: 14, haze: 0, walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 3, z: peak.z, lookX: out.x, lookY: peak.height - 1500, lookZ: out.z } });
+  await capture(desktop, "peaks-summit-hazy", { hour: 14, walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 3, z: peak.z, lookX: out.x, lookY: peak.height - 1500, lookZ: out.z } });
+}
+
 const placeKinds = ["stone-circle", "cairn", "tor", "shrine", "fallen-tree", "fairy-ring", "seter", "tarn", "cascade", "waterfall"];
 if (want("place")) {
   const places = await desktop.evaluate(() => window.__hearthwoodWorld.placesNear(0, 0, 9000));
