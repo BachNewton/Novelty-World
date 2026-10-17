@@ -6,7 +6,7 @@ import { holdHour, setHour, type ValleyClock } from "./clock";
 
 // The developer's panel, opened and closed with ~ (the physical key left of
 // 1, whatever the layout): the hour of the day on a slider, and whether the
-// day holds there or turns on.
+// day holds there or turns on. Opening it frees a locked pointer.
 
 const PANEL_COLOURS = {
   background: "var(--color-hearthwood-valley-ui-shade)",
@@ -34,6 +34,11 @@ export function DebugPanel({ clock }: { clock: ValleyClock }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  // The slider needs the pointer, so opening the panel hands a locked one back; only a click on the game locks it again.
+  useEffect(() => {
+    if (open && document.pointerLockElement !== null) document.exitPointerLock();
+  }, [open]);
 
   // While open, the slider follows the turning day, read once a frame.
   useEffect(() => {

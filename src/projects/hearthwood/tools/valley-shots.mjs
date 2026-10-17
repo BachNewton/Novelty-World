@@ -1,6 +1,7 @@
 // Screenshots of Hearthwood's valley, for judging its look without a browser open: the walker's view at
 // morning, golden hour, dusk and night, the whole valley from above and from over its rim, and the phone's
-// touch controls on the target phone (a Pixel 8 Pro in Chrome, portrait and landscape). Prints what each
+// touch controls on the target phone (a Pixel 8 Pro in Chrome, portrait and landscape), and the same valley
+// through the witch's own eyes, with its hints. Prints what each
 // frame drew (triangles, draw calls) and how long frames took (SHOTS_UNCAPPED=1 for the frame's own time).
 //
 // Drives the valley's probe (window.__hearthwoodValley, see ../components/valley/valley-probe.tsx) over
@@ -58,7 +59,11 @@ async function openValley(device) {
     if (m.type() === "error" || m.type() === "warning") console.error(`page ${m.type()}:`, m.text());
   });
   await page.goto(`${BASE}${SEED ? `?seed=${encodeURIComponent(SEED)}` : ""}`, { waitUntil: "load" });
-  await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
+  // The overlay (hints, buttons) is hidden unless a shot asks for it, by a rule rather than per element, so
+  // what mounts while a shot settles is hidden too.
+  await page.addStyleTag({
+    content: "nextjs-portal{display:none!important} html:not([data-shot-chrome]) [data-testid=hearthwood-valley] > :not(div:first-child){visibility:hidden!important}",
+  });
   await page.waitForFunction(() => window.__hearthwoodValley?.isReady() === true, null, { timeout: 120000 });
   return page;
 }
@@ -68,20 +73,22 @@ async function frames(page, count) {
   await page.waitForFunction((n) => window.__hearthwoodValley.frameCount() >= n, start + count, { timeout: 60000 });
 }
 
-async function capture(page, name, { hour, view = "walk", orbit = null, walker = null, chrome = false }) {
+// The shots through the day and of the places are from behind her, in third person; the `fp-` ones are
+// through her eyes, with `look` the way she looks.
+async function capture(page, name, { hour, view = "walk", pov = "third", orbit = null, look = null, walker = null, chrome = false }) {
   await page.evaluate(
-    ({ hour, view, orbit, walker, motion, chrome }) => {
+    ({ hour, view, pov, orbit, look, walker, motion, chrome }) => {
       const valley = window.__hearthwoodValley;
       valley.holdHour(hour);
       valley.holdMotion(motion);
       valley.setView(view);
+      valley.setPointOfView(pov);
       if (orbit) valley.setOrbit(orbit);
+      if (look) valley.setLook(look);
       if (walker) valley.placeWalker(walker.x, walker.z, walker.heading);
-      document.querySelectorAll("[data-testid=hearthwood-valley] > :not(div:first-child)").forEach((el) => {
-        el.style.visibility = chrome ? "" : "hidden";
-      });
+      document.documentElement.toggleAttribute("data-shot-chrome", chrome);
     },
-    { hour, view, orbit, walker, motion: MOTION_AT, chrome },
+    { hour, view, pov, orbit, look, walker, motion: MOTION_AT, chrome },
   );
   // The camera eases after the walker, so give it frames to arrive; then read a settled frame.
   await frames(page, 40);
@@ -130,6 +137,19 @@ for (const place of places) {
   const pitch = place.kind === "waterfall" ? -0.05 : 0.12;
   shots.push([`place-${place.kind}`, { hour: 16.6, walker: stand, orbit: { yaw, pitch, distance: 7 } }]);
 }
+// Through her eyes: at camp facing the fire, looking out of camp, walking out towards the forest, and
+// the hints with the pointer free.
+const outYaw = outward.yaw;
+const towardsForest = { x: atCamp.x + Math.sin(outYaw) * 24, z: atCamp.z + Math.cos(outYaw) * 24, heading: outYaw };
+shots.push(
+  ["fp-golden-camp", { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 } }],
+  ["fp-golden-out", { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: outYaw, pitch: 0 } }],
+  ["fp-golden-forest", { hour: 17.4, pov: "first", walker: towardsForest, look: { yaw: outYaw, pitch: 0.04 } }],
+  ["fp-morning-forest", { hour: 8.3, pov: "first", walker: towardsForest, look: { yaw: outYaw, pitch: 0.04 } }],
+  ["fp-night-camp", { hour: 22.5, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.15 } }],
+  ["fp-hints", { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 }, chrome: true }],
+  ["tp-hints", { hour: 17.4, walker: atCamp, orbit: facingCamp, chrome: true }],
+);
 for (const [name, shot] of shots) if (want(name)) await capture(desktop, name, shot);
 
 async function phoneShots(device, name) {
@@ -149,6 +169,18 @@ async function phoneShots(device, name) {
   await page.context().close();
 }
 await phoneShots(PHONE_PORTRAIT, "phone-portrait");
+
+// The target phone through her eyes: the touch hints and the view button, upright.
+async function firstPersonPhoneShots(device, name) {
+  if (!want(name)) return;
+  const page = await openValley(device);
+  const { width, height } = device.viewport;
+  await page.touchscreen.tap(width * 0.8, height * 0.4);
+  await capture(page, `${name}-hints`, { hour: 17.4, pov: "first", walker: atCamp, look: { yaw: facingCamp.yaw, pitch: -0.2 }, chrome: true });
+  await page.context().close();
+}
+await firstPersonPhoneShots(PHONE_PORTRAIT, "fp-phone-portrait");
+await firstPersonPhoneShots(PHONE_LANDSCAPE, "fp-phone-landscape");
 await phoneShots(PHONE_LANDSCAPE, "phone-landscape");
 
 await browser.close();

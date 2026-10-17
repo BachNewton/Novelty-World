@@ -25,7 +25,7 @@ import { Water } from "./water";
 
 /*
  * The valley: generated from its seed, drawn, lit by the turning day, and
- * walked in third person. `?seed=<text>` opens another valley and
+ * walked in first or third person. `?seed=<text>` opens another valley and
  * `?hour=<0-24>` holds the day at an hour (a dev switch for judging the
  * light), ~ opens the debug panel with the time on a slider, and the
  * probe on window drives it for screenshots.
@@ -66,6 +66,7 @@ export function ValleyView() {
       heading: Math.atan2(-3.4, -1.5),
       stride: 0,
       orbit: { ...FIRST_ORBIT, yaw: Math.atan2(-3.4, -1.5) },
+      lookPitch: 0,
       view: "walk",
     };
     const focus: Focus = { x: walker.x, y: camp.y, z: walker.z };
@@ -97,9 +98,9 @@ export function ValleyView() {
         <Campfire valley={valley} palette={palette} atmosphere={atmosphere} clock={clock} />
         <Fireflies valley={valley} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera valley={valley} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
-        <ValleyProbeHandle valley={valley} clock={clock} walker={walker} />
+        <ValleyProbeHandle valley={valley} clock={clock} walker={walker} setPointOfView={input.setPointOfView} />
       </Canvas>
-      <WalkHints kind={input.kind} show={!input.walkedWith.has(input.kind)} />
+      <WalkHints input={input} />
       <TouchStickView stick={input.stick} />
       <DebugPanel clock={clock} />
     </div>

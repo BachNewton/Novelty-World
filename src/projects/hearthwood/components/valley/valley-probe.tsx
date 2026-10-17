@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
+import type { PointOfView } from "../../input/point-of-view";
 import type { Valley } from "../../world/valley";
 import { holdHour, type ValleyClock } from "./clock";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
@@ -11,7 +12,8 @@ import type { CameraView, Walker } from "./walker";
  * The valley's handle for screenshots and tests, on `window.__hearthwoodValley`:
  * whether it is ready (built, its shaders compiled, and a frame drawn), a
  * frame counter to wait on, what the last frame drew, and switches for the
- * hour, the motion clock, the camera and where the walker stands. Waiting on
+ * hour, the motion clock, the camera, the point of view and where the
+ * walker stands. Waiting on
  * these is waiting on events, never on time.
  */
 
@@ -40,6 +42,9 @@ export interface ValleyProbe {
   holdMotion: (seconds: number | null) => void;
   setView: (view: CameraView) => void;
   setOrbit: (orbit: Partial<Orbit>) => void;
+  setPointOfView: (view: PointOfView) => void;
+  /** Where she looks in first person: the yaw is the orbit's, shared by both views. */
+  setLook: (look: { yaw?: number; pitch?: number }) => void;
   placeWalker: (x: number, z: number, heading?: number) => void;
   walker: () => { x: number; z: number; heading: number };
   /** Where the camera is and the orbit it is on. */
@@ -56,7 +61,7 @@ declare global {
 
 const KEPT_FRAME_TIMES = 120;
 
-export function ValleyProbeHandle({ valley, clock, walker }: { valley: Valley; clock: ValleyClock; walker: Walker }) {
+export function ValleyProbeHandle({ valley, clock, walker, setPointOfView }: { valley: Valley; clock: ValleyClock; walker: Walker; setPointOfView: (view: PointOfView) => void }) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
@@ -97,6 +102,11 @@ export function ValleyProbeHandle({ valley, clock, walker }: { valley: Valley; c
       setOrbit: (orbit) => {
         walker.orbit = { ...FIRST_ORBIT, ...walker.orbit, ...orbit };
       },
+      setPointOfView,
+      setLook: ({ yaw, pitch }) => {
+        if (yaw !== undefined) walker.orbit = { ...walker.orbit, yaw };
+        if (pitch !== undefined) walker.lookPitch = pitch;
+      },
       placeWalker: (x, z, heading) => {
         walker.x = x;
         walker.z = z;
@@ -111,7 +121,7 @@ export function ValleyProbeHandle({ valley, clock, walker }: { valley: Valley; c
       live = false;
       delete window.__hearthwoodValley;
     };
-  }, [gl, scene, camera, valley, clock, walker]);
+  }, [gl, scene, camera, valley, clock, walker, setPointOfView]);
 
   // After the frame is drawn: what it drew, and that it was.
   useFrame(() => {
