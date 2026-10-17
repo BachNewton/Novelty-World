@@ -62,12 +62,34 @@ export interface Engine {
 }
 
 export interface Params {
+  /** The preferences at a table of more than `smallTable.players`. */
   prefs: Preferences;
+  /** The preferences at a table of `players` or fewer while three or more are alive (v3): the game there is a race to the
+   *  first kill with fewer opponents to share the blows, and preferences proposed by
+   *  `risk:tune` at 3 players beat v2 at 3 and 4 but not at 6, where v2's do. */
+  smallTable: { players: number; prefs: Preferences };
   opponents: OpponentModel;
   engine: Engine;
 }
 
 export const V3_PARAMS: Params = {
+  smallTable: {
+    players: 4,
+    // `risk:tune -- --tunable rule-v3 --opponent rule-v2 --players 3 --gens 12 --pop 8
+    // --groups 40`, the final mean (`ideas/bot-log.md`).
+    prefs: {
+      incomeHorizon: 2.4354,
+      myCardWeight: 0.9316,
+      myContinentWeight: 1.4007,
+      killCommitMargin: -0.0188,
+      vulnerabilityWeight: 1.184,
+      borderWeight: 0.347,
+      idleWeight: 0.2522,
+      opportunityWeight: 0.5712,
+      commonThreatWeight: 0.6661,
+      leadPenaltyWeight: 0.0982,
+    },
+  },
   prefs: {
     incomeHorizon: 3,
     myCardWeight: 1,

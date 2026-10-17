@@ -40,8 +40,15 @@ function placeFromPlan(plan: Plan): { territory: number; armies: number } {
   return best;
 }
 
-export function ruleBot(params: Params): Bot {
+export function ruleBot(table: Params): Bot {
   return ({ seat, view, options, seed }): Move => {
+    // The table's size picks the preferences (v3): the small table's while three or more
+    // are alive, since a two-player endgame is another game (the tuned weights hold back
+    // from a 66% fight there that the expert scenario takes). The opponents and the work
+    // are the same.
+    const alive = view.seats.filter((s) => !s.eliminated).length;
+    const small = view.seats.length <= table.smallTable.players && alive >= 3;
+    const params = small ? { ...table, prefs: table.smallTable.prefs } : table;
     const rng = createRng(seed);
     const b = fromView(view);
     switch (options.kind) {
