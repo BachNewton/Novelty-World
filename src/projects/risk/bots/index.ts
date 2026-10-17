@@ -8,6 +8,8 @@ import { ruleBot as ruleV2, ruleV2Bot } from "./rule-v2";
 import { V2_PARAMS } from "./rule-v2/params";
 import { ruleBot as ruleV3, ruleV3Bot } from "./rule-v3";
 import { V3_PARAMS } from "./rule-v3/params";
+import { ruleBot as ruleV4, ruleV4Bot } from "./rule-v4";
+import { ONE_BELIEF_PARAMS, V4_PARAMS } from "./rule-v4/params";
 
 /** Every bot the measuring harness can seat, by label. */
 export const RISK_BOTS: Readonly<Record<string, Bot>> = {
@@ -16,6 +18,8 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v1": ruleV1Bot,
   "rule-v2": ruleV2Bot,
   "rule-v3": ruleV3Bot,
+  "rule-v4": ruleV4Bot,
+  ...Object.fromEntries(Object.entries(ONE_BELIEF_PARAMS).map(([belief, params]) => [`rule-v4-${belief}`, ruleV4(params)])),
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
   "gd-aggressive": gdAggressiveBot,
@@ -30,6 +34,8 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v1": "rule-v1/index.ts",
   "rule-v2": "rule-v2/index.ts",
   "rule-v3": "rule-v3/index.ts",
+  "rule-v4": "rule-v4/index.ts",
+  ...Object.fromEntries(Object.keys(ONE_BELIEF_PARAMS).map((belief) => [`rule-v4-${belief}`, "rule-v4/index.ts"])),
   "gd-defensive": "gd/index.ts",
   "gd-continental": "gd/index.ts",
   "gd-aggressive": "gd/index.ts",
@@ -43,6 +49,13 @@ export const TUNABLE_BOTS: Readonly<Record<string, { prefs: Preferences; engine:
   "rule-v1": { prefs: V1_PARAMS.prefs, engine: V1_PARAMS.engine, build: (prefs, engine) => ruleBot({ ...V1_PARAMS, prefs, engine }) },
   "rule-v2": { prefs: V2_PARAMS.prefs, engine: V2_PARAMS.engine, build: (prefs, engine) => ruleV2({ ...V2_PARAMS, prefs, engine }) },
   "rule-v3": { prefs: V3_PARAMS.prefs, engine: V3_PARAMS.engine, build: (prefs, engine) => ruleV3({ ...V3_PARAMS, prefs, engine }) },
+  "rule-v4": { prefs: V4_PARAMS.prefs, engine: V4_PARAMS.engine, build: (prefs, engine) => ruleV4({ ...V4_PARAMS, prefs, engine }) },
+  // v4 at the small table, where its own preferences are `smallTable.prefs`.
+  "rule-v4-small": {
+    prefs: V4_PARAMS.smallTable.prefs,
+    engine: V4_PARAMS.engine,
+    build: (prefs, engine) => ruleV4({ ...V4_PARAMS, smallTable: { ...V4_PARAMS.smallTable, prefs }, engine }),
+  },
 };
 
 export type Overrides = Partial<Preferences & Engine>;
