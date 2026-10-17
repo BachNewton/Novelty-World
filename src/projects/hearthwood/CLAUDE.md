@@ -6,7 +6,7 @@ It lives at Games → 3D Games → Hearthwood, in Three.js through `@react-three
 
 ## Pillars
 
-- **Nothing is ever lost.** No fail states, no combat, no hunger or health meter, no timer that punishes. A meal that comes out unexpected is a new dish, not a failure. A cat never runs away, falls ill or dies.
+- **Nothing is ever lost.** No fail states, no combat, no hunger or health meter, no timer that punishes. A meal that comes out unexpected is a new dish, not a failure. An animal never runs away, falls ill or dies.
 - **Cooking is for joy and for friendship, never for survival.**
 - **Every walk finds something.** The world is generated so that wandering always turns up a herb, a view, a cat or a ruin, and never a long empty stretch.
 - **Calm by default.** Soft sound, slow light, no notifications nagging for attention. The game waits as long as the player likes.
@@ -61,15 +61,22 @@ The first valley, as built:
 
 The journey part. Leaving a valley is a hike over a generated mountain trail to the next one: the trail climbs, crosses a pass with a view down over both valleys, and descends. A longer hike may take more than a day, with a camp on the way: a small fire on a ledge, a meal from what is in the pack, the stars from higher up. Some walks go to a summit for the view and nothing else.
 
-## Cats
+## Companions: cats and dogs
 
-The heart of the game. Every cat is generated, so no two are the same, and every one looks like a real cat because its coat is drawn from real cat coat genetics: the base colour and its dilute, orange and the tortoiseshell and calico it makes, tabby patterns (mackerel, classic, spotted, ticked), white markings from none to van, colourpoint, long or short hair, and eye colour. On top of the look, each cat has:
+The heart of the game. The woods hold stray **cats and dogs**, every one generated, so no two are the same, and the player befriends them, and once befriended they **follow**: they come along on walks, keep near, nose about, and wait and come running when the witch glides off a ridge. At camp they nap by the fire. Petting one is always available and always answered.
 
-- **A personality**, from a few traits (bold or shy, lazy or busy, cuddly or aloof) that show in how it moves, where it naps and how close it walks.
-- **A favourite dish**, and a few it likes. A stray is won over gradually: it watches from a distance, then comes closer for food, and joins the camp when it is given the dish it loves.
+**Cats** look like real cats because their coats are drawn from real cat coat genetics: the base colour and its dilute, orange and the tortoiseshell and calico it makes, tabby patterns (mackerel, classic, spotted, ticked), white markings from none to van, colourpoint, long or short hair, and eye colour.
+
+**Dogs** are the dogs of the north: a mixed population in which spitz types (prick ears, a tail curled over the back, a plush double coat, like a Lapphund, a Finnish Spitz or an elkhound) are common, among all sorts of mixes. Their build varies far more than a cat's (size from small to big, legs, body, muzzle length, ears pricked, folded or dropped, tails curled, plumed or straight), and their coats come from real dog coat genetics, simplified: black, liver and their dilutes, sable, fawn and red, black and tan and tricolour, brindle, a rare merle, white markings, and coat length.
+
+**One animal underneath.** Cats and dogs share one four-legged body, rig, motion and coat-shader approach, each species its own proportions, gait, postures, coat genetics and behaviour, so a third kind of animal later is a variant, not a new system.
+
+**Befriending** differs as the animals do:
+
+- **A cat** is won over gradually: it watches from a distance, then comes closer for food, and follows once it is given the dish it loves. Each cat has a favourite dish and a few it likes.
+- **A dog** comes more readily: a friendly one bounds up, a shy one needs a treat held out and patience; a game of fetch with a stick wins most dogs.
+- **Each has a personality** from a few traits that show in how it moves and how close it walks: for cats bold or shy, lazy or busy, cuddly or aloof; for dogs bold or shy, calm or playful, cuddly or independent.
 - **A name the player gives it.**
-
-Cats of the camp follow on walks, nap by the fire, sit on the player's pack and sometimes lead the way to something worth finding. Petting a cat is always available and always answered.
 
 **How a cat is made** (decided, built in `cats/`):
 
@@ -182,7 +189,8 @@ The walks between valleys, brewing, seasons, festivals and the night sky follow,
 ## Open questions
 
 - **Who is the player?** A fixed witch, or one the player designs?
-- **The cats on screen:** how many can camp hold before it stops being cozy, and does camp ever outgrow its clearing?
+- **Companions on screen:** how many can follow at once before it stops being cozy, where the rest wait, and does camp ever outgrow its clearing?
+- **Other animals:** cats and dogs first; foxes, a hedgehog, a raven familiar or others could follow later as variants of the same animal.
 - **Do valleys ever repeat?** A valley left behind could be revisited by its seed, or every walk could lead somewhere new.
 - **Other people:** a valley could hold a few gentle characters (a beekeeper, a travelling tinker), or the game could be the witch and the cats alone. Since faces are the art's weak point, characters would have to work at a distance and through silhouette.
 - **Music:** generated, composed, or ambient sound only.
