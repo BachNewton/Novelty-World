@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { Valley } from "../../world/valley";
-import { setHour, type ValleyClock } from "./clock";
+import { holdHour, type ValleyClock } from "./clock";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
 import type { CameraView, Walker } from "./walker";
 
@@ -86,8 +86,7 @@ export function ValleyProbeHandle({ valley, clock, walker }: { valley: Valley; c
       }),
       hour: () => clock.hours,
       holdHour: (hours) => {
-        if (hours === null) setHour(clock, clock.hours);
-        clock.heldHour = hours;
+        holdHour(clock, hours);
       },
       holdMotion: (seconds) => {
         clock.heldMotion = seconds;

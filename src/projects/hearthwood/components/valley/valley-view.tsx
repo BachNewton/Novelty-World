@@ -8,8 +8,10 @@ import { generateValley } from "../../world/valley";
 import { makeAtmosphere } from "./atmosphere";
 import { Campfire } from "./campfire";
 import { makeClock } from "./clock";
+import { DebugPanel } from "./debug-panel";
 import { Daylight, type Focus } from "./daylight";
 import { Fireflies } from "./fireflies";
+import { useFrameStats } from "./frame-stats";
 import { FIRST_ORBIT } from "./follow-camera";
 import { readPalette } from "./palette";
 import { Places } from "./places";
@@ -25,7 +27,8 @@ import { Water } from "./water";
  * The valley: generated from its seed, drawn, lit by the turning day, and
  * walked in third person. `?seed=<text>` opens another valley and
  * `?hour=<0-24>` holds the day at an hour (a dev switch for judging the
- * light), and the probe on window drives it for screenshots.
+ * light), ~ opens the debug panel with the time on a slider, and the
+ * probe on window drives it for screenshots.
  */
 
 export const DEFAULT_SEED = "first-valley";
@@ -71,6 +74,7 @@ export function ValleyView() {
   }, [valley, options.hour]);
   const surface = useRef<HTMLDivElement>(null);
   const input = useWalkInput(surface);
+  useFrameStats();
   const { atmosphere, sky, clock, walker, focus, ridges } = shared;
 
   return (
@@ -97,6 +101,7 @@ export function ValleyView() {
       </Canvas>
       <WalkHints kind={input.kind} show={!input.walkedWith.has(input.kind)} />
       <TouchStickView stick={input.stick} />
+      <DebugPanel clock={clock} />
     </div>
   );
 }

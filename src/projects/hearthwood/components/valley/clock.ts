@@ -45,3 +45,9 @@ export function advanceClock(clock: ValleyClock, seconds: number): void {
 export function setHour(clock: ValleyClock, hours: number): void {
   clock.day = (((hours - FIRST_HOUR + 24) % 24) / 24) * DAY_SECONDS;
 }
+
+/** Holds the day at `hours`, or lets it turn on from where it is when null. */
+export function holdHour(clock: ValleyClock, hours: number | null): void {
+  if (hours === null) setHour(clock, clock.hours);
+  clock.heldHour = hours;
+}

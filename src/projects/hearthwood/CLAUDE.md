@@ -14,7 +14,20 @@ It lives at Games → 3D Games → Hearthwood, in Three.js through `@react-three
 
 ## Target device
 
-Hearthwood's floor, for both its UI and its performance, is a **Pixel 8 Pro** in Chrome, held upright or sideways. It replaces the site-wide floor of phones up to four years old within this project: layouts are designed and checked at its viewport, and the game must run smoothly on its GPU (Tensor G3's Mali-G715), including after several minutes of play, when a phone runs warm and slows. Laptops and a laptop on a TV with a controller are above that floor.
+Hearthwood's floor is a **Pixel 8 Pro** in Chrome, held upright or sideways. It replaces the site-wide floor of phones up to four years old within this project: layouts are designed and checked at its viewport. Laptops and a laptop on a TV with a controller are above that floor.
+
+**Performance comes last.** While the game is a prototype, the work is making it play right and look right; making it run smoothly on the phone's GPU (Tensor G3's Mali-G715) is a later pass, done once play and look are settled, and only as far as it turns out to be needed. Nothing is held back for a budget before then. The valley always shows a stats.js frame meter in the top right, to watch the frame rate while playing.
+
+## Art, gameplay and engine are decoupled
+
+The art must be workable on its own, without touching the rules or the engine, and the reverse. So the layers stay apart:
+
+- **The engine** (generating the world, time, input, streaming) is pure where it can be, and knows nothing of how anything looks.
+- **Gameplay** (the walker, the cats' behaviour, camp, foraging, cooking) is state and rules, with no Three.js in it, and is tested without drawing anything.
+- **Art** (models, materials, palettes, motion, light) takes plain data in (a cat, a tree's seed, the hour) and gives drawing back. It never decides anything the game depends on.
+- **The scene** is the thin layer between them that draws the game's state with the art.
+
+A change of look is a change in the art layer alone; a change of rules never needs the art redone.
 
 ## The loop
 
@@ -130,7 +143,7 @@ The valley's light, as built, is simple and its own (nothing is shared with Ship
 - **Shapes:** trees are soft primitives with their colours in their vertices, crowns shading as one mass, swaying in a breeze; rocks and stones are lumpy flat-shaded solids; the ground has a fine grain of noise. The water lights itself: shallows to deep by the bed's depth, foam at the shore, the sky at a glance and glints of sun; the stream's streaks run downhill and whiten over the falls.
 - **The fire** is soft flame shells, rising embers, a glow and a flickering light, brightest at night, when fireflies come out over the meadow and the stars over the rim.
 - **Pixel ratio** is capped at 1.5: on the Pixel 8 Pro that is about 0.9 megapixels drawn, with the sun's shadows a 1024 map round the walker and the sky drawn last, only where nothing covers it.
-- The day can be held at an hour with `?hour=<0-24>`, and another valley opened with `?seed=<text>`.
+- The day can be held at an hour with `?hour=<0-24>`, or set and held from the debug panel that ~ opens, and another valley opened with `?seed=<text>`.
 
 ## Saving
 
