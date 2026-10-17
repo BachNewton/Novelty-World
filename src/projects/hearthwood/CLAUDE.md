@@ -12,6 +12,10 @@ It lives at Games → 3D Games → Hearthwood, in Three.js through `@react-three
 - **Calm by default.** Soft sound, slow light, no notifications nagging for attention. The game waits as long as the player likes.
 - **Witchcraft is gentle and earthy**: hedge-witchery, herbs, the moon and the Wheel of the Year, treated with warmth and respect, never as spooky set dressing.
 
+## Target device
+
+Hearthwood's floor, for both its UI and its performance, is a **Pixel 8 Pro** in Chrome, held upright or sideways. It replaces the site-wide floor of phones up to four years old within this project: layouts are designed and checked at its viewport, and the game must run smoothly on its GPU (Tensor G3's Mali-G715), including after several minutes of play, when a phone runs warm and slows. Laptops and a laptop on a TV with a controller are above that floor.
+
 ## The loop
 
 A day has a shape, though nothing forces it:
@@ -28,11 +32,11 @@ Each valley is generated from a seed with the site's `seeded-random`, as pure fu
 - **Life:** trees, shrubs, flowers and mushrooms placed by biome, with clearings kept open; ingredients grow where they would in nature (watercress by streams, chanterelles under birch, juniper on dry slopes).
 - **Places:** a handful of points of interest per valley, each a small reason to walk: a standing stone circle, a fallen giant tree, a waterfall, a forgotten shrine, a hilltop view.
 - **Trails** link camp to the places along the land's easy lines, so there is always a path to follow and always the choice to leave it.
-- **Phones up to 4 years old** set the budget: the land streams in chunks around the player, vegetation is instanced and thinned with distance, and far hills are cheap silhouettes.
+- **The Pixel 8 Pro** sets the budget (see Target device): vegetation is instanced and thinned with distance, far hills are cheap silhouettes, and the land streams in chunks only once a valley is too big to draw whole.
 
 The first valley, as built:
 
-- **Shape:** 512 m square, a bowl of meadow floor ringed by mountains, stretched a little along a seeded axis, with a saddle in the rim where the pass to the next valley will go. The walker reaches up to the alpine grass and no higher, so the rim keeps her in without a wall; the land always rises past that reach before the grid's edge. That leaves about 400 m of walkable valley across: generous, and small enough to draw whole.
+- **Shape:** 512 m square, a bowl of meadow floor ringed by mountains, stretched a little along a seeded axis, with a saddle in the rim where the pass to the next valley will go. The walker reaches up to the alpine grass and no higher, so the rim keeps the walker in without a wall; the land always rises past that reach before the grid's edge. That leaves about 400 m of walkable valley across: generous, and small enough to draw whole.
 - **Bands:** meadow floor, forest from about 10 m up to a treeline near 50 m, alpine grass, bare rock from about 100 m and snow on the flatter tops. Each band's edge wanders up and down the slopes, groves stand out on the meadow and glades open in the woods; conifers take over towards the treeline and birches gather by water.
 - **Water:** a lake on the floor and one stream, rising high on the far side, finding its way down to the lake on the land's easy lines and wandering from side to side across the flats. Its water never runs uphill, and it drops over a waterfall where it crosses the forest band, into a plunge pool.
 - **Camp** is a level clearing on the meadow a short walk from the lake, with its fire, two seat logs, a bedroll and a pot on a tripod.
@@ -53,6 +57,17 @@ The heart of the game. Every cat is generated, so no two are the same, and every
 - **A name the player gives it.**
 
 Cats of the camp follow on walks, nap by the fire, sit on the player's pack and sometimes lead the way to something worth finding. Petting a cat is always available and always answered.
+
+**How a cat is made** (decided, built in `cats/`):
+
+- **Everything from one seed**, each part (genes, coat, build, personality) from its own seeded stream, so adding to one never changes another.
+- **Genes are drawn at street-population frequencies**: black, chocolate and cinnamon, each dense or dilute; orange on the X chromosome (one copy for a tom, two for a queen, so only queens are tortoiseshell or calico, and most orange cats are toms); agouti, which shows the tabby pattern (ticked over mackerel over classic, mackerel broken into spots by a modifier), while orange shows its pattern regardless; white spotting, none or a locket with no copies, low to middling white with one, high white to van with two; a rare dominant white; colourpoint; long hair. A population looks like a real one: mostly black, tabby and their dilutes, about one in six long-haired, colourpoints rare. Eyes follow the coat: points are always blue, high white is often blue or odd-eyed, the rest run green to copper. Silver, smoke and the other breeders' genes are left out.
+- **Build** varies size (toms bigger, with broader heads), stockiness (a cobby cat runs to shorter legs), leg, back, tail and ear length, as moved and scaled bones on one shared sculpture, so the build costs nothing per cat.
+- **Personality** is three traits from −1 to 1, and shows in motion: a bold cat holds its head and tail higher, a shy one crouches with its ears turned out; a busy cat looks round, flicks its ears and twitches its tail more often; a lazy one breathes slower and lids its eyes; a cuddly cat slow-blinks.
+- **The model** is one smooth skinned body: signed-distance forms (the shared toolkit in `src/shared/lib/three/sdf.ts`, which Betrayal's figures also use) blended round a skeleton of pivots, each vertex following the bones of the forms nearest it, so the body bends smoothly where the forms were blended. The head is meshed on a finer grid than the body so the ears keep their edge. Faces are painted, not sculpted: big round eyes with a slit pupil and a glint, a small nose, the inside of the ears.
+- **The coat is a shader**: every marking is a pattern function of where a point lies on the cat in its bind pose, so it moves with the body: the tortie's patches (brindled, or bigger and cleaner on a calico), the tabby pattern with its forehead M, cheek lines, leg bars and tail rings, the colourpoint's mask and points, and the white spotting, which grows from the chest and belly through the paws, legs, muzzle and blaze to the sides and back, leaving the head's cap and the tail for last. Long hair is a fuller silhouette (ruff, britches, plume) and a softly lumped surface; no fur cards.
+- **Motion** is pure functions of the cat's clock, the distance it has walked and its speed: postures for standing, walking (the lateral-sequence walk, each paw planted while it is down), sitting and loafing, blended over a second as the activity changes before the legs are solved to their paws, with the tail up in greeting over any of them, and breathing, blinks, ear flicks, look-arounds and tail sway laid on top as seeded occasional movements.
+- **Budget**: a cat is about 12,000 triangles short-haired, 15,000 long-haired, and two draws (its body and a soft blob shadow), with one compiled coat shader shared by every cat. Meshing a hair length takes about a second on a desktop and runs once a session in a worker. The coat's fragment shader is the heaviest part, a few layers of value noise; if several cats close up ever cost too much on the target phone, the pattern can move to the vertices.
 
 ## Foraging and cooking
 
@@ -79,12 +94,12 @@ Each valley's sky is generated, and the stars form constellations the player can
 
 The game plays on all three input methods (a controller, touch, and keyboard + mouse), switching to whichever was used last, through the shared input and gamepad libraries and the shared button prompts (see the root `CLAUDE.md`). It is a third-person game: the player walks, the camera follows and can be turned, and nearby things to pick up, pet or use are offered with a prompt.
 
-Walking, as built: the move goes the way the camera looks, and the witch turns to face where she walks.
+Walking, as built: the move goes the way the camera looks, and the witch turns to face where they walk.
 
 - **Keyboard and mouse:** WASD or the arrows walk, Shift runs, dragging the mouse turns the camera, Q and E turn it too, and the wheel moves it in and out.
 - **Touch:** a stick appears under the thumb wherever it lands on the left half of the screen, walking at the push and running at its rim; dragging on the right half turns the camera, and pinching there moves it in and out.
 - **Controller:** the left stick walks at its push, the right stick turns the camera, and the right trigger runs.
-- The camera orbits the witch, within limits of tilt and distance, and comes in along its line where the land rises behind her rather than climbing over it.
+- The camera orbits the witch, within limits of tilt and distance, and comes in along its line where the land rises behind them rather than climbing over it.
 - How to walk is shown, for the input used last, as its controls beside a symbol of what each does, until that input has walked; on touch, as a ghost stick on the left and a turning symbol on the right.
 
 ## Look
@@ -143,6 +158,9 @@ The walks between valleys, brewing, seasons, festivals and the night sky follow,
 
 ## Code map
 
+- `cats/`: the cats, pure where it can be. `genetics.ts` (the genotype, drawn at population frequencies, and the coat it makes; `coatName`), `cat.ts` (`generateCat`: genes, coat, build and personality from a seed), `coat-look.ts` (a coat as the shader's colour tokens and numbers), `rig.ts` (the skeleton's pivots and proportions; `rigOf` a cat's build), `sculpt.ts` (the body's signed-distance forms and their skinned mesh), `motion.ts` (`catPose`: postures, the walk, blends and fidgets, and the two-segment reach the legs are solved with).
+- `components/cats/`: `cat-body.tsx` (`CatBody`, one cat drawn and moving from props: activity, speed, greeting and an optional clock; whoever places it moves and turns its group), `skinned-cat.ts` (a cat's skinned mesh and skeleton, posed each frame), `coat-material.ts` (the coat shader), `cat-geometry.ts` and `cat-mesh.worker.ts` (the shared sculpture, meshed once per hair length in a worker), `cat-preview.tsx` (the `?cats` preview: a meadow of nine cats, reroll, and one cat on its own to stand, walk, sit, loaf, greet and turn).
+- `tools/cat-shots.mjs`: headless screenshots of the preview through its control surface (`window.__hearthwoodCats`), on a frozen clock: the field on desktop and on the target phone, and each chosen cat by activity and view, with a sheet of them all.
 - `world/`: the valley, pure and unit-tested. `valley.ts` (`generateValley`, everything from a seed), `land.ts` (the bowl, its rim and pass, and the altitude bands), `water.ts` (the lake, the stream and its falls), `places.ts` (camp and the places), `trails.ts` (the trails and their fords), `life.ts` (the woods' density and the scatter of plants), `ground.ts` (biomes and the grounds the land is painted with), `walking.ts` (where a walker may go), `day.ts` (the hour, the sun and moon, and each moment's light), with `grid.ts`, `noise.ts`, `paths.ts` and `fields.ts` underneath.
 - `input/`: walking's input. `walk-controls.ts` (each input's meaning, pure) and `use-walk-input.ts` (all three inputs into one state, and the input used last).
 - `components/valley/`: the drawing. `valley-view.tsx` (the canvas and its overlay), `atmosphere.ts` (the haze and grade every material ends in), `daylight.tsx` and `clock.ts` (the day's light each frame), `palette.ts` (the tokens), `terrain.tsx`, `water.tsx`, `sky.tsx`, `plants.tsx` with `plant-shapes.ts` and `plant-detail.ts`, `places.tsx`, `campfire.tsx`, `fireflies.tsx`, `painted.ts` (vertex-coloured shapes from pieces), `witch.tsx` (the placeholder witch), `walker.tsx` and `follow-camera.ts` (walking and the camera), `walk-hints.tsx` (the prompts and the touch stick), `valley-probe.tsx` (`window.__hearthwoodValley`: ready, frames, what was drawn, and switches for the hour, motion, camera and walker).

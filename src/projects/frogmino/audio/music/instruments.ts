@@ -1,4 +1,4 @@
-import { Shape } from "../sounds";
+import { Shape } from "@/shared/lib/sound";
 import type { Instrument } from "./song";
 
 // The themes' shared instrument palette, as ZzFX sounds tuned to a base
