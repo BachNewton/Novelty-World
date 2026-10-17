@@ -64,7 +64,7 @@ export interface Engine {
 export interface Params {
   /** The preferences at a table of more than `smallTable.players`. */
   prefs: Preferences;
-  /** The preferences at a table of `players` or fewer while three or more are alive (v3): the game there is a race to the
+  /** The preferences at a table of `players` or fewer (v3): the game there is a race to the
    *  first kill with fewer opponents to share the blows, and preferences proposed by
    *  `risk:tune` at 3 players beat v2 at 3 and 4 but not at 6, where v2's do. */
   smallTable: { players: number; prefs: Preferences };
