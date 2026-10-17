@@ -83,7 +83,7 @@ Real games: `risk_games` holds none, so there is no human evidence yet; every ju
 
 ## v2 candidate: a worse target than the neighbours (gauntlet, 2026-10-17): even, not crowned
 
-`rule-v2` with one change from v1 (`rule-bot-v2.md` §1): each opponent's blow against me weighed by my share of the blows it could land on all its neighbours, instead of `1 / its number of neighbouring players`. `risk:gauntlet -- rule-v2 --base rule-v1 --field rule-v1,gd-defensive,gd-continental,gd-aggressive,gd-stacker`, train seeds, ±30 Elo:
+`rule-v2` with one change from v1 (`rule-bot-v2.md`, "Tried and dropped"): each opponent's blow against me weighed by my share of the blows it could land on all its neighbours, instead of `1 / its number of neighbouring players`. `risk:gauntlet -- rule-v2 --base rule-v1 --field rule-v1,gd-defensive,gd-continental,gd-aggressive,gd-stacker`, train seeds, ±30 Elo:
 
 | Pairing | Verdict | Decisive games |
 |---|---|---|
@@ -110,7 +110,7 @@ These became v2's candidate B (`rule-bot-v2.md`).
 
 ## v2 candidate B: the sweep threat model (gauntlet, 2026-10-17): better at 6, even at 3 and 4
 
-`rule-v2` with `rule-bot-v2.md` §1 and §2 (each opponent's turn priced as the larger of its best blow and its sweep of sure captures; forked runs, carried armies and launch stacks fixed), aim as v1. Train seeds, ±30 Elo, against v1 only:
+`rule-v2` with `rule-bot-v2.md` §1 and §4 (each opponent's turn priced as the larger of its best blow and its sweep of sure captures; forked runs, carried armies and launch stacks fixed), aim as v1. Train seeds, ±30 Elo, against v1 only:
 
 | Pairing | Verdict | Win share vs par | Decisive games |
 |---|---|---|---|
@@ -121,3 +121,54 @@ These became v2's candidate B (`rule-bot-v2.md`).
 | 3 v2 vs 1 v1 (4p) | even | 75.0% vs 75.0% | 1,100 |
 
 Win Elo +19.5 a seat over v1 (finishing order +38.6), all from 6 players, where a thin player faces five sweeps a round. Not crowned: the gate needs every table. Candidate A (target share) was better alone at 3 and even elsewhere, so the two are complementary; candidate C combines them.
+
+## v2 candidate C: the sweep, aimed (gauntlet, 2026-10-17): better at five tables of six
+
+Candidate B plus each opponent's aim at me as my share of what its turn (the larger of best blow and sweep) could do to each of its neighbours, the common-threat overrides kept. Train seeds, ±30 Elo, against v1:
+
+| Pairing | Verdict | Win share vs par | Decisive games |
+|---|---|---|---|
+| 1 v2 vs 2 v1 (3p) | even | 34.8% [33.2, 36.4] vs 33.3% | 3,386 |
+| 2 v2 vs 1 v1 (3p) | **better** | 69.7% vs 66.7% | 1,546 |
+| 1 v2 vs 3 v1 (4p) | **better** | 33.5% [28.0, 39.4] vs 25.0% | 263 |
+| 3 v2 vs 1 v1 (4p) | **better** | 90.2% vs 75.0% | 132 |
+| 1 v2 vs 5 v1 (6p) | **better** | 27.7% [21.8, 34.6] vs 16.7% | 184 |
+| 5 v2 vs 1 v1 (6p) | **better** | 92.6% vs 83.3% | 215 |
+
+Win Elo +30.8 a seat (finishing order +36.2). Not crowned: a lone v2 at 3 players leans ahead but isn't decided better. Cap rate 0 to 1.1%, game lengths in line with v1's.
+
+**What decides 3 players, from reading 60 games:** whoever makes the first elimination won 55 of them. And v1's `killChance` returns 0 for a kill whose way in crosses a third player's territory, though its routes take that way: in 285 of v2's turns, 9 kills of 60% or better were invisible, one of them a 98.6% kill another seat took a turn later to win. The same reader measured the sweep model against what v2 actually lost before its next turn: the sweeps summed predict 16.7 armies against 17.2 lost, but the aim weights and `borderWeight` 0.5 cut what reaches the score to about a third of it. Candidate D adds the kill fix; the discount is the next lead.
+
+## v2 crowned: candidate D (gauntlet, 2026-10-17)
+
+Candidate C plus kills reached through a third player (`rule-bot-v2.md` §3). `risk:gauntlet -- rule-v2 --base rule-v1 --field rule-v1,gd-defensive,gd-continental,gd-aggressive,gd-stacker`, ±30 Elo per seat, α = β = 0.05: **better in all 30 pairings on the train seeds and all 30 on holdout.** Against v1:
+
+| Pairing | Train | Holdout |
+|---|---|---|
+| 1 v2 vs 2 v1 (3p) | 42.2% [36.2, 48.4] vs 33.3% (249 games) | 39.6% [34.9, 44.4] (408) |
+| 2 v2 vs 1 v1 (3p) | 73.9% vs 66.7% (333) | 71.1% (669) |
+| 1 v2 vs 3 v1 (4p) | 32.3% [27.3, 37.8] vs 25.0% (304) | 35.7% [29.3, 42.6] (196) |
+| 3 v2 vs 1 v1 (4p) | 88.8% vs 75.0% (144) | 84.4% (224) |
+| 1 v2 vs 5 v1 (6p) | 31.7% [24.3, 40.3] vs 16.7% (126) | 28.9% [22.8, 35.9] (180) |
+| 5 v2 vs 1 v1 (6p) | 94.8% vs 83.3% (174) | 93.4% (198) |
+
+Gauntlet win Elo over v1: **+90 train, +71 holdout** (finishing order +71, +60). Against the GD personas a lone v2 wins 47 to 83% at every table (par 17 to 33%), and a lone persona among v2s wins 0 to 3%. Cap rates 0 to 1.8%, games no longer than v1's. The kill fix alone took the one table candidate C left even (3 players, alone) to better.
+
+Before crowning, the three v1 scenarios v2 now plays differently were looked at and rewritten to v2's judgement with the reasons beside them (`rule-bot-v2.md`, "Expert scenarios that changed"): it declines a North America that would make it everyone's target, moves on only what a run needs, and calls covering a shell or keeping its stack a near tie.
+
+## Ratings with v2 (2026-10-17)
+
+`risk:ratings -- --seatable --groups 100` (which now writes `bots/ratings.json` itself): every seatable bot that can win, each alone among each other at 3, 4 and 6 players, 54,600 games in 106 minutes. Win Elo, greedy at 1000, 95% bootstrap intervals:
+
+| Bot | Rank | Win Elo | 95% | Finishing-order Elo |
+|---|---|---|---|---|
+| Rule v2 | Sergeant Major | 1410 | [1401, 1421] | 1250 |
+| Rule v1 | Master Sergeant | 1334 | [1325, 1344] | 1171 |
+| GD Stacker | Sergeant First Class | 1097 | [1086, 1106] | 1115 |
+| GD Continental | Staff Sergeant | 1069 | [1060, 1078] | 1060 |
+| Greedy | Sergeant | 1000 | anchor | 1000 |
+| GD Aggressive | Corporal | 997 | [986, 1006] | 1049 |
+| GD Defensive | Private | 966 | [957, 975] | 1046 |
+| Random | Recruit | none | | |
+
+v2 against v1 head to head: alone among v1s it wins 40.3% at 3 players (par 33.3%), 32.7% at 4 (25%) and 29.6% at 6 (16.7%); a lone v1 among v2s wins 31.0%, 14.5% and 5.2%. The lobby now seats Rule v2 by default. The run's wall time was twice the first ratings' for 40% more games, with the machine half busy on average: a few long games hold up each matchup's batch, a tooling lead (work-stealing across matchups) for later.

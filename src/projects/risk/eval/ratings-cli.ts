@@ -1,7 +1,10 @@
+import { writeFileSync } from "node:fs";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { fitElo, pairsFromFinishes, pairsFromWinner, type PairResult } from "@/shared/lib/bot-lab/elo";
 import { wilsonInterval } from "@/shared/lib/bot-lab/stats";
 import { RISK_BOTS } from "../bots";
+import { SEAT_BOTS } from "../online/seat-bots";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
 import { checkBots, commonDefaults, commonFlag, number, riskRun, type CommonArgs } from "./cli-args";
 import { eloLine } from "./gauntlet";
@@ -15,16 +18,24 @@ import { finishesOf, outcomeFor, riskPool, tableSpecs } from "./parallel";
  *
  *  Usage:
  *    npm run risk:ratings -- greedy random                 # name the bots (random only when named)
- *    npm run risk:ratings -- greedy random --players 6 --groups 100 --anchor random */
+ *    npm run risk:ratings -- greedy random --players 6 --groups 100 --anchor random
+ *    npm run risk:ratings -- --seatable --groups 100      # every seatable bot that can win; writes bots/ratings.json */
+
+/** The seatable bots' measured Elo, which the lobby ranks them by (`online/seat-bots.ts`). */
+const SEAT_RATINGS = fileURLToPath(new URL("../bots/ratings.json", import.meta.url));
+/** The seatable ladder's anchor and the Elo it is shown at. */
+const SEAT_ANCHOR = "greedy";
+const SEAT_ANCHOR_ELO = 1000;
 
 interface Args extends CommonArgs {
   labels: string[];
   groups: number;
   anchor?: string;
+  seatable: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args {
-  const a: Args = { ...commonDefaults("ratings"), labels: [], groups: 50 };
+  const a: Args = { ...commonDefaults("ratings"), labels: [], groups: 50, seatable: false };
   for (let i = 0; i < argv.length; i++) {
     const used = commonFlag(a, argv, i);
     if (used > 0) {
@@ -33,8 +44,15 @@ function parseArgs(argv: readonly string[]): Args {
     }
     if (argv[i] === "--groups") a.groups = number(argv[++i], "--groups");
     else if (argv[i] === "--anchor") a.anchor = argv[++i];
+    else if (argv[i] === "--seatable") a.seatable = true;
     else if (argv[i].startsWith("--")) throw new Error(`unknown flag "${argv[i]}"`);
     else a.labels.push(argv[i]);
+  }
+  if (a.seatable) {
+    if (a.labels.length > 0 || a.anchor !== undefined) throw new Error("--seatable rates every seatable bot against greedy: name no bots and no anchor");
+    // Random never wins, so it has no Elo and isn't rated.
+    a.labels = Object.keys(SEAT_BOTS).filter((l) => l !== "random");
+    a.anchor = SEAT_ANCHOR;
   }
   if (a.labels.length === 0) a.labels = Object.keys(RISK_BOTS).filter((l) => l !== "random");
   if (a.labels.length < 2) throw new Error("a ladder needs at least two bots. Example: npm run risk:ratings -- greedy random");
@@ -104,6 +122,16 @@ async function main(): Promise<void> {
     console.log(`
   Win Elo (${anchor} = 0):              ${eloLine(winElo)}`);
     console.log(`  Finishing-order Elo (${anchor} = 0):  ${eloLine(fitElo(args.labels, finishPairs, { anchor }))}`);
+    if (args.seatable) {
+      if (errors > 0) throw new Error("games threw: the seatable ratings were not written");
+      const elo = Object.fromEntries(args.labels.map((l) => [l, Math.round((SEAT_ANCHOR_ELO + winElo[l]) * 10) / 10]));
+      const measured =
+        `risk:ratings -- --seatable --groups ${args.groups.toString()}, ${new Date().toISOString().slice(0, 10)}: ` +
+        `${live.counts().games.toString()} games at ${args.players.join(", ")} players, each bot alone among each other`;
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- the ratings file beside the bots, a fixed path in this repo
+      writeFileSync(SEAT_RATINGS, `${JSON.stringify({ measured, anchor: `${SEAT_ANCHOR} = ${SEAT_ANCHOR_ELO.toString()}`, elo }, null, 2)}\n`);
+      console.log(`  Wrote the seatable bots' Elo to bots/ratings.json`);
+    }
     if (errors > 0) {
       console.log(`  ⚠ ${errors} games threw and were excluded: a bot or engine bug`);
       process.exitCode = 1;

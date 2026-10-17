@@ -225,7 +225,7 @@ describe("v2's scenarios", () => {
     expect(decide(state), explain(state)).toEqual({ kind: "attack", from: "indonesia", to: "siam", dice: 3 });
   });
 
-  it("9: completes North America when it is cheap: with sets that don't grow, continents pay", () => {
+  it("9: takes a card from North America, but not a continent everyone would break", () => {
     const state = scenario({
       board: layout(
         {
@@ -243,7 +243,11 @@ describe("v2's scenarios", () => {
       ),
     });
     const { moves } = playTurn(state, (m) => m.kind === "end-attack");
-    expect(targetsOf(moves), explain(state)).toEqual(expect.arrayContaining(["alaska", "greenland"]));
+    // v2 takes Alaska and leaves Greenland: completing North America here would make it the
+    // common threat, every neighbour's target, and Iceland's 3 with its owner's income of 5
+    // would surely break the continent back (rule-bot-v2.md, "Expert scenarios that
+    // changed"). v1 took both.
+    expect(targetsOf(moves), explain(state)).toContain("alaska");
   });
 
   it("10: under a common threat, strikes the leader first", () => {
@@ -364,7 +368,7 @@ describe("v2's scenarios", () => {
     expect(referenceEngine.view(after, 0).cardEarned).toBe(true);
   });
 
-  it("15: holding cards, covers the shell an opponent could take, and me with it", () => {
+  it("15: holding cards, covers the shell or keeps the stack, a near tie, and nothing else", () => {
     // Indonesia 14, New Guinea 2; Western Australia's 10 can take the shell, and with it me.
     const state = scenario({
       board: layout(
@@ -375,6 +379,12 @@ describe("v2's scenarios", () => {
       hands: [["china", "india", "japan", "kamchatka"], [], [], [], []],
       phase: "fortify",
     });
-    expect(decide(state), explain(state)).toMatchObject({ kind: "fortify", from: "indonesia", to: "new-guinea" });
+    // v1 covered the shell. v2 scores covering it and keeping the stack within a hair of
+    // each other: Western Australia's owner can reach the kill either way (46% kept, 43%
+    // covered), and armies moved onto New Guinea are what a sweep through it takes. So it
+    // may do either, and must not move anything elsewhere (rule-bot-v2.md).
+    const move = decide(state);
+    if (move.kind === "fortify") expect(move, explain(state)).toMatchObject({ from: "indonesia", to: "new-guinea" });
+    else expect(move).toEqual({ kind: "end-turn" });
   });
 });

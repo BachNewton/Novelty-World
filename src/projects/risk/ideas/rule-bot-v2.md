@@ -18,7 +18,15 @@ v2 charges each opponent's turn against it as the larger of v1's best blow and i
 
 The sweep is the opponent model, not a preference: it has no weight to tune. The 90% bar and the eight-capture limit are fixed by reasoning about Balanced Blitz and a turn's length.
 
-## 2. The board a plan ends on is one that can happen
+## 2. Whom an opponent hits
+
+v1 weighted each opponent's blow against me by `1 / its number of neighbouring players`, as if it chose a victim at random. v2 weighs it by my share of what its turn (the larger of blow and sweep) could do to each of its neighbours, each weighed as the opponent sees it, every continent at its plain bonus: an opponent hits whoever its turn hurts most, so being a worse target than the players beside me turns its attacks onto them. The common-threat overrides are v1's (everyone hits the common threat; a common threat's neighbours are hit a quarter as often). Alone, this measured better than v1 at 3 players only; with the sweep it is what took v2 past v1 at 4 players.
+
+## 3. Kills reached through a third player
+
+At 3 players the first elimination decides the game: in 60 games read, whoever made it won 55. v1's kill chance returned 0 for any kill whose way in crossed a third player's territory, though its capture routes take that way, so v1 neither planned those kills nor feared them: one reader found 9 kills of 60% or better hidden in 285 turns, one at 98.6% that another seat took a turn later and won by. v2 counts the stacks one third-party territory from the victim, less what breaking through costs. Since kill chance feeds kill exposure, the gift to whoever finishes a weakened player and next turn's opportunity, all three see these kills too. This took v2's lone seat at 3 players from even to better.
+
+## 4. The board a plan ends on is one that can happen
 
 Pricing exposure well made v1's sketch of a plan's end matter, and two faults in it showed:
 
@@ -28,9 +36,13 @@ Pricing exposure well made v1's sketch of a plan's end matter, and two faults in
 
 ## Expert scenarios that changed
 
+v1's scenarios (`rule-bot-v1.md` §5) are v2's regression tests too. Three now read v2's judgement, each looked at before v2 was crowned:
+
+- **9, North America.** With two cheap territories missing, v1 took both. v2 takes a card from it but leaves the continent: completing it would make v2 the common threat, every neighbour's target, and the neighbour beside Greenland (3 armies and an income of 5) would surely break it back. Measured strength, not the scenario, settles whether that is right; v2 is far stronger, so the scenario follows it.
 - **12, the move-in.** v1 moved everything on through a captured territory; v2 moves enough to finish the run for sure and may keep the rest at the gate.
-- **9, completing North America cheaply**, is failing for this candidate and is kept failing on purpose. Completing it makes v2 the common threat, so every neighbour aims at it, and with sweeps counted the exposure outweighs the bonus. Whether that judgement or the scenario is right is the gauntlet's to say; if v2 is crowned, the scenario is revisited before it ships.
+- **15, covering the shell.** v1 moved its stack onto the thin territory beside it; v2 scores that and holding within a hair (the opponent reaches the kill either way, and armies on the shell are what its sweep takes), so either passes, and nothing else does.
 
 ## Tried and dropped
 
-- **A worse target than the neighbours** (target share): each opponent's aim at me weighted by my share of the blows it could land on its neighbours. Better than v1 alone at 3 players, even elsewhere (`bot-log.md`).
+- **Target share alone**, aim by my share of each opponent's best blows, with v1's threat model: better than v1 alone at 3 players, even elsewhere. Kept in the combined form above.
+- **The sweep alone**, aimed as v1 aims: better at 6 players, even at 3 and 4.
