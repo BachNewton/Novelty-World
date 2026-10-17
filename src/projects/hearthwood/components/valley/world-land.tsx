@@ -151,7 +151,7 @@ function buildTile(tile: LandTile, palette: Palette, materials: { land: Material
   const { level } = tile.key;
   const land = new Mesh(terrainGeometry(tile, palette, morphFor(level, quality)), materials.land);
   land.receiveShadow = true;
-  land.castShadow = level === 0;
+  land.castShadow = true;
   const wet = level < quality.waterLevels ? waterGeometry(tile) : null;
   return { land, water: wet ? new Mesh(wet, materials.water) : null };
 }

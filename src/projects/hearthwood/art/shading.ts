@@ -128,12 +128,15 @@ const GRAIN = /* glsl */ `
   diffuseColor.rgb *= 0.82 + 0.36 * hwGrain;
 `;
 
+/** Patches any of three's vertex shaders with the vertex hooks of a kind and a material's own vertex GLSL, so whatever moves a vertex there moves it here too. */
+export function patchVertex(vertexShader: string, art: readonly FeatureArt[], kind: MaterialKind, own: OwnGlsl | null): string {
+  const vertex = inject(vertexShader, "#include <common>", `${VERTEX_DECLARATIONS}\n${own?.vertexHead ?? ""}\n${guarded(art, kind, "vertexHead")}`);
+  return inject(vertex, "#include <begin_vertex>", `${own?.vertex ?? ""}\n${guarded(art, kind, "vertex")}`);
+}
+
 /** Patches three's Lambert shader with the hooks of a kind, and the material's own GLSL. */
 export function patchLambert(shader: { vertexShader: string; fragmentShader: string }, art: readonly FeatureArt[], kind: MaterialKind, own: OwnGlsl | null): void {
-  let vertex = shader.vertexShader;
-  vertex = inject(vertex, "#include <common>", `${VERTEX_DECLARATIONS}\n${own?.vertexHead ?? ""}\n${guarded(art, kind, "vertexHead")}`);
-  vertex = inject(vertex, "#include <begin_vertex>", `${own?.vertex ?? ""}\n${guarded(art, kind, "vertex")}`);
-  vertex = inject(vertex, "#include <fog_vertex>", WORLD_POSITION);
+  const vertex = inject(patchVertex(shader.vertexShader, art, kind, own), "#include <fog_vertex>", WORLD_POSITION);
 
   const grained = kind === "land" || kind === "ground";
   let fragment = shader.fragmentShader;
@@ -214,6 +217,9 @@ export function shadingVariants(): ShadingVariants {
 
 export type LambertKind = Extract<MaterialKind, "land" | "ground" | "foliage" | "solid">;
 
+/** What each shared Lambert material was made from, so a twin of it (a shadow caster) can move its vertices the same way. */
+const LAMBERTS = new WeakMap<Material, { kind: LambertKind; uniforms: Record<string, IUniform>; own: OwnGlsl | null }>();
+
 /** A Lambert material made one of the shared kinds: it ends in the world's air and takes every feature's GLSL for its kind. */
 export function shadeLambert<M extends MeshLambertMaterial>(material: M, kind: LambertKind, atmosphere: AtmosphereUniforms, own: OwnGlsl | null = null): M {
   const variants = shadingVariants();
@@ -224,7 +230,30 @@ export function shadeLambert<M extends MeshLambertMaterial>(material: M, kind: L
   };
   material.customProgramCacheKey = () => `hearthwood:${kind}:${own?.key ?? ""}`;
   variants.track(material, kind);
+  LAMBERTS.set(material, { kind, uniforms, own });
   return material;
+}
+
+/**
+ * Makes `twin`, a material another pass draws the same meshes with (a shadow
+ * caster's depth), move its vertices exactly as the shared Lambert material
+ * `of` does: its own vertex GLSL and every feature's vertex chunks, under the
+ * same defines, kept in step as features switch. `patch` adds the twin's own
+ * changes; `key` names its programs apart. False when `of` isn't a shared
+ * Lambert material.
+ */
+export function shadeTwin(twin: Material, of: Material, key: string, patch: (shader: WebGLProgramParametersWithUniforms) => void): boolean {
+  const made = LAMBERTS.get(of);
+  if (!made) return false;
+  const variants = shadingVariants();
+  twin.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms) => {
+    Object.assign(shader.uniforms, made.uniforms);
+    shader.vertexShader = patchVertex(shader.vertexShader, variants.art, made.kind, made.own);
+    patch(shader);
+  };
+  twin.customProgramCacheKey = () => `hearthwood:${key}:${made.kind}:${made.own?.key ?? ""}`;
+  variants.track(twin, made.kind);
+  return true;
 }
 
 export type CustomKind = Extract<MaterialKind, "water" | "sky">;
@@ -241,4 +270,3 @@ export function shadeCustom(kind: CustomKind, atmosphere: AtmosphereUniforms, pa
   variants.track(material, kind);
   return material;
 }
-

@@ -1,4 +1,4 @@
-import { type BufferGeometry, ConeGeometry, CylinderGeometry, IcosahedronGeometry, OctahedronGeometry, SphereGeometry, Vector3 } from "three";
+import { type BufferGeometry, ConeGeometry, CylinderGeometry, IcosahedronGeometry, OctahedronGeometry, Vector3 } from "three";
 import { createRng, uniform, type Rng } from "@/shared/lib/seeded-random";
 import type { PlantKind } from "../engine/regions";
 import type { Detail } from "../engine/streaming";
@@ -244,42 +244,6 @@ function fern(rng: Rng, variant: number, detail: Detail, p: Palette): BufferGeom
   return paint(pieces);
 }
 
-const MUSHROOM_CAPS = ["mushroom-red", "mushroom-brown", "mushroom-gold"] as const;
-
-/** A little cluster of mushrooms: a red cap spotted white, a brown one, or a golden chanterelle's funnel. */
-function mushroom(rng: Rng, variant: number, p: Palette): BufferGeometry {
-  const cap = p.things[MUSHROOM_CAPS[variant % MUSHROOM_CAPS.length]];
-  const pieces: Piece[] = [];
-  const count = 3 + Math.floor(rng.next() * 3);
-  for (let m = 0; m < count; m++) {
-    const angle = rng.next() * Math.PI * 2;
-    const out = m === 0 ? 0 : uniform(rng, 0.08, 0.2);
-    const x = Math.cos(angle) * out;
-    const z = Math.sin(angle) * out;
-    const height = uniform(rng, 0.09, 0.2) * (m === 0 ? 1.2 : 1);
-    const width = height * uniform(rng, 0.55, 0.8);
-    const stem = new CylinderGeometry(width * 0.22, width * 0.28, height, 6);
-    stem.translate(x, height / 2, z);
-    pieces.push({ geometry: stem, colour: p.things["mushroom-stem"] });
-    const top =
-      variant === 2
-        ? new ConeGeometry(width * 0.85, width * 0.6, 9, 1, true).rotateX(Math.PI)
-        : new SphereGeometry(width, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.75, 1);
-    top.translate(x, height + (variant === 2 ? 0 : -width * 0.15), z);
-    pieces.push({ geometry: top, colour: cap, shading: 0.4 });
-    if (variant === 0) {
-      for (let s = 0; s < 5; s++) {
-        const a = rng.next() * Math.PI * 2;
-        const r = width * uniform(rng, 0.2, 0.7);
-        const spot = new OctahedronGeometry(width * 0.11, 0);
-        spot.translate(x + Math.cos(a) * r, height - width * 0.15 + Math.sqrt(Math.max(0, width * width - r * r)) * 0.75, z + Math.sin(a) * r);
-        pieces.push({ geometry: spot, colour: p.things["mushroom-spot"] });
-      }
-    }
-  }
-  return paint(pieces);
-}
-
 /** One design of a kind at a level of detail, or null when the kind isn't drawn that far out. */
 export function plantShape(kind: PlantKind, variant: number, detail: Detail, palette: Palette): BufferGeometry | null {
   const rng = createRng(`hearthwood/plant/${kind}/${variant}`);
@@ -302,8 +266,6 @@ export function plantShape(kind: PlantKind, variant: number, detail: Detail, pal
       return heather(rng, variant, detail, palette);
     case "fern":
       return fern(rng, variant, detail, palette);
-    case "mushroom":
-      return detail === "near" ? mushroom(rng, variant, palette) : null;
     case "rock":
       return rock(rng, detail, palette);
     case "flowers":
