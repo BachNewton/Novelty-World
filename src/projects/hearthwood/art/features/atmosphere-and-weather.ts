@@ -3,6 +3,7 @@ import { CLOUD_SHADOWS_ART } from "../atmosphere/cloud-shadows";
 import { CLOUDS_ART } from "../atmosphere/clouds";
 import { CREPUSCULAR_RAYS_ART } from "../atmosphere/crepuscular-rays";
 import { FOG_ART } from "../atmosphere/fog";
+import { GOD_RAYS_ART } from "../atmosphere/god-rays";
 import { SUN_SHAFTS_ART } from "../atmosphere/sun-shafts";
 import type { FeatureArt } from "../feature-art";
 import { LIGHTNING_ART } from "../weather/lightning";
@@ -16,4 +17,4 @@ import { WET_GROUND_ART } from "../weather/wet-ground";
  * over it, the puddles take the light before the clouds' shadows shade it,
  * and the fog lies over everything last.
  */
-export const ATMOSPHERE_AND_WEATHER_ART: readonly FeatureArt[] = [LIGHTNING_ART, CLOUDS_ART, CLOUD_SHADOWS_ART, WET_GROUND_ART, FOG_ART, CREPUSCULAR_RAYS_ART, SUN_SHAFTS_ART, BLOOMY_FOG_ART];
+export const ATMOSPHERE_AND_WEATHER_ART: readonly FeatureArt[] = [LIGHTNING_ART, CLOUDS_ART, CLOUD_SHADOWS_ART, WET_GROUND_ART, FOG_ART, CREPUSCULAR_RAYS_ART, GOD_RAYS_ART, SUN_SHAFTS_ART, BLOOMY_FOG_ART];
