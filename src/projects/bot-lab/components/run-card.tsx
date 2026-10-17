@@ -11,6 +11,7 @@ import {
   Hourglass,
   MemoryStick,
   Play,
+  SlidersHorizontal,
   Square,
   Timer,
   Unplug,
@@ -30,7 +31,7 @@ import {
 import type { RunRecord } from "@/shared/lib/bot-lab/run-log";
 import { Card } from "@/shared/components/ui/card";
 import { cn } from "@/shared/lib/utils";
-import { elapsedMs, formatDuration, formatElo, percent } from "../logic";
+import { botLabel, elapsedMs, formatDuration, formatElo, percent } from "../logic";
 
 const STATE: Record<RunState, { icon: LucideIcon; label: string; text: string; bar: string }> = {
   running: { icon: Play, label: "Running", text: "text-brand-green", bar: "bg-brand-green" },
@@ -131,16 +132,16 @@ function CrownMark({ accepted }: { accepted: boolean }) {
 function BotChips({ bots, candidate }: { bots: readonly string[]; candidate?: string }) {
   return (
     <ul className="flex flex-wrap gap-1" aria-label="Bots">
-      {bots.map((bot) => (
+      {bots.map((bot, i) => (
         <li
-          key={bot}
+          key={i}
           className={cn(
-            "rounded border px-1.5 py-0.5 font-mono text-xs",
+            "max-w-full rounded border px-1.5 py-0.5 font-mono text-xs break-all",
             bot === candidate ? "border-brand-pink text-brand-pink" : "border-border-hover text-text-secondary",
           )}
-          title={bot === candidate ? "The candidate" : undefined}
+          title={bot === candidate ? `${bot}, the candidate` : bot}
         >
-          {bot}
+          <BotName label={bot} />
         </li>
       ))}
     </ul>
@@ -220,9 +221,9 @@ function Seats({ bot, against, seats, players }: { bot: string; against: string;
         ))}
       </span>
       <span className="truncate font-mono text-sm">
-        <span className="text-brand-pink">{bot}</span>
+        <BotName label={bot} className="text-brand-pink" />
         <span className="text-text-muted"> vs </span>
-        <span className="text-brand-blue">{against}</span>
+        <BotName label={against} className="text-brand-blue" />
       </span>
     </span>
   );
@@ -309,7 +310,7 @@ function Result({ result }: { result: LiveResult }) {
   return (
     <div className="flex flex-col gap-3">
       {result.error !== undefined && (
-        <p className="rounded-md border-2 border-brand-pink px-3 py-2 font-mono text-sm text-brand-pink">{result.error}</p>
+        <p className="rounded-md border-2 border-brand-pink px-3 py-2 font-mono text-sm break-words text-brand-pink">{result.error}</p>
       )}
       {result.crown && <CrownVerdict crown={result.crown} />}
       {result.elo && <Ladder anchor={result.elo.anchor} ratings={result.elo.ratings} champion={result.crown?.champion} />}
@@ -331,16 +332,25 @@ function CrownVerdict({ crown }: { crown: NonNullable<LiveResult["crown"]> }) {
         crown.accepted ? "border-brand-orange" : "border-border-hover",
       )}
     >
-      <span className="flex items-center gap-2 font-bold">
+      <span className="flex min-w-0 items-center gap-2 font-bold" title={crown.candidate}>
         <CrownMark accepted={crown.accepted} />
-        <span className="font-mono">{crown.candidate}</span>
+        <BotName label={crown.candidate} className="min-w-0 font-mono break-all" />
       </span>
       <Gate ok={crown.improvesVsBase} label={`Beats its base, ${crown.base}`}>
-        <span className="text-text-muted">vs</span> <span className="font-mono">{crown.base}</span>
+        <span className="text-text-muted">vs</span> <BotName label={crown.base} className="font-mono break-all" />
       </Gate>
       <Gate ok={crown.regressions.length === 0} label={crown.regressions.length === 0 ? "Worse than no one" : `Worse than ${crown.regressions.join(", ")}`}>
         <span className="text-text-muted">worse than</span>{" "}
-        <span className="font-mono">{crown.regressions.length === 0 ? "none" : crown.regressions.join(", ")}</span>
+        <span className="min-w-0 font-mono break-all">
+          {crown.regressions.length === 0
+            ? "none"
+            : crown.regressions.map((bot, i) => (
+                <span key={bot}>
+                  {i > 0 && ", "}
+                  <BotName label={bot} />
+                </span>
+              ))}
+        </span>
       </Gate>
     </div>
   );
@@ -349,7 +359,7 @@ function CrownVerdict({ crown }: { crown: NonNullable<LiveResult["crown"]> }) {
 function Gate({ ok, label, children }: { ok: boolean; label: string; children: ReactNode }) {
   const v = ok ? VERDICT.better : VERDICT.worse;
   return (
-    <span className="flex items-center gap-1 text-sm" title={label}>
+    <span className="flex min-w-0 items-center gap-1 text-sm" title={label}>
       <span className={cn("font-bold", v.text)} role="img" aria-label={ok ? "Yes" : "No"}>
         {v.mark}
       </span>
@@ -370,7 +380,7 @@ function Ladder({ anchor, ratings, champion }: { anchor: string; ratings: Record
         <li key={bot} className="flex items-center gap-2 text-sm">
           <span className={cn("w-24 shrink-0 truncate font-mono", bot === anchor ? "text-brand-blue" : "text-text-primary")} title={bot === anchor ? `${bot}, the anchor at 0` : bot}>
             {bot === champion && <Crown size={12} className="mr-1 inline text-brand-orange" aria-label="Champion" />}
-            {bot}
+            <BotName label={bot} />
           </span>
           <div className="h-3 min-w-0 flex-1 rounded bg-surface-elevated">
             <div className="h-full rounded bg-brand-orange" style={{ width: `${(4 + (96 * (elo - low)) / span).toFixed(1)}%` }} />
@@ -406,5 +416,18 @@ function RecordLine({ record }: { record: RunRecord }) {
         {record.dirty && "*"}
       </span>
     </div>
+  );
+}
+
+/** A bot by its label: a tuned one as its base and a tuning mark, the overrides it
+ *  plays with in its tooltip and accessible name. */
+function BotName({ label, className }: { label: string; className?: string }) {
+  const { base, tuning } = botLabel(label);
+  if (tuning === null) return <span className={className}>{label}</span>;
+  return (
+    <span className={className} title={label}>
+      {base}
+      <SlidersHorizontal size={12} className="ml-0.5 inline align-[-1px]" aria-label={`tuned: ${tuning}`} />
+    </span>
   );
 }

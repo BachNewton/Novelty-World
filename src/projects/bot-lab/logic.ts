@@ -40,3 +40,11 @@ export function formatElo(elo: number): string {
 }
 
 export const percent = (x: number): string => `${Math.round(100 * x).toString()}%`;
+
+/** A bot's label split into the bot it builds on and its tuning, if any: a tuned
+ *  label is its base, a "~", then the overrides it plays with. */
+export function botLabel(label: string): { base: string; tuning: string | null } {
+  const mark = label.indexOf("~");
+  if (mark === -1) return { base: label, tuning: null };
+  return { base: label.slice(0, mark), tuning: label.slice(mark + 1) };
+}
