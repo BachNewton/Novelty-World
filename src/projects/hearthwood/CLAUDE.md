@@ -30,6 +30,16 @@ Each valley is generated from a seed with the site's `seeded-random`, as pure fu
 - **Trails** link camp to the places along the land's easy lines, so there is always a path to follow and always the choice to leave it.
 - **Phones up to 4 years old** set the budget: the land streams in chunks around the player, vegetation is instanced and thinned with distance, and far hills are cheap silhouettes.
 
+The first valley, as built:
+
+- **Shape:** 512 m square, a bowl of meadow floor ringed by mountains, stretched a little along a seeded axis, with a saddle in the rim where the pass to the next valley will go. The walker reaches up to the alpine grass and no higher, so the rim keeps her in without a wall; the land always rises past that reach before the grid's edge. That leaves about 400 m of walkable valley across: generous, and small enough to draw whole.
+- **Bands:** meadow floor, forest from about 10 m up to a treeline near 50 m, alpine grass, bare rock from about 100 m and snow on the flatter tops. Each band's edge wanders up and down the slopes, groves stand out on the meadow and glades open in the woods; conifers take over towards the treeline and birches gather by water.
+- **Water:** a lake on the floor and one stream, rising high on the far side, finding its way down to the lake on the land's easy lines and wandering from side to side across the flats. Its water never runs uphill, and it drops over a waterfall where it crosses the forest band, into a plunge pool.
+- **Camp** is a level clearing on the meadow a short walk from the lake, with its fire, two seat logs, a bedroll and a pot on a tripod.
+- **Places:** a standing stone circle (one stone fallen) out on the floor, the waterfall seen from a clear bank below it, and a hilltop with a cairn and a bench facing back over the valley. Trees are kept back from each place and from where its trail ends.
+- **Trails** are the cheapest routes from camp, climbing gently, never up a cliff or into the lake, joining up where they share a way, and fording the stream on stepping stones. The land is worn level across them.
+- **Drawing:** the land is one mesh over the whole heightfield (about 131k triangles), coloured per vertex by its blend of grounds and shaded under the trees; at this size it needs no streaming. Plants are instanced, one draw per design and level of detail; the valley is cut into 32 m chunks, and each chunk in view draws its plants near or far by its distance, thinned beyond 150 m. Far mountains are two flat rings of silhouettes. A frame is about 300k to 450k triangles in about 65 draws.
+
 ## Walks between valleys
 
 The journey part. Leaving a valley is a hike over a generated mountain trail to the next one: the trail climbs, crosses a pass with a view down over both valleys, and descends. A longer hike may take more than a day, with a camp on the way: a small fire on a ledge, a meal from what is in the pack, the stars from higher up. Some walks go to a summit for the view and nothing else.
@@ -69,6 +79,14 @@ Each valley's sky is generated, and the stars form constellations the player can
 
 The game plays on all three input methods (a controller, touch, and keyboard + mouse), switching to whichever was used last, through the shared input and gamepad libraries and the shared button prompts (see the root `CLAUDE.md`). It is a third-person game: the player walks, the camera follows and can be turned, and nearby things to pick up, pet or use are offered with a prompt.
 
+Walking, as built: the move goes the way the camera looks, and the witch turns to face where she walks.
+
+- **Keyboard and mouse:** WASD or the arrows walk, Shift runs, dragging the mouse turns the camera, Q and E turn it too, and the wheel moves it in and out.
+- **Touch:** a stick appears under the thumb wherever it lands on the left half of the screen, walking at the push and running at its rim; dragging on the right half turns the camera, and pinching there moves it in and out.
+- **Controller:** the left stick walks at its push, the right stick turns the camera, and the right trigger runs.
+- The camera orbits the witch, within limits of tilt and distance, and comes in along its line where the land rises behind her rather than climbing over it.
+- How to walk is shown, for the input used last, as its controls beside a symbol of what each does, until that input has walked; on touch, as a ghost stick on the left and a turning symbol on the right.
+
 ## Look
 
 Hearthwood has its own style: a warm, soft storybook diorama, with golden light and the fire as the brightest thing at night. Its colours are its own tokens, scoped to the project.
@@ -89,6 +107,15 @@ What the style stays away from, because code does it badly: realistic or detaile
 **Cats** are the hardest art in the game and its heart, so they get the most care: a stylised cat of a few smooth forms, recognisably a cat by its silhouette, ears and tail and by how it moves (the stretch, the loaf, the tail up in greeting). Its coat is a shader driven by its genetics (see Cats): a tabby's stripes and a calico's patches are pattern functions, which is exactly what code does well. The witch is a silhouette first: a cloak, a hat, a pack.
 
 Art is reviewed from headless screenshots taken through the repo's own tooling and revised until it is done, the loop Betrayal's art skills follow; once Hearthwood's art has a working method, it becomes a skill of its own.
+
+The valley's light, as built, is simple and its own (nothing is shared with Shipwright's physically based light):
+
+- **The day** lasts twelve minutes and blends between six moments, night, dawn, morning, noon, golden hour and dusk, each with its own sky, haze, key light, light from the sky and the ground, and shadow tint, all tokens. The sun lights the day and the moon the night, each fading near the horizon so the handover happens in the dark.
+- **Every material ends in the valley's air:** a haze thickest low in the valley and thinning up the mountains, warmed towards the sun, then a gentle grade that lifts saturation and tints the shadows towards the moment's own colour. The haze is the horizon's colour, so the land melts into the sky. Tone mapping keeps hues true (Khronos neutral), and there are no post passes, for the target phone's fill rate.
+- **Shapes:** trees are soft primitives with their colours in their vertices, crowns shading as one mass, swaying in a breeze; rocks and stones are lumpy flat-shaded solids; the ground has a fine grain of noise. The water lights itself: shallows to deep by the bed's depth, foam at the shore, the sky at a glance and glints of sun; the stream's streaks run downhill and whiten over the falls.
+- **The fire** is soft flame shells, rising embers, a glow and a flickering light, brightest at night, when fireflies come out over the meadow and the stars over the rim.
+- **Pixel ratio** is capped at 1.5: on the Pixel 8 Pro that is about 0.9 megapixels drawn, with the sun's shadows a 1024 map round the walker and the sky drawn last, only where nothing covers it.
+- The day can be held at an hour with `?hour=<0-24>`, and another valley opened with `?seed=<text>`.
 
 ## Saving
 
@@ -113,3 +140,10 @@ The walks between valleys, brewing, seasons, festivals and the night sky follow,
 - **Do valleys ever repeat?** A valley left behind could be revisited by its seed, or every walk could lead somewhere new.
 - **Other people:** a valley could hold a few gentle characters (a beekeeper, a travelling tinker), or the game could be the witch and the cats alone. Since faces are the art's weak point, characters would have to work at a distance and through silhouette.
 - **Music:** generated, composed, or ambient sound only.
+
+## Code map
+
+- `world/`: the valley, pure and unit-tested. `valley.ts` (`generateValley`, everything from a seed), `land.ts` (the bowl, its rim and pass, and the altitude bands), `water.ts` (the lake, the stream and its falls), `places.ts` (camp and the places), `trails.ts` (the trails and their fords), `life.ts` (the woods' density and the scatter of plants), `ground.ts` (biomes and the grounds the land is painted with), `walking.ts` (where a walker may go), `day.ts` (the hour, the sun and moon, and each moment's light), with `grid.ts`, `noise.ts`, `paths.ts` and `fields.ts` underneath.
+- `input/`: walking's input. `walk-controls.ts` (each input's meaning, pure) and `use-walk-input.ts` (all three inputs into one state, and the input used last).
+- `components/valley/`: the drawing. `valley-view.tsx` (the canvas and its overlay), `atmosphere.ts` (the haze and grade every material ends in), `daylight.tsx` and `clock.ts` (the day's light each frame), `palette.ts` (the tokens), `terrain.tsx`, `water.tsx`, `sky.tsx`, `plants.tsx` with `plant-shapes.ts` and `plant-detail.ts`, `places.tsx`, `campfire.tsx`, `fireflies.tsx`, `painted.ts` (vertex-coloured shapes from pieces), `witch.tsx` (the placeholder witch), `walker.tsx` and `follow-camera.ts` (walking and the camera), `walk-hints.tsx` (the prompts and the touch stick), `valley-probe.tsx` (`window.__hearthwoodValley`: ready, frames, what was drawn, and switches for the hour, motion, camera and walker).
+- `tools/valley-shots.mjs`: headless screenshots of the valley through its probe, on a held hour and motion clock: the walker's view through the day, from above and over the rim, each place, and the touch controls on the target phone, upright and sideways, with what each frame drew.

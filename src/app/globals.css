@@ -202,6 +202,101 @@
   --color-frogmino-world-bridge: #cdbfa8;
 }
 
+/* Hearthwood: the valley, a warm storybook diorama. Each moment of the day
+   (night, dawn, morning, noon, golden hour, dusk) has its own sky overhead,
+   haze (the fog and the horizon, one colour so the land melts into the sky),
+   key light (the sun, or the moon at night), the light from the sky and the
+   ground all round, and the tint the shadows lean to; the light blends
+   between neighbouring moments. Then what the valley is made of: grounds,
+   water, plants, stone, the fire, the witch, and the little UI over it. Read
+   only by the 3D scene through themeColor and the valley's own overlay, so
+   declared outside @theme. */
+:root {
+  --color-hearthwood-valley-night-sky: #141a36;
+  --color-hearthwood-valley-night-haze: #2a3358;
+  --color-hearthwood-valley-night-sun: #8fa6dc;
+  --color-hearthwood-valley-night-sky-light: #34406e;
+  --color-hearthwood-valley-night-ground-light: #1c1a26;
+  --color-hearthwood-valley-night-shadow: #1c2244;
+  --color-hearthwood-valley-dawn-sky: #7a95c8;
+  --color-hearthwood-valley-dawn-haze: #f0c0a6;
+  --color-hearthwood-valley-dawn-sun: #ffbf96;
+  --color-hearthwood-valley-dawn-sky-light: #b4b2d4;
+  --color-hearthwood-valley-dawn-ground-light: #6b5a50;
+  --color-hearthwood-valley-dawn-shadow: #4c3c5e;
+  --color-hearthwood-valley-morning-sky: #86bfea;
+  --color-hearthwood-valley-morning-haze: #dde9ee;
+  --color-hearthwood-valley-morning-sun: #fff0d2;
+  --color-hearthwood-valley-morning-sky-light: #b9d6ee;
+  --color-hearthwood-valley-morning-ground-light: #7c7450;
+  --color-hearthwood-valley-morning-shadow: #3c4a6c;
+  --color-hearthwood-valley-noon-sky: #78b8ea;
+  --color-hearthwood-valley-noon-haze: #d6eaf2;
+  --color-hearthwood-valley-noon-sun: #fff9ee;
+  --color-hearthwood-valley-noon-sky-light: #c0dcf2;
+  --color-hearthwood-valley-noon-ground-light: #807a55;
+  --color-hearthwood-valley-noon-shadow: #3a4868;
+  --color-hearthwood-valley-golden-sky: #8aaed6;
+  --color-hearthwood-valley-golden-haze: #f5d2a0;
+  --color-hearthwood-valley-golden-sun: #ffc977;
+  --color-hearthwood-valley-golden-sky-light: #c8c0c6;
+  --color-hearthwood-valley-golden-ground-light: #82604a;
+  --color-hearthwood-valley-golden-shadow: #5c405c;
+  --color-hearthwood-valley-dusk-sky: #46568e;
+  --color-hearthwood-valley-dusk-haze: #d99a92;
+  --color-hearthwood-valley-dusk-sun: #ff9466;
+  --color-hearthwood-valley-dusk-sky-light: #8a7aa6;
+  --color-hearthwood-valley-dusk-ground-light: #4a3a3c;
+  --color-hearthwood-valley-dusk-shadow: #3c2c4e;
+
+  --color-hearthwood-valley-ground-meadow: #9cc46a;
+  --color-hearthwood-valley-ground-meadow-lush: #78ac56;
+  --color-hearthwood-valley-ground-forest: #5d7a3e;
+  --color-hearthwood-valley-ground-alpine: #a9b86e;
+  --color-hearthwood-valley-ground-rock: #a4a6ab;
+  --color-hearthwood-valley-ground-snow: #f4f6fb;
+  --color-hearthwood-valley-ground-shore: #d2c49c;
+  --color-hearthwood-valley-ground-path: #b8996a;
+  --color-hearthwood-valley-water-shallow: #74bdb2;
+  --color-hearthwood-valley-water-deep: #2c5a7a;
+  --color-hearthwood-valley-water-foam: #f0f8f2;
+  --color-hearthwood-valley-far-ridge: #6f7fa6;
+
+  --color-hearthwood-valley-conifer: #3d6c4a;
+  --color-hearthwood-valley-broadleaf: #6c9e48;
+  --color-hearthwood-valley-birch-leaf: #a2c656;
+  --color-hearthwood-valley-birch-bark: #ece6da;
+  --color-hearthwood-valley-bark: #6b4e38;
+  --color-hearthwood-valley-bush: #5c9246;
+  --color-hearthwood-valley-rock: #a39c91;
+  --color-hearthwood-valley-stone: #8e8a86;
+  --color-hearthwood-valley-moss: #6f8c48;
+  --color-hearthwood-valley-flower-white: #fbf6ea;
+  --color-hearthwood-valley-flower-yellow: #f4cd48;
+  --color-hearthwood-valley-flower-violet: #a98ad8;
+
+  --color-hearthwood-valley-fire-core: #fff2c0;
+  --color-hearthwood-valley-fire-flame: #ffa238;
+  --color-hearthwood-valley-fire-tip: #e04e2a;
+  --color-hearthwood-valley-firelight: #ffa258;
+  --color-hearthwood-valley-ember: #ffb45c;
+  --color-hearthwood-valley-log: #7a5638;
+  --color-hearthwood-valley-firefly: #dcf59a;
+  --color-hearthwood-valley-star: #fff8e8;
+  --color-hearthwood-valley-moon: #f2eedc;
+  --color-hearthwood-valley-sun-disc: #fff4d0;
+
+  --color-hearthwood-valley-witch-cloak: #5b4a7a;
+  --color-hearthwood-valley-witch-hat: #3a3452;
+  --color-hearthwood-valley-witch-scarf: #c8603a;
+  --color-hearthwood-valley-witch-skin: #f0c8a8;
+  --color-hearthwood-valley-witch-pack: #8a5d3b;
+  --color-hearthwood-valley-witch-bedroll: #d8c8a4;
+
+  --color-hearthwood-valley-ui-ink: #fff6e4;
+  --color-hearthwood-valley-ui-shade: #2a2236;
+}
+
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —
    used for a traded chip ("what changed in this trade", against the dense
    ownership grid) and for the active player's token. The --mono-* vars resolve
