@@ -9,7 +9,8 @@ import { wantedChunks, type ChunkKey } from "../../engine/streaming";
 import type { Foraged } from "../../gameplay/basket";
 import { canPick, heartOf, REACH, spotLook, targetSpot, withinTapReach, type ForageTime, type Viewer } from "../../gameplay/picking";
 import type { WalkState } from "../../input/use-walk-input";
-import { breatheAtmosphere, type AtmosphereUniforms } from "../../art/atmosphere";
+import { type AtmosphereUniforms } from "../../art/atmosphere";
+import { shadeLambert } from "../../art/shading";
 import { forageColour, forageMatrix, forageShape, partsOf, type ForagePalette, type ForagePart } from "../../art/forage-shapes";
 import { agePop, disposePop, makePop, type PickPop } from "../../art/pick-pop";
 import type { ValleyClock } from "./clock";
@@ -72,7 +73,7 @@ export function WorldForage({
   input: RefObject<WalkState>;
 }) {
   const group = useMemo(() => new Group(), []);
-  const material = useMemo(() => breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true }), atmosphere), [atmosphere]);
+  const material = useMemo(() => shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere), [atmosphere]);
   const designs = useMemo(() => {
     const out = new Map<string, Design>();
     for (const kind of FORAGE_KINDS) {

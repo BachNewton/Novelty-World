@@ -13,6 +13,9 @@ import type { SunDay } from "../../engine/astronomy";
 import { dateAt, parseDate, startTime, type CalendarDate } from "../../engine/calendar";
 import type { DaySky } from "../../engine/day";
 import { holdHour, setDay, type ValleyClock } from "./clock";
+import { liveFeatures, type FeatureId, type FeatureToggles } from "../../features";
+import type { FrameCosts } from "../../art/passes";
+import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
 import { forageTime, forgetForaging, goToDayOfYear, pickSpot, setBasketOpen, type Foraging } from "./foraging";
 import type { CameraView, Walker } from "./walker";
@@ -100,6 +103,13 @@ export interface WorldProbe {
   setFreeCamera: (camera: FreeCamera | null) => void;
   /** How thick the haze is against the usual: 0 is a perfectly clear day. */
   setHaze: (haze: number) => void;
+  /** Switches a feature (see features.ts) on or off for this visit. */
+  setFeature: (id: FeatureId, on: boolean) => void;
+  features: () => FeatureToggles;
+  /** Times the frame on the GPU from now on (or stops), for `gpuCosts`. */
+  watchCosts: (on: boolean) => void;
+  /** Each part of the frame's GPU time in ms, as last read (a frame or two behind): the scene's draws and each pass by its id. Null where the browser can't time the GPU. */
+  gpuCosts: () => Record<string, number> | null;
   /** Where the camera is and the orbit it is on. */
   camera: () => { x: number; y: number; z: number; orbit: Orbit };
   camp: () => { x: number; z: number };
@@ -205,6 +215,7 @@ export function WorldProbeHandle({
   freeCamera,
   weather,
   foraging,
+  costs,
   setPointOfView,
 }: {
   world: World;
@@ -215,6 +226,7 @@ export function WorldProbeHandle({
   freeCamera: { at: FreeCamera | null };
   weather: Weather;
   foraging: Foraging;
+  costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
   const gl = useThree((s) => s.gl);
@@ -233,6 +245,7 @@ export function WorldProbeHandle({
     });
     const settled = () => streaming.land && streaming.plants && streaming.places && foraging.settled;
     const weights = new Float32Array(REGIONS.length);
+    let stopWatching: (() => void) | null = null;
     window.__hearthwoodWorld = {
       seed: world.seed,
       isReady: () => compiled.current && settled() && frames.current > 1,
@@ -297,6 +310,15 @@ export function WorldProbeHandle({
       setHaze: (haze) => {
         weather.haze = haze;
       },
+      setFeature: (id, on) => {
+        liveFeatures().set(id, on);
+      },
+      features: () => liveFeatures().toggles(),
+      watchCosts: (on) => {
+        stopWatching?.();
+        stopWatching = on ? costs.watch() : null;
+      },
+      gpuCosts: () => (costs.available ? costs.lastReadings() : null),
       camera: () => ({ x: camera.position.x, y: camera.position.y, z: camera.position.z, orbit: walker.orbit }),
       camp: () => ({ x: world.camp.x, z: world.camp.z }),
       placesNear: (x, z, radius) =>
@@ -350,9 +372,10 @@ export function WorldProbeHandle({
     };
     return () => {
       live = false;
+      stopWatching?.();
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, setPointOfView]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, costs, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;
@@ -371,6 +394,6 @@ export function WorldProbeHandle({
     }
     last.current = now;
     frames.current++;
-  });
+  }, AFTER_RENDER_PRIORITY);
   return null;
 }

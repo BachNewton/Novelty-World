@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Color, Object3D, type DirectionalLight, type HemisphereLight, type WebGLRenderer } from "three";
+import { type Color, Object3D, type DirectionalLight, type HemisphereLight, type WebGLRenderer } from "three";
 import { MOMENTS, type DaySky, type MomentLight } from "../engine/day";
 import type { AtmosphereUniforms } from "./atmosphere";
 import type { MomentPart, Palette } from "./palette";
@@ -64,7 +64,6 @@ interface Lights {
   ambient: HemisphereLight | null;
   target: Object3D;
   gl: WebGLRenderer;
-  scratch: { a: Color; b: Color };
 }
 
 /** The sun's shadows cover a square round the focus, and follow it. */
@@ -80,7 +79,7 @@ function aimShadows(light: DirectionalLight, target: Object3D, reach: number): v
   camera.updateProjectionMatrix();
 }
 
-function lightTheWorld({ day, palette, atmosphere, sky, focus, air }: DaylightParts, { sun, ambient, target, gl, scratch }: Lights): void {
+function lightTheWorld({ day, palette, atmosphere, sky, focus, air }: DaylightParts, { sun, ambient, target, gl }: Lights): void {
   const { mix, key, moon } = day.sky;
   const part = (name: MomentPart, out: Color) => {
     out.setRGB(0, 0, 0);
@@ -115,10 +114,8 @@ function lightTheWorld({ day, palette, atmosphere, sky, focus, air }: DaylightPa
     part("ground-light", ambient.groundColor);
     ambient.intensity = light.ambient * 1.6;
   }
-  atmosphere.uHwLight.value
-    .copy(part("sky-light", scratch.a))
-    .multiplyScalar(light.ambient * 1.1)
-    .add(scratch.b.copy(atmosphere.uHwSunColor.value).multiplyScalar(keyStrength * 0.3 * Math.max(0.2, key.direction.y)));
+  part("sky-light", atmosphere.uHwSkyLight.value).multiplyScalar(light.ambient * 1.1);
+  atmosphere.uHwSunLight.value.copy(atmosphere.uHwSunColor.value).multiplyScalar(keyStrength * 0.3 * Math.max(0.2, key.direction.y));
   gl.toneMappingExposure = light.exposure;
 }
 
@@ -127,15 +124,20 @@ export function Daylight(parts: DaylightParts) {
   const ambient = useRef<HemisphereLight>(null);
   const gl = useThree((s) => s.gl);
   const target = useMemo(() => new Object3D(), []);
-  const scratch = useMemo(() => ({ a: new Color(), b: new Color() }), []);
   const { map, reach } = parts.shadows;
 
   useEffect(() => {
     if (sun.current) aimShadows(sun.current, target, reach);
   }, [target, reach]);
 
+  // The lights shine on every layer, so what is drawn late (see `passes.ts`) is lit like the rest.
+  useEffect(() => {
+    sun.current?.layers.enableAll();
+    ambient.current?.layers.enableAll();
+  }, []);
+
   useFrame(() => {
-    lightTheWorld(parts, { sun: sun.current, ambient: ambient.current, target, gl, scratch });
+    lightTheWorld(parts, { sun: sun.current, ambient: ambient.current, target, gl });
   }, DAYLIGHT_PRIORITY);
 
   return (

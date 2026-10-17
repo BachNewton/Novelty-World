@@ -7,7 +7,8 @@ import { PLANT_CHUNK, PLANT_VARIANTS, type PlantChunk } from "../../engine/life"
 import { PLANT_KINDS, type PlantKind } from "../../engine/regions";
 import { chunkDetail, distanceToSquare, PLANT_CLASS, wantedChunks, type ChunkKey, type Detail } from "../../engine/streaming";
 import type { World } from "../../engine/world";
-import { breatheAtmosphere, type AtmosphereUniforms } from "../../art/atmosphere";
+import type { AtmosphereUniforms } from "../../art/atmosphere";
+import { shadeLambert } from "../../art/shading";
 import type { Palette } from "../../art/palette";
 import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
@@ -104,8 +105,8 @@ export function WorldPlants({
   const group = useMemo(() => new Group(), []);
   const materials = useMemo(
     () => ({
-      foliage: breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true }), atmosphere, { sway: true }),
-      stone: breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true }), atmosphere),
+      foliage: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "foliage", atmosphere),
+      stone: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
     }),
     [atmosphere],
   );

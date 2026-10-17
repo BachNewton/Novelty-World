@@ -2,8 +2,9 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { BoxGeometry, type BufferGeometry, ConeGeometry, CylinderGeometry, LatheGeometry, type Mesh, MeshLambertMaterial, SphereGeometry, TorusGeometry, Vector2, type Group } from "three";
-import { breatheAtmosphere, type AtmosphereUniforms } from "./atmosphere";
+import type { AtmosphereUniforms } from "./atmosphere";
 import { broomGeometry } from "./broom";
+import { shadeLambert } from "./shading";
 import { paint } from "./painted";
 import type { Palette } from "./palette";
 
@@ -181,7 +182,7 @@ export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: Atm
       scarf: scarfEndGeometry(palette),
       boots: bootsGeometry(palette),
       broom: broomGeometry(palette),
-      material: breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true }), atmosphere),
+      material: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
     }),
     [palette, atmosphere],
   );

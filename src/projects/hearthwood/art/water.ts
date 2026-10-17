@@ -1,8 +1,9 @@
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, ShaderMaterial } from "three";
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, type ShaderMaterial } from "three";
 import type { LandTile } from "../engine/tiles";
-import { ATMOSPHERE_GLSL, type AtmosphereUniforms } from "./atmosphere";
+import type { AtmosphereUniforms } from "./atmosphere";
 import { CURVATURE } from "./terrain";
 import type { Palette } from "./palette";
+import { shadeCustom } from "./shading";
 import type { SkyUniforms } from "./sky";
 
 /*
@@ -20,21 +21,20 @@ attribute float fall;
 varying float vDepth;
 varying vec2 vFlow;
 varying float vFall;
-varying vec3 vWorld;
+#include <hw_vertex_head>
 void main() {
   vDepth = depth;
   vFlow = flow;
   vFall = fall;
   vec3 transformed = (modelMatrix * vec4(position, 1.0)).xyz;
   ${CURVATURE}
-  vec4 world = vec4(transformed, 1.0);
-  vWorld = world.xyz;
-  gl_Position = projectionMatrix * viewMatrix * world;
+  #include <hw_vertex>
+  vHwWorld = transformed;
+  gl_Position = projectionMatrix * viewMatrix * vec4(transformed, 1.0);
 }
 `;
 
 const FRAGMENT = /* glsl */ `
-${ATMOSPHERE_GLSL}
 uniform vec3 uShallow;
 uniform vec3 uDeep;
 uniform vec3 uFoam;
@@ -42,19 +42,11 @@ uniform vec3 uSky;
 varying float vDepth;
 varying vec2 vFlow;
 varying float vFall;
-varying vec3 vWorld;
-
-float wHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float wNoise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(wHash(i), wHash(i + vec2(1.0, 0.0)), u.x), mix(wHash(i + vec2(0.0, 1.0)), wHash(i + vec2(1.0, 1.0)), u.x), u.y);
-}
+#include <hw_fragment_head>
 
 void main() {
   float t = uHwTime;
-  vec2 p = vWorld.xz;
+  vec2 p = vHwWorld.xz;
   float moving = clamp(length(vFlow), 0.0, 1.0);
   vec2 way = moving > 0.01 ? normalize(vFlow) : vec2(1.0, 0.0);
   float along = dot(p, way);
@@ -62,28 +54,36 @@ void main() {
   float falling = smoothstep(0.4, 2.0, vFall);
   float speed = 1.2 + 4.0 * falling;
 
-  vec2 still = vec2(wNoise(p * 0.35 + vec2(t * 0.25, 0.0)) - 0.5, wNoise(p * 0.35 + vec2(0.0, t * 0.21) + 7.0) - 0.5) * 0.22;
-  still += vec2(wNoise(p * 1.3 - t * 0.4) - 0.5, wNoise(p * 1.3 + 3.0 + t * 0.35) - 0.5) * 0.08;
-  vec2 running = vec2(wNoise(vec2(along * 0.8 - t * 2.0, across * 0.7)) - 0.5, wNoise(vec2(along * 0.7 - t * 1.6, across * 0.7 + 9.0)) - 0.5) * 0.35;
+  vec2 still = vec2(hwValueNoise(p * 0.35 + vec2(t * 0.25, 0.0)) - 0.5, hwValueNoise(p * 0.35 + vec2(0.0, t * 0.21) + 7.0) - 0.5) * 0.22;
+  still += vec2(hwValueNoise(p * 1.3 - t * 0.4) - 0.5, hwValueNoise(p * 1.3 + 3.0 + t * 0.35) - 0.5) * 0.08;
+  vec2 running = vec2(hwValueNoise(vec2(along * 0.8 - t * 2.0, across * 0.7)) - 0.5, hwValueNoise(vec2(along * 0.7 - t * 1.6, across * 0.7 + 9.0)) - 0.5) * 0.35;
   vec2 ripple = mix(still, running, moving);
 
-  vec3 view = normalize(cameraPosition - vWorld);
-  vec3 normal = normalize(vec3(ripple.x, 1.0, ripple.y));
-  float fresnel = pow(1.0 - max(dot(view, normal), 0.0), 3.0);
-  vec3 base = mix(uShallow, uDeep, smoothstep(0.05, 2.6, vDepth) * (1.0 - 0.5 * moving));
-  vec3 lit = base * uHwLight;
-  vec3 sky = mix(uHwHaze, uSky, 0.7) * mix(vec3(1.0), uHwLight, 0.5);
-  vec3 colour = mix(lit, sky, 0.08 + 0.45 * fresnel);
-  float glint = pow(max(dot(reflect(-view, normal), uHwSunDir), 0.0), 180.0) * smoothstep(-0.05, 0.1, uHwSunDir.y);
+  vec3 view = normalize(cameraPosition - vHwWorld);
+  vec3 hwNormal = normalize(vec3(ripple.x, 1.0, ripple.y));
+  #include <hw_normal>
+  hwNormal = normalize(hwNormal);
+  float fresnel = pow(1.0 - max(dot(view, hwNormal), 0.0), 3.0);
+  vec4 diffuseColor = vec4(mix(uShallow, uDeep, smoothstep(0.05, 2.6, vDepth) * (1.0 - 0.5 * moving)), 1.0);
+  #include <hw_surface>
+  vec3 hwDirect = diffuseColor.rgb * uHwSunLight;
+  vec3 hwIndirect = diffuseColor.rgb * uHwSkyLight;
+  #include <hw_light>
+  vec3 light = uHwSkyLight + uHwSunLight;
+  vec3 sky = mix(uHwHaze, uSky, 0.7) * mix(vec3(1.0), light, 0.5);
+  vec3 colour = mix(hwDirect + hwIndirect, sky, 0.08 + 0.45 * fresnel);
+  float glint = pow(max(dot(reflect(-view, hwNormal), uHwSunDir), 0.0), 180.0) * smoothstep(-0.05, 0.1, uHwSunDir.y);
   colour += uHwSunColor * glint * 2.2;
 
   float shore = 1.0 - smoothstep(0.0, 0.28 + 0.12 * sin(t * 0.8 + p.x * 0.3 + p.y * 0.2), vDepth);
-  float lace = smoothstep(0.45, 0.75, wNoise(p * 2.2 + t * 0.15));
-  float streak = wNoise(vec2(along * 0.5 - t * speed, across * 3.0)) * wNoise(vec2(along * 1.4 - t * speed * 1.3, across * 6.0 + 4.0));
+  float lace = smoothstep(0.45, 0.75, hwValueNoise(p * 2.2 + t * 0.15));
+  float streak = hwValueNoise(vec2(along * 0.5 - t * speed, across * 3.0)) * hwValueNoise(vec2(along * 1.4 - t * speed * 1.3, across * 6.0 + 4.0));
   float white = max(shore * (0.5 + 0.5 * lace) * 0.85, moving * smoothstep(0.4, 0.65, streak) * 0.35);
   white = max(white, falling * (0.65 + 0.35 * streak));
-  colour = mix(colour, uFoam * uHwLight, clamp(white, 0.0, 1.0) * 0.85);
-  gl_FragColor = vec4(hwAtmosphere(colour, vWorld), 1.0);
+  colour = mix(colour, uFoam * light, clamp(white, 0.0, 1.0) * 0.85);
+  vec3 hwColour = hwAtmosphere(colour, vHwWorld);
+  #include <hw_colour>
+  gl_FragColor = vec4(hwColour, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }
@@ -156,9 +156,8 @@ export function poolGeometry(radius: number): BufferGeometry {
 }
 
 export function waterMaterial(palette: Palette, atmosphere: AtmosphereUniforms, sky: SkyUniforms): ShaderMaterial {
-  return new ShaderMaterial({
+  return shadeCustom("water", atmosphere, {
     uniforms: {
-      ...atmosphere,
       uSky: sky.uSky,
       uShallow: { value: new Color().copy(palette.things["water-shallow"]) },
       uDeep: { value: new Color().copy(palette.things["water-deep"]) },

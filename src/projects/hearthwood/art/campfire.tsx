@@ -21,7 +21,8 @@ import {
 } from "three";
 import { createRng, uniform } from "@/shared/lib/seeded-random";
 import type { MomentLight } from "../engine/day";
-import { breatheAtmosphere, type AtmosphereUniforms } from "./atmosphere";
+import type { AtmosphereUniforms } from "./atmosphere";
+import { shadeLambert } from "./shading";
 import { paint, type Piece } from "./painted";
 import type { Palette } from "./palette";
 
@@ -227,7 +228,7 @@ export function Campfire({ at, seed, palette, atmosphere, fire }: CampfireProps)
     embers.setAttribute("seed", new BufferAttribute(seeds, 1));
     return {
       camp: campGeometry(palette, rng),
-      campMaterial: breatheAtmosphere(new MeshLambertMaterial({ vertexColors: true }), atmosphere),
+      campMaterial: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
       flame: new ConeGeometry(0.34, 0.9, 10, 3, true),
       flameSmall: new ConeGeometry(0.2, 0.6, 8, 2, true),
       flames: [flameMaterial(0.1), flameMaterial(0.6), flameMaterial(0.9)],

@@ -16,7 +16,7 @@
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
 // `npx playwright install chromium` (one-time).
-// Usage:  node src/projects/hearthwood/tools/world-shots.mjs [label] [--seed=<seed>] [--only=<name,...>]
+// Usage:  node src/projects/hearthwood/tools/world-shots.mjs [label] [--seed=<seed>] [--only=<name,...>] [--features=<-id,+id,none,...>]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
 import { chromium } from "playwright";
@@ -28,6 +28,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const [LABEL = "latest"] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 const SEED = process.argv.find((arg) => arg.startsWith("--seed="))?.slice("--seed=".length) ?? null;
 const ONLY = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length).split(",") ?? null;
+// The features' switches for every shot, as `?features=` takes them (see ../features.ts).
+const FEATURES = process.argv.find((arg) => arg.startsWith("--features="))?.slice("--features=".length) ?? null;
 const OUTDIR = join(HERE, "..", ".shots", LABEL);
 const BASE = process.env.HEARTHWOOD_URL ?? "http://localhost:3001/games/3d-games/hearthwood";
 const MOTION_AT = 12;
@@ -66,7 +68,10 @@ async function openWorld(device) {
   page.on("console", (m) => {
     if (m.type() === "error" || m.type() === "warning") console.error(`page ${m.type()}:`, m.text());
   });
-  await page.goto(`${BASE}${SEED ? `?seed=${encodeURIComponent(SEED)}` : ""}`, { waitUntil: "load" });
+  const query = new URLSearchParams();
+  if (SEED) query.set("seed", SEED);
+  if (FEATURES !== null) query.set("features", FEATURES);
+  await page.goto(`${BASE}${query.size > 0 ? `?${query}` : ""}`, { waitUntil: "load" });
   // The overlay (hints, buttons) is hidden unless a shot asks for it, by a rule rather than per element, so
   // what mounts while a shot settles is hidden too.
   await page.addStyleTag({

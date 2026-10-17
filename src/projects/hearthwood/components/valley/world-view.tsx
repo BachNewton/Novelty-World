@@ -12,11 +12,13 @@ import { Daylight, type Air, type Focus } from "../../art/daylight";
 import { Fireflies } from "../../art/fireflies";
 import { readForagePalette } from "../../art/forage-shapes";
 import { readPalette, REGION_AIR } from "../../art/palette";
+import { FrameCosts } from "../../art/passes";
 import { makeSkyUniforms, Sky } from "../../art/sky";
 import { QUALITY } from "../../quality";
 import { parseDate } from "../../engine/calendar";
 import { advanceClock, makeClock, type ValleyClock } from "./clock";
 import { DebugPanel } from "./debug-panel";
+import { FeatureRenderer } from "./feature-renderer";
 import { useFrameStats } from "./frame-stats";
 import { FIRST_ORBIT } from "./follow-camera";
 import { ForageOverlay } from "./forage-overlay";
@@ -112,13 +114,14 @@ export function WorldView() {
     const air: Air = { thickness: 1 };
     const freeCamera: { at: FreeCamera | null } = { at: null };
     const weather: Weather = { haze: options.haze };
-    return { atmosphere: makeAtmosphere(), sky: makeSkyUniforms(palette), clock: makeClock(options.hour, options.date), walker, focus, streaming, air, freeCamera, weather };
+    const clock = makeClock(options.hour, options.date);
+    return { atmosphere: makeAtmosphere(), sky: makeSkyUniforms(palette), clock, walker, focus, streaming, air, freeCamera, weather, debug: { clock, costs: new FrameCosts() } };
   }, [world, palette, options.hour, options.date, options.haze]);
   const surface = useRef<HTMLDivElement>(null);
   const input = useWalkInput(surface);
   const [fireflies, setFireflies] = useState<Float32Array>(() => new Float32Array(0));
   useFrameStats();
-  const { atmosphere, sky, clock, walker, focus, streaming, air, freeCamera, weather } = shared;
+  const { atmosphere, sky, clock, walker, focus, streaming, air, freeCamera, weather, debug } = shared;
 
   return (
     <div ref={surface} data-testid="hearthwood-world" className="relative h-dvh w-full touch-none overflow-hidden select-none" style={PROMPT_COLOURS}>
@@ -135,6 +138,7 @@ export function WorldView() {
         <Ticker clock={clock} world={world} air={air} weather={weather} />
         <Daylight day={clock} palette={palette} atmosphere={atmosphere} sky={sky} focus={focus} air={air} shadows={{ map: QUALITY.shadowMap, reach: QUALITY.shadowReach }} />
         <Sky atmosphere={atmosphere} sky={sky} />
+        <FeatureRenderer day={clock} atmosphere={atmosphere} sky={sky} costs={debug.costs} />
         <WorldLand world={world} palette={palette} atmosphere={atmosphere} sky={sky} quality={QUALITY} streaming={streaming} />
         <WorldPlants world={world} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />
         <WorldPlaces world={world} palette={palette} atmosphere={atmosphere} sky={sky} streaming={streaming} />
@@ -142,12 +146,12 @@ export function WorldView() {
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
-        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} setPointOfView={input.setPointOfView} />
+        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
       <WalkHints input={input} />
       <ForageOverlay foraging={foraging} clock={clock} surface={surface} input={input.kind} />
       <TouchStickView stick={input.stick} />
-      <DebugPanel clock={clock} />
+      <DebugPanel context={debug} />
     </div>
   );
 }
