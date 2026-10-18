@@ -8,21 +8,32 @@ import {
   type RefObject,
 } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { type Camera, type Group, Vector3 } from "three";
+import { type Camera, type Group, type Object3D, Vector3 } from "three";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { World } from "../../engine/world";
 import {
   animalGround,
+  ofSpecies,
   stepBody,
   type Obstacle,
 } from "../../gameplay/behaviour";
 import { stepCompanion, type Leader } from "../../gameplay/companions";
 import { bestOffered, type Viewer } from "../../gameplay/offering";
 import { stepStray, type Elliott } from "../../gameplay/roaming";
+import { climbing, stepFriend, type Climb } from "../../gameplay/forest-friends";
+import type { Trunk } from "../../engine/wildlife";
+import { COAT_SEASON } from "../animals/coat-season";
+import { hopAt, offTheGround, stepRide, type Ride } from "../../gameplay/riding";
 import { WALK_SPEED } from "../../input/walk-controls";
 import type { WalkState } from "../../input/use-walk-input";
 import { CatBody } from "../cats/cat-body";
 import { DogBody } from "../dogs/dog-body";
+import { FoxBody } from "../foxes/fox-body";
+import { HedgehogBody } from "../hedgehogs/hedgehog-body";
+import { SquirrelBody } from "../squirrels/squirrel-body";
+import { HareBody } from "../hares/hare-body";
+import { DeerBody } from "../deer/deer-body";
+import type { AnimalLook } from "./animal-kinds";
 import type { ValleyClock } from "./clock";
 import {
   driveOf,
@@ -37,6 +48,10 @@ import {
   straysAround,
   wakeCompanion,
   wakeStray,
+  wakeFriend,
+  friendsAround,
+  isCompanion,
+  wildDay,
   warmByPatience,
   companionOf,
   DRAWN_LARGER,
@@ -48,8 +63,8 @@ import type { Foraging } from "./foraging";
 import type { Walker } from "./walker";
 
 /*
- * The cats and dogs round Elliott: the strays streamed in by area as they
- * walk, and the companions, each stepped every frame by its rules (a
+ * The animals round Elliott: the strays and the forest friends streamed in
+ * by area as they walk, and the companions, each stepped every frame by its rules (a
  * stray's day and its warming to Elliott, a companion's following) and
  * drawn on its own body, driven from the rules without re-rendering. It
  * finds the animal on offer to pet or treat, to weigh against forage's
@@ -71,6 +86,9 @@ const TAP_SLOP = 70;
 const TAP_REACH = 4.5;
 /** How Elliott keeps animals clear of them, and animals each other, in metres. */
 const CLEAR = { elliott: 0.95, animal: 0.55 } as const;
+/** A hedgehog rides this much smaller than it walks, sitting this far down in the basket, in metres, so its head peeks over the rim. */
+const RIDING_SCALE = 0.72;
+const BASKET_SINK = 0.055;
 /** Steps the rules are cut into, at most, in seconds. */
 const STEP = 1 / 20;
 
@@ -139,19 +157,22 @@ function stream(
       STRAY_REACH,
     ))
       if (!animals.has(stray.id)) wakeStray(companionship, stray);
-    for (const [key, animal] of animals)
-      if (
-        animal.stray &&
-        Math.hypot(
-          animal.stray.home.x - walker.x,
-          animal.stray.home.z - walker.z,
-        ) > STRAY_GONE
-      )
+    for (const friend of friendsAround(
+      companionship,
+      walker.x,
+      walker.z,
+      STRAY_REACH,
+    ))
+      if (!animals.has(friend.id)) wakeFriend(companionship, friend);
+    for (const [key, animal] of animals) {
+      const home = animal.stray?.home ?? animal.friend?.place.home;
+      if (home && Math.hypot(home.x - walker.x, home.z - walker.z) > STRAY_GONE)
         animals.delete(key);
+    }
   }
   const kept = new Set(companionship.friends.companions.map((c) => c.id));
   for (const [key, animal] of animals)
-    if (animal.stray === null && !kept.has(key)) animals.delete(key);
+    if (isCompanion(animal) && !kept.has(key)) animals.delete(key);
   let following = 0;
   let resting = 0;
   for (const companion of companionship.friends.companions) {
@@ -263,13 +284,29 @@ export function stepAnimals(
           obstacles,
           dt,
         );
-      } else if (animal.stray) {
+      } else if (animal.friend) {
+        warmByPatience(companionship, animal, d, elliott.calm && !aloft, dt);
+        stepFriend(
+          animal.friend.species,
+          animal.body,
+          animal.friend.mind,
+          animal.nature,
+          animal.bond,
+          animal.friend.place,
+          elliott,
+          companionship.abroad,
+          time,
+          ground,
+          obstacles,
+          dt,
+        );
+      } else if (animal.stray && animal.temper) {
         warmByPatience(companionship, animal, d, elliott.calm && !aloft, dt);
         const tempted = hand !== null && hand === animal.tastes.favourite;
         stepStray(
           animal.body,
           animal.stray.mind,
-          animal.nature,
+          ofSpecies(animal.nature),
           animal.temper,
           animal.bond,
           animal.stray.home,
@@ -283,7 +320,10 @@ export function stepAnimals(
         );
       } else if (animal.follow) {
         const restingIndex = resting.indexOf(animal);
-        if (restingIndex >= 0) {
+        if (restingIndex >= 0 && animal.ride && offTheGround(animal.ride)) {
+          // Sent back to camp from the basket: it gets down first.
+          rideAlong(animal, animal.ride, { ...leader, speed: 0, aloft: false }, d, time, dt);
+        } else if (restingIndex >= 0) {
           const atCamp: Leader = {
             x: camp.x,
             z: camp.z,
@@ -303,13 +343,15 @@ export function stepAnimals(
           };
           // Waiting at camp, they lie by the fire from the first.
           animal.follow.still = Math.max(animal.follow.still, 30);
-          stepCompanion(animal.body, animal.follow, animal.nature, context, dt);
+          stepCompanion(animal.body, animal.follow, ofSpecies(animal.nature), context, dt);
+        } else if (animal.ride && rideAlong(animal, animal.ride, leader, d, time, dt)) {
+          // In the basket, or hopping in or out of it: carried, not walking.
         } else {
           const index = following.indexOf(animal);
           stepCompanion(
             animal.body,
             animal.follow,
-            animal.nature,
+            ofSpecies(animal.nature),
             {
               leader,
               hearth: camp,
@@ -332,11 +374,38 @@ export function stepAnimals(
   }
 }
 
+/**
+ * A hedgehog companion's ride: stepped, and its body kept with Elliott while
+ * it rides. Returns whether it is off the ground, so it isn't walked; a hop
+ * down puts it where it lands.
+ */
+function rideAlong(animal: Animal, ride: Ride, leader: Leader, distance: number, time: number, seconds: number): boolean {
+  const side = leader.heading + Math.PI * 0.7;
+  const beside = { x: leader.x + Math.sin(side) * 1.1, z: leader.z + Math.cos(side) * 1.1 };
+  const next = stepRide(ride, leader, distance, beside, time, seconds);
+  if (ride.phase === "hopping-out" && next.phase === "walking" && ride.landing) {
+    animal.body.x = ride.landing.x;
+    animal.body.z = ride.landing.z;
+    animal.body.heading = leader.heading;
+    animal.body.speed = 0;
+    animal.body.rest = "stand";
+  }
+  animal.ride = next;
+  if (next.phase === "riding") {
+    animal.body.x = leader.x;
+    animal.body.z = leader.z;
+    animal.body.heading = leader.heading;
+    animal.body.speed = 0;
+  }
+  return offTheGround(next);
+}
+
 /** The animal Elliott could pet or treat now, and how strongly it is offered, if more strongly than the fire, before forage has its say. */
 function findCandidate(
   companionship: Companionship,
   viewer: Viewer | null,
   walker: Walker,
+  rival: number,
 ): void {
   if (viewer === null || companionship.shown.naming) {
     companionship.candidate = null;
@@ -346,19 +415,35 @@ function findCandidate(
     (a) =>
       Math.abs(a.body.x - walker.x) < 5 &&
       Math.abs(a.body.z - walker.z) < 5 &&
+      !(a.ride && offTheGround(a.ride)) &&
       hasOffer(companionship, a),
   );
-  // The fire, offered first, is the animals' rival as forage is.
-  const best = bestOffered(
-    near,
-    viewer,
-    offerableAnimal,
-    companionship.hearth.candidate ?? Infinity,
-  );
+  // The fire, the people and the clues, offered first, are the animals' rivals as forage is.
+  const best = bestOffered(near, viewer, offerableAnimal, Math.min(companionship.hearth.candidate ?? Infinity, rival));
   companionship.candidate = best && {
     key: best.offered.key,
     score: best.score,
   };
+}
+
+/** An animal's body for its kind, driven from the scene. */
+function LookBody({ look, clock, atmosphere }: { look: AnimalLook; clock: () => number; atmosphere: AtmosphereUniforms }) {
+  switch (look.species) {
+    case "cat":
+      return <CatBody cat={look.cat} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+    case "dog":
+      return <DogBody dog={look.dog} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+    case "fox":
+      return <FoxBody fox={look.fox} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+    case "hedgehog":
+      return <HedgehogBody hedgehog={look.hedgehog} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+    case "squirrel":
+      return <SquirrelBody squirrel={look.squirrel} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+    case "hare":
+      return <HareBody hare={look.hare} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+    case "deer":
+      return <DeerBody deer={look.deer} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+  }
 }
 
 function AnimalView({
@@ -385,23 +470,7 @@ function AnimalView({
       }}
     >
       <group scale={DRAWN_LARGER}>
-        {look.species === "cat" ? (
-          <CatBody
-            cat={look.cat}
-            activity={look.drive.current.activity}
-            drive={look.drive}
-            clock={time}
-            atmosphere={atmosphere}
-          />
-        ) : (
-          <DogBody
-            dog={look.dog}
-            activity={look.drive.current.activity}
-            drive={look.drive}
-            clock={time}
-            atmosphere={atmosphere}
-          />
-        )}
+        <LookBody look={look} clock={time} atmosphere={atmosphere} />
       </group>
     </group>
   );
@@ -444,6 +513,7 @@ function hookScene(
       if (
         Math.hypot(animal.body.x - walker.x, animal.body.z - walker.z) >
           TAP_REACH ||
+        (animal.ride && offTheGround(animal.ride)) ||
         !hasOffer(companionship, animal)
       )
         continue;
@@ -495,11 +565,15 @@ function frameAnimals(
   clock: ValleyClock,
   input: WalkState,
   eye: Camera,
+  rival: () => number,
 ): Animal[] | null {
   const last = scene.lastMotion;
   scene.lastMotion = clock.motion;
   const seconds =
     last === null ? 0 : Math.min(0.1, Math.max(0, clock.motion - last));
+  const coats = wildDay(companionship, clock.date.realDayOfYear, clock.sky.sun.elevation);
+  COAT_SEASON.uWinter.value = coats.winter;
+  COAT_SEASON.uWhite.value = coats.white;
   stepAnimals(
     companionship,
     world,
@@ -516,11 +590,18 @@ function frameAnimals(
     if (!animal) continue;
     group.position.set(animal.body.x, animal.y, animal.body.z);
     group.rotation.y = animal.body.heading;
+    group.scale.setScalar(1);
     group.visible =
       Math.hypot(
         animal.body.x - eye.position.x,
         animal.body.z - eye.position.z,
       ) < DRAW_REACH;
+    if (animal.ride && offTheGround(animal.ride))
+      placeInBasket(group, animal, animal.ride, walker, companionship.time);
+    const climb = animal.friend?.mind.climb;
+    if (climb && animal.friend?.place.trunk && climbing(animal.friend.mind))
+      placeOnTrunk(group, animal.friend.place.trunk, climb);
+    else group.rotation.order = "XYZ";
   }
 
   const viewer: Viewer | null =
@@ -538,12 +619,63 @@ function frameAnimals(
             z: walker.z,
             heading: walker.heading,
           };
-  findCandidate(companionship, viewer, walker);
+  findCandidate(companionship, viewer, walker, rival());
 
   const keys = [...companionship.animals.keys()].sort().join(";");
   if (keys === scene.drawnKeys) return null;
   scene.drawnKeys = keys;
   return [...companionship.animals.values()];
+}
+
+/**
+ * A squirrel up its trunk, stood on the bark: its belly to the trunk, its
+ * head up as it climbs or clings, or down as it comes down head-first, as
+ * squirrels do.
+ */
+function placeOnTrunk(group: Group, trunk: Trunk, climb: Climb): void {
+  const taper = 1 - 0.35 * Math.min(1, climb.height / Math.max(1, trunk.height));
+  const out = trunk.radius * taper + 0.01;
+  group.position.set(trunk.x + Math.sin(climb.side) * out, trunk.y + climb.height, trunk.z + Math.cos(climb.side) * out);
+  const down = climb.goal < climb.height - 0.02;
+  group.rotation.order = "YXZ";
+  group.rotation.set(down ? Math.PI / 2 : -Math.PI / 2, down ? climb.side : climb.side + Math.PI, 0);
+}
+
+const inBasket = new Vector3();
+
+/** Whether an object and everything it hangs from is shown: Elliott's basket isn't, through their own eyes. */
+function shown(object: Object3D): boolean {
+  for (let o: Object3D | null = object; o; o = o.parent) if (!o.visible) return false;
+  return true;
+}
+
+/** A hedgehog in Elliott's basket, peeking over its rim, or on its arc in or out of it; drawn a little smaller there, so it fits. */
+function placeInBasket(group: Group, animal: Animal, ride: Ride, walker: Walker, time: number): void {
+  const basket = walker.basket;
+  if (!basket) {
+    group.visible = false;
+    return;
+  }
+  basket.updateWorldMatrix(true, false);
+  basket.getWorldPosition(inBasket);
+  inBasket.y -= BASKET_SINK;
+  const ground = { x: animal.body.x, y: animal.y, z: animal.body.z };
+  const landing = ride.landing ?? ground;
+  const hop = hopAt(ride, time);
+  const [from, to, along] =
+    ride.phase === "hopping-in"
+      ? [ground, inBasket, hop.along]
+      : ride.phase === "hopping-out"
+        ? [inBasket, { ...landing, y: animal.y }, hop.along]
+        : [inBasket, inBasket, 1];
+  group.position.set(
+    from.x + (to.x - from.x) * along,
+    from.y + (to.y - from.y) * along + (ride.phase === "riding" ? 0 : hop.lift),
+    from.z + (to.z - from.z) * along,
+  );
+  group.rotation.y = walker.heading;
+  group.scale.setScalar(ride.phase === "riding" ? RIDING_SCALE : 1 + (RIDING_SCALE - 1) * (ride.phase === "hopping-in" ? along : 1 - along));
+  group.visible = shown(basket);
 }
 
 /** Where a point is on the overlay, in CSS pixels, or null behind the camera. */
@@ -630,6 +762,7 @@ export function WorldAnimals({
   input,
   foraging,
   atmosphere,
+  rival,
 }: {
   companionship: Companionship;
   world: World;
@@ -638,6 +771,8 @@ export function WorldAnimals({
   input: RefObject<WalkState>;
   foraging: Foraging;
   atmosphere: AtmosphereUniforms;
+  /** How strongly whatever else is offered before the animals (the people, the clues) is offered, for them to beat. */
+  rival: () => number;
 }) {
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
@@ -666,6 +801,7 @@ export function WorldAnimals({
       clock,
       input.current,
       eye,
+      rival,
     );
     if (changed) setLive(changed);
   }, ANIMALS_PRIORITY);

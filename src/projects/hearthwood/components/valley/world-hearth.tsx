@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { type Camera, Matrix4, PerspectiveCamera, Quaternion, Vector3 } from "three";
+import { type Camera, Matrix4, Quaternion, Vector3 } from "three";
 import { offerScore, type Viewer } from "../../gameplay/offering";
 import type { WalkState } from "../../input/use-walk-input";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { DishPalette } from "../../art/dish-looks";
 import { HearthCooking, type CookingDrive } from "../../art/hearth-cooking";
+import { cameraPose, ease, easeBack, place, takeOver, type CameraPose } from "./camera-ease";
 import type { Companionship } from "./companionship";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { catchUp, turnBetween } from "./follow-camera";
@@ -40,14 +41,6 @@ const TAP_REACH = 4.5;
 /** How quickly the cooking's heat dies down once the dish is out, per second. */
 const COOL = 1.4;
 
-interface CameraPose {
-  position: Vector3;
-  quaternion: Quaternion;
-  fov: number;
-  /** Whether the camera is easing between the walker's view and the hearth's, so it is the hearth's to place. */
-  easing: boolean;
-}
-
 export function WorldHearth({
   hearth,
   foraging,
@@ -56,6 +49,7 @@ export function WorldHearth({
   input,
   palette,
   atmosphere,
+  outbid = () => false,
 }: {
   hearth: Hearth;
   foraging: Foraging;
@@ -64,13 +58,15 @@ export function WorldHearth({
   input: RefObject<WalkState>;
   palette: DishPalette;
   atmosphere: AtmosphereUniforms;
+  /** Whether something else not weighed here (a person) is offered more strongly than the fire this frame. */
+  outbid?: () => boolean;
 }) {
   const subscribe = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
   const shown = useSyncExternalStore(subscribe, () => hearth.shown);
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
   const drive = useRef<CookingDrive>({ heat: 0, served: null });
-  const pose = useRef<CameraPose>({ position: new Vector3(), quaternion: new Quaternion(), fov: HEARTH_FOV, easing: false });
+  const pose = useRef<CameraPose>(cameraPose(HEARTH_FOV));
   const servedAt = useRef<number | null>(null);
   // The side of the fire Elliott sat down on, fixed for the turn.
   const [side, setSide] = useState(0);
@@ -99,7 +95,7 @@ export function WorldHearth({
 
   // After the frame: forage or an animal offered beats the fire, as they each had to beat it.
   useFrame(() => {
-    settleFire(hearth, foraging.target !== null || companionship.candidate !== null);
+    settleFire(hearth, foraging.target !== null || companionship.candidate !== null || outbid());
   }, AFTER_RENDER_PRIORITY);
 
   const session = shown.session;
@@ -148,10 +144,7 @@ function frameHearth({ hearth, companionship, walker, input, pose, drive, served
     walker.view = "hearth";
     side.current = sideOf(fire, walker);
     onSit(side.current);
-    pose.position.copy(eye.position);
-    pose.quaternion.copy(eye.quaternion);
-    pose.fov = eye instanceof PerspectiveCamera ? eye.fov : HEARTH_FOV;
-    pose.easing = true;
+    takeOver(pose, eye, HEARTH_FOV);
   }
   if (!session && walker.view === "hearth") walker.view = "walk";
 
@@ -171,12 +164,7 @@ function frameHearth({ hearth, companionship, walker, input, pose, drive, served
     ease(pose, scratch.eye, scratch.quaternion, HEARTH_FOV, k);
     place(eye, pose);
   } else if (pose.easing) {
-    // Back to wherever the walker put the camera this frame, until it is there.
-    const target = eye instanceof PerspectiveCamera ? eye.fov : HEARTH_FOV;
-    ease(pose, eye.position, eye.quaternion, target, k);
-    const arrived = pose.position.distanceTo(eye.position) < 0.01 && pose.quaternion.angleTo(eye.quaternion) < 0.003;
-    if (arrived) pose.easing = false;
-    else place(eye, pose);
+    easeBack(pose, eye, HEARTH_FOV, k);
   }
 
   // How hard it cooks, and how long the dish has been out.
@@ -188,20 +176,5 @@ function frameHearth({ hearth, companionship, walker, input, pose, drive, served
     servedAt.current = null;
     drive.served = null;
     drive.heat = session?.phase === "cooking" ? 1 : 0;
-  }
-}
-
-function ease(pose: CameraPose, position: Vector3, quaternion: Quaternion, fov: number, k: number): void {
-  pose.position.lerp(position, k);
-  pose.quaternion.slerp(quaternion, k);
-  pose.fov += (fov - pose.fov) * k;
-}
-
-function place(camera: { position: Vector3; quaternion: Quaternion }, pose: CameraPose): void {
-  camera.position.copy(pose.position);
-  camera.quaternion.copy(pose.quaternion);
-  if (camera instanceof PerspectiveCamera && Math.abs(camera.fov - pose.fov) > 1e-3) {
-    camera.fov = pose.fov;
-    camera.updateProjectionMatrix();
   }
 }

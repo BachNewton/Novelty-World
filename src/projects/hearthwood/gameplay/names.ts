@@ -2,7 +2,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import type { Species } from "../engine/strays";
 
 /*
- * Names to suggest for a companion: a cozy list for cats and one for dogs,
+ * Names to suggest for a companion: a cozy list for each kind of animal,
  * many of them Nordic. A suggestion is seeded by the animal, so the same cat
  * is offered the same names, and never one a companion already has.
  */
@@ -79,6 +79,10 @@ export const NAMES: Record<Species, readonly string[]> = {
     "Teddy",
     "Fika",
   ],
+  // Mikkel is the fox of Norway's folk tales; Repolainen the fox of Finland's.
+  fox: ["Mikkel", "Repo", "Rusk", "Saffron", "Kettu", "Sorrel", "Ginger", "Rosa", "Tod", "Rævi", "Cinder", "Hazel", "Amber", "Fenrik", "Vixie", "Brush", "Holmes", "Lumi"],
+  // Siili is Finnish and igelkott Swedish for a hedgehog, and Mrs Tiggy-Winkle needs no introduction.
+  hedgehog: ["Siili", "Tiggy", "Igge", "Conker", "Nutmeg", "Bramble", "Thistle", "Pip", "Acorn", "Burdock", "Pinecone", "Teasel", "Bumble", "Piggle", "Nuppu", "Truffle"],
 };
 
 /** The names to suggest for an animal, in the order offered: its own shuffle of its species' list, less the names taken. */

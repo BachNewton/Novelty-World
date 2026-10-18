@@ -3,7 +3,7 @@ import { choice, stepBody, type Aim, type Body, type Nature, type Obstacle } fro
 import { canStand, type WalkGround } from "./walking";
 
 /*
- * The companions: the cats and dogs Elliott has befriended, who follow them.
+ * The companions: the cats, dogs, foxes and hedgehogs Elliott has befriended, who follow them.
  * Each keeps near Elliott at a distance of its own (a cuddly one close, an
  * independent one further out, a cat further than a dog), on a side of its
  * own behind them, so they spread out rather than queue. Walking, they keep
@@ -95,8 +95,8 @@ export function followMind(seedTime = 0): FollowMind {
 }
 
 /** How far from Elliott it likes to keep, in metres. */
-export function keepsNear(nature: Nature): number {
-  const base = nature.species === "cat" ? 3.2 : 2.4 + 0.4 * nature.size;
+export function keepsNear(nature: Nature<Species>): number {
+  const base = { cat: 3.2, dog: 2.4 + 0.4 * nature.size, fox: 3.8, hedgehog: 1.5 }[nature.species];
   return Math.max(1.4, base - 1.1 * nature.affection);
 }
 
@@ -115,7 +115,7 @@ export function firesideSpot(hearth: Hearth, index: number, count: number): { x:
 }
 
 /** Where it keeps while Elliott walks: behind them, on its own side, at its own distance. */
-function trailSpot(leader: Leader, nature: Nature, index: number): { x: number; z: number } {
+function trailSpot(leader: Leader, nature: Nature<Species>, index: number): { x: number; z: number } {
   const angle = leader.heading + Math.PI + sideOf(index);
   const distance = keepsNear(nature);
   return { x: leader.x + Math.sin(angle) * distance, z: leader.z + Math.cos(angle) * distance };
@@ -139,7 +139,7 @@ export function catchUpSpot(leader: Leader, ground: WalkGround, seen: (x: number
 }
 
 /** One step of a companion following Elliott: what it aims for, and its body moved by it. */
-export function stepCompanion(body: Body, mind: FollowMind, nature: Nature, context: FollowContext, seconds: number): void {
+export function stepCompanion(body: Body, mind: FollowMind, nature: Nature<Species>, context: FollowContext, seconds: number): void {
   const { leader, hearth, index, count, time, ground, obstacles, seen } = context;
   const d = Math.hypot(body.x - leader.x, body.z - leader.z);
 
@@ -186,7 +186,7 @@ export function stepCompanion(body: Body, mind: FollowMind, nature: Nature, cont
     }
     if (mind.nosing) {
       const there = Math.hypot(body.x - mind.nosing.x, body.z - mind.nosing.z) < 0.6;
-      aim = there ? { stay: "stand", face: null } : { go: mind.nosing, pace: Math.max(leader.speed * 1.3, nature.species === "cat" ? 2.5 : 3) };
+      aim = there ? { stay: "stand", face: null } : { go: mind.nosing, pace: Math.max(leader.speed * 1.3, { cat: 2.5, dog: 3, fox: 3.2, hedgehog: 1.2 }[nature.species]) };
       if (there) mind.nosing.until = Math.min(mind.nosing.until, time + 3);
     } else {
       const spot = leader.aloft ? { x: leader.x, z: leader.z } : trailSpot(leader, nature, index);

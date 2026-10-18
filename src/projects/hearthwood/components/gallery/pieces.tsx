@@ -26,7 +26,26 @@ import { shadowDepth } from "../../art/shading";
 import { poolGeometry, waterMesh } from "../../art/water/water";
 import { Broom } from "../../art/broom";
 import { Witch, type WitchPose } from "../../art/witch";
+import { FolkFigure } from "../../art/folk-figure";
+import { folkLook, readFolkPalette } from "../../art/folk";
+import { homeShape, keepsakeShape, SINKS } from "../../art/folk-homes";
+import { HOME_KINDS, ROLES, type HomeKind, type Role } from "../../engine/people";
+import { CLUE_MARKS, KEEPSAKES, type ClueMark } from "../../stories/story";
+import { CLUE_LARGER, clueShape, readCluePalette } from "../../art/clue-shapes";
 import { CatBody } from "../cats/cat-body";
+import { generateFox } from "../../foxes/fox";
+import { FoxBody } from "../foxes/fox-body";
+import { generateHedgehog } from "../../hedgehogs/hedgehog";
+import { HedgehogBody } from "../hedgehogs/hedgehog-body";
+import { generateSquirrel } from "../../squirrels/squirrel";
+import { SquirrelBody } from "../squirrels/squirrel-body";
+import { generateHare } from "../../hares/hare";
+import { HareBody } from "../hares/hare-body";
+import { generateDeer } from "../../deer/deer";
+import { DeerBody } from "../deer/deer-body";
+import { SONGBIRDS } from "../../birds/bird";
+import { PosedBird } from "../birds/posed-bird";
+import { Butterflies, BUTTERFLY_KINDS, type ButterflyDay } from "../../art/butterflies";
 import { useFeature } from "../valley/feature-renderer";
 import { dishName } from "../valley/cooking-icons";
 import { FORAGE_NAMES } from "../valley/forage-icons";
@@ -179,6 +198,93 @@ function CookingPiece({ thing, context }: { thing: DishId | "pan" | "stick"; con
   return <primitive object={mesh} />;
 }
 
+/** A person as the world draws them, standing (waving, for the first of each role) or sat on a stone. */
+function FolkPiece({ role, seed, seat, waving, context }: { role: Role; seed: string; seat: number | null; waving: boolean; context: ArtContext }) {
+  const palette = useMemo(() => readFolkPalette(), []);
+  const look = useMemo(() => folkLook(seed, role), [seed, role]);
+  const still = useMemo(() => ({ wave: waving ? 0.42 : 0, seconds: 0.6 }), [waving]);
+  return (
+    <>
+      {seat !== null && <HomePiece kind="stone" seed={seed} context={context} />}
+      <FolkFigure look={look} seat={seat} palette={palette} material={context.materials.stone} still={still} />
+    </>
+  );
+}
+
+function HomePiece({ kind, seed, context }: { kind: HomeKind; seed: string; context: ArtContext }) {
+  const mesh = useMemo(() => {
+    const made = new Mesh(homeShape(kind, seed, readFolkPalette()), context.materials.stone);
+    made.position.y = -SINKS[kind];
+    made.castShadow = true;
+    made.receiveShadow = true;
+    return made;
+  }, [kind, seed, context]);
+  useEffect(() => () => mesh.geometry.dispose(), [mesh]);
+  return <primitive object={mesh} />;
+}
+
+function KeepsakesPiece({ context }: { context: ArtContext }) {
+  const meshes = useMemo(() => {
+    const palette = readFolkPalette();
+    return KEEPSAKES.map((k, i) => {
+      const made = new Mesh(keepsakeShape(k, palette), context.materials.stone);
+      made.position.x = (i - (KEEPSAKES.length - 1) / 2) * 0.45;
+      made.scale.setScalar(1.5);
+      made.castShadow = true;
+      return made;
+    });
+  }, [context]);
+  useEffect(() => () => meshes.forEach((m) => m.geometry.dispose()), [meshes]);
+  return (
+    <>
+      {meshes.map((m, i) => (
+        <primitive key={i} object={m} />
+      ))}
+    </>
+  );
+}
+
+function CluePiece({ mark, context }: { mark: ClueMark; context: ArtContext }) {
+  const mesh = useMemo(() => {
+    const made = new Mesh(clueShape(mark, readCluePalette()), context.materials.stone);
+    made.scale.setScalar(CLUE_LARGER);
+    made.castShadow = true;
+    made.receiveShadow = true;
+    return made;
+  }, [mark, context]);
+  useEffect(() => () => mesh.geometry.dispose(), [mesh]);
+  return <primitive object={mesh} />;
+}
+
+const CLUE_NAMES: Record<ClueMark, string> = {
+  "fox-prints": "Fox prints in mud",
+  fur: "Fur on a twig",
+  mitten: "A small mitten",
+  crumbs: "Crumbs and honey",
+  twigs: "Twigs and wool",
+  feather: "A jackdaw's feather",
+  button: "A brass button",
+  rope: "A coil of rope",
+  "cane-prints": "Boot and cane prints",
+  "cloudberry-leaf": "A cloudberry leaf",
+};
+
+const ROLE_NAMES: Record<Role, string> = {
+  shepherd: "Shepherd",
+  beekeeper: "Beekeeper",
+  fisher: "Fisher",
+  herder: "Reindeer herder",
+  "sauna-keeper": "Sauna keeper",
+  cottager: "Cottager",
+  traveller: "Traveller",
+  hiker: "Hiker",
+};
+const HOME_NAMES: Record<HomeKind, string> = { sheep: "Sheep", hives: "Straw skep", boat: "Rowing boat", sauna: "Smoke sauna", cottage: "Cottage", lavvu: "Herder's tent", stone: "Sitting stone" };
+const HOME_RADIUS: Record<HomeKind, number> = { sheep: 0.8, hives: 0.6, boat: 1.8, sauna: 2.6, cottage: 3.6, lavvu: 2, stone: 0.7 };
+const HOME_HEIGHT: Record<HomeKind, number> = { sheep: 0.8, hives: 1, boat: 0.6, sauna: 3.4, cottage: 4.8, lavvu: 3.2, stone: 0.5 };
+/** The roles drawn sat down too, as they are met. */
+const SEATED: ReadonlySet<Role> = new Set(["traveller", "hiker"]);
+
 const GALLERY_DISHES: DishId[] = ["blueberry-pie", "lingonberry-porridge", "cloudberry-pancakes", "strawberries-and-cream", "chanterelle-toast", "mushroom-soup", "berry-tea", "lingonberry-stick-bread", "mushroom-skewers", humbleId("pan", "porcini")];
 
 const PLACE_NAMES: Record<PlaceKind, string> = {
@@ -234,6 +340,28 @@ const CATS: { seed: string; activity: Activity }[] = [
   { seed: "gallery-cat-2", activity: "stand" },
   { seed: "gallery-cat-3", activity: "loaf" },
   { seed: "gallery-cat-4", activity: "walk" },
+];
+
+const SUMMER = { winter: 0, white: 0 };
+const WINTER = { winter: 1, white: 1 };
+/** Butterflies always on the wing in the gallery, one of each kind over a patch. */
+const GALLERY_BUTTERFLIES: ButterflyDay = { uAbout: { value: 1 } };
+const BUTTERFLY_SPOTS = BUTTERFLY_KINDS.map((_, kind) => ({ x: 0, y: 0, z: 0, seed: 0.15 + kind * 0.2, kind }));
+
+/** The forest's animals, each in a pose that shows it best. */
+const FOREST_ANIMALS: { id: string; label: string; radius: number; height: number; render: (context: ArtContext) => ReactNode }[] = [
+  { id: "fox", label: "Red fox", radius: 0.8, height: 0.6, render: (c) => <FoxBody fox={generateFox("gallery-fox")} activity="stand" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "fox-trotting", label: "Fox at a trot", radius: 0.8, height: 0.6, render: (c) => <FoxBody fox={generateFox("gallery-fox-2")} activity="trot" speed={1.9} clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "silver-fox", label: "Silver fox", radius: 0.8, height: 0.6, render: (c) => { const fox = generateFox("gallery-fox-3"); return <FoxBody fox={{ ...fox, coat: { ...fox.coat, phase: "silver" } }} activity="sit" clock={c.clock} atmosphere={c.atmosphere} />; } },
+  { id: "hedgehog", label: "Hedgehog", radius: 0.3, height: 0.2, render: (c) => <HedgehogBody hedgehog={generateHedgehog("gallery-hedgehog")} activity="stand" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "hedgehog-curled", label: "Hedgehog, curled up", radius: 0.3, height: 0.2, render: (c) => <HedgehogBody hedgehog={generateHedgehog("gallery-hedgehog-2")} activity="lie" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "squirrel", label: "Red squirrel", radius: 0.3, height: 0.3, render: (c) => <SquirrelBody squirrel={generateSquirrel("gallery-squirrel")} coatSeason={SUMMER} activity="sit" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "hare", label: "Mountain hare, summer", radius: 0.5, height: 0.4, render: (c) => <HareBody hare={generateHare("gallery-hare")} coatSeason={SUMMER} activity="stand" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "hare-winter", label: "Mountain hare, winter", radius: 0.5, height: 0.4, render: (c) => <HareBody hare={generateHare("gallery-hare")} coatSeason={WINTER} activity="sit" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "roe-buck", label: "Roe buck", radius: 1.1, height: 1.2, render: (c) => { const deer = generateDeer("gallery-deer"); return <DeerBody deer={{ ...deer, sex: "male", build: { ...deer.build, antlers: 1 } }} coatSeason={SUMMER} activity="stand" clock={c.clock} atmosphere={c.atmosphere} />; } },
+  { id: "roe-doe", label: "Roe doe, winter, grazing", radius: 1.1, height: 1, render: (c) => { const deer = generateDeer("gallery-deer-2"); return <DeerBody deer={{ ...deer, sex: "female", build: { ...deer.build, antlers: 0 } }} coatSeason={WINTER} activity="graze" clock={c.clock} atmosphere={c.atmosphere} />; } },
+  ...SONGBIRDS.map((species) => ({ id: species, label: species === "great-tit" ? "Great tit" : species === "robin" ? "Robin" : "Chaffinch", radius: 0.2, height: 0.2, render: (c: ArtContext) => <PosedBird species={species} activity="perch" clock={c.clock} atmosphere={c.atmosphere} /> })),
+  { id: "butterflies", label: "Butterflies", radius: 2, height: 1, render: (c) => <Butterflies spots={BUTTERFLY_SPOTS} atmosphere={c.atmosphere} day={GALLERY_BUTTERFLIES} /> },
 ];
 
 const FIREFLY_SPOTS = new Float32Array(Array.from({ length: 24 }, (_, f) => [Math.cos(f * 2.4) * (1 + (f % 4)), 0.8 + (f % 3) * 0.5, Math.sin(f * 2.4) * (1 + (f % 4))]).flat());
@@ -350,6 +478,40 @@ export const ART_PIECES: ArtPiece[] = [
     height: 0.5,
     render: (context) => <Broom palette={context.palette} atmosphere={context.atmosphere} />,
   },
+  ...ROLES.flatMap((role) =>
+    [1, 2, 3].map((variant) => ({
+      id: `people/${role}/${variant}`,
+      group: "People",
+      label: `${ROLE_NAMES[role]} ${variant}${variant === 3 && SEATED.has(role) ? ", seated" : ""}`,
+      radius: 0.7,
+      height: 1.7,
+      render: (context: ArtContext) => <FolkPiece role={role} seed={`gallery-${role}-${variant}`} seat={variant === 3 && SEATED.has(role) ? 0.42 : null} waving={variant === 1} context={context} />,
+    })),
+  ),
+  ...HOME_KINDS.map((kind) => ({
+    id: `people/home/${kind}`,
+    group: "People's homes",
+    label: HOME_NAMES[kind],
+    radius: HOME_RADIUS[kind],
+    height: HOME_HEIGHT[kind],
+    render: (context: ArtContext) => <HomePiece kind={kind} seed={`gallery-${kind}`} context={context} />,
+  })),
+  {
+    id: "people/keepsakes",
+    group: "People's homes",
+    label: "Keepsakes",
+    radius: 1,
+    height: 0.5,
+    render: (context) => <KeepsakesPiece context={context} />,
+  },
+  ...CLUE_MARKS.map((mark) => ({
+    id: `mysteries/clue/${mark}`,
+    group: "Clues",
+    label: CLUE_NAMES[mark],
+    radius: 0.7,
+    height: 0.5,
+    render: (context: ArtContext) => <CluePiece mark={mark} context={context} />,
+  })),
   ...CATS.map(({ seed, activity }, i) => ({
     id: `folk/cat/${i + 1}`,
     group: "Elliott and the cats",
@@ -358,4 +520,5 @@ export const ART_PIECES: ArtPiece[] = [
     height: 0.5,
     render: (context: ArtContext) => <CatBody cat={generateCat(seed)} activity={activity} speed={0.4} clock={context.clock} atmosphere={context.atmosphere} />,
   })),
+  ...FOREST_ANIMALS.map(({ id, label, radius, height, render }) => ({ id: `forest/${id}`, group: "Animals of the forest", label, radius, height, render })),
 ];

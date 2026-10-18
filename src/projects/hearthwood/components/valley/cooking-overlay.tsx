@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { BookOpen, Check, Flame, Hand, RotateCcw, ShoppingBasket, Sparkles, X } from "lucide-react";
+import { BookOpen, Check, Flame, Hand, Lightbulb, RotateCcw, ShoppingBasket, Sparkles, X } from "lucide-react";
 import { Prompt, PromptButton, type Binding } from "@/shared/components/prompts";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import type { InputKind } from "@/shared/lib/input";
 import { isTextEntryTarget } from "@/shared/lib/utils";
 import { COOKING_SECONDS, toHand, type Session } from "../../gameplay/cooking";
-import { COOKWARE, DISHES, FOODS, humbleOf, isFood, MOST_INGREDIENTS, recipeOf, RECIPES, STAPLES, type Ingredient } from "../../gameplay/recipes";
+import { COOKWARE, DISHES, FOODS, humbleOf, isFood, MOST_INGREDIENTS, recipeOf, RECIPES, STAPLES, type Ingredient, type RecipeId } from "../../gameplay/recipes";
 import { CookwareIcon, COOKWARE_NAMES, DishIcon, dishName, IngredientIcon, ingredientName } from "./cooking-icons";
 import { subscribeForaging, type Foraging } from "./foraging";
 import { chooseIngredient, chooseWay, closeCooking, cook, cookMore, openCooking, readyToCook, setBookOpen, subscribeHearth, type Hearth } from "./hearth";
@@ -21,7 +21,8 @@ import { chooseIngredient, chooseWay, closeCooking, cook, cookMore, openCooking,
  * served, new ones marked as found, to cook again or get up. The recipe
  * book shows every recipe as a drawing, the found ones with what goes into
  * them and how, the rest in shadow with only how they are cooked and how
- * many things go in, and the humble dishes found besides.
+ * many things go in (or, hinted by someone Elliott met, what goes in too),
+ * and the humble dishes found besides.
  *
  * While a turn is on the card has the keys and buttons (the rest of what
  * Elliott can use waits): F or Enter (the controller's X) cooks or cooks
@@ -202,7 +203,10 @@ function Served({ hearth, session, input }: { hearth: Hearth; session: Extract<S
   );
 }
 
-function RecipeBook({ hearth, input }: { hearth: Hearth; input: InputKind }) {
+/** The recipes someone has hinted at, read as the book opens. */
+type Hinted = () => readonly RecipeId[];
+
+function RecipeBook({ hearth, input, hinted }: { hearth: Hearth; input: InputKind; hinted: Hinted }) {
   const root = useRef<HTMLDivElement>(null);
   const subscribe = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
   const { larder } = useSyncExternalStore(subscribe, () => hearth.shown);
@@ -215,6 +219,7 @@ function RecipeBook({ hearth, input }: { hearth: Hearth; input: InputKind }) {
     },
   });
   const found = RECIPES.filter((r) => larder.known.includes(r.id)).length;
+  const hints = hinted();
   const humble = DISHES.filter((d) => humbleOf(d) !== null && larder.known.includes(d));
   return (
     <div className="absolute inset-0 flex items-start justify-center overflow-y-auto px-3 pt-14 pb-4 sm:items-center sm:pt-4">
@@ -249,12 +254,16 @@ function RecipeBook({ hearth, input }: { hearth: Hearth; input: InputKind }) {
         <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
           {RECIPES.map((recipe) => {
             const known = larder.known.includes(recipe.id);
+            const hint = !known && hints.includes(recipe.id);
             return (
-              <li key={recipe.id} className="flex flex-col items-center gap-1 rounded-xl bg-(--color-hearthwood-cooking-ink)/8 px-1 py-2 text-center" title={known ? `${recipe.name} (${recipe.native})` : "Not yet found"}>
-                <DishIcon dish={recipe.id} unknown={!known} className="size-14" />
+              <li key={recipe.id} className="flex flex-col items-center gap-1 rounded-xl bg-(--color-hearthwood-cooking-ink)/8 px-1 py-2 text-center" title={known ? `${recipe.name} (${recipe.native})` : hint ? "Hinted: what goes in is known" : "Not yet found"}>
+                <span className="relative inline-flex">
+                  <DishIcon dish={recipe.id} unknown={!known} className="size-14" />
+                  {hint && <Lightbulb aria-label="Hinted" className="absolute -top-1 -right-1 size-4 text-(--color-hearthwood-folk-playful)" fill="currentColor" />}
+                </span>
                 {known && <span className="text-xs leading-tight font-semibold">{recipe.name}</span>}
                 <span className="flex flex-wrap items-center justify-center gap-0.5">
-                  {known
+                  {known || hint
                     ? recipe.ingredients.map((i) => <IngredientIcon key={i} ingredient={i} className="size-5" />)
                     : recipe.ingredients.map((i) => <span key={i} aria-hidden className="size-3.5 rounded-full border border-dashed border-(--color-hearthwood-cooking-ink)/50" />)}
                   <span aria-hidden className="mx-0.5 opacity-50">
@@ -282,7 +291,7 @@ function RecipeBook({ hearth, input }: { hearth: Hearth; input: InputKind }) {
   );
 }
 
-function AtTheFire({ hearth, foraging, session, input }: { hearth: Hearth; foraging: Foraging; session: Session; input: InputKind }) {
+function AtTheFire({ hearth, foraging, session, input, hinted }: { hearth: Hearth; foraging: Foraging; session: Session; input: InputKind; hinted: Hinted }) {
   const root = useRef<HTMLDivElement>(null);
   const subscribeBasket = useCallback((listener: () => void) => subscribeForaging(foraging, listener), [foraging]);
   const { basket } = useSyncExternalStore(subscribeBasket, () => foraging.shown);
@@ -380,7 +389,7 @@ function AtTheFire({ hearth, foraging, session, input }: { hearth: Hearth; forag
           </div>
         </div>
       </div>
-      {book && <RecipeBook hearth={hearth} input={input} />}
+      {book && <RecipeBook hearth={hearth} input={input} hinted={hinted} />}
     </>
   );
 }
@@ -391,7 +400,9 @@ export function useCookingOn(hearth: Hearth): boolean {
   return useSyncExternalStore(subscribe, () => hearth.shown.session !== null);
 }
 
-export function CookingOverlay({ hearth, foraging, input }: { hearth: Hearth; foraging: Foraging; input: InputKind }) {
+const NO_HINTS: Hinted = () => [];
+
+export function CookingOverlay({ hearth, foraging, input, hinted = NO_HINTS }: { hearth: Hearth; foraging: Foraging; input: InputKind; hinted?: Hinted }) {
   const subscribe = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
   const shown = useSyncExternalStore(subscribe, () => hearth.shown);
   const { session, offered } = shown;
@@ -421,7 +432,7 @@ export function CookingOverlay({ hearth, foraging, input }: { hearth: Hearth; fo
             </div>
           </div>
         ))}
-      {session && <AtTheFire hearth={hearth} foraging={foraging} session={session} input={input} />}
+      {session && <AtTheFire hearth={hearth} foraging={foraging} session={session} input={input} hinted={hinted} />}
     </>
   );
 }

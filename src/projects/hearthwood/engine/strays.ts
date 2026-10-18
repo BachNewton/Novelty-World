@@ -5,17 +5,25 @@ import type { PlaceKind } from "./regions";
 import type { World } from "./world";
 
 /*
- * The stray cats and dogs, by area. The world is cut into the places' cells,
+ * The stray cats and dogs, and the wild foxes and hedgehogs who can be won
+ * over the same way, by area. The world is cut into the places' cells,
  * and each cell has a few strays or none, found from the cell's own seed and
  * its land alone, so a stray is always where it was. Cats are commoner by
  * the places people keep (a seter's barn, a shrine, a stone circle) and at
  * the edges of the woods; dogs by a seter and out in open country. Each
  * stray is a cat or a dog generated from its own seed, with a home spot it
- * wanders round. Who a stray is (its coat, build and personality) is the
- * cats' and dogs' own generation; this only says where they are.
+ * wanders round. Foxes are rarer, at the woods' edges; hedgehogs by the
+ * places people keep (a seter's garden above all) and the edges of the
+ * meadows; they are found from a stream of the cell's own, so finding them
+ * never moves a cat or a dog. Who a stray is (its coat, build and
+ * personality) is its species' own generation; this only says where they are.
  */
 
-export type Species = "cat" | "dog";
+/** Every kind of animal that can be won over to follow Elliott. */
+export const SPECIES = ["cat", "dog", "fox", "hedgehog"] as const;
+export type Species = (typeof SPECIES)[number];
+/** The wild ones among them, found after the cats and dogs. */
+type WildSpecies = Extract<Species, "fox" | "hedgehog">;
 
 export interface Stray {
   /** Its cell and its place in the cell's list: what befriending it is kept under. */
@@ -45,6 +53,15 @@ const BY_PLACE: Partial<Record<PlaceKind, { cat: number; dog: number }>> = {
   "fairy-ring": { cat: 0.15, dog: 0 },
   "fallen-tree": { cat: 0.1, dog: 0.05 },
 };
+/** How likely a cell is to hold a fox and a hedgehog, before its place is counted, and how much each kind of place adds. */
+const WILD_BASE: Record<WildSpecies, number> = { fox: 0.07, hedgehog: 0.05 };
+const WILD_BY_PLACE: Partial<Record<PlaceKind, Record<WildSpecies, number>>> = {
+  seter: { fox: 0.04, hedgehog: 0.4 },
+  shrine: { fox: 0, hedgehog: 0.12 },
+  "stone-circle": { fox: 0.03, hedgehog: 0.06 },
+  "fallen-tree": { fox: 0.06, hedgehog: 0.1 },
+  "fairy-ring": { fox: 0.05, hedgehog: 0.08 },
+};
 /** A seter keeps a second cat now and then: a barn's cats. */
 const SECOND_CAT_AT_SETER = 0.35;
 /** How many spots each stray looks at for its home. */
@@ -69,9 +86,18 @@ function homeGround(ground: StrayGround, x: number, z: number, s: LandSample, sc
   return { wood, open: (1 - wood) * (1 - Math.min(1, s.mountainous * 1.4)) };
 }
 
-/** How well a spot suits a species' home: a cat the edge of the woods, a dog open country. */
+/** How well a spot suits a species' home: a cat the edge of the woods, a dog open country, a fox the very edge of the trees, a hedgehog the meadow's edge. */
 function suits(species: Species, at: { wood: number; open: number }): number {
-  return species === "cat" ? 1 - Math.abs(at.wood - 0.45) * 2 : at.open;
+  switch (species) {
+    case "cat":
+      return 1 - Math.abs(at.wood - 0.45) * 2;
+    case "dog":
+      return at.open;
+    case "fox":
+      return 1 - Math.abs(at.wood - 0.3) * 2.2;
+    case "hedgehog":
+      return 1 - Math.abs(at.wood - 0.15) * 2.5 - (1 - at.open - at.wood) * 0.5;
+  }
 }
 
 interface Found {
@@ -154,7 +180,27 @@ export function straysInCell(ground: StrayGround, cellX: number, cellZ: number):
     const roam = species === "cat" ? 6 + rng.next() * 6 : 10 + rng.next() * 10;
     strays.push(strayAt(ground, species, cellX, cellZ, index, home, roam));
   });
-  return strays;
+  return [...strays, ...wildInCell(ground, cellX, cellZ, place, leaning.cat >= 0)];
+}
+
+/** The foxes and hedgehogs of a cell, from a stream of its own, numbered after anything the cats' and dogs' stream could give. */
+function wildInCell(ground: StrayGround, cellX: number, cellZ: number, place: Place | null, livable: boolean): Stray[] {
+  if (!livable) return [];
+  const rng = createRng(`${ground.seed}/wild/${cellX},${cellZ}`);
+  const x0 = cellX * STRAY_CELL;
+  const z0 = cellZ * STRAY_CELL;
+  const byPlace = place ? WILD_BY_PLACE[place.kind] : undefined;
+  const around = place && byPlace ? { x: place.x, z: place.z, near: Math.max(BY_PLACE_REACH.near, place.flatten + place.blend), far: BY_PLACE_REACH.far + place.clearing } : null;
+  const out: Stray[] = [];
+  (["fox", "hedgehog"] as const).forEach((species, i) => {
+    if (rng.next() >= WILD_BASE[species] + (byPlace?.[species] ?? 0)) return;
+    const near = byPlace && byPlace[species] > 0 ? around : null;
+    const home = findHome(ground, species, rng, near, x0, z0) ?? (near ? findHome(ground, species, rng, null, x0, z0) : null);
+    if (home === null) return;
+    const roam = species === "fox" ? 14 + rng.next() * 12 : 5 + rng.next() * 4;
+    out.push(strayAt(ground, species, cellX, cellZ, 10 + i, home, roam));
+  });
+  return out;
 }
 
 /** Every stray whose home is within `radius` metres of a point. */

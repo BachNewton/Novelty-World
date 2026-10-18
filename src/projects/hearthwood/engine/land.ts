@@ -78,6 +78,11 @@ interface Noises {
   detail: Noise2;
   basin: Noise2;
   riverSize: Noise2;
+  massif: Noise2;
+  horn: Noise2;
+  profile: Noise2;
+  plateau: Noise2;
+  ice: Noise2;
 }
 
 export interface Land {
@@ -93,8 +98,8 @@ export interface Land {
 }
 
 /** How high a big alpine range rises above the lowlands at its highest, and how far its flanks reach out from its crest, in metres. */
-const RANGE_HEIGHT = 2300;
-const RANGE_REACH = 4600;
+const RANGE_HEIGHT = 2500;
+const RANGE_REACH = 5000;
 /** The size of the broad field the alpine crests follow, in metres. */
 const ALPINE_FIELD = 10000;
 /** The spacing of the glacial valleys down a range's flanks, and of the side valleys down their walls, in metres. */
@@ -119,8 +124,28 @@ const FLUTES = [
 ] as const;
 /** How high crags and horns stand off a range's walls and ridges, in metres. */
 const CRAGS = 190;
-/** How high the horns rise from where the spurs meet the crest, in metres. */
-const HORNS = 200;
+/** How high the horns rise from where the spurs meet the crest at most, in metres, and the size of the field that shapes
+ * each one (its height, how sharp, flat-topped or split it is): about one valley's spacing, so each horn has its own. */
+const HORNS = 400;
+const HORN_FIELD = 1900;
+/** The spacing of the massifs along a crest, each with its own summit, and how much lower the spurs stand between two
+ * massifs' summits than at them, as a share. */
+const MASSIF = 4400;
+const MASSIF_DIP = 0.3;
+/** How far the valleys wander from an even spacing, and the size of that wandering, in metres. */
+const VALLEY_WARP = 0.28 * VALLEY;
+const VALLEY_WARP_FIELD = 3000;
+/** How much nearer to the crest a range's ice side comes, and how much further its other side reaches, as a share of the reach. */
+const ICE_SIDE = 0.16;
+/** The size of the field that sets how a range's spurs rise (straight, steepening or easing, with a bench partway or none),
+ * and how wide a bench is, as a share of the way up. */
+const PROFILE_FIELD = 2800;
+const BENCH_WIDTH = 0.08;
+/** The size of the field that lays high plateaus over some massifs, their level as a share of the crest's height, and how
+ * much higher a plateau massif stands so its plateau is high fjell. */
+const PLATEAU_FIELD = 9000;
+const PLATEAU_LEVEL = 0.8;
+const PLATEAU_LIFT = 1.12;
 /** How high the fells rise. */
 const FELL_HEIGHT = 430;
 /** Folded country: the spacing of its ridges, the swell of upland they stand on and how high they rise from it, in metres. */
@@ -189,6 +214,11 @@ export function makeLand(seed: string): Land {
     detail: gradientNoise(`${seed}/detail`),
     basin: gradientNoise(`${seed}/basin`),
     riverSize: gradientNoise(`${seed}/river-size`),
+    massif: gradientNoise(`${seed}/massif`),
+    horn: gradientNoise(`${seed}/horn`),
+    profile: gradientNoise(`${seed}/spur-profile`),
+    plateau: gradientNoise(`${seed}/plateau`),
+    ice: gradientNoise(`${seed}/ice-side`),
   };
 
   const base = (x: number, z: number): number => 32 + 38 * fbm(n.base, x / 2700, z / 2700, 3);
@@ -218,6 +248,32 @@ export function makeLand(seed: string): Land {
   };
 
   /**
+   * A horn, where a spur meets the crest (on a plateau, at the plateau's edge), in metres at a range's full height. Each
+   * is its own, from slow fields about a valley's spacing across: anything from a knoll to a tower, a sharp horn or a broad
+   * dome, some flat-topped, some split into two summits. Sampled from far off, sharp horns broaden into domes, which keep
+   * their bulk without shimmering.
+   */
+  const horn = (x: number, z: number, a: number, t: number, plateau: number, summit: number, shows: number, sampling: Sampling): number => {
+    const hx = x / HORN_FIELD;
+    const hz = z / HORN_FIELD;
+    const height = HORNS * smoothstep(-0.55, 0.65, n.horn(hx, hz)) * (1 - 0.5 * summit);
+    if (height === 0) return 0;
+    const sharp = smoothstep(-0.7, 0.35, n.horn(hx + 5.7, hz - 3.1)) * sampling.shows(3000);
+    const along = Math.max(0, 1 - Math.abs(t - 0.3 * plateau) / lerp(0.3, 0.16, sharp));
+    if (along === 0) return 0;
+    // Across the spur, its point; where the valleys and spurs are too fine to show, a horn's mean across them, so a far
+    // range keeps its horns' bulk along its crest.
+    const width = lerp(0.45, 0.2, sharp);
+    const across = shows > 0 ? clamp((a - (1 - width)) / width, 0, 1) ** lerp(0.6, 2.2, sharp) : 0;
+    let rise = height * lerp(0.4, across, shows) * along ** lerp(0.8, 1.6, sharp);
+    const table = smoothstep(0.35, 0.6, n.horn(hx - 8.2, hz + 4.4));
+    if (table > 0) rise = lerp(rise, smin(rise, 0.45 * height, 0.1 * height), table);
+    const split = smoothstep(0.2, 0.5, n.horn(hx + 2.2, hz + 9.9)) * sampling.shows(500);
+    if (split > 0) rise *= 1 - 0.4 * split * (1 - smoothstep(0, 0.22, Math.abs(n.horn(x / 420 + 1.3, z / 420 - 6.6))));
+    return rise;
+  };
+
+  /**
    * A high alpine range, like the Tetons, Jotunheimen or the Alps: a massif rising from its foot to a crest along a broad
    * field's zero line, its height wandering along the crest. Glacial valleys run down its flanks from the crest, flat-floored
    * between steep walls, their floors climbing to cirques under the crest, where valleys from either side meet at a col, the
@@ -231,27 +287,51 @@ export function makeLand(seed: string): Land {
     const fx = (alpineField(x + e, z) - field) / e;
     const fz = (alpineField(x, z + e) - field) / e;
     const steep = Math.max(Math.hypot(fx, fz), 1e-9);
-    // How far the crest is, as a share of how far the flanks reach; where the field turns, between two crests, it is
-    // read as no nearer than its usual steepness says, so the land between them comes down smoothly.
-    const reachOut = RANGE_REACH * (0.5 + 0.5 * chain);
-    const t = Math.hypot(Math.abs(field) / Math.max(steep, 0.75 / ALPINE_FIELD) / reachOut, CREST_ROUND) - CREST_ROUND;
-    if (t >= 1) return NO_RANGE;
     // Across the range, the way its flanks fall: the valleys and spurs run this way.
     const acrossX = fx / steep;
     const acrossZ = fz / steep;
+    // Massifs along the crest: the spurs rise to a massif's summit and stand lower between, so each massif has its
+    // dominant peak with lesser ones about it, which carry the taller horns. The valley floors and the cols keep their
+    // heights, so the ways up the valleys to the passes are as easy beside a great peak as beside a lesser one.
+    const summit = smoothstep(-0.7, 0.7, n.massif(x / MASSIF, z / MASSIF));
+    const massif = 1 - MASSIF_DIP * (1 - summit);
+    // High fjell: over some massifs the tops flatten into a plateau, standing a little higher.
+    const plateau = smoothstep(0.3, 0.6, fbm(n.plateau, x / PLATEAU_FIELD, z / PLATEAU_FIELD, 2));
+    // A plateau massif stands higher and reaches further, no steeper than the rest.
+    const stature = lerp(1, PLATEAU_LIFT, plateau);
+    // Each range has an ice side, the way its glaciers bit deepest, wandering slowly across the world: its faces that way
+    // come nearer the crest and steeper, and its other side reaches further out and gentler, so a peak reads differently
+    // from each side. (The reach changes across the crest, where the crest's distance is nothing on either side.)
+    const iceAngle = 2.5 * Math.PI * n.ice(x / 20000 + 0.37, z / 20000 - 0.61);
+    const facing = Math.sign(field) * (acrossX * Math.cos(iceAngle) + acrossZ * Math.sin(iceAngle));
+    const reachOut = RANGE_REACH * (0.5 + 0.5 * chain) * stature * (1 - ICE_SIDE * facing);
+    // How far the crest is, as a share of how far the flanks reach; where the field turns, between two crests, it is
+    // read as no nearer than its usual steepness says, so the land between them comes down smoothly.
+    const t = Math.hypot(Math.abs(field) / Math.max(steep, 0.75 / ALPINE_FIELD) / reachOut, CREST_ROUND) - CREST_ROUND;
+    if (t >= 1) return NO_RANGE;
     const peaks = chain * (0.5 + 0.5 * smoothstep(-0.55, 0.5, fbm(n.peaks, x / 5200, z / 5200, sampling.octaves(5200, 3))));
-    const top = RANGE_HEIGHT * peaks;
-    // The spurs climb steadily from the range's foot to the crest; the valley floors between them stay low far into the
-    // range, then climb to cirques under the crest, where the valleys from either side meet at a col.
-    const spur = (1 - t) * smoothstep(1, 0.7, t);
-    const floor = COL * (1 - t) ** 2.3;
+    const top = RANGE_HEIGHT * peaks * stature;
+    // The spurs climb from the range's foot to the crest, straight, steepening under the crest or easing to it, and here
+    // and there with a bench partway up, a shoulder that eases before the climb goes on. The valley floors between them
+    // stay low far into the range, then climb to cirques under the crest, where the valleys from either side meet at a
+    // col; on a plateau they climb to the plateau instead, ending in cirques bitten into its edge.
+    const climb = (1 - t) ** (0.97 + 0.2 * fbm(n.profile, x / PROFILE_FIELD, z / PROFILE_FIELD, 2));
+    const bench = 0.8 * smoothstep(0.05, 0.45, n.profile(x / PROFILE_FIELD + 7.3, z / PROFILE_FIELD - 2.9)) * sampling.shows(4 * BENCH_WIDTH * RANGE_REACH);
+    const fromBench = climb - (0.5 + 0.15 * n.profile(x / PROFILE_FIELD - 4.1, z / PROFILE_FIELD + 8.7));
+    const spur = (climb - bench * fromBench * Math.exp(-0.5 * (fromBench / BENCH_WIDTH) ** 2)) * smoothstep(1, 0.7, t) * massif;
+    const floor = lerp(COL * (1 - t) ** 2.3, spur, plateau * smoothstep(0.42, 0.12, t));
 
-    gullies(x / VALLEY, z / VALLEY, acrossX, acrossZ, valleys);
+    // The valleys wander from an even spacing, so the spurs between them are uneven, and here and there two valleys merge.
+    const vx = x + VALLEY_WARP * fbm(n.warp, x / VALLEY_WARP_FIELD + 13.1, z / VALLEY_WARP_FIELD - 6.2, 2);
+    const vz = z + VALLEY_WARP * fbm(n.warp, x / VALLEY_WARP_FIELD - 9.4, z / VALLEY_WARP_FIELD + 3.8, 2);
+    gullies(vx / VALLEY, vz / VALLEY, acrossX, acrossZ, valleys);
     // Where the field turns on itself the way across is lost, and the valleys fade out rather than meet in a star.
-    const showsValleys = sampling.shows(VALLEY) * smoothstep(0.25, 0.6, steep * ALPINE_FIELD);
+    const runs = smoothstep(0.25, 0.6, steep * ALPINE_FIELD);
+    const showsValleys = sampling.shows(VALLEY) * runs;
     // Where a point lies between a valley's middle (0) and the crest of the spur beside it (1), evenly across.
     // (Kept a little short of the ends, where the arc's cosine turns infinitely steep: the crest would be a knife's edge.)
-    const a = 0.62 + ((1 - Math.acos(0.98 * clamp(valleys.value / 0.85, -1, 1)) / Math.PI) / 0.936 - 0.62) * showsValleys;
+    const evenly = (1 - Math.acos(0.98 * clamp(valleys.value / 0.85, -1, 1)) / Math.PI) / 0.936;
+    const a = 0.62 + (evenly - 0.62) * showsValleys;
     // A glacier's trough: a flat floor, walls steepening as they rise, and a narrow rounded crest along the spur above,
     // the ridge a walker follows up.
     const across = clamp((a - TROUGH_FLOOR) / (1 - TROUGH_FLOOR), 0, 1);
@@ -291,13 +371,12 @@ export function makeLand(seed: string): Land {
     const patches = smoothstep(-0.15, 0.3, fbm(n.peaks, x / 1100 + 3.1, z / 1100 - 7.7, sampling.octaves(1100, 2)));
     const high = smoothstep(0.3, 0.75, spur) * smoothstep(0.1, 0.4, wall) * (1 - smoothstep(0.8, 0.97, wall)) * patches;
     const crags = CRAGS * ridged(n.range, x / 520, z / 520, sampling.octaves(520, 4)) ** 2 * high * chain;
+    // On a plateau the land levels off below the crest's height, into the open high fjell.
     const rise = floor + (spur - floor) * shape;
-    // Horns: where the spurs meet the crest, the peaks rise to a point.
-    const horn = HORNS * peaks * clamp((a - 0.7) / 0.3, 0, 1) * Math.max(0, 1 - t / 0.2) ** 1.3;
-
-    ranged.height = top * rise + crags + horn + fluting * faces;
+    const level = lerp(rise, smin(rise, PLATEAU_LEVEL, 0.12), plateau);
+    ranged.height = top * level + crags + peaks * horn(x, z, evenly, t, plateau, summit, sampling.shows(VALLEY), sampling) * runs + fluting * faces;
     ranged.mountainous = smoothstep(0, 0.5, spur) * Math.min(1, chain * 1.5);
-    ranged.ice = (1 - u) * smoothstep(0.3, 0.75, floor / COL) * smoothstep(0.7, 0.95, peaks);
+    ranged.ice = (1 - u) * smoothstep(0.3, 0.75, floor / COL) * smoothstep(0.7, 0.95, peaks) * lerp(0.5, 1, smoothstep(-0.5, 0.5, facing));
     return ranged;
   };
 

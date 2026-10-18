@@ -350,7 +350,7 @@ function hut(rng: Rng, palette: Palette, width: number, depth: number): Piece[] 
   pieces.push({ geometry: core, colour: t.log.clone().multiplyScalar(0.75) });
   const gable = new CylinderGeometry(width / Math.sqrt(3), width / Math.sqrt(3), depth - 0.1, 3);
   gable.rotateX(Math.PI / 2);
-  gable.rotateZ(Math.PI / 2);
+  gable.rotateZ(Math.PI);
   gable.scale(1, pitch / ((width / Math.sqrt(3)) * 1.5), 1);
   gable.translate(0, 0.3 + wall + pitch / 3, 0);
   pieces.push({ geometry: gable, colour: t.log.clone().multiplyScalar(0.8), shading: 0.3 });
