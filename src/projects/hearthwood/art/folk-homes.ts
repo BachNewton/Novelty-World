@@ -15,7 +15,8 @@ import { lumpy, paint, type Piece } from "./painted";
  * poles; a stone to sit on. And the keepsakes Elliott is given, set out at
  * camp: a jar of heather honey, a little carved pike, a felted reindeer, a
  * piece of sea glass, a rowan seedling with its berries, a brass compass,
- * a reading glass and a tweed deerstalker for the mysteries solved.
+ * a reading glass and a tweed deerstalker for the mysteries solved, a
+ * ewe's brass bell on its leather collar and a birch kuksa.
  */
 
 const at = (g: BufferGeometry, x: number, y: number, z: number) => g.translate(x, y, z);
@@ -339,6 +340,32 @@ export function keepsakeShape(keepsake: Keepsake, palette: FolkPalette): BufferG
       pieces.push({ geometry: at(new SphereGeometry(0.016, 6, 4), -0.012, 0.1, 0), colour: p.charcoal });
       pieces.push({ geometry: at(new SphereGeometry(0.016, 6, 4), 0.012, 0.1, 0), colour: p.charcoal });
       return paint(pieces);
+    }
+    case "sheep-bell": {
+      // The bell stands up in front of its leather collar, laid flat on the stone behind it.
+      const strap = new TorusGeometry(0.1, 0.014, 4, 22);
+      strap.rotateX(Math.PI / 2);
+      strap.scale(1, 0.45, 0.8);
+      const rim = new TorusGeometry(0.052, 0.01, 6, 16);
+      rim.rotateX(Math.PI / 2);
+      const crown = new SphereGeometry(0.031, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+      return paint([
+        { geometry: at(strap, 0, 0.006, -0.07), colour: p.brown, shading: 0.3 },
+        { geometry: at(new CylinderGeometry(0.031, 0.052, 0.09, 14), 0, 0.06, 0.03), colour: p.brass, shading: 0.35 },
+        { geometry: at(rim, 0, 0.016, 0.03), colour: p.brass },
+        { geometry: at(crown, 0, 0.104, 0.03), colour: p.brass },
+        { geometry: at(new TorusGeometry(0.016, 0.005, 4, 10), 0, 0.136, 0.03), colour: p.brass.clone().multiplyScalar(0.85) },
+      ]);
+    }
+    case "kuksa": {
+      const bowl = new SphereGeometry(0.08, 14, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+      bowl.scale(1, 0.85, 1);
+      return paint([
+        { geometry: at(bowl, 0, 0.075, 0), colour: p.wood, shading: 0.4 },
+        { geometry: at(new CylinderGeometry(0.074, 0.074, 0.006, 16), 0, 0.072, 0), colour: p.brown },
+        { geometry: at(new BoxGeometry(0.06, 0.026, 0.045), 0.1, 0.064, 0), colour: p.wood, shading: 0.3 },
+        { geometry: at(new CylinderGeometry(0.01, 0.01, 0.004, 8), 0.11, 0.078, 0), colour: p.brown },
+      ]);
     }
   }
 }

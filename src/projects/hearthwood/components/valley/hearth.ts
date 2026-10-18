@@ -32,6 +32,7 @@ import {
   saveSatchel,
   startBrewing,
   stepBrewing,
+  takeBrew,
   toggleBrewIngredient,
   workCharm,
   type BrewSession,
@@ -294,7 +295,14 @@ export function setBookOpen(hearth: Hearth, open: boolean): void {
   show(hearth, { book: open });
 }
 
-/** One dish taken from the basket, given to an animal. */
+/** One tea or salve taken from the basket, given to someone. */
+export function giveBrew(hearth: Hearth, brew: BrewId): void {
+  const satchel = takeBrew(hearth.shown.satchel, brew);
+  saveSatchel(satchel);
+  show(hearth, { satchel });
+}
+
+/** One dish taken from the basket, given to an animal or a person. */
 export function giveDish(hearth: Hearth, dish: DishId): void {
   const larder = takeDish(hearth.shown.larder, dish);
   saveLarder(larder);

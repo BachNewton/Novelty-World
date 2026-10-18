@@ -1,8 +1,10 @@
 // Screenshots of the people Elliott meets, for judging them without a browser open: meeting a shepherd by a
 // seter (from behind Elliott and through their eyes, with the prompt to talk), the storybook panel mid-conversation
 // on desktop and on the target phone (a Pixel 8 Pro in Chrome, portrait), a cold traveller given something warm
-// cooked at the fire and their thanks, a herder's lost dog befriended, brought back and sat at home again, the
-// keepsakes set out at camp, and the journal on desktop and the phone.
+// cooked at the fire and their thanks, a herder's lost dog befriended, brought back and sat at home again, a
+// shepherd asking for yarrow salve for their ewe (the panel showing what is asked) and thanking Elliott for it on
+// desktop and the phone, the keepsakes set out at camp (those given, and every one there is), and the journal on
+// desktop and the phone.
 //
 // Drives the world's probe (window.__hearthwoodWorld, see ../components/valley/world-probe.tsx and
 // people-probe.ts) over Playwright and waits on its events (ready, streamed in, frames drawn, a person drawn,
@@ -54,6 +56,7 @@ async function openWorld(device) {
     world.people.forget();
     world.companions.forget();
     world.cooking.forget();
+    world.brewing.forget();
     world.forage.forget();
   });
   return page;
@@ -232,6 +235,9 @@ async function desktopShots() {
     await capture(page, "people-dog-home", { person: herder.id });
   }
 
+  // A shepherd asking for yarrow salve for their ewe, and thanking Elliott for it.
+  if (want("people-brew")) await brewShots(page, "desktop");
+
   if (want("people-keepsakes")) {
     await page.evaluate(() => {
       const world = window.__hearthwoodWorld;
@@ -245,6 +251,11 @@ async function desktopShots() {
       world.setFreeCamera({ x: camp.x + Math.cos(angle) * 4.4, y: world.at(x, z).height + 1.3, z: camp.z + Math.sin(angle) * 4.4 + 0.6, lookX: x, lookY: world.at(x, z).height + 0.1, lookZ: z });
     });
     await capture(page, "people-keepsakes-at-camp", { hour: 17.8 });
+    await page.evaluate(() => {
+      const world = window.__hearthwoodWorld;
+      for (const k of ["honey-jar", "carved-fish", "felted-reindeer", "sea-glass", "rowan-seedling", "compass", "magnifying-glass", "deerstalker", "sheep-bell", "kuksa"]) world.people.keepsake(k);
+    });
+    await capture(page, "people-keepsakes-all-at-camp", { hour: 17.8 });
     await page.evaluate(() => window.__hearthwoodWorld.setFreeCamera(null));
   }
 
@@ -254,6 +265,31 @@ async function desktopShots() {
     await page.evaluate(() => window.__hearthwoodWorld.people.setJournalOpen(false));
   }
   return page;
+}
+
+/** Asks a shepherd about their ewe to the end of the asking, then comes back with the salve in the basket for the thanks. */
+async function brewShots(page, device) {
+  const shepherd = await find(page, "shepherd", 40, "sore-hoof");
+  await standBefore(page, shepherd, 2.6, "third", 0.3, 0.75);
+  await talkTo(page, shepherd.id);
+  const asked = await toLastPage(page);
+  console.log(`asked: ${JSON.stringify(asked)}`);
+  await capture(page, `people-brew-ask-${device}`, { person: shepherd.id, settle: 90 });
+  await finishTalk(page);
+  await page.evaluate(() => window.__hearthwoodWorld.brewing.stock("yarrow-salve"));
+  await talkTo(page, shepherd.id);
+  console.log(`thanks: ${JSON.stringify(await page.evaluate(() => window.__hearthwoodWorld.people.talking()))}`);
+  await capture(page, `people-brew-thanks-${device}`, { person: shepherd.id, settle: 60 });
+  const last = await toLastPage(page);
+  console.log(`last: ${JSON.stringify(last)}`);
+  await capture(page, `people-brew-gift-${device}`, { person: shepherd.id, settle: 20 });
+  await finishTalk(page);
+}
+
+async function phoneBrewShots() {
+  const page = await openWorld(PHONE);
+  await page.touchscreen.tap(PHONE.viewport.width * 0.8, PHONE.viewport.height * 0.3);
+  await brewShots(page, "phone");
 }
 
 async function phoneShots() {
@@ -274,5 +310,6 @@ async function phoneShots() {
 
 await desktopShots();
 if (want("people-offer-phone") || want("people-talk-phone") || want("people-journal-phone")) await phoneShots();
+if (want("people-brew-ask-phone") || want("people-brew-thanks-phone") || want("people-brew-gift-phone")) await phoneBrewShots();
 
 await browser.close();

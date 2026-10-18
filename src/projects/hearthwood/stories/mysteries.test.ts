@@ -3,6 +3,7 @@ import { PEOPLE_CELL, peopleInCell, type Person } from "../engine/people";
 import { createWorld } from "../engine/world";
 import { emptyBasket } from "../gameplay/basket";
 import { noAcquaintances, openTalk, talkFor, type Having, type Speaker } from "../gameplay/conversation";
+import { emptySatchel } from "../gameplay/brewing";
 import { emptyLarder } from "../gameplay/cooking";
 import { addClues, connect, emptyCasebook, foundClues, isSolved, openCase, parseCasebook, serializeCasebook, type Casebook } from "../gameplay/sleuthing";
 import { canStand } from "../gameplay/walking";
@@ -102,7 +103,7 @@ describe("the mysteries", () => {
   });
 });
 
-const nothing: Having = { basket: emptyBasket(), larder: emptyLarder(), petHere: false };
+const nothing: Having = { basket: emptyBasket(), larder: emptyLarder(), satchel: emptySatchel(), petHere: false };
 
 describe("a mystery played through", () => {
   for (const story of MYSTERIES) {

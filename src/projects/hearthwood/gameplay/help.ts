@@ -1,14 +1,20 @@
+import { DAYS_IN_YEAR, inSeason } from "../engine/forage";
 import type { Request } from "../stories/story";
 import type { Basket } from "./basket";
+import { brewCount, brewsIn, type Satchel } from "./brewing";
+import { ALL_BREWS, brewRecipeOf, formOf, isForageKind, type BrewId, type BrewIngredient } from "./brews";
 import { dishCount, type Larder } from "./cooking";
 import { COOKWARE, DISHES, FOODS, humbleOf, recipeOf, type DishId, type Food } from "./recipes";
+import type { ForageKind } from "../engine/regions";
 
 /*
  * Helping someone, as rules: whether what Elliott has with them answers what
  * a person asked for, and what it takes from them when it does. A dish comes
- * out of the basket's larder (a recipe's own, or the first warm one), forage
- * out of the basket (the kinds there are most of first), and a lost animal
- * has to be following Elliott, close by. A carried note is answered when it
+ * out of the basket's larder (a recipe's own, or the first warm one), a tea
+ * or a salve out of the brewing satchel (a recipe's own, or the first of its
+ * way, in the brew book's order), forage out of the basket (the kinds there
+ * are most of first), and a lost animal has to be following Elliott, close
+ * by. A carried note is answered when it
  * has been given to the person it was for. Nothing here is lost: what is
  * taken is given.
  */
@@ -17,6 +23,8 @@ import { COOKWARE, DISHES, FOODS, humbleOf, recipeOf, type DishId, type Food } f
 export interface Means {
   basket: Basket;
   larder: Larder;
+  /** The teas and salves Elliott carries. */
+  satchel: Satchel;
   /** Whether the person's lost animal follows Elliott, close by. */
   petHere: boolean;
   /** Whether the note this person gave has reached its friend. */
@@ -24,7 +32,7 @@ export interface Means {
 }
 
 /** What helping takes, once it does. */
-export type Taking = { kind: "dish"; dish: DishId } | { kind: "forage"; foods: readonly (readonly [Food, number])[] } | { kind: "pet" } | { kind: "carry" };
+export type Taking = { kind: "dish"; dish: DishId } | { kind: "brew"; brew: BrewId } | { kind: "forage"; foods: readonly (readonly [Food, number])[] } | { kind: "pet" } | { kind: "carry" };
 
 /** Anything warm from the pot: the recipes cooked only there (soups, porridge, tea) and every humble stew. */
 export const WARM_DISHES: readonly DishId[] = DISHES.filter((dish) => {
@@ -41,10 +49,26 @@ function dishFor(request: Extract<Request, { kind: "dish" }>, larder: Larder): D
   return WARM_DISHES.find((d) => dishCount(larder, d) > 0) ?? null;
 }
 
+type BrewWanted = Extract<Request, { kind: "brew" }>["brew"];
+
+/** Whether a brew asked for is any of a way, rather than a recipe's own. */
+export const isAnyOfAWay = (wanted: BrewWanted): wanted is "tea" | "salve" => wanted === "tea" || wanted === "salve";
+
+/** The brew a request would take from the satchel now, or null. */
+function brewFor(wanted: BrewWanted, satchel: Satchel): BrewId | null {
+  if (!isAnyOfAWay(wanted)) return brewCount(satchel, wanted) > 0 ? wanted : null;
+  return brewsIn(satchel).find((b) => formOf(b) === wanted) ?? null;
+}
+
+/** Whether some days of the year have every one of these ripe at once, so they can be gathered fresh together. */
+const ripeTogether = (kinds: readonly ForageKind[]) => Array.from({ length: DAYS_IN_YEAR }, (_, d) => d).some((d) => kinds.every((k) => inSeason(k, d)));
+
 export function canFulfil(request: Request, means: Means): boolean {
   switch (request.kind) {
     case "dish":
       return dishFor(request, means.larder) !== null;
+    case "brew":
+      return brewFor(request.brew, means.satchel) !== null;
     case "forage":
       return forageCount(means.basket, request.foods) >= request.count;
     case "pet":
@@ -62,6 +86,11 @@ export function takingFor(request: Request, means: Means): Taking {
       const dish = dishFor(request, means.larder);
       if (dish === null) throw new Error("No dish to give");
       return { kind: "dish", dish };
+    }
+    case "brew": {
+      const brew = brewFor(request.brew, means.satchel);
+      if (brew === null) throw new Error("No brew to give");
+      return { kind: "brew", brew };
     }
     case "forage": {
       const left = { ...means.basket };
@@ -82,11 +111,19 @@ export function takingFor(request: Request, means: Means): Taking {
   }
 }
 
-/** Whether a request can ever be answered by what the game has: every food in it grows, every dish can be cooked. */
+/** Whether a request can ever be answered by what the game has: every food in it grows, every dish can be cooked, every brew's herbs and berries ripen together some time of the year. */
 export function answerable(request: Request): boolean {
   switch (request.kind) {
     case "dish":
       return request.dish === "warm" ? WARM_DISHES.length > 0 : recipeOf(request.dish)?.cookware.some((c) => COOKWARE.includes(c)) === true;
+    case "brew": {
+      const wanted = request.brew;
+      if (isAnyOfAWay(wanted)) return ALL_BREWS.some((b) => formOf(b) === wanted);
+      const recipe = brewRecipeOf(wanted);
+      if (recipe === null) return false;
+      const ingredients: readonly BrewIngredient[] = recipe.ingredients;
+      return recipe.form !== "charm" && ripeTogether(ingredients.filter(isForageKind));
+    }
     case "forage":
       return request.count > 0 && request.foods.length > 0 && request.foods.every((f) => FOODS.includes(f));
     case "pet":

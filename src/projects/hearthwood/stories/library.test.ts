@@ -25,7 +25,7 @@ const longest = {
   way: "the north-west".length,
   partner: FOLK_NAME_LENGTH,
   dish: Math.max(...RECIPES.map((r) => r.name.length)),
-  gave: Math.max(...RECIPES.map((r) => r.name.length), "stewed funnel chanterelles".length),
+  gave: Math.max(...RECIPES.map((r) => r.name.length), ...BREWS.map((b) => b.name.length), "stewed funnel chanterelles".length, "simple funnel chanterelle salve".length),
 };
 const filledLength = (text: string) => text.replace(/\{(\w+)\}/g, (_, key: string) => "x".repeat(longest[key as keyof typeof longest])).length;
 
@@ -38,7 +38,7 @@ function bracesFor(story: Story, talk: string): Set<string> {
     if (request.kind === "pet") ["pet", "way"].forEach((b) => allowed.add(b));
     if (request.kind === "carry") ["partner", "way"].forEach((b) => allowed.add(b));
     if (request.kind === "dish" && request.dish !== "warm") allowed.add("dish");
-    if ((request.kind === "dish" || request.kind === "forage") && (talk === "thanks" || talk === "friend")) allowed.add("gave");
+    if ((request.kind === "dish" || request.kind === "brew" || request.kind === "forage") && (talk === "thanks" || talk === "friend")) allowed.add("gave");
   }
   return allowed;
 }
@@ -78,8 +78,16 @@ describe("the story library", () => {
     }
   });
 
-  it("can answer every request with what the game already has", () => {
-    for (const story of STORIES) if (story.kind === "help") expect(answerable(story.request)).toBe(true);
+  it("can answer every request with what the game already has, a brew's at some time of the year", () => {
+    for (const story of STORIES) if (story.kind === "help") expect(answerable(story.request), story.id).toBe(true);
+  });
+
+  it("tells Elliott how to make a particular brew they ask for, as they ask", () => {
+    for (const story of STORIES) {
+      if (story.kind !== "help" || story.request.kind !== "brew" || story.request.brew === "tea" || story.request.brew === "salve") continue;
+      const wanted = story.request.brew;
+      expect(story.meet.gifts?.some((g) => g.kind === "brew-hint" && g.brew === wanted), story.id).toBe(true);
+    }
   });
 
   it("leaves no story unreachable: a note's friend is some note's partner and only ever placed as one", () => {

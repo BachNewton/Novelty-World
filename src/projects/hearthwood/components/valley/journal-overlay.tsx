@@ -5,20 +5,14 @@ import { BookHeart, BookOpenText, Check, Flame, HeartHandshake, Hourglass, Mail,
 import { PromptButton, type Binding } from "@/shared/components/prompts";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import type { InputKind } from "@/shared/lib/input";
-import { generateCat } from "../../cats/cat";
-import { generateDog } from "../../dogs/dog";
 import type { Acquaintance } from "../../gameplay/conversation";
 import { folkName } from "../../gameplay/folk";
 import { storyOf } from "../../stories/library";
-import type { Request } from "../../stories/story";
 import { folkLook } from "../../art/folk";
-import { catPortrait, dogPortrait } from "../../art/portrait";
-import { CompanionPortrait } from "./companion-portrait";
-import { CookwareIcon, DishIcon, dishName } from "./cooking-icons";
 import { FolkPortrait } from "./folk-portrait";
-import { ForageIcon, FORAGE_NAMES } from "./forage-icons";
 import { GiftMark } from "./conversation-overlay";
 import { KeepsakeIcon, KEEPSAKE_NAMES } from "./keepsake-icons";
+import { NeedMark } from "./need-mark";
 import { setCasebookPage, subscribeMysteries, type Mysteries } from "./mysteries";
 import { Casebook } from "./mystery-overlay";
 import { setJournalOpen, subscribePeople, type People } from "./people";
@@ -35,38 +29,6 @@ import { setJournalOpen, subscribePeople, type People } from "./people";
 
 const CLOSE: Binding = { pad: "B", key: "Esc", fills: false };
 const PAGE_INK = { "--prompt-body": "var(--color-hearthwood-folk-ink)", "--prompt-ink": "var(--color-hearthwood-folk-page)" } as CSSProperties;
-
-function NeedMark({ request, lostSeed }: { request: Request; lostSeed: string }) {
-  switch (request.kind) {
-    case "dish":
-      return request.dish === "warm" ? (
-        <span title="Something warm from the pot" className="inline-flex">
-          <CookwareIcon cookware="pot" className="size-7" />
-        </span>
-      ) : (
-        <span title={dishName(request.dish)} className="inline-flex">
-          <DishIcon dish={request.dish} className="size-7" />
-        </span>
-      );
-    case "forage":
-      return (
-        <span className="flex items-center" title={`${request.count} of ${request.foods.map((f) => FORAGE_NAMES[f].toLowerCase()).join(", ")}`}>
-          <ForageIcon kind={request.foods[0]} className="size-6" />
-          <span className="text-xs font-bold tabular-nums">{request.count}</span>
-        </span>
-      );
-    case "pet": {
-      const portrait = request.species === "cat" ? catPortrait(generateCat(lostSeed)) : dogPortrait(generateDog(lostSeed));
-      return (
-        <span title="Lost, to find" className="inline-flex">
-          <CompanionPortrait portrait={portrait} className="size-7" />
-        </span>
-      );
-    }
-    case "carry":
-      return <Mail aria-label="A note to carry" className="size-6" />;
-  }
-}
 
 function Card({ id, known, worldSeed }: { id: string; known: Acquaintance; worldSeed: string }) {
   const look = useMemo(() => folkLook(known.seed, known.role), [known.seed, known.role]);

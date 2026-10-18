@@ -14,6 +14,8 @@ export const KEEPSAKE_NAMES: Record<Keepsake, string> = {
   compass: "A brass compass",
   "magnifying-glass": "A beekeeper's reading glass",
   deerstalker: "A tweed deerstalker",
+  "sheep-bell": "A ewe's brass bell on its strap",
+  kuksa: "A kuksa, carved from birch",
 };
 
 const c = (name: string) => `var(--color-hearthwood-folk-${name})`;
@@ -104,6 +106,27 @@ function drawing(keepsake: Keepsake) {
           <path d="M8.6 15 L23.4 15 M8.2 18 L23.8 18 M12 8.6 L12 20 M16 7.5 L16 20 M20 8.6 L20 20" stroke={c("brown")} strokeWidth="0.7" opacity="0.6" />
           <path d="M10.5 17 C10 13 11 10 13 9" stroke={c("brown")} strokeWidth="1.6" strokeLinecap="round" fill="none" />
           <circle cx="16" cy="7" r="1.5" fill={c("charcoal")} />
+        </>
+      );
+    case "sheep-bell":
+      return (
+        <>
+          <path d="M6 9 C9 4 23 4 26 9" stroke={c("brown")} strokeWidth="3" strokeLinecap="round" fill="none" />
+          <rect x="14" y="7" width="4" height="4" rx="1" fill={c("brass")} />
+          <path d="M11 24 L12 14 C12.4 11.5 14 10.5 16 10.5 C18 10.5 19.6 11.5 20 14 L21 24 Z" fill={c("brass")} />
+          <path d="M8.5 24.5 C8.5 23 23.5 23 23.5 24.5 C23.5 26 8.5 26 8.5 24.5 Z" fill={c("brass")} />
+          <circle cx="16" cy="27" r="1.8" fill={c("brown")} />
+          <path d="M13.6 14.5 C13.8 13 14.6 12.4 15.6 12.2" stroke={c("cream")} strokeWidth="1.1" strokeLinecap="round" fill="none" opacity="0.7" />
+        </>
+      );
+    case "kuksa":
+      return (
+        <>
+          <path d="M4 13 L22 13 C22 21 18 26 13 26 C8 26 4 21 4 13 Z" fill={c("wood")} />
+          <ellipse cx="13" cy="13" rx="9" ry="2.6" fill={c("brown")} />
+          <path d="M21.5 12 C25 10.5 29 12 28.5 15.5 C28 18.5 24.5 19 21.8 17.5" stroke={c("wood")} strokeWidth="3.4" strokeLinecap="round" fill="none" />
+          <circle cx="25.4" cy="14.6" r="1.1" fill={c("brown")} />
+          <path d="M7 17 C7.6 20 9.4 22.4 11.6 23.4" stroke={c("cream")} strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.5" />
         </>
       );
   }

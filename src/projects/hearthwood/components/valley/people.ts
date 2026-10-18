@@ -29,15 +29,17 @@ import { folkName, petName } from "../../gameplay/folk";
 import type { Taking } from "../../gameplay/help";
 import type { Offerable } from "../../gameplay/offering";
 import { isDish, recipeOf, type Food } from "../../gameplay/recipes";
+import { isBrew, type BrewId } from "../../gameplay/brews";
 import { storyOf } from "../../stories/library";
-import type { Gift, Keepsake, Page, Tone } from "../../stories/story";
+import type { Gift, Keepsake, Page, Request, Tone } from "../../stories/story";
 import { folkFrame, folkLook, type FolkLook } from "../../art/folk";
 import { catPortrait, dogPortrait, type Portrait } from "../../art/portrait";
 import { dishName } from "./cooking-icons";
+import { brewName } from "./brewing-icons";
 import { FORAGE_NAMES } from "./forage-icons";
 import { companionOf, partWith, type Companionship } from "./companionship";
 import { takeIngredients, type Foraging } from "./foraging";
-import { giveDish, type Hearth } from "./hearth";
+import { giveBrew, giveDish, type Hearth } from "./hearth";
 
 /*
  * The people of a walk, between the scene, the overlay over it and the
@@ -63,7 +65,7 @@ export interface PersonLive {
 }
 
 /** What Elliott gave as a talk opened, for the panel to show. */
-export type Given = { kind: "dish"; dish: string } | { kind: "forage"; foods: readonly (readonly [Food, number])[] } | { kind: "pet"; portrait: Portrait; name: string; home: boolean } | { kind: "note" };
+export type Given = { kind: "dish"; dish: string } | { kind: "brew"; brew: BrewId } | { kind: "forage"; foods: readonly (readonly [Food, number])[] } | { kind: "pet"; portrait: Portrait; name: string; home: boolean } | { kind: "note" };
 
 /** A conversation under way, as the panel shows it. */
 export interface Talking {
@@ -85,6 +87,8 @@ export interface Talking {
   /** The last page: going on ends the talk. */
   last: boolean;
   given: Given | null;
+  /** What they asked Elliott for, while it is still to do: shown on the last page of their asking, and of their waiting. The lost animal's seed draws a lost animal. */
+  asking: { request: Request; lostSeed: string | null } | null;
   /** What this talk gave Elliott, shown on its last page. */
   gifts: readonly Gift[];
   /** How many clues this talk told Elliott for the casebook. */
@@ -260,7 +264,7 @@ export function havingFor(people: People, person: Person): Having {
   const companion = pet ? companionOf(companionship, pet.id) : null;
   const animal = pet ? companionship.animals.get(pet.id) : undefined;
   const petHere = companion?.following === true && animal !== undefined && Math.hypot(animal.body.x - person.x, animal.body.z - person.z) < BROUGHT_BACK;
-  return { basket: people.foraging.foraged.basket, larder: people.hearth.shown.larder, petHere, case: people.cases?.view(person.id) };
+  return { basket: people.foraging.foraged.basket, larder: people.hearth.shown.larder, satchel: people.hearth.shown.satchel, petHere, case: people.cases?.view(person.id) };
 }
 
 /** What the braces in a person's texts are filled with. */
@@ -279,7 +283,7 @@ function valuesFor(people: People, live: PersonLive): Parameters<typeof fill>[1]
   }
   if (story.kind === "help" && story.request.kind === "dish" && story.request.dish !== "warm") values.dish = recipeOf(story.request.dish)?.name ?? story.request.dish;
   const gave = known?.gave ?? null;
-  if (gave !== null) values.gave = isDish(gave) ? dishName(gave) : FORAGE_NAMES[gave as Food];
+  if (gave !== null) values.gave = isDish(gave) ? dishName(gave) : isBrew(gave) ? brewName(gave) : FORAGE_NAMES[gave as Food];
   return values;
 }
 
@@ -298,11 +302,20 @@ function spokenOf(people: People, live: PersonLive, conversation: Conversation, 
 }
 
 
+/** What a help story's asking and waiting talks show was asked for. */
+function askingOf(person: Person, talk: TalkName): Talking["asking"] {
+  const story = storyOf(person.story);
+  if (story.kind !== "help" || (talk !== "meet" && talk !== "waiting")) return null;
+  return { request: story.request, lostSeed: person.pet?.seed ?? null };
+}
+
 function givenOf(people: People, live: PersonLive, taking: Taking | null, keepsPet: boolean | null): Given | null {
   if (taking === null) return null;
   switch (taking.kind) {
     case "dish":
       return { kind: "dish", dish: taking.dish };
+    case "brew":
+      return { kind: "brew", brew: taking.brew };
     case "forage":
       return { kind: "forage", foods: taking.foods };
     case "carry":
@@ -316,13 +329,14 @@ function givenOf(people: People, live: PersonLive, taking: Taking | null, keepsP
   }
 }
 
-/** What a talk took from Elliott leaves them: a dish out of the larder, forage out of the basket, an animal going home. */
+/** What a talk took from Elliott leaves them: a dish out of the larder, a brew out of the satchel, forage out of the basket, an animal going home. */
 function hand(people: People, live: PersonLive, taking: Taking | null, keepsPet: boolean | null): void {
   if (taking === null) return;
   if (taking.kind === "dish") {
     if (!isDish(taking.dish)) throw new Error(`${taking.dish} is no dish`);
     giveDish(people.hearth, taking.dish);
   }
+  if (taking.kind === "brew") giveBrew(people.hearth, taking.brew);
   if (taking.kind === "forage") takeIngredients(people.foraging, taking.foods.flatMap(([food, n]) => Array.from({ length: n }, () => food)));
   if (taking.kind === "pet" && keepsPet === false) {
     const pet = live.person.pet;
@@ -353,6 +367,7 @@ function open(people: People, live: PersonLive): void {
       conversation,
       ...spokenOf(people, live, conversation, pages),
       given: givenOf(people, live, opened.taking, opened.keepsPet),
+      asking: askingOf(live.person, opened.talk),
       gifts: giftsOf(storyOf(live.person.story), opened.talk),
       noted: opened.testimony.length,
       opened: people.opened,

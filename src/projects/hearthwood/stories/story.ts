@@ -2,7 +2,7 @@ import type { HomeKind, Role } from "../engine/people";
 import type { PlaceKind } from "../engine/regions";
 import type { Species } from "../engine/strays";
 import type { Food, RecipeId } from "../gameplay/recipes";
-import type { RecipeBrewId } from "../gameplay/brews";
+import type { BrewForm, RecipeBrewId } from "../gameplay/brews";
 
 /*
  * What a story is, as data: the people Elliott meets each carry one, and a
@@ -13,8 +13,8 @@ import type { RecipeBrewId } from "../gameplay/brews";
  * - **talk**: a tale, a bit of local lore, a recipe tip. Meeting them, then
  *   meeting a friend.
  * - **help**: they ask for something the game can already do (a dish, some
- *   forage, a lost cat or dog befriended and brought back, a note carried to
- *   someone). Meeting them asks; talking again while it is still to do is
+ *   forage, a tea or a salve brewed at the fire, a lost cat or dog befriended
+ *   and brought back, a note carried to someone). Meeting them asks; talking again while it is still to do is
  *   their waiting talk; coming back with it is their thanks; after, a friend.
  * - **receive**: the someone a note is carried to, met as a story of their
  *   own, who has a talk for while they wait and one for when it arrives.
@@ -70,7 +70,7 @@ export interface FriendTalk extends Talk {
   greet: Record<Tone, string>;
 }
 
-export const KEEPSAKES = ["honey-jar", "carved-fish", "felted-reindeer", "sea-glass", "rowan-seedling", "compass", "magnifying-glass", "deerstalker"] as const;
+export const KEEPSAKES = ["honey-jar", "carved-fish", "felted-reindeer", "sea-glass", "rowan-seedling", "compass", "magnifying-glass", "deerstalker", "sheep-bell", "kuksa"] as const;
 export type Keepsake = (typeof KEEPSAKES)[number];
 
 /** What a note carried from one person to another is. */
@@ -79,6 +79,8 @@ export type Parcel = "note";
 export type Request =
   /** A dish: a recipe's own, or anything warm from the pot. */
   | { kind: "dish"; dish: RecipeId | "warm" }
+  /** A brew from the basket: a recipe's own, or any of a way (any tea, any salve); a charm is worked, never carried, so it is never asked for. */
+  | { kind: "brew"; brew: RecipeBrewId | Exclude<BrewForm, "charm"> }
   /** Some forage, of any of these kinds together. */
   | { kind: "forage"; foods: readonly Food[]; count: number }
   /** Their lost animal, befriended and brought back to them. Kept by Elliott if the thanks gives it as a companion; else it goes home. */

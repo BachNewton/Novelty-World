@@ -32,7 +32,7 @@ export interface PeopleProbe {
   drawn: (id: string) => boolean;
   offer: () => string | null;
   talk: (id: string) => void;
-  talking: () => { id: string; talk: string; page: number; line: string; lead: string | null; said: string | null; choices: { tone: Tone; text: string }[] | null; last: boolean; given: string | null; gifts: string[] } | null;
+  talking: () => { id: string; talk: string; page: number; line: string; lead: string | null; said: string | null; choices: { tone: Tone; text: string }[] | null; last: boolean; given: string | null; asking: string | null; gifts: string[] } | null;
   choose: (tone: Tone) => void;
   next: () => void;
   leave: () => void;
@@ -96,7 +96,7 @@ export function peopleProbe(people: People): PeopleProbe {
     talking: () => {
       const t = people.shown.talking;
       if (!t) return null;
-      const given = t.given ? (t.given.kind === "dish" ? t.given.dish : t.given.kind === "forage" ? t.given.foods.map(([f, n]) => `${n} ${f}`).join(", ") : t.given.kind === "pet" ? `${t.given.name}${t.given.home ? " (home)" : ""}` : "note") : null;
+      const given = t.given ? (t.given.kind === "dish" ? t.given.dish : t.given.kind === "brew" ? t.given.brew : t.given.kind === "forage" ? t.given.foods.map(([f, n]) => `${n} ${f}`).join(", ") : t.given.kind === "pet" ? `${t.given.name}${t.given.home ? " (home)" : ""}` : "note") : null;
       return {
         id: t.id,
         talk: t.talk,
@@ -107,7 +107,8 @@ export function peopleProbe(people: People): PeopleProbe {
         choices: t.choices,
         last: t.last,
         given,
-        gifts: t.gifts.map((g) => (g.kind === "hint" ? `hint:${g.recipe}` : g.kind === "keepsake" ? `keepsake:${g.keepsake}` : "companion")),
+        asking: t.asking && JSON.stringify(t.asking.request),
+        gifts: t.gifts.map((g) => (g.kind === "hint" ? `hint:${g.recipe}` : g.kind === "brew-hint" ? `brew-hint:${g.brew}` : g.kind === "keepsake" ? `keepsake:${g.keepsake}` : "companion")),
       };
     },
     choose: (tone) => {

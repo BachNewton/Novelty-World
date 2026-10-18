@@ -114,6 +114,16 @@ export function addBrew(satchel: Satchel, brew: BrewId, days: number, moonlit: b
   return { satchel: out, discovered };
 }
 
+/** A tea or a salve out of the basket, given to someone. */
+export function takeBrew(satchel: Satchel, brew: BrewId): Satchel {
+  const count = brewCount(satchel, brew);
+  if (count <= 0) throw new Error(`The basket holds no ${brew} to take`);
+  const brews = { ...satchel.brews };
+  if (count === 1) delete brews[brew];
+  else brews[brew] = count - 1;
+  return { ...satchel, brews };
+}
+
 /** A full moon up in the night sky: most of its face lit, above the horizon, the sun gone down past the twilight's first glow. */
 export function underFullMoon(moon: Pick<Moon, "illuminated" | "elevation">, sun: Pick<Sun, "elevation">): boolean {
   return moon.illuminated >= 0.9 && moon.elevation > 0 && sun.elevation < -6;

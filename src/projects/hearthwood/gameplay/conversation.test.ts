@@ -18,11 +18,12 @@ import {
   type Having,
   type Speaker,
 } from "./conversation";
+import { addBrew, emptySatchel } from "./brewing";
 import { addDish, emptyLarder } from "./cooking";
 import { takingFor, WARM_DISHES } from "./help";
 
 const speaker = (story: string, id = "1,2/0", partner: string | null = null): Speaker => ({ id, role: storyOf(story).roles[0], seed: `seed/${id}`, story, partner });
-const nothing: Having = { basket: emptyBasket(), larder: emptyLarder(), petHere: false };
+const nothing: Having = { basket: emptyBasket(), larder: emptyLarder(), satchel: emptySatchel(), petHere: false };
 const withBasket = (stock: Partial<Basket>): Having => ({ ...nothing, basket: { ...emptyBasket(), ...stock } });
 
 describe("talking with people", () => {
@@ -64,6 +65,29 @@ describe("talking with people", () => {
     expect(thanked.taking).toEqual({ kind: "dish", dish: "humble-pot-porcini" });
     expect(WARM_DISHES).toContain("bilberry-soup");
     expect(WARM_DISHES).not.toContain("blueberry-pie");
+  });
+
+  it("asks for a brew, hinting how it is made, and takes it from the satchel as the thanks opens, remembered through the device", () => {
+    const shepherd = speaker("sore-hoof");
+    const met = openTalk(noAcquaintances(), shepherd, nothing);
+    expect(met.memory.brewHints).toEqual(["yarrow-salve"]);
+    expect(openTalk(met.memory, shepherd, nothing).talk).toBe("waiting");
+    const salve = { ...nothing, satchel: addBrew(emptySatchel(), "yarrow-salve", 0, false).satchel };
+    const thanked = openTalk(met.memory, shepherd, salve);
+    expect(thanked).toMatchObject({ talk: "thanks", taking: { kind: "brew", brew: "yarrow-salve" } });
+    expect(thanked.memory.known[shepherd.id]).toMatchObject({ help: "given", gave: "yarrow-salve" });
+    expect(thanked.memory.keepsakes).toEqual(["sheep-bell"]);
+    expect(parseFolk(serializeFolk(thanked.memory))).toEqual(thanked.memory);
+  });
+
+  it("goes straight on to thanks for any tea when Elliott comes with one, even a humble one", () => {
+    const cottager = speaker("a-chill");
+    const tea = { ...nothing, satchel: addBrew(emptySatchel(), "humble-tea-bilberry", 0, false).satchel };
+    const met = openTalk(noAcquaintances(), cottager, tea);
+    const next = talkFor(storyOf("a-chill"), met.memory, cottager, tea);
+    expect(next).toBe("thanks");
+    expect(followsOn(met.talk, next)).toBe(true);
+    expect(openTalk(met.memory, cottager, tea).taking).toEqual({ kind: "brew", brew: "humble-tea-bilberry" });
   });
 
   it("thanks Elliott for a lost animal brought back: kept as a companion, or gone home to its person", () => {

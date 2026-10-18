@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
-import { ArrowRight, BookOpenText, ChevronRight, Hand, Heart, Laugh, Lightbulb, Mail, MessageCircleHeart, PawPrint, Plus, Search, Sparkles, X } from "lucide-react";
+import { ArrowRight, BookOpenText, ChevronRight, Hand, HandHeart, Heart, Laugh, Lightbulb, Mail, MessageCircleHeart, PawPrint, Plus, Search, Sparkles, X } from "lucide-react";
 import { Prompt, PromptButton, type Binding } from "@/shared/components/prompts";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import type { InputKind } from "@/shared/lib/input";
@@ -14,6 +14,7 @@ import { BrewIcon, brewName } from "./brewing-icons";
 import { FolkPortrait } from "./folk-portrait";
 import { ForageIcon, FORAGE_NAMES } from "./forage-icons";
 import { KeepsakeIcon, KEEPSAKE_NAMES } from "./keepsake-icons";
+import { NeedMark } from "./need-mark";
 import { chooseTone, goOn, leaveTalk, subscribePeople, talkWith, type Given, type People, type Talking } from "./people";
 
 /*
@@ -22,7 +23,8 @@ import { chooseTone, goOn, leaveTalk, subscribePeople, talkWith, type Given, typ
  * storybook panel along the bottom of the view: their face and name, their
  * line, what Elliott said when they chose, and then either Elliott's three
  * choices of tone (warm, curious, playful, each with its own mark and
- * colour) or the way on; what Elliott gave as the talk opened, the clues
+ * colour) or the way on; what they ask for, at the end of their asking
+ * and their waiting; what Elliott gave as the talk opened, the clues
  * it told noted in the casebook, and on its last page what they were
  * given. In a mystery's reveal Elliott speaks first on each page, laying
  * out the reasoning, with a magnifying glass for a mark.
@@ -96,6 +98,10 @@ function GivenRow({ given }: { given: Given }) {
     case "dish":
       thing = isDish(given.dish) ? <DishIcon dish={given.dish} className="size-9" /> : null;
       label = isDish(given.dish) ? dishName(given.dish) : given.dish;
+      break;
+    case "brew":
+      thing = <BrewIcon brew={given.brew} className="size-9" />;
+      label = brewName(given.brew);
       break;
     case "forage":
       thing = given.foods.map(([food, n]) => (
@@ -200,6 +206,12 @@ function Panel({ people, talking, input }: { people: People; talking: Talking; i
                 <BookOpenText aria-hidden className="size-6 text-(--color-hearthwood-folk-curious)" />
                 <Plus aria-hidden className="size-3.5" strokeWidth={3} />
                 <span className="text-sm font-bold tabular-nums">{talking.noted}</span>
+              </span>
+            )}
+            {talking.last && talking.asking && (
+              <span className="flex animate-[hearthwood-forage-pop_600ms_ease-out] items-center gap-1.5 self-start rounded-xl bg-(--color-hearthwood-folk-ink)/8 px-2 py-1" role="img" aria-label="Asked for">
+                <HandHeart aria-hidden className="size-5 text-(--color-hearthwood-folk-warm)" />
+                <NeedMark request={talking.asking.request} lostSeed={talking.asking.lostSeed} size="size-9" />
               </span>
             )}
             {talking.last && talking.gifts.length > 0 && (

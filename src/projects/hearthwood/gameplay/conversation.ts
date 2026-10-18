@@ -3,7 +3,7 @@ import { storyOf } from "../stories/library";
 import { KEEPSAKES, talksOf, TONES, type Gift, type Keepsake, type Page, type Parcel, type Story, type Tone } from "../stories/story";
 import { canFulfil, takingFor, type Means, type Taking } from "./help";
 import { isDish, isFood, RECIPE_IDS, type RecipeId } from "./recipes";
-import { BREW_IDS, type RecipeBrewId } from "./brews";
+import { BREW_IDS, isBrew, type RecipeBrewId } from "./brews";
 
 /*
  * Talking with people, as rules: what Elliott's acquaintance with each
@@ -35,7 +35,7 @@ export interface Acquaintance {
   /** The tone Elliott took with them last, which their greeting answers. */
   tone: Tone | null;
   help: HelpState;
-  /** What Elliott brought them: a dish or a kind of forage, by its id. */
+  /** What Elliott brought them: a dish, a brew or a kind of forage, by its id. */
   gave: string | null;
   /** What they gave Elliott. */
   received: Gift[];
@@ -59,7 +59,7 @@ export interface FolkMemory {
   home: string[];
 }
 
-export const PEOPLE_KEY = "hearthwood/people/v2";
+export const PEOPLE_KEY = "hearthwood/people/v3";
 
 export function noAcquaintances(): FolkMemory {
   return { known: {}, carrying: [], hints: [], brewHints: [], keepsakes: [], home: [] };
@@ -181,7 +181,7 @@ export function openTalk(memory: FolkMemory, speaker: Speaker, means: Having): O
   }
   if (story.kind === "help" && talk === "thanks") {
     taking = takingFor(story.request, { ...means, delivered: out.known[speaker.id].help === "delivered" });
-    const gave = taking.kind === "dish" ? taking.dish : taking.kind === "forage" ? taking.foods[0][0] : null;
+    const gave = taking.kind === "dish" ? taking.dish : taking.kind === "brew" ? taking.brew : taking.kind === "forage" ? taking.foods[0][0] : null;
     out = withKnown(out, speaker.id, { help: "given", gave });
     if (taking.kind === "pet") {
       keepsPet = story.thanks.gifts?.some((g) => g.kind === "companion") === true;
@@ -269,15 +269,14 @@ function parseGift(g: unknown): Gift {
 /** A kept record read back. Anything but the shape this key holds is a bug in what wrote it, and says so. */
 export function parseFolk(text: string): FolkMemory {
   const data = JSON.parse(text) as Record<string, unknown>;
-  // Kept before brewing came, a record has no brew hints: it has been given none.
-  const { known, carrying, hints, brewHints = [], keepsakes, home } = data;
+  const { known, carrying, hints, brewHints, keepsakes, home } = data;
   if (typeof known !== "object" || known === null || !Array.isArray(carrying) || !Array.isArray(hints) || !Array.isArray(brewHints) || !Array.isArray(keepsakes) || !Array.isArray(home)) {
     throw new Error(`The kept people under ${PEOPLE_KEY} aren't acquaintances and gifts: ${text}`);
   }
   const out = noAcquaintances();
   for (const [id, a] of Object.entries(known)) {
     const { role, seed, story, order, talks, tone, help, gave, received } = (a ?? {}) as Record<string, unknown>;
-    if (!isText(role) || !isText(seed) || !isText(story) || typeof order !== "number" || typeof talks !== "number" || !(tone === null || (TONES as readonly unknown[]).includes(tone)) || !(HELP as readonly unknown[]).includes(help) || !(gave === null || (isText(gave) && (isDish(gave) || isFood(gave)))) || !Array.isArray(received)) {
+    if (!isText(role) || !isText(seed) || !isText(story) || typeof order !== "number" || typeof talks !== "number" || !(tone === null || (TONES as readonly unknown[]).includes(tone)) || !(HELP as readonly unknown[]).includes(help) || !(gave === null || (isText(gave) && (isDish(gave) || isBrew(gave) || isFood(gave)))) || !Array.isArray(received)) {
       throw new Error(`A kept acquaintance isn't one: ${JSON.stringify(a)}`);
     }
     storyOf(story);

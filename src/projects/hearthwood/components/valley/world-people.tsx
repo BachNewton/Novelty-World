@@ -114,7 +114,7 @@ function HomePet({ live, clock, atmosphere }: { live: PersonLive; clock: ValleyC
 }
 
 /** Where the keepsakes are set out at camp: round from the fire, how far, and how long the stone they stand on is. */
-const KEEPSAKE_STONE = { angle: 5.45, out: 3.0, length: 1.7 } as const;
+const KEEPSAKE_STONE = { angle: 5.45, out: 3.0, length: 2.2 } as const;
 
 /** The keepsakes Elliott has been given, set out on a flat stone by the fire. */
 function CampKeepsakes({ keepsakes, world, camp, palette, material }: { keepsakes: readonly Keepsake[]; world: World; camp: CampSite; palette: FolkPalette; material: Material }) {
@@ -136,12 +136,12 @@ function CampKeepsakes({ keepsakes, world, camp, palette, material }: { keepsake
     [stone, shapes],
   );
   if (keepsakes.length === 0) return null;
-  // The stone's length runs round the fire; the keepsakes stand along it, a little larger than life, as the dishes are.
+  // The stone's length runs round the fire; the keepsakes stand along it in two staggered rows, a little larger than life, as the dishes are.
   return (
     <group position={[x, y, z]} rotation={[0, -along, 0]}>
       <mesh geometry={stone} material={material} castShadow receiveShadow />
       {shapes.map((shape, i) => (
-        <mesh key={keepsakes[i]} geometry={shape} material={material} position={[(i - (shapes.length - 1) / 2) * (KEEPSAKE_STONE.length / 6), 0.09, 0]} scale={1.5} castShadow receiveShadow />
+        <mesh key={keepsakes[i]} geometry={shape} material={material} position={[(i - (shapes.length - 1) / 2) * (KEEPSAKE_STONE.length / 12), 0.09, i % 2 === 0 ? -0.11 : 0.11]} scale={1.5} castShadow receiveShadow />
       ))}
     </group>
   );
