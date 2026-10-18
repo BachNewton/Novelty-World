@@ -10,6 +10,8 @@ import { ruleBot as ruleV3, ruleV3Bot } from "./rule-v3";
 import { V3_PARAMS } from "./rule-v3/params";
 import { ruleBot as ruleV4, ruleV4Bot } from "./rule-v4";
 import { V4_PARAMS } from "./rule-v4/params";
+import { ruleBot as ruleV5, ruleV5Bot } from "./rule-v5";
+import { V5_PARAMS } from "./rule-v5/params";
 
 /** Every bot the measuring harness can seat, by label. */
 export const RISK_BOTS: Readonly<Record<string, Bot>> = {
@@ -19,6 +21,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v2": ruleV2Bot,
   "rule-v3": ruleV3Bot,
   "rule-v4": ruleV4Bot,
+  "rule-v5": ruleV5Bot,
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
   "gd-aggressive": gdAggressiveBot,
@@ -34,6 +37,7 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v2": "rule-v2/index.ts",
   "rule-v3": "rule-v3/index.ts",
   "rule-v4": "rule-v4/index.ts",
+  "rule-v5": "rule-v5/index.ts",
   "gd-defensive": "gd/index.ts",
   "gd-continental": "gd/index.ts",
   "gd-aggressive": "gd/index.ts",
@@ -59,6 +63,12 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
     prefs: V4_PARAMS.smallTable.prefs,
     engine: V4_PARAMS.engine,
     build: (prefs, engine) => ruleV4({ ...V4_PARAMS, smallTable: { ...V4_PARAMS.smallTable, prefs }, engine }),
+  },
+  "rule-v5": { prefs: V5_PARAMS.prefs, engine: V5_PARAMS.engine, build: (prefs, engine) => ruleV5({ ...V5_PARAMS, prefs, engine }) },
+  "rule-v5-small": {
+    prefs: V5_PARAMS.smallTable.prefs,
+    engine: V5_PARAMS.engine,
+    build: (prefs, engine) => ruleV5({ ...V5_PARAMS, smallTable: { ...V5_PARAMS.smallTable, prefs }, engine }),
   },
 };
 

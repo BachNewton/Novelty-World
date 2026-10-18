@@ -425,3 +425,49 @@ Smoke run, not a measurement (60 games, seeds `smoke-*`): v4 alone among v3s won
 `risk:tune` now takes a field of opponents and a baseline (`--opponent a,b,c --baseline rule-v3`): each table, an opponent at a size, is read as the candidate's edge over what the baseline scores there on the same seeds, and the fitness is the worst. Without the baseline the worst table would always be the strongest opponent's, and a tune against v3 plus weak bots would still be a tune against v3. `risk:opponents` scores v3's model as v3's evaluation holds it (`eval/v3-opponent-model.ts`, held to v3's breakdown by a test) beside v4's.
 
 Queued, in order: `risk:opponents` (v3's model against v4's, on the three fields), the small table retuned against rule-v3, gd-defensive, gd-stacker and greedy with v3 as baseline, the gauntlet against v3 on train and holdout seeds with the weak bots in the field, and the ladder.
+
+## v5: v4 with the winner's sweep (built, not yet measured, 2026-10-18)
+
+v5 (`rule-bot-v5.md`, `bots/rule-v5/`) is v4 whole, its beliefs, fixes and preferences, with one new kind of plan from how the person who won G4FR attacked: every army to place on one stack, which takes the thinnest territory beside it that it is sure of, moves all but one in, and goes on while the next capture is sure. Offered from the two stacks whose sweeps run longest, whole and by its first half, scored by v4's evaluation. v5 adds no setting, so v4's retune is v5's. Registered, not seated.
+
+Played over v3's own turns of G4FR from v3's positions, on the game's dice: at turn 62 v5 puts its 8 armies on one stack and takes 15 territories (v3: 8 armies onto Central America, 1 capture), at turn 71 8 (v3: 2); at turn 89 it ends on 13 territories with a stack of 8 (v3: 17 and 4; v4 alone: 13 and 9). It doesn't bring its stack home, and at turn 56 a sweep left it thinner than v3 (20 territories, biggest stack 3, against 14 and 7).
+
+**Tried and dropped: next turn's sweep as part of a stack's worth.** The first build also counted, beside v4's next-turn kill and at the same opportunity weight, the sweep a stack could make next turn, believed as the opponent model believes an opponent's sweep against me. It made v5 keep its stack and bring it home on G4FR's positions, and lost badly. Screens, v5 alone among two copies at 3 players, train seeds, ±30 Elo, each decided by its SPRT:
+
+| v5 built with | vs | Result | Win share vs par 33.3% | Win Elo a seat | Decisive games |
+|---|---|---|---|---|---|
+| sweep + next turn's sweep (priced at its victim's cost) | rule-v3 | worse | 22.2% [16.9, 28.7] | −97 | 189 |
+| sweep + next turn's sweep (priced at its victim's cost) | rule-v4 | worse | 24.5% [19.6, 30.2] | −75 | 249 |
+| sweep + next turn's sweep (priced at its victim's cost) | gd-defensive | better | 93.3% [78.7, 98.2] | | 30 |
+| next turn's sweep alone | rule-v3 | worse | 14.1% [8.6, 22.3] | −193 | 99 |
+| sweep + next turn's sweep (priced at my own income gain) | rule-v3 | worse | 9.9% [5.1, 18.3] | −264 | 81 |
+| next turn's sweep alone (priced at my own income gain) | rule-v3 | worse | 6.9% [3.0, 15.2] | −330 | 72 |
+| **sweep alone, v5 as built** | rule-v3 | better | 40.3% [35.2, 45.5] | +52 | 345 |
+| **sweep alone, v5 as built** | rule-v4 | better | 41.0% [35.7, 46.6] | +57 | 312 |
+| **sweep alone, v5 as built** | gd-defensive | better | 100% [87.5, 100] | | 27 |
+
+Screens rule out big losers and nothing more: the built v5's three are not losers, and its "better" verdicts at 3 players, a few hundred games each, are where the night starts, not what it confirms. The run log keeps the three screens of the built v5; the variants' screens ran builds that no longer exist, so their records were dropped.
+
+Smoke run of the built v5, not a measurement (54 games, seeds `smoke-*`, a 400-turn cap): alone among v3s it won 5 of 12 at 3 players, 7 of 12 at 4 and 1 of 6 at 6, one 6-player game reaching the cap; alone among gd-defensive, 12 of 12 at 3 and 11 of 12 at 4. No errors.
+
+Speed: a v5 decision costs 1.30, 1.23 and 1.43 times a v4 decision at 3, 4 and 6 players, both asked the same decisions of v4's games among v3s. Nearly all of it is scoring the sweeps' success boards. Measured the same way (each alone among v3s on the same seeds), v4 costs 2.6, 2.1 and 1.4 times v3, not the 1.2 above.
+
+Queued, after v4's night: the gauntlet against rule-v3, rule-v4, gd-defensive, gd-stacker and greedy on train seeds, then holdout if train passes, then the ladder with v4 and v5 beside every seatable bot (`rule-bot-v5.md`, "Measuring it", with the seating bar written in advance).
+
+## v4's beliefs checked before the retune (2026-10-18)
+
+`risk:opponents` scored v3's model against the rebuilt v4's on the three queued fields, 400 games a table size each (3,600 games, about 15 minutes, 10 workers, no errors). The tool publishes nothing and writes no run-log record, so the figures live here.
+
+| Field, table | Aim skill v3 / v4 | Kill Brier v3 / v4 | Hit caused/priced v3 / v4 | My kill exposure, believed v4 / actual |
+|---|---|---|---|---|
+| Mixed, 3p | −0.50 / +0.04 | 0.68 / 0.06 | 0.61 / 0.53 | 10.1% / 6.5% |
+| Mixed, 4p | −0.40 / +0.04 | 0.60 / 0.05 | 0.79 / 0.72 | 10.4% / 6.8% |
+| Mixed, 6p | −0.17 / +0.04 | 0.55 / 0.05 | 0.83 / 0.70 | 12.3% / 9.0% |
+| v3 only, 3p | −0.31 / +0.03 | 0.55 / 0.08 | 1.60 / 1.09 | 7.5% / 8.7% |
+| v3 only, 4p | −0.17 / +0.05 | 0.50 / 0.06 | 1.52 / 1.02 | 8.2% / 8.8% |
+| v3 only, 6p | −0.02 / +0.06 | 0.55 / 0.04 | 1.23 / 0.55 | 14.2% / 4.4% |
+| v3 + five v2, 3p | −0.30 / +0.04 | 0.57 / 0.07 | 1.40 / 0.78 | 8.0% / 7.3% |
+| v3 + five v2, 4p | −0.15 / +0.06 | 0.55 / 0.04 | 1.54 / 0.94 | 8.7% / 6.9% |
+| v3 + five v2, 6p | −0.02 / +0.06 | 0.57 / 0.04 | 1.26 / 0.60 | 15.0% / 4.8% |
+
+v4's aim beats an even split at every table, its kill predictions are an order of magnitude better than v3's, and among rule bots at 3 and 4 players it now prices the hit about right (0.94 to 1.09 of what lands; v3 priced 1.4 to 1.6 too little). Where it errs it errs cautious: it believes kills more often than bots take them, and against weak bots and at 6 players it overprices the hit and its own death (14 to 15% believed at 6 players, under 5% taken). The one cell the other way is my own death among v3s at 3 players, 7.5% believed against 8.7%, near enough. **Decision: no belief is reset before the retune.** Caution is the side to err on, since people take kills bots don't. At 6 players, where v4 plays v3's preferences, the overpricing is the likely cost to watch in the gauntlet.
