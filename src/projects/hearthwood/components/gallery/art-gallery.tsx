@@ -36,6 +36,8 @@ import { ART_PIECES, type ArtContext, type ArtPiece } from "./pieces";
 const ROW_GAP = 9;
 const PIECE_GAP = 1.6;
 const CLOCK_PRIORITY = -6;
+/** Every animal body the pieces show, which the gallery waits for before it is ready. */
+const BODIES = ART_PIECES.reduce((sum, piece) => sum + (piece.bodies ?? 0), 0);
 
 interface Placed {
   piece: ArtPiece;
@@ -300,7 +302,7 @@ export function ArtGallery() {
 
   useEffect(() => {
     window.__hearthwoodArt = {
-      isReady: () => frames.current > 3 && bodies.current >= ART_PIECES.filter((p) => p.id.startsWith("folk/cat/") || p.id.startsWith("folk/dog-")).length,
+      isReady: () => frames.current > 3 && bodies.current === BODIES,
       frameCount: () => frames.current,
       pieces: () => layout.placed.map((p) => p.piece.id),
       holdHour: (hours) => holdHour(clock, hours),
