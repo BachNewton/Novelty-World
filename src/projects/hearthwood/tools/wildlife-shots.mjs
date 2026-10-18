@@ -210,7 +210,7 @@ if (want("wildlife-squirrel")) {
   await holdWhenSettled(page, squirrel.id, 1.2);
   const trunkY = await ground(page, squirrel.trunk.x, squirrel.trunk.z);
   const at = { x: squirrel.trunk.x + Math.sin(side) * squirrel.trunk.radius, y: trunkY + Math.min(2.2, squirrel.trunk.bare * 0.6), z: squirrel.trunk.z + Math.cos(side) * squirrel.trunk.radius };
-  await shoot(page, "wildlife-squirrel-trunk", { free: { x: at.x + Math.sin(side + 0.3) * 3.2, y: at.y - 0.4, z: at.z + Math.cos(side + 0.3) * 3.2, lookX: at.x, lookY: at.y + 0.05, lookZ: at.z } });
+  await shoot(page, "wildlife-squirrel-trunk", { free: { x: at.x + Math.sin(side + 0.35) * 1.7, y: at.y - 0.15, z: at.z + Math.cos(side + 0.35) * 1.7, lookX: at.x, lookY: at.y + 0.05, lookZ: at.z } });
   await page.evaluate((s) => window.__hearthwoodWorld.companions.climb(s.id, null), squirrel);
 }
 

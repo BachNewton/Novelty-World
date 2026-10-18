@@ -3,7 +3,7 @@ import { lowestAhead, triangleCount, worstWeightSum } from "../animals/mesh-chec
 import { sculptHare } from "./sculpt";
 
 // Meshes the mountain hare once: what its budget and skinning rest on, which no faster test can see.
-describe.each([null])("the mountain hare's mesh %#", (kind) => {
+describe("", () => {
   const mesh = sculptHare();
   it("stays within the phone's budget", () => {
     expect(triangleCount(mesh)).toBeLessThan(22000);

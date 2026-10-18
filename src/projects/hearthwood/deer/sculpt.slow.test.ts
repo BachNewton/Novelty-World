@@ -3,8 +3,8 @@ import { lowestAhead, triangleCount, worstWeightSum } from "../animals/mesh-chec
 import { sculptDeer } from "./sculpt";
 
 // Meshes the roe deer once: what its budget and skinning rest on, which no faster test can see.
-describe.each([{ antlers: true }, { antlers: false }])("the roe deer's mesh %#", (kind) => {
-  const mesh = sculptDeer(kind ?? { antlers: false });
+describe.each([{ antlers: true }, { antlers: false }])("the roe deer's mesh, antlers $antlers", (kind) => {
+  const mesh = sculptDeer(kind);
   it("stays within the phone's budget", () => {
     expect(triangleCount(mesh)).toBeLessThan(22000);
   });
