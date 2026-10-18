@@ -106,7 +106,7 @@ describe("a stray", () => {
 describe("a companion", () => {
   const context = (leader: Leader, over: Partial<FollowContext> = {}): FollowContext => ({
     leader,
-    hearth: { x: 500, z: 500 },
+    hearth: { x: 500, z: 500, turn: 0 },
     index: 0,
     count: 1,
     time: 0,
@@ -147,7 +147,7 @@ describe("a companion", () => {
   });
 
   it("settles round the campfire with Elliott there", () => {
-    const hearth = { x: 0, z: 0 };
+    const hearth = { x: 0, z: 0, turn: 0 };
     const leader: Leader = { x: 1.5, z: -1.5, heading: 0, speed: 0, aloft: false };
     const body = bodyAt(-6, 4, 0);
     const mind = followMind();
@@ -155,6 +155,19 @@ describe("a companion", () => {
     const spot = firesideSpot(hearth, 1, 2);
     expect(Math.hypot(body.x - spot.x, body.z - spot.z)).toBeLessThan(1.2);
     expect(["sit", "lie"]).toContain(doingFor(cat(), body));
+  });
+
+  it("settles round a pitched camp turned any way, and keeps by Elliott while camp is carried", () => {
+    const hearth = { x: 0, z: 0, turn: 2.1 };
+    const turned = firesideSpot(hearth, 0, 3);
+    const home = firesideSpot({ ...hearth, turn: 0 }, 0, 3);
+    expect(Math.hypot(turned.x, turned.z)).toBeCloseTo(Math.hypot(home.x, home.z));
+    expect(Math.atan2(Math.sin(Math.atan2(turned.z, turned.x) - Math.atan2(home.z, home.x) - 2.1), Math.cos(Math.atan2(turned.z, turned.x) - Math.atan2(home.z, home.x) - 2.1))).toBeCloseTo(0);
+    const leader: Leader = { x: 1.5, z: -1.5, heading: 0, speed: 0, aloft: false };
+    const body = bodyAt(-6, 4, 0);
+    const mind = followMind();
+    for (let t = 0; t < 20; t += DT) stepCompanion(body, mind, cat(), context(leader, { hearth: null, time: t, index: 0, count: 1 }), DT);
+    expect(Math.hypot(body.x - leader.x, body.z - leader.z)).toBeLessThan(keepsNear(cat()) + 1.5);
   });
 
   it("left far behind out of sight, comes running from Elliott's trail, out of sight too; in sight, it is never moved", () => {

@@ -261,7 +261,19 @@ const GROUND = /* glsl */ `
   diffuseColor.rgb = mix(hwGround, vCanopy * (0.62 + 0.45 * hwCrowns), hwCanopy);
 `;
 
-export function terrainMaterial(atmosphere: AtmosphereUniforms, palette: Palette, fire: { x: number; z: number }, treeReach: number): MeshLambertMaterial {
+/** Each land material's worn ground round camp's fire, to move with camp. */
+const FIRES = new WeakMap<MeshLambertMaterial, { value: Vector2 }>();
+/** Where the worn ground goes while there is no fire: far off any land drawn. */
+const NO_FIRE = 1e7;
+
+/** The worn ground round camp's fire, moved to where camp is pitched, or gone while it is carried. */
+export function moveTerrainFire(material: MeshLambertMaterial, fire: { x: number; z: number } | null): void {
+  const uniform = FIRES.get(material);
+  if (!uniform) throw new Error("Not a land material: it has no fire to move");
+  uniform.value.set(fire?.x ?? NO_FIRE, fire?.z ?? NO_FIRE);
+}
+
+export function terrainMaterial(atmosphere: AtmosphereUniforms, palette: Palette, fire: { x: number; z: number } | null, treeReach: number): MeshLambertMaterial {
   const t = palette.things;
   const uniforms = {
     uRock: { value: t["ground-rock"] },
@@ -270,11 +282,11 @@ export function terrainMaterial(atmosphere: AtmosphereUniforms, palette: Palette
     uPath: { value: t["ground-path"] },
     uRiverBed: { value: t["ground-shore"].clone().lerp(t.rock, 0.4) },
     uBands: { value: new Vector3(ALTITUDE.treeline, ALTITUDE.rock, ALTITUDE.snow) },
-    uFire: { value: new Vector2(fire.x, fire.z) },
+    uFire: { value: new Vector2(fire?.x ?? NO_FIRE, fire?.z ?? NO_FIRE) },
     uTreeReach: { value: treeReach },
   };
   // Skirts face whichever way their edge runs, so the land is drawn from both sides.
-  return shadeLambert(new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), "land", atmosphere, {
+  const material = shadeLambert(new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), "land", atmosphere, {
     key: "terrain",
     uniforms,
     vertexHead: VERTEX_HEADER,
@@ -282,4 +294,6 @@ export function terrainMaterial(atmosphere: AtmosphereUniforms, palette: Palette
     fragmentHead: FRAGMENT_HEADER,
     surface: GROUND,
   });
+  FIRES.set(material, uniforms.uFire);
+  return material;
 }

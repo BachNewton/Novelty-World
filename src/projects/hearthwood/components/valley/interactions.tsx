@@ -6,6 +6,7 @@ import type { ValleyClock } from "./clock";
 import { petAnimal, setCompanionsOpen, tapAnimal, treatAnimal, type Companionship } from "./companionship";
 import { pickUpOffered, pickUpStick, throwHeld, type Fetching } from "./fetching";
 import { forageTime, pickSpot, setBasketOpen, type Foraging } from "./foraging";
+import { pitchCamp } from "./camping";
 import { openCooking, type Hearth } from "./hearth";
 import { examineClue, setCasebookPage, type Mysteries } from "./mysteries";
 import { setJournalOpen, talkWith, type People } from "./people";
@@ -22,6 +23,7 @@ import { setJournalOpen, talkWith, type People } from "./people";
  * picks it up, and the throw throws the stick in hand. While the naming card is up, Elliott sits cooking at the fire or
  * talks with someone, that hears its own keys and buttons. A clue offered
  * is examined like anything else, and K opens the journal on its casebook.
+ * Carrying camp, using what is offered pitches it, when nothing else is.
  */
 
 export function Interactions({
@@ -70,7 +72,12 @@ export function Interactions({
         return;
       }
       const offer = companionship.shown.offer;
-      if (offer?.canPet) petAnimal(companionship, offer.key);
+      if (offer?.canPet) {
+        petAnimal(companionship, offer.key);
+        return;
+      }
+      // Pitching camp is offered only when nothing else is.
+      if (hearth.camping.shown.offered) pitchCamp(hearth.camping);
     },
     onTreat: () => {
       const offer = companionship.shown.offer;

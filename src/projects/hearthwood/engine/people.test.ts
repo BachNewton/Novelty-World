@@ -8,7 +8,7 @@ const world = createWorld("first-valley");
 
 /** A block of cells round camp: enough for who stands where to show. */
 const cells: { cx: number; cz: number; people: Person[] }[] = [];
-const campCell = { cx: Math.floor(world.camp.x / PEOPLE_CELL), cz: Math.floor(world.camp.z / PEOPLE_CELL) };
+const campCell = { cx: Math.floor(world.home.x / PEOPLE_CELL), cz: Math.floor(world.home.z / PEOPLE_CELL) };
 for (let dz = -5; dz <= 5; dz++) {
   for (let dx = -5; dx <= 5; dx++) {
     const cx = campCell.cx + dx;
@@ -35,7 +35,7 @@ describe("people by area", () => {
     const [first] = peopleInCell(world, campCell.cx, campCell.cz);
     expect(first.role).toBe("cottager");
     expect(first.story).toBe("cat-who-chose");
-    const d = Math.hypot(first.x - world.camp.x, first.z - world.camp.z);
+    const d = Math.hypot(first.x - world.home.x, first.z - world.home.z);
     expect(d).toBeGreaterThan(100);
     expect(d).toBeLessThan(200);
     expect(first.pet?.species).toBe("cat");
@@ -68,7 +68,7 @@ describe("people by area", () => {
   });
 
   it("near a point are those within the radius, a note's friend included though they stand outside their giver's cell", () => {
-    const { x, z } = world.camp;
+    const { x, z } = world.home;
     const near = peopleNear(world, x, z, 500);
     for (const person of near) expect(Math.hypot(person.x - x, person.z - z)).toBeLessThanOrEqual(500);
     const ids = new Set(near.map((p) => p.id));

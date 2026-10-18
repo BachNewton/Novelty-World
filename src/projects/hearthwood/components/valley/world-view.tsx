@@ -8,7 +8,6 @@ import { emptySample } from "../../engine/land";
 import { createWorld, type World } from "../../engine/world";
 import { parseWeather, type WeatherKind } from "../../engine/weather";
 import { makeAtmosphere } from "../../art/atmosphere";
-import { Campfire } from "../../art/campfire";
 import { Daylight, type Air, type Focus } from "../../art/light/daylight";
 import { Fireflies } from "../../art/fireflies";
 import { readDishPalette } from "../../art/dish-looks";
@@ -36,7 +35,11 @@ import { FetchOverlay } from "./fetch-overlay";
 import { createFetching } from "./fetching";
 import { JawStick, useStickArt, WorldFetch } from "./world-fetch";
 import { CookingOverlay, useCookingOn } from "./cooking-overlay";
+import { besideCamp } from "../../gameplay/camp";
+import { CampOverlay } from "./camp-overlay";
+import { createCamping } from "./camping";
 import { createHearth } from "./hearth";
+import { WorldCamp } from "./world-camp";
 import { Interactions } from "./interactions";
 import { ConversationOverlay, useTalkingOn } from "./conversation-overlay";
 import { JournalOverlay } from "./journal-overlay";
@@ -121,7 +124,8 @@ export function WorldView() {
   const dishPalette = useMemo(() => readDishPalette(), []);
   const brewPalette = useMemo(() => readBrewPalette(), []);
   const foraging = useMemo(() => createForaging(world), [world]);
-  const hearth = useMemo(() => createHearth(world, foraging), [world, foraging]);
+  const camping = useMemo(() => createCamping(world), [world]);
+  const hearth = useMemo(() => createHearth(camping, foraging), [camping, foraging]);
   const companionship = useMemo(() => createCompanionship(world, foraging, hearth), [world, foraging, hearth]);
   const people = useMemo(() => createPeople(world, foraging, hearth, companionship), [world, foraging, hearth, companionship]);
   const fetching = useMemo(() => createFetching(world, companionship), [world, companionship]);
@@ -129,13 +133,15 @@ export function WorldView() {
   const mysteries = useMemo(() => createMysteries(world, people), [world, people]);
   const cluePalette = useMemo(() => readCluePalette(), []);
   const shared = useMemo(() => {
-    const { camp } = world;
+    // A walk starts beside camp, wherever it was left: by its fire, or where it was packed up.
+    const camp = camping.shown.camp.site;
+    const start = besideCamp(camp);
     const walker: Walker = {
-      x: camp.x + 3.4,
-      z: camp.z + 1.5,
-      heading: Math.atan2(-3.4, -1.5),
+      x: start.x,
+      z: start.z,
+      heading: start.heading,
       stride: 0,
-      orbit: { ...FIRST_ORBIT, yaw: Math.atan2(-3.4, -1.5) },
+      orbit: { ...FIRST_ORBIT, yaw: start.heading },
       lookPitch: 0,
       view: "walk",
     };
@@ -146,7 +152,7 @@ export function WorldView() {
     const weather = makeSceneWeather(options.weather);
     const clock = makeClock(options.hour, options.date);
     return { atmosphere: makeAtmosphere(), sky: makeSkyUniforms(palette), clock, walker, focus, streaming, air, freeCamera, weather, debug: { clock, costs: new FrameCosts(), weather } };
-  }, [world, palette, options.hour, options.date, options.weather]);
+  }, [camping, palette, options.hour, options.date, options.weather]);
   const surface = useRef<HTMLDivElement>(null);
   const input = useWalkInput(surface);
   const [fireflies, setFireflies] = useState<Float32Array>(() => new Float32Array(0));
@@ -173,8 +179,8 @@ export function WorldView() {
         <Sky atmosphere={atmosphere} sky={sky} />
         <FeatureRenderer day={clock} atmosphere={atmosphere} sky={sky} costs={debug.costs} player={focus} weather={weather} />
         <WorldWeather now={weather} atmosphere={atmosphere} />
-        <WorldLand world={world} palette={palette} atmosphere={atmosphere} sky={sky} quality={QUALITY} streaming={streaming} />
-        <WorldPlants world={world} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />
+        <WorldLand world={world} camping={camping} palette={palette} atmosphere={atmosphere} sky={sky} quality={QUALITY} streaming={streaming} />
+        <WorldPlants world={world} camping={camping} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />
         <WorldPlaces world={world} palette={palette} atmosphere={atmosphere} sky={sky} streaming={streaming} />
         <WorldForage foraging={foraging} palette={foragePalette} atmosphere={atmosphere} clock={clock} walker={walker} input={input.state} rival={() => Math.min(companionship.candidate?.score ?? Infinity, hearth.candidate ?? Infinity, people.candidate?.score ?? Infinity, mysteries.candidate?.score ?? Infinity, fetching.candidate?.score ?? Infinity)} />
         <WorldAnimals
@@ -191,17 +197,28 @@ export function WorldView() {
         />
         <WorldFetch fetching={fetching} foraging={foraging} walker={walker} input={input.state} art={stickArt} rival={() => Math.min(companionship.candidate?.score ?? Infinity, hearth.candidate ?? Infinity, people.candidate?.score ?? Infinity, mysteries.candidate?.score ?? Infinity)} />
         <WorldWildlife world={world} clock={clock} walker={walker} weather={weather} atmosphere={atmosphere} wildlife={wildlife} />
-        <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
+        <WorldCamp
+          camping={camping}
+          world={world}
+          foraging={foraging}
+          people={people}
+          walker={walker}
+          palette={palette}
+          atmosphere={atmosphere}
+          fire={clock}
+          outbid={() => foraging.target !== null || companionship.candidate !== null || hearth.candidate !== null || people.candidate !== null || mysteries.candidate !== null || fetching.candidate !== null}
+        />
         <WorldHearth hearth={hearth} foraging={foraging} companionship={companionship} walker={walker} input={input.state} clock={clock} palette={dishPalette} brewPalette={brewPalette} atmosphere={atmosphere} outbid={() => people.candidate !== null || mysteries.candidate !== null || fetching.candidate !== null} />
         <WorldCharms hearth={hearth} world={world} clock={clock} walker={walker} weather={weather} palette={palette} brewPalette={brewPalette} atmosphere={atmosphere} sky={sky} />
         <WorldPeople people={people} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} companionship={companionship} hearth={hearth} palette={folkPalette} atmosphere={atmosphere} outbid={() => mysteries.candidate !== null || fetching.candidate !== null} />
         <WorldClues mysteries={mysteries} people={people} clock={clock} walker={walker} input={input.state} foraging={foraging} companionship={companionship} hearth={hearth} palette={cluePalette} atmosphere={atmosphere} outbid={() => fetching.candidate !== null} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
-        <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
+        <WalkerAndCamera world={world} camping={camping} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
         <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} wildlife={wildlife} people={people} mysteries={mysteries} fetching={fetching} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
       {!cooking && !talking && !examining && <WalkHints input={input} />}
       <ForageOverlay foraging={foraging} hearth={hearth} clock={clock} input={input.kind} />
+      {!cooking && !talking && !examining && <CampOverlay camping={camping} input={input.kind} />}
       <CompanionOverlay companionship={companionship} input={input.kind} />
       <CookingOverlay hearth={hearth} foraging={foraging} input={input.kind} hinted={() => people.shown.memory.hints} hintedBrews={() => people.shown.memory.brewHints} />
       <ConversationOverlay people={people} input={input.kind} />

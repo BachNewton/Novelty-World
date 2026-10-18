@@ -5,9 +5,10 @@ import { campStick, sticksInChunk, sticksNear } from "./sticks";
 import { createWorld } from "./world";
 
 const world = createWorld("first-valley");
-const campChunk = { cx: Math.floor(world.camp.x / PLANT_CHUNK), cz: Math.floor(world.camp.z / PLANT_CHUNK) };
+const campChunk = { cx: Math.floor(world.home.x / PLANT_CHUNK), cz: Math.floor(world.home.z / PLANT_CHUNK) };
 const chunks: { cx: number; cz: number }[] = [];
 for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) chunks.push({ cx: campChunk.cx + dx, cz: campChunk.cz + dz });
+const fire = { x: world.home.x, z: world.home.z, turn: 0 };
 const all = chunks.flatMap(({ cx, cz }) => sticksInChunk(world, cx, cz));
 
 describe("sticks by area", () => {
@@ -29,11 +30,21 @@ describe("sticks by area", () => {
   });
 
   it("always include one by camp's fire, a few steps from it on dry ground", () => {
-    const camp = campStick(world);
-    const d = Math.hypot(camp.x - world.camp.x, camp.z - world.camp.z);
+    const camp = campStick(world, fire);
+    const d = Math.hypot(camp.x - world.home.x, camp.z - world.home.z);
     expect(d).toBeGreaterThan(2.8);
     expect(d).toBeLessThan(4);
     expect(world.heightAt(camp.x, camp.z)).toBeGreaterThan(world.waterAt(camp.x, camp.z));
-    expect(sticksNear(world, world.camp.x, world.camp.z, 6).map((s) => s.id)).toContain("camp");
+    expect(sticksNear(world, world.home.x, world.home.z, 6, fire).map((s) => s.id)).toContain("camp");
+  });
+
+  it("keep camp's stick by its fire wherever it is pitched, and leave it out while camp is carried", () => {
+    const pitched = { x: world.home.x + 300, z: world.home.z - 200, turn: 1.3 };
+    const stick = campStick(world, pitched);
+    const d = Math.hypot(stick.x - pitched.x, stick.z - pitched.z);
+    expect(d).toBeGreaterThan(2.8);
+    expect(d).toBeLessThan(4);
+    expect(sticksNear(world, pitched.x, pitched.z, 6, pitched).map((s) => s.id)).toContain("camp");
+    expect(sticksNear(world, world.home.x, world.home.z, 6, null).map((s) => s.id)).not.toContain("camp");
   });
 });

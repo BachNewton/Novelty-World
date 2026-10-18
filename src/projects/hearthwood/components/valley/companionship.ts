@@ -18,6 +18,7 @@ import type { AnimalDrive } from "../animals/animal-body";
 import { ACTIVITY, bornOf, portraitOfLook, type AnimalLook } from "./animal-kinds";
 import { offTheGround, walkingRide, type Ride } from "../../gameplay/riding";
 import { takeTreat, type Foraging } from "./foraging";
+import { restingSite } from "./camping";
 import { giveDish, hushNow, type Hearth } from "./hearth";
 
 /*
@@ -327,7 +328,7 @@ export function wildDay(companionship: Companionship, realDayOfYear: number, sun
 
 /** A companion brought to life: beside Elliott if it follows, by the fire if it waits at camp. */
 export function wakeCompanion(companionship: Companionship, companion: Companion, beside: { x: number; z: number; heading: number }, index: number): Animal {
-  const { camp } = companionship.world;
+  const camp = restingSite(companionship.hearth.camping);
   let body: Body;
   if (companion.following) {
     const angle = beside.heading + Math.PI + (index % 2 === 0 ? -0.7 : 0.7) * (1 + Math.floor(index / 2));

@@ -17,7 +17,7 @@ describe("the world", () => {
     // The second world works out other chunks and places first; its answers must not depend on that.
     again.plantsIn(9, -4);
     again.placesNear(3000, 3000, 600);
-    expect(again.camp).toEqual(world.camp);
+    expect(again.home).toEqual(world.home);
     for (const [x, z] of [[0, 0], [1234.5, -987.25], [-4000, 2500]]) expect(again.heightAt(x, z)).toBe(world.heightAt(x, z));
     expect(again.plantsIn(2, 3)).toEqual(world.plantsIn(2, 3));
     expect(again.placeIn(4, -2)).toEqual(world.placeIn(4, -2));
@@ -27,8 +27,8 @@ describe("the world", () => {
     expect(other.heightAt(1500, 1500)).not.toBe(world.heightAt(1500, 1500));
   });
 
-  it("pitches camp on dry, level greenwood meadow near the origin, clear of trees", () => {
-    const { camp } = world;
+  it("makes the home camp on dry, level greenwood meadow near the origin, clear of trees", () => {
+    const { home: camp } = world;
     expect(Math.hypot(camp.x, camp.z)).toBeLessThan(200);
     const at = world.sampleAt(camp.x, camp.z);
     expect(at.height - at.water).toBeGreaterThan(1.5);

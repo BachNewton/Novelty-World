@@ -330,6 +330,10 @@
   --color-hearthwood-valley-witch-skin: #f0c8a8;
   --color-hearthwood-valley-witch-pack: #8a5d3b;
   --color-hearthwood-valley-witch-bedroll: #d8c8a4;
+  --color-hearthwood-valley-witch-strap: #5e3f28;
+  /* A camp's ghost, where it would be pitched: warm on good ground, faint where it won't do. */
+  --color-hearthwood-valley-camp-ghost: #ffd890;
+  --color-hearthwood-valley-camp-ghost-poor: #e9e6de;
   --color-hearthwood-valley-broom-handle: #b08458;
   --color-hearthwood-valley-broom-bristle: #dcb866;
 

@@ -60,6 +60,8 @@ import {
   type Companionship,
 } from "./companionship";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
+import { besideCamp } from "../../gameplay/camp";
+import { pitchedSite, restingSite } from "./camping";
 import type { Foraging } from "./foraging";
 import type { Walker } from "./walker";
 
@@ -225,7 +227,9 @@ export function stepAnimals(
     aloft,
   };
   const hand = inHand(companionship);
-  const camp = world.camp;
+  // Those resting wait by the fire, or where camp was packed up until it is pitched again; those following settle round a fire that is pitched.
+  const camp = restingSite(companionship.hearth.camping);
+  const fire = pitchedSite(companionship.hearth.camping);
   const following = followingAnimals(companionship);
   const resting = [...companionship.animals.values()].filter((a) =>
     isResting(companionship, a),
@@ -331,13 +335,14 @@ export function stepAnimals(
           const atCamp: Leader = {
             x: camp.x,
             z: camp.z,
-            heading: 0,
+            // Facing the fire from where Elliott stood to pitch it, so a companion coming from afar comes over ground Elliott walked.
+            heading: besideCamp(camp).heading,
             speed: 0,
             aloft: false,
           };
           const context = {
             leader: atCamp,
-            hearth: camp,
+            hearth: fire ?? camp,
             index: following.length + restingIndex,
             count: following.length + resting.length,
             time,
@@ -358,7 +363,7 @@ export function stepAnimals(
             ofSpecies(animal.nature),
             {
               leader,
-              hearth: camp,
+              hearth: fire,
               index,
               count: following.length + resting.length,
               time,

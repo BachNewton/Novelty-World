@@ -73,6 +73,9 @@ const THINGS = [
   "witch-skin",
   "witch-pack",
   "witch-bedroll",
+  "witch-strap",
+  "camp-ghost",
+  "camp-ghost-poor",
   "broom-handle",
   "broom-bristle",
 ] as const;

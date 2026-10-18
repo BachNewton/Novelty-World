@@ -46,7 +46,8 @@ export interface Place {
   fall?: Float32Array;
 }
 
-export interface Camp {
+/** The world's own first camp: the clearing made for it near the origin, levelled, and kept free of trees. Camp itself is Elliott's to move (see gameplay's camp); this clearing, its neighbour and its cat stay where the world put them. */
+export interface HomeCamp {
   x: number;
   z: number;
   /** The fire's ground height. */
@@ -278,8 +279,8 @@ export function placeInCell(seed: string, ground: PlaceGround, cellX: number, ce
   return place;
 }
 
-/** Camp: a level, dry clearing on the greenwood's meadow, a short walk from the world's origin. */
-export function placeCamp(seed: string, ground: PlaceGround): Camp {
+/** The home camp: a level, dry clearing on the greenwood's meadow, a short walk from the world's origin. */
+export function placeHomeCamp(seed: string, ground: PlaceGround): HomeCamp {
   const rng = createRng(`${seed}/camp`);
   const s = emptySample();
   const scratch = emptySample();

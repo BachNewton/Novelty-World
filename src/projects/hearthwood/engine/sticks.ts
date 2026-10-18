@@ -8,7 +8,7 @@ import type { World } from "./world";
  * plant chunk, from the chunk's own seed and its plants alone, so a stick
  * is always where it was. A tree now and then has one lying on dry ground
  * a step or two out from its trunk; and camp always has one by the fire,
- * so the first game of fetch is never a walk away.
+ * wherever it is pitched, so a game of fetch is never a walk away.
  */
 
 export interface StickSpot {
@@ -23,7 +23,14 @@ export interface StickSpot {
 }
 
 /** What finding sticks asks of the world. */
-export type StickGround = Pick<World, "seed" | "camp" | "plantsIn" | "heightAt" | "waterAt">;
+export type StickGround = Pick<World, "seed" | "plantsIn" | "heightAt" | "waterAt">;
+
+/** Camp's fire, where it is pitched: its middle, and how its things are turned round it. */
+export interface StickFire {
+  x: number;
+  z: number;
+  turn: number;
+}
 
 /** The chance a tree has a stick fallen by it, and how many a chunk holds at most. */
 const PER_TREE = 0.05;
@@ -65,23 +72,23 @@ export function sticksInChunk(ground: StickGround, chunkX: number, chunkZ: numbe
   return out;
 }
 
-/** Camp's own stick, by the fire. */
-export function campStick(ground: StickGround): StickSpot {
-  const { camp } = ground;
-  const x = camp.x + Math.cos(CAMP_STICK.angle) * CAMP_STICK.out;
-  const z = camp.z + Math.sin(CAMP_STICK.angle) * CAMP_STICK.out;
-  return { id: "camp", x, y: ground.heightAt(x, z), z, turn: CAMP_STICK.angle + 1.2 };
+/** Camp's own stick, by its fire. */
+export function campStick(ground: Pick<World, "heightAt">, fire: StickFire): StickSpot {
+  const angle = CAMP_STICK.angle + fire.turn;
+  const x = fire.x + Math.cos(angle) * CAMP_STICK.out;
+  const z = fire.z + Math.sin(angle) * CAMP_STICK.out;
+  return { id: "camp", x, y: ground.heightAt(x, z), z, turn: angle + 1.2 };
 }
 
-/** Every stick within `radius` metres of a point, camp's among them. */
-export function sticksNear(ground: StickGround, x: number, z: number, radius: number, inChunk: (chunkX: number, chunkZ: number) => StickSpot[] = (cx, cz) => sticksInChunk(ground, cx, cz)): StickSpot[] {
+/** Every stick within `radius` metres of a point, camp's among them while it is pitched. */
+export function sticksNear(ground: StickGround, x: number, z: number, radius: number, fire: StickFire | null, inChunk: (chunkX: number, chunkZ: number) => StickSpot[] = (cx, cz) => sticksInChunk(ground, cx, cz)): StickSpot[] {
   const out: StickSpot[] = [];
   for (let cz = Math.floor((z - radius) / PLANT_CHUNK); cz <= Math.floor((z + radius) / PLANT_CHUNK); cz++) {
     for (let cx = Math.floor((x - radius) / PLANT_CHUNK); cx <= Math.floor((x + radius) / PLANT_CHUNK); cx++) {
       for (const stick of inChunk(cx, cz)) if (Math.hypot(stick.x - x, stick.z - z) <= radius) out.push(stick);
     }
   }
-  const camp = campStick(ground);
-  if (Math.hypot(camp.x - x, camp.z - z) <= radius) out.push(camp);
+  const camp = fire && campStick(ground, fire);
+  if (camp && Math.hypot(camp.x - x, camp.z - z) <= radius) out.push(camp);
   return out;
 }

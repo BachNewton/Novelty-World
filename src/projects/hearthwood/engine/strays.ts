@@ -37,7 +37,7 @@ export interface Stray {
 }
 
 /** What finding strays asks of the world. */
-export type StrayGround = Pick<World, "seed" | "camp" | "sampleAt" | "regionAt" | "woodlandAt" | "placeIn">;
+export type StrayGround = Pick<World, "seed" | "home" | "sampleAt" | "regionAt" | "woodlandAt" | "placeIn">;
 
 /** The side of a stray cell, in metres: the places' cell, so a stray can live by its cell's place. */
 export const STRAY_CELL = PLACE_CELL;
@@ -163,7 +163,7 @@ export function straysInCell(ground: StrayGround, cellX: number, cellZ: number):
   const place: Place | null = ground.placeIn(cellX, cellZ);
   const byPlace = place ? BY_PLACE[place.kind] : undefined;
   const leaning = cellLeaning(ground, x0, z0);
-  const { camp } = ground;
+  const { home: camp } = ground;
   const hasCamp = Math.floor(camp.x / STRAY_CELL) === cellX && Math.floor(camp.z / STRAY_CELL) === cellZ;
 
   const wanted: { species: Species; around: { x: number; z: number; near: number; far: number } | null }[] = [];

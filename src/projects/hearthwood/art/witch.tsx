@@ -10,7 +10,8 @@ import type { Palette } from "./palette";
 
 /*
  * Elliott the witch, for now a placeholder silhouette: a long cloak, a
- * scarf, a pointed hat whose tip bends back, a pack with a bedroll on top,
+ * scarf, a pointed hat whose tip bends back, a pack with a bedroll on top
+ * (and camp's own, rolled fat and strapped across it, while camp is carried),
  * a walking staff, and a wicker basket at their right hip (where a hedgehog
  * companion rides). They face +z. Their walk is a bob and a sway that
  * follow their stride, and their hat lags a little behind. On the broom they
@@ -107,6 +108,29 @@ function bodyGeometry(palette: Palette): BufferGeometry {
   ]);
 }
 
+/** Camp packed up on their pack: its bedroll rolled fat across the top, strapped on, and the pot hung at the side. */
+function campRollGeometry(palette: Palette): BufferGeometry {
+  const t = palette.things;
+  const roll = new CylinderGeometry(0.115, 0.115, 0.58, 12);
+  roll.rotateZ(Math.PI / 2);
+  roll.translate(0, 1.31, -0.27);
+  const ends = [-1, 1].map((side) => {
+    const end = new CylinderGeometry(0.085, 0.085, 0.012, 12);
+    end.rotateZ(Math.PI / 2);
+    end.translate(side * 0.293, 1.31, -0.27);
+    return { geometry: end, colour: t["witch-scarf"] };
+  });
+  const straps = [-1, 1].map((side) => {
+    const strap = new TorusGeometry(0.12, 0.013, 4, 14);
+    strap.rotateY(Math.PI / 2);
+    strap.translate(side * 0.17, 1.31, -0.27);
+    return { geometry: strap, colour: t["witch-strap"] };
+  });
+  const pot = new SphereGeometry(0.085, 9, 6, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.65);
+  pot.translate(0.2, 0.98, -0.3);
+  return paint([{ geometry: roll, colour: t["witch-bedroll"], shading: 0.35 }, ...ends, ...straps, { geometry: pot, colour: t["witch-hat"], shading: 0.5 }]);
+}
+
 /** The back of the cloak, a curved sheet from below the pack to the hem, which lifts and streams out behind on the broom. */
 function cloakBackGeometry(palette: Palette): BufferGeometry {
   const sheet = new BoxGeometry(0.5, 0.66, 0.025, 6, 6, 1);
@@ -196,7 +220,7 @@ export interface WitchHandle {
   basket: Group | null;
 }
 
-export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: AtmosphereUniforms; still?: Partial<WitchPose> }>(function Witch({ palette, atmosphere, still }, ref) {
+export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: AtmosphereUniforms; still?: Partial<WitchPose>; carryingCamp?: boolean }>(function Witch({ palette, atmosphere, still, carryingCamp = false }, ref) {
   const group = useRef<Group>(null);
   const body = useRef<Group>(null);
   const cloak = useRef<Mesh>(null);
@@ -214,13 +238,14 @@ export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: Atm
       scarf: scarfEndGeometry(palette),
       boots: bootsGeometry(palette),
       broom: broomGeometry(palette),
+      campRoll: campRollGeometry(palette),
       material: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
     }),
     [palette, atmosphere],
   );
   useEffect(
     () => () => {
-      for (const geometry of [assets.body, assets.hat, assets.back, assets.scarf, assets.boots, assets.broom]) geometry.dispose();
+      for (const geometry of [assets.body, assets.hat, assets.back, assets.scarf, assets.boots, assets.broom, assets.campRoll]) geometry.dispose();
       assets.material.dispose();
     },
     [assets],
@@ -269,6 +294,7 @@ export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: Atm
     <group ref={group}>
       <group ref={body}>
         <mesh ref={cloak} geometry={assets.body} material={assets.material} castShadow />
+        {carryingCamp && <mesh geometry={assets.campRoll} material={assets.material} castShadow />}
         <group ref={hat} position={[0, HAT_HEIGHT, 0.0]}>
           <mesh geometry={assets.hat} material={assets.material} castShadow rotation={[-0.08, 0, 0]} />
         </group>

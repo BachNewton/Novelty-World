@@ -13,6 +13,8 @@ import type { Palette } from "../../art/palette";
 import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import type { Quality } from "../../quality";
+import { CAMP_REACH, partedBy, type CampSite } from "../../gameplay/camp";
+import { pitchedSite, type Camping } from "./camping";
 import { useFeature } from "./feature-renderer";
 import { report, type Streaming } from "./world-land";
 
@@ -23,7 +25,8 @@ import { report, type Streaming } from "./world-land";
  * each frame the chunks in view, or casting their shadows into it, are
  * copied into the meshes at the detail their distance asks for; the copying
  * only happens when that choice changes. The fireflies of the nearest
- * chunks are handed to the scene.
+ * chunks are handed to the scene. The ground plants within a pitched
+ * camp are parted, as its pieces stand there.
  */
 
 const DETAILS: readonly Detail[] = ["near", "far"];
@@ -48,9 +51,9 @@ interface DesignMeshes {
   meshes: Partial<Record<Detail, InstancedMesh>>;
 }
 
-function drawChunk(chunk: PlantChunk, dummy: Object3D): ChunkDraw {
+function drawChunk(chunk: PlantChunk, dummy: Object3D, camp: CampSite | null): ChunkDraw {
   const byDesign: PlantChunk["plants"][] = Array.from({ length: DESIGNS }, () => []);
-  for (const p of chunk.plants) byDesign[PLANT_KINDS.indexOf(p.kind) * PLANT_VARIANTS + p.variant].push(p);
+  for (const p of chunk.plants) if (!camp || !partedBy(camp, p)) byDesign[PLANT_KINDS.indexOf(p.kind) * PLANT_VARIANTS + p.variant].push(p);
   const box = new Box3(new Vector3(chunk.chunkX * PLANT_CHUNK, Infinity, chunk.chunkZ * PLANT_CHUNK), new Vector3((chunk.chunkX + 1) * PLANT_CHUNK, -Infinity, (chunk.chunkZ + 1) * PLANT_CHUNK));
   const counts = new Int32Array(DESIGNS);
   const matrices = byDesign.map((plants, d) => {
@@ -85,12 +88,25 @@ interface State {
   from: Vector3 | null;
   plan: string;
   firefliesFrom: string;
+  /** The pitched camp the chunks were drawn round, parting the ground plants within it. */
+  camp: CampSite | null;
 }
 
 const chunkId = (k: ChunkKey) => `${k.chunkX},${k.chunkZ}`;
 
+/** The chunks a camp's parted plants could lie in. */
+function chunksRound(camp: CampSite): string[] {
+  const out: string[] = [];
+  const r = CAMP_REACH + 1;
+  for (let cz = Math.floor((camp.z - r) / PLANT_CHUNK); cz <= Math.floor((camp.z + r) / PLANT_CHUNK); cz++) {
+    for (let cx = Math.floor((camp.x - r) / PLANT_CHUNK); cx <= Math.floor((camp.x + r) / PLANT_CHUNK); cx++) out.push(`${cx},${cz}`);
+  }
+  return out;
+}
+
 export function WorldPlants({
   world,
+  camping,
   palette,
   atmosphere,
   quality,
@@ -98,6 +114,7 @@ export function WorldPlants({
   onFireflies,
 }: {
   world: World;
+  camping: Camping;
   palette: Palette;
   atmosphere: AtmosphereUniforms;
   quality: Quality;
@@ -130,7 +147,7 @@ export function WorldPlants({
       ),
     [palette, seasonal],
   );
-  const state = useRef<State>({ draws: new Map(), wanted: [], pending: [], from: null, plan: "", firefliesFrom: "" });
+  const state = useRef<State>({ draws: new Map(), wanted: [], pending: [], from: null, plan: "", firefliesFrom: "", camp: null });
   const tools = useMemo(() => ({ dummy: new Object3D(), frustum: new Frustum(), matrix: new Matrix4() }), []);
   const reach = Math.max(quality.trees.far, quality.shrubs.far, quality.small.far);
   // How far from the camera the key light's shadow maps reach, so how far a chunk out of view may still cast into it.
@@ -162,6 +179,15 @@ export function WorldPlants({
   useFrame(({ camera }) => {
     const s = state.current;
     const eye = camera.position;
+    const camp = pitchedSite(camping);
+    if (camp !== s.camp) {
+      // Camp moved: the chunks round where it was and where it is are drawn again, parting the plants round it now.
+      const redraw = new Set([...(s.camp ? chunksRound(s.camp) : []), ...(camp ? chunksRound(camp) : [])]);
+      for (const id of redraw) s.draws.delete(id);
+      s.camp = camp;
+      s.from = null;
+      s.plan = "";
+    }
     if (s.from === null || s.from.distanceTo(eye) > RECHECK) {
       s.from = eye.clone();
       s.wanted = wantedChunks(eye.x, eye.z, reach);
@@ -171,7 +197,7 @@ export function WorldPlants({
     }
     for (let n = 0; n < quality.buildsPerFrame && s.pending.length > 0; n++) {
       const key = s.pending.shift() as ChunkKey;
-      s.draws.set(chunkId(key), drawChunk(world.plantsIn(key.chunkX, key.chunkZ), tools.dummy));
+      s.draws.set(chunkId(key), drawChunk(world.plantsIn(key.chunkX, key.chunkZ), tools.dummy, s.camp));
     }
     if (s.pending.length > 0) {
       report(streaming, "plants", false);

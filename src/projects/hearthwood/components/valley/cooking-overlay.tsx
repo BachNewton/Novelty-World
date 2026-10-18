@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { BookOpen, Check, Flame, Hand, Lightbulb, RotateCcw, ShoppingBasket, Sparkles, X } from "lucide-react";
+import { ArrowUp, BookOpen, Check, Flame, Hand, Lightbulb, RotateCcw, ShoppingBasket, Sparkles, X } from "lucide-react";
 import { Prompt, PromptButton, type Binding } from "@/shared/components/prompts";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import type { InputKind } from "@/shared/lib/input";
@@ -10,9 +10,10 @@ import { COOKING_SECONDS, toHand, type Session } from "../../gameplay/cooking";
 import { COOKWARE, DISHES, FOODS, humbleOf, isFood, MOST_INGREDIENTS, recipeOf, RECIPES, STAPLES, type Ingredient, type RecipeId } from "../../gameplay/recipes";
 import { CookwareIcon, COOKWARE_NAMES, DishIcon, dishName, IngredientIcon, ingredientName } from "./cooking-icons";
 import { subscribeForaging, type Foraging } from "./foraging";
-import { brew, brewMore, busyAtTheFire, chooseIngredient, chooseWay, closeCooking, cook, cookMore, openCooking, readyToBrew, readyToCook, setBookOpen, setCraft, subscribeHearth, type Craft, type Hearth } from "./hearth";
+import { brew, brewMore, busyAtTheFire, chooseIngredient, chooseWay, closeCooking, cook, cookMore, openCooking, packUpFromTheFire, readyToBrew, readyToCook, setBookOpen, setCraft, subscribeHearth, type Craft, type Hearth } from "./hearth";
 import { BrewBook, BrewBrewing, BrewChoosing, BrewMade, type HintedBrews } from "./brewing-overlay";
 import { CauldronIcon } from "./brewing-icons";
+import { BedrollIcon } from "./camp-icons";
 
 /*
  * Cooking over the scene: the prompt to cook when the fire is offered (a
@@ -34,7 +35,8 @@ import { CauldronIcon } from "./brewing-icons";
  * Elliott can use waits): F or Enter (the controller's X) cooks or brews,
  * or does it again, Tab (either bumper) turns between cooking and brewing,
  * Esc (B) gets up or closes the book, B (Y) opens the book of the craft at
- * hand; a pad moves round the card's buttons and A presses one.
+ * hand; a pad moves round the card's buttons and A presses one. Between
+ * dishes and brews the card also packs camp up, to pitch it somewhere new.
  */
 
 const INTERACT: Binding = { pad: "X", key: "F", fills: false };
@@ -429,6 +431,20 @@ function AtTheFire({ hearth, foraging, session, input, hinted, hintedBrews }: { 
               </PromptButton>
             ) : (
               <span />
+            )}
+            {!busyAtTheFire(hearth) && (
+              <button
+                type="button"
+                aria-label="Pack up camp"
+                title="Pack up camp"
+                onClick={() => {
+                  packUpFromTheFire(hearth);
+                }}
+                className={`flex items-center gap-1 px-3 py-1.5 text-base ${CHIP}`}
+              >
+                <ArrowUp aria-hidden className="size-4" />
+                <BedrollIcon className="size-7" />
+              </button>
             )}
             <PromptButton
               binding={LEAVE}

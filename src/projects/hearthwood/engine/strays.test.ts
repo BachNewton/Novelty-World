@@ -7,7 +7,7 @@ const world = createWorld("first-valley");
 
 /** A block of cells round camp: enough for the strays' frequencies to show. */
 const cells: { cx: number; cz: number; strays: Stray[] }[] = [];
-const campCell = { cx: Math.floor(world.camp.x / STRAY_CELL), cz: Math.floor(world.camp.z / STRAY_CELL) };
+const campCell = { cx: Math.floor(world.home.x / STRAY_CELL), cz: Math.floor(world.home.z / STRAY_CELL) };
 for (let dz = -6; dz <= 6; dz++) {
   for (let dx = -6; dx <= 6; dx++) {
     const cx = campCell.cx + dx;
@@ -43,7 +43,7 @@ describe("strays by area", () => {
   });
 
   it("keep a cat near camp, so the first walk out meets one", () => {
-    const near = straysInCell(world, campCell.cx, campCell.cz).filter((s) => s.species === "cat" && Math.hypot(s.home.x - world.camp.x, s.home.z - world.camp.z) < 50);
+    const near = straysInCell(world, campCell.cx, campCell.cz).filter((s) => s.species === "cat" && Math.hypot(s.home.x - world.home.x, s.home.z - world.home.z) < 50);
     expect(near.length).toBeGreaterThan(0);
   });
 
@@ -78,7 +78,7 @@ describe("strays by area", () => {
   });
 
   it("near a point are those whose homes lie within the radius", () => {
-    const { x, z } = world.camp;
+    const { x, z } = world.home;
     const near = straysNear(world, x, z, 300);
     for (const stray of near) expect(Math.hypot(stray.home.x - x, stray.home.z - z)).toBeLessThanOrEqual(300);
     const ids = new Set(near.map((s) => s.id));

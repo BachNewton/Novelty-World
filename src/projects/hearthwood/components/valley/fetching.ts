@@ -4,6 +4,7 @@ import { playsFetch } from "../../gameplay/befriending";
 import { batStick, carrying, catAtStick, easePlay, fetchMind, mouthAt, playOf, stepFetcher, stepStick, stickDownAt, stickPlace, throwStick, within, type Stick } from "../../gameplay/fetch";
 import type { Offerable, Point3 } from "../../gameplay/offering";
 import { offTheGround } from "../../gameplay/riding";
+import { pitchedSite } from "./camping";
 import { broughtBack, isCompanion, isResting, type Animal, type Companionship, type PlayStep } from "./companionship";
 
 /*
@@ -118,7 +119,7 @@ export function subscribeFetching(fetching: Fetching, listener: () => void): () 
 
 /** The world's sticks lying within `radius` of a point, less those taken up. */
 export function sticksAround(fetching: Fetching, x: number, z: number, radius: number): StickSpot[] {
-  return sticksNear(fetching.world, x, z, radius, fetching.stickChunk).filter((s) => !fetching.taken.has(s.id));
+  return sticksNear(fetching.world, x, z, radius, pitchedSite(fetching.companionship.hearth.camping), fetching.stickChunk).filter((s) => !fetching.taken.has(s.id));
 }
 
 /** The thrown sticks lying where Elliott could pick them up: down, and in no dog's jaws. */

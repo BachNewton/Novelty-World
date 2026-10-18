@@ -154,7 +154,7 @@ describe("mysteries in the world", () => {
   it("are told by people near enough to camp to meet, every clue lying on ground Elliott can stand on, by its person or their home", () => {
     // A world whose camp has all of them within a walk: fishers stand only by open water, which some camps have far off.
     const world = createWorld("elliott");
-    const camp = { cx: Math.floor(world.camp.x / PEOPLE_CELL), cz: Math.floor(world.camp.z / PEOPLE_CELL) };
+    const camp = { cx: Math.floor(world.home.x / PEOPLE_CELL), cz: Math.floor(world.home.z / PEOPLE_CELL) };
     const tellers = new Map<string, Person>();
     for (let r = 0; r <= 6 && tellers.size < MYSTERIES.length; r++) {
       for (let dz = -r; dz <= r; dz++) {

@@ -23,6 +23,8 @@ import { DRAWN_LARGER, type Companionship } from "./companionship";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { EYE_HEIGHT } from "./first-person-camera";
 import { catchUp, turnBetween } from "./follow-camera";
+import type { CampSite } from "../../gameplay/camp";
+import { pitchedSite, subscribeCamping } from "./camping";
 import type { Foraging } from "./foraging";
 import type { Hearth } from "./hearth";
 import { answerPeopleTaps, joinPeople, liveOf, offerablePerson, peopleAround, settlePeople, subscribePeople, weighPerson, type People, type PersonLive } from "./people";
@@ -115,11 +117,11 @@ function HomePet({ live, clock, atmosphere }: { live: PersonLive; clock: ValleyC
 const KEEPSAKE_STONE = { angle: 5.45, out: 3.0, length: 1.7 } as const;
 
 /** The keepsakes Elliott has been given, set out on a flat stone by the fire. */
-function CampKeepsakes({ keepsakes, world, palette, material }: { keepsakes: readonly Keepsake[]; world: World; palette: FolkPalette; material: Material }) {
-  const { camp } = world;
-  const along = KEEPSAKE_STONE.angle + Math.PI / 2;
-  const x = camp.x + Math.cos(KEEPSAKE_STONE.angle) * KEEPSAKE_STONE.out;
-  const z = camp.z + Math.sin(KEEPSAKE_STONE.angle) * KEEPSAKE_STONE.out;
+function CampKeepsakes({ keepsakes, world, camp, palette, material }: { keepsakes: readonly Keepsake[]; world: World; camp: CampSite; palette: FolkPalette; material: Material }) {
+  const angle = KEEPSAKE_STONE.angle + camp.turn;
+  const along = angle + Math.PI / 2;
+  const x = camp.x + Math.cos(angle) * KEEPSAKE_STONE.out;
+  const z = camp.z + Math.sin(angle) * KEEPSAKE_STONE.out;
   const y = world.heightAt(x, z);
   const stone = useMemo(() => {
     const slab = new BoxGeometry(KEEPSAKE_STONE.length, 0.14, 0.5, 3, 1, 2);
@@ -175,6 +177,9 @@ export function WorldPeople({
 }) {
   const subscribe = useCallback((listener: () => void) => subscribePeople(people, listener), [people]);
   const shown = useSyncExternalStore(subscribe, () => people.shown);
+  const subscribeCamp = useCallback((listener: () => void) => subscribeCamping(hearth.camping, listener), [hearth]);
+  // The keepsakes are packed up with camp, and set out again by its fire wherever it is pitched.
+  const camp = useSyncExternalStore(subscribeCamp, () => pitchedSite(hearth.camping));
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
   const material = useMemo(() => shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere), [atmosphere]);
@@ -224,7 +229,7 @@ export function WorldPeople({
   const homes = new Set(shown.memory.home);
   return (
     <>
-      <CampKeepsakes keepsakes={shown.memory.keepsakes} world={world} palette={palette} material={material} />
+      {camp && <CampKeepsakes keepsakes={shown.memory.keepsakes} world={world} camp={camp} palette={palette} material={material} />}
       {drawn.map((live) => (
         <group key={live.person.id}>
           <FolkFigure

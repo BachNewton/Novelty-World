@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type RefObject } from "react";
+import { useCallback, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { PerspectiveCamera, type Camera, type Object3D } from "three";
 import type { World } from "../../engine/world";
@@ -13,6 +13,7 @@ import { broomSway, eyePosition, EYE_HEIGHT, fieldOfView, headBob, landingDip, l
 import { catchUp, clampOrbit, eyeFor, LOOK_HEIGHT, turnBetween, type Orbit } from "./follow-camera";
 import type { Palette } from "../../art/palette";
 import { Witch, type WitchHandle } from "../../art/witch";
+import { carryingCamp, subscribeCamping, type Camping } from "./camping";
 
 /*
  * The walker and the camera: each frame, the input's move goes where the
@@ -236,15 +237,17 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
       camera.lookAt(0, 0, 0);
       return;
     case "aerial": {
-      const angle = Math.atan2(world.camp.z, world.camp.x) + Math.PI * 0.85;
+      const angle = Math.atan2(world.home.z, world.home.x) + Math.PI * 0.85;
       camera.position.set(Math.cos(angle) * 300, 210, Math.sin(angle) * 300);
-      camera.lookAt(world.camp.x * 0.5, 0, world.camp.z * 0.5);
+      camera.lookAt(world.home.x * 0.5, 0, world.home.z * 0.5);
     }
   }
 }
 
-export function WalkerAndCamera({ world, input, walker, focus, palette, atmosphere }: { world: World; input: RefObject<WalkState>; walker: Walker; focus: Focus; palette: Palette; atmosphere: AtmosphereUniforms }) {
+export function WalkerAndCamera({ world, camping, input, walker, focus, palette, atmosphere }: { world: World; camping: Camping; input: RefObject<WalkState>; walker: Walker; focus: Focus; palette: Palette; atmosphere: AtmosphereUniforms }) {
   const witch = useRef<WitchHandle>(null);
+  const subscribe = useCallback((listener: () => void) => subscribeCamping(camping, listener), [camping]);
+  const carrying = useSyncExternalStore(subscribe, () => carryingCamp(camping));
   const followed = useRef<Followed>({
     x: walker.x,
     y: world.heightAt(walker.x, walker.z) + LOOK_HEIGHT,
@@ -263,5 +266,5 @@ export function WalkerAndCamera({ world, input, walker, focus, palette, atmosphe
     stepWalker({ world, input: input.current, walker, focus }, witch.current, camera, followed.current, motion.current, delta);
   }, WALKER_PRIORITY);
 
-  return <Witch ref={witch} palette={palette} atmosphere={atmosphere} />;
+  return <Witch ref={witch} palette={palette} atmosphere={atmosphere} carryingCamp={carrying} />;
 }

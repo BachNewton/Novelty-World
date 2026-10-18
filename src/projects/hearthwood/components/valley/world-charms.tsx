@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Vector3 } from "three";
 import { createRng, uniform } from "@/shared/lib/seeded-random";
@@ -13,6 +13,8 @@ import { BLOOM_KINDS, CampBlooms, CharmPost, HushMotes, type BloomSpot } from ".
 import { Fireflies } from "../../art/fireflies";
 import type { Palette } from "../../art/palette";
 import type { SkyUniforms } from "../../art/sky/sky";
+import type { CampSite } from "../../gameplay/camp";
+import { pitchedSite, subscribeCamping } from "./camping";
 import type { ValleyClock } from "./clock";
 import type { Hearth } from "./hearth";
 import type { Walker } from "./walker";
@@ -43,8 +45,7 @@ const CAMP_THINGS = [
 /** Where the charm post stands from the fire, in metres, and the heading it is turned to. */
 const POST = { x: 1.05, z: -1.25, turn: 0.7 } as const;
 
-function bloomSpots(world: World): BloomSpot[] {
-  const { camp } = world;
+function bloomSpots(world: World, camp: CampSite): BloomSpot[] {
   const rng = createRng(`${world.seed}/blooms`);
   const spots: BloomSpot[] = [];
   const clusters = 18;
@@ -60,7 +61,7 @@ function bloomSpots(world: World): BloomSpot[] {
       // Now and then one of another colour in among them.
       const mixed = rng.next() < 0.2 ? BLOOM_KINDS[Math.floor(rng.next() * BLOOM_KINDS.length)] : kind;
       if (r < BLOOM_RING.inner) continue;
-      const inTheWay = CAMP_THINGS.some((t) => Math.abs(Math.atan2(Math.sin(a - t.angle), Math.cos(a - t.angle))) < 0.45 && r > t.from && r < t.to);
+      const inTheWay = CAMP_THINGS.some((t) => Math.abs(Math.atan2(Math.sin(a - t.angle - camp.turn), Math.cos(a - t.angle - camp.turn))) < 0.45 && r > t.from && r < t.to);
       if (inTheWay) continue;
       const x = camp.x + Math.cos(a) * r;
       const z = camp.z + Math.sin(a) * r;
@@ -70,8 +71,7 @@ function bloomSpots(world: World): BloomSpot[] {
   return spots;
 }
 
-function fireflySpots(world: World): Float32Array {
-  const { camp } = world;
+function fireflySpots(world: World, camp: CampSite): Float32Array {
   const rng = createRng(`${world.seed}/lantern`);
   const count = 200;
   const out = new Float32Array(count * 3);
@@ -112,11 +112,21 @@ export function WorldCharms({
   atmosphere: AtmosphereUniforms;
   sky: SkyUniforms;
 }) {
-  const blooms = useMemo(() => bloomSpots(world), [world]);
-  const lantern = useMemo(() => fireflySpots(world), [world]);
+  const subscribeCamp = useCallback((listener: () => void) => subscribeCamping(hearth.camping, listener), [hearth]);
+  const camp = useSyncExternalStore(subscribeCamp, () => pitchedSite(hearth.camping));
+  const blooms = useMemo(() => (camp ? bloomSpots(world, camp) : []), [world, camp]);
+  const lantern = useMemo(() => (camp ? fireflySpots(world, camp) : new Float32Array(0)), [world, camp]);
   const strengths = useRef<Record<Charm, number>>({ bloom: 0, fireflies: 0, hush: 0, clearing: 0 });
   const feet = useMemo(() => new Vector3(), []);
-  const post = useMemo(() => ({ x: world.camp.x + POST.x, y: world.heightAt(world.camp.x + POST.x, world.camp.z + POST.z), z: world.camp.z + POST.z }), [world]);
+  const post = useMemo(() => {
+    if (!camp) return null;
+    // The post's place turned with the camp: its things turn round the fire from +x towards +z.
+    const c = Math.cos(camp.turn);
+    const s = Math.sin(camp.turn);
+    const x = camp.x + POST.x * c - POST.z * s;
+    const z = camp.z + POST.x * s + POST.z * c;
+    return { x, y: world.heightAt(x, z), z, turn: POST.turn - camp.turn };
+  }, [world, camp]);
 
   // The fireflies are mounted only while the lantern charm works; the rest draw nothing while their charm is idle.
   const [lanternTonight, setLanternTonight] = useState(false);
@@ -133,10 +143,10 @@ export function WorldCharms({
 
   return (
     <>
-      <CampBlooms spots={blooms} strength={() => strengths.current.bloom} palette={brewPalette} atmosphere={atmosphere} />
-      <CharmPost at={post} turn={POST.turn} strengths={() => strengths.current} palette={brewPalette} atmosphere={atmosphere} />
+      <CampBlooms key={camp ? `${camp.x},${camp.z}` : "carried"} spots={blooms} strength={() => strengths.current.bloom} palette={brewPalette} atmosphere={atmosphere} />
+      {post && <CharmPost at={post} turn={post.turn} strengths={() => strengths.current} palette={brewPalette} atmosphere={atmosphere} />}
       <HushMotes follow={() => feet.set(walker.x, walker.air?.y ?? world.heightAt(walker.x, walker.z), walker.z)} strength={() => strengths.current.hush} palette={brewPalette} atmosphere={atmosphere} />
-      {lanternTonight && <Fireflies spots={lantern} palette={palette} atmosphere={atmosphere} sky={sky} />}
+      {lanternTonight && camp && <Fireflies spots={lantern} palette={palette} atmosphere={atmosphere} sky={sky} />}
     </>
   );
 }

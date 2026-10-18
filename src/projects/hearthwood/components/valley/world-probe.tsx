@@ -36,6 +36,9 @@ import { peopleProbe, type PeopleProbe } from "./people-probe";
 import { brewingProbe, type BrewingProbe } from "./brewing-probe";
 import type { Mysteries } from "./mysteries";
 import { mysteriesProbe, type MysteriesProbe } from "./mysteries-probe";
+import { campingProbe, type CampingProbe } from "./camp-probe";
+import { restingSite } from "./camping";
+import { pitchGround } from "./world-camp";
 
 /*
  * The world's handle for screenshots and tests, on `window.__hearthwoodWorld`:
@@ -50,7 +53,7 @@ import { mysteriesProbe, type MysteriesProbe } from "./mysteries-probe";
  * winning, petting and treating one, the naming card, the companions' row, and whether
  * the animals have settled into their poses; and cooking: whether the fire is offered,
  * sitting down, choosing, cooking (held part-cooked if asked), the dish served, the
- * recipe book, the larder, and dishes or forage put in the basket; brewing (see brewing-probe.ts); and the people (see people-probe.ts) and their mysteries (mysteries-probe.ts). Waiting on these is waiting on
+ * recipe book, the larder, and dishes or forage put in the basket; camp (see camp-probe.ts); brewing (see brewing-probe.ts); and the people (see people-probe.ts) and their mysteries (mysteries-probe.ts). Waiting on these is waiting on
  * events, never on time.
  */
 
@@ -134,7 +137,9 @@ export interface WorldProbe {
   gpuCosts: () => Record<string, number> | null;
   /** Where the camera is and the orbit it is on. */
   camera: () => { x: number; y: number; z: number; orbit: Orbit };
+  /** Where camp's fire is, or where camp was packed up from while it is carried. */
   camp: () => { x: number; z: number };
+  camping: CampingProbe;
   /** The places near a point; a cascade says where its foot is, and a tarn how wide it is. */
   placesNear: (x: number, z: number, radius: number) => { kind: string; x: number; z: number; y: number; turn: number; foot: { x: number; z: number } | null; radius: number | null }[];
   /** The land at a point: its height, water, river, and its main region with every region's share. */
@@ -264,7 +269,7 @@ const KEPT_FRAME_TIMES = 120;
 const RELIEF_TOP = 2600;
 const FREE_CAMERA_PRIORITY = -2;
 
-function drawMap(world: World, palette: Palette, { x, z, size, pixels, places = false, relief = false }: MapRequest): string {
+function drawMap(world: World, camp: { x: number; z: number }, palette: Palette, { x, z, size, pixels, places = false, relief = false }: MapRequest): string {
   const canvas = document.createElement("canvas");
   canvas.width = pixels;
   canvas.height = pixels;
@@ -321,7 +326,7 @@ function drawMap(world: World, palette: Palette, { x, z, size, pixels, places = 
   };
   if (places) {
     for (const place of world.placesNear(x, z, size * 0.71)) mark(place.x, place.z, place.kind === "waterfall" ? "#7fd8ff" : "#ffe9a0", 3);
-    mark(world.camp.x, world.camp.z, "#ff5a2a", 5);
+    mark(camp.x, camp.z, "#ff5a2a", 5);
   }
   return canvas.toDataURL("image/png");
 }
@@ -453,7 +458,11 @@ export function WorldProbeHandle({
       },
       gpuCosts: () => (costs.available ? costs.lastReadings() : null),
       camera: () => ({ x: camera.position.x, y: camera.position.y, z: camera.position.z, orbit: walker.orbit }),
-      camp: () => ({ x: world.camp.x, z: world.camp.z }),
+      camp: () => {
+        const site = restingSite(hearth.camping);
+        return { x: site.x, z: site.z };
+      },
+      camping: campingProbe(hearth.camping, hearth, world, pitchGround(world, foraging, people)),
       placesNear: (x, z, radius) =>
         world.placesNear(x, z, radius).map((p) => ({
           kind: p.kind,
@@ -477,7 +486,7 @@ export function WorldProbeHandle({
           regions: Object.fromEntries(REGIONS.map((r, i) => [r, weights[i]])),
         };
       },
-      map: (request) => drawMap(world, palette, request),
+      map: (request) => drawMap(world, restingSite(hearth.camping), palette, request),
       forage: {
         setDayOfYear: (day) => {
           goToDayOfYear(clock, day);

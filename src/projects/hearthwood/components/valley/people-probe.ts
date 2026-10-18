@@ -1,7 +1,7 @@
 import { PEOPLE_CELL, peopleInCell, type Person, type Role } from "../../engine/people";
 import type { FolkMemory } from "../../gameplay/conversation";
-import { TONES, type Tone } from "../../stories/story";
-import { chooseTone, forgetPeople, goOn, leaveTalk, liveOf, peopleAround, setJournalOpen, talkWith, type People } from "./people";
+import { KEEPSAKES, TONES, type Keepsake, type Tone } from "../../stories/story";
+import { chooseTone, forgetPeople, goOn, leaveTalk, liveOf, peopleAround, setJournalOpen, stockKeepsake, talkWith, type People } from "./people";
 
 /*
  * The people's part of the world's probe (`window.__hearthwoodWorld.people`),
@@ -38,6 +38,8 @@ export interface PeopleProbe {
   leave: () => void;
   setJournalOpen: (open: boolean) => void;
   memory: () => FolkMemory;
+  /** Sets a keepsake out at camp as if it had been given. */
+  keepsake: (keepsake: string) => void;
   forget: () => void;
 }
 
@@ -122,6 +124,10 @@ export function peopleProbe(people: People): PeopleProbe {
       setJournalOpen(people, open);
     },
     memory: () => JSON.parse(JSON.stringify(people.shown.memory)) as FolkMemory,
+    keepsake: (keepsake) => {
+      if (!(KEEPSAKES as readonly string[]).includes(keepsake)) throw new Error(`${keepsake} is no keepsake`);
+      stockKeepsake(people, keepsake as Keepsake);
+    },
     forget: () => {
       forgetPeople(people);
     },

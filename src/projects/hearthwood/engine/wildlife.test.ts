@@ -4,7 +4,7 @@ import { birdsAbout, butterfliesAbout, butterfliesIn, coatSeason, deerAbroad, FR
 import { createWorld } from "./world";
 
 const world = createWorld("first-valley");
-const campCell = { cx: Math.floor(world.camp.x / FRIEND_CELL), cz: Math.floor(world.camp.z / FRIEND_CELL) };
+const campCell = { cx: Math.floor(world.home.x / FRIEND_CELL), cz: Math.floor(world.home.z / FRIEND_CELL) };
 const cells: { cx: number; cz: number; friends: Friend[] }[] = [];
 for (let dz = -5; dz <= 5; dz++) for (let dx = -5; dx <= 5; dx++) cells.push({ cx: campCell.cx + dx, cz: campCell.cz + dz, friends: friendsInCell(world, campCell.cx + dx, campCell.cz + dz) });
 const all = cells.flatMap((c) => c.friends);
@@ -41,8 +41,8 @@ describe("the forest friends by area", () => {
   });
 
   it("near a point are those whose homes lie within the radius", () => {
-    const near = friendsNear(world, world.camp.x, world.camp.z, 250);
-    for (const friend of near) expect(Math.hypot(friend.home.x - world.camp.x, friend.home.z - world.camp.z)).toBeLessThanOrEqual(250);
+    const near = friendsNear(world, world.home.x, world.home.z, 250);
+    for (const friend of near) expect(Math.hypot(friend.home.x - world.home.x, friend.home.z - world.home.z)).toBeLessThanOrEqual(250);
   });
 });
 
@@ -78,7 +78,7 @@ describe("the wild animals' year and day", () => {
 });
 
 describe("the songbirds and butterflies of a chunk", () => {
-  const chunk = { x: Math.floor(world.camp.x / 64) + 1, z: Math.floor(world.camp.z / 64) };
+  const chunk = { x: Math.floor(world.home.x / 64) + 1, z: Math.floor(world.home.z / 64) };
   const perches = Array.from({ length: 9 }, (_, i) => perchesIn(world, chunk.x + (i % 3) - 1, chunk.z + Math.floor(i / 3) - 1)).flat();
 
   it("perch on rocks, bushes and twigs out from the crowns, with ground beside them above the water", () => {

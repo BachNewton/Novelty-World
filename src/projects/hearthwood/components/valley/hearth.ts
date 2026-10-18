@@ -1,4 +1,3 @@
-import type { World } from "../../engine/world";
 import {
   addDish,
   beginSession,
@@ -39,6 +38,7 @@ import {
   type Satchel,
 } from "../../gameplay/brewing";
 import type { BrewForm, BrewId, BrewIngredient, Charm } from "../../gameplay/brews";
+import { packUpCamp, pitchedSite, type Camping } from "./camping";
 import { takeIngredients, type Foraging } from "./foraging";
 
 /*
@@ -81,7 +81,8 @@ export interface HearthShown {
 }
 
 export interface Hearth {
-  camp: { x: number; y: number; z: number };
+  /** Where camp is, and so the fire, or that it is carried. */
+  camping: Camping;
   foraging: Foraging;
   /** How strongly the fire is offered this frame, before forage and the animals have their say, or null where it isn't. */
   candidate: number | null;
@@ -97,9 +98,9 @@ export interface Hearth {
   listeners: Set<() => void>;
 }
 
-export function createHearth(world: World, foraging: Foraging): Hearth {
+export function createHearth(camping: Camping, foraging: Foraging): Hearth {
   return {
-    camp: world.camp,
+    camping,
     foraging,
     candidate: null,
     time: 0,
@@ -128,9 +129,10 @@ export function answerFireTaps(hearth: Hearth, tapAt: Hearth["tapAt"]): void {
   hearth.tapAt = tapAt;
 }
 
-/** The fire as something offered, like a berry or a cat: aimed at over its flames, reached from a few steps off. */
-export function offerableFire(hearth: Hearth): Offerable {
-  const { camp } = hearth;
+/** The fire as something offered, like a berry or a cat: aimed at over its flames, reached from a few steps off; nothing while camp is carried. */
+export function offerableFire(hearth: Hearth): Offerable | null {
+  const camp = pitchedSite(hearth.camping);
+  if (camp === null) return null;
   return { heart: { x: camp.x, y: camp.y + 0.55, z: camp.z }, spread: 0.75, reach: { first: 4.2, third: 3.4 } };
 }
 
@@ -149,6 +151,13 @@ export function openCooking(hearth: Hearth): void {
 /** Gets up from the fire; a dish still cooking or a brew still brewing is made already, so it is never lost. */
 export function closeCooking(hearth: Hearth): void {
   show(hearth, { session: null, brewing: null, book: false });
+}
+
+/** Gets up from the fire and packs camp up, to pitch it somewhere new; never while something is over the flames. */
+export function packUpFromTheFire(hearth: Hearth): void {
+  if (busyAtTheFire(hearth)) return;
+  closeCooking(hearth);
+  packUpCamp(hearth.camping);
 }
 
 /** Whether the turn at the fire is busy over the flames, cooking or brewing, so the craft can't change. */

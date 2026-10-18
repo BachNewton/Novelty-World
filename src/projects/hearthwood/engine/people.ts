@@ -89,7 +89,7 @@ export const PLACE_PEOPLE: Partial<Record<PlaceKind, Role>> = { seter: "shepherd
 export const GROUND_ROLES: readonly Role[] = ["fisher", "sauna-keeper", "herder", "beekeeper", "cottager", "hiker"];
 
 /** What finding people asks of the world. */
-export type PeopleGround = Pick<World, "seed" | "camp" | "sampleAt" | "regionAt" | "woodlandAt" | "placeIn" | "plantsIn">;
+export type PeopleGround = Pick<World, "seed" | "home" | "sampleAt" | "regionAt" | "woodlandAt" | "placeIn" | "plantsIn">;
 
 export const PEOPLE_CELL = PLACE_CELL;
 /** How far from their own cell's people anything a cell places can be (a note's friend, camp's neighbour), in metres. */
@@ -199,7 +199,7 @@ function buildable(ground: PeopleGround, x: number, z: number, radius: number): 
 
 /** Whether a spot keeps clear of camp and of its cell's place. */
 function apart(ground: PeopleGround, x: number, z: number, place: Place | null): boolean {
-  if (Math.hypot(x - ground.camp.x, z - ground.camp.z) < ground.camp.clearing + 22) return false;
+  if (Math.hypot(x - ground.home.x, z - ground.home.z) < ground.home.clearing + 22) return false;
   return place === null || Math.hypot(x - place.x, z - place.z) > place.clearing + place.blend + 6;
 }
 
@@ -518,7 +518,7 @@ function giverAndPartner(ground: PeopleGround, rng: Rng, cellX: number, cellZ: n
 
 /** Camp's neighbour: a cottager a short walk from the fire, at a cottage on open, gentle ground, carrying the first story. */
 function neighbour(ground: PeopleGround, rng: Rng, cellX: number, cellZ: number): Person | null {
-  const { camp } = ground;
+  const { home: camp } = ground;
   let best: { spot: Spot; score: number } | null = null;
   for (let k = 0; k < 36; k++) {
     const angle = rng.next() * Math.PI * 2;
@@ -542,7 +542,7 @@ function neighbour(ground: PeopleGround, rng: Rng, cellX: number, cellZ: number)
 /** The people of one cell: nobody, someone, or (for a note's giver) someone and the friend they write to. */
 export function peopleInCell(ground: PeopleGround, cellX: number, cellZ: number): Person[] {
   const rng = createRng(`${ground.seed}/people/${cellX},${cellZ}`);
-  const { camp } = ground;
+  const { home: camp } = ground;
   if (Math.floor(camp.x / PEOPLE_CELL) === cellX && Math.floor(camp.z / PEOPLE_CELL) === cellZ) {
     const first = neighbour(ground, rng, cellX, cellZ);
     return first ? [first] : [];
@@ -596,7 +596,7 @@ export function peopleInCell(ground: PeopleGround, cellX: number, cellZ: number)
 export function peopleNear(ground: PeopleGround, x: number, z: number, radius: number, inCell: (cellX: number, cellZ: number) => Person[] = (cx, cz) => peopleInCell(ground, cx, cz)): Person[] {
   const out: Person[] = [];
   const reach = radius + PEOPLE_REACH;
-  const campCell = { x: Math.floor(ground.camp.x / PEOPLE_CELL), z: Math.floor(ground.camp.z / PEOPLE_CELL) };
+  const campCell = { x: Math.floor(ground.home.x / PEOPLE_CELL), z: Math.floor(ground.home.z / PEOPLE_CELL) };
   for (let cz = Math.floor((z - reach) / PEOPLE_CELL); cz <= Math.floor((z + reach) / PEOPLE_CELL); cz++) {
     for (let cx = Math.floor((x - reach) / PEOPLE_CELL); cx <= Math.floor((x + reach) / PEOPLE_CELL); cx++) {
       const own = cx >= Math.floor((x - radius) / PEOPLE_CELL) && cx <= Math.floor((x + radius) / PEOPLE_CELL) && cz >= Math.floor((z - radius) / PEOPLE_CELL) && cz <= Math.floor((z + radius) / PEOPLE_CELL);

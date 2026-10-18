@@ -13,6 +13,7 @@ import { HearthBrewing, type BrewingDrive } from "../../art/hearth-brewing";
 import { underFullMoon } from "../../gameplay/brewing";
 import type { ValleyClock } from "./clock";
 import { cameraPose, ease, easeBack, place, takeOver, type CameraPose } from "./camera-ease";
+import { pitchedSite, subscribeCamping } from "./camping";
 import type { Companionship } from "./companionship";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { catchUp, turnBetween } from "./follow-camera";
@@ -72,6 +73,8 @@ export function WorldHearth({
 }) {
   const subscribe = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
   const shown = useSyncExternalStore(subscribe, () => hearth.shown);
+  const subscribeCamp = useCallback((listener: () => void) => subscribeCamping(hearth.camping, listener), [hearth]);
+  const site = useSyncExternalStore(subscribeCamp, () => pitchedSite(hearth.camping));
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
   const drive = useRef<CookingDrive>({ heat: 0, served: null });
@@ -86,7 +89,9 @@ export function WorldHearth({
 
   useEffect(() => {
     answerFireTaps(hearth, (x, y) => {
-      const { heart } = offerableFire(hearth);
+      const fire = offerableFire(hearth);
+      if (fire === null) return false;
+      const { heart } = fire;
       if (Math.hypot(heart.x - walker.x, heart.z - walker.z) > TAP_REACH) return false;
       const rect = canvas.getBoundingClientRect();
       projected.set(heart.x, heart.y, heart.z).project(camera);
@@ -112,10 +117,11 @@ export function WorldHearth({
 
   const session = shown.session;
   const brewing = shown.brewing;
+  if (!site) return null;
   if (session && shown.craft === "brew" && brewing) {
     return (
       <HearthBrewing
-        at={hearth.camp}
+        at={site}
         side={side}
         ingredients={brewing.chosen}
         brew={brewing.phase === "choosing" ? null : brewing.brew}
@@ -128,7 +134,7 @@ export function WorldHearth({
   }
   return (
     <HearthCooking
-      at={hearth.camp}
+      at={site}
       side={side}
       cookware={session?.cookware ?? null}
       ingredients={session?.chosen ?? []}
@@ -165,11 +171,12 @@ function frameHearth({ hearth, companionship, walker, input, pose, drive, brewDr
 
   const viewer: Viewer | null =
     walker.view !== "walk" ? null : input.pointOfView === "first" ? { pointOfView: "first", eye: eye.position, look: eye.getWorldDirection(new Vector3()) } : { pointOfView: "third", x: walker.x, z: walker.z, heading: walker.heading };
-  hearth.candidate = viewer && companionship.shown.naming === null ? offerScore(viewer, offerableFire(hearth)) : null;
+  const offerable = offerableFire(hearth);
+  hearth.candidate = viewer && offerable && companionship.shown.naming === null ? offerScore(viewer, offerable) : null;
 
   // Sitting down and getting up.
-  const fire = hearth.camp;
-  if (session && walker.view === "walk") {
+  const fire = pitchedSite(hearth.camping);
+  if (session && walker.view === "walk" && fire) {
     walker.view = "hearth";
     side.current = sideOf(fire, walker);
     onSit(side.current);
@@ -178,7 +185,7 @@ function frameHearth({ hearth, companionship, walker, input, pose, drive, brewDr
   if (!session && walker.view === "hearth") walker.view = "walk";
 
   const k = catchUp(EASE, seconds);
-  if (walker.view === "hearth") {
+  if (walker.view === "hearth" && fire) {
     // Turned to the fire, looking down at it, so getting up they face it in either view.
     const facing = towardFire(side.current);
     const turn = catchUp(TURN, seconds);

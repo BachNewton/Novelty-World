@@ -30,7 +30,7 @@ import type { Taking } from "../../gameplay/help";
 import type { Offerable } from "../../gameplay/offering";
 import { isDish, recipeOf, type Food } from "../../gameplay/recipes";
 import { storyOf } from "../../stories/library";
-import type { Gift, Page, Tone } from "../../stories/story";
+import type { Gift, Keepsake, Page, Tone } from "../../stories/story";
 import { folkFrame, folkLook, type FolkLook } from "../../art/folk";
 import { catPortrait, dogPortrait, type Portrait } from "../../art/portrait";
 import { dishName } from "./cooking-icons";
@@ -409,6 +409,14 @@ export function leaveTalk(people: People): void {
 
 export function setJournalOpen(people: People, open: boolean): void {
   show(people, { journal: open });
+}
+
+/** Sets a keepsake out at camp as if it had been given: for screenshots and tests. */
+export function stockKeepsake(people: People, keepsake: Keepsake): void {
+  if (people.shown.memory.keepsakes.includes(keepsake)) return;
+  const memory = { ...people.shown.memory, keepsakes: [...people.shown.memory.keepsakes, keepsake] };
+  saveFolk(memory);
+  show(people, { memory });
 }
 
 /** Forgets everyone Elliott has met and everything given, here and on the device. */

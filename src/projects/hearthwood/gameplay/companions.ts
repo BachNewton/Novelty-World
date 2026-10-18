@@ -60,15 +60,17 @@ export interface FollowMind {
   picks: number;
 }
 
-/** Where the campfire is, for settling round it. */
+/** Where the campfire is, and how camp's things are turned round it, for settling round it. */
 export interface Hearth {
   x: number;
   z: number;
+  turn: number;
 }
 
 export interface FollowContext {
   leader: Leader;
-  hearth: Hearth;
+  /** The campfire, or null while camp is carried. */
+  hearth: Hearth | null;
   /** Its place among the companions following, for its side and its spot by the fire. */
   index: number;
   count: number;
@@ -108,7 +110,7 @@ function sideOf(index: number): number {
 
 /** Its spot by the fire: round the far side from where the seats are, each its own. */
 export function firesideSpot(hearth: Hearth, index: number, count: number): { x: number; z: number; face: number } {
-  const angle = Math.PI * 0.35 + (index + 0.5) * ((Math.PI * 1.3) / Math.max(count, 3));
+  const angle = hearth.turn + Math.PI * 0.35 + (index + 0.5) * ((Math.PI * 1.3) / Math.max(count, 3));
   const x = hearth.x + Math.cos(angle) * FIRESIDE;
   const z = hearth.z + Math.sin(angle) * FIRESIDE;
   return { x, z, face: Math.atan2(hearth.x - x, hearth.z - z) };
@@ -197,8 +199,8 @@ export function stepCompanion(body: Body, mind: FollowMind, nature: Nature<Speci
     }
   } else {
     mind.nosing = null;
-    const byFire = Math.hypot(leader.x - hearth.x, leader.z - hearth.z) < BY_THE_FIRE;
-    if (byFire && mind.still > SETTLE.sit) {
+    const byFire = hearth !== null && Math.hypot(leader.x - hearth.x, leader.z - hearth.z) < BY_THE_FIRE;
+    if (hearth !== null && byFire && mind.still > SETTLE.sit) {
       const spot = firesideSpot(hearth, index, count);
       const there = Math.hypot(body.x - spot.x, body.z - spot.z) < 0.5;
       aim = there ? { stay: mind.still > SETTLE.sit + 4 ? "lie" : "sit", face: spot.face } : { go: spot, pace: 1.4 + 1.6 * Math.min(1, Math.hypot(body.x - spot.x, body.z - spot.z) / 6), arrive: 0.3 };

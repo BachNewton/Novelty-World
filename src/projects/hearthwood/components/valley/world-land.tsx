@@ -9,10 +9,11 @@ import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { Palette } from "../../art/palette";
 import type { SkyUniforms } from "../../art/sky/sky";
-import { terrainGeometry, terrainMaterial, type Morph } from "../../art/terrain";
+import { moveTerrainFire, terrainGeometry, terrainMaterial, type Morph } from "../../art/terrain";
 import { farWaterMaterial } from "../../art/water/far-water";
 import { waterGeometry, waterMaterial, waterMesh } from "../../art/water/water";
 import type { Quality } from "../../quality";
+import { pitchedSite, subscribeCamping, type Camping } from "./camping";
 import { useFeature } from "./feature-renderer";
 import { landWorkers, type LandWorkers } from "./land-workers";
 
@@ -78,16 +79,24 @@ function morphFor(level: number, quality: Quality): Morph {
   return { start: swap * 0.62, end: swap * 0.92 };
 }
 
-export function WorldLand({ world, palette, atmosphere, sky, quality, streaming }: { world: World; palette: Palette; atmosphere: AtmosphereUniforms; sky: SkyUniforms; quality: Quality; streaming: Streaming }) {
+export function WorldLand({ world, camping, palette, atmosphere, sky, quality, streaming }: { world: World; camping: Camping; palette: Palette; atmosphere: AtmosphereUniforms; sky: SkyUniforms; quality: Quality; streaming: Streaming }) {
   const group = useMemo(() => new Group(), []);
   const materials = useMemo(
     () => ({
-      land: terrainMaterial(atmosphere, palette, world.camp, quality.trees.far),
+      land: terrainMaterial(atmosphere, palette, null, quality.trees.far),
       water: waterMaterial(palette, atmosphere, sky),
       farWater: farWaterMaterial(palette, atmosphere, sky),
     }),
-    [world, palette, atmosphere, sky, quality],
+    [palette, atmosphere, sky, quality],
   );
+  // The worn ground round the fire goes where camp is pitched.
+  useEffect(() => {
+    const move = () => {
+      moveTerrainFire(materials.land, pitchedSite(camping));
+    };
+    move();
+    return subscribeCamping(camping, move);
+  }, [camping, materials]);
   const farWater = useFeature("farWater");
   const state = useRef<State>({ built: new Map(), arrived: [], asked: new Set(), shown: new Set(), retired: [], farWater, wanted: [], pending: [], from: null });
   const workers = useRef<LandWorkers | null>(null);
