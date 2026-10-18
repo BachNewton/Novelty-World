@@ -27,6 +27,8 @@ import type { Streaming } from "./world-land";
 import type { WeatherKind } from "../../engine/weather";
 import type { SceneWeather } from "./world-weather";
 import type { WeatherNow } from "../../art/weather/now";
+import { fetchProbe, type FetchProbe } from "./fetch-probe";
+import type { Fetching } from "./fetching";
 import { anotherName, companionOf, forgetFriends, friendsAround, knowFriend, keepName, petAnimal, setCompanionsOpen, straysAround, treatAnimal, winStray, type Companionship } from "./companionship";
 import { walk as walkOn } from "../../gameplay/walking";
 import type { People } from "./people";
@@ -203,6 +205,8 @@ export interface CompanionsProbe {
   settled: (seconds: number, key?: string) => boolean;
   /** Forgets every companion and every stray's warmth. */
   forget: () => void;
+  /** Fetch: the sticks, throwing them, and the dogs at play. */
+  fetch: FetchProbe;
 }
 
 export interface ForageProbe {
@@ -330,6 +334,7 @@ export function WorldProbeHandle({
   hearth,
   wildlife,
   people,
+  fetching,
   costs,
   setPointOfView,
 }: {
@@ -345,6 +350,7 @@ export function WorldProbeHandle({
   hearth: Hearth;
   wildlife: Wildlife;
   people: People;
+  fetching: Fetching;
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
@@ -632,6 +638,7 @@ export function WorldProbeHandle({
         forget: () => {
           forgetFriends(companionship);
         },
+        fetch: fetchProbe(fetching),
       },
     };
     return () => {
@@ -639,7 +646,7 @@ export function WorldProbeHandle({
       stopWatching?.();
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, wildlife, people, costs, setPointOfView]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, wildlife, people, fetching, costs, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;

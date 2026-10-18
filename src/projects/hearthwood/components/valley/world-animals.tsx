@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -237,6 +238,7 @@ export function stepAnimals(
     left -= dt;
     companionship.time += dt;
     const time = companionship.time;
+    companionship.play?.step(time, dt);
     for (const animal of all) {
       const ground = animalGround(world, animal.species);
       const obstacles: Obstacle[] = [
@@ -284,6 +286,8 @@ export function stepAnimals(
           obstacles,
           dt,
         );
+      } else if (companionship.play?.animal(animal, { elliott, time, seconds: dt, ground, obstacles })) {
+        // At play: the game steps it.
       } else if (animal.friend) {
         warmByPatience(companionship, animal, d, elliott.calm && !aloft, dt);
         stepFriend(
@@ -431,12 +435,12 @@ function findCandidate(
 }
 
 /** An animal's body for its kind, driven from the scene. */
-function LookBody({ look, clock, atmosphere }: { look: AnimalLook; clock: () => number; atmosphere: AtmosphereUniforms }) {
+function LookBody({ look, clock, atmosphere, held }: { look: AnimalLook; clock: () => number; atmosphere: AtmosphereUniforms; held?: ReactNode }) {
   switch (look.species) {
     case "cat":
       return <CatBody cat={look.cat} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
     case "dog":
-      return <DogBody dog={look.dog} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
+      return <DogBody dog={look.dog} activity={look.drive.current.activity} drive={look.drive} play={look.play.read} held={held === undefined ? undefined : { bone: "jaw", children: held }} clock={clock} atmosphere={atmosphere} />;
     case "fox":
       return <FoxBody fox={look.fox} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
     case "hedgehog":
@@ -455,11 +459,13 @@ function AnimalView({
   clock,
   atmosphere,
   register,
+  held,
 }: {
   animal: Animal;
   clock: ValleyClock;
   atmosphere: AtmosphereUniforms;
   register: (key: string, group: Group | null) => void;
+  held?: (key: string) => ReactNode;
 }) {
   const offset = useMemo(
     () => (animal.nature.seed % 1000) / 37,
@@ -474,7 +480,7 @@ function AnimalView({
       }}
     >
       <group scale={DRAWN_LARGER}>
-        <LookBody look={look} clock={time} atmosphere={atmosphere} />
+        <LookBody look={look} clock={time} atmosphere={atmosphere} held={look.species === "dog" ? held?.(animal.key) : undefined} />
       </group>
     </group>
   );
@@ -765,6 +771,8 @@ export function WorldAnimals({
   input,
   foraging,
   atmosphere,
+  held,
+  outbid,
 }: {
   companionship: Companionship;
   world: World;
@@ -773,6 +781,10 @@ export function WorldAnimals({
   input: RefObject<WalkState>;
   foraging: Foraging;
   atmosphere: AtmosphereUniforms;
+  /** What a dog holds in its jaws at play, given its key: drawn from its jaw. */
+  held?: (key: string) => ReactNode;
+  /** Whether something else not yet weighed against the animals (a stick) is offered more strongly this frame. */
+  outbid?: () => boolean;
 }) {
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
@@ -807,7 +819,7 @@ export function WorldAnimals({
 
   // After the frame: forage has offered or not, so the animal's offer is settled; the names and hearts move over their animals.
   useFrame(({ camera: eye, size }) => {
-    settleOffer(companionship, foraging.target !== null);
+    settleOffer(companionship, foraging.target !== null || (outbid?.() ?? false));
     placeOverlay(companionship, eye, size);
   }, AFTER_RENDER_PRIORITY);
 
@@ -827,6 +839,7 @@ export function WorldAnimals({
           clock={clock}
           atmosphere={atmosphere}
           register={register}
+          held={held}
         />
       ))}
     </>

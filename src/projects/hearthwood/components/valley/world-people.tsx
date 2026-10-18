@@ -158,6 +158,7 @@ export function WorldPeople({
   hearth,
   palette,
   atmosphere,
+  outbid,
 }: {
   people: People;
   world: World;
@@ -169,6 +170,8 @@ export function WorldPeople({
   hearth: Hearth;
   palette: FolkPalette;
   atmosphere: AtmosphereUniforms;
+  /** Whether something else weighed after the people (a stick) is offered more strongly this frame. */
+  outbid?: () => boolean;
 }) {
   const subscribe = useCallback((listener: () => void) => subscribePeople(people, listener), [people]);
   const shown = useSyncExternalStore(subscribe, () => people.shown);
@@ -213,7 +216,7 @@ export function WorldPeople({
 
   // After the frame: an animal or forage offered beats a person, as each had to beat them.
   useFrame(() => {
-    settlePeople(people, foraging.target !== null || companionship.candidate !== null);
+    settlePeople(people, foraging.target !== null || companionship.candidate !== null || (outbid?.() ?? false));
   }, AFTER_RENDER_PRIORITY);
 
   const homes = new Set(shown.memory.home);

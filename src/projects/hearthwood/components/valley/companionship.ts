@@ -2,8 +2,10 @@ import { SPECIES, straysInCell, straysNear, type Species, type Stray } from "../
 import { coatSeason, deerAbroad, friendsInCell, friendsNear, type Friend, type FriendSpecies } from "../../engine/wildlife";
 import { remembered, type World } from "../../engine/world";
 import { motionSeed } from "../../animals/motion";
-import { allowsPet, bePatient, firstBond, giveTreat, isWon, pet, tastesOf, treatInHand, type Bond, type Relish, type Tastes, type Temper, type Treat } from "../../gameplay/befriending";
-import { bodyAt, doingFor, greeting, type Body, type Kind, type Nature } from "../../gameplay/behaviour";
+import { allowsPet, bePatient, fetched, firstBond, giveTreat, isWon, pet, tastesOf, treatInHand, type Bond, type Relish, type Tastes, type Temper, type Treat } from "../../gameplay/befriending";
+import { bodyAt, doingFor, greeting, type Body, type Kind, type Nature, type Obstacle } from "../../gameplay/behaviour";
+import type { FetchMind } from "../../gameplay/fetch";
+import type { WalkGround } from "../../gameplay/walking";
 import { beKnown, climbing, friendMind, knows, takesTreats, visitsOf, type FriendHome, type FriendMind } from "../../gameplay/forest-friends";
 import { comeAlong, firesideSpot, followers, followMind, join, rename, type Companion, type FollowMind } from "../../gameplay/companions";
 import { loadFriends, saveFriends, type Friends } from "../../gameplay/friends";
@@ -52,6 +54,8 @@ export interface Animal {
   ride: Ride | null;
   /** As a forest friend: its kind, its home and its mind; null for every other animal. */
   friend: { species: FriendSpecies; place: FriendHome; mind: FriendMind } | null;
+  /** A dog's game of fetch, while it plays; null otherwise. */
+  fetch: FetchMind | null;
   bond: Bond;
   /** Petted, it stops to be petted until then, facing Elliott. */
   pettedUntil: number;
@@ -59,6 +63,23 @@ export interface Animal {
   y: number;
   /** The motion clock's time its drawing last changed what it was doing, or its greeting: it has settled into its pose a while after. */
   changedAt: number;
+}
+
+/** What an animal at play is stepped with, one short step at a time. */
+export interface PlayStep {
+  elliott: { x: number; z: number };
+  time: number;
+  seconds: number;
+  ground: WalkGround;
+  obstacles: readonly Obstacle[];
+}
+
+/** A game the animals play with Elliott (fetch), given by whoever keeps it: stepped with the animals, and taking over an animal's step while it plays. */
+export interface Play {
+  /** One short step of the game itself, before the animals'. */
+  step: (time: number, seconds: number) => void;
+  /** Steps an animal at play, returning whether it was: if not, it goes about its own rules. */
+  animal: (animal: Animal, step: PlayStep) => boolean;
 }
 
 /** What is offered for an animal: a pet, a treat, or both. */
@@ -138,6 +159,8 @@ export interface Companionship {
   moreStrays: { near: (x: number, z: number, radius: number) => Stray[]; nameOf: (key: string) => string | null } | null;
   /** How strongly something offered before the animals, other than the fire (a person), is offered this frame: an animal must beat it. */
   rival: (() => number) | null;
+  /** The game of fetch, while the scene keeps one. */
+  play: Play | null;
 }
 
 /**
@@ -184,6 +207,7 @@ export function createCompanionship(world: World, foraging: Foraging, hearth: He
     meshed: null,
     moreStrays: null,
     rival: null,
+    play: null,
   };
   companionship.shown.companions = rowsOf(companionship);
   return companionship;
@@ -207,6 +231,7 @@ function animalOf(key: string, species: Kind, seed: string, body: Body, bond: Bo
     follow: null,
     ride: null,
     friend: null,
+    fetch: null,
     bond: bond ?? (temper ? firstBond(temper) : { warmth: 0, visit: 0 }),
     pettedUntil: -Infinity,
     changedAt: -Infinity,
@@ -496,6 +521,18 @@ function afterWarming(companionship: Companionship, animal: Animal, relish: Reli
   }
   keepWarmth(companionship, animal);
   mark(companionship, animal.key, relish === "loved" ? "hearts" : "heart");
+}
+
+/** A dog brings a stick back to Elliott's feet: a stray warms a good deal, the more for a playful one, and may be won; a companion is simply happy. */
+export function broughtBack(companionship: Companionship, key: string): void {
+  const animal = companionship.animals.get(key);
+  if (!animal) throw new Error(`No animal ${key} to bring a stick back`);
+  if (animal.stray === null) {
+    mark(companionship, key, "hearts");
+    return;
+  }
+  animal.bond = fetched(animal.bond, temperOf(animal), animal.nature.energy);
+  afterWarming(companionship, animal, "loved");
 }
 
 /** Wins a live stray over at once, as if a treat it loves had: for screenshots and tests. */

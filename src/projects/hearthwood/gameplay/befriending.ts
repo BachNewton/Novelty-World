@@ -22,7 +22,9 @@ import { DISHES, FOODS, isDish, isFood, RECIPE_IDS, type DishId, type Food, type
  * A dog comes readily if it is friendly: it starts a little warm, and a pet
  * or any treat wins most dogs at once. A shy dog needs patience first, as a
  * cat does, before it allows a pet, and is won by its favourite dish as a
- * cat is. A game of fetch is for later.
+ * cat is. Once it is warm enough for a pet it will play fetch, and every
+ * stick it brings back warms it a good deal, a playful dog more: a game of
+ * fetch wins most dogs.
  *
  * A fox is won as a cat is, but slower: it takes a few visits before it lets
  * Elliott near enough for a pet, a pet warms it only a little, and treats
@@ -140,6 +142,19 @@ export function pet(bond: Bond, temper: Temper): Bond {
   if (!allowsPet(bond, temper)) throw new Error(`A ${temper.species} at warmth ${bond.warmth.toFixed(2)} doesn't allow a pet yet`);
   const own = wild(temper);
   const gain = friendlyDog(temper) ? 0.85 + 0.3 * temper.affection : own ? own.petGives + 0.1 * temper.affection : temper.species === "dog" ? 0.45 : 0.16 + 0.1 * temper.affection;
+  return { ...bond, warmth: Math.min(1, bond.warmth + gain) };
+}
+
+/** How much warmer a stray dog is for each stick it brings back: a calm dog's share, and a playful one's more on top. */
+const FETCH_WARMTH = { calm: 0.4, playful: 0.32 } as const;
+
+/** Whether an animal will play fetch now: a dog warm enough for a pet. */
+export const playsFetch = (bond: Bond, temper: Temper) => temper.species === "dog" && allowsPet(bond, temper);
+
+/** A stick brought back in a game of fetch, which the dog must be playing: how much warmer it leaves the dog. `playfulness` is calm (−1) to playful (1). */
+export function fetched(bond: Bond, temper: Temper, playfulness: number): Bond {
+  if (!playsFetch(bond, temper)) throw new Error(`A ${temper.species} at warmth ${bond.warmth.toFixed(2)} doesn't play fetch`);
+  const gain = FETCH_WARMTH.calm + FETCH_WARMTH.playful * ((playfulness + 1) / 2);
   return { ...bond, warmth: Math.min(1, bond.warmth + gain) };
 }
 

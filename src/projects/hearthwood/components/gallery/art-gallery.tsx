@@ -300,7 +300,7 @@ export function ArtGallery() {
 
   useEffect(() => {
     window.__hearthwoodArt = {
-      isReady: () => frames.current > 3 && bodies.current === ART_PIECES.filter((p) => p.id.startsWith("folk/cat/")).length,
+      isReady: () => frames.current > 3 && bodies.current >= ART_PIECES.filter((p) => p.id.startsWith("folk/cat/") || p.id.startsWith("folk/dog-")).length,
       frameCount: () => frames.current,
       pieces: () => layout.placed.map((p) => p.piece.id),
       holdHour: (hours) => holdHour(clock, hours),

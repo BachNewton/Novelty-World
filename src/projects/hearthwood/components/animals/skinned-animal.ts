@@ -37,6 +37,13 @@ export class SkinnedAnimal {
     this.mesh.bind(new THREE.Skeleton(BONE_NAMES.map((name) => this.bones.get(name) as THREE.Bone), inverses), new THREE.Matrix4());
   }
 
+  /** One of its bones, for something it holds (a dog's stick in its jaws) to hang from. */
+  bone(name: BoneName): THREE.Bone {
+    const bone = this.bones.get(name);
+    if (!bone) throw new Error(`The animal has no ${name} bone`);
+    return bone;
+  }
+
   pose(pose: Pose) {
     for (const [name, bone] of this.bones) {
       const offset = name === "pelvis" ? pose.pelvis : this.rig.offsets.get(name);

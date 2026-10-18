@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useWalkInput } from "../../input/use-walk-input";
 import { REGIONS } from "../../engine/regions";
@@ -30,6 +30,9 @@ import { ForageOverlay } from "./forage-overlay";
 import { createForaging } from "./foraging";
 import { CompanionOverlay } from "./companion-overlay";
 import { createCompanionship } from "./companionship";
+import { FetchOverlay } from "./fetch-overlay";
+import { createFetching } from "./fetching";
+import { JawStick, useStickArt, WorldFetch } from "./world-fetch";
 import { CookingOverlay, useCookingOn } from "./cooking-overlay";
 import { createHearth } from "./hearth";
 import { Interactions } from "./interactions";
@@ -114,6 +117,7 @@ export function WorldView() {
   const hearth = useMemo(() => createHearth(world, foraging), [world, foraging]);
   const companionship = useMemo(() => createCompanionship(world, foraging, hearth), [world, foraging, hearth]);
   const people = useMemo(() => createPeople(world, foraging, hearth, companionship), [world, foraging, hearth, companionship]);
+  const fetching = useMemo(() => createFetching(world, companionship), [world, companionship]);
   const folkPalette = useMemo(() => readFolkPalette(), []);
   const shared = useMemo(() => {
     const { camp } = world;
@@ -142,6 +146,8 @@ export function WorldView() {
   const talking = useTalkingOn(people);
   const { atmosphere, sky, clock, walker, focus, streaming, air, freeCamera, weather, debug } = shared;
   const wildlife = useMemo(() => makeWildlife(), []);
+  const stickArt = useStickArt(palette, atmosphere);
+  const jawStick = useCallback((key: string) => <JawStick fetching={fetching} dogKey={key} art={stickArt} />, [fetching, stickArt]);
 
   return (
     <div ref={surface} data-testid="hearthwood-world" className="relative h-dvh w-full touch-none overflow-hidden select-none" style={PROMPT_COLOURS}>
@@ -160,15 +166,26 @@ export function WorldView() {
         <WorldLand world={world} palette={palette} atmosphere={atmosphere} sky={sky} quality={QUALITY} streaming={streaming} />
         <WorldPlants world={world} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />
         <WorldPlaces world={world} palette={palette} atmosphere={atmosphere} sky={sky} streaming={streaming} />
-        <WorldForage foraging={foraging} palette={foragePalette} atmosphere={atmosphere} clock={clock} walker={walker} input={input.state} rival={() => Math.min(companionship.candidate?.score ?? Infinity, hearth.candidate ?? Infinity, people.candidate?.score ?? Infinity)} />
-        <WorldAnimals companionship={companionship} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} atmosphere={atmosphere} />
+        <WorldForage foraging={foraging} palette={foragePalette} atmosphere={atmosphere} clock={clock} walker={walker} input={input.state} rival={() => Math.min(companionship.candidate?.score ?? Infinity, hearth.candidate ?? Infinity, people.candidate?.score ?? Infinity, fetching.candidate?.score ?? Infinity)} />
+        <WorldAnimals
+          companionship={companionship}
+          world={world}
+          clock={clock}
+          walker={walker}
+          input={input.state}
+          foraging={foraging}
+          atmosphere={atmosphere}
+          held={jawStick}
+          outbid={() => fetching.candidate !== null}
+        />
+        <WorldFetch fetching={fetching} foraging={foraging} walker={walker} input={input.state} art={stickArt} rival={() => Math.min(companionship.candidate?.score ?? Infinity, hearth.candidate ?? Infinity, people.candidate?.score ?? Infinity)} />
         <WorldWildlife world={world} clock={clock} walker={walker} weather={weather} atmosphere={atmosphere} wildlife={wildlife} />
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
-        <WorldHearth hearth={hearth} foraging={foraging} companionship={companionship} walker={walker} input={input.state} palette={dishPalette} atmosphere={atmosphere} outbid={() => people.candidate !== null} />
-        <WorldPeople people={people} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} companionship={companionship} hearth={hearth} palette={folkPalette} atmosphere={atmosphere} />
+        <WorldHearth hearth={hearth} foraging={foraging} companionship={companionship} walker={walker} input={input.state} palette={dishPalette} atmosphere={atmosphere} outbid={() => people.candidate !== null || fetching.candidate !== null} />
+        <WorldPeople outbid={() => fetching.candidate !== null} people={people} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} companionship={companionship} hearth={hearth} palette={folkPalette} atmosphere={atmosphere} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
-        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} wildlife={wildlife} people={people} costs={debug.costs} setPointOfView={input.setPointOfView} />
+        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} wildlife={wildlife} people={people} fetching={fetching} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
       {!cooking && !talking && <WalkHints input={input} />}
       <ForageOverlay foraging={foraging} hearth={hearth} clock={clock} input={input.kind} />
@@ -176,7 +193,8 @@ export function WorldView() {
       <CookingOverlay hearth={hearth} foraging={foraging} input={input.kind} hinted={() => people.shown.memory.hints} />
       <ConversationOverlay people={people} input={input.kind} />
       <JournalOverlay people={people} input={input.kind} />
-      <Interactions foraging={foraging} companionship={companionship} hearth={hearth} people={people} clock={clock} surface={surface} />
+      {!cooking && !talking && <FetchOverlay fetching={fetching} input={input.kind} />}
+      <Interactions foraging={foraging} companionship={companionship} hearth={hearth} people={people} fetching={fetching} clock={clock} surface={surface} />
       <TouchStickView stick={input.stick} />
       <DebugPanel context={debug} />
     </div>

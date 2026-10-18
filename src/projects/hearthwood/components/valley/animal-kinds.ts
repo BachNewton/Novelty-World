@@ -1,7 +1,7 @@
 import { generateCat, type Cat } from "../../cats/cat";
 import type { Activity as CatActivity } from "../../cats/motion";
 import { generateDog, type Dog } from "../../dogs/dog";
-import type { DogActivity } from "../../dogs/motion";
+import { NOT_PLAYING, type DogActivity, type DogPlay } from "../../dogs/motion";
 import { generateFox, type Fox } from "../../foxes/fox";
 import type { FoxActivity } from "../../foxes/motion";
 import { generateHedgehog, type Hedgehog } from "../../hedgehogs/hedgehog";
@@ -28,7 +28,7 @@ type Drive<A extends string> = { current: AnimalDrive<A> };
 /** The generated animal an animal's body is drawn from, and where its drawing is driven from each frame. */
 export type AnimalLook =
   | { species: "cat"; cat: Cat; drive: Drive<CatActivity> }
-  | { species: "dog"; dog: Dog; drive: Drive<DogActivity> }
+  | { species: "dog"; dog: Dog; drive: Drive<DogActivity>; play: { current: DogPlay; read: () => DogPlay } }
   | { species: "fox"; fox: Fox; drive: Drive<FoxActivity> }
   | { species: "hedgehog"; hedgehog: Hedgehog; drive: Drive<HedgehogActivity> }
   | { species: "squirrel"; squirrel: Squirrel; drive: Drive<SquirrelActivity> }
@@ -67,7 +67,8 @@ export function bornOf(species: Kind, seed: string, rest: Doing): Born {
     case "dog": {
       const dog = generateDog(seed);
       const { boldness, playfulness, affection } = dog.personality;
-      return { look: { species, dog, drive: drive(ACTIVITY.dog[rest]) }, size: dog.build.size, boldness, energy: playfulness, affection };
+      const play = { current: NOT_PLAYING, read: () => play.current };
+      return { look: { species, dog, drive: drive(ACTIVITY.dog[rest]), play }, size: dog.build.size, boldness, energy: playfulness, affection };
     }
     case "fox": {
       const fox = generateFox(seed);

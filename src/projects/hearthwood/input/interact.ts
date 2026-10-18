@@ -11,7 +11,8 @@ import { isTextEntryTarget } from "@/shared/lib/utils";
  * the controller's B holds out a treat to the animal offered, and a tap on
  * the scene on touch uses the thing tapped; Tab or the controller's Y opens
  * and closes the basket, and C or the controller's left bumper the
- * companions. Each is heard as one press, never a hold. What is offered,
+ * companions; G or the controller's left trigger throws the stick in
+ * Elliott's hand. Each is heard as one press, never a hold. What is offered,
  * whatever it is, is one choice among everything near (see gameplay's
  * offering), so one press always means one thing.
  */
@@ -26,6 +27,8 @@ export const KEY_COMPANIONS = "KeyC";
 export const PAD_COMPANIONS: StandardButton = "LB";
 export const KEY_JOURNAL = "KeyJ";
 export const PAD_JOURNAL: StandardButton = "RB";
+export const KEY_THROW = "KeyG";
+export const PAD_THROW: StandardButton = "LT";
 
 export interface InteractListeners {
   /** Use what is offered, from a key or a pad. */
@@ -37,6 +40,8 @@ export interface InteractListeners {
   onBasket: (by: InputKind) => void;
   onCompanions: (by: InputKind) => void;
   onJournal: (by: InputKind) => void;
+  /** Throw the stick in Elliott's hand. */
+  onThrow: (by: InputKind) => void;
 }
 
 export function useInteractInput(surface: RefObject<HTMLElement | null>, listeners: InteractListeners): void {
@@ -56,6 +61,7 @@ export function useInteractInput(surface: RefObject<HTMLElement | null>, listene
       if (event.code === KEY_TREAT) latest.current.onTreat("keyboard-mouse");
       if (event.code === KEY_COMPANIONS) latest.current.onCompanions("keyboard-mouse");
       if (event.code === KEY_JOURNAL) latest.current.onJournal("keyboard-mouse");
+      if (event.code === KEY_THROW) latest.current.onThrow("keyboard-mouse");
       if (event.code === KEY_BASKET) {
         // Tab would otherwise move the page's focus.
         event.preventDefault();
@@ -82,6 +88,7 @@ export function useInteractInput(surface: RefObject<HTMLElement | null>, listene
         if (edge.name === PAD_BASKET) latest.current.onBasket("pad");
         if (edge.name === PAD_COMPANIONS) latest.current.onCompanions("pad");
         if (edge.name === PAD_JOURNAL) latest.current.onJournal("pad");
+        if (edge.name === PAD_THROW) latest.current.onThrow("pad");
       },
     });
 

@@ -4,6 +4,7 @@ import type { RefObject } from "react";
 import { useInteractInput } from "../../input/interact";
 import type { ValleyClock } from "./clock";
 import { petAnimal, setCompanionsOpen, tapAnimal, treatAnimal, type Companionship } from "./companionship";
+import { pickUpOffered, pickUpStick, throwHeld, type Fetching } from "./fetching";
 import { forageTime, pickSpot, setBasketOpen, type Foraging } from "./foraging";
 import { openCooking, type Hearth } from "./hearth";
 import { setJournalOpen, talkWith, type People } from "./people";
@@ -16,7 +17,8 @@ import { setJournalOpen, talkWith, type People } from "./people";
  * a tap on the scene picks what was tapped, or else pets (or treats) the
  * animal tapped, or else talks with the person tapped, or else cooks at
  * the fire tapped; the basket, the companions row and the journal open and
- * close. While the naming card is up, Elliott sits cooking at the fire or
+ * close; a stick offered is picked up like anything else, a tap on one
+ * picks it up, and the throw throws the stick in hand. While the naming card is up, Elliott sits cooking at the fire or
  * talks with someone, that hears its own keys and buttons.
  */
 
@@ -25,6 +27,7 @@ export function Interactions({
   companionship,
   hearth,
   people,
+  fetching,
   clock,
   surface,
 }: {
@@ -32,6 +35,7 @@ export function Interactions({
   companionship: Companionship;
   hearth: Hearth;
   people: People;
+  fetching: Fetching;
   clock: ValleyClock;
   surface: RefObject<HTMLElement | null>;
 }) {
@@ -53,6 +57,10 @@ export function Interactions({
         talkWith(people, people.shown.offer.id);
         return;
       }
+      if (fetching.shown.offered) {
+        pickUpOffered(fetching);
+        return;
+      }
       const offer = companionship.shown.offer;
       if (offer?.canPet) petAnimal(companionship, offer.key);
     },
@@ -65,6 +73,11 @@ export function Interactions({
       const spot = foraging.tapAt?.(x, y) ?? null;
       if (spot) {
         pickSpot(foraging, spot, forageTime(clock));
+        return;
+      }
+      const stick = fetching.tapAt?.(x, y) ?? null;
+      if (stick) {
+        pickUpStick(fetching, stick);
         return;
       }
       const key = companionship.tapAt?.(x, y) ?? null;
@@ -87,6 +100,9 @@ export function Interactions({
     },
     onJournal: () => {
       if (!busy()) setJournalOpen(people, !people.shown.journal);
+    },
+    onThrow: () => {
+      if (!busy() && !reading() && fetching.shown.holding && fetching.hand) throwHeld(fetching);
     },
   });
   return null;

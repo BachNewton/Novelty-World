@@ -17,6 +17,15 @@ import { HIP } from "./rig";
 export type DogActivity = "stand" | "walk" | "trot" | "run" | "sit" | "lie";
 export const GAITS: readonly DogActivity[] = ["walk", "trot", "run"];
 
+/** How a dog at play holds itself, each 0 to 1: a stick held in its jaws, its nose down to the ground to take one up or lay it down, and a play bow. */
+export interface DogPlay {
+  carrying: number;
+  stoop: number;
+  bow: number;
+}
+
+export const NOT_PLAYING: DogPlay = { carrying: 0, stoop: 0, bow: 0 };
+
 export interface DogMotionInput {
   /** The dog's own clock, in seconds. */
   time: number;
@@ -35,6 +44,8 @@ export interface DogMotionInput {
   ears: EarType;
   /** A number from the dog's seed, so no two dogs fidget in step. */
   seed: number;
+  /** At play: fetching a stick, or bowing. */
+  play?: DogPlay;
 }
 
 interface Frame {
@@ -262,6 +273,47 @@ function greet(posture: Posture, input: DogMotionInput, amount: number): Posture
   };
 }
 
+/**
+ * A dog at play, over whatever else it is doing: a stick carried in its
+ * jaws (the mouth a little open on it, the tongue in, the head carried
+ * proudly), its nose put down to the ground to take the stick up or lay it
+ * down, and a play bow, its elbows down on the ground and its rump up, the
+ * tail high and going.
+ */
+function atPlay(posture: Posture, play: DogPlay, { frontZ, legs }: Frame): Posture {
+  const carrying = smooth(play.carrying);
+  const stoop = smooth(play.stoop);
+  const bow = smooth(play.bow);
+  if (carrying + stoop + bow <= 0) return posture;
+  const held = {
+    ...posture,
+    neckPitch: posture.neckPitch - 0.12 * carrying + 1.0 * stoop,
+    headPitch: posture.headPitch - 0.06 * carrying + 0.45 * stoop,
+    headYaw: posture.headYaw * (1 - Math.max(carrying, stoop) * 0.7),
+    headRoll: posture.headRoll * (1 - carrying),
+    jaw: mix(posture.jaw, 0.17, Math.max(carrying, stoop)),
+    tongue: posture.tongue * (1 - Math.max(carrying, stoop)),
+  };
+  if (bow <= 0) return held;
+  const down = { y: 0.012, z: frontZ + 0.07 * legs, angle: -1.45 };
+  return {
+    ...held,
+    pelvisY: held.pelvisY + 0.012 * legs * bow,
+    pitch: mix(held.pitch, 0.6, bow),
+    chestPitch: mix(held.chestPitch, 0.08, bow),
+    neckPitch: mix(held.neckPitch, -0.75, bow),
+    headPitch: mix(held.headPitch, 0.5, bow),
+    paws: {
+      ...held.paws,
+      frontL: { y: mix(held.paws.frontL.y, down.y, bow), z: mix(held.paws.frontL.z, down.z, bow), angle: mix(held.paws.frontL.angle, down.angle, bow) },
+      frontR: { y: mix(held.paws.frontR.y, down.y, bow), z: mix(held.paws.frontR.z, down.z, bow), angle: mix(held.paws.frontR.angle, down.angle, bow) },
+    },
+    earsBack: mix(held.earsBack, 0.2, bow),
+    jaw: Math.max(held.jaw, 0.2 * bow),
+    tongue: Math.max(held.tongue, 0.8 * bow),
+  };
+}
+
 const wagRateOf = (input: DogMotionInput) => 13 + input.personality.playfulness * 3;
 
 /** The idle's occasional movements, laid over any posture. */
@@ -323,7 +375,7 @@ export function dogPose(input: DogMotionInput): Pose {
     lie: () => lie(frame),
   };
   const blended = blendedPosture(postures, input.activity, input.previous, input.time, input.since, 0.016);
-  const posture = fidget(greet(blended, input, smooth(input.greeting)), input);
+  const posture = atPlay(fidget(greet(blended, input, smooth(input.greeting)), input), input.play ?? NOT_PLAYING, frame);
   const gaitBob = GAITS.includes(input.activity) ? Math.sin((input.travelled / 0.3) * Math.PI * 2) : 0;
   return solvePose(posture, input.rig, {
     time: input.time,

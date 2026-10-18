@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
-import { useFrame } from "@react-three/fiber";
+import { createPortal, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { Pose } from "../../animals/motion";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
-import type { Rig } from "../../animals/rig";
+import type { BoneName, Rig } from "../../animals/rig";
 import type { CoatUniforms } from "./coat-material";
 import { SkinnedAnimal } from "./skinned-animal";
 
@@ -60,6 +60,8 @@ export interface AnimalProps<A extends string> {
   /** Driven from the scene each frame: overrides `activity`, `speed` and `greeting`. */
   drive?: RefObject<AnimalDrive<A>>;
   children?: ReactNode;
+  /** Something it holds, hung from one of its bones so it moves with it: a dog's stick, from its jaw. */
+  held?: { bone: BoneName; children: ReactNode };
 }
 
 interface AnimalBodyProps<A extends string> extends AnimalProps<A> {
@@ -106,7 +108,7 @@ function shadowMaterial(): THREE.ShaderMaterial {
 const SHADOW_PLANE = new THREE.PlaneGeometry(1, 1);
 
 export function AnimalBody<A extends string>(props: AnimalBodyProps<A>) {
-  const { clock, shadow = true, position, rotation = 0, drive, children, geometry, coat, rig, size, width, seed, moving, pose, shadowSize, shadowAt, greetingTime } = props;
+  const { clock, shadow = true, position, rotation = 0, drive, children, held, geometry, coat, rig, size, width, seed, moving, pose, shadowSize, shadowAt, greetingTime } = props;
   const skinned = useMemo(() => {
     const { material, uniforms } = coat();
     return new SkinnedAnimal(geometry, material, uniforms, rig);
@@ -147,6 +149,7 @@ export function AnimalBody<A extends string>(props: AnimalBodyProps<A>) {
     <group position={position as [number, number, number] | undefined} rotation={[0, rotation, 0]}>
       <group scale={[size * width, size, size]}>
         <primitive object={skinned.mesh} />
+        {held && createPortal(held.children, skinned.bone(held.bone))}
         {shadow && (
           <mesh ref={shadowRef} geometry={SHADOW_PLANE} material={shadowMat} position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[shadowSize[0], shadowSize[1], 1]} renderOrder={-1} />
         )}

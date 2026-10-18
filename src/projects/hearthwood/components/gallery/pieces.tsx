@@ -32,6 +32,10 @@ import { homeShape, keepsakeShape, SINKS } from "../../art/folk-homes";
 import { HOME_KINDS, ROLES, type HomeKind, type Role } from "../../engine/people";
 import { KEEPSAKES } from "../../stories/story";
 import { CatBody } from "../cats/cat-body";
+import { generateDog } from "../../dogs/dog";
+import type { DogPlay } from "../../dogs/motion";
+import { DogBody } from "../dogs/dog-body";
+import { StickInJaws, useStickArt } from "../valley/world-fetch";
 import { generateFox } from "../../foxes/fox";
 import { FoxBody } from "../foxes/fox-body";
 import { generateHedgehog } from "../../hedgehogs/hedgehog";
@@ -56,6 +60,35 @@ import { FORAGE_NAMES } from "../valley/forage-icons";
  * added at all. Each piece is drawn from the art layer alone, on flat ground
  * at its own origin, with plain data made up for it: no world is generated.
  */
+
+/** A stick to throw, lying on the ground. */
+function StickPiece({ context }: { context: ArtContext }) {
+  const art = useStickArt(context.palette, context.atmosphere);
+  return <mesh geometry={art.geometry} material={art.material} position={[0, 0.02, 0]} rotation={[0, 0.5, 0]} castShadow />;
+}
+
+const FETCH_DOG = "gallery-fetch";
+const CARRYING: DogPlay = { carrying: 1, stoop: 0, bow: 0 };
+const BOWING: DogPlay = { carrying: 0, stoop: 0, bow: 1 };
+
+/** A dog at play: trotting back with the stick in its jaws, or down in a play bow. */
+function FetchDogPiece({ play, context }: { play: DogPlay; context: ArtContext }) {
+  const art = useStickArt(context.palette, context.atmosphere);
+  const dog = useMemo(() => generateDog(FETCH_DOG), []);
+  const carrying = play.carrying > 0;
+  return (
+    <DogBody
+      dog={dog}
+      activity={carrying ? "trot" : "stand"}
+      speed={carrying ? 2 : 0}
+      greeting
+      play={() => play}
+      held={carrying ? { bone: "jaw", children: <StickInJaws art={art} shown={() => true} /> } : undefined}
+      clock={context.clock}
+      atmosphere={context.atmosphere}
+    />
+  );
+}
 
 /** Elliott on the broom at full speed, the wind in their cloak. */
 const ON_THE_BROOM: Partial<WitchPose> = { ride: 1, wind: 1, seconds: 0.4 };
@@ -451,6 +484,30 @@ export const ART_PIECES: ArtPiece[] = [
     radius: 1,
     height: 0.5,
     render: (context) => <Broom palette={context.palette} atmosphere={context.atmosphere} />,
+  },
+  {
+    id: "folk/stick",
+    group: "Elliott and the cats",
+    label: "A stick to throw",
+    radius: 0.5,
+    height: 0.2,
+    render: (context) => <StickPiece context={context} />,
+  },
+  {
+    id: "folk/dog-fetching",
+    group: "Elliott and the cats",
+    label: "A dog bringing the stick back",
+    radius: 0.8,
+    height: 0.7,
+    render: (context) => <FetchDogPiece play={CARRYING} context={context} />,
+  },
+  {
+    id: "folk/dog-bow",
+    group: "Elliott and the cats",
+    label: "A dog's play bow",
+    radius: 0.8,
+    height: 0.7,
+    render: (context) => <FetchDogPiece play={BOWING} context={context} />,
   },
   ...ROLES.flatMap((role) =>
     [1, 2, 3].map((variant) => ({
