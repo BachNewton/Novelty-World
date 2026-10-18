@@ -472,6 +472,24 @@ Long walks with camp pitched anywhere, brewing, festivals and people follow, one
 - **Companions on screen:** three follow at once for now and the rest nap by the fire at camp; is three the cozy number, and does camp ever outgrow its clearing?
 - **The familiar:** a raven or an owl first, and does Elliott choose? It is the first wave's one animal still to come, with the stories it belongs to; the songbirds' winged body is ready for it.
 - **Music:** generated, composed, or ambient sound only.
+- **HDR:** bloom and the sun's glare would look better if the frame kept brightness above what the screen shows (a linear high-range frame, see Features). It is off because the campfire was tuned without it; turning it on means retuning the fire.
+- **Two glows in one:** the weather's bloomy fog and the sky and light group's bloom overlap; one of them may not be needed.
+
+### For the owner to judge
+
+The look and tuning as built, waiting on the owner's eye in the game:
+
+- **Golden hour at camp** reads hazy and flat rather than warm: the light round a low sun is lifted by up to 60% so the forest isn't too dark.
+- **A misty morning** blows out to nearly white.
+- **Puddles** in rain read as flat blue patches.
+- **The moon in mist** looks huge and white: it is drawn three times life size, and the bloom adds to it.
+- **Snow at camp** keeps melting until about early April, true to 60°N, perhaps later than the game wants.
+- **The mist-parting charm** may clear too much.
+- **Fetch's dog run** reads as a fast trot rather than a gallop.
+- **The far horizon** past about 25 km is still rounded humps.
+- **Sauna keepers along one river** all tell the same story (the sauna elf) in the default world.
+- **Eino's soup** has the cottager mourn a late husband. The stories gender the people in them freely, never Elliott; this one is flagged only as the most personal line in the library.
+- **Desktop cost**, though performance comes last: the shadow maps about 10 ms a frame, the clouds 4.5 ms and the physical sky 3.5 ms, at 1600×900. Drawing plants per chunk is the performance pass's first step (see Shadows and foliage).
 
 ## Code map
 
