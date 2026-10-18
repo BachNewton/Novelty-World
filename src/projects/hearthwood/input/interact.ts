@@ -24,6 +24,8 @@ export const KEY_BASKET = "Tab";
 export const PAD_BASKET: StandardButton = "Y";
 export const KEY_COMPANIONS = "KeyC";
 export const PAD_COMPANIONS: StandardButton = "LB";
+export const KEY_JOURNAL = "KeyJ";
+export const PAD_JOURNAL: StandardButton = "RB";
 
 export interface InteractListeners {
   /** Use what is offered, from a key or a pad. */
@@ -34,6 +36,7 @@ export interface InteractListeners {
   onTap: (at: Point) => void;
   onBasket: (by: InputKind) => void;
   onCompanions: (by: InputKind) => void;
+  onJournal: (by: InputKind) => void;
 }
 
 export function useInteractInput(surface: RefObject<HTMLElement | null>, listeners: InteractListeners): void {
@@ -52,6 +55,7 @@ export function useInteractInput(surface: RefObject<HTMLElement | null>, listene
       if (event.code === KEY_INTERACT) latest.current.onInteract("keyboard-mouse");
       if (event.code === KEY_TREAT) latest.current.onTreat("keyboard-mouse");
       if (event.code === KEY_COMPANIONS) latest.current.onCompanions("keyboard-mouse");
+      if (event.code === KEY_JOURNAL) latest.current.onJournal("keyboard-mouse");
       if (event.code === KEY_BASKET) {
         // Tab would otherwise move the page's focus.
         event.preventDefault();
@@ -77,6 +81,7 @@ export function useInteractInput(surface: RefObject<HTMLElement | null>, listene
         if (edge.name === PAD_TREAT) latest.current.onTreat("pad");
         if (edge.name === PAD_BASKET) latest.current.onBasket("pad");
         if (edge.name === PAD_COMPANIONS) latest.current.onCompanions("pad");
+        if (edge.name === PAD_JOURNAL) latest.current.onJournal("pad");
       },
     });
 
