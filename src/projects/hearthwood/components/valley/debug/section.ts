@@ -10,6 +10,8 @@ export interface DebugContext {
   costs: FrameCosts;
   /** The weather now, and holding it at one kind; absent where nothing has weather (the art gallery). */
   weather?: SceneWeather;
+  /** The debug free camera; absent where nothing walks (the art gallery). */
+  flight?: { flying: boolean; setFlying: (flying: boolean) => void };
 }
 
 /** One section of the ~ panel: its own component under its own heading, in the order `sections.ts` lists them. */

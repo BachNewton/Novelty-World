@@ -6,6 +6,7 @@ import { spanOf, type InputKind, type Point } from "@/shared/lib/input";
 import { isTextEntryTarget } from "@/shared/lib/utils";
 import type { AirMode } from "../gameplay/airborne";
 import { FIRST_VIEW, otherView, type PointOfView } from "./point-of-view";
+import { FLY_KEYS, FLY_SPEED, KEY_FLY, PAD_FASTER, PAD_SLOWER, keyboardRise, padRise, steppedSpeed, wheelSteps } from "./fly-controls";
 import {
   KEY_JUMP,
   KEY_VIEW,
@@ -38,6 +39,11 @@ import {
  * `pointerlockchange` and `pointerlockerror` events are the only word on
  * whether it is locked. In third person, and on touch, dragging turns the
  * camera instead.
+ *
+ * The debug free camera (\ turns it on and off) takes the same move and
+ * look, always with the mouse locked, and adds rising and sinking and a
+ * speed the wheel or the bumpers step; while it flies, jump and the turn
+ * keys are its own.
  */
 
 export interface WalkState {
@@ -52,6 +58,10 @@ export interface WalkState {
   pointOfView: PointOfView;
   /** Jump pressed since the scene last took it. */
   jump: boolean;
+  /** The debug free camera: whether it flies, its rise (-1 to 1) and its speed in metres per second. */
+  flying: boolean;
+  rise: number;
+  flySpeed: number;
   /** The scene says where the walker now is: on the ground, in the air, or on the broom. */
   reportAir: (mode: AirMode) => void;
 }
@@ -99,6 +109,10 @@ export interface WalkInput {
   air: AirMode;
   /** Whether the player has taken out the broom, and put it away, so their hints can go. */
   broomed: { out: boolean; away: boolean };
+  /** The debug free camera, and its speed. */
+  flying: boolean;
+  setFlying: (flying: boolean) => void;
+  flySpeed: number;
 }
 
 /** Before anything is used: a device whose main pointer is a finger is played by touch. */
@@ -118,17 +132,27 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
     if (mode === "broom") setBroomed((b) => (b.out ? b : { ...b, out: true }));
     if (before === "broom" && mode === "air") setBroomed((b) => (b.away ? b : { ...b, away: true }));
   }, []);
-  const state = useRef<WalkState>({ move: STILL, running: false, turn: { yaw: 0, pitch: 0 }, turnRate: { yaw: 0, pitch: 0 }, zoom: 1, pointOfView, jump: false, reportAir });
+  const state = useRef<WalkState>({ move: STILL, running: false, turn: { yaw: 0, pitch: 0 }, turnRate: { yaw: 0, pitch: 0 }, zoom: 1, pointOfView, jump: false, flying: false, rise: 0, flySpeed: FLY_SPEED.start, reportAir });
   const [kind, setKind] = useState<InputKind>(firstGuessInput);
   const [stick, setStick] = useState<TouchStick | null>(null);
   const [walkedWith, setWalkedWith] = useState<ReadonlySet<InputKind>>(new Set());
   const [locked, setLocked] = useState(false);
+  const [flying, setShownFlying] = useState(false);
+  const [flySpeed, setShownFlySpeed] = useState<number>(FLY_SPEED.start);
 
   const setPointOfView = useCallback((view: PointOfView) => {
     state.current.pointOfView = view;
     setShownView(view);
     // Third person turns by dragging, so it hands the pointer back.
-    if (view === "third" && document.pointerLockElement !== null) document.exitPointerLock();
+    if (view === "third" && !state.current.flying && document.pointerLockElement !== null) document.exitPointerLock();
+  }, []);
+
+  const setFlying = useCallback((on: boolean) => {
+    state.current.flying = on;
+    state.current.rise = 0;
+    setShownFlying(on);
+    // Flying always looks with the mouse locked; back in third person, dragging turns the camera again.
+    if (!on && state.current.pointOfView === "third" && document.pointerLockElement !== null) document.exitPointerLock();
   }, []);
 
   useEffect(() => {
@@ -147,14 +171,36 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
       setPointOfView(otherView(state.current.pointOfView));
     };
     const isLocked = () => document.pointerLockElement === element;
+    const stepFlySpeed = (steps: number) => {
+      state.current.flySpeed = steppedSpeed(state.current.flySpeed, steps);
+      setShownFlySpeed(state.current.flySpeed);
+    };
 
     const fromKeys = () => {
+      const flying = state.current.flying;
       state.current.move = keyboardMove(held);
       state.current.running = keyboardRunning(held);
-      state.current.turnRate = { yaw: keyboardTurn(held) * LOOK.keys, pitch: 0 };
+      // Flying, Q and E sink and rise rather than turn.
+      state.current.turnRate = { yaw: flying ? 0 : keyboardTurn(held) * LOOK.keys, pitch: 0 };
+      state.current.rise = flying ? keyboardRise(held) : 0;
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code === KEY_FLY) {
+        if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || isTextEntryTarget(event.target)) return;
+        setKind("keyboard-mouse");
+        setFlying(!state.current.flying);
+        fromKeys();
+        return;
+      }
+      if (state.current.flying && FLY_KEYS.includes(event.code)) {
+        if (isTextEntryTarget(event.target)) return;
+        event.preventDefault();
+        held.add(event.code);
+        setKind("keyboard-mouse");
+        fromKeys();
+        return;
+      }
       if (event.code === KEY_JUMP) {
         if (event.metaKey || event.ctrlKey || event.altKey || isTextEntryTarget(event.target)) return;
         event.preventDefault();
@@ -178,7 +224,7 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
     };
     const onKeyUp = (event: KeyboardEvent) => {
       held.delete(event.code);
-      if (WALK_KEYS.includes(event.code)) fromKeys();
+      if (WALK_KEYS.includes(event.code) || FLY_KEYS.includes(event.code)) fromKeys();
     };
     const onBlur = () => {
       held.clear();
@@ -205,7 +251,7 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
         }
       } else {
         setKind("keyboard-mouse");
-        if (state.current.pointOfView === "first") {
+        if (state.current.pointOfView === "first" || state.current.flying) {
           // A refused lock (asked again too soon after Esc) is reported by `pointerlockerror`, and the
           // pointer simply stays free for the next click; the promise's rejection says the same thing again.
           if (!isLocked()) element.requestPointerLock().catch(() => undefined);
@@ -264,7 +310,8 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       setKind("keyboard-mouse");
-      state.current.zoom *= Math.exp(event.deltaY * 0.0012);
+      if (state.current.flying) stepFlySpeed(wheelSteps(event.deltaY));
+      else state.current.zoom *= Math.exp(event.deltaY * 0.0012);
     };
 
     const stopPad = subscribeGamepads({
@@ -280,12 +327,19 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
           walked("pad", state.current.move);
           state.current.running = padRunning(controls);
           state.current.turnRate = { yaw: controls.rightStick.x * LOOK.stick, pitch: controls.rightStick.y * LOOK.stick * 0.6 };
+          state.current.rise = state.current.flying ? padRise(controls) : 0;
         }
         padMoving = using;
       },
       onButton(edge) {
-        if (edge.name === PAD_VIEW && edge.pressed) switchView();
-        if (edge.name === PAD_JUMP && edge.pressed) state.current.jump = true;
+        if (!edge.pressed) return;
+        if (edge.name === PAD_VIEW) switchView();
+        if (state.current.flying) {
+          if (edge.name === PAD_FASTER) stepFlySpeed(1);
+          if (edge.name === PAD_SLOWER) stepFlySpeed(-1);
+          return;
+        }
+        if (edge.name === PAD_JUMP) state.current.jump = true;
       },
     });
 
@@ -313,12 +367,12 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
       element.removeEventListener("pointercancel", onPointerUp);
       element.removeEventListener("wheel", onWheel);
     };
-  }, [surface, setPointOfView]);
+  }, [surface, setPointOfView, setFlying]);
 
   const jump = useCallback(() => {
     setKind("touch");
     state.current.jump = true;
   }, []);
 
-  return { state, kind, stick, walkedWith, pointOfView, setPointOfView, locked, jump, air, broomed };
+  return { state, kind, stick, walkedWith, pointOfView, setPointOfView, locked, jump, air, broomed, flying, setFlying, flySpeed };
 }

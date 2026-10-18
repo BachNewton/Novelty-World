@@ -1,7 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
-import { useInteractInput } from "../../input/interact";
+import { useInteractInput, type InteractListeners } from "../../input/interact";
 import type { ValleyClock } from "./clock";
 import { petAnimal, setCompanionsOpen, tapAnimal, treatAnimal, type Companionship } from "./companionship";
 import { pickUpOffered, pickUpStick, throwHeld, type Fetching } from "./fetching";
@@ -24,7 +24,19 @@ import { setJournalOpen, talkWith, type People } from "./people";
  * talks with someone, that hears its own keys and buttons. A clue offered
  * is examined like anything else, and K opens the journal on its casebook.
  * Carrying camp, using what is offered pitches it, when nothing else is.
+ * While the debug free camera flies, nothing is used: its buttons are its own.
  */
+
+const NOTHING: InteractListeners = {
+  onInteract: () => undefined,
+  onTreat: () => undefined,
+  onTap: () => undefined,
+  onBasket: () => undefined,
+  onCompanions: () => undefined,
+  onJournal: () => undefined,
+  onThrow: () => undefined,
+  onCasebook: () => undefined,
+};
 
 export function Interactions({
   foraging,
@@ -35,6 +47,7 @@ export function Interactions({
   mysteries,
   clock,
   surface,
+  flying,
 }: {
   foraging: Foraging;
   companionship: Companionship;
@@ -44,11 +57,12 @@ export function Interactions({
   mysteries: Mysteries;
   clock: ValleyClock;
   surface: RefObject<HTMLElement | null>;
+  flying: boolean;
 }) {
   // While the naming card is up, a turn at the fire is on, or a conversation, those hear their own keys and buttons.
   const busy = () => companionship.shown.naming !== null || hearth.shown.session !== null || people.shown.talking !== null || mysteries.shown.examining !== null;
   const reading = () => people.shown.journal;
-  useInteractInput(surface, {
+  const listeners: InteractListeners = {
     onInteract: () => {
       if (busy() || reading()) return;
       if (foraging.target) {
@@ -130,6 +144,7 @@ export function Interactions({
       setCasebookPage(mysteries, open);
       setJournalOpen(people, open);
     },
-  });
+  };
+  useInteractInput(surface, flying ? NOTHING : listeners);
   return null;
 }

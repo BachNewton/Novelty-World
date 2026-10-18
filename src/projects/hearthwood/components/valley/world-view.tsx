@@ -24,6 +24,7 @@ import { QUALITY } from "../../quality";
 import { parseDate } from "../../engine/calendar";
 import { advanceClock, makeClock, type ValleyClock } from "./clock";
 import { DebugPanel } from "./debug-panel";
+import { FlyOverlay } from "./fly-overlay";
 import { FeatureRenderer, useFeature } from "./feature-renderer";
 import { useFrameStats } from "./frame-stats";
 import { FIRST_ORBIT } from "./follow-camera";
@@ -218,7 +219,8 @@ export function WorldView() {
         <WalkerAndCamera world={world} camping={camping} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
         <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} wildlife={wildlife} people={people} mysteries={mysteries} companionClues={companionClues} fetching={fetching} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
-      {!cooking && !talking && !examining && <WalkHints input={input} />}
+      {!cooking && !talking && !examining && !input.flying && <WalkHints input={input} />}
+      {input.flying && <FlyOverlay speed={input.flySpeed} />}
       <ForageOverlay foraging={foraging} hearth={hearth} clock={clock} input={input.kind} />
       {!cooking && !talking && !examining && <CampOverlay camping={camping} input={input.kind} />}
       <CompanionOverlay companionship={companionship} input={input.kind} />
@@ -227,9 +229,9 @@ export function WorldView() {
       <MysteryOverlay mysteries={mysteries} people={people} input={input.kind} />
       <JournalOverlay people={people} mysteries={mysteries} input={input.kind} />
       {!cooking && !talking && <FetchOverlay fetching={fetching} input={input.kind} />}
-      <Interactions foraging={foraging} companionship={companionship} hearth={hearth} people={people} mysteries={mysteries} fetching={fetching} clock={clock} surface={surface} />
+      <Interactions foraging={foraging} companionship={companionship} hearth={hearth} people={people} mysteries={mysteries} fetching={fetching} clock={clock} surface={surface} flying={input.flying} />
       <TouchStickView stick={input.stick} />
-      <DebugPanel context={debug} />
+      <DebugPanel context={{ ...debug, flight: { flying: input.flying, setFlying: input.setFlying } }} />
     </div>
   );
 }

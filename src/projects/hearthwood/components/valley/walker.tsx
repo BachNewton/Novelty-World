@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
-import { PerspectiveCamera, type Camera, type Object3D } from "three";
+import { PerspectiveCamera, Vector3, type Camera, type Object3D } from "three";
 import type { World } from "../../engine/world";
 import { GLIDE, glidingMover, standingMover, stepMover, type AirMode, type Mover } from "../../gameplay/airborne";
 import { takeJump, takeTurn, type WalkState } from "../../input/use-walk-input";
@@ -14,6 +14,8 @@ import { catchUp, clampOrbit, eyeFor, LOOK_HEIGHT, turnBetween, type Orbit } fro
 import type { Palette } from "../../art/palette";
 import { Witch, type WitchHandle } from "../../art/witch";
 import { carryingCamp, subscribeCamping, type Camping } from "./camping";
+import { flightFrom, stepFlight, type Flight } from "./fly-camera";
+import { FLY_BOOST } from "../../input/fly-controls";
 
 /*
  * The walker and the camera: each frame, the input's move goes where the
@@ -24,7 +26,8 @@ import { carryingCamp, subscribeCamping, type Camping } from "./camping";
  * A screenshot can instead look from above the whole valley, or from high
  * over its rim. At the hearth, cooking, or talking with someone, they stay
  * where they are, drawn in either view, and the hearth or the conversation
- * moves the camera.
+ * moves the camera. The debug free camera flies off on its own from
+ * wherever the camera was, leaving Elliott standing.
  */
 
 export const WALKER_PRIORITY = -4;
@@ -80,6 +83,8 @@ interface Followed {
   sinceLanding: number;
   impact: number;
   seconds: number;
+  /** The debug free camera while it flies. */
+  flight: Flight | null;
 }
 
 interface Walking {
@@ -112,9 +117,12 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
 
   const firstPerson = input.pointOfView === "first";
   // Seated at the hearth or talking, nothing walks, jumps or turns them; what was asked is taken and let go.
-  const seated = HELD_VIEWS.has(walker.view);
+  // While the free camera flies, it takes the move and the look, and they stand where they are.
+  const seated = HELD_VIEWS.has(walker.view) || input.flying;
   const turn = takeTurn(input);
-  if (seated) {
+  if (input.flying) {
+    // The flight turns below, with the camera.
+  } else if (seated) {
     // The hearth turns them to the fire, a conversation to whoever they talk with.
   } else if (firstPerson) {
     const look = turnLook({ yaw: walker.orbit.yaw, pitch: walker.lookPitch }, turn, input.turnRate, delta);
@@ -175,9 +183,9 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   followed.turning += ((onBroom ? turning : 0) - followed.turning) * catchUp(4, delta);
   followed.seconds += delta;
 
-  const throughTheirEyes = firstPerson && walker.view === "walk";
+  const throughTheirEyes = firstPerson && walker.view === "walk" && !input.flying;
   if (camera instanceof PerspectiveCamera) {
-    const fov = fieldOfView(throughTheirEyes ? "first" : "third", followed.wind);
+    const fov = fieldOfView(throughTheirEyes || input.flying ? "first" : "third", followed.wind);
     if (Math.abs(camera.fov - fov) > 1e-3) {
       camera.fov = fov;
       camera.updateProjectionMatrix();
@@ -189,7 +197,7 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   if (figure?.group) {
     // The camera eases out of their eyes to the hearth or a conversation and back: there they show once it is clear of their head.
     const clear = Math.hypot(camera.position.x - walker.x, camera.position.z - walker.z) > 0.9;
-    figure.group.visible = clear || followed.ride > 0.02 || (!throughTheirEyes && !HELD_VIEWS.has(walker.view));
+    figure.group.visible = clear || followed.ride > 0.02 || (!throughTheirEyes && !seated);
     figure.group.position.set(walker.x, y - 0.03, walker.z);
     figure.group.rotation.y = walker.heading;
     figure.pose({
@@ -203,6 +211,22 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
       seconds: followed.seconds,
       throughTheirEyes,
     });
+  }
+
+  if (!input.flying) followed.flight = null;
+  else {
+    const ahead = camera.getWorldDirection(new Vector3());
+    const flight = stepFlight(
+      followed.flight ?? flightFrom(camera.position, ahead),
+      { move: input.move, rise: input.rise, speed: input.flySpeed * (input.running ? FLY_BOOST : 1), turn, turnRate: input.turnRate },
+      world.heightAt,
+      delta,
+    );
+    followed.flight = flight;
+    const look = lookDirection(flight);
+    camera.position.set(flight.x, flight.y, flight.z);
+    camera.lookAt(flight.x + look.x, flight.y + look.y, flight.z + look.z);
+    return;
   }
 
   switch (walker.view) {
@@ -259,6 +283,7 @@ export function WalkerAndCamera({ world, camping, input, walker, focus, palette,
     sinceLanding: Infinity,
     impact: 0,
     seconds: 0,
+    flight: null,
   });
   const motion = useRef({ mover: standingMover(world, walker.x, walker.z, walker.heading) });
 
