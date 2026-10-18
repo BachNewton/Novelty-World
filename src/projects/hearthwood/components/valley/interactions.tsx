@@ -6,6 +6,7 @@ import type { ValleyClock } from "./clock";
 import { petAnimal, setCompanionsOpen, tapAnimal, treatAnimal, type Companionship } from "./companionship";
 import { forageTime, pickSpot, setBasketOpen, type Foraging } from "./foraging";
 import { openCooking, type Hearth } from "./hearth";
+import { examineClue, setCasebookPage, type Mysteries } from "./mysteries";
 import { setJournalOpen, talkWith, type People } from "./people";
 
 /*
@@ -17,7 +18,8 @@ import { setJournalOpen, talkWith, type People } from "./people";
  * animal tapped, or else talks with the person tapped, or else cooks at
  * the fire tapped; the basket, the companions row and the journal open and
  * close. While the naming card is up, Elliott sits cooking at the fire or
- * talks with someone, that hears its own keys and buttons.
+ * talks with someone, that hears its own keys and buttons. A clue offered
+ * is examined like anything else, and K opens the journal on its casebook.
  */
 
 export function Interactions({
@@ -25,6 +27,7 @@ export function Interactions({
   companionship,
   hearth,
   people,
+  mysteries,
   clock,
   surface,
 }: {
@@ -32,11 +35,12 @@ export function Interactions({
   companionship: Companionship;
   hearth: Hearth;
   people: People;
+  mysteries: Mysteries;
   clock: ValleyClock;
   surface: RefObject<HTMLElement | null>;
 }) {
   // While the naming card is up, a turn at the fire is on, or a conversation, those hear their own keys and buttons.
-  const busy = () => companionship.shown.naming !== null || hearth.shown.session !== null || people.shown.talking !== null;
+  const busy = () => companionship.shown.naming !== null || hearth.shown.session !== null || people.shown.talking !== null || mysteries.shown.examining !== null;
   const reading = () => people.shown.journal;
   useInteractInput(surface, {
     onInteract: () => {
@@ -51,6 +55,10 @@ export function Interactions({
       }
       if (people.shown.offer) {
         talkWith(people, people.shown.offer.id);
+        return;
+      }
+      if (mysteries.shown.offer) {
+        examineClue(mysteries, mysteries.shown.offer.key);
         return;
       }
       const offer = companionship.shown.offer;
@@ -72,6 +80,11 @@ export function Interactions({
         tapAnimal(companionship, key);
         return;
       }
+      const clue = mysteries.tapAt?.(x, y) ?? null;
+      if (clue !== null) {
+        examineClue(mysteries, clue);
+        return;
+      }
       const person = people.tapAt?.(x, y) ?? null;
       if (person !== null) {
         talkWith(people, person);
@@ -87,6 +100,12 @@ export function Interactions({
     },
     onJournal: () => {
       if (!busy()) setJournalOpen(people, !people.shown.journal);
+    },
+    onCasebook: () => {
+      if (busy() || Object.keys(mysteries.shown.book.cases).length === 0) return;
+      const open = !(people.shown.journal && mysteries.shown.casebook);
+      setCasebookPage(mysteries, open);
+      setJournalOpen(people, open);
     },
   });
   return null;

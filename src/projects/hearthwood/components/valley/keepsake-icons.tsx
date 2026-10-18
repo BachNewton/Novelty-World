@@ -12,6 +12,8 @@ export const KEEPSAKE_NAMES: Record<Keepsake, string> = {
   "sea-glass": "Sea glass from the far shore",
   "rowan-seedling": "A rowan seedling",
   compass: "A brass compass",
+  "magnifying-glass": "A beekeeper's reading glass",
+  deerstalker: "A tweed deerstalker",
 };
 
 const c = (name: string) => `var(--color-hearthwood-folk-${name})`;
@@ -83,6 +85,25 @@ function drawing(keepsake: Keepsake) {
           <circle cx="16" cy="17" r="7.6" fill={c("paper")} />
           <path d="M16 10.6 L18 17 L16 23.4 L14 17 Z" fill={c("red")} />
           <circle cx="16" cy="5.6" r="2" fill="none" stroke={c("brass")} strokeWidth="1.4" />
+        </>
+      );
+    case "magnifying-glass":
+      return (
+        <>
+          <path d="M19.5 19.5 L27 27" stroke={c("wood")} strokeWidth="3.6" strokeLinecap="round" />
+          <circle cx="13.5" cy="13.5" r="8.4" fill={c("sea-glass")} opacity="0.55" />
+          <circle cx="13.5" cy="13.5" r="8.4" fill="none" stroke={c("brass")} strokeWidth="2.4" />
+          <path d="M9.5 11 C10.5 9 12 8.4 13.6 8.2" stroke={c("paper")} strokeWidth="1.3" strokeLinecap="round" fill="none" />
+        </>
+      );
+    case "deerstalker":
+      return (
+        <>
+          <path d="M3 22 C7 23.5 9 23.5 10 22 L22 22 C23 23.5 25 23.5 29 22 C27 20 24 19.5 22.5 19.5 L9.5 19.5 C8 19.5 5 20 3 22 Z" fill={c("brown")} />
+          <path d="M8 20 C8 11 11.5 7.5 16 7.5 C20.5 7.5 24 11 24 20 Z" fill={c("oat")} />
+          <path d="M8.6 15 L23.4 15 M8.2 18 L23.8 18 M12 8.6 L12 20 M16 7.5 L16 20 M20 8.6 L20 20" stroke={c("brown")} strokeWidth="0.7" opacity="0.6" />
+          <path d="M10.5 17 C10 13 11 10 13 9" stroke={c("brown")} strokeWidth="1.6" strokeLinecap="round" fill="none" />
+          <circle cx="16" cy="7" r="1.5" fill={c("charcoal")} />
         </>
       );
   }

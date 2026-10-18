@@ -1,6 +1,6 @@
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import { FIRST_STORY, STORIES, storyOf } from "../stories/library";
-import type { Story } from "../stories/story";
+import type { FoundClue, MysteryStory, Story } from "../stories/story";
 import { ALTITUDE, emptySample, type LandSample } from "./land";
 import { PLANT_CHUNK } from "./life";
 import { PLACE_CELL, type Place } from "./places";
@@ -23,8 +23,9 @@ import type { World } from "./world";
  * Each person carries a story from the library, chosen by who they are and
  * where they stand, and whatever the story needs is placed with them: a lost
  * cat or dog somewhere round them (a stray of the person's own, found and
- * befriended like any other), or the friend a note is carried to, a few
- * hundred metres off. Who a person is to look at, and their name, come from
+ * befriended like any other), the friend a note is carried to, a few
+ * hundred metres off, or a mystery's clues, lying round them and their
+ * homes on open, gentle ground. Who a person is to look at, and their name, come from
  * their seed in the gameplay and the art; this says only where they are.
  */
 
@@ -52,6 +53,15 @@ export interface LostPet {
   roam: number;
 }
 
+/** A mystery's clue as the world placed it, by the clue's id in its story. */
+export interface PlacedClue {
+  id: string;
+  x: number;
+  z: number;
+  /** Its turn about the vertical. */
+  turn: number;
+}
+
 export interface Person {
   /** Their cell and their place in it: what Elliott's acquaintance with them is kept under. */
   id: string;
@@ -69,6 +79,8 @@ export interface Person {
   pet: LostPet | null;
   /** The other one of a carried note: where they stand, and their seed for their name. */
   partner: { id: string; seed: string; x: number; z: number } | null;
+  /** Their mystery's clues that lie in the world, or none. */
+  clues: PlacedClue[];
 }
 
 /** Who stands by each kind of place that has its own people. */
@@ -272,6 +284,35 @@ function lostPet(ground: PeopleGround, rng: Rng, person: { id: string; x: number
   return { id: `lost/${person.id}`, species, seed: `${ground.seed}/lost/${person.id}`, home: { x: best.x, z: best.z }, roam: 5 };
 }
 
+/** How far a clue keeps from a home's middle beyond the room the home needs, from the person, and from another clue, in metres. */
+const CLUE_CLEAR = { home: 0.6, person: 1.6, clue: 2.4 } as const;
+
+/** A mystery's clues round its person and their homes, each on open, gentle, dry ground: null if one can't be placed. */
+function placeClues(ground: PeopleGround, rng: Rng, person: Person, story: MysteryStory): PlacedClue[] | null {
+  const placed: PlacedClue[] = [];
+  for (const clue of story.mystery.clues.filter((c): c is FoundClue => c.kind === "found")) {
+    const { from, near, far } = clue.at;
+    const anchor = from === "person" ? person : person.homes.find((h) => h.kind === from);
+    if (!anchor) return null;
+    let spot: PlacedClue | null = null;
+    for (let k = 0; k < 20 && spot === null; k++) {
+      const angle = rng.next() * Math.PI * 2;
+      const r = near + rng.next() * (far - near);
+      const x = anchor.x + Math.cos(angle) * r;
+      const z = anchor.z + Math.sin(angle) * r;
+      if (Math.hypot(x - person.x, z - person.z) < CLUE_CLEAR.person) continue;
+      if (person.homes.some((h) => Math.hypot(x - h.x, z - h.z) < ROOM[h.kind] + CLUE_CLEAR.home)) continue;
+      if (placed.some((p) => Math.hypot(x - p.x, z - p.z) < CLUE_CLEAR.clue)) continue;
+      const at = read(ground, x, z);
+      if (at === null || at.land.height - at.land.water < 0.2 || at.slope > 0.3 || !clearOfPlants(ground, x, z, 0.45)) continue;
+      spot = { id: clue.id, x, z, turn: rng.next() * Math.PI * 2 };
+    }
+    if (spot === null) return null;
+    placed.push(spot);
+  }
+  return placed;
+}
+
 interface Draft {
   id: string;
   role: Role;
@@ -284,10 +325,15 @@ interface Draft {
 
 /** A drafted person given their story, and whatever their story needs placed: null if it can't be. */
 function finish(ground: PeopleGround, rng: Rng, draft: Draft, story: Story): Person | null {
-  const person: Person = { ...draft, seed: `${ground.seed}/person/${draft.id}`, story: story.id, pet: null, partner: null };
+  const person: Person = { ...draft, seed: `${ground.seed}/person/${draft.id}`, story: story.id, pet: null, partner: null, clues: [] };
   if (story.kind === "help" && story.request.kind === "pet") {
     person.pet = lostPet(ground, rng, person, story.request.species);
     if (person.pet === null) return null;
+  }
+  if (story.kind === "mystery") {
+    const clues = placeClues(ground, rng, person, story);
+    if (clues === null) return null;
+    person.clues = clues;
   }
   return person;
 }

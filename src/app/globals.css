@@ -632,6 +632,25 @@
   --color-hearthwood-folk-warm: #df5f78;
   --color-hearthwood-folk-curious: #3f86b9;
   --color-hearthwood-folk-playful: #df9b26;
+  /* Hearthwood's mysteries: the clues in the world and their drawings in the casebook. */
+  --color-hearthwood-clue-mud: #a07a52;
+  --color-hearthwood-clue-print: #3a2b21;
+  --color-hearthwood-clue-fox: #cc6a2e;
+  --color-hearthwood-clue-fox-light: #f2c79c;
+  --color-hearthwood-clue-twig: #9a7450;
+  --color-hearthwood-clue-mitten: #c9363b;
+  --color-hearthwood-clue-cuff: #f3e6cc;
+  --color-hearthwood-clue-crumb: #d9a861;
+  --color-hearthwood-clue-honey: #eba22c;
+  --color-hearthwood-clue-wool: #f4efe4;
+  --color-hearthwood-clue-moss: #6f8f45;
+  --color-hearthwood-clue-feather: #26252e;
+  --color-hearthwood-clue-sheen: #9c9ea3;
+  --color-hearthwood-clue-brass: #dcaa3e;
+  --color-hearthwood-clue-rope: #cdb787;
+  --color-hearthwood-clue-leaf: #6c9c40;
+  --color-hearthwood-clue-berry: #f6a531;
+  --color-hearthwood-clue-glint: #fff4c0;
 }
 
 /* Hearthwood: the bar that fills while a dish cooks at the fire. */
@@ -654,6 +673,20 @@
   }
   100% {
     transform: scale(1);
+  }
+}
+
+/* Hearthwood: a casebook connection that doesn't hold yet gives a small, gentle sway. */
+@keyframes hearthwood-casebook-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(-0.3rem);
+  }
+  65% {
+    transform: translateX(0.2rem);
   }
 }
 

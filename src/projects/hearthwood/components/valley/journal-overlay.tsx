@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type CSSProperties } from "react";
-import { BookHeart, Check, Flame, HeartHandshake, Hourglass, Mail, MessageCircle, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { BookHeart, BookOpenText, Check, Flame, HeartHandshake, Hourglass, Mail, MessageCircle, Search, X } from "lucide-react";
 import { PromptButton, type Binding } from "@/shared/components/prompts";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import type { InputKind } from "@/shared/lib/input";
@@ -19,6 +19,8 @@ import { FolkPortrait } from "./folk-portrait";
 import { ForageIcon, FORAGE_NAMES } from "./forage-icons";
 import { GiftMark } from "./conversation-overlay";
 import { KeepsakeIcon, KEEPSAKE_NAMES } from "./keepsake-icons";
+import { setCasebookPage, subscribeMysteries, type Mysteries } from "./mysteries";
+import { Casebook } from "./mystery-overlay";
 import { setJournalOpen, subscribePeople, type People } from "./people";
 
 /*
@@ -27,6 +29,8 @@ import { setJournalOpen, subscribePeople, type People } from "./people";
  * asked and what for, a note on its way, help given) and what they gave,
  * and the keepsakes kept at camp along the bottom. Shown, not told: the
  * words are only names and what the marks are called for those who ask.
+ * Once a mystery has been told, the journal has a second page, the
+ * casebook, with a tab for each page.
  */
 
 const CLOSE: Binding = { pad: "B", key: "Esc", fills: false };
@@ -86,6 +90,19 @@ function Card({ id, known, worldSeed }: { id: string; known: Acquaintance; world
         </span>
       );
     }
+    if (story.kind === "mystery") {
+      return known.help === "given" ? (
+        <span className="flex items-center" aria-label="Solved">
+          <Search aria-hidden className="size-5" strokeWidth={2.6} />
+          <Check aria-hidden className="size-4" />
+        </span>
+      ) : (
+        <span className="flex items-center gap-0.5" aria-label="A mystery to solve">
+          <Hourglass aria-hidden className="size-4 opacity-70" />
+          <Search aria-hidden className="size-5 text-(--color-hearthwood-folk-curious)" strokeWidth={2.6} />
+        </span>
+      );
+    }
     if (story.kind === "receive" && known.help === "given") {
       return (
         <span className="flex items-center" aria-label="Their note came">
@@ -112,9 +129,21 @@ function Card({ id, known, worldSeed }: { id: string; known: Acquaintance; world
   );
 }
 
-export function JournalOverlay({ people, input }: { people: People; input: InputKind }) {
+function Tab({ on, label, onClick, children }: { on: boolean; label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" role="tab" aria-selected={on} aria-label={label} title={label} onClick={onClick} className={`flex items-center gap-2 rounded-xl px-2.5 py-1 text-lg font-semibold ${on ? "bg-(--color-hearthwood-folk-ink)/12" : "opacity-55"}`}>
+      {children}
+    </button>
+  );
+}
+
+export function JournalOverlay({ people, mysteries, input }: { people: People; mysteries: Mysteries; input: InputKind }) {
   const subscribe = useCallback((listener: () => void) => subscribePeople(people, listener), [people]);
   const { journal, memory } = useSyncExternalStore(subscribe, () => people.shown);
+  const subscribeCases = useCallback((listener: () => void) => subscribeMysteries(mysteries, listener), [mysteries]);
+  const { casebook, book } = useSyncExternalStore(subscribeCases, () => mysteries.shown);
+  const hasCases = Object.keys(book.cases).length > 0;
+  const onCasebook = casebook && hasCases;
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -148,15 +177,25 @@ export function JournalOverlay({ people, input }: { people: People; input: Input
     <div className="absolute inset-0 flex items-start justify-center overflow-y-auto px-3 pt-16 pb-4 sm:items-center sm:pt-4">
       <div ref={root} role="dialog" aria-label="Journal" className="w-full max-w-3xl rounded-2xl bg-(--color-hearthwood-folk-page) px-4 py-3 text-(--color-hearthwood-folk-ink) shadow-xl" style={PAGE_INK}>
         <div className="mb-2 flex items-center justify-between">
-          <span className="flex items-center gap-2 text-lg font-semibold" aria-label={`${met.length} people met`}>
-            <BookHeart aria-hidden className="size-6" />
-            <span className="tabular-nums">{met.length}</span>
-          </span>
+          <div role="tablist" className="flex items-center gap-1">
+            <Tab on={!onCasebook} label={`People: ${met.length} met`} onClick={() => setCasebookPage(mysteries, false)}>
+              <BookHeart aria-hidden className="size-6" />
+              <span className="tabular-nums">{met.length}</span>
+            </Tab>
+            {hasCases && (
+              <Tab on={onCasebook} label="Casebook" onClick={() => setCasebookPage(mysteries, true)}>
+                <BookOpenText aria-hidden className="size-6 text-(--color-hearthwood-folk-curious)" />
+                <span className="tabular-nums">{Object.keys(book.cases).length}</span>
+              </Tab>
+            )}
+          </div>
           <PromptButton binding={CLOSE} input={input} data-pad-back="" data-pad-start="" aria-label="Close the journal" title="Close the journal" onClick={() => setJournalOpen(people, false)} className="rounded-xl px-3 py-1.5">
             <X aria-hidden className="size-5" />
           </PromptButton>
         </div>
-        {met.length === 0 ? (
+        {onCasebook ? (
+          <Casebook mysteries={mysteries} input={input} />
+        ) : met.length === 0 ? (
           <div className="flex justify-center py-6 opacity-50" aria-label="Nobody met yet">
             <MessageCircle aria-hidden className="size-10" />
           </div>
@@ -167,7 +206,7 @@ export function JournalOverlay({ people, input }: { people: People; input: Input
             ))}
           </ul>
         )}
-        {memory.keepsakes.length > 0 && (
+        {!onCasebook && memory.keepsakes.length > 0 && (
           <div aria-label="Keepsakes at camp" className="mt-3 flex flex-wrap items-center justify-center gap-2 border-t border-(--color-hearthwood-folk-ink)/20 pt-2">
             <Flame aria-label="At camp" className="size-5 text-(--color-hearthwood-valley-fire-flame)" />
             {memory.keepsakes.map((k) => (

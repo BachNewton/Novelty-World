@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
-import { ArrowRight, ChevronRight, Hand, Heart, Laugh, Lightbulb, Mail, MessageCircleHeart, PawPrint, Search, Sparkles, X } from "lucide-react";
+import { ArrowRight, BookOpenText, ChevronRight, Hand, Heart, Laugh, Lightbulb, Mail, MessageCircleHeart, PawPrint, Plus, Search, Sparkles, X } from "lucide-react";
 import { Prompt, PromptButton, type Binding } from "@/shared/components/prompts";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import type { InputKind } from "@/shared/lib/input";
@@ -22,8 +22,10 @@ import { chooseTone, goOn, leaveTalk, subscribePeople, talkWith, type Given, typ
  * storybook panel along the bottom of the view: their face and name, their
  * line, what Elliott said when they chose, and then either Elliott's three
  * choices of tone (warm, curious, playful, each with its own mark and
- * colour) or the way on; what Elliott gave as the talk opened, and on its
- * last page what they were given.
+ * colour) or the way on; what Elliott gave as the talk opened, the clues
+ * it told noted in the casebook, and on its last page what they were
+ * given. In a mystery's reveal Elliott speaks first on each page, laying
+ * out the reasoning, with a magnifying glass for a mark.
  *
  * While a conversation is on the panel has the keys and buttons (the rest
  * of what Elliott can use waits): F, Enter or Space (the controller's X)
@@ -177,6 +179,12 @@ function Panel({ people, talking, input }: { people: People; talking: Talking; i
             <span className="text-sm font-bold tracking-wide">{talking.name}</span>
           </span>
           <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5">
+            {talking.lead && (
+              <p key={`lead/${talking.conversation.page}`} className="flex animate-[hearthwood-talk-line_350ms_ease-out] items-start gap-1.5 text-sm font-semibold italic sm:text-base" aria-label={`Elliott: ${talking.lead}`}>
+                <Search aria-hidden className="mt-0.5 size-4 shrink-0 text-(--color-hearthwood-folk-curious)" strokeWidth={2.6} />
+                {talking.lead}
+              </p>
+            )}
             {talking.said && (
               <p className="flex items-start gap-1.5 text-sm italic opacity-80" aria-label={`Elliott: ${talking.said.text}`}>
                 <ToneMark tone={talking.said.tone} className="mt-0.5 size-4 shrink-0" />
@@ -187,6 +195,13 @@ function Panel({ people, talking, input }: { people: People; talking: Talking; i
               {talking.line}
             </p>
             {first && talking.given && <GivenRow given={talking.given} />}
+            {first && talking.noted > 0 && (
+              <span className="flex animate-[hearthwood-forage-pop_600ms_ease-out] items-center gap-0.5 self-start" role="img" aria-label={`${talking.noted} noted in the casebook`} title="Noted in the casebook">
+                <BookOpenText aria-hidden className="size-6 text-(--color-hearthwood-folk-curious)" />
+                <Plus aria-hidden className="size-3.5" strokeWidth={3} />
+                <span className="text-sm font-bold tabular-nums">{talking.noted}</span>
+              </span>
+            )}
             {talking.last && talking.gifts.length > 0 && (
               <div className="flex flex-wrap items-center gap-2" aria-label="Given to Elliott">
                 <Sparkles aria-hidden className="size-5 text-(--color-hearthwood-folk-playful)" />

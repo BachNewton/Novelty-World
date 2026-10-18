@@ -136,8 +136,6 @@ export interface Companionship {
   meshed: (() => boolean) | null;
   /** Strays the world's own strays don't hold (the people's lost animals) round a point, and the name any of them already has: given by whoever keeps them. */
   moreStrays: { near: (x: number, z: number, radius: number) => Stray[]; nameOf: (key: string) => string | null } | null;
-  /** How strongly something offered before the animals, other than the fire (a person), is offered this frame: an animal must beat it. */
-  rival: (() => number) | null;
 }
 
 /**
@@ -183,7 +181,6 @@ export function createCompanionship(world: World, foraging: Foraging, hearth: He
     simulate: null,
     meshed: null,
     moreStrays: null,
-    rival: null,
   };
   companionship.shown.companions = rowsOf(companionship);
   return companionship;
