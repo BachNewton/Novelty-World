@@ -33,6 +33,7 @@ import { CookingOverlay, useCookingOn } from "./cooking-overlay";
 import { createHearth } from "./hearth";
 import { Interactions } from "./interactions";
 import { WorldAnimals } from "./world-animals";
+import { makeWildlife, WorldWildlife } from "./world-wildlife";
 import { WalkerAndCamera, type Walker } from "./walker";
 import { TouchStickView, WalkHints } from "./walk-hints";
 import { WorldForage } from "./world-forage";
@@ -132,6 +133,7 @@ export function WorldView() {
   useFrameStats();
   const cooking = useCookingOn(hearth);
   const { atmosphere, sky, clock, walker, focus, streaming, air, freeCamera, weather, debug } = shared;
+  const wildlife = useMemo(() => makeWildlife(), []);
 
   return (
     <div ref={surface} data-testid="hearthwood-world" className="relative h-dvh w-full touch-none overflow-hidden select-none" style={PROMPT_COLOURS}>
@@ -152,11 +154,12 @@ export function WorldView() {
         <WorldPlaces world={world} palette={palette} atmosphere={atmosphere} sky={sky} streaming={streaming} />
         <WorldForage foraging={foraging} palette={foragePalette} atmosphere={atmosphere} clock={clock} walker={walker} input={input.state} rival={() => Math.min(companionship.candidate?.score ?? Infinity, hearth.candidate ?? Infinity)} />
         <WorldAnimals companionship={companionship} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} atmosphere={atmosphere} />
+        <WorldWildlife world={world} clock={clock} walker={walker} weather={weather} atmosphere={atmosphere} wildlife={wildlife} />
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
         <WorldHearth hearth={hearth} foraging={foraging} companionship={companionship} walker={walker} input={input.state} palette={dishPalette} atmosphere={atmosphere} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
-        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} costs={debug.costs} setPointOfView={input.setPointOfView} />
+        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} wildlife={wildlife} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
       {!cooking && <WalkHints input={input} />}
       <ForageOverlay foraging={foraging} hearth={hearth} clock={clock} input={input.kind} />

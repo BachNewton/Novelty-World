@@ -884,4 +884,23 @@ body {
   --color-hearthwood-deer-eye: #2a1a12;
   --color-hearthwood-deer-glint: #fffaf0;
   --color-hearthwood-deer-inner-ear: #d9b4a4;
+  --color-hearthwood-bird-robin-back: #7d6446;
+  --color-hearthwood-bird-robin-breast: #e2662f;
+  --color-hearthwood-bird-pale: #f1ece0;
+  --color-hearthwood-bird-beak: #3a2f28;
+  --color-hearthwood-bird-black: #1b191a;
+  --color-hearthwood-bird-tit-back: #7f8c4c;
+  --color-hearthwood-bird-tit-yellow: #e7cf45;
+  --color-hearthwood-bird-tit-wing: #6c7c93;
+  --color-hearthwood-bird-finch-back: #8f5f42;
+  --color-hearthwood-bird-finch-breast: #d98d73;
+  --color-hearthwood-bird-finch-cap: #6e88a6;
+  --color-hearthwood-bird-finch-beak: #a9a39a;
+  --color-hearthwood-bird-legs: #8a7468;
+  --color-hearthwood-butterfly-brimstone: #f2e15a;
+  --color-hearthwood-butterfly-tortoiseshell: #e4762c;
+  --color-hearthwood-butterfly-peacock: #b8332e;
+  --color-hearthwood-butterfly-blue: #7aa7e8;
+  --color-hearthwood-butterfly-dark: #2a2224;
+  --color-hearthwood-butterfly-eyespot: #4f7fd0;
 }

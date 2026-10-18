@@ -1,5 +1,6 @@
 "use client";
 
+import type { Wildlife } from "./world-wildlife";
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Color } from "three";
@@ -135,6 +136,8 @@ export interface WorldProbe {
   map: (request: MapRequest) => string;
   forage: ForageProbe;
   companions: CompanionsProbe;
+  /** The songbirds round Elliott (where each is, what it is doing, on what), and how busy the birds and butterflies are now. */
+  wildlife: () => { birds: { key: string; species: string; x: number; y: number; z: number; mode: string; perch: string; twig: { x: number; y: number; z: number } | null }[]; butterflies: { x: number; y: number; z: number }[]; about: { birds: number; butterflies: number } };
   cooking: CookingProbe;
   /** The motion clock's seconds now, to hold motion where it is. */
   motion: () => number;
@@ -322,6 +325,7 @@ export function WorldProbeHandle({
   foraging,
   companionship,
   hearth,
+  wildlife,
   costs,
   setPointOfView,
 }: {
@@ -335,6 +339,7 @@ export function WorldProbeHandle({
   foraging: Foraging;
   companionship: Companionship;
   hearth: Hearth;
+  wildlife: Wildlife;
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
@@ -527,6 +532,11 @@ export function WorldProbeHandle({
         },
       },
       motion: () => clock.motion,
+      wildlife: () => ({
+        birds: wildlife.birds.map((b) => ({ key: b.key, species: b.species, x: b.state.x, y: b.state.y, z: b.state.z, mode: b.state.mode, perch: b.perches[b.state.perch].kind, twig: b.perches[b.state.perch].twig ?? null })),
+        butterflies: wildlife.butterflies.map((f) => ({ x: f.x, y: f.y, z: f.z })),
+        about: wildlife.about,
+      }),
       companions: {
         animals: () =>
           [...companionship.animals.values()].map((a) => {
@@ -623,7 +633,7 @@ export function WorldProbeHandle({
       stopWatching?.();
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, costs, setPointOfView]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, wildlife, costs, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;

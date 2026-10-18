@@ -246,4 +246,59 @@ if (want("wildlife-deer")) {
   await shoot(page, "wildlife-deer-dawn", { free: await cameraOn(page, at, at.heading + 1.3, 7, 1.4, 0.7) });
 }
 
+if (want("wildlife-songbirds")) {
+  await run(page, "mabon", 9);
+  const camp = await page.evaluate(() => window.__hearthwoodWorld.camp());
+  // Out from camp until a songbird is seen perched on the edge of a crown (or, failing that, anywhere up).
+  let bird = null;
+  for (let r = 0; r < 600 && !bird; r += 60) {
+    await page.evaluate(({ c, r }) => window.__hearthwoodWorld.placeWalker(c.x + r, c.z + 4, 0), { c: camp, r });
+    await frames(page, 30);
+    const { birds } = await page.evaluate(() => window.__hearthwoodWorld.wildlife());
+    bird = birds.find((b) => b.mode === "perched" && b.perch === "crown") ?? birds.find((b) => b.mode === "perched" && b.perch !== "ground") ?? null;
+  }
+  if (!bird) throw new Error("No perched songbird within 600 m of camp");
+  console.log(`songbird ${bird.species} on a ${bird.perch} at ${bird.x.toFixed(1)}, ${bird.y.toFixed(1)}, ${bird.z.toFixed(1)}`);
+  await page.evaluate((b) => window.__hearthwoodWorld.placeWalker(b.x + 14, b.z, -Math.PI / 2), bird);
+  await frames(page, 20);
+  await page.evaluate(() => window.__hearthwoodWorld.holdMotion(window.__hearthwoodWorld.motion()));
+  const now = (await page.evaluate(() => window.__hearthwoodWorld.wildlife())).birds.find((b) => b.key === bird.key);
+  // From out beyond the twig's end, looking back at the bird and the crown.
+  // From out beyond the twig's end and a little below, looking back at the bird with the tree behind it.
+  const out = now.twig ? { x: now.x - now.twig.x, z: now.z - now.twig.z } : { x: 1, z: 0.6 };
+  const length = Math.hypot(out.x, out.z) || 1;
+  const eye = { x: now.x + (out.x / length) * 1.4 + (out.z / length) * 0.5, z: now.z + (out.z / length) * 1.4 - (out.x / length) * 0.5 };
+  await shoot(page, "wildlife-songbirds-perched", { free: { ...eye, y: now.y - 0.15, lookX: now.x, lookY: now.y + 0.06, lookZ: now.z } });
+  // A bird down on the ground, hopping and pecking.
+  await run(page, "mabon", 9);
+  let ground = null;
+  for (let tries = 0; tries < 40 && !ground; tries++) {
+    await frames(page, 30);
+    ground = (await page.evaluate(() => window.__hearthwoodWorld.wildlife())).birds.find((b) => b.mode === "ground") ?? null;
+  }
+  if (ground) {
+    await page.evaluate(() => window.__hearthwoodWorld.holdMotion(window.__hearthwoodWorld.motion()));
+    await shoot(page, "wildlife-songbirds-ground", { free: { x: ground.x + 0.8, y: ground.y + 0.3, z: ground.z + 0.5, lookX: ground.x, lookY: ground.y + 0.05, lookZ: ground.z } });
+  } else console.log("no songbird came down to the ground to shoot");
+}
+
+if (want("wildlife-butterflies")) {
+  await run(page, "summer-4", 13);
+  const camp = await page.evaluate(() => window.__hearthwoodWorld.camp());
+  let spot = null;
+  for (let r = 0; r < 900 && !spot; r += 70) {
+    await page.evaluate(({ c, r }) => window.__hearthwoodWorld.placeWalker(c.x + r * 0.7, c.z - r * 0.7, 0), { c: camp, r });
+    await frames(page, 12);
+    const { butterflies } = await page.evaluate(() => window.__hearthwoodWorld.wildlife());
+    spot = butterflies[0] ?? null;
+  }
+  if (!spot) throw new Error("No butterflies near camp");
+  const { about } = await page.evaluate(() => window.__hearthwoodWorld.wildlife());
+  console.log(`butterflies on the wing: ${(about.butterflies * 100).toFixed(0)}%`);
+  await page.evaluate((s) => window.__hearthwoodWorld.placeWalker(s.x + 9, s.z + 2, -Math.PI / 2), spot);
+  await frames(page, 30);
+  await page.evaluate(() => window.__hearthwoodWorld.holdMotion(window.__hearthwoodWorld.motion()));
+  await shoot(page, "wildlife-butterflies", { free: { x: spot.x + 1.6, y: spot.y + 1.6, z: spot.z + 1.0, lookX: spot.x, lookY: spot.y + 0.35, lookZ: spot.z } });
+}
+
 await browser.close();

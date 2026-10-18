@@ -14,9 +14,9 @@ import type { World } from "./world";
  * it runs up; mountain hares out on the heath and the open fells; roe deer
  * at the woods' edges, with a meadow to graze at dawn and dusk and a bed in
  * the trees for the day, sometimes a doe with a second deer. The songbirds
- * perch in the trees and on the rocks round a point, and butterflies dance
- * over the flowers of each plant chunk, by the same seeds. Pure, and knowing
- * nothing of how any of it looks.
+ * perch on the rocks, the bushes and the edges of the trees' crowns of each
+ * plant chunk, and butterflies dance over its flowers, by the same seeds.
+ * Pure, and knowing nothing of how any of it looks.
  */
 
 export const FRIEND_SPECIES = ["squirrel", "hare", "deer"] as const;
@@ -236,4 +236,80 @@ export function butterfliesAbout(realDayOfYear: number, sunElevation: number, te
   const sun = Math.min(1, Math.max(0, (sunElevation - 12) / 15));
   const warm = Math.min(1, Math.max(0, (temperature - 13) / 6));
   return Math.min(1, season * 1.4) * sun * warm * (1 - Math.min(1, precipitation * 3)) * (1 - 0.6 * cloud);
+}
+
+/** Somewhere a songbird can sit: on a rock, the top of a bush, a twig out from the edge of a tree's crown, or the ground to hop about on. */
+export interface Perch {
+  x: number;
+  y: number;
+  z: number;
+  kind: "rock" | "bush" | "crown" | "ground";
+  /** A crown's twig: where it leaves the crown, for the art to draw it to the perch. */
+  twig?: { x: number; y: number; z: number };
+}
+
+/** A songbird of a plant chunk: its seed, and the perch it starts on (an index into the chunk's perches). */
+export interface ChunkBird {
+  seed: string;
+  perch: number;
+}
+
+/** A butterfly of a plant chunk: its seed, and the flowers it dances over. */
+export interface Butterfly {
+  seed: string;
+  x: number;
+  y: number;
+  z: number;
+}
+
+const CROWNED: readonly PlantKind[] = ["broadleaf", "birch", "aspen", "maple"];
+
+/** The perches of one plant chunk, from its plants, and a little ground beside them. */
+export function perchesIn(ground: WildGround, chunkX: number, chunkZ: number): Perch[] {
+  const rng = createRng(`${ground.seed}/perches/${chunkX},${chunkZ}`);
+  const out: Perch[] = [];
+  for (const plant of ground.plantsIn(chunkX, chunkZ).plants) {
+    if (out.length >= 28) break;
+    if (plant.kind === "rock" && plant.size > 0.7) {
+      const tall = plant.size * (0.6 + 0.5 * (plant.stretch - 0.85)) * 1.4;
+      out.push({ x: plant.x, y: plant.y - plant.size * 0.12 + tall * 0.44, z: plant.z, kind: "rock" });
+    } else if (plant.kind === "bush" && rng.next() < 0.5) {
+      out.push({ x: plant.x, y: plant.y - 0.12 + plant.size * plant.stretch * 0.7, z: plant.z, kind: "bush" });
+    } else if (CROWNED.includes(plant.kind) && rng.next() < 0.3) {
+      const angle = rng.next() * Math.PI * 2;
+      // A twig out from under the crown, its end clear of the leaves.
+      const width = plant.size / Math.sqrt(plant.stretch);
+      const y = plant.y - 0.12 + plant.size * plant.stretch * (plant.kind === "birch" || plant.kind === "aspen" ? 0.5 : 0.48);
+      const twig = { x: plant.x + Math.cos(angle) * width * 0.12, y: y - 0.08, z: plant.z + Math.sin(angle) * width * 0.12 };
+      out.push({ x: plant.x + Math.cos(angle) * width * 0.55, y, z: plant.z + Math.sin(angle) * width * 0.55, kind: "crown", twig });
+    } else continue;
+    // A patch of ground beside it to hop down onto.
+    const last = out[out.length - 1];
+    const angle = rng.next() * Math.PI * 2;
+    const gx = last.x + Math.cos(angle) * (1.5 + rng.next() * 2);
+    const gz = last.z + Math.sin(angle) * (1.5 + rng.next() * 2);
+    const s = ground.sampleAt(gx, gz);
+    if (s.height > s.water + 0.1) out.push({ x: gx, y: s.height, z: gz, kind: "ground" });
+  }
+  return out;
+}
+
+/** The songbirds of a plant chunk: a few wherever there are perches, more where the woods are mixed and open. */
+export function songbirdsIn(ground: WildGround, chunkX: number, chunkZ: number, perches: readonly Perch[]): ChunkBird[] {
+  const sitting = perches.map((p, i) => ({ p, i })).filter(({ p }) => p.kind !== "ground");
+  if (sitting.length === 0) return [];
+  const rng = createRng(`${ground.seed}/songbirds/${chunkX},${chunkZ}`);
+  const count = Math.min(sitting.length, 1 + Math.floor(rng.next() * 3.5));
+  return Array.from({ length: count }, (_, n) => ({ seed: `${ground.seed}/songbird/${chunkX},${chunkZ}/${n}`, perch: sitting[Math.floor(rng.next() * sitting.length)].i }));
+}
+
+/** The butterflies of a plant chunk: over its meadow flowers, a few to a patch. */
+export function butterfliesIn(ground: WildGround, chunkX: number, chunkZ: number): Butterfly[] {
+  const rng = createRng(`${ground.seed}/butterflies/${chunkX},${chunkZ}`);
+  const out: Butterfly[] = [];
+  for (const plant of ground.plantsIn(chunkX, chunkZ).plants) {
+    if (plant.kind !== "flowers" || rng.next() > 0.35 || out.length >= 14) continue;
+    out.push({ seed: `${ground.seed}/butterfly/${chunkX},${chunkZ}/${out.length}`, x: plant.x, y: plant.y, z: plant.z });
+  }
+  return out;
 }
