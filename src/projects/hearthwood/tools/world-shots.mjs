@@ -21,7 +21,7 @@
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
 // `npx playwright install chromium` (one-time).
-// Usage:  node src/projects/hearthwood/tools/world-shots.mjs [label] [--seed=<seed>] [--only=<name,...>] [--features=<-id,+id,none,...>]
+// Usage:  node src/projects/hearthwood/tools/world-shots.mjs [label] [--seed=<seed>] [--only=<name,...>] [--features=<-id,+id,none,...>] [--peaks=<x,z;x,z;...>]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
 import { chromium } from "playwright";
@@ -35,6 +35,9 @@ const SEED = process.argv.find((arg) => arg.startsWith("--seed="))?.slice("--see
 const ONLY = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length).split(",") ?? null;
 // The features' switches for every shot, as `?features=` takes them (see ../features.ts).
 const FEATURES = process.argv.find((arg) => arg.startsWith("--features="))?.slice("--features=".length) ?? null;
+// The summits the `peaks-` shots look from, as `x,z;x,z;...`, the first the main one, in place of the highest found: for
+// shooting the same mountains before and after a change to the land.
+const PEAKS = process.argv.find((arg) => arg.startsWith("--peaks="))?.slice("--peaks=".length).split(";").map((p) => p.split(",").map(Number)) ?? null;
 const OUTDIR = join(HERE, "..", ".shots", LABEL);
 const BASE = process.env.HEARTHWOOD_URL ?? "http://localhost:3001/games/3d-games/hearthwood";
 const MOTION_AT = 12;
@@ -304,20 +307,22 @@ if (want("range")) {
 // The big mountains on a clear day: a high range seen from a lowland meadow 10 to 20 km off, as the Tetons rise over Jackson
 // Hole; a high valley's floor under its walls; a pass between two valleys; and the view out from the summit.
 if (want("peaks")) {
-  const spots = await desktop.evaluate(() => {
+  const spots = await desktop.evaluate((given) => {
     const world = window.__hearthwoodWorld;
     const height = (x, z) => world.at(x, z).height;
-    let peak = null;
-    for (let z = -14000; z <= 14000; z += 250) {
-      for (let x = -14000; x <= 14000; x += 250) {
-        const h = height(x, z);
-        if (peak === null || h > peak.height) peak = { x, z, height: h };
+    let peak = given ? { x: given[0], z: given[1], height: height(given[0], given[1]) } : null;
+    if (peak === null) {
+      for (let z = -14000; z <= 14000; z += 250) {
+        for (let x = -14000; x <= 14000; x += 250) {
+          const h = height(x, z);
+          if (peak === null || h > peak.height) peak = { x, z, height: h };
+        }
       }
-    }
-    for (let z = peak.z - 250; z <= peak.z + 250; z += 25) {
-      for (let x = peak.x - 250; x <= peak.x + 250; x += 25) {
-        const h = height(x, z);
-        if (h > peak.height) peak = { x, z, height: h };
+      for (let z = peak.z - 250; z <= peak.z + 250; z += 25) {
+        for (let x = peak.x - 250; x <= peak.x + 250; x += 25) {
+          const h = height(x, z);
+          if (h > peak.height) peak = { x, z, height: h };
+        }
       }
     }
     // The meadow: low, dry, open ground 10 to 20 km off with the clearest view of the peak over what lies between.
@@ -380,7 +385,7 @@ if (want("peaks")) {
       }
     }
     return { peak, meadow, valley, col };
-  });
+  }, PEAKS?.[0] ?? null);
   const { peak, meadow, valley, col } = spots;
   console.log(`peaks: summit ${peak.height.toFixed(0)} m at ${peak.x}, ${peak.z}`);
   if (meadow) {
@@ -410,6 +415,42 @@ if (want("peaks")) {
   const out = { x: peak.x + (meadow ? meadow.x - peak.x : 1000), z: peak.z + (meadow ? meadow.z - peak.z : 0) };
   await capture(desktop, "peaks-summit", { hour: 14, weather: "clear", walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 3, z: peak.z, lookX: out.x, lookY: peak.height - 1500, lookZ: out.z } });
   await capture(desktop, "peaks-summit-hazy", { hour: 14, walker: { x: peak.x, z: peak.z }, free: { x: peak.x, y: peak.height + 3, z: peak.z, lookX: out.x, lookY: peak.height - 1500, lookZ: out.z } });
+  // Other summits, each looking across the range to the one before it, so the view takes in the mountains round it.
+  const others = await desktop.evaluate(({ first, given }) => {
+    const world = window.__hearthwoodWorld;
+    const height = (x, z) => world.at(x, z).height;
+    if (given.length > 0) return given.map(([x, z]) => ({ x, z, height: height(x, z) }));
+    const found = [first];
+    for (let n = 0; n < 2; n++) {
+      let best = null;
+      for (let z = -14000; z <= 14000; z += 250) {
+        for (let x = -14000; x <= 14000; x += 250) {
+          if (found.some((p) => Math.hypot(p.x - x, p.z - z) < 6000)) continue;
+          const h = height(x, z);
+          if (best === null || h > best.height) best = { x, z, height: h };
+        }
+      }
+      for (let z = best.z - 250; z <= best.z + 250; z += 25) {
+        for (let x = best.x - 250; x <= best.x + 250; x += 25) {
+          const h = height(x, z);
+          if (h > best.height) best = { x, z, height: h };
+        }
+      }
+      found.push(best);
+    }
+    return found.slice(1);
+  }, { first: peak, given: PEAKS?.slice(1) ?? [] });
+  for (const [k, summit] of others.entries()) {
+    const towards = k === 0 ? peak : others[k - 1];
+    console.log(`  summit ${k + 2}: ${summit.height.toFixed(0)} m at ${summit.x}, ${summit.z}`);
+    const d = Math.hypot(towards.x - summit.x, towards.z - summit.z);
+    await capture(desktop, `peaks-summit-${k + 2}`, { hour: 14, weather: "clear", walker: { x: summit.x, z: summit.z }, free: { x: summit.x, y: summit.height + 3, z: summit.z, lookX: towards.x, lookY: summit.height - 0.08 * d, lookZ: towards.z } });
+  }
+  const url = await desktop.evaluate((r) => window.__hearthwoodWorld.map(r), { x: peak.x, z: peak.z, size: 16000, pixels: 1000, places: false, relief: true });
+  const mapPath = join(OUTDIR, "peaks-map-relief.png");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool writing under the project's own .shots folder
+  writeFileSync(mapPath, Buffer.from(url.split(",")[1], "base64"));
+  console.log(`wrote ${mapPath}`);
 }
 
 /** The edge of a wood of birch and maple: where the two regions meet, open ground facing the trees. */
