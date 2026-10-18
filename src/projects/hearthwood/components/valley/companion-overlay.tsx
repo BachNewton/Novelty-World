@@ -5,6 +5,7 @@ import { Check, Dices, Flame, Hand, Heart, PawPrint } from "lucide-react";
 import { Prompt, PromptButton, type Binding } from "@/shared/components/prompts";
 import { subscribeGamepads } from "@/shared/lib/gamepad";
 import type { InputKind } from "@/shared/lib/input";
+import type { Kind } from "../../gameplay/behaviour";
 import { NAME_LENGTH } from "../../gameplay/names";
 import { CompanionPortrait } from "./companion-portrait";
 import { anotherName, keepName, petAnimal, setCompanionsOpen, subscribeCompanionship, treatAnimal, type Companionship, type Naming } from "./companionship";
@@ -24,6 +25,9 @@ const TREAT: Binding = { pad: "B", key: "R", fills: false };
 const COMPANIONS: Binding = { pad: "LB", key: "C", fills: false };
 const ANOTHER: Binding = { pad: "DpadLeftRight", key: null, fills: false };
 const KEEP: Binding = { pad: "X", key: "Enter", fills: false };
+
+/** What an animal is called before it has a name of its own, for the prompts' labels. */
+const KIND_NAMES: Record<Kind, string> = { cat: "Cat", dog: "Dog", fox: "Fox", hedgehog: "Hedgehog", squirrel: "Red squirrel", hare: "Mountain hare", deer: "Roe deer" };
 
 /** How long the row stays up after one joins, in ms. */
 const SHOWN_AFTER_JOIN = 4500;
@@ -133,7 +137,7 @@ export function CompanionOverlay({ companionship, input }: { companionship: Comp
 
   const { offer, naming } = shown;
   const touch = input === "touch";
-  const offerLabel = offer ? (offer.name ?? (offer.species === "cat" ? "Cat" : "Dog")) : "";
+  const offerLabel = offer ? (offer.name ?? KIND_NAMES[offer.species]) : "";
   return (
     <>
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">

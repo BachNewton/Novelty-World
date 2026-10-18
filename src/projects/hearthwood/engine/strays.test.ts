@@ -58,6 +58,20 @@ describe("strays by area", () => {
     expect(share(byPlace)).toBeGreaterThan(share((c) => !byPlace(c)));
   });
 
+  it("hold a fox or a hedgehog now and then, rarer than the cats and dogs, and hedgehogs by the places people keep", () => {
+    const count = (species: string) => all.filter((s) => s.species === species).length;
+    expect(count("fox")).toBeGreaterThan(2);
+    expect(count("hedgehog")).toBeGreaterThan(2);
+    expect(count("fox") + count("hedgehog")).toBeLessThan(count("cat"));
+    const kept = new Set(["seter", "shrine", "stone-circle", "fairy-ring", "fallen-tree"]);
+    const share = (pick: (c: (typeof cells)[number]) => boolean) => {
+      const chosen = cells.filter(pick);
+      return chosen.filter((c) => c.strays.some((s) => s.species === "hedgehog")).length / Math.max(1, chosen.length);
+    };
+    const byPlace = (c: (typeof cells)[number]) => kept.has(world.placeIn(c.cx, c.cz)?.kind ?? "");
+    expect(share(byPlace)).toBeGreaterThan(share((c) => !byPlace(c)));
+  });
+
   it("each has an id and seed of its own", () => {
     expect(new Set(all.map((s) => s.id)).size).toBe(all.length);
     expect(new Set(all.map((s) => s.seed)).size).toBe(all.length);

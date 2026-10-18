@@ -24,6 +24,12 @@ import { DISHES, FOODS, isDish, isFood, RECIPE_IDS, type DishId, type Food, type
  * cat does, before it allows a pet, and is won by its favourite dish as a
  * cat is. A game of fetch is for later.
  *
+ * A fox is won as a cat is, but slower: it takes a few visits before it lets
+ * Elliott near enough for a pet, a pet warms it only a little, and treats
+ * help most (its favourite dish most of all, though even that doesn't win
+ * it at once). A hedgehog is won quickly once it has uncurled: it allows a
+ * pet soon, and its favourite wins it.
+ *
  * Warmth is only ever gained: nothing Elliott does cools an animal.
  */
 
@@ -61,7 +67,14 @@ export const VISIT = { near: 12, gone: 30 } as const;
 /** A dog bolder than this is friendly. */
 const FRIENDLY = -0.25;
 /** Patience's warmth a second, at its slowest (a shy cat) and quickest; past `slowAfter` in a visit it comes at a quarter of that. */
-const PATIENCE = { cat: { shy: 0.008, bold: 0.02 }, dog: { shy: 0.016, bold: 0.03 }, slowAfter: 0.4 } as const;
+const PATIENCE = { cat: { shy: 0.008, bold: 0.02 }, dog: { shy: 0.016, bold: 0.03 }, fox: { shy: 0.0045, bold: 0.011 }, hedgehog: { shy: 0.01, bold: 0.024 }, slowAfter: 0.4 } as const;
+
+/** The wild ones' own numbers: the warmth a pet needs and gives, how far off a stranger keeps (in metres), and what its favourite dish gives. */
+const WILD = {
+  fox: { petNeeds: 0.5, petGives: 0.1, keeps: 5.5, loved: 0.45 },
+  hedgehog: { petNeeds: 0.3, petGives: 0.22, keeps: 2, loved: 1 },
+} as const;
+const wild = (temper: Temper) => (temper.species === "fox" || temper.species === "hedgehog" ? WILD[temper.species] : null);
 
 const shyness = (temper: Temper) => Math.max(0, -temper.boldness);
 const friendlyDog = (temper: Temper) => temper.species === "dog" && temper.boldness > FRIENDLY;
@@ -88,7 +101,7 @@ export function tastesOf(seed: string): Tastes {
 /** How warm an animal must be to allow a pet: a friendly dog at once, a bold cat soon, a shy one late. */
 export function petWarmth(temper: Temper): number {
   if (friendlyDog(temper)) return 0;
-  const base = temper.species === "cat" ? 0.35 : 0.3;
+  const base = wild(temper)?.petNeeds ?? (temper.species === "cat" ? 0.35 : 0.3);
   return Math.min(0.75, base + 0.3 * shyness(temper) - 0.08 * temper.affection);
 }
 
@@ -97,7 +110,7 @@ export const allowsPet = (bond: Bond, temper: Temper) => bond.warmth >= petWarmt
 /** How far off a stray keeps from Elliott, in metres: a shy or aloof one well back, closing as it warms. A friendly dog keeps none. */
 export function keepsOff(temper: Temper, bond: Bond): number {
   if (isWon(bond) || friendlyDog(temper)) return 0;
-  const base = (temper.species === "cat" ? 3.5 : 2.5) + 6 * shyness(temper) + 1.5 * Math.max(0, -temper.affection);
+  const base = (wild(temper)?.keeps ?? (temper.species === "cat" ? 3.5 : 2.5)) + 6 * shyness(temper) + 1.5 * Math.max(0, -temper.affection);
   // Warm enough for a pet, it lets Elliott come right up to it.
   const warmed = Math.min(1, bond.warmth / Math.max(0.05, petWarmth(temper)));
   return base * (1 - warmed) + 0.6 * warmed;
@@ -125,7 +138,8 @@ export function bePatient(bond: Bond, temper: Temper, distance: number, calm: bo
 /** A pet, which must be allowed: how much warmer it leaves the animal. */
 export function pet(bond: Bond, temper: Temper): Bond {
   if (!allowsPet(bond, temper)) throw new Error(`A ${temper.species} at warmth ${bond.warmth.toFixed(2)} doesn't allow a pet yet`);
-  const gain = friendlyDog(temper) ? 0.85 + 0.3 * temper.affection : temper.species === "dog" ? 0.45 : 0.16 + 0.1 * temper.affection;
+  const own = wild(temper);
+  const gain = friendlyDog(temper) ? 0.85 + 0.3 * temper.affection : own ? own.petGives + 0.1 * temper.affection : temper.species === "dog" ? 0.45 : 0.16 + 0.1 * temper.affection;
   return { ...bond, warmth: Math.min(1, bond.warmth + gain) };
 }
 
@@ -133,14 +147,19 @@ export function pet(bond: Bond, temper: Temper): Bond {
 export type Relish = "loved" | "liked";
 
 /** How much warmer a treat leaves an animal that doesn't love it: something raw, any dish, or a dish it likes. */
-const TREAT_WARMTH = { cat: { raw: 0.22, dish: 0.4, liked: 0.65 }, dog: { raw: 0.5, dish: 0.7, liked: 0.85 } } as const;
+const TREAT_WARMTH = {
+  cat: { raw: 0.22, dish: 0.4, liked: 0.65 },
+  dog: { raw: 0.5, dish: 0.7, liked: 0.85 },
+  fox: { raw: 0.12, dish: 0.2, liked: 0.3 },
+  hedgehog: { raw: 0.3, dish: 0.45, liked: 0.6 },
+} as const;
 
 /** A treat given: its favourite dish wins an animal at once, as any treat wins a friendly dog; anything else warms it, a dish more than something raw. */
 export function giveTreat(bond: Bond, temper: Temper, treat: string, tastes: Tastes): { bond: Bond; relish: Relish } {
   if (!isTreat(treat)) throw new Error(`${treat} is never given as a treat`);
   const loved = treat === tastes.favourite || friendlyDog(temper);
   const warmth = TREAT_WARMTH[temper.species];
-  const gain = loved ? 1 : !isDish(treat) ? warmth.raw : (tastes.likes as readonly string[]).includes(treat) ? warmth.liked : warmth.dish;
+  const gain = loved ? (wild(temper)?.loved ?? 1) : !isDish(treat) ? warmth.raw : (tastes.likes as readonly string[]).includes(treat) ? warmth.liked : warmth.dish;
   return { bond: { ...bond, warmth: Math.min(1, bond.warmth + gain) }, relish: loved ? "loved" : "liked" };
 }
 

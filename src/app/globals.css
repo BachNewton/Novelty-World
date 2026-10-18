@@ -904,3 +904,79 @@ body {
   --color-hearthwood-dog-mouth: #3b2123;
   --color-hearthwood-dog-inner-ear: #dc9d93;
 }
+
+/* Hearthwood: the animals of the forest. Each wild animal's coat, eyes and
+   face, warmed a little like the cats' and dogs': the fox's red, white and
+   dark socks (and the silver and frost of a silver fox); the hedgehog's
+   banded spines and pale face; the red squirrel's russet and cream; the
+   mountain hare's summer brown and winter white; the roe deer's summer red,
+   winter grey, white rump and antler; the songbirds' plumage; and the
+   butterflies' wings. Read only by the 3D scene through themeColor, so
+   declared outside @theme. */
+:root {
+  --color-hearthwood-fox-red: #c4521d;
+  --color-hearthwood-fox-ginger: #e0893a;
+  --color-hearthwood-fox-white: #f4eee4;
+  --color-hearthwood-fox-dark: #2b201b;
+  --color-hearthwood-fox-silver: #221d1c;
+  --color-hearthwood-fox-frost: #b0aca7;
+  --color-hearthwood-fox-eye: #dc9a26;
+  --color-hearthwood-fox-pupil: #120d0b;
+  --color-hearthwood-fox-glint: #fffaf0;
+  --color-hearthwood-fox-nose: #1d1716;
+  --color-hearthwood-fox-inner-ear: #efe2cc;
+  --color-hearthwood-fox-tongue: #e3727c;
+  --color-hearthwood-fox-mouth: #3b2123;
+  --color-hearthwood-hedgehog-band: #4a3527;
+  --color-hearthwood-hedgehog-tip: #efe2c4;
+  --color-hearthwood-hedgehog-fur: #8a6a4e;
+  --color-hearthwood-hedgehog-fur-pale: #d9c3a2;
+  --color-hearthwood-hedgehog-mask: #4c3628;
+  --color-hearthwood-hedgehog-nose: #141011;
+  --color-hearthwood-hedgehog-eye: #120d0c;
+  --color-hearthwood-hedgehog-glint: #fffaf0;
+  --color-hearthwood-squirrel-red: #c3561f;
+  --color-hearthwood-squirrel-dark: #6e3222;
+  --color-hearthwood-squirrel-winter: #8a6a5a;
+  --color-hearthwood-squirrel-belly: #f2e6d0;
+  --color-hearthwood-squirrel-eye: #120c0a;
+  --color-hearthwood-squirrel-glint: #fffaf0;
+  --color-hearthwood-squirrel-nose: #3a2420;
+  --color-hearthwood-squirrel-inner-ear: #d99c86;
+  --color-hearthwood-hare-brown: #9b6f45;
+  --color-hearthwood-hare-grey: #8d7c66;
+  --color-hearthwood-hare-white: #f6f4ef;
+  --color-hearthwood-hare-tips: #1f1a19;
+  --color-hearthwood-hare-eye: #b9772c;
+  --color-hearthwood-hare-glint: #fffaf0;
+  --color-hearthwood-hare-nose: #9a6a62;
+  --color-hearthwood-hare-inner-ear: #d8a89a;
+  --color-hearthwood-deer-red: #b5592b;
+  --color-hearthwood-deer-sandy: #c9915a;
+  --color-hearthwood-deer-winter: #7c6c5e;
+  --color-hearthwood-deer-white: #f3eee6;
+  --color-hearthwood-deer-dark: #1c1716;
+  --color-hearthwood-deer-antler: #8a6a4a;
+  --color-hearthwood-deer-eye: #2a1a12;
+  --color-hearthwood-deer-glint: #fffaf0;
+  --color-hearthwood-deer-inner-ear: #d9b4a4;
+  --color-hearthwood-bird-robin-back: #7d6446;
+  --color-hearthwood-bird-robin-breast: #e2662f;
+  --color-hearthwood-bird-pale: #f1ece0;
+  --color-hearthwood-bird-beak: #3a2f28;
+  --color-hearthwood-bird-black: #1b191a;
+  --color-hearthwood-bird-tit-back: #7f8c4c;
+  --color-hearthwood-bird-tit-yellow: #e7cf45;
+  --color-hearthwood-bird-tit-wing: #6c7c93;
+  --color-hearthwood-bird-finch-back: #8f5f42;
+  --color-hearthwood-bird-finch-breast: #d98d73;
+  --color-hearthwood-bird-finch-cap: #6e88a6;
+  --color-hearthwood-bird-finch-beak: #a9a39a;
+  --color-hearthwood-bird-legs: #8a7468;
+  --color-hearthwood-butterfly-brimstone: #f2e15a;
+  --color-hearthwood-butterfly-tortoiseshell: #e4762c;
+  --color-hearthwood-butterfly-peacock: #b8332e;
+  --color-hearthwood-butterfly-blue: #7aa7e8;
+  --color-hearthwood-butterfly-dark: #2a2224;
+  --color-hearthwood-butterfly-eyespot: #4f7fd0;
+}

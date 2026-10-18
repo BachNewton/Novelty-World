@@ -1,43 +1,46 @@
-import { generateCat, type Cat } from "../../cats/cat";
-import type { Activity as CatActivity } from "../../cats/motion";
-import { generateDog, type Dog } from "../../dogs/dog";
-import type { DogActivity } from "../../dogs/motion";
-import { straysInCell, straysNear, type Species, type Stray } from "../../engine/strays";
+import { SPECIES, straysInCell, straysNear, type Species, type Stray } from "../../engine/strays";
+import { coatSeason, deerAbroad, friendsInCell, friendsNear, type Friend, type FriendSpecies } from "../../engine/wildlife";
 import { remembered, type World } from "../../engine/world";
 import { motionSeed } from "../../animals/motion";
 import { allowsPet, bePatient, firstBond, giveTreat, isWon, pet, tastesOf, treatInHand, type Bond, type Relish, type Tastes, type Temper, type Treat } from "../../gameplay/befriending";
-import { bodyAt, doingFor, greeting, type Body, type Doing, type Nature } from "../../gameplay/behaviour";
+import { bodyAt, doingFor, greeting, type Body, type Kind, type Nature } from "../../gameplay/behaviour";
+import { beKnown, climbing, friendMind, knows, takesTreats, visitsOf, type FriendHome, type FriendMind } from "../../gameplay/forest-friends";
 import { comeAlong, firesideSpot, followers, followMind, join, rename, type Companion, type FollowMind } from "../../gameplay/companions";
 import { loadFriends, saveFriends, type Friends } from "../../gameplay/friends";
 import { suggestedNames } from "../../gameplay/names";
 import type { Offerable } from "../../gameplay/offering";
 import { isDish } from "../../gameplay/recipes";
 import { strayMind, type StrayMind } from "../../gameplay/roaming";
-import { catPortrait, dogPortrait, type Portrait } from "../../art/portrait";
+import type { Portrait } from "../../art/portrait";
 import type { AnimalDrive } from "../animals/animal-body";
+import { ACTIVITY, bornOf, portraitOfLook, type AnimalLook } from "./animal-kinds";
+import { offTheGround, walkingRide, type Ride } from "../../gameplay/riding";
 import { takeTreat, type Foraging } from "./foraging";
 import { giveDish, type Hearth } from "./hearth";
 
 /*
- * The cats and dogs of a walk, between the scene, the overlay over it and
- * the probe: the strays round Elliott (streamed in by area from the world's
- * seed, each with its body, its mind and how warm it is to Elliott), the
- * companions and what is kept of them, the animal on offer to pet or to
+ * The animals of a walk, between the scene, the overlay over it and the
+ * probe: the strays round Elliott (the cats, dogs, foxes and hedgehogs who
+ * can be won over, streamed in by area from the world's seed, each with its
+ * body, its mind and how warm it is to Elliott), the forest friends round
+ * them (the squirrels, hares and deer, who stay home but come to know
+ * Elliott), the companions and what is kept of them, the animal on offer to pet or to
  * give a treat to, the naming card when one is won, and the little hearts
  * that rise as an animal warms. The scene steps the animals each frame; the
  * overlay reads what is shown as an external store.
  */
 
-/** One animal of the walk, live: a stray or a companion. */
+/** One animal of the walk, live: a stray, a companion or a forest friend. */
 export interface Animal {
-  /** Its stray's id, which a companion keeps. */
+  /** Its stray's id, which a companion keeps, or its friend's. */
   key: string;
-  species: Species;
+  species: Kind;
   seed: string;
   /** The generated animal its body is drawn from, and where the drawing is driven from each frame. */
-  look: { species: "cat"; cat: Cat; drive: { current: AnimalDrive<CatActivity> } } | { species: "dog"; dog: Dog; drive: { current: AnimalDrive<DogActivity> } };
+  look: AnimalLook;
   nature: Nature;
-  temper: Temper;
+  /** What befriending knows of a stray or a companion; a forest friend has none. */
+  temper: Temper | null;
   /** Its favourite dish and the few it likes. */
   tastes: Tastes;
   body: Body;
@@ -45,6 +48,10 @@ export interface Animal {
   stray: { home: { x: number; z: number }; roam: number; mind: StrayMind } | null;
   /** As a companion: its mind as it follows. */
   follow: FollowMind | null;
+  /** A hedgehog companion's ride in Elliott's basket; null for every other animal. */
+  ride: Ride | null;
+  /** As a forest friend: its kind, its home and its mind; null for every other animal. */
+  friend: { species: FriendSpecies; place: FriendHome; mind: FriendMind } | null;
   bond: Bond;
   /** Petted, it stops to be petted until then, facing Elliott. */
   pettedUntil: number;
@@ -57,7 +64,7 @@ export interface Animal {
 /** What is offered for an animal: a pet, a treat, or both. */
 export interface AnimalOffer {
   key: string;
-  species: Species;
+  species: Kind;
   /** The companion's name, or null for a stray. */
   name: string | null;
   canPet: boolean;
@@ -107,6 +114,9 @@ export interface Companionship {
   hearth: Hearth;
   friends: Friends;
   strayCell: (cellX: number, cellZ: number) => Stray[];
+  friendCell: (cellX: number, cellZ: number) => Friend[];
+  /** How far into their waking hours the deer are, from the sun's height, as the scene last set it. */
+  abroad: number;
   animals: Map<string, Animal>;
   /** The animal that would be offered this frame and how strongly, before forage has had its say. */
   candidate: { key: string; score: number } | null;
@@ -142,8 +152,6 @@ export const MARK_LIFE = 1.6;
 /** How long a petted animal stops and answers, in seconds. */
 const PETTED = 2.6;
 
-const catActivity: Record<Doing, CatActivity> = { stand: "stand", walk: "walk", trot: "walk", run: "run", sit: "sit", lie: "loaf" };
-const dogActivity: Record<Doing, DogActivity> = { stand: "stand", walk: "walk", trot: "trot", run: "run", sit: "sit", lie: "lie" };
 
 export function createCompanionship(world: World, foraging: Foraging, hearth: Hearth): Companionship {
   const friends = loadFriends();
@@ -151,12 +159,18 @@ export function createCompanionship(world: World, foraging: Foraging, hearth: He
     const [cx, cz] = key.split(",").map(Number);
     return straysInCell(world, cx, cz);
   });
+  const friendCell = remembered(512, (key) => {
+    const [cx, cz] = key.split(",").map(Number);
+    return friendsInCell(world, cx, cz);
+  });
   const companionship: Companionship = {
     world,
     foraging,
     hearth,
     friends,
     strayCell: (cx, cz) => strayCell(`${cx},${cz}`),
+    friendCell: (cx, cz) => friendCell(`${cx},${cz}`),
+    abroad: 0,
     animals: new Map(),
     candidate: null,
     lastLiked: null,
@@ -176,56 +190,47 @@ export function createCompanionship(world: World, foraging: Foraging, hearth: He
 }
 
 /** An animal generated from its seed, with what behaviour and befriending know of it. */
-function animalOf(key: string, species: Species, seed: string, body: Body, bond: Bond | null): Animal {
-  const ms = motionSeed(seed);
-  if (species === "cat") {
-    const cat = generateCat(seed);
-    const { boldness, energy, affection } = cat.personality;
-    const temper: Temper = { species, boldness, affection };
-    return {
-      key,
-      species,
-      seed,
-      look: { species, cat, drive: { current: { activity: catActivity[body.rest], speed: 0, travelled: 0, greeting: false } } },
-      nature: { species, size: cat.build.size * DRAWN_LARGER, boldness, energy, affection, seed: ms },
-      temper,
-      tastes: tastesOf(seed),
-      body,
-      stray: null,
-      follow: null,
-      bond: bond ?? firstBond(temper),
-      pettedUntil: -Infinity,
-      changedAt: -Infinity,
-      y: 0,
-    };
-  }
-  const dog = generateDog(seed);
-  const { boldness, playfulness, affection } = dog.personality;
-  const temper: Temper = { species, boldness, affection };
+function animalOf(key: string, species: Kind, seed: string, body: Body, bond: Bond | null): Animal {
+  const born = bornOf(species, seed, body.rest);
+  const { boldness, energy, affection } = born;
+  const temper: Temper | null = isSpecies(species) ? { species, boldness, affection } : null;
   return {
     key,
     species,
     seed,
-    look: { species, dog, drive: { current: { activity: dogActivity[body.rest], speed: 0, travelled: 0, greeting: false } } },
-    nature: { species, size: dog.build.size * DRAWN_LARGER, boldness, energy: playfulness, affection, seed: ms },
+    look: born.look,
+    nature: { species, size: born.size * DRAWN_LARGER, boldness, energy, affection, seed: motionSeed(seed) },
     temper,
     tastes: tastesOf(seed),
     body,
     stray: null,
     follow: null,
-    bond: bond ?? firstBond(temper),
+    ride: null,
+    friend: null,
+    bond: bond ?? (temper ? firstBond(temper) : { warmth: 0, visit: 0 }),
     pettedUntil: -Infinity,
     changedAt: -Infinity,
     y: 0,
   };
 }
 
+const isSpecies = (kind: Kind): kind is Species => (SPECIES as readonly Kind[]).includes(kind);
+
+/** A stray's or a companion's temper; asking a forest friend's is a bug. */
+function temperOf(animal: Animal): Temper {
+  if (!animal.temper) throw new Error(`The ${animal.species} ${animal.key} is a forest friend, with no temper to befriend`);
+  return animal.temper;
+}
+
+/** Whether an animal is one of Elliott's companions. */
+export const isCompanion = (animal: Animal) => animal.stray === null && animal.friend === null;
+
 export function portraitOf(animal: Animal): Portrait {
-  return animal.look.species === "cat" ? catPortrait(animal.look.cat) : dogPortrait(animal.look.dog);
+  return portraitOfLook(animal.look);
 }
 
 function portraitFor(companion: Companion): Portrait {
-  return companion.species === "cat" ? catPortrait(generateCat(companion.seed)) : dogPortrait(generateDog(companion.seed));
+  return portraitOfLook(bornOf(companion.species, companion.seed, "stand").look);
 }
 
 const portraits = new Map<string, Portrait>();
@@ -273,6 +278,31 @@ export function wakeStray(companionship: Companionship, stray: Stray): Animal {
   return animal;
 }
 
+/** The forest friends to have live round a point. */
+export function friendsAround(companionship: Companionship, x: number, z: number, radius: number): Friend[] {
+  return friendsNear(companionship.world, x, z, radius, companionship.friendCell);
+}
+
+/** A forest friend brought to life at home (a deer in its bed through the day), knowing Elliott as well as it did. */
+export function wakeFriend(companionship: Companionship, friend: Friend): Animal {
+  const heading = (motionSeed(friend.seed) % 628) / 100;
+  const bed = friend.bed && companionship.abroad < 0.35 ? friend.bed : null;
+  const at = bed ?? friend.home;
+  const rest = friend.species === "deer" ? (bed ? "lie" : "sit") : friend.species === "squirrel" ? "sit" : "stand";
+  const animal = animalOf(friend.id, friend.species, friend.seed, bodyAt(at.x, at.z, heading, rest), null);
+  const known = companionship.friends.warmth[friend.id] as number | undefined;
+  if (known !== undefined) animal.bond = { warmth: known, visit: 0 };
+  animal.friend = { species: friend.species, place: { home: friend.home, roam: friend.roam, trunk: friend.trunk, bed: friend.bed }, mind: friendMind() };
+  companionship.animals.set(friend.id, animal);
+  return animal;
+}
+
+/** The season's coats and the deer's hours, from the date and the sun, for the scene to set each frame. */
+export function wildDay(companionship: Companionship, realDayOfYear: number, sunElevation: number): { winter: number; white: number } {
+  companionship.abroad = deerAbroad(sunElevation);
+  return coatSeason(realDayOfYear);
+}
+
 /** A companion brought to life: beside Elliott if it follows, by the fire if it waits at camp. */
 export function wakeCompanion(companionship: Companionship, companion: Companion, beside: { x: number; z: number; heading: number }, index: number): Animal {
   const { camp } = companionship.world;
@@ -286,6 +316,7 @@ export function wakeCompanion(companionship: Companionship, companion: Companion
   }
   const animal = animalOf(companion.id, companion.species, companion.seed, body, { warmth: 1, visit: 0 });
   animal.follow = followMind(companionship.time + (index + 1) * 5);
+  if (companion.species === "hedgehog") animal.ride = walkingRide(companionship.time);
   companionship.animals.set(companion.id, animal);
   return animal;
 }
@@ -296,11 +327,12 @@ export function driveOf(animal: Animal, time: number, motion: number): void {
   const { look, body } = animal;
   const drive: AnimalDrive<string> = look.drive.current;
   const was = { activity: drive.activity, greeting: drive.greeting };
-  if (look.species === "cat") look.drive.current.activity = catActivity[doing];
-  else look.drive.current.activity = dogActivity[doing];
+  // In the basket a hedgehog peeks out over the rim; on its way in or out it is a ball. Up its tree a squirrel climbs, or clings.
+  const climb = animal.friend && climbing(animal.friend.mind) ? animal.friend.mind.climb : null;
+  drive.activity = animal.ride && offTheGround(animal.ride) ? (animal.ride.phase === "riding" ? "peek" : "lie") : climb ? (Math.abs(climb.goal - climb.height) > 0.02 ? "climb" : "cling") : ACTIVITY[look.species][doing];
   // The body is drawn larger than life, so its stride is its own: the ground it covers, scaled down to it.
-  drive.speed = body.speed / DRAWN_LARGER;
-  drive.travelled = body.travelled / DRAWN_LARGER;
+  drive.speed = (climb ? 1.4 : body.speed) / DRAWN_LARGER;
+  drive.travelled = (climb ? climb.height * 2 : body.travelled) / DRAWN_LARGER;
   drive.greeting = greeting(body, time);
   if (drive.activity !== was.activity || drive.greeting !== was.greeting) animal.changedAt = motion;
 }
@@ -316,10 +348,17 @@ export function inHand(companionship: Companionship): Treat | null {
   return treatInHand(companionship.foraging.foraged.basket, companionship.hearth.shown.larder, companionship.lastLiked);
 }
 
-/** Whether there is anything to offer for an animal: a companion always, a stray when it allows a pet or there is a treat to hold out. */
+/** Whether there is anything to offer for an animal: a companion always, a stray when it allows a pet or there is a treat to hold out, a forest friend once it knows Elliott (a pet) or, for a hare or a squirrel, while there is a treat to hold out. */
 export function hasOffer(companionship: Companionship, animal: Animal): boolean {
+  if (animal.friend) return knows(animal.bond) || (takesTreats(animal.friend.species) && !climbing(animal.friend.mind) && inHand(companionship) !== null);
   if (animal.stray === null) return true;
-  return allowsPet(animal.bond, animal.temper) || inHand(companionship) !== null;
+  return allowsPet(animal.bond, temperOf(animal)) || inHand(companionship) !== null;
+}
+
+/** Whether an animal lets Elliott pet it now. */
+function canPet(animal: Animal): boolean {
+  if (animal.friend) return knows(animal.bond);
+  return animal.stray === null || allowsPet(animal.bond, temperOf(animal));
 }
 
 /** After forage has had its say: what is offered for an animal now, or nothing. */
@@ -338,8 +377,8 @@ function offerFor(companionship: Companionship, animal: Animal): AnimalOffer {
     key: animal.key,
     species: animal.species,
     name: companion?.name ?? null,
-    canPet: animal.stray === null || allowsPet(animal.bond, animal.temper),
-    treat: inHand(companionship),
+    canPet: canPet(animal),
+    treat: animal.friend && (knows(animal.bond) || !takesTreats(animal.friend.species)) ? null : inHand(companionship),
     portrait: portraitOf(animal),
   };
 }
@@ -362,10 +401,19 @@ function keepWarmth(companionship: Companionship, animal: Animal): void {
   saveFriends(companionship.friends);
 }
 
-/** Patience: Elliott near and calm warms a stray, a little heart rising each time it warms another step. */
+/** Patience: Elliott near and calm warms a stray, a little heart rising each time it warms another step; a forest friend comes to know them a visit at a time, and with the last a burst of hearts. */
 export function warmByPatience(companionship: Companionship, animal: Animal, distance: number, calm: boolean, seconds: number): void {
   const before = animal.bond.warmth;
-  animal.bond = bePatient(animal.bond, animal.temper, distance, calm, seconds);
+  if (animal.friend) {
+    const visits = visitsOf(animal.bond);
+    animal.bond = beKnown(animal.bond, distance, calm, seconds);
+    if (visitsOf(animal.bond) > visits) {
+      keepWarmth(companionship, animal);
+      mark(companionship, animal.key, knows(animal.bond) ? "hearts" : "heart");
+    }
+    return;
+  }
+  animal.bond = bePatient(animal.bond, temperOf(animal), distance, calm, seconds);
   if (Math.floor(animal.bond.warmth * 4) > Math.floor(before * 4)) {
     keepWarmth(companionship, animal);
     mark(companionship, animal.key, "heart");
@@ -383,6 +431,11 @@ export function petAnimal(companionship: Companionship, key: string): void {
   const animal = companionship.animals.get(key);
   if (!animal) throw new Error(`No animal ${key} to pet`);
   answer(animal, companionship.time);
+  if (animal.friend) {
+    if (!knows(animal.bond)) throw new Error(`The ${animal.species} ${key} doesn't know Elliott well enough for a pet`);
+    mark(companionship, key, "heart");
+    return;
+  }
   if (animal.stray === null) {
     const companion = companionOf(companionship, key);
     if (companion && !companion.following) {
@@ -393,8 +446,8 @@ export function petAnimal(companionship: Companionship, key: string): void {
     mark(companionship, key, "paw");
     return;
   }
-  if (!allowsPet(animal.bond, animal.temper)) throw new Error(`Stray ${key} doesn't allow a pet yet`);
-  animal.bond = pet(animal.bond, animal.temper);
+  if (!allowsPet(animal.bond, temperOf(animal))) throw new Error(`Stray ${key} doesn't allow a pet yet`);
+  animal.bond = pet(animal.bond, temperOf(animal));
   afterWarming(companionship, animal, "liked");
 }
 
@@ -407,12 +460,22 @@ export function treatAnimal(companionship: Companionship, key: string): void {
   if (isDish(kind)) giveDish(companionship.hearth, kind);
   else takeTreat(companionship.foraging, kind);
   answer(animal, companionship.time);
+  if (animal.friend) {
+    // A treat held out to a hare or a squirrel: it knows Elliott from now on.
+    if (!takesTreats(animal.friend.species)) throw new Error(`A ${animal.species} takes no treats`);
+    const known = knows(animal.bond);
+    animal.bond = { warmth: 1, visit: 0 };
+    companionship.lastLiked = kind;
+    keepWarmth(companionship, animal);
+    mark(companionship, key, known ? "heart" : "hearts");
+    return;
+  }
   if (animal.stray === null) {
     companionship.lastLiked = kind;
     mark(companionship, key, "heart");
     return;
   }
-  const given = giveTreat(animal.bond, animal.temper, kind, animal.tastes);
+  const given = giveTreat(animal.bond, temperOf(animal), kind, animal.tastes);
   animal.bond = given.bond;
   companionship.lastLiked = given.relish === "liked" ? kind : null;
   afterWarming(companionship, animal, given.relish);
@@ -422,7 +485,7 @@ export function treatAnimal(companionship: Companionship, key: string): void {
 export function tapAnimal(companionship: Companionship, key: string): void {
   const animal = companionship.animals.get(key);
   if (!animal) throw new Error(`No animal ${key} to tap`);
-  if (animal.stray === null || allowsPet(animal.bond, animal.temper)) petAnimal(companionship, key);
+  if (canPet(animal)) petAnimal(companionship, key);
   else if (inHand(companionship) !== null) treatAnimal(companionship, key);
 }
 
@@ -443,14 +506,23 @@ export function winStray(companionship: Companionship, key: string): void {
   befriend(companionship, animal);
 }
 
+/** A live forest friend comes to know Elliott at once, as three visits would: for screenshots and tests. */
+export function knowFriend(companionship: Companionship, key: string): void {
+  const animal = companionship.animals.get(key);
+  if (!animal?.friend) throw new Error(`No live forest friend ${key} to know Elliott`);
+  animal.bond = { warmth: 1, visit: 0 };
+  keepWarmth(companionship, animal);
+}
+
 /** A stray won over: it becomes a companion with a suggested name, follows, and the naming card opens. */
 function befriend(companionship: Companionship, animal: Animal): void {
+  const species = temperOf(animal).species;
   const taken = companionship.friends.companions.map((c) => c.name);
   // An animal someone lost already has a name: it is offered first.
   const known = companionship.moreStrays?.nameOf(animal.key) ?? null;
-  const suggested = suggestedNames(animal.species, animal.seed, taken);
+  const suggested = suggestedNames(species, animal.seed, taken);
   const suggestions = known === null ? suggested : [known, ...suggested.filter((n) => n !== known)];
-  const companions = join(companionship.friends.companions, { id: animal.key, species: animal.species, seed: animal.seed, name: suggestions[0] });
+  const companions = join(companionship.friends.companions, { id: animal.key, species, seed: animal.seed, name: suggestions[0] });
   const warmth = { ...companionship.friends.warmth };
   delete warmth[animal.key];
   companionship.friends = { companions, warmth };
@@ -458,12 +530,13 @@ function befriend(companionship: Companionship, animal: Animal): void {
   animal.stray = null;
   animal.bond = { warmth: 1, visit: 0 };
   animal.follow = followMind(companionship.time + 6);
+  if (animal.species === "hedgehog") animal.ride = walkingRide(companionship.time);
   // Anyone sent back to camp to make room walks there from where they are.
   mark(companionship, animal.key, "hearts");
   show(companionship, {
     companions: rowsOf(companionship),
     joins: companionship.shown.joins + 1,
-    naming: { key: animal.key, species: animal.species, portrait: portraitOf(animal), suggestions, index: 0 },
+    naming: { key: animal.key, species, portrait: portraitOf(animal), suggestions, index: 0 },
   });
 }
 
@@ -508,9 +581,10 @@ export function followingAnimals(companionship: Companionship): Animal[] {
 export function forgetFriends(companionship: Companionship): void {
   companionship.friends = { companions: [], warmth: {} };
   saveFriends(companionship.friends);
-  // The companions go back to being the strays they were, wherever their homes are; the strays round Elliott are strangers again.
+  // The companions go back to being the strays they were, wherever their homes are; the strays and the forest friends round Elliott are strangers again.
   for (const [key, animal] of companionship.animals) {
-    if (animal.stray) animal.bond = firstBond(animal.temper);
+    if (animal.stray) animal.bond = firstBond(temperOf(animal));
+    else if (animal.friend) animal.bond = { warmth: 0, visit: 0 };
     else companionship.animals.delete(key);
   }
   show(companionship, { companions: [], naming: null, offer: null, marks: [] });
@@ -518,5 +592,5 @@ export function forgetFriends(companionship: Companionship): void {
 
 /** Whether the animal is drawn this frame as a companion who waits at camp. */
 export function isResting(companionship: Companionship, animal: Animal): boolean {
-  return animal.stray === null && companionOf(companionship, animal.key)?.following === false;
+  return isCompanion(animal) && companionOf(companionship, animal.key)?.following === false;
 }

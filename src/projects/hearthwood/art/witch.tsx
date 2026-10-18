@@ -11,7 +11,8 @@ import type { Palette } from "./palette";
 /*
  * Elliott the witch, for now a placeholder silhouette: a long cloak, a
  * scarf, a pointed hat whose tip bends back, a pack with a bedroll on top,
- * and a walking staff. They face +z. Their walk is a bob and a sway that
+ * a walking staff, and a wicker basket at their right hip (where a hedgehog
+ * companion rides). They face +z. Their walk is a bob and a sway that
  * follow their stride, and their hat lags a little behind. On the broom they
  * sit astride it, leaning into the wind, their cloak's back and a scarf end
  * streaming out behind them and their boots showing under the hem; through
@@ -30,6 +31,33 @@ function bentHat(): BufferGeometry {
   }
   cone.computeVertexNormals();
   return cone;
+}
+
+/** Where the basket's opening is, on their right hip, and how wide it is. */
+export const BASKET_AT = { x: -0.37, y: 0.7, z: 0.04, radius: 0.12 } as const;
+
+/** The basket: a wicker bowl open at the top, a rim, and a handle arching over it from front to back. */
+function basketPieces(palette: Palette) {
+  const { x, y, z, radius } = BASKET_AT;
+  const profile = [
+    [0.0, -0.13],
+    [radius * 0.78, -0.13],
+    [radius * 0.92, -0.08],
+    [radius, 0],
+  ].map(([r, h]) => new Vector2(r, h));
+  const bowl = new LatheGeometry(profile, 14);
+  bowl.translate(x, y, z);
+  const rim = new TorusGeometry(radius, 0.014, 5, 16);
+  rim.rotateX(Math.PI / 2);
+  rim.translate(x, y, z);
+  const handle = new TorusGeometry(radius * 0.95, 0.011, 4, 12, Math.PI);
+  handle.rotateY(Math.PI / 2);
+  handle.translate(x, y, z);
+  return [
+    { geometry: bowl, colour: palette.things["broom-bristle"], shading: 0.5 },
+    { geometry: rim, colour: palette.things["broom-handle"] },
+    { geometry: handle, colour: palette.things["broom-handle"] },
+  ];
 }
 
 function bodyGeometry(palette: Palette): BufferGeometry {
@@ -75,6 +103,7 @@ function bodyGeometry(palette: Palette): BufferGeometry {
     { geometry: bedroll, colour: t["witch-bedroll"], shading: 0.3 },
     { geometry: staff, colour: t.bark },
     { geometry: knob, colour: t.bark },
+    ...basketPieces(palette),
   ]);
 }
 
@@ -163,6 +192,8 @@ const HAT_HEIGHT = 1.46;
 export interface WitchHandle {
   pose: (pose: WitchPose) => void;
   group: Group | null;
+  /** A point at the basket's opening that moves with them, for whatever rides in it. */
+  basket: Group | null;
 }
 
 export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: AtmosphereUniforms; still?: Partial<WitchPose> }>(function Witch({ palette, atmosphere, still }, ref) {
@@ -174,6 +205,7 @@ export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: Atm
   const scarf = useRef<Group>(null);
   const boots = useRef<Mesh>(null);
   const broom = useRef<Group>(null);
+  const basket = useRef<Group>(null);
   const assets = useMemo(
     () => ({
       body: bodyGeometry(palette),
@@ -225,6 +257,9 @@ export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: Atm
     get group() {
       return group.current;
     },
+    get basket() {
+      return basket.current;
+    },
     pose,
   }));
   useEffect(() => {
@@ -243,6 +278,7 @@ export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: Atm
         <group ref={scarf} position={[SCARF_AT.x, SCARF_AT.y, SCARF_AT.z]} visible={false}>
           <mesh geometry={assets.scarf} material={assets.material} castShadow />
         </group>
+        <group ref={basket} position={[BASKET_AT.x, BASKET_AT.y, BASKET_AT.z]} />
         <mesh ref={boots} geometry={assets.boots} material={assets.material} position={[0, 0.03, 0.33]} visible={false} castShadow />
       </group>
       <group ref={broom} position={[0, BROOM_SEAT, 0]} visible={false}>

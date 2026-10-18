@@ -2,7 +2,7 @@
 
 import { useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
-import { PerspectiveCamera, type Camera } from "three";
+import { PerspectiveCamera, type Camera, type Object3D } from "three";
 import type { World } from "../../engine/world";
 import { GLIDE, glidingMover, standingMover, stepMover, type AirMode, type Mover } from "../../gameplay/airborne";
 import { takeJump, takeTurn, type WalkState } from "../../input/use-walk-input";
@@ -51,6 +51,8 @@ export interface Walker {
   request?: WalkerRequest | null;
   /** Held where they are in the air, the camera still free to arrive: for a screenshot of a glide. */
   held?: boolean;
+  /** The opening of the basket at their hip as it moves with them, for a hedgehog riding in it: the scene's to give. */
+  basket?: Object3D | null;
 }
 
 /** How quickly they turn to face where they walk, and the camera keeps up, per second. */
@@ -182,6 +184,7 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   }
 
   const sway = broomSway(followed.seconds, followed.turning, followed.wind);
+  walker.basket = figure?.basket ?? null;
   if (figure?.group) {
     // The camera eases out of their eyes to the hearth or a conversation and back: there they show once it is clear of their head.
     const clear = Math.hypot(camera.position.x - walker.x, camera.position.z - walker.z) > 0.9;

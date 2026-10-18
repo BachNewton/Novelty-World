@@ -8,11 +8,12 @@
 // Usage:  node src/projects/hearthwood/tools/animal-shots.mjs [label] [--seed=<field seed>] [--animals=0,1,2]
 //         [--activities=stand,walk,trot,run,sit,loaf,lie,greet] [--views=front,three-quarter,side,back] [--time=<s>]
 //         [--strip=<animal>] [--gait=walk] (a strip of 12 frames 0.06 s apart, side on) [--no-phone]
+//         [--mode=everyone] (the chosen animals are from the line-up of every species rather than the field)
 // An animal is shot only in the activities its species has (a cat doesn't trot, a dog doesn't loaf).
 //
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored): field.png (desktop), field-phone.png and
 // field-phone-landscape.png (a Pixel 8 Pro's Chrome view), field-far.png (the field from further off),
-// lineup.png and lineup-side.png (dogs side by side), one animal-<n>-<activity>-<view>.png per animal,
+// lineup.png and lineup-side.png (dogs side by side), everyone.png and everyone-three-quarter.png (every species side by side), one animal-<n>-<activity>-<view>.png per animal,
 // activity and view, close-<n>.png (the face), and sheet.png combining them.
 
 import { chromium } from "playwright";
@@ -32,7 +33,8 @@ const TIME = Number(flag("time") ?? 2);
 const STRIP = flag("strip");
 const GAIT = flag("gait") ?? "walk";
 const PHONE_SHOTS = !FLAGS.includes("--no-phone");
-const SPECIES_ACTIVITIES = { cat: ["stand", "walk", "sit", "loaf", "greet"], dog: ["stand", "walk", "trot", "run", "sit", "lie", "greet"] };
+// Which animals to shoot alone: the field's cats and dogs, or (`--mode=everyone`) the line-up of every species.
+const MODE = flag("mode") ?? "field";
 const BASE = process.env.HEARTHWOOD_URL ?? "http://localhost:3001";
 const URL = `${BASE}/games/3d-games/hearthwood?cats`;
 const SHOTS = join(HERE, "..", ".shots", LABEL);
@@ -106,10 +108,21 @@ await settle(desktop, () => window.__hearthwoodAnimals.setView(0, 12, 5.6));
 shots.push(await shot(desktop, "lineup-front"));
 await settle(desktop, () => window.__hearthwoodAnimals.setMode("field"));
 
+await settle(desktop, () => window.__hearthwoodAnimals.setMode("everyone"));
+await desktop.waitForFunction(() => window.__hearthwoodAnimals?.isReady(), null, { timeout: 120000 });
+await settle(desktop);
+shots.push(await shot(desktop, "everyone"));
+await settle(desktop, () => window.__hearthwoodAnimals.setView(25, 14, 6.5));
+shots.push(await shot(desktop, "everyone-three-quarter"));
+await settle(desktop, (m) => window.__hearthwoodAnimals.setMode(m), MODE);
+await desktop.waitForFunction(() => window.__hearthwoodAnimals?.isReady(), null, { timeout: 120000 });
+const chosen = await desktop.evaluate(() => window.__hearthwoodAnimals.animals());
+if (MODE !== "field") console.log(chosen.map((c, i) => `${i}: ${c}`).join("\n"));
+
 for (const n of ANIMALS) {
-  const species = listed[n].split(":")[0];
   await settle(desktop, (i) => window.__hearthwoodAnimals.focus(i), n);
-  for (const activity of ACTIVITIES.filter((a) => SPECIES_ACTIVITIES[species].includes(a))) {
+  const has = await desktop.evaluate((i) => window.__hearthwoodAnimals.activitiesOf(i), n);
+  for (const activity of ACTIVITIES.filter((a) => a === "greet" || has.includes(a))) {
     // A change of activity blends in over a second from the frame that sees it, so the frozen clock is
     // moved on past the blend before the shots.
     clockAt += 20;
@@ -125,11 +138,11 @@ for (const n of ANIMALS) {
     }
   }
   clockAt += 20;
-  await settle(desktop, (t) => {
+  await settle(desktop, ({ t, rest }) => {
     window.__hearthwoodAnimals.freeze(t);
-    window.__hearthwoodAnimals.setActivity("stand");
+    window.__hearthwoodAnimals.setActivity(rest);
     window.__hearthwoodAnimals.setGreeting(false);
-  }, clockAt);
+  }, { t: clockAt, rest: has.includes("stand") ? "stand" : has[0] });
   await settle(desktop, (t) => window.__hearthwoodAnimals.freeze(t), clockAt + 3);
   await settle(desktop, () => window.__hearthwoodAnimals.setView(25, 8, 0.45, true));
   shots.push(await shot(desktop, `close-${n}`));

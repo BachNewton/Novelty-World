@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Species } from "../engine/strays";
 import { firstBond, keepsOff, type Temper } from "./befriending";
 import { animalGround, bodyAt, doingFor, stepBody, type Body, type Nature, type Obstacle } from "./behaviour";
 import { catchUpSpot, comeAlong, firesideSpot, FOLLOWING, followers, followMind, join, keepsNear, LEFT_BEHIND, rename, stepCompanion, type Companion, type FollowContext, type Leader } from "./companions";
@@ -13,9 +14,9 @@ const ground: WalkGround = {
   waterAt: () => 0,
 };
 
-const cat = (over: Partial<Nature> = {}): Nature => ({ species: "cat", size: 1, boldness: 0, energy: 0, affection: 0, seed: 11, ...over });
-const dog = (over: Partial<Nature> = {}): Nature => ({ species: "dog", size: 1.6, boldness: 0.4, energy: 0.3, affection: 0.3, seed: 23, ...over });
-const temperOf = (nature: Nature): Temper => ({ species: nature.species, boldness: nature.boldness, affection: nature.affection });
+const cat = (over: Partial<Nature<Species>> = {}): Nature<Species> => ({ species: "cat", size: 1, boldness: 0, energy: 0, affection: 0, seed: 11, ...over });
+const dog = (over: Partial<Nature<Species>> = {}): Nature<Species> => ({ species: "dog", size: 1.6, boldness: 0.4, energy: 0.3, affection: 0.3, seed: 23, ...over });
+const temperOf = (nature: Nature<Species>): Temper => ({ species: nature.species, boldness: nature.boldness, affection: nature.affection });
 
 const DT = 1 / 30;
 
@@ -63,7 +64,7 @@ describe("an animal's body", () => {
 
 describe("a stray", () => {
   const home = { x: 0, z: 0 };
-  const run = (nature: Nature, elliott: Elliott, seconds: number, body: Body = bodyAt(0, 0, 0)) => {
+  const run = (nature: Nature<Species>, elliott: Elliott, seconds: number, body: Body = bodyAt(0, 0, 0)) => {
     const mind = strayMind();
     const temper = temperOf(nature);
     const bond = firstBond(temper);
