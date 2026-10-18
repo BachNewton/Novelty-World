@@ -23,7 +23,7 @@ import type { WalkGround } from "./walking";
  * they come by instead of fleeing, then goes back about its day. Nothing is
  * hunted or harmed, and knowing Elliott is never forgotten: as with the
  * strays, warmth only grows. Its knowing is kept as a bond's warmth (a third
- * for each visit), so it is kept on the device as a stray's is.
+ * for each visit), beside the strays'.
  */
 
 /** A squirrel up its trunk: how high it is, where it is going, which way round the trunk it clings, and how long it stays. */

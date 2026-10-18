@@ -1,5 +1,5 @@
 import type { Basket } from "./basket";
-import { COOKWARE, DISHES, dishOf, isDish, isFood, MOST_INGREDIENTS, type Cookware, type DishId, type Food, type Ingredient } from "./recipes";
+import { COOKWARE, DISHES, dishOf, isFood, MOST_INGREDIENTS, type Cookware, type DishId, type Food, type Ingredient } from "./recipes";
 
 /*
  * Cooking, as rules: what it remembers (the dishes in the basket and every
@@ -18,8 +18,6 @@ export interface Larder {
   /** Every dish made at least once, in the order first made: the recipe book's. */
   known: DishId[];
 }
-
-export const COOKING_KEY = "hearthwood/cooking/v1";
 
 /** How long a dish cooks, in seconds: long enough to watch it, never long enough to wait. */
 export const COOKING_SECONDS = 3.4;
@@ -49,54 +47,6 @@ export function takeDish(larder: Larder, dish: DishId): Larder {
   if (count === 1) delete dishes[dish];
   else dishes[dish] = count - 1;
   return { ...larder, dishes };
-}
-
-export function serializeLarder(larder: Larder): string {
-  return JSON.stringify(larder);
-}
-
-/** A kept larder read back. Anything but the shape this key holds is a bug in what wrote it, and says so. */
-export function parseLarder(text: string): Larder {
-  const data = JSON.parse(text) as { dishes?: unknown; known?: unknown };
-  if (typeof data.dishes !== "object" || data.dishes === null || !Array.isArray(data.known)) throw new Error(`The kept cooking under ${COOKING_KEY} isn't dishes and a book: ${text}`);
-  const out = emptyLarder();
-  for (const [dish, count] of Object.entries(data.dishes)) {
-    if (!isDish(dish) || typeof count !== "number" || !Number.isInteger(count) || count <= 0) throw new Error(`The kept basket holds ${String(count)} of ${dish}`);
-    out.dishes[dish] = count;
-  }
-  for (const dish of data.known as unknown[]) {
-    if (typeof dish !== "string" || !isDish(dish) || out.known.includes(dish)) throw new Error(`The kept recipe book holds ${String(dish)}`);
-    out.known.push(dish);
-  }
-  return out;
-}
-
-function storage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/** What was kept on this device, or an empty larder where nothing was (or the device keeps nothing). */
-export function loadLarder(): Larder {
-  let text: string | null = null;
-  try {
-    text = storage()?.getItem(COOKING_KEY) ?? null;
-  } catch {
-    // Storage that throws on reading keeps nothing: the cooking goes on unsaved.
-    return emptyLarder();
-  }
-  return text === null ? emptyLarder() : parseLarder(text);
-}
-
-export function saveLarder(larder: Larder): void {
-  try {
-    storage()?.setItem(COOKING_KEY, serializeLarder(larder));
-  } catch {
-    // A full or refused storage keeps nothing; the dishes stay in the basket for this visit.
-  }
 }
 
 /** A turn at the fire: choosing, then cooking for a short while from `since` (seconds on the hearth's clock), then the dish served. */

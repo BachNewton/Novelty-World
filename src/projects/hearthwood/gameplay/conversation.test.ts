@@ -11,9 +11,7 @@ import {
   noAcquaintances,
   openTalk,
   pagesOf,
-  parseFolk,
   rememberTone,
-  serializeFolk,
   talkFor,
   type Having,
   type Speaker,
@@ -77,7 +75,6 @@ describe("talking with people", () => {
     expect(thanked).toMatchObject({ talk: "thanks", taking: { kind: "brew", brew: "yarrow-salve" } });
     expect(thanked.memory.known[shepherd.id]).toMatchObject({ help: "given", gave: "yarrow-salve" });
     expect(thanked.memory.keepsakes).toEqual(["sheep-bell"]);
-    expect(parseFolk(serializeFolk(thanked.memory))).toEqual(thanked.memory);
   });
 
   it("goes straight on to thanks for any tea when Elliott comes with one, even a humble one", () => {
@@ -157,13 +154,6 @@ describe("talking with people", () => {
     expect(fill("{gave}, sweet as anything.", { gave: "Bilberries" })).toBe("Bilberries, sweet as anything.");
     expect(fill("I'm {name}.", { name: "Aili" })).toBe("I'm Aili.");
     expect(() => fill("{pet}!", {})).toThrow();
-  });
-
-  it("keeps the memory through the device and back unchanged", () => {
-    const hiker = speaker("turned-around", "1,1/0", "1,1/1");
-    const memory = rememberTone(openTalk(openTalk(noAcquaintances(), speaker("preserves"), nothing).memory, hiker, nothing).memory, hiker.id, "warm");
-    expect(parseFolk(serializeFolk(memory))).toEqual(memory);
-    expect(() => parseFolk(JSON.stringify({ known: {}, carrying: [], hints: ["toast"], keepsakes: [], home: [] }))).toThrow();
   });
 
   it("never takes what isn't there", () => {

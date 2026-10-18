@@ -7,8 +7,6 @@ import {
   cooked,
   emptyLarder,
   foodsOf,
-  loadLarder,
-  saveLarder,
   startCooking,
   stepSession,
   takeDish,
@@ -28,8 +26,6 @@ import {
   emptySatchel,
   forageOf,
   hushOf,
-  loadSatchel,
-  saveSatchel,
   startBrewing,
   stepBrewing,
   takeBrew,
@@ -49,7 +45,7 @@ import { takeIngredients, type Foraging } from "./foraging";
  * cooking or the brew brewing, and what is made), the recipe book and the
  * brew book, the larder (the dishes in the basket and every dish ever
  * made) and the satchel (the teas and salves, every brew ever made, and the
- * charms at work), each kept on the device. The scene steps the hearth's
+ * charms at work). The scene steps the hearth's
  * clock each frame, tells it the calendar's day and whether a full moon is
  * up, and moves the camera to the fire while a turn is on; the overlay
  * reads what is shown as an external store.
@@ -108,7 +104,7 @@ export function createHearth(camping: Camping, foraging: Foraging): Hearth {
     heldCooking: null,
     days: 0,
     tapAt: null,
-    shown: { offered: false, session: null, book: false, larder: loadLarder(), served: 0, lastServed: null, craft: "cook", brewing: null, satchel: loadSatchel(), brewed: 0, lastBrewed: null, fullMoon: false },
+    shown: { offered: false, session: null, book: false, larder: emptyLarder(), served: 0, lastServed: null, craft: "cook", brewing: null, satchel: emptySatchel(), brewed: 0, lastBrewed: null, fullMoon: false },
     listeners: new Set(),
   };
 }
@@ -190,7 +186,6 @@ export const readyToCook = (hearth: Hearth) => hearth.shown.session !== null && 
 export function cook(hearth: Hearth): void {
   const started = startCooking(session(hearth), hearth.foraging.foraged.basket, hearth.shown.larder, hearth.time);
   takeIngredients(hearth.foraging, foodsOf(started.session));
-  saveLarder(started.larder);
   show(hearth, { session: started.session, larder: started.larder, book: false });
 }
 
@@ -244,7 +239,6 @@ export const readyToBrew = (hearth: Hearth) => hearth.shown.brewing !== null && 
 export function brew(hearth: Hearth): void {
   const started = startBrewing(brewSession(hearth), hearth.foraging.foraged.basket, hearth.shown.satchel, hearth.time, hearth.days, hearth.shown.fullMoon);
   takeIngredients(hearth.foraging, forageOf(started.session));
-  saveSatchel(started.satchel);
   show(hearth, { brewing: started.session, satchel: started.satchel, book: false });
 }
 
@@ -268,21 +262,18 @@ export const hushNow = (hearth: Hearth) => hushOf(hearth.shown.satchel, hearth.d
 export function stockBrew(hearth: Hearth, brewId: BrewId, count = 1, moonlit = false): void {
   let satchel = hearth.shown.satchel;
   for (let n = 0; n < count; n++) satchel = addBrew(satchel, brewId, hearth.days, moonlit).satchel;
-  saveSatchel(satchel);
   show(hearth, { satchel });
 }
 
 /** Sets a charm to work from a given day, as if brewed then: for screenshots and tests. */
 export function workCharmFrom(hearth: Hearth, charm: Charm, days: number, moonlit = false): void {
   const satchel = workCharm(hearth.shown.satchel, charm, days, moonlit);
-  saveSatchel(satchel);
   show(hearth, { satchel });
 }
 
-/** Empties the satchel and the brew book, here and on the device. */
+/** Empties the satchel and the brew book. */
 export function forgetBrewing(hearth: Hearth): void {
   const satchel = emptySatchel();
-  saveSatchel(satchel);
   show(hearth, { satchel, brewing: hearth.shown.session === null ? null : beginBrewing(), book: false });
 }
 
@@ -298,14 +289,12 @@ export function setBookOpen(hearth: Hearth, open: boolean): void {
 /** One tea or salve taken from the basket, given to someone. */
 export function giveBrew(hearth: Hearth, brew: BrewId): void {
   const satchel = takeBrew(hearth.shown.satchel, brew);
-  saveSatchel(satchel);
   show(hearth, { satchel });
 }
 
 /** One dish taken from the basket, given to an animal or a person. */
 export function giveDish(hearth: Hearth, dish: DishId): void {
   const larder = takeDish(hearth.shown.larder, dish);
-  saveLarder(larder);
   show(hearth, { larder });
 }
 
@@ -318,13 +307,11 @@ export function holdCooking(hearth: Hearth, at: number | null): void {
 export function stockDish(hearth: Hearth, dish: DishId, count = 1): void {
   let larder = hearth.shown.larder;
   for (let n = 0; n < count; n++) larder = addDish(larder, dish).larder;
-  saveLarder(larder);
   show(hearth, { larder });
 }
 
-/** Empties the larder and the recipe book, here and on the device. */
+/** Empties the larder and the recipe book. */
 export function forgetCooking(hearth: Hearth): void {
   const larder = emptyLarder();
-  saveLarder(larder);
   show(hearth, { larder, session: null, book: false });
 }

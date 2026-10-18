@@ -8,10 +8,8 @@ import type { Clue, Deduction, FoundClue, Mystery, MysteryStory } from "../stori
  * A deduction is made by connecting exactly the clues and deductions it is
  * drawn from, all of them already in the case: checked as it is made, so a
  * connection that isn't one is simply not accepted, never punished. The
- * case is solved once its solution's deduction is made. Kept on the device
- * under a key of its own, which names the shape it is kept in; a case is
- * kept under its person's id, which holds only as long as the people's
- * placement does, so a change to that starts a new key too.
+ * case is solved once its solution's deduction is made. A case is held
+ * under its person's id.
  */
 
 export interface Case {
@@ -27,8 +25,6 @@ export interface Casebook {
   /** Each case by the id of the person who told it. */
   cases: Record<string, Case>;
 }
-
-export const MYSTERIES_KEY = "hearthwood/mysteries/v3";
 
 export function emptyCasebook(): Casebook {
   return { cases: {} };
@@ -96,52 +92,3 @@ export function connect(book: Casebook, person: string, ids: readonly string[]):
 
 /** The clues of a mystery that lie in the world. */
 export const foundClues = (mystery: Mystery): FoundClue[] => mystery.clues.filter((c): c is FoundClue => c.kind === "found");
-
-export function serializeCasebook(book: Casebook): string {
-  return JSON.stringify(book);
-}
-
-/** A kept casebook read back. Anything but the shape this key holds is a bug in what wrote it, and says so. */
-export function parseCasebook(text: string): Casebook {
-  const data = JSON.parse(text) as Record<string, unknown>;
-  const { cases } = data;
-  if (typeof cases !== "object" || cases === null) throw new Error(`The kept casebook under ${MYSTERIES_KEY} isn't one: ${text}`);
-  const out = emptyCasebook();
-  for (const [person, c] of Object.entries(cases)) {
-    const { story, clues, deduced } = (c ?? {}) as Record<string, unknown>;
-    if (typeof story !== "string" || !Array.isArray(clues) || !Array.isArray(deduced)) throw new Error(`A kept case isn't one: ${JSON.stringify(c)}`);
-    const mystery = mysteryOf(story);
-    for (const id of clues as unknown[]) if (typeof id !== "string" || !mystery.clues.some((k) => k.id === id)) throw new Error(`A kept clue isn't one of ${story}'s: ${String(id)}`);
-    for (const id of deduced as unknown[]) if (typeof id !== "string" || !mystery.deductions.some((d) => d.id === id)) throw new Error(`A kept deduction isn't one of ${story}'s: ${String(id)}`);
-    out.cases[person] = { story, clues: clues as string[], deduced: deduced as string[] };
-  }
-  return out;
-}
-
-function storage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/** What was kept on this device, or an empty casebook where nothing was (or the device keeps nothing). */
-export function loadCasebook(): Casebook {
-  let text: string | null = null;
-  try {
-    text = storage()?.getItem(MYSTERIES_KEY) ?? null;
-  } catch {
-    // Storage that throws on reading keeps nothing: the walk goes on unsaved.
-    return emptyCasebook();
-  }
-  return text === null ? emptyCasebook() : parseCasebook(text);
-}
-
-export function saveCasebook(book: Casebook): void {
-  try {
-    storage()?.setItem(MYSTERIES_KEY, serializeCasebook(book));
-  } catch {
-    // A full or refused storage keeps nothing; the casebook still holds for this visit.
-  }
-}

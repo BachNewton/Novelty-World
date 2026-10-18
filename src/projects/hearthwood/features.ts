@@ -12,9 +12,9 @@ import { WATER_FEATURES } from "./features/water";
  * nothing: its shader code is compiled out by its define, and its passes are
  * neither run nor allocated (see `art/shading.ts` and `art/passes.ts`).
  *
- * Each group lists its own features in `features/<group>.ts`. The switches
- * are kept per browser, and `?features=` sets them for one visit without
- * keeping them: a comma list of `-id` (off), `+id` or `id` (on), `none` and
+ * Each group lists its own features in `features/<group>.ts`. Nothing is
+ * kept between visits: every visit starts with every feature on, and
+ * `?features=` sets them for that visit: a comma list of `-id` (off), `+id` or `id` (on), `none` and
  * `all`, applied in order, so `?features=none,+sway` shows only the sway.
  */
 
@@ -37,16 +37,6 @@ export function featureDefine(id: string): string {
 /** Every feature on. */
 export function allOn(features: readonly FeatureInfo[] = FEATURES): FeatureToggles {
   return Object.fromEntries(features.map((f) => [f.id, true])) as FeatureToggles;
-}
-
-/** Switches kept from an earlier visit laid over `base`: a feature since removed, or anything that isn't a switch, is passed over. */
-export function restoreToggles(stored: unknown, base: FeatureToggles): FeatureToggles {
-  const toggles: Record<string, boolean> = { ...base };
-  if (typeof stored !== "object" || stored === null) return toggles as FeatureToggles;
-  for (const [id, on] of Object.entries(stored)) {
-    if (id in toggles && typeof on === "boolean") toggles[id] = on;
-  }
-  return toggles as FeatureToggles;
 }
 
 /** `?features=` applied over `base`. An id no feature has is a mistake in the address, and throws. */
@@ -73,10 +63,7 @@ export class FeatureSwitches {
   private current: FeatureToggles;
   private readonly listeners = new Set<() => void>();
 
-  constructor(
-    toggles: FeatureToggles,
-    private readonly keep: (id: FeatureId, on: boolean) => void = () => undefined,
-  ) {
+  constructor(toggles: FeatureToggles) {
     this.current = toggles;
   }
 
@@ -92,7 +79,6 @@ export class FeatureSwitches {
   set(id: FeatureId, on: boolean): void {
     if (this.current[id] === on) return;
     this.current = { ...this.current, [id]: on };
-    this.keep(id, on);
     for (const listener of this.listeners) listener();
   }
 
@@ -102,32 +88,10 @@ export class FeatureSwitches {
   }
 }
 
-const STORAGE_KEY = "hearthwood:features";
-
-function readKept(): unknown {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw === null ? null : JSON.parse(raw);
-  } catch {
-    // Storage can be missing, blocked or hold something unreadable; the switches are a convenience, so every feature is on.
-    return null;
-  }
-}
-
 let live: FeatureSwitches | null = null;
 
-/** This page's switches: kept in the browser, with `?features=` over them for this visit. Only a switch flipped here is kept. */
+/** This page's switches: every feature on, with `?features=` over them. */
 export function liveFeatures(): FeatureSwitches {
-  if (live) return live;
-  const kept = restoreToggles(readKept(), allOn());
-  const remembered: Record<string, boolean> = { ...kept };
-  live = new FeatureSwitches(applyFeatureParam(new URLSearchParams(window.location.search).get("features"), kept), (id, on) => {
-    remembered[id] = on;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(remembered));
-    } catch {
-      // Unsaved, the switch lasts this visit.
-    }
-  });
+  live ??= new FeatureSwitches(applyFeatureParam(new URLSearchParams(window.location.search).get("features"), allOn()));
   return live;
 }

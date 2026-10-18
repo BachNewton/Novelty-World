@@ -5,7 +5,7 @@ import { emptyBasket } from "../gameplay/basket";
 import { noAcquaintances, openTalk, talkFor, type Having, type Speaker } from "../gameplay/conversation";
 import { emptySatchel } from "../gameplay/brewing";
 import { emptyLarder } from "../gameplay/cooking";
-import { addClues, connect, emptyCasebook, foundClues, isSolved, openCase, parseCasebook, serializeCasebook, type Casebook } from "../gameplay/sleuthing";
+import { addClues, connect, emptyCasebook, foundClues, isSolved, openCase, type Casebook } from "../gameplay/sleuthing";
 import { canStand } from "../gameplay/walking";
 import { STORIES } from "./library";
 import type { MysteryStory } from "./story";
@@ -146,7 +146,6 @@ describe("a mystery played through", () => {
       expect(memory.known[speaker.id].help).toBe("given");
       expect(memory.known[speaker.id].received.length).toBeGreaterThan(0);
       expect(talk()).toBe("friend");
-      expect(parseCasebook(serializeCasebook(book))).toEqual(book);
     });
   }
 });

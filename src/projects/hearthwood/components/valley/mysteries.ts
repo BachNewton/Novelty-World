@@ -2,7 +2,7 @@ import type { PlacedClue } from "../../engine/people";
 import type { World } from "../../engine/world";
 import type { CaseView } from "../../gameplay/conversation";
 import type { Offerable } from "../../gameplay/offering";
-import { addClues, clueOf, connect, foundClues, hasInCase, isSolved, loadCasebook, mysteryOf, openCase, saveCasebook, emptyCasebook, type Casebook, type Connection } from "../../gameplay/sleuthing";
+import { addClues, clueOf, connect, foundClues, hasInCase, isSolved, mysteryOf, openCase, emptyCasebook, type Casebook, type Connection } from "../../gameplay/sleuthing";
 import type { FoundClue } from "../../stories/story";
 import type { People } from "./people";
 
@@ -12,8 +12,7 @@ import type { People } from "./people";
  * is), the clue on offer to examine (by the one rule, after the people and
  * before the animals and forage, which must beat it), a clue being
  * examined, and the casebook: every case, the clues and deductions
- * chosen to connect, and what the last connection came to. The casebook is
- * kept on the device. It tells the people how a person's case stands, so
+ * chosen to connect, and what the last connection came to. It tells the people how a person's case stands, so
  * their talk can be chosen by it, and hears the clues a talk tells.
  */
 
@@ -77,7 +76,7 @@ export function createMysteries(world: World, people: People): Mysteries {
     live: new Map(),
     candidate: null,
     tapAt: null,
-    shown: { offer: null, examining: null, book: loadCasebook(), casebook: false, chosen: null, selected: [], verdict: null },
+    shown: { offer: null, examining: null, book: emptyCasebook(), casebook: false, chosen: null, selected: [], verdict: null },
     listeners: new Set(),
     connections: 0,
   };
@@ -113,7 +112,6 @@ export function subscribeMysteries(mysteries: Mysteries, listener: () => void): 
 }
 
 function keep(mysteries: Mysteries, book: Casebook, change: Partial<MysteriesShown> = {}): void {
-  saveCasebook(book);
   show(mysteries, { ...change, book });
 }
 
@@ -234,7 +232,7 @@ export function connectSelected(mysteries: Mysteries): void {
   else show(mysteries, { verdict, selected: made.connection.kind === "known" ? [] : mysteries.shown.selected });
 }
 
-/** Forgets every case, here and on the device. */
+/** Forgets every case. */
 export function forgetMysteries(mysteries: Mysteries): void {
   keep(mysteries, emptyCasebook(), { offer: null, examining: null, chosen: null, selected: [], verdict: null });
 }

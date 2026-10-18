@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createWorld } from "../engine/world";
 import { PLANT_CHUNK } from "../engine/life";
 import { TREE_KINDS, type PlantKind } from "../engine/regions";
-import { BESIDE, besideCamp, CAMP_REACH, homeCamp, packUp, parseCamps, partedBy, pitch, pitchTrouble, serializeCamps, siteAhead, type PitchGround } from "./camp";
+import { BESIDE, besideCamp, CAMP_REACH, homeCamp, packUp, partedBy, pitch, pitchTrouble, siteAhead, type PitchGround } from "./camp";
 
 const world = createWorld("first-valley");
 const ground: PitchGround = { ...world, forageNear: () => false, folkNear: () => false };
@@ -79,10 +79,4 @@ describe("camp", () => {
     expect(partedBy(site, { kind: "rock", x: 1, z: 0 })).toBe(false);
   });
 
-  it("is kept for each world under its own key, and a record of another shape fails loudly", () => {
-    const kept = { "first-valley": { x: 1, z: 2, turn: 0.3, carried: true }, elliott: { x: -5, z: 9, turn: 0, carried: false } };
-    expect(parseCamps(serializeCamps(kept))).toEqual(kept);
-    expect(() => parseCamps("[]")).toThrow();
-    expect(() => parseCamps(JSON.stringify({ a: { x: 1, z: 2 } }))).toThrow();
-  });
 });

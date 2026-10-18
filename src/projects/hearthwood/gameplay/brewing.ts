@@ -1,6 +1,6 @@
 import type { Moon, Sun } from "../engine/astronomy";
 import type { Basket } from "./basket";
-import { ALL_BREWS, BREW_FORMS, brewOf, charmOf, CHARMS, fitsForm, formOf, isBrew, isCharm, isForageKind, MOST_IN_A_BREW, type BrewForm, type BrewId, type BrewIngredient, type Charm } from "./brews";
+import { ALL_BREWS, BREW_FORMS, brewOf, charmOf, CHARMS, fitsForm, formOf, isForageKind, MOST_IN_A_BREW, type BrewForm, type BrewId, type BrewIngredient, type Charm } from "./brews";
 import type { ForageKind } from "../engine/regions";
 
 /*
@@ -21,9 +21,6 @@ import type { ForageKind } from "../engine/regions";
  * The full moon is a gentle bonus, never needed: whatever is brewed while
  * it is up at night is moon-blessed (the book marks it), and a charm made
  * so works twice as long.
- *
- * Kept on the device under a key of its own, which names the shape it is
- * kept in.
  */
 
 export interface CharmAtWork {
@@ -44,8 +41,6 @@ export interface Satchel {
   /** The charms at work. */
   charms: Partial<Record<Charm, CharmAtWork>>;
 }
-
-export const BREWING_KEY = "hearthwood/brewing/v1";
 
 /** How long a brew takes, in seconds: long enough to watch the steam turn its colour, never long enough to wait. */
 export const BREWING_SECONDS = 4.2;
@@ -127,68 +122,6 @@ export function takeBrew(satchel: Satchel, brew: BrewId): Satchel {
 /** A full moon up in the night sky: most of its face lit, above the horizon, the sun gone down past the twilight's first glow. */
 export function underFullMoon(moon: Pick<Moon, "illuminated" | "elevation">, sun: Pick<Sun, "elevation">): boolean {
   return moon.illuminated >= 0.9 && moon.elevation > 0 && sun.elevation < -6;
-}
-
-export function serializeSatchel(satchel: Satchel): string {
-  return JSON.stringify(satchel);
-}
-
-const isList = (value: unknown): value is unknown[] => Array.isArray(value);
-
-/** A kept satchel read back. Anything but the shape this key holds is a bug in what wrote it, and says so. */
-export function parseSatchel(text: string): Satchel {
-  const data = JSON.parse(text) as { brews?: unknown; known?: unknown; moonlit?: unknown; charms?: unknown };
-  if (typeof data.brews !== "object" || data.brews === null || !isList(data.known) || !isList(data.moonlit) || typeof data.charms !== "object" || data.charms === null) {
-    throw new Error(`The kept brewing under ${BREWING_KEY} isn't brews, a book and charms: ${text}`);
-  }
-  const out = emptySatchel();
-  for (const [brew, count] of Object.entries(data.brews)) {
-    if (!isBrew(brew) || typeof count !== "number" || !Number.isInteger(count) || count <= 0) throw new Error(`The kept basket holds ${String(count)} of ${brew}`);
-    out.brews[brew] = count;
-  }
-  for (const [list, into] of [
-    [data.known, out.known],
-    [data.moonlit, out.moonlit],
-  ] as const) {
-    for (const brew of list) {
-      if (typeof brew !== "string" || !isBrew(brew) || into.includes(brew)) throw new Error(`The kept brew book holds ${String(brew)}`);
-      into.push(brew);
-    }
-  }
-  for (const [charm, at] of Object.entries(data.charms as Record<string, unknown>)) {
-    const working = at as Partial<CharmAtWork> | null;
-    if (!isCharm(charm) || typeof working?.from !== "number" || typeof working.until !== "number" || typeof working.moonlit !== "boolean") throw new Error(`The kept charm ${charm} isn't at work: ${JSON.stringify(at)}`);
-    out.charms[charm] = { from: working.from, until: working.until, moonlit: working.moonlit };
-  }
-  return out;
-}
-
-function storage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/** What was kept on this device, or an empty satchel where nothing was (or the device keeps nothing). */
-export function loadSatchel(): Satchel {
-  let text: string | null = null;
-  try {
-    text = storage()?.getItem(BREWING_KEY) ?? null;
-  } catch {
-    // Storage that throws on reading keeps nothing: the brewing goes on unsaved.
-    return emptySatchel();
-  }
-  return text === null ? emptySatchel() : parseSatchel(text);
-}
-
-export function saveSatchel(satchel: Satchel): void {
-  try {
-    storage()?.setItem(BREWING_KEY, serializeSatchel(satchel));
-  } catch {
-    // A full or refused storage keeps nothing; the brews stay in the basket for this visit.
-  }
 }
 
 /** A turn at the cauldron: choosing, then brewing for a short while from `since` (seconds on the hearth's clock), then the brew made. */

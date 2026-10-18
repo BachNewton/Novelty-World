@@ -1,5 +1,5 @@
 import type { World } from "../../engine/world";
-import { loadCamp, packUp, pitch, saveCamp, homeCamp, type Camp, type CampSite } from "../../gameplay/camp";
+import { homeCamp, packUp, pitch, type Camp, type CampSite } from "../../gameplay/camp";
 
 /*
  * A walk's camp, between the scene, the overlay over it and the probe:
@@ -7,8 +7,7 @@ import { loadCamp, packUp, pitch, saveCamp, homeCamp, type Camp, type CampSite }
  * at now (the ghost in front of Elliott, and whether the ground there is
  * good), whether pitching is offered, and when it last went up or came
  * down, so the scene can show its pieces settling and the fire lighting,
- * or the camp packing away. Kept on the device, a camp for each world. The
- * scene works out the ghost each frame; the overlay reads what is shown as
+ * or the camp packing away. The scene works out the ghost each frame; the overlay reads what is shown as
  * an external store.
  */
 
@@ -41,7 +40,7 @@ export interface Camping {
 }
 
 export function createCamping(world: World): Camping {
-  return { world, time: 0, changedAt: null, heldSettle: null, ghost: null, candidate: false, shown: { camp: loadCamp(world), offered: false, leaving: null }, listeners: new Set() };
+  return { world, time: 0, changedAt: null, heldSettle: null, ghost: null, candidate: false, shown: { camp: homeCamp(world), offered: false, leaving: null }, listeners: new Set() };
 }
 
 function show(camping: Camping, change: Partial<CampShown>): void {
@@ -93,7 +92,6 @@ export function settlePitch(camping: Camping, othersOffered: boolean): void {
 /** Packs camp up onto Elliott's pack: the fire goes out and its pieces are packed away. */
 export function packUpCamp(camping: Camping): void {
   const camp = packUp(camping.shown.camp);
-  saveCamp(camping.world.seed, camp);
   camping.changedAt = camping.time;
   show(camping, { camp, leaving: camp.site, offered: false });
 }
@@ -101,7 +99,6 @@ export function packUpCamp(camping: Camping): void {
 /** Pitches camp at a site: its pieces settle and the fire lights. */
 export function pitchCampAt(camping: Camping, site: CampSite): void {
   const camp = pitch(camping.shown.camp, site);
-  saveCamp(camping.world.seed, camp);
   camping.changedAt = camping.time;
   camping.ghost = null;
   camping.candidate = false;
@@ -122,7 +119,6 @@ export function holdSettle(camping: Camping, seconds: number | null): void {
 
 /** Camp back at home, pitched, and nothing kept: for screenshots and tests. */
 export function forgetCamp(camping: Camping): void {
-  saveCamp(camping.world.seed, null);
   camping.changedAt = null;
   camping.ghost = null;
   camping.candidate = false;

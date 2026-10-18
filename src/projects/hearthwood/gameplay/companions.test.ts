@@ -3,7 +3,6 @@ import type { Species } from "../engine/strays";
 import { firstBond, keepsOff, type Temper } from "./befriending";
 import { animalGround, bodyAt, doingFor, stepBody, type Body, type Nature, type Obstacle } from "./behaviour";
 import { catchUpSpot, comeAlong, firesideSpot, FOLLOWING, followers, followMind, join, keepsNear, LEFT_BEHIND, rename, stepCompanion, type Companion, type FollowContext, type Leader } from "./companions";
-import { noFriends, parseFriends, serializeFriends } from "./friends";
 import { NAMES, suggestedNames } from "./names";
 import { stepStray, strayMind, type Elliott } from "./roaming";
 import type { WalkGround } from "./walking";
@@ -194,7 +193,7 @@ describe("a companion", () => {
   });
 });
 
-describe("the companions as kept", () => {
+describe("the companions", () => {
   const animal = (id: string): Omit<Companion, "following" | "joined"> => ({ id, species: "cat", seed: `seed ${id}`, name: id });
 
   it(`follow ${FOLLOWING} at a time; the one who has walked longest goes to rest as another joins, and comes along again when petted`, () => {
@@ -212,13 +211,6 @@ describe("the companions as kept", () => {
     expect(() => rename(companions, "a", "  ")).toThrow();
   });
 
-  it("are kept on the device and read back as they were, and anything else is refused", () => {
-    const friends = { companions: join([], animal("a")), warmth: { "3,4/0": 0.4 } };
-    expect(parseFriends(serializeFriends(friends))).toEqual(friends);
-    expect(parseFriends(serializeFriends(noFriends()))).toEqual(noFriends());
-    expect(() => parseFriends('{"companions":[{"id":"a"}],"warmth":{}}')).toThrow();
-    expect(() => parseFriends('{"companions":[],"warmth":{"a":2}}')).toThrow();
-  });
 });
 
 describe("names", () => {

@@ -10,13 +10,11 @@ import {
   fill,
   followsOn,
   giftsOf,
-  loadFolk,
   nextPage,
   noAcquaintances,
   openTalk,
   pagesOf,
   rememberTone,
-  saveFolk,
   talkFor,
   type CaseView,
   type Conversation,
@@ -47,7 +45,7 @@ import { giveBrew, giveDish, type Hearth } from "./hearth";
  * seed, each with their look and name), the person on offer to talk with,
  * a conversation under way (the line showing, Elliott's choices of tone,
  * what was given and received), the journal, and what Elliott's
- * acquaintance with everyone is, kept on the device. The people's lost
+ * acquaintance with everyone is. The people's lost
  * animals are strays of the companions' own, handed to them to wake like
  * any other; one that goes home sits by its person after. The scene draws
  * and frames; the overlay reads what is shown as an external store.
@@ -150,7 +148,7 @@ export function createPeople(world: World, foraging: Foraging, hearth: Hearth, c
     candidate: null,
     tapAt: null,
     isDrawn: null,
-    shown: { offer: null, talking: null, journal: false, memory: loadFolk() },
+    shown: { offer: null, talking: null, journal: false, memory: noAcquaintances() },
     listeners: new Set(),
     opened: 0,
     cases: null,
@@ -189,7 +187,6 @@ export function subscribePeople(people: People, listener: () => void): () => voi
 const memoryOf = (people: People) => people.shown.memory;
 
 function remember(people: People, memory: FolkMemory): void {
-  saveFolk(memory);
   show(people, { memory });
 }
 
@@ -349,7 +346,6 @@ function open(people: People, live: PersonLive): void {
   const tone = (memoryOf(people).known[live.person.id] as FolkMemory["known"][string] | undefined)?.tone ?? null;
   const opened = openTalk(memoryOf(people), speakerOf(live.person), havingFor(people, live.person));
   hand(people, live, opened.taking, opened.keepsPet);
-  saveFolk(opened.memory);
   if (storyOf(live.person.story).kind === "mystery") people.cases?.heard(live.person.id, live.person.story, opened.testimony);
   const conversation = beginConversation(live.person.id, opened.talk);
   people.shown = { ...people.shown, memory: opened.memory };
@@ -430,13 +426,11 @@ export function setJournalOpen(people: People, open: boolean): void {
 export function stockKeepsake(people: People, keepsake: Keepsake): void {
   if (people.shown.memory.keepsakes.includes(keepsake)) return;
   const memory = { ...people.shown.memory, keepsakes: [...people.shown.memory.keepsakes, keepsake] };
-  saveFolk(memory);
   show(people, { memory });
 }
 
-/** Forgets everyone Elliott has met and everything given, here and on the device. */
+/** Forgets everyone Elliott has met and everything given. */
 export function forgetPeople(people: People): void {
   const memory = noAcquaintances();
-  saveFolk(memory);
   show(people, { memory, talking: null, offer: null, journal: false });
 }

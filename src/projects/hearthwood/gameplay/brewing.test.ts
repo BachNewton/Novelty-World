@@ -16,8 +16,6 @@ import {
   chooseForm,
   emptySatchel,
   hushOf,
-  parseSatchel,
-  serializeSatchel,
   startBrewing,
   stepBrewing,
   toggleBrewIngredient,
@@ -144,16 +142,5 @@ describe("the full moon", () => {
 });
 
 describe("keeping the brewing", () => {
-  it("reads back exactly what it wrote", () => {
-    let satchel = addBrew(emptySatchel(), "yarrow-tea", 1, true).satchel;
-    satchel = addBrew(satchel, "lantern-charm", 1.5, false).satchel;
-    satchel = addBrew(satchel, "humble-salve-bilberry", 1.6, false).satchel;
-    expect(parseSatchel(serializeSatchel(satchel))).toEqual(satchel);
-  });
 
-  it("says so when what was kept isn't brewing", () => {
-    expect(() => parseSatchel(JSON.stringify({ brews: { tea: 1 }, known: [], moonlit: [], charms: {} }))).toThrow();
-    expect(() => parseSatchel(JSON.stringify({ brews: {}, known: [], moonlit: [], charms: { bloom: { from: 1 } } }))).toThrow();
-    expect(() => parseSatchel(JSON.stringify({ brews: {}, known: [] }))).toThrow();
-  });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyBasket } from "./basket";
-import { addDish, beginSession, canCook, chooseCookware, COOKING_SECONDS, cookAgain, cooked, dishesIn, emptyLarder, parseLarder, serializeLarder, startCooking, stepSession, takeDish, toggleIngredient } from "./cooking";
+import { addDish, beginSession, canCook, chooseCookware, COOKING_SECONDS, cookAgain, cooked, dishesIn, emptyLarder, startCooking, stepSession, takeDish, toggleIngredient } from "./cooking";
 import { checkChoice, COOKWARE, DISHES, dishOf, FOODS, humbleId, humbleOf, isDish, MOST_INGREDIENTS, RECIPES, STAPLES, type Ingredient } from "./recipes";
 
 describe("the recipes", () => {
@@ -139,11 +139,4 @@ describe("the larder", () => {
     expect(larder.known).toEqual([humbleId("stick", "porcini"), "berry-tea"]);
   });
 
-  it("is kept and read back the same, and says so when what was kept isn't a larder", () => {
-    const larder = addDish(addDish(emptyLarder(), "porcini-saute").larder, humbleId("pan", "cloudberry")).larder;
-    expect(parseLarder(serializeLarder(larder))).toEqual(larder);
-    expect(() => parseLarder(JSON.stringify({ dishes: { "toad-stew": 1 }, known: [] }))).toThrow();
-    expect(() => parseLarder(JSON.stringify({ dishes: {}, known: ["berry-tea", "berry-tea"] }))).toThrow();
-    expect(() => parseLarder("[]")).toThrow();
-  });
 });

@@ -14,9 +14,6 @@ import type { World } from "../engine/world";
  * wet, too steep or too cluttered (a tree, a rock, a bush, a patch of
  * berries, someone's home, a place) simply doesn't offer. Small ground
  * plants (flowers, heather, ferns) are no trouble: the scene parts them.
- *
- * Kept on the device under a versioned key of its own, one camp for each
- * world's seed, since a camp only means something in its own world.
  */
 
 /** Where a camp stands: its fire's middle and ground, and how its things are turned round the fire (0 is the home camp's layout). */
@@ -139,74 +136,4 @@ export function pitchTrouble(ground: PitchGround, x: number, z: number): PitchTr
 /** Whether the scene parts a plant: a ground plant within a pitched camp's things. */
 export function partedBy(site: { x: number; z: number }, plant: { kind: PlantKind; x: number; z: number }): boolean {
   return PARTED.has(plant.kind) && Math.hypot(plant.x - site.x, plant.z - site.z) < CAMP_REACH + 0.4;
-}
-
-export const CAMP_KEY = "hearthwood/camp/v1";
-
-/** A camp as kept: its ground's height is the world's to give back. */
-interface KeptCamp {
-  x: number;
-  z: number;
-  turn: number;
-  carried: boolean;
-}
-
-/** Every world's camp as kept, by its seed. */
-export type KeptCamps = Record<string, KeptCamp>;
-
-export function serializeCamps(camps: KeptCamps): string {
-  return JSON.stringify(camps);
-}
-
-/** A kept record read back. Anything but the shape this key holds is a bug in what wrote it, and says so. */
-export function parseCamps(text: string): KeptCamps {
-  const data = JSON.parse(text) as unknown;
-  if (typeof data !== "object" || data === null || Array.isArray(data)) throw new Error(`The kept camps under ${CAMP_KEY} aren't a camp for each world: ${text}`);
-  const out: KeptCamps = {};
-  for (const [seed, camp] of Object.entries(data)) {
-    const { x, z, turn, carried } = (camp ?? {}) as Record<string, unknown>;
-    if (typeof x !== "number" || typeof z !== "number" || typeof turn !== "number" || typeof carried !== "boolean" || ![x, z, turn].every(Number.isFinite)) {
-      throw new Error(`The kept camp of world ${seed} isn't one: ${JSON.stringify(camp)}`);
-    }
-    out[seed] = { x, z, turn, carried };
-  }
-  return out;
-}
-
-function storage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function readKept(): KeptCamps {
-  let text: string | null = null;
-  try {
-    text = storage()?.getItem(CAMP_KEY) ?? null;
-  } catch {
-    // Storage that throws on reading keeps nothing: camp starts at home.
-    return {};
-  }
-  return text === null ? {} : parseCamps(text);
-}
-
-/** A world's camp as kept on this device, or its home camp where nothing was. */
-export function loadCamp(world: Pick<World, "seed" | "home" | "heightAt">): Camp {
-  const kept = readKept()[world.seed] as KeptCamp | undefined;
-  if (kept === undefined) return homeCamp(world);
-  return { site: { x: kept.x, y: world.heightAt(kept.x, kept.z), z: kept.z, turn: kept.turn }, carried: kept.carried };
-}
-
-/** Keeps a world's camp on this device, beside every other world's. */
-export function saveCamp(seed: string, camp: Camp | null): void {
-  const kept = readKept();
-  try {
-    if (camp === null) delete kept[seed];
-    else kept[seed] = { x: camp.site.x, z: camp.site.z, turn: camp.site.turn, carried: camp.carried };
-    storage()?.setItem(CAMP_KEY, serializeCamps(kept));
-  } catch {
-    // A full or refused storage keeps nothing; camp stays where it is for this visit.
-  }
 }

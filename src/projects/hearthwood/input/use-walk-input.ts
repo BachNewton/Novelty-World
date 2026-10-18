@@ -5,7 +5,7 @@ import { readPad, subscribeGamepads } from "@/shared/lib/gamepad";
 import { spanOf, type InputKind, type Point } from "@/shared/lib/input";
 import { isTextEntryTarget } from "@/shared/lib/utils";
 import type { AirMode } from "../gameplay/airborne";
-import { otherView, savedPointOfView, savePointOfView, type PointOfView } from "./point-of-view";
+import { FIRST_VIEW, otherView, type PointOfView } from "./point-of-view";
 import {
   KEY_JUMP,
   KEY_VIEW,
@@ -107,7 +107,7 @@ function firstGuessInput(): InputKind {
 }
 
 export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput {
-  const [pointOfView, setShownView] = useState<PointOfView>(savedPointOfView);
+  const [pointOfView, setShownView] = useState<PointOfView>(FIRST_VIEW);
   const [air, setAir] = useState<AirMode>("ground");
   const [broomed, setBroomed] = useState({ out: false, away: false });
   const lastAir = useRef<AirMode>("ground");
@@ -127,7 +127,6 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
   const setPointOfView = useCallback((view: PointOfView) => {
     state.current.pointOfView = view;
     setShownView(view);
-    savePointOfView(view);
     // Third person turns by dragging, so it hands the pointer back.
     if (view === "third" && document.pointerLockElement !== null) document.exitPointerLock();
   }, []);

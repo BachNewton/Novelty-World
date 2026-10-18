@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ForageSpot } from "../engine/forage";
-import { basketTotal, emptyForaged, parseForaged, serializeForaged } from "./basket";
+import { basketTotal, emptyForaged } from "./basket";
 import { canPick, heartOf, pick, REGROW_DAYS, regrow, spotLook, targetSpot, withinTapReach, type ForageTime, type Viewer } from "./picking";
 
 /** A game day in late August, when bilberries and chanterelles are both ripe, and one in winter. */
@@ -82,14 +82,5 @@ describe("what Elliott is looking at", () => {
 });
 
 describe("keeping the basket", () => {
-  it("reads back what it wrote", () => {
-    const foraged = pick(pick(emptyForaged(), bilberry, AUGUST), chanterelle, { day: AUGUST.day + 0.25, dayOfYear: AUGUST.dayOfYear });
-    expect(parseForaged(serializeForaged(foraged))).toEqual(foraged);
-  });
 
-  it("fails loudly on a record it didn't write", () => {
-    expect(() => parseForaged(JSON.stringify({ basket: { truffle: 2 }, picked: {} }))).toThrow();
-    expect(() => parseForaged(JSON.stringify({ basket: {}, picked: { a: "yesterday" } }))).toThrow();
-    expect(() => parseForaged("[]")).toThrow();
-  });
 });

@@ -8,7 +8,7 @@ import type { FetchMind } from "../../gameplay/fetch";
 import type { WalkGround } from "../../gameplay/walking";
 import { beKnown, climbing, friendMind, knows, takesTreats, visitsOf, type FriendHome, type FriendMind } from "../../gameplay/forest-friends";
 import { comeAlong, firesideSpot, followers, followMind, join, rename, type Companion, type FollowMind, type Leader } from "../../gameplay/companions";
-import { loadFriends, saveFriends, type Friends } from "../../gameplay/friends";
+import { noFriends, type Friends } from "../../gameplay/friends";
 import { suggestedNames } from "../../gameplay/names";
 import type { Offerable } from "../../gameplay/offering";
 import { isDish } from "../../gameplay/recipes";
@@ -186,7 +186,7 @@ const PETTED = 2.6;
 
 
 export function createCompanionship(world: World, foraging: Foraging, hearth: Hearth): Companionship {
-  const friends = loadFriends();
+  const friends = noFriends();
   const strayCell = remembered(512, (key) => {
     const [cx, cz] = key.split(",").map(Number);
     return straysInCell(world, cx, cz);
@@ -432,7 +432,6 @@ export function forgetMarks(companionship: Companionship): void {
 
 function keepWarmth(companionship: Companionship, animal: Animal): void {
   companionship.friends = { ...companionship.friends, warmth: { ...companionship.friends.warmth, [animal.key]: Math.min(1, animal.bond.warmth) } };
-  saveFriends(companionship.friends);
 }
 
 /** Patience: Elliott near and calm warms a stray, a little heart rising each time it warms another step; a forest friend comes to know them a visit at a time, and with the last a burst of hearts. */
@@ -474,7 +473,6 @@ export function petAnimal(companionship: Companionship, key: string): void {
     const companion = companionOf(companionship, key);
     if (companion && !companion.following) {
       companionship.friends = { ...companionship.friends, companions: comeAlong(companionship.friends.companions, key) };
-      saveFriends(companionship.friends);
       show(companionship, { companions: rowsOf(companionship), joins: companionship.shown.joins + 1 });
     }
     mark(companionship, key, "paw");
@@ -572,7 +570,6 @@ function befriend(companionship: Companionship, animal: Animal): void {
   const warmth = { ...companionship.friends.warmth };
   delete warmth[animal.key];
   companionship.friends = { companions, warmth };
-  saveFriends(companionship.friends);
   animal.stray = null;
   animal.bond = { warmth: 1, visit: 0 };
   animal.follow = followMind(companionship.time + 6);
@@ -599,7 +596,6 @@ export function keepName(companionship: Companionship, name: string): void {
   const naming = companionship.shown.naming;
   if (!naming) throw new Error("No naming card to keep a name from");
   companionship.friends = { ...companionship.friends, companions: rename(companionship.friends.companions, naming.key, name) };
-  saveFriends(companionship.friends);
   show(companionship, { naming: null, companions: rowsOf(companionship) });
 }
 
@@ -607,7 +603,6 @@ export function keepName(companionship: Companionship, name: string): void {
 export function partWith(companionship: Companionship, key: string): void {
   if (!companionOf(companionship, key)) throw new Error(`No companion ${key} to part with`);
   companionship.friends = { ...companionship.friends, companions: companionship.friends.companions.filter((c) => c.id !== key) };
-  saveFriends(companionship.friends);
   companionship.animals.delete(key);
   show(companionship, { companions: rowsOf(companionship), offer: companionship.shown.offer?.key === key ? null : companionship.shown.offer });
 }
@@ -623,10 +618,9 @@ export function followingAnimals(companionship: Companionship): Animal[] {
     .filter((a): a is Animal => a !== undefined);
 }
 
-/** Forgets every companion and every stray's warmth, here and on the device. */
+/** Forgets every companion and every stray's warmth. */
 export function forgetFriends(companionship: Companionship): void {
   companionship.friends = { companions: [], warmth: {} };
-  saveFriends(companionship.friends);
   // The companions go back to being the strays they were, wherever their homes are; the strays and the forest friends round Elliott are strangers again.
   for (const [key, animal] of companionship.animals) {
     if (animal.stray) animal.bond = firstBond(temperOf(animal));

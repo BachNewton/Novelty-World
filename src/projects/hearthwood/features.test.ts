@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { allOn, applyFeatureParam, FEATURE_GROUPS, featureDefine, FEATURES, FeatureSwitches, restoreToggles, type FeatureToggles } from "./features";
+import { allOn, applyFeatureParam, FEATURE_GROUPS, featureDefine, FEATURES, FeatureSwitches, type FeatureToggles } from "./features";
 
 const BASE = allOn();
 const ids = FEATURES.map((f) => f.id);
@@ -60,21 +60,9 @@ describe("?features=", () => {
   });
 });
 
-describe("restoreToggles", () => {
-  it("keeps what was kept, and passes over anything else", () => {
-    const restored = restoreToggles({ [first]: false, gone: false, [second]: "yes" }, BASE);
-    expect(restored[first]).toBe(false);
-    expect(restored[second]).toBe(true);
-    expect("gone" in restored).toBe(false);
-    expect(restoreToggles(null, BASE)).toEqual(BASE);
-    expect(restoreToggles("junk", BASE)).toEqual(BASE);
-  });
-});
-
 describe("FeatureSwitches", () => {
-  it("tells its listeners, and keeps what is flipped, only on a change", () => {
-    const keep = vi.fn();
-    const switches = new FeatureSwitches(BASE, keep);
+  it("tells its listeners only on a change", () => {
+    const switches = new FeatureSwitches(BASE);
     const heard = vi.fn();
     const stop = switches.subscribe(heard);
     const before: FeatureToggles = switches.toggles();
@@ -84,7 +72,6 @@ describe("FeatureSwitches", () => {
     expect(switches.isOn(first)).toBe(false);
     expect(switches.toggles()).not.toBe(before);
     expect(heard).toHaveBeenCalledTimes(1);
-    expect(keep).toHaveBeenCalledWith(first, false);
     stop();
     switches.set(first, true);
     expect(heard).toHaveBeenCalledTimes(1);
