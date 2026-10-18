@@ -25,7 +25,7 @@ import { EYE_HEIGHT } from "./first-person-camera";
 import { catchUp, turnBetween } from "./follow-camera";
 import type { Foraging } from "./foraging";
 import type { Hearth } from "./hearth";
-import { answerPeopleTaps, liveOf, offerablePerson, peopleAround, settlePeople, subscribePeople, weighPerson, type People, type PersonLive } from "./people";
+import { answerPeopleTaps, joinPeople, liveOf, offerablePerson, peopleAround, settlePeople, subscribePeople, weighPerson, type People, type PersonLive } from "./people";
 import { headingTo, TALK_FOV, talkView } from "./talk-camera";
 import type { Walker } from "./walker";
 
@@ -185,6 +185,8 @@ export function WorldPeople({
   const streamedAt = useRef<{ x: number; z: number } | null>(null);
   const pose = useRef<CameraPose>(cameraPose(TALK_FOV.first));
   const talkingWith = useRef<string | null>(null);
+
+  useEffect(() => joinPeople(people, companionship), [people, companionship]);
 
   useEffect(() => {
     const tapAt = (x: number, y: number) => {

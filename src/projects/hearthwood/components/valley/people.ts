@@ -151,12 +151,23 @@ export function createPeople(world: World, foraging: Foraging, hearth: Hearth, c
     opened: 0,
     cases: null,
   };
+  return people;
+}
+
+/**
+ * Joins the people to the animals while the scene is up (their lost animals
+ * are strays among the rest, and the naming card offers the name their person
+ * gave them); undone after. Joined in an effect rather than when made, so the
+ * hook is always the people the scene keeps.
+ */
+export function joinPeople(people: People, companionship: Companionship): () => void {
   companionship.moreStrays = {
     near: (x, z, radius) => lostAnimalsNear(people, x, z, radius),
     nameOf: (key) => lostAnimalName(people, key),
   };
-  companionship.rival = () => people.candidate?.score ?? Infinity;
-  return people;
+  return () => {
+    companionship.moreStrays = null;
+  };
 }
 
 function show(people: People, change: Partial<PeopleShown>): void {

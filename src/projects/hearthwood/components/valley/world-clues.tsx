@@ -105,7 +105,7 @@ export function WorldClues({
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
 
-  useEffect(() => joinMysteries(mysteries, companionship), [mysteries, companionship]);
+  useEffect(() => joinMysteries(mysteries), [mysteries]);
 
   useEffect(() => {
     answerClueTaps(mysteries, (x, y) => {

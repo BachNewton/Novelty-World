@@ -4,7 +4,6 @@ import type { CaseView } from "../../gameplay/conversation";
 import type { Offerable } from "../../gameplay/offering";
 import { addClues, clueOf, connect, foundClues, hasInCase, isSolved, loadCasebook, mysteryOf, openCase, saveCasebook, emptyCasebook, type Casebook, type Connection } from "../../gameplay/sleuthing";
 import type { FoundClue } from "../../stories/story";
-import type { Companionship } from "./companionship";
 import type { People } from "./people";
 
 /*
@@ -86,10 +85,9 @@ export function createMysteries(world: World, people: People): Mysteries {
 
 /**
  * Joins the mysteries to the people (who choose a mystery's talk by its case,
- * and tell it clues) and to the animals (a clue is one more thing they must
- * beat to be offered), while the scene is up; undone after.
+ * and tell it clues) while the scene is up; undone after.
  */
-export function joinMysteries(mysteries: Mysteries, companionship: Companionship): () => void {
+export function joinMysteries(mysteries: Mysteries): () => void {
   const { people } = mysteries;
   people.cases = {
     view: (id) => caseView(mysteries, id),
@@ -97,11 +95,8 @@ export function joinMysteries(mysteries: Mysteries, companionship: Companionship
       hear(mysteries, id, story, clues);
     },
   };
-  const before = companionship.rival;
-  companionship.rival = () => Math.min(before?.() ?? Infinity, mysteries.candidate?.score ?? Infinity);
   return () => {
     people.cases = null;
-    companionship.rival = before;
   };
 }
 

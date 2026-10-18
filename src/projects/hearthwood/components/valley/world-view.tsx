@@ -168,7 +168,7 @@ export function WorldView() {
         <WorldPlants world={world} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />
         <WorldPlaces world={world} palette={palette} atmosphere={atmosphere} sky={sky} streaming={streaming} />
         <WorldForage foraging={foraging} palette={foragePalette} atmosphere={atmosphere} clock={clock} walker={walker} input={input.state} rival={() => Math.min(companionship.candidate?.score ?? Infinity, hearth.candidate ?? Infinity, people.candidate?.score ?? Infinity, mysteries.candidate?.score ?? Infinity)} />
-        <WorldAnimals companionship={companionship} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} atmosphere={atmosphere} />
+        <WorldAnimals companionship={companionship} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} atmosphere={atmosphere} rival={() => Math.min(people.candidate?.score ?? Infinity, mysteries.candidate?.score ?? Infinity)} />
         <WorldWildlife world={world} clock={clock} walker={walker} weather={weather} atmosphere={atmosphere} wildlife={wildlife} />
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
         <WorldHearth hearth={hearth} foraging={foraging} companionship={companionship} walker={walker} input={input.state} palette={dishPalette} atmosphere={atmosphere} outbid={() => people.candidate !== null || mysteries.candidate !== null} />
