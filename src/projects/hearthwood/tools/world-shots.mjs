@@ -305,7 +305,8 @@ if (want("range")) {
 }
 
 // The big mountains on a clear day: a high range seen from a lowland meadow 10 to 20 km off, as the Tetons rise over Jackson
-// Hole; a high valley's floor under its walls; a pass between two valleys; and the view out from the summit.
+// Hole; a high valley's floor under its walls; a pass between two valleys; the view out from the summit and from two
+// more summits across their ranges; and a relief map round the summit.
 if (want("peaks")) {
   const spots = await desktop.evaluate((given) => {
     const world = window.__hearthwoodWorld;
