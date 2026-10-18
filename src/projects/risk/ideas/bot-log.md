@@ -372,3 +372,33 @@ Win Elo +10.4 a seat, finishing-order Elo +24.0; better at two tables and worse 
 | 5 v4 vs 1 v3 (6p) | even | 83.1% [81.2, 84.8] vs 83.3% | 1,731 |
 
 Win Elo +11.3 a seat, finishing-order Elo +27.3; better at three tables, worse at none. The gate printed REJECT ("improves vs base: no"), as it did on train: its improvement test asks for **better** at every table against the base, and v4 is even at 3 of 6 (4 of 6 on train). Against the overnight plan's bar (better somewhere, worse nowhere, on both seed sets), v4 passes, so it is seated, and its standing is left to the ladder. Above 4 players it gains nothing yet: its preferences there are v3's, untuned on the beliefs.
+
+## The ladder with v4, and v4 not seated (`risk:ratings`, 2026-10-18)
+
+`risk:ratings -- --seatable --groups 100` with v4 on the roster: 48 new matchups played (20,800 games, 110 minutes, 5 workers), 168 from the cache.
+
+| Bot | Win Elo (greedy = 1000) | Finishing-order Elo |
+|---|---|---|
+| rule-v3 | 1433.7 | 1255.8 |
+| rule-v4 | 1428.8 | 1285.7 |
+| rule-v2 | 1398.7 | 1246.2 |
+| rule-v1 | 1314.3 | 1165.1 |
+| gd-stacker | 1087.3 | 1108.6 |
+| gd-continental | 1067.9 | 1061.2 |
+| greedy | 1000 | 1000 |
+| gd-aggressive | 996.5 | 1049.0 |
+| gd-defensive | 966.6 | 1048.1 |
+
+v4 beats v3 head to head at 3 and 4 players here too, but gives far more back against the weak bots at those tables, both as the field and as the lone seat (300 to 400 games a cell):
+
+| Cell | v3 | v4 |
+|---|---|---|
+| 3p gd-defensive alone among X | 0.7% | 8.0% |
+| 3p gd-stacker alone among X | 0.7% | 8.7% |
+| 4p gd-stacker alone among X | 0.5% | 2.5% |
+| 3p X alone among gd-defensive | 82.0% | 67.3% |
+| 3p X alone among greedy | 68.3% | 58.7% |
+
+At 6 players, where v4 plays v3's preferences, the two match. **Which part costs it**: a ladder at 3 and 4 players of v3, v4, v4's beliefs on v3's small-table preferences ("v4b", `rule-v4-small~{v3's smallTable.prefs}`), gd-defensive, gd-stacker and greedy (7,000 new games, 5 minutes, 8 workers): v4b crushes the weak bots as v3 does (gd-defensive alone among it 1.7%, it alone among gd-defensive 86.3%; gd-stacker alone 1.0%), and is even with v3 head to head (v4b alone among v3: 32.7% at 3p, 19.0% at 4p). So the beliefs are sound, and the loss is the retuned preferences: tuned against v3 alone, their doubled fear of elimination and tripled border weight buy caution that pays against v3 and costs against bots v4 should run over. Win Elo there: v4 +310.9, v3 +303.5, v4b +300.5 (greedy = 0).
+
+**Decision: v4 is not seated.** The gauntlet's field was v3 alone, so it could not see this; the ladder did, and a seated bot is frozen. `ratings.json` stays as it was with v3 seated, v4's fingerprint is dropped, and the roster keeps its split from the ranking (`online/seat-roster.ts`) for the next bot seated. The night's new ratings-cache entries (v4's matchups and the diagnostic's) are not committed: any change to v4 replays them.

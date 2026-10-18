@@ -1,6 +1,6 @@
 # Risk bot v4: better beliefs about the other seats
 
-v4 measured +10 to +11 Elo a seat over v3 in the gauntlet, on train and holdout seeds: better at both 4-player tables (and, on holdout, two v4s among one v3 at 3 players), worse at none (`bot-log.md`). It is seated, and the ladder gives its standing.
+v4 measured +10 to +11 Elo a seat over v3 in the gauntlet, on train and holdout seeds: better at both 4-player tables (and, on holdout, two v4s among one v3 at 3 players), worse at none (`bot-log.md`). It is not seated: the ladder showed it, at 3 and 4 players, far weaker than v3 against greedy and GD's personas, a field the gauntlet against v3 never played, and a seated bot is frozen. Its win Elo (1428.8) came out below v3's (1433.7).
 
 v4 (`bots/rule-v4/`) is v3 (`rule-bot-v3.md`) with a different opponent model, different beliefs about what each other seat does with its turn before mine, and its small-table preferences retuned on those beliefs; the planner and the evaluation are v3's. `bot-log.md` holds every measurement, including what was tried and dropped. v3 is frozen, so v4 keeps only the files it changes (its entry point, parameters, planner, small decisions and evaluation, which read its own model) and shares the rest from v3 (the capture planner) and v1 (the board, the odds, the hand model).
 
@@ -47,8 +47,10 @@ So the small-table preferences were retuned on v4's beliefs (`risk:tune` at 3 an
 - Each belief alone on v3's preferences: kills, leader and the game's record even; the aim's pull worse (−26 Elo a seat).
 - Every belief but the aim's pull, on v3's preferences: better with five of it at 6 players, worse alone at 4 (−28), even elsewhere.
 - Retuned preferences on the beliefs without the aim's pull: as good as v4, not better.
+- The small-table preferences tuned against v3 alone (v4 as it stands): better than v3 head to head at 4 players, far weaker against greedy and GD's personas at 3 and 4, where v4's beliefs on v3's preferences are as strong as v3. The tune bought caution that pays only against a rule bot.
 
 ## What next
 
+- **Retune the small table against a mixed field.** `risk:tune` plays one opponent; give it several (v3 and the weakest the ladder holds, gd-defensive and greedy, say), its fitness still the worst cell, so caution that loses to a weak bot can't win the tune. Then gauntlet against v3 and those bots both, and seat v4 only if the ladder agrees. At the night's sizes (3 and 4 players, 40 groups) a three-opponent tune is about six hours on ten workers.
 - **Tune the large-table preferences on the beliefs.** v4 is even with v3 at 6 players on v3's preferences; the same mismatch the small table showed (an underpriced hit, a common-threat weight with little left to do) is likely there too, and the 6-player games are the slow ones (110 to 180 turns), so that tune is the night's work on its own.
 - **Price the hit, not only its aim.** What an opponent's turn would cost me is priced at 0.5 to 0.7 of what it does among rule bots, but about right against GD's softer personas; a measured hit belief, keyed to whom it is played against, would let the preferences mean what they say. The border weight is doing that job now.
