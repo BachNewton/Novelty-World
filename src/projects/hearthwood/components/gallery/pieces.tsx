@@ -27,6 +27,19 @@ import { poolGeometry, waterMesh } from "../../art/water/water";
 import { Broom } from "../../art/broom";
 import { Witch, type WitchPose } from "../../art/witch";
 import { CatBody } from "../cats/cat-body";
+import { generateFox } from "../../foxes/fox";
+import { FoxBody } from "../foxes/fox-body";
+import { generateHedgehog } from "../../hedgehogs/hedgehog";
+import { HedgehogBody } from "../hedgehogs/hedgehog-body";
+import { generateSquirrel } from "../../squirrels/squirrel";
+import { SquirrelBody } from "../squirrels/squirrel-body";
+import { generateHare } from "../../hares/hare";
+import { HareBody } from "../hares/hare-body";
+import { generateDeer } from "../../deer/deer";
+import { DeerBody } from "../deer/deer-body";
+import { SONGBIRDS } from "../../birds/bird";
+import { PosedBird } from "../birds/posed-bird";
+import { Butterflies, BUTTERFLY_KINDS, type ButterflyDay } from "../../art/butterflies";
 import { useFeature } from "../valley/feature-renderer";
 import { dishName } from "../valley/cooking-icons";
 import { FORAGE_NAMES } from "../valley/forage-icons";
@@ -236,6 +249,28 @@ const CATS: { seed: string; activity: Activity }[] = [
   { seed: "gallery-cat-4", activity: "walk" },
 ];
 
+const SUMMER = { winter: 0, white: 0 };
+const WINTER = { winter: 1, white: 1 };
+/** Butterflies always on the wing in the gallery, one of each kind over a patch. */
+const GALLERY_BUTTERFLIES: ButterflyDay = { uAbout: { value: 1 } };
+const BUTTERFLY_SPOTS = BUTTERFLY_KINDS.map((_, kind) => ({ x: 0, y: 0, z: 0, seed: 0.15 + kind * 0.2, kind }));
+
+/** The forest's animals, each in a pose that shows it best. */
+const FOREST_ANIMALS: { id: string; label: string; radius: number; height: number; render: (context: ArtContext) => ReactNode }[] = [
+  { id: "fox", label: "Red fox", radius: 0.8, height: 0.6, render: (c) => <FoxBody fox={generateFox("gallery-fox")} activity="stand" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "fox-trotting", label: "Fox at a trot", radius: 0.8, height: 0.6, render: (c) => <FoxBody fox={generateFox("gallery-fox-2")} activity="trot" speed={1.9} clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "silver-fox", label: "Silver fox", radius: 0.8, height: 0.6, render: (c) => { const fox = generateFox("gallery-fox-3"); return <FoxBody fox={{ ...fox, coat: { ...fox.coat, phase: "silver" } }} activity="sit" clock={c.clock} atmosphere={c.atmosphere} />; } },
+  { id: "hedgehog", label: "Hedgehog", radius: 0.3, height: 0.2, render: (c) => <HedgehogBody hedgehog={generateHedgehog("gallery-hedgehog")} activity="stand" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "hedgehog-curled", label: "Hedgehog, curled up", radius: 0.3, height: 0.2, render: (c) => <HedgehogBody hedgehog={generateHedgehog("gallery-hedgehog-2")} activity="lie" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "squirrel", label: "Red squirrel", radius: 0.3, height: 0.3, render: (c) => <SquirrelBody squirrel={generateSquirrel("gallery-squirrel")} coatSeason={SUMMER} activity="sit" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "hare", label: "Mountain hare, summer", radius: 0.5, height: 0.4, render: (c) => <HareBody hare={generateHare("gallery-hare")} coatSeason={SUMMER} activity="stand" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "hare-winter", label: "Mountain hare, winter", radius: 0.5, height: 0.4, render: (c) => <HareBody hare={generateHare("gallery-hare")} coatSeason={WINTER} activity="sit" clock={c.clock} atmosphere={c.atmosphere} /> },
+  { id: "roe-buck", label: "Roe buck", radius: 1.1, height: 1.2, render: (c) => { const deer = generateDeer("gallery-deer"); return <DeerBody deer={{ ...deer, sex: "male", build: { ...deer.build, antlers: 1 } }} coatSeason={SUMMER} activity="stand" clock={c.clock} atmosphere={c.atmosphere} />; } },
+  { id: "roe-doe", label: "Roe doe, winter, grazing", radius: 1.1, height: 1, render: (c) => { const deer = generateDeer("gallery-deer-2"); return <DeerBody deer={{ ...deer, sex: "female", build: { ...deer.build, antlers: 0 } }} coatSeason={WINTER} activity="graze" clock={c.clock} atmosphere={c.atmosphere} />; } },
+  ...SONGBIRDS.map((species) => ({ id: species, label: species === "great-tit" ? "Great tit" : species === "robin" ? "Robin" : "Chaffinch", radius: 0.2, height: 0.2, render: (c: ArtContext) => <PosedBird species={species} activity="perch" clock={c.clock} atmosphere={c.atmosphere} /> })),
+  { id: "butterflies", label: "Butterflies", radius: 2, height: 1, render: (c) => <Butterflies spots={BUTTERFLY_SPOTS} atmosphere={c.atmosphere} day={GALLERY_BUTTERFLIES} /> },
+];
+
 const FIREFLY_SPOTS = new Float32Array(Array.from({ length: 24 }, (_, f) => [Math.cos(f * 2.4) * (1 + (f % 4)), 0.8 + (f % 3) * 0.5, Math.sin(f * 2.4) * (1 + (f % 4))]).flat());
 
 export const ART_PIECES: ArtPiece[] = [
@@ -358,4 +393,5 @@ export const ART_PIECES: ArtPiece[] = [
     height: 0.5,
     render: (context: ArtContext) => <CatBody cat={generateCat(seed)} activity={activity} speed={0.4} clock={context.clock} atmosphere={context.atmosphere} />,
   })),
+  ...FOREST_ANIMALS.map(({ id, label, radius, height, render }) => ({ id: `forest/${id}`, group: "Animals of the forest", label, radius, height, render })),
 ];

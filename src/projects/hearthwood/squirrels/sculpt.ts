@@ -10,8 +10,8 @@ import { EAR, EAR_SHAPE, FRONT_LEG, HIND_LEG, HIP, NOSE, SHOULDER, SKULL, TAIL_R
  * with a tuft, and a tail as long as the body, fluffed by fine lumps.
  */
 
-const BODY_CELL = 0.0032;
-const HEAD_CELL = 0.0022;
+const BODY_CELL = 0.0038;
+const HEAD_CELL = 0.0025;
 
 function bodyForms(): Form[] {
   const forms: Form[] = [];

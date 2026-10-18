@@ -56,9 +56,9 @@ function shapesOf(plumage: Plumage): BirdShapes {
   beak.translate(0, -0.003, 0.025);
   const head: Piece[] = [
     ball([0.0185, 0.018, 0.019], [0, 0, 0], c.cap, 0.3),
-    ball([0.016, 0.0125, 0.013], [0, -0.005, 0.009], c.cheek),
-    ball([0.0028, 0.0028, 0.0028], [0.0118, 0.003, 0.012], c.eye),
-    ball([0.0028, 0.0028, 0.0028], [-0.0118, 0.003, 0.012], c.eye),
+    ball([0.0158, 0.011, 0.012], [0, -0.0075, 0.009], c.cheek),
+    ball([0.0029, 0.0029, 0.0029], [0.0122, 0.0055, 0.0122], c.eye),
+    ball([0.0029, 0.0029, 0.0029], [-0.0122, 0.0055, 0.0122], c.eye),
     { geometry: beak, colour: c.beak },
   ];
   // The left wing, spread out along +x from its shoulder; folded, the scene turns it back along the body.

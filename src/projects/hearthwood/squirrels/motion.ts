@@ -72,7 +72,7 @@ function stand(input: SquirrelMotionInput): Posture {
 }
 
 const BOUND_FRONT: StepAngles = { plant: 0.1, push: -0.6, pushStart: 0.3, pushRate: 2, fold: 1.2 };
-const BOUND_HIND: StepAngles = { plant: -1.2, push: 0.2, pushStart: 0.2, pushRate: 1.6, fold: 0.5 };
+const BOUND_HIND: StepAngles = { plant: -1.05, push: 0.2, pushStart: 0.2, pushRate: 1.6, fold: 0.15 };
 /** The bound: the forepaws land, then the hind feet together ahead of where the fore came down. */
 const BOUND = { frontL: 0, frontR: 0.06, hindL: 0.5, hindR: 0.53 };
 
@@ -80,7 +80,7 @@ function bounding(input: SquirrelMotionInput, climbing: boolean): Posture {
   const base = stand(input);
   const speed = Math.max(0.2, input.speed);
   const duty = 0.32;
-  const g: Gait = { footfalls: BOUND, duty, stride: Math.min(0.09, 0.04 * (1 + speed)), lift: climbing ? 0.012 : 0.03 };
+  const g: Gait = { footfalls: BOUND, duty, stride: Math.min(0.09, 0.04 * (1 + speed)), lift: climbing ? 0.01 : 0.018 };
   const phase = (input.travelled * duty) / g.stride;
   const cycle = phase * Math.PI * 2;
   const flex = Math.sin(cycle + 0.4);

@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
-import { Armchair, ArrowUp, Eye, Sprout, TreePine, ArrowLeft, BedDouble, Dices, Footprints, Hand, PawPrint, PersonStanding, Rabbit, RotateCw, Rows3, Squirrel, Wind, Zap } from "lucide-react";
+import { Armchair, ArrowUp, Bird, Eye, Feather, Sprout, TreePine, ArrowLeft, BedDouble, Dices, Footprints, Hand, PawPrint, PersonStanding, Rabbit, RotateCw, Rows3, Squirrel, Wind, Zap } from "lucide-react";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { EVERY_SPECIES, shownCat, shownDog, type Shown } from "./preview-species";
 import { makeAtmosphere } from "../../art/atmosphere";
@@ -215,7 +215,8 @@ function Frames({ onFrame }: { onFrame: (scene: THREE.Scene) => void }) {
 function bodiesIn(scene: THREE.Scene): number {
   let count = 0;
   scene.traverse((object) => {
-    if (object instanceof THREE.SkinnedMesh) count += 1;
+    // A skinned animal, or a songbird (rigid parts, marked by whoever draws it).
+    if (object instanceof THREE.SkinnedMesh || object.userData.previewBody === true) count += 1;
   });
   return count;
 }
@@ -271,6 +272,9 @@ const ACTIVITY_BUTTONS: Record<string, { label: string; icon: ReactNode }> = {
   lie: { label: "Lie down", icon: <BedDouble size={20} /> },
   pounce: { label: "Pounce", icon: <Zap size={20} /> },
   graze: { label: "Graze", icon: <Sprout size={20} /> },
+  perch: { label: "Perch", icon: <Bird size={20} /> },
+  hop: { label: "Hop and peck", icon: <Footprints size={20} /> },
+  fly: { label: "Fly", icon: <Feather size={20} /> },
   peek: { label: "Peek out", icon: <Eye size={20} /> },
   climb: { label: "Climb", icon: <ArrowUp size={20} /> },
   cling: { label: "Cling to a trunk", icon: <TreePine size={20} /> },

@@ -10,10 +10,13 @@ import type { BoneName } from "./rig";
 
 export const turnOf = (pose: Pose, bone: BoneName) => pose.rotations.get(bone) as readonly number[];
 
+/** How far apart two turns are, the short way round: a turn of a whole circle more is the same turn. */
+const between = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
 /** The biggest jump of any bone's turn, or the pelvis, between two poses. */
 export function poseJump(a: Pose, b: Pose): number {
   let most = Math.max(...a.pelvis.map((v, i) => Math.abs(v - b.pelvis[i])));
-  for (const [bone, value] of a.rotations) most = Math.max(most, ...value.map((v, i) => Math.abs(v - turnOf(b, bone)[i])));
+  for (const [bone, value] of a.rotations) most = Math.max(most, ...value.map((v, i) => between(v, turnOf(b, bone)[i])));
   return most;
 }
 

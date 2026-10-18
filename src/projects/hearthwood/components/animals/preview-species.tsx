@@ -26,6 +26,8 @@ import { HareBody } from "../hares/hare-body";
 import { deerName, generateDeer } from "../../deer/deer";
 import { DEER_ACTIVITIES, type DeerActivity } from "../../deer/motion";
 import { DeerBody } from "../deer/deer-body";
+import { SONGBIRDS, type Songbird } from "../../birds/bird";
+import { BIRD_ACTIVITIES, PosedBird, type BirdActivity } from "../birds/posed-bird";
 
 /*
  * Every species the `?cats` preview shows, each as one entry: how to make an
@@ -277,5 +279,31 @@ export function shownDeer(seed: string, sex: "male" | "female", winter = 0): Sho
   };
 }
 
+const BIRD_NAMES: Record<Songbird, string> = { robin: "robin", "great-tit": "great tit", chaffinch: "chaffinch" };
+
+/** A songbird on the one winged body. */
+export function shownBird(species: Songbird): Shown {
+  const name = BIRD_NAMES[species];
+  return {
+    species: "bird",
+    name,
+    describe: `bird: ${name}`,
+    activities: BIRD_ACTIVITIES,
+    idle: "perch",
+    size: 0.5,
+    face: [0.2, 0.08],
+    speed: () => 0,
+    moving: () => false,
+    fieldSpeed: 0,
+    greets: false,
+    body: (ask) => (
+      <group position={ask.position} rotation={[0, ask.rotation ?? 0, 0]}>
+        <PosedBird species={species} activity={ask.activity as BirdActivity} clock={ask.clock} atmosphere={ask.atmosphere} />
+      </group>
+    ),
+    details: () => <Details name={name} sex={null} traits={[]} />,
+  };
+}
+
 /** One of every species, side by side, for the line-up of them all: its seed's name and how to make it. */
-export const EVERY_SPECIES: readonly ((seed: string) => Shown)[] = [shownCat, shownDog, (seed) => shownFox(seed), (seed) => shownFox(seed, "cross"), (seed) => shownFox(seed, "silver"), shownHedgehog, (seed) => shownHedgehog(`${seed}-dark`), (seed) => shownSquirrel(seed), (seed) => shownSquirrel(seed, 1), (seed) => shownHare(seed), (seed) => shownHare(seed, 1), (seed) => shownDeer(seed, "male"), (seed) => shownDeer(`${seed}-doe`, "female", 1)];
+export const EVERY_SPECIES: readonly ((seed: string) => Shown)[] = [shownCat, shownDog, (seed) => shownFox(seed), (seed) => shownFox(seed, "cross"), (seed) => shownFox(seed, "silver"), shownHedgehog, (seed) => shownHedgehog(`${seed}-dark`), (seed) => shownSquirrel(seed), (seed) => shownSquirrel(seed, 1), (seed) => shownHare(seed), (seed) => shownHare(seed, 1), (seed) => shownDeer(seed, "male"), (seed) => shownDeer(`${seed}-doe`, "female", 1), ...SONGBIRDS.map((species) => () => shownBird(species))];

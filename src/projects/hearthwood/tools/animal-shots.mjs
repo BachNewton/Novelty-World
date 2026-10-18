@@ -138,11 +138,11 @@ for (const n of ANIMALS) {
     }
   }
   clockAt += 20;
-  await settle(desktop, (t) => {
+  await settle(desktop, ({ t, rest }) => {
     window.__hearthwoodAnimals.freeze(t);
-    window.__hearthwoodAnimals.setActivity("stand");
+    window.__hearthwoodAnimals.setActivity(rest);
     window.__hearthwoodAnimals.setGreeting(false);
-  }, clockAt);
+  }, { t: clockAt, rest: has.includes("stand") ? "stand" : has[0] });
   await settle(desktop, (t) => window.__hearthwoodAnimals.freeze(t), clockAt + 3);
   await settle(desktop, () => window.__hearthwoodAnimals.setView(25, 8, 0.45, true));
   shots.push(await shot(desktop, `close-${n}`));
