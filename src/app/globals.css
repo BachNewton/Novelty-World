@@ -523,6 +523,70 @@
   --color-hearthwood-cooking-ink: #5a4232;
 }
 
+/* Hearthwood: the people Elliott meets, storybook folk. Their skin tones and
+   hair; the wools, linens and oilskins their garments are drawn from (each
+   role choosing among a few); their faces' dot eyes and blush; the tools of
+   their trades; what they keep by them (straw skeps, a rowing boat's hull, a
+   smoke sauna's dark logs, a cottage's Falu red and its white trim, a tent's
+   canvas, sheep); the keepsakes they give; and the storybook panel's page,
+   its ink and the three tones of Elliott's choices. Read by the 3D scene
+   through themeColor and by the folk's portraits and the panel. */
+:root {
+  --color-hearthwood-folk-skin-1: #f4d6bf;
+  --color-hearthwood-folk-skin-2: #e9bb97;
+  --color-hearthwood-folk-skin-3: #cf9670;
+  --color-hearthwood-folk-skin-4: #a26c4c;
+  --color-hearthwood-folk-skin-5: #74482f;
+  --color-hearthwood-folk-hair-black: #2c2422;
+  --color-hearthwood-folk-hair-brown: #5c3b27;
+  --color-hearthwood-folk-hair-auburn: #9c4b28;
+  --color-hearthwood-folk-hair-blonde: #e2c27c;
+  --color-hearthwood-folk-hair-ash: #b9aa90;
+  --color-hearthwood-folk-hair-grey: #a19f9a;
+  --color-hearthwood-folk-hair-white: #eeeae2;
+  --color-hearthwood-folk-red: #b8463a;
+  --color-hearthwood-folk-rust: #c46a3c;
+  --color-hearthwood-folk-ochre: #d9a13c;
+  --color-hearthwood-folk-moss: #728c4b;
+  --color-hearthwood-folk-forest: #3f6349;
+  --color-hearthwood-folk-sky: #719ec6;
+  --color-hearthwood-folk-indigo: #3c5188;
+  --color-hearthwood-folk-plum: #7c4b74;
+  --color-hearthwood-folk-cream: #f0e5cd;
+  --color-hearthwood-folk-oat: #cfba95;
+  --color-hearthwood-folk-charcoal: #4b4749;
+  --color-hearthwood-folk-brown: #7b5739;
+  --color-hearthwood-folk-oilskin: #e9c23c;
+  --color-hearthwood-folk-linen: #f4ecda;
+  --color-hearthwood-folk-eye: #2a2226;
+  --color-hearthwood-folk-blush: #f19a84;
+  --color-hearthwood-folk-wood: #a8784c;
+  --color-hearthwood-folk-tin: #a9a7a2;
+  --color-hearthwood-folk-glow: #ffd47e;
+  --color-hearthwood-folk-leaf: #6b9a49;
+  --color-hearthwood-folk-paper: #f6efdc;
+  --color-hearthwood-folk-straw: #d9b862;
+  --color-hearthwood-folk-hull: #8c6b49;
+  --color-hearthwood-folk-sauna: #5b4737;
+  --color-hearthwood-folk-falu: #9b2f24;
+  --color-hearthwood-folk-trim: #f5f1e7;
+  --color-hearthwood-folk-glass: #3b4a5c;
+  --color-hearthwood-folk-turf: #6f8f45;
+  --color-hearthwood-folk-canvas: #d9cdb2;
+  --color-hearthwood-folk-sheep: #f3eee2;
+  --color-hearthwood-folk-sheep-face: #3b3331;
+  --color-hearthwood-folk-honey: #e8a234;
+  --color-hearthwood-folk-sea-glass: #8fd3c3;
+  --color-hearthwood-folk-felt: #b9a183;
+  --color-hearthwood-folk-rowan: #d4462c;
+  --color-hearthwood-folk-brass: #c99b3b;
+  --color-hearthwood-folk-page: #f8eedb;
+  --color-hearthwood-folk-ink: #4b3729;
+  --color-hearthwood-folk-warm: #df5f78;
+  --color-hearthwood-folk-curious: #3f86b9;
+  --color-hearthwood-folk-playful: #df9b26;
+}
+
 /* Hearthwood: the bar that fills while a dish cooks at the fire. */
 @keyframes hearthwood-cook-fill {
   from {
@@ -543,6 +607,18 @@
   }
   100% {
     transform: scale(1);
+  }
+}
+
+/* Hearthwood: a person's line rises gently into the storybook panel. */
+@keyframes hearthwood-talk-line {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

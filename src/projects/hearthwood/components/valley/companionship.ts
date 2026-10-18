@@ -134,6 +134,10 @@ export interface Companionship {
   /** Given by the scene: steps the animals' rules on the spot for some seconds (for screenshots), and whether every animal in view is drawn. */
   simulate: ((seconds: number) => void) | null;
   meshed: (() => boolean) | null;
+  /** Strays the world's own strays don't hold (the people's lost animals) round a point, and the name any of them already has: given by whoever keeps them. */
+  moreStrays: { near: (x: number, z: number, radius: number) => Stray[]; nameOf: (key: string) => string | null } | null;
+  /** How strongly something offered before the animals, other than the fire (a person), is offered this frame: an animal must beat it. */
+  rival: (() => number) | null;
 }
 
 /**
@@ -178,6 +182,8 @@ export function createCompanionship(world: World, foraging: Foraging, hearth: He
     screen: { names: new Map(), marks: new Map() },
     simulate: null,
     meshed: null,
+    moreStrays: null,
+    rival: null,
   };
   companionship.shown.companions = rowsOf(companionship);
   return companionship;
@@ -256,7 +262,8 @@ export const companionOf = (companionship: Companionship, key: string) => compan
 /** The strays to have live round a point, less those already won. */
 export function straysAround(companionship: Companionship, x: number, z: number, radius: number): Stray[] {
   const won = new Set(companionship.friends.companions.map((c) => c.id));
-  return straysNear(companionship.world, x, z, radius, companionship.strayCell).filter((s) => !won.has(s.id));
+  const more = companionship.moreStrays?.near(x, z, radius) ?? [];
+  return [...straysNear(companionship.world, x, z, radius, companionship.strayCell), ...more].filter((s) => !won.has(s.id));
 }
 
 /** A stray brought to life at its home, as warm as Elliott left it. */
@@ -511,7 +518,10 @@ export function knowFriend(companionship: Companionship, key: string): void {
 function befriend(companionship: Companionship, animal: Animal): void {
   const species = temperOf(animal).species;
   const taken = companionship.friends.companions.map((c) => c.name);
-  const suggestions = suggestedNames(species, animal.seed, taken);
+  // An animal someone lost already has a name: it is offered first.
+  const known = companionship.moreStrays?.nameOf(animal.key) ?? null;
+  const suggested = suggestedNames(species, animal.seed, taken);
+  const suggestions = known === null ? suggested : [known, ...suggested.filter((n) => n !== known)];
   const companions = join(companionship.friends.companions, { id: animal.key, species, seed: animal.seed, name: suggestions[0] });
   const warmth = { ...companionship.friends.warmth };
   delete warmth[animal.key];
@@ -545,6 +555,15 @@ export function keepName(companionship: Companionship, name: string): void {
   companionship.friends = { ...companionship.friends, companions: rename(companionship.friends.companions, naming.key, name) };
   saveFriends(companionship.friends);
   show(companionship, { naming: null, companions: rowsOf(companionship) });
+}
+
+/** A companion goes home to the person who lost it: it is no longer Elliott's, and leaves the walk. */
+export function partWith(companionship: Companionship, key: string): void {
+  if (!companionOf(companionship, key)) throw new Error(`No companion ${key} to part with`);
+  companionship.friends = { ...companionship.friends, companions: companionship.friends.companions.filter((c) => c.id !== key) };
+  saveFriends(companionship.friends);
+  companionship.animals.delete(key);
+  show(companionship, { companions: rowsOf(companionship), offer: companionship.shown.offer?.key === key ? null : companionship.shown.offer });
 }
 
 export function setCompanionsOpen(companionship: Companionship, open: boolean): void {

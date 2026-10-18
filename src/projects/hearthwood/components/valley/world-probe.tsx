@@ -29,6 +29,8 @@ import type { SceneWeather } from "./world-weather";
 import type { WeatherNow } from "../../art/weather/now";
 import { anotherName, companionOf, forgetFriends, friendsAround, knowFriend, keepName, petAnimal, setCompanionsOpen, straysAround, treatAnimal, winStray, type Companionship } from "./companionship";
 import { walk as walkOn } from "../../gameplay/walking";
+import type { People } from "./people";
+import { peopleProbe, type PeopleProbe } from "./people-probe";
 
 /*
  * The world's handle for screenshots and tests, on `window.__hearthwoodWorld`:
@@ -43,7 +45,7 @@ import { walk as walkOn } from "../../gameplay/walking";
  * winning, petting and treating one, the naming card, the companions' row, and whether
  * the animals have settled into their poses; and cooking: whether the fire is offered,
  * sitting down, choosing, cooking (held part-cooked if asked), the dish served, the
- * recipe book, the larder, and dishes or forage put in the basket. Waiting on these is waiting on
+ * recipe book, the larder, and dishes or forage put in the basket; and the people (see people-probe.ts). Waiting on these is waiting on
  * events, never on time.
  */
 
@@ -139,6 +141,7 @@ export interface WorldProbe {
   /** The songbirds round Elliott (where each is, what it is doing, on what), and how busy the birds and butterflies are now. */
   wildlife: () => { birds: { key: string; species: string; x: number; y: number; z: number; mode: string; perch: string; twig: { x: number; y: number; z: number } | null }[]; butterflies: { x: number; y: number; z: number }[]; about: { birds: number; butterflies: number } };
   cooking: CookingProbe;
+  people: PeopleProbe;
   /** The motion clock's seconds now, to hold motion where it is. */
   motion: () => number;
 }
@@ -326,6 +329,7 @@ export function WorldProbeHandle({
   companionship,
   hearth,
   wildlife,
+  people,
   costs,
   setPointOfView,
 }: {
@@ -340,6 +344,7 @@ export function WorldProbeHandle({
   companionship: Companionship;
   hearth: Hearth;
   wildlife: Wildlife;
+  people: People;
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
@@ -537,6 +542,7 @@ export function WorldProbeHandle({
         butterflies: wildlife.butterflies.map((f) => ({ x: f.x, y: f.y, z: f.z })),
         about: wildlife.about,
       }),
+      people: peopleProbe(people),
       companions: {
         animals: () =>
           [...companionship.animals.values()].map((a) => {
@@ -633,7 +639,7 @@ export function WorldProbeHandle({
       stopWatching?.();
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, wildlife, costs, setPointOfView]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, wildlife, people, costs, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;

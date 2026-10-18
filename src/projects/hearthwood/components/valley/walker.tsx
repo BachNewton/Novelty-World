@@ -21,13 +21,17 @@ import { Witch, type WitchHandle } from "../../art/witch";
  * their eyes, they face where they look and only the broom is drawn; in
  * third person they turn to face their way and the camera follows behind.
  * A screenshot can instead look from above the whole valley, or from high
- * over its rim. At the hearth, cooking, they stay where they are, drawn in
- * either view, and the hearth moves the camera.
+ * over its rim. At the hearth, cooking, or talking with someone, they stay
+ * where they are, drawn in either view, and the hearth or the conversation
+ * moves the camera.
  */
 
 export const WALKER_PRIORITY = -4;
 
-export type CameraView = "walk" | "above" | "aerial" | "hearth";
+export type CameraView = "walk" | "above" | "aerial" | "hearth" | "talk";
+
+/** The views in which Elliott stays where they are (sat cooking at the fire, talking with someone) and something else moves the camera. */
+const HELD_VIEWS: ReadonlySet<CameraView> = new Set(["hearth", "talk"]);
 
 /** Asked of the walker from outside, for screenshots: a jump, or a glide begun on the broom at a height above a spot. */
 export type WalkerRequest = { kind: "jump" } | { kind: "glide"; x: number; z: number; above: number; heading: number };
@@ -106,11 +110,11 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   motion.mover = mover;
 
   const firstPerson = input.pointOfView === "first";
-  // Seated at the hearth, nothing walks, jumps or turns them; what was asked is taken and let go.
-  const seated = walker.view === "hearth";
+  // Seated at the hearth or talking, nothing walks, jumps or turns them; what was asked is taken and let go.
+  const seated = HELD_VIEWS.has(walker.view);
   const turn = takeTurn(input);
   if (seated) {
-    // The hearth turns them to the fire.
+    // The hearth turns them to the fire, a conversation to whoever they talk with.
   } else if (firstPerson) {
     const look = turnLook({ yaw: walker.orbit.yaw, pitch: walker.lookPitch }, turn, input.turnRate, delta);
     walker.orbit = { ...walker.orbit, yaw: look.yaw };
@@ -146,7 +150,7 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   const onBroom = mover.mode === "broom";
   if (onBroom) walker.heading = mover.heading;
   else if (seated) {
-    // The hearth keeps their heading.
+    // The hearth or the conversation keeps their heading.
   } else if (firstPerson) walker.heading = walker.orbit.yaw;
   else if (push > 0) walker.heading += turnBetween(walker.heading, Math.atan2(way.x, way.z)) * catchUp(TURN_RATE, delta);
 
@@ -182,9 +186,9 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
   const sway = broomSway(followed.seconds, followed.turning, followed.wind);
   walker.basket = figure?.basket ?? null;
   if (figure?.group) {
-    // The camera eases out of their eyes to the hearth and back: there they show once it is clear of their head.
+    // The camera eases out of their eyes to the hearth or a conversation and back: there they show once it is clear of their head.
     const clear = Math.hypot(camera.position.x - walker.x, camera.position.z - walker.z) > 0.9;
-    figure.group.visible = clear || followed.ride > 0.02 || (!throughTheirEyes && walker.view !== "hearth");
+    figure.group.visible = clear || followed.ride > 0.02 || (!throughTheirEyes && !HELD_VIEWS.has(walker.view));
     figure.group.position.set(walker.x, y - 0.03, walker.z);
     figure.group.rotation.y = walker.heading;
     figure.pose({
@@ -225,6 +229,7 @@ function stepWalker({ world, input, walker, focus }: Walking, figure: WitchHandl
       return;
     }
     case "hearth":
+    case "talk":
       return;
     case "above":
       camera.position.set(0, 720, 0.01);

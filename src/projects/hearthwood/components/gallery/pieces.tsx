@@ -26,6 +26,11 @@ import { shadowDepth } from "../../art/shading";
 import { poolGeometry, waterMesh } from "../../art/water/water";
 import { Broom } from "../../art/broom";
 import { Witch, type WitchPose } from "../../art/witch";
+import { FolkFigure } from "../../art/folk-figure";
+import { folkLook, readFolkPalette } from "../../art/folk";
+import { homeShape, keepsakeShape, SINKS } from "../../art/folk-homes";
+import { HOME_KINDS, ROLES, type HomeKind, type Role } from "../../engine/people";
+import { KEEPSAKES } from "../../stories/story";
 import { CatBody } from "../cats/cat-body";
 import { generateFox } from "../../foxes/fox";
 import { FoxBody } from "../foxes/fox-body";
@@ -191,6 +196,68 @@ function CookingPiece({ thing, context }: { thing: DishId | "pan" | "stick"; con
   useEffect(() => () => mesh.geometry.dispose(), [mesh]);
   return <primitive object={mesh} />;
 }
+
+/** A person as the world draws them, standing (waving, for the first of each role) or sat on a stone. */
+function FolkPiece({ role, seed, seat, waving, context }: { role: Role; seed: string; seat: number | null; waving: boolean; context: ArtContext }) {
+  const palette = useMemo(() => readFolkPalette(), []);
+  const look = useMemo(() => folkLook(seed, role), [seed, role]);
+  const still = useMemo(() => ({ wave: waving ? 0.42 : 0, seconds: 0.6 }), [waving]);
+  return (
+    <>
+      {seat !== null && <HomePiece kind="stone" seed={seed} context={context} />}
+      <FolkFigure look={look} seat={seat} palette={palette} material={context.materials.stone} still={still} />
+    </>
+  );
+}
+
+function HomePiece({ kind, seed, context }: { kind: HomeKind; seed: string; context: ArtContext }) {
+  const mesh = useMemo(() => {
+    const made = new Mesh(homeShape(kind, seed, readFolkPalette()), context.materials.stone);
+    made.position.y = -SINKS[kind];
+    made.castShadow = true;
+    made.receiveShadow = true;
+    return made;
+  }, [kind, seed, context]);
+  useEffect(() => () => mesh.geometry.dispose(), [mesh]);
+  return <primitive object={mesh} />;
+}
+
+function KeepsakesPiece({ context }: { context: ArtContext }) {
+  const meshes = useMemo(() => {
+    const palette = readFolkPalette();
+    return KEEPSAKES.map((k, i) => {
+      const made = new Mesh(keepsakeShape(k, palette), context.materials.stone);
+      made.position.x = (i - (KEEPSAKES.length - 1) / 2) * 0.45;
+      made.scale.setScalar(1.5);
+      made.castShadow = true;
+      return made;
+    });
+  }, [context]);
+  useEffect(() => () => meshes.forEach((m) => m.geometry.dispose()), [meshes]);
+  return (
+    <>
+      {meshes.map((m, i) => (
+        <primitive key={i} object={m} />
+      ))}
+    </>
+  );
+}
+
+const ROLE_NAMES: Record<Role, string> = {
+  shepherd: "Shepherd",
+  beekeeper: "Beekeeper",
+  fisher: "Fisher",
+  herder: "Reindeer herder",
+  "sauna-keeper": "Sauna keeper",
+  cottager: "Cottager",
+  traveller: "Traveller",
+  hiker: "Hiker",
+};
+const HOME_NAMES: Record<HomeKind, string> = { sheep: "Sheep", hives: "Straw skep", boat: "Rowing boat", sauna: "Smoke sauna", cottage: "Cottage", lavvu: "Herder's tent", stone: "Sitting stone" };
+const HOME_RADIUS: Record<HomeKind, number> = { sheep: 0.8, hives: 0.6, boat: 1.8, sauna: 2.6, cottage: 3.6, lavvu: 2, stone: 0.7 };
+const HOME_HEIGHT: Record<HomeKind, number> = { sheep: 0.8, hives: 1, boat: 0.6, sauna: 3.4, cottage: 4.8, lavvu: 3.2, stone: 0.5 };
+/** The roles drawn sat down too, as they are met. */
+const SEATED: ReadonlySet<Role> = new Set(["traveller", "hiker"]);
 
 const GALLERY_DISHES: DishId[] = ["blueberry-pie", "lingonberry-porridge", "cloudberry-pancakes", "strawberries-and-cream", "chanterelle-toast", "mushroom-soup", "berry-tea", "lingonberry-stick-bread", "mushroom-skewers", humbleId("pan", "porcini")];
 
@@ -384,6 +451,32 @@ export const ART_PIECES: ArtPiece[] = [
     radius: 1,
     height: 0.5,
     render: (context) => <Broom palette={context.palette} atmosphere={context.atmosphere} />,
+  },
+  ...ROLES.flatMap((role) =>
+    [1, 2, 3].map((variant) => ({
+      id: `people/${role}/${variant}`,
+      group: "People",
+      label: `${ROLE_NAMES[role]} ${variant}${variant === 3 && SEATED.has(role) ? ", seated" : ""}`,
+      radius: 0.7,
+      height: 1.7,
+      render: (context: ArtContext) => <FolkPiece role={role} seed={`gallery-${role}-${variant}`} seat={variant === 3 && SEATED.has(role) ? 0.42 : null} waving={variant === 1} context={context} />,
+    })),
+  ),
+  ...HOME_KINDS.map((kind) => ({
+    id: `people/home/${kind}`,
+    group: "People's homes",
+    label: HOME_NAMES[kind],
+    radius: HOME_RADIUS[kind],
+    height: HOME_HEIGHT[kind],
+    render: (context: ArtContext) => <HomePiece kind={kind} seed={`gallery-${kind}`} context={context} />,
+  })),
+  {
+    id: "people/keepsakes",
+    group: "People's homes",
+    label: "Keepsakes",
+    radius: 1,
+    height: 0.5,
+    render: (context) => <KeepsakesPiece context={context} />,
   },
   ...CATS.map(({ seed, activity }, i) => ({
     id: `folk/cat/${i + 1}`,
