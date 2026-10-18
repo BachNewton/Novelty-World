@@ -11,7 +11,8 @@ import { isTextEntryTarget } from "@/shared/lib/utils";
  * the controller's B holds out a treat to the animal offered, and a tap on
  * the scene on touch uses the thing tapped; Tab or the controller's Y opens
  * and closes the basket, and C or the controller's left bumper the
- * companions; G or the controller's left trigger throws the stick in
+ * companions, J or the right bumper the journal, and K the journal open on
+ * its casebook; G or the controller's left trigger throws the stick in
  * Elliott's hand. Each is heard as one press, never a hold. What is offered,
  * whatever it is, is one choice among everything near (see gameplay's
  * offering), so one press always means one thing.
@@ -29,6 +30,7 @@ export const KEY_JOURNAL = "KeyJ";
 export const PAD_JOURNAL: StandardButton = "RB";
 export const KEY_THROW = "KeyG";
 export const PAD_THROW: StandardButton = "LT";
+export const KEY_CASEBOOK = "KeyK";
 
 export interface InteractListeners {
   /** Use what is offered, from a key or a pad. */
@@ -42,6 +44,7 @@ export interface InteractListeners {
   onJournal: (by: InputKind) => void;
   /** Throw the stick in Elliott's hand. */
   onThrow: (by: InputKind) => void;
+  onCasebook: (by: InputKind) => void;
 }
 
 export function useInteractInput(surface: RefObject<HTMLElement | null>, listeners: InteractListeners): void {
@@ -62,6 +65,7 @@ export function useInteractInput(surface: RefObject<HTMLElement | null>, listene
       if (event.code === KEY_COMPANIONS) latest.current.onCompanions("keyboard-mouse");
       if (event.code === KEY_JOURNAL) latest.current.onJournal("keyboard-mouse");
       if (event.code === KEY_THROW) latest.current.onThrow("keyboard-mouse");
+      if (event.code === KEY_CASEBOOK) latest.current.onCasebook("keyboard-mouse");
       if (event.code === KEY_BASKET) {
         // Tab would otherwise move the page's focus.
         event.preventDefault();

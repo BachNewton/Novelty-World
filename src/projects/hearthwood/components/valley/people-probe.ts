@@ -22,6 +22,7 @@ export interface PersonReading {
   homes: { kind: string; x: number; z: number; turn: number }[];
   pet: { id: string; species: string; x: number; z: number } | null;
   partner: { id: string; x: number; z: number } | null;
+  clues: { id: string; x: number; z: number }[];
 }
 
 export interface PeopleProbe {
@@ -31,7 +32,7 @@ export interface PeopleProbe {
   drawn: (id: string) => boolean;
   offer: () => string | null;
   talk: (id: string) => void;
-  talking: () => { id: string; talk: string; page: number; line: string; said: string | null; choices: { tone: Tone; text: string }[] | null; last: boolean; given: string | null; gifts: string[] } | null;
+  talking: () => { id: string; talk: string; page: number; line: string; lead: string | null; said: string | null; choices: { tone: Tone; text: string }[] | null; last: boolean; given: string | null; gifts: string[] } | null;
   choose: (tone: Tone) => void;
   next: () => void;
   leave: () => void;
@@ -51,6 +52,7 @@ const reading = (p: Person): PersonReading => ({
   homes: p.homes.map((h) => ({ ...h })),
   pet: p.pet && { id: p.pet.id, species: p.pet.species, x: p.pet.home.x, z: p.pet.home.z },
   partner: p.partner && { id: p.partner.id, x: p.partner.x, z: p.partner.z },
+  clues: p.clues.map((c) => ({ id: c.id, x: c.x, z: c.z })),
 });
 
 /** Finds a person by id anywhere the world placed them, by their cell. */
@@ -98,6 +100,7 @@ export function peopleProbe(people: People): PeopleProbe {
         talk: t.talk,
         page: t.conversation.page,
         line: t.line,
+        lead: t.lead,
         said: t.said?.text ?? null,
         choices: t.choices,
         last: t.last,

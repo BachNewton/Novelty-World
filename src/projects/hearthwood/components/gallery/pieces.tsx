@@ -30,7 +30,8 @@ import { FolkFigure } from "../../art/folk-figure";
 import { folkLook, readFolkPalette } from "../../art/folk";
 import { homeShape, keepsakeShape, SINKS } from "../../art/folk-homes";
 import { HOME_KINDS, ROLES, type HomeKind, type Role } from "../../engine/people";
-import { KEEPSAKES } from "../../stories/story";
+import { CLUE_MARKS, KEEPSAKES, type ClueMark } from "../../stories/story";
+import { CLUE_LARGER, clueShape, readCluePalette } from "../../art/clue-shapes";
 import { CatBody } from "../cats/cat-body";
 import { generateDog } from "../../dogs/dog";
 import type { DogPlay } from "../../dogs/motion";
@@ -275,6 +276,31 @@ function KeepsakesPiece({ context }: { context: ArtContext }) {
     </>
   );
 }
+
+function CluePiece({ mark, context }: { mark: ClueMark; context: ArtContext }) {
+  const mesh = useMemo(() => {
+    const made = new Mesh(clueShape(mark, readCluePalette()), context.materials.stone);
+    made.scale.setScalar(CLUE_LARGER);
+    made.castShadow = true;
+    made.receiveShadow = true;
+    return made;
+  }, [mark, context]);
+  useEffect(() => () => mesh.geometry.dispose(), [mesh]);
+  return <primitive object={mesh} />;
+}
+
+const CLUE_NAMES: Record<ClueMark, string> = {
+  "fox-prints": "Fox prints in mud",
+  fur: "Fur on a twig",
+  mitten: "A small mitten",
+  crumbs: "Crumbs and honey",
+  twigs: "Twigs and wool",
+  feather: "A jackdaw's feather",
+  button: "A brass button",
+  rope: "A coil of rope",
+  "cane-prints": "Boot and cane prints",
+  "cloudberry-leaf": "A cloudberry leaf",
+};
 
 const ROLE_NAMES: Record<Role, string> = {
   shepherd: "Shepherd",
@@ -535,6 +561,14 @@ export const ART_PIECES: ArtPiece[] = [
     height: 0.5,
     render: (context) => <KeepsakesPiece context={context} />,
   },
+  ...CLUE_MARKS.map((mark) => ({
+    id: `mysteries/clue/${mark}`,
+    group: "Clues",
+    label: CLUE_NAMES[mark],
+    radius: 0.7,
+    height: 0.5,
+    render: (context: ArtContext) => <CluePiece mark={mark} context={context} />,
+  })),
   ...CATS.map(({ seed, activity }, i) => ({
     id: `folk/cat/${i + 1}`,
     group: "Elliott and the cats",

@@ -7,6 +7,7 @@ import { petAnimal, setCompanionsOpen, tapAnimal, treatAnimal, type Companionshi
 import { pickUpOffered, pickUpStick, throwHeld, type Fetching } from "./fetching";
 import { forageTime, pickSpot, setBasketOpen, type Foraging } from "./foraging";
 import { openCooking, type Hearth } from "./hearth";
+import { examineClue, setCasebookPage, type Mysteries } from "./mysteries";
 import { setJournalOpen, talkWith, type People } from "./people";
 
 /*
@@ -19,7 +20,8 @@ import { setJournalOpen, talkWith, type People } from "./people";
  * the fire tapped; the basket, the companions row and the journal open and
  * close; a stick offered is picked up like anything else, a tap on one
  * picks it up, and the throw throws the stick in hand. While the naming card is up, Elliott sits cooking at the fire or
- * talks with someone, that hears its own keys and buttons.
+ * talks with someone, that hears its own keys and buttons. A clue offered
+ * is examined like anything else, and K opens the journal on its casebook.
  */
 
 export function Interactions({
@@ -28,6 +30,7 @@ export function Interactions({
   hearth,
   people,
   fetching,
+  mysteries,
   clock,
   surface,
 }: {
@@ -36,11 +39,12 @@ export function Interactions({
   hearth: Hearth;
   people: People;
   fetching: Fetching;
+  mysteries: Mysteries;
   clock: ValleyClock;
   surface: RefObject<HTMLElement | null>;
 }) {
   // While the naming card is up, a turn at the fire is on, or a conversation, those hear their own keys and buttons.
-  const busy = () => companionship.shown.naming !== null || hearth.shown.session !== null || people.shown.talking !== null;
+  const busy = () => companionship.shown.naming !== null || hearth.shown.session !== null || people.shown.talking !== null || mysteries.shown.examining !== null;
   const reading = () => people.shown.journal;
   useInteractInput(surface, {
     onInteract: () => {
@@ -55,6 +59,10 @@ export function Interactions({
       }
       if (people.shown.offer) {
         talkWith(people, people.shown.offer.id);
+        return;
+      }
+      if (mysteries.shown.offer) {
+        examineClue(mysteries, mysteries.shown.offer.key);
         return;
       }
       if (fetching.shown.offered) {
@@ -85,6 +93,11 @@ export function Interactions({
         tapAnimal(companionship, key);
         return;
       }
+      const clue = mysteries.tapAt?.(x, y) ?? null;
+      if (clue !== null) {
+        examineClue(mysteries, clue);
+        return;
+      }
       const person = people.tapAt?.(x, y) ?? null;
       if (person !== null) {
         talkWith(people, person);
@@ -103,6 +116,12 @@ export function Interactions({
     },
     onThrow: () => {
       if (!busy() && !reading() && fetching.shown.holding && fetching.hand) throwHeld(fetching);
+    },
+    onCasebook: () => {
+      if (busy() || Object.keys(mysteries.shown.book.cases).length === 0) return;
+      const open = !(people.shown.journal && mysteries.shown.casebook);
+      setCasebookPage(mysteries, open);
+      setJournalOpen(people, open);
     },
   });
   return null;

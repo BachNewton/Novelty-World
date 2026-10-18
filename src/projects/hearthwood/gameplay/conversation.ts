@@ -14,9 +14,11 @@ import { isDish, isFood, RECIPE_IDS, type RecipeId } from "./recipes";
  * each a line and maybe a choice of tone, whose reply shows before the next
  * page. Whatever a talk does (asking for help, taking what answers it, its
  * gifts) happens the moment it opens, so walking off halfway loses nothing.
- * Kept on the device under a key of its own, which names the shape it is
- * kept in; a person's id holds only as long as the people's placement does,
- * so a change to that starts a new key too.
+ * A mystery's talk is chosen by how its case stands (see `sleuthing.ts`),
+ * and a talk that tells clues says which, for the casebook. Kept on the
+ * device under a key of its own, which names the shape it is kept in; a
+ * person's id holds only as long as the people's placement does, so a
+ * change to that (a story added to the library) starts a new key too.
  */
 
 export type HelpState = "none" | "asked" | "delivered" | "given";
@@ -54,13 +56,13 @@ export interface FolkMemory {
   home: string[];
 }
 
-export const PEOPLE_KEY = "hearthwood/people/v1";
+export const PEOPLE_KEY = "hearthwood/people/v2";
 
 export function noAcquaintances(): FolkMemory {
   return { known: {}, carrying: [], hints: [], keepsakes: [], home: [] };
 }
 
-export type TalkName = "meet" | "friend" | "waiting" | "thanks" | "delivered";
+export type TalkName = "meet" | "friend" | "waiting" | "thanks" | "delivered" | "hunch" | "reveal";
 
 /** Who is talked with: what the conversation needs of the person as the world placed them. */
 export interface Speaker {
@@ -72,8 +74,14 @@ export interface Speaker {
   partner: string | null;
 }
 
-/** What Elliott has with them as they meet someone; whether a note they gave has arrived is the memory's to say. */
-export type Having = Omit<Means, "delivered">;
+/** How a mystery's case stands with someone: the clues Elliott has, and whether its solution is known. */
+export interface CaseView {
+  clues: readonly string[];
+  solved: boolean;
+}
+
+/** What Elliott has with them as they meet someone, and how their mystery's case stands; whether a note they gave has arrived is the memory's to say. */
+export type Having = Omit<Means, "delivered"> & { case?: CaseView };
 
 /** The talk a meeting opens, from the story and what has been done. */
 export function talkFor(story: Story, memory: FolkMemory, speaker: Speaker, means: Having): TalkName {
@@ -89,6 +97,14 @@ export function talkFor(story: Story, memory: FolkMemory, speaker: Speaker, mean
       if (!known) return "meet";
       if (known.help === "given") return "friend";
       return canFulfil(story.request, { ...means, delivered: known.help === "delivered" }) ? "thanks" : "waiting";
+    case "mystery": {
+      if (!known) return "meet";
+      if (known.help === "given") return "friend";
+      const clues = means.case?.clues ?? [];
+      if (means.case?.solved === true) return "reveal";
+      const { after, talk } = story.hunch;
+      return clues.includes(after) && (talk.testimony ?? []).some((c) => !clues.includes(c)) ? "hunch" : "waiting";
+    }
   }
 }
 
@@ -104,6 +120,11 @@ export function giftsOf(story: Story, talk: TalkName): readonly Gift[] {
   return (talksOf(story)[talk] as { gifts?: readonly Gift[] } | undefined)?.gifts ?? [];
 }
 
+/** The clues a talk tells Elliott as it opens, for the casebook. */
+export function testimonyOf(story: Story, talk: TalkName): readonly string[] {
+  return (talksOf(story)[talk] as { testimony?: readonly string[] } | undefined)?.testimony ?? [];
+}
+
 /** What opening a talk did: the memory after it, and what it took from Elliott, if anything. */
 export interface Opened {
   memory: FolkMemory;
@@ -111,6 +132,8 @@ export interface Opened {
   taking: Taking | null;
   /** Whether a lost animal brought back stays with Elliott (true) or goes home (false); null where none was. */
   keepsPet: boolean | null;
+  /** The clues it told, for the casebook. */
+  testimony: readonly string[];
 }
 
 const giftKey = (g: Gift) => (g.kind === "hint" ? `hint:${g.recipe}` : g.kind === "keepsake" ? `keepsake:${g.keepsake}` : "companion");
@@ -160,13 +183,15 @@ export function openTalk(memory: FolkMemory, speaker: Speaker, means: Having): O
       if (!keepsPet) out = { ...out, home: [...out.home, `lost/${speaker.id}`] };
     }
   }
+  if (story.kind === "mystery" && talk === "meet") out = withKnown(out, speaker.id, { help: "asked" });
+  if (story.kind === "mystery" && talk === "reveal") out = withKnown(out, speaker.id, { help: "given" });
   if (talk === "delivered") {
     const carried = out.carrying.filter((c) => c.to === speaker.id);
     out = withKnown({ ...out, carrying: out.carrying.filter((c) => c.to !== speaker.id) }, speaker.id, { help: "given" });
     for (const c of carried) if (c.from in out.known) out = withKnown(out, c.from, { help: "delivered" });
   }
   out = receive(out, speaker.id, giftsOf(story, talk));
-  return { memory: out, talk, taking, keepsPet };
+  return { memory: out, talk, taking, keepsPet, testimony: testimonyOf(story, talk) };
 }
 
 /** Elliott took a tone with them: remembered for how they greet Elliott next. */

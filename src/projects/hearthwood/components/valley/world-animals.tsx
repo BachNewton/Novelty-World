@@ -409,6 +409,7 @@ function findCandidate(
   companionship: Companionship,
   viewer: Viewer | null,
   walker: Walker,
+  rival: number,
 ): void {
   if (viewer === null || companionship.shown.naming) {
     companionship.candidate = null;
@@ -421,13 +422,8 @@ function findCandidate(
       !(a.ride && offTheGround(a.ride)) &&
       hasOffer(companionship, a),
   );
-  // The fire and the people, offered first, are the animals' rivals as forage is.
-  const best = bestOffered(
-    near,
-    viewer,
-    offerableAnimal,
-    Math.min(companionship.hearth.candidate ?? Infinity, companionship.rival?.() ?? Infinity),
-  );
+  // The fire, the people and the clues, offered first, are the animals' rivals as forage is.
+  const best = bestOffered(near, viewer, offerableAnimal, Math.min(companionship.hearth.candidate ?? Infinity, rival));
   companionship.candidate = best && {
     key: best.offered.key,
     score: best.score,
@@ -575,6 +571,7 @@ function frameAnimals(
   clock: ValleyClock,
   input: WalkState,
   eye: Camera,
+  rival: () => number,
 ): Animal[] | null {
   const last = scene.lastMotion;
   scene.lastMotion = clock.motion;
@@ -628,7 +625,7 @@ function frameAnimals(
             z: walker.z,
             heading: walker.heading,
           };
-  findCandidate(companionship, viewer, walker);
+  findCandidate(companionship, viewer, walker, rival());
 
   const keys = [...companionship.animals.keys()].sort().join(";");
   if (keys === scene.drawnKeys) return null;
@@ -773,6 +770,7 @@ export function WorldAnimals({
   atmosphere,
   held,
   outbid,
+  rival,
 }: {
   companionship: Companionship;
   world: World;
@@ -785,6 +783,8 @@ export function WorldAnimals({
   held?: (key: string) => ReactNode;
   /** Whether something else not yet weighed against the animals (a stick) is offered more strongly this frame. */
   outbid?: () => boolean;
+  /** How strongly whatever else is offered before the animals (the people, the clues) is offered, for them to beat. */
+  rival: () => number;
 }) {
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
@@ -813,6 +813,7 @@ export function WorldAnimals({
       clock,
       input.current,
       eye,
+      rival,
     );
     if (changed) setLive(changed);
   }, ANIMALS_PRIORITY);

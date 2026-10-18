@@ -25,7 +25,7 @@ import { EYE_HEIGHT } from "./first-person-camera";
 import { catchUp, turnBetween } from "./follow-camera";
 import type { Foraging } from "./foraging";
 import type { Hearth } from "./hearth";
-import { answerPeopleTaps, liveOf, offerablePerson, peopleAround, settlePeople, subscribePeople, weighPerson, type People, type PersonLive } from "./people";
+import { answerPeopleTaps, joinPeople, liveOf, offerablePerson, peopleAround, settlePeople, subscribePeople, weighPerson, type People, type PersonLive } from "./people";
 import { headingTo, TALK_FOV, talkView } from "./talk-camera";
 import type { Walker } from "./walker";
 
@@ -158,7 +158,7 @@ export function WorldPeople({
   hearth,
   palette,
   atmosphere,
-  outbid,
+  outbid = () => false,
 }: {
   people: People;
   world: World;
@@ -170,7 +170,7 @@ export function WorldPeople({
   hearth: Hearth;
   palette: FolkPalette;
   atmosphere: AtmosphereUniforms;
-  /** Whether something else weighed after the people (a stick) is offered more strongly this frame. */
+  /** Whether something weighed after the people (a clue, a stick) beat them this frame. */
   outbid?: () => boolean;
 }) {
   const subscribe = useCallback((listener: () => void) => subscribePeople(people, listener), [people]);
@@ -185,6 +185,8 @@ export function WorldPeople({
   const streamedAt = useRef<{ x: number; z: number } | null>(null);
   const pose = useRef<CameraPose>(cameraPose(TALK_FOV.first));
   const talkingWith = useRef<string | null>(null);
+
+  useEffect(() => joinPeople(people, companionship), [people, companionship]);
 
   useEffect(() => {
     const tapAt = (x: number, y: number) => {
@@ -216,7 +218,7 @@ export function WorldPeople({
 
   // After the frame: an animal or forage offered beats a person, as each had to beat them.
   useFrame(() => {
-    settlePeople(people, foraging.target !== null || companionship.candidate !== null || (outbid?.() ?? false));
+    settlePeople(people, foraging.target !== null || companionship.candidate !== null || outbid());
   }, AFTER_RENDER_PRIORITY);
 
   const homes = new Set(shown.memory.home);
