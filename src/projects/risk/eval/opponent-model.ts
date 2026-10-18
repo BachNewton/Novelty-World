@@ -5,9 +5,10 @@ import { riskBot } from "../bots";
 import type { BotInput } from "../bots/bot";
 import { fromView, idx, IDS, opponentsInOrder, type Board } from "../bots/rule-v1/board";
 import { tableParams } from "../bots/rule-v4";
-import { forecast, incomeFrom, neighboursOf, type AimCase } from "../bots/rule-v4/opponents";
+import { forecast, incomeFrom, neighboursOf, type AimCase, type OpponentTurn } from "../bots/rule-v4/opponents";
 import { readRecord } from "../bots/rule-v4/beliefs";
-import { AS_V3_PARAMS, V4_PARAMS, type Beliefs, type Params } from "../bots/rule-v4/params";
+import { V4_PARAMS, type Params, type Preferences } from "../bots/rule-v4/params";
+import { v3Forecast, v3Prefs } from "./v3-opponent-model";
 
 // How right an opponent model is (`npm run risk:opponents`): games are played as the
 // harness plays them, and at the end of every seat's turn each model under test says what
@@ -19,27 +20,35 @@ import { AS_V3_PARAMS, V4_PARAMS, type Beliefs, type Params } from "../bots/rule
 
 /** A model under test: what the seat `me`, at the end of its turn on `b`, believes. */
 export type OpponentModelUnderTest = (b: Board, me: Seat, history: readonly GameEvent[]) => {
-  turns: readonly { seat: Seat; aimCase: AimCase; aim: number; hit: number; victim: Seat | -1; killTaken: number }[];
+  turns: readonly OpponentTurn[];
   spared: readonly number[];
-  params: Params;
+  /** The preferences the seat prices its losses by at this table. */
+  prefs: Preferences;
 };
 
-/** The model v4's opponent model makes with `beliefs` (null: v3's), on v4's preferences. */
-export function beliefModel(beliefs: Beliefs | null): OpponentModelUnderTest {
-  const table: Params = { ...AS_V3_PARAMS, opponents: { ...AS_V3_PARAMS.opponents, beliefs } };
+function aliveOn(b: Board): Seat[] {
+  const alive: Seat[] = [];
+  for (let s = 0; s < b.players; s++) if (b.alive[s]) alive.push(s);
+  return alive;
+}
+
+/** v4's opponent model, with the settings `table` (v4's own unless named). */
+export function v4Model(table: Params = V4_PARAMS): OpponentModelUnderTest {
   return (b, me, history) => {
-    const alive: Seat[] = [];
-    for (let s = 0; s < b.players; s++) if (b.alive[s]) alive.push(s);
+    const alive = aliveOn(b);
     const params = tableParams(table, b.players, alive.length);
-    const record = beliefs !== null && beliefs.historyPrior !== null ? readRecord(history, b.players, beliefs.historyDecay, me) : null;
-    return { ...forecast(b, me, params, alive, record), params };
+    const record = readRecord(history, b.players, params.opponents.beliefs.historyDecay, me);
+    return { ...forecast(b, me, params, alive, record), prefs: params.prefs };
   };
 }
 
 /** The models the tool can score, by name. */
 export const OPPONENT_MODELS: Readonly<Record<string, OpponentModelUnderTest>> = {
-  v3: beliefModel(null),
-  v4: beliefModel(V4_PARAMS.opponents.beliefs),
+  v3: (b, me) => {
+    const alive = aliveOn(b);
+    return { ...v3Forecast(b, me, alive), prefs: v3Prefs(b.players, alive.length) };
+  },
+  v4: v4Model(),
 };
 
 export interface OpponentSpec {
@@ -202,7 +211,7 @@ export function observeGame(spec: OpponentSpec): OpponentResult {
     if (!b.alive[ended]) return;
     for (const model of spec.models) {
       const belief = OPPONENT_MODELS[model](b, ended, histories[ended]);
-      const prefs = belief.params.prefs;
+      const prefs = belief.prefs;
       const opponents = opponentsInOrder(b, ended);
       for (const t of belief.turns) {
         if (!opponents.includes(t.seat)) continue;

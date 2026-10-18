@@ -1,69 +1,15 @@
 import type { Rng } from "@/shared/lib/seeded-random";
-import type { CardId, Seat } from "../../contract";
+import type { Seat } from "../../contract";
 import type { TerritoryId } from "../../map";
-import {
-  copyBoard,
-  hasEnemyNeighbour,
-  idx,
-  IDS,
-  type Board,
-} from "../rule-v1/board";
-import { setValue, territoryOf } from "../../cards";
-import { CARD_DISCOUNT, handWorth, shapeOf, sub } from "../rule-v1/cards";
+import { copyBoard, hasEnemyNeighbour, idx, IDS, type Board } from "../rule-v1/board";
 import { evaluate } from "./evaluate";
 import type { Params } from "./params";
 import { bestPlan } from "./planner";
 
-// The small decisions: which cards, the move-in, the fortify.
+// The small decisions: which cards (v3's, which weigh no plan), the move-in, the fortify.
 // Each is a cheap rule or a short list of choices scored by the same evaluation.
 
-/** Which set to trade (§2.2): the one whose armies, with the +2 when it pictures a
- *  territory of mine that faces an enemy, plus what the cards kept are worth, come to
- *  most. So a wild is kept unless it is what makes the set worth more. */
-export function chooseSet(
-  b: Board,
-  me: Seat,
-  hand: readonly CardId[],
-  sets: readonly (readonly [CardId, CardId, CardId])[],
-): readonly [CardId, CardId, CardId] {
-  let best = sets[0];
-  let bestScore = -Infinity;
-  for (const set of sets) {
-    const rest = hand.filter((c) => !set.includes(c));
-    let bonus = 0;
-    for (const c of set) {
-      const t = territoryOf(c);
-      if (t !== null && b.owner[idx(t)] === me) bonus = Math.max(bonus, hasEnemyNeighbour(b, idx(t)) ? 2 : 1);
-    }
-    const score = setValue(set) + bonus + CARD_DISCOUNT * handWorth(shapeOf(rest), 0);
-    if (score > bestScore + 1e-9) {
-      bestScore = score;
-      best = set;
-    }
-  }
-  return best;
-}
-
-/** Where the +2 goes when the set pictures several owned territories: the plan's
- *  launch stack if it is one, else the biggest that faces an enemy. */
-export function chooseBonus(b: Board, choices: readonly TerritoryId[], launch: number | null): TerritoryId {
-  const ids = choices.map(idx);
-  if (launch !== null && ids.includes(launch)) return IDS[launch];
-  let best = ids[0];
-  for (const t of ids) {
-    const score = (hasEnemyNeighbour(b, t) ? 1000 : 0) + b.armies[t];
-    if (score > (hasEnemyNeighbour(b, best) ? 1000 : 0) + b.armies[best]) best = t;
-  }
-  return IDS[best];
-}
-
-/** The board once `set` is traded: its cards gone from my hand, its armies to place. */
-export function afterTrade(b: Board, me: Seat, set: readonly CardId[]): { board: Board; armies: number } {
-  const out = copyBoard(b);
-  out.handSize[me] -= 3;
-  out.known = sub(out.known, shapeOf(set));
-  return { board: out, armies: setValue(set) };
-}
+export { afterTrade, chooseBonus, chooseSet } from "../rule-v3/decisions";
 
 /** The move-in (§2.5): the totals worth weighing, each scored by the best plan from
  *  the board it leaves. */

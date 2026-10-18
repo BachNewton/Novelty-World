@@ -2,8 +2,8 @@ import type { Seat } from "../../contract";
 import { boardIncome, hasEnemyNeighbour, N, boardKey, opponentsInOrder, type Board } from "../rule-v1/board";
 import { Memo, memoFor } from "../memo";
 import type { Params } from "./params";
+import { killChance } from "./kills";
 import { forecast } from "./opponents";
-import { killChance } from "../rule-v3/routes";
 import { hiddenCards, myNextTrade } from "./worth";
 
 // The one yardstick (`ideas/rule-bot-v1.md` §3, with v2's changes in `ideas/rule-bot-v2.md`): my equity in a position at the end
@@ -12,7 +12,7 @@ import { hiddenCards, myNextTrade } from "./worth";
 // eliminated before my next turn and by my expected border losses, raised by next
 // turn's best kill. Every decision (placement, attacks, trades, occupy, fortify) is
 // scored by it, so they can't disagree with each other. What the other seats do before
-// my next turn is the opponent model's (`opponents.ts`).
+// my next turn is the opponent model's (`opponents.ts`), v3's evaluation otherwise.
 
 export { expectedIncome } from "./worth";
 

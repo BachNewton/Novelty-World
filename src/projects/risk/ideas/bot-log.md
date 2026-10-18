@@ -402,3 +402,26 @@ v4 beats v3 head to head at 3 and 4 players here too, but gives far more back ag
 At 6 players, where v4 plays v3's preferences, the two match. **Which part costs it**: a ladder at 3 and 4 players of v3, v4, v4's beliefs on v3's small-table preferences ("v4b", `rule-v4-small~{v3's smallTable.prefs}`), gd-defensive, gd-stacker and greedy (7,000 new games, 5 minutes, 8 workers): v4b crushes the weak bots as v3 does (gd-defensive alone among it 1.7%, it alone among gd-defensive 86.3%; gd-stacker alone 1.0%), and is even with v3 head to head (v4b alone among v3: 32.7% at 3p, 19.0% at 4p). So the beliefs are sound, and the loss is the retuned preferences: tuned against v3 alone, their doubled fear of elimination and tripled border weight buy caution that pays against v3 and costs against bots v4 should run over. Win Elo there: v4 +310.9, v3 +303.5, v4b +300.5 (greedy = 0).
 
 **Decision: v4 is not seated.** The gauntlet's field was v3 alone, so it could not see this; the ladder did, and a seated bot is frozen. `ratings.json` stays as it was with v3 seated, v4's fingerprint is dropped, and the roster keeps its split from the ranking (`online/seat-roster.ts`) for the next bot seated. The night's new ratings-cache entries (v4's matchups and the diagnostic's) are not committed: any change to v4 replays them.
+
+## v4 rebuilt: v3 on the beliefs, with G4FR's fixes (built, not yet measured, 2026-10-18)
+
+The name rule-v4 now belongs to a new build (`rule-bot-v4.md`); the version above, with its small-table preferences tuned against v3 alone, is in git history and never seated. The new v4 is v3's planner, evaluation and preferences at both table sizes, on the measured beliefs above, with four faults fixed that the human game G4FR showed (a person beat v3, another person, gd-stacker and gd-continental). Its seed and move log are a committed fixture, `bots/rule-v4/g4fr.json`; replayed on `ENGINE`, it reaches the game's recorded end state, and v3 makes every one of its 255 recorded moves.
+
+Read on G4FR's own positions (`bots/rule-v4/g4fr.test.ts`):
+
+| Position | v3 | v4 |
+|---|---|---|
+| Turn 89's end: the person's sweep through v3's 17 territories | 8 captures (capped) | 14 (he took 13 of 14 two turns later) |
+| Turn 26, after two of gd-stacker's last four territories fell: the kill on it | 0 (the 0.8 screen) | 0.37 |
+| Turn 89, decision 873: the plan ranked first | the rest of Europe at no chance, on its failure board's free damage | a capture at 100%; the Europe plan below holding |
+| Turn 62: moving the stack of 22 from Central America to Alaska | moves all | moves all; every smaller move scores lower, so partial moves were left out |
+
+A dozen positions of turn 89, each v3's, asked of v4: it makes most of v3's captures, a sign the border weight (a preference, 0.35 to 0.5) still counts an expected loss at a fraction of itself. The retune sets it.
+
+Speed: a v4 decision costs about 1.2 times a v3 decision (60 games at 3, 4 and 6 players, single-threaded), from the kills v3's screen called impossible. The first screen, every stack near the victim pooled into one `pathRun`, cost about 1.8 times v3: its runs pushed out the ones the planner remembers, and over half the kills it let through the capture planner then rated under 1%. Each group's best launch stack, walked forward on expected survivors, and no memo of kill chances (18% repeated, and building the key cost more than it saved) brought it to 1.2.
+
+Smoke run, not a measurement (60 games, seeds `smoke-*`): v4 alone among v3s won 4 of 12 at 3 players, 2 of 12 at 4 and 2 of 6 at 6; alone among gd-defensive, 11 of 12 at 3 and 8 of 12 at 4. No errors, nothing capped.
+
+`risk:tune` now takes a field of opponents and a baseline (`--opponent a,b,c --baseline rule-v3`): each table, an opponent at a size, is read as the candidate's edge over what the baseline scores there on the same seeds, and the fitness is the worst. Without the baseline the worst table would always be the strongest opponent's, and a tune against v3 plus weak bots would still be a tune against v3. `risk:opponents` scores v3's model as v3's evaluation holds it (`eval/v3-opponent-model.ts`, held to v3's breakdown by a test) beside v4's.
+
+Queued, in order: `risk:opponents` (v3's model against v4's, on the three fields), the small table retuned against rule-v3, gd-defensive, gd-stacker and greedy with v3 as baseline, the gauntlet against v3 on train and holdout seeds with the weak bots in the field, and the ladder.

@@ -10,9 +10,9 @@ import { battleOutcome, blitzCommit } from "../rule-v1/odds";
 import { V4_PARAMS, type Params } from "./params";
 import { bestPlan, type Plan } from "./planner";
 
-// v4: v3 (`ideas/rule-bot-v3.md`) with the opponent model `ideas/rule-bot-v4.md` records,
-// moved out of the evaluation into `opponents.ts`. v3 is frozen, so v4 keeps only the files
-// it changes and shares the rest from v3 (its capture planner) and v1 (the board, the odds,
+// v4: v3 (`ideas/rule-bot-v3.md`) with the opponent model and the fixes `ideas/rule-bot-v4.md`
+// records. v3 is frozen, so v4 keeps only the files it changes and shares the rest from v3
+// (its capture planner, its card decisions and its preferences) and v1 (the board, the odds,
 // the hand model).
 
 /** The plan's next attack: its first route's next territory, from the strongest of my
@@ -60,13 +60,11 @@ export function tableParams(table: Params, players: number, alive: number): Para
 
 const recorded = new WeakMap<Params, Memo<Params>>();
 
-/** The settings with this game's record of the opponents in them (v4), one object per record:
+/** The settings with this game's record of the opponents in them, one object per record:
  *  the record changes only on the opponents' turns, so the answers remembered per settings
  *  object carry through a turn of mine. */
 function withRecord(params: Params, seat: Seat, history: BotInput["history"], players: number): Params {
-  const beliefs = params.opponents.beliefs;
-  if (beliefs === null || beliefs.historyPrior === null) return params;
-  const record = readRecord(history, players, beliefs.historyDecay, seat);
+  const record = readRecord(history, players, params.opponents.beliefs.historyDecay, seat);
   return memoFor(recorded, params, 8).get(`${seat.toString()}|${recordKey(record)}`, () => ({ ...params, record }));
 }
 

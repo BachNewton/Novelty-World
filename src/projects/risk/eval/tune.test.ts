@@ -36,11 +36,25 @@ describe("tuning", () => {
       game(["c", "c", "c", "o"], 1),
       game(["c", "c", "c", "o"], 3),
     ];
-    const scores = cellScores("c", [{ players: 4, format: "one-in" }, { players: 4, format: "one-out" }], results);
+    const scores = cellScores("c", [{ opponent: "o", players: 4, format: "one-in" }, { opponent: "o", players: 4, format: "one-out" }], results);
     expect(scores.map((s) => [s.wins, s.decisive])).toEqual([[1, 2], [1, 2]]);
     expect(fitness(scores)).toBeCloseTo((scores[0].elo + scores[1].elo) / 2, 9);
     // The worst table counts, not the average.
-    const three = { players: 3, format: "one-in" as const, wins: 0, decisive: 0, elo: -50 };
+    const three = { opponent: "o", players: 3, format: "one-in" as const, wins: 0, decisive: 0, elo: -50 };
     expect(fitness([...scores, three, { ...three, format: "one-out" }])).toBe(-50);
+  });
+
+  it("scores each opponent apart, and reads a table against the baseline's score there", () => {
+    const game = (labels: string[], winner: number): RiskGameResult => ({ index: 0, seed: "s", labels, winner, places: labels.map(() => 1), turns: 1, decisions: 1 });
+    const cells = [
+      { opponent: "strong", players: 3, format: "one-in" as const },
+      { opponent: "weak", players: 3, format: "one-in" as const },
+    ];
+    const results = [game(["c", "strong", "strong"], 0), game(["c", "weak", "weak"], 1), game(["c", "weak", "weak"], 0)];
+    expect(cellScores("c", cells, results).map((s) => [s.wins, s.decisive])).toEqual([[1, 1], [1, 2]]);
+    const cell = (opponent: string, elo: number) => ({ opponent, players: 3, format: "one-in" as const, wins: 0, decisive: 0, elo });
+    // Beating the weak bot by far more than the strong one is no edge when the baseline beats it by more still.
+    expect(fitness([cell("strong", 20), cell("weak", 200)])).toBe(20);
+    expect(fitness([cell("strong", 20), cell("weak", 200)], [cell("weak", 300)])).toBe(-100);
   });
 });

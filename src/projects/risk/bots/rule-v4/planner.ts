@@ -17,8 +17,9 @@ import { Memo, memoFor } from "../memo";
 import { forcedTrade } from "../rule-v1/cards";
 import { breakdown, evaluate, expectedIncome } from "./evaluate";
 import { battleOutcome, winProb } from "../rule-v1/odds";
+import { killChance } from "./kills";
 import type { Params } from "./params";
-import { killChance, planCapture, type CapturePlan } from "../rule-v3/routes";
+import { planCapture, type CapturePlan } from "../rule-v3/routes";
 
 // The turn planner (`ideas/rule-bot-v1.md` §2.4): a few dozen whole-turn plans, each
 // one coherent intent (hold, take a card spot or break a continent, take a small
@@ -178,27 +179,44 @@ export function failureBoard(b: Board, me: Seat, cp: CapturePlan): Board {
       runRoute(out, me, r, r.path.length, Math.max(1, Math.round(cp.arrive[i])));
       return;
     }
-    const at = stopIndex(out.armies[r.source], r.path.map((t) => out.armies[t]));
-    const stopped = r.path[at];
-    const half = Math.max(1, Math.ceil(out.armies[stopped] / 2));
-    runRoute(out, me, r, at, 1);
-    out.armies[at === 0 ? r.source : r.path[at - 1]] = 1;
-    out.armies[stopped] = half;
+    const stop = stopOf(out.armies[r.source], r.path.map((t) => out.armies[t]));
+    const stopped = r.path[stop.at];
+    const defenders = survivingDefenders(stop.attackers, out.armies[stopped]);
+    runRoute(out, me, r, stop.at, 1);
+    out.armies[stop.at === 0 ? r.source : r.path[stop.at - 1]] = 1;
+    out.armies[stopped] = defenders;
   });
   return out;
 }
 
-function stopIndex(armies: number, defenders: readonly number[]): number {
-  // The defender at which the run is likeliest to stop, approximated by walking the
-  // expected armies forward (exact stop chances are in `pathRun`; this keeps it cheap).
+/** The defender at which the run is likeliest to stop, and the attackers it reaches it with,
+ *  approximated by walking the expected armies forward (exact stop chances are in `pathRun`;
+ *  this keeps it cheap). A run whose armies are spent before a defender reaches it with none. */
+export function stopOf(armies: number, defenders: readonly number[]): { at: number; attackers: number } {
   let a = armies - 1;
   for (let i = 0; i < defenders.length; i++) {
-    const p = winProb(a, defenders[i]);
-    if (p < 0.5) return i;
-    a -= defenders[i] + 1;
-    if (a <= 0) return Math.min(i + 1, defenders.length - 1);
+    if (winProb(a, defenders[i]) < 0.5) return { at: i, attackers: a };
+    const left = a - defenders[i] - 1;
+    if (i === defenders.length - 1) return { at: i, attackers: a };
+    if (left <= 0) return { at: i + 1, attackers: 0 };
+    a = left;
   }
-  return defenders.length - 1;
+  throw new Error("a run has at least one defender");
+}
+
+/** The defenders left, on average, when `a` attackers fail to take `d`: every one of them when
+ *  no attackers reach it. v3 halved the defender where a run stopped even when its armies were
+ *  spent before it, so a plan with no chance scored the damage of an attack never made. */
+export function survivingDefenders(a: number, d: number): number {
+  if (a <= 0) return d;
+  const o = battleOutcome(a, d);
+  let fails = 0;
+  let left = 0;
+  for (let y = 1; y < o.fail.length; y++) {
+    fails += o.fail[y];
+    left += y * o.fail[y];
+  }
+  return fails > 0 ? Math.max(1, Math.round(left / fails)) : 1;
 }
 
 /** One sampled attack, played the best way: the attackers and defenders left. */

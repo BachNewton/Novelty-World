@@ -3,8 +3,8 @@ import { candidateSeats, FORMATS, outcomeFor, tableSpecs, type Format } from "./
 import type { RiskGameResult, RiskGameSpec } from "./runner";
 
 // Tuning a rule bot's preferences (`risk:tune`): a vector of preferences is scored by
-// the games its bot plays against a fixed opponent, at every table size in both
-// mixtures, on seeds every candidate of a generation shares (common random numbers).
+// the games its bot plays against each of a fixed field of opponents, at every table size
+// in both mixtures, on seeds every candidate of a generation shares (common random numbers).
 // The score is the candidate's Elo per seat, read from its side's win share through the
 // Luce model the gauntlet's SPRT tests, so it measures an edge per seat at every table.
 
@@ -46,17 +46,19 @@ export function toUnit(prefs: Preferences, keys: readonly PrefKey[] = PREF_KEYS)
 }
 
 export interface Cell {
+  opponent: string;
   players: number;
   format: Format;
 }
 
-export function cellsFor(players: readonly number[]): Cell[] {
-  return players.flatMap((n) => FORMATS.map((format) => ({ players: n, format })));
+export function cellsFor(opponents: readonly string[], players: readonly number[]): Cell[] {
+  return opponents.flatMap((opponent) => players.flatMap((n) => FORMATS.map((format) => ({ opponent, players: n, format }))));
 }
 
-/** Every game a candidate plays: each cell's rotation groups on the generation's seeds. */
-export function candidateSpecs(candidate: string, opponent: string, cells: readonly Cell[], groups: number, prefix: string, maxTurns: number): RiskGameSpec[] {
-  return cells.flatMap((c) => tableSpecs(candidate, opponent, c.format, c.players, `${prefix}:${c.players.toString()}p`, 0, groups * c.players, maxTurns));
+/** Every game a bot plays: each cell's rotation groups on the generation's seeds, the same
+ *  deals against every opponent. */
+export function candidateSpecs(candidate: string, cells: readonly Cell[], groups: number, prefix: string, maxTurns: number): RiskGameSpec[] {
+  return cells.flatMap((c) => tableSpecs(candidate, c.opponent, c.format, c.players, `${prefix}:${c.players.toString()}p`, 0, groups * c.players, maxTurns));
 }
 
 /** The Elo per seat a side's win share implies, by the Luce model: holding k of n seats
@@ -76,13 +78,13 @@ export interface CellScore extends Cell {
   elo: number;
 }
 
-/** A candidate's score in each cell, from its games' results. */
+/** A bot's score in each cell, from its games' results. */
 export function cellScores(candidate: string, cells: readonly Cell[], results: readonly RiskGameResult[]): CellScore[] {
   return cells.map((c) => {
     let wins = 0;
     let decisive = 0;
     for (const r of results) {
-      if (r.labels.length !== c.players) continue;
+      if (r.labels.length !== c.players || !r.labels.every((l) => l === candidate || l === c.opponent)) continue;
       const mine = r.labels.filter((l) => l === candidate).length;
       if (mine !== candidateSeats(c.format, c.players)) continue;
       const o = outcomeFor(r, candidate);
@@ -95,11 +97,19 @@ export function cellScores(candidate: string, cells: readonly Cell[], results: r
   });
 }
 
-/** The fitness: the candidate's worst table, each table read as the mean of its two
- *  mixtures, so an edge earned at one table size can't hide a loss at another (Monopoly's
- *  opt-v1 scored 75% on an average padded by easy wins, and was even with its base). */
-export function fitness(scores: readonly CellScore[]): number {
-  const tables = new Map<number, number[]>();
-  for (const c of scores) tables.set(c.players, [...(tables.get(c.players) ?? []), c.elo]);
+/** The fitness: the candidate's worst table, an opponent at a table size, each read as the
+ *  mean of its two mixtures, so an edge earned at one table can't hide a loss at another
+ *  (Monopoly's opt-v1 scored 75% on an average padded by easy wins, and was even with its
+ *  base). Against several opponents a table is read as the candidate's edge over what a
+ *  baseline bot scores there, from games on the same seeds, `baseline` (none: 0): beating a
+ *  weak bot by less than the baseline does is the loss, since every strong bot beats it, and
+ *  a raw worst table would always be the strongest opponent's. */
+export function fitness(scores: readonly CellScore[], baseline: readonly CellScore[] = []): number {
+  const par = (c: CellScore) => baseline.find((b) => b.opponent === c.opponent && b.players === c.players && b.format === c.format)?.elo ?? 0;
+  const tables = new Map<string, number[]>();
+  for (const c of scores) {
+    const key = `${c.opponent}|${c.players.toString()}`;
+    tables.set(key, [...(tables.get(key) ?? []), c.elo - par(c)]);
+  }
   return Math.min(...[...tables.values()].map((elos) => elos.reduce((s, x) => s + x, 0) / elos.length));
 }
