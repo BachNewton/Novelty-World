@@ -28,6 +28,8 @@ import type { SceneWeather } from "./world-weather";
 import type { WeatherNow } from "../../art/weather/now";
 import { anotherName, companionOf, forgetFriends, keepName, petAnimal, setCompanionsOpen, straysAround, treatAnimal, winStray, type Companionship } from "./companionship";
 import { walk as walkOn } from "../../gameplay/walking";
+import type { People } from "./people";
+import { peopleProbe, type PeopleProbe } from "./people-probe";
 
 /*
  * The world's handle for screenshots and tests, on `window.__hearthwoodWorld`:
@@ -42,7 +44,7 @@ import { walk as walkOn } from "../../gameplay/walking";
  * winning, petting and treating one, the naming card, the companions' row, and whether
  * the animals have settled into their poses; and cooking: whether the fire is offered,
  * sitting down, choosing, cooking (held part-cooked if asked), the dish served, the
- * recipe book, the larder, and dishes or forage put in the basket. Waiting on these is waiting on
+ * recipe book, the larder, and dishes or forage put in the basket; and the people (see people-probe.ts). Waiting on these is waiting on
  * events, never on time.
  */
 
@@ -136,6 +138,7 @@ export interface WorldProbe {
   forage: ForageProbe;
   companions: CompanionsProbe;
   cooking: CookingProbe;
+  people: PeopleProbe;
   /** The motion clock's seconds now, to hold motion where it is. */
   motion: () => number;
 }
@@ -313,6 +316,7 @@ export function WorldProbeHandle({
   foraging,
   companionship,
   hearth,
+  people,
   costs,
   setPointOfView,
 }: {
@@ -326,6 +330,7 @@ export function WorldProbeHandle({
   foraging: Foraging;
   companionship: Companionship;
   hearth: Hearth;
+  people: People;
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
@@ -518,6 +523,7 @@ export function WorldProbeHandle({
         },
       },
       motion: () => clock.motion,
+      people: peopleProbe(people),
       companions: {
         animals: () =>
           [...companionship.animals.values()].map((a) => {
@@ -603,7 +609,7 @@ export function WorldProbeHandle({
       stopWatching?.();
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, costs, setPointOfView]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, people, costs, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;

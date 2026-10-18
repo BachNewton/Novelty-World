@@ -313,3 +313,22 @@ The aim's pull toward an even split is the belief that loses, by about as much a
 | 5 no-aim vs 1 v3 (6p) | **better** | 85.0% [83.7, 86.2] vs 83.3% | 3,570 |
 
 Win Elo +1.3 a seat, finishing-order Elo +19.2. Dropping the aim's pull mends the 3-player lone seat, but a lone seat at 4 players still loses, about −28 Elo, on the small-table preferences tuned for v3's beliefs at 3 players only. Five of them among one v3 at 6 players win more, but those games run long (183 turns, 7.5% to the cap) and the cap discards the stalemates. Next: retune the small-table preferences at 3 and 4 players on v4's beliefs, with and without the aim's pull (`rule-v4-small`, `rule-v4-no-aim-small`, newly tunable: the plan's `--tunable rule-v4` moves only the preferences above 4 players, which 3-player games never read).
+
+## v4's small-table preferences retuned (`risk:tune`, 2026-10-18)
+
+`risk:tune -- --tunable rule-v4-small --opponent rule-v3 --players 3,4 --gens 10 --pop 8 --groups 40` (seeds `tune4a`), and the same for `rule-v4-no-aim-small` (`tune4b`), run side by side on 5 workers each: 50,400 games apiece, about 130 minutes each with the machine shared (other sessions held it at 92%). 3 and 4 players together, since the small-table preferences play both and v4-no-aim lost the lone seat at 4. The fitness is the worst of the four cells; each cell is 240 games a candidate, too few to trust the generation means (they swing ±50), so only the drift of the mean is read.
+
+| Preference | v3's small table | Tuned on v4's beliefs | Tuned on v4 without the aim's pull |
+|---|---|---|---|
+| incomeHorizon | 2.44 | 2.06 | 2.63 |
+| myCardWeight | 0.93 | 1.49 | 1.03 |
+| myContinentWeight | 1.40 | 2.08 | 0.86 |
+| killCommitMargin | −0.019 | −0.014 | −0.030 |
+| vulnerabilityWeight | 1.18 | **2.25** | **2.69** |
+| borderWeight | 0.35 | **1.12** | **0.91** |
+| idleWeight | 0.25 | 0 | 0 |
+| opportunityWeight | 0.57 | 0 | 0.44 |
+| commonThreatWeight | 0.67 | **0.01** | **0.21** |
+| leadPenaltyWeight | 0.10 | 0 | 0 |
+
+Both runs moved the same three weights, steadily, from generation 1: fear of my own elimination up about two times, border losses up about three times, the common threat down to nearly nothing. That is the calibration finding (above) from the other side: v4's beliefs price my border losses and my kill exposure lower than v3's, and lower than the rule bots inflict, so the preferences that weigh them rise to put the worth back; and with the leader's gang-up and the record believed, the separate common-threat weight has little left to do.

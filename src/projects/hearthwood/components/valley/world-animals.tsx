@@ -348,12 +348,12 @@ function findCandidate(
       Math.abs(a.body.z - walker.z) < 5 &&
       hasOffer(companionship, a),
   );
-  // The fire, offered first, is the animals' rival as forage is.
+  // The fire and the people, offered first, are the animals' rivals as forage is.
   const best = bestOffered(
     near,
     viewer,
     offerableAnimal,
-    companionship.hearth.candidate ?? Infinity,
+    Math.min(companionship.hearth.candidate ?? Infinity, companionship.rival?.() ?? Infinity),
   );
   companionship.candidate = best && {
     key: best.offered.key,
