@@ -1,7 +1,9 @@
 // Screenshots of the mysteries, for judging them without a browser open: a clue in the world (through Elliott's
 // eyes with the prompt to examine it, and from behind them), examining it, a clue of each mystery, the casebook with
 // its clues on desktop and on the target phone (a Pixel 8 Pro in Chrome, portrait), a pairing refused, a deduction
-// accepted, the case solved, and the reveal talk with its gift.
+// accepted, the case solved, and the reveal talk with its gift; and the companions helping (the `mystery-help-`
+// shots): a dog snuffling towards a clue and then sat by it, and a cat sat by one, each from behind Elliott and
+// through their eyes, the companion's steps played by the animals' rules on a held motion clock.
 //
 // Drives the world's probe (window.__hearthwoodWorld, see ../components/valley/world-probe.tsx, people-probe.ts and
 // mysteries-probe.ts) over Playwright and waits on its events (ready, streamed in, frames drawn, a person drawn, a
@@ -291,7 +293,153 @@ async function phoneShots() {
   await page.evaluate(() => window.__hearthwoodWorld.mysteries.setCasebookOpen(false));
 }
 
-await desktopShots();
+/** Holds the day on a page without moving the motion clock, for shots whose animals are stepped by the probe. */
+async function holdDay(page) {
+  await page.evaluate(
+    ({ hour, date }) => {
+      const world = window.__hearthwoodWorld;
+      world.holdHour(hour);
+      world.setDate(date);
+      world.holdWeather("fair");
+    },
+    { hour: MORNING, date: DATE },
+  );
+}
+
+/** A stray of a kind near a point, brought to life by putting Elliott near its home, won over and named. */
+async function befriend(page, species, near) {
+  const strays = await page.evaluate(({ species, near }) => window.__hearthwoodWorld.companions.straysNear(near.x, near.z, 1500).filter((s) => s.species === species), { species, near });
+  strays.sort((a, b) => Math.hypot(a.x - near.x, a.z - near.z) - Math.hypot(b.x - near.x, b.z - near.z));
+  for (const stray of strays) {
+    await page.evaluate((at) => window.__hearthwoodWorld.placeWalker(at.x + 6, at.z, 0), stray);
+    await frames(page, 4);
+    const won = await page.evaluate((key) => {
+      const companions = window.__hearthwoodWorld.companions;
+      if (!companions.animals().some((a) => a.key === key && a.kind === "stray")) return false;
+      companions.win(key);
+      companions.keep();
+      return true;
+    }, stray.id);
+    if (won) return stray.id;
+  }
+  throw new Error(`No ${species} to befriend near ${near.x.toFixed(0)}, ${near.z.toFixed(0)}`);
+}
+
+/**
+ * Steps the animals' rules a frame at a time until a companion is off to one of some clues in a phase (and has
+ * come within `within` metres of it), or `seconds` pass; returns the clue's key.
+ */
+async function stepUntilHelping(page, key, clues, phase, seconds, within = Infinity) {
+  const found = await page.evaluate(
+    ({ key, clues, phase, seconds, within }) => {
+      const world = window.__hearthwoodWorld;
+      const holds = () => {
+        const help = world.mysteries.helping().find((h) => h.animal === key);
+        const clue = clues.find((c) => c.key === help?.clue);
+        const animal = world.companions.animals().find((a) => a.key === key);
+        return help?.phase === phase && clue && animal && Math.hypot(animal.x - clue.x, animal.z - clue.z) < within ? clue.key : null;
+      };
+      for (let t = 0; t < seconds; t += 1 / 30) {
+        if (holds()) return holds();
+        world.companions.simulate(1 / 30);
+      }
+      return holds();
+    },
+    { key, clues, phase, seconds, within },
+  );
+  if (!found) {
+    const state = await page.evaluate((key) => ({ helping: window.__hearthwoodWorld.mysteries.helping(), animal: window.__hearthwoodWorld.companions.animals().find((a) => a.key === key) }), key);
+    throw new Error(`Stepped ${seconds} s and never saw ${key} ${phase} at a clue: ${JSON.stringify(state)}`);
+  }
+  return found;
+}
+
+/** A shot of animals stepped by the probe: the motion clock moved on past the bodies' blend and held, the world drawn and the animals settled. */
+async function shootHeld(page, name, { pov, orbit = null, look = null, free = false }) {
+  await page.evaluate(
+    ({ pov, orbit, look, free }) => {
+      const world = window.__hearthwoodWorld;
+      world.holdMotion(world.motion() + 1.5);
+      world.setView("walk");
+      if (!free) world.setFreeCamera(null);
+      world.setPointOfView(pov);
+      if (orbit) world.setOrbit(orbit);
+      if (look) world.setLook(look);
+    },
+    { pov, orbit, look, free },
+  );
+  await frames(page, 30);
+  await page.waitForFunction(() => window.__hearthwoodWorld.settled() && window.__hearthwoodWorld.companions.settled(0), null, { timeout: 300000 });
+  await frames(page, 4);
+  const path = join(OUTDIR, `${name}.png`);
+  await page.screenshot({ path });
+  console.log(`wrote ${path}`);
+}
+
+/** Elliott `distance` metres from a clue on its teller's side (or turned round from it by `turn`), facing it, and where they stand. */
+async function standOff(page, teller, clue, distance, turn = 0) {
+  const way = awayFrom(teller, clue) + turn;
+  const stand = { x: clue.x + Math.sin(way) * distance, z: clue.z + Math.cos(way) * distance, heading: way + Math.PI };
+  await page.evaluate((s) => window.__hearthwoodWorld.placeWalker(s.x, s.z, s.heading), stand);
+  return stand;
+}
+
+/** Shots from behind Elliott and through their eyes, looking at the clue. */
+async function bothViews(page, name, stand, clue, firstPitch) {
+  const look = Math.atan2(clue.x - stand.x, clue.z - stand.z);
+  await shootHeld(page, `${name}-third`, { pov: "third", orbit: { yaw: look - 0.25, pitch: 0.32, distance: 4.2 } });
+  await shootHeld(page, `${name}-first`, { pov: "first", look: { yaw: look, pitch: firstPitch } });
+}
+
+/** The companions helping: a dog snuffling towards one of the honey thief's clues and sat by it, then (in a fresh walk, so it notices the same clue) a cat sat by it. */
+async function helpingShots() {
+  for (const species of ["dog", "cat"]) {
+    if (!want(`mystery-help-${species}`)) continue;
+    const page = await openWorld(DESKTOP);
+    await holdDay(page);
+    const beekeeper = await find(page, "beekeeper", "honey-thief");
+    await hearMystery(page, beekeeper);
+    const clues = beekeeper.clues.map((c) => ({ key: keyOf(beekeeper, c.id), x: c.x, z: c.z }));
+    const key = await befriend(page, species, beekeeper);
+    const stand = await standOff(page, beekeeper, beekeeper.clues.find((c) => c.id === "fox-prints"), 13);
+    await page.evaluate(({ key, s }) => window.__hearthwoodWorld.companions.place(key, s.x + Math.cos(s.heading) * 1.6, s.z - Math.sin(s.heading) * 1.6, s.heading, "sit"), { key, s: stand });
+    await page.evaluate(() => window.__hearthwoodWorld.holdMotion(window.__hearthwoodWorld.motion()));
+    await frames(page, 30);
+    // Whichever clue it notices: the one it goes to.
+    const noticed = await stepUntilHelping(page, key, clues, "going", 40);
+    const clue = clues.find((c) => c.key === noticed);
+    const from = await page.evaluate((key) => window.__hearthwoodWorld.companions.animals().find((a) => a.key === key), key);
+    await stepUntilHelping(page, key, [clue], "going", 20, Math.hypot(from.x - clue.x, from.z - clue.z) * 0.55);
+    const at = beekeeper.clues.find((c) => keyOf(beekeeper, c.id) === clue.key);
+    if (species === "dog" && want("mystery-help-dog-going")) {
+      await bothViews(page, "mystery-help-dog-going", stand, at, -0.12);
+      // From beside it, its nose down to the ground.
+      const dog = await page.evaluate((key) => window.__hearthwoodWorld.companions.animals().find((a) => a.key === key), key);
+      const side = dog.heading + Math.PI / 2;
+      const eye = { x: dog.x + Math.sin(side) * 2.4, z: dog.z + Math.cos(side) * 2.4 };
+      await page.evaluate(({ eye, dog }) => window.__hearthwoodWorld.setFreeCamera({ x: eye.x, y: dog.y + 0.7, z: eye.z, lookX: dog.x, lookY: dog.y + 0.3, lookZ: dog.z }), { eye, dog });
+      await shootHeld(page, "mystery-help-dog-going-side", { pov: "third", free: true });
+    }
+    await stepUntilHelping(page, key, [clue], "by", 30);
+    // Elliott a few steps from it, round from its teller so nobody stands between, where the woods are thinnest at
+    // their back and the camera's, the companion turning to look at them.
+    const turn = await page.evaluate((at) => {
+      const world = window.__hearthwoodWorld;
+      const woods = (way, r) => world.at(at.x + Math.sin(way) * r, at.z + Math.cos(way) * r).woodland;
+      const ways = [0.8, -0.8, 0.6, -0.6, 1].map((k) => k * Math.PI);
+      return ways.map((turn) => ({ turn, woods: woods(at.way + turn, 5) + woods(at.way + turn, 9) })).sort((a, b) => a.woods - b.woods)[0].turn;
+    }, { x: at.x, z: at.z, way: awayFrom(beekeeper, at) });
+    const near = await standOff(page, beekeeper, at, 5, turn);
+    await page.evaluate(() => window.__hearthwoodWorld.companions.simulate(2.5));
+    const by = await page.evaluate(({ key, clue }) => ({ by: window.__hearthwoodWorld.mysteries.companionBy(clue), animal: window.__hearthwoodWorld.companions.animals().find((a) => a.key === key) }), { key, clue: clue.key });
+    console.log(`${species} ${key} by ${clue.key}: ${by.by}, ${by.animal.activity}`);
+    if (want(`mystery-help-${species}-by`)) await bothViews(page, `mystery-help-${species}-by`, near, at, -0.3);
+    await page.context().close();
+  }
+}
+
+if (ONLY === null || ONLY.some((o) => !o.startsWith("mystery-help"))) await desktopShots();
+if (want("mystery-help")) await helpingShots();
 if (want("mystery-clue-phone") || want("mystery-casebook-phone") || want("mystery-examine-phone")) await phoneShots();
 
 await browser.close();

@@ -11,6 +11,7 @@ import { shadeLambert } from "../../art/shading";
 import { CLUE_MARKS, type ClueMark } from "../../stories/story";
 import type { ValleyClock } from "./clock";
 import type { Companionship } from "./companionship";
+import { companionByClue, joinCompanionClues, type CompanionClues } from "./companion-clues";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import type { Foraging } from "./foraging";
 import type { Hearth } from "./hearth";
@@ -21,7 +22,9 @@ import type { Walker } from "./walker";
 /*
  * The mysteries' clues round Elliott: each drawn where the world placed it
  * while its person is about, and, while it is still to be examined in a
- * case Elliott has been told, a few soft glints twinkling over it. Each
+ * case Elliott has been told, a few soft glints twinkling over it, more
+ * and brighter while a companion waits by it. It joins the companions'
+ * noticing of the clues to the animals while it is up. Each
  * frame it weighs the clue on offer to examine (after the fire and the
  * people, before the animals and forage, which must beat it) and answers a
  * tap on a clue.
@@ -32,34 +35,45 @@ const DRAW_REACH = 70;
 /** A tap lands on a clue within this many CSS pixels of its middle, within this many metres of Elliott. */
 const TAP_SLOP = 64;
 const TAP_REACH = 4;
-/** Glints over each clue to examine, and how many clues can glint at once. */
-const GLINTS_EACH = 3;
+/** How the glints circle over each clue to examine, and over one a companion waits by; how many clues can glint at once. */
+const GLINTS = { count: 3, radius: 0.18, size: 0.15, opacity: 0.65 } as const;
+const BRIGHT = { count: 6, radius: 0.26, size: 0.24, opacity: 0.85 } as const;
 const MOST_GLINTING = 12;
+type Glinting = typeof GLINTS | typeof BRIGHT;
 
 /** After the people have been weighed, before the animals weigh themselves against them. */
 export const CLUES_PRIORITY = -1.5;
 
 const scratch = { direction: new Vector3(), projected: new Vector3() };
 
-/** A few glints circling softly over each clue still to examine. */
-function twinkle(glints: Points<BufferGeometry, PointsMaterial>, clues: readonly ClueLive[], t: number): void {
+/** Glints circling softly over each of some clues. */
+function twinkle(glints: Points<BufferGeometry, PointsMaterial>, clues: readonly ClueLive[], t: number, { count, radius, size, opacity }: Glinting): void {
   const position = glints.geometry.getAttribute("position") as BufferAttribute;
   const glinting = clues.slice(0, MOST_GLINTING);
   glinting.forEach((live, i) => {
-    for (let g = 0; g < GLINTS_EACH; g++) {
-      const angle = t * 0.9 + (g / GLINTS_EACH) * Math.PI * 2 + i;
+    for (let g = 0; g < count; g++) {
+      const angle = t * 0.9 + (g / count) * Math.PI * 2 + i;
       const lift = GLINT_HEIGHT + 0.08 * Math.sin(t * 1.7 + g * 2.1 + i);
-      position.setXYZ(i * GLINTS_EACH + g, live.placed.x + Math.cos(angle) * 0.18, live.y + lift * CLUE_LARGER, live.placed.z + Math.sin(angle) * 0.18);
+      position.setXYZ(i * count + g, live.placed.x + Math.cos(angle) * radius, live.y + lift * CLUE_LARGER, live.placed.z + Math.sin(angle) * radius);
     }
   });
   position.needsUpdate = true;
-  glints.geometry.setDrawRange(0, glinting.length * GLINTS_EACH);
-  glints.material.size = 0.15 + 0.05 * Math.sin(t * 3.1);
-  glints.material.opacity = 0.65 + 0.35 * Math.sin(t * 2.3);
+  glints.geometry.setDrawRange(0, glinting.length * count);
+  glints.material.size = size + 0.05 * Math.sin(t * 3.1);
+  glints.material.opacity = opacity + (1 - opacity) * Math.sin(t * 2.3);
+}
+
+function glintPoints(palette: CluePalette, count: number): Points<BufferGeometry, PointsMaterial> {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new BufferAttribute(new Float32Array(MOST_GLINTING * count * 3), 3));
+  const points = new Points(geometry, new PointsMaterial({ color: palette.glint, map: glintTexture(), size: 0.16, transparent: true, depthWrite: false, blending: AdditiveBlending }));
+  points.frustumCulled = false;
+  return points;
 }
 
 export function WorldClues({
   mysteries,
+  companionClues,
   people,
   clock,
   walker,
@@ -72,6 +86,7 @@ export function WorldClues({
   outbid = () => false,
 }: {
   mysteries: Mysteries;
+  companionClues: CompanionClues;
   people: People;
   clock: ValleyClock;
   walker: Walker;
@@ -86,20 +101,16 @@ export function WorldClues({
 }) {
   const material = useMemo(() => shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere), [atmosphere]);
   const shapes = useMemo(() => Object.fromEntries(CLUE_MARKS.map((mark) => [mark, clueShape(mark, palette)])) as Record<ClueMark, BufferGeometry>, [palette]);
-  const glints = useMemo(() => {
-    const geometry = new BufferGeometry();
-    geometry.setAttribute("position", new BufferAttribute(new Float32Array(MOST_GLINTING * GLINTS_EACH * 3), 3));
-    const points = new Points(geometry, new PointsMaterial({ color: palette.glint, map: glintTexture(), size: 0.16, transparent: true, depthWrite: false, blending: AdditiveBlending }));
-    points.frustumCulled = false;
-    return points;
-  }, [palette]);
+  const glints = useMemo(() => ({ plain: glintPoints(palette, GLINTS.count), bright: glintPoints(palette, BRIGHT.count) }), [palette]);
   useEffect(
     () => () => {
       material.dispose();
       for (const shape of Object.values(shapes)) shape.dispose();
-      glints.geometry.dispose();
-      glints.material.map?.dispose();
-      glints.material.dispose();
+      for (const points of [glints.plain, glints.bright]) {
+        points.geometry.dispose();
+        points.material.map?.dispose();
+        points.material.dispose();
+      }
     },
     [material, shapes, glints],
   );
@@ -109,6 +120,7 @@ export function WorldClues({
   const canvas = useThree((s) => s.gl.domElement);
 
   useEffect(() => joinMysteries(mysteries), [mysteries]);
+  useEffect(() => joinCompanionClues(companionClues), [companionClues]);
 
   useEffect(() => {
     answerClueTaps(mysteries, (x, y) => {
@@ -150,7 +162,9 @@ export function WorldClues({
     const best = viewer ? bestOffered(candidates, viewer, offerableClue, beat) : null;
     weighClue(mysteries, best && { key: best.offered.key, score: best.score });
 
-    twinkle(glints, near.filter((l) => examinable(mysteries, l)), clock.motion);
+    const glinting = near.filter((l) => examinable(mysteries, l));
+    twinkle(glints.plain, glinting.filter((l) => !companionByClue(companionClues, l.key)), clock.motion, GLINTS);
+    twinkle(glints.bright, glinting.filter((l) => companionByClue(companionClues, l.key)), clock.motion, BRIGHT);
   }, CLUES_PRIORITY);
 
   // After the frame: an animal or forage offered beats a clue, as each had to beat it.
@@ -160,7 +174,8 @@ export function WorldClues({
 
   return (
     <>
-      <primitive object={glints} />
+      <primitive object={glints.plain} />
+      <primitive object={glints.bright} />
       {drawn.map((live) => (
         <mesh key={live.key} geometry={shapes[live.clue.mark]} material={material} position={[live.placed.x, live.y, live.placed.z]} rotation={[0, live.placed.turn, 0]} scale={CLUE_LARGER} castShadow receiveShadow />
       ))}

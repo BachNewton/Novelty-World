@@ -118,4 +118,11 @@ describe("a dog's pose", () => {
     expect(Math.max(...poses.map((p) => turn(p, "neck")[0]))).toBeGreaterThan(0.6);
     expect(Math.max(...poses.map((p) => p.tongue))).toBeGreaterThan(0.8);
   });
+
+  it("keeps its nose down to the ground as it walks on a scent, its mouth shut, and never jumps", () => {
+    const walking = (nose: number, t = 10) => dogPose(input({ activity: "walk", previous: "walk", time: t, travelled: t * 0.5, speed: 0.5, nose }));
+    expect(turn(walking(1), "neck")[0] - turn(walking(0), "neck")[0]).toBeGreaterThan(0.6);
+    expect(walking(1).tongue).toBe(0);
+    expectSmooth((t) => walking(1, t), 0, 1.2);
+  });
 });

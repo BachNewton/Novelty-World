@@ -35,6 +35,7 @@ import type { People } from "./people";
 import { peopleProbe, type PeopleProbe } from "./people-probe";
 import { brewingProbe, type BrewingProbe } from "./brewing-probe";
 import type { Mysteries } from "./mysteries";
+import type { CompanionClues } from "./companion-clues";
 import { mysteriesProbe, type MysteriesProbe } from "./mysteries-probe";
 import { campingProbe, type CampingProbe } from "./camp-probe";
 import { restingSite } from "./camping";
@@ -346,6 +347,7 @@ export function WorldProbeHandle({
   people,
   fetching,
   mysteries,
+  companionClues,
   costs,
   setPointOfView,
 }: {
@@ -363,6 +365,7 @@ export function WorldProbeHandle({
   people: People;
   fetching: Fetching;
   mysteries: Mysteries;
+  companionClues: CompanionClues;
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
@@ -566,7 +569,7 @@ export function WorldProbeHandle({
       }),
       people: peopleProbe(people),
       brewing: brewingProbe(hearth),
-      mysteries: mysteriesProbe(mysteries),
+      mysteries: mysteriesProbe(mysteries, companionClues),
       companions: {
         animals: () =>
           [...companionship.animals.values()].map((a) => {
@@ -664,7 +667,7 @@ export function WorldProbeHandle({
       stopWatching?.();
       delete window.__hearthwoodWorld;
     };
-  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, wildlife, people, mysteries, fetching, costs, setPointOfView]);
+  }, [gl, scene, camera, world, palette, clock, walker, streaming, freeCamera, weather, foraging, companionship, hearth, wildlife, people, mysteries, companionClues, fetching, costs, setPointOfView]);
 
   useFrame(({ camera: eye }) => {
     const at = freeCamera.at;

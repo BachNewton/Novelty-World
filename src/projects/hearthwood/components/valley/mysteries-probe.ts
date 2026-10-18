@@ -1,13 +1,14 @@
 import type { Casebook } from "../../gameplay/sleuthing";
 import { caseShown, chooseCase, closeExamining, connectSelected, examinable, examineClue, forgetMysteries, setCasebookPage, streamClues, toggleSelected, type Mysteries } from "./mysteries";
 import { setJournalOpen } from "./people";
+import { companionByClue, helping, type CompanionClues } from "./companion-clues";
 
 /*
  * The mysteries' part of the world's probe (`window.__hearthwoodWorld.mysteries`),
  * for screenshots and tests: the clues live round Elliott, the clue offered,
  * examining one and putting it down, the casebook (open on its page, the
  * case shown, choosing what to connect, connecting, and what it came to),
- * and forgetting every case.
+ * forgetting every case, and the companions helping: who is off to a clue.
  */
 
 export interface ClueReading {
@@ -38,9 +39,12 @@ export interface MysteriesProbe {
   selected: () => string[];
   connect: () => { kind: string; deduction: string | null; solved: boolean } | null;
   forget: () => void;
+  /** Each companion off to a clue (going there, or by it), and whether one waits by a clue, its glints brightened. */
+  helping: () => { animal: string; clue: string; phase: "going" | "by" }[];
+  companionBy: (key: string) => boolean;
 }
 
-export function mysteriesProbe(mysteries: Mysteries): MysteriesProbe {
+export function mysteriesProbe(mysteries: Mysteries, companionClues: CompanionClues): MysteriesProbe {
   const verdict = () => {
     const v = mysteries.shown.verdict;
     if (!v) return null;
@@ -86,5 +90,7 @@ export function mysteriesProbe(mysteries: Mysteries): MysteriesProbe {
     forget: () => {
       forgetMysteries(mysteries);
     },
+    helping: () => helping(companionClues),
+    companionBy: (key) => companionByClue(companionClues, key),
   };
 }

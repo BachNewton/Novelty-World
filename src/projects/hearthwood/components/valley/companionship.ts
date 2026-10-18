@@ -7,7 +7,7 @@ import { bodyAt, doingFor, greeting, type Body, type Kind, type Nature, type Obs
 import type { FetchMind } from "../../gameplay/fetch";
 import type { WalkGround } from "../../gameplay/walking";
 import { beKnown, climbing, friendMind, knows, takesTreats, visitsOf, type FriendHome, type FriendMind } from "../../gameplay/forest-friends";
-import { comeAlong, firesideSpot, followers, followMind, join, rename, type Companion, type FollowMind } from "../../gameplay/companions";
+import { comeAlong, firesideSpot, followers, followMind, join, rename, type Companion, type FollowMind, type Leader } from "../../gameplay/companions";
 import { loadFriends, saveFriends, type Friends } from "../../gameplay/friends";
 import { suggestedNames } from "../../gameplay/names";
 import type { Offerable } from "../../gameplay/offering";
@@ -27,7 +27,7 @@ import { giveDish, hushNow, type Hearth } from "./hearth";
  * can be won over, streamed in by area from the world's seed, each with its
  * body, its mind and how warm it is to Elliott), the forest friends round
  * them (the squirrels, hares and deer, who stay home but come to know
- * Elliott), the companions and what is kept of them, the animal on offer to pet or to
+ * Elliott), the companions and what is kept of them (and what they do of their own accord besides following), the animal on offer to pet or to
  * give a treat to, the naming card when one is won, and the little hearts
  * that rise as an animal warms. The scene steps the animals each frame; the
  * overlay reads what is shown as an external store.
@@ -80,6 +80,14 @@ export interface Play {
   /** One short step of the game itself, before the animals'. */
   step: (time: number, seconds: number) => void;
   /** Steps an animal at play, returning whether it was: if not, it goes about its own rules. */
+  animal: (animal: Animal, step: PlayStep) => boolean;
+}
+
+/** What the companions do of their own accord besides following (noticing a clue), given by whoever keeps it: stepped with the animals, and taking over a following companion's step while it is at it. */
+export interface Help {
+  /** One short step of it, before the animals', with Elliott as they lead. */
+  step: (time: number, seconds: number, leader: Leader) => void;
+  /** Steps a following companion at it, returning whether it was: if not, it follows. */
   animal: (animal: Animal, step: PlayStep) => boolean;
 }
 
@@ -160,6 +168,8 @@ export interface Companionship {
   moreStrays: { near: (x: number, z: number, radius: number) => Stray[]; nameOf: (key: string) => string | null } | null;
   /** The game of fetch, while the scene keeps one. */
   play: Play | null;
+  /** The companions helping with the mysteries, while the scene keeps them. */
+  help: Help | null;
 }
 
 /**
@@ -206,6 +216,7 @@ export function createCompanionship(world: World, foraging: Foraging, hearth: He
     meshed: null,
     moreStrays: null,
     play: null,
+    help: null,
   };
   companionship.shown.companions = rowsOf(companionship);
   return companionship;
