@@ -1,4 +1,4 @@
-import { FORAGE_KINDS, type ForageKind } from "../engine/regions";
+import { FORAGE_KINDS, HERB_KINDS, type ForageKind, type Herb } from "../engine/regions";
 
 /*
  * What can be cooked at the fire, as rules: the ingredients (what the
@@ -10,16 +10,22 @@ import { FORAGE_KINDS, type ForageKind } from "../engine/regions";
  * for its main ingredient (the first thing from the forest chosen) and the
  * way it was cooked, so fried chanterelles or stewed bilberries are dishes
  * too. Every dish needs something from the forest: the staples alone are
- * not a meal. The fly agaric is never food.
+ * not a meal. The fly agaric and the herbs are the witch's, for brewing, and
+ * never food.
  */
 
 /** What Elliott carries everywhere: always to hand, never used up. */
 export const STAPLES = ["oats", "flour", "butter", "honey", "cream", "eggs"] as const;
 export type Staple = (typeof STAPLES)[number];
 
-/** What the forest gives that can be eaten: everything foraged but the fly agaric. */
-export type Food = Exclude<ForageKind, "fly-agaric">;
-export const FOODS: readonly Food[] = FORAGE_KINDS.filter((kind): kind is Food => kind !== "fly-agaric");
+/** What the forest gives that is the witch's, for brewing and never eaten: the fly agaric and the herbs. */
+export type WitchKind = "fly-agaric" | Herb;
+export const WITCH_KINDS: readonly WitchKind[] = ["fly-agaric", ...HERB_KINDS];
+export const isWitchKind = (thing: string): thing is WitchKind => (WITCH_KINDS as readonly string[]).includes(thing);
+
+/** What the forest gives that can be eaten: everything foraged but the witch's own. */
+export type Food = Exclude<ForageKind, WitchKind>;
+export const FOODS: readonly Food[] = FORAGE_KINDS.filter((kind): kind is Food => !isWitchKind(kind));
 
 export type Ingredient = Food | Staple;
 

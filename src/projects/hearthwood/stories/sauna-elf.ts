@@ -28,6 +28,10 @@ export const SAUNA_ELF: TalkStory = {
       curious: "Back again! I've been listening for the elf. Nothing yet.",
       playful: "Hello! I saved you a bench. The elf is sulking about it.",
     },
-    pages: [{ say: "I left the last steam for the elf last night. In the morning the stones were swept. Make of that what you will." }],
+    pages: [
+      { say: "I left the last steam for the elf last night. In the morning the stones were swept. Make of that what you will." },
+      { say: "Before a bath I smoke the sauna with juniper and a pinch of salt. Tie the same up in linen and even the mist steps aside." },
+    ],
+    gifts: [{ kind: "brew-hint", brew: "mist-charm" }],
   },
 };

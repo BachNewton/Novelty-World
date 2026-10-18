@@ -20,7 +20,11 @@ export type TreeKind = Extract<PlantKind, "conifer" | "pine" | "broadleaf" | "bi
 export const TREE_KINDS: readonly TreeKind[] = ["conifer", "pine", "broadleaf", "birch", "aspen", "maple"];
 
 /** What can be picked in the forests: berries, and mushrooms (the fly agaric for brewing, never for eating). */
-export const FORAGE_KINDS = ["bilberry", "lingonberry", "wild-strawberry", "raspberry", "cloudberry", "chanterelle", "porcini", "funnel-chanterelle", "fly-agaric"] as const;
+export const WOODLAND_KINDS = ["bilberry", "lingonberry", "wild-strawberry", "raspberry", "cloudberry", "chanterelle", "porcini", "funnel-chanterelle", "fly-agaric"] as const;
+/** The witch's herbs, gathered for brewing: yarrow on dry meadows, meadowsweet by the water, juniper on the heath. */
+export const HERB_KINDS = ["yarrow", "meadowsweet", "juniper"] as const;
+export type Herb = (typeof HERB_KINDS)[number];
+export const FORAGE_KINDS = [...WOODLAND_KINDS, ...HERB_KINDS] as const;
 export type ForageKind = (typeof FORAGE_KINDS)[number];
 
 export const PLACE_KINDS = ["stone-circle", "cairn", "tor", "shrine", "fallen-tree", "fairy-ring", "seter", "tarn", "cascade", "waterfall"] as const;
@@ -58,7 +62,7 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     flowers: [0, 1, 2],
     places: { "stone-circle": 2, shrine: 2, cairn: 2, "fallen-tree": 2, cascade: 1 },
     fireflies: 10,
-    forage: { "wild-strawberry": 1.3, raspberry: 1.3, bilberry: 0.7, porcini: 1.1, chanterelle: 0.7, "fly-agaric": 0.7, lingonberry: 0.3, "funnel-chanterelle": 0.3 },
+    forage: { "wild-strawberry": 1.3, raspberry: 1.3, bilberry: 0.7, porcini: 1.1, chanterelle: 0.7, "fly-agaric": 0.7, lingonberry: 0.3, "funnel-chanterelle": 0.3, yarrow: 1.2, meadowsweet: 1, juniper: 0.4 },
   },
   birchvale: {
     name: "Birch vale",
@@ -70,7 +74,7 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     flowers: [0, 1],
     places: { "fairy-ring": 3, "stone-circle": 2, shrine: 1 },
     fireflies: 16,
-    forage: { chanterelle: 1.7, "fly-agaric": 1.5, cloudberry: 1.5, bilberry: 0.9, "wild-strawberry": 0.7, raspberry: 0.5, porcini: 0.6, lingonberry: 0.6, "funnel-chanterelle": 0.6 },
+    forage: { chanterelle: 1.7, "fly-agaric": 1.5, cloudberry: 1.5, bilberry: 0.9, "wild-strawberry": 0.7, raspberry: 0.5, porcini: 0.6, lingonberry: 0.6, "funnel-chanterelle": 0.6, meadowsweet: 1.4, yarrow: 0.8, juniper: 0.5 },
   },
   highlands: {
     name: "Pine highlands",
@@ -82,7 +86,7 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     flowers: [2],
     places: { seter: 3, tarn: 3, cascade: 3, cairn: 2, shrine: 1, tor: 1 },
     fireflies: 3,
-    forage: { bilberry: 1.7, lingonberry: 1.2, "funnel-chanterelle": 1.5, chanterelle: 0.9, cloudberry: 1, porcini: 0.6, "fly-agaric": 0.5, raspberry: 0.4, "wild-strawberry": 0.3 },
+    forage: { bilberry: 1.7, lingonberry: 1.2, "funnel-chanterelle": 1.5, chanterelle: 0.9, cloudberry: 1, porcini: 0.6, "fly-agaric": 0.5, raspberry: 0.4, "wild-strawberry": 0.3, juniper: 1, yarrow: 0.5, meadowsweet: 0.6 },
   },
   heath: {
     name: "Heath",
@@ -94,7 +98,7 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     flowers: [1, 2],
     places: { tor: 3, cairn: 2, "stone-circle": 2, tarn: 1 },
     fireflies: 4,
-    forage: { lingonberry: 1.4, bilberry: 0.7, cloudberry: 0.9, "fly-agaric": 0.5, "wild-strawberry": 0.4, chanterelle: 0.3 },
+    forage: { lingonberry: 1.4, bilberry: 0.7, cloudberry: 0.9, "fly-agaric": 0.5, "wild-strawberry": 0.4, chanterelle: 0.3, juniper: 1.6, yarrow: 1.1, meadowsweet: 0.5 },
   },
   maplewood: {
     name: "Maple wood",
@@ -106,7 +110,7 @@ export const REGION_CHARACTER: Record<Region, RegionCharacter> = {
     flowers: [1],
     places: { "fallen-tree": 3, "fairy-ring": 2, shrine: 2 },
     fireflies: 8,
-    forage: { porcini: 1.5, raspberry: 1.1, chanterelle: 0.9, "wild-strawberry": 0.7, "fly-agaric": 0.6, bilberry: 0.3, "funnel-chanterelle": 0.3 },
+    forage: { porcini: 1.5, raspberry: 1.1, chanterelle: 0.9, "wild-strawberry": 0.7, "fly-agaric": 0.6, bilberry: 0.3, "funnel-chanterelle": 0.3, meadowsweet: 0.9, yarrow: 0.7, juniper: 0.2 },
   },
 };
 

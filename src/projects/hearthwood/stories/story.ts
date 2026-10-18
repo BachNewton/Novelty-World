@@ -2,6 +2,7 @@ import type { Role } from "../engine/people";
 import type { PlaceKind } from "../engine/regions";
 import type { Species } from "../engine/strays";
 import type { Food, RecipeId } from "../gameplay/recipes";
+import type { RecipeBrewId } from "../gameplay/brews";
 
 /*
  * What a story is, as data: the people Elliott meets each carry one, and a
@@ -47,8 +48,8 @@ export interface Page {
   choices?: readonly Choice[];
 }
 
-/** Something given to Elliott: a recipe's hint in the book, a keepsake for camp, or the lost animal to keep. */
-export type Gift = { kind: "hint"; recipe: RecipeId } | { kind: "keepsake"; keepsake: Keepsake } | { kind: "companion" };
+/** Something given to Elliott: a recipe's hint in the recipe book, a brew's in the brew book, a keepsake for camp, or the lost animal to keep. */
+export type Gift = { kind: "hint"; recipe: RecipeId } | { kind: "brew-hint"; brew: RecipeBrewId } | { kind: "keepsake"; keepsake: Keepsake } | { kind: "companion" };
 
 export interface Talk {
   pages: readonly Page[];

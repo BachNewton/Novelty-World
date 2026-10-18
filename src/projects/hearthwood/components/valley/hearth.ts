@@ -19,29 +19,65 @@ import {
 } from "../../gameplay/cooking";
 import type { Offerable } from "../../gameplay/offering";
 import type { Cookware, DishId, Ingredient } from "../../gameplay/recipes";
+import {
+  addBrew,
+  beginBrewing,
+  brewAgain,
+  brewedSoFar,
+  canBrew,
+  chooseForm,
+  emptySatchel,
+  forageOf,
+  hushOf,
+  loadSatchel,
+  saveSatchel,
+  startBrewing,
+  stepBrewing,
+  toggleBrewIngredient,
+  workCharm,
+  type BrewSession,
+  type Satchel,
+} from "../../gameplay/brewing";
+import type { BrewForm, BrewId, BrewIngredient, Charm } from "../../gameplay/brews";
 import { takeIngredients, type Foraging } from "./foraging";
 
 /*
- * Cooking at the camp's fire, between the scene, the overlay over it and
- * the probe: whether the fire is offered to cook at, a turn at it (what is
- * chosen, the dish cooking and the dish served), the recipe book, and the
- * larder (the dishes in the basket and every dish ever made), kept on the
- * device. The scene steps the hearth's clock each frame and moves the
- * camera to the fire while a turn is on; the overlay reads what is shown as
- * an external store.
+ * Cooking and brewing at the camp's fire, between the scene, the overlay
+ * over it and the probe: whether the fire is offered, a turn at it (cooking
+ * or brewing, whichever Elliott chose last: what is chosen, the dish
+ * cooking or the brew brewing, and what is made), the recipe book and the
+ * brew book, the larder (the dishes in the basket and every dish ever
+ * made) and the satchel (the teas and salves, every brew ever made, and the
+ * charms at work), each kept on the device. The scene steps the hearth's
+ * clock each frame, tells it the calendar's day and whether a full moon is
+ * up, and moves the camera to the fire while a turn is on; the overlay
+ * reads what is shown as an external store.
  */
+
+/** Cooking or brewing: the two crafts that share a turn at the fire. */
+export type Craft = "cook" | "brew";
 
 export interface HearthShown {
   /** Whether the fire is offered to cook at. */
   offered: boolean;
   /** A turn at the fire, while one is on. */
   session: Session | null;
-  /** Whether the recipe book is open. */
+  /** Whether the book of the craft at hand (the recipe book or the brew book) is open. */
   book: boolean;
   larder: Larder;
   /** How many dishes have been served, and the last, so the basket can show one arriving. */
   served: number;
   lastServed: DishId | null;
+  /** The craft at hand: cooking or brewing, kept from one turn to the next. */
+  craft: Craft;
+  /** A turn at the cauldron, beside the turn at the pan, while one is on. */
+  brewing: BrewSession | null;
+  satchel: Satchel;
+  /** How many brews have been made, and the last, so the basket can show one arriving. */
+  brewed: number;
+  lastBrewed: BrewId | null;
+  /** Whether a full moon is up, so the card can show its blessing. */
+  fullMoon: boolean;
 }
 
 export interface Hearth {
@@ -53,6 +89,8 @@ export interface Hearth {
   time: number;
   /** Held, a dish stays this far cooked (0 to 1), for screenshots; null lets it cook. */
   heldCooking: number | null;
+  /** The calendar's game days now, which the charms are timed by, told by the scene. */
+  days: number;
   /** What a tap on the screen says of the fire, given by the scene, which knows the camera. */
   tapAt: ((x: number, y: number) => boolean) | null;
   shown: HearthShown;
@@ -66,8 +104,9 @@ export function createHearth(world: World, foraging: Foraging): Hearth {
     candidate: null,
     time: 0,
     heldCooking: null,
+    days: 0,
     tapAt: null,
-    shown: { offered: false, session: null, book: false, larder: loadLarder(), served: 0, lastServed: null },
+    shown: { offered: false, session: null, book: false, larder: loadLarder(), served: 0, lastServed: null, craft: "cook", brewing: null, satchel: loadSatchel(), brewed: 0, lastBrewed: null, fullMoon: false },
     listeners: new Set(),
   };
 }
@@ -101,15 +140,24 @@ export function settleFire(hearth: Hearth, othersOffered: boolean): void {
   if (offered !== hearth.shown.offered) show(hearth, { offered });
 }
 
-/** Sits down at the fire to cook. */
+/** Sits down at the fire, to cook or brew, whichever was done last. */
 export function openCooking(hearth: Hearth): void {
   if (hearth.shown.session !== null) return;
-  show(hearth, { session: beginSession(), offered: false, book: false });
+  show(hearth, { session: beginSession(), brewing: beginBrewing(), offered: false, book: false });
 }
 
-/** Gets up from the fire; a dish still cooking is in the basket already, so it is never lost. */
+/** Gets up from the fire; a dish still cooking or a brew still brewing is made already, so it is never lost. */
 export function closeCooking(hearth: Hearth): void {
-  show(hearth, { session: null, book: false });
+  show(hearth, { session: null, brewing: null, book: false });
+}
+
+/** Whether the turn at the fire is busy over the flames, cooking or brewing, so the craft can't change. */
+export const busyAtTheFire = (hearth: Hearth) => hearth.shown.session?.phase === "cooking" || hearth.shown.brewing?.phase === "brewing";
+
+/** Turns from cooking to brewing or back, between dishes and brews. */
+export function setCraft(hearth: Hearth, craft: Craft): void {
+  if (busyAtTheFire(hearth) || craft === hearth.shown.craft) return;
+  show(hearth, { craft, book: false });
 }
 
 function session(hearth: Hearth): Session {
@@ -144,13 +192,88 @@ export function cookedSoFar(hearth: Hearth): number {
   return cooked(s, hearth.time);
 }
 
-/** The hearth's clock moves on; a dish cooked through is served, and shows arriving in the basket. */
+/** The hearth's clock moves on; a dish cooked through is served and a brew come through is made, each showing arriving in the basket. */
 export function stepHearth(hearth: Hearth, seconds: number): void {
   if (hearth.heldCooking === null) hearth.time += seconds;
+  if (hearth.heldCooking !== null) return;
   const s = hearth.shown.session;
-  if (s?.phase !== "cooking" || hearth.heldCooking !== null) return;
-  const next = stepSession(s, hearth.time);
-  if (next.phase === "served") show(hearth, { session: next, served: hearth.shown.served + 1, lastServed: next.dish });
+  if (s?.phase === "cooking") {
+    const next = stepSession(s, hearth.time);
+    if (next.phase === "served") show(hearth, { session: next, served: hearth.shown.served + 1, lastServed: next.dish });
+  }
+  const b = hearth.shown.brewing;
+  if (b?.phase === "brewing") {
+    const next = stepBrewing(b, hearth.time);
+    if (next.phase === "brewed") show(hearth, { brewing: next, brewed: hearth.shown.brewed + 1, lastBrewed: next.brew });
+  }
+}
+
+/** The scene tells the hearth the calendar's day and whether a full moon is up. */
+export function tellHearthSky(hearth: Hearth, days: number, fullMoon: boolean): void {
+  hearth.days = days;
+  if (fullMoon !== hearth.shown.fullMoon) show(hearth, { fullMoon });
+}
+
+function brewSession(hearth: Hearth): BrewSession {
+  const s = hearth.shown.brewing;
+  if (s === null) throw new Error("No turn at the cauldron is on");
+  return s;
+}
+
+export function chooseBrewIngredient(hearth: Hearth, ingredient: BrewIngredient): void {
+  show(hearth, { brewing: toggleBrewIngredient(brewSession(hearth), ingredient, hearth.foraging.foraged.basket) });
+}
+
+export function chooseBrewForm(hearth: Hearth, form: BrewForm): void {
+  show(hearth, { brewing: chooseForm(brewSession(hearth), form) });
+}
+
+export const readyToBrew = (hearth: Hearth) => hearth.shown.brewing !== null && canBrew(hearth.shown.brewing, hearth.foraging.foraged.basket);
+
+/** What is chosen goes into the cauldron: what the forest gave comes out of the basket and the brew is made, both at once. */
+export function brew(hearth: Hearth): void {
+  const started = startBrewing(brewSession(hearth), hearth.foraging.foraged.basket, hearth.shown.satchel, hearth.time, hearth.days, hearth.shown.fullMoon);
+  takeIngredients(hearth.foraging, forageOf(started.session));
+  saveSatchel(started.satchel);
+  show(hearth, { brewing: started.session, satchel: started.satchel, book: false });
+}
+
+/** How far the brew in the cauldron has come, 0 to 1. */
+export function brewedNow(hearth: Hearth): number {
+  const s = hearth.shown.brewing;
+  if (s === null) return 0;
+  if (s.phase === "brewing" && hearth.heldCooking !== null) return hearth.heldCooking;
+  return brewedSoFar(s, hearth.time);
+}
+
+/** Another brew after one made. */
+export function brewMore(hearth: Hearth): void {
+  show(hearth, { brewing: brewAgain(brewSession(hearth), hearth.foraging.foraged.basket) });
+}
+
+/** How much quicker a shy animal warms to Elliott now, by the hush charm. */
+export const hushNow = (hearth: Hearth) => hushOf(hearth.shown.satchel, hearth.days);
+
+/** Puts a brew in the basket (or sets its charm to work) as if it had been brewed now: for screenshots and tests. */
+export function stockBrew(hearth: Hearth, brewId: BrewId, count = 1, moonlit = false): void {
+  let satchel = hearth.shown.satchel;
+  for (let n = 0; n < count; n++) satchel = addBrew(satchel, brewId, hearth.days, moonlit).satchel;
+  saveSatchel(satchel);
+  show(hearth, { satchel });
+}
+
+/** Sets a charm to work from a given day, as if brewed then: for screenshots and tests. */
+export function workCharmFrom(hearth: Hearth, charm: Charm, days: number, moonlit = false): void {
+  const satchel = workCharm(hearth.shown.satchel, charm, days, moonlit);
+  saveSatchel(satchel);
+  show(hearth, { satchel });
+}
+
+/** Empties the satchel and the brew book, here and on the device. */
+export function forgetBrewing(hearth: Hearth): void {
+  const satchel = emptySatchel();
+  saveSatchel(satchel);
+  show(hearth, { satchel, brewing: hearth.shown.session === null ? null : beginBrewing(), book: false });
 }
 
 /** Another dish after one served. */

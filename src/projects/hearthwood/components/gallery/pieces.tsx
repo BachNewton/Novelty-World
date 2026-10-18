@@ -13,6 +13,11 @@ import { COOKWARE_LARGER, panShape, stickShape } from "../../art/cookware";
 import { readDishPalette } from "../../art/dish-looks";
 import { dishShape } from "../../art/dishes";
 import { DISH_SHOWN_LARGER } from "../../art/hearth-cooking";
+import { readBrewPalette } from "../../art/brew-looks";
+import { brewShape, cauldronShape } from "../../art/brews";
+import { BREW_SHOWN_LARGER, CAULDRON_LARGER } from "../../art/hearth-brewing";
+import { BLOOM_KINDS, CampBlooms, CharmPost, type BloomSpot } from "../../art/charm-effects";
+import { BREW_IDS, CHARMS, humbleBrewId, type BrewId, type Charm } from "../../gameplay/brews";
 import { humbleId, type DishId } from "../../gameplay/recipes";
 import { forageShape, readForagePalette, type ForagePart } from "../../art/forage-shapes";
 import { Fireflies } from "../../art/fireflies";
@@ -47,6 +52,7 @@ import { PosedBird } from "../birds/posed-bird";
 import { Butterflies, BUTTERFLY_KINDS, type ButterflyDay } from "../../art/butterflies";
 import { useFeature } from "../valley/feature-renderer";
 import { dishName } from "../valley/cooking-icons";
+import { brewName } from "../valley/brewing-icons";
 import { FORAGE_NAMES } from "../valley/forage-icons";
 
 /*
@@ -195,6 +201,32 @@ function CookingPiece({ thing, context }: { thing: DishId | "pan" | "stick"; con
   }, [thing, context]);
   useEffect(() => () => mesh.geometry.dispose(), [mesh]);
   return <primitive object={mesh} />;
+}
+
+/** A brew as it rises from the cauldron, or the cauldron itself, drawn as large as the fire shows it. */
+function BrewingPiece({ thing, context }: { thing: BrewId | "cauldron"; context: ArtContext }) {
+  const mesh = useMemo(() => {
+    const palette = readBrewPalette();
+    const made = new Mesh(thing === "cauldron" ? cauldronShape(palette) : brewShape(thing, palette), context.materials.stone);
+    made.scale.setScalar(thing === "cauldron" ? CAULDRON_LARGER : BREW_SHOWN_LARGER);
+    made.castShadow = true;
+    return made;
+  }, [thing, context]);
+  useEffect(() => () => mesh.geometry.dispose(), [mesh]);
+  return <primitive object={mesh} />;
+}
+
+const ALL_AT_WORK: Record<Charm, number> = Object.fromEntries(CHARMS.map((c) => [c, 1])) as Record<Charm, number>;
+const GALLERY_BLOOMS: BloomSpot[] = Array.from({ length: 16 }, (_, i) => ({ x: Math.cos(i * 2.4) * (0.3 + (i % 4) * 0.35), y: 0, z: Math.sin(i * 2.4) * (0.3 + (i % 4) * 0.35), turn: i * 1.7, size: 1, kind: BLOOM_KINDS[i % BLOOM_KINDS.length], late: 0 }));
+
+/** The charm post with every charm hanging from it, or the flowers a garland charm opens, at full strength. */
+function CharmPiece({ thing, context }: { thing: "post" | "blooms"; context: ArtContext }) {
+  const palette = useMemo(() => readBrewPalette(), []);
+  return thing === "post" ? (
+    <CharmPost at={{ x: 0, y: 0, z: 0 }} turn={0} strengths={() => ALL_AT_WORK} palette={palette} atmosphere={context.atmosphere} />
+  ) : (
+    <CampBlooms spots={GALLERY_BLOOMS} strength={() => 1} palette={palette} atmosphere={context.atmosphere} />
+  );
 }
 
 /** A person as the world draws them, standing (waving, for the first of each role) or sat on a stone. */
@@ -370,8 +402,8 @@ export const ART_PIECES: ArtPiece[] = [
         id: `forage/${kind}/${variant}${picked ? "/picked" : ""}`,
         group: "Foraging",
         label: `${FORAGE_NAMES[kind]} ${variant + 1}${picked ? ", picked" : ""}`,
-        radius: kind === "raspberry" ? 1 : 0.8,
-        height: kind === "raspberry" ? 1.2 : 0.3,
+        radius: kind === "raspberry" || kind === "juniper" ? 1 : 0.8,
+        height: kind === "raspberry" || kind === "juniper" || kind === "meadowsweet" ? 1.2 : 0.3,
         render: (context: ArtContext) => <ForagePiece kind={kind} variant={variant} picked={picked} context={context} />,
       })),
     ).flat(),
@@ -416,6 +448,38 @@ export const ART_PIECES: ArtPiece[] = [
     height: 0.3,
     render: (context: ArtContext) => <CookingPiece thing={dish} context={context} />,
   })),
+  {
+    id: "brewing/cauldron",
+    group: "Brewing",
+    label: "Cauldron",
+    radius: 0.5,
+    height: 0.6,
+    render: (context) => <BrewingPiece thing="cauldron" context={context} />,
+  },
+  ...[...BREW_IDS, humbleBrewId("tea", "bilberry"), humbleBrewId("charm", "chanterelle")].map((brew) => ({
+    id: `brewing/${brew}`,
+    group: "Brewing",
+    label: brewName(brew),
+    radius: 0.3,
+    height: 0.4,
+    render: (context: ArtContext) => <BrewingPiece thing={brew} context={context} />,
+  })),
+  {
+    id: "brewing/charm-post",
+    group: "Brewing",
+    label: "Charm post, every charm at work",
+    radius: 0.5,
+    height: 1.3,
+    render: (context) => <CharmPiece thing="post" context={context} />,
+  },
+  {
+    id: "brewing/blooms",
+    group: "Brewing",
+    label: "Garland charm's flowers",
+    radius: 1.3,
+    height: 0.5,
+    render: (context) => <CharmPiece thing="blooms" context={context} />,
+  },
   {
     id: "camp/fireflies",
     group: "Camp",

@@ -6,12 +6,13 @@ import type { ForageKind } from "../engine/regions";
 import { lumpy, paint, type Piece } from "./painted";
 
 /*
- * The berries and mushrooms to pick, each readable at a glance in the
+ * The berries, mushrooms and herbs to pick, each readable at a glance in the
  * storybook style: soft, simple forms with their colours in their vertices,
  * the fruit drawn a little larger than life so it reads among the leaves.
  * A berry bush is two parts, the plant and its fruit, so a picked bush is
  * the plant alone; a mushroom is the grown mushrooms, or the little cut
- * stumps they leave. Shapes are in metres, standing on the origin; each spot
+ * stumps they leave. A herb is drawn as a berry bush is: its plant, and the
+ * flowers or berries picked from it. Shapes are in metres, standing on the origin; each spot
  * scales and turns its copy.
  */
 
@@ -36,6 +37,13 @@ const FORAGE_THINGS = [
   "fly-agaric-cap",
   "fly-agaric-spot",
   "fly-agaric-stem",
+  "yarrow-leaf",
+  "yarrow-flower",
+  "meadowsweet-leaf",
+  "meadowsweet-stem",
+  "meadowsweet-flower",
+  "juniper-needle",
+  "juniper-berry",
   "cut",
   "sparkle",
 ] as const;
@@ -319,6 +327,106 @@ function flyAgaric(rng: Rng, variant: number, part: ForagePart, p: ForagePalette
   });
 }
 
+/** Yarrow: a low rosette of feathery leaves, a few stiff stems, and the flat white heads that are picked. */
+function yarrow(rng: Rng, variant: number, part: ForagePart, p: ForagePalette): Piece[] {
+  const stems = Array.from({ length: 3 + variant }, (_, i) => {
+    const base = i === 0 ? new Vector3() : scatter(rng, 0.07, 0);
+    const lean = new Vector3(uniform(rng, -0.05, 0.05), uniform(rng, 0.26, 0.36), uniform(rng, -0.05, 0.05));
+    return { base, top: base.clone().add(lean) };
+  });
+  const pieces: Piece[] = [];
+  if (part === "fruit") {
+    // Each head a flat umbel of tiny florets, white with the faintest blush.
+    for (const { top } of stems) {
+      for (let f = 0; f < 11; f++) {
+        const at = top.clone().add(scatter(rng, 0.032, uniform(rng, 0, 0.008)));
+        pieces.push({ geometry: ball(uniform(rng, 0.008, 0.011), at, 0, 0.7), colour: p["yarrow-flower"].clone().multiplyScalar(uniform(rng, 0.92, 1.04)), shading: 0.2 });
+      }
+    }
+    return pieces;
+  }
+  for (const { base, top } of stems) {
+    pieces.push({ geometry: stalk(base, top, 0.004, 4), colour: p["yarrow-leaf"] });
+    // A few feathery leaves up the stem.
+    for (let l = 0; l < 2; l++) {
+      const at = base.clone().lerp(top, uniform(rng, 0.25, 0.6));
+      const leaf = new SphereGeometry(0.03, 6, 3);
+      leaf.scale(1.4, 0.18, 0.35);
+      leaf.translate(0.035, 0, 0);
+      leaf.rotateY(rng.next() * Math.PI * 2);
+      leaf.translate(at.x, at.y, at.z);
+      pieces.push({ geometry: leaf, colour: p["yarrow-leaf"].clone().multiplyScalar(uniform(rng, 0.9, 1.1)) });
+    }
+  }
+  for (let l = 0; l < 7 + variant * 2; l++) {
+    const angle = (l / (7 + variant * 2)) * Math.PI * 2 + rng.next() * 0.4;
+    const leaf = new SphereGeometry(0.05, 7, 3);
+    leaf.scale(1.3, 0.22, 0.32);
+    leaf.translate(0.055, 0.03, 0);
+    leaf.rotateZ(uniform(rng, 0.15, 0.45));
+    leaf.rotateY(angle);
+    pieces.push({ geometry: lumpy(leaf, () => rng.next(), 0.88, 1.12), colour: p["yarrow-leaf"].clone().multiplyScalar(uniform(rng, 0.88, 1.1)), shading: 0.3 });
+  }
+  return pieces;
+}
+
+/** Meadowsweet: tall red-flushed stems with dark leaves, crowned with the frothy cream plumes that are picked. */
+function meadowsweet(rng: Rng, variant: number, part: ForagePart, p: ForagePalette): Piece[] {
+  const stems = Array.from({ length: 3 + variant }, (_, i) => {
+    const base = i === 0 ? new Vector3() : scatter(rng, 0.12, 0);
+    const top = base.clone().add(new Vector3(uniform(rng, -0.06, 0.06), uniform(rng, 0.7, 0.95), uniform(rng, -0.06, 0.06)));
+    return { base, top };
+  });
+  const pieces: Piece[] = [];
+  if (part === "fruit") {
+    // A loose, branching froth: a cloud of little blossoms round each stem's top.
+    for (const { top } of stems) {
+      for (let f = 0; f < 16; f++) {
+        const up = rng.next();
+        const at = top.clone().add(new Vector3(uniform(rng, -1, 1) * 0.06 * (1 - up * 0.6), up * 0.1 - 0.02, uniform(rng, -1, 1) * 0.06 * (1 - up * 0.6)));
+        pieces.push({ geometry: ball(uniform(rng, 0.014, 0.022), at, 1, 0.9, rng), colour: p["meadowsweet-flower"].clone().multiplyScalar(uniform(rng, 0.93, 1.05)), shading: 0.35 });
+      }
+    }
+    return pieces;
+  }
+  for (const { base, top } of stems) {
+    pieces.push({ geometry: stalk(base, top, 0.007, 5), colour: p["meadowsweet-stem"], shading: 0.3 });
+    for (let l = 0; l < 3; l++) {
+      const at = base.clone().lerp(top, 0.15 + l * 0.22);
+      const leaf = new SphereGeometry(0.055, 7, 4);
+      leaf.scale(1.5, 0.2, 0.6);
+      leaf.translate(0.07, -0.01, 0);
+      leaf.rotateZ(-0.3);
+      leaf.rotateY(rng.next() * Math.PI * 2);
+      leaf.translate(at.x, at.y, at.z);
+      pieces.push({ geometry: lumpy(leaf, () => rng.next(), 0.9, 1.1), colour: p["meadowsweet-leaf"].clone().multiplyScalar(uniform(rng, 0.88, 1.08)), shading: 0.35 });
+    }
+  }
+  return pieces;
+}
+
+/** Juniper: a bushy, upright little shrub of dark blue-green, its berries frosted blue among the needles. */
+function juniper(rng: Rng, variant: number, part: ForagePart, p: ForagePalette): Piece[] {
+  // Upright (a column), or spread low and wide as juniper grows on the windy heath.
+  const tall = variant === 0;
+  const masses = Array.from({ length: tall ? 5 : 6 }, (_, i) => {
+    const t = i / (tall ? 4 : 5);
+    const at = tall ? new Vector3(uniform(rng, -0.08, 0.08), 0.18 + t * 0.85, uniform(rng, -0.08, 0.08)) : scatter(rng, 0.35, 0.16 + uniform(rng, 0, 0.22));
+    const radius = tall ? 0.3 - t * 0.17 : uniform(rng, 0.2, 0.28);
+    return { at, radius };
+  });
+  const crown = new Vector3(0, tall ? 0.5 : 0.2, 0);
+  if (part === "plant") {
+    const pieces: Piece[] = masses.map(({ at, radius }) => ({ geometry: ball(radius, at, 1, tall ? 1.15 : 0.7, rng), colour: p["juniper-needle"].clone().multiplyScalar(uniform(rng, 0.88, 1.08)), crown, shading: 0.5 }));
+    pieces.push({ geometry: stalk(new Vector3(), new Vector3(0, 0.25, 0), 0.03, 5), colour: p.twig });
+    return pieces;
+  }
+  return Array.from({ length: 22 + variant * 6 }, (_, i) => {
+    const m = masses[i % masses.length];
+    return { geometry: ball(uniform(rng, 0.017, 0.022), onBall(rng, m.at, m.radius * (tall ? 1.1 : 0.85), -0.5, 0.6)), colour: p["juniper-berry"].clone().multiplyScalar(uniform(rng, 0.88, 1.12)), shading: 0.4 };
+  });
+}
+
 const SHAPES: Record<ForageKind, (rng: Rng, variant: number, part: ForagePart, p: ForagePalette) => Piece[]> = {
   bilberry,
   lingonberry,
@@ -329,6 +437,9 @@ const SHAPES: Record<ForageKind, (rng: Rng, variant: number, part: ForagePart, p
   porcini,
   "funnel-chanterelle": funnelChanterelle,
   "fly-agaric": flyAgaric,
+  yarrow,
+  meadowsweet,
+  juniper,
 };
 
 /** Which parts a kind is drawn in. */
@@ -347,6 +458,9 @@ const SHOWN_LARGER: Record<ForageKind, number> = {
   porcini: 1.5,
   "funnel-chanterelle": 1.8,
   "fly-agaric": 1.3,
+  yarrow: 1.3,
+  meadowsweet: 1,
+  juniper: 1,
 };
 
 /** One design of a kind, in one of its parts. Each part comes from the same layout, so a bush's fruit sits on its plant. */

@@ -3,6 +3,7 @@ import { storyOf } from "../stories/library";
 import { KEEPSAKES, talksOf, TONES, type Gift, type Keepsake, type Page, type Parcel, type Story, type Tone } from "../stories/story";
 import { canFulfil, takingFor, type Means, type Taking } from "./help";
 import { isDish, isFood, RECIPE_IDS, type RecipeId } from "./recipes";
+import { BREW_IDS, type RecipeBrewId } from "./brews";
 
 /*
  * Talking with people, as rules: what Elliott's acquaintance with each
@@ -49,6 +50,8 @@ export interface FolkMemory {
   carrying: Carried[];
   /** Recipes hinted in the book, with what goes into them. */
   hints: RecipeId[];
+  /** Brews hinted in the brew book, with what goes into them. */
+  brewHints: RecipeBrewId[];
   keepsakes: Keepsake[];
   /** Lost animals gone home to their people, by the animal's id. */
   home: string[];
@@ -57,7 +60,7 @@ export interface FolkMemory {
 export const PEOPLE_KEY = "hearthwood/people/v1";
 
 export function noAcquaintances(): FolkMemory {
-  return { known: {}, carrying: [], hints: [], keepsakes: [], home: [] };
+  return { known: {}, carrying: [], hints: [], brewHints: [], keepsakes: [], home: [] };
 }
 
 export type TalkName = "meet" | "friend" | "waiting" | "thanks" | "delivered";
@@ -113,7 +116,7 @@ export interface Opened {
   keepsPet: boolean | null;
 }
 
-const giftKey = (g: Gift) => (g.kind === "hint" ? `hint:${g.recipe}` : g.kind === "keepsake" ? `keepsake:${g.keepsake}` : "companion");
+const giftKey = (g: Gift) => (g.kind === "hint" ? `hint:${g.recipe}` : g.kind === "brew-hint" ? `brew-hint:${g.brew}` : g.kind === "keepsake" ? `keepsake:${g.keepsake}` : "companion");
 
 function receive(memory: FolkMemory, id: string, gifts: readonly Gift[]): FolkMemory {
   if (gifts.length === 0) return memory;
@@ -121,12 +124,14 @@ function receive(memory: FolkMemory, id: string, gifts: readonly Gift[]): FolkMe
   const had = new Set(known.received.map(giftKey));
   const received = [...known.received, ...gifts.filter((g) => !had.has(giftKey(g)))];
   const hints = [...memory.hints];
+  const brewHints = [...memory.brewHints];
   const keepsakes = [...memory.keepsakes];
   for (const gift of gifts) {
     if (gift.kind === "hint" && !hints.includes(gift.recipe)) hints.push(gift.recipe);
+    if (gift.kind === "brew-hint" && !brewHints.includes(gift.brew)) brewHints.push(gift.brew);
     if (gift.kind === "keepsake" && !keepsakes.includes(gift.keepsake)) keepsakes.push(gift.keepsake);
   }
-  return { ...memory, hints, keepsakes, known: { ...memory.known, [id]: { ...known, received } } };
+  return { ...memory, hints, brewHints, keepsakes, known: { ...memory.known, [id]: { ...known, received } } };
 }
 
 const withKnown = (memory: FolkMemory, id: string, change: Partial<Acquaintance>): FolkMemory => ({ ...memory, known: { ...memory.known, [id]: { ...memory.known[id], ...change } } });
@@ -228,8 +233,9 @@ const isText = (v: unknown): v is string => typeof v === "string" && v.length > 
 const HELP: readonly HelpState[] = ["none", "asked", "delivered", "given"];
 
 function parseGift(g: unknown): Gift {
-  const { kind, recipe, keepsake } = (g ?? {}) as Record<string, unknown>;
+  const { kind, recipe, brew, keepsake } = (g ?? {}) as Record<string, unknown>;
   if (kind === "hint" && (RECIPE_IDS as readonly unknown[]).includes(recipe)) return { kind, recipe: recipe as RecipeId };
+  if (kind === "brew-hint" && (BREW_IDS as readonly unknown[]).includes(brew)) return { kind, brew: brew as RecipeBrewId };
   if (kind === "keepsake" && (KEEPSAKES as readonly unknown[]).includes(keepsake)) return { kind, keepsake: keepsake as Keepsake };
   if (kind === "companion") return { kind };
   throw new Error(`A kept gift isn't one: ${JSON.stringify(g)}`);
@@ -238,8 +244,9 @@ function parseGift(g: unknown): Gift {
 /** A kept record read back. Anything but the shape this key holds is a bug in what wrote it, and says so. */
 export function parseFolk(text: string): FolkMemory {
   const data = JSON.parse(text) as Record<string, unknown>;
-  const { known, carrying, hints, keepsakes, home } = data;
-  if (typeof known !== "object" || known === null || !Array.isArray(carrying) || !Array.isArray(hints) || !Array.isArray(keepsakes) || !Array.isArray(home)) {
+  // Kept before brewing came, a record has no brew hints: it has been given none.
+  const { known, carrying, hints, brewHints = [], keepsakes, home } = data;
+  if (typeof known !== "object" || known === null || !Array.isArray(carrying) || !Array.isArray(hints) || !Array.isArray(brewHints) || !Array.isArray(keepsakes) || !Array.isArray(home)) {
     throw new Error(`The kept people under ${PEOPLE_KEY} aren't acquaintances and gifts: ${text}`);
   }
   const out = noAcquaintances();
@@ -259,6 +266,10 @@ export function parseFolk(text: string): FolkMemory {
   for (const h of hints as unknown[]) {
     if (!(RECIPE_IDS as readonly unknown[]).includes(h)) throw new Error(`A kept hint isn't a recipe: ${String(h)}`);
     out.hints.push(h as RecipeId);
+  }
+  for (const h of brewHints as unknown[]) {
+    if (!(BREW_IDS as readonly unknown[]).includes(h)) throw new Error(`A kept brew hint isn't a brew: ${String(h)}`);
+    out.brewHints.push(h as RecipeBrewId);
   }
   for (const k of keepsakes as unknown[]) {
     if (!(KEEPSAKES as readonly unknown[]).includes(k)) throw new Error(`A kept keepsake isn't one: ${String(k)}`);

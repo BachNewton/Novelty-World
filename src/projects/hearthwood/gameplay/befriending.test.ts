@@ -45,6 +45,15 @@ describe("befriending a cat", () => {
     expect(wait(firstBond(boldCat), boldCat, 30, 20).warmth).toBe(0);
   });
 
+  it("warms sooner under a hush charm, though still never won by patience alone", () => {
+    const plain = bePatient(firstBond(shyCat), shyCat, 5, true, 10).warmth;
+    const hushed = bePatient(firstBond(shyCat), shyCat, 5, true, 10, 2.5).warmth;
+    expect(hushed).toBeCloseTo(plain * 2.5);
+    let b = firstBond(shyCat);
+    for (let t = 0; t < 3000; t++) b = bePatient(b, shyCat, 5, true, 1, 2.5);
+    expect(isWon(b)).toBe(false);
+  });
+
   it("warms slower once it has come a good way in one visit, and a new visit begins once Elliott goes away", () => {
     const visited = wait(firstBond(shyCat), shyCat, 60);
     expect(visited.visit).toBeGreaterThan(0.4);

@@ -28,6 +28,10 @@ export const CANDLE_KEEPER: TalkStory = {
       curious: "Back again! This one hasn't gone out once since you came.",
       playful: "Hello! I've been talking to the candle. It agrees you're lovely.",
     },
-    pages: [{ say: "If you pass another shrine, look at its candle for me. If it's low, say a kind word to it. It helps." }],
+    pages: [
+      { say: "If you pass another shrine, look at its candle for me. If it's low, say a kind word to it. It helps." },
+      { say: "And at midsummer we tie meadowsweet and yarrow up in linen for a garland charm. Hang one by your fire and see what blooms." },
+    ],
+    gifts: [{ kind: "brew-hint", brew: "garland-charm" }],
   },
 };
