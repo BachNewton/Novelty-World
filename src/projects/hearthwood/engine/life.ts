@@ -36,6 +36,8 @@ export interface Plant {
   tint: number;
   /** Which of its kind's shapes it is. */
   variant: number;
+  /** How far the altitude bands sit from ALTITUDE where it grows (the land's own shift of them), in metres. */
+  bands: number;
 }
 
 export interface PlantChunk {
@@ -120,7 +122,7 @@ const SMALL_SIZE: Record<Exclude<PlantKind, TreeKind>, [number, number]> = {
   rock: [0.5, 1.4],
 };
 
-function makePlant(kind: PlantKind, x: number, y: number, z: number, size: number, variant: number, rng: Rng): Plant {
+function makePlant(kind: PlantKind, x: number, y: number, z: number, size: number, variant: number, bands: number, rng: Rng): Plant {
   const next = () => rng.next();
   const upright = kind === "rock" || kind === "flowers" || kind === "heather";
   return {
@@ -135,6 +137,7 @@ function makePlant(kind: PlantKind, x: number, y: number, z: number, size: numbe
     leanToward: next() * Math.PI * 2,
     tint: next() * 2 - 1,
     variant,
+    bands,
   };
 }
 
@@ -184,10 +187,10 @@ export function scatterChunk(ground: LifeGround, chunkX: number, chunkZ: number)
       const roll = rng.next();
       const pick = rng.next();
       const land = ground.sampleAt(x, z, s);
-      const { height: h } = land;
+      const { height: h, bands } = land;
       if (h < land.water + 0.3 || land.river > 0.02) continue;
       // How high it grows against the bands where it is.
-      const banded = h - land.bands;
+      const banded = h - bands;
       if (banded > ALTITUDE.snow + 20) continue;
       const open = ground.openness(x, z);
       if (open < 0.4) continue;
@@ -203,7 +206,7 @@ export function scatterChunk(ground: LifeGround, chunkX: number, chunkZ: number)
         const kind = pickWeighted(rng, kinds) ?? "conifer";
         const shrink = 1 - 0.4 * smoothstep(ALTITUDE.treeline - 45, ALTITUDE.treeline + 6, banded);
         const [low, top] = TREE_SIZE[kind];
-        plants.push(makePlant(kind, x, h, z, uniform(rng, low, top) * shrink, variant, rng));
+        plants.push(makePlant(kind, x, h, z, uniform(rng, low, top) * shrink, variant, bands, rng));
         continue;
       }
       if (d < 0.3 && slope < 0.45 && banded < ALTITUDE.treeline) meadows.push(x, h, z);
@@ -224,7 +227,7 @@ export function scatterChunk(ground: LifeGround, chunkX: number, chunkZ: number)
       const [low, top] = SMALL_SIZE[chosen];
       const size = uniform(rng, low, top) + (chosen === "rock" ? 1.8 * alpine * rng.next() : 0);
       const flowerVariant = character.flowers[Math.floor(rng.next() * character.flowers.length)];
-      plants.push(makePlant(chosen, x, h, z, size, chosen === "flowers" ? flowerVariant : variant, rng));
+      plants.push(makePlant(chosen, x, h, z, size, chosen === "flowers" ? flowerVariant : variant, bands, rng));
     }
   }
 

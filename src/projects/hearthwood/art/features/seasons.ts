@@ -18,16 +18,18 @@ import { SEASON_PARTS, type SeasonPart } from "../painted";
  * crowns grow in and fall a mass at a time, small plants grow up and die back,
  * flower heads open and go, and each vertex's colour goes from the young
  * green through the summer's to its autumn colour (one of two per kind, by
- * the tree) and bare, with snow on whatever faces up where snow lies. All of
- * it is per vertex, so the fragments pay nothing.
+ * the tree) and bare, with snow on whatever faces up where snow lies, its
+ * line shifted with the bands where the plant grows (each copy carries its
+ * own shift). All of it is per vertex, so the fragments pay nothing.
  *
  * The ground: on top of the land's own per-pixel ground (`terrain.ts`, whose
  * locals this reads: the ground before the canopy, the canopy and its share,
  * the woods, the slope, the bands, the noise), the dormant straw, the new
  * green and the autumn gold on the grass, fallen leaves under the
  * broadleaves in their region's autumn colour, and snow lying down to the
- * season's snow line with soft melting patches, thin on steep ground and under
- * the conifers; the far woods' canopy turns, goes bare and takes the snow.
+ * season's snow line, shifted with the bands where it lies, with soft
+ * melting patches, thin on steep ground and under the conifers; the far
+ * woods' canopy turns, goes bare and takes the snow.
  *
  * Other groups read the same year from the engine, not from here: the
  * ground's season (`groundSeason`: the snow line, and how far the water
@@ -116,6 +118,8 @@ const SNOW_EDGE = { width: 30, wander: 90 };
 const FOLIAGE_VERTEX_HEAD = /* glsl */ `
 attribute vec4 hwSeason;
 attribute vec3 hwSeasonPiece;
+/** How far the bands sit from their usual altitudes where the plant grows, in metres: 0 for a shape drawn without it. */
+attribute float hwSeasonBands;
 uniform sampler2D uHwSeasonTable;
 uniform float uHwSeasonDay;
 /** Per group: its own timing's spread in days, and whether its shape carries its autumn colour. */
@@ -185,9 +189,9 @@ if (hwSeason.w < 0.5) {
     }
     hwC *= hwLit;
 
-    // Snow where it lies, on whatever faces up: a dusting on the needles' upper tiers, a line along the twigs, caps on stones and low plants.
+    // Snow where it lies against the bands where the plant grows, on whatever faces up: a dusting on the needles' upper tiers, a line along the twigs, caps on stones and low plants.
     float hwUp = inverseTransformDirection(transformedNormal, viewMatrix).y + (hwSeason.z - 0.5) * 0.25;
-    float hwSnowHere = smoothstep(uHwSeasonSnow.x - uHwSeasonSnow.y, uHwSeasonSnow.x + uHwSeasonSnow.y, hwRoot.y + (hwOwn - 0.5) * uHwSeasonSnow.z);
+    float hwSnowHere = smoothstep(uHwSeasonSnow.x - uHwSeasonSnow.y, uHwSeasonSnow.x + uHwSeasonSnow.y, hwRoot.y - hwSeasonBands + (hwOwn - 0.5) * uHwSeasonSnow.z);
     bool hwNeedles = hwG == ${group("conifer")} || hwG == ${group("pine")};
     float hwHolds = hwPart == ${part("none")} ? 0.0 : hwPart == ${part("branch")} || hwPart == ${part("bark")} ? 0.65 : hwNeedles ? 0.7 : 0.9;
     float hwCover = hwSnowHere * hwHolds * (hwNeedles ? smoothstep(0.5, 0.85, hwUp) : smoothstep(0.2, 0.7, hwUp));
@@ -251,12 +255,12 @@ const LAND_SURFACE = /* glsl */ `
   float hwUnder = smoothstep(0.2, 0.55, hwWood + (hwFine - 0.5) * 0.25) * hwFallShare * hwOpen;
   float hwDrift = smoothstep(0.3, 0.7, hwValueNoise(hwP * 0.8) * 0.6 + hwValueNoise(hwP * 2.9) * 0.4);
   hwG = mix(hwG, vHwSeasonFall.rgb * (0.55 + 0.35 * hwDrift), uHwSeasonGround.w * hwUnder * (0.55 + 0.4 * hwDrift));
-  // Snow down to the season's line, melting in soft patches, thin on steep ground and under the needles.
-  float hwLie = hwH + (hwWave - 0.5) * uHwSeasonGroundSnow.z + (hwFine - 0.5) * uHwSeasonGroundSnow.z * 0.25;
-  float hwCover = smoothstep(uHwSeasonGroundSnow.x - uHwSeasonGroundSnow.y, uHwSeasonGroundSnow.x + uHwSeasonGroundSnow.y, hwLie);
-  // The higher it lies against the bands where it is, the steeper the ground it clings to: up through the woods to the
-  // treeline, and further up to the lasting snow, so only cliffs show bare up the mountains.
+  // Snow down to the season's line, against the bands where it is, melting in soft patches, thin on steep ground and under the needles.
   float hwBanded = hwH - hwBand;
+  float hwLie = hwBanded + (hwWave - 0.5) * uHwSeasonGroundSnow.z + (hwFine - 0.5) * uHwSeasonGroundSnow.z * 0.25;
+  float hwCover = smoothstep(uHwSeasonGroundSnow.x - uHwSeasonGroundSnow.y, uHwSeasonGroundSnow.x + uHwSeasonGroundSnow.y, hwLie);
+  // The higher it lies against the bands, the steeper the ground it clings to: up through the woods to the treeline, and
+  // further up to the lasting snow, so only cliffs show bare up the mountains.
   float hwHold = 0.5 * smoothstep(uBands.x * 0.25, uBands.x + 150.0, hwBanded) + 0.3 * smoothstep(uBands.x, uBands.z, hwBanded);
   hwCover *= 1.0 - smoothstep(0.85 + hwHold, 1.25 + hwHold, hwSlope + (hwFine - 0.5) * 0.3);
   hwCover *= 1.0 - 0.6 * smoothstep(0.35, 0.85, hwWood) * (1.0 - hwFallShare) * (0.6 + 0.4 * hwFine);

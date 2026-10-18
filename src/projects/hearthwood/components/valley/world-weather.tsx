@@ -77,7 +77,8 @@ function valleyFloor(world: World, x: number, z: number): number {
 class WeatherWatch {
   private readonly sky: WeatherAt;
   private readonly lightning: (seconds: number, storm: number) => number;
-  private readonly floor = { x: Infinity, z: Infinity, target: 0, ready: false };
+  /** The valley floor the mist lies on and the land's shift of the bands, worked out again each FLOOR_STEP the camera moves. */
+  private readonly floor = { x: Infinity, z: Infinity, target: 0, bands: 0, ready: false };
   private readonly rainHeld = new URLSearchParams(window.location.search).has("rain");
 
   constructor(
@@ -92,7 +93,15 @@ class WeatherWatch {
   tick(clock: ValleyClock, x: number, y: number, z: number, delta: number): void {
     const { world, now, floor } = this;
     world.regionAt(x, z, undefined, now.regions);
-    const drifting = this.sky.at(clock.time, now.regions, y);
+    if (Math.hypot(x - floor.x, z - floor.z) > FLOOR_STEP) {
+      floor.x = x;
+      floor.z = z;
+      floor.target = valleyFloor(world, x, z);
+      floor.bands = world.sampleAt(x, z).bands;
+      if (!floor.ready) now.floor = floor.target;
+      floor.ready = true;
+    }
+    const drifting = this.sky.at(clock.time, now.regions, y, floor.bands);
     const weather = now.held === null ? drifting : holdWeather(now.held, drifting);
     now.weather = now.clearing > 0 ? { ...weather, mist: weather.mist * (1 - CLEARS.mist * now.clearing), haze: weather.haze * (1 - CLEARS.haze * now.clearing) } : weather;
     // Without the lightning feature there is no flash at all, for the rain or anything else.
@@ -101,13 +110,6 @@ class WeatherWatch {
     if (!this.rainHeld) SKY_INPUTS.rain = now.weather.precipitation * (1 - now.weather.snow);
     SKY_INPUTS.sunOut = 1 - smoothstep(0.45, 0.95, now.weather.cloudCover);
     this.air.thickness = now.weather.haze * REGIONS.reduce((sum, region, i) => sum + now.regions[i] * REGION_AIR[region], 0);
-    if (Math.hypot(x - floor.x, z - floor.z) > FLOOR_STEP) {
-      floor.x = x;
-      floor.z = z;
-      floor.target = valleyFloor(world, x, z);
-      if (!floor.ready) now.floor = floor.target;
-      floor.ready = true;
-    }
     // The mist's floor settles gently as the camera crosses from one valley to the next.
     now.floor += (floor.target - now.floor) * Math.min(1, delta * 0.8);
   }

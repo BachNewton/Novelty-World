@@ -37,9 +37,10 @@ const FIREFLY_REACH = 140;
 
 interface ChunkDraw {
   key: ChunkKey;
-  /** Each design's copies: matrices and colours, and how many. */
+  /** Each design's copies: matrices and colours, how far the bands sit where each grows (only for the seasons' foliage), and how many. */
   matrices: Float32Array[];
   colours: Float32Array[];
+  bands: Float32Array[] | null;
   counts: Int32Array;
   box: Box3;
   fireflies: Float32Array;
@@ -49,9 +50,11 @@ interface DesignMeshes {
   kind: PlantKind;
   geometry: Partial<Record<Detail, BufferGeometry>>;
   meshes: Partial<Record<Detail, InstancedMesh>>;
+  /** Each mesh's copies' band shifts, for the seasons' foliage only. */
+  bands: Partial<Record<Detail, InstancedBufferAttribute>>;
 }
 
-function drawChunk(chunk: PlantChunk, dummy: Object3D, camp: CampSite | null): ChunkDraw {
+function drawChunk(chunk: PlantChunk, dummy: Object3D, camp: CampSite | null, seasonal: boolean): ChunkDraw {
   const byDesign: PlantChunk["plants"][] = Array.from({ length: DESIGNS }, () => []);
   for (const p of chunk.plants) if (!camp || !partedBy(camp, p)) byDesign[PLANT_KINDS.indexOf(p.kind) * PLANT_VARIANTS + p.variant].push(p);
   const box = new Box3(new Vector3(chunk.chunkX * PLANT_CHUNK, Infinity, chunk.chunkZ * PLANT_CHUNK), new Vector3((chunk.chunkX + 1) * PLANT_CHUNK, -Infinity, (chunk.chunkZ + 1) * PLANT_CHUNK));
@@ -73,7 +76,8 @@ function drawChunk(chunk: PlantChunk, dummy: Object3D, camp: CampSite | null): C
     plants.forEach((p, i) => plantColour(p, out, i * 3));
     return out;
   });
-  return { key: { chunkX: chunk.chunkX, chunkZ: chunk.chunkZ }, matrices, colours, counts, box, fireflies: chunk.fireflies };
+  const bands = seasonal ? byDesign.map((plants) => Float32Array.from(plants, (p) => p.bands)) : null;
+  return { key: { chunkX: chunk.chunkX, chunkZ: chunk.chunkZ }, matrices, colours, bands, counts, box, fireflies: chunk.fireflies };
 }
 
 function fract(x: number): number {
@@ -143,6 +147,7 @@ export function WorldPlants({
             return g ? [[d, g]] : [];
           })) as DesignMeshes["geometry"],
           meshes: {},
+          bands: {},
         })),
       ),
     [palette, seasonal],
@@ -156,8 +161,10 @@ export function WorldPlants({
   const shadowReach = shadowed ? (cascades ? quality.shadowReach : quality.shadowReachNear) : 0;
 
   useEffect(() => {
-    // New designs start with no meshes, so the chunks are copied into them afresh.
+    // New designs start with no meshes, so the chunks are copied into them afresh, and drawn afresh for whether they carry the seasons' bands.
     state.current.plan = "";
+    state.current.draws.clear();
+    state.current.from = null;
     return () => {
       for (const design of designs) {
         for (const g of Object.values(design.geometry)) g.dispose();
@@ -197,14 +204,14 @@ export function WorldPlants({
     }
     for (let n = 0; n < quality.buildsPerFrame && s.pending.length > 0; n++) {
       const key = s.pending.shift() as ChunkKey;
-      s.draws.set(chunkId(key), drawChunk(world.plantsIn(key.chunkX, key.chunkZ), tools.dummy, s.camp));
+      s.draws.set(chunkId(key), drawChunk(world.plantsIn(key.chunkX, key.chunkZ), tools.dummy, s.camp, seasonal));
     }
     if (s.pending.length > 0) {
       report(streaming, "plants", false);
       return;
     }
     report(streaming, "plants", true);
-    showChunks(s, designs, camera, quality, shadowReach, atmosphere.uHwSunDir.value, group, materials, tools);
+    showChunks(s, designs, seasonal, camera, quality, shadowReach, atmosphere.uHwSunDir.value, group, materials, tools);
     const near = s.wanted.filter((k) => distanceToSquare(eye.x, eye.z, k.chunkX * PLANT_CHUNK, k.chunkZ * PLANT_CHUNK, PLANT_CHUNK) < FIREFLY_REACH);
     const nearIds = near.map(chunkId).join(";");
     if (nearIds !== s.firefliesFrom) {
@@ -221,6 +228,7 @@ export function WorldPlants({
 function showChunks(
   s: State,
   designs: DesignMeshes[],
+  seasonal: boolean,
   camera: Camera,
   quality: Quality,
   shadowReach: number,
@@ -265,6 +273,11 @@ function showChunks(
         }
         mesh = new InstancedMesh(geometry, design.kind === "rock" ? materials.stone : materials.foliage, Math.max(256, 2 ** Math.ceil(Math.log2(needed * 1.25))));
         mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(mesh.instanceMatrix.count * 3), 3);
+        if (seasonal) {
+          const bands = new InstancedBufferAttribute(new Float32Array(mesh.instanceMatrix.count), 1);
+          geometry.setAttribute("hwSeasonBands", bands);
+          design.bands[detail] = bands;
+        }
         mesh.frustumCulled = false;
         mesh.castShadow = design.kind !== "flowers";
         mesh.customDepthMaterial = design.kind === "rock" ? materials.stoneDepth : materials.foliageDepth;
@@ -272,6 +285,7 @@ function showChunks(
         group.add(mesh);
       }
       if (!mesh) continue;
+      const bands = design.bands[detail];
       let filled = 0;
       for (const p of plans) {
         const choice = p?.details[cls];
@@ -279,6 +293,10 @@ function showChunks(
         const n = Math.max(1, Math.round(p.draw.counts[d] * choice.keep));
         mesh.instanceMatrix.array.set(p.draw.matrices[d].subarray(0, n * 16), filled * 16);
         mesh.instanceColor?.array.set(p.draw.colours[d].subarray(0, n * 3), filled * 3);
+        if (bands) {
+          if (!p.draw.bands) throw new Error("A chunk drawn without its plants' band shifts was copied into a seasonal design");
+          bands.array.set(p.draw.bands[d].subarray(0, n), filled);
+        }
         filled += n;
       }
       mesh.count = filled;
@@ -289,6 +307,11 @@ function showChunks(
         mesh.instanceColor.clearUpdateRanges();
         mesh.instanceColor.addUpdateRange(0, filled * 3);
         mesh.instanceColor.needsUpdate = true;
+      }
+      if (bands) {
+        bands.clearUpdateRanges();
+        bands.addUpdateRange(0, filled);
+        bands.needsUpdate = true;
       }
     }
   });

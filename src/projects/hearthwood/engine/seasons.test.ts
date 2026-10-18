@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CALENDAR, dateAt, parseDate, realDayOf, secondsPerDay, timeOf } from "./calendar";
-import { ALTITUDE } from "./land";
+import { ALTITUDE, emptySample, makeLand } from "./land";
 import { REGIONS } from "./regions";
 import {
   broadleafMix,
@@ -137,6 +137,22 @@ describe("the ground's year", () => {
     for (let i = 1; i < melt.length; i++) expect(melt[i]).toBeGreaterThan(melt[i - 1]);
     const fall = [realDayOf(10, 1), realDayOf(10, 20), realDayOf(11, 10), realDayOf(11, 28)].map((day) => groundSeason(day).snowLine);
     for (let i = 1; i < fall.length; i++) expect(fall[i]).toBeLessThan(fall[i - 1]);
+  });
+
+  it("lays winter's snow to every valley floor, wherever the land's bands sit", () => {
+    // The snow line is against the bands, so the lowest ground it must reach is the land's least height above its own bands.
+    const land = makeLand("first-valley");
+    const s = emptySample();
+    let lowest = Infinity;
+    for (let x = -50000; x <= 50000; x += 500) {
+      for (let z = -50000; z <= 50000; z += 500) {
+        land.sample(x, z, s);
+        if (s.height > s.water) lowest = Math.min(lowest, s.height - s.bands);
+      }
+    }
+    expect(lowest).toBeLessThan(-200);
+    // Below it by the line's soft edge and a spot's own wander of it.
+    for (const day of [realDayOf(12, 6), realDayOf(1, 15), realDayOf(2, 28)]) expect(groundSeason(day).snowLine).toBeLessThan(lowest - 120);
   });
 
   it("leaves the high snowfields as they are all summer, with no seasonal snow below them", () => {
