@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { playGame } from "../eval/runner";
-import { SEAT_BOTS, type BotId } from "../online/seat-bots";
+import { SEAT_BOTS, type BotId } from "../online/seat-roster";
 import { riskBot } from ".";
 
 // A seated bot is frozen: its Elo was measured on exactly these moves, and the ratings

@@ -332,3 +332,43 @@ Win Elo +1.3 a seat, finishing-order Elo +19.2. Dropping the aim's pull mends th
 | leadPenaltyWeight | 0.10 | 0 | 0 |
 
 Both runs moved the same three weights, steadily, from generation 1: fear of my own elimination up about two times, border losses up about three times, the common threat down to nearly nothing. That is the calibration finding (above) from the other side: v4's beliefs price my border losses and my kill exposure lower than v3's, and lower than the rule bots inflict, so the preferences that weigh them rise to put the worth back; and with the leader's gang-up and the record believed, the separate common-threat weight has little left to do.
+
+## v4 on its retuned preferences (gauntlet, 2026-10-18)
+
+The two tuned vectors above as labels, against v3 alone at 3 and 4 players, train seeds, ±30 Elo, 10 workers (about 2.5 minutes each):
+
+| Pairing vs v3 | Tuned on v4's beliefs | Tuned on v4 without the aim's pull |
+|---|---|---|
+| 1 cand vs 2 v3 (3p) | even, 33.8% [31.2, 36.6] (1,197) | even, 34.2% [32.0, 36.6] (1,662) |
+| 2 cand vs 1 v3 (3p) | **better**, 69.7% vs 66.7% (1,545) | **better**, 71.5% (582) |
+| 1 cand vs 3 v3 (4p) | **better**, 34.5% [28.6, 41.0] vs 25.0% (220) | **better**, 31.3% (400) |
+| 3 cand vs 1 v3 (4p) | **better**, 81.1% vs 75.0% (396) | **better**, 81.3% (364) |
+| Win Elo a seat | +26.0 | +27.1 |
+
+Indistinguishable. v4 takes the first: the calibrated beliefs whole, with no exception for the aim, and its retuned small-table preferences (`V4_PARAMS.smallTable`). Above 4 players it keeps v3's preferences, untuned on the new beliefs. The belief variants were dropped from the registry once measured.
+
+**The full gauntlet against v3, train seeds** (`risk:gauntlet -- rule-v4 --base rule-v3 --field rule-v3`, 9,202 games in 42 minutes, 10 workers):
+
+| Pairing vs v3 | Result | Win share vs par | Decisive games |
+|---|---|---|---|
+| 1 v4 vs 2 v3 (3p) | even | 34.3% [32.1, 36.6] vs 33.3% | 1,704 |
+| 2 v4 vs 1 v3 (3p) | even | 67.9% [66.1, 69.7] vs 66.7% | 2,610 |
+| 1 v4 vs 3 v3 (4p) | **better** | 33.3% [27.9, 39.2] vs 25.0% | 264 |
+| 3 v4 vs 1 v3 (4p) | **better** | 80.5% [76.6, 83.9] vs 75.0% | 456 |
+| 1 v4 vs 5 v3 (6p) | even | 17.1% [15.6, 18.7] vs 16.7% | 2,154 |
+| 5 v4 vs 1 v3 (6p) | even | 83.5% [81.6, 85.1] vs 83.3% | 1,860 |
+
+Win Elo +10.4 a seat, finishing-order Elo +24.0; better at two tables and worse at none. Two v4s among one v3 at 3 players, **better** in the 1,545 games of the label run, played on to even here (67.9% at 2,610): an edge near the margin, read both ways by where each SPRT stopped. The 4-player edge is large (+8 points of win share at the lone seat) and decided quickly.
+
+**Confirmed on the holdout seeds** (`--prefix holdout`, 7,128 games in 84 minutes, 5 workers, sharing the machine with the ratings run):
+
+| Pairing vs v3 | Result | Win share vs par | Decisive games |
+|---|---|---|---|
+| 1 v4 vs 2 v3 (3p) | even | 34.4% [32.2, 36.5] vs 33.3% | 1,874 |
+| 2 v4 vs 1 v3 (3p) | **better** | 69.9% [67.3, 72.4] vs 66.7% | 1,251 |
+| 1 v4 vs 3 v3 (4p) | **better** | 33.2% [27.8, 39.0] vs 25.0% | 268 |
+| 3 v4 vs 1 v3 (4p) | **better** | 85.3% [79.8, 89.5] vs 75.0% | 204 |
+| 1 v4 vs 5 v3 (6p) | even | 16.8% [15.0, 18.7] vs 16.7% | 1,583 |
+| 5 v4 vs 1 v3 (6p) | even | 83.1% [81.2, 84.8] vs 83.3% | 1,731 |
+
+Win Elo +11.3 a seat, finishing-order Elo +27.3; better at three tables, worse at none. The gate printed REJECT ("improves vs base: no"), as it did on train: its improvement test asks for **better** at every table against the base, and v4 is even at 3 of 6 (4 of 6 on train). Against the overnight plan's bar (better somewhere, worse nowhere, on both seed sets), v4 passes, so it is seated, and its standing is left to the ladder. Above 4 players it gains nothing yet: its preferences there are v3's, untuned on the beliefs.

@@ -1,6 +1,8 @@
 # Risk bot v4: better beliefs about the other seats
 
-v4 (`bots/rule-v4/`) is v3 (`rule-bot-v3.md`) with a different opponent model: the same planner, evaluation and preferences, and different beliefs about what each other seat does with its turn before mine. `bot-log.md` holds every measurement, including what was tried and dropped. v3 is frozen, so v4 keeps only the files it changes (its entry point, parameters, planner, small decisions and evaluation, which read its own model) and shares the rest from v3 (the capture planner) and v1 (the board, the odds, the hand model).
+v4 measured +10 to +11 Elo a seat over v3 in the gauntlet, on train and holdout seeds: better at both 4-player tables (and, on holdout, two v4s among one v3 at 3 players), worse at none (`bot-log.md`). It is seated, and the ladder gives its standing.
+
+v4 (`bots/rule-v4/`) is v3 (`rule-bot-v3.md`) with a different opponent model, different beliefs about what each other seat does with its turn before mine, and its small-table preferences retuned on those beliefs; the planner and the evaluation are v3's. `bot-log.md` holds every measurement, including what was tried and dropped. v3 is frozen, so v4 keeps only the files it changes (its entry point, parameters, planner, small decisions and evaluation, which read its own model) and shares the rest from v3 (the capture planner) and v1 (the board, the odds, the hand model).
 
 ## Why the opponent model
 
@@ -33,25 +35,20 @@ Each is one parameter of the opponent model (`Beliefs` in `params.ts`), fixed by
 3. **The aim pulled toward an even split**, keeping half of v3's lean.
 4. **This game's record.** Whom an opponent has been taking territory from is evidence of whom it takes it from next: the aim is a prior worth a few captures, updated by the opponent's captures this game from each seat beside it, its older turns fading. The bot keeps no state, so the record is read from the history at each decision; it changes only on the opponents' turns, so a turn of mine is planned on one set of beliefs.
 
-## Status: paused, work in progress
+## Preferences retuned on the beliefs
 
-v4 is registered in the harness (`RISK_BOTS`, `BOT_MODULES`, `TUNABLE_BOTS` in `bots/index.ts`) but **not seatable**: `online/seat-bots.ts`, `bots/ratings.json` and the ratings are untouched.
+v4's beliefs, on v3's preferences, lost the lone seat at 3 players (510 decisive games). Played one at a time against v3 there, three of the four beliefs were even and one lost alone: the aim pulled toward an even split, the best calibrated of them as a prediction. v3's preferences had been tuned on v3's beliefs, and the measurement shows what they had been making up for: among the rule bots an opponent's turn costs me 1.4 to 2 times what the model prices it at, and v3's too-confident aim (every opponent at the leader, a strong lean toward its likeliest target) was putting defence where the big blows land. Honest beliefs price my border and my survival lower, so preferences tuned on the old beliefs leave v4 too bold.
 
-**Built and tested:** the opponent model as its own module (`opponents.ts`), bit-identical to v3 with v3's beliefs (`same-as-v3.test.ts`, on `AS_V3_PARAMS`); the beliefs (`Beliefs` in `params.ts`) and the game's record (`beliefs.ts`, `beliefs.test.ts`), threaded into the evaluation through the settings object, one per record so the memos hold through a turn of mine; `risk:opponents` (`eval/opponent-model.ts`, its CLI and worker, `opponent-model.test.ts`), scoring models `v3` and `v4`.
+So the small-table preferences were retuned on v4's beliefs (`risk:tune` at 3 and 4 players together, against v3), with the aim's pull and without it. Both runs moved the same three weights from the first generation: fear of my own elimination about twice v3's, border losses about three times, and the common-threat weight to nearly nothing, since the believed gang-up and the game's record now say what it stood in for. The two came out indistinguishable in the gauntlet, so v4 keeps every belief, with no exception for the aim. Above 4 players v4 plays v3's preferences, untuned on its beliefs.
 
-**Measured:** v3's model on three fields at 3, 4 and 6 players, and candidate beliefs on the mixed field (`bot-log.md`, "v3's opponent model, measured").
+## Tried and dropped
 
-**Untested or unfinished:**
-- v4's exact beliefs scored as a whole by `risk:opponents` (only near neighbours of them were).
-- The first gauntlet was stopped with one pairing decided: a lone v4 among v3s at 3 players is **worse** (510 decisive games). The other five tables are unknown.
-- Retuned preferences on the new beliefs. v3's small-table preferences were tuned to v3's beliefs and likely compensate for them; that is the leading explanation of the 3-player loss, not yet tested.
-- Which belief costs or pays: no ablation has been played.
-- The `rule-v4/scenarios.test.ts` and `bot.test.ts` that v1 to v3 carry (legality fuzz, input-only, the expert scenarios) have not been copied for v4.
+- v4's beliefs on v3's preferences: worse at the 3-player lone seat.
+- Each belief alone on v3's preferences: kills, leader and the game's record even; the aim's pull worse (−26 Elo a seat).
+- Every belief but the aim's pull, on v3's preferences: better with five of it at 6 players, worse alone at 4 (−28), even elsewhere.
+- Retuned preferences on the beliefs without the aim's pull: as good as v4, not better.
 
-**Next steps, in order** (start every long run in the background from PowerShell, after `npm run load`):
+## What next
 
-1. Score v4's beliefs as a whole: `npm run risk:opponents -- --field rule-v3,gd-stacker,rule-v2,gd-continental,rule-v1,gd-aggressive,gd-defensive --games 400 --models v3,v4`, and the same with `--field rule-v3` and `--field rule-v3,rule-v2,rule-v2,rule-v2,rule-v2,rule-v2`.
-2. Ablate, at the decided table first (`--players 3 --formats one-in`): register one bot per single belief change (kills only, leader only, aim slope only, record only) as extra labels on `ruleBot` with `V4_PARAMS`'s beliefs partly reset to v3's (null-equivalent values: leaderAim 1, allyAim 0.25, aimSlope 1, historyPrior null, killRate 1, myKillRate 1), and gauntlet each against v3: `npm run risk:gauntlet -- <label> --base rule-v3 --field rule-v3 --players 3 --formats one-in`. That says which beliefs help on v3's preferences and which fight them.
-3. Retune preferences on the new beliefs at 3 players, as v3's were: `npm run risk:tune -- --tunable rule-v4 --opponent rule-v3 --players 3 --gens 12 --pop 8 --groups 40` (and at 6 players for the large-table preferences), then gauntlet the tuned label against v3 with more games per candidate than the tuner gives.
-4. The full gauntlet on train, then holdout: `npm run risk:gauntlet -- rule-v4 --base rule-v3 --field rule-v3,rule-v2,rule-v1,gd-defensive,gd-continental,gd-aggressive,gd-stacker` and the same with `--prefix holdout`.
-5. Only if v4 is better than v3 somewhere and worse nowhere: copy v3's `bot.test.ts` and `scenarios.test.ts` for v4, seat it in `online/seat-bots.ts`, rerun `npm run risk:ratings -- --seatable --groups 100` (the frozen fingerprint and ratings tests must pass), and update the Risk `CLAUDE.md`.
+- **Tune the large-table preferences on the beliefs.** v4 is even with v3 at 6 players on v3's preferences; the same mismatch the small table showed (an underpriced hit, a common-threat weight with little left to do) is likely there too, and the 6-player games are the slow ones (110 to 180 turns), so that tune is the night's work on its own.
+- **Price the hit, not only its aim.** What an opponent's turn would cost me is priced at 0.5 to 0.7 of what it does among rule bots, but about right against GD's softer personas; a measured hit belief, keyed to whom it is played against, would let the preferences mean what they say. The border weight is doing that job now.
