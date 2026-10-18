@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canStand } from "../gameplay/walking";
 import { storyOf } from "../stories/library";
+import { emptySample } from "./land";
 import { isGiverCell, PEOPLE_CELL, peopleInCell, peopleNear, wayTo, type Person } from "./people";
 import { createWorld } from "./world";
 
@@ -94,6 +95,45 @@ describe("people by area", () => {
     expect(giver.partner?.id).toBe(friend.id);
     expect(friend.partner?.id).toBe(giver.id);
     expect(Math.hypot(giver.x - friend.x, giver.z - friend.z)).toBeGreaterThan(200);
+  });
+
+  it("keep a sauna by any water to plunge into, a river's bank as well as a lake's, its hut on dry, level ground", () => {
+    const saunaKeepers = all.filter((p) => p.role === "sauna-keeper");
+    const s = emptySample();
+    const byRiver = saunaKeepers.some((p) =>
+      Array.from({ length: 16 }, (_, k) => (k / 16) * Math.PI * 2).some((a) =>
+        [4, 8, 12].some((r) => {
+          const land = world.sampleAt(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r, s);
+          return land.river > 0.05 && land.water - land.height > 0.25;
+        }),
+      ),
+    );
+    expect(byRiver).toBe(true);
+    for (const person of saunaKeepers) {
+      const [hut] = person.homes;
+      expect(hut.kind).toBe("sauna");
+      const footing = Array.from({ length: 8 }, (_, k) => world.sampleAt(hut.x + Math.cos((k / 8) * Math.PI * 2) * 2.7, hut.z + Math.sin((k / 8) * Math.PI * 2) * 2.7, emptySample()));
+      for (const land of footing) {
+        expect(land.height - land.water).toBeGreaterThan(0.45);
+        expect(land.river).toBeLessThan(0.02);
+      }
+      const heights = footing.map((land) => land.height);
+      expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(1.4);
+    }
+  });
+
+  it("share a tarn by the seed: a fisher on its lip, or a sauna keeper with their hut just beyond it", () => {
+    const tarns = [
+      { dx: -14, dz: 0 },
+      { dx: -5, dz: 8 },
+    ].map(({ dx, dz }) => ({ place: world.placeIn(campCell.cx + dx, campCell.cz + dz), people: peopleInCell(world, campCell.cx + dx, campCell.cz + dz) }));
+    for (const { place, people } of tarns) {
+      expect(place?.kind).toBe("tarn");
+      expect(people).toHaveLength(1);
+      if (!place) continue;
+      expect(Math.hypot(people[0].x - place.x, people[0].z - place.z)).toBeLessThan(40);
+    }
+    expect(tarns.map((t) => t.people[0].role).sort()).toEqual(["fisher", "sauna-keeper"]);
   });
 
   it("name a way as the compass does, north being -z", () => {

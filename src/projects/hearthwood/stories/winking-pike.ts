@@ -1,6 +1,6 @@
 import type { TalkStory } from "./story";
 
-/** A fisher on a lake shore, and the old pike under the lilies that winks at good-hearted folk. */
+/** A fisher at the water's edge, and the old pike under the lilies that winks at good-hearted folk. */
 export const WINKING_PIKE: TalkStory = {
   id: "winking-pike",
   title: "The winking pike",
@@ -12,7 +12,7 @@ export const WINKING_PIKE: TalkStory = {
       {
         say: "Have you heard of the old pike? Big as a rowing boat, older than the church. Lives right out there, under the lilies.",
         choices: [
-          { tone: "warm", say: "I'd love to see it.", reply: "Then be kind to the lake. That's the only bait it takes." },
+          { tone: "warm", say: "I'd love to see it.", reply: "Then be kind to the water. That's the only bait it takes." },
           { tone: "curious", say: "Have you seen it yourself?", reply: "Once, long ago. It looked at me with one gold eye, and winked." },
           { tone: "playful", say: "Bigger than your boat?", reply: "My boat is very small. But yes. Much bigger." },
         ],
@@ -24,7 +24,7 @@ export const WINKING_PIKE: TalkStory = {
   },
   friend: {
     greet: {
-      warm: "Elliott! Come, sit. The lake's been quiet without you.",
+      warm: "Elliott! Come, sit. The water's been quiet without you.",
       curious: "You're back! And no, I haven't seen it again. Not quite.",
       playful: "Hello, hello. Still no bites. I blame you, from afar.",
     },

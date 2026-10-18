@@ -1,6 +1,6 @@
 import type { ReceiveStory } from "./story";
 
-/** The friend waiting at the lake for the hiker who went walking: met as a story of their own, and given the note. */
+/** The friend waiting at the water for the hiker who went walking: met as a story of their own, and given the note. */
 export const ON_THE_SHORE: ReceiveStory = {
   id: "on-the-shore",
   title: "Waiting on the shore",

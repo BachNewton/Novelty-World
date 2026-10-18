@@ -1,6 +1,6 @@
 import type { TalkStory } from "./story";
 
-/** A sauna keeper by the lake, and the little sauna elf who must always have the last steam of the night. */
+/** A sauna keeper by the water, and the little sauna elf who must always have the last steam of the night. */
 export const SAUNA_ELF: TalkStory = {
   id: "sauna-elf",
   title: "The sauna elf",
@@ -17,7 +17,7 @@ export const SAUNA_ELF: TalkStory = {
           { tone: "playful", say: "Do they bring a towel?", reply: "They're very modest. They bring their own." },
         ],
       },
-      { say: "So always leave the last throw of water for the elf. Then go and sit by the lake and watch the evening turn pink." },
+      { say: "So always leave the last throw of water for the elf. Then go and sit by the water and watch the evening turn pink." },
       { say: "And after, berry tea: raspberries and honey in the pot. My grandmother swore the elf liked the smell of it." },
     ],
     gifts: [{ kind: "hint", recipe: "berry-tea" }],

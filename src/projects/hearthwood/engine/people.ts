@@ -13,10 +13,10 @@ import type { World } from "./world";
  * and now and then a cell has someone in it, found from the cell's own seed
  * and its land alone, so a person is always where they were: a shepherd by a
  * seter, a traveller resting at a cairn or keeping a shrine's candle, a
- * fisher at a tarn or a lake shore, a sauna keeper by their hut on the
- * shore, a reindeer herder up on the fells by their tent, a beekeeper by
- * the hives at a meadow's edge, an old cottager at their cottage, a hiker
- * sat on a stone. About one cell in five has someone, more near camp, and
+ * fisher at a tarn, a lake or a wide river, a sauna keeper by their hut on
+ * any water to plunge into (a tarn, a lake, a stream), a reindeer herder up
+ * on the fells by their tent, a beekeeper by the hives at a meadow's edge,
+ * an old cottager at their cottage, a hiker sat on a stone. About one cell in five has someone, more near camp, and
  * the cell camp is in always has its neighbour, a cottager a short walk
  * off, so the first walk out meets someone.
  *
@@ -83,8 +83,8 @@ export interface Person {
   clues: PlacedClue[];
 }
 
-/** Who stands by each kind of place that has its own people. */
-export const PLACE_PEOPLE: Partial<Record<PlaceKind, Role>> = { seter: "shepherd", cairn: "traveller", shrine: "traveller", tarn: "fisher" };
+/** Who stands by each kind of place that has its own people: at a tarn, a fisher or a sauna keeper. */
+export const PLACE_PEOPLE: Partial<Record<PlaceKind, readonly Role[]>> = { seter: ["shepherd"], cairn: ["traveller"], shrine: ["traveller"], tarn: ["fisher", "sauna-keeper"] };
 /** The roles met away from the places, wherever their ground is. */
 export const GROUND_ROLES: readonly Role[] = ["fisher", "sauna-keeper", "herder", "beekeeper", "cottager", "hiker"];
 
@@ -97,18 +97,30 @@ export const PEOPLE_REACH = 520;
 
 /** How far inside its cell a person keeps, in metres, so what they keep stays in the cell too. */
 const MARGIN = 26;
+/** How likely a cell with a place of a kind is to hold that place's own person. */
+const AT_PLACE: Partial<Record<PlaceKind, number>> = { seter: 0.65, cairn: 0.32, shrine: 0.32, tarn: 0.3 };
 /** How likely a cell is to hold each role, where its ground suits them. */
 const CHANCE = {
-  seter: 0.65,
-  waypost: 0.32,
-  tarn: 0.3,
-  fisher: 0.16,
-  sauna: 0.1,
+  broad: 0.34,
+  narrow: 0.05,
   herder: 0.25,
   beekeeper: 0.08,
   cottager: 0.08,
   hiker: 0.02,
 } as const;
+/** Of those met at the water (a shore, a tarn), the share who keep a sauna there rather than fish. */
+const SAUNA_SHARE = 0.3;
+/** How near the water a shore spot is: its edge looked for this many metres out. */
+const WATER_NEAR = [2, 4, 6, 8, 10] as const;
+/** How far water reaches on beyond its edge for it to be broad, in metres: a lake's (less is a pond), a wide river's (less is a stream). */
+const BROAD = { lake: 12, river: 6 } as const;
+/** How finely a cell is searched for the water's edge: grid points across its inner square. */
+const SHORE_GRID = 12;
+/** At most this many shore spots are found in a cell, for those who stand at the water to choose from, at least this far apart, in metres. */
+const SHORE_SPOTS = 6;
+const SHORE_APART = 8;
+/** How far up a bank from the water's edge a shore spot may be, in metres: a gentle shore rises slowly. */
+const SHORE_BACK = 12;
 /** Cells this near camp hold people this much more often, so the first walks meet someone. */
 const NEAR_CAMP = { within: 900, boost: 2 } as const;
 /** A note's giver, a hiker, is in this share of cells, before their ground is looked at. */
@@ -121,6 +133,15 @@ const NEIGHBOUR = { near: 110, far: 190 } as const;
 const LOST_RANGE = { near: 45, far: 100 } as const;
 /** How much room each thing kept needs clear of trees, rocks and bushes, in metres. */
 const ROOM: Record<HomeKind, number> = { sheep: 0.8, hives: 0.9, boat: 2.4, sauna: 3.4, cottage: 5, lavvu: 2.6, stone: 0.8 };
+/** Where a sauna hut may stand behind its keeper's spot on the bank, in the order tried: how far back from the spot, and turned how far off straight up the bank. */
+const SAUNA_SITES = [
+  { back: 6.5, turn: 0 },
+  { back: 6.5, turn: 0.5 },
+  { back: 6.5, turn: -0.5 },
+  { back: 8.5, turn: 0 },
+] as const;
+/** How far out from a tarn's water a sauna keeper's spot is, in metres: past the boulders on its lip. */
+const TARN_SAUNA = 7;
 /** Small plants a person or a home can stand among. */
 const UNDERFOOT: ReadonlySet<PlantKind> = new Set(["flowers", "heather", "fern"]);
 
@@ -136,10 +157,10 @@ interface Spot {
 
 type SpotKind = "shore" | "fell" | "edge" | "open";
 
-/** A spot as a scan found it: with the way to the water beside it, if any, and whether that is a lake (a river otherwise). */
+/** A spot as a scan found it: with the way to the water beside it, if any, and whether that water is broad (a lake, a tarn, a wide river), to fish and row on, rather than a stream or a pond. */
 interface Found extends Spot {
   toWater: number | null;
-  lake: boolean;
+  broad: boolean;
 }
 
 const ahead = (heading: number, distance: number) => ({ x: Math.sin(heading) * distance, z: Math.cos(heading) * distance });
@@ -203,36 +224,110 @@ function apart(ground: PeopleGround, x: number, z: number, place: Place | null):
   return place === null || Math.hypot(x - place.x, z - place.z) > place.clearing + place.blend + 6;
 }
 
-/** Which way from a dry spot the water lies, if a lake (or, with `rivers`, a river) is right beside it. */
-function waterBeside(ground: PeopleGround, spot: Spot, rivers: boolean): number | null {
+/** Whether a point is in water: standing water, or a river's channel, deeper than a paddle. */
+function isWet(land: LandSample): boolean {
+  return land.water - land.height > 0.25;
+}
+
+/**
+ * The water beside a dry spot on its bank, if any: the way to it, and
+ * whether it is broad, to fish and row on (a lake reaching well out, or a
+ * wide river), or only water to plunge into (a stream, a pond). Broad water
+ * is preferred where both lie beside the spot.
+ */
+function waterBeside(ground: PeopleGround, spot: Spot): { toWater: number; broad: boolean } | null {
   const dry = spot.land.height - spot.land.water;
   if (dry < 0.25 || dry > 1.8 || spot.slope > 0.35 || spot.land.river > 0.01) return null;
   const s = emptySample();
-  const wet = (land: LandSample, deep: number) => land.water - land.height > (land.river > 0.05 ? 0.25 : deep) && (rivers || land.river < 0.05);
+  let narrow: number | null = null;
   for (let k = 0; k < 8; k++) {
     const heading = (k / 8) * Math.PI * 2;
-    const near = ahead(heading, 6);
-    const far = ahead(heading, 12);
-    if (!wet(ground.sampleAt(spot.x + near.x, spot.z + near.z, s), 0.5)) continue;
-    if (wet(ground.sampleAt(spot.x + far.x, spot.z + far.z, s), 0.8)) return heading;
+    for (const r of WATER_NEAR) {
+      const near = ahead(heading, r);
+      const at = ground.sampleAt(spot.x + near.x, spot.z + near.z, s);
+      if (!isWet(at)) continue;
+      const river = at.river > 0.05;
+      const across = ahead(heading, r + (river ? BROAD.river : BROAD.lake));
+      const beyond = ground.sampleAt(spot.x + across.x, spot.z + across.z, s);
+      if (isWet(beyond) && beyond.river > 0.05 === river) return { toWater: heading, broad: true };
+      narrow ??= heading;
+      break;
+    }
   }
-  return null;
+  return narrow === null ? null : { toWater: narrow, broad: false };
 }
 
-/** The kinds of ground a spot is, for the roles that stand there. */
-function kindsOf(ground: PeopleGround, spot: Spot): { kinds: SpotKind[]; toWater: number | null; lake: boolean } {
+/** The kinds of dry ground a spot is, away from the water, for the roles that stand there. */
+function kindsOf(spot: Spot): SpotKind[] {
   const kinds: SpotKind[] = [];
-  const lakeward = waterBeside(ground, spot, false);
-  const toWater = lakeward ?? waterBeside(ground, spot, true);
-  if (toWater !== null) kinds.push("shore");
   const { banded, slope, wood, land } = spot;
   if (banded > ALTITUDE.treeline + 15 && banded < ALTITUDE.rock - 40 && land.bands < -150 && slope < 0.3) kinds.push("fell");
   if (banded < ALTITUDE.treeline - 30 && slope < 0.22 && wood > 0.06 && wood < 0.4 && land.mountainous < 0.5) kinds.push("edge");
   if (banded < ALTITUDE.treeline - 10 && slope < 0.35) kinds.push("open");
-  return { kinds, toWater, lake: lakeward !== null };
+  return kinds;
 }
 
-/** A scatter of spots over a cell, sorted into the kinds of ground they are. */
+/**
+ * The water's edge in a cell: a fine grid over it, and wherever a dry point
+ * has water beside it on the grid, the bank between them, a step or two up
+ * from the water. The shore is a thin line a scatter of spots would mostly
+ * miss, so it is looked for on its own.
+ */
+function shoresIn(ground: PeopleGround, rng: Rng, cellX: number, cellZ: number, place: Place | null): Found[] {
+  const inner = PEOPLE_CELL - 2 * MARGIN;
+  const step = inner / (SHORE_GRID - 1);
+  const at = (i: number, j: number) => ({ x: cellX * PEOPLE_CELL + MARGIN + i * step, z: cellZ * PEOPLE_CELL + MARGIN + j * step });
+  const s = emptySample();
+  const wet: boolean[] = [];
+  for (let j = 0; j < SHORE_GRID; j++) {
+    for (let i = 0; i < SHORE_GRID; i++) {
+      const p = at(i, j);
+      wet.push(isWet(ground.sampleAt(p.x, p.z, s)));
+    }
+  }
+  const banks: { from: { x: number; z: number }; to: { x: number; z: number } }[] = [];
+  for (let j = 0; j < SHORE_GRID; j++) {
+    for (let i = 0; i < SHORE_GRID; i++) {
+      if (wet[j * SHORE_GRID + i]) continue;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = i + di;
+        const nj = j + dj;
+        if (ni < 0 || nj < 0 || ni >= SHORE_GRID || nj >= SHORE_GRID || !wet[nj * SHORE_GRID + ni]) continue;
+        banks.push({ from: at(i, j), to: at(ni, nj) });
+      }
+    }
+  }
+  const found: Found[] = [];
+  if (banks.length === 0) return found;
+  const start = Math.floor(rng.next() * banks.length);
+  for (let k = 0; k < banks.length && found.length < SHORE_SPOTS; k++) {
+    const { from, to } = banks[(start + k) % banks.length];
+    // Halve the way to the water's edge, then step back up the bank to the first place someone could stand with the water beside them.
+    let dry = 0;
+    let water = 1;
+    for (let n = 0; n < 5; n++) {
+      const mid = (dry + water) / 2;
+      if (isWet(ground.sampleAt(from.x + (to.x - from.x) * mid, from.z + (to.z - from.z) * mid, s))) water = mid;
+      else dry = mid;
+    }
+    const length = Math.hypot(to.x - from.x, to.z - from.z);
+    const edge = { x: from.x + (to.x - from.x) * dry, z: from.z + (to.z - from.z) * dry };
+    const up = { x: (from.x - to.x) / length, z: (from.z - to.z) / length };
+    for (let back = 1; back <= SHORE_BACK; back++) {
+      const x = edge.x + up.x * back;
+      const z = edge.z + up.z * back;
+      if (!apart(ground, x, z, place) || found.some((f) => Math.hypot(f.x - x, f.z - z) < SHORE_APART)) break;
+      const spot = read(ground, x, z);
+      if (spot === null || spot.land.height - spot.land.water < 0.35) continue;
+      const beside = waterBeside(ground, spot);
+      if (beside) found.push({ ...spot, ...beside });
+      break;
+    }
+  }
+  return found;
+}
+
+/** A scatter of spots over a cell, sorted into the kinds of ground they are, and the cell's shore. */
 function scanCell(ground: PeopleGround, rng: Rng, cellX: number, cellZ: number, place: Place | null): Record<SpotKind, Found[]> {
   const found: Record<SpotKind, Found[]> = { shore: [], fell: [], edge: [], open: [] };
   const across = 6;
@@ -244,10 +339,10 @@ function scanCell(ground: PeopleGround, rng: Rng, cellX: number, cellZ: number, 
       if (!apart(ground, x, z, place)) continue;
       const spot = read(ground, x, z);
       if (spot === null) continue;
-      const { kinds, toWater, lake } = kindsOf(ground, spot);
-      for (const kind of kinds) found[kind].push({ ...spot, toWater, lake });
+      for (const kind of kindsOf(spot)) found[kind].push({ ...spot, toWater: null, broad: false });
     }
   }
+  found.shore = shoresIn(ground, rng, cellX, cellZ, place);
   return found;
 }
 
@@ -343,7 +438,8 @@ function draftAt(ground: PeopleGround, rng: Rng, id: string, role: Role, spot: F
   const base = { id, role, seat: null, homes: [] as Home[] };
   switch (role) {
     case "fisher": {
-      if (spot.toWater === null || !standable(ground, spot.x, spot.z)) return null;
+      // A fisher wants broad water to row out on.
+      if (spot.toWater === null || !spot.broad || !standable(ground, spot.x, spot.z)) return null;
       const side = ahead(spot.toWater + Math.PI / 2, rng.next() < 0.5 ? 3.2 : -3.2);
       const homes: Home[] = [];
       const boat = { x: spot.x + side.x, z: spot.z + side.z };
@@ -351,17 +447,21 @@ function draftAt(ground: PeopleGround, rng: Rng, id: string, role: Role, spot: F
       return { ...base, x: spot.x, z: spot.z, heading: spot.toWater, homes };
     }
     case "sauna-keeper": {
-      // A sauna stands by a lake, to cool off in.
-      if (spot.toWater === null || !spot.lake) return null;
-      const back = ahead(spot.toWater, -6.5);
-      const hut = { x: spot.x + back.x, z: spot.z + back.z };
-      if (!buildable(ground, hut.x, hut.z, ROOM.sauna)) return null;
-      const stand = ahead(spot.toWater, -2.2);
-      const aside = ahead(spot.toWater + Math.PI / 2, 1.4);
+      // A sauna stands by any water to plunge into after the steam: a lake, a tarn, a river.
+      if (spot.toWater === null) return null;
+      const toWater = spot.toWater;
+      const stand = ahead(toWater, -2.2);
+      const aside = ahead(toWater + Math.PI / 2, 1.4);
       const x = spot.x + stand.x + aside.x;
       const z = spot.z + stand.z + aside.z;
       if (!standable(ground, x, z)) return null;
-      return { ...base, x, z, heading: spot.toWater + 0.6, homes: [{ kind: "sauna", ...hut, turn: spot.toWater }] };
+      // The hut goes up the bank behind them, facing the water, wherever the ground there is level and clear.
+      const hut = SAUNA_SITES.map(({ back, turn }) => {
+        const off = ahead(toWater + turn, -back);
+        return { x: spot.x + off.x, z: spot.z + off.z, turn: toWater + turn };
+      }).find((site) => buildable(ground, site.x, site.z, ROOM.sauna));
+      if (!hut) return null;
+      return { ...base, x, z, heading: toWater + 0.6, homes: [{ kind: "sauna", ...hut }] };
     }
     case "herder": {
       if (!standable(ground, spot.x, spot.z)) return null;
@@ -445,12 +545,25 @@ function draftAtPlace(ground: PeopleGround, rng: Rng, id: string, place: Place):
       return { id, role: "traveller", x, z, heading: place.turn + 0.7, seat: null, homes: [] };
     }
     case "tarn": {
-      const radius = (place.pool?.radius ?? 20) + 3;
-      for (let k = 0; k < 6; k++) {
-        const a = rng.next() * Math.PI * 2;
-        const x = place.x + Math.cos(a) * radius;
-        const z = place.z + Math.sin(a) * radius;
-        if (standable(ground, x, z)) return { id, role: "fisher", x, z, heading: Math.atan2(place.x - x, place.z - z), seat: null, homes: [] };
+      // Facing the water: a fisher on the tarn's lip, or a sauna keeper just beyond it, so their hut stands clear of the lip's boulders.
+      const pool = place.pool?.radius ?? 20;
+      const rim = Array.from({ length: 6 }, () => rng.next() * Math.PI * 2);
+      const at = (angle: number, radius: number) => {
+        const x = place.x + Math.cos(angle) * radius;
+        const z = place.z + Math.sin(angle) * radius;
+        return { x, z, toWater: Math.atan2(place.x - x, place.z - z) };
+      };
+      if (rng.next() < SAUNA_SHARE) {
+        for (const angle of rim) {
+          const { x, z, toWater } = at(angle, pool + TARN_SAUNA);
+          const spot = read(ground, x, z);
+          const draft = spot && draftAt(ground, rng, id, "sauna-keeper", { ...spot, toWater, broad: true });
+          if (draft) return draft;
+        }
+      }
+      for (const angle of rim) {
+        const { x, z, toWater } = at(angle, pool + 3);
+        if (standable(ground, x, z)) return { id, role: "fisher", x, z, heading: toWater, seat: null, homes: [] };
       }
       return null;
     }
@@ -476,9 +589,8 @@ function shoreAlong(ground: PeopleGround, from: { x: number; z: number }, headin
     if (lastDry === null) continue;
     const spot = read(ground, lastDry.x, lastDry.z);
     if (spot === null) return null;
-    const lake = waterBeside(ground, spot, false);
-    const toWater = lake ?? waterBeside(ground, spot, true);
-    return toWater === null ? null : { ...spot, toWater, lake: lake !== null };
+    const beside = waterBeside(ground, spot);
+    return beside?.broad ? { ...spot, ...beside } : null;
   }
   return null;
 }
@@ -535,7 +647,7 @@ function neighbour(ground: PeopleGround, rng: Rng, cellX: number, cellZ: number)
     best = { spot, score };
   }
   if (best === null) return null;
-  const draft = draftAt(ground, rng, `${cellX},${cellZ}/0`, "cottager", { ...best.spot, toWater: null, lake: false });
+  const draft = draftAt(ground, rng, `${cellX},${cellZ}/0`, "cottager", { ...best.spot, toWater: null, broad: false });
   return draft && finish(ground, rng, draft, storyOf(FIRST_STORY));
 }
 
@@ -558,8 +670,7 @@ export function peopleInCell(ground: PeopleGround, cellX: number, cellZ: number)
   const roll = rng.next() / boost;
 
   // A place has its own people first.
-  const placed = place ? PLACE_PEOPLE[place.kind] : undefined;
-  const atPlace = placed === undefined ? 0 : placed === "shepherd" ? CHANCE.seter : placed === "traveller" ? CHANCE.waypost : CHANCE.tarn;
+  const atPlace = (place && AT_PLACE[place.kind]) ?? 0;
   if (place && roll < atPlace) {
     const draft = draftAtPlace(ground, rng, id, place);
     if (draft === null) return [];
@@ -570,24 +681,28 @@ export function peopleInCell(ground: PeopleGround, cellX: number, cellZ: number)
 
   // Otherwise whoever the cell's ground suits, if anyone.
   const spots = scanCell(ground, rng, cellX, cellZ, place);
-  const options: { role: Role; kind: SpotKind; chance: number }[] = [];
-  if (spots.shore.length > 0) options.push({ role: "fisher", kind: "shore", chance: CHANCE.fisher }, { role: "sauna-keeper", kind: "shore", chance: CHANCE.sauna });
-  if (spots.fell.length > 0) options.push({ role: "herder", kind: "fell", chance: CHANCE.herder });
-  if (spots.edge.length > 0) options.push({ role: "beekeeper", kind: "edge", chance: CHANCE.beekeeper }, { role: "cottager", kind: "edge", chance: CHANCE.cottager });
-  if (spots.open.length > 0) options.push({ role: "hiker", kind: "open", chance: CHANCE.hiker });
+  // The water is shared: the seed says whether a sauna keeper or a fisher is first to it, and the other stands there if the first can't.
+  const options: { roles: Role[]; kind: SpotKind; chance: number }[] = [];
+  if (spots.shore.some((spot) => spot.broad)) options.push({ roles: rng.next() < SAUNA_SHARE ? ["sauna-keeper", "fisher"] : ["fisher", "sauna-keeper"], kind: "shore", chance: CHANCE.broad });
+  else if (spots.shore.length > 0) options.push({ roles: ["sauna-keeper"], kind: "shore", chance: CHANCE.narrow });
+  if (spots.fell.length > 0) options.push({ roles: ["herder"], kind: "fell", chance: CHANCE.herder });
+  if (spots.edge.length > 0) options.push({ roles: ["beekeeper"], kind: "edge", chance: CHANCE.beekeeper }, { roles: ["cottager"], kind: "edge", chance: CHANCE.cottager });
+  if (spots.open.length > 0) options.push({ roles: ["hiker"], kind: "open", chance: CHANCE.hiker });
   let left = roll - atPlace;
   const chosen = options.find((o) => {
     left -= o.chance;
     return left < 0;
   });
   if (!chosen) return [];
-  const story = pickWeighted(rng, storiesFor(chosen.role, null), (s) => s.weight ?? 1);
-  if (story === null) return [];
-  for (const spot of spots[chosen.kind]) {
-    const draft = draftAt(ground, rng, id, chosen.role, spot);
-    if (draft === null) continue;
-    const person = finish(ground, rng, draft, story);
-    if (person) return [person];
+  for (const role of chosen.roles) {
+    const story = pickWeighted(rng, storiesFor(role, null), (s) => s.weight ?? 1);
+    if (story === null) continue;
+    for (const spot of spots[chosen.kind]) {
+      const draft = draftAt(ground, rng, id, role, spot);
+      if (draft === null) continue;
+      const person = finish(ground, rng, draft, story);
+      if (person) return [person];
+    }
   }
   return [];
 }

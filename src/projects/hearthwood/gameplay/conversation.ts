@@ -59,7 +59,7 @@ export interface FolkMemory {
   home: string[];
 }
 
-export const PEOPLE_KEY = "hearthwood/people/v3";
+export const PEOPLE_KEY = "hearthwood/people/v4";
 
 export function noAcquaintances(): FolkMemory {
   return { known: {}, carrying: [], hints: [], brewHints: [], keepsakes: [], home: [] };

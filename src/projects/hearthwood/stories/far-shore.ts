@@ -6,9 +6,10 @@ export const FAR_SHORE: MysteryStory = {
   title: "The boat on the far shore",
   kind: "mystery",
   roles: ["fisher"],
+  weight: 2,
   mystery: {
     clues: [
-      { id: "wrong-shore", kind: "said", title: "On the far shore", note: "Some mornings the boat is across the lake, though it was tied up here the night before." },
+      { id: "wrong-shore", kind: "said", title: "On the far shore", note: "Some mornings the boat is across the water, though it was tied up here the night before." },
       { id: "jam", kind: "said", title: "Jam on the step", note: "On those same mornings, a jar of cloudberry jam on the fisher's step, and no name on it." },
       {
         id: "rope",
@@ -34,7 +35,7 @@ export const FAR_SHORE: MysteryStory = {
         note: "Fresh, and still wet. Cloudberries grow only out on the bog, and the bog here lies across the water.",
         at: { from: "person", near: 8, far: 16 },
       },
-      { id: "old-friend", kind: "said", title: "An old friend", note: "Halvard fished this lake with the fisher for forty years. He walks with a cane now. They quarrelled, and haven't spoken since." },
+      { id: "old-friend", kind: "said", title: "An old friend", note: "Halvard fished these waters with the fisher for forty years. He walks with a cane now. They quarrelled, and haven't spoken since." },
     ],
     deductions: [
       { id: "borrowed", from: ["wrong-shore", "rope"], title: "Borrowed, not drifted", note: "A drifting boat snaps or slips its rope. This one was untied and the rope coiled: someone rowed it across." },
@@ -49,7 +50,7 @@ export const FAR_SHORE: MysteryStory = {
       {
         say: "Morning! I'm {name}. You've found me in a muddle: my boat's gone wandering again.",
         choices: [
-          { tone: "warm", say: "Oh dear, again?", reply: "Again. It's a patient lake, but it's a long walk round." },
+          { tone: "warm", say: "Oh dear, again?", reply: "Again. It's patient water, but it's a long walk round." },
           { tone: "curious", say: "Wandering where?", reply: "To the far shore. Tied up here at night, over there by morning." },
           { tone: "playful", say: "A boat with itchy feet?", reply: "Itchy oars, maybe. It never asks my leave." },
         ],
@@ -91,7 +92,7 @@ export const FAR_SHORE: MysteryStory = {
   },
   friend: {
     greet: {
-      warm: "Elliott! Halvard and I were out on the lake at dawn.",
+      warm: "Elliott! Halvard and I were out on the water at dawn.",
       curious: "Come to see the boat? It stays put now. Mostly.",
       playful: "My detective! The boat still wanders, but now I'm in it.",
     },

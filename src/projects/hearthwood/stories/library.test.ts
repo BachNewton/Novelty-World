@@ -57,7 +57,7 @@ function textsOf(story: Story): { talk: string; kind: keyof typeof LONGEST; text
 }
 
 /** The roles the world places, and by which places. */
-const placedRoles = new Set<Role>([...GROUND_ROLES, ...Object.values(PLACE_PEOPLE)]);
+const placedRoles = new Set<Role>([...GROUND_ROLES, ...Object.values(PLACE_PEOPLE).flat()]);
 
 describe("the story library", () => {
   it("has a few of each kind to start, each under an id of its own", () => {
@@ -74,7 +74,7 @@ describe("the story library", () => {
     for (const story of STORIES) {
       expect(story.roles.length).toBeGreaterThan(0);
       for (const role of story.roles) expect(placedRoles.has(role)).toBe(true);
-      for (const place of story.places ?? []) expect(story.roles).toContain(PLACE_PEOPLE[place]);
+      for (const place of story.places ?? []) expect(story.roles.some((role) => PLACE_PEOPLE[place]?.includes(role))).toBe(true);
     }
   });
 

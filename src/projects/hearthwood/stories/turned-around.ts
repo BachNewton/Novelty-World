@@ -1,6 +1,6 @@
 import type { HelpStory } from "./story";
 
-/** A hiker who has lost the path, not lost exactly, asking Elliott to carry a note to the friend waiting at a lake. */
+/** A hiker who has lost the path, not lost exactly, asking Elliott to carry a note to the friend waiting by the water. */
 export const TURNED_AROUND: HelpStory = {
   id: "turned-around",
   title: "Turned around",

@@ -28,7 +28,7 @@ export interface Casebook {
   cases: Record<string, Case>;
 }
 
-export const MYSTERIES_KEY = "hearthwood/mysteries/v2";
+export const MYSTERIES_KEY = "hearthwood/mysteries/v3";
 
 export function emptyCasebook(): Casebook {
   return { cases: {} };
