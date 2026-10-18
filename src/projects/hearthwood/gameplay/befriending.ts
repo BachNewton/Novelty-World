@@ -32,6 +32,9 @@ import { DISHES, FOODS, isDish, isFood, RECIPE_IDS, type DishId, type Food, type
  * it at once). A hedgehog is won quickly once it has uncurled: it allows a
  * pet soon, and its favourite wins it.
  *
+ * A hush charm brewed at the fire quiets Elliott's step for a while, so
+ * patience warms a shy animal sooner.
+ *
  * Warmth is only ever gained: nothing Elliott does cools an animal.
  */
 
@@ -123,14 +126,14 @@ export function comesToSee(temper: Temper, bond: Bond): boolean {
   return friendlyDog(temper) || temper.boldness > 0.3 || allowsPet(bond, temper);
 }
 
-/** Elliott near, or not, for some seconds: calm and near warms a stray; going away ends the visit. */
-export function bePatient(bond: Bond, temper: Temper, distance: number, calm: boolean, seconds: number): Bond {
+/** Elliott near, or not, for some seconds: calm and near warms a stray; going away ends the visit. A hush charm (`hush` above 1) makes patience work that much quicker. */
+export function bePatient(bond: Bond, temper: Temper, distance: number, calm: boolean, seconds: number, hush = 1): Bond {
   if (isWon(bond)) return bond;
   if (distance > VISIT.gone) return bond.visit === 0 ? bond : { ...bond, visit: 0 };
   if (distance > VISIT.near || !calm || seconds <= 0) return bond;
   const rates = PATIENCE[temper.species];
   const bold = (temper.boldness + 1) / 2;
-  const rate = (rates.shy + (rates.bold - rates.shy) * bold) * (bond.visit > PATIENCE.slowAfter ? 0.25 : 1);
+  const rate = (rates.shy + (rates.bold - rates.shy) * bold) * (bond.visit > PATIENCE.slowAfter ? 0.25 : 1) * hush;
   // Patience alone never wins an animal: it brings it to where a pet or a treat can.
   const ceiling = Math.max(bond.warmth, Math.min(0.95, petWarmth(temper) + 0.25));
   const warmth = Math.min(ceiling, bond.warmth + rate * seconds);

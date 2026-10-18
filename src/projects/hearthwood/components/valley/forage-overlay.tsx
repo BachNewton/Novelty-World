@@ -7,6 +7,8 @@ import type { InputKind } from "@/shared/lib/input";
 import { FORAGE_KINDS } from "../../engine/regions";
 import { basketTotal } from "../../gameplay/basket";
 import { dishCount, dishesIn } from "../../gameplay/cooking";
+import { brewCount, brewsIn, charmsAtWork } from "../../gameplay/brewing";
+import { BrewIcon, brewName, CharmIcon } from "./brewing-icons";
 import type { ValleyClock } from "./clock";
 import { DishIcon, dishName } from "./cooking-icons";
 import { FORAGE_NAMES, ForageIcon } from "./forage-icons";
@@ -16,8 +18,9 @@ import { subscribeHearth, type Hearth } from "./hearth";
 /*
  * Foraging over the scene: the prompt to pick what Elliott is looking at (a
  * button of its own on touch), and the basket, a row of what has been
- * picked and how many, and the dishes cooked at the fire after them, which
- * shows for a while after each pick or dish and whenever it is opened (Tab, the controller's Y, or its button on touch). The keys,
+ * picked and how many, the dishes cooked at the fire after them, then the
+ * teas and salves brewed and the charms at work, which shows for a while
+ * after each pick, dish or brew and whenever it is opened (Tab, the controller's Y, or its button on touch). The keys,
  * buttons and taps that pick are heard with everything else Elliott can use
  * (see `interactions.tsx`).
  */
@@ -35,10 +38,10 @@ export function ForageOverlay({ foraging, hearth, clock, input }: { foraging: Fo
   const subscribe = useCallback((listener: () => void) => subscribeForaging(foraging, listener), [foraging]);
   const shown = useSyncExternalStore(subscribe, () => foraging.shown);
   const subscribeDishes = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
-  const { larder, served, lastServed } = useSyncExternalStore(subscribeDishes, () => hearth.shown);
+  const { larder, served, lastServed, satchel, brewed, lastBrewed } = useSyncExternalStore(subscribeDishes, () => hearth.shown);
   // The picks and dishes the basket has finished showing; it lingers while there are newer ones.
   const [shownPicks, setShownPicks] = useState(0);
-  const arrivals = shown.picks + served;
+  const arrivals = shown.picks + served + brewed;
   const lingering = arrivals > shownPicks;
 
   const pickOffered = () => {
@@ -57,6 +60,8 @@ export function ForageOverlay({ foraging, hearth, clock, input }: { foraging: Fo
 
   const kinds = FORAGE_KINDS.filter((k) => shown.basket[k] > 0);
   const dishes = dishesIn(larder);
+  const brews = brewsIn(satchel);
+  const charms = charmsAtWork(satchel, hearth.days);
   return (
     <>
       {(shown.open || lingering) && (
@@ -80,6 +85,17 @@ export function ForageOverlay({ foraging, hearth, clock, input }: { foraging: Fo
               </span>
               {dishCount(larder, dish)}
             </span>
+          ))}
+          {brews.map((b) => (
+            <span key={b} className="flex items-center gap-0.5 text-base font-semibold tabular-nums" title={brewName(b)}>
+              <span key={b === lastBrewed ? brewed : 0} className={b === lastBrewed ? "inline-flex animate-[hearthwood-forage-pop_500ms_ease-out]" : "inline-flex"}>
+                <BrewIcon brew={b} className="size-8" />
+              </span>
+              {brewCount(satchel, b)}
+            </span>
+          ))}
+          {charms.map((c) => (
+            <CharmIcon key={c} charm={c} className="size-7" />
           ))}
           {shown.open && input !== "touch" && <Prompt binding={BASKET} input={input} className="opacity-70" />}
         </div>

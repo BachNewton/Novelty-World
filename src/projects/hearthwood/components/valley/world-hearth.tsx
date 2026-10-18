@@ -8,12 +8,16 @@ import type { WalkState } from "../../input/use-walk-input";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { DishPalette } from "../../art/dish-looks";
 import { HearthCooking, type CookingDrive } from "../../art/hearth-cooking";
+import type { BrewPalette } from "../../art/brew-looks";
+import { HearthBrewing, type BrewingDrive } from "../../art/hearth-brewing";
+import { underFullMoon } from "../../gameplay/brewing";
+import type { ValleyClock } from "./clock";
 import { cameraPose, ease, easeBack, place, takeOver, type CameraPose } from "./camera-ease";
 import type { Companionship } from "./companionship";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { catchUp, turnBetween } from "./follow-camera";
 import type { Foraging } from "./foraging";
-import { answerFireTaps, offerableFire, settleFire, stepHearth, subscribeHearth, type Hearth } from "./hearth";
+import { answerFireTaps, brewedNow, offerableFire, settleFire, stepHearth, subscribeHearth, tellHearthSky, type Hearth } from "./hearth";
 import { HEARTH_FOV, hearthView, sideOf, towardFire } from "./hearth-camera";
 import type { Walker } from "./walker";
 
@@ -23,8 +27,9 @@ import type { Walker } from "./walker";
  * steps the hearth's clock, and while a turn is on seats Elliott (the
  * walker held, turned to the fire) and eases the camera from wherever it
  * was to the hearth's view, and back to the walker's when they get up. It
- * draws what cooks on the fire and the dish served, and answers a tap on
- * the fire.
+ * tells the hearth the calendar's day and whether a full moon is up, draws
+ * what cooks on the fire and the dish served, or the cauldron brewing and
+ * the brew made, and answers a tap on the fire.
  */
 
 /** After the walker has placed the camera and before a free camera overrides it. */
@@ -47,7 +52,9 @@ export function WorldHearth({
   companionship,
   walker,
   input,
+  clock,
   palette,
+  brewPalette,
   atmosphere,
   outbid = () => false,
 }: {
@@ -56,7 +63,9 @@ export function WorldHearth({
   companionship: Companionship;
   walker: Walker;
   input: RefObject<WalkState>;
+  clock: ValleyClock;
   palette: DishPalette;
+  brewPalette: BrewPalette;
   atmosphere: AtmosphereUniforms;
   /** Whether something else not weighed here (a person) is offered more strongly than the fire this frame. */
   outbid?: () => boolean;
@@ -66,6 +75,8 @@ export function WorldHearth({
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
   const drive = useRef<CookingDrive>({ heat: 0, served: null });
+  const brewDrive = useRef<BrewingDrive>({ brewed: 0, made: null });
+  const madeAt = useRef<number | null>(null);
   const pose = useRef<CameraPose>(cameraPose(HEARTH_FOV));
   const servedAt = useRef<number | null>(null);
   // The side of the fire Elliott sat down on, fixed for the turn.
@@ -90,7 +101,8 @@ export function WorldHearth({
   }, [hearth, walker, camera, canvas, projected]);
 
   useFrame(({ camera: eye }, delta) => {
-    frameHearth({ hearth, companionship, walker, input: input.current, pose: pose.current, drive: drive.current, servedAt, side: sideNow, onSit: setSide }, eye, delta);
+    tellHearthSky(hearth, clock.date.days, underFullMoon(clock.sky.moon, clock.sky.sun));
+    frameHearth({ hearth, companionship, walker, input: input.current, pose: pose.current, drive: drive.current, brewDrive: brewDrive.current, servedAt, madeAt, side: sideNow, onSit: setSide }, eye, delta);
   }, HEARTH_PRIORITY);
 
   // After the frame: forage or an animal offered beats the fire, as they each had to beat it.
@@ -99,6 +111,21 @@ export function WorldHearth({
   }, AFTER_RENDER_PRIORITY);
 
   const session = shown.session;
+  const brewing = shown.brewing;
+  if (session && shown.craft === "brew" && brewing) {
+    return (
+      <HearthBrewing
+        at={hearth.camp}
+        side={side}
+        ingredients={brewing.chosen}
+        brew={brewing.phase === "choosing" ? null : brewing.brew}
+        made={brewing.phase === "brewed"}
+        palette={brewPalette}
+        atmosphere={atmosphere}
+        drive={brewDrive}
+      />
+    );
+  }
   return (
     <HearthCooking
       at={hearth.camp}
@@ -120,7 +147,9 @@ interface HearthFrame {
   input: WalkState;
   pose: CameraPose;
   drive: CookingDrive;
+  brewDrive: BrewingDrive;
   servedAt: { current: number | null };
+  madeAt: { current: number | null };
   /** The side of the fire Elliott sat down on, fixed for the turn, and who hears it. */
   side: { current: number };
   onSit: (side: number) => void;
@@ -129,7 +158,7 @@ interface HearthFrame {
 const scratch = { matrix: new Matrix4(), quaternion: new Quaternion(), eye: new Vector3(), look: new Vector3(), up: new Vector3(0, 1, 0) };
 
 /** One frame at the hearth: its clock, the fire's offer, sitting down and getting up, the camera, and how hard it cooks. */
-function frameHearth({ hearth, companionship, walker, input, pose, drive, servedAt, side, onSit }: HearthFrame, eye: Camera, delta: number): void {
+function frameHearth({ hearth, companionship, walker, input, pose, drive, brewDrive, servedAt, madeAt, side, onSit }: HearthFrame, eye: Camera, delta: number): void {
   const seconds = Math.min(delta, 0.1);
   stepHearth(hearth, seconds);
   const session = hearth.shown.session;
@@ -165,6 +194,17 @@ function frameHearth({ hearth, companionship, walker, input, pose, drive, served
     place(eye, pose);
   } else if (pose.easing) {
     easeBack(pose, eye, HEARTH_FOV, k);
+  }
+
+  // How far it has brewed, and how long the brew has been out.
+  const brewing = hearth.shown.brewing;
+  brewDrive.brewed = brewedNow(hearth);
+  if (brewing?.phase === "brewed") {
+    madeAt.current ??= hearth.time;
+    brewDrive.made = hearth.time - madeAt.current;
+  } else {
+    madeAt.current = null;
+    brewDrive.made = null;
   }
 
   // How hard it cooks, and how long the dish has been out.

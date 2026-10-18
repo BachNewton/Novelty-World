@@ -469,6 +469,13 @@
   --color-hearthwood-forage-fly-agaric-cap: #e2321e;
   --color-hearthwood-forage-fly-agaric-spot: #fbf6ea;
   --color-hearthwood-forage-fly-agaric-stem: #f6efe0;
+  --color-hearthwood-forage-yarrow-leaf: #6f9a4a;
+  --color-hearthwood-forage-yarrow-flower: #fbf4ea;
+  --color-hearthwood-forage-meadowsweet-leaf: #3f6e3a;
+  --color-hearthwood-forage-meadowsweet-stem: #9a5a46;
+  --color-hearthwood-forage-meadowsweet-flower: #f6eab8;
+  --color-hearthwood-forage-juniper-needle: #3e6656;
+  --color-hearthwood-forage-juniper-berry: #4f5e9c;
   --color-hearthwood-forage-cut: #f4e8c8;
   --color-hearthwood-forage-sparkle: #fff2b8;
   --color-hearthwood-forage-basket: #c08a4e;
@@ -521,6 +528,46 @@
   --color-hearthwood-cooking-sizzle: #fff0b0;
   --color-hearthwood-cooking-page: #f6ead0;
   --color-hearthwood-cooking-ink: #5a4232;
+}
+
+/* Hearthwood: brewing at the fire. The iron cauldron on its three legs; the
+   brews' vessels (a stoppered glass bottle and its cork, a little salve tin,
+   a linen charm pouch tied with red thread); the witch's staples (honey
+   shares cooking's, beeswax, salt); the brews' own colours (each tea, each
+   salve); the glow each brew gives its steam; what the charms bring about
+   (the flowers that bloom round camp, the hush round Elliott); the full
+   moon's mark; and the brew book's page and ink. Read by the 3D scene
+   through themeColor and by the brewing overlay's drawings. */
+:root {
+  --color-hearthwood-brewing-cauldron: #2f2c35;
+  --color-hearthwood-brewing-glass: #a9d2c4;
+  --color-hearthwood-brewing-cork: #c0905c;
+  --color-hearthwood-brewing-tin: #bdb8ad;
+  --color-hearthwood-brewing-linen: #efe3c8;
+  --color-hearthwood-brewing-thread: #c8352e;
+  --color-hearthwood-brewing-beeswax: #f0cf6a;
+  --color-hearthwood-brewing-salt: #f4f2ee;
+  --color-hearthwood-brewing-crock: #8f7a9e;
+  --color-hearthwood-brewing-yarrow-tea: #e2c76a;
+  --color-hearthwood-brewing-meadowsweet-tea: #f0dc9a;
+  --color-hearthwood-brewing-juniper-tea: #c4584a;
+  --color-hearthwood-brewing-green-salve: #b9c47a;
+  --color-hearthwood-brewing-rose-salve: #eca48e;
+  --color-hearthwood-brewing-humble: #c9b28a;
+  --color-hearthwood-brewing-glow-gold: #ffcf6a;
+  --color-hearthwood-brewing-glow-rose: #ff9fb0;
+  --color-hearthwood-brewing-glow-green: #a8f0a0;
+  --color-hearthwood-brewing-glow-violet: #c8a8ff;
+  --color-hearthwood-brewing-glow-blue: #9fd6ff;
+  --color-hearthwood-brewing-bloom-pink: #f4a6c8;
+  --color-hearthwood-brewing-bloom-white: #fff7e6;
+  --color-hearthwood-brewing-bloom-violet: #b494ec;
+  --color-hearthwood-brewing-bloom-yellow: #ffd45c;
+  --color-hearthwood-brewing-bloom-leaf: #5f9a44;
+  --color-hearthwood-brewing-hush: #d9c8ff;
+  --color-hearthwood-brewing-moon: #f4efd6;
+  --color-hearthwood-brewing-page: #efe7f2;
+  --color-hearthwood-brewing-ink: #4a3a5e;
 }
 
 /* Hearthwood: the people Elliott meets, storybook folk. Their skin tones and

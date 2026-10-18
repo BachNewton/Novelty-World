@@ -10,7 +10,9 @@ import { COOKING_SECONDS, toHand, type Session } from "../../gameplay/cooking";
 import { COOKWARE, DISHES, FOODS, humbleOf, isFood, MOST_INGREDIENTS, recipeOf, RECIPES, STAPLES, type Ingredient, type RecipeId } from "../../gameplay/recipes";
 import { CookwareIcon, COOKWARE_NAMES, DishIcon, dishName, IngredientIcon, ingredientName } from "./cooking-icons";
 import { subscribeForaging, type Foraging } from "./foraging";
-import { chooseIngredient, chooseWay, closeCooking, cook, cookMore, openCooking, readyToCook, setBookOpen, subscribeHearth, type Hearth } from "./hearth";
+import { brew, brewMore, busyAtTheFire, chooseIngredient, chooseWay, closeCooking, cook, cookMore, openCooking, readyToBrew, readyToCook, setBookOpen, setCraft, subscribeHearth, type Craft, type Hearth } from "./hearth";
+import { BrewBook, BrewBrewing, BrewChoosing, BrewMade, type HintedBrews } from "./brewing-overlay";
+import { CauldronIcon } from "./brewing-icons";
 
 /*
  * Cooking over the scene: the prompt to cook when the fire is offered (a
@@ -24,16 +26,22 @@ import { chooseIngredient, chooseWay, closeCooking, cook, cookMore, openCooking,
  * many things go in (or, hinted by someone Elliott met, what goes in too),
  * and the humble dishes found besides.
  *
+ * Brewing shares the card: two tabs along its top, the pot for cooking and
+ * the cauldron for brewing (see `brewing-overlay.tsx`), and whichever was
+ * chosen last is the one the card opens on.
+ *
  * While a turn is on the card has the keys and buttons (the rest of what
- * Elliott can use waits): F or Enter (the controller's X) cooks or cooks
- * again, Esc (B) gets up or closes the book, B (Y) opens the book; a pad
- * moves round the card's buttons and A presses one.
+ * Elliott can use waits): F or Enter (the controller's X) cooks or brews,
+ * or does it again, Tab (either bumper) turns between cooking and brewing,
+ * Esc (B) gets up or closes the book, B (Y) opens the book of the craft at
+ * hand; a pad moves round the card's buttons and A presses one.
  */
 
 const INTERACT: Binding = { pad: "X", key: "F", fills: false };
 const COOK: Binding = { pad: "X", key: "F", fills: false };
 const LEAVE: Binding = { pad: "B", key: "Esc", fills: false };
 const BOOK: Binding = { pad: "Y", key: "B", fills: false };
+const CRAFT: Binding = { pad: "RB", key: "Tab", fills: false };
 
 const INK = "text-(--color-hearthwood-valley-ui-ink)";
 const PANEL = "rounded-2xl bg-(--color-hearthwood-valley-ui-shade)/70 backdrop-blur-sm";
@@ -291,12 +299,45 @@ function RecipeBook({ hearth, input, hinted }: { hearth: Hearth; input: InputKin
   );
 }
 
-function AtTheFire({ hearth, foraging, session, input, hinted }: { hearth: Hearth; foraging: Foraging; session: Session; input: InputKind; hinted: Hinted }) {
+/** The two crafts as tabs along the card's top, and the key or bumper that turns between them. */
+function Crafts({ hearth, craft, input }: { hearth: Hearth; craft: Craft; input: InputKind }) {
+  const busy = busyAtTheFire(hearth);
+  const tab = (which: Craft) => (
+    <button
+      key={which}
+      type="button"
+      role="tab"
+      aria-selected={craft === which}
+      disabled={busy && craft !== which}
+      aria-label={which === "cook" ? "Cook" : "Brew"}
+      title={which === "cook" ? "Cook" : "Brew"}
+      onClick={() => {
+        setCraft(hearth, which);
+      }}
+      className={`flex h-10 w-14 items-center justify-center transition-transform ${CHIP} ${craft === which ? CHOSEN : "opacity-60"}`}
+    >
+      {which === "cook" ? <CookwareIcon cookware="pot" className="size-8" /> : <CauldronIcon className="size-8" />}
+    </button>
+  );
+  return (
+    <div className="flex items-center justify-center gap-2">
+      <div role="tablist" aria-label="Cook or brew" className="flex items-center gap-1.5">
+        {tab("cook")}
+        {tab("brew")}
+      </div>
+      {input !== "touch" && <Prompt binding={CRAFT} input={input} className="opacity-70" />}
+    </div>
+  );
+}
+
+const otherCraft = (craft: Craft): Craft => (craft === "cook" ? "brew" : "cook");
+
+function AtTheFire({ hearth, foraging, session, input, hinted, hintedBrews }: { hearth: Hearth; foraging: Foraging; session: Session; input: InputKind; hinted: Hinted; hintedBrews: HintedBrews }) {
   const root = useRef<HTMLDivElement>(null);
   const subscribeBasket = useCallback((listener: () => void) => subscribeForaging(foraging, listener), [foraging]);
   const { basket } = useSyncExternalStore(subscribeBasket, () => foraging.shown);
   const subscribe = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
-  const { book } = useSyncExternalStore(subscribe, () => hearth.shown);
+  const { book, craft, brewing, fullMoon } = useSyncExternalStore(subscribe, () => hearth.shown);
   // The input the card opened on decides whether a pad's focus shows as it opens; the input used later doesn't.
   const [openedOn] = useState(input);
 
@@ -318,10 +359,11 @@ function AtTheFire({ hearth, foraging, session, input, hinted }: { hearth: Heart
       if (event.code === "KeyF" || event.code === "Enter") {
         // Enter would otherwise press the button the mouse last pressed as well.
         event.preventDefault();
-        if (s.phase === "choosing" && readyToCook(hearth)) cook(hearth);
-        else if (s.phase === "served") cookMore(hearth);
+        goOn(hearth);
       }
-      if (event.code === "KeyB" && s.phase !== "cooking") setBookOpen(hearth, true);
+      // Tab is the walk's basket key, kept from moving the page's focus there; here it turns between the crafts.
+      if (event.code === "Tab") setCraft(hearth, otherCraft(hearth.shown.craft));
+      if (event.code === "KeyB" && !busyAtTheFire(hearth)) setBookOpen(hearth, true);
       if (event.code === "Escape") closeCooking(hearth);
     };
     window.addEventListener("keydown", onKeyDown);
@@ -337,32 +379,47 @@ function AtTheFire({ hearth, foraging, session, input, hinted }: { hearth: Heart
       const s = hearth.shown.session;
       if (s === null) return false;
       if (edge.name === "X") {
-        if (s.phase === "choosing" && readyToCook(hearth)) cook(hearth);
-        else if (s.phase === "served") cookMore(hearth);
+        goOn(hearth);
         return true;
       }
-      if (edge.name === "Y" && s.phase !== "cooking") {
+      if (edge.name === "LB" || edge.name === "RB") {
+        setCraft(hearth, otherCraft(hearth.shown.craft));
+        return true;
+      }
+      if (edge.name === "Y" && !busyAtTheFire(hearth)) {
         setBookOpen(hearth, true);
         return true;
       }
       return false;
     },
   });
+  const brewingOn = craft === "brew" && brewing !== null;
 
   return (
     <>
       <div className="absolute inset-x-0 bottom-3 flex justify-center px-3">
-        <div ref={root} role="dialog" aria-label="Cooking at the fire" className={`flex w-full max-w-3xl flex-col items-stretch gap-3 px-3 py-3 ${PANEL} ${INK}`}>
-          {session.phase === "choosing" && <Choosing hearth={hearth} session={session} basket={basket} input={input} />}
-          {session.phase === "cooking" && <Cooking key={session.since} session={session} />}
-          {session.phase === "served" && <Served hearth={hearth} session={session} input={input} />}
+        <div ref={root} role="dialog" aria-label={brewingOn ? "Brewing at the fire" : "Cooking at the fire"} className={`flex w-full max-w-3xl flex-col items-stretch gap-3 px-3 py-3 ${PANEL} ${INK}`}>
+          <Crafts hearth={hearth} craft={craft} input={input} />
+          {brewingOn ? (
+            <>
+              {brewing.phase === "choosing" && <BrewChoosing hearth={hearth} session={brewing} basket={basket} input={input} fullMoon={fullMoon} />}
+              {brewing.phase === "brewing" && <BrewBrewing key={brewing.since} session={brewing} />}
+              {brewing.phase === "brewed" && <BrewMade hearth={hearth} session={brewing} input={input} />}
+            </>
+          ) : (
+            <>
+              {session.phase === "choosing" && <Choosing hearth={hearth} session={session} basket={basket} input={input} />}
+              {session.phase === "cooking" && <Cooking key={session.since} session={session} />}
+              {session.phase === "served" && <Served hearth={hearth} session={session} input={input} />}
+            </>
+          )}
           <div className="flex items-center justify-between">
-            {session.phase !== "cooking" ? (
+            {!busyAtTheFire(hearth) ? (
               <PromptButton
                 binding={BOOK}
                 input={input}
-                aria-label="Recipe book"
-                title="Recipe book"
+                aria-label={brewingOn ? "Brew book" : "Recipe book"}
+                title={brewingOn ? "Brew book" : "Recipe book"}
                 onClick={() => {
                   setBookOpen(hearth, true);
                 }}
@@ -389,20 +446,33 @@ function AtTheFire({ hearth, foraging, session, input, hinted }: { hearth: Heart
           </div>
         </div>
       </div>
-      {book && <RecipeBook hearth={hearth} input={input} hinted={hinted} />}
+      {book && (brewingOn ? <BrewBook hearth={hearth} input={input} hinted={hintedBrews} /> : <RecipeBook hearth={hearth} input={input} hinted={hinted} />)}
     </>
   );
 }
 
-/** Whether Elliott sits cooking at the fire: walking's hints and buttons step aside while they do. */
+/** F, Enter or the controller's X at the card: cook or brew what is chosen, or another once one is made. */
+function goOn(hearth: Hearth): void {
+  const { craft, session, brewing } = hearth.shown;
+  if (craft === "brew" && brewing) {
+    if (brewing.phase === "choosing" && readyToBrew(hearth)) brew(hearth);
+    else if (brewing.phase === "brewed") brewMore(hearth);
+    return;
+  }
+  if (session?.phase === "choosing" && readyToCook(hearth)) cook(hearth);
+  else if (session?.phase === "served") cookMore(hearth);
+}
+
+/** Whether Elliott sits cooking or brewing at the fire: walking's hints and buttons step aside while they do. */
 export function useCookingOn(hearth: Hearth): boolean {
   const subscribe = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
   return useSyncExternalStore(subscribe, () => hearth.shown.session !== null);
 }
 
 const NO_HINTS: Hinted = () => [];
+const NO_BREW_HINTS: HintedBrews = () => [];
 
-export function CookingOverlay({ hearth, foraging, input, hinted = NO_HINTS }: { hearth: Hearth; foraging: Foraging; input: InputKind; hinted?: Hinted }) {
+export function CookingOverlay({ hearth, foraging, input, hinted = NO_HINTS, hintedBrews = NO_BREW_HINTS }: { hearth: Hearth; foraging: Foraging; input: InputKind; hinted?: Hinted; hintedBrews?: HintedBrews }) {
   const subscribe = useCallback((listener: () => void) => subscribeHearth(hearth, listener), [hearth]);
   const shown = useSyncExternalStore(subscribe, () => hearth.shown);
   const { session, offered } = shown;
@@ -432,7 +502,7 @@ export function CookingOverlay({ hearth, foraging, input, hinted = NO_HINTS }: {
             </div>
           </div>
         ))}
-      {session && <AtTheFire hearth={hearth} foraging={foraging} session={session} input={input} hinted={hinted} />}
+      {session && <AtTheFire hearth={hearth} foraging={foraging} session={session} input={input} hinted={hinted} hintedBrews={hintedBrews} />}
     </>
   );
 }

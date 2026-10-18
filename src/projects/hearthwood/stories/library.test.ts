@@ -4,6 +4,7 @@ import { FOLK_NAME_LENGTH } from "../gameplay/folk";
 import { answerable } from "../gameplay/help";
 import { NAMES } from "../gameplay/names";
 import { RECIPES } from "../gameplay/recipes";
+import { BREWS } from "../gameplay/brews";
 import { FIRST_STORY, STORIES, storyOf } from "./library";
 import { KEEPSAKES, talksOf, TONES, type Page, type Story } from "./story";
 
@@ -122,12 +123,13 @@ describe("the story library", () => {
     }
   });
 
-  it("gives only gifts the game has: real recipes, every keepsake by someone, and an animal to keep only where one was found", () => {
+  it("gives only gifts the game has: real recipes and brews, every keepsake by someone, and an animal to keep only where one was found", () => {
     const given = new Set<string>();
     for (const story of STORIES) {
       for (const [talk, t] of Object.entries(talksOf(story))) {
         for (const gift of t.gifts ?? []) {
           if (gift.kind === "hint") expect(RECIPES.some((r) => r.id === gift.recipe)).toBe(true);
+          if (gift.kind === "brew-hint") expect(BREWS.some((b) => b.id === gift.brew)).toBe(true);
           if (gift.kind === "keepsake") given.add(gift.keepsake);
           if (gift.kind === "companion") {
             expect(talk).toBe("thanks");

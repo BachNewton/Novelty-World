@@ -23,6 +23,9 @@ import { useFeature } from "./feature-renderer";
  * the camera stands (see `engine/weather.ts`), with the air's thickness for
  * the plain haze, the valley floor the mist pools on, the lightning's flash,
  * and the falling rain and snow, each mounted only while its feature is on.
+ * A mist-parting charm at work thins the mist and the haze round Elliott,
+ * held over the engine's weather here in the scene, so the engine stays as
+ * it is and the art reads the clearer air.
  */
 
 /** After the clocks move on, before the light reads the air. */
@@ -36,12 +39,18 @@ const FLOOR_RINGS = [0, 250, 600, 1100] as const;
 /** The scene's weather: what the art reads, and holding it at one kind for a look. */
 export interface SceneWeather extends WeatherNow {
   hold: (kind: WeatherKind | null) => void;
+  /** How strongly a mist-parting charm clears the air round Elliott, 0 to 1. */
+  clearing: number;
 }
+
+/** How much of the mist and of the haze a charm at full strength clears. */
+const CLEARS = { mist: 0.85, haze: 0.45 } as const;
 
 export function makeSceneWeather(held: WeatherKind | null): SceneWeather {
   const now: SceneWeather = {
     ...calmWeather(),
     held,
+    clearing: 0,
     hold: (kind) => {
       now.held = kind;
     },
@@ -84,7 +93,8 @@ class WeatherWatch {
     const { world, now, floor } = this;
     world.regionAt(x, z, undefined, now.regions);
     const drifting = this.sky.at(clock.time, now.regions, y);
-    now.weather = now.held === null ? drifting : holdWeather(now.held, drifting);
+    const weather = now.held === null ? drifting : holdWeather(now.held, drifting);
+    now.weather = now.clearing > 0 ? { ...weather, mist: weather.mist * (1 - CLEARS.mist * now.clearing), haze: weather.haze * (1 - CLEARS.haze * now.clearing) } : weather;
     // Without the lightning feature there is no flash at all, for the rain or anything else.
     now.flash = liveFeatures().isOn("lightning") ? this.lightning(clock.motion, now.weather.storm) : 0;
     // The sky's rainbow wants the rain and the sun out of the cloud; `?rain=` holds the rain for a look.

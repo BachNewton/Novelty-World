@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { fitElo } from "@/shared/lib/bot-lab/elo";
 import { wilsonInterval } from "@/shared/lib/bot-lab/stats";
 import { RISK_BOTS } from "../bots";
-import { SEAT_BOTS } from "../online/seat-bots";
+import { SEAT_BOTS } from "../online/seat-roster";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
 import { checkBots, commonDefaults, commonFlag, number, riskRun, type CommonArgs } from "./cli-args";
 import { eloLine } from "./gauntlet";

@@ -17,6 +17,9 @@ export const FORAGE_NAMES: Record<ForageKind, string> = {
   porcini: "Porcini",
   "funnel-chanterelle": "Funnel chanterelles",
   "fly-agaric": "Fly agaric (for brewing)",
+  yarrow: "Yarrow (for brewing)",
+  meadowsweet: "Meadowsweet (for brewing)",
+  juniper: "Juniper berries (for brewing)",
 };
 
 const c = (name: string) => `var(--color-hearthwood-forage-${name})`;
@@ -97,6 +100,37 @@ const DRAWINGS: Record<ForageKind, ReactNode> = {
       {[[7, 10, 1.3], [12, 6.2, 1.4], [16.8, 9.6, 1.3], [10, 11.6, 1], [14.4, 12, 1], [5, 13, 0.8], [19, 13, 0.8]].map(([x, y, r], i) => (
         <circle key={i} cx={x} cy={y} r={r} fill={c("fly-agaric-spot")} />
       ))}
+    </>
+  ),
+  yarrow: (
+    <>
+      <path d="M12 21.5 L12 11 M12 15 L7.5 9.5 M12 14 L16.5 9" stroke={c("yarrow-leaf")} strokeWidth={1.3} strokeLinecap="round" fill="none" />
+      {leaf(8, 19, 3.6, 1.2, -25, c("yarrow-leaf"))}
+      {leaf(16, 19, 3.6, 1.2, 25, c("yarrow-leaf"))}
+      {[[12, 9.4, 3.4], [7.2, 7.6, 2.8], [16.8, 7.2, 2.8]].map(([x, y, r], i) => (
+        <g key={i}>
+          <ellipse cx={x} cy={y} rx={r} ry={r * 0.55} fill={c("yarrow-flower")} stroke={RIM} strokeWidth={0.7} />
+          {[-0.5, 0, 0.5].map((f) => (
+            <circle key={f} cx={x + f * r} cy={y - 0.4} r={0.55} fill={RIM} opacity={0.35} />
+          ))}
+        </g>
+      ))}
+    </>
+  ),
+  meadowsweet: (
+    <>
+      <path d="M12 22 L12 10" stroke={c("meadowsweet-stem")} strokeWidth={1.6} strokeLinecap="round" />
+      {leaf(8.4, 17, 3.6, 1.5, -30, c("meadowsweet-leaf"))}
+      {leaf(15.6, 15, 3.6, 1.5, 30, c("meadowsweet-leaf"))}
+      {[[12, 4.5, 2.4], [9, 6.5, 2.3], [15, 6.5, 2.3], [10.5, 9.5, 2.4], [13.8, 9.3, 2.4], [7.5, 9.6, 1.8], [16.6, 9.8, 1.8], [12, 7.2, 2.2]].map(([x, y, r], i) => (
+        <circle key={i} cx={x} cy={y} r={r} fill={c("meadowsweet-flower")} stroke={RIM} strokeWidth={0.6} />
+      ))}
+    </>
+  ),
+  juniper: (
+    <>
+      <path d="M12 3 C7 8 6 13 6.5 17 C7 20 9.5 21.5 12 21.5 C14.5 21.5 17 20 17.5 17 C18 13 17 8 12 3 Z" fill={c("juniper-needle")} stroke={RIM} strokeWidth={0.9} />
+      {berries(c("juniper-berry"), [[10, 11, 2.2], [14.2, 13, 2.2], [10.6, 16.4, 2.2], [14.6, 17.8, 2]])}
     </>
   ),
 };

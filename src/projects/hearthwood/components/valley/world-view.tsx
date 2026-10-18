@@ -12,6 +12,7 @@ import { Campfire } from "../../art/campfire";
 import { Daylight, type Air, type Focus } from "../../art/light/daylight";
 import { Fireflies } from "../../art/fireflies";
 import { readDishPalette } from "../../art/dish-looks";
+import { readBrewPalette } from "../../art/brew-looks";
 import { readCluePalette } from "../../art/clue-shapes";
 import { readFolkPalette } from "../../art/folk";
 import { readForagePalette } from "../../art/forage-shapes";
@@ -50,6 +51,7 @@ import { WalkerAndCamera, type Walker } from "./walker";
 import { TouchStickView, WalkHints } from "./walk-hints";
 import { WorldForage } from "./world-forage";
 import { WorldHearth } from "./world-hearth";
+import { WorldCharms } from "./world-charms";
 import { WorldLand, type Streaming } from "./world-land";
 import { WorldPlaces } from "./world-places";
 import { WorldPlants } from "./world-plants";
@@ -117,6 +119,7 @@ export function WorldView() {
   const palette = useMemo(() => readPalette(), []);
   const foragePalette = useMemo(() => readForagePalette(), []);
   const dishPalette = useMemo(() => readDishPalette(), []);
+  const brewPalette = useMemo(() => readBrewPalette(), []);
   const foraging = useMemo(() => createForaging(world), [world]);
   const hearth = useMemo(() => createHearth(world, foraging), [world, foraging]);
   const companionship = useMemo(() => createCompanionship(world, foraging, hearth), [world, foraging, hearth]);
@@ -189,7 +192,8 @@ export function WorldView() {
         <WorldFetch fetching={fetching} foraging={foraging} walker={walker} input={input.state} art={stickArt} rival={() => Math.min(companionship.candidate?.score ?? Infinity, hearth.candidate ?? Infinity, people.candidate?.score ?? Infinity, mysteries.candidate?.score ?? Infinity)} />
         <WorldWildlife world={world} clock={clock} walker={walker} weather={weather} atmosphere={atmosphere} wildlife={wildlife} />
         <Campfire at={world.camp} seed={world.seed} palette={palette} atmosphere={atmosphere} fire={clock} />
-        <WorldHearth hearth={hearth} foraging={foraging} companionship={companionship} walker={walker} input={input.state} palette={dishPalette} atmosphere={atmosphere} outbid={() => people.candidate !== null || mysteries.candidate !== null || fetching.candidate !== null} />
+        <WorldHearth hearth={hearth} foraging={foraging} companionship={companionship} walker={walker} input={input.state} clock={clock} palette={dishPalette} brewPalette={brewPalette} atmosphere={atmosphere} outbid={() => people.candidate !== null || mysteries.candidate !== null || fetching.candidate !== null} />
+        <WorldCharms hearth={hearth} world={world} clock={clock} walker={walker} weather={weather} palette={palette} brewPalette={brewPalette} atmosphere={atmosphere} sky={sky} />
         <WorldPeople people={people} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} companionship={companionship} hearth={hearth} palette={folkPalette} atmosphere={atmosphere} outbid={() => mysteries.candidate !== null || fetching.candidate !== null} />
         <WorldClues mysteries={mysteries} people={people} clock={clock} walker={walker} input={input.state} foraging={foraging} companionship={companionship} hearth={hearth} palette={cluePalette} atmosphere={atmosphere} outbid={() => fetching.candidate !== null} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
@@ -199,7 +203,7 @@ export function WorldView() {
       {!cooking && !talking && !examining && <WalkHints input={input} />}
       <ForageOverlay foraging={foraging} hearth={hearth} clock={clock} input={input.kind} />
       <CompanionOverlay companionship={companionship} input={input.kind} />
-      <CookingOverlay hearth={hearth} foraging={foraging} input={input.kind} hinted={() => people.shown.memory.hints} />
+      <CookingOverlay hearth={hearth} foraging={foraging} input={input.kind} hinted={() => people.shown.memory.hints} hintedBrews={() => people.shown.memory.brewHints} />
       <ConversationOverlay people={people} input={input.kind} />
       <MysteryOverlay mysteries={mysteries} people={people} input={input.kind} />
       <JournalOverlay people={people} mysteries={mysteries} input={input.kind} />

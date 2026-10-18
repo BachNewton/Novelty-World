@@ -2,7 +2,7 @@ import { createRng, uniform, type Rng } from "@/shared/lib/seeded-random";
 import { ALTITUDE, emptySample, type LandSample } from "./land";
 import { PLANT_CHUNK } from "./life";
 import { clamp, fbm, gradientNoise, smoothstep, type Noise2 } from "./noise";
-import { FORAGE_KINDS, REGION_CHARACTER, REGIONS, type ForageKind, type PlantKind, type RegionWeights } from "./regions";
+import { FORAGE_KINDS, HERB_KINDS, REGION_CHARACTER, REGIONS, WOODLAND_KINDS, type ForageKind, type PlantKind, type RegionWeights } from "./regions";
 import { remembered, type World } from "./world";
 
 /*
@@ -16,6 +16,13 @@ import { remembered, type World } from "./world";
  * or a chanterelle spot is worth remembering. Each spot has an id that never
  * changes (its chunk and its place in the chunk's list), which is all that
  * picking has to remember of it.
+ *
+ * The witch's herbs grow in a layer of their own, scattered after the
+ * berries and mushrooms from a seed of their own and kept off their spots,
+ * so a berry slope stays exactly the berry slope it was and every spot's
+ * id holds: yarrow on dry, sunny meadows and verges, meadowsweet in damp
+ * meadows and along the water, juniper on the open heath and in dry pine
+ * woods.
  *
  * When each kind is ripe follows the real year, by the day of the year
  * (0 is the first of January): nothing in winter, the first wild
@@ -35,6 +42,10 @@ export const FORAGE_FORM: Record<ForageKind, ForageForm> = {
   porcini: "mushroom",
   "funnel-chanterelle": "mushroom",
   "fly-agaric": "mushroom",
+  // A herb is a plant with something on it to pick, as a berry bush is: yarrow's and meadowsweet's flowers, juniper's berries.
+  yarrow: "berry",
+  meadowsweet: "berry",
+  juniper: "berry",
 };
 
 /** The days of the year each kind is ripe, first to last, before a spot's own shift. */
@@ -48,6 +59,10 @@ export const SEASONS: Record<ForageKind, readonly [number, number]> = {
   porcini: [212, 276],
   "fly-agaric": [222, 292],
   "funnel-chanterelle": [250, 325],
+  // Yarrow flowers from late June into September, meadowsweet through July and August; juniper's berries ripen blue in their second autumn.
+  yarrow: [176, 258],
+  meadowsweet: [186, 236],
+  juniper: [232, 300],
 };
 
 /** How many days a spot's season comes early or late, at most, so a season begins and ends spot by spot. */
@@ -109,6 +124,8 @@ export interface Habitat {
   bog: number;
   /** Above the treeline. */
   alpine: number;
+  /** How near the water's own level the ground lies: a shore or a bank. */
+  shore: number;
 }
 
 const TREE_GROUP: Partial<Record<PlantKind, "spruce" | "pine" | "birch" | "broadleaf">> = {
@@ -146,6 +163,15 @@ export function suitability(kind: ForageKind, h: Habitat): number {
       return 1.6 * h.woods * smoothstep(0.3, 0.75, h.spruce) * smoothstep(0.25, 0.55, h.wet);
     case "fly-agaric":
       return h.woods * smoothstep(0.2, 0.7, h.birch);
+    case "yarrow":
+      // Dry, sunny, open ground: meadows, verges and the edges of woods.
+      return (0.85 * open + 0.35 * edge) * (1 - smoothstep(0.35, 0.7, h.wet)) * (1 - h.bog) * (1 - 0.4 * h.alpine);
+    case "meadowsweet":
+      // Damp meadows, banks and lake shores, out of the deep woods.
+      return 1.4 * smoothstep(0.3, 0.65, h.wet) * (0.35 + 0.65 * h.shore) * (1 - 0.75 * h.woods) * (1 - 0.6 * h.bog) * (1 - h.alpine);
+    case "juniper":
+      // Dry heath, rocky open ground and light pine woods, up onto the fells.
+      return (1 - smoothstep(0.4, 0.75, h.wet)) * (0.6 * open * (1 - h.bog) + 0.5 * h.woods * h.pine);
   }
 }
 
@@ -168,6 +194,9 @@ const PATCH: Record<ForageKind, PatchShape> = {
   porcini: { radius: 3.5, count: [2, 5], spacing: 0.7 },
   "funnel-chanterelle": { radius: 3, count: [4, 9], spacing: 0.4 },
   "fly-agaric": { radius: 4.5, count: [2, 6], spacing: 0.7 },
+  yarrow: { radius: 3.5, count: [4, 10], spacing: 0.5 },
+  meadowsweet: { radius: 3.5, count: [4, 9], spacing: 0.6 },
+  juniper: { radius: 5, count: [2, 5], spacing: 1.4 },
 };
 
 /** How far a patch can reach beyond its chunk, in metres. */
@@ -175,6 +204,10 @@ export const PATCH_REACH = Math.max(...Object.values(PATCH).map((p) => p.radius)
 
 /** Where a patch might grow, per chunk: each takes the kind its ground suits best, or nothing. */
 const PATCH_TRIES = 12;
+/** Where a patch of herbs might grow, per chunk, after the berries and mushrooms. */
+const HERB_TRIES = 8;
+/** A herb keeps this far from a berry or mushroom already growing, in metres. */
+const HERB_CLEAR = 0.45;
 /** How readily a suitable spot holds a patch. */
 const PATCH_RATE = 1.5;
 /** Trees within this many metres of a patch's middle say what wood it is in. */
@@ -256,6 +289,7 @@ function habitatAt(ground: ForageGround, x: number, z: number, land: LandSample,
     wet,
     bog: smoothstep(0.45, 0.8, wet) * low * (1 - smoothstep(0.15, 0.4, slope)),
     alpine: smoothstep(ALTITUDE.treeline - 10, ALTITUDE.treeline + 30, land.height - land.bands),
+    shore: low,
   };
 }
 
@@ -308,14 +342,33 @@ function richnessAt(noise: Noise2, x: number, z: number): number {
 }
 
 export function scatterForage(ground: ForageGround, richness: Record<ForageKind, Noise2>, chunkX: number, chunkZ: number): ForageChunk {
-  const rng = createRng(`${ground.seed}/forage/${chunkX},${chunkZ}`);
   const { trees, obstacles } = treesRound(ground, chunkX, chunkZ);
+  const spots: ForageSpot[] = [];
+  const layer = { ground, richness, chunkX, chunkZ, trees, obstacles, spots };
+  scatterLayer(layer, WOODLAND_KINDS, PATCH_TRIES, createRng(`${ground.seed}/forage/${chunkX},${chunkZ}`), "");
+  scatterLayer(layer, HERB_KINDS, HERB_TRIES, createRng(`${ground.seed}/herbs/${chunkX},${chunkZ}`), "herbs/");
+  return { chunkX, chunkZ, spots };
+}
+
+interface Layer {
+  ground: ForageGround;
+  richness: Record<ForageKind, Noise2>;
+  chunkX: number;
+  chunkZ: number;
+  trees: readonly Tree[];
+  obstacles: readonly Obstacle[];
+  /** Every spot of the chunk so far: a layer adds to it, keeping clear of what an earlier layer grew. */
+  spots: ForageSpot[];
+}
+
+/** One layer of a chunk's patches: each try takes the kind of these its ground suits best, or nothing. */
+function scatterLayer({ ground, richness, chunkX, chunkZ, trees, obstacles, spots }: Layer, kinds: readonly ForageKind[], tries: number, rng: Rng, seedPart: string): void {
   const s = emptySample();
   const weights = new Float32Array(REGIONS.length);
-  const spots: ForageSpot[] = [];
-  const scores = new Array<number>(FORAGE_KINDS.length);
+  const scores = new Array<number>(kinds.length);
+  const earlier = spots.slice();
 
-  for (let t = 0; t < PATCH_TRIES; t++) {
+  for (let t = 0; t < tries; t++) {
     const cx = (chunkX + rng.next()) * PLANT_CHUNK;
     const cz = (chunkZ + rng.next()) * PLANT_CHUNK;
     const accept = rng.next();
@@ -326,21 +379,29 @@ export function scatterForage(ground: ForageGround, richness: Record<ForageKind,
     if (!growable(land, slope)) continue;
     ground.regionAt(cx, cz, land, weights);
     const habitat = habitatAt(ground, cx, cz, land, weights, slope, trees);
-    FORAGE_KINDS.forEach((kind, k) => {
+    kinds.forEach((kind, k) => {
       let plenty = 0;
       for (let r = 0; r < REGIONS.length; r++) plenty += weights[r] * (REGION_CHARACTER[REGIONS[r]].forage[kind] ?? 0);
       scores[k] = suitability(kind, habitat) * plenty * richnessAt(richness[kind], cx, cz);
     });
     if (scores.every((score) => score <= 0)) continue;
-    const kind = FORAGE_KINDS[weightedPick(choice, scores)];
-    const score = scores[FORAGE_KINDS.indexOf(kind)];
+    const chosen = weightedPick(choice, scores);
+    const kind = kinds[chosen];
+    const score = scores[chosen];
     if (accept >= Math.min(0.95, score * PATCH_RATE)) continue;
-    growPatch(ground, createRng(`${ground.seed}/forage/${chunkX},${chunkZ}/${t}/${patchSeed}`), kind, cx, cz, Math.min(1, score), trees, obstacles, spots, chunkX, chunkZ);
+    const growing = earlier.filter((o) => Math.hypot(o.x - cx, o.z - cz) < PATCH[kind].radius + HERB_CLEAR);
+    growPatch(ground, createRng(`${ground.seed}/forage/${chunkX},${chunkZ}/${seedPart}${t}/${patchSeed}`), kind, cx, cz, Math.min(1, score), { trees, obstacles, growing }, spots, chunkX, chunkZ);
   }
-  return { chunkX, chunkZ, spots };
 }
 
-function growPatch(ground: ForageGround, rng: Rng, kind: ForageKind, cx: number, cz: number, plenty: number, trees: readonly Tree[], obstacles: readonly Obstacle[], spots: ForageSpot[], chunkX: number, chunkZ: number): void {
+/** What a patch keeps clear of: trunks, rocks and bushes, and what an earlier layer grows. */
+interface InTheWay {
+  trees: readonly Tree[];
+  obstacles: readonly Obstacle[];
+  growing: readonly ForageSpot[];
+}
+
+function growPatch(ground: ForageGround, rng: Rng, kind: ForageKind, cx: number, cz: number, plenty: number, { trees, obstacles, growing }: InTheWay, spots: ForageSpot[], chunkX: number, chunkZ: number): void {
   const shape = PATCH[kind];
   const near = trees.filter((t) => Math.hypot(t.x - cx, t.z - cz) < shape.radius + TRUNK_CLEAR);
   const inTheWay = obstacles.filter((o) => Math.hypot(o.x - cx, o.z - cz) < shape.radius + o.reach + 0.3);
@@ -362,6 +423,7 @@ function growPatch(ground: ForageGround, rng: Rng, kind: ForageKind, cx: number,
     if (near.some((t) => Math.hypot(t.x - x, t.z - z) < TRUNK_CLEAR)) continue;
     if (inTheWay.some((o) => Math.hypot(o.x - x, o.z - z) < o.reach + 0.3)) continue;
     if (mine.some((o) => Math.hypot(o.x - x, o.z - z) < shape.spacing)) continue;
+    if (growing.some((o) => Math.hypot(o.x - x, o.z - z) < HERB_CLEAR)) continue;
     const land = ground.sampleAt(x, z, s);
     if (!growable(land, slopeAt(ground, x, z))) continue;
     mine.push({ id: `${chunkX},${chunkZ}/${spots.length + mine.length}`, kind, x, y: land.height, z, size, turn, variant, shift: dayShift });

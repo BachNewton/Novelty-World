@@ -48,9 +48,9 @@ export const DISH_SHOWN_LARGER = 1.9;
 /** Where the dish rises to, in the fire's frame: between the flames and Elliott, over the ring of stones. */
 const DISH_AT = new Vector3(0.45, 1.05, 1.1);
 /** How long the dish takes to rise out of the steam, in seconds. */
-const RISE = 0.9;
+export const RISE = 0.9;
 
-const STEAM_VERTEX = /* glsl */ `
+export const STEAM_VERTEX = /* glsl */ `
 uniform float uHwTime;
 uniform float uSpread;
 attribute float seed;
@@ -68,7 +68,7 @@ void main() {
 }
 `;
 
-const STEAM_FRAGMENT = /* glsl */ `
+export const STEAM_FRAGMENT = /* glsl */ `
 uniform vec3 uSteam;
 uniform float uStrength;
 varying float vLife;
@@ -79,7 +79,7 @@ void main() {
 }
 `;
 
-const SPARKLE_VERTEX = /* glsl */ `
+export const SPARKLE_VERTEX = /* glsl */ `
 uniform float uHwTime;
 uniform float uSpread;
 attribute float seed;
@@ -95,7 +95,7 @@ void main() {
 }
 `;
 
-const SPARKLE_FRAGMENT = /* glsl */ `
+export const SPARKLE_FRAGMENT = /* glsl */ `
 uniform vec3 uSparkle;
 uniform float uStrength;
 varying float vTwinkle;
@@ -111,7 +111,7 @@ const STEAM_PUFFS = 34;
 const SPARKLES = 26;
 
 /** Points scattered from a seed: steam rises from round its emitter; sparkles sit in a ball the shader spreads to its size. */
-function scatter(count: number, seed: string, ball: boolean): BufferGeometry {
+export function scatter(count: number, seed: string, ball: boolean): BufferGeometry {
   const rng = createRng(seed);
   const positions = new Float32Array(count * 3);
   const seeds = new Float32Array(count);

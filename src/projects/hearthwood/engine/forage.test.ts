@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dayOfYear, FORAGE_FORM, inSeason, makeForage, SEASON_SHIFT, SEASONS, type ForageSpot } from "./forage";
 import { PLANT_CHUNK } from "./life";
-import { FORAGE_KINDS, mainRegion, REGIONS, type ForageKind, type PlantKind, type Region } from "./regions";
+import { FORAGE_KINDS, HERB_KINDS, mainRegion, REGIONS, type ForageKind, type PlantKind, type Region } from "./regions";
 import { createWorld } from "./world";
 
 const world = createWorld("first-valley");
@@ -163,5 +163,29 @@ describe("the seasons", () => {
     expect(dayOfYear(365 + 200)).toBe(200);
     expect(dayOfYear(-1)).toBe(364);
     expect(inSeason("bilberry", 365 * 3 + 220)).toBe(true);
+  });
+});
+
+describe("the witch's herbs", () => {
+  const herb = (s: ForageSpot) => (HERB_KINDS as readonly string[]).includes(s.kind);
+
+  it("grow in a layer of their own, after the berries and mushrooms and clear of them", () => {
+    for (const region of REGIONS) {
+      const { cx, cz } = hearts[region];
+      const { spots } = forage.spotsIn(cx, cz);
+      const firstHerb = spots.findIndex(herb);
+      if (firstHerb < 0) continue;
+      expect(spots.slice(firstHerb).every(herb), region).toBe(true);
+      for (const h of spots.slice(firstHerb)) for (const w of spots.slice(0, firstHerb)) expect(Math.hypot(h.x - w.x, h.z - w.z)).toBeGreaterThan(0.44);
+    }
+  });
+
+  it("keep to their own ground: yarrow out in the open and dry, meadowsweet in the damp, juniper on dry ground", () => {
+    const wooded = (s: ForageSpot) => world.woodlandAt(s.x, s.z, world.sampleAt(s.x, s.z), world.regionAt(s.x, s.z), 0);
+    const wetness = (s: ForageSpot) => world.sampleAt(s.x, s.z).wetness;
+    expect(mean(ofKind("yarrow").map(wooded))).toBeLessThan(0.35);
+    expect(mean(ofKind("yarrow").map(wetness))).toBeLessThan(0.5);
+    expect(mean(ofKind("meadowsweet").map(wetness))).toBeGreaterThan(0.6);
+    expect(mean(ofKind("juniper").map(wetness))).toBeLessThan(0.5);
   });
 });

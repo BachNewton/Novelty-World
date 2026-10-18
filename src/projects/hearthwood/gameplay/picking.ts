@@ -38,6 +38,9 @@ const HEART: Record<ForageKind, number> = {
   porcini: 0.15,
   "funnel-chanterelle": 0.09,
   "fly-agaric": 0.16,
+  yarrow: 0.42,
+  meadowsweet: 0.8,
+  juniper: 0.55,
 };
 
 /** How wide each kind is to the eye as drawn, in metres: looking anywhere across it looks at it. */
@@ -51,6 +54,9 @@ const SPREAD: Record<ForageKind, number> = {
   porcini: 0.22,
   "funnel-chanterelle": 0.25,
   "fly-agaric": 0.2,
+  yarrow: 0.3,
+  meadowsweet: 0.35,
+  juniper: 0.55,
 };
 
 export function isPicked(foraged: Foraged, id: string, day: number): boolean {

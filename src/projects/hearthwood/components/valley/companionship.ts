@@ -18,7 +18,7 @@ import type { AnimalDrive } from "../animals/animal-body";
 import { ACTIVITY, bornOf, portraitOfLook, type AnimalLook } from "./animal-kinds";
 import { offTheGround, walkingRide, type Ride } from "../../gameplay/riding";
 import { takeTreat, type Foraging } from "./foraging";
-import { giveDish, type Hearth } from "./hearth";
+import { giveDish, hushNow, type Hearth } from "./hearth";
 
 /*
  * The animals of a walk, between the scene, the overlay over it and the
@@ -435,7 +435,7 @@ export function warmByPatience(companionship: Companionship, animal: Animal, dis
     }
     return;
   }
-  animal.bond = bePatient(animal.bond, temperOf(animal), distance, calm, seconds);
+  animal.bond = bePatient(animal.bond, temperOf(animal), distance, calm, seconds, hushNow(companionship.hearth));
   if (Math.floor(animal.bond.warmth * 4) > Math.floor(before * 4)) {
     keepWarmth(companionship, animal);
     mark(companionship, animal.key, "heart");

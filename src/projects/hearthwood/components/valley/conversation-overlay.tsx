@@ -10,6 +10,7 @@ import type { Gift, Tone } from "../../stories/story";
 import { isDish } from "../../gameplay/recipes";
 import { CompanionPortrait } from "./companion-portrait";
 import { DishIcon, dishName } from "./cooking-icons";
+import { BrewIcon, brewName } from "./brewing-icons";
 import { FolkPortrait } from "./folk-portrait";
 import { ForageIcon, FORAGE_NAMES } from "./forage-icons";
 import { KeepsakeIcon, KEEPSAKE_NAMES } from "./keepsake-icons";
@@ -55,8 +56,16 @@ export function ToneMark({ tone, className = "size-5" }: { tone: Tone; className
   return <Laugh aria-hidden className={className} style={style} strokeWidth={2.4} />;
 }
 
-/** A gift as a small drawing: a recipe hinted (its dish in shadow, lit), a keepsake, an animal to keep. */
+/** A gift as a small drawing: a recipe or a brew hinted (in shadow, lit), a keepsake, an animal to keep. */
 export function GiftMark({ gift, className = "size-9" }: { gift: Gift; className?: string }) {
+  if (gift.kind === "brew-hint") {
+    return (
+      <span className="relative inline-flex" role="img" aria-label={`A brew for the brew book: ${brewName(gift.brew)}`} title={`A brew for the brew book: ${brewName(gift.brew)}`}>
+        <BrewIcon brew={gift.brew} unknown className={className} />
+        <Lightbulb aria-hidden className="absolute -top-1 -right-1 size-4 text-(--color-hearthwood-folk-playful)" fill="currentColor" />
+      </span>
+    );
+  }
   if (gift.kind === "hint") {
     return (
       <span className="relative inline-flex" role="img" aria-label={`A recipe for the book: ${dishName(gift.recipe)}`} title={`A recipe for the book: ${dishName(gift.recipe)}`}>

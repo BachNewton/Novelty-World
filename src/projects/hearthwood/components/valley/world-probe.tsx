@@ -6,7 +6,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Color } from "three";
 import { ALTITUDE, emptySample } from "../../engine/land";
 import type { PointOfView } from "../../input/point-of-view";
-import { mainRegion, REGIONS } from "../../engine/regions";
+import { FORAGE_KINDS, mainRegion, REGIONS } from "../../engine/regions";
 import type { World } from "../../engine/world";
 import { canPick, spotLook, type SpotLook } from "../../gameplay/picking";
 import type { Palette } from "../../art/palette";
@@ -33,6 +33,7 @@ import { anotherName, companionOf, forgetFriends, friendsAround, knowFriend, kee
 import { walk as walkOn } from "../../gameplay/walking";
 import type { People } from "./people";
 import { peopleProbe, type PeopleProbe } from "./people-probe";
+import { brewingProbe, type BrewingProbe } from "./brewing-probe";
 import type { Mysteries } from "./mysteries";
 import { mysteriesProbe, type MysteriesProbe } from "./mysteries-probe";
 
@@ -49,7 +50,7 @@ import { mysteriesProbe, type MysteriesProbe } from "./mysteries-probe";
  * winning, petting and treating one, the naming card, the companions' row, and whether
  * the animals have settled into their poses; and cooking: whether the fire is offered,
  * sitting down, choosing, cooking (held part-cooked if asked), the dish served, the
- * recipe book, the larder, and dishes or forage put in the basket; and the people (see people-probe.ts) and their mysteries (mysteries-probe.ts). Waiting on these is waiting on
+ * recipe book, the larder, and dishes or forage put in the basket; brewing (see brewing-probe.ts); and the people (see people-probe.ts) and their mysteries (mysteries-probe.ts). Waiting on these is waiting on
  * events, never on time.
  */
 
@@ -146,6 +147,7 @@ export interface WorldProbe {
   wildlife: () => { birds: { key: string; species: string; x: number; y: number; z: number; mode: string; perch: string; twig: { x: number; y: number; z: number } | null }[]; butterflies: { x: number; y: number; z: number }[]; about: { birds: number; butterflies: number } };
   cooking: CookingProbe;
   people: PeopleProbe;
+  brewing: BrewingProbe;
   mysteries: MysteriesProbe;
   /** The motion clock's seconds now, to hold motion where it is. */
   motion: () => number;
@@ -500,7 +502,7 @@ export function WorldProbeHandle({
           forgetForaging(foraging);
         },
         stock: (kind, count) => {
-          if (!isFood(kind) && kind !== "fly-agaric") throw new Error(`${kind} isn't forage`);
+          if (!(FORAGE_KINDS as readonly string[]).includes(kind)) throw new Error(`${kind} isn't forage`);
           stockBasket(foraging, kind as ForageKind, count);
         },
       },
@@ -554,6 +556,7 @@ export function WorldProbeHandle({
         about: wildlife.about,
       }),
       people: peopleProbe(people),
+      brewing: brewingProbe(hearth),
       mysteries: mysteriesProbe(mysteries),
       companions: {
         animals: () =>
