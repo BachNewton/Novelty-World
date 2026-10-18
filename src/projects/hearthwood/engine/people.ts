@@ -357,9 +357,16 @@ function pickWeighted<T>(rng: Rng, options: readonly T[], weight: (option: T) =>
   return options[options.length - 1];
 }
 
-/** The stories a role can carry by a place (or none), leaving out those that need a partner placed. */
+/** The stories a role can carry by a place (or none), leaving out those that need a partner placed and the first story, which is the home camp's neighbour's alone. */
 function storiesFor(role: Role, at: PlaceKind | null): Story[] {
-  return STORIES.filter((s) => s.roles.includes(role) && (s.weight ?? 1) > 0 && (s.places === undefined || (at !== null && s.places.includes(at))) && !(s.kind === "help" && s.request.kind === "carry"));
+  return STORIES.filter(
+    (s) =>
+      s.id !== FIRST_STORY &&
+      s.roles.includes(role) &&
+      (s.weight ?? 1) > 0 &&
+      (s.places === undefined || (at !== null && s.places.includes(at))) &&
+      !(s.kind === "help" && s.request.kind === "carry"),
+  );
 }
 
 /** A lost cat or dog's home round its person: dry, gentle ground below the rock, a cat's at a wood's edge and a dog's out in the open. */

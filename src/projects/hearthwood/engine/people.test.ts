@@ -43,6 +43,12 @@ describe("people by area", () => {
     expect(first.homes.map((h) => h.kind)).toEqual(["cottage"]);
   });
 
+  it("leave the first story to camp's neighbour alone", () => {
+    const [first] = peopleInCell(world, campCell.cx, campCell.cz);
+    const others = all.filter((p) => p.story === "cat-who-chose" && p.id !== first.id);
+    expect(others).toEqual([]);
+  });
+
   it("stand where a person can stand, each carrying a story their role fits", () => {
     for (const person of all) {
       expect(canStand(world, person.x, person.z)).toBe(true);
