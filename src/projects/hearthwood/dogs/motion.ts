@@ -8,7 +8,8 @@ import { HIP } from "./rig";
  * standing, a walk, a trot and a bounding run, sitting and lying down, and a
  * happy greeting with its tail going, as pure functions of its clock. Its
  * idles are a dog's: panting, ear flicks, a head tilted at something, a look
- * round, and its nose down to the ground. Its personality colours all of it:
+ * round, and its nose down to the ground; following a scent, its nose stays
+ * down as it goes, snuffling. Its personality colours all of it:
  * a bold dog carries its head and tail high, a shy one low with its ears back;
  * a playful dog bounces, wags and looks about more; a cuddly one wags at
  * nothing much.
@@ -46,6 +47,8 @@ export interface DogMotionInput {
   seed: number;
   /** At play: fetching a stick, or bowing. */
   play?: DogPlay;
+  /** Following a scent, 0 to 1: its nose down to the ground as it goes. */
+  nose?: number;
 }
 
 interface Frame {
@@ -314,6 +317,21 @@ function atPlay(posture: Posture, play: DogPlay, { frontZ, legs }: Frame): Postu
   };
 }
 
+/** On a scent, over whatever else it is doing: its nose down to the ground, snuffling, and casting a little from side to side as it goes. */
+function onScent(posture: Posture, nose: number, time: number): Posture {
+  const down = smooth(nose);
+  if (down <= 0) return posture;
+  return {
+    ...posture,
+    neckPitch: posture.neckPitch + 0.95 * down,
+    headPitch: posture.headPitch + 0.32 * down + Math.sin(time * 19) * 0.04 * down,
+    headYaw: posture.headYaw * (1 - down) + Math.sin(time * 2.3) * 0.22 * down,
+    headRoll: posture.headRoll * (1 - down),
+    jaw: posture.jaw * (1 - down),
+    tongue: posture.tongue * (1 - down),
+  };
+}
+
 const wagRateOf = (input: DogMotionInput) => 13 + input.personality.playfulness * 3;
 
 /** The idle's occasional movements, laid over any posture. */
@@ -375,7 +393,7 @@ export function dogPose(input: DogMotionInput): Pose {
     lie: () => lie(frame),
   };
   const blended = blendedPosture(postures, input.activity, input.previous, input.time, input.since, 0.016);
-  const posture = atPlay(fidget(greet(blended, input, smooth(input.greeting)), input), input.play ?? NOT_PLAYING, frame);
+  const posture = onScent(atPlay(fidget(greet(blended, input, smooth(input.greeting)), input), input.play ?? NOT_PLAYING, frame), input.nose ?? 0, input.time);
   const gaitBob = GAITS.includes(input.activity) ? Math.sin((input.travelled / 0.3) * Math.PI * 2) : 0;
   return solvePose(posture, input.rig, {
     time: input.time,

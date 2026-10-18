@@ -44,6 +44,7 @@ import { Interactions } from "./interactions";
 import { ConversationOverlay, useTalkingOn } from "./conversation-overlay";
 import { JournalOverlay } from "./journal-overlay";
 import { createMysteries } from "./mysteries";
+import { createCompanionClues } from "./companion-clues";
 import { MysteryOverlay, useExaminingOn } from "./mystery-overlay";
 import { createPeople } from "./people";
 import { WorldClues } from "./world-clues";
@@ -131,6 +132,7 @@ export function WorldView() {
   const fetching = useMemo(() => createFetching(world, companionship), [world, companionship]);
   const folkPalette = useMemo(() => readFolkPalette(), []);
   const mysteries = useMemo(() => createMysteries(world, people), [world, people]);
+  const companionClues = useMemo(() => createCompanionClues(mysteries, companionship), [mysteries, companionship]);
   const cluePalette = useMemo(() => readCluePalette(), []);
   const shared = useMemo(() => {
     // A walk starts beside camp, wherever it was left: by its fire, or where it was packed up.
@@ -211,10 +213,10 @@ export function WorldView() {
         <WorldHearth hearth={hearth} foraging={foraging} companionship={companionship} walker={walker} input={input.state} clock={clock} palette={dishPalette} brewPalette={brewPalette} atmosphere={atmosphere} outbid={() => people.candidate !== null || mysteries.candidate !== null || fetching.candidate !== null} />
         <WorldCharms hearth={hearth} world={world} clock={clock} walker={walker} weather={weather} palette={palette} brewPalette={brewPalette} atmosphere={atmosphere} sky={sky} />
         <WorldPeople people={people} world={world} clock={clock} walker={walker} input={input.state} foraging={foraging} companionship={companionship} hearth={hearth} palette={folkPalette} atmosphere={atmosphere} outbid={() => mysteries.candidate !== null || fetching.candidate !== null} />
-        <WorldClues mysteries={mysteries} people={people} clock={clock} walker={walker} input={input.state} foraging={foraging} companionship={companionship} hearth={hearth} palette={cluePalette} atmosphere={atmosphere} outbid={() => fetching.candidate !== null} />
+        <WorldClues mysteries={mysteries} companionClues={companionClues} people={people} clock={clock} walker={walker} input={input.state} foraging={foraging} companionship={companionship} hearth={hearth} palette={cluePalette} atmosphere={atmosphere} outbid={() => fetching.candidate !== null} />
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} camping={camping} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
-        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} wildlife={wildlife} people={people} mysteries={mysteries} fetching={fetching} costs={debug.costs} setPointOfView={input.setPointOfView} />
+        <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} wildlife={wildlife} people={people} mysteries={mysteries} companionClues={companionClues} fetching={fetching} costs={debug.costs} setPointOfView={input.setPointOfView} />
       </Canvas>
       {!cooking && !talking && !examining && <WalkHints input={input} />}
       <ForageOverlay foraging={foraging} hearth={hearth} clock={clock} input={input.kind} />

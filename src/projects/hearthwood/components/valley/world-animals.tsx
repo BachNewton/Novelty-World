@@ -243,6 +243,7 @@ export function stepAnimals(
     companionship.time += dt;
     const time = companionship.time;
     companionship.play?.step(time, dt);
+    companionship.help?.step(time, dt, leader);
     for (const animal of all) {
       const ground = animalGround(world, animal.species);
       const obstacles: Obstacle[] = [
@@ -355,6 +356,8 @@ export function stepAnimals(
           stepCompanion(animal.body, animal.follow, ofSpecies(animal.nature), context, dt);
         } else if (animal.ride && rideAlong(animal, animal.ride, leader, d, time, dt)) {
           // In the basket, or hopping in or out of it: carried, not walking.
+        } else if (companionship.help?.animal(animal, { elliott, time, seconds: dt, ground, obstacles })) {
+          // Off to a clue: the noticing steps it.
         } else {
           const index = following.indexOf(animal);
           stepCompanion(
@@ -441,7 +444,7 @@ function LookBody({ look, clock, atmosphere, held }: { look: AnimalLook; clock: 
     case "cat":
       return <CatBody cat={look.cat} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
     case "dog":
-      return <DogBody dog={look.dog} activity={look.drive.current.activity} drive={look.drive} play={look.play.read} held={held === undefined ? undefined : { bone: "jaw", children: held }} clock={clock} atmosphere={atmosphere} />;
+      return <DogBody dog={look.dog} activity={look.drive.current.activity} drive={look.drive} play={look.play.read} nose={look.nose.read} held={held === undefined ? undefined : { bone: "jaw", children: held }} clock={clock} atmosphere={atmosphere} />;
     case "fox":
       return <FoxBody fox={look.fox} activity={look.drive.current.activity} drive={look.drive} clock={clock} atmosphere={atmosphere} />;
     case "hedgehog":
