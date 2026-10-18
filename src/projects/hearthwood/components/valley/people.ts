@@ -18,6 +18,7 @@ import {
   rememberTone,
   saveFolk,
   talkFor,
+  type CaseView,
   type Conversation,
   type FolkMemory,
   type Having,
@@ -75,6 +76,8 @@ export interface Talking {
   conversation: Conversation;
   /** The person's line showing: the page's, or their answer to Elliott's choice. */
   line: string;
+  /** What Elliott says first on this page, laying out a mystery's reasoning, or null. */
+  lead: string | null;
   /** What Elliott said on this page, once a choice was made. */
   said: { tone: Tone; text: string } | null;
   /** The choices waiting to be made, or null. */
@@ -84,6 +87,8 @@ export interface Talking {
   given: Given | null;
   /** What this talk gave Elliott, shown on its last page. */
   gifts: readonly Gift[];
+  /** How many clues this talk told Elliott for the casebook. */
+  noted: number;
   /** How many talks have opened, so the panel can show each arriving. */
   opened: number;
 }
@@ -117,6 +122,8 @@ export interface People {
   shown: PeopleShown;
   listeners: Set<() => void>;
   opened: number;
+  /** How Elliott's cases stand, given by the mysteries: a person's case for their talk to be chosen by, and hearing the clues a talk tells. */
+  cases: { view: (id: string) => CaseView | undefined; heard: (id: string, story: string, clues: readonly string[]) => void } | null;
 }
 
 /** A lost animal wanders this far from its person at most, in metres: how far round a point to look for them. */
@@ -142,6 +149,7 @@ export function createPeople(world: World, foraging: Foraging, hearth: Hearth, c
     shown: { offer: null, talking: null, journal: false, memory: loadFolk() },
     listeners: new Set(),
     opened: 0,
+    cases: null,
   };
   companionship.moreStrays = {
     near: (x, z, radius) => lostAnimalsNear(people, x, z, radius),
@@ -241,7 +249,7 @@ export function havingFor(people: People, person: Person): Having {
   const companion = pet ? companionOf(companionship, pet.id) : null;
   const animal = pet ? companionship.animals.get(pet.id) : undefined;
   const petHere = companion?.following === true && animal !== undefined && Math.hypot(animal.body.x - person.x, animal.body.z - person.z) < BROUGHT_BACK;
-  return { basket: people.foraging.foraged.basket, larder: people.hearth.shown.larder, petHere };
+  return { basket: people.foraging.foraged.basket, larder: people.hearth.shown.larder, petHere, case: people.cases?.view(person.id) };
 }
 
 /** What the braces in a person's texts are filled with. */
@@ -264,13 +272,14 @@ function valuesFor(people: People, live: PersonLive): Parameters<typeof fill>[1]
   return values;
 }
 
-function spokenOf(people: People, live: PersonLive, conversation: Conversation, pages: readonly Page[]): Pick<Talking, "line" | "said" | "choices" | "last"> {
+function spokenOf(people: People, live: PersonLive, conversation: Conversation, pages: readonly Page[]): Pick<Talking, "line" | "lead" | "said" | "choices" | "last"> {
   const values = valuesFor(people, live);
   const page = pages[conversation.page];
   const chose = conversation.chose === null ? null : (page.choices?.find((c) => c.tone === conversation.chose) ?? null);
   const waiting = awaitsChoice(conversation, pages);
   return {
     line: fill(chose ? chose.reply : page.say, values),
+    lead: page.lead === undefined || chose ? null : fill(page.lead, values),
     said: chose ? { tone: chose.tone, text: fill(chose.say, values) } : null,
     choices: waiting ? (page.choices ?? []).map((c) => ({ tone: c.tone, text: fill(c.say, values) })) : null,
     last: !waiting && conversation.page === pages.length - 1,
@@ -316,6 +325,7 @@ function open(people: People, live: PersonLive): void {
   const opened = openTalk(memoryOf(people), speakerOf(live.person), havingFor(people, live.person));
   hand(people, live, opened.taking, opened.keepsPet);
   saveFolk(opened.memory);
+  if (storyOf(live.person.story).kind === "mystery") people.cases?.heard(live.person.id, live.person.story, opened.testimony);
   const conversation = beginConversation(live.person.id, opened.talk);
   people.shown = { ...people.shown, memory: opened.memory };
   const pages = pagesOf(storyOf(live.person.story), opened.talk, tone);
@@ -333,6 +343,7 @@ function open(people: People, live: PersonLive): void {
       ...spokenOf(people, live, conversation, pages),
       given: givenOf(people, live, opened.taking, opened.keepsPet),
       gifts: giftsOf(storyOf(live.person.story), opened.talk),
+      noted: opened.testimony.length,
       opened: people.opened,
     },
   });

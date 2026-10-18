@@ -15,7 +15,7 @@ import { KEEPSAKES, talksOf, TONES, type Page, type Story } from "./story";
  */
 
 /** How long a line may be once filled, in characters: what the panel shows without scrolling on the phone. */
-const LONGEST = { say: 160, choice: 36, reply: 120, greet: 110 } as const;
+const LONGEST = { say: 160, lead: 120, choice: 36, reply: 120, greet: 110 } as const;
 
 /** The longest each brace can come out, so a filled text is measured at its worst. */
 const longest = {
@@ -47,6 +47,7 @@ function textsOf(story: Story): { talk: string; kind: keyof typeof LONGEST; text
   for (const [talk, { pages }] of Object.entries(talksOf(story))) {
     for (const page of pages as readonly Page[]) {
       out.push({ talk, kind: "say", text: page.say });
+      if (page.lead !== undefined) out.push({ talk, kind: "lead", text: page.lead });
       for (const c of page.choices ?? []) out.push({ talk, kind: "choice", text: c.say }, { talk, kind: "reply", text: c.reply });
     }
   }
@@ -63,6 +64,7 @@ describe("the story library", () => {
     expect(new Set(STORIES.map((s) => s.id)).size).toBe(STORIES.length);
     expect(STORIES.filter((s) => s.kind === "help").length).toBeGreaterThanOrEqual(4);
     expect(STORIES.filter((s) => s.kind === "talk").length).toBeGreaterThanOrEqual(3);
+    expect(STORIES.filter((s) => s.kind === "mystery").length).toBeGreaterThanOrEqual(2);
   });
 
   it("gives every role in the world a story, and every story someone the world places to carry it", () => {

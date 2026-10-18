@@ -14,7 +14,8 @@ import { lumpy, paint, type Piece } from "./painted";
  * corners and window frames under a turf roof; a herder's canvas tent on its
  * poles; a stone to sit on. And the keepsakes Elliott is given, set out at
  * camp: a jar of heather honey, a little carved pike, a felted reindeer, a
- * piece of sea glass, a rowan seedling with its berries, a brass compass.
+ * piece of sea glass, a rowan seedling with its berries, a brass compass,
+ * a reading glass and a tweed deerstalker for the mysteries solved.
  */
 
 const at = (g: BufferGeometry, x: number, y: number, z: number) => g.translate(x, y, z);
@@ -307,5 +308,37 @@ export function keepsakeShape(keepsake: Keepsake, palette: FolkPalette): BufferG
         { geometry: at(new BoxGeometry(0.012, 0.006, 0.09), 0, 0.038, 0), colour: p.red },
         { geometry: at(new TorusGeometry(0.02, 0.006, 4, 8), 0, 0.03, 0.085), colour: p.brass },
       ]);
+    case "magnifying-glass": {
+      const rim = new TorusGeometry(0.065, 0.012, 6, 20);
+      rim.rotateX(Math.PI / 2);
+      const lens = new CylinderGeometry(0.062, 0.062, 0.008, 18);
+      const handle = new CylinderGeometry(0.016, 0.019, 0.13, 8);
+      handle.rotateX(Math.PI / 2);
+      return paint([
+        { geometry: at(rim, 0, 0.014, 0.05), colour: p.brass, shading: 0.3 },
+        { geometry: at(lens, 0, 0.012, 0.05), colour: p["sea-glass"].clone().lerp(p.paper, 0.4) },
+        { geometry: at(handle, 0, 0.018, -0.09), colour: p.wood, shading: 0.3 },
+        { geometry: at(new SphereGeometry(0.02, 8, 6), 0, 0.018, -0.16), colour: p.wood },
+      ]);
+    }
+    case "deerstalker": {
+      const tweed = p.brown.clone().lerp(p.oat, 0.35);
+      const crown = new SphereGeometry(0.1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+      crown.scale(1, 0.8, 1.08);
+      const pieces: Piece[] = [{ geometry: at(crown, 0, 0.02, 0), colour: tweed, shading: 0.35 }];
+      for (const side of [-1, 1]) {
+        const peak = new CylinderGeometry(0.075, 0.075, 0.012, 14, 1, false, 0, Math.PI);
+        peak.rotateY(side > 0 ? -Math.PI / 2 : Math.PI / 2);
+        peak.scale(1.15, 1, 0.7);
+        pieces.push({ geometry: at(peak, 0, 0.024, side * 0.085), colour: tweed.clone().multiplyScalar(0.92) });
+        const flap = new SphereGeometry(0.03, 8, 6);
+        flap.scale(0.4, 1, 1.2);
+        pieces.push({ geometry: at(flap, side * 0.1, 0.05, 0), colour: tweed.clone().multiplyScalar(0.88) });
+      }
+      // The flaps tied up over the crown, with a little bow.
+      pieces.push({ geometry: at(new SphereGeometry(0.016, 6, 4), -0.012, 0.1, 0), colour: p.charcoal });
+      pieces.push({ geometry: at(new SphereGeometry(0.016, 6, 4), 0.012, 0.1, 0), colour: p.charcoal });
+      return paint(pieces);
+    }
   }
 }
