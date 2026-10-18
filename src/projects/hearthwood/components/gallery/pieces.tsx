@@ -129,7 +129,7 @@ const SMALL_SIZE: Record<Exclude<PlantKind, TreeKind>, number> = { bush: 1.3, he
 function plantOf(kind: PlantKind, variant: number): Plant {
   const tree = (TREE_KINDS as readonly PlantKind[]).includes(kind);
   const size = tree ? TREE_HEIGHT[kind as TreeKind] : SMALL_SIZE[kind as Exclude<PlantKind, TreeKind>];
-  return { kind, x: 0, y: 0, z: 0, size, stretch: 1, turn: variant * 2.1, lean: 0, leanToward: 0, tint: 0, variant };
+  return { kind, x: 0, y: 0, z: 0, size, stretch: 1, turn: variant * 2.1, lean: 0, leanToward: 0, tint: 0, variant, bands: 0 };
 }
 
 /** One plant of a design, drawn as an instance so it sways in the breeze as it does in the world. */

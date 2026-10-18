@@ -314,7 +314,11 @@ export function seasonGroupOf(kind: PlantKind, variant: number): SeasonGroup {
 
 /** The ground's season. */
 export interface GroundSeason {
-  /** Where seasonal snow lies from, in metres: below the land in deep winter, above the high snowfields in summer (which stay all year regardless). */
+  /**
+   * Where seasonal snow lies from, in metres against the bands (ALTITUDE's altitudes, which the land shifts by place, so a
+   * spot's own line is this plus `LandSample.bands`): below the whole land in deep winter, wherever its bands sit, and
+   * above the high snowfields in summer (which stay all year regardless).
+   */
   snowLine: number;
   /** Last year's flattened, straw-coloured grass, after the snow and before the new green, and again in late autumn. */
   dormant: number;
@@ -328,9 +332,13 @@ export interface GroundSeason {
   ice: number;
 }
 
-/** How far the snow line moves through the year: down the mountains in autumn, below everything all winter, and up again in spring's melt. */
+/**
+ * How far the snow line moves through the year, against the bands: down the mountains in autumn, below everything all
+ * winter, and up again in spring's melt. Winter's line lies deep enough that even the lowlands under the highest bands
+ * (folded country in a warm climate) are under snow, with its soft edge and wander.
+ */
 export const SNOW_LINE: Curve = [
-  [d(3, 1), -300],
+  [d(3, 1), -520],
   [d(3, 24), 90],
   [d(4, 12), ALTITUDE.treeline * 0.55],
   [d(4, 28), ALTITUDE.treeline + 40],
@@ -341,7 +349,7 @@ export const SNOW_LINE: Curve = [
   [d(10, 28), ALTITUDE.rock - 30],
   [d(11, 12), ALTITUDE.treeline - 50],
   [d(11, 25), 120],
-  [d(12, 5), -300],
+  [d(12, 5), -520],
 ];
 
 const GROUND: Record<Exclude<keyof GroundSeason, "snowLine">, Curve> = {

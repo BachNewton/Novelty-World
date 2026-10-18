@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CALENDAR, dateAt, secondsPerDay, timeOf } from "./calendar";
+import { CALENDAR, dateAt, parseDate, secondsPerDay, timeOf } from "./calendar";
 import { REGIONS } from "./regions";
 import { groundSeason } from "./seasons";
 import { dailySwing, holdWeather, makeLightning, makeWeather, mistHour, parseWeather, seasonalTemperature, WEATHER_KINDS, type Weather } from "./weather";
@@ -149,5 +149,15 @@ describe("the weather with height", () => {
     // Deep in winter the snow lies everywhere, so whatever falls is snow.
     const winter = timeOf(23, 12);
     expect(sky.at(winter, undefined, 50).snow).toBe(1);
+  });
+
+  it("snows where the season's snow lies against the land's shift of the bands", () => {
+    // Early April at 300 m, while the snow line is up about the lower woods: the snow still lies there on a fell, whose bands
+    // sit far below their usual altitudes, so snow falls; where the bands sit as usual it falls only if the air is cold
+    // enough, as it would where they sit higher still.
+    const t = timeOf(parseDate("spring-4"), 12);
+    expect(sky.at(t, undefined, 300, -480).snow).toBe(1);
+    expect(sky.at(t, undefined, 300, 0).snow).toBe(sky.at(t, undefined, 300, 400).snow);
+    expect(sky.at(t, undefined, 300, 0).snow).toBeLessThan(1);
   });
 });
