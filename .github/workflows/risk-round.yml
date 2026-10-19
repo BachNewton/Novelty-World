@@ -23,6 +23,9 @@ on:
       min_round:
         type: number
         required: true
+      max_parallel:
+        type: number
+        required: true
     outputs:
       done:
         description: Whether the run needs no more games after the rounds so far.
@@ -80,6 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     strategy:
+      max-parallel: ${{ inputs.max_parallel }}
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     steps:

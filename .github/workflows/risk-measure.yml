@@ -29,6 +29,10 @@ on:
         description: The fewest games a gauntlet pairing plays in a round
         type: number
         default: 600
+      max_parallel:
+        description: The most machines this run plays on at once. Below 20, another run can play beside it
+        type: number
+        default: 20
 
 run-name: "risk:${{ inputs.tool }} ${{ inputs.args }}"
 
@@ -45,6 +49,7 @@ jobs:
       args: ${{ inputs.args }}
       shards: ${{ fromJSON(inputs.shards) }}
       min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
   round2:
     needs: round1
@@ -57,6 +62,7 @@ jobs:
       args: ${{ inputs.args }}
       shards: ${{ fromJSON(inputs.shards) }}
       min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
   round3:
     needs: round2
@@ -69,6 +75,7 @@ jobs:
       args: ${{ inputs.args }}
       shards: ${{ fromJSON(inputs.shards) }}
       min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
   round4:
     needs: round3
@@ -81,6 +88,7 @@ jobs:
       args: ${{ inputs.args }}
       shards: ${{ fromJSON(inputs.shards) }}
       min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
   round5:
     needs: round4
@@ -93,6 +101,7 @@ jobs:
       args: ${{ inputs.args }}
       shards: ${{ fromJSON(inputs.shards) }}
       min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
   round6:
     needs: round5
@@ -105,6 +114,7 @@ jobs:
       args: ${{ inputs.args }}
       shards: ${{ fromJSON(inputs.shards) }}
       min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
   round7:
     needs: round6
@@ -117,6 +127,7 @@ jobs:
       args: ${{ inputs.args }}
       shards: ${{ fromJSON(inputs.shards) }}
       min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
   round8:
     needs: round7
@@ -129,6 +140,7 @@ jobs:
       args: ${{ inputs.args }}
       shards: ${{ fromJSON(inputs.shards) }}
       min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
   # Every round that ran succeeded and the rest were skipped because the run was
   # decided. If the last round left games unplayed, the report fails loudly naming one.

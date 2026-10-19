@@ -22,6 +22,7 @@ The inputs:
 - **args**: the tool's own arguments. `--workers` makes no difference here: each machine uses all its cores.
 - **shards**: the most machines a round is split across. 20 by default, which is as many jobs as GitHub runs at once on a free account.
 - **min_round**: the fewest games an undecided gauntlet pairing plays in a round. 600 by default.
+- **max_parallel**: the most machines this run plays on at once. 20 by default, which is all of them. GitHub's twenty are shared by every run on the account, so a run started while another is playing waits behind all of that run's jobs. With two runs, give each 10 and both keep moving: together they take about as long, but a gauntlet's next round no longer waits out a whole ladder. A capped run's shards beyond the cap wait their turn inside the run, so the cap changes only when games play, never what they are.
 
 Every run of the same arguments plays the same games, so a run can be repeated, or its result checked against a local run, at any time.
 
@@ -82,7 +83,7 @@ Within a round, the page shows the round's starting point, not each game: the ma
 
 ## Limits
 
-- **Twenty machines at once, 4 virtual cores each.** That is 80 workers against the laptop's 15, though a runner's core may be slower than the laptop's. Each run's record shows the speed it got.
+- **Twenty machines at once, 4 virtual cores each, across every run on the account.** That is 80 workers against the laptop's 15, though a runner's core may be slower than the laptop's. Each run's record shows the speed it got. Every runner label (other Ubuntu versions, ARM, Windows) draws on the same twenty, so changing the label adds none.
 - **Six hours per job.** A round's share per machine must fit. A machine plays about a twentieth of a round. Even the largest round of a pairing at its cap, about 22,000 6-player games of v5, takes well under that.
 - **Each round costs a few minutes of start-up**: installing the packages and moving the games between jobs. A gauntlet of fast bots plays quicker on the laptop. Actions pays off on long runs.
 
