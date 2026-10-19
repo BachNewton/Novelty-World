@@ -485,3 +485,27 @@ The tune proposes; a gauntlet of the tuned vector against v4 on v3's preferences
 | gd-defensive | better | better | better | better |
 
 Win Elo (rule-v4 = 0): tuned +25.9, rule-v3 −10.1. The gauntlet's own gate printed REJECT (one table even), but by the seating bar (better somewhere, worse nowhere) it wins, and the weak bot is beaten everywhere, so the old v4's give-back isn't there. **Decision: the tuned vector is v4's small-table preferences**, and so v5's, which reads v4's.
+## v4 and v5 gauntleted against v3 and the weak bots (2026-10-19)
+
+Both on the retuned small-table preferences above, 15 workers. Verdicts against v3 at each table (±30 Elo, α = β = 0.05):
+
+| Table | v4 train | v4 holdout | v5 train |
+|---|---|---|---|
+| 3p one-in | even (33.1%) | better (36.2%) | better (42.2%) |
+| 3p one-out | better (69.6%) | better (69.7%) | better (76.7%) |
+| 4p one-in | better (32.5%) | better (31.0%) | better (34.9%) |
+| 4p one-out | better (78.9%) | better (78.9%) | better (82.2%) |
+| 6p one-in | better (27.5%) | better (27.1%) | better (24.4%) |
+| 6p one-out | better (92.3%) | better (94.4%) | better (88.2%) |
+
+v5 against v4: better at both 3- and 4-player tables in both mixtures, even at 6 players (16.7% and 83.1%, on par to the decimal). Every pairing against gd-defensive, gd-stacker and greedy, at every table and in both mixtures, was better for both bots, so neither gives back to the weak bots what the old v4 did.
+
+| Run | Games | Wall time | Win Elo (v3 = 0) | Finishing-order Elo (v3 = 0) | Gate |
+|---|---|---|---|---|---|
+| v4, train | 13,980 | 35 min | v4 +36.7 | v4 +24.4 | REJECT (one table even) |
+| v4, holdout | 14,580 | 32 min | v4 +39.8 | v4 +22.0 | ACCEPT |
+| v5, train | 15,520 | 3.4 h | v5 +88.5, v4 +74.9 | v4 +51.2, v5 +33.3 | ACCEPT |
+
+v5's run took six times v4's: its 6-player pairings against v4 needed over 1,400 decisive games each to call even, and over 850 games of one of them hit the turn cap. v5 ranks above v4 by who wins but below it by finishing order, the mark of an all-or-nothing style: it wins more and, when it loses, goes out earlier. The two runs' Elo for v4 differ (+37 against +75) because each fit is anchored by its own field's games; only the ladder puts them on one scale.
+
+**By the seating bar** (better than v3 at some table, worse at none, and no lower than v3 on the ladder), v4 passes the gauntlet half on both seed sets. v5 passes it on train, and beats v4 where the two differ. Not yet run: v5's holdout gauntlet (started and stopped part way, so it left no record) and the ladder, which decides the bar's last part for both and whether v5 is worth keeping over v4.
