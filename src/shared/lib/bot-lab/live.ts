@@ -30,9 +30,50 @@ export function memorySink(): LiveSink & { rows: LiveRowWrite[] } {
 
 const round = (x: number, places: number) => Math.round(x * 10 ** places) / 10 ** places;
 
+/** How long a remote run's row may stay quiet between rounds (`remote.ts`): long enough
+ *  for the next round's machines to start, and short enough that a run whose workflow
+ *  died shows as lost within the quarter-hour. */
+export const ROUND_QUIET_MS = 15 * 60 * 1000;
+
+/** `row`, announcing a quiet between rounds from `nowMs`. */
+export function quietRow(row: LiveRowWrite, nowMs: number): LiveRowWrite {
+  return { ...row, progress: { ...row.progress, quietUntil: new Date(nowMs + ROUND_QUIET_MS).toISOString() } };
+}
+
+/** Keeps a remote run's row as its round's plan left it alive while this machine plays
+ *  its share, and announces the quiet before the next round as it stops. */
+export class RowBeat {
+  private readonly heartbeat: NodeJS.Timeout;
+  private writes: Promise<void>;
+  private readonly row: LiveRowWrite;
+
+  constructor(
+    private readonly sink: LiveSink,
+    row: LiveRowWrite,
+  ) {
+    const progress = { ...row.progress };
+    delete progress.quietUntil;
+    this.row = { ...row, progress };
+    this.writes = this.write(this.row);
+    this.heartbeat = setInterval(() => (this.writes = this.writes.then(() => this.write(this.row))), HEARTBEAT_MS);
+    this.heartbeat.unref();
+  }
+
+  private write(row: LiveRowWrite): Promise<void> {
+    return this.sink.write(row).catch((e: unknown) => {
+      console.error(`  Live page: a write failed (${(e as Error).message}); the shard plays on.`);
+    });
+  }
+
+  async stop(): Promise<void> {
+    clearInterval(this.heartbeat);
+    this.writes = this.writes.then(() => this.write(quietRow(this.row, Date.now())));
+    await this.writes;
+  }
+}
+
 /** A run being recorded (its `RunLog`) and published to `sink`, or only recorded when there is no sink. */
 export class LiveReporter {
-  readonly id = randomUUID();
   private readonly steps: LiveStep[] = [];
   private fraction: () => number | null = () => null;
   private status: RunStatus = "running";
@@ -48,6 +89,8 @@ export class LiveReporter {
     private readonly sink: LiveSink | null,
     private readonly log: RunLog,
     private readonly game: string,
+    /** The row's id: a new run's own, or the id of the remote run (`remote.ts`) it ends. */
+    readonly id: string = randomUUID(),
   ) {
     this.unhookStop = onRunStop(() => this.end("stopped", {}, this.log.stop()));
     if (sink === null) return;
@@ -86,6 +129,24 @@ export class LiveReporter {
     const record = this.log.finish();
     await this.end("done", result, record);
     return record;
+  }
+
+  /** Hands a remote run (`remote.ts`) on to its next round's machines: writes its row
+   *  announcing the quiet between rounds, and returns it for them to keep alive. The run
+   *  stays running, and its record is left to the run that ends it. */
+  async handOff(): Promise<LiveRowWrite | null> {
+    if (this.status !== "running") throw new Error(`the run has already ended (${this.status})`);
+    this.unhookStop();
+    this.log.discard();
+    if (this.heartbeat !== null) clearInterval(this.heartbeat);
+    if (this.pending !== null) clearTimeout(this.pending);
+    this.pending = null;
+    const sink = this.sink;
+    if (sink === null) return null;
+    const row = quietRow(this.row(), Date.now());
+    this.writes = this.writes.then(() => sink.write(row));
+    await this.writes;
+    return row;
   }
 
   /** Ends a run that threw; nothing for one that has already ended. */

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { GameRunner } from "@/shared/lib/bot-lab/pool";
-import { createRng } from "@/shared/lib/seeded-random";
 import { gauntletTables, runRiskGauntlet, type RiskGauntletOptions } from "./gauntlet";
 import { fitElo, pairsFromFinishes, pairsFromWinner, type PairResult } from "@/shared/lib/bot-lab/elo";
 import { finishesOf, outcomeFor, tableSpecs } from "./parallel";
 import { ladderMatchups, playLadder, type LadderCache, type MatchupGames, type MatchupRecord } from "./ratings";
 import type { RiskGameResult, RiskGameSpec } from "./runner";
+import { fakeGame } from "./fake-game";
 
 // The gauntlet and the ladder play many tables through the pool at once. What they
 // report must not depend on that: a stand-in game (a pure function of its seed and
@@ -13,20 +13,6 @@ import type { RiskGameResult, RiskGameSpec } from "./runner";
 // call at a time, and through one that finishes concurrent calls in a scrambled
 // order, and the reports must match. The ladder's cache must change nothing either,
 // only which matchups are played.
-
-const STRENGTH: Readonly<Record<string, number>> = { cand: 1.6, base: 1, other: 0.8 };
-
-function fakeGame(spec: RiskGameSpec): RiskGameResult {
-  const rng = createRng(`${spec.seed}|${spec.labels.join(",")}`);
-  const n = spec.labels.length;
-  const base = { index: spec.index, seed: spec.seed, labels: spec.labels, turns: 30 + Math.floor(rng.next() * 40), decisions: 300 };
-  if (rng.next() < 0.05) return { ...base, winner: null, places: spec.labels.map(() => 1) };
-  const weights = spec.labels.map((l) => STRENGTH[l]);
-  let pick = rng.next() * weights.reduce((s, w) => s + w, 0);
-  const winner = weights.findIndex((w) => (pick -= w) < 0);
-  const rest = Array.from({ length: n - 1 }, (_, k) => k + 2).sort(() => rng.next() - 0.5);
-  return { ...base, winner, places: spec.labels.map((_, seat) => (seat === winner ? 1 : (rest.pop() ?? n))) };
-}
 
 /** One call at a time, in the order they were made. */
 function serialRunner(): GameRunner<RiskGameSpec, RiskGameResult> {

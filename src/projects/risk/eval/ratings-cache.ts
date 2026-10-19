@@ -57,14 +57,41 @@ function keyOf(g: MatchupGames): string {
   return `${g.seeds} ${g.groups.toString()}g ${g.maxTurns.toString()}t`;
 }
 
-function read(): Record<string, Entry> {
+function read(file = CACHE_FILE): Record<string, Entry> {
   try {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- the cache file beside this module, a fixed path in this repo
-    return (JSON.parse(readFileSync(CACHE_FILE, "utf8")) as { matchups: Record<string, Entry> }).matchups;
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- the cache file beside this module, or a run's copy of it
+    return (JSON.parse(readFileSync(file, "utf8")) as { matchups: Record<string, Entry> }).matchups;
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return {};
     throw e;
   }
+}
+
+/** Writes the cache as it is on disk with `added` merged in, dropping every record whose
+ *  code has changed or whose bots are gone. */
+function writeMerged(added: Readonly<Record<string, Entry>>): void {
+  const matchups: Record<string, Entry> = {};
+  for (const [key, entry] of Object.entries({ ...read(), ...added })) {
+    if (entry.code === codeOf(entry.tally.lone, entry.tally.rest)) matchups[key] = entry;
+  }
+  // A line a matchup, so a run's diff reads as the matchups it played.
+  const lines = Object.entries(matchups)
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([key, entry]) => `  ${JSON.stringify(key)}: ${JSON.stringify(entry)}`);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the cache file beside this module, a fixed path in this repo
+  writeFileSync(CACHE_FILE, `{\n"matchups": {\n${lines.join(",\n")}\n}\n}\n`);
+}
+
+/** Merges into the cache the records of another copy of it (a remote run's), keeping
+ *  those whose code this checkout still has. Returns how many records it took. */
+export function mergeLadderCache(file: string): number {
+  const ours = read();
+  const theirs = read(file);
+  const added = Object.fromEntries(
+    Object.entries(theirs).filter(([key, entry]) => !(Object.hasOwn(ours, key) && ours[key].code === entry.code) && entry.code === codeOf(entry.tally.lone, entry.tally.rest)),
+  );
+  writeMerged(added);
+  return Object.keys(added).length;
 }
 
 /** The cache on disk. Each new record is written at once, merged into the file as it is
@@ -80,16 +107,7 @@ export function fileLadderCache(): LadderCache {
     set(games, record) {
       const code = codeOf(games.lone, games.rest);
       if (code === null) return;
-      const matchups: Record<string, Entry> = {};
-      for (const [key, entry] of Object.entries({ ...read(), [keyOf(games)]: { ...record, code } })) {
-        if (entry.code === codeOf(entry.tally.lone, entry.tally.rest)) matchups[key] = entry;
-      }
-      // A line a matchup, so a run's diff reads as the matchups it played.
-      const lines = Object.entries(matchups)
-        .sort(([a], [b]) => (a < b ? -1 : 1))
-        .map(([key, entry]) => `  ${JSON.stringify(key)}: ${JSON.stringify(entry)}`);
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- the cache file beside this module, a fixed path in this repo
-      writeFileSync(CACHE_FILE, `{\n"matchups": {\n${lines.join(",\n")}\n}\n}\n`);
+      writeMerged({ [keyOf(games)]: { ...record, code } });
     },
   };
 }

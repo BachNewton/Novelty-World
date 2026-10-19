@@ -1,12 +1,33 @@
+import os from "node:os";
 import process from "node:process";
 import { RISK_BOTS } from "../bots";
 import RATINGS from "../bots/ratings.json";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
 import { dualVerdict, sprtBounds } from "@/shared/lib/bot-lab/sprt";
-import { checkBots, commonDefaults, commonFlag, formats, list, number, riskRun, type CommonArgs } from "./cli-args";
-import { formatRiskGauntlet, formatTable, gauntletTables, runRiskGauntlet, type RiskGauntletProgress } from "./gauntlet";
+import {
+  checkBots,
+  commonDefaults,
+  commonFlag,
+  formats,
+  list,
+  number,
+  remoteDefaults,
+  remoteFlag,
+  riskRun,
+  type CommonArgs,
+  type RemoteArgs,
+} from "./cli-args";
+import {
+  formatRiskGauntlet,
+  formatTable,
+  gauntletTables,
+  planRiskGauntlet,
+  runRiskGauntlet,
+  type RiskGauntletProgress,
+} from "./gauntlet";
 import { candidateSeats, FORMATS, riskPool, type Format } from "./parallel";
 import { fileLadderCache } from "./ratings-cache";
+import { formatRoundPlan, remoteGames, writeRoundPlan } from "./remote";
 
 /** `npm run risk:gauntlet` — a candidate against the field at each table size in
  *  both mixtures, each pairing an SPRT on win share against par, then a
@@ -20,6 +41,12 @@ import { fileLadderCache } from "./ratings-cache";
  *    npm run risk:gauntlet -- cand-v2 --players 6 --formats one-in
  *    npm run risk:gauntlet -- cand-v2 --prefix holdout       # confirm on unseen seeds
  *    npm run risk:gauntlet -- cand-v2 --margin 30 --alpha 0.05 --beta 0.05 --max 20000
+ *    npm run risk:gauntlet -- cand-v2 --games-from games --plan plan.json   # plan a remote round
+ *    npm run risk:gauntlet -- cand-v2 --games-from games                    # report a remote run
+ *
+ *  With `--games-from`, the games come from a remote run's shards (`remote.ts`) and none
+ *  are played here; with `--plan` too, it writes the next round's games instead of a
+ *  report. The project's docs say how a run plays on GitHub Actions.
  *
  *  The field defaults to every registered bot except the candidate and `random`,
  *  the sanity floor, which is never in a field (it plays only when named); the
@@ -27,7 +54,7 @@ import { fileLadderCache } from "./ratings-cache";
  *  (`bots/ratings.json`): a candidate is measured against the strongest bot, whatever it
  *  descends from. */
 
-interface Args extends CommonArgs {
+interface Args extends CommonArgs, RemoteArgs {
   candidate: string;
   base?: string;
   field?: string[];
@@ -44,6 +71,7 @@ function parseArgs(argv: readonly string[]): Args {
   const positional: string[] = [];
   const a: Args = {
     ...commonDefaults("train"),
+    ...remoteDefaults(),
     candidate: "",
     formats: [...FORMATS],
     margin: 30,
@@ -53,7 +81,7 @@ function parseArgs(argv: readonly string[]): Args {
     fieldGroups: 50,
   };
   for (let i = 0; i < argv.length; i++) {
-    const used = commonFlag(a, argv, i);
+    const used = commonFlag(a, argv, i) || remoteFlag(a, argv, i);
     if (used > 0) {
       i += used - 1;
       continue;
@@ -105,6 +133,11 @@ async function main(): Promise<void> {
   checkBots([args.candidate, ...field]);
   if (field.length === 0) throw new Error("empty field: name the opponents with --field");
   const base = args.base ?? strongest(field);
+  const remote = args.gamesFrom === undefined ? null : remoteGames(args.gamesFrom);
+  if (args.plan !== undefined && remote === null) {
+    throw new Error("--plan needs --games-from: the directory of the games played so far, empty before the first round");
+  }
+  const workers = remote === null ? args.workers : (remote.shards[0]?.record.workers ?? os.cpus().length);
 
   console.log(
     `
@@ -116,7 +149,7 @@ Risk — gauntlet
 ` +
       `SPRT: ±${args.margin} Elo per seat (Luce par), α=${args.alpha}, β=${args.beta}, max ${args.maxDecisive} decisive/pairing
 ` +
-      `Seeds: "${args.prefix}:*"   Workers: ${args.workers}   Max turns: ${args.maxTurns}
+      `Seeds: "${args.prefix}:*"   Workers: ${workers}${remote === null ? "" : ` a machine, round ${(remote.rounds + 1).toString()}`}   Max turns: ${args.maxTurns}
 `,
   );
 
@@ -125,8 +158,8 @@ Risk — gauntlet
     bots: [args.candidate, ...field],
     tables: args.players.flatMap((n) => args.formats.map((f) => `${n.toString()}p ${f}`)),
     seeds: args.prefix,
-    workers: args.workers,
-  });
+    workers,
+  }, remote === null ? undefined : { id: remote.run.id, play: remote.play });
   // The pairings each count as one step of the run, however long their SPRT plays,
   // and the field's own games, whose number is fixed, as one more.
   const pairings = gauntletTables(field, args.players, args.formats).length;
@@ -160,26 +193,45 @@ Risk — gauntlet
     if (decided === p.total) fieldFrom = live.counts().games;
   };
 
-  const pool = live.watch(riskPool(args.workers), (r) => r.decisions);
+  const gauntlet = {
+    candidate: args.candidate,
+    base,
+    field,
+    players: args.players,
+    formats: args.formats,
+    prefix: args.prefix,
+    margin: args.margin,
+    alpha: args.alpha,
+    beta: args.beta,
+    maxDecisive: args.maxDecisive,
+    fieldGroups: args.fieldGroups,
+    fieldCache: fileLadderCache(),
+    maxTurns: args.maxTurns,
+  };
+
+  if (args.plan !== undefined && remote !== null) {
+    try {
+      const round = planRiskGauntlet(gauntlet, (spec) => remote.store.get(spec), args.minRound);
+      round.progress.forEach(onProgress);
+      const plan = writeRoundPlan(args.plan, remote, round.specs, await live.handOff(), args.shards);
+      console.log(formatRoundPlan(plan, args.plan));
+    } catch (e) {
+      await live.fail(e);
+      throw e;
+    }
+    return;
+  }
+
+  // A remote run's report reads its games a group at a time, so it asks for none past
+  // the stop point: those its rounds may not have played.
+  const pool = remote === null ? live.watch(riskPool(args.workers), (r) => r.decisions) : remote.store.runner();
   try {
     const report = await runRiskGauntlet({
-      candidate: args.candidate,
-      base,
-      field,
-      players: args.players,
-      formats: args.formats,
-      prefix: args.prefix,
-      margin: args.margin,
-      alpha: args.alpha,
-      beta: args.beta,
-      maxDecisive: args.maxDecisive,
-      fieldGroups: args.fieldGroups,
-      fieldCache: fileLadderCache(),
+      ...gauntlet,
       onFieldMatchup: (matchup, _, cached) => {
         if (cached) fieldCached += args.fieldGroups * matchup.players;
       },
-      maxTurns: args.maxTurns,
-      batchGames: args.batch,
+      batchGames: remote === null ? args.batch : 1,
       pool,
       onProgress,
     });

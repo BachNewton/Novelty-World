@@ -1,6 +1,7 @@
 import { fitElo, pairsFromFinishes, pairsFromWinner, topRated, type PairResult } from "@/shared/lib/bot-lab/elo";
 import {
   crownGate,
+  planSprtRound,
   runSprtPairing,
   type CrownGate,
   type SprtPairingRun,
@@ -9,7 +10,7 @@ import type { GameRunner } from "@/shared/lib/bot-lab/pool";
 import { luceWinProb } from "@/shared/lib/bot-lab/sprt";
 import { wilsonInterval, type ShareInterval } from "@/shared/lib/bot-lab/stats";
 import { candidateSeats, finishesOf, outcomeFor, tableSpecs, type Format } from "./parallel";
-import { playLadder, type LadderCache, type Matchup, type MatchupTally } from "./ratings";
+import { ladderGamesToPlay, playLadder, type LadderCache, type Matchup, type MatchupTally } from "./ratings";
 import type { RiskGameResult, RiskGameSpec } from "./runner";
 
 // Risk's gauntlet on the shared bot-lab core: a candidate plays every field member
@@ -143,6 +144,81 @@ export function gauntletTables(field: readonly string[], players: readonly numbe
   );
 }
 
+/** The seed stream of a pairing's games. */
+export function pairingPrefix(prefix: string, candidate: string, table: Table): string {
+  return `${prefix}:${candidate}-vs-${table.opponent}:${table.players.toString()}p:${table.format}`;
+}
+
+const sprtConfig = (opts: Pick<RiskGauntletOptions, "margin" | "alpha" | "beta">, table: Table) => ({
+  margin: opts.margin,
+  alpha: opts.alpha,
+  beta: opts.beta,
+  winProb: luceWinProb(candidateSeats(table.format, table.players), table.players),
+});
+
+/** The field's own ladder in a gauntlet. */
+const fieldLadder = (opts: Omit<RiskGauntletOptions, "pool">) => ({
+  labels: opts.field,
+  players: opts.players,
+  groups: opts.fieldGroups,
+  prefix: `${opts.prefix}:field`,
+  maxTurns: opts.maxTurns,
+  cache: opts.fieldCache,
+});
+
+export interface RiskGauntletRound {
+  /** The games the gauntlet needs next; none once every pairing has decided and the
+   *  field's games are played. */
+  specs: RiskGameSpec[];
+  /** Each pairing as its games so far leave it. */
+  progress: RiskGauntletProgress[];
+}
+
+/** A gauntlet played in rounds elsewhere (`bot-lab/remote.ts`): from the games played so
+ *  far (`played`), the games its next round plays. Each undecided pairing plays at least
+ *  `minRound` more, or as many again as it has; the field's games, whose number is fixed,
+ *  all play in the first round. Once it needs no games, `runRiskGauntlet` over the same
+ *  games reports exactly what it reports playing them itself. */
+export function planRiskGauntlet(
+  opts: Omit<RiskGauntletOptions, "pool" | "onProgress" | "onFieldMatchup" | "batchGames">,
+  played: (spec: RiskGameSpec) => RiskGameResult | undefined,
+  minRound: number,
+): RiskGauntletRound {
+  const tables = gauntletTables(opts.field, opts.players, opts.formats);
+  const specs: RiskGameSpec[] = [];
+  const progress = tables.map((table, i): RiskGauntletProgress => {
+    const prefix = pairingPrefix(opts.prefix, opts.candidate, table);
+    const n = table.players;
+    const outcomes: ReturnType<typeof outcomeFor>[] = [];
+    for (;;) {
+      const group = tableSpecs(opts.candidate, table.opponent, table.format, n, prefix, outcomes.length, n, opts.maxTurns).map(played);
+      if (group.some((r) => r === undefined)) break;
+      outcomes.push(...group.map((r) => outcomeFor(r as RiskGameResult, opts.candidate)));
+    }
+    const plan = planSprtRound(outcomes, {
+      sprt: sprtConfig(opts, table),
+      maxDecisive: opts.maxDecisive,
+      groupSize: n,
+      minRound,
+    });
+    specs.push(...tableSpecs(opts.candidate, table.opponent, table.format, n, prefix, plan.played, plan.next, opts.maxTurns));
+    return {
+      table,
+      index: i + 1,
+      total: tables.length,
+      wins: plan.run.wins,
+      losses: plan.run.losses,
+      draws: plan.run.draws,
+      maxDecisive: opts.maxDecisive,
+      llrImprove: plan.run.llrImprove,
+      llrRegress: plan.run.llrRegress,
+      done: plan.next === 0,
+    };
+  });
+  specs.push(...ladderGamesToPlay(fieldLadder(opts), (spec) => played(spec) !== undefined));
+  return { specs, progress };
+}
+
 export async function runRiskGauntlet(opts: RiskGauntletOptions): Promise<RiskGauntletReport> {
   if (!opts.field.includes(opts.base)) throw new Error(`the base "${opts.base}" must be in the field`);
   if (opts.field.includes(opts.candidate)) throw new Error(`the candidate "${opts.candidate}" can't be in its own field`);
@@ -166,7 +242,7 @@ export async function runRiskGauntlet(opts: RiskGauntletOptions): Promise<RiskGa
   const tables = gauntletTables(opts.field, opts.players, opts.formats);
   const played = await Promise.all(
     tables.map(async (table, i) => {
-      const prefix = `${opts.prefix}:${opts.candidate}-vs-${table.opponent}:${table.players}p:${table.format}`;
+      const prefix = pairingPrefix(opts.prefix, opts.candidate, table);
       const results: RiskGameResult[] = [];
       const progress = (walk: { wins: number; losses: number; llrImprove: number; llrRegress: number }, draws: number, done: boolean) =>
         opts.onProgress?.({
@@ -189,12 +265,7 @@ export async function runRiskGauntlet(opts: RiskGauntletOptions): Promise<RiskGa
           results.push(...batch);
           return batch.map((r) => outcomeFor(r, opts.candidate));
         },
-        sprt: {
-          margin: opts.margin,
-          alpha: opts.alpha,
-          beta: opts.beta,
-          winProb: luceWinProb(candidateSeats(table.format, table.players), table.players),
-        },
+        sprt: sprtConfig(opts, table),
         maxDecisive: opts.maxDecisive,
         batchGames,
         groupSize: table.players,
@@ -215,13 +286,8 @@ export async function runRiskGauntlet(opts: RiskGauntletOptions): Promise<RiskGa
   //    the Elo fit (a star centred on the candidate would leave the field's
   //    relative ratings unpinned).
   const ladder = await playLadder({
+    ...fieldLadder(opts),
     pool: opts.pool,
-    labels: opts.field,
-    players: opts.players,
-    groups: opts.fieldGroups,
-    prefix: `${opts.prefix}:field`,
-    maxTurns: opts.maxTurns,
-    cache: opts.fieldCache,
     onMatchup: (_, matchup, tally, cached) => {
       if (tally !== null) opts.onFieldMatchup?.(matchup, tally, cached);
     },

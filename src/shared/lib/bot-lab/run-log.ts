@@ -46,9 +46,53 @@ export interface RunRecord extends RunDescription {
   machineCpu: { mean: number; peak: number };
   /** This process's peak resident memory, worker threads included. */
   peakMemoryMiB: number;
+  /** Set for a run played on other machines (`remote.ts`): how many shards played it, over
+   *  how many rounds. Its games, speed, CPU and memory are then theirs: the machine is one
+   *  of them, its CPU each machine's own load averaged over them, its memory one machine's
+   *  peak, and its wall time from the first round's plan to the end. */
+  remote?: { shards: number; rounds: number };
+}
+
+/** The machines that played a run on its behalf: each shard's own record, and when the run began. */
+export interface RemotePlay {
+  started: string;
+  shards: readonly RunRecord[];
+  rounds: number;
+}
+
+/** The record of a run whose games `remote` played, from the record of the process that
+ *  read their results. */
+export function remoteRecord(local: RunRecord, remote: RemotePlay, endedMs: number): RunRecord {
+  const { shards } = remote;
+  if (shards.length === 0) return { ...local, remote: { shards: 0, rounds: remote.rounds } };
+  const wallSeconds = (endedMs - Date.parse(remote.started)) / 1000;
+  const games = shards.reduce((s, r) => s + r.games, 0);
+  const decisions = shards.reduce((s, r) => s + r.decisions, 0);
+  const time = shards.reduce((s, r) => s + r.wallSeconds, 0);
+  const load = (of: (r: RunRecord) => { mean: number; peak: number }) => ({
+    mean: round(time === 0 ? 0 : shards.reduce((s, r) => s + of(r).mean * r.wallSeconds, 0) / time, 3),
+    peak: Math.max(...shards.map((r) => of(r).peak)),
+  });
+  return {
+    ...local,
+    started: remote.started,
+    workers: shards[0].workers,
+    wallSeconds: round(wallSeconds, 1),
+    games,
+    decisions,
+    gamesPerSecond: round(games / wallSeconds, 2),
+    decisionsPerSecond: Math.round(decisions / wallSeconds),
+    machine: shards[0].machine,
+    cpu: load((r) => r.cpu),
+    machineCpu: load((r) => r.machineCpu),
+    peakMemoryMiB: Math.max(...shards.map((r) => r.peakMemoryMiB)),
+    remote: { shards: shards.length, rounds: remote.rounds },
+  };
 }
 
 const SAMPLE_MS = 1000;
+
+const round = (x: number, places: number) => Math.round(x * 10 ** places) / 10 ** places;
 
 function git(args: string[]): string {
   try {
@@ -69,11 +113,9 @@ function machineTimes(): { busy: number; total: number } {
   return { busy, total };
 }
 
-const round = (x: number, places: number) => Math.round(x * 10 ** places) / 10 ** places;
-
 /** A run being recorded: count what it plays (`watch` does it for a game runner), then `finish`. */
 export class RunLog {
-  readonly startedAt = new Date();
+  readonly startedAt: Date;
   private readonly startNs = process.hrtime.bigint();
   private games = 0;
   private decisions = 0;
@@ -89,10 +131,14 @@ export class RunLog {
     if (!this.done) this.write(true);
   };
 
+  /** `path` null keeps the record without writing it anywhere; `remote`, for a run whose
+   *  games other machines played, makes its record theirs (`remoteRecord`). */
   constructor(
-    private readonly path: string,
+    private readonly path: string | null,
     readonly run: RunDescription,
+    private readonly remote?: RemotePlay,
   ) {
+    this.startedAt = remote === undefined ? new Date() : new Date(remote.started);
     this.sampler = setInterval(() => this.sample(), SAMPLE_MS);
     this.sampler.unref();
     process.on("exit", this.onExit);
@@ -113,8 +159,12 @@ export class RunLog {
     this.lastMachine = machine;
   }
 
-  /** Games played so far and the decisions in them. */
+  /** Games played so far and the decisions in them: by the other machines, for a remote run. */
   counts(): { games: number; decisions: number } {
+    if (this.remote !== undefined) {
+      const { shards } = this.remote;
+      return { games: shards.reduce((s, r) => s + r.games, 0), decisions: shards.reduce((s, r) => s + r.decisions, 0) };
+    }
     return { games: this.games, decisions: this.decisions };
   }
 
@@ -150,6 +200,13 @@ export class RunLog {
     return this.write(true);
   }
 
+  /** Ends the run without a record: a remote run's round, whose record its last run writes. */
+  discard(): void {
+    this.done = true;
+    clearInterval(this.sampler);
+    process.off("exit", this.onExit);
+  }
+
   private write(stopped: boolean): RunRecord {
     this.done = true;
     clearInterval(this.sampler);
@@ -158,7 +215,7 @@ export class RunLog {
     const wallSeconds = Number(process.hrtime.bigint() - this.startNs) / 1e9;
     const mean = (xs: number[]) => (xs.length === 0 ? 0 : xs.reduce((s, x) => s + x, 0) / xs.length);
     const cpus = os.cpus();
-    const record: RunRecord = {
+    const local: RunRecord = {
       started: this.startedAt.toISOString(),
       ...this.run,
       args: [...this.run.args],
@@ -183,8 +240,9 @@ export class RunLog {
       machineCpu: { mean: round(mean(this.machineShares), 3), peak: round(Math.max(0, ...this.machineShares), 3) },
       peakMemoryMiB: Math.round(this.peakRss / 2 ** 20),
     };
+    const record = this.remote === undefined ? local : remoteRecord(local, this.remote, Date.now());
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- the run log a game's own CLI names beside its source, never external input
-    appendFileSync(this.path, `${JSON.stringify(record)}\n`);
+    if (this.path !== null) appendFileSync(this.path, `${JSON.stringify(record)}\n`);
     return record;
   }
 }
