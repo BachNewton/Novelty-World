@@ -525,3 +525,28 @@ Every finished pairing agrees with the train run. The two left are the ones that
     npm run risk:gauntlet -- rule-v5 --base rule-v3 --field rule-v4 --players 6 --prefix holdout --workers 15
 
 v5 passes the seating bar's gauntlet half on holdout seeds against v3 already; the two pairings left only say whether v5 is worse than v4 at 6 players on unseen deals.
+
+## The ladder with v4 and v5 (2026-10-19)
+
+`risk:ratings -- rule-v5 rule-v4 rule-v3 rule-v2 rule-v1 gd-stacker gd-continental greedy gd-aggressive gd-defensive --anchor greedy --groups 100`, the first run on GitHub Actions: 117,000 games over 60 machines in one round, 1 h 40 min from start to report, sharing the account's twenty runners with a gauntlet.
+
+| Bot | Win Elo (greedy = 0) | Finishing-order Elo (greedy = 0) |
+|---|---|---|
+| rule-v5 | +538.0 | +284.5 |
+| rule-v4 | +499.5 | +292.7 |
+| rule-v3 | +440.7 | +245.3 |
+| rule-v2 | +405.2 | +234.5 |
+| rule-v1 | +322.1 | +159.5 |
+| gd-stacker | +90.3 | +102.7 |
+| gd-continental | +69.3 | +59.3 |
+| gd-aggressive | +2.7 | +51.4 |
+| greedy | 0 | 0 |
+| gd-defensive | −33.3 | +50.4 |
+
+Both new bots sit above v3, by about 60 and 100 Elo of wins, and above it by finishing order too. Neither gives anything back to the weak bots: each wins at least 65% alone among any of GD's personas or greedy at every table, more than v3 does in nearly every matchup, and the weak bots win at most 5% alone among either of them. That was what sank the old v4.
+
+v5 against v4 head to head agrees with the gauntlets: v5 alone among v4s wins 40.7% at 3 players (par 33.3%), 29.5% at 4 (par 25%) and 18.9% at 6 (par 16.7%, inside its interval), and v4 alone among v5s wins 29.0%, 17.0% and 17.1%. Better at 3 and 4 players, even at 6. By finishing order the two are level (v4 +8), the same all-or-nothing mark as in the train gauntlet: v5 wins more and, losing, goes out sooner.
+
+6-player games between strong bots stall: 225 of 600 games of v5 alone among v4s hit the 600-turn cap, and so did 311 of 600 of gd-defensive alone among v4s. A capped game counts for nothing in a gauntlet's SPRT, so these are the costliest games we play for the least information.
+
+**By the seating bar,** v4 clears it outright: better than v3 at some table and worse at none on train and holdout seeds, and above v3 on the ladder. v5 clears it on train seeds and on the ladder, beats v4 on the ladder, and has beaten v4 or matched it in every pairing so far; its two 6-player holdout pairings against v4 are still playing.
