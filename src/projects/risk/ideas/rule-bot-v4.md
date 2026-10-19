@@ -1,6 +1,6 @@
 # Risk bot v4: v3 on beliefs that hold up, with the fixes a person's win showed
 
-v4 (`bots/rule-v4/`) is built and measured, and it clears the seating bar (below, under "Measuring it"). It is not seated: seating is the owner's call, so v3 stays the lobby's default and `ratings.json` is unchanged until then. Its small-table preferences are the mixed-field retune's; above 4 players they are v3's. `bot-log.md` has the build's entry, and the history of the version that held the name before, whose lessons are below.
+v4 (`bots/rule-v4/`) is built and measured, and it clears the seating bar (below, under "Measuring it"), so it is seated, beside v5, which beats it. Its small-table preferences are the mixed-field retune's; above 4 players they are v3's. `bot-log.md` has the build's entry, and the history of the version that held the name before, whose lessons are below.
 
 v4 is v3 (`rule-bot-v3.md`): its planner, its evaluation, its capture planner and its preferences. What changes is what it believes the other seats do with their turns before its next one (`opponents.ts`, the opponent model), the kill chances that model and the planner read (`kills.ts`), and one piece of the planner's arithmetic (`planner.ts`). v3 is frozen, so v4 keeps only the files it changes and shares the rest from v3 and v1.
 
@@ -78,7 +78,7 @@ In order, each step's result feeding the next:
 
 Above 4 players v4 plays v3's preferences, untuned on its beliefs; tuning them is a night's work on its own, since the 6-player games are the slow ones.
 
-**What it showed** (`bot-log.md`, the entries from "v4's beliefs checked" to "The ladder with v4 and v5"): the beliefs scored far better calibrated than v3's, so none were reset; the retune beat untuned v4 at 3 of 4 tables and lost at none; the gauntlet was better than v3 at 5 of 6 tables and even at the sixth on train seeds, better at all 6 on holdout; and on the ladder v4's win Elo is +500 against v3's +441 (greedy = 0). The weak bots win at most a few percent alone among v4s. It clears the bar. v5, v4 with the sweep, clears its own bar and beats v4 where the two differ (`rule-bot-v5.md`), so it is the stronger candidate for the seat.
+**What it showed** (`bot-log.md`, the entries from "v4's beliefs checked" to "The ladder with v4 and v5"): the beliefs scored far better calibrated than v3's, so none were reset; the retune beat untuned v4 at 3 of 4 tables and lost at none; the gauntlet was better than v3 at 5 of 6 tables and even at the sixth on train seeds, better at all 6 on holdout; and on the ladder v4's win Elo is +500 against v3's +441 (greedy = 0). The weak bots win at most a few percent alone among v4s. It clears the bar and is seated. v5, v4 with the sweep, clears its own bar and beats v4 where the two differ (`rule-bot-v5.md`).
 
 ## Open questions
 

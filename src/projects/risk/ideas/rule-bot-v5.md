@@ -1,6 +1,6 @@
 # Risk bot v5: v4 with the winner's sweep
 
-v5 (`bots/rule-v5/`) is built and measured, and it clears its seating bar on every rule (below, under "Measuring it"). It is not seated: seating is the owner's call, so v3 stays the lobby's default and `ratings.json` is unchanged until then. `bot-log.md` has the build's entry and every measurement.
+v5 (`bots/rule-v5/`) is built and measured, and it clears its seating bar on every rule (below, under "Measuring it"), so it is seated, and it tops the seatable ladder. `bot-log.md` has the build's entry and every measurement.
 
 v5 is v4 (`rule-bot-v4.md`) whole: its beliefs, its fixes and its preferences, at both table sizes. It adds one kind of plan, the sweep, taken from how the person who won G4FR played. v4 asks whether correct beliefs help; v5 asks, on top of them, whether the winner's way of attacking helps. They are separate hypotheses, so v5 adds no setting of any kind: it reads v4's settings, and any retune of v4's preferences is v5's too.
 

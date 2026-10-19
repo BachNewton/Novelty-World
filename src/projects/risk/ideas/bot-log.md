@@ -575,3 +575,17 @@ Read from the 12,000 games of v5's last two holdout pairings against v4 on GitHu
 - **At the cap, most tables are still full.** Of the 4,130 capped games, all six players were alive in 1,209, five in 1,131, and four in 1,221. These aren't decided games waiting for a mop-up; nobody has eliminated anybody.
 
 The cost is in how the bots play six-handed, not in the measuring: among themselves, v4 and v5 rarely knock anyone out. Not run: the turns spent after a game's result is clear, which needs each game's state turn by turn, not only its end.
+
+## v4 and v5 seated (2026-10-19)
+
+Both cleared their seating bars on the full suite, so both are seated (`online/seat-roster.ts`), and v5 is the lobby's default. The seatable ratings run played nothing: all 270 matchups came from the cache, from the Actions ladder's games.
+
+| Bot | Win Elo (greedy at 1000) |
+|---|---|
+| rule-v5 | 1538 |
+| rule-v4 | 1500 |
+| rule-v3 | 1441 |
+| rule-v2 | 1405 |
+| rule-v1 | 1322 |
+
+Both bots' moves over the two frozen games are now pinned in `bots/frozen.test.ts`, so neither changes again: a change to either one's play is a new version.
