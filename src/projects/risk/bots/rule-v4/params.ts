@@ -59,9 +59,27 @@ export interface Params {
   record: TakenRecord | null;
 }
 
-/** v4: v3's preferences, at both table sizes, on v4's opponent model. */
+/** v4: on v4's opponent model, small-table preferences retuned against a mixed field;
+ *  above the small table, v3's preferences. */
 export const V4_PARAMS: Params = {
-  smallTable: V3_PARAMS.smallTable,
+  smallTable: {
+    players: V3_PARAMS.smallTable.players,
+    // `risk:tune -- --tunable rule-v4-small --opponent rule-v3,gd-defensive,gd-stacker,greedy
+    // --baseline rule-v3 --players 3,4 --gens 10 --pop 8 --groups 40 --prefix tune-v4mix`, the
+    // final mean; gauntleted against v4 on v3's preferences in `bot-log.md`.
+    prefs: {
+      incomeHorizon: 1.5,
+      myCardWeight: 1.229,
+      myContinentWeight: 1.8312,
+      killCommitMargin: -0.0292,
+      vulnerabilityWeight: 0.4289,
+      borderWeight: 0.4862,
+      idleWeight: 0.2252,
+      opportunityWeight: 0,
+      commonThreatWeight: 1.9327,
+      leadPenaltyWeight: 0.0076,
+    },
+  },
   prefs: V3_PARAMS.prefs,
   opponents: {
     ...V3_PARAMS.opponents,

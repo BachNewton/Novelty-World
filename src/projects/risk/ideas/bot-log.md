@@ -471,3 +471,17 @@ Queued, after v4's night: the gauntlet against rule-v3, rule-v4, gd-defensive, g
 | v3 + five v2, 6p | −0.02 / +0.06 | 0.57 / 0.04 | 1.26 / 0.60 | 15.0% / 4.8% |
 
 v4's aim beats an even split at every table, its kill predictions are an order of magnitude better than v3's, and among rule bots at 3 and 4 players it now prices the hit about right (0.94 to 1.09 of what lands; v3 priced 1.4 to 1.6 too little). Where it errs it errs cautious: it believes kills more often than bots take them, and against weak bots and at 6 players it overprices the hit and its own death (14 to 15% believed at 6 players, under 5% taken). The one cell the other way is my own death among v3s at 3 players, 7.5% believed against 8.7%, near enough. **Decision: no belief is reset before the retune.** Caution is the side to err on, since people take kills bots don't. At 6 players, where v4 plays v3's preferences, the overpricing is the likely cost to watch in the gauntlet.
+
+## The small table retuned against a mixed field (2026-10-19)
+
+`risk:tune -- --tunable rule-v4-small --opponent rule-v3,gd-defensive,gd-stacker,greedy --baseline rule-v3 --players 3,4 --gens 10 --pop 8 --groups 40 --prefix tune-v4mix --workers 15`: 218,400 games, 3.7 hours. The fitness, the worst table's edge over what v3 scores there, rose from −81 at the first generation to −13 at the tenth, never clearly above zero: against this field the search found no vector that beats v3's own margin at every table, only one that comes close. Three preferences ended on their bounds (`incomeHorizon` 1.5, `opportunityWeight` 0, `killCommitMargin` −0.03), so the search wanted to go further than it may. The mean moved most in `commonThreatWeight` (up to 1.93), `myContinentWeight` (1.83) and `vulnerabilityWeight` (down to 0.43): less fear of my own death, more weight on a common threat and on my continents, the reverse of the old v4's tune against v3 alone.
+
+The tune proposes; a gauntlet of the tuned vector against v4 on v3's preferences decided (`--base rule-v4 --field rule-v4,rule-v3,gd-defensive --players 3,4 --prefix tunecheck`, 8,820 games, 9 minutes):
+
+| Opponent | 3p one-in | 3p one-out | 4p one-in | 4p one-out |
+|---|---|---|---|---|
+| rule-v4 (v3's preferences) | even | better | better | better |
+| rule-v3 | better | better | better | better |
+| gd-defensive | better | better | better | better |
+
+Win Elo (rule-v4 = 0): tuned +25.9, rule-v3 −10.1. The gauntlet's own gate printed REJECT (one table even), but by the seating bar (better somewhere, worse nowhere) it wins, and the weak bot is beaten everywhere, so the old v4's give-back isn't there. **Decision: the tuned vector is v4's small-table preferences**, and so v5's, which reads v4's.
