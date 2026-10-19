@@ -19,6 +19,8 @@ export type Request =
   | { op: "remove-seat"; game: string; profile: PlayerProfile; seat: Seat }
   | { op: "start"; game: string; profile: PlayerProfile }
   | { op: "move"; game: string; profile: PlayerProfile; answer: Answer }
+  /** Leaves the table; deletes it when the leaver is the only person at a gathering table. */
+  | { op: "leave"; game: string; profile: PlayerProfile }
   /** Restarts a stalled bot drive. Idempotent: anyone may send it, any number of times. */
   | { op: "nudge"; game: string }
   /** Deletes the game for everyone, its move log with it. Anyone may, from the lobby. */
@@ -91,6 +93,7 @@ export function parseRequest(v: unknown): Request | null {
     case "join":
       return elo && { op: "join", game, profile, ...elo };
     case "start":
+    case "leave":
       return { op: v.op, game, profile };
     case "add-bot":
       return isString(v.bot) ? { op: "add-bot", game, profile, bot: v.bot } : null;

@@ -128,6 +128,60 @@ describe("the lobby", () => {
   });
 });
 
+describe("leaving", () => {
+  it("deletes a gathering table its only person leaves, whatever bots sit at it", async () => {
+    const db = memoryStore();
+    const deps = testDeps(ENGINE, db.store);
+    await ok(deps, { op: "create", profile: ALICE });
+    await ok(deps, { op: "add-bot", game: "GAME", profile: ALICE, bot: "greedy" });
+    expect(await handle(deps, { op: "leave", game: "GAME", profile: ALICE })).toMatchObject({ ok: true, row: { id: "GAME", status: "lobby" } });
+    expect(db.rows.has("GAME")).toBe(false);
+  });
+
+  it("keeps the table when another person has joined, for either of them leaving", async () => {
+    const db = memoryStore();
+    const deps = testDeps(ENGINE, db.store);
+    await ok(deps, { op: "create", profile: ALICE });
+    const row = await ok(deps, { op: "join", game: "GAME", profile: BOB });
+    expect(await handle(deps, { op: "leave", game: "GAME", profile: ALICE })).toEqual({ ok: true, row });
+    expect(await handle(deps, { op: "leave", game: "GAME", profile: BOB })).toEqual({ ok: true, row });
+    expect(db.rows.get("GAME")).toEqual(row);
+  });
+
+  it("keeps a game that has started, and changes nothing for a spectator", async () => {
+    const { db, deps, row } = await humanGame();
+    expect(await handle(deps, { op: "leave", game: "GAME", profile: ALICE })).toEqual({ ok: true, row });
+    const solo = testDeps(ENGINE, db.store, ["SOLO"]);
+    await ok(solo, { op: "create", profile: ALICE });
+    for (let i = 0; i < 2; i++) await ok(solo, { op: "add-bot", game: "SOLO", profile: ALICE, bot: "greedy" });
+    const started = await ok(solo, { op: "start", game: "SOLO", profile: ALICE });
+    expect(await handle(solo, { op: "leave", game: "SOLO", profile: ALICE })).toMatchObject({ ok: true, row: { version: started.version } });
+    expect(db.rows.has("SOLO")).toBe(true);
+    const gathering = testDeps(ENGINE, db.store, ["OPEN"]);
+    const open = await ok(gathering, { op: "create", profile: ALICE });
+    expect(await handle(gathering, { op: "leave", game: "OPEN", profile: BOB })).toEqual({ ok: true, row: open });
+    expect(db.rows.has("OPEN")).toBe(true);
+  });
+
+  it("keeps the table when someone joins between the leave's read and its delete", async () => {
+    const db = memoryStore();
+    const deps = testDeps(ENGINE, db.store);
+    await ok(deps, { op: "create", profile: ALICE });
+    db.hooks.beforeWrite = (id) => {
+      const current = db.rows.get(id);
+      if (current) db.rows.set(id, { ...current, version: current.version + 1, seats: [...current.seats, { kind: "human", profile: BOB }] });
+    };
+    const response = await handle(deps, { op: "leave", game: "GAME", profile: ALICE });
+    expect(response).toMatchObject({ ok: true, row: { seats: [{ profile: ALICE }, { profile: BOB }] } });
+    expect(db.rows.get("GAME")?.seats).toHaveLength(2);
+  });
+
+  it("says when the table is already gone", async () => {
+    const deps = testDeps(ENGINE, memoryStore().store);
+    expect(await handle(deps, { op: "leave", game: "NONE", profile: ALICE })).toEqual({ ok: false, reason: "That table is gone", row: null });
+  });
+});
+
 describe("moves", () => {
   it("applies an answer to the pending decision and raises the next", async () => {
     const { deps, row } = await humanGame();

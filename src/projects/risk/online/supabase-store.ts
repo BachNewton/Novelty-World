@@ -79,8 +79,9 @@ export function supabaseStore(db: Db): RowStore {
       }
     },
     // The move log goes with it (`on delete cascade`).
-    remove: async (id) => {
-      const { data, error } = await db.from(TABLE).delete().eq("id", id).select(COLUMNS).maybeSingle<GameRow>();
+    remove: async (id, atVersion) => {
+      const match = db.from(TABLE).delete().eq("id", id);
+      const { data, error } = await (atVersion === undefined ? match : match.eq("version", atVersion)).select(COLUMNS).maybeSingle<GameRow>();
       if (error) throw new Error(`Deleting Risk game ${id}: ${error.message}`);
       return data;
     },

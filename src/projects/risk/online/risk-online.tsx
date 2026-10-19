@@ -87,7 +87,21 @@ export function RiskOnline({ Game, actions }: { Game: ComponentType<OnlineGamePr
       });
   }, []);
 
-  if (gameId) return <Table key={gameId} id={gameId} Game={Game} />;
+  // Back in the lobby at once: a leave that deletes the table is heard there as the row going.
+  const leave = (id: string) => {
+    navigate(null);
+    browserIo
+      .post({ op: "leave", game: id, profile: useProfile.getState() })
+      .then((response) => {
+        if (!response.ok && response.row) setNotice(response.reason);
+      })
+      .catch((error: unknown) => {
+        console.error(error);
+        setNotice("Couldn't reach the server");
+      });
+  };
+
+  if (gameId) return <Table key={gameId} id={gameId} Game={Game} onLeave={() => leave(gameId)} />;
 
   return (
     <Lobby
@@ -164,7 +178,9 @@ function YourElo() {
   );
 }
 
-function Table({ id, Game }: { id: string; Game: ComponentType<OnlineGameProps> }) {
+/** `onLeave` leaves a gathering table (the route's `leave`); a game in play is only left by
+ *  going back to the lobby, keeping the seat. */
+function Table({ id, Game, onLeave }: { id: string; Game: ComponentType<OnlineGameProps>; onLeave: () => void }) {
   const { snapshot, store } = useOnlineGame(id);
   const { table } = snapshot;
 
@@ -178,12 +194,12 @@ function Table({ id, Game }: { id: string; Game: ComponentType<OnlineGameProps> 
     );
   }
   if (table.status !== "lobby") return <Game snapshot={snapshot} act={store.act} onLeave={() => navigate(null)} />;
-  return <Gathering snapshot={snapshot} table={table} store={store} />;
+  return <Gathering snapshot={snapshot} table={table} store={store} onLeave={onLeave} />;
 }
 
 /** A table gathering players. Its seated players add bots, each picked from every seatable bot,
  *  and remove seats until the game starts; a bot once seated stays the bot it is. */
-function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table: NonNullable<OnlineSnapshot["table"]>; store: OnlineStore }) {
+function Gathering({ snapshot, table, store, onLeave }: { snapshot: OnlineSnapshot; table: NonNullable<OnlineSnapshot["table"]>; store: OnlineStore; onLeave: () => void }) {
   const root = useRef<HTMLDivElement>(null);
   usePadNavigation(root);
   const [picking, setPicking] = useState(false);
@@ -260,7 +276,7 @@ function Gathering({ snapshot, table, store }: { snapshot: OnlineSnapshot; table
       </div>
       {table.seats.length < MIN_PLAYERS && <p className="text-sm text-text-secondary">Risk needs at least {MIN_PLAYERS.toString()} players.</p>}
       {snapshot.notice && <p className="text-sm text-brand-pink">{snapshot.notice}</p>}
-      <Button variant="ghost" onClick={() => navigate(null)} data-pad-back>
+      <Button variant="ghost" onClick={onLeave} data-pad-back>
         Leave
       </Button>
       <PadHints

@@ -11,6 +11,7 @@ describe("parseRequest", () => {
     expect(parseRequest({ op: "join", game: "ABCD", profile, elo: 980 })).toEqual({ op: "join", game: "ABCD", profile, elo: 980 });
     expect(parseRequest({ op: "nudge", game: "ABCD" })).toEqual({ op: "nudge", game: "ABCD" });
     expect(parseRequest({ op: "delete", game: "ABCD" })).toEqual({ op: "delete", game: "ABCD" });
+    expect(parseRequest({ op: "leave", game: "ABCD", profile })).toEqual({ op: "leave", game: "ABCD", profile });
     expect(parseRequest({ op: "remove-seat", game: "ABCD", profile, seat: 2 })).toEqual({ op: "remove-seat", game: "ABCD", profile, seat: 2 });
     expect(parseRequest({ op: "add-bot", game: "ABCD", profile, bot: "greedy" })).toEqual({ op: "add-bot", game: "ABCD", profile, bot: "greedy" });
     const answer = { decision: 4, seat: 1, move: { kind: "blitz", from: "alaska", to: "kamchatka", keepAtLeast: 1 } };
@@ -28,6 +29,7 @@ describe("parseRequest", () => {
       { op: "join", game: "ABCD", profile, elo: Number.NaN },
       { op: "join", game: "ABCD", profile, elo: 1e9 },
       { op: "delete" },
+      { op: "leave", game: "ABCD" },
       { op: "fly", game: "ABCD", profile },
       { op: "remove-seat", game: "ABCD", profile, seat: -1 },
       { op: "add-bot", game: "ABCD", profile },
