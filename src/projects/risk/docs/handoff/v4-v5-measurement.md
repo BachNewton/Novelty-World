@@ -12,6 +12,7 @@ Done and committed:
 - the mixed-field retune and the check of its result against untuned v4
 - v4's gauntlets on train and holdout seeds
 - v5's gauntlet on train seeds
+- v5's gauntlet on holdout seeds, all but the two 6-player pairings against v4
 
 Both bots beat v3 and every weak bot, with no table worse. v5 also beats v4 at 3 and 4 players and is even at 6.
 
@@ -26,10 +27,11 @@ Add-Type -Namespace W -Name P -MemberDefinition '[DllImport("kernel32.dll")] pub
 
 The cast matters: a bare `0x80000001` is a negative Int32 in PowerShell, so the call fails and nothing is held.
 
-1. **v5's gauntlet on holdout seeds**, about 3 to 3.5 hours on 15 workers. It confirms the train verdicts on unseen deals. Most of its time is the 6-player pairings against v4, which are long and often hit the turn cap.
+1. **v5's last two holdout pairings**, the 6-player tables against v4 (one v5 among five v4s, and the reverse). The rest of v5's holdout gauntlet is done: 28 of 30 pairings, every one better, recorded in `bot-log.md` ("v5's holdout gauntlet, paused at 28 of 30 pairings"). These two are the slow ones. On train seeds they came out even and took most of a 3.4-hour run, so allow 1.5 to 3 hours.
    ```
-   npm run risk:gauntlet -- rule-v5 --base rule-v3 --field rule-v3,rule-v4,gd-defensive,gd-stacker,greedy --prefix holdout --workers 15
+   npm run risk:gauntlet -- rule-v5 --base rule-v3 --field rule-v4 --players 6 --prefix holdout --workers 15
    ```
+   A run stopped part way keeps nothing. If this one has to stop too, its finished pairing's verdict is on the console.
 2. **The ladder**, about 1 to 1.5 hours. It puts v4 and v5 on one Elo scale with every seatable bot, and shows whether either gives back to the weak bots, which is what sank the previous v4. It doesn't write `ratings.json`.
    ```
    npm run risk:ratings -- rule-v5 rule-v4 rule-v3 rule-v2 rule-v1 gd-stacker gd-continental greedy gd-aggressive gd-defensive --anchor greedy --groups 100 --workers 15

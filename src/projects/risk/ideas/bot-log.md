@@ -509,3 +509,19 @@ v5 against v4: better at both 3- and 4-player tables in both mixtures, even at 6
 v5's run took six times v4's: its 6-player pairings against v4 needed over 1,400 decisive games each to call even, and over 850 games of one of them hit the turn cap. v5 ranks above v4 by who wins but below it by finishing order, the mark of an all-or-nothing style: it wins more and, when it loses, goes out earlier. The two runs' Elo for v4 differ (+37 against +75) because each fit is anchored by its own field's games; only the ladder puts them on one scale.
 
 **By the seating bar** (better than v3 at some table, worse at none, and no lower than v3 on the ladder), v4 passes the gauntlet half on both seed sets. v5 passes it on train, and beats v4 where the two differ. Not yet run: v5's holdout gauntlet (started and stopped part way, so it left no record) and the ladder, which decides the bar's last part for both and whether v5 is worth keeping over v4.
+
+## v5's holdout gauntlet, paused at 28 of 30 pairings (2026-10-19)
+
+The same gauntlet as v5's train run, on `holdout:*` seeds, 15 workers, stopped after 1 h 50 min so the owner could use the laptop. A stopped run writes no run-log record and no Elo fit, so what stands is each finished pairing's SPRT verdict, read off the console:
+
+| Opponent | 3p one-in | 3p one-out | 4p one-in | 4p one-out | 6p one-in | 6p one-out |
+|---|---|---|---|---|---|---|
+| rule-v3 | better | better | better | better | better | better |
+| rule-v4 | better | better | better | better | not finished | not finished |
+| gd-defensive, gd-stacker, greedy | better | better | better | better | better | better |
+
+Every finished pairing agrees with the train run. The two left are the ones that took most of the train run's time and came out even there. They can be played alone, without replaying the other 28:
+
+    npm run risk:gauntlet -- rule-v5 --base rule-v3 --field rule-v4 --players 6 --prefix holdout --workers 15
+
+v5 passes the seating bar's gauntlet half on holdout seeds against v3 already; the two pairings left only say whether v5 is worse than v4 at 6 players on unseen deals.
