@@ -1,6 +1,6 @@
 # Risk bot v5: v4 with the winner's sweep
 
-v5 (`bots/rule-v5/`) is built and not yet measured. It is not seated: v3 stays the lobby's default, and `ratings.json` is unchanged. `bot-log.md` has the build's entry.
+v5 (`bots/rule-v5/`) is built and measured, and it clears its seating bar on every rule (below, under "Measuring it"). It is not seated: seating is the owner's call, so v3 stays the lobby's default and `ratings.json` is unchanged until then. `bot-log.md` has the build's entry and every measurement.
 
 v5 is v4 (`rule-bot-v4.md`) whole: its beliefs, its fixes and its preferences, at both table sizes. It adds one kind of plan, the sweep, taken from how the person who won G4FR played. v4 asks whether correct beliefs help; v5 asks, on top of them, whether the winner's way of attacking helps. They are separate hypotheses, so v5 adds no setting of any kind: it reads v4's settings, and any retune of v4's preferences is v5's too.
 
@@ -87,6 +87,14 @@ After v4's night (its calibration, its small-table retune, its gauntlets and its
 3. **The ladder**: `npm run risk:ratings -- rule-v5 rule-v4 rule-v3 rule-v2 rule-v1 gd-stacker gd-continental greedy gd-aggressive gd-defensive --anchor greedy --groups 100`. Naming the bots rates v4 and v5 beside every seatable bot without writing `ratings.json`; the cache plays only the matchups it hasn't seen (v5's, and v4's if its own ladder left none). Roughly 30 to 60 minutes. It decides rules 2 and 3.
 
 If v5 is seated, the seatable ratings run follows as for any seated bot, and v5's fingerprint joins `frozen.test.ts`.
+
+**What it showed** (`bot-log.md`, the entries from "v4 and v5 gauntleted" to "v5's holdout gauntlet, finished"):
+
+1. **Against v3: passes.** Better at all six tables on train seeds and on holdout, worse at none.
+2. **On the ladder: passes.** Win Elo +538 against v3's +441 (greedy = 0).
+3. **Against v4: passes.** Better at 3 and 4 players on both seed sets, better with one v5 among five v4s at 6 players on holdout and even with five v5s against one, worse nowhere; above v4 on the ladder by wins (+538 to +500), level by finishing order.
+
+The weak bots win at most a few percent alone among v5s, less than among v3s, so the earlier v4's failure doesn't recur. The cost is speed: a 6-player game among v4s and v5s runs about 2,300 decisions, a third of them reach the 600-turn cap, and a v5 decision costs about three times a v4 one, so v5's 6-player measurements are the slowest we run.
 
 ## Open questions
 

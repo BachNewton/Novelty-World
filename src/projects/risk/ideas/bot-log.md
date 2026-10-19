@@ -550,3 +550,17 @@ v5 against v4 head to head agrees with the gauntlets: v5 alone among v4s wins 40
 6-player games between strong bots stall: 225 of 600 games of v5 alone among v4s hit the 600-turn cap, and so did 311 of 600 of gd-defensive alone among v4s. A capped game counts for nothing in a gauntlet's SPRT, so these are the costliest games we play for the least information.
 
 **By the seating bar,** v4 clears it outright: better than v3 at some table and worse at none on train and holdout seeds, and above v3 on the ladder. v5 clears it on train seeds and on the ladder, beats v4 on the ladder, and has beaten v4 or matched it in every pairing so far; its two 6-player holdout pairings against v4 are still playing.
+
+## v5's holdout gauntlet, finished (2026-10-19)
+
+The two pairings left from the paused run, `risk:gauntlet -- rule-v5 --base rule-v4 --field rule-v4 --players 6 --prefix holdout`, played twice at once: on the laptop (15 workers, Node 24) and on GitHub Actions (100 shards over 5 rounds, Node 22).
+
+| Pairing (6p, holdout) | Laptop | GitHub Actions |
+|---|---|---|
+| 1 v5 among 5 v4s | better: 20.2% vs par 16.7%, 1,362 games, cap 38% | better: 18.3% vs par 16.7%, 6,852 games, cap 37% |
+| 5 v5s against 1 v4 | even: 83.5% vs par 83.3%, 2,550 games, cap 28% | even: 83.1% vs par 83.3%, 2,322 games, cap 28% |
+| Wall time | 2 h | 2 h 50 min, an hour of it queued behind the ladder |
+
+Both agree, and with the 28 pairings from the paused run, v5's holdout gauntlet is complete: better than v3 at every table, better than v4 or even with it everywhere, worse nowhere, and better than every weak bot. With the ladder, v5 clears all three rules of its seating bar (`rule-bot-v5.md`).
+
+**The two runs played different games.** The test stops at the same game whatever the batching, so identical game streams would have stopped both at the same point; these stopped at 1,362 and 6,852 games. Replaying one of GitHub's shards (60 games) on the laptop: under Node 24, 59 of 60 games came out different, with the same seeds and seats; replayed twice under Node 24 they matched each other exactly; under Node 22, the version `.node-version` pins and the runners use, all 60 matched GitHub's. A game is a pure function of its seed and the Node version: something the bots compute in floating point comes out a hair differently between the two versions' engines, and one changed decision sends the game elsewhere. The laptop's default Node is 24, so every laptop measurement in this log played Node 24's games. Neither stream is wrong, and each verdict stands on its own, but runs on different Node versions don't replay each other, and the ratings cache mixes them unless its key says which.
