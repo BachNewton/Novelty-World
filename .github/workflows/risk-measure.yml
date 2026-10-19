@@ -43,8 +43,8 @@ jobs:
       round: 1
       tool: ${{ inputs.tool }}
       args: ${{ inputs.args }}
-      shards: ${{ inputs.shards }}
-      min_round: ${{ inputs.min_round }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
 
   round2:
     needs: round1
@@ -55,8 +55,8 @@ jobs:
       round: 2
       tool: ${{ inputs.tool }}
       args: ${{ inputs.args }}
-      shards: ${{ inputs.shards }}
-      min_round: ${{ inputs.min_round }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
 
   round3:
     needs: round2
@@ -67,8 +67,8 @@ jobs:
       round: 3
       tool: ${{ inputs.tool }}
       args: ${{ inputs.args }}
-      shards: ${{ inputs.shards }}
-      min_round: ${{ inputs.min_round }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
 
   round4:
     needs: round3
@@ -79,8 +79,8 @@ jobs:
       round: 4
       tool: ${{ inputs.tool }}
       args: ${{ inputs.args }}
-      shards: ${{ inputs.shards }}
-      min_round: ${{ inputs.min_round }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
 
   round5:
     needs: round4
@@ -91,8 +91,8 @@ jobs:
       round: 5
       tool: ${{ inputs.tool }}
       args: ${{ inputs.args }}
-      shards: ${{ inputs.shards }}
-      min_round: ${{ inputs.min_round }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
 
   round6:
     needs: round5
@@ -103,8 +103,8 @@ jobs:
       round: 6
       tool: ${{ inputs.tool }}
       args: ${{ inputs.args }}
-      shards: ${{ inputs.shards }}
-      min_round: ${{ inputs.min_round }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
 
   round7:
     needs: round6
@@ -115,8 +115,8 @@ jobs:
       round: 7
       tool: ${{ inputs.tool }}
       args: ${{ inputs.args }}
-      shards: ${{ inputs.shards }}
-      min_round: ${{ inputs.min_round }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
 
   round8:
     needs: round7
@@ -127,8 +127,8 @@ jobs:
       round: 8
       tool: ${{ inputs.tool }}
       args: ${{ inputs.args }}
-      shards: ${{ inputs.shards }}
-      min_round: ${{ inputs.min_round }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
 
   # Every round that ran succeeded and the rest were skipped because the run was
   # decided. If the last round left games unplayed, the report fails loudly naming one.
