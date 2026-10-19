@@ -589,3 +589,23 @@ Both cleared their seating bars on the full suite, so both are seated (`online/s
 | rule-v1 | 1322 |
 
 Both bots' moves over the two frozen games are now pinned in `bots/frozen.test.ts`, so neither changes again: a change to either one's play is a new version.
+
+## v6: v5 with seven switchable fixes from 9VFL (built, screened at 3 players, 2026-10-19)
+
+v6 (`rule-bot-v6.md`, `bots/rule-v6/`) is v5 with seven fixes for what 9VFL showed (a 5-player game the winner of G4FR won again, over Kyle, v3, v4 and v5; its seed and 821 moves are a fixture), each a switch so a screen can seat v5 with one of them (`rule-v6~{"fork":1,...}`): `fork` (a kill whose victim splits at the stack, costed cheap group first), `movein` (a single capture scored on the move-in that keeps the stack home), `alive` (preferences by the seats still alive), `gather` (when a big sweep against me is believed, the fortify that most cuts it), `homeward` (the stack at a run's end isn't charged as idle: the turn's fortify is still to come), `thirdParty` (an opponent's sweep may break through a third player to reach me) and `reinforced` (next turn's kill weighed with the victim's income on its defence). With every switch off v6 plays v5's moves exactly (`parity.test.ts`). Registered with every fix on; not seated.
+
+On 9VFL's positions (`9vfl.test.ts`): at turn 57, after v4's 42 armies moved into Venezuela, the kill of Kyle reads 0.957 where v4 read 0, and v5 with `fork` goes for it Peru first; at turn 78 v5 with `movein` takes the 1-army Brazil it turned down; at turn 68 v5 on Egypt alone sweeps with `homeward` and captures with `reinforced`, where it held and died; at turn 57's end v6 believes Kyle's sweep takes 6 of v4's territories (he took 5; v4 believed none). `gather` changes nothing at turn 87: the spread was made in the attack phase, a preference. On G4FR's turns (`rule-bot-v6.md` has the table) `alive` spreads v5 thin at turn 89 (20 territories, biggest stack 3, against 13 and 8).
+
+Cost: a v6 decision with every fix costs 1.33, 1.35 and 1.41 times a v5 decision at 3, 4 and 6 players on the same decisions; `movein` is most of it.
+
+Screens, one v6 among two v5s at 3 players, train seeds `screen-v6:*`, capped at 600 decisive games, about 70 seconds each:
+
+| v5 with | Win share vs par 33.3% | Win Elo a seat | Verdict |
+|---|---|---|---|
+| every fix | 32.8% [29.2, 36.7] | −4 | inconclusive |
+| `fork` | 34.0% [30.3, 37.9] | +5 | inconclusive |
+| `movein` | 31.2% [27.6, 35.0] | −17 | inconclusive |
+| `homeward` | 31.7% [28.1, 35.5] | −13 | inconclusive |
+| `reinforced` | 33.8% [30.2, 37.7] | +4 | inconclusive |
+
+No big loser, nothing separated: each fix changes a few decisions a game. No game hit the cap. The faults were seen at 5 players, so the screens that choose v6's set are at 6 players, queued for GitHub Actions with the full suite after them (`rule-bot-v6.md`, "Measuring it", with the seating bar written in advance).

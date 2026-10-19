@@ -12,6 +12,8 @@ import { ruleBot as ruleV4, ruleV4Bot } from "./rule-v4";
 import { V4_PARAMS } from "./rule-v4/params";
 import { ruleBot as ruleV5, ruleV5Bot } from "./rule-v5";
 import { V5_PARAMS } from "./rule-v5/params";
+import { ruleBot as ruleV6, ruleV6Bot } from "./rule-v6";
+import { V6_PARAMS } from "./rule-v6/params";
 
 /** Every bot the measuring harness can seat, by label. */
 export const RISK_BOTS: Readonly<Record<string, Bot>> = {
@@ -22,6 +24,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v3": ruleV3Bot,
   "rule-v4": ruleV4Bot,
   "rule-v5": ruleV5Bot,
+  "rule-v6": ruleV6Bot,
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
   "gd-aggressive": gdAggressiveBot,
@@ -38,6 +41,7 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v3": "rule-v3/index.ts",
   "rule-v4": "rule-v4/index.ts",
   "rule-v5": "rule-v5/index.ts",
+  "rule-v6": "rule-v6/index.ts",
   "gd-defensive": "gd/index.ts",
   "gd-continental": "gd/index.ts",
   "gd-aggressive": "gd/index.ts",
@@ -47,12 +51,14 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
 interface Tunable {
   prefs: Preferences;
   engine: Engine;
-  build: (prefs: Preferences, engine: Engine) => Bot;
+  /** Switches a version screens its changes by, each on (1) or off (0): v6's fixes. */
+  switches?: Readonly<Record<string, number>>;
+  build: (prefs: Preferences, engine: Engine, switches: Record<string, number>) => Bot;
 }
 
 /** The rule bots a measuring run may seat with some settings moved, each by its code and
- *  its own settings: its preferences and its work knob. Never its opponent model, which is
- *  pinned (`rule-v1/params.ts`). */
+ *  its own settings: its preferences, its work knob and any switches it has. Never its
+ *  opponent model, which is pinned (`rule-v1/params.ts`). */
 export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
   "rule-v1": { prefs: V1_PARAMS.prefs, engine: V1_PARAMS.engine, build: (prefs, engine) => ruleBot({ ...V1_PARAMS, prefs, engine }) },
   "rule-v2": { prefs: V2_PARAMS.prefs, engine: V2_PARAMS.engine, build: (prefs, engine) => ruleV2({ ...V2_PARAMS, prefs, engine }) },
@@ -69,6 +75,13 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
     prefs: V5_PARAMS.smallTable.prefs,
     engine: V5_PARAMS.engine,
     build: (prefs, engine) => ruleV5({ ...V5_PARAMS, smallTable: { ...V5_PARAMS.smallTable, prefs }, engine }),
+  },
+  // v6 with its fixes switched one by one: `rule-v6~{"fork":1,"movein":0,...}` (`ideas/rule-bot-v6.md`).
+  "rule-v6": {
+    prefs: V6_PARAMS.prefs,
+    engine: V6_PARAMS.engine,
+    switches: { ...V6_PARAMS.fixes },
+    build: (prefs, engine, switches) => ruleV6({ ...V6_PARAMS, prefs, engine, fixes: { ...V6_PARAMS.fixes, ...switches } }),
   },
 };
 
@@ -89,14 +102,17 @@ function tunedBot(label: string): Bot | null {
   const known = tuned.get(label);
   if (known) return known;
   const overrides = JSON.parse(label.slice(at + 1)) as Record<string, number>;
-  const { prefs, engine, build } = TUNABLE_BOTS[base];
-  const moved = { prefs: { ...prefs }, engine: { ...engine } };
+  const { prefs, engine, switches = {}, build } = TUNABLE_BOTS[base];
+  const moved = { prefs: { ...prefs }, engine: { ...engine }, switches: { ...switches } };
   for (const [key, value] of Object.entries(overrides)) {
     if (Object.hasOwn(prefs, key)) moved.prefs[key as keyof Preferences] = value;
     else if (Object.hasOwn(engine, key)) moved.engine[key as keyof Engine] = value;
-    else throw new Error(`"${base}" has no setting "${key}"`);
+    else if (Object.hasOwn(switches, key)) {
+      if (value !== 0 && value !== 1) throw new Error(`"${base}"'s switch "${key}" is 0 or 1, not ${value.toString()}`);
+      moved.switches[key] = value;
+    } else throw new Error(`"${base}" has no setting "${key}"`);
   }
-  const bot = build(moved.prefs, moved.engine);
+  const bot = build(moved.prefs, moved.engine, moved.switches);
   tuned.set(label, bot);
   return bot;
 }
