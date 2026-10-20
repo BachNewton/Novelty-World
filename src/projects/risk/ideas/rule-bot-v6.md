@@ -110,6 +110,23 @@ Each fix alone, and all of them, against v5, alone among two v5s at 3 players, t
 
 None is a big loser, and 3 players can't tell them apart: each changes a few decisions a game, and near-identical bots take thousands of games to separate. `alive`, `gather` and `thirdParty` weren't screened there: `alive` does nothing at a table that starts with 3 or 4, and the other two act on spread-out boards and third players, which a 3-player game rarely has. The games that showed every fault were 5-player games, so the screens that choose v6's set are at 6 players, below. No 3-player game hit the turn cap.
 
+At 6 players, on GitHub Actions: one v6 among five v5s, train seeds `screen-v6:*`, at most 2,000 decisive games each (runs 39376243877 to 39376263609):
+
+| v5 with | Win share vs par 16.7% | Win Elo a seat | Games | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| `alive` | 20.1% [17.5, 23.0] | +40 | 1,074 | 25.0% | **better** |
+| `gather` | 17.2% [15.6, 18.9] | +6 | 2,694 | 25.6% | inconclusive at the cap |
+| `fork` | 17.0% [15.4, 18.7] | +4 | 2,562 | 25.8% | even |
+| `homeward` | 16.9% [15.1, 18.7] | +3 | 2,226 | 24.6% | even |
+| `thirdParty` | 16.8% [15.0, 18.7] | +2 | 2,082 | 24.3% | even |
+| `reinforced` | 16.7% [14.9, 18.7] | +1 | 1,914 | 24.3% | even |
+| `movein` | 15.9% [14.4, 17.6] | −9 | 2,616 | 23.5% | inconclusive, leaning worse |
+| every fix | 17.9% [16.3, 19.6] | +15 | 2,604 | 23.1% | inconclusive |
+
+Only `alive` pays, and it pays plainly: the large table's preferences, played down to three survivors, were costing v5 about 40 Elo a seat. The six fixes for single positions change too few decisions to show at this size; they are corrections that cost nothing measurable, and nothing measurable is gained. `movein` leans worse at both table sizes and is most of the cost, so it is dropped. Every fix together came out below `alive` alone, so the bundle gives back some of what `alive` wins. The cap rate is about 24% in every screen; v5 among v4s ran 34 to 38%, so v5-only tables end more often, and no fix moved it.
+
+Two sets go to a last screen before v6 is fixed: `alive` with `fork` (the bug fix that cost the kill, which leans above par at both sizes for 4% more work), and every fix but `movein`.
+
 ## The seating bar, decided before the runs
 
 v6 is seated only if all of these hold:
