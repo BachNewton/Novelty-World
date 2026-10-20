@@ -35,8 +35,9 @@ export interface Params extends V4Params {
   fixes: Fixes;
 }
 
-/** v6: v5's settings with the fixes the screens kept (`ideas/rule-bot-v6.md`). */
+/** v6: v5's settings with the fixes the 6-player screens kept: all but `movein`, which leaned
+ *  worse and cost most (`ideas/rule-bot-v6.md`). */
 export const V6_PARAMS: Params = {
   ...V4_PARAMS,
-  fixes: { fork: 1, movein: 1, alive: 1, gather: 1, homeward: 1, thirdParty: 1, reinforced: 1 },
+  fixes: { fork: 1, movein: 0, alive: 1, gather: 1, homeward: 1, thirdParty: 1, reinforced: 1 },
 };

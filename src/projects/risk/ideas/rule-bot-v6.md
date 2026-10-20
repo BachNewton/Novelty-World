@@ -1,6 +1,6 @@
 # Risk bot v6: v5 with the fixes two human games showed
 
-v6 (`bots/rule-v6/`) is built and screened at 3 players, not measured, and not seated. Its settings switch every fix on until the 6-player screens (below, under "Measuring it") say which pay; v6 is then the set that does. `bot-log.md` has the build's entry.
+v6 (`bots/rule-v6/`) is built and screened, and its full suite is running; it is not seated. The screens (below) kept six of its seven fixes: every one but `movein`. `bot-log.md` has the build's entry and the screens.
 
 v6 is v5 (`rule-bot-v5.md`) whole: v4's beliefs, fixes and preferences, and v5's sweep. It adds seven fixes, each for a mistake a person's win showed, and each a switch in its settings (`Fixes` in `params.ts`), so a screen can seat v5 with any one of them and pin a result on it. With every switch off v6 plays v5's moves exactly; `parity.test.ts` holds it to that. v6 keeps only the files it changes and shares the rest from v5, v4, v3 and v1: its own capture planner order (`routes.ts`), kill chance (`kills.ts`), opponent model (`opponents.ts`), evaluation (`evaluate.ts`), planner (`planner.ts`), move-in and fortify (`decisions.ts`) and entry point, each v4's or v5's line for line wherever its switches are off.
 
@@ -125,7 +125,14 @@ At 6 players, on GitHub Actions: one v6 among five v5s, train seeds `screen-v6:*
 
 Only `alive` pays, and it pays plainly: the large table's preferences, played down to three survivors, were costing v5 about 40 Elo a seat. The six fixes for single positions change too few decisions to show at this size; they are corrections that cost nothing measurable, and nothing measurable is gained. `movein` leans worse at both table sizes and is most of the cost, so it is dropped. Every fix together came out below `alive` alone, so the bundle gives back some of what `alive` wins. The cap rate is about 24% in every screen; v5 among v4s ran 34 to 38%, so v5-only tables end more often, and no fix moved it.
 
-Two sets go to a last screen before v6 is fixed: `alive` with `fork` (the bug fix that cost the kill, which leans above par at both sizes for 4% more work), and every fix but `movein`.
+Two sets go to a last screen before v6 is fixed: `alive` with `fork` (the bug fix that cost the kill, which leans above par at both sizes for 4% more work), and every fix but `movein`. The choice, fixed before they report: the larger set whose win share is inside `alive`'s interval (17.5% or more) is v6; failing both, v6 is `alive` alone.
+
+| v5 with | Win share vs par 16.7% | Win Elo a seat | Games | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| `alive` and `fork` | 20.3% [17.5, 23.4] | +42 | 966 | 26.1% | **better** |
+| every fix but `movein` | 19.4% [17.2, 21.7] | +32 | 1,608 | 25.2% | **better** |
+
+Both are better than v5, and the larger is inside `alive`'s interval, so **v6 is every fix but `movein`**. The two can't be told apart at this size; the larger set is kept because each of its fixes is right on the position it was built for and none measurably costs.
 
 ## The seating bar, decided before the runs
 
