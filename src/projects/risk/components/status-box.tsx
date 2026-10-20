@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, Minus, Swords, TrendingDown, TrendingUp } from "lucide-react";
 import { forwardRef } from "react";
-import { PromptButton, type Hold } from "@/shared/components/prompts";
+import { PromptButton } from "@/shared/components/prompts";
 import type { InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
 import type { GameView, Move, Options } from "../contract";
@@ -35,7 +35,6 @@ interface Props {
   onMenu: () => void;
   /** The move that ends the phase, when the step offers it. */
   ending: Move | null;
-  endHold: Hold;
   input: InputKind;
   onNewGame: () => void;
   error: string | null;
@@ -85,7 +84,7 @@ function EloChange({ rating }: { rating: RatedGame }) {
   );
 }
 
-export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onMenu, ending, endHold, input, onNewGame, error, rating }, ref) {
+export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onMenu, ending, input, onNewGame, error, rating }, ref) {
   const latest = news.at(-1);
   const canTrade = options?.kind === "reinforce" && options.sets.length > 0 && !options.mustTrade;
   const backButton = (
@@ -93,6 +92,9 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
       <ArrowLeft size="1.1em" />
     </button>
   );
+  // Picking another source while attacking switches to it, but while fortifying nearly every other
+  // territory of the player's is a target, so only Back picks the source again.
+  const picksFortifyTarget = step.kind === "pick" && step.purpose === "fortify-to";
 
   return (
     <div ref={ref} className={cn(PANEL, "pointer-events-auto flex flex-col gap-[0.6em] p-[0.75em]")} data-testid="risk-status">
@@ -128,6 +130,7 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
           goes, and its slider shows how many. */}
       {(step.kind === "wait" || step.kind === "must-trade" || step.kind === "pick") && (
         <div className="flex items-center gap-[0.5em]">
+          {picksFortifyTarget && backButton}
           <p className={cn(DISPLAY, "mr-auto line-clamp-2 min-w-0 text-[1.1em] text-(--rk-brass-bright)")}>{prompt(step, view)}</p>
           {canTrade && (
             <PromptButton binding={BINDINGS.menu} input={input} className={cn(BUTTON, "shrink-0")} onClick={onMenu}>
@@ -135,7 +138,7 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
             </PromptButton>
           )}
           {ending && (
-            <PromptButton binding={BINDINGS["end-phase"]} input={input} hold={endHold} className={cn(BUTTON, "shrink-0")} onClick={() => act(ending)}>
+            <PromptButton binding={BINDINGS["end-phase"]} input={input} className={cn(BUTTON, "shrink-0")} onClick={() => act(ending)}>
               {ending.kind === "end-attack" ? "End attack" : "End turn"}
             </PromptButton>
           )}

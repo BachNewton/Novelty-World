@@ -10,8 +10,7 @@ import type { Binding } from "@/shared/components/prompts";
 export type Meaning = "end-phase" | "menu" | "less" | "more" | "choices" | "blitz" | "log";
 
 export const BINDINGS: Record<Meaning, Binding> = {
-  /** Ending the attack or the turn is a hold, as Betrayal's End turn is: there is no undo. */
-  "end-phase": { pad: "X", key: "Backspace", fills: true },
+  "end-phase": { pad: "X", key: "Backspace", fills: false },
   /** The war room: the cards, the battle log and leaving, in one dialog. */
   menu: { pad: "Menu", key: "M", fills: false },
   less: { pad: "LB", key: "[", fills: false },
