@@ -609,3 +609,50 @@ Screens, one v6 among two v5s at 3 players, train seeds `screen-v6:*`, capped at
 | `reinforced` | 33.8% [30.2, 37.7] | +4 | inconclusive |
 
 No big loser, nothing separated: each fix changes a few decisions a game. No game hit the cap. The faults were seen at 5 players, so the screens that choose v6's set are at 6 players, queued for GitHub Actions with the full suite after them (`rule-bot-v6.md`, "Measuring it", with the seating bar written in advance).
+
+## v6's screens at 6 players, and the set kept (2026-10-20)
+
+On GitHub Actions, one v6 variant among five v5s, train seeds `screen-v6:*`, at most 2,000 decisive games each, eight runs at once on 5 machines each:
+
+| v5 with | Win share vs par 16.7% | Win Elo a seat | Games | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| `alive` | 20.1% [17.5, 23.0] | +40 | 1,074 | 25.0% | better |
+| `gather` | 17.2% [15.6, 18.9] | +6 | 2,694 | 25.6% | inconclusive at the cap |
+| `fork` | 17.0% [15.4, 18.7] | +4 | 2,562 | 25.8% | even |
+| `homeward` | 16.9% [15.1, 18.7] | +3 | 2,226 | 24.6% | even |
+| `thirdParty` | 16.8% [15.0, 18.7] | +2 | 2,082 | 24.3% | even |
+| `reinforced` | 16.7% [14.9, 18.7] | +1 | 1,914 | 24.3% | even |
+| `movein` | 15.9% [14.4, 17.6] | −9 | 2,616 | 23.5% | inconclusive, leaning worse |
+| every fix | 17.9% [16.3, 19.6] | +15 | 2,604 | 23.1% | inconclusive |
+
+Only `alive` pays: the large table's preferences played down to three survivors cost v5 about 40 Elo a seat. The fixes for single positions change too few decisions to show. `movein` leaned worse at 3 and 6 players and was most of the cost, so it was dropped. Every fix together scored below `alive` alone, so two sets had a last screen, the rule for choosing written into `rule-bot-v6.md` before they reported (the larger set inside `alive`'s interval):
+
+| v5 with | Win share vs par 16.7% | Win Elo a seat | Games | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| `alive` and `fork` | 20.3% [17.5, 23.4] | +42 | 966 | 26.1% | better |
+| every fix but `movein` | 19.4% [17.2, 21.7] | +32 | 1,608 | 25.2% | better |
+
+**Decision: v6 is every fix but `movein`.** The cap rate was about 24% in every screen (v5 among v4s: 34 to 38%); no fix moved it.
+
+## v6's ladder and train gauntlet (2026-10-20)
+
+Both on GitHub Actions, 10 machines each, at once. The ladder (`risk:ratings -- rule-v6 rule-v5 rule-v4 rule-v3 rule-v2 rule-v1 gd-stacker gd-continental greedy gd-aggressive gd-defensive --anchor greedy --groups 100`, 26,000 new games, 1 h 21 min of play):
+
+| Bot | Win Elo (greedy = 0) | Finishing-order Elo (greedy = 0) |
+|---|---|---|
+| rule-v6 | +558.9 | +287.9 |
+| rule-v5 | +537.7 | +282.9 |
+| rule-v4 | +500.6 | +292.9 |
+| rule-v3 | +439.4 | +241.9 |
+
+Head to head, v6 alone among v5s wins 34.7%, 24.8% and 20.4% at 3, 4 and 6 players (par 33.3, 25 and 16.7), and v5 alone among v6s 29.0%, 23.3% and 14.9%: level at the small tables, better at 6, where `alive` acts.
+
+The train gauntlet (`rule-v6 --base rule-v5 --field rule-v5,rule-v4,gd-defensive,gd-stacker,greedy`, 44,200 games, 5 rounds):
+
+| Opponent | 3p one-in | 3p one-out | 4p one-in | 4p one-out | 6p one-in | 6p one-out |
+|---|---|---|---|---|---|---|
+| rule-v5 | even (33.3%) | even (66.6%) | better (30.7%) | even (75.5%) | better (19.3%) | better (85.5%) |
+| rule-v4 | better (42.5%) | better (77.3%) | better (31.0%) | better (78.9%) | better (18.9%) | better (86.1%) |
+| gd-defensive, gd-stacker, greedy | better | better | better | better | better | better |
+
+Win Elo (rule-v5 = 0): v6 +14.9, v4 −28.7. Finishing order puts v6 at −10: the all-or-nothing mark v5 showed against v4, one step further. The tool's own gate printed REJECT (some tables even); by v6's seating bar (better than v5 somewhere, worse nowhere, no weak bot worse, above v5 on the ladder) train and the ladder both pass. The holdout gauntlet is next.
