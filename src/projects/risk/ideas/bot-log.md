@@ -656,3 +656,26 @@ The train gauntlet (`rule-v6 --base rule-v5 --field rule-v5,rule-v4,gd-defensive
 | gd-defensive, gd-stacker, greedy | better | better | better | better | better | better |
 
 Win Elo (rule-v5 = 0): v6 +14.9, v4 −28.7. Finishing order puts v6 at −10: the all-or-nothing mark v5 showed against v4, one step further. The tool's own gate printed REJECT (some tables even); by v6's seating bar (better than v5 somewhere, worse nowhere, no weak bot worse, above v5 on the ladder) train and the ladder both pass. The holdout gauntlet is next.
+
+## v6's holdout gauntlet, and v6 seated (2026-10-20)
+
+The train gauntlet's command with `--prefix holdout`, on GitHub Actions, 20 machines, 47,800 games over 5 rounds, 1 h 22 min of play:
+
+| Opponent | 3p one-in | 3p one-out | 4p one-in | 4p one-out | 6p one-in | 6p one-out |
+|---|---|---|---|---|---|---|
+| rule-v5 | even (34.8%) | even (67.9%) | even (25.8%) | better (77.6%) | better (20.3%) | better (86.2%) |
+| rule-v4 | better (42.4%) | better (75.3%) | better (34.5%) | better (82.4%) | better (19.2%) | better (87.2%) |
+| gd-defensive, gd-stacker, greedy | better | better | better | better | better | better |
+
+Win Elo (rule-v5 = 0): v6 +15.8, v4 −41.0; by finishing order v6 +1.5. The 3-player pairings against v5 took 3,990 and 2,898 games to call even: at 3 players v6 and v5 are nearly the same bot, as the screens said. Cap rates: 26% and 18% for v6 against v5 at 6 players, 37% for one v6 among five v4s.
+
+With train and the ladder, v6 clears all three rules of its seating bar (`rule-bot-v6.md`), so it is seated (`online/seat-roster.ts`) and, as the strongest, the lobby's default. The seatable ratings run played nothing: all 330 matchups came from the cache.
+
+| Bot | Win Elo (greedy at 1000) |
+|---|---|
+| rule-v6 | 1559 |
+| rule-v5 | 1538 |
+| rule-v4 | 1501 |
+| rule-v3 | 1439 |
+
+v6's moves over the two frozen games are pinned in `bots/frozen.test.ts`.

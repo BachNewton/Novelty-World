@@ -6,13 +6,14 @@ import { ruleV2Bot } from "../bots/rule-v2";
 import { ruleV3Bot } from "../bots/rule-v3";
 import { ruleV4Bot } from "../bots/rule-v4";
 import { ruleV5Bot } from "../bots/rule-v5";
+import { ruleV6Bot } from "../bots/rule-v6";
 
 // The roster apart from its ranking (`seat-bots.ts`), so the ratings run that measures a
 // newly seated bot can read it before the bot has an Elo to rank it by.
 
 /** A bot a table can seat, by the id its row keeps: the label the measuring harness seats it
  *  by. The bots themselves live in `bots/`, the one home of every Risk bot, measured or played. */
-export type BotId = "greedy" | "rule-v1" | "rule-v2" | "rule-v3" | "rule-v4" | "rule-v5" | "gd-defensive" | "gd-continental" | "gd-aggressive" | "gd-stacker";
+export type BotId = "greedy" | "rule-v1" | "rule-v2" | "rule-v3" | "rule-v4" | "rule-v5" | "rule-v6" | "gd-defensive" | "gd-continental" | "gd-aggressive" | "gd-stacker";
 
 export interface SeatBot {
   /** What players call it, with its version beside it. */
@@ -31,6 +32,7 @@ export const SEAT_BOTS: Record<BotId, SeatBot> = {
   "rule-v3": { name: "Rule", version: "v3", bot: ruleV3Bot },
   "rule-v4": { name: "Rule", version: "v4", bot: ruleV4Bot },
   "rule-v5": { name: "Rule", version: "v5", bot: ruleV5Bot },
+  "rule-v6": { name: "Rule", version: "v6", bot: ruleV6Bot },
   "gd-defensive": { name: "GD Defensive", version: "Expert", bot: gdDefensiveBot },
   "gd-continental": { name: "GD Continental", version: "Expert", bot: gdContinentalBot },
   "gd-aggressive": { name: "GD Aggressive", version: "Expert", bot: gdAggressiveBot },

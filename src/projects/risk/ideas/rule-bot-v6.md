@@ -1,6 +1,6 @@
 # Risk bot v6: v5 with the fixes two human games showed
 
-v6 (`bots/rule-v6/`) is built and screened, and its full suite is running; it is not seated. The screens (below) kept six of its seven fixes: every one but `movein`. `bot-log.md` has the build's entry and the screens.
+v6 (`bots/rule-v6/`) is built and measured, and it clears its seating bar (below, under "Measuring it"), so it is seated, and it tops the seatable ladder. The screens kept six of its seven fixes: every one but `movein`. `bot-log.md` has the build's entry and every measurement.
 
 v6 is v5 (`rule-bot-v5.md`) whole: v4's beliefs, fixes and preferences, and v5's sweep. It adds seven fixes, each for a mistake a person's win showed, and each a switch in its settings (`Fixes` in `params.ts`), so a screen can seat v5 with any one of them and pin a result on it. With every switch off v6 plays v5's moves exactly; `parity.test.ts` holds it to that. v6 keeps only the files it changes and shares the rest from v5, v4, v3 and v1: its own capture planner order (`routes.ts`), kill chance (`kills.ts`), opponent model (`opponents.ts`), evaluation (`evaluate.ts`), planner (`planner.ts`), move-in and fortify (`decisions.ts`) and entry point, each v4's or v5's line for line wherever its switches are off.
 
@@ -171,6 +171,14 @@ gh workflow run risk-measure.yml --ref claude/risk-rule-v6-200641 -f tool=rating
 ```
 
 The holdout gauntlet only once train passes rules 1 and 2. v5's own train gauntlet took 3.4 hours on the laptop, most of it two 6-player pairings against v4 that needed over 1,400 decisive games to call even; v6 against v5 will be closer still, so its 6-player pairings are the long ones. Each run's results come back with `risk:import`, and its entry goes in `bot-log.md`. If v6 clears the bar, it is seated as v4 and v5 were: `online/seat-roster.ts`, the seatable ratings run, and its fingerprint in `frozen.test.ts`.
+
+**What it showed** (`bot-log.md`, the entries from "v6's screens at 6 players" to "v6's holdout gauntlet, and v6 seated"), all on GitHub Actions:
+
+1. **Against v5: passes.** Train: better at 4 players one-in and at 6 players both ways, even elsewhere. Holdout: better at 4 players one-out and at 6 players both ways, even elsewhere. Worse at no table on either.
+2. **Against the weak bots: passes.** Better at every table on both seed sets. v4 too.
+3. **On the ladder: passes.** Win Elo +558.9 against v5's +537.7 (greedy = 0); by finishing order v6 (+287.9) sits between v4 (+292.9) and v5 (+282.9).
+
+The gain is at the big table, where `alive` acts: level with v5 at 3 players, a little ahead at 4, clearly ahead at 6. The six fixes for single positions are right where they were built and measurably cost nothing, and gain nothing a screen could see on their own.
 
 ## Open questions
 
