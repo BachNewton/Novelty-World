@@ -679,3 +679,33 @@ With train and the ladder, v6 clears all three rules of its seating bar (`rule-b
 | rule-v3 | 1439 |
 
 v6's moves over the two frozen games are pinned in `bots/frozen.test.ts`.
+
+## Five players: the ladder, and the small table's cutoff (2026-10-20)
+
+Every measurement so far played 3, 4 and 6 players, the default since the first gauntlet, though both human games the bots lost (G4FR and 9VFL) were 5-player games. Two runs on GitHub Actions, 10 machines each:
+
+**The ladder at 5 players**, `risk:ratings -- rule-v6 rule-v5 rule-v4 rule-v3 rule-v2 rule-v1 gd-stacker gd-continental greedy gd-aggressive gd-defensive --anchor greedy --groups 100 --players 5`: 55,000 games, 110 matchups.
+
+| Bot | Win Elo at 5p (greedy = 0) | Seatable ladder at 3, 4, 6 |
+|---|---|---|
+| rule-v6 | +569 | +559 |
+| rule-v5 | +546 | +538 |
+| rule-v4 | +537 | +501 |
+| rule-v3 | +478 | +439 |
+| rule-v2 | +437 | +406 |
+| rule-v1 | +326 | +320 |
+| gd-stacker | +116 | +90 |
+| gd-continental | +86 | +69 |
+| gd-aggressive | +23 | +7 |
+| gd-defensive | +8 | −34 |
+
+The rule bots keep their order, and v6 stays on top: alone among v5s it wins 21.7% against par 20%, and v5 alone among v6s 17.7%. The gaps differ: v4 sits 9 Elo under v5 at 5 players against 37 on the 3/4/6 ladder, and by finishing order it is first. The 3, 4 and 6-player ladder predicts the 5-player order; it doesn't predict the gaps.
+
+**The small table's cutoff.** The rule bots play their small-table preferences at 4 players or fewer, a cutoff set from measurements at 3, 4 and 6 only. v6 with its large-table preferences replaced by its small-table ones (a tuned label, `rule-v6~{…smallTable.prefs}`), against plain v6 at 5 players, `--max 2000 --prefix screen-5p`, 3,000 games:
+
+| Pairing (5p) | Win share vs par | Verdict |
+|---|---|---|
+| 1 small-table v6 among 4 v6s | 24.6% vs 20.0% | better |
+| 4 small-table v6s against 1 v6 | 80.8% vs 80.0% | inconclusive at the 2,000-game cap |
+
+Win Elo +17 a seat, finishing order +23. **At 5 players the small table's preferences are the better ones**: the cutoff belongs at 5, not 4. v6 is seated and frozen, so moving it is a new version. A 5-player game is also cheap: 105 to 127 turns on average and a 3 to 7% cap rate between v6s, against 25 to 37% at 6 players, so adding 5 to the default table sizes costs little.
