@@ -709,3 +709,18 @@ The rule bots keep their order, and v6 stays on top: alone among v5s it wins 21.
 | 4 small-table v6s against 1 v6 | 80.8% vs 80.0% | inconclusive at the 2,000-game cap |
 
 Win Elo +17 a seat, finishing order +23. **At 5 players the small table's preferences are the better ones**: the cutoff belongs at 5, not 4. v6 is seated and frozen, so moving it is a new version. A 5-player game is also cheap: 105 to 127 turns on average and a 3 to 7% cap rate between v6s, against 25 to 37% at 6 players, so adding 5 to the default table sizes costs little.
+
+## Five players in every default run (2026-10-20)
+
+The measuring tools' default tables are now 3, 4, 5 and 6 players (`eval/cli-args.ts`), for the gauntlet, the ladder and the tuner alike. Until now no measurement played 5 by default, though it is the table people play. The seatable ladder at all four sizes played nothing: its 440 matchups came from the cache, the 5-player ones from the 5-player ladder above.
+
+| Bot | Win Elo, 3/4/5/6 (greedy at 1000) | 3/4/6 before |
+|---|---|---|
+| rule-v6 | 1561 | 1559 |
+| rule-v5 | 1540 | 1538 |
+| rule-v4 | 1511 | 1501 |
+| rule-v3 | 1450 | 1439 |
+| rule-v2 | 1415 | 1406 |
+| rule-v1 | 1322 | 1320 |
+
+The order is unchanged. Every earlier verdict in this log played 3, 4 and 6 only.

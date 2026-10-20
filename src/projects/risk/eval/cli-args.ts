@@ -21,7 +21,7 @@ export interface CommonArgs {
 export const DEFAULT_MAX_TURNS = 600;
 
 export function commonDefaults(prefix: string): CommonArgs {
-  return { players: [3, 4, 6], maxTurns: DEFAULT_MAX_TURNS, workers: defaultWorkerCount(), prefix };
+  return { players: [3, 4, 5, 6], maxTurns: DEFAULT_MAX_TURNS, workers: defaultWorkerCount(), prefix };
 }
 
 export function number(value: string | undefined, flag: string): number {
