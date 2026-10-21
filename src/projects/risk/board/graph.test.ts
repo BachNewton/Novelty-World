@@ -72,8 +72,8 @@ describe("the board on a screen", () => {
   for (const a of IDS) for (const b of IDS) if (a < b) closest = Math.min(closest, Math.hypot(NODES[a][0] - NODES[b][0], NODES[a][1] - NODES[b][1]));
 
   it("keeps every territory a fingertip from the next on the smallest phone, panning it across only", () => {
-    // The floor's 360×640 view in portrait, its top bar and status box over the map.
-    const { camera, pan } = frame(360, 640, [{ left: 8, top: 8, right: 352, bottom: 70 }, { left: 8, top: 420, right: 352, bottom: 632 }]);
+    // Risk's floor, a 375×640 view in portrait, its top bar and status box over the map.
+    const { camera, pan } = frame(375, 640, [{ left: 8, top: 8, right: 367, bottom: 70 }, { left: 8, top: 420, right: 367, bottom: 632 }]);
     expect(pan.axis).toBe("x");
     expect(closest * camera.scale).toBeGreaterThanOrEqual(FINGERTIP);
     expect(camera.top).toBeGreaterThanOrEqual(70);
