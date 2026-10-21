@@ -14,6 +14,8 @@ import { ruleBot as ruleV5, ruleV5Bot } from "./rule-v5";
 import { V5_PARAMS } from "./rule-v5/params";
 import { ruleBot as ruleV6, ruleV6Bot } from "./rule-v6";
 import { V6_PARAMS } from "./rule-v6/params";
+import { ruleBot as ruleV7, ruleV7Bot } from "./rule-v7";
+import { V7_PARAMS } from "./rule-v7/params";
 import { ruleV8Bot } from "./rule-v8";
 import { sweeperV1Bot } from "./sweeper-v1";
 
@@ -27,6 +29,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v4": ruleV4Bot,
   "rule-v5": ruleV5Bot,
   "rule-v6": ruleV6Bot,
+  "rule-v7": ruleV7Bot,
   "rule-v8": ruleV8Bot,
   "sweeper-v1": sweeperV1Bot,
   "gd-defensive": gdDefensiveBot,
@@ -46,6 +49,7 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v4": "rule-v4/index.ts",
   "rule-v5": "rule-v5/index.ts",
   "rule-v6": "rule-v6/index.ts",
+  "rule-v7": "rule-v7/index.ts",
   "rule-v8": "rule-v8/index.ts",
   "sweeper-v1": "sweeper-v1/index.ts",
   "gd-defensive": "gd/index.ts",
@@ -59,7 +63,9 @@ interface Tunable {
   engine: Engine;
   /** Switches a version screens its changes by, each on (1) or off (0): v6's fixes. */
   switches?: Readonly<Record<string, number>>;
-  build: (prefs: Preferences, engine: Engine, switches: Record<string, number>) => Bot;
+  /** Whole-number work knobs, each 0 or more: v7's replies and candidates. */
+  knobs?: Readonly<Record<string, number>>;
+  build: (prefs: Preferences, engine: Engine, switches: Record<string, number>, knobs: Record<string, number>) => Bot;
 }
 
 /** The rule bots a measuring run may seat with some settings moved, each by its code and
@@ -89,6 +95,14 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
     switches: { ...V6_PARAMS.fixes },
     build: (prefs, engine, switches) => ruleV6({ ...V6_PARAMS, prefs, engine, fixes: { ...V6_PARAMS.fixes, ...switches } }),
   },
+  // v7 at a work budget: `rule-v7~{"replies":8}` (`ideas/rule-bot-v7.md`).
+  "rule-v7": {
+    prefs: V7_PARAMS.prefs,
+    engine: V7_PARAMS.engine,
+    switches: { mixed: V7_PARAMS.search.mixed },
+    knobs: { replies: V7_PARAMS.search.replies, candidates: V7_PARAMS.search.candidates },
+    build: (prefs, engine, switches, knobs) => ruleV7({ ...V7_PARAMS, prefs, engine, search: { ...V7_PARAMS.search, ...switches, ...knobs } }),
+  },
 };
 
 export type Overrides = Partial<Preferences & Engine>;
@@ -108,17 +122,20 @@ function tunedBot(label: string): Bot | null {
   const known = tuned.get(label);
   if (known) return known;
   const overrides = JSON.parse(label.slice(at + 1)) as Record<string, number>;
-  const { prefs, engine, switches = {}, build } = TUNABLE_BOTS[base];
-  const moved = { prefs: { ...prefs }, engine: { ...engine }, switches: { ...switches } };
+  const { prefs, engine, switches = {}, knobs = {}, build } = TUNABLE_BOTS[base];
+  const moved = { prefs: { ...prefs }, engine: { ...engine }, switches: { ...switches }, knobs: { ...knobs } };
   for (const [key, value] of Object.entries(overrides)) {
     if (Object.hasOwn(prefs, key)) moved.prefs[key as keyof Preferences] = value;
     else if (Object.hasOwn(engine, key)) moved.engine[key as keyof Engine] = value;
     else if (Object.hasOwn(switches, key)) {
       if (value !== 0 && value !== 1) throw new Error(`"${base}"'s switch "${key}" is 0 or 1, not ${value.toString()}`);
       moved.switches[key] = value;
+    } else if (Object.hasOwn(knobs, key)) {
+      if (!Number.isInteger(value) || value < 0) throw new Error(`"${base}"'s knob "${key}" is a whole number, 0 or more, not ${value.toString()}`);
+      moved.knobs[key] = value;
     } else throw new Error(`"${base}" has no setting "${key}"`);
   }
-  const bot = build(moved.prefs, moved.engine, moved.switches);
+  const bot = build(moved.prefs, moved.engine, moved.switches, moved.knobs);
   tuned.set(label, bot);
   return bot;
 }

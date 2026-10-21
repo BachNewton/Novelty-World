@@ -807,3 +807,20 @@ Win Elo (rule-v6 = 0): v8 −2; by finishing order −59. **v8 fails its seating
 Both pairings decided fast, and they disagree. Alone among v6s, the table it was trained on, v8 wins nearly twice par. Four v8s with one v6 lose to it: the lone v6 wins 36.8% where par is 20%. Games run long: 214 turns with one v8, 421 with four, where five-player games among v6s run 105 to 127 and cap 3 to 7% of the time. The network learned what wins among v6s, and among v6s a seat that holds back while the others fight wins. A table of such seats stalls, and the one seat that attacks takes it. This is the population lesson `risk-bot-ai.md` cites from DORA, measured: strength among one population says nothing about another, and an evaluation fit to one population's games carries it in.
 
 The ratings cache was not committed with this run's import: v8's refactor of v6 (an optional `score` in its params) changes v6's code hash, and the import dropped v6's 80 cached ladder matchups that this checkout's v6 no longer answers.
+
+## v7 built: v6 that plays its opponents' replies (2026-10-21)
+
+`rule-v7` (`rule-bot-v7.md`) chooses the turn's placement among v6's four best plans by playing each through the opponents' next turns in sampled worlds (`sim.ts`), with real bots in their seats (v6, gd-aggressive and greedy, drawn per seat), and scoring the start of its next turn. The knob is the replies per plan; at 0 it plays v6's moves exactly. Registered, not seated, and unmeasured: its seating bar and budget curve are in its doc, queued as Actions runs.
+
+Its cost, one v7 among four v6s at 5 players, the laptop's one core, the first 30 to 60 player-turns of two games:
+
+| Budget | Time a decision | A turn, mean | 9 in 10 under |
+|---|---|---|---|
+| 0 replies (= v6) | 2.7 ms | 0.02 s | 0.03 s |
+| 2 replies | 73 ms | 0.75 s | 1.6 s |
+| 8 replies | 262 ms | 2.5 s | 3.5 s |
+| 8 replies, 2 candidates | 110 ms | 1.1 s | 2.2 s |
+| 8 replies, every opponent v6 | 1,186 ms | 8.8 s | 15.8 s |
+| 32 replies | 1,441 ms | 9.8 s | 15.3 s |
+
+A round costs about 80 ms with the mix and 270 ms with every opponent v6, whose planning is most of it. A server turn of a few seconds holds about 8 replies over 4 candidates.

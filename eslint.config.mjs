@@ -3,6 +3,58 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import security from "eslint-plugin-security";
 import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
+import { builtinModules } from "node:module";
+
+/** The rules that keep Risk's bot code (`files`, whose path `up` leads to Risk's own folder) from
+ *  reaching any real game's hidden information. A bot's tests build positions with the engine's
+ *  test kit; the bot code they test can't. */
+function riskBotRules(files, up) {
+  const allowed = "contract|map|blitz|cards|sim";
+  const builtins = builtinModules.filter((m) => !m.startsWith("_")).join("|");
+  const secrets = "a bot sees its seat's view, never a game's state or its seed";
+  return {
+    files: [files],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              // `..` after a folder's name walks back out of it, round the allow-list.
+              regex: "^(?:\\.\\./)*(?:\\./)?(?:(?!\\.\\.(?:/|$))[^/]+/)+\\.\\.(?:/|$)",
+              message: "Write the import's path plainly, with no `..` after a folder's name.",
+            },
+            {
+              regex: `^(?:${up}|@/(?!shared/))(?!(?:${allowed})$)`,
+              message: `From Risk a bot may import only the contract, the map, the cards, the blitz odds and sim: ${secrets}.`,
+            },
+            {
+              regex: `^(?:node:|(?:${builtins})(?:/|$))`,
+              message: `A bot uses no Node built-in module: ${secrets}.`,
+            },
+          ],
+        },
+      ],
+      "no-restricted-globals": [
+        "error",
+        ...["globalThis", "global", "window", "self", "process", "require", "module", "Function", "eval"].map((name) => ({
+          name,
+          message: `A bot reaches nothing through the run time: ${secrets}.`,
+        })),
+      ],
+      "no-restricted-syntax": [
+        "error",
+        { selector: "ImportExpression", message: `A bot imports only statically, so lint sees its imports: ${secrets}.` },
+        { selector: "TSImportEqualsDeclaration", message: `A bot imports only with \`import\`: ${secrets}.` },
+        {
+          selector: "MemberExpression[property.name='constructor'], MemberExpression[property.value='constructor'], MemberExpression[property.quasis.0.value.cooked='constructor']",
+          message: `A bot doesn't reach a value's constructor, the way to the Function constructor: ${secrets}.`,
+        },
+      ],
+    },
+  };
+}
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -88,46 +140,15 @@ const eslintConfig = defineConfig([
       ],
     },
   },
-  // Risk's bots see only what their seat may legally see: they are handed a view, never the game
-  // state. So bot code reaches the contract's types, the map, the card rules, the blitz odds and shared helpers, and nothing in
-  // the project that holds or makes a state (the engine, the online game, the server, the harness).
-  {
-    files: ["src/projects/risk/bots/**/*.ts"],
-    // A bot's tests build positions with the engine's test kit; the bot code they test can't.
-    ignores: ["**/*.test.ts"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              regex: "^(\\.\\./|@/projects/)(?!(contract|map|blitz|cards)$)",
-              message: "A bot may import only the contract, the map, the cards and the blitz odds from Risk: it sees its seat's view, never the state.",
-            },
-          ],
-        },
-      ],
-    },
-  },
-  // A bot in a folder of its own reaches the seam and shared bot code one level up, and the contract
-  // and the map two levels up, and still nothing that holds a state.
-  {
-    files: ["src/projects/risk/bots/*/**/*.ts"],
-    ignores: ["**/*.test.ts"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              regex: "^(\\.\\./\\.\\./|@/projects/)(?!(contract|map|blitz|cards)$)",
-              message: "A bot may import only the contract, the map, the cards and the blitz odds from Risk: it sees its seat's view, never the state.",
-            },
-          ],
-        },
-      ],
-    },
-  },
+  // Risk's bots see only what their seat may legally see: a view, options and the redacted history.
+  // Their imports are an allow-list that keeps out the secrets, any real game's state and anything
+  // that deals a game from a seed: from Risk only the contract, the map, the card rules, the blitz
+  // odds and `sim` (the worlds a searching bot builds from its own view and guesses), shared code,
+  // and other bot code. The run-time ways round an import (dynamic `import()`, the global object,
+  // Node's `process` and built-in modules, the Function constructor) are banned with it.
+  riskBotRules("src/projects/risk/bots/**/*.ts", "\\.\\./"),
+  // A bot in a folder of its own reaches the seam and shared bot code one level up, and Risk two.
+  riskBotRules("src/projects/risk/bots/*/**/*.ts", "\\.\\./\\.\\./"),
   // The e2e harness manages its own run folders (builds, test output), every path built from its
   // own constants and process ids: the rule guards against paths from outside input, which it has none of.
   {
