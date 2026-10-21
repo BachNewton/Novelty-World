@@ -792,3 +792,18 @@ Every network scores within fit-to-fit noise of the others (about 0.005), and a 
 **Cost per decision**, v8 against v6 asked the same decisions (a v6 seat among v6s, 12 games a table size capped at 150 turns, the two taking turns going first): 1.02 times v6 at 5 players, 1.10 at 4 and 1.14 at 6. The two chose the same move in 57% of decisions at 5 players, 58% at 4, and 80% at 6, where v8 plays v6 until a seat falls.
 
 **A local screen at 5 players**, `risk:gauntlet -- rule-v8 --base rule-v6 --field rule-v6 --players 5 --formats one-in,one-out --max 600 --prefix screen-v8`, stopped at the ten-minute limit on the laptop's CPU. Five-player games of v6 are slow on 14 workers. Its one-in pairing (v8 alone among four v6s) had 102 decisive games and 13 capped, with the improvement test's log-likelihood ratio at 3.0 and the regression test's at −3.4. That leans well above par, but no verdict was printed before the stop, and one-out had not reported. It is a lean to confirm on Actions, not a result. The Actions commands are in the design doc's "Measuring it".
+
+## v8's screen at 5 players: better alone, worse in numbers (2026-10-21)
+
+On GitHub Actions (run 39641294131, 10 machines, 2 rounds, 1,200 games): `risk:gauntlet -- rule-v8 --base rule-v6 --field rule-v6 --players 5 --formats one-in,one-out --max 2000 --prefix screen-v8`.
+
+| Pairing (5p) | Win share vs par | Games | Mean turns | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| 1 v8 among 4 v6s | 38.2% [29.4, 47.9] vs 20.0% | 115 | 214 | 11.3% | better |
+| 4 v8s against 1 v6 | 63.2% [54.0, 71.4] vs 80.0% | 145 | 421 | 21.4% | worse |
+
+Win Elo (rule-v6 = 0): v8 −2; by finishing order −59. **v8 fails its seating bar**: worse at a table.
+
+Both pairings decided fast, and they disagree. Alone among v6s, the table it was trained on, v8 wins nearly twice par. Four v8s with one v6 lose to it: the lone v6 wins 36.8% where par is 20%. Games run long: 214 turns with one v8, 421 with four, where five-player games among v6s run 105 to 127 and cap 3 to 7% of the time. The network learned what wins among v6s, and among v6s a seat that holds back while the others fight wins. A table of such seats stalls, and the one seat that attacks takes it. This is the population lesson `risk-bot-ai.md` cites from DORA, measured: strength among one population says nothing about another, and an evaluation fit to one population's games carries it in.
+
+The ratings cache was not committed with this run's import: v8's refactor of v6 (an optional `score` in its params) changes v6's code hash, and the import dropped v6's 80 cached ladder matchups that this checkout's v6 no longer answers.
