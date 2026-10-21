@@ -25,14 +25,17 @@ export interface RowStore {
   insert: (id: string, change: RowChange) => Promise<GameRow | null>;
   /** The game's move log, in decision order. */
   moves: (id: string) => Promise<LoggedMove[]>;
-  /** Deletes the row and its move log; the row as it was, or null when there was none. */
-  remove: (id: string) => Promise<GameRow | null>;
+  /** Deletes the row and its move log, only if it is still at `atVersion` when one is given; the
+   *  row as it was, or null when there was none (or it had moved on). */
+  remove: (id: string, atVersion?: number) => Promise<GameRow | null>;
 }
 
 export type Step =
   | { kind: "rejected"; reason: string }
   | { kind: "unchanged" }
-  | { kind: "changed"; change: RowChange; answer: LoggedMove | null };
+  | { kind: "changed"; change: RowChange; answer: LoggedMove | null }
+  /** Deletes the game: a commit that removes answers with the row as it was. */
+  | { kind: "removed" };
 
 /** How many times a commit re-reads after losing the race to another write. Each loss means
  *  another write landed, so the game is moving; the bound turns a storm of them into an error. */
@@ -45,6 +48,11 @@ export async function commit(store: RowStore, id: string, step: (row: GameRow) =
     const next = step(row);
     if (next.kind === "rejected") return { ok: false, reason: next.reason, row };
     if (next.kind === "unchanged") return { ok: true, row };
+    if (next.kind === "removed") {
+      const removed = await store.remove(id, row.version);
+      if (removed) return { ok: true, row: removed };
+      continue;
+    }
     const written = await store.write(id, row.version, next.change, next.answer);
     if (written) return { ok: true, row: written };
   }
@@ -65,6 +73,15 @@ function inLobby(row: GameRow, profileId: string, then: () => Step): Step {
   if (row.status !== "lobby") return rejected("The game has already started");
   if (seatOf(row, profileId) === null) return rejected("Join the game first");
   return then();
+}
+
+/** Leaving a table only changes it when the leaver made a table no one else has joined: a
+ *  gathering table where they are the only person seated (bots don't count) is deleted, so it
+ *  doesn't linger in the lobby. Anyone else leaving keeps their seat to come back to. */
+export function leaveStep(row: GameRow, profileId: string): Step {
+  if (row.status !== "lobby" || seatOf(row, profileId) === null) return { kind: "unchanged" };
+  const someoneElse = row.seats.some((c) => c.kind === "human" && c.profile.id !== profileId);
+  return someoneElse ? { kind: "unchanged" } : { kind: "removed" };
 }
 
 /** An answer applied: the decision it names must be pending, else a repeat of one that landed
@@ -95,7 +112,8 @@ const person = ({ profile, elo }: { profile: PlayerProfile; elo?: number }): Con
 const CREATE_ATTEMPTS = 8;
 
 /** Handles one request. The caller drives the bots afterwards when `botToMove` says so, unless
- *  the request deleted the game: a delete answers with the row as it was. */
+ *  the request deleted the game: a delete, and a leave that deletes, answer with the row as it
+ *  was. */
 export async function handle(deps: ServerDeps, request: Request): Promise<Response> {
   const { engine, store } = deps;
   switch (request.op) {
@@ -155,6 +173,8 @@ export async function handle(deps: ServerDeps, request: Request): Promise<Respon
         if (controller.kind !== "human" || controller.profile.id !== request.profile.id) return rejected("That seat isn't yours");
         return answerStep(engine, row, answer);
       });
+    case "leave":
+      return commit(store, request.game, (row) => leaveStep(row, request.profile.id));
     case "nudge": {
       const row = await store.read(request.game);
       return row ? { ok: true, row } : { ok: false, reason: GONE, row: null };

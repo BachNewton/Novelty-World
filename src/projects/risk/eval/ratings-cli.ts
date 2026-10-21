@@ -1,4 +1,5 @@
 import { writeFileSync } from "node:fs";
+import os from "node:os";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { fitElo } from "@/shared/lib/bot-lab/elo";
@@ -6,11 +7,22 @@ import { wilsonInterval } from "@/shared/lib/bot-lab/stats";
 import { RISK_BOTS } from "../bots";
 import { SEAT_BOTS } from "../online/seat-roster";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
-import { checkBots, commonDefaults, commonFlag, number, riskRun, type CommonArgs } from "./cli-args";
+import {
+  checkBots,
+  commonDefaults,
+  commonFlag,
+  number,
+  remoteDefaults,
+  remoteFlag,
+  riskRun,
+  type CommonArgs,
+  type RemoteArgs,
+} from "./cli-args";
 import { eloLine } from "./gauntlet";
 import { riskPool } from "./parallel";
-import { playLadder } from "./ratings";
+import { ladderGamesToPlay, playLadder, type LadderCache } from "./ratings";
 import { fileLadderCache } from "./ratings-cache";
+import { formatRoundPlan, remoteGames, writeRoundPlan } from "./remote";
 
 /** `npm run risk:ratings` — a ladder of Risk bots: every pair plays a fixed number
  *  of seed groups at each table size, each bot alone among copies of the other,
@@ -24,6 +36,12 @@ import { fileLadderCache } from "./ratings-cache";
  *    npm run risk:ratings -- --seatable --groups 100      # every seatable bot that can win; writes bots/ratings.json
  *    npm run risk:ratings -- --seatable --groups 100 --fresh   # play every matchup again, not from the cache
  *
+ *    npm run risk:ratings -- greedy random --games-from games --plan plan.json   # plan a remote round
+ *    npm run risk:ratings -- greedy random --games-from games                    # report a remote run
+ *
+ *  With `--games-from`, the games come from a remote run's shards (`remote.ts`), as the
+ *  gauntlet's do; a ladder's games are fixed, so its first round plays them all.
+ *
  *  Each matchup's games are kept in `ratings-cache.json` while the code they ran on is
  *  unchanged (`ratings-cache.ts`), so a run plays only the matchups it hasn't seen. */
 
@@ -33,7 +51,7 @@ const SEAT_RATINGS = fileURLToPath(new URL("../bots/ratings.json", import.meta.u
 const SEAT_ANCHOR = "greedy";
 const SEAT_ANCHOR_ELO = 1000;
 
-interface Args extends CommonArgs {
+interface Args extends CommonArgs, RemoteArgs {
   labels: string[];
   groups: number;
   anchor?: string;
@@ -42,9 +60,9 @@ interface Args extends CommonArgs {
 }
 
 function parseArgs(argv: readonly string[]): Args {
-  const a: Args = { ...commonDefaults("ratings"), labels: [], groups: 50, seatable: false, fresh: false };
+  const a: Args = { ...commonDefaults("ratings"), ...remoteDefaults(), labels: [], groups: 50, seatable: false, fresh: false };
   for (let i = 0; i < argv.length; i++) {
-    const used = commonFlag(a, argv, i);
+    const used = commonFlag(a, argv, i) || remoteFlag(a, argv, i);
     if (used > 0) {
       i += used - 1;
       continue;
@@ -70,35 +88,51 @@ function parseArgs(argv: readonly string[]): Args {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const anchor = args.anchor ?? args.labels[0];
+  const remote = args.gamesFrom === undefined ? null : remoteGames(args.gamesFrom);
+  if (args.plan !== undefined && remote === null) {
+    throw new Error("--plan needs --games-from: the directory of the games played so far, empty before the first round");
+  }
+  const workers = remote === null ? args.workers : (remote.shards[0]?.record.workers ?? os.cpus().length);
   console.log(
     `\nRisk — ratings\n` +
       `Bots: [${args.labels.join(", ")}]   Tables: ${args.players.join(", ")} players, each bot alone among the other\n` +
-      `${args.groups} seed groups per table   Seeds: "${args.prefix}:*"   Workers: ${args.workers}   Max turns: ${args.maxTurns}\n`,
+      `${args.groups} seed groups per table   Seeds: "${args.prefix}:*"   Workers: ${workers}${remote === null ? "" : ` a machine, round ${(remote.rounds + 1).toString()}`}   Max turns: ${args.maxTurns}\n`,
   );
   const live = riskRun({
     tool: "risk:ratings",
     bots: args.labels,
     tables: args.players.map((n) => `${n.toString()}p one-in`),
     seeds: args.prefix,
-    workers: args.workers,
-  });
+    workers,
+  }, remote === null ? undefined : { id: remote.run.id, play: remote.play });
   const playerGames = args.players.reduce((s, n) => s + n, 0);
   const totalGames = args.labels.length * (args.labels.length - 1) * args.groups * playerGames;
   let cachedGames = 0;
   live.setProgress(() => (totalGames === cachedGames ? 1 : live.counts().games / (totalGames - cachedGames)));
-  const cache = fileLadderCache();
-  const pool = live.watch(riskPool(args.workers), (r) => r.decisions);
+  const file = fileLadderCache();
+  // Read from the cache's records but, when fresh, written to it all the same.
+  const cache: LadderCache = args.fresh ? { get: () => null, set: file.set } : file;
+  const ladder = { labels: args.labels, players: args.players, groups: args.groups, prefix: args.prefix, maxTurns: args.maxTurns, cache };
+
+  if (args.plan !== undefined && remote !== null) {
+    try {
+      const specs = ladderGamesToPlay(ladder, (spec) => remote.store.get(spec) !== undefined);
+      live.setProgress(() => (specs.length === 0 ? 1 : remote.store.size / (remote.store.size + specs.length)));
+      const plan = writeRoundPlan(args.plan, remote, specs, await live.handOff(), args.shards);
+      console.log(formatRoundPlan(plan, args.plan));
+    } catch (e) {
+      await live.fail(e);
+      throw e;
+    }
+    return;
+  }
+
+  const pool = remote === null ? live.watch(riskPool(args.workers), (r) => r.decisions) : remote.store.runner();
   try {
     const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
     const { winPairs, finishPairs, errors, cached } = await playLadder({
+      ...ladder,
       pool,
-      labels: args.labels,
-      players: args.players,
-      groups: args.groups,
-      prefix: args.prefix,
-      maxTurns: args.maxTurns,
-      // Read from the cache's records but, when fresh, written to it all the same.
-      cache: args.fresh ? { get: () => null, set: cache.set } : cache,
       // The matchups play at once, so each line is printed as its matchup finishes.
       onMatchup: (step, { lone, rest, players: n }, tally, fromCache) => {
         const matchup = { table: `${n.toString()}p`, pairing: { bot: lone, against: rest, seats: 1, players: n }, games: args.groups * n };

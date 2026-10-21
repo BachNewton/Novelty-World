@@ -1,6 +1,6 @@
 # Risk bot v4: v3 on beliefs that hold up, with the fixes a person's win showed
 
-v4 (`bots/rule-v4/`) is built and not yet measured. It is not seated: v3 stays the lobby's default, and `ratings.json` is unchanged. Its preferences are v3's at both table sizes, placeholders until the mixed-field retune under "Measuring it" sets the small table's. `bot-log.md` has the build's entry, and the history of the version that held the name before, whose lessons are below.
+v4 (`bots/rule-v4/`) is built and measured, and it clears the seating bar (below, under "Measuring it"), so it is seated, beside v5, which beats it. Its small-table preferences are the mixed-field retune's; above 4 players they are v3's. `bot-log.md` has the build's entry, and the history of the version that held the name before, whose lessons are below.
 
 v4 is v3 (`rule-bot-v3.md`): its planner, its evaluation, its capture planner and its preferences. What changes is what it believes the other seats do with their turns before its next one (`opponents.ts`, the opponent model), the kill chances that model and the planner read (`kills.ts`), and one piece of the planner's arithmetic (`planner.ts`). v3 is frozen, so v4 keeps only the files it changes and shares the rest from v3 and v1.
 
@@ -77,3 +77,14 @@ In order, each step's result feeding the next:
 4. **The ladder** with v4 beside every seatable bot. v4 is seated only if the ladder agrees.
 
 Above 4 players v4 plays v3's preferences, untuned on its beliefs; tuning them is a night's work on its own, since the 6-player games are the slow ones.
+
+**What it showed** (`bot-log.md`, the entries from "v4's beliefs checked" to "The ladder with v4 and v5"): the beliefs scored far better calibrated than v3's, so none were reset; the retune beat untuned v4 at 3 of 4 tables and lost at none; the gauntlet was better than v3 at 5 of 6 tables and even at the sixth on train seeds, better at all 6 on holdout; and on the ladder v4's win Elo is +500 against v3's +441 (greedy = 0). The weak bots win at most a few percent alone among v4s. It clears the bar and is seated. v5, v4 with the sweep, clears its own bar and beats v4 where the two differ (`rule-bot-v5.md`).
+
+## Open questions
+
+- **The 5- and 6-player preferences.** They were never tuned on v4's beliefs. At 6 players the model overprices hits about 1.7 times and its own death about 3 times. The tuner can't reach them yet: only small-table tunables exist (`rule-v4-small`, `rule-v5-small`), so a large-table tunable comes first. An overnight run.
+- **Small-table preferences at a thinned table.** A game that starts with 6 seats keeps its 6-seat preferences down to 3 survivors. Switching once the field thins is untested: built as a variant, it would be gauntleted at 6 players.
+- **Tuning bounds.** Three tuned preferences ended on their bounds (`incomeHorizon`, `opportunityWeight`, `killCommitMargin`), so a wider range may tune further.
+- **`risk:opponents` publishes nothing.** It writes no run-log record and nothing to the Bot Lab page, so its results live only in `bot-log.md`. Every other Risk tool does both.
+- **Beliefs fit to bots, not people.** The kill rates and the leader aim were measured on bots only; one finished human game is recorded. Each new human game is reviewed the way G4FR was, and once there are a dozen or so, the model is scored on them.
+- **6-player games that never end.** A third of 6-player games among v4s and v5s reach the 600-turn cap, and in a tenth of all of them all six players are still alive there. The cap is not the waste it looks like: games end at a steady rate of about 8% every 50 turns from turn 150 to 600, so a lower cap gains almost nothing per decisive game (`bot-log.md`, "How 6-player games end"). What would help is bots that eliminate someone: whether v4's beliefs or its untuned 6-player preferences make each seat too cautious is the question.

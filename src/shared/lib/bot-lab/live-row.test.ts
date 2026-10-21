@@ -19,7 +19,11 @@ describe("estimateFinish", () => {
 
 describe("runState", () => {
   const at = Date.parse("2026-10-16T12:00:00Z");
-  const row = (status: "running" | "done", agoMs: number) => ({ status, updated_at: new Date(at - agoMs).toISOString() });
+  const row = (status: "running" | "done", agoMs: number, quietMs?: number) => ({
+    status,
+    updated_at: new Date(at - agoMs).toISOString(),
+    progress: quietMs === undefined ? {} : { quietUntil: new Date(at - agoMs + quietMs).toISOString() },
+  });
 
   it("reads a running row as running while it beats", () => {
     expect(runState(row("running", STALE_MS), at)).toBe("running");
@@ -27,6 +31,11 @@ describe("runState", () => {
 
   it("reads a running row gone quiet as lost", () => {
     expect(runState(row("running", STALE_MS + 1), at)).toBe("lost");
+  });
+
+  it("reads a remote run quiet between rounds as running until its quiet ends", () => {
+    expect(runState(row("running", 10 * STALE_MS, 10 * STALE_MS), at)).toBe("running");
+    expect(runState(row("running", 10 * STALE_MS, 10 * STALE_MS - 1), at)).toBe("lost");
   });
 
   it("never reads an ended row as lost", () => {

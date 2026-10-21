@@ -35,7 +35,7 @@ function checkGame(seed: string, players: number): number {
 }
 
 describe("the history's derivations", () => {
-  it.each([3, 4, 6])("agree with the engine through a whole game at %i players", (players) => {
+  it.each([3, 4, 5, 6])("agree with the engine through a whole game at %i players", (players) => {
     expect(checkGame(`history-${players}`, players)).toBeGreaterThan(100);
   });
 

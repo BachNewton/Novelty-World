@@ -15,7 +15,8 @@ import { KEY_CODES } from "../ui/bindings";
  * - the map, while a territory is to be picked: the d-pad, left stick and arrow keys move between
  *   the territories on offer, A, Enter and Space pick one, B and Esc back out;
  * - the status box's buttons, while it asks for an amount or the dice: the site's menu
- *   navigation moves round them (`usePadNavigation`), and the keyboard's Tab;
+ *   navigation moves round them (`usePadNavigation`), and the keyboard's Tab. Enter on anything
+ *   but a button (the slider, once a click or drag has focused it) presses the box's main action;
  * - a dialog, while one is open, the same way.
  */
 
@@ -27,9 +28,10 @@ export interface InputIntents {
   moveFocus: (direction: Direction) => void;
   cycleFocus: (step: 1 | -1) => void;
   pickFocus: () => void;
+  confirm: () => void;
   back: () => void;
   closeDialog: () => void;
-  endHold: (held: boolean) => void;
+  endPhase: () => void;
   menu: () => void;
   log: () => void;
   less: () => void;
@@ -63,7 +65,7 @@ export function useRiskInput(intents: InputIntents): void {
         it.usedInput("keyboard-mouse", true);
         fn();
       };
-      if (code === KEY_CODES.endPhase) return handled(() => !event.repeat && it.endHold(true));
+      if (code === KEY_CODES.endPhase) return handled(() => !event.repeat && it.endPhase());
       if (code === KEY_CODES.menu) return handled(() => !event.repeat && it.menu());
       if (zone === "dialog") {
         if (code === "Escape") handled(it.closeDialog);
@@ -82,40 +84,28 @@ export function useRiskInput(intents: InputIntents): void {
         const [x, y] = KEY_CODES.pan[code];
         return handled(() => it.pan(-x * KEY_PAN, -y * KEY_PAN));
       }
+      const enter = code === "Enter" || code === "NumpadEnter";
+      if (zone === "box" && enter && !onButton) return handled(() => !event.repeat && it.confirm());
       if (zone !== "map") {
         it.usedInput("keyboard-mouse", true);
         return;
       }
       if (code in ARROWS) return handled(() => it.moveFocus(ARROWS[code]));
       if (code === "Tab") return handled(() => it.cycleFocus(event.shiftKey ? -1 : 1));
-      if ((code === "Enter" || code === "NumpadEnter" || code === "Space") && !onButton) return handled(() => !event.repeat && it.pickFocus());
+      if ((enter || code === "Space") && !onButton) return handled(() => !event.repeat && it.pickFocus());
       it.usedInput("keyboard-mouse", true);
     };
-    const keyUp = (event: KeyboardEvent) => {
-      if (event.code === KEY_CODES.endPhase) ref.current.endHold(false);
-    };
-    const blur = () => ref.current.endHold(false);
     window.addEventListener("keydown", keyDown);
-    window.addEventListener("keyup", keyUp);
-    window.addEventListener("blur", blur);
 
     const holds = new Map<number, NavHold>();
     let last = performance.now();
     const unsubscribe = subscribeGamepads({
-      onConnectionChange: (pads) => {
-        // A pad unplugged while X was held never sends its release.
-        if (pads.length === 0) ref.current.endHold(false);
-      },
       onButton: (edge) => {
         const it = ref.current;
-        if (edge.name === "X") {
-          if (edge.pressed) it.usedInput("pad");
-          it.endHold(edge.pressed);
-          return;
-        }
         if (!edge.pressed || edge.name === null) return;
         it.usedInput("pad");
         const zone = it.zone();
+        if (edge.name === "X") return it.endPhase();
         if (edge.name === "Menu") return it.menu();
         if (edge.name === "LB") return it.less();
         if (edge.name === "RB") return it.more();
@@ -151,8 +141,6 @@ export function useRiskInput(intents: InputIntents): void {
     });
     return () => {
       window.removeEventListener("keydown", keyDown);
-      window.removeEventListener("keyup", keyUp);
-      window.removeEventListener("blur", blur);
       unsubscribe();
     };
   }, []);

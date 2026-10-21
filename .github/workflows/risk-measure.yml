@@ -1,0 +1,185 @@
+# A Risk measuring run (risk:gauntlet or risk:ratings) on GitHub Actions' runners
+# instead of the owner's laptop. It plays in rounds: each round plans the games the
+# run still needs and splits them over up to `shards` machines, and the next round
+# starts once they are all played. A gauntlet's undecided pairings play at least
+# `min_round` more games a round, or as many again as they have, so even a pairing
+# that runs to its cap takes eight rounds; the last job reports from every game
+# played, with the same output a local run of the same arguments gives. How to start
+# a run and bring its results home: src/projects/risk/docs/actions.md.
+# Node comes from Risk's own pin, not the repo's .node-version: a game's moves depend on
+# the Node version, and the repo's pin is held at 22 for Monopoly's trainer.
+
+name: Risk measure
+
+on:
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: The measuring tool
+        type: choice
+        options: [gauntlet, ratings]
+        default: gauntlet
+      args:
+        description: "Its arguments, as typed after `npm run risk:<tool> --`"
+        type: string
+        required: true
+      shards:
+        description: The most machines a round is split across
+        type: number
+        default: 20
+      min_round:
+        description: The fewest games a gauntlet pairing plays in a round
+        type: number
+        default: 600
+      max_parallel:
+        description: The most machines this run plays on at once. Below 20, another run can play beside it
+        type: number
+        default: 20
+
+run-name: "risk:${{ inputs.tool }} ${{ inputs.args }}"
+
+permissions:
+  contents: read
+
+jobs:
+  round1:
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 1
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round2:
+    needs: round1
+    if: needs.round1.outputs.done != 'true'
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 2
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round3:
+    needs: round2
+    if: needs.round2.outputs.done != 'true'
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 3
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round4:
+    needs: round3
+    if: needs.round3.outputs.done != 'true'
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 4
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round5:
+    needs: round4
+    if: needs.round4.outputs.done != 'true'
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 5
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round6:
+    needs: round5
+    if: needs.round5.outputs.done != 'true'
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 6
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round7:
+    needs: round6
+    if: needs.round6.outputs.done != 'true'
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 7
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round8:
+    needs: round7
+    if: needs.round7.outputs.done != 'true'
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 8
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  # Every round that ran succeeded and the rest were skipped because the run was
+  # decided. If the last round left games unplayed, the report fails loudly naming one.
+  report:
+    needs: [round1, round2, round3, round4, round5, round6, round7, round8]
+    if: ${{ !cancelled() && !failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: src/projects/risk/eval/node-version
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: risk-games-*
+          path: games
+          merge-multiple: true
+      - env:
+          TOOL: ${{ inputs.tool }}
+          ARGS: ${{ inputs.args }}
+        run: |
+          set -f
+          mkdir results
+          before=$(wc -l < src/projects/risk/eval/runs.jsonl)
+          npm run -s "risk:$TOOL" -- $ARGS --games-from games | tee results/summary.txt
+          tail -n +"$((before + 1))" src/projects/risk/eval/runs.jsonl > results/runs.jsonl
+          cp src/projects/risk/eval/ratings-cache.json results/
+          if ! git diff --quiet -- src/projects/risk/bots/ratings.json; then cp src/projects/risk/bots/ratings.json results/; fi
+          { echo '```'; cat results/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risk-results
+          path: results/
+          retention-days: 90

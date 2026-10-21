@@ -3,7 +3,7 @@ import type { RowStore, ServerDeps } from "./server";
 import type { GameRow, LoggedMove } from "./table";
 
 /** A database in memory, with the real store's version check. `beforeWrite` lets a test land
- *  another write between a commit's read and its write. */
+ *  another write between a commit's read and its write (or delete). */
 export function memoryStore() {
   const rows = new Map<string, GameRow>();
   /** The move log, per game, in the order written. */
@@ -34,8 +34,12 @@ export function memoryStore() {
     },
     insert: (id, change) => Promise.resolve(rows.has(id) ? null : put({ id, version: 0, ...change })),
     moves: (id) => Promise.resolve(structuredClone(moves.get(id) ?? [])),
-    remove: (id) => {
+    remove: (id, atVersion) => {
+      const hook = hooks.beforeWrite;
+      hooks.beforeWrite = null;
+      hook?.(id);
       const row = rows.get(id) ?? null;
+      if (atVersion !== undefined && row?.version !== atVersion) return Promise.resolve(null);
       rows.delete(id);
       moves.delete(id);
       return Promise.resolve(row);

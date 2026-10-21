@@ -1,0 +1,105 @@
+# One round of a Risk measuring run on GitHub Actions, called by risk-measure.yml.
+# The plan job reads every game the run's earlier rounds played and names the games
+# this round needs (none once the run is decided); the play jobs split them, one
+# machine each. The Risk docs (src/projects/risk/docs/actions.md) explain the design.
+
+name: Risk round
+
+on:
+  workflow_call:
+    inputs:
+      round:
+        type: number
+        required: true
+      tool:
+        type: string
+        required: true
+      args:
+        type: string
+        required: true
+      shards:
+        type: number
+        required: true
+      min_round:
+        type: number
+        required: true
+      max_parallel:
+        type: number
+        required: true
+    outputs:
+      done:
+        description: Whether the run needs no more games after the rounds so far.
+        value: ${{ jobs.plan.outputs.done }}
+
+permissions:
+  contents: read
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      done: ${{ steps.plan.outputs.done }}
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: src/projects/risk/eval/node-version
+          cache: npm
+      # No install scripts: the measuring tools need none, and they would fetch
+      # native builds (TensorFlow's) that only the Monopoly RL trainer uses.
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v4
+        if: inputs.round > 1
+        with:
+          pattern: risk-games-*
+          path: games
+          merge-multiple: true
+      - id: plan
+        env:
+          TOOL: ${{ inputs.tool }}
+          ARGS: ${{ inputs.args }}
+          SHARDS: ${{ inputs.shards }}
+          MIN_ROUND: ${{ inputs.min_round }}
+        run: |
+          set -f
+          npm run -s "risk:$TOOL" -- $ARGS --games-from games --plan plan/round.json --shards "$SHARDS" --min-round "$MIN_ROUND"
+          echo "done=$(jq '.specs | length == 0' plan/round.json)" >> "$GITHUB_OUTPUT"
+          echo "shards=$(jq -c '[range(.shards)]' plan/round.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risk-plan-r${{ inputs.round }}
+          path: plan/round.json
+          retention-days: 7
+
+  play:
+    needs: plan
+    if: needs.plan.outputs.done != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    strategy:
+      max-parallel: ${{ inputs.max_parallel }}
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: src/projects/risk/eval/node-version
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: risk-plan-r${{ inputs.round }}
+          path: plan
+      - run: npm run -s risk:shard -- plan/round.json --shard ${{ matrix.shard }} --out games/r${{ inputs.round }}-s${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risk-games-r${{ inputs.round }}-s${{ matrix.shard }}
+          path: games/
+          retention-days: 7

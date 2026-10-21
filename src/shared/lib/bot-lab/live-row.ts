@@ -53,6 +53,9 @@ export interface LiveProgress {
   /** The estimated finish, ISO 8601, once there is something to go on. */
   eta: string | null;
   steps: LiveStep[];
+  /** A run whose rounds play on other machines (`remote.ts`) goes quiet between them,
+   *  while the next machines start: until this time, ISO 8601, the quiet isn't a lost run. */
+  quietUntil?: string;
 }
 
 export interface LiveResult {
@@ -102,9 +105,15 @@ export function estimateFinish(startedMs: number, nowMs: number, fraction: numbe
   return startedMs + (nowMs - startedMs) / fraction;
 }
 
-/** The row's status, with a running row whose last write is older than `STALE_MS` read as lost. */
-export function runState(row: Pick<LiveRow, "status" | "updated_at">, nowMs: number): RunState {
+/** The row's status, with a running row whose last write is older than `STALE_MS`, and
+ *  past any quiet it announced, read as lost. */
+export function runState(
+  row: Pick<LiveRow, "status" | "updated_at"> & { progress: Pick<LiveProgress, "quietUntil"> },
+  nowMs: number,
+): RunState {
   if (row.status !== "running") return row.status;
+  const quiet = row.progress.quietUntil;
+  if (quiet !== undefined && nowMs <= Date.parse(quiet)) return "running";
   return nowMs - Date.parse(row.updated_at) > STALE_MS ? "lost" : "running";
 }
 

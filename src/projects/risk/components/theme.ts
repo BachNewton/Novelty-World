@@ -70,7 +70,6 @@ export const RISK_THEME = {
   "--prompt-b": "#e5534b",
   "--prompt-x": "#4a9ae8",
   "--prompt-y": "#f2c53d",
-  "--prompt-hold": "#c9a24a",
   "--color-pad-focus": "#f3d98f",
 } as CSSProperties;
 

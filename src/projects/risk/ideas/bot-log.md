@@ -425,3 +425,302 @@ Smoke run, not a measurement (60 games, seeds `smoke-*`): v4 alone among v3s won
 `risk:tune` now takes a field of opponents and a baseline (`--opponent a,b,c --baseline rule-v3`): each table, an opponent at a size, is read as the candidate's edge over what the baseline scores there on the same seeds, and the fitness is the worst. Without the baseline the worst table would always be the strongest opponent's, and a tune against v3 plus weak bots would still be a tune against v3. `risk:opponents` scores v3's model as v3's evaluation holds it (`eval/v3-opponent-model.ts`, held to v3's breakdown by a test) beside v4's.
 
 Queued, in order: `risk:opponents` (v3's model against v4's, on the three fields), the small table retuned against rule-v3, gd-defensive, gd-stacker and greedy with v3 as baseline, the gauntlet against v3 on train and holdout seeds with the weak bots in the field, and the ladder.
+
+## v5: v4 with the winner's sweep (built, not yet measured, 2026-10-18)
+
+v5 (`rule-bot-v5.md`, `bots/rule-v5/`) is v4 whole, its beliefs, fixes and preferences, with one new kind of plan from how the person who won G4FR attacked: every army to place on one stack, which takes the thinnest territory beside it that it is sure of, moves all but one in, and goes on while the next capture is sure. Offered from the two stacks whose sweeps run longest, whole and by its first half, scored by v4's evaluation. v5 adds no setting, so v4's retune is v5's. Registered, not seated.
+
+Played over v3's own turns of G4FR from v3's positions, on the game's dice: at turn 62 v5 puts its 8 armies on one stack and takes 15 territories (v3: 8 armies onto Central America, 1 capture), at turn 71 8 (v3: 2); at turn 89 it ends on 13 territories with a stack of 8 (v3: 17 and 4; v4 alone: 13 and 9). It doesn't bring its stack home, and at turn 56 a sweep left it thinner than v3 (20 territories, biggest stack 3, against 14 and 7).
+
+**Tried and dropped: next turn's sweep as part of a stack's worth.** The first build also counted, beside v4's next-turn kill and at the same opportunity weight, the sweep a stack could make next turn, believed as the opponent model believes an opponent's sweep against me. It made v5 keep its stack and bring it home on G4FR's positions, and lost badly. Screens, v5 alone among two copies at 3 players, train seeds, ±30 Elo, each decided by its SPRT:
+
+| v5 built with | vs | Result | Win share vs par 33.3% | Win Elo a seat | Decisive games |
+|---|---|---|---|---|---|
+| sweep + next turn's sweep (priced at its victim's cost) | rule-v3 | worse | 22.2% [16.9, 28.7] | −97 | 189 |
+| sweep + next turn's sweep (priced at its victim's cost) | rule-v4 | worse | 24.5% [19.6, 30.2] | −75 | 249 |
+| sweep + next turn's sweep (priced at its victim's cost) | gd-defensive | better | 93.3% [78.7, 98.2] | | 30 |
+| next turn's sweep alone | rule-v3 | worse | 14.1% [8.6, 22.3] | −193 | 99 |
+| sweep + next turn's sweep (priced at my own income gain) | rule-v3 | worse | 9.9% [5.1, 18.3] | −264 | 81 |
+| next turn's sweep alone (priced at my own income gain) | rule-v3 | worse | 6.9% [3.0, 15.2] | −330 | 72 |
+| **sweep alone, v5 as built** | rule-v3 | better | 40.3% [35.2, 45.5] | +52 | 345 |
+| **sweep alone, v5 as built** | rule-v4 | better | 41.0% [35.7, 46.6] | +57 | 312 |
+| **sweep alone, v5 as built** | gd-defensive | better | 100% [87.5, 100] | | 27 |
+
+Screens rule out big losers and nothing more: the built v5's three are not losers, and its "better" verdicts at 3 players, a few hundred games each, are where the night starts, not what it confirms. The run log keeps the three screens of the built v5; the variants' screens ran builds that no longer exist, so their records were dropped.
+
+Smoke run of the built v5, not a measurement (54 games, seeds `smoke-*`, a 400-turn cap): alone among v3s it won 5 of 12 at 3 players, 7 of 12 at 4 and 1 of 6 at 6, one 6-player game reaching the cap; alone among gd-defensive, 12 of 12 at 3 and 11 of 12 at 4. No errors.
+
+Speed: a v5 decision costs 1.30, 1.23 and 1.43 times a v4 decision at 3, 4 and 6 players, both asked the same decisions of v4's games among v3s. Nearly all of it is scoring the sweeps' success boards. Measured the same way (each alone among v3s on the same seeds), v4 costs 2.6, 2.1 and 1.4 times v3, not the 1.2 above.
+
+Queued, after v4's night: the gauntlet against rule-v3, rule-v4, gd-defensive, gd-stacker and greedy on train seeds, then holdout if train passes, then the ladder with v4 and v5 beside every seatable bot (`rule-bot-v5.md`, "Measuring it", with the seating bar written in advance).
+
+## v4's beliefs checked before the retune (2026-10-18)
+
+`risk:opponents` scored v3's model against the rebuilt v4's on the three queued fields, 400 games a table size each (3,600 games, about 15 minutes, 10 workers, no errors). The tool publishes nothing and writes no run-log record, so the figures live here.
+
+| Field, table | Aim skill v3 / v4 | Kill Brier v3 / v4 | Hit caused/priced v3 / v4 | My kill exposure, believed v4 / actual |
+|---|---|---|---|---|
+| Mixed, 3p | −0.50 / +0.04 | 0.68 / 0.06 | 0.61 / 0.53 | 10.1% / 6.5% |
+| Mixed, 4p | −0.40 / +0.04 | 0.60 / 0.05 | 0.79 / 0.72 | 10.4% / 6.8% |
+| Mixed, 6p | −0.17 / +0.04 | 0.55 / 0.05 | 0.83 / 0.70 | 12.3% / 9.0% |
+| v3 only, 3p | −0.31 / +0.03 | 0.55 / 0.08 | 1.60 / 1.09 | 7.5% / 8.7% |
+| v3 only, 4p | −0.17 / +0.05 | 0.50 / 0.06 | 1.52 / 1.02 | 8.2% / 8.8% |
+| v3 only, 6p | −0.02 / +0.06 | 0.55 / 0.04 | 1.23 / 0.55 | 14.2% / 4.4% |
+| v3 + five v2, 3p | −0.30 / +0.04 | 0.57 / 0.07 | 1.40 / 0.78 | 8.0% / 7.3% |
+| v3 + five v2, 4p | −0.15 / +0.06 | 0.55 / 0.04 | 1.54 / 0.94 | 8.7% / 6.9% |
+| v3 + five v2, 6p | −0.02 / +0.06 | 0.57 / 0.04 | 1.26 / 0.60 | 15.0% / 4.8% |
+
+v4's aim beats an even split at every table, its kill predictions are an order of magnitude better than v3's, and among rule bots at 3 and 4 players it now prices the hit about right (0.94 to 1.09 of what lands; v3 priced 1.4 to 1.6 too little). Where it errs it errs cautious: it believes kills more often than bots take them, and against weak bots and at 6 players it overprices the hit and its own death (14 to 15% believed at 6 players, under 5% taken). The one cell the other way is my own death among v3s at 3 players, 7.5% believed against 8.7%, near enough. **Decision: no belief is reset before the retune.** Caution is the side to err on, since people take kills bots don't. At 6 players, where v4 plays v3's preferences, the overpricing is the likely cost to watch in the gauntlet.
+
+## The small table retuned against a mixed field (2026-10-19)
+
+`risk:tune -- --tunable rule-v4-small --opponent rule-v3,gd-defensive,gd-stacker,greedy --baseline rule-v3 --players 3,4 --gens 10 --pop 8 --groups 40 --prefix tune-v4mix --workers 15`: 218,400 games, 3.7 hours. The fitness, the worst table's edge over what v3 scores there, rose from −81 at the first generation to −13 at the tenth, never clearly above zero: against this field the search found no vector that beats v3's own margin at every table, only one that comes close. Three preferences ended on their bounds (`incomeHorizon` 1.5, `opportunityWeight` 0, `killCommitMargin` −0.03), so the search wanted to go further than it may. The mean moved most in `commonThreatWeight` (up to 1.93), `myContinentWeight` (1.83) and `vulnerabilityWeight` (down to 0.43): less fear of my own death, more weight on a common threat and on my continents, the reverse of the old v4's tune against v3 alone.
+
+The tune proposes; a gauntlet of the tuned vector against v4 on v3's preferences decided (`--base rule-v4 --field rule-v4,rule-v3,gd-defensive --players 3,4 --prefix tunecheck`, 8,820 games, 9 minutes):
+
+| Opponent | 3p one-in | 3p one-out | 4p one-in | 4p one-out |
+|---|---|---|---|---|
+| rule-v4 (v3's preferences) | even | better | better | better |
+| rule-v3 | better | better | better | better |
+| gd-defensive | better | better | better | better |
+
+Win Elo (rule-v4 = 0): tuned +25.9, rule-v3 −10.1. The gauntlet's own gate printed REJECT (one table even), but by the seating bar (better somewhere, worse nowhere) it wins, and the weak bot is beaten everywhere, so the old v4's give-back isn't there. **Decision: the tuned vector is v4's small-table preferences**, and so v5's, which reads v4's.
+## v4 and v5 gauntleted against v3 and the weak bots (2026-10-19)
+
+Both on the retuned small-table preferences above, 15 workers. Verdicts against v3 at each table (±30 Elo, α = β = 0.05):
+
+| Table | v4 train | v4 holdout | v5 train |
+|---|---|---|---|
+| 3p one-in | even (33.1%) | better (36.2%) | better (42.2%) |
+| 3p one-out | better (69.6%) | better (69.7%) | better (76.7%) |
+| 4p one-in | better (32.5%) | better (31.0%) | better (34.9%) |
+| 4p one-out | better (78.9%) | better (78.9%) | better (82.2%) |
+| 6p one-in | better (27.5%) | better (27.1%) | better (24.4%) |
+| 6p one-out | better (92.3%) | better (94.4%) | better (88.2%) |
+
+v5 against v4: better at both 3- and 4-player tables in both mixtures, even at 6 players (16.7% and 83.1%, on par to the decimal). Every pairing against gd-defensive, gd-stacker and greedy, at every table and in both mixtures, was better for both bots, so neither gives back to the weak bots what the old v4 did.
+
+| Run | Games | Wall time | Win Elo (v3 = 0) | Finishing-order Elo (v3 = 0) | Gate |
+|---|---|---|---|---|---|
+| v4, train | 13,980 | 35 min | v4 +36.7 | v4 +24.4 | REJECT (one table even) |
+| v4, holdout | 14,580 | 32 min | v4 +39.8 | v4 +22.0 | ACCEPT |
+| v5, train | 15,520 | 3.4 h | v5 +88.5, v4 +74.9 | v4 +51.2, v5 +33.3 | ACCEPT |
+
+v5's run took six times v4's: its 6-player pairings against v4 needed over 1,400 decisive games each to call even, and over 850 games of one of them hit the turn cap. v5 ranks above v4 by who wins but below it by finishing order, the mark of an all-or-nothing style: it wins more and, when it loses, goes out earlier. The two runs' Elo for v4 differ (+37 against +75) because each fit is anchored by its own field's games; only the ladder puts them on one scale.
+
+**By the seating bar** (better than v3 at some table, worse at none, and no lower than v3 on the ladder), v4 passes the gauntlet half on both seed sets. v5 passes it on train, and beats v4 where the two differ. Not yet run: v5's holdout gauntlet (started and stopped part way, so it left no record) and the ladder, which decides the bar's last part for both and whether v5 is worth keeping over v4.
+
+## v5's holdout gauntlet, paused at 28 of 30 pairings (2026-10-19)
+
+The same gauntlet as v5's train run, on `holdout:*` seeds, 15 workers, stopped after 1 h 50 min so the owner could use the laptop. A stopped run writes no run-log record and no Elo fit, so what stands is each finished pairing's SPRT verdict, read off the console:
+
+| Opponent | 3p one-in | 3p one-out | 4p one-in | 4p one-out | 6p one-in | 6p one-out |
+|---|---|---|---|---|---|---|
+| rule-v3 | better | better | better | better | better | better |
+| rule-v4 | better | better | better | better | not finished | not finished |
+| gd-defensive, gd-stacker, greedy | better | better | better | better | better | better |
+
+Every finished pairing agrees with the train run. The two left are the ones that took most of the train run's time and came out even there. They can be played alone, without replaying the other 28:
+
+    npm run risk:gauntlet -- rule-v5 --base rule-v3 --field rule-v4 --players 6 --prefix holdout --workers 15
+
+v5 passes the seating bar's gauntlet half on holdout seeds against v3 already; the two pairings left only say whether v5 is worse than v4 at 6 players on unseen deals.
+
+## The ladder with v4 and v5 (2026-10-19)
+
+`risk:ratings -- rule-v5 rule-v4 rule-v3 rule-v2 rule-v1 gd-stacker gd-continental greedy gd-aggressive gd-defensive --anchor greedy --groups 100`, the first run on GitHub Actions: 117,000 games over 60 machines in one round, 1 h 40 min from start to report, sharing the account's twenty runners with a gauntlet.
+
+| Bot | Win Elo (greedy = 0) | Finishing-order Elo (greedy = 0) |
+|---|---|---|
+| rule-v5 | +538.0 | +284.5 |
+| rule-v4 | +499.5 | +292.7 |
+| rule-v3 | +440.7 | +245.3 |
+| rule-v2 | +405.2 | +234.5 |
+| rule-v1 | +322.1 | +159.5 |
+| gd-stacker | +90.3 | +102.7 |
+| gd-continental | +69.3 | +59.3 |
+| gd-aggressive | +2.7 | +51.4 |
+| greedy | 0 | 0 |
+| gd-defensive | −33.3 | +50.4 |
+
+Both new bots sit above v3, by about 60 and 100 Elo of wins, and above it by finishing order too. Neither gives anything back to the weak bots: each wins at least 65% alone among any of GD's personas or greedy at every table, more than v3 does in nearly every matchup, and the weak bots win at most 5% alone among either of them. That was what sank the old v4.
+
+v5 against v4 head to head agrees with the gauntlets: v5 alone among v4s wins 40.7% at 3 players (par 33.3%), 29.5% at 4 (par 25%) and 18.9% at 6 (par 16.7%, inside its interval), and v4 alone among v5s wins 29.0%, 17.0% and 17.1%. Better at 3 and 4 players, even at 6. By finishing order the two are level (v4 +8), the same all-or-nothing mark as in the train gauntlet: v5 wins more and, losing, goes out sooner.
+
+6-player games between strong bots stall: 225 of 600 games of v5 alone among v4s hit the 600-turn cap, and so did 311 of 600 of gd-defensive alone among v4s. A capped game counts for nothing in a gauntlet's SPRT, so these are the costliest games we play for the least information.
+
+**By the seating bar,** v4 clears it outright: better than v3 at some table and worse at none on train and holdout seeds, and above v3 on the ladder. v5 clears it on train seeds and on the ladder, beats v4 on the ladder, and has beaten v4 or matched it in every pairing so far; its two 6-player holdout pairings against v4 are still playing.
+
+## v5's holdout gauntlet, finished (2026-10-19)
+
+The two pairings left from the paused run, `risk:gauntlet -- rule-v5 --base rule-v4 --field rule-v4 --players 6 --prefix holdout`, played twice at once: on the laptop (15 workers, Node 24) and on GitHub Actions (100 shards over 5 rounds, Node 22).
+
+| Pairing (6p, holdout) | Laptop | GitHub Actions |
+|---|---|---|
+| 1 v5 among 5 v4s | better: 20.2% vs par 16.7%, 1,362 games, cap 38% | better: 18.3% vs par 16.7%, 6,852 games, cap 37% |
+| 5 v5s against 1 v4 | even: 83.5% vs par 83.3%, 2,550 games, cap 28% | even: 83.1% vs par 83.3%, 2,322 games, cap 28% |
+| Wall time | 2 h | 2 h 50 min, an hour of it queued behind the ladder |
+
+Both agree, and with the 28 pairings from the paused run, v5's holdout gauntlet is complete: better than v3 at every table, better than v4 or even with it everywhere, worse nowhere, and better than every weak bot. With the ladder, v5 clears all three rules of its seating bar (`rule-bot-v5.md`).
+
+**The two runs played different games.** The test stops at the same game whatever the batching, so identical game streams would have stopped both at the same point; these stopped at 1,362 and 6,852 games. Replaying one of GitHub's shards (60 games) on the laptop: under Node 24, 59 of 60 games came out different, with the same seeds and seats; replayed twice under Node 24 they matched each other exactly; under Node 22, the version `.node-version` pins and the runners use, all 60 matched GitHub's. A game is a pure function of its seed and the Node version: something the bots compute in floating point comes out a hair differently between the two versions' engines, and one changed decision sends the game elsewhere. The laptop's default Node is 24, so every laptop measurement in this log played Node 24's games. Neither stream is wrong, and each verdict stands on its own, but runs on different Node versions don't replay each other, and the ratings cache mixes them unless its key says which.
+
+## How 6-player games end (2026-10-19)
+
+Read from the 12,000 games of v5's last two holdout pairings against v4 on GitHub Actions (every game's turns and winner are kept), to see whether the 600-turn cap wastes time. 34% of the games reached the cap, and they took 56% of the turns played and 49% of the decisions.
+
+- **Games end at a steady rate.** Of the games still going at any point from turn 150 to 600, about 8% end within the next 50 turns, the same at turn 550 as at turn 200. There is no turn past which a game has stalled for good: decisive games have a long, flat tail (median 211 turns, 9% past turn 500).
+- **So a lower cap saves almost nothing.** Decisive games per 1,000 turns played: 1.84 with a cap of 200, 1.83 at 300, 1.81 at 400, 1.80 at 500, 1.78 at 600. A lower cap ends long games sooner and loses their results in the same proportion, about 3% better at most.
+- **Long games aren't won differently.** A lone v5 among v4s wins 18.7% of the games decided by turn 250 and 17.8% of those decided later; a lone v4 among v5s, 16.8% and 17.2%. Cutting the long games wouldn't bias a verdict either, only cost results.
+- **At the cap, most tables are still full.** Of the 4,130 capped games, all six players were alive in 1,209, five in 1,131, and four in 1,221. These aren't decided games waiting for a mop-up; nobody has eliminated anybody.
+
+The cost is in how the bots play six-handed, not in the measuring: among themselves, v4 and v5 rarely knock anyone out. Not run: the turns spent after a game's result is clear, which needs each game's state turn by turn, not only its end.
+
+## v4 and v5 seated (2026-10-19)
+
+Both cleared their seating bars on the full suite, so both are seated (`online/seat-roster.ts`), and v5 is the lobby's default. The seatable ratings run played nothing: all 270 matchups came from the cache, from the Actions ladder's games.
+
+| Bot | Win Elo (greedy at 1000) |
+|---|---|
+| rule-v5 | 1538 |
+| rule-v4 | 1500 |
+| rule-v3 | 1441 |
+| rule-v2 | 1405 |
+| rule-v1 | 1322 |
+
+Both bots' moves over the two frozen games are now pinned in `bots/frozen.test.ts`, so neither changes again: a change to either one's play is a new version.
+
+## v6: v5 with seven switchable fixes from 9VFL (built, screened at 3 players, 2026-10-19)
+
+v6 (`rule-bot-v6.md`, `bots/rule-v6/`) is v5 with seven fixes for what 9VFL showed (a 5-player game the winner of G4FR won again, over Kyle, v3, v4 and v5; its seed and 821 moves are a fixture), each a switch so a screen can seat v5 with one of them (`rule-v6~{"fork":1,...}`): `fork` (a kill whose victim splits at the stack, costed cheap group first), `movein` (a single capture scored on the move-in that keeps the stack home), `alive` (preferences by the seats still alive), `gather` (when a big sweep against me is believed, the fortify that most cuts it), `homeward` (the stack at a run's end isn't charged as idle: the turn's fortify is still to come), `thirdParty` (an opponent's sweep may break through a third player to reach me) and `reinforced` (next turn's kill weighed with the victim's income on its defence). With every switch off v6 plays v5's moves exactly (`parity.test.ts`). Registered with every fix on; not seated.
+
+On 9VFL's positions (`9vfl.test.ts`): at turn 57, after v4's 42 armies moved into Venezuela, the kill of Kyle reads 0.957 where v4 read 0, and v5 with `fork` goes for it Peru first; at turn 78 v5 with `movein` takes the 1-army Brazil it turned down; at turn 68 v5 on Egypt alone sweeps with `homeward` and captures with `reinforced`, where it held and died; at turn 57's end v6 believes Kyle's sweep takes 6 of v4's territories (he took 5; v4 believed none). `gather` changes nothing at turn 87: the spread was made in the attack phase, a preference. On G4FR's turns (`rule-bot-v6.md` has the table) `alive` spreads v5 thin at turn 89 (20 territories, biggest stack 3, against 13 and 8).
+
+Cost: a v6 decision with every fix costs 1.33, 1.35 and 1.41 times a v5 decision at 3, 4 and 6 players on the same decisions; `movein` is most of it.
+
+Screens, one v6 among two v5s at 3 players, train seeds `screen-v6:*`, capped at 600 decisive games, about 70 seconds each:
+
+| v5 with | Win share vs par 33.3% | Win Elo a seat | Verdict |
+|---|---|---|---|
+| every fix | 32.8% [29.2, 36.7] | −4 | inconclusive |
+| `fork` | 34.0% [30.3, 37.9] | +5 | inconclusive |
+| `movein` | 31.2% [27.6, 35.0] | −17 | inconclusive |
+| `homeward` | 31.7% [28.1, 35.5] | −13 | inconclusive |
+| `reinforced` | 33.8% [30.2, 37.7] | +4 | inconclusive |
+
+No big loser, nothing separated: each fix changes a few decisions a game. No game hit the cap. The faults were seen at 5 players, so the screens that choose v6's set are at 6 players, queued for GitHub Actions with the full suite after them (`rule-bot-v6.md`, "Measuring it", with the seating bar written in advance).
+
+## v6's screens at 6 players, and the set kept (2026-10-20)
+
+On GitHub Actions, one v6 variant among five v5s, train seeds `screen-v6:*`, at most 2,000 decisive games each, eight runs at once on 5 machines each:
+
+| v5 with | Win share vs par 16.7% | Win Elo a seat | Games | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| `alive` | 20.1% [17.5, 23.0] | +40 | 1,074 | 25.0% | better |
+| `gather` | 17.2% [15.6, 18.9] | +6 | 2,694 | 25.6% | inconclusive at the cap |
+| `fork` | 17.0% [15.4, 18.7] | +4 | 2,562 | 25.8% | even |
+| `homeward` | 16.9% [15.1, 18.7] | +3 | 2,226 | 24.6% | even |
+| `thirdParty` | 16.8% [15.0, 18.7] | +2 | 2,082 | 24.3% | even |
+| `reinforced` | 16.7% [14.9, 18.7] | +1 | 1,914 | 24.3% | even |
+| `movein` | 15.9% [14.4, 17.6] | −9 | 2,616 | 23.5% | inconclusive, leaning worse |
+| every fix | 17.9% [16.3, 19.6] | +15 | 2,604 | 23.1% | inconclusive |
+
+Only `alive` pays: the large table's preferences played down to three survivors cost v5 about 40 Elo a seat. The fixes for single positions change too few decisions to show. `movein` leaned worse at 3 and 6 players and was most of the cost, so it was dropped. Every fix together scored below `alive` alone, so two sets had a last screen, the rule for choosing written into `rule-bot-v6.md` before they reported (the larger set inside `alive`'s interval):
+
+| v5 with | Win share vs par 16.7% | Win Elo a seat | Games | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| `alive` and `fork` | 20.3% [17.5, 23.4] | +42 | 966 | 26.1% | better |
+| every fix but `movein` | 19.4% [17.2, 21.7] | +32 | 1,608 | 25.2% | better |
+
+**Decision: v6 is every fix but `movein`.** The cap rate was about 24% in every screen (v5 among v4s: 34 to 38%); no fix moved it.
+
+## v6's ladder and train gauntlet (2026-10-20)
+
+Both on GitHub Actions, 10 machines each, at once. The ladder (`risk:ratings -- rule-v6 rule-v5 rule-v4 rule-v3 rule-v2 rule-v1 gd-stacker gd-continental greedy gd-aggressive gd-defensive --anchor greedy --groups 100`, 26,000 new games, 1 h 21 min of play):
+
+| Bot | Win Elo (greedy = 0) | Finishing-order Elo (greedy = 0) |
+|---|---|---|
+| rule-v6 | +558.9 | +287.9 |
+| rule-v5 | +537.7 | +282.9 |
+| rule-v4 | +500.6 | +292.9 |
+| rule-v3 | +439.4 | +241.9 |
+
+Head to head, v6 alone among v5s wins 34.7%, 24.8% and 20.4% at 3, 4 and 6 players (par 33.3, 25 and 16.7), and v5 alone among v6s 29.0%, 23.3% and 14.9%: level at the small tables, better at 6, where `alive` acts.
+
+The train gauntlet (`rule-v6 --base rule-v5 --field rule-v5,rule-v4,gd-defensive,gd-stacker,greedy`, 44,200 games, 5 rounds):
+
+| Opponent | 3p one-in | 3p one-out | 4p one-in | 4p one-out | 6p one-in | 6p one-out |
+|---|---|---|---|---|---|---|
+| rule-v5 | even (33.3%) | even (66.6%) | better (30.7%) | even (75.5%) | better (19.3%) | better (85.5%) |
+| rule-v4 | better (42.5%) | better (77.3%) | better (31.0%) | better (78.9%) | better (18.9%) | better (86.1%) |
+| gd-defensive, gd-stacker, greedy | better | better | better | better | better | better |
+
+Win Elo (rule-v5 = 0): v6 +14.9, v4 −28.7. Finishing order puts v6 at −10: the all-or-nothing mark v5 showed against v4, one step further. The tool's own gate printed REJECT (some tables even); by v6's seating bar (better than v5 somewhere, worse nowhere, no weak bot worse, above v5 on the ladder) train and the ladder both pass. The holdout gauntlet is next.
+
+## v6's holdout gauntlet, and v6 seated (2026-10-20)
+
+The train gauntlet's command with `--prefix holdout`, on GitHub Actions, 20 machines, 47,800 games over 5 rounds, 1 h 22 min of play:
+
+| Opponent | 3p one-in | 3p one-out | 4p one-in | 4p one-out | 6p one-in | 6p one-out |
+|---|---|---|---|---|---|---|
+| rule-v5 | even (34.8%) | even (67.9%) | even (25.8%) | better (77.6%) | better (20.3%) | better (86.2%) |
+| rule-v4 | better (42.4%) | better (75.3%) | better (34.5%) | better (82.4%) | better (19.2%) | better (87.2%) |
+| gd-defensive, gd-stacker, greedy | better | better | better | better | better | better |
+
+Win Elo (rule-v5 = 0): v6 +15.8, v4 −41.0; by finishing order v6 +1.5. The 3-player pairings against v5 took 3,990 and 2,898 games to call even: at 3 players v6 and v5 are nearly the same bot, as the screens said. Cap rates: 26% and 18% for v6 against v5 at 6 players, 37% for one v6 among five v4s.
+
+With train and the ladder, v6 clears all three rules of its seating bar (`rule-bot-v6.md`), so it is seated (`online/seat-roster.ts`) and, as the strongest, the lobby's default. The seatable ratings run played nothing: all 330 matchups came from the cache.
+
+| Bot | Win Elo (greedy at 1000) |
+|---|---|
+| rule-v6 | 1559 |
+| rule-v5 | 1538 |
+| rule-v4 | 1501 |
+| rule-v3 | 1439 |
+
+v6's moves over the two frozen games are pinned in `bots/frozen.test.ts`.
+
+## Five players: the ladder, and the small table's cutoff (2026-10-20)
+
+Every measurement so far played 3, 4 and 6 players, the default since the first gauntlet, though both human games the bots lost (G4FR and 9VFL) were 5-player games. Two runs on GitHub Actions, 10 machines each:
+
+**The ladder at 5 players**, `risk:ratings -- rule-v6 rule-v5 rule-v4 rule-v3 rule-v2 rule-v1 gd-stacker gd-continental greedy gd-aggressive gd-defensive --anchor greedy --groups 100 --players 5`: 55,000 games, 110 matchups.
+
+| Bot | Win Elo at 5p (greedy = 0) | Seatable ladder at 3, 4, 6 |
+|---|---|---|
+| rule-v6 | +569 | +559 |
+| rule-v5 | +546 | +538 |
+| rule-v4 | +537 | +501 |
+| rule-v3 | +478 | +439 |
+| rule-v2 | +437 | +406 |
+| rule-v1 | +326 | +320 |
+| gd-stacker | +116 | +90 |
+| gd-continental | +86 | +69 |
+| gd-aggressive | +23 | +7 |
+| gd-defensive | +8 | −34 |
+
+The rule bots keep their order, and v6 stays on top: alone among v5s it wins 21.7% against par 20%, and v5 alone among v6s 17.7%. The gaps differ: v4 sits 9 Elo under v5 at 5 players against 37 on the 3/4/6 ladder, and by finishing order it is first. The 3, 4 and 6-player ladder predicts the 5-player order; it doesn't predict the gaps.
+
+**The small table's cutoff.** The rule bots play their small-table preferences at 4 players or fewer, a cutoff set from measurements at 3, 4 and 6 only. v6 with its large-table preferences replaced by its small-table ones (a tuned label, `rule-v6~{…smallTable.prefs}`), against plain v6 at 5 players, `--max 2000 --prefix screen-5p`, 3,000 games:
+
+| Pairing (5p) | Win share vs par | Verdict |
+|---|---|---|
+| 1 small-table v6 among 4 v6s | 24.6% vs 20.0% | better |
+| 4 small-table v6s against 1 v6 | 80.8% vs 80.0% | inconclusive at the 2,000-game cap |
+
+Win Elo +17 a seat, finishing order +23. **At 5 players the small table's preferences are the better ones**: the cutoff belongs at 5, not 4. v6 is seated and frozen, so moving it is a new version. A 5-player game is also cheap: 105 to 127 turns on average and a 3 to 7% cap rate between v6s, against 25 to 37% at 6 players, so adding 5 to the default table sizes costs little.
+
+## Five players in every default run (2026-10-20)
+
+The measuring tools' default tables are now 3, 4, 5 and 6 players (`eval/cli-args.ts`), for the gauntlet, the ladder and the tuner alike. Until now no measurement played 5 by default, though it is the table people play. The seatable ladder at all four sizes played nothing: its 440 matchups came from the cache, the 5-player ones from the 5-player ladder above.
+
+| Bot | Win Elo, 3/4/5/6 (greedy at 1000) | 3/4/6 before |
+|---|---|---|
+| rule-v6 | 1561 | 1559 |
+| rule-v5 | 1540 | 1538 |
+| rule-v4 | 1511 | 1501 |
+| rule-v3 | 1450 | 1439 |
+| rule-v2 | 1415 | 1406 |
+| rule-v1 | 1322 | 1320 |
+
+The order is unchanged. Every earlier verdict in this log played 3, 4 and 6 only.

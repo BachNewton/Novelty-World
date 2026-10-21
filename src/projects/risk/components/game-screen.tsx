@@ -106,7 +106,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
   const [dialog, setDialog] = useState<Dialog>(null);
   const [selection, setSelection] = useState<Selection>(NO_SELECTION);
   const [focus, setFocus] = useState<TerritoryId | null>(null);
-  const [holding, setHolding] = useState(false);
   const [optionsSeen, setOptionsSeen] = useState(options);
 
   // A move changes the options: the selection carries on where the move leads (`nextSelection`).
@@ -190,8 +189,11 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
       const previous = backOut(selection);
       if (previous) setSelection(previous);
     },
+    confirm: () => box.current?.querySelector<HTMLElement>("[data-pad-start]")?.click(),
     closeDialog: () => setDialog(null),
-    endHold: (held) => setHolding(held && ending !== null && dialog === null),
+    endPhase: () => {
+      if (ending && dialog === null) act(ending);
+    },
     menu: () => setDialog((open) => (open?.kind === "menu" ? null : { kind: "menu" })),
     log: () => setDialog({ kind: "log" }),
     // An open dialog's one amount is the war room's playback speed.
@@ -312,7 +314,6 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
           news={latestLine ? [latestLine] : []}
           onMenu={() => setDialog({ kind: "menu" })}
           ending={ending}
-          endHold={{ holding, onHeld: () => ending && act(ending) }}
           input={input}
           onNewGame={onLeave}
           error={feed.problem}

@@ -78,6 +78,20 @@ export function ladderMatchups(labels: readonly string[], players: readonly numb
   );
 }
 
+/** The games of `matchup` in a ladder seeded under `prefix`. */
+export function matchupGames(prefix: string, matchup: Matchup, groups: number, maxTurns: number): MatchupGames {
+  return {
+    ...matchup,
+    seeds: `${prefix}:${matchup.lone}-in-${matchup.rest}:${matchup.players.toString()}p`,
+    groups,
+    maxTurns,
+  };
+}
+
+export function matchupSpecs({ lone, rest, players, seeds, groups, maxTurns }: MatchupGames): RiskGameSpec[] {
+  return tableSpecs(lone, rest, "one-in", players, seeds, 0, groups * players, maxTurns);
+}
+
 /** Comparisons between `a` and `b` summed into one, `a` first. */
 function summed(pairs: readonly PairResult[], a: string, b: string): PairResult {
   const sum: PairResult = { a, b, aWins: 0, bWins: 0 };
@@ -95,8 +109,8 @@ function summed(pairs: readonly PairResult[], a: string, b: string): PairResult 
 
 /** Plays a matchup's games and rates them: the record, and how many games threw. */
 async function playMatchup(pool: LadderOptions["pool"], games: MatchupGames): Promise<{ record: MatchupRecord; errors: number }> {
-  const { lone, rest, players, seeds, groups, maxTurns } = games;
-  const results = await pool.run(tableSpecs(lone, rest, "one-in", players, seeds, 0, groups * players, maxTurns));
+  const { lone, rest, players } = games;
+  const results = await pool.run(matchupSpecs(games));
   const tally: MatchupTally = { lone, rest, players, wins: 0, losses: 0, draws: 0 };
   const winPairs: PairResult[] = [];
   const finishPairs: PairResult[] = [];
@@ -116,6 +130,18 @@ async function playMatchup(pool: LadderOptions["pool"], games: MatchupGames): Pr
   return { record: { tally, win: summed(winPairs, lone, rest), finish: summed(finishPairs, lone, rest) }, errors };
 }
 
+/** The games a ladder still needs: those of every matchup neither `cache` nor `played` answers. */
+export function ladderGamesToPlay(
+  opts: Omit<LadderOptions, "pool" | "onMatchup">,
+  played: (spec: RiskGameSpec) => boolean,
+): RiskGameSpec[] {
+  return ladderMatchups(opts.labels, opts.players).flatMap((matchup) => {
+    const games = matchupGames(opts.prefix, matchup, opts.groups, opts.maxTurns);
+    if ((opts.cache?.get(games) ?? null) !== null) return [];
+    return matchupSpecs(games).filter((spec) => !played(spec));
+  });
+}
+
 /** Plays every matchup the cache can't answer at once, so the pool always has games, and
  *  rates them in matchup order once all are done: the same ladder as one matchup at a
  *  time. A matchup whose games threw is reported and never cached. */
@@ -125,12 +151,7 @@ export async function playLadder(opts: LadderOptions): Promise<Ladder> {
   let cached = 0;
   const records = await Promise.all(
     matchups.map(async (matchup, index) => {
-      const games: MatchupGames = {
-        ...matchup,
-        seeds: `${opts.prefix}:${matchup.lone}-in-${matchup.rest}:${matchup.players.toString()}p`,
-        groups: opts.groups,
-        maxTurns: opts.maxTurns,
-      };
+      const games = matchupGames(opts.prefix, matchup, opts.groups, opts.maxTurns);
       const known = opts.cache?.get(games) ?? null;
       if (known !== null) {
         cached++;

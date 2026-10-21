@@ -44,8 +44,8 @@ export interface SprtPairingRun {
   wins: number;
   losses: number;
   decisive: number;
-  /** Capped games seen across the whole run — discarded from the test, reported
-   *  as the deadlock health metric. */
+  /** Capped games to the stop point: discarded from the test, reported as the
+   *  deadlock health metric. */
   draws: number;
   errors: number;
   /** Games up to the stop point, draws and errors included: the games the verdict
@@ -76,50 +76,113 @@ export interface SprtPairingOptions {
   onRound?: (walk: GauntletWalk, draws: number) => void;
 }
 
-/** Run one candidate-vs-opponent pairing to an SPRT verdict, generating games in
- *  rounds until the test crosses a boundary or hits the decisive cap. The stop
- *  point is a deterministic function of the (seeded) game stream, so the verdict
- *  reproduces regardless of the batch size or the pool's size. */
-export async function runSprtPairing(opts: SprtPairingOptions): Promise<SprtPairingRun> {
-  const groupSize = opts.groupSize ?? 1;
-  const batchGames = Math.ceil(opts.batchGames / groupSize) * groupSize;
-  const groups: boolean[][] = [];
-  let draws = 0;
-  let errors = 0;
-  let generated = 0;
-  // Bound generation so an all-draws pathology can't loop forever; a healthy
-  // field rarely caps, so this is only a safety net.
-  const hardCap = opts.maxDecisive * 3 + 300;
+/** A pairing's games so far, from the first, as the SPRT reads them: each group's
+ *  decisive outcomes, and its capped and failed games, which the test leaves out. */
+interface PairingStream {
+  groups: boolean[][];
+  draws: number[];
+  errors: number[];
+}
 
-  let walk = walkGroupedSprt(groups, opts.sprt, opts.maxDecisive);
-  while (walk.verdict === "need-more") {
-    const outcomes = await opts.play(generated, batchGames);
-    for (let k = 0; k < outcomes.length; k++) {
-      const g = Math.floor((generated + k) / groupSize);
-      groups[g] ??= [];
-      const o = outcomes[k];
-      if (o === "error") errors++;
-      else if (o === "draw") draws++;
-      else groups[g].push(o === "win");
-    }
-    generated += batchGames;
-    walk = walkGroupedSprt(groups, opts.sprt, opts.maxDecisive);
-    opts.onRound?.(walk, draws);
-    if (walk.verdict === "need-more" && generated >= hardCap) break;
+function emptyStream(): PairingStream {
+  return { groups: [], draws: [], errors: [] };
+}
+
+/** Adds games `from` onward of a pairing's stream. */
+function extend(stream: PairingStream, from: number, outcomes: readonly TrialOutcome[], groupSize: number): void {
+  for (let k = 0; k < outcomes.length; k++) {
+    const g = Math.floor((from + k) / groupSize);
+    stream.groups[g] ??= [];
+    stream.draws[g] ??= 0;
+    stream.errors[g] ??= 0;
+    const o = outcomes[k];
+    if (o === "error") stream.errors[g]++;
+    else if (o === "draw") stream.draws[g]++;
+    else stream.groups[g].push(o === "win");
   }
+}
 
+const sumTo = (xs: readonly number[], n: number) => xs.slice(0, n).reduce((s, x) => s + x, 0);
+
+/** Games a pairing may play while its test is undecided: a bound so that an
+ *  all-draws pathology can't loop forever; a healthy field rarely caps, so this is
+ *  only a safety net. Rounded up to whole groups. */
+export function sprtGameCap(maxDecisive: number, groupSize: number): number {
+  return Math.ceil((maxDecisive * 3 + 300) / groupSize) * groupSize;
+}
+
+function pairingRun(walk: GauntletWalk, stream: PairingStream, groupSize: number, generated: number): SprtPairingRun {
   return {
     verdict: classify(walk.verdict),
     wins: walk.wins,
     losses: walk.losses,
     decisive: walk.decisive,
-    draws,
-    errors,
+    draws: sumTo(stream.draws, walk.groups),
+    errors: sumTo(stream.errors, walk.groups),
     games: walk.groups * groupSize,
     generated,
     llrImprove: walk.llrImprove,
     llrRegress: walk.llrRegress,
   };
+}
+
+/** Run one candidate-vs-opponent pairing to an SPRT verdict, generating games in
+ *  rounds until the test crosses a boundary or hits the decisive cap. The stop
+ *  point is a deterministic function of the (seeded) game stream, so the verdict
+ *  reproduces regardless of the batch size or the pool's size; so does every
+ *  figure of the run but `generated`, which counts the games past the stop point. */
+export async function runSprtPairing(opts: SprtPairingOptions): Promise<SprtPairingRun> {
+  const groupSize = opts.groupSize ?? 1;
+  const batchGames = Math.ceil(opts.batchGames / groupSize) * groupSize;
+  const stream = emptyStream();
+  let generated = 0;
+  const cap = sprtGameCap(opts.maxDecisive, groupSize);
+
+  let walk = walkGroupedSprt(stream.groups, opts.sprt, opts.maxDecisive);
+  while (walk.verdict === "need-more") {
+    extend(stream, generated, await opts.play(generated, batchGames), groupSize);
+    generated += batchGames;
+    walk = walkGroupedSprt(stream.groups, opts.sprt, opts.maxDecisive);
+    opts.onRound?.(walk, sumTo(stream.draws, stream.draws.length));
+    if (walk.verdict === "need-more" && generated >= cap) break;
+  }
+  return pairingRun(walk, stream, groupSize, generated);
+}
+
+export interface SprtRoundOptions {
+  sprt: GauntletSprtConfig;
+  maxDecisive: number;
+  groupSize: number;
+  /** The fewest games a round plays, rounded up to whole groups. */
+  minRound: number;
+}
+
+/** Where a pairing stands after the games played so far, for a run that plays its
+ *  rounds elsewhere (several machines at once) and tests them here. */
+export interface SprtRoundPlan {
+  /** The run as it stands; once `next` is 0 it is the run's result, the same as
+   *  `runSprtPairing` gives (`generated` aside) on the same game stream. */
+  run: SprtPairingRun;
+  /** Games to play next, from `played` on: 0 once the test has decided, reached its
+   *  cap, or the pairing has played its game cap. A round at least doubles the games
+   *  played, so a pairing takes few rounds however long its test runs. */
+  next: number;
+  played: number;
+}
+
+/** Plans a pairing's next round from its first `outcomes.length` games, whole groups. */
+export function planSprtRound(outcomes: readonly TrialOutcome[], opts: SprtRoundOptions): SprtRoundPlan {
+  const { groupSize } = opts;
+  const played = outcomes.length;
+  if (played % groupSize !== 0) throw new Error(`a pairing's games come in groups of ${groupSize}, not ${played} games`);
+  const stream = emptyStream();
+  extend(stream, 0, outcomes, groupSize);
+  const walk = walkGroupedSprt(stream.groups, opts.sprt, opts.maxDecisive);
+  const run = pairingRun(walk, stream, groupSize, played);
+  const cap = sprtGameCap(opts.maxDecisive, groupSize);
+  if (walk.verdict !== "need-more" || played >= cap) return { run, next: 0, played };
+  const round = Math.ceil(Math.max(opts.minRound, played) / groupSize) * groupSize;
+  return { run, next: Math.min(round, cap - played), played };
 }
 
 export interface CrownGate {
