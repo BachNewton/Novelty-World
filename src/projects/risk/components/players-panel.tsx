@@ -5,10 +5,12 @@ import { PromptButton } from "@/shared/components/prompts";
 import type { InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
 import type { GameView, Seat } from "../contract";
+import type { Rank } from "../online/seat-bots";
 import { BINDINGS } from "../ui/bindings";
 import { phaseName } from "../ui/describe";
 import { seatName } from "../ui/seats";
 import { CardPips, SeatMark, SeatName } from "./bits";
+import { RankInsignia } from "./insignia";
 import { BUTTON, PANEL } from "./theme";
 
 /*
@@ -22,7 +24,7 @@ import { BUTTON, PANEL } from "./theme";
 /** A person by their name, or a bot by its name and version under its rank. */
 export interface Player {
   name: string;
-  rank?: string;
+  rank?: Rank;
 }
 
 export const playerLabel = ({ name, rank }: Player) => (rank ? `${rank} · ${name}` : name);
@@ -116,9 +118,10 @@ function SeatRow({ seat, view, player, column }: { seat: Seat; view: GameView; p
       {seatName(seat)}
     </span>
   );
-  // A bot's name always shows; its rank only where the row has room for it beside the name.
+  // A bot's insignia and name always show; its rank's title only where the row has room for it.
   const named = (
     <span className={cn("flex min-w-0 items-baseline gap-[0.4em]", !mine && "text-(--rk-muted)")}>
+      {player.rank && <RankInsignia rank={player.rank} className="shrink-0 self-center" />}
       <span className={cn("min-w-0 truncate", mine && "font-bold text-(--rk-text)")}>{player.name}</span>
       {player.rank && <span className="hidden min-w-0 truncate opacity-75 @min-[21em]:block">· {player.rank}</span>}
     </span>
