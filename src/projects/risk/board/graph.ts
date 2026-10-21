@@ -20,7 +20,7 @@ export const NAME_Y = MARKER / 2 + 8;
 /** The ring a territory on offer or chosen lights, and how far its stroke reaches. */
 export const LIT_RING = MARKER * 0.78;
 const RING_REACH = LIT_RING + 4;
-/** The name's box, below the middle, halo included (`layout_graph.py` keeps these too). */
+/** The name's box, below the middle, halo included. */
 const NAME_BOX = { top: 32, bottom: 64, halo: 2.5 };
 
 const nameHalf = (id: TerritoryId) => LABEL_WIDTHS[shortName(id)] / 2 + NAME_BOX.halo;
@@ -98,7 +98,7 @@ export interface Layout {
 
 const cross = (o: Pair, a: Pair, b: Pair) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
 
-function hull(points: readonly Pair[]): Pair[] {
+export function hull(points: readonly Pair[]): Pair[] {
   const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const half = (from: Pair[]) => {
     const out: Pair[] = [];

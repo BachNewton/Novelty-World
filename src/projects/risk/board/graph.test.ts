@@ -3,12 +3,31 @@ import { ADJACENCY, CONTINENTS, TERRITORIES, type TerritoryId } from "../map";
 import { frameBoard, type Rect } from "../ui/camera";
 import { nextTerritory } from "../ui/territory-nav";
 import { shortName } from "../ui/short-names";
-import { clashes, DRAWN, DRAWS, FINGERTIP, layoutAt, locate, pathThrough, TOUCH_SCALE, WRAP_WIDTH } from "./graph";
-import { BORDERS, GRAPH_HEIGHT, GRAPH_WIDTH, NODES } from "./graph-layout";
+import { clashes, DRAWN, DRAWS, FINGERTIP, hull, layoutAt, locate, pathThrough, TOUCH_SCALE, WRAP_WIDTH } from "./graph";
+import { BORDERS, GRAPH_HEIGHT, GRAPH_WIDTH, NODES, REGION_PAD, SLOTS } from "./graph-layout";
 import { LABEL_WIDTHS } from "./label-widths";
 
 const IDS = TERRITORIES.map((t) => t.id);
 const key = (a: string, b: string) => [a, b].sort().join("|");
+
+type Pair = readonly [number, number];
+
+/** How far a point is from a line segment. */
+function toSegment(p: Pair, [a, b]: readonly [Pair, Pair]): number {
+  const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+/** How near a line segment comes to a box, to a hundredth of its length. */
+function segmentToBox([a, b]: readonly [Pair, Pair], box: Rect): number {
+  let nearest = Infinity;
+  for (let i = 0; i <= 100; i++) {
+    const [x, y] = [a[0] + ((b[0] - a[0]) * i) / 100, a[1] + ((b[1] - a[1]) * i) / 100];
+    nearest = Math.min(nearest, Math.hypot(x - Math.min(Math.max(x, box.left), box.right), y - Math.min(Math.max(y, box.top), box.bottom)));
+  }
+  return nearest;
+}
 
 /** How many pairs of drawn lines cross, lines meeting at a territory not counting. */
 function crossings(): number {
@@ -55,13 +74,33 @@ describe("the board as a graph", () => {
     for (const stretch of [{ x: 1, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 }, { x: 1.3, y: 1.7 }]) expect(clashes(layoutAt(stretch).nodes)).toEqual([]);
   });
 
-  it("runs Alaska–Kamchatka across the board's edge, about a border long", () => {
-    expect(NODES.alaska[0]).toBeLessThan(GRAPH_WIDTH / 8);
-    expect(NODES.kamchatka[0]).toBeGreaterThan((GRAPH_WIDTH * 7) / 8);
+  it("keeps every territory clear of the borders it isn't on", () => {
+    for (const id of IDS) {
+      for (const { border, line } of DRAWN) if (!border.includes(id)) expect(toSegment(NODES[id], line), `${id} by ${border.join("–")}`).toBeGreaterThanOrEqual(42);
+    }
+  });
+
+  it("runs Alaska–Kamchatka level across the board's edge, from the westernmost territory and Asia's easternmost", () => {
+    expect(NODES.alaska[0]).toBe(Math.min(...IDS.map((id) => NODES[id][0])));
+    const asia = TERRITORIES.filter((t) => t.continent === "asia").map((t) => NODES[t.id][0]);
+    expect(NODES.kamchatka[0]).toBe(Math.max(...asia));
     expect(NODES.alaska[1]).toBe(NODES.kamchatka[1]);
-    const across = NODES.alaska[0] + WRAP_WIDTH - NODES.kamchatka[0];
-    expect(across).toBeGreaterThan(100);
-    expect(across).toBeLessThan(250);
+  });
+
+  it("leaves its two slots open for the panels: nothing a territory draws, no border, no continent's region", () => {
+    for (const [name, slot] of Object.entries(SLOTS)) {
+      for (const id of IDS) {
+        const [x, y] = NODES[id];
+        const draws = DRAWS[id];
+        const overlaps = x + draws.left < slot.right && slot.left < x + draws.right && y + draws.top < slot.bottom && slot.top < y + draws.bottom;
+        expect(overlaps, `${id} in the ${name} slot`).toBe(false);
+      }
+      for (const { border, line } of DRAWN) expect(segmentToBox(line, slot), `${border.join("–")} through the ${name} slot`).toBeGreaterThan(0);
+      for (const continent of CONTINENTS) {
+        const h = hull(TERRITORIES.filter((t) => t.continent === continent.id).map((t) => NODES[t.id]));
+        for (let i = 0; i < h.length; i++) expect(segmentToBox([h[i], h[(i + 1) % h.length]], slot), `${continent.id}'s region in the ${name} slot`).toBeGreaterThanOrEqual(REGION_PAD);
+      }
+    }
   });
 });
 
@@ -80,7 +119,7 @@ describe("the board on a screen", () => {
     expect(camera.top + GRAPH_HEIGHT * camera.scale).toBeLessThanOrEqual(420);
   });
 
-  it("shows a 16:9 desktop the whole board, spread over most of the screen, its status box in the board's empty south-west", () => {
+  it("shows a 16:9 desktop the whole board, spread over most of the screen, under today's panels", () => {
     const fit = Math.min(1920 / GRAPH_WIDTH, 960 / GRAPH_HEIGHT);
     const { camera, pan, stretch } = frame(1920, 960, [{ left: 8, top: 8, right: 424, bottom: 90 }, { left: 8, top: 768, right: 344, bottom: 952 }]);
     expect(pan.axis).toBe("none");
