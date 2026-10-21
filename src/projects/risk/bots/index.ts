@@ -16,6 +16,7 @@ import { ruleBot as ruleV6, ruleV6Bot } from "./rule-v6";
 import { V6_PARAMS } from "./rule-v6/params";
 import { ruleBot as ruleV7, ruleV7Bot } from "./rule-v7";
 import { V7_PARAMS } from "./rule-v7/params";
+import { sweeperV1Bot } from "./sweeper-v1";
 
 /** Every bot the measuring harness can seat, by label. */
 export const RISK_BOTS: Readonly<Record<string, Bot>> = {
@@ -28,6 +29,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v5": ruleV5Bot,
   "rule-v6": ruleV6Bot,
   "rule-v7": ruleV7Bot,
+  "sweeper-v1": sweeperV1Bot,
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
   "gd-aggressive": gdAggressiveBot,
@@ -46,6 +48,7 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v5": "rule-v5/index.ts",
   "rule-v6": "rule-v6/index.ts",
   "rule-v7": "rule-v7/index.ts",
+  "sweeper-v1": "sweeper-v1/index.ts",
   "gd-defensive": "gd/index.ts",
   "gd-continental": "gd/index.ts",
   "gd-aggressive": "gd/index.ts",
