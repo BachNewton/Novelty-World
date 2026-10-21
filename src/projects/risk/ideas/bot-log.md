@@ -824,3 +824,16 @@ Its cost, one v7 among four v6s at 5 players, the laptop's one core, the first 3
 | 32 replies | 1,441 ms | 9.8 s | 15.3 s |
 
 A round costs about 80 ms with the mix and 270 ms with every opponent v6, whose planning is most of it. A server turn of a few seconds holds about 8 replies over 4 candidates.
+
+## v7's budget curve, one-in at 5 players: 2 and 8 replies (2026-10-21)
+
+On GitHub Actions, 10 machines each, train seeds: `risk:gauntlet -- rule-v7~{"replies":R} --base rule-v6 --field rule-v6 --players 5 --formats one-in --max 2000 --prefix budget-v7`. One v7 among four v6s; par 20%. Five-player games among v6s run 105 to 127 turns and cap 3 to 7% of the time.
+
+| Budget (run) | Win share vs par | Games | Mean turns | Cap rate | Win Elo a seat | Finishing-order Elo | Verdict |
+|---|---|---|---|---|---|---|---|
+| 2 replies (39641422943) | 30.4% [24.5, 37.0] | 215 | 126 | 5.1% | +97 | +47 | better |
+| 8 replies (39641428856) | 42.7% [32.5, 53.5] | 85 | 119 | 3.5% | +190 | +135 | better |
+
+**Thinking time buys strength against v6**, and more of it buys more: 8 replies wins about twice par and 2 replies half again par, with game length and cap rate those of v6's own games, so v7 wins by playing, not by stalling. The intervals overlap, so the ladder of the budget points says how far apart they are. One-in is the mixture v8 also passed; the one-out pairing (four v7s against one v6) is the test that v8 failed, and it is running.
+
+Each round on Actions played 600 games whatever the stop point, so the 8-reply run took nearly two hours of 10 machines: an Actions core plays these games well below the laptop's speed the design doc assumed.
