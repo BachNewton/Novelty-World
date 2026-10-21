@@ -837,3 +837,20 @@ On GitHub Actions, 10 machines each, train seeds: `risk:gauntlet -- rule-v7~{"re
 **Thinking time buys strength against v6**, and more of it buys more: 8 replies wins about twice par and 2 replies half again par, with game length and cap rate those of v6's own games, so v7 wins by playing, not by stalling. The intervals overlap, so the ladder of the budget points says how far apart they are. One-in is the mixture v8 also passed; the one-out pairing (four v7s against one v6) is the test that v8 failed, and it is running.
 
 Each round on Actions played 600 games whatever the stop point, so the 8-reply run took nearly two hours of 10 machines: an Actions core plays these games well below the laptop's speed the design doc assumed.
+
+## v8 retrained: the stall mostly gone, still worse in numbers (2026-10-21)
+
+v8 retrained in place (Kyle's ruling: a bot is frozen only once seated). Data: the kill test's 10,000 games plus a recording of 5,000 five-player games with three or four first-weights v8s and the rest v6s at each table (run 39645825049, `risk:record -- --games 5000 --field rule-v8,rule-v8,rule-v8,rule-v6,rule-v8,rule-v6 --prefix hybrid-v8`). Features by `risk:features -- --capped loss`, so a capped game counts as no win for every seat: 2,643,475 positions from 15,000 games, 672,000 of them from capped games. The recording itself showed the stall: a quarter of its positions came from capped games.
+
+Held-out log-loss on rule seats (the new data's test games included, so not comparable with the first training's 0.493): v6's value 0.424; networks of 16-8, 32-16 and 64-32 units 0.4055, 0.4055 and 0.4078. The 16-8 network was kept.
+
+The screen on GitHub Actions (run 39676510981, 1,200 games): `risk:gauntlet -- rule-v8 --base rule-v6 --field rule-v6 --players 5 --formats one-in,one-out --max 2000 --prefix screen-v8b`.
+
+| Pairing (5p) | Win share vs par | Games | Mean turns | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| 1 v8 among 4 v6s | 28.6% [23.3, 34.5] vs 20.0% | 250 | 126 | 2.0% | better |
+| 4 v8s against 1 v6 | 74.2% [69.6, 78.2] vs 80.0% | 400 | 222 | 1.3% | worse |
+
+Win Elo (rule-v6 = 0): v8 −3; by finishing order +14. Against the first weights (38.2% one-in; 63.2%, 421 turns and 21% capped one-out), counting a stall as a loss mostly cured the stall: one-out games are half as long and almost never capped. But four v8s still lose to one v6 more than par allows, and the one-in edge shrank.
+
+**The rule fixed before the retraining applies: four v8s against one v6 is worse, so the hybrid line stops.** v8 stays registered and unseated, and the optional v7 with v8's network as its leaf scorer isn't built: it needed both bots to hold one-out. It is the next idea if a learned evaluation ever does.

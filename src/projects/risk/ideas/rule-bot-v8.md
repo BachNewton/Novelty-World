@@ -1,6 +1,6 @@
 # Risk bot v8: v6's planner on a learned evaluation
 
-v8 (`bots/rule-v8/`) is built, trained and screened locally, and not measured on GitHub Actions yet, so it is not seated. Its seating bar is below, fixed before any of those runs. `bot-log.md` has the training result and the local measurements.
+v8 (`bots/rule-v8/`) is built, trained twice and screened on GitHub Actions, and it fails its seating bar both times: better than v6 alone among v6s, worse with four v8s against one v6. By the rule fixed before the retraining, the hybrid line stops here. v8 stays registered and unseated. `bot-log.md` has both screens ("v8's screen at 5 players" and "v8 retrained").
 
 v8 is v6 (`rule-bot-v6.md`) with one change. v6's planner, its plans, filters and odds, its opponent model, its fixes and its small decisions all stay as they are. Only the score changes. Wherever v6 scores a board with its hand-weighted evaluation, v8 scores it with a small network's chance that the seat wins from that board.
 
@@ -72,6 +72,15 @@ gh workflow run risk-measure.yml --ref claude/risk-hybrid-eval-idea-ad0d76 -f to
 ```
 
 Add `rule-v7` to the ladder if it is seated by then. The scorer seam changed v6's source, so the ladder cache's v6 matchups replay once, beside v8's own. Each run's results come back with `risk:import`, and each gets its entry in `bot-log.md`. If v8 clears the bar it is seated as v6 was: `online/seat-roster.ts`, the seatable ratings run, and its fingerprint in `frozen.test.ts`.
+
+## What the two screens showed
+
+| Weights | 1 v8 among 4 v6s | 4 v8s against 1 v6 | Turns (one-out) | Cap rate (one-out) |
+|---|---|---|---|---|
+| First: v6, v5, v4 and gd-stacker games, capped games dropped | 38.2% vs 20%, better | 63.2% vs 80%, worse | 421 | 21.4% |
+| Retrained: those plus 5,000 games with 3 or 4 v8s seated, capped games as no win | 28.6% vs 20%, better | 74.2% vs 80%, worse | 222 | 1.3% |
+
+Retraining fixed most of the stall (a table of v8s now ends its games) and halved the one-out deficit, but didn't close it. A network fit to bot games learns what its training bots let a seat get away with; each round of retraining on its own games moves that, and one round wasn't enough. A further round, or training targets that don't come from games among bots, are the ways on, and each is a new idea, not this bot's measurement.
 
 ## Open questions
 
