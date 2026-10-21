@@ -724,3 +724,20 @@ The measuring tools' default tables are now 3, 4, 5 and 6 players (`eval/cli-arg
 | rule-v1 | 1322 | 1320 |
 
 The order is unchanged. Every earlier verdict in this log played 3, 4 and 6 only.
+
+## v7 built: v6 that plays its opponents' replies (2026-10-21)
+
+`rule-v7` (`rule-bot-v7.md`) chooses the turn's placement among v6's four best plans by playing each through the opponents' next turns in sampled worlds (`sim.ts`), with real bots in their seats (v6, gd-aggressive and greedy, drawn per seat), and scoring the start of its next turn. The knob is the replies per plan; at 0 it plays v6's moves exactly. Registered, not seated, and unmeasured: its seating bar and budget curve are in its doc, queued as Actions runs.
+
+Its cost, one v7 among four v6s at 5 players, the laptop's one core, the first 30 to 60 player-turns of two games:
+
+| Budget | Time a decision | A turn, mean | 9 in 10 under |
+|---|---|---|---|
+| 0 replies (= v6) | 2.7 ms | 0.02 s | 0.03 s |
+| 2 replies | 73 ms | 0.75 s | 1.6 s |
+| 8 replies | 262 ms | 2.5 s | 3.5 s |
+| 8 replies, 2 candidates | 110 ms | 1.1 s | 2.2 s |
+| 8 replies, every opponent v6 | 1,186 ms | 8.8 s | 15.8 s |
+| 32 replies | 1,441 ms | 9.8 s | 15.3 s |
+
+A round costs about 80 ms with the mix and 270 ms with every opponent v6, whose planning is most of it. A server turn of a few seconds holds about 8 replies over 4 candidates.
