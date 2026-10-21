@@ -753,3 +753,21 @@ Taking Australia first is what made it a player; without a base it was the weake
 | 4 sweeper-v1s against 1 greedy | 31.6% [19.1, 47.5] of 40 vs 80.0% | worse |
 
 Win Elo with rule-v6 at 0: sweeper-v1 −667, greedy −671; by finishing order sweeper-v1 −164, greedy −304. So at 5 players it is about greedy's strength by wins and well above it by finishing order, and v6 beats it every time it sits alone. It beats a table of greedys, and four sweepers lose to one greedy: their sweeps eat each other's trails while greedy keeps what it takes. As an opponent it is a style the rule bots already punish, which is the measure the hybrid bot would have to keep.
+
+## Can a learned evaluation predict the winner better than v6's? (2026-10-21)
+
+The kill test for a hybrid bot, v6's planner scoring its end-of-turn boards with a learned evaluation instead of its hand-tuned one. `risk:record` on GitHub Actions (run 39576264488, 20 machines): 10,000 five-player games, field rule-v6, rule-v5, rule-v4 and gd-stacker rotated through every seat, 8 capped. Every seat's board at the end of each of its turns, from its own view, with v6's evaluation terms and the game's winner: 524,628 positions from 9,992 decisive games. Fit offline on the laptop's CPU, a few minutes: held out by game (a fifth of the games), scored on the rule bots' seats only (83,924 test positions, 31.9% of them a winner's), each method's log-loss of "this seat wins", a 95% interval on each difference from a paired bootstrap over test games.
+
+| Method | Log-loss |
+|---|---|
+| A constant (the win rate) | 0.626 |
+| v6's power share alone | 0.550 |
+| (a) v6's value, calibrated to a probability | 0.530 |
+| (b) Texel: a logistic fit on v6's terms | 0.514 |
+| (c) A small network (two hidden layers) on v6's terms and the board | 0.497 |
+
+Texel beats v6's own weighting by 0.016 [0.014, 0.018], and the network beats Texel by 0.017 [0.014, 0.019]: both stop rules pass. The network on the board alone, without v6's terms, scored 0.499, nearly the same.
+
+Every game seated gd-stacker, so a network reading the board could be learning who sits where (a rule bot beside a weak bot wins more), which would mean nothing against people. Controlled by telling both fits each seat's bot: who sits where helps both (Texel by 0.010), and the network still beats Texel by 0.021 [0.017, 0.026]. Its edge is in the positions, largest from turn 20 on; in the first 20 turns the methods are close. Two fits of the same network differ by about 0.005, well inside these gaps.
+
+That a seat's chances move by about 0.01 log-loss with who the others are measures the self-play worry: what a position is worth depends on the opponents. A predictor that beats v6's scoring here is a necessary condition, not a sufficient one: the planner ranks sibling boards from one position, and an evaluation can predict winners better yet rank those worse, or be exploited on boards bots never reach. Only a gauntlet decides.
