@@ -18,7 +18,7 @@ import { Memo, memoFor } from "../memo";
 import { failureBoard, placed, successBoard } from "../rule-v4/planner";
 import { expectedIncome } from "../rule-v4/worth";
 import { sweepPlans } from "../rule-v5/sweep";
-import { breakdown } from "./evaluate";
+import { breakdown, scoreOf } from "./evaluate";
 import { killChance } from "./kills";
 import type { Params } from "./params";
 import { planCapture, type CapturePlan } from "./routes";
@@ -111,17 +111,18 @@ function carrying(b: Board, after: Board, cp: CapturePlan): CapturePlan {
 
 /** A plan's end of turn, valued. With `homeward` on, a run that ends behind my lines leaves its
  *  stack there for the turn's fortify to take back to the front, so the stack at the run's end
- *  isn't charged as idle. v5's sweeps end deep in what they took, and the evaluation charged the
+ *  isn't idle: it leaves the breakdown's idle armies and the value's charge for them. v5's sweeps end deep in what they took, and the evaluation charged the
  *  stack there as idle, so a 9-capture sweep lost to holding one territory (9VFL, turn 68). */
 function valueOf(b: Board, me: Seat, params: Params, cp: CapturePlan | null = null): number {
   const bd = breakdown(b, me, params);
-  if (params.fixes.homeward === 0 || cp === null) return bd.value;
+  if (params.fixes.homeward === 0 || cp === null) return scoreOf(b, me, params, bd);
   let stranded = 0;
   for (const r of cp.routes) {
     const end = r.path[r.path.length - 1];
     if (b.owner[end] === me && !hasEnemyNeighbour(b, end)) stranded = Math.max(stranded, b.armies[end] - 1);
   }
-  return bd.value + (params.prefs.idleWeight * stranded) / bd.total;
+  const credited = { ...bd, idle: bd.idle - stranded, value: bd.value + (params.prefs.idleWeight * stranded) / bd.total };
+  return scoreOf(b, me, params, credited);
 }
 
 /** A single capture's success, as the move-in that keeps the fewest armies in would leave it:

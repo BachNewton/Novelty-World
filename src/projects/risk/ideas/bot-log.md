@@ -771,3 +771,24 @@ Texel beats v6's own weighting by 0.016 [0.014, 0.018], and the network beats Te
 Every game seated gd-stacker, so a network reading the board could be learning who sits where (a rule bot beside a weak bot wins more), which would mean nothing against people. Controlled by telling both fits each seat's bot: who sits where helps both (Texel by 0.010), and the network still beats Texel by 0.021 [0.017, 0.026]. Its edge is in the positions, largest from turn 20 on; in the first 20 turns the methods are close. Two fits of the same network differ by about 0.005, well inside these gaps.
 
 That a seat's chances move by about 0.01 log-loss with who the others are measures the self-play worry: what a position is worth depends on the opponents. A predictor that beats v6's scoring here is a necessary condition, not a sufficient one: the planner ranks sibling boards from one position, and an evaluation can predict winners better yet rank those worse, or be exploited on boards bots never reach. Only a gauntlet decides.
+
+## rule-v8: v6's planner on the learned evaluation (built and trained, 2026-10-21)
+
+v8 (`ideas/rule-bot-v8.md`) is v6 with every board it scores scored instead by a network's chance that the seat wins. The network reads v6's breakdown terms and the board, its seats in turn order from the scored seat, and never which bot or person sits where. It was trained on the kill test's recording: 524,628 positions from 9,992 decisive five-player games, features from v8's own feature function (`npm run risk:features`), held out by game as the kill test held them (a fifth of the games test, a tenth validation), and scored on the rule bots' seats (83,924 test positions). On the laptop's CPU each fit takes a minute or two, and a rerun reproduces its weights bit for bit.
+
+| Model | Weights | Log-loss, rule seats | Every seat |
+|---|---|---|---|
+| v6's value, calibrated | 2 | 0.530 | 0.468 |
+| Logistic on the same 293 features | 294 | 0.498 | 0.439 |
+| Hidden layer of 8 | 2,361 | 0.494 | 0.431 |
+| Hidden layers 16, 8 (**kept**) | 4,849 | 0.493 | 0.430 |
+| Hidden layers 32, 16 | 9,953 | 0.496 | 0.431 |
+| Hidden layers 64, 32 | 20,929 | 0.496 | 0.432 |
+| Hidden layers 128, 32 | 41,793 | 0.492 | 0.432 |
+| Hidden layers 256, 64 | 91,777 | 0.496 | 0.435 |
+
+Every network scores within fit-to-fit noise of the others (about 0.005), and a little better than the kill test's network (0.497) on these features. The 16-and-8 network was kept: as good as any, and small enough that its weights are 25 KB in the repo. By game phase it gains on v6's value everywhere: 0.569 against 0.590 in turns 0 to 20, and 0.421 against 0.470 in turns 40 to 70.
+
+**Cost per decision**, v8 against v6 asked the same decisions (a v6 seat among v6s, 12 games a table size capped at 150 turns, the two taking turns going first): 1.02 times v6 at 5 players, 1.10 at 4 and 1.14 at 6. The two chose the same move in 57% of decisions at 5 players, 58% at 4, and 80% at 6, where v8 plays v6 until a seat falls.
+
+**A local screen at 5 players**, `risk:gauntlet -- rule-v8 --base rule-v6 --field rule-v6 --players 5 --formats one-in,one-out --max 600 --prefix screen-v8`, stopped at the ten-minute limit on the laptop's CPU. Five-player games of v6 are slow on 14 workers. Its one-in pairing (v8 alone among four v6s) had 102 decisive games and 13 capped, with the improvement test's log-likelihood ratio at 3.0 and the regression test's at −3.4. That leans well above par, but no verdict was printed before the stop, and one-out had not reported. It is a lean to confirm on Actions, not a result. The Actions commands are in the design doc's "Measuring it".
