@@ -11,6 +11,10 @@ Seeded and single-configuration, so a run reproduces its weights on the same mac
 
     python src/projects/risk/bots/rule-v8/train/train.py --sweep 256,64 128,32 64,32 32,16 16,8 8 ,
     python src/projects/risk/bots/rule-v8/train/train.py --hidden 16,8 --write
+    python src/projects/risk/bots/rule-v8/train/train.py --data dir-a dir-b --write
+
+Several `--data` directories are trained on together, each recording's games kept apart (its game
+ids offset), so a game is held out whole whichever recording it came from.
 
 (`,` in a sweep is no hidden layer: a logistic fit on the same features.)
 
@@ -36,7 +40,7 @@ DEFAULT_DATA = os.path.join(BOT, "..", "..", "eval", "positions", "features")
 SEED = 8
 
 
-def load(data):
+def load_one(data):
     meta = json.load(open(os.path.join(data, "meta.json")))
     rows, dim = meta["rows"], meta["features"]
     x = np.fromfile(os.path.join(data, "x.f32"), dtype="<f4").reshape(rows, dim)
@@ -46,6 +50,21 @@ def load(data):
     turn = np.fromfile(os.path.join(data, "turn.i32"), dtype="<i4")
     samples = [json.loads(line) for line in open(os.path.join(data, "samples.jsonl")) if line.strip()]
     return x, y, game, rule, turn, samples
+
+
+def load(dirs):
+    parts = [load_one(d) for d in dirs]
+    xs, ys, games, rules, turns, samples = [], [], [], [], [], []
+    rows = 0
+    for k, (x, y, game, rule, turn, smp) in enumerate(parts):
+        xs.append(x)
+        ys.append(y)
+        games.append(game.astype(np.int64) + k * 1_000_000)
+        rules.append(rule)
+        turns.append(turn)
+        samples += [{**s, "row": s["row"] + rows} for s in smp]
+        rows += len(y)
+    return np.concatenate(xs), np.concatenate(ys), np.concatenate(games), np.concatenate(rules), np.concatenate(turns), samples
 
 
 def build(dim, hidden):
@@ -139,6 +158,7 @@ def ts_floats(a):
 
 
 def write(layers, dims, samples, x, args):
+    out = BOT
     lines = [
         "// rule-v8's network, written by `train/train.py` (`ideas/rule-bot-v8.md`); never edited by hand.",
         f"// Trained with: {' '.join(sys.argv[1:])}",
@@ -153,7 +173,7 @@ def write(layers, dims, samples, x, args):
     for w, b in layers:
         lines.append(f'  {{ weights: "{ts_floats(w)}", biases: "{ts_floats(b)}" }},')
     lines.append("];")
-    open(os.path.join(BOT, "weights.ts"), "w", newline="\n").write("\n".join(lines) + "\n")
+    open(os.path.join(out, "weights.ts"), "w", newline="\n").write("\n".join(lines) + "\n")
 
     rows = np.array([s["row"] for s in samples])
     p = forward(layers, x[rows])
@@ -166,13 +186,13 @@ def write(layers, dims, samples, x, args):
         "// Bot code imports nothing of the harness's, so the records' type is the test's to name.",
         f"export const GOLDEN = {json.dumps(golden)};",
     ]
-    open(os.path.join(BOT, "golden.ts"), "w", newline="\n").write("\n".join(g) + "\n")
-    print(f"wrote weights.ts ({os.path.getsize(os.path.join(BOT, 'weights.ts')) // 1024} KB) and golden.ts")
+    open(os.path.join(out, "golden.ts"), "w", newline="\n").write("\n".join(g) + "\n")
+    print(f"wrote weights.ts ({os.path.getsize(os.path.join(out, 'weights.ts')) // 1024} KB) and golden.ts")
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", default=DEFAULT_DATA)
+    ap.add_argument("--data", nargs="+", default=[DEFAULT_DATA])
     ap.add_argument("--hidden", default="16,8")
     ap.add_argument("--sweep", nargs="*")
     ap.add_argument("--write", action="store_true")
@@ -184,7 +204,7 @@ def main():
     test = game % 5 == 0
     val = game % 10 == 1
     train = ~test & ~val
-    print(f"{len(y)} positions from {len(set(game.tolist()))} decisive games; train {train.sum()}, validation {val.sum()}, test {test.sum()} (rule seats {(test & rule).sum()}, won {y[test & rule].mean():.3f})")
+    print(f"{len(y)} positions from {len(set(game.tolist()))} games; train {train.sum()}, validation {val.sum()}, test {test.sum()} (rule seats {(test & rule).sum()}, won {y[test & rule].mean():.3f})")
 
     v6 = x[:, 9:10]
     model, mu, sd = fit(v6, y, train, val, [])
