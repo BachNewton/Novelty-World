@@ -1,8 +1,6 @@
 "use client";
 
-import { Menu } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from "react";
-import { PromptButton } from "@/shared/components/prompts";
 import { usePadNavigation, type Direction } from "@/shared/lib/gamepad";
 import { cycleChoice, type InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
@@ -11,17 +9,16 @@ import type { GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
 import type { LoggedEvent } from "../online/game";
 import type { RatedGame } from "../online/rating";
-import { BINDINGS } from "../ui/bindings";
-import { describeEvents, phaseName } from "../ui/describe";
+import { describeEvents } from "../ui/describe";
 import { SPEEDS } from "../ui/playback";
 import { alsoPickable, back as backOut, NO_SELECTION, nextSelection, phaseEnd, pick, stepOf, type Selection } from "../ui/selection";
 import { nearestTo, nextTerritory } from "../ui/territory-nav";
 import { layoutScreen, type Rect, type ScreenLayout } from "../ui/camera";
-import { CardPips, SeatMark, SeatName } from "./bits";
 import { GraphBoard } from "./graph-board";
 import { LogDialog, WarRoom } from "./overlays";
+import { PlayersPanel, type PanelShape, type Player } from "./players-panel";
 import { StatusBox } from "./status-box";
-import { BUTTON, DISPLAY_FONT, PANEL, RISK_THEME } from "./theme";
+import { DISPLAY_FONT, RISK_THEME } from "./theme";
 import type { BoardHandle, Marks } from "./use-board-camera";
 import { usePlayback, useSpeed } from "./use-playback";
 import { useRiskInput, type FocusZone } from "./use-risk-input";
@@ -45,14 +42,6 @@ export interface GameFeed {
   rating: RatedGame | null;
 }
 
-/** A person by their name, or a bot by its name and version under its rank. */
-export interface Player {
-  name: string;
-  rank?: string;
-}
-
-const playerLabel = ({ name, rank }: Player) => (rank ? `${rank} · ${name}` : name);
-
 type Dialog = { kind: "menu" } | { kind: "log" } | null;
 
 /** Where the board and the panels sit on this screen (`ui/camera.ts`), laid out afresh whenever
@@ -72,7 +61,20 @@ function useScreenLayout(root: RefObject<HTMLElement | null>): ScreenLayout | nu
   return screen;
 }
 
-const boxAt = (r: Rect): CSSProperties => ({ left: r.left, top: r.top, width: r.right - r.left, height: r.bottom - r.top });
+/** A panel's box, its content kept the screen's inset from the screen's edges and a little less
+ *  from the board. */
+function boxAt(r: Rect, view: { width: number; height: number }): CSSProperties {
+  const pad = (atEdge: boolean) => (atEdge ? "var(--rk-inset)" : "0.5em");
+  return {
+    left: r.left,
+    top: r.top,
+    width: r.right - r.left,
+    height: r.bottom - r.top,
+    padding: [r.top <= 0, r.right >= view.width, r.bottom >= view.height, r.left <= 0].map(pad).join(" "),
+  };
+}
+
+const SHAPES: Record<ScreenLayout["form"], PanelShape> = { landscape: "strip", portrait: "band", short: "column" };
 
 const COARSE = "(pointer: coarse)";
 function subscribeCoarse(changed: () => void) {
@@ -230,17 +232,13 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
 
   const root = useRef<HTMLDivElement>(null);
   const screen = useScreenLayout(root);
-  const landscape = screen?.form === "landscape";
 
-  const active = view.active;
-  const { players } = feed;
-  const you = view.viewer;
 
   return (
     <div
       ref={root}
       style={RISK_THEME}
-      className={cn(DISPLAY_FONT.variable, "fixed inset-0 overflow-hidden bg-(--rk-sea) text-[15px] text-(--rk-text) [--rk-inset:0.5em] sm:text-base min-[1800px]:text-[23px] min-[1800px]:[--rk-inset:1.5em]")}
+      className={cn(DISPLAY_FONT.variable, "fixed inset-0 overflow-hidden bg-(--rk-sea) text-[15px] text-(--rk-text) [--rk-inset:0.5em] min-[640px]:text-base min-[1800px]:text-[23px] min-[1800px]:[--rk-inset:1.5em]")}
       onContextMenu={(event) => event.preventDefault()}
     >
       <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} screen={screen} beat={beat} />
@@ -249,53 +247,12 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
           players and the war room in one, the status box in the other. */}
       {screen && (
         <>
-          <div className="pointer-events-none absolute p-(--rk-inset)" style={boxAt(screen.panels.players)}>
-            <div className={cn(PANEL, "pointer-events-auto flex max-w-full flex-col gap-[0.2em] py-[0.3em] pr-[0.3em] pl-[0.7em]", landscape ? "w-[26em]" : "w-full")}>
-              <div className="flex items-center gap-[0.5em]">
-                {/* Always two lines that cut short rather than wrap, so the panel never changes height. */}
-                <div className="flex min-w-0 flex-1 flex-col whitespace-nowrap">
-                  <div className="flex h-[1.4em] min-w-0 items-center gap-x-[0.5em]">
-                    {view.phase === "game-over" ? (
-                      <span>{phaseName(view.phase)}</span>
-                    ) : (
-                      <>
-                        <SeatName seat={active} />
-                        <span className="truncate">{active === you ? "you" : playerLabel(players[active])}</span>
-                      </>
-                    )}
-                  </div>
-                  <span className="h-[1.4em] truncate text-(--rk-muted)">
-                    {view.phase === "game-over" ? `turn ${view.turn}` : `${phaseName(view.phase)} · turn ${view.turn}`}
-                  </span>
-                </div>
-                <PromptButton binding={BINDINGS.menu} input={input} className={BUTTON} onClick={() => setDialog({ kind: "menu" })} aria-label={`War room: ${view.cards.hand?.length ?? 0} cards`}>
-                  <Menu size="1.1em" />
-                  <CardPips count={view.cards.hand?.length ?? 0} />
-                </PromptButton>
-              </div>
-              <ol className="flex flex-wrap gap-x-[0.8em] gap-y-[0.1em] pr-[0.4em] pb-[0.1em] text-[0.85em]" aria-label="Players">
-                {view.turnOrder.map((seat) => {
-                  const s = view.seats[seat];
-                  const who = seat === you ? "you" : playerLabel(players[seat]);
-                  return (
-                    <li
-                      key={seat}
-                      title={`${who}: ${s.territories} territories, ${s.armies} armies, ${s.handSize} ${s.handSize === 1 ? "card" : "cards"}`}
-                      className={cn("inline-flex items-center gap-[0.25em] tabular-nums", s.eliminated && "line-through opacity-40", seat === active && "font-bold text-(--rk-brass-bright)")}
-                    >
-                      <SeatMark seat={seat} />
-                      {seat === you && <span className="font-bold">you</span>}
-                      {s.territories}
-                      <span className="text-(--rk-muted)">/{s.armies}</span>
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
+          <div className="pointer-events-none absolute flex flex-col" style={boxAt(screen.panels.players, screen.view)}>
+            <PlayersPanel view={view} players={feed.players} shape={SHAPES[screen.form]} input={input} onMenu={() => setDialog({ kind: "menu" })} />
           </div>
 
-          <div className="pointer-events-none absolute flex flex-col justify-end p-(--rk-inset)" style={boxAt(screen.panels.action)}>
-            <div className={cn("max-w-full", landscape ? "w-[21em]" : "w-full")}>
+          <div className="pointer-events-none absolute flex flex-col justify-end" style={boxAt(screen.panels.action, screen.view)}>
+            <div className={cn("w-full", screen.form === "short" && "h-full")}>
               <StatusBox
                 ref={box}
                 view={view}
@@ -314,6 +271,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
                 onNewGame={onLeave}
                 error={feed.problem}
                 rating={feed.rating}
+                tall={screen.form === "short"}
               />
             </div>
           </div>

@@ -90,15 +90,26 @@ const CLOSEST = Math.min(...values.flatMap((a, i) => values.slice(i + 1).map((b)
 /** The least scale the board is shown at: the closest two territories a fingertip apart. */
 export const TOUCH_SCALE = FINGERTIP / CLOSEST;
 
-/** The board and its panels on a screen (`ui/camera.ts`). The panels' least sizes are estimates
- *  of their content; the column's is the sideways phone's, its bot names cut short. */
+/** The board and its panels on a screen (`ui/camera.ts`). The panels' least sizes are measured
+ *  from their content at a six-seat table, its tallest step for the action panel (a battle): the
+ *  players panel in one column or two, the action panel with a battle's blitz on a row of its own
+ *  or beside the slider. The column's is the sideways phone's, its bot names cut short. */
 export const COMPOSITION: Composition = {
   board: { width: GRAPH_WIDTH, height: GRAPH_HEIGHT },
   drawn: DRAWN_EXTENT,
   slots: SLOTS,
-  least: { players: { width: 416, height: 82 }, action: { width: 260, height: 152 } },
+  least: {
+    players: [
+      { width: 416, height: 160 },
+      { width: 670, height: 109 },
+    ],
+    action: [
+      { width: 264, height: 236 },
+      { width: 380, height: 168 },
+    ],
+  },
   column: 120,
-  bands: { top: 104, bottom: 152 },
+  bands: { top: 104, bottom: 164 },
   touch: TOUCH_SCALE,
 };
 

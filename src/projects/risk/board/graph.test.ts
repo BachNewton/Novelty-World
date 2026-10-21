@@ -111,14 +111,14 @@ describe("the board on a screen", () => {
   for (const a of IDS) for (const b of IDS) if (a < b) closest = Math.min(closest, Math.hypot(NODES[a][0] - NODES[b][0], NODES[a][1] - NODES[b][1]));
 
   // The layout spec's targets: each screen's form, its circles' size in CSS pixels, and its
-  // players and action panels' boxes.
+  // players and action panels' boxes, the portrait action band as tall as a battle needs.
   const TARGETS = [
     { screen: [1920, 1080], form: "landscape", pans: false, circles: 68, players: [1073, 190], action: [482, 348] },
     { screen: [3440, 1440], form: "landscape", pans: false, circles: 97, players: [1534, 219], action: [689, 446] },
     { screen: [1180, 820], form: "landscape", pans: false, circles: 42, players: [659, 195], action: [296, 292] },
-    { screen: [412, 790], form: "portrait", pans: true, circles: 37, players: [412, 104], action: [412, 152] },
+    { screen: [412, 790], form: "portrait", pans: true, circles: 36, players: [412, 104], action: [412, 164] },
     { screen: [915, 356], form: "short", pans: false, circles: 25, players: [128, 356], action: [128, 356] },
-    { screen: [820, 1180], form: "portrait", pans: true, circles: 64, players: [820, 104], action: [820, 152] },
+    { screen: [820, 1180], form: "portrait", pans: true, circles: 63, players: [820, 104], action: [820, 164] },
   ] as const;
 
   it("lays out each of the spec's screens as designed", () => {

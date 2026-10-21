@@ -8,7 +8,7 @@ const composition: Composition = {
   board,
   drawn: { left: 50, top: 50, right: 950, bottom: 450 },
   slots: { players: { left: 0, top: 0, right: 500, bottom: 100 }, action: { left: 400, top: 350, right: 700, bottom: 500 } },
-  least: { players: { width: 400, height: 80 }, action: { width: 200, height: 120 } },
+  least: { players: [{ width: 400, height: 80 }], action: [{ width: 200, height: 120 }, { width: 400, height: 60 }] },
   column: 100,
   bands: { top: 100, bottom: 150 },
   touch: 0.3,
@@ -35,6 +35,12 @@ describe("laying out a landscape screen", () => {
     const { frame, panels } = at(3000, 1000);
     expect(frame.camera).toEqual({ left: 500, top: 0, scale: 2 });
     expect(panels.players).toEqual({ left: 500, top: 0, right: 1500, bottom: 200 });
+  });
+
+  it("takes a slot that fits any one of a panel's least sizes", () => {
+    const wideOnly = { ...composition, least: { ...composition.least, action: [{ width: 400, height: 60 }] } };
+    expect(layoutScreen({ width: 1000, height: 700 }, wideOnly).form).toBe("short");
+    expect(at(1000, 700).form).toBe("landscape");
   });
 
   it("puts the panels in columns either side of the board, filling the height, when the slots would be smaller than them", () => {

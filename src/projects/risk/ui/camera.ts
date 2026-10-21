@@ -71,8 +71,9 @@ export interface Composition {
   drawn: Rect;
   /** The board's open slots, for the landscape panels. */
   slots: Panels;
-  /** The least size each panel's content needs. */
-  least: { players: Size; action: Size };
+  /** The sizes each panel's content fits, any one of which will do: a panel may need less height
+   *  when it has more width. */
+  least: { players: readonly Size[]; action: readonly Size[] };
   /** The least width of a column on a short landscape screen. */
   column: number;
   /** The heights of the portrait bands. */
@@ -97,7 +98,7 @@ function landscape(view: Size, c: Composition): ScreenLayout | null {
   const top = (view.height - c.board.height * scale) / 2;
   const at = (r: Rect): Rect => ({ left: left + r.left * scale, top: top + r.top * scale, right: left + r.right * scale, bottom: top + r.bottom * scale });
   const panels = { players: { ...at(c.slots.players), top: 0 }, action: { ...at(c.slots.action), bottom: view.height } };
-  const fits = (r: Rect, least: Size) => width(r) >= least.width && height(r) >= least.height;
+  const fits = (r: Rect, least: readonly Size[]) => least.some((size) => width(r) >= size.width && height(r) >= size.height);
   if (!fits(panels.players, c.least.players) || !fits(panels.action, c.least.action)) return null;
   return { form: "landscape", view, frame: { camera: { left, top, scale }, pan: { axis: "none" } }, panels };
 }
