@@ -1,12 +1,12 @@
 "use client";
 
 import { Menu } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from "react";
 import { PromptButton } from "@/shared/components/prompts";
 import { usePadNavigation, type Direction } from "@/shared/lib/gamepad";
 import { cycleChoice, type InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
-import { locate, WRAP_WIDTH } from "../board/graph";
+import { COMPOSITION, locate, WRAP_WIDTH } from "../board/graph";
 import type { GameView, Move, Options } from "../contract";
 import type { TerritoryId } from "../map";
 import type { LoggedEvent } from "../online/game";
@@ -16,7 +16,7 @@ import { describeEvents, phaseName } from "../ui/describe";
 import { SPEEDS } from "../ui/playback";
 import { alsoPickable, back as backOut, NO_SELECTION, nextSelection, phaseEnd, pick, stepOf, type Selection } from "../ui/selection";
 import { nearestTo, nextTerritory } from "../ui/territory-nav";
-import type { Rect } from "../ui/camera";
+import { layoutScreen, type Rect, type ScreenLayout } from "../ui/camera";
 import { CardPips, SeatMark, SeatName } from "./bits";
 import { GraphBoard } from "./graph-board";
 import { LogDialog, WarRoom } from "./overlays";
@@ -55,28 +55,24 @@ const playerLabel = ({ name, rank }: Player) => (rank ? `${rank} · ${name}` : n
 
 type Dialog = { kind: "menu" } | { kind: "log" } | null;
 
-/** Where the overlays sit over the map, in its CSS pixels, so the board is framed clear of them.
- *  They are measured as the screen takes its size, and only then: the board moves when the player
- *  pans it or the screen changes size, never because an overlay's content changed. */
-function useOverlays(root: RefObject<HTMLElement | null>, parts: readonly RefObject<HTMLElement | null>[]): Rect[] {
-  const [rects, setRects] = useState<Rect[]>([]);
+/** Where the board and the panels sit on this screen (`ui/camera.ts`), laid out afresh whenever
+ *  the screen changes size and only then. */
+function useScreenLayout(root: RefObject<HTMLElement | null>): ScreenLayout | null {
+  const [screen, setScreen] = useState<ScreenLayout | null>(null);
   useLayoutEffect(() => {
     const host = root.current;
     if (!host) return;
-    const observer = new ResizeObserver(() => {
-      const frame = host.getBoundingClientRect();
-      setRects(
-        parts.flatMap((part) => {
-          const box = part.current?.getBoundingClientRect();
-          return box ? [{ left: box.left - frame.left, top: box.top - frame.top, right: box.right - frame.left, bottom: box.bottom - frame.top }] : [];
-        }),
-      );
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setScreen(layoutScreen({ width, height }, COMPOSITION));
     });
     observer.observe(host);
     return () => observer.disconnect();
-  }, [root, parts]);
-  return rects;
+  }, [root]);
+  return screen;
 }
+
+const boxAt = (r: Rect): CSSProperties => ({ left: r.left, top: r.top, width: r.right - r.left, height: r.bottom - r.top });
 
 const COARSE = "(pointer: coarse)";
 function subscribeCoarse(changed: () => void) {
@@ -216,7 +212,7 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     blitz: () => {
       if (step.kind === "battle") act({ kind: "blitz", from: step.from, to: step.to, keepAtLeast: keep });
     },
-    pan: (dx, dy) => board.current?.pan(dx, dy),
+    pan: (dx) => board.current?.pan(dx),
   });
 
   // The status box holds a controller's focus while it asks for something; a keyboard player
@@ -233,10 +229,8 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
   }, []);
 
   const root = useRef<HTMLDivElement>(null);
-  const turn = useRef<HTMLDivElement>(null);
-  const status = useRef<HTMLDivElement>(null);
-  const parts = useMemo(() => [turn, status], []);
-  const overlays = useOverlays(root, parts);
+  const screen = useScreenLayout(root);
+  const landscape = screen?.form === "landscape";
 
   const active = view.active;
   const { players } = feed;
@@ -246,80 +240,85 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
     <div
       ref={root}
       style={RISK_THEME}
-      className={cn(DISPLAY_FONT.variable, "fixed inset-0 overflow-hidden bg-(--rk-sea) text-[15px] text-(--rk-text) sm:text-base min-[1800px]:text-[23px]")}
+      className={cn(DISPLAY_FONT.variable, "fixed inset-0 overflow-hidden bg-(--rk-sea) text-[15px] text-(--rk-text) [--rk-inset:0.5em] sm:text-base min-[1800px]:text-[23px] min-[1800px]:[--rk-inset:1.5em]")}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} overlays={overlays} beat={beat} />
+      <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} screen={screen} beat={beat} />
 
-      {/* What floats over the map: the turn, the players and the war room at the top, the status
-          box at the bottom. The board is framed clear of them (`ui/camera.ts`). */}
-      <div ref={turn} className={cn(PANEL, "absolute top-[0.5em] left-[0.5em] flex flex-col gap-[0.2em] py-[0.3em] pr-[0.3em] pl-[0.7em] max-sm:right-[0.5em] sm:w-[26em] min-[1800px]:top-[1.5em] min-[1800px]:left-[1.5em]")}>
-        <div className="flex items-center gap-[0.5em]">
-          {/* Always two lines that cut short rather than wrap, so the panel never changes height
-              over the board framed clear of it. */}
-          <div className="flex min-w-0 flex-1 flex-col whitespace-nowrap">
-            <div className="flex h-[1.4em] min-w-0 items-center gap-x-[0.5em]">
-              {view.phase === "game-over" ? (
-                <span>{phaseName(view.phase)}</span>
-              ) : (
-                <>
-                  <SeatName seat={active} />
-                  <span className="truncate">{active === you ? "you" : playerLabel(players[active])}</span>
-                </>
-              )}
+      {/* The panels, in the boxes the screen's layout gives them (`ui/camera.ts`): the turn, the
+          players and the war room in one, the status box in the other. */}
+      {screen && (
+        <>
+          <div className="pointer-events-none absolute p-(--rk-inset)" style={boxAt(screen.panels.players)}>
+            <div className={cn(PANEL, "pointer-events-auto flex max-w-full flex-col gap-[0.2em] py-[0.3em] pr-[0.3em] pl-[0.7em]", landscape ? "w-[26em]" : "w-full")}>
+              <div className="flex items-center gap-[0.5em]">
+                {/* Always two lines that cut short rather than wrap, so the panel never changes height. */}
+                <div className="flex min-w-0 flex-1 flex-col whitespace-nowrap">
+                  <div className="flex h-[1.4em] min-w-0 items-center gap-x-[0.5em]">
+                    {view.phase === "game-over" ? (
+                      <span>{phaseName(view.phase)}</span>
+                    ) : (
+                      <>
+                        <SeatName seat={active} />
+                        <span className="truncate">{active === you ? "you" : playerLabel(players[active])}</span>
+                      </>
+                    )}
+                  </div>
+                  <span className="h-[1.4em] truncate text-(--rk-muted)">
+                    {view.phase === "game-over" ? `turn ${view.turn}` : `${phaseName(view.phase)} · turn ${view.turn}`}
+                  </span>
+                </div>
+                <PromptButton binding={BINDINGS.menu} input={input} className={BUTTON} onClick={() => setDialog({ kind: "menu" })} aria-label={`War room: ${view.cards.hand?.length ?? 0} cards`}>
+                  <Menu size="1.1em" />
+                  <CardPips count={view.cards.hand?.length ?? 0} />
+                </PromptButton>
+              </div>
+              <ol className="flex flex-wrap gap-x-[0.8em] gap-y-[0.1em] pr-[0.4em] pb-[0.1em] text-[0.85em]" aria-label="Players">
+                {view.turnOrder.map((seat) => {
+                  const s = view.seats[seat];
+                  const who = seat === you ? "you" : playerLabel(players[seat]);
+                  return (
+                    <li
+                      key={seat}
+                      title={`${who}: ${s.territories} territories, ${s.armies} armies, ${s.handSize} ${s.handSize === 1 ? "card" : "cards"}`}
+                      className={cn("inline-flex items-center gap-[0.25em] tabular-nums", s.eliminated && "line-through opacity-40", seat === active && "font-bold text-(--rk-brass-bright)")}
+                    >
+                      <SeatMark seat={seat} />
+                      {seat === you && <span className="font-bold">you</span>}
+                      {s.territories}
+                      <span className="text-(--rk-muted)">/{s.armies}</span>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
-            <span className="h-[1.4em] truncate text-(--rk-muted)">
-              {view.phase === "game-over" ? `turn ${view.turn}` : `${phaseName(view.phase)} · turn ${view.turn}`}
-            </span>
           </div>
-          <PromptButton binding={BINDINGS.menu} input={input} className={BUTTON} onClick={() => setDialog({ kind: "menu" })} aria-label={`War room: ${view.cards.hand?.length ?? 0} cards`}>
-            <Menu size="1.1em" />
-            <CardPips count={view.cards.hand?.length ?? 0} />
-          </PromptButton>
-        </div>
-        <ol className="flex flex-wrap gap-x-[0.8em] gap-y-[0.1em] pr-[0.4em] pb-[0.1em] text-[0.85em]" aria-label="Players">
-          {view.turnOrder.map((seat) => {
-            const s = view.seats[seat];
-            const who = seat === you ? "you" : playerLabel(players[seat]);
-            return (
-              <li
-                key={seat}
-                title={`${who}: ${s.territories} territories, ${s.armies} armies, ${s.handSize} ${s.handSize === 1 ? "card" : "cards"}`}
-                className={cn("inline-flex items-center gap-[0.25em] tabular-nums", s.eliminated && "line-through opacity-40", seat === active && "font-bold text-(--rk-brass-bright)")}
-              >
-                <SeatMark seat={seat} />
-                {seat === you && <span className="font-bold">you</span>}
-                {s.territories}
-                <span className="text-(--rk-muted)">/{s.armies}</span>
-              </li>
-            );
-          })}
-        </ol>
-      </div>
 
-      {/* The status box's room: as tall as its tallest step, a battle, whatever the step now, so
-          the board is framed clear of it once and never moves as the box changes size. */}
-      <div ref={status} className="pointer-events-none absolute inset-x-[0.5em] bottom-[0.5em] flex h-[11.5em] flex-col justify-end sm:right-auto sm:w-[21em] min-[1800px]:bottom-[1.5em] min-[1800px]:left-[1.5em]">
-        <StatusBox
-          ref={box}
-          view={view}
-          options={options}
-          step={step}
-          amount={amount}
-          setAmount={setAmount}
-          keep={keep}
-          setKeep={setKeep}
-          act={act}
-          back={() => setSelection(backOut(selection) ?? NO_SELECTION)}
-          news={latestLine ? [latestLine] : []}
-          onMenu={() => setDialog({ kind: "menu" })}
-          ending={ending}
-          input={input}
-          onNewGame={onLeave}
-          error={feed.problem}
-          rating={feed.rating}
-        />
-      </div>
+          <div className="pointer-events-none absolute flex flex-col justify-end p-(--rk-inset)" style={boxAt(screen.panels.action)}>
+            <div className={cn("max-w-full", landscape ? "w-[21em]" : "w-full")}>
+              <StatusBox
+                ref={box}
+                view={view}
+                options={options}
+                step={step}
+                amount={amount}
+                setAmount={setAmount}
+                keep={keep}
+                setKeep={setKeep}
+                act={act}
+                back={() => setSelection(backOut(selection) ?? NO_SELECTION)}
+                news={latestLine ? [latestLine] : []}
+                onMenu={() => setDialog({ kind: "menu" })}
+                ending={ending}
+                input={input}
+                onNewGame={onLeave}
+                error={feed.problem}
+                rating={feed.rating}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {dialog?.kind === "menu" && <WarRoom view={view} options={options} act={act} onClose={() => setDialog(null)} onLog={() => setDialog({ kind: "log" })} onQuit={onLeave} input={input} speed={speed} setSpeed={setSpeed} />}
       {dialog?.kind === "log" && <LogDialog log={shown} onClose={() => setDialog(null)} input={input} />}

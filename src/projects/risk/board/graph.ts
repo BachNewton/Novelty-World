@@ -1,9 +1,9 @@
 import type { Point } from "@/shared/lib/input";
 import type { GameView } from "../contract";
 import { ADJACENCY, CONTINENTS, TERRITORIES, type ContinentId, type TerritoryId } from "../map";
-import type { Rect, Stretch } from "../ui/camera";
+import type { Composition, Rect } from "../ui/camera";
 import { shortName } from "../ui/short-names";
-import { BORDERS, GRAPH_WIDTH, NODES, REGION_PAD } from "./graph-layout";
+import { BORDERS, GRAPH_HEIGHT, GRAPH_WIDTH, NODES, REGION_PAD, SLOTS } from "./graph-layout";
 import { LABEL_WIDTHS } from "./label-widths";
 
 /*
@@ -32,13 +32,28 @@ export function nameBox(id: TerritoryId): Rect {
 }
 
 /** What each territory draws round its place, its lit ring and name included, in board units
- *  from it: the part of the board an overlay must not cover. */
+ *  from it: the part of the board a panel must not cover. */
 export const DRAWS: Readonly<Record<TerritoryId, Rect>> = Object.fromEntries(
   (Object.keys(NODES) as TerritoryId[]).map((id) => {
     const half = Math.max(RING_REACH, nameHalf(id));
     return [id, { left: -half, right: half, top: -RING_REACH, bottom: NAME_BOX.bottom }];
   }),
 ) as Record<TerritoryId, Rect>;
+
+/** The part of the board its territories draw, in board units. */
+const DRAWN_EXTENT: Rect = (() => {
+  const boxes = (Object.keys(NODES) as TerritoryId[]).map((id) => {
+    const [x, y] = NODES[id];
+    const d = DRAWS[id];
+    return { left: x + d.left, top: y + d.top, right: x + d.right, bottom: y + d.bottom };
+  });
+  return {
+    left: Math.min(...boxes.map((b) => b.left)),
+    top: Math.min(...boxes.map((b) => b.top)),
+    right: Math.max(...boxes.map((b) => b.right)),
+    bottom: Math.max(...boxes.map((b) => b.bottom)),
+  };
+})();
 
 /** Everything a territory draws keeps clear of everything another draws: no lit ring over
  *  another ring or name, no two names meeting. Each clash, for the tests to name. */
@@ -75,6 +90,18 @@ const CLOSEST = Math.min(...values.flatMap((a, i) => values.slice(i + 1).map((b)
 /** The least scale the board is shown at: the closest two territories a fingertip apart. */
 export const TOUCH_SCALE = FINGERTIP / CLOSEST;
 
+/** The board and its panels on a screen (`ui/camera.ts`). The panels' least sizes are estimates
+ *  of their content; the column's is the sideways phone's, its bot names cut short. */
+export const COMPOSITION: Composition = {
+  board: { width: GRAPH_WIDTH, height: GRAPH_HEIGHT },
+  drawn: DRAWN_EXTENT,
+  slots: SLOTS,
+  least: { players: { width: 416, height: 82 }, action: { width: 260, height: 152 } },
+  column: 120,
+  bands: { top: 104, bottom: 152 },
+  touch: TOUCH_SCALE,
+};
+
 /** The board wraps east to west: Alaska's west is Kamchatka, one board width along. */
 export const WRAP_WIDTH = GRAPH_WIDTH;
 
@@ -88,7 +115,7 @@ export const isWrap = (a: TerritoryId, b: TerritoryId) => (a === "alaska" && b =
 type Pair = readonly [number, number];
 type Segment = readonly [Pair, Pair];
 
-/** The board as drawn at a stretch: its places spread apart, and the regions round them. */
+/** The board as drawn: its places, and the regions round them. */
 export interface Layout {
   nodes: Readonly<Record<TerritoryId, Pair>>;
   regions: Readonly<Record<ContinentId, string>>;
@@ -112,7 +139,7 @@ export function hull(points: readonly Pair[]): Pair[] {
 }
 
 /** A continent's region: its territories' convex hull grown by `REGION_PAD`, with round corners,
- *  as an SVG path. It is drawn round the places as they sit, so a stretch keeps its corners round. */
+ *  as an SVG path. */
 function regionPath(points: readonly Pair[]): string {
   const h = hull(points);
   const n = h.length;
@@ -130,18 +157,9 @@ function regionPath(points: readonly Pair[]): string {
   return `${d}Z`;
 }
 
-const layouts = new Map<string, Layout>();
+const regions = Object.fromEntries(CONTINENTS.map((c) => [c.id, regionPath(TERRITORIES.filter((t) => t.continent === c.id).map((t) => NODES[t.id]))])) as Record<ContinentId, string>;
 
-export function layoutAt(stretch: Stretch): Layout {
-  const key = `${stretch.x}|${stretch.y}`;
-  const known = layouts.get(key);
-  if (known) return known;
-  const nodes = Object.fromEntries(Object.entries(NODES).map(([id, [x, y]]) => [id, [x * stretch.x, y * stretch.y] as const])) as Record<TerritoryId, Pair>;
-  const regions = Object.fromEntries(CONTINENTS.map((c) => [c.id, regionPath(TERRITORIES.filter((t) => t.continent === c.id).map((t) => nodes[t.id]))])) as Record<ContinentId, string>;
-  const layout = { nodes, regions, width: GRAPH_WIDTH * stretch.x };
-  layouts.set(key, layout);
-  return layout;
-}
+export const LAYOUT: Layout = { nodes: NODES, regions, width: GRAPH_WIDTH };
 
 /** The straight lines a border is drawn as: one, or Alaska–Kamchatka's two, each from one end
  *  across the board's edge to where the other end's copy is. */
@@ -153,8 +171,8 @@ export function borderLines(a: TerritoryId, b: TerritoryId, { nodes, width }: La
   ];
 }
 
-/** Every line the board draws unstretched, each with the border it belongs to. */
-export const DRAWN = BORDERS.flatMap(([a, b]) => borderLines(a, b, layoutAt({ x: 1, y: 1 })).map((line) => ({ border: [a, b] as const, line })));
+/** Every line the board draws, each with the border it belongs to. */
+export const DRAWN = BORDERS.flatMap(([a, b]) => borderLines(a, b, LAYOUT).map((line) => ({ border: [a, b] as const, line })));
 
 /** The shortest way from one territory to another through its owner's territories, for showing
  *  where a fortifying army marches. Null when there is none. */

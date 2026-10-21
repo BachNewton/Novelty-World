@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ADJACENCY, CONTINENTS, TERRITORIES, type TerritoryId } from "../map";
-import { frameBoard, type Rect } from "../ui/camera";
+import { copies, layoutScreen, toScreen, type Rect } from "../ui/camera";
 import { nextTerritory } from "../ui/territory-nav";
 import { shortName } from "../ui/short-names";
-import { clashes, DRAWN, DRAWS, FINGERTIP, hull, layoutAt, locate, pathThrough, TOUCH_SCALE, WRAP_WIDTH } from "./graph";
+import { clashes, COMPOSITION, DRAWN, DRAWS, FINGERTIP, hull, LAYOUT, locate, MARKER, pathThrough, WRAP_WIDTH } from "./graph";
 import { BORDERS, GRAPH_HEIGHT, GRAPH_WIDTH, NODES, REGION_PAD, SLOTS } from "./graph-layout";
 import { LABEL_WIDTHS } from "./label-widths";
 
@@ -50,7 +50,7 @@ describe("the board as a graph", () => {
     const fromMap = new Set(IDS.flatMap((a) => ADJACENCY[a].map((b) => key(a, b))));
     expect(fromMap.size).toBe(83);
     expect(new Set(BORDERS.map(([a, b]) => key(a, b)))).toEqual(fromMap);
-    expect(Object.keys(layoutAt({ x: 1, y: 1 }).regions).sort()).toEqual(CONTINENTS.map((c) => c.id).sort());
+    expect(Object.keys(LAYOUT.regions).sort()).toEqual(CONTINENTS.map((c) => c.id).sort());
   });
 
   it("puts every territory on the board", () => {
@@ -70,8 +70,8 @@ describe("the board as a graph", () => {
     for (const id of IDS) expect(LABEL_WIDTHS[shortName(id)], shortName(id)).toBeGreaterThan(0);
   });
 
-  it("covers no name or ring with another territory's, however the screen stretches it", () => {
-    for (const stretch of [{ x: 1, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 }, { x: 1.3, y: 1.7 }]) expect(clashes(layoutAt(stretch).nodes)).toEqual([]);
+  it("covers no name or ring with another territory's", () => {
+    expect(clashes(NODES)).toEqual([]);
   });
 
   it("keeps every territory clear of the borders it isn't on", () => {
@@ -106,34 +106,66 @@ describe("the board as a graph", () => {
 
 describe("the board on a screen", () => {
   const board = { width: GRAPH_WIDTH, height: GRAPH_HEIGHT };
-  const frame = (width: number, height: number, overlays: Rect[]) => frameBoard({ board, view: { width, height }, overlays, places: IDS.map(locate), draws: IDS.map((id) => DRAWS[id]), touch: TOUCH_SCALE });
+  const size = (r: Rect) => [Math.round(r.right - r.left), Math.round(r.bottom - r.top)];
   let closest = Infinity;
   for (const a of IDS) for (const b of IDS) if (a < b) closest = Math.min(closest, Math.hypot(NODES[a][0] - NODES[b][0], NODES[a][1] - NODES[b][1]));
 
-  it("keeps every territory a fingertip from the next on the smallest phone, panning it across only", () => {
-    // Risk's floor, a 375×640 view in portrait, its top bar and status box over the map.
-    const { camera, pan } = frame(375, 640, [{ left: 8, top: 8, right: 367, bottom: 70 }, { left: 8, top: 420, right: 367, bottom: 632 }]);
-    expect(pan.axis).toBe("x");
-    expect(closest * camera.scale).toBeGreaterThanOrEqual(FINGERTIP);
-    expect(camera.top).toBeGreaterThanOrEqual(70);
-    expect(camera.top + GRAPH_HEIGHT * camera.scale).toBeLessThanOrEqual(420);
-  });
+  // The layout spec's targets: each screen's form, its circles' size in CSS pixels, and its
+  // players and action panels' boxes.
+  const TARGETS = [
+    { screen: [1920, 1080], form: "landscape", pans: false, circles: 68, players: [1073, 190], action: [482, 348] },
+    { screen: [3440, 1440], form: "landscape", pans: false, circles: 97, players: [1534, 219], action: [689, 446] },
+    { screen: [1180, 820], form: "landscape", pans: false, circles: 42, players: [659, 195], action: [296, 292] },
+    { screen: [412, 790], form: "portrait", pans: true, circles: 37, players: [412, 104], action: [412, 152] },
+    { screen: [915, 356], form: "short", pans: false, circles: 25, players: [128, 356], action: [128, 356] },
+    { screen: [820, 1180], form: "portrait", pans: true, circles: 64, players: [820, 104], action: [820, 152] },
+  ] as const;
 
-  it("shows a 16:9 desktop the whole board, spread over most of the screen, under today's panels", () => {
-    const fit = Math.min(1920 / GRAPH_WIDTH, 960 / GRAPH_HEIGHT);
-    const { camera, pan, stretch } = frame(1920, 960, [{ left: 8, top: 8, right: 424, bottom: 90 }, { left: 8, top: 768, right: 344, bottom: 952 }]);
-    expect(pan.axis).toBe("none");
-    expect(camera.scale).toBeGreaterThan(fit * 0.75);
-    expect(GRAPH_WIDTH * stretch.x * camera.scale).toBeGreaterThan(1920 * 0.8);
-  });
-
-  it("fills an iPad mini either way up", () => {
-    for (const [width, height] of [[1024, 768], [768, 1024]]) {
-      const { camera, pan, stretch } = frame(width, height, [{ left: 8, top: 8, right: 424, bottom: 90 }, { left: 8, top: height - 192, right: 344, bottom: height - 8 }]);
-      expect(pan.axis).toBe("none");
-      expect(GRAPH_WIDTH * stretch.x * camera.scale).toBeGreaterThan(width * 0.75);
-      expect(GRAPH_HEIGHT * stretch.y * camera.scale).toBeGreaterThan(height * 0.75);
+  it("lays out each of the spec's screens as designed", () => {
+    for (const target of TARGETS) {
+      const [width, height] = target.screen;
+      const { form, frame, panels } = layoutScreen({ width, height }, COMPOSITION);
+      const name = `${width}×${height}`;
+      expect(form, name).toBe(target.form);
+      expect(frame.pan.axis !== "none", name).toBe(target.pans);
+      expect(Math.round(MARKER * frame.camera.scale), name).toBe(target.circles);
+      expect(size(panels.players), name).toEqual(target.players);
+      expect(size(panels.action), name).toEqual(target.action);
     }
+  });
+
+  it("shows every territory clear of both panels and inside the screen, on each of the spec's screens", () => {
+    for (const { screen: [width, height] } of TARGETS) {
+      const view = { width, height };
+      const { frame, panels } = layoutScreen(view, COMPOSITION);
+      const { scale } = frame.camera;
+      for (const left of copies(frame, board, view)) {
+        for (const id of IDS) {
+          const at = toScreen({ ...frame, camera: { ...frame.camera, left } }, locate(id));
+          const d = DRAWS[id];
+          const shown = { left: at.x + d.left * scale, top: at.y + d.top * scale, right: at.x + d.right * scale, bottom: at.y + d.bottom * scale };
+          if (shown.right <= 0 || shown.left >= width) continue;
+          expect(shown.top, `${id} on ${width}×${height}`).toBeGreaterThanOrEqual(-1e-6);
+          expect(shown.bottom, `${id} on ${width}×${height}`).toBeLessThanOrEqual(height + 1e-6);
+          for (const [panel, box] of Object.entries(panels)) {
+            // Panning, a territory passes under the columns either side on its way across; what
+            // shows the board, between them, it never shares with a panel.
+            const clipped = frame.pan.axis === "none" ? box : { ...box, left: Math.max(box.left, frame.pan.left), right: Math.min(box.right, frame.pan.right) };
+            // A territory may meet a panel's edge, to rounding.
+            const e = 1e-6;
+            const over = shown.left < clipped.right - e && clipped.left < shown.right - e && shown.top < clipped.bottom - e && clipped.top < shown.bottom - e;
+            expect(over, `${id} under the ${panel} panel on ${width}×${height}`).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps every territory a fingertip from the next on the smallest phone, panning it across between the bands", () => {
+    const { form, frame } = layoutScreen({ width: 375, height: 640 }, COMPOSITION);
+    expect(form).toBe("portrait");
+    expect(frame.pan.axis).toBe("x");
+    expect(closest * frame.camera.scale).toBeGreaterThanOrEqual(FINGERTIP);
   });
 });
 
