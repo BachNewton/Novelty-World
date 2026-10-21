@@ -82,14 +82,19 @@ function playAlong(world: World, state: GameState, moves: number, rng: Rng): num
 }
 
 describe("sim", () => {
-  it.each([3, 4, 5, 6])(
-    "builds from a seat's view, history and the true cards a world that shows the same view and options, at %i players",
-    (players) => {
+  // Each game's decisions are checked in two halves, odd and even, each a test of its own, so none
+  // outlasts the timeout under a full parallel run; both halves see the whole game.
+  const halves = [3, 4, 5, 6].flatMap((players) => [0, 1].map((half) => [players, half] as const));
+
+  it.each(halves)(
+    "builds from a seat's view, history and the true cards a world that shows the same view and options, at %i players (half %i)",
+    (players, half) => {
       const kinds = new Map<string, number>();
       for (const game of ["a"]) {
         playGame(players, `round-trip-${players}-${game}`, (m) => {
           const view = engine.view(m.state, null);
           kinds.set(decisionKind(m.state), (kinds.get(decisionKind(m.state)) ?? 0) + 1);
+          if (m.step % 2 !== half) return;
           const alive = view.seats.filter((s) => !s.eliminated).map((s) => s.seat);
           const other = alive[m.step % alive.length];
           for (const seat of new Set([view.active, other])) {
@@ -123,62 +128,60 @@ describe("sim", () => {
     expect(reached).toBeGreaterThan(0);
   });
 
-  it("plays the same future as the real game, given the true cards and the same random stream", () => {
+  it.each(halves)("plays the same future as the real game, given the true cards and the same random stream, at %i players (half %i)", (players, half) => {
     let checked = 0;
-    for (const players of [3, 4, 5, 6]) {
-      const rng = createRng(`future-${players}`);
-      playGame(players, `future-${players}`, (m) => {
-        if (m.step % 80 !== 0) return;
-        const seat = engine.view(m.state, null).active;
-        const seed = `future/${m.step}`;
-        const world = worldOf(m, seat, trueHidden(m.state), seed);
-        // The world's dice come from the bot's seed alone, so the real game is given that stream.
-        const real = structuredClone(inside(m.state));
-        real.rng = createRng(seed).getState();
-        checked += playAlong(world, wrap(real), 60, rng);
-      });
-    }
-    expect(checked).toBeGreaterThan(1000);
+    playGame(players, `future-${players}`, (m) => {
+      if (m.step % 80 !== 0 || (m.step / 80) % 2 !== half) return;
+      const rng = createRng(`future-${players}/${m.step}`);
+      const seat = engine.view(m.state, null).active;
+      const seed = `future/${m.step}`;
+      const world = worldOf(m, seat, trueHidden(m.state), seed);
+      // The world's dice come from the bot's seed alone, so the real game is given that stream.
+      const real = structuredClone(inside(m.state));
+      real.rng = createRng(seed).getState();
+      checked += playAlong(world, wrap(real), 60, rng);
+    });
+    expect(checked).toBeGreaterThan(150);
   });
 
-  it("is the same world whatever the real game's hidden cards and random state", () => {
+  it.each(halves.filter(([players]) => players % 2 === 0))("is the same world whatever the real game's hidden cards and random state, at %i players (half %i)", (players, half) => {
     let checked = 0;
-    for (const players of [4, 6]) {
-      const rng = createRng(`leak-${players}`);
-      playGame(players, `leak-${players}`, (m) => {
-        if (m.step % 60 !== 0) return;
-        const seat = engine.view(m.state, null).active;
-        const other = redealHidden(m.state, seat, rng);
-        const view = engine.view(m.state, seat);
-        expect(engine.view(other, seat)).toEqual(view);
+    const rng = createRng(`leak-${players}`);
+    playGame(players, `leak-${players}`, (m) => {
+      if (m.step % 60 !== 0) return;
+      // The redeal draws from one stream across the game, so both halves draw it at every point.
+      const other = redealHidden(m.state, engine.view(m.state, null).active, rng);
+      if ((m.step / 60) % 2 !== half) return;
+      const seat = engine.view(m.state, null).active;
+      const view = engine.view(m.state, seat);
+      expect(engine.view(other, seat)).toEqual(view);
 
-        const worldFrom = (state: GameState) => {
-          const seen = engine.view(state, seat);
-          return buildWorld(seen, m.histories[seat], sampleHidden(seen, m.histories[seat], "guess"), "dice");
-        };
-        let a = worldFrom(m.state);
-        let b = worldFrom(other);
-        const moves = createRng(`leak-moves/${m.step}`);
-        for (let i = 0; i < 40; i++) {
-          const now = a.view(null);
-          expect(b.view(null)).toEqual(now);
-          for (const s of seats(now)) expect(b.view(s)).toEqual(a.view(s));
-          if (now.phase === "game-over") break;
-          const options = a.options(now.active);
-          expect(b.options(now.active)).toEqual(options);
-          if (!options) throw new Error("the active seat has no options");
-          const move = randomLegalMove(options, a.view(now.active), moves);
-          const ra = a.apply(now.active, move);
-          const rb = b.apply(now.active, move);
-          if (!ra.ok || !rb.ok) throw new Error("a world refused a move its options allowed");
-          expect(rb.events).toEqual(ra.events);
-          a = ra.world;
-          b = rb.world;
-          checked++;
-        }
-      });
-    }
-    expect(checked).toBeGreaterThan(200);
+      const worldFrom = (state: GameState) => {
+        const seen = engine.view(state, seat);
+        return buildWorld(seen, m.histories[seat], sampleHidden(seen, m.histories[seat], "guess"), "dice");
+      };
+      let a = worldFrom(m.state);
+      let b = worldFrom(other);
+      const moves = createRng(`leak-moves/${m.step}`);
+      for (let i = 0; i < 40; i++) {
+        const now = a.view(null);
+        expect(b.view(null)).toEqual(now);
+        for (const s of seats(now)) expect(b.view(s)).toEqual(a.view(s));
+        if (now.phase === "game-over") break;
+        const options = a.options(now.active);
+        expect(b.options(now.active)).toEqual(options);
+        if (!options) throw new Error("the active seat has no options");
+        const move = randomLegalMove(options, a.view(now.active), moves);
+        const ra = a.apply(now.active, move);
+        const rb = b.apply(now.active, move);
+        if (!ra.ok || !rb.ok) throw new Error("a world refused a move its options allowed");
+        expect(rb.events).toEqual(ra.events);
+        a = ra.world;
+        b = rb.world;
+        checked++;
+      }
+    });
+    expect(checked).toBeGreaterThan(150);
   });
 
   describe("refuses a guess the seat's knowledge rules out", () => {
