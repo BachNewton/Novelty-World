@@ -854,3 +854,15 @@ The screen on GitHub Actions (run 39676510981, 1,200 games): `risk:gauntlet -- r
 Win Elo (rule-v6 = 0): v8 −3; by finishing order +14. Against the first weights (38.2% one-in; 63.2%, 421 turns and 21% capped one-out), counting a stall as a loss mostly cured the stall: one-out games are half as long and almost never capped. But four v8s still lose to one v6 more than par allows, and the one-in edge shrank.
 
 **The rule fixed before the retraining applies: four v8s against one v6 is worse, so the hybrid line stops.** v8 stays registered and unseated, and the optional v7 with v8's network as its leaf scorer isn't built: it needed both bots to hold one-out. It is the next idea if a learned evaluation ever does.
+
+## v7 one-out at 8 replies: better in numbers too (2026-10-22)
+
+On GitHub Actions (run 39645219116, 10 machines, 2 rounds, 600 games, 6.2 hours): `risk:gauntlet -- rule-v7~{"replies":8} --base rule-v6 --field rule-v6 --players 5 --formats one-out --max 2000 --prefix budget-v7`. Four v7s against one v6; par 80%.
+
+| Pairing (5p) | Win share vs par | Games | Mean turns | Cap rate | Win Elo a seat | Finishing-order Elo | Verdict |
+|---|---|---|---|---|---|---|---|
+| 4 v7s at 8 replies against 1 v6 | 88.8% [84.1, 92.2] vs 80.0% | 270 | 229 | 14.1% | +119 | +63 | better |
+
+**v7 passes the test v8 failed.** A table of v7s beats the lone v6 by more than par allows, so its gain against v6 is strength, not exploitation of a table of v6s. The lone v6 also finishes below its par place (3.15 against 3.0).
+
+**Its games run long.** 229 turns and 14% capped, against 105 to 127 turns and 3 to 7% among v6s at 5 players (and 119 turns, 3.5% capped, with one v7 among four v6s). It isn't v8's stall: v8's first weights ran 421 turns, 21% capped, and lost to the lone v6, where v7 beats it. But four careful searchers take about twice as long to finish each other, and the capped games are discarded as draws. Counted as games v7 didn't win, its share of all 270 games is 76%, under par. So the verdict rests on the decisive games, as every gauntlet's does, and the cap rate is a health flag to watch in the full suite: if a table of v7s caps far more at 6 players, where v6's own games cap 25 to 37%, that will show it.
