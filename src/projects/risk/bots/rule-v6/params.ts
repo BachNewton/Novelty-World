@@ -1,4 +1,5 @@
 import { V4_PARAMS, type Params as V4Params } from "../rule-v4/params";
+import type { Scorer } from "./evaluate";
 
 // v6 plays v5's settings (v4's preferences, opponent model and work knob) and adds the fixes
 // `ideas/rule-bot-v6.md` takes from the human games G4FR and 9VFL. Each fix is its own
@@ -33,6 +34,9 @@ export const NO_FIXES: Fixes = { fork: 0, movein: 0, alive: 0, gather: 0, homewa
 
 export interface Params extends V4Params {
   fixes: Fixes;
+  /** How a board is scored from its breakdown, wherever the planner, the move-in and the
+   *  fortify score one: v6's own value when unset. A later version may swap in its own. */
+  score?: Scorer;
 }
 
 /** v6: v5's settings with the fixes the 6-player screens kept: all but `movein`, which leaned

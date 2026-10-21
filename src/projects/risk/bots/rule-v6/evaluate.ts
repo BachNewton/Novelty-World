@@ -9,7 +9,8 @@ import type { Params } from "./params";
 // v4's evaluation (`rule-v4/evaluate.ts`) on v6's opponent model, with one fix of v6's
 // switchable: `reinforced`, next turn's kill weighed with the victim's income on its defence.
 // With it off this is v4's evaluation, term for term. The breakdown also carries the total
-// power, which the planner's `homeward` credit is scaled by.
+// power, which the planner's `homeward` credit is scaled by, and every seat's power and chance
+// of outliving the turns before mine, for a scorer that reads more than the value.
 
 export interface Breakdown {
   value: number;
@@ -21,10 +22,22 @@ export interface Breakdown {
   commonThreat: Seat | null;
   /** Everyone's power, the scale every term of the value is divided by. */
   total: number;
+  /** Each seat's power, 0 for a seat out of the game. */
+  power: readonly number[];
+  /** Each seat's chance of outliving the opponents' turns before mine. */
+  spared: readonly number[];
+}
+
+/** A board's score from its breakdown, in place of v6's value. */
+export type Scorer = (b: Board, me: Seat, bd: Breakdown) => number;
+
+/** The board's score: v6's value, or the settings' own scorer's reading of the same breakdown. */
+export function scoreOf(b: Board, me: Seat, params: Params, bd: Breakdown = breakdown(b, me, params)): number {
+  return params.score === undefined ? bd.value : params.score(b, me, bd);
 }
 
 export function evaluate(b: Board, me: Seat, params: Params): number {
-  return breakdown(b, me, params).value;
+  return scoreOf(b, me, params);
 }
 
 const breakdowns = new WeakMap<Params, Memo<Breakdown>>();
@@ -65,7 +78,8 @@ function computeBreakdown(b: Board, me: Seat, params: Params): Breakdown {
   const prefs = params.prefs;
   const alive: Seat[] = [];
   for (let s = 0; s < b.players; s++) if (b.alive[s]) alive.push(s);
-  const none: Breakdown = { value: 0, share: 0, killExposure: 1, borderLoss: 0, opportunity: 0, idle: 0, commonThreat: null, total: 1 };
+  const nobody = new Array<number>(b.players).fill(0);
+  const none: Breakdown = { value: 0, share: 0, killExposure: 1, borderLoss: 0, opportunity: 0, idle: 0, commonThreat: null, total: 1, power: nobody, spared: nobody };
   if (!b.alive[me]) return none;
   if (alive.length === 1) return { ...none, value: 1, share: 1, killExposure: 0 };
 
@@ -103,5 +117,5 @@ function computeBreakdown(b: Board, me: Seat, params: Params): Breakdown {
     for (const p of alive) if (p !== me) second = Math.max(second, power[p]);
     value -= (prefs.leadPenaltyWeight * (power[me] - ratio * second)) / total;
   }
-  return { value, share, killExposure, borderLoss, opportunity, idle, commonThreat, total };
+  return { value, share, killExposure, borderLoss, opportunity, idle, commonThreat, total, power, spared };
 }

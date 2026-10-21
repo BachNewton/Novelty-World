@@ -592,7 +592,7 @@ Both bots' moves over the two frozen games are now pinned in `bots/frozen.test.t
 
 ## v6: v5 with seven switchable fixes from 9VFL (built, screened at 3 players, 2026-10-19)
 
-v6 (`rule-bot-v6.md`, `bots/rule-v6/`) is v5 with seven fixes for what 9VFL showed (a 5-player game the winner of G4FR won again, over Kyle, v3, v4 and v5; its seed and 821 moves are a fixture), each a switch so a screen can seat v5 with one of them (`rule-v6~{"fork":1,...}`): `fork` (a kill whose victim splits at the stack, costed cheap group first), `movein` (a single capture scored on the move-in that keeps the stack home), `alive` (preferences by the seats still alive), `gather` (when a big sweep against me is believed, the fortify that most cuts it), `homeward` (the stack at a run's end isn't charged as idle: the turn's fortify is still to come), `thirdParty` (an opponent's sweep may break through a third player to reach me) and `reinforced` (next turn's kill weighed with the victim's income on its defence). With every switch off v6 plays v5's moves exactly (`parity.test.ts`). Registered with every fix on; not seated.
+v6 (`rule-bot-v6.md`, `bots/rule-v6/`) is v5 with seven fixes for what 9VFL showed (a 5-player game the winner of G4FR won again, over Kyle, v3, v4 and v5; its seed and 821 moves are a fixture), each a switch so a screen can seat v5 with one of them (`rule-v6~{"fork":1,...}`): `fork` (a kill whose victim splits at the stack, costed cheap group first), `movein` (a single capture scored on the move-in that keeps the stack home), `alive` (preferences by the seats still alive), `gather` (when a big sweep against me is believed, the fortify that most cuts it), `homeward` (the stack at a run's end isn't charged as idle: the turn's fortify is still to come), `thirdParty` (an opponent's sweep may break through a third player to reach me) and `reinforced` (next turn's kill weighed with the victim's income on its defence). With every switch off v6 plays v5's moves exactly (a parity test, deleted once v5 and v6 were both frozen). Registered with every fix on; not seated.
 
 On 9VFL's positions (`9vfl.test.ts`): at turn 57, after v4's 42 armies moved into Venezuela, the kill of Kyle reads 0.957 where v4 read 0, and v5 with `fork` goes for it Peru first; at turn 78 v5 with `movein` takes the 1-army Brazil it turned down; at turn 68 v5 on Egypt alone sweeps with `homeward` and captures with `reinforced`, where it held and died; at turn 57's end v6 believes Kyle's sweep takes 6 of v4's territories (he took 5; v4 believed none). `gather` changes nothing at turn 87: the spread was made in the attack phase, a preference. On G4FR's turns (`rule-bot-v6.md` has the table) `alive` spreads v5 thin at turn 89 (20 territories, biggest stack 3, against 13 and 8).
 
@@ -724,3 +724,103 @@ The measuring tools' default tables are now 3, 4, 5 and 6 players (`eval/cli-arg
 | rule-v1 | 1322 | 1320 |
 
 The order is unchanged. Every earlier verdict in this log played 3, 4 and 6 only.
+
+## sweeper-v1: the winner's playbook as a style bot (2026-10-21)
+
+`bots/sweeper-v1/`, designed in `sweeper-v1.md`: a persona of the person who won G4FR and 9VFL, not a candidate. It isn't seatable and has no seating bar; these runs say what it is.
+
+**While it was built**, scratch games with the sweeper in one seat among copies of an opponent (games won; par 33% at 3 players, 20% at 5):
+
+| sweeper-v1 built with | vs greedy, 3p | vs greedy, 5p | vs rule-v6, 5p |
+|---|---|---|---|
+| the size cut, fed wherever the sweep ran longest | 5 of 20 | 2 of 20 | |
+| the biggest stack fed, Australia only when the stack stood beside it | 15 of 80 | 7 of 80 | 0 of 40 |
+| the same, home where the next sweep would run longest | 22 of 80 | 13 of 80 | 1 of 40 |
+| the same, no fortify home (idle piles onto the stack) | 12 of 80 | 17 of 80 | 0 of 40 |
+| Australia first (as built) | 35 of 80 | 21 of 80 | 2 of 40 |
+
+Taking Australia first is what made it a player; without a base it was the weakest seat and the rule bots finished it by about turn 20. Where home is didn't separate clearly at these sizes, so the reading closest to the record (back to where the sweep set out) was kept. As built it also won 1 of 40 alone among four rule-v3s and 0 of 40 among four rule-v5s at 5 players: the bots the winner beat don't lose to his rules without his judgement.
+
+**Against random**, `risk:gauntlet -- sweeper-v1 --field random`: better at every table, 3 to 6 players, both mixtures. Alone among randoms it won all 100 games; random won 3 of the 347 decisive games where it sat alone among sweepers, which greedy never allows. Sweepers among themselves stall more: 19 to 43% of those games reached the turn cap.
+
+**A 5-player screen**, `risk:gauntlet -- sweeper-v1 --base rule-v6 --field rule-v6,greedy --players 5 --max 300`, 1,040 games in 3 minutes on 14 workers:
+
+| Pairing (5p) | Win share vs par | Verdict |
+|---|---|---|
+| 1 sweeper-v1 among 4 rule-v6s | 0.0% [0.0, 3.9] of 95 vs 20.0% | worse |
+| 4 sweeper-v1s against 1 rule-v6 | 4.2% [0.7, 20.2] of 25 vs 80.0% | worse |
+| 1 sweeper-v1 among 4 greedys | 28.4% [23.2, 34.3] of 250 vs 20.0% | better |
+| 4 sweeper-v1s against 1 greedy | 31.6% [19.1, 47.5] of 40 vs 80.0% | worse |
+
+Win Elo with rule-v6 at 0: sweeper-v1 −667, greedy −671; by finishing order sweeper-v1 −164, greedy −304. So at 5 players it is about greedy's strength by wins and well above it by finishing order, and v6 beats it every time it sits alone. It beats a table of greedys, and four sweepers lose to one greedy: their sweeps eat each other's trails while greedy keeps what it takes. As an opponent it is a style the rule bots already punish, which is the measure the hybrid bot would have to keep.
+
+## Can a learned evaluation predict the winner better than v6's? (2026-10-21)
+
+The kill test for a hybrid bot, v6's planner scoring its end-of-turn boards with a learned evaluation instead of its hand-tuned one. `risk:record` on GitHub Actions (run 39576264488, 20 machines): 10,000 five-player games, field rule-v6, rule-v5, rule-v4 and gd-stacker rotated through every seat, 8 capped. Every seat's board at the end of each of its turns, from its own view, with v6's evaluation terms and the game's winner: 524,628 positions from 9,992 decisive games. Fit offline on the laptop's CPU, a few minutes: held out by game (a fifth of the games), scored on the rule bots' seats only (83,924 test positions, 31.9% of them a winner's), each method's log-loss of "this seat wins", a 95% interval on each difference from a paired bootstrap over test games.
+
+| Method | Log-loss |
+|---|---|
+| A constant (the win rate) | 0.626 |
+| v6's power share alone | 0.550 |
+| (a) v6's value, calibrated to a probability | 0.530 |
+| (b) Texel: a logistic fit on v6's terms | 0.514 |
+| (c) A small network (two hidden layers) on v6's terms and the board | 0.497 |
+
+Texel beats v6's own weighting by 0.016 [0.014, 0.018], and the network beats Texel by 0.017 [0.014, 0.019]: both stop rules pass. The network on the board alone, without v6's terms, scored 0.499, nearly the same.
+
+Every game seated gd-stacker, so a network reading the board could be learning who sits where (a rule bot beside a weak bot wins more), which would mean nothing against people. Controlled by telling both fits each seat's bot: who sits where helps both (Texel by 0.010), and the network still beats Texel by 0.021 [0.017, 0.026]. Its edge is in the positions, largest from turn 20 on; in the first 20 turns the methods are close. Two fits of the same network differ by about 0.005, well inside these gaps.
+
+That a seat's chances move by about 0.01 log-loss with who the others are measures the self-play worry: what a position is worth depends on the opponents. A predictor that beats v6's scoring here is a necessary condition, not a sufficient one: the planner ranks sibling boards from one position, and an evaluation can predict winners better yet rank those worse, or be exploited on boards bots never reach. Only a gauntlet decides.
+
+## rule-v8: v6's planner on the learned evaluation (built and trained, 2026-10-21)
+
+v8 (`ideas/rule-bot-v8.md`) is v6 with every board it scores scored instead by a network's chance that the seat wins. The network reads v6's breakdown terms and the board, its seats in turn order from the scored seat, and never which bot or person sits where. It was trained on the kill test's recording: 524,628 positions from 9,992 decisive five-player games, features from v8's own feature function (`npm run risk:features`), held out by game as the kill test held them (a fifth of the games test, a tenth validation), and scored on the rule bots' seats (83,924 test positions). On the laptop's CPU each fit takes a minute or two, and a rerun reproduces its weights bit for bit.
+
+| Model | Weights | Log-loss, rule seats | Every seat |
+|---|---|---|---|
+| v6's value, calibrated | 2 | 0.530 | 0.468 |
+| Logistic on the same 293 features | 294 | 0.498 | 0.439 |
+| Hidden layer of 8 | 2,361 | 0.494 | 0.431 |
+| Hidden layers 16, 8 (**kept**) | 4,849 | 0.493 | 0.430 |
+| Hidden layers 32, 16 | 9,953 | 0.496 | 0.431 |
+| Hidden layers 64, 32 | 20,929 | 0.496 | 0.432 |
+| Hidden layers 128, 32 | 41,793 | 0.492 | 0.432 |
+| Hidden layers 256, 64 | 91,777 | 0.496 | 0.435 |
+
+Every network scores within fit-to-fit noise of the others (about 0.005), and a little better than the kill test's network (0.497) on these features. The 16-and-8 network was kept: as good as any, and small enough that its weights are 25 KB in the repo. By game phase it gains on v6's value everywhere: 0.569 against 0.590 in turns 0 to 20, and 0.421 against 0.470 in turns 40 to 70.
+
+**Cost per decision**, v8 against v6 asked the same decisions (a v6 seat among v6s, 12 games a table size capped at 150 turns, the two taking turns going first): 1.02 times v6 at 5 players, 1.10 at 4 and 1.14 at 6. The two chose the same move in 57% of decisions at 5 players, 58% at 4, and 80% at 6, where v8 plays v6 until a seat falls.
+
+**A local screen at 5 players**, `risk:gauntlet -- rule-v8 --base rule-v6 --field rule-v6 --players 5 --formats one-in,one-out --max 600 --prefix screen-v8`, stopped at the ten-minute limit on the laptop's CPU. Five-player games of v6 are slow on 14 workers. Its one-in pairing (v8 alone among four v6s) had 102 decisive games and 13 capped, with the improvement test's log-likelihood ratio at 3.0 and the regression test's at −3.4. That leans well above par, but no verdict was printed before the stop, and one-out had not reported. It is a lean to confirm on Actions, not a result. The Actions commands are in the design doc's "Measuring it".
+
+## v8's screen at 5 players: better alone, worse in numbers (2026-10-21)
+
+On GitHub Actions (run 39641294131, 10 machines, 2 rounds, 1,200 games): `risk:gauntlet -- rule-v8 --base rule-v6 --field rule-v6 --players 5 --formats one-in,one-out --max 2000 --prefix screen-v8`.
+
+| Pairing (5p) | Win share vs par | Games | Mean turns | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| 1 v8 among 4 v6s | 38.2% [29.4, 47.9] vs 20.0% | 115 | 214 | 11.3% | better |
+| 4 v8s against 1 v6 | 63.2% [54.0, 71.4] vs 80.0% | 145 | 421 | 21.4% | worse |
+
+Win Elo (rule-v6 = 0): v8 −2; by finishing order −59. **v8 fails its seating bar**: worse at a table.
+
+Both pairings decided fast, and they disagree. Alone among v6s, the table it was trained on, v8 wins nearly twice par. Four v8s with one v6 lose to it: the lone v6 wins 36.8% where par is 20%. Games run long: 214 turns with one v8, 421 with four, where five-player games among v6s run 105 to 127 and cap 3 to 7% of the time. The network learned what wins among v6s, and among v6s a seat that holds back while the others fight wins. A table of such seats stalls, and the one seat that attacks takes it. This is the population lesson `risk-bot-ai.md` cites from DORA, measured: strength among one population says nothing about another, and an evaluation fit to one population's games carries it in.
+
+The ratings cache was not committed with this run's import: v8's refactor of v6 (an optional `score` in its params) changes v6's code hash, and the import dropped v6's 80 cached ladder matchups that this checkout's v6 no longer answers.
+
+## v7 built: v6 that plays its opponents' replies (2026-10-21)
+
+`rule-v7` (`rule-bot-v7.md`) chooses the turn's placement among v6's four best plans by playing each through the opponents' next turns in sampled worlds (`sim.ts`), with real bots in their seats (v6, gd-aggressive and greedy, drawn per seat), and scoring the start of its next turn. The knob is the replies per plan; at 0 it plays v6's moves exactly. Registered, not seated, and unmeasured: its seating bar and budget curve are in its doc, queued as Actions runs.
+
+Its cost, one v7 among four v6s at 5 players, the laptop's one core, the first 30 to 60 player-turns of two games:
+
+| Budget | Time a decision | A turn, mean | 9 in 10 under |
+|---|---|---|---|
+| 0 replies (= v6) | 2.7 ms | 0.02 s | 0.03 s |
+| 2 replies | 73 ms | 0.75 s | 1.6 s |
+| 8 replies | 262 ms | 2.5 s | 3.5 s |
+| 8 replies, 2 candidates | 110 ms | 1.1 s | 2.2 s |
+| 8 replies, every opponent v6 | 1,186 ms | 8.8 s | 15.8 s |
+| 32 replies | 1,441 ms | 9.8 s | 15.3 s |
+
+A round costs about 80 ms with the mix and 270 ms with every opponent v6, whose planning is most of it. A server turn of a few seconds holds about 8 replies over 4 candidates.
