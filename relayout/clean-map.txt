@@ -1,0 +1,45 @@
+risk layout on a 1920x983 px window; board units: 1 unit = 1.0685 px, board (0,0) at window px (22.9, 0.0); committed board is 1754x920 units
+alaska 100 200
+northwest-territory 236 200
+greenland 372 200
+alberta 168 324
+ontario 304 324
+quebec 440 324
+western-united-states 236 448
+eastern-united-states 372 448
+central-america 304 572
+venezuela 489 556
+peru 421 680
+brazil 557 680
+argentina 489 804
+iceland 536 202
+great-britain 604 326
+scandinavia 672 202
+northern-europe 740 326
+western-europe 672 450
+southern-europe 808 450
+ukraine 876 326
+north-africa 740 590
+egypt 870 590
+east-africa 870 720
+congo 740 720
+south-africa 740 850
+madagascar 870 850
+ural 1060 200
+siberia 1190 200
+yakutsk 1320 70
+kamchatka 1450 200
+irkutsk 1320 200
+mongolia 1320 330
+japan 1450 330
+afghanistan 1060 330
+china 1190 330
+middle-east 1031 524
+india 1190 460
+siam 1320 460
+indonesia 1450 590
+new-guinea 1586 590
+western-australia 1518 714
+eastern-australia 1654 714
+slotA px x=23 y=695 w=381 h=288
+slotB px x=1033 y=678 w=470 h=305
