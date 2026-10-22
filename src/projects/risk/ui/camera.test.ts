@@ -7,7 +7,7 @@ const board = { width: 1000, height: 500 };
 const composition: Composition = {
   board,
   drawn: { left: 50, top: 50, right: 950, bottom: 450 },
-  slots: { players: { left: 0, top: 0, right: 500, bottom: 100 }, action: { left: 400, top: 350, right: 700, bottom: 500 } },
+  slots: { players: { left: 0, top: 0, right: 500, bottom: 100 }, action: { left: 400, top: 350, right: 700, bottom: 500 }, actionWide: { left: 400, top: 420, right: 1000, bottom: 500 } },
   least: { players: [{ width: 400, height: 80 }], action: [{ width: 200, height: 120 }, { width: 400, height: 60 }] },
   column: 100,
   bands: { top: 100, bottom: 150 },
@@ -22,6 +22,7 @@ describe("laying out a landscape screen", () => {
     expect(frame).toEqual({ camera: { left: 0, top: 0, scale: 2 }, pan: { axis: "none" } });
     expect(panels.players).toEqual({ left: 0, top: 0, right: 1000, bottom: 200 });
     expect(panels.action).toEqual({ left: 800, top: 700, right: 1400, bottom: 1000 });
+    expect(panels.actionWide).toEqual({ left: 800, top: 840, right: 2000, bottom: 1000 });
   });
 
   it("gives spare height to the panels: the players panel up to the top edge, the action panel down to the bottom", () => {

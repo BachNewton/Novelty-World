@@ -18,8 +18,9 @@ import { BUTTON, DISPLAY, PANEL, PRIMARY } from "./theme";
 /*
  * The one box for everything that isn't a place on the map: the latest news, what to do now with
  * ending the phase beside it, and the amount and dice choices. Decisions about places are made on
- * the map itself. It fills the box the screen gives it: wide, its rows across, or tall (a column
- * beside a short screen's board), its buttons stacked beside a slider that runs up.
+ * the map itself. It fills the box the screen gives it: a band across a portrait screen, its rows
+ * sharing what they can; a landscape slot, each control on a row of its own; or a column beside a
+ * short screen's board, its buttons stacked beside a slider that runs up.
  */
 
 interface Props {
@@ -42,6 +43,9 @@ interface Props {
   rating: RatedGame | null;
   /** Whether it stands in a tall column rather than a wide box. */
   tall: boolean;
+  /** Whether it sits in a landscape slot, each control on a row of its own and an amount's Back
+   *  beside the news. */
+  stacked: boolean;
 }
 
 /** What a step that asks in words asks; a choice of an amount asks with its slider. */
@@ -87,7 +91,7 @@ function EloChange({ rating }: { rating: RatedGame }) {
   );
 }
 
-export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onMenu, ending, input, onNewGame, error, rating, tall }, ref) {
+export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ view, options, step, amount, setAmount, keep, setKeep, act, back, news, onMenu, ending, input, onNewGame, error, rating, tall, stacked }, ref) {
   const latest = news.at(-1);
   const canTrade = options?.kind === "reinforce" && options.sets.length > 0 && !options.mustTrade;
   const backButton = (
@@ -98,10 +102,19 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
   // Picking another source while attacking switches to it, but while fortifying nearly every other
   // territory of the player's is a target, so only Back picks the source again.
   const picksFortifyTarget = step.kind === "pick" && step.purpose === "fortify-to";
+  const backBesideNews = stacked && (step.kind === "place" || step.kind === "fortify-amount");
   /** An amount's slider and the buttons that act on it: in a row across, or, tall, the buttons
    *  stacked beside the slider running up, Back above it. */
-  const amountWith = (slider: { value: number; min: number; max: number; onChange: (value: number) => void; label: string }, withBack: boolean, buttons: ReactNode) =>
-    tall ? (
+  const amountWith = (slider: { value: number; min: number; max: number; onChange: (value: number) => void; label: string }, withBack: boolean, buttons: ReactNode) => {
+    if (stacked) {
+      return (
+        <div className="flex flex-col gap-[0.45em]">
+          <Slider {...slider} input={input} />
+          <div className="flex gap-[0.5em] *:grow">{buttons}</div>
+        </div>
+      );
+    }
+    return tall ? (
       <div className="flex min-h-0 flex-1 gap-[0.3em]">
         <div className="flex flex-col items-center gap-[0.3em]">
           {withBack && backButton}
@@ -120,32 +133,38 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
         <div className="flex grow gap-[0.5em] *:grow">{buttons}</div>
       </div>
     );
+  };
   const tight = tall && "min-w-0 px-[0.3em]";
 
   return (
     <div ref={ref} className={cn(PANEL, "pointer-events-auto flex flex-col", tall ? "h-full gap-[0.4em] p-[0.4em]" : "gap-[0.45em] p-[0.65em]")} data-testid="risk-status">
-      {latest && (
-        // One row of a fixed budget, so the box always fits the room the screen keeps for it. A
-        // battle is drawn, not told: who fought (unless it is the fight on hand) and the dice, or
-        // a blitz's losses; other news is at most two lines of words.
-        <div className="flex min-h-[1.8em] flex-wrap items-center gap-x-[0.6em] text-[0.9em] text-(--rk-muted)" aria-live="polite" title={latest.text}>
-          {latest.battle ? (
-            <>
-              <span className="sr-only">{latest.text}</span>
-              {!(step.kind === "battle" && step.from === latest.battle.from && step.to === latest.battle.to) && (
-                <span aria-hidden className="inline-flex shrink-0 items-center gap-[0.3em] whitespace-nowrap">
-                  {shortName(latest.battle.from)}
-                  <Swords size="0.95em" className="shrink-0" />
-                  {shortName(latest.battle.to)}
-                </span>
+      {(latest ?? backBesideNews) && (
+        <div className="flex items-center gap-[0.5em]">
+          {latest && (
+            // One row of a fixed budget, so the box always fits the room the screen keeps for it. A
+            // battle is drawn, not told: who fought (unless it is the fight on hand) and the dice, or
+            // a blitz's losses; other news is at most two lines of words.
+            <div className="flex min-h-[1.8em] min-w-0 flex-1 flex-wrap items-center gap-x-[0.6em] text-[0.9em] text-(--rk-muted)" aria-live="polite" title={latest.text}>
+              {latest.battle ? (
+                <>
+                  <span className="sr-only">{latest.text}</span>
+                  {!(step.kind === "battle" && step.from === latest.battle.from && step.to === latest.battle.to) && (
+                    <span aria-hidden className="inline-flex shrink-0 items-center gap-[0.3em] whitespace-nowrap">
+                      {shortName(latest.battle.from)}
+                      <Swords size="0.95em" className="shrink-0" />
+                      {shortName(latest.battle.to)}
+                    </span>
+                  )}
+                  <span aria-hidden className="shrink-0 tabular-nums">
+                    {latest.dice ? <DiceRow attacker={latest.dice.attacker} defender={latest.dice.defender} /> : `−${latest.battle.attackerLost} vs −${latest.battle.defenderLost}`}
+                  </span>
+                </>
+              ) : (
+                <p className={cn("min-w-0 flex-1", tall ? "line-clamp-4" : "line-clamp-2")}>{latest.text}</p>
               )}
-              <span aria-hidden className="shrink-0 tabular-nums">
-                {latest.dice ? <DiceRow attacker={latest.dice.attacker} defender={latest.dice.defender} /> : `−${latest.battle.attackerLost} vs −${latest.battle.defenderLost}`}
-              </span>
-            </>
-          ) : (
-            <p className={cn("min-w-0 flex-1", tall ? "line-clamp-4" : "line-clamp-2")}>{latest.text}</p>
+            </div>
           )}
+          {backBesideNews && <span className="ml-auto">{backButton}</span>}
         </div>
       )}
 
@@ -200,6 +219,7 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
       {step.kind === "battle" && (
         <BattleControls
           tall={tall}
+          stacked={stacked}
           back={backButton}
           dice={([1, 2, 3] as const)
             .filter((dice) => dice <= step.maxDice)
@@ -217,7 +237,7 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
               </button>
             ))}
           label={`${territoryName(step.from)} attacks ${territoryName(step.to)}`}
-          slider={<Slider value={keep} min={1} max={Math.max(1, view.territories[step.from].armies - 1)} onChange={setKeep} input={input} label={`Armies the blitz keeps back in ${territoryName(step.from)}`} vertical={tall} className={tall ? "flex-1" : "min-w-[12em] flex-[3]"} />}
+          slider={<Slider value={keep} min={1} max={Math.max(1, view.territories[step.from].armies - 1)} onChange={setKeep} input={input} label={`Armies the blitz keeps back in ${territoryName(step.from)}`} vertical={tall} className={tall ? "flex-1" : stacked ? undefined : "min-w-[12em] flex-[3]"} />}
           blitz={
             // The blitz is the usual way to fight, so it is the step's primary action.
             <PromptButton binding={BINDINGS.blitz} input={input} data-pad-start className={cn(BUTTON, PRIMARY, tall ? "flex-col gap-0 px-[0.3em] py-[0.2em]" : "shrink-0 grow px-[0.6em]")} onClick={() => act({ kind: "blitz", from: step.from, to: step.to, keepAtLeast: keep })}>
@@ -253,10 +273,11 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
   );
 });
 
-/** A battle's choices: Back and the dice, and the blitz with how many it keeps back. Wide, they
- *  share rows as far as there is room, each wrapping to a row of its own where there isn't; tall,
- *  the dice and the blitz stack beside the slider running up. */
-function BattleControls({ tall, back, dice, label, slider, blitz }: { tall: boolean; back: ReactNode; dice: ReactNode; label: string; slider: ReactNode; blitz: ReactNode }) {
+/** A battle's choices: Back and the dice, and the blitz with how many it keeps back. In a band they
+ *  share rows as far as there is room, each wrapping to a row of its own where there isn't; in a
+ *  landscape slot each has a row of its own; tall, the dice and the blitz stack beside the slider
+ *  running up. */
+function BattleControls({ tall, stacked, back, dice, label, slider, blitz }: { tall: boolean; stacked: boolean; back: ReactNode; dice: ReactNode; label: string; slider: ReactNode; blitz: ReactNode }) {
   if (tall) {
     return (
       <div className="flex min-h-0 flex-1 gap-[0.3em]">
@@ -272,7 +293,7 @@ function BattleControls({ tall, back, dice, label, slider, blitz }: { tall: bool
     );
   }
   return (
-    <div className="flex flex-wrap items-center gap-[0.45em]">
+    <div className={cn("flex gap-[0.45em]", stacked ? "flex-col" : "flex-wrap items-center")}>
       <div className="flex min-w-[14em] flex-1 items-center gap-[0.4em]" role="group" aria-label={label}>
         {back}
         {dice}

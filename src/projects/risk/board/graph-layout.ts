@@ -60,12 +60,14 @@ export const NODES: Record<TerritoryId, readonly [number, number]> = {
  *  graph.ts draws each round its territories as they sit on the screen. */
 export const REGION_PAD = 45;
 
-/** The board's two open slots, in board units, kept clear for the landscape screen's panels: the
+/** The board's open slots, in board units, kept clear for the landscape screen's panels: the
  *  players panel in the strip across the top-left, above North America and Europe and west of
- *  Asia, and the action panel between Africa and Australia, under Asia. */
+ *  Asia, and the action panel between Africa and Australia, under Asia. A short action panel may
+ *  also widen along the bottom, under Australia to the board's east edge. */
 export const SLOTS = {
   players: { left: 0, top: 0, right: 980, bottom: 140 },
   action: { left: 945, top: 635, right: 1385, bottom: 920 },
+  actionWide: { left: 945, top: 780, right: 1754, bottom: 920 },
 } as const;
 
 /** Every border, as map.ts has them: the board draws exactly these. */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { usePadNavigation, type Direction } from "@/shared/lib/gamepad";
 import { cycleChoice, type InputKind } from "@/shared/lib/input";
 import { cn } from "@/shared/lib/utils";
@@ -72,6 +72,39 @@ function boxAt(r: Rect, view: { width: number; height: number }): CSSProperties 
     height: r.bottom - r.top,
     padding: [r.top <= 0, r.right >= view.width, r.bottom >= view.height, r.left <= 0].map(pad).join(" "),
   };
+}
+
+/** The action panel's box: its slot, or, while the step fits in it, the wider box along the bottom
+ *  (`actionWide`), so short steps spread out instead of wrapping. It tries the wide box afresh with
+ *  each step, and gives it up the moment its content outgrows it. */
+function ActionBox({ screen, stepKey, children }: { screen: ScreenLayout; stepKey: string; children: ReactNode }) {
+  const outer = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const [narrowFor, setNarrowFor] = useState<string | null>(null);
+  const wide = screen.panels.actionWide !== undefined && narrowFor !== stepKey;
+  useLayoutEffect(() => {
+    const box = outer.current;
+    const content = inner.current;
+    if (!wide || !box || !content) return;
+    const check = () => {
+      const style = getComputedStyle(box);
+      const room = box.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      if (content.offsetHeight > room + 0.5) setNarrowFor(stepKey);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [wide, stepKey, screen]);
+  const rect = wide && screen.panels.actionWide ? screen.panels.actionWide : screen.panels.action;
+  return (
+    <div ref={outer} className="pointer-events-none absolute flex flex-col justify-end" style={boxAt(rect, screen.view)}>
+      {/* Widened, it stops where its lines no longer need the room. */}
+      <div ref={inner} className={cn("w-full", screen.form === "short" && "h-full", wide && "max-w-[30em]")}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 const SHAPES: Record<ScreenLayout["form"], PanelShape> = { landscape: "strip", portrait: "band", short: "column" };
@@ -251,30 +284,29 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
             <PlayersPanel view={view} players={feed.players} shape={SHAPES[screen.form]} input={input} onMenu={() => setDialog({ kind: "menu" })} />
           </div>
 
-          <div className="pointer-events-none absolute flex flex-col justify-end" style={boxAt(screen.panels.action, screen.view)}>
-            <div className={cn("w-full", screen.form === "short" && "h-full")}>
-              <StatusBox
-                ref={box}
-                view={view}
-                options={options}
-                step={step}
-                amount={amount}
-                setAmount={setAmount}
-                keep={keep}
-                setKeep={setKeep}
-                act={act}
-                back={() => setSelection(backOut(selection) ?? NO_SELECTION)}
-                news={latestLine ? [latestLine] : []}
-                onMenu={() => setDialog({ kind: "menu" })}
-                ending={ending}
-                input={input}
-                onNewGame={onLeave}
-                error={feed.problem}
-                rating={feed.rating}
-                tall={screen.form === "short"}
-              />
-            </div>
-          </div>
+          <ActionBox screen={screen} stepKey={stepKey}>
+            <StatusBox
+              ref={box}
+              view={view}
+              options={options}
+              step={step}
+              amount={amount}
+              setAmount={setAmount}
+              keep={keep}
+              setKeep={setKeep}
+              act={act}
+              back={() => setSelection(backOut(selection) ?? NO_SELECTION)}
+              news={latestLine ? [latestLine] : []}
+              onMenu={() => setDialog({ kind: "menu" })}
+              ending={ending}
+              input={input}
+              onNewGame={onLeave}
+              error={feed.problem}
+              rating={feed.rating}
+              tall={screen.form === "short"}
+              stacked={screen.form === "landscape"}
+            />
+          </ActionBox>
         </>
       )}
 
