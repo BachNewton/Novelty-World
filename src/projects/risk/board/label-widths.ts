@@ -1,6 +1,6 @@
 /** How wide each territory's name is drawn under its marker, in board units: measured in the
- *  board's type (Space Grotesk, 600, at `NAME_SIZE`). `layout_graph.py` reads these to keep every
- *  name clear of the other territories, and the tests hold every short name to having one. */
+ *  board's type (Space Grotesk, 600, at `NAME_SIZE`). The board's tests read these to keep every
+ *  name clear of the other territories, and hold every short name to having one. */
 export const LABEL_WIDTHS: Readonly<Record<string, number>> = {
   "Alaska": 65.4,
   "NW Terr.": 80.8,

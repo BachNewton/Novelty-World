@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
 import { isDrag, type Point } from "@/shared/lib/input";
 import type { TerritoryId } from "../map";
-import { centreOf, frameBoard, keepInView, panBy, type BoardPoint, type Frame, type Rect, type Size } from "../ui/camera";
+import { centreOf, keepInView, panBy, type Frame, type ScreenLayout, type Size } from "../ui/camera";
 
 /*
- * The board's camera and pointers: it frames the board on the screen (`ui/camera.ts`), pans
- * under a drag or the wheel along the one way the board pans, and turns a press that barely moved
- * into a tap. What a tap picks is the board's.
+ * The board's camera and pointers: it shows the board where the screen's layout puts it
+ * (`ui/camera.ts`), pans it across under a drag or the wheel when it pans, and turns a press that
+ * barely moved into a tap. What a tap picks is the board's.
  */
 
 /** What a board lights: the screen's picks, read from the options (`ui/selection.ts`). */
@@ -23,7 +23,8 @@ export interface Marks {
 }
 
 export interface BoardHandle {
-  pan: (dx: number, dy: number) => void;
+  /** Pans the board across, when it pans. */
+  pan: (dx: number) => void;
   reveal: (territory: TerritoryId) => void;
   /** The point in the middle of the screen, in board units. */
   centre: () => Point;
@@ -32,67 +33,42 @@ export interface BoardHandle {
 interface Options {
   ref: Ref<BoardHandle>;
   board: Size;
-  /** Where each territory sits, and what it draws round its place, in board units. */
-  places: readonly BoardPoint[];
-  draws: readonly Rect[];
-  touch: number;
-  /** What floats over the map, in the box's CSS pixels. */
-  overlays: readonly Rect[];
+  /** Where the screen puts the board, or null until the screen has its size. */
+  screen: ScreenLayout | null;
   locate: (territory: TerritoryId) => Point;
-  /** How far inside the box's edge a revealed territory is kept, in CSS pixels. */
+  /** How far inside the board's span a revealed territory is kept, in CSS pixels. */
   revealMargin: number;
   onTouch: (kind: "touch" | "mouse") => void;
   /** A press that barely moved, at a point of the box. */
   onTap: (at: Point, frame: Frame) => void;
 }
 
-export function useBoardCamera({ ref, board, places, draws, touch, overlays, locate, revealMargin, onTouch, onTap }: Options) {
+export function useBoardCamera({ ref, board, screen, locate, revealMargin, onTouch, onTap }: Options) {
   const box = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState<Size | null>(null);
   const [frame, setFrame] = useState<Frame | null>(null);
   const frameRef = useRef<Frame | null>(null);
-  const scene = useRef({ board, places, draws, touch, overlays, view: { width: 0, height: 0 } });
 
   const show = useCallback((next: Frame) => {
     frameRef.current = next;
     setFrame(next);
   }, []);
 
-  // A new screen size or new overlays frame the board afresh, keeping where it was panned to,
-  // along the way it pans, while the scale stays the same (a board that pans is never stretched).
-  const reframe = useCallback(() => {
+  // A new layout places the board afresh, keeping how far it was panned across while it pans at
+  // the same scale.
+  useLayoutEffect(() => {
+    if (!screen) return;
     const current = frameRef.current;
-    const next = frameBoard(scene.current);
-    if (current?.pan.axis !== next.pan.axis || current.camera.scale !== next.camera.scale || next.pan.axis === "none") return show(next);
-    const kept = next.pan.axis === "x" ? { ...next.camera, left: current.camera.left } : { ...next.camera, top: current.camera.top };
-    show(panBy({ ...next, camera: kept }, 0, 0, scene.current.board));
-  }, [show]);
-
-  useLayoutEffect(() => {
-    scene.current = { ...scene.current, board, places, draws, touch, overlays };
-    if (scene.current.view.width > 0) reframe();
-  }, [board, places, draws, touch, overlays, reframe]);
-
-  useLayoutEffect(() => {
-    const element = box.current;
-    if (!element) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const view = { width: entry.contentRect.width, height: entry.contentRect.height };
-      if (view.width === 0 || view.height === 0) return;
-      scene.current = { ...scene.current, view };
-      setSize(view);
-      reframe();
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [reframe]);
+    const next = screen.frame;
+    if (next.pan.axis === "x" && current?.pan.axis === "x" && current.camera.scale === next.camera.scale) show(panBy({ ...next, camera: { ...next.camera, left: current.camera.left } }, 0, board));
+    else show(next);
+  }, [screen, board, show]);
 
   const pan = useCallback(
-    (dx: number, dy: number) => {
+    (dx: number) => {
       const current = frameRef.current;
-      if (current) show(panBy(current, dx, dy, scene.current.board));
+      if (current) show(panBy(current, dx, board));
     },
-    [show],
+    [show, board],
   );
 
   useImperativeHandle(
@@ -101,15 +77,14 @@ export function useBoardCamera({ ref, board, places, draws, touch, overlays, loc
       pan,
       reveal: (territory) => {
         const current = frameRef.current;
-        if (current) show(keepInView(current, locate(territory), revealMargin, scene.current));
+        if (current) show(keepInView(current, locate(territory), revealMargin, board));
       },
       centre: () => {
         const current = frameRef.current;
-        const { view, board } = scene.current;
-        return current ? centreOf(current, view, board) : { x: board.width / 2, y: board.height / 2 };
+        return current && screen ? centreOf(current, screen.view, board) : { x: board.width / 2, y: board.height / 2 };
       },
     }),
-    [pan, show, locate, revealMargin],
+    [pan, show, locate, revealMargin, board, screen],
   );
 
   const tapRef = useRef(onTap);
@@ -142,7 +117,7 @@ export function useBoardCamera({ ref, board, places, draws, touch, overlays, loc
       const from = press.last;
       press.last = local(event);
       if (!dragged && isDrag(press.start, press.last)) dragged = true;
-      if (dragged) pan(press.last.x - from.x, press.last.y - from.y);
+      if (dragged) pan(press.last.x - from.x);
     };
     const up = (event: PointerEvent, cancelled: boolean) => {
       const press = presses.get(event.pointerId);
@@ -155,14 +130,12 @@ export function useBoardCamera({ ref, board, places, draws, touch, overlays, loc
     };
     const onUp = (event: PointerEvent) => up(event, false);
     const onCancel = (event: PointerEvent) => up(event, true);
-    // The wheel scrolls the board the way it pans; a board that shows whole leaves the wheel be.
+    // The wheel scrolls the board across when it pans; a board that shows whole leaves it be.
     const wheel = (event: WheelEvent) => {
-      const axis = frameRef.current?.pan.axis;
-      if (axis === undefined || axis === "none") return;
+      if (frameRef.current?.pan.axis !== "x") return;
       event.preventDefault();
       onTouch("mouse");
-      if (axis === "x") pan(-(event.deltaX || event.deltaY), 0);
-      else pan(0, -event.deltaY);
+      pan(-(event.deltaX || event.deltaY));
     };
     element.addEventListener("pointerdown", down);
     element.addEventListener("pointermove", move);
@@ -178,5 +151,5 @@ export function useBoardCamera({ ref, board, places, draws, touch, overlays, loc
     };
   }, [pan, onTouch]);
 
-  return { box, size, frame };
+  return { box, frame };
 }

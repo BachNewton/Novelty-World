@@ -5,6 +5,7 @@ import { Bot } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { usePadNavigation } from "@/shared/lib/gamepad";
 import { cn } from "@/shared/lib/utils";
+import { RankInsignia } from "../components/insignia";
 import { BOT_IDS, eloOf, fullName, rankOf, strength, type BotId } from "./seat-bots";
 
 /** A bot's strength among the bots a table can seat, as rising bars: the weakest lights one,
@@ -21,17 +22,22 @@ export function StrengthBars({ bot }: { bot: BotId }) {
   );
 }
 
-/** A bot's rank over its name and version, beside its strength among the seatable bots
- *  as bars over its measured Elo. Long names wrap rather
- *  than cut off: a phone's row is narrow. */
+/** A bot's rank insignia beside its title over its name and version, and its strength among
+ *  the seatable bots as bars over its measured Elo. The title gives way where the badge is narrow
+ *  (a table's seat on a phone), leaving the insignia, whose tooltip names the rank. Long names
+ *  wrap rather than cut off. */
 export function BotBadge({ bot }: { bot: BotId }) {
   const elo = eloOf(bot);
   const eloLabel = `Elo ${Math.round(elo).toString()} (Greedy is 1000)`;
+  const rank = rankOf(bot);
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-2 text-left leading-tight">
+    <span className="@container flex min-w-0 flex-1 items-center gap-2 text-left leading-tight">
+      <RankInsignia rank={rank} className="text-2xl" />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-sm font-medium">{rankOf(bot)}</span>
-        <span className="text-xs text-text-secondary">{fullName(bot)}</span>
+        <span aria-hidden className="hidden text-sm font-medium @min-[16rem]:inline">
+          {rank}
+        </span>
+        <span className="text-sm @min-[16rem]:text-xs @min-[16rem]:text-text-secondary">{fullName(bot)}</span>
       </span>
       <span className="flex shrink-0 flex-col items-center gap-0.5">
         <StrengthBars bot={bot} />
