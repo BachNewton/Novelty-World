@@ -882,3 +882,23 @@ Four times the work of 8 replies buys nothing measurable: the one-in curve climb
 ## v7's first budget ladder and full suite ran out of time (2026-10-22)
 
 The budget ladder (run 39662270576, `risk:ratings -- rule-v6 rule-v7~{"replies":2} rule-v7~{"replies":8} --anchor rule-v6 --groups 100 --players 5`, 20 shards) lost 14 of its 20 machines to GitHub's six-hour job limit: each played a twentieth of 3,000 games, and tables of four v7s at 8 replies made that share take 4.5 to over 6 hours. With games missing, it had no report. v7's train gauntlet at 8 replies (run 39707156525, started early on idle runners) had all of its first 10 machines stopped the same way, so it was cancelled. No result from either. The ladder was relaunched at 60 shards (run 39745883687), each machine's share about two hours; `docs/actions.md` now says when to raise `shards`.
+
+## The seatable ladder played to a precision (2026-10-22)
+
+The ladder now stops each pair once one win-Elo fit knows its gap to 18.2 Elo, margin / z(1 − α) at the gauntlet's 30 a seat and α = 0.05, instead of playing a fixed 100 groups a matchup (the project's CLAUDE.md, "Measuring bots"). The old cache held summed 100-group records the rule can't read, so the seatable ladder was played again from nothing, on GitHub Actions (run 39818343983, 20 machines, 4 rounds, 25 minutes): `risk:ratings -- --seatable`. 8,712 games in 3 to 7 groups a matchup, against 198,000 for the 100-group ladder.
+
+| Bot | Before (100 groups) | After (to precision) | Change |
+|---|---|---|---|
+| rule-v6 | 1561.4 | 1560.3 | −1.1 |
+| rule-v5 | 1539.5 | 1538.4 | −1.1 |
+| rule-v4 | 1511.1 | 1510.5 | −0.6 |
+| rule-v3 | 1450.2 | 1430.6 | −19.6 |
+| rule-v2 | 1414.5 | 1418.1 | +3.6 |
+| rule-v1 | 1321.8 | 1306.2 | −15.6 |
+| gd-stacker | 1097.2 | 1078.4 | −18.8 |
+| gd-continental | 1074.1 | 1074.6 | +0.5 |
+| gd-aggressive | 1011.1 | 1004.4 | −6.7 |
+| greedy | 1000 | 1000 | anchor |
+| gd-defensive | 977.8 | 975.4 | −2.4 |
+
+Every bot is within 20 Elo of its 100-group rating (10 Elo RMS), inside the precision the rule promises, and the order, so every lobby rank, is unchanged. Two neighbours sit closer than the margin now, v2 and v3 (12.5 apart, was 35.7) and gd-stacker and gd-continental (3.8, was 23.1): by the ladder's own standard those pairs are within its indifference, so a later rerun may order them either way.
