@@ -19,6 +19,7 @@ import { HOUSE_LIGHT } from "./lighting";
 import { patchProbe, type ProbeUniform } from "./lit-floor";
 import { pawn } from "./kit/pawn";
 import { banshee, spider } from "./monsters";
+import { COMPANIONS } from "./companions";
 import { paletteHex, type PaletteKey } from "./palette";
 import { batchParts, type PartBatch } from "./part-batch";
 import { shaderReadier } from "./shader-prep";
@@ -39,7 +40,7 @@ import { texturesUnder } from "./textures";
 export interface ViewerFigure {
   id: string;
   name: string;
-  kind: "explorer" | "pawn" | "monster";
+  kind: "explorer" | "pawn" | "monster" | "companion";
   /** The character it shows as a seat shows them, or null for a figure that is no character's. */
   character: string | null;
   build: (stunned: boolean) => ExplorerBuilder;
@@ -63,6 +64,7 @@ function viewerFigures(): ViewerFigure[] {
   return [
     ...characters.filter(({ kind }) => kind === "explorer"),
     ...characters.filter(({ kind }) => kind === "pawn"),
+    ...COMPANIONS.map(({ id, name, build }): ViewerFigure => ({ id, name, kind: "companion", character: null, build: () => build, ring: null, speed: null })),
     { id: "pawn", name: "Scale pawn", kind: "pawn", character: null, build: () => () => pawn(), ring: null, speed: null },
     { id: "banshee", name: "The Banshee", kind: "monster", character: null, build: (stunned) => (seed, gait) => banshee(seed, gait, { stunned }), ring: null, speed: null },
     { id: "spider", name: "The Spider", kind: "monster", character: null, build: (stunned) => (seed, gait) => spider(seed, gait, { stunned }), ring: null, speed: null },
@@ -576,7 +578,10 @@ export function createFigureViewer(search: string) {
     let figure: THREE.Object3D | null = null;
     let ring: PaletteKey | null = null;
     if (lineUp) {
-      root = explorerLineUp("figures", state === "idle" ? undefined : (state as "walk" | "run"), holding === "none" ? undefined : holding, { speed: snapshot.stat ?? undefined });
+      root = explorerLineUp("figures", state === "idle" ? undefined : (state as "walk" | "run"), holding === "none" ? undefined : holding, {
+        speed: snapshot.stat ?? undefined,
+        also: COMPANIONS.map(({ build }) => build),
+      });
     } else {
       const chosen = figureById(snapshot.figure);
       const made = inMotion(chosen.build(chosen.kind === "monster" && snapshot.stunned), `figures:${chosen.id}`, state, snapshot.stat ?? chosen.speed?.start);

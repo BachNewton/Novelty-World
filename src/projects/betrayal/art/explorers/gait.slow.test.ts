@@ -20,6 +20,7 @@ import { brandon } from "./brandon";
 import { heather } from "./heather";
 import { zoe } from "./zoe";
 import { zostra } from "./zostra";
+import { girl, madman } from "../companions";
 
 /*
  * A walk or a run never jumps. Each explorer walks and runs a straight path
@@ -35,7 +36,7 @@ import { zostra } from "./zostra";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, heather, peter, vivian, jenny, zostra, missy };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt, flash, brandon, heather, peter, vivian, jenny, zostra, missy, girl, madman };
 /** Samples a second: fine enough that the fastest foot's step barely changes from one sample to the next. */
 const RATE = 600;
 /** The most a point's step may be longer than the steps either side of it. */

@@ -11,6 +11,7 @@ import { heather } from "../explorers/heather";
 import { zoe } from "../explorers/zoe";
 import { vivian } from "../explorers/vivian";
 import { zostra } from "../explorers/zostra";
+import { girl, madman } from "../companions";
 import { pawn } from "../kit/pawn";
 import { group } from "../shapes";
 import { banshee } from "./banshee";
@@ -21,7 +22,7 @@ export { spider } from "./spider";
 
 /** The monsters beside the explorers and the scale pawn, for judging every
  *  figure's size and style together: the Spider in the middle, the Banshee
- *  Ox, Rhinehardt, Flash, Vivian, Jenny and Zostra on its right (−x), Longfellow, Zoe, Brandon, Peter, Heather, Missy and the pawn on its left. */
+ *  Ox, Rhinehardt, Flash, Vivian, Jenny and Zostra on its right (−x), Longfellow, Zoe, Brandon, Peter, Heather, Missy and the pawn on its left; the companions at the ends, the Madman past Zostra and the Girl past the pawn. */
 export function monsterLineUp(seed = "line-up"): THREE.Group {
   const place = (figure: THREE.Object3D, x: number, z = 0) => {
     figure.position.set(x, 0, z);
@@ -43,5 +44,7 @@ export function monsterLineUp(seed = "line-up"): THREE.Group {
     place(heather(`${seed}:heather`), 4.8, 0.4),
     place(missy(`${seed}:missy`), 5.6, 0.4),
     place(pawn(), 6.4, 0.1),
+    place(girl(`${seed}:girl`), 7.2, 0.4),
+    place(madman(`${seed}:madman`), -7.7, 0.3),
   );
 }

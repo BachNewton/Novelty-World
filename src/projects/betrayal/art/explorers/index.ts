@@ -17,6 +17,7 @@ import { TWIRLING, zoe } from "./zoe";
 import { vivian } from "./vivian";
 import { zostra } from "./zostra";
 import { onCourse } from "./cloth-trial";
+import { companionLineUp, girl, madman } from "../companions";
 
 export interface BenchExplorer {
   id: string;
@@ -70,6 +71,13 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "explorer-spear", name: "Every explorer holding a spear", build: (seed) => explorerLineUp(seed, undefined, "spear") },
   { id: "explorer-armed-walk", name: "Every explorer walking, holding a prop each", build: (seed) => explorerLineUp(seed, "walk", "each") },
   { id: "explorer-armed-run", name: "Every explorer running, holding a prop each", build: (seed) => explorerLineUp(seed, "run", "each") },
+  // Companions, the omens that follow an explorer, and each beside the explorers it must never be taken for.
+  { id: "girl", name: "The Girl", build: girl },
+  { id: "girl-course", name: "The Girl walking and running a course", build: onCourse(girl) },
+  { id: "madman", name: "The Madman", build: madman },
+  { id: "companion-line-up", name: "The companions beside the explorers", build: (seed) => companionLineUp(seed) },
+  { id: "companion-walk", name: "The companions beside the explorers, walking", build: (seed) => companionLineUp(seed, "walk") },
+  { id: "companion-run", name: "The companions beside the explorers, running", build: (seed) => companionLineUp(seed, "run") },
   // Monsters stand where an explorer would, so the bench can judge them in a room.
   { id: "banshee", name: "The Banshee", build: (seed, gait) => banshee(seed, gait) },
   { id: "banshee-stunned", name: "The Banshee, stunned", build: (seed, gait) => banshee(seed, gait, { stunned: true }) },

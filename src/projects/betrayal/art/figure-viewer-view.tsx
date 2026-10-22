@@ -51,7 +51,7 @@ export function FigureViewer() {
             value={state.lineUp ? "" : state.figure}
             onChange={(event) => api.setFigure(event.target.value)}
           >
-            {state.lineUp && <option value="">Every explorer, side by side</option>}
+            {state.lineUp && <option value="">Every explorer and companion, side by side</option>}
             {VIEWER_FIGURES.map((figure) => (
               <option key={figure.id} value={figure.id}>
                 {figure.name}
