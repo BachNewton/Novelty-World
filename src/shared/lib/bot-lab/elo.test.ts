@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fitElo, pairsFromFinishes, pairsFromWinner, topRated, type PairResult } from "./elo";
+import { createRng } from "@/shared/lib/seeded-random";
+import { eloGapVariance, fitElo, pairsFromFinishes, pairsFromWinner, topRated, type ComparisonSource, type PairResult } from "./elo";
 
 describe("fitElo", () => {
   it("anchors the floor at 0 Elo", () => {
@@ -148,5 +149,63 @@ describe("pairsFromWinner", () => {
     for (const p of lone("base")) results.push({ ...p, aWins: p.aWins * (games - candWins), bWins: p.bWins * (games - candWins) });
     const elo = fitElo(["base", "cand"], results, { anchor: "base" });
     expect(elo["cand"]).toBeCloseTo(100, 0);
+  });
+});
+
+describe("eloGapVariance", () => {
+  const elo2 = (sources: ComparisonSource[]) => fitElo(["x", "y"], sources, { anchor: "y" });
+  /** Elo per natural unit of log-strength, squared. */
+  const scale = (400 / Math.LN10) ** 2;
+
+  it("is the textbook Bradley–Terry variance when every game is one comparison", () => {
+    const sources = [{ a: "x", b: "y", aWins: 70, bWins: 30, aPerWin: 1, bPerWin: 1 }];
+    const variance = eloGapVariance(["x", "y"], elo2(sources), sources);
+    expect(variance("x", "y") / (scale / (100 * 0.7 * 0.3))).toBeCloseTo(1, 6);
+    expect(variance("y", "x")).toBe(variance("x", "y"));
+    expect(variance("x", "x")).toBe(0);
+  });
+
+  it("counts a lone seat's win among copies as one game, not n − 1 comparisons", () => {
+    // 5 players: the lone x won 30 of 100 decisive games, each win 4 comparisons. The
+    // Luce model's Fisher information is q(1 − q) a game, q the lone seat's win share.
+    const sources = [{ a: "x", b: "y", aWins: 4 * 30, bWins: 70, aPerWin: 4, bPerWin: 1 }];
+    const variance = eloGapVariance(["x", "y"], elo2(sources), sources);
+    expect(variance("x", "y") / (scale / (100 * 0.3 * 0.7))).toBeCloseTo(1, 6);
+  });
+
+  it("knows nothing of a gap no games connect", () => {
+    const sources = [{ a: "x", b: "y", aWins: 5, bWins: 5, aPerWin: 1, bPerWin: 1 }];
+    const variance = eloGapVariance(["x", "y", "z"], { x: 0, y: 0, z: 0 }, sources);
+    expect(variance("x", "z")).toBe(Infinity);
+  });
+
+  it("matches the spread of the fit over many simulated ladders", () => {
+    // Three bots on the Luce model, each alone among copies of each other at 4 players:
+    // the fitted gaps' spread over 300 ladders against the variance each ladder reports.
+    const strength: Record<string, number> = { x: 0, y: 120, z: 300 };
+    const labels = Object.keys(strength);
+    const rng = createRng("eloGapVariance");
+    const gaps: number[] = [];
+    const reported: number[] = [];
+    for (let run = 0; run < 300; run++) {
+      const sources: ComparisonSource[] = [];
+      for (const lone of labels) {
+        for (const rest of labels) {
+          if (lone === rest) continue;
+          const r = 10 ** ((strength[lone] - strength[rest]) / 400);
+          let wins = 0;
+          for (let g = 0; g < 200; g++) if (rng.next() < r / (r + 3)) wins++;
+          sources.push({ a: lone, b: rest, aWins: 3 * wins, bWins: 200 - wins, aPerWin: 3, bPerWin: 1 });
+        }
+      }
+      const elo = fitElo(labels, sources, { anchor: "x" });
+      gaps.push(elo.z - elo.y);
+      reported.push(eloGapVariance(labels, elo, sources)("z", "y"));
+    }
+    const mean = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+    const spread = gaps.reduce((s, g) => s + (g - mean) ** 2, 0) / (gaps.length - 1);
+    const typical = reported.reduce((s, v) => s + v, 0) / reported.length;
+    expect(spread / typical).toBeGreaterThan(0.8);
+    expect(spread / typical).toBeLessThan(1.25);
   });
 });

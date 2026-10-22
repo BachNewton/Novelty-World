@@ -18,7 +18,7 @@ const options = (batchGames: number, formats: RiskGauntletOptions["formats"]): R
   alpha: 0.05,
   beta: 0.05,
   maxDecisive: 2000,
-  fieldGroups: 0,
+  fieldMaxGroups: 0,
   maxTurns: 600,
   batchGames,
   pool: inlineRunner(runSpec),

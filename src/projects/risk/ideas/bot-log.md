@@ -917,3 +917,23 @@ On GitHub Actions (run 39754675411, 60 shards, 3,000 games, 8 hours): `risk:rati
 **Tables of many v7s stall more.** Capped games run 4% where one v7 sits among v6s, but 16% where one v6 sits among 8-reply v7s and 23% where a 2-reply v7 sits among 8-reply ones. The one-out gauntlet showed the same (14%). Capped games are draws and leave the tests, so the verdicts stand, but this is the health flag to watch in the full suite, above all at 6 players, where v6's own games cap 25 to 37%.
 
 The run played on the code before v6's speed-up (c766718c), so its six matchups don't answer from this checkout's ladder cache: the import kept none, as expected.
+
+## The seatable ladder played to a precision (2026-10-22)
+
+The ladder now stops each pair once one win-Elo fit knows its gap to 18.2 Elo, margin / z(1 − α) at the gauntlet's 30 a seat and α = 0.05, instead of playing a fixed 100 groups a matchup (the project's CLAUDE.md, "Measuring bots"). The old cache held summed 100-group records the rule can't read, so the seatable ladder was played again from nothing, on GitHub Actions (run 39818343983, 20 machines, 4 rounds, 25 minutes): `risk:ratings -- --seatable`. 8,712 games in 3 to 7 groups a matchup, against 198,000 for the 100-group ladder.
+
+| Bot | Before (100 groups) | After (to precision) | Change |
+|---|---|---|---|
+| rule-v6 | 1561.4 | 1560.3 | −1.1 |
+| rule-v5 | 1539.5 | 1538.4 | −1.1 |
+| rule-v4 | 1511.1 | 1510.5 | −0.6 |
+| rule-v3 | 1450.2 | 1430.6 | −19.6 |
+| rule-v2 | 1414.5 | 1418.1 | +3.6 |
+| rule-v1 | 1321.8 | 1306.2 | −15.6 |
+| gd-stacker | 1097.2 | 1078.4 | −18.8 |
+| gd-continental | 1074.1 | 1074.6 | +0.5 |
+| gd-aggressive | 1011.1 | 1004.4 | −6.7 |
+| greedy | 1000 | 1000 | anchor |
+| gd-defensive | 977.8 | 975.4 | −2.4 |
+
+Every bot is within 20 Elo of its 100-group rating (10 Elo RMS), inside the precision the rule promises, and the order, so every lobby rank, is unchanged. Two neighbours sit closer than the margin now, v2 and v3 (12.5 apart, was 35.7) and gd-stacker and gd-continental (3.8, was 23.1): by the ladder's own standard those pairs are within its indifference, so a later rerun may order them either way.

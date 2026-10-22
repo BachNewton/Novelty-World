@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { inlineRunner } from "@/shared/lib/bot-lab/pool";
 import { fakeGame } from "./fake-game";
 import { planRiskGauntlet, runRiskGauntlet, type RiskGauntletOptions, type RiskGauntletReport } from "./gauntlet";
-import { ladderGamesToPlay, playLadder, type LadderOptions } from "./ratings";
+import { playLadder, walkLadder, type LadderOptions } from "./ratings";
 import { playRemotely } from "./remote-kit";
 
 // A run played in rounds on several machines (GitHub Actions) must report exactly
@@ -21,7 +21,7 @@ const gauntlet: Omit<RiskGauntletOptions, "pool"> = {
   alpha: 0.05,
   beta: 0.05,
   maxDecisive: 150,
-  fieldGroups: 6,
+  fieldMaxGroups: 6,
   maxTurns: 600,
 };
 
@@ -63,12 +63,24 @@ describe("a gauntlet played remotely", () => {
 });
 
 describe("a ladder played remotely", () => {
-  const ladder: Omit<LadderOptions, "pool"> = { labels: ["cand", "base", "other"], players: [3, 4], groups: 5, prefix: "lad", maxTurns: 600 };
+  const ladder: Omit<LadderOptions, "pool"> = { labels: ["cand", "base", "other"], players: [3, 4], prefix: "lad", maxTurns: 600, margin: 60, alpha: 0.05, maxGroups: 100 };
 
-  it("rates what it rates played here, in one round", async () => {
+  it("rates what it rates played here, in rounds sized from the evidence", async () => {
     const local = await playLadder({ ...ladder, pool: inlineRunner(fakeGame) });
-    const { games, rounds } = await playRemotely((g) => ladderGamesToPlay(ladder, (s) => g.store.get(s) !== undefined), fakeGame, 4, 10);
-    expect(rounds).toEqual([4]);
-    expect(await playLadder({ ...ladder, pool: games.store.runner() })).toEqual(local);
+    const { games, rounds } = await playRemotely((g) => walkLadder(ladder, (s) => g.store.get(s), true).specs, fakeGame, 4, 10);
+    expect(rounds.length).toBeGreaterThan(1);
+    expect(Math.max(...rounds)).toBe(4);
+    expect(await playLadder({ ...ladder, stepwise: true, pool: games.store.runner() })).toEqual(local);
+  });
+
+  it("rates the same played a group at a time", async () => {
+    const local = await playLadder({ ...ladder, pool: inlineRunner(fakeGame) });
+    const { games } = await playRemotely((g) => walkLadder(ladder, (s) => g.store.get(s), false).specs, fakeGame, 4, 10);
+    expect(await playLadder({ ...ladder, stepwise: true, pool: games.store.runner() })).toEqual(local);
+  });
+
+  it("fails loudly when its rounds left a game it needs unplayed", async () => {
+    const { games } = await playRemotely((g) => (g.rounds === 0 ? walkLadder(ladder, (s) => g.store.get(s), true).specs : []), fakeGame, 3, 10);
+    await expect(playLadder({ ...ladder, stepwise: true, pool: games.store.runner() })).rejects.toThrow(/was never played/);
   });
 });
