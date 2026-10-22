@@ -13,8 +13,8 @@ import { panelling, pixelTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from
 const SEED = "bloody-room";
 /** The middle of the stain, in room metres. */
 const STAIN: [number, number] = [-0.1, 0.05];
-/** The signal the stain's glow and its light waver with. */
-const STAIN_SIGNAL = 1;
+/** The signal the stain's glow and its light swell with: the house's slow one, a wave every few seconds, welling like a slow heartbeat rather than wavering like a flame. */
+const STAIN_SIGNAL = "water";
 /** The boards the room is floored with; the stain is drawn into the same planks. */
 const PLANKS = { ramp: RAMPS.wood, plankPx: 8, size: 64, seed: SEED, glints: false };
 
@@ -112,7 +112,7 @@ function stainedBoards(): THREE.Texture {
 /**
  * The red welling up out of the stain, as if lit from under the boards:
  * light laid over it, brightest in its heart, out to a little past its rim,
- * pulsing with the stain's light. Lies flat, centred on the stain.
+ * swelling slowly with the stain's light. Lies flat, centred on the stain.
  */
 function stainGlow(): THREE.Group {
   const steps = 48;
@@ -151,7 +151,7 @@ function stainGlow(): THREE.Group {
   glowing.userData.noShadow = true;
   return group(
     animated(glowing, (seconds) => {
-      material.opacity = 0.3 + 0.08 * flickerOf(seconds, STAIN_SIGNAL);
+      material.opacity = 0.3 + 0.12 * flickerOf(seconds, STAIN_SIGNAL);
     }),
   );
 }
@@ -275,7 +275,7 @@ export const BLOODY_ROOM: RoomDefinition = {
     { build: () => table({ length: 0.6, width: 0.42, height: 0.75 }), name: "sideTable", ...onWall("bottom", 1.6, { out: 0.26 }) },
     { build: () => oilLamp({ intensity: 3.5, range: 7 }), name: "oilLamp", at: [-1.52, 2.54], y: 0.75 },
   ],
-  lights: [{ at: [STAIN[0], 0.45, STAIN[1]], colour: "scarlet", intensity: 3, range: 5.5, flicker: 0.12, signal: STAIN_SIGNAL, kind: "glow" }],
+  lights: [{ at: [STAIN[0], 0.45, STAIN[1]], colour: "scarlet", intensity: 3, range: 5.5, flicker: 0.25, signal: STAIN_SIGNAL, kind: "glow" }],
   focus: [-0.4, 0.3, -0.3],
   prime: [1.35, 1.25],
   keepClear: [{ from: STAIN, to: STAIN, radius: 0.75 }],
