@@ -1,10 +1,21 @@
 import type { FigureParts } from "../figure-parts";
+import { ADRENALINE_SHOT } from "./adrenaline-shot";
 import { AXE } from "./axe";
 import { BLOOD_DAGGER } from "./blood-dagger";
+import { BOTTLE_MODEL } from "./bottle";
 import { CANDLE_MODEL } from "./candle";
+import { DARK_DICE } from "./dark-dice";
+import { DYNAMITE } from "./dynamite";
+import { HEALING_SALVE } from "./healing-salve";
 import type { ItemModel } from "./item";
+import { LUCKY_STONE } from "./lucky-stone";
+import { MEDICAL_KIT } from "./medical-kit";
+import { MUSIC_BOX } from "./music-box";
+import { PUZZLE_BOX } from "./puzzle-box";
+import { RABBITS_FOOT } from "./rabbits-foot";
 import { REVOLVER } from "./revolver";
 import { SACRIFICIAL_DAGGER } from "./sacrificial-dagger";
+import { SMELLING_SALTS } from "./smelling-salts";
 import { SPEAR } from "./spear";
 
 /*
@@ -13,11 +24,22 @@ import { SPEAR } from "./spear";
  * one shows its type's stand-in on the floor (`things/looks.ts`).
  */
 export const ITEM_MODELS = {
+  "adrenaline-shot": ADRENALINE_SHOT,
   axe: AXE,
   "blood-dagger": BLOOD_DAGGER,
+  bottle: BOTTLE_MODEL,
   candle: CANDLE_MODEL,
+  "dark-dice": DARK_DICE,
+  dynamite: DYNAMITE,
+  "healing-salve": HEALING_SALVE,
+  "lucky-stone": LUCKY_STONE,
+  "medical-kit": MEDICAL_KIT,
+  "music-box": MUSIC_BOX,
+  "puzzle-box": PUZZLE_BOX,
+  "rabbits-foot": RABBITS_FOOT,
   revolver: REVOLVER,
   "sacrificial-dagger": SACRIFICIAL_DAGGER,
+  "smelling-salts": SMELLING_SALTS,
   spear: SPEAR,
 } as const satisfies Readonly<Record<string, ItemModel>>;
 
