@@ -1,23 +1,45 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`seated bots are frozen > gd-aggressive plays the moves it was rated on 1`] = `"778f4510fec96faf63d56986d6b0b2dc"`;
+exports[`seated bots are frozen > gd-aggressive plays the moves it was rated on (frozen-a) 1`] = `"ab37521c47eea10bfa9cb3cc3c051fab"`;
 
-exports[`seated bots are frozen > gd-continental plays the moves it was rated on 1`] = `"b356706f20927461ce97e2ea97db9f56"`;
+exports[`seated bots are frozen > gd-aggressive plays the moves it was rated on (frozen-b) 1`] = `"9bd3886972d5bee72e4b19ff614b62df"`;
 
-exports[`seated bots are frozen > gd-defensive plays the moves it was rated on 1`] = `"1cd8a25b57a08aba6717ef59aec5ede5"`;
+exports[`seated bots are frozen > gd-continental plays the moves it was rated on (frozen-a) 1`] = `"eae58b7caad50e46720401694d9cc3ea"`;
 
-exports[`seated bots are frozen > gd-stacker plays the moves it was rated on 1`] = `"d718ff5314ae2a2e4f04b9c56a3a5f3a"`;
+exports[`seated bots are frozen > gd-continental plays the moves it was rated on (frozen-b) 1`] = `"b3d269022b7a69ba1ff9365d1c87737b"`;
 
-exports[`seated bots are frozen > greedy plays the moves it was rated on 1`] = `"8f9c4d7264da8dc3a2261730bbfeee24"`;
+exports[`seated bots are frozen > gd-defensive plays the moves it was rated on (frozen-a) 1`] = `"b66487d7c5711a5bda8c774e5c9cc81f"`;
 
-exports[`seated bots are frozen > rule-v1 plays the moves it was rated on 1`] = `"a7eb17218b2cddc68032098af324a775"`;
+exports[`seated bots are frozen > gd-defensive plays the moves it was rated on (frozen-b) 1`] = `"c73c14ca509ced2100013e939426dec5"`;
 
-exports[`seated bots are frozen > rule-v2 plays the moves it was rated on 1`] = `"a0206850c9711fa4545a0dfcc1f7e880"`;
+exports[`seated bots are frozen > gd-stacker plays the moves it was rated on (frozen-a) 1`] = `"22aa9aa80e133e5fd4e6c4a97a46334e"`;
 
-exports[`seated bots are frozen > rule-v3 plays the moves it was rated on 1`] = `"53ec4842a8866c49d03079ffe9a1ac21"`;
+exports[`seated bots are frozen > gd-stacker plays the moves it was rated on (frozen-b) 1`] = `"bbb785fb69ef8ea2848f77f71e03e494"`;
 
-exports[`seated bots are frozen > rule-v4 plays the moves it was rated on 1`] = `"d9bc8eeafb359cc9a37ef1a6f1f10f6e"`;
+exports[`seated bots are frozen > greedy plays the moves it was rated on (frozen-a) 1`] = `"8832da8c5ba0e9bef1192df9c0bc77e0"`;
 
-exports[`seated bots are frozen > rule-v5 plays the moves it was rated on 1`] = `"860e652b82c25b65902396262f5b2fd7"`;
+exports[`seated bots are frozen > greedy plays the moves it was rated on (frozen-b) 1`] = `"06174340a3457c7bfac8a67765bc6640"`;
 
-exports[`seated bots are frozen > rule-v6 plays the moves it was rated on 1`] = `"29e183211e63b40e3ead0473a46912fd"`;
+exports[`seated bots are frozen > rule-v1 plays the moves it was rated on (frozen-a) 1`] = `"4f2016764705c349ae0b5dda736ac914"`;
+
+exports[`seated bots are frozen > rule-v1 plays the moves it was rated on (frozen-b) 1`] = `"f2cb1a71548641433c369a403204d141"`;
+
+exports[`seated bots are frozen > rule-v2 plays the moves it was rated on (frozen-a) 1`] = `"ac097248b684bd22bfb7edaf41c1a402"`;
+
+exports[`seated bots are frozen > rule-v2 plays the moves it was rated on (frozen-b) 1`] = `"db5cadf948ecb54e73befa8055da3598"`;
+
+exports[`seated bots are frozen > rule-v3 plays the moves it was rated on (frozen-a) 1`] = `"ccc1387c2bbe78262d04596c31209499"`;
+
+exports[`seated bots are frozen > rule-v3 plays the moves it was rated on (frozen-b) 1`] = `"b50ebf72c8fafaa4048379a720330e90"`;
+
+exports[`seated bots are frozen > rule-v4 plays the moves it was rated on (frozen-a) 1`] = `"f702382a4425073339d3aa2deec7ed0b"`;
+
+exports[`seated bots are frozen > rule-v4 plays the moves it was rated on (frozen-b) 1`] = `"3d21982585e8dffd9ce3d71974075f48"`;
+
+exports[`seated bots are frozen > rule-v5 plays the moves it was rated on (frozen-a) 1`] = `"574b7e9e2bb5166bf8cc96d549ecc497"`;
+
+exports[`seated bots are frozen > rule-v5 plays the moves it was rated on (frozen-b) 1`] = `"9786e53b61a632b68d9ad57da56a5445"`;
+
+exports[`seated bots are frozen > rule-v6 plays the moves it was rated on (frozen-a) 1`] = `"2b8bee0ffeb0973e2b65894416692f92"`;
+
+exports[`seated bots are frozen > rule-v6 plays the moves it was rated on (frozen-b) 1`] = `"2fc855bd714d7ac1b04e81085866710a"`;

@@ -8,6 +8,8 @@
 # a run and bring its results home: src/projects/risk/docs/actions.md.
 # Node comes from Risk's own pin, not the repo's .node-version: a game's moves depend on
 # the Node version, and the repo's pin is held at 22 for Monopoly's trainer.
+# The `record` tool is not a measurement: risk:record's games are fixed in number, so it
+# skips the rounds and splits its games over `shards` machines once (actions.md).
 
 name: Risk measure
 
@@ -17,7 +19,7 @@ on:
       tool:
         description: The measuring tool
         type: choice
-        options: [gauntlet, ratings]
+        options: [gauntlet, ratings, record]
         default: gauntlet
       args:
         description: "Its arguments, as typed after `npm run risk:<tool> --`"
@@ -43,6 +45,7 @@ permissions:
 
 jobs:
   round1:
+    if: inputs.tool != 'record'
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -148,7 +151,7 @@ jobs:
   # decided. If the last round left games unplayed, the report fails loudly naming one.
   report:
     needs: [round1, round2, round3, round4, round5, round6, round7, round8]
-    if: ${{ !cancelled() && !failure() }}
+    if: ${{ inputs.tool != 'record' && !cancelled() && !failure() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -182,4 +185,59 @@ jobs:
         with:
           name: risk-results
           path: results/
+          retention-days: 90
+
+  record-shards:
+    if: inputs.tool == 'record'
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - id: list
+        env:
+          SHARDS: ${{ inputs.shards }}
+        run: echo "list=$(seq 0 $((SHARDS - 1)) | jq -cs .)" >> "$GITHUB_OUTPUT"
+
+  record:
+    needs: record-shards
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
+      matrix:
+        shard: ${{ fromJSON(needs.record-shards.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: src/projects/risk/eval/node-version
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - env:
+          ARGS: ${{ inputs.args }}
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ inputs.shards }}
+        run: |
+          set -f
+          npm run -s risk:record -- $ARGS --shard "$SHARD/$SHARDS" --out positions
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risk-positions-${{ matrix.shard }}
+          path: positions/
+          retention-days: 7
+
+  record-collect:
+    needs: record
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: risk-positions-*
+          path: positions
+          merge-multiple: true
+      - run: ls -l positions >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risk-positions
+          path: positions/
           retention-days: 90

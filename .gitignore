@@ -83,3 +83,6 @@ __pycache__/
 
 # The relay bundle relay/deploy.sh builds
 .relay-dist/
+
+# Risk position recordings (npm run risk:record): data for fitting an evaluation, regenerable from their seeds
+/src/projects/risk/eval/positions/

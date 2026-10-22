@@ -71,6 +71,16 @@ A local run and an Actions run of the same arguments give the same report, and t
 
 The ladder cache's code hashes ignore line endings and paths' separators, so a ladder on Actions finds the matchups the laptop already played, and the laptop finds the ones Actions played.
 
+## Recording positions
+
+The same workflow records positions for fitting an evaluation (`risk:record`, `eval/positions.ts`): pick the tool `record` and type the recorder's arguments. It isn't a measurement, so there are no rounds, plan or report: its games are fixed in number, and each of `shards` machines records its own consecutive run of them (`--shard`) into a gzipped file. A last job gathers the files into one artifact, `risk-positions`, kept for 90 days. The files are read together as they are, with nothing to merge:
+
+```bash
+gh run download <run id> --name risk-positions --dir src/projects/risk/eval/positions
+```
+
+The positions are data, never committed: `eval/positions/` is ignored.
+
 ## The run's record
 
 The report job writes the run-log record, as a local run does, but the figures are the play jobs' own. Games, decisions and speed are summed over every machine. The machine is one runner. CPU is each machine's load, averaged over all of them. Memory is the largest any one machine used. The wall time runs from the first round's plan to the report. The record's `remote` field says how many shards played the run, over how many rounds, so the timeline can tell a laptop's run from an Actions run. Its arguments are the tool's own, without the flags that only say where the games came from.

@@ -592,7 +592,7 @@ Both bots' moves over the two frozen games are now pinned in `bots/frozen.test.t
 
 ## v6: v5 with seven switchable fixes from 9VFL (built, screened at 3 players, 2026-10-19)
 
-v6 (`rule-bot-v6.md`, `bots/rule-v6/`) is v5 with seven fixes for what 9VFL showed (a 5-player game the winner of G4FR won again, over Kyle, v3, v4 and v5; its seed and 821 moves are a fixture), each a switch so a screen can seat v5 with one of them (`rule-v6~{"fork":1,...}`): `fork` (a kill whose victim splits at the stack, costed cheap group first), `movein` (a single capture scored on the move-in that keeps the stack home), `alive` (preferences by the seats still alive), `gather` (when a big sweep against me is believed, the fortify that most cuts it), `homeward` (the stack at a run's end isn't charged as idle: the turn's fortify is still to come), `thirdParty` (an opponent's sweep may break through a third player to reach me) and `reinforced` (next turn's kill weighed with the victim's income on its defence). With every switch off v6 plays v5's moves exactly (`parity.test.ts`). Registered with every fix on; not seated.
+v6 (`rule-bot-v6.md`, `bots/rule-v6/`) is v5 with seven fixes for what 9VFL showed (a 5-player game the winner of G4FR won again, over Kyle, v3, v4 and v5; its seed and 821 moves are a fixture), each a switch so a screen can seat v5 with one of them (`rule-v6~{"fork":1,...}`): `fork` (a kill whose victim splits at the stack, costed cheap group first), `movein` (a single capture scored on the move-in that keeps the stack home), `alive` (preferences by the seats still alive), `gather` (when a big sweep against me is believed, the fortify that most cuts it), `homeward` (the stack at a run's end isn't charged as idle: the turn's fortify is still to come), `thirdParty` (an opponent's sweep may break through a third player to reach me) and `reinforced` (next turn's kill weighed with the victim's income on its defence). With every switch off v6 plays v5's moves exactly (a parity test, deleted once v5 and v6 were both frozen). Registered with every fix on; not seated.
 
 On 9VFL's positions (`9vfl.test.ts`): at turn 57, after v4's 42 armies moved into Venezuela, the kill of Kyle reads 0.957 where v4 read 0, and v5 with `fork` goes for it Peru first; at turn 78 v5 with `movein` takes the 1-army Brazil it turned down; at turn 68 v5 on Egypt alone sweeps with `homeward` and captures with `reinforced`, where it held and died; at turn 57's end v6 believes Kyle's sweep takes 6 of v4's territories (he took 5; v4 believed none). `gather` changes nothing at turn 87: the spread was made in the attack phase, a preference. On G4FR's turns (`rule-bot-v6.md` has the table) `alive` spreads v5 thin at turn 89 (20 territories, biggest stack 3, against 13 and 8).
 
@@ -724,3 +724,32 @@ The measuring tools' default tables are now 3, 4, 5 and 6 players (`eval/cli-arg
 | rule-v1 | 1322 | 1320 |
 
 The order is unchanged. Every earlier verdict in this log played 3, 4 and 6 only.
+
+## sweeper-v1: the winner's playbook as a style bot (2026-10-21)
+
+`bots/sweeper-v1/`, designed in `sweeper-v1.md`: a persona of the person who won G4FR and 9VFL, not a candidate. It isn't seatable and has no seating bar; these runs say what it is.
+
+**While it was built**, scratch games with the sweeper in one seat among copies of an opponent (games won; par 33% at 3 players, 20% at 5):
+
+| sweeper-v1 built with | vs greedy, 3p | vs greedy, 5p | vs rule-v6, 5p |
+|---|---|---|---|
+| the size cut, fed wherever the sweep ran longest | 5 of 20 | 2 of 20 | |
+| the biggest stack fed, Australia only when the stack stood beside it | 15 of 80 | 7 of 80 | 0 of 40 |
+| the same, home where the next sweep would run longest | 22 of 80 | 13 of 80 | 1 of 40 |
+| the same, no fortify home (idle piles onto the stack) | 12 of 80 | 17 of 80 | 0 of 40 |
+| Australia first (as built) | 35 of 80 | 21 of 80 | 2 of 40 |
+
+Taking Australia first is what made it a player; without a base it was the weakest seat and the rule bots finished it by about turn 20. Where home is didn't separate clearly at these sizes, so the reading closest to the record (back to where the sweep set out) was kept. As built it also won 1 of 40 alone among four rule-v3s and 0 of 40 among four rule-v5s at 5 players: the bots the winner beat don't lose to his rules without his judgement.
+
+**Against random**, `risk:gauntlet -- sweeper-v1 --field random`: better at every table, 3 to 6 players, both mixtures. Alone among randoms it won all 100 games; random won 3 of the 347 decisive games where it sat alone among sweepers, which greedy never allows. Sweepers among themselves stall more: 19 to 43% of those games reached the turn cap.
+
+**A 5-player screen**, `risk:gauntlet -- sweeper-v1 --base rule-v6 --field rule-v6,greedy --players 5 --max 300`, 1,040 games in 3 minutes on 14 workers:
+
+| Pairing (5p) | Win share vs par | Verdict |
+|---|---|---|
+| 1 sweeper-v1 among 4 rule-v6s | 0.0% [0.0, 3.9] of 95 vs 20.0% | worse |
+| 4 sweeper-v1s against 1 rule-v6 | 4.2% [0.7, 20.2] of 25 vs 80.0% | worse |
+| 1 sweeper-v1 among 4 greedys | 28.4% [23.2, 34.3] of 250 vs 20.0% | better |
+| 4 sweeper-v1s against 1 greedy | 31.6% [19.1, 47.5] of 40 vs 80.0% | worse |
+
+Win Elo with rule-v6 at 0: sweeper-v1 −667, greedy −671; by finishing order sweeper-v1 −164, greedy −304. So at 5 players it is about greedy's strength by wins and well above it by finishing order, and v6 beats it every time it sits alone. It beats a table of greedys, and four sweepers lose to one greedy: their sweeps eat each other's trails while greedy keeps what it takes. As an opponent it is a style the rule bots already punish, which is the measure the hybrid bot would have to keep.
