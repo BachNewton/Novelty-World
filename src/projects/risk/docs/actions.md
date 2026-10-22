@@ -94,7 +94,7 @@ Within a round, the page shows the round's starting point, not each game: the ma
 ## Limits
 
 - **Twenty machines at once, 4 virtual cores each, across every run on the account.** That is 80 workers against the laptop's 15, though a runner's core may be slower than the laptop's. Each run's record shows the speed it got. Every runner label (other Ubuntu versions, ARM, Windows) draws on the same twenty, so changing the label adds none.
-- **Six hours per job.** A round's share per machine must fit. A machine plays about a twentieth of a round. Even the largest round of a pairing at its cap, about 22,000 6-player games of v5, takes well under that.
+- **Six hours per job.** A round's share per machine must fit, and a machine plays a `shards`-th of a round. For bots of v6's cost that is well within it: even the largest round of a pairing at its cap, about 22,000 6-player games of v5, takes well under that. A searching bot is another matter: v7 at 8 replies, with four v7s at a table, ran some machines of a 20-shard ladder past the limit, and the job stopped with its games lost. For such a bot, raise `shards` (60 for that ladder) so each machine's share takes a couple of hours; `max_parallel` still keeps it to twenty machines at once, and the extra shards wait their turn.
 - **Each round costs a few minutes of start-up**: installing the packages and moving the games between jobs. A gauntlet of fast bots plays quicker on the laptop. Actions pays off on long runs.
 
 ## Not yet

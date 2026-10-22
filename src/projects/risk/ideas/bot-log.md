@@ -878,3 +878,7 @@ On GitHub Actions (run 39696419497, 10 machines, rounds of at least 200 games, 1
 | 32 replies | 41.1% [31.5, 51.4] | 95 | 149 | 5.3% | +178 |
 
 Four times the work of 8 replies buys nothing measurable: the one-in curve climbs from 2 to 8 and is flat from 8 to 32. 32 replies also fails rule 5 of the seating bar (about 10 s a turn on the laptop's core), so it was never a candidate budget; as the design doc set out, it is recorded rather than seated, and with no gain over 8 it is no evidence for thinking on a player's device either. By the doc's rule it stays off the budget ladder, which plays v6, 2 replies and 8 replies.
+
+## v7's first budget ladder and full suite ran out of time (2026-10-22)
+
+The budget ladder (run 39662270576, `risk:ratings -- rule-v6 rule-v7~{"replies":2} rule-v7~{"replies":8} --anchor rule-v6 --groups 100 --players 5`, 20 shards) lost 14 of its 20 machines to GitHub's six-hour job limit: each played a twentieth of 3,000 games, and tables of four v7s at 8 replies made that share take 4.5 to over 6 hours. With games missing, it had no report. v7's train gauntlet at 8 replies (run 39707156525, started early on idle runners) had all of its first 10 machines stopped the same way, so it was cancelled. No result from either. The ladder was relaunched at 60 shards (run 39745883687), each machine's share about two hours; `docs/actions.md` now says when to raise `shards`.
