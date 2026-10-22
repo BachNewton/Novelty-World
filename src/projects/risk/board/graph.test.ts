@@ -161,6 +161,16 @@ describe("the board on a screen", () => {
     }
   });
 
+  it("takes the couch-distance type only where the panels fit at it: a wide but short desktop keeps the normal type", () => {
+    const typeAt = (width: number, height: number) => layoutScreen({ width, height }, COMPOSITION).type.size;
+    expect(typeAt(1920, 1080)).toBe(23);
+    expect(typeAt(3440, 1440)).toBe(23);
+    for (const [width, height] of [[1920, 960], [1920, 880], [2048, 1050]]) expect(typeAt(width, height), `${width}×${height}`).toBe(16);
+    expect(typeAt(1180, 820)).toBe(16);
+    expect(typeAt(412, 790)).toBe(15);
+    expect(typeAt(820, 1180)).toBe(16);
+  });
+
   it("keeps every territory a fingertip from the next on the smallest phone, panning it across between the bands", () => {
     const { form, frame } = layoutScreen({ width: 375, height: 640 }, COMPOSITION);
     expect(form).toBe("portrait");

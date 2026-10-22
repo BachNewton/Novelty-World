@@ -8,7 +8,8 @@ const composition: Composition = {
   board,
   drawn: { left: 50, top: 50, right: 950, bottom: 450 },
   slots: { players: { left: 0, top: 0, right: 500, bottom: 100 }, action: { left: 400, top: 350, right: 700, bottom: 500 }, actionWide: { left: 400, top: 420, right: 1000, bottom: 500 } },
-  least: { players: [{ width: 400, height: 80 }], action: [{ width: 200, height: 120 }, { width: 400, height: 60 }] },
+  landscapeTypes: [{ size: 1, inset: 0, from: 0, least: { players: [{ width: 400, height: 80 }], action: [{ width: 200, height: 120 }, { width: 400, height: 60 }] } }],
+  otherTypes: [{ size: 1, inset: 0, from: 0 }],
   column: 100,
   bands: { top: 100, bottom: 150 },
   touch: 0.3,
@@ -39,7 +40,7 @@ describe("laying out a landscape screen", () => {
   });
 
   it("takes a slot that fits any one of a panel's least sizes", () => {
-    const wideOnly = { ...composition, least: { ...composition.least, action: [{ width: 400, height: 60 }] } };
+    const wideOnly: Composition = { ...composition, landscapeTypes: [{ size: 1, inset: 0, from: 0, least: { players: [{ width: 400, height: 80 }], action: [{ width: 400, height: 60 }] } }] };
     expect(layoutScreen({ width: 1000, height: 700 }, wideOnly).form).toBe("short");
     expect(at(1000, 700).form).toBe("landscape");
   });

@@ -270,8 +270,9 @@ export function GameScreen({ feed, onLeave }: { feed: GameFeed; onLeave: () => v
   return (
     <div
       ref={root}
-      style={RISK_THEME}
-      className={cn(DISPLAY_FONT.variable, "fixed inset-0 overflow-hidden bg-(--rk-sea) text-[15px] text-(--rk-text) [--rk-inset:0.5em] min-[640px]:text-base min-[1800px]:text-[23px] min-[1800px]:[--rk-inset:1.5em]")}
+      // The type is the layout's: the couch-distance size only where the panels fit at it.
+      style={{ ...RISK_THEME, ...(screen && { fontSize: screen.type.size, "--rk-inset": `${screen.type.inset}em` }) }}
+      className={cn(DISPLAY_FONT.variable, "fixed inset-0 overflow-hidden bg-(--rk-sea) text-base text-(--rk-text) [--rk-inset:0.5em]")}
       onContextMenu={(event) => event.preventDefault()}
     >
       <GraphBoard ref={board} view={view} marks={marks} focus={currentFocus} showFocus={showFocus} onPick={choose} onTouch={onTouch} screen={screen} beat={beat} />

@@ -57,15 +57,31 @@ export interface Panels {
   actionWide?: Rect;
 }
 
+/** The panels' type: its size in CSS pixels, and how far the panels keep from the screen's edges,
+ *  in ems of it. */
+export interface Type {
+  size: number;
+  inset: number;
+}
+
+/** A landscape type, from the screen width it starts at, and the sizes each panel's content fits
+ *  at it, in ems, any one of which will do: a panel may need less height when it has more width. */
+export interface LandscapeType extends Type {
+  from: number;
+  least: { players: readonly Size[]; action: readonly Size[] };
+}
+
 export interface ScreenLayout {
   form: Form;
   view: Size;
   frame: Frame;
   panels: Panels;
+  type: Type;
 }
 
 /** What a layout is made from: the board, what it draws and where its panels go, in board units,
- *  and the least the panels and the territories need, in CSS pixels or a scale. */
+ *  the panels' type, and the least the panels and the territories need, in ems of that type, CSS
+ *  pixels or a scale. */
 export interface Composition {
   board: Size;
   /** The part of the board its territories draw (their rings and names), which the short form
@@ -73,9 +89,13 @@ export interface Composition {
   drawn: Rect;
   /** The board's open slots, for the landscape panels. */
   slots: Required<Panels>;
-  /** The sizes each panel's content fits, any one of which will do: a panel may need less height
-   *  when it has more width. */
-  least: { players: readonly Size[]; action: readonly Size[] };
+  /** The type a landscape screen may take, largest first, each from the width it starts at, with
+   *  the sizes each panel's content fits at it: the largest whose panels fit their slots is the one
+   *  taken. */
+  landscapeTypes: readonly LandscapeType[];
+  /** The type of every other screen: a portrait or short one, by the width it starts at, narrowest
+   *  first. */
+  otherTypes: readonly (Type & { from: number })[];
   /** The least width of a column on a short landscape screen. */
   column: number;
   /** The heights of the portrait bands. */
@@ -89,26 +109,36 @@ const height = (r: Rect) => r.bottom - r.top;
 
 /** Where the board and the panels sit on this screen, as it starts. */
 export function layoutScreen(view: Size, c: Composition): ScreenLayout {
-  if (view.width < view.height) return portrait(view, c);
-  return landscape(view, c) ?? short(view, c);
+  const other = c.otherTypes.findLast((type) => view.width >= type.from) ?? c.otherTypes[0];
+  if (view.width < view.height) return { ...portrait(view, c), type: other };
+  for (const type of c.landscapeTypes) {
+    if (view.width < type.from) continue;
+    const laid = landscape(view, c, type);
+    if (laid) return { ...laid, type };
+  }
+  return { ...short(view, c), type: other };
 }
 
-/** The composition scaled as one piece, or null when its slots would be smaller than the panels. */
-function landscape(view: Size, c: Composition): ScreenLayout | null {
+/** The composition scaled as one piece, or null when its slots would be smaller than the panels
+ *  need at this type, room kept for their insets. */
+function landscape(view: Size, c: Composition, type: LandscapeType): Omit<ScreenLayout, "type"> | null {
   const scale = Math.min(view.width / c.board.width, view.height / c.board.height);
   const left = (view.width - c.board.width * scale) / 2;
   const top = (view.height - c.board.height * scale) / 2;
   const at = (r: Rect): Rect => ({ left: left + r.left * scale, top: top + r.top * scale, right: left + r.right * scale, bottom: top + r.bottom * scale });
   const panels = { players: { ...at(c.slots.players), top: 0 }, action: { ...at(c.slots.action), bottom: view.height }, actionWide: { ...at(c.slots.actionWide), bottom: view.height } };
-  const fits = (r: Rect, least: readonly Size[]) => least.some((size) => width(r) >= size.width && height(r) >= size.height);
-  if (!fits(panels.players, c.least.players) || !fits(panels.action, c.least.action)) return null;
+  // Each panel keeps the inset from the screen's edges and half an em from the board.
+  const across = 2 * type.inset * type.size;
+  const down = (type.inset + 0.5) * type.size;
+  const fits = (r: Rect, least: readonly Size[]) => least.some((size) => width(r) - across >= size.width * type.size && height(r) - down >= size.height * type.size);
+  if (!fits(panels.players, type.least.players) || !fits(panels.action, type.least.action)) return null;
   return { form: "landscape", view, frame: { camera: { left, top, scale }, pan: { axis: "none" } }, panels };
 }
 
 /** The board filling the height, whole, with the panels as columns either side. A screen too
  *  narrow for that shrinks the board to leave the columns their width, and below the fingertip
  *  scale the board pans across between them instead. */
-function short(view: Size, c: Composition): ScreenLayout {
+function short(view: Size, c: Composition): Omit<ScreenLayout, "type"> {
   const room = width(c.drawn);
   const between = (view.width - 2 * c.column) / room;
   const scale = Math.max(c.touch, Math.min(view.height / height(c.drawn), between));
@@ -122,7 +152,7 @@ function short(view: Size, c: Composition): ScreenLayout {
 }
 
 /** The bands across the top and bottom, and the board filling the height between them. */
-function portrait(view: Size, c: Composition): ScreenLayout {
+function portrait(view: Size, c: Composition): Omit<ScreenLayout, "type"> {
   const { top, bottom } = c.bands;
   const scale = (view.height - top - bottom) / height(c.drawn);
   const panels = { players: { left: 0, top: 0, right: view.width, bottom: top }, action: { left: 0, top: view.height - bottom, right: view.width, bottom: view.height } };

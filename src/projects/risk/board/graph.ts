@@ -91,23 +91,52 @@ const CLOSEST = Math.min(...values.flatMap((a, i) => values.slice(i + 1).map((b)
 export const TOUCH_SCALE = FINGERTIP / CLOSEST;
 
 /** The board and its panels on a screen (`ui/camera.ts`). The panels' least sizes are measured
- *  from their content at a six-seat table, its tallest step for the action panel (a battle): the
- *  players panel in one column or two, the action panel with a battle's blitz on a row of its own
- *  or beside the slider. The column's is the sideways phone's, its bot names cut short. */
+ *  from their content at a six-seat table, at each landscape type (a fingertip's 44px floor makes
+ *  them differ in ems): the players panel in one column or two, and the action panel's tallest
+ *  step, a battle, stacked as a landscape slot lays it out. The couch-distance type is taken only
+ *  where the panels fit at it. The column's least width is the sideways phone's, its bot names cut
+ *  short. */
 export const COMPOSITION: Composition = {
   board: { width: GRAPH_WIDTH, height: GRAPH_HEIGHT },
   drawn: DRAWN_EXTENT,
   slots: SLOTS,
-  least: {
-    players: [
-      { width: 416, height: 160 },
-      { width: 670, height: 109 },
-    ],
-    action: [
-      { width: 264, height: 236 },
-      { width: 380, height: 168 },
-    ],
-  },
+  landscapeTypes: [
+    {
+      size: 23,
+      inset: 1.5,
+      from: 1800,
+      least: {
+        players: [
+          { width: 20, height: 9 },
+          { width: 43, height: 5.8 },
+        ],
+        action: [
+          { width: 15, height: 13.6 },
+          { width: 17, height: 12.5 },
+          { width: 20, height: 12 },
+        ],
+      },
+    },
+    {
+      size: 16,
+      inset: 0.5,
+      from: 0,
+      least: {
+        players: [
+          { width: 20, height: 9.05 },
+          { width: 43, height: 5.85 },
+        ],
+        action: [
+          { width: 15, height: 14.15 },
+          { width: 17, height: 13.05 },
+        ],
+      },
+    },
+  ],
+  otherTypes: [
+    { size: 15, inset: 0.5, from: 0 },
+    { size: 16, inset: 0.5, from: 640 },
+  ],
   column: 120,
   bands: { top: 104, bottom: 164 },
   touch: TOUCH_SCALE,
