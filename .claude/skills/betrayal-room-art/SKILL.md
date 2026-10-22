@@ -283,6 +283,7 @@ lightmap density were in flux; re-measure the house once they settle.
 | Crypt | basement: big dressed stone slabs in staggered courses, dark coursed-stone walls, a stone bench round three walls under sealed burial niches cut with names | a stone sarcophagus on a plinth in the middle, its lid shoved askew off the head end | sickly green (`wraith`), the rot welling out of the open tomb and lying round its plinth; amber candles on the bench, and the mason's candle by a pale new tablet whose name is only half cut (a place made ready, not something moving) | normal | 4.5 (0.6–23.2) |
 | Operating Laboratory | the laboratories' dress, upper or basement: plain grey quarry tiles, pale grey glazed tile walls, a dark green tiled dado with a band | an iron operating table across a corner, its straps undone, under a deep dark shade hung high over its far edge | the lamp's sickly green (`wraithLight`), thrown on the table and across the floor; in it, though no one is there, the baked shadows of a patient lying on the table and of a surgeon standing over it with a knife raised (`bakeOnly` casters); one amber chamberstick on the bench | normal (proposed) | 5.5 (0.8–26.4) |
 | Research Laboratory | the laboratories' dress (as the Operating Laboratory) | a tall glowing bell jar on a pedestal, beside an island bench of apparatus and a wall of specimen jars | violet from a presence caught under the bell jar (occult science), glass shards at its foot where the jar has begun to give; two brass oil lamps (the kit's `oilLamp`) standing on the bench under its reagent rack, their amber flames burning inside tall clear glass chimneys, and a spirit lamp under a brewing flask | normal (proposed) | 5.0 (0.8–21.1) |
+| Conservatory | outdoors under glass (**its own dress**, ground or upper): terracotta and black encaustic tiles, a brick dwarf wall, glazing in grey paint (`boundary: "glazing"`) | a pale-painted tiered plant theatre in the middle, stepped with pots of dead ferns up to an urn, a dead palm in a corner, a potting bench of dead seedlings | the moon through the glass roof, its unseen frame (`bakeOnly`) laying a lattice of shadow over the whole floor; a paraffin stove's amber still burning to keep dead plants warm | bright (proposed) | 8.7 (0.7–60.7) |
 
 Four rooms (the starting hall and the Upper Landing) share one dress and one
 amber light, so telling them apart rests on their shapes alone. Green is the
@@ -635,9 +636,12 @@ An outdoor tile (`outside` in the tile data) has no walls and no ceiling.
   the gates and corners; cutting an edge drops only the railings and the
   piers' upper part. Doors are gateways between piers, and a false door is
   a shut iron gate. Piers reach 10 cm into the floor (`OUTDOOR`), so keep
-  props at least 15 cm off them. Railings are today's only edge; the edge
-  style is a per-room choice (hedges for the Gardens, a balustrade for the
-  Balcony), to be added to the stage when such a room is built.
+  props at least 15 cm off them. The edge style is a per-room choice, the
+  room's `boundary`: `railings` by default, or a glasshouse's `glazing`
+  (`glazing.ts`: painted posts and glass in the `trim` colour, heavy posts
+  standing on the piers cut level, as the Conservatory's). Others (hedges
+  for the Gardens, a balustrade for the Balcony) are added to the stage
+  when such a room is built.
 - **Surfaces.** `wall` is the low wall's face, and `floor` is the ground:
   `earth()`, with grass or without.
 - **Light.** The open sky lets the moon fall on every surface: make the

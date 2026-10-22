@@ -203,7 +203,12 @@ export interface RoomDefinition {
   /** A room its tile counts as outside whose air is still all the same
    *  (under glass, like the Conservatory), so no breeze stirs its cloth. */
   sheltered?: boolean;
+  /** An outdoor tile's edges above the low wall (`railings` unless set). */
+  boundary?: Boundary;
 }
+
+/** What stands on an outdoor tile's low wall: iron `railings`, or a glasshouse's `glazing` (`glazing.ts`). */
+export type Boundary = "railings" | "glazing";
 
 /** How far inside a doorway a walker lines up with it, so it passes through
  *  square rather than cutting past the frame. */
