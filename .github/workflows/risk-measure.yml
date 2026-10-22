@@ -30,9 +30,9 @@ on:
         type: number
         default: 20
       min_round:
-        description: The fewest games a gauntlet pairing plays in a round
+        description: The fewest games a gauntlet pairing plays in a round; 0 sizes every round from the evidence
         type: number
-        default: 600
+        default: 0
       max_parallel:
         description: The most machines this run plays on at once. Below 20, another run can play beside it
         type: number
@@ -147,11 +147,115 @@ jobs:
       min_round: ${{ fromJSON(inputs.min_round) }}
       max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
+  round9:
+    needs: round8
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round8.outputs.done != 'true' }}
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 9
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round10:
+    needs: round9
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round9.outputs.done != 'true' }}
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 10
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round11:
+    needs: round10
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round10.outputs.done != 'true' }}
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 11
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round12:
+    needs: round11
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round11.outputs.done != 'true' }}
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 12
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round13:
+    needs: round12
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round12.outputs.done != 'true' }}
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 13
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round14:
+    needs: round13
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round13.outputs.done != 'true' }}
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 14
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round15:
+    needs: round14
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round14.outputs.done != 'true' }}
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 15
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
+  round16:
+    needs: round15
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round15.outputs.done != 'true' }}
+    uses: ./.github/workflows/risk-round.yml
+    secrets: inherit
+    with:
+      round: 16
+      tool: ${{ inputs.tool }}
+      args: ${{ inputs.args }}
+      shards: ${{ fromJSON(inputs.shards) }}
+      min_round: ${{ fromJSON(inputs.min_round) }}
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}
+
   # A round whose machine was lost still hands on to the next, whose plan replays the
   # missing games, so a failed round doesn't stop the report. If the last round left
   # games unplayed, the report fails loudly naming one.
   report:
-    needs: [round1, round2, round3, round4, round5, round6, round7, round8]
+    needs: [round1, round2, round3, round4, round5, round6, round7, round8, round9, round10, round11, round12, round13, round14, round15, round16]
     if: ${{ inputs.tool != 'record' && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60

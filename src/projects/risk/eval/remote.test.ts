@@ -41,6 +41,14 @@ describe("a gauntlet played remotely", () => {
     expect(new Set(local.pairings.map((p) => p.verdict)).size).toBeGreaterThan(1);
   });
 
+  it("reports the same with every round sized from the evidence", async () => {
+    const local = await runRiskGauntlet({ ...gauntlet, batchGames: 12, pool: inlineRunner(fakeGame) });
+    const { games, rounds } = await playRemotely((g) => planRiskGauntlet(gauntlet, (s) => g.store.get(s), 0).specs, fakeGame, 5, 10);
+    const remote = await runRiskGauntlet({ ...gauntlet, batchGames: 1, pool: games.store.runner() });
+    expect(cut(remote)).toEqual(cut(local));
+    expect(rounds.length).toBeGreaterThan(2);
+  });
+
   it("asks for no game once every pairing has decided", async () => {
     const { games } = await playRemotely((g) => planRiskGauntlet(gauntlet, (s) => g.store.get(s), 24).specs, fakeGame, 3, 10);
     const done = planRiskGauntlet(gauntlet, (s) => games.store.get(s), 24);

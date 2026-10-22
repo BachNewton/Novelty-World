@@ -1,4 +1,6 @@
 import {
+  expectedToDecide,
+  fewestToDecide,
   walkGroupedSprt,
   type GauntletSprtConfig,
   type GauntletVerdict,
@@ -153,7 +155,8 @@ export interface SprtRoundOptions {
   sprt: GauntletSprtConfig;
   maxDecisive: number;
   groupSize: number;
-  /** The fewest games a round plays, rounded up to whole groups. */
+  /** The fewest games a round plays, rounded up to whole groups; 0 lets the evidence alone
+   *  size every round. */
   minRound: number;
 }
 
@@ -164,8 +167,8 @@ export interface SprtRoundPlan {
    *  `runSprtPairing` gives (`generated` aside) on the same game stream. */
   run: SprtPairingRun;
   /** Games to play next, from `played` on: 0 once the test has decided, reached its
-   *  cap, or the pairing has played its game cap. A round at least doubles the games
-   *  played, so a pairing takes few rounds however long its test runs. */
+   *  cap, or the pairing has played its game cap. Otherwise as many as the evidence says
+   *  the test still needs (`roundGames`). */
   next: number;
   played: number;
 }
@@ -181,8 +184,28 @@ export function planSprtRound(outcomes: readonly TrialOutcome[], opts: SprtRound
   const run = pairingRun(walk, stream, groupSize, played);
   const cap = sprtGameCap(opts.maxDecisive, groupSize);
   if (walk.verdict !== "need-more" || played >= cap) return { run, next: 0, played };
-  const round = Math.ceil(Math.max(opts.minRound, played) / groupSize) * groupSize;
+  const round = Math.ceil(Math.max(opts.minRound, roundGames(walk, played, opts)) / groupSize) * groupSize;
   return { run, next: Math.min(round, cap - played), played };
+}
+
+/** The games an undecided pairing's next round plays: what its test is expected to need
+ *  from here, so a round neither stops short of the verdict by much nor plays far past it.
+ *  Before any decisive game there is no evidence, so the round is the fewest games that could
+ *  possibly decide. After, it is Wald's estimate at the win share seen so far, never fewer
+ *  than could decide; and where that share drifts toward no verdict (a pairing on its
+ *  margin), as many again as it has played. Decisive games are turned into games at the
+ *  share of games so far that were decisive (capped games aren't). */
+function roundGames(walk: GauntletWalk, played: number, opts: SprtRoundOptions): number {
+  const { wins, losses, decisive } = walk;
+  const fewest = fewestToDecide(wins, losses, opts.sprt);
+  let need = fewest;
+  if (decisive > 0) {
+    const expected = expectedToDecide(wins, losses, wins / decisive, opts.sprt);
+    need = Math.max(fewest, Math.min(Number.isFinite(expected) ? Math.ceil(expected) : Infinity, decisive));
+  }
+  need = Math.min(need, opts.maxDecisive - decisive);
+  const decisiveShare = decisive > 0 ? decisive / played : 1;
+  return Math.ceil(need / decisiveShare);
 }
 
 export interface CrownGate {

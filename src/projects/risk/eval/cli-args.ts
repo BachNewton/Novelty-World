@@ -82,7 +82,8 @@ export interface RemoteArgs {
   plan?: string;
   /** The most machines a round is split across. */
   shards: number;
-  /** The fewest games a gauntlet pairing plays in a round. */
+  /** The fewest games a gauntlet pairing plays in a round; 0 (the default) sizes every round
+   *  from the evidence (`planSprtRound`). */
   minRound: number;
 }
 
@@ -94,7 +95,7 @@ export function withoutRemoteFlags(argv: readonly string[]): string[] {
 }
 
 export function remoteDefaults(): RemoteArgs {
-  return { shards: 20, minRound: 600 };
+  return { shards: 20, minRound: 0 };
 }
 
 /** Reads one of the remote flags at `argv[i]`; returns how many entries it used, 0 when it isn't one. */

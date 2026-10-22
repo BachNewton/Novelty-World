@@ -229,3 +229,69 @@ export function walkGroupedSprt(
     sprt(wins, losses, regress, winProb),
   );
 }
+
+/** The improvement and regression tests' LLR steps for one decisive game: a win adds
+ *  `win`, a loss adds `loss`. */
+function dualSteps(cfg: GauntletSprtConfig): { improve: { win: number; loss: number }; regress: { win: number; loss: number } } {
+  const winProb = cfg.winProb ?? eloToWinProb;
+  const p0 = winProb(0);
+  const up = winProb(cfg.margin);
+  const down = winProb(-cfg.margin);
+  return {
+    improve: { win: Math.log(up / p0), loss: Math.log((1 - up) / (1 - p0)) },
+    regress: { win: Math.log(down / p0), loss: Math.log((1 - down) / (1 - p0)) },
+  };
+}
+
+/** The fewest further decisive games in which the dual test could reach a verdict from
+ *  where it stands: an unbroken run of wins to "better", of losses to "worse", or the
+ *  fewest of both to "even", whichever is shortest. No stream can stop sooner. */
+export function fewestToDecide(wins: number, losses: number, cfg: GauntletSprtConfig): number {
+  const { lower, upper } = sprtBounds(cfg.alpha, cfg.beta);
+  const s = dualSteps(cfg);
+  const llrI = wins * s.improve.win + losses * s.improve.loss;
+  const llrR = wins * s.regress.win + losses * s.regress.loss;
+  // A win raises the improvement test and a loss the regression test, so "better" is
+  // nearest by straight wins and "worse" by straight losses.
+  const better = Math.max(0, Math.ceil((upper - llrI) / s.improve.win - 1e-9));
+  const worse = Math.max(0, Math.ceil((upper - llrR) / s.regress.loss - 1e-9));
+  // "Even" needs both tests at their lower bound, which no run of one kind reaches: the
+  // fewest wins and losses that do it.
+  const even = fewestMix(lower - llrI, s.improve, lower - llrR, s.regress);
+  return Math.min(better, worse, even);
+}
+
+/** The least w + l over wins w ≥ 0 and losses l ≥ 0 (as real numbers, so a lower bound on
+ *  whole games) with w·a.win + l·a.loss ≤ ca and w·b.win + l·b.loss ≤ cb. A linear program in
+ *  two variables: its optimum is at a corner of the region. */
+function fewestMix(ca: number, a: { win: number; loss: number }, cb: number, b: { win: number; loss: number }): number {
+  const fits = (w: number, l: number) => w >= -1e-9 && l >= -1e-9 && w * a.win + l * a.loss <= ca + 1e-9 && w * b.win + l * b.loss <= cb + 1e-9;
+  const corners: [number, number][] = [[0, 0]];
+  for (const [x, y, c] of [[a.win, a.loss, ca], [b.win, b.loss, cb]]) {
+    if (x !== 0) corners.push([c / x, 0]);
+    if (y !== 0) corners.push([0, c / y]);
+  }
+  const det = a.win * b.loss - a.loss * b.win;
+  if (det !== 0) corners.push([(ca * b.loss - a.loss * cb) / det, (a.win * cb - ca * b.win) / det]);
+  let best = Infinity;
+  for (const [w, l] of corners) if (fits(w, l)) best = Math.min(best, w + l);
+  return Math.ceil(best - 1e-9);
+}
+
+/** Wald's estimate of the further decisive games the dual test needs, if the candidate side
+ *  goes on winning a share `p` of them: each test's LLR drifts by its expected step per game
+ *  toward one of its bounds, and the verdict comes at the first of "better", "worse", or both
+ *  reaching "even". Infinity when neither test drifts toward a verdict. */
+export function expectedToDecide(wins: number, losses: number, p: number, cfg: GauntletSprtConfig): number {
+  const { lower, upper } = sprtBounds(cfg.alpha, cfg.beta);
+  const s = dualSteps(cfg);
+  const llrI = wins * s.improve.win + losses * s.improve.loss;
+  const llrR = wins * s.regress.win + losses * s.regress.loss;
+  const driftI = p * s.improve.win + (1 - p) * s.improve.loss;
+  const driftR = p * s.regress.win + (1 - p) * s.regress.loss;
+  const toward = (llr: number, bound: number, drift: number) => (Math.sign(bound - llr) === Math.sign(drift) && drift !== 0 ? (bound - llr) / drift : Infinity);
+  const better = toward(llrI, upper, driftI);
+  const worse = toward(llrR, upper, driftR);
+  const even = Math.max(toward(llrI, lower, driftI), toward(llrR, lower, driftR));
+  return Math.min(better, worse, even);
+}

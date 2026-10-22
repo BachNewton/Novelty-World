@@ -175,8 +175,8 @@ export interface RiskGauntletRound {
 }
 
 /** A gauntlet played in rounds elsewhere (`bot-lab/remote.ts`): from the games played so
- *  far (`played`), the games its next round plays. Each undecided pairing plays at least
- *  `minRound` more, or as many again as it has; the field's games, whose number is fixed,
+ *  far (`played`), the games its next round plays. Each undecided pairing plays what its test
+ *  is expected to need (`planSprtRound`), at least `minRound`; the field's games, whose number is fixed,
  *  all play in the first round. Once it needs no games, `runRiskGauntlet` over the same
  *  games reports exactly what it reports playing them itself. */
 export function planRiskGauntlet(
