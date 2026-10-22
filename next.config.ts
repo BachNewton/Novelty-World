@@ -39,6 +39,7 @@ function installRoot(): string {
 
 const nextConfig: NextConfig = {
   turbopack: { root: installRoot() },
+  experimental: { agentUpgrade: "security" },
   // Lets a second build coexist with a running `next dev` instead of fighting it over `.next`.
   // The Shipwright perf sweep needs a PRODUCTION server (a dev server hot-reloads, and a Fast Refresh
   // remount destroys an in-flight benchmark run), but the dev server is usually up on 3001 at the same
