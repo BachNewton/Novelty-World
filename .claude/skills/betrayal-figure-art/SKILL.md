@@ -82,6 +82,9 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   Zoe for a child, a sculpted skirt from a custom distance, and a doll that
   hangs from her hand; Father Rhinehardt for a floor-length robe. Read them
   all before the first part.
+- `animals/quadruped.ts`, `dog.ts`, `cat.ts`: the four-legged gait every
+  animal shares, and the Dog and the Cat built on it (see "Four-legged
+  figures").
 - `monsters/spider.ts`, `banshee.ts`, `base.ts`: the monsters, and what they
   share (`monsterBase`, `floorGlow`, `ghostly`, `spectral`, `MonsterOptions`).
 - `explorers/line-up.ts`: every explorer side by side with the scale pawn,
@@ -514,6 +517,86 @@ parts that never move relative to each other. Many copies of one shape that
 move are one `InstancedMesh` in a single draw (the Spider's sixteen leg
 bands follow its legs each frame); swarms (bats, rats) are the same, never
 many separate figures, clustered round the one place the solver gives it.
+
+## Four-legged figures
+
+An animal on four paws (the Dog, the Cat; wolves, rats and hellhounds next)
+is built on `animals/quadruped.ts`, the shared gait, never a gait of its
+own. Read it and `animals/dog.ts` before the first part.
+
+**The body plan.** The figure's root carries the base and the **trunk**, a
+group at the middle of the back. The trunk carries two **halves** at its own
+pivot, the chest and the hips, so the spine can arch and stretch. Each half
+carries its pair of legs; the chest carries the neck and head, the hips the
+tail. A **leg is three rigid segments** (`pawLeg`): the upper bone, the
+lower bone and the foot (a pastern or a hock) ending in the paw, each built
+hanging straight down from its pivot. The middle joint points back on a
+foreleg (the elbow) and forward on a hind leg (the stifle), so the hind leg
+reads as a dog's or a cat's, not a person's. The foot keeps a standing lean
+(`stand`) while the paw is down, so build the paw turned by that lean
+(`turned(…, [stand, 0, 0])`) and it lies level on the base; `restingPaw`
+sets it on the base by its half-height.
+
+**How it moves** (`pawStride(rig, stride, adjust)`, after the idle has posed
+the trunk and halves, which it moves on from):
+
+- **Footfalls, not two feet.** A `Footfall` says when each paw lands in the
+  stride (right fore, left fore, right hind, left hind), how long it stays
+  down and how high it lifts, one for the walk and one for the run. The Dog
+  trots (diagonal pairs) and gallops (hind, hind, fore, fore); the Cat walks
+  one paw at a time, three down, and bounds. The stride's phase is the
+  house's, from the distance and the declared step, so the run's step is
+  `RUN_STRIDE` times the walk's as for every figure; a footfall changes
+  only which paw falls when.
+- **Paws never slide.** A planted paw slides back exactly as fast as the
+  floor; a lifted one leaves and lands at the floor's speed, but stops going
+  back only a moment after lifting and comes up to the floor's pace only
+  just before landing (`CARRY`), so a quick runner's paws never fling far
+  out behind or ahead. A forepaw folds back mid-swing (`fold`), easing to a
+  stop at the wrist so it never folds into the lower bone; a hind foot keeps
+  its hock's angle.
+- **The trunk sinks once a stride**, as deep as any planted paw ever needs to
+  stay in reach, worked out from moments through the stride: never from the
+  paws at this instant, which drops the trunk the moment a paw lands. A paw
+  out of reach is eased in short of straight and a paw kicked up close under
+  its leg holds off before the leg folds shut, both soft, since a hard clamp
+  flicks the middle joint round as the paw comes back.
+- **Walking** the trunk dips at each footfall (the declared `hop`);
+  **running** the spine arches as the hind paws reach under the body and
+  stretches as the forepaws reach out (`arch`, `gathered`), the trunk rocks
+  (`rock`), and the whole figure leaves the base through the longest stretch
+  with all four paws up, rising from and settling to nothing. A galloper's
+  legs reach out front and back and its hind legs pass outside its forelegs
+  (`spread`), so the pairs never run into each other.
+- **Gestures move paws through `adjust`** (a play bow's forepaws stretched
+  out, a cat's paw raised to be washed): it may move a paw, change the
+  foot's lean and say the paw is off the floor, as a pure function of the
+  clock. The gestures ease out as the stride eases in.
+
+**Joints.** `pawLegJoints` declares a leg's joints the anatomy's way: the
+upper bone lies within the flank, so it may pass into either half along its
+length, and the elbow or stifle may press into the body; the lower bone
+turns in the upper and the foot in the lower. Everything else is checked as
+usual.
+
+**Size and base.** Animals are the small size class (the solver's small
+footprint), on a base of their own a little smaller than the footprint, in
+the explorers' pale rim, not a monster's dark one, unless the animal is a
+monster. Their heads are big, as every miniature's are.
+
+**Checks.** `animals/animals.test.ts` always runs: the draw budget, the pure
+clock, the idle moving, and the clipping check through the idle, every
+gesture cued, walking and running. `animals/art.slow.test.ts` is opt-in with
+the explorers' art checks (`BETRAYAL_ART_CHECKS=1`): no jump walking or
+running as the house moves it, the base planted, and no fighting faces. A
+new animal joins both, the figure viewer's list, `BENCH_EXPLORERS`,
+`monsterLineUp` and `figure-mesh.worker.ts`.
+
+**Lessons from the first two.** A deep, low body swallows the legs: keep the
+belly tucked up behind the ribs, or the stifle swings into it. Legs sharing
+one line front to back collide as fore and hind paws pass: put the hind
+paws a little wider and the paws further apart, and keep the stance short
+enough. A cat's run sinks deep on short legs, so its bib and chest sit high.
 
 ## Build it
 

@@ -3,6 +3,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { readPad, subscribeGamepads, type PadSnapshot } from "@/shared/lib/gamepad";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import { CHARACTERS } from "../data/characters";
+import { cat, dog } from "./animals";
 import { animationOf, type Animation } from "./animate";
 import { BENCH_EXPLORERS } from "./explorers";
 import { CARD_PALETTE, figureFor, hasFigure } from "./explorers/by-character";
@@ -39,7 +40,7 @@ import { texturesUnder } from "./textures";
 export interface ViewerFigure {
   id: string;
   name: string;
-  kind: "explorer" | "pawn" | "monster";
+  kind: "explorer" | "pawn" | "monster" | "companion";
   /** The character it shows as a seat shows them, or null for a figure that is no character's. */
   character: string | null;
   build: (stunned: boolean) => ExplorerBuilder;
@@ -66,6 +67,8 @@ function viewerFigures(): ViewerFigure[] {
     { id: "pawn", name: "Scale pawn", kind: "pawn", character: null, build: () => () => pawn(), ring: null, speed: null },
     { id: "banshee", name: "The Banshee", kind: "monster", character: null, build: (stunned) => (seed, gait) => banshee(seed, gait, { stunned }), ring: null, speed: null },
     { id: "spider", name: "The Spider", kind: "monster", character: null, build: (stunned) => (seed, gait) => spider(seed, gait, { stunned }), ring: null, speed: null },
+    { id: "dog", name: "The Dog", kind: "companion", character: null, build: () => dog, ring: null, speed: null },
+    { id: "cat", name: "The Cat", kind: "companion", character: null, build: () => cat, ring: null, speed: null },
   ];
 }
 
