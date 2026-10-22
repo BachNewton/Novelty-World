@@ -1,111 +1,123 @@
 import * as THREE from "three";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
+import { figureMaterial, form, loft, type Section, type Vec3 } from "../forms";
 import type { PaletteKey } from "../palette";
-import { batch, cylinder, flat, group, type Batch } from "../shapes";
-import { vessel, solidLathe } from "./vessel";
+import { flat, group } from "../shapes";
+import { solidLathe, vessel } from "./vessel";
 
 /**
- * Plants, built from strips: a frond is a stalk of thin boxes along a curve,
- * with leaflets either side, all in one batch. A plant's `leaf` colours run
- * from its stalks to its palest leaflets; `LEAVES` holds a living plant's and
- * a withered one's. `droop` is how far a frond falls along its length (0
- * arches up and out, 1 hangs), and `wither` thins and shortens the leaflets
- * and breaks some fronds off short.
+ * Plants, built as a few broad, smooth leaves rather than many small parts:
+ * each leaf a flat ribbon lofted along an arc that rises from the crown and
+ * sags under its own weight, smooth-shaded and coloured along its length,
+ * so a plant reads by its silhouette at house distance. Matte: no plant
+ * shines.
+ *
+ * A plant's `leaf` colours run from the base of a leaf, through its body
+ * (one of the middle keys, picked per leaf), to its tip. `LEAVES` holds a
+ * living plant's greens and a withered one's dry straw, dusty tan and grey,
+ * a little dull green left at the base.
  */
 export const LEAVES = {
-  living: ["wraithDark", "wraith", "verdigris"],
-  withered: ["woodMid", "woodLight", "woodLight", "boneDark"],
+  living: ["wraithDark", "wraith", "wraith", "verdigris"],
+  withered: ["wraithDark", "brass", "boneDark", "brass", "stoneDark"],
 } as const satisfies Record<string, readonly PaletteKey[]>;
 
-export interface FrondOptions {
-  /** Metres from base to tip, measured along the stalk. */
+export interface LeafOptions {
+  /** Metres from base to tip, along the leaf. */
   length: number;
-  /** How the stalk rises at its base, in degrees above level. */
+  /** Its greatest breadth. */
+  width: number;
+  /** How steeply it rises from the crown, in degrees above level. */
   rise: number;
-  /** How far it falls over its length: 0 arches out, 1 hangs. */
+  /** How far it bends over along its length: 0 stays straight, 1 curls right over to hang. */
   droop: number;
-  /** Leaflet length at the middle of the frond, in metres. */
-  leaflet: number;
   leaf: readonly PaletteKey[];
-  /** 0 a living frond, 1 a dead one: leaflets fewer, shorter and hanging. */
+  /** 0 a living leaf, 1 a dead one: narrower, more bowed and paler. */
   wither: number;
-  /** How broad a leaflet is, in metres. */
-  blade: number;
 }
 
-const UP = new THREE.Vector3(0, 1, 0);
+const SECTIONS = 14;
 
-/** A thin strip from `a` to `b`, `width` wide across `side` and `thickness` thick. */
-function strip(b: Batch, from: THREE.Vector3, to: THREE.Vector3, side: THREE.Vector3, width: number, thickness: number, tint: PaletteKey) {
-  const along = to.clone().sub(from);
-  const length = along.length();
-  if (length < 1e-4) return;
-  const z = along.divideScalar(length);
-  const x = side.clone().sub(z.clone().multiplyScalar(side.dot(z))).normalize();
-  const y = z.clone().cross(x);
-  const matrix = new THREE.Matrix4().makeBasis(x, y, z).setPosition(from.clone().add(to).multiplyScalar(0.5));
-  b.add([width, thickness, length], tint, matrix);
-}
-
-/** One frond from `base`, heading out along `heading` (a level unit vector), into the batch. */
-function frond(b: Batch, rng: Rng, base: THREE.Vector3, heading: THREE.Vector3, options: FrondOptions) {
-  const { length, rise, droop, leaflet, leaf, wither } = options;
-  const segments = 7;
-  const broken = wither > 0 && rng.next() < wither * 0.3 ? 0.45 + rng.next() * 0.3 : 1;
-  const side = UP.clone().cross(heading).normalize();
-  const climb = Math.tan(THREE.MathUtils.degToRad(rise));
-  const point = (t: number) => {
-    const out = length * t * Math.cos(Math.atan(climb * (1 - t)));
-    const up = length * (climb * t * (1 - t / 2) * 0.7 - droop * t * t * 1.1);
-    return base.clone().addScaledVector(heading, out).addScaledVector(UP, up);
-  };
-  const stalk = leaf[0];
-  const blades = leaf.slice(1);
-  for (let i = 0; i < segments * broken; i++) {
-    const [t0, t1] = [i / segments, Math.min((i + 1) / segments, broken)];
-    const [a, c] = [point(t0), point(t1)];
-    // Each stalk segment is a few millimetres finer than the last, so where they meet at a bend their faces never lie in one plane.
-    strip(b, a, c, side, 0.03 - i * 0.003, 0.02 - i * 0.0022, stalk);
-    if (i === 0) continue;
-    const reach = leaflet * Math.sin(Math.PI * Math.min(1, t0 + 0.1)) * (1 - wither * 0.35);
-    for (const s of [-1, 1]) {
-      if (rng.next() < wither * 0.35) continue;
-      const hang = 0.25 + wither * 0.9 + droop * 0.3 + rng.next() * 0.15;
-      const tip = a.clone().addScaledVector(side, s * reach * Math.cos(hang)).addScaledVector(UP, -reach * Math.sin(hang)).addScaledVector(c.clone().sub(a).normalize(), reach * 0.35);
-      strip(b, a, tip, c.clone().sub(a), options.blade * (1 - wither * 0.3), 0.008, blades[Math.floor(rng.next() * blades.length)]);
+/**
+ * A loft turned right side out. `loft` winds its triangles to face into the
+ * tube (its own "faces outwards" test has no vertex in the stretch it checks,
+ * so it never sees it), which a figure, lit by probes, doesn't show, but a
+ * still piece does: the bake takes each face's outside from its winding, so
+ * an inward leaf lifts its rays into itself and lies in its own shadow.
+ */
+function outward(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+  for (const name of ["position", "normal", "color"]) {
+    const attribute = geometry.getAttribute(name);
+    for (let t = 0; t < attribute.count; t += 3) {
+      for (let k = 0; k < attribute.itemSize; k++) {
+        const second = attribute.getComponent(t + 1, k);
+        attribute.setComponent(t + 1, k, attribute.getComponent(t + 2, k));
+        attribute.setComponent(t + 2, k, second);
+      }
     }
   }
+  const normal = geometry.getAttribute("normal");
+  for (let i = 0; i < normal.count; i++) normal.setXYZ(i, -normal.getX(i), -normal.getY(i), -normal.getZ(i));
+  return geometry;
+}
+const THICKNESS = 0.006;
+const UP = new THREE.Vector3(0, 1, 0);
+
+/** One leaf from `base`, heading out along `heading` (a level unit vector): a flat ribbon on a sagging arc. */
+function leafGeometry(rng: Rng, base: THREE.Vector3, heading: THREE.Vector3, options: LeafOptions): THREE.BufferGeometry {
+  const { length, width, rise, droop, leaf, wither } = options;
+  const limp = rng.next() < wither * 0.3 ? 0.35 : 0;
+  const bend = (droop + wither * 0.2 + limp) * Math.PI * 0.95;
+  const body = leaf.slice(1, -1);
+  const colour = body[Math.floor(rng.next() * body.length)];
+  const side = UP.clone().cross(heading).normalize();
+  const step = length / SECTIONS;
+  const sections: Section[] = [];
+  const at = base.clone();
+  for (let i = 0; i <= SECTIONS; i++) {
+    const t = i / SECTIONS;
+    const breadth = width * (1 - wither * 0.25) * Math.pow(Math.sin(Math.PI * (0.1 + 0.82 * t)), 0.7);
+    const key = t < 0.12 ? leaf[0] : t > 0.82 ? leaf[leaf.length - 1] : colour;
+    sections.push({ at: [at.x, at.y, at.z] as Vec3, radius: [breadth / 2, THICKNESS], colour: key });
+    // The leaf bows more towards its tip, where its weight hangs.
+    const angle = THREE.MathUtils.degToRad(rise) - bend * Math.pow(t, 1.4);
+    at.addScaledVector(heading, Math.cos(angle) * step).addScaledVector(UP, Math.sin(angle) * step);
+  }
+  return outward(loft(sections, { sides: 8, side: [side.x, side.y, side.z], ends: ["round", "point"] }));
 }
 
-export interface RosetteOptions extends FrondOptions {
-  /** How many fronds spring from the crown. */
+export interface RosetteOptions extends LeafOptions {
+  /** How many leaves spring from the crown. */
   fronds: number;
   seed: string;
 }
 
-/** A rosette of fronds springing from one crown at the origin: a fern, or a palm's head. */
+/** A rosette of leaves springing from one crown at the origin: a fern, a tuft of seedlings, or a palm's head. */
 export function rosette(options: RosetteOptions): THREE.Mesh {
+  return form(figureMaterial(), ...rosetteLeaves(options, new THREE.Vector3()));
+}
+
+function rosetteLeaves(options: RosetteOptions, crown: THREE.Vector3): THREE.BufferGeometry[] {
   const rng = createRng(`plant:${options.seed}`);
-  const b = batch();
   const turn = rng.next() * Math.PI * 2;
-  for (let i = 0; i < options.fronds; i++) {
-    const angle = turn + (i / options.fronds) * Math.PI * 2 + (rng.next() - 0.5) * 0.25;
+  return Array.from({ length: options.fronds }, (_, i) => {
+    const angle = turn + (i / options.fronds) * Math.PI * 2 + (rng.next() - 0.5) * 0.4;
     const heading = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-    const vary = 0.8 + rng.next() * 0.35;
-    // Each frond springs a little higher than the last, so no two stalks lie in one plane where they meet at the crown.
-    frond(b, rng, new THREE.Vector3(0, i * 0.004, 0), heading, {
+    // Each leaf springs a little higher than the last, so no two lie in one plane where they meet.
+    const base = crown.clone().add(new THREE.Vector3(heading.x * 0.01, i * 0.004, heading.z * 0.01));
+    return leafGeometry(rng, base, heading, {
       ...options,
-      length: options.length * vary,
+      length: options.length * (0.8 + rng.next() * 0.35),
       rise: options.rise + (rng.next() - 0.5) * 20,
-      droop: Math.min(1.2, options.droop * (0.8 + rng.next() * 0.5)),
+      droop: options.droop * (0.85 + rng.next() * 0.3),
     });
-  }
-  return b.mesh();
+  });
 }
 
 export interface PalmOptions {
   /** Height of the crown above the pot's soil. */
   height: number;
+  /** How many long leaves hang from the crown. */
   fronds: number;
   leaf: readonly PaletteKey[];
   wither: number;
@@ -113,33 +125,26 @@ export interface PalmOptions {
 }
 
 /**
- * A palm: a ringed trunk leaning a little, and a head of long fronds. A
- * withered one wears a skirt of dead fronds hanging down its trunk. Base at
- * the origin, which is the soil it grows from.
+ * A palm: a smooth trunk, ringed in two browns and leaning a little, and a
+ * head of a few long leaves arching out and hanging down. A withered one
+ * also wears a skirt of dead leaves hanging straight down its trunk. Base
+ * at the origin, which is the soil it grows from.
  */
-export function palm({ height, fronds, leaf, wither, seed }: PalmOptions): THREE.Group {
+export function palm({ height, fronds, leaf, wither, seed }: PalmOptions): THREE.Mesh {
   const rng = createRng(`palm:${seed}`);
-  const bark = flat("woodDark");
-  const scar = flat("wood");
-  const trunk = group();
-  const rings = Math.round(height / 0.16);
   const lean = (rng.next() - 0.5) * 0.15;
-  for (let i = 0; i < rings; i++) {
+  const rings = 10;
+  const trunk: Section[] = Array.from({ length: rings + 1 }, (_, i) => {
     const t = i / rings;
-    const ring = cylinder(0.075 - t * 0.02, height / rings + 0.01, i % 2 ? bark : scar, [lean * t * height, (i * height) / rings, 0], { top: 0.07 - t * 0.02, sides: 7 });
-    ring.rotation.y = i * 0.4;
-    trunk.add(ring);
-  }
+    return { at: [lean * height * t * t, height * t, 0] as Vec3, radius: 0.075 - t * 0.025, colour: i % 2 ? "woodDark" : "wood" };
+  });
   const crown = new THREE.Vector3(lean * height, height, 0);
-  const head = rosette({ fronds, length: height * 0.62, rise: 40, droop: 0.35 + wither * 0.5, leaflet: 0.3, blade: 0.07, leaf, wither, seed });
-  head.position.copy(crown);
-  trunk.add(head);
-  if (wither > 0) {
-    const skirt = rosette({ fronds: Math.round(fronds * 0.8), length: height * 0.45, rise: -10, droop: 1.1, leaflet: 0.2, blade: 0.07, leaf: LEAVES.withered, wither: 1, seed: `${seed}-skirt` });
-    skirt.position.copy(crown).add(new THREE.Vector3(0, -0.05, 0));
-    trunk.add(skirt);
-  }
-  return trunk;
+  const head = rosetteLeaves({ fronds, length: height * 0.75, width: 0.15, rise: 50, droop: 0.5 + wither * 0.25, leaf, wither, seed }, crown);
+  const skirt =
+    wither > 0
+      ? rosetteLeaves({ fronds: Math.max(3, Math.round(fronds * 0.6)), length: height * 0.4, width: 0.11, rise: -55, droop: 0.12, leaf: LEAVES.withered, wither: 1, seed: `${seed}-skirt` }, crown.clone().add(new THREE.Vector3(0, -0.06, 0)))
+      : [];
+  return form(figureMaterial(), outward(loft(trunk, { sides: 10, ends: ["flat", "round"] })), ...head, ...skirt);
 }
 
 export interface PotOptions {

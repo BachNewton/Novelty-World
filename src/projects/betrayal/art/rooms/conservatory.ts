@@ -40,10 +40,10 @@ function encaustic(): THREE.Texture {
   return pixelTexture(rows, { g: "soot", b: "ash", r: "brick", k: "sootLight" }, true);
 }
 
-/** A withered fern in a clay pot, its fronds collapsed over the rim. Base at the origin. */
-function deadFern(seed: string, { radius = 0.09, height = 0.16, spread = 0.36 } = {}): THREE.Group {
+/** A withered fern in a clay pot, a handful of broad fronds collapsed over the rim. Base at the origin. */
+function deadFern(seed: string, { radius = 0.09, height = 0.16, spread = 0.36, fronds = 6, droop = 1 } = {}): THREE.Group {
   const { pot, soilTop } = flowerPot({ radius, height });
-  const fern = rosette({ fronds: 9, length: spread, rise: 40, droop: 0.5, leaflet: spread * 0.3, blade: 0.06, leaf: LEAVES.withered, wither: 0.7, seed });
+  const fern = rosette({ fronds, length: spread, width: spread * 0.36, rise: 50, droop, leaf: LEAVES.withered, wither: 0.7, seed });
   fern.position.y = soilTop;
   return group(pot, fern);
 }
@@ -80,7 +80,7 @@ function plantTheatre(): THREE.Group {
   });
   const urn = solidLathe([[0.1, 0], [0.12, 0.04], [0.07, 0.1], [0.09, 0.16], [0.2, 0.3], [0.22, 0.34]], flat("stone"), 12);
   urn.position.y = THEATRE.tiers[2][1];
-  const top = rosette({ fronds: 13, length: 0.8, rise: 50, droop: 0.7, leaflet: 0.22, blade: 0.08, leaf: LEAVES.withered, wither: 0.6, seed: "theatre-crown" });
+  const top = rosette({ fronds: 7, length: 0.62, width: 0.15, rise: 55, droop: 0.9, leaf: LEAVES.withered, wither: 0.6, seed: "theatre-crown" });
   top.position.y = THEATRE.tiers[2][1] + 0.33;
   stand.add(urn, top);
   return stand;
@@ -90,7 +90,7 @@ function plantTheatre(): THREE.Group {
 function deadPalm(): THREE.Group {
   const glaze = shiny(flat("verdigrisDark"), SHINES.glazedChina);
   const { pot, soilTop } = flowerPot({ radius: 0.3, height: 0.5, material: glaze });
-  const tree = palm({ height: 1.55, fronds: 12, leaf: LEAVES.withered, wither: 0.9, seed: "corner-palm" });
+  const tree = palm({ height: 1.55, fronds: 7, leaf: LEAVES.withered, wither: 0.9, seed: "corner-palm" });
   tree.position.y = soilTop;
   return group(pot, tree);
 }
@@ -117,7 +117,7 @@ function pottingBench(): THREE.Group {
   for (let i = 0; i < 6; i++) {
     const x = -length / 2 + 0.22 + i * 0.43 + (rng.next() - 0.5) * 0.06;
     const z = (rng.next() - 0.5) * 0.12;
-    const plant = deadFern(`bench-${i}`, { radius: 0.075 + rng.next() * 0.03, height: 0.13 + rng.next() * 0.05, spread: 0.2 + rng.next() * 0.1 });
+    const plant = deadFern(`bench-${i}`, { radius: 0.075 + rng.next() * 0.03, height: 0.13 + rng.next() * 0.05, spread: 0.16 + rng.next() * 0.06, fronds: 5, droop: 1.2 });
     plant.position.set(x, height, z);
     result.add(plant);
   }
@@ -185,13 +185,12 @@ const LEAF_LEVELS = Array.from({ length: 8 }, (_, k) => 0.003 + k * 0.0015);
 function fallenLeaves(): THREE.Mesh {
   const rng = createRng(`${SEED}:leaves`);
   const leaves = batch();
-  const tints: PaletteKey[] = ["woodMid", "woodLight", "boneDark", "wood"];
+  const tints: PaletteKey[] = ["brass", "stoneDark", "wood"];
   const placed: { x: number; z: number; level: number }[] = [];
   const near: [x: number, z: number, spread: number, count: number][] = [
-    [THEATRE.at[0], THEATRE.at[1], 1.35, 70],
-    [-2.0, -1.9, 0.9, 30],
-    [2.0, -0.3, 1.1, 30],
-    [0, 0, 2.6, 40],
+    [THEATRE.at[0], THEATRE.at[1], 1.25, 22],
+    [-2.0, -1.9, 0.8, 10],
+    [2.0, -0.3, 1.0, 10],
   ];
   for (const [cx, cz, spread, count] of near) {
     for (let i = 0; i < count; i++) {
@@ -206,7 +205,7 @@ function fallenLeaves(): THREE.Mesh {
       if (level === -1) continue;
       placed.push({ x, z, level });
       const matrix = new THREE.Matrix4().compose(new THREE.Vector3(x, LEAF_LEVELS[level], z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rng.next() * Math.PI, 0)), new THREE.Vector3(1, 1, 1));
-      leaves.add([0.05 + rng.next() * 0.05, 0.005, 0.025 + rng.next() * 0.02], tints[Math.floor(rng.next() * tints.length)], matrix);
+      leaves.add([0.08 + rng.next() * 0.05, 0.005, 0.035 + rng.next() * 0.02], tints[Math.floor(rng.next() * tints.length)], matrix);
     }
   }
   return leaves.mesh();

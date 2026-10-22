@@ -86,9 +86,9 @@ const KIT_PIECES: { file: string; name: string; build: () => THREE.Object3D }[] 
   { file: "trunk.ts", name: "trunk", build: () => trunk() },
   { file: "trunk.ts", name: "trunk, open", build: () => trunk({ open: 1.1 }) },
   { file: "plants.ts", name: "flowerpot", build: () => flowerPot({ radius: 0.12, height: 0.2 }).pot },
-  { file: "plants.ts", name: "fern", build: () => rosette({ fronds: 9, length: 0.45, rise: 40, droop: 0.4, leaflet: 0.12, blade: 0.06, leaf: LEAVES.living, wither: 0, seed: "gallery-fern" }) },
-  { file: "plants.ts", name: "palm", build: () => palm({ height: 1.4, fronds: 10, leaf: LEAVES.living, wither: 0, seed: "gallery-palm" }) },
-  { file: "plants.ts", name: "palm, withered", build: () => palm({ height: 1.4, fronds: 10, leaf: LEAVES.withered, wither: 0.9, seed: "gallery-dead-palm" }) },
+  { file: "plants.ts", name: "fern", build: () => rosette({ fronds: 7, length: 0.45, width: 0.12, rise: 50, droop: 0.45, leaf: LEAVES.living, wither: 0, seed: "gallery-fern" }) },
+  { file: "plants.ts", name: "palm", build: () => palm({ height: 1.4, fronds: 7, leaf: LEAVES.living, wither: 0, seed: "gallery-palm" }) },
+  { file: "plants.ts", name: "palm, withered", build: () => palm({ height: 1.4, fronds: 7, leaf: LEAVES.withered, wither: 0.9, seed: "gallery-dead-palm" }) },
   {
     file: "vessel.ts",
     name: "vessel (a goblet)",
