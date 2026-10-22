@@ -1,6 +1,7 @@
 /*
  * Presets (SHINES): silver, brass, tarnishedBrass, gilt, pewter, copper, iron,
- * glass, glazedChina, wax, marble, honedMarble, polishedWood, lacquer, wetStone.
+ * steel, bluedSteel, glass, glazedChina, wax, marble, honedMarble,
+ * polishedWood, lacquer, wetStone.
  *
  * The rule: light makes shine; textures never paint it. A room has one set of
  * textures, with no painted glints, speckles, pale bevels or "reflection"
@@ -83,6 +84,10 @@ export const SHINES = {
   copper: { roughness: 0.45, metalness: 1 },
   /** Blackened or wrought iron. Its black coat, not bare metal, takes the light: a broad, pale sheen. */
   iron: { roughness: 0.55, metalness: 0 },
+  /** Bare, kept steel: a blade, an axe's bit. */
+  steel: { roughness: 0.3, metalness: 1 },
+  /** A gun's polished black finish: a coat over the steel, not bare metal, so a pale, fairly tight gleam. */
+  bluedSteel: { roughness: 0.34, metalness: 0, reflectance: 0.08 },
   /** Panes, bottles, a decanter: a faint, sharp glint. */
   glass: { roughness: 0.1, metalness: 0 },
   /** Glazed china and earthenware, tiles. */
@@ -214,28 +219,13 @@ const SHINE_VERTEX = /* glsl */ `
   vShineEye = ( toRoom * vec4( cameraPosition, 1.0 ) ).xyz;
 }`;
 
-const SHINE_PARS = /* glsl */ `
-uniform vec4 shineLampAt[ ${SHINE_LAMPS} ];
-uniform vec4 shineLampColour[ ${SHINE_LAMPS} ];
-uniform float shineLampChannel[ ${SHINE_LAMPS} ];
-uniform int shineLampCount;
-uniform vec3 shineMoon;
-uniform vec3 shineMoonColour;
+/** The highlight's own maths, for any lit surface that shines: the BRDF, and the shine's uniforms. */
+const SHINE_BRDF = /* glsl */ `
 uniform float shineRoughness;
 uniform float shineMetalness;
 uniform float shineReflectance;
-varying vec3 vShinePosition;
-varying vec3 vShineNormal;
-varying vec3 vShineEye;
 
 const vec3 SHINE_LUMA = vec3( 0.2126, 0.7152, 0.0722 );
-
-/** The bake's falloff for a point light (three's, decay 2). */
-float shineFalloff( float distance, float range ) {
-  float ratio = distance / range;
-  float cut = saturate( 1.0 - ratio * ratio * ratio * ratio );
-  return cut * cut / max( distance * distance, 0.01 );
-}
 
 /** GGX with Smith's height-correlated visibility and Schlick's Fresnel, times the cosine: three's own BRDF_GGX. */
 vec3 shineGGX( vec3 n, vec3 v, vec3 l, vec3 f0, float roughness ) {
@@ -261,7 +251,27 @@ vec3 shineAllRound( vec3 f0, float roughness, float nv ) {
 }
 
 vec3 shineSpecular = vec3( 0.0 );
-vec3 shineF0 = vec3( 0.04 );
+vec3 shineF0 = vec3( 0.04 );`;
+
+/** A room's lamps and moon, as its highlights read them, in the room's own frame. */
+const SHINE_PARS = /* glsl */ `
+${SHINE_BRDF}
+uniform vec4 shineLampAt[ ${SHINE_LAMPS} ];
+uniform vec4 shineLampColour[ ${SHINE_LAMPS} ];
+uniform float shineLampChannel[ ${SHINE_LAMPS} ];
+uniform int shineLampCount;
+uniform vec3 shineMoon;
+uniform vec3 shineMoonColour;
+varying vec3 vShinePosition;
+varying vec3 vShineNormal;
+varying vec3 vShineEye;
+
+/** The bake's falloff for a point light (three's, decay 2). */
+float shineFalloff( float distance, float range ) {
+  float ratio = distance / range;
+  float cut = saturate( 1.0 - ratio * ratio * ratio * ratio );
+  return cut * cut / max( distance * distance, 0.01 );
+}
 
 /** Each lamp's highlight, by signal (0–3 the flames, 4 water, 5 steady), with what the lamps of each would light unshadowed. */
 void shineLamps( vec3 n, vec3 v, vec4 flames, float water, out vec3 highlight[ 6 ], out float weighted[ 6 ], out float plain[ 6 ] ) {
@@ -329,10 +339,28 @@ void RE_Direct_Shine( const in IncidentLight directLight, const in vec3 geometry
 /** The way a lit material's anchors are patched. */
 type Inject = (source: string, anchor: string, replacement: string) => string;
 
-/** Uniforms one shiny material reads. */
-function shineUniforms(shader: THREE.WebGLProgramParametersWithUniforms, shine: Shine, lights: ShineLights) {
-  Object.assign(shader.uniforms, lights, { shineRoughness: { value: Math.max(shine.roughness, 0.045) }, shineMetalness: { value: shine.metalness }, shineReflectance: { value: shine.reflectance ?? REFLECTANCE } });
+/** The uniforms of the shine itself. */
+function ownUniforms(shader: THREE.WebGLProgramParametersWithUniforms, shine: Shine) {
+  Object.assign(shader.uniforms, { shineRoughness: { value: Math.max(shine.roughness, 0.045) }, shineMetalness: { value: shine.metalness }, shineReflectance: { value: shine.reflectance ?? REFLECTANCE } });
 }
+
+/** Uniforms one shiny room material reads: its shine's, and its room's lights. */
+function shineUniforms(shader: THREE.WebGLProgramParametersWithUniforms, shine: Shine, lights: ShineLights) {
+  Object.assign(shader.uniforms, lights);
+  ownUniforms(shader, shine);
+}
+
+/** A Lambert material's highlights from the live lights, its metal's colour taken by them and its diffuse light dimmed. */
+function patchLambert(shader: THREE.WebGLProgramParametersWithUniforms, pars: string, inject: Inject) {
+  shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_lambert_pars_fragment>", `#include <lights_lambert_pars_fragment>\n${pars}\n${SHINE_LIVE}`);
+  shader.fragmentShader = inject(
+    shader.fragmentShader,
+    "#include <lights_lambert_fragment>",
+    "shineF0 = mix( vec3( shineReflectance ), diffuseColor.rgb, shineMetalness );\n#include <lights_lambert_fragment>\nmaterial.diffuseColor *= 1.0 - shineMetalness;",
+  );
+}
+
+const ADD_SPECULAR = ["vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;", "vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance + shineSpecular;"] as const;
 
 function patchVertex(shader: THREE.WebGLProgramParametersWithUniforms, inject: Inject) {
   shader.vertexShader = inject(shader.vertexShader, "void main() {", `${SHINE_VERTEX_PARS}\nvoid main() {`);
@@ -347,14 +375,32 @@ function patchVertex(shader: THREE.WebGLProgramParametersWithUniforms, inject: I
 export function patchShine(shader: THREE.WebGLProgramParametersWithUniforms, shine: Shine, lights: ShineLights, inject: Inject): void {
   shineUniforms(shader, shine, lights);
   patchVertex(shader, inject);
-  shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_lambert_pars_fragment>", `#include <lights_lambert_pars_fragment>\n${SHINE_PARS}\n${SHINE_LIVE}`);
+  patchLambert(shader, SHINE_PARS, inject);
+  shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_fragment_end>", `${SHINE_BAKED}\n#include <lights_fragment_end>`);
+  shader.fragmentShader = inject(shader.fragmentShader, ...ADD_SPECULAR);
+}
+
+/**
+ * Patches a material lit by an ambient cube rather than a bake (a held prop,
+ * an object on its plate) with highlights: one from each live light three
+ * gives the shader (the explorer's light, a carried flame), and the probe's
+ * own, `probeHighlight`, which adds to `shineSpecular` from the light the
+ * probe holds, since a moving piece reads no lamps of its own. A metal's
+ * light from all round comes back as its even sheen, as a room's does. It
+ * runs after the probe's own patch, so the irradiance it reflects has the
+ * probe's light in it.
+ */
+export function patchProbeShine(shader: THREE.WebGLProgramParametersWithUniforms, shine: Shine, probeHighlight: string, inject: Inject): void {
+  ownUniforms(shader, shine);
+  patchLambert(shader, SHINE_BRDF, inject);
   shader.fragmentShader = inject(
     shader.fragmentShader,
-    "#include <lights_lambert_fragment>",
-    "shineF0 = mix( vec3( shineReflectance ), diffuseColor.rgb, shineMetalness );\n#include <lights_lambert_fragment>\nmaterial.diffuseColor *= 1.0 - shineMetalness;",
+    "#include <lights_fragment_end>",
+    `${probeHighlight}
+shineSpecular += shineAllRound( shineF0, shineRoughness, max( dot( normal, geometryViewDir ), 1e-3 ) ) * irradiance * RECIPROCAL_PI * shineMetalness;
+#include <lights_fragment_end>`,
   );
-  shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_fragment_end>", `${SHINE_BAKED}\n#include <lights_fragment_end>`);
-  shader.fragmentShader = inject(shader.fragmentShader, "vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;", "vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance + shineSpecular;");
+  shader.fragmentShader = inject(shader.fragmentShader, ...ADD_SPECULAR);
 }
 
 /**

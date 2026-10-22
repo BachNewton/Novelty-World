@@ -10,8 +10,8 @@ import { CLOTH_MODES, clothMode, type ClothMode } from "./explorers/cloth-sim";
 import { burstsOf, cueBurst, isGrounded } from "./explorers/figure";
 import { handsOf, holdIn, type Hands } from "./explorers/hands";
 import { explorerLineUp } from "./explorers/line-up";
-import { STAND_INS } from "./explorers/props";
 import { FIGURE_STATES, inMotion, type FigureState } from "./figure-motion";
+import { ITEM_IDS, ITEM_MODELS, type ItemId } from "./items";
 import { colourRing } from "./house";
 import { cameraDistance, DEFAULT_PITCH, FIELD_OF_VIEW } from "./house-camera";
 import { SPEED_VALUES } from "./house-walk";
@@ -99,8 +99,8 @@ export const CAMERA_LABELS: Record<CameraPreset | "free", string> = {
 export const SPEEDS = [1, 0.5, 0.25] as const;
 /** Every Speed value a track prints, lowest first: the line-up's choices. */
 const EVERY_SPEED = Array.from({ length: SPEED_VALUES.highest - SPEED_VALUES.lowest + 1 }, (_, i) => SPEED_VALUES.lowest + i);
-export type Holding = keyof typeof STAND_INS | "none";
-export const HOLDINGS: readonly Holding[] = ["none", "revolver", "candle", "spear"];
+export type Holding = ItemId | "none";
+export const HOLDINGS: readonly Holding[] = ["none", ...ITEM_IDS];
 
 /** One frame of the stage's clock, for stepping it by hand. */
 export const FRAME = 1 / 60;
@@ -583,7 +583,7 @@ export function createFigureViewer(search: string) {
       root = made.root;
       figure = made.figure;
       const hands = handsIn(figure);
-      if (hands && holding !== "none") holdIn(hands.right, STAND_INS[holding]());
+      if (hands && holding !== "none") holdIn(hands.right, ITEM_MODELS[holding].held());
       ring = isGrounded(figure) ? chosen.ring : null;
       if (ring !== null && snapshot.ring) figure.parent?.add(colourRing(ring));
     }

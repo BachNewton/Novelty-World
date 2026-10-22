@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import { CATALOG } from "../../data";
 import { PRESENCE } from "../../play/things";
 import { CUT_HEIGHT, INNER } from "../room";
-import { cardModel, connectionLook, effectLook, floorMark, pileModel, plate, tokenModel } from "./looks";
+import { CARD_MODELS, cardModel, connectionLook, effectLook, floorMark, pileModel, plate, tokenModel } from "./looks";
+
+/** The cards shown by their type's stand-in: a card with a model of its own is checked with the item models (`items/`). */
+const STAND_IN_CARDS = Object.values(CATALOG.cards).filter((card) => !(card.id in CARD_MODELS));
 
 const bounds = (object: THREE.Object3D) => {
   object.updateMatrixWorld(true);
@@ -12,7 +15,7 @@ const bounds = (object: THREE.Object3D) => {
 
 describe("the looks of things in rooms", () => {
   it("give every card and token kind something to show", () => {
-    for (const card of Object.values(CATALOG.cards)) expect(bounds(cardModel(card.id, card.type).floor()).isEmpty()).toBe(false);
+    for (const card of STAND_IN_CARDS) expect(bounds(cardModel(card.id, card.type).floor()).isEmpty()).toBe(false);
     for (const [token, presence] of Object.entries(PRESENCE)) {
       if (presence.kind === "figure" || presence.kind === "bonus") continue;
       const look = presence.kind === "effect" ? effectLook(token, "moon").object : presence.kind === "connection" ? (presence.on === "edge" ? connectionLook(token, "moon", { edge: "top", along: 0 }) : floorMark("moon")) : tokenModel().floor();
@@ -21,13 +24,14 @@ describe("the looks of things in rooms", () => {
     expect(bounds(pileModel()).isEmpty()).toBe(false);
   });
 
-  it("keep an object small enough to sit on its plate, and held smaller than on the floor", () => {
-    const { object } = plate("amber");
-    const plateSize = bounds(object).getSize(new THREE.Vector3());
-    const model = cardModel("revolver", "item");
-    const lying = bounds(model.floor()).getSize(new THREE.Vector3());
-    expect(Math.max(lying.x, lying.z)).toBeLessThanOrEqual(plateSize.x);
-    expect(bounds(model.held()).getSize(new THREE.Vector3()).x).toBeLessThan(lying.x);
+  it("keep a stand-in on its plate, standing on the floor", () => {
+    const plateSize = bounds(plate("amber").object).getSize(new THREE.Vector3());
+    for (const card of STAND_IN_CARDS) {
+      const lying = bounds(cardModel(card.id, card.type).floor());
+      const size = lying.getSize(new THREE.Vector3());
+      expect(Math.max(size.x, size.z), card.id).toBeLessThanOrEqual(plateSize.x);
+      expect(lying.min.y, card.id).toBeCloseTo(0, 3);
+    }
   });
 
   it("size a room effect to the tile, and keep a connection's mark on the wall's stub", () => {

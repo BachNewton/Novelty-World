@@ -10,7 +10,7 @@ Every card sorted by how it shows in the 3D house, and what that asks of the UI 
 
 | Category | Count | Cards |
 |---|---|---|
-| On the figure | 48 | the 33 items and 15 omens an explorer carries |
+| Carried | 48 | the 33 items and 15 omens an explorer carries: pips on the mark, shown on the figure only while used, worn, or lit (`presentation.md`, "What a figure holds") |
 | A companion | 4 | the Dog, the Cat, the Girl, the Madman |
 | On the body | 6 | Bite, Mask; Debris, Webs, Grave Dirt, Lights Out |
 | In the room | 12 | A Moment of Hope (the Blessing), Burial Mound, Closet Door, Drip, Flytrap, Locked Safe, Mystic Slide, Revolving Wall, Secret Passage, Secret Stairs, Skeletons, Smoke |
@@ -26,13 +26,13 @@ Every card sorted by how it shows in the 3D house, and what that asks of the UI 
 - **Misleading if shown literally:** The Left Hand (no lasting hand state), Bite (the attacker is unseen), the Box (the boxed item can't be used) and the Blood Dagger (bound to the hand, but it can be stolen). The two Image in the Mirror cards need distinct moments.
 - **House-wide moments** (Hideous Shriek, Lightning Strikes, Shrieking Wind, The Beckoning, Mists, Silence): the camera covers several rooms, and whether a window faces outside must be visible.
 - **Sound-only events** (Disquieting Sounds, Phone Call, The Voice) are audio with a caption.
-- **Small charms** are unreadable at miniature scale: a shared tinted "belt charm" form, identified on tap.
+- **Small charms** are unreadable on a miniature, but the figure is not the inventory, so they need no shared form: each is its own model, read on its plate when dropped, and shown in the hand only in its own beat (a reroll, the Ring's attack), built about three times life-size.
 - **Baked light needs a dynamic layer** for the Candle (a light that moves), the Blessing, Smoke, Lights Out, the Music Box and every moment; What The...? moves a lit room.
 - **Widow's Walk, deferred:** What Year Is It?! reads story text aloud, which `content/` leaves out (write original text, or show the other side's goal summary instead), and the Chainsaw's "if you make chainsaw noises" needs a ruling.
 
 ## What the art needs
 
-- **Carried props:** 48, of which about 20 must read at miniature scale: the weapons (Axe, Blood Dagger, Sacrificial Dagger, Revolver, Boomstick, Chainsaw, Spear), the Candle, Bell, Book, Crystal Ball, Music Box, Dynamite, Armor, Ceremonial Robe, Mask, Puzzle Box, Teapot, Camcorder and Rope. One weapon in hand at a time.
+- **Carried props:** 48, each one model shown in a hand and on its plate (`art/items/`), of which about 20 must read at miniature scale: the weapons (Axe, Blood Dagger, Sacrificial Dagger, Revolver, Boomstick, Chainsaw, Spear), the Candle, Bell, Book, Crystal Ball, Music Box, Dynamite, Armor, Ceremonial Robe, Mask, Puzzle Box, Teapot, Camcorder and Rope. One weapon in hand at a time, and only while it is used, or after the haunt the last one used.
 - **Companions:** 4. The Dog must never look like a monster.
 - **Room tokens:** 12, plus the Lock and the Plant.
 - **Body states:** 6.

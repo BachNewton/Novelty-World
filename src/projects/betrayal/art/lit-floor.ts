@@ -10,7 +10,7 @@ import { batchParts, type PartBatch } from "./part-batch";
 import { disposeTree, EDGES } from "./stage";
 import { pageSearch } from "./page-search";
 import { paletteHex, type PaletteKey } from "./palette";
-import { patchGlassShine, patchShine, setShineLights, shineLights, type ShineLights } from "./shine";
+import { patchGlassShine, patchProbeShine, patchShine, setShineLights, shineLights, shineOf, type ShineLights } from "./shine";
 
 /*
  * A floor of frozen rooms, drawn with their baked light: the house has one
@@ -184,6 +184,23 @@ const BACKLIGHT_FRAGMENT = /* glsl */ `
   }
 }`;
 
+/**
+ * A shiny piece lit by the probe (a blade in a hand, a revolver on its plate)
+ * takes a highlight from the probe's own light: the probe says which way its
+ * light mostly comes from, and its surplus that way over the far side lights
+ * the highlight as a lamp standing that way would (see `patchProbeShine`).
+ */
+const PROBE_SHINE = /* glsl */ `
+{
+  vec3 way = vec3( dot( probeCube[ 0 ] - probeCube[ 1 ], SHINE_LUMA ), dot( probeCube[ 2 ] - probeCube[ 3 ], SHINE_LUMA ), dot( probeCube[ 4 ] - probeCube[ 5 ], SHINE_LUMA ) );
+  float spread = length( way );
+  if ( spread > 1e-4 ) {
+    vec3 towards = way / spread;
+    vec3 surplus = max( probeLight( towards ) - probeLight( -towards ), vec3( 0.0 ) );
+    shineSpecular += shineGGX( normal, geometryViewDir, normalize( ( viewMatrix * vec4( towards, 0.0 ) ).xyz ), shineF0, shineRoughness ) * surplus;
+  }
+}`;
+
 /** Whether figures take the backlight: on unless `?backlight=off`, for comparison. */
 function backlightOn(): boolean {
   const value = new URLSearchParams(pageSearch()).get("backlight") ?? "rim";
@@ -209,8 +226,8 @@ function lightmapTexture(data: Uint16Array | Uint8Array, width: number, height: 
   return texture;
 }
 
-/** Lights a moving piece's lit materials by an ambient cube instead of the baked lights it can't read.
- *  A figure (unlike a swaying chandelier) also takes the backlight. */
+/** Lights a moving piece's lit materials by an ambient cube instead of the baked lights it can't read,
+ *  its shiny ones taking highlights from it (`PROBE_SHINE`). A figure (unlike a swaying chandelier) also takes the backlight. */
 export function patchProbe(object: THREE.Object3D, figure = true): ProbeUniform {
   const uniform: ProbeUniform = { value: Array.from({ length: 6 }, () => new THREE.Vector3()) };
   const backlight = figure && backlightOn();
@@ -218,14 +235,16 @@ export function patchProbe(object: THREE.Object3D, figure = true): ProbeUniform 
     if (!(child instanceof THREE.Mesh)) return;
     for (const material of [child.material].flat() as THREE.Material[]) {
       if (!(material instanceof THREE.MeshLambertMaterial)) continue;
+      const shine = shineOf(material);
       material.onBeforeCompile = (shader) => {
         shader.uniforms.probeCube = uniform;
         shader.fragmentShader = inject(shader.fragmentShader, "void main() {", `${PROBE_LIGHT}
 void main() {`);
         shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_fragment_maps>", `#include <lights_fragment_maps>
 ${PROBE_FRAGMENT}${backlight ? BACKLIGHT_FRAGMENT : ""}`);
+        if (shine) patchProbeShine(shader, shine, PROBE_SHINE, inject);
       };
-      material.customProgramCacheKey = () => (backlight ? "betrayal-probe-backlight" : "betrayal-probe");
+      material.customProgramCacheKey = () => `betrayal-probe${backlight ? "-backlight" : ""}${shine ? "-shine" : ""}`;
     }
   });
   return uniform;

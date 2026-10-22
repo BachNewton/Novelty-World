@@ -64,7 +64,7 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "explorer-run", name: "Every explorer running on the spot", build: (seed) => explorerLineUp(seed, "run") },
   { id: "explorer-walk-side", name: "Every explorer walking on the spot, side on", build: (seed) => explorerLineUp(seed, "walk", undefined, { sideOn: true }) },
   { id: "explorer-run-side", name: "Every explorer running on the spot, side on", build: (seed) => explorerLineUp(seed, "run", undefined, { sideOn: true }) },
-  // Stand-in props in the right hand, until items have art: one for all, or one each (spear, revolver, candle).
+  // Items in the right hand: one for all, or one each (spear, revolver, candle). The item bench (`?bench=items`) shows every item.
   { id: "explorer-revolver", name: "Every explorer holding a revolver", build: (seed) => explorerLineUp(seed, undefined, "revolver") },
   { id: "explorer-candle", name: "Every explorer holding a candle", build: (seed) => explorerLineUp(seed, undefined, "candle") },
   { id: "explorer-spear", name: "Every explorer holding a spear", build: (seed) => explorerLineUp(seed, undefined, "spear") },

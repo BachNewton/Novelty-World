@@ -58,9 +58,10 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   `handParts`, `Arm`, `Hand`), hand poses (`RELAXED`, `OPEN`, `fist`,
   `holding`), arm poses (`reachWrist`, `gripAt`, `pointHand`, `between`,
   `poseArm`), and the held-prop interface (`Prop`, `holdIn`, `handsOf`,
-  `aimGrip`). `explorers/props.ts`: the stand-in props (revolver, candle,
-  spear) until items get art, `burning` for a prop with a flame and its
-  live light, and `carrying` for a figure built holding one.
+  `aimGrip`). The things a hand holds are the item and omen models in
+  `items/`, one file per card (see "Item models"), with `burning` for one
+  with a flame and its live light, and `carrying` for a figure built
+  holding one.
 - `explorers/cloth.ts`: the shared heavy-cloth helper every cloth that
   follows the legs goes through, with `cloth.slow.test.ts`, its smoothness test.
   `explorers/cloth-sim.ts`: the net simulation the figures wear by default
@@ -445,7 +446,7 @@ gait, and declares a step and hop that pace it.
 
 **Held things are oversized, as a tabletop miniature's are.** At the house's
 distance a real-sized revolver is a peashooter. Build a held prop about one
-and a half to two times its real size (`OVERSIZE` in `props.ts`), a weapon
+and a half to two times its real size (`OVERSIZE` in `items/item.ts`), a weapon
 most of all, so it reads at a glance and looks like the threat it is: give
 it its whole silhouette (a revolver's long barrel, cylinder, grip, hammer
 and trigger guard; a spear's broad head). The handle grows with it, and the
@@ -464,6 +465,131 @@ Each one is a live light in the scene, and a new light count recompiles
 every lit material at once and freezes the frame, so **anything that
 carries a light goes through `shader-prep.ts`** before it joins the scene:
 its shaders, and every lit material's for the new count, are readied first.
+
+## Item models
+
+Every item and omen card a hand can hold or a body wear gets one model,
+built once and shown in two places: **in a hand**, and **on its plate** when
+it lies on the floor. Base game cards only; Widow's Walk waits.
+
+**What a figure shows.** The base game has no "equipped" state, so the
+figure is not the inventory: the mark's pips, Details and Your explorer's
+sheet are. The figure shows an item in hand only during the beat it is used
+(an Axe attack, ringing the Bell, reading the Book, throwing Dynamite), then
+puts it away; worn things on the body always (Armor, the Mask); the Candle
+always, lit, since it carries a live light; and after the haunt the last
+weapon used stays in hand, a display-only choice that is never game state.
+Everything else is a pip. Which beat shows what is the presenter's (`play/`),
+not the model's: a model only has to read in both its places.
+
+**The folder.** `art/items/`: one file per card, named for the card's id as
+the engine names it (`data/cards.ts`: `blood-dagger.ts` for
+`blood-dagger`), exporting its `ItemModel`, and one line in
+`items/index.ts`'s `ITEM_MODELS`. That line is all the wiring: the figure
+workers mesh every model's parts (`ITEM_PARTS`), the floor shows it on its
+plate (`things/looks.ts` reads `ITEM_MODELS`), and the item bench, the
+figure viewer's Holding list, the line-ups and the clipping check all take
+it from the registry. `items/item.ts` is the toolkit; read it, and read
+`revolver.ts`, `axe.ts` and `spear.ts` first: one hangs and two are
+upright, with both ways a flat blade can face.
+
+**A model's file**, top to bottom:
+
+1. A comment: the card (item or omen, its label), what the thing is, and its
+   one-second read: the silhouette, the colour, and what tells it from the
+   card nearest it (the Blood Dagger's wavy red blade and horns against the
+   Sacrificial Dagger's pale crescent, bone and gold).
+2. The constants, in metres at the held size, along the handle from the grip.
+3. Each part's geometry, one function per material: **a material is a mesh
+   of its own**, so metal that shines is never merged with the wood that
+   doesn't. Sculpt as figures are (`sculpt`, `loft`); `blade` (in `item.ts`)
+   is a flat blade from an outline, bevelled to its edge with a ridge down
+   its middle, and `bowed` draws a curved run of outline.
+4. `figureParts("item:<card-id>", ...)`, meshed once a session.
+5. The builder: `piece(geometry, name, shine)` per part (`SHINES.steel` for
+   bare blades and nickel, `iron` for black iron, `gilt`, `brass`, `wax`,
+   `glass`; wood, leather, bone and cloth take none: light makes shine,
+   paint never does), joined with `assembled(name, parts, seams)`, which
+   declares where the model's own parts pass into each other (a haft into
+   its head, a blade into its guard) as joints the clipping check allows.
+6. `itemModel({ card, parts, held, plate })`.
+
+**Held.** A model is built round its grip, as `Prop` says: its handle's
+axis along +y through the origin, +z along the hand towards the fingertips,
++x across the palm, towards the body in a right hand. Items are held in the
+right hand. Its `handle` is the radius the hand closes round; its `carry`
+is `"hang"` (at the side, swinging with the arm: the revolver, its barrel
+along +z, muzzle down; a dagger, its blade out past the thumb along +y) or
+`"upright"` (held up, its axis kept upright: the spear, the axe, the
+candle). Which way a flat thing faces is a choice: built thin through x (a
+blade in the hand's plane) it shows its broad face to the side; built thin
+through z (`blade(..., { flat: "z" })`) it shows it to the front, as the
+spear's head does, and the axe's bit, which reaches out away from the body
+(−x). Oversize it (`OVERSIZE`, `o()`), a weapon most of all; a thing
+already long (the spear) keeps its length and thickens instead.
+
+**On the plate.** The floor's model is the same model posed by its
+`plate`: `ON_ITS_SIDE` for a model thin through x, `FACE_UP` for one thin
+through z, or a turn of its own. `onPlate` then sizes it to fill the plate
+inside its rim, whatever its real size (a ring as much as a spear: the plate
+is how a thing on the floor reads), and rests it on the plate, which lies
+above the floor on the marks' plane and hides whatever lies under it. A
+model whose floor pose differs gives its own `floor` (the Candle stands
+unlit: a flame that looks lit always lights something).
+
+**Worn items** (Armor, the Mask, the Ceremonial Robe) are decided, not yet
+built. A worn model is not a `Prop`: its `ItemModel` gives `worn` in place
+of `held`, naming a **slot** (`"chest"`, `"face"`) and a builder taking that
+slot's **fit**. Each figure declares its slots as it declares its walk
+(`wears(figure, { chest: { anchor, fit }, face: ... })`): an anchor group
+on the part the thing rides (the chest for Armor, the head for the Mask),
+and the fit measured off that part (its half-width, depth and height
+there). The model is sculpted once at a reference fit and stretched to each
+figure's, never sculpted per figure; it stands proud of the body by more
+than the overlap check's millimetre, a part of its own, as anything lying on
+another part is. The first worn item adds `worn` to `ItemModel` and `wears`
+to `figure.ts`; the bench then shows it on its wearer, and on its plate as
+any model.
+
+**Small charms** (the Ring, the Lucky Stone, the Rabbit's Foot, the Holy
+Symbol, the Locket) get **no shared charm form**: that was a belt charm for
+when the figure was the inventory, and it no longer is. Each is its own
+model, as any item is. On the floor the plate's fit makes any charm read;
+on the figure it shows only in its own beat (a reroll, the Ring's attack),
+held up in the hand, built at about three times life-size. Make it pale or
+bright metal, so it catches the light: a small dark thing vanishes.
+
+**The item bench** (`?bench=items`, `item-bench.ts`): every registered
+model in a grid, each held by an explorer (Longfellow by default,
+`&explorer=<character-id>`) and lying on its plate beside them, named on
+the floor, lit as the house lights a figure (the probe a room's bake gives
+its prime place: the Foyer by default, `&room=chapel` dim; the house's fill;
+`&active` the light over the explorer in play), on a frozen clock (`&t=`).
+`&items=axe,spear` shows only those; `&focus=<card-id>` with
+`&camera=close|hand|plate|near|house` frames one alone: held and on its
+plate, the hand close, the plate close, the house's camera zoomed in (3),
+and the house's whole floor. `window.__betrayalItems` drives it.
+
+**Screenshot your items** with
+`node src/projects/betrayal/tools/item-shots.mjs <label> --items=<id>,<id>`
+(`--room=chapel`, `--active`, `--explorer=`, `--query=shine=off` to compare
+the highlights; `BETRAYAL_URL` for your own dev server's port): it writes
+`.shots/<label>/items/`, each item's close, hand, plate, house and phone
+shots, `all.png`, and `items.png`, a row an item. Judge in this order: does
+it read at the house's zoom and on the phone, by silhouette and colour, and
+apart from its neighbours (`all.png`); is it held right (the fist round the
+handle, the right end out, nothing through the body or the base); does it
+lie right on its plate; then the detail, in the hand and plate close-ups.
+Shoot the lit room and the dim one, and once with `--active` for the
+highlights.
+
+**Checks**: `items/items.test.ts` (the registry: card ids, part ids) always
+runs; `items/items.slow.test.ts` meshes every model (it holds by a handle,
+every part a solid, and lies within its plate's rim), in `npm run
+test:slow`; and the clipping check holds every model in every explorer's
+hand, standing, walking and running (`BETRAYAL_ART_CHECKS=1`, "Build it").
+A model that passes through a hand, a leg or the base is fixed in its shape,
+size or carry, never by a joint's reach.
 
 ## Monsters and other figures
 
@@ -553,7 +679,7 @@ two parts whose surfaces cross (each partly inside the other) by more than
 never shows and is no finding. It samples each explorer through 90 s of
 idle (every gesture comes round several times), walking and running on the
 spot at the house's pace over several strides off the beat, and again
-holding each stand-in prop; each monster idle, stunned and moving. It only
+holding each item model; each monster idle, stunned and moving. It only
 ever compares one part with another, never the pieces merged into one
 mesh: keep anything that lies on a part a part of its own (see "Sculpting
 the forms"). It
@@ -618,7 +744,7 @@ call on it, so never tune a figure to depend on it.
   `explorer-walk` or `explorer-run` (on the spot at the house's own pace,
   each figure with its own step and hop; `explorer-walk-side` and
   `explorer-run-side` turn them side on), `explorer-revolver`,
-  `explorer-candle` and `explorer-spear` (each holding that stand-in),
+  `explorer-candle` and `explorer-spear` (each holding that item),
   `explorer-armed-walk` and `explorer-armed-run` (a prop each), or
   `monster-line-up` (every figure), and
   `--explorer-zoom=0.6` (0.35 for every figure) to frame the row. Read
