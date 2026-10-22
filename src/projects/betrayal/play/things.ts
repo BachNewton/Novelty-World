@@ -1,10 +1,11 @@
 import { placeFigures, type RoomFloors } from "../art/placement";
+import { markSpot, takenBy, type EdgeSpot, type TakenStretch } from "../art/things/mark-spot";
 import { FLOOR_RINGS } from "../art/room";
 import { TOKENS } from "../data/tokens";
 import { isExplorerToken } from "../engine/describe";
 import type { Engine } from "../engine/step-loop";
 import type { GameView } from "../engine/view";
-import type { Edge, Place, RoomTile } from "../types";
+import type { Edge, Place } from "../types";
 import { cardMood, type Mood } from "./cards";
 import type { Spot, Spots } from "./spots";
 
@@ -261,48 +262,14 @@ export function nextClusters(before: Clusters, things: readonly RoomThing[], spo
   return next;
 }
 
-/** The rooms things lie in: their floors must be read before the things are placed on them. */
-export function lyingRooms(things: readonly RoomThing[]): string[] {
-  return [...new Set(things.filter((thing) => thing.lies).map((thing) => thing.room))];
+/** The rooms whose floors must be read before their things show: where objects lie, and where a connection is marked on a wall. */
+export function thingRooms(things: readonly RoomThing[]): string[] {
+  return [...new Set(things.filter((thing) => thing.kind !== "effect").map((thing) => thing.room))];
 }
 
 // ---- Where each thing shows ----
 
-/** Where a mark on a tile's edge goes, in the room's own frame: the edge (as printed) and how far along it from its middle, positive to the right facing the wall. */
-export interface EdgeSpot {
-  edge: Edge;
-  along: number;
-}
-
-/** How far a mark on a wall keeps from the middle of a doorway or a window on it, in metres. */
-const BESIDE_OPENING = 1.8;
-/** How far into a corner a mark on two walls goes, from the middle of its first wall. */
-const INTO_CORNER = 2.2;
-const ALONG_AXIS: Record<Edge, readonly [x: number, z: number]> = { top: [1, 0], right: [0, 1], bottom: [-1, 0], left: [0, -1] };
-const TOWARD_EDGE: Record<Edge, readonly [x: number, z: number]> = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
-const PRINTED: readonly Edge[] = ["top", "right", "bottom", "left"];
-
-/** Where a connection's mark goes on its room's walls: on the edge the game
- *  puts it (in a corner, along the first edge towards the second), or else
- *  on the first plain wall, beside a window, or beside a doorway when every
- *  wall has one. */
-export function edgeSpot(tile: Pick<RoomTile, "doors" | "passages" | "windows">, wall: readonly Edge[] | null): EdgeSpot {
-  if (wall !== null && wall.length > 0) return wallSpot(wall);
-  const open = (edge: Edge) => tile.doors.includes(edge) || tile.passages.includes(edge);
-  const plain = PRINTED.find((edge) => !open(edge));
-  if (plain !== undefined) return { edge: plain, along: tile.windows.includes(plain) ? -BESIDE_OPENING : 0 };
-  return { edge: "top", along: -BESIDE_OPENING };
-}
-
-/** Where a mark the game puts on a wall goes: in the middle of a wall, or in
- *  a corner, along its first edge towards the second. */
-export function wallSpot(wall: readonly Edge[]): EdgeSpot {
-  const [edge, corner] = wall;
-  if (wall.length === 1) return { edge, along: 0 };
-  const [ax, az] = ALONG_AXIS[edge];
-  const [tx, tz] = TOWARD_EDGE[corner];
-  return { edge, along: Math.sign(ax * tx + az * tz) * INTO_CORNER };
-}
+export type { EdgeSpot };
 
 export type ThingPlace =
   /** On the floor, in the room's own frame: an object, a pile of the rest, or a connection marked on the floor. */
@@ -327,8 +294,16 @@ export interface ShownThing {
   place: ThingPlace;
 }
 
-/** Every thing in the house as it shows: objects and floor marks in their clusters, room effects over their tiles, connections on their walls. */
-export function shownThings(engine: Engine, things: readonly RoomThing[], clusters: Clusters): ShownThing[] {
+/** Where a connection's mark goes on its room's walls (`markSpot`), clear of the stretches the room's other marks take. */
+export function connectionSpot(engine: Engine, floors: RoomFloors, thing: Pick<RoomThing, "room" | "side" | "token" | "wall">, taken: readonly TakenStretch[]): EdgeSpot {
+  return markSpot(floors(thing.room, thing.side), engine.catalog.rooms[thing.room], thing.token, thing.wall, taken);
+}
+
+/** Every thing in the house as it shows: objects and floor marks in their
+ *  clusters, room effects over their tiles, connections on their walls, each
+ *  room's in turn clear of those before it. Their rooms' floors are read
+ *  first (`thingRooms`). */
+export function shownThings(engine: Engine, things: readonly RoomThing[], clusters: Clusters, floors: RoomFloors): ShownThing[] {
   const byId = new Map(things.map((thing) => [thing.id, thing]));
   const lying = Object.values(clusters).flatMap((cluster) =>
     shownObjects(cluster).map((object): ShownThing => {
@@ -338,10 +313,14 @@ export function shownThings(engine: Engine, things: readonly RoomThing[], cluste
       return { id: object.id, kind: "object", room: cluster.room, name: `${object.things.length} more`, mood: thing.mood, card: null, token: null, things: object.things, place: { kind: "floor", at: object.at } };
     }),
   );
+  const taken = new Map<string, TakenStretch[]>();
   const standing = things.flatMap((thing): ShownThing[] => {
     if (thing.lies) return [];
     if (thing.kind === "effect") return [{ ...shown(thing), things: [thing.id], place: { kind: "tile" } }];
-    return [{ ...shown(thing), things: [thing.id], place: { kind: "edge", spot: edgeSpot(engine.catalog.rooms[thing.room], thing.wall) } }];
+    const before = taken.get(thing.room) ?? [];
+    const spot = connectionSpot(engine, floors, thing, before);
+    taken.set(thing.room, [...before, takenBy(spot, thing.token)]);
+    return [{ ...shown(thing), things: [thing.id], place: { kind: "edge", spot } }];
   });
   return [...lying, ...standing];
 }

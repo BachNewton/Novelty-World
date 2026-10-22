@@ -53,8 +53,14 @@ const SPOT_CLEAR = 0.45;
  *  trodden flat), it is stepped over; higher, walked under. */
 const STEP = 0.07;
 const HEAD = 1.8;
+/** Anything solid lower than this stands in the way of a connection's mark:
+ *  its art at a wall's foot and its icon on the floor, which must show from
+ *  above, so a table over one hides it as surely as a chest beside it. */
+export const MARK_TOP = 1.0;
 /** The floor plan's grid, in metres. */
 const CELL = 0.05;
+/** How far a solid must reach into a cell to take it from a mark: a wall's face only touches the cells along it. */
+const TOUCH = 0.001;
 
 /** What a solid or face belongs to: a prop, part of the shell, or a keep-clear zone. */
 interface Owner {
@@ -466,6 +472,43 @@ function insideHull(hull: [number, number][], x: number, z: number): boolean {
   return true;
 }
 
+/** Whether a convex hull (anticlockwise, as `hull2d`) and the square cell
+ *  round (x, z) of half-side `half` meet: no edge of the hull has every corner
+ *  of the cell outside it. The caller has the cell within the hull's bounds. */
+function hullMeetsCell(hull: [number, number][], x: number, z: number, half: number): boolean {
+  if (hull.length < 3) return hull.some(([px, pz]) => Math.abs(px - x) <= half && Math.abs(pz - z) <= half);
+  const corners = [
+    [x - half, z - half],
+    [x + half, z - half],
+    [x + half, z + half],
+    [x - half, z + half],
+  ];
+  for (let i = 0; i < hull.length; i++) {
+    const [ax, az] = hull[i];
+    const [bx, bz] = hull[(i + 1) % hull.length];
+    if (corners.every(([cx, cz]) => (bx - ax) * (cz - az) - (bz - az) * (cx - ax) < 0)) return false;
+  }
+  return true;
+}
+
+/** How far each cell's centre is from the nearest blocked cell's edge, in metres (0 for a blocked cell): an exact distance transform. */
+function clearanceOf(blocked: Uint8Array, size: number): Float64Array {
+  const far = size * size * 4;
+  const columns = new Float64Array(size * size);
+  const line = new Float64Array(size);
+  for (let i = 0; i < size; i++) {
+    for (let j = 0; j < size; j++) line[j] = blocked[j * size + i] ? 0 : far;
+    const d = distance1d(line);
+    for (let j = 0; j < size; j++) columns[j * size + i] = d[j];
+  }
+  const clearance = new Float64Array(size * size);
+  for (let j = 0; j < size; j++) {
+    const d = distance1d(columns.slice(j * size, (j + 1) * size));
+    for (let i = 0; i < size; i++) clearance[j * size + i] = Math.max(0, Math.sqrt(d[i]) * CELL - CELL / 2);
+  }
+  return clearance;
+}
+
 /** Squared distance to the nearest zero of `f` along a line, in cells (Felzenszwalb and Huttenlocher). */
 function distance1d(f: Float64Array): Float64Array {
   const n = f.length;
@@ -499,6 +542,10 @@ export interface FloorPlan {
   /** Cells per side; cell `j * size + i` is column i (along x) of row j (along z). */
   size: number;
   blocked: Uint8Array;
+  /** How far each cell's centre is from where a connection's mark can't go,
+   *  in metres (0 there): into a wall, over a hole in the floor, or under
+   *  anything solid from a step up to `MARK_TOP`. */
+  markClearance: Float64Array;
   /** How far each cell's centre is from anything blocked, in metres. */
   clearance: Float64Array;
   /** The cells a figure's base reaches, walking in from the doorways. */
@@ -540,30 +587,28 @@ function floorPlan(def: RoomDefinition, solids: Part[]): FloorPlan {
     const inWall = Math.abs(x) > INNER || Math.abs(z) > INNER;
     if ((inWall && !throughWall(x, z)) || (def.floorOpenings ?? []).some((opening) => insideOpening(opening, x, z))) blocked[cell] = 1;
   }
+  const low = new Uint8Array(size * size);
+  for (let cell = 0; cell < low.length; cell++) {
+    const [x, z] = centre(cell);
+    if (Math.abs(x) > INNER || Math.abs(z) > INNER || (def.floorOpenings ?? []).some((opening) => insideOpening(opening, x, z))) low[cell] = 1;
+  }
   for (const part of solids) {
-    if (part.box.max.y <= STEP || part.box.min.y >= HEAD) continue;
+    const walkedInto = part.box.max.y > STEP && part.box.min.y < HEAD;
+    const overMark = part.box.max.y > STEP && part.box.min.y < MARK_TOP;
+    if (!walkedInto && !overMark) continue;
     const footprint = hull2d(part.points.map((point): [number, number] => [point.x, point.z]));
     for (let j = index(part.box.min.z); j <= index(part.box.max.z); j++) {
       for (let i = index(part.box.min.x); i <= index(part.box.max.x); i++) {
         const cell = j * size + i;
-        if (!blocked[cell] && insideHull(footprint, ...centre(cell))) blocked[cell] = 1;
+        if (walkedInto && !blocked[cell] && insideHull(footprint, ...centre(cell))) blocked[cell] = 1;
+        // A mark is read off any cell a solid reaches into, so a thin one (a rope, a frond) can't slip between the cells' middles.
+        if (overMark && !low[cell] && hullMeetsCell(footprint, ...centre(cell), CELL / 2 - TOUCH)) low[cell] = 1;
       }
     }
   }
 
-  const far = size * size * 4;
-  const columns = new Float64Array(size * size);
-  const line = new Float64Array(size);
-  for (let i = 0; i < size; i++) {
-    for (let j = 0; j < size; j++) line[j] = blocked[j * size + i] ? 0 : far;
-    const d = distance1d(line);
-    for (let j = 0; j < size; j++) columns[j * size + i] = d[j];
-  }
-  const clearance = new Float64Array(size * size);
-  for (let j = 0; j < size; j++) {
-    const d = distance1d(columns.slice(j * size, (j + 1) * size));
-    for (let i = 0; i < size; i++) clearance[j * size + i] = Math.max(0, Math.sqrt(d[i]) * CELL - CELL / 2);
-  }
+  const clearance = clearanceOf(blocked, size);
+  const markClearance = clearanceOf(low, size);
 
   const reached = new Uint8Array(size * size);
   const queue: number[] = [];
@@ -587,7 +632,7 @@ function floorPlan(def: RoomDefinition, solids: Part[]): FloorPlan {
       queue.push(next);
     }
   }
-  return { size, blocked, clearance, reached, cellAt, centre };
+  return { size, blocked, clearance, markClearance, reached, cellAt, centre };
 }
 
 /** The room's prime places, named. */
@@ -856,6 +901,61 @@ export function checkFloor(def: RoomDefinition, at = 2): FloorReport {
   const report = floorReport(def, parts.filter((part) => part.solid && showing(part.mesh)));
   room.dispose();
   return report;
+}
+
+/** A piece put in a room after it is built, passing into the room: what, into what, and how far, in metres. */
+export interface Intrusion {
+  piece: string;
+  into: string;
+  depth: number;
+}
+
+/**
+ * Builds a room as the bench shows it, reads its floor plan, and has `place`
+ * put pieces in it off that plan (a connection's marks, placed as the house
+ * places them); then finds where any of them passes into the room: into a
+ * prop, or into the shell, cut (its stubs) or standing (its dressing and
+ * railings; a standing wall's body hides what is meant to lie inside it).
+ * The floor, anything lying flat on it, light and flat sheets pass into
+ * nothing, as in the floor plan.
+ */
+export function intrusions(def: RoomDefinition, place: (plan: FloorPlan) => { name: string; object: THREE.Object3D }[], at = 2): Intrusion[] {
+  const room = standingRoom(def, at);
+  const parts: Part[] = [];
+  room.root.traverse((object) => {
+    if (object instanceof THREE.Mesh && !(object.userData as { bakeOnly?: boolean }).bakeOnly && !isFlame(object)) readMesh(object, ownerOf(object), parts, null);
+  });
+  const standing = parts.filter((part) => part.solid && showing(part.mesh));
+  const plan = floorPlan(
+    def,
+    standing.filter((part) => part.owner.kind === "prop" || (part.body && part.owner.name !== "floor")),
+  );
+  const raised = (part: Part) => part.owner.kind === "prop" || !part.body;
+  room.cutWalls(() => true);
+  const cut = parts.filter((part) => part.solid && showing(part.mesh) && part.owner.kind === "shell");
+  const room3d = [...new Set([...standing.filter(raised), ...cut])].filter((part) => part.owner.name !== "floor" && part.box.max.y > STEP);
+  const found: Intrusion[] = [];
+  for (const { name, object } of place(plan)) {
+    object.updateMatrixWorld(true);
+    const pieces: Part[] = [];
+    object.traverse((mesh) => {
+      // Light writes no depth, so it is never solid: it isn't worth reading.
+      if (mesh instanceof THREE.Mesh && [mesh.material].flat().every((material: THREE.Material) => material.depthWrite)) readMesh(mesh, { name, label: name, kind: "zone" }, pieces, null);
+    });
+    const worst = new Map<string, number>();
+    for (const a of pieces.filter((piece) => piece.solid)) {
+      for (const b of room3d) {
+        const limit = passLimit(a, b);
+        if (!boxesOverlapBy(a.box, b.box, limit)) continue;
+        const amount = depth(a, b, limit);
+        if (amount > limit) worst.set(b.owner.label, Math.max(worst.get(b.owner.label) ?? 0, amount));
+      }
+    }
+    for (const [into, amount] of worst) found.push({ piece: name, into, depth: amount });
+    disposeTree(object);
+  }
+  room.dispose();
+  return found;
 }
 
 /** Builds a room, as the bench shows it, and finds its overlaps. */

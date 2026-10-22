@@ -9,7 +9,7 @@ import { checkFloor } from "./overlap";
  */
 
 /** What `room-floor.ts` hears back: one room's floor plan, or why it couldn't be read. */
-export type FloorReply = { room: string; blocked: Uint8Array; clearance: Float64Array; reached: Uint8Array } | { room: string; error: string };
+export type FloorReply = { room: string; blocked: Uint8Array; markClearance: Float64Array; clearance: Float64Array; reached: Uint8Array } | { room: string; error: string };
 
 stubCanvas();
 
@@ -20,8 +20,8 @@ const scope = self as unknown as {
 
 scope.onmessage = ({ data: room }) => {
   try {
-    const { blocked, clearance, reached } = checkFloor(definition(room)).plan;
-    scope.postMessage({ room, blocked, clearance, reached }, [blocked.buffer, clearance.buffer, reached.buffer]);
+    const { blocked, markClearance, clearance, reached } = checkFloor(definition(room)).plan;
+    scope.postMessage({ room, blocked, markClearance, clearance, reached }, [blocked.buffer, markClearance.buffer, clearance.buffer, reached.buffer]);
   } catch (error) {
     scope.postMessage({ room, error: error instanceof Error ? (error.stack ?? error.message) : String(error) });
   }

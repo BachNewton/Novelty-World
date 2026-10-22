@@ -164,6 +164,8 @@ Connections that aren't doorways (the Secret Passage and Secret Stairs, the Wall
 
 The stub art (a hinged wall section, a hatch in the floor) comes with the room features and fits the same mark.
 
+**Where it goes.** Stub art is built against the shared stage's walls, never one room's, so a mark must find room for it: a wall mark takes a clear stretch of its wall read off the built room, as figures' places are read off its free floor (`art/things/mark-spot.ts`), clear of the wall's doorways and windows and of the room's other marks, its icon on clear floor in front. A wall the card names is kept; where it has no clear stretch (a wall of bookcases), the stub art gives way and the icon stays, on the nearest clear floor. A test puts every kind on every wall of every built room. The marks are under review on the marks bench (`?bench=marks`); the game shows the stand-ins until they are approved.
+
 The **Below Collapsed Room** token joins the family: a one-way connection, where the Collapsed Room's floor opens onto the basement and later falls land. Today it is the generic ring for things on the floor, easily missed. It takes the mark with a falling icon, and art that tells the story: in the landing room, a pile of rubble and broken boards and a dusty shaft of light from the hole above; in the Collapsed Room, the hole in its floor. The first fall is the beat that places it ("The floor gives way into the Storeroom"), and the drop transition ("Moves that aren't a walk") lands on it.
 
 ### A layout that changes
