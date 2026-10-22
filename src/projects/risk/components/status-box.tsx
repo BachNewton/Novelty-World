@@ -140,6 +140,7 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
     <div ref={ref} className={cn(PANEL, "pointer-events-auto flex flex-col", tall ? "h-full gap-[0.4em] p-[0.4em]" : "gap-[0.45em] p-[0.65em]")} data-testid="risk-status">
       {(latest ?? backBesideNews) && (
         <div className="flex items-center gap-[0.5em]">
+          {backBesideNews && backButton}
           {latest && (
             // One row of a fixed budget, so the box always fits the room the screen keeps for it. A
             // battle is drawn, not told: who fought (unless it is the fight on hand) and the dice, or
@@ -164,7 +165,6 @@ export const StatusBox = forwardRef<HTMLDivElement, Props>(function StatusBox({ 
               )}
             </div>
           )}
-          {backBesideNews && <span className="ml-auto">{backButton}</span>}
         </div>
       )}
 
