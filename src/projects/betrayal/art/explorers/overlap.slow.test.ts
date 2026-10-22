@@ -21,9 +21,11 @@ import { brandon } from "./brandon";
 import { heather } from "./heather";
 import { zoe } from "./zoe";
 import { zostra } from "./zostra";
+import { ITEM_MODELS, ITEM_PARTS, WORN_IDS } from "../items";
+import { wear } from "../items/item";
 
 /** Each figure posed at moments through its idle, standing, in full stride
- *  and running, and the monsters standing and stunned: its own parts may pass
+ *  and running, and in full stride wearing every worn item, and the monsters standing and stunned: its own parts may pass
  *  into each other, as a figure's joints do, but no two of its faces may fight. */
 const EXPLORERS = { longfellow, ox, zoe, rhinehardt, flash, brandon, heather, peter, vivian, jenny, zostra, missy };
 const MOMENTS = [0, 2, 5, 9, 14, 21];
@@ -69,7 +71,7 @@ artChecks("figures", () => {
       // Meshing the parts is the slow step, done once a session: it belongs to no one check. It takes
       // up to about 6 s alone (Peter's).
       beforeAll(() => {
-        for (const parts of partsOf(build)) parts.get();
+        for (const parts of [...partsOf(build), ...ITEM_PARTS]) parts.get();
       }, MESHING);
       for (const [how, gait] of [["standing", STANDING], ["walking", striding], ["running", running]] as const) {
         it(`${name}, ${how}, has no fighting faces`, LIMIT, () => {
@@ -77,6 +79,11 @@ artChecks("figures", () => {
           for (const at of MOMENTS) expect(fightingFaces(posedAt(figure, at)).map((finding) => `${at}s: ${finding}`)).toEqual([]);
         });
       }
+      it(`${name}, wearing ${WORN_IDS.join(" and ")}, has no fighting faces`, LIMIT, () => {
+        const figure = build(name, striding);
+        for (const card of WORN_IDS) wear(figure, ITEM_MODELS[card]);
+        for (const at of MOMENTS) expect(fightingFaces(posedAt(figure, at)).map((finding) => `${at}s: ${finding}`)).toEqual([]);
+      });
     });
   }
   for (const [name, build] of Object.entries({ banshee, spider })) {

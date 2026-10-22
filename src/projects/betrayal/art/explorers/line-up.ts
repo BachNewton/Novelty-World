@@ -7,7 +7,8 @@ import type { ExplorerBuilder } from "../stage";
 import { CARD_PALETTE, figureFor } from "./by-character";
 import { ADULT_WALK, STANDING, stepLength, walkingOf, type Gait, type Pace, type Stride, type Walking } from "./figure";
 import { handsOf, holdIn, type Prop } from "./hands";
-import { ITEM_MODELS, type ItemId } from "../items";
+import { ITEM_MODELS, type HeldId, type WornId } from "../items";
+import { wear } from "../items/item";
 
 /** Every explorer with a figure, by character, tallest first; the line-up stands them in this order. */
 const EXPLORERS: readonly string[] = [
@@ -51,9 +52,9 @@ export function onTheSpot(build: ExplorerBuilder, seed: string, pace?: Pace, spe
 }
 
 /** What each explorer holds in the right hand, in line-up order: an item each, or one for all. */
-export type Holding = ItemId | "each";
+export type Holding = HeldId | "each";
 /** One item each, in turn, so a line-up shows every way of carrying at once: upright, hanging, and burning. */
-const EACH: readonly ItemId[] = ["spear", "revolver", "candle"];
+const EACH: readonly HeldId[] = ["spear", "revolver", "candle"];
 
 function holdingIn(figure: THREE.Object3D, prop: Prop) {
   const hands = handsOf(figure);
@@ -67,15 +68,16 @@ function holdingIn(figure: THREE.Object3D, prop: Prop) {
  * other. With a `pace`, they walk or run on the spot as the house moves
  * them, each with its own step and bounce, each at their starting Speed, or
  * all at one `speed` value. With `holding`,
- * each holds an item model in the right hand. `sideOn` turns each to walk
+ * each holds an item model in the right hand; with `wearing`, each wears those worn models. `sideOn` turns each to walk
  * across the first view, to judge a gait in profile.
  */
-export function explorerLineUp(seed = "line-up", pace?: Pace, holding?: Holding, { sideOn = false, speed }: { sideOn?: boolean; speed?: number } = {}): THREE.Group {
+export function explorerLineUp(seed = "line-up", pace?: Pace, holding?: Holding, { sideOn = false, speed, wearing = [] }: { sideOn?: boolean; speed?: number; wearing?: readonly WornId[] } = {}): THREE.Group {
   const figures = EXPLORERS.map((character, i) => {
     const card = CHARACTERS.find(({ id }) => id === character)?.card;
     if (!card) throw new Error(`No character "${character}"`);
     const figure = onTheSpot(figureFor(character, CARD_PALETTE[card]), `${seed}:${i}`, pace, speed ?? startingSpeed(character));
     if (holding) holdingIn(figure, ITEM_MODELS[holding === "each" ? EACH[i % EACH.length] : holding].held());
+    for (const worn of wearing) wear(figure, ITEM_MODELS[worn]);
     return figure;
   });
   const row = [...figures, pawn()];

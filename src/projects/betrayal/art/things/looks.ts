@@ -3,6 +3,7 @@ import type { CardType } from "../../types";
 import type { Mood } from "../../play/cards";
 import type { EdgeSpot } from "../../play/things";
 import { ITEM_MODELS } from "../items";
+import { asSculpted } from "../items/item";
 import { paletteHex, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, FLOOR_RINGS, INNER, onWall, WALL_THICKNESS, wallTurn } from "../room";
 import { box, flat, group, lightMaterial } from "../shapes";
@@ -39,7 +40,7 @@ export interface ObjectModel {
 
 /** The models built for particular cards, by card id: the item and omen models (`art/items/`). Any other card shows its type's stand-in. */
 export const CARD_MODELS: Readonly<Partial<Record<string, ObjectModel>>> = Object.fromEntries(
-  Object.values(ITEM_MODELS).map((model) => [model.card, { floor: model.floor, held: () => model.held().object }]),
+  Object.values(ITEM_MODELS).map((model) => [model.card, { floor: model.floor, held: () => (model.held ? model.held().object : asSculpted(model.worn)) }]),
 );
 
 /** A glow in a palette colour, added to what lies behind it and kept out of tone mapping. */

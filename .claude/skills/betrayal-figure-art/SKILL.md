@@ -537,19 +537,37 @@ above the floor on the marks' plane and hides whatever lies under it. A
 model whose floor pose differs gives its own `floor` (the Candle stands
 unlit: a flame that looks lit always lights something).
 
-**Worn items** (Armor, the Mask, the Ceremonial Robe) are decided, not yet
-built. A worn model is not a `Prop`: its `ItemModel` gives `worn` in place
-of `held`, naming a **slot** (`"chest"`, `"face"`) and a builder taking that
-slot's **fit**. Each figure declares its slots as it declares its walk
-(`wears(figure, { chest: { anchor, fit }, face: ... })`): an anchor group
-on the part the thing rides (the chest for Armor, the head for the Mask),
-and the fit measured off that part (its half-width, depth and height
-there). The model is sculpted once at a reference fit and stretched to each
-figure's, never sculpted per figure; it stands proud of the body by more
-than the overlap check's millimetre, a part of its own, as anything lying on
-another part is. The first worn item adds `worn` to `ItemModel` and `wears`
-to `figure.ts`; the bench then shows it on its wearer, and on its plate as
-any model.
+**Worn items** (Armor, the Mask) are clothing, the one exception to the
+figure not being the inventory, so they show on the body always. A worn
+model is not a `Prop`: it is a `WornModel` (`wornModel`), whose `worn` names
+a **slot** (`"chest"`, `"face"`), the **reference** fit it is sculpted at
+(shown so on its plate), and a `build` taking a figure's fit. Each figure
+declares its slots as it declares its walk, with `wears` (`figure.ts`): for
+each, the anchor part the thing rides (the torso's mesh for the chest, the
+head's for the face) and its fit, measured off that part's mesh once a
+session by `chestFit` (the torso's bands at the waist, under the arms and
+at the neck, given as heights: a boxy section, `SECTION_POWER`, growing until
+the torso lies inside the taper between them, above the chest only its
+middle, `chestMiddle`) or `faceFit` (the eyes' height and spacing, and how
+far forward the head reaches over the face). A chest model is stretched to
+a fit by `taperedTo` (each height to the same place between the bands, each
+point out as the torso is wider and deeper there, its normals and solid
+with it); a face model is scaled by the eyes' spacing and set forward until
+it clears the face over its whole footprint. Either stands clear of the
+body, a part of its own. A slot also names what lies **over** it (Brandon's
+pack and straps), which `wear` lifts out over the worn thing, and what is
+tucked **under** it (Longfellow's scarf ends, Missy's stethoscope), hidden
+while it is worn: lifted, those passed through the arms and the book.
+`wear(figure, model)` puts one on and `takeOff` takes it off; a gesture that
+would pass through it waits while `wornAt` says it is worn (Longfellow's
+spectacles under the Mask). The item bench shows a worn item on its wearer,
+the figure viewer has a toggle for each (`&wear=armor,mask`), the line-ups
+`explorer-armor`, `explorer-mask`, `explorer-worn` and `explorer-worn-run`
+wear them, and the clipping and overlap checks wear every one at once, with
+each held item too. A figure added later declares its slots, or can't wear
+anything. Only clothing worn all game is worn: Pickpocket's Gloves are
+held, a pair hanging from the fist, since the card is spent in its one beat
+and a glove would have to follow every knuckle of a curling hand.
 
 **Small charms** (the Ring, the Lucky Stone, the Rabbit's Foot, the Holy
 Symbol, the Locket) get **no shared charm form**: that was a belt charm for

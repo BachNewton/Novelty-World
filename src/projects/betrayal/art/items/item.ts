@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { animated } from "../animate";
-import { figureMaterial, form, type Solid } from "../forms";
+import { figureMaterial, form, shaped, solidOf, type Solid, type Vec3 } from "../forms";
 import { declareParts, partsOf, type FigureParts } from "../figure-parts";
-import { joins } from "../explorers/figure";
+import { bandAt, joins, middleOf, slotOf, type ChestFit, type Fits, type Slot } from "../explorers/figure";
 import { handsOf, holdIn, type Prop } from "../explorers/hands";
 import { CARRIED_LIGHT, carriedLight, flickerOf } from "../lighting";
 import { FLOOR_RINGS } from "../room";
@@ -37,17 +37,45 @@ export const OVERSIZE = 1.8;
 /** Metres at the held size. */
 export const o = (metres: number) => metres * OVERSIZE;
 
-/** A card's model: in a hand, and on its plate. */
-export interface ItemModel {
+/** What every card's model has: its card, what it is meshed from, and how it lies on the floor. */
+interface Model {
   /** The card's id, as the engine names it. */
   readonly card: string;
   /** What it is meshed from, once a session. */
   readonly parts: readonly FigureParts<unknown>[];
-  /** A new copy in a hand, built round its grip. */
-  readonly held: () => Prop;
   /** A new copy lying (or standing) on its plate: at the plate's middle, resting on it, sized for the plate. */
   readonly floor: () => THREE.Object3D;
 }
+
+/** A thing carried in the hand, shown there in the beat it is used. */
+export interface HeldModel extends Model {
+  /** A new copy in a hand, built round its grip. */
+  readonly held: () => Prop;
+  readonly worn?: undefined;
+}
+
+/**
+ * A thing worn on the body (Armor, the Mask), shown there always: clothing,
+ * the one exception to a figure not being its inventory. It is sculpted once
+ * at its `reference` fit and stretched to whichever figure wears it.
+ */
+export interface Worn<S extends Slot> {
+  readonly slot: S;
+  /** The fit it is sculpted at, and shown at on its plate. */
+  readonly reference: Fits[S];
+  /** A new copy fitted to a figure's slot, in its anchor part's frame. */
+  readonly build: (fit: Fits[S]) => THREE.Object3D;
+  /** How what lies over it (a scarf's ends, a pack's straps) is lifted clear of it: scaled about a point in the anchor's frame. */
+  readonly lifts?: (fit: Fits[S]) => { about: THREE.Vector3; scale: THREE.Vector3 };
+}
+
+export interface WornModel extends Model {
+  readonly worn: Worn<"chest"> | Worn<"face">;
+  readonly held?: undefined;
+}
+
+/** A card's model: in a hand or on the body, and on its plate. */
+export type ItemModel = HeldModel | WornModel;
 
 /** How a model lies on its plate: turned from its grip's frame onto the floor (`lie`), then spun round the plate's middle. */
 export interface PlatePose {
@@ -94,9 +122,143 @@ export function onPlate(model: THREE.Object3D, { lie, spin }: PlatePose): THREE.
 }
 
 /** A held thing's model, and the floor's the same model posed on its plate, unless it gives its own (`floor`). */
-export function itemModel(spec: { card: string; parts: readonly FigureParts<unknown>[]; held: () => Prop; plate: PlatePose; floor?: () => THREE.Object3D }): ItemModel {
+export function itemModel(spec: { card: string; parts: readonly FigureParts<unknown>[]; held: () => Prop; plate: PlatePose; floor?: () => THREE.Object3D }): HeldModel {
   const { card, parts, held, plate } = spec;
   return { card, parts, held, floor: spec.floor ?? (() => onPlate(held().object, plate)) };
+}
+
+/** A worn thing at the fit it was sculpted at: on its plate, or anywhere it is shown off a figure. */
+export function asSculpted(worn: Worn<"chest"> | Worn<"face">): THREE.Object3D {
+  return worn.slot === "chest" ? worn.build(worn.reference) : worn.build(worn.reference);
+}
+
+/** A worn thing's model, and the floor's the same model at its reference fit, posed on its plate. */
+export function wornModel(spec: { card: string; parts: readonly FigureParts<unknown>[]; worn: Worn<"chest"> | Worn<"face">; plate: PlatePose }): WornModel {
+  const { card, parts, worn, plate } = spec;
+  return { card, parts, worn, floor: () => onPlate(asSculpted(worn), plate) };
+}
+
+/** Where a worn thing keeps what it lifted out of its way, to let it lie back when it comes off. */
+const LIFTED = "lifted";
+
+function fitOn<S extends Slot>(figure: THREE.Object3D, worn: Worn<S>): THREE.Object3D {
+  const slot = slotOf(figure, worn.slot);
+  if (!slot) throw new Error(`The figure has no ${worn.slot} to wear a thing on`);
+  takeOff(figure, worn.slot);
+  const object = worn.build(slot.fit);
+  slot.anchor.add(object);
+  slot.worn = object;
+  const lifting = worn.lifts?.(slot.fit);
+  const lifted: THREE.Group[] = [];
+  if (lifting) {
+    figure.updateMatrixWorld(true);
+    for (const over of slot.over) {
+      const parent = over.parent;
+      if (!parent) throw new Error("A thing that lies over a worn one is not on the figure");
+      // Its parent shares the anchor's axes (the anchor itself, or the group the anchor stands in), so only the point to scale about moves.
+      const about = parent.worldToLocal(slot.anchor.localToWorld(lifting.about.clone()));
+      const lift = group();
+      lift.scale.copy(lifting.scale);
+      lift.position.copy(about).multiply(new THREE.Vector3(1, 1, 1).sub(lifting.scale));
+      parent.add(lift);
+      lift.add(over);
+      lifted.push(lift);
+    }
+  }
+  object.userData[LIFTED] = lifted;
+  for (const tucked of slot.under) tucked.visible = false;
+  return object;
+}
+
+/** Puts a worn thing on a figure, in its slot, fitted to the figure; whatever it wore there comes off. */
+export function wear(figure: THREE.Object3D, model: WornModel): THREE.Object3D {
+  const { worn } = model;
+  return worn.slot === "chest" ? fitOn(figure, worn) : fitOn(figure, worn);
+}
+
+/** Takes off what a figure wears in a slot, if anything, and lets what it lifted lie back. */
+export function takeOff(figure: THREE.Object3D, name: Slot) {
+  const slot = slotOf(figure, name);
+  const object = slot?.worn;
+  if (!slot || !object) return;
+  object.removeFromParent();
+  slot.worn = null;
+  for (const tucked of slot.under) tucked.visible = true;
+  for (const lift of object.userData[LIFTED] as THREE.Group[]) {
+    const parent = lift.parent;
+    if (!parent) throw new Error("A lifted thing has come off the figure");
+    for (const child of [...lift.children]) parent.add(child);
+    lift.removeFromParent();
+  }
+}
+
+/**
+ * The stretch from one chest fit to another: each height moves to the same
+ * place between the new fit's bands, and each point there out as the
+ * torso's section there is wider and deeper. `at` says how a height of the
+ * first fit moves and how much it is stretched each way there; `back` takes a
+ * point of the second fit to the first's.
+ */
+export function taper(from: ChestFit, to: ChestFit) {
+  const knots = (fit: ChestFit) => [fit.waist.y, fit.chest.y, fit.neck.y];
+  const [source, target] = [knots(from), knots(to)];
+  /** A height in one fit at the same place between the bands in the other, past the ends along the end lengths. */
+  const along = (y: number, a: number[], b: number[]) => {
+    const k = y <= a[1] ? 0 : 1;
+    return b[k] + ((y - a[k]) * (b[k + 1] - b[k])) / (a[k + 1] - a[k]);
+  };
+  const at = (y: number) => {
+    const moved = along(y, source, target);
+    const k = y <= source[1] ? 0 : 1;
+    const [was, now] = [bandAt(from, y), bandAt(to, moved)];
+    const [a, b] = [middleOf(was), middleOf(now)];
+    return { y: moved, x: now.halfWidth / was.halfWidth, z: b.depth / a.depth, tall: (target[k + 1] - target[k]) / (source[k + 1] - source[k]), from: a.centre, to: b.centre };
+  };
+  const warp = (x: number, y: number, z: number): Vec3 => {
+    const here = at(y);
+    return [x * here.x, here.y, here.to + (z - here.from) * here.z];
+  };
+  const back = (x: number, y: number, z: number): Vec3 => {
+    const was = along(y, target, source);
+    const here = at(was);
+    return [x / here.x, was, here.from + (z - here.to) / here.z];
+  };
+  return { at, warp, back };
+}
+
+/**
+ * A chest piece sculpted at one fit, stretched to another (`taper`). Its
+ * normals turn with the stretch, and its solid stretches too, so the
+ * clipping check asks the shape as worn.
+ */
+export function taperedTo(geometry: THREE.BufferGeometry, from: ChestFit, to: ChestFit): THREE.BufferGeometry {
+  const { at, warp, back } = taper(from, to);
+  const solid = solidOf(geometry);
+  if (!solid) throw new Error("A chest piece to stretch has no solid");
+  const fitted = geometry.clone();
+  const position = fitted.getAttribute("position");
+  const normal = fitted.getAttribute("normal");
+  const turned = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    const here = at(position.getY(i));
+    position.setXYZ(i, ...warp(position.getX(i), position.getY(i), position.getZ(i)));
+    turned.set(normal.getX(i) / here.x, normal.getY(i) / here.tall, normal.getZ(i) / here.z).normalize();
+    normal.setXYZ(i, turned.x, turned.y, turned.z);
+  }
+  fitted.computeBoundingBox();
+  fitted.computeBoundingSphere();
+  const corners = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => warp(k & 1 ? solid.max[0] : solid.min[0], k & 2 ? solid.max[1] : solid.min[1], k & 4 ? solid.max[2] : solid.min[2]));
+  const lowest = (axis: number) => Math.min(...corners.map((corner) => corner[axis])) - 0.005;
+  const highest = (axis: number) => Math.max(...corners.map((corner) => corner[axis])) + 0.005;
+  return shaped(fitted, {
+    distance: (x, y, z) => {
+      const point = back(x, y, z);
+      const here = at(point[1]);
+      return solid.distance(...point) * Math.min(here.x, here.z, here.tall);
+    },
+    min: [lowest(0), lowest(1), lowest(2)],
+    max: [highest(0), highest(1), highest(2)],
+  });
 }
 
 /** One of a model's parts, one material: shiny, if it is metal (or anything else that clearly shines). */
@@ -198,7 +360,7 @@ export function burning(body: THREE.Object3D, flame: THREE.BufferGeometry, at: T
 }
 
 /** A figure built holding an item in its right hand. */
-export function carrying(build: ExplorerBuilder, item: ItemModel): ExplorerBuilder {
+export function carrying(build: ExplorerBuilder, item: HeldModel): ExplorerBuilder {
   const carried: ExplorerBuilder = (seed, gait) => {
     const figure = build(seed, gait);
     const hands = handsOf(figure);
@@ -207,4 +369,14 @@ export function carrying(build: ExplorerBuilder, item: ItemModel): ExplorerBuild
     return figure;
   };
   return declareParts(carried, [...partsOf(build), ...item.parts]);
+}
+
+/** A figure built wearing a worn item. */
+export function wearing(build: ExplorerBuilder, item: WornModel): ExplorerBuilder {
+  const dressed: ExplorerBuilder = (seed, gait) => {
+    const figure = build(seed, gait);
+    wear(figure, item);
+    return figure;
+  };
+  return declareParts(dressed, [...partsOf(build), ...item.parts]);
 }

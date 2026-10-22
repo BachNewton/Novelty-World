@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { ball, drum, ellipsoid, figureMaterial, form, painted, plinth, ring, rod, roundBox, sculpt, shaped, stretched, surfaceAt } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
+import { BASE_TOP, chestFit, faceFit, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, wears, type Gait, type StrideRig, type Walking } from "./figure";
 import { aimGrip, blendPose, buildArm, closedRound, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
 import { skinOf, skinShade } from "./skin";
 import { declareParts, figureParts } from "../figure-parts";
@@ -253,6 +253,10 @@ export function ox(seed = "ox", gait: Gait = STANDING): THREE.Group {
   body.position.y = BASE_TOP;
 
   const figure = walks(group(mesh(parts.base, "base"), body, legs[0].shoe, legs[1].shoe), OX_WALK);
+  wears(figure, {
+    chest: { anchor: trunk, fit: chestFit(trunk, { waist: 0.08, chest: 0.28, neck: 0.48 }) },
+    face: { anchor: face, fit: faceFit(face, { y: 0.188, apart: 0.042 }) },
+  });
   hasHands(figure, { right: right.hand, left: left.hand });
   joins(figure, [
     // His bull neck sinks into his collar as he bows his head.

@@ -693,3 +693,235 @@ export function pushAside(
 const PUSH_STEP = 0.004;
 /** How softly, in radians, cloth the legs push eases back to its rest. */
 const RELEASE = 0.1;
+
+/*
+ * What a figure wears. A worn item (Armor, the Mask) is clothing, so it shows
+ * on the body always, not only in its beat as a held item does. Each figure
+ * declares the places it can wear one, as it declares its walk: for each slot,
+ * the part the thing rides (the torso for the chest, the head for the face)
+ * and the fit, measured off that part. A worn model is sculpted once, at a
+ * reference fit, and stretched to each figure's; it stands clear of the part
+ * under it, a part of its own.
+ */
+
+/** A torso's cross-section at one height, in its part's frame: how far it reaches to either side, back and front. */
+export interface Band {
+  y: number;
+  halfWidth: number;
+  back: number;
+  front: number;
+}
+
+/** The torso a chest item fits: its bands at the waist, under the arms and
+ *  at the neck, the torso lying inside the elliptical section that tapers
+ *  straight from one band to the next. Below the chest band all of it is
+ *  inside; above it only its middle, between the arms, since the shoulders
+ *  and the sleeves' tops stay out of anything worn on the chest. */
+export interface ChestFit {
+  waist: Band;
+  chest: Band;
+  neck: Band;
+}
+
+/** The face a face item fits: the point between the eyes on the face, half
+ *  the distance between the eyes' middles, and how far forward the head
+ *  reaches at any point over the face (`front(x, y)`, in the head's frame;
+ *  −Infinity off the head). */
+export interface FaceFit {
+  eyes: THREE.Vector3;
+  apart: number;
+  front: (x: number, y: number) => number;
+}
+
+/** The fit of each slot a figure can wear something in. */
+export interface Fits {
+  chest: ChestFit;
+  face: FaceFit;
+}
+export type Slot = keyof Fits;
+
+/** A place on a figure that wears something: the part it rides, its fit,
+ *  the things that lie over whatever is worn there (a pack's straps), which
+ *  a worn thing lifts clear of it, and those tucked under it (a scarf's
+ *  ends), hidden while it is worn. */
+export interface WornSlot<S extends Slot> {
+  anchor: THREE.Object3D;
+  fit: Fits[S];
+  over: readonly THREE.Object3D[];
+  under: readonly THREE.Object3D[];
+  /** What the figure wears there now. */
+  worn: THREE.Object3D | null;
+}
+export type Slots = { [S in Slot]?: WornSlot<S> };
+
+/** A slot as a figure declares it. */
+export type SlotDeclaration<S extends Slot> = Pick<WornSlot<S>, "anchor" | "fit"> & Partial<Pick<WornSlot<S>, "over" | "under">>;
+
+/** Declares the places a figure wears things, as `walks` declares its walk. */
+export function wears<T extends THREE.Object3D>(figure: T, slots: { [S in Slot]?: SlotDeclaration<S> }): T {
+  const declared: Slots = {};
+  if (slots.chest) declared.chest = { over: [], under: [], ...slots.chest, worn: null };
+  if (slots.face) declared.face = { over: [], under: [], ...slots.face, worn: null };
+  figure.userData.slots = declared;
+  return figure;
+}
+
+/** A figure's slot, if it has one by that name. */
+export function slotOf<S extends Slot>(figure: THREE.Object3D, slot: S): WornSlot<S> | undefined {
+  return (figure.userData as { slots?: Slots }).slots?.[slot];
+}
+
+/** The figure in `root` that wears things, wherever it stands in it, if any does. */
+export function wearerIn(root: THREE.Object3D): THREE.Object3D | null {
+  let found: THREE.Object3D | null = null;
+  root.traverse((object) => {
+    if (!found && (object.userData as { slots?: Slots }).slots) found = object;
+  });
+  return found;
+}
+
+/** What a figure wears in a slot now, if anything: a gesture that would pass through it (a hand to the face) waits. */
+export function wornAt(figure: THREE.Object3D, slot: Slot): THREE.Object3D | null {
+  return slotOf(figure, slot)?.worn ?? null;
+}
+
+/** A fit is measured once per part's geometry, and every copy of the figure shares it. */
+const measured = new WeakMap<THREE.BufferGeometry, Map<string, unknown>>();
+function once<F>(anchor: THREE.Mesh, key: string, measure: (points: ArrayLike<number>) => F): F {
+  const geometry = anchor.geometry as THREE.BufferGeometry;
+  const known = measured.get(geometry) ?? new Map<string, unknown>();
+  measured.set(geometry, known);
+  if (!known.has(key)) known.set(key, measure(geometry.getAttribute("position").array));
+  return known.get(key) as F;
+}
+
+/** Where a band's ellipse is centred front to back, and how deep it is from there. */
+export const middleOf = ({ back, front }: Band) => ({ centre: (back + front) / 2, depth: (front - back) / 2 });
+
+/** The torso's section at a height, between the fit's bands (held past the waist and the neck). */
+export function bandAt(fit: ChestFit, y: number): Band {
+  const [low, high] = y <= fit.chest.y ? [fit.waist, fit.chest] : [fit.chest, fit.neck];
+  const t = THREE.MathUtils.clamp((y - low.y) / (high.y - low.y), 0, 1);
+  const mix = (a: number, b: number) => a + (b - a) * t;
+  return { y, halfWidth: mix(low.halfWidth, high.halfWidth), back: mix(low.back, high.back), front: mix(low.front, high.front) };
+}
+
+/** How square a torso's section is: the power of its superellipse, 2 an ellipse. Torsos are boxy (a jacket's
+ *  corners), so an ellipse round one stands far off its front to clear its corners. */
+export const SECTION_POWER = 3;
+
+/** How far out a point is in a band's section, 1 on it: a superellipse through the band's sides, back and front. */
+export function outIn(band: Band, x: number, z: number): number {
+  const { centre, depth } = middleOf(band);
+  return (Math.abs(x / band.halfWidth) ** SECTION_POWER + Math.abs((z - centre) / depth) ** SECTION_POWER) ** (1 / SECTION_POWER);
+}
+
+/** How much of the chest band's half-width the chest's fit encloses above it, narrowing from under the arms to the
+ *  neck: its middle, between the shoulders. Anything worn on the chest keeps within it there. */
+export const CHEST_MIDDLE = { chest: 0.75, neck: 0.45 };
+
+/** How far to either side the chest's fit encloses the torso at a height above its chest band. */
+export function chestMiddle(fit: ChestFit, y: number): number {
+  const t = THREE.MathUtils.clamp((y - fit.chest.y) / (fit.neck.y - fit.chest.y), 0, 1);
+  return fit.chest.halfWidth * (CHEST_MIDDLE.chest + (CHEST_MIDDLE.neck - CHEST_MIDDLE.chest) * t);
+}
+
+/** How near the chest band a point above it may be and still grow the neck's band: nearer, the chest's own band holds it. */
+const NECK_REACH = 0.25;
+
+/**
+ * Measures the torso a chest item fits off its part's mesh, at three heights
+ * in its frame: the waist, under the arms (below where the shoulders widen
+ * out over the sleeves), and the neck. Each band starts as the torso's reach
+ * at its height, and grows until every point of the torso between them lies
+ * inside the taper: below the chest band, the waist's and the chest's grow
+ * together; above it, its middle (`chestMiddle`) grows the neck's.
+ */
+export function chestFit(anchor: THREE.Mesh, heights: { waist: number; chest: number; neck: number }): ChestFit {
+  return once(anchor, `chest:${heights.waist}:${heights.chest}:${heights.neck}`, (points) => {
+    const slab = (y: number, within: number): Band => {
+      const band = { y, halfWidth: 0, back: Infinity, front: -Infinity };
+      for (let i = 0; i < points.length; i += 3) {
+        const [px, py, pz] = [points[i], points[i + 1], points[i + 2]];
+        if (Math.abs(py - y) > 0.012 || Math.abs(px) > within) continue;
+        band.halfWidth = Math.max(band.halfWidth, Math.abs(px));
+        band.back = Math.min(band.back, pz);
+        band.front = Math.max(band.front, pz);
+      }
+      if (band.halfWidth === 0) throw new Error(`The ${anchor.name} has no surface at ${y} m to fit a chest to`);
+      return band;
+    };
+    const waist = slab(heights.waist, Infinity);
+    const chest = slab(heights.chest, Infinity);
+    const fit: ChestFit = { waist, chest, neck: { ...slab(heights.neck, CHEST_MIDDLE.neck * chest.halfWidth), halfWidth: chest.halfWidth } };
+    const grow = (band: Band, wider: number, deeper: number): Band => {
+      const { centre, depth } = middleOf(band);
+      return { y: band.y, halfWidth: band.halfWidth * wider, back: centre - depth * deeper, front: centre + depth * deeper };
+    };
+    // Below the chest, the waist's and the chest's bands grow together until every point is inside: wider for a point
+    // out to the side, deeper for one out in front or behind, in small steps, so a corner grows both only as it must.
+    for (let round = 0; round < 40; round++) {
+      let [wider, deeper] = [1, 1];
+      for (let i = 0; i < points.length; i += 3) {
+        const [px, py, pz] = [points[i], points[i + 1], points[i + 2]];
+        if (py < fit.waist.y - 0.01 || py > fit.chest.y) continue;
+        const band = bandAt(fit, py);
+        const out = outIn(band, px, pz);
+        if (out <= 1) continue;
+        const { centre, depth } = middleOf(band);
+        if (Math.abs(px) / band.halfWidth > Math.abs(pz - centre) / depth) wider = Math.max(wider, out);
+        else deeper = Math.max(deeper, out);
+      }
+      if (wider <= 1.0005 && deeper <= 1.0005) break;
+      const [w, d] = [1 + Math.min(wider - 1, 0.01), 1 + Math.min(deeper - 1, 0.01)];
+      fit.waist = grow(fit.waist, w, d);
+      fit.chest = grow(fit.chest, w, d);
+    }
+    // Above it, between the shoulders, the neck's band reaches back and forward as far as the torso needs, its width the
+    // chest's. A point there lies in a section mixed from the chest's and the neck's, so the neck's reaches as much
+    // further as it has less say.
+    const { centre } = middleOf(fit.chest);
+    fit.neck.halfWidth = fit.chest.halfWidth;
+    for (let i = 0; i < points.length; i += 3) {
+      const [px, py, pz] = [points[i], points[i + 1], points[i + 2]];
+      const t = (py - fit.chest.y) / (fit.neck.y - fit.chest.y);
+      if (t < NECK_REACH || t > 1 || Math.abs(px) > chestMiddle(fit, py)) continue;
+      const across = (1 - Math.abs(px / fit.chest.halfWidth) ** SECTION_POWER) ** (1 / SECTION_POWER);
+      const needs = centre + (pz - centre) / across;
+      if (pz > centre) fit.neck.front = Math.max(fit.neck.front, fit.chest.front + (needs - fit.chest.front) / t);
+      else fit.neck.back = Math.min(fit.neck.back, fit.chest.back + (needs - fit.chest.back) / t);
+    }
+    return fit;
+  });
+}
+
+/** The grid the face's reach is measured on, in metres, and how far round the eyes it reaches. */
+const FACE_CELL = 0.006;
+const FACE_REACH = 0.18;
+
+/**
+ * Measures the face a face item fits off the head's mesh: the eyes' height
+ * and half the distance between their middles (as the head is built), and
+ * how far forward the head reaches over the face, gathered on a grid. Asked
+ * at a point, it answers the most forward of the grid's cells round it, so
+ * nothing between the mesh's points is missed.
+ */
+export function faceFit(anchor: THREE.Mesh, eyes: { y: number; apart: number }): FaceFit {
+  return once(anchor, `face:${eyes.y}:${eyes.apart}`, (points) => {
+    const size = Math.ceil((2 * FACE_REACH) / FACE_CELL);
+    const grid = new Float64Array(size * size).fill(-Infinity);
+    const cell = (x: number, y: number) => [Math.floor((x + FACE_REACH) / FACE_CELL), Math.floor((y - eyes.y + FACE_REACH) / FACE_CELL)];
+    for (let i = 0; i < points.length; i += 3) {
+      const [i0, j0] = cell(points[i], points[i + 1]);
+      if (i0 < 0 || j0 < 0 || i0 >= size || j0 >= size) continue;
+      grid[j0 * size + i0] = Math.max(grid[j0 * size + i0], points[i + 2]);
+    }
+    const front = (x: number, y: number) => {
+      const [i0, j0] = cell(x, y);
+      let most = -Infinity;
+      for (let j = Math.max(0, j0 - 1); j <= Math.min(size - 1, j0 + 1); j++) for (let i = Math.max(0, i0 - 1); i <= Math.min(size - 1, i0 + 1); i++) most = Math.max(most, grid[j * size + i]);
+      return most;
+    };
+    return { eyes: new THREE.Vector3(0, eyes.y, front(0, eyes.y)), apart: eyes.apart, front };
+  });
+}
