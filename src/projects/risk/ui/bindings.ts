@@ -28,6 +28,6 @@ export const KEY_CODES = {
   more: "BracketRight",
   blitz: "KeyB",
   log: "KeyL",
-  pan: { KeyW: [0, -1], KeyA: [-1, 0], KeyS: [0, 1], KeyD: [1, 0] } as Record<string, readonly [number, number]>,
+  pan: { KeyA: -1, KeyD: 1 } as Record<string, number>,
   dice: { Digit1: 1, Digit2: 2, Digit3: 3, Numpad1: 1, Numpad2: 2, Numpad3: 3 } as Record<string, 1 | 2 | 3>,
 } as const;

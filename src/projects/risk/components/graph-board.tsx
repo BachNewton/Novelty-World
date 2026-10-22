@@ -3,11 +3,11 @@
 import { Skull } from "lucide-react";
 import { forwardRef, memo, useState, type CSSProperties } from "react";
 import { pickTarget, type Point } from "@/shared/lib/input";
-import { borderLines, DRAWS, isWrap, layoutAt, LIT_RING, locate, MARKER, NAME_SIZE, NAME_Y, pathThrough, TOUCH_SCALE, type Layout } from "../board/graph";
+import { borderLines, isWrap, LAYOUT, LIT_RING, locate, MARKER, NAME_SIZE, NAME_Y, pathThrough, type Layout } from "../board/graph";
 import { BORDERS, GRAPH_HEIGHT, GRAPH_UNIT, GRAPH_WIDTH } from "../board/graph-layout";
 import type { GameView, Seat } from "../contract";
 import { ADJACENCY, CONTINENTS, TERRITORIES, type ContinentId, type TerritoryId } from "../map";
-import { copies, toScreen, type Frame, type Rect, type Size } from "../ui/camera";
+import { copies, toScreen, type Frame, type ScreenLayout, type Size } from "../ui/camera";
 import { territoryName } from "../ui/describe";
 import type { Beat, Effect } from "../ui/playback";
 import { SEAT_LOOKS, seatColour, seatName, shapePath } from "../ui/seats";
@@ -24,8 +24,6 @@ import { useBoardCamera, type BoardHandle, type Marks } from "./use-board-camera
 
 const BOARD: Size = { width: GRAPH_WIDTH, height: GRAPH_HEIGHT };
 const IDS = TERRITORIES.map((t) => t.id);
-const PLACES = IDS.map(locate);
-const DRAWN_ROUND = IDS.map((id) => DRAWS[id]);
 const CONTINENT_OF = new Map<TerritoryId, ContinentId>(TERRITORIES.map((t) => [t.id, t.continent]));
 const COUNT = 30;
 
@@ -201,24 +199,25 @@ interface Props {
   showFocus: boolean;
   onPick: (territory: TerritoryId) => void;
   onTouch: (kind: "touch" | "mouse") => void;
-  /** What floats over the map, in its box's CSS pixels: the board is framed clear of them. */
-  overlays: readonly Rect[];
+  /** Where the screen puts the board, or null until the screen has its size. */
+  screen: ScreenLayout | null;
   /** The move playing out now, whose effects the map shows. */
   beat: Beat | null;
 }
 
-export const GraphBoard = forwardRef<BoardHandle, Props>(function GraphBoard({ view, marks, focus, showFocus, onPick, onTouch, overlays, beat }, ref) {
+export const GraphBoard = forwardRef<BoardHandle, Props>(function GraphBoard({ view, marks, focus, showFocus, onPick, onTouch, screen, beat }, ref) {
   const pickable = [...marks.choices, ...marks.also];
   const onTap = (point: Point, at: Frame) => {
     // A tap takes the nearest territory on offer, in whichever copy of the board it fell on,
     // within half a border's length of it.
     const { camera } = at;
-    const period = GRAPH_WIDTH * at.stretch.x * camera.scale;
+    const period = GRAPH_WIDTH * camera.scale;
     const targets = pickable.flatMap((id) => [-1, 0, 1].map((k) => ({ id, outline: [], anchor: toScreen({ ...at, camera: { ...camera, left: camera.left + k * period } }, locate(id)) })));
     const hit = pickTarget(targets, point, (GRAPH_UNIT / 2) * camera.scale) as TerritoryId | null;
     if (hit) onPick(hit);
   };
-  const { box, size, frame } = useBoardCamera({ ref, board: BOARD, places: PLACES, draws: DRAWN_ROUND, touch: TOUCH_SCALE, overlays, locate, revealMargin: 64, onTouch, onTap });
+  const { box, frame } = useBoardCamera({ ref, board: BOARD, screen, locate, revealMargin: 64, onTouch, onTap });
+  const size = screen?.view;
 
   const markOf = (id: TerritoryId): Mark => {
     if (marks.selected.includes(id)) return "selected";
@@ -238,7 +237,7 @@ export const GraphBoard = forwardRef<BoardHandle, Props>(function GraphBoard({ v
     for (let i = 1; i < path.length; i++) lit.push({ a: path[i - 1], b: path[i], chosen: true });
   }
   const held = CONTINENTS.map((c) => holder(view, c.id) ?? "").join(",");
-  const layout = layoutAt(frame?.stretch ?? { x: 1, y: 1 });
+  const layout = LAYOUT;
 
   // Panning across, the copies of the board meet edge to edge; otherwise the line across the
   // edge runs out to the screen's.

@@ -54,7 +54,7 @@ export function Die({ value, side, lost }: { value: number; side: "attack" | "de
 export function DiceRow({ attacker, defender }: { attacker: readonly number[]; defender: readonly number[] }) {
   const pairs = Math.min(attacker.length, defender.length);
   return (
-    <span className="inline-flex items-center gap-[0.5em]">
+    <span className="inline-flex flex-wrap items-center gap-x-[0.5em] gap-y-[0.2em]">
       <span className="inline-flex gap-[0.2em]">
         {attacker.map((value, i) => (
           <Die key={i} value={value} side="attack" lost={i < pairs && value <= defender[i]} />
@@ -124,8 +124,9 @@ export function CardPips({ count, className }: { count: number; className?: stri
 /** A number to choose on a track, the number riding on its thumb and the most at its end, so
  *  "all" is dragging to the end. A drag sets it; a tap either side of the thumb nudges it by one,
  *  finer than a finger can drag. The arrow keys step it while it has the focus, and LB / RB (or
- *  [ and ]) step it from anywhere, their glyphs at the track's ends. */
-export function Slider({ value, min, max, onChange, input, label, className, thumb, valueText, ends }: {
+ *  [ and ]) step it from anywhere, their glyphs at the track's ends. It runs across, or up in a
+ *  tall panel, the most at its top. */
+export function Slider({ value, min, max, onChange, input, label, className, thumb, valueText, ends, vertical = false }: {
   value: number;
   min: number;
   max: number;
@@ -138,23 +139,27 @@ export function Slider({ value, min, max, onChange, input, label, className, thu
   valueText?: string;
   /** What marks the track's two ends, when not the most at its end. */
   ends?: readonly [ReactNode, ReactNode];
+  vertical?: boolean;
 }) {
   const rail = useRef<HTMLDivElement>(null);
   const press = useRef<{ start: Point; dragged: boolean } | null>(null);
   const span = max - min;
   const at = span > 0 ? (value - min) / span : 1;
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
-  const valueAt = (x: number) => {
+  /** How far along the track a pointer is, from 0 at its least to 1 at its most. */
+  const along = (event: { clientX: number; clientY: number }) => {
     const box = rail.current?.getBoundingClientRect();
-    return box ? clamp(min + Math.round(((x - box.left) / box.width) * span)) : value;
+    if (!box) return at;
+    return vertical ? (box.bottom - event.clientY) / box.height : (event.clientX - box.left) / box.width;
   };
-  const thumbX = () => {
+  const valueAt = (event: { clientX: number; clientY: number }) => clamp(min + Math.round(along(event) * span));
+  const length = () => {
     const box = rail.current?.getBoundingClientRect();
-    return box ? box.left + at * box.width : 0;
+    return box ? (vertical ? box.height : box.width) : 0;
   };
   const keys: Record<string, number> = { ArrowLeft: value - 1, ArrowDown: value - 1, ArrowRight: value + 1, ArrowUp: value + 1, Home: min, End: max, PageDown: value - 5, PageUp: value + 5 };
   return (
-    <div className={cn("flex min-w-0 items-center gap-[0.4em]", className)}>
+    <div className={cn("flex items-center gap-[0.4em]", vertical ? "min-h-0 flex-col-reverse" : "min-w-0", className)}>
       <Prompt binding={BINDINGS.less} input={input} />
       {ends?.[0]}
       <div
@@ -166,7 +171,12 @@ export function Slider({ value, min, max, onChange, input, label, className, thu
         aria-valuenow={value}
         aria-valuetext={valueText}
         aria-disabled={span === 0 || undefined}
-        className={cn("relative h-[max(2.4em,44px)] min-w-[6em] flex-1 touch-none rounded-full px-[1.2em] outline-offset-2 focus-visible:outline-2 focus-visible:outline-(--rk-brass-bright)", span > 0 ? "cursor-pointer" : "opacity-60")}
+        aria-orientation={vertical ? "vertical" : undefined}
+        className={cn(
+          "relative flex-1 touch-none rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-(--rk-brass-bright)",
+          vertical ? "min-h-[6em] w-[max(2.4em,44px)]" : "h-[max(2.4em,44px)] min-w-[6em]",
+          span > 0 ? "cursor-pointer" : "opacity-60",
+        )}
         onKeyDown={(event) => {
           if (!(event.key in keys)) return;
           event.preventDefault();
@@ -181,25 +191,29 @@ export function Slider({ value, min, max, onChange, input, label, className, thu
           const p = press.current;
           if (!p) return;
           if (!p.dragged && isDrag(p.start, { x: event.clientX, y: event.clientY })) p.dragged = true;
-          if (p.dragged) onChange(valueAt(event.clientX));
+          if (p.dragged) onChange(valueAt(event));
         }}
         onPointerUp={(event) => {
           const p = press.current;
           press.current = null;
           if (!p || p.dragged) return;
-          const off = event.clientX - thumbX();
+          const off = (along(event) - at) * length();
           // A tap on the thumb itself changes nothing; either side of it, one step that way.
-          if (Math.abs(off) > event.currentTarget.clientHeight / 2) onChange(clamp(value + Math.sign(off)));
+          const thumbHalf = (vertical ? event.currentTarget.clientWidth : event.currentTarget.clientHeight) / 2;
+          if (Math.abs(off) > thumbHalf) onChange(clamp(value + Math.sign(off)));
         }}
         onPointerCancel={() => {
           press.current = null;
         }}
       >
-        <div ref={rail} className="absolute inset-x-[1.2em] top-1/2 h-[0.45em] -translate-y-1/2 rounded-full bg-(--rk-line)">
-          <div className="h-full rounded-full bg-(--rk-brass)" style={{ width: `${at * 100}%` }} />
+        <div ref={rail} className={cn("absolute rounded-full bg-(--rk-line)", vertical ? "inset-y-[1.2em] left-1/2 w-[0.45em] -translate-x-1/2" : "inset-x-[1.2em] top-1/2 h-[0.45em] -translate-y-1/2")}>
+          <div className={cn("absolute rounded-full bg-(--rk-brass)", vertical ? "inset-x-0 bottom-0" : "inset-y-0 left-0")} style={vertical ? { height: `${at * 100}%` } : { width: `${at * 100}%` }} />
           <output
-            className="absolute top-1/2 flex h-[2.2em] min-w-[2.2em] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-(--rk-brass-bright) bg-(--rk-panel) px-[0.3em] text-[1.05em] font-bold tabular-nums text-(--rk-parchment) shadow"
-            style={{ left: `${at * 100}%` }}
+            className={cn(
+              "absolute flex h-[2.2em] min-w-[2.2em] -translate-x-1/2 items-center justify-center rounded-full border-2 border-(--rk-brass-bright) bg-(--rk-panel) px-[0.3em] text-[1.05em] font-bold tabular-nums text-(--rk-parchment) shadow",
+              vertical ? "left-1/2 translate-y-1/2" : "top-1/2 -translate-y-1/2",
+            )}
+            style={vertical ? { bottom: `${at * 100}%` } : { left: `${at * 100}%` }}
             aria-live="polite"
           >
             {/* Centred on the digits' own height, not the line's, which leaves room for letters
@@ -211,7 +225,7 @@ export function Slider({ value, min, max, onChange, input, label, className, thu
       {ends ? (
         ends[1]
       ) : (
-        <span className="min-w-[1.6ch] text-right text-[0.85em] text-(--rk-muted) tabular-nums" aria-hidden>
+        <span className={cn("text-[0.85em] text-(--rk-muted) tabular-nums", !vertical && "min-w-[1.6ch] text-right")} aria-hidden>
           {max}
         </span>
       )}

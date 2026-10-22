@@ -38,7 +38,7 @@ export interface InputIntents {
   more: () => void;
   dice: (count: 1 | 2 | 3) => void;
   blitz: () => void;
-  pan: (dx: number, dy: number) => void;
+  pan: (dx: number) => void;
 }
 
 const KEY_PAN = 70;
@@ -81,8 +81,8 @@ export function useRiskInput(intents: InputIntents): void {
       if (code === KEY_CODES.blitz) return handled(it.blitz);
       if (code in KEY_CODES.dice) return handled(() => it.dice(KEY_CODES.dice[code]));
       if (code in KEY_CODES.pan) {
-        const [x, y] = KEY_CODES.pan[code];
-        return handled(() => it.pan(-x * KEY_PAN, -y * KEY_PAN));
+        const way = KEY_CODES.pan[code];
+        return handled(() => it.pan(-way * KEY_PAN));
       }
       const enter = code === "Enter" || code === "NumpadEnter";
       if (zone === "box" && enter && !onButton) return handled(() => !event.repeat && it.confirm());
@@ -114,8 +114,8 @@ export function useRiskInput(intents: InputIntents): void {
         if (edge.name === "A") return it.pickFocus();
         if (edge.name === "B") return it.back();
       },
-      // The pads are read once per animation frame: the right stick pans the board as long as it
-      // is held, and a held d-pad repeats on the frames.
+      // The pads are read once per animation frame: the right stick pans the board across as
+      // long as it is held, and a held d-pad repeats on the frames.
       onFrame: (pads) => {
         const now = performance.now();
         const delta = Math.min(0.1, (now - last) / 1000);
@@ -126,9 +126,9 @@ export function useRiskInput(intents: InputIntents): void {
           const controls = readPad(pad).controls;
           if (!controls) continue;
           const { rightStick } = controls;
-          if (zone !== "dialog" && (rightStick.x !== 0 || rightStick.y !== 0)) {
+          if (zone !== "dialog" && rightStick.x !== 0) {
             it.usedInput("pad");
-            it.pan(-rightStick.x * STICK_PAN * delta, -rightStick.y * STICK_PAN * delta);
+            it.pan(-rightStick.x * STICK_PAN * delta);
           }
           const { hold, move } = navStep(holds.get(pad.index) ?? NAV_AT_REST, zone === "map" ? pad : null, now);
           holds.set(pad.index, hold);
