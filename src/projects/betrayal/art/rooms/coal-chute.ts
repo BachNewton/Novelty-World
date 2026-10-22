@@ -13,16 +13,16 @@ const X0 = -0.3;
 const X1 = 0.8;
 const CX = (X0 + X1) / 2;
 const Z0 = 0.45;
-const Z1 = 1.5;
-/** Where the throat, running on under the floor beyond the mouth, turns down out of sight. */
-const ZEND = 2.5;
-/** The slide's fall per metre, and its face's height at the lip. */
+const Z1 = 1.75;
+/** Where the slide ends in a lip, inside the mouth, and drops off into the shaft beyond it, open above to the room. */
+const ZLIP = 1.0;
+/** How far down the shaft's sides go, glowing more and more with the amber from below. */
+const SHAFT_FOOT = -2.9;
+/** The slide's fall per metre, and its face's height at the mouth. */
 const SLOPE = 0.62;
 const LIP_Y = -0.04;
 /** The lining's thickness, standing just inside the floor's edge. */
 const LINING = 0.04;
-/** The underside of the floor slab, which the throat's roof runs just below. */
-const UNDER_SLAB = -0.22;
 /** The iron apron at the lip, where an explorer stands to drop. */
 const APRON = 0.75;
 /** The kerb round the mouth's other three sides. */
@@ -33,75 +33,79 @@ function slideY(z: number): number {
   return LIP_Y - SLOPE * (z - Z0);
 }
 
-/** How the chute's iron is lit by depth: the room's dim light at the lip, dark just under it, then warmer and warmer
- *  towards the lamp of the room below, whose amber comes up the chute from round its bend. */
-const DEPTH_LIGHT: [y: number, colour: PaletteKey, strength: number][] = [
+type Grade = [y: number, colour: PaletteKey, strength: number][];
+
+/** The slide's iron by depth: the room's dim light at the mouth, then a dull ember towards its lip from the light
+ *  coming up past it. */
+const SLIDE_LIGHT: Grade = [
   [0, "ash", 0.55],
-  [-0.14, "void", 1],
-  [-0.4, "ember", 0.35],
-  [-0.75, "ember", 0.9],
-  [-1.05, "amber", 1.1],
-  [-1.4, "flame", 1.25],
+  [-0.1, "ember", 0.25],
+  [-0.45, "ember", 0.8],
 ];
 
-function depthLight(y: number): THREE.Color {
-  const below = DEPTH_LIGHT.findIndex(([at]) => at < y);
-  const lower = below === -1 ? DEPTH_LIGHT.length - 1 : below;
-  const upper = Math.max(0, (below === -1 ? DEPTH_LIGHT.length : below) - 1);
-  const [y1, c1, s1] = DEPTH_LIGHT[lower];
-  const [y0, c0, s0] = DEPTH_LIGHT[upper];
+/** The shaft's brick sides by depth: the room's dim light at the mouth, black for the first half metre down, then the
+ *  amber of the room below welling up, brighter the deeper it goes, as the Chasm's gulf glows. */
+const SHAFT_LIGHT: Grade = [
+  [0, "ash", 0.5],
+  [-0.14, "void", 1],
+  [-0.5, "void", 1],
+  [-0.85, "ember", 0.6],
+  [-1.4, "amber", 1.1],
+  [SHAFT_FOOT, "flame", 1.3],
+];
+
+function graded(grade: Grade, y: number): THREE.Color {
+  const below = grade.findIndex(([at]) => at < y);
+  const lower = below === -1 ? grade.length - 1 : below;
+  const upper = Math.max(0, (below === -1 ? grade.length : below) - 1);
+  const [y1, c1, s1] = grade[lower];
+  const [y0, c0, s0] = grade[upper];
   const t = y0 === y1 ? 0 : (y0 - y) / (y0 - y1);
   return new THREE.Color(paletteHex(c0)).multiplyScalar(s0).lerp(new THREE.Color(paletteHex(c1)).multiplyScalar(s1), t);
 }
 
 /** A box of the chute's lining, finely divided so its light can grade with depth, coloured by where each corner lies. */
-function liningPiece(size: [number, number, number], at: [number, number, number], { tilt = 0, strength = 1 } = {}): THREE.BufferGeometry {
+function liningPiece(size: [number, number, number], at: [number, number, number], grade: Grade, { tilt = 0, strength = 1 } = {}): THREE.BufferGeometry {
   const [w, h, d] = size;
   const geometry = new THREE.BoxGeometry(w, h, d, 1, Math.max(1, Math.ceil(h / 0.08)), Math.max(1, Math.ceil(d / 0.08)));
   geometry.rotateX(tilt).translate(...at);
   const position = geometry.getAttribute("position");
   const colours: number[] = [];
-  for (let i = 0; i < position.count; i++) colours.push(...depthLight(position.getY(i)).multiplyScalar(strength).toArray());
+  for (let i = 0; i < position.count; i++) colours.push(...graded(grade, position.getY(i)).multiplyScalar(strength).toArray());
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colours, 3));
   return geometry;
 }
 
 /**
- * The chute itself, below the floor: a sheet-iron slide falling away from
- * the near lip, between iron cheeks, on into a throat that runs under the
- * floor and drops out of sight round its bend, with the amber of the room
- * below coming up it. The iron carries its own light, graded by depth,
+ * The chute itself, below the floor: a short sheet-iron slide falling away
+ * from the near edge of the mouth to a lip, and past the lip a brick shaft
+ * dropping straight down into black, with the amber of the room below
+ * welling up out of it. The lining carries its own light, graded by depth,
  * rather than taking the house's fill, which would light it as brightly as
- * the floor and flatten the drop into a tray. A few lumps of coal lie where
- * they stuck on the slide, and a shell in the background's colour hides it
- * all from outside the room.
+ * the floor and flatten the drop into a tray; nothing ends the shaft but the
+ * shell's black, in the background's colour, which also hides it all from
+ * outside the room. A few lumps of coal lie where they stuck on the slide.
  */
 function chute(): THREE.Group {
   const slide: THREE.BufferGeometry[] = [];
   const walls: THREE.BufferGeometry[] = [];
   const angle = Math.atan(SLOPE);
-  const run = ZEND + 0.1 - Z0;
+  const run = ZLIP - Z0;
   const length = run / Math.cos(angle);
   const inside: [number, number] = [X0 + LINING, X1 - LINING];
   const width = inside[1] - inside[0];
   // The slide plate, its face on the slope, its top edge just under the apron's nose.
   const along = (z: number, lift: number): [number, number, number] => [CX, slideY(z) + lift / Math.cos(angle), z];
   const plate = 0.03;
-  slide.push(liningPiece([width, plate, length], along(Z0 + run / 2, -plate / 2), { tilt: angle }));
-  // The seams where its sheets are lapped, dark ribs across it that step closer together as it falls away.
-  for (let z = Z0 + 0.22; z < ZEND; z += 0.3) slide.push(liningPiece([width - 0.02, 0.014, 0.04], along(z, 0.004), { tilt: angle, strength: 0.4 }));
-  // The brick cheeks either side: open to the room over the mouth, and under the floor along the throat.
-  for (const x of [X0 + LINING / 2, X1 - LINING / 2]) {
-    walls.push(liningPiece([LINING, -0.005 - (slideY(Z1) - 0.12), Z1 - Z0], [x, (slideY(Z1) - 0.12 - 0.005) / 2, (Z0 + Z1) / 2], { strength: 0.6 }));
-    const bottom = slideY(ZEND + 0.1) - 0.1;
-    walls.push(liningPiece([LINING, UNDER_SLAB - bottom, ZEND + 0.1 - Z1], [x, (UNDER_SLAB + bottom) / 2, (Z1 + ZEND + 0.1) / 2], { strength: 0.6 }));
-  }
-  // The lintel over the throat's mouth, lining the floor's far edge, between the cheeks.
-  walls.push(liningPiece([width, -0.005 - UNDER_SLAB, LINING], [CX, (UNDER_SLAB - 0.005) / 2, Z1 - LINING / 2], { strength: 0.6 }));
-  // The throat's roof, under the slab, and its end, where it turns down out of sight.
-  walls.push(liningPiece([width, 0.03, ZEND + 0.1 - Z1], [CX, UNDER_SLAB - 0.015, (Z1 + ZEND + 0.1) / 2], { strength: 0.5 }));
-  const endFoot = slideY(ZEND + 0.1) - 0.05;
-  walls.push(liningPiece([width + 0.02, UNDER_SLAB - endFoot, 0.03], [CX, (UNDER_SLAB + endFoot) / 2, ZEND + 0.1 + 0.015], { strength: 0.8 }));
+  slide.push(liningPiece([width, plate, length], along(Z0 + run / 2, -plate / 2), SLIDE_LIGHT, { tilt: angle }));
+  // The seams where its sheets are lapped, dark ribs across it.
+  for (const z of [Z0 + 0.18, Z0 + 0.38]) slide.push(liningPiece([width - 0.02, 0.014, 0.04], along(z, 0.004), SLIDE_LIGHT, { tilt: angle, strength: 0.4 }));
+  // Its lip: the plate's end rolled under, catching the light from below.
+  slide.push(liningPiece([width - 0.01, 0.05, 0.04], [CX, slideY(ZLIP) - 0.045, ZLIP - 0.01], SLIDE_LIGHT, { strength: 1.2 }));
+  // The brick cheeks either side, and the shaft's far side, all the way down.
+  for (const x of [X0 + LINING / 2, X1 - LINING / 2]) walls.push(liningPiece([LINING, -0.005 - SHAFT_FOOT, Z1 - Z0], [x, (SHAFT_FOOT - 0.005) / 2, (Z0 + Z1) / 2], SHAFT_LIGHT, { strength: 0.6 }));
+  // The far side is left plain, so its glow reads as light coming up the dark rather than as a wall facing the slide.
+  slide.push(liningPiece([width, -0.005 - SHAFT_FOOT, LINING], [CX, (SHAFT_FOOT - 0.005) / 2, Z1 - LINING / 2], SHAFT_LIGHT, { strength: 0.25 }));
   const brick = bricks({ ramp: ["stoneDark", "stone", "stoneLight"], mortar: "ash", seed: "coal-chute-cheeks" });
   for (const piece of walls) projectUvs(piece, brick);
   const meshes = [
@@ -111,8 +115,8 @@ function chute(): THREE.Group {
   // Lumps of coal stuck where they fell on the slide, dark against its glow.
   const lumps = batch();
   const rng = createRng("coal-chute-slide");
-  for (let i = 0; i < 9; i++) {
-    const z = Z0 + 0.25 + rng.next() * (Z1 - Z0 + 0.4);
+  for (let i = 0; i < 4; i++) {
+    const z = Z0 + 0.12 + rng.next() * (run - 0.22);
     const x = inside[0] + 0.08 + rng.next() * (width - 0.16);
     const size = 0.05 + rng.next() * 0.05;
     lumps.add(
@@ -122,13 +126,14 @@ function chute(): THREE.Group {
     );
   }
   const coal = lumps.mesh();
-  const haze = (y: number, opacity: number) => pitHaze({ x: inside, z: [Z0 + 0.05, Z1 - 0.05], y, colour: "amber", opacity });
-  const shell = pitShell({ x: [X0 - 0.06, X1 + 0.06], z: [Z0 - 0.06, ZEND + 0.2], bottom: -1.8 });
-  const result = group(...meshes, coal, haze(-0.3, 0.08), haze(-0.55, 0.16), shell);
-  // The lamp of the room below, seen round the bend: it lights the slide's far end and comes up out of the mouth.
-  result.add(lightAnchor({ colour: "amber", intensity: 5, range: 4, kind: "glow" }, [CX, slideY(ZEND) + 0.35, ZEND - 0.15]));
+  const haze = (z: [number, number], y: number, opacity: number) => pitHaze({ x: inside, z, y, colour: "amber", opacity });
+  const shaft: [number, number] = [ZLIP + 0.02, Z1 - LINING - 0.02];
+  const shell = pitShell({ x: [X0 - 0.06, X1 + 0.06], z: [Z0 - 0.06, Z1 + 0.06], bottom: SHAFT_FOOT - 0.3 });
+  const result = group(...meshes, coal, haze(shaft, -0.6, 0.2), haze(shaft, -0.9, 0.35), haze(shaft, -1.3, 0.5), shell);
+  // The lamp of the room below, far down the shaft: its light comes up past the lip and out of the mouth.
+  result.add(lightAnchor({ colour: "amber", intensity: 6, range: 4.5, kind: "glow" }, [CX, -2.0, (ZLIP + Z1) / 2]));
   // Its light in the mouth itself, rising onto the lid, the coal and whoever stands at the lip.
-  result.add(lightAnchor({ colour: "amber", intensity: 5.5, range: 3.5, kind: "glow" }, [CX, -0.12, (Z0 + Z1) / 2 + 0.15]));
+  result.add(lightAnchor({ colour: "amber", intensity: 5.5, range: 3.5, kind: "glow" }, [CX, -0.12, (ZLIP + Z1) / 2]));
   for (const mesh of [...meshes, coal]) mesh.userData.noShadow = true;
   return result;
 }
