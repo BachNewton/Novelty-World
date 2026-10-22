@@ -1,7 +1,7 @@
 // v3's copy of v2's capture planner (`../rule-v2/routes.ts`), with the changes marked v3.
 import type { Seat } from "../../contract";
 import { ADJ, type Board } from "../rule-v1/board";
-import { pathRun } from "../rule-v1/odds";
+import { pathRun, pathRunVia } from "../rule-v1/odds";
 
 // The capture planner: how a seat takes a set of territories this turn (a card spot,
 // the rest of a continent, or every territory a victim holds), from which of its
@@ -40,7 +40,7 @@ export interface CapturePlan {
  *  where the group allows; at a dead end it branches from the latest capture that can. */
 function coverOrder(b: Board, group: Group, entry: number): number[] {
   const order = [entry];
-  const taken = new Uint8Array(b.owner.length);
+  if (taken.length < b.owner.length) taken = new Uint8Array(b.owner.length);
   taken[entry] = 1;
   while (order.length < group.members.length) {
     let next = -1;
@@ -61,8 +61,13 @@ function coverOrder(b: Board, group: Group, entry: number): number[] {
     order.push(next);
     taken[next] = 1;
   }
+  for (const t of order) taken[t] = 0;
   return order;
 }
+
+/** The territories `coverOrder` has taken, reused and cleared after: allocating it per call
+ *  cost more than the ordering. */
+let taken = new Uint8Array(0);
 
 /** A connected group of targets: its members in the order the search found them, and
  *  a flag per territory for whether it is one. */
@@ -114,42 +119,46 @@ export function planCapture(
   const isTarget = new Uint8Array(b.owner.length);
   for (const t of targets) isTarget[t] = 1;
   for (const group of groups(targets, b.owner.length)) {
-    const entries: { source: number; prefix: number[]; entry: number }[] = [];
-    for (const e of group.members) {
-      for (const s of ADJ[e]) {
-        if (b.owner[s] === seat) entries.push({ source: s, prefix: [], entry: e });
-        else if (group.has[s] === 0 && isTarget[s] === 0) {
-          // One territory of a third player's on the way in.
-          for (const s2 of ADJ[s]) if (b.owner[s2] === seat) entries.push({ source: s2, prefix: [s], entry: e });
-        }
+    // Each way in is a launch stack and the target it enters, directly or through `via`, one
+    // territory of a third player's (-1 for none). Many launch stacks share a way in, and the
+    // order from it is the same for each.
+    const orders = new Map<number, { order: number[]; defenders: number[] }>();
+    const best = { score: -Infinity, source: -1, via: -1, order: [] as number[] };
+    const weigh = (source: number, via: number, entry: number) => {
+      let known = orders.get(entry);
+      if (known === undefined) {
+        const order = coverOrder(b, group, entry);
+        orders.set(entry, (known = { order, defenders: defendersOf(b, order) }));
       }
-    }
-    let route: Route | null = null;
-    let bestScore = -Infinity;
-    // Many launch stacks share a way in, and the order from it is the same for each.
-    const orders = new Map<number, number[]>();
-    for (const { source, prefix, entry } of entries) {
-      let order = orders.get(entry);
-      if (order === undefined) orders.set(entry, (order = coverOrder(b, group, entry)));
-      const path = [...prefix, ...order];
       // A stack already leading another route keeps its armies to place for that one, and
       // has only what that route leaves it (v2): its defenders, and an army on each
       // territory it takes. v1 counted the whole stack again, so two groups beside
       // different stacks were both launched from the first and joined into one run.
       const earlier = routes.find((r) => r.source === source);
       const left = earlier ? b.armies[source] - defendersOf(b, earlier.path).reduce((x, d) => x + d + 1, 0) : b.armies[source];
-      const p = pathRun(Math.max(1, left) + (used.has(source) ? 0 : toPlace), defendersOf(b, path)).pSuccess;
+      const armies = Math.max(1, left) + (used.has(source) ? 0 : toPlace);
+      const p = (via < 0 ? pathRun(armies, known.defenders) : pathRunVia(armies, b.armies[via], known.defenders)).pSuccess;
       // A way in through a third player's territory costs a fight with someone the plan isn't
       // about, so a direct way in wins any near tie (v3). Balanced Blitz makes many ways in
       // sure, and v2 took whichever came first in the neighbour list.
-      const score = p * 1000 + left - (prefix.length > 0 ? THIRD_PARTY_COST : 0);
-      if (score > bestScore) {
-        bestScore = score;
-        route = { source, path };
+      const score = p * 1000 + left - (via >= 0 ? THIRD_PARTY_COST : 0);
+      if (score > best.score) {
+        best.score = score;
+        best.source = source;
+        best.via = via;
+        best.order = known.order;
+      }
+    };
+    for (const e of group.members) {
+      for (const s of ADJ[e]) {
+        if (b.owner[s] === seat) weigh(s, -1, e);
+        else if (group.has[s] === 0 && isTarget[s] === 0) {
+          for (const s2 of ADJ[s]) if (b.owner[s2] === seat) weigh(s2, s, e);
+        }
       }
     }
-    if (route === null) return null;
-    const chosen = route;
+    if (best.source < 0) return null;
+    const chosen: Route = { source: best.source, path: best.via < 0 ? [...best.order] : [best.via, ...best.order] };
     const sameSource = routes.find((r) => r.source === chosen.source);
     if (sameSource) sameSource.path.push(...chosen.path);
     else routes.push(chosen);
