@@ -10,7 +10,7 @@ import type { GameRunner } from "@/shared/lib/bot-lab/pool";
 import { luceWinProb } from "@/shared/lib/bot-lab/sprt";
 import { wilsonInterval, type ShareInterval } from "@/shared/lib/bot-lab/stats";
 import { candidateSeats, finishesOf, outcomeFor, tableSpecs, type Format } from "./parallel";
-import { ladderGamesToPlay, playLadder, type LadderCache, type Matchup, type MatchupTally } from "./ratings";
+import { playLadder, walkLadder, type LadderCache, type LadderSpec, type LadderWalk } from "./ratings";
 import type { RiskGameResult, RiskGameSpec } from "./runner";
 
 // Risk's gauntlet on the shared bot-lab core: a candidate plays every field member
@@ -60,12 +60,15 @@ export interface RiskGauntletOptions {
   maxDecisive: number;
   /** Matchups of the field's own games already played. */
   fieldCache?: LadderCache;
-  /** Fired as each of the field's own matchups is done, `cached` when the cache answered it. */
-  onFieldMatchup?: (matchup: Matchup, tally: MatchupTally, cached: boolean) => void;
-  /** Seed groups per field-internal table, played only to anchor the Elo fit. */
-  fieldGroups: number;
+  /** Fired with the field's own ladder after each of its rounds. */
+  onFieldRound?: (walk: LadderWalk) => void;
+  /** The most seed groups a field-internal table plays: the field's own ladder, played
+   *  only to anchor the Elo fit, plays to the precision the SPRT's margin and α ask of a
+   *  ladder (`ratings.ts`), up to this. */
+  fieldMaxGroups: number;
   maxTurns: number;
-  /** Games per SPRT round, rounded up to whole groups; a few per worker by default. */
+  /** Games per SPRT round, rounded up to whole groups; a few per worker by default. 1, a
+   *  remote run's report, also reads the field's ladder a group at a time. */
   batchGames?: number;
   pool: RiskPool;
   /** Fired after every SPRT round and when each pairing resolves: cosmetic only. */
@@ -157,12 +160,14 @@ const sprtConfig = (opts: Pick<RiskGauntletOptions, "margin" | "alpha" | "beta">
 });
 
 /** The field's own ladder in a gauntlet. */
-const fieldLadder = (opts: Omit<RiskGauntletOptions, "pool">) => ({
+const fieldLadder = (opts: Omit<RiskGauntletOptions, "pool">): LadderSpec => ({
   labels: opts.field,
   players: opts.players,
-  groups: opts.fieldGroups,
   prefix: `${opts.prefix}:field`,
   maxTurns: opts.maxTurns,
+  margin: opts.margin,
+  alpha: opts.alpha,
+  maxGroups: opts.fieldMaxGroups,
   cache: opts.fieldCache,
 });
 
@@ -176,11 +181,11 @@ export interface RiskGauntletRound {
 
 /** A gauntlet played in rounds elsewhere (`bot-lab/remote.ts`): from the games played so
  *  far (`played`), the games its next round plays. Each undecided pairing plays what its test
- *  is expected to need (`planSprtRound`), at least `minRound`; the field's games, whose number is fixed,
- *  all play in the first round. Once it needs no games, `runRiskGauntlet` over the same
+ *  is expected to need (`planSprtRound`), at least `minRound`; the field's ladder plays what its
+ *  precision is expected to need (`walkLadder`). Once it needs no games, `runRiskGauntlet` over the same
  *  games reports exactly what it reports playing them itself. */
 export function planRiskGauntlet(
-  opts: Omit<RiskGauntletOptions, "pool" | "onProgress" | "onFieldMatchup" | "batchGames">,
+  opts: Omit<RiskGauntletOptions, "pool" | "onProgress" | "onFieldRound" | "batchGames">,
   played: (spec: RiskGameSpec) => RiskGameResult | undefined,
   minRound: number,
 ): RiskGauntletRound {
@@ -215,7 +220,7 @@ export function planRiskGauntlet(
       done: plan.next === 0,
     };
   });
-  specs.push(...ladderGamesToPlay(fieldLadder(opts), (spec) => played(spec) !== undefined));
+  specs.push(...walkLadder(fieldLadder(opts), played, true).specs);
   return { specs, progress };
 }
 
@@ -282,16 +287,9 @@ export async function runRiskGauntlet(opts: RiskGauntletOptions): Promise<RiskGa
     return summarize(counted, opts.candidate, run, table);
   });
 
-  // 2. The field's own ladder, a fixed number of groups a table, only to anchor
-  //    the Elo fit (a star centred on the candidate would leave the field's
-  //    relative ratings unpinned).
-  const ladder = await playLadder({
-    ...fieldLadder(opts),
-    pool: opts.pool,
-    onMatchup: (_, matchup, tally, cached) => {
-      if (tally !== null) opts.onFieldMatchup?.(matchup, tally, cached);
-    },
-  });
+  // 2. The field's own ladder, only to anchor the Elo fit (a star centred on the
+  //    candidate would leave the field's relative ratings unpinned).
+  const ladder = await playLadder({ ...fieldLadder(opts), pool: opts.pool, stepwise: batchGames === 1, onRound: opts.onFieldRound });
   winPairs.push(...ladder.winPairs);
   finishPairs.push(...ladder.finishPairs);
   errors += ladder.errors;

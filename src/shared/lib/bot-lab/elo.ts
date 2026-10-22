@@ -134,3 +134,92 @@ export function pairsFromWinner(finishes: readonly Finish[]): PairResult[] {
 export function topRated(elo: Readonly<Record<string, number>>, labels: readonly string[]): string {
   return labels.reduce((best, l) => (elo[l] > elo[best] ? l : best), labels[0]);
 }
+
+/** A fit's comparisons from one source of games, with how each game made them: a game
+ *  that side `a` won added `aPerWin` comparisons won by `a`, and one that `b` won added
+ *  `bPerWin` won by `b` (a lone seat's win among n − 1 copies breaks into n − 1). */
+export interface ComparisonSource extends PairResult {
+  aPerWin: number;
+  bPerWin: number;
+}
+
+const ELO_PER_NATURAL_UNIT = 400 / Math.LN10;
+
+/** How precisely `fitElo` has placed each pair of labels: the variance, in Elo², of the
+ *  fitted gap between any two, given the `elo` it fitted from `sources`.
+ *
+ *  The fit counts a game's comparisons as if each were a game of its own, so its own
+ *  Fisher information would overstate the evidence up to n − 1 times. The variance is
+ *  instead the sandwich (Huber–White) estimate of the fit as computed: the
+ *  Bradley–Terry Hessian H, and the spread of each GAME's score, so a game's comparisons
+ *  count as the one outcome they are. With the score of a comparison won by `a` being
+ *  1 − p and of one won by `b` −p (p the fit's P(a beats b)), a source's games contribute
+ *  aWins·aPerWin·(1 − p)² + bWins·bPerWin·p² to the score's variance M, and the gap's
+ *  variance is H⁻¹MH⁻¹. It reads the observed games, so a field that fits the model badly
+ *  (strength isn't one number) shows as the larger spread it causes, not hidden by it.
+ *  Labels the sources don't connect have an infinite variance. */
+export function eloGapVariance(
+  labels: readonly string[],
+  elo: Readonly<Record<string, number>>,
+  sources: readonly ComparisonSource[],
+): (a: string, b: string) => number {
+  // Every label but the first, whose θ is held at 0: gaps are what the data identify.
+  const k = labels.length - 1;
+  if (k < 1) return () => 0;
+  const at = new Map(labels.slice(1).map((l, i) => [l, i]));
+  const h = Array.from({ length: k }, () => new Array<number>(k).fill(0));
+  const m = Array.from({ length: k }, () => new Array<number>(k).fill(0));
+  const add = (matrix: number[][], a: string, b: string, w: number) => {
+    const i = at.get(a);
+    const j = at.get(b);
+    if (i !== undefined) matrix[i][i] += w;
+    if (j !== undefined) matrix[j][j] += w;
+    if (i !== undefined && j !== undefined) {
+      matrix[i][j] -= w;
+      matrix[j][i] -= w;
+    }
+  };
+  for (const s of sources) {
+    if (!(s.a in elo) || !(s.b in elo) || s.a === s.b) continue;
+    const p = 1 / (1 + Math.exp(-(elo[s.a] - elo[s.b]) / ELO_PER_NATURAL_UNIT));
+    add(h, s.a, s.b, (s.aWins + s.bWins) * p * (1 - p));
+    add(m, s.a, s.b, s.aWins * s.aPerWin * (1 - p) ** 2 + s.bWins * s.bPerWin * p ** 2);
+  }
+  const inverse = invert(h);
+  if (inverse === null) return (a, b) => (a === b ? 0 : Infinity);
+  const cov = multiply(multiply(inverse, m), inverse);
+  const scale = ELO_PER_NATURAL_UNIT ** 2;
+  return (a, b) => {
+    const i = at.get(a);
+    const j = at.get(b);
+    const cii = i === undefined ? 0 : cov[i][i];
+    const cjj = j === undefined ? 0 : cov[j][j];
+    const cij = i === undefined || j === undefined ? 0 : cov[i][j];
+    return scale * (cii + cjj - 2 * cij);
+  };
+}
+
+/** The inverse of a symmetric matrix by Gauss–Jordan elimination, or null when it is
+ *  singular (the comparisons leave some label unconnected). */
+function invert(matrix: readonly (readonly number[])[]): number[][] | null {
+  const n = matrix.length;
+  const a = matrix.map((row, i) => [...row, ...row.map((_, j) => (i === j ? 1 : 0))]);
+  for (let col = 0; col < n; col++) {
+    let pivot = col;
+    for (let r = col + 1; r < n; r++) if (Math.abs(a[r][col]) > Math.abs(a[pivot][col])) pivot = r;
+    if (!(Math.abs(a[pivot][col]) > 0)) return null;
+    [a[col], a[pivot]] = [a[pivot], a[col]];
+    const lead = a[col][col];
+    for (let c = 0; c < 2 * n; c++) a[col][c] /= lead;
+    for (let r = 0; r < n; r++) {
+      if (r === col) continue;
+      const f = a[r][col];
+      if (f !== 0) for (let c = 0; c < 2 * n; c++) a[r][c] -= f * a[col][c];
+    }
+  }
+  return a.map((row) => row.slice(n));
+}
+
+function multiply(x: readonly (readonly number[])[], y: readonly (readonly number[])[]): number[][] {
+  return x.map((row) => y[0].map((_, j) => row.reduce((s, v, k) => s + v * y[k][j], 0)));
+}

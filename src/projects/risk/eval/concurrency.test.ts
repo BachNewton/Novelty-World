@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { GameRunner } from "@/shared/lib/bot-lab/pool";
 import { gauntletTables, runRiskGauntlet, type RiskGauntletOptions } from "./gauntlet";
-import { fitElo, pairsFromFinishes, pairsFromWinner, type PairResult } from "@/shared/lib/bot-lab/elo";
+import { eloGapVariance, fitElo, pairsFromFinishes, pairsFromWinner, type PairResult } from "@/shared/lib/bot-lab/elo";
 import { finishesOf, outcomeFor, tableSpecs } from "./parallel";
-import { ladderMatchups, playLadder, type LadderCache, type MatchupGames, type MatchupRecord } from "./ratings";
+import {
+  ladderMatchups,
+  ladderPrecision,
+  playLadder,
+  type GroupRecord,
+  type LadderCache,
+  type LadderOptions,
+  type MatchupGames,
+  type MatchupTally,
+} from "./ratings";
 import type { RiskGameResult, RiskGameSpec } from "./runner";
 import { fakeGame } from "./fake-game";
 
@@ -11,8 +20,8 @@ import { fakeGame } from "./fake-game";
 // report must not depend on that: a stand-in game (a pure function of its seed and
 // seating, like a real one, but instant) is played through a runner that takes one
 // call at a time, and through one that finishes concurrent calls in a scrambled
-// order, and the reports must match. The ladder's cache must change nothing either,
-// only which matchups are played.
+// order, and the reports must match. The ladder's rounds and its cache must change
+// nothing either, only which games are played.
 
 /** One call at a time, in the order they were made. */
 function serialRunner(): GameRunner<RiskGameSpec, RiskGameResult> {
@@ -54,7 +63,7 @@ const options = (pool: RiskGauntletOptions["pool"], overrides: Partial<RiskGaunt
   alpha: 0.05,
   beta: 0.05,
   maxDecisive: 300,
-  fieldGroups: 6,
+  fieldMaxGroups: 6,
   maxTurns: 600,
   batchGames: 12,
   pool,
@@ -77,7 +86,7 @@ describe("the gauntlet's pairings played at once", () => {
     const tables = gauntletTables(["base", "other"], [3, 4], ["one-in", "one-out"]);
     for (const [i, t] of tables.entries()) {
       const alone = await runRiskGauntlet(
-        options(serialRunner(), { base: t.opponent, field: [t.opponent], players: [t.players], formats: [t.format], fieldGroups: 0 }),
+        options(serialRunner(), { base: t.opponent, field: [t.opponent], players: [t.players], formats: [t.format], fieldMaxGroups: 0 }),
       );
       expect(alone.pairings).toEqual([all.pairings[i]]);
     }
@@ -100,20 +109,28 @@ describe("the gauntlet's pairings played at once", () => {
   });
 });
 
-describe("the ladder's matchups played at once", () => {
-  const ladder = (pool: GameRunner<RiskGameSpec, RiskGameResult>) =>
-    playLadder({ pool, labels: ["cand", "base", "other"], players: [3, 4], groups: 5, prefix: "lad", maxTurns: 600 });
+const LABELS = ["cand", "base", "other"];
+const ladderSpec: Omit<LadderOptions, "pool"> = { labels: LABELS, players: [3, 4], prefix: "lad", maxTurns: 600, margin: 60, alpha: 0.05, maxGroups: 100 };
 
-  it("tally each matchup as it is played alone, and rate the same", async () => {
-    const serial = await ladder(serialRunner());
-    const scrambled = await ladder(scrambledRunner());
-    expect(scrambled).toEqual(serial);
-    const matchups = ladderMatchups(["cand", "base", "other"], [3, 4]);
-    expect(scrambled.tallies.map(({ lone, rest, players }) => ({ lone, rest, players }))).toEqual(matchups);
-    for (const t of scrambled.tallies) {
-      const outcomes = tableSpecs(t.lone, t.rest, "one-in", t.players, `lad:${t.lone}-in-${t.rest}:${t.players}p`, 0, 5 * t.players, 600)
-        .map(fakeGame)
-        .map((r) => outcomeFor(r, t.lone));
+const counting = (runner = serialRunner()) => {
+  let games = 0;
+  return {
+    played: () => games,
+    pool: { ...runner, run: (specs: readonly RiskGameSpec[]) => ((games += specs.length), runner.run(specs)) },
+  };
+};
+
+const fakeGroups = (t: { lone: string; rest: string; players: number }, from: number, count: number) =>
+  tableSpecs(t.lone, t.rest, "one-in", t.players, `lad:${t.lone}-in-${t.rest}:${t.players.toString()}p`, from * t.players, count * t.players, 600).map(fakeGame);
+
+describe("the ladder played in rounds", () => {
+  it("rates the same however its rounds are cut and its games finish", async () => {
+    const ahead = await playLadder({ ...ladderSpec, pool: serialRunner() });
+    expect(await playLadder({ ...ladderSpec, pool: scrambledRunner() })).toEqual(ahead);
+    expect(await playLadder({ ...ladderSpec, pool: serialRunner(), stepwise: true })).toEqual(ahead);
+    expect(ahead.tallies.map(({ lone, rest, players }) => ({ lone, rest, players }))).toEqual(ladderMatchups(LABELS, [3, 4]));
+    for (const t of ahead.tallies) {
+      const outcomes = fakeGroups(t, 0, t.groups).map((r) => outcomeFor(r, t.lone));
       expect(t).toMatchObject({
         wins: outcomes.filter((o) => o === "win").length,
         losses: outcomes.filter((o) => o === "loss").length,
@@ -121,66 +138,126 @@ describe("the ladder's matchups played at once", () => {
       });
     }
   });
+
+  it("plays each pair until the fit knows its gap, every table of it alike", async () => {
+    const ladder = await playLadder({ ...ladderSpec, pool: serialRunner() });
+    const pairGroups = new Map<string, Set<number>>();
+    for (const t of ladder.tallies) {
+      const pair = [t.lone, t.rest].sort().join(" ");
+      pairGroups.set(pair, (pairGroups.get(pair) ?? new Set<number>()).add(t.groups));
+    }
+    for (const groups of pairGroups.values()) expect(groups.size).toBe(1);
+    const stops = [...pairGroups.values()].map((g) => [...g][0]);
+    // The pairs stop at different points, none at the cap: the evidence decides.
+    expect(new Set(stops).size).toBeGreaterThan(1);
+    expect(Math.max(...stops)).toBeLessThan(ladderSpec.maxGroups);
+
+    // At the stop, every pair's gap is within the precision; a group earlier, the last
+    // pair's wasn't.
+    const variance = (groups: (t: MatchupTally) => number) => {
+      const sources = ladder.tallies.map((t) => {
+        const outcomes = fakeGroups(t, 0, groups(t)).map((r) => outcomeFor(r, t.lone));
+        const wins = outcomes.filter((o) => o === "win").length;
+        const losses = outcomes.filter((o) => o === "loss").length;
+        return { a: t.lone, b: t.rest, aWins: wins * (t.players - 1), bWins: losses, aPerWin: t.players - 1, bPerWin: 1 };
+      });
+      return eloGapVariance(LABELS, fitElo(LABELS, sources, { anchor: LABELS[0] }), sources);
+    };
+    const target = ladderPrecision(ladderSpec.margin, ladderSpec.alpha) ** 2;
+    const atStop = variance((t) => t.groups);
+    for (const t of ladder.tallies) expect(atStop(t.lone, t.rest)).toBeLessThanOrEqual(target);
+    const last = Math.max(...stops);
+    const before = variance((t) => Math.min(t.groups, last - 1));
+    expect(ladder.tallies.some((t) => t.groups === last && before(t.lone, t.rest) > target)).toBe(true);
+  });
+
+  it("plays fewer games for a looser precision", async () => {
+    const strict = counting();
+    const loose = counting();
+    await playLadder({ ...ladderSpec, pool: strict.pool });
+    await playLadder({ ...ladderSpec, margin: 120, pool: loose.pool });
+    expect(loose.played()).toBeLessThan(strict.played() / 2);
+  });
+
+  it("plays no game with no groups allowed", async () => {
+    const none = counting();
+    const ladder = await playLadder({ ...ladderSpec, maxGroups: 0, pool: none.pool });
+    expect(none.played()).toBe(0);
+    expect(ladder.tallies.every((t) => t.groups === 0)).toBe(true);
+  });
+
+  it("gives each matchup's comparisons summed, which fit the same Elo as every game's own", async () => {
+    const played = await playLadder({ ...ladderSpec, pool: serialRunner() });
+    const games = played.tallies.flatMap((t) => fakeGroups(t, 0, t.groups));
+    const each = (pairs: (f: ReturnType<typeof finishesOf>) => PairResult[]) => games.flatMap((r) => pairs(finishesOf(r)));
+    expect(fitElo(LABELS, played.winPairs, { anchor: "base" })).toEqual(fitElo(LABELS, each(pairsFromWinner), { anchor: "base" }));
+    expect(fitElo(LABELS, played.finishPairs, { anchor: "base" })).toEqual(fitElo(LABELS, each(pairsFromFinishes), { anchor: "base" }));
+  });
 });
 
 describe("the ladder with a cache", () => {
-  const LABELS = ["cand", "base", "other"];
-  const memoryCache = (): LadderCache & { records: Map<string, MatchupRecord> } => {
-    const records = new Map<string, MatchupRecord>();
-    const key = (g: MatchupGames) => `${g.seeds} ${g.groups.toString()} ${g.maxTurns.toString()}`;
-    return { records, get: (g) => records.get(key(g)) ?? null, set: (g, r) => records.set(key(g), r) };
-  };
-  const counting = () => {
-    let games = 0;
-    const runner = serialRunner();
+  const memoryCache = (): LadderCache & { records: Map<string, readonly GroupRecord[]> } => {
+    const records = new Map<string, readonly GroupRecord[]>();
+    const key = (g: MatchupGames) => `${g.seeds} ${g.maxTurns.toString()}`;
     return {
-      played: () => games,
-      pool: { ...runner, run: (specs: readonly RiskGameSpec[]) => ((games += specs.length), runner.run(specs)) },
+      records,
+      get: (g) => records.get(key(g)) ?? [],
+      set: (g, groups) => {
+        if (groups.length > (records.get(key(g))?.length ?? 0)) records.set(key(g), groups);
+      },
     };
   };
-  const ladder = (pool: GameRunner<RiskGameSpec, RiskGameResult>, cache?: LadderCache) =>
-    playLadder({ pool, labels: LABELS, players: [3, 4], groups: 5, prefix: "lad", maxTurns: 600, cache });
+  const ladder = (pool: GameRunner<RiskGameSpec, RiskGameResult>, cache?: LadderCache, margin = ladderSpec.margin) =>
+    playLadder({ ...ladderSpec, margin, pool, cache });
 
-  it("rates the same from the cache, playing only the matchups it lacks", async () => {
+  it("rates the same from the cache, playing only the groups it lacks", async () => {
     const cache = memoryCache();
     const first = await ladder(serialRunner(), cache);
     expect(first.cached).toBe(0);
     expect(cache.records.size).toBe(ladderMatchups(LABELS, [3, 4]).length);
 
     const warm = counting();
-    expect({ ...(await ladder(warm.pool, cache)), cached: 0 }).toEqual(first);
+    const again = await ladder(warm.pool, cache);
     expect(warm.played()).toBe(0);
+    expect(again.cached).toBe(first.tallies.reduce((s, t) => s + t.groups, 0));
+    expect({ ...again, cached: 0 }).toEqual(first);
 
     const [forgotten] = cache.records.keys();
     cache.records.delete(forgotten);
-    const partial = counting();
-    const again = await ladder(partial.pool, cache);
-    expect(again.cached).toBe(cache.records.size - 1);
-    expect(partial.played()).toBe(5 * Number(/:(\d)p /.exec(`${forgotten} `)?.[1]));
-    expect({ ...again, cached: 0 }).toEqual(first);
+    const seeds: string[] = [];
+    const runner = serialRunner();
+    const watched = { ...runner, run: (specs: readonly RiskGameSpec[]) => (seeds.push(...specs.map((s) => s.seed)), runner.run(specs)) };
+    expect({ ...(await ladder(watched, cache)), cached: 0 }).toEqual(first);
+    expect(seeds.length).toBeGreaterThan(0);
+    expect(seeds.every((s) => s.startsWith(`${forgotten.split(" ")[0]}-`))).toBe(true);
   });
 
-  it("gives each matchup's comparisons summed, which fit the same Elo as every game's own", async () => {
-    const played = await ladder(serialRunner());
-    const games = ladderMatchups(LABELS, [3, 4]).flatMap(({ lone, rest, players }) =>
-      tableSpecs(lone, rest, "one-in", players, `lad:${lone}-in-${rest}:${players.toString()}p`, 0, 5 * players, 600).map(fakeGame),
-    );
-    const each = (pairs: (f: ReturnType<typeof finishesOf>) => PairResult[]) => games.flatMap((r) => pairs(finishesOf(r)));
-    expect(fitElo(LABELS, played.winPairs, { anchor: "base" })).toEqual(fitElo(LABELS, each(pairsFromWinner), { anchor: "base" }));
-    expect(fitElo(LABELS, played.finishPairs, { anchor: "base" })).toEqual(fitElo(LABELS, each(pairsFromFinishes), { anchor: "base" }));
+  it("rates the same from a cache that holds more groups than it needs, or fewer", async () => {
+    const fresh = await ladder(serialRunner());
+    const deep = memoryCache();
+    await ladder(serialRunner(), deep, ladderSpec.margin / 2);
+    const fromDeep = counting();
+    expect({ ...(await ladder(fromDeep.pool, deep)), cached: 0 }).toEqual(fresh);
+    expect(fromDeep.played()).toBe(0);
+
+    const shallow = memoryCache();
+    await ladder(serialRunner(), shallow, ladderSpec.margin * 2);
+    const fromShallow = counting();
+    expect({ ...(await ladder(fromShallow.pool, shallow)), cached: 0 }).toEqual(fresh);
+    expect(fromShallow.played()).toBeGreaterThan(0);
   });
 
-  it("never caches a matchup whose games threw", async () => {
+  it("keeps a matchup's groups only up to the first whose games threw", async () => {
     const cache = memoryCache();
     const runner = serialRunner();
     const throwing = {
       ...runner,
       run: async (specs: readonly RiskGameSpec[]) =>
-        (await runner.run(specs)).map((r) => (r.seed === "lad:cand-in-base:3p-1" ? { ...r, error: "illegal move" } : r)),
+        (await runner.run(specs)).map((r) => (r.seed === "lad:cand-in-base:3p-2" ? { ...r, error: "illegal move" } : r)),
     };
     const report = await ladder(throwing, cache);
     expect(report.errors).toBeGreaterThan(0);
-    expect([...cache.records.keys()].some((k) => k.startsWith("lad:cand-in-base:3p "))).toBe(false);
-    expect(cache.records.size).toBe(ladderMatchups(LABELS, [3, 4]).length - 1);
+    expect(cache.records.get("lad:cand-in-base:3p 600")?.length).toBe(1);
+    expect(cache.records.size).toBe(ladderMatchups(LABELS, [3, 4]).length);
   });
 });

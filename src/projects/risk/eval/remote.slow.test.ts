@@ -19,7 +19,7 @@ const gauntlet: Omit<RiskGauntletOptions, "pool"> = {
   alpha: 0.05,
   beta: 0.05,
   maxDecisive: 2000,
-  fieldGroups: 0,
+  fieldMaxGroups: 0,
   maxTurns: 600,
 };
 
