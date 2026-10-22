@@ -892,3 +892,28 @@ The changes, each leaving the moves bit-identical, every sum in its old order: p
 Measured on GitHub Actions, one runner a job, two jobs: rule-v7's CPU over two games (`probe-a`, `probe-b`, 20 player-turns each, one v7 at 8 replies among four v6s), old and new alternated six times each. Old 27.2 s, new 21.2 s (1.29×) on one runner; old 19.7 s, new 15.0 s (1.31×) on the other, its six pairs within about 4% of each other. The laptop, shared with other work, swung ±20% run to run and couldn't resolve it. Moves were identical in every pair, and over both games to 60 player-turns on the laptop; the frozen fingerprints hold. The edits are in `rule-v1/odds.ts` and `rule-v3/routes.ts` as well as v6's own files, so every rule bot's and GD's ladder records replay once, not only v6's and those built on it.
 
 The rest of the profile is spread thin, no function above about 11% of the time. The next real gain is structural: `forecast` recomputes every opponent's kill chances and sweeps for each plan's end board, though a plan changes only the territories it takes.
+
+## v7's budget ladder: 8 replies it is (2026-10-22)
+
+On GitHub Actions (run 39754675411, 60 shards, 3,000 games, 8 hours): `risk:ratings -- rule-v6 rule-v7~{"replies":2} rule-v7~{"replies":8} --anchor rule-v6 --groups 100 --players 5`. Six matchups of 500 games, each bot alone among copies of another; par 20%.
+
+| Matchup (5p) | Lone seat's win share | Games capped |
+|---|---|---|
+| v6 alone among v7@2 | 17.4% [14.1, 21.1] | 10% |
+| v7@2 alone among v6 | 28.3% [24.5, 32.5] | 4% |
+| v6 alone among v7@8 | 5.7% [3.9, 8.3] | 16% |
+| v7@8 alone among v6 | 36.5% [32.3, 40.9] | 4% |
+| v7@2 alone among v7@8 | 17.4% [13.9, 21.5] | 23% |
+| v7@8 alone among v7@2 | 27.4% [23.4, 31.7] | 13% |
+
+| Bot | Win Elo (v6 = 0) | Finishing-order Elo |
+|---|---|---|
+| rule-v7, 8 replies | +152 | +91 |
+| rule-v7, 2 replies | +77 | +48 |
+| rule-v6 | 0 | 0 |
+
+**The budget is 8 replies**, by the rule `rule-bot-v7.md` fixed before the runs (the smallest budget whose win Elo is inside the best one's interval, and which fits a real game's turn). Head to head, 8 replies alone among 2-reply copies wins 27.4% against par 20%: about +72 Elo a seat [+35, +108], so 2 replies is not inside 8's interval. 32 replies, no stronger than 8 in its gauntlet and about 10 s a turn, was out by the turn-time rule. Rule 1 of the seating bar, "the curve climbs", holds: v7 at 8 replies sits about 150 Elo above v6, far outside the error. 4 replies wasn't measured: a head-to-head of 4 against 8 is a close comparison of tables full of v7s, the most expensive test there is, and both fit a real turn, so it would only say whether measuring at 4 could be cheaper.
+
+**Tables of many v7s stall more.** Capped games run 4% where one v7 sits among v6s, but 16% where one v6 sits among 8-reply v7s and 23% where a 2-reply v7 sits among 8-reply ones. The one-out gauntlet showed the same (14%). Capped games are draws and leave the tests, so the verdicts stand, but this is the health flag to watch in the full suite, above all at 6 players, where v6's own games cap 25 to 37%.
+
+The run played on the code before v6's speed-up (c766718c), so its six matchups don't answer from this checkout's ladder cache: the import kept none, as expected.

@@ -1,6 +1,6 @@
 # Risk bot v7: v6 that plays its opponents' replies instead of believing them
 
-v7 (`bots/rule-v7/`) is built and registered (`rule-v7`, and at any budget by a tuned label such as `rule-v7~{"replies":8}`), and not seated: nothing about its strength is measured yet. This doc fixes its seating bar and its measurement plan before any run. `bot-log.md` has the build's entry, with its measured cost.
+v7 (`bots/rule-v7/`) is built, registered (`rule-v7`, and at any budget by a tuned label such as `rule-v7~{"replies":8}`), and not seated. Its budget curve is measured and its budget chosen: **8 replies**, about +150 win Elo a seat over v6 at 5 players, better than v6 both alone among v6s and four against one ("What the curve showed", below). Its full seating suite hasn't run. This doc fixed its seating bar and measurement plan before any run; `bot-log.md` has every measurement.
 
 ## The hypothesis
 
@@ -158,6 +158,22 @@ gh workflow run risk-measure.yml --ref claude/exciting-sinoussi-24c292 -f tool=r
 These are the expensive runs, because one-out seats four or five v7s and a 6-player game among the rule bots runs about 250 player-turns. At 8 replies, a pairing against a bot as strong as v6 that plays to its cap costs about 9 hours of all 20 runners over its eight tables, most of it 6 players one-out; v5 and v4 may cost as much, and the weak bots decide in a few hundred games. So each gauntlet is about a day of the account's runners, and the ladder, with 11 v7 matchups at every table size, most of another. At 2 replies, each is about a third of that.
 
 Each run's results come back with `risk:import`, and their entry goes in `bot-log.md`. If v7 clears the bar, it is seated as v6 was (`online/seat-roster.ts` at the chosen budget, the seatable ratings run, and its fingerprint in `frozen.test.ts`), and `V7_PARAMS.search.replies` becomes the chosen budget.
+
+## What the curve showed
+
+At 5 players against v6, on GitHub Actions (`bot-log.md` has each run):
+
+| Budget | One v7 among four v6s | Four v7s against one v6 | Ladder win Elo (v6 = 0) |
+|---|---|---|---|
+| 2 replies | 30.4%, better | | +77 |
+| 8 replies | 42.7%, better | 88.8%, better | +152 |
+| 32 replies | 41.1%, better | | |
+
+Strength climbs from 2 replies to 8 and is flat from 8 to 32: past about 8 replies, the noise averaging removes is small beside what the search can't see (four candidates, one round deep, bot opponents, v6's standing at the leaf). 8 replies is the chosen budget: head to head it beats 2 replies by about 72 Elo a seat, outside the error, and it fits a real game's turn (rule 5), where 32 doesn't. `V7_PARAMS.search.replies` is already 8.
+
+Tables of many v7s run long and cap more often: 229 turns and 14% capped four against one, and 16 to 23% capped on the ladder's tables of v7s, against 4% with one v7 among v6s. Capped games are draws, so no verdict rests on them, but the full suite's 6-player tables are where it would show.
+
+**What measuring v7 costs.** A v7 turn at 8 replies plays about a hundred imagined turns of v6, so a game of four v7s costs about 6 machine-minutes on Actions. The full suite (train and holdout gauntlets at 3 to 6 players, both mixtures, and the seatable ladder) is days of all twenty runners: rounds are now sized from the evidence, v6's planning is 1.3× cheaper, and the ladder's stopping rule is being made statistical in a session of its own. The suite runs once that lands.
 
 ## Open questions
 
