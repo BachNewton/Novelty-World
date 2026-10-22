@@ -866,3 +866,15 @@ On GitHub Actions (run 39645219116, 10 machines, 2 rounds, 600 games, 6.2 hours)
 **v7 passes the test v8 failed.** A table of v7s beats the lone v6 by more than par allows, so its gain against v6 is strength, not exploitation of a table of v6s. The lone v6 also finishes below its par place (3.15 against 3.0).
 
 **Its games run long.** 229 turns and 14% capped, against 105 to 127 turns and 3 to 7% among v6s at 5 players (and 119 turns, 3.5% capped, with one v7 among four v6s). It isn't v8's stall: v8's first weights ran 421 turns, 21% capped, and lost to the lone v6, where v7 beats it. But four careful searchers take about twice as long to finish each other, and the capped games are discarded as draws. Counted as games v7 didn't win, its share of all 270 games is 76%, under par. So the verdict rests on the decisive games, as every gauntlet's does, and the cap rate is a health flag to watch in the full suite: if a table of v7s caps far more at 6 players, where v6's own games cap 25 to 37%, that will show it.
+
+## v7 at 32 replies: the curve flattens (2026-10-22)
+
+On GitHub Actions (run 39696419497, 10 machines, rounds of at least 200 games, 1.7 hours): `risk:gauntlet -- rule-v7~{"replies":32} --base rule-v6 --field rule-v6 --players 5 --formats one-in --max 2000 --prefix budget-v7`, the same seeds as the 2- and 8-reply runs.
+
+| Budget, one v7 among four v6s | Win share vs par 20% | Games | Mean turns | Cap rate | Win Elo a seat |
+|---|---|---|---|---|---|
+| 2 replies | 30.4% [24.5, 37.0] | 215 | 126 | 5.1% | +97 |
+| 8 replies | 42.7% [32.5, 53.5] | 85 | 119 | 3.5% | +190 |
+| 32 replies | 41.1% [31.5, 51.4] | 95 | 149 | 5.3% | +178 |
+
+Four times the work of 8 replies buys nothing measurable: the one-in curve climbs from 2 to 8 and is flat from 8 to 32. 32 replies also fails rule 5 of the seating bar (about 10 s a turn on the laptop's core), so it was never a candidate budget; as the design doc set out, it is recorded rather than seated, and with no gain over 8 it is no evidence for thinking on a player's device either. By the doc's rule it stays off the budget ladder, which plays v6, 2 replies and 8 replies.
