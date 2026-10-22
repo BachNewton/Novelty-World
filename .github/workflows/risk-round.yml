@@ -83,6 +83,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     strategy:
+      # A machine lost mid-round (GitHub's runners occasionally drop) must not cancel
+      # the others: the next round's plan replays whatever games are missing.
+      fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}

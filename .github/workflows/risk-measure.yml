@@ -58,7 +58,7 @@ jobs:
 
   round2:
     needs: round1
-    if: needs.round1.outputs.done != 'true'
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round1.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -71,7 +71,7 @@ jobs:
 
   round3:
     needs: round2
-    if: needs.round2.outputs.done != 'true'
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round2.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -84,7 +84,7 @@ jobs:
 
   round4:
     needs: round3
-    if: needs.round3.outputs.done != 'true'
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round3.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -97,7 +97,7 @@ jobs:
 
   round5:
     needs: round4
-    if: needs.round4.outputs.done != 'true'
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round4.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -110,7 +110,7 @@ jobs:
 
   round6:
     needs: round5
-    if: needs.round5.outputs.done != 'true'
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round5.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -123,7 +123,7 @@ jobs:
 
   round7:
     needs: round6
-    if: needs.round6.outputs.done != 'true'
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round6.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -136,7 +136,7 @@ jobs:
 
   round8:
     needs: round7
-    if: needs.round7.outputs.done != 'true'
+    if: ${{ inputs.tool != 'record' && !cancelled() && needs.round7.outputs.done != 'true' }}
     uses: ./.github/workflows/risk-round.yml
     secrets: inherit
     with:
@@ -147,11 +147,12 @@ jobs:
       min_round: ${{ fromJSON(inputs.min_round) }}
       max_parallel: ${{ fromJSON(inputs.max_parallel) }}
 
-  # Every round that ran succeeded and the rest were skipped because the run was
-  # decided. If the last round left games unplayed, the report fails loudly naming one.
+  # A round whose machine was lost still hands on to the next, whose plan replays the
+  # missing games, so a failed round doesn't stop the report. If the last round left
+  # games unplayed, the report fails loudly naming one.
   report:
     needs: [round1, round2, round3, round4, round5, round6, round7, round8]
-    if: ${{ inputs.tool != 'record' && !cancelled() && !failure() }}
+    if: ${{ inputs.tool != 'record' && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
