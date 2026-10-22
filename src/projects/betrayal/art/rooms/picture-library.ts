@@ -14,11 +14,11 @@ const FRAMES = ["brass", "woodLight", "woodMid", "woodDark"] as const;
 /**
  * The whole picture library hung in one room, to judge it on the bench
  * (`?bench=pictures`). A bench view only, never in the house: it is
- * built on the Gallery's tile, a plain room with doors top and bottom, until
- * the Gallery has art of its own.
+ * built on the Dungeon's tile, a plain room with doors top and bottom, which
+ * waits with the rest of Widow's Walk for art of its own.
  */
 export const PICTURE_LIBRARY: RoomDefinition = {
-  id: "gallery",
+  id: "dungeon",
   floor: () => woodPlanks({ seed: "picture-library" }),
   wall: () => wallpaper({ ground: "moonDark", stripe: "sootLight", motif: "moon", seed: "picture-library" }),
   wainscot: () => panelling({ ramp: RAMPS.wood, seed: "picture-library" }),

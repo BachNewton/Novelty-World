@@ -10,6 +10,7 @@ import { cobweb } from "./kit/cobweb";
 import { fire, flame } from "./kit/flame";
 import { pictureFrame, rug, windowPool } from "./kit/decor";
 import { chair, table } from "./kit/furniture";
+import { balustradeRun, giltChair } from "./kit/ballroom";
 import { instrumentTray, labBench, labGlass } from "./kit/laboratory";
 import { pawn } from "./kit/pawn";
 import { pitHaze, pitShell } from "./kit/pit";
@@ -48,6 +49,13 @@ function slungRope(): THREE.Object3D {
 
 const SMALL_POOL: [number, number] = [-0.6, 0.6];
 
+/** A metre of the Gallery's balustrade, as the Gallery and the Ballroom build it into a batch. */
+function balustrade(): THREE.Object3D {
+  const b = batch();
+  balustradeRun(b, -0.5, 1);
+  return group(b.mesh());
+}
+
 const KIT_PIECES: { file: string; name: string; build: () => THREE.Object3D }[] = [
   { file: "candles.ts", name: "candle", build: () => candle() },
   { file: "candles.ts", name: "candle, tall", build: () => candle({ height: 0.35 }) },
@@ -60,6 +68,8 @@ const KIT_PIECES: { file: string; name: string; build: () => THREE.Object3D }[] 
   { file: "flame.ts", name: "torch flame", build: () => flame("torch") },
   { file: "cobweb.ts", name: "cobweb, slung", build: () => cobweb({ form: "slung" }) },
   { file: "cobweb.ts", name: "cobweb, fan", build: () => cobweb({ form: "fan" }) },
+  { file: "ballroom.ts", name: "gilt chair", build: giltChair },
+  { file: "ballroom.ts", name: "balustrade", build: balustrade },
   { file: "furniture.ts", name: "table", build: () => table() },
   { file: "furniture.ts", name: "table, with a runner", build: () => table({ runner: "blood" }) },
   { file: "furniture.ts", name: "chair", build: () => chair() },
