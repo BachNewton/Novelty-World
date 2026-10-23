@@ -54,7 +54,7 @@ function chest(): THREE.BufferGeometry {
   const shape = sculpt()
     .add(ellipsoid([0, 0.002, 0.05], [0.05, 0.058, 0.1]), COAT)
     .add(rod([0, 0.02, 0.1], [0, NECK[1] - 0.004, NECK[2]], 0.04, 0.034), COAT, 0.03);
-  for (const side of [-1, 1]) shape.add(ellipsoid([side * FORE.x, -0.008, FORE.z], [0.026, 0.042, 0.034]), COAT, 0.03);
+  for (const side of [-1, 1]) shape.add(ellipsoid([side * FORE.x, -0.008, FORE.z], [0.03, 0.042, 0.034]), COAT, 0.03);
   return shape
     .add(ellipsoid([0, -0.016, 0.1], [0.034, 0.04, 0.048]), WHITE, 0.025)
     .paint(ellipsoid([0, 0.035, 0.15], [0.026, 0.05, 0.03]), WHITE)
