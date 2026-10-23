@@ -6,7 +6,7 @@ import { shiny, SHINES } from "./shine";
 
 /**
  * A glasshouse's walls, standing on an outdoor tile's low wall in place of
- * its railings (a room's `boundary`): painted wooden posts in narrow bays,
+ * its railings (the `glazing` edging): painted wooden posts in narrow bays,
  * a sill on the coping, a transom and a heavy top plate, and clear glass
  * between them. The posts over the piers are heavier, and stand on the piers
  * cut level with the low wall. Built in an edge's frame (see `buildBoundary`

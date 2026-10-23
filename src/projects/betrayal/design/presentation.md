@@ -244,7 +244,7 @@ The Dark Dice's push and free move and the Bell's pull are always to an adjacent
 **Next:** the remaining base rooms (`v1-play.md` lists them), one agent per room or per small group that must match; room features (the non-doorway connections); then monsters, carried props, companions, room tokens and body states as the cards and haunts need them. Widow's Walk rooms, cards and art wait for the base game.
 
 **In numbers**, counted from `content/`:
-- **Rooms:** 67 tiles across the base game and Widow's Walk. Some are outdoors (gardens, graveyard, patio, balcony, roof); an outdoor tile's edge style is its own (railings, a hedge, a balustrade, a trellis: `OutdoorEdging` on the stage), and an indoor wall beside one is cut like an interior wall.
+- **Rooms:** 67 tiles across the base game and Widow's Walk. Some are outdoors (gardens, graveyard, patio, balcony, roof); an outdoor tile's edge style is its own (railings, a hedge, a balustrade, a trellis, a glasshouse's glazing: `OutdoorEdging` on the stage), and an indoor wall beside one is cut like an interior wall.
 - **Explorers:** 12 characters. The board game shares one figure between a card's two characters; here each has their own.
 - **Named monsters:** 12 base and 5 Widow's Walk. Built bodies (the Mummy, Frankenstein's Monster, the Zombie Lord, Dracula) come easily; the Dragon is hard, like the Spider.
 - **Ordinary monsters:** open-ended. On cardboard, 91 numbered tokens serve every haunt, and each haunt decides what they are (zombies, bats, frogs, rats, cultists); each kind needs its own figure. The haunt survey is where to count them.

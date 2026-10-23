@@ -26,7 +26,6 @@ import {
   type FloorOpening,
   type OutdoorEdging,
   type PropPlacement,
-  type Boundary,
   type RoomDefinition,
 } from "./room";
 import type { PaletteKey } from "./palette";
@@ -35,7 +34,7 @@ import { pixelTexture, textureReady } from "./textures";
 import { shiny, SHINES } from "./shine";
 import { boardedDoor, boardedWindow, capWindow, litThreshold, STUB_CAP, windowLight, type WallOpening } from "./wall-markings";
 import { markedWall } from "./wall-marks";
-import { glazing, glazingPost } from "./glazing";
+import { GLAZING, glazing, glazingPost } from "./glazing";
 
 export const EDGES: Edge[] = ["top", "right", "bottom", "left"];
 /** Baked lights cost load time, not frame time; this bounds the bake. */
@@ -228,12 +227,14 @@ function railings(bars: Batch, x0: number, x1: number, iron: PaletteKey) {
 /** How each outdoor edge style (`OutdoorEdging`) is built: whether its low
  *  wall wears a coping, how far it reaches past the wall's thickness into the
  *  room (a hedge is deeper than a wall, as deep as its piers), and its piers'
- *  tops and caps. */
-const EDGINGS: Record<OutdoorEdging, { coping: boolean; spread: number; pierTop: number; cap: "pyramid" | "topiary" | "finial" }> = {
+ *  tops and caps (a glasshouse's `post` is its glazing's heavy post, standing
+ *  on the pier cut level). */
+const EDGINGS: Record<OutdoorEdging, { coping: boolean; spread: number; pierTop: number; cap: "pyramid" | "topiary" | "finial" | "post" }> = {
   railings: { coping: true, spread: 0, pierTop: OUTDOOR.pierTop, cap: "pyramid" },
   hedge: { coping: false, spread: OUTDOOR.pier - WALL_THICKNESS, pierTop: 1.3, cap: "topiary" },
   balustrade: { coping: true, spread: 0, pierTop: 1.18, cap: "finial" },
   trellis: { coping: true, spread: 0, pierTop: OUTDOOR.pierTop, cap: "pyramid" },
+  glazing: { coping: true, spread: 0, pierTop: GLAZING.top, cap: "post" },
 };
 /** A hedge's clipped top, which its overgrown tufts rise above. */
 const HEDGE_TOP = 1.12;
@@ -314,11 +315,11 @@ function trellisAbove(laths: Batch, x0: number, x1: number, wood: PaletteKey) {
  * `OUTDOOR`): a low wall exactly the cut height tall, with stone piers either
  * side of each gate and, on an edge that holds the corners, at its ends.
  * Standing full, it adds what its style stands above the cut height (`EDGINGS`)
- * and the piers' upper part with their caps, or for a glasshouse its glazing
- * (`glazing.ts`) over piers cut level; cut, it is the low wall alone, the
- * piers cut level with it.
+ * and the piers' upper part with their caps, or for `glazing` the glasshouse's
+ * frame and glass (`glazing.ts`) over piers cut level; cut, it is the low wall
+ * alone, the piers cut level with it.
  */
-function buildBoundary(length: number, holes: Opening[], full: boolean, corners: boolean, surface: THREE.Texture, trim: PaletteKey, edging: OutdoorEdging, seed: string, boundary: Boundary): THREE.Group {
+function buildBoundary(length: number, holes: Opening[], full: boolean, corners: boolean, surface: THREE.Texture, trim: PaletteKey, edging: OutdoorEdging, seed: string): THREE.Group {
   const stone = textured(surface);
   const style = EDGINGS[edging];
   const edge = group();
@@ -350,16 +351,16 @@ function buildBoundary(length: number, holes: Opening[], full: boolean, corners:
       edge.add(top);
     }
     runs.push([x0, x1]);
-    if (!full || boundary === "glazing") continue;
+    if (!full || edging === "glazing") continue;
     if (edging === "railings") railings(bars, x0, x1, trim);
     else if (edging === "trellis") trellisAbove(bars, x0, x1, trim);
     else if (edging === "hedge") hedgeAbove(edge, x0, x1, stone, depth, z, `${seed}:${cx.toFixed(2)}`);
     else balustradeAbove(edge, x0, x1, flat(trim), stone);
     barred ||= edging === "railings" || edging === "trellis";
   }
-  for (const x of piers) edge.add(...buildPier(x, full && boundary !== "glazing" ? 0 : null, stone, surface, edging));
+  for (const x of piers) edge.add(...buildPier(x, full && style.cap !== "post" ? 0 : null, stone, surface, edging));
   if (barred) edge.add(bars.mesh());
-  if (full && boundary === "glazing") edge.add(...glazing(runs, piers, holes, trim));
+  if (full && edging === "glazing") edge.add(...glazing(runs, piers, holes, trim));
   return edge;
 }
 
@@ -376,6 +377,7 @@ function buildPier(x: number, from: number | null, stone: THREE.MeshLambertMater
   const body = box([pier, from === null ? CUT_HEIGHT : bodyTop - from, pier], stone, [x, from ?? 0, z]);
   body.userData.body = true;
   if (from === null) return [body];
+  if (cap === "post") throw new Error("A glasshouse's piers stand cut level, its glazing's posts on them");
   if (cap === "pyramid") {
     const pyramid = new THREE.ConeGeometry(pier / Math.SQRT2, capHeight, 4).rotateY(Math.PI / 4).translate(x, pierTop - capHeight / 2, z);
     return [body, new THREE.Mesh(projectUvs(pyramid, surface), stone)];
@@ -670,7 +672,6 @@ function signalFlames(roomId: string, root: THREE.Object3D, anchors: { object: T
 
 export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () => pawn(), closedDoors = [], falseWindows = [] }: RoomOptions = {}): RoomPart {
   const tile = roomTile(def.id);
-  const boundary = def.boundary ?? "railings";
   const root = group();
   const wallTexture = def.wall();
   const wallMaterial = textured(wallTexture);
@@ -724,7 +725,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     const wall = (height: number) => {
       const full = height === WALL_HEIGHT;
       const wallParts = wallOf(full ? parts : stubParts);
-      const built = tile.outside ? buildBoundary(edgeLength(edge), holes, full, edge === "top" || edge === "bottom", wallTexture, def.trim, edging, `${def.id}:${edge}`, boundary) : buildWall(edgeLength(edge), holes, height, wallParts, dressingEnds(tile, edge, height));
+      const built = tile.outside ? buildBoundary(edgeLength(edge), holes, full, edge === "top" || edge === "bottom", wallTexture, def.trim, edging, `${def.id}:${edge}`) : buildWall(edgeLength(edge), holes, height, wallParts, dressingEnds(tile, edge, height));
       if (shut) {
         if (tile.outside) built.add(shutGate(full, def.trim));
         else built.add(shutLeaf(height, parts.trim), boardedDoor(doorOf(holes), height));
@@ -759,7 +760,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     if (tile.passages.includes(side)) continue;
     for (const along of [-1, 1]) {
       const x = along * (TILE / 2 - (tile.outside ? OUTDOOR.pier : WALL_THICKNESS) / 2);
-      const above = boundary === "glazing" ? [glazingPost(x, def.trim)] : buildPier(x, CUT_HEIGHT, textured(wallTexture), wallTexture, edging);
+      const above = EDGINGS[edging].cap === "post" ? [glazingPost(x, def.trim)] : buildPier(x, CUT_HEIGHT, textured(wallTexture), wallTexture, edging);
       const built = tile.outside ? group(...above) : group(...cornerAbove(x, parts));
       const end = endOf(side, along);
       if (tile.passages.includes(end)) continue;

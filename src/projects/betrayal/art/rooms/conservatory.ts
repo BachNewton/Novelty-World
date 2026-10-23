@@ -254,7 +254,7 @@ export const CONSERVATORY: RoomDefinition = {
   floor: encaustic,
   wall: () => bricks({ seed: `${SEED}:wall`, wear: 0.25 }),
   trim: "stone",
-  boundary: "glazing",
+  edging: "glazing",
   sheltered: true,
   props: [
     { build: plantTheatre, at: THEATRE.at },

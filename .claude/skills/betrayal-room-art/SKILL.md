@@ -290,7 +290,7 @@ lightmap density were in flux; re-measure the house once they settle.
 | Vault | basement (fits upper): a fireproof strongroom of 1 m square grey stone flags, blue-grey engineering brick (`moonDark` to `stone`), a near-black brick dado | a squat strongroom of oxblood-lacquered iron bound in riveted steel against the back wall, facing the door, its round steel door with a brass wheel forced a hand's breadth out of its seat from inside, four of its bolts sheared and lying on the floor | red (`scarlet`) leaking round the forced door's seam, blooming on its face and pooling on the floor before it (danger shut inside); amber from a clerk's desk lamp and a chamberstick on the deed boxes. It has a second state, opened and emptied: the door swung wide on its hinge drum, the chamber bare and dark, the red gone | normal (proposed) | 2.1 (0.5–16.2) |
 | Ballroom | ground, formal (the hall the Gallery overlooks, its dress shared with it): dark basketweave parquet, dark pewter (`ash`) paper with a gilt (`brass`) damask, wood panelling, gilt trim | a great inlaid sunburst medallion four metres across in a pale band, a gilt torchère in each corner; at its edge, a length of the Gallery's balustrade and the gilt chair that fell with it | four torchères' amber, pooled round the medallion | normal (proposed) | 3.2 (0.9–20.9) |
 | Gallery | upper, in the Ballroom's dress over wood boards | a walkway along a pale balustrade over a storey's drop into the Ballroom, the rail broken through where a length gave way; gilt chairs set at the rail to watch, one missing | the Ballroom's amber welling up out of the drop, lighting the balusters from below; one amber candelabrum on a console | normal (proposed) | 2.4 (0.5–17.9) |
-| Conservatory | outdoors under glass (**its own dress**, ground or upper): terracotta and black encaustic tiles, a brick dwarf wall, glazing in grey paint (`boundary: "glazing"`) | a pale-painted tiered plant theatre in the middle, stepped with pots of dead ferns up to an urn, a dead palm in a corner, a potting bench of dead seedlings | the moon through the glass roof, its unseen frame (`bakeOnly`) laying a lattice of shadow over the whole floor; a paraffin stove's amber still burning to keep dead plants warm | bright (proposed) | 9.0 (0.7–60.7) |
+| Conservatory | outdoors under glass (**its own dress**, ground or upper): terracotta and black encaustic tiles, a brick dwarf wall, glazing in grey paint (`edging: "glazing"`) | a pale-painted tiered plant theatre in the middle, stepped with pots of dead ferns up to an urn, a dead palm in a corner, a potting bench of dead seedlings | the moon through the glass roof, its unseen frame (`bakeOnly`) laying a lattice of shadow over the whole floor; a paraffin stove's amber still burning to keep dead plants warm | bright (proposed) | 9.0 (0.7–60.7) |
 | Gardens | outdoors: dark lawn, shaggy yew hedge edges with topiary balls, a gravel ring walk, four dead box-edged beds | a dry round stone fountain in the middle, a climbing rose grown over it out of the basin | red (`scarlet`): the rose in full bloom, the only living thing in the garden, its blooms' hearts glowing and shedding petals on the gravel | normal (proposed) | 2.8 (0.5–19.6) |
 | Patio | outdoors: big dark flags with moss joints, a low stone wall under a diagonal wooden trellis | an iron table with its tea things and a chair knocked over; in the open flags, a stone urn fallen from far above, burst in a spray of earth and shards | an amber hurricane lamp (the kit's `oilLamp`, iron) still burning on the table | normal (proposed) | 4.6 (0.6–22.6) |
 | Balcony | outdoors, upper: dark stone flags, an ashlar plinth under pale stone balustrades with ball finials | a brass telescope on a tripod aimed at the sky over the balustrade, its watcher's stool knocked over, a star chart on the flags | violet from both lenses, as if something up there looks back down it; one corner's urn is gone from its plinth (it lies burst on the Patio) | normal (proposed) | 4.3 (0.5–29.6) |
@@ -649,13 +649,13 @@ An outdoor tile (`outside` in the tile data) has no walls and no ceiling.
   Graveyard), `hedge` (a clipped hedge of the `wall` surface, as deep as
   its piers, with topiary balls on them: the Gardens), `balustrade` (turned
   balusters in the `trim` colour under a broad rail, ball finials on the
-  piers: the Balcony) and `trellis` (a diagonal lattice of `trim` laths:
-  the Patio). A new style is added there, never forked in a room. Doors
-  are gateways between piers, and a false door is a shut iron gate. Piers
-  reach 10 cm into the floor (`OUTDOOR`), and a hedge as far, so keep props
-  at least 15 cm off them. A glasshouse instead sets the room's
-  `boundary` to `glazing` (`glazing.ts`: painted posts and glass in the
-  `trim` colour over piers cut level, as the Conservatory's).
+  piers: the Balcony), `trellis` (a diagonal lattice of `trim` laths:
+  the Patio) and `glazing` (a glasshouse's painted posts and glass in the
+  `trim` colour, `glazing.ts`, its heavy posts standing on the piers cut
+  level: the Conservatory). A new style is added there, never forked in a
+  room. Doors are gateways between piers, and a false door is a shut iron
+  gate. Piers reach 10 cm into the floor (`OUTDOOR`), and a hedge as far,
+  so keep props at least 15 cm off them.
 - **Surfaces.** `wall` is the low wall's face (or the hedge's leaves), and
   `floor` is the ground: `earth()`, with grass or without, or paving.
   Every outdoor room lays the kit's `groundFog`, its own seed and layers.

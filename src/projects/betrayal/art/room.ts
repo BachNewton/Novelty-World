@@ -80,9 +80,11 @@ export const OUTDOOR = { railing: 1.25, pier: 0.3, pierTop: 1.45 };
  * the cut height what the cut takes away): `railings`, iron bars on a
  * fieldstone wall; `hedge`, a clipped hedge, its piers topiary balls;
  * `balustrade`, stone balusters under a broad rail, on a plinth, its piers
- * carrying ball finials; `trellis`, a diagonal wooden lattice on a stone wall.
+ * carrying ball finials; `trellis`, a diagonal wooden lattice on a stone wall;
+ * `glazing`, a glasshouse's painted posts and glass (`glazing.ts`), its heavy
+ * posts standing on the piers cut level.
  */
-export type OutdoorEdging = "railings" | "hedge" | "balustrade" | "trellis";
+export type OutdoorEdging = "railings" | "hedge" | "balustrade" | "trellis" | "glazing";
 
 /** Half the walkable floor: props stay within ±INNER of the centre. */
 export const INNER = TILE / 2 - WALL_THICKNESS;
@@ -173,7 +175,7 @@ export interface RoomDefinition {
   wallMarks?: WallMark[];
   /** Panelling on the lower metre of the walls. */
   wainscot?: Surface;
-  /** Skirting, crown, door and window frames; outdoors, what stands on the low wall (railings, balusters, a trellis). */
+  /** Skirting, crown, door and window frames; outdoors, what stands on the low wall (railings, balusters, a trellis, glazing). */
   trim: PaletteKey;
   /** An outdoor tile's edge style (`OutdoorEdging`); railings unless it names one. */
   edging?: OutdoorEdging;
@@ -215,12 +217,7 @@ export interface RoomDefinition {
   /** A room its tile counts as outside whose air is still all the same
    *  (under glass, like the Conservatory), so no breeze stirs its cloth. */
   sheltered?: boolean;
-  /** An outdoor tile's edges above the low wall (`railings` unless set). */
-  boundary?: Boundary;
 }
-
-/** What stands on an outdoor tile's low wall: iron `railings`, or a glasshouse's `glazing` (`glazing.ts`). */
-export type Boundary = "railings" | "glazing";
 
 /** How far inside a doorway a walker lines up with it, so it passes through
  *  square rather than cutting past the frame. */
