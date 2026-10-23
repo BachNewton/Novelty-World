@@ -66,11 +66,12 @@ function holdingIn(figure: THREE.Object3D, prop: Prop) {
  * across the bench's first view and facing it, as for a cast photo: for judging their heights, silhouettes and colours against each
  * other. With a `pace`, they walk or run on the spot as the house moves
  * them, each with its own step and bounce, each at their starting Speed, or
- * all at one `speed` value. With `holding`,
+ * all at one `speed` value; `also` stands more figures after them, before the pawn (the companions), at the
+ * house's own pace. With `holding`,
  * each holds a stand-in prop in the right hand. `sideOn` turns each to walk
  * across the first view, to judge a gait in profile.
  */
-export function explorerLineUp(seed = "line-up", pace?: Pace, holding?: Holding, { sideOn = false, speed }: { sideOn?: boolean; speed?: number } = {}): THREE.Group {
+export function explorerLineUp(seed = "line-up", pace?: Pace, holding?: Holding, { sideOn = false, speed, also = [] }: { sideOn?: boolean; speed?: number; also?: readonly ExplorerBuilder[] } = {}): THREE.Group {
   const figures = EXPLORERS.map((character, i) => {
     const card = CHARACTERS.find(({ id }) => id === character)?.card;
     if (!card) throw new Error(`No character "${character}"`);
@@ -78,13 +79,18 @@ export function explorerLineUp(seed = "line-up", pace?: Pace, holding?: Holding,
     if (holding) holdingIn(figure, STAND_INS[holding === "each" ? EACH[i % EACH.length] : holding]());
     return figure;
   });
-  const row = [...figures, pawn()];
+  const others = also.map((build, i) => {
+    const figure = onTheSpot(build, `${seed}:also:${i}`, pace);
+    if (holding) holdingIn(figure, STAND_INS[holding === "each" ? EACH[(figures.length + i) % EACH.length] : holding]());
+    return figure;
+  });
+  const row = [...figures, ...others, pawn()];
   const holders = row.map((figure, i) => {
     const holder = group(figure);
     const along = (i - (row.length - 1) / 2) * SPACING;
     holder.position.set(along * Math.SQRT1_2, 0, -along * Math.SQRT1_2);
     // Side on, each walks across the first view, so a gait shows in profile.
-    holder.rotation.y = Math.PI / 4 + (sideOn && i < figures.length ? -Math.PI / 2 : 0);
+    holder.rotation.y = Math.PI / 4 + (sideOn && i < row.length - 1 ? -Math.PI / 2 : 0);
     return holder;
   });
   return group(...holders);

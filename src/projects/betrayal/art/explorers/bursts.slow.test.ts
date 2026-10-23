@@ -19,6 +19,7 @@ import { missy } from "./missy";
 import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
 import { zostra } from "./zostra";
+import { girl, madman } from "../companions";
 
 beforeAll(stubCanvas);
 
@@ -42,6 +43,8 @@ const FIGURES: Record<string, ExplorerBuilder> = {
   rhinehardt,
   zoe,
   zostra,
+  girl,
+  madman,
   banshee: (seed, gait) => banshee(seed, gait),
   spider: (seed, gait) => spider(seed, gait),
 };

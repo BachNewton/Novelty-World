@@ -19,8 +19,15 @@ export const SKIN_TONES: Readonly<Partial<Record<string, SkinTone>>> = {
   "jenny-leclerc": "skinLight",
 };
 
+/** The companions' skin, by their omen card's id: figures that follow an explorer, never a seat. */
+export const COMPANION_SKIN_TONES: Readonly<Partial<Record<string, SkinTone>>> = {
+  girl: "skinLight",
+  madman: "skinFair",
+};
+
+/** A character's or a companion's skin tone. */
 export function skinOf(character: string): SkinTone {
-  const tone = SKIN_TONES[character];
+  const tone = SKIN_TONES[character] ?? COMPANION_SKIN_TONES[character];
   if (tone === undefined) throw new Error(`No skin tone for "${character}"`);
   return tone;
 }

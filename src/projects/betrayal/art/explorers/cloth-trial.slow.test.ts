@@ -15,6 +15,7 @@ import { clothOf } from "./cloth";
 import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
 import { zostra } from "./zostra";
+import { girl } from "../companions";
 
 /*
  * The simulated cloth, as the house shows it: Zoe's
@@ -39,6 +40,8 @@ interface Case {
   legs: boolean;
   /** Above this height, in the frame the cloth hangs from, the figure's own body covers the cloth (Zoe's sash). */
   covered: number;
+  /** What its feet are called, where it goes barefoot. */
+  feet?: string;
   /** The furthest any point of the cloth may be from what it hangs from, in metres: its hem's distance, its swing, and a running kick (the robe). */
   near: number;
 }
@@ -47,10 +50,11 @@ const CASES: Record<string, Case> = {
   zoe: { build: (cloth) => (seed, gait) => zoe(seed, gait, { cloth }), legs: true, covered: -0.015, near: 0.45 },
   rhinehardt: { build: (cloth) => (seed, gait) => rhinehardt(seed, gait, { cloth }), legs: true, covered: 0, near: 0.9 },
   zostra: { build: (cloth) => (seed, gait) => zostra(seed, gait, { cloth }), legs: true, covered: 0, near: 0.8 },
+  girl: { build: (cloth) => (seed, gait) => girl(seed, gait, { cloth }), legs: true, covered: 0, near: 0.6, feet: "foot" },
   banshee: { build: (cloth) => (seed, gait) => banshee(seed, gait, { cloth }), legs: false, covered: 0, near: 1 },
 };
 
-const LEG_PARTS = ["right thigh", "left thigh", "right shin", "left shin", "right shoe", "left shoe"];
+const legParts = (feet = "shoe") => ["right thigh", "left thigh", "right shin", "left shin", `right ${feet}`, `left ${feet}`];
 
 /** The meshes of a figure's cloth. */
 function clothMeshes(figure: THREE.Object3D): THREE.Mesh[] {
@@ -97,8 +101,8 @@ function animate(figure: THREE.Object3D): Animation {
 }
 
 /** The deepest any point of the skirt lies inside a leg or a shoe, which, and where in the hips' frame. */
-function deepestInLegs(figure: THREE.Object3D, covered: number): { depth: number; part: string; at?: THREE.Vector3 } {
-  const legs = LEG_PARTS.map((name) => {
+function deepestInLegs(figure: THREE.Object3D, covered: number, feet?: string): { depth: number; part: string; at?: THREE.Vector3 } {
+  const legs = legParts(feet).map((name) => {
     const part = figure.getObjectByName(name);
     if (!(part instanceof THREE.Mesh)) throw new Error(`Zoe has no ${name}`);
     const solid = solidOf(part.geometry as THREE.BufferGeometry);
@@ -137,7 +141,7 @@ function skirtNow(figure: THREE.Object3D): number[] {
   return points;
 }
 
-for (const [name, { build, legs, covered, near }] of Object.entries(CASES)) {
+for (const [name, { build, legs, covered, near, feet }] of Object.entries(CASES)) {
   artChecks(`${name}'s simulated cloth`, () => {
     const cloth = "net";
     if (legs) {
@@ -147,7 +151,7 @@ for (const [name, { build, legs, covered, near }] of Object.entries(CASES)) {
           const pose = animate(figure);
           for (let t = 0; t < 2; t += FRAME) {
             pose(t);
-            const { depth, part, at } = deepestInLegs(figure, covered);
+            const { depth, part, at } = deepestInLegs(figure, covered, feet);
             expect(depth, `inside the ${part} at ${t.toFixed(3)} s, at ${JSON.stringify(at)}`).toBeLessThan(INSIDE);
           }
         });
@@ -161,7 +165,7 @@ for (const [name, { build, legs, covered, near }] of Object.entries(CASES)) {
       for (let t = COURSE_TIMES.walk.start - 0.5; t < COURSE_TIMES.run.end + 1; t += FRAME) {
         pose(t);
         if (legs) {
-          const { depth, part, at } = deepestInLegs(figure, covered);
+          const { depth, part, at } = deepestInLegs(figure, covered, feet);
           expect(depth, `inside the ${part} at ${t.toFixed(3)} s, at ${JSON.stringify(at)}`).toBeLessThan(INSIDE);
         }
         reach = Math.max(reach, furthest(figure));

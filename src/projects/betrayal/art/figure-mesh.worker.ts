@@ -13,12 +13,14 @@ import { BRANDON_PARTS } from "./explorers/brandon";
 import { HEATHER_PARTS } from "./explorers/heather";
 import { ZOE_PARTS } from "./explorers/zoe";
 import { ZOSTRA_PARTS } from "./explorers/zostra";
+import { GIRL_PARTS } from "./companions/girl";
+import { MADMAN_PARTS } from "./companions/madman";
 import { packParts, type FigureParts, type Packed } from "./figure-parts";
 import { BANSHEE_PARTS } from "./monsters/banshee";
 import { SPIDER_PARTS } from "./monsters/spider";
 
 /** Every figure's parts a worker can mesh, by id. A figure built in the house joins this list. */
-const ALL: readonly FigureParts<unknown>[] = [LONGFELLOW_PARTS, OX_PARTS, PETER_PARTS, ZOE_PARTS, RHINEHARDT_PARTS, FLASH_PARTS, JENNY_PARTS, BRANDON_PARTS, HEATHER_PARTS, VIVIAN_PARTS, ZOSTRA_PARTS, MISSY_PARTS, PROP_PARTS, SPIDER_PARTS, BANSHEE_PARTS, DOG_PARTS, CAT_PARTS];
+const ALL: readonly FigureParts<unknown>[] = [LONGFELLOW_PARTS, OX_PARTS, PETER_PARTS, ZOE_PARTS, RHINEHARDT_PARTS, FLASH_PARTS, JENNY_PARTS, BRANDON_PARTS, HEATHER_PARTS, VIVIAN_PARTS, ZOSTRA_PARTS, MISSY_PARTS, PROP_PARTS, SPIDER_PARTS, BANSHEE_PARTS, DOG_PARTS, CAT_PARTS, GIRL_PARTS, MADMAN_PARTS];
 
 /** What `figure-mesh.ts` hears back: one figure's parts, packed, or why they couldn't be meshed. */
 export type MeshReply = { id: string; packed: Packed } | { id: string; error: string };
