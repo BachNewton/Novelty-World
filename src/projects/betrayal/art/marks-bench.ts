@@ -7,7 +7,7 @@ import { createHouseScene, type SceneHook } from "./house-scene";
 import { placementHints, roomFloor } from "./room-floor";
 import { primePlaces } from "./room";
 import { definition } from "./house";
-import { roomTile } from "./stage";
+import { copingClear, roomTile } from "./stage";
 import { floorSpot, markSpot, takenBy, type EdgeSpot, type TakenStretch } from "./things/mark-spot";
 import { FLOOR_MARK_REACH, floorMark, isFloorMark, isWallMark, wallMark, type MarkFace, type MarkKind } from "./things/marks";
 
@@ -75,7 +75,7 @@ export function createMarksBench() {
   const scene = createHouseScene(LAYOUT, {
     connections: (shown, colour) => {
       const kind = shown.token ?? "";
-      if (shown.place.kind === "edge" && isWallMark(kind)) return wallMark(kind, colour, shown.place.spot, state.face, roomTile(shown.room).outside);
+      if (shown.place.kind === "edge" && isWallMark(kind)) return wallMark(kind, colour, shown.place.spot, state.face, copingClear(definition(shown.room)));
       if (shown.place.kind === "floor" && isFloorMark(kind)) return floorMark(kind, colour, [0, 0], state.face);
       throw new Error(`The marks bench has no mark for ${kind} on the ${shown.place.kind}`);
     },

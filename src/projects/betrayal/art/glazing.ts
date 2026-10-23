@@ -15,6 +15,8 @@ import { shiny, SHINES } from "./shine";
 export const GLAZING = { top: 2.7, bay: 0.95, transom: 2.05, post: 0.2, finial: 0.1 };
 
 const SILL = { height: 0.05, depth: 0.14 };
+/** How far the glazing reaches out of its low wall's middle at the coping, either way: its sill's half-depth. */
+export const GLAZING_FOOT = SILL.depth / 2;
 const PLATE = { height: 0.1, depth: 0.12 };
 /** The piers' middle across the wall, as `buildPier` stands them. */
 const PIER_Z = OUTDOOR.pier / 2 - WALL_THICKNESS / 2;

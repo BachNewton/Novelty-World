@@ -6,7 +6,7 @@ import { intrusions, MARK_TOP } from "../overlap";
 import { placementHints } from "../room-floor";
 import { primePlaces, type RoomDefinition } from "../room";
 import { BENCH_ROOMS } from "../rooms";
-import { roomTile } from "../stage";
+import { copingClear, roomTile } from "../stage";
 import { floorSpot, MARK_ICON, markSpot } from "./mark-spot";
 import { FLOOR_MARK_REACH, FLOOR_MARKS, floorMark, WALL_MARKS, wallMark } from "./marks";
 
@@ -50,7 +50,7 @@ describe("connection marks in every built room", () => {
           WALLS.map((wall) => {
             const spot = markSpot(room, tile, kind, wall);
             const where = `${kind} on ${wall === null ? "any wall" : wall.join("-")}${side ? ` (${side} side)` : ""}`;
-            return { name: where, object: new THREE.Group().add(wallMark(kind, "moonLight", spot, "ink", tile.outside), iconFoot(spot.icon)) };
+            return { name: where, object: new THREE.Group().add(wallMark(kind, "moonLight", spot, "ink", copingClear(def)), iconFoot(spot.icon)) };
           }),
         );
         const onFloor = FLOOR_MARKS.map((kind) => ({ name: `${kind}${side ? ` (${side} side)` : ""}`, object: floorMark(kind, "moonLight", floorSpot(room, FLOOR_MARK_REACH[kind]), "ink") }));

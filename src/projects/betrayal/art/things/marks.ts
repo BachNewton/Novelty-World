@@ -224,9 +224,10 @@ function spill(colour: PaletteKey, width: number, depth: number, opacity: number
 }
 
 /** A dark slot across a stub's cap, so the way through reads from above: lying on the wall's own cap (indoors the dressing
- *  stands in front of it, cut with the wall), or outdoors on the coping, on the room's side of the railings that stand on it. */
-function capSlot(width: number, outside: boolean): THREE.Mesh {
-  const [back, front] = outside ? [-0.07, 0.03] : [-WALL_THICKNESS, 0];
+ *  stands in front of it, cut with the wall), or outdoors on the coping, on the room's side of what the edging stands on
+ *  it, from `copingClear` (`copingClear` in `stage.ts`) out. */
+function capSlot(width: number, copingClear: number | null): THREE.Mesh {
+  const [back, front] = copingClear === null ? [-WALL_THICKNESS, 0] : [copingClear - WALL_THICKNESS / 2, 0.03];
   return box([width, 0.012, front - back], dark(), [0, CUT_HEIGHT, (back + front) / 2]);
 }
 
@@ -242,7 +243,7 @@ const OFF = SKIRTING.depth + 0.02;
  *  on its hinge, a dark gap behind it with light at its seams, light spilling
  *  out over the floor, the arc it swept in the dust, and a slot across the
  *  stub's cap. */
-function passage(colour: PaletteKey, outside: boolean): THREE.Object3D {
+function passage(colour: PaletteKey, copingClear: number | null): THREE.Object3D {
   const width = 0.8;
   const height = CUT_HEIGHT - 0.03;
   const open = THREE.MathUtils.degToRad(35);
@@ -257,7 +258,7 @@ function passage(colour: PaletteKey, outside: boolean): THREE.Object3D {
   hinge.rotation.y = -open;
   const swept = floorGlow(new THREE.RingGeometry(width - 0.025, width, 24, 1, -open, open), glowing("bone", 0.4));
   swept.position.set(-width / 2, swept.position.y, OFF);
-  return group(gap, seams, hinge, swept, spill(colour, width, 0.5, 0.5, OFF), capSlot(width, outside));
+  return group(gap, seams, hinge, swept, spill(colour, width, 0.5, 0.5, OFF), capSlot(width, copingClear));
 }
 
 /** The Secret Stairs: a narrow stair going down at the wall's foot, its
@@ -293,7 +294,7 @@ function stairs(colour: PaletteKey): THREE.Object3D {
  *  its middle, standing out at an angle with the dark behind it showing at
  *  both ends, the arcs its ends swept on the floor, the brass switch beside
  *  it, and a slot across the stub's cap. */
-function wallSwitch(colour: PaletteKey, outside: boolean): THREE.Object3D {
+function wallSwitch(colour: PaletteKey, copingClear: number | null): THREE.Object3D {
   const width = 1.0;
   const height = CUT_HEIGHT - 0.03;
   const turn = THREE.MathUtils.degToRad(20);
@@ -317,7 +318,7 @@ function wallSwitch(colour: PaletteKey, outside: boolean): THREE.Object3D {
   lever.rotation.z = THREE.MathUtils.degToRad(-35);
   lever.position.set(plateAt, 0.2, OFF);
   const switchPlate = box([0.07, 0.11, 0.015], flat("brass"), [plateAt, 0.17, OFF - 0.0075]);
-  return group(opening, seams, turned, ...swept, switchPlate, lever, capSlot(width, outside));
+  return group(opening, seams, turned, ...swept, switchPlate, lever, capSlot(width, copingClear));
 }
 
 /** The Mystic Slide: the mouth of a chute in the floor, a dark hole in a
@@ -485,7 +486,7 @@ function merged(root: THREE.Object3D): THREE.Group {
   return result;
 }
 
-const WALL_ART: Record<WallMarkKind, (colour: PaletteKey, outside: boolean) => THREE.Object3D> = { "secret-passage": passage, "secret-stairs": stairs, "wall-switch": wallSwitch };
+const WALL_ART: Record<WallMarkKind, (colour: PaletteKey, copingClear: number | null) => THREE.Object3D> = { "secret-passage": passage, "secret-stairs": stairs, "wall-switch": wallSwitch };
 const FLOOR_ART: Record<FloorMarkKind, (colour: PaletteKey) => THREE.Object3D> = { slide, "below-collapsed-room": landing };
 /** How high a floor mark's icon stands, its foot clear of the art. */
 const FLOOR_LIFT: Record<FloorMarkKind, number> = { slide: 0.14, "below-collapsed-room": 0.5 };
@@ -493,16 +494,16 @@ const FLOOR_LIFT: Record<FloorMarkKind, number> = { slide: 0.14, "below-collapse
 export const isWallMark = (kind: string): kind is WallMarkKind => (WALL_MARKS as readonly string[]).includes(kind);
 export const isFloorMark = (kind: string): kind is FloorMarkKind => (FLOOR_MARKS as readonly string[]).includes(kind);
 
-/** A wall mark's art alone, at the foot of a wall (an outdoor tile's low wall when `outside`): built facing +z from the wall's inner face at the origin. */
-export function wallArt(kind: WallMarkKind, colour: PaletteKey, outside: boolean): THREE.Object3D {
-  return WALL_ART[kind](colour, outside);
+/** A wall mark's art alone, at the foot of a wall (an outdoor tile's low wall, given its `copingClear`; null indoors): built facing +z from the wall's inner face at the origin. */
+export function wallArt(kind: WallMarkKind, colour: PaletteKey, copingClear: number | null): THREE.Object3D {
+  return WALL_ART[kind](colour, copingClear);
 }
 
-/** A mark on a wall of a room (outdoors when `outside`), in its own frame: its art on the wall where it fits, and its icon on its plate. */
-export function wallMark(kind: WallMarkKind, colour: PaletteKey, spot: EdgeSpot, face: MarkFace, outside: boolean): THREE.Group {
+/** A mark on a wall of a room (outdoors, its `copingClear`; null indoors), in its own frame: its art on the wall where it fits, and its icon on its plate. */
+export function wallMark(kind: WallMarkKind, colour: PaletteKey, spot: EdgeSpot, face: MarkFace, copingClear: number | null): THREE.Group {
   const mark = group();
   if (spot.fits) {
-    const art = wallArt(kind, colour, outside);
+    const art = wallArt(kind, colour, copingClear);
     const at = onWall(spot.edge, spot.along);
     art.position.set(at.at[0], 0, at.at[1]);
     art.rotation.y = THREE.MathUtils.degToRad(wallTurn(spot.edge));

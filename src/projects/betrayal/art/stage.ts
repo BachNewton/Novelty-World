@@ -34,7 +34,7 @@ import { pixelTexture, textureReady } from "./textures";
 import { shiny, SHINES } from "./shine";
 import { boardedDoor, boardedWindow, capWindow, litThreshold, STUB_CAP, windowLight, type WallOpening } from "./wall-markings";
 import { markedWall } from "./wall-marks";
-import { GLAZING, glazing, glazingPost } from "./glazing";
+import { GLAZING, GLAZING_FOOT, glazing, glazingPost } from "./glazing";
 
 export const EDGES: Edge[] = ["top", "right", "bottom", "left"];
 /** Baked lights cost load time, not frame time; this bounds the bake. */
@@ -224,20 +224,6 @@ function railings(bars: Batch, x0: number, x1: number, iron: PaletteKey) {
   for (const y of [CUT_HEIGHT + 0.1, railing - 0.17]) bars.block([length + 0.01, 0.04, 0.045], iron, [(x0 + x1) / 2, y, 0]);
 }
 
-/** How each outdoor edge style (`OutdoorEdging`) is built: whether its low
- *  wall wears a coping, how far it reaches past the wall's thickness into the
- *  room (a hedge is deeper than a wall, as deep as its piers), and its piers'
- *  tops and caps (a glasshouse's `post` is its glazing's heavy post, standing
- *  on the pier cut level). */
-const EDGINGS: Record<OutdoorEdging, { coping: boolean; spread: number; pierTop: number; cap: "pyramid" | "topiary" | "finial" | "post" }> = {
-  railings: { coping: true, spread: 0, pierTop: OUTDOOR.pierTop, cap: "pyramid" },
-  hedge: { coping: false, spread: OUTDOOR.pier - WALL_THICKNESS, pierTop: 1.3, cap: "topiary" },
-  balustrade: { coping: true, spread: 0, pierTop: 1.18, cap: "finial" },
-  trellis: { coping: true, spread: 0, pierTop: OUTDOOR.pierTop, cap: "pyramid" },
-  glazing: { coping: true, spread: 0, pierTop: GLAZING.top, cap: "post" },
-};
-/** A hedge's clipped top, which its overgrown tufts rise above. */
-const HEDGE_TOP = 1.12;
 /** The balustrade's rail: the foot of it, and how deep it is. */
 const BALUSTRADE_RAIL = { y: 0.98, height: 0.1 };
 /** A baluster's turned profile, [radius, height] from the low wall's top up into the rail's foot. */
@@ -252,6 +238,23 @@ const BALUSTER: [number, number][] = [
   [0.042, 0.47],
   [0.042, BALUSTRADE_RAIL.y - CUT_HEIGHT + 0.01],
 ];
+
+/** How each outdoor edge style (`OutdoorEdging`) is built: whether its low
+ *  wall wears a coping, how far it reaches past the wall's thickness into the
+ *  room (a hedge is deeper than a wall, as deep as its piers), its piers'
+ *  tops and caps (a glasshouse's `post` is its glazing's heavy post, standing
+ *  on the pier cut level), and how far from the wall's middle towards the
+ *  room the top of its low wall is clear of what stands there
+ *  (`copingClear`). */
+const EDGINGS: Record<OutdoorEdging, { coping: boolean; spread: number; pierTop: number; cap: "pyramid" | "topiary" | "finial" | "post"; clear: number }> = {
+  railings: { coping: true, spread: 0, pierTop: OUTDOOR.pierTop, cap: "pyramid", clear: 0.03 },
+  hedge: { coping: false, spread: OUTDOOR.pier - WALL_THICKNESS, pierTop: 1.3, cap: "topiary", clear: 0.03 },
+  balustrade: { coping: true, spread: 0, pierTop: 1.18, cap: "finial", clear: Math.max(...BALUSTER.map(([radius]) => radius)) },
+  trellis: { coping: true, spread: 0, pierTop: OUTDOOR.pierTop, cap: "pyramid", clear: 0.03 },
+  glazing: { coping: true, spread: 0, pierTop: GLAZING.top, cap: "post", clear: GLAZING_FOOT },
+};
+/** A hedge's clipped top, which its overgrown tufts rise above. */
+const HEDGE_TOP = 1.12;
 /** The trellis's top rail, and the spacing of its laths along the wall. */
 const TRELLIS = { top: 1.3, spacing: 0.22, lath: 0.022 };
 
@@ -308,6 +311,12 @@ function trellisAbove(laths: Batch, x0: number, x1: number, wood: PaletteKey) {
   for (const [y, h] of [[CUT_HEIGHT - 0.003, 0.05], [top - 0.05, 0.06]] as const) laths.block([length + 0.01, h, 0.06], wood, [(x0 + x1) / 2, y, 0]);
   const posts = Math.max(1, Math.round(length / 1.5));
   for (let i = 1; i < posts; i++) laths.block([0.06, top - CUT_HEIGHT - 0.06, 0.07], wood, [x0 + (i * length) / posts, CUT_HEIGHT + 0.04, 0]);
+}
+
+/** How far from an outdoor room's low wall's middle, towards the room, the top of the wall is clear of what its
+ *  edging stands there, for a mark's slot across it (`things/marks.ts`); null for a room indoors. */
+export function copingClear(def: RoomDefinition): number | null {
+  return roomTile(def.id).outside ? EDGINGS[def.edging ?? "railings"].clear : null;
 }
 
 /**
