@@ -1,4 +1,5 @@
 import { CHARACTERS } from "../../data/characters";
+import { cat, dog } from "../animals";
 import { pawn } from "../kit/pawn";
 import { banshee, monsterLineUp, spider } from "../monsters";
 import type { ExplorerBuilder } from "../stage";
@@ -76,6 +77,9 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "banshee-course", name: "The Banshee gliding a course", build: onCourse((seed, gait) => banshee(seed, gait)) },
   { id: "spider", name: "The Spider", build: (seed, gait) => spider(seed, gait) },
   { id: "spider-stunned", name: "The Spider, stunned", build: (seed, gait) => spider(seed, gait, { stunned: true }) },
+  // Companions stand where an explorer would, too.
+  { id: "dog", name: "The Dog", build: dog },
+  { id: "cat", name: "The Cat", build: cat },
   // A packed room, placed as the house places figures, to see how a crowd looks in practice.
   { id: "crowd-6", name: "A full table: six explorers", build: TABLE[0], crowd: TABLE.slice(1) },
   { id: "crowd-7", name: "Six explorers and the Banshee", build: TABLE[0], crowd: [...TABLE.slice(1), (seed, gait) => banshee(seed, gait)] },
