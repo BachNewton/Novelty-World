@@ -9,9 +9,9 @@ import { ruleBot as ruleV6, tableParams } from "../bots/rule-v6";
 import { breakdown, type Breakdown } from "../bots/rule-v6/evaluate";
 import type { Plan } from "../bots/rule-v6/planner";
 import type { CapturePlan } from "../bots/rule-v6/routes";
-import { search, type SearchResult } from "../bots/rule-v7";
+import { candidates, type SearchResult } from "../bots/rule-v7";
 import { V7_PARAMS, type Params } from "../bots/rule-v7/params";
-import { nextPlacement, searchPoint, type Placement, type SearchPoint } from "../bots/rule-v7/replies";
+import { nextPlacement, playReply, replyWorld, scoreEnd, searcher, searchPoint, type Placement, type SearchPoint } from "../bots/rule-v7/replies";
 import { features, FEATURES } from "../bots/rule-v8/features";
 import { playGame, type RiskGameResult, type RiskGameSpec } from "./runner";
 
@@ -24,7 +24,9 @@ import { playGame, type RiskGameResult, type RiskGameSpec } from "./runner";
 //
 // v7 plays through `teacherBot`, v7's own control flow on its exported pieces, so the search it
 // runs is the one the record keeps, run once: asking the registered bot would search a second
-// time. A test holds the two move for move.
+// time. The search is v7's too (`teacherSearch`), rebuilt from the same pieces so it can keep each
+// reply's score as well as their mean. Tests hold both to v7's: its moves, and its search's
+// candidates, scores and pick.
 
 /** The field the teacher plays among by default: v6, v5 and two of GD's personas. */
 export const DEFAULT_TEACHER_FIELD: readonly string[] = ["rule-v6", "rule-v5", "gd-stacker", "gd-aggressive"];
@@ -125,6 +127,9 @@ export interface Decision {
   candidates: CandidateRecord[];
   scores: number[];
   chosen: number;
+  /** Each candidate's score in each reply, of which `scores` is the mean: the replies are
+   *  independent draws, so two halves of them are two independent readings of v7's judgement. */
+  replyScores: number[][];
 }
 
 /** A decision as it is written, with the game it came from. */
@@ -175,8 +180,33 @@ function candidateRecord(b: Board, me: Seat, plan: Plan, params: Params): Candid
   };
 }
 
+/** v7's search (`search` in `rule-v7/index.ts`), the same candidates played through the same
+ *  replies and summed in the same order, keeping each reply's score. */
+export function teacherSearch(point: SearchPoint, me: Seat, table: Params, humans: readonly boolean[]): SearchResult & { replyScores: number[][] } {
+  const params = v6Settings(table, me, point.view, point.history);
+  const plansToTry = candidates(fromView(point.view), me, point.view.armiesToPlace, params);
+  const scores = plansToTry.map(() => 0);
+  const replyScores = plansToTry.map((): number[] => []);
+  const { replies } = table.search;
+  if (plansToTry.length > 1) {
+    const s = searcher(point, me, params, humans, ruleV6(table));
+    const seed = `rule-v7|${me.toString()}|${point.view.turn.toString()}|${point.history.length.toString()}`;
+    for (let r = 0; r < replies; r++) {
+      const reply = replyWorld(point, s, seed, r);
+      plansToTry.forEach((plan, c) => {
+        const score = scoreEnd(playReply(reply, s, plan.place), s);
+        replyScores[c].push(score);
+        scores[c] += score / replies;
+      });
+    }
+  }
+  let chosen = 0;
+  for (let c = 1; c < scores.length; c++) if (scores[c] > scores[chosen]) chosen = c;
+  return { candidates: plansToTry, scores, chosen, replyScores };
+}
+
 /** The record of a search v7 ran at `point`. */
-export function decisionOf(point: SearchPoint, me: Seat, table: Params, result: SearchResult): Decision {
+export function decisionOf(point: SearchPoint, me: Seat, table: Params, result: SearchResult & { replyScores: number[][] }): Decision {
   const params = v6Settings(table, me, point.view, point.history);
   const b = fromView(point.view);
   return {
@@ -185,6 +215,7 @@ export function decisionOf(point: SearchPoint, me: Seat, table: Params, result: 
     candidates: result.candidates.map((plan) => candidateRecord(b, me, plan, params)),
     scores: result.scores.slice(),
     chosen: result.chosen,
+    replyScores: result.replyScores,
   };
 }
 
@@ -206,7 +237,7 @@ function searchInput(input: BotInput, table: Params, v6: Bot): { point: SearchPo
 export function teacherDecision(input: BotInput, table: Params): Decision | null {
   const at = searchInput(input, table, ruleV6(table));
   if ("move" in at) return null;
-  const result = search(at.point, input.seat, table, input.humans);
+  const result = teacherSearch(at.point, input.seat, table, input.humans);
   return result.candidates.length > 1 ? decisionOf(at.point, input.seat, table, result) : null;
 }
 
@@ -223,7 +254,7 @@ export function teacherBot(table: Params, onDecision: (decision: Decision) => vo
     const { seat, options } = input;
     const key = `${point.view.turn.toString()}|${point.history.length.toString()}|${point.view.armiesToPlace.toString()}|${(point.view.cards.hand ?? []).join()}`;
     if (phase?.key !== key) {
-      const result = search(point, seat, table, input.humans);
+      const result = teacherSearch(point, seat, table, input.humans);
       if (result.candidates.length > 1) onDecision(decisionOf(point, seat, table, result));
       phase = { key, place: result.candidates[result.chosen].place };
     }
@@ -292,7 +323,7 @@ export const CANDIDATE_WIDTH = 2 * FEATURES + 2;
 
 /** A decision's training rows (`npm run risk:features -- --teacher`), one per candidate, read
  *  through rule-v8's feature function. */
-export function candidateRows(r: Decision): Float32Array {
+export function candidateRows(r: Pick<Decision, "seat" | "candidates">): Float32Array {
   const x = new Float32Array(r.candidates.length * CANDIDATE_WIDTH);
   r.candidates.forEach((c, i) => {
     const at = i * CANDIDATE_WIDTH;

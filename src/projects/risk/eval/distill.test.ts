@@ -22,6 +22,7 @@ import {
   teacherBot,
   teacherDecision,
   teacherParams,
+  teacherSearch,
   teacherSpecs,
   v6Settings,
   type Decision,
@@ -101,7 +102,7 @@ describe("risk teacher recorder", () => {
   });
 
   it("keeps v7's own search: its candidates, scores and pick, on v6's own settings", () => {
-    const seen = walkDecisions("distill-search", 1, (_, input, decision) => {
+    const seen = walkDecisions("distill-view", 1, (_, input, decision) => {
       const point = searchPoint(input.view, input.history);
       if (point === null) throw new Error("a decision is made at a search point");
       const result = search(point, input.seat, cheap, input.humans);
@@ -115,6 +116,21 @@ describe("risk teacher recorder", () => {
       expect([...bestPlan(b, input.seat, point.view.armiesToPlace, params).place]).toEqual([...result.candidates[0].place]);
       // A hold is valued on its one board, as recorded.
       for (const c of decision.candidates) if (c.kind === "hold") expect(c.successV6.value).toBeCloseTo(c.value, 4);
+    });
+    expect(seen).toBe(1);
+  });
+
+  it("keeps each reply's score, their mean v7's score", () => {
+    const two = teacherParams('rule-v7~{"replies":2,"candidates":2}');
+    const seen = walkDecisions("distill-view", 1, (_, input) => {
+      const point = searchPoint(input.view, input.history);
+      if (point === null) throw new Error("a decision is made at a search point");
+      const kept = teacherSearch(point, input.seat, two, input.humans);
+      expect(kept.scores).toEqual(search(point, input.seat, two, input.humans).scores);
+      kept.replyScores.forEach((each, c) => {
+        expect(each).toHaveLength(2);
+        expect(each[0] / 2 + each[1] / 2).toBe(kept.scores[c]);
+      });
     });
     expect(seen).toBe(1);
   });

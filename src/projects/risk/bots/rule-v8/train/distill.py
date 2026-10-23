@@ -20,6 +20,10 @@ The report on the test games:
       baselines (always v6's choice; the highest v6 value; a linear student);
   (c) mean regret in v7's own scores (v7's best candidate's score less the pick's), and the share
       of v7's edge over v6 the student keeps: (regret of v6 − regret of the student) / regret of v6.
+  (d) where the recording kept each reply's score, the same on two independent halves of the
+      replies: v7 choosing on the first half and every pick scored on the second, so a pick is
+      never scored on the noise it was chosen by. Regret in v7's own (c) scores counts the noise
+      v7 chose on as edge; (d) doesn't, and says how much of v7's choice repeats on fresh replies.
 
 CPU only and seeded, so a run reproduces on the same machine and torch.
 
@@ -49,22 +53,28 @@ def load_one(data):
     rows, width = meta["rows"], meta["width"]
     read = lambda name, dtype: np.fromfile(os.path.join(data, name), dtype=dtype)
     x = read("x.f32", "<f4").reshape(rows, width)
-    return x, read("score.f32", "<f4"), read("chosen.u8", np.uint8), read("decision.i32", "<i4"), read("game.i32", "<i4"), meta
+    R = meta.get("replies", 0)
+    replies = read("replies.f32", "<f4").reshape(rows, R) if R > 0 else np.full((rows, 0), np.nan, np.float32)
+    return x, read("score.f32", "<f4"), read("chosen.u8", np.uint8), read("decision.i32", "<i4"), read("game.i32", "<i4"), replies, meta
 
 
 def load(dirs):
     """Every recording's candidates as decisions padded to the most candidates any has."""
-    xs, scores, chosen, decisions, games = [], [], [], [], []
+    xs, scores, chosen, decisions, games, replies = [], [], [], [], [], []
     offset = 0
-    for k, d in enumerate(dirs):
-        x, s, c, dec, g, meta = load_one(d)
+    parts = [load_one(d) for d in dirs]
+    R = max(p[5].shape[1] for p in parts)
+    for k, (x, s, c, dec, g, rep, meta) in enumerate(parts):
+        if rep.shape[1] not in (0, R):
+            raise SystemExit(f"recordings of {rep.shape[1]} and {R} replies can't be read as one set")
+        replies.append(rep if rep.shape[1] == R else np.full((len(s), R), np.nan, np.float32))
         xs.append(x)
         scores.append(s)
         chosen.append(c)
         decisions.append(dec.astype(np.int64) + offset)
         games.append(g.astype(np.int64) + k * 1_000_000)
         offset += meta["decisions"]
-    x, s, c, dec, g = map(np.concatenate, (xs, scores, chosen, decisions, games))
+    x, s, c, dec, g, rep = map(np.concatenate, (xs, scores, chosen, decisions, games, replies))
     starts = np.flatnonzero(np.r_[True, dec[1:] != dec[:-1]])
     counts = np.diff(np.r_[starts, len(dec)])
     D, K = len(starts), int(counts.max())
@@ -73,12 +83,14 @@ def load(dirs):
     X = np.zeros((D, K, x.shape[1]), np.float32)
     S = np.zeros((D, K), np.float32)
     M = np.zeros((D, K), bool)
+    P = np.full((D, K, R), np.nan, np.float32)
+    P[row, slot] = rep
     X[row, slot] = x
     S[row, slot] = s
     M[row, slot] = True
     pick = np.zeros(D, np.int64)
     pick[row[c == 1]] = slot[c == 1]
-    return X, S, M, pick, g[starts]
+    return X, S, M, pick, g[starts], P
 
 
 def inputs(X, M, relative):
@@ -174,7 +186,7 @@ def main():
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
 
-    X, S, M, v7, game = load(args.data)
+    X, S, M, v7, game, P = load(args.data)
     D, K, W = X.shape
     test = game % 5 == 0
     val = game % 10 == 1
@@ -197,10 +209,40 @@ def main():
     Z = inputs(X, M, not args.absolute)
     T = targets(S, M, tau)
     sizes = args.sweep if args.sweep else [",", args.hidden]
+    students = {}
     for size in sizes:
         hidden = [int(h) for h in size.split(",") if h]
-        out = fit(Z, T, M, train, val, hidden)
-        report(f"student {','.join(map(str, hidden)) or 'linear'}", picks(out, M), S, M, v7, test, overruled, v6_regret)
+        name = f"student {','.join(map(str, hidden)) or 'linear'}"
+        students[name] = picks(fit(Z, T, M, train, val, hidden), M)
+        report(name, students[name], S, M, v7, test, overruled, v6_regret)
+    split_half(P, M, X, v7, test, students)
+
+
+def split_half(P, M, X, v7, test, students):
+    R = P.shape[2]
+    kept = test & ~np.isnan(np.where(M[..., None], P, 0)).any((1, 2)) if R >= 2 else np.zeros_like(test)
+    if not kept.any():
+        print()
+        print("(d) the recording kept no reply's own score, so there is no split-half reading")
+        return
+    h = R // 2
+    A = np.nanmean(np.where(M[..., None], P[:, :, :h], np.nan), 2)
+    B = np.nanmean(np.where(M[..., None], P[:, :, h:], np.nan), 2)
+    W = X.shape[2]
+    first = picks(A, M)
+    print()
+    print(f"(d) split halves of the replies ({h} and {R - h}), on the {kept.sum()} test decisions that kept them:")
+    print(f"    v7 on the first half picks the second half's best in {(first == picks(B, M))[kept].mean():.1%}; v7 on all {R} agrees with its own first half in {(first == v7)[kept].mean():.1%}")
+    bestB = np.where(M, B, -np.inf).max(1)
+    regret = lambda pick: (bestB - B[np.arange(len(B)), pick])[kept].mean()
+    r6, rA = regret(np.zeros(len(B), np.int64)), regret(first)
+    edge = r6 - rA
+    print(f"  {'v6 (candidate 0)':22s} regret on the second half {r6:.5f}")
+    print(f"  {f'v7 on the first half':22s} regret on the second half {rA:.5f}  (v7's edge over v6 on fresh replies: {edge:.5f})")
+    for name, pick in [("highest v6 value", picks(X[:, :, W - 1], M)), *students.items()]:
+        r = regret(pick)
+        kept_share = f"  (keeps {(r6 - r) / edge:6.1%} of it)" if edge > 0 else ""
+        print(f"  {name:22s} regret on the second half {r:.5f}{kept_share}")
 
 
 if __name__ == "__main__":
