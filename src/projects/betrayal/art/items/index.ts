@@ -1,14 +1,25 @@
 import type { FigureParts } from "../figure-parts";
+import { AMULET_OF_THE_AGES } from "./amulet-of-the-ages";
+import { ANGEL_FEATHER } from "./angel-feather";
 import { ARMOR } from "./armor";
 import { AXE } from "./axe";
+import { BELL } from "./bell";
 import { BLOOD_DAGGER } from "./blood-dagger";
+import { BOOK } from "./book";
 import { CANDLE_MODEL } from "./candle";
+import { CRYSTAL_BALL } from "./crystal-ball";
+import { HOLY_SYMBOL } from "./holy-symbol";
+import { IDOL_MODEL } from "./idol";
 import type { HeldModel, ItemModel, WornModel } from "./item";
 import { MASK } from "./mask";
+import { MEDALLION } from "./medallion";
 import { PICKPOKETS_GLOVES } from "./pickpokets-gloves";
 import { REVOLVER } from "./revolver";
+import { RING } from "./ring";
 import { SACRIFICIAL_DAGGER } from "./sacrificial-dagger";
+import { SKULL } from "./skull";
 import { SPEAR } from "./spear";
+import { SPIRIT_BOARD } from "./spirit-board";
 
 /*
  * Every item and omen card with a model, by the card's id as the engine
@@ -16,15 +27,26 @@ import { SPEAR } from "./spear";
  * one shows its type's stand-in on the floor (`things/looks.ts`).
  */
 export const ITEM_MODELS = {
+  "amulet-of-the-ages": AMULET_OF_THE_AGES,
+  "angel-feather": ANGEL_FEATHER,
   armor: ARMOR,
   axe: AXE,
+  bell: BELL,
   "blood-dagger": BLOOD_DAGGER,
+  book: BOOK,
   candle: CANDLE_MODEL,
+  "crystal-ball": CRYSTAL_BALL,
+  "holy-symbol": HOLY_SYMBOL,
+  idol: IDOL_MODEL,
   mask: MASK,
+  medallion: MEDALLION,
   "pickpokets-gloves": PICKPOKETS_GLOVES,
   revolver: REVOLVER,
+  ring: RING,
   "sacrificial-dagger": SACRIFICIAL_DAGGER,
+  skull: SKULL,
   spear: SPEAR,
+  "spirit-board": SPIRIT_BOARD,
 } as const satisfies Readonly<Record<string, ItemModel>>;
 
 export type ItemId = keyof typeof ITEM_MODELS;
