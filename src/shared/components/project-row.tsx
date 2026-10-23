@@ -29,6 +29,7 @@ import {
   Ghost,
   FlaskConical,
   Cat,
+  Headphones,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -58,6 +59,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Ghost,
   FlaskConical,
   Cat,
+  Headphones,
 };
 
 interface ProjectRowProps {

@@ -187,6 +187,13 @@ export const PROJECTS: Project[] = [
     categorySlug: "tools",
     icon: "FlaskConical",
   },
+  {
+    name: "Audiobook",
+    slug: "audiobook",
+    description: "Listen to a book chapter by chapter, picking up where you left off",
+    categorySlug: "tools",
+    icon: "Headphones",
+  },
 ];
 
 /** Build the full URL path for a project (e.g., "/games/monopoly") */

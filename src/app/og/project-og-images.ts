@@ -6,6 +6,7 @@ import type { ProjectOgImage } from "@/shared/lib/og/project-card";
 // `og-image.tsx`. Served at /og/<slug>; every other project shares the site's.
 export const PROJECT_OG_IMAGES: Partial<Record<string, () => Promise<ProjectOgImage>>> = {
   "for-the-stats-2": () => import("@/projects/for-the-stats-2/og-image").then((m) => m.ogImage),
+  audiobook: () => import("@/projects/audiobook/og-image").then((m) => m.ogImage),
 };
 
 /** The share image a project's pages show: its own, or the site's. */
