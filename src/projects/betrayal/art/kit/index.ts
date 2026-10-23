@@ -5,4 +5,6 @@ export { pictureFrame, rug, windowPool } from "./decor";
 export { pawn } from "./pawn";
 export { pitHaze, pitShell } from "./pit";
 export { coil, slung, strand, TWIST } from "./rope";
+export { groundFog, type FogLayer } from "./fog";
 export { cask, crate } from "./stores";
+export { gardenUrn, URN_BODY, URN_PLINTH, type GardenUrnOptions } from "./urn";

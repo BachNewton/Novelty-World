@@ -119,7 +119,7 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   glass chimney). Flames: `flame` (presets candle, oilLamp,
   gasJet, torch, hearth; a `tint` for violet or wraith flames) and `fire`
   (a bed of hearth flames), in `kit/flame.ts`, judged on `?bench=flames`. Furniture: `table`, `chair`. Stores: `crate`,
-  `cask`. Rope: `strand` and `slung` (into a batch), `coil`. Floor openings:
+  `cask`. Outdoors: `groundFog` (`kit/fog.ts`), `gardenUrn` (`kit/urn.ts`, a stone urn on its plinth, or the bare plinth). Rope: `strand` and `slung` (into a batch), `coil`. Floor openings:
   `pitShell` (the dark round and under a hole) and `pitHaze`. Decor: `rug`,
   `pictureFrame`, which hangs a named picture from the silhouette library
   (`pictures.ts`; no two on one floor are the same), `cobweb`. Turned
@@ -291,6 +291,9 @@ lightmap density were in flux; re-measure the house once they settle.
 | Ballroom | ground, formal (the hall the Gallery overlooks, its dress shared with it): dark basketweave parquet, dark pewter (`ash`) paper with a gilt (`brass`) damask, wood panelling, gilt trim | a great inlaid sunburst medallion four metres across in a pale band, a gilt torchère in each corner; at its edge, a length of the Gallery's balustrade and the gilt chair that fell with it | four torchères' amber, pooled round the medallion | normal (proposed) | 3.2 (0.9–20.9) |
 | Gallery | upper, in the Ballroom's dress over wood boards | a walkway along a pale balustrade over a storey's drop into the Ballroom, the rail broken through where a length gave way; gilt chairs set at the rail to watch, one missing | the Ballroom's amber welling up out of the drop, lighting the balusters from below; one amber candelabrum on a console | normal (proposed) | 2.4 (0.5–17.9) |
 | Conservatory | outdoors under glass (**its own dress**, ground or upper): terracotta and black encaustic tiles, a brick dwarf wall, glazing in grey paint (`boundary: "glazing"`) | a pale-painted tiered plant theatre in the middle, stepped with pots of dead ferns up to an urn, a dead palm in a corner, a potting bench of dead seedlings | the moon through the glass roof, its unseen frame (`bakeOnly`) laying a lattice of shadow over the whole floor; a paraffin stove's amber still burning to keep dead plants warm | bright (proposed) | 9.0 (0.7–60.7) |
+| Gardens | outdoors: dark lawn, shaggy yew hedge edges with topiary balls, a gravel ring walk, four dead box-edged beds | a dry round stone fountain in the middle, a climbing rose grown over it out of the basin | red (`scarlet`): the rose in full bloom, the only living thing in the garden, its blooms' hearts glowing and shedding petals on the gravel | normal (proposed) | 2.8 (0.5–19.6) |
+| Patio | outdoors: big dark flags with moss joints, a low stone wall under a diagonal wooden trellis | an iron table with its tea things and a chair knocked over; in the open flags, a stone urn fallen from far above, burst in a spray of earth and shards | an amber hurricane lamp (the kit's `oilLamp`, iron) still burning on the table | normal (proposed) | 4.6 (0.6–22.6) |
+| Balcony | outdoors, upper: dark stone flags, an ashlar plinth under pale stone balustrades with ball finials | a brass telescope on a tripod aimed at the sky over the balustrade, its watcher's stool knocked over, a star chart on the flags | violet from both lenses, as if something up there looks back down it; one corner's urn is gone from its plinth (it lies burst on the Patio) | normal (proposed) | 4.3 (0.5–29.6) |
 
 Four rooms (the starting hall and the Upper Landing) share one dress, and the Ballroom and the Gallery another (`kit/ballroom.ts`), as one tall hall on two floors, and one
 amber light, so telling them apart rests on their shapes alone. Green is the
@@ -639,18 +642,23 @@ ledger, with its light intent and its measured median and range.
 An outdoor tile (`outside` in the tile data) has no walls and no ceiling.
 
 - **Edges.** The stage builds a low wall exactly the cut height tall, with
-  iron railings above it in the room's `trim` colour, and stone piers at
-  the gates and corners; cutting an edge drops only the railings and the
-  piers' upper part. Doors are gateways between piers, and a false door is
-  a shut iron gate. Piers reach 10 cm into the floor (`OUTDOOR`), so keep
-  props at least 15 cm off them. The edge style is a per-room choice, the
-  room's `boundary`: `railings` by default, or a glasshouse's `glazing`
-  (`glazing.ts`: painted posts and glass in the `trim` colour, heavy posts
-  standing on the piers cut level, as the Conservatory's). Others (hedges
-  for the Gardens, a balustrade for the Balcony) are added to the stage
-  when such a room is built.
-- **Surfaces.** `wall` is the low wall's face, and `floor` is the ground:
-  `earth()`, with grass or without.
+  what the room's `edging` stands above it, and piers at the gates and
+  corners; cutting an edge drops only what stands above and the piers'
+  upper part. The styles (`OutdoorEdging` in `room.ts`, built in
+  `stage.ts`): `railings` (the default: iron bars in the `trim` colour, the
+  Graveyard), `hedge` (a clipped hedge of the `wall` surface, as deep as
+  its piers, with topiary balls on them: the Gardens), `balustrade` (turned
+  balusters in the `trim` colour under a broad rail, ball finials on the
+  piers: the Balcony) and `trellis` (a diagonal lattice of `trim` laths:
+  the Patio). A new style is added there, never forked in a room. Doors
+  are gateways between piers, and a false door is a shut iron gate. Piers
+  reach 10 cm into the floor (`OUTDOOR`), and a hedge as far, so keep props
+  at least 15 cm off them. A glasshouse instead sets the room's
+  `boundary` to `glazing` (`glazing.ts`: painted posts and glass in the
+  `trim` colour over piers cut level, as the Conservatory's).
+- **Surfaces.** `wall` is the low wall's face (or the hedge's leaves), and
+  `floor` is the ground: `earth()`, with grass or without, or paving.
+  Every outdoor room lays the kit's `groundFog`, its own seed and layers.
 - **Light.** The open sky lets the moon fall on every surface: make the
   ground dark enough that moonlight doesn't flatten it, and carry the
   colour on fog and glows. The baseline is cold moon blue, and low fog

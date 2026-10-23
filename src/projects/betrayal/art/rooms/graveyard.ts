@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { lantern } from "../kit";
+import { groundFog, lantern } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, type PaletteKey } from "../palette";
 import type { PropPlacement, RoomDefinition } from "../room";
@@ -207,52 +207,6 @@ function gateLantern(): THREE.Group {
   return group(box([0.18, 0.06, 0.18], iron), cylinder(0.03, 1.45, iron, [0, 0, 0], { sides: 6 }), box([0.32, 0.03, 0.03], iron, [0.14, 1.36, 0]), light);
 }
 
-/** Low fog lying over the yard in drifting layers of moonlit haze, thickest
- *  near the ground. Built in room metres, over the whole walkable floor. */
-function groundFog(): THREE.Group {
-  const fog = group();
-  const size = 64;
-  const layers: [height: number, opacity: number, seed: string][] = [
-    [0.08, 0.55, "low"],
-    [0.24, 0.3, "high"],
-  ];
-  for (const [height, opacity, seed] of layers) {
-    const rng = createRng(`graveyard-fog:${seed}`);
-    const cells = Array.from({ length: size }, () => Array.from({ length: size }, () => 0));
-    for (let bank = 0; bank < 6; bank++) {
-      const cx = rng.next() * size;
-      const cy = rng.next() * size;
-      const rx = 6 + rng.next() * 12;
-      const ry = 3 + rng.next() * 6;
-      for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-          const dx = Math.min(Math.abs(x - cx), size - Math.abs(x - cx)) / rx;
-          const dy = Math.min(Math.abs(y - cy), size - Math.abs(y - cy)) / ry;
-          cells[y][x] += Math.max(0, 1 - dx * dx - dy * dy);
-        }
-      }
-    }
-    const rows = cells.map((row, y) =>
-      row
-        .map((v, x) => {
-          const dither = ((x * 3 + y * 5) % 4) / 4;
-          return v > 0.95 ? "m" : v > 0.4 ? "d" : v > 0.2 && dither < 0.5 ? "d" : ".";
-        })
-        .join(""),
-    );
-    const map = pixelTexture(rows, { m: "moon", d: "moonDark", ".": "void" }, true);
-    const span = 5.5;
-    const geometry = new THREE.PlaneGeometry(span, span).rotateX(-Math.PI / 2);
-    const repeat = span / (size / TEXELS_PER_METRE);
-    const uv = geometry.getAttribute("uv");
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * repeat, uv.getY(i) * repeat);
-    const layer = new THREE.Mesh(geometry, lightMaterial(opacity, { map }));
-    layer.position.y = height;
-    fog.add(layer);
-  }
-  return fog;
-}
-
 /** The gravel path from the gate to the foot of the open grave. Runs along z. */
 function gravelPath(): THREE.Mesh {
   return box([0.9, 0.02, 2.5], textured(flagstones({ ramp: ["soot", "ash", "stoneDark", "stone"], mortar: "soot", stonePx: 4, size: 32, seed: "graveyard-path" })));
@@ -287,7 +241,7 @@ export const GRAVEYARD: RoomDefinition = {
     grave("round", "r5", [2.35, 1.3], { lean: 12, scale: 0.9 }),
     { build: gravelPath, at: [0, 1.55], contacts: [{ with: "doorway bottom", because: "it is the path the walk comes in on, lying flat on the ground" }] },
     { build: gateLantern, at: [-0.95, 2.35] },
-    { build: groundFog, at: [0, 0] },
+    { build: () => groundFog({ seed: "graveyard-fog" }), name: "groundFog", at: [0, 0] },
   ],
   lights: [{ at: [0, 0.85, WISP_Z], colour: "wraithLight", intensity: 10, range: 6, flicker: 0.25, kind: "glow" }],
   focus: [0, 0.5, GRAVE_MIDDLE],

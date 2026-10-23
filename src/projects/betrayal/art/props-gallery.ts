@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { candelabra, candle, chamberstick, lantern, oilLamp } from "./kit/candles";
 import { cobweb } from "./kit/cobweb";
 import { fire, flame } from "./kit/flame";
+import { groundFog } from "./kit/fog";
 import { pictureFrame, rug, windowPool } from "./kit/decor";
 import { chair, table } from "./kit/furniture";
 import { balustradeRun, giltChair } from "./kit/ballroom";
@@ -18,6 +19,7 @@ import { flowerPot, LEAVES, palm, rosette } from "./kit/plants";
 import { coil, slung } from "./kit/rope";
 import { cask, crate } from "./kit/stores";
 import { trunk } from "./kit/trunk";
+import { gardenUrn } from "./kit/urn";
 import { solidLathe, vessel } from "./kit/vessel";
 import { waterRectangle, waterSurface } from "./kit/water";
 import { pieceName, type PropPlacement, type RoomDefinition } from "./room";
@@ -93,6 +95,9 @@ const KIT_PIECES: { file: string; name: string; build: () => THREE.Object3D }[] 
   { file: "laboratory.ts", name: "specimen jar", build: () => labGlass("jar", { lid: "brass" }) },
   { file: "laboratory.ts", name: "lab beaker", build: () => labGlass("beaker") },
   { file: "laboratory.ts", name: "instrument tray", build: () => instrumentTray() },
+  { file: "urn.ts", name: "garden urn", build: () => gardenUrn() },
+  { file: "urn.ts", name: "garden urn, its plinth bare", build: () => gardenUrn({ urn: false }) },
+  { file: "fog.ts", name: "ground fog", build: () => groundFog({ seed: "gallery" }) },
   { file: "trunk.ts", name: "trunk", build: () => trunk() },
   { file: "trunk.ts", name: "trunk, open", build: () => trunk({ open: 1.1 }) },
   { file: "plants.ts", name: "flowerpot", build: () => flowerPot({ radius: 0.12, height: 0.2 }).pot },
