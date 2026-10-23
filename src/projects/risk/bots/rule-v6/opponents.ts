@@ -184,9 +184,7 @@ const WAY_IN = 2;
 
 function arriving(a: number, d: number): number {
   const o = battleOutcome(a, d);
-  let armies = 0;
-  for (let x = 1; x < o.win.length; x++) armies += o.win[x] * x;
-  return o.pWin > 0 ? armies / o.pWin : 0;
+  return o.pWin > 0 ? o.survivors / o.pWin : 0;
 }
 
 /** `q`'s sweep from its biggest stack, everything to place on it, when that stack isn't beside

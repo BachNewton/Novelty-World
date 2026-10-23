@@ -38,6 +38,7 @@
     "risk:shard": "tsx src/projects/risk/eval/shard-cli.ts",
     "risk:import": "tsx src/projects/risk/eval/import-cli.ts",
     "risk:record": "tsx src/projects/risk/eval/record-cli.ts",
+    "risk:features": "tsx src/projects/risk/eval/features-cli.ts",
     "bench": "vitest bench --run",
     "relay:deploy": "bash relay/deploy.sh",
     "frogmino:prove": "tsx src/projects/frogmino/proof/prove-cli.ts",

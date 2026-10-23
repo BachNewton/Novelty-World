@@ -63,7 +63,7 @@ interface Args extends CommonArgs, RemoteArgs {
   alpha: number;
   beta: number;
   maxDecisive: number;
-  fieldGroups: number;
+  fieldMaxGroups: number;
   batch?: number;
 }
 
@@ -78,7 +78,7 @@ function parseArgs(argv: readonly string[]): Args {
     alpha: 0.05,
     beta: 0.05,
     maxDecisive: 20_000,
-    fieldGroups: 50,
+    fieldMaxGroups: 100,
   };
   for (let i = 0; i < argv.length; i++) {
     const used = commonFlag(a, argv, i) || remoteFlag(a, argv, i);
@@ -94,7 +94,7 @@ function parseArgs(argv: readonly string[]): Args {
     else if (arg === "--alpha") a.alpha = number(argv[++i], arg);
     else if (arg === "--beta") a.beta = number(argv[++i], arg);
     else if (arg === "--max") a.maxDecisive = number(argv[++i], arg);
-    else if (arg === "--field-groups") a.fieldGroups = number(argv[++i], arg);
+    else if (arg === "--field-max-groups") a.fieldMaxGroups = number(argv[++i], arg);
     else if (arg === "--batch") a.batch = number(argv[++i], arg);
     else if (arg.startsWith("--")) throw new Error(`unknown flag "${arg}"`);
     else positional.push(arg);
@@ -161,20 +161,13 @@ Risk — gauntlet
     workers,
   }, remote === null ? undefined : { id: remote.run.id, play: remote.play });
   // The pairings each count as one step of the run, however long their SPRT plays,
-  // and the field's own games, whose number is fixed, as one more.
+  // and the field's own ladder as one more, done in the share of its matchups done.
   const pairings = gauntletTables(field, args.players, args.formats).length;
-  const playerGames = args.players.reduce((s, n) => s + n, 0);
-  const fieldGames = field.length * (field.length - 1) * args.fieldGroups * playerGames;
-  const steps = pairings + (fieldGames > 0 ? 1 : 0);
+  const steps = pairings + (field.length > 1 && args.fieldMaxGroups > 0 ? 1 : 0);
   const bounds = sprtBounds(args.alpha, args.beta);
   let decided = 0;
-  let fieldFrom: number | null = null;
-  let fieldCached = 0;
-  live.setProgress(() => {
-    const toPlay = fieldGames - fieldCached;
-    const fieldDone = fieldFrom === null || toPlay <= 0 ? 0 : (live.counts().games - fieldFrom) / toPlay;
-    return (decided + Math.min(1, fieldDone)) / steps;
-  });
+  let fieldDone = 0;
+  live.setProgress(() => (decided + fieldDone) / steps);
   const line = progressLine();
   const onProgress = (p: RiskGauntletProgress): void => {
     line(p);
@@ -190,7 +183,6 @@ Risk — gauntlet
     });
     if (!p.done) return;
     decided++;
-    if (decided === p.total) fieldFrom = live.counts().games;
   };
 
   const gauntlet = {
@@ -204,7 +196,7 @@ Risk — gauntlet
     alpha: args.alpha,
     beta: args.beta,
     maxDecisive: args.maxDecisive,
-    fieldGroups: args.fieldGroups,
+    fieldMaxGroups: args.fieldMaxGroups,
     fieldCache: fileLadderCache(),
     maxTurns: args.maxTurns,
   };
@@ -228,8 +220,8 @@ Risk — gauntlet
   try {
     const report = await runRiskGauntlet({
       ...gauntlet,
-      onFieldMatchup: (matchup, _, cached) => {
-        if (cached) fieldCached += args.fieldGroups * matchup.players;
+      onFieldRound: ({ matchups }) => {
+        fieldDone = matchups.filter((m) => m.done).length / Math.max(1, matchups.length);
       },
       batchGames: remote === null ? args.batch : 1,
       pool,

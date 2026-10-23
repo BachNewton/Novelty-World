@@ -11,12 +11,19 @@ import { planCapture as v3PlanCapture, type CapturePlan } from "../rule-v3/route
 // cheap group first, the stack drops a detachment for it and goes on with the rest, which is
 // how the turn is played: the move-in leaves the detachment at the fork.
 
+/** Each territory's mark while `cheapGroupsFirst` runs, reused and cleared after: allocating
+ *  them per call cost more than the grouping. */
+let isTarget = new Uint8Array(0);
+let groupOf = new Int16Array(0);
+
 /** `targets`, each connected group kept whole and in its own order, the cheapest group
  *  (its defenders and an army left on each) first. */
-export function cheapGroupsFirst(b: Board, targets: readonly number[]): number[] {
-  const isTarget = new Uint8Array(b.owner.length);
+export function cheapGroupsFirst(b: Board, targets: readonly number[]): readonly number[] {
+  if (groupOf.length < b.owner.length) {
+    isTarget = new Uint8Array(b.owner.length);
+    groupOf = new Int16Array(b.owner.length).fill(-1);
+  }
   for (const t of targets) isTarget[t] = 1;
-  const groupOf = new Int16Array(b.owner.length).fill(-1);
   const cost: number[] = [];
   for (const start of targets) {
     if (groupOf[start] >= 0) continue;
@@ -35,9 +42,22 @@ export function cheapGroupsFirst(b: Board, targets: readonly number[]): number[]
       }
     }
   }
+  const ordered = cost.length === 1 ? targets : byGroupCost(targets, cost);
+  for (const t of targets) {
+    isTarget[t] = 0;
+    groupOf[t] = -1;
+  }
+  return ordered;
+}
+
+function byGroupCost(targets: readonly number[], cost: readonly number[]): readonly number[] {
   const order = cost.map((_, g) => g).sort((x, y) => cost[x] - cost[y] || x - y);
   const rank = new Int16Array(order.length);
   order.forEach((g, r) => (rank[g] = r));
+  // Already cheapest first: the sort would give the targets back as they are.
+  let inOrder = true;
+  for (let i = 1; i < targets.length && inOrder; i++) inOrder = rank[groupOf[targets[i - 1]]] <= rank[groupOf[targets[i]]];
+  if (inOrder) return targets;
   return targets.map((t, i) => ({ t, i })).sort((x, y) => rank[groupOf[x.t]] - rank[groupOf[y.t]] || x.i - y.i).map((x) => x.t);
 }
 

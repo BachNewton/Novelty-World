@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   eloToWinProb,
+  expectedToDecide,
+  fewestToDecide,
   luceWinProb,
   sprt,
   walkGauntletSprt,
@@ -194,5 +196,60 @@ describe("walkGroupedSprt", () => {
     const w = walkGroupedSprt([[], [true], []], GAUNTLET, 4000);
     expect(w.verdict).toBe("need-more");
     expect(w.decisive).toBe(1);
+  });
+});
+
+describe("fewestToDecide", () => {
+  const tables = [GAUNTLET, { margin: 30, alpha: 0.05, beta: 0.05, winProb: luceWinProb(1, 5) }, { margin: 30, alpha: 0.05, beta: 0.05, winProb: luceWinProb(4, 5) }];
+
+  it("is the shortest stream that decides: one game fewer never does", () => {
+    for (const cfg of tables) {
+      const n = fewestToDecide(0, 0, cfg);
+      const decides = (stream: boolean[]) => walkGauntletSprt(stream, cfg, 1e6).verdict !== "need-more";
+      // Every stream of n−1 games is between the bounds; checking the extremes and every mix
+      // of wins first then losses covers the LLR's range, since it is linear in the counts.
+      for (let w = 0; w < n; w++) expect(decides([...Array<boolean>(w).fill(true), ...Array<boolean>(n - 1 - w).fill(false)])).toBe(false);
+      const wins = Array<boolean>(n).fill(true);
+      const losses = Array<boolean>(n).fill(false);
+      const some = [wins, losses].some(decides) || Array.from({ length: n + 1 }, (_, w) => [...wins.slice(0, w), ...losses.slice(w)]).some(decides);
+      expect(some).toBe(true);
+    }
+  });
+
+  it("counts from where the test stands", () => {
+    const from0 = fewestToDecide(0, 0, GAUNTLET);
+    expect(fewestToDecide(10, 0, GAUNTLET)).toBeLessThan(from0);
+  });
+});
+
+describe("expectedToDecide", () => {
+  it("is Wald's distance to the bound over the drift, at a hypothesis", () => {
+    const cfg = { margin: 30, alpha: 0.05, beta: 0.05, winProb: luceWinProb(1, 5) };
+    const p0 = cfg.winProb(0);
+    const p1 = cfg.winProb(30);
+    const drift = p1 * Math.log(p1 / p0) + (1 - p1) * Math.log((1 - p1) / (1 - p0));
+    expect(expectedToDecide(0, 0, p1, cfg)).toBeCloseTo(Math.log(0.95 / 0.05) / drift, 9);
+  });
+
+  it("grows as the edge shrinks toward the margin", () => {
+    const cfg = { margin: 30, alpha: 0.05, beta: 0.05, winProb: luceWinProb(1, 5) };
+    const at = (elo: number) => expectedToDecide(0, 0, cfg.winProb(elo), cfg);
+    expect(at(200)).toBeLessThan(at(60));
+    expect(at(60)).toBeLessThan(at(30));
+    expect(at(-200)).toBeLessThan(at(-60));
+  });
+
+  it("matches the mean stop point of simulated streams", () => {
+    const cfg = { margin: 30, alpha: 0.05, beta: 0.05, winProb: luceWinProb(1, 5) };
+    const p = cfg.winProb(120);
+    let seed = 1;
+    const next = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    let total = 0;
+    const trials = 400;
+    for (let t = 0; t < trials; t++) total += walkGauntletSprt(Array.from({ length: 5000 }, () => next() < p), cfg, 1e6).decisive;
+    // Wald's estimate ignores the overshoot past the bound, so the mean runs a little longer.
+    const expected = expectedToDecide(0, 0, p, cfg);
+    expect(total / trials).toBeGreaterThan(0.8 * expected);
+    expect(total / trials).toBeLessThan(1.5 * expected);
   });
 });

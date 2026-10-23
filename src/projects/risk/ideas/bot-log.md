@@ -753,3 +753,187 @@ Taking Australia first is what made it a player; without a base it was the weake
 | 4 sweeper-v1s against 1 greedy | 31.6% [19.1, 47.5] of 40 vs 80.0% | worse |
 
 Win Elo with rule-v6 at 0: sweeper-v1 −667, greedy −671; by finishing order sweeper-v1 −164, greedy −304. So at 5 players it is about greedy's strength by wins and well above it by finishing order, and v6 beats it every time it sits alone. It beats a table of greedys, and four sweepers lose to one greedy: their sweeps eat each other's trails while greedy keeps what it takes. As an opponent it is a style the rule bots already punish, which is the measure the hybrid bot would have to keep.
+
+## Can a learned evaluation predict the winner better than v6's? (2026-10-21)
+
+The kill test for a hybrid bot, v6's planner scoring its end-of-turn boards with a learned evaluation instead of its hand-tuned one. `risk:record` on GitHub Actions (run 39576264488, 20 machines): 10,000 five-player games, field rule-v6, rule-v5, rule-v4 and gd-stacker rotated through every seat, 8 capped. Every seat's board at the end of each of its turns, from its own view, with v6's evaluation terms and the game's winner: 524,628 positions from 9,992 decisive games. Fit offline on the laptop's CPU, a few minutes: held out by game (a fifth of the games), scored on the rule bots' seats only (83,924 test positions, 31.9% of them a winner's), each method's log-loss of "this seat wins", a 95% interval on each difference from a paired bootstrap over test games.
+
+| Method | Log-loss |
+|---|---|
+| A constant (the win rate) | 0.626 |
+| v6's power share alone | 0.550 |
+| (a) v6's value, calibrated to a probability | 0.530 |
+| (b) Texel: a logistic fit on v6's terms | 0.514 |
+| (c) A small network (two hidden layers) on v6's terms and the board | 0.497 |
+
+Texel beats v6's own weighting by 0.016 [0.014, 0.018], and the network beats Texel by 0.017 [0.014, 0.019]: both stop rules pass. The network on the board alone, without v6's terms, scored 0.499, nearly the same.
+
+Every game seated gd-stacker, so a network reading the board could be learning who sits where (a rule bot beside a weak bot wins more), which would mean nothing against people. Controlled by telling both fits each seat's bot: who sits where helps both (Texel by 0.010), and the network still beats Texel by 0.021 [0.017, 0.026]. Its edge is in the positions, largest from turn 20 on; in the first 20 turns the methods are close. Two fits of the same network differ by about 0.005, well inside these gaps.
+
+That a seat's chances move by about 0.01 log-loss with who the others are measures the self-play worry: what a position is worth depends on the opponents. A predictor that beats v6's scoring here is a necessary condition, not a sufficient one: the planner ranks sibling boards from one position, and an evaluation can predict winners better yet rank those worse, or be exploited on boards bots never reach. Only a gauntlet decides.
+
+## rule-v8: v6's planner on the learned evaluation (built and trained, 2026-10-21)
+
+v8 (`ideas/rule-bot-v8.md`) is v6 with every board it scores scored instead by a network's chance that the seat wins. The network reads v6's breakdown terms and the board, its seats in turn order from the scored seat, and never which bot or person sits where. It was trained on the kill test's recording: 524,628 positions from 9,992 decisive five-player games, features from v8's own feature function (`npm run risk:features`), held out by game as the kill test held them (a fifth of the games test, a tenth validation), and scored on the rule bots' seats (83,924 test positions). On the laptop's CPU each fit takes a minute or two, and a rerun reproduces its weights bit for bit.
+
+| Model | Weights | Log-loss, rule seats | Every seat |
+|---|---|---|---|
+| v6's value, calibrated | 2 | 0.530 | 0.468 |
+| Logistic on the same 293 features | 294 | 0.498 | 0.439 |
+| Hidden layer of 8 | 2,361 | 0.494 | 0.431 |
+| Hidden layers 16, 8 (**kept**) | 4,849 | 0.493 | 0.430 |
+| Hidden layers 32, 16 | 9,953 | 0.496 | 0.431 |
+| Hidden layers 64, 32 | 20,929 | 0.496 | 0.432 |
+| Hidden layers 128, 32 | 41,793 | 0.492 | 0.432 |
+| Hidden layers 256, 64 | 91,777 | 0.496 | 0.435 |
+
+Every network scores within fit-to-fit noise of the others (about 0.005), and a little better than the kill test's network (0.497) on these features. The 16-and-8 network was kept: as good as any, and small enough that its weights are 25 KB in the repo. By game phase it gains on v6's value everywhere: 0.569 against 0.590 in turns 0 to 20, and 0.421 against 0.470 in turns 40 to 70.
+
+**Cost per decision**, v8 against v6 asked the same decisions (a v6 seat among v6s, 12 games a table size capped at 150 turns, the two taking turns going first): 1.02 times v6 at 5 players, 1.10 at 4 and 1.14 at 6. The two chose the same move in 57% of decisions at 5 players, 58% at 4, and 80% at 6, where v8 plays v6 until a seat falls.
+
+**A local screen at 5 players**, `risk:gauntlet -- rule-v8 --base rule-v6 --field rule-v6 --players 5 --formats one-in,one-out --max 600 --prefix screen-v8`, stopped at the ten-minute limit on the laptop's CPU. Five-player games of v6 are slow on 14 workers. Its one-in pairing (v8 alone among four v6s) had 102 decisive games and 13 capped, with the improvement test's log-likelihood ratio at 3.0 and the regression test's at −3.4. That leans well above par, but no verdict was printed before the stop, and one-out had not reported. It is a lean to confirm on Actions, not a result. The Actions commands are in the design doc's "Measuring it".
+
+## v8's screen at 5 players: better alone, worse in numbers (2026-10-21)
+
+On GitHub Actions (run 39641294131, 10 machines, 2 rounds, 1,200 games): `risk:gauntlet -- rule-v8 --base rule-v6 --field rule-v6 --players 5 --formats one-in,one-out --max 2000 --prefix screen-v8`.
+
+| Pairing (5p) | Win share vs par | Games | Mean turns | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| 1 v8 among 4 v6s | 38.2% [29.4, 47.9] vs 20.0% | 115 | 214 | 11.3% | better |
+| 4 v8s against 1 v6 | 63.2% [54.0, 71.4] vs 80.0% | 145 | 421 | 21.4% | worse |
+
+Win Elo (rule-v6 = 0): v8 −2; by finishing order −59. **v8 fails its seating bar**: worse at a table.
+
+Both pairings decided fast, and they disagree. Alone among v6s, the table it was trained on, v8 wins nearly twice par. Four v8s with one v6 lose to it: the lone v6 wins 36.8% where par is 20%. Games run long: 214 turns with one v8, 421 with four, where five-player games among v6s run 105 to 127 and cap 3 to 7% of the time. The network learned what wins among v6s, and among v6s a seat that holds back while the others fight wins. A table of such seats stalls, and the one seat that attacks takes it. This is the population lesson `risk-bot-ai.md` cites from DORA, measured: strength among one population says nothing about another, and an evaluation fit to one population's games carries it in.
+
+The ratings cache was not committed with this run's import: v8's refactor of v6 (an optional `score` in its params) changes v6's code hash, and the import dropped v6's 80 cached ladder matchups that this checkout's v6 no longer answers.
+
+## v7 built: v6 that plays its opponents' replies (2026-10-21)
+
+`rule-v7` (`rule-bot-v7.md`) chooses the turn's placement among v6's four best plans by playing each through the opponents' next turns in sampled worlds (`sim.ts`), with real bots in their seats (v6, gd-aggressive and greedy, drawn per seat), and scoring the start of its next turn. The knob is the replies per plan; at 0 it plays v6's moves exactly. Registered, not seated, and unmeasured: its seating bar and budget curve are in its doc, queued as Actions runs.
+
+Its cost, one v7 among four v6s at 5 players, the laptop's one core, the first 30 to 60 player-turns of two games:
+
+| Budget | Time a decision | A turn, mean | 9 in 10 under |
+|---|---|---|---|
+| 0 replies (= v6) | 2.7 ms | 0.02 s | 0.03 s |
+| 2 replies | 73 ms | 0.75 s | 1.6 s |
+| 8 replies | 262 ms | 2.5 s | 3.5 s |
+| 8 replies, 2 candidates | 110 ms | 1.1 s | 2.2 s |
+| 8 replies, every opponent v6 | 1,186 ms | 8.8 s | 15.8 s |
+| 32 replies | 1,441 ms | 9.8 s | 15.3 s |
+
+A round costs about 80 ms with the mix and 270 ms with every opponent v6, whose planning is most of it. A server turn of a few seconds holds about 8 replies over 4 candidates.
+
+## v7's budget curve, one-in at 5 players: 2 and 8 replies (2026-10-21)
+
+On GitHub Actions, 10 machines each, train seeds: `risk:gauntlet -- rule-v7~{"replies":R} --base rule-v6 --field rule-v6 --players 5 --formats one-in --max 2000 --prefix budget-v7`. One v7 among four v6s; par 20%. Five-player games among v6s run 105 to 127 turns and cap 3 to 7% of the time.
+
+| Budget (run) | Win share vs par | Games | Mean turns | Cap rate | Win Elo a seat | Finishing-order Elo | Verdict |
+|---|---|---|---|---|---|---|---|
+| 2 replies (39641422943) | 30.4% [24.5, 37.0] | 215 | 126 | 5.1% | +97 | +47 | better |
+| 8 replies (39641428856) | 42.7% [32.5, 53.5] | 85 | 119 | 3.5% | +190 | +135 | better |
+
+**Thinking time buys strength against v6**, and more of it buys more: 8 replies wins about twice par and 2 replies half again par, with game length and cap rate those of v6's own games, so v7 wins by playing, not by stalling. The intervals overlap, so the ladder of the budget points says how far apart they are. One-in is the mixture v8 also passed; the one-out pairing (four v7s against one v6) is the test that v8 failed, and it is running.
+
+Each round on Actions played 600 games whatever the stop point, so the 8-reply run took nearly two hours of 10 machines: an Actions core plays these games well below the laptop's speed the design doc assumed.
+
+## v8 retrained: the stall mostly gone, still worse in numbers (2026-10-21)
+
+v8 retrained in place (Kyle's ruling: a bot is frozen only once seated). Data: the kill test's 10,000 games plus a recording of 5,000 five-player games with three or four first-weights v8s and the rest v6s at each table (run 39645825049, `risk:record -- --games 5000 --field rule-v8,rule-v8,rule-v8,rule-v6,rule-v8,rule-v6 --prefix hybrid-v8`). Features by `risk:features -- --capped loss`, so a capped game counts as no win for every seat: 2,643,475 positions from 15,000 games, 672,000 of them from capped games. The recording itself showed the stall: a quarter of its positions came from capped games.
+
+Held-out log-loss on rule seats (the new data's test games included, so not comparable with the first training's 0.493): v6's value 0.424; networks of 16-8, 32-16 and 64-32 units 0.4055, 0.4055 and 0.4078. The 16-8 network was kept.
+
+The screen on GitHub Actions (run 39676510981, 1,200 games): `risk:gauntlet -- rule-v8 --base rule-v6 --field rule-v6 --players 5 --formats one-in,one-out --max 2000 --prefix screen-v8b`.
+
+| Pairing (5p) | Win share vs par | Games | Mean turns | Cap rate | Verdict |
+|---|---|---|---|---|---|
+| 1 v8 among 4 v6s | 28.6% [23.3, 34.5] vs 20.0% | 250 | 126 | 2.0% | better |
+| 4 v8s against 1 v6 | 74.2% [69.6, 78.2] vs 80.0% | 400 | 222 | 1.3% | worse |
+
+Win Elo (rule-v6 = 0): v8 −3; by finishing order +14. Against the first weights (38.2% one-in; 63.2%, 421 turns and 21% capped one-out), counting a stall as a loss mostly cured the stall: one-out games are half as long and almost never capped. But four v8s still lose to one v6 more than par allows, and the one-in edge shrank.
+
+**The rule fixed before the retraining applies: four v8s against one v6 is worse, so the hybrid line stops.** v8 stays registered and unseated, and the optional v7 with v8's network as its leaf scorer isn't built: it needed both bots to hold one-out. It is the next idea if a learned evaluation ever does.
+
+## v7 one-out at 8 replies: better in numbers too (2026-10-22)
+
+On GitHub Actions (run 39645219116, 10 machines, 2 rounds, 600 games, 6.2 hours): `risk:gauntlet -- rule-v7~{"replies":8} --base rule-v6 --field rule-v6 --players 5 --formats one-out --max 2000 --prefix budget-v7`. Four v7s against one v6; par 80%.
+
+| Pairing (5p) | Win share vs par | Games | Mean turns | Cap rate | Win Elo a seat | Finishing-order Elo | Verdict |
+|---|---|---|---|---|---|---|---|
+| 4 v7s at 8 replies against 1 v6 | 88.8% [84.1, 92.2] vs 80.0% | 270 | 229 | 14.1% | +119 | +63 | better |
+
+**v7 passes the test v8 failed.** A table of v7s beats the lone v6 by more than par allows, so its gain against v6 is strength, not exploitation of a table of v6s. The lone v6 also finishes below its par place (3.15 against 3.0).
+
+**Its games run long.** 229 turns and 14% capped, against 105 to 127 turns and 3 to 7% among v6s at 5 players (and 119 turns, 3.5% capped, with one v7 among four v6s). It isn't v8's stall: v8's first weights ran 421 turns, 21% capped, and lost to the lone v6, where v7 beats it. But four careful searchers take about twice as long to finish each other, and the capped games are discarded as draws. Counted as games v7 didn't win, its share of all 270 games is 76%, under par. So the verdict rests on the decisive games, as every gauntlet's does, and the cap rate is a health flag to watch in the full suite: if a table of v7s caps far more at 6 players, where v6's own games cap 25 to 37%, that will show it.
+
+## v7 at 32 replies: the curve flattens (2026-10-22)
+
+On GitHub Actions (run 39696419497, 10 machines, rounds of at least 200 games, 1.7 hours): `risk:gauntlet -- rule-v7~{"replies":32} --base rule-v6 --field rule-v6 --players 5 --formats one-in --max 2000 --prefix budget-v7`, the same seeds as the 2- and 8-reply runs.
+
+| Budget, one v7 among four v6s | Win share vs par 20% | Games | Mean turns | Cap rate | Win Elo a seat |
+|---|---|---|---|---|---|
+| 2 replies | 30.4% [24.5, 37.0] | 215 | 126 | 5.1% | +97 |
+| 8 replies | 42.7% [32.5, 53.5] | 85 | 119 | 3.5% | +190 |
+| 32 replies | 41.1% [31.5, 51.4] | 95 | 149 | 5.3% | +178 |
+
+Four times the work of 8 replies buys nothing measurable: the one-in curve climbs from 2 to 8 and is flat from 8 to 32. 32 replies also fails rule 5 of the seating bar (about 10 s a turn on the laptop's core), so it was never a candidate budget; as the design doc set out, it is recorded rather than seated, and with no gain over 8 it is no evidence for thinking on a player's device either. By the doc's rule it stays off the budget ladder, which plays v6, 2 replies and 8 replies.
+
+## v7's first budget ladder and full suite ran out of time (2026-10-22)
+
+The budget ladder (run 39662270576, `risk:ratings -- rule-v6 rule-v7~{"replies":2} rule-v7~{"replies":8} --anchor rule-v6 --groups 100 --players 5`, 20 shards) lost 14 of its 20 machines to GitHub's six-hour job limit: each played a twentieth of 3,000 games, and tables of four v7s at 8 replies made that share take 4.5 to over 6 hours. With games missing, it had no report. v7's train gauntlet at 8 replies (run 39707156525, started early on idle runners) had all of its first 10 machines stopped the same way, so it was cancelled. No result from either. The ladder was relaunched at 60 shards (run 39745883687), each machine's share about two hours; `docs/actions.md` now says when to raise `shards`.
+
+## v6's planning made cheaper, every move the same (2026-10-22)
+
+rule-v7 spends about 83% of its time in v6's planner, run for its imagined replies, so a cheaper v6 makes v6, v7 and v8 cheaper to measure and to play. A profile (one v7 at 8 replies among four v6s, 5 players) put the cost in the capture planner, path runs, v6's kill chance and v4's sweep, with typed-array allocation a large hidden part of it: allocating a run's two distributions alone was about 6% of the time.
+
+The changes, each leaving the moves bit-identical, every sum in its old order: path runs step between two reused distributions; the capture planner weighs each way in without building its path, and its cover order and v6's group ordering reuse their marks (a single group, or groups already cheapest first, skip the sort); v6's kill chance returns 0 once its screen passes when some victim group has no attacker stack in a route's reach, where the planner would have found no route (common: a victim group with no stack in reach still passes the screen on the armies to place alone); a fight's expected survivors are summed once with its outcome, and small fights' exchanges are remembered. Tried and dropped: a path-run memo ten times larger (3,000 to 30,000 runs), which cut its misses threefold and saved nothing.
+
+Measured on GitHub Actions, one runner a job, two jobs: rule-v7's CPU over two games (`probe-a`, `probe-b`, 20 player-turns each, one v7 at 8 replies among four v6s), old and new alternated six times each. Old 27.2 s, new 21.2 s (1.29×) on one runner; old 19.7 s, new 15.0 s (1.31×) on the other, its six pairs within about 4% of each other. The laptop, shared with other work, swung ±20% run to run and couldn't resolve it. Moves were identical in every pair, and over both games to 60 player-turns on the laptop; the frozen fingerprints hold. The edits are in `rule-v1/odds.ts` and `rule-v3/routes.ts` as well as v6's own files, so every rule bot's and GD's ladder records replay once, not only v6's and those built on it.
+
+The rest of the profile is spread thin, no function above about 11% of the time. The next real gain is structural: `forecast` recomputes every opponent's kill chances and sweeps for each plan's end board, though a plan changes only the territories it takes.
+
+## v7's budget ladder: 8 replies it is (2026-10-22)
+
+On GitHub Actions (run 39754675411, 60 shards, 3,000 games, 8 hours): `risk:ratings -- rule-v6 rule-v7~{"replies":2} rule-v7~{"replies":8} --anchor rule-v6 --groups 100 --players 5`. Six matchups of 500 games, each bot alone among copies of another; par 20%.
+
+| Matchup (5p) | Lone seat's win share | Games capped |
+|---|---|---|
+| v6 alone among v7@2 | 17.4% [14.1, 21.1] | 10% |
+| v7@2 alone among v6 | 28.3% [24.5, 32.5] | 4% |
+| v6 alone among v7@8 | 5.7% [3.9, 8.3] | 16% |
+| v7@8 alone among v6 | 36.5% [32.3, 40.9] | 4% |
+| v7@2 alone among v7@8 | 17.4% [13.9, 21.5] | 23% |
+| v7@8 alone among v7@2 | 27.4% [23.4, 31.7] | 13% |
+
+| Bot | Win Elo (v6 = 0) | Finishing-order Elo |
+|---|---|---|
+| rule-v7, 8 replies | +152 | +91 |
+| rule-v7, 2 replies | +77 | +48 |
+| rule-v6 | 0 | 0 |
+
+**The budget is 8 replies**, by the rule `rule-bot-v7.md` fixed before the runs (the smallest budget whose win Elo is inside the best one's interval, and which fits a real game's turn). Head to head, 8 replies alone among 2-reply copies wins 27.4% against par 20%: about +72 Elo a seat [+35, +108], so 2 replies is not inside 8's interval. 32 replies, no stronger than 8 in its gauntlet and about 10 s a turn, was out by the turn-time rule. Rule 1 of the seating bar, "the curve climbs", holds: v7 at 8 replies sits about 150 Elo above v6, far outside the error. 4 replies wasn't measured: a head-to-head of 4 against 8 is a close comparison of tables full of v7s, the most expensive test there is, and both fit a real turn, so it would only say whether measuring at 4 could be cheaper.
+
+**Tables of many v7s stall more.** Capped games run 4% where one v7 sits among v6s, but 16% where one v6 sits among 8-reply v7s and 23% where a 2-reply v7 sits among 8-reply ones. The one-out gauntlet showed the same (14%). Capped games are draws and leave the tests, so the verdicts stand, but this is the health flag to watch in the full suite, above all at 6 players, where v6's own games cap 25 to 37%.
+
+The run played on the code before v6's speed-up (c766718c), so its six matchups don't answer from this checkout's ladder cache: the import kept none, as expected.
+
+## The seatable ladder played to a precision (2026-10-22)
+
+The ladder now stops each pair once one win-Elo fit knows its gap to 18.2 Elo, margin / z(1 − α) at the gauntlet's 30 a seat and α = 0.05, instead of playing a fixed 100 groups a matchup (the project's CLAUDE.md, "Measuring bots"). The old cache held summed 100-group records the rule can't read, so the seatable ladder was played again from nothing, on GitHub Actions (run 39818343983, 20 machines, 4 rounds, 25 minutes): `risk:ratings -- --seatable`. 8,712 games in 3 to 7 groups a matchup, against 198,000 for the 100-group ladder.
+
+| Bot | Before (100 groups) | After (to precision) | Change |
+|---|---|---|---|
+| rule-v6 | 1561.4 | 1560.3 | −1.1 |
+| rule-v5 | 1539.5 | 1538.4 | −1.1 |
+| rule-v4 | 1511.1 | 1510.5 | −0.6 |
+| rule-v3 | 1450.2 | 1430.6 | −19.6 |
+| rule-v2 | 1414.5 | 1418.1 | +3.6 |
+| rule-v1 | 1321.8 | 1306.2 | −15.6 |
+| gd-stacker | 1097.2 | 1078.4 | −18.8 |
+| gd-continental | 1074.1 | 1074.6 | +0.5 |
+| gd-aggressive | 1011.1 | 1004.4 | −6.7 |
+| greedy | 1000 | 1000 | anchor |
+| gd-defensive | 977.8 | 975.4 | −2.4 |
+
+Every bot is within 20 Elo of its 100-group rating (10 Elo RMS), inside the precision the rule promises, and the order, so every lobby rank, is unchanged. Two neighbours sit closer than the margin now, v2 and v3 (12.5 apart, was 35.7) and gd-stacker and gd-continental (3.8, was 23.1): by the ladder's own standard those pairs are within its indifference, so a later rerun may order them either way.

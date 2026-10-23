@@ -2,11 +2,11 @@ import type { CardId, GameEvent, GameState, GameView, RiskEngine, Seat } from ".
 import { referenceEngine } from "../engine";
 import type { Bot } from "../bots/bot";
 import { riskBot } from "../bots";
-import { fromView } from "../bots/rule-v1/board";
+import { fromView, type Board } from "../bots/rule-v1/board";
 import { shapeOf } from "../bots/rule-v1/cards";
 import { readRecord } from "../bots/rule-v4/beliefs";
 import { tableParams } from "../bots/rule-v6";
-import { breakdown } from "../bots/rule-v6/evaluate";
+import { breakdown, type Breakdown } from "../bots/rule-v6/evaluate";
 import { forecast } from "../bots/rule-v6/opponents";
 import { V6_PARAMS } from "../bots/rule-v6/params";
 import { playGame, type RiskGameResult, type RiskGameSpec } from "./runner";
@@ -251,4 +251,27 @@ export function shardRange(games: number, shard: number, shards: number): { from
   }
   const from = Math.floor((shard * games) / shards);
   return { from, count: Math.floor(((shard + 1) * games) / shards) - from };
+}
+
+/** A recorded position's board, as the seat built it from its view: the board v6 scored. Its
+ *  turn order starts with the seat, which no bot reads apart from where each seat sits from
+ *  another. */
+export function positionBoard(p: SeatPosition): Board {
+  return {
+    order: p.order,
+    players: p.order.length,
+    owner: Int8Array.from(p.owner),
+    armies: Int32Array.from(p.armies),
+    alive: p.alive.slice(),
+    handSize: p.hands.slice(),
+    known: shapeOf(p.cards),
+    cardEarned: p.cardEarned,
+    turn: p.turn,
+  };
+}
+
+/** A recorded position's v6 breakdown, as the record keeps it. */
+export function positionBreakdown(p: SeatPosition): Breakdown {
+  const { value, share, killExposure, borderLoss, opportunity, idle, commonThreat, total, power, spared } = p.v6;
+  return { value, share, killExposure, borderLoss, opportunity, idle, commonThreat, total, power, spared };
 }

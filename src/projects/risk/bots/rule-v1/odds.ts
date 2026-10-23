@@ -52,6 +52,8 @@ export interface BattleOutcome {
   winFrom: number;
   /** Whether the best way starts with a single battle rather than a blitz. */
   roll: boolean;
+  /** The sum of x · win[x] over every x ≥ 1: the expected survivors, times `pWin`. */
+  survivors: number;
 }
 
 /** Chances below this are dropped: far under any decision's resolution. */
@@ -95,7 +97,9 @@ function finish(win: Float64Array, fail: Float64Array, roll: boolean): BattleOut
   for (const p of win) pWin += p;
   let winFrom = 1;
   while (winFrom < win.length - 1 && win[winFrom] < NEGLIGIBLE) winFrom++;
-  return { win, fail, pWin, winFrom, roll };
+  let survivors = 0;
+  for (let x = 1; x < win.length; x++) survivors += x * win[x];
+  return { win, fail, pWin, winFrom, roll, survivors };
 }
 
 /** One battle with the most dice, then the best play from wherever it leaves the fight. */
@@ -205,29 +209,51 @@ function child(node: RunNode, key: number): RunNode {
 /** Path runs are pure and the planner asks for the same ones over and over (every
  *  plan's threat model checks the same kills), so they are remembered. */
 export function pathRun(armies: number, defenders: readonly number[]): PathRun {
+  return rememberedRun(armies, null, defenders);
+}
+
+/** The run against `first` and then `defenders`, as `pathRun` with `first` put before them,
+ *  without building that list for a run already remembered. */
+export function pathRunVia(armies: number, first: number, defenders: readonly number[]): PathRun {
+  return rememberedRun(armies, first, defenders);
+}
+
+function rememberedRun(armies: number, first: number | null, defenders: readonly number[]): PathRun {
   if (remembered > 3_000) {
     runs = newNode();
     remembered = 0;
   }
   let node = child(runs, armies);
+  if (first !== null) node = child(node, first);
   for (const d of defenders) node = child(node, d);
   if (node.run === null) {
-    node.run = computePathRun(armies, defenders);
+    node.run = computePathRun(armies, first === null ? defenders : [first, ...defenders]);
     remembered++;
   }
   return node.run;
 }
 
+/** The two distributions a run steps between, reused: allocating them per run cost more than the run. */
+let distA = new Float64Array(64);
+let distB = new Float64Array(64);
+
 function computePathRun(armies: number, defenders: readonly number[]): PathRun {
   // dist[x]: the chance x attackers (the holder's armies less the one left behind) are ready.
   const attackers = Math.max(0, armies - 1);
-  let dist = new Float64Array(attackers + 1);
+  const size = attackers + 1;
+  if (distA.length < size) {
+    distA = new Float64Array(size);
+    distB = new Float64Array(size);
+  }
+  let dist = distA;
+  let next = distB;
+  dist.fill(0, 0, size);
   dist[attackers] = 1;
   const stopAt = new Float64Array(defenders.length);
   for (let i = 0; i < defenders.length; i++) {
-    const next = new Float64Array(dist.length);
+    next.fill(0, 0, size);
     let lost = 0;
-    for (let x = 0; x < dist.length; x++) {
+    for (let x = 0; x < size; x++) {
       const m = dist[x];
       if (m < NEGLIGIBLE) continue;
       if (x === 0) {
@@ -240,11 +266,13 @@ function computePathRun(armies: number, defenders: readonly number[]): PathRun {
       for (let s = o.winFrom; s < o.win.length; s++) next[s - 1] += m * o.win[s];
     }
     stopAt[i] = lost;
+    const done = dist;
     dist = next;
+    next = done;
   }
   let pSuccess = 0;
   let arrive = 0;
-  for (let x = 0; x < dist.length; x++) {
+  for (let x = 0; x < size; x++) {
     pSuccess += dist[x];
     arrive += dist[x] * (x + 1);
   }
@@ -260,9 +288,20 @@ export function expectedLoss(a: number, d: number): number {
   return a - survivors / o.pWin;
 }
 
+/** Exchanges of small fights, remembered as their outcomes are (NaN for not yet worked out). */
+const exchanges = new Float64Array(DENSE * DENSE).fill(NaN);
+
 /** The armies the defender loses beyond what the attacker loses when `a` attack `d`
  *  to the end, or 0 when the attacker would come off worse (it wouldn't attack). */
 export function exchange(a: number, d: number): number {
+  if (a >= DENSE || d >= DENSE) return computeExchange(a, d);
+  const id = a * DENSE + d;
+  let known = exchanges[id];
+  if (Number.isNaN(known)) exchanges[id] = known = computeExchange(a, d);
+  return known;
+}
+
+function computeExchange(a: number, d: number): number {
   const o = battleOutcome(a, d);
   let attackerLost = 0;
   let defenderLost = 0;

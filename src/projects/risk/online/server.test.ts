@@ -331,34 +331,35 @@ describe("driving bot seats", () => {
     expect(db.rows.get("GAME")?.game?.decision).toBe(0);
   });
 
-  it("plays each seat with the bot its row names", async () => {
-    // A 3-seat game at a time, every seatable bot in some seat.
-    for (let from = 0; from < BOT_IDS.length; from += 3) {
-      const seats = [0, 1, 2].map((k) => BOT_IDS[(from + k) % BOT_IDS.length]);
-      const { deps, db } = await botGame(2);
-      const row = db.rows.get("GAME");
-      if (!row) throw new Error("No game");
-      // Every seat a bot, so the drive plays them all.
-      db.rows.set("GAME", { ...row, seats: seats.map((bot) => ({ kind: "bot", bot })) });
-      const asked: BotId[] = [];
-      const real = seats.map((id) => SEAT_BOTS[id].bot);
-      for (const id of new Set(seats)) {
-        const bot = SEAT_BOTS[id].bot;
-        SEAT_BOTS[id].bot = (input) => {
-          asked.push(id);
-          return bot(input);
-        };
-      }
-      try {
-        await drive(deps, "GAME");
-      } finally {
-        seats.forEach((id, i) => (SEAT_BOTS[id].bot = real[i]));
-      }
-      const log = db.moves.get("GAME") ?? [];
-      expect(new Set(asked)).toEqual(new Set(seats));
-      expect(log.map((m) => m.controller)).toEqual(log.map((m) => ({ kind: "bot", bot: seats[m.seat] })));
-      expect(asked).toEqual(log.map((m) => seats[m.seat]));
+  // A 3-seat game at a time, every seatable bot in some seat, each game a test of its own so none
+  // outlasts the timeout under a full parallel run.
+  const tables = Array.from({ length: Math.ceil(BOT_IDS.length / 3) }, (_, k) =>
+    [0, 1, 2].map((j) => BOT_IDS[(3 * k + j) % BOT_IDS.length]),
+  );
+  it.each(tables)("plays each seat with the bot its row names (%s, %s, %s)", async (...seats) => {
+    const { deps, db } = await botGame(2);
+    const row = db.rows.get("GAME");
+    if (!row) throw new Error("No game");
+    // Every seat a bot, so the drive plays them all.
+    db.rows.set("GAME", { ...row, seats: seats.map((bot) => ({ kind: "bot", bot })) });
+    const asked: BotId[] = [];
+    const real = seats.map((id) => SEAT_BOTS[id].bot);
+    for (const id of new Set(seats)) {
+      const bot = SEAT_BOTS[id].bot;
+      SEAT_BOTS[id].bot = (input) => {
+        asked.push(id);
+        return bot(input);
+      };
     }
+    try {
+      await drive(deps, "GAME");
+    } finally {
+      seats.forEach((id, i) => (SEAT_BOTS[id].bot = real[i]));
+    }
+    const log = db.moves.get("GAME") ?? [];
+    expect(new Set(asked)).toEqual(new Set(seats));
+    expect(log.map((m) => m.controller)).toEqual(log.map((m) => ({ kind: "bot", bot: seats[m.seat] })));
+    expect(asked).toEqual(log.map((m) => seats[m.seat]));
   });
 
 
