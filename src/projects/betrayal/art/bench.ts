@@ -219,8 +219,8 @@ function benchStage(def: RoomDefinition, figures: readonly CrowdFigure[], bakes:
 }
 type Stage = ReturnType<typeof benchStage>;
 
-/** The picture library's bench id (`?bench=pictures`), in place of a room's: it hangs on the Gallery's tile
- *  until the Gallery has art of its own (see `picture-library.ts`), so the tile's id can't name it. */
+/** The picture library's bench id (`?bench=pictures`), in place of a room's: it hangs on a tile
+ *  still waiting for art (see `picture-library.ts`), so the tile's id can't name it. */
 export const PICTURES_BENCH = "pictures";
 
 /** The room a bench id shows: a bench room by its own id, or the picture library. */
