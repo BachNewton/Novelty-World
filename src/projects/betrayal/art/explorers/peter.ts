@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { ball, chain, ellipsoid, figureMaterial, form, mergeAll, plinth, ring, rod, roughened, roundBox, sculpt, type Solid } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
+import { BASE_TOP, chestFit, faceFit, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, wears, type Gait, type StrideRig, type Walking } from "./figure";
 import { aimGrip, between, blendPose, buildArm, fist, gripAt, handParts, hasHands, holding, holdIn, OPEN, poseArm, poseHand, pointHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
 import { skinOf, skinShade } from "./skin";
 import { declareParts, figureParts } from "../figure-parts";
@@ -349,6 +349,10 @@ export function peter(seed = "peter", gait: Gait = STANDING): THREE.Group {
   body.position.y = BASE_TOP;
 
   const figure = walks(group(mesh(parts.base, "base"), body, legs[0].shoe, legs[1].shoe), PETER_WALK);
+  wears(figure, {
+    chest: { anchor: trunk, fit: chestFit(trunk, { waist: 0.1, chest: 0.28, neck: 0.38 }) },
+    face: { anchor: face, fit: faceFit(face, { y: 0.16, apart: 0.04 }) },
+  });
   hasHands(figure, { right: right.hand, left: left.hand });
   joins(figure, [
     { parts: [face, trunk], at: neck, radius: 0.09 },

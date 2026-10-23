@@ -16,6 +16,7 @@ import {
   LINE_UP_STATES,
   SPEEDS,
   VIEWER_FIGURES,
+  WEARINGS,
   type CameraPreset,
   type Holding,
   type LightPreset,
@@ -195,6 +196,17 @@ export function FigureViewer() {
                     Seat ring
                   </Toggle>
                 )}
+                {state.canWear &&
+                  WEARINGS.map((worn) => (
+                    <Toggle
+                      key={worn}
+                      on={state.wearing.includes(worn)}
+                      onClick={() => api.setWearing(state.wearing.includes(worn) ? state.wearing.filter((each) => each !== worn) : [...state.wearing, worn])}
+                      label={`Wearing ${worn}`}
+                    >
+                      {worn}
+                    </Toggle>
+                  ))}
                 {state.canStun && (
                   <Toggle on={state.stunned} onClick={() => api.setStunned(!state.stunned)} label="Stunned">
                     Stunned

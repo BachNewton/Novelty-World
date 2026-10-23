@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { ball, ellipsoid, figureMaterial, form, mergeAll, painted, plinth, ring, rod, roundBox, sculpt, shaped, solidOf, stretched, type Solid } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type Joint, type StrideRig, type Walking } from "./figure";
+import { BASE_TOP, chestFit, faceFit, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, wears, type Gait, type Joint, type StrideRig, type Walking } from "./figure";
 import { hangsCloth } from "./cloth";
 import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
 import { skinOf } from "./skin";
@@ -429,6 +429,10 @@ export function zostra(seed = "zostra", gait: Gait = STANDING, { cloth = clothMo
   body.position.y = BASE_TOP;
 
   const figure = walks(group(mesh(parts.base, "base"), body, legs[0].shoe, legs[1].shoe), ZOSTRA_WALK);
+  wears(figure, {
+    chest: { anchor: trunk, fit: chestFit(trunk, { waist: 0.08, chest: 0.2, neck: 0.34 }) },
+    face: { anchor: face, fit: faceFit(face, { y: 0.176, apart: 0.042 }) },
+  });
   hasHands(figure, { right: right.hand, left: left.hand });
   hangsCloth(figure, [skirt]);
   simulatesCloth(figure, net.body);

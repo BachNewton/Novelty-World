@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { solidOf } from "../forms";
 import { FLOOR_RINGS } from "../room";
 import { ITEM_MODELS } from ".";
-import { PLATE_TOP } from "./item";
+import { asSculpted, PLATE_TOP } from "./item";
 
 /*
  * Every item model, meshed: it holds as a prop and lies within its plate.
@@ -22,11 +22,15 @@ const meshesIn = (object: THREE.Object3D) => {
 };
 
 describe.each(Object.entries(ITEM_MODELS))("the %s's model", (_, model) => {
-  it("holds by a handle, every part a solid the clipping check can ask", MESHING, () => {
-    const prop = model.held();
-    expect(prop.handle).toBeGreaterThan(0);
+  it(model.held ? "holds by a handle, every part a solid the clipping check can ask" : "is worn, every part a solid the clipping check can ask", MESHING, () => {
+    let object: THREE.Object3D;
+    if (model.held) {
+      const prop = model.held();
+      expect(prop.handle).toBeGreaterThan(0);
+      object = prop.object;
+    } else object = asSculpted(model.worn);
     // A flame is light, not a part: it passes through nothing.
-    const parts = meshesIn(prop.object).filter((mesh) => mesh.name !== "flame");
+    const parts = meshesIn(object).filter((mesh) => mesh.name !== "flame");
     expect(parts.length).toBeGreaterThan(0);
     for (const mesh of parts) expect(solidOf(mesh.geometry as THREE.BufferGeometry), mesh.name).toBeDefined();
   });

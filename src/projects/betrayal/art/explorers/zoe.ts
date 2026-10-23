@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { ball, chain, ellipsoid, figureMaterial, form, plinth, ring, rod, roundBox, sculpt, stretched, type Solid } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, idleBursts, joins, type BurstTiming, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Swept, type Walking } from "./figure";
+import { BASE_TOP, chestFit, faceFit, idleBursts, joins, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, wears, wornAt, type BurstTiming, type Gait, type StrideRig, type Swept, type Walking } from "./figure";
 import { atLeast, hangsCloth, heavyCloth, type ClothTiming } from "./cloth";
 import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, turnIn, type Arm } from "./hands";
 import { skinOf } from "./skin";
@@ -450,6 +450,10 @@ export function zoe(
   const standing = group(body, legs[0].shoe, legs[1].shoe);
 
   const figure = walks(group(mesh(parts.base, "base"), standing), ZOE_WALK);
+  wears(figure, {
+    chest: { anchor: top, fit: chestFit(top, { waist: 0.08, chest: 0.2, neck: 0.23 }) },
+    face: { anchor: face, fit: faceFit(face, { y: 0.126, apart: 0.044 }) },
+  });
   hasHands(figure, { right: right.hand, left: left.hand });
   hangsCloth(figure, [dress]);
   if (simulated) simulatesCloth(figure, simulated.body);
@@ -524,8 +528,9 @@ export function zoe(
     poseArm(right, upright ? rightCarries : held ? rightHolds : rightHangs, rightOut, held ? 0 : spinning);
     poseHand(right.hand, holding(right.hand, blendPose(RELAXED, fist(right.hand), running * 0.7)));
     swings.right.swing = upright ? ARM_SWING * 0.2 : ARM_SWING;
-    // A thing held at her side swings with her arm, but she doesn't pump it running.
-    swings.right.pump = held ? 0.4 : 1;
+    // A thing held at her side swings with her arm, but she doesn't pump it running; masked, she keeps it lower
+    // still, or a blade pumped up before her face would pass through the mask.
+    swings.right.pump = held ? (wornAt(figure, "face") ? 0.15 : 0.4) : 1;
     swings.left.swing = ARM_SWING * 0.6 * (1 - clutching);
 
     const bounce = Math.abs(stride(rig, moving));

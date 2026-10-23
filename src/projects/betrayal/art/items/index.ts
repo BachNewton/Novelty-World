@@ -1,8 +1,11 @@
 import type { FigureParts } from "../figure-parts";
+import { ARMOR } from "./armor";
 import { AXE } from "./axe";
 import { BLOOD_DAGGER } from "./blood-dagger";
 import { CANDLE_MODEL } from "./candle";
-import type { ItemModel } from "./item";
+import type { HeldModel, ItemModel, WornModel } from "./item";
+import { MASK } from "./mask";
+import { PICKPOKETS_GLOVES } from "./pickpokets-gloves";
 import { REVOLVER } from "./revolver";
 import { SACRIFICIAL_DAGGER } from "./sacrificial-dagger";
 import { SPEAR } from "./spear";
@@ -13,17 +16,25 @@ import { SPEAR } from "./spear";
  * one shows its type's stand-in on the floor (`things/looks.ts`).
  */
 export const ITEM_MODELS = {
+  armor: ARMOR,
   axe: AXE,
   "blood-dagger": BLOOD_DAGGER,
   candle: CANDLE_MODEL,
+  mask: MASK,
+  "pickpokets-gloves": PICKPOKETS_GLOVES,
   revolver: REVOLVER,
   "sacrificial-dagger": SACRIFICIAL_DAGGER,
   spear: SPEAR,
 } as const satisfies Readonly<Record<string, ItemModel>>;
 
 export type ItemId = keyof typeof ITEM_MODELS;
+/** The cards carried in the hand, and those worn on the body. */
+export type HeldId = { [K in ItemId]: (typeof ITEM_MODELS)[K] extends HeldModel ? K : never }[ItemId];
+export type WornId = { [K in ItemId]: (typeof ITEM_MODELS)[K] extends WornModel ? K : never }[ItemId];
 
 export const ITEM_IDS = Object.keys(ITEM_MODELS) as ItemId[];
+export const HELD_IDS = ITEM_IDS.filter((id): id is HeldId => ITEM_MODELS[id].held !== undefined);
+export const WORN_IDS = ITEM_IDS.filter((id): id is WornId => ITEM_MODELS[id].worn !== undefined);
 
 /** A card's model, if it has one. */
 export function modelOf(card: string): ItemModel | undefined {

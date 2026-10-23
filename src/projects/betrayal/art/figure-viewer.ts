@@ -8,11 +8,12 @@ import { animationOf, type Animation } from "./animate";
 import { BENCH_EXPLORERS } from "./explorers";
 import { CARD_PALETTE, figureFor, hasFigure } from "./explorers/by-character";
 import { CLOTH_MODES, clothMode, type ClothMode } from "./explorers/cloth-sim";
-import { burstsOf, cueBurst, isGrounded } from "./explorers/figure";
+import { burstsOf, cueBurst, isGrounded, wearerIn } from "./explorers/figure";
 import { handsOf, holdIn, type Hands } from "./explorers/hands";
 import { explorerLineUp } from "./explorers/line-up";
 import { FIGURE_STATES, inMotion, type FigureState } from "./figure-motion";
-import { ITEM_IDS, ITEM_MODELS, type ItemId } from "./items";
+import { HELD_IDS, ITEM_MODELS, WORN_IDS, type HeldId, type WornId } from "./items";
+import { wear } from "./items/item";
 import { colourRing } from "./house";
 import { cameraDistance, DEFAULT_PITCH, FIELD_OF_VIEW } from "./house-camera";
 import { SPEED_VALUES } from "./house-walk";
@@ -104,8 +105,10 @@ export const CAMERA_LABELS: Record<CameraPreset | "free", string> = {
 export const SPEEDS = [1, 0.5, 0.25] as const;
 /** Every Speed value a track prints, lowest first: the line-up's choices. */
 const EVERY_SPEED = Array.from({ length: SPEED_VALUES.highest - SPEED_VALUES.lowest + 1 }, (_, i) => SPEED_VALUES.lowest + i);
-export type Holding = ItemId | "none";
-export const HOLDINGS: readonly Holding[] = ["none", ...ITEM_IDS];
+export type Holding = HeldId | "none";
+export const HOLDINGS: readonly Holding[] = ["none", ...HELD_IDS];
+/** What the figure (or every figure in the row) can wear: Armor, the Mask. */
+export const WEARINGS: readonly WornId[] = WORN_IDS;
 
 /** One frame of the stage's clock, for stepping it by hand. */
 export const FRAME = 1 / 60;
@@ -134,9 +137,12 @@ export interface ViewerSnapshot {
   backlight: boolean;
   ring: boolean;
   holding: Holding;
+  /** What it wears, on the body. */
+  wearing: readonly WornId[];
   stunned: boolean;
-  /** Whether what is shown can hold a prop, wear a ring and be stunned. */
+  /** Whether what is shown can hold a prop, wear things, wear a ring and be stunned. */
   canHold: boolean;
+  canWear: boolean;
   canRing: boolean;
   canStun: boolean;
   /** Whether the figure (or row) is being built, its shaders and textures readied. */
@@ -176,6 +182,8 @@ export interface FigureViewerApi {
   setBacklight: (on: boolean) => void;
   setRing: (on: boolean) => void;
   setHolding: (holding: Holding) => void;
+  /** Dresses what is shown in these worn items (none when empty). */
+  setWearing: (wearing: readonly WornId[]) => void;
   setStunned: (stunned: boolean) => void;
 }
 
@@ -375,6 +383,7 @@ function fromAddress(search: string) {
     light: one("light", LIGHTS, "studio"),
     camera: one<CameraPreset | "free">("camera", CAMERAS, "close"),
     holding: one("prop", HOLDINGS, "none"),
+    wearing: wearingFrom(params.get("wear")),
     cloth: clothMode(),
     // As the probe reads it: on unless the address turns it off.
     backlight: params.get("backlight") !== "off",
@@ -407,6 +416,13 @@ function figureById(id: string): ViewerFigure {
 }
 
 /** The hands of the figure standing anywhere in `root`. */
+/** The worn items an address names, comma-separated, in the order the registry lists them; any it doesn't know throws. */
+function wearingFrom(value: string | null): WornId[] {
+  const asked = (value ?? "").split(",").filter((item) => item !== "");
+  for (const item of asked) if (!(WORN_IDS as readonly string[]).includes(item)) throw new Error(`wear=${item}: it is one of ${WORN_IDS.join(", ")}`);
+  return WORN_IDS.filter((id) => asked.includes(id));
+}
+
 function handsIn(root: THREE.Object3D): Hands | null {
   let found: Hands | null = null;
   root.traverse((object) => {
@@ -428,6 +444,7 @@ interface Subject {
   /** How far round its centre a close-up frames it. */
   reach: number;
   canHold: boolean;
+  canWear: boolean;
 }
 
 export function createFigureViewer(search: string) {
@@ -438,6 +455,7 @@ export function createFigureViewer(search: string) {
     stats: statsOf(asked.lineUp, asked.figure),
     clock: startsAt,
     canHold: false,
+    canWear: false,
     canRing: false,
     canStun: false,
     building: true,
@@ -566,6 +584,12 @@ export function createFigureViewer(search: string) {
       setSearchParam("prop", holding === "none" ? null : holding);
       rebuild();
     },
+    setWearing: (wearing) => {
+      const list = wearingFrom(wearing.join(","));
+      update({ wearing: list });
+      setSearchParam("wear", list.length === 0 ? null : list.join(","));
+      rebuild();
+    },
     setStunned: (stunned) => {
       update({ stunned, burst: null });
       setSearchParam("stunned", stunned ? "" : null);
@@ -576,7 +600,7 @@ export function createFigureViewer(search: string) {
 
   /** Builds what the snapshot asks for, lit by its own probe and batched, at rest. */
   function buildSubject(): Subject {
-    const { lineUp, state, holding } = snapshot;
+    const { lineUp, state, holding, wearing } = snapshot;
     let root: THREE.Object3D;
     let figure: THREE.Object3D | null = null;
     let ring: PaletteKey | null = null;
@@ -584,6 +608,7 @@ export function createFigureViewer(search: string) {
       root = explorerLineUp("figures", state === "idle" ? undefined : (state as "walk" | "run"), holding === "none" ? undefined : holding, {
         speed: snapshot.stat ?? undefined,
         also: COMPANIONS.map(({ build }) => build),
+        wearing,
       });
     } else {
       const chosen = figureById(snapshot.figure);
@@ -592,6 +617,8 @@ export function createFigureViewer(search: string) {
       figure = made.figure;
       const hands = handsIn(figure);
       if (hands && holding !== "none") holdIn(hands.right, ITEM_MODELS[holding].held());
+      const wearer = wearerIn(figure);
+      if (wearer) for (const worn of wearing) wear(wearer, ITEM_MODELS[worn]);
       ring = isGrounded(figure) ? chosen.ring : null;
       if (ring !== null && snapshot.ring) figure.parent?.add(colourRing(ring));
     }
@@ -617,6 +644,7 @@ export function createFigureViewer(search: string) {
       height,
       reach,
       canHold: lineUp || (figure !== null && handsIn(figure) !== null),
+      canWear: lineUp || (figure !== null && wearerIn(figure) !== null),
     };
   }
 
@@ -698,6 +726,7 @@ export function createFigureViewer(search: string) {
         bursts,
         burst,
         canHold: next.canHold,
+        canWear: next.canWear,
         canRing: chosen !== null && chosen.ring !== null && next.figure !== null && isGrounded(next.figure),
         canStun: chosen?.kind === "monster",
       });

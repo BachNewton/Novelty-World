@@ -26,7 +26,7 @@ import {
 } from "../forms";
 import type { PaletteKey } from "../palette";
 import { group } from "../shapes";
-import { ADULT_WALK, BASE_TOP, idleBursts, joins, leg, legJoints, legPoints, pushAside, soleEnds, STANDING, stride, walks, type Gait, type StrideRig } from "./figure";
+import { ADULT_WALK, BASE_TOP, chestFit, faceFit, idleBursts, joins, leg, legJoints, legPoints, pushAside, soleEnds, STANDING, stride, walks, wears, wornAt, type Gait, type StrideRig } from "./figure";
 import { aimGrip, blendPose, buildArm, fist, gripAt, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Prop } from "./hands";
 import { skinOf } from "./skin";
 import { declareParts, figureParts } from "../figure-parts";
@@ -56,6 +56,8 @@ const LEG_X = 0.065;
 const ANKLE = BASE_TOP + 0.062;
 const THIGH = 0.28;
 const SHIN = 0.28;
+/** How much further out he holds his book over a breastplate. */
+const ARMOURED = 0.03;
 /** How far the coat's tails follow the thighs as they swing. */
 const TAIL_FOLLOW = 0.8;
 
@@ -387,8 +389,12 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
   holdIn(left.hand, heldBook(parts.book, mesh));
 
   // The book held up to read, in the chest's frame, and the left hand at its edge.
-  const reading = new THREE.Matrix4().compose(new THREE.Vector3(0.02, 0.33, 0.25), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.45, -0.1, 0)), new THREE.Vector3(1, 1, 1));
-  const holds = gripAt(left, reading.multiply(BOOK_GRIP), new THREE.Vector3(1, -0.6, -0.4));
+  // Over a breastplate, he holds it out as far again as the plate stands.
+  const readingAt = (out: number) => {
+    const reading = new THREE.Matrix4().compose(new THREE.Vector3(0.02, 0.33, 0.25 + out), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.45, -0.1, 0)), new THREE.Vector3(1, 1, 1));
+    return gripAt(left, reading.multiply(BOOK_GRIP), new THREE.Vector3(1, -0.6, -0.4));
+  };
+  const [bare, armoured] = [readingAt(0), readingAt(ARMOURED)];
   const hangs = reachWrist(right, right.at.clone().add(new THREE.Vector3(-0.05, -0.48, 0.06)), new THREE.Vector3(-0.3, 0, -1));
   const carries = reachWrist(right, right.at.clone().add(new THREE.Vector3(0, -0.3, 0.22)), new THREE.Vector3(-0.2, 0, -1));
   // He pushes his spectacles up with his fingertips, the palm towards his face,
@@ -427,6 +433,10 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
   body.position.y = BASE_TOP;
 
   const figure = walks(group(mesh(parts.base, "base"), body, legs[0].shoe, legs[1].shoe), ADULT_WALK);
+  wears(figure, {
+    chest: { anchor: trunk, fit: chestFit(trunk, { waist: 0.08, chest: 0.28, neck: 0.44 }), under: [scarf] },
+    face: { anchor: face, fit: faceFit(face, { y: 0.188, apart: 0.043 }) },
+  });
   hasHands(figure, { right: right.hand, left: left.hand });
   joins(figure, [
     { parts: [face, trunk], at: neck, radius: 0.1 },
@@ -458,9 +468,9 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
     const moving = gait(clock);
     const running = moving.running ? moving.amount : 0;
     const held = right.hand.held;
-    // His spectacles wait while his right hand is full, or he runs.
+    // His spectacles wait while his right hand is full, while a mask covers them, or while he runs.
     const { spectacles: pushUp, glance } = bursts(clock);
-    const gesture = held ? 0 : pushUp.amount * (1 - running);
+    const gesture = held || wornAt(figure, "face") ? 0 : pushUp.amount * (1 - running);
 
     body.rotation.z = sway * 0.02;
     hips.rotation.z = sway * -0.008;
@@ -475,6 +485,7 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
     neck.rotation.x = 0.28 - gesture * 0.33 - look * 0.2;
     neck.rotation.z = sway * 0.01;
 
+    const holds = wornAt(figure, "chest") ? armoured : bare;
     poseArm(left, holds, holds, 0);
     const upright = held?.carry === "upright";
     poseArm(right, upright ? carries : hangs, aside, THREE.MathUtils.clamp(gesture * 2, 0, 1));

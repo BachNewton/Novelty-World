@@ -4,7 +4,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { ball, chain, ellipsoid, figureMaterial, form, intersect, mergeAll, painted, plinth, ring, rod, roundBox, sculpt, shaped, stretched, surfaceAt, union, type Solid, type Vec3 } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
+import { BASE_TOP, chestFit, faceFit, idleBursts, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, wears, wornAt, type Gait, type StrideRig, type Walking } from "./figure";
 import { aimGrip, blendPose, buildArm, fist, gripAt, handParts, hasHands, holdIn, holding, poseArm, poseHand, reachWrist, RELAXED, type Prop } from "./hands";
 import { skinOf, skinShade } from "./skin";
 import { declareParts, figureParts } from "../figure-parts";
@@ -260,6 +260,11 @@ declareParts(jenny, [JENNY_PARTS]);
 
 const UP = new THREE.Vector3(0, 1, 0);
 
+/** How much further out she hugs her book over a breastplate. */
+const ARMOURED = 0.03;
+/** Which way her elbow bends hugging it there. */
+const ARMOURED_BEND = new THREE.Vector3(1, 0.3, 0.6);
+
 /** A placement in the chest's frame: where the book stands, turned by `turn`. */
 function placed(at: THREE.Vector3, turn: THREE.Euler): THREE.Matrix4 {
   return new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromEuler(turn), new THREE.Vector3(1, 1, 1));
@@ -304,9 +309,14 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
 
   // The book hugged to her left breast, her forearm across its front; held tight, higher and closer; tipped out to look at.
   const outward = new THREE.Vector3(1, -0.3, 0.6);
-  const hugs = gripAt(left, placed(new THREE.Vector3(0.055, 0.25, 0.152), new THREE.Euler(-0.1, 0.45, 0.06)).multiply(BOOK_GRIP), outward);
-  const clutches = gripAt(left, placed(new THREE.Vector3(0.045, 0.27, 0.148), new THREE.Euler(-0.14, 0.5, 0.04)).multiply(BOOK_GRIP), outward);
+  // Hugged over armour, the book is held as far out again as the breastplate stands, out from its cover.
+  const hugged = (out: number, bend = outward) => ({
+    hugs: gripAt(left, placed(new THREE.Vector3(0.055 + out * 0.45, 0.25, 0.152 + out * 0.9), new THREE.Euler(-0.1, 0.45, 0.06)).multiply(BOOK_GRIP), bend),
+    clutches: gripAt(left, placed(new THREE.Vector3(0.045 + out * 0.62, 0.27, 0.148 + out * 1.3), new THREE.Euler(-0.14, 0.5, 0.04)).multiply(BOOK_GRIP), bend),
+  });
+  const [bare, armouredHug] = [hugged(0), hugged(ARMOURED, ARMOURED_BEND)];
   const peeks = gripAt(left, placed(new THREE.Vector3(0.04, 0.2, 0.22), new THREE.Euler(0.55, 0.9, 0.04)).multiply(BOOK_GRIP), outward);
+
 
   const hangs = reachWrist(right, right.at.clone().add(new THREE.Vector3(-0.04, -0.44, 0.05)), new THREE.Vector3(-0.3, 0, -1));
   const carries = reachWrist(right, right.at.clone().add(new THREE.Vector3(0, -0.28, 0.21)), new THREE.Vector3(-0.2, 0, -1));
@@ -330,6 +340,10 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
   body.position.y = BASE_TOP;
 
   const figure = walks(group(mesh(parts.base, "base"), body, legs[0].shoe, legs[1].shoe), JENNY_WALK);
+  wears(figure, {
+    chest: { anchor: trunk, fit: chestFit(trunk, { waist: 0.08, chest: 0.28, neck: 0.44 }) },
+    face: { anchor: face, fit: faceFit(face, { y: 0.186, apart: 0.036 }) },
+  });
   hasHands(figure, { right: right.hand, left: left.hand });
   joins(figure, [
     { parts: [face, trunk], at: neck, radius: 0.1 },
@@ -366,7 +380,9 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
     const { peek, crowd } = bursts(clock);
     // The fear plays walking and running too; the peek wants her standing.
     const afraid = crowd.amount;
-    const peeking = peek.amount * still * (1 - afraid);
+    // Over a breastplate she keeps her book hugged: tipped out, its lower edge would pass through the plate.
+    const armoured = wornAt(figure, "chest");
+    const peeking = armoured ? 0 : peek.amount * still * (1 - afraid);
 
     body.rotation.z = sway * 0.018;
     hips.rotation.z = sway * -0.01;
@@ -383,6 +399,7 @@ export function jenny(seed = "jenny", gait: Gait = STANDING): THREE.Group {
     neck.rotation.x = 0.04 + peeking * 0.36 + afraid * 0.08;
     neck.rotation.z = sway * 0.012;
 
+    const { hugs, clutches } = armoured ? armouredHug : bare;
     poseArm(left, hugs, afraid > 0 ? clutches : peeks, Math.max(afraid, peeking));
     poseHand(left.hand, holding(left.hand, RELAXED));
     const upright = held?.carry === "upright";

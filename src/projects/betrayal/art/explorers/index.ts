@@ -79,6 +79,11 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "companion-line-up", name: "The companions beside the explorers", build: (seed) => companionLineUp(seed) },
   { id: "companion-walk", name: "The companions beside the explorers, walking", build: (seed) => companionLineUp(seed, "walk") },
   { id: "companion-run", name: "The companions beside the explorers, running", build: (seed) => companionLineUp(seed, "run") },
+  // Worn items on the body: the Armor, the Mask, or both. The item bench (`?bench=items&items=armor,mask`) shows them on one explorer and on their plates.
+  { id: "explorer-armor", name: "Every explorer wearing the Armor", build: (seed) => explorerLineUp(seed, undefined, undefined, { wearing: ["armor"] }) },
+  { id: "explorer-mask", name: "Every explorer wearing the Mask", build: (seed) => explorerLineUp(seed, undefined, undefined, { wearing: ["mask"] }) },
+  { id: "explorer-worn", name: "Every explorer wearing the Armor and the Mask", build: (seed) => explorerLineUp(seed, undefined, undefined, { wearing: ["armor", "mask"] }) },
+  { id: "explorer-worn-run", name: "Every explorer running in the Armor and the Mask", build: (seed) => explorerLineUp(seed, "run", undefined, { wearing: ["armor", "mask"] }) },
   // Monsters stand where an explorer would, so the bench can judge them in a room.
   { id: "banshee", name: "The Banshee", build: (seed, gait) => banshee(seed, gait) },
   { id: "banshee-stunned", name: "The Banshee, stunned", build: (seed, gait) => banshee(seed, gait, { stunned: true }) },

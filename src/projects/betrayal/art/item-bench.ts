@@ -8,6 +8,7 @@ import { workerLanes } from "./bake-workers";
 import { createBakeScheduler } from "./bake-schedule";
 import { CARD_PALETTE, figureFor, hasFigure } from "./explorers/by-character";
 import { handsOf, holdIn } from "./explorers/hands";
+import { wear } from "./items/item";
 import { onTheSpot } from "./explorers/line-up";
 import { freezeRoom } from "./freeze";
 import { cameraDistance, DEFAULT_PITCH, FIELD_OF_VIEW } from "./house-camera";
@@ -221,7 +222,9 @@ function buildShown(snapshot: ItemBenchSnapshot): Shown {
     const figure = onTheSpot(holder.build, `items:${item}`);
     const hands = handsOf(figure);
     if (!hands) throw new Error(`${holder.name} has no hands to hold an item`);
-    holdIn(hands.right, model.held());
+    // A held item in the right hand; a worn one on the body, the hand left empty.
+    if (model.held) holdIn(hands.right, model.held());
+    else wear(figure, model);
     figure.position.copy(at);
     figure.rotation.y = FIGURE_TURN;
     const figures = group(figure);

@@ -18,7 +18,8 @@ import { peter } from "./peter";
 import { vivian } from "./vivian";
 import { missy } from "./missy";
 import { rhinehardt } from "./rhinehardt";
-import { ITEM_MODELS, ITEM_PARTS } from "../items";
+import { HELD_IDS, ITEM_MODELS, ITEM_PARTS, WORN_IDS } from "../items";
+import { wear } from "../items/item";
 import { brandon } from "./brandon";
 import { heather } from "./heather";
 import { zoe } from "./zoe";
@@ -31,7 +32,7 @@ import { girl, madman } from "../companions";
  * comes round several times), and walking and running on the spot at the
  * house's pace over several strides, sampled off the beat so every phase of
  * the stride comes up; then again holding each item model in its free
- * hand. The check skips a pair of parts posed as it already checked them, so
+ * hand, and wearing every worn one, with and without something in hand. The check skips a pair of parts posed as it already checked them, so
  * a long run costs only its new poses.
  */
 
@@ -89,13 +90,37 @@ artChecks.each(Object.entries(EXPLORERS))("%s", (name, own) => {
     });
   }
 
-  for (const [card, item] of Object.entries(ITEM_MODELS)) {
+  for (const card of HELD_IDS) {
     it(`passes no part through another holding the ${card}`, LIMIT, () => {
       for (const pace of [undefined, "walk", "run"] as (Pace | undefined)[]) {
         const figure = onTheSpot(build, name, pace);
         const hands = handsOf(figure);
         if (!hands) throw new Error(`${name} has no hands`);
-        holdIn(hands.right, item.held());
+        holdIn(hands.right, ITEM_MODELS[card].held());
+        const found = clipsThrough(figure, pace ? STRIDES : IDLE.slice(0, 120));
+        expect(found.map((finding) => `${pace ?? "standing"}: ${finding}`)).toEqual([]);
+      }
+    });
+  }
+
+  // Worn things are on the body always, so every one is worn at once, through the whole idle, a walk and a run, and
+  // again with each held thing in the hand, standing and running (the run swings a held thing furthest).
+  for (const pace of [undefined, "walk", "run"] as (Pace | undefined)[]) {
+    it(`passes no part through another wearing ${WORN_IDS.join(" and ")}, ${pace ? `${pace === "run" ? "running" : "walking"}` : "standing"}`, LIMIT, () => {
+      const figure = onTheSpot(build, name, pace);
+      for (const card of WORN_IDS) wear(figure, ITEM_MODELS[card]);
+      expect(clipsThrough(figure, pace ? STRIDES : IDLE)).toEqual([]);
+    });
+  }
+
+  for (const card of HELD_IDS) {
+    it(`passes no part through another wearing ${WORN_IDS.join(" and ")} and holding the ${card}`, LIMIT, () => {
+      for (const pace of [undefined, "run"] as (Pace | undefined)[]) {
+        const figure = onTheSpot(build, name, pace);
+        const hands = handsOf(figure);
+        if (!hands) throw new Error(`${name} has no hands`);
+        for (const worn of WORN_IDS) wear(figure, ITEM_MODELS[worn]);
+        holdIn(hands.right, ITEM_MODELS[card].held());
         const found = clipsThrough(figure, pace ? STRIDES : IDLE.slice(0, 120));
         expect(found.map((finding) => `${pace ?? "standing"}: ${finding}`)).toEqual([]);
       }
@@ -177,7 +202,7 @@ artChecks("jenny's book", () => {
       return found;
     };
     const book = named("book");
-    const others = ["left forearm", "left upper arm", "cardigan"].map(named);
+    const others = ["left forearm", "left upper arm", "cardigan", ...(figure.getObjectByName("armor plates") ? ["armor plates"] : [])].map(named);
     const found: string[] = [];
     for (const at of times) {
       figure.traverse((object) => animationOf(object)?.(at));
@@ -193,6 +218,14 @@ artChecks("jenny's book", () => {
   for (const pace of [undefined, "walk", "run"] as (Pace | undefined)[]) {
     it(`sits clear of her arm and chest ${pace ? `${pace === "run" ? "running" : "walking"}` : "standing"}`, LIMIT, () => {
       expect(crossings(onTheSpot(jenny, "jenny's book", pace), pace ? STRIDES : IDLE).slice(0, 5)).toEqual([]);
+    });
+  }
+
+  for (const pace of [undefined, "walk", "run"] as (Pace | undefined)[]) {
+    it(`sits clear of her arm, chest and armour ${pace ? `${pace === "run" ? "running" : "walking"}` : "standing"}`, LIMIT, () => {
+      const figure = onTheSpot(jenny, "jenny's book", pace);
+      wear(figure, ITEM_MODELS.armor);
+      expect(crossings(figure, pace ? STRIDES : IDLE).slice(0, 5)).toEqual([]);
     });
   }
 

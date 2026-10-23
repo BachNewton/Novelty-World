@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { ball, deforming, ellipsoid, figureMaterial, form, plinth, reshaped, ring, rod, roundBox, sculpt, shaped, solidOf, stretched, type Solid } from "../forms";
 import { group } from "../shapes";
-import { BASE_TOP, idleBursts, joins, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type Joint, type StrideRig, type Swept, type Walking } from "./figure";
+import { BASE_TOP, chestFit, faceFit, idleBursts, joins, leg, legJoints, legPoints, miniatureHeight, soleEnds, STANDING, stride, walks, wears, wornAt, type Gait, type Joint, type StrideRig, type Swept, type Walking } from "./figure";
 import { heavyCloth, hangsCloth, type ClothTiming } from "./cloth";
 import { aimGrip, between, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Arm, type ArmPose, type Prop } from "./hands";
 import { skinOf } from "./skin";
@@ -578,6 +578,10 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING, { cloth =
   unseenBody.position.y = BASE_TOP;
 
   const figure = walks(group(mesh(parts.base, "base"), body, legs[0].shoe, legs[1].shoe), PRIEST_WALK);
+  wears(figure, {
+    chest: { anchor: trunk, fit: chestFit(trunk, { waist: 0.12, chest: 0.3, neck: 0.46 }) },
+    face: { anchor: face, fit: faceFit(face, { y: 0.19, apart: 0.043 }) },
+  });
   hasHands(figure, { right: right.hand, left: left.hand });
   hangsCloth(figure, robeParts);
   if (net) simulatesCloth(figure, net.body);
@@ -663,7 +667,8 @@ export function rhinehardt(seed = "rhinehardt", gait: Gait = STANDING, { cloth =
     poseArm(left, presents, wards, warding);
     const rests = upright ? carries : held ? holds : hangs;
     const raised = blessed > 0 ? between(rests, blessing(THREE.MathUtils.clamp((bless.progress - 0.3) / 0.4, 0, 1)), blessed) : rests;
-    poseArm(right, raised, temple, fearing);
+    // A hand to his temple would pass through a mask: in one, his dread is the shake of his head alone.
+    poseArm(right, raised, temple, wornAt(figure, "face") ? 0 : fearing);
     poseHand(right.hand, held ? holding(right.hand, RELAXED) : blendPose(blendPose(RELAXED, OPEN, Math.max(blessed, fearing * 0.6)), fist(right.hand), running * 0.7));
     swinging.swing = (upright ? ARM_SWING * 0.3 : ARM_SWING) * (1 - Math.max(blessed, fearing));
 
