@@ -78,7 +78,7 @@ What remains for the goal:
 - **Rooms:** none left: every base room is built.
 - **Explorers:** all twelve have figures and portraits. Setup shows each character's tracks as the card prints them; a short description is not built, the owner's call.
 - **Room features:** secret passages and stairs, the Coal Chute, falls through the Collapsed Room and the Gallery, the Foyer's secret door down to the basement stairs, and the Tower's battlements; with them, the three transitions still to build for moves that aren't a walk (drop or slide, secret way, put there; `presentation.md`, "Moves that aren't a walk"), and the connection mark for the card-made connections and the Below Collapsed Room token (`presentation.md`, "Connections").
-- **Props and figures:** held items and omens, companions, room tokens; startle and hurt animations; jumps and falls; the models of things on the floor (stand-ins today).
+- **Props and figures:** the base game's item and omen models and its four companions are built, and await the owner's review; still to build are room tokens, startle and hurt animations, and jumps and falls.
 
 ## Polish list
 

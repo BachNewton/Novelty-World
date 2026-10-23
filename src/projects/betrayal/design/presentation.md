@@ -239,9 +239,11 @@ The Dark Dice's push and free move and the Bell's pull are always to an adjacent
 - **All 12 explorers:** Professor Longfellow, Ox Bellows, Zoe Ingstrom, Father Rhinehardt, Darrin "Flash" Williams, Brandon Jaspers, Peter Akimoto, Missy Dubourde, Vivian Lopez, Madame Zostra, Heather Granville and Jenny LeClerc, sculpted as smooth forms, with arms that hold things, an idle, a walk and a run.
 - **The kit's shared pieces**, among them a silhouette picture library (`art/kit/pictures.ts`; no painting repeats on a floor) and closed vessels (`art/kit/vessel.ts`). Decorations never promise mechanics that don't exist: the Storeroom's padlocked cage became an open bay.
 - **2 monsters:** the Banshee and the Spider.
-- **Item models** (`art/items/`, held and on the plate, judged on `?bench=items`): the base game's five weapons, the Axe, Blood Dagger, Sacrificial Dagger, Revolver and Spear, and the Candle (carrying a live light) as a stand-in still.
+- **4 companions** (`art/companions/`): the Girl and the Madman, and the Dog and the Cat on a shared four-legged gait.
+- **31 base item and omen models** (`art/items/`, held or worn and on the plate, judged on `?bench=items`): the five weapons, the Axe, Blood Dagger, Sacrificial Dagger, Revolver and Spear; the worn Armor and Mask, and Pickpocket's Gloves; the occult pieces and omens, the Book, Crystal Ball, Holy Symbol, Medallion, Ring, Skull, Spirit Board, Amulet of the Ages, Idol, Bell and Angel Feather; and the everyday items, the Adrenaline Shot, Bottle, Dark Dice, Dynamite, Healing Salve, Lucky Stone, Medical Kit, Music Box, Puzzle Box, Rabbit's Foot and Smelling Salts, and the Candle, carrying a live light.
+- **Built for review:** the connection marks, on the marks bench (`?bench=marks`; "Connections"); the game shows their stand-ins until they are approved.
 
-**Next:** the remaining base rooms (`v1-play.md` lists them), one agent per room or per small group that must match; room features (the non-doorway connections); then monsters, carried props, companions, room tokens and body states as the cards and haunts need them. Widow's Walk rooms, cards and art wait for the base game.
+**Next:** room features (the non-doorway connections); then monsters, room tokens and body states as the cards and haunts need them. Widow's Walk rooms, cards and art wait for the base game.
 
 **In numbers**, counted from `content/`:
 - **Rooms:** 67 tiles across the base game and Widow's Walk. Some are outdoors (gardens, graveyard, patio, balcony, roof); an outdoor tile's edge style is its own (railings, a hedge, a balustrade, a trellis, a glasshouse's glazing: `OutdoorEdging` on the stage), and an indoor wall beside one is cut like an interior wall.
