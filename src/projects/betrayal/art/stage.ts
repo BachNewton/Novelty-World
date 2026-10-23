@@ -27,6 +27,7 @@ import {
   type FlickerSignal,
   type FloorOpening,
   type PropPlacement,
+  type Boundary,
   type RoomDefinition,
 } from "./room";
 import type { PaletteKey } from "./palette";
@@ -35,6 +36,7 @@ import { pixelTexture, textureReady } from "./textures";
 import { shiny, SHINES } from "./shine";
 import { boardedDoor, boardedWindow, capWindow, litThreshold, STUB_CAP, windowLight, type WallOpening } from "./wall-markings";
 import { markedWall } from "./wall-marks";
+import { glazing, glazingPost } from "./glazing";
 
 export const EDGES: Edge[] = ["top", "right", "bottom", "left"];
 /** Baked lights cost load time, not frame time; this bounds the bake. */
@@ -238,9 +240,10 @@ function railings(bars: ReturnType<typeof batch>, x0: number, x1: number, iron: 
  * `OUTDOOR`): a low wall exactly the cut height tall, with stone piers either
  * side of each gate and, on an edge that holds the corners, at its ends.
  * Standing full, it adds iron railings and the piers' upper part with their
- * caps; cut, it is the low wall alone, the piers cut level with it.
+ * caps, or for a glasshouse its glazing (`glazing.ts`) over piers cut level;
+ * cut, it is the low wall alone, the piers cut level with it.
  */
-function buildBoundary(length: number, holes: Opening[], full: boolean, corners: boolean, surface: THREE.Texture, iron: PaletteKey): THREE.Group {
+function buildBoundary(length: number, holes: Opening[], full: boolean, corners: boolean, surface: THREE.Texture, iron: PaletteKey, style: Boundary): THREE.Group {
   const stone = textured(surface);
   const edge = group();
   const { pier } = OUTDOOR;
@@ -251,6 +254,7 @@ function buildBoundary(length: number, holes: Opening[], full: boolean, corners:
   /** How far the wall and its railing stop short of a span's end: a pier there, or the corner pier of the edge it meets. */
   const inset = (x: number) => (holeEdges.some((at) => Math.abs(at - x) < 1e-6) || corners ? pier : pier - WALL_THICKNESS);
   const bars = batch();
+  const runs: [number, number][] = [];
   for (const span of spans(length, holes, CUT_HEIGHT)) {
     // The wall runs between the piers, never through them: inside one, its faces would lie in the pier's and fight them.
     const [x0, x1] = [span.x0 + inset(span.x0), span.x1 - inset(span.x1)];
@@ -263,10 +267,12 @@ function buildBoundary(length: number, holes: Opening[], full: boolean, corners:
     body.userData.body = true;
     top.userData.body = true;
     edge.add(body, top);
-    if (full) railings(bars, x0, x1, iron);
+    if (full && style === "railings") railings(bars, x0, x1, iron);
+    runs.push([x0, x1]);
   }
-  for (const x of piers) edge.add(...buildPier(x, full ? 0 : null, stone, surface));
-  if (full) edge.add(bars.mesh());
+  for (const x of piers) edge.add(...buildPier(x, full && style === "railings" ? 0 : null, stone, surface));
+  if (full && style === "railings") edge.add(bars.mesh());
+  if (full && style === "glazing") edge.add(...glazing(runs, piers, holes, iron));
   return edge;
 }
 
@@ -564,6 +570,7 @@ function signalFlames(roomId: string, root: THREE.Object3D, anchors: { object: T
 
 export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () => pawn(), closedDoors = [], falseWindows = [] }: RoomOptions = {}): RoomPart {
   const tile = roomTile(def.id);
+  const boundary = def.boundary ?? "railings";
   const root = group();
   const wallTexture = def.wall();
   const wallMaterial = textured(wallTexture);
@@ -615,7 +622,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     const wall = (height: number) => {
       const full = height === WALL_HEIGHT;
       const wallParts = wallOf(full ? parts : stubParts);
-      const built = tile.outside ? buildBoundary(edgeLength(edge), holes, full, edge === "top" || edge === "bottom", wallTexture, def.trim) : buildWall(edgeLength(edge), holes, height, wallParts, dressingEnds(tile, edge, height));
+      const built = tile.outside ? buildBoundary(edgeLength(edge), holes, full, edge === "top" || edge === "bottom", wallTexture, def.trim, boundary) : buildWall(edgeLength(edge), holes, height, wallParts, dressingEnds(tile, edge, height));
       if (shut) {
         if (tile.outside) built.add(shutGate(full, def.trim));
         else built.add(shutLeaf(height, parts.trim), boardedDoor(doorOf(holes), height));
@@ -650,7 +657,8 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     if (tile.passages.includes(side)) continue;
     for (const along of [-1, 1]) {
       const x = along * (TILE / 2 - (tile.outside ? OUTDOOR.pier : WALL_THICKNESS) / 2);
-      const built = tile.outside ? group(...buildPier(x, CUT_HEIGHT, textured(wallTexture), wallTexture)) : group(...cornerAbove(x, parts));
+      const above = boundary === "glazing" ? [glazingPost(x, def.trim)] : buildPier(x, CUT_HEIGHT, textured(wallTexture), wallTexture);
+      const built = tile.outside ? group(...above) : group(...cornerAbove(x, parts));
       const end = endOf(side, along);
       if (tile.passages.includes(end)) continue;
       const object = placeOnEdge(built, side);

@@ -290,6 +290,7 @@ lightmap density were in flux; re-measure the house once they settle.
 | Vault | basement (fits upper): a fireproof strongroom of 1 m square grey stone flags, blue-grey engineering brick (`moonDark` to `stone`), a near-black brick dado | a squat strongroom of oxblood-lacquered iron bound in riveted steel against the back wall, facing the door, its round steel door with a brass wheel forced a hand's breadth out of its seat from inside, four of its bolts sheared and lying on the floor | red (`scarlet`) leaking round the forced door's seam, blooming on its face and pooling on the floor before it (danger shut inside); amber from a clerk's desk lamp and a chamberstick on the deed boxes. It has a second state, opened and emptied: the door swung wide on its hinge drum, the chamber bare and dark, the red gone | normal (proposed) | 2.1 (0.5–16.2) |
 | Ballroom | ground, formal (the hall the Gallery overlooks, its dress shared with it): dark basketweave parquet, dark pewter (`ash`) paper with a gilt (`brass`) damask, wood panelling, gilt trim | a great inlaid sunburst medallion four metres across in a pale band, a gilt torchère in each corner; at its edge, a length of the Gallery's balustrade and the gilt chair that fell with it | four torchères' amber, pooled round the medallion | normal (proposed) | 3.2 (0.9–20.9) |
 | Gallery | upper, in the Ballroom's dress over wood boards | a walkway along a pale balustrade over a storey's drop into the Ballroom, the rail broken through where a length gave way; gilt chairs set at the rail to watch, one missing | the Ballroom's amber welling up out of the drop, lighting the balusters from below; one amber candelabrum on a console | normal (proposed) | 2.4 (0.5–17.9) |
+| Conservatory | outdoors under glass (**its own dress**, ground or upper): terracotta and black encaustic tiles, a brick dwarf wall, glazing in grey paint (`boundary: "glazing"`) | a pale-painted tiered plant theatre in the middle, stepped with pots of dead ferns up to an urn, a dead palm in a corner, a potting bench of dead seedlings | the moon through the glass roof, its unseen frame (`bakeOnly`) laying a lattice of shadow over the whole floor; a paraffin stove's amber still burning to keep dead plants warm | bright (proposed) | 9.0 (0.7–60.7) |
 
 Four rooms (the starting hall and the Upper Landing) share one dress, and the Ballroom and the Gallery another (`kit/ballroom.ts`), as one tall hall on two floors, and one
 amber light, so telling them apart rests on their shapes alone. Green is the
@@ -642,9 +643,12 @@ An outdoor tile (`outside` in the tile data) has no walls and no ceiling.
   the gates and corners; cutting an edge drops only the railings and the
   piers' upper part. Doors are gateways between piers, and a false door is
   a shut iron gate. Piers reach 10 cm into the floor (`OUTDOOR`), so keep
-  props at least 15 cm off them. Railings are today's only edge; the edge
-  style is a per-room choice (hedges for the Gardens, a balustrade for the
-  Balcony), to be added to the stage when such a room is built.
+  props at least 15 cm off them. The edge style is a per-room choice, the
+  room's `boundary`: `railings` by default, or a glasshouse's `glazing`
+  (`glazing.ts`: painted posts and glass in the `trim` colour, heavy posts
+  standing on the piers cut level, as the Conservatory's). Others (hedges
+  for the Gardens, a balustrade for the Balcony) are added to the stage
+  when such a room is built.
 - **Surfaces.** `wall` is the low wall's face, and `floor` is the ground:
   `earth()`, with grass or without.
 - **Light.** The open sky lets the moon fall on every surface: make the
