@@ -18,7 +18,7 @@ import { peter } from "./peter";
 import { vivian } from "./vivian";
 import { missy } from "./missy";
 import { rhinehardt } from "./rhinehardt";
-import { PROP_PARTS, STAND_INS } from "./props";
+import { ITEM_MODELS, ITEM_PARTS } from "../items";
 import { brandon } from "./brandon";
 import { heather } from "./heather";
 import { zoe } from "./zoe";
@@ -30,7 +30,7 @@ import { girl, madman } from "../companions";
  * is checked through a long stretch of its idle (every occasional gesture
  * comes round several times), and walking and running on the spot at the
  * house's pace over several strides, sampled off the beat so every phase of
- * the stride comes up; then again holding each stand-in prop in its free
+ * the stride comes up; then again holding each item model in its free
  * hand. The check skips a pair of parts posed as it already checked them, so
  * a long run costs only its new poses.
  */
@@ -80,7 +80,7 @@ artChecks.each(Object.entries(EXPLORERS))("%s", (name, own) => {
   // Meshing the parts is the slow step, done once a session: it belongs to no one check. It takes up to
   // about 6 s alone (Peter's).
   beforeAll(() => {
-    for (const parts of [...partsOf(own), PROP_PARTS]) parts.get();
+    for (const parts of [...partsOf(own), ...ITEM_PARTS]) parts.get();
   }, MESHING);
 
   for (const pace of [undefined, "walk", "run"] as (Pace | undefined)[]) {
@@ -89,13 +89,13 @@ artChecks.each(Object.entries(EXPLORERS))("%s", (name, own) => {
     });
   }
 
-  for (const [prop, make] of Object.entries(STAND_INS)) {
-    it(`passes no part through another holding a ${prop}`, LIMIT, () => {
+  for (const [card, item] of Object.entries(ITEM_MODELS)) {
+    it(`passes no part through another holding the ${card}`, LIMIT, () => {
       for (const pace of [undefined, "walk", "run"] as (Pace | undefined)[]) {
         const figure = onTheSpot(build, name, pace);
         const hands = handsOf(figure);
         if (!hands) throw new Error(`${name} has no hands`);
-        holdIn(hands.right, make());
+        holdIn(hands.right, item.held());
         const found = clipsThrough(figure, pace ? STRIDES : IDLE.slice(0, 120));
         expect(found.map((finding) => `${pace ?? "standing"}: ${finding}`)).toEqual([]);
       }

@@ -3,7 +3,8 @@ import { CATALOG } from "../data";
 import type { Layout } from "../engine/board";
 import type { FloorId } from "../types";
 import { figureFor } from "./explorers/by-character";
-import { candle, carrying } from "./explorers/props";
+import { ITEM_MODELS } from "./items";
+import { carrying } from "./items/item";
 import { HOUSE_FIXTURE } from "./house-layout";
 import { createHouseScene, type FigureSpec, type SceneHook, type SceneView, type Target } from "./house-scene";
 import { afterLeg, moveIsOver, nextLegs } from "./house-demo-moves";
@@ -41,7 +42,7 @@ const scalePawn: ExplorerBuilder = () => pawn({ colour: "bone" });
 /** Two explorers for the prototype, taking turns: Longfellow, carrying a candle, and a recoloured scale pawn. */
 const CAST: readonly CastMember[] = [
   // He carries a lit candle, its light moving with him through the dark rooms.
-  { id: "longfellow", name: "Professor Longfellow", build: carrying(figureFor("professor-longfellow", "amber"), candle), colour: "amber" },
+  { id: "longfellow", name: "Professor Longfellow", build: carrying(figureFor("professor-longfellow", "amber"), ITEM_MODELS.candle), colour: "amber" },
   { id: "pawn", name: "The scale pawn", build: scalePawn, colour: "verdigrisLight" },
 ];
 

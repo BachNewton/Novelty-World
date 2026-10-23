@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { CardType } from "../../types";
 import type { Mood } from "../../play/cards";
 import type { EdgeSpot } from "../../play/things";
+import { ITEM_MODELS } from "../items";
 import { paletteHex, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, FLOOR_RINGS, INNER, onWall, WALL_THICKNESS, wallTurn } from "../room";
 import { box, flat, group, lightMaterial } from "../shapes";
@@ -10,7 +11,7 @@ import { SKIRTING } from "../stage";
 /*
  * How things in rooms look (`play/things.ts`). An object is a small model on
  * a plate in its colour; its model is the card's own where one is built
- * (`CARD_MODELS`), else a stand-in for its kind. A room effect is light or
+ * (`CARD_MODELS`, from `art/items/`), else a stand-in for its kind. A room effect is light or
  * air over the whole tile; a connection a mark on a wall stub or the floor.
  * Each kind has one built example (the Blessing's glow, the Secret
  * Passage's door in the wall) and a plain stand-in in its colour for the
@@ -36,8 +37,10 @@ export interface ObjectModel {
   held: () => THREE.Object3D;
 }
 
-/** The models built for particular cards, by card id. The art wave adds to it; until then each card shows its type's stand-in. */
-export const CARD_MODELS: Readonly<Partial<Record<string, ObjectModel>>> = {};
+/** The models built for particular cards, by card id: the item and omen models (`art/items/`). Any other card shows its type's stand-in. */
+export const CARD_MODELS: Readonly<Partial<Record<string, ObjectModel>>> = Object.fromEntries(
+  Object.values(ITEM_MODELS).map((model) => [model.card, { floor: model.floor, held: () => model.held().object }]),
+);
 
 /** A glow in a palette colour, added to what lies behind it and kept out of tone mapping. */
 export function glowing(colour: PaletteKey, opacity: number): THREE.MeshBasicMaterial {

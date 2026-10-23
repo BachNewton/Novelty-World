@@ -7,7 +7,7 @@ import type { ExplorerBuilder } from "../stage";
 import { CARD_PALETTE, figureFor } from "./by-character";
 import { ADULT_WALK, STANDING, stepLength, walkingOf, type Gait, type Pace, type Stride, type Walking } from "./figure";
 import { handsOf, holdIn, type Prop } from "./hands";
-import { STAND_INS } from "./props";
+import { ITEM_MODELS, type ItemId } from "../items";
 
 /** Every explorer with a figure, by character, tallest first; the line-up stands them in this order. */
 const EXPLORERS: readonly string[] = [
@@ -50,10 +50,10 @@ export function onTheSpot(build: ExplorerBuilder, seed: string, pace?: Pace, spe
   return figure;
 }
 
-/** What each explorer holds in the right hand, in line-up order: a prop each, or one for all. */
-export type Holding = keyof typeof STAND_INS | "each";
-/** One stand-in each, in turn, so a line-up shows every way of carrying at once. */
-const EACH: readonly (keyof typeof STAND_INS)[] = ["spear", "revolver", "candle"];
+/** What each explorer holds in the right hand, in line-up order: an item each, or one for all. */
+export type Holding = ItemId | "each";
+/** One item each, in turn, so a line-up shows every way of carrying at once: upright, hanging, and burning. */
+const EACH: readonly ItemId[] = ["spear", "revolver", "candle"];
 
 function holdingIn(figure: THREE.Object3D, prop: Prop) {
   const hands = handsOf(figure);
@@ -68,7 +68,7 @@ function holdingIn(figure: THREE.Object3D, prop: Prop) {
  * them, each with its own step and bounce, each at their starting Speed, or
  * all at one `speed` value; `also` stands more figures after them, before the pawn (the companions), at the
  * house's own pace. With `holding`,
- * each holds a stand-in prop in the right hand. `sideOn` turns each to walk
+ * each holds an item model in the right hand. `sideOn` turns each to walk
  * across the first view, to judge a gait in profile.
  */
 export function explorerLineUp(seed = "line-up", pace?: Pace, holding?: Holding, { sideOn = false, speed, also = [] }: { sideOn?: boolean; speed?: number; also?: readonly ExplorerBuilder[] } = {}): THREE.Group {
@@ -76,12 +76,12 @@ export function explorerLineUp(seed = "line-up", pace?: Pace, holding?: Holding,
     const card = CHARACTERS.find(({ id }) => id === character)?.card;
     if (!card) throw new Error(`No character "${character}"`);
     const figure = onTheSpot(figureFor(character, CARD_PALETTE[card]), `${seed}:${i}`, pace, speed ?? startingSpeed(character));
-    if (holding) holdingIn(figure, STAND_INS[holding === "each" ? EACH[i % EACH.length] : holding]());
+    if (holding) holdingIn(figure, ITEM_MODELS[holding === "each" ? EACH[i % EACH.length] : holding].held());
     return figure;
   });
   const others = also.map((build, i) => {
     const figure = onTheSpot(build, `${seed}:also:${i}`, pace);
-    if (holding) holdingIn(figure, STAND_INS[holding === "each" ? EACH[(figures.length + i) % EACH.length] : holding]());
+    if (holding) holdingIn(figure, ITEM_MODELS[holding === "each" ? EACH[(figures.length + i) % EACH.length] : holding].held());
     return figure;
   });
   const row = [...figures, ...others, pawn()];

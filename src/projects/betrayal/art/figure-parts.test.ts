@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { candle, carrying } from "./explorers/props";
+import { carrying } from "./items/item";
+import { ITEM_MODELS } from "./items";
 import { declareParts, figureParts, isMeshed, packParts, partsOf, unpackParts } from "./figure-parts";
 import { ball, rod, sculpt, shaped, solidOf, drum } from "./forms";
 import type { ExplorerBuilder } from "./stage";
@@ -51,7 +52,7 @@ describe("a figure's parts", () => {
     expect(isMeshed(build)).toBe(false);
     parts.get();
     expect(isMeshed(build)).toBe(true);
-    expect(partsOf(carrying(build, candle)).map((each) => each.id)).toEqual(["declared", "props"]);
+    expect(partsOf(carrying(build, ITEM_MODELS.candle)).map((each) => each.id)).toEqual(["declared", "item:candle"]);
     expect(partsOf(() => new THREE.Group())).toEqual([]);
   });
 });
