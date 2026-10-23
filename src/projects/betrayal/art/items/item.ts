@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { animated } from "../animate";
-import { figureMaterial, form, shaped, solidOf, type Solid, type Vec3 } from "../forms";
+import { figureMaterial, form, ring, shaped, solidOf, stretched, union, type Solid, type Vec3 } from "../forms";
 import { declareParts, partsOf, type FigureParts } from "../figure-parts";
 import { bandAt, joins, middleOf, slotOf, type ChestFit, type Fits, type Slot } from "../explorers/figure";
 import { handsOf, holdIn, type Prop } from "../explorers/hands";
@@ -36,6 +36,11 @@ import type { ExplorerBuilder } from "../stage";
 export const OVERSIZE = 1.8;
 /** Metres at the held size. */
 export const o = (metres: number) => metres * OVERSIZE;
+/** How much bigger than life a small charm is built (the Ring, the Medallion, the Amulet of the Ages, the Angel
+ *  Feather): it is held up in its own beat, and at a weapon's oversize it would be a speck from the house's distance. */
+export const CHARM_SIZE = 3;
+/** Metres at a charm's held size. */
+export const life = (metres: number) => metres * CHARM_SIZE;
 
 /** What every card's model has: its card, what it is meshed from, and how it lies on the floor. */
 interface Model {
@@ -85,8 +90,9 @@ export interface PlatePose {
 
 /** On its side, a model thin through x (a blade in the hand's plane, a revolver) lying on its flat, its handle across the plate. */
 export const ON_ITS_SIDE: PlatePose = { lie: new THREE.Euler(0, 0, Math.PI / 2), spin: 0.6 };
-/** Face up, a model thin through z (broad across the hand: a spear's head, an axe's bit) lying on its flat, its handle across the plate. */
-export const FACE_UP: PlatePose = { lie: new THREE.Euler(Math.PI / 2, 0, 0), spin: 0.7 };
+/** Face up, a model thin through z (broad across the hand: a spear's head, an axe's bit, a book's cover) lying on its
+ *  flat with its front, the face it shows ahead of the hand (+z), to the sky, its handle across the plate. */
+export const FACE_UP: PlatePose = { lie: new THREE.Euler(-Math.PI / 2, 0, 0), spin: 0.7 };
 
 /** How much of its plate a model covers: within the rim's glow, and no taller than this. */
 const PLATE_FIT = { reach: FLOOR_RINGS.plate.rim * 0.9, height: 0.32 };
@@ -379,4 +385,24 @@ export function wearing(build: ExplorerBuilder, item: WornModel): ExplorerBuilde
     return figure;
   };
   return declareParts(dressed, [...partsOf(build), ...item.parts]);
+}
+
+/**
+ * A chain of oval links from `top` straight down to `bottom`, each `length`
+ * long (inside) and of wire `wire` thick, every other link turned a quarter
+ * round so they hang through each other: what a pendant hangs from.
+ */
+export function linkChain(top: Vec3, bottom: Vec3, { length, wire }: { length: number; wire: number }): Solid {
+  const span = top[1] - bottom[1];
+  const pitch = length * 0.82;
+  const count = Math.max(1, Math.round(span / pitch));
+  const width = length * 0.42;
+  return union(
+    ...Array.from({ length: count }, (_, k) => {
+      const t = (k + 0.5) / count;
+      const centre: Vec3 = [top[0] + (bottom[0] - top[0]) * t, top[1] - span * t, top[2] + (bottom[2] - top[2]) * t];
+      const link = ring(centre, width, wire, k % 2 === 0 ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0]);
+      return stretched(link, centre, [1, (length / 2 + wire) / (width + wire), 1]);
+    }),
+  );
 }

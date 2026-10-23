@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { chain, ring, rod, roundBox, sculpt, type Solid } from "../forms";
 import { figureParts } from "../figure-parts";
 import { SHINES } from "../shine";
-import { assembled, FACE_UP, itemModel, piece } from "./item";
+import { assembled, itemModel, piece, type PlatePose } from "./item";
 
 /*
  * The Medical Kit (item): a country doctor's bag, tan leather, wide at its
@@ -24,6 +24,9 @@ const BAG = { top: -0.058, foot: -0.228, long: [0.122, 0.11], deep: [0.05, 0.025
 const HANDLE = { radius: 0.0105, end: 0.052 };
 /** The straps' places along the bag. */
 const STRAPS = [-0.07, 0.07];
+
+/** On the floor the bag stands on its foot: the grip's frame turned so the bag, hanging along +z below the handle, is down. */
+const ON_ITS_FOOT: PlatePose = { lie: new THREE.Euler(Math.PI / 2, 0, 0), spin: 0.7 };
 
 /** From the standing build into the grip's frame: its x along the grip's axis, its up out of the fist's bottom (the bag hangs along +z). */
 const HANG = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0));
@@ -113,5 +116,5 @@ export const MEDICAL_KIT = itemModel({
   card: "medical-kit",
   parts: [PARTS],
   held: () => ({ object: medicalKit(), handle: HANDLE.radius, carry: "hang" }),
-  plate: FACE_UP,
+  plate: ON_ITS_FOOT,
 });

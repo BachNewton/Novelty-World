@@ -2,8 +2,7 @@ import * as THREE from "three";
 import { ball, rod, sculpt } from "../forms";
 import { figureParts } from "../figure-parts";
 import { SHINES } from "../shine";
-import { FRONT_UP } from "./front-up";
-import { assembled, blade, itemModel, piece } from "./item";
+import { assembled, blade, FACE_UP, itemModel, piece } from "./item";
 
 /*
  * The Holy Symbol (omen): a priest's gilt cross, held up against the dark.
@@ -66,5 +65,5 @@ export const HOLY_SYMBOL = itemModel({
   card: "holy-symbol",
   parts: [PARTS],
   held: () => ({ object: holySymbol(), handle: FOOT, carry: "upright" }),
-  plate: FRONT_UP,
+  plate: FACE_UP,
 });

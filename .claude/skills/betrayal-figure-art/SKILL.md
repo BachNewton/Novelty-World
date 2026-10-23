@@ -536,7 +536,9 @@ already long (the spear) keeps its length and thickens instead.
 
 **On the plate.** The floor's model is the same model posed by its
 `plate`: `ON_ITS_SIDE` for a model thin through x, `FACE_UP` for one thin
-through z, or a turn of its own. `onPlate` then sizes it to fill the plate
+through z, lying with its front (+z, the face it shows ahead of the hand: a
+spear's head, a book's cover, a board's letters) to the sky, or a turn of
+its own (the Medical Kit stands on its foot). `onPlate` then sizes it to fill the plate
 inside its rim, whatever its real size (a ring as much as a spear: the plate
 is how a thing on the floor reads), and rests it on the plate, which lies
 above the floor on the marks' plane and hides whatever lies under it. A
@@ -580,7 +582,8 @@ Symbol, the Locket) get **no shared charm form**: that was a belt charm for
 when the figure was the inventory, and it no longer is. Each is its own
 model, as any item is. On the floor the plate's fit makes any charm read;
 on the figure it shows only in its own beat (a reroll, the Ring's attack),
-held up in the hand, built at about three times life-size. Make it pale or
+held up in the hand, built at about three times life-size (`CHARM_SIZE`,
+`life()` in `item.ts`, with `linkChain` for a pendant's chain). Make it pale or
 bright metal, so it catches the light: a small dark thing vanishes.
 
 **The item bench** (`?bench=items`, `item-bench.ts`): every registered

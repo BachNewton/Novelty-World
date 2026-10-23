@@ -2,9 +2,7 @@ import * as THREE from "three";
 import { ball, drum, ellipsoid, sculpt } from "../forms";
 import { figureParts } from "../figure-parts";
 import { SHINES } from "../shine";
-import { life } from "./charm";
-import { FRONT_UP } from "./front-up";
-import { assembled, itemModel, piece } from "./item";
+import { assembled, FACE_UP, itemModel, life, piece } from "./item";
 
 /*
  * The Ring (omen): a heavy silver ring set with a great violet stone, the
@@ -57,5 +55,5 @@ export const RING = itemModel({
   card: "ring",
   parts: [PARTS],
   held: () => ({ object: magicRing(), handle: 0.008, carry: "upright" }),
-  plate: FRONT_UP,
+  plate: FACE_UP,
 });

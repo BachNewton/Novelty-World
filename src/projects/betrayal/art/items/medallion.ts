@@ -2,9 +2,7 @@ import * as THREE from "three";
 import { drum, ring, rod, sculpt, type Vec3 } from "../forms";
 import { figureParts } from "../figure-parts";
 import { SHINES } from "../shine";
-import { chain, life } from "./charm";
-import { FRONT_UP } from "./front-up";
-import { assembled, itemModel, piece } from "./item";
+import { assembled, FACE_UP, itemModel, life, linkChain, piece } from "./item";
 
 /*
  * The Medallion (omen): a warding medal, the one thing the Pentagram
@@ -51,7 +49,7 @@ function discGeometry(): THREE.BufferGeometry {
 /** The fine chain, from inside the fist down to the bail. */
 function chainGeometry(): THREE.BufferGeometry {
   return sculpt()
-    .add(chain([0, CHAIN.top, 0], [0, CHAIN.bottom, 0], { length: CHAIN.link, wire: CHAIN.wire }), "stoneLight")
+    .add(linkChain([0, CHAIN.top, 0], [0, CHAIN.bottom, 0], { length: CHAIN.link, wire: CHAIN.wire }), "stoneLight")
     .geometry(0.0011);
 }
 
@@ -68,5 +66,5 @@ export const MEDALLION = itemModel({
   card: "medallion",
   parts: [PARTS],
   held: () => ({ object: medallion(), handle: 0.006, carry: "upright" }),
-  plate: FRONT_UP,
+  plate: FACE_UP,
 });

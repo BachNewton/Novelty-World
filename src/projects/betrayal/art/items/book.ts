@@ -2,8 +2,7 @@ import * as THREE from "three";
 import { ball, drum, ellipsoid, loft, mergeAll, ring, roundBox, sculpt, type Section } from "../forms";
 import { figureParts } from "../figure-parts";
 import { SHINES } from "../shine";
-import { FRONT_UP } from "./front-up";
-import { assembled, itemModel, onPlate, piece } from "./item";
+import { assembled, FACE_UP, itemModel, onPlate, piece } from "./item";
 
 /*
  * The Book (omen): an old grimoire, the kind that teaches what it shouldn't.
@@ -115,6 +114,6 @@ export const BOOK = itemModel({
   card: "book",
   parts: [PARTS],
   held: () => ({ object: book(true), handle: TAIL.radius, carry: "upright" }),
-  plate: FRONT_UP,
-  floor: () => onPlate(book(false), FRONT_UP),
+  plate: FACE_UP,
+  floor: () => onPlate(book(false), FACE_UP),
 });

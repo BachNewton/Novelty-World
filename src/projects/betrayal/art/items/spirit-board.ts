@@ -1,8 +1,7 @@
 import * as THREE from "three";
 import { ball, ellipsoid, rod, roundBox, sculpt, stretched, union, type Distance } from "../forms";
 import { figureParts } from "../figure-parts";
-import { FRONT_UP } from "./front-up";
-import { assembled, itemModel, piece } from "./item";
+import { assembled, FACE_UP, itemModel, piece } from "./item";
 
 /*
  * The Spirit Board (omen): a talking board, its alphabet in two arcs, its
@@ -102,5 +101,5 @@ export const SPIRIT_BOARD = itemModel({
   card: "spirit-board",
   parts: [PARTS],
   held: () => ({ object: spiritBoard(), handle: RAIL.radius, carry: "upright" }),
-  plate: FRONT_UP,
+  plate: FACE_UP,
 });

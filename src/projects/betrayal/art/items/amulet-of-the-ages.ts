@@ -2,9 +2,7 @@ import * as THREE from "three";
 import { ellipsoid, loft, ring, rod, sculpt, type Section, type Vec3 } from "../forms";
 import { figureParts } from "../figure-parts";
 import { SHINES } from "../shine";
-import { life } from "./charm";
-import { FRONT_UP } from "./front-up";
-import { assembled, itemModel, onPlate, piece } from "./item";
+import { assembled, FACE_UP, itemModel, life, onPlate, piece } from "./item";
 
 /*
  * The Amulet of the Ages (item): an ancient sun-amulet that lends its
@@ -81,6 +79,6 @@ export const AMULET_OF_THE_AGES = itemModel({
   card: "amulet-of-the-ages",
   parts: [PARTS],
   held: () => ({ object: amulet(true), handle: 0.007, carry: "upright" }),
-  plate: FRONT_UP,
-  floor: () => onPlate(amulet(false), FRONT_UP),
+  plate: FACE_UP,
+  floor: () => onPlate(amulet(false), FACE_UP),
 });

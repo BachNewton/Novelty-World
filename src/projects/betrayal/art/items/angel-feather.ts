@@ -1,9 +1,7 @@
 import * as THREE from "three";
 import { ellipsoid, rod, roughened, roundBox, sculpt, type Vec3 } from "../forms";
 import { figureParts } from "../figure-parts";
-import { life } from "./charm";
-import { FRONT_UP } from "./front-up";
-import { assembled, blade, itemModel, piece } from "./item";
+import { assembled, blade, FACE_UP, itemModel, life, piece } from "./item";
 
 /*
  * The Angel Feather (item): a single great white flight feather, light
@@ -66,5 +64,5 @@ export const ANGEL_FEATHER = itemModel({
   card: "angel-feather",
   parts: [PARTS],
   held: () => ({ object: feather(), handle: 0.0055, carry: "upright" }),
-  plate: FRONT_UP,
+  plate: FACE_UP,
 });
