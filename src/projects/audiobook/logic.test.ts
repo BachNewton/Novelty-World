@@ -5,6 +5,7 @@ import {
   elapsedInBook,
   formatLength,
   formatTime,
+  bookPhotos,
   nextPhoto,
   nextRate,
   photoAt,
@@ -83,6 +84,13 @@ describe("photos", () => {
     expect(photoAt(chapter, 20)?.caption).toBe("First");
     expect(photoAt(chapter, 89)?.caption).toBe("First");
     expect(photoAt(chapter, 150)?.image).toBe("the-book/p2.jpg");
+  });
+
+  it("lists every photo in the book in the order they're described", () => {
+    expect(bookPhotos(BOOK).map(({ chapter: c, photo }) => [c, photo.at])).toEqual([
+      [1, 20],
+      [1, 90],
+    ]);
   });
 
   it("knows the photo coming next", () => {

@@ -75,6 +75,11 @@ export function photoAt(chapter: Chapter, position: number): Photo | undefined {
   return chapter.photos.findLast((p) => p.at <= position);
 }
 
+/** Every photo in the book, in the order they're described. */
+export function bookPhotos(book: Book): { chapter: number; photo: Photo }[] {
+  return book.chapters.flatMap((c, chapter) => c.photos.map((photo) => ({ chapter, photo })));
+}
+
 /** The photo after the one showing, to load before it's needed. */
 export function nextPhoto(chapter: Chapter, position: number): Photo | undefined {
   return chapter.photos.find((p) => p.at > position);

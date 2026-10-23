@@ -106,6 +106,7 @@ test("a listener plays a chapter, sees its photo, bookmarks it, moves on, and pi
   await page.getByRole("button", { name: "Add bookmark" }).click();
   await expect(page.getByTestId("bookmark-row")).toHaveCount(1);
 
+  await page.getByRole("tab", { name: "Chapters" }).click();
   await page.getByTestId("chapter-row").filter({ hasText: "Chapter Two" }).click();
   await expect(page.getByTestId("chapter-title")).toHaveText("Chapter Two");
   await expect(page.getByTestId("elapsed")).not.toHaveText("0:00");
@@ -114,17 +115,51 @@ test("a listener plays a chapter, sees its photo, bookmarks it, moves on, and pi
   await page.reload();
   await expect(page.getByTestId("chapter-title")).toHaveText("Chapter Two");
   await expect(page.getByTestId("elapsed")).not.toHaveText("0:00");
+  await page.getByRole("tab", { name: "Bookmarks" }).click();
   await expect(page.getByTestId("bookmark-row")).toHaveCount(1);
 
-  await page.getByText("Photos").click();
+  // A thumbnail opens the photo full screen, and leaves the listening where it was.
+  await page.getByRole("tab", { name: "Photos" }).click();
   await page.getByTestId("gallery-photo").click();
+  const viewer = page.getByRole("dialog", { name: "Photo viewer" });
+  await expect(viewer.getByRole("img", { name: "Chapter One, photo 1" })).toBeVisible();
+  await expect(page.getByTestId("chapter-title")).toHaveText("Chapter Two");
+  // Only "play from here" moves the listening to the photo's moment.
+  await viewer.getByRole("button", { name: /^Play from here/ }).click();
+  await expect(viewer).toBeHidden();
   await expect(page.getByTestId("chapter-title")).toHaveText("Chapter One");
   await expect(page.getByTestId("elapsed")).toHaveText(/^0:2\d$/);
   await expect(photo).toBeVisible();
 
+  // The picture in the player opens full screen too, and Escape closes it.
+  await page.getByRole("region", { name: "Player" }).getByRole("button", { name: "View Chapter One, photo 1" }).click();
+  await expect(viewer).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(viewer).toBeHidden();
+
+  await page.getByRole("tab", { name: "Bookmarks" }).click();
   await page.getByTestId("bookmark-row").getByRole("button").first().click();
   await expect(page.getByTestId("elapsed")).toHaveText(/^0:3\d$/);
 
-  await page.getByRole("link", { name: "Back to the shelf" }).click();
+  await page.goBack();
   await expect(page.getByRole("progressbar", { name: "Listened" })).not.toHaveAttribute("aria-valuenow", "0");
+});
+
+test("on a phone, the player fits the screen and the lists open over it", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await stubBucket(page);
+  await page.goto("/tools/audiobook/test-book");
+  await expect(page.getByTestId("chapter-title")).toHaveText("Chapter One");
+
+  const pageSize = () => page.evaluate(() => [document.scrollingElement?.scrollHeight, document.scrollingElement?.scrollWidth]);
+  expect(await pageSize()).toEqual([640, 360]);
+  await expect(page.getByRole("button", { name: "Next chapter" })).toBeInViewport();
+  await expect(page.getByTestId("chapter-row").first()).toBeHidden();
+
+  await page.getByRole("button", { name: "Chapters, bookmarks and photos" }).click();
+  await page.getByTestId("chapter-row").filter({ hasText: "Chapter Two" }).click();
+  // A pick goes back to the player, at the chapter picked.
+  await expect(page.getByTestId("chapter-row").first()).toBeHidden();
+  await expect(page.getByTestId("chapter-title")).toHaveText("Chapter Two");
+  expect(await pageSize()).toEqual([640, 360]);
 });
