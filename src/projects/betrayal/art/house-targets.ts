@@ -4,13 +4,13 @@ import { placed } from "../engine/board";
 import type { ChoiceLayout } from "../input/controls";
 import type { Point, ScreenPoint, Target as PointerTarget } from "@/shared/lib/input";
 import type { GhostDoor } from "../play/ghost";
-import { wallSpot } from "../play/things";
 import type { Edge, FloorId, Rotation } from "../types";
 import type { FloorChoice, Mark } from "./house";
 import { DIRECTION } from "./house-layout";
 import { inHouse, shownOn, type HousePoint, type Stairway } from "./house-walk";
 import type { PaletteKey } from "./palette";
 import { DOOR_APPROACH, INNER, onWall, TILE } from "./room";
+import type { EdgeSpot } from "./things/mark-spot";
 
 /*
  * What the house shows a decision offering, as pure functions: each target
@@ -39,6 +39,8 @@ export interface TargetRoute {
 export interface WallPreview {
   token: string;
   colour: PaletteKey;
+  /** Where on the wall it would go (`markSpot`). */
+  spot: EdgeSpot;
 }
 
 export type Target = { id: string } & (
@@ -263,7 +265,7 @@ export function targetPlace(target: Target, ctx: PlaceContext): TargetPlace {
       const shown = shows(ctx, tile.floor);
       const pad = wallPad(target.wall);
       const { corners, middle } = roomRectangle(ctx, target.room, pad.centre, pad.size);
-      const preview = target.preview && { ...target.preview, spot: wallSpot(target.wall) };
+      const { preview } = target;
       return {
         anchor: lift(middle, ANCHOR_HEIGHT),
         outline: shown ? corners : null,

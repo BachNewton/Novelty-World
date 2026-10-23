@@ -66,7 +66,7 @@ export interface PlacementHints {
 
 export const NO_HINTS: PlacementHints = { prime: null, keepClear: [], lanes: [], within: null };
 
-export type PlacementFloor = Pick<FloorPlan, "size" | "clearance" | "reached" | "centre" | "cellAt">;
+export type PlacementFloor = Pick<FloorPlan, "size" | "clearance" | "markClearance" | "reached" | "centre" | "cellAt">;
 
 /** One room's floor (or one side of a barrier room) as the solver takes it. */
 export interface PlacementRoom {

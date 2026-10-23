@@ -7,7 +7,8 @@ import { ENGINE } from "../../game";
 import type { PlaceTarget } from "../../play/choices";
 import { routeRooms } from "../../play/preview";
 import { arrivalSpot, type Fixed, type Spots } from "../../play/spots";
-import { clusterId, tokenMood, wallSpot } from "../../play/things";
+import { takenBy } from "../../art/things/mark-spot";
+import { clusterId, connectionSpot, tokenMood, type ShownThing } from "../../play/things";
 
 /*
  * A move's target as the house draws it, with its route to preview: the
@@ -20,13 +21,15 @@ import { clusterId, tokenMood, wallSpot } from "../../play/things";
  *  cell to explore, with its route previewed when focused; a wall or corner
  *  of a room, with the token going there; a figure. A room on another floor
  *  shows as the stair its route takes there, where the room it leaves from has one. */
-export function sceneTarget(target: PlaceTarget, spots: Spots, floors: RoomFloors, objects: Fixed = {}): Target {
+export function sceneTarget(target: PlaceTarget, spots: Spots, floors: RoomFloors, objects: Fixed = {}, things: readonly ShownThing[] = []): Target {
   if (target.kind === "figure") return { id: target.id, kind: "figure", figure: target.figure };
   if (target.kind === "wall") {
-    const preview = target.token === null ? null : { token: target.token, colour: MOOD_COLOUR[tokenMood(ENGINE, target.token)] };
-    return { id: target.id, kind: "wall", room: target.room, wall: target.wall, preview };
+    const { token, room, wall } = target;
+    const marked = (thing: ShownThing) => (thing.room === room && thing.place.kind === "edge" ? [takenBy(thing.place.spot, thing.token)] : []);
+    const preview = token === null ? null : { token, colour: MOOD_COLOUR[tokenMood(ENGINE, token)], spot: connectionSpot(ENGINE, floors, { room, side: null, token, wall }, things.flatMap(marked)) };
+    return { id: target.id, kind: "wall", room, wall, preview };
   }
-  if (target.kind === "through") return throughTarget(target, spots, floors, objects);
+  if (target.kind === "through") return throughTarget(target, spots, floors, objects, things);
   const { preview } = target;
   const side = target.kind === "room" ? target.side : null;
   const route = preview && {
@@ -46,12 +49,13 @@ export function sceneTarget(target: PlaceTarget, spots: Spots, floors: RoomFloor
 /** Going through a connection, as the room it comes out in, with its route
  *  through the connection's mark: on its wall, or where it lies on its
  *  room's floor (in the room's cluster). */
-function throughTarget(target: Extract<PlaceTarget, { kind: "through" }>, spots: Spots, floors: RoomFloors, objects: Fixed): Target {
+function throughTarget(target: Extract<PlaceTarget, { kind: "through" }>, spots: Spots, floors: RoomFloors, objects: Fixed, things: readonly ShownThing[]): Target {
   const { through } = target;
   const at = (): readonly [number, number] | null => {
     if (through.wall.length > 0) {
-      const spot = wallSpot(through.wall);
-      return onWall(spot.edge, spot.along).at;
+      const mark = things.find((thing) => thing.room === through.room && thing.token === through.token && thing.place.kind === "edge");
+      if (mark?.place.kind !== "edge") return null;
+      return onWall(mark.place.spot.edge, mark.place.spot.along).at;
     }
     const cluster = objects[clusterId(through.room, null)] as Fixed[string] | undefined;
     return cluster ? [cluster.x, cluster.z] : null;

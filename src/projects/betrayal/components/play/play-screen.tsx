@@ -572,9 +572,9 @@ export function PlayScreen({
   // After the layout, so a room just placed is in the house before its ghost goes.
   const ghostKey = ghost ? JSON.stringify(ghost.readout) : "";
   useEffect(() => {
-    scene.setTargets([...latest.current.targets.map((target) => sceneTarget(target, presented.spots, houseFloors, presented.clusters)), ...(latest.current.ghost?.targets ?? [])], live);
+    scene.setTargets([...latest.current.targets.map((target) => sceneTarget(target, presented.spots, houseFloors, presented.clusters, presented.things)), ...(latest.current.ghost?.targets ?? [])], live);
     // The choices show once the beats leading to them are over.
-  }, [scene, view, live, ghostKey, presented.spots, presented.clusters, presented.playing, presented.view]);
+  }, [scene, view, live, ghostKey, presented.spots, presented.clusters, presented.things, presented.playing, presented.view]);
 
   const toldEvent = presented.told === null ? undefined : fed.get(presented.told.line);
   const told = toldEvent && presented.told ? { event: toldEvent, events: eventsOf(presented.told.events) } : null;

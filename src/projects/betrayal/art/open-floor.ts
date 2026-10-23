@@ -20,7 +20,7 @@ export function openFloor(halfX = INNER, halfZ = halfX): PlacementFloor {
     clearance[cell] = Math.max(0, Math.min(halfX - Math.abs(x), halfZ - Math.abs(z)));
     reached[cell] = clearance[cell] >= BASE_RADIUS ? 1 : 0;
   }
-  return { size, clearance, reached, centre, cellAt: (x, z) => index(z) * size + index(x) };
+  return { size, clearance, markClearance: clearance.slice(), reached, centre, cellAt: (x, z) => index(z) * size + index(x) };
 }
 
 /** Every room an open floor, its prime place at `prime` (in a barrier room's half, mirrored into it). */

@@ -44,11 +44,11 @@ describe("targetPlace", () => {
   it("puts a wall's pad against that wall, and a corner's in that corner, turned with the room, with the token shown there as its preview", () => {
     // The Dining Room is turned a quarter: its printed top wall faces east.
     const [cx, cz] = [1 * TILE, -1 * TILE];
-    const preview = { token: "wall-switch", colour: "brass" } as const;
+    const preview = { token: "wall-switch", colour: "brass", spot: { edge: "top", along: 0, fits: true, icon: [0, 0] } } as const;
     const wall = targetPlace({ id: "w", kind: "wall", room: "dining-room", wall: ["top"], preview }, context("ground"));
     expect(wall.anchor.x).toBeGreaterThan(cx + TILE / 3);
     expect(wall.anchor.z).toBeCloseTo(cz);
-    expect(wall.mark).toMatchObject({ kind: "area", room: "dining-room", preview: { ...preview, spot: { edge: "top", along: 0 } } });
+    expect(wall.mark).toMatchObject({ kind: "area", room: "dining-room", preview });
     expect(wall.outline).toHaveLength(4);
     expect(wall.cell).toEqual({ floor: "ground", x: 1, y: -1 });
     // Its printed top-right corner is the south-east one.

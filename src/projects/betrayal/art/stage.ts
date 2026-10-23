@@ -13,17 +13,13 @@ import {
   CUT_HEIGHT,
   DOOR_HEIGHT,
   DOOR_WIDTH,
-  FRONT_DOOR_HEIGHT,
-  FRONT_DOOR_WIDTH,
   OUTDOOR,
   TILE,
   WAINSCOT_DEPTH,
   WAINSCOT_HEIGHT,
   WALL_HEIGHT,
   WALL_THICKNESS,
-  WINDOW_SILL,
-  WINDOW_TOP,
-  WINDOW_WIDTH,
+  edgeOpenings,
   primePlaces,
   wallTurn,
   type FlickerSignal,
@@ -74,16 +70,7 @@ export function roomTile(id: string): RoomTile {
 }
 
 function openings(tile: RoomTile, edge: Edge, blockedWindow: boolean): Opening[] {
-  const result: Opening[] = [];
-  const door = tile.doors.includes(edge);
-  if (door) {
-    const front = tile.frontDoor === edge;
-    result.push({ kind: "door", centre: 0, width: front ? FRONT_DOOR_WIDTH : DOOR_WIDTH, bottom: 0, top: front ? FRONT_DOOR_HEIGHT : DOOR_HEIGHT, blocked: false });
-  }
-  if (tile.windows.includes(edge)) {
-    result.push({ kind: "window", centre: door ? 1.7 : 0, width: WINDOW_WIDTH, bottom: WINDOW_SILL, top: WINDOW_TOP, blocked: blockedWindow });
-  }
-  return result.sort((a, b) => a.centre - b.centre);
+  return edgeOpenings(tile, edge).map((opening) => ({ ...opening, blocked: opening.kind === "window" && blockedWindow }));
 }
 
 function spans(length: number, holes: Opening[], height: number): Span[] {

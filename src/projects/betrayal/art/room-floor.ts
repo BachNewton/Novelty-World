@@ -55,7 +55,7 @@ function floorWorker(): Worker {
       reply.reject(new Error(`Reading the floor of ${data.room} failed in a worker: ${data.error}`));
       return;
     }
-    floors.set(data.room, { ...floorGrid(), blocked: data.blocked, clearance: data.clearance, reached: data.reached });
+    floors.set(data.room, { ...floorGrid(), blocked: data.blocked, markClearance: data.markClearance, clearance: data.clearance, reached: data.reached });
     reply.resolve();
   };
   // A worker that fails to start (or throws outside a reply) fails every room it was asked for, loudly.

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { openFloor, openFloors } from "../art/open-floor";
 import { NO_HINTS, placeFigures, type PlacementHints } from "../art/placement";
 import { FLOOR_RINGS, INNER } from "../art/room";
+import { MARK_FOOTPRINTS } from "../art/things/mark-spot";
 import { TOKENS } from "../data/tokens";
 import { describeEvent } from "../engine/describe";
 import { viewFor } from "../engine/view";
@@ -15,7 +16,7 @@ import {
 } from "../testing";
 import type { GameState } from "../types";
 import { firstSpots, nextSpots } from "./spots";
-import { CLUSTER_SHOWN, clusterId, clusterReach, edgeSpot, nextClusters, PRESENCE, roomThings, shownObjects, shownThings, type Cluster } from "./things";
+import { CLUSTER_SHOWN, clusterId, clusterReach, nextClusters, PRESENCE, roomThings, shownObjects, shownThings, type Cluster } from "./things";
 
 const viewOf = (state: GameState) => viewFor(ENGINE, state, null);
 const PRIME = [1, 1] as const;
@@ -89,7 +90,7 @@ describe("what lives in rooms", () => {
       expect(thing.name, `${what} is named by an id`).not.toBe(what);
     }
     const names = new Set(things.map((thing) => thing.name));
-    const shown = shownThings(ENGINE, things, nextClusters({}, things, {}, FLOORS));
+    const shown = shownThings(ENGINE, things, nextClusters({}, things, {}, FLOORS), FLOORS);
     for (const thing of shown) expect(names.has(thing.name) || /^\d+ more$/.test(thing.name), `${thing.id} shows as "${thing.name}"`).toBe(true);
   });
 });
@@ -166,21 +167,21 @@ describe("objects on the floor", () => {
 });
 
 describe("connections and effects", () => {
-  it("mark a connection on the wall the game puts it on, into a corner, or else on a plain wall", () => {
-    const hall = { doors: ["top", "bottom"] as const, passages: [], windows: ["right"] as const };
-    expect(edgeSpot({ ...hall, doors: [...hall.doors], windows: [...hall.windows] }, ["left"])).toEqual({ edge: "left", along: 0 });
-    expect(edgeSpot({ ...hall, doors: [...hall.doors], windows: [...hall.windows] }, ["top", "right"]).along).toBeGreaterThan(0);
-    expect(edgeSpot({ ...hall, doors: [...hall.doors], windows: [...hall.windows] }, ["top", "left"]).along).toBeLessThan(0);
-    expect(edgeSpot({ ...hall, doors: [...hall.doors], windows: [...hall.windows] }, null)).toEqual({ edge: "right", along: -1.8 });
-    expect(edgeSpot({ doors: ["top", "right", "bottom", "left"], passages: [], windows: [] }, null)).toEqual({ edge: "top", along: -1.8 });
-  });
-
   it("show an effect over its tile and a connection on its wall, never in a cluster", () => {
     const state = withThings((s) => {
       s.tokens.push({ token: "blessing", room: "foyer" }, { token: "wall-switch", room: "foyer", wall: ["left"] });
     });
     const things = roomThings(ENGINE, viewOf(state));
     expect(nextClusters({}, things, {}, FLOORS)).toEqual({});
-    expect(shownThings(ENGINE, things, {}).map((thing) => thing.place)).toEqual([{ kind: "tile" }, { kind: "edge", spot: { edge: "left", along: 0 } }]);
+    expect(shownThings(ENGINE, things, {}, FLOORS).map((thing) => thing.place)).toEqual([{ kind: "tile" }, { kind: "edge", spot: expect.objectContaining({ edge: "left" }) }]);
+  });
+
+  it("keep two marks in one room off each other's stretch of wall", () => {
+    const state = withThings((s) => {
+      s.tokens.push({ token: "wall-switch", room: "library", wall: ["left"] }, { token: "secret-passage", room: "library", wall: ["left"], link: { room: "foyer", side: null } });
+    });
+    const [a, b] = shownThings(ENGINE, roomThings(ENGINE, viewOf(state)), {}, FLOORS).map((thing) => (thing.place.kind === "edge" ? thing.place.spot : null));
+    expect(a?.fits && b?.fits).toBe(true);
+    expect(Math.abs((a?.along ?? 0) - (b?.along ?? 0))).toBeGreaterThanOrEqual((MARK_FOOTPRINTS["wall-switch"].width + MARK_FOOTPRINTS["secret-passage"].width) / 2 - 1e-9);
   });
 });

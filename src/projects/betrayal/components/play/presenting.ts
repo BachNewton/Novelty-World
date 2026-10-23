@@ -4,7 +4,7 @@ import type { EventView, GameView } from "../../engine/view";
 import { ENGINE } from "../../game";
 import { arrivedRooms, beatLine, present, startPresentation, type Beat, type Presentation } from "../../play/presenter";
 import { aheadRooms, standingRooms, type Spots } from "../../play/spots";
-import { lyingRooms, roomThings, shownThings, type Clusters, type RoomThing, type ShownThing } from "../../play/things";
+import { roomThings, shownThings, type Clusters, type RoomThing, type ShownThing, thingRooms } from "../../play/things";
 
 /*
  * The presenter at work on the play screen: each view shown goes through
@@ -77,9 +77,9 @@ export interface Floors {
 }
 
 /** The things in a view's rooms, and how they show with its clusters: read together, so they always agree. */
-function thingsOf(view: GameView, clusters: Clusters): Pick<Presented, "inRooms" | "things"> {
+function thingsOf(view: GameView, clusters: Clusters, floors: RoomFloors): Pick<Presented, "inRooms" | "things"> {
   const inRooms = roomThings(ENGINE, view);
-  return { inRooms, things: shownThings(ENGINE, inRooms, clusters) };
+  return { inRooms, things: shownThings(ENGINE, inRooms, clusters, floors) };
 }
 
 /** What the screen shows once these beats have started: the latest line, and the floats. */
@@ -218,8 +218,8 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
   function show(view: GameView, events: readonly EventView[], ahead: readonly string[] = []) {
     latest = { view, events };
     // A view waits only for the floors of the rooms its explorers stand in or pass through; the rest of the house, a room being placed and the next tiles drawn are read ahead.
-    // Objects lying in a room are placed on its floor too.
-    const needed = floors.load([...new Set([...standingRooms(view), ...arrivedRooms(presentation, events), ...lyingRooms(roomThings(ENGINE, view))])]);
+    // A room's things are placed on its floor too: objects lying there, and a connection's mark on its walls.
+    const needed = floors.load([...new Set([...standingRooms(view), ...arrivedRooms(presentation, events), ...thingRooms(roomThings(ENGINE, view))])]);
     void floors.load([...aheadRooms(view), ...ahead]);
     if (needed) {
       if (!shown.playing) publish({ playing: true });
@@ -236,7 +236,7 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
       presentation = startPresentation(ENGINE, view, floors.place);
       drawn = view;
       scene.setFigures(figuresOf(view, presentation.spots));
-      const things = thingsOf(view, presentation.clusters);
+      const things = thingsOf(view, presentation.clusters, floors.place);
       scene.setThings(things.things);
       scene.setActive(presentation.active);
       scene.setMood(presentation.haunted ? "haunt" : "explore", { shifting: false });
@@ -249,7 +249,7 @@ export function createPresenting(scene: HouseScene, figuresOf: (view: GameView, 
     drawn = view;
     const fresh = next.presentation.seen.length !== before.seen.length;
     const spots = presentation.spots;
-    const things = thingsOf(view, presentation.clusters);
+    const things = thingsOf(view, presentation.clusters, floors.place);
     scene.setThings(things.things);
     if (pumping) {
       // A run still playing completes at once, up to a card waiting, before this write's beats play.

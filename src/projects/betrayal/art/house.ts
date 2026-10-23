@@ -2,7 +2,6 @@ import * as THREE from "three";
 import { EDGES, FLOORS, liftTile, placed, type Layout } from "../engine/board";
 import { CATALOG } from "../data";
 import type { GhostDoor, GhostDoorway } from "../play/ghost";
-import type { EdgeSpot } from "../play/things";
 import type { Edge, FloorId, PlacedTile } from "../types";
 import { animationOf, type Animation } from "./animate";
 import { ADULT_WALK, isGrounded, walkingOf, type Stride, type Walking } from "./explorers/figure";
@@ -88,7 +87,7 @@ export type Mark = { id: string } & (
   /** Part of a room's floor, in its own frame: `size` along its x and z
    *  round `centre` (a half of a barrier room, a pad before a wall), with
    *  a token shown on a wall of it while focused. */
-  | { kind: "area"; room: string; centre: readonly [number, number]; size: readonly [number, number]; preview: (WallPreview & { spot: EdgeSpot }) | null }
+  | { kind: "area"; room: string; centre: readonly [number, number]; size: readonly [number, number]; preview: WallPreview | null }
 );
 
 export interface House {

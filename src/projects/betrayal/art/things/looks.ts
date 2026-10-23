@@ -40,7 +40,7 @@ export interface ObjectModel {
 export const CARD_MODELS: Readonly<Partial<Record<string, ObjectModel>>> = {};
 
 /** A glow in a palette colour, added to what lies behind it and kept out of tone mapping. */
-function glowing(colour: PaletteKey, opacity: number): THREE.MeshBasicMaterial {
+export function glowing(colour: PaletteKey, opacity: number): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ color: paletteHex(colour), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false });
 }
 
@@ -57,12 +57,12 @@ function floorRing(inner: number, outer: number, material: THREE.Material, phiSe
   return ring;
 }
 
-/** An object's plate (`FLOOR_RINGS`): a dark disc in a glowing rim of its colour, in a soft pool of
+/** An object's plate (`FLOOR_RINGS`): a dark disc (or one of `disc`) in a glowing rim of its colour, in a soft pool of
  *  that colour's light on the floor round it, so it shows in a dark room from across the house.
  *  The pool is light faked on the floor, not a light. Returns the rim's and the pool's materials, which show the focus. */
-export function plate(colour: PaletteKey): { object: THREE.Object3D; rim: THREE.MeshBasicMaterial; pool: THREE.MeshBasicMaterial } {
+export function plate(colour: PaletteKey, { disc: face = "soot" }: { disc?: PaletteKey } = {}): { object: THREE.Object3D; rim: THREE.MeshBasicMaterial; pool: THREE.MeshBasicMaterial } {
   const { radius, rim: inner } = FLOOR_RINGS.plate;
-  const disc = new THREE.MeshBasicMaterial({ color: paletteHex("soot"), depthWrite: false, fog: false });
+  const disc = new THREE.MeshBasicMaterial({ color: paletteHex(face), depthWrite: false, fog: false });
   const rim = glowing(colour, RIM.rest);
   const pool = lightMaterial(POOL.rest, { vertexColors: true });
   pool.toneMapped = false;

@@ -15,7 +15,7 @@ describe("the looks of things in rooms", () => {
     for (const card of Object.values(CATALOG.cards)) expect(bounds(cardModel(card.id, card.type).floor()).isEmpty()).toBe(false);
     for (const [token, presence] of Object.entries(PRESENCE)) {
       if (presence.kind === "figure" || presence.kind === "bonus") continue;
-      const look = presence.kind === "effect" ? effectLook(token, "moon").object : presence.kind === "connection" ? (presence.on === "edge" ? connectionLook(token, "moon", { edge: "top", along: 0 }) : floorMark("moon")) : tokenModel().floor();
+      const look = presence.kind === "effect" ? effectLook(token, "moon").object : presence.kind === "connection" ? (presence.on === "edge" ? connectionLook(token, "moon", { edge: "top", along: 0, fits: true, icon: [0, 0] }) : floorMark("moon")) : tokenModel().floor();
       expect(bounds(look).isEmpty(), token).toBe(false);
     }
     expect(bounds(pileModel()).isEmpty()).toBe(false);
@@ -34,7 +34,7 @@ describe("the looks of things in rooms", () => {
     const glow = bounds(effectLook("blessing", "gold").object);
     expect(glow.max.x).toBeCloseTo(INNER);
     expect(glow.min.z).toBeCloseTo(-INNER);
-    const passage = bounds(connectionLook("secret-passage", "moonLight", { edge: "top", along: 0 }));
+    const passage = bounds(connectionLook("secret-passage", "moonLight", { edge: "top", along: 0, fits: true, icon: [0, 0] }));
     expect(passage.max.y).toBeLessThanOrEqual(CUT_HEIGHT + 0.02);
     expect(passage.min.z).toBeLessThan(-INNER);
   });

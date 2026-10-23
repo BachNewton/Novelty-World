@@ -13,7 +13,7 @@ import { inHouse, throughPath, walkPath, walkPose, type Avoid, type HousePoint, 
 import { pinsApart } from "./pins-apart";
 import type { ShownThing } from "../play/things";
 import { inspectFigureId, inspectRoomId, showsPointingTag } from "../play/inspect";
-import { createThingsLayer } from "./things/layer";
+import { createThingsLayer, type ConnectionLooks } from "./things/layer";
 import { floorRead, readFloor } from "./room-floor";
 import { aroundBases } from "./walk-around";
 import { workerLanes } from "./bake-workers";
@@ -340,7 +340,7 @@ interface Playing {
  *  Plain state outside React, so a page, tests and screenshot tools drive the same thing. */
 /** `readout` adds the performance readout (draw calls, texture units, bake
  *  times) under the frame-rate panel, for the house demo's phone tests. */
-export function createHouseScene(initial: Layout, { readout: showsReadout = false }: { readout?: boolean } = {}) {
+export function createHouseScene(initial: Layout, { readout: showsReadout = false, connections = null }: { readout?: boolean; connections?: ConnectionLooks | null } = {}) {
   let layout = initial;
   const figures = new Map<string, FigureSpec>();
   let targets: readonly Target[] = [];
@@ -436,7 +436,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   /** The pins whose first showing has been announced (`Pin.shown`). */
   const announced = new WeakSet<Pin>();
   /** The things living in the rooms: objects, room effects and connections. Each is a pointer target that names it, never a choice. */
-  const things = createThingsLayer();
+  const things = createThingsLayer(connections);
 
   const tileFloor = (room: string): FloorId => {
     const tile = placed(layout, room);

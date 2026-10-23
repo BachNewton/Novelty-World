@@ -10,6 +10,7 @@ import { inHouse } from "../house-walk";
 import { patchProbe, type ProbeUniform } from "../lit-floor";
 import { FLOOR_RINGS, TILE } from "../room";
 import { group } from "../shapes";
+import type { PaletteKey } from "../palette";
 import type { ReadyShaders } from "../shader-prep";
 import { disposeTree } from "../stage";
 import { cardModel, connectionLook, effectLook, floorMark, MOOD_COLOUR, pileModel, plate, poolGlow, rimGlow, tokenModel, type BuiltEffect } from "./looks";
@@ -50,9 +51,17 @@ interface Drawn {
 
 const keyOf = (shown: ShownThing) => JSON.stringify(shown);
 
+/** A look for connections in place of the stand-ins, in a thing's room's own frame (a floor mark round its middle): the marks bench's, under review. */
+export type ConnectionLooks = (shown: ShownThing, colour: PaletteKey) => THREE.Object3D;
+
 /** Builds a thing in its room's own frame, rotated as its room is turned by the holder. */
-function build(shown: ShownThing): Pick<Drawn, "probe" | "rim" | "pool" | "effect"> & { object: THREE.Object3D } {
+function build(shown: ShownThing, connections: ConnectionLooks | null): Pick<Drawn, "probe" | "rim" | "pool" | "effect"> & { object: THREE.Object3D } {
   const colour = MOOD_COLOUR[shown.mood];
+  if (connections && shown.kind === "connection") {
+    // Its matter is lit from the light probes, as an object is.
+    const object = connections(shown, colour);
+    return { object, probe: patchProbe(object, false), rim: null, pool: null, effect: null };
+  }
   if (shown.kind === "effect") {
     const effect = effectLook(shown.token, colour);
     return { object: effect.object, probe: null, rim: null, pool: null, effect };
@@ -64,7 +73,7 @@ function build(shown: ShownThing): Pick<Drawn, "probe" | "rim" | "pool" | "effec
   return { object: group(base, model), probe: patchProbe(model, false), rim, pool, effect: null };
 }
 
-export function createThingsLayer() {
+export function createThingsLayer(connections: ConnectionLooks | null = null) {
   const root = group();
   root.name = "things";
   const drawn = new Map<string, Drawn>();
@@ -96,7 +105,7 @@ export function createThingsLayer() {
       drop(shown.id);
       // A room not in the house yet (still being placed) waits for the next layout.
       if (!placed(layout, shown.room)) continue;
-      const made = build(shown);
+      const made = build(shown, connections);
       if (shown.place.kind === "floor") made.object.position.set(shown.place.at[0], 0, shown.place.at[1]);
       const holder = group(made.object);
       holder.visible = false;

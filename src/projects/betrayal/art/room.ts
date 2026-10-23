@@ -1,5 +1,5 @@
 import type * as THREE from "three";
-import type { Edge } from "../types";
+import type { Edge, RoomTile } from "../types";
 import type { PaletteKey } from "./palette";
 import type { WallMark } from "./wall-marks";
 
@@ -369,6 +369,27 @@ export function onWall(edge: Edge, along: number, { y = 0, out = 0 } = {}): Plac
     left: [-depth, -along],
   };
   return { at: at[edge], y, turn: WALL_TURN[edge], walls: [edge] };
+}
+
+/** An opening in a wall, along it from its middle: a doorway, or a window over its sill. */
+export interface EdgeOpening {
+  kind: "door" | "window";
+  centre: number;
+  width: number;
+  bottom: number;
+  top: number;
+}
+
+/** The openings in a tile's wall on one edge, along it: a door in the middle (the front door larger), and a window, beside the door where the wall has both. */
+export function edgeOpenings(tile: Pick<RoomTile, "doors" | "windows" | "frontDoor">, edge: Edge): EdgeOpening[] {
+  const result: EdgeOpening[] = [];
+  const door = tile.doors.includes(edge);
+  if (door) {
+    const front = tile.frontDoor === edge;
+    result.push({ kind: "door", centre: 0, width: front ? FRONT_DOOR_WIDTH : DOOR_WIDTH, bottom: 0, top: front ? FRONT_DOOR_HEIGHT : DOOR_HEIGHT });
+  }
+  if (tile.windows.includes(edge)) result.push({ kind: "window", centre: door ? 1.7 : 0, width: WINDOW_WIDTH, bottom: WINDOW_SILL, top: WINDOW_TOP });
+  return result.sort((a, b) => a.centre - b.centre);
 }
 
 export function wallTurn(edge: Edge): number {
