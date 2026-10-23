@@ -1,5 +1,5 @@
-import { CAT_PARTS } from "./animals/cat";
-import { DOG_PARTS } from "./animals/dog";
+import { CAT_PARTS } from "./companions/cat";
+import { DOG_PARTS } from "./companions/dog";
 import { FLASH_PARTS } from "./explorers/flash";
 import { JENNY_PARTS } from "./explorers/jenny";
 import { LONGFELLOW_PARTS } from "./explorers/longfellow";

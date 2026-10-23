@@ -83,9 +83,12 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   Zoe for a child, a sculpted skirt from a custom distance, and a doll that
   hangs from her hand; Father Rhinehardt for a floor-length robe. Read them
   all before the first part.
-- `animals/quadruped.ts`, `dog.ts`, `cat.ts`: the four-legged gait every
-  animal shares, and the Dog and the Cat built on it (see "Four-legged
-  figures").
+- `companions/`: the companions, the omens whose figures follow an explorer,
+  all in one list (`COMPANIONS`, in `index.ts`, which the figure viewer and
+  its line-up read): the Girl and the Madman, on two legs as the explorers
+  are, and the Dog and the Cat, on `quadruped.ts`, the four-legged gait every
+  animal shares (see "Four-legged figures"). `companionLineUp` stands each
+  person beside the explorers they must never be taken for.
 - `monsters/spider.ts`, `banshee.ts`, `base.ts`: the monsters, and what they
   share (`monsterBase`, `floorGlow`, `ghostly`, `spectral`, `MonsterOptions`).
 - `explorers/line-up.ts`: every explorer side by side with the scale pawn,
@@ -665,8 +668,8 @@ many separate figures, clustered round the one place the solver gives it.
 ## Four-legged figures
 
 An animal on four paws (the Dog, the Cat; wolves, rats and hellhounds next)
-is built on `animals/quadruped.ts`, the shared gait, never a gait of its
-own. Read it and `animals/dog.ts` before the first part.
+is built on `companions/quadruped.ts`, the shared gait, never a gait of its
+own. Read it and `companions/dog.ts` before the first part.
 
 **The body plan.** The figure's root carries the base and the **trunk**, a
 group at the middle of the back. The trunk carries two **halves** at its own
@@ -728,13 +731,14 @@ footprint), on a base of their own a little smaller than the footprint, in
 the explorers' pale rim, not a monster's dark one, unless the animal is a
 monster. Their heads are big, as every miniature's are.
 
-**Checks.** `animals/animals.test.ts` always runs: the draw budget, the pure
+**Checks.** `companions/animals.test.ts` always runs: the draw budget, the pure
 clock, the idle moving, and the clipping check through the idle, every
-gesture cued, walking and running. `animals/art.slow.test.ts` is opt-in with
+gesture cued, walking and running. `companions/animals.slow.test.ts` is opt-in with
 the explorers' art checks (`BETRAYAL_ART_CHECKS=1`): no jump walking or
 running as the house moves it, the base planted, and no fighting faces. A
-new animal joins both, the figure viewer's list, `BENCH_EXPLORERS`,
-`monsterLineUp` and `figure-mesh.worker.ts`.
+new animal joins both, `BENCH_EXPLORERS`, `monsterLineUp` and
+`figure-mesh.worker.ts`, and a companion joins `COMPANIONS` (which the figure
+viewer lists).
 
 **Lessons from the first two.** A deep, low body swallows the legs: keep the
 belly tucked up behind the ribs, or the stifle swings into it. Legs sharing

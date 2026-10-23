@@ -3,7 +3,6 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { readPad, subscribeGamepads, type PadSnapshot } from "@/shared/lib/gamepad";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import { CHARACTERS } from "../data/characters";
-import { cat, dog } from "./animals";
 import { animationOf, type Animation } from "./animate";
 import { BENCH_EXPLORERS } from "./explorers";
 import { CARD_PALETTE, figureFor, hasFigure } from "./explorers/by-character";
@@ -70,8 +69,6 @@ function viewerFigures(): ViewerFigure[] {
     { id: "pawn", name: "Scale pawn", kind: "pawn", character: null, build: () => () => pawn(), ring: null, speed: null },
     { id: "banshee", name: "The Banshee", kind: "monster", character: null, build: (stunned) => (seed, gait) => banshee(seed, gait, { stunned }), ring: null, speed: null },
     { id: "spider", name: "The Spider", kind: "monster", character: null, build: (stunned) => (seed, gait) => spider(seed, gait, { stunned }), ring: null, speed: null },
-    { id: "dog", name: "The Dog", kind: "companion", character: null, build: () => dog, ring: null, speed: null },
-    { id: "cat", name: "The Cat", kind: "companion", character: null, build: () => cat, ring: null, speed: null },
   ];
 }
 
@@ -607,7 +604,7 @@ export function createFigureViewer(search: string) {
     if (lineUp) {
       root = explorerLineUp("figures", state === "idle" ? undefined : (state as "walk" | "run"), holding === "none" ? undefined : holding, {
         speed: snapshot.stat ?? undefined,
-        also: COMPANIONS.map(({ build }) => build),
+        also: COMPANIONS,
         wearing,
       });
     } else {

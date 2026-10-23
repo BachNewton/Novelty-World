@@ -1,5 +1,4 @@
 import type * as THREE from "three";
-import { cat, dog } from "../animals";
 import { flash } from "../explorers/flash";
 import { jenny } from "../explorers/jenny";
 import { longfellow } from "../explorers/longfellow";
@@ -12,7 +11,7 @@ import { heather } from "../explorers/heather";
 import { zoe } from "../explorers/zoe";
 import { vivian } from "../explorers/vivian";
 import { zostra } from "../explorers/zostra";
-import { girl, madman } from "../companions";
+import { cat, dog, girl, madman } from "../companions";
 import { pawn } from "../kit/pawn";
 import { group } from "../shapes";
 import { banshee } from "./banshee";

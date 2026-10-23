@@ -1,5 +1,4 @@
 import { CHARACTERS } from "../../data/characters";
-import { cat, dog } from "../animals";
 import { pawn } from "../kit/pawn";
 import { banshee, monsterLineUp, spider } from "../monsters";
 import type { ExplorerBuilder } from "../stage";
@@ -18,7 +17,7 @@ import { TWIRLING, zoe } from "./zoe";
 import { vivian } from "./vivian";
 import { zostra } from "./zostra";
 import { onCourse } from "./cloth-trial";
-import { companionLineUp, girl, madman } from "../companions";
+import { cat, companionLineUp, dog, girl, madman } from "../companions";
 
 export interface BenchExplorer {
   id: string;
@@ -76,6 +75,8 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "girl", name: "The Girl", build: girl },
   { id: "girl-course", name: "The Girl walking and running a course", build: onCourse(girl) },
   { id: "madman", name: "The Madman", build: madman },
+  { id: "dog", name: "The Dog", build: dog },
+  { id: "cat", name: "The Cat", build: cat },
   { id: "companion-line-up", name: "The companions beside the explorers", build: (seed) => companionLineUp(seed) },
   { id: "companion-walk", name: "The companions beside the explorers, walking", build: (seed) => companionLineUp(seed, "walk") },
   { id: "companion-run", name: "The companions beside the explorers, running", build: (seed) => companionLineUp(seed, "run") },
@@ -90,9 +91,6 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "banshee-course", name: "The Banshee gliding a course", build: onCourse((seed, gait) => banshee(seed, gait)) },
   { id: "spider", name: "The Spider", build: (seed, gait) => spider(seed, gait) },
   { id: "spider-stunned", name: "The Spider, stunned", build: (seed, gait) => spider(seed, gait, { stunned: true }) },
-  // Companions stand where an explorer would, too.
-  { id: "dog", name: "The Dog", build: dog },
-  { id: "cat", name: "The Cat", build: cat },
   // A packed room, placed as the house places figures, to see how a crowd looks in practice.
   { id: "crowd-6", name: "A full table: six explorers", build: TABLE[0], crowd: TABLE.slice(1) },
   { id: "crowd-7", name: "Six explorers and the Banshee", build: TABLE[0], crowd: [...TABLE.slice(1), (seed, gait) => banshee(seed, gait)] },

@@ -69,14 +69,14 @@ function holdingIn(figure: THREE.Object3D, prop: Prop) {
  * them, each with its own step and bounce, each at their starting Speed, or
  * all at one `speed` value; `also` stands more figures after them, before the pawn (the companions), at the
  * house's own pace. With `holding`,
- * each holds an item model in the right hand; with `wearing`, each explorer wears those worn models. `sideOn` turns each to walk
+ * each with hands holds an item model in the right hand; with `wearing`, each explorer wears those worn models. `sideOn` turns each to walk
  * across the first view, to judge a gait in profile.
  */
 export function explorerLineUp(
   seed = "line-up",
   pace?: Pace,
   holding?: Holding,
-  { sideOn = false, speed, also = [], wearing = [] }: { sideOn?: boolean; speed?: number; also?: readonly ExplorerBuilder[]; wearing?: readonly WornId[] } = {},
+  { sideOn = false, speed, also = [], wearing = [] }: { sideOn?: boolean; speed?: number; also?: readonly { build: ExplorerBuilder; hands: boolean }[]; wearing?: readonly WornId[] } = {},
 ): THREE.Group {
   const figures = EXPLORERS.map((character, i) => {
     const card = CHARACTERS.find(({ id }) => id === character)?.card;
@@ -86,9 +86,9 @@ export function explorerLineUp(
     for (const worn of wearing) wear(figure, ITEM_MODELS[worn]);
     return figure;
   });
-  const others = also.map((build, i) => {
+  const others = also.map(({ build, hands }, i) => {
     const figure = onTheSpot(build, `${seed}:also:${i}`, pace);
-    if (holding) holdingIn(figure, ITEM_MODELS[holding === "each" ? EACH[(figures.length + i) % EACH.length] : holding].held());
+    if (holding && hands) holdingIn(figure, ITEM_MODELS[holding === "each" ? EACH[(figures.length + i) % EACH.length] : holding].held());
     return figure;
   });
   const row = [...figures, ...others, pawn()];
