@@ -5,6 +5,7 @@ import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { createGunzip } from "node:zlib";
 import { features, FEATURES } from "../bots/rule-v8/features";
+import { writeTeacherFeatures } from "./distill-features";
 import { positionBoard, positionBreakdown, type PositionRecord } from "./positions";
 
 /** `npm run risk:features` — turns recorded positions (`risk:record`) into rule-v8's training
@@ -23,7 +24,10 @@ import { positionBoard, positionBreakdown, type PositionRecord } from "./positio
  *  position: `x.f32` (the features, little-endian float32, row after row), `y.u8` (1 when the
  *  seat won), `game.i32` (the game's index), `rule.u8` (1 when a rule bot played the seat) and
  *  `turn.i32`, with `meta.json` saying how many rows and features, and `samples.jsonl`, a few
- *  held-out records whole with their row, for the trainer's golden values. */
+ *  held-out records whole with their row, for the trainer's golden values.
+ *
+ *  `--teacher` first turns a teacher recording into the distilled student's set instead
+ *  (`distill-features.ts`). */
 
 const POSITIONS = fileURLToPath(new URL("./positions/", import.meta.url));
 
@@ -105,4 +109,5 @@ async function main(): Promise<void> {
   console.log(`\n${rows.toString()} positions × ${FEATURES.toString()} features (${cappedAsLoss ? `${capped.toString()} from capped games, as no win` : `${skipped.toString()} from capped games left out`}) in ${seconds.toFixed(0)}s → ${out}`);
 }
 
-void main();
+const argv = process.argv.slice(2);
+void (argv[0] === "--teacher" ? writeTeacherFeatures(argv.slice(1)) : main());

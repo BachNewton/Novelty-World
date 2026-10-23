@@ -82,6 +82,8 @@ The same workflow records positions for fitting an evaluation (`risk:record`, `e
 gh run download <run id> --name risk-positions --dir src/projects/risk/eval/positions
 ```
 
+A teacher recording (`risk:record -- --teacher rule-v7 ...`, `eval/distill.ts`) runs the same way, with the same tool and its arguments typed after it.
+
 The positions are data, never committed: `eval/positions/` is ignored.
 
 ## The run's record
