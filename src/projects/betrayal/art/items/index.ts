@@ -1,4 +1,5 @@
 import type { FigureParts } from "../figure-parts";
+import { ADRENALINE_SHOT } from "./adrenaline-shot";
 import { AMULET_OF_THE_AGES } from "./amulet-of-the-ages";
 import { ANGEL_FEATHER } from "./angel-feather";
 import { ARMOR } from "./armor";
@@ -6,18 +7,28 @@ import { AXE } from "./axe";
 import { BELL } from "./bell";
 import { BLOOD_DAGGER } from "./blood-dagger";
 import { BOOK } from "./book";
+import { BOTTLE_MODEL } from "./bottle";
 import { CANDLE_MODEL } from "./candle";
 import { CRYSTAL_BALL } from "./crystal-ball";
+import { DARK_DICE } from "./dark-dice";
+import { DYNAMITE } from "./dynamite";
+import { HEALING_SALVE } from "./healing-salve";
 import { HOLY_SYMBOL } from "./holy-symbol";
 import { IDOL_MODEL } from "./idol";
 import type { HeldModel, ItemModel, WornModel } from "./item";
+import { LUCKY_STONE } from "./lucky-stone";
 import { MASK } from "./mask";
 import { MEDALLION } from "./medallion";
+import { MEDICAL_KIT } from "./medical-kit";
+import { MUSIC_BOX } from "./music-box";
 import { PICKPOKETS_GLOVES } from "./pickpokets-gloves";
+import { PUZZLE_BOX } from "./puzzle-box";
+import { RABBITS_FOOT } from "./rabbits-foot";
 import { REVOLVER } from "./revolver";
 import { RING } from "./ring";
 import { SACRIFICIAL_DAGGER } from "./sacrificial-dagger";
 import { SKULL } from "./skull";
+import { SMELLING_SALTS } from "./smelling-salts";
 import { SPEAR } from "./spear";
 import { SPIRIT_BOARD } from "./spirit-board";
 
@@ -27,6 +38,7 @@ import { SPIRIT_BOARD } from "./spirit-board";
  * one shows its type's stand-in on the floor (`things/looks.ts`).
  */
 export const ITEM_MODELS = {
+  "adrenaline-shot": ADRENALINE_SHOT,
   "amulet-of-the-ages": AMULET_OF_THE_AGES,
   "angel-feather": ANGEL_FEATHER,
   armor: ARMOR,
@@ -34,17 +46,27 @@ export const ITEM_MODELS = {
   bell: BELL,
   "blood-dagger": BLOOD_DAGGER,
   book: BOOK,
+  bottle: BOTTLE_MODEL,
   candle: CANDLE_MODEL,
   "crystal-ball": CRYSTAL_BALL,
+  "dark-dice": DARK_DICE,
+  dynamite: DYNAMITE,
+  "healing-salve": HEALING_SALVE,
   "holy-symbol": HOLY_SYMBOL,
   idol: IDOL_MODEL,
+  "lucky-stone": LUCKY_STONE,
   mask: MASK,
   medallion: MEDALLION,
+  "medical-kit": MEDICAL_KIT,
+  "music-box": MUSIC_BOX,
   "pickpokets-gloves": PICKPOKETS_GLOVES,
+  "puzzle-box": PUZZLE_BOX,
+  "rabbits-foot": RABBITS_FOOT,
   revolver: REVOLVER,
   ring: RING,
   "sacrificial-dagger": SACRIFICIAL_DAGGER,
   skull: SKULL,
+  "smelling-salts": SMELLING_SALTS,
   spear: SPEAR,
   "spirit-board": SPIRIT_BOARD,
 } as const satisfies Readonly<Record<string, ItemModel>>;
