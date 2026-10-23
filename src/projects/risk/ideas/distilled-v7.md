@@ -1,6 +1,6 @@
 # Distilling v7: v7's judgement at v6's cost (an idea, not built)
 
-This is a plan, not a bot. Nothing is built or measured; it says what would be built, why it should work where v8 didn't, and the cheap test that decides whether it's worth building.
+This is a plan, not a bot. The kill test's tooling is built (below); the student is not, and the test has had only a first partial read. The doc says what would be built, why it should work where v8 didn't, and the cheap test that decides whether it's worth building.
 
 ## The problem it answers
 
@@ -39,6 +39,14 @@ Recording the teacher is cheap next to a gauntlet: a v7 decision costs about 2.5
 3. **Regret:** v7's own score for the student's pick against v7's best, averaged. This is the number that matters: how much of v7's judgement the student keeps.
 
 Only if the student keeps most of v7's edge in regret does it get built as a bot and screened (5 players, one-in and one-out against v6 and against v7, the same as every bot). Screening it is cheap, because it plays at v6's speed.
+
+## Built: the kill test tooling
+
+- **The recorder** is a mode of `risk:record` (`--teacher rule-v7`, `eval/distill.ts`), on the same worker pool and Actions shards. v7 plays through the recorder's own copy of its control flow on rule-v7's exported pieces, so each search runs once and v7's code is untouched (its ladder records stay valid); tests hold it to v7's moves and its search's candidates, scores and pick. Each record is one search over more than one candidate: every candidate's placement, success chance, v6 value, success and failure boards with v6's breakdown of each, v7's mean score, every reply's own score, and v7's pick.
+- **The features step** is `risk:features -- --teacher`: a row per candidate, both boards through v8's feature function, grouped by decision.
+- **The trainer** is `bots/rule-v8/train/distill.py`: a candidate scorer reading each candidate's inputs and their difference from the decision's mean, trained with a listwise loss against v7's scores, held out by game. It reports the three numbers above, plus a split-half reading: v7's replies are noisy, so regret in v7's own scores counts the noise v7 chose on as edge. With every reply's score kept, v7 chooses on half the replies and every pick is scored on the other half, which no pick has seen.
+
+A first partial read (about 5,800 decisions, before per-reply scores were kept) found v7 overruling v6 in about 63% of decisions, near the 75% a random pick of four would give, with no student or baseline recovering any of v7's edge in v7's own scores. That points at label noise in an 8-reply mean as much as at the student; the split-half reading is what tells the two apart, and it hasn't run yet.
 
 ## If it works
 
