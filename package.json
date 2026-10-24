@@ -34,6 +34,7 @@
     "risk:verify": "tsx src/projects/risk/eval/verify-cli.ts",
     "risk:tune": "tsx src/projects/risk/eval/tune-cli.ts",
     "risk:review": "tsx src/projects/risk/eval/review-cli.ts",
+    "risk:trace": "tsx src/projects/risk/eval/trace-cli.ts",
     "risk:opponents": "tsx src/projects/risk/eval/opponent-model-cli.ts",
     "risk:shard": "tsx src/projects/risk/eval/shard-cli.ts",
     "risk:import": "tsx src/projects/risk/eval/import-cli.ts",
