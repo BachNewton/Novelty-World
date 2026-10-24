@@ -6,9 +6,11 @@ TypeScript's order. Labelled approximate: the TypeScript's scores are matched op
 operation, so only a choice the two would make differently in the last bit can differ.
 
 Each phase runs on the games in it alone, as its own batch (`Turn`): the board as GD reads it, the
-helper over it and the persona's scorer.
+helper over it and the persona's scorer. `gd_bot_graphable` is the same bot with no host sync, for
+a step captured as a CUDA graph: every phase runs on every game, each keeping its own.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -17,11 +19,12 @@ import torch
 from ..engine import BLITZ, END_ATTACK, END_TURN, FORTIFY, OCCUPY, PLACE, TRADE
 from ..options import KIND_ATTACK, KIND_FORTIFY, KIND_OCCUPY, KIND_REINFORCE
 from ..state import HAND_MAX
+from ..tables import BlitzTables
 from .gd_board import GDBoard
 from .gd_cards import best_card_match, bonus_territory_of
 from .gd_choice import apply_step_variance, draw, get_choice, iterative_array, random_range
 from .gd_helper import Helper
-from .gd_odds import odds_for
+from .gd_odds import FROUND_09, GraphableOdds, odds_for
 from .gd_persona import BaseScorer, DeployContext, StackerScorer
 from .gd_personas import PERSONAS, WEIGHTS
 
@@ -38,25 +41,40 @@ class Turn:
     hand: torch.Tensor  # [N, 12]: the seat's hand in its order, −1 past it
 
 
-def turn_of(d: "Decision", rows: torch.Tensor, persona: str, armies: torch.Tensor | None = None) -> Turn:
-    """`turnOf` for the games `rows`, on the board `armies` where given (the move-in's)."""
+@dataclass
+class Graphable:
+    """What a graphable call reads in place of the eager one's host work: the odds kept on the
+    device, and each game's stream for this decision `[B]`, supplied by the caller."""
+
+    odds: GraphableOdds
+    seed: torch.Tensor
+
+
+def turn_of(d: "Decision", rows: torch.Tensor | None, persona: str, armies: torch.Tensor | None = None,
+            graphable: Graphable | None = None) -> Turn:
+    """`turnOf` for the games `rows` (every game where None), on the board `armies` where given
+    (the move-in's)."""
     s, log = d.state, d.log
-    active = s.active[rows].to(torch.int64)
+    pick = (lambda x: x) if rows is None else (lambda x: x[rows])  # noqa: E731
+    active = pick(s.active).to(torch.int64)
     slots = torch.arange(HAND_MAX, device=s.device)[None, :]
-    hand_len = s.hand_len[rows].to(torch.int64)
-    hand = torch.where(slots < hand_len.gather(1, active[:, None]), s.hand[rows, active].to(torch.int64), -1)
+    hand_len = pick(s.hand_len).to(torch.int64)
+    held = pick(s.hand).gather(1, active[:, None, None].expand(-1, 1, HAND_MAX))[:, 0].to(torch.int64)
+    hand = torch.where(slots < hand_len.gather(1, active[:, None]), held, -1)
     board = GDBoard(
-        d.board, owner=s.owner[rows], armies=s.armies[rows] if armies is None else armies, active=active,
-        to_place=s.reinf_to_place[rows], hand_len=hand_len, eliminated=s.eliminated[rows],
-        turn_order=s.turn_order[rows], players=s.players[rows], first_round=s.round[rows] == 0,
+        d.board, owner=pick(s.owner), armies=pick(s.armies) if armies is None else armies, active=active,
+        to_place=pick(s.reinf_to_place), hand_len=hand_len, eliminated=pick(s.eliminated),
+        turn_order=pick(s.turn_order), players=pick(s.players), first_round=pick(s.round) == 0,
+        graphable=graphable is not None,
     )
     w = WEIGHTS[persona]
     helper = Helper(
-        board, odds_for(d.tables), hand=hand, humans=d.humans[rows], conquered_this_turn=log.captured[rows],
-        attacks_this_turn=log.attacks[rows], attack_success_threshold=w.attack_success_threshold,
+        board, odds_for(d.tables) if graphable is None else graphable.odds, hand=hand, humans=pick(d.humans),
+        conquered_this_turn=pick(log.captured), attacks_this_turn=pick(log.attacks),
+        attack_success_threshold=w.attack_success_threshold,
     )
-    seed = d.seed[rows]
-    deploy = DeployContext(to_place=board.to_place, placed_on=log.placed_on[rows], seed=seed)
+    seed = pick(d.seed if graphable is None else graphable.seed)
+    deploy = DeployContext(to_place=board.to_place, placed_on=pick(log.placed_on), seed=seed)
     scorer = StackerScorer(w, helper, deploy) if persona == "stacker" else BaseScorer(persona, w, helper, deploy)
     return Turn(board, helper, scorer, seed, hand)
 
@@ -85,11 +103,17 @@ def _own_or_first(board: GDBoard, candidates: torch.Tensor) -> torch.Tensor:
     return torch.where(candidates, board.all_territories(), first)
 
 
+def trading_now(d: "Decision", rows: torch.Tensor | None = None) -> torch.Tensor:
+    """Whether GD trades at this reinforcement (a trade is due, or it may and hasn't yet)."""
+    o, log, s = d.options, d.log, d.state
+    pick = (lambda x: x) if rows is None else (lambda x: x[rows])  # noqa: E731
+    hand_len = pick(s.hand_len).gather(1, pick(s.active).to(torch.int64)[:, None])[:, 0]
+    return pick(o.must_trade) | (pick(o.sets).any(-1) & (hand_len >= 3) & (pick(log.traded) == 0))
+
+
 def reinforce(d: "Decision", rows: torch.Tensor, persona: str) -> torch.Tensor:
     """`ClassicAIDeploy.ExecuteAction`: a trade when one is due, otherwise one chunk of armies."""
-    o, log = d.options, d.log
-    hand_len = (d.state.hand_len[rows].gather(1, d.state.active[rows].to(torch.int64)[:, None]))[:, 0]
-    trading = o.must_trade[rows] | (o.sets[rows].any(-1) & (hand_len >= 3) & (log.traded[rows] == 0))
+    trading = trading_now(d, rows)
     moves = torch.zeros(len(rows), 5, dtype=torch.int64, device=rows.device)
     if bool(trading.any()):
         moves[trading] = trade(turn_of(d, rows[trading], persona))
@@ -122,13 +146,13 @@ def place(turn: Turn) -> torch.Tensor:
     return _move(PLACE, torch.where(found, country, fallback), amount, n=n, device=seed.device)
 
 
-def trade(turn: Turn) -> torch.Tensor:
+def trade(turn: Turn, check: bool = True) -> torch.Tensor:
     board = turn.board
     b = board.board
     territory = b.card_territory[turn.hand.clamp(min=0)]
     owned = (turn.hand >= 0) & (territory >= 0) & (board.owners.gather(1, territory.clamp(min=0)) == board.active[:, None])
     cards, has_set = best_card_match(turn.hand, owned, b)
-    if not bool(has_set.all()):
+    if check and not bool(has_set.all()):
         raise RuntimeError(f"GD's AI found no set in a hand: {turn.hand[~has_set][0].tolist()}")
     bonus = bonus_territory_of(cards, board.active, board.owners, b)
     return _move(TRADE, cards[:, 0], cards[:, 1], cards[:, 2], bonus, n=board.batch, device=cards.device)
@@ -149,24 +173,27 @@ def attack(turn: Turn) -> torch.Tensor:
     return torch.where((has_source & has_target)[:, None], blitz, end)
 
 
-def occupy(d: "Decision", rows: torch.Tensor, persona: str) -> torch.Tensor:
+def occupy(d: "Decision", rows: torch.Tensor | None, persona: str, graphable: Graphable | None = None) -> torch.Tensor:
     """The move-in after a capture, asked on the board as GD has it: every surviving attacker
     still in the source and none yet in the captured territory."""
-    frm = d.options.occ_from[rows]
-    to = d.options.occ_to[rows]
-    armies = d.state.armies[rows].to(torch.int64)
-    n = torch.arange(len(rows), device=rows.device)
-    u = armies[n, frm] + armies[n, to]
-    armies[n, frm] = u
-    armies[n, to] = 0
-    turn = turn_of(d, rows, persona, armies)
+    pick = (lambda x: x) if rows is None else (lambda x: x[rows])  # noqa: E731
+    # Every game where `rows` is None: those with no move-in pending ask about territory 0.
+    frm = pick(d.options.occ_from).clamp(min=0)
+    to = pick(d.options.occ_to).clamp(min=0)
+    armies = pick(d.state.armies).to(torch.int64, copy=True)
+    u = armies.gather(1, frm[:, None]) + armies.gather(1, to[:, None])
+    # Scattered, not assigned by index: assigning a number syncs with the host.
+    armies.scatter_(1, frm[:, None], u)
+    armies.scatter_(1, to[:, None], 0)
+    u = u[:, 0]
+    turn = turn_of(d, rows, persona, armies, graphable)
     low = torch.clamp(u - 1, max=3)
     high = torch.maximum(low, u - 1)
     amounts, listed, variance = iterative_array(low, high)
     column, found = get_choice(turn.scorer.attack_move_units_amount(low, high, frm, to, amounts), listed)
     chosen = torch.where(found, amounts.gather(1, column[:, None])[:, 0], 0)
     c, _ = apply_step_variance(chosen, low, high, variance, turn.seed, torch.zeros_like(low))
-    return _move(OCCUPY, torch.where((c < low) | (c > high), high, c), n=len(rows), device=rows.device)
+    return _move(OCCUPY, torch.where((c < low) | (c > high), high, c), n=armies.shape[0], device=armies.device)
 
 
 def fortify(turn: Turn) -> torch.Tensor:
@@ -233,3 +260,42 @@ def gd_bot(persona: str) -> "Bot":
 
 
 GD_BOTS: dict[str, "Bot"] = {f"gd-{persona}": gd_bot(persona) for persona in PERSONAS}
+
+GraphableBot = Callable[["Decision", torch.Tensor, torch.Tensor], torch.Tensor]
+
+
+def _play_graphable(d: "Decision", persona: str, graphable: Graphable) -> torch.Tensor:
+    """Every kind's move for every game, each game then taking its own kind's: no game is picked
+    out on the host."""
+    turn = turn_of(d, None, persona, graphable=graphable)
+    reinforcing = torch.where(trading_now(d)[:, None], trade(turn, check=False), place(turn))
+    kind = d.options.kind.to(torch.int64)[:, None]
+    return torch.where(kind == KIND_REINFORCE, reinforcing,
+                       torch.where(kind == KIND_ATTACK, attack(turn),
+                                   torch.where(kind == KIND_OCCUPY, occupy(d, None, persona, graphable), fortify(turn))))
+
+
+def gd_bot_graphable(persona: str, tables: BlitzTables) -> GraphableBot:
+    """GD-lite for one persona with no host sync and no host-to-device copy, so a call can be
+    captured in a CUDA graph: `bot(d, mask, seed)`, `seed [B]` int64 each game's stream for this
+    decision on the device (the caller's; `Decision.seed` gives the exact one, hashed on the host).
+
+    It plays every decision kind for every game and keeps each game's own, walks a fixed 42 steps
+    where the eager bot stops at the longest walk, and reads the odds from `GraphableOdds`. Where
+    every fight it weighs fits the table and the seed is the exact one, its move is the eager
+    bot's; past the table the odds are approximate. Like the eager bot it reads `d.log` (a
+    subset's `TurnLog.select`) and every row's move is worked out, the mask's or not."""
+    assert persona in PERSONAS, persona
+    required = {min(1.0, max(0.0, float(WEIGHTS[p].attack_success_threshold))) for p in PERSONAS}
+    odds = GraphableOdds(tables, (FROUND_09, *sorted(required)))
+
+    def bot(d: "Decision", mask: torch.Tensor, seed: torch.Tensor) -> torch.Tensor:
+        assert d.tables is tables, "a graphable GD bot plays on the tables it was built for"
+        graphable = Graphable(odds, seed)
+        if persona != "stacker":
+            return _play_graphable(d, persona, graphable).to(torch.int32)
+        swapped = d.log.stacker_swapped.gather(1, d.state.active.to(torch.int64)[:, None])
+        moves = torch.where(swapped, _play_graphable(d, "aggressive", graphable), _play_graphable(d, "stacker", graphable))
+        return moves.to(torch.int32)
+
+    return bot

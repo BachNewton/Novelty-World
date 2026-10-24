@@ -5,7 +5,8 @@ the fight fits them (the tables' capture chance is `balancedFight(a, d).defender
 found by GD's own doubling-then-halving search over the same odds.
 
 Both caches live as long as the process, per table: the odds are pure functions of their
-arguments.
+arguments. `GraphableOdds` is the same odds with nothing on the host, for a call captured in a
+CUDA graph: exact inside the table, approximate past it.
 """
 
 import numpy as np
@@ -115,6 +116,42 @@ class Odds:
             self._ideal[threshold] = known
             self._ideal_t[threshold] = torch.tensor(known, device=defend.device)
         return self._ideal_t[threshold].to(defend.device)[defend.clamp(min=0)]
+
+
+class GraphableOdds(Odds):
+    """The odds with no host sync and no host-to-device copy, for a step captured as a CUDA graph.
+
+    Inside the table both are exactly `Odds`'s: `winChance` is the table's cell, and
+    `idealAttackUnits` for every defence up to the table's bound is worked out at construction by
+    the exact search (for each threshold the caller will ask about) and kept on the device. Past
+    the bound both are approximate: a fight is read from its cell scaled down into the table (both
+    sides by the same factor, rounded, as `tables._resolve_scaled` scales a blitz), and the ideal
+    attack scales the bound's in proportion to the defence."""
+
+    def __init__(self, tables: BlitzTables, thresholds: tuple[float, ...]):
+        super().__init__(tables)
+        exact = odds_for(tables)
+        every = torch.arange(self.bound + 1, dtype=torch.int64)
+        self._ideal_t = {th: exact.ideal_attack_units(every, th).to(tables.capture.device) for th in thresholds}
+
+    def win_chance(self, attack: torch.Tensor, defend: torch.Tensor) -> torch.Tensor:
+        attack, defend = torch.broadcast_tensors(attack, defend)
+        bound = self.bound
+        most = torch.maximum(attack, defend).clamp(min=1)
+        past = most > bound
+        scaled_a = ((attack * bound + most // 2) // most).clamp(1, bound)
+        scaled_d = ((defend * bound + most // 2) // most).clamp(1, bound)
+        a = torch.where(past, scaled_a, attack.clamp(0, bound))
+        d = torch.where(past, scaled_d, defend.clamp(0, bound))
+        return torch.where(attack > 0, self.tables.capture[a * (bound + 1) + d], 0.0)
+
+    def ideal_attack_units(self, defend: torch.Tensor, threshold: float = FROUND_09) -> torch.Tensor:
+        known = self._ideal_t[threshold]
+        bound = self.bound
+        inside = known[defend.clamp(0, bound)]
+        at_bound = known[bound]
+        scaled = torch.clamp((at_bound * defend + bound // 2) // bound, max=blitz_port.INT_MAX)
+        return torch.where(defend > bound, scaled, inside)
 
 
 _ODDS: dict[int, Odds] = {}

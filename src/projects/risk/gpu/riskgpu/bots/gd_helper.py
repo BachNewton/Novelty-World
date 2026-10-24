@@ -115,7 +115,7 @@ class Helper:
         owns = self.board.owner_owns_continent(t)
         x = self.battle_success(s, t, owns) * 0.4
         bonus = b.continent_bonus.to(torch.int64)[b.continent_of[t]]
-        r = torch.trunc(div(bonus, int(b.continent_bonus.max()))) * 0.4
+        r = torch.trunc(bonus.to(torch.float64) / b.continent_bonus.max().to(torch.float64)) * 0.4
         x = x + 0.2
         x = x + r
         return torch.where(owns, clamp01(x), 0.0)

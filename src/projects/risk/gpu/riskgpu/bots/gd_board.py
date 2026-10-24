@@ -19,7 +19,7 @@ class GDBoard:
     def __init__(
         self, board: Board, *, owner: torch.Tensor, armies: torch.Tensor, active: torch.Tensor, to_place: torch.Tensor,
         hand_len: torch.Tensor, eliminated: torch.Tensor, turn_order: torch.Tensor, players: torch.Tensor,
-        first_round: torch.Tensor,
+        first_round: torch.Tensor, graphable: bool = False,
     ):
         self.board = board
         self.owners = owner.to(torch.int64)  # [B, 42]
@@ -33,6 +33,7 @@ class GDBoard:
         self.first_round = first_round  # [B]: GD's `currentRound == 0`
         self.batch = owner.shape[0]
         self.device = owner.device
+        self.graphable = graphable  # no host sync: `connected` walks a fixed 42 steps
 
     # --- reading the board at territories and seats ---------------------------------------------
 
@@ -102,18 +103,33 @@ class GDBoard:
         seen.scatter_(2, t[..., None], True)
         count = torch.ones(batch, sources, dtype=torch.int64, device=self.device)
         owners = self.owners[:, None, :].expand(-1, sources, -1)
-        # A walk finds at most every territory its owner holds.
-        longest = int((self.owners[:, :, None] == torch.arange(MAX_SEATS, device=self.device)).sum(1).max())
-        for i in range(longest):
-            walking = i < count
-            at = found[:, :, i].clamp(min=0)
-            for slot in range(MAX_NEIGHBOURS):
-                n = self.board.gd_links[at, slot]
+        if self.graphable:
+            # Each territory found adds all its owner's unfound neighbours at once, ranked in link
+            # order: the same walk, since a territory's neighbours are distinct, so adding one never
+            # changes whether the next is added. Entries that add nothing write past the board.
+            for i in range(TERRITORIES):
+                at = found[:, :, i].clamp(min=0)
+                n = self.board.gd_links[at]  # [B, S, 6]
                 nc = n.clamp(min=0)
-                adds = walking & (n >= 0) & (owners.gather(2, nc[..., None])[..., 0] == owner) & ~seen.gather(2, nc[..., None])[..., 0]
-                found.scatter_(2, torch.where(adds, count, TERRITORIES)[..., None], nc[..., None])
-                seen.scatter_(2, torch.where(adds, nc, TERRITORIES)[..., None], True)
-                count = count + adds.to(torch.int64)
+                adds = ((i < count)[..., None] & (n >= 0) & (owners.gather(2, nc) == owner[..., None])
+                        & ~seen.gather(2, nc))
+                rank = adds.cumsum(-1) - 1
+                found.scatter_(2, torch.where(adds, count[..., None] + rank, TERRITORIES), nc)
+                seen.scatter_(2, torch.where(adds, nc, TERRITORIES), True)
+                count = count + adds.sum(-1)
+        else:
+            # A walk finds at most every territory its owner holds.
+            longest = int((self.owners[:, :, None] == torch.arange(MAX_SEATS, device=self.device)).sum(1).max())
+            for i in range(longest):
+                walking = i < count
+                at = found[:, :, i].clamp(min=0)
+                for slot in range(MAX_NEIGHBOURS):
+                    n = self.board.gd_links[at, slot]
+                    nc = n.clamp(min=0)
+                    adds = walking & (n >= 0) & (owners.gather(2, nc[..., None])[..., 0] == owner) & ~seen.gather(2, nc[..., None])[..., 0]
+                    found.scatter_(2, torch.where(adds, count, TERRITORIES)[..., None], nc[..., None])
+                    seen.scatter_(2, torch.where(adds, nc, TERRITORIES)[..., None], True)
+                    count = count + adds.to(torch.int64)
         found[:, :, TERRITORIES] = -1
         member = seen[:, :, :TERRITORIES].clone()
         member.scatter_(2, t[..., None], False)

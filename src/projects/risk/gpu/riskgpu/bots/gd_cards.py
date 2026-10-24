@@ -27,7 +27,12 @@ def _first(found: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 def _pattern(x: int, y: int, z: int, like: torch.Tensor) -> torch.Tensor:
-    return torch.tensor([x, y, z], dtype=torch.int64, device=like.device).expand(like.shape[0], 3)
+    """The kinds (x, y, z) for every row `[B, 3]`, filled on the device: a `torch.tensor` of them
+    would be a host-to-device copy, which a CUDA graph can't hold."""
+    pattern = torch.empty(like.shape[0], 3, dtype=torch.int64, device=like.device)
+    for column, kind in enumerate((x, y, z)):
+        pattern[:, column] = kind
+    return pattern
 
 
 def best_card_match(hand: torch.Tensor, owned: torch.Tensor, board: Board) -> tuple[torch.Tensor, torch.Tensor]:

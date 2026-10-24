@@ -13,7 +13,7 @@ The bots' random stream is the harness's: `bots|<seed>` hashed, in base 36, then
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from functools import cached_property
 
 import platform
@@ -53,6 +53,11 @@ class TurnLog:
 
         return TurnLog(zeros(), zeros(), zeros(TERRITORIES, dtype=torch.bool), zeros(),
                        zeros(MAX_SEATS, dtype=torch.bool))
+
+    def select(self, index: torch.Tensor | slice | list[int]) -> "TurnLog":
+        """The games picked by a boolean mask, indices or a slice, as a new log (as `State.select`):
+        a bot asked about a subset of the batch reads that subset's turn so far."""
+        return TurnLog(*(getattr(self, f.name)[index] for f in fields(TurnLog)))
 
     def update(self, before: State, after: State, moves: torch.Tensor, moved: torch.Tensor) -> None:
         """Adds the step from `before` to `after` (the `moves [B, 5]` of the games in `moved`), then

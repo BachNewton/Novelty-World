@@ -4,7 +4,7 @@ Every kind is computed for every game and masked by its phase, so a step never b
 data. `options_bytes` in `canonical.py` reads only the fields of each game's own kind.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from itertools import combinations
 
 import torch
@@ -56,6 +56,10 @@ class Options:
     occ_max: torch.Tensor  # [B] int32
     # fortify
     fortify_max: torch.Tensor  # [B, 42, 42] int32 by [from, to]
+
+    def select(self, index: torch.Tensor | slice | list[int]) -> "Options":
+        """The games picked by a boolean mask, indices or a slice (as `State.select`)."""
+        return Options(**{f.name: getattr(self, f.name)[index] for f in fields(Options)})
 
 
 def active_hand(s: State) -> tuple[torch.Tensor, torch.Tensor]:
