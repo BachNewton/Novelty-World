@@ -89,3 +89,9 @@ __pycache__/
 
 # Risk native port: Cargo build output (src/projects/risk/native/)
 **/native/target/
+
+# Risk GPU engine: the large blitz tables are regenerated locally (`npm run risk:gpu-tables`), only
+# the small bound is committed; GPU runs' outputs stay local
+/src/projects/risk/gpu/data/blitz-*
+!/src/projects/risk/gpu/data/blitz-32*
+/src/projects/risk/gpu/runs/
