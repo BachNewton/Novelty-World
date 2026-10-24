@@ -1,11 +1,11 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import { BoxGeometry, type BufferGeometry, Color, ConeGeometry, CylinderGeometry, type Group, MeshLambertMaterial, SphereGeometry } from "three";
+import { BoxGeometry, type BufferGeometry, Color, ConeGeometry, CylinderGeometry, type Group, SphereGeometry } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { paint, type Piece } from "../../art/painted";
-import { shadeLambert } from "../../art/shading";
+import { diorama, type DioramaMaterial } from "../../art/materials";
 import { BIRD_SIZE, PLUMAGE, type Plumage, type Songbird } from "../../birds/bird";
 import type { BirdPose } from "../../birds/motion";
 
@@ -83,12 +83,12 @@ function birdShapes(species: Songbird): BirdShapes {
   return known;
 }
 
-const materials = new WeakMap<AtmosphereUniforms, MeshLambertMaterial>();
+const materials = new WeakMap<AtmosphereUniforms, DioramaMaterial>();
 /** The birds' one material, in the world's air: their colours are in their vertices. */
-function birdMaterial(atmosphere: AtmosphereUniforms): MeshLambertMaterial {
+function birdMaterial(atmosphere: AtmosphereUniforms): DioramaMaterial {
   let known = materials.get(atmosphere);
   if (!known) {
-    known = shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere);
+    known = diorama("solid", atmosphere, { vertexColors: true });
     materials.set(atmosphere, known);
   }
   return known;

@@ -8,7 +8,6 @@ import { SQUIRREL_GAITS, squirrelPose, type SquirrelActivity } from "../../squir
 import { rigOf } from "../../squirrels/rig";
 import { AnimalBody, type AnimalProps, type MotionClock } from "../animals/animal-body";
 import { useAnimalGeometry } from "../animals/animal-geometry";
-import { coatSeasonFor } from "../animals/coat-season";
 import { squirrelCoatMaterial } from "./squirrel-coat";
 
 /*
@@ -30,7 +29,7 @@ export function SquirrelBody({ squirrel, atmosphere, coatSeason, activity = "sta
   const rig = useMemo(() => rigOf(squirrel.build), [squirrel.build]);
   const seed = useMemo(() => motionSeed(squirrel.seed), [squirrel.seed]);
   const winter = coatSeason?.winter;
-  const coat = useCallback(() => squirrelCoatMaterial(squirrelCoatLook(squirrel.coat), coatSeasonFor(winter === undefined ? undefined : { winter, white: 0 }), atmosphere), [squirrel.coat, winter, atmosphere]);
+  const coat = useCallback(() => squirrelCoatMaterial(squirrelCoatLook(squirrel.coat), winter, atmosphere), [squirrel.coat, winter, atmosphere]);
   const pose = useCallback((clock: MotionClock<SquirrelActivity>) => squirrelPose({ ...clock, personality: squirrel.personality, rig, seed }), [squirrel.personality, rig, seed]);
   if (!geometry) return null;
   return (

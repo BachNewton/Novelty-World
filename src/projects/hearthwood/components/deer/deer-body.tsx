@@ -8,7 +8,6 @@ import { DEER_GAITS, deerPose, type DeerActivity } from "../../deer/motion";
 import { rigOf } from "../../deer/rig";
 import { AnimalBody, type AnimalProps, type MotionClock } from "../animals/animal-body";
 import { useAnimalGeometry } from "../animals/animal-geometry";
-import { coatSeasonFor } from "../animals/coat-season";
 import { deerCoatMaterial } from "./deer-coat";
 
 /*
@@ -29,7 +28,7 @@ export function DeerBody({ deer, atmosphere, coatSeason, activity = "stand", ...
   const rig = useMemo(() => rigOf(deer.build), [deer.build]);
   const seed = useMemo(() => motionSeed(deer.seed), [deer.seed]);
   const winter = coatSeason?.winter;
-  const coat = useCallback(() => deerCoatMaterial(deerCoatLook(deer.coat), coatSeasonFor(winter === undefined ? undefined : { winter, white: 0 }), atmosphere), [deer.coat, winter, atmosphere]);
+  const coat = useCallback(() => deerCoatMaterial(deerCoatLook(deer.coat), winter, atmosphere), [deer.coat, winter, atmosphere]);
   const pose = useCallback((clock: MotionClock<DeerActivity>) => deerPose({ ...clock, personality: deer.personality, rig, seed }), [deer.personality, rig, seed]);
   if (!geometry) return null;
   return (

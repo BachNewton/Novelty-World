@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
+import { diorama } from "../../art/materials";
 import { generateCat } from "../../cats/cat";
 import { coatName } from "../../cats/genetics";
 import type { Activity as CatActivity } from "../../cats/motion";
@@ -73,12 +74,12 @@ export interface Shown {
 }
 
 /** A plain trunk for a climbing squirrel to cling to, its near face at z = 0. */
-function PreviewTrunk({ radius }: { radius: number }) {
-  const bark = useMemo(() => themeColor("--color-hearthwood-valley-pine-bark"), []);
+function PreviewTrunk({ radius, atmosphere }: { radius: number; atmosphere: AtmosphereUniforms }) {
+  const bark = useMemo(() => diorama("solid", atmosphere, { color: themeColor("--color-hearthwood-valley-pine-bark").getHex() }), [atmosphere]);
+  useEffect(() => () => bark.dispose(), [bark]);
   return (
-    <mesh position={[0, 0.7, radius]}>
+    <mesh position={[0, 0.7, radius]} material={bark} castShadow receiveShadow>
       <cylinderGeometry args={[radius * 0.85, radius, 1.4, 14]} />
-      <meshStandardMaterial color={bark} roughness={0.95} />
     </mesh>
   );
 }
@@ -221,7 +222,7 @@ export function shownSquirrel(seed: string, winter = 0): Shown {
       ask.activity === "climb" || ask.activity === "cling" ? (
         // Turned so the trunk stands behind it, as the camera looks.
         <group position={ask.position} rotation={[0, (ask.rotation ?? 0) + Math.PI, 0]}>
-          <PreviewTrunk radius={0.09} />
+          <PreviewTrunk radius={0.09} atmosphere={ask.atmosphere} />
           {/* Stood on the bark: its front turned up the trunk, its belly to it. */}
           <group position={[0, 0.14, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <SquirrelBody squirrel={squirrel} coatSeason={{ winter, white: 0 }} activity={ask.activity} greeting={ask.greeting} clock={ask.clock} speed={ask.speed} atmosphere={ask.atmosphere} />

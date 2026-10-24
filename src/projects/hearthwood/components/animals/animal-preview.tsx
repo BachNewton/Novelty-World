@@ -13,7 +13,7 @@ import { makeAtmosphere } from "../../art/atmosphere";
 import { Daylight } from "../../art/light/daylight";
 import { readPalette } from "../../art/palette";
 import { FrameCosts } from "../../art/frame";
-import { shadeLambert } from "../../art/shading";
+import { diorama } from "../../art/materials";
 import { makeSkyUniforms, Sky } from "../../art/sky/sky";
 import { parseDate } from "../../engine/calendar";
 import { makeClock } from "../valley/clock";
@@ -133,7 +133,7 @@ function previewClock(): PreviewClock {
 function PreviewStage() {
   const stage = useMemo(() => {
     const palette = readPalette();
-    const ground = (token: string) => shadeLambert(new THREE.MeshLambertMaterial({ color: themeColor(token) }), "ground", PREVIEW_AIR);
+    const ground = (token: string) => diorama("ground", PREVIEW_AIR, { color: themeColor(token).getHex() });
     return {
       palette,
       sky: makeSkyUniforms(palette),

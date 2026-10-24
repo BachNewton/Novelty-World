@@ -54,7 +54,7 @@ import { generateDeer } from "../../deer/deer";
 import { DeerBody } from "../deer/deer-body";
 import { SONGBIRDS } from "../../birds/bird";
 import { PosedBird } from "../birds/posed-bird";
-import { Butterflies, BUTTERFLY_KINDS, type ButterflyDay } from "../../art/butterflies";
+import { Butterflies, BUTTERFLY_KINDS, makeButterflyDay, type ButterflyDay } from "../../art/butterflies";
 import { useFeature } from "../valley/feature-renderer";
 import { dishName } from "../valley/cooking-icons";
 import { brewName } from "../valley/brewing-icons";
@@ -412,7 +412,7 @@ const CATS: { seed: string; activity: Activity }[] = [
 const SUMMER = { winter: 0, white: 0 };
 const WINTER = { winter: 1, white: 1 };
 /** Butterflies always on the wing in the gallery, one of each kind over a patch. */
-const GALLERY_BUTTERFLIES: ButterflyDay = { uAbout: { value: 1 } };
+const GALLERY_BUTTERFLIES: ButterflyDay = makeButterflyDay(1);
 const BUTTERFLY_SPOTS = BUTTERFLY_KINDS.map((_, kind) => ({ x: 0, y: 0, z: 0, seed: 0.15 + kind * 0.2, kind }));
 
 /** The forest's animals, each in a pose that shows it best. */

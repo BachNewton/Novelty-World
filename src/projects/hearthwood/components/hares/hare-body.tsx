@@ -8,7 +8,6 @@ import { HARE_GAITS, harePose, type HareActivity } from "../../hares/motion";
 import { rigOf } from "../../hares/rig";
 import { AnimalBody, type AnimalProps, type MotionClock } from "../animals/animal-body";
 import { useAnimalGeometry } from "../animals/animal-geometry";
-import { coatSeasonFor } from "../animals/coat-season";
 import { hareCoatMaterial } from "./hare-coat";
 
 /*
@@ -28,7 +27,7 @@ export function HareBody({ hare, atmosphere, coatSeason, activity = "stand", ...
   const rig = useMemo(() => rigOf(hare.build), [hare.build]);
   const seed = useMemo(() => motionSeed(hare.seed), [hare.seed]);
   const white = coatSeason?.white;
-  const coat = useCallback(() => hareCoatMaterial(hareCoatLook(hare.coat), coatSeasonFor(white === undefined ? undefined : { winter: 0, white }), atmosphere), [hare.coat, white, atmosphere]);
+  const coat = useCallback(() => hareCoatMaterial(hareCoatLook(hare.coat), white, atmosphere), [hare.coat, white, atmosphere]);
   const pose = useCallback((clock: MotionClock<HareActivity>) => harePose({ ...clock, personality: hare.personality, rig, seed }), [hare.personality, rig, seed]);
   if (!geometry) return null;
   return (

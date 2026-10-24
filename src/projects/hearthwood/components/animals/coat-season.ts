@@ -1,22 +1,26 @@
-import type { IUniform } from "three";
+import { uniform } from "three/tsl";
+import type { UniformNode } from "three/webgpu";
 
 /*
- * The season every wild animal's coat answers to, as uniforms all their
- * materials share: how far into its winter coat a squirrel or a deer is
- * (greyer, fuller), and how white a mountain hare has turned. The scene
- * sets them each frame from the date (`coatSeason` in `engine/wildlife.ts`);
- * an animal shown in a coat of its own (the preview's winter hare) is given
- * uniforms of its own instead.
+ * The season every wild animal's coat answers to: how far into its winter
+ * coat a squirrel or a deer is (greyer, fuller), and how white a mountain
+ * hare has turned. The scene sets these each frame from the date
+ * (`coatSeason` in `engine/wildlife.ts`); every such coat reads them. An
+ * animal shown in a coat of its own (the preview's winter hare) holds its
+ * season on its own material instead (`held`), in the same graph.
  */
 
 export interface CoatSeasonUniforms {
-  uWinter: IUniform<number>;
-  uWhite: IUniform<number>;
+  uWinter: UniformNode<"float", number>;
+  uWhite: UniformNode<"float", number>;
 }
 
-export const COAT_SEASON: CoatSeasonUniforms = { uWinter: { value: 0 }, uWhite: { value: 0 } };
+export const COAT_SEASON: CoatSeasonUniforms = { uWinter: uniform(0), uWhite: uniform(0) };
 
-/** The season's shared uniforms, or a coat of its own held at a season. */
-export function coatSeasonFor(held: { winter: number; white: number } | undefined): CoatSeasonUniforms {
-  return held ? { uWinter: { value: held.winter }, uWhite: { value: held.white } } : COAT_SEASON;
+/** No season held: the coat follows the year's. */
+export const FOLLOW_SEASON = -1;
+
+/** A coat's held season value, or the year's where it holds none. */
+export function heldOr(held: number | undefined): number {
+  return held ?? FOLLOW_SEASON;
 }

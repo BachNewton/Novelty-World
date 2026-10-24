@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, MeshLambertMaterial } from "three";
+import { BufferAttribute, BufferGeometry, DoubleSide } from "three";
+import { abs, atan, attribute, cos, Discard, float, Fn, fract, If, length, min, mix, sign, sin, smoothstep, step, uniform, vec2, vec3 } from "three/tsl";
+import type { Node, UniformNode } from "three/webgpu";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { AtmosphereUniforms } from "./atmosphere";
-import { shadeLambert } from "./shading";
+import { diorama, type DioramaMaterial } from "./materials";
+import { typed } from "./tsl";
 
 /*
  * Butterflies dancing over the flowers, each two wing quads drawn on the
  * shared solid material: their flight (a wandering loop over their patch of
  * flowers, now and then settling on it to bask, wings slowly opening and
- * closing) and their wingbeat are worked out in the vertex shader from the
- * clock, and the wings' shapes and patterns in the fragment's, by kind: the
+ * closing) and their wingbeat are placed in the vertex stage from
+ * the clock, and the wings' shapes and patterns in their surface, by kind: the
  * brimstone's sulphur yellow, the small tortoiseshell's orange with its
  * black and yellow front edge and blue-spotted border, the peacock's red
  * with its eyespots, and the common blue's blue edged with white. How many
@@ -33,91 +36,93 @@ export interface ButterflySpot {
 /** Half the wingspan, in metres: a little larger than life, as the small forage is. */
 const SPAN = 0.07;
 
-const VERTEX_HEAD = /* glsl */ `
-attribute vec3 aSpot;
-attribute float aSeed;
-attribute float aKind;
-attribute vec2 aWing;
-uniform float uAbout;
-varying vec2 vWing;
-varying float vKind;
-`;
+const aSpot = typed<"vec3">(attribute("aSpot", "vec3"));
+const aSeed = typed<"float">(attribute("aSeed", "float"));
+const aKind = typed<"float">(attribute("aKind", "float"));
+const aWing = typed<"vec2">(attribute("aWing", "vec2"));
 
-// Every butterfly's path from its seed: a slow loop over its flowers with a bob of its own, settling on them now and then.
-const VERTEX = /* glsl */ `
-  vWing = aWing;
-  vKind = aKind;
-  float t = uHwTime + aSeed * 97.0;
-  float cycle = fract(uHwTime * 0.045 + aSeed * 3.7);
-  float landed = smoothstep(0.72, 0.78, cycle) * (1.0 - smoothstep(0.94, 0.99, cycle));
-  vec3 fly = vec3(sin(t * 0.43 + aSeed * 6.0) * 1.6 + sin(t * 1.1) * 0.3, 0.45 + 0.25 * sin(t * 0.9 + aSeed * 4.0) + 0.07 * sin(t * 6.3), cos(t * 0.31 + aSeed * 3.0) * 1.6 + cos(t * 0.97) * 0.3);
-  vec3 velocity = vec3(cos(t * 0.43 + aSeed * 6.0) * 0.69 + cos(t * 1.1) * 0.33, 0.0, -sin(t * 0.31 + aSeed * 3.0) * 0.5 - sin(t * 0.97) * 0.29);
-  vec3 rest = vec3(0.0, 0.26, 0.0);
-  vec3 centre = aSpot + mix(fly, rest, landed);
-  float beat = mix(sin(t * 17.0) * 0.85 + 0.1, 0.55 + 0.55 * sin(t * 1.4), landed);
-  float side = sign(aWing.x);
-  float reach = abs(aWing.x) * ${SPAN.toFixed(4)};
-  vec3 local = vec3(side * cos(beat) * reach, sin(beat) * reach, aWing.y * ${SPAN.toFixed(4)});
-  float yaw = mix(atan(velocity.x, velocity.z), aSeed * 6.28, landed);
-  float cy = cos(yaw), sy = sin(yaw);
-  local = vec3(cy * local.x + sy * local.z, local.y, -sy * local.x + cy * local.z);
+/** Every butterfly's place from its seed and the clock: a slow loop over its flowers with a bob of its own, settling on them now and then. */
+function flight(air: AtmosphereUniforms, about: Node<"float">): Node<"vec3"> {
+  const time = air.uHwTime;
+  const t = time.add(aSeed.mul(97));
+  const cycle = fract(time.mul(0.045).add(aSeed.mul(3.7)));
+  const landed = smoothstep(0.72, 0.78, cycle).mul(float(1).sub(smoothstep(0.94, 0.99, cycle)));
+  const a = t.mul(0.43).add(aSeed.mul(6));
+  const b = t.mul(0.31).add(aSeed.mul(3));
+  const fly = vec3(
+    sin(a).mul(1.6).add(sin(t.mul(1.1)).mul(0.3)),
+    sin(t.mul(0.9).add(aSeed.mul(4))).mul(0.25).add(0.45).add(sin(t.mul(6.3)).mul(0.07)),
+    cos(b).mul(1.6).add(cos(t.mul(0.97)).mul(0.3)),
+  );
+  const heading = atan(cos(a).mul(0.69).add(cos(t.mul(1.1)).mul(0.33)), sin(b).mul(-0.5).sub(sin(t.mul(0.97)).mul(0.29)));
+  const centre = aSpot.add(mix(fly, vec3(0, 0.26, 0), landed));
+  const beat = mix(sin(t.mul(17)).mul(0.85).add(0.1), sin(t.mul(1.4)).mul(0.55).add(0.55), landed);
+  const reach = abs(aWing.x).mul(SPAN);
+  const local = vec3(sign(aWing.x).mul(cos(beat)).mul(reach), sin(beat).mul(reach), aWing.y.mul(SPAN));
+  const yaw = mix(heading, aSeed.mul(6.28), landed);
+  const cy = cos(yaw);
+  const sy = sin(yaw);
+  const turned = vec3(cy.mul(local.x).add(sy.mul(local.z)), local.y, sy.negate().mul(local.x).add(cy.mul(local.z)));
   // Not on the wing now: folded away to nothing.
-  float flying = step(aSeed, uAbout);
-  transformed = centre + local * flying;
-`;
-
-const FRAGMENT_HEAD = /* glsl */ `
-uniform vec3 uBrimstone;
-uniform vec3 uTortoiseshell;
-uniform vec3 uPeacock;
-uniform vec3 uBlue;
-uniform vec3 uDark;
-uniform vec3 uEyespot;
-uniform vec3 uPale;
-varying vec2 vWing;
-varying float vKind;
-
-// How far inside the wing a point lies: the forewing over the hindwing, both from the body.
-float wing(vec2 q) {
-  float fore = length((q - vec2(0.48, 0.2)) / vec2(0.56, 0.38));
-  float hind = length((q - vec2(0.36, -0.22)) / vec2(0.4, 0.3));
-  return 1.0 - min(fore, hind);
+  return centre.add(turned.mul(step(aSeed, about)));
 }
-`;
 
-const SURFACE = /* glsl */ `
-  vec2 q = vec2(abs(vWing.x), vWing.y);
-  float inside = wing(q);
-  if (inside < 0.0) discard;
-  float edge = smoothstep(0.0, 0.14, inside);
-  vec3 colour = uBrimstone;
-  if (vKind < 0.5) {
-    // A brimstone: sulphur yellow, an orange dot on each wing.
-    colour = mix(uBrimstone, uTortoiseshell, smoothstep(0.07, 0.05, length(q - vec2(0.5, 0.12))));
-  } else if (vKind < 1.5) {
-    // A small tortoiseshell: orange, black and yellow along the front edge, a dark border with blue spots.
-    colour = uTortoiseshell;
-    float front = smoothstep(0.42, 0.5, q.y) * step(0.2, q.x);
-    colour = mix(colour, mix(uDark, uBrimstone, step(0.5, fract(q.x * 3.2))), front);
-    colour = mix(colour, uDark, 1.0 - edge);
-    colour = mix(colour, uEyespot, (1.0 - edge) * step(0.5, fract(q.x * 9.0 + q.y * 9.0)) * 0.8);
-  } else if (vKind < 2.5) {
-    // A peacock: deep red, an eyespot on each fore and hindwing, dark at the edges.
-    colour = uPeacock;
-    float fore = length(q - vec2(0.72, 0.3));
-    float hind = length(q - vec2(0.48, -0.28));
-    colour = mix(colour, uDark, smoothstep(0.13, 0.11, fore) + smoothstep(0.12, 0.1, hind));
-    colour = mix(colour, uEyespot, smoothstep(0.08, 0.06, fore) + smoothstep(0.07, 0.05, hind));
-    colour = mix(colour, uPale, smoothstep(0.035, 0.02, fore));
-    colour = mix(colour, uDark * 1.3, 1.0 - edge);
-  } else {
-    // A common blue: blue fading paler to a white fringe.
-    colour = mix(uPale, uBlue, edge);
-  }
-  // The body down the middle.
-  colour = mix(colour, uDark, smoothstep(0.06, 0.03, q.x));
-  diffuseColor.rgb = colour;
-`;
+/** How far inside the wing a point lies: the forewing over the hindwing, both from the body. */
+function wingInside(q: Node<"vec2">): Node<"float"> {
+  const fore = length(q.sub(vec2(0.48, 0.2)).div(vec2(0.56, 0.38)));
+  const hind = length(q.sub(vec2(0.36, -0.22)).div(vec2(0.4, 0.3)));
+  return float(1).sub(min(fore, hind));
+}
+
+const constant = (token: string) => {
+  const c = themeColor(token);
+  return vec3(c.r, c.g, c.b);
+};
+const colourOf = (name: string) => constant(`--color-hearthwood-butterfly-${name}`);
+
+/** The wings' shapes and patterns, by kind. */
+function wings(): Node<"vec3"> {
+  const brimstone = colourOf("brimstone");
+  const tortoiseshell = colourOf("tortoiseshell");
+  const peacock = colourOf("peacock");
+  const blue = colourOf("blue");
+  const dark = colourOf("dark");
+  const eyespot = colourOf("eyespot");
+  const pale = constant("--color-hearthwood-bird-pale");
+  return Fn(() => {
+    const q = vec2(abs(aWing.x), aWing.y);
+    const inside = wingInside(q);
+    Discard(inside.lessThan(0));
+    const edge = smoothstep(0, 0.14, inside);
+    const rim = float(1).sub(edge);
+    const colour = vec3(0).toVar();
+    If(aKind.lessThan(0.5), () => {
+      // A brimstone: sulphur yellow, an orange dot on each wing.
+      colour.assign(mix(brimstone, tortoiseshell, smoothstep(0.07, 0.05, length(q.sub(vec2(0.5, 0.12))))));
+    })
+      .ElseIf(aKind.lessThan(1.5), () => {
+        // A small tortoiseshell: orange, black and yellow along the front edge, a dark border with blue spots.
+        const front = smoothstep(0.42, 0.5, q.y).mul(step(0.2, q.x));
+        const banded = mix(tortoiseshell, mix(dark, brimstone, step(0.5, fract(q.x.mul(3.2)))), front);
+        const bordered = mix(banded, dark, rim);
+        colour.assign(mix(bordered, eyespot, rim.mul(step(0.5, fract(q.x.mul(9).add(q.y.mul(9))))).mul(0.8)));
+      })
+      .ElseIf(aKind.lessThan(2.5), () => {
+        // A peacock: deep red, an eyespot on each fore and hindwing, dark at the edges.
+        const fore = length(q.sub(vec2(0.72, 0.3)));
+        const hind = length(q.sub(vec2(0.48, -0.28)));
+        const ringed = mix(peacock, dark, smoothstep(0.13, 0.11, fore).add(smoothstep(0.12, 0.1, hind)));
+        const eyed = mix(ringed, eyespot, smoothstep(0.08, 0.06, fore).add(smoothstep(0.07, 0.05, hind)));
+        colour.assign(mix(mix(eyed, pale, smoothstep(0.035, 0.02, fore)), dark.mul(1.3), rim));
+      })
+      .Else(() => {
+        // A common blue: blue fading paler to a white fringe.
+        colour.assign(mix(pale, blue, edge));
+      });
+    // The body down the middle.
+    return mix(colour, dark, smoothstep(0.06, 0.03, q.x));
+  })();
+}
 
 function butterflyGeometry(spots: readonly ButterflySpot[]): BufferGeometry {
   const corners = [
@@ -157,38 +162,35 @@ function butterflyGeometry(spots: readonly ButterflySpot[]): BufferGeometry {
   return geometry;
 }
 
-/** The share of butterflies on the wing, shared by every butterfly material, which the scene sets. */
+/** The share of butterflies on the wing (0 to 1), shared by every butterfly in an air, which the scene sets. */
 export interface ButterflyDay {
-  uAbout: { value: number };
+  uAbout: UniformNode<"float", number>;
 }
 
-export function makeButterflyDay(): ButterflyDay {
-  return { uAbout: { value: 0 } };
+export function makeButterflyDay(share = 0): ButterflyDay {
+  return { uAbout: uniform(share) };
+}
+
+const materials = new WeakMap<AtmosphereUniforms, WeakMap<ButterflyDay, DioramaMaterial>>();
+
+/** The butterflies' one material in an air and a day, shared by every patch of them. */
+function butterflyMaterial(air: AtmosphereUniforms, day: ButterflyDay): DioramaMaterial {
+  let byDay = materials.get(air);
+  if (!byDay) {
+    byDay = new WeakMap();
+    materials.set(air, byDay);
+  }
+  let material = byDay.get(day);
+  if (!material) {
+    material = diorama("solid", air, { side: DoubleSide }, { position: flight(air, day.uAbout), surface: wings() });
+    byDay.set(day, material);
+  }
+  return material;
 }
 
 export function Butterflies({ spots, atmosphere, day }: { spots: readonly ButterflySpot[]; atmosphere: AtmosphereUniforms; day: ButterflyDay }) {
   const geometry = useMemo(() => butterflyGeometry(spots), [spots]);
-  const material = useMemo(() => {
-    const colour = (name: string) => ({ value: new Color().copy(themeColor(`--color-hearthwood-butterfly-${name}`)) });
-    return shadeLambert(new MeshLambertMaterial({ side: DoubleSide }), "solid", atmosphere, {
-      key: "hearthwood-butterflies",
-      uniforms: {
-        uAbout: day.uAbout,
-        uBrimstone: colour("brimstone"),
-        uTortoiseshell: colour("tortoiseshell"),
-        uPeacock: colour("peacock"),
-        uBlue: colour("blue"),
-        uDark: colour("dark"),
-        uEyespot: colour("eyespot"),
-        uPale: { value: new Color().copy(themeColor("--color-hearthwood-bird-pale")) },
-      },
-      vertexHead: VERTEX_HEAD,
-      vertex: VERTEX,
-      fragmentHead: FRAGMENT_HEAD,
-      surface: SURFACE,
-    });
-  }, [atmosphere, day]);
+  const material = useMemo(() => butterflyMaterial(atmosphere, day), [atmosphere, day]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  useEffect(() => () => material.dispose(), [material]);
-  return <mesh geometry={geometry} material={material} frustumCulled={false} />;
+  return <mesh geometry={geometry} material={material} frustumCulled={false} castShadow />;
 }

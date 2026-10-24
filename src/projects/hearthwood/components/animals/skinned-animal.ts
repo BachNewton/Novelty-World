@@ -1,7 +1,7 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import type { Pose } from "../../animals/motion";
 import { BONE_NAMES, boneAt, type BoneName, type Rig } from "../../animals/rig";
-import type { CoatUniforms } from "./coat-material";
+import type { CoatMaterial } from "./coat-material";
 
 /** How small a tongue that is in shrinks: to nothing, inside the mouth. */
 const TONGUE_IN = 0.001;
@@ -13,8 +13,7 @@ export class SkinnedAnimal {
 
   constructor(
     geometry: THREE.BufferGeometry,
-    private readonly material: THREE.Material,
-    private readonly uniforms: CoatUniforms,
+    private readonly material: CoatMaterial,
     private readonly rig: Rig,
   ) {
     const { skeleton } = rig;
@@ -55,7 +54,7 @@ export class SkinnedAnimal {
       else bone.scale.setScalar(1);
     }
     this.bones.get("tongue")?.scale.setScalar(Math.max(TONGUE_IN, pose.tongue));
-    this.uniforms.uBlink.value = pose.blink;
+    this.material.coat.blink = pose.blink;
   }
 
   dispose() {

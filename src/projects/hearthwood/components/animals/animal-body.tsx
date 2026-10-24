@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import { createPortal, useFrame } from "@react-three/fiber";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { float, length, smoothstep, uv, vec4 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { Pose } from "../../animals/motion";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { BoneName, Rig } from "../../animals/rig";
-import type { CoatUniforms } from "./coat-material";
+import type { CoatMaterial } from "./coat-material";
 import { SkinnedAnimal } from "./skinned-animal";
 
 /*
@@ -67,7 +68,7 @@ export interface AnimalProps<A extends string> {
 interface AnimalBodyProps<A extends string> extends AnimalProps<A> {
   activity: A;
   geometry: THREE.BufferGeometry;
-  coat: () => { material: THREE.Material; uniforms: CoatUniforms };
+  coat: () => CoatMaterial;
   rig: Rig;
   /** The sculpture's scale in the world, and how much wider it is than that. */
   size: number;
@@ -84,25 +85,12 @@ interface AnimalBodyProps<A extends string> extends AnimalProps<A> {
   greetingTime: number;
 }
 
-function shadowMaterial(): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    uniforms: { uColour: { value: themeColor("--color-hearthwood-cat-shadow") } },
-    vertexShader: /* glsl */ `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv * 2.0 - 1.0;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader: /* glsl */ `
-      uniform vec3 uColour;
-      varying vec2 vUv;
-      void main() {
-        float d = length(vUv);
-        gl_FragColor = vec4(uColour, 0.42 * smoothstep(1.0, 0.15, d));
-      }`,
-  });
+/** The soft dark under an animal that seats it on the ground, where the key light's own shadow is too soft or too far. */
+function shadowMaterial(): THREE.MeshBasicNodeMaterial {
+  const material = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+  const d = length(uv().mul(2).sub(1));
+  material.colorNode = vec4(themeColor("--color-hearthwood-cat-shadow"), float(0.42).mul(smoothstep(1, 0.15, d)));
+  return material;
 }
 
 const SHADOW_PLANE = new THREE.PlaneGeometry(1, 1);
@@ -110,8 +98,7 @@ const SHADOW_PLANE = new THREE.PlaneGeometry(1, 1);
 export function AnimalBody<A extends string>(props: AnimalBodyProps<A>) {
   const { clock, shadow = true, position, rotation = 0, drive, children, held, geometry, coat, rig, size, width, seed, moving, pose, shadowSize, shadowAt, greetingTime } = props;
   const skinned = useMemo(() => {
-    const { material, uniforms } = coat();
-    return new SkinnedAnimal(geometry, material, uniforms, rig);
+    return new SkinnedAnimal(geometry, coat(), rig);
   }, [geometry, coat, rig]);
   const shadowMat = useMemo(() => shadowMaterial(), []);
   const shadowRef = useRef<THREE.Mesh>(null);
@@ -148,7 +135,7 @@ export function AnimalBody<A extends string>(props: AnimalBodyProps<A>) {
   return (
     <group position={position as [number, number, number] | undefined} rotation={[0, rotation, 0]}>
       <group scale={[size * width, size, size]}>
-        <primitive object={skinned.mesh} />
+        <primitive object={skinned.mesh} castShadow receiveShadow />
         {held && createPortal(held.children, skinned.bone(held.bone))}
         {shadow && (
           <mesh ref={shadowRef} geometry={SHADOW_PLANE} material={shadowMat} position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[shadowSize[0], shadowSize[1], 1]} renderOrder={-1} />

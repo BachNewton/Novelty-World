@@ -1,160 +1,210 @@
-import * as THREE from "three";
+import { Color, Vector3 } from "three";
+import { abs, attribute, clamp, diffuseColor, dot, float, floor, Fn, fract, If, length, materialReference, max, mix, normalView, positionGeometry, positionViewDirection, pow, property, smoothstep, sqrt, step, vec2, vec3 } from "three/tsl";
+import type { Node } from "three/webgpu";
 import type { EarShape } from "../../animals/sculpt";
 import type { Vec3 } from "../../animals/rig";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
-import { shadeLambert } from "../../art/shading";
+import { diorama, type DioramaMaterial, type OwnNodes } from "../../art/materials";
+import { typed } from "../../art/tsl";
 
 /*
- * An animal's coat as a shader on one of the shared solid materials. Every
- * marking is a pattern function of where a point lies on the animal in its
- * bind pose, so the coat moves with the body however it bends. A species
- * gives the patterns: `coatColour(p)` for the fur and `faceColour(p, coat,
- * glint)` for what is painted over it (eyes, nose, the inside of the ears).
- * This gives them the noise they are built from, a painted eye and an ear's
- * cup, and lays the rest over every species alike: the sculpture's own
- * hollows darken the coat, and a soft sheen at the silhouette reads as fur.
+ * An animal's coat: one of the shared solid materials with a surface of its
+ * own. Every marking is a pattern function of where a point lies on the
+ * animal in its bind pose (the mesh's own positions, before skinning bends
+ * them), so the coat moves with the body however it bends. A species gives
+ * its patterns (`CoatPattern`): the fur, and the face painted over it on the
+ * head (eyes, nose, the inside of the ears). This gives them the noise they
+ * are built from, a painted eye that blinks, an ear's cup, and lays the rest
+ * over every species alike: the sculpture's own hollows darken the coat, and
+ * a soft sheen at the silhouette reads as fur. The sheen and the eyes' glint
+ * are lit by the sky's and the key light's light, so a companion dims with
+ * the land at dusk.
+ *
+ * Every animal of a species shares one node graph, so one compiled pipeline:
+ * its own values (colours, how white, its blink) live on its material's
+ * `coat` record, which the graph reads by reference, as three's own
+ * materials read their colour.
  */
 
-export interface CoatUniforms {
-  [uniform: string]: THREE.IUniform;
-  uBlink: THREE.IUniform<number>;
+/** What every coat carries, whatever its species. */
+export interface CoatValues {
+  /** How far closed the eyes are, 0 to 1. */
+  blink: number;
+  pupil: Color;
+  glint: Color;
 }
 
-export const glslVec = (v: Vec3 | readonly number[]) => `vec3(${v.map((n) => n.toFixed(4)).join(", ")})`;
-export const glslFloat = (n: number) => n.toFixed(4);
+/** A coat's material: a shared solid material with its animal's own values. */
+export type CoatMaterial<V extends CoatValues = CoatValues> = DioramaMaterial & { coat: V };
 
-/** The left ear's shape as GLSL constants, `<NAME>_WIDTH` and so on, for `earCup`. */
-export function glslEar(name: string, at: Vec3, shape: EarShape): string {
-  return `
-const vec3 ${name} = ${glslVec(at)};
-const float ${name}_WIDTH = ${glslFloat(shape.width)};
-const float ${name}_HEIGHT = ${glslFloat(shape.height)};
-const float ${name}_DEPTH = ${glslFloat(shape.depth)};
-const float ${name}_SPLAY = ${glslFloat(shape.splay)};
-const float ${name}_TURN = ${glslFloat(shape.turn)};
-const float ${name}_INSET = ${glslFloat(shape.cupInset)};
-const float ${name}_LIFT = ${glslFloat(shape.cupLift)};
-const float ${name}_TIP = ${glslFloat(shape.tip)};`;
+type KeysOf<V, T> = { [K in keyof V]: V[K] extends T ? K : never }[keyof V] & string;
+
+/** A species' handles on its animals' own values, each read from the material drawn. */
+export function coatInputs<V extends CoatValues>() {
+  return {
+    float: (name: KeysOf<V, number>) => typed<"float">(materialReference(`coat.${name}`, "float")),
+    colour: (name: KeysOf<V, Color>) => typed<"vec3">(materialReference(`coat.${name}`, "color")),
+    vec: (name: KeysOf<V, Vector3>) => typed<"vec3">(materialReference(`coat.${name}`, "vec3")),
+  };
 }
 
-const PRELUDE = /* glsl */ `
-uniform vec3 uPupil;
-uniform vec3 uGlint;
-uniform float uBlink;
-uniform float uSheen;
-varying vec3 vRest;
-varying vec3 vRestNormal;
-varying float vPart;
-varying float vOcclusion;
+const common = coatInputs<CoatValues>();
 
-const float TAU = 6.2831853;
-
-float hash3(vec3 p) {
-  p = fract(p * 0.3183099 + 0.1);
-  p *= 17.0;
-  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-float noise3(vec3 x) {
-  vec3 i = floor(x);
-  vec3 f = fract(x);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mix(hash3(i), hash3(i + vec3(1, 0, 0)), f.x), mix(hash3(i + vec3(0, 1, 0)), hash3(i + vec3(1, 1, 0)), f.x), f.y),
-             mix(mix(hash3(i + vec3(0, 0, 1)), hash3(i + vec3(1, 0, 1)), f.x), mix(hash3(i + vec3(0, 1, 1)), hash3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
-}
-float fbm(vec3 p) {
-  return 0.55 * noise3(p) + 0.3 * noise3(p * 2.03 + 7.1) + 0.15 * noise3(p * 4.1 + 3.3);
+/** Where a point lies on the animal, and what part of it, for the patterns. */
+export interface Coat {
+  /** The point in the bind pose, in the sculpture's metres. */
+  p: Node<"vec3">;
+  /** The sculpture's part: 0 the body, 1 the head, more for a species' own (a tongue, antlers). */
+  part: Node<"float">;
+  head: Node<"bool">;
+  pupil: Node<"vec3">;
+  glintColour: Node<"vec3">;
 }
 
-bool isHead() { return vPart > 0.5; }
-
-// An eye painted on the face, centred at centre and looking along forward, radius across: the iris, the
-// pupil (its radii a share of the eye's), a glint and a dark rim, its lids an almond open to open at most
-// and closing as the animal blinks.
-vec4 paintedEye(vec3 p, vec3 centre, vec3 forward, float radius, vec2 pupilShape, float open, float side, vec3 iris, inout float glint) {
-  vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), forward));
-  vec3 up = cross(forward, right);
-  vec3 q = p - centre;
-  if (dot(q, forward) < -radius * 0.55) return vec4(0.0);
-  vec2 uv = vec2(dot(q, right), dot(q, up)) / radius;
-  float opening = 1.0 - uBlink;
-  float lid = sqrt(max(0.0, 1.0 - uv.x * uv.x)) * mix(0.04, open, opening) - abs(uv.y) * 1.0;
-  float shape = step(0.0, lid) * step(abs(uv.x), 1.0);
-  float rim = smoothstep(-0.14, -0.02, lid) * step(abs(uv.x), 1.12) * (1.0 - shape);
-  if (shape <= 0.0 && rim <= 0.0) return vec4(0.0);
-  vec3 colour = mix(iris * 0.78, iris * 1.08, smoothstep(-0.6, 0.6, -uv.y));
-  float pupil = smoothstep(0.08, 0.0, length(uv / pupilShape) - 0.6);
-  colour = mix(colour, uPupil, pupil);
-  float spark = smoothstep(0.24, 0.16, length(uv - vec2(0.32 * side, 0.34))) * shape * opening;
-  glint = max(glint, spark);
-  colour = mix(colour, uGlint, spark);
-  colour = mix(colour, uPupil * 1.4, rim);
-  return vec4(colour, max(shape, rim));
+/** A species' coat: its fur, and its face painted over the fur on the head. */
+export interface CoatPattern {
+  /** A name for the compiled program. */
+  name: string;
+  fur: (coat: Coat) => Node<"vec3">;
+  /** Paints over `colour` on the head's pixels only, raising `glint` where light catches (an eye, a wet nose). */
+  face: (coat: Coat, colour: Node<"vec3">, glint: Node<"float">) => void;
+  /** How strongly the fur shines at the silhouette. */
+  sheen: number;
 }
 
-// How much a point lies inside an erect ear's cup, 0 to 1: found in the left ear's own frame.
-float earCup(vec3 p, vec3 ear, float width, float height, float depth, float splay, float turn, float inset, float lift, float tip) {
-  vec3 e = vec3(abs(p.x), p.y, p.z) - ear;
-  float cy = cos(turn), sy = sin(turn), cz = cos(splay), sz = sin(splay);
-  e = vec3(cy * e.x - sy * e.z, e.y, sy * e.x + cy * e.z);
-  e = vec3(cz * e.x + sz * e.y, -sz * e.x + cz * e.y, e.z);
-  if (e.y <= lift || e.z <= 0.0) return 0.0;
-  float t = clamp((e.y - lift) / height, 0.0, 1.0);
-  float r = max(0.002, width * 0.5 * (1.0 - t) + tip * t - inset);
-  float cup = length(vec2(e.x / r, (e.z - width * depth * 0.42) / (r * depth)));
-  return smoothstep(1.25, 0.95, cup) * smoothstep(lift, lift + 0.01, e.y);
+/** A cheap hash of a 3D point, 0 to 1. */
+export const hash3 = Fn(([q]: [Node<"vec3">]) => {
+  const p = fract(q.mul(0.3183099).add(0.1)).mul(17);
+  return fract(p.x.mul(p.y).mul(p.z).mul(p.x.add(p.y).add(p.z)));
+}).setLayout({ name: "coatHash3", type: "float", inputs: [{ name: "q", type: "vec3" }] });
+
+/** Value noise in 3D, 0 to 1. */
+export const noise3 = Fn(([x]: [Node<"vec3">]) => {
+  const i = floor(x);
+  const f0 = fract(x);
+  const f = f0.mul(f0).mul(f0.mul(-2).add(3));
+  const h = (dx: number, dy: number, dz: number) => hash3(i.add(vec3(dx, dy, dz)));
+  const low = mix(mix(h(0, 0, 0), h(1, 0, 0), f.x), mix(h(0, 1, 0), h(1, 1, 0), f.x), f.y);
+  const high = mix(mix(h(0, 0, 1), h(1, 0, 1), f.x), mix(h(0, 1, 1), h(1, 1, 1), f.x), f.y);
+  return mix(low, high, f.z);
+}).setLayout({ name: "coatNoise3", type: "float", inputs: [{ name: "x", type: "vec3" }] });
+
+/** Three octaves of value noise, 0 to 1. */
+export const fbm = Fn(([p]: [Node<"vec3">]) =>
+  noise3(p)
+    .mul(0.55)
+    .add(noise3(p.mul(2.03).add(7.1)).mul(0.3))
+    .add(noise3(p.mul(4.1).add(3.3)).mul(0.15)),
+).setLayout({ name: "coatFbm", type: "float", inputs: [{ name: "p", type: "vec3" }] });
+
+/** A painted eye's colour, how much of the point it covers, and its glint. */
+export interface Eye {
+  colour: Node<"vec3">;
+  cover: Node<"float">;
+  spark: Node<"float">;
 }
-`;
 
-const VERTEX_HEAD = /* glsl */ `
-attribute float aOcclusion;
-attribute float aPart;
-varying vec3 vRest;
-varying vec3 vRestNormal;
-varying float vPart;
-varying float vOcclusion;
-`;
-
-/** A species' coat shader: a name its compiled program is shared under, and its GLSL. */
-export interface CoatShader {
-  key: string;
-  glsl: string;
+/** How an eye is painted: where it sits and looks, its size, its pupil's radii (a share of the eye's), how wide open its lids are, which side it is on. */
+export interface EyeShape {
+  centre: Vec3;
+  forward: Vec3;
+  radius: number;
+  pupil: readonly [number, number];
+  open: number;
+  side: number;
 }
 
-/*
- * The coat is one of the shared solid materials (`shadeLambert`), so it ends
- * in the world's air and takes every feature that reaches solid things: the
- * key light's shadows, night vision, the rainbow, under the water. Its sheen
- * and its eyes' glint follow the light round it (the sky's and the key
- * light's), so a companion goes as dim as the land at dusk.
+/**
+ * An eye painted on the face: the iris, the pupil, a glint and a dark rim,
+ * its lids an almond that closes as the animal blinks. Its frame is worked
+ * out here once, so the shader only projects onto it.
  */
-const VERTEX = /* glsl */ `
-  vRest = position;
-  vRestNormal = normal;
-  vPart = aPart;
-  vOcclusion = aOcclusion;
-`;
+export function paintedEye(coat: Coat, shape: EyeShape, iris: Node<"vec3">): Eye {
+  const forward = new Vector3(...shape.forward).normalize();
+  const right = new Vector3(0, 1, 0).cross(forward).normalize();
+  const up = new Vector3().crossVectors(forward, right);
+  const q = coat.p.sub(vec3(...shape.centre));
+  const front = step(-shape.radius * 0.55, dot(q, vec3(forward)));
+  const uv = vec2(dot(q, vec3(right)), dot(q, vec3(up))).div(shape.radius);
+  const opening = float(1).sub(common.float("blink"));
+  const lid = sqrt(max(float(1).sub(uv.x.mul(uv.x)), 0)).mul(mix(0.04, shape.open, opening)).sub(abs(uv.y));
+  const across = abs(uv.x);
+  const inside = step(0, lid).mul(step(across, 1));
+  const rim = smoothstep(-0.14, -0.02, lid).mul(step(across, 1.12)).mul(float(1).sub(inside));
+  const pupil = smoothstep(0.08, 0, length(uv.div(vec2(...shape.pupil))).sub(0.6));
+  const spark = smoothstep(0.24, 0.16, length(uv.sub(vec2(0.32 * shape.side, 0.34)))).mul(inside).mul(opening);
+  let colour: Node<"vec3"> = mix(iris.mul(0.78), iris.mul(1.08), smoothstep(-0.6, 0.6, uv.y.negate()));
+  colour = mix(colour, coat.pupil, pupil);
+  colour = mix(colour, coat.glintColour, spark);
+  colour = mix(colour, coat.pupil.mul(1.4), rim);
+  return { colour, cover: max(inside, rim).mul(front), spark: spark.mul(front) };
+}
 
-const SURFACE = /* glsl */ `
-  float glint = 0.0;
-  vec3 coat = faceColour(vRest, coatColour(vRest), glint);
-  diffuseColor.rgb = coat * mix(0.62, 1.0, vOcclusion);
-  float facing = clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0);
+/** Paints an eye over the colour so far, and raises the glint by its spark. */
+export function paintEye(colour: Node<"vec3">, glint: Node<"float">, eye: Eye): void {
+  colour.assign(mix(colour, eye.colour, eye.cover));
+  glint.assign(max(glint, eye.spark));
+}
+
+/** How much a point lies inside an erect ear's cup, 0 to 1, found in the left ear's own frame (both ears, by symmetry). */
+export function earCup(coat: Coat, at: Vec3, shape: EarShape): Node<"float"> {
+  const { width, height, depth, splay, turn, cupInset: inset, cupLift: lift, tip } = shape;
+  const [cy, sy, cz, sz] = [Math.cos(turn), Math.sin(turn), Math.cos(splay), Math.sin(splay)];
+  const p = coat.p;
+  const e0 = vec3(abs(p.x), p.y, p.z).sub(vec3(...at));
+  const e1x = e0.x.mul(cy).sub(e0.z.mul(sy));
+  const ez = e0.x.mul(sy).add(e0.z.mul(cy));
+  const ex = e1x.mul(cz).add(e0.y.mul(sz));
+  const ey = e1x.mul(-sz).add(e0.y.mul(cz));
+  const t = clamp(ey.sub(lift).div(height), 0, 1);
+  const r = max(float(width * 0.5).mul(float(1).sub(t)).add(t.mul(tip)).sub(inset), 0.002);
+  const cup = length(vec2(ex.div(r), ez.sub(width * depth * 0.42).div(r.mul(depth))));
+  return smoothstep(1.25, 0.95, cup).mul(smoothstep(lift, lift + 0.01, ey)).mul(step(0, ez));
+}
+
+/** The glint the face raised, read by the coat's own light after the surface is painted. */
+const coatGlint = property("float", "coatGlint");
+
+function coatNodes(pattern: CoatPattern, air: AtmosphereUniforms): OwnNodes {
+  const part = typed<"float">(attribute("aPart", "float"));
+  const occlusion = typed<"float">(attribute("aOcclusion", "float"));
+  const coat: Coat = { p: positionGeometry, part, head: part.greaterThan(0.5), pupil: common.colour("pupil"), glintColour: common.colour("glint") };
+  const surface = Fn(() => {
+    const colour = pattern.fur(coat).toVar("coatColour");
+    const glint = float(0).toVar("coatGlintSoFar");
+    If(coat.head, () => pattern.face(coat, colour, glint));
+    coatGlint.assign(glint);
+    return colour.mul(mix(0.62, 1, occlusion));
+  })();
   // A soft sheen at the silhouette reads as fur; a dark coat still catches a little.
-  vec3 sheen = max(diffuseColor.rgb, vec3(0.16));
-  vec3 around = (uHwSkyLight + uHwKeyLight) * RECIPROCAL_PI;
-  totalEmissiveRadiance += around * (sheen * pow(1.0 - facing, 2.5) * uSheen + uGlint * glint * 0.35);
-`;
+  const facing = clamp(dot(normalView, positionViewDirection), 0, 1);
+  const around = air.uHwSkyLight.add(air.uHwKeyLight).mul(1 / Math.PI);
+  const sheen = max(diffuseColor.rgb, vec3(0.16)).mul(pow(float(1).sub(facing), 2.5)).mul(pattern.sheen);
+  const emissive = around.mul(sheen.add(coat.glintColour.mul(coatGlint).mul(0.35)));
+  return { surface, emissive };
+}
 
-/** An animal's coat material, from its species' shader and its own uniforms, in the world's air. Every animal of a species shares one compiled program. */
-export function coatMaterial(shader: CoatShader, own: Record<string, THREE.IUniform>, sheen: number, atmosphere: AtmosphereUniforms): { material: THREE.MeshLambertMaterial; uniforms: CoatUniforms } {
-  const uniforms: CoatUniforms = { ...own, uBlink: { value: 0 }, uSheen: { value: sheen } };
-  const material = shadeLambert(new THREE.MeshLambertMaterial(), "solid", atmosphere, {
-    key: shader.key,
-    uniforms,
-    vertexHead: VERTEX_HEAD,
-    vertex: VERTEX,
-    fragmentHead: PRELUDE + shader.glsl,
-    surface: SURFACE,
-  });
-  return { material, uniforms };
+const graphs = new WeakMap<AtmosphereUniforms, Map<CoatPattern, OwnNodes>>();
+
+/** A species' one node graph in an air, built the first time it is asked for. */
+function graphOf(pattern: CoatPattern, air: AtmosphereUniforms): OwnNodes {
+  let byPattern = graphs.get(air);
+  if (!byPattern) {
+    byPattern = new Map();
+    graphs.set(air, byPattern);
+  }
+  let own = byPattern.get(pattern);
+  if (!own) {
+    own = coatNodes(pattern, air);
+    byPattern.set(pattern, own);
+  }
+  return own;
+}
+
+/** An animal's coat material, in the world's air: its species' graph, with its own values. */
+export function coatMaterial<V extends CoatValues>(pattern: CoatPattern, values: V, air: AtmosphereUniforms): CoatMaterial<V> {
+  const material = diorama("solid", air, {}, graphOf(pattern, air)) as CoatMaterial<V>;
+  material.name = pattern.name;
+  material.coat = values;
+  return material;
 }
