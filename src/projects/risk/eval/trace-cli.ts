@@ -3,9 +3,9 @@ import process from "node:process";
 import { riskBot } from "../bots";
 import { checkBots, DEFAULT_MAX_TURNS, list, number } from "./cli-args";
 import { readOnlineLog, replayOnline } from "./online-log";
-import { riskPool } from "./parallel";
+import { WorkerPool } from "@/shared/lib/bot-lab/pool";
 import { playGame, type RiskGameSpec } from "./runner";
-import { Trace, traceLines } from "./trace";
+import { shapeLine, Trace, traceLines, type SurveyResult } from "./trace";
 
 /** `npm run risk:trace` — why a game runs long: its trajectory, turn by turn.
  *
@@ -16,8 +16,9 @@ import { Trace, traceLines } from "./trace";
  *  Trace an online game from its move log, exported as {seed, players, labels, moves: [{seat, move}]}:
  *    npm run risk:trace -- --online game.json
  *
- *  Survey a seating's game lengths, a seed per game and the seating rotated a seat each game, and list
- *  the capped games with the line that traces each:
+ *  Survey a seating's game lengths, a seed per game and the seating rotated a seat each game, its
+ *  shape (the mean armies on the board at turn 100, and losses over income), and list the capped
+ *  games with the line that traces each:
  *    npm run risk:trace -- --survey --seats rule-v6,rule-v6,rule-v6,rule-v6,rule-v6,rule-v6 --games 60
  *
  *  `--mirror <label> <players>` seats one bot in every seat, for a tuned label, whose commas
@@ -96,7 +97,8 @@ async function survey(args: Args, seats: string[]): Promise<void> {
     labels: seats.map((_, s) => seats[(s + index) % n]),
     maxTurns: args.maxTurns,
   }));
-  const pool = riskPool(args.workers);
+  // Its own workers, which trace each game for its shape (`trace-worker.ts`).
+  const pool = new WorkerPool<RiskGameSpec, SurveyResult>(new URL("./trace-worker.ts", import.meta.url), args.workers);
   try {
     const results = await pool.run(specs);
     const errors = results.filter((r) => r.error !== undefined);
@@ -112,6 +114,7 @@ async function survey(args: Args, seats: string[]): Promise<void> {
       `Seating ${seats.join(",")} rotated, ${played.length.toString()} games, cap ${args.maxTurns.toString()} player-turns${errors.length > 0 ? `, ${errors.length.toString()} ERRORS` : ""}`,
       `  capped ${capped.length.toString()} (${((100 * capped.length) / Math.max(1, played.length)).toFixed(1)}%), decided games' mean ${mean(decided).toFixed(0)} turns`,
       `  turns: mean ${mean(turns).toFixed(0)}, quartiles ${q(0.25).toString()} / ${q(0.5).toString()} / ${q(0.75).toString()}, 90th ${q(0.9).toString()}`,
+      shapeLine(played),
       `  wins: ${[...wins].map(([l, w]) => `${l} ${w.toString()}`).join(", ")}`,
       ...capped.map((r) => {
         const alive = r.places.filter((p) => p === 1).length;

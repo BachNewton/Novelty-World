@@ -8,11 +8,11 @@ import { tableParams } from "../rule-v6";
 import { afterTrade, chooseBonus, chooseFortify, chooseOccupy, chooseSet } from "../rule-v6/decisions";
 import type { Params as V6Params } from "../rule-v6/params";
 import { bestPlan, type Plan } from "../rule-v6/planner";
-import { borderScorer, type BorderMode } from "./border";
-import { V6_1_PARAMS, type Params } from "./params";
+import { checkSettings, playsV6Value, V6_1_PARAMS, type Params } from "./params";
+import { scorerFor } from "./score";
 
 // v6.1 (`ideas/rule-bot-v6.1.md`): v6 whole, its planner, decisions and opponent model, with
-// its border loss gathered by `border` instead of summed. The move choices below are v6's
+// its board scored by v6.1's settings (`score.ts`). The move choices below are v6's
 // (`rule-v6/index.ts`), copied only because the scorer that carries the change must be bound
 // to the settings each decision plays by: the table's preferences and this game's record of
 // the opponents, which v6 works out inside its bot.
@@ -50,21 +50,22 @@ function withRecord(params: V6Params, seat: Seat, history: BotInput["history"], 
 
 const scored = new WeakMap<V6Params, V6Params>();
 
-/** The settings a decision plays by, scored with `mode`'s border loss; "sum" is v6's own value,
- *  so it keeps v6's settings untouched. One object per settings object, so v6's memos keep
- *  their answers across decisions. */
-function withBorder(params: V6Params, mode: BorderMode): V6Params {
-  if (mode === "sum") return params;
+/** The settings a decision plays by, scored by v6.1's `table` settings; with none of them moved
+ *  it is v6's own value, so it keeps v6's settings untouched. One object per settings object (each
+ *  derived from its own table's), so v6's memos keep their answers across decisions. */
+function withScorer(params: V6Params, table: Params): V6Params {
+  if (playsV6Value(table)) return params;
   let out = scored.get(params);
-  if (out === undefined) scored.set(params, (out = { ...params, score: borderScorer(params, mode) }));
+  if (out === undefined) scored.set(params, (out = { ...params, score: scorerFor(params, table) }));
   return out;
 }
 
 export function ruleBot(table: Params): Bot {
+  checkSettings(table);
   return ({ seat, view, options, history }): Move => {
     const players = view.seats.length;
     const alive = view.seats.filter((s) => !s.eliminated).length;
-    const params = withBorder(withRecord(tableParams(table, players, alive), seat, history, players), table.border);
+    const params = withScorer(withRecord(tableParams(table, players, alive), seat, history, players), table);
     const b = fromView(view);
     switch (options.kind) {
       case "reinforce": {

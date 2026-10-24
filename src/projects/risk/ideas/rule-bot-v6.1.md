@@ -1,32 +1,60 @@
 # Risk bot v6.1: v6 without the stall
 
-v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built and not yet measured. It is a candidate to replace v6 in its lobby seat: v6 is seated and frozen, and its bot-only tables at 5 and 6 players run to the turn cap (`stalled-games.md`). v6.1 is v6 with one change, the one the diagnosis points at, and is meant to play v6's moves everywhere else.
+v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built and being screened. It is a candidate to replace v6 in its lobby seat: v6 is seated and frozen, and its bot-only tables at 5 and 6 players run to the turn cap (`stalled-games.md`). v6.1 is v6 with its board scored another way, a set of settings that each re-read v6's evaluation, and is meant to play v6's moves everywhere else.
 
-## The fix
+## Why v6 stalls
 
-v6's evaluation charges `borderWeight × borderLoss / total`, and `borderLoss` (`rule-v6/opponents.ts`, `forecast`) is the **sum** over every opponent of its aim at me times the hit it could deal me. Summed, the charge counts every opponent's blow as if all of them landed at once, so it grows with the table while my share of the power shrinks, and it is cut most by stacking up and never thinning out. With four or five opponents each seat's best move becomes a card capture and a bigger stack, and the table freezes. Lowering `borderWeight` to 0.25 or 0 removed every stall at 6 players, but shrinks the term at every table, including the small ones where it never caused trouble.
+v6's value is its share of the table's power, less a border charge, and smaller terms (`rule-v6/evaluate.ts`; power is `forecast` in `rule-v6/opponents.ts`: a seat's armies at face value, plus its income over a horizon, plus its cards).
 
-v6.1 changes how the term gathers the opponents, a setting `border`:
+**The share term forbids every stack-on-stack attack at a big table.** Attacking with `a` armies lost to kill `d` of an opponent's moves my share from `A/T` to `(A − a)/(T − a − d)`, a gain only when `d/a > (1 − s)/s`, `s` my share. At 3 players I must kill twice what I lose; at 6, five times. Balanced Blitz makes an equal-stack exchange about one for one, so only captures of thin territories pay, whatever the border weight. It is the n-player public-goods problem: I pay all of weakening a rival, and every seat shares the benefit.
 
-| `border` | The border loss | |
+**Income stops rescuing it once armies outgrow income.** Early, a seat's power is about half armies and half income, so a capture that raises income is worth armies spent. In a frozen 6-player table the board carries 449 armies at turn 100 and 1,929 at turn 600 while the table's income stays near 35 a round: armies are 80% of power by turn 100 and over 90% by turn 300, and the evaluation becomes pure attrition arithmetic. Every turn the seats earn more than they lose pushes the ratio further, so the stall feeds itself.
+
+**The border term locks the shape.** The border loss is, summed over the opponents, each one's aim at me times the hit it could deal me. A seat on one or two big stacks has nothing a sweep can take, so its border loss is near zero; a seat that spreads has thin territories in every opponent's sweep. So the border term makes stacking the local optimum and the share term makes the stacks unbreakable. Neither alone stalls (v3 has the share term and stays spread; bots with no opponent model never stall); together, at a table where each share is small, they do. The stall is an equilibrium of identical evaluations, not a bug one seat commits, which is why mixed fields don't stall and v6 is strong in them.
+
+Shrinking the border term (lower weight, or gathering it by `max` or `mean`) breaks the lock by making thinness free, and the bots end games but recklessly (below). The candidates that came after go at how armies enter power instead, or ease the border term only once the board is stall-shaped.
+
+## The settings
+
+Each is a setting on v6's scorer hook (`scoreOf` in `rule-v6/evaluate.ts`): v6.1's scorer (`score.ts`) re-reads v6's breakdown of a board, so no v6 file changes. With `border` at `"sum"`, `power` at `"face"` and `attrition` at 0 it plays exactly v6's moves (a test holds it).
+
+| Setting | Values | What it changes |
 |---|---|---|
-| `"sum"` | every opponent's aim × hit added up | v6's; plays exactly v6's moves (a test holds it) |
-| `"max"` | the single opponent with the largest aim × hit | the worst blow I could take this round |
-| `"mean"` | the sum over the number of opponents counted | the typical blow; doesn't grow with the table |
+| `border` | `"sum"` (v6's), `"max"`, `"mean"` | how the border loss gathers the opponents: every opponent's aim × hit added up, the single largest, or their mean over the opponents counted |
+| `power` | `"face"` (v6's), `"armies"` | with `"armies"`, a seat's armies count fully up to `armyRounds` rounds of its board income and at `armyBeyond` each past that (C1) |
+| `armyRounds`, `armyBeyond` | 6 and 0.25 by default | the cap `m` and the fraction `f` of `power: "armies"` |
+| `attrition` | 0 (v6's), or `k` | the border weight times min(1, k × the board's income ÷ its armies) (C2) |
+| `borderWeight` | v6's 0.5 by default | v6's own preference, tunable beside them |
 
-An opponent counts when v6's model sees it reach me: it borders me, or its sweep reaches me through a third player (any aim case but "apart"). With one opponent counted the three modes agree. `borderWeight` stays tunable beside it, so the screen can also move the weight a mode is played at.
+An opponent counts for `border` when v6's model sees it reach me (any aim case but "apart"). The income in `power` and `attrition` is the board income (territories and continents, the same for every seat, so no preference of mine enters the others' power), summed over the seats still alive for `attrition`.
 
-**The default is `"max"`, provisionally.** The screen below picks the mode that goes forward (and its weight, if a mode needs one other than v6's 0.5); `V6_1_PARAMS` is set to its pick before the bar is run.
+**The default is `border: "max"`, provisionally and already rejected.** `V6_1_PARAMS` is set to the screen's pick before the bar is run; until then every candidate is named by its full label, `"border":"sum"` included.
 
-**Where the change reaches.** The border loss feeds a decision only through the evaluation's value, and every board v6 scores goes through the settings' scorer (`scoreOf` in `rule-v6/evaluate.ts`): the planner's plans (and so the attacks, the trade decision and the move-in, which are all read off the best plan), the fortify, and the `homeward` credit, which adjusts the breakdown before scoring it. v6.1 swaps the scorer (`border.ts`): v6's value with v6's summed charge taken back out and `border`'s put in, its per-opponent terms from v6's own opponent model, with the settings and opponent record the decision plays by. That is why v6.1 has its own entry point (`index.ts`, v6's copied): the scorer must be bound to the table's preferences and this game's record, which v6 works out inside its bot. Everything else is v6's by import. The opponent model's kill beliefs, power, spared chances and common threat don't read the border loss, so they are v6's unchanged. One other sum over opponents is left as it is: the `gather` fortify picks the move that most cuts the opponents' summed sweep costs, but only compares fortifies with one another, never against the share of power, so the sum doesn't tilt it towards hoarding.
+### C1, `power: "armies"`: hoarded armies at a discount
 
-**At every table.** The mode applies at 3 and 4 players too, where v6 never stalled: the overcount is the same flaw there, smaller with two or three opponents. If the bar finds v6.1 worse at a small table and even at the large ones, the next step is the mode at 5 and 6 players only.
+A seat's armies enter its power as `min(armies, m × income) + f × max(0, armies − m × income)`, for every seat alike. At face value a 300-stack is 300 power that can never be spent profitably at 6 players; discounted it is far less, and one more territory of income, or a continent's bonus, is worth spending armies on again. An exchange between two over-cap stacks still doesn't pay, but captures and continent completions do, and a seat that spends spreads, which gives the sweeps and kills their thin targets. The border loss keeps its full price, so the bot stays v6 about thinness. In human-shaped games (about 30 armies a seat on an income of 6 at turn 100, a cap of 36 at m = 6) the discount is nearly inert; in the frozen table (75 a seat on 5.7) it binds every seat. Screened at m = 6, f = 0.25 and m = 4, f = 0.5.
 
-**What it costs.** The scorer asks v6's opponent model again for each board it scores (v6's breakdown keeps only the sum), so a decision costs about half as much again as v6's: on the online games' positions, 2.4 ms against 1.55 ms. If v6.1 is seated, a speed-only change (its own breakdown carrying the per-opponent terms) can remove that, bit for bit, under the frozen test.
+**What it re-prices, and what it leaves as v6's.** The scorer rebuilds v6's value on the re-priced power: the share, the total every term is divided by (the border, opportunity and idle charges are all in units of the table's power), and the common-threat and lead terms, with the common threat itself found again from the new power with v6's ratio. The re-pricing is exact for the power v6's forecast computes: a seat's armies enter its power at face value and are then scaled by each kill the opponents might make of it, the same factors its spared chance multiplies (mine aren't), so the discount is scaled by the same factors and the result is the power the forecast would give with the discounted armies in its sum. Left as v6's, because they live inside v6's forecast and planner where the hook can't reach: the opponent model's aim cases (an opponent's aim at me is "leader" or "ally" by v6's common threat, so the border loss is weighted by v6's reading of who leads), its kill beliefs, the kill exposure and opportunity (which read kill chances, not power), and the planner's own common-threat plans (which plans it builds is chosen by v6's breakdown's threat). The design expects these to matter little: a hoarder reads as the leader less often after the discount, and that changes the aims only at tables with a clear leader. If C1 lands, the .1 moves the discount into the forecast's power sum, so these read it too, and is screened once more.
+
+### C2, `attrition`: the border weight eased as armies outgrow income
+
+The border charge is weighted `borderWeight × min(1, k × incomeTotal / armiesTotal)`. With k = 6 it is v6's while the board holds up to 6 rounds of its income (human games run at 3 to 6; the frozen table passes 10 by turn 80) and half at 12. So in a stall-shaped table the bot plays like a lower border weight, which ends games, and everywhere else it is v6 exactly, float for float. It is the least principled candidate (it lowers a correct price because the game has gone long) and the lowest strength risk; it shares C1's trigger, so it is the fallback if C1 fails on strength. Screened at k = 6 and k = 9.
+
+### C3, the control: `border: "sum"` at a lower weight
+
+`border: "sum"` at `borderWeight` 0.4 (0.25 is already being measured, below): the cheapest possible fix, there to put the stall-against-strength trade-off on a curve the others must beat. A label moves the weight at every table; the screen plays only 5 and 6 players, and if C3 were picked, gating it to those tables would be a one-line change to build first.
+
+## Where the change reaches
+
+The settings feed a decision only through the evaluation's value, and every board v6 scores goes through the settings' scorer: the planner's plans (and so the attacks, the trade decision and the move-in, which are all read off the best plan), the fortify, and the `homeward` credit, which adjusts the breakdown before scoring it. That is why v6.1 has its own entry point (`index.ts`, v6's copied): the scorer must be bound to the table's preferences and this game's record of the opponents, which v6 works out inside its bot. Everything else is v6's by import. One other sum over opponents is left as it is: the `gather` fortify picks the move that most cuts the opponents' summed sweep costs, but only compares fortifies with one another, never against the share of power.
+
+**At every table.** The settings apply at 3 and 4 players too. C1 and C2 are inert there by construction in most positions (those games end before armies outgrow income); `max` and `mean` are not.
+
+**What it costs.** `max` and `mean` ask v6's opponent model again for each board scored (v6's breakdown keeps only the sum): 2.4 ms a decision against v6's 1.55 ms on the online games' positions. C1 and C2 with `border: "sum"` don't: each reads every seat's armies and income off the board, a few hundred additions a board. If v6.1 is seated, a speed-only change can fold any of it into the breakdown, bit for bit, under the frozen test.
 
 ## Behaviour against v6
 
-`npm run risk:agreement` asks v6 and the candidates every decision of a set of positions, and reports how often each decides as v6 does, by kind (placement, trade, attack, move-in, fortify). Positions come from online games' exported move logs (`--online`, every seat's decisions, the people's included) or from v6's own games (`--games`, v6 in every seat). On the three finished online games (G4FR, 9VFL, YUY4, 2,616 decisions):
+`npm run risk:agreement` asks v6 and the candidates every decision of a set of positions, and reports how often each decides as v6 does, by kind. On the three finished online games (G4FR, 9VFL, YUY4, 2,616 decisions):
 
 | | placement | trade | attack | move-in | fortify | all |
 |---|---|---|---|---|---|---|
@@ -34,55 +62,91 @@ An opponent counts when v6's model sees it reach me: it borders me, or its sweep
 | `"max"` | 75.4% | 94.0% | 78.3% | 80.7% | 91.7% | 80.4% |
 | `"mean"` | 74.9% | 93.9% | 79.0% | 81.1% | 96.8% | 81.2% |
 
-A fifth of the decisions move. These are 5-player games, with three or four opponents counted on most boards, so the larger tables are where the two modes differ most from the sum; at 3 players they will agree with v6 more.
+## The first screen: `max` and `mean`
+
+| | Elo vs v6 | stalls | decided games |
+|---|---|---|---|
+| `"max"` | −156 | none | about 47 turns |
+| `"mean"` | −215 | none | about 47 turns |
+
+Both rejected. They never stall, but they end games in about half the turns of people's games (75–98 at 5 players) and of v6's decided games (105 at 5, 183 at 6): with the border charge cut to a fraction at a big table, on every board, including those where the opponents' sweeps really do land in turn, the bots spread thin and are swept. They fixed the symptom by removing the judgement. `"sum"` at `borderWeight` 0.25 is being measured now, and is C3's first point.
 
 ## Measuring it
 
-Fixed before any run. Every command below is exact and none has been run. They play locally from a checkout of this branch; each gauntlet runs as well on GitHub Actions with the same arguments (`docs/actions.md`). A run that holds the machine for long needs the owner's go-ahead (the root `CLAUDE.md`).
+Fixed before any run; none of the commands below has been run. They play locally from a checkout of this branch, from the repository root, in PowerShell; each gauntlet runs as well on GitHub Actions with the same arguments (`docs/actions.md`). A run that holds the machine for long needs the owner's go-ahead (the root `CLAUDE.md`). A label's inner quotes are escaped with backslashes so Windows PowerShell passes them to the program.
 
-### 1. The screen (5 and 6 players)
+The candidates, by label:
 
-The candidates: `"max"` and `"mean"` at v6's weight, and as the reference the ablation already found stall-free, `"sum"` at weight 0.25. For each, the cap rate on a mirror table, 100 games at each table size:
+| | label |
+|---|---|
+| C1a | `rule-v6.1~{"border":"sum","power":"armies","armyRounds":6,"armyBeyond":0.25}` |
+| C1b | `rule-v6.1~{"border":"sum","power":"armies","armyRounds":4,"armyBeyond":0.5}` |
+| C2a | `rule-v6.1~{"border":"sum","attrition":6}` |
+| C2b | `rule-v6.1~{"border":"sum","attrition":9}` |
+| C3 | `rule-v6.1~{"border":"sum","borderWeight":0.4}` |
 
-```bash
-npm run risk:trace -- --survey --mirror 'rule-v6.1~{"border":"max"}' 5 --games 100 --prefix screen-v6.1
-npm run risk:trace -- --survey --mirror 'rule-v6.1~{"border":"max"}' 6 --games 100 --prefix screen-v6.1
-npm run risk:trace -- --survey --mirror 'rule-v6.1~{"border":"mean"}' 5 --games 100 --prefix screen-v6.1
-npm run risk:trace -- --survey --mirror 'rule-v6.1~{"border":"mean"}' 6 --games 100 --prefix screen-v6.1
-npm run risk:trace -- --survey --mirror 'rule-v6.1~{"border":"sum","borderWeight":0.25}' 5 --games 100 --prefix screen-v6.1
-npm run risk:trace -- --survey --mirror 'rule-v6.1~{"border":"sum","borderWeight":0.25}' 6 --games 100 --prefix screen-v6.1
+### Stage 0: finish what is running
+
+`"mean"` and `"sum"` at 0.25. Record both in `bot-log.md`; 0.25's Elo is C3's first point.
+
+### Stage 1: stall and shape, 100-game mirrors at 5 and 6 players
+
+```powershell
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"power\":\"armies\",\"armyRounds\":6,\"armyBeyond\":0.25}' 5 --games 100 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"power\":\"armies\",\"armyRounds\":6,\"armyBeyond\":0.25}' 6 --games 100 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"power\":\"armies\",\"armyRounds\":4,\"armyBeyond\":0.5}' 5 --games 100 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"power\":\"armies\",\"armyRounds\":4,\"armyBeyond\":0.5}' 6 --games 100 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"attrition\":6}' 5 --games 100 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"attrition\":6}' 6 --games 100 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"attrition\":9}' 5 --games 100 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"attrition\":9}' 6 --games 100 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"borderWeight\":0.4}' 5 --games 100 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror 'rule-v6.1~{\"border\":\"sum\",\"borderWeight\":0.4}' 6 --games 100 --prefix screen-v6.1
 ```
 
-and a quick gauntlet against v6, both mixtures, train seeds, at most 2,000 decisive games a pairing:
+A survey prints, besides the cap rate and game lengths, the table's **shape**: the mean armies on the board as turn 100 began (over the games that reached it) and the mean of each game's battle losses over its income (trades included).
 
-```bash
-npm run risk:gauntlet -- 'rule-v6.1~{"border":"max"}' --base rule-v6 --field rule-v6 --players 5,6 --max 2000 --prefix screen-v6.1
-npm run risk:gauntlet -- 'rule-v6.1~{"border":"mean"}' --base rule-v6 --field rule-v6 --players 5,6 --max 2000 --prefix screen-v6.1
-npm run risk:gauntlet -- 'rule-v6.1~{"border":"sum","borderWeight":0.25}' --base rule-v6 --field rule-v6 --players 5,6 --max 2000 --prefix screen-v6.1
+- **Out on stalling:** 2 or more capped games in 100 at either table.
+- **Out on recklessness:** decided games' mean under 70 turns at 5 players or under 90 at 6 (people's games run 75–98 at 5 players; v6's decided games 105 at 5 and 183 at 6; `max` and `mean`'s 45–49 is the reckless mark).
+- **The shape check, reported beside the verdict:** board armies at turn 100 in 100–250 at 6 players (people's games; the frozen table had 449), and losses within about ±25% of income (people's games: roughly equal). It tells a human-shaped table from one that is merely stall-free; it removes no candidate by itself.
+
+### Stage 2: strength at 5 and 6 players
+
+For every stage 1 survivor, a gauntlet against v6, both mixtures, at most 2,000 decisive games a pairing, the screen's seeds; shown here for all five:
+
+```powershell
+npx tsx src/projects/risk/eval/gauntlet-cli.ts 'rule-v6.1~{\"border\":\"sum\",\"power\":\"armies\",\"armyRounds\":6,\"armyBeyond\":0.25}' --base rule-v6 --field rule-v6 --players 5,6 --max 2000 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/gauntlet-cli.ts 'rule-v6.1~{\"border\":\"sum\",\"power\":\"armies\",\"armyRounds\":4,\"armyBeyond\":0.5}' --base rule-v6 --field rule-v6 --players 5,6 --max 2000 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/gauntlet-cli.ts 'rule-v6.1~{\"border\":\"sum\",\"attrition\":6}' --base rule-v6 --field rule-v6 --players 5,6 --max 2000 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/gauntlet-cli.ts 'rule-v6.1~{\"border\":\"sum\",\"attrition\":9}' --base rule-v6 --field rule-v6 --players 5,6 --max 2000 --prefix screen-v6.1
+npx tsx src/projects/risk/eval/gauntlet-cli.ts 'rule-v6.1~{\"border\":\"sum\",\"borderWeight\":0.4}' --base rule-v6 --field rule-v6 --players 5,6 --max 2000 --prefix screen-v6.1
 ```
 
-and the behaviour on v6's own games beside the online ones:
+**Out on "worse" in any pairing.** Then the agreement at 3 and 4 players, where v6 never stalled and C1 and C2 should be inert, for the survivors (each named once with `--candidate`):
 
-```bash
-npm run risk:agreement -- --games 10 --players 5,6 --prefix agree-v6.1 --candidate 'rule-v6.1~{"border":"max"}' --candidate 'rule-v6.1~{"border":"mean"}' --candidate 'rule-v6.1~{"border":"sum","borderWeight":0.25}'
+```powershell
+npx tsx src/projects/risk/eval/agreement-cli.ts --games 10 --players 3,4 --prefix agree-v6.1 --candidate 'rule-v6.1~{\"border\":\"sum\",\"power\":\"armies\",\"armyRounds\":6,\"armyBeyond\":0.25}' --candidate 'rule-v6.1~{\"border\":\"sum\",\"power\":\"armies\",\"armyRounds\":4,\"armyBeyond\":0.5}' --candidate 'rule-v6.1~{\"border\":\"sum\",\"attrition\":6}' --candidate 'rule-v6.1~{\"border\":\"sum\",\"attrition\":9}'
 ```
 
-**The pick.** A candidate with 2 or more capped games in 100 at either table is out. Of the rest, one whose screen is "worse" in any pairing is out. Of what remains, the one with the highest agreement with v6 (all decisions, the online and the v6-game positions together) goes forward: the fix with the most v6-like play. If none remains, the screen's numbers go to the owner with the next candidates (a mode at another weight, or the mode at 5 and 6 players only) before anything else runs. `V6_1_PARAMS` is set to the pick, its label then plain `rule-v6.1`.
+A candidate agreeing with v6 on under 97% of decisions at 3–4 players goes to a 3- and 4-player gauntlet against v6 (the command above with `--players 3,4`) before anything else, out on "worse" there too; one at 97% or more is taken as v6 there, pending the bar.
 
-### 2. The bar for replacing v6
+### Stage 3: the pick
 
-On holdout seeds, never used by the screen:
+Among the survivors, the **highest win Elo** against v6 over the 5- and 6-player tables; a tie inside 15 Elo goes to the higher agreement with v6. `V6_1_PARAMS` is set to the pick, its label then plain `rule-v6.1`. If none survives, the curve (C3's points, and the failures' Elo, cap rates and shapes) goes to the owner, with a relative share against the strongest opponent as the next idea (a new version's hypothesis, not a v6.1).
 
-```bash
-npm run risk:gauntlet -- rule-v6.1 --base rule-v6 --field rule-v6 --players 3,4,5,6 --prefix holdout
-npm run risk:trace -- --survey --mirror rule-v6.1 5 --games 300 --prefix holdout-cap
-npm run risk:trace -- --survey --mirror rule-v6.1 6 --games 300 --prefix holdout-cap
+## The bar for replacing v6
+
+**v6.1 replaces v6 if it is at least as strong as v6, "even or better in every pairing, worse in none", without stalling.** On holdout seeds, never used by the screen:
+
+```powershell
+npx tsx src/projects/risk/eval/gauntlet-cli.ts rule-v6.1 --base rule-v6 --field rule-v6 --players 3,4,5,6 --prefix holdout
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror rule-v6.1 5 --games 300 --prefix holdout-cap
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror rule-v6.1 6 --games 300 --prefix holdout-cap
 ```
 
-- **Strength: "even" against v6 in every pairing**, 3, 4, 5 and 6 players, one-in and one-out, each pairing's SPRT at the gauntlet's defaults (±30 Elo a seat, α = β = 0.05, at most 20,000 decisive games). A pairing still undecided at its cap hasn't passed: it is rerun with a higher `--max`, never read as even.
-- **"Worse" in any pairing fails.** v6 keeps its seat, and the mode at 5 and 6 players only is the next candidate.
-- **"Better" in any pairing (and worse in none) means a stronger bot,** not v6's replacement: it gets a name of its own (the next version) and goes through the full suite and seating like any new version, and v6 keeps its seat.
-- **No stall: at most 1 capped game in 300 on each of the 5- and 6-player mirror tables** (an upper 95% bound under 1.6%; 0 in 300 puts it under 1%), against v6's 10% and 15%.
+- **Strength: even or better against v6 in every pairing**, 3, 4, 5 and 6 players, one-in and one-out, each pairing's SPRT at the gauntlet's defaults (±30 Elo a seat, α = β = 0.05, at most 20,000 decisive games). A pairing still undecided at its cap hasn't passed: it is rerun with a higher `--max`, never read as even.
+- **"Worse" in any pairing fails**, and v6 keeps its seat.
+- **No stall: at most 1 capped game in 300 on each of the 5- and 6-player mirror tables** (an upper 95% bound under 1.6%; 0 in 300 puts it under 1%), against v6's 10% and 15%; a reckless-short mirror (decided mean under 70 turns at 5 players or 90 at 6) fails too, and the shape is reported beside it.
 - **Behaviour agreement is reported, not gated.**
 
-If it clears the bar, v6.1 takes v6's lobby seat in `online/seat-roster.ts` (what happens to tables already seating v6 is settled then), its frozen fingerprints are taken, and the seatable ratings are rerun. Until then it is registered for measuring only.
+If it clears the bar, v6.1 takes v6's lobby seat in `online/seat-roster.ts` (what happens to tables already seating v6 is settled then), its frozen fingerprints are taken, and the seatable ratings are rerun. Until then it is registered for measuring only. v7 is then rebuilt on it: its plans from v6.1's planner, its reply seats v6.1, and if C1 landed, its leaf's share on the same discounted power; its own 6-player cap rate is the first thing measured.

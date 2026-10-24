@@ -1,6 +1,7 @@
 import type { GameEvent, GameView, Move, Seat } from "../contract";
 import { ADJACENCY, CONTINENTS, TERRITORIES } from "../map";
-import type { Observer } from "./runner";
+import { riskBot } from "../bots";
+import { playGame, type Observer, type RiskGameResult, type RiskGameSpec } from "./runner";
 
 // A game's trajectory, turn by turn, for asking why a game runs long (`risk:trace`): every seat's
 // standing as each player-turn begins, and what the turn did (its income, trades, attacks,
@@ -160,6 +161,64 @@ export function windows(trace: Trace, size: number): WindowSummary[] {
     });
   }
   return out;
+}
+
+/** The turn a survey reads a table's armies at: past the opening, where human games carry 100 to
+ *  250 armies at 6 players and a frozen bot table already twice that (`ideas/rule-bot-v6.1.md`). */
+export const SHAPE_TURN = 100;
+
+/** A game's shape, the two numbers that tell a stalling table from a reckless one and a
+ *  human-like one. */
+export interface GameShape {
+  /** Armies on the board as player-turn `SHAPE_TURN` began; null for a game over before it. */
+  armiesAtTurn: number | null;
+  /** The armies lost in battle, both sides', over the armies earned, trades included: about 1 in
+   *  people's games, well under in a table piling armies up. */
+  lossesPerIncome: number;
+}
+
+export function shapeOf(trace: Trace, at = SHAPE_TURN): GameShape {
+  const turn = trace.turns.at(at - 1);
+  let losses = 0;
+  let income = 0;
+  for (const t of trace.turns) {
+    losses += t.attackerLosses + t.defenderLosses;
+    income += t.income + t.tradeArmies;
+  }
+  return {
+    armiesAtTurn: turn === undefined ? null : turn.start.reduce((a, s) => a + (s.alive ? s.armies : 0), 0),
+    lossesPerIncome: income === 0 ? 0 : losses / income,
+  };
+}
+
+export interface SurveyResult extends RiskGameResult {
+  /** Null for a game that errored. */
+  shape: GameShape | null;
+}
+
+/** A survey's game: the runner's result, with the game's shape read off its trace. */
+export function surveyGame(spec: RiskGameSpec): SurveyResult {
+  const base = { index: spec.index, seed: spec.seed, labels: spec.labels };
+  const trace = new Trace();
+  try {
+    const record = playGame({ seed: spec.seed, bots: spec.labels.map((l) => riskBot(l)), maxTurns: spec.maxTurns, observe: trace });
+    return { ...base, ...record, shape: shapeOf(trace) };
+  } catch (e) {
+    // As the runner's own `runSpec`: one broken game comes back as an error the survey prints.
+    return { ...base, winner: null, places: [], turns: 0, decisions: 0, error: (e as Error).message, shape: null };
+  }
+}
+
+/** The survey's shape line: the mean board armies at `SHAPE_TURN` over the games that reached it,
+ *  and the mean over every game of its losses over its income. */
+export function shapeLine(results: readonly SurveyResult[]): string {
+  const shapes = results.flatMap((r) => (r.shape === null ? [] : [r.shape]));
+  const reached = shapes.flatMap((s) => (s.armiesAtTurn === null ? [] : [s.armiesAtTurn]));
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+  return (
+    `  shape: board armies at turn ${SHAPE_TURN.toString()} mean ${reached.length > 0 ? mean(reached).toFixed(0) : "-"} (${reached.length.toString()} of ${shapes.length.toString()} games reached it),` +
+    ` losses ÷ income ${mean(shapes.map((s) => s.lossesPerIncome)).toFixed(2)}`
+  );
 }
 
 const pad = (v: string | number, w: number) => String(v).padStart(w);

@@ -12,15 +12,18 @@ import { ruleV6Bot } from "../rule-v6";
 import { breakdown } from "../rule-v6/evaluate";
 import { forecast, type OpponentTurn } from "../rule-v6/opponents";
 import { V6_PARAMS } from "../rule-v6/params";
-import { borderOf, borderScorer } from "./border";
+import { borderOf } from "./border";
 import { ruleBot, ruleV6_1Bot } from "./index";
-import { V6_1_PARAMS } from "./params";
+import { V6_1_PARAMS, type Params } from "./params";
+import { attritionScale, pricedArmies, repricedPower, scorerFor } from "./score";
 
-// v6.1 is v6 with the border loss gathered another way (`ideas/rule-bot-v6.1.md`): at "sum" it
-// must play v6's moves exactly, and each mode must gather what it says.
+// v6.1 is v6 with its board scored another way (`ideas/rule-bot-v6.1.md`): with no setting moved
+// it must play v6's moves exactly, and each setting must compute what it says.
 
 const sum = riskBot('rule-v6.1~{"border":"sum"}');
 const max = riskBot('rule-v6.1~{"border":"max"}');
+const armies = riskBot('rule-v6.1~{"border":"sum","power":"armies"}');
+const attrition = riskBot('rule-v6.1~{"border":"sum","attrition":6}');
 
 /** v6's own frozen games (3 seats of v6; v6 beside greedy at 5), and a 6-player game of v6 cut at
  *  60 turns, kept beside this test. */
@@ -58,7 +61,31 @@ describe("rule-v6.1 at border \"sum\" is v6", () => {
     });
     expect(differ).toBeGreaterThan(0);
   });
+
+  it("moves away from v6 with the army discount and with attrition on the 6-player game", () => {
+    const differ = [0, 0];
+    askAlong(GAMES[2], [ruleV6Bot, armies, attrition], ([v6, ...candidates]) => {
+      candidates.forEach((m, i) => {
+        if (JSON.stringify(m) !== JSON.stringify(v6)) differ[i]++;
+      });
+    }, 15);
+    expect(differ[0]).toBeGreaterThan(0);
+    expect(differ[1]).toBeGreaterThan(0);
+  });
 });
+
+// I (seat 0) hold South America; seat 1 North America and Asia, its stack of 8 on Central
+// America; seat 2 Europe and Africa, 6 on North Africa; seat 3 only Australia, out of reach.
+const own = (continents: readonly ContinentId[], seat: Seat, armies: number) =>
+  Object.fromEntries(TERRITORIES.filter((t) => continents.includes(t.continent)).map((t) => [t.id, [seat, armies]])) as Partial<Record<TerritoryId, [Seat, number]>>;
+const TABLE: Partial<Record<TerritoryId, [Seat, number]>> = {
+  ...own(["north-america", "asia"], 1, 2),
+  ...own(["europe", "africa"], 2, 2),
+  ...own(["australia"], 3, 1),
+  ...own(["south-america"], 0, 3),
+  "central-america": [1, 8],
+  "north-africa": [2, 6],
+};
 
 describe("rule-v6.1's border modes", () => {
   const turn = (seat: Seat, aimCase: OpponentTurn["aimCase"], aim: number, hit: number): OpponentTurn => ({ seat, aimCase, aim, hit, victim: -1, killTaken: 0 });
@@ -71,22 +98,7 @@ describe("rule-v6.1's border modes", () => {
     expect(borderOf([turn(1, "apart", 0, 0)], "mean")).toBe(0);
   });
 
-  // I (seat 0) hold South America; seat 1 North America and Asia, its stack of 8 on Central
-  // America; seat 2 Europe and Africa, 6 on North Africa; seat 3 only Australia, out of reach.
-  const own = (continents: readonly ContinentId[], seat: Seat, armies: number) =>
-    Object.fromEntries(TERRITORIES.filter((t) => continents.includes(t.continent)).map((t) => [t.id, [seat, armies]])) as Partial<Record<TerritoryId, [Seat, number]>>;
-  const state = position({
-    players: 4,
-    board: {
-      ...own(["north-america", "asia"], 1, 2),
-      ...own(["europe", "africa"], 2, 2),
-      ...own(["australia"], 3, 1),
-      ...own(["south-america"], 0, 3),
-      "central-america": [1, 8],
-      "north-africa": [2, 6],
-    },
-  });
-  const b = fromView(referenceEngine.view(state, 0));
+  const b = fromView(referenceEngine.view(position({ players: 4, board: TABLE }), 0));
   const alive = [0, 1, 2, 3];
   const { turns, borderLoss } = forecast(b, 0, V6_PARAMS, alive, null);
   const loss = (seat: Seat) => {
@@ -106,17 +118,76 @@ describe("rule-v6.1's border modes", () => {
   it("scores v6's value with only the border charge swapped", () => {
     const bd = breakdown(b, 0, V6_PARAMS);
     const w = V6_PARAMS.prefs.borderWeight;
-    expect(borderScorer(V6_PARAMS, "max")(b, 0, bd)).toBeCloseTo(bd.value + (w * (borderLoss - Math.max(loss(1), loss(2)))) / bd.total, 12);
-    expect(borderScorer(V6_PARAMS, "sum")(b, 0, bd)).toBeCloseTo(bd.value, 12);
+    expect(scorerFor(V6_PARAMS, { ...V6_1_PARAMS, border: "max" })(b, 0, bd)).toBeCloseTo(bd.value + (w * (borderLoss - Math.max(loss(1), loss(2)))) / bd.total, 12);
+    expect(scorerFor(V6_PARAMS, { ...V6_1_PARAMS, border: "sum" })(b, 0, bd)).toBe(bd.value);
+  });
+});
+
+describe("rule-v6.1's army discount and attrition", () => {
+  // The same table, with seat 1 hoarding 200 on Central America. Board incomes: me 3 + South
+  // America's 2 = 5; seat 1 21 territories, 7 + 5 + 7 = 19; seat 2 13 territories, 4 + 5 + 3 = 12;
+  // seat 3 Australia, 3 + 2 = 5: 41 in all. Armies: 12, 40 + 200 = 240, 30 and 4: 286.
+  const hoard = position({ players: 4, board: { ...TABLE, "central-america": [1, 200] } });
+  const b = fromView(referenceEngine.view(position({ players: 4, board: TABLE }), 0));
+  const h = fromView(referenceEngine.view(hoard, 0));
+  const settings = (moved: Partial<Params>): Params => ({ ...V6_1_PARAMS, border: "sum", ...moved });
+
+  it("counts armies fully up to the rounds of income and at the fraction beyond", () => {
+    expect(pricedArmies(30, 5, 6, 0.25)).toBe(30);
+    expect(pricedArmies(100, 5, 6, 0.25)).toBe(30 + 0.25 * 70);
+    expect(pricedArmies(100, 5, 4, 0.5)).toBe(20 + 0.5 * 80);
+    expect(pricedArmies(100, 5, 6, 1)).toBe(100);
+  });
+
+  it("takes the hoarder's discount off its power, scaled by its chance of surviving, and leaves seats under the cap alone", () => {
+    const bd = breakdown(h, 0, V6_PARAMS);
+    const power = repricedPower(h, 0, bd, 6, 0.25);
+    // Seat 1: 240 armies against a cap of 6 × 19 = 114, so 114 + 0.25 × 126 = 145.5 count.
+    expect(power[1]).toBeCloseTo(bd.power[1] - (240 - 145.5) * bd.spared[1], 9);
+    expect(power[0]).toBe(bd.power[0]);
+    expect(power[2]).toBe(bd.power[2]);
+    expect(power[3]).toBe(bd.power[3]);
+  });
+
+  it("rebuilds v6's value exactly when nothing is discounted, and raises my share when the hoarder's is", () => {
+    const bd = breakdown(h, 0, V6_PARAMS);
+    expect(scorerFor(V6_PARAMS, settings({ power: "armies", armyBeyond: 1 }))(h, 0, bd)).toBeCloseTo(bd.value, 12);
+    expect(scorerFor(V6_PARAMS, settings({ power: "armies" }))(h, 0, bd)).toBeGreaterThan(bd.value);
+  });
+
+  it("scales the border weight by the board's rounds of income only past the threshold", () => {
+    expect(attritionScale(b, [0, 1, 2, 3], 6)).toBe(1);
+    expect(attritionScale(h, [0, 1, 2, 3], 6)).toBeCloseTo((6 * 41) / 286, 12);
+    expect(attritionScale(h, [0, 1, 2, 3], 0)).toBe(1);
+    const bd = breakdown(h, 0, V6_PARAMS);
+    const w = V6_PARAMS.prefs.borderWeight;
+    const scale = (6 * 41) / 286;
+    expect(scorerFor(V6_PARAMS, settings({ attrition: 6 }))(h, 0, bd)).toBeCloseTo(bd.value + (w * (1 - scale) * bd.borderLoss) / bd.total, 12);
+  });
+
+  it("is v6's value exactly where the board's income outruns its armies", () => {
+    const bd = breakdown(b, 0, V6_PARAMS);
+    expect(scorerFor(V6_PARAMS, settings({ attrition: 6 }))(b, 0, bd)).toBe(bd.value);
+    expect(scorerFor(V6_PARAMS, settings({ attrition: 9 }))(b, 0, bd)).toBe(bd.value);
   });
 });
 
 describe("rule-v6.1 is deterministic", () => {
-  it("makes the same moves again, and a fresh copy makes them too", () => {
-    const fresh = ruleBot(V6_1_PARAMS);
-    askAlong(GAMES[2], [ruleV6_1Bot, ruleV6_1Bot, fresh], ([a, again, copy], decision) => {
-      expect(again, `decision ${decision.toString()}`).toEqual(a);
-      expect(copy, `decision ${decision.toString()}`).toEqual(a);
-    }, 15);
+  const cases: readonly [string, Bot, Bot][] = [
+    ["its default", ruleV6_1Bot, ruleBot(V6_1_PARAMS)],
+    ["the army discount", armies, ruleBot({ ...V6_1_PARAMS, border: "sum", power: "armies" })],
+    ["attrition", attrition, ruleBot({ ...V6_1_PARAMS, border: "sum", attrition: 6 })],
+  ];
+  for (const [name, bot, fresh] of cases) {
+    it(`makes the same moves again, and a fresh copy makes them too (${name})`, () => {
+      askAlong(GAMES[2], [bot, bot, fresh], ([a, again, copy], decision) => {
+        expect(again, `decision ${decision.toString()}`).toEqual(a);
+        expect(copy, `decision ${decision.toString()}`).toEqual(a);
+      }, 10);
+    });
+  }
+
+  it("refuses a discount fraction outside 0 to 1", () => {
+    expect(() => riskBot('rule-v6.1~{"power":"armies","armyBeyond":1.5}')).toThrow(/armyBeyond/);
   });
 });

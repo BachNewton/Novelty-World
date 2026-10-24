@@ -16,7 +16,7 @@ import { ruleBot as ruleV6, ruleV6Bot } from "./rule-v6";
 import { V6_PARAMS } from "./rule-v6/params";
 import { ruleBot as ruleV6_1, ruleV6_1Bot } from "./rule-v6.1";
 import { BORDER_MODES, borderMode } from "./rule-v6.1/border";
-import { V6_1_PARAMS } from "./rule-v6.1/params";
+import { POWER_MODES, powerMode, V6_1_PARAMS } from "./rule-v6.1/params";
 import { ruleBot as ruleV7, ruleV7Bot } from "./rule-v7";
 import { V7_PARAMS } from "./rule-v7/params";
 import { ruleV8Bot } from "./rule-v8";
@@ -77,7 +77,17 @@ interface Tunable {
   knobs?: Readonly<Record<string, number>>;
   /** Settings that name one of a list, each with its default: a student's weight set. */
   choices?: Readonly<Record<string, { value: string; options: readonly string[] }>>;
-  build: (prefs: Preferences, engine: Engine, switches: Record<string, number>, knobs: Record<string, number>, choices: Record<string, string>) => Bot;
+  /** Settings of a version's own that are any number, each with its default, checked by the
+   *  version: v6.1's army discount. */
+  numbers?: Readonly<Record<string, number>>;
+  build: (
+    prefs: Preferences,
+    engine: Engine,
+    switches: Record<string, number>,
+    knobs: Record<string, number>,
+    choices: Record<string, string>,
+    numbers: Record<string, number>,
+  ) => Bot;
 }
 
 /** The rule bots a measuring run may seat with some settings moved, each by its code and
@@ -107,13 +117,25 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
     switches: { ...V6_PARAMS.fixes },
     build: (prefs, engine, switches) => ruleV6({ ...V6_PARAMS, prefs, engine, fixes: { ...V6_PARAMS.fixes, ...switches } }),
   },
-  // v6.1 with its border loss gathered another way: `rule-v6.1~{"border":"mean","borderWeight":0.4}`
-  // (`ideas/rule-bot-v6.1.md`). "sum" plays exactly v6's moves.
+  // v6.1's candidates (`ideas/rule-bot-v6.1.md`): `rule-v6.1~{"border":"mean","borderWeight":0.4}`,
+  // `rule-v6.1~{"power":"armies","armyRounds":4,"armyBeyond":0.5}`, `rule-v6.1~{"border":"sum","attrition":6}`.
+  // "sum", "face" and attrition 0 play exactly v6's moves.
   "rule-v6.1": {
     prefs: V6_1_PARAMS.prefs,
     engine: V6_1_PARAMS.engine,
-    choices: { border: { value: V6_1_PARAMS.border, options: BORDER_MODES } },
-    build: (prefs, engine, _switches, _knobs, choices) => ruleV6_1({ ...V6_1_PARAMS, prefs, engine, border: borderMode(choices.border) }),
+    choices: { border: { value: V6_1_PARAMS.border, options: BORDER_MODES }, power: { value: V6_1_PARAMS.power, options: POWER_MODES } },
+    numbers: { armyRounds: V6_1_PARAMS.armyRounds, armyBeyond: V6_1_PARAMS.armyBeyond, attrition: V6_1_PARAMS.attrition },
+    build: (prefs, engine, _switches, _knobs, choices, numbers) =>
+      ruleV6_1({
+        ...V6_1_PARAMS,
+        prefs,
+        engine,
+        border: borderMode(choices.border),
+        power: powerMode(choices.power),
+        armyRounds: numbers.armyRounds,
+        armyBeyond: numbers.armyBeyond,
+        attrition: numbers.attrition,
+      }),
   },
   // v7 at a work budget: `rule-v7~{"replies":8}` (`ideas/rule-bot-v7.md`).
   "rule-v7": {
@@ -149,12 +171,13 @@ function tunedBot(label: string): Bot | null {
   const known = tuned.get(label);
   if (known) return known;
   const overrides = JSON.parse(label.slice(at + 1)) as Record<string, unknown>;
-  const { prefs, engine, switches = {}, knobs = {}, choices = {}, build } = TUNABLE_BOTS[base];
+  const { prefs, engine, switches = {}, knobs = {}, choices = {}, numbers = {}, build } = TUNABLE_BOTS[base];
   const moved = {
     prefs: { ...prefs },
     engine: { ...engine },
     switches: { ...switches },
     knobs: { ...knobs },
+    numbers: { ...numbers },
     choices: Object.fromEntries(Object.entries(choices).map(([key, c]) => [key, c.value])),
   };
   for (const [key, value] of Object.entries(overrides)) {
@@ -170,9 +193,10 @@ function tunedBot(label: string): Bot | null {
     } else if (Object.hasOwn(knobs, key)) {
       if (!Number.isInteger(value) || value < 0) throw new Error(`"${base}"'s knob "${key}" is a whole number, 0 or more, not ${value.toString()}`);
       moved.knobs[key] = value;
-    } else throw new Error(`"${base}" has no setting "${key}"`);
+    } else if (Object.hasOwn(numbers, key)) moved.numbers[key] = value;
+    else throw new Error(`"${base}" has no setting "${key}"`);
   }
-  const bot = build(moved.prefs, moved.engine, moved.switches, moved.knobs, moved.choices);
+  const bot = build(moved.prefs, moved.engine, moved.switches, moved.knobs, moved.choices, moved.numbers);
   tuned.set(label, bot);
   return bot;
 }
