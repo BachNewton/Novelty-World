@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
+import { GpuCanvas } from "../gpu-canvas";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
@@ -11,7 +12,7 @@ import { EVERY_SPECIES, shownCat, shownDog, type Shown } from "./preview-species
 import { makeAtmosphere } from "../../art/atmosphere";
 import { Daylight } from "../../art/light/daylight";
 import { readPalette } from "../../art/palette";
-import { FrameCosts } from "../../art/passes";
+import { FrameCosts } from "../../art/frame";
 import { shadeLambert } from "../../art/shading";
 import { makeSkyUniforms, Sky } from "../../art/sky/sky";
 import { parseDate } from "../../engine/calendar";
@@ -345,7 +346,7 @@ export function AnimalPreview() {
 
   return (
     <div className="relative h-dvh w-full" data-testid="hearthwood-animals">
-      <Canvas dpr={[1, 2]} camera={{ fov: 35, near: 0.05, far: 4000 }} gl={{ antialias: true, reversedDepthBuffer: true }}>
+      <GpuCanvas dpr={[1, 2]} camera={{ fov: 35, near: 0.05, far: 4000 }}>
         <PreviewStage />
         {chosen ? (
           <Body key={`${chosen.shown.species}-${focus}`} placed={chosen} clock={clock} activity={activity} greeting={greeting} speed={chosen.shown.speed(activity)} />
@@ -374,7 +375,7 @@ export function AnimalPreview() {
             bodies.current = bodiesIn(scene);
           }}
         />
-      </Canvas>
+      </GpuCanvas>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
         <div className="pointer-events-auto">

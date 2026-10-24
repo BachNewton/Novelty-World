@@ -21,6 +21,8 @@ export interface Quality {
   small: PlantReach;
   /** The sharpest the world draws, in device pixels per CSS pixel. */
   maxPixelRatio: number;
+  /** Samples per pixel for the scene's edges (multisampling): 1 for none. */
+  samples: number;
   /** Each of the sun's shadow maps, in texels a side. */
   shadowMap: number;
   /** How far from the camera the shadows reach, in metres: in four maps with the far shadows on (`shadowCascades`), in one without. */
@@ -45,6 +47,7 @@ export const DESKTOP: Quality = {
   shrubs: { near: 110, far: 420, thinFrom: Infinity, keep: 1 },
   small: { near: 90, far: 200, thinFrom: Infinity, keep: 1 },
   maxPixelRatio: 2,
+  samples: 4,
   shadowMap: 2048,
   shadowReach: 900,
   shadowReachNear: 60,

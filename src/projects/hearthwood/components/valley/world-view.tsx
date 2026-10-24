@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
+import { GpuCanvas } from "../gpu-canvas";
 import { useWalkInput } from "../../input/use-walk-input";
 import { REGIONS } from "../../engine/regions";
 import { emptySample } from "../../engine/land";
@@ -16,7 +17,7 @@ import { readCluePalette } from "../../art/clue-shapes";
 import { readFolkPalette } from "../../art/folk";
 import { readForagePalette } from "../../art/forage-shapes";
 import { readPalette } from "../../art/palette";
-import { FrameCosts } from "../../art/passes";
+import { FrameCosts } from "../../art/frame";
 import { makeSkyUniforms, Sky } from "../../art/sky/sky";
 import { absorptionOf } from "../../art/water/absorption";
 import { setWaterAtEye } from "../../art/water/underwater";
@@ -170,10 +171,8 @@ export function WorldView() {
 
   return (
     <div ref={surface} data-testid="hearthwood-world" className="relative h-dvh w-full touch-none overflow-hidden select-none" style={PROMPT_COLOURS}>
-      <Canvas
+      <GpuCanvas
         dpr={[1, QUALITY.maxPixelRatio]}
-        // A reversed depth buffer keeps depth precise from a hand's breadth to the horizon a hundred kilometres off.
-        gl={{ antialias: true, powerPreference: "high-performance", reversedDepthBuffer: true }}
         camera={{ fov: 55, near: 0.2, far: QUALITY.viewDistance * 1.2 }}
       >
         <Ticker clock={clock} world={world} />
@@ -218,7 +217,7 @@ export function WorldView() {
         <Fireflies spots={fireflies} palette={palette} atmosphere={atmosphere} sky={sky} />
         <WalkerAndCamera world={world} camping={camping} input={input.state} walker={walker} focus={focus} palette={palette} atmosphere={atmosphere} />
         <WorldProbeHandle world={world} palette={palette} clock={clock} walker={walker} streaming={streaming} freeCamera={freeCamera} weather={weather} foraging={foraging} companionship={companionship} hearth={hearth} wildlife={wildlife} people={people} mysteries={mysteries} companionClues={companionClues} fetching={fetching} costs={debug.costs} setPointOfView={input.setPointOfView} />
-      </Canvas>
+      </GpuCanvas>
       {!cooking && !talking && !examining && !input.flying && <WalkHints input={input} />}
       {input.flying && <FlyOverlay speed={input.flySpeed} />}
       <ForageOverlay foraging={foraging} hearth={hearth} clock={clock} input={input.kind} />

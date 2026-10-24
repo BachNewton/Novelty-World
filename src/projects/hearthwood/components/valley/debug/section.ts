@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { FrameCosts } from "../../../art/passes";
+import type { FrameCosts } from "../../../art/frame";
 import type { ValleyClock } from "../clock";
 import type { SceneWeather } from "../world-weather";
 

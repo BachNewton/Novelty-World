@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
+import { GpuCanvas } from "../gpu-canvas";
 import { Html, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { type Camera, CircleGeometry, MeshLambertMaterial, type Scene, SkinnedMesh, Spherical, Vector3 } from "three";
@@ -13,7 +14,7 @@ import { shadeLambert } from "../../art/shading";
 import { Daylight, type Air, type Focus } from "../../art/light/daylight";
 import { readPalette } from "../../art/palette";
 import { makeSkyUniforms, Sky } from "../../art/sky/sky";
-import { FrameCosts } from "../../art/passes";
+import { FrameCosts } from "../../art/frame";
 import { waterMaterial } from "../../art/water/water";
 import { QUALITY } from "../../quality";
 import { parseDate } from "../../engine/calendar";
@@ -330,9 +331,8 @@ export function ArtGallery() {
 
   return (
     <div className="relative h-dvh w-full touch-none overflow-hidden select-none" data-testid="hearthwood-art">
-      <Canvas
+      <GpuCanvas
         dpr={[1, QUALITY.maxPixelRatio]}
-        gl={{ antialias: true, powerPreference: "high-performance", reversedDepthBuffer: true }}
         camera={{ fov: 45, near: 0.1, far: 4000 }}
       >
         <Ticker clock={clock} />
@@ -371,7 +371,7 @@ export function ArtGallery() {
             bodies.current = bodiesIn(scene);
           }}
         />
-      </Canvas>
+      </GpuCanvas>
 
       <div ref={setLabelLayer} className="pointer-events-none absolute inset-0 overflow-hidden" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 p-3">

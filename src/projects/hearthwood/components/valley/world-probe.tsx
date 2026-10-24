@@ -15,7 +15,7 @@ import { dateAt, parseDate, startTime, type CalendarDate } from "../../engine/ca
 import type { DaySky } from "../../engine/day";
 import { holdHour, setDay, type ValleyClock } from "./clock";
 import { liveFeatures, type FeatureId, type FeatureToggles } from "../../features";
-import type { FrameCosts } from "../../art/passes";
+import type { FrameCosts } from "../../art/frame";
 import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
 import { forageTime, forgetForaging, goToDayOfYear, pickSpot, setBasketOpen, stockBasket, type Foraging } from "./foraging";
