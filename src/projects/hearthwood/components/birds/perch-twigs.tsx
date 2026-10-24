@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Color, CylinderGeometry, MeshLambertMaterial, Quaternion, Vector3 } from "three";
+import { Color, CylinderGeometry, Quaternion, Vector3 } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { paint } from "../../art/painted";
-import { shadeLambert } from "../../art/shading";
+import { diorama } from "../../art/materials";
 import type { Perch } from "../../engine/wildlife";
 
 /*
@@ -33,8 +33,8 @@ export function PerchTwigs({ perches, atmosphere }: { perches: readonly Perch[];
     });
     return pieces.length > 0 ? paint(pieces) : null;
   }, [perches]);
-  const material = useMemo(() => shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere), [atmosphere]);
+  const material = useMemo(() => diorama("solid", atmosphere, { vertexColors: true }), [atmosphere]);
   useEffect(() => () => geometry?.dispose(), [geometry]);
   useEffect(() => () => material.dispose(), [material]);
-  return geometry ? <mesh geometry={geometry} material={material} castShadow /> : null;
+  return geometry ? <mesh geometry={geometry} material={material} castShadow receiveShadow /> : null;
 }

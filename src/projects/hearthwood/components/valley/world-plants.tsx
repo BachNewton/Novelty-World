@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Box3, type Camera, Frustum, Group, InstancedBufferAttribute, InstancedMesh, Matrix4, type MeshDepthMaterial, MeshLambertMaterial, Object3D, Vector3, type BufferGeometry } from "three";
+import { Box3, type Camera, Frustum, Group, InstancedBufferAttribute, Matrix4, Object3D, Vector3, type BufferGeometry } from "three";
+import { InstancedMesh } from "three/webgpu";
 import { PLANT_CHUNK, PLANT_VARIANTS, type PlantChunk } from "../../engine/life";
 import { PLANT_KINDS, type PlantKind } from "../../engine/regions";
 import { castsIntoView, chunkDetail, distanceToSquare, PLANT_CLASS, wantedChunks, type ChunkKey, type Detail } from "../../engine/streaming";
 import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
-import { shadeLambert, shadowDepth } from "../../art/shading";
+import { diorama, type DioramaMaterial } from "../../art/materials";
 import type { Palette } from "../../art/palette";
 import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
@@ -128,10 +129,8 @@ export function WorldPlants({
   const group = useMemo(() => new Group(), []);
   const materials = useMemo(
     () => ({
-      foliage: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "foliage", atmosphere),
-      stone: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
-      foliageDepth: shadowDepth("foliage", atmosphere),
-      stoneDepth: shadowDepth("solid", atmosphere),
+      foliage: diorama("foliage", atmosphere, { vertexColors: true }),
+      stone: diorama("solid", atmosphere, { vertexColors: true }),
     }),
     [atmosphere],
   );
@@ -234,7 +233,7 @@ function showChunks(
   shadowReach: number,
   toLight: Vector3,
   group: Group,
-  materials: { foliage: MeshLambertMaterial; stone: MeshLambertMaterial; foliageDepth: MeshDepthMaterial; stoneDepth: MeshDepthMaterial },
+  materials: { foliage: DioramaMaterial; stone: DioramaMaterial },
   tools: { frustum: Frustum; matrix: Matrix4 },
 ): void {
   // Whatever moved the camera this frame may have left its world matrix a step behind (lookAt refreshes it before turning), so it is refreshed first.
@@ -280,7 +279,7 @@ function showChunks(
         }
         mesh.frustumCulled = false;
         mesh.castShadow = design.kind !== "flowers";
-        mesh.customDepthMaterial = design.kind === "rock" ? materials.stoneDepth : materials.foliageDepth;
+        mesh.receiveShadow = true;
         design.meshes[detail] = mesh;
         group.add(mesh);
       }

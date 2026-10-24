@@ -1,6 +1,5 @@
 import { Vector4 } from "three";
 import type { FeatureArt, FeatureFrame } from "../feature-art";
-import { INSTANCE_SHIFT_GLSL } from "./wind";
 
 /*
  * Plants part round Elliott: flowers, ferns, heather, bushes and berry
@@ -28,11 +27,6 @@ interface Step {
   age: number;
 }
 
-const PARTING_UNIFORMS = {
-  /** Each point of the trail (xyz) and how bent the plants round it are (w): the first is where Elliott is. */
-  uHwTrail: { value: Array.from({ length: TRAIL_LENGTH }, () => new Vector4()) },
-};
-
 /** The trail moved on a frame: aged, a step left behind when Elliott has gone far enough, and written to the uniforms. */
 export function followTrail(trail: Step[], player: FeatureFrame["player"], delta: number, out: Vector4[]): void {
   for (const step of trail) step.age += delta;
@@ -52,39 +46,6 @@ export function followTrail(trail: Step[], player: FeatureFrame["player"], delta
   }
 }
 
-const PARTING_GLSL = /* glsl */ `
-#ifdef USE_INSTANCING
-  vec3 hwRoot = instanceMatrix[3].xyz;
-  float hwTall = length(instanceMatrix[1].xyz);
-  float hwSmall = 1.0 - smoothstep(1.2, 2.4, hwTall);
-  if (hwSmall > 0.0) {
-    // Each part of the plant leans away from Elliott by where it is, so a bush they stand in opens round them.
-    vec2 hwHere = (instanceMatrix * vec4(position, 1.0)).xz;
-    vec2 hwPush = vec2(0.0);
-    for (int i = 0; i < ${TRAIL_LENGTH}; i++) {
-      vec4 hwStep = uHwTrail[i];
-      vec2 hwOff = hwHere - hwStep.xz;
-      float hwApart = length(hwOff);
-      float hwNear = (1.0 - smoothstep(0.3, 0.85 + 0.25 * hwTall, hwApart)) * (1.0 - smoothstep(0.5, 1.3, abs(hwRoot.y - hwStep.y)));
-      hwPush += hwOff / max(hwApart, 0.05) * hwNear * hwStep.w;
-    }
-    float hwHow = length(hwPush);
-    hwPush /= max(hwHow, 1.0);
-    float hwUp = max(position.y, 0.0);
-    vec3 hwShift = vec3(hwPush.x, -0.4 * min(hwHow, 1.0), hwPush.y) * hwTall * 0.6 * hwUp * hwUp * hwSmall;
-    ${INSTANCE_SHIFT_GLSL}
-  }
-#endif
-`;
-
 export function partingArt(): FeatureArt {
-  const trail: Step[] = [];
-  return {
-    feature: "plantParting",
-    uniforms: PARTING_UNIFORMS,
-    chunks: [{ kinds: ["foliage"], vertexHead: `uniform vec4 uHwTrail[${TRAIL_LENGTH}];`, vertex: PARTING_GLSL }],
-    frame: ({ player, delta }) => {
-      followTrail(trail, player, Math.min(delta, 0.1), PARTING_UNIFORMS.uHwTrail.value);
-    },
-  };
+  return { feature: "plantParting" };
 }
