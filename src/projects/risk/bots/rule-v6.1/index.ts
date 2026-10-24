@@ -5,17 +5,18 @@ import { ADJ, fromView, idx, IDS, type Board } from "../rule-v1/board";
 import { battleOutcome, blitzCommit } from "../rule-v1/odds";
 import { readRecord, recordKey } from "../rule-v4/beliefs";
 import { tableParams } from "../rule-v6";
-import { afterTrade, chooseBonus, chooseFortify, chooseOccupy, chooseSet } from "../rule-v6/decisions";
+import { afterTrade, chooseBonus, chooseFortify, chooseSet } from "../rule-v6/decisions";
 import type { Params as V6Params } from "../rule-v6/params";
-import { bestPlan, type Plan } from "../rule-v6/planner";
-import { checkSettings, playsV6Value, V6_1_PARAMS, type Params } from "./params";
-import { scorerFor } from "./score";
+import { checkSettings, inEffect, V6_1_PARAMS, type Params } from "./params";
+import { bestPlan, chooseOccupy, type Params as PlannerParams, type Plan } from "./planner";
+import { scorerFor, threatFor } from "./score";
 
 // v6.1 (`ideas/rule-bot-v6.1.md`): v6 whole, its planner, decisions and opponent model, with
-// its board scored by v6.1's settings (`score.ts`). The move choices below are v6's
-// (`rule-v6/index.ts`), copied only because the scorer that carries the change must be bound
-// to the settings each decision plays by: the table's preferences and this game's record of
-// the opponents, which v6 works out inside its bot.
+// its board scored by v6.1's settings (`score.ts`) and its plans built round the common threat
+// they name (`planner.ts`). The move choices below are v6's (`rule-v6/index.ts`), copied only
+// because the scorer that carries the change must be bound to the settings each decision plays
+// by: the table's preferences, this game's record of the opponents and the table-size gates,
+// which v6 works out inside its bot.
 
 function nextAttack(b: Board, plan: Plan): Move | null {
   const route = plan.capture?.routes.find((r) => r.path.length > 0);
@@ -48,16 +49,15 @@ function withRecord(params: V6Params, seat: Seat, history: BotInput["history"], 
   return memoFor(recorded, params, 8).get(`${seat.toString()}|${recordKey(record)}`, () => ({ ...params, record }));
 }
 
-const scored = new WeakMap<V6Params, V6Params>();
+const scored = new WeakMap<V6Params, Memo<PlannerParams>>();
 
-/** The settings a decision plays by, scored by v6.1's `table` settings; with none of them moved
- *  it is v6's own value, so it keeps v6's settings untouched. One object per settings object (each
- *  derived from its own table's), so v6's memos keep their answers across decisions. */
-function withScorer(params: V6Params, table: Params): V6Params {
-  if (playsV6Value(table)) return params;
-  let out = scored.get(params);
-  if (out === undefined) scored.set(params, (out = { ...params, score: scorerFor(params, table) }));
-  return out;
+/** The settings a decision plays by, scored by v6.1's `settings` (the table's, as the gates leave
+ *  them at this decision), or v6's own where they leave nothing moved. One object per settings
+ *  object and attrition (the one setting a gate may switch alone), so v6's memos keep their
+ *  answers across decisions. */
+function withScorer(params: V6Params, settings: Params | null): PlannerParams {
+  if (settings === null) return params;
+  return memoFor(scored, params, 4).get(settings.attrition.toString(), () => ({ ...params, score: scorerFor(params, settings), threat: threatFor(params, settings) }));
 }
 
 export function ruleBot(table: Params): Bot {
@@ -65,7 +65,7 @@ export function ruleBot(table: Params): Bot {
   return ({ seat, view, options, history }): Move => {
     const players = view.seats.length;
     const alive = view.seats.filter((s) => !s.eliminated).length;
-    const params = withScorer(withRecord(tableParams(table, players, alive), seat, history, players), table);
+    const params = withScorer(withRecord(tableParams(table, players, alive), seat, history, players), inEffect(table, players, alive));
     const b = fromView(view);
     switch (options.kind) {
       case "reinforce": {

@@ -14,8 +14,9 @@ import { forecast, type OpponentTurn } from "../rule-v6/opponents";
 import { V6_PARAMS } from "../rule-v6/params";
 import { borderOf } from "./border";
 import { ruleBot, ruleV6_1Bot } from "./index";
-import { V6_1_PARAMS, type Params } from "./params";
-import { attritionScale, pricedArmies, repricedPower, scorerFor } from "./score";
+import { inEffect, V6_1_PARAMS, type Params } from "./params";
+import { plans } from "./planner";
+import { attritionScale, pricedArmies, repricedPower, scorerFor, threatFor, turnsUnder } from "./score";
 
 // v6.1 is v6 with its board scored another way (`ideas/rule-bot-v6.1.md`): with no setting moved
 // it must play v6's moves exactly, and each setting must compute what it says.
@@ -24,6 +25,9 @@ const sum = riskBot('rule-v6.1~{"border":"sum"}');
 const max = riskBot('rule-v6.1~{"border":"max"}');
 const armies = riskBot('rule-v6.1~{"border":"sum","power":"armies"}');
 const attrition = riskBot('rule-v6.1~{"border":"sum","attrition":6}');
+const full = riskBot('rule-v6.1~{"border":"sum","power":"armies","reprice":"full"}');
+const combined = riskBot('rule-v6.1~{"border":"sum","power":"armies","reprice":"full","armyRounds":12,"armyBeyond":0.75,"attrition":6,"attritionAlive":6,"minPlayers":5}');
+const sixOnly = riskBot('rule-v6.1~{"border":"sum","power":"armies","reprice":"full","minPlayers":6}');
 
 /** v6's own frozen games (3 seats of v6; v6 beside greedy at 5), and a 6-player game of v6 cut at
  *  60 turns, kept beside this test. */
@@ -53,6 +57,12 @@ describe("rule-v6.1 at border \"sum\" is v6", () => {
       askAlong(game, [ruleV6Bot, sum], ([v6, v61], decision) => expect(v61, `decision ${decision.toString()}`).toEqual(v6));
     });
   }
+
+  it("is v6 below its table-size gate, whatever it moves above it (3 and 5 players, gated at 6)", () => {
+    for (const game of GAMES.slice(0, 2)) {
+      askAlong(game, [ruleV6Bot, sixOnly], ([v6, v61], decision) => expect(v61, `${game.name}, decision ${decision.toString()}`).toEqual(v6), 15);
+    }
+  });
 
   it("moves away from v6 at border \"max\" on the 6-player game", () => {
     let differ = 0;
@@ -172,11 +182,118 @@ describe("rule-v6.1's army discount and attrition", () => {
   });
 });
 
+describe("rule-v6.1's full re-pricing", () => {
+  // The same table, with seat 2 hoarding 200 on North Africa: at face value it is the common
+  // threat (power 268 against seat 1's 113); with its armies past 4 rounds of its income (12, a
+  // cap of 48) at a quarter, its power is about 136, under 1.3 times seat 1's, so nobody is.
+  const h = fromView(referenceEngine.view(position({ players: 4, board: { ...TABLE, "north-africa": [2, 200] } }), 0));
+  const alive = [0, 1, 2, 3];
+  const record = { taken: [[0, 0, 0, 0], [2, 0, 1, 0.5], [1.5, 1, 0, 0], [0, 0, 0, 0]] };
+  const priced = (moved: Partial<Params>): Params => ({ ...V6_1_PARAMS, border: "sum", power: "armies", armyRounds: 4, armyBeyond: 0.25, ...moved });
+  const lossOf = (turns: readonly OpponentTurn[]) => borderOf(turns, "sum");
+  const turnOf = (turns: readonly OpponentTurn[], seat: Seat) => turns.find((t) => t.seat === seat) as OpponentTurn;
+  const beliefs = V6_PARAMS.opponents.beliefs;
+
+  it("names the threat v6 sees at face value, and none once the hoard is discounted", () => {
+    const bd = breakdown(h, 0, V6_PARAMS);
+    expect(bd.commonThreat).toBe(2);
+    expect(threatFor(V6_PARAMS, priced({ reprice: "full" }))?.(h, 0, bd)).toBeNull();
+    expect(threatFor(V6_PARAMS, priced({ reprice: "value" }))).toBeUndefined();
+    expect(threatFor(V6_PARAMS, { ...priced({ reprice: "full" }), power: "face" })).toBeUndefined();
+  });
+
+  it("rebuilds v6's own aims and border loss under v6's own threat, with and without a record", () => {
+    for (const params of [V6_PARAMS, { ...V6_PARAMS, record }]) {
+      const v6 = forecast(h, 0, params, alive, params.record);
+      const turns = turnsUnder(h, 0, params, alive, v6.commonThreat);
+      expect(turns.map((t) => [t.seat, t.aimCase, t.aim, t.hit])).toEqual(v6.turns.map((t) => [t.seat, t.aimCase, t.aim, t.hit]));
+      expect(lossOf(turns)).toBe(v6.borderLoss);
+    }
+  });
+
+  it("aims by the threat it is given: an ally's aim beside a third seat's threat, the share without one, the leader's at me", () => {
+    const v6 = forecast(h, 0, V6_PARAMS, alive, null);
+    // v6, with seat 2 the threat: seat 1 aims at me as its ally, seat 2 by its share.
+    expect(turnOf(v6.turns, 1)).toMatchObject({ aimCase: "ally", aim: beliefs.allyAim });
+    expect(turnOf(v6.turns, 2).aimCase).toBe("share");
+    const none = turnsUnder(h, 0, V6_PARAMS, alive, null);
+    expect(turnOf(none, 1).aimCase).toBe("share");
+    expect(turnOf(none, 1).aim).not.toBe(beliefs.allyAim);
+    expect(turnOf(none, 2).aim).toBe(turnOf(v6.turns, 2).aim);
+    expect(turnOf(none, 3).aimCase).toBe("apart");
+    const me = turnsUnder(h, 0, V6_PARAMS, alive, 0);
+    for (const seat of [1, 2]) expect(turnOf(me, seat)).toMatchObject({ aimCase: "leader", aim: beliefs.leaderAim });
+    for (const t of [...none, ...me]) expect(t.hit).toBe(turnOf(v6.turns, t.seat).hit);
+  });
+
+  it("pulls a re-priced aim toward the record as v6 does: the prior's weight against the territories taken", () => {
+    const me = turnsUnder(h, 0, { ...V6_PARAMS, record }, alive, 0);
+    // Seat 1 borders me, seat 2 and seat 3, and has taken 2 of mine, 1 of seat 2's and 0.5 of seat 3's.
+    expect(turnOf(me, 1).aim).toBeCloseTo((beliefs.historyPrior * beliefs.leaderAim + 2) / (beliefs.historyPrior + 3.5), 12);
+  });
+
+  it("charges the border loss of the re-priced threat, the rest of the value as round one's re-pricing", () => {
+    const bd = breakdown(h, 0, V6_PARAMS);
+    const power = repricedPower(h, 0, bd, 4, 0.25);
+    const total = power.reduce((x, y) => x + y, 0);
+    const w = V6_PARAMS.prefs.borderWeight;
+    const value = scorerFor(V6_PARAMS, priced({ reprice: "value" }))(h, 0, bd);
+    const fullValue = scorerFor(V6_PARAMS, priced({ reprice: "full" }))(h, 0, bd);
+    const border = lossOf(turnsUnder(h, 0, V6_PARAMS, alive, null));
+    expect(border).not.toBe(bd.borderLoss);
+    expect(fullValue).toBeCloseTo(value - (w * (border - bd.borderLoss)) / total, 12);
+  });
+
+  it("is round one's re-pricing exactly where the re-priced threat is v6's", () => {
+    const bd = breakdown(h, 0, V6_PARAMS);
+    // At 10 rounds and three quarters the hoard is still the threat.
+    const gentle = { armyRounds: 10, armyBeyond: 0.75 };
+    expect(scorerFor(V6_PARAMS, priced({ ...gentle, reprice: "full" }))(h, 0, bd)).toBe(scorerFor(V6_PARAMS, priced({ ...gentle, reprice: "value" }))(h, 0, bd));
+  });
+
+  it("builds its plans round the threat it is given: none into an ally's continent while a third seat is the threat", () => {
+    const b = fromView(referenceEngine.view(position({ players: 4, board: TABLE }), 0));
+    const intoSeat1 = (threat: Seat | null) => plans(b, 0, 10, { ...V6_PARAMS, threat: () => threat }).filter((p) => p.targets.some((t) => b.owner[t] === 1)).length;
+    expect(intoSeat1(null)).toBeGreaterThan(0);
+    expect(intoSeat1(2)).toBe(0);
+    const own = plans(b, 0, 10, { ...V6_PARAMS, threat: (_b, _me, bd) => bd.commonThreat });
+    expect(own.map((p) => p.value)).toEqual(plans(b, 0, 10, V6_PARAMS).map((p) => p.value));
+  });
+});
+
+describe("rule-v6.1's table-size gates", () => {
+  const table = (moved: Partial<Params>): Params => ({ ...V6_1_PARAMS, border: "sum", power: "armies", ...moved });
+
+  it("switches every change off below the seats the table started with or the seats alive", () => {
+    expect(inEffect(table({ minPlayers: 6 }), 5, 5)).toBeNull();
+    expect(inEffect(table({ minPlayers: 6 }), 6, 3)).toEqual(table({ minPlayers: 6 }));
+    expect(inEffect(table({ minAlive: 6 }), 6, 5)).toBeNull();
+    expect(inEffect(table({ minAlive: 6 }), 6, 6)).toEqual(table({ minAlive: 6 }));
+  });
+
+  it("switches attrition alone off below its own count of seats alive", () => {
+    const t = table({ attrition: 6, attritionAlive: 6 });
+    expect(inEffect(t, 6, 6)?.attrition).toBe(6);
+    expect(inEffect(t, 6, 5)).toEqual({ ...t, attrition: 0 });
+    expect(inEffect({ ...t, power: "face" }, 6, 5)).toBeNull();
+  });
+
+  it("is v6's value where nothing is moved", () => {
+    expect(inEffect({ ...V6_1_PARAMS, border: "sum" }, 6, 6)).toBeNull();
+  });
+});
+
 describe("rule-v6.1 is deterministic", () => {
   const cases: readonly [string, Bot, Bot][] = [
     ["its default", ruleV6_1Bot, ruleBot(V6_1_PARAMS)],
     ["the army discount", armies, ruleBot({ ...V6_1_PARAMS, border: "sum", power: "armies" })],
     ["attrition", attrition, ruleBot({ ...V6_1_PARAMS, border: "sum", attrition: 6 })],
+    ["full re-pricing", full, ruleBot({ ...V6_1_PARAMS, border: "sum", power: "armies", reprice: "full" })],
+    [
+      "the combined candidate",
+      combined,
+      ruleBot({ ...V6_1_PARAMS, border: "sum", power: "armies", reprice: "full", armyRounds: 12, armyBeyond: 0.75, attrition: 6, attritionAlive: 6, minPlayers: 5 }),
+    ],
   ];
   for (const [name, bot, fresh] of cases) {
     it(`makes the same moves again, and a fresh copy makes them too (${name})`, () => {
@@ -187,7 +304,9 @@ describe("rule-v6.1 is deterministic", () => {
     });
   }
 
-  it("refuses a discount fraction outside 0 to 1", () => {
+  it("refuses a discount fraction outside 0 to 1, a gate that isn't a whole number and an unknown reprice mode", () => {
     expect(() => riskBot('rule-v6.1~{"power":"armies","armyBeyond":1.5}')).toThrow(/armyBeyond/);
+    expect(() => riskBot('rule-v6.1~{"minPlayers":5.5}')).toThrow(/minPlayers/);
+    expect(() => riskBot('rule-v6.1~{"reprice":"half"}')).toThrow(/reprice/);
   });
 });

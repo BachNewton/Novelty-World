@@ -16,7 +16,7 @@ import { ruleBot as ruleV6, ruleV6Bot } from "./rule-v6";
 import { V6_PARAMS } from "./rule-v6/params";
 import { ruleBot as ruleV6_1, ruleV6_1Bot } from "./rule-v6.1";
 import { BORDER_MODES, borderMode } from "./rule-v6.1/border";
-import { POWER_MODES, powerMode, V6_1_PARAMS } from "./rule-v6.1/params";
+import { POWER_MODES, powerMode, REPRICE_MODES, repriceMode, V6_1_PARAMS } from "./rule-v6.1/params";
 import { ruleBot as ruleV7, ruleV7Bot } from "./rule-v7";
 import { V7_PARAMS } from "./rule-v7/params";
 import { ruleV8Bot } from "./rule-v8";
@@ -118,13 +118,25 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
     build: (prefs, engine, switches) => ruleV6({ ...V6_PARAMS, prefs, engine, fixes: { ...V6_PARAMS.fixes, ...switches } }),
   },
   // v6.1's candidates (`ideas/rule-bot-v6.1.md`): `rule-v6.1~{"border":"mean","borderWeight":0.4}`,
-  // `rule-v6.1~{"power":"armies","armyRounds":4,"armyBeyond":0.5}`, `rule-v6.1~{"border":"sum","attrition":6}`.
+  // `rule-v6.1~{"power":"armies","armyRounds":4,"armyBeyond":0.5}`, `rule-v6.1~{"border":"sum","attrition":6}`,
+  // `rule-v6.1~{"border":"sum","power":"armies","reprice":"full","minPlayers":5}`.
   // "sum", "face" and attrition 0 play exactly v6's moves.
   "rule-v6.1": {
     prefs: V6_1_PARAMS.prefs,
     engine: V6_1_PARAMS.engine,
-    choices: { border: { value: V6_1_PARAMS.border, options: BORDER_MODES }, power: { value: V6_1_PARAMS.power, options: POWER_MODES } },
-    numbers: { armyRounds: V6_1_PARAMS.armyRounds, armyBeyond: V6_1_PARAMS.armyBeyond, attrition: V6_1_PARAMS.attrition },
+    choices: {
+      border: { value: V6_1_PARAMS.border, options: BORDER_MODES },
+      power: { value: V6_1_PARAMS.power, options: POWER_MODES },
+      reprice: { value: V6_1_PARAMS.reprice, options: REPRICE_MODES },
+    },
+    numbers: {
+      armyRounds: V6_1_PARAMS.armyRounds,
+      armyBeyond: V6_1_PARAMS.armyBeyond,
+      attrition: V6_1_PARAMS.attrition,
+      minPlayers: V6_1_PARAMS.minPlayers,
+      minAlive: V6_1_PARAMS.minAlive,
+      attritionAlive: V6_1_PARAMS.attritionAlive,
+    },
     build: (prefs, engine, _switches, _knobs, choices, numbers) =>
       ruleV6_1({
         ...V6_1_PARAMS,
@@ -135,6 +147,10 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
         armyRounds: numbers.armyRounds,
         armyBeyond: numbers.armyBeyond,
         attrition: numbers.attrition,
+        reprice: repriceMode(choices.reprice),
+        minPlayers: numbers.minPlayers,
+        minAlive: numbers.minAlive,
+        attritionAlive: numbers.attritionAlive,
       }),
   },
   // v7 at a work budget: `rule-v7~{"replies":8}` (`ideas/rule-bot-v7.md`).
