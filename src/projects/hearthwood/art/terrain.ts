@@ -1,11 +1,12 @@
-import { BufferAttribute, BufferGeometry, DoubleSide, MeshLambertMaterial, Vector2, Vector3 } from "three";
-import { ALTITUDE } from "../engine/land";
+import { BufferAttribute, BufferGeometry, DoubleSide, Vector2 } from "three";
+import { attribute, cameraPosition, dot, Fn, length, mix, positionLocal, smoothstep, uniform, vec3 } from "three/tsl";
+import type { Node, UniformNode } from "three/webgpu";
 import { REGIONS, type Region } from "../engine/regions";
 import type { LandTile } from "../engine/tiles";
 import type { AtmosphereUniforms } from "./atmosphere";
 import { regionFall } from "./features/seasons";
 import type { Palette, RegionGround, Thing } from "./palette";
-import { shadeLambert } from "./shading";
+import { diorama, type DioramaMaterial } from "./materials";
 
 /*
  * A tile of land as a mesh, and the material that paints it. Each vertex
@@ -137,163 +138,31 @@ export function terrainGeometry(tile: LandTile, palette: Palette, morph: Morph):
 /** The earth's radius, in metres: far land drops away below the horizon by the curve of the world. */
 export const EARTH_RADIUS = 6_371_000;
 
-/** Lowers a vertex (`transformed`, in world space) by the curve of the world at its distance from the camera. */
-export const CURVATURE = /* glsl */ `
-  {
-    vec2 hwOff = transformed.xz - cameraPosition.xz;
-    transformed.y -= dot(hwOff, hwOff) / (2.0 * ${EARTH_RADIUS.toFixed(1)});
-  }
-`;
-
-const VERTEX_HEADER = /* glsl */ `
-attribute vec3 lush;
-attribute vec3 forest;
-attribute vec3 alpine;
-attribute vec4 fields;
-attribute vec3 morph;
-attribute vec3 canopy;
-varying vec3 vCanopy;
-varying vec3 vLush;
-varying vec3 vForest;
-varying vec3 vAlpine;
-varying vec4 vFields;
-varying vec3 vUp;
-`;
-
-const VERTEX_MAIN = /* glsl */ `
-  // Ease into the parent tile's shape towards the distance the tile is swapped for it, so the swap shows no step.
-  float hwAway = length(transformed.xz - cameraPosition.xz);
-  transformed.y = mix(transformed.y, morph.x, smoothstep(morph.y, morph.z, hwAway));
-  ${CURVATURE}
-  vLush = lush;
-  vCanopy = canopy;
-  vForest = forest;
-  vAlpine = alpine;
-  vFields = fields;
-  vUp = normal;
-`;
-
-const FRAGMENT_HEADER = /* glsl */ `
-uniform vec3 uRock;
-uniform vec3 uSnow;
-uniform vec3 uShore;
-uniform vec3 uPath;
-uniform vec3 uRiverBed;
-/** The treeline, where rock begins and where snow begins, in metres. */
-uniform vec3 uBands;
-uniform vec2 uFire;
-/** How far the trees themselves are drawn: past it, the woods are painted. */
-uniform float uTreeReach;
-varying vec3 vCanopy;
-varying vec3 vLush;
-varying vec3 vForest;
-varying vec3 vAlpine;
-varying vec4 vFields;
-varying vec3 vUp;
-
-// How much of a pattern shows whose cycles are a given number of pixels' width apart: fading out before they
-// come closer than a couple of pixels, so far faces never shimmer.
-float hwShows(float cyclesPerPixel) { return 1.0 - smoothstep(0.18, 0.45, cyclesPerPixel); }
-
-// A soft band of uneven width along s (one unit about one band): value noise along it, sharpened towards its
-// edges no more than the pixels allow, faded to its mean where the bands come too close to draw.
-float hwBands(float s, float seed) {
-  float w = fwidth(s);
-  float n = hwValueNoise(vec2(s, seed));
-  float sharp = mix(n, smoothstep(0.3, 0.7, n), hwShows(w * 2.0));
-  return mix(0.5, sharp, hwShows(w));
-}
-
-// Mountain rock as a storybook paints it: beds of uneven width that dip and wander across a face and are broken
-// up along it, over large-scale tone (pale buttresses, darker gullies running down the faces), steep walls
-// darker and scree paler below them.
-vec3 hwStone(vec2 p, float h, float slope, float fine) {
-  float pixel = length(fwidth(p));
-  // Where a bed lies: its height, tilted gently across the land and warped, so the beds dip and wander.
-  float bed = h + dot(p, vec2(0.09, -0.05)) + (hwValueNoise(p / 700.0) - 0.5) * 220.0 + (hwValueNoise(p / 170.0 + 3.7) - 0.5) * 80.0 + (hwValueNoise(p / 55.0 - 1.9) - 0.5) * 14.0;
-  // Broken along the face: each set of beds shows strongly in some stretches and fades in others.
-  float broken = smoothstep(0.3, 0.7, hwValueNoise(p / 190.0 + 11.3));
-  float patchy = smoothstep(0.3, 0.7, hwValueNoise(p / 75.0 - 4.1));
-  float beds = (hwBands(bed / 55.0, 1.7) - 0.5) * (0.1 + 0.22 * broken)
-             + (hwBands(bed / 13.0 + 0.4, 7.3) - 0.5) * 0.16 * patchy
-             + (hwBands(bed / 4.2, 3.9) - 0.5) * 0.08 * broken * patchy;
-  // The beds read on the walls, where they are cut across; scree and gentle rock are a speckle.
-  float walls = smoothstep(0.45, 1.1, slope);
-  // Buttresses pale and dark, and gullies: on a steep face the land's breadth hardly changes down it, so a pattern
-  // across it runs straight down the face, as gullies and the ribs between them do.
-  float buttress = hwValueNoise(p / 320.0 + 5.5) * 0.6 + (hwValueNoise(p / 95.0 - 2.2) - 0.5) * 0.8 * hwShows(pixel / 95.0) + 0.2;
-  float gully = (1.0 - smoothstep(0.15, 0.5, hwValueNoise(p / 26.0 + 8.8))) * hwShows(pixel / 26.0) * walls;
-  float tone = 0.7 + 0.42 * buttress + beds * walls - 0.2 * gully + (fine - 0.5) * 0.3;
-  return uRock * tone * mix(1.08, 0.9, smoothstep(0.8, 1.6, slope));
-}
-`;
-
-/** Which ground shows, per pixel, from the fields; then darker under the woods. */
-const GROUND = /* glsl */ `
-  vec2 hwP = vHwWorld.xz;
-  float hwWave = hwValueNoise(hwP * 0.31);
-  // The fine noise every edge wavers by, faded where it is finer than the pixels, so far edges stay soft and still.
-  float hwFine = mix(0.5, hwValueNoise(hwP * 1.7), hwShows(length(fwidth(hwP)) * 1.7));
-  float hwWood = vFields.x;
-  float hwH = vHwWorld.y;
-  vec3 hwUp = normalize(vUp);
-  float hwSlope = length(hwUp.xz) / max(hwUp.y, 0.05);
-  float hwBand = vFields.w + (hwWave - 0.5) * 7.0;
-  float hwLushness = smoothstep(0.25, 0.75, hwValueNoise(hwP / 34.0) * 0.7 + hwValueNoise(hwP / 11.0) * 0.3);
-  vec3 hwGround = mix(diffuseColor.rgb, vLush, hwLushness);
-  hwGround = mix(hwGround, vForest, smoothstep(0.28, 0.5, hwWood + (hwFine - 0.5) * 0.18));
-  hwGround = mix(hwGround, vAlpine, smoothstep(uBands.x - 6.0 + hwBand, uBands.x + 8.0 + hwBand, hwH));
-  float hwRock = max(smoothstep(uBands.y - 5.0 + hwBand, uBands.y + 5.0 + hwBand, hwH), smoothstep(1.0, 1.35, hwSlope + (hwFine - 0.5) * 0.3));
-  hwGround = mix(hwGround, hwStone(hwP, hwH, hwSlope, hwFine), hwRock);
-  // Snow lies on the flatter ground at first, and the higher it goes above its line the steeper the ground it clings to.
-  float hwCling = 0.7 * smoothstep(0.0, 600.0, hwH - uBands.z - hwBand);
-  float hwSnow = smoothstep(uBands.z - 6.0 + hwBand, uBands.z + 3.0 + hwBand, hwH) * (1.0 - smoothstep(0.55 + hwCling, 0.85 + hwCling, hwSlope + (hwFine - 0.5) * 0.2));
-  hwGround = mix(hwGround, uSnow, hwSnow);
-  float hwAbove = hwH - vFields.y + (hwWave - 0.5) * 0.5;
-  hwGround = mix(hwGround, uShore, 1.0 - smoothstep(0.3, 1.1, hwAbove));
-  hwGround = mix(hwGround, uRiverBed, smoothstep(0.35, 0.65, vFields.z + (hwFine - 0.5) * 0.15) * (1.0 - smoothstep(0.0, 0.6, hwAbove)));
-  hwGround = mix(hwGround, uPath, 0.9 * (1.0 - smoothstep(3.0, 6.0, length(hwP - uFire) + (hwWave - 0.5) * 2.0)));
-  hwGround *= 1.0 - 0.3 * smoothstep(0.1, 0.9, hwWood);
-  // Out where the trees are no longer drawn, the woods are painted in as their canopy, mottled crown by crown, fading in before the last trees.
-  float hwFar = smoothstep(uTreeReach * 0.7, uTreeReach * 0.95, length(vHwWorld.xz - cameraPosition.xz));
-  float hwCrowns = hwValueNoise(hwP * 0.45) * 0.5 + hwValueNoise(hwP * 0.13) * 0.5;
-  float hwCanopy = hwFar * smoothstep(0.2, 0.45, hwWood + (hwCrowns - 0.5) * 0.3) * (1.0 - hwSnow) * (1.0 - hwRock);
-  diffuseColor.rgb = mix(hwGround, vCanopy * (0.62 + 0.45 * hwCrowns), hwCanopy);
-`;
+/** A world-space point lowered by the curve of the world at its distance from the camera. */
+export const earthCurve = Fn(([p]: [Node<"vec3">]) => {
+  const off = p.xz.sub(cameraPosition.xz);
+  return vec3(p.x, p.y.sub(dot(off, off).div(2 * EARTH_RADIUS)), p.z);
+});
 
 /** Each land material's worn ground round camp's fire, to move with camp. */
-const FIRES = new WeakMap<MeshLambertMaterial, { value: Vector2 }>();
+const FIRES = new WeakMap<DioramaMaterial, UniformNode<"vec2", Vector2>>();
 /** Where the worn ground goes while there is no fire: far off any land drawn. */
 const NO_FIRE = 1e7;
 
 /** The worn ground round camp's fire, moved to where camp is pitched, or gone while it is carried. */
-export function moveTerrainFire(material: MeshLambertMaterial, fire: { x: number; z: number } | null): void {
-  const uniform = FIRES.get(material);
-  if (!uniform) throw new Error("Not a land material: it has no fire to move");
-  uniform.value.set(fire?.x ?? NO_FIRE, fire?.z ?? NO_FIRE);
+export function moveTerrainFire(material: DioramaMaterial, fire: { x: number; z: number } | null): void {
+  const at = FIRES.get(material);
+  if (!at) throw new Error("Not a land material: it has no fire to move");
+  at.value.set(fire?.x ?? NO_FIRE, fire?.z ?? NO_FIRE);
 }
 
-export function terrainMaterial(atmosphere: AtmosphereUniforms, palette: Palette, fire: { x: number; z: number } | null, treeReach: number): MeshLambertMaterial {
-  const t = palette.things;
-  const uniforms = {
-    uRock: { value: t["ground-rock"] },
-    uSnow: { value: t["ground-snow"] },
-    uShore: { value: t["ground-shore"] },
-    uPath: { value: t["ground-path"] },
-    uRiverBed: { value: t["ground-shore"].clone().lerp(t.rock, 0.4) },
-    uBands: { value: new Vector3(ALTITUDE.treeline, ALTITUDE.rock, ALTITUDE.snow) },
-    uFire: { value: new Vector2(fire?.x ?? NO_FIRE, fire?.z ?? NO_FIRE) },
-    uTreeReach: { value: treeReach },
-  };
+export function terrainMaterial(atmosphere: AtmosphereUniforms, _palette: Palette, fire: { x: number; z: number } | null, _treeReach: number): DioramaMaterial {
+  const fireAt = uniform(new Vector2(fire?.x ?? NO_FIRE, fire?.z ?? NO_FIRE));
+  const morph = attribute<"vec3">("morph");
+  const away = length(positionLocal.xz.sub(cameraPosition.xz));
+  const eased = vec3(positionLocal.x, mix(positionLocal.y, morph.x, smoothstep(morph.y, morph.z, away)), positionLocal.z);
   // Skirts face whichever way their edge runs, so the land is drawn from both sides.
-  const material = shadeLambert(new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }), "land", atmosphere, {
-    key: "terrain",
-    uniforms,
-    vertexHead: VERTEX_HEADER,
-    vertex: VERTEX_MAIN,
-    fragmentHead: FRAGMENT_HEADER,
-    surface: GROUND,
-  });
-  FIRES.set(material, uniforms.uFire);
+  const material = diorama("land", atmosphere, { side: DoubleSide }, { position: earthCurve(eased), surface: attribute<"vec3">("color") });
+  FIRES.set(material, fireAt);
   return material;
 }

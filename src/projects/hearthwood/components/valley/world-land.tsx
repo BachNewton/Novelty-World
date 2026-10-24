@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Group, Mesh, type Material, type ShaderMaterial } from "three";
+import { Group, Mesh, type Material } from "three";
 import type { LandTile } from "../../engine/tiles";
 import { tileId, tileWidth, wantedTiles, type Eye, type TileKey } from "../../engine/streaming";
 import type { World } from "../../engine/world";
@@ -183,7 +183,7 @@ export function WorldLand({ world, camping, palette, atmosphere, sky, quality, s
   return <primitive object={group} />;
 }
 
-function buildTile(tile: LandTile, palette: Palette, materials: { land: Material; water: ShaderMaterial; farWater: ShaderMaterial }, quality: Quality, farWater: boolean): Built {
+function buildTile(tile: LandTile, palette: Palette, materials: { land: Material; water: Material; farWater: Material }, quality: Quality, farWater: boolean): Built {
   const { level } = tile.key;
   const land = new Mesh(terrainGeometry(tile, palette, morphFor(level, quality)), materials.land);
   land.receiveShadow = true;
