@@ -46,7 +46,15 @@ Only if the student keeps most of v7's edge in regret does it get built as a bot
 - **The features step** is `risk:features -- --teacher`: a row per candidate, both boards through v8's feature function, grouped by decision.
 - **The trainer** is `bots/rule-v8/train/distill.py`: a candidate scorer reading each candidate's inputs and their difference from the decision's mean, trained with a listwise loss against v7's scores, held out by game. It reports the three numbers above, plus a split-half reading: v7's replies are noisy, so regret in v7's own scores counts the noise v7 chose on as edge. With every reply's score kept, v7 chooses on half the replies and every pick is scored on the other half, which no pick has seen.
 
-A first partial read (about 5,800 decisions, before per-reply scores were kept) found v7 overruling v6 in about 63% of decisions, near the 75% a random pick of four would give, with no student or baseline recovering any of v7's edge in v7's own scores. That points at label noise in an 8-reply mean as much as at the student; the split-half reading is what tells the two apart, and it hasn't run yet.
+## The pilot: v7's choices carry signal, a small student can't learn it
+
+500 games of v7 at 8 replies among the default field, 5,644 decisions (11.3 a game), per-reply scores kept; held out by game, 1,232 test decisions.
+
+- **v7 overrules v6 in 67% of decisions**, near the 75% a random pick of four would give.
+- **The split-half reading says that isn't noise.** v7 choosing on 4 replies picks the plan the other 4 rate best in 45% of decisions, and scored on those fresh replies its pick's regret is 0.023 against v6's 0.036: a real edge of 0.013, seen on replies no pick was chosen by.
+- **No student keeps it.** Scored the same way, the best student (32 hidden units) keeps 6% of that edge; a linear student and a larger one (64, 16) keep none or less than none. Agreement with v7 where v7 overrules v6 is 20 to 25%, about a random pick among the other candidates.
+
+Two causes are left, and the pilot can't tell them apart: **too little data** (3,900 training decisions against 588 inputs a candidate) or **features that don't hold the answer** (what the replies find, the opponents' answers, may not show on the two boards v6 values a plan by; the linear student failing too leans this way). The full recording of about 100,000 decisions settles the first: if a student trained on it still keeps little, the second holds, and the next try is a student that sees what the replies see (the board after the opponents' likeliest answers), or distilling the replies' outcomes rather than v7's pick.
 
 ## If it works
 
