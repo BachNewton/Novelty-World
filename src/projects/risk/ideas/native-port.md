@@ -53,9 +53,9 @@ Only the blitz's balancing and GD's balancing of an estimated chance use transce
 
 ## Order of work
 
-1. Foundations (done): the crate; `jsmath`, the RNG, the map, the cards, the blitz and the battle odds, bit-exact on vectors; the TypeScript lockstep tooling and committed fixtures of random, greedy and GD games.
-2. The engine: designed natively, with the rules suite, lockstep on every fixture, the fuzz, and the `serve` skeleton.
-3. `greedy` and the GD personas, exact, and the distributional check of whole games.
-4. `native-v1`, with its design doc, its own gauntlet bar and the mixed-table seam; then its measurement against v6 and the field (asking before the heavy runs).
+1. Foundations (done): the crate; `jsmath`, the RNG, the map, the cards, the blitz and the battle odds, bit-exact on vectors exported on Risk's Node pin; the TypeScript lockstep tooling (one module with the GPU engine's) and committed fixtures of random, greedy and GD games.
+2. The engine (done): designed natively, a rules suite named by rule id, lockstep on every fixture, the fuzz with every invariant, and `serve`.
+3. `greedy` and the GD personas (done), exact in both directions, so a native game of theirs is the TypeScript game.
+4. `native-v1` (built, measured only by proxy): its design doc `native-v1.md`, the seam (`--native`, `--parity`, `@native`, mixed tables), and the harness path proven end to end with a smoke gauntlet against rule-v6. Its gauntlet against v6 and the field is next. Its first timing, taken on a saturated machine, is about 6× v6 per decision and 3.5× per turn, short of the 20× its doc set; the quiet-machine figure and a cheaper kill planner are the open items.
 5. `native-v2`, the search bot, with its budget measured for strength.
-6. Speed, reported as games and decisions a second against the TypeScript pool on the same machine, only with the owner's go-ahead.
+6. Speed, reported as games and decisions a second against the TypeScript pool, on a quiet machine with the owner's go-ahead.
