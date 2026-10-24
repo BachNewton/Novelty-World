@@ -612,7 +612,7 @@ bots/rl/token-bot.ts     greedy-over-heuristicValue bot on the atomic layer (RL 
 bots/rl/net.ts           MonoNet — tfjs-node policy+value net (RL phase 4): softmax policy head over the vocabulary + softmax value head over MAX_SEATS seat-relative win-probs. Batched predict, train, disk save/load, maskPolicy
 bots/rl/mcts.ts          MCTS over applyCandidate guided by the net (RL phase 5): deterministic intent edges + chance ROLL edges (reseed dice per visit), N-player backup. Pure in (state,net) → replay-safe mctsBot
 bots/rl/selfplay.ts      self-play recorder + value bootstrap (RL phase 6): playSelfPlayGame (visit-dist policy + outcome value targets) and collectRuleGame (warm-start)
-bots/rl/train-cli.ts     `npm run train:rl` — the self-play training loop (RL phase 6): self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. All-CPU tfjs-node; eGPU optional. Needs Node 22 (worktree .node-version)
+bots/rl/train-cli.ts     `npm run train:rl` — the self-play training loop (RL phase 6): self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. All-CPU tfjs-node; eGPU optional. Needs Node 22: run it under `mise exec node@22 --`
 bots/rl/tfjs-setup.ts    side-effect import (FIRST, before tfjs loads): places the Windows tensorflow.dll next to the binding + shields process.argv from tfjs-node's node-pre-gyp
 bots/roles.ts         LOBBY_BOTS — the lobby offering DERIVED from the Elo ladder (overall best, per-family best, full lists, deprecation) + DEFAULT_BOT_VERSION; only hand-maintained data is FAMILY_SPECS
 bots/eval/simulate.ts      headless self-play driver (per-seat Contenders / strategies)

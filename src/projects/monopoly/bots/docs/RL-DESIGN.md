@@ -349,9 +349,9 @@ lint-clean. The pieces:
 | 6 | `selfplay.ts`, `train-cli.ts` | Self-play recorder (visit-distribution policy targets, seat-relative outcome value targets) + value bootstrap on rule-bot games + the **`npm run train:rl`** loop: self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. |
 | 7 | `simulate-cli.ts` | Field a checkpoint via the `rl-net:<dir>` sim token (lazy tfjs load). `train:rl` also self-evaluates vs a rule bot each cycle. |
 
-**Stack / how to run.** All-TS on tfjs-node (CPU). The repo pins **Node 22**
-(`.node-version`, now on main) because tfjs-node 4.22 calls `util.isNullOrUndefined`, removed in
-Node 23+. `scripts/fix-tfjs-windows.mjs` (postinstall) + `tfjs-setup.ts` place the
+**Stack / how to run.** All-TS on tfjs-node (CPU). tfjs-node 4.22 calls `util.isNullOrUndefined`,
+removed in Node 23+, so the trainer runs only on Node 22, while the repo runs on the machine's
+Node (24): run it under 22 with `mise exec node@22 -- <cmd>`. `scripts/fix-tfjs-windows.mjs` (postinstall) + `tfjs-setup.ts` place the
 Windows `tensorflow.dll` next to the native binding and shield `process.argv` from
 node-pre-gyp's nopt. Run: `npm run train:rl -- --dir rl-checkpoints/run1`. Resume by
 re-running the same `--dir`. The eGPU (RTX 4070) is an OPTIONAL later accelerator
@@ -437,17 +437,11 @@ not a now decision.
   worktree are gone). The modules are `features.ts`, `actions.ts`, `token-bot.ts`,
   `net.ts`, `mcts.ts`, `selfplay.ts`, `train-cli.ts`, `tfjs-setup.ts`,
   `tfjs-usable.ts` (plus the throughput scaffolding `selfplay-parallel.ts`,
-  `selfplay-worker.ts`, `bench-selfplay.ts`). The `.node-version` (Node 22) is on main.
-- **Node 22 is mandatory here** (see above). On this machine Node is managed by
-  **fnm**, default 24. Two gotchas, learned the hard way:
-  - Run things under 22 with `fnm exec --using=22 <cmd>`. But **`fnm exec` can't
-    spawn `.cmd` shims** (`npx`, the `npm`/`vitest` wrappers) — call the JS entry
-    through `node` instead, e.g.
-    `fnm exec --using=22 node node_modules/vitest/vitest.mjs run <file>`,
-    `fnm exec --using=22 node node_modules/typescript/bin/tsc --noEmit`,
-    `fnm exec --using=22 node node_modules/eslint/bin/eslint.js <files>`.
-  - `npm run train:rl` / `npm run sim` go through npm, which resolves Node via the
-    `.node-version` + the fnm shell hook, so those Just Work from the repo root.
+  `selfplay-worker.ts`, `bench-selfplay.ts`).
+- **Node 22 is mandatory here** (see above); the repo itself runs on the machine's Node, so
+  everything RL runs under `mise exec node@22 -- <cmd>` (e.g. `npm run train:rl`, or
+  `node node_modules/vitest/vitest.mjs run <file>`). On newer Node the RL suites skip
+  (`tfjs-usable.ts`).
 - **Verify green:** the RL tests are `features|actions|token-bot|net|mcts|selfplay`
   `.test.ts` (24 tests). `tsc --noEmit` and `eslint` must stay zero-warning.
 - **Watch it play / measure:** `npm run sim -- rl-net:rl-checkpoints/run1 claude-v2 claude-v2 claude-v2 --log`.
