@@ -29,7 +29,7 @@ from ..options import options
 from ..state import LAYOUT, State
 from ..tables import BlitzTables
 from .actions import legal_main
-from .env import GREEDY, KEPT, LEARNER, SNAPSHOT, Env, EnvConfig
+from .env import GD, GD_PERSONAS, GREEDY, KEPT, LEARNER, SNAPSHOT, Env, EnvConfig
 from .net import Net, evaluate
 from .obs import observe, slots
 
@@ -152,16 +152,30 @@ def summarize(stats: dict, kinds: list[str]) -> dict:
     return out
 
 
-class Evaluator:
-    """Fixed deals played to their end, the learner (its most likely move) in one seat against
-    greedy in the rest: its win rate among decisive games against par (one seat in n), its mean
-    score, and the cap rate. The same seeds every time, so evaluations compare."""
+KIND_NAMES = ["learner", "greedy"] + [f"gd-{p}" for p in GD_PERSONAS]
 
-    def __init__(self, board, tables, net, players: int, games: int, device: str):
+
+class Evaluator:
+    """Fixed deals played to their end, the learner (its most likely move) in one seat against one
+    opponent kind (greedy or a GD persona) in the rest: its win rate among decisive games against
+    par (one seat in n), its mean score, and the cap rate. The same seeds every time, so
+    evaluations compare."""
+
+    def __init__(self, board, tables, net, players: int, games: int, device: str, opponent: str = "greedy",
+                 gd_bots: list | None = None):
+        kind = KIND_NAMES.index(opponent)
         cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600,
-                        pool=8, snapshots=0, record=False, reset=False, learner_greedy=True)
-        self.env = Env(cfg, board, tables, net, device, seed_prefix=f"eval{players}")
-        self.players = players
+                        pool=8, snapshots=0, record=False, reset=False, learner_greedy=True,
+                        gd=kind >= GD, cap_gd=(0.9,) * len(GD_PERSONAS), cap_learner=0.5, cap_greedy=1.0)
+        self.env = Env(cfg, board, tables, net, device, seed_prefix=f"eval{players}",
+                       gd_bots=[gd_bots[kind - GD]] if kind >= GD else None)
+        if kind >= GD:
+            # One persona's bot, in the first GD slot: the seats are that kind.
+            kind = GD
+        self.env.kind_probs.zero_()
+        self.env.kind_probs[kind] = 1.0
+        self.env._draw_seats(torch.ones(games, dtype=torch.bool, device=device))
+        self.players, self.opponent, self.kind = players, opponent, kind
         self.saved = self.env._save()
         self.env.capture()
 
@@ -177,9 +191,9 @@ class Evaluator:
         st = env.take_stats()
         decisive = st["games"] - st["capped"]
         win = st["wins"][LEARNER] / max(decisive, 1)
-        return {"players": self.players, "games": st["games"], "capped": st["capped"] / max(st["games"], 1),
+        return {"players": self.players, "opponent": self.opponent, "games": st["games"], "capped": st["capped"] / max(st["games"], 1),
                 "win": win, "par": 1 / self.players, "score": st["score"][LEARNER] / max(st["seats"][LEARNER], 1),
-                "greedy_score": st["score"][GREEDY] / max(st["seats"][GREEDY], 1), "steps": steps,
+                "opponent_score": st["score"][self.kind] / max(st["seats"][self.kind], 1), "steps": steps,
                 "unfinished": float((~env.done).sum())}
 
 
@@ -208,10 +222,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--self-share", type=float, default=0.2, help="share of non-learner seats taken by the learner")
     p.add_argument("--snapshot-share", type=float, default=0.0, help="share of non-learner seats taken by past checkpoints")
+    p.add_argument("--gd-share", type=float, default=0.0, help="share of non-learner seats taken by GD's personas")
     p.add_argument("--snapshot-every", type=int, default=50)
     p.add_argument("--eval-every", type=int, default=25)
     p.add_argument("--eval-games", type=int, default=2048)
-    p.add_argument("--eval-players", default="3,5")
+    p.add_argument("--eval", default="greedy@3,greedy@5", help="opponent@players, comma-separated")
+    p.add_argument("--init", default=None, help="start the network from this checkpoint's weights")
     p.add_argument("--ckpt-every", type=int, default=25)
     p.add_argument("--seed", type=int, default=1)
     args = p.parse_args(argv)
@@ -242,16 +258,29 @@ def main(argv: list[str] | None = None) -> int:
 
     sizes = tuple(int(x) for x in args.sizes.split(","))
     weights = tuple(float(x) for x in args.size_weights.split(","))
-    cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon)
-    env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}")
-    kinds = ["learner", "greedy"] + [f"snap{k}" for k in range(cfg.snapshots)]
+    if args.init and iteration == 0:
+        init = torch.load(args.init, map_location=device, weights_only=False)
+        net.load_state_dict(init["net"] if "net" in init else init)
+        print(f"initialised from {args.init}", flush=True)
+    evals = [(e.split("@")[0], int(e.split("@")[1])) for e in args.eval.split(",")]
+    need_gd = args.gd_share > 0 or any(o.startswith("gd-") for o, _ in evals)
+    gd_bots = None
+    if need_gd:
+        from ..bots.gd import gd_bot_graphable
+        gd_bots = [gd_bot_graphable(p, tables) for p in GD_PERSONAS]
+    cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon, gd=args.gd_share > 0)
+    env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}",
+              gd_bots=gd_bots if args.gd_share > 0 else None)
+    kinds = KIND_NAMES + [f"snap{k}" for k in range(cfg.snapshots)]
 
     def set_league() -> None:
         probs = torch.zeros(len(kinds))
         probs[LEARNER] = args.self_share
         snaps = min(len(league), cfg.snapshots) if args.snapshot_share > 0 else 0
         snap_share = args.snapshot_share if snaps else 0.0
-        probs[GREEDY] = max(0.0, 1.0 - args.self_share - snap_share)
+        probs[GREEDY] = max(0.0, 1.0 - args.self_share - snap_share - args.gd_share)
+        for k in range(len(GD_PERSONAS)):
+            probs[GD + k] = args.gd_share / len(GD_PERSONAS)
         for k, path in enumerate(random.sample(league, snaps)):
             env.snapshots[k].load_state_dict(torch.load(path, map_location=device, weights_only=False))
             probs[SNAPSHOT + k] = snap_share / snaps
@@ -263,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
     set_league()
     if env.graph is None:
         env.capture()
-    evaluators = [Evaluator(board, tables, net, int(n), args.eval_games, device) for n in args.eval_players.split(",")]
+    evaluators = [Evaluator(board, tables, net, n, args.eval_games, device, o, gd_bots) for o, n in evals]
     log_path = os.path.join(out_dir, "log.jsonl")
     n_params = sum(x.numel() for x in net.parameters())
     started = time.time()
@@ -299,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
         with open(log_path, "a") as f:
             f.write(json.dumps(record) + "\n")
         brief = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in record.items()
-                 if k in ("iter", "steps_per_s", "update_s", "learner_score", "learner_win", "greedy_score", "capped",
+                 if k in ("iter", "steps_per_s", "update_s", "learner_score", "learner_win", "greedy_score", "gd-stacker_score", "capped",
                           "turns", "ent", "kl", "v", "stalled", "samples")}
         print(json.dumps(brief), flush=True)
         if "eval" in record:

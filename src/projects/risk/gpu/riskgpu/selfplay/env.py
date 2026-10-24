@@ -16,8 +16,9 @@ settle into the stall and call it a result (`ideas/stalled-games.md`).
 **The turn cap is drawn per game** (`cap_low` to `cap_high` player-turns), so a policy can't count
 on outlasting a clock it knows.
 
-**The league.** Each seat of a new game is a controller kind: 0 the learner, 1 greedy, 2 + k the
-k-th snapshot network. At least one seat is the learner, at a random seat; the others are drawn
+**The league.** Each seat of a new game is a controller kind: 0 the learner, 1 greedy, 2 to 5 GD's
+personas (their graphable port: exact inside the blitz table, approximate past it, with their
+jitter from a device stream rather than the harness's), 6 + k the k-th snapshot network. At least one seat is the learner, at a random seat; the others are drawn
 from `kind_probs`, which the trainer may change between rollouts.
 """
 
@@ -37,7 +38,11 @@ from .actions import decode, legal_main
 from .net import Net, act
 from .obs import observe, slots
 
-LEARNER, GREEDY, SNAPSHOT = 0, 1, 2
+LEARNER, GREEDY = 0, 1
+# GD's four Expert personas, kinds 2 to 5, in this order; snapshots follow them.
+GD_PERSONAS = ("defensive", "continental", "aggressive", "stacker")
+GD = 2
+SNAPSHOT = GD + len(GD_PERSONAS)
 # Fields the buffer keeps of each decision's state: everything the observation and the options
 # read (the random stream and the deck order are never needed again).
 KEPT = [name for name in LAYOUT if name not in ("rng", "deck")]
@@ -64,6 +69,8 @@ class EnvConfig:
     cap_learner: float = 0.6
     cap_snapshot: float = 0.25
     cap_greedy: float = 1.0
+    gd: bool = False  # build the GD personas (slow to build: their odds tables)
+    cap_gd: tuple[float, ...] = (0.2, 0.2, 0.2, 0.08)  # by persona; Stacker's walk is the costly one
 
 
 def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor, won: torch.Tensor,
@@ -84,7 +91,7 @@ def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor
 
 class Env:
     def __init__(self, cfg: EnvConfig, board: Board, tables: BlitzTables, learner: Net, device: str = "cuda",
-                 seed_prefix: str = "sp"):
+                 seed_prefix: str = "sp", gd_bots: list | None = None):
         assert tables.scaled_oversize, "training resolves oversize fights on the device"
         self.cfg, self.board, self.tables, self.learner, self.device = cfg, board, tables, learner, device
         self.seed_prefix = seed_prefix
@@ -99,6 +106,10 @@ class Env:
         self.snapshots = [Net(**learner.config(), edges=board.edges, adjacency=board.adjacency).to(device)
                           for _ in range(cfg.snapshots)]
         self.active_snapshots = 0  # how many of them the captured step runs
+        self.gd_bots = gd_bots or []
+        if cfg.gd and not self.gd_bots:
+            from ..bots.gd import gd_bot_graphable
+            self.gd_bots = [gd_bot_graphable(p, tables) for p in GD_PERSONAS]
         for net in self.snapshots:
             net.requires_grad_(False)
         kinds = SNAPSHOT + cfg.snapshots
@@ -226,6 +237,17 @@ class Env:
         greedy_rows = torch.zeros(B, dtype=torch.bool, device=self.device).index_copy_(0, idx, ok)
         moves = torch.where(greedy_rows[:, None], greedy, net_move)
         moving = served | greedy_rows
+        for k, bot in enumerate(self.gd_bots):
+            idx, ok = pick(live & (kind_now == GD + k), max(1, int(cfg.cap_gd[k] * B)))
+            humans = torch.zeros(idx.shape[0], MAX_SEATS, dtype=torch.bool, device=self.device)
+            decision = Decision(s.select(idx), subset_options(idx), board, self.tables, self.log.select(idx), None,
+                                humans, [])
+            seed = (torch.rand(idx.shape[0], device=self.device, dtype=torch.float64) * 4294967296.0).floor().to(torch.int64)
+            theirs = torch.zeros(B, 5, dtype=torch.int64, device=self.device)
+            theirs.index_copy_(0, idx, bot(decision, ok, seed).to(torch.int64))
+            rows_k = torch.zeros(B, dtype=torch.bool, device=self.device).index_copy_(0, idx, ok)
+            moves = torch.where(rows_k[:, None], theirs, moves)
+            moving = moving | rows_k
         self.stalled.add_((live & ~moving).sum())
 
         if cfg.record:

@@ -109,9 +109,46 @@ The fixtures (`risk:gpu-fixtures`) are game records of reference games: a seatin
 | 0 Foundations | exporters, canonical hash on both sides, RNG exact, state and setup exact, committed fixtures | the RNG or the setup doesn't reproduce bit for bit |
 | 1 Engine | every rule, the forced steps, options masks, invariants, lockstep exact on every fixture seating | unflagged games not 100% identical after the obvious fixes |
 | 2 Bots | random, greedy exact, GD exact, the runner, `risk:gpu-check`, the free-running comparison | greedy or GD disagrees beyond a near-tie rate after the obvious fixes |
-| 3 Self-play | proposed separately when 0 to 2 are done | |
+| 3 Self-play | PPO in a league on the GPU engine, a network bot exported to TypeScript (below) | the milestones M1 to M4 below, fixed before training |
 
 Throughput is measured only on a free machine and labelled with its load; the design makes no speed claim until then.
+
+## Phase 3: self-play
+
+A network bot trained from scratch by PPO on the GPU engine, against a league, then exported to TypeScript and measured in the harness like any bot. It lives in `gpu/riskgpu/selfplay/` (`obs.py` the view, `actions.py` the action space, `net.py` the network, `env.py` the training environment, `ppo.py` the trainer and its CLI); runs write to `gpu/runs/selfplay/<name>/` (gitignored), resumable from `latest.pt`. The earlier design note's plan holds where this section doesn't revise it.
+
+### The step, captured
+
+The whole training step (the options, the observation, every network's move, greedy's move, the engine's `apply` and its forced steps, eliminations, a game's end and its scores, and the finished game replaced in place by a fresh deal from a pool) is one CUDA graph: nothing in it reads a value back to the host. That took three changes to shared code, none to what a move does: greedy's depth-first fortify order has a sync-free form (`dfs_order_graphable`, every pop pushing its neighbours at once; the fixtures hold it to the original decision for decision), constants reach the device once (`on_device`), and a blitz past the table's bound can be resolved on the device by scaling the fight into the table (`scaled_oversize`, training only: approximate, flagged `oversize`, never in a record anything is checked against). The reachability products for fortify run in float16 on CUDA (counts up to 42, exact in either type).
+
+Each controller runs only on the rows it decides: the rows needing it are sorted first and the first `capacity` of them taken, a static shape the graph can hold; a decision past its controller's capacity waits a step (`stalled`, reported; around 2% at the default capacities). Without it every network ran over the whole batch, and a larger network would pay for the greedy seats' decisions too.
+
+### Observation and actions
+
+The acting seat's view only (`obs.py`): the board, every hand's size, its own cards, the deck's size, the turn so far's public events, the pending move-in and the options; seats as slots from the acting seat in turn order, v8's rule. A decision is a **main** choice from one masked categorical (place on a territory, trade, attack along a border, end the attack, a move-in amount, fortify along a pair, end the turn: 1,978 ways) then, for place, attack and fortify, an **amount** bucket (all, half, one; for an attack: blitz keeping one, blitz keeping half, one battle) read from the chosen territories' tokens. The design's flat space over every bucket (4,158 ways) spent a fifth of a step on memory traffic over its logits; the factored one halves that and conditions the amount on where. A trade's set and bonus territory follow a fixed rule (most valuable, fewest wilds), as v6 and GD choose sets by rule.
+
+### The network, and how it grows
+
+The owner's direction: large enough to learn deep strategy, and sized so the GPU is the busy part. So not the design's residual MLP but a **transformer over the board**: 49 tokens (42 territories, 6 seat slots, a global token), each layer's attention biased per head along the map's borders, so a layer can pass messages along borders or look across the world. A place logit per territory token; an attack logit per border and a fortify logit per pair from dot products of source and destination projections; the value a vector over the slot tokens (each slot's expected final score, max-n style), with an auxiliary head on each slot's board share 32 steps on (KataGo's cure for a sparse value).
+
+Sizes: training starts at width 128, 4 layers (0.84M weights), which clears M1 fastest; once it does, a size sweep at fixed compute (128×4, 256×6 at 4.8M, 384×8) decides whether bigger pays at the data scale reached, and the run grows to the size that does. **Size is chosen by strength, not by play cost** (the owner's ruling): a bot's live turn against people may take a human's budget, up to the turn timer of about 90 seconds, spent on stronger play, and it may think on the player's device rather than the server (Risk's `CLAUDE.md`). So each export reports the TypeScript forward pass's milliseconds per decision and per turn, and a size is playable if its turn fits well inside that budget on the server or on a device. What a device would take (a WebGPU or WASM forward pass in the browser, the per-turn time on a recent phone) is later engineering, not a reason to shrink; distilling into a smaller net stays an option. Measured on one core of a CPU loaded by gauntlets: 119 ms a decision at 128×4, 672 ms at 256×6, 1,968 ms at 384×8.
+
+### Reward, cap and league
+
+A seat finishing p-th of n scores 1 − 2(p − 1)/(n − 1); the survivors of a capped game all score as k-th of n (k survivors) less 0.5, never below −1, so a stall is never a result (`stalled-games.md`, v8's hoarding). The cap is drawn per game, 150 to 600 player-turns, so no policy can count on a clock. The league: each new game's seats are the learner (at least one seat, at random), greedy, GD's four personas (their graphable port, `gd_bot_graphable`: the eager port's move on every recorded GD decision, its odds approximate only past the table, its jitter from a device stream), or past checkpoints (four slots refreshed from every snapshot so far); table sizes 3 to 6 mixed (0.35, 0.2, 0.3, 0.15). PPO with GAE (γ = 1, λ = 0.95) over each learner seat's own decisions, clip 0.2, entropy 0.01.
+
+**From scratch first**, as the owner asked; the imitation warm start (arm 2) waits on a move-log recorder and is the fallback if M1 or M2 fails for want of exploration.
+
+### Milestones, fixed before training
+
+Training time is GPU wall-clock of the trainer. A milestone is checked on the GPU (fixed deals, the learner's most likely move) and confirmed in the TypeScript harness after export; a failed milestone stops the line and is reported.
+
+| | Pass | Within |
+|---|---|---|
+| **M1** | beats greedy at 3 players: GPU win rate among decisive games ≥ 0.40 (par 0.33) on 2,048 fixed deals, cap rate under 10%; then `risk:gauntlet` better than greedy at 3 players one-in | 48 hours of training |
+| **M2** | above par against the GD personas at 5 players with cap rate under 10%: `risk:gauntlet` better than each of gd-defensive and gd-stacker at 5 players one-in, and not worse one-out | two weeks of training |
+| **M3** | even or better than rule-v6 at 5 players, one-in and one-out, by the gauntlet's SPRT (30 Elo a seat), train seeds then holdout | |
+| **M4** | the same against rule-v7 | |
 
 ## What was found
 
