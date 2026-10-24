@@ -1,8 +1,8 @@
 import { PerspectiveCamera } from "three";
-import { float, max, min, mix, screenSize, screenUV, smoothstep, uniform, vec2, vec4 } from "three/tsl";
+import { float, max, min, mix, perspectiveDepthToViewZ, screenSize, screenUV, smoothstep, uniform, vec2, vec4 } from "three/tsl";
 import type { Node } from "three/webgpu";
 import type { FeatureArt } from "../feature-art";
-import { colourUniform } from "../tsl";
+import { colourUniform, typed } from "../tsl";
 
 /*
  * Ink edges (`inkEdges`): a soft line where a near form stands in front of
@@ -27,9 +27,9 @@ const ink = colourUniform();
 const near = uniform(0.1);
 const far = uniform(1000);
 
-/** Metres along the view from a reversed depth (1 near, 0 far). */
+/** Metres along the view from a depth as the depth buffer holds it. */
 function distanceOf(depth: Node<"float">): Node<"float"> {
-  return near.mul(far).div(mix(near, far, depth));
+  return typed<"float">(perspectiveDepthToViewZ(depth, near, far)).negate();
 }
 
 export const INK_EDGES_ART: FeatureArt = {

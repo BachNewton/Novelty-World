@@ -193,7 +193,7 @@ export function Daylight(parts: DaylightParts) {
   const target = useMemo(() => new Object3D(), []);
   const scratch = useMemo<Scratch>(() => ({ sunColour: new Color(), skyLight: new Color(), tint: new Color() }), []);
   // The sun disc's own colour, before the air colours and dims it.
-  const disc = useMemo(() => parts.sky.uSunDisc.value.clone(), [parts.sky]);
+  const disc = parts.palette.things["sun-disc"];
   useEffect(() => {
     if (key.current) key.current.target = target;
   }, [target]);
