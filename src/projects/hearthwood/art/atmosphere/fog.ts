@@ -1,11 +1,11 @@
-import { Color, Vector3, Vector4 } from "three";
+import type { Vector3, Vector4 } from "three";
+import { positionWorld } from "three/tsl";
+import { throughAir } from "../atmosphere";
 import { REGIONS } from "../../engine/regions";
 import type { DayState } from "../light/daylight";
 import type { FeatureArt } from "../feature-art";
 import type { WeatherNow } from "../weather/now";
 import { REGION_AIR } from "../palette";
-import { smoothstep } from "../../engine/noise";
-import { blendByRegion, weatherColours } from "./colours";
 
 /*
  * Fog: the air between the eye and what it sees, worked out per pixel along
@@ -38,49 +38,6 @@ export const MIST = { density: 0.03, height: 45 } as const;
 /** The veil of rain or snow at its heaviest, and the depth of its layer. */
 const VEIL = { density: 1.2e-3, height: 1000 } as const;
 
-export const FOG_GLSL = /* glsl */ `
-uniform vec3 uHwFogAir;
-uniform vec3 uHwFogSun;
-uniform vec3 uHwFogMist;
-// The clear air's, the mist's and the veil's density at their floors, per metre.
-uniform vec3 uHwFogDensity;
-// The clear air's scale height, the mist's floor, the mist's and the veil's scale heights, in metres.
-uniform vec4 uHwFogLayers;
-
-// The depth of a layer whose density falls off exponentially above its floor, along a ray from the eye to a point.
-float hwFogLayer(float density, float floorY, float height, float eyeY, float pointY, float dist) {
-  float h0 = max(eyeY - floorY, -height) / height;
-  float h1 = max(pointY - floorY, -height) / height;
-  float dh = h1 - h0;
-  float e0 = exp(-h0);
-  float mean = abs(dh) > 1e-4 ? (e0 - exp(-h1)) / dh : e0;
-  return density * dist * mean;
-}
-
-// Forward scattering by droplets (Henyey-Greenstein), 1 for light scattered evenly.
-float hwFogForward(float cosine, float g) {
-  float gg = g * g;
-  return (1.0 - gg) / pow(1.0 + gg - 2.0 * g * cosine, 1.5);
-}
-
-vec3 hwFog(vec3 colour, vec3 point, float dist) {
-  vec3 eye = cameraPosition;
-  vec3 dir = normalize(point - eye);
-  float air = hwFogLayer(uHwFogDensity.x, 0.0, uHwFogLayers.x, eye.y, point.y, dist);
-  float wet = hwFogLayer(uHwFogDensity.y, uHwFogLayers.y, uHwFogLayers.z, eye.y, point.y, dist)
-    + hwFogLayer(uHwFogDensity.z, uHwFogLayers.y, uHwFogLayers.w, eye.y, point.y, dist);
-  // The clear air takes the blue out first, so far land turns blue before it fades.
-  vec3 airDepth = air * vec3(0.6, 0.85, 1.3);
-  float cosine = dot(dir, uHwSunDir);
-  vec3 airLight = uHwFogAir + uHwFogSun * 0.45 * pow(max(cosine, 0.0), 5.0);
-  vec3 wetLight = uHwFogMist + uHwFogSun * 0.04 * hwFogForward(cosine, 0.62);
-  vec3 depth = airDepth + vec3(wet);
-  vec3 through = exp(-depth);
-  vec3 scattered = (airDepth * airLight + wet * wetLight) / max(depth, vec3(1e-6));
-  return colour * through + scattered * (1.0 - through);
-}
-`;
-
 /** The depth of a layer whose density falls off exponentially above its floor, along a ray: `hwFogLayer` in the GLSL above, the same function. */
 export function fogLayerDepth(density: number, floorY: number, height: number, eyeY: number, pointY: number, dist: number): number {
   const h0 = Math.max(eyeY - floorY, -height) / height;
@@ -105,50 +62,8 @@ export function fogLayers(day: DayState, weather: WeatherNow, density: Vector3, 
   layers.set(AIR.height, weather.floor, MIST.height * (1 + w.precipitation), VEIL.height);
 }
 
-const uniforms = {
-  uHwFogAir: { value: new Color() },
-  uHwFogSun: { value: new Color() },
-  uHwFogMist: { value: new Color() },
-  uHwFogDensity: { value: new Vector3() },
-  uHwFogLayers: { value: new Vector4(AIR.height, 0, MIST.height, VEIL.height) },
-};
-
-const tint = new Color();
-const light = new Color();
-const sun = new Color();
-
 export const FOG_ART: FeatureArt = {
   feature: "fog",
-  uniforms,
-  chunks: [
-    {
-      kinds: ["land", "ground", "foliage", "solid", "water"],
-      fragmentHead: FOG_GLSL,
-      colour: /* glsl */ `hwColour = hwFog(hwColour, vHwWorld, length(vHwWorld - cameraPosition));`,
-    },
-    {
-      kinds: ["sky"],
-      fragmentHead: FOG_GLSL,
-      colour: /* glsl */ `
-        vec3 hwDir = normalize(vHwWorld - cameraPosition);
-        hwColour = hwFog(hwColour, cameraPosition + hwDir * ${SKY_DISTANCE.toFixed(1)}, ${SKY_DISTANCE.toFixed(1)});
-      `,
-    },
-  ],
-  frame: ({ day, atmosphere, weather }) => {
-    const w = weather.weather;
-    fogLayers(day, weather, uniforms.uHwFogDensity.value, uniforms.uHwFogLayers.value);
-    // The air glows the horizon's own colour, as the sky draws it, so the land melts into the sky; the mist is the same light, whiter.
-    uniforms.uHwFogAir.value.copy(atmosphere.uHwHaze.value);
-    // Under a closing sky the sun no longer shines into the air: its glow fades as the cloud covers it.
-    const through = 1 - 0.9 * smoothstep(0.6, 1, w.cloudCover);
-    uniforms.uHwFogSun.value.copy(atmosphere.uHwKeyLight.value).multiplyScalar(0.25 * through);
-    const haze = atmosphere.uHwHaze.value;
-    light.copy(haze).lerp(sun.setScalar(0.2126 * haze.r + 0.7152 * haze.g + 0.0722 * haze.b), 0.6).multiplyScalar(0.72);
-    uniforms.uHwFogMist.value.copy(light).multiply(blendByRegion(weatherColours().mist, weather.regions, tint));
-    // A closed sky lets less light into the air: rain and overcast are grey, not glaring.
-    const gloom = 1 - 0.4 * w.cloudCover * w.cloudCover;
-    uniforms.uHwFogAir.value.multiplyScalar(gloom);
-    uniforms.uHwFogMist.value.multiplyScalar(gloom);
-  },
+  replacesAir: true,
+  stages: [{ kinds: ["land", "ground", "foliage", "solid"], colour: (colour, { air }) => throughAir(air, colour, positionWorld) }],
 };
