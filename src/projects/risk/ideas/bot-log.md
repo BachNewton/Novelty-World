@@ -956,3 +956,14 @@ Win Elo (rule-v6 = 0): v7 +138, v5 −22, v4 −52, gd-stacker −483, greedy �
 **Rules 2 and 3 of the seating bar hold on train seeds**: better than v6 at every table, worse at none, and no weak bot does better against it. The holdout gauntlet and the seatable ladder are next.
 
 **The health flag grew at 6 players.** Tables with five v7s against one rule bot capped 44 to 58% of their games (416 to 460 turns on average), and 23 to 41% with one v7 among five rule bots; v6's own 6-player games cap 25 to 37%. At 3 and 4 players nothing capped. Capped games are draws and leave the test, so the verdicts stand, but a table of v7s at 6 players finishes about half its games. That is a defect of v7's play to look at (likely its search valuing safety the way v8's network did), not a reason against seating it: it beats every bot at every table.
+
+## student-v1's first screen: even alone, worse in numbers (2026-10-24)
+
+On the laptop (14 workers, 24 minutes, from 6731b550): `risk:gauntlet -- student-v1 --base rule-v6 --field rule-v6 --players 5`, train seeds. student-v1 is v6 with the turn's placement chosen among v7's candidates by the pilot's best student (v6's breakdown terms, linear, fitted to v7's scores; it keeps 18% [2%, 33%] of v7's split-half edge, `distilled-v7.md`).
+
+| Table | Result | Win share | Par | Games | Turns | Capped |
+|---|---|---|---|---|---|---|
+| 1 student among 4 v6s | even | 20.1% [18.0, 22.4] | 20% | 1,325 | 111 | 3.1% |
+| 4 students against 1 v6 | **worse** | 74.9% [70.9, 78.6] | 80% | 510 | 142 | 4.5% |
+
+Win Elo (v6 = 0): student −14. Rejected, as the bar says. The pilot student overrules v6 often but keeps little of v7's judgement, and among copies of itself it loses ground, the shape v8 had. It says nothing yet about a student trained on the 8,000-game recording; this run checks the pipe end to end (weights, bot, gauntlet) and sets the floor.
