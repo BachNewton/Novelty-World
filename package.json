@@ -42,6 +42,7 @@
     "risk:record": "tsx src/projects/risk/eval/record-cli.ts",
     "risk:features": "tsx src/projects/risk/eval/features-cli.ts",
     "risk:student-weights": "tsx src/projects/risk/eval/student-weights-cli.ts",
+    "risk:gpu-test": "python -m pytest src/projects/risk/gpu/tests -q",
     "bench": "vitest bench --run",
     "relay:deploy": "bash relay/deploy.sh",
     "frogmino:prove": "tsx src/projects/frogmino/proof/prove-cli.ts",
