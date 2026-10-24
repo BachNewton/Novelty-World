@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Color, DoubleSide, Mesh, type Material } from "three";
-import { cameraViewMatrix, cameraWorldMatrix, dot, float, max, mix, normalize, positionLocal, positionWorld, pow, select, smoothstep, vec2, vec3, vec4 } from "three/tsl";
+import { cameraViewMatrix, cameraWorldMatrix, dot, float, max, mix, normalize, positionLocal, positionWorld, pow, select, smoothstep, step, vec2, vec3, vec4 } from "three/tsl";
 import { LightingModel, NodeMaterial, type LightingModelDirectInput, type Node, type NodeBuilder } from "three/webgpu";
 import { liveFeatures, type FeatureId, type FeatureSwitches } from "../../features";
 import type { LandTile } from "../../engine/tiles";
@@ -121,9 +121,13 @@ export function poolGeometry(radius: number): BufferGeometry {
   return geometry;
 }
 
-/** The palette's water colours, as the uniforms every water material shares. */
+const SHARED = new WeakMap<AtmosphereUniforms, WaterColours>();
+
+/** The palette's water colours, as the uniforms every water material in one world shares, so they all build one shader. */
 function waterColours(palette: Palette, air: AtmosphereUniforms, sky: SkyUniforms): WaterColours {
-  return {
+  const shared = SHARED.get(air);
+  if (shared?.sky === sky) return shared;
+  const made: WaterColours = {
     air,
     sky,
     shallow: colourUniform(new Color().copy(palette.things["water-shallow"])),
@@ -132,6 +136,8 @@ function waterColours(palette: Palette, air: AtmosphereUniforms, sky: SkyUniform
     // The bed as the land draws it under shallow water: its shore, stonier.
     bed: colourUniform(new Color().copy(palette.things["ground-shore"]).lerp(palette.things.rock, 0.4)),
   };
+  SHARED.set(air, made);
+  return made;
 }
 
 /** A river's streaks, running the way it flows, fast and white where it falls: how white, 0 to 1. */
@@ -157,8 +163,8 @@ function glintOf(normal: Node<"vec3">, air: AtmosphereUniforms, time: Node<"floa
   const cell = grid.floor();
   const flash = time.mul(3).add(typed<"float">(hash2(cell)).mul(3)).floor();
   const spot = vec2(typed<"float">(hash2(cell.add(flash).add(0.5))), typed<"float">(hash2(cell.sub(flash).add(7.1)))).mul(0.6).add(0.2);
-  const lit = typed<"float">(hash2(cell.add(flash))).step(0.75);
-  const sparkle = mix(lit.mul(smoothstep(0.16, 0.05, grid.fract().sub(spot).length())), float(0.06), smoothstep(0.06, 0.2, waterFootprint));
+  const lit = step(0.75, typed<"float">(hash2(cell.add(flash))));
+  const sparkle = mix(lit.mul(float(1).sub(smoothstep(0.05, 0.16, grid.fract().sub(spot).length()))), float(0.06), smoothstep(0.06, 0.2, waterFootprint));
   return pow(toKey, 2000).mul(12).add(sparkle.mul(pow(toKey, 300)).mul(60)).add(pow(toKey, 40).mul(0.25)).mul(keyUp);
 }
 
@@ -169,32 +175,31 @@ interface LightContext {
 /**
  * The water's light. Three's directional light (the key light) is used only
  * for its shadow, so the water takes shadows as every lit thing does: its
- * colour reaches `direct` already times the shadow, and divided by the
- * unshadowed key light (`uHwKeyLight`) leaves the shadow alone. Everything
- * else is the water's own (`shade`), put out as the direct diffuse.
+ * colour reaches `direct` already times the shadow, and over the light's
+ * own unshadowed colour leaves the shadow alone. Everything else is the
+ * water's own (`shade`), put out as the direct diffuse once the lights
+ * have been gathered.
  */
 class WaterLighting extends LightingModel {
   private shadow: Node<"vec3"> | null = null;
 
-  constructor(
-    private readonly air: AtmosphereUniforms,
-    private readonly shade: (shadow: Node<"vec3">) => Node<"vec3">,
-  ) {
+  constructor(private readonly shade: (shadow: Node<"vec3">) => Node<"vec3">) {
     super();
   }
 
-  override direct({ lightColor, lightNode }: LightingModelDirectInput): void {
-    const light = (lightNode as unknown as { light?: { isDirectionalLight?: boolean } }).light;
-    if (light?.isDirectionalLight !== true || this.shadow) return;
-    this.shadow = typed<"vec3">(lightColor).div(max(this.air.uHwKeyLight, vec3(1e-5))).clamp(0, 1);
-  }
-
-  override finish(builder: NodeBuilder): void {
+  override start(builder: NodeBuilder): void {
+    super.start(builder);
     const { reflectedLight } = builder.context as unknown as LightContext;
     reflectedLight.directDiffuse.assign(this.shade(this.shadow ?? vec3(1)));
     reflectedLight.directSpecular.assign(vec3(0));
     reflectedLight.indirectDiffuse.assign(vec3(0));
     reflectedLight.indirectSpecular.assign(vec3(0));
+  }
+
+  override direct({ lightColor, lightNode }: LightingModelDirectInput): void {
+    const node = lightNode as unknown as { light?: { isDirectionalLight?: boolean }; baseColorNode?: Node | null };
+    if (node.light?.isDirectionalLight !== true || this.shadow || !node.baseColorNode) return;
+    this.shadow = typed<"vec3">(lightColor).div(max(typed<"vec3">(node.baseColorNode), vec3(1e-5))).clamp(0, 1);
   }
 }
 
@@ -281,9 +286,10 @@ export class WaterMaterial extends NodeMaterial {
     };
     for (const step of this.steps) if (step.surface) surface = step.surface(surface, colours);
     const body = fold(surface.body, this.stagesOf("surface"), this.context);
-    // From below, the sky shows through where the eye looks steeply up, and the surface mirrors the water at a glance.
+    // From below, the sky shows through where the eye looks steeply up, the surface mirrors the water at a glance, and nothing glints.
     const fresnel = select(waterBelow, float(1).sub(surface.fresnel), surface.fresnel);
-    return { ...surface, body, fresnel };
+    const glint = select(waterBelow, float(0), surface.glint);
+    return { ...surface, body, fresnel, glint };
   }
 
   /** The water's colour, linear, before the air: what comes up out of it lit by the light all round and the key light (as much as its shadow lets through), the mirror, and the glint. */
@@ -309,7 +315,7 @@ export class WaterMaterial extends NodeMaterial {
 
   override setupLightingModel(): LightingModel {
     const surface = this.made ?? this.surface();
-    return new WaterLighting(this.colours.air, (shadow) => this.shade(surface, shadow));
+    return new WaterLighting((shadow) => this.shade(surface, shadow));
   }
 
   override setupOutput(builder: NodeBuilder, outputNode: Node): Node {

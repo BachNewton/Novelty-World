@@ -21,7 +21,7 @@ export const SHORE_STEP: WaterStep = {
     const edge = float(1).sub(smoothstep(0, reach, waterDepth));
     const glow = float(1).sub(smoothstep(0, reach.mul(2), waterDepth));
     // A second, fainter line a little further out, where the last wave reached.
-    const outer = smoothstep(0.08, 0, waterDepth.sub(reach.mul(1.6)).abs()).mul(0.45);
+    const outer = float(1).sub(smoothstep(0, 0.08, waterDepth.sub(reach.mul(1.6)).abs())).mul(0.45);
     const lace = smoothstep(0.45, 0.75, typed<"float">(valueNoise(waterP.mul(2.2).add(t.mul(0.15)))));
     return {
       ...surface,
