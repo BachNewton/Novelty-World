@@ -75,6 +75,25 @@ By the rules fixed before the run: the breakdown student is the default until th
 - **The test set** is 500 games of v7 at 32 replies (6,148 decisions, `distill-v7-test32`). On it the reliability model fitted to the pilot holds out of sample: 0.65 at 8 replies, 0.88 at 32, the same noise-to-spread ratio (4.2). A 32-reply ranking is reliable in most decisions (median 0.73 per decision), so a student's pick can be scored on 16 replies against 16.
 - **Searching 8 candidates instead of 4** (300 games, `distill-v7-wide8`; most decisions have 8 distinct placements). v7 picks one of candidates 5 to 8 in a third of them, so v6's top four isn't a tight filter. But on fresh replies the 8-candidate search gains only 10% [−4%, +26%] more over v6 than the 4-candidate search on the same decisions. Choosing among more candidates on 4 noisy replies also picks more noise, so this undersells a wide search with more replies, but it gives no reason yet to widen the teacher: its gain, if any, is small next to the student's distance from v7.
 
+## Three times the data, scored on the precise test set
+
+Every recording so far trained together (pilot halves and the wide teacher: 13,474 training decisions, 1,500 games), every student scored on the 32-reply test set (16 replies chosen on, 16 scored), five seeds each, at a third, two thirds and all of the training games. On this yardstick v7's edge is larger and less noisy than on the pilot's 4-and-4 halves, and the pilot's best student keeps 4% [−3%, 11%] of it, not the 18% the pilot's own halves showed.
+
+| Student | 4,329 decisions | 9,095 | 13,474 |
+|---|---|---|---|
+| Breakdown, listwise, 32,8 | 5.0% | 8.7% | **9.1% [3%, 15%]** |
+| Breakdown, listwise, 16 | 6.3% | 7.1% | 8.4% [2%, 14%] |
+| Breakdown, regression, 16 | 5.0% | 6.7% | 7.7% [1%, 13%] |
+| Full board, listwise, 32 | −4.9% | 3.1% | 5.8% [−1%, 12%] |
+| Full board, listwise, 128,32 | −8.6% | 0.0% | 1.5% [−6%, 8%] |
+| Full board, regression, all sizes | −7% to −13% | −10% to −17% | −7% to −9% |
+
+- **The small students learn a little, slowly.** On v6's breakdown terms the best keeps 9% with an interval clear of zero, rising a few points per doubling of the data.
+- **The full board is data-starved but learning fastest.** Ranked listwise it climbs from about −5% to +6% over a tripling, the steepest curve in the sweep; regressed on the scores it still overfits. Bigger full-board networks do worse at every size of data here.
+- **No pruner.** v7's pick is in the student's top two 56 to 62% of the time.
+
+All of it is far below the 30% bar. The 8,000-game recording is the test of whether the full board's curve keeps climbing.
+
 ## If it works
 
 - **Measuring v7-class strength costs hours, not days.** The student's seating suite costs what v6's did.

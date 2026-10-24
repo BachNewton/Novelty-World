@@ -14,7 +14,8 @@ decision's candidates against the softmax of v7's mean scores at temperature `--
 the training decisions' median spread of scores). `mse` regresses each candidate's mean score
 instead, and reports how much of the scores' variance it explains between decisions and within
 them (the ranking's part). Games are held out whole: a game whose index is 0 mod 5 is test, 1 mod
-10 is validation (early stopping), the rest train; `--train-fraction` keeps that share of the
+10 is validation (early stopping), the rest train; with `--test-data`, that recording is the
+whole test set and every game of `--data` trains but the validation ones; `--train-fraction` keeps that share of the
 training games (the same games for every seed, and a smaller share's games among a larger's).
 
 The report on the test games:
@@ -64,14 +65,13 @@ def load_one(data):
 
 
 def load(dirs):
-    """Every recording's candidates as decisions padded to the most candidates any has."""
+    """Every recording's candidates as decisions padded to the most candidates any has, and to
+    the most replies any kept (a decision with fewer has none for a split-half reading)."""
     xs, scores, chosen, decisions, games, replies = [], [], [], [], [], []
     offset = 0
     parts = [load_one(d) for d in dirs]
     R = max(p[5].shape[1] for p in parts)
     for k, (x, s, c, dec, g, rep, meta) in enumerate(parts):
-        if rep.shape[1] not in (0, R):
-            raise SystemExit(f"recordings of {rep.shape[1]} and {R} replies can't be read as one set")
         replies.append(rep if rep.shape[1] == R else np.full((len(s), R), np.nan, np.float32))
         xs.append(x)
         scores.append(s)
@@ -267,6 +267,7 @@ class SplitHalf:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", nargs="+", default=[DEFAULT_DATA])
+    ap.add_argument("--test-data", help="a recording to test on alone, e.g. one at more replies")
     ap.add_argument("--hidden", default="64,16")
     ap.add_argument("--sweep", nargs="*", help="hidden sizes to fit in turn, e.g. 64,16 32 , (the empty one is linear)")
     ap.add_argument("--tau", type=float, default=0.0, help="the targets' temperature in v7's score; 0 for the training decisions' median spread")
@@ -285,11 +286,11 @@ def main():
     torch.set_num_threads(args.threads)
     device = ("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else args.device
 
-    X, S, M, v7, game, P = load(args.data)
+    X, S, M, v7, game, P = load(args.data + ([args.test_data] if args.test_data else []))
     per_board = json.load(open(os.path.join(args.data[0], "meta.json")))["features"]
     D, K, W = X.shape
-    test = game % 5 == 0
-    val = game % 10 == 1
+    test = game // 1_000_000 == len(args.data) if args.test_data else game % 5 == 0
+    val = ~test & (game % 10 == 1)
     train = ~test & ~val
     overruled = v7 != 0
     rng = np.random.default_rng(SEED)
