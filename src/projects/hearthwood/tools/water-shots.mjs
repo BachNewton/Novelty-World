@@ -57,7 +57,7 @@ async function frames(count) {
 }
 
 const ALL = await page.evaluate(() => Object.keys(window.__hearthwoodWorld.features()));
-const WATER = ["ripples", "rippleParallax", "waterAbsorption", "shoreHighlight", "skyReflection", "refraction", "screenSpaceReflections", "caustics", "underwaterFog", "snellsWindow", "farWater", "lakeIce"];
+const WATER = ["ripples", "waterAbsorption", "shoreHighlight", "skyReflection", "underwaterFog", "farWater", "lakeIce"];
 
 async function setFeatures(on) {
   await page.evaluate((on) => {

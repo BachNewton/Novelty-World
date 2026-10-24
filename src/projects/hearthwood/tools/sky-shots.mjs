@@ -1,7 +1,7 @@
 // Screenshots of Hearthwood's sky and light, for judging them without a browser open: camp and the sky through the
 // day and the year (noon, golden hour, the sun on the horizon, the blue hour, a full-moon and a new-moon night, a
 // midsummer night, a midwinter noon), the moon close up at several phases, the stars and the Milky Way overhead, the
-// northern lights, noctilucent clouds and a rainbow held on, with the date, the moon and the sun's height of each.
+// northern lights and a rainbow held on, with the date, the moon and the sun's height of each.
 // Optionally each shot again with chosen features off (`--without=`), to see what each adds.
 //
 // Drives the world's probe (window.__hearthwoodWorld) and the sky's inputs (window.__hearthwoodSky) over
@@ -132,7 +132,6 @@ const SHOTS = [
   { name: "moon-full", ...FULL, camera: at("moon"), clip: true },
   { name: "aurora", day: MABON + 3, hour: 23.5, camera: looking(350, 18), inputs: { aurora: "on" } },
   { name: "aurora-camp", day: MABON + 3, hour: 23.5, inputs: { aurora: "on" } },
-  { name: "noctilucent", day: LITHA + 1, hour: 23.8, camera: looking(0, 8), inputs: { noctilucent: "on" } },
   { name: "midsummer-night", day: LITHA, hour: 22.5, camera: looking(330, 12) },
   { name: "midwinter-noon", day: YULE, hour: 12 },
   { name: "rainbow", day: MABON, hour: 16.6, camera: "rainbow", inputs: { rain: 1 } },
@@ -166,7 +165,7 @@ async function shoot(shot, suffix, toggles) {
     ({ shot, toggles }) => {
       const world = window.__hearthwoodWorld;
       for (const [id, on] of Object.entries(toggles)) world.setFeature(id, on);
-      Object.assign(window.__hearthwoodSky, { rain: 0, aurora: "seeded", noctilucent: "seeded" }, shot.inputs ?? {});
+      Object.assign(window.__hearthwoodSky, { rain: 0, aurora: "seeded" }, shot.inputs ?? {});
       world.setDate(shot.day);
       world.holdHour(shot.hour);
     },
