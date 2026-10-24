@@ -1,53 +1,61 @@
-# Risk in Rust: the engine and the rule bots, native and exact
+# Risk in Rust: a native engine held to the rules, and bots designed in Rust
 
-A design under construction: the engine and the bots are being ported in order, each proven identical to its TypeScript original before the next builds on it. Decided by the owner: the game engine and the bots' logic get a native Rust port, so that if the bots stay on the CPU they can still get faster. It overrides the earlier language decision (`language-decision.md`, "bots are never written in Rust") for this one purpose: a port, held exact, of code the TypeScript keeps owning.
+A design under construction: the foundations are built, the engine is next, the bots follow. Decided by the owner: the engine and the bots get a native Rust implementation so that, if the bots stay on the CPU, they can still get faster. The engine is **designed natively for speed and held to `RULES.md`**, not to the TypeScript implementation; bots **may be designed in Rust**, and a Rust bot is a bot of its own. TypeScript remains the engine the online game runs on and the code every frozen seated bot runs on. This revises the earlier language decision (`language-decision.md`) for the measuring harness; the online game's choice stands.
 
 ## What it is for
 
-The measured and seated bots (rule-v1 to v6, and v7 = v6 with its reply search) run in TypeScript on the worker pool, and they are slow: v6 about 20 ms a turn on one core, v7 about 2.5 s, most of it v6's planning inside v7's imagined replies. The engine itself is about 2% of a game's time. So a faster engine alone buys nothing; the port must carry the bots, and that is where the risk is.
+The seated bots (rule-v1 to v6, and v7 = v6 with its reply search) run in TypeScript on the worker pool, and they are slow: v6 about 20 ms a turn on one core, v7 about 2.5 s, most of it v6's planning inside v7's imagined replies. The engine itself is about 2% of a game's time. So the speed has to come from the bots: a bot designed in Rust, on an engine designed in Rust, where a turn's planning costs a fraction of what the TypeScript pays, and a search bot can afford far more replies.
 
-The TypeScript stays the source of truth. Seated bots are frozen by fingerprint, measurements and the ratings cache rest on their exact moves, and a bot that differs in one decision in a million is a different bot. So the port's one bar is **exactness**: a Rust game is the same game as the TypeScript one, move for move, for the same seed and seating, and a Rust bot makes the same decision as its original at every position. Speed is measured only once that holds.
+## The one consequence to keep in view
+
+**A Rust bot that isn't decision-identical to rule-v6 is a new bot, not rule-v6.** It gets its own name and label, is measured by the gauntlet and the ladder like any bot, and can't stand in for a frozen seated bot in a measurement of that bot. Nothing here makes v6's own gauntlets faster; it makes the *next* bots faster to build and to run. Exactness is kept only where it is cheap and buys a specific thing (below).
 
 ## Where it lives
 
-- `native/` in this project: one Cargo crate, `risk-native`, a library with a binary. Modules follow the TypeScript files they port (`rng`, `jsmath`, `map`, `cards`, `blitz`, `engine/`, `bots/odds` and the rest of the bots, `runner`, `record`, `canonical`, `serve`). Its `target/` is ignored by git.
-- `eval/native/` on the TypeScript side: the exporters and checkers that prove the port, and the runner that lets a measuring run play on it.
-- Dependencies stay few and well known: `serde` and `serde_json` for the wire format, `sha2` for the canonical hash. A thread pool is a few lines over `std::thread`; no runtime.
+- `native/` in this project: one Cargo crate, `risk-native`, a library with a binary (`serve` and the checking subcommands). Dependencies: `serde`, `serde_json`, `sha2`; a thread pool is a few lines over `std::thread`. Its `target/` is ignored by git. The Windows build links the C runtime statically (`.cargo/config.toml`), because Node does and `pow` differs between the static and the dynamic runtime (see "Floating point").
+- `eval/native/` on the TypeScript side: the exporters and checkers, and the runner that lets a measuring run play on the native path.
 
-## How Node uses it
+## The engine
 
-**A separate process over stdin and stdout, never an addon.** The binary's `serve` mode reads batches of game specs (the harness's `RiskGameSpec`: index, seed, labels, turn cap) as JSON lines and writes their results (`RiskGameResult`) back, played on its own thread pool. On the TypeScript side a `GameRunner` (`src/shared/lib/bot-lab/pool.ts`'s interface) wraps that process, so a gauntlet or a ladder swaps the worker pool for the native runner and nothing else changes: the SPRT, the Elo fit, the rotation groups and the reports stay in TypeScript, where they are tested.
+**Designed for speed, held to the rules.** Its data layout, move generation and internals are its own: flat state, a 64-bit mask of territories per seat, precomputed adjacency and continent masks, counts kept incrementally, hands as small fixed arrays, no allocation on the hot path. Nothing in it follows the TypeScript code's shape; everything in it follows `RULES.md`, every rule and every edge case, read from the spec.
 
-Why not a napi addon: it adds a native build to `npm install`, a toolchain to CI and a crash surface inside Node, for a call that happens once per game. A process boundary costs one JSON line per game, nothing against a game of five hundred moves, and `cargo build --release` is the whole build. The runner fails loudly when the binary is missing or older than the crate's sources rather than quietly playing TypeScript.
+Three things it keeps the same as the reference engine, each because it costs nothing and buys a check:
 
-Determinism needs no care: a game is a pure function of its spec, so which thread plays it changes nothing, exactly as the worker pool's games are bit-identical to the single-threaded runner's.
+- **The random source and the order of its draws**: xmur3 of the seed into mulberry32, drawn in the reference engine's order (seat order, deal, starting armies, the deck; then dice, a blitz's draw, a trade's returns). mulberry32 is already as cheap as a random source gets, and keeping the stream means a Rust game and a TypeScript game of the same seed and moves are *the same game*, so every TypeScript tool that replays a game (`risk:review`, `risk:trace`) reads a Rust game, and lockstep replay (below) checks the whole rule set move by move.
+- **Balanced Blitz** (`COMBAT-8`) is a rule, and its odds are already ported bit-exactly (`blitz.rs`, proven on vectors). A blitz draws one number and resolves on the same odds, so the same draw gives the same losses.
+- **The contract's shapes** (a seat's view, its options, the move kinds, the events with their rule ids), so a bot written against the TypeScript contract and one written in Rust see the same game, and the differential tools can speak both.
 
-## What breaks exactness, and the answer to each
+### Verifying the engine: rules, not bytes
 
-The TypeScript runs on V8, and the port must reproduce V8's arithmetic, not the platform's.
+1. **A rules suite in Rust**: a test per rule and edge case of `RULES.md` (setup and the first-turn bonus, reinforcement arithmetic, trades and the forced trade, the territory bonus, battles and dice pairing, the blitz's resolution, capture and the move-in's bounds, elimination and the card transfer, the mid-attack forced trade, fortify reach, the turn passing eliminated seats, the win), and the invariants (`INV-*`) checked on every state in a fuzz of random-legal play.
+2. **Lockstep replay of TypeScript games as a rules check**: `risk:native-fixtures` records reference games (seed, seating, every move, a canonical hash of the state after each move and of the options before it; the record format and layout are the GPU engine design's, so fixtures interchange). The crate replays each record: every move of a legal TypeScript game must be legal here and lead to the same board, and the options offered must be the same set. This checks the rules on hundreds of thousands of real positions and is independent of how the engine is built; because the random stream is kept, it checks the dice too.
+3. **Options equality both ways**: the lockstep compares the whole legal move set at every decision (the options hash), so a move legal on one side and not the other fails loudly.
+4. **Distributional equivalence**: the simple bots that exist on both sides (greedy and GD's personas, ported exactly, below) play the same seeds on both engines and must produce identical games; on fresh seeds, game length, win rates by seat and table size, cap rate, captures and trades per game are compared with the GPU design's statistical tests.
 
-- **Transcendental functions.** `Math.pow` (`**`), `Math.exp` and `Math.log` in V8 are its own ports of fdlibm (`base/ieee754.cc`), and the platform's `libm` may differ in the last bit. They appear only in Balanced Blitz's balancing (`blitz.ts`: the two powers, and the exponential fit of fights over 2,000 armies) and in GD's balancing of an estimated chance. The port uses the same fdlibm algorithms and proves them on exported vectors, including every input the blitz actually feeds them; any disagreement is a bug.
-- **`Math.round`** rounds halves toward +∞; Rust's rounds them away from zero. The port has its own `js_round`, used everywhere the TypeScript rounds. **`Math.fround`** is a round trip through `f32`; GD's `fround(fround(a) / fround(d))` divides in `f64` first and rounds once after, never as an `f32` division.
-- **The order of floating-point operations** is kept exactly: every sum, product and comparison in the order the TypeScript makes it, `reduce` left to right, no reassociation, no fused multiply-add (the port compiles with the default, which never fuses).
-- **Integer arithmetic**: `Math.imul`, `| 0` and `>>> 0` are wrapping 32-bit operations, and the RNG (xmur3 over the seed string, then mulberry32) is bit-exact including the `toString(36)` of the bots' seed.
-- **Sorting** is stable on both sides (V8's `sort` since 2019, Rust's `sort_by`); comparators are ported as written, tie-breaks included.
-- **`Map` and `Set` iterate in insertion order**, and some tie-breaks read that order (the move-in's candidate totals, a plan's placements). The port keeps ordered vectors wherever an order is read; a hash map is used only where no result depends on it.
-- **Memos and caches** (`Memo`, the odds' remembered runs, the scratch arrays) change only time, never answers, so the port is free to cache differently. A memo whose key misses an input would be a TypeScript bug, and the differential tests would show it.
-- **Hands are ordered**, as the engine's arrays are: `setsIn` lists a hand's sets in hand order and bots trade the first.
+## The bots
 
-## Proving it
+**Exact ports, only of the cheap ones**: `greedy` and GD's four Expert personas (about 1,500 lines of straightforward scoring). Exactness buys three specific things here: the engine's distributional check becomes a move-for-move check (games identical, not merely similar), the yardstick bots players know exist on the native side so a Rust bot's measurement can seat them, and a search bot's reply mix has its cheap opponents (v7 draws from v6, GD Aggressive and greedy). The rule bots are **not** ported one for one.
 
-Four layers, smallest first, so a float that drifts is found in a unit, not in a game.
+**Bots designed in Rust**, named `native-v<n>`, each with a design doc of its own in `ideas/`:
 
-1. **Vectors**: `risk:native-vectors` exports what TypeScript computes for the RNG (seeds, states, draws), `jsmath` (pow, exp, log, round over broad inputs), the blitz (fair and balanced fights over a grid and the large estimates), the odds (`battleOutcome`, `pathRun`, `exchange`, `blitzCommit`), the cards' worth model and the map. The crate's tests read them and compare bit for bit.
-2. **Lockstep on the engine**: `risk:native-fixtures` plays TypeScript games (any seating of the bots) and writes **game records**: the seed, the players, the labels, every move, and a hash of the state after each move and of the active seat's options before it, on a canonical byte layout both sides implement (the same layout and record format the GPU engine's design fixes, so the two efforts' fixtures are interchangeable). The crate replays a record and compares every hash, reporting the first divergence with both states.
-3. **Decisions, both directions**: with the engine exact, the crate replays a TypeScript record asking its own bot at every decision and compares the move; and `risk:native-check` replays a record the crate played, asking the TypeScript bot at every decision. A bot is exact when thousands of games of each direction agree at every decision, across every table size, with itself and against the other bots.
-4. **Parity in the harness**: the native runner has a parity mode that plays a sample of a run's games on both paths and fails loudly on any difference in a result. It stays on, cheap, as the continuous check a long-lived port needs.
+- **`native-v1`**: a planner in v6's class, designed in Rust from the ideas, not the code: an evaluation of a turn's end (power share, the chance of being eliminated before the next turn, expected border losses, the next turn's kill), plans over target sets (hold, a capture, a continent, a kill, a sweep) scored on their success and failure boards, and a model of what each opponent does with its turn. What changes is the engineering: incremental features over bitmasks, odds from precomputed tables, boards copied as a few words, no string-keyed memos, and a design that invites tuning (`risk:tune` by SNES, as the rule bots). Its bar, fixed before its runs: at least as strong as v6 by the gauntlet (even or better against v6 in both mixtures at every table, a regression against no one in the field), at a small fraction of v6's time per turn (the target is a 20× cut, measured).
+- **`native-v2`, a search bot**: v7's idea on native replies: candidate plans played forward through imagined rounds of the opponents' turns, the opponents drawn from the native bots. The whole point of the port: where v7 affords 8 replies in 2.5 s, this affords hundreds, and the budget is measured for strength as the project's rules require ("more thinking is earned").
+
+How a Rust bot is measured: the gauntlet and the ladder stay in TypeScript, and so does the frozen field. A table whose every seat is a native bot plays wholly in the crate (the fast path, for iterating on native bots and for tuning). A mixed table (a native candidate among frozen TypeScript opponents) plays on the TypeScript runner with the native seat answered by the crate: each worker owns one native process and asks it for a move over a pipe, the history sent as it grows. That needs the runner to accept a bot that answers asynchronously, a behaviour-free change for every existing bot (their moves, seeds and fingerprints are untouched); the reason is this seam.
+
+## How Node uses the crate
+
+A separate process over stdin and stdout, JSON lines, never an addon: a `serve` mode plays whole games (the harness's `RiskGameSpec` in, `RiskGameResult` out) on the crate's thread pool, wrapped on the TypeScript side as a bot-lab `GameRunner`, and a `bots` mode answers a seat's decisions. An addon would put a native build into `npm install` and a crash surface into Node for a call made once per game or once per decision; a pipe costs microseconds against a decision that costs milliseconds. The runner fails loudly when the binary is missing or older than the crate's sources.
+
+## Floating point
+
+Only the blitz's balancing and GD's balancing of an estimated chance use transcendental functions. The crate's `jsmath` reproduces V8's arithmetic and is proven on exported vectors: `exp` and `log` are V8's fdlibm ports (with V8's one special case, `exp(1)`), and `pow` is the platform's, because **V8 since Node 24 calls the C runtime's `pow`** (`use_std_math_pow`), so the TypeScript's own results depend on the platform: Node on Windows links the runtime statically and its `pow` differs from the system DLL's and from glibc's in the last bit on about 1 input in 3,000. Two consequences the owner should weigh: the committed `pow` vectors are Windows's, and a TypeScript game whose blitz odds hit such an input may already differ between the laptop and a Linux runner on GitHub Actions. `js_round` and `fround` are reproduced too; the rest is plain IEEE arithmetic in the same order wherever a result is compared.
 
 ## Order of work
 
-1. Foundations: the crate, `jsmath` and the RNG, the map and cards, the blitz and the odds, each on its vectors.
-2. The engine, in lockstep with TypeScript records of every seating kind, random-legal play included (the widest move coverage).
-3. The bots, in dependency order: random and greedy; GD's four personas; rule-v1; v2 and v3 (both on v1's modules); v4 (the opponent model every later version shares); v5; v6. Each is proven on records before the next builds on it. rule-v6.1 waits for its final form; rule-v7 is proposed after v6, since its replies need the sim's worlds and the GD and greedy bots in the crate too.
-4. Integration: the native runner, a `--native` path for the gauntlet and the ladder when every bot at the table has an exact port, and the parity mode.
-5. Speed, measured only with the owner's go-ahead on a machine with capacity: games a second and decisions a second against the TypeScript pool, on the same specs.
+1. Foundations (done): the crate; `jsmath`, the RNG, the map, the cards, the blitz and the battle odds, bit-exact on vectors; the TypeScript lockstep tooling and committed fixtures of random, greedy and GD games.
+2. The engine: designed natively, with the rules suite, lockstep on every fixture, the fuzz, and the `serve` skeleton.
+3. `greedy` and the GD personas, exact, and the distributional check of whole games.
+4. `native-v1`, with its design doc, its own gauntlet bar and the mixed-table seam; then its measurement against v6 and the field (asking before the heavy runs).
+5. `native-v2`, the search bot, with its budget measured for strength.
+6. Speed, reported as games and decisions a second against the TypeScript pool on the same machine, only with the owner's go-ahead.
