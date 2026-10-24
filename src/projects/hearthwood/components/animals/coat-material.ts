@@ -68,8 +68,8 @@ export interface CoatPattern {
   fur: (coat: Coat) => Node<"vec3">;
   /** Paints over `colour` on the head's pixels only, raising `glint` where light catches (an eye, a wet nose). */
   face: (coat: Coat, colour: Node<"vec3">, glint: Node<"float">) => void;
-  /** How strongly the fur shines at the silhouette. */
-  sheen: number;
+  /** How strongly the fur shines at the silhouette (a long coat more). */
+  sheen: Node<"float"> | number;
 }
 
 /** A cheap hash of a 3D point, 0 to 1. */
