@@ -197,6 +197,38 @@ class Evaluator:
                 "unfinished": float((~env.done).sum())}
 
 
+def seat_draw(kinds: torch.Tensor, games: int, players: int) -> tuple[torch.Tensor, torch.Tensor]:
+    """Fixed seatings for a ladder: `(pick [games, players]` index into `kinds`, `seat_kind [games, 6])`,
+    distinct kinds per game while there are enough, the same draw every time."""
+    g = torch.Generator().manual_seed(12345)
+    if len(kinds) >= players:
+        pick = torch.rand(games, len(kinds), generator=g).argsort(1)[:, :players]
+    else:
+        pick = torch.randint(0, len(kinds), (games, players), generator=g)
+    seat_kind = torch.full((games, MAX_SEATS), GREEDY, dtype=torch.int64)
+    seat_kind[:, :players] = kinds[pick]
+    return pick, seat_kind
+
+
+def luce_elo(pick: torch.Tensor, winner: torch.Tensor, n: int) -> tuple[list[float], int]:
+    """Win Elo of each of `n` entrants (the first at 0) by a Luce fit over who won each decisive
+    game (Hunter's MM); `pick [games, players]` the entrant in each seat, `winner [games]` the
+    winning seat or −1."""
+    decisive = winner >= 0
+    seated = pick[decisive]
+    wins = torch.zeros(n)
+    won_by = seated.gather(1, winner[decisive][:, None])[:, 0]
+    wins.index_add_(0, won_by, torch.ones_like(won_by, dtype=torch.float32))
+    counts = torch.zeros(seated.shape[0], n)
+    counts.scatter_add_(1, seated, torch.ones_like(seated, dtype=torch.float32))
+    gamma = torch.ones(n)
+    for _ in range(500):
+        denom = (counts / (counts @ gamma)[:, None]).sum(0)
+        gamma = torch.where(denom > 0, wins.clamp(min=0.5) / denom, gamma)
+        gamma = gamma / gamma[0]
+    return (400 * torch.log10(gamma)).tolist(), int(decisive.sum())
+
+
 class Ladder:
     """The checkpoint ladder: is the network still climbing against itself, not only against the
     league's fixed bots? The current network and up to `slots` earlier checkpoints are seated
@@ -224,36 +256,16 @@ class Ladder:
         labels = [label for label, _ in past] + [current]
         kinds = torch.tensor([SNAPSHOT + k for k in range(len(past))] + [LEARNER])
         env._restore(self.base)
-        g = torch.Generator().manual_seed(12345)
-        if len(kinds) >= self.players:
-            pick = torch.rand(self.games, len(kinds), generator=g).argsort(1)[:, : self.players]
-        else:
-            pick = torch.randint(0, len(kinds), (self.games, self.players), generator=g)
-        seat_kind = torch.full((self.games, MAX_SEATS), GREEDY, dtype=torch.int64)
-        seat_kind[:, : self.players] = kinds[pick]
+        pick, seat_kind = seat_draw(kinds, self.games, self.players)
         env.seat_kind.copy_(seat_kind.to(self.device))
         steps = 0
         while not bool(env.done.all()) and steps <= 40000:
             env.run(64)
             steps += 64
         env.take_stats()
-        winner = env.state.winner.to(torch.int64).cpu()
-        seated = pick  # [games, players] index into labels
-        decisive = winner >= 0
-        n = len(labels)
-        wins = torch.zeros(n)
-        won_by = seated[decisive].gather(1, winner[decisive][:, None])[:, 0]
-        wins.index_add_(0, won_by, torch.ones_like(won_by, dtype=torch.float32))
-        counts = torch.zeros(int(decisive.sum()), n)
-        counts.scatter_add_(1, seated[decisive], torch.ones_like(seated[decisive], dtype=torch.float32))
-        gamma = torch.ones(n)
-        for _ in range(500):  # Hunter's MM for the Luce model
-            denom = (counts / (counts @ gamma)[:, None]).sum(0)
-            gamma = torch.where(denom > 0, wins.clamp(min=0.5) / denom, gamma)
-            gamma = gamma / gamma[0]
-        elo = (400 * torch.log10(gamma)).tolist()
+        elo, decisive = luce_elo(pick, env.state.winner.to(torch.int64).cpu(), len(labels))
         return {"ladder": {label: round(e, 1) for label, e in zip(labels, elo)},
-                "ladder_games": int(decisive.sum()), "ladder_capped": int((~decisive).sum())}
+                "ladder_games": decisive, "ladder_capped": self.games - decisive}
 
 
 def main(argv: list[str] | None = None) -> int:
