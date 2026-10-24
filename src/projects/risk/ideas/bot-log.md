@@ -937,3 +937,22 @@ The ladder now stops each pair once one win-Elo fit knows its gap to 18.2 Elo, m
 | gd-defensive | 977.8 | 975.4 | −2.4 |
 
 Every bot is within 20 Elo of its 100-group rating (10 Elo RMS), inside the precision the rule promises, and the order, so every lobby rank, is unchanged. Two neighbours sit closer than the margin now, v2 and v3 (12.5 apart, was 35.7) and gd-stacker and gd-continental (3.8, was 23.1): by the ladder's own standard those pairs are within its indifference, so a later rerun may order them either way.
+
+## v7's train gauntlet: better at every table (2026-10-24)
+
+On GitHub Actions (run 39838004145, from main at 5a9100a9, 100 shards on 20 machines, 7 rounds sized from the evidence, 11,791 games, 28.6 hours): `risk:gauntlet -- rule-v7~{"replies":8} --base rule-v6 --field rule-v6,rule-v5,rule-v4,gd-defensive,gd-stacker,greedy`, train seeds, 3 to 6 players, one-in and one-out, ±30 Elo a seat.
+
+**All 48 pairings: better.** Against v6, v5 and v4 at every table size, alone and in numbers, and against GD Defensive, GD Stacker and greedy (several without losing a game).
+
+| Against | 1 v7 alone (3p / 4p / 5p / 6p) | v7s against 1 (3p / 4p / 5p / 6p) |
+|---|---|---|
+| rule-v6 | 46.5 / 38.9 / 37.1 / 32.0% | 78.3 / 90.1 / 94.7 / 92.8% |
+| rule-v5 | 44.3 / 48.2 / 47.1 / 33.3% | 83.8 / 84.1 / 92.9 / 94.0% |
+| rule-v4 | 66.7 / 43.6 / 41.1 / 34.2% | 87.1 / 91.4 / 95.3 / 93.4% |
+| par | 33.3 / 25.0 / 20.0 / 16.7% | 66.7 / 75.0 / 80.0 / 83.3% |
+
+Win Elo (rule-v6 = 0): v7 +138, v5 −22, v4 −52, gd-stacker −483, greedy −563, gd-defensive −596. Finishing order: v7 +65.
+
+**Rules 2 and 3 of the seating bar hold on train seeds**: better than v6 at every table, worse at none, and no weak bot does better against it. The holdout gauntlet and the seatable ladder are next.
+
+**The health flag grew at 6 players.** Tables with five v7s against one rule bot capped 44 to 58% of their games (416 to 460 turns on average), and 23 to 41% with one v7 among five rule bots; v6's own 6-player games cap 25 to 37%. At 3 and 4 players nothing capped. Capped games are draws and leave the test, so the verdicts stand, but a table of v7s at 6 players finishes about half its games. That is a defect of v7's play to look at (likely its search valuing safety the way v8's network did), not a reason against seating it: it beats every bot at every table.
