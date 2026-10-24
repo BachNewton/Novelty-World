@@ -1,6 +1,6 @@
 # Risk on the GPU: a batched engine held exact to the reference engine, and the bots that follow it there
 
-A design under construction: phases 0 to 2 (foundations, the engine, the simple bots) are being built; self-play on top of it (phase 3) is proposed, not decided. It supersedes the earlier architect's design note where the two differ, and says why at each point.
+The design of the GPU engine. Phases 0 to 2 (foundations, the engine, the simple bots) are built and verified ("What was found" at the end holds the results); self-play on top of it (phase 3) is proposed, not decided. It supersedes the earlier architect's design note where the two differ, and says why at each point. The native Rust port (`native-port.md`) shares this design's canonical layout and game records, so the two engines' fixtures interchange.
 
 ## What it is for
 
@@ -42,13 +42,15 @@ Fixed data on the device from `data/board.json`: adjacency, the 166 directed bor
 
 `createRng` (`src/shared/lib/seeded-random.ts`) is xmur3 over the seed string into a 32-bit state, then mulberry32. Every operation is 32-bit integer arithmetic plus one float64 division, so it is exact in int64 tensors masked to 32 bits (`Math.imul` as a 16-bit split product mod 2^32) with `Math.floor(r * n)` in float64. The draw order is the reference engine's and nothing else: setup (seat order by Fisher–Yates over the seats, the 42 territory cards' shuffle, each starting army's pick in turn order, the 44-card deck's shuffle), then per move (a battle's attacker dice then defender dice, a blitz's one draw, a trade's three `returnToDeck` positions in the move's card order). `data/rng-vectors.json` pins it: string seeds' states and draws, numeric states, a million-draw checksum.
 
-The bots' own stream is the runner's: `bots|<seed>` hashed, its state in base 36, then `<botSeed>/<decision>` per decision, so a GPU bot that draws (GD-lite's jitter) draws what the TypeScript bot would.
+The bots' own stream is the runner's: `bots|<seed>` hashed, its state in base 36, then `<botSeed>/<decision>` per decision, so a GPU bot that draws (GD's jitter) draws what the TypeScript bot would.
 
 ### Balanced Blitz as exported running totals
 
 The blitz is the one place floating point enters the rules, and `**` differs in the last bit between V8 and CUDA, so the GPU **never computes the odds**. `risk:gpu-tables` exports, for every `(a, d)` up to a bound, exactly what `resolveBlitz` compares: `defenderLost[d]` (the capture chance), the attacker side's running totals as `pickOutcome` accumulates them (sequentially, in float64; an outcome with chance ≤ 0 is marked unreachable), the defender side's likewise, and each side's `likeliest` index. The GPU then takes the first index whose total reaches the draw, exactly as the TypeScript loop does, with no summation of its own: a parallel `cumsum` would not round the same way. The table is ragged, stored flat with offsets, float64, regenerated locally (gitignored); a small bound is committed for the tests.
 
-A fight beyond the bound, or beyond GD's exact range (2,000 armies, where `blitz.ts` estimates; 100,000, where it rolls), is **flagged**: the game's `oversize` flag is set and its result is resolved on a slow path (a Python port of the odds, labelled approximate). In lockstep a flagged game stops counting toward exactness from that move and is reported; in free play it is counted. Human-scale stacks never reach the bound; stalled bot tables might.
+A fight beyond the bound is resolved on the **slow path**, `blitz_port.py`: a Python port of `blitz.ts` (the fair-fight dynamic programme, the balancing, GD's estimate above 2,000 armies) and of GD's odds reader (`gd/odds.ts`), with the same operation and summation order, computed per distinct fight on the host and cached. The game is still **flagged** `oversize`, so a lockstep report says which games went through it. Fights above 100,000 armies, which the reference engine rolls battle by battle from the game's stream, raise: no bot game reaches them.
+
+**The odds depend on the `pow` that computes them.** Up to Node 22, V8 had its own `Math.pow`, `log` and `exp`; from Node 24 they call the platform's C runtime, which differs from V8's in the last bit on about a tenth of inputs (405 of the 1,024 cells of the 32-bound table came out different), and Windows' and Linux' C runtimes differ from each other on about one input in 3,000. A blitz's outcome flips wherever a draw lands on such a difference, so tables, goldens and fixtures computed by one `pow` are never mixed with another's: every exported file carries a `provenance` (Node, V8, platform, arch, when). The reference engine is the Node Risk's measurements pin (`eval/node-version`, 24.22.0; the repo has no Node pin of its own), so the slow path uses CPython's `math.pow`, `log` and `exp`, which are the same C runtime calls on the same platform. The Windows-to-Linux difference is known and accepted for now.
 
 ### Stepping: one decision per step, in lockstep
 
@@ -89,14 +91,15 @@ The fixtures (`risk:gpu-fixtures`) are game records of reference games: a seatin
 
 1. **Lockstep** (the main proof): every unflagged fixture game identical at every move, options and state. Pass bar: 100% of unflagged games, the flagged share reported.
 2. **Options equal masks**: part of lockstep, through the options hash at every decision.
-3. **The reverse replay**: GPU games (random-legal bots give the widest move coverage; greedy and GD-lite the realistic one) replayed on the reference engine by `risk:gpu-check`, every move legal and every hash equal.
-4. **Distributional checks** for what lockstep can't reach: the ported bots free-running on both engines. Greedy, an exact port, must agree move for move on recorded positions and so needs no statistics; GD-lite is approximate and is compared on win rates by seat and table size (two-proportion z-tests, Holm-corrected), game length (Kolmogorov–Smirnov), cap rate, captures and trades per game, with the margins fixed before the runs.
+3. **The reverse replay**: GPU games (random-legal bots give the widest move coverage; greedy and GD the realistic one) replayed on the reference engine by `risk:gpu-check`, every move legal and every hash equal.
+4. **Distributional checks** for what lockstep can't reach: the ported bots free-running on both engines. Greedy and GD, exact ports, must agree move for move on recorded positions and play identical games on fresh seeds, and so need no statistics while they do; should a port ever be approximate, it is compared on win rates by seat and table size (two-proportion z-tests, Holm-corrected), game length (Kolmogorov–Smirnov), cap rate, captures and trades per game, with the margins fixed before the runs.
 
 ## The bots on the GPU
 
 - **random**: a random legal move, *not* the TypeScript `random` bot. Its moves depend on list orders with no rules meaning (a depth-first order of fortify destinations), and exactness would buy nothing: it is the fuzzer for the reverse replay.
 - **greedy**: exact. Its scores are integers plus one float term computed in the same operation order; its ties go to the first maximum in the options' order, which the GPU reproduces (territory order, canonical edge order, and for fortify the reference engine's depth-first destination order).
-- **GD-lite**: the four personas ported as batched code, labelled approximate: GD's own orders and first-maximum ties are kept, its odds read from the same tables, its jitter from the bot's own stream; near-ties and the odds search may differ.
+- **GD**: the four personas ported as batched code (`bots/gd*.py`, file for file with `bots/gd/`): GD's own orders and first-maximum ties, its odds from the same tables and the slow path's exact search, its jitter from the bot's own stream drawn in GD's order. The design budgeted for an approximate "GD-lite"; the port came out **exact** (every recorded GD decision, and whole games on fresh seeds, identical), so the statistical checks below are the fallback should it ever drift, not the proof.
+- A bot reads the turn's history from the runner's `TurnLog` (attacks and captures this turn, territories placed on, trades, and Stacker's switch to Aggressive), the tensors that stand for what `bots/history.ts` derives from the events.
 - **The rule bots are not ported** (planners over variable-length plan lists, 3,000 lines of ordered float sums; a batched port is a rewrite and a maintenance tax on every version), and nothing with v6 inside it (v7, v8, student-v1) can be.
 
 ## Phases and kill criteria
@@ -105,7 +108,21 @@ The fixtures (`risk:gpu-fixtures`) are game records of reference games: a seatin
 |---|---|---|
 | 0 Foundations | exporters, canonical hash on both sides, RNG exact, state and setup exact, committed fixtures | the RNG or the setup doesn't reproduce bit for bit |
 | 1 Engine | every rule, the forced steps, options masks, invariants, lockstep exact on every fixture seating | unflagged games not 100% identical after the obvious fixes |
-| 2 Bots | random, greedy exact, GD-lite approximate, the runner with in-place resets, `risk:gpu-check`, the distributional checks | greedy disagrees beyond a near-tie rate; GD-lite outside its margins after the obvious fixes |
+| 2 Bots | random, greedy exact, GD exact, the runner, `risk:gpu-check`, the free-running comparison | greedy or GD disagrees beyond a near-tie rate after the obvious fixes |
 | 3 Self-play | proposed separately when 0 to 2 are done | |
 
 Throughput is measured only on a free machine and labelled with its load; the design makes no speed claim until then.
+
+## What was found
+
+Everything below was established on Node 22's odds; the tables, goldens and fixtures have since been regenerated under Node 24.22.0, and the Python suite, the lockstep and the free-running survey are to be re-established on them once the slow path's `pow` is the C runtime's.
+
+**Phase 0.** The RNG, the setup and the canonical hash reproduce the TypeScript bit for bit (every vector, 12 setup states of every table size in one batch, the pinned hashes); CUDA and CPU hash alike.
+
+**Phase 1.** Lockstep is exact on every fixture: the 19 committed reference games (8,715 moves; greedy, GD, rule-v4 to v6, random, 3 to 6 players, capped games) and the native port's 80 games (45,678 moves), at every decision, options and state, with the invariants on; identical on CUDA. Reached in those games: 47 eliminations with their cards, 14 forced trades mid-attack, the win with no move-in, the round wrapping past eliminated seats at 6 players, 229 trades (74 naming their bonus), 3,313 blitzes, 127 battles. Two corners no real game can reach (an empty deck's draw; a card returned into a deck of 3 or fewer: the rules cap hands, so at most 29 cards are ever held) are unit-tested against the reference code as written.
+
+**Phase 2.** `greedy` agrees with the TypeScript greedy on every recorded decision (4,353 over six fixture files, the depth-first fortify order included: 188 of its 240 fortifies pick differently from map order), and GPU-played greedy games are byte-identical to reference games of the same seeds (records: moves, every hash, result). GD agrees on every recorded GD decision (2,267: 448 placements, 68 trades, 1,013 attack decisions, 506 move-ins, 232 fortify decisions, Stacker's Aggressive phase included). Free-running on fresh seeds (Node 22's odds on both sides), both engines played identical games in 259 of 260: 100 of 100 at 3 players (Stacker, greedy, Aggressive; CPU), 60 of 60 at 6 players (CUDA), 99 of 100 at 5 players (the four personas; CUDA), where one GD attack target differed at decision 475 of seed `survey-gd5-18`, a disagreement still to be classified (a near-tie or a port bug) under the Node 24 odds. GPU random-bot and greedy games (50 games, 28,882 moves) replay on the reference engine with every move legal and every hash equal.
+
+**Not measured.** Throughput: the machine was shared throughout (the CPU saturated by a gauntlet, the GPU by a training run), so nothing here is a speed figure. One reading to take seriously: GD games on CUDA at a batch of 100 ran far slower than on the CPU, because the step is eager (hundreds of small kernels) and the GD features sync to the host for odds past the table and the ideal-army search. Phase 3's first job is a profile on a free GPU, then CUDA-graph capture of the step and the odds moved wholly on device.
+
+**An environment hazard, unconfirmed.** One agent saw Python's `math.floor` return infinity for the rest of a process after a float64 matrix product in torch (MKL); it didn't reproduce in a plain test. The GD port counts in integers where it could have multiplied, with a comment, and the slow path's `round_half_even` would fail loudly, not quietly, if it recurred.

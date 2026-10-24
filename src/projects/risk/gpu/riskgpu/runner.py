@@ -16,6 +16,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import cached_property
 
+import platform
+import sys
+from datetime import datetime, timezone
+
 import torch
 
 from .board import MAX_SEATS, TERRITORIES, Board
@@ -115,6 +119,17 @@ class GameResult:
     oversize: bool
 
 
+def provenance(device: torch.device | str) -> dict[str, str]:
+    """Where a GPU record's floats came from: the odds are the exported tables' (their meta says
+    which Node computed them) and, past the tables, this process's slow path."""
+    tables_meta = "see data/blitz-<bound>.json"
+    return {
+        "engine": "riskgpu", "torch": torch.__version__, "device": str(torch.device(device)),
+        "python": platform.python_version(), "platform": sys.platform, "tables": tables_meta,
+        "exportedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def play_games(
     seeds: list[str], seatings: list[list[str]], *, bots: dict[str, Bot] | None = None, board: Board,
     tables: BlitzTables, max_turns: int, device: torch.device | str, check: bool = True, record: bool = False,
@@ -210,6 +225,7 @@ def play_games(
             "optionsHashes": options_hashes[g],
             "result": {"winner": r.winner, "turns": r.turns, "capped": r.capped, "places": r.places},
             "oversize": r.oversize,
+            "provenance": provenance(device),
         }
         for g, r in enumerate(results)
     ]

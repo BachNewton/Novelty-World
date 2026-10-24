@@ -6,6 +6,7 @@ import type { Bot, BotInput } from "../bots/bot";
 import { unwrap } from "../engine/state";
 import { canonicalOptions, canonicalState, decodeMove, encodeMove, hashOf, int32s } from "./gpu-canonical";
 import { playGame } from "./runner";
+import { provenance, type Provenance } from "./provenance";
 
 // Game records (`ideas/gpu-engine.md`): a game as its seed, its moves and the canonical hash of
 // every state and every set of options along the way, written and read by the reference engine,
@@ -37,6 +38,8 @@ export interface GpuGameRecord {
   decisions?: number;
   /** Set by the GPU engine on a game whose blitz went past its tables. */
   oversize?: boolean;
+  /** The engine and platform that played it: the odds are theirs (`provenance.ts`). */
+  provenance?: Provenance | Record<string, string>;
   /** A debugging dump: the canonical layouts as int32s, beside the hashes. */
   initialState?: number[];
   states?: number[][];
@@ -88,6 +91,7 @@ export function recordGame({ seed, bots, maxTurns, dump = false }: RecordSpec): 
     optionsHashes: options.map(hashOf),
     result: { winner: played.winner ?? -1, turns: played.turns, capped: played.winner === null, places: played.places },
     decisions: played.decisions,
+    provenance: provenance(),
   };
   if (dump) {
     record.initialState = int32s(initial);

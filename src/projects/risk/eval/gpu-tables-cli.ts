@@ -5,6 +5,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { number } from "./cli-args";
 import { blitzFiles, blitzSamples, blitzTables, boardJson, oddsSamples } from "./gpu-tables";
+import { provenance } from "./provenance";
 
 /** `npm run risk:gpu-tables` — exports what the GPU engine reads (`ideas/gpu-engine.md`):
  *  `board.json`, and the blitz tables for every fight up to the bound as `blitz-<bound>.bin` with
@@ -59,7 +60,7 @@ function main(): void {
   const name = `blitz-${bound.toString()}`;
   writeFileSync(path.join(out, `${name}.bin`), bin);
   const sha256 = createHash("sha256").update(bin).digest("hex");
-  writeFileSync(path.join(out, `${name}.json`), `${JSON.stringify({ ...(meta as object), bytes: bin.length, sha256 }, null, 1)}\n`);
+  writeFileSync(path.join(out, `${name}.json`), `${JSON.stringify({ ...(meta as object), bytes: bin.length, sha256, provenance: provenance() }, null, 1)}\n`);
   writeFileSync(path.join(out, `${name}-samples.json`), `${JSON.stringify(blitzSamples(bound, SAMPLES))}\n`);
   /* eslint-enable security/detect-non-literal-fs-filename -- the writes are all above */
   const done = performance.now();
