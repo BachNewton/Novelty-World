@@ -63,6 +63,31 @@ P8, haunt 13 in the house, is last.
 
 - **The frame meter defaults to off.**
 
+**The art review branch.** The eleven last base rooms, the connection marks, the four companions and the 31 base item and omen models were built in parallel and merged into one branch, `betrayal/art-review`, which is not yet in main. To review it, run a dev server from its worktree (`.claude/worktrees/art-review`) on a spare port, never the owner's 3001. **Before it lands in main:** finish its checks (lint, typecheck, `npm run test`, `npm run test:slow`, the explorer art checks with `BETRAYAL_ART_CHECKS=1`, the items and companions slow tests) and the Betrayal e2e on a quiet machine; one run of the Collapsed Room's branch failed a single unnamed unit test that never recurred, so a failure seen there is found to its cause, never rerun away.
+
+**For the owner's review on that branch**, each on its bench (`?bench=<id>`):
+
+- **Bloody Room** (`bloody-room`): the stain and its pale scrubbed ring at a glance from every view, and its slow red swell (a slow welling, not a two-beat heartbeat; a true thump needs the bake's flicker path).
+- **Charred Room** (`charred-room`): kept as built. Open: whether the red rug pulls the eye; whether the burnt chair reads from behind.
+- **Coal Chute** (`coal-chute`): the reworked drop (a lip, then a black shaft with amber rising). Proposed: break up the hard-edged orange glow at its bottom, and give the open lid its iron plating and rivets. Also whether the heap, bunker and sacks read.
+- **Collapsed Room** (`collapsed-room`): the hole reads close up, but from a whole floor away it is a dark ragged patch beside the red lamp.
+- **Vault** (`vault`): approved as built (red seam, forced from inside). Its emptied state is built (`VAULT_EMPTIED`) but not on the bench; proposed: add it as its own bench entry.
+- **Ballroom** (`ballroom`) and **Gallery** (`gallery`): whether the corner torchères read as a ballroom from every side; the amber rising through the Gallery's balusters; the gap in its rail.
+- **Conservatory** (`conservatory`): the reworked dead plants; whether the roof's shadow lattice reads as glass overhead; its light intent, bright (proposed).
+- **Gardens** (`gardens`), **Patio** (`patio`), **Balcony** (`balcony`): the climbing rose, the burst urn under the Balcony's empty plinth, the telescope's violet lenses, and each edge style.
+- **Connection marks** (`marks`): the icons, an ink or bone plate, the violet glow's strength (perhaps too strong), each kind's stub art, and the walls where only the icon fits. On approval the game swaps its stand-ins for the marks.
+- **Companions** (`?bench=figures&explorer=dog`, `cat`, `girl`, `madman`, or `&lineup`): the Dog's amber coat (amber is reserved for human warmth); the Cat's size at house distance, and whether it wants a sitting pose; the Madman's hair (the hair study) and his listen gesture; the Girl's gown under warm light.
+- **Item and omen models** (`?bench=items`, with `&items=`, `&focus=`, `&room=chapel`): the weapons; the small charms at three times life-size (the Ring is smallest); silver reading pewter under amber; the Idol's crescent; the Book's girdle tail; the Rabbit's Foot and the Healing Salve at distance. Proposed: the Dark Dice with the game's own faces (blank, one pip, two pips) in place of 1–6; the Armor's steel cooled so it never reads gold, which means holy. Also the Mask off Ox's brow, and the Armor's hem over Rhinehardt's robe.
+
+**Found while building it,** work to pick up:
+
+- **`loft` builds its tubes inside out** (`art/forms.ts`): its faces point inward, which the bake reads as facing away from the light. Figures don't show it (they are lit from probes), and its "faces outwards" test checks nothing. The plants flip it locally; the fix is `loft` itself, a test that really checks, every figure's lighting rechecked, and the plants' flip removed.
+- **The kit's oil lamp** puts a room at about 130–140k triangles in the frame meter, against 9–19k without one.
+- **Dropped items mesh on the page's thread**, a stall of about a second the first time each card lands on the floor; the floor plate must mesh in workers, as held items do.
+- **Room states:** nothing switches a room between states yet (the Vault's emptied state, and later burned or flipped rooms), with a re-bake on the change.
+- **Companions in play:** following their holder, the Dog's errand run, staying when their explorer dies, and whether they wear a mark in the holder's colour.
+- **Small things held in a fist:** the grip only closes round a handle, so boxes, the crock and the dice are gripped round their base; a palm-up hold needs `hands.ts`.
+
 **The art review list,** not blocking:
 
 - the explorer line-up, all twelve;
