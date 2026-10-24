@@ -140,7 +140,7 @@ function repricedValue(
   return value;
 }
 
-export type ScoreSettings = Pick<Params, "border" | "power" | "armyRounds" | "armyBeyond" | "attrition" | "reprice">;
+export type ScoreSettings = Pick<Params, "border" | "power" | "armyRounds" | "armyBeyond" | "attrition" | "borderScale" | "reprice">;
 
 function aliveOn(b: Board): Seat[] {
   const alive: Seat[] = [];
@@ -174,7 +174,7 @@ export function scorerFor(params: V6Params, settings: ScoreSettings): Scorer {
     const key = `${me.toString()}|${boardKey(b)}`;
     const faceBorder = () =>
       settings.border === "sum" ? bd.borderLoss : faceBorders.get(key, () => borderOf(forecast(b, me, params, alive, params.record).turns, settings.border));
-    const w = params.prefs.borderWeight;
+    const w = params.prefs.borderWeight * settings.borderScale;
     const scale = attritionScale(b, alive, settings.attrition);
     if (settings.power === "armies") {
       const power = repricedPower(b, me, bd, settings.armyRounds, settings.armyBeyond);
@@ -187,7 +187,7 @@ export function scorerFor(params: V6Params, settings: ScoreSettings): Scorer {
           : faceBorder();
       return repricedValue(me, bd, params, alive, power, threat, border, w * scale);
     }
-    // Written so that at a scale of 1 it is the `border` modes' own arithmetic, float for float.
-    return bd.value + (w * (bd.borderLoss - scale * faceBorder())) / bd.total;
+    // Written so that at scales of 1 it is the `border` modes' own arithmetic, float for float.
+    return bd.value + (params.prefs.borderWeight * (bd.borderLoss - settings.borderScale * scale * faceBorder())) / bd.total;
   };
 }

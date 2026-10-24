@@ -42,6 +42,9 @@ export interface Params extends V6Params {
   /** The border weight is scaled by min(1, attrition × the board's income ÷ its armies), so it
    *  is v6's while the board holds up to `attrition` rounds of income; 0 leaves it v6's always. */
   attrition: number;
+  /** Multiplies the border weight of the preferences in force, at either table's (the native
+   *  map's knob, `ideas/rule-bot-v6.1.md`); 1 leaves it v6's. */
+  borderScale: number;
   /** With `power` "armies": whether the re-priced armies reach the forecast. */
   reprice: RepriceMode;
   /** Every v6.1 change applies only at a table that started with at least this many seats; at a
@@ -62,6 +65,7 @@ export const V6_1_PARAMS: Params = {
   armyRounds: 6,
   armyBeyond: 0.25,
   attrition: 0,
+  borderScale: 1,
   reprice: "value",
   minPlayers: 0,
   minAlive: 0,
@@ -70,7 +74,7 @@ export const V6_1_PARAMS: Params = {
 
 /** Whether `p` plays v6's own value: no v6.1 setting moved. */
 export function playsV6Value(p: Params): boolean {
-  return p.border === "sum" && p.power === "face" && p.attrition === 0;
+  return p.border === "sum" && p.power === "face" && p.attrition === 0 && p.borderScale === 1;
 }
 
 /** The settings a decision plays by at a table that started with `players` seats and has
@@ -88,6 +92,7 @@ export function checkSettings(p: Params): Params {
   if (!(p.armyRounds >= 0)) throw new Error(`rule-v6.1's armyRounds is 0 or more, not ${p.armyRounds.toString()}`);
   if (!(p.armyBeyond >= 0 && p.armyBeyond <= 1)) throw new Error(`rule-v6.1's armyBeyond is between 0 and 1, not ${p.armyBeyond.toString()}`);
   if (!(p.attrition >= 0)) throw new Error(`rule-v6.1's attrition is 0 or more, not ${p.attrition.toString()}`);
+  if (!(p.borderScale >= 0)) throw new Error(`rule-v6.1's borderScale is 0 or more, not ${p.borderScale.toString()}`);
   for (const [name, n] of [["minPlayers", p.minPlayers], ["minAlive", p.minAlive], ["attritionAlive", p.attritionAlive]] as const) {
     if (!(Number.isInteger(n) && n >= 0)) throw new Error(`rule-v6.1's ${name} is a whole number, 0 or more, not ${n.toString()}`);
   }

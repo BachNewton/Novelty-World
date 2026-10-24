@@ -131,6 +131,12 @@ describe("rule-v6.1's border modes", () => {
     expect(scorerFor(V6_PARAMS, { ...V6_1_PARAMS, border: "max" })(b, 0, bd)).toBeCloseTo(bd.value + (w * (borderLoss - Math.max(loss(1), loss(2)))) / bd.total, 12);
     expect(scorerFor(V6_PARAMS, { ...V6_1_PARAMS, border: "sum" })(b, 0, bd)).toBe(bd.value);
   });
+
+  it("scales the border charge by borderScale", () => {
+    const bd = breakdown(b, 0, V6_PARAMS);
+    const w = V6_PARAMS.prefs.borderWeight;
+    expect(scorerFor(V6_PARAMS, { ...V6_1_PARAMS, border: "sum", borderScale: 1.5 })(b, 0, bd)).toBeCloseTo(bd.value - (0.5 * w * borderLoss) / bd.total, 12);
+  });
 });
 
 describe("rule-v6.1's army discount and attrition", () => {
