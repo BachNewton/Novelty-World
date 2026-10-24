@@ -6,8 +6,8 @@
 # that runs to its cap takes eight rounds; the last job reports from every game
 # played, with the same output a local run of the same arguments gives. How to start
 # a run and bring its results home: src/projects/risk/docs/actions.md.
-# Node comes from Risk's own pin, not the repo's .node-version: a game's moves depend on
-# the Node version, and the repo's pin is held at 22 for Monopoly's trainer.
+# Node comes from Risk's pin (src/projects/risk/eval/node-version), the machine's Node: a
+# game's moves depend on the Node version, so the runners play on the laptop's.
 # The `record` tool is not a measurement: risk:record's games are fixed in number, so it
 # skips the rounds and splits its games over `shards` machines once (actions.md).
 
