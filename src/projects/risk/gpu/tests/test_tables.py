@@ -76,7 +76,8 @@ def test_zero_draw_is_min_value(tables):
 
 
 def test_oversize_and_invalid(tables):
-    assert run(tables, [(4, 1, 0.5), (1, 4, 0.5), (1, 1, 0.5)]) == [(0, 0, True), (0, 0, True), (1, 0, False)]
+    # past the bound: resolved on the slow path from the real odds, and flagged
+    assert run(tables, [(4, 1, 0.5), (1, 4, 0.5), (1, 1, 0.5)]) == [(0, 1, True), (1, 0, True), (1, 0, False)]
     with pytest.raises(ValueError):
         run(tables, [(0, 1, 0.5)])
 

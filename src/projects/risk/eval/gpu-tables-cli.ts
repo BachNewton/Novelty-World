@@ -4,32 +4,36 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { number } from "./cli-args";
-import { blitzFiles, blitzSamples, blitzTables, boardJson } from "./gpu-tables";
+import { blitzFiles, blitzSamples, blitzTables, boardJson, oddsSamples } from "./gpu-tables";
 
 /** `npm run risk:gpu-tables` — exports what the GPU engine reads (`ideas/gpu-engine.md`):
  *  `board.json`, and the blitz tables for every fight up to the bound as `blitz-<bound>.bin` with
  *  its meta `blitz-<bound>.json`, and `blitz-<bound>-samples.json`, reference blitzes to check a
- *  reading of the tables against.
+ *  reading of the tables against. With `--odds-samples` it writes only `odds-samples.json`, the
+ *  goldens for the Python port of the odds (`oddsSamples`).
  *
  *  Usage:
  *    npm run risk:gpu-tables -- --bound 32
  *    npm run risk:gpu-tables -- --bound 256 --out some/dir
+ *    npm run risk:gpu-tables -- --odds-samples
  *
  *  Defaults: bound 32, written to `gpu/data/`. Only the bound of 32 is committed. */
 
 const DATA_DIR = fileURLToPath(new URL("../gpu/data/", import.meta.url));
 const SAMPLES = 2000;
 
-function parseArgs(argv: readonly string[]): { bound: number; out: string } {
-  const a = { bound: 32, out: DATA_DIR };
-  for (let i = 0; i < argv.length; i += 2) {
-    const value = argv[i + 1];
+function parseArgs(argv: readonly string[]): { bound: number; out: string; oddsSamples: boolean } {
+  const a = { bound: 32, out: DATA_DIR, oddsSamples: false };
+  for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
+      case "--odds-samples":
+        a.oddsSamples = true;
+        break;
       case "--bound":
-        a.bound = number(value, "--bound");
+        a.bound = number(argv[++i], "--bound");
         break;
       case "--out":
-        a.out = value;
+        a.out = argv[++i];
         break;
       default:
         throw new Error(`unknown flag "${argv[i]}". Example: npm run risk:gpu-tables -- --bound 32`);
@@ -39,9 +43,14 @@ function parseArgs(argv: readonly string[]): { bound: number; out: string } {
 }
 
 function main(): void {
-  const { bound, out } = parseArgs(process.argv.slice(2));
+  const { bound, out, oddsSamples: odds } = parseArgs(process.argv.slice(2));
   /* eslint-disable security/detect-non-literal-fs-filename -- the directory the run is told to write to */
   mkdirSync(out, { recursive: true });
+  if (odds) {
+    writeFileSync(path.join(out, "odds-samples.json"), `${JSON.stringify(oddsSamples())}\n`);
+    console.log(`odds-samples.json in ${out}`);
+    return;
+  }
   writeFileSync(path.join(out, "board.json"), boardJson());
   const started = performance.now();
   const tables = blitzTables(bound);

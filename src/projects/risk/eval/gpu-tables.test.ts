@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createRng } from "@/shared/lib/seeded-random";
 import { resolveBlitz } from "../blitz";
+import { balanceWinChance, idealAttackUnits, winChance } from "../bots/gd/odds";
 import { blitzFiles, blitzSamples, blitzTables, boardJson, resolveFromTables } from "./gpu-tables";
 
 function data(name: string): Buffer {
@@ -36,6 +37,14 @@ describe("the GPU engine's data", () => {
         }
       }
     }
+  });
+
+  it("keeps the committed odds samples to the odds, in their cheap parts", () => {
+    // The whole file takes seconds to regenerate (`--odds-samples`); these rows catch a change to the odds.
+    const odds = JSON.parse(data("odds-samples.json").toString("utf8")) as Record<string, number[][]>;
+    for (const [a, d, p] of odds.winChance) expect(winChance(a, d)).toBe(p);
+    for (const [p, balanced] of odds.balanceWinChance) expect(balanceWinChance(p)).toBe(balanced);
+    for (const [defend, threshold, ideal] of odds.idealAttackUnits) expect(idealAttackUnits(defend, threshold)).toBe(ideal);
   });
 
   it("lays the file out as its meta says", () => {

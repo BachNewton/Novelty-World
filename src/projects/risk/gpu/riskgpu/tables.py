@@ -12,13 +12,18 @@ A table is `blitz-<bound>.json` (meta) beside `blitz-<bound>.bin` (little-endian
 
 The meta holds `bound`, `endianness` and, under `sections`, each section's byte `offset` and
 `bytes` (with its `count` and `dtype`, checked when present).
+
+A fight past the bound is resolved on the slow path: its cell is worked out on the host by the
+port of the odds (`blitz_port.py`), exactly as the tables would hold it, and read the same way.
 """
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import torch
+
+from riskgpu import blitz_port
 
 MIN_VALUE = 5e-324  # JavaScript's Number.MIN_VALUE
 
@@ -29,6 +34,7 @@ class BlitzTables:
     capture: torch.Tensor  # [(bound+1)^2] float64
     index: torch.Tensor  # [(bound+1)^2, 4] int64
     values: torch.Tensor  # [n] float64
+    slow_cells: dict[tuple[int, int], blitz_port.Cell] = field(default_factory=dict, repr=False)
 
     @staticmethod
     def load(path_prefix: str, device: torch.device | str) -> "BlitzTables":
@@ -87,11 +93,43 @@ def _first_reaching(
     return torch.where(hits, pos, bound).min(1).values
 
 
+SLOW_CELLS_KEPT = 4096
+
+
+def _slow_cell(tables: BlitzTables, a: int, d: int) -> blitz_port.Cell:
+    if a + d > blitz_port.ROLLED_ABOVE:
+        raise NotImplementedError(
+            f"a blitz of {a} against {d}: GD rolls a fight past {blitz_port.ROLLED_ABOVE} armies battle by battle "
+            "from the game's stream (`rollFight`), which the GPU engine doesn't do yet"
+        )
+    known = tables.slow_cells.get((a, d))
+    if known is None:
+        if len(tables.slow_cells) >= SLOW_CELLS_KEPT:
+            tables.slow_cells.clear()
+        known = tables.slow_cells[(a, d)] = blitz_port.cell(a, d)
+    return known
+
+
+def _first_reaching_host(totals: np.ndarray, target: float, likeliest: int) -> int:
+    hits = np.flatnonzero((totals >= 0) & (totals >= target))
+    return int(hits[0]) if len(hits) else likeliest
+
+
+def _resolve_slow(tables: BlitzTables, a: int, d: int, r: float) -> tuple[int, int]:
+    """One fight past the bound, from its cell, as `resolve_blitz` reads a table's."""
+    c = _slow_cell(tables, a, d)
+    draw = MIN_VALUE if r <= 0 else r
+    if c.capture >= draw:
+        return _first_reaching_host(c.values_a, draw, c.likeliest_a), d
+    return a, _first_reaching_host(c.values_d, draw - c.capture, c.likeliest_d)
+
+
 def resolve_blitz(
     tables: BlitzTables, a: torch.Tensor, d: torch.Tensor, r: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """`resolveBlitz(a, d, r)` per row: (attacker losses, defender losses, oversize). A fight past
-    the table's bound is `oversize`, with zero losses, for the caller to resolve elsewhere."""
+    the table's bound is `oversize`: it is resolved exactly on the slow path, and flagged so the
+    caller knows the game left the tables."""
     assert a.dtype == torch.int64 and d.dtype == torch.int64, (a.dtype, d.dtype)
     assert r.dtype == torch.float64, r.dtype
     assert a.shape == d.shape == r.shape and a.dim() == 1, (a.shape, d.shape, r.shape)
@@ -115,6 +153,14 @@ def resolve_blitz(
 
     attacker_losses = torch.where(captures, attacker_pick, a_in)
     defender_losses = torch.where(captures, d_in, defender_pick)
-    attacker_losses = torch.where(oversize, 0, attacker_losses)
-    defender_losses = torch.where(oversize, 0, defender_losses)
+    if bool(oversize.any()):
+        rows = torch.nonzero(oversize).flatten()
+        slow = [
+            _resolve_slow(tables, int(ai), int(di), float(ri))
+            for ai, di, ri in zip(a[rows].tolist(), d[rows].tolist(), r[rows].tolist())
+        ]
+        attacker_losses = attacker_losses.clone()
+        defender_losses = defender_losses.clone()
+        attacker_losses[rows] = torch.tensor([s[0] for s in slow], dtype=attacker_losses.dtype, device=a.device)
+        defender_losses[rows] = torch.tensor([s[1] for s in slow], dtype=defender_losses.dtype, device=a.device)
     return attacker_losses, defender_losses, oversize

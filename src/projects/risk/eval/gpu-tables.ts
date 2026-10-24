@@ -1,5 +1,6 @@
 import { createRng } from "@/shared/lib/seeded-random";
-import { balancedFight, resolveBlitz, type BlitzResult } from "../blitz";
+import { balancedFight, estimatedWinChance, resolveBlitz, type BlitzResult } from "../blitz";
+import { balanceWinChance, idealAttackUnits, winChance } from "../bots/gd/odds";
 import type { CardSymbol, GameEvent } from "../contract";
 import { GD_LINKS, GD_ORDER } from "../bots/gd/board";
 import { CONTINENTS, TERRITORIES, ADJACENCY } from "../map";
@@ -181,4 +182,46 @@ export function blitzSamples(bound: number, count: number): (BlitzResult & { a: 
     const r = rng.next();
     return { a, d, r, ...resolveBlitz(a, d, r, roll) };
   });
+}
+
+/** The success thresholds GD's AI passes `idealAttackUnits`: its default, each persona's threshold
+ *  as GD passes it (0 to 100, which the search clamps to 1), the same as chances, and 1. */
+const IDEAL_THRESHOLDS = [Math.fround(0.9), 80, 55, 45, 99, 0.8, 0.55, 0.45, 0.99, 0.4, 0.25, 0.1, 1];
+
+/** Goldens for the GPU side's port of the odds (`gpu/riskgpu/blitz_port.py`), from a fixed seed:
+ *  `winChance` over every fight up to 40 against 40, a sample of larger exactly worked fights and
+ *  of estimated ones (with `estimatedWinChance`), `balanceWinChance`, `idealAttackUnits` at every
+ *  threshold GD passes, and estimated blitzes resolved by `resolveBlitz`. Each row is an array:
+ *  its arguments, then its results. */
+export function oddsSamples(): unknown {
+  const rng = createRng("gpu-odds-samples");
+  const between = (lo: number, hi: number) => lo + Math.floor(rng.next() * (hi - lo + 1));
+  const fight = (lo: number, hi: number): [number, number] => {
+    const total = between(lo, hi);
+    const a = between(1, total - 1);
+    return [a, total - a];
+  };
+  const roll = () => {
+    throw new Error("an estimated fight is never rolled");
+  };
+  const small: number[][] = [];
+  for (let a = 1; a <= 40; a++) {
+    for (let d = 1; d <= 40; d++) small.push([a, d, winChance(a, d)]);
+  }
+  const balanceInputs = [0, 0.05, Math.fround(0.05), 0.95, 1 - 0.05, 0.5, 1, ...Array.from({ length: 43 }, () => rng.next())];
+  return {
+    winChance: small,
+    worked: Array.from({ length: 120 }, () => fight(41, 2000)).map(([a, d]) => [a, d, winChance(a, d)]),
+    estimated: Array.from({ length: 40 }, () => fight(2001, 60_000)).map(([a, d]) => [a, d, winChance(a, d), estimatedWinChance(a, d)]),
+    balanceWinChance: balanceInputs.map((p) => [p, balanceWinChance(p)]),
+    idealAttackUnits: IDEAL_THRESHOLDS.flatMap((threshold) =>
+      Array.from({ length: 60 }, (_, i) => [i + 1, threshold, idealAttackUnits(i + 1, threshold)]),
+    ),
+    resolveBlitz: Array.from({ length: 25 }, () => fight(2001, 6000)).flatMap(([a, d]) =>
+      [0, ...Array.from({ length: 5 }, () => rng.next())].map((r) => {
+        const { attackerLosses, defenderLosses } = resolveBlitz(a, d, r, roll);
+        return [a, d, r, attackerLosses, defenderLosses];
+      }),
+    ),
+  };
 }
