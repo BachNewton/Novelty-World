@@ -1,6 +1,7 @@
 //! `src/projects/risk/cards.ts`. A card is a `u8`: 0–41 the territory of that index, 42 and 43
 //! the two wilds.
 
+use crate::list::List;
 use crate::map::{Symbol, TERRITORIES, TERRITORY_COUNT};
 
 pub type Card = u8;
@@ -55,9 +56,12 @@ pub fn is_valid_set(cards: &[Card]) -> bool {
     (a == b && b == c) || (a != b && b != c && a != c)
 }
 
+/// C(12, 3): every three cards of the largest hand.
+pub const MAX_SETS: usize = 220;
+
 /// Every valid set in a hand, each once, its cards in hand order.
-pub fn sets_in(hand: &[Card]) -> Vec<[Card; 3]> {
-    let mut sets = Vec::new();
+pub fn sets_in(hand: &[Card]) -> List<[Card; 3], MAX_SETS> {
+    let mut sets = List::new();
     for i in 0..hand.len() {
         for j in i + 1..hand.len() {
             for k in j + 1..hand.len() {
@@ -83,18 +87,23 @@ fn three_of(symbol: Symbol) -> u32 {
 
 /// What a valid set is worth, a wild counting as whichever symbol makes it worth most.
 pub fn set_value(cards: &[Card]) -> u32 {
-    let symbols: Vec<Symbol> = cards.iter().filter_map(|&c| symbol_of(c)).collect();
-    let mut distinct: Vec<Symbol> = Vec::new();
-    for &s in &symbols {
-        if !distinct.contains(&s) {
-            distinct.push(s);
+    let mut first = None;
+    let mut seen = [false; 3];
+    let mut wilds = 0;
+    for &card in cards {
+        match symbol_of(card) {
+            Some(s) => {
+                first.get_or_insert(s);
+                seen[s as usize] = true;
+            }
+            None => wilds += 1,
         }
     }
-    let wilds = cards.len() - symbols.len();
-    if distinct.len() + wilds == 3 && (distinct.len() > 1 || wilds > 1) {
+    let distinct = seen.iter().filter(|&&s| s).count();
+    if distinct + wilds == 3 && (distinct > 1 || wilds > 1) {
         return ONE_OF_EACH;
     }
-    three_of(symbols[0])
+    three_of(first.expect("a valid set holds a symbol card"))
 }
 
 pub const MAX_SET_VALUE: u32 = ONE_OF_EACH;

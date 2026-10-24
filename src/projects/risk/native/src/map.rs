@@ -155,3 +155,60 @@ pub const ADJACENCY: [&[usize]; TERRITORY_COUNT] = [
     &[38, 39, 41],
     &[40, 39],
 ];
+
+/// Each territory's neighbours as a mask: bit `t` for territory `t`.
+pub const ADJACENT: [u64; TERRITORY_COUNT] = {
+    let mut masks = [0u64; TERRITORY_COUNT];
+    let mut t = 0;
+    while t < TERRITORY_COUNT {
+        let neighbours = ADJACENCY[t];
+        let mut i = 0;
+        while i < neighbours.len() {
+            masks[t] |= 1 << neighbours[i];
+            i += 1;
+        }
+        t += 1;
+    }
+    masks
+};
+
+/// Each continent's territories as a mask.
+pub const CONTINENT_MASKS: [u64; 6] = {
+    let mut masks = [0u64; 6];
+    let mut t = 0;
+    while t < TERRITORY_COUNT {
+        masks[TERRITORIES[t].continent] |= 1 << t;
+        t += 1;
+    }
+    masks
+};
+
+pub const ALL_TERRITORIES: u64 = (1 << TERRITORY_COUNT) - 1;
+
+/// The territories in a mask, in map order.
+pub fn territories_in(mut mask: u64) -> impl Iterator<Item = usize> {
+    std::iter::from_fn(move || {
+        if mask == 0 {
+            return None;
+        }
+        let t = mask.trailing_zeros() as usize;
+        mask &= mask - 1;
+        Some(t)
+    })
+}
+
+/// The territories joined to `from` through `own` (`from` included), by flood fill over masks.
+pub fn component(own: u64, from: usize) -> u64 {
+    let mut reached = 1u64 << from;
+    let mut frontier = reached;
+    while frontier != 0 {
+        let mut next = 0;
+        for t in territories_in(frontier) {
+            next |= ADJACENT[t];
+        }
+        next &= own & !reached;
+        reached |= next;
+        frontier = next;
+    }
+    reached
+}
