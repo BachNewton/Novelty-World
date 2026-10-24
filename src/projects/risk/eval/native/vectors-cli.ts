@@ -11,13 +11,14 @@ import { blitzVectors, cardsVectors, jsmathVectors, mapVectors, oddsVectors, rng
  *
  *  It runs only on Risk's own Node pin (`eval/node-version`): V8's `Math.pow` changed between
  *  Node 22 and 24, so vectors from another version describe another game. Where the shell's Node
- *  is another, run it as `mise exec node@<pin> -- npm run risk:native-vectors`. */
+ *  is another, run it as `mise exec node@<pin> -- npm run risk:native-vectors`. Each file opens
+ *  with its `provenance`: the Node, V8, platform and time it was exported on. */
 
 const OUT = fileURLToPath(new URL("../../native/fixtures/vectors/", import.meta.url));
 
 const NODE_PIN = fileURLToPath(new URL("../node-version", import.meta.url));
 
-const FILES: [name: string, build: () => unknown][] = [
+const FILES: [name: string, build: () => Record<string, unknown>][] = [
   ["rng.json", rngVectors],
   ["jsmath.json", jsmathVectors],
   ["map.json", mapVectors],
@@ -35,9 +36,16 @@ function main(): void {
     );
   }
   mkdirSync(OUT, { recursive: true });
+  const provenance = {
+    node: process.version,
+    v8: process.versions.v8,
+    platform: process.platform,
+    arch: process.arch,
+    exportedAt: new Date().toISOString(),
+  };
   for (const [name, build] of FILES) {
     const started = performance.now();
-    const json = `${JSON.stringify(build())}\n`;
+    const json = `${JSON.stringify({ provenance, ...build() })}\n`;
     writeFileSync(path.join(OUT, name), json);
     console.log(`${name}: ${(json.length / 1024).toFixed(0)} KB in ${((performance.now() - started) / 1000).toFixed(1)}s`);
   }

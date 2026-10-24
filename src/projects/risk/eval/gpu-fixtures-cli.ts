@@ -4,16 +4,19 @@ import process from "node:process";
 import { checkBots, DEFAULT_MAX_TURNS, list, number } from "./cli-args";
 import { recordGame, writeRecords, type GpuGameRecord } from "./gpu-record";
 
-/** `npm run risk:gpu-fixtures` — records reference games as game records (`ideas/gpu-engine.md`)
- *  for the GPU engine's lockstep test: games `<prefix>-0` to `<prefix>-<games − 1>`, a bot per
+/** `npm run risk:gpu-fixtures` (and `risk:native-fixtures`, the same tool) — records reference
+ *  games as game records (`ideas/gpu-engine.md`) for the GPU engine's and the native port's
+ *  lockstep tests: games `<prefix>-0` to `<prefix>-<games − 1>`, a bot per
  *  seat, every move with the hash of the options before it and the state after it.
  *
  *  Usage:
  *    npm run risk:gpu-fixtures -- --bots greedy,greedy,greedy --games 20 --out greedy-3p.jsonl.gz
  *    npm run risk:gpu-fixtures -- --bots random,random,random --games 2 --turns 40 --prefix fx --out random-3p.jsonl.gz
+ *    npm run risk:native-fixtures -- --bots greedy --players 4 --games 30 --prefix g4 --out greedy-4p.jsonl.gz
  *
  *  `--dump` also writes every state and every set of options in full as int32s, a debugging aid
- *  for the GPU side, never for committed fixtures. Defaults: 20 games, prefix `fx`, the harness's
+ *  for the GPU side, never for committed fixtures. `--players n` seats the one bot `--bots` names
+ *  at every seat. Defaults: 20 games, prefix `fx`, the harness's
  *  turn cap. */
 
 interface Args {
@@ -27,6 +30,7 @@ interface Args {
 
 function parseArgs(argv: readonly string[]): Args {
   const a: Partial<Args> & Omit<Args, "bots" | "out"> = { games: 20, prefix: "fx", maxTurns: DEFAULT_MAX_TURNS, dump: false };
+  let players: number | undefined;
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === "--dump") {
@@ -37,6 +41,9 @@ function parseArgs(argv: readonly string[]): Args {
     switch (flag) {
       case "--bots":
         a.bots = list(value, flag);
+        break;
+      case "--players":
+        players = number(value, flag);
         break;
       case "--games":
         a.games = number(value, flag);
@@ -55,6 +62,11 @@ function parseArgs(argv: readonly string[]): Args {
     }
   }
   if (a.bots === undefined || a.out === undefined) throw new Error("--bots and --out are required");
+  if (players !== undefined) {
+    if (a.bots.length !== 1) throw new Error("--players seats one bot at every seat: name a single bot with it");
+    const [only] = a.bots;
+    a.bots = Array.from({ length: players }, () => only);
+  }
   if (a.bots.length < 3 || a.bots.length > 6) throw new Error(`Risk is for 3 to 6 players, not ${a.bots.length.toString()}`);
   checkBots(a.bots);
   return { ...a, bots: a.bots, out: a.out };

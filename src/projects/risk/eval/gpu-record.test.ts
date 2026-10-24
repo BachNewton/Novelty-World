@@ -1,5 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { checkRecord, recordGame, type GpuGameRecord } from "./gpu-record";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+import { checkRecord, readRecords, recordGame, writeRecords, type GpuGameRecord } from "./gpu-record";
+
+const dir = mkdtempSync(join(tmpdir(), "risk-gpu-record-"));
+afterAll(() => {
+  rmSync(dir, { recursive: true, force: true });
+});
 
 function recorded(dump = false): GpuGameRecord {
   return recordGame({ seed: "gpu-record-test", bots: ["greedy", "greedy", "greedy"], maxTurns: 600, dump });
@@ -12,6 +20,7 @@ describe("game records", () => {
     expect(record.stateHashes).toHaveLength(record.moves.length);
     expect(record.optionsHashes).toHaveLength(record.moves.length);
     expect(record.result.capped).toBe(false);
+    expect(record.decisions).toBe(record.moves.length);
     expect(checkRecord(record)).toEqual({ seed: record.seed, decisions: record.moves.length, failure: null });
   });
 
@@ -60,5 +69,28 @@ describe("game records", () => {
     expect(checkRecord({ ...record, moves: record.moves.slice(0, -1) }).failure?.message).toMatch(/goes on/);
     expect(checkRecord({ ...record, result: { ...record.result, turns: record.result.turns + 1 } }).failure?.message).toMatch(/result/);
     expect(checkRecord({ ...record, initialHash: "0000000000000000" }).failure?.message).toMatch(/initial/);
+  });
+
+  it("writes and reads back the same, plain and gzipped", () => {
+    const record = recorded();
+    for (const name of ["games.jsonl", "games.jsonl.gz"]) {
+      const file = join(dir, name);
+      writeRecords(file, [record, record]);
+      expect(readRecords(file)).toEqual([record, record]);
+    }
+  });
+
+  it("asks each seat's bot every decision, and names the bot whose move differs", () => {
+    const record = recorded();
+    expect(checkRecord(record, { bots: true }).failure).toBeNull();
+
+    const at = record.moves.findIndex((m) => m[1] === 0);
+    const moves = record.moves.map((m, i) => (i === at ? [m[0], 0, m[2], m[3] + 1, 0, 0] : m));
+    const { failure } = checkRecord({ ...record, moves }, { bots: true });
+    expect(failure?.decision).toBe(at);
+    expect(failure?.message).toMatch(/bot "greedy" at seat \d plays .* the record has .*turn \d+, reinforce/);
+
+    const { bots: _, ...unlabelled } = record;
+    expect(checkRecord(unlabelled, { bots: true }).failure?.message).toMatch(/bot label per seat/);
   });
 });

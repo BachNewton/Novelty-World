@@ -13,7 +13,7 @@ The seated bots (rule-v1 to v6, and v7 = v6 with its reply search) run in TypeSc
 ## Where it lives
 
 - `native/` in this project: one Cargo crate, `risk-native`, a library with a binary (`serve` and the checking subcommands). Dependencies: `serde`, `serde_json`, `sha2`; a thread pool is a few lines over `std::thread`. Its `target/` is ignored by git. The Windows build links the C runtime statically (`.cargo/config.toml`), because Node does and `pow` differs between the static and the dynamic runtime (see "Floating point").
-- `eval/native/` on the TypeScript side: the exporters and checkers, and the runner that lets a measuring run play on the native path.
+- `eval/native/` on the TypeScript side: the vector exporter, and the runner that lets a measuring run play on the native path. Game records are the GPU engine's own module, `eval/gpu-record.ts` on `eval/gpu-canonical.ts`: `risk:native-fixtures` and `risk:native-check` are its `risk:gpu-fixtures` and `risk:gpu-check`, and `--bots` asks each seat's TypeScript bot every decision.
 
 ## The engine
 

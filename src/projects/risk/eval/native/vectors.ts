@@ -15,6 +15,7 @@ import {
   rollOdds,
   winProb,
 } from "../../bots/rule-v1/odds";
+import { cardIndex, territoryIndex } from "../gpu-canonical";
 
 // What the TypeScript computes for the numerical foundations, for the Rust port to match bit for
 // bit (`ideas/native-port.md`, "Proving it"). A float is written as its IEEE-754 bits in hex, an
@@ -77,7 +78,7 @@ function draws(rng: Rng): string {
   return hexes(Array.from({ length: DRAWS }, () => rng.next()));
 }
 
-export function rngVectors(): unknown {
+export function rngVectors(): Record<string, unknown> {
   const seeds: string[] = ["", "a", "train-1", "holdout-1", "bots|train-1", "bots|holdout-7", "distill-v7-3", "hybrid-data-12"];
   for (let i = 0; i < 12; i++) seeds.push(`train-${(i * 37 + 2).toString()}`);
   for (let i = 0; i < 10; i++) {
@@ -200,7 +201,7 @@ function sweep(count: number, outputs: Float64Array): unknown {
 const POW_PER_EXPONENT = 50_000;
 const EXP_LOG_SWEEP = 60_000;
 
-export function jsmathVectors(): unknown {
+export function jsmathVectors(): Record<string, unknown> {
   const rounds = [
     0, -0, 0.5, -0.5, 1.5, 2.5, -1.5, -2.5, 0.49999999999999994, -0.49999999999999994, 0.3, -0.3, 1, -1,
     4503599627370495.5, 4503599627370496, -4503599627370495.5, 9007199254740993, 1e300, -1e300, Number.MIN_VALUE,
@@ -300,7 +301,7 @@ function blitzCase(a: number, d: number, full: boolean, rollRng: Rng): unknown {
   };
 }
 
-export function blitzVectors(): unknown {
+export function blitzVectors(): Record<string, unknown> {
   const fair: unknown[] = [];
   for (let a = 1; a <= 12; a++) {
     for (let d = 1; d <= 12; d++) {
@@ -365,7 +366,7 @@ function outcomeCase(a: number, d: number, full: boolean): unknown {
   };
 }
 
-export function oddsVectors(): unknown {
+export function oddsVectors(): Record<string, unknown> {
   const roll: unknown[] = [];
   for (let a = 1; a <= 3; a++) for (let d = 1; d <= 2; d++) roll.push({ a, d, odds: hexes(rollOdds(a, d)) });
   const outcomes: unknown[] = [];
@@ -389,17 +390,8 @@ export function oddsVectors(): unknown {
 // cards and map
 // ---------------------------------------------------------------------------
 
-const TERRITORY_INDEX = new Map<string, number>(TERRITORIES.map((t, i) => [t.id, i]));
 
-function cardIndex(card: CardId): number {
-  if (card === "wild-1") return 42;
-  if (card === "wild-2") return 43;
-  const index = TERRITORY_INDEX.get(card);
-  if (index === undefined) throw new Error(`unknown card ${card}`);
-  return index;
-}
-
-export function cardsVectors(): unknown {
+export function cardsVectors(): Record<string, unknown> {
   const rng = createRng("hands");
   const hands: CardId[][] = [];
   for (let i = 0; i < 100; i++) {
@@ -421,11 +413,11 @@ export function cardsVectors(): unknown {
   };
 }
 
-export function mapVectors(): unknown {
+export function mapVectors(): Record<string, unknown> {
   const continentIndex = new Map<string, number>(CONTINENTS.map((c, i) => [c.id, i]));
   return {
     continents: CONTINENTS.map((c) => ({ id: c.id, bonus: c.bonus })),
     territories: TERRITORIES.map((t, index) => ({ id: t.id, index, continent: continentIndex.get(t.continent), symbol: t.symbol })),
-    adjacency: TERRITORIES.map((t) => ADJACENCY[t.id].map((n) => TERRITORY_INDEX.get(n))),
+    adjacency: TERRITORIES.map((t) => ADJACENCY[t.id].map(territoryIndex)),
   };
 }

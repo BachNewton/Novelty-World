@@ -206,7 +206,9 @@ export function encodeMove(move: Move): EncodedMove {
   }
 }
 
-export function decodeMove([kind, x, y, z, w]: readonly number[]): Move {
+export function decodeMove(encoded: readonly number[]): Move {
+  if (encoded.length !== 5) throw new Error(`a move is 5 int32s, not ${encoded.length.toString()}: ${JSON.stringify(encoded)}`);
+  const [kind, x, y, z, w] = encoded;
   switch (kind) {
     case 0:
       return { kind: "place", territory: territoryAt(x), armies: y };
