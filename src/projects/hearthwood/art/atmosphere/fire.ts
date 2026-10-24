@@ -1,5 +1,6 @@
-import { Color, Vector3, type Object3D, type PointLight, type Scene } from "three";
+import { Color, Vector3, type Object3D, type PointLight } from "three";
 import { uniform } from "three/tsl";
+import type { FeatureFrame } from "../feature-art";
 import { colourUniform } from "../tsl";
 
 /*
@@ -20,7 +21,7 @@ export const FIRE = {
 const LOOK_EVERY = 45;
 let frames = LOOK_EVERY;
 let found: PointLight | null = null;
-let lastFrame = -1;
+let lastFrame: FeatureFrame | null = null;
 const visit = (o: Object3D) => {
   if (!found && (o as PointLight).isPointLight === true) found = o as PointLight;
 };
@@ -28,9 +29,10 @@ const at = new Vector3();
 const colour = new Color();
 
 /** Updates the fire's uniforms, once a frame however many features ask. */
-export function updateFire(scene: Scene, motion: number): void {
-  if (motion === lastFrame) return;
-  lastFrame = motion;
+export function updateFire(frame: FeatureFrame): void {
+  if (frame === lastFrame) return;
+  lastFrame = frame;
+  const { scene } = frame;
   if (++frames >= LOOK_EVERY || (found && !found.parent)) {
     frames = 0;
     found = null;

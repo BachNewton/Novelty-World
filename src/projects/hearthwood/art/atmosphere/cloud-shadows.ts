@@ -58,6 +58,6 @@ export const CLOUD_SHADOWS_ART: FeatureArt = {
   stages: [{ kinds: ["land", "ground", "foliage", "solid"], light: (light, { air }) => shaded(light, air) }],
   frame: (frame) => {
     updateCloudField(frame);
-    updateFire(frame.scene, frame.day.motion);
+    updateFire(frame);
   },
 };

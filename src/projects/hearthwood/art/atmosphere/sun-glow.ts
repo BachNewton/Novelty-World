@@ -72,9 +72,10 @@ const KINDS: readonly MaterialKind[] = ["land", "ground", "foliage", "solid", "w
 export const SUN_GLOW_ART: FeatureArt = {
   feature: "sunGlow",
   stages: [{ kinds: KINDS, colour: glowing }],
-  frame: ({ scene, day, atmosphere, weather }) => {
+  frame: (frame) => {
+    const { atmosphere, weather } = frame;
     glow.key.value.copy(atmosphere.uHwKeyLight.value).multiplyScalar(sunThrough(weather));
-    updateFire(scene, day.motion);
+    updateFire(frame);
     // The air at the fire: the fog's layers there, or with the fog off the plain haze's.
     const y = FIRE.position.value.y;
     const d = FOG.density.value;

@@ -131,12 +131,15 @@ function cloudNoise(): DataTexture {
 const ALOFT = 2.5;
 
 let lastMotion: number | null = null;
+let lastFrame: FeatureFrame | null = null;
 
 /** Sets the field from the weather and carries it along on the wind: called by each feature that reads it, and does its work once a frame. */
-export function updateCloudField({ weather, day }: FeatureFrame): void {
+export function updateCloudField(frame: FeatureFrame): void {
+  if (frame === lastFrame) return;
+  lastFrame = frame;
+  const { weather, day } = frame;
   const w = weather.weather;
   const motion = day.motion;
-  if (motion === lastMotion) return;
   if (lastMotion !== null) {
     const seconds = motion - lastMotion;
     CLOUD_FIELD.drift.value.x -= w.wind.x * w.wind.speed * ALOFT * seconds;
