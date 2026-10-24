@@ -967,3 +967,15 @@ On the laptop (14 workers, 24 minutes, from 6731b550): `risk:gauntlet -- student
 | 4 students against 1 v6 | **worse** | 74.9% [70.9, 78.6] | 80% | 510 | 142 | 4.5% |
 
 Win Elo (v6 = 0): student −14. Rejected, as the bar says. The pilot student overrules v6 often but keeps little of v7's judgement, and among copies of itself it loses ground, the shape v8 had. It says nothing yet about a student trained on the 8,000-game recording; this run checks the pipe end to end (weights, bot, gauntlet) and sets the floor.
+
+## v6.1's first screen: easing the border term ends the stall and loses (2026-10-24)
+
+On the laptop, from 3a6f47d6 (Node 22, the repo's pin, not Risk's 24: v6's own moves differ slightly there, so these are screens, not the bar's measurements). `ideas/rule-bot-v6.1.md` has the candidates; `ideas/stalled-games.md` the stall.
+
+| Candidate | Capped, 100 mirror games 5p / 6p | Decided mean turns 5p / 6p | Win Elo vs v6 (5, 6 players, both mixtures) | Same decision as v6 (5p / 6p) |
+|---|---|---|---|---|
+| `border:"max"` | 0 / 0 | 47 / 49 | −156, worse at all 4 tables | 79% / 76% |
+| `border:"mean"` | 0 / 0 | 45 / 49 | −215, worse at all 4 | 80% / 79% |
+| `border:"sum"`, weight 0.25 | 0 / 1 | 48 / 62 | −56, worse at all 4 | 92% / 94% |
+
+All three end the stall by making thinness cheap, and all three lose to v6 everywhere: alone among v6s at 5 players they win 4.8%, 5.4% and 14.8% against a par of 20%. The border term carries v6's defence; the stall comes from the share of power once armies outgrow income (the design note's diagnosis, `rule-bot-v6.1.md`), so the next candidates re-price armies instead.
