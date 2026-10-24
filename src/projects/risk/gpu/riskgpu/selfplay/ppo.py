@@ -162,10 +162,10 @@ class Evaluator:
     evaluations compare."""
 
     def __init__(self, board, tables, net, players: int, games: int, device: str, opponent: str = "greedy",
-                 gd_bots: list | None = None):
+                 gd_bots: list | None = None, greedy: bool = True):
         kind = KIND_NAMES.index(opponent)
         cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600,
-                        pool=8, snapshots=0, record=False, reset=False, learner_greedy=True,
+                        pool=8, snapshots=0, record=False, reset=False, learner_greedy=greedy,
                         gd=kind >= GD, cap_gd=(0.9,) * len(GD_PERSONAS), cap_learner=0.5, cap_greedy=1.0)
         self.env = Env(cfg, board, tables, net, device, seed_prefix=f"eval{players}",
                        gd_bots=[gd_bots[kind - GD]] if kind >= GD else None)
@@ -204,9 +204,10 @@ class Ladder:
     fewer than five exist), every seat playing its most likely move, and a Luce (Bradley–Terry)
     fit over who won each decisive game gives each its win Elo, the oldest at 0."""
 
-    def __init__(self, board, tables, net, games: int, device: str, players: int = 5, slots: int = 7):
+    def __init__(self, board, tables, net, games: int, device: str, players: int = 5, slots: int = 7,
+                 greedy: bool = True):
         cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600, pool=8,
-                        snapshots=slots, record=False, reset=False, learner_greedy=True, snapshot_greedy=True,
+                        snapshots=slots, record=False, reset=False, learner_greedy=greedy, snapshot_greedy=greedy,
                         cap_learner=0.5, cap_snapshot=0.5, cap_greedy=0.01)
         self.env = Env(cfg, board, tables, net, device, seed_prefix="ladder")
         self.env.active_snapshots = slots
@@ -287,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--eval", default="greedy@3,greedy@5", help="opponent@players, comma-separated")
     p.add_argument("--init", default=None, help="start the network from this checkpoint's weights")
     p.add_argument("--ladder-games", type=int, default=2048)
+    p.add_argument("--eval-sample", action="store_true", help="evaluations sample moves as in training, not the most likely")
     p.add_argument("--ladder-extra", default="", help="label=path of earlier runs' checkpoints for the ladder, comma-separated")
     p.add_argument("--ckpt-every", type=int, default=25)
     p.add_argument("--seed", type=int, default=1)
@@ -352,8 +354,9 @@ def main(argv: list[str] | None = None) -> int:
     set_league()
     if env.graph is None:
         env.capture()
-    evaluators = [Evaluator(board, tables, net, n, args.eval_games, device, o, gd_bots) for o, n in evals]
-    ladder = Ladder(board, tables, net, args.ladder_games, device) if args.ladder_games > 0 else None
+    evaluators = [Evaluator(board, tables, net, n, args.eval_games, device, o, gd_bots, not args.eval_sample)
+                  for o, n in evals]
+    ladder = Ladder(board, tables, net, args.ladder_games, device, greedy=not args.eval_sample) if args.ladder_games > 0 else None
     extra = [tuple(x.split("=", 1)) for x in args.ladder_extra.split(",") if x]
     log_path = os.path.join(out_dir, "log.jsonl")
     n_params = sum(x.numel() for x in net.parameters())

@@ -321,3 +321,26 @@ export function argmax(z: ArrayLike<number>, allowed?: Uint8Array): number {
   if (best < 0) throw new Error("net-v1 has no legal choice");
   return best;
 }
+
+/** A draw from the softmax over the allowed entries (all of them when `allowed` is absent), by
+ *  inverse CDF: the shares are float64, `exp(z − max)` over their sum, accumulated in index order,
+ *  and the choice is the first whose running total exceeds `u` (uniform in [0, 1)). A draw on a
+ *  boundary goes to the lower index whose total passes it, and a choice of share 0 is never drawn.
+ *  A draw past the last total (rounding) takes the last choice of positive share. */
+export function sampleIndex(z: ArrayLike<number>, u: number, allowed?: Uint8Array): number {
+  const best = argmax(z, allowed);
+  const max = z[best];
+  let sum = 0;
+  for (let i = 0; i < z.length; i++) if (!allowed || allowed[i] === 1) sum += Math.exp(z[i] - max);
+  let total = 0;
+  let last = best;
+  for (let i = 0; i < z.length; i++) {
+    if (allowed && allowed[i] !== 1) continue;
+    const share = Math.exp(z[i] - max) / sum;
+    if (share === 0) continue;
+    total += share;
+    last = i;
+    if (u < total) return i;
+  }
+  return last;
+}

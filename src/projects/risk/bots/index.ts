@@ -19,7 +19,7 @@ import { BORDER_MODES, borderMode } from "./rule-v6.1/border";
 import { POWER_MODES, powerMode, REPRICE_MODES, repriceMode, V6_1_PARAMS } from "./rule-v6.1/params";
 import { ruleBot as ruleV7, ruleV7Bot } from "./rule-v7";
 import { V7_PARAMS } from "./rule-v7/params";
-import { netV1, netV1Bot } from "./net-v1";
+import { DEFAULT_WEIGHTS as NET_DEFAULT_WEIGHTS, isPick, netV1, netV1Bot, PICKS } from "./net-v1";
 import { WEIGHT_SETS as NET_WEIGHT_SETS } from "./net-v1/weights";
 import { ruleV8Bot } from "./rule-v8";
 import { DEFAULT_WEIGHTS, studentBot, studentV1Bot } from "./student-v1";
@@ -174,10 +174,17 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
   },
 };
 
-/** The network bots a measuring run may seat with one of their weight sets, which is all they
- *  have to set: `net-v1~{"weights":"m1a-25"}` (`bots/net-v1/`). */
-export const WEIGHTED_BOTS: Readonly<Record<string, { weights: readonly string[]; build: (weights: string) => Bot }>> = {
-  "net-v1": { weights: Object.keys(NET_WEIGHT_SETS), build: netV1 },
+/** The network bots a measuring run may seat with settings of their own, each one of a list: a
+ *  weight set, and how it picks a move (sampling, as trained, or its most likely move):
+ *  `net-v1~{"weights":"m1a-25","pick":"argmax"}` (`bots/net-v1/`). */
+export const WEIGHTED_BOTS: Readonly<Record<string, { settings: Readonly<Record<string, { value: string; options: readonly string[] }>>; build: (settings: Readonly<Record<string, string>>) => Bot }>> = {
+  "net-v1": {
+    settings: { weights: { value: NET_DEFAULT_WEIGHTS, options: Object.keys(NET_WEIGHT_SETS) }, pick: { value: "sample", options: PICKS } },
+    build: ({ weights, pick }) => {
+      if (!isPick(pick)) throw new Error(`net-v1's pick is one of ${PICKS.join(", ")}, not ${JSON.stringify(pick)}`);
+      return netV1(weights, pick);
+    },
+  },
 };
 
 export type Overrides = Partial<Preferences & Engine>;
@@ -192,13 +199,17 @@ const tuned = new Map<string, Bot>();
 function weightedBot(label: string, base: string): Bot {
   const known = tuned.get(label);
   if (known) return known;
-  const settings = JSON.parse(label.slice(label.indexOf("~") + 1)) as Record<string, unknown>;
-  const { weights, build } = WEIGHTED_BOTS[base];
-  const extra = Object.keys(settings).filter((key) => key !== "weights");
-  if (extra.length > 0) throw new Error(`"${base}" has only the setting "weights", not ${extra.map((k) => `"${k}"`).join(", ")}`);
-  const name = settings.weights;
-  if (typeof name !== "string" || !weights.includes(name)) throw new Error(`"${base}"'s "weights" is one of ${weights.join(", ")}, not ${JSON.stringify(name)}`);
-  const bot = build(name);
+  const given = JSON.parse(label.slice(label.indexOf("~") + 1)) as Record<string, unknown>;
+  const { settings, build } = WEIGHTED_BOTS[base];
+  const extra = Object.keys(given).filter((key) => !Object.hasOwn(settings, key));
+  if (extra.length > 0) throw new Error(`"${base}" has the settings ${Object.keys(settings).map((k) => `"${k}"`).join(", ")}, not ${extra.map((k) => `"${k}"`).join(", ")}`);
+  const chosen: Record<string, string> = {};
+  for (const [key, { value: byDefault, options }] of Object.entries(settings)) {
+    const value = Object.hasOwn(given, key) ? given[key] : byDefault;
+    if (typeof value !== "string" || !options.includes(value)) throw new Error(`"${base}"'s "${key}" is one of ${options.join(", ")}, not ${JSON.stringify(value)}`);
+    chosen[key] = value;
+  }
+  const bot = build(chosen);
   tuned.set(label, bot);
   return bot;
 }

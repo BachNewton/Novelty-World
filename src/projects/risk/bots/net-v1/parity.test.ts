@@ -95,7 +95,7 @@ for (const file of Object.keys(SLICE)) {
             const digest = byDecision.get(decision);
             if (!digest) throw new Error(`no digest for decision ${decision.toString()}`);
             expect(seats[input.seat]).not.toBe("greedy");
-            const d = decide(theNet(), input);
+            const d = decide(theNet(), input, "argmax");
             const flat = [...d.obs.node, ...d.obs.slot, ...d.obs.glob];
             if (digest.obs) expect(flat).toEqual(digest.obs.map(Math.fround));
             expect(close(checksum(flat), digest.checksum), `decision ${decision.toString()}: observation checksum`).toBe(true);
