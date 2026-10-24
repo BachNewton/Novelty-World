@@ -1,129 +1,46 @@
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, Mesh, type Material, type ShaderMaterial } from "three";
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, Mesh, type Material } from "three";
+import { cameraViewMatrix, cameraWorldMatrix, dot, float, max, mix, normalize, positionLocal, positionWorld, pow, select, smoothstep, vec2, vec3, vec4 } from "three/tsl";
+import { LightingModel, NodeMaterial, type LightingModelDirectInput, type Node, type NodeBuilder } from "three/webgpu";
+import { liveFeatures, type FeatureId, type FeatureSwitches } from "../../features";
 import type { LandTile } from "../../engine/tiles";
-import type { AtmosphereUniforms } from "../atmosphere";
-import { LATE_LAYER } from "../passes";
+import { hash2, throughAir, valueNoise, type AtmosphereUniforms } from "../atmosphere";
+import type { FeatureArt, StageContext, Stages } from "../feature-art";
+import { FEATURE_ART } from "../features";
 import type { Palette } from "../palette";
-import { shadeCustom } from "../shading";
-import { SKY_ALONG_GLSL, type SkyUniforms } from "../sky/sky";
-import { CURVATURE } from "../terrain";
+import type { SkyUniforms } from "../sky/sky";
+import { earthCurve } from "../terrain";
+import { colourUniform, typed } from "../tsl";
 import { regionAbsorption, tileAbsorption } from "./absorption";
+import { WATER_STEPS } from "./steps";
+import { waterBelow, waterDepth, waterFalling, waterFlowDir, waterFootprint, waterMoving, waterP, waterView, type WaterColours, type WaterStep, type WaterSurface } from "./surface";
+import { mirrored } from "./sky-reflection";
 
 /*
- * Water, opaque (no blending, so no overdraw), lit by its own shader. On its
- * own, with every water feature off, it is plain: clear shallows to deep
- * blue by how far the bed lies below, a faint sky over it, and where a river
- * runs, streaks of foam the way it flows, running fast and white over falls.
- * Everything else is a feature of the water group (`features/water.ts`),
- * each its own file in this folder, gathered by `art/features/water.ts`.
+ * Water: one node material for every lake, river, fall and pool, opaque (no
+ * blending, so no overdraw), lighting itself from the air's light (the sky's
+ * and the ground's all round, `uHwSkyLight`, and the key light,
+ * `uHwKeyLight` from `uHwSunDir`) rather than three's lights, but for the
+ * key light's shadow, which it takes as every lit thing does. On its own,
+ * with every water feature off, it is plain: shallows to deep by how far
+ * the bed lies below (the engine's depth, carried in the mesh), a flat
+ * share of the sky over it, and where a river runs, streaks the way it
+ * flows, running fast and white over falls. It ends in the air.
  *
- * The features work on the water's own locals, at the shared hook points, in
- * the order the group lists them:
+ * Each water feature is a step of its own (`steps.ts`), building the surface
+ * up in the group's order: the ripples bend the normal; the colour from
+ * depth, the sky's mirror, the shore's foam and the ice each take the
+ * surface on. Then the light: what comes up out of the body and the foam is
+ * lit by the sky's light and by the key light where its shadow lets it
+ * through; the mirror is light already; the key light glints off the
+ * ripples where the sky is mirrored. The features of other groups reach the
+ * water by their stages for the "water" kind, folded in as `materials.ts`
+ * folds them; for water, `light`'s direct and indirect are the light the
+ * body and foam give back from the key light and from all round.
  *
- * - `normal`: `hwNormal`, up to start with; `hwRippleP`, where on the
- *   surface the ripples are read (parallax moves it); `hwIce`, how much of
- *   the surface is frozen.
- * - `surface`: `hwBed`, the light leaving the bed towards the eye, linear,
- *   standing for the shallows' colour until something knows the real bed.
- *   `uBed` is the colour of the bed itself, for a feature to light.
- * - `light`: `hwBody`, the light coming up out of the water (the bed through
- *   it and the water's own colour); `hwReflect`, what the surface mirrors;
- *   `hwFresnel`, how much it mirrors; `hwSpecular`, glints added on top;
- *   `hwFoam`, how white it is.
- * - `colour`: `hwColour` after the air, as everywhere.
- *
- * Always there to read: `hwP` (the point on the surface, x and z), `hwView`
- * (towards the eye), `hwDepth` (metres down to the bed), `hwFlowDir` and
- * `hwMoving` (a river's way and how much river there is), `hwFalling` (how
- * steeply it falls), `hwAbsorb` (its absorption per metre), `hwBelow`
- * (whether it is seen from its underside, from under the water), `hwLight`
- * (the light falling on it), and `hwSkyAlong(dir)`, the sky's colour along
- * a direction.
+ * The far tiles' water (`farWater`) is this same material, so the same
+ * graph and pipeline: its ripples, streaks and sparkles fade out by how
+ * much surface a pixel spans, which leaves far water flat and still.
  */
-
-const VERTEX = /* glsl */ `
-attribute float depth;
-attribute vec2 flow;
-attribute float fall;
-attribute vec3 absorb;
-varying float vDepth;
-varying vec2 vFlow;
-varying float vFall;
-varying vec3 vAbsorb;
-#include <hw_vertex_head>
-void main() {
-  vDepth = depth;
-  vFlow = flow;
-  vFall = fall;
-  vAbsorb = absorb;
-  vec3 transformed = (modelMatrix * vec4(position, 1.0)).xyz;
-  ${CURVATURE}
-  #include <hw_vertex>
-  vHwWorld = transformed;
-  gl_Position = projectionMatrix * viewMatrix * vec4(transformed, 1.0);
-}
-`;
-
-/** The sky's colour along a direction, as the sky's dome draws it (`hwSkyAlong`): what water mirrors and what shows through it from below. */
-export const WATER_SKY_GLSL = SKY_ALONG_GLSL;
-
-const FRAGMENT = /* glsl */ `
-uniform vec3 uShallow;
-uniform vec3 uDeep;
-uniform vec3 uFoam;
-uniform vec3 uBed;
-varying float vDepth;
-varying vec2 vFlow;
-varying float vFall;
-varying vec3 vAbsorb;
-vec3 hwSkyAlong(vec3 dir);
-#include <hw_fragment_head>
-${WATER_SKY_GLSL}
-
-void main() {
-  float t = uHwTime;
-  vec2 hwP = vHwWorld.xz;
-  vec3 hwView = normalize(cameraPosition - vHwWorld);
-  // Seen from its underside: the face turned to the eye faces down. A fall's sheet seen from below its top is still seen from above.
-  vec3 hwFace = normalize(cross(dFdx(vHwWorld), dFdy(vHwWorld)));
-  bool hwBelow = hwFace.y * dot(hwFace, hwView) < 0.0;
-  float hwDepth = max(vDepth, 0.0);
-  vec3 hwAbsorb = vAbsorb;
-  float hwMoving = clamp(length(vFlow), 0.0, 1.0);
-  vec2 hwFlowDir = hwMoving > 0.01 ? normalize(vFlow) : vec2(1.0, 0.0);
-  float hwFalling = smoothstep(0.4, 2.0, vFall);
-  vec3 hwLight = uHwSkyLight + uHwSunLight;
-
-  float hwIce = 0.0;
-  vec2 hwRippleP = hwP;
-  vec3 hwNormal = vec3(0.0, 1.0, 0.0);
-  #include <hw_normal>
-  hwNormal = normalize(hwNormal);
-
-  vec3 hwBed = uShallow * hwLight;
-  #include <hw_surface>
-
-  vec3 hwBody = mix(hwBed, uDeep * hwLight, smoothstep(0.05, 2.6, hwDepth) * (1.0 - 0.5 * hwMoving));
-  vec3 hwReflect = mix(uHwHaze, uSky, 0.7) * mix(vec3(1.0), hwLight, 0.5);
-  float hwFresnel = 0.08 + 0.45 * pow(1.0 - max(dot(hwView, hwNormal), 0.0), 3.0);
-  vec3 hwSpecular = vec3(0.0);
-
-  // A river's streaks run the way it flows, and it runs fast and white where it falls.
-  float along = dot(hwP, hwFlowDir);
-  float across = dot(hwP, vec2(-hwFlowDir.y, hwFlowDir.x));
-  float speed = 1.2 + 4.0 * hwFalling;
-  float streak = hwValueNoise(vec2(along * 0.5 - t * speed, across * 3.0)) * hwValueNoise(vec2(along * 1.4 - t * speed * 1.3, across * 6.0 + 4.0));
-  float hwFoam = max(hwMoving * smoothstep(0.4, 0.65, streak) * 0.35, hwFalling * (0.65 + 0.35 * streak));
-  #include <hw_light>
-
-  vec3 colour = mix(hwBody, hwReflect, hwFresnel) + hwSpecular;
-  colour = mix(colour, uFoam * hwLight, clamp(hwFoam, 0.0, 1.0) * 0.85);
-  vec3 hwColour = hwAtmosphere(colour, vHwWorld);
-  #include <hw_colour>
-  gl_FragColor = vec4(hwColour, 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}
-`;
 
 /** The water lying on a tile, or null when it is dry: a grid at the water table, over every square any of whose corners is under water. */
 export function waterGeometry(tile: LandTile): BufferGeometry | null {
@@ -204,32 +121,213 @@ export function poolGeometry(radius: number): BufferGeometry {
   return geometry;
 }
 
-/** The uniforms every water shader shares: the palette's water, and the sky it mirrors. */
-export function waterUniforms(palette: Palette, sky: SkyUniforms) {
+/** The palette's water colours, as the uniforms every water material shares. */
+function waterColours(palette: Palette, air: AtmosphereUniforms, sky: SkyUniforms): WaterColours {
   return {
-    uSky: sky.uSky,
-    uSunDir: sky.uSunDir,
-    uShallow: { value: new Color().copy(palette.things["water-shallow"]) },
-    uDeep: { value: new Color().copy(palette.things["water-deep"]) },
-    uFoam: { value: new Color().copy(palette.things["water-foam"]) },
+    air,
+    sky,
+    shallow: colourUniform(new Color().copy(palette.things["water-shallow"])),
+    deep: colourUniform(new Color().copy(palette.things["water-deep"])),
+    foam: colourUniform(new Color().copy(palette.things["water-foam"])),
     // The bed as the land draws it under shallow water: its shore, stonier.
-    uBed: { value: new Color().copy(palette.things["ground-shore"]).lerp(palette.things.rock, 0.4) },
+    bed: colourUniform(new Color().copy(palette.things["ground-shore"]).lerp(palette.things.rock, 0.4)),
   };
 }
 
-export function waterMaterial(palette: Palette, atmosphere: AtmosphereUniforms, sky: SkyUniforms): ShaderMaterial {
-  return shadeCustom("water", atmosphere, {
-    uniforms: waterUniforms(palette, sky),
-    vertexShader: VERTEX,
-    fragmentShader: FRAGMENT,
-    // A fall's sheet is seen from below as well as from above, and so is a lake by an eye under it.
-    side: DoubleSide,
-  });
+/** A river's streaks, running the way it flows, fast and white where it falls: how white, 0 to 1. */
+function streaks(time: Node<"float">): Node<"float"> {
+  const along = dot(waterP, waterFlowDir);
+  const across = dot(waterP, vec2(waterFlowDir.y.negate(), waterFlowDir.x));
+  const speed = waterFalling.mul(4).add(1.2);
+  const a = typed<"float">(valueNoise(vec2(along.mul(0.5).sub(time.mul(speed)), across.mul(3))));
+  const b = typed<"float">(valueNoise(vec2(along.mul(1.4).sub(time.mul(speed).mul(1.3)), across.mul(6).add(4))));
+  const streak = a.mul(b);
+  // Finer than the pixel, the streaks average out to their mean.
+  const fine = smoothstep(0.15, 0.6, waterFootprint);
+  const lines = mix(smoothstep(0.4, 0.65, streak), float(0.12), fine);
+  return max(waterMoving.mul(lines).mul(0.35), waterFalling.mul(streak.mul(0.35).add(0.65)));
 }
 
-/** A mesh of water: drawn on the late layer, after the passes that read the scene behind it (refraction, reflections). */
+/** The key light's glint off the surface: a sharp core in a path of sparkles, in a broad sheen, as a share of the key light. */
+function glintOf(normal: Node<"vec3">, air: AtmosphereUniforms, time: Node<"float">): Node<"float"> {
+  const toKey = max(dot(mirrored(normal), air.uHwSunDir), 0);
+  const keyUp = smoothstep(-0.02, 0.06, air.uHwSunDir.y);
+  // Wavelets finer than the ripples break the glint into sparkles that come and go; finer than the pixel, they average out.
+  const grid = waterP.mul(7).add(vec2(time.mul(1.7), time.mul(-1.3)));
+  const cell = grid.floor();
+  const flash = time.mul(3).add(typed<"float">(hash2(cell)).mul(3)).floor();
+  const spot = vec2(typed<"float">(hash2(cell.add(flash).add(0.5))), typed<"float">(hash2(cell.sub(flash).add(7.1)))).mul(0.6).add(0.2);
+  const lit = typed<"float">(hash2(cell.add(flash))).step(0.75);
+  const sparkle = mix(lit.mul(smoothstep(0.16, 0.05, grid.fract().sub(spot).length())), float(0.06), smoothstep(0.06, 0.2, waterFootprint));
+  return pow(toKey, 2000).mul(12).add(sparkle.mul(pow(toKey, 300)).mul(60)).add(pow(toKey, 40).mul(0.25)).mul(keyUp);
+}
+
+interface LightContext {
+  reflectedLight: { directDiffuse: Node<"vec3">; directSpecular: Node<"vec3">; indirectDiffuse: Node<"vec3">; indirectSpecular: Node<"vec3"> };
+}
+
+/**
+ * The water's light. Three's directional light (the key light) is used only
+ * for its shadow, so the water takes shadows as every lit thing does: its
+ * colour reaches `direct` already times the shadow, and divided by the
+ * unshadowed key light (`uHwKeyLight`) leaves the shadow alone. Everything
+ * else is the water's own (`shade`), put out as the direct diffuse.
+ */
+class WaterLighting extends LightingModel {
+  private shadow: Node<"vec3"> | null = null;
+
+  constructor(
+    private readonly air: AtmosphereUniforms,
+    private readonly shade: (shadow: Node<"vec3">) => Node<"vec3">,
+  ) {
+    super();
+  }
+
+  override direct({ lightColor, lightNode }: LightingModelDirectInput): void {
+    const light = (lightNode as unknown as { light?: { isDirectionalLight?: boolean } }).light;
+    if (light?.isDirectionalLight !== true || this.shadow) return;
+    this.shadow = typed<"vec3">(lightColor).div(max(this.air.uHwKeyLight, vec3(1e-5))).clamp(0, 1);
+  }
+
+  override finish(builder: NodeBuilder): void {
+    const { reflectedLight } = builder.context as unknown as LightContext;
+    reflectedLight.directDiffuse.assign(this.shade(this.shadow ?? vec3(1)));
+    reflectedLight.directSpecular.assign(vec3(0));
+    reflectedLight.indirectDiffuse.assign(vec3(0));
+    reflectedLight.indirectSpecular.assign(vec3(0));
+  }
+}
+
+type Step<T> = (value: T, context: StageContext) => T;
+
+function fold<T>(start: T, steps: readonly Step<T>[], context: StageContext): T {
+  return steps.reduce((value, step) => step(value, context), start);
+}
+
+/** The water's own material: every lake, river, fall and pool, near and far, is one of these, all one graph. */
+export class WaterMaterial extends NodeMaterial {
+  readonly isWaterMaterial = true;
+  private stages: Stages[] = [];
+  private steps: WaterStep[] = [];
+  private built = false;
+  private replaced = false;
+  private readonly context: StageContext;
+
+  constructor(
+    private readonly colours: WaterColours,
+    private readonly switches: FeatureSwitches = liveFeatures(),
+    private readonly art: readonly FeatureArt[] = FEATURE_ART,
+    private readonly waterSteps: readonly WaterStep[] = WATER_STEPS,
+  ) {
+    super();
+    this.lights = true;
+    this.fog = false;
+    // A fall's sheet is seen from below as well as from above, and so is a lake by an eye under it.
+    this.side = DoubleSide;
+    this.context = { kind: "water", air: colours.air };
+    this.rebuild();
+    const off = switches.subscribe(() => this.rebuild());
+    this.addEventListener("dispose", off);
+  }
+
+  private on(feature: FeatureId): boolean {
+    return this.switches.isOn(feature);
+  }
+
+  private stagesOf<K extends "position" | "surface" | "normal" | "light" | "colour">(key: K): NonNullable<Stages[K]>[] {
+    return this.stages.flatMap((s) => (s[key] ? [s[key] as NonNullable<Stages[K]>] : []));
+  }
+
+  private rebuild(): void {
+    const stages = this.art.filter((a) => this.on(a.feature)).flatMap((a) => (a.stages ?? []).filter((s) => s.kinds.includes("water")));
+    const steps = this.waterSteps.filter((s) => this.on(s.feature));
+    const replaced = this.art.some((a) => a.replacesAir === true && this.on(a.feature));
+    const key = [...stages, ...steps, replaced];
+    const was = [...this.stages, ...this.steps, this.replaced];
+    if (this.built && key.length === was.length && key.every((k, i) => k === was[i])) return;
+    this.built = true;
+    this.stages = stages;
+    this.steps = steps;
+    this.replaced = replaced;
+    // The water's meshes stand at the world's origin, so their own space is the world's: lowered by the curve of the earth after any feature moves them.
+    this.positionNode = earthCurve(fold(positionLocal, this.stagesOf("position"), this.context));
+    // The flat surface's normal, for anything of three's that asks (the shadow's bias): the water's own is worked out in its light.
+    this.normalNode = cameraViewMatrix.mul(vec4(0, 1, 0, 0)).xyz;
+    this.needsUpdate = true;
+  }
+
+  /** The surface, built up by the plain water and then each water feature on, in order. */
+  private surface(): WaterSurface {
+    const { colours } = this;
+    const { air } = colours;
+    // Seen from below, the face the eye sees faces down.
+    let normal: Node<"vec3"> = select(waterBelow, vec3(0, -1, 0), vec3(0, 1, 0));
+    for (const step of this.steps) if (step.normal) normal = step.normal(normal, colours);
+    const viewStages = this.stagesOf("normal");
+    if (viewStages.length > 0) {
+      const view = fold(cameraViewMatrix.mul(vec4(normal, 0)).xyz, viewStages, this.context);
+      normal = cameraWorldMatrix.mul(vec4(view, 0)).xyz;
+    }
+    normal = normalize(normal).toVar();
+    const facing = max(dot(waterView, normal), 0);
+    let surface: WaterSurface = {
+      normal,
+      body: mix(colours.shallow, colours.deep, smoothstep(0.05, 2.6, waterDepth).mul(float(1).sub(waterMoving.mul(0.5)))),
+      reflect: mix(air.uHwHaze, colours.sky.uSky, 0.7),
+      fresnel: pow(float(1).sub(facing), 3).mul(0.45).add(0.08),
+      foam: streaks(air.uHwTime),
+      glint: float(0),
+      ice: float(0),
+    };
+    for (const step of this.steps) if (step.surface) surface = step.surface(surface, colours);
+    const body = fold(surface.body, this.stagesOf("surface"), this.context);
+    // From below, the sky shows through where the eye looks steeply up, and the surface mirrors the water at a glance.
+    const fresnel = select(waterBelow, float(1).sub(surface.fresnel), surface.fresnel);
+    return { ...surface, body, fresnel };
+  }
+
+  /** The water's colour, linear, before the air: what comes up out of it lit by the light all round and the key light (as much as its shadow lets through), the mirror, and the glint. */
+  private shade(surface: WaterSurface, shadow: Node<"vec3">): Node<"vec3"> {
+    const { air, foam } = this.colours;
+    const whiten = surface.foam.clamp(0, 1).mul(0.85);
+    const albedo = mix(surface.body, foam, whiten);
+    // Light into the water comes through its surface, and from the sun or moon whatever the ripples' tilt; foam and ice take it as a surface does.
+    const keyIn = air.uHwKeyLight.mul(shadow).mul(max(air.uHwSunDir.y, 0).mul(0.5).add(max(dot(surface.normal, air.uHwSunDir), 0).mul(0.5)));
+    const lit = fold({ direct: albedo.mul(keyIn).mul(1 / Math.PI), indirect: albedo.mul(air.uHwSkyLight) }, this.stagesOf("light"), this.context);
+    const glint = air.uHwKeyLight.mul(shadow).mul(surface.glint.mul(glintOf(surface.normal, air, air.uHwTime)));
+    return mix(lit.direct.add(lit.indirect), surface.reflect, surface.fresnel.mul(float(1).sub(whiten))).add(glint);
+  }
+
+  /** The surface as this build of the material made it: three asks for the outgoing light before the lighting model, both from one surface. */
+  private made: WaterSurface | null = null;
+
+  /** With no lights in the scene at all three skips the lighting model: the water is lit by the air alone, unshadowed. */
+  override setupOutgoingLight(): Node {
+    this.made = this.surface();
+    return this.shade(this.made, vec3(1));
+  }
+
+  override setupLightingModel(): LightingModel {
+    const surface = this.made ?? this.surface();
+    return new WaterLighting(this.colours.air, (shadow) => this.shade(surface, shadow));
+  }
+
+  override setupOutput(builder: NodeBuilder, outputNode: Node): Node {
+    let rgb: Node<"vec3"> = typed<"vec4">(outputNode).rgb;
+    if (!this.replaced) rgb = throughAir(this.colours.air, rgb, positionWorld);
+    rgb = fold(rgb, this.stagesOf("colour"), this.context);
+    return super.setupOutput(builder, vec4(rgb, 1));
+  }
+}
+
+export function waterMaterial(palette: Palette, atmosphere: AtmosphereUniforms, sky: SkyUniforms): WaterMaterial {
+  return new WaterMaterial(waterColours(palette, atmosphere, sky));
+}
+
+/** A mesh of water: it takes the key light's shadow and casts none. */
 export function waterMesh(geometry: BufferGeometry, material: Material): Mesh {
   const mesh = new Mesh(geometry, material);
-  mesh.layers.set(LATE_LAYER);
+  mesh.receiveShadow = true;
+  mesh.castShadow = false;
   return mesh;
 }

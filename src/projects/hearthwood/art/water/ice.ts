@@ -1,5 +1,10 @@
+import { abs, float, mat2, min, mix, smoothstep, step, uniform, vec2, vec3 } from "three/tsl";
+import type { Node } from "three/webgpu";
 import { groundSeason } from "../../engine/seasons";
+import { valueNoise } from "../atmosphere";
 import type { FeatureArt } from "../feature-art";
+import { typed } from "../tsl";
+import { waterDepth, waterFalling, waterMoving, waterP, type WaterStep } from "./surface";
 
 /*
  * Winter ice at the edges of lakes and rivers. It grows out from the shore
@@ -14,44 +19,45 @@ import type { FeatureArt } from "../feature-art";
 /** How deep the water is that the ice reaches out over at its greatest, in metres. */
 const ICE_REACH = 2.2;
 
-const uniforms = { uHwIceCover: { value: 0 } };
+const cover = uniform(0);
+const noise = (p: Node<"vec2">): Node<"float"> => typed<"float">(valueNoise(p));
 
-const HEAD = /* glsl */ `
-uniform float uHwIceCover;
-// How frozen the surface is at a point of water this deep.
-float hwIceAt(vec2 p, float depth, float moving, float falling) {
-  float reach = uHwIceCover * ${ICE_REACH.toFixed(2)} * (1.0 - 0.8 * moving) * (1.0 - falling);
-  float edge = reach + uHwIceCover * ((hwValueNoise(p * 0.07) - 0.5) * 1.4 + (hwValueNoise(p * 0.5) - 0.5) * 0.25);
-  return (1.0 - smoothstep(edge - 0.05, edge, depth)) * step(0.001, reach);
+/** How frozen the surface is here, 0 to 1. */
+function frozen(): Node<"float"> {
+  const reach = cover.mul(ICE_REACH).mul(float(1).sub(waterMoving.mul(0.8))).mul(float(1).sub(waterFalling));
+  const wander = noise(waterP.mul(0.07)).sub(0.5).mul(1.4).add(noise(waterP.mul(0.5)).sub(0.5).mul(0.25));
+  const edge = reach.add(cover.mul(wander));
+  return float(1).sub(smoothstep(edge.sub(0.05), edge, waterDepth)).mul(step(0.001, reach));
 }
-`;
 
-const NORMAL = /* glsl */ `
-  hwIce = hwIceAt(hwP, hwDepth, hwMoving, hwFalling);
-  hwNormal = normalize(mix(hwNormal, vec3(0.0, 1.0, 0.0), hwIce));
-`;
-
-const LIGHT = /* glsl */ `
-  float dust = smoothstep(0.3, 0.75, hwValueNoise(hwP * 0.7) * 0.6 + hwValueNoise(hwP * 3.1) * 0.4);
-  // Fine dark cracks, straighter than the noise they come from: two ridges of it, crossing.
-  float ridgeA = abs(hwValueNoise(hwP * vec2(0.9, 0.25) + 3.1) - 0.5);
-  float ridgeB = abs(hwValueNoise(mat2(0.6, -0.8, 0.8, 0.6) * hwP * vec2(0.9, 0.3) + 7.7) - 0.5);
-  float crack = 1.0 - 0.22 * (1.0 - smoothstep(0.0, 0.018, min(ridgeA, ridgeB))) * (1.0 - dust);
-  vec3 ice = mix(mix(uShallow, uFoam, 0.7), uFoam, dust) * hwLight * crack;
-  // The rim where the ice meets the open water is wet and darker.
-  float rim = smoothstep(0.0, 0.25, hwIce) * (1.0 - smoothstep(0.25, 0.9, hwIce));
-  ice *= 1.0 - 0.25 * rim;
-  hwBody = mix(hwBody, ice, hwIce);
-  hwFresnel = mix(hwFresnel, 0.05, hwIce);
-  hwSpecular *= 1.0 - 0.85 * hwIce;
-  hwFoam *= 1.0 - hwIce;
-`;
+export const ICE_STEP: WaterStep = {
+  feature: "lakeIce",
+  surface: (surface, { shallow, foam }) => {
+    const ice = frozen().toVar();
+    const p = waterP;
+    const dust = smoothstep(0.3, 0.75, noise(p.mul(0.7)).mul(0.6).add(noise(p.mul(3.1)).mul(0.4)));
+    // Fine dark cracks, straighter than the noise they come from: two ridges of it, crossing.
+    const ridgeA = abs(noise(p.mul(vec2(0.9, 0.25)).add(3.1)).sub(0.5));
+    const ridgeB = abs(noise(mat2(0.6, -0.8, 0.8, 0.6).mul(p).mul(vec2(0.9, 0.3)).add(7.7)).sub(0.5));
+    const crack = float(1).sub(float(1).sub(smoothstep(0, 0.018, min(ridgeA, ridgeB))).mul(float(1).sub(dust)).mul(0.22));
+    // The rim where the ice meets the open water is wet and darker.
+    const rim = smoothstep(0, 0.25, ice).mul(float(1).sub(smoothstep(0.25, 0.9, ice)));
+    const pale = mix(mix(shallow, foam, 0.7), foam, dust).mul(crack).mul(float(1).sub(rim.mul(0.25)));
+    return {
+      normal: mix(surface.normal, vec3(0, 1, 0), ice).normalize(),
+      body: mix(surface.body, pale, ice),
+      reflect: surface.reflect,
+      fresnel: mix(surface.fresnel, 0.05, ice),
+      foam: surface.foam.mul(float(1).sub(ice)),
+      glint: surface.glint.mul(float(1).sub(ice.mul(0.85))),
+      ice,
+    };
+  },
+};
 
 export const ICE_ART: FeatureArt = {
   feature: "lakeIce",
-  uniforms,
-  chunks: [{ kinds: ["water"], fragmentHead: HEAD, normal: NORMAL, light: LIGHT }],
   frame: ({ day }) => {
-    uniforms.uHwIceCover.value = groundSeason(day.date.realDayOfYear).ice;
+    cover.value = groundSeason(day.date.realDayOfYear).ice;
   },
 };

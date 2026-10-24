@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import { REGIONS } from "../../engine/regions";
 import type { LandTile } from "../../engine/tiles";
 import { absorptionOf, deepColourOf, REGION_ABSORPTION } from "./absorption";
-import { DEPTH_GLSL } from "../depth";
 import { rippleWaves } from "./ripples";
-import { COPY_FRAGMENT, SKY_DISTANCE } from "./scene-copy";
 import { waterGeometry } from "./water";
 
 describe("the water's colour from depth", () => {
@@ -104,14 +102,5 @@ describe("a tile's water", () => {
     // The column beside the lake is held at the lake's level; the column beyond, with no water beside it, keeps its own.
     expect(position.getY(1)).toBe(10);
     expect(position.getY(2)).toBe(11);
-  });
-});
-
-describe("the copy of the scene the water reads", () => {
-  it("reads the reversed depth only through depth.ts, nothing drawn as further than anything drawn", () => {
-    expect(COPY_FRAGMENT).toContain(DEPTH_GLSL);
-    expect(COPY_FRAGMENT).toMatch(/hwIsFar\(depth\) \? [\d.]+ : min\(hwLinearDepth\(depth, uNear, uFar\)/);
-    // Within a half float, where the copy keeps it.
-    expect(SKY_DISTANCE).toBeLessThanOrEqual(65504);
   });
 });

@@ -1,6 +1,8 @@
 import { Vector3 } from "three";
+import { cameraPosition, exp, float, If, max, positionWorld, select, uniform } from "three/tsl";
+import type { Node } from "three/webgpu";
 import type { FeatureArt } from "../feature-art";
-import { REGION_ABSORPTION, WATER_COLUMN_GLSL, type Absorption } from "./absorption";
+import { REGION_ABSORPTION, WATER_SCATTER, type Absorption } from "./absorption";
 
 /*
  * Under the water. The scene tells the water where its surface lies above
@@ -9,8 +11,8 @@ import { REGION_ABSORPTION, WATER_COLUMN_GLSL, type Absorption } from "./absorpt
  * it, everything drawn fades into the water's own colour by how far light
  * travels through water to reach the eye (only the stretch below the
  * surface counts, for anything seen up through it), and the water's colour
- * darkens the deeper the eye goes. The campfire and the fireflies are never
- * under water, so they are left as they are.
+ * darkens the deeper the eye goes. It is a colour stage of every kind; the
+ * campfire and the fireflies make their own light and are never under water.
  */
 
 /** Where the water's surface lies at the eye, if the eye is over water at all. */
@@ -27,43 +29,32 @@ export function setWaterAtEye(level: number | null, absorb: Absorption): void {
   eye.absorb = absorb;
 }
 
-/** Where the water is at the eye now. */
-export function waterAtEye(): Readonly<WaterAtEye> {
-  return eye;
-}
-
 /** Far below anything, for an eye that is over dry land. */
 const NO_WATER = -1e9;
 
-const uniforms = {
-  /** The height of the water's surface over the eye. */
-  uHwEyeWater: { value: NO_WATER },
-  uHwEyeAbsorb: { value: new Vector3(...REGION_ABSORPTION.greenwood) },
-};
+const eyeWater = uniform(NO_WATER);
+const eyeAbsorb = uniform(new Vector3(...REGION_ABSORPTION.greenwood));
 
-const HEAD = /* glsl */ `
-uniform float uHwEyeWater;
-uniform vec3 uHwEyeAbsorb;
-${WATER_COLUMN_GLSL}
-`;
-
-const COLOUR = /* glsl */ `
-  if (cameraPosition.y < uHwEyeWater) {
-    vec3 ray = vHwWorld - cameraPosition;
-    float whole = length(ray);
-    float wet = vHwWorld.y <= uHwEyeWater ? whole : whole * (uHwEyeWater - cameraPosition.y) / max(ray.y, 1e-4);
-    // The light reaching the eye has come down through the water above it first.
-    vec3 down = exp(-(uHwEyeAbsorb + HW_WATER_SCATTER) * (uHwEyeWater - cameraPosition.y));
-    hwColour = hwThroughWater(hwColour, uHwEyeAbsorb, wet, (uHwSkyLight + uHwSunLight) * down);
-  }
-`;
+/** A colour drawn at this pixel, seen by an eye under the water: lit by the light come down through the water above the eye. */
+function underwater(colour: Node<"vec3">, light: Node<"vec3">): Node<"vec3"> {
+  const out = colour.toVar();
+  If(cameraPosition.y.lessThan(eyeWater), () => {
+    const ray = positionWorld.sub(cameraPosition);
+    const whole = ray.length();
+    const wet = select(positionWorld.y.lessThanEqual(eyeWater), whole, whole.mul(eyeWater.sub(cameraPosition.y)).div(max(ray.y, 1e-4)));
+    const down = exp(eyeAbsorb.add(WATER_SCATTER).mul(eyeWater.sub(cameraPosition.y)).negate());
+    const extinct = eyeAbsorb.add(WATER_SCATTER);
+    const through = exp(extinct.mul(wet).negate());
+    out.assign(colour.mul(through).add(light.mul(down).mul(float(WATER_SCATTER).div(extinct)).mul(float(1).sub(through))));
+  });
+  return out;
+}
 
 export const UNDERWATER_ART: FeatureArt = {
   feature: "underwaterFog",
-  uniforms,
-  chunks: [{ kinds: ["land", "ground", "foliage", "solid", "water", "sky"], fragmentHead: HEAD, colour: COLOUR }],
+  stages: [{ kinds: ["land", "ground", "foliage", "solid", "water", "sky"], colour: (colour, { air }) => underwater(colour, air.uHwSkyLight.add(air.uHwSunLight)) }],
   frame: () => {
-    uniforms.uHwEyeWater.value = eye.level ?? NO_WATER;
-    uniforms.uHwEyeAbsorb.value.set(...eye.absorb);
+    eyeWater.value = eye.level ?? NO_WATER;
+    eyeAbsorb.value.set(...eye.absorb);
   },
 };

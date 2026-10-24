@@ -1,40 +1,40 @@
 import { featureGroup } from "./group";
 
-/** Water's features: the surface, what shows through it and what it mirrors. */
+/** Water's features: the surface, its colour, what it mirrors and its edges. */
 export const WATER_FEATURES = featureGroup("water", [
   {
     id: "ripples",
     name: "Ripples",
-    description: "Layered waves on the surface, each smaller and quicker, never lining up; rivers' run downstream. Shader only.",
+    description: "A few soft waves over the surface, each smaller and quicker, never lining up; a river's run downstream and rain roughens them. They fade before they would shimmer.",
   },
   {
     id: "waterAbsorption",
     name: "Colour from depth",
-    description: "The water's colour from how far light travels through it: clear shallows, blue-green deeps, tinted by each region's water.",
+    description: "The water's colour from how far light goes through it: the bed showing through the shallows, the deeps in each region's own water (clear green, tea-brown, turquoise, peat, olive).",
   },
   {
     id: "shoreHighlight",
     name: "Shore highlight",
-    description: "A soft bright edge and lace of foam where the water is very shallow, so shorelines read.",
+    description: "Storybook foam lines along the very edge of the water, breathing in and out, so every shoreline reads at a glance.",
   },
   {
     id: "skyReflection",
     name: "Sky reflection",
-    description: "The live sky mirrored, more at grazing angles, with the sun's glint (the moon's at night).",
+    description: "The sky mirrored along the reflected view, more at a glance than looking down, with the sun's glint by day and the moon's by night.",
   },
   {
     id: "underwaterFog",
     name: "Underwater fog",
-    description: "With the eye under the surface, everything fades into the water's own colour by how far light travels through it.",
+    description: "With the eye under the surface, everything fades into the water's own colour by how far light goes through it.",
   },
   {
     id: "farWater",
     name: "Far water",
-    description: "Lakes in the distant land, drawn simply (colour by depth, the sky mirrored), so water reads out to the horizon.",
+    description: "Lakes in the distant land, flat and still, so water reads out to the horizon.",
   },
   {
     id: "lakeIce",
     name: "Winter ice",
-    description: "Ice growing out from lake and river edges into winter, and melting back in spring.",
+    description: "Pale, cracked ice growing out from lake and river edges into winter, and melting back in spring.",
   },
 ]);

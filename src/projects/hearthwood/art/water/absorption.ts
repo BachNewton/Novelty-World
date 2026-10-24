@@ -1,6 +1,9 @@
 import { BufferAttribute } from "three";
 import { REGIONS, type Region } from "../../engine/regions";
+import { dot, exp, float, max, sqrt } from "three/tsl";
+import type { Node } from "three/webgpu";
 import type { FeatureArt } from "../feature-art";
+import { waterAbsorb, waterDepth, waterView, type WaterStep } from "./surface";
 
 /*
  * The water's colour from how far light travels through it. Water is nearly
@@ -67,36 +70,22 @@ export function tileAbsorption(regions: Float32Array, count: number): BufferAttr
   return new BufferAttribute(values, 3);
 }
 
-/** The light through a column of water: `extinct` is what it absorbs and scatters per metre. */
-export const WATER_COLUMN_GLSL = /* glsl */ `
-#ifndef HW_WATER_COLUMN
-#define HW_WATER_COLUMN
-const float HW_WATER_SCATTER = ${WATER_SCATTER.toFixed(4)};
-// What comes up out of a column of water of this length lit by light: the bed through it, and the water's own colour where the bed is lost.
-vec3 hwThroughWater(vec3 bed, vec3 absorb, float path, vec3 light) {
-  vec3 extinct = absorb + HW_WATER_SCATTER;
-  vec3 through = exp(-extinct * path);
-  return bed * through + HW_WATER_SCATTER / extinct * light * (1.0 - through);
+/** What comes up out of a column of water `path` metres long, as a share of the light falling on it: the bed (an albedo) seen through it, and the water's own colour where the bed is lost. */
+export function throughWater(bed: Node<"vec3">, absorb: Node<"vec3">, path: Node<"float">): Node<"vec3"> {
+  const extinct = absorb.add(WATER_SCATTER);
+  const through = exp(extinct.mul(path).negate());
+  return bed.mul(through).add(float(WATER_SCATTER).div(extinct).mul(float(1).sub(through)));
 }
-#endif
-`;
 
-/** The way light goes: down to the bed, and back up to the eye along the view bent by the surface. */
-const ABSORPTION_LIGHT = /* glsl */ `
-  float cosV = max(dot(hwView, hwNormal), 0.0);
-  float cosT = sqrt(max(1.0 - (1.0 - cosV * cosV) / 1.777, 0.0));
-  hwBody = hwThroughWater(hwBed, hwAbsorb, hwDepth * (1.0 + 1.0 / max(cosT, 0.3)), hwLight);
-`;
-
-export const ABSORPTION_ART: FeatureArt = {
+/** Colour from depth: the bed through the water, down to it and back up along the view bent by the surface (water's index, 1.333). */
+export const ABSORPTION_STEP: WaterStep = {
   feature: "waterAbsorption",
-  chunks: [
-    {
-      kinds: ["water"],
-      fragmentHead: WATER_COLUMN_GLSL,
-      // The bed under the water as the land draws it, until something sees the real one.
-      surface: "hwBed = uBed * hwLight;",
-      light: ABSORPTION_LIGHT,
-    },
-  ],
+  surface: (surface, { bed }) => {
+    const cosV = max(dot(waterView, surface.normal), 0);
+    const cosT = sqrt(max(float(1).sub(float(1).sub(cosV.mul(cosV)).div(1.777)), 0));
+    const path = waterDepth.mul(float(1).add(float(1).div(max(cosT, 0.3))));
+    return { ...surface, body: throughWater(bed, waterAbsorb, path) };
+  },
 };
+
+export const ABSORPTION_ART: FeatureArt = { feature: "waterAbsorption" };
