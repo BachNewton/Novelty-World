@@ -63,6 +63,7 @@ class EnvConfig:
     record: bool = True
     reset: bool = True  # False: a finished game stays finished (evaluation)
     learner_greedy: bool = False  # the learner plays its most likely move instead of sampling
+    snapshot_greedy: bool = False  # likewise the snapshots (evaluation)
     bf16: bool = True  # the networks' forward pass in bfloat16 autocast
     # The most rows each controller is run on per step, as a share of the batch; a decision past it
     # waits a step (counted as `stalled`). Sized to the league's mix.
@@ -213,7 +214,7 @@ class Env:
         served = torch.zeros(B, dtype=torch.bool, device=self.device)
         learner_rows = torch.zeros(B, dtype=torch.bool, device=self.device)
         nets = [(LEARNER, self.learner, cfg.cap_learner, cfg.learner_greedy)]
-        nets += [(SNAPSHOT + k, net, cfg.cap_snapshot, False) for k, net in enumerate(self.snapshots[: self.active_snapshots])]
+        nets += [(SNAPSHOT + k, net, cfg.cap_snapshot, cfg.snapshot_greedy) for k, net in enumerate(self.snapshots[: self.active_snapshots])]
         for kind, net, share, greedy_pick in nets:
             idx, ok = pick(live & (kind_now == kind), max(1, int(share * B)))
             sub = s.select(idx)

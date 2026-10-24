@@ -197,6 +197,64 @@ class Evaluator:
                 "unfinished": float((~env.done).sum())}
 
 
+class Ladder:
+    """The checkpoint ladder: is the network still climbing against itself, not only against the
+    league's fixed bots? The current network and up to `slots` earlier checkpoints are seated
+    together on fixed 5-player deals (each game's seats drawn from them, with repeats only while
+    fewer than five exist), every seat playing its most likely move, and a Luce (Bradley–Terry)
+    fit over who won each decisive game gives each its win Elo, the oldest at 0."""
+
+    def __init__(self, board, tables, net, games: int, device: str, players: int = 5, slots: int = 7):
+        cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600, pool=8,
+                        snapshots=slots, record=False, reset=False, learner_greedy=True, snapshot_greedy=True,
+                        cap_learner=0.5, cap_snapshot=0.5, cap_greedy=0.01)
+        self.env = Env(cfg, board, tables, net, device, seed_prefix="ladder")
+        self.env.active_snapshots = slots
+        self.players, self.slots, self.games, self.device = players, slots, games, device
+        self.base = self.env._save()
+        self.env.capture()
+
+    def run(self, past: list[tuple[str, str]], current: str) -> dict:
+        """`past`: (label, state-dict path) of earlier checkpoints, oldest first."""
+        env = self.env
+        past = past[-self.slots:]
+        for k, (_, path) in enumerate(past):
+            env.snapshots[k].load_state_dict(torch.load(path, map_location=self.device, weights_only=False))
+        labels = [label for label, _ in past] + [current]
+        kinds = torch.tensor([SNAPSHOT + k for k in range(len(past))] + [LEARNER])
+        env._restore(self.base)
+        g = torch.Generator().manual_seed(12345)
+        if len(kinds) >= self.players:
+            pick = torch.rand(self.games, len(kinds), generator=g).argsort(1)[:, : self.players]
+        else:
+            pick = torch.randint(0, len(kinds), (self.games, self.players), generator=g)
+        seat_kind = torch.full((self.games, MAX_SEATS), GREEDY, dtype=torch.int64)
+        seat_kind[:, : self.players] = kinds[pick]
+        env.seat_kind.copy_(seat_kind.to(self.device))
+        steps = 0
+        while not bool(env.done.all()) and steps <= 40000:
+            env.run(64)
+            steps += 64
+        env.take_stats()
+        winner = env.state.winner.to(torch.int64).cpu()
+        seated = pick  # [games, players] index into labels
+        decisive = winner >= 0
+        n = len(labels)
+        wins = torch.zeros(n)
+        won_by = seated[decisive].gather(1, winner[decisive][:, None])[:, 0]
+        wins.index_add_(0, won_by, torch.ones_like(won_by, dtype=torch.float32))
+        counts = torch.zeros(int(decisive.sum()), n)
+        counts.scatter_add_(1, seated[decisive], torch.ones_like(seated[decisive], dtype=torch.float32))
+        gamma = torch.ones(n)
+        for _ in range(500):  # Hunter's MM for the Luce model
+            denom = (counts / (counts @ gamma)[:, None]).sum(0)
+            gamma = torch.where(denom > 0, wins.clamp(min=0.5) / denom, gamma)
+            gamma = gamma / gamma[0]
+        elo = (400 * torch.log10(gamma)).tolist()
+        return {"ladder": {label: round(e, 1) for label, e in zip(labels, elo)},
+                "ladder_games": int(decisive.sum()), "ladder_capped": int((~decisive).sum())}
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--name", required=True)
@@ -228,6 +286,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--eval-games", type=int, default=2048)
     p.add_argument("--eval", default="greedy@3,greedy@5", help="opponent@players, comma-separated")
     p.add_argument("--init", default=None, help="start the network from this checkpoint's weights")
+    p.add_argument("--ladder-games", type=int, default=2048)
+    p.add_argument("--ladder-extra", default="", help="label=path of earlier runs' checkpoints for the ladder, comma-separated")
     p.add_argument("--ckpt-every", type=int, default=25)
     p.add_argument("--seed", type=int, default=1)
     args = p.parse_args(argv)
@@ -293,6 +353,8 @@ def main(argv: list[str] | None = None) -> int:
     if env.graph is None:
         env.capture()
     evaluators = [Evaluator(board, tables, net, n, args.eval_games, device, o, gd_bots) for o, n in evals]
+    ladder = Ladder(board, tables, net, args.ladder_games, device) if args.ladder_games > 0 else None
+    extra = [tuple(x.split("=", 1)) for x in args.ladder_extra.split(",") if x]
     log_path = os.path.join(out_dir, "log.jsonl")
     n_params = sum(x.numel() for x in net.parameters())
     started = time.time()
@@ -321,6 +383,9 @@ def main(argv: list[str] | None = None) -> int:
             set_league()
         if iteration % args.eval_every == 0:
             record["eval"] = [e.run() for e in evaluators]
+            if ladder is not None:
+                past = extra + [(f"{args.name}-{os.path.basename(p)[5:-3]}", p) for p in league]
+                record.update(ladder.run(past, f"{args.name}-{iteration}"))
         if iteration % args.ckpt_every == 0:
             torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
                         "league": league, "args": vars(args), "env": asdict(cfg)}, latest + ".tmp")
@@ -333,6 +398,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(brief), flush=True)
         if "eval" in record:
             print("  eval", json.dumps(record["eval"]), flush=True)
+            if "ladder" in record:
+                print("  ladder", json.dumps(record["ladder"]), record["ladder_games"], "decisive", flush=True)
     torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
                 "league": league, "args": vars(args), "env": asdict(cfg)}, latest)
     return 0
