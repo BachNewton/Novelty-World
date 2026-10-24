@@ -5,8 +5,9 @@ operation: the GPU engine's exact slow path for fights past its tables (`ideas/g
 Every float is a float64 combined in the TypeScript's order, so the results are the TypeScript's
 bit for bit. Sums run as plain sequential loops (`add`): Python's built-in `sum` compensates its
 rounding since 3.12 and numpy's reductions sum pairwise, and neither rounds as `+=` does.
-`Math.fround` is a float32 round trip. `**`, `Math.log` and `Math.exp` are V8's own (the last
-section), not Python's: the C library's round differently in the last bit.
+`Math.fround` is a float32 round trip. `**` is Python's, which calls the C library's pow, as
+the reference engine's V8 (Node 24) does; `Math.log` and `Math.exp` are V8's own (the last
+section), not Python's.
 """
 
 from dataclasses import dataclass
@@ -187,8 +188,8 @@ def balance(attacker_lost: np.ndarray, defender_lost: np.ndarray) -> tuple[np.nd
         al[a] = 0
         scale_to(al, 1, 0, a)
 
-    push_win = v8_pow(float(dl[d]), WIN_CHANCE_POWER)
-    push_hold = v8_pow(float(al[a]), WIN_CHANCE_POWER)
+    push_win = float(dl[d]) ** WIN_CHANCE_POWER
+    push_hold = float(al[a]) ** WIN_CHANCE_POWER
     win = push_win / (push_win + push_hold)
     hold = push_hold / (push_win + push_hold)
     scale_to(al, win, 0, a)
@@ -212,9 +213,9 @@ def balance(attacker_lost: np.ndarray, defender_lost: np.ndarray) -> tuple[np.nd
     dl[d] = captures * k
 
     for i in range(a):
-        al[i] = v8_pow(float(al[i]), OUTCOME_POWER)
+        al[i] = float(al[i]) ** OUTCOME_POWER
     for j in range(d):
-        dl[j] = v8_pow(float(dl[j]), OUTCOME_POWER)
+        dl[j] = float(dl[j]) ** OUTCOME_POWER
     scale_to(al, float(dl[d]), 0, a)
     scale_to(dl, float(al[a]), 0, d)
     return al, dl
@@ -441,8 +442,8 @@ def balance_win_chance(chance: float) -> float:
         p = 0
     elif p > 1 - 0.05:
         p = 1
-    push = v8_pow(float(p), 1.3)
-    w = push / (push + v8_pow(float(1 - p), 1.3))
+    push = float(p) ** 1.3
+    w = push / (push + float(1 - p) ** 1.3)
     win = w - 0.1
     hold = 1 - w - 0.1
     if 0 > win:
@@ -499,13 +500,13 @@ def ideal_attack_units(defend: int, threshold: float = fround(0.9)) -> int:
 
 
 # ---------------------------------------------------------------------------
-# V8's Math.pow, Math.log and Math.exp (`src/base/ieee754.cc`, from fdlibm)
+# V8's Math.log and Math.exp (`src/base/ieee754.cc`, from fdlibm)
 # ---------------------------------------------------------------------------
-# Python's `**`, `math.log` and `math.exp` call the C library, which on Windows rounds differently
-# in the last bit for about 10% of pow's arguments and 5% of log's and exp's. The V8 of the repo's
-# pinned Node (22, V8 12.4) computes all three itself in fdlibm's sequence of float64 steps, which
-# this repeats step for step. Newer V8 (Node 24) computes pow differently (here nearly always as the
-# C library does), so moving the pinned Node changes the odds in the last bit, and the tables.
+# Node 24's V8 calls the C library's pow (`math::pow` under `use_std_math_pow`), but still computes
+# log and exp itself, in fdlibm's sequence of float64 steps, which this repeats step for step: the
+# C library's (Python's `math.log`, `math.exp`) differ from them in the last bit for about 5% of
+# arguments. Node's pow is the C library it was linked with, not quite the one Python calls: on
+# Windows they differ in the last bit for about 1 argument in 2,600, a residue the tests record.
 
 
 def _words(x):
@@ -528,154 +529,22 @@ def _set_high(x, hi):
     return _from_words(hi, _words(x)[1])
 
 
-def _set_low(x, lo):
-    return _from_words(_words(x)[0], lo)
-
-
 def _c(hi, lo):
     return _from_words(hi, lo)
 
 
-BP = (1.0, 1.5)
-DP_H = (0.0, _c(0x3FE2B803, 0x40000000))
-DP_L = (0.0, _c(0x3E4CFDEB, 0x43CFD006))
-TWO53 = _c(0x43400000, 0)
-HUGE = 1.0e300
-TINY = 1.0e-300
-L1 = _c(0x3FE33333, 0x33333303)
-L2 = _c(0x3FDB6DB6, 0xDB6FABFF)
-L3 = _c(0x3FD55555, 0x518F264D)
-L4 = _c(0x3FD17460, 0xA91D4101)
-L5 = _c(0x3FCD864A, 0x93C9DB65)
-L6 = _c(0x3FCA7E28, 0x4A454EEF)
 P1 = _c(0x3FC55555, 0x5555553E)
 P2 = _c(0xBF66C16C, 0x16BEBD93)
 P3 = _c(0x3F11566A, 0xAF25DE2C)
 P4 = _c(0xBEBBBD41, 0xC5D26BF1)
 P5 = _c(0x3E663769, 0x72BEA4D0)
-LG2 = _c(0x3FE62E42, 0xFEFA39EF)
-LG2_H = _c(0x3FE62E43, 0x00000000)
-LG2_L = _c(0xBE205C61, 0x0CA86C39)
-OVT = 8.0085662595372944372e-17
-CP = _c(0x3FEEC709, 0xDC3A03FD)
-CP_H = _c(0x3FEEC709, 0xE0000000)
-CP_L = _c(0xBE3E2FE0, 0x145B01F5)
-
-
-def v8_pow(x: float, y: float) -> float:
-    """V8's `Math.pow` and `**` for the arguments the odds pass (x ≥ 0, finite)."""
-    hx, lx = _words(x)
-    hy, ly = _words(y)
-    ix = hx & 0x7FFFFFFF
-    iy = hy & 0x7FFFFFFF
-    if (iy | ly) == 0:
-        return 1.0
-    if x == 1.0:
-        return 1.0
-    if not (math.isfinite(x) and math.isfinite(y)) or x < 0 or iy > 0x41E00000:
-        raise NotImplementedError(f"pow({x!r}, {y!r}) is outside the port")
-    if ly == 0:
-        if iy == 0x3FF00000:
-            return x if hy >= 0 else 1.0 / x
-        if hy == 0x40000000:
-            return x * x
-        if hy == 0x3FE00000:
-            return math.sqrt(x)
-    ax = abs(x)
-    if lx == 0 and (ix == 0 or ix == 0x3FF00000):
-        z = ax
-        if hy < 0:
-            z = 1.0 / z
-        return z
-    s = 1.0
-    n = 0
-    if ix < 0x00100000:
-        ax *= TWO53
-        n -= 53
-        ix = _high(ax)
-    n += (ix >> 20) - 0x3FF
-    j = ix & 0x000FFFFF
-    ix = j | 0x3FF00000
-    if j <= 0x3988E:
-        k = 0
-    elif j < 0xBB67A:
-        k = 1
-    else:
-        k = 0
-        n += 1
-        ix -= 0x00100000
-    ax = _set_high(ax, ix)
-
-    u = ax - BP[k]
-    v = 1.0 / (ax + BP[k])
-    ss = u * v
-    s_h = _set_low(ss, 0)
-    t_h = _from_words(((ix >> 1) | 0x20000000) + 0x00080000 + (k << 18), 0)
-    t_l = ax - (t_h - BP[k])
-    s_l = v * ((u - s_h * t_h) - s_h * t_l)
-    s2 = ss * ss
-    r = s2 * s2 * (L1 + s2 * (L2 + s2 * (L3 + s2 * (L4 + s2 * (L5 + s2 * L6)))))
-    r += s_l * (s_h + ss)
-    s2 = s_h * s_h
-    t_h = _set_low(3.0 + s2 + r, 0)
-    t_l = r - ((t_h - 3.0) - s2)
-    u = s_h * t_h
-    v = s_l * t_h + t_l * ss
-    p_h = _set_low(u + v, 0)
-    p_l = v - (p_h - u)
-    z_h = CP_H * p_h
-    z_l = CP_L * p_h + p_l * CP + DP_L[k]
-    t = float(n)
-    t1 = _set_low(((z_h + z_l) + DP_H[k]) + t, 0)
-    t2 = z_l - (((t1 - t) - DP_H[k]) - z_h)
-
-    y1 = _set_low(y, 0)
-    p_l = (y - y1) * t1 + y * t2
-    p_h = y1 * t1
-    z = p_l + p_h
-    j, i = _words(z)
-    if j >= 0x40900000:
-        if ((j - 0x40900000) | i) != 0 or p_l + OVT > z - p_h:
-            return s * HUGE * HUGE
-    elif (j & 0x7FFFFFFF) >= 0x4090CC00:
-        if ((j - (0xC090CC00 - 0x100000000)) | i) != 0 or p_l <= z - p_h:
-            return s * TINY * TINY
-
-    i = j & 0x7FFFFFFF
-    k = (i >> 20) - 0x3FF
-    n = 0
-    if i > 0x3FE00000:
-        n = j + (0x00100000 >> (k + 1))
-        k = ((n & 0x7FFFFFFF) >> 20) - 0x3FF
-        t = _from_words(n & ~(0x000FFFFF >> k), 0)
-        n = ((n & 0x000FFFFF) | 0x00100000) >> (20 - k)
-        if j < 0:
-            n = -n
-        p_h -= t
-    t = _set_low(p_l + p_h, 0)
-    u = t * LG2_H
-    v = (p_l - (t - p_h)) * LG2 + t * LG2_L
-    z = u + v
-    w = v - (z - u)
-    t = z * z
-    t1 = z - t * (P1 + t * (P2 + t * (P3 + t * (P4 + t * P5))))
-    # V8's parenthesisation, not fdlibm's `(z*t1)/(t1-two) - (w+z*w)`: V8 has carried it since its port.
-    r = (z * t1) / ((t1 - 2.0) - (w + z * w))
-    z = 1.0 - (r - z)
-    j = _high(z)
-    j += n << 20
-    if (j >> 20) <= 0:
-        z = math.ldexp(z, n)
-    else:
-        z = _set_high(z, j)
-    return s * z
 
 
 LN2_HI = _c(0x3FE62E42, 0xFEE00000)
 LN2_LO = _c(0x3DEA39EF, 0x35793C76)
 TWO54 = _c(0x43500000, 0)
 LG1 = _c(0x3FE55555, 0x55555593)
-LG2_ = _c(0x3FD99999, 0x9997FA04)
+LG2 = _c(0x3FD99999, 0x9997FA04)
 LG3 = _c(0x3FD24924, 0x94229359)
 LG4 = _c(0x3FCC71C5, 0x1D8E78AF)
 LG5 = _c(0x3FC74664, 0x96CB03DE)
@@ -720,7 +589,7 @@ def v8_log(x: float) -> float:
     i = hx - 0x6147A
     w = z * z
     j = 0x6B851 - hx
-    t1 = w * (LG2_ + w * (LG4 + w * LG6))
+    t1 = w * (LG2 + w * (LG4 + w * LG6))
     t2 = z * (LG1 + w * (LG3 + w * (LG5 + w * LG7)))
     i |= j
     R = t2 + t1
