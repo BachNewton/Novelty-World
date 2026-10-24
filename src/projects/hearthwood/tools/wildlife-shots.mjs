@@ -7,11 +7,11 @@
 // and waits on its events (ready, streamed in, frames drawn, animals settled into their poses), never a sleep.
 // Every shot holds the date, the hour, the weather (clear) and, once staged, the motion clock.
 //
-// Prereq: a dev server (`npx next dev --port <port>` in a worktree) and `npx playwright install chromium`.
+// Prereq: a dev server (`npx next dev --port <port>` in a worktree) and a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/wildlife-shots.mjs [label] [--seed=<seed>] [--only=<name,...>]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -26,7 +26,7 @@ const BASE = process.env.HEARTHWOOD_URL ?? "http://localhost:3001/games/3d-games
 mkdirSync(OUTDIR, { recursive: true });
 
 const want = (name) => ONLY === null || ONLY.some((o) => name.startsWith(o));
-const browser = await chromium.launch({ headless: true, args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] });
+const browser = await launchBrowser();
 
 async function openWorld() {
   const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });

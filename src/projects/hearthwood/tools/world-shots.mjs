@@ -20,11 +20,11 @@
 // features off; and the ~ panel's Calendar and Quality sections on desktop and on the target phone.
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
-// `npx playwright install chromium` (one-time).
+// a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/world-shots.mjs [label] [--seed=<seed>] [--only=<name,...>] [--features=<-id,+id,none,...>] [--peaks=<x,z;x,z;...>]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -55,13 +55,7 @@ mkdirSync(OUTDIR, { recursive: true });
 const USE_GPU = process.env.SHOTS_CPU !== "1";
 // SHOTS_UNCAPPED=1 lifts the 60 fps cap, so the printed frame times measure the frame rather than the display.
 const UNCAPPED = process.env.SHOTS_UNCAPPED === "1" ? ["--disable-gpu-vsync", "--disable-frame-rate-limit"] : [];
-const browser = await chromium.launch({
-  headless: true,
-  args: [
-    ...(USE_GPU ? ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]),
-    ...UNCAPPED,
-  ],
-});
+const browser = await launchBrowser();
 
 async function failOnPageError(error) {
   console.error(`The world threw:\n${error.stack ?? error.message}`);

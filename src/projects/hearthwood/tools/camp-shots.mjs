@@ -9,11 +9,11 @@
 // `camping`) over Playwright, and waits on its events, never a sleep. Every shot holds the date, the hour and the
 // weather (clear); the companions are settled by stepping their rules on a held motion clock.
 //
-// Prereq: a dev server (`npx next dev --port <port>` in a worktree) and `npx playwright install chromium`.
+// Prereq: a dev server (`npx next dev --port <port>` in a worktree) and a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/camp-shots.mjs [label] [--seed=<seed>] [--only=<name,...>]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -35,7 +35,7 @@ const PHONE = { viewport: { width: 448, height: 900 }, deviceScaleFactor: 3, has
 const BESIDE = { angle: Math.atan2(1.5, 3.4), out: Math.hypot(3.4, 1.5) };
 
 const want = (name) => ONLY === null || ONLY.some((o) => name.startsWith(o));
-const browser = await chromium.launch({ headless: true, args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] });
+const browser = await launchBrowser();
 
 async function openWorld(device) {
   const context = await browser.newContext(device);

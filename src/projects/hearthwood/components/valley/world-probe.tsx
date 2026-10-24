@@ -16,7 +16,7 @@ import type { DaySky } from "../../engine/day";
 import { holdHour, setDay, type ValleyClock } from "./clock";
 import { liveFeatures, type FeatureId, type FeatureToggles } from "../../features";
 import type { FrameCosts } from "../../art/frame";
-import { AFTER_RENDER_PRIORITY } from "./feature-renderer";
+import { AFTER_RENDER_PRIORITY, useRenderer } from "./feature-renderer";
 import { FIRST_ORBIT, type Orbit } from "./follow-camera";
 import { forageTime, forgetForaging, goToDayOfYear, pickSpot, setBasketOpen, stockBasket, type Foraging } from "./foraging";
 import { chooseIngredient, chooseWay, closeCooking, cook, cookedSoFar, cookMore, forgetCooking, holdCooking, openCooking, setBookOpen as setRecipeBookOpen, stockDish, type Hearth } from "./hearth";
@@ -369,7 +369,7 @@ export function WorldProbeHandle({
   costs: FrameCosts;
   setPointOfView: (view: PointOfView) => void;
 }) {
-  const gl = useThree((s) => s.gl);
+  const gl = useRenderer();
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
   const frames = useRef(0);
@@ -394,7 +394,6 @@ export function WorldProbeHandle({
       drawn: () => ({
         ...drawn.current,
         geometries: gl.info.memory.geometries,
-        programs: gl.info.programs?.length ?? 0,
         frameTimes: [...times.current],
         pixelRatio: gl.getPixelRatio(),
         width: gl.domElement.width,

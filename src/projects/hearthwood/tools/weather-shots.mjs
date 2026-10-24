@@ -7,13 +7,13 @@
 // Drives the world's probe (window.__hearthwoodWorld) over Playwright and waits on its events, never a sleep.
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
-// `npx playwright install chromium` (one-time).
+// a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/weather-shots.mjs [label] [--weather=<kind,...>] [--hours=<name,...>]
 //           [--views=<view,...>] [--features=<-id,+id,none,...>] [--date=<date>] [--motion=<seconds>] [--flash]
 // Hours by name: dawn, morning, noon, golden, blue, night, or a number. Writes to
 // src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -38,7 +38,7 @@ const BASE = process.env.HEARTHWOOD_URL ?? "http://localhost:3001/games/3d-games
 // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool writing under the project's own .shots folder
 mkdirSync(OUTDIR, { recursive: true });
 
-const browser = await chromium.launch({ headless: true, args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] });
+const browser = await launchBrowser();
 const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 })).newPage();
 page.on("pageerror", async (error) => {
   console.error(`The world threw:\n${error.stack ?? error.message}`);

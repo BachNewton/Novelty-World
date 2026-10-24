@@ -7,11 +7,11 @@
 // Drives the world's probe (window.__hearthwoodWorld) over Playwright and waits on its events, never a sleep.
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
-// `npx playwright install chromium` (one-time).
+// a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/shadow-shots.mjs [label] [--only=<prefix,...>] [--features=<list>]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -27,7 +27,7 @@ const HOURS = { noon: 12.5, afternoon: 15, golden: 17.4, blue: 19.4, night: 23 }
 // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool writing under the project's own .shots folder
 mkdirSync(OUTDIR, { recursive: true });
 
-const browser = await chromium.launch({ headless: true, args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] });
+const browser = await launchBrowser();
 const want = (name) => ONLY === null || ONLY.some((o) => name.startsWith(o));
 
 async function open(extra = {}) {

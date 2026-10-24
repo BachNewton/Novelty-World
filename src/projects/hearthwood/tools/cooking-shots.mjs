@@ -8,11 +8,11 @@
 // the hour, the weather and the motion clock; a dish mid-cooking is held part-cooked through the probe.
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
-// `npx playwright install chromium` (one-time).
+// a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/cooking-shots.mjs [label] [--only=<name,...>]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -33,7 +33,7 @@ const PHONE = { viewport: { width: 448, height: 870 }, deviceScaleFactor: 3, has
 // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool writing under the project's own .shots folder
 mkdirSync(OUTDIR, { recursive: true });
 
-const browser = await chromium.launch({ headless: true, args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] });
+const browser = await launchBrowser();
 
 async function openWorld(device) {
   const page = await (await browser.newContext(device)).newPage();

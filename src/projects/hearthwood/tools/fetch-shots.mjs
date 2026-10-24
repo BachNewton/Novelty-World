@@ -9,11 +9,11 @@
 // hour and the weather (clear); the game is played by stepping the animals' rules on a held motion clock, so
 // each moment is caught exactly.
 //
-// Prereq: a dev server (`npx next dev --port <port>` in a worktree) and `npx playwright install chromium`.
+// Prereq: a dev server (`npx next dev --port <port>` in a worktree) and a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/fetch-shots.mjs [label] [--seed=<seed>] [--only=<name,...>]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -34,7 +34,7 @@ const DESKTOP = { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 }
 const PHONE = { viewport: { width: 448, height: 900 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true };
 
 const want = (name) => ONLY === null || ONLY.some((o) => name.startsWith(o));
-const browser = await chromium.launch({ headless: true, args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] });
+const browser = await launchBrowser();
 
 async function openWorld(device) {
   const context = await browser.newContext(device);

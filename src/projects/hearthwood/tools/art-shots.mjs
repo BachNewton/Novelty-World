@@ -6,11 +6,11 @@
 // motion clock, so two runs differ only where the art does.
 //
 // Prereq: a dev server (npm run dev, or `npx next dev --port <port>` in a worktree) and
-// `npx playwright install chromium` (one-time).
+// a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/art-shots.mjs [label] [--only=<name,...>]
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -26,7 +26,7 @@ const want = (name) => ONLY === null || ONLY.some((o) => name.startsWith(o));
 // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool writing under the project's own .shots folder
 mkdirSync(OUTDIR, { recursive: true });
 
-const browser = await chromium.launch({ headless: true, args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] });
+const browser = await launchBrowser();
 const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 })).newPage();
 page.on("pageerror", async (error) => {
   console.error(`The gallery threw:\n${error.stack ?? error.message}`);

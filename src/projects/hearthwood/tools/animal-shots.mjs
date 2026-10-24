@@ -4,7 +4,7 @@
 // Playwright and waits on its frames, never a sleep. The clock is frozen, so two runs differ only where
 // the art does.
 //
-// Prereq: a dev server (HEARTHWOOD_URL, default http://localhost:3001) + `npx playwright install chromium`.
+// Prereq: a dev server (HEARTHWOOD_URL, default http://localhost:3001) + a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/animal-shots.mjs [label] [--seed=<field seed>] [--animals=0,1,2]
 //         [--activities=stand,walk,trot,run,sit,loaf,lie,greet] [--views=front,three-quarter,side,back] [--time=<s>]
 //         [--strip=<animal>] [--gait=walk] (a strip of 12 frames 0.06 s apart, side on) [--no-phone]
@@ -16,7 +16,7 @@
 // lineup.png and lineup-side.png (dogs side by side), everyone.png and everyone-three-quarter.png (every species side by side), one animal-<n>-<activity>-<view>.png per animal,
 // activity and view, close-<n>.png (the face), and sheet.png combining them.
 
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -53,7 +53,7 @@ const VIEWS = {
 const PHONE = { width: 448, height: 890 };
 const PHONE_LANDSCAPE = { width: 960, height: 410 };
 
-const browser = await chromium.launch({ headless: true, args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] });
+const browser = await launchBrowser();
 
 async function open(viewport, scale = 1) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: scale });

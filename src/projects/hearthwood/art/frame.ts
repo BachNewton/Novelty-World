@@ -88,6 +88,8 @@ export class FrameRenderer {
   ) {
     // The tone curve is a step of the pipeline; the pipeline's last step only encodes to the screen.
     renderer.toneMapping = NoToneMapping;
+    // The frame's numbers (draws, triangles) count every pass in it, not only the last.
+    renderer.info.autoReset = false;
     this.pipeline = new RenderPipeline(renderer);
     this.unsubscribe = switches.subscribe(() => {
       this.dirty = true;
@@ -125,6 +127,7 @@ export class FrameRenderer {
     const { scene, camera } = frame;
     for (const a of this.art) if (this.switches.isOn(a.feature)) a.frame?.(frame);
     if (this.dirty) this.build(scene, camera, frame);
+    this.renderer.info.reset();
     this.pipeline.render();
     if (costs.watched) this.time(costs);
   }
