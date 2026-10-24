@@ -86,3 +86,6 @@ __pycache__/
 
 # Risk position recordings (npm run risk:record): data for fitting an evaluation, regenerable from their seeds
 /src/projects/risk/eval/positions/
+
+# Risk native port: Cargo build output (src/projects/risk/native/)
+**/native/target/
