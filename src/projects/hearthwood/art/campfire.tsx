@@ -7,7 +7,7 @@ import { MeshBasicNodeMaterial } from "three/webgpu";
 import { createRng, uniform } from "@/shared/lib/seeded-random";
 import type { MomentLight } from "../engine/day";
 import type { AtmosphereUniforms } from "./atmosphere";
-import { cloud, emberMaterial, flameMaterial, glowMaterial, QUAD } from "./effects";
+import { cloud, type Cloud, emberMaterial, flameMaterial, glowMaterial } from "./effects";
 import { thingMaterial } from "./things";
 import { paint, type Piece } from "./painted";
 import type { Palette } from "./palette";
@@ -148,7 +148,7 @@ function setParts(meshes: Partial<Record<CampPart, Mesh | null>>, lifts: CampLif
 }
 
 /** The fire this frame: its light's flicker, the flames' strength, and the glow, wider at night. */
-function burn(fire: { flames: readonly Mesh[]; glow: Mesh; embers: Mesh }, clock: FireState, lit: number, light: PointLight | null): void {
+function burn(fire: { flames: readonly Mesh[]; glow: Cloud; embers: Cloud }, clock: FireState, lit: number, light: PointLight | null): void {
   if (light) light.intensity = FIRE_LIGHT * clock.light.fire * clock.flicker * lit;
   for (const m of fire.flames) m.userData.strength = (0.75 + 0.25 * clock.flicker) * lit;
   fire.glow.userData.strength = 0.55 * clock.light.fire * clock.flicker * lit;
@@ -193,10 +193,9 @@ export function Campfire({ at, turn = 0, lifts, appear = STANDING, seed, palette
     const embers = cloud(EMBERS, emberMaterial(atmosphere));
     embers.renderOrder = 3;
     embers.userData = { tint: t.ember.clone(), strength: 0 };
-    const glow = new Mesh(QUAD, glowMaterial(atmosphere));
+    const glow = cloud(1, glowMaterial(atmosphere));
     glow.position.set(0, 0.7, 0);
     glow.renderOrder = 4;
-    glow.frustumCulled = false;
     glow.userData = { glow: t.firelight.clone(), strength: 0, pulse: 0, phase: 0 };
     return { shells: [big, small], flames: [flame(big, 0.1, 0, 0.55, 0), flame(small, 0.6, 0.12, 0.4, 0.05), flame(small, 0.9, -0.1, 0.38, -0.08)], embers, glow, firelight: t.firelight.clone() };
   }, [palette, atmosphere]);

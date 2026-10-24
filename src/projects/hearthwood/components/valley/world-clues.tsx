@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { type BufferGeometry, type Mesh, Vector3 } from "three";
+import { type BufferGeometry, Vector3 } from "three";
 import { bestOffered, type Viewer } from "../../gameplay/offering";
 import type { WalkState } from "../../input/use-walk-input";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { CLUE_LARGER, clueShape, GLINT_HEIGHT, type CluePalette } from "../../art/clue-shapes";
-import { cloud, glintMaterial } from "../../art/effects";
+import { cloud, type Cloud, glintMaterial } from "../../art/effects";
 import { thingMaterial } from "../../art/things";
 import { CLUE_MARKS, type ClueMark } from "../../stories/story";
 import type { ValleyClock } from "./clock";
@@ -47,7 +47,7 @@ export const CLUES_PRIORITY = -1.5;
 const scratch = { direction: new Vector3(), projected: new Vector3() };
 
 /** A clue's glints: a few soft lights circling over it, as many and as bright as it is wanted. */
-function glintCloud(palette: CluePalette, atmosphere: AtmosphereUniforms, phase: number): Mesh {
+function glintCloud(palette: CluePalette, atmosphere: AtmosphereUniforms, phase: number): Cloud {
   const made = cloud(BRIGHT.count, glintMaterial(atmosphere));
   made.renderOrder = 6;
   made.visible = false;
@@ -56,7 +56,7 @@ function glintCloud(palette: CluePalette, atmosphere: AtmosphereUniforms, phase:
 }
 
 /** The glints this frame: over each clue to examine, brighter where a companion waits by it. */
-function twinkle(drawn: readonly { live: ClueLive; glints: Mesh }[], examinableNow: (live: ClueLive) => boolean, waitedBy: (key: string) => boolean): void {
+function twinkle(drawn: readonly { live: ClueLive; glints: Cloud }[], examinableNow: (live: ClueLive) => boolean, waitedBy: (key: string) => boolean): void {
   let glinting = 0;
   for (const { live, glints: mesh } of drawn) {
     const on = examinableNow(live) && glinting < MOST_GLINTING;

@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { type BufferGeometry, CylinderGeometry, type Group, InstancedMesh, Mesh, Object3D, SphereGeometry, type Vector3 } from "three";
+import { type BufferGeometry, CylinderGeometry, type Group, InstancedMesh, Object3D, SphereGeometry, type Vector3 } from "three";
 import { createRng, uniform, type Rng } from "@/shared/lib/seeded-random";
 import { brewOfCharm, type Charm } from "../gameplay/brews";
 import type { AtmosphereUniforms } from "./atmosphere";
 import { CHARM_GLOW, type BrewPalette } from "./brew-looks";
 import { brewShape } from "./brews";
 import { paint, type Piece } from "./painted";
-import { cloud, glowMaterial, moteMaterial, MOTES, QUAD } from "./effects";
+import { cloud, type Cloud, glowMaterial, moteMaterial, MOTES } from "./effects";
 import { thingMaterial } from "./things";
 
 /*
@@ -92,8 +92,14 @@ export function CampBlooms({ spots, strength, palette, atmosphere }: { spots: re
     [meshes],
   );
   const dummy = useMemo(() => new Object3D(), []);
+  const shown = useRef<{ strength: number; meshes: typeof meshes | null }>({ strength: NaN, meshes: null });
   useFrame(() => {
-    openBlooms(meshes.out, strength(), dummy);
+    // The charm's strength moves over game days: the flowers are set again only once it has moved enough to show.
+    const now = strength();
+    const was = shown.current;
+    if (was.meshes === meshes && Math.abs(now - was.strength) < 0.002 && (now > 0) === was.strength > 0) return;
+    shown.current = { strength: now, meshes };
+    openBlooms(meshes.out, now, dummy);
   });
   return (
     <>
@@ -147,7 +153,7 @@ export function charmPostShape(p: BrewPalette): BufferGeometry {
 }
 
 /** The charms on the post this frame: those at work shown, swaying a little, glowing as strongly as they work. */
-function hangCharms(charms: readonly { charm: Charm; glow: Mesh }[], groups: Partial<Record<Charm, Group | null>>, strengths: Record<Charm, number>, t: number): void {
+function hangCharms(charms: readonly { charm: Charm; glow: Cloud }[], groups: Partial<Record<Charm, Group | null>>, strengths: Record<Charm, number>, t: number): void {
   for (const c of charms) {
     const group = groups[c.charm];
     const strength = strengths[c.charm];
@@ -165,12 +171,11 @@ export function CharmPost({ at, turn, strengths, palette, atmosphere }: { at: { 
   const assets = useMemo(() => {
     const material = thingMaterial(atmosphere);
     const charms = (Object.keys(HOOKS) as Charm[]).map((charm, i) => {
-      const glow = new Mesh(QUAD, glowMaterial(atmosphere));
+      const glow = cloud(1, glowMaterial(atmosphere));
       glow.position.set(0, -0.22, 0);
-      glow.scale.setScalar(0.6);
+      glow.scale.setScalar(0.16);
       glow.renderOrder = 6;
-      glow.frustumCulled = false;
-      glow.userData = { glow: palette[CHARM_GLOW[charm]].clone(), strength: 0, pulse: 0.15, phase: i * 0.27 };
+        glow.userData = { glow: palette[CHARM_GLOW[charm]].clone(), strength: 0, pulse: 0.15, phase: i * 0.27 };
       return { charm, pouch: brewShape(brewOfCharm(charm), palette), glow };
     });
     // The red thread each pouch hangs by, from the bar down to its tie.
@@ -211,7 +216,7 @@ export function CharmPost({ at, turn, strengths, palette, atmosphere }: { at: { 
 }
 
 /** The hush this frame: as bright as the charm works, about Elliott's feet. */
-function driftHush(motes: Mesh, group: Group | null, strength: number, at: Vector3): void {
+function driftHush(motes: Cloud, group: Group | null, strength: number, at: Vector3): void {
   motes.userData.strength = strength;
   if (group) {
     group.visible = strength > 0;

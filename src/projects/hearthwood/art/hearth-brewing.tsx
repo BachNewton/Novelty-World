@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Color, type Group, Mesh, Vector3 } from "three";
+import { Color, type Group, type Mesh, Vector3 } from "three";
 import type { UniformNode } from "three/webgpu";
 import type { BrewId, BrewIngredient } from "../gameplay/brews";
 import type { AtmosphereUniforms } from "./atmosphere";
 import { brewLook, type BrewPalette, type Glow } from "./brew-looks";
 import { brewContentsShape, brewShape, brewSurfaceShape, CAULDRON, cauldronShape } from "./brews";
-import { glowMaterial, QUAD } from "./effects";
+import { cloud, type Cloud, glowMaterial } from "./effects";
 import { burstStrength, hearthClouds, RISE } from "./hearth-cooking";
 import { diorama, type DioramaMaterial } from "./materials";
 import { thingMaterial } from "./things";
@@ -76,9 +76,8 @@ export function HearthBrewing({ at, side, ingredients, brew, made, palette, atmo
   const shared = useMemo(() => {
     const surfaceMaterial = brewSurfaceMaterial(atmosphere);
     const clouds = hearthClouds(atmosphere, { steam: 34, sparkles: 22, burst: 26 });
-    const glow = new Mesh(QUAD, glowMaterial(atmosphere));
+    const glow = cloud(1, glowMaterial(atmosphere));
     glow.renderOrder = 6;
-    glow.frustumCulled = false;
     glow.userData = { glow: new Color(), strength: 0, pulse: 0.15, phase: 0 };
     return { material: thingMaterial(atmosphere), surfaceMaterial, cauldron: cauldronShape(palette), surface: brewSurfaceShape(), glow, ...clouds };
   }, [palette, atmosphere]);
@@ -139,10 +138,10 @@ export function HearthBrewing({ at, side, ingredients, brew, made, palette, atmo
 
 interface Shared {
   surfaceMaterial: { material: DioramaMaterial; glow: UniformNode<"vec3", Color> };
-  steam: Mesh;
-  sparkles: Mesh;
-  burst: Mesh;
-  glow: Mesh;
+  steam: Cloud;
+  sparkles: Cloud;
+  burst: Cloud;
+  glow: Cloud;
 }
 
 interface Moving {
@@ -166,7 +165,7 @@ function animate(shared: Shared, colours: { water: Color; brew: Color; glow: Col
   shared.sparkles.userData.spread = 0.14;
   shared.glow.userData.glow.copy(colours.glow);
   shared.glow.userData.strength = (0.15 + 0.85 * on) * (1 - out * 0.6);
-  shared.glow.scale.setScalar((0.8 + 0.9 * on) * 0.6);
+  shared.glow.scale.setScalar((0.8 + 0.9 * on) * 0.46);
   shared.burst.userData.tint.copy(colours.glow);
   shared.burst.userData.strength = burstStrength(since);
   shared.burst.userData.spread = 0.26 + 0.24 * out;

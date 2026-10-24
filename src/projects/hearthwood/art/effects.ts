@@ -1,6 +1,6 @@
-import { AdditiveBlending, BufferAttribute, BufferGeometry, type InstancedBufferAttribute, Mesh, NormalBlending, type Blending } from "three";
+import { AdditiveBlending, BufferAttribute, BufferGeometry, type InstancedBufferAttribute, NormalBlending, type Blending } from "three";
 import { abs, attribute, cameraPosition, cos, dot, float, fract, hash, instanceIndex, length, max, mix, modelWorldMatrix, normalView, positionGeometry, positionViewDirection, pow, sin, smoothstep, sqrt, uv, userData, varying, vec3, vec4 } from "three/tsl";
-import { MeshBasicNodeMaterial, SpriteNodeMaterial, type Node } from "three/webgpu";
+import { MeshBasicNodeMaterial, Sprite, SpriteNodeMaterial, type Node } from "three/webgpu";
 import { hazeAmount, type AtmosphereUniforms } from "./atmosphere";
 import type { SkyUniforms } from "./sky/sky";
 import { typed } from "./tsl";
@@ -20,29 +20,33 @@ import { typed } from "./tsl";
  * which three reads per draw, so a hundred fires would still be one graph.
  */
 
-/** One quad, a unit across about its middle: every cloud's shape, drawn once per particle. */
-export const QUAD = (() => {
+function quad(): BufferGeometry {
   const g = new BufferGeometry();
   g.setAttribute("position", new BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
   g.setAttribute("uv", new BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2));
   g.setIndex([0, 1, 2, 0, 2, 3]);
   return g;
-})();
-
-/** A cloud of `count` particles drawn with one of the materials here; `geometry` carries per-particle attributes where a cloud needs them (the fireflies' spots). */
-export function cloud(count: number, material: SpriteNodeMaterial, geometry: BufferGeometry = QUAD): Mesh {
-  const mesh = new Mesh(geometry, material);
-  mesh.count = count;
-  // Each particle moves far from the quad's own little bounds.
-  mesh.frustumCulled = false;
-  return mesh;
 }
 
-/** A quad with per-particle attributes beside it, instanced (one value per particle). */
+/**
+ * A cloud of `count` camera-facing quads drawn with one of the materials
+ * here, in one draw (three's instanced sprites). `geometry`, where given,
+ * carries per-particle attributes beside the quad (the fireflies' spots).
+ */
+export type Cloud = Sprite;
+
+export function cloud(count: number, material: SpriteNodeMaterial, geometry?: BufferGeometry): Cloud {
+  const sprite = new Sprite(material);
+  if (geometry) sprite.geometry = geometry;
+  sprite.count = count;
+  // Each particle moves far from the quad's own little bounds.
+  sprite.frustumCulled = false;
+  return sprite;
+}
+
+/** A quad of its own with per-particle attributes beside it, one value per particle; whoever made it disposes it. */
 export function quadWith(attributes: Record<string, InstancedBufferAttribute>): BufferGeometry {
-  const g = new BufferGeometry();
-  for (const name of ["position", "uv"] as const) g.setAttribute(name, QUAD.getAttribute(name));
-  g.setIndex(QUAD.getIndex());
+  const g = quad();
   for (const [name, values] of Object.entries(attributes)) g.setAttribute(name, values);
   return g;
 }
@@ -70,9 +74,15 @@ function billboards(centre: Node<"vec3">, size: Node<"float">, additive: boolean
   return { material, world: varying(modelWorldMatrix.mul(vec4(centre, 1)).xyz) };
 }
 
-/** A colour and alpha as the air leaves it, from the particle's place in the world. */
-function veiled(air: AtmosphereUniforms, colour: Node<"vec3">, alpha: Node<"float">, world: Node<"vec3">): Node<"vec4"> {
-  return vec4(colour, alpha.mul(float(1).sub(hazeAmount(air, world))));
+/**
+ * A colour and alpha as the air leaves it, from the particle's place in the
+ * world. A glow is drawn added, its colour already weighted by how much of
+ * it shows (so its light falls off softly as the square of its spot);
+ * steam lies over what is behind it.
+ */
+function veiled(air: AtmosphereUniforms, colour: Node<"vec3">, alpha: Node<"float">, world: Node<"vec3">, glows = true): Node<"vec4"> {
+  const a = alpha.mul(float(1).sub(hazeAmount(air, world)));
+  return vec4(glows ? colour.mul(a) : colour, a);
 }
 
 function perKey<K extends object, T>(build: (key: K) => T): (key: K) => T {
@@ -111,7 +121,7 @@ export const emberMaterial = perKey((air: AtmosphereUniforms) => {
   const drift = vec3(sin(t.mul(2).add(s.mul(30))).mul(0.25).mul(life), life.mul(s.add(1.6)), cos(t.mul(1.7).add(s.mul(20))).mul(0.25).mul(life));
   const { material, world } = billboards(from.add(drift), float(1).sub(life).mul(0.1), true);
   const fade = varying(float(1).sub(life));
-  material.colorNode = veiled(air, ownColour("tint").mul(1.4), smoothstep(0, 0.8, spot(1.6)).mul(fade).mul(own("strength")), world);
+  material.colorNode = veiled(air, ownColour("tint"), smoothstep(0, 0.8, spot(1.6)).mul(fade).mul(own("strength")), world);
   return material;
 });
 
@@ -132,7 +142,7 @@ export const steamMaterial = perKey((air: AtmosphereUniforms) => {
   const { material, world } = billboards(at, life.mul(0.55).add(0.17), false);
   const lifeOut = varying(life);
   const alpha = spot(1.3).mul(smoothstep(0, 0.15, lifeOut)).mul(float(1).sub(lifeOut)).mul(0.5).mul(own("strength"));
-  material.colorNode = veiled(air, ownColour("tint"), alpha, world);
+  material.colorNode = veiled(air, ownColour("tint"), alpha, world, false);
   return material;
 });
 
@@ -156,7 +166,7 @@ export const sparkleMaterial = perKey((air: AtmosphereUniforms) => {
   const at = ball.add(vec3(0, fract(t.mul(0.4).add(s)).mul(0.12), 0));
   const twinkle = pow(max(sin(t.mul(s.mul(4).add(5)).add(s.mul(60))), 0), 6);
   const { material, world } = billboards(at, twinkle.add(0.3).mul(0.06), true);
-  material.colorNode = veiled(air, ownColour("tint").mul(1.5), star().mul(varying(twinkle)).mul(own("strength")), world);
+  material.colorNode = veiled(air, ownColour("tint"), star().mul(varying(twinkle)).mul(own("strength")), world);
   return material;
 });
 
@@ -171,8 +181,8 @@ export const popMaterial = perKey((air: AtmosphereUniforms) => {
   const ease = float(1).sub(pow(float(1).sub(age), 3));
   const spread = age.mul(1.6).add(1);
   const ring = vec3(cos(angle).mul(0.12), float(instanceIndex).mod(3).mul(0.06).add(0.08), sin(angle).mul(0.12)).mul(spread);
-  const { material, world } = billboards(ring.add(vec3(0, ease.mul(0.45), 0)), float(0.08), true);
-  material.colorNode = veiled(air, ownColour("tint").mul(1.4), star().add(spot(2).mul(0.5)).mul(float(1).sub(smoothstep(0.35, 1, age))), world);
+  const { material, world } = billboards(ring.add(vec3(0, ease.mul(0.45), 0)), float(0.05), true);
+  material.colorNode = veiled(air, ownColour("tint"), star().add(spot(2).mul(0.5)).min(1).mul(float(1).sub(smoothstep(0.35, 1, age))), world, false);
   return material;
 });
 
@@ -194,7 +204,7 @@ export const glintMaterial = perKey((air: AtmosphereUniforms) => {
   const { material, world } = billboards(at, own("size").mul(0.6).add(sin(t.mul(3.1)).mul(0.05)), true);
   const opacity = own("opacity");
   const glint = spot(2).add(star().mul(0.6)).min(1);
-  material.colorNode = veiled(air, ownColour("tint").mul(1.3), glint.mul(opacity.add(float(1).sub(opacity).mul(sin(t.mul(2.3))))), world);
+  material.colorNode = veiled(air, ownColour("tint"), glint.mul(opacity.add(float(1).sub(opacity).mul(sin(t.mul(2.3)))).clamp(0, 1)), world, false);
   return material;
 });
 
@@ -256,6 +266,6 @@ export const flameMaterial = perKey((air: AtmosphereUniforms) => {
   const edge = abs(dot(normalView, positionViewDirection));
   const alpha = float(1).sub(smoothstep(0.55, 1, height)).mul(smoothstep(0, 0.6, edge)).mul(own("strength"));
   const world = varying(modelWorldMatrix.mul(vec4(0, 0, 0, 1)).xyz);
-  material.colorNode = veiled(air, colour.mul(1.6), alpha, world);
+  material.colorNode = veiled(air, colour, alpha, world);
   return material;
 });

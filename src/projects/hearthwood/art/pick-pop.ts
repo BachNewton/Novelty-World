@@ -1,7 +1,7 @@
 import { Group, type Material, Mesh, type BufferGeometry } from "three";
 import type { ForageSpot } from "../engine/forage";
 import type { AtmosphereUniforms } from "./atmosphere";
-import { cloud, popMaterial, POP_SPARKLES } from "./effects";
+import { cloud, type Cloud, popMaterial, POP_SPARKLES } from "./effects";
 import type { ForagePalette } from "./forage-shapes";
 
 /*
@@ -15,7 +15,7 @@ export const POP_SECONDS = 0.8;
 export interface PickPop {
   group: Group;
   item: Mesh;
-  sparkles: Mesh;
+  sparkles: Cloud;
   size: number;
   age: number;
 }

@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Color, type Group, type Mesh, Vector3 } from "three";
+import { Color, type Group, Vector3 } from "three";
 import type { Cookware, DishId, Ingredient } from "../gameplay/recipes";
 import type { AtmosphereUniforms } from "./atmosphere";
 import { contentsShape, COOKWARE_AT, COOKWARE_LARGER, panShape, stickPlacing, stickShape, STICK_LINE } from "./cookware";
 import type { DishPalette } from "./dish-looks";
 import { dishShape } from "./dishes";
-import { cloud, sparkleMaterial, steamMaterial } from "./effects";
+import { cloud, type Cloud, sparkleMaterial, steamMaterial } from "./effects";
 import { thingMaterial } from "./things";
 
 /*
@@ -150,7 +150,7 @@ interface Moving {
 }
 
 /** This moment of the cooking: the steam and sizzle by the heat, what cooks bubbling, the pan shaking, the stick turning, and the dish rising. */
-function animate(shared: { steam: Mesh; sparkles: Mesh; burst: Mesh }, parts: Moving, cookware: Cookware | null, { heat, served: since }: CookingDrive, t: number): void {
+function animate(shared: { steam: Cloud; sparkles: Cloud; burst: Cloud }, parts: Moving, cookware: Cookware | null, { heat, served: since }: CookingDrive, t: number): void {
   const out = since === null ? 0 : Math.min(1, since / RISE);
   // Steam from what cooks, lingering a little after; sizzle only from the pan and the stick, over the flames.
   shared.steam.userData.strength = cookware === null ? 0 : 0.25 + 0.75 * heat * (1 - out * 0.6);
