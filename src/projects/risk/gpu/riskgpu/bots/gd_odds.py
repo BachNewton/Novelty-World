@@ -23,6 +23,15 @@ def fround_t(x: torch.Tensor) -> torch.Tensor:
     return x.to(torch.float32).to(torch.float64)
 
 
+def div(numerator: torch.Tensor, denominator: float) -> torch.Tensor:
+    """`numerator / denominator` for a number `denominator`, correctly rounded on every device:
+    CUDA divides a tensor by a Python number as a product with its reciprocal, which can differ
+    from the quotient in the last bit (a GD near-tie then breaks the other way), so the number is
+    made a tensor first."""
+    numerator = numerator.to(torch.float64)
+    return numerator / torch.full_like(numerator, denominator)
+
+
 def round_half_even(x: torch.Tensor) -> torch.Tensor:
     """`roundHalfEven` on float64, branch for branch: NaN takes the last branch and stays NaN."""
     floor = torch.floor(x)

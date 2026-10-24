@@ -10,14 +10,14 @@ import torch
 
 from .gd_choice import draw
 from .gd_helper import Helper, clamp01
-from .gd_odds import fround, fround_t, round_half_even
+from .gd_odds import div, fround, fround_t, round_half_even
 from .gd_personas import Weights
 
 
 def normalize_score(score: torch.Tensor, most: float) -> torch.Tensor:
     """`AIPersona.NormalizeScore`: capped at the maximum, floored at 0, over the maximum."""
     s = torch.where(score > most, most, score)
-    return torch.where(0 >= s, 0.0, s) / most
+    return div(torch.where(0 >= s, 0.0, s), most)
 
 
 def _column(x: torch.Tensor, like: torch.Tensor) -> torch.Tensor:
@@ -73,7 +73,7 @@ class BaseScorer:
         bordering = (placed_on[:, :, None] & board.board.adjacency[None]).sum(1)  # [B, 42]
         _, n, enemy_slot = h.enemy_slots(c)
         k = torch.where(enemy_slot, board.at(bordering, n), 0).sum(-1)
-        s = torch.where(board.at(placed_on, c), s / 1.5, torch.where(k == enemies, s / fround(1.85), s))
+        s = torch.where(board.at(placed_on, c), div(s, 1.5), torch.where(k == enemies, div(s, fround(1.85)), s))
         s = torch.where(0 > s, 0.0, s)
         most = (w.card_bonus + w.continent_bonus + w.deploy_continent_ownership + w.deploy_border_weakness
                 + w.deploy_enemy_strength + w.eliminate_player + w.focus_leading_player)
@@ -114,7 +114,7 @@ class BaseScorer:
         s = s - es * w.attack_enemy_strength
         s = s - turns
         s = torch.where(0 > s, 0.0, s)
-        return torch.where(clamp01(threshold / 100) > bs_max, 0.0, normalize_score(s, self.attack_source_max()))
+        return torch.where(clamp01(div(threshold, 100)) > bs_max, 0.0, normalize_score(s, self.attack_source_max()))
 
     def threshold(self) -> torch.Tensor:
         """The attack's success threshold `[B]`: the desperate one until the turn's first capture."""
@@ -146,7 +146,7 @@ class BaseScorer:
         s = s - es * w.attack_enemy_strength
         s = torch.where(0 >= s, 0.0, s)
         most = w.attack_to_continent_ownership + w.eliminate_player + (100 - w.risky) + w.continent_bonus + w.focus_leading_player
-        return torch.where(clamp01(threshold / 100) > bs, 0.0, normalize_score(s, most))
+        return torch.where(clamp01(div(threshold, 100)) > bs, 0.0, normalize_score(s, most))
 
     def attack_move_units_amount(self, low: torch.Tensor, high: torch.Tensor, source: torch.Tensor, target: torch.Tensor,
                                  amounts: torch.Tensor) -> torch.Tensor:
@@ -249,7 +249,7 @@ class StackerScorer(BaseScorer):
         smax = h.battle_success_max(c)
         threshold = _column(self.threshold(), c)
         limit = _column(h.attack_turns_limit(fround(0.45), 3), c)
-        return torch.where(clamp01(threshold / 100) > smax, 0.0, normalize_score(power + smax - limit, 1 + 1))
+        return torch.where(clamp01(div(threshold, 100)) > smax, 0.0, normalize_score(power + smax - limit, 1 + 1))
 
     def attack_move_units_amount(self, low: torch.Tensor, high: torch.Tensor, source: torch.Tensor, target: torch.Tensor,
                                  amounts: torch.Tensor) -> torch.Tensor:

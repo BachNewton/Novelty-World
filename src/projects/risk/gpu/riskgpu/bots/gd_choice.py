@@ -10,7 +10,7 @@ number.
 import torch
 
 from ..rng import MASK, next_draws
-from .gd_odds import round_half_even
+from .gd_odds import div, round_half_even
 
 _GOLDEN = 0x6D2B79F5
 _NONE = 1 << 30
@@ -47,7 +47,7 @@ def iterative_array(start: torch.Tensor, end: torch.Tensor) -> tuple[torch.Tenso
     diff = end - start
     i = torch.arange(AMOUNTS, device=start.device)[None, :]
     every = (diff + 1 <= AMOUNTS)[:, None]
-    step = diff.to(torch.float64) / 99
+    step = div(diff, 99)
     spread = round_half_even(i * step[:, None]).to(torch.int64) + start[:, None]
     spread[:, 0] = start
     spread[:, AMOUNTS - 1] = end

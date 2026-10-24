@@ -14,7 +14,7 @@ from functools import cached_property
 import torch
 
 from .gd_board import GDBoard
-from .gd_odds import Odds, fround, fround_t, round_half_even
+from .gd_odds import Odds, div, fround, fround_t, round_half_even
 
 # The Expert multiplier of `GetAttackTurnsLimit`.
 EXPERT_ATTACK_TURNS = 0.75
@@ -27,7 +27,7 @@ def clamp01(x: torch.Tensor) -> torch.Tensor:
 
 def cut_off(value: torch.Tensor, cut: float) -> torch.Tensor:
     """`AIHelper.CutOff`."""
-    return torch.where(cut > value, 0.0, clamp01((value - cut) / (1 - cut)))
+    return torch.where(cut > value, 0.0, clamp01(div(value - cut, 1 - cut)))
 
 
 class Helper:
@@ -115,7 +115,7 @@ class Helper:
         owns = self.board.owner_owns_continent(t)
         x = self.battle_success(s, t, owns) * 0.4
         bonus = b.continent_bonus.to(torch.int64)[b.continent_of[t]]
-        r = torch.trunc(bonus.to(torch.float64) / int(b.continent_bonus.max())) * 0.4
+        r = torch.trunc(div(bonus, int(b.continent_bonus.max()))) * 0.4
         x = x + 0.2
         x = x + r
         return torch.where(owns, clamp01(x), 0.0)
@@ -155,7 +155,7 @@ class Helper:
         a = clamp01((my_c - e_c) / my_c)
         b = clamp01((my_u - e_u) / my_u)
         c = clamp01((units - e_u) / units)
-        d = clamp01(board.cards(enemy).to(torch.float64) / 5)
+        d = clamp01(div(board.cards(enemy), 5))
         r = b * 1.2
         r = r + a * 0.8
         r = r + c * 1.4
@@ -182,7 +182,7 @@ class Helper:
         s = s + torch.where(cards == 3, 2.0, torch.where(cards == 4, 4.0, torch.where(cards == 5, 6.0, 0.0)))
         next_player = board.next_player.view(-1, *([1] * (enemy.dim() - 1)))
         s = torch.where(next_player == enemy, round_half_even(s * 1.5), s)
-        return clamp01(s / ideal / 3)
+        return clamp01(div(s / ideal, 3))
 
     def enemy_strength(self, src: torch.Tensor) -> torch.Tensor:
         """`GetEnemyStrength(source)`."""
@@ -299,8 +299,8 @@ class Helper:
         bs = self.battle_success_units(s, tgt, units, ask)
         required = min(1.0, max(0.0, float(self.attack_success_threshold)))
         ideal = self.odds.ideal_attack_units(self.units(tgt), required)
-        m = clamp01((units - ideal).to(torch.float64) / 5)
-        score = (4 * own + 2 * bs + 2 * (1 - m)) / 8
+        m = clamp01(div(units - ideal, 5))
+        score = div(4 * own + 2 * bs + 2 * (1 - m), 8)
         return cut_off(score, fround(0.55))
 
     def _best_over_enemies(self, goal, units: torch.Tensor, s: torch.Tensor) -> torch.Tensor:
