@@ -293,6 +293,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--self-share", type=float, default=0.2, help="share of non-learner seats taken by the learner")
     p.add_argument("--snapshot-share", type=float, default=0.0, help="share of non-learner seats taken by past checkpoints")
+    p.add_argument("--reward", default="win", choices=["win", "place"])
+    p.add_argument("--lr-end", type=float, default=None, help="anneal the learning rate linearly to this over --hours")
     p.add_argument("--gd-share", type=float, default=0.0, help="share of non-learner seats taken by GD's personas")
     p.add_argument("--snapshot-every", type=int, default=50)
     p.add_argument("--eval-every", type=int, default=25)
@@ -342,7 +344,8 @@ def main(argv: list[str] | None = None) -> int:
     if need_gd:
         from ..bots.gd import gd_bot_graphable
         gd_bots = [gd_bot_graphable(p, tables) for p in GD_PERSONAS]
-    cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon, gd=args.gd_share > 0)
+    cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon, gd=args.gd_share > 0,
+                    reward=args.reward)
     env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}",
               gd_bots=gd_bots if args.gd_share > 0 else None)
     kinds = KIND_NAMES + [f"snap{k}" for k in range(cfg.snapshots)]
@@ -355,7 +358,14 @@ def main(argv: list[str] | None = None) -> int:
         probs[GREEDY] = max(0.0, 1.0 - args.self_share - snap_share - args.gd_share)
         for k in range(len(GD_PERSONAS)):
             probs[GD + k] = args.gd_share / len(GD_PERSONAS)
-        for k, path in enumerate(random.sample(league, snaps)):
+        # The newest half of the slots, the rest drawn from older checkpoints: a learner must keep
+        # beating its recent selves (m2a regressed against them while beating the fixed bots).
+        n_recent = snaps - snaps // 2
+        recent = league[len(league) - n_recent:] if n_recent else []
+        rest = league[:len(league) - n_recent]
+        chosen = recent + random.sample(rest, min(snaps // 2, len(rest)))
+        snaps = len(chosen)
+        for k, path in enumerate(chosen):
             env.snapshots[k].load_state_dict(torch.load(path, map_location=device, weights_only=False))
             probs[SNAPSHOT + k] = snap_share / snaps
         env.kind_probs.copy_(probs.to(device))
@@ -378,6 +388,10 @@ def main(argv: list[str] | None = None) -> int:
 
     while iteration < args.iters and time.time() - started < args.hours * 3600:
         t0 = time.time()
+        if args.lr_end is not None:
+            frac = min(1.0, (t0 - started) / (args.hours * 3600))
+            for group in opt.param_groups:
+                group["lr"] = args.lr + (args.lr_end - args.lr) * frac
         env.run(args.horizon)
         boot = env.bootstrap()
         targets = advantages(env, boot, args.lam)

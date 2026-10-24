@@ -8,8 +8,8 @@ over at a win or at its own turn cap, its seats' scores, and the game replaced i
 deal from a pool. Nothing in the step reads a value back to the host, so the whole of it replays as
 one graph; the host only launches it and, between rollouts, refills the pool and trains.
 
-**Scores.** A seat finishing in place p of n scores 1 − 2(p − 1)/(n − 1): the winner +1, the first
-out −1. The survivors of a capped game all score as k-th of n (k survivors) less 0.5, never below
+**Scores** (`scores`). By default the winner scores +1 and the other places run from 0 (second) to
+−1 (the first out); the `place` reward is linear in the place. The survivors of a capped game all score as k-th of n (k survivors) less 0.5, never below
 −1: a draw at the cap is never better than placing just behind the survivors, so no table can
 settle into the stall and call it a result (`ideas/stalled-games.md`).
 
@@ -70,19 +70,26 @@ class EnvConfig:
     cap_learner: float = 0.6
     cap_snapshot: float = 0.25
     cap_greedy: float = 1.0
+    reward: str = "win"  # `scores`: "win" or "place"
     gd: bool = False  # build the GD personas (slow to build: their odds tables)
     cap_gd: tuple[float, ...] = (0.2, 0.2, 0.2, 0.08)  # by persona; Stacker's walk is the costly one
 
 
 def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor, won: torch.Tensor,
-           in_game: torch.Tensor) -> torch.Tensor:
-    """`[B, 6]` float32, each seat's score for a game that just ended (0 for absent seats)."""
+           in_game: torch.Tensor, reward: str = "win") -> torch.Tensor:
+    """`[B, 6]` float32, each seat's score for a game that just ended (0 for absent seats).
+    `place`: linear in the place, +1 first to −1 last. `win`: +1 for the win, the other places
+    linear from 0 (second) to −1 (last), so second place is worth nothing over a loss in the way a
+    win is (placement alone taught m2a to settle for a place)."""
     n = players.to(torch.float32)[:, None]
     seats = torch.arange(MAX_SEATS, device=players.device)[None, :]
     present = seats < players.to(torch.int64)[:, None]
 
     def score(p):
-        return 1 - 2 * (p.to(torch.float32) - 1) / (n - 1)
+        p = p.to(torch.float32)
+        if reward == "place":
+            return 1 - 2 * (p - 1) / (n - 1)
+        return torch.where(p <= 1, 1.0, -(p - 2) / (n - 2))
 
     survivors = (score(in_game[:, None].expand(-1, MAX_SEATS)) - 0.5).clamp(min=-1)
     capped_score = torch.where(eliminated, score(places), survivors)
@@ -275,7 +282,7 @@ class Env:
         self.in_game.sub_(newly_out.sum(1))
         won = s.phase == 3
         ended = ~self.done & (won | (s.turn.to(torch.int64) > self.cap))
-        reward = scores(s.players, self.places, s.eliminated, won, self.in_game)
+        reward = scores(s.players, self.places, s.eliminated, won, self.in_game, cfg.reward)
         reward = torch.where(ended[:, None], reward, 0.0)
 
         # Board shares, per seat, for the auxiliary target.
