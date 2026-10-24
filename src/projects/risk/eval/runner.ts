@@ -1,5 +1,5 @@
 import { createRng } from "@/shared/lib/seeded-random";
-import type { GameEvent, GameView, Move, RiskEngine, Seat } from "../contract";
+import type { GameEvent, GameState, GameView, Move, RiskEngine, Seat } from "../contract";
 import { referenceEngine } from "../engine";
 import type { Bot, BotInput } from "../bots/bot";
 import { riskBot } from "../bots";
@@ -31,14 +31,15 @@ export interface PlayOptions {
   maxTurns: number;
   engine?: RiskEngine;
   /** Watches the game as it is played (the review tool): each bot's input and move, and the
-   *  events each move caused with the board after it, as a spectator sees it. */
+   *  events each move caused with the board after it, as a spectator sees it, and the whole
+   *  state for tools that check the engine itself (`native/`), never for a bot. */
   observe?: Observer;
 }
 
 export interface Observer {
   decided?(input: BotInput, move: Move): void;
-  applied?(seat: Seat, move: Move, events: readonly GameEvent[], board: GameView): void;
-  started?(events: readonly GameEvent[], board: GameView): void;
+  applied?(seat: Seat, move: Move, events: readonly GameEvent[], board: GameView, state: GameState): void;
+  started?(events: readonly GameEvent[], board: GameView, state: GameState): void;
 }
 
 /** Plays one game to its end or the turn cap. A bot's illegal move throws: it is a
@@ -59,7 +60,7 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine, obser
     });
   };
   record(started.events);
-  observe?.started?.(started.events, engine.view(state, null));
+  observe?.started?.(started.events, engine.view(state, null), state);
   const humans: readonly boolean[] = Array.from({ length: players }, () => false);
   // The bots' own random stream: derived from the game's seed through a hash, so
   // it is fixed per game but nothing about the game's dice or deck can be read
@@ -107,7 +108,7 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine, obser
     }
     state = result.state;
     record(result.events);
-    observe?.applied?.(seat, move, result.events, engine.view(state, null));
+    observe?.applied?.(seat, move, result.events, engine.view(state, null), state);
   }
 }
 
