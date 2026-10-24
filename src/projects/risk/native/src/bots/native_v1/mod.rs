@@ -7,12 +7,14 @@ mod decisions;
 mod evaluate;
 mod fights;
 mod hands;
+mod knobs;
 mod memo;
 mod opponents;
 mod params;
 mod plans;
 mod routes;
 
+pub use knobs::Knobs;
 pub use params::{Params, Preferences, NATIVE_V1};
 
 use crate::bot::{Bot, BotInput};
@@ -36,7 +38,11 @@ impl Bot for NativeV1 {
         let om = self.params.opponents;
         let record = Record::read(input.history, om.history_decay, input.seat);
         let prefs = *self.params.prefs_for(b.alive_count());
-        let judge = Judge::new(input.seat, prefs, om, record);
+        let knobs = self
+            .params
+            .knobs
+            .in_effect(b.players as usize, b.alive_count());
+        let judge = Judge::new(input.seat, prefs, om, record, knobs);
         match input.options {
             Options::Reinforce(r) => {
                 if !r.sets.is_empty() {

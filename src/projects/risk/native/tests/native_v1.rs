@@ -379,3 +379,26 @@ fn wins_clearly_alone_among_greedy_bots() {
         assert!(share >= 0.7, "{players} players: {wins}/{decided}");
     }
 }
+
+/// One 5-player game with `label` in every seat.
+fn mirror_game(label: &str) -> GameRecord {
+    let bots: Vec<Box<dyn Bot>> = (0..5).map(|_| bot(label).unwrap()).collect();
+    let seated: Vec<&dyn Bot> = bots.iter().map(|b| b.as_ref()).collect();
+    play_game("knobs", &seated, 120).unwrap()
+}
+
+#[test]
+fn rule_v6_1_settings_off_or_gated_off_are_native_v1() {
+    let own = mirror_game("native-v1");
+    assert_eq!(mirror_game("native-v1~{}"), own);
+    // The settings' table-size gate keeps every change off at a 5-player table.
+    assert_eq!(
+        mirror_game(r#"native-v1~{"power":"armies","border":"max","attrition":6,"minPlayers":6}"#),
+        own
+    );
+    // And a setting in force plays another game.
+    assert_ne!(
+        mirror_game(r#"native-v1~{"power":"armies","armyRounds":4,"armyBeyond":0.25}"#),
+        own
+    );
+}

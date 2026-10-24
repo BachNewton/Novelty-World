@@ -7,6 +7,7 @@
 use super::board::{income_of, mix128, round, spread, Board, Scan, N};
 use super::fights;
 use super::hands::{card_worth, hand_value, hidden_cards, hidden_hand, size, DRAW_CHANCE};
+use super::knobs::{BorderMode, Knobs, Reprice};
 use super::memo::{new_memo, remembered, Memo};
 use super::params::{OpponentModel, Preferences};
 use super::routes::kill_chance;
@@ -317,11 +318,16 @@ pub fn unknown_cards(b: &Board, me: Seat) -> u8 {
 }
 
 pub struct Forecast {
+    /// Everyone's power, its armies priced by the settings' `power`.
     pub power: [f64; MAX_SEATS],
     pub total: f64,
     /// The common-threat bar at this table.
     pub ratio: f64,
+    /// The common threat `power` names.
     pub threat: Option<Seat>,
+    /// The common threat the opponents aim by and the planner builds its plans round: face
+    /// power's, unless the settings re-price fully.
+    pub plan_threat: Option<Seat>,
     /// The chance each seat outlives every opponent's turn before mine.
     pub spared: [f64; MAX_SEATS],
     /// My expected border losses: each opponent's aim times its hit, summed.
@@ -336,6 +342,7 @@ pub fn forecast(
     prefs: &Preferences,
     om: &OpponentModel,
     record: &Record,
+    knobs: &Knobs,
 ) -> Forecast {
     let h = prefs.income_horizon;
     let my_hand = b.hand[me as usize] + b.card_earned as u8;
@@ -360,6 +367,18 @@ pub fn forecast(
         };
         power[p as usize] =
             b.armies_of(p) as f64 + h * (income_of(b.own(p), weight) + card_income) + cards;
+    }
+    // Priced power is face power less each seat's armies' discount. It is carried beside face
+    // power through the kills below, which scale a victim's whole power and add only cards and
+    // income to the killer's, so the discount is scaled exactly as the armies it discounts.
+    let priced = knobs.armies_priced();
+    let mut priced_power = power;
+    if priced {
+        for &p in alive.iter() {
+            let armies = b.armies_of(p) as f64;
+            let discount = armies - knobs.priced_armies(armies, income_of(b.own(p), 1.0));
+            priced_power[p as usize] -= discount;
+        }
     }
 
     // Each opponent takes at most one victim before my next turn: it weighs the kills open to it
@@ -409,23 +428,43 @@ pub fn forecast(
             let gain = income_of(b.own(q) | b.own(v), 1.0) - income_of(b.own(q), 1.0);
             power[q as usize] += chance * (hidden_cards(b.hand[v as usize]) + h * gain);
             power[v as usize] *= 1.0 - chance;
+            if priced {
+                priced_power[q as usize] += chance * (hidden_cards(b.hand[v as usize]) + h * gain);
+                priced_power[v as usize] *= 1.0 - chance;
+            }
         }
     }
-    let total: f64 = alive.iter().map(|&p| power[p as usize]).sum();
     let ratio = om.leader_ratio + om.leader_ratio_per_player * (alive.len() as f64 - 4.0);
-    let mut threat = None;
-    for &p in alive.iter() {
-        if alive
-            .iter()
-            .all(|&q| q == p || power[p as usize] > ratio * power[q as usize])
-        {
-            threat = Some(p);
+    let threat_of = |power: &[f64; MAX_SEATS]| {
+        let mut threat = None;
+        for &p in alive.iter() {
+            if alive
+                .iter()
+                .all(|&q| q == p || power[p as usize] > ratio * power[q as usize])
+            {
+                threat = Some(p);
+            }
         }
-    }
+        threat
+    };
+    let face_threat = threat_of(&power);
+    let (power, threat) = if priced {
+        (priced_power, threat_of(&priced_power))
+    } else {
+        (power, face_threat)
+    };
+    let total: f64 = alive.iter().map(|&p| power[p as usize]).sum();
+    let plan_threat = if priced && knobs.reprice == Reprice::Full {
+        threat
+    } else {
+        face_threat
+    };
 
     // Each opponent's turn against me, weighted by how likely I am the one it hits: the worse of
     // its best blow and its sweep. Summed: each takes its own turn.
     let mut border_loss = 0.0;
+    let mut worst_loss = 0.0f64;
+    let mut counted = 0;
     let my_land = b.own(me);
     for &q in opponents.iter() {
         let q_income = round(income[q as usize]);
@@ -438,9 +477,9 @@ pub fn forecast(
             seen |= 1 << me;
         }
         let count = seen.count_ones() as f64;
-        let mut aim = if threat == Some(me) {
+        let mut aim = if plan_threat == Some(me) {
             om.leader_aim
-        } else if threat.is_some_and(|t| t != q) {
+        } else if plan_threat.is_some_and(|t| t != q) {
             om.ally_aim
         } else {
             let hurt = |v: Seat, t: &Turn| t.blow_cost(h).max(t.sweep_cost(b.own(v), h, 1.0));
@@ -469,12 +508,21 @@ pub fn forecast(
         let cw = prefs.my_continent_weight;
         let hit = mine.blow_cost(h * cw).max(mine.sweep_cost(my_land, h, cw));
         border_loss += aim * hit;
+        worst_loss = worst_loss.max(aim * hit);
+        counted += 1;
     }
+    let border_loss = match knobs.border {
+        BorderMode::Sum => border_loss,
+        BorderMode::Max => worst_loss,
+        BorderMode::Mean if counted == 0 => 0.0,
+        BorderMode::Mean => border_loss / counted as f64,
+    };
     Forecast {
         power,
         total,
         ratio,
         threat,
+        plan_threat,
         spared,
         border_loss,
         income,

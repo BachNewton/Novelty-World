@@ -16,7 +16,7 @@ import { recordGame, writeRecords, type GpuGameRecord } from "./gpu-record";
  *
  *  `--dump` also writes every state and every set of options in full as int32s, a debugging aid
  *  for the GPU side, never for committed fixtures. `--players n` seats the one bot `--bots` names
- *  at every seat. Defaults: 20 games, prefix `fx`, the harness's
+ *  at every seat, as does `--bot <label>`, which takes a tuned label whole. Defaults: 20 games, prefix `fx`, the harness's
  *  turn cap. */
 
 interface Args {
@@ -41,6 +41,10 @@ function parseArgs(argv: readonly string[]): Args {
     switch (flag) {
       case "--bots":
         a.bots = list(value, flag);
+        break;
+      // One label, taken whole: a tuned label carries commas.
+      case "--bot":
+        a.bots = [value];
         break;
       case "--players":
         players = number(value, flag);

@@ -4,6 +4,7 @@
 //! convenient fiction.
 
 use super::board::mix128;
+use super::knobs::Knobs;
 
 /// What I value. Each is read by my own equity only, unless its note says otherwise.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -67,6 +68,8 @@ pub struct Params {
     pub small_table: Preferences,
     pub small_table_seats: usize,
     pub opponents: OpponentModel,
+    /// rule-v6.1's settings; `Knobs::OFF` is native-v1 itself.
+    pub knobs: Knobs,
 }
 
 impl Params {
@@ -143,4 +146,5 @@ pub const NATIVE_V1: Params = Params {
         kill_rate: 0.25,
         my_kill_rate: 0.5,
     },
+    knobs: Knobs::OFF,
 };

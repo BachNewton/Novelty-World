@@ -1,4 +1,5 @@
 mod games;
+mod sweep;
 
 use risk_native::decide::check_file;
 use risk_native::engine::new_game;
@@ -18,7 +19,14 @@ const USAGE: &str = "usage:
   risk-native bots-serve                         answer seats' decisions, JSON lines on stdin
   risk-native bench <records.jsonl[.gz]...>      time options + apply over the records' positions
   risk-native games --bots <a,b...> [--players P] --seeds <prefix> --count N [--rotate] [--turns T] [--workers W]
-                                                 play native tables and report the lone bot's win share and time";
+                                                 play native tables and report the lone bot's win share and time
+  risk-native agree --bot <label> [--seats <recorded label>] <records.jsonl[.gz]...>
+                                                 how often a native bot decides as the recorded seats did
+  risk-native sweep --points <points.jsonl> --out <results.jsonl> [--players 5,6] [--groups A-B] [--mirror A-B]
+                    [--prefix P] [--base native-v1] [--turns T] [--workers W]
+                                                 map native-v1's rule-v6.1 settings against the base
+  risk-native sweep-report <results.jsonl...> [--json <out.json>]
+                                                 sum sweep results by point: cap rates, win shares, Elo";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -40,6 +48,9 @@ fn main() -> ExitCode {
         Some("play") => play(&args[1..]),
         Some("bench") if args.len() > 1 => bench(&args[1..]),
         Some("games") => games::games(&args[1..]),
+        Some("agree") => agree(&args[1..]),
+        Some("sweep") => sweep::sweep(&args[1..]),
+        Some("sweep-report") if args.len() > 1 => sweep::report(&args[1..]),
         _ => Err(USAGE.to_string()),
     };
     match result {
@@ -197,6 +208,54 @@ fn bench(files: &[String]) -> Result<(), String> {
         elapsed / n * 1e9,
         n / elapsed / 1e6,
         setups / (games.len() * rounds) as f64 * 1e6
+    );
+    Ok(())
+}
+
+fn agree(args: &[String]) -> Result<(), String> {
+    let mut label = None;
+    let mut seats = None;
+    let mut files = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--bot" => {
+                label = args.get(i + 1).cloned();
+                i += 2;
+            }
+            "--seats" => {
+                seats = args.get(i + 1).cloned();
+                i += 2;
+            }
+            _ => {
+                files.push(args[i].clone());
+                i += 1;
+            }
+        }
+    }
+    let label = label.ok_or("name --bot")?;
+    let mut total = std::collections::BTreeMap::<&str, (u32, u32)>::new();
+    for f in &files {
+        for (k, (a, n)) in risk_native::decide::agreement(Path::new(f), &label, seats.as_deref())? {
+            let e = total.entry(k).or_default();
+            e.0 += a;
+            e.1 += n;
+        }
+    }
+    let (mut a, mut n) = (0, 0);
+    let mut parts = Vec::new();
+    for (k, (x, y)) in &total {
+        a += x;
+        n += y;
+        parts.push(format!(
+            "{k} {x}/{y} ({:.1}%)",
+            100.0 * *x as f64 / *y as f64
+        ));
+    }
+    println!(
+        "{label}: {a}/{n} = {:.2}% | {}",
+        100.0 * a as f64 / n.max(1) as f64,
+        parts.join(", ")
     );
     Ok(())
 }

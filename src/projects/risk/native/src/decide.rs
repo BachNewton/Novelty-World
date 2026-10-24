@@ -3,8 +3,10 @@
 //! the recorded one.
 
 use crate::bots::bot;
+use crate::engine::Options;
 use crate::record::{encode_move, read_records, recorded_move, RecordedGame};
 use crate::runner::drive;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// Asks the record's bots every decision; returns the decisions compared, or the first mismatch.
@@ -76,6 +78,47 @@ pub fn check_file(path: &Path) -> Result<Tally, String> {
         })?;
         tally.games += 1;
         tally.decisions += compared;
+    }
+    Ok(tally)
+}
+
+/// How often `label` decides as a record's own seats did, by decision kind: at every decision of a
+/// seat whose recorded bot is `seats` (every seat when None), `label` is asked on the exact input
+/// the runner builds, and the game goes on with the recorded move. Returns per kind the decisions
+/// agreed and asked.
+pub fn agreement(
+    path: &Path,
+    label: &str,
+    seats: Option<&str>,
+) -> Result<BTreeMap<&'static str, (u32, u32)>, String> {
+    let mine = bot(label).ok_or_else(|| format!("no native bot \"{label}\""))?;
+    let mut tally = BTreeMap::new();
+    for record in read_records(path)? {
+        drive(
+            &record.seed,
+            record.players,
+            record.max_turns,
+            |decision, input| {
+                let recorded = record.moves.get(decision as usize).ok_or_else(|| {
+                    format!("{}: the record ends and the game goes on", record.seed)
+                })?;
+                let (seat, mv) = recorded_move(recorded)?;
+                if seats.is_none_or(|l| record.bots[seat as usize] == l) {
+                    let kind = match input.options {
+                        Options::Reinforce(r) if !r.sets.is_empty() => "trade",
+                        Options::Reinforce(_) => "placement",
+                        Options::Attack(_) => "attack",
+                        Options::Occupy { .. } => "move-in",
+                        Options::Fortify(_) => "fortify",
+                    };
+                    let e: &mut (u32, u32) = tally.entry(kind).or_default();
+                    e.1 += 1;
+                    e.0 += u32::from(mine.decide(input) == mv);
+                }
+                Ok(mv)
+            },
+            |_| {},
+        )?;
     }
     Ok(tally)
 }
