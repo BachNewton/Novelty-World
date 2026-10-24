@@ -3,7 +3,7 @@
 //! exactly as the TypeScript builds them, so a game is a pure function of its seed and seating.
 
 use crate::bot::{Bot, BotInput};
-use crate::engine::{new_game, Event, EventKind, Game, Phase, Seat, Trade};
+use crate::engine::{new_game, Event, EventKind, Game, Move, Phase, Seat, Trade};
 use crate::jsmath::to_base36;
 use crate::rng::Rng;
 use serde::{Deserialize, Serialize};
@@ -89,7 +89,24 @@ impl Histories {
 /// Plays one game to its end or the turn cap. A bot's illegal move is an error: a bug in the bot,
 /// never a move to be quietly replaced.
 pub fn play_game(seed: &str, bots: &[&dyn Bot], max_turns: u32) -> Result<GameRecord, String> {
-    let players = bots.len();
+    drive(
+        seed,
+        bots.len(),
+        max_turns,
+        |_, input| Ok(bots[input.seat as usize].decide(input)),
+        |_| {},
+    )
+}
+
+/// The game loop under `play_game`, with each decision's move from `decide` (given the decision's
+/// index and the exact input a bot is given) and `applied` shown the game after each move.
+pub fn drive(
+    seed: &str,
+    players: usize,
+    max_turns: u32,
+    mut decide: impl FnMut(u32, &BotInput) -> Result<Move, String>,
+    mut applied: impl FnMut(&Game),
+) -> Result<GameRecord, String> {
     if !(3..=6).contains(&players) {
         return Err(format!("Risk is for 3 to 6 players, not {players}"));
     }
@@ -132,10 +149,11 @@ pub fn play_game(seed: &str, bots: &[&dyn Bot], max_turns: u32) -> Result<GameRe
             humans: &humans,
             seed: &decision_seed,
         };
-        let mv = bots[seat as usize].decide(&input);
+        let mv = decide(decision, &input)?;
         let events = game.apply(seat, mv).map_err(|reason| {
             format!("seat {seat}'s bot made an illegal move ({reason}): {mv:?}")
         })?;
+        applied(&game);
         places.record(&events);
         histories.record(&events);
     }

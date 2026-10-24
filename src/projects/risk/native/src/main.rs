@@ -1,12 +1,16 @@
+use risk_native::decide::check_file;
 use risk_native::engine::new_game;
 use risk_native::lockstep::replay_file;
-use risk_native::record::{read_records, recorded_move};
+use risk_native::record::{read_records, record_game, recorded_move, write_records};
 use std::path::Path;
 use std::process::ExitCode;
 use std::time::Instant;
 
 const USAGE: &str = "usage:
   risk-native lockstep <records.jsonl[.gz]...>   replay recorded TypeScript games move for move
+  risk-native decide <records.jsonl[.gz]...>     ask each seat's native bot every recorded decision
+  risk-native play --bots <a,b,c...> [--players P] --seeds <prefix> --count N [--turns T] --out <file>
+                                                 play native games and write them as records
   risk-native serve [--workers N]                play the harness's game specs, JSON lines on stdin
   risk-native bench <records.jsonl[.gz]...>      time options + apply over the records' positions";
 
@@ -17,6 +21,8 @@ fn main() -> ExitCode {
         Some("serve") => workers(&args[1..]).and_then(|w| {
             risk_native::serve::serve(std::io::stdin().lock(), std::io::stdout().lock(), w)
         }),
+        Some("decide") if args.len() > 1 => decide(&args[1..]),
+        Some("play") => play(&args[1..]),
         Some("bench") if args.len() > 1 => bench(&args[1..]),
         _ => Err(USAGE.to_string()),
     };
@@ -58,6 +64,84 @@ fn lockstep(files: &[String]) -> Result<(), String> {
     if failed > 0 {
         return Err(format!("{failed} of {} files diverged", files.len()));
     }
+    Ok(())
+}
+
+fn decide(files: &[String]) -> Result<(), String> {
+    for file in files {
+        let t = check_file(Path::new(file))?;
+        println!(
+            "{file}: {} games, {} decisions, every one the recorded move",
+            t.games, t.decisions
+        );
+    }
+    Ok(())
+}
+
+/// `risk:native-fixtures`'s arguments and seeds (`<prefix>-1` to `<prefix>-<count>`), so the
+/// TypeScript checker can hold the games to its own bots.
+fn play(args: &[String]) -> Result<(), String> {
+    let mut bots: Option<Vec<String>> = None;
+    let mut players: Option<usize> = None;
+    let mut prefix: Option<String> = None;
+    let mut count: Option<u32> = None;
+    let mut max_turns = 600;
+    let mut out: Option<String> = None;
+    let number = |flag: &str, value: &str| {
+        value
+            .parse::<u32>()
+            .map_err(|_| format!("{flag} takes a number, not \"{value}\""))
+    };
+    for pair in args.chunks(2) {
+        let [flag, value] = pair else {
+            return Err(format!(
+                "{} has no value
+{USAGE}",
+                pair[0]
+            ));
+        };
+        match flag.as_str() {
+            "--bots" => bots = Some(value.split(',').map(String::from).collect()),
+            "--players" => players = Some(number(flag, value)? as usize),
+            "--seeds" => prefix = Some(value.clone()),
+            "--count" => count = Some(number(flag, value)?),
+            "--turns" => max_turns = number(flag, value)?,
+            "--out" => out = Some(value.clone()),
+            _ => {
+                return Err(format!(
+                    "unknown argument \"{flag}\"
+{USAGE}"
+                ))
+            }
+        }
+    }
+    let (Some(bots), Some(prefix), Some(count), Some(out)) = (bots, prefix, count, out) else {
+        return Err(format!(
+            "name --bots, --seeds, --count and --out
+{USAGE}"
+        ));
+    };
+    let seated = match players {
+        Some(_) if bots.len() != 1 => {
+            return Err("--players seats one bot at every seat: name a single bot with it".into())
+        }
+        Some(p) => vec![bots[0].clone(); p],
+        None => bots,
+    };
+    let started = Instant::now();
+    let games = (1..=count)
+        .map(|n| record_game(&format!("{prefix}-{n}"), &seated, max_turns))
+        .collect::<Result<Vec<_>, _>>()?;
+    let bytes = write_records(Path::new(&out), &games)?;
+    let decisions: u32 = games.iter().map(|g| g.decisions).sum();
+    let capped = games.iter().filter(|g| g.result.capped).count();
+    println!(
+        "{out}: {} games [{}], {capped} capped, {decisions} decisions, {} KB, {:.1} s",
+        games.len(),
+        seated.join(","),
+        bytes / 1024,
+        started.elapsed().as_secs_f64()
+    );
     Ok(())
 }
 

@@ -6,6 +6,7 @@ pub mod bot;
 pub mod bots;
 pub mod canonical;
 pub mod cards;
+pub mod decide;
 pub mod engine;
 pub mod jsmath;
 pub mod list;

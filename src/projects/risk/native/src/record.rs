@@ -1,14 +1,18 @@
-//! `eval/native/record.ts`: game records, a game kept as its seed, its seating, its moves and the
+//! `eval/gpu-record.ts`: game records, a game kept as its seed, its seating, its moves and the
 //! canonical hashes of the active seat's options before every move and of the state after it, one
 //! JSON object a line, gzipped when the name ends in `.gz`.
 
+use crate::bots::bot;
+use crate::canonical::{options_hash, state_hash};
 use crate::cards::Card;
 use crate::engine::{Move, Seat, Territory};
 use crate::map::TERRITORY_COUNT;
+use crate::runner::drive;
 use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -147,4 +151,64 @@ pub fn read_records(path: &Path) -> Result<Vec<RecordedGame>, String> {
         records.push(record);
     }
     Ok(records)
+}
+
+/// Writes records one a line, gzipped when the name ends in `.gz`; returns the bytes written.
+pub fn write_records(path: &Path, records: &[RecordedGame]) -> Result<u64, String> {
+    let mut text = String::new();
+    for record in records {
+        text += &serde_json::to_string(record).map_err(|e| e.to_string())?;
+        text.push('\n');
+    }
+    let bytes = if path.extension().is_some_and(|e| e == "gz") {
+        let mut gz = GzEncoder::new(Vec::new(), flate2::Compression::default());
+        gz.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+        gz.finish().map_err(|e| e.to_string())?
+    } else {
+        text.into_bytes()
+    };
+    std::fs::write(path, &bytes).map_err(|e| format!("can't write {}: {e}", path.display()))?;
+    Ok(bytes.len() as u64)
+}
+
+/// Plays a game on the runner, a native bot at each seat by label, and keeps it as a record, as
+/// `recordGame` keeps a TypeScript one.
+pub fn record_game(seed: &str, labels: &[String], max_turns: u32) -> Result<RecordedGame, String> {
+    let bots = labels
+        .iter()
+        .map(|label| bot(label).ok_or_else(|| format!("no native bot \"{label}\"")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut moves = Vec::new();
+    let mut options_hashes = Vec::new();
+    let mut state_hashes = Vec::new();
+    let game = drive(
+        seed,
+        labels.len(),
+        max_turns,
+        |_, input| {
+            let mv = bots[input.seat as usize].decide(input);
+            let [kind, x, y, z, w] = encode_move(mv);
+            options_hashes.push(options_hash(input.options));
+            moves.push([input.seat as i64, kind, x, y, z, w]);
+            Ok(mv)
+        },
+        |game| state_hashes.push(state_hash(game)),
+    )?;
+    Ok(RecordedGame {
+        seed: seed.to_string(),
+        players: labels.len(),
+        max_turns,
+        bots: labels.to_vec(),
+        initial_hash: state_hash(&crate::engine::new_game(labels.len(), seed).0),
+        moves,
+        state_hashes,
+        options_hashes,
+        result: RecordedResult {
+            winner: game.winner.map_or(-1, |w| w as i32),
+            turns: game.turns,
+            capped: game.winner.is_none(),
+            places: game.places,
+        },
+        decisions: game.decisions,
+    })
 }

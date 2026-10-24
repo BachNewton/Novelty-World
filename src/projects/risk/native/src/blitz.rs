@@ -351,7 +351,7 @@ fn roll_fight(a: usize, d: usize, roll: &mut dyn FnMut() -> f64) -> BlitzResult 
 // GD's estimate of the fair odds of a fight too large to work out.
 
 /// .NET's `Math.Round`: halves round to even.
-fn round_half_even(x: f64) -> f64 {
+pub fn round_half_even(x: f64) -> f64 {
     let floor = x.floor();
     let fraction = x - floor;
     if fraction > 0.5 {
