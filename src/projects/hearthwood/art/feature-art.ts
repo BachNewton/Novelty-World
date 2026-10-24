@@ -96,6 +96,8 @@ export interface PostInput {
   colour: Node<"vec4">;
   /** The scene's depth as the depth buffer holds it (reversed: 1 near, 0 far and the sky). */
   depth: Node<"float">;
+  /** The scene's depth at another point of the frame (0 to 1 across it), as the depth buffer holds it: for steps that compare neighbours (ink edges). */
+  depthAt: (uv: Node<"vec2">) => Node<"float">;
   /** The distance along the view to what was drawn at this pixel, in metres. */
   viewZ: Node<"float">;
   /** The scene's view-space normal, packed 0 to 1, where a step asked for normals. */

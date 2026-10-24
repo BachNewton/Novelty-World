@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest";
 import { moonAt, sunAt, type Moon, type Sun } from "../../engine/astronomy";
 import { realDayOf } from "../../engine/calendar";
 import { seasonWeights } from "../../engine/seasons";
-import type { Rgb } from "../sky/scattering";
-import { gradeFor, SEASON_GRADES, whiteBalance } from "./grade";
+import type { Rgb } from "./through-air";
+import { gradeFor, nightCooling, SEASON_GRADES, whiteBalance } from "./grade";
 import { handoverAt } from "./handover";
 import { FULL_MOON, moonlight } from "./moonlight";
-import { irradianceAt, projectLight } from "./sky-ambient";
 import { sunBrightness, sunlight } from "./sun";
 
 const HELSINKI = 60.17;
@@ -82,21 +81,6 @@ describe("the moonlight", () => {
   });
 });
 
-describe("the light from the sky all round", () => {
-  it("gives a surface under an even sky that sky's light from every side", () => {
-    const sh = projectLight(() => [0.5, 0.5, 0.5]);
-    for (const normal of [{ x: 0, y: 1, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }]) expect(irradianceAt(sh, normal)[1]).toBeCloseTo(0.5 * Math.PI, 1);
-  });
-
-  it("lights what faces a bright side more than what faces away", () => {
-    const sh = projectLight((d) => (d.y > 0 ? [0.2, 0.4, 0.9] : [0.05, 0.05, 0.03]));
-    const up = irradianceAt(sh, { x: 0, y: 1, z: 0 });
-    const down = irradianceAt(sh, { x: 0, y: -1, z: 0 });
-    expect(up[2]).toBeGreaterThan(4 * down[2]);
-    expect(up[2]).toBeGreaterThan(up[0]);
-  });
-});
-
 describe("the colour grade", () => {
   it("is each season's own in the middle of it, and moves gently between them", () => {
     expect(gradeFor(seasonWeights(realDayOf(7, 15)))).toEqual(SEASON_GRADES.summer);
@@ -117,5 +101,12 @@ describe("the colour grade", () => {
     }
     const [r, , b] = whiteBalance(0.3, 0);
     expect(r).toBeGreaterThan(b);
+  });
+
+  it("cools only the night, coming on through the twilight", () => {
+    expect(nightCooling(10)).toBe(0);
+    expect(nightCooling(-2)).toBe(0);
+    expect(nightCooling(-12)).toBe(1);
+    expect(nightCooling(-6)).toBeGreaterThan(0);
   });
 });

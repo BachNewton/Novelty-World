@@ -1,11 +1,13 @@
-import { Color } from "three";
+import { exp, float, floor, Loop, max, sin, smoothstep, sqrt, uniform, vec3 } from "three/tsl";
+import type { Node } from "three/webgpu";
 import { createRng } from "@/shared/lib/seeded-random";
 import type { Sun } from "../../engine/astronomy";
 import type { CalendarDate, Season } from "../../engine/calendar";
 import type { FeatureArt } from "../feature-art";
 import { smooth } from "../light/sun";
 import { SKY_INPUTS, sighted, type Sighting } from "./sky-inputs";
-import { SKY_NOISE_GLSL } from "./sky-noise";
+import { colourUniform, typed } from "../tsl";
+import { onlyWhere, skyDirection, skyHash4, skyNoise3 } from "./sky-nodes";
 import { skyColours } from "./tokens";
 
 /*
@@ -13,15 +15,14 @@ import { skyColours } from "./tokens";
  * nights are alike, curtains of green with violet edges hang in the north,
  * drifting and rippling, some nights faint and some nights a show. Mostly
  * in the long dark of autumn and winter; summer's bright nights hide them.
- * They light the land a little green (the light from the sky all round
- * takes `auroraLight`), and their light is offered to anything else lit by
- * the sky, such as clouds (`uHwAuroraLight`).
+ * They light the land a little green, through the light from the sky all
+ * round (`AURORA_LIGHT`, in the day's light).
  *
  * The curtains are drawn as the real ones stand: sheets about a hundred
  * kilometres up and more, running east to west across the northern sky,
- * with fine rays down them. The sky's shader steps up through them along
- * each view and gathers their light: green from the oxygen low down, violet
- * at the lower fringe and the tops.
+ * with fine rays down them. The sky gathers their light at a few heights
+ * along each view, jittered so the steps never show: green from the oxygen
+ * low down, violet at the lower fringe and the tops.
  */
 
 /** The chance of the northern lights on a night, by the season. */
@@ -57,76 +58,90 @@ export function auroraAt(date: CalendarDate, sun: Sun, sighting: Sighting = SKY_
 /** The light the aurora casts on the land at its fullest, against the sky's own brightness. */
 export const AURORA_LIGHT = 0.05;
 
-const uniforms = {
-  uHwAuroraStrength: { value: 0 },
-  uHwAuroraTime: { value: 0 },
-  uHwAuroraGreen: { value: new Color() },
-  uHwAuroraViolet: { value: new Color() },
-  /** The aurora's light on whatever the sky lights, for other features (clouds) to take. */
-  uHwAuroraLight: { value: new Color() },
-};
+const strength = uniform(0);
+const time = uniform(0);
+const green = colourUniform();
+const violet = colourUniform();
 
-const HEAD = /* glsl */ `
-uniform float uHwAuroraStrength;
-uniform float uHwAuroraTime;
-uniform vec3 uHwAuroraGreen;
-uniform vec3 uHwAuroraViolet;
-uniform vec3 uHwAuroraLight;
-${SKY_NOISE_GLSL}
+/** How many heights the view gathers the curtains' light from: few, as the curtains are soft and each layer is jittered. */
+const LAYERS = 8;
 
-// How much curtain stands at a point (kilometres east and south of the eye) of the layer at a height: a few sheets running east to west in the north, wandering, folding and rippling.
-float hwAuroraCurtain(vec2 p, float height, float t) {
-  float wander = 90.0 * sin(p.x / 420.0 + t * 0.03) + 60.0 * (hwSkyNoise3(vec3(p.x / 260.0, t * 0.02, 1.0)) - 0.5) * 2.0;
-  float sum = 0.0;
-  for (int k = 0; k < 3; k++) {
-    float fk = float(k);
-    float line = -170.0 - 130.0 * fk + wander * (1.0 - 0.3 * fk) + 25.0 * sin(p.x / (130.0 + 40.0 * fk) - t * (0.08 + 0.03 * fk));
-    float width = 7.0 + 9.0 * hwSkyNoise3(vec3(p.x / 90.0, fk * 3.1, t * 0.05));
-    float sheet = exp(-pow((p.y - line) / width, 2.0));
+/** How much curtain stands at a point (kilometres east and south of the eye): a few sheets running east to west in the north, wandering, folding and rippling. */
+function curtain(p: Node<"vec2">, t: Node<"float">): Node<"float"> {
+  const noise = (x: Node<"float">, y: Node<"float"> | number, z: Node<"float"> | number) => typed<"float">(skyNoise3(vec3(x, y, z)));
+  const wander = sin(p.x.div(420).add(t.mul(0.03)))
+    .mul(90)
+    .add(noise(p.x.div(260), t.mul(0.02), 1).sub(0.5).mul(120));
+  let sum: Node<"float"> = float(0);
+  for (let k = 0; k < 3; k++) {
+    const line = wander
+      .mul(1 - 0.3 * k)
+      .add(sin(p.x.div(130 + 40 * k).sub(t.mul(0.08 + 0.03 * k))).mul(25))
+      .sub(170 + 130 * k);
+    const width = noise(p.x.div(90), k * 3.1, t.mul(0.05))
+      .mul(9)
+      .add(7);
+    const off = p.y.sub(line).div(width);
+    const sheet = exp(off.mul(off).negate());
     // The fine rays down a curtain, and its light gathering and fading along it.
-    float rays = 0.45 + 0.55 * hwSkyNoise3(vec3(p.x / 4.5 + fk * 7.0, t * 0.25, 0.0));
-    float along = smoothstep(0.25, 0.7, hwSkyNoise3(vec3(p.x / 180.0 + fk * 5.0, t * 0.04, 2.0)));
-    sum += sheet * rays * along * (1.0 - 0.35 * fk);
+    const rays = noise(p.x.div(4.5).add(k * 7), t.mul(0.25), 0)
+      .mul(0.55)
+      .add(0.45);
+    const along = smoothstep(0.25, 0.7, noise(p.x.div(180).add(k * 5), t.mul(0.04), 2));
+    sum = sum.add(
+      sheet
+        .mul(rays)
+        .mul(along)
+        .mul(1 - 0.35 * k),
+    );
   }
   return sum;
 }
-`;
 
-const COLOUR = /* glsl */ `
-  vec3 dir = normalize(vHwWorld - cameraPosition);
-  if (uHwAuroraStrength > 0.0 && dir.y > 0.015) {
-    vec3 glow = vec3(0.0);
-    const int LAYERS = 32;
-    float jitter = hwSkyHash4(floor(dir * 1500.0)).x;
-    for (int i = 0; i < LAYERS; i++) {
-      float f = (float(i) + jitter) / float(LAYERS);
-      float height = 92.0 + 150.0 * f;
+function aurora(sky: Node<"vec3">): Node<"vec3"> {
+  const dir = skyDirection();
+  return onlyWhere(strength.greaterThan(0).and(dir.y.greaterThan(0.015)), sky, (colour) => {
+    const glow = vec3(0).toVar();
+    const jitter = typed<"vec4">(skyHash4(floor(dir.mul(1500)))).x;
+    Loop(LAYERS, ({ i }) => {
+      const f = float(i).add(jitter).div(LAYERS);
+      const height = f.mul(150).add(92);
       // Along the view to that height over the curved earth (kilometres).
-      float distance = (sqrt(dir.y * dir.y * 6371.0 * 6371.0 + 2.0 * 6371.0 * height + height * height) - dir.y * 6371.0);
-      vec2 p = dir.xz * distance;
-      float curtain = hwAuroraCurtain(p, height, uHwAuroraTime);
-      float green = smoothstep(93.0, 102.0, height) * exp(-max(0.0, height - 106.0) / 30.0);
-      float violet = exp(-pow((height - 95.0) / 3.5, 2.0)) * 0.7 + smoothstep(150.0, 190.0, height) * exp(-max(0.0, height - 190.0) / 30.0) * 0.3;
-      glow += (uHwAuroraGreen * green + uHwAuroraViolet * violet) * curtain;
-    }
-    hwColour += glow / float(LAYERS) * uHwAuroraStrength * smoothstep(0.015, 0.12, dir.y);
-  }
-`;
+      const distance = sqrt(
+        dir.y
+          .mul(dir.y)
+          .mul(6371 * 6371)
+          .add(height.mul(2 * 6371))
+          .add(height.mul(height)),
+      ).sub(dir.y.mul(6371));
+      const p = dir.xz.mul(distance);
+      const lit = curtain(p, time);
+      const greenAt = smoothstep(93, 102, height).mul(exp(max(height.sub(106), 0).div(-30)));
+      const low = height.sub(95).div(3.5);
+      const violetAt = exp(low.mul(low).negate())
+        .mul(0.7)
+        .add(
+          smoothstep(150, 190, height)
+            .mul(exp(max(height.sub(190), 0).div(-30)))
+            .mul(0.3),
+        );
+      glow.addAssign(green.mul(greenAt).add(violet.mul(violetAt)).mul(lit));
+    });
+    return colour.add(glow.mul(strength.div(LAYERS)).mul(smoothstep(0.015, 0.12, dir.y)));
+  });
+}
 
 /** How bright the curtains are drawn, at the sky's own brightness, on a night that is a show. */
 const BRIGHTNESS = 4.5;
 
 export const AURORA_ART: FeatureArt = {
   feature: "aurora",
-  uniforms,
-  chunks: [{ kinds: ["sky"], fragmentHead: HEAD, colour: COLOUR }],
+  stages: [{ kinds: ["sky"], colour: aurora }],
   frame: ({ day }) => {
-    const strength = auroraAt(day.date, day.sky.sun);
     const colours = skyColours();
-    uniforms.uHwAuroraStrength.value = strength * BRIGHTNESS;
-    uniforms.uHwAuroraTime.value = day.motion;
-    uniforms.uHwAuroraGreen.value.copy(colours["aurora-green"]);
-    uniforms.uHwAuroraViolet.value.copy(colours["aurora-violet"]);
-    uniforms.uHwAuroraLight.value.copy(colours["aurora-green"]).multiplyScalar(strength * AURORA_LIGHT);
+    strength.value = auroraAt(day.date, day.sky.sun) * BRIGHTNESS;
+    time.value = day.motion;
+    green.value.copy(colours["aurora-green"]);
+    violet.value.copy(colours["aurora-violet"]);
   },
 };

@@ -4,8 +4,7 @@
  * weather (`components/valley/world-weather.tsx`) unless `?rain=` holds the
  * rain, and wishes to see a rare sight on
  * demand rather than on its seeded nights. One plain object for the page,
- * started from the address (`?rain=<0-1>`, `?aurora=on|off`,
- * `?noctilucent=on|off`) and set live from the ~ panel's Sky section and by
+ * started from the address (`?rain=<0-1>`, `?aurora=on|off`) and set live from the ~ panel's Sky section and by
  * the screenshot tools (`window.__hearthwoodSky`).
  */
 
@@ -18,7 +17,6 @@ export interface SkyInputs {
   /** How much of the sun's disc is clear of cloud, 0 to 1: a rainbow needs the sun out. */
   sunOut: number;
   aurora: Sighting;
-  noctilucent: Sighting;
 }
 
 declare global {
@@ -39,7 +37,7 @@ export function readSkyInputs(search: string): SkyInputs {
   const params = new URLSearchParams(search);
   const rain = Number(params.get("rain") ?? 0);
   if (!(rain >= 0 && rain <= 1)) throw new Error(`?rain must be between 0 and 1, not ${params.get("rain") ?? ""}`);
-  return { rain, sunOut: 1, aurora: sighting(params.get("aurora"), "aurora"), noctilucent: sighting(params.get("noctilucent"), "noctilucent") };
+  return { rain, sunOut: 1, aurora: sighting(params.get("aurora"), "aurora") };
 }
 
 export const SKY_INPUTS: SkyInputs = typeof window === "undefined" ? readSkyInputs("") : readSkyInputs(window.location.search);

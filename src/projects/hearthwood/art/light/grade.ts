@@ -1,12 +1,15 @@
-import { ShaderMaterial, Vector3 } from "three";
+import { Vector3 } from "three";
+import { dot, exp, float, fract, max, min, mix, pow, smoothstep, step, uniform, vec3, vec4 } from "three/tsl";
+import type { Node } from "three/webgpu";
 import type { Season } from "../../engine/calendar";
 import { seasonWeights, type SeasonWeights } from "../../engine/seasons";
-import type { FeatureArt, PassFrame } from "../feature-art";
-import { FULL_SCREEN_VERTEX, FullScreen } from "../passes";
-import { SRGB_GLSL } from "./srgb";
+import type { FeatureArt } from "../feature-art";
+import { skyColours } from "../sky/tokens";
+import { colourUniform } from "../tsl";
+import { smooth } from "./sun";
 
 /*
- * The colour grade (`colourGrade`), a pass over the finished frame: its
+ * The colour grade (`colourGrade`), over the finished frame: its
  * brightness, contrast, saturation and white balance, the oranges, teals
  * and greens each adjusted on their own, and the shadows leaning towards
  * the moment's own colour (`uHwShadowTint`). Each season has its grade, and
@@ -14,9 +17,11 @@ import { SRGB_GLSL } from "./srgb";
  * do, so a summer is warm and full, an autumn golden with its greens gone
  * to olive, and a winter cool and quiet, its snow drawn back to white from
  * a low sun's golden haze, with the fire's orange the warmest thing in it.
+ * The night cools in it too: what is dim drains towards the blue the eye
+ * sees by in the dark, while firelight keeps its warmth.
  *
- * It works on the frame as the screen shows it, decoded to linear light and
- * encoded again, after the tone curve.
+ * A step of the frame's post pipeline after the tone curve, on the frame as
+ * it shows (still linear), fused into the pass that writes the screen.
  */
 
 /** One colour range's adjustment: a turn of its hue (degrees), and its saturation and lightness against as they are. */
@@ -94,63 +99,71 @@ export function whiteBalance(temperature: number, tint: number): [number, number
   return [gains[0] / luma, gains[1] / luma, gains[2] / luma];
 }
 
-const FRAGMENT = /* glsl */ `
-uniform sampler2D tColour;
-uniform vec3 uBalance;
-uniform float uExposure;
-uniform float uContrast;
-uniform float uSaturation;
-uniform vec3 uOranges;
-uniform vec3 uTeals;
-uniform vec3 uGreens;
-uniform vec3 uShadowTint;
-uniform float uWhites;
-varying vec2 vUv;
-${SRGB_GLSL}
-
-vec3 hsv(vec3 c) {
-  vec4 k = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-  vec4 p = mix(vec4(c.bg, k.wz), vec4(c.gb, k.xy), step(c.b, c.g));
-  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-  float d = q.x - min(q.w, q.y);
-  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
+/** The night's cooling: how far into the night the eye is, from the sun's elevation in degrees, 0 by day. */
+export function nightCooling(sunElevation: number): number {
+  return 1 - smooth(-10, -3, sunElevation);
 }
 
-vec3 rgb(vec3 c) {
-  vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
-  return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+const balance = uniform(new Vector3(1, 1, 1));
+const exposure = uniform(1);
+const contrast = uniform(1);
+const saturation = uniform(1);
+const oranges = uniform(new Vector3(0, 1, 1));
+const teals = uniform(new Vector3(0, 1, 1));
+const greens = uniform(new Vector3(0, 1, 1));
+const shadowTint = colourUniform();
+const whites = uniform(0);
+const night = uniform(0);
+const nightTint = colourUniform();
+
+const LUMA = vec3(0.2126, 0.7152, 0.0722);
+
+function toHsv(c: Node<"vec3">): Node<"vec3"> {
+  const k = vec4(0, -1 / 3, 2 / 3, -1);
+  const p = mix(vec4(c.b, c.g, k.w, k.z), vec4(c.g, c.b, k.x, k.y), step(c.b, c.g));
+  const q = mix(vec4(p.x, p.y, p.w, c.r), vec4(c.r, p.y, p.z, p.x), step(p.x, c.r));
+  const d = q.x.sub(min(q.w, q.y));
+  return vec3(q.z.add(q.w.sub(q.y).div(d.mul(6).add(1e-10))).abs(), d.div(q.x.add(1e-10)), q.x);
 }
 
-// How much a hue (0 to 1 round the wheel) belongs to a range centred on another, by how far round the wheel they are.
-float hueWeight(float hue, float centre, float width) {
-  float apart = abs(fract(hue - centre + 0.5) - 0.5);
-  return exp(-pow(apart / width, 2.0));
+function fromHsv(c: Node<"vec3">): Node<"vec3"> {
+  const p = fract(vec3(c.x).add(vec3(1, 2 / 3, 1 / 3))).mul(6).sub(3).abs();
+  return mix(vec3(1), p.sub(1).clamp(0, 1), c.y).mul(c.z);
 }
 
-void main() {
-  vec4 shown = texture2D(tColour, vUv);
-  vec3 c = hwToLinear(shown.rgb) * uBalance * uExposure;
-  float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+/** How much a hue (0 to 1 round the wheel) belongs to a range centred on another, by how far round the wheel they are. */
+function hueWeight(hue: Node<"float">, centre: number, width: number): Node<"float"> {
+  const apart = fract(hue.sub(centre).add(0.5)).sub(0.5).abs().div(width);
+  return exp(apart.mul(apart).negate());
+}
+
+/** The grade on the frame as it shows, still linear. */
+function graded(shown: Node<"vec3">): Node<"vec3"> {
+  let c: Node<"vec3"> = shown.mul(balance).mul(exposure);
   // Contrast round a middle grey, in the eye's own steps of brightness.
-  c *= pow(max(luma, 1e-4) / 0.18, uContrast - 1.0);
-  luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = max(vec3(0.0), luma + (c - luma) * uSaturation);
-  vec3 h = hsv(c);
-  float wo = hueWeight(h.x, 0.075, 0.07) * h.y;
-  float wt = hueWeight(h.x, 0.5, 0.07) * h.y;
-  float wg = hueWeight(h.x, 0.29, 0.08) * h.y;
-  h.x = fract(h.x + (wo * uOranges.x + wt * uTeals.x + wg * uGreens.x) / 360.0);
-  h.y = clamp(h.y * (1.0 + wo * (uOranges.y - 1.0) + wt * (uTeals.y - 1.0) + wg * (uGreens.y - 1.0)), 0.0, 1.0);
-  h.z *= 1.0 + wo * (uOranges.z - 1.0) + wt * (uTeals.z - 1.0) + wg * (uGreens.z - 1.0);
+  c = c.mul(pow(max(dot(c, LUMA), 1e-4).div(0.18), contrast.sub(1)));
+  const luma = dot(c, LUMA);
+  c = max(vec3(0), mix(vec3(luma), c, saturation));
+  const h = toHsv(c);
+  const wo = hueWeight(h.x, 0.075, 0.07).mul(h.y);
+  const wt = hueWeight(h.x, 0.5, 0.07).mul(h.y);
+  const wg = hueWeight(h.x, 0.29, 0.08).mul(h.y);
+  const turn = (by: (r: Node<"vec3">) => Node<"float">) => wo.mul(by(oranges)).add(wt.mul(by(teals))).add(wg.mul(by(greens)));
+  const hue = fract(h.x.add(turn((r) => r.x).div(360)));
+  const sat = h.y.mul(turn((r) => r.y.sub(1)).add(1)).clamp(0, 1);
   // Bright, nearly colourless things back to white, from the warm light and haze on them.
-  h.y *= 1.0 - uWhites * smoothstep(0.45, 0.8, h.z) * (1.0 - smoothstep(0.12, 0.4, h.y));
-  c = rgb(h);
+  const white = sat.mul(float(1).sub(whites.mul(smoothstep(0.45, 0.8, h.z)).mul(float(1).sub(smoothstep(0.12, 0.4, sat)))));
+  const value = h.z.mul(turn((r) => r.z.sub(1)).add(1));
+  c = fromHsv(vec3(hue, white, value));
   // The shadows lean to the moment's own colour.
-  luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c += uShadowTint * (1.0 - smoothstep(0.0, 0.3, luma));
-  gl_FragColor = vec4(hwToSrgb(c), shown.a);
+  const dim = float(1).sub(smoothstep(0, 0.3, dot(c, LUMA)));
+  c = c.add(shadowTint.mul(dim));
+  // At night what is dim drains of colour towards the moonlit blue the eye sees by, and reds go dark; what is well lit, and warm light most of all, keeps its colour.
+  const lum = dot(c, LUMA);
+  const fading = night.mul(float(1).sub(smoothstep(0.04, 0.35, lum))).mul(float(1).sub(smoothstep(0.02, 0.18, c.r.sub(c.b)).mul(0.7)));
+  const rods = nightTint.mul(lum.mul(0.9).add(c.g.sub(c.r).max(0).mul(0.15)));
+  return mix(c, rods, fading.mul(0.75));
 }
-`;
 
 function setRange(target: Vector3, grade: RangeGrade): void {
   target.set(grade.hue, grade.saturation, grade.lightness);
@@ -158,50 +171,19 @@ function setRange(target: Vector3, grade: RangeGrade): void {
 
 export const COLOUR_GRADE_ART: FeatureArt = {
   feature: "colourGrade",
-  passes: [
-    {
-      id: "colour-grade",
-      stage: "post",
-      order: 500,
-      create: () => {
-        const quad = new FullScreen(
-          new ShaderMaterial({
-            uniforms: {
-              tColour: { value: null },
-              uBalance: { value: new Vector3(1, 1, 1) },
-              uExposure: { value: 1 },
-              uContrast: { value: 1 },
-              uSaturation: { value: 1 },
-              uOranges: { value: new Vector3(0, 1, 1) },
-              uTeals: { value: new Vector3(0, 1, 1) },
-              uGreens: { value: new Vector3(0, 1, 1) },
-              uShadowTint: { value: new Vector3() },
-              uWhites: { value: 0 },
-            },
-            vertexShader: FULL_SCREEN_VERTEX,
-            fragmentShader: FRAGMENT,
-          }),
-        );
-        return {
-          render: ({ gl, colour, output, day, atmosphere }: PassFrame) => {
-            const u = quad.material.uniforms;
-            const grade = gradeFor(seasonWeights(day.date.realDayOfYear));
-            u.tColour.value = colour;
-            (u.uBalance.value as Vector3).fromArray(whiteBalance(grade.temperature, grade.tint));
-            u.uExposure.value = grade.exposure;
-            u.uContrast.value = grade.contrast;
-            u.uSaturation.value = grade.saturation;
-            u.uWhites.value = grade.whites;
-            setRange(u.uOranges.value as Vector3, grade.oranges);
-            setRange(u.uTeals.value as Vector3, grade.teals);
-            setRange(u.uGreens.value as Vector3, grade.greens);
-            const tint = atmosphere.uHwShadowTint.value;
-            (u.uShadowTint.value as Vector3).set(tint.r, tint.g, tint.b).multiplyScalar(grade.shadowTint * 0.5);
-            quad.render(gl, output);
-          },
-          dispose: () => quad.dispose(),
-        };
-      },
-    },
-  ],
+  post: [{ id: "colour-grade", order: 20, build: ({ colour }) => vec4(graded(colour.rgb), colour.a) }],
+  frame: ({ day, atmosphere }) => {
+    const grade = gradeFor(seasonWeights(day.date.realDayOfYear));
+    balance.value.fromArray(whiteBalance(grade.temperature, grade.tint));
+    exposure.value = grade.exposure;
+    contrast.value = grade.contrast;
+    saturation.value = grade.saturation;
+    whites.value = grade.whites;
+    setRange(oranges.value, grade.oranges);
+    setRange(teals.value, grade.teals);
+    setRange(greens.value, grade.greens);
+    shadowTint.value.copy(atmosphere.uHwShadowTint.value).multiplyScalar(grade.shadowTint * 0.5);
+    night.value = nightCooling(day.sky.sun.elevation);
+    nightTint.value.copy(skyColours()["night-vision"]);
+  },
 };

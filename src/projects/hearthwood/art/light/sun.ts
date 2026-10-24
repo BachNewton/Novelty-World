@@ -1,13 +1,12 @@
 import type { Sun } from "../../engine/astronomy";
-import { lightThroughAir, skyTables, type Rgb, type SkyTables } from "../sky/scattering";
-import { daylightWhite } from "../sky/sky-light";
+import { daylightWhite, elevationOf, lightThroughAir, type Rgb } from "./through-air";
 
 /*
- * The sun's light: its colour is the physical one, the sunlight left after
- * crossing the air (white overhead, reddening as the sun sinks and its
- * light crosses more air), with the storybook's tints laid over it low in
- * the sky (rosier in the morning, golder in the evening), at a brightness
- * set by hand for each height of the sun.
+ * The sun's light: its colour is the sunlight left after crossing the air
+ * (white overhead, reddening as the sun sinks and its light crosses more
+ * air), softened, with the storybook's tints laid over it low in the sky
+ * (rosier in the morning, golder in the evening), at a brightness set by
+ * hand for each height of the sun.
  */
 
 /** A light's colour (luminance 1) and how bright it is. */
@@ -41,7 +40,7 @@ export function sunBrightness(elevation: number): number {
   return SUN_STOPS[SUN_STOPS.length - 1][1];
 }
 
-const luminance = (c: Rgb) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+export const luminance = (c: Rgb) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 
 /** A colour scaled to a luminance of 1. */
 export function unitLuminance(c: Rgb): Rgb {
@@ -49,16 +48,16 @@ export function unitLuminance(c: Rgb): Rgb {
   return [c[0] / l, c[1] / l, c[2] / l];
 }
 
-/** How far the physical colour is kept against white: the air's red at sunset is real, but a storybook keeps it soft. */
+/** How far the air's colour is kept against white: the air's red at sunset is real, but a storybook keeps it soft. */
 const PHYSICAL = 0.62;
 
 /** How strongly the tints colour the light low in the sky. */
 const TINT = 0.75;
 
-/** The colour a body's light keeps through the air from its elevation, balanced to daylight, at luminance 1, and softened. */
-export function lightColourThroughAir(direction: { y: number }, tables: SkyTables = skyTables()): Rgb {
-  const white = daylightWhite(tables);
-  const through = lightThroughAir(0, Math.max(direction.y, 0.012), tables);
+/** The colour a body's light keeps through the air from its direction, balanced to daylight, at luminance 1, and softened. A body just below the horizon keeps the colour it set with. */
+export function lightColourThroughAir(direction: { y: number }): Rgb {
+  const white = daylightWhite();
+  const through = lightThroughAir(Math.max(elevationOf(direction), 0.7));
   const physical = unitLuminance([through[0] * white[0], through[1] * white[1], through[2] * white[2]]);
   return physical.map((c) => 1 + (c - 1) * PHYSICAL) as Rgb;
 }
@@ -70,9 +69,9 @@ export function sunTint(sun: Sun, morning: Rgb, evening: Rgb): Rgb {
   return [1 + (tint[0] - 1) * weight, 1 + (tint[1] - 1) * weight, 1 + (tint[2] - 1) * weight];
 }
 
-/** The sun's light at a moment: the physical colour through the air, with the storybook's tint over it. */
-export function sunlight(sun: Sun, morning: Rgb, evening: Rgb, tables: SkyTables = skyTables()): BodyLight {
-  const colour = lightColourThroughAir(sun.direction, tables);
+/** The sun's light at a moment: its colour through the air, with the storybook's tint over it. */
+export function sunlight(sun: Sun, morning: Rgb, evening: Rgb): BodyLight {
+  const colour = lightColourThroughAir(sun.direction);
   const tint = sunTint(sun, morning, evening);
   return { colour: unitLuminance([colour[0] * tint[0], colour[1] * tint[1], colour[2] * tint[2]]), intensity: sunBrightness(sun.elevation) };
 }

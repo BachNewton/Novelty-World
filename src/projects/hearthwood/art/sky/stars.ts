@@ -1,7 +1,9 @@
-import { Color } from "three";
+import { abs, dot, exp, float, floor, log, max, mix, pow, select, smoothstep, uniform, vec3 } from "three/tsl";
+import type { Node } from "three/webgpu";
 import type { FeatureArt } from "../feature-art";
 import { smooth } from "../light/sun";
-import { SKY_NOISE_GLSL } from "./sky-noise";
+import { colourUniform, typed } from "../tsl";
+import { celestial, followSky, onlyWhere, skyDirection, skyFrame, skyHash4 } from "./sky-nodes";
 import { skyColours } from "./tokens";
 
 /*
@@ -11,77 +13,63 @@ import { skyColours } from "./tokens";
  * cube, each holding one star at a seeded spot with a seeded brightness, as
  * many faint ones and few bright ones as the real sky has.
  *
- * Each star is drawn as a small soft spot never narrower than a pixel and
- * carrying the same light however wide it is drawn, worked out exactly at
- * every pixel rather than sampled, so the field holds still as the camera
- * turns, with no twinkle or shimmer. A star shows only once it is brighter
- * than the sky behind it, so the brightest come out first as dusk deepens,
- * the darkest part of the sky fills first, and none show in the glow of a
- * midsummer night.
+ * Each star is a small soft spot never narrower than a pixel and carrying
+ * the same light however wide it is drawn, worked out exactly at every
+ * pixel, so the field holds still as the camera turns. A star shows only
+ * once it is brighter than the sky behind it, so the brightest come out
+ * first as dusk deepens and none show in a midsummer night's glow.
  */
 
-const uniforms = {
-  uHwStarWarm: { value: new Color() },
-  uHwStarCool: { value: new Color() },
-  /** How far the night has come for the stars: none while the sun is up. */
-  uHwStarsShow: { value: 0 },
-};
+const warm = colourUniform();
+const cool = colourUniform();
+/** How far the night has come for the stars: none while the sun is up. */
+const show = uniform(0);
 
 /** Cells along each side of each of the cube's faces. */
 const CELLS = 80;
 
-const HEAD = /* glsl */ `
-uniform vec3 uHwStarWarm;
-uniform vec3 uHwStarCool;
-uniform float uHwStarsShow;
-${SKY_NOISE_GLSL}
-
-// The middle of a cell on a cube face, as a direction.
-vec3 hwStarCell(float face, vec2 uv) {
-  float side = mod(face, 2.0) < 0.5 ? 1.0 : -1.0;
-  if (face < 1.5) return normalize(vec3(side, uv));
-  if (face < 3.5) return normalize(vec3(uv.x, side, uv.y));
-  return normalize(vec3(uv, side));
-}
-`;
-
-const COLOUR = /* glsl */ `
-  vec3 dir = normalize(vHwWorld - cameraPosition);
-  if (uHwStarsShow > 0.0 && dir.y > -0.02) {
-    vec3 c = dir * uCelestial;
-    vec3 a = abs(c);
-    float face;
-    vec2 uv;
-    if (a.x >= a.y && a.x >= a.z) { face = c.x > 0.0 ? 0.0 : 1.0; uv = c.yz / a.x; }
-    else if (a.y >= a.z) { face = c.y > 0.0 ? 2.0 : 3.0; uv = c.xz / a.y; }
-    else { face = c.z > 0.0 ? 4.0 : 5.0; uv = c.xy / a.z; }
-    vec2 grid = (uv * 0.5 + 0.5) * ${CELLS}.0;
-    vec2 cell = floor(grid);
-    vec4 h = hwSkyHash4(vec3(cell, face * 17.0 + 3.0));
-    vec2 spot = (cell + 0.22 + 0.56 * h.xy) / ${CELLS}.0 * 2.0 - 1.0;
-    float apart = length(c - hwStarCell(face, spot));
+function stars(sky: Node<"vec3">): Node<"vec3"> {
+  const dir = skyDirection();
+  return onlyWhere(show.greaterThan(0).and(dir.y.greaterThan(-0.02)), sky, (colour) => {
+    const c = celestial(dir);
+    const a = abs(c);
+    // The cube face the direction falls on, and where on it.
+    const onX = a.x.greaterThanEqual(a.y).and(a.x.greaterThanEqual(a.z));
+    const onY = a.y.greaterThanEqual(a.z);
+    const face = select(onX, select(c.x.greaterThan(0), float(0), float(1)), select(onY, select(c.y.greaterThan(0), float(2), float(3)), select(c.z.greaterThan(0), float(4), float(5))));
+    const major = select(onX, a.x, select(onY, a.y, a.z));
+    const uv = select(onX, c.yz, select(onY, c.xz, c.xy)).div(major);
+    const cell = floor(uv.mul(0.5).add(0.5).mul(CELLS));
+    const h = typed<"vec4">(skyHash4(vec3(cell, face.mul(17).add(3))));
+    const spot = cell.add(0.22).add(h.xy.mul(0.56)).div(CELLS).mul(2).sub(1);
+    // The star's own direction, on the same face.
+    const side = select(face.mod(2).lessThan(0.5), float(1), float(-1));
+    const onFace = select(face.lessThan(1.5), vec3(side, spot.x, spot.y), select(face.lessThan(3.5), vec3(spot.x, side, spot.y), vec3(spot.x, spot.y, side))).normalize();
+    const apart = c.sub(onFace).length();
     // As many faint stars and as few bright ones as the real sky has: each magnitude brighter is about three times rarer.
-    float magnitude = 6.4 + 2.1 * log(max(h.z, 1e-5)) / log(10.0);
-    float light = pow(10.0, -0.4 * magnitude);
+    const magnitude = log(max(h.z, 1e-5))
+      .mul(2.1 / Math.LN10)
+      .add(6.4);
+    const light = pow(10, magnitude.mul(-0.4));
     // Never narrower than a pixel, and the same light however wide.
-    float width = max(0.00012, uSkyPixel * 0.75);
-    float spotLight = exp(-apart * apart / (2.0 * width * width)) / (width * width);
-    float behind = dot(hwColour, vec3(0.2126, 0.7152, 0.0722));
-    float shows = smoothstep(0.6, 2.0, light * 3.0 / (behind + 0.002));
-    float low = smoothstep(-0.02, 0.22, dir.y);
-    vec3 tint = mix(uHwStarCool, uHwStarWarm, h.w * h.w);
-    hwColour += tint * light * spotLight * 2.0e-6 * shows * low * uHwStarsShow;
-  }
-`;
+    const width = max(0.00012, skyFrame.pixel.mul(0.75));
+    const spotLight = exp(apart.mul(apart).div(width.mul(width).mul(2)).negate()).div(width.mul(width));
+    const behind = dot(colour, vec3(0.2126, 0.7152, 0.0722));
+    const shows = smoothstep(0.6, 2, light.mul(3).div(behind.add(0.002)));
+    const low = smoothstep(-0.02, 0.22, dir.y);
+    const tint = mix(cool, warm, h.w.mul(h.w));
+    return colour.add(tint.mul(light.mul(spotLight).mul(2e-6).mul(shows).mul(low).mul(show)));
+  });
+}
 
 export const STARS_ART: FeatureArt = {
   feature: "stars",
-  uniforms,
-  chunks: [{ kinds: ["sky"], fragmentHead: HEAD, colour: COLOUR }],
-  frame: ({ day }) => {
+  stages: [{ kinds: ["sky"], colour: stars }],
+  frame: ({ day, sky }) => {
+    followSky(sky);
     const colours = skyColours();
-    uniforms.uHwStarWarm.value.copy(colours["star-warm"]);
-    uniforms.uHwStarCool.value.copy(colours["star-cool"]);
-    uniforms.uHwStarsShow.value = 1 - smooth(-8, -3, day.sky.sun.elevation);
+    warm.value.copy(colours["star-warm"]);
+    cool.value.copy(colours["star-cool"]);
+    show.value = 1 - smooth(-8, -3, day.sky.sun.elevation);
   },
 };

@@ -1,34 +1,36 @@
-import { Color, Vector3 } from "three";
+import { Vector3 } from "three";
+import { cross, dot, exp, float, max, mix, smoothstep, sqrt, uniform, vec2, vec3 } from "three/tsl";
+import type { Node } from "three/webgpu";
 import { celestialFrame } from "../../engine/astronomy";
 import { CALENDAR } from "../../engine/calendar";
 import type { FeatureArt } from "../feature-art";
 import { lightColourThroughAir, smooth } from "../light/sun";
-import { SKY_NOISE_GLSL } from "./sky-noise";
+import { colourUniform, typed } from "../tsl";
+import { followSky, onlyWhere, skyDirection, skyFrame, skyNoise3 } from "./sky-nodes";
 import { skyColours } from "./tokens";
 
 /*
  * The moon (`moon`): a lit sphere, so its phase is the sun lighting it from
- * where the sun really is, never a drawn crescent. Its face keeps the same
- * dark seas towards the world, turned with the sky's pole as it crosses;
- * its dark side holds a faint earthshine while it is a thin crescent; low
- * in the sky it dims and warms through the air, as a rising moon does; and
- * in haze a soft halo spreads round it. It is drawn a little larger than
- * life, so it reads as the moon in a storybook rather than a bright star.
+ * where the sun really is, never a drawn crescent. Each pixel of its disc
+ * finds the point of the sphere it sees and lights it by the sun's true
+ * direction, so a full moon stands opposite the sun and a crescent's horns
+ * point away from it. Its face keeps the same dark seas towards the world,
+ * turned with the sky's pole as it crosses; its dark side holds a faint
+ * earthshine while it is a thin crescent; low in the sky it dims and warms
+ * through the air; and in haze a soft halo spreads round it. It is drawn
+ * about three times life, so it reads as a storybook's moon.
  */
 
-const uniforms = {
-  uHwMoonDir: { value: new Vector3(0, -1, 0) },
-  /** The sun's direction, which lights it. */
-  uHwMoonSunDir: { value: new Vector3(0, 1, 0) },
-  /** Which way its north is on the sky: towards the celestial pole. */
-  uHwMoonNorth: { value: new Vector3(0, 1, 0) },
-  /** The sunlight on its face, already as bright as the sky is drawn and coloured by the air below it. */
-  uHwMoonLight: { value: new Color() },
-  uHwMoonEarthshine: { value: new Color() },
-  uHwMoonHalo: { value: new Color() },
-  uHwMoonHighland: { value: new Color() },
-  uHwMoonMare: { value: new Color() },
-};
+const towards = uniform(new Vector3(0, -1, 0));
+/** The sun's direction, which lights it. */
+const sunward = uniform(new Vector3(0, 1, 0));
+/** Which way its north is on the sky: towards the celestial pole. */
+const pole = uniform(new Vector3(0, 1, 0));
+const light = colourUniform();
+const earthshine = colourUniform();
+const halo = colourUniform();
+const highland = colourUniform();
+const mare = colourUniform();
 
 /** The moon's angular radius, in radians: about three times life. */
 const RADIUS = 0.014;
@@ -37,69 +39,72 @@ const RADIUS = 0.014;
 const NIGHT_FACE = 0.75;
 const DAY_FACE = 0.45;
 
-const HEAD = /* glsl */ `
-uniform vec3 uHwMoonDir;
-uniform vec3 uHwMoonSunDir;
-uniform vec3 uHwMoonNorth;
-uniform vec3 uHwMoonLight;
-uniform vec3 uHwMoonEarthshine;
-uniform vec3 uHwMoonHalo;
-uniform vec3 uHwMoonHighland;
-uniform vec3 uHwMoonMare;
-${SKY_NOISE_GLSL}
-`;
-
-const COLOUR = /* glsl */ `
-  vec3 dir = normalize(vHwWorld - cameraPosition);
-  vec3 east = normalize(cross(uHwMoonNorth, uHwMoonDir));
-  vec3 north = cross(uHwMoonDir, east);
-  vec2 p = vec2(dot(dir, east), dot(dir, north)) / ${RADIUS};
-  float rr = dot(p, p);
-  float facing = dot(dir, uHwMoonDir);
-  if (facing > 0.0 && rr < 1.6) {
-    float edge = 1.2 * uSkyPixel / ${RADIUS};
-    float disc = 1.0 - smoothstep(1.0 - edge, 1.0 + edge, sqrt(rr));
-    float towards = sqrt(max(0.0, 1.0 - rr));
-    vec3 normal = p.x * east + p.y * north - towards * uHwMoonDir;
-    float sunward = dot(normal, uHwMoonSunDir);
-    // The moon's dust throws light back towards the sun, so its face stays bright to the rim (Lommel and Seeliger) and the terminator is a soft line.
-    float lit = smoothstep(-0.04, 0.12, sunward) * max(sunward, 0.0) / (max(sunward, 0.0) + towards + 0.05) * 2.0;
-    vec3 face = vec3(p, towards);
-    float seas = smoothstep(0.48, 0.66, 0.62 * hwSkyNoise3(face * 2.1 + vec3(3.7, 1.2, 0.4)) + 0.38 * hwSkyNoise3(face * 4.7 + 8.1));
-    float craters = hwSkyNoise3(face * 13.0) * 0.18;
-    vec3 albedo = mix(uHwMoonHighland, uHwMoonMare, seas) * (0.91 + craters);
-    hwColour += disc * albedo * (uHwMoonLight * lit + uHwMoonEarthshine * (1.0 - smoothstep(-0.1, 0.2, sunward)));
-  }
-  float apart = length(dir - uHwMoonDir);
-  hwColour += uHwMoonHalo * (exp(-apart * 30.0) * 0.7 + exp(-apart * 6.0) * 0.3) * step(0.0, facing);
-`;
+function moon(sky: Node<"vec3">): Node<"vec3"> {
+  const dir = skyDirection();
+  const facing = dot(dir, towards);
+  const nearby = facing.greaterThan(0.95);
+  return onlyWhere(nearby, sky, (colour) => {
+    const east = cross(pole, towards).normalize();
+    const north = cross(towards, east);
+    const p = vec2(dot(dir, east), dot(dir, north)).div(RADIUS);
+    const rr = dot(p, p);
+    const edge = skyFrame.pixel.mul(1.2 / RADIUS);
+    const disc = float(1).sub(smoothstep(float(1).sub(edge), edge.add(1), sqrt(rr)));
+    const out = sqrt(max(float(1).sub(rr), 0));
+    // The point of the sphere this pixel sees, facing the eye.
+    const normal = east.mul(p.x).add(north.mul(p.y)).sub(towards.mul(out));
+    const lit = dot(normal, sunward);
+    // Moon dust throws light back towards the sun, so its face stays bright to the rim (Lommel and Seeliger) and the terminator is a soft line.
+    const shine = smoothstep(-0.04, 0.12, lit).mul(max(lit, 0)).div(max(lit, 0).add(out).add(0.05)).mul(2);
+    const face = vec3(p, out);
+    const seas = smoothstep(
+      0.48,
+      0.66,
+      typed<"float">(skyNoise3(face.mul(2.1).add(vec3(3.7, 1.2, 0.4))))
+        .mul(0.62)
+        .add(typed<"float">(skyNoise3(face.mul(4.7).add(8.1))).mul(0.38)),
+    );
+    const craters = typed<"float">(skyNoise3(face.mul(13))).mul(0.18);
+    const albedo = mix(highland, mare, seas).mul(craters.add(0.91));
+    const onFace = albedo.mul(light.mul(shine).add(earthshine.mul(float(1).sub(smoothstep(-0.1, 0.2, lit)))));
+    const apart = dir.sub(towards).length();
+    // Faded out before the edge of what is drawn round the moon, so it ends in no line.
+    const glow = halo
+      .mul(
+        exp(apart.mul(-30))
+          .mul(0.7)
+          .add(exp(apart.mul(-6)).mul(0.3)),
+      )
+      .mul(smoothstep(0.95, 0.975, facing));
+    return colour.add(onFace.mul(disc)).add(glow);
+  });
+}
 
 export const MOON_ART: FeatureArt = {
   feature: "moon",
-  uniforms,
-  chunks: [{ kinds: ["sky"], fragmentHead: HEAD, colour: COLOUR }],
-  frame: ({ day: state, atmosphere }) => {
-    const { sun, moon } = state.sky;
+  stages: [{ kinds: ["sky"], colour: moon }],
+  frame: ({ day: state, atmosphere, sky }) => {
+    followSky(sky);
+    const { sun, moon: m } = state.sky;
     const colours = skyColours();
-    uniforms.uHwMoonDir.value.set(moon.direction.x, moon.direction.y, moon.direction.z);
-    uniforms.uHwMoonSunDir.value.set(sun.direction.x, sun.direction.y, sun.direction.z);
-    const pole = celestialFrame(state.date.realDayOfYear, state.date.hour, CALENDAR.latitude).pole;
-    uniforms.uHwMoonNorth.value.set(pole.x, pole.y, pole.z);
+    towards.value.set(m.direction.x, m.direction.y, m.direction.z);
+    sunward.value.set(sun.direction.x, sun.direction.y, sun.direction.z);
+    const p = celestialFrame(state.date.realDayOfYear, state.date.hour, CALENDAR.latitude).pole;
+    pole.value.set(p.x, p.y, p.z);
 
     // By day the eye is set for the bright sky and the moon is a pale ghost in it; by night it is the brightest thing up there.
     const day = smooth(-8, -2, sun.elevation);
     const face = NIGHT_FACE + (DAY_FACE - NIGHT_FACE) * day;
-    const air = lightColourThroughAir(moon.direction);
-    const dimmed = smooth(-1, 4, moon.elevation) * (0.35 + 0.65 * smooth(0, 18, moon.elevation));
-    uniforms.uHwMoonLight.value.setRGB(air[0], air[1], air[2]).multiplyScalar(face * dimmed);
+    const air = lightColourThroughAir(m.direction);
+    const dimmed = smooth(-1, 4, m.elevation) * (0.35 + 0.65 * smooth(0, 18, m.elevation));
+    light.value.setRGB(air[0], air[1], air[2]).multiplyScalar(face * dimmed);
     // Earthshine: the earth, almost full as seen from a thin crescent, lights the moon's dark side.
-    const crescent = Math.pow(1 - moon.illuminated, 3);
-    uniforms.uHwMoonEarthshine.value.copy(colours.earthshine).multiplyScalar(0.5 * crescent * dimmed * (1 - smooth(-6, 0, sun.elevation)));
+    const crescent = Math.pow(1 - m.illuminated, 3);
+    earthshine.value.copy(colours.earthshine).multiplyScalar(0.5 * crescent * dimmed * (1 - smooth(-6, 0, sun.elevation)));
     // A halo in haze, as bright as the moon is full; thicker air spreads more light round it.
     const haze = Math.min(1, atmosphere.uHwHazeDensity.value / 0.003);
-    const halo = (0.04 + 0.22 * haze) * moon.illuminated * moon.illuminated * dimmed * (1 - smooth(-8, -2, sun.elevation));
-    uniforms.uHwMoonHalo.value.copy(colours["moon-halo"]).multiplyScalar(halo);
-    uniforms.uHwMoonHighland.value.copy(colours["moon-highland"]);
-    uniforms.uHwMoonMare.value.copy(colours["moon-mare"]);
+    halo.value.copy(colours["moon-halo"]).multiplyScalar((0.04 + 0.22 * haze) * m.illuminated * m.illuminated * dimmed * (1 - day));
+    highland.value.copy(colours["moon-highland"]);
+    mare.value.copy(colours["moon-mare"]);
   },
 };

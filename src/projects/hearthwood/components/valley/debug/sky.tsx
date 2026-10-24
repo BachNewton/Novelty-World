@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { auroraAt, auroraTonight } from "../../../art/sky/aurora";
-import { noctilucentAt } from "../../../art/sky/noctilucent";
 import { rainbowAt } from "../../../art/sky/rainbow";
 import { SKY_INPUTS, type Sighting } from "../../../art/sky/sky-inputs";
 import type { DebugContext, DebugSection } from "./section";
@@ -77,10 +76,6 @@ function Sky({ context: { clock } }: { context: DebugContext }) {
           tonight {percent(auroraTonight(clock.date))}, now {percent(auroraAt(clock.date, sun))}
         </span>
       </span>
-      <span className="flex justify-between tabular-nums">
-        <span>Noctilucent clouds</span>
-        <span>{percent(noctilucentAt(clock.date, sun))}</span>
-      </span>
       <label className="flex items-center justify-between gap-2">
         <span>Rain</span>
         <span className="tabular-nums">{percent(inputs.rain)}</span>
@@ -105,13 +100,6 @@ function Sky({ context: { clock } }: { context: DebugContext }) {
         value={inputs.aurora}
         onChange={(aurora) => {
           set({ aurora });
-        }}
-      />
-      <SightingChoice
-        label="Noctilucent"
-        value={inputs.noctilucent}
-        onChange={(noctilucent) => {
-          set({ noctilucent });
         }}
       />
     </>

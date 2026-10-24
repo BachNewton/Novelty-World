@@ -1,8 +1,12 @@
-import { Color, Vector3 } from "three";
+import { Vector3 } from "three";
+import { acos, cameraPosition, degrees, dot, float, fract, pow, positionWorld, sin, smoothstep, uniform, vec3 } from "three/tsl";
+import type { Node } from "three/webgpu";
 import type { Sun } from "../../engine/astronomy";
 import type { FeatureArt } from "../feature-art";
 import { smooth } from "../light/sun";
+import { colourUniform } from "../tsl";
 import { SKY_INPUTS, type SkyInputs } from "./sky-inputs";
+import { onlyWhere, skyDirection } from "./sky-nodes";
 
 /*
  * Rainbows (`rainbow`): while it rains with the sun out, a bow stands
@@ -23,71 +27,63 @@ export function rainbowAt(sun: Sun, inputs: SkyInputs = SKY_INPUTS): number {
   return inputs.rain * inputs.sunOut * smooth(-1, 3, sun.elevation) * (1 - smooth(36, 42, sun.elevation));
 }
 
-const uniforms = {
-  uHwRainbow: { value: 0 },
-  /** Where the sun is: the bow centres on the point opposite. */
-  uHwRainbowSun: { value: new Vector3(0, 1, 0) },
-  /** The sunlight the raindrops split. */
-  uHwRainbowLight: { value: new Color() },
-};
+const amount = uniform(0);
+/** Where the sun is: the bow centres on the point opposite. */
+const sunDir = uniform(new Vector3(0, 1, 0));
+/** The sunlight the raindrops split. */
+const sunLight = colourUniform();
 
-const HEAD = /* glsl */ `
-uniform float uHwRainbow;
-uniform vec3 uHwRainbowSun;
-uniform vec3 uHwRainbowLight;
-
-// The colours across a bow, from violet on its inner edge (0) to red on its outer (1), fading out at both edges.
-vec3 hwBow(float across) {
-  if (across <= 0.0 || across >= 1.0) return vec3(0.0);
-  float hue = (1.0 - across) * 0.76;
-  vec3 colour = clamp(abs(fract(hue + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
-  return colour * pow(sin(3.14159 * across), 0.8);
+/** The colours across a bow, from violet on its inner edge (0) to red on its outer (1), fading out at both edges. */
+function bow(across: Node<"float">): Node<"vec3"> {
+  const t = across.clamp(0, 1);
+  const hue = float(1).sub(t).mul(0.76);
+  const colour = fract(vec3(hue).add(vec3(0, 2 / 3, 1 / 3)))
+    .mul(6)
+    .sub(3)
+    .abs()
+    .sub(1)
+    .clamp(0, 1);
+  return colour.mul(pow(sin(t.mul(Math.PI)), 0.8));
 }
 
-// A colour seen through the rain along a direction: the bows' light added, the sky inside brightened and Alexander's band darkened.
-vec3 hwRainbow(vec3 colour, vec3 dir, float amount) {
-  float angle = degrees(acos(clamp(dot(dir, -uHwRainbowSun), -1.0, 1.0)));
+/** A colour seen through the rain along a direction: the bows' light added, the sky inside brightened and Alexander's band darkened. */
+function throughRain(colour: Node<"vec3">, dir: Node<"vec3">, share: Node<"float">): Node<"vec3"> {
+  const angle = degrees(acos(dot(dir, sunDir.negate()).clamp(-1, 1)));
   // Each colour bends by its own angle: red outermost on the primary, innermost on the secondary.
-  vec3 primary = hwBow((angle - 40.3) / 2.3);
-  vec3 secondary = hwBow((53.6 - angle) / 3.4) * 0.42;
-  float inside = (1.0 - smoothstep(38.0, 42.0, angle)) * 0.08;
-  float between = smoothstep(42.4, 43.4, angle) * (1.0 - smoothstep(49.2, 50.2, angle)) * 0.14;
-  vec3 bows = (primary + secondary) * uHwRainbowLight * 0.22;
-  return colour + amount * (colour * (inside - between) + bows);
+  const primary = bow(angle.sub(40.3).div(2.3));
+  const secondary = bow(float(53.6).sub(angle).div(3.4)).mul(0.42);
+  const inside = float(1)
+    .sub(smoothstep(38, 42, angle))
+    .mul(0.08);
+  const between = smoothstep(42.4, 43.4, angle)
+    .mul(float(1).sub(smoothstep(49.2, 50.2, angle)))
+    .mul(0.14);
+  const bows = primary.add(secondary).mul(sunLight).mul(0.22);
+  return colour.add(colour.mul(inside.sub(between)).add(bows).mul(share));
 }
-`;
+
+function onSky(sky: Node<"vec3">): Node<"vec3"> {
+  const dir = skyDirection();
+  return onlyWhere(amount.greaterThan(0), sky, (colour) => throughRain(colour, dir, amount.mul(smoothstep(-0.01, 0.03, dir.y))));
+}
+
+/** The bow is in the rain between the eye and what it sees, so only what lies a way off is seen through it. */
+function onLand(lit: Node<"vec3">): Node<"vec3"> {
+  const toEye = positionWorld.sub(cameraPosition);
+  const distance = toEye.length();
+  return onlyWhere(amount.greaterThan(0), lit, (colour) => throughRain(colour, toEye.div(distance), amount.mul(smoothstep(40, 260, distance))));
+}
 
 export const RAINBOW_ART: FeatureArt = {
   feature: "rainbow",
-  uniforms,
-  chunks: [
-    {
-      kinds: ["sky"],
-      fragmentHead: HEAD,
-      colour: /* glsl */ `
-        if (uHwRainbow > 0.0) {
-          vec3 dir = normalize(vHwWorld - cameraPosition);
-          hwColour = hwRainbow(hwColour, dir, uHwRainbow * smoothstep(-0.01, 0.03, dir.y));
-        }
-      `,
-    },
-    {
-      kinds: ["land", "ground", "foliage", "solid", "water"],
-      fragmentHead: HEAD,
-      colour: /* glsl */ `
-        if (uHwRainbow > 0.0) {
-          vec3 toEye = vHwWorld - cameraPosition;
-          float distance = length(toEye);
-          // The bow is in the rain between the eye and what it sees, so only what lies a way off is seen through it.
-          hwColour = hwRainbow(hwColour, toEye / distance, uHwRainbow * smoothstep(40.0, 260.0, distance));
-        }
-      `,
-    },
+  stages: [
+    { kinds: ["sky"], colour: onSky },
+    { kinds: ["land", "ground", "foliage", "solid", "water"], colour: onLand },
   ],
   frame: ({ day, atmosphere }) => {
     const { sun } = day.sky;
-    uniforms.uHwRainbow.value = rainbowAt(sun);
-    uniforms.uHwRainbowSun.value.set(sun.direction.x, sun.direction.y, sun.direction.z);
-    uniforms.uHwRainbowLight.value.copy(atmosphere.uHwSunColor.value);
+    amount.value = rainbowAt(sun);
+    sunDir.value.set(sun.direction.x, sun.direction.y, sun.direction.z);
+    sunLight.value.copy(atmosphere.uHwSunColor.value);
   },
 };

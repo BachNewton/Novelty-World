@@ -1,44 +1,18 @@
-import { ShaderMaterial } from "three";
+import { float, screenSize, screenUV, smoothstep, vec2, vec4 } from "three/tsl";
 import type { FeatureArt } from "../feature-art";
-import { FULL_SCREEN_VERTEX, FullScreen } from "../passes";
 
-/** The vignette (`vignette`): the corners of the frame darken softly, rounder than the frame, like a plate in an old storybook. */
-const FRAGMENT = /* glsl */ `
-uniform sampler2D tColour;
-uniform float uAspect;
-varying vec2 vUv;
-void main() {
-  vec4 colour = texture2D(tColour, vUv);
-  vec2 off = (vUv - 0.5) * vec2(sqrt(uAspect), 1.0 / sqrt(uAspect));
-  float edge = smoothstep(0.32, 0.85, length(off) * 1.25);
-  gl_FragColor = vec4(colour.rgb * (1.0 - 0.32 * edge * edge), colour.a);
-}
-`;
-
+/** The vignette (`vignette`): the corners of the frame darken softly, rounder than the frame, like a plate in an old storybook. Last of the steps, as a frame round the picture. */
 export const VIGNETTE_ART: FeatureArt = {
   feature: "vignette",
-  passes: [
+  post: [
     {
       id: "vignette",
-      stage: "post",
-      // Last, over every other effect, as a frame round the picture.
-      order: 1000,
-      create: () => {
-        const quad = new FullScreen(
-          new ShaderMaterial({
-            uniforms: { tColour: { value: null }, uAspect: { value: 1 } },
-            vertexShader: FULL_SCREEN_VERTEX,
-            fragmentShader: FRAGMENT,
-          }),
-        );
-        return {
-          render: ({ gl, colour, output, width, height }) => {
-            quad.material.uniforms.tColour.value = colour;
-            quad.material.uniforms.uAspect.value = width / height;
-            quad.render(gl, output);
-          },
-          dispose: () => quad.dispose(),
-        };
+      order: 100,
+      build: ({ colour }) => {
+        const aspect = screenSize.x.div(screenSize.y).sqrt();
+        const off = screenUV.sub(0.5).mul(vec2(aspect, float(1).div(aspect)));
+        const edge = smoothstep(0.32, 0.85, off.length().mul(1.25));
+        return vec4(colour.rgb.mul(float(1).sub(edge.mul(edge).mul(0.32))), colour.a);
       },
     },
   ],

@@ -3,17 +3,15 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 
 /*
  * The sky's and the light's own colours, read once from their tokens in
- * globals.css (`--color-hearthwood-sky-…`): the tints laid over the
- * physical sky and its light, and everything drawn in the sky.
+ * globals.css (`--color-hearthwood-sky-…`): the tints of the
+ * sun's and moon's light, everything drawn in the sky, and the night's
+ * cooling in the grade.
  */
 
 const SKY_TOKENS = [
   "sun-morning",
   "sun-evening",
-  "blue-hour",
   "moonlight",
-  "airglow",
-  "ground-bounce",
   "moon-highland",
   "moon-mare",
   "earthshine",
@@ -23,7 +21,6 @@ const SKY_TOKENS = [
   "milky-way",
   "aurora-green",
   "aurora-violet",
-  "noctilucent",
   "night-vision",
 ] as const;
 

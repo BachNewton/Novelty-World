@@ -112,6 +112,7 @@ export class FrameRenderer {
     this.scenePass = scenePass;
     const input: Omit<PostInput, "colour"> = {
       depth: scenePass.getTextureNode("depth").r,
+      depthAt: (uv) => scenePass.getTextureNode("depth").sample(uv).r,
       viewZ: scenePass.getViewZNode().negate(),
       normal: normals ? scenePass.getTextureNode("normal").rgb : null,
       air: frame.atmosphere,
