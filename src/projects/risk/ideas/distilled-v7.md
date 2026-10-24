@@ -70,6 +70,11 @@ The pilot's student numbers were one fit each with no interval, so they ranked n
 
 By the rules fixed before the run: the breakdown student is the default until the full recording shows the board helps, and its within-decision signal (about 11% of the ceiling) is below the 30% that says the features hold the answer. The 8,000-game recording (and the 500-game test set at 32 replies) decides that at twenty times the data. Either way the next step is to play the best student against v6, since regret isn't Elo. That student is `student-v1` with its `pilot` weights (`student-v1.md`); a trainer's export becomes a weight set it can play with `npm run risk:student-weights`.
 
+## A wider teacher, and the precise test set
+
+- **The test set** is 500 games of v7 at 32 replies (6,148 decisions, `distill-v7-test32`). On it the reliability model fitted to the pilot holds out of sample: 0.65 at 8 replies, 0.88 at 32, the same noise-to-spread ratio (4.2). A 32-reply ranking is reliable in most decisions (median 0.73 per decision), so a student's pick can be scored on 16 replies against 16.
+- **Searching 8 candidates instead of 4** (300 games, `distill-v7-wide8`; most decisions have 8 distinct placements). v7 picks one of candidates 5 to 8 in a third of them, so v6's top four isn't a tight filter. But on fresh replies the 8-candidate search gains only 10% [−4%, +26%] more over v6 than the 4-candidate search on the same decisions. Choosing among more candidates on 4 noisy replies also picks more noise, so this undersells a wide search with more replies, but it gives no reason yet to widen the teacher: its gain, if any, is small next to the student's distance from v7.
+
 ## If it works
 
 - **Measuring v7-class strength costs hours, not days.** The student's seating suite costs what v6's did.
