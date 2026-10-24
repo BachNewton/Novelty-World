@@ -19,6 +19,8 @@ import { BORDER_MODES, borderMode } from "./rule-v6.1/border";
 import { POWER_MODES, powerMode, REPRICE_MODES, repriceMode, V6_1_PARAMS } from "./rule-v6.1/params";
 import { ruleBot as ruleV7, ruleV7Bot } from "./rule-v7";
 import { V7_PARAMS } from "./rule-v7/params";
+import { netV1, netV1Bot } from "./net-v1";
+import { WEIGHT_SETS as NET_WEIGHT_SETS } from "./net-v1/weights";
 import { ruleV8Bot } from "./rule-v8";
 import { DEFAULT_WEIGHTS, studentBot, studentV1Bot } from "./student-v1";
 import { scorer } from "./student-v1/network";
@@ -40,6 +42,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v8": ruleV8Bot,
   "student-v1": studentV1Bot,
   "sweeper-v1": sweeperV1Bot,
+  "net-v1": netV1Bot,
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
   "gd-aggressive": gdAggressiveBot,
@@ -62,6 +65,7 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v8": "rule-v8/index.ts",
   "student-v1": "student-v1/index.ts",
   "sweeper-v1": "sweeper-v1/index.ts",
+  "net-v1": "net-v1/index.ts",
   "gd-defensive": "gd/index.ts",
   "gd-continental": "gd/index.ts",
   "gd-aggressive": "gd/index.ts",
@@ -170,6 +174,12 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
   },
 };
 
+/** The network bots a measuring run may seat with one of their weight sets, which is all they
+ *  have to set: `net-v1~{"weights":"m1a-25"}` (`bots/net-v1/`). */
+export const WEIGHTED_BOTS: Readonly<Record<string, { weights: readonly string[]; build: (weights: string) => Bot }>> = {
+  "net-v1": { weights: Object.keys(NET_WEIGHT_SETS), build: netV1 },
+};
+
 export type Overrides = Partial<Preferences & Engine>;
 
 /** The label that seats `base` with some settings overridden: `rule-v1~{"borderWeight":0.7}`. */
@@ -179,10 +189,25 @@ export function tunedLabel(base: string, overrides: Overrides): string {
 
 const tuned = new Map<string, Bot>();
 
+function weightedBot(label: string, base: string): Bot {
+  const known = tuned.get(label);
+  if (known) return known;
+  const settings = JSON.parse(label.slice(label.indexOf("~") + 1)) as Record<string, unknown>;
+  const { weights, build } = WEIGHTED_BOTS[base];
+  const extra = Object.keys(settings).filter((key) => key !== "weights");
+  if (extra.length > 0) throw new Error(`"${base}" has only the setting "weights", not ${extra.map((k) => `"${k}"`).join(", ")}`);
+  const name = settings.weights;
+  if (typeof name !== "string" || !weights.includes(name)) throw new Error(`"${base}"'s "weights" is one of ${weights.join(", ")}, not ${JSON.stringify(name)}`);
+  const bot = build(name);
+  tuned.set(label, bot);
+  return bot;
+}
+
 function tunedBot(label: string): Bot | null {
   const at = label.indexOf("~");
   if (at < 0) return null;
   const base = label.slice(0, at);
+  if (Object.hasOwn(WEIGHTED_BOTS, base)) return weightedBot(label, base);
   if (!Object.hasOwn(TUNABLE_BOTS, base)) throw new Error(`no tunable Risk bot "${base}" (tunable: ${Object.keys(TUNABLE_BOTS).join(", ")})`);
   const known = tuned.get(label);
   if (known) return known;
