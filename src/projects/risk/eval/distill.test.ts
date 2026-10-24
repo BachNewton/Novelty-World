@@ -12,9 +12,9 @@ import { candidates, ruleBot, search } from "../bots/rule-v7";
 import { V7_PARAMS, type Params } from "../bots/rule-v7/params";
 import { searchPoint } from "../bots/rule-v7/replies";
 import { features, FEATURES } from "../bots/rule-v8/features";
+import { CANDIDATE_WIDTH, v6Settings } from "../bots/student-v1/candidates";
 import {
   boardRecord,
-  CANDIDATE_WIDTH,
   candidateRows,
   decisionRecords,
   recordedBoard,
@@ -24,7 +24,6 @@ import {
   teacherParams,
   teacherSearch,
   teacherSpecs,
-  v6Settings,
   type Decision,
 } from "./distill";
 import { recordMoves } from "./replay";

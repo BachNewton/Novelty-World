@@ -1,6 +1,6 @@
 # Distilling v7: v7's judgement at v6's cost (an idea, not built)
 
-This is a plan, not a bot. The kill test's tooling is built (below), and its first experiments on the pilot data are measured; the student bot is not built. The doc says what would be built, why it should work where v8 didn't, and the cheap test that decides whether it's worth building.
+This is the plan behind a bot. The kill test's tooling is built (below), and its first experiments on the pilot data are measured. The student bot is built, as `student-v1` (`student-v1.md`), with the pilot's best student as its first weights; it is not yet measured. The doc says why distilling should work where v8 didn't, and the cheap test that decides whether a student is worth playing.
 
 ## The problem it answers
 
@@ -68,7 +68,7 @@ The pilot's student numbers were one fit each with no interval, so they ranked n
 - **More data helps the full board only weakly here.** From a quarter of the training games to all of them, the full-input students rise from about −15% to about 0%, inside their intervals.
 - **No pruner.** v7's pick is in the student's top two of four 56 to 59% of the time (a random two: 50%), far below the 80% that would let a student halve v7's search.
 
-By the rules fixed before the run: the breakdown student is the default until the full recording shows the board helps, and its within-decision signal (about 11% of the ceiling) is below the 30% that says the features hold the answer. The 8,000-game recording (and the 500-game test set at 32 replies) decides that at twenty times the data. Either way the next step is to play the best student against v6, since regret isn't Elo.
+By the rules fixed before the run: the breakdown student is the default until the full recording shows the board helps, and its within-decision signal (about 11% of the ceiling) is below the 30% that says the features hold the answer. The 8,000-game recording (and the 500-game test set at 32 replies) decides that at twenty times the data. Either way the next step is to play the best student against v6, since regret isn't Elo. That student is `student-v1` with its `pilot` weights (`student-v1.md`); a trainer's export becomes a weight set it can play with `npm run risk:student-weights`.
 
 ## If it works
 
@@ -80,4 +80,4 @@ By the rules fixed before the run: the breakdown student is the default until th
 
 - A recorder mode that plays games with v7 (and later the student) seated in a mixed field and keeps, at each v7 placement, the candidates' boards, success chances and v7's scores. It's a sibling of `risk:record`, on the same worker pool and Actions sharding.
 - A features step and a trainer: v8's, with a ranking loss over candidate groups instead of a win label.
-- The student bot: v6 plus a candidate ranker, registered like any version, with its own design doc and seating bar fixed before its runs.
+- The student bot: v6 plus a candidate ranker, registered like any version, with its own design doc and seating bar fixed before its runs. Built: `student-v1` (`student-v1.md`), its bar v7's, applied at v6's cost.

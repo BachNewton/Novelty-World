@@ -17,6 +17,9 @@ import { V6_PARAMS } from "./rule-v6/params";
 import { ruleBot as ruleV7, ruleV7Bot } from "./rule-v7";
 import { V7_PARAMS } from "./rule-v7/params";
 import { ruleV8Bot } from "./rule-v8";
+import { DEFAULT_WEIGHTS, studentBot, studentV1Bot } from "./student-v1";
+import { scorer } from "./student-v1/network";
+import { WEIGHT_SETS } from "./student-v1/weights";
 import { sweeperV1Bot } from "./sweeper-v1";
 
 /** Every bot the measuring harness can seat, by label. */
@@ -31,6 +34,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v6": ruleV6Bot,
   "rule-v7": ruleV7Bot,
   "rule-v8": ruleV8Bot,
+  "student-v1": studentV1Bot,
   "sweeper-v1": sweeperV1Bot,
   "gd-defensive": gdDefensiveBot,
   "gd-continental": gdContinentalBot,
@@ -51,6 +55,7 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v6": "rule-v6/index.ts",
   "rule-v7": "rule-v7/index.ts",
   "rule-v8": "rule-v8/index.ts",
+  "student-v1": "student-v1/index.ts",
   "sweeper-v1": "sweeper-v1/index.ts",
   "gd-defensive": "gd/index.ts",
   "gd-continental": "gd/index.ts",
@@ -65,7 +70,9 @@ interface Tunable {
   switches?: Readonly<Record<string, number>>;
   /** Whole-number work knobs, each 0 or more: v7's replies and candidates. */
   knobs?: Readonly<Record<string, number>>;
-  build: (prefs: Preferences, engine: Engine, switches: Record<string, number>, knobs: Record<string, number>) => Bot;
+  /** Settings that name one of a list, each with its default: a student's weight set. */
+  choices?: Readonly<Record<string, { value: string; options: readonly string[] }>>;
+  build: (prefs: Preferences, engine: Engine, switches: Record<string, number>, knobs: Record<string, number>, choices: Record<string, string>) => Bot;
 }
 
 /** The rule bots a measuring run may seat with some settings moved, each by its code and
@@ -103,6 +110,13 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
     knobs: { replies: V7_PARAMS.search.replies, candidates: V7_PARAMS.search.candidates },
     build: (prefs, engine, switches, knobs) => ruleV7({ ...V7_PARAMS, prefs, engine, search: { ...V7_PARAMS.search, ...switches, ...knobs } }),
   },
+  // The student with one of its weight sets: `student-v1~{"weights":"pilot"}` (`ideas/student-v1.md`).
+  "student-v1": {
+    prefs: V7_PARAMS.prefs,
+    engine: V7_PARAMS.engine,
+    choices: { weights: { value: DEFAULT_WEIGHTS, options: Object.keys(WEIGHT_SETS) } },
+    build: (prefs, engine, _switches, _knobs, choices) => studentBot({ ...V7_PARAMS, prefs, engine }, scorer(WEIGHT_SETS[choices.weights])),
+  },
 };
 
 export type Overrides = Partial<Preferences & Engine>;
@@ -121,11 +135,21 @@ function tunedBot(label: string): Bot | null {
   if (!Object.hasOwn(TUNABLE_BOTS, base)) throw new Error(`no tunable Risk bot "${base}" (tunable: ${Object.keys(TUNABLE_BOTS).join(", ")})`);
   const known = tuned.get(label);
   if (known) return known;
-  const overrides = JSON.parse(label.slice(at + 1)) as Record<string, number>;
-  const { prefs, engine, switches = {}, knobs = {}, build } = TUNABLE_BOTS[base];
-  const moved = { prefs: { ...prefs }, engine: { ...engine }, switches: { ...switches }, knobs: { ...knobs } };
+  const overrides = JSON.parse(label.slice(at + 1)) as Record<string, unknown>;
+  const { prefs, engine, switches = {}, knobs = {}, choices = {}, build } = TUNABLE_BOTS[base];
+  const moved = {
+    prefs: { ...prefs },
+    engine: { ...engine },
+    switches: { ...switches },
+    knobs: { ...knobs },
+    choices: Object.fromEntries(Object.entries(choices).map(([key, c]) => [key, c.value])),
+  };
   for (const [key, value] of Object.entries(overrides)) {
-    if (Object.hasOwn(prefs, key)) moved.prefs[key as keyof Preferences] = value;
+    if (Object.hasOwn(choices, key)) {
+      if (typeof value !== "string" || !choices[key].options.includes(value)) throw new Error(`"${base}"'s "${key}" is one of ${choices[key].options.join(", ")}, not ${JSON.stringify(value)}`);
+      moved.choices[key] = value;
+    } else if (typeof value !== "number") throw new Error(`"${base}"'s setting "${key}" is a number, not ${JSON.stringify(value)}`);
+    else if (Object.hasOwn(prefs, key)) moved.prefs[key as keyof Preferences] = value;
     else if (Object.hasOwn(engine, key)) moved.engine[key as keyof Engine] = value;
     else if (Object.hasOwn(switches, key)) {
       if (value !== 0 && value !== 1) throw new Error(`"${base}"'s switch "${key}" is 0 or 1, not ${value.toString()}`);
@@ -135,7 +159,7 @@ function tunedBot(label: string): Bot | null {
       moved.knobs[key] = value;
     } else throw new Error(`"${base}" has no setting "${key}"`);
   }
-  const bot = build(moved.prefs, moved.engine, moved.switches, moved.knobs);
+  const bot = build(moved.prefs, moved.engine, moved.switches, moved.knobs, moved.choices);
   tuned.set(label, bot);
   return bot;
 }

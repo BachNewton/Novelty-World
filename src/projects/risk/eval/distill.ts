@@ -1,18 +1,15 @@
-import type { GameEvent, GameView, Move, Seat } from "../contract";
+import type { Move, Seat } from "../contract";
 import type { Bot, BotInput } from "../bots/bot";
 import { riskBot } from "../bots";
 import { fromView, IDS, type Board } from "../bots/rule-v1/board";
 import type { Shape } from "../bots/rule-v1/cards";
-import { readRecord } from "../bots/rule-v4/beliefs";
-import { failureBoard, placed, successBoard } from "../bots/rule-v4/planner";
-import { ruleBot as ruleV6, tableParams } from "../bots/rule-v6";
-import { breakdown, type Breakdown } from "../bots/rule-v6/evaluate";
+import { ruleBot as ruleV6 } from "../bots/rule-v6";
+import type { Breakdown } from "../bots/rule-v6/evaluate";
 import type { Plan } from "../bots/rule-v6/planner";
-import type { CapturePlan } from "../bots/rule-v6/routes";
 import { candidates, type SearchResult } from "../bots/rule-v7";
 import { V7_PARAMS, type Params } from "../bots/rule-v7/params";
 import { nextPlacement, playReply, replyWorld, scoreEnd, searcher, searchPoint, type Placement, type SearchPoint } from "../bots/rule-v7/replies";
-import { features, FEATURES } from "../bots/rule-v8/features";
+import { CANDIDATE_WIDTH, candidateInputs, v6Settings, writeCandidateRow } from "../bots/student-v1/candidates";
 import { playGame, type RiskGameResult, type RiskGameSpec } from "./runner";
 
 // The teacher recorder (`npm run risk:record -- --teacher rule-v7`): the data for distilling
@@ -47,15 +44,6 @@ export function teacherParams(label: string): Params {
 }
 
 export const isTeacher = (label: string) => label === "rule-v7" || label.startsWith("rule-v7~");
-
-/** The settings v6 plays the search point by, as v7's search reads them: the table's for the
- *  seats alive, with this game's record of who took from whom. */
-export function v6Settings(table: Params, seat: Seat, view: GameView, history: readonly GameEvent[]): Params {
-  const players = view.seats.length;
-  const params = tableParams(table, players, view.seats.filter((s) => !s.eliminated).length) as Params;
-  const record = readRecord(history, players, params.opponents.beliefs.historyDecay, seat);
-  return { ...params, record };
-}
 
 /** A board as a record keeps it. */
 export interface BoardRecord {
@@ -140,43 +128,17 @@ export interface DecisionRecord extends Decision {
   players: number;
 }
 
-/** v4's carrying, as v6's planner applies it to a capture's success board: armies placed on a
- *  launch stack beyond what its routes were costed with march with its first route. The
- *  planner keeps it to itself, and a seated bot's code stays as it is. */
-function carrying(b: Board, after: Board, cp: CapturePlan): CapturePlan {
-  const spare = new Map<number, number>();
-  cp.routes.forEach((r, i) => spare.set(r.source, (spare.get(r.source) ?? after.armies[r.source] - b.armies[r.source]) - cp.alloc[i]));
-  const arrive = cp.routes.map((r, i) => {
-    const extra = Math.max(0, spare.get(r.source) ?? 0);
-    spare.delete(r.source);
-    return cp.arrive[i] + extra;
-  });
-  return { ...cp, arrive };
-}
-
-/** The boards v6's planner values a plan on, and the chance it succeeds. A sweep's success is
- *  scored on its plan as it stands; every other capture's with its leftover armies carried. */
-export function planBoards(b: Board, me: Seat, plan: Plan): { p: number; success: Board; failure: Board } {
-  const after = placed(b, plan.place);
-  const cp = plan.capture;
-  if (cp === null) return { p: 1, success: after, failure: after };
-  const run = plan.kind === "sweep" ? cp : carrying(b, after, cp);
-  return { p: cp.pSuccess, success: successBoard(after, me, run), failure: failureBoard(after, me, cp) };
-}
-
-const round = (x: number) => Number(x.toPrecision(6));
-
 function candidateRecord(b: Board, me: Seat, plan: Plan, params: Params): CandidateRecord {
-  const { p, success, failure } = planBoards(b, me, plan);
+  const c = candidateInputs(b, me, plan, params);
   return {
     kind: plan.kind,
     place: [...plan.place].sort(([x], [y]) => x - y),
-    p: round(p),
-    value: round(plan.value),
-    success: boardRecord(success),
-    failure: boardRecord(failure),
-    successV6: breakdownRecord(breakdown(success, me, params)),
-    failureV6: breakdownRecord(breakdown(failure, me, params)),
+    p: c.p,
+    value: c.value,
+    success: boardRecord(c.success),
+    failure: boardRecord(c.failure),
+    successV6: breakdownRecord(c.successV6),
+    failureV6: breakdownRecord(c.failureV6),
   };
 }
 
@@ -317,20 +279,19 @@ export function decisionRecords(result: TeacherGameResult): DecisionRecord[] {
   return result.searches.map((d) => ({ ...game, ...d }));
 }
 
-/** The width of a candidate's training row: its success board's features, its failure board's,
- *  its success chance and v6's value for it. */
-export const CANDIDATE_WIDTH = 2 * FEATURES + 2;
-
-/** A decision's training rows (`npm run risk:features -- --teacher`), one per candidate, read
- *  through rule-v8's feature function. */
+/** A decision's training rows (`npm run risk:features -- --teacher`), one per candidate, built
+ *  as the student builds its own (`bots/student-v1/candidates.ts`). */
 export function candidateRows(r: Pick<Decision, "seat" | "candidates">): Float32Array {
   const x = new Float32Array(r.candidates.length * CANDIDATE_WIDTH);
   r.candidates.forEach((c, i) => {
-    const at = i * CANDIDATE_WIDTH;
-    x.set(features(recordedBoard(c.success), r.seat, c.successV6), at);
-    x.set(features(recordedBoard(c.failure), r.seat, c.failureV6), at + FEATURES);
-    x[at + 2 * FEATURES] = c.p;
-    x[at + 2 * FEATURES + 1] = c.value;
+    writeCandidateRow(x, i * CANDIDATE_WIDTH, r.seat, {
+      p: c.p,
+      value: c.value,
+      success: recordedBoard(c.success),
+      failure: recordedBoard(c.failure),
+      successV6: c.successV6,
+      failureV6: c.failureV6,
+    });
   });
   return x;
 }

@@ -4,7 +4,8 @@ import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { createGunzip } from "node:zlib";
 import { FEATURES } from "../bots/rule-v8/features";
-import { CANDIDATE_WIDTH, candidateRows, type DecisionRecord } from "./distill";
+import { CANDIDATE_WIDTH } from "../bots/student-v1/candidates";
+import { candidateRows, type DecisionRecord } from "./distill";
 
 /** `npm run risk:features -- --teacher` — turns a teacher recording (`risk:record -- --teacher`)
  *  into the distilled student's training set (`ideas/distilled-v7.md`): every candidate of every
