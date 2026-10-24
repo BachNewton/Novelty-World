@@ -5,31 +5,36 @@ search scored them, and measured on held-out games against v7's own choices.
 The training set comes from `npm run risk:features -- --teacher`, which reads every recorded
 candidate's success and failure boards through rule-v8's feature function, so nothing here
 computes a feature. A candidate's input is those two boards' features, its success chance and v6's
-value for it, and, with `--relative` (the default), the same less the decision's mean over its
-candidates, since only the differences between a decision's candidates decide its ranking.
+value for it (`--features all`), or only v6's breakdown terms of each board with the two
+(`--features breakdown`). `--inputs both` (the default) reads them and their difference from the
+decision's mean over its candidates; `relative` only the difference; `absolute` only themselves.
 
-The loss is listwise: the cross-entropy of the student's softmax over a decision's candidates
-against the softmax of v7's mean scores at temperature `--tau` (by default the training
-decisions' median spread of scores, so a typical decision's target is neither flat nor one-hot).
-Games are held out whole: a game whose index is 0 mod 5 is test, 1 mod 10 is validation (early
-stopping), the rest train.
+The loss (`--target`) is listwise by default: the cross-entropy of the student's softmax over a
+decision's candidates against the softmax of v7's mean scores at temperature `--tau` (by default
+the training decisions' median spread of scores). `mse` regresses each candidate's mean score
+instead, and reports how much of the scores' variance it explains between decisions and within
+them (the ranking's part). Games are held out whole: a game whose index is 0 mod 5 is test, 1 mod
+10 is validation (early stopping), the rest train; `--train-fraction` keeps that share of the
+training games (the same games for every seed, and a smaller share's games among a larger's).
 
 The report on the test games:
   (a) how often v7 picks a candidate other than candidate 0 (v6's own choice);
-  (b) top-1 agreement with v7's pick, overall and where v7 overrules v6, for the student and the
-      baselines (always v6's choice; the highest v6 value; a linear student);
+  (b) top-1 agreement with v7's pick, overall and where v7 overrules v6, and how often v7's pick
+      is in the student's top 2;
   (c) mean regret in v7's own scores (v7's best candidate's score less the pick's), and the share
       of v7's edge over v6 the student keeps: (regret of v6 − regret of the student) / regret of v6.
   (d) where the recording kept each reply's score, the same on two independent halves of the
       replies: v7 choosing on the first half and every pick scored on the second, so a pick is
-      never scored on the noise it was chosen by. Regret in v7's own (c) scores counts the noise
-      v7 chose on as edge; (d) doesn't, and says how much of v7's choice repeats on fresh replies.
+      never scored on the noise it was chosen by, with a 95% interval from resampling test games.
+      This is the number to read: (c) counts the noise v7 chose on as edge.
 
-CPU only and seeded, so a run reproduces on the same machine and torch.
+Each configuration is fitted with `--seeds` seeds; the report gives each seed and their mean, and
+`--results` appends one JSON line per fit. Seeded; on the GPU (`--device`) a run reproduces only
+up to the GPU's own arithmetic.
 
     python src/projects/risk/bots/rule-v8/train/distill.py
-    python src/projects/risk/bots/rule-v8/train/distill.py --sweep 64,16 32 ,
-    python src/projects/risk/bots/rule-v8/train/distill.py --data dir-a dir-b --threads 4
+    python src/projects/risk/bots/rule-v8/train/distill.py --sweep 64,16 32 , --seeds 5 --device cuda
+    python src/projects/risk/bots/rule-v8/train/distill.py --train-fraction 0.25 0.5 1 --results runs.jsonl
 """
 
 import argparse
@@ -37,15 +42,15 @@ import json
 import math
 import os
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
-
-import numpy as np  # noqa: E402
-import torch  # noqa: E402
-import torch.nn as nn  # noqa: E402
+import numpy as np
+import torch
+import torch.nn as nn
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_DATA = os.path.join(HERE, "..", "..", "..", "eval", "positions", "distill-v7-features")
 SEED = 7
+BOOT = 1000
+BREAKDOWN_TERMS = 11
 
 
 def load_one(data):
@@ -93,11 +98,20 @@ def load(dirs):
     return X, S, M, pick, g[starts], P
 
 
-def inputs(X, M, relative):
-    if not relative:
+def select(X, features, per_board):
+    """The candidate inputs a student reads: everything, or each board's breakdown terms with the
+    success chance and v6's value."""
+    if features == "all":
         return X
+    W = X.shape[2]
+    cols = [*range(BREAKDOWN_TERMS), *range(per_board, per_board + BREAKDOWN_TERMS), W - 2, W - 1]
+    return X[:, :, cols]
+
+
+def inputs(X, M, mode):
     mean = (X * M[..., None]).sum(1, keepdims=True) / M.sum(1, keepdims=True)[..., None]
-    return np.concatenate([X, (X - mean) * M[..., None]], axis=2)
+    rel = (X - mean) * M[..., None]
+    return {"absolute": X, "relative": rel, "both": np.concatenate([X, rel], axis=2)}[mode]
 
 
 def build(dim, hidden):
@@ -115,29 +129,38 @@ def targets(S, M, tau):
     return (e / e.sum(1, keepdims=True)).astype(np.float32)
 
 
-def fit(Z, T, M, train, val, hidden, epochs=300, patience=12, batch=256):
-    torch.manual_seed(SEED)
-    gen = torch.Generator().manual_seed(SEED)
+def fit(Z, S, T, M, train, val, hidden, seed, target, weight_decay, device, epochs=300, patience=12, batch=256):
+    torch.manual_seed(seed)
+    gen = torch.Generator().manual_seed(seed)
     flat = Z[train][M[train]]
     mu = flat.mean(0, dtype=np.float64)
     sd = flat.std(0, dtype=np.float64)
     sd[sd < 1e-6] = 1.0
-    zn = torch.tensor(((Z - mu) / sd * M[..., None]).astype(np.float32))
-    tt = torch.tensor(T)
-    mt = torch.tensor(M)
-    model = build(Z.shape[2], hidden)
-    opt = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
+    zn = torch.tensor(((Z - mu) / sd * M[..., None]).astype(np.float32), device=device)
+    mt = torch.tensor(M, device=device)
+    if target == "mse":
+        flatS = S[train][M[train]]
+        s_mu, s_sd = float(flatS.mean()), float(flatS.std()) or 1.0
+        st = torch.tensor((S - s_mu) / s_sd, device=device)
+    else:
+        tt = torch.tensor(T, device=device)
+    model = build(Z.shape[2], hidden).to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=weight_decay)
 
     def loss(idx):
-        logits = model(zn[idx]).squeeze(2).masked_fill(~mt[idx], -1e9)
+        out = model(zn[idx]).squeeze(2)
+        m = mt[idx]
+        if target == "mse":
+            return ((out - st[idx]) ** 2 * m).sum() / m.sum()
+        logits = out.masked_fill(~m, -1e9)
         return -(tt[idx] * torch.log_softmax(logits, 1)).sum(1).mean()
 
-    tr = torch.tensor(np.flatnonzero(train))
-    vi = torch.tensor(np.flatnonzero(val))
+    tr = torch.tensor(np.flatnonzero(train), device=device)
+    vi = torch.tensor(np.flatnonzero(val), device=device)
     best, best_state, bad = math.inf, None, 0
     for _ in range(epochs):
         model.train()
-        perm = tr[torch.randperm(len(tr), generator=gen)]
+        perm = tr[torch.randperm(len(tr), generator=gen).to(device)]
         for i in range(0, len(perm), batch):
             opt.zero_grad()
             loss(perm[i : i + batch]).backward()
@@ -154,13 +177,44 @@ def fit(Z, T, M, train, val, hidden, epochs=300, patience=12, batch=256):
     model.load_state_dict(best_state)
     model.eval()
     with torch.no_grad():
-        out = model(zn).squeeze(2).masked_fill(~mt, -1e9).numpy()
-    return out
+        out = model(zn).squeeze(2).cpu().numpy()
+    raw = out
+    if target == "mse":
+        out = out * s_sd + s_mu
+    return np.where(M, out, -1e9), {"model": model.cpu(), "mu": mu, "sd": sd, "raw": raw}
+
+
+def export(target, fitted, args, per_board, X, M, test, cases=8):
+    """The student bot's weights: the normalisation and each linear layer, with a few test
+    decisions' raw candidate rows and the network's scores for them, for a parity test."""
+    layers = [m for m in fitted["model"] if isinstance(m, nn.Linear)]
+    golden = []
+    for d in np.flatnonzero(test)[:cases]:
+        k = int(M[d].sum())
+        golden.append({"rows": X[d, :k].astype(float).tolist(), "scores": fitted["raw"][d, :k].astype(float).tolist()})
+    weights = {
+        "version": 1,
+        "features": args.features,
+        "inputs": args.inputs,
+        "perBoard": per_board,
+        "mu": fitted["mu"].tolist(),
+        "sd": fitted["sd"].tolist(),
+        "layers": [{"w": l.weight.detach().numpy().astype(float).tolist(), "b": l.bias.detach().numpy().astype(float).tolist()} for l in layers],
+        "golden": golden,
+    }
+    with open(target, "w") as f:
+        json.dump(weights, f)
+    print(f"  wrote the first fit's weights to {target}")
 
 
 def picks(scores, M):
     """Each decision's first candidate with the highest score."""
     return np.where(M, scores, -np.inf).argmax(1)
+
+
+def top2(scores, M, v7):
+    order = np.argsort(-np.where(M, scores, -np.inf), 1, kind="stable")
+    return (order[:, :2] == v7[:, None]).any(1)
 
 
 def report(name, pick, S, M, v7, test, overruled, v6_regret=None):
@@ -175,74 +229,144 @@ def report(name, pick, S, M, v7, test, overruled, v6_regret=None):
     return regret[t].mean()
 
 
+class SplitHalf:
+    """(d): picks scored on the second half of the replies, against v7 choosing on the first,
+    on the test decisions that kept every reply, with intervals from resampling their games."""
+
+    def __init__(self, P, M, test, game, rng):
+        R = P.shape[2]
+        self.kept = test & ~np.isnan(np.where(M[..., None], P, 0)).any((1, 2)) if R >= 2 else np.zeros_like(test)
+        if not self.kept.any():
+            return
+        h = R // 2
+        with np.errstate(invalid="ignore"):
+            self.A = np.nanmean(np.where(M[..., None], P[:, :, :h], np.nan), 2)
+            self.B = np.nanmean(np.where(M[..., None], P[:, :, h:], np.nan), 2)
+        self.M, self.h, self.R = M, h, R
+        ids, self.inv = np.unique(game[self.kept], return_inverse=True)
+        self.counts = rng.multinomial(len(ids), np.full(len(ids), 1 / len(ids)), size=BOOT)
+        self.first = picks(self.A, M)
+        self.ref = self._sums(self.gain(self.first))
+
+    def gain(self, pick):
+        return (self.B[np.arange(len(self.B)), pick] - self.B[:, 0])[self.kept]
+
+    def _sums(self, g):
+        s = np.zeros(self.counts.shape[1])
+        np.add.at(s, self.inv, g)
+        return s
+
+    def kept_share(self, gain):
+        """The share of v7-on-the-first-half's gain over v6 kept, with its 95% interval."""
+        s = self._sums(gain)
+        boot = (self.counts @ s) / (self.counts @ self.ref)
+        lo, hi = np.percentile(boot, [2.5, 97.5])
+        return s.sum() / self.ref.sum(), lo, hi
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", nargs="+", default=[DEFAULT_DATA])
     ap.add_argument("--hidden", default="64,16")
-    ap.add_argument("--sweep", nargs="*")
+    ap.add_argument("--sweep", nargs="*", help="hidden sizes to fit in turn, e.g. 64,16 32 , (the empty one is linear)")
     ap.add_argument("--tau", type=float, default=0.0, help="the targets' temperature in v7's score; 0 for the training decisions' median spread")
-    ap.add_argument("--absolute", action="store_true", help="read each candidate alone, without its difference from the decision's mean")
+    ap.add_argument("--inputs", choices=["both", "relative", "absolute"], default="both")
+    ap.add_argument("--features", choices=["all", "breakdown"], default="all")
+    ap.add_argument("--target", choices=["listwise", "mse"], default="listwise")
+    ap.add_argument("--weight-decay", type=float, default=1e-4)
+    ap.add_argument("--train-fraction", type=float, nargs="+", default=[1.0])
+    ap.add_argument("--seeds", type=int, default=1)
+    ap.add_argument("--device", default="cpu", help="cpu, cuda, or auto")
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--results", help="append one JSON line per fit here")
+    ap.add_argument("--tag", default="", help="a label written into each result line")
+    ap.add_argument("--export", help="write the first fit's weights here, as the student bot reads them")
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
+    device = ("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else args.device
 
     X, S, M, v7, game, P = load(args.data)
+    per_board = json.load(open(os.path.join(args.data[0], "meta.json")))["features"]
     D, K, W = X.shape
     test = game % 5 == 0
     val = game % 10 == 1
     train = ~test & ~val
     overruled = v7 != 0
-    print(f"{D} decisions ({M.sum()} candidates, up to {K} a decision, {W} inputs each) from {len(set(game.tolist()))} games; train {train.sum()}, validation {val.sum()}, test {test.sum()}")
+    rng = np.random.default_rng(SEED)
+    train_games = np.unique(game[train])
+    order = rng.permutation(train_games)
+    print(f"{D} decisions ({M.sum()} candidates, up to {K} a decision, {W} inputs each) from {len(set(game.tolist()))} games; train {train.sum()}, validation {val.sum()}, test {test.sum()}; on {device}")
 
     spread = np.where(M, S, -np.inf).max(1) - np.where(M, S, np.inf).min(1)
     tau = args.tau if args.tau > 0 else float(np.median(spread[train]))
     print(f"targets' temperature {tau:.5f} (median spread of v7's scores in a training decision; mean {spread[train].mean():.5f})")
 
     print(f"\n(a) v7 overrules v6's choice in {overruled[test].mean():.1%} of the test decisions ({overruled[test].sum()} of {test.sum()}); every decision {overruled.mean():.1%}")
-    random_regret = ((np.where(M, S, -np.inf).max(1, keepdims=True) - S) * M).sum(1) / M.sum(1)
-    print(f"    a random candidate's mean regret {random_regret[test].mean():.5f}\n")
-    print("(b, c) on the test games:")
+    print("\n(b, c) baselines on the test games:")
     v6_regret = report("v6 (candidate 0)", np.zeros(D, np.int64), S, M, v7, test, overruled)
     value = X[:, :, W - 1]
     report("highest v6 value", picks(value, M), S, M, v7, test, overruled, v6_regret)
+    print(f"  {'highest v6 value':22s} has v7's pick in its top 2 in {top2(value, M, v7)[test].mean():.1%} (a random two of four: 50%)")
 
-    Z = inputs(X, M, not args.absolute)
+    half = SplitHalf(P, M, test, game, rng)
+    if half.kept.any():
+        k, lo, hi = half.kept_share(half.gain(picks(value, M)))
+        print(f"\n(d) split halves of the replies ({half.h} and {half.R - half.h}) on {half.kept.sum()} test decisions: v7 on the first half gains {half.ref.sum() / half.kept.sum():.5f} over v6 on the second")
+        print(f"  {'highest v6 value':22s} keeps {k:6.1%} [{lo:6.1%}, {hi:6.1%}] of it")
+
+    Z = inputs(select(X, args.features, per_board), M, args.inputs)
     T = targets(S, M, tau)
-    sizes = args.sweep if args.sweep else [",", args.hidden]
-    students = {}
-    for size in sizes:
-        hidden = [int(h) for h in size.split(",") if h]
-        name = f"student {','.join(map(str, hidden)) or 'linear'}"
-        students[name] = picks(fit(Z, T, M, train, val, hidden), M)
-        report(name, students[name], S, M, v7, test, overruled, v6_regret)
-    split_half(P, M, X, v7, test, students)
-
-
-def split_half(P, M, X, v7, test, students):
-    R = P.shape[2]
-    kept = test & ~np.isnan(np.where(M[..., None], P, 0)).any((1, 2)) if R >= 2 else np.zeros_like(test)
-    if not kept.any():
-        print()
-        print("(d) the recording kept no reply's own score, so there is no split-half reading")
-        return
-    h = R // 2
-    A = np.nanmean(np.where(M[..., None], P[:, :, :h], np.nan), 2)
-    B = np.nanmean(np.where(M[..., None], P[:, :, h:], np.nan), 2)
-    W = X.shape[2]
-    first = picks(A, M)
-    print()
-    print(f"(d) split halves of the replies ({h} and {R - h}), on the {kept.sum()} test decisions that kept them:")
-    print(f"    v7 on the first half picks the second half's best in {(first == picks(B, M))[kept].mean():.1%}; v7 on all {R} agrees with its own first half in {(first == v7)[kept].mean():.1%}")
-    bestB = np.where(M, B, -np.inf).max(1)
-    regret = lambda pick: (bestB - B[np.arange(len(B)), pick])[kept].mean()
-    r6, rA = regret(np.zeros(len(B), np.int64)), regret(first)
-    edge = r6 - rA
-    print(f"  {'v6 (candidate 0)':22s} regret on the second half {r6:.5f}")
-    print(f"  {f'v7 on the first half':22s} regret on the second half {rA:.5f}  (v7's edge over v6 on fresh replies: {edge:.5f})")
-    for name, pick in [("highest v6 value", picks(X[:, :, W - 1], M)), *students.items()]:
-        r = regret(pick)
-        kept_share = f"  (keeps {(r6 - r) / edge:6.1%} of it)" if edge > 0 else ""
-        print(f"  {name:22s} regret on the second half {r:.5f}{kept_share}")
+    sizes = args.sweep if args.sweep else [args.hidden]
+    exported = False
+    for fraction in args.train_fraction:
+        chosen = set(order[: max(1, round(fraction * len(order)))].tolist())
+        tr = train & np.isin(game, list(chosen))
+        for size in sizes:
+            hidden = [int(h) for h in size.split(",") if h]
+            name = f"{','.join(map(str, hidden)) or 'linear'}"
+            print(f"\nstudent {name}, {args.features} features, {args.inputs} inputs, {Z.shape[2]} wide, {args.target}, weight decay {args.weight_decay:g}, {fraction:.0%} of training ({tr.sum()} decisions):")
+            gains, shares = [], []
+            for s in range(args.seeds):
+                out, fitted = fit(Z, S, T, M, tr, val, hidden, SEED + s, args.target, args.weight_decay, device)
+                if args.export and not exported:
+                    export(args.export, fitted, args, per_board, X, M, test)
+                    exported = True
+                pick = picks(out, M)
+                best = np.where(M, S, -np.inf).max(1)
+                regret = (best - S[np.arange(D), pick])[test].mean()
+                row = {
+                    "tag": args.tag, "hidden": hidden, "features": args.features, "inputs": args.inputs, "target": args.target,
+                    "weight_decay": args.weight_decay, "fraction": fraction, "train_decisions": int(tr.sum()), "seed": SEED + s,
+                    "agree": float((pick == v7)[test].mean()), "agree_overruled": float((pick == v7)[test & overruled].mean()),
+                    "top2": float(top2(out, M, v7)[test].mean()), "regret": float(regret),
+                    "kept_c": float((v6_regret - regret) / v6_regret) if v6_regret > 0 else None,
+                }
+                if args.target == "mse":
+                    dm = lambda a: (a * M).sum(1, keepdims=True) / M.sum(1, keepdims=True)
+                    o, y = np.where(M, out, 0), np.where(M, S, 0)
+                    t = test[:, None] & M
+                    within = lambda a: (a - dm(a))[t]
+                    between = lambda a: dm(a)[test, 0]
+                    r2 = lambda p_, y_: 1 - ((y_ - p_) ** 2).sum() / ((y_ - y_.mean()) ** 2).sum()
+                    row["r2_within"] = float(r2(within(o), within(y)))
+                    row["r2_between"] = float(r2(between(o), between(y)))
+                line = f"  seed {SEED + s}: agrees {row['agree']:6.1%} ({row['agree_overruled']:6.1%} where v7 overrules v6), top 2 {row['top2']:6.1%}, keeps (c) {row['kept_c']:6.1%}"
+                if half.kept.any():
+                    g = half.gain(pick)
+                    gains.append(g)
+                    k, lo, hi = half.kept_share(g)
+                    shares.append(k)
+                    row.update(kept_d=float(k), kept_d_lo=float(lo), kept_d_hi=float(hi))
+                    line += f", keeps (d) {k:6.1%} [{lo:6.1%}, {hi:6.1%}]"
+                if args.target == "mse":
+                    line += f", R² within decisions {row['r2_within']:.3f}, between {row['r2_between']:.3f}"
+                print(line)
+                if args.results:
+                    with open(args.results, "a") as f:
+                        f.write(json.dumps(row) + "\n")
+            if len(shares) > 1:
+                k, lo, hi = half.kept_share(np.mean(gains, 0))
+                print(f"  mean of {len(shares)} seeds: keeps (d) {k:6.1%} [{lo:6.1%}, {hi:6.1%}] (interval: test games resampled); seeds' spread +/-{np.std(shares):.1%}")
 
 
 if __name__ == "__main__":

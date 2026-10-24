@@ -1,6 +1,6 @@
 # Distilling v7: v7's judgement at v6's cost (an idea, not built)
 
-This is a plan, not a bot. The kill test's tooling is built (below); the student is not, and the test has had only a first partial read. The doc says what would be built, why it should work where v8 didn't, and the cheap test that decides whether it's worth building.
+This is a plan, not a bot. The kill test's tooling is built (below), and its first experiments on the pilot data are measured; the student bot is not built. The doc says what would be built, why it should work where v8 didn't, and the cheap test that decides whether it's worth building.
 
 ## The problem it answers
 
@@ -55,6 +55,20 @@ Only if the student keeps most of v7's edge in regret does it get built as a bot
 - **No student keeps it.** Scored the same way, the best student (32 hidden units) keeps 6% of that edge; a linear student and a larger one (64, 16) keep none or less than none. Agreement with v7 where v7 overrules v6 is 20 to 25%, about a random pick among the other candidates.
 
 Two causes are left, and the pilot can't tell them apart: **too little data** (3,900 training decisions against 588 inputs a candidate) or **features that don't hold the answer** (what the replies find, the opponents' answers, may not show on the two boards v6 values a plan by; the linear student failing too leans this way). The full recording of about 100,000 decisions settles the first: if a student trained on it still keeps little, the second holds, and the next try is a student that sees what the replies see (the board after the opponents' likeliest answers), or distilling the replies' outcomes rather than v7's pick.
+
+## The pilot, measured properly
+
+The pilot's student numbers were one fit each with no interval, so they ranked nothing. The same 500 games, read again with every result an interval (test games resampled, 95%) and every student fitted with five seeds. `distill_analyze.py` reads the labels and baselines; `distill.py` gained `--seeds`, `--train-fraction`, `--features`, `--inputs`, `--target`, `--device` (the sweeps run on the GPU), `--results` and `--export`.
+
+- **v7's labels are good enough to learn from.** The reliability of an 8-reply ranking is 0.65 (0.48 at 4 replies, 0.79 at 16, 0.88 at 32); one reply's noise is 4.3 times the true spread between candidates. Per decision it varies widely: a quarter of decisions are near-ties no budget separates. So training data is recorded at 8 replies, and a test set at 32.
+- **The split-half yardstick is about 85% of the live v7.** Simulated against the decisions' true contrasts, a 4-reply picker has 64% of a perfect picker's edge over v6, the 8-reply v7 75%, a 32-reply one 90%.
+- **Eliminations don't drive the picks.** 5.7% of reply ends are a win or an elimination, and v7's pick changes on standings alone in 5.7% of decisions.
+- **No simple rule keeps any of v7's edge.** v6's highest value keeps 2% [−6%, 12%], the zero-ply leaf (success chance times the success board's share, plus the failure's) −11%, the highest success chance −44%, a random candidate −47%.
+- **The full board overfits; v6's breakdown alone keeps some edge.** With all 1,176 inputs every student keeps between −18% and +4%, at every size, and its within-decision R² is at or below zero: it learns nothing about the ranking that holds on new games. On v6's 11 breakdown terms of each board with the success chance and value (48 inputs), students keep 8 to 15%, and a linear one fitted to the scores 18% [2%, 33%], the first interval clear of zero. Its within-decision R² is 0.07, against a ceiling of about 0.65.
+- **More data helps the full board only weakly here.** From a quarter of the training games to all of them, the full-input students rise from about −15% to about 0%, inside their intervals.
+- **No pruner.** v7's pick is in the student's top two of four 56 to 59% of the time (a random two: 50%), far below the 80% that would let a student halve v7's search.
+
+By the rules fixed before the run: the breakdown student is the default until the full recording shows the board helps, and its within-decision signal (about 11% of the ceiling) is below the 30% that says the features hold the answer. The 8,000-game recording (and the 500-game test set at 32 replies) decides that at twenty times the data. Either way the next step is to play the best student against v6, since regret isn't Elo.
 
 ## If it works
 
