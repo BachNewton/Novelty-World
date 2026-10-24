@@ -51,6 +51,9 @@ def test_greedy_games_are_the_reference_engines_move_for_move(board, tables):
     assert [r["seed"] for r in expected] == seeds
     _, records = play_games(seeds, [["greedy"] * 3] * 4, board=board, tables=tables, max_turns=600, device="cpu",
                             record=True)
+    # The game itself must be identical; each side's own bookkeeping (the GPU's oversize flag, the
+    # harness's decision count, each file's provenance) is not the game.
     for ours, theirs in zip(records, expected):
-        assert ours.pop("oversize") is False
-        assert ours == theirs
+        assert ours["oversize"] is False
+        for key in ("seed", "players", "maxTurns", "bots", "initialHash", "moves", "stateHashes", "optionsHashes", "result"):
+            assert ours[key] == theirs[key], key

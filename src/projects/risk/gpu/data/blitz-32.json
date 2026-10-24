@@ -26,5 +26,12 @@
  "values": "running totals as pickOutcome accumulates them in float64, -1 where the outcome's chance is <= 0 (never picked)",
  "resolve": "draw = r <= 0 ? MIN_VALUE : r; if capture >= draw: attackerLosses = first reachable i with valuesA[i] >= draw, else likeliestA; defenderLosses = d. Otherwise attackerLosses = a; defenderLosses = first reachable j with valuesD[j] >= draw - capture, else likeliestD",
  "bytes": 296472,
- "sha256": "fa1db02008add7509993ac5ac3f734f08e6d0acbe2dab674595d6d522d810d8b"
+ "sha256": "66e3211d181b0655273b49d57afd47bf61e5f1064027a57a10fd348f84b31b97",
+ "provenance": {
+  "node": "v24.22.0",
+  "v8": "13.6.233.17-node.57",
+  "platform": "win32",
+  "arch": "x64",
+  "exportedAt": "2026-10-24T12:28:13.830Z"
+ }
 }
