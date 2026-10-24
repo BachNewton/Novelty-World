@@ -1,0 +1,5 @@
+# Node on Windows links the C runtime statically, and since Node 24 its Math.pow is that runtime's
+# pow (`src/jsmath.rs`), which differs in the last bit now and then from the system's ucrtbase.dll.
+# Linking it statically here too gives the port the same pow as Node's.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

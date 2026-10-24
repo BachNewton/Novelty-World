@@ -42,6 +42,7 @@
     "risk:record": "tsx src/projects/risk/eval/record-cli.ts",
     "risk:features": "tsx src/projects/risk/eval/features-cli.ts",
     "risk:student-weights": "tsx src/projects/risk/eval/student-weights-cli.ts",
+    "risk:native-vectors": "tsx src/projects/risk/eval/native/vectors-cli.ts",
     "risk:native-fixtures": "tsx src/projects/risk/eval/native/fixtures-cli.ts",
     "risk:native-check": "tsx src/projects/risk/eval/native/check-cli.ts",
     "risk:gpu-test": "python -m pytest src/projects/risk/gpu/tests -q",
