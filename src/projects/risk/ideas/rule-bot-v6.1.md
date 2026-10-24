@@ -206,3 +206,7 @@ npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror rule-v6.1 6 --game
 - **Behaviour agreement is reported, not gated.**
 
 If it clears the bar, v6.1 takes v6's lobby seat in `online/seat-roster.ts` (what happens to tables already seating v6 is settled then), its frozen fingerprints are taken, and the seatable ratings are rerun. Until then it is registered for measuring only. v7 is then rebuilt on it: its plans from v6.1's planner, its reply seats v6.1, and if C1 landed, its leaf's share on the same discounted power; its own 6-player cap rate is the first thing measured.
+
+## After v6.1: v4.1 and v5.1
+
+A fix that passes the bar is ported back as v4.1 and v5.1, since v4 and v5 stay seated and on the ladder, where their stalls cost every new bot's matchups. Each is held to the same bar against the version it replaces: even or better in every pairing, worse in none, without stalling. v4 and v5 have no scorer hook, so each port carries the fix into its own evaluation; its screen is the same as v6.1's.
