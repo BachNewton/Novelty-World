@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, type Group, MeshLambertMaterial, NormalBlending, ShaderMaterial, Vector3 } from "three";
-import { createRng, uniform } from "@/shared/lib/seeded-random";
+import { Color, type Group, type Mesh, Vector3 } from "three";
 import type { Cookware, DishId, Ingredient } from "../gameplay/recipes";
 import type { AtmosphereUniforms } from "./atmosphere";
 import { contentsShape, COOKWARE_AT, COOKWARE_LARGER, panShape, stickPlacing, stickShape, STICK_LINE } from "./cookware";
 import type { DishPalette } from "./dish-looks";
 import { dishShape } from "./dishes";
-import { shadeLambert } from "./shading";
+import { cloud, sparkleMaterial, steamMaterial } from "./effects";
+import { thingMaterial } from "./things";
 
 /*
  * Cooking at the camp's fire, drawn: the cookware in use (the pan on the
@@ -50,84 +50,18 @@ const DISH_AT = new Vector3(0.45, 1.05, 1.1);
 /** How long the dish takes to rise out of the steam, in seconds. */
 export const RISE = 0.9;
 
-export const STEAM_VERTEX = /* glsl */ `
-uniform float uHwTime;
-uniform float uSpread;
-attribute float seed;
-varying float vLife;
-void main() {
-  float life = fract(uHwTime * (0.28 + 0.18 * seed) + seed * 5.0);
-  vec3 p = position;
-  p.x += sin(seed * 40.0) * uSpread + sin(uHwTime * 1.3 + seed * 20.0) * 0.12 * life;
-  p.z += cos(seed * 40.0) * uSpread + cos(uHwTime * 1.1 + seed * 17.0) * 0.12 * life;
-  p.y += life * (0.9 + 0.5 * seed);
-  vLife = life;
-  vec4 view = modelViewMatrix * vec4(p, 1.0);
-  gl_PointSize = (0.4 + life * 1.3) * 220.0 / -view.z;
-  gl_Position = projectionMatrix * view;
-}
-`;
-
-export const STEAM_FRAGMENT = /* glsl */ `
-uniform vec3 uSteam;
-uniform float uStrength;
-varying float vLife;
-void main() {
-  float d = length(gl_PointCoord - 0.5);
-  float a = smoothstep(0.5, 0.05, d) * smoothstep(0.0, 0.15, vLife) * (1.0 - vLife) * 0.55 * uStrength;
-  gl_FragColor = vec4(uSteam, a);
-}
-`;
-
-export const SPARKLE_VERTEX = /* glsl */ `
-uniform float uHwTime;
-uniform float uSpread;
-attribute float seed;
-varying float vTwinkle;
-void main() {
-  vec3 p = position * uSpread;
-  p.y += fract(uHwTime * 0.4 + seed) * 0.12;
-  float twinkle = pow(max(0.0, sin(uHwTime * (5.0 + 4.0 * seed) + seed * 60.0)), 6.0);
-  vTwinkle = twinkle;
-  vec4 view = modelViewMatrix * vec4(p, 1.0);
-  gl_PointSize = (0.3 + twinkle) * 26.0 / -view.z;
-  gl_Position = projectionMatrix * view;
-}
-`;
-
-export const SPARKLE_FRAGMENT = /* glsl */ `
-uniform vec3 uSparkle;
-uniform float uStrength;
-varying float vTwinkle;
-void main() {
-  vec2 c = gl_PointCoord - 0.5;
-  float star = max(0.0, 1.0 - 9.0 * abs(c.x * c.y) - 1.6 * length(c));
-  float a = star * vTwinkle * uStrength;
-  gl_FragColor = vec4(uSparkle * a, a);
-}
-`;
-
 const STEAM_PUFFS = 34;
 const SPARKLES = 26;
 
-/** Points scattered from a seed: steam rises from round its emitter; sparkles sit in a ball the shader spreads to its size. */
-export function scatter(count: number, seed: string, ball: boolean): BufferGeometry {
-  const rng = createRng(seed);
-  const positions = new Float32Array(count * 3);
-  const seeds = new Float32Array(count);
-  for (let i = 0; i < count; i++) {
-    if (ball) {
-      const angle = rng.next() * Math.PI * 2;
-      const up = uniform(rng, -0.5, 1);
-      const r = Math.sqrt(rng.next());
-      positions.set([Math.cos(angle) * r, up, Math.sin(angle) * r], i * 3);
-    }
-    seeds[i] = rng.next();
-  }
-  const g = new BufferGeometry();
-  g.setAttribute("position", new BufferAttribute(positions, 3));
-  g.setAttribute("seed", new BufferAttribute(seeds, 1));
-  return g;
+/** The clouds a hearth's cooking or brewing rises in: steam and sparkles, placed and moved on the GPU, each its own values set by the scene each frame. */
+export function hearthClouds(atmosphere: AtmosphereUniforms, sizes: { steam: number; sparkles: number; burst: number }) {
+  const make = (count: number, steam: boolean) => {
+    const made = cloud(count, steam ? steamMaterial(atmosphere) : sparkleMaterial(atmosphere));
+    made.renderOrder = steam ? 5 : 6;
+    made.userData = { tint: new Color(), strength: 0, spread: 0.1 };
+    return made;
+  };
+  return { steam: make(sizes.steam, true), sparkles: make(sizes.sparkles, false), burst: make(sizes.burst, false) };
 }
 
 export function HearthCooking({ at, side, cookware, ingredients, dish, palette, atmosphere, drive }: HearthCookingProps) {
@@ -136,40 +70,20 @@ export function HearthCooking({ at, side, cookware, ingredients, dish, palette, 
   const pan = useRef<Group>(null);
   const dishGroup = useRef<Group>(null);
   const shared = useMemo(() => {
-    const material = shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere);
     const placing = stickPlacing();
-    const points = (vertexShader: string, fragmentShader: string, colour: Color, additive: boolean) =>
-      new ShaderMaterial({
-        uniforms: { uHwTime: atmosphere.uHwTime, uSpread: { value: 0.08 }, uStrength: { value: 0 }, uSteam: { value: colour }, uSparkle: { value: colour } },
-        vertexShader,
-        fragmentShader,
-        transparent: true,
-        depthWrite: false,
-        blending: additive ? AdditiveBlending : NormalBlending,
-      });
-    return {
-      material,
-      pan: panShape(palette),
-      stick: stickShape(palette, placing.length),
-      stickTurn: placing.turn,
-      steam: scatter(STEAM_PUFFS, "hearthwood/steam", false),
-      sizzle: scatter(SPARKLES, "hearthwood/sizzle", true),
-      burst: scatter(SPARKLES, "hearthwood/burst", true),
-      steamMaterial: points(STEAM_VERTEX, STEAM_FRAGMENT, new Color().copy(palette.steam), false),
-      sizzleMaterial: points(SPARKLE_VERTEX, SPARKLE_FRAGMENT, new Color().copy(palette.sizzle), true),
-      burstMaterial: points(SPARKLE_VERTEX, SPARKLE_FRAGMENT, new Color().copy(palette.sizzle), true),
-    };
+    const clouds = hearthClouds(atmosphere, { steam: STEAM_PUFFS, sparkles: SPARKLES, burst: SPARKLES });
+    clouds.steam.userData.tint.copy(palette.steam);
+    clouds.sparkles.userData.tint.copy(palette.sizzle);
+    clouds.burst.userData.tint.copy(palette.sizzle);
+    return { material: thingMaterial(atmosphere), pan: panShape(palette), stick: stickShape(palette, placing.length), stickTurn: placing.turn, ...clouds };
   }, [palette, atmosphere]);
   const inside = useMemo(() => (cookware ? contentsShape(ingredients, cookware, palette) : null), [ingredients, cookware, palette]);
   const served = useMemo(() => (dish ? dishShape(dish, palette) : null), [dish, palette]);
 
   useEffect(
     () => () => {
-      shared.material.dispose();
       shared.pan.dispose();
       shared.stick.dispose();
-      for (const g of [shared.steam, shared.sizzle, shared.burst]) g.dispose();
-      for (const m of [shared.steamMaterial, shared.sizzleMaterial, shared.burstMaterial]) m.dispose();
     },
     [shared],
   );
@@ -206,8 +120,8 @@ export function HearthCooking({ at, side, cookware, ingredients, dish, palette, 
       )}
       {where && (
         <>
-          <points geometry={shared.steam} material={shared.steamMaterial} position={where.steam} renderOrder={5} frustumCulled={false} />
-          <points geometry={shared.sizzle} material={shared.sizzleMaterial} position={where.contents} renderOrder={6} frustumCulled={false} />
+          <primitive object={shared.steam} position={where.steam} />
+          <primitive object={shared.sparkles} position={where.contents} />
         </>
       )}
       {served && (
@@ -215,11 +129,17 @@ export function HearthCooking({ at, side, cookware, ingredients, dish, palette, 
           <group ref={dishGroup} visible={false}>
             <mesh geometry={served} material={shared.material} castShadow />
           </group>
-          <points geometry={shared.burst} material={shared.burstMaterial} position={DISH_AT} renderOrder={6} frustumCulled={false} />
+          <primitive object={shared.burst} position={DISH_AT} />
         </>
       )}
     </group>
   );
+}
+
+/** How brightly the burst a dish or brew rises in sparkles, `since` seconds after it was made. */
+export function burstStrength(since: number | null): number {
+  if (since === null) return 0;
+  return 1.6 * Math.max(0, 1 - Math.abs(since - RISE * 0.8) / 1.6) + 0.35;
 }
 
 interface Moving {
@@ -230,16 +150,15 @@ interface Moving {
 }
 
 /** This moment of the cooking: the steam and sizzle by the heat, what cooks bubbling, the pan shaking, the stick turning, and the dish rising. */
-function animate(shared: { steamMaterial: ShaderMaterial; sizzleMaterial: ShaderMaterial; burstMaterial: ShaderMaterial }, parts: Moving, cookware: Cookware | null, { heat, served: since }: CookingDrive, t: number): void {
+function animate(shared: { steam: Mesh; sparkles: Mesh; burst: Mesh }, parts: Moving, cookware: Cookware | null, { heat, served: since }: CookingDrive, t: number): void {
   const out = since === null ? 0 : Math.min(1, since / RISE);
   // Steam from what cooks, lingering a little after; sizzle only from the pan and the stick, over the flames.
-  shared.steamMaterial.uniforms.uStrength.value = cookware === null ? 0 : 0.25 + 0.75 * heat * (1 - out * 0.6);
-  shared.steamMaterial.uniforms.uSpread.value = cookware === "pot" ? 0.1 : 0.06;
-  shared.sizzleMaterial.uniforms.uStrength.value = cookware === "pot" ? 0.25 * heat : heat * (1 - out);
-  shared.sizzleMaterial.uniforms.uSpread.value = cookware === "stick" ? 0.09 : 0.16;
-  const burst = since === null ? 0 : Math.max(0, 1 - Math.abs(since - RISE * 0.8) / 1.6);
-  shared.burstMaterial.uniforms.uStrength.value = 1.6 * burst + (since === null ? 0 : 0.35);
-  shared.burstMaterial.uniforms.uSpread.value = 0.28 + 0.25 * out;
+  shared.steam.userData.strength = cookware === null ? 0 : 0.25 + 0.75 * heat * (1 - out * 0.6);
+  shared.steam.userData.spread = cookware === "pot" ? 0.1 : 0.06;
+  shared.sparkles.userData.strength = cookware === "pot" ? 0.25 * heat : heat * (1 - out);
+  shared.sparkles.userData.spread = cookware === "stick" ? 0.09 : 0.16;
+  shared.burst.userData.strength = burstStrength(since);
+  shared.burst.userData.spread = 0.28 + 0.25 * out;
   if (parts.contents) {
     // What cooks bubbles and jumps in the pan; it is gone into the dish once served.
     parts.contents.visible = since === null || since < RISE * 0.35;

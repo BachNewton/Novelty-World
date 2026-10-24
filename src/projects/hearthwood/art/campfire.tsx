@@ -2,30 +2,13 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import {
-  AdditiveBlending,
-  BoxGeometry,
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  ConeGeometry,
-  CylinderGeometry,
-  IcosahedronGeometry,
-  MeshLambertMaterial,
-  PlaneGeometry,
-  ShaderMaterial,
-  SphereGeometry,
-  TorusGeometry,
-  type Group,
-  type Mesh,
-  MeshBasicMaterial,
-  type PointLight,
-  type Points,
-} from "three";
+import { BoxGeometry, type BufferGeometry, type Color, ConeGeometry, CylinderGeometry, IcosahedronGeometry, SphereGeometry, TorusGeometry, type Group, Mesh, type PointLight } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 import { createRng, uniform } from "@/shared/lib/seeded-random";
 import type { MomentLight } from "../engine/day";
 import type { AtmosphereUniforms } from "./atmosphere";
-import { shadeLambert } from "./shading";
+import { cloud, emberMaterial, flameMaterial, glowMaterial, QUAD } from "./effects";
+import { thingMaterial } from "./things";
 import { paint, type Piece } from "./painted";
 import type { Palette } from "./palette";
 
@@ -45,89 +28,6 @@ export interface FireState {
   /** About 1. */
   flicker: number;
 }
-
-const FLAME_VERTEX = /* glsl */ `
-uniform float uHwTime;
-uniform float uSeed;
-varying float vHeight;
-varying float vEdge;
-void main() {
-  vec3 p = position;
-  float h = clamp(p.y / 0.9 + 0.5, 0.0, 1.0);
-  float t = uHwTime * 7.0 + uSeed * 10.0;
-  p.x += sin(t + p.y * 5.0) * 0.06 * h;
-  p.z += cos(t * 0.8 + p.y * 4.0) * 0.05 * h;
-  p.y *= 1.0 + 0.12 * sin(t * 1.3);
-  vHeight = h;
-  vec4 view = modelViewMatrix * vec4(p, 1.0);
-  vec3 n = normalize(normalMatrix * normal);
-  vEdge = abs(dot(n, normalize(-view.xyz)));
-  gl_Position = projectionMatrix * view;
-}
-`;
-
-const FLAME_FRAGMENT = /* glsl */ `
-uniform vec3 uCore;
-uniform vec3 uFlame;
-uniform vec3 uTip;
-uniform float uStrength;
-varying float vHeight;
-varying float vEdge;
-void main() {
-  vec3 colour = mix(uCore, uFlame, smoothstep(0.05, 0.5, vHeight));
-  colour = mix(colour, uTip, smoothstep(0.5, 1.0, vHeight));
-  float alpha = (1.0 - smoothstep(0.55, 1.0, vHeight)) * smoothstep(0.0, 0.6, vEdge) * uStrength;
-  gl_FragColor = vec4(colour * alpha, alpha);
-}
-`;
-
-const EMBER_VERTEX = /* glsl */ `
-uniform float uHwTime;
-attribute float seed;
-varying float vLife;
-void main() {
-  float life = fract(uHwTime * (0.35 + 0.25 * seed) + seed * 7.0);
-  vec3 p = position;
-  p.y += life * (1.6 + seed);
-  p.x += sin(uHwTime * 2.0 + seed * 30.0) * 0.25 * life;
-  p.z += cos(uHwTime * 1.7 + seed * 20.0) * 0.25 * life;
-  vLife = life;
-  vec4 view = modelViewMatrix * vec4(p, 1.0);
-  gl_PointSize = (1.0 - life) * 70.0 / -view.z;
-  gl_Position = projectionMatrix * view;
-}
-`;
-
-const EMBER_FRAGMENT = /* glsl */ `
-uniform vec3 uEmber;
-varying float vLife;
-void main() {
-  float d = length(gl_PointCoord - 0.5);
-  float a = smoothstep(0.5, 0.1, d) * (1.0 - vLife);
-  gl_FragColor = vec4(uEmber * a, a);
-}
-`;
-
-const GLOW_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  vec4 centre = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-  vec4 view = centre + vec4(position.xy, 0.0, 0.0);
-  gl_Position = projectionMatrix * view;
-}
-`;
-
-const GLOW_FRAGMENT = /* glsl */ `
-uniform vec3 uGlow;
-uniform float uStrength;
-varying vec2 vUv;
-void main() {
-  float d = length(vUv - 0.5) * 2.0;
-  float a = pow(max(1.0 - d, 0.0), 2.2) * uStrength;
-  gl_FragColor = vec4(uGlow * a, a);
-}
-`;
 
 const EMBERS = 36;
 /** The fire light's strength at its brightest, in candela. */
@@ -248,11 +148,14 @@ function setParts(meshes: Partial<Record<CampPart, Mesh | null>>, lifts: CampLif
 }
 
 /** The fire this frame: its light's flicker, the flames' strength, and the glow, wider at night. */
-function burn(fire: { flames: ShaderMaterial[]; glowMaterial: ShaderMaterial }, clock: FireState, lit: number, light: PointLight | null, glow: Mesh | null): void {
+function burn(fire: { flames: readonly Mesh[]; glow: Mesh; embers: Mesh }, clock: FireState, lit: number, light: PointLight | null): void {
   if (light) light.intensity = FIRE_LIGHT * clock.light.fire * clock.flicker * lit;
-  for (const m of fire.flames) m.uniforms.uStrength.value = (0.75 + 0.25 * clock.flicker) * lit;
-  fire.glowMaterial.uniforms.uStrength.value = 0.55 * clock.light.fire * clock.flicker * lit;
-  glow?.scale.setScalar((2.6 + 2.4 * clock.light.night) * (0.4 + 0.6 * lit));
+  for (const m of fire.flames) m.userData.strength = (0.75 + 0.25 * clock.flicker) * lit;
+  fire.glow.userData.strength = 0.55 * clock.light.fire * clock.flicker * lit;
+  fire.glow.scale.setScalar((2.6 + 2.4 * clock.light.night) * (0.4 + 0.6 * lit));
+  fire.embers.userData.strength = lit;
+  fire.embers.visible = lit > 0.5;
+  fire.glow.visible = lit > 0;
 }
 
 export interface CampfireProps {
@@ -273,85 +176,53 @@ const STANDING = () => Infinity;
 
 export function Campfire({ at, turn = 0, lifts, appear = STANDING, seed, palette, atmosphere, fire }: CampfireProps) {
   const light = useRef<PointLight>(null);
-  const glow = useRef<Mesh>(null);
   const flames = useRef<Group>(null);
-  const embers = useRef<Points>(null);
   const parts = useRef<Partial<Record<CampPart, Mesh | null>>>({});
-  const assets = useMemo(() => {
-    const rng = createRng(`${seed}/camp-things`);
+  const geometries = useMemo(() => campGeometries(palette, createRng(`${seed}/camp-things`)), [seed, palette]);
+  const fireArt = useMemo(() => {
     const t = palette.things;
-    const flameUniforms = (seed: number) => ({
-      uHwTime: atmosphere.uHwTime,
-      uSeed: { value: seed },
-      uCore: { value: new Color().copy(t["fire-core"]) },
-      uFlame: { value: new Color().copy(t["fire-flame"]) },
-      uTip: { value: new Color().copy(t["fire-tip"]) },
-      uStrength: { value: 1 },
-    });
-    const flameMaterial = (seed: number) =>
-      new ShaderMaterial({ uniforms: flameUniforms(seed), vertexShader: FLAME_VERTEX, fragmentShader: FLAME_FRAGMENT, transparent: true, depthWrite: false, blending: AdditiveBlending });
-    const embers = new BufferGeometry();
-    const positions = new Float32Array(EMBERS * 3);
-    const seeds = new Float32Array(EMBERS);
-    for (let e = 0; e < EMBERS; e++) {
-      positions.set([uniform(rng, -0.25, 0.25), 0.3, uniform(rng, -0.25, 0.25)], e * 3);
-      seeds[e] = rng.next();
-    }
-    embers.setAttribute("position", new BufferAttribute(positions, 3));
-    embers.setAttribute("seed", new BufferAttribute(seeds, 1));
-    return {
-      parts: campGeometries(palette, rng),
-      campMaterial: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
-      flame: new ConeGeometry(0.34, 0.9, 10, 3, true),
-      flameSmall: new ConeGeometry(0.2, 0.6, 8, 2, true),
-      flames: [flameMaterial(0.1), flameMaterial(0.6), flameMaterial(0.9)],
-      embers,
-      emberMaterial: new ShaderMaterial({
-        uniforms: { uHwTime: atmosphere.uHwTime, uEmber: { value: new Color().copy(t.ember) } },
-        vertexShader: EMBER_VERTEX,
-        fragmentShader: EMBER_FRAGMENT,
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-      }),
-      glow: new PlaneGeometry(1, 1),
-      glowMaterial: new ShaderMaterial({
-        uniforms: { uGlow: { value: new Color().copy(t.firelight) }, uStrength: { value: 0 } },
-        vertexShader: GLOW_VERTEX,
-        fragmentShader: GLOW_FRAGMENT,
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-      }),
-      firelight: new Color().copy(t.firelight),
+    const flame = (geometry: BufferGeometry, flameSeed: number, x: number, y: number, z: number) => {
+      const mesh = new Mesh(geometry, flameMaterial(atmosphere));
+      mesh.position.set(x, y, z);
+      mesh.renderOrder = 2;
+      mesh.userData = { core: t["fire-core"].clone(), flame: t["fire-flame"].clone(), tip: t["fire-tip"].clone(), seed: flameSeed, strength: 1 };
+      return mesh;
     };
-  }, [seed, palette, atmosphere]);
+    const big = new ConeGeometry(0.34, 0.9, 10, 3, true);
+    const small = new ConeGeometry(0.2, 0.6, 8, 2, true);
+    const embers = cloud(EMBERS, emberMaterial(atmosphere));
+    embers.renderOrder = 3;
+    embers.userData = { tint: t.ember.clone(), strength: 0 };
+    const glow = new Mesh(QUAD, glowMaterial(atmosphere));
+    glow.position.set(0, 0.7, 0);
+    glow.renderOrder = 4;
+    glow.frustumCulled = false;
+    glow.userData = { glow: t.firelight.clone(), strength: 0, pulse: 0, phase: 0 };
+    return { shells: [big, small], flames: [flame(big, 0.1, 0, 0.55, 0), flame(small, 0.6, 0.12, 0.4, 0.05), flame(small, 0.9, -0.1, 0.38, -0.08)], embers, glow, firelight: t.firelight.clone() };
+  }, [palette, atmosphere]);
 
   useEffect(
     () => () => {
-      for (const g of Object.values(assets.parts)) g.dispose();
-      assets.campMaterial.dispose();
-      assets.flame.dispose();
-      assets.flameSmall.dispose();
-      for (const m of assets.flames) m.dispose();
-      assets.embers.dispose();
-      assets.emberMaterial.dispose();
-      assets.glow.dispose();
-      assets.glowMaterial.dispose();
+      for (const g of Object.values(geometries)) g.dispose();
     },
-    [assets],
+    [geometries],
+  );
+  useEffect(
+    () => () => {
+      for (const g of fireArt.shells) g.dispose();
+    },
+    [fireArt],
   );
 
   useFrame(() => {
     const seconds = appear();
     const lit = caught(seconds);
     setParts(parts.current, lifts, seconds);
-    burn(assets, fire, lit, light.current, glow.current);
+    burn(fireArt, fire, lit, light.current);
     if (flames.current) {
       flames.current.visible = lit > 0;
       flames.current.scale.set(0.5 + 0.5 * lit, 0.25 + 0.75 * lit, 0.5 + 0.5 * lit);
     }
-    if (embers.current) embers.current.visible = lit > 0.5;
   });
 
   return (
@@ -362,21 +233,21 @@ export function Campfire({ at, turn = 0, lifts, appear = STANDING, seed, palette
           ref={(mesh) => {
             parts.current[part] = mesh;
           }}
-          geometry={assets.parts[part]}
-          material={assets.campMaterial}
+          geometry={geometries[part]}
+          material={thingMaterial(atmosphere)}
           position={[anchorOf(part).x, lifts?.[part] ?? 0, anchorOf(part).z]}
           castShadow
           receiveShadow
         />
       ))}
       <group ref={flames}>
-        <mesh geometry={assets.flame} material={assets.flames[0]} position={[0, 0.55, 0]} renderOrder={2} />
-        <mesh geometry={assets.flameSmall} material={assets.flames[1]} position={[0.12, 0.4, 0.05]} renderOrder={2} />
-        <mesh geometry={assets.flameSmall} material={assets.flames[2]} position={[-0.1, 0.38, -0.08]} renderOrder={2} />
+        {fireArt.flames.map((m) => (
+          <primitive key={m.uuid} object={m} />
+        ))}
       </group>
-      <points ref={embers} geometry={assets.embers} material={assets.emberMaterial} renderOrder={3} frustumCulled={false} />
-      <mesh ref={glow} geometry={assets.glow} material={assets.glowMaterial} position={[0, 0.7, 0]} renderOrder={4} frustumCulled={false} />
-      <pointLight ref={light} color={assets.firelight} position={[0, 0.9, 0]} distance={26} decay={2} />
+      <primitive object={fireArt.embers} />
+      <primitive object={fireArt.glow} />
+      <pointLight ref={light} color={fireArt.firelight} position={[0, 0.9, 0]} distance={26} decay={2} />
     </group>
   );
 }
@@ -395,7 +266,7 @@ export interface GhostDrive {
 const GHOST_OPACITY = { good: 0.4, poor: 0.14 } as const;
 
 /** The ghost this frame: where it stands, each part on its ground, and its colour for the ground under it. */
-function showGhost(assets: { material: MeshBasicMaterial; good: Color; poor: Color }, group: Group | null, meshes: Partial<Record<CampPart, Mesh | null>>, at: GhostDrive | null): void {
+function showGhost(assets: { material: MeshBasicNodeMaterial; good: Color; poor: Color }, group: Group | null, meshes: Partial<Record<CampPart, Mesh | null>>, at: GhostDrive | null): void {
   if (!group) return;
   group.visible = at !== null;
   if (!at) return;
@@ -417,7 +288,7 @@ export function CampGhost({ palette, drive }: { palette: Palette; drive: () => G
     const t = palette.things;
     return {
       parts: campGeometries(palette, createRng("hearthwood/camp-ghost")),
-      material: new MeshBasicMaterial({ color: t["camp-ghost"].clone(), transparent: true, opacity: GHOST_OPACITY.good, depthWrite: false }),
+      material: new MeshBasicNodeMaterial({ color: t["camp-ghost"].clone(), transparent: true, opacity: GHOST_OPACITY.good, depthWrite: false }),
       good: t["camp-ghost"].clone(),
       poor: t["camp-ghost-poor"].clone(),
     };

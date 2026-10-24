@@ -1,4 +1,4 @@
-import type { Side } from "three";
+import { Color, type Side } from "three";
 import { BRDF_Lambert, cameraViewMatrix, diffuseColor, dot, float, max, normalView, positionLocal, positionViewDirection, positionWorld, pow, smoothstep, vec3, vec4 } from "three/tsl";
 import { LightingModel, NodeMaterial, type LightingModelDirectInput, type Node, type NodeBuilder } from "three/webgpu";
 import { liveFeatures, type FeatureSwitches } from "../features";
@@ -111,6 +111,10 @@ export class DioramaMaterial extends NodeMaterial {
   readonly isDioramaMaterial = true;
   /** Light the surface gives off itself: three reads it from any node material, though only some declare it. */
   emissiveNode: Node | null = null;
+  /** The material's own colour, times the vertex and instance colours: three's node materials read it only where a material declares it, and a bare node material doesn't. */
+  readonly color = new Color(1, 1, 1);
+  /** Faceted shading from the triangles' own normals: three's node builder reads it from any material, though only some declare it. */
+  flatShading = false;
   private readonly withAir: boolean;
   private stages: Stages[] = [];
   private built = false;

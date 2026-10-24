@@ -1,4 +1,4 @@
-import { type BufferGeometry, type Color, CylinderGeometry, DataTexture, IcosahedronGeometry, SphereGeometry, TorusGeometry } from "three";
+import { type BufferGeometry, type Color, CylinderGeometry, IcosahedronGeometry, SphereGeometry, TorusGeometry } from "three";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { ClueMark } from "../stories/story";
@@ -210,25 +210,6 @@ function cluePieces(mark: ClueMark, p: CluePalette, rng: Rng): Piece[] {
       return pieces;
     }
   }
-}
-
-/** A soft round glint for the sparkles over a clue still to examine: white, fading out from its middle, with a faint cross of light. */
-export function glintTexture(): DataTexture {
-  const size = 32;
-  const data = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = (x + 0.5) / size - 0.5;
-      const dy = (y + 0.5) / size - 0.5;
-      const round = Math.max(0, 1 - Math.hypot(dx, dy) * 2) ** 2;
-      const cross = Math.max(0, 1 - Math.min(Math.abs(dx), Math.abs(dy)) * 14) * Math.max(0, 1 - Math.hypot(dx, dy) * 2);
-      const alpha = Math.min(1, round + cross * 0.6);
-      data.set([255, 255, 255, Math.round(alpha * 255)], (y * size + x) * 4);
-    }
-  }
-  const texture = new DataTexture(data, size, size);
-  texture.needsUpdate = true;
-  return texture;
 }
 
 /** A clue's model, at its own origin on the ground, life-sized: whoever places it draws it `CLUE_LARGER`. */

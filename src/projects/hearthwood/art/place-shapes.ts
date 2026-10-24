@@ -1,8 +1,9 @@
-import { BoxGeometry, BufferAttribute, BufferGeometry, ConeGeometry, CylinderGeometry, IcosahedronGeometry, MeshLambertMaterial, OctahedronGeometry, SphereGeometry, TorusGeometry } from "three";
+import { BoxGeometry, BufferAttribute, BufferGeometry, ConeGeometry, CylinderGeometry, IcosahedronGeometry, OctahedronGeometry, SphereGeometry, TorusGeometry } from "three";
 import { createRng, uniform, type Rng } from "@/shared/lib/seeded-random";
 import type { PlaceKind } from "../engine/regions";
 import type { AtmosphereUniforms } from "./atmosphere";
-import { shadeLambert } from "./shading";
+import type { DioramaMaterial } from "./materials";
+import { thingMaterial } from "./things";
 import { lumpy, paint, type Piece } from "./painted";
 import type { Palette } from "./palette";
 import { regionAbsorption } from "./water/absorption";
@@ -537,6 +538,6 @@ export function placeGeometry(look: PlaceLook, ground: GroundAt, palette: Palett
   return paint(placePieces(look, ground, palette));
 }
 
-export function placeMaterial(atmosphere: AtmosphereUniforms): MeshLambertMaterial {
-  return shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere);
+export function placeMaterial(atmosphere: AtmosphereUniforms): DioramaMaterial {
+  return thingMaterial(atmosphere);
 }

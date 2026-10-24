@@ -27,7 +27,6 @@ import { plantColour, plantMatrix } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import { fallRibbon, placeGeometry, type PlaceLook } from "../../art/place-shapes";
 import type { SkyUniforms } from "../../art/sky/sky";
-import { shadowDepth } from "../../art/shading";
 import { poolGeometry, waterMesh } from "../../art/water/water";
 import { Broom } from "../../art/broom";
 import { Witch, type WitchPose } from "../../art/witch";
@@ -145,7 +144,6 @@ function PlantPiece({ kind, variant, context }: { kind: PlantKind; variant: numb
     plantColour(plant, colour, 0);
     instanced.instanceColor = new InstancedBufferAttribute(colour, 3);
     instanced.castShadow = true;
-    instanced.customDepthMaterial = shadowDepth(kind === "rock" ? "solid" : "foliage", context.atmosphere);
     instanced.frustumCulled = false;
     return instanced;
   }, [kind, variant, context, seasonal]);

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { BoxGeometry, type BufferGeometry, CylinderGeometry, LatheGeometry, MeshLambertMaterial, SphereGeometry, TorusGeometry, Vector2 } from "three";
+import { BoxGeometry, type BufferGeometry, CylinderGeometry, LatheGeometry, SphereGeometry, TorusGeometry, Vector2 } from "three";
 import type { AtmosphereUniforms } from "./atmosphere";
-import { shadeLambert } from "./shading";
+import { thingMaterial } from "./things";
 import { paint } from "./painted";
 import type { Palette } from "./palette";
 
@@ -95,11 +95,10 @@ export function broomGeometry(palette: Palette): BufferGeometry {
 
 /** The broom on its own, lying level at its seat's height above the ground. */
 export function Broom({ palette, atmosphere }: { palette: Palette; atmosphere: AtmosphereUniforms }) {
-  const assets = useMemo(() => ({ geometry: broomGeometry(palette), material: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere) }), [palette, atmosphere]);
+  const assets = useMemo(() => ({ geometry: broomGeometry(palette), material: thingMaterial(atmosphere) }), [palette, atmosphere]);
   useEffect(
     () => () => {
       assets.geometry.dispose();
-      assets.material.dispose();
     },
     [assets],
   );

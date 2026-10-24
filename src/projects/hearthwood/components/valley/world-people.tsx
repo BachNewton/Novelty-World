@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { BoxGeometry, type BufferGeometry, type Camera, Matrix4, type Material, MeshLambertMaterial, Quaternion, Vector3 } from "three";
+import { BoxGeometry, type BufferGeometry, type Camera, Matrix4, type Material, Quaternion, Vector3 } from "three";
 import { generateCat } from "../../cats/cat";
 import { generateDog } from "../../dogs/dog";
 import type { World } from "../../engine/world";
@@ -13,7 +13,7 @@ import { FolkFigure, type FolkHandle } from "../../art/folk-figure";
 import { homeShape, keepsakeShape, SINKS } from "../../art/folk-homes";
 import type { FolkPalette } from "../../art/folk";
 import { paint } from "../../art/painted";
-import { shadeLambert } from "../../art/shading";
+import { thingMaterial } from "../../art/things";
 import type { Keepsake } from "../../stories/story";
 import { CatBody } from "../cats/cat-body";
 import { DogBody } from "../dogs/dog-body";
@@ -182,8 +182,7 @@ export function WorldPeople({
   const camp = useSyncExternalStore(subscribeCamp, () => pitchedSite(hearth.camping));
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
-  const material = useMemo(() => shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere), [atmosphere]);
-  useEffect(() => () => material.dispose(), [material]);
+  const material = useMemo(() => thingMaterial(atmosphere), [atmosphere]);
   const [drawn, setDrawn] = useState<PersonLive[]>([]);
   const figures = useRef(new Map<string, FolkHandle>());
   const idles = useRef(new Map<string, Idle>());

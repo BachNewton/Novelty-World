@@ -2,13 +2,17 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, type Group, type Mesh, MeshLambertMaterial, NormalBlending, ShaderMaterial, Vector3 } from "three";
+import { Color, type Group, Mesh, Vector3 } from "three";
+import type { UniformNode } from "three/webgpu";
 import type { BrewId, BrewIngredient } from "../gameplay/brews";
 import type { AtmosphereUniforms } from "./atmosphere";
 import { brewLook, type BrewPalette, type Glow } from "./brew-looks";
 import { brewContentsShape, brewShape, brewSurfaceShape, CAULDRON, cauldronShape } from "./brews";
-import { RISE, scatter, SPARKLE_FRAGMENT, SPARKLE_VERTEX, STEAM_FRAGMENT, STEAM_VERTEX } from "./hearth-cooking";
-import { shadeLambert } from "./shading";
+import { glowMaterial, QUAD } from "./effects";
+import { burstStrength, hearthClouds, RISE } from "./hearth-cooking";
+import { diorama, type DioramaMaterial } from "./materials";
+import { thingMaterial } from "./things";
+import { colourUniform } from "./tsl";
 
 /*
  * Brewing at the camp's fire, drawn: the iron cauldron on its three legs at
@@ -52,29 +56,17 @@ export const BREW_SHOWN_LARGER = 2.2;
 /** Where the brew made rises to, in the fire's frame: between the flames and Elliott. */
 const BREW_AT = new Vector3(0.8, 0.9, 1.05);
 
-const GLOW_VERTEX = /* glsl */ `
-uniform float uSize;
-void main() {
-  vec4 view = modelViewMatrix * vec4(position, 1.0);
-  gl_PointSize = uSize * 300.0 / -view.z;
-  gl_Position = projectionMatrix * view;
-}
-`;
+const surfaces = new WeakMap<AtmosphereUniforms, { material: DioramaMaterial; glow: UniformNode<"vec3", Color> }>();
 
-const GLOW_FRAGMENT = /* glsl */ `
-uniform vec3 uGlow;
-uniform float uStrength;
-void main() {
-  float d = length(gl_PointCoord - 0.5) * 2.0;
-  float a = pow(max(1.0 - d, 0.0), 2.4) * uStrength;
-  gl_FragColor = vec4(uGlow * a, a);
-}
-`;
-
-function onePoint(): BufferGeometry {
-  const g = new BufferGeometry();
-  g.setAttribute("position", new BufferAttribute(new Float32Array(3), 3));
-  return g;
+/** The cauldron's surface, coloured and lit from within by the brew as it comes on: the one material of its kind, as there is one cauldron at the fire. */
+function brewSurfaceMaterial(atmosphere: AtmosphereUniforms): { material: DioramaMaterial; glow: UniformNode<"vec3", Color> } {
+  let made = surfaces.get(atmosphere);
+  if (!made) {
+    const glow = colourUniform();
+    made = { material: diorama("solid", atmosphere, { vertexColors: true }, { emissive: glow }), glow };
+    surfaces.set(atmosphere, made);
+  }
+  return made;
 }
 
 export function HearthBrewing({ at, side, ingredients, brew, made, palette, atmosphere, drive }: HearthBrewingProps) {
@@ -82,32 +74,13 @@ export function HearthBrewing({ at, side, ingredients, brew, made, palette, atmo
   const surface = useRef<Mesh>(null);
   const brewGroup = useRef<Group>(null);
   const shared = useMemo(() => {
-    const material = shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere);
-    // The surface is coloured by the brew as it comes on, so it has a material of its own.
-    const surfaceMaterial = shadeLambert(new MeshLambertMaterial({ vertexColors: true, color: new Color(1, 1, 1) }), "solid", atmosphere);
-    const points = (vertexShader: string, fragmentShader: string, additive: boolean) =>
-      new ShaderMaterial({
-        uniforms: { uHwTime: atmosphere.uHwTime, uSpread: { value: 0.1 }, uStrength: { value: 0 }, uSteam: { value: new Color() }, uSparkle: { value: new Color() }, uGlow: { value: new Color() }, uSize: { value: 0.9 } },
-        vertexShader,
-        fragmentShader,
-        transparent: true,
-        depthWrite: false,
-        blending: additive ? AdditiveBlending : NormalBlending,
-      });
-    return {
-      material,
-      surfaceMaterial,
-      cauldron: cauldronShape(palette),
-      surface: brewSurfaceShape(),
-      steam: scatter(34, "hearthwood/brew-steam", false),
-      sparkles: scatter(22, "hearthwood/brew-sparkles", true),
-      burst: scatter(26, "hearthwood/brew-burst", true),
-      glow: onePoint(),
-      steamMaterial: points(STEAM_VERTEX, STEAM_FRAGMENT, false),
-      sparkleMaterial: points(SPARKLE_VERTEX, SPARKLE_FRAGMENT, true),
-      burstMaterial: points(SPARKLE_VERTEX, SPARKLE_FRAGMENT, true),
-      glowMaterial: points(GLOW_VERTEX, GLOW_FRAGMENT, true),
-    };
+    const surfaceMaterial = brewSurfaceMaterial(atmosphere);
+    const clouds = hearthClouds(atmosphere, { steam: 34, sparkles: 22, burst: 26 });
+    const glow = new Mesh(QUAD, glowMaterial(atmosphere));
+    glow.renderOrder = 6;
+    glow.frustumCulled = false;
+    glow.userData = { glow: new Color(), strength: 0, pulse: 0.15, phase: 0 };
+    return { material: thingMaterial(atmosphere), surfaceMaterial, cauldron: cauldronShape(palette), surface: brewSurfaceShape(), glow, ...clouds };
   }, [palette, atmosphere]);
   const floating = useMemo(() => brewContentsShape(ingredients, palette), [ingredients, palette]);
   const madeShape = useMemo(() => (brew && made ? brewShape(brew, palette) : null), [brew, made, palette]);
@@ -123,12 +96,8 @@ export function HearthBrewing({ at, side, ingredients, brew, made, palette, atmo
 
   useEffect(
     () => () => {
-      shared.material.dispose();
-      shared.surfaceMaterial.dispose();
       shared.cauldron.dispose();
       shared.surface.dispose();
-      for (const g of [shared.steam, shared.sparkles, shared.burst, shared.glow]) g.dispose();
-      for (const m of [shared.steamMaterial, shared.sparkleMaterial, shared.burstMaterial, shared.glowMaterial]) m.dispose();
     },
     [shared],
   );
@@ -144,7 +113,7 @@ export function HearthBrewing({ at, side, ingredients, brew, made, palette, atmo
     <group position={[at.x, at.y, at.z]} rotation={[0, side, 0]}>
       <group position={CAULDRON_AT}>
         <mesh geometry={shared.cauldron} material={shared.material} scale={CAULDRON_LARGER} castShadow />
-        <mesh ref={surface} geometry={shared.surface} material={shared.surfaceMaterial} position={[0, CAULDRON.surface * CAULDRON_LARGER, 0]} scale={CAULDRON_LARGER} />
+        <mesh ref={surface} geometry={shared.surface} material={shared.surfaceMaterial.material} position={[0, CAULDRON.surface * CAULDRON_LARGER, 0]} scale={CAULDRON_LARGER} />
         {floating && (
           <group position={[0, CAULDRON.surface * CAULDRON_LARGER, 0]}>
             <group ref={contents}>
@@ -153,15 +122,15 @@ export function HearthBrewing({ at, side, ingredients, brew, made, palette, atmo
           </group>
         )}
       </group>
-      <points geometry={shared.steam} material={shared.steamMaterial} position={mouth} renderOrder={5} frustumCulled={false} />
-      <points geometry={shared.sparkles} material={shared.sparkleMaterial} position={mouth.clone().add(new Vector3(0, 0.05, 0))} renderOrder={6} frustumCulled={false} />
-      <points geometry={shared.glow} material={shared.glowMaterial} position={mouth.clone().add(new Vector3(0, 0.12, 0))} renderOrder={6} frustumCulled={false} />
+      <primitive object={shared.steam} position={mouth} />
+      <primitive object={shared.sparkles} position={[mouth.x, mouth.y + 0.05, mouth.z]} />
+      <primitive object={shared.glow} position={[mouth.x, mouth.y + 0.12, mouth.z]} />
       {madeShape && (
         <>
           <group ref={brewGroup} visible={false}>
             <mesh geometry={madeShape} material={shared.material} castShadow />
           </group>
-          <points geometry={shared.burst} material={shared.burstMaterial} position={BREW_AT} renderOrder={6} frustumCulled={false} />
+          <primitive object={shared.burst} position={BREW_AT} />
         </>
       )}
     </group>
@@ -169,11 +138,11 @@ export function HearthBrewing({ at, side, ingredients, brew, made, palette, atmo
 }
 
 interface Shared {
-  surfaceMaterial: MeshLambertMaterial;
-  steamMaterial: ShaderMaterial;
-  sparkleMaterial: ShaderMaterial;
-  burstMaterial: ShaderMaterial;
-  glowMaterial: ShaderMaterial;
+  surfaceMaterial: { material: DioramaMaterial; glow: UniformNode<"vec3", Color> };
+  steam: Mesh;
+  sparkles: Mesh;
+  burst: Mesh;
+  glow: Mesh;
 }
 
 interface Moving {
@@ -186,22 +155,21 @@ interface Moving {
 function animate(shared: Shared, colours: { water: Color; brew: Color; glow: Color; steam: Color }, parts: Moving, { brewed, made: since }: BrewingDrive, t: number): void {
   const out = since === null ? 0 : Math.min(1, since / RISE);
   const on = Math.min(1, brewed * 1.6);
+  shared.surfaceMaterial.material.color.copy(colours.water).lerp(colours.brew, on);
   // Lit from within as it comes on, so the brew's colour reads even beside the flames.
-  shared.surfaceMaterial.color.copy(colours.water).lerp(colours.brew, on);
-  shared.surfaceMaterial.emissive.copy(colours.brew).multiplyScalar(0.2 * on);
-  (shared.steamMaterial.uniforms.uSteam.value as Color).copy(colours.steam);
-  shared.steamMaterial.uniforms.uStrength.value = 0.3 + 0.7 * on * (1 - out * 0.5);
-  shared.steamMaterial.uniforms.uSpread.value = 0.09;
-  (shared.sparkleMaterial.uniforms.uSparkle.value as Color).copy(colours.glow);
-  shared.sparkleMaterial.uniforms.uStrength.value = on * (1 - out) * 0.9;
-  shared.sparkleMaterial.uniforms.uSpread.value = 0.14;
-  (shared.glowMaterial.uniforms.uGlow.value as Color).copy(colours.glow);
-  shared.glowMaterial.uniforms.uStrength.value = (0.15 + 0.85 * on) * (0.85 + 0.15 * Math.sin(t * 3.1)) * (1 - out * 0.6);
-  shared.glowMaterial.uniforms.uSize.value = 0.8 + 0.9 * on;
-  (shared.burstMaterial.uniforms.uSparkle.value as Color).copy(colours.glow);
-  const burst = since === null ? 0 : Math.max(0, 1 - Math.abs(since - RISE * 0.8) / 1.6);
-  shared.burstMaterial.uniforms.uStrength.value = 1.6 * burst + (since === null ? 0 : 0.35);
-  shared.burstMaterial.uniforms.uSpread.value = 0.26 + 0.24 * out;
+  shared.surfaceMaterial.glow.value.copy(colours.brew).multiplyScalar(0.2 * on);
+  shared.steam.userData.tint.copy(colours.steam);
+  shared.steam.userData.strength = 0.3 + 0.7 * on * (1 - out * 0.5);
+  shared.steam.userData.spread = 0.09;
+  shared.sparkles.userData.tint.copy(colours.glow);
+  shared.sparkles.userData.strength = on * (1 - out) * 0.9;
+  shared.sparkles.userData.spread = 0.14;
+  shared.glow.userData.glow.copy(colours.glow);
+  shared.glow.userData.strength = (0.15 + 0.85 * on) * (1 - out * 0.6);
+  shared.glow.scale.setScalar((0.8 + 0.9 * on) * 0.6);
+  shared.burst.userData.tint.copy(colours.glow);
+  shared.burst.userData.strength = burstStrength(since);
+  shared.burst.userData.spread = 0.26 + 0.24 * out;
   if (parts.contents) {
     // What floats turns slowly round the cauldron as it simmers, and is gone into the brew once made.
     parts.contents.visible = since === null || since < RISE * 0.35;

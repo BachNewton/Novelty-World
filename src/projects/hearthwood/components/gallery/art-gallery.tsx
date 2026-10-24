@@ -5,12 +5,13 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { GpuCanvas } from "../gpu-canvas";
 import { Html, OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { type Camera, CircleGeometry, MeshLambertMaterial, type Scene, SkinnedMesh, Spherical, Vector3 } from "three";
+import { type Camera, CircleGeometry, type Scene, SkinnedMesh, Spherical, Vector3 } from "three";
 import { ArrowLeft, RotateCw } from "lucide-react";
 import { readPad, subscribeGamepads } from "@/shared/lib/gamepad";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { makeAtmosphere } from "../../art/atmosphere";
-import { shadeLambert } from "../../art/shading";
+import { diorama } from "../../art/materials";
+import { bushMaterial, thingMaterial } from "../../art/things";
 import { Daylight, type Air, type Focus } from "../../art/light/daylight";
 import { readPalette } from "../../art/palette";
 import { makeSkyUniforms, Sky } from "../../art/sky/sky";
@@ -115,8 +116,8 @@ const LABEL_STYLE: CSSProperties = {
 
 function Floor({ size, context }: { size: number; context: ArtContext }) {
   const assets = useMemo(() => {
-    const material = shadeLambert(new MeshLambertMaterial({ color: themeColor("--color-hearthwood-gallery-ground") }), "ground", context.atmosphere);
-    const edge = shadeLambert(new MeshLambertMaterial({ color: themeColor("--color-hearthwood-gallery-ground-edge") }), "ground", context.atmosphere);
+    const material = diorama("ground", context.atmosphere, { color: themeColor("--color-hearthwood-gallery-ground").getHex() });
+    const edge = diorama("ground", context.atmosphere, { color: themeColor("--color-hearthwood-gallery-ground-edge").getHex() });
     return { material, edge, inner: new CircleGeometry(size, 96).rotateX(-Math.PI / 2), outer: new CircleGeometry(size * 6, 96).rotateX(-Math.PI / 2) };
   }, [size, context]);
   useEffect(
@@ -224,9 +225,9 @@ export function ArtGallery() {
       fire: clock,
       clock: () => clock.motion,
       materials: {
-        foliage: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "foliage", atmosphere),
-        stone: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
-        place: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
+        foliage: bushMaterial(atmosphere),
+        stone: thingMaterial(atmosphere),
+        place: thingMaterial(atmosphere),
         water: waterMaterial(palette, atmosphere, sky),
       },
     };
@@ -246,12 +247,7 @@ export function ArtGallery() {
   const labels = labelLayer ? { current: labelLayer } : undefined;
   useFrameStats();
 
-  useEffect(
-    () => () => {
-      for (const m of Object.values(context.materials)) m.dispose();
-    },
-    [context],
-  );
+  useEffect(() => () => context.materials.water.dispose(), [context]);
 
   const chosen = focus === null ? null : (layout.placed.find((p) => p.piece.id === focus) ?? null);
   const view = useMemo(() => {

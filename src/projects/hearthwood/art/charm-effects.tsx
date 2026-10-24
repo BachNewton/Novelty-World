@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, CylinderGeometry, type Group, InstancedMesh, MeshLambertMaterial, Object3D, ShaderMaterial, SphereGeometry, Vector3 } from "three";
+import { type BufferGeometry, CylinderGeometry, type Group, InstancedMesh, Mesh, Object3D, SphereGeometry, type Vector3 } from "three";
 import { createRng, uniform, type Rng } from "@/shared/lib/seeded-random";
 import { brewOfCharm, type Charm } from "../gameplay/brews";
 import type { AtmosphereUniforms } from "./atmosphere";
 import { CHARM_GLOW, type BrewPalette } from "./brew-looks";
 import { brewShape } from "./brews";
 import { paint, type Piece } from "./painted";
-import { shadeLambert } from "./shading";
+import { cloud, glowMaterial, moteMaterial, MOTES, QUAD } from "./effects";
+import { thingMaterial } from "./things";
 
 /*
  * What the charms bring about, drawn, deciding nothing: the flowers a
@@ -70,7 +71,7 @@ const BLOOM_DESIGNS = 3;
 /** The flowers a garland charm opens round camp, each opening in turn as `strength` (0 to 1) rises. */
 export function CampBlooms({ spots, strength, palette, atmosphere }: { spots: readonly BloomSpot[]; strength: () => number; palette: BrewPalette; atmosphere: AtmosphereUniforms }) {
   const meshes = useMemo(() => {
-    const material = shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere);
+    const material = thingMaterial(atmosphere);
     const rng = createRng("hearthwood/blooms");
     const out = BLOOM_KINDS.flatMap((kind) =>
       Array.from({ length: BLOOM_DESIGNS }, (_, design) => {
@@ -82,11 +83,10 @@ export function CampBlooms({ spots, strength, palette, atmosphere }: { spots: re
         return { mesh, spots: mine };
       }),
     );
-    return { material, out };
+    return { out };
   }, [spots, palette, atmosphere]);
   useEffect(
     () => () => {
-      meshes.material.dispose();
       for (const { mesh } of meshes.out) mesh.geometry.dispose();
     },
     [meshes],
@@ -122,47 +122,6 @@ function openBlooms(designs: readonly { mesh: InstancedMesh; spots: readonly Blo
   }
 }
 
-const GLOW_VERTEX = /* glsl */ `
-uniform float uHwTime;
-uniform float uSize;
-attribute float seed;
-varying float vSeed;
-void main() {
-  vSeed = seed;
-  vec4 view = modelViewMatrix * vec4(position, 1.0);
-  gl_PointSize = uSize * (0.85 + 0.15 * sin(uHwTime * 2.3 + seed * 20.0)) * 300.0 / -view.z;
-  gl_Position = projectionMatrix * view;
-}
-`;
-
-const GLOW_FRAGMENT = /* glsl */ `
-uniform vec3 uGlow;
-uniform float uStrength;
-void main() {
-  float d = length(gl_PointCoord - 0.5) * 2.0;
-  float a = pow(max(1.0 - d, 0.0), 2.6) * uStrength;
-  gl_FragColor = vec4(uGlow * a, a);
-}
-`;
-
-function glowMaterial(atmosphere: AtmosphereUniforms, colour: Color, size: number): ShaderMaterial {
-  return new ShaderMaterial({
-    uniforms: { uHwTime: atmosphere.uHwTime, uGlow: { value: colour }, uStrength: { value: 0 }, uSize: { value: size } },
-    vertexShader: GLOW_VERTEX,
-    fragmentShader: GLOW_FRAGMENT,
-    transparent: true,
-    depthWrite: false,
-    blending: AdditiveBlending,
-  });
-}
-
-function onePoint(seed: number): BufferGeometry {
-  const g = new BufferGeometry();
-  g.setAttribute("position", new BufferAttribute(new Float32Array(3), 3));
-  g.setAttribute("seed", new BufferAttribute(new Float32Array([seed]), 1));
-  return g;
-}
-
 /** Where the charms hang along the post's crossbar, in the post's own frame. */
 const HOOKS: Record<Charm, number> = { bloom: -0.21, fireflies: -0.07, hush: 0.07, clearing: 0.21 };
 const POST = { height: 1.15, bar: 0.56 } as const;
@@ -188,7 +147,7 @@ export function charmPostShape(p: BrewPalette): BufferGeometry {
 }
 
 /** The charms on the post this frame: those at work shown, swaying a little, glowing as strongly as they work. */
-function hangCharms(charms: readonly { charm: Charm; glowMaterial: ShaderMaterial }[], groups: Partial<Record<Charm, Group | null>>, strengths: Record<Charm, number>, t: number): void {
+function hangCharms(charms: readonly { charm: Charm; glow: Mesh }[], groups: Partial<Record<Charm, Group | null>>, strengths: Record<Charm, number>, t: number): void {
   for (const c of charms) {
     const group = groups[c.charm];
     const strength = strengths[c.charm];
@@ -196,7 +155,7 @@ function hangCharms(charms: readonly { charm: Charm; glowMaterial: ShaderMateria
       group.visible = strength > 0;
       group.rotation.z = Math.sin(t * 1.3 + HOOKS[c.charm] * 9) * 0.08;
     }
-    c.glowMaterial.uniforms.uStrength.value = 0.5 * strength;
+    c.glow.userData.strength = 0.5 * strength;
   }
 }
 
@@ -204,13 +163,16 @@ function hangCharms(charms: readonly { charm: Charm; glowMaterial: ShaderMateria
 export function CharmPost({ at, turn, strengths, palette, atmosphere }: { at: { x: number; y: number; z: number }; turn: number; strengths: () => Record<Charm, number>; palette: BrewPalette; atmosphere: AtmosphereUniforms }) {
   const swing = useRef<Partial<Record<Charm, Group | null>>>({});
   const assets = useMemo(() => {
-    const material = shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere);
-    const charms = (Object.keys(HOOKS) as Charm[]).map((charm, i) => ({
-      charm,
-      pouch: brewShape(brewOfCharm(charm), palette),
-      glow: onePoint(i * 0.27),
-      glowMaterial: glowMaterial(atmosphere, palette[CHARM_GLOW[charm]].clone(), 0.32),
-    }));
+    const material = thingMaterial(atmosphere);
+    const charms = (Object.keys(HOOKS) as Charm[]).map((charm, i) => {
+      const glow = new Mesh(QUAD, glowMaterial(atmosphere));
+      glow.position.set(0, -0.22, 0);
+      glow.scale.setScalar(0.6);
+      glow.renderOrder = 6;
+      glow.frustumCulled = false;
+      glow.userData = { glow: palette[CHARM_GLOW[charm]].clone(), strength: 0, pulse: 0.15, phase: i * 0.27 };
+      return { charm, pouch: brewShape(brewOfCharm(charm), palette), glow };
+    });
     // The red thread each pouch hangs by, from the bar down to its tie.
     const thread = new CylinderGeometry(0.003, 0.003, DROP - 0.09 * HANGING_LARGER, 4);
     thread.translate(0, -(DROP - 0.09 * HANGING_LARGER) / 2, 0);
@@ -218,14 +180,9 @@ export function CharmPost({ at, turn, strengths, palette, atmosphere }: { at: { 
   }, [palette, atmosphere]);
   useEffect(
     () => () => {
-      assets.material.dispose();
       assets.post.dispose();
       assets.thread.dispose();
-      for (const c of assets.charms) {
-        c.pouch.dispose();
-        c.glow.dispose();
-        c.glowMaterial.dispose();
-      }
+      for (const c of assets.charms) c.pouch.dispose();
     },
     [assets],
   );
@@ -246,43 +203,16 @@ export function CharmPost({ at, turn, strengths, palette, atmosphere }: { at: { 
         >
           <mesh geometry={assets.thread} material={assets.material} />
           <mesh geometry={c.pouch} material={assets.material} position={[0, -DROP, 0]} scale={HANGING_LARGER} castShadow />
-          <points geometry={c.glow} material={c.glowMaterial} position={[0, -0.22, 0]} renderOrder={6} frustumCulled={false} />
+          <primitive object={c.glow} />
         </group>
       ))}
     </group>
   );
 }
 
-const MOTE_VERTEX = /* glsl */ `
-uniform float uHwTime;
-attribute float seed;
-varying float vTwinkle;
-void main() {
-  float t = uHwTime * (0.2 + 0.15 * seed) + seed * 40.0;
-  vec3 p = position + vec3(sin(t) * 0.5, 0.25 * sin(t * 1.3 + seed * 7.0) + fract(uHwTime * 0.06 + seed) * 0.8, cos(t * 0.9) * 0.5);
-  vTwinkle = 0.55 + 0.45 * sin(uHwTime * (1.5 + seed) + seed * 30.0);
-  vec4 view = modelViewMatrix * vec4(p, 1.0);
-  gl_PointSize = clamp(70.0 / -view.z, 2.5, 22.0);
-  gl_Position = projectionMatrix * view;
-}
-`;
-
-const MOTE_FRAGMENT = /* glsl */ `
-uniform vec3 uGlow;
-uniform float uStrength;
-varying float vTwinkle;
-void main() {
-  float d = length(gl_PointCoord - 0.5);
-  float a = smoothstep(0.5, 0.0, d) * vTwinkle * uStrength;
-  gl_FragColor = vec4(uGlow * a * 1.4, a);
-}
-`;
-
-const MOTES = 64;
-
 /** The hush this frame: as bright as the charm works, about Elliott's feet. */
-function driftHush(material: ShaderMaterial, group: Group | null, strength: number, at: Vector3): void {
-  material.uniforms.uStrength.value = strength;
+function driftHush(motes: Mesh, group: Group | null, strength: number, at: Vector3): void {
+  motes.userData.strength = strength;
   if (group) {
     group.visible = strength > 0;
     group.position.copy(at);
@@ -292,42 +222,18 @@ function driftHush(material: ShaderMaterial, group: Group | null, strength: numb
 /** The hush round Elliott: pale motes drifting about their feet as strongly as the charm works. Its group is moved to Elliott by the scene. */
 export function HushMotes({ follow, strength, palette, atmosphere }: { follow: () => Vector3; strength: () => number; palette: BrewPalette; atmosphere: AtmosphereUniforms }) {
   const group = useRef<Group>(null);
-  const assets = useMemo(() => {
-    const rng = createRng("hearthwood/hush");
-    const positions = new Float32Array(MOTES * 3);
-    const seeds = new Float32Array(MOTES);
-    for (let i = 0; i < MOTES; i++) {
-      const angle = rng.next() * Math.PI * 2;
-      const r = uniform(rng, 0.4, 1.6);
-      positions.set([Math.cos(angle) * r, uniform(rng, 0.1, 1.2), Math.sin(angle) * r], i * 3);
-      seeds[i] = rng.next();
-    }
-    const geometry = new BufferGeometry();
-    geometry.setAttribute("position", new BufferAttribute(positions, 3));
-    geometry.setAttribute("seed", new BufferAttribute(seeds, 1));
-    const material = new ShaderMaterial({
-      uniforms: { uHwTime: atmosphere.uHwTime, uGlow: { value: new Color().copy(palette.hush) }, uStrength: { value: 0 } },
-      vertexShader: MOTE_VERTEX,
-      fragmentShader: MOTE_FRAGMENT,
-      transparent: true,
-      depthWrite: false,
-      blending: AdditiveBlending,
-    });
-    return { geometry, material };
+  const motes = useMemo(() => {
+    const made = cloud(MOTES, moteMaterial(atmosphere));
+    made.renderOrder = 4;
+    made.userData = { tint: palette.hush.clone(), strength: 0 };
+    return made;
   }, [palette, atmosphere]);
-  useEffect(
-    () => () => {
-      assets.geometry.dispose();
-      assets.material.dispose();
-    },
-    [assets],
-  );
   useFrame(() => {
-    driftHush(assets.material, group.current, strength(), follow());
+    driftHush(motes, group.current, strength(), follow());
   });
   return (
     <group ref={group} visible={false}>
-      <points geometry={assets.geometry} material={assets.material} renderOrder={4} frustumCulled={false} />
+      <primitive object={motes} />
     </group>
   );
 }

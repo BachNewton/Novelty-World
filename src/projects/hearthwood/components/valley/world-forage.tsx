@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { type BufferGeometry, Group, InstancedBufferAttribute, InstancedMesh, MeshLambertMaterial, Object3D, Vector3 } from "three";
+import { type BufferGeometry, Group, InstancedBufferAttribute, InstancedMesh, type Material, Object3D, Vector3 } from "three";
 import { FORAGE_FORM, FORAGE_VARIANTS, type ForageChunk, type ForageForm, type ForageSpot } from "../../engine/forage";
 import { FORAGE_KINDS, type ForageKind } from "../../engine/regions";
 import { wantedChunks, type ChunkKey } from "../../engine/streaming";
@@ -10,9 +10,9 @@ import type { Foraged } from "../../gameplay/basket";
 import { canPick, heartOf, REACH, spotLook, targetSpot, withinTapReach, type ForageTime, type Viewer } from "../../gameplay/picking";
 import type { WalkState } from "../../input/use-walk-input";
 import { type AtmosphereUniforms } from "../../art/atmosphere";
-import { shadeLambert } from "../../art/shading";
+import { bushMaterial, thingMaterial } from "../../art/things";
 import { forageColour, forageMatrix, forageShape, partsOf, type ForagePalette, type ForagePart } from "../../art/forage-shapes";
-import { agePop, disposePop, makePop, type PickPop } from "../../art/pick-pop";
+import { agePop, makePop, type PickPop } from "../../art/pick-pop";
 import type { ValleyClock } from "./clock";
 import { answerTaps, forageTime, offer, reportSettled, takePopping, type Foraging } from "./foraging";
 import type { Walker } from "./walker";
@@ -45,7 +45,7 @@ interface Design {
   mesh: InstancedMesh | null;
 }
 
-type Materials = Record<ForageForm, MeshLambertMaterial>;
+type Materials = Record<ForageForm, Material>;
 
 const designId = (kind: ForageKind, variant: number, part: ForagePart) => `${kind}/${variant}/${part}`;
 const chunkId = (k: ChunkKey) => `${k.chunkX},${k.chunkZ}`;
@@ -82,8 +82,8 @@ export function WorldForage({
   // A berry bush's leaves and its fruit sway and take the light together, as foliage; a mushroom stands still.
   const materials = useMemo<Materials>(
     () => ({
-      berry: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "foliage", atmosphere),
-      mushroom: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
+      berry: bushMaterial(atmosphere),
+      mushroom: thingMaterial(atmosphere),
     }),
     [atmosphere],
   );
@@ -107,10 +107,8 @@ export function WorldForage({
         design.geometry.dispose();
         design.mesh?.dispose();
       }
-      materials.berry.dispose();
-      materials.mushroom.dispose();
     },
-    [designs, materials],
+    [designs],
   );
 
   useEffect(() => {
@@ -171,14 +169,13 @@ export function WorldForage({
     for (const spot of takePopping(foraging)) {
       const design = designs.get(designId(spot.kind, spot.variant, FORAGE_FORM[spot.kind] === "berry" ? "fruit" : "plant"));
       if (!design) throw new Error(`No design to pop for ${spot.kind}`);
-      const pop = makePop(design.geometry, materials[FORAGE_FORM[spot.kind]], spot, palette);
+      const pop = makePop(design.geometry, materials[FORAGE_FORM[spot.kind]], spot, palette, atmosphere);
       s.pops.push(pop);
       group.add(pop.group);
     }
     s.pops = s.pops.filter((pop) => {
       if (agePop(pop, Math.min(delta, 0.1))) return true;
       group.remove(pop.group);
-      disposePop(pop);
       return false;
     });
   });

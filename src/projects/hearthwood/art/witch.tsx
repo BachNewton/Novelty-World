@@ -1,10 +1,10 @@
 "use client";
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import { BoxGeometry, type BufferGeometry, ConeGeometry, CylinderGeometry, LatheGeometry, type Mesh, MeshLambertMaterial, SphereGeometry, TorusGeometry, Vector2, type Group } from "three";
+import { BoxGeometry, type BufferGeometry, ConeGeometry, CylinderGeometry, LatheGeometry, type Mesh, SphereGeometry, TorusGeometry, Vector2, type Group } from "three";
 import type { AtmosphereUniforms } from "./atmosphere";
 import { broomGeometry } from "./broom";
-import { shadeLambert } from "./shading";
+import { thingMaterial } from "./things";
 import { paint } from "./painted";
 import type { Palette } from "./palette";
 
@@ -239,14 +239,13 @@ export const Witch = forwardRef<WitchHandle, { palette: Palette; atmosphere: Atm
       boots: bootsGeometry(palette),
       broom: broomGeometry(palette),
       campRoll: campRollGeometry(palette),
-      material: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere),
+      material: thingMaterial(atmosphere),
     }),
     [palette, atmosphere],
   );
   useEffect(
     () => () => {
       for (const geometry of [assets.body, assets.hat, assets.back, assets.scarf, assets.boots, assets.broom, assets.campRoll]) geometry.dispose();
-      assets.material.dispose();
     },
     [assets],
   );

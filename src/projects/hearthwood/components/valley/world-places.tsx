@@ -34,7 +34,6 @@ export function WorldPlaces({ world, palette, atmosphere, sky, streaming }: { wo
     return () => {
       for (const built of builtPlaces.values()) disposePlace(built);
       builtPlaces.clear();
-      materials.place.dispose();
       materials.water.dispose();
     };
   }, [materials]);

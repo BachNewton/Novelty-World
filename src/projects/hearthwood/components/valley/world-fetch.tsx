@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { type BufferGeometry, type Camera, Euler, type Group, InstancedMesh, type Material, type Mesh, MeshLambertMaterial, Object3D, Quaternion, Vector3 } from "three";
+import { type BufferGeometry, type Camera, Euler, type Group, InstancedMesh, type Material, type Mesh, Object3D, Quaternion, Vector3 } from "three";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { fetchStickGeometry } from "../../art/fetch-stick";
 import type { Palette } from "../../art/palette";
-import { shadeLambert } from "../../art/shading";
+import { thingMaterial } from "../../art/things";
 import { bestOffered, type Viewer } from "../../gameplay/offering";
 import { stickPlace } from "../../gameplay/fetch";
 import type { WalkState } from "../../input/use-walk-input";
@@ -55,11 +55,10 @@ export interface StickArt {
 
 /** The stick's model and material, shared by every stick drawn. */
 export function useStickArt(palette: Palette, atmosphere: AtmosphereUniforms): StickArt {
-  const art = useMemo(() => ({ geometry: fetchStickGeometry(palette), material: shadeLambert(new MeshLambertMaterial({ vertexColors: true }), "solid", atmosphere) }), [palette, atmosphere]);
+  const art = useMemo(() => ({ geometry: fetchStickGeometry(palette), material: thingMaterial(atmosphere) }), [palette, atmosphere]);
   useEffect(
     () => () => {
       art.geometry.dispose();
-      art.material.dispose();
     },
     [art],
   );
