@@ -3,6 +3,7 @@
 pub mod gd;
 mod greedy;
 pub mod history;
+pub mod native_v1;
 mod random;
 
 pub use gd::{GdBot, Persona};
@@ -21,6 +22,9 @@ pub fn bot(label: &str) -> Option<Box<dyn Bot>> {
         "gd-continental" => gd(Persona::Continental),
         "gd-aggressive" => gd(Persona::Aggressive),
         "gd-stacker" => gd(Persona::Stacker),
+        "native-v1" => Some(Box::new(native_v1::NativeV1 {
+            params: native_v1::NATIVE_V1,
+        })),
         _ => None,
     }
 }

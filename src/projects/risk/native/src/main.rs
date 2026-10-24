@@ -1,3 +1,5 @@
+mod games;
+
 use risk_native::decide::check_file;
 use risk_native::engine::new_game;
 use risk_native::lockstep::replay_file;
@@ -12,7 +14,9 @@ const USAGE: &str = "usage:
   risk-native play --bots <a,b,c...> [--players P] --seeds <prefix> --count N [--turns T] --out <file>
                                                  play native games and write them as records
   risk-native serve [--workers N]                play the harness's game specs, JSON lines on stdin
-  risk-native bench <records.jsonl[.gz]...>      time options + apply over the records' positions";
+  risk-native bench <records.jsonl[.gz]...>      time options + apply over the records' positions
+  risk-native games --bots <a,b...> [--players P] --seeds <prefix> --count N [--rotate] [--turns T] [--workers W]
+                                                 play native tables and report the lone bot's win share and time";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -24,6 +28,7 @@ fn main() -> ExitCode {
         Some("decide") if args.len() > 1 => decide(&args[1..]),
         Some("play") => play(&args[1..]),
         Some("bench") if args.len() > 1 => bench(&args[1..]),
+        Some("games") => games::games(&args[1..]),
         _ => Err(USAGE.to_string()),
     };
     match result {
