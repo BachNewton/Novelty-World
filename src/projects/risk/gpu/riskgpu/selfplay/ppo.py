@@ -229,6 +229,53 @@ def luce_elo(pick: torch.Tensor, winner: torch.Tensor, n: int) -> tuple[list[flo
     return (400 * torch.log10(gamma)).tolist(), int(decisive.sum())
 
 
+class PairEval:
+    """The head-to-head test against one fixed network (the progress metric, `ideas/gpu-engine.md`):
+    the learner alone among copies of it (one-in) on half the fixed 5-player deals, the reverse
+    (one-out) on the rest, the lone seat rotated, every seat sampling. Strength among networks is
+    not the strength the GD evals measure (m2a-50 crushed a net that beat GD harder), so both are
+    watched."""
+
+    def __init__(self, board, tables, net, anchor_label: str, anchor_path: str, games: int, device: str,
+                 players: int = 5):
+        from .ladder import load_net
+        cfg = EnvConfig(batch=games, sizes=(players,), size_weights=(1.0,), cap_low=600, cap_high=600, pool=8,
+                        snapshots=0, record=False, reset=False, cap_learner=0.85, cap_snapshot=0.85, cap_greedy=0.01)
+        env = self.env = Env(cfg, board, tables, net, device, seed_prefix="pair")
+        env.snapshots = [load_net(anchor_path, board, device)]
+        env.active_snapshots = 1
+        env.kind_probs = torch.zeros(SNAPSHOT + 1, device=device)
+        env.stats = torch.zeros(8, SNAPSHOT + 1, dtype=torch.float64, device=device)
+        self.half = games // 2
+        g = torch.arange(games)
+        lone = (g % players)[:, None] == torch.arange(players)[None, :]
+        self.mine = torch.where(g[:, None] < self.half, lone, ~lone)  # seats the learner holds
+        seat_kind = torch.full((games, MAX_SEATS), GREEDY, dtype=torch.int64)
+        seat_kind[:, :players] = torch.where(self.mine, LEARNER, SNAPSHOT)
+        env.seat_kind.copy_(seat_kind.to(device))
+        self.label, self.players, self.games = anchor_label, players, games
+        self.base = env._save()
+        env.capture()
+
+    def run(self) -> dict:
+        env = self.env
+        env._restore(self.base)
+        steps = 0
+        while not bool(env.done.all()) and steps <= 40000:
+            env.run(64)
+            steps += 64
+        env.take_stats()
+        winner = env.state.winner.to(torch.int64).cpu()
+        decisive = winner >= 0
+        won = torch.zeros(self.games, dtype=torch.bool)
+        won[decisive] = self.mine[decisive].gather(1, winner[decisive][:, None])[:, 0]
+        out = {"anchor": self.label}
+        for name, rows in (("one_in", slice(0, self.half)), ("one_out", slice(self.half, None))):
+            out[name] = round(int(won[rows].sum()) / max(int(decisive[rows].sum()), 1), 4)
+            out[f"{name}_capped"] = int((~decisive[rows]).sum())
+        return out
+
+
 class Ladder:
     """The checkpoint ladder: is the network still climbing against itself, not only against the
     league's fixed bots? The current network and up to `slots` earlier checkpoints are seated
@@ -297,11 +344,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--lr-end", type=float, default=None, help="anneal the learning rate linearly to this over --hours")
     p.add_argument("--gd-share", type=float, default=0.0, help="share of non-learner seats taken by GD's personas")
     p.add_argument("--snapshot-every", type=int, default=50)
+    p.add_argument("--snapshots", type=int, default=4, help="snapshot slots in the league")
+    p.add_argument("--league-fixed", default="", help="checkpoints always in the league's snapshot slots, comma-separated")
     p.add_argument("--eval-every", type=int, default=25)
     p.add_argument("--eval-games", type=int, default=2048)
     p.add_argument("--eval", default="greedy@3,greedy@5", help="opponent@players, comma-separated")
     p.add_argument("--init", default=None, help="start the network from this checkpoint's weights")
     p.add_argument("--ladder-games", type=int, default=2048)
+    p.add_argument("--pair", default="", help="label=checkpoint: the head-to-head test's fixed opponent")
+    p.add_argument("--pair-games", type=int, default=1024)
     p.add_argument("--eval-sample", action="store_true", help="evaluations sample moves as in training, not the most likely")
     p.add_argument("--ladder-extra", default="", help="label=path of earlier runs' checkpoints for the ladder, comma-separated")
     p.add_argument("--ckpt-every", type=int, default=25)
@@ -345,28 +396,37 @@ def main(argv: list[str] | None = None) -> int:
         from ..bots.gd import gd_bot_graphable
         gd_bots = [gd_bot_graphable(p, tables) for p in GD_PERSONAS]
     cfg = EnvConfig(batch=args.batch, sizes=sizes, size_weights=weights, horizon=args.horizon, gd=args.gd_share > 0,
-                    reward=args.reward)
+                    reward=args.reward, snapshots=args.snapshots)
+    fixed = [x for x in args.league_fixed.split(",") if x]
+    assert len(fixed) < cfg.snapshots, "leave the league a slot for this run's own snapshots"
     env = Env(cfg, board, tables, net, device, seed_prefix=f"{args.name}-{iteration}",
               gd_bots=gd_bots if args.gd_share > 0 else None)
     kinds = KIND_NAMES + [f"snap{k}" for k in range(cfg.snapshots)]
+    if fixed:
+        from .ladder import load_net
+        for k, path in enumerate(fixed):
+            env.snapshots[k] = load_net(path, board, device)
 
     def set_league() -> None:
         probs = torch.zeros(len(kinds))
         probs[LEARNER] = args.self_share
-        snaps = min(len(league), cfg.snapshots) if args.snapshot_share > 0 else 0
-        snap_share = args.snapshot_share if snaps else 0.0
+        own = min(len(league), cfg.snapshots - len(fixed)) if args.snapshot_share > 0 else 0
+        anchors = len(fixed) if args.snapshot_share > 0 else 0
+        snap_share = args.snapshot_share if own + anchors else 0.0
         probs[GREEDY] = max(0.0, 1.0 - args.self_share - snap_share - args.gd_share)
         for k in range(len(GD_PERSONAS)):
             probs[GD + k] = args.gd_share / len(GD_PERSONAS)
         # The newest half of the slots, the rest drawn from older checkpoints: a learner must keep
         # beating its recent selves (m2a regressed against them while beating the fixed bots).
-        n_recent = snaps - snaps // 2
+        n_recent = own - own // 2
         recent = league[len(league) - n_recent:] if n_recent else []
         rest = league[:len(league) - n_recent]
-        chosen = recent + random.sample(rest, min(snaps // 2, len(rest)))
-        snaps = len(chosen)
+        chosen = recent + random.sample(rest, min(own // 2, len(rest)))
+        snaps = anchors + len(chosen)
+        # The anchors (`--league-fixed`) hold the first slots for good, nets of their own sizes.
         for k, path in enumerate(chosen):
-            env.snapshots[k].load_state_dict(torch.load(path, map_location=device, weights_only=False))
+            env.snapshots[anchors + k].load_state_dict(torch.load(path, map_location=device, weights_only=False))
+        for k in range(snaps):
             probs[SNAPSHOT + k] = snap_share / snaps
         env.kind_probs.copy_(probs.to(device))
         if snaps != env.active_snapshots:
@@ -380,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
                   for o, n in evals]
     ladder = Ladder(board, tables, net, args.ladder_games, device, greedy=not args.eval_sample) if args.ladder_games > 0 else None
     extra = [tuple(x.split("=", 1)) for x in args.ladder_extra.split(",") if x]
+    pair = PairEval(board, tables, net, *args.pair.split("=", 1), args.pair_games, device) if args.pair else None
     log_path = os.path.join(out_dir, "log.jsonl")
     n_params = sum(x.numel() for x in net.parameters())
     started = time.time()
@@ -412,8 +473,12 @@ def main(argv: list[str] | None = None) -> int:
             set_league()
         if iteration % args.eval_every == 0:
             record["eval"] = [e.run() for e in evaluators]
+            if pair is not None:
+                record["pair"] = pair.run()
             if ladder is not None:
-                past = extra + [(f"{args.name}-{os.path.basename(p)[5:-3]}", p) for p in league]
+                # The reference checkpoints always, then this run's newest.
+                own = [(f"{args.name}-{os.path.basename(p)[5:-3]}", p) for p in league]
+                past = extra + own[max(0, len(own) - (ladder.slots - len(extra))):]
                 record.update(ladder.run(past, f"{args.name}-{iteration}"))
         if iteration % args.ckpt_every == 0:
             torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
@@ -427,6 +492,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(brief), flush=True)
         if "eval" in record:
             print("  eval", json.dumps(record["eval"]), flush=True)
+            if "pair" in record:
+                print("  pair", json.dumps(record["pair"]), flush=True)
             if "ladder" in record:
                 print("  ladder", json.dumps(record["ladder"]), record["ladder_games"], "decisive", flush=True)
     torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,

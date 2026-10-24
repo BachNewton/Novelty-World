@@ -39,6 +39,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("entries", nargs="+", help="label=checkpoint")
     p.add_argument("--games", type=int, default=2048)
     p.add_argument("--players", type=int, default=5)
+    p.add_argument("--pair", action="store_true",
+                   help="two entries: the second alone among copies of the first (one-in) on half the deals, "
+                        "the reverse (one-out) on the rest, its seat rotated; reports its win share against par")
     args = p.parse_args(argv)
     device = "cuda"
     board = Board.load(device)
@@ -54,7 +57,16 @@ def main(argv: list[str] | None = None) -> int:
     env.kind_probs = torch.zeros(SNAPSHOT + len(nets) - 1, device=device)
     env.stats = torch.zeros(8, SNAPSHOT + len(nets) - 1, dtype=torch.float64, device=device)
     kinds = torch.tensor([LEARNER] + [SNAPSHOT + k for k in range(len(nets) - 1)])
-    pick, seat_kind = seat_draw(kinds, args.games, args.players)
+    if args.pair:
+        assert len(nets) == 2, "--pair takes two entries"
+        n, half = args.players, args.games // 2
+        games = torch.arange(args.games)
+        lone = (games % n)[:, None] == torch.arange(n)[None, :]
+        pick = torch.where(games[:, None] < half, lone, ~lone).to(torch.int64)  # 1 = the second entry
+        seat_kind = torch.full((args.games, 6), 1, dtype=torch.int64)
+        seat_kind[:, :n] = kinds[pick]
+    else:
+        pick, seat_kind = seat_draw(kinds, args.games, args.players)
     env.seat_kind.copy_(seat_kind.to(device))
     env.capture()
     steps = 0
@@ -62,6 +74,19 @@ def main(argv: list[str] | None = None) -> int:
         env.run(64)
         steps += 64
     winner = env.state.winner.to(torch.int64).cpu()
+    if args.pair:
+        n, half = args.players, args.games // 2
+        decisive = winner >= 0
+        won = torch.zeros(args.games, dtype=torch.bool)
+        won[decisive] = pick[decisive].gather(1, winner[decisive][:, None])[:, 0] == 1
+        for name, rows, par in (("one-in", slice(0, half), 1 / n), ("one-out", slice(half, None), (n - 1) / n)):
+            d = int(decisive[rows].sum())
+            w = int(won[rows].sum())
+            share = w / max(d, 1)
+            se = (share * (1 - share) / max(d, 1)) ** 0.5
+            print(f"{labels[1]} {name}: wins {share:.3f} ± {1.96 * se:.3f} of {d} decisive (par {par:.3f}), "
+                  f"capped {int((~decisive[rows]).sum())}")
+        return 0
     elo, decisive = luce_elo(pick, winner, len(labels))
     for label, e in sorted(zip(labels, elo), key=lambda x: -x[1]):
         print(f"{label:24s} {e:+8.1f}")
