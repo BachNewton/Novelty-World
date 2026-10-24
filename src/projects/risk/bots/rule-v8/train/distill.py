@@ -129,7 +129,7 @@ def targets(S, M, tau):
     return (e / e.sum(1, keepdims=True)).astype(np.float32)
 
 
-def fit(Z, S, T, M, train, val, hidden, seed, target, weight_decay, device, epochs=300, patience=12, batch=256):
+def fit(Z, S, T, M, train, val, hidden, seed, target, weight_decay, device, batch=256, epochs=300, patience=12):
     torch.manual_seed(seed)
     gen = torch.Generator().manual_seed(seed)
     flat = Z[train][M[train]]
@@ -275,6 +275,7 @@ def main():
     ap.add_argument("--features", choices=["all", "breakdown"], default="all")
     ap.add_argument("--target", choices=["listwise", "mse"], default="listwise")
     ap.add_argument("--weight-decay", type=float, default=1e-4)
+    ap.add_argument("--batch", type=int, default=256, help="decisions a step")
     ap.add_argument("--train-fraction", type=float, nargs="+", default=[1.0])
     ap.add_argument("--seeds", type=int, default=1)
     ap.add_argument("--device", default="cpu", help="cpu, cuda, or auto")
@@ -328,7 +329,7 @@ def main():
             print(f"\nstudent {name}, {args.features} features, {args.inputs} inputs, {Z.shape[2]} wide, {args.target}, weight decay {args.weight_decay:g}, {fraction:.0%} of training ({tr.sum()} decisions):")
             gains, shares = [], []
             for s in range(args.seeds):
-                out, fitted = fit(Z, S, T, M, tr, val, hidden, SEED + s, args.target, args.weight_decay, device)
+                out, fitted = fit(Z, S, T, M, tr, val, hidden, SEED + s, args.target, args.weight_decay, device, args.batch)
                 if args.export and not exported:
                     export(args.export, fitted, args, per_board, X, M, test)
                     exported = True

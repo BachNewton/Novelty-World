@@ -94,6 +94,24 @@ Every recording so far trained together (pilot halves and the wide teacher: 13,4
 
 All of it is far below the 30% bar. The 8,000-game recording is the test of whether the full board's curve keeps climbing.
 
+## The 8,000-game recording: the full board keeps climbing
+
+8,000 more games of v7 at 8 replies (`distill-v7-big`, 93,084 decisions), trained with every earlier recording (97,104 training decisions, 9,800 games), scored on the 32-reply test set, three seeds each, at five shares of the training games.
+
+| Student | 4,733 | 9,496 | 24,112 | 48,241 | 97,104 decisions |
+|---|---|---|---|---|---|
+| Breakdown, listwise, 32,8 | 6.0% | 11.0% | 14.0% | 15.8% | 16.3% [10%, 22%] |
+| Full board, listwise, 32 | −6.3% | 2.4% | 6.1% | 9.4% | 16.1% [9%, 23%] |
+| Full board, listwise, 128,32 | −6.4% | 1.2% | 7.6% | 12.4% | 17.4% [11%, 24%] |
+| Full board, listwise, 256,64, weight decay 1e-3 | −3.5% | 0.1% | 9.5% | 12.7% | **18.9% [12%, 25%]** |
+| Full board, regression, 128,32 | −16.1% | −3.9% | −5.3% | −0.4% | 8.2% [1%, 15%] |
+
+- **The breakdown student has flattened** near 16%: v6's eleven terms hold that much of v7's edge and no more.
+- **The full board is still rising, about five points a doubling, with no bend yet**, and its biggest networks now do best. So the board does hold more of the answer than v6's terms; it needs data to show it.
+- **Listwise beats regression** at every size of data; v7's pick is in the student's top two 62% of the time.
+
+By the rule fixed before the run (15 to 50% and still rising): record two to three times more, and screen the best student now. A further 16,000 games are recording; at five points a doubling, 30% needs about four times the data, an estimate the next curve will check.
+
 ## If it works
 
 - **Measuring v7-class strength costs hours, not days.** The student's seating suite costs what v6's did.
