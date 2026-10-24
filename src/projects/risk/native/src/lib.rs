@@ -17,6 +17,7 @@ pub mod record;
 pub mod rng;
 pub mod runner;
 pub mod serve;
+pub mod wire;
 
 #[cfg(test)]
 mod vectors;

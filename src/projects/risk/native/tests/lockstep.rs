@@ -127,9 +127,9 @@ fn results_serialise_as_the_harness_reads_them() {
 #[test]
 fn serve_answers_each_line_of_specs_with_a_line_of_results() {
     let input = concat!(
-        r#"{"specs":[{"index":0,"seed":"a","labels":["random","random","random"],"maxTurns":20},{"index":1,"seed":"b","labels":["random","random","random","random"],"maxTurns":20}]}"#,
+        r#"{"id":7,"specs":[{"index":0,"seed":"a","labels":["random","random","random"],"maxTurns":20},{"index":1,"seed":"b","labels":["random","random","random","random"],"maxTurns":20}]}"#,
         "\n\n",
-        r#"{"specs":[{"index":2,"seed":"c","labels":["random","random","random"],"maxTurns":20}]}"#,
+        r#"{"id":8,"specs":[{"index":2,"seed":"c","labels":["random","random","random"],"maxTurns":20}]}"#,
         "\n"
     );
     let mut output = Vec::new();
@@ -140,6 +140,8 @@ fn serve_answers_each_line_of_specs_with_a_line_of_results() {
         .map(|l| serde_json::from_str(l).unwrap())
         .collect();
     assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["id"], 7);
+    assert_eq!(lines[1]["id"], 8);
     assert_eq!(lines[0]["results"].as_array().unwrap().len(), 2);
     assert_eq!(lines[1]["results"][0]["index"], 2);
     assert_eq!(lines[1]["results"][0]["seed"], "c");

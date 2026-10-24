@@ -14,6 +14,8 @@ const USAGE: &str = "usage:
   risk-native play --bots <a,b,c...> [--players P] --seeds <prefix> --count N [--turns T] --out <file>
                                                  play native games and write them as records
   risk-native serve [--workers N]                play the harness's game specs, JSON lines on stdin
+  risk-native bots                               list the native bots' labels, as JSON
+  risk-native bots-serve                         answer seats' decisions, JSON lines on stdin
   risk-native bench <records.jsonl[.gz]...>      time options + apply over the records' positions
   risk-native games --bots <a,b...> [--players P] --seeds <prefix> --count N [--rotate] [--turns T] [--workers W]
                                                  play native tables and report the lone bot's win share and time";
@@ -25,6 +27,15 @@ fn main() -> ExitCode {
         Some("serve") => workers(&args[1..]).and_then(|w| {
             risk_native::serve::serve(std::io::stdin().lock(), std::io::stdout().lock(), w)
         }),
+        Some("bots") if args.len() == 1 => {
+            let labels: Vec<_> = risk_native::bots::labels().collect();
+            serde_json::to_string(&labels)
+                .map(|json| println!("{json}"))
+                .map_err(|e| e.to_string())
+        }
+        Some("bots-serve") if args.len() == 1 => {
+            risk_native::serve::bots_serve(std::io::stdin().lock(), std::io::stdout().lock())
+        }
         Some("decide") if args.len() > 1 => decide(&args[1..]),
         Some("play") => play(&args[1..]),
         Some("bench") if args.len() > 1 => bench(&args[1..]),

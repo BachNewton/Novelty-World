@@ -12,19 +12,49 @@ pub use random::RandomBot;
 
 use crate::bot::Bot;
 
+/// Builds a seated bot.
+type Build = fn() -> Box<dyn Bot>;
+
+/// Every native bot, by label: the registry `bot` reads and `risk-native bots` lists.
+const REGISTRY: &[(&str, Build)] = &[
+    ("random", || Box::new(RandomBot)),
+    ("greedy", || Box::new(GreedyBot)),
+    ("gd-defensive", || {
+        Box::new(GdBot {
+            persona: Persona::Defensive,
+        })
+    }),
+    ("gd-continental", || {
+        Box::new(GdBot {
+            persona: Persona::Continental,
+        })
+    }),
+    ("gd-aggressive", || {
+        Box::new(GdBot {
+            persona: Persona::Aggressive,
+        })
+    }),
+    ("gd-stacker", || {
+        Box::new(GdBot {
+            persona: Persona::Stacker,
+        })
+    }),
+    ("native-v1", || {
+        Box::new(native_v1::NativeV1 {
+            params: native_v1::NATIVE_V1,
+        })
+    }),
+];
+
 /// The bot a label names, or None when no native bot has that label.
 pub fn bot(label: &str) -> Option<Box<dyn Bot>> {
-    let gd = |persona| Some(Box::new(GdBot { persona }) as Box<dyn Bot>);
-    match label {
-        "random" => Some(Box::new(RandomBot)),
-        "greedy" => Some(Box::new(GreedyBot)),
-        "gd-defensive" => gd(Persona::Defensive),
-        "gd-continental" => gd(Persona::Continental),
-        "gd-aggressive" => gd(Persona::Aggressive),
-        "gd-stacker" => gd(Persona::Stacker),
-        "native-v1" => Some(Box::new(native_v1::NativeV1 {
-            params: native_v1::NATIVE_V1,
-        })),
-        _ => None,
-    }
+    REGISTRY
+        .iter()
+        .find(|(name, _)| *name == label)
+        .map(|(_, build)| build())
+}
+
+/// Every native bot's label, in the registry's order.
+pub fn labels() -> impl Iterator<Item = &'static str> {
+    REGISTRY.iter().map(|(name, _)| *name)
 }
