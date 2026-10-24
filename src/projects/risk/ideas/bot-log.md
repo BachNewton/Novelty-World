@@ -1018,3 +1018,24 @@ On the laptop under Node 24, from 5a9c456f, seeds `train`. `student-v1~{"weights
 | 4 students against 1 v6 | **better** | 82.1% [80.5, 83.7] | 80% | 2,265 | 105 | 2.6% |
 
 Win Elo (v6 = 0): student +29.5 (finishing order +7.3). Accepted on train seeds at 5 players; the holdout suite (3 to 6 players, field rule-v6, gd-defensive, gd-stacker, greedy) decides it. 2,880 games in 31 minutes on 14 workers.
+
+## v7's ladder: +115 Elo over v6 across 3 to 6 players (2026-10-25)
+
+On GitHub Actions (run 40067953817, from main at 000b21d9): `risk:ratings -- rule-v7~{"replies":8} rule-v6 rule-v5 rule-v4 rule-v3 rule-v2 rule-v1 gd-stacker gd-continental greedy gd-aggressive gd-defensive --anchor greedy`. 10,152 games in 2,256 seed groups (336 from the cache), 17 hours of wall time.
+
+| Bot | Win Elo (greedy = 0) | Finishing-order Elo |
+|---|---|---|
+| rule-v7, 8 replies | **+662** | **+367** |
+| rule-v6 | +548 | +290 |
+| rule-v5 | +544 | +293 |
+| rule-v4 | +515 | +304 |
+| rule-v3 | +431 | +256 |
+| rule-v2 | +422 | +244 |
+| rule-v1 | +315 | +152 |
+| gd-stacker | +86 | +114 |
+| gd-continental | +77 | +77 |
+| gd-aggressive | +13 | +60 |
+| greedy | 0 | 0 |
+| gd-defensive | −22 | +70 |
+
+v7 tops the ladder by 115 win Elo over v6, and alone among copies of any weaker bot it wins 82 to 100% of games at every table size. Tables of v7s cap more at 6 players (10 to 25% of games with one weaker bot among five v7s), as the gauntlets showed. The holdout gauntlet (run 40067949285) is the last run of v7's suite; this run isn't `--seatable`, so seating reruns the ratings over the seatable bots. Its matchups weren't merged into the cache here: this branch's code hashes for the rule bots differ from main's, so the import kept none of them.
