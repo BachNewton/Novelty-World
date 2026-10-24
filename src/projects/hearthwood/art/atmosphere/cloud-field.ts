@@ -1,18 +1,20 @@
-import { DataTexture, LinearFilter, LinearMipmapLinearFilter, RepeatWrapping, RGBAFormat, UnsignedByteType, Vector2, Vector4, type Texture } from "three";
+import { DataTexture, LinearFilter, LinearMipmapLinearFilter, RepeatWrapping, RGBAFormat, UnsignedByteType, Vector2, Vector4 } from "three";
+import { float, mix, smoothstep, texture, uniform } from "three/tsl";
+import type { Node } from "three/webgpu";
 import type { FeatureFrame } from "../feature-art";
 
 /*
  * The clouds as a field in the world: how dense the cloud is at any point,
- * the same for everything that draws them (the clouds in the sky, their
- * shadows on the land, the rays between them), so a shadow always lies under
+ * the same for everything that draws them (the clouds painted on the sky
+ * and their shadows on the land), so a shadow always lies under
  * its cloud. Two layers of tiling noise from one small texture give the
  * coverage, broad patches and the heaped cells inside them; a cloud is
  * rounded on top and flat underneath, eroded at its edges by a finer noise.
  * The weather sets how much of the sky is covered, how heaped the clouds are
  * and how low they sit, and the wind carries the whole field along.
  *
- * The noise texture is made once, only while some feature that draws clouds
- * is on, and freed when the last of them is switched off.
+ * The noise texture is made once, the first time a material that reads the
+ * clouds is built (it is small: a quarter of a megabyte).
  */
 
 const SIZE = 256;
@@ -111,29 +113,18 @@ function makeNoise(): DataTexture {
 
 /** The field's uniforms: one set, shared by every material that reads the clouds. */
 export const CLOUD_FIELD = {
-  uHwCloudNoise: { value: null as Texture | null },
   /** How much of the sky is covered, how heaped, and the base and top of the heaped layer, in metres. */
-  uHwCloudShape: { value: new Vector4(0.3, 0.8, 1500, 2600) },
+  shape: uniform(new Vector4(0.3, 0.8, 1500, 2600)),
   /** How far the wind has carried the field, in metres. */
-  uHwCloudDrift: { value: new Vector2() },
+  drift: uniform(new Vector2()),
 };
 
-let users = 0;
 let noise: DataTexture | null = null;
 
-/** The noise texture, made on the first use; each call is matched by a `releaseCloudNoise`. */
-export function acquireCloudNoise(): void {
-  users++;
+/** The noise texture, made the first time a material that reads the clouds is built: a feature that never draws clouds never makes it. */
+function cloudNoise(): DataTexture {
   noise ??= makeNoise();
-  CLOUD_FIELD.uHwCloudNoise.value = noise;
-}
-
-export function releaseCloudNoise(): void {
-  users--;
-  if (users > 0 || !noise) return;
-  noise.dispose();
-  noise = null;
-  CLOUD_FIELD.uHwCloudNoise.value = null;
+  return noise;
 }
 
 /** The clouds drift faster than the wind at the ground, as the wind aloft does. */
@@ -145,13 +136,33 @@ let lastMotion: number | null = null;
 export function updateCloudField({ weather, day }: FeatureFrame): void {
   const w = weather.weather;
   const motion = day.motion;
+  if (motion === lastMotion) return;
   if (lastMotion !== null) {
     const seconds = motion - lastMotion;
-    CLOUD_FIELD.uHwCloudDrift.value.x -= w.wind.x * w.wind.speed * ALOFT * seconds;
-    CLOUD_FIELD.uHwCloudDrift.value.y -= w.wind.z * w.wind.speed * ALOFT * seconds;
+    CLOUD_FIELD.drift.value.x -= w.wind.x * w.wind.speed * ALOFT * seconds;
+    CLOUD_FIELD.drift.value.y -= w.wind.z * w.wind.speed * ALOFT * seconds;
   }
   lastMotion = motion;
   // Damp air clouds over lower; heaped clouds tower, layered ones lie thin.
   const base = 1500 + 1100 * (1 - w.humidity);
-  CLOUD_FIELD.uHwCloudShape.value.set(w.cloudCover, w.heaped, base, base + 220 + 680 * w.heaped);
+  CLOUD_FIELD.shape.value.set(w.cloudCover, w.heaped, base, base + 220 + 680 * w.heaped);
+}
+
+/** The noise at a point of the world, at a scale in metres. */
+export function cloudNoiseAt(xz: Node<"vec2">, scale: number, offset = 0): Node<"vec4"> {
+  return texture(cloudNoise(), xz.div(scale).add(offset));
+}
+
+/** The cloud field's height over a point, 0 to 1: broad patches and the heaped cells in them, stretched so the share of the sky above a level follows the cover. */
+export function cloudField(xz: Node<"vec2">): Node<"float"> {
+  const p = xz.add(CLOUD_FIELD.drift);
+  const broad = cloudNoiseAt(p, 23000).r;
+  const heaps = cloudNoiseAt(p, 9000, 0.37).g;
+  return mix(broad, heaps, CLOUD_FIELD.shape.y.mul(0.35).add(0.35)).sub(0.5).mul(3).add(0.5).clamp();
+}
+
+/** How much cloud stands over a point, 0 to 1, softened by `soft` (wider for a shadow's blurred edge). */
+export function cloudCoverage(xz: Node<"vec2">, soft = 0): Node<"float"> {
+  const threshold = float(1).sub(CLOUD_FIELD.shape.x);
+  return smoothstep(threshold.sub(0.04 + soft), threshold.add(0.16 + soft), cloudField(xz));
 }
