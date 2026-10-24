@@ -100,3 +100,26 @@ def test_golden_samples_from_typescript():
     got = run(tables, rows)
     expected = [(s["attackerLosses"], s["defenderLosses"], False) for s in samples]
     assert got == expected
+
+
+def test_scaled_oversize_is_a_legal_blitz_on_the_device():
+    """Training's device path past the bound: inside the table it reads exactly what the exact path
+    reads; past it, a capture leaves the attacker an army and a failure leaves the defender one."""
+    from riskgpu.data import load_best
+    exact = load_best("cpu")
+    scaled = load_best("cpu")
+    scaled.scaled_oversize = True
+    g = torch.Generator().manual_seed(7)
+    n = 4000
+    a = torch.randint(1, 3 * exact.bound, (n,), generator=g)
+    d = torch.randint(1, 3 * exact.bound, (n,), generator=g)
+    r = torch.rand(n, generator=g, dtype=torch.float64)
+    la, ld, over = resolve_blitz(scaled, a, d, r)
+    inside = ~over
+    ea, ed, _ = resolve_blitz(exact, a[inside], d[inside], r[inside])
+    assert torch.equal(la[inside], ea) and torch.equal(ld[inside], ed)
+    captured = ld == d
+    assert bool(((la >= 0) & (ld >= 0) & (la <= a) & (ld <= d)).all())
+    assert bool((la[captured] < a[captured]).all()), "a capture leaves the attacker an army"
+    assert bool((la[~captured] == a[~captured]).all() & (ld[~captured] < d[~captured]).all())
+    assert bool(over.any()) and bool(captured[over].any()) and bool((~captured[over]).any())

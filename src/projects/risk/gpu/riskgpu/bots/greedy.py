@@ -73,7 +73,44 @@ def dfs_order(own: torch.Tensor, start: torch.Tensor, live: torch.Tensor, board:
     return order
 
 
-def greedy_bot(d: "Decision", mask: torch.Tensor) -> torch.Tensor:
+def dfs_order_graphable(own: torch.Tensor, start: torch.Tensor, live: torch.Tensor, board: Board) -> torch.Tensor:
+    """`dfs_order` with no host sync, for a step captured as a CUDA graph: always 42 pops, and each
+    pop pushes its neighbours at once rather than one by one. That is the same walk, because a
+    territory's neighbours are distinct, so pushing one never changes whether the next is pushed;
+    they land on the stack in `ADJACENCY` order, so the last is popped first, as before. Entries
+    that don't push write to a spare column past the board."""
+    batch = own.shape[0]
+    device = own.device
+    rows = torch.arange(batch, device=device)
+    spare = TERRITORIES
+    reached = torch.zeros(batch, TERRITORIES + 1, dtype=torch.bool, device=device)
+    reached[rows, start] = live
+    order = torch.full((batch, TERRITORIES + 1), _NONE, dtype=torch.int64, device=device)
+    stack = torch.zeros(batch, TERRITORIES + 2, dtype=torch.int64, device=device)
+    stack[:, 0] = start
+    depth = live.to(torch.int64)
+    count = torch.zeros(batch, dtype=torch.int64, device=device)
+    for _ in range(TERRITORIES):
+        popping = depth > 0
+        depth = depth - popping.to(torch.int64)
+        at = stack.gather(1, depth[:, None])[:, 0]
+        n = board.adjacent[at]  # [B, 6]
+        nc = n.clamp(min=0)
+        push = popping[:, None] & (n >= 0) & own.gather(1, nc) & ~reached.gather(1, nc)
+        rank = push.cumsum(1) - 1
+        target = torch.where(push, nc, spare)
+        reached.scatter_(1, target, push)
+        order.scatter_(1, target, torch.where(push, count[:, None] + rank, _NONE))
+        stack.scatter_(1, torch.where(push, depth[:, None] + rank, TERRITORIES + 1), nc)
+        pushed = push.sum(1)
+        count = count + pushed
+        depth = depth + pushed
+    return order[:, :TERRITORIES]
+
+
+def greedy_bot(d: "Decision", mask: torch.Tensor, *, graphable: bool = False) -> torch.Tensor:
+    """`graphable` takes no host sync (every game walks the fortify order, whether it needs it or
+    not), so the bot can be captured in a CUDA graph; the moves are the same."""
     s, o, board = d.state, d.options, d.board
     batch, device = s.batch, s.device
     rows = torch.arange(batch, device=device)
@@ -89,7 +126,9 @@ def greedy_bot(d: "Decision", mask: torch.Tensor) -> torch.Tensor:
     share = (held / size[None])[:, board.continent_of]  # [B, 42], each territory's continent's share
 
     def move(kind, x=0, y=0, z=0, w=0) -> torch.Tensor:
-        fields = [torch.as_tensor(v, dtype=torch.int64, device=device).expand(batch) for v in (kind, x, y, z, w)]
+        fields = [v if isinstance(v, torch.Tensor) else torch.full((batch,), v, dtype=torch.int64, device=device)
+                  for v in (kind, x, y, z, w)]
+        fields = [v.to(torch.int64).expand(batch) for v in fields]
         return torch.stack(fields, 1)
 
     # reinforce: the first set, else everything on `stackTerritory`.
@@ -127,8 +166,8 @@ def greedy_bot(d: "Decision", mask: torch.Tensor) -> torch.Tensor:
     source, found = first_max((armies - 1).to(torch.float64), source_ok)
     fortify = move(END_TURN)
     walking = mask & found & (o.kind.to(torch.int64) == KIND_FORTIFY)
-    if bool(walking.any()):
-        order = dfs_order(own, source, walking, board)
+    if graphable or bool(walking.any()):
+        order = (dfs_order_graphable if graphable else dfs_order)(own, source, walking, board)
         destination = torch.where(idle[rows, source], order, _NONE).min(-1).indices
         marched = move(FORTIFY, source, destination, most[rows, source, destination])
         fortify = torch.where(walking[:, None], marched, fortify)

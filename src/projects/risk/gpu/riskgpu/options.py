@@ -18,6 +18,18 @@ KIND_REINFORCE, KIND_ATTACK, KIND_OCCUPY, KIND_FORTIFY = 0, 1, 2, 3
 TRIPLES = torch.tensor(list(combinations(range(HAND_MAX), 3)), dtype=torch.int64)
 assert TRIPLES.shape == (220, 3)
 
+_ON_DEVICE: dict[tuple[str, torch.device], torch.Tensor] = {}
+
+
+def on_device(name: str, value: torch.Tensor, device: torch.device) -> torch.Tensor:
+    """A constant's copy on `device`, made once: a host-to-device copy inside a step would stop it
+    from being captured as a CUDA graph."""
+    key = (name, torch.device(device))
+    if key not in _ON_DEVICE:
+        _ON_DEVICE[key] = value.to(device)
+    return _ON_DEVICE[key]
+
+
 # `CARDS-6`: three infantry, three cavalry, three artillery; one of each.
 THREE_OF = (4, 6, 8)
 ONE_OF_EACH = 10
@@ -78,7 +90,7 @@ def set_value(cards: torch.Tensor, board: Board) -> torch.Tensor:
     first_non_wild = torch.where(symbol >= 0, symbol, 3).min(-1).values
     # `first_non_wild` must be the first in card order, not the lowest symbol: they differ only for
     # sets that are one of each, which take the other branch.
-    three_of = torch.tensor(THREE_OF + (0,), dtype=torch.int64, device=cards.device)[first_non_wild]
+    three_of = on_device("three_of", torch.tensor(THREE_OF + (0,), dtype=torch.int64), cards.device)[first_non_wild]
     return torch.where(one_of_each, ONE_OF_EACH, three_of)
 
 
@@ -91,11 +103,13 @@ def own_adjacency(s: State, board: Board) -> torch.Tensor:
 def fortify_reach(s: State, board: Board) -> torch.Tensor:
     """`FORT-1` (`fortifyDestinations`): `[B, 42, 42]` bool, `to` joined to `from` through the
     active seat's own territories, `to != from`. The closure doubles the path length each pass, and
-    six passes cover the longest path of 41 borders. The matrix product counts paths in float32,
+    six passes cover the longest path of 41 borders. The matrix product counts paths in floats,
     which is exact for counts this small; only whether each is nonzero is kept."""
     reach = own_adjacency(s, board)
+    # On CUDA in float16, on the tensor cores: the counts are at most 42, exact in either type.
+    dtype = torch.float16 if reach.is_cuda else torch.float32
     for _ in range(6):
-        r = reach.to(torch.float32)
+        r = reach.to(dtype)
         reach = reach | (torch.bmm(r, r) > 0)
     eye = torch.eye(TERRITORIES, dtype=torch.bool, device=s.device)
     return reach & ~eye[None]
@@ -138,7 +152,7 @@ def options(s: State, board: Board) -> Options:
     own = s.owner.to(torch.int64) == active[:, None]
     must_trade = reinforce & (length >= 5)
     may_trade = reinforce & torch.where(s.reinf_after_elim, must_trade, ~s.reinf_placed_any)
-    triples = TRIPLES.to(s.device)
+    triples = on_device("triples", TRIPLES, s.device)
     set_cards = hand[:, triples]  # [B, 220, 3]
     in_hand = (triples[None, :, 2] < length[:, None])
     sets = may_trade[:, None] & in_hand & is_valid_set(set_cards, board)

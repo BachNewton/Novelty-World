@@ -35,6 +35,11 @@ class BlitzTables:
     index: torch.Tensor  # [(bound+1)^2, 4] int64
     values: torch.Tensor  # [n] float64
     slow_cells: dict[tuple[int, int], blitz_port.Cell] = field(default_factory=dict, repr=False)
+    # Training only (`selfplay/`): a fight past the bound is resolved on the device, approximately,
+    # by `_resolve_scaled`, instead of exactly on the host. The host round trip is what stops a step
+    # from being captured as a CUDA graph; such a game is still flagged `oversize`, and is never a
+    # record anything is checked against.
+    scaled_oversize: bool = False
 
     @staticmethod
     def load(path_prefix: str, device: torch.device | str) -> "BlitzTables":
@@ -124,6 +129,30 @@ def _resolve_slow(tables: BlitzTables, a: int, d: int, r: float) -> tuple[int, i
     return a, _first_reaching_host(c.values_d, draw - c.capture, c.likeliest_d)
 
 
+def _resolve_scaled(
+    tables: BlitzTables, a: torch.Tensor, d: torch.Tensor, draw: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """A fight past the bound, approximately and on the device: the same draw read from the fight
+    scaled down into the table (both sides by the same factor, rounded), its losses scaled back up.
+    A capture still leaves the attacker an army and a failure the defender one, so the result is
+    always a legal blitz. Never exact: only `scaled_oversize` reaches it."""
+    bound = tables.bound
+    most = torch.maximum(a, d).clamp(min=1)
+    sa = ((a * bound + most // 2) // most).clamp(1, bound)
+    sd = ((d * bound + most // 2) // most).clamp(1, bound)
+    cell = sa * (bound + 1) + sd
+    capture = tables.capture[cell]
+    off_a, off_d, likeliest_a, likeliest_d = tables.index[cell].unbind(1)
+    captures = capture >= draw
+    first_a = _first_reaching(tables.values, off_a, sa, draw, bound)
+    first_d = _first_reaching(tables.values, off_d, sd, draw - capture, bound)
+    lost_a = torch.where(first_a < bound, first_a, likeliest_a)
+    lost_d = torch.where(first_d < bound, first_d, likeliest_d)
+    attacker = torch.where(captures, torch.minimum((lost_a * a + sa // 2) // sa, a - 1), a)
+    defender = torch.where(captures, d, torch.minimum((lost_d * d + sd // 2) // sd, d - 1))
+    return attacker, defender
+
+
 def resolve_blitz(
     tables: BlitzTables, a: torch.Tensor, d: torch.Tensor, r: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -133,7 +162,7 @@ def resolve_blitz(
     assert a.dtype == torch.int64 and d.dtype == torch.int64, (a.dtype, d.dtype)
     assert r.dtype == torch.float64, r.dtype
     assert a.shape == d.shape == r.shape and a.dim() == 1, (a.shape, d.shape, r.shape)
-    if bool(((a < 1) | (d < 1)).any()):
+    if not tables.scaled_oversize and bool(((a < 1) | (d < 1)).any()):
         raise ValueError("a blitz needs at least one army on each side")
     bound = tables.bound
     oversize = (a > bound) | (d > bound)
@@ -153,6 +182,10 @@ def resolve_blitz(
 
     attacker_losses = torch.where(captures, attacker_pick, a_in)
     defender_losses = torch.where(captures, d_in, defender_pick)
+    if tables.scaled_oversize:
+        scaled_a, scaled_d = _resolve_scaled(tables, a, d, draw)
+        return (torch.where(oversize, scaled_a, attacker_losses), torch.where(oversize, scaled_d, defender_losses),
+                oversize)
     if bool(oversize.any()):
         rows = torch.nonzero(oversize).flatten()
         slow = [

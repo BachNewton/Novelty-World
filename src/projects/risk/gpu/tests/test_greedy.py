@@ -19,7 +19,7 @@ from riskgpu.state import new_games
 FILES = ("greedy-3p", "greedy-4p", "greedy-6p", "gd-greedy-3p", "mixed-cap-4p", "rule-4p")
 
 
-def replay_greedy(records: list[dict], board: Board, tables) -> tuple[list[int], list[str]]:
+def replay_greedy(records: list[dict], board: Board, tables, graphable: bool = False) -> tuple[list[int], list[str]]:
     """Each record's greedy decisions compared, and every disagreement described."""
     batch = len(records)
     s = new_games([r["seed"] for r in records], [r["players"] for r in records], board, "cpu")
@@ -34,7 +34,8 @@ def replay_greedy(records: list[dict], board: Board, tables) -> tuple[list[int],
         legal = options(s, board)
         mine = live & greedy_seat[rows, s.active.to(torch.int64)]
         ours = greedy_bot(Decision(s, legal, board, tables, log, torch.zeros(batch, dtype=torch.int64),
-                                   torch.zeros(batch, 6, dtype=torch.bool), [""] * batch), mine)
+                                   torch.zeros(batch, 6, dtype=torch.bool), [""] * batch), mine,
+                          graphable=graphable)
         for g in mine.nonzero()[:, 0].tolist():
             compared[g] += 1
             if ours[g].tolist() != recorded[g].tolist():
@@ -50,10 +51,11 @@ def replay_greedy(records: list[dict], board: Board, tables) -> tuple[list[int],
     return compared, disagreements
 
 
+@pytest.mark.parametrize("graphable", [False, True], ids=["eager", "graphable"])
 @pytest.mark.parametrize("name", FILES)
-def test_greedy_makes_every_recorded_greedy_move(name):
+def test_greedy_makes_every_recorded_greedy_move(name, graphable):
     records = read_records(os.path.join(FIXTURES, f"{name}.jsonl.gz"))
-    compared, disagreements = replay_greedy(records, Board.load("cpu"), load_best("cpu"))
+    compared, disagreements = replay_greedy(records, Board.load("cpu"), load_best("cpu"), graphable)
     print(f"{name}: {sum(compared)} greedy decisions compared, {len(disagreements)} disagreements")
     assert sum(compared) > 0
     assert disagreements == [], "\n".join(disagreements[:10])
