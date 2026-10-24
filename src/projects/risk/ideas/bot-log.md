@@ -1001,3 +1001,20 @@ Gauntlets:
 - **armies, 10 rounds, 75%**: 5 players alone 18.5% vs par 20% (inconclusive at the cap), in numbers 79.9% vs 80% (even); 6 players alone 11.6% vs 16.7% (worse), in numbers 78.9% vs 83.3% (worse). Win Elo −22. Rejected.
 
 Every candidate sits on one curve: the more it discounts hoarded armies, the less it stalls and the more it loses to v6, and the gentlest that doesn't stall still loses about 22 Elo, at 6 players. Part of that may be the yardstick: a stall-free bot is measured among v6s that still stall (its lone seat among five v6s capped 9.3% of games).
+
+Round two's gated candidates (same screen, gauntlets vs rule-v6 at 5 and 6 players, `--max 2000`):
+- **R2b, armies 12 rounds, 75%**: win Elo −19. Rejected.
+- **R2c, R2b plus attrition k=6, only with 5+ players and 6 alive**: 5 players inconclusive at the cap (alone 18.9% vs 20%, in numbers 78.8% vs 80%); 6 players worse (alone 14.5% vs 16.7%, capped 10.1%; in numbers 73.3% vs 83.3%). Win Elo −21. Rejected.
+
+Round two ends where round one did: about even at 5 players, worse at 6.
+
+## student-v1 on the wide recording beats v6 at 5 players, train seeds (2026-10-24)
+
+On the laptop under Node 24, from 5a9c456f, seeds `train`. `student-v1~{"weights":"e6-256-64"}`: the 256,64 net trained on the 97,000-decision sweep (weight decay 1e-3), which keeps 21% of v7's edge on the 32-reply test set (`ideas/distilled-v7.md`).
+
+| Table | Result | Win share | Par | Games | Turns | Capped |
+|---|---|---|---|---|---|---|
+| 1 student among 4 v6s | **better** | 24.8% [21.4, 28.5] | 20% | 565 | 98 | 1.4% |
+| 4 students against 1 v6 | **better** | 82.1% [80.5, 83.7] | 80% | 2,265 | 105 | 2.6% |
+
+Win Elo (v6 = 0): student +29.5 (finishing order +7.3). Accepted on train seeds at 5 players; the holdout suite (3 to 6 players, field rule-v6, gd-defensive, gd-stacker, greedy) decides it. 2,880 games in 31 minutes on 14 workers.
