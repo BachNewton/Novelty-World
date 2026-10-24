@@ -6,6 +6,7 @@ import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
 import { dualVerdict, sprtBounds } from "@/shared/lib/bot-lab/sprt";
 import {
   checkBots,
+  checkLocal,
   commonDefaults,
   commonFlag,
   formats,
@@ -14,6 +15,7 @@ import {
   remoteDefaults,
   remoteFlag,
   riskRun,
+  riskRunner,
   type CommonArgs,
   type RemoteArgs,
 } from "./cli-args";
@@ -25,7 +27,7 @@ import {
   runRiskGauntlet,
   type RiskGauntletProgress,
 } from "./gauntlet";
-import { candidateSeats, FORMATS, riskPool, type Format } from "./parallel";
+import { candidateSeats, FORMATS, type Format } from "./parallel";
 import { fileLadderCache } from "./ratings-cache";
 import { formatRoundPlan, remoteGames, writeRoundPlan } from "./remote";
 
@@ -41,6 +43,9 @@ import { formatRoundPlan, remoteGames, writeRoundPlan } from "./remote";
  *    npm run risk:gauntlet -- cand-v2 --players 6 --formats one-in
  *    npm run risk:gauntlet -- cand-v2 --prefix holdout       # confirm on unseen seeds
  *    npm run risk:gauntlet -- cand-v2 --margin 30 --alpha 0.05 --beta 0.05 --max 20000
+ *    npm run risk:gauntlet -- native-v1 --field greedy --native              # every table in the crate
+ *    npm run risk:gauntlet -- native-v1 --field greedy,gd-stacker --native --parity 10
+ *    npm run risk:gauntlet -- gd-stacker@native --field greedy               # a native seat at a TypeScript table
  *    npm run risk:gauntlet -- cand-v2 --games-from games --plan plan.json   # plan a remote round
  *    npm run risk:gauntlet -- cand-v2 --games-from games                    # report a remote run
  *
@@ -133,6 +138,7 @@ async function main(): Promise<void> {
   checkBots([args.candidate, ...field]);
   if (field.length === 0) throw new Error("empty field: name the opponents with --field");
   const base = args.base ?? strongest(field);
+  checkLocal(args, args.gamesFrom);
   const remote = args.gamesFrom === undefined ? null : remoteGames(args.gamesFrom);
   if (args.plan !== undefined && remote === null) {
     throw new Error("--plan needs --games-from: the directory of the games played so far, empty before the first round");
@@ -197,7 +203,7 @@ Risk — gauntlet
     beta: args.beta,
     maxDecisive: args.maxDecisive,
     fieldMaxGroups: args.fieldMaxGroups,
-    fieldCache: fileLadderCache(),
+    fieldCache: fileLadderCache(args.native),
     maxTurns: args.maxTurns,
   };
 
@@ -216,7 +222,7 @@ Risk — gauntlet
 
   // A remote run's report reads its games a group at a time, so it asks for none past
   // the stop point: those its rounds may not have played.
-  const pool = remote === null ? live.watch(riskPool(args.workers), (r) => r.decisions) : remote.store.runner();
+  const pool = remote === null ? live.watch(riskRunner(args, [args.candidate, ...field]), (r) => r.decisions) : remote.store.runner();
   try {
     const report = await runRiskGauntlet({
       ...gauntlet,

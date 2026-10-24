@@ -171,14 +171,14 @@ export class WorkerPool<Spec extends Indexed, Result extends Indexed>
  *  log's sampler, the live page's heartbeat, a stop signal) isn't held off for the
  *  length of a whole batch. */
 export function inlineRunner<Spec extends Indexed, Result extends Indexed>(
-  runOne: (spec: Spec) => Result,
+  runOne: (spec: Spec) => Result | Promise<Result>,
 ): GameRunner<Spec, Result> {
   return {
     size: 1,
     run: async (specs) => {
       const results: Result[] = [];
       for (const spec of specs) {
-        results.push(runOne(spec));
+        results.push(await runOne(spec));
         await new Promise<void>((resolve) => setImmediate(resolve));
       }
       return results.sort((p, q) => p.index - q.index);

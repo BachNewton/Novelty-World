@@ -9,6 +9,7 @@ import {
 import type { GameRunner } from "@/shared/lib/bot-lab/pool";
 import { luceWinProb } from "@/shared/lib/bot-lab/sprt";
 import { wilsonInterval, type ShareInterval } from "@/shared/lib/bot-lab/stats";
+import { nativeName } from "./native/bot";
 import { candidateSeats, finishesOf, outcomeFor, tableSpecs, type Format } from "./parallel";
 import { playLadder, walkLadder, type LadderCache, type LadderSpec, type LadderWalk } from "./ratings";
 import type { RiskGameResult, RiskGameSpec } from "./runner";
@@ -147,9 +148,10 @@ export function gauntletTables(field: readonly string[], players: readonly numbe
   );
 }
 
-/** The seed stream of a pairing's games. */
+/** The seed stream of a pairing's games. A candidate forced onto the native path
+ *  (`gd-stacker@native`) is the same bot, so it plays the same seeds as its TypeScript self. */
 export function pairingPrefix(prefix: string, candidate: string, table: Table): string {
-  return `${prefix}:${candidate}-vs-${table.opponent}:${table.players.toString()}p:${table.format}`;
+  return `${prefix}:${nativeName(candidate)}-vs-${table.opponent}:${table.players.toString()}p:${table.format}`;
 }
 
 const sprtConfig = (opts: Pick<RiskGauntletOptions, "margin" | "alpha" | "beta">, table: Table) => ({

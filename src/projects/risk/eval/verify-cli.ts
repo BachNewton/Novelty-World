@@ -2,18 +2,26 @@ import process from "node:process";
 import { inlineRunner } from "@/shared/lib/bot-lab/pool";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
 import { checkBots, commonDefaults, commonFlag, number, riskRun } from "./cli-args";
+import { checkNative, nativeName } from "./native/bot";
+import { checkParity, nativeRunner } from "./native/runner";
 import { riskPool, tableSpecs } from "./parallel";
-import { runSpec, type RiskGameResult, type RiskGameSpec } from "./runner";
+import { runSpec, runSpecAsync, type RiskGameResult, type RiskGameSpec } from "./runner";
 
 /** `npm run risk:verify` — prove the worker pool gives BIT-IDENTICAL games to the
  *  single-threaded runner on the same specs, and measure the engine's throughput
  *  in the harness while at it: games per second on one core and on the pool, and
  *  the mean length of a game.
  *
+ *  With `--native`, the games are played wholly in the crate instead of on the pool, and held
+ *  to the TypeScript runner's (every seat its TypeScript bot): the whole-game exactness of bots
+ *  ported exactly, and the native engine's throughput beside the TypeScript's on one core.
+ *
  *  Usage:
  *    npm run risk:verify -- greedy random                  # one-in both ways, 3/4/6 players
  *    npm run risk:verify -- greedy                         # every seat the same bot
- *    npm run risk:verify -- greedy random --players 6 --groups 40 --workers 14 */
+ *    npm run risk:verify -- greedy random --players 6 --groups 40 --workers 14
+ *    npm run risk:verify -- gd-stacker@native greedy       # a native seat at TypeScript tables
+ *    npm run risk:verify -- greedy gd-stacker --native     # the crate's games == TypeScript's */
 
 interface Args {
   labels: string[];
@@ -37,6 +45,11 @@ function parseArgs(argv: readonly string[]): Args {
     throw new Error("name one bot (every seat) or two (one-in both ways). Example: npm run risk:verify -- greedy random");
   }
   checkBots(a.labels);
+  if (a.common.parity !== 0) throw new Error("--parity has no place here: risk:verify -- --native checks every game");
+  if (a.common.native) {
+    checkNative(a.labels);
+    checkParity(a.labels);
+  }
   return a;
 }
 
@@ -72,8 +85,17 @@ async function main(): Promise<void> {
     seeds: args.common.prefix,
     workers: args.common.workers,
   });
-  const inline = live.watch(inlineRunner(runSpec), (r) => r.decisions);
-  const pool = live.watch(riskPool(args.common.workers), (r) => r.decisions);
+  const { native } = args.common;
+  // The reference: TypeScript on this thread. With --native every seat is its TypeScript bot,
+  // named as the crate names it; otherwise native seats are asked of the crate as on the pool.
+  const inline = live.watch(
+    native
+      ? inlineRunner((spec: RiskGameSpec) => ({ ...runSpec({ ...spec, labels: spec.labels.map(nativeName) }), labels: spec.labels }))
+      : inlineRunner(runSpecAsync),
+    (r) => r.decisions,
+  );
+  const pool = live.watch(native ? nativeRunner(args.common.workers) : riskPool(args.common.workers), (r) => r.decisions);
+  const paths = native ? { title: "native exactness and throughput", other: "native", same: "native == TypeScript" } : { title: "parallel determinism and throughput", other: "pool", same: "parallel == single-threaded" };
   // Every table's games play twice, once on each path, after a warm-up of each.
   const warmUp = [specsFor({ ...args, groups: 1 }, 4), specsFor({ ...args, groups: pool.size }, 4)];
   const totalGames =
@@ -83,7 +105,7 @@ async function main(): Promise<void> {
   let errors = 0;
   console.log(
     `
-Risk — parallel determinism and throughput
+Risk — ${paths.title}
 ` +
       `Bots: ${args.labels.join(" vs ")}   ${args.groups} seed groups per table   Workers: ${pool.size}   Max turns: ${args.common.maxTurns}
 `,
@@ -122,7 +144,7 @@ Risk — parallel determinism and throughput
           `   capped ${caps}
 ` +
           `       one core: ${(specs.length / singleSecs).toFixed(1)} games/s (${((decisions / singleSecs) / 1000).toFixed(1)}k moves/s)` +
-          `   pool: ${(specs.length / poolSecs).toFixed(1)} games/s (${(specs.length / poolSecs / pool.size).toFixed(1)} per worker)`,
+          `   ${paths.other}: ${(specs.length / poolSecs).toFixed(1)} games/s (${(specs.length / poolSecs / pool.size).toFixed(1)} per worker)`,
       );
     }
   } catch (e) {
@@ -140,7 +162,7 @@ ${formatRunRecord(await live.finish({ errors }))}`);
     process.exit(1);
   }
   console.log(`
-  ✅ every game bit-identical (parallel == single-threaded)
+  ✅ every game bit-identical (${paths.same})
 `);
 }
 

@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BOT_MODULES } from "../bots";
+import { crateCode } from "./native/binary";
+import { isNativeSeat } from "./native/bot";
 import type { GroupRecord, LadderCache, Matchup, MatchupGames } from "./ratings";
 import { hashSources, sourceClosure } from "./source-hash";
 
@@ -10,7 +12,9 @@ import { hashSources, sourceClosure } from "./source-hash";
 // bot's own matchups, not every pair again. A matchup keeps its first seed groups, each
 // group's record apart, so a ladder that reads it to any point finds the same groups it
 // would play. Each record carries the hash of the code its games ran on, both bots' and
-// the game's, and answers only while that code is unchanged.
+// the game's, and answers only while that code is unchanged. A native bot's code is the crate's
+// sources (`native/`), and a ladder played wholly in the crate (`--native`) keeps its records
+// apart, under keys of their own, with the crate as all of their code.
 
 const CACHE_FILE = fileURLToPath(new URL("./ratings-cache.json", import.meta.url));
 const BOTS = fileURLToPath(new URL("../bots/", import.meta.url));
@@ -39,10 +43,11 @@ function gameCode(): string {
 }
 
 /** A bot's code: its own module and everything it imports. A tuned label also depends on
- *  the registry that builds it; the settings it moves are in the label. */
+ *  the registry that builds it; the settings it moves are in the label. A native seat's code is
+ *  the crate. */
 function botCode(label: string): string | null {
   const base = label.split("~")[0];
-  if (!Object.hasOwn(BOT_MODULES, base)) return null;
+  if (!Object.hasOwn(BOT_MODULES, base)) return isNativeSeat(label) ? `native-${crateCode()}` : null;
   return remembered(label, () => {
     const entries = [path.join(BOTS, BOT_MODULES[base])];
     if (base !== label) entries.push(path.join(BOTS, "index.ts"));
@@ -50,14 +55,22 @@ function botCode(label: string): string | null {
   });
 }
 
+/** The code a whole-crate record's games ran on. */
+const NATIVE = "native.";
+
 function codeOf(lone: string, rest: string): string | null {
   const a = botCode(lone);
   const b = botCode(rest);
   return a === null || b === null ? null : `${gameCode()}.${a}.${b}`;
 }
 
-function keyOf(g: MatchupGames): string {
-  return `${g.seeds} ${g.maxTurns.toString()}t`;
+/** The code `entry`'s games ran on now: the crate for a record played wholly in it. */
+function codeNow(entry: Entry): string | null {
+  return entry.code.startsWith(NATIVE) ? `${NATIVE}${crateCode()}` : codeOf(entry.lone, entry.rest);
+}
+
+function keyOf(g: MatchupGames, native: boolean): string {
+  return `${native ? "native " : ""}${g.seeds} ${g.maxTurns.toString()}t`;
 }
 
 function read(file = CACHE_FILE): Record<string, Entry> {
@@ -83,7 +96,7 @@ function writeMerged(added: Readonly<Record<string, Entry>>): void {
   for (const [key, entry] of Object.entries(added)) if (longer(entry, merged[key] as Entry | undefined)) merged[key] = entry;
   const matchups: Record<string, Entry> = {};
   for (const [key, entry] of Object.entries(merged)) {
-    if (entry.code === codeOf(entry.lone, entry.rest)) matchups[key] = entry;
+    if (entry.code === codeNow(entry)) matchups[key] = entry;
   }
   // A line a matchup, so a run's diff reads as the matchups it played.
   const lines = Object.entries(matchups)
@@ -100,31 +113,34 @@ export function mergeLadderCache(file: string): number {
   const ours = read();
   const theirs = read(file);
   const added = Object.fromEntries(
-    Object.entries(theirs).filter(([key, entry]) => longer(entry, ours[key] as Entry | undefined) && entry.code === codeOf(entry.lone, entry.rest)),
+    Object.entries(theirs).filter(([key, entry]) => longer(entry, ours[key] as Entry | undefined) && entry.code === codeNow(entry)),
   );
   writeMerged(added);
   return Object.keys(added).length;
 }
 
-/** The cache on disk, read once. Each new record is written at once, merged into the
+/** The cache on disk, read once: the TypeScript runner's records, or with `native` those of
+ *  ladders played wholly in the crate. Each new record is written at once, merged into the
  *  file as it is then, so a run that stops keeps what it played and two runs at once keep
  *  each other's. Records whose code has changed, or whose bots are gone, are dropped as it
  *  writes. */
-export function fileLadderCache(): LadderCache {
+export function fileLadderCache(native = false): LadderCache {
   const held = read();
+  const code = (games: MatchupGames) => (native ? `${NATIVE}${crateCode()}` : codeOf(games.lone, games.rest));
   return {
     get(games) {
-      const entry = held[keyOf(games)] as Entry | undefined;
-      if (entry === undefined || entry.code !== codeOf(games.lone, games.rest)) return [];
+      const entry = held[keyOf(games, native)] as Entry | undefined;
+      if (entry === undefined || entry.code !== code(games)) return [];
       return entry.groups;
     },
     set(games, groups) {
-      const code = codeOf(games.lone, games.rest);
-      if (code === null) return;
-      const entry: Entry = { lone: games.lone, rest: games.rest, players: games.players, code, groups: [...groups] };
-      if (!longer(entry, held[keyOf(games)] as Entry | undefined)) return;
-      held[keyOf(games)] = entry;
-      writeMerged({ [keyOf(games)]: entry });
+      const now = code(games);
+      if (now === null) return;
+      const key = keyOf(games, native);
+      const entry: Entry = { lone: games.lone, rest: games.rest, players: games.players, code: now, groups: [...groups] };
+      if (!longer(entry, held[key] as Entry | undefined)) return;
+      held[key] = entry;
+      writeMerged({ [key]: entry });
     },
   };
 }

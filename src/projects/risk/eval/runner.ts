@@ -3,6 +3,7 @@ import type { GameEvent, GameState, GameView, Move, RiskEngine, Seat } from "../
 import { referenceEngine } from "../engine";
 import type { Bot, BotInput } from "../bots/bot";
 import { riskBot } from "../bots";
+import { riskBotAsync } from "./native/bot";
 
 // The game runner the measuring harness plays: one seeded game, a bot per seat,
 // on the engine contract. It is the only code that holds the game state; each bot
@@ -23,10 +24,14 @@ export interface GameRecord {
   decisions: number;
 }
 
-export interface PlayOptions {
+/** A bot that may answer later: a native bot answers over a pipe (`native/bot.ts`). Every
+ *  bot is one of these; the runner awaits only an answer that is a promise. */
+export type AsyncBot = (input: BotInput) => Move | Promise<Move>;
+
+export interface LoopOptions {
   seed: string;
-  /** One bot per seat, 3 to 6. */
-  bots: readonly Bot[];
+  /** Seats at the table, 3 to 6. */
+  players: number;
   /** Past this many player-turns the game is stopped and counted a draw. */
   maxTurns: number;
   engine?: RiskEngine;
@@ -36,16 +41,22 @@ export interface PlayOptions {
   observe?: Observer;
 }
 
+export interface PlayOptions extends Omit<LoopOptions, "players"> {
+  /** One bot per seat, 3 to 6. */
+  bots: readonly Bot[];
+}
+
 export interface Observer {
   decided?(input: BotInput, move: Move): void;
   applied?(seat: Seat, move: Move, events: readonly GameEvent[], board: GameView, state: GameState): void;
   started?(events: readonly GameEvent[], board: GameView, state: GameState): void;
 }
 
-/** Plays one game to its end or the turn cap. A bot's illegal move throws: it is a
- *  bug in the bot, never a move to be quietly replaced. */
-export function playGame({ seed, bots, maxTurns, engine = referenceEngine, observe }: PlayOptions): GameRecord {
-  const players = bots.length;
+/** One game to its end or the turn cap, as a generator: it yields each decision's input and is
+ *  sent the move, so the same loop is driven by bots that answer at once (`playGame`) and by
+ *  bots that answer later (`playGameAsync`). A bot's illegal move throws: it is a bug in the
+ *  bot, never a move to be quietly replaced. */
+export function* gameLoop({ seed, players, maxTurns, engine = referenceEngine, observe }: LoopOptions): Generator<BotInput, GameRecord, Move> {
   const started = engine.newGame({ players }, seed);
   let state = started.state;
   // Each seat's redacted history, grown write by write rather than redacted whole
@@ -97,7 +108,7 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine, obser
       humans,
       seed: `${botSeed}/${decision}`,
     };
-    const move = bots[seat](input);
+    const move = yield input;
     observe?.decided?.(input, move);
     const result = engine.apply(state, seat, move);
     if (!result.ok) {
@@ -109,6 +120,25 @@ export function playGame({ seed, bots, maxTurns, engine = referenceEngine, obser
     state = result.state;
     record(result.events);
     observe?.applied?.(seat, move, result.events, engine.view(state, null), state);
+  }
+}
+
+/** Plays one game with bots that answer at once. */
+export function playGame({ bots, ...options }: PlayOptions): GameRecord {
+  const loop = gameLoop({ ...options, players: bots.length });
+  for (let step = loop.next(); ; step = loop.next(bots[step.value.seat](step.value))) {
+    if (step.done) return step.value;
+  }
+}
+
+/** Plays one game with bots that may answer later, awaiting only an answer that is a promise:
+ *  with bots that answer at once, the same game as `playGame`. */
+export async function playGameAsync({ bots, ...options }: Omit<PlayOptions, "bots"> & { bots: readonly AsyncBot[] }): Promise<GameRecord> {
+  const loop = gameLoop({ ...options, players: bots.length });
+  for (let step = loop.next(); ; ) {
+    if (step.done) return step.value;
+    const answer = bots[step.value.seat](step.value);
+    step = loop.next(answer instanceof Promise ? await answer : answer);
   }
 }
 
@@ -135,15 +165,31 @@ export interface RiskGameResult extends GameRecord {
   error?: string;
 }
 
+/** A spec's result from its played record, or from what made it throw: one broken game must
+ *  not take the batch with it, so it comes back as an error, which every report counts and
+ *  prints. */
+function resultOf(spec: RiskGameSpec, played: { record: GameRecord } | { error: unknown }): RiskGameResult {
+  const base = { index: spec.index, seed: spec.seed, labels: spec.labels };
+  if ("record" in played) return { ...base, ...played.record };
+  return { ...base, winner: null, places: [], turns: 0, decisions: 0, error: (played.error as Error).message };
+}
+
 /** Plays a spec, its labels resolved to bots by `resolve` (the registry, unless a
  *  test brings bots of its own). */
 export function runSpec(spec: RiskGameSpec, resolve: (label: string) => Bot = riskBot): RiskGameResult {
-  const base = { index: spec.index, seed: spec.seed, labels: spec.labels };
   try {
-    return { ...base, ...playGame({ seed: spec.seed, bots: spec.labels.map((l) => resolve(l)), maxTurns: spec.maxTurns }) };
-  } catch (e) {
-    // One broken game must not take the batch with it: it comes back as an error,
-    // which every report counts and prints.
-    return { ...base, winner: null, places: [], turns: 0, decisions: 0, error: (e as Error).message };
+    return resultOf(spec, { record: playGame({ seed: spec.seed, bots: spec.labels.map((l) => resolve(l)), maxTurns: spec.maxTurns }) });
+  } catch (error) {
+    return resultOf(spec, { error });
+  }
+}
+
+/** Plays a spec whose seats may be native bots (`native/bot.ts`'s `riskBotAsync`), as the worker
+ *  pool plays every spec: with TypeScript bots only, the same result as `runSpec`. */
+export async function runSpecAsync(spec: RiskGameSpec, resolve: (label: string) => AsyncBot = riskBotAsync): Promise<RiskGameResult> {
+  try {
+    return resultOf(spec, { record: await playGameAsync({ seed: spec.seed, bots: spec.labels.map((l) => resolve(l)), maxTurns: spec.maxTurns }) });
+  } catch (error) {
+    return resultOf(spec, { error });
   }
 }

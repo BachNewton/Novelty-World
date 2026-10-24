@@ -1,19 +1,32 @@
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { defaultWorkerCount } from "@/shared/lib/bot-lab/pool";
+import { defaultWorkerCount, type GameRunner } from "@/shared/lib/bot-lab/pool";
 import { LiveReporter } from "@/shared/lib/bot-lab/live";
 import { liveSinkFromEnv } from "@/shared/lib/bot-lab/live-supabase";
 import { RunLog, type RemotePlay, type RunDescription } from "@/shared/lib/bot-lab/run-log";
-import { riskBot } from "../bots";
-import { FORMATS, type Format } from "./parallel";
+import { checkNative, riskBotAsync } from "./native/bot";
+import { checkParity, nativeRunner, parityRunner } from "./native/runner";
+import { FORMATS, riskPool, type Format } from "./parallel";
+import type { RiskGameResult, RiskGameSpec } from "./runner";
 
 // The flags Risk's measurement CLIs share.
+//
+// Native bots (`native/`, `ideas/native-port.md`): a label the crate has and TypeScript doesn't
+// seats the native bot, and `<label>@native` forces a bot both sides have onto the native path
+// (`gd-stacker@native`), so a mixed table plays on the TypeScript pool with the native seats
+// answered by the crate. `--native` plays every table wholly in the crate instead (every seat
+// must be native), and `--parity N` with it plays every N-th seed group of each batch in
+// TypeScript too, failing the run on any game that differs (for bots exact on both sides).
 
 export interface CommonArgs {
   players: number[];
   maxTurns: number;
   workers: number;
   prefix: string;
+  /** Play every table wholly in the crate. */
+  native: boolean;
+  /** With `native`, check every this-many-th seed group against TypeScript; 0 checks none. */
+  parity: number;
 }
 
 /** Player-turns before a game is stopped as a draw. Bot-vs-bot games between
@@ -21,7 +34,7 @@ export interface CommonArgs {
 export const DEFAULT_MAX_TURNS = 600;
 
 export function commonDefaults(prefix: string): CommonArgs {
-  return { players: [3, 4, 5, 6], maxTurns: DEFAULT_MAX_TURNS, workers: defaultWorkerCount(), prefix };
+  return { players: [3, 4, 5, 6], maxTurns: DEFAULT_MAX_TURNS, workers: defaultWorkerCount(), prefix, native: false, parity: 0 };
 }
 
 export function number(value: string | undefined, flag: string): number {
@@ -54,6 +67,13 @@ export function commonFlag(args: CommonArgs, argv: readonly string[], i: number)
     case "--prefix":
       args.prefix = argv[i + 1];
       return 2;
+    case "--native":
+      args.native = true;
+      return 1;
+    case "--parity":
+      args.parity = number(argv[i + 1], "--parity");
+      if (!(Number.isInteger(args.parity) && args.parity >= 1)) throw new Error(`--parity takes a whole number of seed groups, 1 or more`);
+      return 2;
     default:
       return 0;
   }
@@ -67,9 +87,29 @@ export function formats(value: string | undefined): Format[] {
   return chosen as Format[];
 }
 
-/** Fails on a label the registry can't seat: a bot's own, or a tuned one (`rule-v1~{...}`). */
+/** Fails on a label nothing can seat: the registry's own bots, tuned ones (`rule-v1~{...}`),
+ *  and native ones. */
 export function checkBots(labels: readonly string[]): void {
-  for (const l of labels) riskBot(l);
+  for (const l of labels) riskBotAsync(l);
+}
+
+/** `--native` plays on this machine's build of the crate, which a remote run's machines don't have. */
+export function checkLocal(args: CommonArgs, gamesFrom: string | undefined): void {
+  if (args.native && gamesFrom !== undefined) throw new Error("--native plays on this machine's native build: it can't read a remote run's games");
+}
+
+/** The runner a CLI plays `labels`' games on: the TypeScript worker pool, or with `--native`
+ *  the crate, checked against the pool with `--parity`. Fails before any game on a table it
+ *  can't play. */
+export function riskRunner(args: CommonArgs, labels: readonly string[]): GameRunner<RiskGameSpec, RiskGameResult> {
+  if (!args.native) {
+    if (args.parity !== 0) throw new Error("--parity checks the native runner against TypeScript: it needs --native");
+    return riskPool(args.workers);
+  }
+  checkNative(labels);
+  if (args.parity === 0) return nativeRunner(args.workers);
+  checkParity(labels);
+  return parityRunner(nativeRunner(args.workers), riskPool(args.workers), args.parity);
 }
 
 // Where a run's games come from, when other machines play them (`remote.ts`, and the

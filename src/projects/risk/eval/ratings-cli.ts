@@ -9,17 +9,18 @@ import { SEAT_BOTS } from "../online/seat-roster";
 import { formatRunRecord } from "@/shared/lib/bot-lab/run-log";
 import {
   checkBots,
+  checkLocal,
   commonDefaults,
   commonFlag,
   number,
   remoteDefaults,
   remoteFlag,
   riskRun,
+  riskRunner,
   type CommonArgs,
   type RemoteArgs,
 } from "./cli-args";
 import { eloLine } from "./gauntlet";
-import { riskPool } from "./parallel";
 import { ladderPrecision, playLadder, walkLadder, type LadderCache, type LadderSpec, type LadderWalk } from "./ratings";
 import { fileLadderCache } from "./ratings-cache";
 import { formatRoundPlan, remoteGames, writeRoundPlan } from "./remote";
@@ -36,6 +37,8 @@ import { formatRoundPlan, remoteGames, writeRoundPlan } from "./remote";
  *    npm run risk:ratings -- greedy rule-v1 --margin 30 --alpha 0.05 --max-groups 100
  *    npm run risk:ratings -- --seatable                    # every seatable bot; writes bots/ratings.json
  *    npm run risk:ratings -- --seatable --fresh            # play every matchup again, not from the cache
+ *    npm run risk:ratings -- greedy gd-stacker native-v1 --native   # every table in the crate
+ *    npm run risk:ratings -- greedy gd-stacker --native --parity 5  # and every 5th group in TypeScript too
  *
  *    npm run risk:ratings -- greedy rule-v1 --games-from games --plan plan.json   # plan a remote round
  *    npm run risk:ratings -- greedy rule-v1 --games-from games                    # report a remote run
@@ -93,6 +96,7 @@ function parseArgs(argv: readonly string[]): Args {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const anchor = args.anchor ?? args.labels[0];
+  checkLocal(args, args.gamesFrom);
   const remote = args.gamesFrom === undefined ? null : remoteGames(args.gamesFrom);
   if (args.plan !== undefined && remote === null) {
     throw new Error("--plan needs --games-from: the directory of the games played so far, empty before the first round");
@@ -111,7 +115,7 @@ async function main(): Promise<void> {
     seeds: args.prefix,
     workers,
   }, remote === null ? undefined : { id: remote.run.id, play: remote.play });
-  const file = fileLadderCache();
+  const file = fileLadderCache(args.native);
   // Read from the cache's records but, when fresh, written to it all the same.
   const cache: LadderCache = args.fresh ? { get: () => [], set: file.set } : file;
   const ladder: LadderSpec = {
@@ -165,7 +169,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const pool = remote === null ? live.watch(riskPool(args.workers), (r) => r.decisions) : remote.store.runner();
+  const pool = remote === null ? live.watch(riskRunner(args, args.labels), (r) => r.decisions) : remote.store.runner();
   try {
     const { tallies, winPairs, finishPairs, errors, cached } = await playLadder({
       ...ladder,
