@@ -979,3 +979,25 @@ On the laptop, from 3a6f47d6 (Node 22, the repo's pin, not Risk's 24: v6's own m
 | `border:"sum"`, weight 0.25 | 0 / 1 | 48 / 62 | −56, worse at all 4 | 92% / 94% |
 
 All three end the stall by making thinness cheap, and all three lose to v6 everywhere: alone among v6s at 5 players they win 4.8%, 5.4% and 14.8% against a par of 20%. The border term carries v6's defence; the stall comes from the share of power once armies outgrow income (the design note's diagnosis, `rule-bot-v6.1.md`), so the next candidates re-price armies instead.
+
+## v6.1's second screen: re-pricing armies trades stalls for strength (2026-10-24)
+
+On the laptop under Node 24 (Risk's pin), from 76ef6f70, seeds `screen-v6.1`. 100-game mirror tables, then gauntlets vs rule-v6 at 5 and 6 players (`--max 2000`). Out at ≥2 capped at either table or decided games shorter than 70 turns at 5p or 90 at 6p (`rule-bot-v6.1.md`).
+
+| Candidate | Capped 5p / 6p | Decided mean turns 5p / 6p | Board armies at turn 100, 6p | Screen |
+|---|---|---|---|---|
+| armies, 6 rounds, 25% beyond | 0 / 0 | 43 / 54 | 58 | out: short |
+| armies, 4 rounds, 50% | 0 / 0 | 45 / 54 | 51 | out: short |
+| armies, 8 rounds, 50% | 0 / 0 | 54 / 77 | 114 | out: short |
+| armies, 10 rounds, 75% | 0 / 0 | 70 / 123 | 236 | **passes** |
+| attrition k=3 | 0 / 0 | 55 / 72 | 72 | out: short |
+| attrition k=4 | 0 / 2 | 58 / 93 | 136 | out: capped, short |
+| attrition k=6 | 0 / 6 | 73 / 166 | 262 | out: capped |
+| attrition k=9 | 1 / 31 | 106 / 170 | 297 | out: capped |
+| sum at weight 0.4 | 0 / 4 | 66 / 118 | 254 | out: capped, short |
+
+Gauntlets:
+- **armies, 4 rounds, 50%** (a diagnostic of the "short" rule): worse at all four tables, win Elo −87. Short games are weak play, so the rule stands.
+- **armies, 10 rounds, 75%**: 5 players alone 18.5% vs par 20% (inconclusive at the cap), in numbers 79.9% vs 80% (even); 6 players alone 11.6% vs 16.7% (worse), in numbers 78.9% vs 83.3% (worse). Win Elo −22. Rejected.
+
+Every candidate sits on one curve: the more it discounts hoarded armies, the less it stalls and the more it loses to v6, and the gentlest that doesn't stall still loses about 22 Elo, at 6 players. Part of that may be the yardstick: a stall-free bot is measured among v6s that still stall (its lone seat among five v6s capped 9.3% of games).
