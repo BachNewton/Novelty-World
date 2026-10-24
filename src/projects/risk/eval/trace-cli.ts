@@ -1,9 +1,8 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import process from "node:process";
-import type { Move, Seat } from "../contract";
 import { riskBot } from "../bots";
-import type { Bot } from "../bots/bot";
 import { checkBots, DEFAULT_MAX_TURNS, list, number } from "./cli-args";
+import { readOnlineLog, replayOnline } from "./online-log";
 import { riskPool } from "./parallel";
 import { playGame, type RiskGameSpec } from "./runner";
 import { Trace, traceLines } from "./trace";
@@ -81,27 +80,10 @@ function traceOne(args: Args, seats: string[], seed: string): void {
   emit(args, traceLines(trace, seats, args.window, args.detail));
 }
 
-interface OnlineLog {
-  seed: string;
-  players: number;
-  labels: string[];
-  moves: { seat: Seat; move: Move }[];
-}
-
 function traceOnline(args: Args, path: string): void {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the log named on the command line
-  const log = JSON.parse(readFileSync(path, "utf8")) as OnlineLog;
-  let next = 0;
-  const replay: Bot = (input) => {
-    const logged = log.moves[next++] as OnlineLog["moves"][number] | undefined;
-    if (!logged) throw new Error(`the log ends at decision ${(next - 1).toString()}, and the game goes on`);
-    if (logged.seat !== input.seat) throw new Error(`seat ${input.seat.toString()} is to move at decision ${(next - 1).toString()}, and the log has seat ${logged.seat.toString()}`);
-    return logged.move;
-  };
+  const log = readOnlineLog(path);
   const trace = new Trace();
-  // An online game has no cap: the log is played to its end.
-  playGame({ seed: log.seed, bots: Array.from({ length: log.players }, () => replay), maxTurns: Number.MAX_SAFE_INTEGER, observe: trace });
-  if (next !== log.moves.length) throw new Error(`the game ended at decision ${next.toString()}, and the log has ${log.moves.length.toString()}`);
+  replayOnline(log, trace);
   emit(args, traceLines(trace, log.labels, args.window, args.detail));
 }
 

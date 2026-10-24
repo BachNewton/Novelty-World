@@ -14,6 +14,9 @@ import { ruleBot as ruleV5, ruleV5Bot } from "./rule-v5";
 import { V5_PARAMS } from "./rule-v5/params";
 import { ruleBot as ruleV6, ruleV6Bot } from "./rule-v6";
 import { V6_PARAMS } from "./rule-v6/params";
+import { ruleBot as ruleV6_1, ruleV6_1Bot } from "./rule-v6.1";
+import { BORDER_MODES, borderMode } from "./rule-v6.1/border";
+import { V6_1_PARAMS } from "./rule-v6.1/params";
 import { ruleBot as ruleV7, ruleV7Bot } from "./rule-v7";
 import { V7_PARAMS } from "./rule-v7/params";
 import { ruleV8Bot } from "./rule-v8";
@@ -32,6 +35,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v4": ruleV4Bot,
   "rule-v5": ruleV5Bot,
   "rule-v6": ruleV6Bot,
+  "rule-v6.1": ruleV6_1Bot,
   "rule-v7": ruleV7Bot,
   "rule-v8": ruleV8Bot,
   "student-v1": studentV1Bot,
@@ -53,6 +57,7 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v4": "rule-v4/index.ts",
   "rule-v5": "rule-v5/index.ts",
   "rule-v6": "rule-v6/index.ts",
+  "rule-v6.1": "rule-v6.1/index.ts",
   "rule-v7": "rule-v7/index.ts",
   "rule-v8": "rule-v8/index.ts",
   "student-v1": "student-v1/index.ts",
@@ -101,6 +106,14 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
     engine: V6_PARAMS.engine,
     switches: { ...V6_PARAMS.fixes },
     build: (prefs, engine, switches) => ruleV6({ ...V6_PARAMS, prefs, engine, fixes: { ...V6_PARAMS.fixes, ...switches } }),
+  },
+  // v6.1 with its border loss gathered another way: `rule-v6.1~{"border":"mean","borderWeight":0.4}`
+  // (`ideas/rule-bot-v6.1.md`). "sum" plays exactly v6's moves.
+  "rule-v6.1": {
+    prefs: V6_1_PARAMS.prefs,
+    engine: V6_1_PARAMS.engine,
+    choices: { border: { value: V6_1_PARAMS.border, options: BORDER_MODES } },
+    build: (prefs, engine, _switches, _knobs, choices) => ruleV6_1({ ...V6_1_PARAMS, prefs, engine, border: borderMode(choices.border) }),
   },
   // v7 at a work budget: `rule-v7~{"replies":8}` (`ideas/rule-bot-v7.md`).
   "rule-v7": {
