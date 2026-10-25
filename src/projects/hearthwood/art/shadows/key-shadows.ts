@@ -1,5 +1,5 @@
 import { CSMShadowNode } from "three/addons/csm/CSMShadowNode.js";
-import { PCFSoftShadowMap, type DirectionalLight, type WebGPURenderer } from "three/webgpu";
+import { PCFSoftShadowMap, type DirectionalLight, type Node, type NodeBuilder, type WebGPURenderer } from "three/webgpu";
 import type { FeatureSwitches } from "../../features";
 import type { FeatureFrame } from "../feature-art";
 import { KEY_LIGHT_NAME } from "../light/daylight";
@@ -63,12 +63,27 @@ export function shadowIntensity(body: "sun" | "moon", elevation: number, clouds:
   return horizon * cloud * (body === "moon" ? MOON_SHADOW : 1);
 }
 
+/**
+ * Three's cascaded shadow node makes its uniforms afresh each time it is set
+ * up, and a material that sets its lights up more than once in one shader
+ * (the storybook light's stages read the key light's) then declares them
+ * twice, which WebGPU refuses. Set up once, its node is the same every time.
+ */
+class SteadyCascades extends CSMShadowNode {
+  private made: Node | null = null;
+
+  override setup(builder: NodeBuilder): Node {
+    this.made ??= (super.setup as (builder: NodeBuilder) => Node)(builder);
+    return this.made;
+  }
+}
+
 /** What the shadows have set up on a light and a renderer. */
 interface Rig {
   light: DirectionalLight;
   renderer: WebGPURenderer;
   cascades: boolean;
-  node: CSMShadowNode | null;
+  node: SteadyCascades | null;
 }
 
 /**
@@ -119,10 +134,10 @@ export class KeyShadows {
     // Toward the light by a few centimetres of depth (three turns it for the reversed depth), and off the surface along its normal, so a surface never shadows itself.
     shadow.bias = -0.00005;
     shadow.normalBias = 0.03;
-    let node: CSMShadowNode | null = null;
+    let node: SteadyCascades | null = null;
     if (cascades) {
       const reach = this.quality.shadowReach;
-      node = new CSMShadowNode(light, {
+      node = new SteadyCascades(light, {
         cascades: CASCADES,
         maxFar: reach,
         mode: "custom",
