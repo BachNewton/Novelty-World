@@ -31,8 +31,13 @@ interface Limits {
 
 const placings = new WeakMap<BufferAttribute, Node<"mat4">>();
 
+/** A mesh that places its copies itself, in its material's own position node (the world's plants, `foliage/placing.ts`), names its copy's matrix here. */
+export const OWN_PLACING = Symbol("hearthwood own placing");
+
 /** The instance's matrix where the mesh drawn is instanced, else null: one node per mesh's matrices, so every stage that asks shares one binding. */
 export function instancePlacing(builder: NodeBuilder): Node<"mat4"> | null {
+  const own = (builder.object as { [OWN_PLACING]?: () => Node<"mat4"> })[OWN_PLACING];
+  if (own) return own();
   const object = builder.object as Partial<InstancedMesh>;
   if (object.isInstancedMesh !== true || !object.instanceMatrix) return null;
   const matrices = object.instanceMatrix;

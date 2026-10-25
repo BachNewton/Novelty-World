@@ -5,27 +5,27 @@ export const SHADOWS_AND_FOLIAGE_FEATURES = featureGroup("shadows-and-foliage", 
   {
     id: "sunShadows",
     name: "Shadows",
-    description: "The sun casts shadows from everything that stands in its light, round Elliott (most of a kilometre with the far shadows). A pass drawing the shadow maps before the scene, and their reading in every lit material.",
+    description: "The sun casts soft shadows from everything that stands in its light, tinted by the moment's own colour rather than black, fading as the sun nears the horizon and paling as cloud covers the sky.",
   },
   {
     id: "shadowCascades",
     name: "Far shadows",
-    description: "Shadows reach most of a kilometre: four shadow maps, sharp at Elliott's feet and coarser with distance, fading out where they end.",
+    description: "Shadows reach most of a kilometre, sharp at Elliott's feet and coarser with distance, their edges steady as the view moves. Off, they fall only on the ground near Elliott.",
   },
   {
     id: "moonShadows",
     name: "Moon shadows",
-    description: "At night the moon casts shadows, softer than the sun's and as faint as its light. Off, nights have no shadows and draw no shadow map.",
+    description: "At night the moon casts shadows too, lighter than the sun's and as faint as its light. Off, nights have no shadows.",
   },
   {
     id: "leafLight",
     name: "Light through leaves",
-    description: "Leaves and fronds glow warm with the sun behind them, through the thin edge of a crown, which is the golden-hour forest.",
+    description: "Leaves and fronds glow warm with the light behind them, brightest looking towards it: the golden-hour forest.",
   },
   {
     id: "sway",
     name: "Wind sway",
-    description: "Trees, bushes and flowers sway in the wind, branches and leaves fluttering, as gusts roll across the land. Their shadows sway with them.",
+    description: "Trees, bushes and flowers lean downwind and sway, branches and leaves fluttering, as gusts roll across the land. Their shadows sway with them.",
   },
   {
     id: "plantParting",

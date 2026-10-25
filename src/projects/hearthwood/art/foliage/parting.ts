@@ -1,5 +1,9 @@
 import { Vector4 } from "three";
+import { abs, float, length, max, min, positionGeometry, smoothstep, uniformArray, vec2, vec3 } from "three/tsl";
+import type { Node, UniformArrayNode } from "three/webgpu";
 import type { FeatureArt, FeatureFrame } from "../feature-art";
+import { typed } from "../tsl";
+import { plantRoot, plantTall } from "./placing";
 
 /*
  * Plants part round Elliott: flowers, ferns, heather, bushes and berry
@@ -7,7 +11,8 @@ import type { FeatureArt, FeatureFrame } from "../feature-art";
  * behind them, swinging a little past upright before they settle. Where
  * Elliott has been is kept as a short trail of steps, each bending the
  * plants round it less as it ages. Trees stand firm, and Elliott high on the
- * broom parts nothing.
+ * broom parts nothing. It is a position stage, so a parted bush's shadow
+ * parts with it.
  */
 
 /** How many points the trail keeps: where Elliott is, and where they were. */
@@ -46,6 +51,39 @@ export function followTrail(trail: Step[], player: FeatureFrame["player"], delta
   }
 }
 
+/** A vertex of a plant pushed away from the trail's steps: `position` in the world, the design's own vertex saying how far up the plant it is. */
+function parted(position: Node<"vec3">, trail: UniformArrayNode<"vec4">): Node<"vec3"> {
+  const root = plantRoot();
+  const tall = plantTall();
+  // Only what stands under about two metres parts; trees stand firm.
+  const small = float(1).sub(smoothstep(1.2, 2.4, tall));
+  const here = position.xz;
+  let push: Node<"vec2"> = vec2(0);
+  for (let i = 0; i < TRAIL_LENGTH; i++) {
+    const step = typed<"vec4">(trail.element(i));
+    const off = here.sub(step.xz);
+    const apart = length(off);
+    const near = float(1)
+      .sub(smoothstep(0.3, tall.mul(0.25).add(0.85), apart))
+      .mul(float(1).sub(smoothstep(0.5, 1.3, abs(root.y.sub(step.y)))));
+    // Each part of the plant leans away from Elliott by where it is, so a bush they stand in opens round them.
+    push = push.add(off.div(max(apart, 0.05)).mul(near.mul(step.w)));
+  }
+  const how = length(push);
+  const unit = push.div(max(how, 1));
+  const up = max(positionGeometry.y, 0);
+  return position.add(vec3(unit.x, min(how, 1).mul(-0.4), unit.y).mul(tall.mul(0.6).mul(up).mul(up).mul(small)));
+}
+
 export function partingArt(): FeatureArt {
-  return { feature: "plantParting" };
+  const trail: Step[] = [];
+  const points = Array.from({ length: TRAIL_LENGTH }, () => new Vector4());
+  const uniforms = uniformArray<"vec4">(points, "vec4");
+  return {
+    feature: "plantParting",
+    stages: [{ kinds: ["foliage"], position: (position) => parted(position, uniforms) }],
+    frame: ({ player, delta }) => {
+      followTrail(trail, player, Math.min(delta, 0.1), points);
+    },
+  };
 }

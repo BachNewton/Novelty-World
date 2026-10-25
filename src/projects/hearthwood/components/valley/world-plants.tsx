@@ -2,111 +2,111 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Box3, type Camera, Frustum, Group, InstancedBufferAttribute, Matrix4, Object3D, Vector3, type BufferGeometry } from "three";
-import { InstancedMesh } from "three/webgpu";
+import { Group, Mesh, Object3D, Vector3, type BufferGeometry } from "three";
 import { PLANT_CHUNK, PLANT_VARIANTS, type PlantChunk } from "../../engine/life";
 import { PLANT_KINDS, type PlantKind } from "../../engine/regions";
-import { castsIntoView, chunkDetail, distanceToSquare, PLANT_CLASS, wantedChunks, type ChunkKey, type Detail } from "../../engine/streaming";
+import { distanceToSquare, PLANT_CLASS, wantedChunks, type ChunkKey, type Detail } from "../../engine/streaming";
 import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
+import { drawPlacings, placedNodes } from "../../art/foliage/placing";
 import { diorama, type DioramaMaterial } from "../../art/materials";
 import type { Palette } from "../../art/palette";
-import { plantColour, plantMatrix } from "../../art/plant-instances";
+import { layoutRegions, packPlant, PLACING_FLOATS, type Regions } from "../../art/plant-instances";
 import { plantShape } from "../../art/plant-shapes";
 import type { Quality } from "../../quality";
 import { CAMP_REACH, partedBy, type CampSite } from "../../gameplay/camp";
 import { pitchedSite, type Camping } from "./camping";
-import { useFeature } from "./feature-renderer";
+import { useFeature, useRenderer } from "./feature-renderer";
+import { PlantCulling, PLANTS_PER_CHUNK, type DesignReach } from "./plant-culling";
 import { report, type Streaming } from "./world-land";
 
 /*
- * The plants round the camera, streamed by chunk and instanced: one draw per
- * design and level of detail. Each chunk's plants are sorted by design once,
- * shuffled within it so any first share of them is an even thinning, and
- * each frame the chunks in view, or casting their shadows into it, are
- * copied into the meshes at the detail their distance asks for; the copying
- * only happens when that choice changes. The fireflies of the nearest
- * chunks are handed to the scene. The ground plants within a pitched
- * camp are parted, as its pieces stand there.
+ * The plants round the camera, driven from the GPU. Each chunk's plants are
+ * written once, as it streams in, into a slot of one store on the GPU; each
+ * frame a compute pass culls every plant there (its kind's reach, the view
+ * and the key light's way within the shadows' reach, so the wood behind the
+ * camera still casts into view) and picks its detail, appending it to its
+ * design and detail's list, whose count is that draw's instance count (see
+ * `plant-culling.ts`). Every design and detail is one mesh drawn indirectly
+ * from its list, so the CPU never copies a matrix after a chunk arrives.
+ *
+ * The fireflies of the nearest chunks are handed to the scene, and the
+ * ground plants within a pitched camp are left out of their chunks, as its
+ * pieces stand there.
  */
 
 const DETAILS: readonly Detail[] = ["near", "far"];
 const DESIGNS = PLANT_KINDS.length * PLANT_VARIANTS;
+/** How far the camera moves before the chunks wanted are worked out again, in metres. */
 const RECHECK = 4;
 /** Fireflies are gathered from the chunks within this many metres. */
 const FIREFLY_REACH = 140;
+/** Room for chunks beyond those wanted, so a chunk left behind lingers a while before its slot is taken. */
+const SPARE_SLOTS = 1.25;
 
-interface ChunkDraw {
-  key: ChunkKey;
-  /** Each design's copies: matrices and colours, how far the bands sit where each grows (only for the seasons' foliage), and how many. */
-  matrices: Float32Array[];
-  colours: Float32Array[];
-  bands: Float32Array[] | null;
-  counts: Int32Array;
-  box: Box3;
+const chunkId = (k: ChunkKey) => `${String(k.chunkX)},${String(k.chunkZ)}`;
+const designOf = (kind: PlantKind, variant: number) => PLANT_KINDS.indexOf(kind) * PLANT_VARIANTS + variant;
+
+interface Resident {
+  slot: number;
+  /** How many plants of each design it holds, for the drawn lists' room. */
+  perDesign: Uint16Array;
   fireflies: Float32Array;
 }
 
-interface DesignMeshes {
-  kind: PlantKind;
-  geometry: Partial<Record<Detail, BufferGeometry>>;
-  meshes: Partial<Record<Detail, InstancedMesh>>;
-  /** Each mesh's copies' band shifts, for the seasons' foliage only. */
-  bands: Partial<Record<Detail, InstancedBufferAttribute>>;
-}
-
-function drawChunk(chunk: PlantChunk, dummy: Object3D, camp: CampSite | null, seasonal: boolean): ChunkDraw {
-  const byDesign: PlantChunk["plants"][] = Array.from({ length: DESIGNS }, () => []);
-  for (const p of chunk.plants) if (!camp || !partedBy(camp, p)) byDesign[PLANT_KINDS.indexOf(p.kind) * PLANT_VARIANTS + p.variant].push(p);
-  const box = new Box3(new Vector3(chunk.chunkX * PLANT_CHUNK, Infinity, chunk.chunkZ * PLANT_CHUNK), new Vector3((chunk.chunkX + 1) * PLANT_CHUNK, -Infinity, (chunk.chunkZ + 1) * PLANT_CHUNK));
-  const counts = new Int32Array(DESIGNS);
-  const matrices = byDesign.map((plants, d) => {
-    // Shuffled by a fixed hash of position, so a thinned share is spread across the chunk.
-    plants.sort((a, b) => fract(a.x * 12.9898 + a.z * 78.233) - fract(b.x * 12.9898 + b.z * 78.233));
-    counts[d] = plants.length;
-    const out = new Float32Array(plants.length * 16);
-    plants.forEach((p, i) => {
-      plantMatrix(p, dummy).toArray(out, i * 16);
-      box.min.y = Math.min(box.min.y, p.y - 1);
-      box.max.y = Math.max(box.max.y, p.y + p.size * 1.3);
-    });
-    return out;
-  });
-  const colours = byDesign.map((plants) => {
-    const out = new Float32Array(plants.length * 3);
-    plants.forEach((p, i) => plantColour(p, out, i * 3));
-    return out;
-  });
-  const bands = seasonal ? byDesign.map((plants) => Float32Array.from(plants, (p) => p.bands)) : null;
-  return { key: { chunkX: chunk.chunkX, chunkZ: chunk.chunkZ }, matrices, colours, bands, counts, box, fireflies: chunk.fireflies };
-}
-
-function fract(x: number): number {
-  const s = Math.sin(x) * 43758.5453;
-  return s - Math.floor(s);
-}
-
 interface State {
-  draws: Map<string, ChunkDraw>;
+  resident: Map<string, Resident>;
+  free: number[];
   wanted: ChunkKey[];
   pending: ChunkKey[];
   from: Vector3 | null;
-  plan: string;
   firefliesFrom: string;
-  /** The pitched camp the chunks were drawn round, parting the ground plants within it. */
+  /** The pitched camp the chunks were written round, its ground plants left out. */
   camp: CampSite | null;
+  regions: Regions | null;
+  /** The store and the meshes the rest was made for: a new store starts afresh, new meshes are given their lists' places. */
+  culling: PlantCulling | null;
+  meshes: readonly PlantMesh[];
 }
 
-const chunkId = (k: ChunkKey) => `${k.chunkX},${k.chunkZ}`;
+function freshState(culling: PlantCulling | null): State {
+  const free = culling ? Array.from({ length: culling.slots }, (_, i) => culling.slots - 1 - i) : [];
+  return { resident: new Map(), free, wanted: [], pending: [], from: null, firefliesFrom: "", camp: null, regions: null, culling, meshes: [] };
+}
 
 /** The chunks a camp's parted plants could lie in. */
 function chunksRound(camp: CampSite): string[] {
   const out: string[] = [];
   const r = CAMP_REACH + 1;
   for (let cz = Math.floor((camp.z - r) / PLANT_CHUNK); cz <= Math.floor((camp.z + r) / PLANT_CHUNK); cz++) {
-    for (let cx = Math.floor((camp.x - r) / PLANT_CHUNK); cx <= Math.floor((camp.x + r) / PLANT_CHUNK); cx++) out.push(`${cx},${cz}`);
+    for (let cx = Math.floor((camp.x - r) / PLANT_CHUNK); cx <= Math.floor((camp.x + r) / PLANT_CHUNK); cx++) out.push(`${String(cx)},${String(cz)}`);
   }
   return out;
+}
+
+/** Each design's reach, from its kind's class in the quality profile. */
+function reachesOf(quality: Quality): DesignReach[] {
+  return PLANT_KINDS.flatMap((kind) => Array.from({ length: PLANT_VARIANTS }, () => quality[PLANT_CLASS[kind]]));
+}
+
+/** How many slots the store needs: every chunk within the plants' reach, and some to spare. */
+function slotsFor(quality: Quality): number {
+  const reach = Math.max(quality.trees.far, quality.shrubs.far, quality.small.far);
+  return Math.ceil(wantedChunks(0, 0, reach).length * SPARE_SLOTS);
+}
+
+/** Writes a chunk's plants into its slot of the store, and counts them by design. */
+function writeChunk(chunk: PlantChunk, slot: number, placings: Float32Array, dummy: Object3D, camp: CampSite | null): Uint16Array {
+  const perDesign = new Uint16Array(DESIGNS);
+  let n = 0;
+  for (const p of chunk.plants) {
+    if (camp && partedBy(camp, p)) continue;
+    const design = designOf(p.kind, p.variant);
+    packPlant(p, design, dummy, placings, (slot * PLANTS_PER_CHUNK + n) * PLACING_FLOATS);
+    perDesign[design]++;
+    n++;
+  }
+  return perDesign;
 }
 
 export function WorldPlants({
@@ -126,54 +126,17 @@ export function WorldPlants({
   streaming: Streaming;
   onFireflies: (spots: Float32Array) => void;
 }) {
+  const renderer = useRenderer();
   const group = useMemo(() => new Group(), []);
-  const materials = useMemo(
-    () => ({
-      foliage: diorama("foliage", atmosphere, { vertexColors: true }),
-      stone: diorama("solid", atmosphere, { vertexColors: true }),
-    }),
-    [atmosphere],
-  );
-  // The seasons build their plants with what each piece is and a bare tree's branches, so switching them rebuilds the designs.
-  const seasonal = useFeature("seasonalFoliage");
-  const designs = useMemo<DesignMeshes[]>(
-    () =>
-      PLANT_KINDS.flatMap((kind) =>
-        Array.from({ length: PLANT_VARIANTS }, (_, variant) => ({
-          kind,
-          geometry: Object.fromEntries(DETAILS.flatMap((d) => {
-            const g = plantShape(kind, variant, d, palette, seasonal);
-            return g ? [[d, g]] : [];
-          })) as DesignMeshes["geometry"],
-          meshes: {},
-          bands: {},
-        })),
-      ),
-    [palette, seasonal],
-  );
-  const state = useRef<State>({ draws: new Map(), wanted: [], pending: [], from: null, plan: "", firefliesFrom: "", camp: null });
-  const tools = useMemo(() => ({ dummy: new Object3D(), frustum: new Frustum(), matrix: new Matrix4() }), []);
-  const reach = Math.max(quality.trees.far, quality.shrubs.far, quality.small.far);
-  // How far from the camera the key light's shadow maps reach, so how far a chunk out of view may still cast into it.
-  const shadowed = useFeature("sunShadows");
-  const cascades = useFeature("shadowCascades");
-  const shadowReach = shadowed ? (cascades ? quality.shadowReach : quality.shadowReachNear) : 0;
-
-  useEffect(() => {
-    // New designs start with no meshes, so the chunks are copied into them afresh, and drawn afresh for whether they carry the seasons' bands.
-    state.current.plan = "";
-    state.current.draws.clear();
-    state.current.from = null;
-    return () => {
-      for (const design of designs) {
-        for (const g of Object.values(design.geometry)) g.dispose();
-        for (const m of Object.values(design.meshes)) {
-          group.remove(m);
-          m.dispose();
-        }
-      }
+  const culling = useMemo(() => new PlantCulling(slotsFor(quality), DESIGNS * DETAILS.length, reachesOf(quality)), [quality]);
+  useEffect(() => () => culling.dispose(), [culling]);
+  const materials = useMemo(() => {
+    const own = placedNodes();
+    return {
+      foliage: diorama("foliage", atmosphere, { vertexColors: true }, own),
+      stone: diorama("solid", atmosphere, { vertexColors: true }, own),
     };
-  }, [designs, group]);
+  }, [atmosphere]);
   useEffect(
     () => () => {
       materials.foliage.dispose();
@@ -181,41 +144,72 @@ export function WorldPlants({
     },
     [materials],
   );
+  // The seasons build their plants with what each piece is and a bare tree's branches, so switching them rebuilds the designs.
+  const seasonal = useFeature("seasonalFoliage");
+  const meshes = useMemo(() => makeMeshes(palette, seasonal, culling, materials), [palette, seasonal, culling, materials]);
+  useEffect(() => {
+    for (const mesh of meshes) group.add(mesh);
+    return () => {
+      for (const mesh of meshes) {
+        group.remove(mesh);
+        mesh.geometry.dispose();
+      }
+    };
+  }, [meshes, group]);
+
+  const state = useRef<State>(freshState(null));
+  const dummy = useMemo(() => new Object3D(), []);
+  const reach = Math.max(quality.trees.far, quality.shrubs.far, quality.small.far);
+  // How far from the camera the key light's shadows reach, so how far a plant out of view may still cast into it.
+  const shadowed = useFeature("sunShadows");
+  const cascades = useFeature("shadowCascades");
+  const shadowReach = shadowed ? (cascades ? quality.shadowReach : quality.shadowReachNear) : 0;
 
   useFrame(({ camera }) => {
+    if (state.current.culling !== culling) state.current = freshState(culling);
     const s = state.current;
     const eye = camera.position;
     const camp = pitchedSite(camping);
     if (camp !== s.camp) {
-      // Camp moved: the chunks round where it was and where it is are drawn again, parting the plants round it now.
-      const redraw = new Set([...(s.camp ? chunksRound(s.camp) : []), ...(camp ? chunksRound(camp) : [])]);
-      for (const id of redraw) s.draws.delete(id);
+      // Camp moved: the chunks round where it was and where it is are written again, leaving out the plants round it now.
+      for (const id of new Set([...(s.camp ? chunksRound(s.camp) : []), ...(camp ? chunksRound(camp) : [])])) evict(s, id, culling);
       s.camp = camp;
       s.from = null;
-      s.plan = "";
     }
     if (s.from === null || s.from.distanceTo(eye) > RECHECK) {
       s.from = eye.clone();
       s.wanted = wantedChunks(eye.x, eye.z, reach);
-      s.pending = s.wanted.filter((k) => !s.draws.has(chunkId(k)));
+      s.pending = s.wanted.filter((k) => !s.resident.has(chunkId(k)));
+      // A chunk no longer wanted keeps its slot until one is needed.
       const keep = new Set(s.wanted.map(chunkId));
-      for (const id of s.draws.keys()) if (!keep.has(id) && s.draws.size > s.wanted.length * 1.5) s.draws.delete(id);
+      const leaving = [...s.resident.keys()].filter((id) => !keep.has(id));
+      for (const id of leaving.slice(0, Math.max(0, s.pending.length - s.free.length))) evict(s, id, culling);
     }
+    let wrote = false;
     for (let n = 0; n < quality.buildsPerFrame && s.pending.length > 0; n++) {
       const key = s.pending.shift() as ChunkKey;
-      s.draws.set(chunkId(key), drawChunk(world.plantsIn(key.chunkX, key.chunkZ), tools.dummy, s.camp, seasonal));
+      const slot = s.free.pop();
+      if (slot === undefined) throw new Error("The plants' store has no slot left for a wanted chunk");
+      const chunk = world.plantsIn(key.chunkX, key.chunkZ);
+      const perDesign = writeChunk(chunk, slot, culling.placings, dummy, s.camp);
+      culling.fillSlot(slot, perDesign.reduce((a, b) => a + b, 0));
+      s.resident.set(chunkId(key), { slot, perDesign, fireflies: chunk.fireflies });
+      wrote = true;
     }
-    if (s.pending.length > 0) {
-      report(streaming, "plants", false);
-      return;
+    if (s.meshes !== meshes) {
+      s.meshes = meshes;
+      s.regions = null;
+      wrote = true;
     }
-    report(streaming, "plants", true);
-    showChunks(s, designs, seasonal, camera, quality, shadowReach, atmosphere.uHwSunDir.value, group, materials, tools);
-    const near = s.wanted.filter((k) => distanceToSquare(eye.x, eye.z, k.chunkX * PLANT_CHUNK, k.chunkZ * PLANT_CHUNK, PLANT_CHUNK) < FIREFLY_REACH);
+    if (wrote) layOut(s, culling, meshes);
+    report(streaming, "plants", s.pending.length === 0);
+    culling.run(renderer, camera, atmosphere.uHwSunDir.value, shadowReach);
+
+    const near = s.wanted.filter((k) => distanceToSquare(eye.x, eye.z, k.chunkX * PLANT_CHUNK, k.chunkZ * PLANT_CHUNK, PLANT_CHUNK) < FIREFLY_REACH && s.resident.has(chunkId(k)));
     const nearIds = near.map(chunkId).join(";");
     if (nearIds !== s.firefliesFrom) {
       s.firefliesFrom = nearIds;
-      const spots = near.flatMap((k) => Array.from(s.draws.get(chunkId(k))?.fireflies ?? []));
+      const spots = near.flatMap((k) => Array.from(s.resident.get(chunkId(k))?.fireflies ?? []));
       onFireflies(new Float32Array(spots));
     }
   });
@@ -223,95 +217,62 @@ export function WorldPlants({
   return <primitive object={group} />;
 }
 
-/** Copies the chunks in view, or casting their shadows into it, into the meshes at the detail their distance asks for, when that has changed since last time. */
-function showChunks(
-  s: State,
-  designs: DesignMeshes[],
-  seasonal: boolean,
-  camera: Camera,
-  quality: Quality,
-  shadowReach: number,
-  toLight: Vector3,
-  group: Group,
-  materials: { foliage: DioramaMaterial; stone: DioramaMaterial },
-  tools: { frustum: Frustum; matrix: Matrix4 },
-): void {
-  // Whatever moved the camera this frame may have left its world matrix a step behind (lookAt refreshes it before turning), so it is refreshed first.
-  camera.updateMatrixWorld();
-  tools.matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-  tools.frustum.setFromProjectionMatrix(tools.matrix);
-  const { x, z } = camera.position;
-  const classes = ["trees", "shrubs", "small"] as const;
-  const plans = s.wanted.map((key) => {
-    const draw = s.draws.get(chunkId(key));
-    if (!draw || draw.box.min.y > draw.box.max.y) return null;
-    const distance = distanceToSquare(x, z, key.chunkX * PLANT_CHUNK, key.chunkZ * PLANT_CHUNK, PLANT_CHUNK);
-    const inView = distance < 40 || tools.frustum.intersectsBox(draw.box) || (shadowReach > 0 && castsIntoView(draw.box, camera.position, tools.frustum.planes, toLight, shadowReach));
-    if (!inView) return null;
-    return { draw, details: classes.map((c) => chunkDetail(quality[c], distance)) };
-  });
-  const code = plans.map((p, i) => (p ? `${i}:${p.details.map((d) => (d ? `${d.detail[0]}${d.keep}` : "-")).join("")}` : "")).join(",");
-  if (code === s.plan) return;
-  s.plan = code;
+/** Frees a chunk's slot, so its plants are no longer drawn. */
+function evict(s: State, id: string, culling: PlantCulling): void {
+  const resident = s.resident.get(id);
+  if (!resident) return;
+  culling.emptySlot(resident.slot);
+  s.free.push(resident.slot);
+  s.resident.delete(id);
+}
 
-  designs.forEach((design, d) => {
-    const cls = classes.indexOf(PLANT_CLASS[design.kind]);
-    for (const detail of DETAILS) {
-      const geometry = design.geometry[detail];
-      if (!geometry) continue;
-      let needed = 0;
-      for (const p of plans) {
-        const choice = p?.details[cls];
-        if (p && choice?.detail === detail && p.draw.counts[d] > 0) needed += Math.max(1, Math.round(p.draw.counts[d] * choice.keep));
-      }
-      let mesh = design.meshes[detail];
-      if (needed > 0 && (!mesh || mesh.instanceMatrix.count < needed)) {
-        if (mesh) {
-          group.remove(mesh);
-          mesh.dispose();
-        }
-        mesh = new InstancedMesh(geometry, design.kind === "rock" ? materials.stone : materials.foliage, Math.max(256, 2 ** Math.ceil(Math.log2(needed * 1.25))));
-        mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(mesh.instanceMatrix.count * 3), 3);
-        if (seasonal) {
-          const bands = new InstancedBufferAttribute(new Float32Array(mesh.instanceMatrix.count), 1);
-          geometry.setAttribute("hwSeasonBands", bands);
-          design.bands[detail] = bands;
-        }
-        mesh.frustumCulled = false;
-        mesh.castShadow = design.kind !== "flowers";
-        mesh.receiveShadow = true;
-        design.meshes[detail] = mesh;
-        group.add(mesh);
-      }
-      if (!mesh) continue;
-      const bands = design.bands[detail];
-      let filled = 0;
-      for (const p of plans) {
-        const choice = p?.details[cls];
-        if (!p || choice?.detail !== detail || p.draw.counts[d] === 0) continue;
-        const n = Math.max(1, Math.round(p.draw.counts[d] * choice.keep));
-        mesh.instanceMatrix.array.set(p.draw.matrices[d].subarray(0, n * 16), filled * 16);
-        mesh.instanceColor?.array.set(p.draw.colours[d].subarray(0, n * 3), filled * 3);
-        if (bands) {
-          if (!p.draw.bands) throw new Error("A chunk drawn without its plants' band shifts was copied into a seasonal design");
-          bands.array.set(p.draw.bands[d].subarray(0, n), filled);
-        }
-        filled += n;
-      }
-      mesh.count = filled;
-      mesh.instanceMatrix.clearUpdateRanges();
-      mesh.instanceMatrix.addUpdateRange(0, filled * 16);
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) {
-        mesh.instanceColor.clearUpdateRanges();
-        mesh.instanceColor.addUpdateRange(0, filled * 3);
-        mesh.instanceColor.needsUpdate = true;
-      }
-      if (bands) {
-        bands.clearUpdateRanges();
-        bands.addUpdateRange(0, filled);
-        bands.needsUpdate = true;
-      }
+/** Gives each design and detail's list room for every resident plant of its design, laid out again only when one has outgrown its room. */
+function layOut(s: State, culling: PlantCulling, meshes: readonly PlantMesh[]): void {
+  const needed = new Uint32Array(culling.draws);
+  for (const resident of s.resident.values()) {
+    for (let d = 0; d < DESIGNS; d++) {
+      for (let detail = 0; detail < DETAILS.length; detail++) if (meshes[d * DETAILS.length + detail].userData.drawn) needed[d * DETAILS.length + detail] += resident.perDesign[d];
     }
-  });
+  }
+  const regions = layoutRegions(needed, s.regions, culling.buffers.drawn.count);
+  if (!regions) return;
+  s.regions = regions;
+  culling.setRegions(regions.start, regions.capacity);
+  regions.start.forEach((start, i) => (meshes[i].userData.hwFirst = start));
+}
+
+type PlantMesh = Mesh<BufferGeometry, DioramaMaterial> & { userData: { hwFirst: number; drawn: boolean } };
+
+/**
+ * A mesh for every design and detail, drawn indirectly from its list: its
+ * instance count is the culling's count of the copies kept for it. A detail
+ * a design isn't drawn in (flowers far off) has an empty shape and no room.
+ */
+function makeMeshes(palette: Palette, seasonal: boolean, culling: PlantCulling, materials: { foliage: DioramaMaterial; stone: DioramaMaterial }): PlantMesh[] {
+  const vertices = new Uint32Array(culling.draws);
+  const meshes = PLANT_KINDS.flatMap((kind) =>
+    Array.from({ length: PLANT_VARIANTS }, (_, variant) =>
+      DETAILS.map((detail, d) => {
+        const shape = plantShape(kind, variant, detail, palette, seasonal);
+        const draw = designOf(kind, variant) * DETAILS.length + d;
+        const geometry = shape ?? new Mesh().geometry;
+        if (geometry.index) throw new Error(`The plant shapes are drawn without an index, but ${kind}'s has one`);
+        vertices[draw] = shape ? geometry.getAttribute("position").count : 0;
+        geometry.setIndirect(culling.args, culling.argsOffset(draw));
+        const mesh = new Mesh(geometry, kind === "rock" ? materials.stone : materials.foliage) as PlantMesh;
+        mesh.userData = { hwFirst: 0, drawn: shape !== null };
+        drawPlacings(mesh, culling.buffers);
+        // The culling decides what is drawn; three's own test would only see the mesh's shape at the origin.
+        mesh.frustumCulled = false;
+        mesh.visible = shape !== null;
+        // Flowers are too small and many for their shadows to be worth their draws.
+        mesh.castShadow = kind !== "flowers";
+        mesh.receiveShadow = true;
+        mesh.name = `plants:${kind}:${String(variant)}:${detail}`;
+        return mesh;
+      }),
+    ),
+  ).flat();
+  culling.setVertexCounts(vertices);
+  return meshes;
 }

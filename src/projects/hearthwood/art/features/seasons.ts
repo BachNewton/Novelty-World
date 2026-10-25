@@ -6,6 +6,7 @@ import { REGIONS, type Region } from "../../engine/regions";
 import { broadleafMix, broadleafShare, groundSeason, plantSeason, SEASON_GROUPS, TIMING_SPREAD, type SeasonGroup } from "../../engine/seasons";
 import type { FeatureArt } from "../feature-art";
 import { SEASON_PARTS, type SeasonPart } from "../painted";
+import { plantBands } from "../foliage/placing";
 import { instancePlacing } from "../instance-placing";
 import { GROUND, LAND, REGION_GROUND } from "../terrain-ground";
 import { colourUniform, typed } from "../tsl";
@@ -18,7 +19,7 @@ import { colourUniform, typed } from "../tsl";
  * carries what each of its pieces is (a crown of leaves, a far tree's one
  * mass, a branch, bark, a flower's head, a small plant's leaves, stone) and
  * its season group (`painted.ts`), and each copy how far the bands sit from
- * their altitudes where it stands (`hwSeasonBands`, from the plants' scene).
+ * their altitudes where it stands (`plantBands()`, from the plants' placings).
  * The year of every group is baked into a small table (a texture a year
  * wide, a row a group: leaf, fresh, turn and bloom), read in the vertex
  * stage at the date moved by the plant's own timing, from a hash of where it
@@ -154,8 +155,8 @@ const plants = {
  * A plant's piece through the year, worked out in the vertex stage from its
  * shape's attributes (`painted.ts`: `hwSeason`, the part and group, the
  * shading and its own share; `hwSeasonPiece`, where it grows from) and its
- * copy's (`hwSeasonBands`, how far the bands sit from their altitudes where
- * it stands, from the plants' scene). Null for a shape built without them,
+ * copy's (`plantBands()`, how far the bands sit from their altitudes where
+ * it stands, carried in each world plant's placing). Null for a shape built without them,
  * which the seasons leave as it is.
  */
 function pieceSeason(builder: NodeBuilder) {
@@ -170,7 +171,7 @@ function pieceSeason(builder: NodeBuilder) {
   const own = standHash(root.xz);
   const day = plants.day.sub(own.mul(2).sub(1).mul(at(plants.groups, g).x));
   const state = plants.table.sample(vec2(day.div(YEAR), group.add(0.5).div(ROWS))).level(float(0));
-  const bands = builder.geometry.hasAttribute("hwSeasonBands") ? attribute<"float">("hwSeasonBands", "float") : float(0);
+  const bands = plantBands();
   return { tag, placing, part, group, g, root, own, state, bands };
 }
 
