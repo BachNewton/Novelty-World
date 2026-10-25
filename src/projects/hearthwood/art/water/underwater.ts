@@ -1,5 +1,5 @@
 import { Vector3 } from "three";
-import { cameraPosition, exp, float, max, positionWorld, select, uniform } from "three/tsl";
+import { cameraPosition, exp, float, max, min, positionWorld, uniform } from "three/tsl";
 import type { Node } from "three/webgpu";
 import type { FeatureArt } from "../feature-art";
 import { REGION_ABSORPTION, WATER_SCATTER, type Absorption } from "./absorption";
@@ -39,13 +39,14 @@ const eyeAbsorb = uniform(new Vector3(...REGION_ABSORPTION.greenwood));
 function underwater(colour: Node<"vec3">, light: Node<"vec3">): Node<"vec3"> {
   const ray = positionWorld.sub(cameraPosition);
   const whole = ray.length();
-  const wet = select(positionWorld.y.lessThanEqual(eyeWater), whole, whole.mul(eyeWater.sub(cameraPosition.y)).div(max(ray.y, 1e-4)));
-  const down = exp(eyeAbsorb.add(WATER_SCATTER).mul(eyeWater.sub(cameraPosition.y)).negate());
+  // With the eye above the water the depth is 0, so nothing is fogged and the colour comes back as it was, with no select: selecting between this and the colour drew the solids and plants black on dry land.
+  const depth = max(eyeWater.sub(cameraPosition.y), 0);
+  // All of the ray when it ends below the surface (it never climbs that far), else the stretch under it.
+  const wet = min(whole, whole.mul(depth).div(max(ray.y, 1e-4)));
+  const down = exp(eyeAbsorb.add(WATER_SCATTER).mul(depth).negate());
   const extinct = eyeAbsorb.add(WATER_SCATTER);
   const through = exp(extinct.mul(wet).negate());
-  const fogged = colour.mul(through).add(light.mul(down).mul(float(WATER_SCATTER).div(extinct)).mul(float(1).sub(through)));
-  // A select rather than a branch: a stage is a plain node expression, built outside any TSL function's stack.
-  return select(cameraPosition.y.lessThan(eyeWater), fogged, colour);
+  return colour.mul(through).add(light.mul(down).mul(float(WATER_SCATTER).div(extinct)).mul(float(1).sub(through)));
 }
 
 export const UNDERWATER_ART: FeatureArt = {
