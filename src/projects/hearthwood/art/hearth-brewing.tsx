@@ -9,7 +9,7 @@ import type { AtmosphereUniforms } from "./atmosphere";
 import { brewLook, type BrewPalette, type Glow } from "./brew-looks";
 import { brewContentsShape, brewShape, brewSurfaceShape, CAULDRON, cauldronShape } from "./brews";
 import { cloud, type Cloud, glowMaterial } from "./effects";
-import { burstStrength, hearthClouds, RISE } from "./hearth-cooking";
+import { burstStrength, hearthClouds, RISE, STEAM_FIRELIT } from "./hearth-cooking";
 import { diorama, type DioramaMaterial } from "./materials";
 import { thingMaterial } from "./things";
 import { colourUniform } from "./tsl";
@@ -158,6 +158,8 @@ function animate(shared: Shared, colours: { water: Color; brew: Color; glow: Col
   // Lit from within as it comes on, so the brew's colour reads even beside the flames.
   shared.surfaceMaterial.glow.value.copy(colours.brew).multiplyScalar(0.2 * on);
   shared.steam.userData.tint.copy(colours.steam);
+  // A brew's vapour glows its own colour as it comes on, over the fire's warmth.
+  shared.steam.userData.warm.copy(colours.glow).multiplyScalar(STEAM_FIRELIT + 0.25 * on);
   shared.steam.userData.strength = 0.3 + 0.7 * on * (1 - out * 0.5);
   shared.steam.userData.spread = 0.09;
   shared.sparkles.userData.tint.copy(colours.glow);

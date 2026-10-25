@@ -51,6 +51,8 @@ const DISH_AT = new Vector3(0.45, 1.05, 1.1);
 export const RISE = 0.9;
 
 const STEAM_PUFFS = 34;
+/** How much of the fire's warmth the steam over it takes, as a share of the sizzle's gold. */
+export const STEAM_FIRELIT = 0.18;
 const SPARKLES = 26;
 
 /** The clouds a hearth's cooking or brewing rises in: steam and sparkles, placed and moved on the GPU, each its own values set by the scene each frame. */
@@ -58,7 +60,7 @@ export function hearthClouds(atmosphere: AtmosphereUniforms, sizes: { steam: num
   const make = (count: number, steam: boolean) => {
     const made = cloud(count, steam ? steamMaterial(atmosphere) : sparkleMaterial(atmosphere));
     made.renderOrder = steam ? 5 : 6;
-    made.userData = { tint: new Color(), strength: 0, spread: 0.1 };
+    made.userData = { tint: new Color(), warm: new Color(), strength: 0, spread: 0.1 };
     return made;
   };
   return { steam: make(sizes.steam, true), sparkles: make(sizes.sparkles, false), burst: make(sizes.burst, false) };
@@ -73,6 +75,7 @@ export function HearthCooking({ at, side, cookware, ingredients, dish, palette, 
     const placing = stickPlacing();
     const clouds = hearthClouds(atmosphere, { steam: STEAM_PUFFS, sparkles: SPARKLES, burst: SPARKLES });
     clouds.steam.userData.tint.copy(palette.steam);
+    clouds.steam.userData.warm.copy(palette.sizzle).multiplyScalar(STEAM_FIRELIT);
     clouds.sparkles.userData.tint.copy(palette.sizzle);
     clouds.burst.userData.tint.copy(palette.sizzle);
     return { material: thingMaterial(atmosphere), pan: panShape(palette), stick: stickShape(palette, placing.length), stickTurn: placing.turn, ...clouds };

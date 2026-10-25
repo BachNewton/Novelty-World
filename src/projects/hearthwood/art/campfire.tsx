@@ -31,7 +31,7 @@ export interface FireState {
 
 const EMBERS = 36;
 /** The fire light's strength at its brightest, in candela. */
-const FIRE_LIGHT = 26;
+const FIRE_LIGHT = 18;
 
 /** The pieces of a camp, each set down on its own ground and settling into place on its own as camp is pitched. */
 export const CAMP_PARTS = ["ring", "bed", "seat-0", "seat-1", "tripod"] as const;

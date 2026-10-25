@@ -173,7 +173,7 @@ export function CharmPost({ at, turn, strengths, palette, atmosphere }: { at: { 
     const charms = (Object.keys(HOOKS) as Charm[]).map((charm, i) => {
       const glow = cloud(1, glowMaterial(atmosphere));
       glow.position.set(0, -0.22, 0);
-      glow.scale.setScalar(0.16);
+      glow.scale.setScalar(0.5);
       glow.renderOrder = 6;
         glow.userData = { glow: palette[CHARM_GLOW[charm]].clone(), strength: 0, pulse: 0.15, phase: i * 0.27 };
       return { charm, pouch: brewShape(brewOfCharm(charm), palette), glow };

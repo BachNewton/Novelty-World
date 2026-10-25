@@ -127,7 +127,8 @@ export const emberMaterial = perKey((air: AtmosphereUniforms) => {
 
 /**
  * Steam (or a brew's glowing vapour) rising and spreading from round its
- * emitter. Its `userData`: `tint` (a Color), `strength` and `spread`.
+ * emitter. Its `userData`: `tint` (a Color), `warm` (the fire's light on it,
+ * a Color), `strength` and `spread`.
  */
 export const steamMaterial = perKey((air: AtmosphereUniforms) => {
   const s = seed(1);
@@ -142,7 +143,9 @@ export const steamMaterial = perKey((air: AtmosphereUniforms) => {
   const { material, world } = billboards(at, life.mul(0.55).add(0.17), false);
   const lifeOut = varying(life);
   const alpha = spot(1.3).mul(smoothstep(0, 0.15, lifeOut)).mul(float(1).sub(lifeOut)).mul(0.5).mul(own("strength"));
-  material.colorNode = veiled(air, ownColour("tint"), alpha, world, false);
+  // Steam makes no light of its own: it takes the sky's and the key light's, and the warmth of the fire it rises from.
+  const lit = ownColour("tint").mul(air.uHwSkyLight.add(air.uHwSunLight)).add(ownColour("warm"));
+  material.colorNode = veiled(air, lit, alpha, world, false);
   return material;
 });
 
@@ -242,7 +245,7 @@ export const fireflyMaterial = perKey((sky: SkyUniforms) => perKey((air: Atmosph
   const at = attribute<"vec3">("spot", "vec3").add(vec3(sin(tt).mul(1.6), sin(tt.mul(1.7).add(s.mul(9))).mul(0.5), cos(tt.mul(0.8)).mul(1.6)));
   // Never narrower than about a pixel and a half, however far off.
   const far = length(modelWorldMatrix.mul(vec4(at, 1)).xyz.sub(cameraPosition));
-  const { material, world } = billboards(at, max(far.mul(0.003), 0.07), true);
+  const { material, world } = billboards(at, max(far.mul(0.005), 0.13), true);
   const blink = varying(smoothstep(0.3, 1, sin(t.mul(s.add(1.2)).add(s.mul(31)))));
   material.colorNode = veiled(air, ownColour("tint").mul(1.8), spot(1.6).mul(blink).mul(sky.uNight), world);
   return material;
