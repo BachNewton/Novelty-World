@@ -164,8 +164,7 @@ export function WorldPlants({
   const reach = Math.max(quality.trees.far, quality.shrubs.far, quality.small.far);
   // How far from the camera the key light's shadows reach, so how far a plant out of view may still cast into it.
   const shadowed = useFeature("sunShadows");
-  const cascades = useFeature("shadowCascades");
-  const shadowReach = shadowed ? (cascades ? quality.shadowReach : quality.shadowReachNear) : 0;
+  const shadowReach = shadowed ? quality.shadowReachNear : 0;
 
   useFrame(({ camera }) => {
     if (state.current.culling !== culling) state.current = freshState(culling);

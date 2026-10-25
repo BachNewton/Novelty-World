@@ -25,7 +25,6 @@ function keyShadows(): KeyShadows {
 
 export const SHADOWS_AND_FOLIAGE_ART: readonly FeatureArt[] = [
   { feature: "sunShadows", frame: (frame) => keyShadows().update(frame) },
-  { feature: "shadowCascades" },
   { feature: "moonShadows" },
   LEAF_LIGHT_ART,
   SWAY_ART,

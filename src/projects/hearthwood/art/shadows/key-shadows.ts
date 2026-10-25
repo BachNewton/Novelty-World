@@ -1,5 +1,4 @@
-import { CSMShadowNode } from "three/addons/csm/CSMShadowNode.js";
-import { PCFSoftShadowMap, type DirectionalLight, type Node, type NodeBuilder, type WebGPURenderer } from "three/webgpu";
+import { PCFShadowMap, type DirectionalLight, type WebGPURenderer } from "three/webgpu";
 import type { FeatureSwitches } from "../../features";
 import type { FeatureFrame } from "../feature-art";
 import { KEY_LIGHT_NAME } from "../light/daylight";
@@ -9,11 +8,10 @@ import { weatherInput } from "./weather-input";
 /*
  * The key light's shadows, on three's own shadow maps: the sun casts while
  * `sunShadows` is on, and the moon at night while `moonShadows` is as well.
- * One map follows the camera over the near ground; with `shadowCascades` on,
- * three's cascaded shadow node splits the view into a few slices out to the
- * shadows' full reach, each map moved only in whole texels so an edge never
- * crawls as Elliott walks or looks round. Every map is softened by one cheap
- * filter (three's soft PCF), never a search for the casters.
+ * One map follows the camera over the near ground, moved only in whole texels
+ * so an edge never crawls as Elliott walks or looks round. Every map is
+ * softened by one cheap filter (three's soft PCF), never a search for the
+ * casters.
  *
  * A shadow takes away only the key light's share of a surface's light: the
  * storybook light keeps the sky's and the ground's light in the shade, so a
@@ -32,19 +30,8 @@ import { weatherInput } from "./weather-input";
  * its maps while it is nothing.
  */
 
-/** How many slices the far shadows cut the view into. */
-export const CASCADES = 3;
-/** Where the first slice ends, in metres: the slices then grow by one ratio out to the shadows' reach. */
+/** Where the first slice ends, in metres: kept for the slice-breaks math. */
 const FIRST_SLICE = 8;
-
-/** Where each slice ends, as shares of the reach: each the same many times longer than the one before, so a map's texels grow with distance as the view's own pixels do. */
-export function sliceBreaks(count: number, reach: number, first = FIRST_SLICE): number[] {
-  if (!(count >= 1 && reach > first && first > 0)) throw new Error(`Shadow slices need a count and 0 < first < reach, not ${String(count)}, ${String(first)}, ${String(reach)}`);
-  return Array.from({ length: count }, (_, i) => (i === count - 1 ? 1 : (first * (reach / first) ** ((i + 1) / count)) / reach));
-}
-
-/** The shadow's softening, in texels of its map (three's soft filter reads a 3×3 gather round it). */
-const BLUR = 1.5;
 /** How much lighter moonlight's shadows are than the sun's: its light is faint beside the night sky's glow. */
 const MOON_SHADOW = 0.8;
 /** How much of a shadow a full overcast leaves. */
@@ -65,27 +52,19 @@ export function shadowIntensity(body: "sun" | "moon", elevation: number, clouds:
   return horizon * cloud * (body === "moon" ? MOON_SHADOW : 1);
 }
 
-/**
- * Three's cascaded shadow node makes its uniforms afresh each time it is set
- * up, and a material that sets its lights up more than once in one shader
- * (the storybook light's stages read the key light's) then declares them
- * twice, which WebGPU refuses. Set up once, its node is the same every time.
- */
-class SteadyCascades extends CSMShadowNode {
-  private made: Node | null = null;
+/** The shadow's softening, in texels of its map: 0 gives hard shadows. */
+const BLUR = 0;
+/** Where each slice ends, as shares of the reach: each the same many times longer than the one before, so a map's texels grow with distance as the view's own pixels do. */
+export function sliceBreaks(count: number, reach: number, first = FIRST_SLICE): number[] {
 
-  override setup(builder: NodeBuilder): Node {
-    this.made ??= (super.setup as (builder: NodeBuilder) => Node)(builder);
-    return this.made;
-  }
+  if (!(count >= 1 && reach > first && first > 0)) throw new Error(`Shadow slices need a count and 0 < first < reach, not ${String(count)}, ${String(first)}, ${String(reach)}`);
+  return Array.from({ length: count }, (_, i) => (i === count - 1 ? 1 : (first * (reach / first) ** ((i + 1) / count)) / reach));
 }
 
 /** What the shadows have set up on a light and a renderer. */
 interface Rig {
   light: DirectionalLight;
   renderer: WebGPURenderer;
-  cascades: boolean;
-  node: SteadyCascades | null;
 }
 
 /**
@@ -101,67 +80,34 @@ export class KeyShadows {
   private scene: FeatureFrame["scene"] | null = null;
   /** Whether the light must stop casting for a frame: three keeps a light's shadow once built, and drops it only when it draws with the light not casting. */
   private dropShadow = false;
-  /** The lens the cascades were cut for. */
-  private lens = "";
 
   constructor(
     private readonly switches: FeatureSwitches,
     private readonly quality: Quality = QUALITY,
   ) {
-    let cascades = switches.isOn("shadowCascades");
     switches.subscribe(() => {
       if (!this.light) return;
       if (!switches.isOn("sunShadows")) this.light.castShadow = false;
-      if (switches.isOn("shadowCascades") !== cascades) {
-        cascades = switches.isOn("shadowCascades");
-        // The far shadows are another kind of shadow on the same light: the old one is dropped by a frame without it.
-        this.light.castShadow = false;
-        this.dropShadow = true;
-      }
     });
   }
 
-  /** The light, set up for this renderer and for whether the far shadows are on. */
+  /** The light, set up for this renderer. */
   private setUp(light: DirectionalLight, renderer: WebGPURenderer): Rig {
-    const cascades = this.switches.isOn("shadowCascades");
     const rig = this.rig;
-    if (rig && rig.light === light && rig.renderer === renderer && rig.cascades === cascades) return rig;
-    if (rig?.node) {
-      rig.node.dispose();
-      rig.light.shadow.shadowNode = undefined;
-    }
+    if (rig && rig.light === light && rig.renderer === renderer) return rig;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = PCFSoftShadowMap;
+    renderer.shadowMap.type = PCFShadowMap;
     const shadow = light.shadow;
     shadow.mapSize.set(this.quality.shadowMap, this.quality.shadowMap);
     shadow.radius = BLUR;
     // Toward the light by a few centimetres of depth (three turns it for the reversed depth), and off the surface along its normal, so a surface never shadows itself.
     shadow.bias = -0.00005;
     shadow.normalBias = 0.03;
-    let node: SteadyCascades | null = null;
-    if (cascades) {
-      const reach = this.quality.shadowReach;
-      node = new SteadyCascades(light, {
-        cascades: CASCADES,
-        maxFar: reach,
-        mode: "custom",
-        // The light stands this far back from each slice, so a mountain behind it still casts into it.
-        lightMargin: 400,
-        customSplitsCallback: (count, _near, _far, breaks) => {
-          breaks.push(...sliceBreaks(count, reach));
-        },
-      });
-      node.fade = true;
-      shadow.shadowNode = node;
-      shadow.camera.near = 1;
-      shadow.camera.far = 2400;
-    } else {
-      const half = this.quality.shadowReachNear;
-      Object.assign(shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 600 });
-    }
+    const half = this.quality.shadowReachNear;
+    Object.assign(shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 600 });
     shadow.camera.updateProjectionMatrix();
     shadow.needsUpdate = true;
-    this.rig = { light, renderer, cascades, node };
+    this.rig = { light, renderer };
     return this.rig;
   }
 
@@ -185,7 +131,7 @@ export class KeyShadows {
     }
     // While the shadows are on the light always casts: a change of `castShadow` rebuilds every lit material and remakes the maps, so only a switch makes one.
     if (!light.castShadow) light.castShadow = true;
-    const rig = this.setUp(light, renderer);
+    this.setUp(light, renderer);
     const { key } = day.sky;
     const casting = key.body === "sun" || this.switches.isOn("moonShadows");
     const intensity = casting ? shadowIntensity(key.body, key.direction.y, weatherInput(weather.weather).clouds) : 0;
@@ -194,32 +140,12 @@ export class KeyShadows {
     const strength = drawn ? intensity : 0;
     light.shadow.intensity = strength;
     light.shadow.autoUpdate = drawn;
-    if (rig.node) {
-      // Each slice's map is a copy of the light's shadow made when the cascades were, so each is told how dark to fall and whether to draw.
-      for (const slice of rig.node.lights) {
-        if (!slice.shadow) continue;
-        slice.shadow.intensity = strength;
-        slice.shadow.autoUpdate = drawn;
-      }
-      if (!drawn) return;
-      const lens = "fov" in camera && "aspect" in camera ? `${String(camera.fov)}:${String(camera.aspect)}` : "";
-      // Cut again only when the lens changes (the broom's wider view, a resized window): a slice's size never changes as the camera turns.
-      if (rig.node.camera && lens !== this.lens) {
-        this.lens = lens;
-        rig.node.updateFrustums();
-      }
-      return;
-    }
     if (!drawn) return;
     // The single map: a box round the camera's ground, square to the light and moved in whole texels so its edges never crawl.
     snapNear(light, camera.position, this.quality.shadowReachNear, this.quality.shadowMap);
   }
 
   dispose(): void {
-    if (this.rig?.node) {
-      this.rig.node.dispose();
-      this.rig.light.shadow.shadowNode = undefined;
-    }
     this.rig = null;
   }
 }

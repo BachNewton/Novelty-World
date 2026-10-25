@@ -8,11 +8,6 @@ export const SHADOWS_AND_FOLIAGE_FEATURES = featureGroup("shadows-and-foliage", 
     description: "The sun casts soft shadows from everything that stands in its light, tinted by the moment's own colour rather than black, fading as the sun nears the horizon and paling as cloud covers the sky.",
   },
   {
-    id: "shadowCascades",
-    name: "Far shadows",
-    description: "Shadows reach most of a kilometre, sharp at Elliott's feet and coarser with distance, their edges steady as the view moves. Off, they fall only on the ground near Elliott.",
-  },
-  {
     id: "moonShadows",
     name: "Moon shadows",
     description: "At night the moon casts shadows too, lighter than the sun's and as faint as its light. Off, nights have no shadows.",
