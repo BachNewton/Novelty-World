@@ -1,5 +1,5 @@
 import { Color, type Side } from "three";
-import { BRDF_Lambert, cameraViewMatrix, diffuseColor, dot, float, max, normalView, positionLocal, positionViewDirection, positionWorld, pow, smoothstep, vec3, vec4 } from "three/tsl";
+import { BRDF_Lambert, cameraViewMatrix, diffuseColor, dot, float, max, normalView, positionLocal, positionViewDirection, positionWorld, pow, smoothstep, vec4 } from "three/tsl";
 import { LightingModel, NodeMaterial, type LightingModelDirectInput, type Node, type NodeBuilder } from "three/webgpu";
 import { liveFeatures, type FeatureSwitches } from "../features";
 import { throughAir, valueNoise, type AtmosphereUniforms } from "./atmosphere";
@@ -118,6 +118,8 @@ export class DioramaMaterial extends NodeMaterial {
   private readonly withAir: boolean;
   private stages: Stages[] = [];
   private built = false;
+  /** Which set of stages is built in: the surface, light and colour stages are folded in as three builds the material, not held as its nodes, so three's cache key has to be told they changed. */
+  private stagesKey = 0;
 
   constructor(
     readonly kind: LitKind,
@@ -153,12 +155,17 @@ export class DioramaMaterial extends NodeMaterial {
     if (this.built && unchanged) return;
     this.built = true;
     this.stages = stages;
+    this.stagesKey = stagesKeyOf(stages, this.art.some((a) => a.replacesAir === true && this.switches.isOn(a.feature)));
     const position = this.steps("position");
     this.positionNode = position.length > 0 || this.own.position ? fold(this.own.position ?? positionLocal, position, this.stageContext) : null;
     const normal = this.steps("normal");
     this.normalNode = normal.length > 0 || this.own.normal ? fold(this.own.normal ?? normalView, normal, this.stageContext).normalize() : null;
     this.emissiveNode = this.own.emissive ?? null;
     this.needsUpdate = true;
+  }
+
+  override customProgramCacheKey(): string {
+    return `${super.customProgramCacheKey()}:${String(this.stagesKey)}`;
   }
 
   override setupDiffuseColor(builder: NodeBuilder): void {
@@ -181,6 +188,22 @@ export class DioramaMaterial extends NodeMaterial {
     rgb = fold(rgb, this.steps("colour"), this.stageContext);
     return super.setupOutput(builder, vec4(rgb, out.a));
   }
+}
+
+const stageIds = new Map<Stages, number>();
+
+/** A number for a list of stages, the same for the same stages in the same order. */
+function stagesKeyOf(stages: readonly Stages[], replacedAir: boolean): number {
+  let key = replacedAir ? 1 : 0;
+  for (const s of stages) {
+    let id = stageIds.get(s);
+    if (id === undefined) {
+      id = stageIds.size + 1;
+      stageIds.set(s, id);
+    }
+    key = (Math.imul(key, 31) + id) | 0;
+  }
+  return key;
 }
 
 /** A little noise over the ground, so a field reads as grass and not as paint. */

@@ -9,7 +9,7 @@ import type { World } from "../../engine/world";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import type { Palette } from "../../art/palette";
 import type { SkyUniforms } from "../../art/sky/sky";
-import { moveTerrainFire, terrainGeometry, terrainMaterial, type Morph } from "../../art/terrain";
+import { followViewer, moveTerrainFire, terrainGeometry, terrainMaterial, type Morph } from "../../art/terrain";
 import { farWaterMaterial } from "../../art/water/far-water";
 import { waterGeometry, waterMaterial, waterMesh } from "../../art/water/water";
 import type { Quality } from "../../quality";
@@ -83,7 +83,7 @@ export function WorldLand({ world, camping, palette, atmosphere, sky, quality, s
   const group = useMemo(() => new Group(), []);
   const materials = useMemo(
     () => ({
-      land: terrainMaterial(atmosphere, palette, null, quality.trees.far),
+      land: terrainMaterial(atmosphere, palette, quality.trees.far),
       water: waterMaterial(palette, atmosphere, sky),
       farWater: farWaterMaterial(palette, atmosphere, sky),
     }),
@@ -92,7 +92,7 @@ export function WorldLand({ world, camping, palette, atmosphere, sky, quality, s
   // The worn ground round the fire goes where camp is pitched.
   useEffect(() => {
     const move = () => {
-      moveTerrainFire(materials.land, pitchedSite(camping));
+      moveTerrainFire(pitchedSite(camping));
     };
     move();
     return subscribeCamping(camping, move);
@@ -137,6 +137,7 @@ export function WorldLand({ world, camping, palette, atmosphere, sky, quality, s
       s.from = null;
     }
     const { x, y, z } = camera.position;
+    followViewer(camera.position);
     const eye = { x, y: y - world.surfaceAt(x, z), z };
     if (s.from === null || Math.hypot(eye.x - s.from.x, eye.y - s.from.y, eye.z - s.from.z) > RECHECK) {
       s.from = eye;
@@ -151,7 +152,7 @@ export function WorldLand({ world, camping, palette, atmosphere, sky, quality, s
     for (const tile of s.arrived.splice(0)) {
       const id = tileId(tile.key);
       s.asked.delete(id);
-      s.built.set(id, buildTile(tile, palette, materials, quality, s.farWater));
+      s.built.set(id, buildTile(tile, materials, quality, s.farWater));
     }
     if (s.wanted.some((k) => !s.built.has(tileId(k)))) {
       report(streaming, "land", false);
@@ -183,11 +184,14 @@ export function WorldLand({ world, camping, palette, atmosphere, sky, quality, s
   return <primitive object={group} />;
 }
 
-function buildTile(tile: LandTile, palette: Palette, materials: { land: Material; water: Material; farWater: Material }, quality: Quality, farWater: boolean): Built {
+/** Tiles this fine and finer cast shadows: the land near the camera, where its own shadow (a bank, a boulder field's rise) reads; further off the wrap light gives every slope its lit and shaded side. */
+const CASTING_LEVELS = 1;
+
+function buildTile(tile: LandTile, materials: { land: Material; water: Material; farWater: Material }, quality: Quality, farWater: boolean): Built {
   const { level } = tile.key;
-  const land = new Mesh(terrainGeometry(tile, palette, morphFor(level, quality)), materials.land);
+  const land = new Mesh(terrainGeometry(tile, morphFor(level, quality)), materials.land);
   land.receiveShadow = true;
-  land.castShadow = true;
+  land.castShadow = level <= CASTING_LEVELS;
   const near = level < quality.waterLevels;
   const wet = near || farWater ? waterGeometry(tile) : null;
   return { level, land, water: wet ? waterMesh(wet, near ? materials.water : materials.farWater) : null };
