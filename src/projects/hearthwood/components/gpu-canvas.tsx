@@ -23,7 +23,7 @@ function wantsTimestamps(): boolean {
 }
 
 export async function makeRenderer(canvas: HTMLCanvasElement): Promise<THREE.WebGPURenderer> {
-  if (!("gpu" in navigator) || !navigator.gpu) throw new Error("This browser has no WebGPU");
+  if (!("gpu" in navigator)) throw new Error("This browser has no WebGPU");
   const renderer = new THREE.WebGPURenderer({
     canvas,
     // Edges are smoothed in the frame's own pipeline, at the scene pass, not on the swap chain.

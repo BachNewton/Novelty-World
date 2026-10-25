@@ -63,7 +63,6 @@ export interface DrawnFrame {
   calls: number;
   points: number;
   geometries: number;
-  programs: number;
   /** Milliseconds between the last frames drawn, newest last. */
   frameTimes: number[];
   pixelRatio: number;

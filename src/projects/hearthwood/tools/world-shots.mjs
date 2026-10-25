@@ -8,7 +8,7 @@
 // basket on desktop and the target phone), and the companions (the `companions-` shots: a stray cat watching from a
 // woodland edge, a dog bounding up, the naming card on desktop and the target phone, Elliott walking with their
 // companions in third and first person, the companions round the campfire, and a cat and a dog answering a pet). Prints what each
-// frame drew (triangles, draw calls) and how long frames took (SHOTS_UNCAPPED=1 for the frame's own time).
+// frame drew (triangles, draw calls) and how long frames took.
 //
 // Drives the world's probe (window.__hearthwoodWorld, see ../components/valley/world-probe.tsx) over
 // Playwright and waits on its events (ready, streamed in, frames drawn), never a sleep. Every shot holds
@@ -52,9 +52,6 @@ const PHONE_LANDSCAPE = { viewport: { width: 997, height: 390 }, deviceScaleFact
 // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool writing under the project's own .shots folder
 mkdirSync(OUTDIR, { recursive: true });
 
-const USE_GPU = process.env.SHOTS_CPU !== "1";
-// SHOTS_UNCAPPED=1 lifts the 60 fps cap, so the printed frame times measure the frame rather than the display.
-const UNCAPPED = process.env.SHOTS_UNCAPPED === "1" ? ["--disable-gpu-vsync", "--disable-frame-rate-limit"] : [];
 const browser = await launchBrowser();
 
 async function failOnPageError(error) {

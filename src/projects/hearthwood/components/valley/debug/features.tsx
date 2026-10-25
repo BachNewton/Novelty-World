@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FEATURE_GROUPS, FEATURES, liveFeatures, type FeatureId } from "../../../features";
-import { FRAME_SPANS, type FrameCosts } from "../../../art/frame";
+import { FRAME_SPANS } from "../../../art/frame";
 import { useFeature } from "../feature-renderer";
 import type { DebugContext, DebugSection } from "./section";
 
