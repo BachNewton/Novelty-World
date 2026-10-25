@@ -156,10 +156,14 @@ export class DioramaMaterial extends NodeMaterial {
     this.built = true;
     this.stages = stages;
     this.stagesKey = stagesKeyOf(stages, this.art.some((a) => a.replacesAir === true && this.switches.isOn(a.feature)));
-    const position = this.steps("position");
-    this.positionNode = position.length > 0 || this.own.position ? fold(this.own.position ?? positionLocal, position, this.stageContext) : null;
-    const normal = this.steps("normal");
-    this.normalNode = normal.length > 0 || this.own.normal ? fold(this.own.normal ?? normalView, normal, this.stageContext).normalize() : null;
+    this.positionNode = foldedOnce("position", this.kind, this.air, this.own.position, stages, () => {
+      const position = this.steps("position");
+      return position.length > 0 || this.own.position ? fold(this.own.position ?? positionLocal, position, this.stageContext) : null;
+    });
+    this.normalNode = foldedOnce("normal", this.kind, this.air, this.own.normal, stages, () => {
+      const normal = this.steps("normal");
+      return normal.length > 0 || this.own.normal ? fold(this.own.normal ?? normalView, normal, this.stageContext).normalize() : null;
+    });
     this.emissiveNode = this.own.emissive ?? null;
     this.needsUpdate = true;
   }
@@ -192,18 +196,53 @@ export class DioramaMaterial extends NodeMaterial {
 
 const stageIds = new Map<Stages, number>();
 
+function stageId(stage: Stages): number {
+  let id = stageIds.get(stage);
+  if (id === undefined) {
+    id = stageIds.size + 1;
+    stageIds.set(stage, id);
+  }
+  return id;
+}
+
 /** A number for a list of stages, the same for the same stages in the same order. */
 function stagesKeyOf(stages: readonly Stages[], replacedAir: boolean): number {
   let key = replacedAir ? 1 : 0;
-  for (const s of stages) {
-    let id = stageIds.get(s);
-    if (id === undefined) {
-      id = stageIds.size + 1;
-      stageIds.set(s, id);
-    }
-    key = (Math.imul(key, 31) + id) | 0;
-  }
+  for (const s of stages) key = (Math.imul(key, 31) + stageId(s)) | 0;
   return key;
+}
+
+/** Stands for "no node of its own" in the folded nodes' cache. */
+const NONE = {};
+const foldedNodes = new WeakMap<AtmosphereUniforms, WeakMap<object, Map<string, Node | null>>>();
+
+/**
+ * A vertex or normal node folded from the stages, made once per kind, air,
+ * own node and list of stages, so every material that shares them holds the
+ * very same node objects: three keys a material's build on its nodes' ids,
+ * so sibling materials (every animal's coat, every thing) then share one
+ * build of the node graph rather than each making their own. Graphs that
+ * differ are different nodes, so their keys still differ.
+ */
+function foldedOnce(point: "position" | "normal", kind: LitKind, air: AtmosphereUniforms, own: Node | undefined, stages: readonly Stages[], make: () => Node | null): Node | null {
+  let byOwn = foldedNodes.get(air);
+  if (!byOwn) {
+    byOwn = new WeakMap();
+    foldedNodes.set(air, byOwn);
+  }
+  const ownKey = own ?? NONE;
+  let byStages = byOwn.get(ownKey);
+  if (!byStages) {
+    byStages = new Map();
+    byOwn.set(ownKey, byStages);
+  }
+  // Only the stages that reach this point matter, named exactly (not hashed), so two lists never share a node by a collision.
+  const key = `${point}:${kind}:${stages
+    .filter((s) => s[point])
+    .map(stageId)
+    .join(",")}`;
+  if (!byStages.has(key)) byStages.set(key, make());
+  return byStages.get(key) ?? null;
 }
 
 /** A little noise over the ground, so a field reads as grass and not as paint. */

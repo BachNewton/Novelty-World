@@ -85,11 +85,20 @@ interface AnimalBodyProps<A extends string> extends AnimalProps<A> {
   greetingTime: number;
 }
 
-/** The soft dark under an animal that seats it on the ground, where the key light's own shadow is too soft or too far. */
+let blobShadow: THREE.MeshBasicNodeMaterial | null = null;
+
+/**
+ * The soft dark under an animal that seats it on the ground, where the key
+ * light's own shadow is too soft or too far. Every animal's is the same, so
+ * they share one material, made once and kept for the page: one node build,
+ * not one per animal that comes into view.
+ */
 function shadowMaterial(): THREE.MeshBasicNodeMaterial {
+  if (blobShadow) return blobShadow;
   const material = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
   const d = length(uv().mul(2).sub(1));
   material.colorNode = vec4(themeColor("--color-hearthwood-cat-shadow"), float(0.42).mul(smoothstep(1, 0.15, d)));
+  blobShadow = material;
   return material;
 }
 
@@ -100,10 +109,9 @@ export function AnimalBody<A extends string>(props: AnimalBodyProps<A>) {
   const skinned = useMemo(() => {
     return new SkinnedAnimal(geometry, coat(), rig);
   }, [geometry, coat, rig]);
-  const shadowMat = useMemo(() => shadowMaterial(), []);
+  const shadowMat = shadowMaterial();
   const shadowRef = useRef<THREE.Mesh>(null);
   useEffect(() => () => skinned.dispose(), [skinned]);
-  useEffect(() => () => shadowMat.dispose(), [shadowMat]);
 
   const first = drive?.current.activity ?? props.activity;
   const state = useRef({ activity: first, previous: first, since: -Infinity, greeting: drive?.current.greeting ?? props.greeting ?? false, greetingSince: -Infinity, travelled: 0 });
