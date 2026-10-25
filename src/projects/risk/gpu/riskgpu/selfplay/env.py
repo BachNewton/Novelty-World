@@ -67,8 +67,8 @@ class EnvConfig:
     bf16: bool = True  # the networks' forward pass in bfloat16 autocast
     # The most rows each controller is run on per step, as a share of the batch; a decision past it
     # waits a step (counted as `stalled`). Sized to the league's mix.
-    cap_learner: float = 0.6
-    cap_snapshot: float = 0.25
+    cap_learner: float = 0.5
+    cap_snapshot: float = 0.12
     cap_greedy: float = 1.0
     reward: str = "win"  # `scores`: "win" or "place"
     gd: bool = False  # build the GD personas (slow to build: their odds tables)
@@ -95,6 +95,19 @@ def scores(players: torch.Tensor, places: torch.Tensor, eliminated: torch.Tensor
     capped_score = torch.where(eliminated, score(places), survivors)
     out = torch.where(won[:, None], score(places), capped_score)
     return torch.where(present, out, 0.0)
+
+
+_POOL = None
+
+
+def shared_pool():
+    """One memory pool for every captured step in the process (the training batch, the
+    evaluations, the ladders): they replay one at a time and keep everything that outlives a replay
+    in tensors allocated outside the capture, so their scratch memory can be the same."""
+    global _POOL
+    if _POOL is None:
+        _POOL = torch.cuda.graph_pool_handle()
+    return _POOL
 
 
 class Env:
@@ -361,7 +374,7 @@ class Env:
         torch.cuda.current_stream().wait_stream(side)
         self._restore(saved)
         self.graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(self.graph), torch.no_grad():
+        with torch.cuda.graph(self.graph, pool=shared_pool()), torch.no_grad():
             self._step()
         self._restore(saved)
 
@@ -397,9 +410,14 @@ class Env:
             s = self.state
             o = options(s, self.board)
             node, slot, glob = observe(s, o, self.log.placed_on, self.log.attacks, self.log.captured, self.board)
-            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=self.cfg.bf16):
-                _, value, _ = self.learner.heads_main(self.learner.trunk(node, slot, glob))
-            value = value.float()
+            values = []
+            # In chunks: a whole batch through a large network at once outgrows the card.
+            for at in range(0, s.batch, 2048):
+                part = slice(at, at + 2048)
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=self.cfg.bf16):
+                    _, v, _ = self.learner.heads_main(self.learner.trunk(node[part], slot[part], glob[part]))
+                values.append(v.float())
+            value = torch.cat(values)
             seat_of_slot, _ = slots(s)
             by_seat = torch.zeros(self.cfg.batch, MAX_SEATS + 1, device=self.device)
             by_seat.scatter_(1, torch.where(seat_of_slot >= 0, seat_of_slot, MAX_SEATS), value)
