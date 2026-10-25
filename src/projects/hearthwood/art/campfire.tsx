@@ -7,6 +7,7 @@ import { MeshBasicNodeMaterial } from "three/webgpu";
 import { createRng, uniform } from "@/shared/lib/seeded-random";
 import type { MomentLight } from "../engine/day";
 import type { AtmosphereUniforms } from "./atmosphere";
+import { registerFireLight } from "./atmosphere/fire";
 import { cloud, type Cloud, emberMaterial, flameMaterial, glowMaterial } from "./effects";
 import { thingMaterial } from "./things";
 import { paint, type Piece } from "./painted";
@@ -212,6 +213,11 @@ export function Campfire({ at, turn = 0, lifts, appear = STANDING, seed, palette
     },
     [fireArt],
   );
+
+  useEffect(() => {
+    if (!light.current) throw new Error("The campfire's light isn't mounted");
+    return registerFireLight(light.current);
+  }, []);
 
   useFrame(() => {
     const seconds = appear();

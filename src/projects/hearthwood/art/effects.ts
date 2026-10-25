@@ -1,4 +1,4 @@
-import { AdditiveBlending, BufferAttribute, BufferGeometry, type InstancedBufferAttribute, NormalBlending, type Blending } from "three";
+import { AdditiveBlending, BufferAttribute, type InstancedBufferAttribute, InstancedBufferGeometry, NormalBlending, type Blending } from "three";
 import { abs, attribute, cameraPosition, cos, dot, float, fract, hash, instanceIndex, length, max, mix, modelWorldMatrix, normalView, positionGeometry, positionViewDirection, pow, sin, smoothstep, sqrt, uv, userData, varying, vec3, vec4 } from "three/tsl";
 import { MeshBasicNodeMaterial, Sprite, SpriteNodeMaterial, type Node } from "three/webgpu";
 import { hazeAmount, type AtmosphereUniforms } from "./atmosphere";
@@ -20,33 +20,73 @@ import { typed } from "./tsl";
  * which three reads per draw, so a hundred fires would still be one graph.
  */
 
-function quad(): BufferGeometry {
-  const g = new BufferGeometry();
-  g.setAttribute("position", new BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
-  g.setAttribute("uv", new BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2));
-  g.setIndex([0, 1, 2, 0, 2, 3]);
+function quadBuffers() {
+  return {
+    position: new BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3),
+    uv: new BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2),
+    index: new BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1),
+  };
+}
+
+function quad(buffers: ReturnType<typeof quadBuffers>, count: number): InstancedBufferGeometry {
+  const g = new InstancedBufferGeometry();
+  g.setAttribute("position", buffers.position);
+  g.setAttribute("uv", buffers.uv);
+  g.setIndex(buffers.index);
+  g.instanceCount = count;
   return g;
 }
 
 /**
- * A cloud of `count` camera-facing quads drawn with one of the materials
- * here, in one draw (three's instanced sprites). `geometry`, where given,
- * carries per-particle attributes beside the quad (the fireflies' spots).
+ * The plain clouds' quads, one for each count drawn, over one set of
+ * buffers. They are never disposed: disposing one would free the buffers
+ * under the rest, and only a handful of counts are ever drawn.
  */
-export type Cloud = Sprite;
+let buffers: ReturnType<typeof quadBuffers> | null = null;
+const quads = new Map<number, InstancedBufferGeometry>();
+function quadOf(count: number): InstancedBufferGeometry {
+  let made = quads.get(count);
+  if (!made) {
+    made = quad((buffers ??= quadBuffers()), count);
+    quads.set(count, made);
+  }
+  return made;
+}
 
-export function cloud(count: number, material: SpriteNodeMaterial, geometry?: BufferGeometry): Cloud {
-  const sprite = new Sprite(material);
-  if (geometry) sprite.geometry = geometry;
-  sprite.count = count;
+/**
+ * A cloud of camera-facing quads drawn with one of the materials here, in
+ * one draw (three's instanced sprites). How many it draws is its geometry's
+ * instance count, never the sprite's own `count`: three keys the node build
+ * of anything drawn with a `count` above one by the object's own uuid
+ * (`RenderObject.getMaterialCacheKey`), so every cloud would build its
+ * material's graph afresh, where a geometry's count leaves every cloud of a
+ * kind sharing one build.
+ */
+export type Cloud = Sprite & { geometry: InstancedBufferGeometry };
+
+/**
+ * A cloud of `count` particles. Without `geometry` it draws the shared quad
+ * of that count, never to be disposed, and `showParticles` changes how many;
+ * `geometry`, where given, is a `quadWith` of its owner's, carrying
+ * per-particle attributes beside the quad (the fireflies' spots), whose
+ * instance count the owner sets from then on.
+ */
+export function cloud(count: number, material: SpriteNodeMaterial, geometry?: InstancedBufferGeometry): Cloud {
+  if (geometry) geometry.instanceCount = count;
+  const sprite: Cloud = Object.assign(new Sprite(material), { geometry: geometry ?? quadOf(count) });
   // Each particle moves far from the quad's own little bounds.
   sprite.frustumCulled = false;
   return sprite;
 }
 
+/** Draws `count` of a plain cloud's particles: the shared quad of that count, laid out as every other, so nothing is built again. */
+export function showParticles(c: Cloud, count: number): void {
+  c.geometry = quadOf(count);
+}
+
 /** A quad of its own with per-particle attributes beside it, one value per particle; whoever made it disposes it. */
-export function quadWith(attributes: Record<string, InstancedBufferAttribute>): BufferGeometry {
-  const g = quad();
+export function quadWith(attributes: Record<string, InstancedBufferAttribute>): InstancedBufferGeometry {
+  const g = quad(quadBuffers(), 0);
   for (const [name, values] of Object.entries(attributes)) g.setAttribute(name, values);
   return g;
 }

@@ -58,8 +58,17 @@ import { pitchGround } from "./world-camp";
  * events, never on time.
  */
 
+/**
+ * What the last frame drew, by three's count of its draws (every pass of the
+ * frame: the shadow maps, the scene and the post pipeline). An indirect draw
+ * counts as one instance, since three counts what it asked the GPU for, not
+ * what the culling's lists hold: so the plants' triangles are left out but
+ * for one copy of each design and detail, and the triangles stand only for
+ * everything else. Compare them only between frames of the same plants.
+ */
 export interface DrawnFrame {
   triangles: number;
+  /** Draw calls in the frame, a plant design and detail's indirect draw one each per pass. */
   calls: number;
   points: number;
   geometries: number;
@@ -676,7 +685,7 @@ export function WorldProbeHandle({
 
   // After the frame is drawn: what it drew, and that it was.
   useFrame(() => {
-    drawn.current = { triangles: gl.info.render.triangles, calls: gl.info.render.calls, points: gl.info.render.points };
+    drawn.current = { triangles: gl.info.render.triangles, calls: gl.info.render.drawCalls, points: gl.info.render.points };
     const now = performance.now();
     if (last.current !== null) {
       times.current.push(now - last.current);

@@ -6,9 +6,10 @@ import { colourUniform } from "../tsl";
 /*
  * Where the fire is and how brightly it burns, for the air's features: the
  * glow round it in the air, and the clouds' shadows, which never dim it.
- * The campfire is the scene's one point light, and camp moves, so it is
- * looked for in the scene now and then rather than told; no fire is a
- * light far below the world with no colour.
+ * A campfire registers its light while it is mounted (camp moves, and the
+ * gallery has one of its own), so nothing walks the scene to find it; the
+ * fire is the first registered light that is in the scene, shown and
+ * burning. No fire is a light far below the world with no colour.
  */
 
 export const FIRE = {
@@ -17,14 +18,26 @@ export const FIRE = {
   light: colourUniform(),
 };
 
-/** Frames between looks for the fire. */
-const LOOK_EVERY = 45;
-let frames = LOOK_EVERY;
-let found: PointLight | null = null;
+const lights = new Set<PointLight>();
+
+/** Registers a campfire's light while it is mounted; returns its unregistering, for an effect's cleanup. */
+export function registerFireLight(light: PointLight): () => void {
+  lights.add(light);
+  return () => {
+    lights.delete(light);
+  };
+}
+
+/** Whether an object is drawn in the scene: in it, and it and everything above it shown. */
+function shownIn(scene: Object3D, o: Object3D): boolean {
+  for (let up: Object3D | null = o; up; up = up.parent) {
+    if (!up.visible) return false;
+    if (up === scene) return true;
+  }
+  return false;
+}
+
 let lastFrame: FeatureFrame | null = null;
-const visit = (o: Object3D) => {
-  if (!found && (o as PointLight).isPointLight === true) found = o as PointLight;
-};
 const at = new Vector3();
 const colour = new Color();
 
@@ -32,13 +45,14 @@ const colour = new Color();
 export function updateFire(frame: FeatureFrame): void {
   if (frame === lastFrame) return;
   lastFrame = frame;
-  const { scene } = frame;
-  if (++frames >= LOOK_EVERY || (found && !found.parent)) {
-    frames = 0;
-    found = null;
-    scene.traverseVisible(visit);
+  let found: PointLight | null = null;
+  for (const light of lights) {
+    if (light.intensity > 0 && shownIn(frame.scene, light)) {
+      found = light;
+      break;
+    }
   }
-  if (!found || found.intensity <= 0) {
+  if (!found) {
     FIRE.light.value.setRGB(0, 0, 0);
     FIRE.position.value.set(0, -1e5, 0);
     return;

@@ -60,6 +60,8 @@ interface State {
   wanted: ChunkKey[];
   pending: ChunkKey[];
   from: Vector3 | null;
+  /** Whether the fireflies handed to the scene must be gathered again: the chunks wanted or resident have changed. */
+  firefliesStale: boolean;
   firefliesFrom: string;
   /** The pitched camp the chunks were written round, its ground plants left out. */
   camp: CampSite | null;
@@ -71,7 +73,7 @@ interface State {
 
 function freshState(culling: PlantCulling | null): State {
   const free = culling ? Array.from({ length: culling.slots }, (_, i) => culling.slots - 1 - i) : [];
-  return { resident: new Map(), free, wanted: [], pending: [], from: null, firefliesFrom: "", camp: null, regions: null, culling, meshes: [] };
+  return { resident: new Map(), free, wanted: [], pending: [], from: null, firefliesStale: true, firefliesFrom: "", camp: null, regions: null, culling, meshes: [] };
 }
 
 /** The chunks a camp's parted plants could lie in. */
@@ -178,6 +180,7 @@ export function WorldPlants({
     }
     if (s.from === null || s.from.distanceTo(eye) > RECHECK) {
       s.from = eye.clone();
+      s.firefliesStale = true;
       s.wanted = wantedChunks(eye.x, eye.z, reach);
       s.pending = s.wanted.filter((k) => !s.resident.has(chunkId(k)));
       // A chunk no longer wanted keeps its slot until one is needed.
@@ -194,6 +197,7 @@ export function WorldPlants({
       const perDesign = writeChunk(chunk, slot, culling.placings, dummy, s.camp);
       culling.fillSlot(slot, perDesign.reduce((a, b) => a + b, 0));
       s.resident.set(chunkId(key), { slot, perDesign, fireflies: chunk.fireflies });
+      s.firefliesStale = true;
       wrote = true;
     }
     if (s.meshes !== meshes) {
@@ -205,16 +209,32 @@ export function WorldPlants({
     report(streaming, "plants", s.pending.length === 0);
     culling.run(renderer, camera, atmosphere.uHwSunDir.value, shadowReach);
 
-    const near = s.wanted.filter((k) => distanceToSquare(eye.x, eye.z, k.chunkX * PLANT_CHUNK, k.chunkZ * PLANT_CHUNK, PLANT_CHUNK) < FIREFLY_REACH && s.resident.has(chunkId(k)));
-    const nearIds = near.map(chunkId).join(";");
-    if (nearIds !== s.firefliesFrom) {
-      s.firefliesFrom = nearIds;
-      const spots = near.flatMap((k) => Array.from(s.resident.get(chunkId(k))?.fireflies ?? []));
-      onFireflies(new Float32Array(spots));
+    // Gathered from where the chunks were last worked out, within a recheck of the camera: a firefly's reach needs no finer step.
+    if (s.firefliesStale) {
+      s.firefliesStale = false;
+      handFireflies(s, onFireflies);
     }
   });
 
   return <primitive object={group} />;
+}
+
+/** Hands the scene the fireflies of the resident chunks near where the chunks were worked out, if they are others than it has. */
+function handFireflies(s: State, onFireflies: (spots: Float32Array) => void): void {
+  const from = s.from;
+  if (!from) return;
+  const near = s.wanted.filter((k) => distanceToSquare(from.x, from.z, k.chunkX * PLANT_CHUNK, k.chunkZ * PLANT_CHUNK, PLANT_CHUNK) < FIREFLY_REACH && s.resident.has(chunkId(k)));
+  const ids = near.map(chunkId).join(";");
+  if (ids === s.firefliesFrom) return;
+  s.firefliesFrom = ids;
+  const fireflies = near.map((k) => s.resident.get(chunkId(k))?.fireflies ?? new Float32Array(0));
+  const spots = new Float32Array(fireflies.reduce((n, f) => n + f.length, 0));
+  let at = 0;
+  for (const f of fireflies) {
+    spots.set(f, at);
+    at += f.length;
+  }
+  onFireflies(spots);
 }
 
 /** Frees a chunk's slot, so its plants are no longer drawn. */

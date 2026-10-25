@@ -7,7 +7,7 @@ import { bestOffered, type Viewer } from "../../gameplay/offering";
 import type { WalkState } from "../../input/use-walk-input";
 import type { AtmosphereUniforms } from "../../art/atmosphere";
 import { CLUE_LARGER, clueShape, GLINT_HEIGHT, type CluePalette } from "../../art/clue-shapes";
-import { cloud, type Cloud, glintMaterial } from "../../art/effects";
+import { cloud, type Cloud, glintMaterial, showParticles } from "../../art/effects";
 import { thingMaterial } from "../../art/things";
 import { CLUE_MARKS, type ClueMark } from "../../stories/story";
 import type { ValleyClock } from "./clock";
@@ -46,6 +46,19 @@ export const CLUES_PRIORITY = -1.5;
 
 const scratch = { direction: new Vector3(), projected: new Vector3() };
 
+const nearEye = (live: ClueLive, eye: Vector3) => Math.hypot(live.placed.x - eye.x, live.placed.z - eye.z) < DRAW_REACH;
+
+/** Whether the clues near the eye are still those drawn, in the same order, looked at without making a list. */
+function sameNear(live: Iterable<ClueLive>, eye: Vector3, drawn: readonly ClueLive[]): boolean {
+  let i = 0;
+  for (const l of live) {
+    if (!nearEye(l, eye)) continue;
+    if (drawn[i] !== l) return false;
+    i++;
+  }
+  return i === drawn.length;
+}
+
 /** A clue's glints: a few soft lights circling over it, as many and as bright as it is wanted. */
 function glintCloud(palette: CluePalette, atmosphere: AtmosphereUniforms, phase: number): Cloud {
   const made = cloud(BRIGHT.count, glintMaterial(atmosphere));
@@ -64,7 +77,7 @@ function twinkle(drawn: readonly { live: ClueLive; glints: Cloud }[], examinable
     if (!on) continue;
     glinting += 1;
     const look = waitedBy(live.key) ? BRIGHT : GLINTS;
-    mesh.count = look.count;
+    showParticles(mesh, look.count);
     Object.assign(mesh.userData, look, { glints: look.count });
   }
 }
@@ -107,6 +120,7 @@ export function WorldClues({
   const [drawn, setDrawn] = useState<ClueLive[]>([]);
   const glinted = useMemo(() => drawn.map((live, i) => ({ live, glints: glintCloud(palette, atmosphere, i) })), [drawn, palette, atmosphere]);
   const drawnRef = useRef<ClueLive[]>([]);
+  const candidates = useRef<ClueLive[]>([]);
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
 
@@ -134,9 +148,8 @@ export function WorldClues({
 
   useFrame(({ camera: eye }) => {
     streamClues(mysteries);
-    const near = [...mysteries.live.values()].filter((l) => Math.hypot(l.placed.x - eye.position.x, l.placed.z - eye.position.z) < DRAW_REACH);
-    const before = drawnRef.current;
-    if (near.length !== before.length || near.some((l, i) => l !== before[i])) {
+    if (!sameNear(mysteries.live.values(), eye.position, drawnRef.current)) {
+      const near = [...mysteries.live.values()].filter((l) => nearEye(l, eye.position));
       drawnRef.current = near;
       setDrawn(near);
     }
@@ -148,9 +161,11 @@ export function WorldClues({
       : input.current.pointOfView === "first"
         ? { pointOfView: "first", eye: eye.position, look: eye.getWorldDirection(scratch.direction) }
         : { pointOfView: "third", x: walker.x, z: walker.z, heading: walker.heading };
-    const candidates = near.filter((l) => examinable(mysteries, l) && Math.abs(l.placed.x - walker.x) < 5 && Math.abs(l.placed.z - walker.z) < 5);
+    const close = candidates.current;
+    close.length = 0;
+    for (const l of drawnRef.current) if (examinable(mysteries, l) && Math.abs(l.placed.x - walker.x) < 5 && Math.abs(l.placed.z - walker.z) < 5) close.push(l);
     const beat = Math.min(hearth.candidate ?? Infinity, people.candidate?.score ?? Infinity);
-    const best = viewer ? bestOffered(candidates, viewer, offerableClue, beat) : null;
+    const best = viewer ? bestOffered(close, viewer, offerableClue, beat) : null;
     weighClue(mysteries, best && { key: best.offered.key, score: best.score });
 
     twinkle(glinted, (l) => examinable(mysteries, l), (key) => companionByClue(companionClues, key));

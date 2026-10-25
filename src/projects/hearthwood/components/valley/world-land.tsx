@@ -66,6 +66,8 @@ interface State {
   wanted: TileKey[];
   pending: TileKey[];
   from: Eye | null;
+  /** Whether the wanted tiles or the built ones have changed since the drawn set last matched them. */
+  stale: boolean;
 }
 
 function priority(eye: Eye, key: TileKey): number {
@@ -98,7 +100,7 @@ export function WorldLand({ world, camping, palette, atmosphere, sky, quality, s
     return subscribeCamping(camping, move);
   }, [camping, materials]);
   const farWater = useFeature("farWater");
-  const state = useRef<State>({ built: new Map(), arrived: [], asked: new Set(), shown: new Set(), retired: [], farWater, wanted: [], pending: [], from: null });
+  const state = useRef<State>({ built: new Map(), arrived: [], asked: new Set(), shown: new Set(), retired: [], farWater, wanted: [], pending: [], from: null, stale: true });
   const workers = useRef<LandWorkers | null>(null);
 
   useEffect(() => {
@@ -141,6 +143,7 @@ export function WorldLand({ world, camping, palette, atmosphere, sky, quality, s
     const eye = { x, y: y - world.surfaceAt(x, z), z };
     if (s.from === null || Math.hypot(eye.x - s.from.x, eye.y - s.from.y, eye.z - s.from.z) > RECHECK) {
       s.from = eye;
+      s.stale = true;
       s.wanted = wantedTiles(eye, quality);
       s.pending = s.wanted.filter((k) => !s.built.has(tileId(k)) && !s.asked.has(tileId(k))).sort((a, b) => priority(eye, a) - priority(eye, b));
     }
@@ -153,11 +156,18 @@ export function WorldLand({ world, camping, palette, atmosphere, sky, quality, s
       const id = tileId(tile.key);
       s.asked.delete(id);
       s.built.set(id, buildTile(tile, materials, quality, s.farWater));
+      s.stale = true;
+    }
+    // Only a recheck or an arrival changes what is wanted or built, so the drawn set is looked at again only then.
+    if (!s.stale) {
+      report(streaming, "land", true);
+      return;
     }
     if (s.wanted.some((k) => !s.built.has(tileId(k)))) {
       report(streaming, "land", false);
       return;
     }
+    s.stale = false;
     const ids = new Set(s.wanted.map(tileId));
     if (ids.size !== s.shown.size || [...ids].some((id) => !s.shown.has(id))) {
       group.clear();
