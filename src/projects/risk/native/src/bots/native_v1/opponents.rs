@@ -376,7 +376,7 @@ pub fn forecast(
     if priced {
         for &p in alive.iter() {
             let armies = b.armies_of(p) as f64;
-            let discount = armies - knobs.priced_armies(armies, income_of(b.own(p), 1.0));
+            let discount = armies - knobs.priced_armies(armies, income_of(b.own(p), 1.0), p == me);
             priced_power[p as usize] -= discount;
         }
     }
@@ -434,8 +434,13 @@ pub fn forecast(
             }
         }
     }
-    let ratio = om.leader_ratio + om.leader_ratio_per_player * (alive.len() as f64 - 4.0);
-    let threat_of = |power: &[f64; MAX_SEATS]| {
+    let face_ratio = om.leader_ratio + om.leader_ratio_per_player * (alive.len() as f64 - 4.0);
+    let ratio = if priced {
+        face_ratio * knobs.threat_scale
+    } else {
+        face_ratio
+    };
+    let threat_of = |power: &[f64; MAX_SEATS], ratio: f64| {
         let mut threat = None;
         for &p in alive.iter() {
             if alive
@@ -447,9 +452,9 @@ pub fn forecast(
         }
         threat
     };
-    let face_threat = threat_of(&power);
+    let face_threat = threat_of(&power, face_ratio);
     let (power, threat) = if priced {
-        (priced_power, threat_of(&priced_power))
+        (priced_power, threat_of(&priced_power, ratio))
     } else {
         (power, face_threat)
     };

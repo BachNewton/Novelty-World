@@ -40,18 +40,20 @@ export function attritionScale(b: Board, alive: readonly Seat[], k: number): num
  *  opponents might make of it, the same factors its `spared` chance multiplies (mine aren't: my
  *  power is never scaled by my own death), so the discount is scaled the same way. The result is
  *  exactly the power v6's forecast would give with the discounted armies in its sum. */
-export function repricedPower(b: Board, me: Seat, bd: Breakdown, rounds: number, beyond: number): number[] {
+export function repricedPower(b: Board, me: Seat, bd: Breakdown, rounds: number, beyond: number, rivalBeyond = -1): number[] {
+  const rival = rivalBeyond < 0 ? beyond : rivalBeyond;
   return bd.power.map((p, s) => {
     if (!b.alive[s]) return 0;
     const armies = armiesOf(b, s);
-    const discount = armies - pricedArmies(armies, boardIncome(b, s), rounds, beyond);
+    const discount = armies - pricedArmies(armies, boardIncome(b, s), rounds, s === me ? beyond : rival);
     return p - discount * (s === me ? 1 : bd.spared[s]);
   });
 }
 
-/** The bar a seat's power must clear over every other's to be the common threat: v6's. */
-function leaderBar(params: V6Params, alive: number): number {
-  return params.opponents.leaderRatio + params.opponents.leaderRatioPerPlayer * (alive - 4);
+/** The bar a seat's power must clear over every other's to be the common threat: v6's, times
+ *  `scale` (the re-priced power's `threatScale`). */
+function leaderBar(params: V6Params, alive: number, scale = 1): number {
+  return (params.opponents.leaderRatio + params.opponents.leaderRatioPerPlayer * (alive - 4)) * scale;
 }
 
 /** The common threat `power` names, as v6's forecast finds it: the seat whose power is over
@@ -116,6 +118,7 @@ function repricedValue(
   commonThreat: Seat | null,
   border: number,
   weight: number,
+  threatScale: number,
 ): number {
   const prefs = params.prefs;
   let total = 0;
@@ -126,7 +129,7 @@ function repricedValue(
     (weight * border) / total +
     (prefs.opportunityWeight * bd.opportunity) / total -
     (prefs.idleWeight * bd.idle) / total;
-  const ratio = leaderBar(params, alive.length);
+  const ratio = leaderBar(params, alive.length, threatScale);
   if (commonThreat !== null && commonThreat !== me) {
     let next = 0;
     for (const p of alive) if (p !== commonThreat) next = Math.max(next, power[p]);
@@ -140,7 +143,7 @@ function repricedValue(
   return value;
 }
 
-export type ScoreSettings = Pick<Params, "border" | "power" | "armyRounds" | "armyBeyond" | "attrition" | "borderScale" | "reprice">;
+export type ScoreSettings = Pick<Params, "border" | "power" | "armyRounds" | "armyBeyond" | "attrition" | "borderScale" | "reprice" | "rivalBeyond" | "threatScale">;
 
 function aliveOn(b: Board): Seat[] {
   const alive: Seat[] = [];
@@ -156,7 +159,7 @@ export function threatFor(params: V6Params, settings: ScoreSettings): ((b: Board
   return (b, me, bd) => {
     const alive = aliveOn(b);
     if (!b.alive[me] || alive.length === 1) return bd.commonThreat;
-    return commonThreatOf(repricedPower(b, me, bd, settings.armyRounds, settings.armyBeyond), alive, leaderBar(params, alive.length));
+    return commonThreatOf(repricedPower(b, me, bd, settings.armyRounds, settings.armyBeyond, settings.rivalBeyond), alive, leaderBar(params, alive.length, settings.threatScale));
   };
 }
 
@@ -177,15 +180,15 @@ export function scorerFor(params: V6Params, settings: ScoreSettings): Scorer {
     const w = params.prefs.borderWeight * settings.borderScale;
     const scale = attritionScale(b, alive, settings.attrition);
     if (settings.power === "armies") {
-      const power = repricedPower(b, me, bd, settings.armyRounds, settings.armyBeyond);
-      const threat = commonThreatOf(power, alive, leaderBar(params, alive.length));
+      const power = repricedPower(b, me, bd, settings.armyRounds, settings.armyBeyond, settings.rivalBeyond);
+      const threat = commonThreatOf(power, alive, leaderBar(params, alive.length, settings.threatScale));
       // With `reprice` "full" the opponents aim at me by the re-priced threat; where that is v6's
       // own threat the aims are v6's, and so is the border loss.
       const border =
         settings.reprice === "full" && threat !== bd.commonThreat
           ? threatBorders.get(key, () => borderOf(turnsUnder(b, me, params, alive, threat), settings.border))
           : faceBorder();
-      return repricedValue(me, bd, params, alive, power, threat, border, w * scale);
+      return repricedValue(me, bd, params, alive, power, threat, border, w * scale, settings.threatScale);
     }
     // Written so that at scales of 1 it is the `border` modes' own arithmetic, float for float.
     return bd.value + (params.prefs.borderWeight * (bd.borderLoss - settings.borderScale * scale * faceBorder())) / bd.total;

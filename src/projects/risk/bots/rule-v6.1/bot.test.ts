@@ -257,6 +257,30 @@ describe("rule-v6.1's full re-pricing", () => {
     expect(scorerFor(V6_PARAMS, priced({ ...gentle, reprice: "full" }))(h, 0, bd)).toBe(scorerFor(V6_PARAMS, priced({ ...gentle, reprice: "value" }))(h, 0, bd));
   });
 
+  it("prices a rival's armies past the cap at rivalBeyond, mine at armyBeyond, and is the plain discount at rivalBeyond below 0 or equal to armyBeyond", () => {
+    const bd = breakdown(h, 0, V6_PARAMS);
+    const plain = repricedPower(h, 0, bd, 4, 0.25);
+    expect(repricedPower(h, 0, bd, 4, 0.25, -1)).toEqual(plain);
+    expect(repricedPower(h, 0, bd, 4, 0.25, 0.25)).toEqual(plain);
+    // Seat 2's 230 armies against a cap of 4 × 12 = 48: at face value with rivalBeyond 1.
+    const rival = repricedPower(h, 0, bd, 4, 0.25, 1);
+    expect(rival[2]).toBeCloseTo(bd.power[2], 9);
+    expect(rival[0]).toBe(plain[0]);
+    const scored = (moved: Partial<Params>) => scorerFor(V6_PARAMS, priced({ reprice: "full", ...moved }))(h, 0, bd);
+    expect(scored({ rivalBeyond: 0.25 })).toBe(scored({}));
+    // At face value the hoard is the threat again, so the full re-pricing names it.
+    expect(threatFor(V6_PARAMS, priced({ reprice: "full", rivalBeyond: 1 }))?.(h, 0, bd)).toBe(2);
+  });
+
+  it("names the threat sooner under threatScale below 1, and is the plain discount at 1", () => {
+    const bd = breakdown(h, 0, V6_PARAMS);
+    const power = repricedPower(h, 0, bd, 4, 0.25);
+    // The hoard, discounted, is about 1.2 times the next seat: under v6's bar of 1.3, over 0.8 of it.
+    expect(power[2] / power[1]).toBeGreaterThan(1.3 * 0.8);
+    expect(threatFor(V6_PARAMS, priced({ reprice: "full", threatScale: 0.8 }))?.(h, 0, bd)).toBe(2);
+    expect(scorerFor(V6_PARAMS, priced({ reprice: "full", threatScale: 1 }))(h, 0, bd)).toBe(scorerFor(V6_PARAMS, priced({ reprice: "full" }))(h, 0, bd));
+  });
+
   it("builds its plans round the threat it is given: none into an ally's continent while a third seat is the threat", () => {
     const b = fromView(referenceEngine.view(position({ players: 4, board: TABLE }), 0));
     const intoSeat1 = (threat: Seat | null) => plans(b, 0, 10, { ...V6_PARAMS, threat: () => threat }).filter((p) => p.targets.some((t) => b.owner[t] === 1)).length;

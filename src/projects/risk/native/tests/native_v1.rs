@@ -397,8 +397,19 @@ fn rule_v6_1_settings_off_or_gated_off_are_native_v1() {
         own
     );
     // And a setting in force plays another game.
-    assert_ne!(
-        mirror_game(r#"native-v1~{"power":"armies","armyRounds":4,"armyBeyond":0.25}"#),
-        own
+    let discount = mirror_game(r#"native-v1~{"power":"armies","armyRounds":4,"armyBeyond":0.25}"#);
+    assert_ne!(discount, own);
+    // A rival's price at my own, or below 0, and the threat bar at 1 are the discount alone.
+    assert_eq!(
+        mirror_game(
+            r#"native-v1~{"power":"armies","armyRounds":4,"armyBeyond":0.25,"rivalBeyond":0.25,"threatScale":1}"#
+        ),
+        discount
+    );
+    assert_eq!(
+        mirror_game(
+            r#"native-v1~{"power":"armies","armyRounds":4,"armyBeyond":0.25,"rivalBeyond":-1}"#
+        ),
+        discount
     );
 }
