@@ -315,6 +315,15 @@ class Ladder:
                 "ladder_games": decisive, "ladder_capped": self.games - decisive}
 
 
+def trained_from_log(out_dir: str, iteration: int) -> float:
+    """Training time up to `iteration`, for a checkpoint saved before checkpoints kept it."""
+    with open(os.path.join(out_dir, "log.jsonl")) as f:
+        records = [json.loads(line) for line in f]
+    first = records[0]
+    start = first["time"] - first["rollout_s"] - first["update_s"]
+    return max(r["time"] for r in records if r["iter"] <= iteration) - start
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--name", required=True)
@@ -373,13 +382,15 @@ def main(argv: list[str] | None = None) -> int:
     net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency).to(device)
     opt = torch.optim.Adam(net.parameters(), lr=args.lr, eps=1e-5)
     iteration, steps_done, league = 0, 0, []
+    trained_s = 0.0
     latest = os.path.join(out_dir, "latest.pt")
     if args.resume and os.path.exists(latest):
         ck = torch.load(latest, map_location=device, weights_only=False)
         net.load_state_dict(ck["net"])
         opt.load_state_dict(ck["opt"])
         iteration, steps_done, league = ck["iteration"], ck["steps"], ck["league"]
-        print(f"resumed {args.name} at iteration {iteration}", flush=True)
+        trained_s = ck["trained_s"] if "trained_s" in ck else trained_from_log(out_dir, iteration)
+        print(f"resumed {args.name} at iteration {iteration}, {trained_s / 3600:.2f} h trained", flush=True)
     with open(os.path.join(out_dir, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=1)
 
@@ -443,7 +454,7 @@ def main(argv: list[str] | None = None) -> int:
     pair = PairEval(board, tables, net, *args.pair.split("=", 1), args.pair_games, device) if args.pair else None
     log_path = os.path.join(out_dir, "log.jsonl")
     n_params = sum(x.numel() for x in net.parameters())
-    started = time.time()
+    started = time.time() - trained_s
     print(f"{args.name}: batch {args.batch} x horizon {args.horizon}, {sum(x.numel() for x in net.parameters()):,} weights",
           flush=True)
 
@@ -482,7 +493,7 @@ def main(argv: list[str] | None = None) -> int:
                 record.update(ladder.run(past, f"{args.name}-{iteration}"))
         if iteration % args.ckpt_every == 0:
             torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
-                        "league": league, "args": vars(args), "env": asdict(cfg)}, latest + ".tmp")
+                        "league": league, "args": vars(args), "env": asdict(cfg), "trained_s": time.time() - started}, latest + ".tmp")
             os.replace(latest + ".tmp", latest)
         with open(log_path, "a") as f:
             f.write(json.dumps(record) + "\n")
@@ -497,7 +508,7 @@ def main(argv: list[str] | None = None) -> int:
             if "ladder" in record:
                 print("  ladder", json.dumps(record["ladder"]), record["ladder_games"], "decisive", flush=True)
     torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
-                "league": league, "args": vars(args), "env": asdict(cfg)}, latest)
+                "league": league, "args": vars(args), "env": asdict(cfg), "trained_s": time.time() - started}, latest)
     return 0
 
 
