@@ -5,7 +5,7 @@ export const SHADOWS_AND_FOLIAGE_FEATURES = featureGroup("shadows-and-foliage", 
   {
     id: "sunShadows",
     name: "Shadows",
-    description: "The sun casts soft shadows from everything that stands in its light, tinted by the moment's own colour rather than black, fading as the sun nears the horizon and paling as cloud covers the sky.",
+    description: "The sun casts shadows from everything that stands in its light, tinted by the moment's own colour rather than black, fading as the sun nears the horizon and paling as cloud covers the sky.",
   },
   {
     id: "moonShadows",

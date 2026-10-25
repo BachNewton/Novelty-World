@@ -56,7 +56,6 @@ export function shadowIntensity(body: "sun" | "moon", elevation: number, clouds:
 const BLUR = 0;
 /** Where each slice ends, as shares of the reach: each the same many times longer than the one before, so a map's texels grow with distance as the view's own pixels do. */
 export function sliceBreaks(count: number, reach: number, first = FIRST_SLICE): number[] {
-
   if (!(count >= 1 && reach > first && first > 0)) throw new Error(`Shadow slices need a count and 0 < first < reach, not ${String(count)}, ${String(first)}, ${String(reach)}`);
   return Array.from({ length: count }, (_, i) => (i === count - 1 ? 1 : (first * (reach / first) ** ((i + 1) / count)) / reach));
 }

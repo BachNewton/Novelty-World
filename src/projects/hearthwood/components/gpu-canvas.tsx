@@ -28,7 +28,6 @@ export async function makeRenderer(canvas: HTMLCanvasElement): Promise<THREE.Web
     canvas,
     // Edges are smoothed in the frame's own pipeline, at the scene pass, not on the swap chain.
     antialias: false,
-    powerPreference: "high-performance",
     // Reversed depth keeps depth precise from a hand's breadth to the horizon a hundred kilometres off.
     reversedDepthBuffer: true,
     trackTimestamp: wantsTimestamps(),

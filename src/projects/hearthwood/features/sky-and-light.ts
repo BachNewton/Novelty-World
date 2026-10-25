@@ -48,23 +48,8 @@ export const SKY_AND_LIGHT_FEATURES = featureGroup("sky-and-light", [
     description: "Hearthwood's own curve from the scene's light to the screen's: it keeps hues true and rolls the highlights off softly, so a sunset or firelight stays coloured rather than bleaching to white. Off, the light is only exposed and clipped.",
   },
   {
-    id: "bloom",
-    name: "Bloom",
-    description: "The brightest lights glow softly into what is round them: the campfire, the sun, and the moon and its halo.",
-  },
-  {
     id: "colourGrade",
     name: "Colour grade",
     description: "Brightness, contrast, saturation, white balance and the oranges, teals and greens graded by season and blended through the year, the shadows leaning to the moment's own colour, and the night cooling what is dim towards moonlit blue while firelight stays warm.",
-  },
-  {
-    id: "vignette",
-    name: "Vignette",
-    description: "The frame's corners darken softly, like an old storybook's plate.",
-  },
-  {
-    id: "inkEdges",
-    name: "Ink edges",
-    description: "A soft line in the moment's shadow colour where a near form stands against what is behind it, as a storybook's ink outlines its shapes, thinning and fading with distance.",
   },
 ]);

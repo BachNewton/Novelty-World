@@ -1,8 +1,5 @@
 import type { FeatureArt } from "../feature-art";
-import { BLOOM_ART } from "../light/bloom";
 import { COLOUR_GRADE_ART } from "../light/grade";
-import { INK_EDGES_ART } from "../light/ink-edges";
-import { VIGNETTE_ART } from "../light/vignette";
 import { AURORA_ART } from "../sky/aurora";
 import { MILKY_WAY_ART } from "../sky/milky-way";
 import { MOON_ART } from "../sky/moon";
@@ -20,4 +17,4 @@ import { STARS_ART } from "../sky/stars";
  * itself (`light/daylight.tsx`, `light/tone-mapping.ts`), with no stages of
  * their own.
  */
-export const SKY_AND_LIGHT_ART: readonly FeatureArt[] = [MILKY_WAY_ART, STARS_ART, AURORA_ART, MOON_ART, RAINBOW_ART, INK_EDGES_ART, BLOOM_ART, COLOUR_GRADE_ART, VIGNETTE_ART];
+export const SKY_AND_LIGHT_ART: readonly FeatureArt[] = [MILKY_WAY_ART, STARS_ART, AURORA_ART, MOON_ART, RAINBOW_ART, COLOUR_GRADE_ART];
