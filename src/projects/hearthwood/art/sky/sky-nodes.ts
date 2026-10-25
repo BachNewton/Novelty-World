@@ -40,11 +40,11 @@ export function skyDirection(): Node<"vec3"> {
 export const skyHash4 = Fn(([p]: [Node<"vec3">]) => {
   const q = vec4(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)), dot(p, vec3(246.1, 124.6, 311.7)));
   return fract(sin(q).mul(43758.5453));
-});
+}).setLayout({ name: "skyHash4", type: "vec4", inputs: [{ name: "p", type: "vec3" }] });
 
 const hash = (p: Node<"vec3">): Node<"float"> => typed<"vec4">(skyHash4(p)).x;
 
-/** Value noise in three dimensions, 0 to 1. */
+/** Value noise in three dimensions, 0 to 1. Like the hash, a function of its own in the shader, called rather than pasted in at every octave and use. */
 export const skyNoise3 = Fn(([p]: [Node<"vec3">]) => {
   const i = floor(p);
   const f = fract(p);
@@ -53,7 +53,7 @@ export const skyNoise3 = Fn(([p]: [Node<"vec3">]) => {
   const near = mix(mix(corner(0, 0, 0), corner(1, 0, 0), u.x), mix(corner(0, 1, 0), corner(1, 1, 0), u.x), u.y);
   const far = mix(mix(corner(0, 0, 1), corner(1, 0, 1), u.x), mix(corner(0, 1, 1), corner(1, 1, 1), u.x), u.y);
   return mix(near, far, u.z);
-});
+}).setLayout({ name: "skyNoise3", type: "float", inputs: [{ name: "p", type: "vec3" }] });
 
 /** A few octaves of it, each half the last, 0 to 1. */
 export function skyFbm3(p: Node<"vec3">, octaves = 3): Node<"float"> {

@@ -46,9 +46,13 @@ export function makeAtmosphere(): AtmosphereUniforms {
 }
 
 /** A cheap hash of a 2D point, 0 to 1. */
-export const hash2 = Fn(([p]: [Node<"vec2">]) => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453)));
+export const hash2 = Fn(([p]: [Node<"vec2">]) => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453))).setLayout({
+  name: "airHash2",
+  type: "float",
+  inputs: [{ name: "p", type: "vec2" }],
+});
 
-/** Value noise, 0 to 1, for anything drawn that wants a little unevenness. */
+/** Value noise, 0 to 1, for anything drawn that wants a little unevenness. Laid out as a function of its own in the shader, called rather than pasted in at every use: the land calls it dozens of times. */
 export const valueNoise = Fn(([p]: [Node<"vec2">]) => {
   const i = floor(p);
   const f = fract(p);
@@ -58,7 +62,7 @@ export const valueNoise = Fn(([p]: [Node<"vec2">]) => {
   const c = hash2(i.add(vec2(0, 1)));
   const d = hash2(i.add(vec2(1, 1)));
   return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-});
+}).setLayout({ name: "airValueNoise", type: "float", inputs: [{ name: "p", type: "vec2" }] });
 
 /** The haze's colour along a view direction: warmer towards the sun. */
 export function hazeColour(air: AtmosphereUniforms, dir: Node<"vec3">): Node<"vec3"> {
