@@ -1,5 +1,5 @@
 import { Color, Vector3 } from "three";
-import { abs, cameraPosition, dot, exp, float, floor, Fn, fract, length, max, mix, normalize, pow, select, sin, smoothstep, uniform, vec2 } from "three/tsl";
+import { abs, cameraPosition, dot, exp, float, floor, Fn, fract, length, max, mix, pow, select, sin, smoothstep, uniform, vec2 } from "three/tsl";
 import type { Node, UniformNode } from "three/webgpu";
 import { colourUniform } from "./tsl";
 
@@ -77,12 +77,13 @@ export function hazeAmount(air: AtmosphereUniforms, world: Node<"vec3">): Node<"
   const k = air.uHwHazeFalloff;
   const rise = ray.y.mul(k);
   const base = exp(max(cameraPosition.y, -10).mul(k).negate());
-  const along = select(abs(rise).greaterThan(1e-3), float(1).sub(exp(rise.negate())).div(rise), float(1));
+  const safeRise = select(abs(rise).greaterThan(1e-3), rise, float(1));
+const along = select(abs(rise).greaterThan(1e-3), float(1).sub(exp(rise.negate())).div(safeRise), float(1));
   return float(1).sub(exp(air.uHwHazeDensity.mul(base).mul(along).mul(dist).negate()));
 }
 
 /** A colour at `world` seen through the air from the eye. */
 export function throughAir(air: AtmosphereUniforms, colour: Node<"vec3">, world: Node<"vec3">): Node<"vec3"> {
-  const dir = normalize(world.sub(cameraPosition));
+  const dir = world.sub(cameraPosition).div(max(length(world.sub(cameraPosition)), 1e-4));
   return mix(colour, hazeColour(air, dir), hazeAmount(air, world));
 }

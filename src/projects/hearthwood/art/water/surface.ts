@@ -1,4 +1,4 @@
-import { attribute, cameraPosition, cross, dFdx, dFdy, dot, fwidth, length, max, normalize, positionWorld, select, smoothstep, vec2 } from "three/tsl";
+import { attribute, cameraPosition, cross, dFdx, dFdy, dot, fwidth, length, max, positionWorld, select, smoothstep, vec2 } from "three/tsl";
 import type { Node, UniformNode } from "three/webgpu";
 import type { Color } from "three";
 import type { FeatureId } from "../../features";
@@ -22,18 +22,19 @@ const flow = attribute<"vec2">("flow", "vec2");
 /** How much river there is, 0 (still) to 1. */
 export const waterMoving: Node<"float"> = length(flow).clamp(0, 1);
 /** Which way it runs, x and z. */
-export const waterFlowDir: Node<"vec2"> = select(waterMoving.greaterThan(0.01), normalize(flow), vec2(1, 0));
+export const waterFlowDir: Node<"vec2"> = select(waterMoving.greaterThan(0.01), flow.div(max(length(flow), 1e-4)), vec2(1, 0));
 /** How steeply it falls, 0 (level) to 1 (over a fall). */
 export const waterFalling: Node<"float"> = smoothstep(0.4, 2, attribute<"float">("fall", "float"));
 /** Where on the surface, x and z. */
 export const waterP: Node<"vec2"> = positionWorld.xz;
 /** Towards the eye. */
-export const waterView: Node<"vec3"> = cameraPosition.sub(positionWorld).normalize();
+export const waterView: Node<"vec3"> = cameraPosition.sub(positionWorld).div(max(length(cameraPosition.sub(positionWorld)), 1e-4));
 /** How much of the surface one pixel spans, in metres: a pattern finer than this fades out. */
 export const waterFootprint: Node<"float"> = max(length(fwidth(waterP)), 1e-4);
 
 /** Whether the eye sees this face from below the water: the face turned to the eye faces down. A fall's sheet seen from below its top is still seen from above. */
-const face = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
+const faceGrad = cross(dFdx(positionWorld), dFdy(positionWorld));
+const face = faceGrad.div(max(length(faceGrad), 1e-4));
 export const waterBelow: Node<"bool"> = face.y.mul(dot(face, waterView)).lessThan(0);
 
 /** The colours and lights a water feature may read beside the surface's own. */

@@ -146,7 +146,7 @@ export class KeyShadows {
         maxFar: reach,
         mode: "custom",
         // The light stands this far back from each slice, so a mountain behind it still casts into it.
-        lightMargin: 400,
+        lightMargin: 1000,
         customSplitsCallback: (count, _near, _far, breaks) => {
           breaks.push(...sliceBreaks(count, reach));
         },
@@ -154,7 +154,7 @@ export class KeyShadows {
       node.fade = true;
       shadow.shadowNode = node;
       shadow.camera.near = 1;
-      shadow.camera.far = 2400;
+      shadow.camera.far = 10000;
     } else {
       const half = this.quality.shadowReachNear;
       Object.assign(shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 600 });

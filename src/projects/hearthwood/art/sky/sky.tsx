@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { BackSide, Color, Matrix3, SphereGeometry, Vector3, type Mesh } from "three";
-import { dot, float, max, mix, modelViewProjection, pow, smoothstep, uniform, vec2, vec4 } from "three/tsl";
+import { dot, float, length, max, mix, modelViewProjection, pow, smoothstep, uniform, vec2, vec4 } from "three/tsl";
 import { NodeMaterial, type Node, type UniformNode } from "three/webgpu";
 import { liveFeatures, type FeatureSwitches } from "../../features";
 import { hazeColour, type AtmosphereUniforms } from "../atmosphere";
@@ -79,8 +79,8 @@ export function skyAlong(air: AtmosphereUniforms, sky: SkyUniforms, dir: Node<"v
   const gradient = mix(air.uHwHaze, sky.uSky, pow(smoothstep(0, 0.7, up), 0.65));
   const toSun = max(dot(dir, sky.uSunDir), 0);
   // A broad warm band along the horizon on the sun's side, and a tighter glow round the sun itself.
-  const flat = vec2(dir.x, dir.z).normalize();
-  const sunFlat = vec2(sky.uSunDir.x, sky.uSunDir.z).normalize();
+  const flat = vec2(dir.x, dir.z).div(max(length(vec2(dir.x, dir.z)), 1e-4));
+  const sunFlat = vec2(sky.uSunDir.x, sky.uSunDir.z).div(max(length(vec2(sky.uSunDir.x, sky.uSunDir.z)), 1e-4));
   const sideways = max(dot(flat, sunFlat), 0);
   const band = pow(sideways, 3)
     .mul(pow(float(1).sub(up), 4))

@@ -1,4 +1,4 @@
-import { abs, cos, exp, float, mix, normalize, sign, sin, smoothstep, uniform, vec2, vec3 } from "three/tsl";
+import { abs, cos, exp, float, length, max, mix, normalize, sign, sin, smoothstep, uniform, vec2, vec3 } from "three/tsl";
 import type { Node } from "three/webgpu";
 import { valueNoise } from "../atmosphere";
 import type { FeatureArt } from "../feature-art";
@@ -76,7 +76,8 @@ export const RIPPLES_STEP: WaterStep = {
     const rippled = normalize(vec3(slope.x.negate(), 1, slope.y.negate())).mul(sign(normal.y));
     // At a grazing look a ripple is finer than the pixel across it: ease them flat. A fall's sheet keeps its own.
     const graze = smoothstep(0.015, 0.25, abs(waterView.y));
-    return normalize(mix(normal, rippled, graze.mul(float(1).sub(waterFalling))));
+    const mixed = mix(normal, rippled, graze.mul(float(1).sub(waterFalling)));
+return mixed.div(max(length(mixed), 1e-4));
   },
 };
 

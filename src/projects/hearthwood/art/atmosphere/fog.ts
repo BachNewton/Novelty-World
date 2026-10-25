@@ -70,7 +70,8 @@ function layerDepth(density: Node<"float">, floorY: Node<"float">, height: Node<
   const h1 = max(pointY.sub(floorY), height.negate()).div(height);
   const dh = h1.sub(h0);
   const e0 = exp(h0.negate());
-  const mean = select(abs(dh).greaterThan(1e-4), e0.sub(exp(h1.negate())).div(dh), e0);
+  const safeDh = select(abs(dh).greaterThan(1e-4), dh, float(1));
+const mean = select(abs(dh).greaterThan(1e-4), e0.sub(exp(h1.negate())).div(safeDh), e0);
   return density.mul(dist).mul(mean);
 }
 
