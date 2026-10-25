@@ -1039,3 +1039,13 @@ On GitHub Actions (run 40067953817, from main at 000b21d9): `risk:ratings -- rul
 | gd-defensive | −22 | +70 |
 
 v7 tops the ladder by 115 win Elo over v6, and alone among copies of any weaker bot it wins 82 to 100% of games at every table size. Tables of v7s cap more at 6 players (10 to 25% of games with one weaker bot among five v7s), as the gauntlets showed. The holdout gauntlet (run 40067949285) is the last run of v7's suite; this run isn't `--seatable`, so seating reruns the ratings over the seatable bots. Its matchups weren't merged into the cache here: this branch's code hashes for the rule bots differ from main's, so the import kept none of them.
+
+## net-v1 (m2a-50) against v6: it places, it doesn't win (2026-10-25)
+
+On the laptop under Node 24, from 3ec5eeb6, seeds `early-v6`, an early read capped at 300 decisive games, 4 workers at below-normal priority beside other runs. `net-v1~{"weights":"m2a-50"}`: the GPU self-play transformer (128×4, 0.84M weights, 131M training decisions; `ideas/gpu-engine.md`, phase 3), trained on the placement reward, sampling its moves from its seed.
+
+| Table | Result | Win share | Par | Games | Turns | Capped |
+|---|---|---|---|---|---|---|
+| 1 net among 4 v6s | **worse** | 7.1% [4.0, 12.3] | 20% | 160 | 202 | 3.8% |
+
+Win Elo (v6 = 0): net −205; finishing order −3, its mean place 3.00 against par 3.0. It outlasts v6 as well as v6 outlasts itself and almost never takes the win: what the placement reward paid for (second place +0.5 at 5 players). The same style is why it beats other networks head to head. The next line trains on the win reward (+1 for the win, second place 0) and is measured against v6 the same way.
