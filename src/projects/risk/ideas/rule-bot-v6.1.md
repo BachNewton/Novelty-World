@@ -1,6 +1,6 @@
 # Risk bot v6.1: v6 without the stall
 
-v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built and being screened. It is a candidate to replace v6 in its lobby seat: v6 is seated and frozen, and its bot-only tables at 5 and 6 players run to the turn cap (`stalled-games.md`). v6.1 is v6 with its board scored another way, a set of settings that each re-read v6's evaluation, and is meant to play v6's moves everywhere else.
+v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built and screened, and no setting has passed: the native map (below) found settings that end the stall and beat v6 at 5 players, and every one of them is about 15 Elo a seat short of v6 at 6, where the gauntlet calls it worse. It is a candidate to replace v6 in its lobby seat: v6 is seated and frozen, and its bot-only tables at 5 and 6 players run to the turn cap (`stalled-games.md`). v6.1 is v6 with its board scored another way, a set of settings that each re-read v6's evaluation, and is meant to play v6's moves everywhere else.
 
 ## Why v6 stalls
 
@@ -16,7 +16,7 @@ Shrinking the border term (lower weight, or gathering it by `max` or `mean`) bre
 
 ## The settings
 
-Each is a setting on v6's scorer hook (`scoreOf` in `rule-v6/evaluate.ts`): v6.1's scorer (`score.ts`) re-reads v6's breakdown of a board, so no v6 file changes. The one setting the hook can't carry alone, `reprice: "full"`, also reaches the planner, through v6.1's copy of it (round two, below). With `border` at `"sum"`, `power` at `"face"` and `attrition` at 0 it plays exactly v6's moves (a test holds it), whatever the gates.
+Each is a setting on v6's scorer hook (`scoreOf` in `rule-v6/evaluate.ts`): v6.1's scorer (`score.ts`) re-reads v6's breakdown of a board, so no v6 file changes. The one setting the hook can't carry alone, `reprice: "full"`, also reaches the planner, through v6.1's copy of it (round two, below). With `border` at `"sum"`, `power` at `"face"`, `attrition` at 0 and `borderScale` at 1 it plays exactly v6's moves (a test holds it), whatever the gates.
 
 | Setting | Values | What it changes |
 |---|---|---|
@@ -24,7 +24,8 @@ Each is a setting on v6's scorer hook (`scoreOf` in `rule-v6/evaluate.ts`): v6.1
 | `power` | `"face"` (v6's), `"armies"` | with `"armies"`, a seat's armies count fully up to `armyRounds` rounds of its board income and at `armyBeyond` each past that (C1) |
 | `armyRounds`, `armyBeyond` | 6 and 0.25 by default | the cap `m` and the fraction `f` of `power: "armies"` |
 | `attrition` | 0 (v6's), or `k` | the border weight times min(1, k × the board's income ÷ its armies) (C2) |
-| `borderWeight` | v6's 0.5 by default | v6's own preference, tunable beside them |
+| `borderWeight` | v6's 0.5 by default | v6's own preference, tunable beside them (the large table's only) |
+| `borderScale` | 1 by default | the border weight of the preferences in force, at either table, times this (the native map's knob, below) |
 | `reprice` | `"value"` (round one's), `"full"` | with `power: "armies"`, where the re-priced armies reach: the final score only, or the forecast too (the opponents' aims at me and the planner's threat plans read the common threat the re-priced power names) |
 | `minPlayers`, `minAlive` | 0 by default | every change applies only at a table that started with at least `minPlayers` seats and while at least `minAlive` are alive at the decision; elsewhere the bot is v6 |
 | `attritionAlive` | 0 by default | `attrition` alone applies only while at least this many seats are alive |
@@ -103,6 +104,22 @@ Left at face value, on purpose: the border loss's hits (armies a sweep or exchan
 | R2c | `rule-v6.1~{"border":"sum","power":"armies","reprice":"full","armyRounds":12,"armyBeyond":0.75,"attrition":6,"attritionAlive":6,"minPlayers":5}` | the combined pick, below |
 
 **The combined pick, R2c.** The second screen's loss is at 6 players, so the most promising direction is to discount less there, not more: R2b's gentler discount, everywhere a table started with 5 or more. If that discount is too gentle to end the frozen table (all six alive, armies far past income), attrition at k = 6 eases the border weight there and only there: it acts only on boards past 6 rounds of income, which v6's decided games and people's games don't reach, and `attritionAlive: 6` keeps it out of the churning tables, where the discount already binds. `minPlayers: 5` makes it v6 at 3 and 4 players, so it carries to the bar unchanged. The risk it takes: attrition at k = 6 alone capped 6 in 100 at 6 players and was never measured for strength.
+
+## The native map
+
+Every hand-picked candidate of the two screens landed on one curve, so the third looks at the whole space at once, on the native engine (`native/`, `native-port.md`), where a game costs a fraction of the TypeScript's.
+
+**The instrument.** native-v1 takes v6.1's settings as a tuned label by the same names (`native-v1~{"power":"armies","armyRounds":20,"reprice":"full"}`), designed into its own forecast and value rather than ported line by line: priced power is carried beside face power through the forecast's kills, the opponents' aims and the planner read the threat `reprice` names, and the border loss is gathered by `border` and weighted by `borderScale` and `attrition`. Off, or gated off, it is native-v1 float for float (a crate test holds it). Its yardstick is **native-v6**, native-v1 with v6's small-table cutoff (`"smallTableSeats":4`; native-v1's own is 5), which decides as TS rule-v6 on 99.9% of v6's recorded decisions at 5 and 6 players; native-v1 at each of six v6.1 settings decides as TS rule-v6.1 at it on 99.89–100% (`risk-native agree`). So a point on the map is the TS bot's point, measured against v6.
+
+**The run.** `risk-native sweep` plays each point against native-v6 at 5 and 6 players: one-in and one-out in seed groups with the lone seat rotated, as the gauntlet seats them, and the mirror for the stall, every point on the same seeds; `risk-native sweep-report` sums any number of runs by point (cap rate with its upper bound, decided games' length, each mixture's win share against par with its interval, and a Luce win Elo a seat pooled over the mixtures and tables). The map's 201 points, 272,664 games, and their numbers are in `bot-log.md` ("v6.1's native map").
+
+**What it shows.**
+
+- **The discount alone is round two's curve**, in every corner of it: rounds 4 to 30, 25% to 90% beyond, value or full. Its best stall-free points are 8 to 13 Elo a seat short of v6, inside their intervals but never above.
+- **v6's border weight is too low against v6.** The border charge at 1.15 to 1.3 times v6's weight is +6 to +33, the strongest settings measured, but it stalls more than v6 does (3.5–9% at 5 players, 17–22% at 6): a heavier charge makes the stacks still more attractive. Attrition on top of it stalls more still.
+- **Together they end the stall, and win at 5 players only.** At 75% beyond, 16 to 22 rounds, fully re-priced, the border at 1.15 to 1.25, no mirror caps more than 3 games in 500 at either table, and the decided games run about 120 turns at 5 players and 190–220 at 6. Those points are better than v6 at 5 players on the map (+25 to +30) and 10 to 20 Elo a seat below it at 6, measured on seeds the points weren't picked on; the weak mixture is 6-player one-out, v6 alone among five candidates. Where a point holds its own at 6 players (90% beyond, or the border raised alone), it stalls there.
+
+So the map has a stall-free region that is even or better at 5 players and none that is at 6. The TS gauntlet agrees (`bot-log.md`): all four frontier points it played came out worse in 6-player one-out, and every 5-player pairing it decided was even. So the best point (`armyRounds` 16, `armyBeyond` 0.75, `reprice` "full", `borderScale` 1.2, with `minPlayers` 5 so it is v6 at 3 and 4 players) is not taken to the bar. The next step is a new idea aimed at the 6-player one-out table, not another setting: a table of these bots hands the lone v6 more than its share of wins, and nothing in v6.1's settings changes that.
 
 ## Measuring it
 

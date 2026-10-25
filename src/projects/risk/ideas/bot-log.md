@@ -1049,3 +1049,54 @@ On the laptop under Node 24, from 3ec5eeb6, seeds `early-v6`, an early read capp
 | 1 net among 4 v6s | **worse** | 7.1% [4.0, 12.3] | 20% | 160 | 202 | 3.8% |
 
 Win Elo (v6 = 0): net −205; finishing order −3, its mean place 3.00 against par 3.0. It outlasts v6 as well as v6 outlasts itself and almost never takes the win: what the placement reward paid for (second place +0.5 at 5 players). The same style is why it beats other networks head to head. The next line trains on the win reward (+1 for the win, second place 0) and is measured against v6 the same way.
+
+## v6.1's native map: the stall ends, and 6 players is still the cost (2026-10-25)
+
+On the laptop under Node 24, 16 threads, from f337ac86, 6cacaf80 and 05e784cb, seeds `v61map`. `risk-native sweep` (`ideas/rule-bot-v6.1.md`, "The native map") plays v6.1's settings in native-v1 (`native-v1~{...}`) against **native-v6**, native-v1 with v6's small-table cutoff (`native-v1~{"smallTableSeats":4}`), at 5 and 6 players: one-in and one-out in seed groups with the lone seat rotated, and the mirror for the stall, every point on the same seeds. Elo is a seat's Luce strength from a mixture's win share; ± is 95%. 272,664 games over 201 points, in stages: 110 points at 12 groups and 60 mirror games a table; 86 to 48 groups and 200 mirror games; 29 and 14 refinement points at 48 groups, 9 at 120; the best 16 to 120 groups (600 games a mixture at 5 players, 720 at 6) and 500 mirror games; the best 5 to 300 groups at 6 players.
+
+**The instrument measures the real thing.** native-v6 decides as TS rule-v6 on 99.9% of v6's own recorded decisions at 5 and 6 players (3,117) and 100% at 3 and 4 (3,933); plain native-v1, which keeps its small-table preferences up to five alive, only 95–97% at 5 and 6. At each of six v6.1 settings, native-v1 at the setting decides as TS rule-v6.1 at it on 99.89–100% of that setting's own recorded decisions, while the settings move 5–15% of decisions away from v6. Replayed on a TS gauntlet's own seeds, a native pairing lands within 5 wins of the TS one in 262 games.
+
+**The families** (48 groups, 200 mirror games a table; ±27 on the overall Elo, ±55 on a single mixture):
+
+| Family | Stall-free (≤1 in 200 capped at 6p) | Strength |
+|---|---|---|
+| Armies discounted alone, full or value, 4–30 rounds, 25–90% beyond | from about 12 rounds at 75% | round two's curve: best stall-free −8 (22 rounds, 60%), below 15 rounds −20 to −140 with short games; past 25 rounds or at 90% the 6-player mirror caps 2–5%; full beats value by about 10 |
+| Attrition, k 2–12, alive-gated or not (12 groups) | k ≤ 4 only | k ≤ 4: −20 to −100; k ≥ 5 caps 4 to 25 in 60 at 6p |
+| Border `max` or `mean`, weight ×1 to ×3 (12 groups) | all | −77 to −171 |
+| Border `sum`, weight ×0.5 to ×0.9 (12 groups) | ×0.5 only | −56 to −128 |
+| **Border `sum`, weight ×1.1 to ×1.3** | none: **3.5–9% capped at 5p, 17–22% at 6p** (native-v6: 2% and 20%) | **+6, +32, +33: the strongest settings measured**, better in all four mixtures at ×1.15 |
+| Border ×1.15–1.3 plus attrition k 4–8 | k = 4 only | k ≥ 5 caps 14–71 in 200 at 6p, more than native-v6; k = 4 loses 27–45 in 6p one-out |
+| **Discount plus border ×1.1–1.25** (14–25 rounds, 60–90% beyond) | at 75% beyond, 14–22 rounds, ×1.15–1.25 | +8 to +23 overall, but **every point gains at 5 players and gives some back at 6** (below) |
+
+**v6's border weight is too low against v6, and raising it feeds the stall.** The border charge at 1.15 times v6's weight is +32, better in every mixture, and caps more games than native-v6 at both tables. The army discount ends the stall, and the two together keep most of the gain at 5 players.
+
+**The frontier, pairing by pairing** (each a mixture: "in" is the candidate alone, "out" native-v6 alone among candidates):
+
+| Armies past, beyond, border | Groups | Mirror capped 5p / 6p | 5p in | 5p out | 6p in | 6p out | 6p, fresh seeds only |
+|---|---|---|---|---|---|---|---|
+| **16 rounds, 75%, ×1.2** | 300 | 0/500, 1/500 | +30 ±21 | +11 ±22 | −6 ±22 | −5 ±22 | **−15 ±20** |
+| 16 rounds, 75%, ×1.25 | 120 / 300 | 0/500, 1/500 | +25 ±33 | +20 ±36 | −12 ±23 | −12 ±22 | −14 ±20 |
+| 22 rounds, 75%, ×1.15 | 120 / 300 | 2/500, 1/500 | +21 ±34 | +32 ±37 | 0 ±22 | −15 ±22 | −12 ±20 |
+| 18 rounds, 75%, ×1.2 | 120 / 300 | 1/500, 2/500 | +46 ±32 | +9 ±35 | −9 ±23 | −17 ±22 | −20 ±20 |
+| 20 rounds, 75%, ×1.15, `reprice` value | 120 / 300 | 0/500, 2/500 | +15 ±34 | +18 ±36 | −12 ±36 | −9 ±34 | −16 ±20 |
+| 18 rounds, 75%, ×1.15 | 120 | 0/500, 0/500 | +14 ±34 | +44 ±38 | +20 ±34 | −33 ±33 | |
+| 20 rounds, 75%, ×1.15 | 120 | 1/500, 2/500 | +17 ±34 | +42 ±38 | +20 ±34 | −23 ±34 | |
+| 20 rounds, 75%, ×1.2 | 120 | 0/500, 3/500 | +48 ±32 | +12 ±36 | +22 ±34 | −33 ±33 | |
+| 16 rounds, 90%, ×1.15 | 120 | 5/500, 18/500 | +9 ±34 | +64 ±39 | +39 ±33 | −27 ±34 | |
+
+The last column is the 6-player Elo from groups 121–300 alone, after the five were picked on groups 1–120, so it carries no selection: every one of them is 12 to 20 Elo a seat below native-v6 at 6 players. Over the sixteen points at 120 groups, 6p one-out averages about −22. The points that hold their own at 6 players stall there (90% beyond: 18 and 22 in 500; the border alone: a fifth of games).
+
+**The TS confirmation**, `gauntlet-cli.ts '<cand>' --base rule-v6 --field rule-v6 --players 5,6 --prefix screen-v6.1`, at normal priority beside the student-v1 holdout:
+
+| Candidate (`rule-v6.1~{"border":"sum","power":"armies","reprice":"full",...}`) | 5p one-in | 5p one-out | 6p one-in | 6p one-out |
+|---|---|---|---|---|
+| `"armyRounds":20,"armyBeyond":0.75,"borderScale":1.15` | even (1,237 games) | stopped | stopped | **worse** (1,741) |
+| `"armyRounds":18,"armyBeyond":0.75,"borderScale":1.15` | even (1,242) | stopped | stopped | **worse** (1,098) |
+| `"armyRounds":18,"armyBeyond":0.75,"borderScale":1.2`, 6p one-out alone | | | | **worse**: 75.6% [70.0, 80.4] vs par 83.3% (264) |
+| `"armyRounds":16,"armyBeyond":0.75,"borderScale":1.2` | even (1,237) | even (1,864) | undecided when stopped | **worse** (1,680) |
+
+Each "worse" fails the bar, so a gauntlet was stopped once one came in. The 264-game "worse" was replayed natively on the gauntlet's own seeds: 77.5% (TS 75.6%), so the engines agree and that early stop drew a poor sample; native's own 720 games of the same pairing gave 82.8%. All four land where the native map put the family: 6-player one-out about 20 Elo a seat below v6, which the SPRT calls "worse" more often than not.
+
+TS mirror surveys (`trace-cli --survey --mirror`, 200 games, `screen-v6.1` seeds): 18 rounds ×1.15, 0 capped at 5 and 6 players, decided games 120 and 218 turns, board armies at turn 100 241 and 327; 16 rounds ×1.2, 0 capped at both, 118 and 204 turns, 231 and 311 armies (people's games 100–250; v6's frozen table 449).
+
+**Verdict.** The stall is solved inside v6.1's design space: at 75% beyond 16 to 22 rounds, fully re-priced, the border weight raised to 1.15–1.25, no table caps more than 3 games in 500 at either size (native-v6: 2% and 20%), and decided games run about 120 turns at 5 players and 190–220 at 6. That region is at least even with v6 at 5 players: +25 to +30 a seat on the native map, each interval clear of 0, and even in both 5-player mixtures in the TS gauntlet. It is not even with v6 at 6 players: every stall-free point there is 10 to 20 Elo a seat below v6, and the one-out mixture is the weak one (five candidates let the lone v6 win more than its share). At the gauntlet's ±30 margin a true −15 is a coin flip between "even" and "worse", so no point here passes the bar reliably. The map shows no stall-free point that is even or better at 6 players in this design space: what gets it there needs a new idea, aimed at the 6-player one-out table (why a table of discounters hands the lone hoarder its extra wins), not another setting.
