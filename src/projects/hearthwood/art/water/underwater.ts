@@ -1,5 +1,5 @@
 import { Vector3 } from "three";
-import { cameraPosition, exp, float, If, max, positionWorld, select, uniform } from "three/tsl";
+import { cameraPosition, exp, float, max, positionWorld, select, uniform } from "three/tsl";
 import type { Node } from "three/webgpu";
 import type { FeatureArt } from "../feature-art";
 import { REGION_ABSORPTION, WATER_SCATTER, type Absorption } from "./absorption";
@@ -37,17 +37,15 @@ const eyeAbsorb = uniform(new Vector3(...REGION_ABSORPTION.greenwood));
 
 /** A colour drawn at this pixel, seen by an eye under the water: lit by the light come down through the water above the eye. */
 function underwater(colour: Node<"vec3">, light: Node<"vec3">): Node<"vec3"> {
-  const out = colour.toVar();
-  If(cameraPosition.y.lessThan(eyeWater), () => {
-    const ray = positionWorld.sub(cameraPosition);
-    const whole = ray.length();
-    const wet = select(positionWorld.y.lessThanEqual(eyeWater), whole, whole.mul(eyeWater.sub(cameraPosition.y)).div(max(ray.y, 1e-4)));
-    const down = exp(eyeAbsorb.add(WATER_SCATTER).mul(eyeWater.sub(cameraPosition.y)).negate());
-    const extinct = eyeAbsorb.add(WATER_SCATTER);
-    const through = exp(extinct.mul(wet).negate());
-    out.assign(colour.mul(through).add(light.mul(down).mul(float(WATER_SCATTER).div(extinct)).mul(float(1).sub(through))));
-  });
-  return out;
+  const ray = positionWorld.sub(cameraPosition);
+  const whole = ray.length();
+  const wet = select(positionWorld.y.lessThanEqual(eyeWater), whole, whole.mul(eyeWater.sub(cameraPosition.y)).div(max(ray.y, 1e-4)));
+  const down = exp(eyeAbsorb.add(WATER_SCATTER).mul(eyeWater.sub(cameraPosition.y)).negate());
+  const extinct = eyeAbsorb.add(WATER_SCATTER);
+  const through = exp(extinct.mul(wet).negate());
+  const fogged = colour.mul(through).add(light.mul(down).mul(float(WATER_SCATTER).div(extinct)).mul(float(1).sub(through)));
+  // A select rather than a branch: a stage is a plain node expression, built outside any TSL function's stack.
+  return select(cameraPosition.y.lessThan(eyeWater), fogged, colour);
 }
 
 export const UNDERWATER_ART: FeatureArt = {
