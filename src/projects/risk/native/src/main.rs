@@ -24,6 +24,7 @@ const USAGE: &str = "usage:
                                                  how often a native bot decides as the recorded seats did
   risk-native sweep --points <points.jsonl> --out <results.jsonl> [--players 5,6] [--groups A-B] [--mirror A-B]
                     [--prefix P] [--base native-v1] [--turns T] [--workers W]
+                    [--in-seeds S] [--out-seeds S]  (one-in, one-out groups seeded S-1, S-2...: a gauntlet's own)
                                                  map native-v1's rule-v6.1 settings against the base
   risk-native sweep-report <results.jsonl...> [--json <out.json>]
                                                  sum sweep results by point: cap rates, win shares, Elo";

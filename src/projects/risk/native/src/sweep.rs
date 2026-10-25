@@ -5,7 +5,8 @@
 //! lone seat rotated through every seat as the gauntlet seats them, and the mirror (the candidate
 //! in every seat), for its stall rate. Every point plays the same seeds, so points are compared on
 //! the same deals. A game is a pure function of its seed and seating, so a run is deterministic
-//! whatever the worker count, and seed ranges played in separate runs add up.
+//! whatever the worker count, and seed ranges played in separate runs add up. `--in-seeds` and
+//! `--out-seeds` name the mixtures' seeds instead, so a TypeScript gauntlet's own tables can be replayed.
 //!
 //! `sweep` writes one JSON line per point, table and seating as each finishes; `sweep-report`
 //! sums any number of those files by point and prints, per table, the mirror's cap rate and
@@ -92,6 +93,8 @@ pub fn sweep(args: &[String]) -> Result<(), String> {
     let mut mirror: Option<(usize, usize)> = None;
     let mut prefix = "sweep".to_string();
     let mut base = "native-v1".to_string();
+    let mut in_seeds: Option<String> = None;
+    let mut out_seeds: Option<String> = None;
     let mut max_turns = 600u32;
     let mut workers = std::thread::available_parallelism().map_or(1, |n| n.get());
     for pair in args.chunks(2) {
@@ -111,6 +114,8 @@ pub fn sweep(args: &[String]) -> Result<(), String> {
             "--mirror" => mirror = Some(range(value, flag)?),
             "--prefix" => prefix = value.clone(),
             "--base" => base = value.clone(),
+            "--in-seeds" => in_seeds = Some(value.clone()),
+            "--out-seeds" => out_seeds = Some(value.clone()),
             "--turns" => max_turns = value.parse().map_err(|_| format!("--turns: \"{value}\""))?,
             "--workers" => {
                 workers = value
@@ -150,11 +155,19 @@ pub fn sweep(args: &[String]) -> Result<(), String> {
                             games.push((format!("{prefix}-mirror-{p}p-{n}"), vec![true; p]))
                         }
                         Seating::In | Seating::Out => {
+                            let named = match seating {
+                                Seating::In => &in_seeds,
+                                _ => &out_seeds,
+                            };
+                            let seed = match named {
+                                Some(prefix) => format!("{prefix}-{n}"),
+                                None => format!("{prefix}-{p}p-{n}"),
+                            };
                             for lone in 0..p {
                                 let cand = (0..p)
                                     .map(|s| (s == lone) == (seating == Seating::In))
                                     .collect();
-                                games.push((format!("{prefix}-{p}p-{n}"), cand));
+                                games.push((seed.clone(), cand));
                             }
                         }
                     }
