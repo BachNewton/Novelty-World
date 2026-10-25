@@ -29,7 +29,8 @@ export const BLOOM_ART: FeatureArt = {
       build: ({ colour }) => {
         const glow = bloom(colour, STRENGTH, RADIUS, THRESHOLD).setResolutionScale(SCALE);
         glow.smoothWidth.value = SOFT;
-        return vec4(colour.rgb.add(glow.rgb), colour.a);
+        // A new chain of render targets each build: freed when the pipeline is built again.
+        return { colour: vec4(colour.rgb.add(glow.rgb), colour.a), dispose: () => glow.dispose() };
       },
     },
   ],

@@ -12,7 +12,7 @@ export const VIGNETTE_ART: FeatureArt = {
         const aspect = screenSize.x.div(screenSize.y).sqrt();
         const off = screenUV.sub(0.5).mul(vec2(aspect, float(1).div(aspect)));
         const edge = smoothstep(0.32, 0.85, off.length().mul(1.25));
-        return vec4(colour.rgb.mul(float(1).sub(edge.mul(edge).mul(0.32))), colour.a);
+        return { colour: vec4(colour.rgb.mul(float(1).sub(edge.mul(edge).mul(0.32))), colour.a) };
       },
     },
   ],

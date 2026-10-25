@@ -38,6 +38,6 @@ export function toneStep(storybook: boolean): PostStep {
   return {
     id: "tone",
     order: 0,
-    build: ({ colour }) => vec4(storybook ? storybookCurve(colour.rgb) : colour.rgb.mul(exposure).clamp(0, 1), colour.a),
+    build: ({ colour }) => ({ colour: vec4(storybook ? storybookCurve(colour.rgb) : colour.rgb.mul(exposure).clamp(0, 1), colour.a) }),
   };
 }

@@ -171,7 +171,7 @@ function setRange(target: Vector3, grade: RangeGrade): void {
 
 export const COLOUR_GRADE_ART: FeatureArt = {
   feature: "colourGrade",
-  post: [{ id: "colour-grade", order: 20, build: ({ colour }) => vec4(graded(colour.rgb), colour.a) }],
+  post: [{ id: "colour-grade", order: 20, build: ({ colour }) => ({ colour: vec4(graded(colour.rgb), colour.a) }) }],
   frame: ({ day, atmosphere }) => {
     const grade = gradeFor(seasonWeights(day.date.realDayOfYear));
     balance.value.fromArray(whiteBalance(grade.temperature, grade.tint));

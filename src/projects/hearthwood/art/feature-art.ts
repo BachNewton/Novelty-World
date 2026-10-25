@@ -120,7 +120,13 @@ export interface PostStep {
   order: number;
   /** Whether it reads the scene's normals, so the scene pass writes them. */
   normals?: boolean;
-  build: (input: PostInput) => Node<"vec4">;
+  build: (input: PostInput) => PostBuilt;
+}
+
+/** What a post step builds: the frame on, and how to free what the build made of its own (a blur's render targets), called when the pipeline is built again or goes. */
+export interface PostBuilt {
+  colour: Node<"vec4">;
+  dispose?: () => void;
 }
 
 export interface FeatureArt {

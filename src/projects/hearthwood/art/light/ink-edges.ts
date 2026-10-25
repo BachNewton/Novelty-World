@@ -48,7 +48,7 @@ export const INK_EDGES_ART: FeatureArt = {
         const deepest = max(max(behind(1, 0), behind(-1, 0)), max(behind(0, 1), behind(0, -1)));
         const edge = smoothstep(here.mul(JUMP), here.mul(JUMP * 3), deepest);
         const line = edge.mul(fade).mul(STRENGTH);
-        return vec4(mix(colour.rgb, min(colour.rgb, ink), line), colour.a);
+        return { colour: vec4(mix(colour.rgb, min(colour.rgb, ink), line), colour.a) };
       },
     },
   ],

@@ -76,6 +76,8 @@ export interface FrameOptions {
 export class FrameRenderer {
   private pipeline: RenderPipeline;
   private scenePass: PassNode | null = null;
+  /** What the steps of the pipeline now built made of their own, freed when it is built again. */
+  private stepDisposals: (() => void)[] = [];
   private dirty = true;
   private readonly unsubscribe: () => void;
   private timing: Promise<void> | null = null;
@@ -106,7 +108,7 @@ export class FrameRenderer {
     this.dirty = false;
     const steps = this.steps();
     const normals = steps.some((s) => s.normals === true);
-    this.scenePass?.dispose();
+    this.disposeBuild();
     const scenePass = pass(scene, camera, { samples: this.options.samples });
     if (normals) scenePass.setMRT(mrt({ output, normal: normalView.mul(0.5).add(0.5) }));
     this.scenePass = scenePass;
@@ -119,7 +121,11 @@ export class FrameRenderer {
       sky: frame.sky,
     };
     let colour: Node<"vec4"> = vec4(scenePass.getTextureNode("output"));
-    for (const step of steps) colour = step.build({ ...input, colour });
+    for (const step of steps) {
+      const built = step.build({ ...input, colour });
+      colour = built.colour;
+      if (built.dispose) this.stepDisposals.push(built.dispose);
+    }
     this.pipeline.outputNode = colour;
     this.pipeline.needsUpdate = true;
   }
@@ -147,9 +153,16 @@ export class FrameRenderer {
     });
   }
 
+  private disposeBuild(): void {
+    this.scenePass?.dispose();
+    this.scenePass = null;
+    for (const dispose of this.stepDisposals) dispose();
+    this.stepDisposals = [];
+  }
+
   dispose(): void {
     this.unsubscribe();
-    this.scenePass?.dispose();
+    this.disposeBuild();
     this.pipeline.dispose();
   }
 }
