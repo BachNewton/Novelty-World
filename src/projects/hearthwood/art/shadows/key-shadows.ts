@@ -24,10 +24,12 @@ import { weatherInput } from "./weather-input";
  * only a soft darkening beneath things), and lighter by moonlight.
  *
  * This lives in the frame updates of the shadows' features, run before the
- * frame is drawn: the light is found by its name, configured once, and only
- * its numbers change after. Turning a shadow feature on or off changes
+ * frame is drawn: the light is found by its name once, configured once, and
+ * only its numbers change after. Turning a shadow feature on or off changes
  * whether the light casts, which three hears as a change of its lights and
- * builds the lit materials afresh for (a switch, never a frame's work).
+ * builds the lit materials afresh for (a switch, never a frame's work); dawn,
+ * dusk and the handover only fade the shadow's intensity, and stop drawing
+ * its maps while it is nothing.
  */
 
 /** How many slices the far shadows cut the view into. */
@@ -95,6 +97,8 @@ export class KeyShadows {
   private rig: Rig | null = null;
   /** The light last seen, so switching the shadows off stops it casting though no frame update of theirs runs then. */
   private light: DirectionalLight | null = null;
+  /** The scene the light was found in. */
+  private scene: FeatureFrame["scene"] | null = null;
   /** Whether the light must stop casting for a frame: three keeps a light's shadow once built, and drops it only when it draws with the light not casting. */
   private dropShadow = false;
   /** The lens the cascades were cut for. */
@@ -161,28 +165,43 @@ export class KeyShadows {
     return this.rig;
   }
 
-  /** The frame's update: whether the key light casts, how dark, and where its near map lies. */
+  /** The key light, kept once found: looked for again only once it has left the scene, or in another scene. */
+  private find(scene: FeatureFrame["scene"]): DirectionalLight | null {
+    const kept = this.light;
+    if (kept && kept.parent !== null && this.scene === scene) return kept;
+    this.scene = scene;
+    this.light = (scene.getObjectByName(KEY_LIGHT_NAME) as DirectionalLight | undefined) ?? null;
+    return this.light;
+  }
+
+  /** The frame's update: how dark the key light's shadows fall, and where its near map lies. */
   update({ scene, renderer, camera, day, weather }: FeatureFrame): void {
-    const light = scene.getObjectByName(KEY_LIGHT_NAME) as DirectionalLight | undefined;
+    const light = this.find(scene);
     if (!light) return;
-    this.light = light;
     if (this.dropShadow) {
       this.dropShadow = false;
       light.castShadow = false;
       return;
     }
-    const { key } = day.sky;
-    const casting = this.switches.isOn("sunShadows") && (key.body === "sun" || this.switches.isOn("moonShadows"));
-    const intensity = casting ? shadowIntensity(key.body, key.direction.y, weatherInput(weather.weather).clouds) : 0;
-    // A shadow too faint to see isn't drawn at all: the maps cost their draws.
-    const casts = intensity > 0.01;
-    if (light.castShadow !== casts) light.castShadow = casts;
-    if (!casts) return;
+    // While the shadows are on the light always casts: a change of `castShadow` rebuilds every lit material and remakes the maps, so only a switch makes one.
+    if (!light.castShadow) light.castShadow = true;
     const rig = this.setUp(light, renderer);
-    light.shadow.intensity = intensity;
+    const { key } = day.sky;
+    const casting = key.body === "sun" || this.switches.isOn("moonShadows");
+    const intensity = casting ? shadowIntensity(key.body, key.direction.y, weatherInput(weather.weather).clouds) : 0;
+    // A shadow too faint to see is faded to nothing and its maps are no longer drawn (they cost their draws); the stale map is still read, at no strength.
+    const drawn = intensity > 0.01;
+    const strength = drawn ? intensity : 0;
+    light.shadow.intensity = strength;
+    light.shadow.autoUpdate = drawn;
     if (rig.node) {
-      // Each slice's map is a copy of the light's shadow made when the cascades were, so each is told how dark to fall.
-      for (const slice of rig.node.lights) if (slice.shadow) slice.shadow.intensity = intensity;
+      // Each slice's map is a copy of the light's shadow made when the cascades were, so each is told how dark to fall and whether to draw.
+      for (const slice of rig.node.lights) {
+        if (!slice.shadow) continue;
+        slice.shadow.intensity = strength;
+        slice.shadow.autoUpdate = drawn;
+      }
+      if (!drawn) return;
       const lens = "fov" in camera && "aspect" in camera ? `${String(camera.fov)}:${String(camera.aspect)}` : "";
       // Cut again only when the lens changes (the broom's wider view, a resized window): a slice's size never changes as the camera turns.
       if (rig.node.camera && lens !== this.lens) {
@@ -191,6 +210,7 @@ export class KeyShadows {
       }
       return;
     }
+    if (!drawn) return;
     // The single map: a box round the camera's ground, square to the light and moved in whole texels so its edges never crawl.
     snapNear(light, camera.position, this.quality.shadowReachNear, this.quality.shadowMap);
   }
