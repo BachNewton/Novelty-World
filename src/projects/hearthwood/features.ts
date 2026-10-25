@@ -9,8 +9,8 @@ import { WATER_FEATURES } from "./features/water";
  * Whether each part of the look is drawn: one switch per feature, on unless
  * switched off. Quality (`quality.ts`) is how much of a thing is drawn;
  * features are whether it is drawn at all, and a feature that is off costs
- * nothing: its shader code is compiled out by its define, and its passes are
- * neither run nor allocated (see `art/shading.ts` and `art/passes.ts`).
+ * nothing: it adds no node to any material, no step to the frame's pipeline
+ * and no per-frame work (see `art/materials.ts` and `art/frame.ts`).
  *
  * Each group lists its own features in `features/<group>.ts`. Nothing is
  * kept between visits: every visit starts with every feature on, and
@@ -25,14 +25,6 @@ export const FEATURES = [...WATER_FEATURES, ...SKY_AND_LIGHT_FEATURES, ...SHADOW
 export type FeatureId = (typeof FEATURES)[number]["id"];
 
 export type FeatureToggles = Readonly<Record<FeatureId, boolean>>;
-
-const ID = /^[a-z][a-zA-Z0-9]*$/;
-
-/** The define a feature's shader code is compiled under: `godRays` is `HW_GOD_RAYS`. */
-export function featureDefine(id: string): string {
-  if (!ID.test(id)) throw new Error(`A feature's id is camelCase, not "${id}"`);
-  return `HW_${id.replace(/[A-Z0-9]+/g, (part) => `_${part}`).toUpperCase()}`;
-}
 
 /** Every feature on. */
 export function allOn(features: readonly FeatureInfo[] = FEATURES): FeatureToggles {

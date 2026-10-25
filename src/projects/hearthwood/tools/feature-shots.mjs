@@ -1,8 +1,8 @@
 // Each of Hearthwood's features (see ../features.ts) on and off, for judging what it adds without a browser
 // open, and what it costs: camp from behind Elliott at noon, golden hour, blue hour and night, once with every
 // feature on, once with all off, and once with each feature off alone; the ~ panel's Features section; and the
-// GPU time of each part of the frame (the scene's draw and every pass) with everything on and with each
-// feature off, so a feature that is only GLSL in the shared materials shows its cost as the scene's saving.
+// GPU time of the frame (everything drawn, everything computed) with everything on and with each feature off,
+// so each feature's cost shows as what the frame saves without it.
 //
 // Drives the world's probe (window.__hearthwoodWorld) over Playwright and waits on its events, never a sleep.
 //
@@ -37,7 +37,7 @@ page.on("pageerror", async (error) => {
   await browser.close();
   process.exit(1);
 });
-await page.goto(`${BASE}?date=mabon`, { waitUntil: "load" });
+await page.goto(`${BASE}?date=mabon&costs`, { waitUntil: "load" });
 await page.addStyleTag({
   content: "nextjs-portal{display:none!important} html:not([data-shot-chrome]) [data-testid=hearthwood-world] > :not(div:first-child):not([data-testid=hearthwood-debug-panel]){visibility:hidden!important}",
 });

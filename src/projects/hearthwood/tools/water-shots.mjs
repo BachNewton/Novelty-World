@@ -10,7 +10,7 @@
 // a Chromium with WebGPU (see browser.mjs).
 // Usage:  node src/projects/hearthwood/tools/water-shots.mjs [label] [--only=<view,...>] [--hours=<moment,...>] [--each] [--costs] [--no-shots]
 // Views: shore, shallows, under, river, winter, far, and glint (across the lake into the low sun and the moon). --each adds the shore with each water feature off alone;
-// --costs prints the GPU time of each part of the frame from the shore at golden hour, with every feature on
+// --costs prints the GPU time of the frame from the shore at golden hour, with every feature on
 // and with each water feature off, the median of a stretch of frames.
 // Writes to src/projects/hearthwood/.shots/<label>/ (gitignored). HEARTHWOOD_URL overrides the page's address.
 
@@ -45,9 +45,9 @@ async function fail(message) {
 }
 page.on("pageerror", (error) => fail(`The world threw:\n${error.stack ?? error.message}`));
 page.on("console", (message) => {
-  if (message.type() === "error" && /shader|program|glsl/i.test(message.text())) void fail(`A shader failed:\n${message.text()}`);
+  if (message.type() === "error" && /shader|pipeline|wgsl/i.test(message.text())) void fail(`A shader failed:\n${message.text()}`);
 });
-await page.goto(`${BASE}?date=mabon`, { waitUntil: "load" });
+await page.goto(`${BASE}?date=mabon${COSTS ? "&costs" : ""}`, { waitUntil: "load" });
 await page.addStyleTag({ content: "nextjs-portal{display:none!important} [data-testid=hearthwood-world] > :not(div:first-child){visibility:hidden!important}" });
 await page.waitForFunction(() => window.__hearthwoodWorld?.isReady() === true, null, { timeout: 300000 });
 

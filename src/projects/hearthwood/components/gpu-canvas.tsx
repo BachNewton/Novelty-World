@@ -17,9 +17,9 @@ extend(THREE as unknown as Parameters<typeof extend>[0]);
 
 type CanvasProps = ComponentProps<typeof Canvas>;
 
-/** Asks for the GPU timer only where the frame's costs are read (the ~ panel, the shot tools), since timing has a cost of its own. */
+/** Asks for the GPU timer only with `?costs` (for the ~ panel and the shot tools), since timing has a cost of its own. */
 function wantsTimestamps(): boolean {
-  return new URLSearchParams(window.location.search).has("costs") || window.location.search.includes("debug");
+  return new URLSearchParams(window.location.search).has("costs");
 }
 
 export async function makeRenderer(canvas: HTMLCanvasElement): Promise<THREE.WebGPURenderer> {

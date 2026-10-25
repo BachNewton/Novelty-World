@@ -14,7 +14,7 @@ export const FEATURE_GROUPS = [
 
 export type FeatureGroup = (typeof FEATURE_GROUPS)[number]["id"];
 
-/** One part of the look that can be switched off: `id` is camelCase, and names it in the URL, in storage and in its shader define. */
+/** One part of the look that can be switched off: `id` is camelCase, and names it in the URL and in the ~ panel. */
 export interface FeatureInfo<Id extends string = string> {
   id: Id;
   name: string;

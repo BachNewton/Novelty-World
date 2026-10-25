@@ -1,6 +1,6 @@
 // Hearthwood's shadows and foliage (see ../art/shadows and ../art/foliage), for judging them without a browser open:
 // camp at noon, golden hour, blue hour and by moonlight; shadows at Elliott's feet up close; a wood with the sun
-// behind it (the light through leaves); the land from a ridge at golden hour (the far shadows and the far slopes);
+// behind it (the light through leaves); the land from a ridge at golden hour (the far shadows and the wrap light on far slopes);
 // the same under cloud; and Elliott standing in a meadow (the plants parting). `--features=` sets the switches for
 // every shot, as `?features=` does.
 //

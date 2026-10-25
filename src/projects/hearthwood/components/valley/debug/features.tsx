@@ -80,7 +80,7 @@ function Features({ context: { costs } }: { context: DebugContext }) {
             </span>
           </>
         ) : (
-          <span>GPU timing is not available in this browser</span>
+          <span>GPU timing is off: open the page with ?costs to time the frame</span>
         )}
       </div>
     </>

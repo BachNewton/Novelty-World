@@ -1,14 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { allOn, applyFeatureParam, FEATURE_GROUPS, featureDefine, FEATURES, FeatureSwitches, type FeatureToggles } from "./features";
+import { allOn, applyFeatureParam, FEATURE_GROUPS, FEATURES, FeatureSwitches, type FeatureToggles } from "./features";
 
 const BASE = allOn();
 const ids = FEATURES.map((f) => f.id);
 const [first, second] = ids;
 
 describe("the features", () => {
-  it("each have their own camelCase id, define and a group the panel shows", () => {
+  it("each have their own camelCase id and a group the panel shows", () => {
     expect(new Set(ids).size).toBe(ids.length);
-    expect(new Set(ids.map(featureDefine)).size).toBe(ids.length);
     for (const f of FEATURES) {
       expect(f.id).toMatch(/^[a-z][a-zA-Z0-9]*$/);
       expect(FEATURE_GROUPS.map((g) => g.id)).toContain(f.group);
@@ -19,19 +18,6 @@ describe("the features", () => {
 
   it("are all on unless switched off", () => {
     expect(Object.values(BASE).every(Boolean)).toBe(true);
-  });
-});
-
-describe("featureDefine", () => {
-  it("names a feature's define in upper snake case", () => {
-    expect(featureDefine("ssr")).toBe("HW_SSR");
-    expect(featureDefine("godRays")).toBe("HW_GOD_RAYS");
-    expect(featureDefine("cloudShadows2")).toBe("HW_CLOUD_SHADOWS_2");
-  });
-
-  it("refuses an id that isn't camelCase", () => {
-    expect(() => featureDefine("god-rays")).toThrow();
-    expect(() => featureDefine("GodRays")).toThrow();
   });
 });
 
