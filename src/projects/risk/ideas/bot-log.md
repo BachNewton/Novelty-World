@@ -1100,3 +1100,16 @@ Each "worse" fails the bar, so a gauntlet was stopped once one came in. The 264-
 TS mirror surveys (`trace-cli --survey --mirror`, 200 games, `screen-v6.1` seeds): 18 rounds ×1.15, 0 capped at 5 and 6 players, decided games 120 and 218 turns, board armies at turn 100 241 and 327; 16 rounds ×1.2, 0 capped at both, 118 and 204 turns, 231 and 311 armies (people's games 100–250; v6's frozen table 449).
 
 **Verdict.** The stall is solved inside v6.1's design space: at 75% beyond 16 to 22 rounds, fully re-priced, the border weight raised to 1.15–1.25, no table caps more than 3 games in 500 at either size (native-v6: 2% and 20%), and decided games run about 120 turns at 5 players and 190–220 at 6. That region is at least even with v6 at 5 players: +25 to +30 a seat on the native map, each interval clear of 0, and even in both 5-player mixtures in the TS gauntlet. It is not even with v6 at 6 players: every stall-free point there is 10 to 20 Elo a seat below v6, and the one-out mixture is the weak one (five candidates let the lone v6 win more than its share). At the gauntlet's ±30 margin a true −15 is a coin flip between "even" and "worse", so no point here passes the bar reliably. The map shows no stall-free point that is even or better at 6 players in this design space: what gets it there needs a new idea, aimed at the 6-player one-out table (why a table of discounters hands the lone hoarder its extra wins), not another setting.
+
+## student-v1's holdout suite: better than v6 at 3 to 5 players, even at 6 (2026-10-25)
+
+On the laptop under Node 24, from 5a9c456f, seeds `holdout`: `risk:gauntlet -- student-v1~{"weights":"e6-256-64"} --base rule-v6 --field rule-v6,gd-defensive,gd-stacker,greedy --prefix holdout`. 13,506 games in 15 hours, shared with other jobs.
+
+| Table | One student among v6s | Students against one v6 |
+|---|---|---|
+| 3 players | **better**, 42.2% [36.4, 48.3] vs 33.3% | **better**, 71.7% [67.8, 75.3] vs 66.7% |
+| 4 players | **better**, 36.2% [29.6, 43.3] vs 25% | **better**, 78.5% [75.7, 81.1] vs 75% |
+| 5 players | **better**, 26.3% [22.1, 31.0] vs 20% | **better**, 82.3% [80.5, 84.1] vs 80% |
+| 6 players | even, 16.5% [14.9, 18.3] vs 16.7% (capped 16.7%) | even, 83.2% [81.3, 84.9] vs 83.3% (capped 15.5%) |
+
+Better than gd-defensive, gd-stacker and greedy at every table. Win Elo (v6 = 0): student +20.5, finishing order +1.7. The gauntlet's gate rejects it (it doesn't improve on v6 at every table), and it isn't a seating candidate anyway: a student is seated only when it comes close to the seated champion (`roadmap.md`), and v7 is about 115 above v6. What it settles: distillation carries a real edge to unseen seeds at 3 to 5 players, so the bigger recording and cleaner labels are worth pursuing. At 6 players the student plays v6's stall (a sixth of games capped) and its edge vanishes.
