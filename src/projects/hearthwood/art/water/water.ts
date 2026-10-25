@@ -209,6 +209,22 @@ function fold<T>(start: T, steps: readonly Step<T>[], context: StageContext): T 
   return steps.reduce((value, step) => step(value, context), start);
 }
 
+const partIds = new Map<Stages | WaterStep, number>();
+
+function partId(part: Stages | WaterStep): number {
+  let id = partIds.get(part);
+  if (id === undefined) {
+    id = partIds.size + 1;
+    partIds.set(part, id);
+  }
+  return id;
+}
+
+/** A name for the stages and water steps built in, the same for the same ones in the same order, as the shared materials have. */
+function waterKeyOf(stages: readonly Stages[], steps: readonly WaterStep[], replacedAir: boolean): string {
+  return `${replacedAir ? "a" : ""}${stages.map(partId).join(",")}|${steps.map(partId).join(",")}`;
+}
+
 /** The water's own material: every lake, river, fall and pool, near and far, is one of these, all one graph. */
 export class WaterMaterial extends NodeMaterial {
   readonly isWaterMaterial = true;
@@ -216,6 +232,8 @@ export class WaterMaterial extends NodeMaterial {
   private steps: WaterStep[] = [];
   private built = false;
   private replaced = false;
+  /** Which stages and steps are built in: the surface and light are folded in as three builds the material, not held as its nodes, so three's cache key has to be told they changed. */
+  private stagesKey = "";
   private readonly context: StageContext;
 
   constructor(
@@ -254,11 +272,16 @@ export class WaterMaterial extends NodeMaterial {
     this.stages = stages;
     this.steps = steps;
     this.replaced = replaced;
+    this.stagesKey = waterKeyOf(stages, steps, replaced);
     // The water's meshes stand at the world's origin, so their own space is the world's: lowered by the curve of the earth after any feature moves them.
     this.positionNode = earthCurve(fold(positionLocal, this.stagesOf("position"), this.context));
     // The flat surface's normal, for anything of three's that asks (the shadow's bias): the water's own is worked out in its light.
     this.normalNode = cameraViewMatrix.mul(vec4(0, 1, 0, 0)).xyz;
     this.needsUpdate = true;
+  }
+
+  override customProgramCacheKey(): string {
+    return `${super.customProgramCacheKey()}:${this.stagesKey}`;
   }
 
   /** The surface, built up by the plain water and then each water feature on, in order. */
