@@ -147,7 +147,7 @@ Training time is GPU wall-clock of the trainer. A milestone is checked on the GP
 |---|---|---|
 | **M1** | beats greedy at 3 players: GPU win rate among decisive games ≥ 0.40 (par 0.33) on 2,048 fixed deals, cap rate under 10%; then `risk:gauntlet` better than greedy at 3 players one-in | 48 hours of training |
 | **M2** | above par against the GD personas at 5 players with cap rate under 10%: `risk:gauntlet` better than each of gd-defensive and gd-stacker at 5 players one-in, and not worse one-out | two weeks of training |
-| **M3** | even or better than rule-v6 at 5 players, one-in and one-out, by the gauntlet's SPRT (30 Elo a seat), train seeds then holdout | |
+| **M3** | even or better than rule-v6 at 5 players, one-in and one-out, by the gauntlet's SPRT (30 Elo a seat), train seeds then holdout | no clock: it fails only once every cause is ruled out (`roadmap.md`, Self-play) |
 | **M4** | the same against rule-v7 | |
 
 ### Phase 3 so far
