@@ -14,7 +14,6 @@ import type { Move } from "../contract";
 import { currentElo, useEloLedger } from "./player-elo";
 import { seatElo } from "./rating";
 import { BotBadge, BotPicker } from "./bot-picker";
-import { seatable } from "./seat-bots";
 import type { Response } from "./protocol";
 import { browserIo, browserLobbyIo } from "./client";
 import type { OpenAction, TableSummary } from "./lobby";
@@ -243,7 +242,7 @@ function Gathering({ snapshot, table, store, onLeave }: { snapshot: OnlineSnapsh
                 <>
                   <Bot aria-label="Bot" size={18} className="shrink-0" />
                   <span className="flex min-w-0 flex-1">
-                    <BotBadge bot={seatable(controller.bot)} />
+                    <BotBadge bot={controller.bot} />
                   </span>
                 </>
               )}

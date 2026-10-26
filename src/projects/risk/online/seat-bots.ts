@@ -1,7 +1,7 @@
 import RATINGS from "../bots/ratings.json";
-import { RETIRED_BOTS, SEAT_BOTS, type BotId, type RetiredBotId, type RowBotId, type SeatBot } from "./seat-roster";
+import { SEAT_BOTS, type BotId, type SeatBot } from "./seat-roster";
 
-export { RETIRED_BOTS, SEAT_BOTS, type BotId, type RetiredBotId, type RowBotId, type SeatBot } from "./seat-roster";
+export { SEAT_BOTS, type BotId, type SeatBot } from "./seat-roster";
 
 /** The ranks a seated bot is named by, weakest first. A bot takes the rung its measured
  *  strength earns, so the names climb with strength; the rungs above the strongest bot wait
@@ -39,27 +39,18 @@ export function isBotId(id: string): id is BotId {
   return Object.hasOwn(SEAT_BOTS, id);
 }
 
-export function isRetired(id: string): id is RetiredBotId {
-  return Object.hasOwn(RETIRED_BOTS, id);
-}
-
 /** The seatable bots, weakest first, by measured Elo. */
 export const BOT_IDS: readonly BotId[] = (Object.keys(SEAT_BOTS) as BotId[]).sort((a, b) => eloOf(a) - eloOf(b) || a.localeCompare(b));
 
 /** A new bot seat's bot: the strongest. */
 export const DEFAULT_BOT: BotId = BOT_IDS[BOT_IDS.length - 1];
 
-/** A row's seat's bot as one a table can seat. A retired bot is in no game still to be played
- *  (its games in progress were deleted when it retired), and a row naming a bot that is neither
- *  fails loudly: playing or showing another bot in its place would change the game behind its
- *  players' backs. */
-export function seatable(id: RowBotId): BotId {
-  if (!isBotId(id)) throw new Error(`Risk has no seatable bot "${String(id)}"${isRetired(id) ? ": it is retired" : ""} (seatable: ${BOT_IDS.join(", ")})`);
-  return id;
+/** The bot a row's seat names. A row naming a bot no longer seated fails loudly: playing or
+ *  showing another bot in its place would change the game behind its players' backs. */
+export function seatBot(id: BotId): SeatBot {
+  if (!isBotId(id)) throw new Error(`Risk has no seatable bot "${String(id)}" (seatable: ${BOT_IDS.join(", ")})`);
+  return SEAT_BOTS[id];
 }
-
-/** The bot that plays a row's seat. */
-export const seatBot = (id: RowBotId): SeatBot => SEAT_BOTS[seatable(id)];
 
 /** How strong a bot is among those a table can seat: 1 for the weakest, up to `BOT_IDS.length`. */
 export function strength(id: BotId): number {
@@ -72,21 +63,18 @@ export function rankOf(id: BotId): Rank {
   return RANKS[strength(id) - 1];
 }
 
-/** Its measured Elo, or a retired bot's last. A seatable bot without one fails loudly: its rank
- *  would be a guess. */
-export function eloOf(id: RowBotId): number {
-  if (isRetired(id)) return RETIRED_BOTS[id].elo;
-  const elo = ELO[seatable(id)];
+/** Its measured Elo. A seatable bot without one fails loudly: its rank would be a guess. */
+export function eloOf(id: BotId): number {
+  const elo = ELO[id];
   if (elo === undefined) throw new Error(`Risk's seatable bot "${id}" has no measured Elo: run risk:ratings -- --seatable`);
   return elo;
 }
 
 /** "Rule v1": the name and version together. */
-export function fullName(id: RowBotId): string {
-  const { name, version } = isRetired(id) ? RETIRED_BOTS[id] : seatBot(id);
+export function fullName(id: BotId): string {
+  const { name, version } = seatBot(id);
   return `${name} ${version}`;
 }
 
-/** The name players see for a bot seat: its rank and name, "Sergeant · Rule v1", or "Retired ·
- *  Rule v6" for a bot no table seats any more, which holds no rank. */
-export const botName = (id: RowBotId) => `${isRetired(id) ? "Retired" : rankOf(id)} · ${fullName(id)}`;
+/** The name players see for a bot seat: its rank and name, "Sergeant · Rule v1". */
+export const botName = (id: BotId) => `${rankOf(id)} · ${fullName(id)}`;

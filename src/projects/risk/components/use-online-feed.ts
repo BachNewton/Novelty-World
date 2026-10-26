@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import type { Move } from "../contract";
-import { fullName, isRetired, rankOf } from "../online/seat-bots";
+import { fullName, rankOf } from "../online/seat-bots";
 import { settleGame, useEloLedger } from "../online/player-elo";
 import { outcomeOf, seatElo } from "../online/rating";
 import type { OnlineSnapshot } from "../online/store";
@@ -18,7 +18,7 @@ export function useOnlineFeed(snapshot: OnlineSnapshot, act: (move: Move) => voi
   const { id, view, options, events, problem, table, seat } = snapshot;
   const seats = table?.seats;
   const players = useMemo(
-    () => (seats ?? []).map((controller) => (controller.kind === "human" ? { name: controller.profile.name } : isRetired(controller.bot) ? { name: fullName(controller.bot) } : { name: fullName(controller.bot), rank: rankOf(controller.bot) })),
+    () => (seats ?? []).map((controller) => (controller.kind === "human" ? { name: controller.profile.name } : { name: fullName(controller.bot), rank: rankOf(controller.bot) })),
     [seats],
   );
 

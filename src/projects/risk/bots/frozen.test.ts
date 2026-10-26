@@ -2,13 +2,13 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { keptRecording, replayMoves, type Recording } from "../eval/replay";
-import { RETIRED_BOTS, SEAT_BOTS, type RowBotId } from "../online/seat-roster";
+import { SEAT_BOTS, type BotId } from "../online/seat-roster";
 import { riskBot } from ".";
 
 // A seated bot is frozen: its Elo was measured on exactly these moves, and the ratings
 // cache keeps its games. So every seatable bot's moves over a few fixed games are pinned
 // by a fingerprint, and work on its speed (a cache, a faster loop) must leave them
-// bit-identical. A retired bot stays pinned: its finished games are still replayed and reviewed. A new seatable bot's fingerprint is written on its first run; a changed
+// bit-identical. A new seatable bot's fingerprint is written on its first run; a changed
 // one fails here, and is a new version, not an edit of a seated one. A newly seated bot's games
 // are played and kept when the tests are collected, once.
 //
@@ -41,7 +41,7 @@ function fingerprint(seed: string, players: number, recording: Recording): strin
 }
 
 describe("seated bots are frozen", () => {
-  for (const bot of [...Object.keys(SEAT_BOTS), ...Object.keys(RETIRED_BOTS)] as RowBotId[]) {
+  for (const bot of Object.keys(SEAT_BOTS) as BotId[]) {
     for (const { seed, seats: seatsOf } of TABLES) {
       const seats = seatsOf(bot);
       const kept = keptRecording(join(FIXTURES, `${bot}.${seed}.json`), seed, () => seats.map(riskBot), MAX_TURNS);
