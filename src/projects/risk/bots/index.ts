@@ -121,10 +121,8 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
     switches: { ...V6_PARAMS.fixes },
     build: (prefs, engine, switches) => ruleV6({ ...V6_PARAMS, prefs, engine, fixes: { ...V6_PARAMS.fixes, ...switches } }),
   },
-  // v6.1's candidates (`ideas/rule-bot-v6.1.md`): `rule-v6.1~{"border":"mean","borderWeight":0.4}`,
-  // `rule-v6.1~{"power":"armies","armyRounds":4,"armyBeyond":0.5}`, `rule-v6.1~{"border":"sum","attrition":6}`,
-  // `rule-v6.1~{"border":"sum","power":"armies","reprice":"full","minPlayers":5}`.
-  // "sum", "face" and attrition 0 play exactly v6's moves.
+  // Plain `rule-v6.1` is the screen's pick (`ideas/rule-bot-v6.1.md`); a label moves settings from it
+  // (`rule-v6.1~{"rivalBeyond":1.5}`). "sum", "face", attrition 0 and borderScale 1 play exactly v6's moves.
   "rule-v6.1": {
     prefs: V6_1_PARAMS.prefs,
     engine: V6_1_PARAMS.engine,

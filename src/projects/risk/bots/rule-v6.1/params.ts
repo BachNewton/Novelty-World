@@ -64,20 +64,21 @@ export interface Params extends V6Params {
   attritionAlive: number;
 }
 
-/** v6.1: v6 with the border loss of the single worst opponent. Provisional: the screen in
- *  `ideas/rule-bot-v6.1.md` picks the candidate `V6_1_PARAMS` is set to. */
+/** v6.1: v6 at 5 and 6 players with hoarded armies discounted, power re-priced throughout, the
+ *  border charged a fifth heavier and a rival's hoard priced above my own: the screen's pick in
+ *  `ideas/rule-bot-v6.1.md`. */
 export const V6_1_PARAMS: Params = {
   ...V6_PARAMS,
-  border: "max",
-  power: "face",
-  armyRounds: 6,
-  armyBeyond: 0.25,
+  border: "sum",
+  power: "armies",
+  armyRounds: 16,
+  armyBeyond: 0.75,
   attrition: 0,
-  borderScale: 1,
-  reprice: "value",
-  rivalBeyond: -1,
+  borderScale: 1.2,
+  reprice: "full",
+  rivalBeyond: 1.25,
   threatScale: 1,
-  minPlayers: 0,
+  minPlayers: 5,
   minAlive: 0,
   attritionAlive: 0,
 };

@@ -21,13 +21,31 @@ import { attritionScale, pricedArmies, repricedPower, scorerFor, threatFor, turn
 // v6.1 is v6 with its board scored another way (`ideas/rule-bot-v6.1.md`): with no setting moved
 // it must play v6's moves exactly, and each setting must compute what it says.
 
-const sum = riskBot('rule-v6.1~{"border":"sum"}');
-const max = riskBot('rule-v6.1~{"border":"max"}');
-const armies = riskBot('rule-v6.1~{"border":"sum","power":"armies"}');
-const attrition = riskBot('rule-v6.1~{"border":"sum","attrition":6}');
-const full = riskBot('rule-v6.1~{"border":"sum","power":"armies","reprice":"full"}');
-const combined = riskBot('rule-v6.1~{"border":"sum","power":"armies","reprice":"full","armyRounds":12,"armyBeyond":0.75,"attrition":6,"attritionAlive":6,"minPlayers":5}');
-const sixOnly = riskBot('rule-v6.1~{"border":"sum","power":"armies","reprice":"full","minPlayers":6}');
+/** Every v6.1 setting off, so the tests move one at a time from v6 rather than from the default. */
+const NOTHING_MOVED = {
+  border: "sum",
+  power: "face",
+  reprice: "value",
+  armyRounds: 6,
+  armyBeyond: 0.25,
+  attrition: 0,
+  borderScale: 1,
+  rivalBeyond: -1,
+  threatScale: 1,
+  minPlayers: 0,
+  minAlive: 0,
+  attritionAlive: 0,
+} satisfies Partial<Params>;
+const OFF: Params = { ...V6_1_PARAMS, ...NOTHING_MOVED };
+const moved = (settings: Partial<Params>): Bot => riskBot(`rule-v6.1~${JSON.stringify({ ...NOTHING_MOVED, ...settings })}`);
+
+const sum = moved({});
+const max = moved({ border: "max" });
+const armies = moved({ power: "armies" });
+const attrition = moved({ attrition: 6 });
+const full = moved({ power: "armies", reprice: "full" });
+const combined = moved({ power: "armies", reprice: "full", armyRounds: 12, armyBeyond: 0.75, attrition: 6, attritionAlive: 6, minPlayers: 5 });
+const sixOnly = moved({ power: "armies", reprice: "full", minPlayers: 6 });
 
 /** v6's own frozen games (3 seats of v6; v6 beside greedy at 5), and a 6-player game of v6 cut at
  *  60 turns, kept beside this test. */
@@ -51,7 +69,7 @@ function askAlong(game: (typeof GAMES)[number], bots: readonly Bot[], check: (mo
   });
 }
 
-describe("rule-v6.1 at border \"sum\" is v6", () => {
+describe("rule-v6.1 with nothing moved is v6", () => {
   for (const game of GAMES) {
     it(`makes v6's moves (${game.name})`, () => {
       askAlong(game, [ruleV6Bot, sum], ([v6, v61], decision) => expect(v61, `decision ${decision.toString()}`).toEqual(v6));
@@ -62,6 +80,10 @@ describe("rule-v6.1 at border \"sum\" is v6", () => {
     for (const game of GAMES.slice(0, 2)) {
       askAlong(game, [ruleV6Bot, sixOnly], ([v6, v61], decision) => expect(v61, `${game.name}, decision ${decision.toString()}`).toEqual(v6), 15);
     }
+  });
+
+  it("is v6 at its default below 5 players (3 players)", () => {
+    askAlong(GAMES[0], [ruleV6Bot, ruleV6_1Bot], ([v6, v61], decision) => expect(v61, `decision ${decision.toString()}`).toEqual(v6), 15);
   });
 
   it("moves away from v6 at border \"max\" on the 6-player game", () => {
@@ -128,14 +150,14 @@ describe("rule-v6.1's border modes", () => {
   it("scores v6's value with only the border charge swapped", () => {
     const bd = breakdown(b, 0, V6_PARAMS);
     const w = V6_PARAMS.prefs.borderWeight;
-    expect(scorerFor(V6_PARAMS, { ...V6_1_PARAMS, border: "max" })(b, 0, bd)).toBeCloseTo(bd.value + (w * (borderLoss - Math.max(loss(1), loss(2)))) / bd.total, 12);
-    expect(scorerFor(V6_PARAMS, { ...V6_1_PARAMS, border: "sum" })(b, 0, bd)).toBe(bd.value);
+    expect(scorerFor(V6_PARAMS, { ...OFF, border: "max" })(b, 0, bd)).toBeCloseTo(bd.value + (w * (borderLoss - Math.max(loss(1), loss(2)))) / bd.total, 12);
+    expect(scorerFor(V6_PARAMS, OFF)(b, 0, bd)).toBe(bd.value);
   });
 
   it("scales the border charge by borderScale", () => {
     const bd = breakdown(b, 0, V6_PARAMS);
     const w = V6_PARAMS.prefs.borderWeight;
-    expect(scorerFor(V6_PARAMS, { ...V6_1_PARAMS, border: "sum", borderScale: 1.5 })(b, 0, bd)).toBeCloseTo(bd.value - (0.5 * w * borderLoss) / bd.total, 12);
+    expect(scorerFor(V6_PARAMS, { ...OFF, borderScale: 1.5 })(b, 0, bd)).toBeCloseTo(bd.value - (0.5 * w * borderLoss) / bd.total, 12);
   });
 });
 
@@ -146,7 +168,7 @@ describe("rule-v6.1's army discount and attrition", () => {
   const hoard = position({ players: 4, board: { ...TABLE, "central-america": [1, 200] } });
   const b = fromView(referenceEngine.view(position({ players: 4, board: TABLE }), 0));
   const h = fromView(referenceEngine.view(hoard, 0));
-  const settings = (moved: Partial<Params>): Params => ({ ...V6_1_PARAMS, border: "sum", ...moved });
+  const settings = (moved: Partial<Params>): Params => ({ ...OFF, ...moved });
 
   it("counts armies fully up to the rounds of income and at the fraction beyond", () => {
     expect(pricedArmies(30, 5, 6, 0.25)).toBe(30);
@@ -195,7 +217,7 @@ describe("rule-v6.1's full re-pricing", () => {
   const h = fromView(referenceEngine.view(position({ players: 4, board: { ...TABLE, "north-africa": [2, 200] } }), 0));
   const alive = [0, 1, 2, 3];
   const record = { taken: [[0, 0, 0, 0], [2, 0, 1, 0.5], [1.5, 1, 0, 0], [0, 0, 0, 0]] };
-  const priced = (moved: Partial<Params>): Params => ({ ...V6_1_PARAMS, border: "sum", power: "armies", armyRounds: 4, armyBeyond: 0.25, ...moved });
+  const priced = (moved: Partial<Params>): Params => ({ ...OFF, power: "armies", armyRounds: 4, armyBeyond: 0.25, ...moved });
   const lossOf = (turns: readonly OpponentTurn[]) => borderOf(turns, "sum");
   const turnOf = (turns: readonly OpponentTurn[], seat: Seat) => turns.find((t) => t.seat === seat) as OpponentTurn;
   const beliefs = V6_PARAMS.opponents.beliefs;
@@ -292,7 +314,7 @@ describe("rule-v6.1's full re-pricing", () => {
 });
 
 describe("rule-v6.1's table-size gates", () => {
-  const table = (moved: Partial<Params>): Params => ({ ...V6_1_PARAMS, border: "sum", power: "armies", ...moved });
+  const table = (moved: Partial<Params>): Params => ({ ...OFF, power: "armies", ...moved });
 
   it("switches every change off below the seats the table started with or the seats alive", () => {
     expect(inEffect(table({ minPlayers: 6 }), 5, 5)).toBeNull();
@@ -309,20 +331,20 @@ describe("rule-v6.1's table-size gates", () => {
   });
 
   it("is v6's value where nothing is moved", () => {
-    expect(inEffect({ ...V6_1_PARAMS, border: "sum" }, 6, 6)).toBeNull();
+    expect(inEffect(OFF, 6, 6)).toBeNull();
   });
 });
 
 describe("rule-v6.1 is deterministic", () => {
   const cases: readonly [string, Bot, Bot][] = [
     ["its default", ruleV6_1Bot, ruleBot(V6_1_PARAMS)],
-    ["the army discount", armies, ruleBot({ ...V6_1_PARAMS, border: "sum", power: "armies" })],
-    ["attrition", attrition, ruleBot({ ...V6_1_PARAMS, border: "sum", attrition: 6 })],
-    ["full re-pricing", full, ruleBot({ ...V6_1_PARAMS, border: "sum", power: "armies", reprice: "full" })],
+    ["the army discount", armies, ruleBot({ ...OFF, power: "armies" })],
+    ["attrition", attrition, ruleBot({ ...OFF, attrition: 6 })],
+    ["full re-pricing", full, ruleBot({ ...OFF, power: "armies", reprice: "full" })],
     [
       "the combined candidate",
       combined,
-      ruleBot({ ...V6_1_PARAMS, border: "sum", power: "armies", reprice: "full", armyRounds: 12, armyBeyond: 0.75, attrition: 6, attritionAlive: 6, minPlayers: 5 }),
+      ruleBot({ ...OFF, power: "armies", reprice: "full", armyRounds: 12, armyBeyond: 0.75, attrition: 6, attritionAlive: 6, minPlayers: 5 }),
     ],
   ];
   for (const [name, bot, fresh] of cases) {
