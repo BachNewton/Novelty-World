@@ -2,17 +2,17 @@
 
 A map across the lines of bot work, for picking the next step. It holds no measurements of its own: each line's doc and `bot-log.md` have the numbers, and this says what they add up to. The goal throughout is a bot stronger than the seated rule-v6 that players can feel, and fast enough to simulate and train with.
 
-## rule-v7: the strongest bot, to be rebuilt on v6.1
+## rule-v7.1: v7's search on v6.1
 
-On the ladder over every seatable bot, v7 at 8 replies is about 115 win Elo above v6 (`bot-log.md`, "v7's ladder"), its train-seed gauntlets beat every bot at every table size, and its holdout gauntlet was better in every pairing. It is not seated: tables of v7s cap often at 6 players, because v7 inherits v6's stall, so the compute goes to fixing the stall first and v7 is rebuilt on the fix rather than seated with it. Branch `claude/seat-rule-v7` keeps the seating work that carries over (the frozen test split for a searching bot into a fast fingerprint check and a slow re-ask).
+v7 at 8 replies is about 115 win Elo above v6 on the ladder and beat every bot at every table on train and holdout seeds, but tables of v7s cap about half their 6-player games, the stall it inherits from v6. v7.1 (`rule-bot-v7.1.md`) is the same search on v6.1, the stall-free planner: v6.1's plans, v6.1 in the replies, and the standing on v6.1's priced armies. Branch `claude/seat-rule-v7` keeps the seating work that carries over (the frozen test split for a searching bot).
 
-**Next:** once v6.1 is seated, v7 as a new version on it (`rule-bot-v6.1.md`, the bar's last paragraph): its plans from v6.1's planner, its replies seat v6.1, its 6-player cap rate measured first, then its own suite and bar.
+**Next:** its suite against v6 and its stall mirrors (`rule-bot-v7.1.md`, "Measuring it"). If it clears its bar it is seated beside v6, a new version: the search's edge over v6 is far larger than v6.1's 6-player shortfall.
 
-## Stalled games (v6.1): the pick is on its bar
+## Stalled games (v6.1): the stall is fixed, at a cost at 6 players
 
-The stall is a bot problem, in the v4-to-v8 family's opponent model and its share-of-power term (`stalled-games.md`). On the native Rust engine, 201 settings of v6.1's knobs mapped the trade-off (`bot-log.md`, "v6.1's native map"): raising the border weight about 1.2× and gently discounting hoarded armies ends the stall and is even or better than v6 at 5 players, yet was about 15 Elo a seat short at 6, where one v6 among five candidates collected more than its share of wins. Pricing a rival's hoard above one's own (`rivalBeyond` 1.25) brought that table level, natively and in the TS screen, with no capped game in 1,000 mirror games (`bot-log.md`, "v6.1's rival hoard"; `rule-bot-v6.1.md`, "The rival's hoard"). It is v6.1's default, on branch `claude/v6.1-hoarder`.
+The stall is a bot problem, in the v4-to-v8 family's opponent model and its share-of-power term (`stalled-games.md`). v6.1's pick, found on the native map and screened in TS (`rule-bot-v6.1.md`), ends it: 0 and 1 capped games in 300 holdout mirrors at 5 and 6 players, against v6's 10% and 15%. It failed its bar all the same: better than v6 at 5 players, worse at 6 in both mixtures by about 15 Elo a seat (`bot-log.md`, "v6.1's holdout"), so v6 keeps its seat. A table of v6.1s still hands a lone v6, holding back, more than its share of wins at 6 players, and pricing a rival's hoard higher didn't change that enough.
 
-**Next:** its bar on holdout seeds (`rule-bot-v6.1.md`, "The bar for replacing v6"). If it passes, v6.1 takes v6's seat and v6 retires (the Risk `CLAUDE.md`: a fix replaces the bot it fixes), with the list of retired bots that keeps v6's finished games drawn and rated; then the fix is ported back as v4.1 and v5.1, and v7 is rebuilt on it.
+**Next:** v4.1 and v5.1, the same fix on v4 and v5 (`rule-bot-v6.1.md`, "After v6.1"), are at their own bars; each replaces its old version if it passes. For v6 itself, the 6-player one-out table needs a new idea, not another setting.
 
 ## Distilling v7 (student-v1): the pipeline works; the student is a research bot
 

@@ -1,6 +1,6 @@
 # Risk bot v6.1: v6 without the stall
 
-v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built and screened, and its pick is on the bar: the native map (below) found settings that end the stall and beat v6 at 5 players but fall about 15 Elo a seat short at 6, and pricing a rival's hoard above one's own ("The rival's hoard", below) brought 6 players level in the screen. It is a candidate to replace v6 in its lobby seat: v6 is seated and frozen, and its bot-only tables at 5 and 6 players run to the turn cap (`stalled-games.md`). v6.1 is v6 with its board scored another way, a set of settings that each re-read v6's evaluation, and is meant to play v6's moves everywhere else.
+v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built, screened and measured against its bar, and **failed it: it doesn't replace v6.** Its pick ("The rival's hoard", below) ends the stall (0 and 1 capped in 300 holdout mirror games at 5 and 6 players, against v6's 10% and 15%) and is better than v6 at 5 players, but worse at 6 in both mixtures, about 15 Elo a seat, as the native map measured; on the seatable ladder it rates v6's Elo (`bot-log.md`, "v6.1's holdout"). It stays registered as the base of v7.1 (`rule-bot-v7.1.md`), v4.1 and v5.1. v6.1 is v6 with its board scored another way, a set of settings that each re-read v6's evaluation, and plays v6's moves everywhere else.
 
 ## Why v6 stalls
 

@@ -1141,4 +1141,23 @@ Stage 1's +39 was mostly the pick's luck: on fresh seeds the 16-round points are
 
 Win Elo +11.1, finishing-order +2.3; worse in no pairing. The same setting without `rivalBeyond` was worse in 6p one-out on these seeds (1,680 games, above). The 22-round point at 1.5 was stopped once stage 2 put it out on stalling.
 
-**Verdict.** `rivalBeyond` 1.25 is v6.1's pick: stall-free (0 in 1,000 native mirror games), worse than v6 in no pairing of the screen, and the first setting to bring 6-player one-out level. `V6_1_PARAMS` is set to it, and its seating bar (`rule-bot-v6.1.md`) is running on holdout seeds.
+**Verdict.** `rivalBeyond` 1.25 is v6.1's pick: stall-free (0 in 1,000 native mirror games), worse than v6 in no pairing of the screen, and the first setting to bring 6-player one-out level there. `V6_1_PARAMS` is set to it, and it went to its seating bar (below).
+
+## v6.1's holdout: stall-free, and still short of v6 at 6 players (2026-10-27)
+
+The bar of `rule-bot-v6.1.md` for the pick (plain `rule-v6.1`), holdout seeds.
+
+**The stall: passes.** `trace-cli --survey --mirror rule-v6.1 <n> --games 300 --prefix holdout-cap`, on the laptop: at 5 players 0 capped in 300, decided games 125 turns, board armies at turn 100 234, losses over income 1.09; at 6 players 1 capped in 300 (`holdout-cap-128`, three seats alive), 191 turns, 306 armies, 1.05. v6: 10% and 15%.
+
+**Strength: fails.** `risk:gauntlet -- rule-v6.1 --base rule-v6 --field rule-v6 --players 3,4,5,6 --prefix holdout` on GitHub Actions (run 40393706284, 13,160 games):
+
+| | 3p | 4p | 5p | 6p |
+|---|---|---|---|---|
+| one v6.1 among v6s | even, 33.3% (909) | even, 25.0% (1,088) | **better**, 23.5% vs 20.0% (860) | **worse**, 14.7% [13.3, 16.3] vs 16.7% (2,514; 9.9% capped) |
+| v6.1s against one v6 | even, 66.7% (909) | even, 75.0% (1,088) | **better**, 82.1% vs 80.0% (2,410) | **worse**, 80.0% [77.2, 82.5] vs 83.3% (858) |
+
+Win Elo −0.8 against v6, finishing order −1.4. At 3 and 4 players it is v6 by construction (`minPlayers` 5), so those land exactly on par.
+
+**The seatable ladder** with v6.1 in v6's place (`risk:ratings -- --seatable`, run 40395093340, 8,496 games, 1.7 hours on 10 machines from an empty cache): v6.1 1568, v5 1541, v4 1520, v3 1442, v2 1426, v1 1314, GD Stacker 1088, GD Continental 1080, GD Aggressive 1010, greedy 1000, GD Defensive 984 (v6 was 1560 on the last ladder). Its Elo wasn't kept: v6 stays seated.
+
+**Verdict.** v6.1 doesn't replace v6: worse in both 6-player pairings, by about the 15 Elo a seat the native map measured on fresh seeds (`v6.1's native map`), which the screen's even 6-player one-out had hidden. The 6-player one-out on the screen's seeds was a lucky sample. The stall fix holds; its cost at 6 players does too. `rivalBeyond` moved native 6-player one-out by about 2 points of win share, inside its interval, and that is all it did.
