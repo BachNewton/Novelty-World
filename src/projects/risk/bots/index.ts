@@ -19,6 +19,8 @@ import { BORDER_MODES, borderMode } from "./rule-v6.1/border";
 import { POWER_MODES, powerMode, REPRICE_MODES, repriceMode, V6_1_PARAMS } from "./rule-v6.1/params";
 import { ruleBot as ruleV7, ruleV7Bot } from "./rule-v7";
 import { V7_PARAMS } from "./rule-v7/params";
+import { ruleBot as ruleV7_1, ruleV7_1Bot } from "./rule-v7.1";
+import { V7_1_PARAMS } from "./rule-v7.1/params";
 import { DEFAULT_WEIGHTS as NET_DEFAULT_WEIGHTS, isPick, netV1, netV1Bot, PICKS } from "./net-v1";
 import { WEIGHT_SETS as NET_WEIGHT_SETS } from "./net-v1/weights";
 import { ruleV8Bot } from "./rule-v8";
@@ -39,6 +41,7 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v6": ruleV6Bot,
   "rule-v6.1": ruleV6_1Bot,
   "rule-v7": ruleV7Bot,
+  "rule-v7.1": ruleV7_1Bot,
   "rule-v8": ruleV8Bot,
   "student-v1": studentV1Bot,
   "sweeper-v1": sweeperV1Bot,
@@ -62,6 +65,7 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v6": "rule-v6/index.ts",
   "rule-v6.1": "rule-v6.1/index.ts",
   "rule-v7": "rule-v7/index.ts",
+  "rule-v7.1": "rule-v7.1/index.ts",
   "rule-v8": "rule-v8/index.ts",
   "student-v1": "student-v1/index.ts",
   "sweeper-v1": "sweeper-v1/index.ts",
@@ -168,6 +172,15 @@ export const TUNABLE_BOTS: Readonly<Record<string, Tunable>> = {
     switches: { mixed: V7_PARAMS.search.mixed },
     knobs: { replies: V7_PARAMS.search.replies, candidates: V7_PARAMS.search.candidates },
     build: (prefs, engine, switches, knobs) => ruleV7({ ...V7_PARAMS, prefs, engine, search: { ...V7_PARAMS.search, ...switches, ...knobs } }),
+  },
+  // v7.1, v7's search on v6.1, at a work budget: `rule-v7.1~{"replies":8}`. v6.1's settings stay its
+  // default's.
+  "rule-v7.1": {
+    prefs: V7_1_PARAMS.prefs,
+    engine: V7_1_PARAMS.engine,
+    switches: { mixed: V7_1_PARAMS.search.mixed },
+    knobs: { replies: V7_1_PARAMS.search.replies, candidates: V7_1_PARAMS.search.candidates },
+    build: (prefs, engine, switches, knobs) => ruleV7_1({ ...V7_1_PARAMS, prefs, engine, search: { ...V7_1_PARAMS.search, ...switches, ...knobs } }),
   },
   // The student with one of its weight sets: `student-v1~{"weights":"pilot"}` (`ideas/student-v1.md`).
   "student-v1": {
