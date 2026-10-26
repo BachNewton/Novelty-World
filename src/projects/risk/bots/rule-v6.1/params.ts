@@ -47,6 +47,14 @@ export interface Params extends V6Params {
   borderScale: number;
   /** With `power` "armies": whether the re-priced armies reach the forecast. */
   reprice: RepriceMode;
+  /** With `power` "armies": what each of an opponent's armies past `armyRounds` rounds of its
+   *  income counts for; below 0 it is `armyBeyond`, my own armies' price. Above `armyBeyond`, a
+   *  rival's stockpile weighs more than my own: hoarding is priced as a threat to the table, not
+   *  discounted as idle. */
+  rivalBeyond: number;
+  /** With `power` "armies": the common-threat bar of the re-priced power times this (below 1, the
+   *  table's leader is named sooner). */
+  threatScale: number;
   /** Every v6.1 change applies only at a table that started with at least this many seats; at a
    *  smaller one the bot is v6. 0 applies them at every table. */
   minPlayers: number;
@@ -67,6 +75,8 @@ export const V6_1_PARAMS: Params = {
   attrition: 0,
   borderScale: 1,
   reprice: "value",
+  rivalBeyond: -1,
+  threatScale: 1,
   minPlayers: 0,
   minAlive: 0,
   attritionAlive: 0,
@@ -92,6 +102,8 @@ export function checkSettings(p: Params): Params {
   if (!(p.armyRounds >= 0)) throw new Error(`rule-v6.1's armyRounds is 0 or more, not ${p.armyRounds.toString()}`);
   if (!(p.armyBeyond >= 0 && p.armyBeyond <= 1)) throw new Error(`rule-v6.1's armyBeyond is between 0 and 1, not ${p.armyBeyond.toString()}`);
   if (!(p.attrition >= 0)) throw new Error(`rule-v6.1's attrition is 0 or more, not ${p.attrition.toString()}`);
+  if (!(p.rivalBeyond <= 4)) throw new Error(`rule-v6.1's rivalBeyond is at most 4 (below 0: armyBeyond), not ${p.rivalBeyond.toString()}`);
+  if (!(p.threatScale > 0)) throw new Error(`rule-v6.1's threatScale is above 0, not ${p.threatScale.toString()}`);
   if (!(p.borderScale >= 0)) throw new Error(`rule-v6.1's borderScale is 0 or more, not ${p.borderScale.toString()}`);
   for (const [name, n] of [["minPlayers", p.minPlayers], ["minAlive", p.minAlive], ["attritionAlive", p.attritionAlive]] as const) {
     if (!(Number.isInteger(n) && n >= 0)) throw new Error(`rule-v6.1's ${name} is a whole number, 0 or more, not ${n.toString()}`);

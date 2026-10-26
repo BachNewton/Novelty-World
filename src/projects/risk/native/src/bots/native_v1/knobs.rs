@@ -50,6 +50,14 @@ pub struct Knobs {
     pub army_rounds: f64,
     pub army_beyond: f64,
     pub reprice: Reprice,
+    /// With `power` "armies": what each of an opponent's armies past `army_rounds` rounds of its
+    /// income counts for; below 0 (the default) it is `army_beyond`, my own armies' price. Above
+    /// `army_beyond`, a rival's stockpile weighs more than my own: hoarding is priced as a threat to
+    /// the table, not discounted as idle.
+    pub rival_beyond: f64,
+    /// With `power` "armies": the common-threat bar of the re-priced power times this (below 1, the
+    /// table's leader is named sooner).
+    pub threat_scale: f64,
     /// The border weight times min(1, k × the board's income ÷ its armies); 0 is off.
     pub attrition: f64,
     /// Every setting applies only at a table that started with at least this many seats...
@@ -77,6 +85,8 @@ impl Knobs {
         army_rounds: 6.0,
         army_beyond: 0.25,
         reprice: Reprice::Value,
+        rival_beyond: -1.0,
+        threat_scale: 1.0,
         attrition: 0.0,
         min_players: 0,
         min_alive: 0,
@@ -100,6 +110,15 @@ impl Knobs {
         {
             return Err(format!(
                 "native-v1 settings {json}: attrition and borderScale are 0 or more"
+            ));
+        }
+        if k.rival_beyond.is_nan()
+            || k.rival_beyond > 4.0
+            || k.threat_scale.is_nan()
+            || k.threat_scale <= 0.0
+        {
+            return Err(format!(
+                "native-v1 settings {json}: rivalBeyond is at most 4 (below 0: armyBeyond), threatScale above 0"
             ));
         }
         Ok(k)
@@ -135,13 +154,27 @@ impl Knobs {
         self.power == PowerMode::Armies
     }
 
-    /// A seat's armies as `power` counts them.
-    pub fn priced_armies(&self, armies: f64, income: f64) -> f64 {
+    /// What a rival's armies past the cap count for.
+    pub fn rival_beyond(&self) -> f64 {
+        if self.rival_beyond < 0.0 {
+            self.army_beyond
+        } else {
+            self.rival_beyond
+        }
+    }
+
+    /// A seat's armies as `power` counts them, mine or a rival's.
+    pub fn priced_armies(&self, armies: f64, income: f64, mine: bool) -> f64 {
         let cap = self.army_rounds * income;
+        let beyond = if mine {
+            self.army_beyond
+        } else {
+            self.rival_beyond()
+        };
         if armies <= cap {
             armies
         } else {
-            cap + self.army_beyond * (armies - cap)
+            cap + beyond * (armies - cap)
         }
     }
 
@@ -158,6 +191,8 @@ impl Knobs {
             self.army_beyond,
             self.reprice as u64 as f64,
             self.attrition,
+            self.rival_beyond(),
+            self.threat_scale,
         ]
         .iter()
         .fold(0x6b6e_6f62, |h: u128, x| {
