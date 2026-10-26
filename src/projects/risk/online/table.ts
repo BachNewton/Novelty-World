@@ -1,6 +1,6 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
 import type { DecisionId, Move, RiskEngine, Seat } from "../contract";
-import type { BotId } from "./seat-bots";
+import type { RowBotId } from "./seat-bots";
 import { pendingSeat, type OnlineGame } from "./game";
 
 /*
@@ -11,7 +11,7 @@ import { pendingSeat, type OnlineGame } from "./game";
 /** Who answers a seat's decisions: a person on their own device, or a bot the server runs. A
  *  person's `elo` is the rating their device held when they took the seat (`rating.ts`): it lives
  *  on their device, so it travels with the seat for the other players' devices to rate against. */
-export type Controller = { kind: "human"; profile: PlayerProfile; elo?: number } | { kind: "bot"; bot: BotId };
+export type Controller = { kind: "human"; profile: PlayerProfile; elo?: number } | { kind: "bot"; bot: RowBotId };
 
 export type Status = "lobby" | "playing" | "over";
 

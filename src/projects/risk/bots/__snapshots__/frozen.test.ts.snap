@@ -43,3 +43,7 @@ exports[`seated bots are frozen > rule-v5 plays the moves it was rated on (froze
 exports[`seated bots are frozen > rule-v6 plays the moves it was rated on (frozen-a) 1`] = `"2b8bee0ffeb0973e2b65894416692f92"`;
 
 exports[`seated bots are frozen > rule-v6 plays the moves it was rated on (frozen-b) 1`] = `"2fc855bd714d7ac1b04e81085866710a"`;
+
+exports[`seated bots are frozen > rule-v6.1 plays the moves it was rated on (frozen-a) 1`] = `"2b8bee0ffeb0973e2b65894416692f92"`;
+
+exports[`seated bots are frozen > rule-v6.1 plays the moves it was rated on (frozen-b) 1`] = `"aa30f5e5d0366a74a29ef3c39639be20"`;

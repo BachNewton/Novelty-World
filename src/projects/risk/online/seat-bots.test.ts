@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RISK_BOTS } from "../bots";
-import { BOT_IDS, botName, DEFAULT_BOT, ELO, eloOf, fullName, isBotId, RANKS, rankOf, SEAT_BOTS, seatBot, strength, type BotId } from "./seat-bots";
+import { BOT_IDS, botName, DEFAULT_BOT, ELO, eloOf, fullName, isBotId, isRetired, RANKS, rankOf, RETIRED_BOTS, SEAT_BOTS, seatBot, strength, type BotId, type RetiredBotId } from "./seat-bots";
 
 describe("the seatable bots", () => {
   it("take the lowest rungs of the ladder, one each, in order of measured Elo", () => {
@@ -36,5 +36,24 @@ describe("the seatable bots", () => {
     expect(botName(BOT_IDS[0])).toBe(`Recruit · ${fullName(BOT_IDS[0])}`);
     expect(botName("rule-v1")).toBe(`${rankOf("rule-v1")} · Rule v1`);
     expect(() => seatBot("retired" as BotId)).toThrow(/no seatable bot "retired"/);
+  });
+});
+
+describe("retired bots", () => {
+  const retired = Object.keys(RETIRED_BOTS) as RetiredBotId[];
+
+  it("are none of the seatable bots, and are still registered for replaying their games", () => {
+    for (const id of retired) {
+      expect(isRetired(id)).toBe(true);
+      expect(isBotId(id)).toBe(false);
+      expect(RISK_BOTS[id]).toBeDefined();
+    }
+  });
+
+  it("are named with their version, rated at their last Elo, and play no game", () => {
+    expect(botName("rule-v6")).toBe("Retired · Rule v6");
+    expect(fullName("rule-v6")).toBe("Rule v6");
+    expect(eloOf("rule-v6")).toBe(RETIRED_BOTS["rule-v6"].elo);
+    expect(() => seatBot("rule-v6")).toThrow(/"rule-v6": it is retired/);
   });
 });
