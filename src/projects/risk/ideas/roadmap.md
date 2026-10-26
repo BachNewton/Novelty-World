@@ -2,17 +2,17 @@
 
 A map across the lines of bot work, for picking the next step. It holds no measurements of its own: each line's doc and `bot-log.md` have the numbers, and this says what they add up to. The goal throughout is a bot stronger than the seated rule-v6 that players can feel, and fast enough to simulate and train with.
 
-## rule-v7: the strongest bot, waiting on its last run
+## rule-v7: the strongest bot, to be rebuilt on v6.1
 
-On the ladder over every seatable bot, v7 at 8 replies is about 115 win Elo above v6 (`bot-log.md`, "v7's ladder"), and its train-seed gauntlets beat every bot at every table size. Its holdout gauntlet is the last run of its suite.
+On the ladder over every seatable bot, v7 at 8 replies is about 115 win Elo above v6 (`bot-log.md`, "v7's ladder"), its train-seed gauntlets beat every bot at every table size, and its holdout gauntlet was better in every pairing. It is not seated: tables of v7s cap often at 6 players, because v7 inherits v6's stall, so the compute goes to fixing the stall first and v7 is rebuilt on the fix rather than seated with it. Branch `claude/seat-rule-v7` keeps the seating work that carries over (the frozen test split for a searching bot into a fast fingerprint check and a slow re-ask).
 
-**Next:** import the holdout; if it clears `rule-bot-v7.md`'s bar, seat v7 as v6 was (`online/seat-roster.ts`, its fingerprint in `frozen.test.ts`, and the seatable ratings run, from a checkout whose ratings cache matches). Tables of v7s cap often at 6 players: v7 inherits v6's stall, so a stall-free base would carry into it.
+**Next:** once v6.1 is seated, v7 as a new version on it (`rule-bot-v6.1.md`, the bar's last paragraph): its plans from v6.1's planner, its replies seat v6.1, its 6-player cap rate measured first, then its own suite and bar.
 
-## Stalled games (v6.1): a stall-free bot exists, even at 5 players, short at 6
+## Stalled games (v6.1): the pick is on its bar
 
-The stall is a bot problem, in the v4-to-v8 family's opponent model and its share-of-power term (`stalled-games.md`). On the native Rust engine, 201 settings of v6.1's knobs mapped the trade-off (`bot-log.md`, "v6.1's native map"; `rule-bot-v6.1.md`, "The native map"). Raising the border weight about 1.2× and gently discounting hoarded armies ends the stall and is even or better than v6 at 5 players, yet stays about 15 Elo a seat short at 6. The failing table is one v6 among five candidates: the active bots wear each other down and the lone v6, holding back, collects the win. No re-weighting of v6's terms changes that. v6's own border weight also proved too low against v6 (×1.15 is +32 Elo, but stalls more).
+The stall is a bot problem, in the v4-to-v8 family's opponent model and its share-of-power term (`stalled-games.md`). On the native Rust engine, 201 settings of v6.1's knobs mapped the trade-off (`bot-log.md`, "v6.1's native map"): raising the border weight about 1.2× and gently discounting hoarded armies ends the stall and is even or better than v6 at 5 players, yet was about 15 Elo a seat short at 6, where one v6 among five candidates collected more than its share of wins. Pricing a rival's hoard above one's own (`rivalBeyond` 1.25) brought that table level, natively and in the TS screen, with no capped game in 1,000 mirror games (`bot-log.md`, "v6.1's rival hoard"; `rule-bot-v6.1.md`, "The rival's hoard"). It is v6.1's default, on branch `claude/v6.1-hoarder`.
 
-**Next:** make hoarding stop paying in the opponent model. A bot that sees an opponent's idle stockpile as a growing common threat, or values containing the table's biggest hoarder, takes away the lone v6's edge. Diagnose the 6-player one-out games first (`risk:trace`). An unfinished, untested start is on branch `wip/v6.1-hoarder`: named settings in native-v1 and in rule-v6.1, plus a diagnostic example. Design and sweep on native (the yardstick is native-v6, `native-v1~{"smallTableSeats":4}`), then confirm in the TS gauntlet. A fix that passes is seated as v6.1, back-ported as v4.1 and v5.1, and is the base for a stall-free v7.
+**Next:** its bar on holdout seeds (`rule-bot-v6.1.md`, "The bar for replacing v6"). If it passes, v6.1 takes v6's seat and v6 retires (the Risk `CLAUDE.md`: a fix replaces the bot it fixes), with the list of retired bots that keeps v6's finished games drawn and rated; then the fix is ported back as v4.1 and v5.1, and v7 is rebuilt on it.
 
 ## Distilling v7 (student-v1): the pipeline works; the student is a research bot
 

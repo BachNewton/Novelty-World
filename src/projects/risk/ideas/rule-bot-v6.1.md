@@ -1,6 +1,6 @@
 # Risk bot v6.1: v6 without the stall
 
-v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built and screened, and no setting has passed: the native map (below) found settings that end the stall and beat v6 at 5 players, and every one of them is about 15 Elo a seat short of v6 at 6, where the gauntlet calls it worse. It is a candidate to replace v6 in its lobby seat: v6 is seated and frozen, and its bot-only tables at 5 and 6 players run to the turn cap (`stalled-games.md`). v6.1 is v6 with its board scored another way, a set of settings that each re-read v6's evaluation, and is meant to play v6's moves everywhere else.
+v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built and screened, and its pick is on the bar: the native map (below) found settings that end the stall and beat v6 at 5 players but fall about 15 Elo a seat short at 6, and pricing a rival's hoard above one's own ("The rival's hoard", below) brought 6 players level in the screen. It is a candidate to replace v6 in its lobby seat: v6 is seated and frozen, and its bot-only tables at 5 and 6 players run to the turn cap (`stalled-games.md`). v6.1 is v6 with its board scored another way, a set of settings that each re-read v6's evaluation, and is meant to play v6's moves everywhere else.
 
 ## Why v6 stalls
 
@@ -32,7 +32,7 @@ Each is a setting on v6's scorer hook (`scoreOf` in `rule-v6/evaluate.ts`): v6.1
 
 An opponent counts for `border` when v6's model sees it reach me (any aim case but "apart"). The income in `power` and `attrition` is the board income (territories and continents, the same for every seat, so no preference of mine enters the others' power), summed over the seats still alive for `attrition`.
 
-**The default is `border: "max"`, provisionally and already rejected.** `V6_1_PARAMS` is set to the screen's pick before the bar is run; until then every candidate is named by its full label, `"border":"sum"` included.
+**The default is the screen's pick** ("The rival's hoard", below), set before the bar is run. A label moves settings from it, so the candidates the screens name by full label are read with every setting they leave out at its value then: `"border":"max"`, `"power":"face"`, `"reprice":"value"`, `armyRounds` 6, `armyBeyond` 0.25, `borderScale` 1, `rivalBeyond` −1 and every gate 0.
 
 ### C1, `power: "armies"`: hoarded armies at a discount
 
@@ -119,7 +119,16 @@ Every hand-picked candidate of the two screens landed on one curve, so the third
 - **v6's border weight is too low against v6.** The border charge at 1.15 to 1.3 times v6's weight is +6 to +33, the strongest settings measured, but it stalls more than v6 does (3.5–9% at 5 players, 17–22% at 6): a heavier charge makes the stacks still more attractive. Attrition on top of it stalls more still.
 - **Together they end the stall, and win at 5 players only.** At 75% beyond, 16 to 22 rounds, fully re-priced, the border at 1.15 to 1.25, no mirror caps more than 3 games in 500 at either table, and the decided games run about 120 turns at 5 players and 190–220 at 6. Those points are better than v6 at 5 players on the map (+25 to +30) and 10 to 20 Elo a seat below it at 6, measured on seeds the points weren't picked on; the weak mixture is 6-player one-out, v6 alone among five candidates. Where a point holds its own at 6 players (90% beyond, or the border raised alone), it stalls there.
 
-So the map has a stall-free region that is even or better at 5 players and none that is at 6. The TS gauntlet agrees (`bot-log.md`): all four frontier points it played came out worse in 6-player one-out, and every 5-player pairing it decided was even. So the best point (`armyRounds` 16, `armyBeyond` 0.75, `reprice` "full", `borderScale` 1.2, with `minPlayers` 5 so it is v6 at 3 and 4 players) is not taken to the bar. The next step is a new idea aimed at the 6-player one-out table, not another setting: a table of these bots hands the lone v6 more than its share of wins, and nothing in v6.1's settings changes that.
+So the map has a stall-free region that is even or better at 5 players and none that is at 6. The TS gauntlet agrees (`bot-log.md`): all four frontier points it played came out worse in 6-player one-out, and every 5-player pairing it decided was even. So the best point (`armyRounds` 16, `armyBeyond` 0.75, `reprice` "full", `borderScale` 1.2, with `minPlayers` 5 so it is v6 at 3 and 4 players) is not taken to the bar. The next step is a new idea aimed at the 6-player one-out table, not another setting: a table of these bots hands the lone v6 more than its share of wins, and nothing in v6.1's settings then changed that. The next section is that idea.
+
+## The rival's hoard
+
+The map's lost table was one v6 among five candidates: a table of discounters wears itself down while the lone v6, holding back, collects more than its share of wins. The discount treats every hoard alike, mine and a rival's, so a candidate prices the lone v6's stockpile as cheaply as its own and leaves it be. Two settings go at that, both inside the full re-pricing:
+
+- **`rivalBeyond`**: an opponent's armies past the cap count at this fraction, not at `armyBeyond`, which stays the price of my own. Above `armyBeyond`, a rival's hoard is more of a threat than mine is worth, so the forecast, the threat and the share all see the hoarder as stronger than a discounter. Below 0 it is `armyBeyond`, the plain discount.
+- **`threatScale`**: the bar for naming the table's leader the common threat, times this; below 1 the leader is named sooner.
+
+On the native engine, over the map's best stall-free settings (`bot-log.md`, "v6.1's rival hoard"), `threatScale` below 1 lost and stalled everywhere, and `rivalBeyond` 1.25 on the 16-round point brought 6-player one-out level, natively and in the TS screen, with no capped game in 1,000 mirror games. **The pick is `armyRounds` 16, `armyBeyond` 0.75, `reprice` "full", `borderScale` 1.2, `rivalBeyond` 1.25, from 5 players (`minPlayers` 5)**, so it is v6 at 3 and 4 players by construction and needs no agreement run there. `V6_1_PARAMS` is set to it: its label is plain `rule-v6.1`.
 
 ## Measuring it
 

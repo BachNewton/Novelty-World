@@ -1113,3 +1113,32 @@ On the laptop under Node 24, from 5a9c456f, seeds `holdout`: `risk:gauntlet -- s
 | 6 players | even, 16.5% [14.9, 18.3] vs 16.7% (capped 16.7%) | even, 83.2% [81.3, 84.9] vs 83.3% (capped 15.5%) |
 
 Better than gd-defensive, gd-stacker and greedy at every table. Win Elo (v6 = 0): student +20.5, finishing order +1.7. The gauntlet's gate rejects it (it doesn't improve on v6 at every table), and it isn't a seating candidate anyway: a student is seated only when it comes close to the seated champion (`roadmap.md`), and v7 is about 115 above v6. What it settles: distillation carries a real edge to unseen seeds at 3 to 5 players, so the bigger recording and cleaner labels are worth pursuing. At 6 players the student plays v6's stall (a sixth of games capped) and its edge vanishes.
+
+## v6.1's rival hoard: the 6-player one-out table comes level (2026-10-26)
+
+On the laptop, 15 threads, native seeds `v61map` (stage 1 groups 1–48 and mirror games 1–200; stage 2 groups 49–300 and mirror games 201–700, seeds no stage-1 pick was made on). Two new settings aimed at the table the native map lost, one v6 among five candidates: **`rivalBeyond`**, which prices an opponent's armies past the cap at its own fraction rather than at `armyBeyond` (above it, a rival's hoard counts for more than my own does), and **`threatScale`**, which lowers the bar for naming the table's leader the common threat. Every point is the native map's best stall-free setting (`armyRounds` 16 or 22, `armyBeyond` 0.75, `reprice` "full", `borderScale` 1.2 or 1.15) with these on top, played against native-v6 at 5 and 6 players.
+
+**Stage 1** (16 points, 23,296 games, ±27 a point): `rivalBeyond` 1.25 was the best, +39 (base +8; 1.0 +13, 1.5 +17, 2 +2, 3 −13). **`threatScale` is dead**: below 1 it loses at every `rivalBeyond` (0.85: −7 to −40; 0.7: −44 to −93) and stalls. Raising `armyBeyond` to 0.9 stalls (15 in 200 at 6 players).
+
+**Stage 2**, the six best on fresh seeds (39,264 games; 500 mirror games a table):
+
+| Point | Elo | 5p | 6p | 6p one-in | 6p one-out (par 83.3%) | Mirror capped 5p / 6p |
+|---|---|---|---|---|---|---|
+| 16 rounds, ×1.2 | +5 ±12 | +14 | −3 | 17.8% | 81.8% | 0 / 1 |
+| + `rivalBeyond` 1.0 | +6 ±12 | +20 | −8 | 17.8% | 81.2% | 0 / 0 |
+| **+ `rivalBeyond` 1.25** | **+6 ±12** | +14 | −3 | 15.9% | **83.6%** | **0 / 0** |
+| + `rivalBeyond` 1.5 | +8 ±12 | +17 | −3 | 15.5% | 84.0% | 1 / 4 |
+| 22 rounds, ×1.15, `rivalBeyond` 1.25 | +23 ±12 | +24 | +21 | 19.0% | 84.4% | 4 / 11 |
+| 22 rounds, ×1.15, `rivalBeyond` 1.5 | +13 ±12 | +26 | 0 | 17.3% | 82.8% | 5 / 13 |
+
+Stage 1's +39 was mostly the pick's luck: on fresh seeds the 16-round points are all about +6, even at 6 players. What `rivalBeyond` moves is the mixture the map lost: from 1.25 the lone v6 among candidates wins its par share, where without it it wins more (one-out 81.2–81.8% against 83.6–84.0%), at a small cost in one-in. The 22-round points are stronger, and stall (11 and 13 in 500 at 6 players), so they are out.
+
+**The TS screen** (`gauntlet-cli.ts` on Actions, `--base rule-v6 --field rule-v6 --players 5,6 --max 2000 --prefix screen-v6.1`), the 16-round point at `rivalBeyond` 1.25 with `minPlayers` 5:
+
+| 5p one-in | 5p one-out | 6p one-in | 6p one-out |
+|---|---|---|---|
+| **better**, 22.8% [20.6, 25.1] vs par 20.0% (1,380) | undecided at 2,000: 81.3% [79.5, 82.9] vs 80.0% | even, 16.9% [15.1, 18.8] vs 16.7% (1,806) | **even, 83.5% [81.6, 85.2] vs 83.3% (1,710)** |
+
+Win Elo +11.1, finishing-order +2.3; worse in no pairing. The same setting without `rivalBeyond` was worse in 6p one-out on these seeds (1,680 games, above). The 22-round point at 1.5 was stopped once stage 2 put it out on stalling.
+
+**Verdict.** `rivalBeyond` 1.25 is v6.1's pick: stall-free (0 in 1,000 native mirror games), worse than v6 in no pairing of the screen, and the first setting to bring 6-player one-out level. `V6_1_PARAMS` is set to it, and its seating bar (`rule-bot-v6.1.md`) is running on holdout seeds.
