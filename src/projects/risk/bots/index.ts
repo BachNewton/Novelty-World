@@ -12,6 +12,8 @@ import { ruleBot as ruleV4, ruleV4Bot } from "./rule-v4";
 import { V4_PARAMS } from "./rule-v4/params";
 import { ruleBot as ruleV5, ruleV5Bot } from "./rule-v5";
 import { V5_PARAMS } from "./rule-v5/params";
+import { ruleV5_1Bot } from "./rule-v5.1";
+import { ruleV4_1Bot } from "./rule-v4.1";
 import { ruleBot as ruleV6, ruleV6Bot } from "./rule-v6";
 import { V6_PARAMS } from "./rule-v6/params";
 import { ruleBot as ruleV6_1, ruleV6_1Bot } from "./rule-v6.1";
@@ -38,6 +40,8 @@ export const RISK_BOTS: Readonly<Record<string, Bot>> = {
   "rule-v3": ruleV3Bot,
   "rule-v4": ruleV4Bot,
   "rule-v5": ruleV5Bot,
+  "rule-v4.1": ruleV4_1Bot,
+  "rule-v5.1": ruleV5_1Bot,
   "rule-v6": ruleV6Bot,
   "rule-v6.1": ruleV6_1Bot,
   "rule-v7": ruleV7Bot,
@@ -62,6 +66,8 @@ export const BOT_MODULES: Readonly<Record<string, string>> = {
   "rule-v3": "rule-v3/index.ts",
   "rule-v4": "rule-v4/index.ts",
   "rule-v5": "rule-v5/index.ts",
+  "rule-v4.1": "rule-v4.1/index.ts",
+  "rule-v5.1": "rule-v5.1/index.ts",
   "rule-v6": "rule-v6/index.ts",
   "rule-v6.1": "rule-v6.1/index.ts",
   "rule-v7": "rule-v7/index.ts",

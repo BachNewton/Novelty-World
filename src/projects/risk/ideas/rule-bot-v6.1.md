@@ -235,4 +235,17 @@ If it clears the bar, v6.1 takes v6's lobby seat in `online/seat-roster.ts` (wha
 
 ## After v6.1: v4.1 and v5.1
 
-A fix that passes the bar is ported back as v4.1 and v5.1, since v4 and v5 stay seated and on the ladder, where their stalls cost every new bot's matchups. Each is held to the same bar against the version it replaces: even or better in every pairing, worse in none, without stalling. v4 and v5 have no scorer hook, so each port carries the fix into its own evaluation; its screen is the same as v6.1's.
+A fix that passes the bar is ported back as v4.1 and v5.1, since v4 and v5 stay seated and on the ladder, where their stalls cost every new bot's matchups. Each is held to the same bar against the version it replaces: even or better in every pairing, worse in none, without stalling.
+
+**Neither needs a port of its own.** v6 with every one of its seven fixes off plays v5's moves exactly, and v5 is v4's plans with v5's sweeps added. So **v5.1** (`bots/rule-v5.1/`) is v6.1 with v6's fixes off, and **v4.1** (`bots/rule-v4.1/`) is the same on a copy of v6.1's planner without the sweeps. Each plays v6.1's pick unchanged, the settings v6.1 took to its bar, and with them gated off each makes every one of its old version's kept moves (their tests, on v4's and v5's frozen games). Their settings were chosen on v6, never on v4 or v5, so each goes straight to its bar on holdout seeds; a screen comes only if one fails:
+
+```powershell
+npx tsx src/projects/risk/eval/gauntlet-cli.ts rule-v5.1 --base rule-v5 --field rule-v5 --players 3,4,5,6 --prefix holdout
+npx tsx src/projects/risk/eval/gauntlet-cli.ts rule-v4.1 --base rule-v4 --field rule-v4 --players 3,4,5,6 --prefix holdout
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror rule-v5.1 5 --games 300 --prefix holdout-cap
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror rule-v5.1 6 --games 300 --prefix holdout-cap
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror rule-v4.1 5 --games 300 --prefix holdout-cap
+npx tsx src/projects/risk/eval/trace-cli.ts --survey --mirror rule-v4.1 6 --games 300 --prefix holdout-cap
+```
+
+Each that passes replaces its old version as v6.1 replaces v6 (the Risk `CLAUDE.md`, "A fix replaces the bot it fixes").
