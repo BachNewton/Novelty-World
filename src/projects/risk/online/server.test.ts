@@ -5,6 +5,7 @@ import { botInput, extendHistory, replayHistory } from "./drive-input";
 import { applyAnswer, newOnlineGame, pendingSeat, replay, STALE_DECISION, type OnlineGame } from "./game";
 import type { Request } from "./protocol";
 import { COMMIT_ATTEMPTS, commit, drive, DRIVE_DECISIONS, handle, type ServerDeps } from "./server";
+import { SEARCHING } from "../eval/frozen-games";
 import { ENGINE } from "../play-engine";
 import { BOT_IDS, SEAT_BOTS, type BotId } from "./seat-bots";
 import { botToMove, type GameRow, type LoggedMove } from "./table";
@@ -345,7 +346,9 @@ describe("driving bot seats", () => {
     const asked: BotId[] = [];
     const real = seats.map((id) => SEAT_BOTS[id].bot);
     for (const id of new Set(seats)) {
-      const bot = SEAT_BOTS[id].bot;
+      // A searching bot's decisions take seconds, past the timeout; this checks which bot a
+      // seat asks, so greedy plays for it.
+      const bot = SEARCHING.has(id) ? SEAT_BOTS.greedy.bot : SEAT_BOTS[id].bot;
       SEAT_BOTS[id].bot = (input) => {
         asked.push(id);
         return bot(input);
