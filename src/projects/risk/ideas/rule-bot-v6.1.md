@@ -235,6 +235,8 @@ If it clears the bar, v6.1 takes v6's lobby seat in `online/seat-roster.ts` (wha
 
 ## After v6.1: v4.1 and v5.1
 
+**Both failed their bars** (`bot-log.md`, "v5.1 and v4.1"): each is worse than its old version in both 6-player mixtures, as v6.1 is against v6, so v4 and v5 stay seated. What follows is how they were built and measured.
+
 A fix that passes the bar is ported back as v4.1 and v5.1, since v4 and v5 stay seated and on the ladder, where their stalls cost every new bot's matchups. Each is held to the same bar against the version it replaces: even or better in every pairing, worse in none, without stalling.
 
 **Neither needs a port of its own.** v6 with every one of its seven fixes off plays v5's moves exactly, and v5 is v4's plans with v5's sweeps added. So **v5.1** (`bots/rule-v5.1/`) is v6.1 with v6's fixes off, and **v4.1** (`bots/rule-v4.1/`) is the same on a copy of v6.1's planner without the sweeps. Each plays v6.1's pick unchanged, the settings v6.1 took to its bar, and with them gated off each makes every one of its old version's kept moves (their tests, on v4's and v5's frozen games). Their settings were chosen on v6, never on v4 or v5, so each goes straight to its bar on holdout seeds; a screen comes only if one fails:

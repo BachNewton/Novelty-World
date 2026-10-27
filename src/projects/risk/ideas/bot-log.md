@@ -1161,3 +1161,18 @@ Win Elo −0.8 against v6, finishing order −1.4. At 3 and 4 players it is v6 b
 **The seatable ladder** with v6.1 in v6's place (`risk:ratings -- --seatable`, run 40395093340, 8,496 games, 1.7 hours on 10 machines from an empty cache): v6.1 1568, v5 1541, v4 1520, v3 1442, v2 1426, v1 1314, GD Stacker 1088, GD Continental 1080, GD Aggressive 1010, greedy 1000, GD Defensive 984 (v6 was 1560 on the last ladder). Its Elo wasn't kept: v6 stays seated.
 
 **Verdict.** v6.1 doesn't replace v6: worse in both 6-player pairings, by about the 15 Elo a seat the native map measured on fresh seeds (`v6.1's native map`), which the screen's even 6-player one-out had hidden. The 6-player one-out on the screen's seeds was a lucky sample. The stall fix holds; its cost at 6 players does too. `rivalBeyond` moved native 6-player one-out by about 2 points of win share, inside its interval, and that is all it did.
+
+## v5.1 and v4.1: v6.1's fix ported back, and short at 6 players as v6.1 was (2026-10-27)
+
+The bar of `rule-bot-v6.1.md` ("After v6.1") for v5.1 and v4.1, each against the version it would replace, holdout seeds, on GitHub Actions: `risk:gauntlet -- rule-v5.1 --base rule-v5 --field rule-v5 --players 3,4,5,6 --prefix holdout` (run 40397041426, 18,016 games) and the same for v4.1 against v4 (run 40397048645, 15,322 games).
+
+| | 3p | 4p | 5p | 6p |
+|---|---|---|---|---|
+| one v5.1 among v5s | even (909) | even (1,088) | even, 20.2% (1,480) | **worse**, 11.8% [9.2, 15.1] vs 16.7% (588; 19.6% capped) |
+| v5.1s against one v5 | even (909) | even (1,088) | even, 81.1% (7,665) | **worse**, 81.0% [79.1, 82.8] vs 83.3% (1,776; 4.1% capped) |
+| one v4.1 among v4s | even (909) | even (1,104) | **worse**, 17.0% [14.9, 19.4] vs 20.0% (1,190; 7.7% capped) | **worse**, 13.6% [11.5, 16.0] vs 16.7% (1,320; 30.8% capped) |
+| v4.1s against one v4 | even (909) | even (1,112) | even, 80.0% (1,295) | **worse**, 81.6% [80.3, 82.8] vs 83.3% (3,804; 8.7% capped) |
+
+Win Elo against the old version: v5.1 +1.0, v4.1 −14.4. Below 5 players each is its old version by construction (`minPlayers` 5), so those tables land on par.
+
+**Verdict.** Neither replaces its old version: both are worse in both 6-player mixtures, the cost v6.1 paid against v6, and v4.1 is worse in 5-player one-in too. The stall surveys weren't run, since the gauntlets alone fail the bar. v4 and v5 keep their seats; the fix is never kept just for being stall-free, as long as no fixed bot plays as well as the hoarder it replaces at 6 players.
