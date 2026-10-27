@@ -28,17 +28,17 @@ The Rust engine is exact against the reference engine and plays about a hundred 
 
 ## Self-play (net-v1): learning from scratch on the GPU
 
-A transformer trained by PPO in a league on the GPU engine (`gpu-engine.md`, "Phase 3 so far"). It passed M1 (beats greedy), and M2 passes on the GPU (beats GD's personas at 5 players). The first read against rule-v6 was worse: a net trained on the placement reward placed and almost never won. Lessons so far:
+A transformer trained by PPO in a league on the GPU engine (`gpu-engine.md`, "Phase 3 so far"). It passed M1 (beats greedy) and M2 (beats GD's personas at 5 players, on the GPU and in the TS harness). The first read against rule-v6 was worse: a net trained on the placement reward placed and almost never won. Lessons so far:
 - Reward the win alone.
 - Keep strong past networks in the league for good.
 - Strength among networks and strength against the fixed bots part ways, so neither predicts rule-v6: only the TS gauntlet does.
 - The bot samples its moves, because argmax loops.
 
-**Next.** Steps 1 and 2 are CPU gauntlets on the laptop and step 3 is GPU training, so they can run at the same time.
+**Next.** Steps 1 to 3 are done; step 4 is next: sw128b trained on.
 
-1. The M2 confirmation in the TS harness, on `net-v1~{"weights":"sw128b-125"}`: `npm run risk:gauntlet -- 'net-v1~{"weights":"sw128b-125"}' --base gd-defensive --field gd-defensive,gd-stacker --players 5 --formats one-in,one-out --prefix m2-train`. A first local run was stopped half way: both one-in pairings came out better (45 and 40 decisive games), and the two one-out pairings, four nets against one GD bot, never finished. It left no report, so it is run again whole; the same arguments play the same games.
-2. A read of that net against rule-v6 at 5 players, one-in: `npm run risk:gauntlet -- 'net-v1~{"weights":"sw128b-125"}' --base rule-v6 --field rule-v6 --players 5 --formats one-in`.
-3. Pick the network size from the size sweep (128×4, 256×6, 384×8 on one recipe). sw128b is done. sw256 is paused at its iteration-125 checkpoint, 5.2 of its 8 hours. sw384 hasn't started. A run's checkpoints and logs are in `gpu/runs/selfplay/<name>/`, git-ignored and on the laptop only: keep them in the main checkout, not a worktree that may be removed. `runs/selfplay/chain.ps1` resumes sw256 and then starts sw384, both through `runs/selfplay/sweep.ps1` (the sweep's one command, with `--resume`); sw256's arguments are also in its `args.json`. The time budget and the learning-rate schedule continue from the checkpoint. Judge by strength against decisions trained and by the slopes at the end, not by speed over a short window, and take the larger when it's close. A live turn may take up to a human's turn, so play-time cost doesn't limit the size.
+1. **Done: M2 passes in the TS harness.** `net-v1~{"weights":"sw128b-125"}` is better than gd-defensive and gd-stacker at 5 players, one-in and one-out (`bot-log.md`, "net-v1 passes M2").
+2. **Done: the read against rule-v6** at 5 players, one-in: worse, 11.6% against par 20%, while its mean place is about par. It outlasts v6 but rarely wins.
+3. **Done: the size is 128×4** (`gpu-engine.md`, "The size sweep"): ahead at every matched decision count, still rising at its end. A run's checkpoints and logs are in `gpu/runs/selfplay/<name>/`, git-ignored and on the laptop only: keep them in the main checkout, not a worktree that may be removed. `runs/selfplay/sweep.ps1` is the recipe's one command (it resumes with `--resume`; a run's arguments are also in its `args.json`). The time budget and the learning-rate schedule continue from the checkpoint.
 4. Train the chosen size on toward M3 (`gpu-engine.md`, "Milestones"): resume its run with a larger `--hours`. Strength on the GPU doesn't predict rule-v6, so every 24 hours of training, export the latest snapshot (`riskgpu.selfplay.export`) and repeat step 2's read on it. When a read comes out even or better, run the full M3 suite (one-in and one-out, train then holdout seeds).
 5. **When a pure network has fallen short of v6.** Not on one bad read, and not on a clock: a read that is worse says only that the net isn't there yet. Each cause it could be is ruled out in turn, cheapest first, and the line stops only when all are:
    - **Time.** Still climbing: its win share against v6 rose over the last three reads. Keep training.

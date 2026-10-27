@@ -164,7 +164,18 @@ Measured on the RTX 4070 with nothing else on it, the CPU saturated by gauntlets
 
 **Against rule-v6, the placement reward places.** `net-v1~{"weights":"m2a-50"}`, 5 players, one-in: worse, 7.1% [4.0, 12.3] of 154 decisive games against par 20%, 3.8% capped. Its finishing-order Elo was −3 and its mean place exactly par: it outlasts v6 and almost never takes the win. That is what second place's +0.5 paid for, and also why it outlasts other networks. Hence the win reward: +1 for the win, second place 0, down to −1.
 
-**The size sweep** (the same recipe at every size, judged by strength against decisions trained and by the slopes at the end, not only per GPU-hour, the larger when close). sw128b, 128×4, 4 hours: by 131 million decisions, 69% against greedy at 3 players, 66% against gd-defensive and 59% against gd-stacker at 5, all still rising. sw256, 256×6, at 52 million decisions: 23%, 6% and 8%, slower per decision so far. Results continue below as they land.
+**The size sweep** (the same recipe at every size, judged by strength against decisions trained and by the slopes at the end, not only per GPU-hour, the larger when close). sw128b, 128×4, 4 hours: by 131 million decisions, 69% against greedy at 3 players, 66% against gd-defensive and 59% against gd-stacker at 5, all still rising. sw256, 256×6, 8 hours (paused, then resumed from its iteration-100 checkpoint): 56%, 48% and 46% at 131 million decisions, then 57%, 33% and 40% at 184 million, no longer rising. sw384, 384×8, 8 hours: 10%, 9% and 16% at 92 million decisions. It ran at half the sweep's batch and minibatch (8,192 and 1,024), since the recipe's 16,384 and 2,048 ran out of the GPU's 12 GB, so its updates came twice as often at the same learning rate. Its KL and clip fraction were about twice sw256's, and its learner flat from iteration 120. It isn't a clean read of width, but nothing in it suggests the larger size was about to pay.
+
+| Decisions | sw128b (greedy@3 / gd-def@5 / gd-stacker@5) | sw256 | sw384 |
+|---|---|---|---|
+| 26M | 8 / 8 / 8% | 1 / 0 / 1% | 4 / 1 / 2% |
+| 52M | 40 / 22 / 23% | 23 / 5 / 8% | 9 / 7 / 13% |
+| 79M | 51 / 40 / 38% | 37 / 14 / 15% | 12 / 11 / 15% |
+| 105M | 64 / 63 / 47% | 44 / 34 / 38% | |
+| 131M | 69 / 66 / 59% | 56 / 48 / 46% | |
+| 184M | | 57 / 33 / 40% | |
+
+**The size is 128×4.** It is ahead at every matched decision count against every opponent, still rising at its end, and the cheapest to play and to train. The larger sizes learn more slowly per decision at this data scale, and sw256 stopped improving before it caught up.
 
 ## What was found
 

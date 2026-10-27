@@ -1191,3 +1191,22 @@ Two rules of `rule-bot-v7.1.md`'s bar, on the laptop.
 | v7.1 | 24 | 215–219 ms | 1.5 s | 1.5 s | 2.3 s | 2.8 s |
 
 A decision costs what v7's does; v7.1's turns are shorter on these two games, not measured further.
+
+## net-v1 passes M2, and is worse than v6 at 5 players (2026-10-26)
+
+`net-v1~{"weights":"sw128b-125"}` (128×4, 131 million decisions trained), on the laptop.
+
+**M2: passes.** `risk:gauntlet -- 'net-v1~{"weights":"sw128b-125"}' --base gd-defensive --field gd-defensive,gd-stacker --players 5 --formats one-in,one-out --prefix m2-train` (1,170 games):
+
+| | one net among four GD | four nets against one GD |
+|---|---|---|
+| gd-defensive | **better**, 62.2% [47.6, 74.9] vs 20% (45 decisive) | **better**, 88.4% [83.8, 91.8] vs 80% (250) |
+| gd-stacker | **better**, 65.0% [49.5, 77.9] vs 20% (40) | **better**, 97.3% [92.3, 99.1] vs 80% (110) |
+
+Win Elo +287 over gd-defensive (gd-stacker +182), no game capped.
+
+**Against rule-v6: worse.** `risk:gauntlet -- 'net-v1~{"weights":"sw128b-125"}' --base rule-v6 --field rule-v6 --players 5 --formats one-in` (300 games): 11.6% [8.2, 16.2] of 249 decisive games against par 20%, win Elo −111, but finishing-order Elo +17 and mean place 2.90 against par 3.0. As with the placement-reward net (`net-v1 (m2a-50) against v6`), it outlasts v6 and rarely takes the win, now on the win reward. That is the roadmap's "Reward" or "Opponents" cause, not yet told apart.
+
+## The size sweep: 128×4 (2026-10-27)
+
+sw128b (128×4, 4 hours), sw256 (256×6, 8 hours) and sw384 (384×8, 8 hours), one recipe, judged against decisions trained (`gpu-engine.md`, "The size sweep", has the table). sw128b leads at every matched decision count against greedy, gd-defensive and gd-stacker, and was still rising at its end. sw256 peaked at 131 million decisions and fell back at 184 million. sw384 ran out of the GPU's 12 GB at the recipe's batch (16,384, minibatch 2,048, and at minibatch 1,024; at batch 8,192 with minibatch 2,048 too), so it ran at 8,192 and 1,024 and is not a clean read of width; it reached 10%, 9% and 16% at 92 million decisions. The size is 128×4.
