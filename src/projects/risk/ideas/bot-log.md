@@ -1190,4 +1190,4 @@ Two rules of `rule-bot-v7.1.md`'s bar, on the laptop.
 | v7 | 23 | 214–220 ms | 2.0 s | 1.9 s | 3.0 s | 5.2 s |
 | v7.1 | 24 | 215–219 ms | 1.5 s | 1.5 s | 2.3 s | 2.8 s |
 
-Its decision costs what v7's does; its turns are shorter here because it attacks in fewer decisions per turn on these two games.
+A decision costs what v7's does; v7.1's turns are shorter on these two games, not measured further.
