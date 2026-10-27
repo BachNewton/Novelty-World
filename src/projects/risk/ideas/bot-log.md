@@ -1214,3 +1214,16 @@ sw128b (128×4, 4 hours), sw256 (256×6, 8 hours) and sw384 (384×8, 8 hours), o
 ## v4.1, v5.1 and v6.1 seated, short of their bars (2026-10-27)
 
 The owner seated all three fixes in place of v4, v5 and v6, which retire, although each failed its bar at 6 players ("v6.1's holdout", "v5.1 and v4.1"): ending the stall, which slowed every measuring run that seated the old bots, was worth the few Elo each gives up at 6 players. No unfinished game seated v4, v5 or v6, so none was deleted; their six finished games are kept and drawn from the list of retired bots. The fixes' Elo comes from the seatable ladder run with them in place.
+
+## v5.1's and v4.1's stall: much reduced, not ended (2026-10-27)
+
+`trace-cli --survey --mirror <bot> <n> --games 300 --prefix holdout-cap`, on the laptop, once both were seated:
+
+| Mirror | Capped | Decided games' mean turns | Board armies at turn 100 | Losses ÷ income |
+|---|---|---|---|---|
+| 5 × v5.1 | 0 of 300 | 141 | 242 | 1.08 |
+| 6 × v5.1 | 9 of 300 (3.0%) | 255 | 345 | 1.03 |
+| 5 × v4.1 | 6 of 300 (2.0%) | 188 | 320 | 1.04 |
+| 6 × v4.1 | 23 of 300 (7.7%) | 283 | 383 | 0.99 |
+
+Against the bar of at most 1 in 300, only v5.1 at 5 players passes. Six v4s capped 42% (`stalled-games.md`), so v4.1 cuts it about fivefold; v5's own mirror wasn't measured here. The fix was tuned on v6's evaluation, and v4 and v5 plan with less of it (no fixes, and v4 no sweeps), so less of the hoard is priced away.
