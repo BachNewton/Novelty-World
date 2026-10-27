@@ -41,6 +41,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   frogmino: dynamic(() =>
     import("@/projects/frogmino").then((m) => ({ default: m.Frogmino })),
   ),
+  "whisker-hollow": dynamic(() =>
+    import("@/projects/whisker-hollow").then((m) => ({ default: m.WhiskerHollow })),
+  ),
   betrayal: dynamic(() =>
     import("@/projects/betrayal").then((m) => ({ default: m.Betrayal })),
   ),

@@ -125,6 +125,13 @@ export const PROJECTS: Project[] = [
     icon: "Blocks",
   },
   {
+    name: "Whisker Hollow",
+    slug: "whisker-hollow",
+    description: "A cosy garden to share: find lost kittens and baby rats, carry them home, and give them names",
+    categorySlug: "3d-games",
+    icon: "PawPrint",
+  },
+  {
     name: "Hearthwood",
     slug: "hearthwood",
     description: "Wander forest and mountain as a hedge-witch: forage, cook by the campfire, and befriend the cats of the woods",

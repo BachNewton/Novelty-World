@@ -4,6 +4,7 @@ import { POKEMON_CREDITS } from "@/projects/pokemon/credits";
 import { RISK_CREDITS } from "@/projects/risk/credits";
 import { RPG_CREDITS } from "@/projects/rpg/credits";
 import { SHIPWRIGHT_CREDITS } from "@/projects/shipwright/credits";
+import { WHISKER_HOLLOW_CREDITS } from "@/projects/whisker-hollow/credits";
 import { getProjectPath, PROJECTS } from "@/shared/lib/constants";
 import { SITE_CREDITS, type Credit } from "@/shared/lib/credits";
 
@@ -16,6 +17,7 @@ export const PROJECT_CREDITS: Partial<Record<string, readonly Credit[]>> = {
   risk: RISK_CREDITS,
   rpg: RPG_CREDITS,
   shipwright: SHIPWRIGHT_CREDITS,
+  "whisker-hollow": WHISKER_HOLLOW_CREDITS,
 };
 
 export interface CreditGroup {

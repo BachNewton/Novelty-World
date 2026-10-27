@@ -1064,3 +1064,75 @@ body {
   --color-hearthwood-butterfly-dark: #2a2224;
   --color-hearthwood-butterfly-eyespot: #4f7fd0;
 }
+
+/* Whisker Hollow: the island's own palette, warm and soft: its three areas'
+   grounds (the beach's sand, the backyard's grass, the castle courtyard's
+   flagstones), the sea round it, and the homes' baskets, cushions and picture
+   frames. Read by the 3D scene through themeColor, so declared outside @theme. */
+:root {
+  --color-wh-sand: #ecd7a6;
+  --color-wh-grass: #8fc66b;
+  --color-wh-flagstone: #b9b2a6;
+  --color-wh-sea: #5fb7c9;
+  --color-wh-basket: #c89a62;
+  --color-wh-cushion-rose: #e86f5c;
+  --color-wh-cushion-sky: #6f9fd8;
+  --color-wh-cushion-lilac: #b48ad6;
+  --color-wh-cushion-blush: #f2b5cf;
+  --color-wh-cushion-sage: #8cc084;
+  --color-wh-cushion-butter: #f2c84b;
+  --color-wh-frame: #8a5a3b;
+  --color-wh-portrait: #fff8ec;
+  --color-wh-sky: #bfe3f2;
+  --color-wh-sun: #fff1d6;
+  --color-wh-heart: #ff7a9c;
+}
+
+/* Whisker Hollow: the caretakers the players walk as. Each picks a shirt, a
+   hair and a skin colour, which recolour the model's own material slots; the
+   rest of the outfit (sleeves, trousers, straps, boots, belt) is the same soft
+   gardening wear on everyone. Read by the 3D scene and the look picker. */
+:root {
+  --color-wh-shirt-rose: #e77f86;
+  --color-wh-shirt-sage: #8fb38a;
+  --color-wh-shirt-sky: #79a9d6;
+  --color-wh-shirt-mustard: #e2b343;
+  --color-wh-shirt-lavender: #a98fd0;
+  --color-wh-hair-chestnut: #7a4a2b;
+  --color-wh-hair-black: #2c2622;
+  --color-wh-hair-ginger: #c8643a;
+  --color-wh-hair-honey: #e3b866;
+  --color-wh-hair-silver: #c9c6c2;
+  --color-wh-skin-fair: #f6dcc8;
+  --color-wh-skin-peach: #eebd98;
+  --color-wh-skin-tan: #cf9466;
+  --color-wh-skin-brown: #9c6440;
+  --color-wh-skin-deep: #5e3a26;
+  --color-wh-caretaker-sleeves: #f4ead6;
+  --color-wh-caretaker-trousers: #6c7a8c;
+  --color-wh-caretaker-straps: #c79c6e;
+  --color-wh-caretaker-boots: #6e4c35;
+  --color-wh-caretaker-belt: #8a5a3b;
+}
+
+/* Whisker Hollow: the overlay's paper-and-ink look, warm cream cards with
+   cocoa ink, over the garden. */
+@theme {
+  --color-wh-paper: #fff8ec;
+  --color-wh-paper-edge: #ead9bd;
+  --color-wh-ink: #4a3a2e;
+  --color-wh-ink-soft: #8a7563;
+  --color-wh-accent: #e8913c;
+  --color-wh-accent-ink: #fffaf2;
+}
+
+/* Whisker Hollow: a heart floating up from a family that just got a baby back. */
+@keyframes wh-heart-rise {
+  from { opacity: 0; transform: translateY(0) scale(0.6); }
+  20% { opacity: 1; transform: translateY(-12px) scale(1); }
+  to { opacity: 0; transform: translateY(-70px) scale(1.1); }
+}
+.wh-heart-rise {
+  opacity: 0;
+  animation: wh-heart-rise 1.6s ease-out forwards;
+}
