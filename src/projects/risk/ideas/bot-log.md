@@ -1240,3 +1240,21 @@ The capped share of every ladder matchup a bot plays in, lone or among, against 
 | v5 → v5.1 | 2.7% of 450 → 0% of 440 | 11.5% of 540 → 2.3% of 528 |
 
 A capped game plays 600 player-turns, about three decided 6-player games, so every new bot's ladder matchups against the old rule bots cost far less. A survey of a lone v6.1 and GD Defensive among each was started and stopped: the ladder measured the same thing on the tables that matter.
+
+## v7.1's train gauntlet: better at every table (2026-10-27)
+
+Rules 1 and 2 of `rule-bot-v7.1.md`'s bar, train seeds, on GitHub Actions (run 40409958461, from 845314d7, 60 shards, 7 rounds sized from the evidence, 8,974 games, 12.4 hours): `risk:gauntlet -- rule-v7.1 --base rule-v6 --field rule-v6,rule-v6.1,gd-defensive,gd-stacker,greedy`, 3 to 6 players, one-in and one-out, ±30 Elo a seat.
+
+**All 40 pairings: better.** Against v6 and v6.1 at every table size, alone and in numbers, and against GD Defensive, GD Stacker and greedy (in numbers without losing a game).
+
+| Against | 1 v7.1 alone (3p / 4p / 5p / 6p) | v7.1s against 1 (3p / 4p / 5p / 6p) |
+|---|---|---|
+| rule-v6 | 45.8 / 34.7 / 33.1 / 29.4% | 80.6 / 84.5 / 89.3 / 92.1% |
+| rule-v6.1 | 66.7 / 39.3 / 37.3 / 37.5% | 74.5 / 83.7 / 90.8 / 91.8% |
+| par | 33.3 / 25.0 / 20.0 / 16.7% | 66.7 / 75.0 / 80.0 / 83.3% |
+
+Win Elo (rule-v6 = 0): v7.1 +116.5, v6.1 −7.3, gd-stacker −493, greedy −577, gd-defensive −610. Finishing order: v7.1 +55. v7 on the same seeds was +138 and +65, against a field without v6.1.
+
+**Rules 1 and 2 hold on train seeds**: better than v6 at every table, worse than none. The holdout gauntlet and the seatable ladder are running.
+
+**The cap.** Tables with five v7.1s capped 0 to 3.5% of their games, except against a lone GD Defensive at 6 players (14.4%, 340 turns); v7's five-v7 tables capped 44 to 58%. One v7.1 among five v6s capped 8.9%, among five v6.1s none.
