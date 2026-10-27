@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { readPad, subscribeGamepads } from "@/shared/lib/gamepad";
-import { spanOf, type InputKind, type Point } from "@/shared/lib/input";
+import { lockPointer, spanOf, type InputKind, type Point } from "@/shared/lib/input";
 import { isTextEntryTarget } from "@/shared/lib/utils";
 import type { AirMode } from "../gameplay/airborne";
 import { FIRST_VIEW, otherView, type PointOfView } from "./point-of-view";
@@ -254,7 +254,7 @@ export function useWalkInput(surface: RefObject<HTMLElement | null>): WalkInput 
         if (state.current.pointOfView === "first" || state.current.flying) {
           // A refused lock (asked again too soon after Esc) is reported by `pointerlockerror`, and the
           // pointer simply stays free for the next click; the promise's rejection says the same thing again.
-          if (!isLocked()) element.requestPointerLock().catch(() => undefined);
+          if (!isLocked()) lockPointer(element).catch(() => undefined);
           return;
         }
         element.setPointerCapture(event.pointerId);

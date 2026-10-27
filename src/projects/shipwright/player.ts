@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
+import { lockPointer } from "@/shared/lib/input";
 
 /**
  * The first-person sailor. A DYNAMIC capsule rigid body (real ~85 kg) — NOT a kinematic character
@@ -109,9 +110,9 @@ export function createPlayer(
     // user gesture (a keydown is one); exitPointerLock doesn't.
     if (e.code === "Backquote") {
       if (active) document.exitPointerLock();
-      else domElement.requestPointerLock();
+      else void lockPointer(domElement);
     } else if (e.code === "KeyF" && !active) {
-      domElement.requestPointerLock();
+      void lockPointer(domElement);
     } else if (e.code === "Space" && active && opts.controlLocked?.() !== true) {
       jumpQueued = true;
     }
