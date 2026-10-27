@@ -1227,3 +1227,16 @@ The owner seated all three fixes in place of v4, v5 and v6, which retire, althou
 | 6 × v4.1 | 23 of 300 (7.7%) | 283 | 383 | 0.99 |
 
 Against the bar of at most 1 in 300, only v5.1 at 5 players passes. Six v4s capped 42% (`stalled-games.md`), so v4.1 cuts it about fivefold; v5's own mirror wasn't measured here. The fix was chosen on v6; why it ends less of the stall on v4 and v5 isn't measured.
+
+## The seatable ladder with v4.1, v5.1 and v6.1: the stall cut where the ladder pays for it (2026-10-27)
+
+`risk:ratings -- --seatable` on GitHub Actions (run 40456163776, 3,096 new games, 50 minutes; every other matchup from the cache). Elo, greedy 1000: v6.1 1548, v5.1 1526, v4.1 1495, v3 1432, v2 1428, v1 1314, GD Stacker 1079, GD Continental 1070, GD Aggressive 1003, GD Defensive 973. Each fix rates 12 to 15 below the bot it replaces (v6 1560, v5 1538, v4 1510), the order unchanged.
+
+The capped share of every ladder matchup a bot plays in, lone or among, against the last ladder's:
+
+| | 5 players | 6 players |
+|---|---|---|
+| v4 → v4.1 | 4.5% of 470 → 1.2% of 430 | 16.7% of 564 → 4.8% of 516 |
+| v5 → v5.1 | 2.7% of 450 → 0% of 440 | 11.5% of 540 → 2.3% of 528 |
+
+A capped game plays 600 player-turns, about three decided 6-player games, so every new bot's ladder matchups against the old rule bots cost far less. A survey of a lone v6.1 and GD Defensive among each was started and stopped: the ladder measured the same thing on the tables that matter.
