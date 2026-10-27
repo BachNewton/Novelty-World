@@ -26,6 +26,8 @@ v7.1 is seated at 8 replies only if all of these hold:
 4. **It fits a real game's turn**: nine turns in ten under 5 seconds on the laptop's one core, as v7's rule 5.
 5. **No stall**: at most 1 capped game in 100 on each of the 5- and 6-player mirror tables (an upper 95% bound under 4.7%), against v7's tables of v7s, which capped about half their 6-player games; a reckless-short mirror (decided mean under 70 turns at 5 players or 90 at 6) fails too.
 
+The holdout gauntlet of rule 1 was dropped by the owner's choice once the train gauntlet was better in all 40 pairings: v7.1 was tuned on no seeds (its settings are v7's, its plans v6.1's), so holdout seeds guard against nothing the train seeds don't, and its run was cancelled unfinished. Rules 1 and 2 are read on train seeds.
+
 v4 and v5 are not in the field (the Risk `CLAUDE.md`): they stall a bot-only table worst, and v7 already beat them at every table. The bar was first written against v6.1 as if it would be seated; it was moved to v6 when v6.1 failed, before any v7.1 result was read.
 
 ## Measuring it
