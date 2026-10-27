@@ -1258,3 +1258,26 @@ Win Elo (rule-v6 = 0): v7.1 +116.5, v6.1 −7.3, gd-stacker −493, greedy −57
 **Rules 1 and 2 hold on train seeds**: better than v6 at every table, worse than none. The holdout gauntlet and the seatable ladder are running.
 
 **The cap.** Tables with five v7.1s capped 0 to 3.5% of their games, except against a lone GD Defensive at 6 players (14.4%, 340 turns); v7's five-v7 tables capped 44 to 58%. One v7.1 among five v6s capped 8.9%, among five v6.1s none.
+
+## v7.1 seated: 1669 on the seatable ladder (2026-10-27)
+
+Rule 3 of `rule-bot-v7.1.md`'s bar, on GitHub Actions: `risk:ratings -- --seatable` with v7.1 among the seatable bots (run 40465652335, from acd4881b, 10,080 games, 1,768 of 2,240 seed groups from the cache, 6.7 hours).
+
+| Bot | Elo (greedy = 1000) |
+|---|---|
+| rule-v7.1 | 1668.6 |
+| rule-v6.1 | 1536.2 |
+| rule-v5.1 | 1513.1 |
+| rule-v4.1 | 1493.2 |
+| rule-v3 | 1428.3 |
+| rule-v2 | 1421.7 |
+| rule-v1 | 1312.3 |
+| gd-stacker | 1084.4 |
+| gd-continental | 1071.0 |
+| gd-aggressive | 1010.4 |
+| greedy | 1000 |
+| gd-defensive | 975.0 |
+
+v6's last Elo was 1560.3, so rule 3 holds. Alone among five v6.1s v7.1 won 41.7% of its 6-player games (par 16.7%); a lone v6.1 among five v7.1s won 12.5%. v7.1's 6-player matchups against v4.1 and v5.1 capped 2 and 3 of their games.
+
+**Verdict.** Rules 1 and 2 (train seeds; the holdout dropped by the owner's choice), 3, 4 and 5 hold. v7.1 is seated beside v6.1, a new version: it fixes no seated bot, so nothing retires.

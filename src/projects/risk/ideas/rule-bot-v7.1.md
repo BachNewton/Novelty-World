@@ -1,6 +1,6 @@
 # Risk bot v7.1: v7's search on v6.1
 
-v7.1 (`bots/rule-v7.1/`, label `rule-v7.1`, and at any budget by a tuned label such as `rule-v7.1~{"replies":8}`) is built and not seated. It is v7 (`rule-bot-v7.md`) rebuilt on v6.1 (`rule-bot-v6.1.md`), so that v7's strength comes without v6's stall. This doc fixes its seating bar and measurement plan before any run; `bot-log.md` has every measurement.
+v7.1 (`bots/rule-v7.1/`, label `rule-v7.1`, and at any budget by a tuned label such as `rule-v7.1~{"replies":8}`) is seated (`bot-log.md`, "v7.1 seated"). It is v7 (`rule-bot-v7.md`) rebuilt on v6.1 (`rule-bot-v6.1.md`), so that v7's strength comes without v6's stall. This doc fixes its seating bar and measurement plan before any run; `bot-log.md` has every measurement.
 
 ## Why it exists
 

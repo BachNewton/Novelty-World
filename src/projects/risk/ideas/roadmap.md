@@ -1,12 +1,10 @@
 # Risk bots: where each line stands and what comes next
 
-A map across the lines of bot work, for picking the next step. It holds no measurements of its own: each line's doc and `bot-log.md` have the numbers, and this says what they add up to. The goal throughout is a bot stronger than the seated rule-v6 that players can feel, and fast enough to simulate and train with.
+A map across the lines of bot work, for picking the next step. It holds no measurements of its own: each line's doc and `bot-log.md` have the numbers, and this says what they add up to. The goal throughout is a bot stronger than the strongest seated bot that players can feel, and fast enough to simulate and train with.
 
-## rule-v7.1: v7's search on v6.1
+## rule-v7.1: v7's search on v6.1, seated
 
-v7 at 8 replies is about 115 win Elo above v6 on the ladder and beat every bot at every table on train and holdout seeds, but tables of v7s cap about half their 6-player games, the stall it inherits from v6. v7.1 (`rule-bot-v7.1.md`) is the same search on v6.1, the stall-free planner: v6.1's plans, v6.1 in the replies, and the standing on v6.1's priced armies. Branch `claude/seat-rule-v7` keeps the seating work that carries over (the frozen test split for a searching bot).
-
-**Next:** its suite against v6 and its stall mirrors (`rule-bot-v7.1.md`, "Measuring it"). If it clears its bar it is seated beside v6.1, a new version.
+v7.1 (`rule-bot-v7.1.md`) is v7's search on v6.1, the stall-free planner. It is seated: better than v6, v6.1 and the weak bots at every table on train seeds, 1669 on the seatable ladder against v6's last 1560 and v6.1's 1536, and its own 5- and 6-player tables finish their games (`bot-log.md`, "v7.1's train gauntlet" and "v7.1 seated"). It is now the bot to beat.
 
 ## Stalled games: fixed and seated, at a cost at 6 players
 
