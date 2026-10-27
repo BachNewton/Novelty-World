@@ -1226,4 +1226,4 @@ The owner seated all three fixes in place of v4, v5 and v6, which retire, althou
 | 5 × v4.1 | 6 of 300 (2.0%) | 188 | 320 | 1.04 |
 | 6 × v4.1 | 23 of 300 (7.7%) | 283 | 383 | 0.99 |
 
-Against the bar of at most 1 in 300, only v5.1 at 5 players passes. Six v4s capped 42% (`stalled-games.md`), so v4.1 cuts it about fivefold; v5's own mirror wasn't measured here. The fix was tuned on v6's evaluation, and v4 and v5 plan with less of it (no fixes, and v4 no sweeps), so less of the hoard is priced away.
+Against the bar of at most 1 in 300, only v5.1 at 5 players passes. Six v4s capped 42% (`stalled-games.md`), so v4.1 cuts it about fivefold; v5's own mirror wasn't measured here. The fix was chosen on v6; why it ends less of the stall on v4 and v5 isn't measured.
