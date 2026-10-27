@@ -1176,3 +1176,18 @@ The bar of `rule-bot-v6.1.md` ("After v6.1") for v5.1 and v4.1, each against the
 Win Elo against the old version: v5.1 +1.0, v4.1 −14.4. Below 5 players each is its old version by construction (`minPlayers` 5), so those tables land on par.
 
 **Verdict.** Neither replaces its old version: both are worse in both 6-player mixtures, the cost v6.1 paid against v6, and v4.1 is worse in 5-player one-in too. The stall surveys weren't run, since the gauntlets alone fail the bar. v4 and v5 keep their seats; the fix is never kept just for being stall-free, as long as no fixed bot plays as well as the hoarder it replaces at 6 players.
+
+## v7.1's stall and turn time: rules 4 and 5 pass (2026-10-27)
+
+Two rules of `rule-bot-v7.1.md`'s bar, on the laptop.
+
+**No stall (rule 5): passes.** `trace-cli --survey --mirror rule-v7.1 <n> --games 100 --prefix holdout-cap`: at 6 players 0 capped in 100, decided games 259 turns (quartiles 168 / 262 / 342), board armies at turn 100 334, losses over income 1.04; at 5 players 0 capped, 190 turns, 271 armies, 1.06. v7's 6-player mirrors capped about half. The games are long (v6.1's mirror decides in 191 turns at 6 players), but they finish.
+
+**Turn time (rule 4): passes.** One seat among four v6s at 5 players, games `probe-a` and `probe-b`, the first 60 player-turns, one core, v7 timed alongside in the same run as a reference (sw384 training on the GPU meanwhile), twice each:
+
+| | Turns | A decision | A turn, mean | Median | 9 in 10 under | Longest |
+|---|---|---|---|---|---|---|
+| v7 | 23 | 214–220 ms | 2.0 s | 1.9 s | 3.0 s | 5.2 s |
+| v7.1 | 24 | 215–219 ms | 1.5 s | 1.5 s | 2.3 s | 2.8 s |
+
+Its decision costs what v7's does; its turns are shorter here because it attacks in fewer decisions per turn on these two games.

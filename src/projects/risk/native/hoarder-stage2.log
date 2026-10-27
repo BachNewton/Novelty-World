@@ -1,0 +1,43 @@
+﻿.\target\release\risk-native.exe : 6 points, 36 tables, 39264 games on 15 workers
+At line:1 char:395
++ ... isk\native; .\target\release\risk-native.exe sweep --points hoarder-p ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (6 points, 36 ta...s on 15 workers:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[1/36] 34 s  f16-base 5p Mirror: 500 games, 0 capped
+[2/36] 122 s  f16-base 5p In: 1260 games, 19 capped
+[3/36] 192 s  f16-base 5p Out: 1260 games, 2 capped
+[4/36] 249 s  f16-base 6p Mirror: 500 games, 1 capped
+[5/36] 513 s  f16-base 6p In: 1512 games, 155 capped
+[6/36] 673 s  f16-base 6p Out: 1512 games, 10 capped
+[7/36] 700 s  f16-r1.0 5p Mirror: 500 games, 0 capped
+[8/36] 782 s  f16-r1.0 5p In: 1260 games, 25 capped
+[9/36] 875 s  f16-r1.0 5p Out: 1260 games, 4 capped
+[10/36] 905 s  f16-r1.0 6p Mirror: 500 games, 0 capped
+[11/36] 1153 s  f16-r1.0 6p In: 1512 games, 172 capped
+[12/36] 1325 s  f16-r1.0 6p Out: 1512 games, 15 capped
+[13/36] 1349 s  f16-r1.25 5p Mirror: 500 games, 0 capped
+[14/36] 1433 s  f16-r1.25 5p In: 1260 games, 26 capped
+[15/36] 1501 s  f16-r1.25 5p Out: 1260 games, 3 capped
+[16/36] 1552 s  f16-r1.25 6p Mirror: 500 games, 0 capped
+[17/36] 1798 s  f16-r1.25 6p In: 1512 games, 189 capped
+[18/36] 1961 s  f16-r1.25 6p Out: 1512 games, 12 capped
+[19/36] 1991 s  f16-r1.5 5p Mirror: 500 games, 1 capped
+[20/36] 2065 s  f16-r1.5 5p In: 1260 games, 20 capped
+[21/36] 2134 s  f16-r1.5 5p Out: 1260 games, 3 capped
+[22/36] 2190 s  f16-r1.5 6p Mirror: 500 games, 4 capped
+[23/36] 2438 s  f16-r1.5 6p In: 1512 games, 177 capped
+[24/36] 2604 s  f16-r1.5 6p Out: 1512 games, 16 capped
+[25/36] 2638 s  f22-r1.25 5p Mirror: 500 games, 4 capped
+[26/36] 2711 s  f22-r1.25 5p In: 1260 games, 26 capped
+[27/36] 2793 s  f22-r1.25 5p Out: 1260 games, 12 capped
+[28/36] 2856 s  f22-r1.25 6p Mirror: 500 games, 11 capped
+[29/36] 3122 s  f22-r1.25 6p In: 1512 games, 190 capped
+[30/36] 3320 s  f22-r1.25 6p Out: 1512 games, 47 capped
+[31/36] 3358 s  f22-r1.5 5p Mirror: 500 games, 5 capped
+[32/36] 3445 s  f22-r1.5 5p In: 1260 games, 22 capped
+[33/36] 3537 s  f22-r1.5 5p Out: 1260 games, 8 capped
+[34/36] 3636 s  f22-r1.5 6p Mirror: 500 games, 13 capped
+[35/36] 3883 s  f22-r1.5 6p In: 1512 games, 199 capped
+[36/36] 4098 s  f22-r1.5 6p Out: 1512 games, 53 capped

@@ -1,0 +1,6 @@
+{"id":"f16-base","knobs":{"power":"armies","armyRounds":16,"armyBeyond":0.75,"reprice":"full","borderScale":1.2}}
+{"id":"f16-r1.0","knobs":{"power":"armies","armyRounds":16,"armyBeyond":0.75,"reprice":"full","borderScale":1.2,"rivalBeyond":1.0}}
+{"id":"f16-r1.25","knobs":{"power":"armies","armyRounds":16,"armyBeyond":0.75,"reprice":"full","borderScale":1.2,"rivalBeyond":1.25}}
+{"id":"f16-r1.5","knobs":{"power":"armies","armyRounds":16,"armyBeyond":0.75,"reprice":"full","borderScale":1.2,"rivalBeyond":1.5}}
+{"id":"f22-r1.25","knobs":{"power":"armies","armyRounds":22,"armyBeyond":0.75,"reprice":"full","borderScale":1.15,"rivalBeyond":1.25}}
+{"id":"f22-r1.5","knobs":{"power":"armies","armyRounds":22,"armyBeyond":0.75,"reprice":"full","borderScale":1.15,"rivalBeyond":1.5}}
