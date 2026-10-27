@@ -6,13 +6,13 @@ A map across the lines of bot work, for picking the next step. It holds no measu
 
 v7 at 8 replies is about 115 win Elo above v6 on the ladder and beat every bot at every table on train and holdout seeds, but tables of v7s cap about half their 6-player games, the stall it inherits from v6. v7.1 (`rule-bot-v7.1.md`) is the same search on v6.1, the stall-free planner: v6.1's plans, v6.1 in the replies, and the standing on v6.1's priced armies. Branch `claude/seat-rule-v7` keeps the seating work that carries over (the frozen test split for a searching bot).
 
-**Next:** its suite against v6 and its stall mirrors (`rule-bot-v7.1.md`, "Measuring it"). If it clears its bar it is seated beside v6, a new version: the search's edge over v6 is far larger than v6.1's 6-player shortfall.
+**Next:** its suite against v6 and its stall mirrors (`rule-bot-v7.1.md`, "Measuring it"). If it clears its bar it is seated beside v6.1, a new version.
 
-## Stalled games (v6.1): the stall is fixed, at a cost at 6 players
+## Stalled games: fixed and seated, at a cost at 6 players
 
-The stall is a bot problem, in the v4-to-v8 family's opponent model and its share-of-power term (`stalled-games.md`). v6.1's pick, found on the native map and screened in TS (`rule-bot-v6.1.md`), ends it: 0 and 1 capped games in 300 holdout mirrors at 5 and 6 players, against v6's 10% and 15%. It failed its bar all the same: better than v6 at 5 players, worse at 6 in both mixtures by about 15 Elo a seat (`bot-log.md`, "v6.1's holdout"), so v6 keeps its seat. A table of v6.1s still hands a lone v6, holding back, more than its share of wins at 6 players, and pricing a rival's hoard higher didn't change that enough.
+The stall is a bot problem, in the v4-to-v8 family's opponent model and its share-of-power term (`stalled-games.md`). v6.1's pick, found on the native map and screened in TS (`rule-bot-v6.1.md`), ends it: 0 and 1 capped games in 300 holdout mirrors at 5 and 6 players, against v6's 10% and 15%. It failed its bar all the same: better than v6 at 5 players, worse at 6 in both mixtures by about 15 Elo a seat (`bot-log.md`, "v6.1's holdout"), A table of v6.1s still hands a lone v6, holding back, more than its share of wins at 6 players, and pricing a rival's hoard higher didn't change that enough. v4.1 and v5.1, the same fix on v4 and v5, fell short at 6 players the same way. The owner seated all three anyway, retiring v4, v5 and v6: ending the stall, which slowed every measuring run that seated them, was worth a few Elo at one table size.
 
-**Next:** v4.1 and v5.1, the same fix on v4 and v5 (`rule-bot-v6.1.md`, "After v6.1"), are at their own bars; each replaces its old version if it passes. For v6 itself, the 6-player one-out table needs a new idea, not another setting.
+**Next:** nothing on the stall. Winning back the 6-player edge without the hoard needs a new idea, not another setting.
 
 ## Distilling v7 (student-v1): the pipeline works; the student is a research bot
 

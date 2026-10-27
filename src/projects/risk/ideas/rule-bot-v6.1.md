@@ -1,6 +1,6 @@
 # Risk bot v6.1: v6 without the stall
 
-v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built, screened and measured against its bar, and **failed it: it doesn't replace v6.** Its pick ("The rival's hoard", below) ends the stall (0 and 1 capped in 300 holdout mirror games at 5 and 6 players, against v6's 10% and 15%) and is better than v6 at 5 players, but worse at 6 in both mixtures, about 15 Elo a seat, as the native map measured; on the seatable ladder it rates v6's Elo (`bot-log.md`, "v6.1's holdout"). It stays registered as the base of v7.1 (`rule-bot-v7.1.md`), v4.1 and v5.1. v6.1 is v6 with its board scored another way, a set of settings that each re-read v6's evaluation, and plays v6's moves everywhere else.
+v6.1 (`bots/rule-v6.1/`, label `rule-v6.1`) is built, screened and measured against its bar, and **failed it**, then **was seated in v6's place anyway**, with v4.1 and v5.1 in v4's and v5's: the owner chose ending the stall over its cost at 6 players. Its pick ("The rival's hoard", below) ends the stall (0 and 1 capped in 300 holdout mirror games at 5 and 6 players, against v6's 10% and 15%) and is better than v6 at 5 players, but worse at 6 in both mixtures, about 15 Elo a seat, as the native map measured; on the seatable ladder it rates v6's Elo (`bot-log.md`, "v6.1's holdout"). It stays registered as the base of v7.1 (`rule-bot-v7.1.md`), v4.1 and v5.1. v6.1 is v6 with its board scored another way, a set of settings that each re-read v6's evaluation, and plays v6's moves everywhere else.
 
 ## Why v6 stalls
 

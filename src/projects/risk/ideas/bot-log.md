@@ -1210,3 +1210,7 @@ Win Elo +287 over gd-defensive (gd-stacker +182), no game capped.
 ## The size sweep: 128×4 (2026-10-27)
 
 sw128b (128×4, 4 hours), sw256 (256×6, 8 hours) and sw384 (384×8, 8 hours), one recipe, judged against decisions trained (`gpu-engine.md`, "The size sweep", has the table). sw128b leads at every matched decision count against greedy, gd-defensive and gd-stacker, and was still rising at its end. sw256 peaked at 131 million decisions and fell back at 184 million. sw384 ran out of the GPU's 12 GB at the recipe's batch (16,384, minibatch 2,048, and at minibatch 1,024; at batch 8,192 with minibatch 2,048 too), so it ran at 8,192 and 1,024 and is not a clean read of width; it reached 10%, 9% and 16% at 92 million decisions. The size is 128×4.
+
+## v4.1, v5.1 and v6.1 seated, short of their bars (2026-10-27)
+
+The owner seated all three fixes in place of v4, v5 and v6, which retire, although each failed its bar at 6 players ("v6.1's holdout", "v5.1 and v4.1"): ending the stall, which slowed every measuring run that seated the old bots, was worth the few Elo each gives up at 6 players. No unfinished game seated v4, v5 or v6, so none was deleted; their six finished games are kept and drawn from the list of retired bots. The fixes' Elo comes from the seatable ladder run with them in place.
