@@ -293,6 +293,27 @@ head's bias. The noise tool takes λ, so the same checkpoint and league give the
 
 If λ = 0.8 halves B_noise, pf4 trains at 0.8; if not, at 0.95.
 
+## λ's noise: lower λ helps, a little short of the predictions
+
+The same checkpoint, league and eight rollouts, at two lower λ:
+
+| λ | \|G\|² | tr(Σ) | B_noise | of λ = 0.95's | Halves' cosine |
+|---|---|---|---|---|---|
+| 0.95 | 8.3e-4 | 1,468 | 1,770,000 | 1 | 0.11–0.19 |
+| 0.8 | 2.0e-3 | 1,811 | 926,000 | 0.52 | 0.21–0.30 |
+| 0.6 | 3.3e-3 | 2,159 | 650,000 | 0.37 | 0.26–0.37 |
+
+18. λ = 0.8 below half: **failed**, narrowly (0.52).
+19. λ = 0.6 below a third: **failed** (0.37).
+20. Lowering λ never raises B_noise: **held**.
+
+The surprise is how. The noise per decision didn't fall: it rose a little, since the advantages'
+normalization rescales them. What grew was the shared part of the gradient, 2.4 times at 0.8 and 4
+times at 0.6. That is the measure's blind spot: a coherent bias looks like signal to it, and a lower
+λ adds exactly that, the value head's errors, the same in every half. So the drop in B_noise is an
+upper bound on what λ buys, and the part that is bias isn't separable here. By the rule set before
+the measurement, pf4 keeps λ = 0.95, which also leaves it testing one change against pf2.
+
 ## pf4: a colder update
 
 The noise alone doesn't decide where the training settles; the update's temperature does. With

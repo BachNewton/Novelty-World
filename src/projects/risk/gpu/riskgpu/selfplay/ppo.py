@@ -95,45 +95,50 @@ def update(net: Net, opt: torch.optim.Optimizer, env: Env, targets: dict, args) 
         perm = idx[torch.randperm(n, device=idx.device)]
         for start in range(0, n, args.minibatch):
             mb = perm[start:start + args.minibatch]
-            t, b = mb[:, 0], mb[:, 1]
-            s = rebuild(buf, t, b)
-            with torch.no_grad():
-                o = options(s, board)
-                legal = legal_main(o)
-                node, slot, glob = observe(s, o, buf["placed_on"][t, b], buf["attacks"][t, b], buf["captured"][t, b], board)
-                seat_of_slot, _ = slots(s)
-                adv = targets["adv"][t, b]
-                adv = (adv - adv.mean()) / (adv.std() + 1e-8)
-                ret = targets["ret"][t, b]
-                mc = by_slot(targets["mc"][t, b], seat_of_slot)
-                mc_ok = targets["mc_ok"][t, b][:, None] & (seat_of_slot >= 0)
-                mc_ok[:, 0] = False
-                ahead = (t + H).clamp(max=T - 1)
-                aux_ok = ((t + H) < T) & (buf["game_id"][ahead, b] == buf["game_id"][t, b])
-                aux_target = by_slot(buf["share"][ahead, b], seat_of_slot)
-                aux_mask = aux_ok[:, None] & (seat_of_slot >= 0)
-            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=env.cfg.bf16):
-                logp, entropy, value, aux = evaluate(net, node, slot, glob, legal, buf["main"][t, b], buf["amount"][t, b])
-            value, aux = value.float(), aux.float()
-            entropy = entropy.mean()
-            ratio = torch.exp(logp - buf["logp"][t, b])
-            pg = -torch.minimum(ratio * adv, ratio.clamp(1 - args.clip, 1 + args.clip) * adv).mean()
-            v_loss = ((value[:, 0] - ret) ** 2).mean()
-            vo_loss = (((value - mc) ** 2) * mc_ok).sum() / mc_ok.sum().clamp(min=1)
-            aux_loss = (((aux - aux_target) ** 2) * aux_mask).sum() / aux_mask.sum().clamp(min=1)
-            loss = pg + args.vf * v_loss + args.vo * vo_loss + args.aux * aux_loss - args.ent * entropy
+            mb_adv = targets["adv"][mb[:, 0], mb[:, 1]]
+            adv_mean, adv_std = mb_adv.mean(), mb_adv.std() + 1e-8
             opt.zero_grad(set_to_none=False)
-            loss.backward()
+            # A minibatch larger than fits in memory is taken in chunks, its gradient summed before the step.
+            for c0 in range(0, mb.shape[0], args.chunk):
+                part = mb[c0:c0 + args.chunk]
+                weight = part.shape[0] / mb.shape[0]
+                t, b = part[:, 0], part[:, 1]
+                s = rebuild(buf, t, b)
+                with torch.no_grad():
+                    o = options(s, board)
+                    legal = legal_main(o)
+                    node, slot, glob = observe(s, o, buf["placed_on"][t, b], buf["attacks"][t, b], buf["captured"][t, b], board)
+                    seat_of_slot, _ = slots(s)
+                    adv = (targets["adv"][t, b] - adv_mean) / adv_std
+                    ret = targets["ret"][t, b]
+                    mc = by_slot(targets["mc"][t, b], seat_of_slot)
+                    mc_ok = targets["mc_ok"][t, b][:, None] & (seat_of_slot >= 0)
+                    mc_ok[:, 0] = False
+                    ahead = (t + H).clamp(max=T - 1)
+                    aux_ok = ((t + H) < T) & (buf["game_id"][ahead, b] == buf["game_id"][t, b])
+                    aux_target = by_slot(buf["share"][ahead, b], seat_of_slot)
+                    aux_mask = aux_ok[:, None] & (seat_of_slot >= 0)
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=env.cfg.bf16):
+                    logp, entropy, value, aux = evaluate(net, node, slot, glob, legal, buf["main"][t, b], buf["amount"][t, b])
+                value, aux = value.float(), aux.float()
+                entropy = entropy.mean()
+                ratio = torch.exp(logp - buf["logp"][t, b])
+                pg = -torch.minimum(ratio * adv, ratio.clamp(1 - args.clip, 1 + args.clip) * adv).mean()
+                v_loss = ((value[:, 0] - ret) ** 2).mean()
+                vo_loss = (((value - mc) ** 2) * mc_ok).sum() / mc_ok.sum().clamp(min=1)
+                aux_loss = (((aux - aux_target) ** 2) * aux_mask).sum() / aux_mask.sum().clamp(min=1)
+                loss = pg + args.vf * v_loss + args.vo * vo_loss + args.aux * aux_loss - args.ent * entropy
+                (loss * weight).backward()
+                with torch.no_grad():
+                    sums["pg"] += float(pg) * weight
+                    sums["v"] += float(v_loss) * weight
+                    sums["vo"] += float(vo_loss) * weight
+                    sums["aux"] += float(aux_loss) * weight
+                    sums["ent"] += float(entropy) * weight
+                    sums["kl"] += float((buf["logp"][t, b] - logp).mean()) * weight
+                    sums["clip"] += float(((ratio - 1).abs() > args.clip).float().mean()) * weight
             torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
             opt.step()
-            with torch.no_grad():
-                sums["pg"] += float(pg)
-                sums["v"] += float(v_loss)
-                sums["vo"] += float(vo_loss)
-                sums["aux"] += float(aux_loss)
-                sums["ent"] += float(entropy)
-                sums["kl"] += float((buf["logp"][t, b] - logp).mean())
-                sums["clip"] += float(((ratio - 1).abs() > args.clip).float().mean())
             count += 1
     out = {k: v / max(count, 1) for k, v in sums.items()}
     out["samples"] = n
@@ -358,6 +363,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--epochs", type=int, default=3)
     p.add_argument("--minibatch", type=int, default=8192)
+    p.add_argument("--chunk", type=int, default=8192, help="rows a forward and backward pass takes at once; a larger minibatch sums its chunks")
     p.add_argument("--clip", type=float, default=0.2)
     p.add_argument("--lam", type=float, default=0.95)
     p.add_argument("--vf", type=float, default=0.5)
