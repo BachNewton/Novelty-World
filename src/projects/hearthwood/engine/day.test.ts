@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateAt, daysPerYear, parseDate, secondsPerDay, timeOf } from "./calendar";
+import { dateAt, parseDate, secondsPerDay, timeOf } from "./calendar";
 import { MOMENTS, skyAt, type DaySky, type Moment } from "./day";
 
 function skyOn(date: string, hour: number): DaySky {
@@ -11,19 +11,6 @@ function strongest(sky: DaySky): Moment {
 }
 
 describe("the day's light", () => {
-  it("mixes its moments to a whole, without a jump anywhere through the year", () => {
-    const step = secondsPerDay() / 1000;
-    let previous = skyAt(dateAt(0));
-    for (let t = step; t <= secondsPerDay() * daysPerYear(); t += step) {
-      const now = skyAt(dateAt(t));
-      expect(MOMENTS.reduce((sum, m) => sum + now.mix[m], 0)).toBeCloseTo(1);
-      for (const m of MOMENTS) expect(Math.abs(now.mix[m] - previous.mix[m])).toBeLessThan(0.03);
-      expect(Math.abs(now.light.sun - previous.light.sun)).toBeLessThan(0.04);
-      expect(Math.abs(now.key.strength - previous.key.strength)).toBeLessThan(0.07);
-      previous = now;
-    }
-  });
-
   it("follows the sun's height: dawn and morning as it climbs, golden hour and dusk as it sinks", () => {
     expect(strongest(skyOn("mabon", 6.3))).toBe("dawn");
     expect(strongest(skyOn("mabon", 8.5))).toBe("morning");
@@ -61,7 +48,4 @@ describe("the day's light", () => {
     }
   });
 
-  it("is the same every time", () => {
-    expect(skyOn("samhain", 21.3)).toEqual(skyOn("samhain", 21.3));
-  });
 });

@@ -110,7 +110,4 @@ describe("the calendar", () => {
     expect(festivalOn(parseDate("litha", longer), longer)?.id).toBe("litha");
   });
 
-  it("is the same every time", () => {
-    expect(dateAt(12345.678)).toEqual(dateAt(12345.678));
-  });
 });

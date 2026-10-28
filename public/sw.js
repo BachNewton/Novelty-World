@@ -2,6 +2,10 @@ const CACHE_NAME = "novelty-world-v1";
 
 // Network-first strategy: always try the network, fall back to cache
 self.addEventListener("fetch", (event) => {
+  // Audio and video stream in byte ranges, which are never cached, so relaying them gains nothing. And a phone that
+  // stops the worker while its screen is locked would stop the stream with it.
+  const destination = event.request.destination;
+  if (destination === "audio" || destination === "video") return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {

@@ -58,11 +58,12 @@ const CATALOG = {
   ],
 };
 
-/** Serves the audio with byte ranges, as the bucket does, so the player can seek. */
+/** Serves the audio with byte ranges and CORS, as the bucket does, so the player can seek and download ahead. */
 async function serveAudio(route: Route) {
+  const headers = { "accept-ranges": "bytes", "access-control-allow-origin": "*" };
   const range = /bytes=(\d+)-(\d*)/.exec((await route.request().headerValue("range")) ?? "");
   if (!range) {
-    await route.fulfill({ status: 200, contentType: "audio/wav", headers: { "accept-ranges": "bytes" }, body: AUDIO });
+    await route.fulfill({ status: 200, contentType: "audio/wav", headers, body: AUDIO });
     return;
   }
   const start = Number(range[1]);
@@ -70,7 +71,7 @@ async function serveAudio(route: Route) {
   await route.fulfill({
     status: 206,
     contentType: "audio/wav",
-    headers: { "accept-ranges": "bytes", "content-range": `bytes ${String(start)}-${String(end)}/${String(AUDIO.length)}` },
+    headers: { ...headers, "content-range": `bytes ${String(start)}-${String(end)}/${String(AUDIO.length)}` },
     body: AUDIO.subarray(start, end + 1),
   });
 }
@@ -143,6 +144,24 @@ test("a listener plays a chapter, sees its photo, bookmarks it, moves on, and pi
 
   await page.goBack();
   await expect(page.getByRole("progressbar", { name: "Listened" })).not.toHaveAttribute("aria-valuenow", "0");
+});
+
+test("the next chapter downloads while one plays, and follows it without going back to the network", async ({ page }) => {
+  await stubBucket(page);
+  await page.goto("/tools/audiobook/test-book");
+  const audio = page.locator("audio");
+  await expect(audio).toHaveAttribute("data-next-downloaded", "false");
+
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(audio).toHaveAttribute("data-next-downloaded", "true");
+  const requests: string[] = [];
+  page.on("request", (r) => requests.push(r.url()));
+
+  await page.getByRole("slider", { name: "Position in chapter" }).fill(String(CHAPTER_SECONDS - 1));
+  await expect(page.getByTestId("chapter-title")).toHaveText("Chapter Two");
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(audio).toHaveAttribute("src", /^blob:/);
+  expect(requests.filter((url) => url.endsWith("/two.wav"))).toEqual([]);
 });
 
 test("on a phone, the player fits the screen and the lists open over it", async ({ page }) => {
