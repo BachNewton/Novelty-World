@@ -203,3 +203,47 @@ signal's noise (bigger batches, more games an update, or a warm start by imitati
 nets (pf3-100, sw128b-825) rate above sw128b-450, reading C: training improves at its own tables,
 and the question becomes which tables the rule bots' strength follows, since sw128b-450 beat v6
 one-in.
+
+## The ladder's results: the drift is real, reading D
+
+8192 games, all decisive, win Elo with net-v1 at 0:
+
+| Net | Win Elo |
+|---|---|
+| sw128b-450 | +95 |
+| pf2-100 | +59 |
+| pf3-100 | +18 |
+| net-v1 (m2a-50) | 0 |
+| sw128b-375 | −3 |
+| sw128b-825 | −45 |
+| pf1-75 | −67 |
+| sw128b-575 | −139 |
+
+12. sw128b-450 first or within 30 Elo of it: **held**, first by 36.
+13. pf3-100 at least 30 Elo below sw128b-450: **held**, 78 below.
+14. sw128b-825 below sw128b-450: **held**, 140 below.
+
+So the later nets are worse at the mixed tables too, not only in the homogeneous checks: reading D.
+The order fits a wander rather than a slope: sw128b went from −3 (375) up to +95 (450), down to −139
+(575) and back up to −45 (825), and pf2, the smallest steps, stayed nearest to where it started.
+
+## What the update does with the noise
+
+Each iteration's PPO update takes 3 epochs over its about 480,000 learner decisions in minibatches of
+2048: about 700 optimizer steps, each on 2048 decisions from the same few hundred games. The
+batch size that matters for noise is the minibatch, not the rollout. The noise scale (McCandlish
+et al., "An Empirical Model of Large-Batch Training") says how many decisions a gradient must
+average before its signal matches its noise; `riskgpu.selfplay.noise` measures it at sw128b-450 in
+pf1's league, from the gradient over each half of a rollout's games and over all of them, eight
+rollouts after twenty played to spread the games over every phase.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 15 | B_noise is above 20,000 decisions: a 2048-decision step is mostly noise. | 75% |
+| 16 | B_noise is above one rollout's decisions (about 480,000): even a whole iteration's gradient is mostly noise. | 35% |
+| 17 | The two halves' gradients have a mean cosine below 0.3. | 65% |
+
+If B_noise is between about 20,000 and one rollout, the fix costs nothing: a minibatch near
+B_noise, so fewer, cleaner steps from the same data. Above one rollout, an update needs more data
+(a larger batch or horizon) or less variance. Below 20,000, noise isn't it, and the drift is a bias
+(the value baseline, or the objective itself).
