@@ -110,3 +110,13 @@ native-v2 at its chosen switches is a success only if all of these hold:
 - **The fast path.** Screens of a switch against the baseline or native-v1 run wholly in the crate (`--native`).
 - **The slow path.** Gauntlets against rule-v7.1 are mixed tables and run at v7.1's speed. They are long runs for GitHub Actions (`docs/actions.md`).
 - **CPU.** Every run that holds most of the laptop's CPU for more than about ten minutes is asked for first (the repo's `CLAUDE.md`).
+
+## Still to run
+
+Results go to `bot-log.md` as they land; each Actions run's report is its `risk-native-results` artifact (`summary.txt`), or the `risk-results` artifact for a gauntlet.
+
+- **Head-to-heads on Actions** (`native-games`, 1,000 games each way round, seeds `v2h2h`, rotated): `execute` against the baseline at 4, 5 and 6 players, and `execute` + `kinds` against `execute` at 3 to 6 players. They decide whether `kinds` stays on.
+- **The gauntlet against rule-v7.1**, train seeds, `native-v2~{"execute":1}` with base and field rule-v7.1 (Actions run 40720793871). Its `risk-results` artifact is imported with `npm run risk:import` in a checkout with no uncommitted engine or runner changes (an import prunes cached records whose code hash differs). This is bar 1's train half; bar 2 needs the suite's field in a gauntlet of its own.
+- **A factorial of the switches** (proposed, not yet approved by the owner): all 64 combinations of `execute`, `kinds`, `feed`, `threat`, `hoard` and `margin` 0.5, 500 games each at 5 players against v6.1, to measure each switch's effect and every pairwise interaction, which one-at-a-time screens can't see.
+- **Then** holdout seeds, the seatable ladder, the 5- and 6-player mirror stall check, and vulture-v1's check against Bot Killer's recorded turns.
+- **CPU.** The laptop runs nothing heavy until the owner says it is on its charger; everything above runs on Actions.

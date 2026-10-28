@@ -1350,3 +1350,7 @@ The same screens as above, at 3, 4 and 6 players too, now played on GitHub Actio
 `execute` adds 25 to 55 a seat at every table. `kinds` on top of it leans better at 3 and 4 players and worse at 6, each about one standard error, so unsettled. Capped games stayed at 0 to 1%.
 
 `margin` at 5 players: 0.5 gives +135, 1 gives +118, 2 gives +87, all below the baseline's +151 and falling with the margin. Holding v6.1's pick unless the search beats it by a margin only costs: the search's narrow overrides are worth playing. Set aside.
+
+## native-v2 head-to-head: execute against the baseline (2026-10-28)
+
+The two labels at one table, 1,000 games each way round, seeds `v2h2h`, rotated, on Actions (`native-games`). At 3 players (runs 40727951010 and 40727957089): `execute` alone among baselines wins 34.6% ± 1.5 against par 33.3%, +10 win Elo a seat; the baseline alone among `execute`s wins 30.3% ± 1.5, −24 for it. Both ways round `execute` is ahead, by less than its screens against v6.1 suggested. The 4-, 5- and 6-player pairs, and `execute` + `kinds` against `execute` at every table, are still playing.
