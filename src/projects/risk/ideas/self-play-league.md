@@ -120,3 +120,29 @@ learning rate. If only pf3 holds, the opponents' strength is, and the league is 
 strong nets. If both hold, both matter; if neither does, the wander is the win signal's own noise
 in 5- and 6-player games, and the next step is the roadmap's "wiring" cause (an imitation warm
 start), or a bigger batch.
+
+## pf2's results: smaller steps slow the drift, they don't stop it
+
+pf2 ran its 100 iterations (2.3 hours).
+
+| Iteration | One-in vs net-v1 | One-out vs net-v1 | One-in vs sw128b-450 | One-out vs sw128b-450 | GD Defensive | GD Stacker | Greedy |
+|---|---|---|---|---|---|---|---|
+| 25 | 27.0% | 83.6% | 20.9% | 78.1% | 69.7% | 71.7% | 89.4% |
+| 50 | 21.1% | 78.9% | 22.7% | 81.0% | 69.1% | 73.1% | 92.9% |
+| 75 | 18.9% | 59.0% | 23.2% | 75.0% | 64.3% | 73.0% | 93.0% |
+| 100 | 16.6% | 57.6% | 19.9% | 74.0% | 58.2% | 67.8% | 92.6% |
+
+Against the predictions:
+
+7. One-in vs net-v1 at 15% or more through iteration 100: **held**, at 16.6%, but on a steady fall
+   (27, 21, 19, 17), so it held because the run was short, not because the fall stopped.
+8. One-in vs sw128b-450 between 16% and 24%: **held** (20 to 23%).
+11. No 25% against sw128b-450: holds for pf2.
+
+The same pattern as pf1's, at roughly a third of the speed: against net-v1 the one-out fell 84 to
+58% (pf1: 75 to 55% in 75 iterations), and GD Defensive 70 to 58%, while greedy rose. The step size
+sets how fast it drifts, not where to: the direction is the same in all three runs, away from
+net-v1 and GD Defensive and toward beating greedy. Its games also lengthened (100 to 129
+player-turns) where sw128b's shortened, and its entropy fell from 2.0 to 1.7, so it isn't the same
+style change, only the same losses. That leaves reading B, the opponents set the direction, as the
+better candidate, and pf3 tests it.
