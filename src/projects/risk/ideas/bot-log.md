@@ -1294,3 +1294,63 @@ The same net against v7.1, at 5 players, on GitHub Actions. Predicted before the
 clearly.
 
 `risk:gauntlet -- 'net-v1~{"weights":"sw128b-450"}' --base rule-v7.1 --field rule-v7.1 --players 5 --formats one-in,one-out` (890 games): **worse** at both tables. One-in, 10.7% [7.3, 15.4] of 224 decisive games against par 20%, though the lone net's mean place was 2.96 against par 3.0. One-out, four nets winning 75.3% [71.7, 78.7] of 580 decisive games against par 80%, the lone v7.1's mean place 3.63. Win Elo −64, finishing-order Elo +82. The prediction held. The net outlasts v7.1 but converts far fewer games into wins: it survives, and v7.1 finishes. M4 stands open.
+
+## vulture-v1: the card-killer's playbook as a native style bot (2026-10-28)
+
+`native/src/bots/vulture_v1/`, designed in `vulture-v1.md` from Bot Killer's seat in all six games we have (G4FR, 9VFL, YUY4, 9PYK, YMS9, CZ7U). It is a persona, not a candidate: not seatable, no seating bar, measured only to know what it is.
+
+**His moves.** By `risk-native agree-log`, on his 1,471 decisions it makes his exact move on 61.9% (sweeper-v1 57.4%, rule-v6.1 28.1%), and it is the closest of the three in every one of the six games. By kind: trades 58.7%, first placements 29.4%, attacks 52.6%, move-ins 92.5%, marches 12.0%.
+
+**A 5-player native screen**, 1,000 games a pairing, lone seat rotated, against native-v1 at v6.1's settings ("v6.1"), GD's personas and greedy, par 20%:
+- alone among v6.1s it wins 4.8% ± 0.7, and a lone v6.1 among vultures 51.1%;
+- alone among GD Defensive, Stacker, Aggressive and Continental it wins 63.7%, 52.5%, 59.5% and 59.8%, and alone among greedys 58.2%;
+- a lone GD Defensive among vultures wins 6.8%, a lone GD Stacker 2.9%, a lone greedy 11.9%;
+- none of 500 vulture mirror games capped;
+- about 3 µs a decision.
+
+It is far stronger than sweeper-v1 against the yardstick bots and still rarely wins among v6.1s.
+
+
+## native-v2: the baseline matches v7's gain, and the first switch screens (2026-10-28)
+
+`native-v2` (`native-v2.md`): v7.1's search on native-v1 at v6.1's settings, with seven switches, each a knob. All screens here are native (`risk-native games --rotate`), 5 players, seeds `v2screen`, 8 workers on the laptop beside other runs, against native-v1 at v6.1's settings with v6's small-table cutoff ("v6.1": `native-v1~{"power":"armies","armyRounds":16,"armyBeyond":0.75,"reprice":"full","borderScale":1.2,"rivalBeyond":1.25,"minPlayers":5,"smallTableSeats":4}`), par 20%.
+
+**The baseline against v6.1.** Alone among v6.1s, native-v2 wins 187 of 500 (37.4% ± 2.2), +151 win Elo a seat; a lone v6.1 among native-v2s wins 23 of 249 decisive (9.2% ± 1.8), native-v2 +156 a seat one-out, 1 of 250 capped. v7 at 8 replies measured +152 over v6 at 5 players on the TypeScript ladder: the port keeps the search's gain. Its decisions agree with v7.1's on 91.5% of CZ7U's v7.1 decisions (all of v6.1's own kinds, 17 of 46 turn-start placements, where v7.1 itself chose on noise).
+
+**Each switch alone, and two pairs, alone among v6.1s** (same seeds as the baseline's 37.4%):
+
+| Label | Wins | Win Elo a seat |
+|---|---|---|
+| baseline | 37.4% ± 2.2 | +151 |
+| `execute` | 43.8% ± 2.2 | +198 |
+| `kinds` 1 | 38.2% ± 2.2 | +157 |
+| `margin` 2 | 29.2% ± 2.0 | +87 |
+| `feed` 1 | 35.1% ± 2.1 | +134 |
+| `threat` | 35.2% ± 2.1 | +135 |
+| `hoard` | 35.3% ± 2.1 | +135 |
+| `execute` + `feed` | 43.0% ± 2.2 | +192 |
+| `execute` + `kinds` | 44.8% ± 2.2 | +205 |
+
+`humans` isn't screened: a bot-only table has no person's seat.
+
+Read as screens, not verdicts: a lone seat among v6.1s measures an edge over v6.1, not over the baseline, and 500 games separate about 6 points of win share. `execute` is the one clear gain (6.4 points over the baseline on the same seeds); `margin` at 2 standard errors is a clear loss (the search's overrides of v6.1 are worth more than their noise suggests); `kinds`, `feed`, `threat` and `hoard` are within the noise of the baseline alone; `kinds` on `execute` leans better than `execute` alone.
+
+**Time.** A native-v2 turn on one core, measured in these screens beside other runs: median 0.27 to 0.35 s, nine in ten under 0.50 to 0.79 s; the longest single turns were 3 to 16 s (the 16 s under `execute` + `kinds`, which searches the most candidates), all on a loaded machine. v7.1's own was 2.5 s a turn on average.
+
+## native-v2 at every table, on Actions (2026-10-28)
+
+The same screens as above, at 3, 4 and 6 players too, now played on GitHub Actions (`risk-measure.yml`'s `native-games`, 20 runners, each 500-game screen 13 s to 5 min of play). Each label alone among native v6.1s, seeds `v2screen`, rotated; win Elo a seat (500 games each, about ±2.2 points of win share):
+
+| Label | 3p | 4p | 5p | 6p |
+|---|---|---|---|---|
+| baseline | +112 | +130 | +151 | +170 |
+| `execute` | +137 | +174 | +198 | +225 |
+| `execute` + `kinds` | +161 | +191 | +205 | +201 |
+
+`execute` adds 25 to 55 a seat at every table. `kinds` on top of it leans better at 3 and 4 players and worse at 6, each about one standard error, so unsettled. Capped games stayed at 0 to 1%.
+
+`margin` at 5 players: 0.5 gives +135, 1 gives +118, 2 gives +87, all below the baseline's +151 and falling with the margin. Holding v6.1's pick unless the search beats it by a margin only costs: the search's narrow overrides are worth playing. Set aside.
+
+## native-v2 head-to-head: execute against the baseline (2026-10-28)
+
+The two labels at one table, 1,000 games each way round, seeds `v2h2h`, rotated, on Actions (`native-games`). At 3 players (runs 40727951010 and 40727957089): `execute` alone among baselines wins 34.6% ± 1.5 against par 33.3%, +10 win Elo a seat; the baseline alone among `execute`s wins 30.3% ± 1.5, −24 for it. Both ways round `execute` is ahead, by less than its screens against v6.1 suggested. The 4-, 5- and 6-player pairs, and `execute` + `kinds` against `execute` at every table, are still playing.

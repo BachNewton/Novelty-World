@@ -181,11 +181,31 @@ pub fn choose_fortify(b: &Board, judge: &Judge, options: &FortifyOptions) -> Opt
     });
     shifts.truncate(40);
 
-    let best = gather(b, judge, &shifts).or_else(|| {
+    // `hoard`: a move that strips a gate facing a bigger stack is charged, and never gathers.
+    let unstripped: Vec<Shift>;
+    let gathering = if judge.extra.hoard {
+        unstripped = shifts
+            .iter()
+            .copied()
+            .filter(|s| stripped_gate(b, s) == 0.0)
+            .collect();
+        &unstripped
+    } else {
+        &shifts
+    };
+    let best = gather(b, judge, gathering).or_else(|| {
         let mut best = None;
         let mut best_value = evaluate(b, judge);
+        let total = if judge.extra.hoard {
+            super::evaluate::breakdown(b, judge).total
+        } else {
+            1.0
+        };
         for s in &shifts {
-            let value = evaluate(&s.on(b), judge);
+            let mut value = evaluate(&s.on(b), judge);
+            if judge.extra.hoard {
+                value -= stripped_gate(b, s) / total;
+            }
             if value > best_value + 1e-9 {
                 best_value = value;
                 best = Some(*s);
@@ -198,6 +218,26 @@ pub fn choose_fortify(b: &Board, judge: &Judge, options: &FortifyOptions) -> Opt
         to: best.to as Territory,
         armies: best.armies,
     })
+}
+
+/// `hoard`'s charge on a fortify, in armies: when the move leaves its source facing a bigger enemy
+/// stack than it keeps, the chance that stack now takes it over the chance it had, times the armies
+/// moved away. 0 for any other move.
+fn stripped_gate(b: &Board, s: &Shift) -> f64 {
+    let Some(attackers) =
+        crate::map::territories_in(crate::map::ADJACENT[s.from] & !b.own(b.owner[s.from]))
+            .map(|n| b.armies[n] - 1)
+            .max()
+    else {
+        return 0.0;
+    };
+    let left = b.armies[s.from] - s.armies;
+    if attackers <= left {
+        return 0.0;
+    }
+    let before = super::fights::win(attackers, b.armies[s.from]);
+    let after = super::fights::win(attackers, left);
+    (after - before).max(0.0) * s.armies as f64
 }
 
 fn gather(b: &Board, judge: &Judge, shifts: &[Shift]) -> Option<Shift> {

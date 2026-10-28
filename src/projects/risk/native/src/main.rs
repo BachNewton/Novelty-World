@@ -20,8 +20,13 @@ const USAGE: &str = "usage:
   risk-native bench <records.jsonl[.gz]...>      time options + apply over the records' positions
   risk-native games --bots <a,b...> [--players P] --seeds <prefix> --count N [--rotate] [--turns T] [--workers W]
                                                  play native tables and report the lone bot's win share and time
+                    [--shard i/N --out <file>]   play every N-th seed group from the i-th and write its games
+                    [--games-from <dir>]         report the shards' games, as one run of these arguments would
   risk-native agree --bot <label> [--seats <recorded label>] <records.jsonl[.gz]...>
                                                  how often a native bot decides as the recorded seats did
+  risk-native agree-log --bot <label> --seats <s,s...> <online-log.json...>
+                                                 how often a native bot decides as an online game's seats
+                                                 did, and its time on their turns
   risk-native sweep --points <points.jsonl> --out <results.jsonl> [--players 5,6] [--groups A-B] [--mirror A-B]
                     [--prefix P] [--base native-v1] [--turns T] [--workers W]
                     [--in-seeds S] [--out-seeds S]  (one-in, one-out groups seeded S-1, S-2...: a gauntlet's own)
@@ -50,6 +55,7 @@ fn main() -> ExitCode {
         Some("bench") if args.len() > 1 => bench(&args[1..]),
         Some("games") => games::games(&args[1..]),
         Some("agree") => agree(&args[1..]),
+        Some("agree-log") => agree_log(&args[1..]),
         Some("sweep") => sweep::sweep(&args[1..]),
         Some("sweep-report") if args.len() > 1 => sweep::report(&args[1..]),
         _ => Err(USAGE.to_string()),
@@ -61,6 +67,27 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// A comma-separated list of bot labels, a tuned label's JSON kept whole: the commas inside its
+/// braces separate settings, not labels (`native-v1~{"power":"armies","armyRounds":16},greedy`).
+fn labels(list: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0;
+    for (i, c) in list.char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => depth -= 1,
+            ',' if depth == 0 => {
+                out.push(list[start..i].to_string());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(list[start..].to_string());
+    out
 }
 
 fn workers(args: &[String]) -> Result<usize, String> {
@@ -129,7 +156,7 @@ fn play(args: &[String]) -> Result<(), String> {
             ));
         };
         match flag.as_str() {
-            "--bots" => bots = Some(value.split(',').map(String::from).collect()),
+            "--bots" => bots = Some(labels(value)),
             "--players" => players = Some(number(flag, value)? as usize),
             "--seeds" => prefix = Some(value.clone()),
             "--count" => count = Some(number(flag, value)?),
@@ -259,4 +286,90 @@ fn agree(args: &[String]) -> Result<(), String> {
         parts.join(", ")
     );
     Ok(())
+}
+
+fn agree_log(args: &[String]) -> Result<(), String> {
+    let mut label = None;
+    let mut seats: Vec<u8> = Vec::new();
+    let mut files = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--bot" => {
+                label = args.get(i + 1).cloned();
+                i += 2;
+            }
+            "--seats" => {
+                let list = args.get(i + 1).ok_or("--seats has no value")?;
+                seats = list
+                    .split(',')
+                    .map(|s| {
+                        s.parse()
+                            .map_err(|_| format!("--seats takes seat numbers, not \"{s}\""))
+                    })
+                    .collect::<Result<_, _>>()?;
+                i += 2;
+            }
+            _ => {
+                files.push(args[i].clone());
+                i += 1;
+            }
+        }
+    }
+    let label = label.ok_or("name --bot")?;
+    if seats.is_empty() || files.is_empty() {
+        return Err(format!(
+            "name --seats and a log
+{USAGE}"
+        ));
+    }
+    for f in &files {
+        let log = risk_native::decide::read_online_log(Path::new(f))?;
+        let a = risk_native::decide::online_agreement(&log, &label, &seats)?;
+        let (mut agreed, mut asked) = (0, 0);
+        let mut parts = Vec::new();
+        for (k, (x, n)) in &a.kinds {
+            agreed += x;
+            asked += n;
+            parts.push(format!(
+                "{k} {x}/{n} ({:.1}%)",
+                100.0 * *x as f64 / *n as f64
+            ));
+        }
+        println!(
+            "{f}: {label} at seats {seats:?}: {agreed}/{asked} = {:.1}% | {}",
+            100.0 * agreed as f64 / asked.max(1) as f64,
+            parts.join(", ")
+        );
+        let mut turns = a.turn_nanos.clone();
+        turns.sort_unstable();
+        if !turns.is_empty() {
+            let at = |q: f64| {
+                turns[((turns.len() as f64 * q) as usize).min(turns.len() - 1)] as f64 / 1e6
+            };
+            println!(
+                "  {} turns: median {:.1} ms, 9 in 10 under {:.1} ms, longest {:.1} ms",
+                turns.len(),
+                at(0.5),
+                at(0.9),
+                at(1.0)
+            );
+        }
+        for (d, turn, mine, played) in &a.differed {
+            println!("  d{d} (turn {turn}): plays {mine:?}, the game {played:?}");
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_tuned_labels_commas_stay_in_it() {
+        assert_eq!(
+            super::labels(r#"native-v1~{"power":"armies","armyRounds":16},greedy"#),
+            [r#"native-v1~{"power":"armies","armyRounds":16}"#, "greedy"]
+        );
+        assert_eq!(super::labels("greedy"), ["greedy"]);
+    }
 }

@@ -18,7 +18,7 @@ gh workflow run risk-measure.yml --ref main -f tool=gauntlet -f args="rule-v5 --
 
 The inputs:
 
-- **tool**: `gauntlet` or `ratings`.
+- **tool**: `gauntlet` or `ratings` (and `record` and `native-games`, below).
 - **args**: the tool's own arguments. `--workers` makes no difference here: each machine uses all its cores.
 - **shards**: the most machines a round is split across. 20 by default, which is as many jobs as GitHub runs at once on a free account.
 - **min_round**: the fewest games an undecided gauntlet pairing plays in a round. 0 by default, which leaves every round's size to the evidence (below); a floor only makes rounds bigger, never changes a result.
@@ -57,6 +57,8 @@ A run plays in **rounds**. Each round has a **plan** job and up to twenty **play
    A play job that fails (GitHub occasionally loses a runner mid-job, or one runs past the six-hour limit) doesn't stop the others or the run: the round's other machines play on, and the next round's plan finds that machine's games missing and plays them again. Every game is a pure function of its spec, so a game played twice gives the same result. Only cancelling the run stops it.
 4. The **report** job runs the tool itself, with the same arguments, over every game the rounds played. Instead of playing a game, it looks up the kept result. The output is the tool's own report and run-log record.
 
+Every plan, play and report job builds the native crate's release binary first (its dependencies cached between runs), so a run's tables may seat Rust bots, as a local mixed table does (`ideas/native-port.md`).
+
 **Why the rounds are sized from the evidence.** A round's games are bought before the test reads them, and the test stops at its first group across a bound, so everything a round plays past that point is paid for and thrown away. Rounds of a fixed 600 games threw away most of what v7 played: its pairings decided in 85 to 270 games. Sized to what the test expects to need, simulated pairings waste about a tenth instead, from a strong candidate to one on its margin, at the price of more rounds: typically 3 to 8, at most 13 in 2,000 simulated pairings. A round's start-up is minutes, so for a bot whose games cost minutes each that trade is easy; for a bot of greedy's cost the extra rounds cost more than the games they save, and such a gauntlet plays faster on the laptop anyway. The size only moves where a round ends, never the result. The workflow has sixteen rounds. A run that needed more fails loudly in its report, naming a game that was never played. The tools can also run this loop by hand: `--games-from <dir>` reads kept games, `--plan <file>` writes the next round's plan, and `npm run risk:shard` plays one machine's share of a plan.
 
 **Why the rounds are chained inside one workflow run.** The workflow calls the round workflow sixteen times, each call depending on the one before and skipped once a plan finds the run decided. The alternative was a round that starts the next run of the workflow itself. That works, but it splits one measurement over many runs, and each would have to find the previous runs' games, a cross-run download that needs extra permissions. Chained calls keep a run in one place: one page to watch, one button to cancel it, its games all in that run's own artifacts, and one report at the end. The cost is the fixed limit of sixteen rounds, which the round sizing makes enough. GitHub allows 50 workflow calls from one file, and a run may last 35 days.
@@ -85,6 +87,20 @@ gh run download <run id> --name risk-positions --dir src/projects/risk/eval/posi
 A teacher recording (`risk:record -- --teacher rule-v7 ...`, `eval/distill.ts`) runs the same way, with the same tool and its arguments typed after it.
 
 The positions are data, never committed: `eval/positions/` is ignored.
+
+## Native games
+
+The same workflow plays the native crate's quick measuring run, `risk-native games` (`native/src/games.rs`): pick the tool `native-games` and type its arguments as they'd follow `risk-native games`. Like `record`, its games are fixed in number, so there are no rounds or plan, and no Node. Each of `shards` machines builds the crate and plays every `shards`-th seed group from its own (a rotation's games share a seed and stay together, so every machine gets the same mix), on all its cores, keeping each game's result in one file. A last job reads every machine's file and prints the report one local run of the same arguments prints: the games are read in the run's order, so the win share, its error, the Elo, the cap rate, game length and every bot's decision and turn counts are the local run's. The times are the machines' own, so the per-decision and per-turn times are the runners', and the run's seconds are the slowest machine's. A crate test holds the shards, merged, to the whole run played at once.
+
+```bash
+gh workflow run risk-measure.yml --ref <branch> -f tool=native-games -f args='--bots native-v2~{"execute":1},native-v2 --players 5 --seeds v2h2h --count 1000 --rotate'
+```
+
+The arguments are split at spaces and never unquoted, so a tuned label is typed bare, without the quotes a shell would need round it. `--workers` makes no difference: each machine uses all its cores. The report is on the run's page and in the `risk-native-results` artifact (`summary.txt`); there is nothing to import. A machine whose file never arrived (a lost runner) fails the report loudly, naming a game no shard played; **Re-run failed jobs** plays that machine's share again and reports.
+
+By hand, the same loop is `risk-native games <args> --shard i/N --out <file>` on each machine, then `risk-native games <args> --games-from <dir of the files>`.
+
+**A rare game may differ between the laptop and the runners.** A native game is a pure function of its seed and seating on one platform, but Rust's float functions (`powf`, `exp`, `ln` and the like) come from each platform's C library, as Node's `Math.pow` does, and Windows' and Linux's can disagree in the last bit. Any bot or odds computation that uses them can then decide differently on a rare position, so a run on Actions may not replay game for game on the laptop. Every machine of one run is Linux, so the shards agree with each other.
 
 ## The run's record
 

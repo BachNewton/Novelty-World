@@ -5,6 +5,8 @@
 //! the board recomputes only the parts that read it.
 
 use super::board::{income_of, mix128, round, spread, Board, Scan, N};
+use super::bold::bold_kill_chance;
+use super::evaluate::Extra;
 use super::fights;
 use super::hands::{card_worth, hand_value, hidden_cards, hidden_hand, size, DRAW_CHANCE};
 use super::knobs::{BorderMode, Knobs, Reprice};
@@ -335,6 +337,7 @@ pub struct Forecast {
     pub income: [f64; MAX_SEATS],
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn forecast(
     b: &Board,
     scan: &Scan,
@@ -343,6 +346,7 @@ pub fn forecast(
     om: &OpponentModel,
     record: &Record,
     knobs: &Knobs,
+    extra: &Extra,
 ) -> Forecast {
     let h = prefs.income_horizon;
     let my_hand = b.hand[me as usize] + b.card_earned as u8;
@@ -376,9 +380,16 @@ pub fn forecast(
     if priced {
         for &p in alive.iter() {
             let armies = b.armies_of(p) as f64;
-            let discount = armies - knobs.priced_armies(armies, income_of(b.own(p), 1.0), p == me);
+            let mut discount =
+                armies - knobs.priced_armies(armies, income_of(b.own(p), 1.0), p == me);
+            if extra.hoard && p == me {
+                discount = discount.max(hoard_discount(b, me, &income, knobs.army_beyond));
+            }
             priced_power[p as usize] -= discount;
         }
+    } else if extra.hoard {
+        power[me as usize] -= hoard_discount(b, me, &income, HOARD_BEYOND);
+        priced_power = power;
     }
 
     // Each opponent takes at most one victim before my next turn: it weighs the kills open to it
@@ -397,7 +408,14 @@ pub fn forecast(
             if hand == 0 && v != me {
                 continue;
             }
-            let p = kill_chance(b, scan, q, v, to_place);
+            // `humans`: a bold seat takes every kill open to it, and its chance counts several
+            // stacks and a kill paid for by a first kill's cards.
+            let bold = extra.bold & 1 << q != 0;
+            let p = if bold {
+                bold_kill_chance(b, scan, q, v, to_place)
+            } else {
+                kill_chance(b, scan, q, v, to_place)
+            };
             if p == 0.0 {
                 continue;
             }
@@ -407,19 +425,25 @@ pub fn forecast(
             } else {
                 om.kill_rate
             };
-            let taken =
+            let taken = if bold {
+                p
+            } else {
                 p * if p >= om.kill_bar || pays {
                     1.0
                 } else {
                     om.unpaid_kill_chance
-                } * rate;
+                } * rate
+            };
             open.push((v, taken, taken * (hand as f64 + 1.0)));
         }
         open.as_mut_slice()
             .sort_by(|x, y| y.2.total_cmp(&x.2).then(x.0.cmp(&y.0)));
         let mut passed = 1.0;
+        let bold = extra.bold & 1 << q != 0;
         for &(v, taken, _) in open.iter() {
-            let chance = passed * taken;
+            // A bold seat takes every kill open to it: a first kill pays for the next, so taking
+            // one doesn't pass over the rest.
+            let chance = if bold { taken } else { passed * taken };
             passed -= chance;
             spared[v as usize] *= 1.0 - chance;
             if v == me {
@@ -463,6 +487,15 @@ pub fn forecast(
         threat
     } else {
         face_threat
+    };
+    // `threat`: the leader named once a turn by what its next turn could do replaces the ratio's
+    // common threat, for the aims and the planner while its weight is at least even.
+    let (threat, plan_threat) = match extra.leader {
+        None => (threat, plan_threat),
+        Some((t, w)) => {
+            let named = (w >= 0.5 && b.alive[t as usize]).then_some(t);
+            (named, named)
+        }
     };
 
     // Each opponent's turn against me, weighted by how likely I am the one it hits: the worse of
@@ -532,6 +565,27 @@ pub fn forecast(
         border_loss,
         income,
     }
+}
+
+/// `hoard`'s rate for my armies past what their front needs, where v6.1's pricing isn't in force:
+/// v6.1's own `armyBeyond`.
+pub const HOARD_BEYOND: f64 = 0.75;
+
+/// `hoard`: what my stacks past what their front needs are discounted by at any income. A front
+/// territory needs twice what its strongest attacker could bring next turn (its stack less one and
+/// its owner's expected armies); each army past that counts at `beyond`. The interior's armies are
+/// the idle charge's.
+pub fn hoard_discount(b: &Board, me: Seat, income: &[f64; MAX_SEATS], beyond: f64) -> f64 {
+    let mut excess = 0;
+    for t in territories_in(b.own(me)) {
+        let attackers = territories_in(crate::map::ADJACENT[t] & !b.own(me))
+            .map(|n| b.armies[n] - 1 + round(income[b.owner[n] as usize]))
+            .max();
+        if let Some(a) = attackers {
+            excess += 0.max(b.armies[t] - 2 * a.max(1));
+        }
+    }
+    (1.0 - beyond) * excess as f64
 }
 
 /// What the opponents' believed sweeps cost me, summed, and the most territories one of them

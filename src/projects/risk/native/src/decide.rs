@@ -3,7 +3,7 @@
 //! the recorded one.
 
 use crate::bots::bot;
-use crate::engine::Options;
+use crate::engine::{Move, Options};
 use crate::record::{encode_move, read_records, recorded_move, RecordedGame};
 use crate::runner::drive;
 use std::collections::BTreeMap;
@@ -121,4 +121,132 @@ pub fn agreement(
         )?;
     }
     Ok(tally)
+}
+
+/// An online game's log (`eval/online-log.ts`'s `OnlineLog`): its seed, a label per seat (a bot's
+/// label, or a person's name), and every move made.
+#[derive(serde::Deserialize)]
+pub struct OnlineLog {
+    pub seed: String,
+    pub labels: Vec<String>,
+    pub moves: Vec<LoggedMove>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct LoggedMove {
+    pub seat: crate::engine::Seat,
+    #[serde(rename = "move")]
+    pub mv: crate::wire::MoveJson,
+}
+
+/// Whether a log's seat label names a bot rather than a person.
+pub fn is_bot_label(label: &str) -> bool {
+    [
+        "rule-", "gd-", "greedy", "native-", "net-", "student-", "random", "sweeper-", "vulture-",
+    ]
+    .iter()
+    .any(|p| label.starts_with(p))
+}
+
+pub fn read_online_log(path: &Path) -> Result<OnlineLog, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// How often a bot decides as an online game's seats did.
+#[derive(Default)]
+pub struct OnlineAgreement {
+    /// Per decision kind, the decisions agreed and asked.
+    pub kinds: BTreeMap<&'static str, (u32, u32)>,
+    /// The bot's time on each of the seats' turns, in nanoseconds.
+    pub turn_nanos: Vec<u128>,
+    /// The turn-start placements it decided otherwise: decision index, turn, its move, the move
+    /// played.
+    pub differed: Vec<(u32, u32, Move, Move)>,
+}
+
+/// Asks `label` every decision of `seats` in an online game, on the exact input the runner builds
+/// (people's seats flagged as people), the game going on with the move played. Once the bot
+/// answers one of a reinforce phase's decisions otherwise than the move played, the phase's later
+/// decisions are off its path and it isn't asked them: a bot that plans the phase whole can only
+/// place the rest of its own plan.
+pub fn online_agreement(
+    log: &OnlineLog,
+    label: &str,
+    seats: &[crate::engine::Seat],
+) -> Result<OnlineAgreement, String> {
+    use crate::engine::{EventKind, Phase};
+    let mine = bot(label).ok_or_else(|| format!("no native bot \"{label}\""))?;
+    let humans: Vec<bool> = log.labels.iter().map(|l| !is_bot_label(l)).collect();
+    let mut out = OnlineAgreement::default();
+    let mut off_path: Option<u32> = None;
+    let mut turn_of: Option<u32> = None;
+    crate::runner::drive_seated(
+        &log.seed,
+        &humans,
+        100_000,
+        |decision, input| {
+            let logged = log
+                .moves
+                .get(decision as usize)
+                .ok_or_else(|| format!("decision {decision}: the log ends and the game goes on"))?;
+            if logged.seat != input.seat {
+                return Err(format!(
+                    "decision {decision}: the log has seat {} to move",
+                    logged.seat
+                ));
+            }
+            let played = logged.mv.to_move()?;
+            if !seats.contains(&input.seat) {
+                return Ok(played);
+            }
+            if off_path
+                .is_some_and(|t| t != input.view.turn || input.view.phase != Phase::Reinforce)
+            {
+                off_path = None;
+            }
+            if off_path.is_some() {
+                return Ok(played);
+            }
+            let first_placement = matches!(input.options, Options::Reinforce(r) if r.may_place)
+                && !input.history[input
+                    .history
+                    .iter()
+                    .rposition(|e| matches!(e.kind, EventKind::Phase { .. }))
+                    .unwrap_or(0)..]
+                    .iter()
+                    .any(|e| matches!(e.kind, EventKind::Placed { .. }));
+            let kind = match input.options {
+                Options::Reinforce(r) if !r.sets.is_empty() => "trade",
+                Options::Reinforce(_) if first_placement => "first placement",
+                Options::Reinforce(_) => "placement",
+                Options::Attack(_) => "attack",
+                Options::Occupy { .. } => "move-in",
+                Options::Fortify(_) => "fortify",
+            };
+            let t = std::time::Instant::now();
+            let mv = mine.decide(input);
+            let spent = t.elapsed().as_nanos();
+            if turn_of != Some(input.view.turn) {
+                turn_of = Some(input.view.turn);
+                out.turn_nanos.push(0);
+            }
+            *out.turn_nanos.last_mut().expect("a turn has begun") += spent;
+            let e = out.kinds.entry(kind).or_default();
+            e.1 += 1;
+            if mv == played {
+                e.0 += 1;
+            } else {
+                if matches!(input.options, Options::Reinforce(_)) {
+                    off_path = Some(input.view.turn);
+                }
+                if first_placement {
+                    out.differed.push((decision, input.view.turn, mv, played));
+                }
+            }
+            Ok(played)
+        },
+        |_| {},
+    )?;
+    Ok(out)
 }
