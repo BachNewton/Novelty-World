@@ -13,20 +13,18 @@ import type { Palette } from "./palette";
  * stands on the origin, and the smaller plants are about a unit across; the
  * scatter scales, turns and leans each copy.
  *
- * Built for the seasons (while their foliage feature is on), each piece says
- * what it is to them, and a broadleaf tree grows the branches and twigs its
- * crown hides in leaf, so it stands as a bare tree in winter; built without,
- * a shape is just its summer self, with nothing extra to draw.
+ * Each piece says what it is to the seasons, and a broadleaf tree grows the
+ * branches and twigs its crown hides in leaf, so it stands as a bare tree in
+ * winter.
  */
 
-/** How a design is built: whether for the seasons, and which season group it is in. */
+/** How a design is built: which season group it is in. */
 interface Build {
-  seasonal: boolean;
   group: SeasonGroup;
 }
 
-function tag(build: Build, part: SeasonPart, centre?: Vector3): SeasonTag | undefined {
-  return build.seasonal ? { part, group: build.group, centre } : undefined;
+function tag(build: Build, part: SeasonPart, centre?: Vector3): SeasonTag {
+  return { part, group: build.group, centre };
 }
 
 /** A tapered limb from one point to another, open at both ends. */
@@ -52,7 +50,7 @@ interface Mass {
  * through it, and a few twigs forking from its end, all inside the leaves so
  * they show only as the leaves go.
  */
-function branches(masses: readonly Mass[], from: number, top: Vector3, rng: Rng, season: SeasonTag | undefined, colour: Piece["colour"]): Piece[] {
+function branches(masses: readonly Mass[], from: number, top: Vector3, rng: Rng, season: SeasonTag, colour: Piece["colour"]): Piece[] {
   const pieces: Piece[] = [{ geometry: limb(new Vector3(0, from, 0), top, 0.03, 0.008, 5), colour, season }];
   for (const mass of masses) {
     const out = new Vector3(mass.at.x, 0, mass.at.z);
@@ -130,7 +128,7 @@ function broadleaf(rng: Rng, variant: number, detail: Detail, p: Palette, build:
     masses.push({ at, radius, squash: 0.9 });
     pieces.push({ geometry: blob(radius, 1, at, 0.9, rng), colour: leaf, crown, shading: 0.7, season: tag(build, "crown", at) });
   }
-  if (build.seasonal) pieces.push(...branches(masses, 0.46, new Vector3(0, 0.86, 0), createRng(`hearthwood/plant/broadleaf/${String(variant)}/branches`), tag(build, "branch"), p.things.bark));
+  pieces.push(...branches(masses, 0.46, new Vector3(0, 0.86, 0), createRng(`hearthwood/plant/broadleaf/${String(variant)}/branches`), tag(build, "branch"), p.things.bark));
   return paint(pieces);
 }
 
@@ -161,9 +159,7 @@ function birch(rng: Rng, variant: number, detail: Detail, p: Palette, build: Bui
     masses.push({ at, radius, squash: 1.45 });
     pieces.push({ geometry: blob(radius, 1, at, 1.45, rng), colour: leaf, crown, shading: 0.6, season: tag(build, "crown", at) });
   }
-  if (build.seasonal) {
-    pieces.push(...branches(masses, 0.5, new Vector3(0, 0.97, 0), createRng(`hearthwood/plant/${aspen ? "aspen" : "birch"}/${String(variant)}/branches`), tag(build, "branch"), p.things.bark.clone().lerp(bark, 0.3)));
-  }
+  pieces.push(...branches(masses, 0.5, new Vector3(0, 0.97, 0), createRng(`hearthwood/plant/${aspen ? "aspen" : "birch"}/${String(variant)}/branches`), tag(build, "branch"), p.things.bark.clone().lerp(bark, 0.3)));
   return paint(pieces);
 }
 
@@ -261,7 +257,7 @@ function maple(rng: Rng, variant: number, detail: Detail, p: Palette, build: Bui
     masses.push({ at, radius, squash: 0.85 });
     pieces.push({ geometry: blob(radius, 1, at, 0.85, rng), colour: leaf.clone().multiplyScalar(shade), crown, shading: 0.7, season: tag(build, "crown", at) });
   }
-  if (build.seasonal) pieces.push(...branches(masses, 0.38, new Vector3(0, 0.84, 0), createRng(`hearthwood/plant/maple/${String(variant)}/branches`), tag(build, "branch"), p.things.bark));
+  pieces.push(...branches(masses, 0.38, new Vector3(0, 0.84, 0), createRng(`hearthwood/plant/maple/${String(variant)}/branches`), tag(build, "branch"), p.things.bark));
   return paint(pieces);
 }
 
@@ -321,10 +317,10 @@ function fern(rng: Rng, variant: number, detail: Detail, p: Palette, build: Buil
   return paint(pieces);
 }
 
-/** One design of a kind at a level of detail, or null when the kind isn't drawn that far out; `seasonal` builds it for the seasons' foliage feature. */
-export function plantShape(kind: PlantKind, variant: number, detail: Detail, palette: Palette, seasonal = false): BufferGeometry | null {
+/** One design of a kind at a level of detail, or null when the kind isn't drawn that far out. */
+export function plantShape(kind: PlantKind, variant: number, detail: Detail, palette: Palette): BufferGeometry | null {
   const rng = createRng(`hearthwood/plant/${kind}/${variant}`);
-  const build: Build = { seasonal, group: seasonGroupOf(kind, variant) };
+  const build: Build = { group: seasonGroupOf(kind, variant) };
   switch (kind) {
     case "conifer":
       return conifer(rng, variant, detail, palette, build);

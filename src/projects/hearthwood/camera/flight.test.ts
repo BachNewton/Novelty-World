@@ -1,16 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { FLY_CLEARANCE, flightFrom, stepFlight, type FlyInput } from "./fly-camera";
+import { FLY_CLEARANCE, lookDirection, PITCH_LIMIT, stepFlight, turnLook, type FlyInput } from "./flight";
 
 describe("the free camera", () => {
   const flat = () => 0;
   const still: FlyInput = { move: { x: 0, y: 0 }, rise: 0, speed: 10, turn: { yaw: 0, pitch: 0 }, turnRate: { yaw: 0, pitch: 0 } };
   const level = { x: 0, y: 50, z: 0, yaw: 0, pitch: 0 };
-
-  it("takes up the way a camera already looks", () => {
-    const flight = flightFrom({ x: 1, y: 2, z: 3 }, { x: 1, y: 0, z: 0 });
-    expect(flight).toMatchObject({ x: 1, y: 2, z: 3, pitch: 0 });
-    expect(flight.yaw).toBeCloseTo(Math.PI / 2);
-  });
 
   it("flies ahead the way it looks at its speed", () => {
     const flight = stepFlight(level, { ...still, move: { x: 0, y: 1 } }, flat, 0.5);
@@ -39,7 +33,19 @@ describe("the free camera", () => {
     expect(flight.y).toBe(30 + FLY_CLEARANCE);
   });
 
-  it("looks round as first person does", () => {
+  it("never looks past straight up or down", () => {
+    expect(turnLook(level, { yaw: 0, pitch: -10 }, still.turnRate, 0).pitch).toBe(PITCH_LIMIT);
+    expect(turnLook(level, { yaw: 0, pitch: 10 }, still.turnRate, 0).pitch).toBe(-PITCH_LIMIT);
+  });
+
+  it("looks along +z at yaw 0, +x a quarter turn on", () => {
+    expect(lookDirection({ yaw: 0, pitch: 0 })).toEqual({ x: 0, y: 0, z: 1 });
+    const turned = lookDirection({ yaw: Math.PI / 2, pitch: 0 });
+    expect(turned.x).toBeCloseTo(1);
+    expect(turned.z).toBeCloseTo(0);
+  });
+
+  it("turns right and looks down for a drag right and down, as the screen reads", () => {
     const flight = stepFlight(level, { ...still, turn: { yaw: 0.2, pitch: 0.1 } }, flat, 0);
     expect(flight.yaw).toBeCloseTo(-0.2);
     expect(flight.pitch).toBeCloseTo(-0.1);

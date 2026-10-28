@@ -11,10 +11,10 @@ import { SEASON_GROUPS, type SeasonGroup } from "../engine/seasons";
  *
  * A plant's pieces can also say what each is to the seasons (a crown of
  * leaves, a branch, a flower's head), and the shape then carries it in two
- * attributes the seasons' shader reads (`art/features/seasons.ts`):
- * `hwSeason` (the part and its season group, the shading, a share of its
- * own, and a 0 that marks the data as there) and `hwSeasonPiece` (the point
- * the piece grows and shrinks about).
+ * attributes the plants' shader reads (`plants.ts`): `hwSeason` (the part
+ * and its season group, the shading, a share of its own, and a 0 that marks
+ * the data as there) and `hwSeasonPiece` (the point the piece grows and
+ * shrinks about).
  */
 
 /** What a piece is to the seasons: how it changes through the year. */

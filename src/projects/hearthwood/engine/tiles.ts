@@ -49,7 +49,7 @@ export function landTile(world: World, key: TileKey): LandTile {
   const spacing = width / (side - 1);
   const x0 = key.i * width;
   const z0 = key.j * width;
-  // Camp and the places are too small to show from further off than these tiles are drawn, so coarser tiles read the land as it lies and skip working the places out.
+  // The places are too small to show from further off than these tiles are drawn, so coarser tiles read the land as it lies and skip working the places out.
   const fine = key.level <= 3;
   const sampleAt = (x: number, z: number, out: LandSample) => (fine ? world.sampleAt(x, z, out) : world.landAt(x, z, out, spacing));
   const outer = side + 2;
@@ -91,7 +91,7 @@ export function landTile(world: World, key: TileKey): LandTile {
       maxHeight = Math.max(maxHeight, land.height);
       world.regionAt(x, z, land, weights);
       regions.set(weights, v * REGIONS.length);
-      woodland[v] = world.woodlandAt(x, z, land, weights, slope, fine);
+      woodland[v] = world.woodlandAt(x, z, land, weights, slope, fine, spacing);
       wobble[v] = land.bands + world.bandWobble(x, z);
     }
   }

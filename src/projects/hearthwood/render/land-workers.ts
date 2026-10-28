@@ -1,6 +1,6 @@
-import type { LandTileReply, LandTileRequest } from "../../engine/land-tile.worker";
-import { tileId, type TileKey } from "../../engine/streaming";
-import type { LandTile } from "../../engine/tiles";
+import type { LandTileReply, LandTileRequest } from "../engine/land-tile.worker";
+import { tileId, type TileKey } from "../engine/streaming";
+import type { LandTile } from "../engine/tiles";
 
 /*
  * A few workers that work out tiles of land for the main thread, each tile
@@ -20,7 +20,7 @@ export function landWorkers(seed: string, onTile: (tile: LandTile) => void): Lan
   const count = Math.max(1, Math.min(4, Math.floor(navigator.hardwareConcurrency / 2) - 1));
   const loads = new Array<number>(count).fill(0);
   const workers = Array.from({ length: count }, (_, w) => {
-    const worker = new Worker(new URL("../../engine/land-tile.worker.ts", import.meta.url), { type: "module" });
+    const worker = new Worker(new URL("../engine/land-tile.worker.ts", import.meta.url), { type: "module" });
     worker.onmessage = ({ data }: MessageEvent<LandTileReply>) => {
       loads[w]--;
       if ("error" in data) throw new Error(`Tile ${tileId(data.key)} failed in its worker:\n${data.error}`);

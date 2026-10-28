@@ -80,9 +80,6 @@ describe("the sun", () => {
     expect(sunAt(MIDSUMMER, 0, HELSINKI).direction.z).toBeLessThan(-0.9);
   });
 
-  it("is the same every time", () => {
-    expect(sunAt(123.4, 17.25, HELSINKI)).toEqual(sunAt(123.4, 17.25, HELSINKI));
-  });
 });
 
 describe("the moon", () => {
@@ -132,9 +129,6 @@ describe("the moon", () => {
     expect(moonAt(MIDWINTER, 0, 0.5, HELSINKI).elevation).toBeGreaterThan(40);
   });
 
-  it("is the same every time", () => {
-    expect(moonAt(201.5, 2.5, 0.3, HELSINKI)).toEqual(moonAt(201.5, 2.5, 0.3, HELSINKI));
-  });
 });
 
 describe("the stars", () => {

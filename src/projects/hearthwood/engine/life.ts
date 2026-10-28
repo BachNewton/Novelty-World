@@ -8,7 +8,7 @@ import { REGION_CHARACTER, REGIONS, type PlantKind, type Region, type RegionWeig
  * and stones of one square chunk of the world, scattered from the chunk's own
  * seed so a chunk always grows the same. Each region has its own woods and
  * its own undergrowth; the woods stand in groves, open into glades, thin out
- * up to the treeline and keep back from water, camp and the places.
+ * up to the treeline and keep back from water and the places.
  */
 
 /** The side of a plant chunk, in metres. */
@@ -44,8 +44,6 @@ export interface PlantChunk {
   chunkX: number;
   chunkZ: number;
   plants: Plant[];
-  /** Where fireflies hover over its meadows at night: x, y, z for each. */
-  fireflies: Float32Array;
 }
 
 /** What the scatter asks of the world. */
@@ -53,11 +51,13 @@ export interface LifeGround {
   seed: string;
   sampleAt: (x: number, z: number, out?: LandSample) => LandSample;
   regionAt: (x: number, z: number, land: LandSample, out?: RegionWeights) => RegionWeights;
-  /** How open a point is kept by camp and the places: 1 is untouched, 0 is a clearing. */
+  /** How open a point is kept by the places: 1 is untouched, 0 is a clearing. */
   openness: (x: number, z: number) => number;
   woodland: (x: number, z: number, land: LandSample, weights: RegionWeights, slope: number) => number;
 }
 
+/** How much of the land the glades open, on average: what they stand for where they are too fine to show. */
+const GLADE_SHARE = 0.3;
 /** How the band edges wander up and down the slopes, in metres. */
 const BAND_WOBBLE = 30;
 
@@ -67,14 +67,22 @@ export function makeWoodland(seed: string) {
   const wobble = gradientNoise(`${seed}/bands`);
   return {
     bandWobble: (x: number, z: number) => BAND_WOBBLE * fbm(wobble, x / 140, z / 140, 3),
-    /** How thick the woods grow at a point, 0 (open) to 1, before clearings. */
-    density(x: number, z: number, land: LandSample, weights: RegionWeights, slope: number): number {
+    /**
+     * How thick the woods grow at a point, 0 (open) to 1, before clearings. Read every `spacing` metres (from far
+     * off), the groves and glades finer than that spacing can show are left out, so the woods read as their
+     * average cover and the far land never speckles.
+     */
+    density(x: number, z: number, land: LandSample, weights: RegionWeights, slope: number, spacing = 0): number {
       let cover = 0;
       for (let i = 0; i < REGIONS.length; i++) cover += weights[i] * REGION_CHARACTER[REGIONS[i]].woods;
-      const g = 0.5 + 0.5 * fbm(groves, x / 80, z / 80, 3);
+      const groveDetail = 1 - smoothstep(20, 60, spacing);
+      const gladeDetail = 1 - smoothstep(12, 36, spacing);
+      const g = 0.5 + 0.5 * fbm(groves, x / 80, z / 80, 3) * groveDetail;
       // A cover of c leaves about a share c of the land wooded: the grove field's spread puts its median near 0.5.
-      let d = smoothstep(1 - cover - 0.12, 1 - cover + 0.12, g);
-      d *= 1 - 0.85 * smoothstep(0.2, 0.45, fbm(glades, x / 48, z / 48, 2));
+      // Without the groves' detail, the cover itself stands for how much of the land is wooded.
+      let d = groveDetail * smoothstep(1 - cover - 0.12, 1 - cover + 0.12, g) + (1 - groveDetail) * cover;
+      const glade = smoothstep(0.2, 0.45, fbm(glades, x / 48, z / 48, 2)) * gladeDetail + GLADE_SHARE * (1 - gladeDetail);
+      d *= 1 - 0.85 * glade;
       const w = BAND_WOBBLE * fbm(wobble, x / 140, z / 140, 3);
       d *= 1 - smoothstep(ALTITUDE.treeline - 30 + w, ALTITUDE.treeline + 6 + w, land.height - land.bands);
       d *= 1 - smoothstep(0.75, 1.05, slope);
@@ -177,7 +185,6 @@ export function scatterChunk(ground: LifeGround, chunkX: number, chunkZ: number)
   const s = emptySample();
   const weights = new Float32Array(REGIONS.length);
   const plants: Plant[] = [];
-  const meadows: number[] = [];
   const across = Math.round(PLANT_CHUNK / SCATTER_SPACING);
 
   for (let j = 0; j < across; j++) {
@@ -209,7 +216,6 @@ export function scatterChunk(ground: LifeGround, chunkX: number, chunkZ: number)
         plants.push(makePlant(kind, x, h, z, uniform(rng, low, top) * shrink, variant, bands, rng));
         continue;
       }
-      if (d < 0.3 && slope < 0.45 && banded < ALTITUDE.treeline) meadows.push(x, h, z);
       const alpine = smoothstep(ALTITUDE.treeline - 10, ALTITUDE.rock, banded);
       const chances = d > 0.35 ? character.underTrees : character.open;
       let left = pick;
@@ -231,14 +237,5 @@ export function scatterChunk(ground: LifeGround, chunkX: number, chunkZ: number)
     }
   }
 
-  let count = 0;
-  for (let i = 0; i < REGIONS.length; i++) count += weights[i] * REGION_CHARACTER[REGIONS[i]].fireflies;
-  const spots = Math.min(Math.round(count), meadows.length / 3);
-  const fireflies = new Float32Array(spots * 3);
-  for (let f = 0; f < spots; f++) {
-    const at = Math.floor(rng.next() * (meadows.length / 3)) * 3;
-    fireflies.set([meadows[at] + uniform(rng, -1.5, 1.5), meadows[at + 1] + uniform(rng, 0.5, 2.2), meadows[at + 2] + uniform(rng, -1.5, 1.5)], f * 3);
-  }
-  return { chunkX, chunkZ, plants, fireflies };
+  return { chunkX, chunkZ, plants };
 }
-

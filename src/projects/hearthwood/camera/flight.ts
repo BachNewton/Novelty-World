@@ -1,13 +1,23 @@
-import { clampPitch, lookDirection, turnLook, type Look } from "./first-person-camera";
-import type { Point3 } from "./follow-camera";
-
 /*
- * The debug free camera's maths: a camera flown anywhere, Elliott left
- * standing where they were. It moves the way it looks (pitch included, so
- * looking down and pushing ahead dives), sideways along the level, and
- * straight up and down; it never goes below the ground, so the land is
- * always seen from above.
+ * The free camera's maths: a camera flown anywhere over the world. It looks
+ * where the player turns it (yaw round, pitch up and down short of
+ * straight), moves the way it looks (pitch included, so looking down and
+ * pushing ahead dives), sideways along the level, and straight up and down;
+ * it never goes below the ground, so the land is always seen from above.
  */
+
+export interface Point3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface Look {
+  /** Radians from +z towards +x: the way it looks. */
+  yaw: number;
+  /** Radians above level. */
+  pitch: number;
+}
 
 export interface Flight extends Look {
   x: number;
@@ -22,25 +32,41 @@ export interface FlyInput {
   rise: number;
   /** Metres per second at a full push. */
   speed: number;
-  /** A turn dragged since the last frame, and one held at a rate per second, as first person reads them. */
+  /** A turn dragged since the last frame, and one held at a rate per second. Both read right and down as positive, as a screen does. */
   turn: { yaw: number; pitch: number };
   turnRate: { yaw: number; pitch: number };
 }
 
+/** The camera's field of view, in degrees. */
+export const FIELD_OF_VIEW = 72;
+/** The furthest it looks up or down, in radians from level. */
+export const PITCH_LIMIT = 1.45;
 /** How close above the ground the camera may come, in metres. */
 export const FLY_CLEARANCE = 0.5;
 
-/** A flight taken up from wherever a camera is and the way it looks. */
-export function flightFrom(position: Point3, ahead: Point3): Flight {
-  const level = Math.hypot(ahead.x, ahead.z);
-  return { x: position.x, y: position.y, z: position.z, yaw: Math.atan2(ahead.x, ahead.z), pitch: clampPitch(Math.atan2(ahead.y, level)) };
+export function clampPitch(pitch: number): number {
+  return Math.min(PITCH_LIMIT, Math.max(-PITCH_LIMIT, pitch));
+}
+
+/** A look turned by a drag since the last frame plus a turn held at a rate: turning right lowers the yaw, pushing down looks down. */
+export function turnLook(look: Look, dragged: { yaw: number; pitch: number }, rate: { yaw: number; pitch: number }, seconds: number): Look {
+  return {
+    yaw: look.yaw - dragged.yaw - rate.yaw * seconds,
+    pitch: clampPitch(look.pitch - dragged.pitch - rate.pitch * seconds),
+  };
+}
+
+/** The way a look points, as a unit direction. */
+export function lookDirection(look: Look): Point3 {
+  const level = Math.cos(look.pitch);
+  return { x: Math.sin(look.yaw) * level, y: Math.sin(look.pitch), z: Math.cos(look.yaw) * level };
 }
 
 /** One frame of flying, held above the ground at `groundAt`. */
 export function stepFlight(flight: Flight, input: FlyInput, groundAt: (x: number, z: number) => number, seconds: number): Flight {
   const look = turnLook(flight, input.turn, input.turnRate, seconds);
   const ahead = lookDirection(look);
-  // Their right, looking along yaw from +z towards +x, is -x at yaw 0.
+  // The right, looking along yaw from +z towards +x, is -x at yaw 0.
   const right = { x: -Math.cos(look.yaw), z: Math.sin(look.yaw) };
   const reach = input.speed * seconds;
   const x = flight.x + (ahead.x * input.move.y + right.x * input.move.x) * reach;

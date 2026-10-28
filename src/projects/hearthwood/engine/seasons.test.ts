@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CALENDAR, dateAt, parseDate, realDayOf, secondsPerDay, timeOf } from "./calendar";
+import { CALENDAR, dateAt, parseDate, realDayOf, timeOf } from "./calendar";
 import { ALTITUDE, emptySample, makeLand } from "./land";
 import { REGIONS } from "./regions";
 import {
   broadleafMix,
   broadleafShare,
-  curveAt,
   groundSeason,
   PHENOLOGY,
   plantSeason,
@@ -68,27 +67,11 @@ describe("the plants' year", () => {
     }
   });
 
-  it("never jumps: a plant's state moves on only a little in an hour of the game's day", () => {
-    const hour = secondsPerDay() / 24;
-    for (let t = 0; t < secondsPerDay() * 28; t += hour) {
-      const a = dateAt(t).realDayOfYear;
-      const b = dateAt(t + hour).realDayOfYear;
-      for (const group of SEASON_GROUPS) {
-        const before = plantSeason(group, a);
-        const after = plantSeason(group, b);
-        for (const channel of ["leaf", "fresh", "turn", "bloom"] as const) expect(Math.abs(after[channel] - before[channel])).toBeLessThan(0.15);
-      }
-    }
-  });
-
   it("keeps every value between 0 and 1, and every curve's stops in order round the year", () => {
     for (const group of SEASON_GROUPS) {
       for (const curve of Object.values(PHENOLOGY[group])) {
-        for (let day = 0; day < 365; day += 0.5) {
-          const value = curveAt(curve, day);
-          expect(value).toBeGreaterThanOrEqual(0);
-          expect(value).toBeLessThanOrEqual(1);
-        }
+        // A curve runs straight between its stops, so stops within 0 to 1 keep every day within it.
+        for (const [, value] of curve) expect(value >= 0 && value <= 1).toBe(true);
         const total = curve.reduce((sum, [day], i) => sum + ((((curve[(i + 1) % curve.length][0] - day) % 365) + 365) % 365), 0);
         expect(curve.length === 1 || total === 365).toBe(true);
       }

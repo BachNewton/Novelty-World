@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CALENDAR, parseDate, secondsPerDay } from "../../engine/calendar";
+import { CALENDAR, parseDate, secondsPerDay } from "../engine/calendar";
 import { advanceClock, holdDay, holdHour, makeClock, setDay, setHour } from "./clock";
 
 describe("the valley's clock", () => {
@@ -32,7 +32,6 @@ describe("the valley's clock", () => {
     setDay(clock, parseDate("litha"));
     expect(clock.date).toMatchObject({ season: "summer", dayOfSeason: 2, hour: 12 });
     expect(clock.today.dayLength).toBeGreaterThan(18);
-    expect(clock.light).toBe(clock.sky.light);
   });
 
   it("holds the date while the hours turn, coming round to the same day past midnight", () => {

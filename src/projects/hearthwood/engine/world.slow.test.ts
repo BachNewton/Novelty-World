@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canStand, WALK_LIMITS, type WalkGround } from "../gameplay/walking";
+import { canStand, WALK_LIMITS, type WalkGround } from "./walking";
 import { emptySample } from "./land";
 import { createWorld } from "./world";
 
