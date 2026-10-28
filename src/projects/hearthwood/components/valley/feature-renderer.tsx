@@ -1,60 +1,36 @@
 "use client";
 
-import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
-import type { WebGPURenderer } from "three/webgpu";
+import { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore } from "react";
+import { Camera, PerspectiveCamera, Scene, type WebGPURenderer } from "three/webgpu";
 import { liveFeatures, type FeatureId } from "../../features";
-import type { AtmosphereUniforms } from "../../art/atmosphere";
-import type { DayState } from "../../art/light/daylight";
 import { FEATURE_ART } from "../../art/features";
 import type { FeatureFrame } from "../../art/feature-art";
 import { FrameRenderer, type FrameCosts } from "../../art/frame";
-import type { SkyUniforms } from "../../art/sky/sky";
-import { calmWeather, type WeatherNow } from "../../art/weather/now";
 import { QUALITY } from "../../quality";
+import { RendererContext } from "../gpu-canvas";
 
 /*
- * The scene's render loop, in one component: it takes the frame over from
- * react-three-fiber (any frame callback above priority 0 does) and draws it
- * through the frame's pipeline (`art/frame.ts`). Everything else that runs
- * per frame runs before it; whatever reads what was drawn runs after it, at
- * AFTER_RENDER_PRIORITY.
+ * The scene's render loop, without react-three-fiber. `GpuCanvas` (in
+ * `gpu-canvas.tsx`) creates the raw WebGPU renderer and exposes it through
+ * context; this component builds the frame's pipeline (`art/frame.ts`) on it.
+ * `WorldView` drives the drawing imperatively through `FeatureRendererRef.render`
+ * every frame. Anything that reads what was drawn runs after this at
+ * `AFTER_RENDER_PRIORITY`; anything that must run before the frame runs at a
+ * lower priority.
  */
 
 export const RENDER_PRIORITY = 1;
 export const AFTER_RENDER_PRIORITY = 2;
 
-/** Where no weather is worked out (the art gallery), the features draw a still, fair day. */
-const CALM = calmWeather();
+/** The raw three.Scene built by `FeatureRenderer`, provided to art components that mount their own objects imperatively. */
+export const SceneContext = createContext<Scene | null>(null);
 
-/** The canvas's renderer: every Hearthwood canvas is a `GpuCanvas`, whose renderer is three's WebGPU one. */
-export function useRenderer(): WebGPURenderer {
-  return useThree((s) => s.gl) as unknown as WebGPURenderer;
-}
+/** The PerspectiveCamera built by `FeatureRenderer`, provided to art components that need the camera's position each frame. */
+export const CameraContext = createContext<Camera | null>(null);
 
-export function FeatureRenderer({
-  day,
-  atmosphere,
-  sky,
-  costs,
-  player = null,
-  weather = CALM,
-}: {
-  day: DayState;
-  atmosphere: AtmosphereUniforms;
-  sky: SkyUniforms;
-  costs: FrameCosts;
-  /** Where Elliott stands, read every frame. */
-  player?: FeatureFrame["player"];
-  weather?: WeatherNow;
-}) {
-  const renderer = useRenderer();
-  const frameRenderer = useMemo(() => new FrameRenderer(renderer, liveFeatures(), FEATURE_ART, { samples: QUALITY.samples }), [renderer]);
-  useEffect(() => () => frameRenderer.dispose(), [frameRenderer]);
-  useFrame(({ scene, camera }, delta) => {
-    frameRenderer.render({ renderer, scene, camera, day, atmosphere, sky, weather, delta, player }, costs);
-  }, RENDER_PRIORITY);
-  return null;
+/** The handle `WorldView` holds to drive the render loop imperatively. */
+export interface FeatureRendererRef {
+  render(frame: Partial<FeatureFrame>, costs: FrameCosts): void;
 }
 
 /** Whether a feature is on, as React state: a feature that adds objects of its own mounts them only while it is. */
@@ -66,3 +42,60 @@ export function useFeature(id: FeatureId): boolean {
     () => switches.isOn(id),
   );
 }
+
+/** The canvas's renderer: provided by `GpuCanvas` through context, null until WebGPU is ready. */
+export function useRenderer(): WebGPURenderer {
+  return useContext(RendererContext) as unknown as WebGPURenderer;
+}
+
+export const FeatureRenderer = forwardRef<FeatureRendererRef, void>(function FeatureRenderer(_props, ref) {
+  void _props;
+  const renderer = useContext(RendererContext);
+  const sceneRef = useRef<Scene | null>(null);
+  const cameraRef = useRef<Camera | null>(null);
+  const frameRendererRef = useRef<FrameRenderer | null>(null);
+  const [scene, setScene] = useState<Scene | null>(null);
+  const [camera, setCamera] = useState<Camera | null>(null);
+
+  useEffect(() => {
+    if (!renderer) return;
+    const s = new Scene();
+    const c = new PerspectiveCamera(55, 1, 0.1, QUALITY.viewDistance * 1.2);
+    sceneRef.current = s;
+    cameraRef.current = c;
+    setScene(s);
+    setCamera(c);
+    const frameRenderer = new FrameRenderer(renderer, liveFeatures(), FEATURE_ART, { samples: QUALITY.samples });
+    frameRendererRef.current = frameRenderer;
+    return () => {
+      frameRenderer.dispose();
+      frameRendererRef.current = null;
+      sceneRef.current = null;
+      cameraRef.current = null;
+      setScene(null);
+      setCamera(null);
+    };
+  }, [renderer]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      render(frame: Partial<FeatureFrame>, costs: FrameCosts): void {
+        if (!renderer || !frameRendererRef.current || !sceneRef.current || !cameraRef.current) return;
+        frameRendererRef.current.render(
+          { renderer, scene: sceneRef.current, camera: cameraRef.current, ...frame },
+          costs,
+        );
+      },
+    }),
+    [renderer],
+  );
+
+  return (
+    <SceneContext.Provider value={scene}>
+      <CameraContext.Provider value={camera}>
+        {null}
+      </CameraContext.Provider>
+    </SceneContext.Provider>
+  );
+});

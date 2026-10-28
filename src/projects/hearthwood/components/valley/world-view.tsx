@@ -1,12 +1,9 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useFrame } from "@react-three/fiber";
 import { GpuCanvas } from "../gpu-canvas";
 import { useWalkInput } from "../../input/use-walk-input";
-import { REGIONS } from "../../engine/regions";
-import { emptySample } from "../../engine/land";
-import { createWorld, type World } from "../../engine/world";
+import { createWorld } from "../../engine/world";
 import { parseWeather, type WeatherKind } from "../../engine/weather";
 import { makeAtmosphere } from "../../art/atmosphere";
 import { Daylight, type Air, type Focus } from "../../art/light/daylight";
@@ -19,14 +16,12 @@ import { readForagePalette } from "../../art/forage-shapes";
 import { readPalette } from "../../art/palette";
 import { FrameCosts } from "../../art/frame";
 import { makeSkyUniforms, Sky } from "../../art/sky/sky";
-import { absorptionOf } from "../../art/water/absorption";
-import { setWaterAtEye } from "../../art/water/underwater";
 import { QUALITY } from "../../quality";
 import { parseDate } from "../../engine/calendar";
-import { advanceClock, makeClock, type ValleyClock } from "./clock";
+import { makeClock } from "./clock";
 import { DebugPanel } from "./debug-panel";
 import { FlyOverlay } from "./fly-overlay";
-import { FeatureRenderer, useFeature } from "./feature-renderer";
+import { FeatureRenderer, type FeatureRendererRef } from "./feature-renderer";
 import { useFrameStats } from "./frame-stats";
 import { FIRST_ORBIT } from "./follow-camera";
 import { ForageOverlay } from "./forage-overlay";
@@ -76,8 +71,6 @@ import { makeSceneWeather, WeatherTicker, WorldWeather } from "./world-weather";
 
 export const DEFAULT_SEED = "first-valley";
 
-/** Runs first in every frame: the clocks move on. */
-const CLOCK_PRIORITY = -6;
 
 interface Options {
   seed: string;
@@ -101,23 +94,6 @@ const PROMPT_COLOURS = {
   "--prompt-body": "var(--color-hearthwood-valley-ui-shade)",
   "--prompt-ink": "var(--color-hearthwood-valley-ui-ink)",
 } as CSSProperties;
-
-/** The clock moves on, and the water learns whether the camera is under it. */
-function Ticker({ clock, world }: { clock: ValleyClock; world: World }) {
-  const weights = useMemo(() => new Float32Array(REGIONS.length), []);
-  const land = useMemo(() => emptySample(), []);
-  const underwater = useFeature("underwaterFog");
-  useFrame(({ camera }, delta) => {
-    advanceClock(clock, Math.min(delta, 0.1));
-    if (underwater) {
-      const { x, z } = camera.position;
-      world.sampleAt(x, z, land);
-      world.regionAt(x, z, land, weights);
-      setWaterAtEye(land.water > land.height ? land.water : null, absorptionOf(weights));
-    }
-  }, CLOCK_PRIORITY);
-  return null;
-}
 
 export function WorldView() {
   const options = useMemo(() => readOptions(window.location.search), []);
@@ -158,6 +134,7 @@ export function WorldView() {
     return { atmosphere: makeAtmosphere(), sky: makeSkyUniforms(palette), clock, walker, focus, streaming, air, freeCamera, weather, debug: { clock, costs: new FrameCosts(), weather } };
   }, [camping, palette, options.hour, options.date, options.weather]);
   const surface = useRef<HTMLDivElement>(null);
+  const featureRendererRef = useRef<FeatureRendererRef>(null);
   const input = useWalkInput(surface);
   const [fireflies, setFireflies] = useState<Float32Array>(() => new Float32Array(0));
   useFrameStats();
@@ -165,6 +142,27 @@ export function WorldView() {
   const talking = useTalkingOn(people);
   const examining = useExaminingOn(mysteries);
   const { atmosphere, sky, clock, walker, focus, streaming, air, freeCamera, weather, debug } = shared;
+
+  // Draws the frame every frame through the raw WebGPU renderer, driven by
+  // FeatureRenderer (the frame's pipeline), without react-three-fiber.
+  useEffect(() => {
+    let raf: ReturnType<typeof requestAnimationFrame> | null = null;
+    let last = performance.now();
+    const loop = (now: number) => {
+      const delta = Math.min((now - last) / 1000, 0.1);
+      last = now;
+      featureRendererRef.current?.render(
+        { day: clock, atmosphere, sky, weather, delta, player: focus },
+        debug.costs,
+      );
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+    };
+  }, [clock, atmosphere, sky, weather, focus, debug.costs]);
+
   const wildlife = useMemo(() => makeWildlife(), []);
   const stickArt = useStickArt(palette, atmosphere);
   const jawStick = useCallback((key: string) => <JawStick fetching={fetching} dogKey={key} art={stickArt} />, [fetching, stickArt]);
@@ -175,11 +173,10 @@ export function WorldView() {
         dpr={[1, QUALITY.maxPixelRatio]}
         camera={{ fov: 55, near: 0.2, far: QUALITY.viewDistance * 1.2 }}
       >
-        <Ticker clock={clock} world={world} />
         <WeatherTicker world={world} clock={clock} now={weather} air={air} />
         <Daylight day={clock} palette={palette} atmosphere={atmosphere} sky={sky} focus={focus} air={air} />
         <Sky atmosphere={atmosphere} sky={sky} />
-        <FeatureRenderer day={clock} atmosphere={atmosphere} sky={sky} costs={debug.costs} player={focus} weather={weather} />
+        <FeatureRenderer />
         <WorldWeather now={weather} atmosphere={atmosphere} />
         <WorldLand world={world} camping={camping} palette={palette} atmosphere={atmosphere} sky={sky} quality={QUALITY} streaming={streaming} />
         <WorldPlants world={world} camping={camping} palette={palette} atmosphere={atmosphere} quality={QUALITY} streaming={streaming} onFireflies={setFireflies} />

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import { BoxGeometry, type BufferGeometry, type Color, ConeGeometry, CylinderGeometry, IcosahedronGeometry, SphereGeometry, TorusGeometry, type Group, Mesh, type PointLight } from "three";
+import { useContext, useEffect, useMemo, useRef } from "react";
+import { BoxGeometry, type BufferGeometry, ConeGeometry, CylinderGeometry, IcosahedronGeometry, SphereGeometry, TorusGeometry } from "three";
+import { Camera, Group, InstancedMesh, Mesh, PointLight, Scene, type WebGPURenderer } from "three/webgpu";
 import { MeshBasicNodeMaterial } from "three/webgpu";
+import { SceneContext, CameraContext } from "../components/valley/feature-renderer";
 import { createRng, uniform } from "@/shared/lib/seeded-random";
 import type { MomentLight } from "../engine/day";
 import type { AtmosphereUniforms } from "./atmosphere";
@@ -176,9 +177,13 @@ export interface CampfireProps {
 const STANDING = () => Infinity;
 
 export function Campfire({ at, turn = 0, lifts, appear = STANDING, seed, palette, atmosphere, fire }: CampfireProps) {
-  const light = useRef<PointLight>(null);
-  const flames = useRef<Group>(null);
+  const light = useRef<PointLight | null>(null);
+  const flames = useRef<Group | null>(null);
   const parts = useRef<Partial<Record<CampPart, Mesh | null>>>({});
+  const fireRef = useRef(fire);
+  fireRef.current = fire;
+  const liftsRef = useRef(lifts);
+  liftsRef.current = lifts;
   const geometries = useMemo(() => campGeometries(palette, createRng(`${seed}/camp-things`)), [seed, palette]);
   const fireArt = useMemo(() => {
     const t = palette.things;
@@ -215,46 +220,66 @@ export function Campfire({ at, turn = 0, lifts, appear = STANDING, seed, palette
   );
 
   useEffect(() => {
-    if (!light.current) throw new Error("The campfire's light isn't mounted");
-    return registerFireLight(light.current);
-  }, []);
+    if (!scene) return;
+    const g = new Group();
+    g.position.set(at.x, at.y, at.z);
+    g.rotation.set(0, -turn, 0);
 
-  useFrame(() => {
-    const seconds = appear();
-    const lit = caught(seconds);
-    setParts(parts.current, lifts, seconds);
-    burn(fireArt, fire, lit, light.current);
-    if (flames.current) {
-      flames.current.visible = lit > 0;
-      flames.current.scale.set(0.5 + 0.5 * lit, 0.25 + 0.75 * lit, 0.5 + 0.5 * lit);
+    for (const part of CAMP_PARTS) {
+      const mesh = new Mesh(geometries[part], thingMaterial(atmosphere));
+      const { x, z } = anchorOf(part);
+      mesh.position.set(x, lifts?.[part] ?? 0, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parts.current[part] = mesh;
+      g.add(mesh);
     }
-  });
 
-  return (
-    <group position={[at.x, at.y, at.z]} rotation={[0, -turn, 0]}>
-      {CAMP_PARTS.map((part) => (
-        <mesh
-          key={part}
-          ref={(mesh) => {
-            parts.current[part] = mesh;
-          }}
-          geometry={geometries[part]}
-          material={thingMaterial(atmosphere)}
-          position={[anchorOf(part).x, lifts?.[part] ?? 0, anchorOf(part).z]}
-          castShadow
-          receiveShadow
-        />
-      ))}
-      <group ref={flames}>
-        {fireArt.flames.map((m) => (
-          <primitive key={m.uuid} object={m} />
-        ))}
-      </group>
-      <primitive object={fireArt.embers} />
-      <primitive object={fireArt.glow} />
-      <pointLight ref={light} color={fireArt.firelight} position={[0, 0.9, 0]} distance={26} decay={2} />
-    </group>
-  );
+    flames.current = new Group();
+    fireArt.flames.forEach((m) => flames.current.add(m));
+    g.add(flames.current);
+
+    g.add(fireArt.embers);
+    g.add(fireArt.glow);
+
+    light.current = new PointLight(fireArt.firelight);
+    light.current.position.set(0, 0.9, 0);
+    light.current.distance = 26;
+    light.current.decay = 2;
+    g.add(light.current);
+
+    scene.add(g);
+
+    fireRef.current = fire;
+    liftsRef.current = lifts;
+
+    if (light.current) {
+      registerFireLight(light.current);
+    }
+
+    let raf: ReturnType<typeof requestAnimationFrame> | null = null;
+    const loop = () => {
+      const seconds = appear();
+      const lit = caught(seconds);
+      setParts(parts.current, liftsRef.current, seconds);
+      burn(fireArt, fireRef.current, lit, light.current);
+      if (flames.current) {
+        flames.current.visible = lit > 0;
+        flames.current.scale.set(0.5 + 0.5 * lit, 0.25 + 0.75 * lit, 0.5 + 0.5 * lit);
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      scene.remove(g);
+      light.current = null;
+      flames.current = null;
+    };
+  }, [scene, at, turn, appear, geometries, fireArt]);
+
+  return null;
 }
 
 /** Where a camp's ghost stands this frame and whether the ground there is good, or null to hide it. */
@@ -287,8 +312,11 @@ function showGhost(assets: { material: MeshBasicNodeMaterial; good: Color; poor:
 
 /** The ghost of a camp: its pieces in one soft colour, warm where the ground is good to pitch on and faint where it isn't. */
 export function CampGhost({ palette, drive }: { palette: Palette; drive: () => GhostDrive | null }) {
-  const group = useRef<Group>(null);
+  const scene = useContext(SceneContext);
+  const group = useRef<Group | null>(null);
   const meshes = useRef<Partial<Record<CampPart, Mesh | null>>>({});
+  const driveRef = useRef(drive);
+  driveRef.current = drive;
   const assets = useMemo(() => {
     const t = palette.things;
     return {
@@ -305,23 +333,35 @@ export function CampGhost({ palette, drive }: { palette: Palette; drive: () => G
     },
     [assets],
   );
-  useFrame(() => {
-    showGhost(assets, group.current, meshes.current, drive());
-  });
-  return (
-    <group ref={group} visible={false}>
-      {CAMP_PARTS.map((part) => (
-        <mesh
-          key={part}
-          ref={(mesh) => {
-            meshes.current[part] = mesh;
-          }}
-          geometry={assets.parts[part]}
-          material={assets.material}
-          position={[anchorOf(part).x, 0, anchorOf(part).z]}
-          renderOrder={5}
-        />
-      ))}
-    </group>
-  );
+
+  useEffect(() => {
+    if (!scene) return;
+    const g = new Group();
+    g.visible = false;
+    for (const part of CAMP_PARTS) {
+      const mesh = new Mesh(assets.parts[part], assets.material);
+      const { x, z } = anchorOf(part);
+      mesh.position.set(x, 0, z);
+      mesh.renderOrder = 5;
+      meshes.current[part] = mesh;
+      g.add(mesh);
+    }
+    scene.add(g);
+    group.current = g;
+
+    let raf: ReturnType<typeof requestAnimationFrame> | null = null;
+    const loop = () => {
+      showGhost(assets, group.current, meshes.current, driveRef.current());
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      scene.remove(g);
+      group.current = null;
+    };
+  }, [scene, assets]);
+
+  return null;
 }

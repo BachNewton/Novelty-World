@@ -1,21 +1,18 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
-import { Canvas, extend } from "@react-three/fiber";
+import { createContext, type ReactNode, useEffect, useRef, useState } from "react";
 import * as THREE from "three/webgpu";
 
 /*
- * Every Hearthwood canvas: react-three-fiber over three's WebGPU renderer,
- * never WebGL. A browser without WebGPU (or one that hands back only the
+ * Every Hearthwood canvas: three's raw WebGPU renderer, never WebGL and never
+ * react-three-fiber. A browser without WebGPU (or one that hands back only the
  * WebGL fallback) is told so instead of drawing. The canvas is `flat`: the
- * frame's own pipeline (`art/frame.ts`) tone maps and encodes, so nothing
- * else may.
+ * frame's own pipeline (`art/frame.ts`) tone maps and encodes, so nothing else
+ * may.
  */
 
-// The scene graph's JSX elements are three/webgpu's classes, so `<mesh>` takes node materials.
-extend(THREE as unknown as Parameters<typeof extend>[0]);
-
-type CanvasProps = ComponentProps<typeof Canvas>;
+/** The raw WebGPU renderer, provided by `GpuCanvas` to `FeatureRenderer` and anything else that needs it. */
+export const RendererContext = createContext<THREE.WebGPURenderer | null>(null);
 
 /** Asks for the GPU timer only with `?costs` (for the ~ panel and the shot tools), since timing has a cost of its own. */
 function wantsTimestamps(): boolean {
@@ -41,24 +38,59 @@ export async function makeRenderer(canvas: HTMLCanvasElement): Promise<THREE.Web
   return renderer;
 }
 
-export function GpuCanvas({ children, ...props }: Omit<CanvasProps, "gl" | "flat" | "linear">) {
+interface GpuCanvasProps {
+  children?: ReactNode;
+  dpr?: [number, number];
+  camera?: { fov: number; near: number; far: number };
+}
+
+export function GpuCanvas({ children, ...props }: GpuCanvasProps) {
+  void props;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGPURenderer | null>(null);
+  const [renderer, setRenderer] = useState<THREE.WebGPURenderer | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  if (failed) return <NoWebGpu reason={failed} />;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const canvas = document.createElement("canvas");
+    Object.assign(canvas.style, {
+      // The frame's pipeline fills the canvas; CSS keeps it covering the surface.
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      display: "block",
+    });
+    containerRef.current.appendChild(canvas);
+    const pixelRatio = Math.min(Math.max(window.devicePixelRatio, 1), 2);
+    const width = Math.floor(containerRef.current.clientWidth * pixelRatio) || 1;
+    const height = Math.floor(containerRef.current.clientHeight * pixelRatio) || 1;
+    canvas.width = width;
+    canvas.height = height;
+    let live = true;
+    makeRenderer(canvas).then((r) => {
+      rendererRef.current = r;
+      if (live) setRenderer(r);
+    }).catch((error) => {
+      setFailed(error instanceof Error ? error.message : String(error));
+    });
+    return () => {
+      live = false;
+      rendererRef.current?.dispose();
+      canvas.remove();
+    };
+  }, []);
+
+  if (failed) {
+    return <NoWebGpu reason={failed} />;
+  }
   return (
-    <Canvas
-      {...props}
-      flat
-      gl={async ({ canvas }) => {
-        try {
-          return await makeRenderer(canvas as HTMLCanvasElement);
-        } catch (error) {
-          setFailed(error instanceof Error ? error.message : String(error));
-          throw error;
-        }
-      }}
-    >
-      {children}
-    </Canvas>
+    <RendererContext.Provider value={renderer}>
+      <div ref={containerRef} style={{ position: "relative", width: "100%", height: "100%" }}>
+        {children}
+      </div>
+    </RendererContext.Provider>
   );
 }
 

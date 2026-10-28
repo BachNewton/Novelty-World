@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import { type BufferGeometry, CylinderGeometry, type Group, InstancedMesh, Object3D, SphereGeometry, type Vector3 } from "three";
+import { useContext, useEffect, useMemo, useRef } from "react";
+import { type BufferGeometry, CylinderGeometry, Group, InstancedMesh, Object3D, SphereGeometry, type Vector3 } from "three";
+import { Scene } from "three/webgpu";
+import { SceneContext } from "../components/valley/feature-renderer";
 import { createRng, uniform, type Rng } from "@/shared/lib/seeded-random";
 import { brewOfCharm, type Charm } from "../gameplay/brews";
 import type { AtmosphereUniforms } from "./atmosphere";
@@ -93,21 +94,35 @@ export function CampBlooms({ spots, strength, palette, atmosphere }: { spots: re
   );
   const dummy = useMemo(() => new Object3D(), []);
   const shown = useRef<{ strength: number; meshes: typeof meshes | null }>({ strength: NaN, meshes: null });
-  useFrame(() => {
-    // The charm's strength moves over game days: the flowers are set again only once it has moved enough to show.
-    const now = strength();
-    const was = shown.current;
-    if (was.meshes === meshes && Math.abs(now - was.strength) < 0.002 && (now > 0) === was.strength > 0) return;
-    shown.current = { strength: now, meshes };
-    openBlooms(meshes.out, now, dummy);
-  });
-  return (
-    <>
-      {meshes.out.map(({ mesh }) => (
-        <primitive key={mesh.uuid} object={mesh} />
-      ))}
-    </>
-  );
+  const strengthRef = useRef(strength);
+  strengthRef.current = strength;
+
+  useEffect(() => {
+    if (!scene) return;
+    meshes.out.forEach(({ mesh }) => scene.add(mesh));
+
+    let raf: ReturnType<typeof requestAnimationFrame> | null = null;
+    const loop = () => {
+      // The charm's strength moves over game days: the flowers are set again only once it has moved enough to show.
+      const now = strengthRef.current();
+      const was = shown.current;
+      if (was.meshes === meshes && Math.abs(now - was.strength) < 0.002 && (now > 0) === was.strength > 0) {
+        raf = requestAnimationFrame(loop);
+        return;
+      }
+      shown.current = { strength: now, meshes };
+      openBlooms(meshes.out, now, dummy);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      meshes.out.forEach(({ mesh }) => scene.remove(mesh));
+    };
+  }, [scene, meshes, dummy]);
+
+  return null;
 }
 
 /** The flowers this frame: each open as far as its turn has come. */
@@ -167,7 +182,10 @@ function hangCharms(charms: readonly { charm: Charm; glow: Cloud }[], groups: Pa
 
 /** The charm post by the fire, with every charm at work hanging from it in its pouch, glowing its own colour as strongly as it works. */
 export function CharmPost({ at, turn, strengths, palette, atmosphere }: { at: { x: number; y: number; z: number }; turn: number; strengths: () => Record<Charm, number>; palette: BrewPalette; atmosphere: AtmosphereUniforms }) {
+  const scene = useContext(SceneContext);
   const swing = useRef<Partial<Record<Charm, Group | null>>>({});
+  const strengthsRef = useRef(strengths);
+  strengthsRef.current = strengths;
   const assets = useMemo(() => {
     const material = thingMaterial(atmosphere);
     const charms = (Object.keys(HOOKS) as Charm[]).map((charm, i) => {
@@ -191,28 +209,52 @@ export function CharmPost({ at, turn, strengths, palette, atmosphere }: { at: { 
     },
     [assets],
   );
-  useFrame(() => {
-    hangCharms(assets.charms, swing.current, strengths(), atmosphere.uHwTime.value);
-  });
-  return (
-    <group position={[at.x, at.y, at.z]} rotation={[0, turn, 0]}>
-      <mesh geometry={assets.post} material={assets.material} castShadow />
-      {assets.charms.map((c) => (
-        <group
-          key={c.charm}
-          ref={(g) => {
-            swing.current[c.charm] = g;
-          }}
-          position={[HOOKS[c.charm], POST.height - 0.06, 0]}
-          visible={false}
-        >
-          <mesh geometry={assets.thread} material={assets.material} />
-          <mesh geometry={c.pouch} material={assets.material} position={[0, -DROP, 0]} scale={HANGING_LARGER} castShadow />
-          <primitive object={c.glow} />
-        </group>
-      ))}
-    </group>
-  );
+
+  useEffect(() => {
+    if (!scene) return;
+    const g = new Group();
+    g.position.set(at.x, at.y, at.z);
+    g.rotation.set(0, turn, 0);
+
+    const postMesh = new Mesh(assets.post, assets.material);
+    postMesh.castShadow = true;
+    g.add(postMesh);
+
+    assets.charms.forEach((c) => {
+      const subgroup = new Group();
+      subgroup.position.set(HOOKS[c.charm], POST.height - 0.06, 0);
+      subgroup.visible = false;
+      swing.current[c.charm] = subgroup;
+
+      const threadMesh = new Mesh(assets.thread, assets.material);
+      subgroup.add(threadMesh);
+
+      const pouchMesh = new Mesh(c.pouch, assets.material);
+      pouchMesh.position.set(0, -DROP, 0);
+      pouchMesh.scale.setScalar(HANGING_LARGER);
+      pouchMesh.castShadow = true;
+      subgroup.add(pouchMesh);
+
+      subgroup.add(c.glow);
+      g.add(subgroup);
+    });
+
+    scene.add(g);
+
+    let raf: ReturnType<typeof requestAnimationFrame> | null = null;
+    const loop = () => {
+      hangCharms(assets.charms, swing.current, strengthsRef.current(), atmosphere.uHwTime.value);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      scene.remove(g);
+    };
+  }, [scene, at, turn, assets]);
+
+  return null;
 }
 
 /** The hush this frame: as bright as the charm works, about Elliott's feet. */
@@ -226,19 +268,40 @@ function driftHush(motes: Cloud, group: Group | null, strength: number, at: Vect
 
 /** The hush round Elliott: pale motes drifting about their feet as strongly as the charm works. Its group is moved to Elliott by the scene. */
 export function HushMotes({ follow, strength, palette, atmosphere }: { follow: () => Vector3; strength: () => number; palette: BrewPalette; atmosphere: AtmosphereUniforms }) {
-  const group = useRef<Group>(null);
+  const scene = useContext(SceneContext);
+  const group = useRef<Group | null>(null);
+  const followRef = useRef(follow);
+  followRef.current = follow;
+  const strengthRef = useRef(strength);
+  strengthRef.current = strength;
   const motes = useMemo(() => {
     const made = cloud(MOTES, moteMaterial(atmosphere));
     made.renderOrder = 4;
     made.userData = { tint: palette.hush.clone(), strength: 0 };
     return made;
   }, [palette, atmosphere]);
-  useFrame(() => {
-    driftHush(motes, group.current, strength(), follow());
-  });
-  return (
-    <group ref={group} visible={false}>
-      <primitive object={motes} />
-    </group>
-  );
+
+  useEffect(() => {
+    if (!scene) return;
+    const g = new Group();
+    g.visible = false;
+    g.add(motes);
+    scene.add(g);
+    group.current = g;
+
+    let raf: ReturnType<typeof requestAnimationFrame> | null = null;
+    const loop = () => {
+      driftHush(motes, group.current, strengthRef.current(), followRef.current());
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      scene.remove(g);
+      group.current = null;
+    };
+  }, [scene, motes]);
+
+  return null;
 }
