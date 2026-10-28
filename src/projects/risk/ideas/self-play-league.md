@@ -271,3 +271,51 @@ itself has to carry more per decision, or each update has to see several rollout
 
 This is measured at one checkpoint in one league; the scale moves during training, and Adam's
 per-weight scaling and PPO's three epochs over the same data change how the noise turns into steps.
+
+## Less noise per decision: λ, not the reward
+
+The obvious way to more signal per decision is a richer reward, but the win reward is already
+graded below the win (second place 0, down to −1 for the first out), so every seat of every game
+already says something. Placement would add little, and it would teach outlasting, which the net
+already does well. Measuring its noise at a win-trained checkpoint would also be unfair to it: the
+value head was fitted to the win reward, so its advantages would be skewed.
+
+The cheaper lever is GAE's λ. At 0.95 an advantage is nearly the game's outcome less the value
+head's guess, so every decision carries the dice of every turn left in its game. A lower λ leans on
+the value head's estimate a few steps on instead, cutting the variance at the cost of the value
+head's bias. The noise tool takes λ, so the same checkpoint and league give the answer.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 18 | At λ = 0.8, B_noise is below half its 0.95 value (under about 880,000). | 50% |
+| 19 | At λ = 0.6, B_noise is below a third of its 0.95 value (under about 590,000). | 45% |
+| 20 | Lowering λ never raises B_noise. | 80% |
+
+If λ = 0.8 halves B_noise, pf4 trains at 0.8; if not, at 0.95.
+
+## pf4: a colder update
+
+The noise alone doesn't decide where the training settles; the update's temperature does. With
+small steps, the policy wanders about the best it can reach, with a spread set by the learning rate
+over the minibatch: the larger that ratio, the further the wander takes it below the best. sw128b
+trained at 1.3e-4 over 2048, pf2 at 3e-5 over 2048, about four times colder, and pf2 fell slowest
+(its iteration 100 is second on the ladder). Reorganizing the data can't make a step cleaner per
+decision seen, but it can make the update colder without slowing it as much as a smaller learning
+rate does: a larger minibatch averages the noise before Adam scales the step.
+
+pf4 starts from sw128b-450 in pf1's league (as pf2 did), with a minibatch of 32,768, 2 epochs and a
+learning rate of 1e-4. That's about 3e-9 per decision, five times colder than pf2, while its
+progress along the true gradient per iteration should be about half pf2's (fewer steps, each about
+four times better aimed). 100 iterations, with the same checks as pf2 and pf3, then the
+mixed-table ladder with sw-450, pf2-100 and net-v1.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 21 | pf4's one-out against sw128b-450 stays at or above 76% at every check (pf2 fell to 74%). | 55% |
+| 22 | On the ladder, pf4-100 is within 30 Elo of sw-450, or above it. | 50% |
+| 23 | pf4-100 rates above pf2-100 on the ladder. | 60% |
+| 24 | pf4-100 rates more than 30 Elo above sw-450. | 15% |
+
+If 22 holds and 24 fails, the training holds its ground but climbs too slowly to see in 100
+iterations, and the next step is a longer cold run. If 22 fails, temperature isn't the lever, and
+the noise reading needs revisiting.
