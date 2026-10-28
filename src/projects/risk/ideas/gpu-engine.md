@@ -150,6 +150,8 @@ Training time is GPU wall-clock of the trainer. A milestone is checked on the GP
 | **M3** | even or better than rule-v6 at 5 players, one-in and one-out, by the gauntlet's SPRT (30 Elo a seat), train seeds then holdout | no clock: it fails only once every cause is ruled out (`roadmap.md`, Self-play) |
 | **M4** | the same against rule-v7 | |
 
+**M3 passed** with `net-v1~{"weights":"sw128b-450"}` (`bot-log.md`, "net-v1 sw128b-450 beats v6 one-in"): better than rule-v6 one-in and one-out on train seeds, its holdout read dropped by the owner's choice.
+
 ### Phase 3 so far
 
 Measured on the RTX 4070 with nothing else on it, the CPU saturated by gauntlets throughout (so every host-side cost is pessimistic).

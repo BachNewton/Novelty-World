@@ -32,12 +32,12 @@ A transformer trained by PPO in a league on the GPU engine (`gpu-engine.md`, "Ph
 - Strength among networks and strength against the fixed bots part ways, so neither predicts rule-v6: only the TS gauntlet does.
 - The bot samples its moves, because argmax loops.
 
-**Next.** Steps 1 to 3 are done; step 4 is next: sw128b trained on.
+**Next.** Steps 1 to 4 are done: sw128b's iteration 450 passed M3 (`gpu-engine.md`, "Milestones"), then drifted down as it trained on. The league that keeps its best (`self-play-league.md`) is next, then M4.
 
 1. **Done: M2 passes in the TS harness.** `net-v1~{"weights":"sw128b-125"}` is better than gd-defensive and gd-stacker at 5 players, one-in and one-out (`bot-log.md`, "net-v1 passes M2").
 2. **Done: the read against rule-v6** at 5 players, one-in: worse, 11.6% against par 20%, while its mean place is about par. It outlasts v6 but rarely wins.
 3. **Done: the size is 128×4** (`gpu-engine.md`, "The size sweep"): ahead at every matched decision count, still rising at its end. A run's checkpoints and logs are in `gpu/runs/selfplay/<name>/`, git-ignored and on the laptop only: keep them in the main checkout, not a worktree that may be removed. `runs/selfplay/sweep.ps1` is the recipe's one command (it resumes with `--resume`; a run's arguments are also in its `args.json`). The time budget and the learning-rate schedule continue from the checkpoint.
-4. Train the chosen size on toward M3 (`gpu-engine.md`, "Milestones"): resume its run with a larger `--hours`. Strength on the GPU doesn't predict rule-v6, so every 24 hours of training, export the latest snapshot (`riskgpu.selfplay.export`) and repeat step 2's read on it. When a read comes out even or better, run the full M3 suite (one-in and one-out, train then holdout seeds).
+4. **Done: M3.** Train the chosen size on toward M3 (`gpu-engine.md`, "Milestones"): resume its run with a larger `--hours`. Strength on the GPU doesn't predict rule-v6, so every 24 hours of training, export the latest snapshot (`riskgpu.selfplay.export`) and repeat step 2's read on it. When a read comes out even or better, run the full M3 suite (one-in and one-out, train then holdout seeds).
 5. **When a pure network has fallen short of v6.** Not on one bad read, and not on a clock: a read that is worse says only that the net isn't there yet. Each cause it could be is ruled out in turn, cheapest first, and the line stops only when all are:
    - **Time.** Still climbing: its win share against v6 rose over the last three reads. Keep training.
    - **Size.** The sweep's larger size gained more per decision trained at the end. Train the larger size.
