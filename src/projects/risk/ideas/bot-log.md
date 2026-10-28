@@ -1336,3 +1336,17 @@ It is far stronger than sweeper-v1 against the yardstick bots and still rarely w
 Read as screens, not verdicts: a lone seat among v6.1s measures an edge over v6.1, not over the baseline, and 500 games separate about 6 points of win share. `execute` is the one clear gain (6.4 points over the baseline on the same seeds); `margin` at 2 standard errors is a clear loss (the search's overrides of v6.1 are worth more than their noise suggests); `kinds`, `feed`, `threat` and `hoard` are within the noise of the baseline alone; `kinds` on `execute` leans better than `execute` alone.
 
 **Time.** A native-v2 turn on one core, measured in these screens beside other runs: median 0.27 to 0.35 s, nine in ten under 0.50 to 0.79 s; the longest single turns were 3 to 16 s (the 16 s under `execute` + `kinds`, which searches the most candidates), all on a loaded machine. v7.1's own was 2.5 s a turn on average.
+
+## native-v2 at every table, on Actions (2026-10-28)
+
+The same screens as above, at 3, 4 and 6 players too, now played on GitHub Actions (`risk-measure.yml`'s `native-games`, 20 runners, each 500-game screen 13 s to 5 min of play). Each label alone among native v6.1s, seeds `v2screen`, rotated; win Elo a seat (500 games each, about ±2.2 points of win share):
+
+| Label | 3p | 4p | 5p | 6p |
+|---|---|---|---|---|
+| baseline | +112 | +130 | +151 | +170 |
+| `execute` | +137 | +174 | +198 | +225 |
+| `execute` + `kinds` | +161 | +191 | +205 | +201 |
+
+`execute` adds 25 to 55 a seat at every table. `kinds` on top of it leans better at 3 and 4 players and worse at 6, each about one standard error, so unsettled. Capped games stayed at 0 to 1%.
+
+`margin` at 5 players: 0.5 gives +135, 1 gives +118, 2 gives +87, all below the baseline's +151 and falling with the margin. Holding v6.1's pick unless the search beats it by a margin only costs: the search's narrow overrides are worth playing. Set aside.
