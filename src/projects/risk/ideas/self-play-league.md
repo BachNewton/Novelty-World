@@ -146,3 +146,60 @@ net-v1 and GD Defensive and toward beating greedy. Its games also lengthened (10
 player-turns) where sw128b's shortened, and its entropy fell from 2.0 to 1.7, so it isn't the same
 style change, only the same losses. That leaves reading B, the opponents set the direction, as the
 better candidate, and pf3 tests it.
+
+## pf3's results: stronger opponents don't stop it either
+
+pf3 ran its 100 iterations (paused once at iteration 32, at a checkpoint, while another job had
+the GPU; resuming re-dealt the games in flight).
+
+| Iteration | One-in vs net-v1 | One-out vs net-v1 | One-in vs sw128b-450 | One-out vs sw128b-450 | GD Defensive | GD Stacker | Greedy |
+|---|---|---|---|---|---|---|---|
+| 25 | 25.4% | 89.5% | 20.1% | 81.5% | 65.4% | 66.0% | 84.6% |
+| 50 | 12.3% | 84.2% | 17.8% | 80.1% | 68.5% | 71.4% | 89.4% |
+| 75 | 15.4% | 73.0% | 14.4% | 78.3% | 56.2% | 65.1% | 87.6% |
+| 100 | 8.8% | 55.9% | 13.9% | 69.9% | 55.7% | 63.6% | 89.2% |
+
+Against the predictions:
+
+9. pf3 holds one-in vs net-v1 at 15% or more: **failed** (12.3% at iteration 50, 8.8% at 100).
+10. pf3's GD Defensive under 55% at some check: **failed**, narrowly (55.7% at its lowest), so a
+    league of nets cost it no more on GD than pf1's mix did.
+11. Neither run reaches 25% one-in vs sw128b-450: **held** (pf2's best 23.2%, pf3's 20.1%).
+
+By the letter of the rule above, only pf2 held, which names the step size as the lever. That reading
+is wrong, and the rule was too coarse: pf2 held prediction 7 only because it was short, its curve
+falling at a third of pf1's speed. And pf3 refutes reading B outright: two thirds of its seats were
+nets, with net-v1 and sw128b-450 pinned among them, and it lost ground to exactly those two as fast
+as pf1 did. It trained against net-v1 and got worse against net-v1.
+
+Two readings are left, and they differ on what the training is doing:
+
+- **C. It improves, at something the checks don't measure.** Every check is a table of one net
+  against copies of another (or of one bot). Training is always a mixed table. A net can get better
+  at mixed tables while getting worse in those homogeneous ones: strength inside one population
+  says nothing about another (DORA, `risk-bot-ai.md`), and m2a-50 already crushed a net that beat
+  GD harder (`gpu-engine.md`).
+- **D. It doesn't improve at all.** The win signal at 5 and 6 players is too noisy for these
+  batches to find a real gradient; the policy wanders, and from a high point (450) any wander is
+  down. The step size sets the wander's speed, as pf2 showed, and the opponents don't change it,
+  as pf3 showed.
+
+## The mixed-table ladder: C or D
+
+No training. One ladder (`riskgpu.selfplay.ladder`) of eight nets seated together at 5-player
+tables, five different nets at every table, every seat sampling as in training, 8192 games, win Elo
+by a Luce fit, net-v1 at 0: net-v1 (m2a-50); sw128b at 375, 450, 575 and 825 (before the peak, the
+peak, after its fall, and its last); pf1-75, pf2-100 and pf3-100. A mixed table of nets is the
+closest a fixed test comes to the training tables.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 12 | sw128b-450 rates first, or within 30 Elo of first. | 55% |
+| 13 | pf3-100 rates at least 30 Elo below sw128b-450. | 55% |
+| 14 | sw128b-825 rates below sw128b-450 (a whole run's drift shows in a mixed table too). | 65% |
+
+If 12 to 14 hold, the drift is real in mixed tables as well: reading D, and the next lever is the
+signal's noise (bigger batches, more games an update, or a warm start by imitation). If the later
+nets (pf3-100, sw128b-825) rate above sw128b-450, reading C: training improves at its own tables,
+and the question becomes which tables the rule bots' strength follows, since sw128b-450 beat v6
+one-in.
