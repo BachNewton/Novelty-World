@@ -169,8 +169,8 @@ Tailwind CSS v4. Novelty World's own visual identity, the home page, shared UI a
 
 **Rule: never decide whether something is faster from timings on a shared machine.** The laptop is shared, and it throttles as it heats. A GitHub Actions runner shares hardware with strangers and is a different CPU from job to job. A timing measures the machine as much as the code, and checking the load or the temperature first can't make it proof. So:
 
-- **Within one implementation, count the work.** Count instructions executed under a deterministic counter (Valgrind's Cachegrind or Callgrind, which run in WSL for native code), or the code's own counts of its work (positions evaluated, engine steps, allocations). These repeat to a fraction of a percent, so a 2% change shows and no result needs a rerun.
-- **Across languages or runtimes** (TypeScript against Rust), instruction counts don't compare, because a JIT changes what an instruction is. There, measure a ratio, never a time: both sides alternated in pairs on one machine in one sitting, many pairs, the ratio reported with its spread. A time from one run is never compared with a time from another.
+- **Count the work.** Use the code's own counts of what it does: items processed, draw calls and triangles in a frame, allocations, steps of a simulation. For native code, use the instructions executed under a deterministic counter (Valgrind's Cachegrind or Callgrind, which run in WSL). These repeat exactly, or to a fraction of a percent, so a 2% change shows and no result needs a rerun.
+- **Where only time can answer**, measure a ratio, never a time. This covers JIT-compiled code, where an instruction count means little, and comparisons across languages or runtimes. Run both sides alternated in pairs, on one machine, in one sitting, many pairs, and report the ratio with its spread. A time from one run is never compared with a time from another.
 - **A wall-clock time may be reported as context**, with the machine it ran on, never as the evidence for a decision.
 
 ### Tests never rely on a network connection
