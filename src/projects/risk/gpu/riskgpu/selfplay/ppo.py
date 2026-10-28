@@ -315,6 +315,24 @@ class Ladder:
                 "ladder_games": decisive, "ladder_capped": self.games - decisive}
 
 
+PRIOR_WIN, PRIOR_SEATS = 0.22, 20.0  # par at the run's mix of table sizes, worth 20 seats
+
+
+def pick_by_results(candidates: list[str], k: int, record_of: dict[str, list[float]]) -> list[str]:
+    """`k` of the candidates without replacement, each weighted by x², x its share of the seats it
+    won while in the league (prioritized fictitious self-play): the snapshots that still beat the
+    learner come back, the ones it beats fade. One never seated counts at par."""
+    pool = list(candidates)
+    chosen = []
+    for _ in range(min(k, len(pool))):
+        weights = []
+        for path in pool:
+            won, seats = record_of.get(path, (0.0, 0.0))
+            weights.append(((won + PRIOR_WIN * PRIOR_SEATS) / (seats + PRIOR_SEATS)) ** 2)
+        chosen.append(pool.pop(random.choices(range(len(pool)), weights)[0]))
+    return chosen
+
+
 def trained_from_log(out_dir: str, iteration: int) -> float:
     """Training time up to `iteration`, for a checkpoint saved before checkpoints kept it."""
     with open(os.path.join(out_dir, "log.jsonl")) as f:
@@ -355,12 +373,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--snapshot-every", type=int, default=50)
     p.add_argument("--snapshots", type=int, default=4, help="snapshot slots in the league")
     p.add_argument("--league-fixed", default="", help="checkpoints always in the league's snapshot slots, comma-separated")
+    p.add_argument("--league-pick", default="recent", choices=["recent", "results"],
+                   help="how the run's own slots are filled: the newest half and a random rest, or the newest and the rest by results")
     p.add_argument("--eval-every", type=int, default=25)
     p.add_argument("--eval-games", type=int, default=2048)
     p.add_argument("--eval", default="greedy@3,greedy@5", help="opponent@players, comma-separated")
     p.add_argument("--init", default=None, help="start the network from this checkpoint's weights")
     p.add_argument("--ladder-games", type=int, default=2048)
-    p.add_argument("--pair", default="", help="label=checkpoint: the head-to-head test's fixed opponent")
+    p.add_argument("--pair", default="", help="label=checkpoint of each head-to-head test's fixed opponent, comma-separated")
     p.add_argument("--pair-games", type=int, default=1024)
     p.add_argument("--eval-sample", action="store_true", help="evaluations sample moves as in training, not the most likely")
     p.add_argument("--ladder-extra", default="", help="label=path of earlier runs' checkpoints for the ladder, comma-separated")
@@ -382,6 +402,8 @@ def main(argv: list[str] | None = None) -> int:
     net = Net(args.width, args.layers, args.heads, edges=board.edges, adjacency=board.adjacency).to(device)
     opt = torch.optim.Adam(net.parameters(), lr=args.lr, eps=1e-5)
     iteration, steps_done, league = 0, 0, []
+    # Each own snapshot's record while it held a league slot: [seats won, seats in decisive games].
+    record_of: dict[str, list[float]] = {}
     trained_s = 0.0
     latest = os.path.join(out_dir, "latest.pt")
     if args.resume and os.path.exists(latest):
@@ -389,6 +411,7 @@ def main(argv: list[str] | None = None) -> int:
         net.load_state_dict(ck["net"])
         opt.load_state_dict(ck["opt"])
         iteration, steps_done, league = ck["iteration"], ck["steps"], ck["league"]
+        record_of = ck.get("record_of", {})
         trained_s = ck["trained_s"] if "trained_s" in ck else trained_from_log(out_dir, iteration)
         print(f"resumed {args.name} at iteration {iteration}, {trained_s / 3600:.2f} h trained", flush=True)
     with open(os.path.join(out_dir, "args.json"), "w") as f:
@@ -418,6 +441,8 @@ def main(argv: list[str] | None = None) -> int:
         for k, path in enumerate(fixed):
             env.snapshots[k] = load_net(path, board, device)
 
+    slot_paths: list[str] = []  # the own snapshot in each slot after the anchors
+
     def set_league() -> None:
         probs = torch.zeros(len(kinds))
         probs[LEARNER] = args.self_share
@@ -427,12 +452,16 @@ def main(argv: list[str] | None = None) -> int:
         probs[GREEDY] = max(0.0, 1.0 - args.self_share - snap_share - args.gd_share)
         for k in range(len(GD_PERSONAS)):
             probs[GD + k] = args.gd_share / len(GD_PERSONAS)
-        # The newest half of the slots, the rest drawn from older checkpoints: a learner must keep
-        # beating its recent selves (m2a regressed against them while beating the fixed bots).
-        n_recent = own - own // 2
-        recent = league[len(league) - n_recent:] if n_recent else []
-        rest = league[:len(league) - n_recent]
-        chosen = recent + random.sample(rest, min(own // 2, len(rest)))
+        if args.league_pick == "results":
+            chosen = league[-1:] + pick_by_results(league[:-1], own - 1, record_of) if own else []
+        else:
+            # The newest half of the slots, the rest drawn from older checkpoints: a learner must keep
+            # beating its recent selves (m2a regressed against them while beating the fixed bots).
+            n_recent = own - own // 2
+            recent = league[len(league) - n_recent:] if n_recent else []
+            rest = league[:len(league) - n_recent]
+            chosen = recent + random.sample(rest, min(own // 2, len(rest)))
+        slot_paths[:] = chosen
         snaps = anchors + len(chosen)
         # The anchors (`--league-fixed`) hold the first slots for good, nets of their own sizes.
         for k, path in enumerate(chosen):
@@ -451,7 +480,7 @@ def main(argv: list[str] | None = None) -> int:
                   for o, n in evals]
     ladder = Ladder(board, tables, net, args.ladder_games, device, greedy=not args.eval_sample) if args.ladder_games > 0 else None
     extra = [tuple(x.split("=", 1)) for x in args.ladder_extra.split(",") if x]
-    pair = PairEval(board, tables, net, *args.pair.split("=", 1), args.pair_games, device) if args.pair else None
+    pairs = [PairEval(board, tables, net, *x.split("=", 1), args.pair_games, device) for x in args.pair.split(",") if x]
     log_path = os.path.join(out_dir, "log.jsonl")
     n_params = sum(x.numel() for x in net.parameters())
     started = time.time() - trained_s
@@ -475,8 +504,14 @@ def main(argv: list[str] | None = None) -> int:
         steps_done += args.batch * args.horizon
         if int(env.cursor.max()) > env.cfg.pool // 2:
             env.refill_pool()
+        stats = env.take_stats()
+        first_own = SNAPSHOT + (len(fixed) if args.snapshot_share > 0 else 0)
+        for k, path in enumerate(slot_paths):
+            record_of.setdefault(path, [0.0, 0.0])
+            record_of[path][0] += stats["wins"][first_own + k]
+            record_of[path][1] += stats["decisive_seats"][first_own + k]
         record = {"iter": iteration, "steps": steps_done, "time": time.time(), "rollout_s": t1 - t0, "update_s": t2 - t1,
-                  "steps_per_s": args.batch * args.horizon / (t1 - t0), "params": n_params, **summarize(env.take_stats(), kinds), **losses}
+                  "steps_per_s": args.batch * args.horizon / (t1 - t0), "params": n_params, **summarize(stats, kinds), **losses}
         if iteration % args.snapshot_every == 0:
             path = os.path.join(out_dir, f"snap-{iteration}.pt")
             torch.save(net.state_dict(), path)
@@ -484,8 +519,9 @@ def main(argv: list[str] | None = None) -> int:
             set_league()
         if iteration % args.eval_every == 0:
             record["eval"] = [e.run() for e in evaluators]
-            if pair is not None:
-                record["pair"] = pair.run()
+            if pairs:
+                record["pair"] = [pair.run() for pair in pairs]
+                record["league"] = [os.path.basename(p)[5:-3] for p in slot_paths]
             if ladder is not None:
                 # The reference checkpoints always, then this run's newest.
                 own = [(f"{args.name}-{os.path.basename(p)[5:-3]}", p) for p in league]
@@ -493,7 +529,8 @@ def main(argv: list[str] | None = None) -> int:
                 record.update(ladder.run(past, f"{args.name}-{iteration}"))
         if iteration % args.ckpt_every == 0:
             torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
-                        "league": league, "args": vars(args), "env": asdict(cfg), "trained_s": time.time() - started}, latest + ".tmp")
+                        "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
+                        "trained_s": time.time() - started}, latest + ".tmp")
             os.replace(latest + ".tmp", latest)
         with open(log_path, "a") as f:
             f.write(json.dumps(record) + "\n")
@@ -508,7 +545,8 @@ def main(argv: list[str] | None = None) -> int:
             if "ladder" in record:
                 print("  ladder", json.dumps(record["ladder"]), record["ladder_games"], "decisive", flush=True)
     torch.save({"net": net.state_dict(), "opt": opt.state_dict(), "iteration": iteration, "steps": steps_done,
-                "league": league, "args": vars(args), "env": asdict(cfg), "trained_s": time.time() - started}, latest)
+                "league": league, "record_of": record_of, "args": vars(args), "env": asdict(cfg),
+                "trained_s": time.time() - started}, latest)
     return 0
 
 

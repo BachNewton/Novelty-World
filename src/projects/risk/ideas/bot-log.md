@@ -1281,3 +1281,9 @@ Rule 3 of `rule-bot-v7.1.md`'s bar, on GitHub Actions: `risk:ratings -- --seatab
 v6's last Elo was 1560.3, so rule 3 holds. Alone among five v6.1s v7.1 won 41.7% of its 6-player games (par 16.7%); a lone v6.1 among five v7.1s won 12.5%. v7.1's 6-player matchups against v4.1 and v5.1 capped 2 and 3 of their games.
 
 **Verdict.** Rules 1 and 2 (train seeds; the holdout dropped by the owner's choice), 3, 4 and 5 hold. v7.1 is seated beside v6.1, a new version: it fixes no seated bot, so nothing retires.
+
+## net-v1 sw128b-450 beats v6 one-in (2026-10-28)
+
+`net-v1~{"weights":"sw128b-450"}` (128×4, 472 million decisions trained): sw128b's snapshot at iteration 450, its peak on the GPU checks (one-in against m2a-50 23.8%, against par 20%) before it drifted down (`self-play-league.md`). On the laptop, beside a GPU training run.
+
+`risk:gauntlet -- 'net-v1~{"weights":"sw128b-450"}' --base rule-v6 --field rule-v6 --players 5 --formats one-in` (600 games): **better**, 24.6% [21.2, 28.3] of 553 decisive games against par 20%, win Elo +46, finishing-order Elo +100, the lone net's mean place 2.44 against par 3.0, 0.4% capped. The first network better than a rule bot of ours at any table, and the first read that wins rather than only outlasting: sw128b-125 won 11.6% at the same table. The rest of M3 (one-out, then holdout seeds) follows.
