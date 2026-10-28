@@ -247,3 +247,27 @@ If B_noise is between about 20,000 and one rollout, the fix costs nothing: a min
 B_noise, so fewer, cleaner steps from the same data. Above one rollout, an update needs more data
 (a larger batch or horizon) or less variance. Below 20,000, noise isn't it, and the drift is a bias
 (the value baseline, or the objective itself).
+
+## The noise scale: about 1.8 million decisions
+
+At sw128b-450 in pf1's league, eight rollouts of about 506,000 learner decisions each:
+|G|² 8.3e-4, tr(Σ) 1,468 a decision, so **B_noise about 1,770,000 decisions**. The halves' gradients
+had a cosine of 0.11 to 0.19 (mean 0.135), which is what those two figures predict for halves of
+253,000 decisions (0.125), so the estimate is consistent with itself.
+
+15. B_noise above 20,000: **held**, by a factor of about 90.
+16. B_noise above one rollout: **held**, about 3.5 rollouts. I gave this 35%.
+17. Mean cosine of the halves below 0.3: **held** (0.135).
+
+What it means. A 2048-decision step's gradient has about 2048 / 1.77M of the signal's share it
+would need to match its noise: each of an iteration's 700 steps is over 99% noise. Even a whole
+rollout's gradient is only about a fifth signal. So the update follows the noise, and the curves
+show it: the policy wanders, any high point is luck, and every continuation falls back toward the
+level the training holds on average (net-v1's, about). pf2 wandered slower because each noisy step
+was smaller, not because its steps were cleaner, which is why it slowed the fall without stopping
+it. Reorganizing the same data into fewer, larger steps can't fix this on its own: in the small-step
+limit a sum of minibatch steps is the rollout's gradient, a fifth signal at best. The win signal
+itself has to carry more per decision, or each update has to see several rollouts' worth.
+
+This is measured at one checkpoint in one league; the scale moves during training, and Adam's
+per-weight scaling and PPO's three epochs over the same data change how the noise turns into steps.
