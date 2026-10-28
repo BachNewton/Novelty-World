@@ -165,6 +165,14 @@ Tailwind CSS v4. Novelty World's own visual identity, the home page, shared UI a
 
 **Rule: docs state what is decided, not when.** No decision dates, "as of" stamps or change logs in CLAUDE.md, skills, commands or design docs: what's decided is decided, and git history holds the when. Dates stay only where the date is the data: a measurement's context, a record's `asOf`, or a log whose whole point is the timeline.
 
+### Speed is measured by counting work, not by a clock
+
+**Rule: never decide whether something is faster from timings on a shared machine.** The laptop is shared, and it throttles as it heats. A GitHub Actions runner shares hardware with strangers and is a different CPU from job to job. A timing measures the machine as much as the code, and checking the load or the temperature first can't make it proof. So:
+
+- **Within one implementation, count the work.** Count instructions executed under a deterministic counter (Valgrind's Cachegrind or Callgrind, which run in WSL for native code), or the code's own counts of its work (positions evaluated, engine steps, allocations). These repeat to a fraction of a percent, so a 2% change shows and no result needs a rerun.
+- **Across languages or runtimes** (TypeScript against Rust), instruction counts don't compare, because a JIT changes what an instruction is. There, measure a ratio, never a time: both sides alternated in pairs on one machine in one sitting, many pairs, the ratio reported with its spread. A time from one run is never compared with a time from another.
+- **A wall-clock time may be reported as context**, with the machine it ran on, never as the evidence for a decision.
+
 ### Tests never rely on a network connection
 
 **Rule: no test, unit or e2e, may depend on anything outside this machine.** A test that reaches the live database, the production relay or any internet service fails when the network does, writes into real data, and measures someone else's server. Servers a test run starts for itself on localhost (the e2e app server, the local relay) are fine; external services are replaced by local stand-ins the run controls. The shared room list is one: e2e runs list rooms on the local relay's stand-in for Supabase presence (see Multiplayer).
