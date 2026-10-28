@@ -18,7 +18,7 @@ gh workflow run risk-measure.yml --ref main -f tool=gauntlet -f args="rule-v5 --
 
 The inputs:
 
-- **tool**: `gauntlet` or `ratings`.
+- **tool**: `gauntlet` or `ratings` (and `record` and `native-games`, below).
 - **args**: the tool's own arguments. `--workers` makes no difference here: each machine uses all its cores.
 - **shards**: the most machines a round is split across. 20 by default, which is as many jobs as GitHub runs at once on a free account.
 - **min_round**: the fewest games an undecided gauntlet pairing plays in a round. 0 by default, which leaves every round's size to the evidence (below); a floor only makes rounds bigger, never changes a result.
@@ -87,6 +87,20 @@ gh run download <run id> --name risk-positions --dir src/projects/risk/eval/posi
 A teacher recording (`risk:record -- --teacher rule-v7 ...`, `eval/distill.ts`) runs the same way, with the same tool and its arguments typed after it.
 
 The positions are data, never committed: `eval/positions/` is ignored.
+
+## Native games
+
+The same workflow plays the native crate's quick measuring run, `risk-native games` (`native/src/games.rs`): pick the tool `native-games` and type its arguments as they'd follow `risk-native games`. Like `record`, its games are fixed in number, so there are no rounds or plan, and no Node. Each of `shards` machines builds the crate and plays every `shards`-th seed group from its own (a rotation's games share a seed and stay together, so every machine gets the same mix), on all its cores, keeping each game's result in one file. A last job reads every machine's file and prints the report one local run of the same arguments prints: the games are read in the run's order, so the win share, its error, the Elo, the cap rate, game length and every bot's decision and turn counts are the local run's. The times are the machines' own, so the per-decision and per-turn times are the runners', and the run's seconds are the slowest machine's. A crate test holds the shards, merged, to the whole run played at once.
+
+```bash
+gh workflow run risk-measure.yml --ref <branch> -f tool=native-games -f args='--bots native-v2~{"execute":1},native-v2 --players 5 --seeds v2h2h --count 1000 --rotate'
+```
+
+The arguments are split at spaces and never unquoted, so a tuned label is typed bare, without the quotes a shell would need round it. `--workers` makes no difference: each machine uses all its cores. The report is on the run's page and in the `risk-native-results` artifact (`summary.txt`); there is nothing to import. A machine whose file never arrived (a lost runner) fails the report loudly, naming a game no shard played; **Re-run failed jobs** plays that machine's share again and reports.
+
+By hand, the same loop is `risk-native games <args> --shard i/N --out <file>` on each machine, then `risk-native games <args> --games-from <dir of the files>`.
+
+**A rare game may differ between the laptop and the runners.** A native game is a pure function of its seed and seating on one platform, but Rust's float functions (`powf`, `exp`, `ln` and the like) come from each platform's C library, as Node's `Math.pow` does, and Windows' and Linux's can disagree in the last bit. Any bot or odds computation that uses them can then decide differently on a rare position, so a run on Actions may not replay game for game on the laptop. Every machine of one run is Linux, so the shards agree with each other.
 
 ## The run's record
 

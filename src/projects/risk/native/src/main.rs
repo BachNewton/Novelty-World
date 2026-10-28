@@ -20,6 +20,8 @@ const USAGE: &str = "usage:
   risk-native bench <records.jsonl[.gz]...>      time options + apply over the records' positions
   risk-native games --bots <a,b...> [--players P] --seeds <prefix> --count N [--rotate] [--turns T] [--workers W]
                                                  play native tables and report the lone bot's win share and time
+                    [--shard i/N --out <file>]   play every N-th seed group from the i-th and write its games
+                    [--games-from <dir>]         report the shards' games, as one run of these arguments would
   risk-native agree --bot <label> [--seats <recorded label>] <records.jsonl[.gz]...>
                                                  how often a native bot decides as the recorded seats did
   risk-native agree-log --bot <label> --seats <s,s...> <online-log.json...>
@@ -86,18 +88,6 @@ fn labels(list: &str) -> Vec<String> {
     }
     out.push(list[start..].to_string());
     out
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn a_tuned_labels_commas_stay_in_it() {
-        assert_eq!(
-            super::labels(r#"native-v1~{"power":"armies","armyRounds":16},greedy"#),
-            [r#"native-v1~{"power":"armies","armyRounds":16}"#, "greedy"]
-        );
-        assert_eq!(super::labels("greedy"), ["greedy"]);
-    }
 }
 
 fn workers(args: &[String]) -> Result<usize, String> {
@@ -370,4 +360,16 @@ fn agree_log(args: &[String]) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_tuned_labels_commas_stay_in_it() {
+        assert_eq!(
+            super::labels(r#"native-v1~{"power":"armies","armyRounds":16},greedy"#),
+            [r#"native-v1~{"power":"armies","armyRounds":16}"#, "greedy"]
+        );
+        assert_eq!(super::labels("greedy"), ["greedy"]);
+    }
 }
