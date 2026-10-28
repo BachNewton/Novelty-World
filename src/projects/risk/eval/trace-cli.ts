@@ -13,7 +13,7 @@ import { shapeLine, Trace, traceLines, type SurveyResult } from "./trace";
  *  the board and the biggest stack, and every seat's standing):
  *    npm run risk:trace -- --seats rule-v6,rule-v6,rule-v6,rule-v6,rule-v6,rule-v6 --seed stall-3
  *
- *  Trace an online game from its move log, exported as {seed, players, labels, moves: [{seat, move}]}:
+ *  Trace an online game from its move log (`npm run risk:export -- <game id> --out game.json`):
  *    npm run risk:trace -- --online game.json
  *
  *  Survey a seating's game lengths, a seed per game and the seating rotated a seat each game, its

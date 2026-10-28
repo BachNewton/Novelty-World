@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { Move, Seat } from "../contract";
 import type { Bot } from "../bots/bot";
+import type { GameRow, LoggedMove } from "../online/table";
 import { playGame, type Observer } from "./runner";
 
 // An online game's move log, exported from `risk_moves` with its game's seed and seating, played
@@ -12,6 +13,23 @@ export interface OnlineLog {
   players: number;
   labels: string[];
   moves: { seat: Seat; move: Move }[];
+}
+
+/** The log of a game's row and its `risk_moves`: each seat labelled by its bot's id or its
+ *  person's name, and every answer in decision order. A row that never started, or a move log
+ *  with a decision missing, fails loudly. */
+export function onlineLogOf(row: Pick<GameRow, "id" | "seats" | "game">, logged: readonly LoggedMove[]): OnlineLog {
+  if (row.game === null) throw new Error(`game ${row.id} hasn't started`);
+  const moves = [...logged].sort((a, b) => a.decision - b.decision);
+  moves.forEach((m, i) => {
+    if (m.decision !== i) throw new Error(`game ${row.id}'s move log has decision ${m.decision.toString()} where decision ${i.toString()} belongs`);
+  });
+  return {
+    seed: row.game.seed,
+    players: row.game.players,
+    labels: row.seats.map((c) => (c.kind === "bot" ? c.bot : c.profile.name)),
+    moves: moves.map(({ seat, move }) => ({ seat, move })),
+  };
 }
 
 export function readOnlineLog(path: string): OnlineLog {
