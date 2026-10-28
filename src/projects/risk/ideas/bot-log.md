@@ -1287,3 +1287,10 @@ v6's last Elo was 1560.3, so rule 3 holds. Alone among five v6.1s v7.1 won 41.7%
 `net-v1~{"weights":"sw128b-450"}` (128×4, 472 million decisions trained): sw128b's snapshot at iteration 450, its peak on the GPU checks (one-in against m2a-50 23.8%, against par 20%) before it drifted down (`self-play-league.md`). On the laptop, beside a GPU training run.
 
 `risk:gauntlet -- 'net-v1~{"weights":"sw128b-450"}' --base rule-v6 --field rule-v6 --players 5 --formats one-in` (600 games): **better**, 24.6% [21.2, 28.3] of 553 decisive games against par 20%, win Elo +46, finishing-order Elo +100, the lone net's mean place 2.44 against par 3.0, 0.4% capped. The first network better than a rule bot of ours at any table, and the first read that wins rather than only outlasting: sw128b-125 won 11.6% at the same table. One-out, `--formats one-out` (900 games): **better** too, four nets winning 83.4% [80.8, 85.8] of 845 decisive games against par 80%, win Elo +40, finishing-order Elo +149, the lone v6's mean place 3.81 against par 3.0, none capped. So M3 passes, one-in and one-out. Its holdout read was dropped by the owner's choice, as v7.1's was: sw128b-450 was picked by the GPU's checks, never by these seeds, so holdout seeds guard against nothing the train seeds don't.
+
+## net-v1 sw128b-450 against v7.1: worse at both tables (2026-10-28)
+
+The same net against v7.1, at 5 players, on GitHub Actions. Predicted before the run: it loses
+clearly.
+
+`risk:gauntlet -- 'net-v1~{"weights":"sw128b-450"}' --base rule-v7.1 --field rule-v7.1 --players 5 --formats one-in,one-out` (890 games): **worse** at both tables. One-in, 10.7% [7.3, 15.4] of 224 decisive games against par 20%, though the lone net's mean place was 2.96 against par 3.0. One-out, four nets winning 75.3% [71.7, 78.7] of 580 decisive games against par 80%, the lone v7.1's mean place 3.63. Win Elo −64, finishing-order Elo +82. The prediction held. The net outlasts v7.1 but converts far fewer games into wins: it survives, and v7.1 finishes. M4 stands open.
