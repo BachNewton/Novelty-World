@@ -62,4 +62,61 @@ drift isn't the league's doing and the reading above is wrong.
 
 ## Results
 
-Pending.
+**pf1 was stopped at iteration 78 (1.7 hours): it fell as fast as sw128b did, faster at first.**
+
+| Iteration | One-in vs net-v1 | One-out vs net-v1 | One-in vs sw128b-450 | GD Defensive | GD Stacker | Greedy |
+|---|---|---|---|---|---|---|
+| 25 | 24.7% | 75.2% | 17.4% | 65.1% | 68.4% | 89.1% |
+| 50 | 13.3% | 58.0% | 12.7% | 55.2% | 66.6% | 85.9% |
+| 75 | 7.6% | 54.9% | 10.0% | 57.6% | 66.1% | 86.8% |
+
+sw128b over the same span from the same net (iterations 450 to 525): one-in vs net-v1 23.8%, 19.1%,
+13.7%, 12.5%. Training's own figures (KL about 0.012, clipped share about 0.11, entropy about 2.1,
+value loss about 0.02) matched sw128b's at the same stage, so nothing in the update misbehaved.
+
+Against the predictions:
+
+1. Dip below 20% against sw128b-450: **held**, but it never recovered, so the reason given (the
+   fresh optimizer) is not the one.
+2. One-in vs net-v1 never below 12%: **failed** (7.6% at iteration 75).
+3. GD Defensive at 65% or more: **failed** (55.2% at iteration 50).
+4. to 6. Not reached; with 2 and 3 failed, not worth running on for.
+
+As fixed above, 2 and 3 failing means **the drift isn't the league's doing**: pinning iteration
+450 and picking the past by results changed nothing in 75 iterations. Two readings are left, and
+one thing sw128b's curve says about both: before iteration 450 its one-in vs net-v1 sat at 7 to
+15%, so 450 was a high point of a wandering curve, not the top of a climb, and some of the fall
+since is a return to that curve's usual level.
+
+- **A. Step size.** Each 25 iterations moves the policy far, and the noisy win signal decides
+  where: the net wanders, and a lucky high point isn't held. A smaller learning rate shrinks the
+  wander.
+- **B. Weak opponents set the gradient.** Half of every non-learner seat is greedy or a GD persona,
+  which it beats 55 to 90% of the time, so most of its winning, and so most of what it learns,
+  comes from beating weak bots. A style tuned for that holds against greedy and GD Stacker and
+  loses to the strong nets, which is the pattern in both runs. More seats for strong nets shrinks
+  that pull.
+
+## pf2 and pf3: step size, then the opponents' strength
+
+Both start from sw128b-450 with pf1's league (450 pinned, own slots by results) and run 100
+iterations (about 2.3 hours), long enough that pf1's fall was plain. One change each:
+
+- **pf2**: learning rate 3e-5, constant (pf1's was 1.3e-4 falling).
+- **pf3**: pf1's learning rate; greedy and GD's personas cut from 50% of the seats to 20% (GD's
+  personas 20%, greedy none), the
+  league's snapshots raised from 35% to 65%, with the self share at 15%.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 7 | pf2 holds one-in vs net-v1 at 15% or more through iteration 100. | 40% |
+| 8 | pf2's one-in vs sw128b-450 stays between 16% and 24% through iteration 100: it moves too little to drift or to climb. | 55% |
+| 9 | pf3 holds one-in vs net-v1 at 15% or more through iteration 100. | 40% |
+| 10 | pf3's GD Defensive falls below pf1's (under 55% at some check): a net tuned against nets gives back some of its edge on GD. | 50% |
+| 11 | Neither run reaches 25% one-in vs sw128b-450 by iteration 100. | 75% |
+
+If only pf2 holds, the step size is the lever, and the next run is a long one at the small
+learning rate. If only pf3 holds, the opponents' strength is, and the league is rebuilt around
+strong nets. If both hold, both matter; if neither does, the wander is the win signal's own noise
+in 5- and 6-player games, and the next step is the roadmap's "wiring" cause (an imitation warm
+start), or a bigger batch.
