@@ -269,6 +269,12 @@ jobs:
           node-version-file: src/projects/risk/eval/node-version
           cache: npm
       - run: npm ci --ignore-scripts
+      # The native crate's release build: a table may seat a Rust bot (eval/native/bot.ts).
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/projects/risk/native
+      - run: cargo build --release --locked
+        working-directory: src/projects/risk/native
       - uses: actions/download-artifact@v4
         with:
           pattern: risk-games-*
