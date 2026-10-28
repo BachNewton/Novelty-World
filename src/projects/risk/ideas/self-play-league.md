@@ -319,7 +319,8 @@ the measurement, pf4 keeps λ = 0.95, which also leaves it testing one change ag
 The noise alone doesn't decide where the training settles; the update's temperature does. With
 small steps, the policy wanders about the best it can reach, with a spread set by the learning rate
 over the minibatch: the larger that ratio, the further the wander takes it below the best. sw128b
-trained at 1.3e-4 over 2048, pf2 at 3e-5 over 2048, about four times colder, and pf2 fell slowest
+trained at 2e-4 falling to 5e-5 over its 28 hours (about 1.3e-4 by iteration 450) over 2048, pf2
+at 3e-5 over 2048, about four times colder than sw128b there, and pf2 fell slowest
 (its iteration 100 is second on the ladder). Reorganizing the data can't make a step cleaner per
 decision seen, but it can make the update colder without slowing it as much as a smaller learning
 rate does: a larger minibatch averages the noise before Adam scales the step.
@@ -340,3 +341,79 @@ mixed-table ladder with sw-450, pf2-100 and net-v1.
 If 22 holds and 24 fails, the training holds its ground but climbs too slowly to see in 100
 iterations, and the next step is a longer cold run. If 22 fails, temperature isn't the lever, and
 the noise reading needs revisiting.
+
+## pf4's first check, then the GPU dropped out
+
+At iteration 25, beside pf2 and pf3 at the same point (win %; about ±1.5 points of luck each):
+
+| Run | v1 in | v1 out | 450 in | 450 out | GDdef | GDstk | Greedy |
+|---|---|---|---|---|---|---|---|
+| pf2 | 27.0 | 83.6 | 20.9 | 78.1 | 69.7 | 71.7 | 89.4 |
+| pf3 | 25.4 | 89.5 | 20.1 | 81.5 | 65.4 | 66.0 | 84.6 |
+| pf4 | 30.1 | 87.3 | 21.3 | 76.0 | 75.8 | 75.3 | 90.4 |
+
+The best start of any continuation against the GD personas (4 to 6 points over pf2) and one-in
+against net-v1, with the one-out against 450 exactly on prediction 21's line. pf2 and pf3 also
+looked fine at 25 and fell later, so this says nothing yet about 22 to 24.
+
+At iteration 34 the laptop came off its charger, the NVIDIA driver dropped the GPU, and the run
+died in a backward pass ("CUDA error: unknown error"; afterwards no CUDA device at all). Its
+checkpoint at iteration 32 is kept, and `pf4.ps1` resumes it. The first launch had also run out of
+memory: an 8,192-row chunk of the update doesn't fit beside the environment on a 12 GB card, which
+is why every run here uses 2,048-row minibatches. The update now takes a minibatch in chunks
+(`--chunk`), summing their gradients before Adam's step, so the minibatch is no longer bounded by
+memory; chunks of 2,048 fit.
+
+## Did sw128b stop learning?
+
+It learned, then flattened, then wandered. Its checks against the fixed bots (win %; par 33% for
+greedy at 3 players, 20% for GD at 5):
+
+| Iteration | 25 | 50 | 75 | 150 | 225 | 300 | 375 | 425 | 450 | 525 | 600 | 675 | 750 | 825 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Greedy@3 | 8 | 40 | 51 | 67 | 78 | 72 | 77 | 81 | 88 | 87 | 84 | 87 | 84 | 78 |
+| GDdef@5 | 8 | 22 | 40 | 53 | 73 | 73 | 69 | 74 | 71 | 58 | 58 | 52 | 62 | 68 |
+| GDstk@5 | 8 | 23 | 38 | 56 | 73 | 69 | 71 | 74 | 69 | 66 | 71 | 69 | 73 | 72 |
+
+From random weights to beating the GD personas at more than three times par by iteration 225: the
+gradient carried plenty of signal early, when the gains were large. Against GD it was flat from
+about 225 to 450, and after 450 the checkpoints scatter without a trend (the ladder: 375 at −3, 450
+at +95, 575 at −139, 825 at −45). 450 is genuinely the strongest net (the ladder measured it over
+8,192 games); what was luck is that training stood there when it was saved. The noise scale at 450
+still finds an uphill direction, so learning didn't stop: its step per iteration became smaller
+than the wander's. That is what pf4 tests.
+
+## What comes next, and why
+
+1. **Finish pf4** once the laptop is on its charger and the GPU is back: `runs/selfplay/pf4.ps1`
+   resumes from iteration 32. Then the mixed-table ladder (sw-450, pf2-100, pf3-100, pf4-100,
+   net-v1) and predictions 21 to 24. pf4 is the cheapest test of the reading the evidence points
+   to: if the drift is noise, a colder update holds its ground.
+2. **If pf4 holds (22) but doesn't climb (24 fails)**, the training needs more signal per
+   decision, not only less heat. A richer reward is the lever the owner raised: credit for taking
+   territories and eliminating players, so a move is judged within a few turns rather than at a
+   game's end. Raw bonuses change what the net is trained to want (each capture paid, a capture
+   lost and retaken paid twice, a weak player finished off even when a rival gains), as the
+   placement reward taught m2a to settle for second. **Potential-based shaping** gives the early
+   credit without that: the reward for a step is the change in a position score Φ (the seat's
+   share of territories and armies, an opponent eliminated counting through its lost share), so
+   over a whole game the extra rewards cancel and the best policy is unchanged; only when credit
+   arrives changes. Its value is bounded by how much better Φ is than the value head, which
+   already estimates the same thing, so it is measured before it is trained: the noise tool, with
+   the shaping added, at sw128b-450.
+
+   | # | Prediction | Confidence |
+   |---|---|---|
+   | 25 | Shaping by territory and army share cuts B_noise below λ = 0.8's (926,000). | 40% |
+   | 26 | It cuts B_noise below 600,000. | 20% |
+
+   It is trained only if 25 holds, and judged on the ladder, which counts only wins, so a net that
+   learns to farm territory instead of winning shows as a loss.
+3. **If pf4 doesn't hold (22 fails)**, temperature isn't the lever, and the noise reading needs
+   revisiting before any more training: the next suspect is a bias in the update (the value
+   baseline, or PPO's clipping at this scale), measured, not guessed.
+4. **Longer cold runs** come after: pf4's progress per iteration is about half pf2's by
+   construction, so a real climb may need several hundred iterations to show.
+
+Checkpoints and logs live in the main checkout's `gpu/runs/selfplay/` (git-ignored), with the
+launch scripts beside them.

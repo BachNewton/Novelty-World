@@ -32,7 +32,7 @@ A transformer trained by PPO in a league on the GPU engine (`gpu-engine.md`, "Ph
 - Strength among networks and strength against the fixed bots part ways, so neither predicts rule-v6: only the TS gauntlet does.
 - The bot samples its moves, because argmax loops.
 
-**Next.** Steps 1 to 4 are done: sw128b's iteration 450 passed M3 (`gpu-engine.md`, "Milestones"), then drifted down as it trained on. The league that keeps its best (`self-play-league.md`) is next, then M4.
+**Next.** Steps 1 to 4 are done: sw128b's iteration 450 passed M3 (`gpu-engine.md`, "Milestones"), then drifted down as it trained on. Continuing it ruled out the league and the opponents' strength as the cause; the evidence (`self-play-league.md`) is that each update is mostly noise (the gradient needs about 1.8 million decisions to match its noise, an update step sees 2,048), so training wanders round the level it reached. pf4, a colder update, is the test in progress; that doc's last section says what follows each outcome. M4 waits on a net that holds or climbs past 450.
 
 1. **Done: M2 passes in the TS harness.** `net-v1~{"weights":"sw128b-125"}` is better than gd-defensive and gd-stacker at 5 players, one-in and one-out (`bot-log.md`, "net-v1 passes M2").
 2. **Done: the read against rule-v6** at 5 players, one-in: worse, 11.6% against par 20%, while its mean place is about par. It outlasts v6 but rarely wins.
