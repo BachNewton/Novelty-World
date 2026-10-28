@@ -52,8 +52,16 @@ export function Player({ book }: { book: Book }) {
   const [viewing, setViewing] = useState<{ items: ViewerItem[]; index: number } | null>(null);
   // Set until the chapter's audio has loaded and been moved to its starting place.
   const pending = useRef<PendingLoad | null>({ position: start.position, play: false });
+  // Chapters' audio downloaded whole (path to object URL): the next one, fetched while this one plays, so it starts
+  // the moment this one ends, with no wait on the network, even with the phone locked.
+  const downloads = useRef(new Map<string, string>());
+  // Picked when the chapter changes, never during it: a download finishing mid-chapter mustn't reload the audio.
+  const [source, setSource] = useState(() => fileUrl(book.chapters[start.chapter].audio));
+  const [started, setStarted] = useState(false);
+  const [downloaded, setDownloaded] = useState<string | null>(null);
 
   const chapter = book.chapters[chapterIndex];
+  const nextAudio = chapterIndex < book.chapters.length - 1 ? book.chapters[chapterIndex + 1].audio : undefined;
   const photo = photoAt(chapter, time);
   const art = photo?.image ?? chapterArt(book, chapter);
   const upcoming = nextPhoto(chapter, time)?.image;
@@ -86,6 +94,10 @@ export function Player({ book }: { book: Book }) {
       if (play) void el.play();
     } else {
       pending.current = { position, play };
+      if (index !== chapterIndex) {
+        const path = book.chapters[index].audio;
+        setSource(downloads.current.get(path) ?? fileUrl(path));
+      }
       setChapterIndex(index);
     }
   }
@@ -139,6 +151,41 @@ export function Player({ book }: { book: Book }) {
     const preload = new Image();
     preload.src = fileUrl(upcoming);
   }, [upcoming]);
+
+  // Only once the listener has pressed play: opening a book to look at it downloads nothing.
+  useEffect(() => {
+    const kept = downloads.current;
+    for (const [path, url] of kept) {
+      if (path === chapter.audio || path === nextAudio) continue;
+      URL.revokeObjectURL(url);
+      kept.delete(path);
+    }
+    if (!started || nextAudio === undefined || kept.has(nextAudio)) return;
+    const controller = new AbortController();
+    fetch(fileUrl(nextAudio), { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`${nextAudio} didn't download (HTTP ${String(response.status)})`);
+        return response.blob();
+      })
+      .then(
+        (blob) => {
+          kept.set(nextAudio, URL.createObjectURL(blob));
+          setDownloaded(nextAudio);
+        },
+        (error: unknown) => {
+          // Moving on before it finished cancels it. Any other failure only means the next chapter streams instead.
+          if (!controller.signal.aborted) console.error(error);
+        },
+      );
+    return () => controller.abort();
+  }, [started, chapter.audio, nextAudio]);
+
+  useEffect(() => {
+    const kept = downloads.current;
+    return () => {
+      for (const url of kept.values()) URL.revokeObjectURL(url);
+    };
+  }, []);
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
@@ -210,11 +257,15 @@ export function Player({ book }: { book: Book }) {
 
       <audio
         ref={audio}
-        src={fileUrl(chapter.audio)}
+        src={source}
+        data-next-downloaded={nextAudio !== undefined && downloaded === nextAudio}
         preload="metadata"
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
-        onPlay={() => setPlaying(true)}
+        onPlay={() => {
+          setPlaying(true);
+          setStarted(true);
+        }}
         onPause={() => setPlaying(false)}
         onEnded={onEnded}
       />
