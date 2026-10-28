@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import process from "node:process";
 import { isMainThread } from "node:worker_threads";
 import type { GameEvent, Move } from "../../contract";
-import { riskBot, RISK_BOTS } from "../../bots";
+import { riskBot, RISK_BOTS, TUNABLE_BOTS, WEIGHTED_BOTS } from "../../bots";
 import type { AsyncBot } from "../runner";
 import { assertFreshBinary, NATIVE_BINARY } from "./binary";
 import { NativeChild } from "./child";
@@ -39,17 +39,30 @@ export function nativeLabels(): readonly string[] {
   return JSON.parse(listed) as string[];
 }
 
+/** The native bot a label seats: its name, or a tuned label's base (`native-v2~{"replies":16}`
+ *  seats native-v2 with those knobs, which the crate reads). */
+function nativeBase(label: string): string {
+  const at = label.indexOf("~");
+  return at < 0 ? label : label.slice(0, at);
+}
+
+/** Whether the crate has the bot a label names, a tuned label by its base. */
+function nativeHas(label: string): boolean {
+  return nativeLabels().includes(nativeBase(label));
+}
+
 /** Whether every seat of a table seated by these labels can play wholly in the crate. */
 export function checkNative(seated: readonly string[]): void {
-  const missing = seated.filter((label) => !nativeLabels().includes(nativeName(label)));
+  const missing = seated.filter((label) => !nativeHas(nativeName(label)));
   if (missing.length > 0) {
     throw new Error(`--native plays every seat in the crate, which has no ${missing.join(", ")} (native: ${nativeLabels().join(", ")})`);
   }
 }
 
-/** A label the TypeScript registry seats: its own bots and tuned labels. */
+/** A label the TypeScript registry seats: its own bots and the tuned labels of bots it can tune. */
 function knownToTypeScript(label: string): boolean {
-  return Object.hasOwn(RISK_BOTS, label) || label.includes("~");
+  const base = nativeBase(label);
+  return Object.hasOwn(RISK_BOTS, label) || (base !== label && (Object.hasOwn(TUNABLE_BOTS, base) || Object.hasOwn(WEIGHTED_BOTS, base)));
 }
 
 /** Whether a label seats a native bot at a table the TypeScript runner plays. */
@@ -62,7 +75,7 @@ export function isNativeSeat(label: string): boolean {
   } catch (e) {
     throw new Error(`no Risk bot "${label}" in TypeScript, and the native bots can't be listed: ${(e as Error).message}`);
   }
-  return native.includes(label);
+  return native.includes(nativeBase(label));
 }
 
 // Each thread's one native process, started at its first native decision.
@@ -101,7 +114,7 @@ function sessionOf(history: readonly GameEvent[]): Session {
 /** The native bot `label`, answering through this thread's native process. Its input reaches the
  *  crate whole: the view, the options, and the history as it grew since the seat's last decision. */
 export function nativeBot(label: string): AsyncBot {
-  if (!nativeLabels().includes(label)) throw new Error(`no native Risk bot "${label}" (native: ${nativeLabels().join(", ")})`);
+  if (!nativeHas(label)) throw new Error(`no native Risk bot "${label}" (native: ${nativeLabels().join(", ")})`);
   return async (input) => {
     child ??= new NativeChild(["bots-serve"]);
     const session = sessionOf(input.history);

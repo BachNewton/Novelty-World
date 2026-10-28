@@ -193,7 +193,7 @@ fn run_route(b: &mut Board, me: Seat, r: &Route, up_to: usize, arrive: i32) {
 }
 
 /// The board when every route succeeds, each arriving with its expected armies.
-fn success_board(b: &Board, me: Seat, cp: &CapturePlan) -> Board {
+pub(crate) fn success_board(b: &Board, me: Seat, cp: &CapturePlan) -> Board {
     let mut out = *b;
     for (r, &arrive) in cp.routes.iter().zip(&cp.arrive) {
         run_route(&mut out, me, r, r.path.len(), 1.max(round(arrive)));
@@ -203,7 +203,7 @@ fn success_board(b: &Board, me: Seat, cp: &CapturePlan) -> Board {
 
 /// The board when the plan falls short in its likeliest way: routes better than even succeed,
 /// the rest stop at their likeliest stopping place (at least one stops).
-fn failure_board(b: &Board, me: Seat, cp: &CapturePlan) -> Board {
+pub(crate) fn failure_board(b: &Board, me: Seat, cp: &CapturePlan) -> Board {
     let mut out = *b;
     let mut weakest = 0;
     for (i, &p) in cp.p_route.iter().enumerate() {
@@ -497,6 +497,61 @@ fn sweep_plans(b: &Board, me: Seat, to_place: i32, threat: Option<Seat>) -> Vec<
     out
 }
 
+/// A target set's plans: the capture planned to the three bars of sureness (90%, 99%, every army
+/// that still helps), each with its placement and its value.
+pub(crate) fn target_plans(
+    b: &Board,
+    judge: &Judge,
+    to_place: i32,
+    kind: PlanKind,
+    targets: &[usize],
+    income: &[f64; MAX_SEATS],
+    out: &mut Vec<Plan>,
+) {
+    let me = judge.me;
+    let horizon = judge.prefs.income_horizon;
+    let ordered = cheap_groups_first(b, targets);
+    let variants: &[f64] = if to_place > 0 {
+        &[0.9, 0.99, 1.0]
+    } else {
+        &[1.0]
+    };
+    for &enough in variants {
+        let Some(cp) = plan_capture(b, me, &ordered, to_place, enough) else {
+            continue;
+        };
+        if cp
+            .routes
+            .iter()
+            .zip(&cp.alloc)
+            .any(|(r, &a)| b.armies[r.source] + a < 2)
+        {
+            continue;
+        }
+        let mut place = [0; N];
+        for (r, &a) in cp.routes.iter().zip(&cp.alloc) {
+            place[r.source] += a;
+        }
+        if enough < 1.0 {
+            guard_allocation(b, me, cp.leftover, &mut place, income, horizon);
+        } else if let Some(r) = cp.routes.first() {
+            place[r.source] += cp.leftover;
+        }
+        let after = placed(b, &place);
+        let value = score_capture(b, &after, judge, &cp, true);
+        let done = cp.leftover == 0 && enough < 1.0;
+        out.push(Plan {
+            kind,
+            capture: Some(cp),
+            place,
+            value,
+        });
+        if done {
+            break;
+        }
+    }
+}
+
 /// Every plan for this position, scored.
 pub fn plans(b: &Board, judge: &Judge, to_place: i32) -> Vec<Plan> {
     let me = judge.me;
@@ -525,46 +580,7 @@ pub fn plans(b: &Board, judge: &Judge, to_place: i32) -> Vec<Plan> {
     }
 
     for (kind, targets) in candidate_targets(b, &scan, me, to_place, threat) {
-        let ordered = cheap_groups_first(b, &targets);
-        let variants: &[f64] = if to_place > 0 {
-            &[0.9, 0.99, 1.0]
-        } else {
-            &[1.0]
-        };
-        for &enough in variants {
-            let Some(cp) = plan_capture(b, me, &ordered, to_place, enough) else {
-                continue;
-            };
-            if cp
-                .routes
-                .iter()
-                .zip(&cp.alloc)
-                .any(|(r, &a)| b.armies[r.source] + a < 2)
-            {
-                continue;
-            }
-            let mut place = [0; N];
-            for (r, &a) in cp.routes.iter().zip(&cp.alloc) {
-                place[r.source] += a;
-            }
-            if enough < 1.0 {
-                guard_allocation(b, me, cp.leftover, &mut place, &income, horizon);
-            } else if let Some(r) = cp.routes.first() {
-                place[r.source] += cp.leftover;
-            }
-            let after = placed(b, &place);
-            let value = score_capture(b, &after, judge, &cp, true);
-            let done = cp.leftover == 0 && enough < 1.0;
-            out.push(Plan {
-                kind,
-                capture: Some(cp),
-                place,
-                value,
-            });
-            if done {
-                break;
-            }
-        }
+        target_plans(b, judge, to_place, kind, &targets, &income, &mut out);
     }
 
     for cp in sweep_plans(b, me, to_place, threat) {

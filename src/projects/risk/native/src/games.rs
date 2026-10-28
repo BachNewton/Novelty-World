@@ -21,6 +21,8 @@ struct Timing {
     decisions: u64,
     turns: u64,
     nanos: u128,
+    /// Each turn's time, for its spread: a bot's bar is a share of turns under a time.
+    per_turn: Vec<u128>,
 }
 
 #[derive(Default)]
@@ -60,7 +62,7 @@ pub fn games(args: &[String]) -> Result<(), String> {
                 .map_err(|_| format!("{flag} takes a number, not \"{value}\""))
         };
         match flag {
-            "--bots" => labels = Some(value.split(',').map(String::from).collect()),
+            "--bots" => labels = Some(crate::labels(value)),
             "--players" => players = Some(number()?),
             "--seeds" => prefix = Some(value.clone()),
             "--count" => count = Some(number()?),
@@ -149,12 +151,22 @@ pub fn games(args: &[String]) -> Result<(), String> {
         100.0 * par,
     );
     for (label, timing) in &t.by_label {
+        let mut turns = timing.per_turn.clone();
+        turns.sort_unstable();
+        let at = |q: f64| {
+            turns
+                .get(((turns.len() as f64 * q) as usize).min(turns.len().saturating_sub(1)))
+                .map_or(0.0, |&n| n as f64 / 1e6)
+        };
         println!(
-            "  {label}: {:.1} us a decision, {:.2} ms a turn ({} decisions, {} turns)",
+            "  {label}: {:.1} us a decision, {:.2} ms a turn ({} decisions, {} turns); turns: median {:.1} ms, 9 in 10 under {:.1} ms, longest {:.1} ms",
             timing.nanos as f64 / timing.decisions.max(1) as f64 / 1e3,
             timing.nanos as f64 / timing.turns.max(1) as f64 / 1e6,
             timing.decisions,
             timing.turns,
+            at(0.5),
+            at(0.9),
+            turns.last().map_or(0.0, |&n| n as f64 / 1e6),
         );
     }
     for e in t.errors.iter().take(5) {
@@ -184,10 +196,13 @@ fn play(spec: &Spec, max_turns: u32, lone: &str, tally: &Mutex<Tally>) {
             if input.view.turn != last_turn[seat] {
                 last_turn[seat] = input.view.turn;
                 timing[seat].turns += 1;
+                timing[seat].per_turn.push(0);
             }
             let t = Instant::now();
             let mv = seated[seat].decide(input);
-            timing[seat].nanos += t.elapsed().as_nanos();
+            let spent = t.elapsed().as_nanos();
+            timing[seat].nanos += spent;
+            *timing[seat].per_turn.last_mut().expect("a turn has begun") += spent;
             timing[seat].decisions += 1;
             Ok(mv)
         },
@@ -212,6 +227,7 @@ fn play(spec: &Spec, max_turns: u32, lone: &str, tally: &Mutex<Tally>) {
                 entry.decisions += t.decisions;
                 entry.turns += t.turns;
                 entry.nanos += t.nanos;
+                entry.per_turn.extend(t.per_turn);
             }
         }
     }

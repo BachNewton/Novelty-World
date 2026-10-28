@@ -4,7 +4,9 @@ pub mod gd;
 mod greedy;
 pub mod history;
 pub mod native_v1;
+pub mod native_v2;
 mod random;
+pub mod vulture_v1;
 
 pub use gd::{GdBot, Persona};
 pub use greedy::GreedyBot;
@@ -44,6 +46,10 @@ const REGISTRY: &[(&str, Build)] = &[
             params: native_v1::NATIVE_V1,
         })
     }),
+    ("native-v2", || {
+        Box::new(native_v2::NativeV2::new(native_v2::Knobs::BASELINE))
+    }),
+    ("vulture-v1", || Box::new(vulture_v1::VultureV1)),
 ];
 
 /// The bot a label names, or None when no native bot has that label. native-v1 also takes
@@ -52,6 +58,11 @@ pub fn bot(label: &str) -> Option<Box<dyn Bot>> {
     if let Some(json) = label.strip_prefix("native-v1~") {
         // A malformed tuned label is a mistake in the run's arguments: say what is wrong with it.
         return Some(tuned_native_v1(json).unwrap_or_else(|e| panic!("{e}")));
+    }
+    if let Some(json) = label.strip_prefix("native-v2~") {
+        // native-v2 at a budget and switches: `native-v2~{"replies":16,"execute":1}`.
+        let knobs = native_v2::Knobs::parse(json).unwrap_or_else(|e| panic!("{e}"));
+        return Some(Box::new(native_v2::NativeV2::new(knobs)));
     }
     REGISTRY
         .iter()

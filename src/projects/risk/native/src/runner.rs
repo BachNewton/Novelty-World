@@ -104,9 +104,21 @@ pub fn drive(
     seed: &str,
     players: usize,
     max_turns: u32,
+    decide: impl FnMut(u32, &BotInput) -> Result<Move, String>,
+    applied: impl FnMut(&Game),
+) -> Result<GameRecord, String> {
+    drive_seated(seed, &vec![false; players], max_turns, decide, applied)
+}
+
+/// `drive` at a table where `humans` says which seats people play (an online game replayed).
+pub fn drive_seated(
+    seed: &str,
+    humans: &[bool],
+    max_turns: u32,
     mut decide: impl FnMut(u32, &BotInput) -> Result<Move, String>,
     mut applied: impl FnMut(&Game),
 ) -> Result<GameRecord, String> {
+    let players = humans.len();
     if !(3..=6).contains(&players) {
         return Err(format!("Risk is for 3 to 6 players, not {players}"));
     }
@@ -117,7 +129,6 @@ pub fn drive(
         trades: Vec::new(),
     };
     histories.record(&events);
-    let humans = vec![false; players];
     let bots_seed = bots_seed(seed);
     let mut places = Places::new(players);
 
@@ -146,7 +157,7 @@ pub fn drive(
             options: &options,
             events: &history[histories.latest[seat as usize]..],
             history,
-            humans: &humans,
+            humans,
             seed: &decision_seed,
         };
         let mv = decide(decision, &input)?;

@@ -12,6 +12,40 @@ use super::routes::kill_chance;
 use crate::engine::Seat;
 use crate::map::{territories_in, ADJACENCY};
 
+/// What native-v2's switches add to the evaluation's beliefs and charges (`ideas/native-v2.md`).
+/// All off (`Extra::OFF`) is native-v1's own evaluation, float for float.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Extra {
+    /// `humans`: seats believed to take every kill open to them, with kill chances that count
+    /// several stacks and a kill paid for by a first kill's cards. A mask of seats.
+    pub bold: u8,
+    /// `threat`: the leader, named once a turn, and its weight on the smooth scale (0 to 1). It
+    /// replaces the power ratio's common threat.
+    pub leader: Option<(Seat, f64)>,
+    /// `hoard`: my stacks past what their front needs count at the priced armies' rate at any
+    /// income.
+    pub hoard: bool,
+}
+
+impl Extra {
+    pub const OFF: Extra = Extra {
+        bold: 0,
+        leader: None,
+        hoard: false,
+    };
+
+    pub fn hash(&self) -> u128 {
+        if *self == Extra::OFF {
+            return 0;
+        }
+        let (leader, weight) = self.leader.map_or((7, -1.0), |(s, w)| (s as u64, w));
+        mix128(
+            0x0065_7874_7261 << 16 | (self.bold as u64) << 8 | leader,
+            weight.to_bits() ^ self.hoard as u64,
+        )
+    }
+}
+
 /// Everything a decision's boards are scored against: the seat, the preferences in force, the
 /// opponent model and this game's record of the opponents.
 pub struct Judge {
@@ -21,6 +55,7 @@ pub struct Judge {
     pub prefs: Preferences,
     pub om: OpponentModel,
     pub record: Record,
+    pub extra: Extra,
     /// The preferences and the record as a hash, for memos of answers that read them.
     pub id: u128,
 }
@@ -43,7 +78,17 @@ impl Judge {
             prefs,
             om,
             record,
+            extra: Extra::OFF,
             id,
+        }
+    }
+
+    /// The same judge with native-v2's `extra` beliefs and charges.
+    pub fn with_extra(self, extra: Extra) -> Judge {
+        Judge {
+            id: self.id ^ extra.hash(),
+            extra,
+            ..self
         }
     }
 }
@@ -132,7 +177,16 @@ fn compute(b: &Board, scan: &Scan, judge: &Judge) -> Breakdown {
         };
     }
     let knobs = &judge.knobs;
-    let f = forecast(b, scan, me, p, &judge.om, &judge.record, knobs);
+    let f = forecast(
+        b,
+        scan,
+        me,
+        p,
+        &judge.om,
+        &judge.record,
+        knobs,
+        &judge.extra,
+    );
     let kill_exposure = 1.0 - f.spared[me as usize];
 
     let my_next = round(b.income(me) as f64 + next_trade(b.known, unknown_cards(b, me)));
@@ -181,6 +235,22 @@ fn compute(b: &Board, scan: &Scan, judge: &Judge) -> Breakdown {
             .map(|s| f.power[s as usize])
             .fold(0.0, f64::max)
     };
+    if let Some((t, w)) = judge.extra.leader {
+        // `threat`: the leader's lead over the next seat, on the smooth scale of its weight.
+        if b.alive[t as usize] {
+            let weight = if t == me {
+                p.lead_penalty_weight
+            } else {
+                p.common_threat_weight
+            };
+            value -= w * weight * (f.power[t as usize] - strongest_but(t)).max(0.0) / total;
+        }
+        return Breakdown {
+            value,
+            threat: f.plan_threat,
+            total,
+        };
+    }
     match f.threat {
         Some(t) if t != me => {
             value -=

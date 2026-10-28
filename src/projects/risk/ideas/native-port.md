@@ -57,5 +57,5 @@ Only the blitz's balancing and GD's balancing of an estimated chance use transce
 2. The engine (done): designed natively, a rules suite named by rule id, lockstep on every fixture, the fuzz with every invariant, and `serve`.
 3. `greedy` and the GD personas (done), exact in both directions, so a native game of theirs is the TypeScript game.
 4. `native-v1` (built, measured only by proxy): its design doc `native-v1.md`, the seam (`--native`, `--parity`, `@native`, mixed tables), and the harness path proven end to end with a smoke gauntlet against rule-v6. Its gauntlet against v6 and the field is next. Its first timing, taken on a saturated machine, is about 6× v6 per decision and 3.5× per turn, short of the 20× its doc set; the quiet-machine figure and a cheaper kill planner are the open items.
-5. `native-v2`, the search bot, with its budget measured for strength.
+5. `native-v2`, the search bot (built, `native-v2.md`): v7.1's search on native-v1 at v6.1's settings, with the switches its doc tests, each a knob; worlds built from a seat's view by the crate's `sim`, as `sim.ts` builds them. Its budget and switches are measured next.
 6. Speed, reported as games and decisions a second against the TypeScript pool, on a quiet machine with the owner's go-ahead.
