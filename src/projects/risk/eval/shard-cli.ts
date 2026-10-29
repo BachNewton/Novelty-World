@@ -3,7 +3,7 @@ import process from "node:process";
 import { RowBeat } from "@/shared/lib/bot-lab/live";
 import { readPlan, stripe, writeJson } from "@/shared/lib/bot-lab/remote";
 import { formatRunRecord, RunLog } from "@/shared/lib/bot-lab/run-log";
-import { number, riskLiveSink } from "./cli-args";
+import { checkBots, number, riskLiveSink } from "./cli-args";
 import { riskPool } from "./parallel";
 import { playShard } from "./remote";
 import type { RiskGameSpec } from "./runner";
@@ -48,6 +48,7 @@ function parseArgs(argv: readonly string[]): Args {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const plan = readPlan<RiskGameSpec>(args.plan);
+  checkBots([...new Set(plan.specs.flatMap((s) => s.labels))]);
   const games = stripe(plan.specs, plan.shards, args.shard).length;
   console.log(`\nRisk — round ${plan.round.toString()}, shard ${args.shard.toString()} of ${plan.shards.toString()}: ${games.toString()} games on ${args.workers.toString()} workers\n`);
 

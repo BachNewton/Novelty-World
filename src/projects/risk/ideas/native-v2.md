@@ -84,7 +84,7 @@ Each is a crate test (`native_v2/tests.rs`), on the game as played up to the dec
 
 ### Untested
 
-- The switches are screened only at 5 players, one-in among v6.1s, 500 games each (`bot-log.md`), and only two pairs (`execute` with `feed`, with `kinds`); none is measured head to head against the baseline, one-out, or at 3, 4 or 6 players.
+- Only `execute` and `kinds` are measured head to head, at every table and both ways round (`bot-log.md`): `execute` beats the baseline everywhere, by more at bigger tables, and `kinds` on it gains at 3 and 4 players and not at 5 or 6. The other switches are screened only at 5 players, one-in among v6.1s, 500 games each.
 - `humans` is untested at a real table and against vulture-v1 at a native one; its card-chain kill places the paid armies as if the first kill's stacks were fresh.
 - `threat`'s scale (0 at level, 1 at the leader bar) and `hoard`'s need (twice the strongest attacker) are first choices, unscreened.
 - `execute`'s thresholds (a run given up below an even chance, a move-in within 2% of the best chance, at most 12 totals scored) are first choices.
@@ -115,8 +115,7 @@ native-v2 at its chosen switches is a success only if all of these hold:
 
 Results go to `bot-log.md` as they land; each Actions run's report is its `risk-native-results` artifact (`summary.txt`), or the `risk-results` artifact for a gauntlet.
 
-- **Head-to-heads on Actions** (`native-games`, 1,000 games each way round, seeds `v2h2h`, rotated): `execute` against the baseline at 4, 5 and 6 players, and `execute` + `kinds` against `execute` at 3 to 6 players. They decide whether `kinds` stays on.
-- **The gauntlet against rule-v7.1**, train seeds, `native-v2~{"execute":1}` with base and field rule-v7.1 (Actions run 40720793871). Its `risk-results` artifact is imported with `npm run risk:import` in a checkout with no uncommitted engine or runner changes (an import prunes cached records whose code hash differs). This is bar 1's train half; bar 2 needs the suite's field in a gauntlet of its own.
+- **The gauntlet against rule-v7.1**, train seeds, `native-v2~{"execute":1}` with base and field rule-v7.1. Its first run played no games (`bot-log.md`); its `risk-results` artifact is imported with `npm run risk:import` in a checkout with no uncommitted engine or runner changes (an import prunes cached records whose code hash differs). This is bar 1's train half; bar 2 needs the suite's field in a gauntlet of its own.
 - **A factorial of the switches** (proposed, not yet approved by the owner): all 64 combinations of `execute`, `kinds`, `feed`, `threat`, `hoard` and `margin` 0.5, 500 games each at 5 players against v6.1, to measure each switch's effect and every pairwise interaction, which one-at-a-time screens can't see.
 - **Then** holdout seeds, the seatable ladder, the 5- and 6-player mirror stall check, and vulture-v1's check against Bot Killer's recorded turns.
 - **CPU.** The laptop runs nothing heavy until the owner says it is on its charger; everything above runs on Actions.

@@ -1353,4 +1353,32 @@ The same screens as above, at 3, 4 and 6 players too, now played on GitHub Actio
 
 ## native-v2 head-to-head: execute against the baseline (2026-10-28)
 
-The two labels at one table, 1,000 games each way round, seeds `v2h2h`, rotated, on Actions (`native-games`). At 3 players (runs 40727951010 and 40727957089): `execute` alone among baselines wins 34.6% ± 1.5 against par 33.3%, +10 win Elo a seat; the baseline alone among `execute`s wins 30.3% ± 1.5, −24 for it. Both ways round `execute` is ahead, by less than its screens against v6.1 suggested. The 4-, 5- and 6-player pairs, and `execute` + `kinds` against `execute` at every table, are still playing.
+The two labels at one table, 1,000 games each way round, seeds `v2h2h`, rotated, on Actions (`native-games`). At 3 players (runs 40727951010 and 40727957089): `execute` alone among baselines wins 34.6% ± 1.5 against par 33.3%, +10 win Elo a seat; the baseline alone among `execute`s wins 30.3% ± 1.5, −24 for it. Both ways round `execute` is ahead, by less than its screens against v6.1 suggested.
+
+Every table, win Elo a seat for the lone label (runs 40727951010 to 40727980371, and 40752058178 and 40752063313 for 5 players), with the capped share of each table:
+
+| Table | `execute` alone among baselines | baseline alone among `execute`s |
+|---|---|---|
+| 3p | +10 (0% capped) | −24 (0%) |
+| 4p | +34 (1.3%) | −60 (5.8%) |
+| 5p | +47 (0.7%) | −65 (3.7%) |
+| 6p | +89 (2.5%) | −80 (9.7%) |
+
+`execute` is better at every table, both ways round, and its edge grows with the table. It stays on. But a table mostly of `execute` stalls more than one mostly of the baseline (9.7% capped at 6 players against 2.5%): the bar's stall check (at most 1 in 100 on the 5- and 6-player mirrors) is at risk, and the mirrors themselves are still to run.
+
+## native-v2 head-to-head: execute + kinds against execute (2026-10-29)
+
+The same way, 1,000 games each way round, seeds `v2h2h`, rotated (runs 40727985531 to 40728023954). Win Elo a seat for the lone label:
+
+| Table | `kinds` alone among `execute`s | `execute` alone among `kinds` |
+|---|---|---|
+| 3p | +38 (0% capped) | −57 (0%) |
+| 4p | +36 (5.5%) | −41 (1.9%) |
+| 5p | −18 (3.2%) | −2 (1.5%) |
+| 6p | −20 (9.6%) | −1 (2.4%) |
+
+`kinds` is a clear gain at 3 and 4 players and even to slightly worse at 5 and 6, where its lone seat loses about one standard error and the other mixture is level. It costs about 30% more time a turn (at 6 players a median of 0.67 s against 0.52 s, nine in ten under 1.8 s against 1.3 s). Unsettled: on by table size is the natural reading, but the switches' interactions are what the factorial measures.
+
+## native-v2 against rule-v7.1: the first gauntlet played no games (2026-10-29)
+
+Run 40720793871 (`native-v2~{"execute":1}`, base and field rule-v7.1, train seeds) ran all sixteen rounds and every one of its 3,200 games threw: `risk:shard`, which plays a remote round's games, never listed the native bots on its main thread, so no worker could seat one. Its report stopped at its header. The shard now checks a plan's labels before its pool starts, as every CLI does. The gauntlet is to run again.
