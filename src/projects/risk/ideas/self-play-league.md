@@ -405,6 +405,44 @@ strength "at mixed tables" is a strength in that field.
 
 By the rule above (22 held, 24 failed), the next step is the shaping's noise measurement.
 
+## Shaping's noise: seven times less, with the same blind spot as λ
+
+The same checkpoint, league and eight rollouts as the λ measurement, at λ = 0.95, with the shaping
+reward Φ = half the seat's territory share plus half its army share, scaled:
+
+| Shaping | \|G\|² | tr(Σ) | B_noise | of no shaping's | Halves' cosine |
+|---|---|---|---|---|---|
+| 0 | 8.3e-4 | 1,468 | 1,770,000 | 1 | 0.11–0.19 |
+| 0.5 | 2.9e-3 | 1,435 | 487,000 | 0.28 | 0.32–0.42 |
+| 1.0 | 5.8e-3 | 1,403 | 244,000 | 0.14 | 0.52–0.64 |
+
+25. Below λ = 0.8's 926,000: **held**, at both strengths.
+26. Below 600,000: **held**, at both.
+
+The same shape as λ's: the noise per decision didn't move, the shared part of the gradient grew
+seven times. And the same caveat: the measure can't tell signal from a coherent bias. Over a whole
+game the shaping cancels, but at λ = 0.95 an advantage sees about twenty steps ahead, so part of
+what it adds is "grow your share in the next few turns", which agrees with winning most of the time
+and not always. Only the training can say which, and the ladder, which counts only wins, judges it.
+
+## pf5: pf4 with shaping
+
+pf5 is pf4 exactly (from sw128b-450, pf1's league, minibatch 32,768, 2 epochs, learning rate 1e-4,
+λ 0.95) with shaping at 1.0, the stronger of the two, since a farming bias shows on the ladder
+either way. 300 iterations, checks every 25, then the ladder with pf5 at 100, 200 and 300 beside
+sw-450, pf4-50, pf4-100 and net-v1.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 27 | pf5-100 rates above pf4-100 on the ladder. | 45% |
+| 28 | pf5-300 rates more than 30 Elo above sw-450. | 25% |
+| 29 | pf5-300 rates above pf5-100 (it climbs rather than slides). | 45% |
+| 30 | pf5's capped rate in training stays under 3% (it doesn't learn to stall). | 75% |
+
+If 28 holds, shaping is the lever and the next run is longer. If pf5 matches pf4 (27 fails, 29
+fails), the gradient's new coherent part was mostly bias. If pf5 falls below sw-450 by more than 30,
+the shaping taught it something other than winning.
+
 ## Did sw128b stop learning?
 
 It learned, then flattened, then wandered. Its checks against the fixed bots (win %; par 33% for
