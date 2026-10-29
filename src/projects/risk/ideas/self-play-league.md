@@ -443,6 +443,50 @@ If 28 holds, shaping is the lever and the next run is longer. If pf5 matches pf4
 fails), the gradient's new coherent part was mostly bias. If pf5 falls below sw-450 by more than 30,
 the shaping taught it something other than winning.
 
+## pf5's results: the shaping taught it to stall
+
+pf5 was stopped at iteration 100 of 300. Its training games' capped rate, against pf4's 1% or so
+throughout:
+
+| Iteration | 10 | 20 | 25 | 30 | 40 | 50 | 60 | 70 | 80 | 90 | 99 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Capped | 0% | 10% | 68% | 71% | 62% | 36% | 5% | 20% | 35% | 54% | 50% |
+| Entropy | 2.7 | 2.6 | 2.6 | 3.0 | 3.2 | 3.1 | 2.8 | 2.8 | 3.2 | 3.2 | 3.3 |
+
+30. Capped rate under 3%: **failed** within 25 iterations, and never recovered for long.
+
+Its checks stall too: at iteration 100, 14 to 15% of the one-out games against both anchors capped
+(pf4: none), and 18% of its GD Stacker games. Its entropy rose to 3.3 from pf4's 2.1: the policy
+spread out instead of sharpening.
+
+The cause is in Φ. Half of it is the seat's share of all armies, and an attack spends armies, so
+every fight is charged at once; the territory it takes pays back only if it holds, and finishing a
+game, which is where the shaping's credit cancels, lies further ahead than an advantage at λ = 0.95
+looks (about twenty steps). A seat that stops fighting keeps its army share growing with every
+reinforcement. Potential-based shaping leaves the best policy unchanged only over whole returns;
+cut short by λ, it pays for what Φ measures, and army share measures hoarding. This is the coherent
+bias the noise measurement couldn't see: its seven-fold gain in signal was largely this.
+
+The ladder settles 27 and 29 (below). Shaping isn't dead, but any Φ for it must not pay for
+holding back: territory alone, or the value head's own estimate, which already knows that armies
+only matter if used. Neither is tried before its noise and its stalling are measured, at a few
+iterations' cost rather than a night's.
+
+## pf4, longer
+
+The other branch of step 2: pf4 resumed from iteration 100 for as many iterations as five hours
+allow (about 250), with no other change, to see whether a cold run climbs given time or keeps its
+slow slide.
+
+| # | Prediction | Confidence |
+|---|---|---|
+| 31 | pf4's one-out against sw128b-450 stays at or above 76% at every check. | 50% |
+| 32 | Its last snapshot rates above pf4-100 on a ladder with both. | 40% |
+| 33 | Its last snapshot rates more than 30 Elo above sw-450 on that ladder. | 15% |
+
+If 32 fails too, a colder update only slows the fall, and the gradient's noise isn't the whole
+story: step 3's bias diagnosis comes before any more training.
+
 ## Did sw128b stop learning?
 
 It learned, then flattened, then wandered. Its checks against the fixed bots (win %; par 33% for
