@@ -62,6 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--horizon", type=int, default=64)
     p.add_argument("--minibatch", type=int, default=2048)
     p.add_argument("--lam", type=float, default=0.95)
+    p.add_argument("--shaping", type=float, default=0.0, help="the potential-based shaping's weight, as ppo's --shaping")
     p.add_argument("--league-fixed", default="runs/selfplay/m2a/snap-50.pt,runs/selfplay/m1a/snap-75.pt,runs/selfplay/sw128b/snap-450.pt")
     p.add_argument("--self-share", type=float, default=0.15)
     p.add_argument("--snapshot-share", type=float, default=0.35)
@@ -105,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     sums = {"big": 0.0, "small": 0.0, "n": 0.0}
     for r in range(args.rollouts):
         rollout()
-        targets = advantages(env, env.bootstrap(), args.lam)
+        targets = advantages(env, env.bootstrap(), args.lam, args.shaping)
         mine = env.buf["learner"]
         adv = targets["adv"][mine]
         targets["adv_n"] = (targets["adv"] - adv.mean()) / (adv.std() + 1e-8)

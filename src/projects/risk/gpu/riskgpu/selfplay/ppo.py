@@ -33,7 +33,8 @@ from .env import GD, GD_PERSONAS, GREEDY, KEPT, LEARNER, SNAPSHOT, Env, EnvConfi
 from .net import Net, evaluate
 from .obs import observe, slots
 
-RUNS = os.path.join(os.path.dirname(DATA), "runs", "selfplay")
+GPU = os.path.dirname(DATA)
+RUNS = os.path.join(GPU, "runs", "selfplay")
 
 
 def rebuild(buf: dict, t: torch.Tensor, b: torch.Tensor) -> State:
@@ -50,11 +51,26 @@ def by_slot(values: torch.Tensor, seat_of_slot: torch.Tensor) -> torch.Tensor:
     return torch.where(seat_of_slot >= 0, out, 0.0)
 
 
-def advantages(env: Env, boot: torch.Tensor, lam: float) -> dict:
+def potential(owner: torch.Tensor, armies: torch.Tensor) -> torch.Tensor:
+    """`[N, 6]` by seat: the shaping potential Φ, half the seat's share of the territories and
+    half its share of the armies."""
+    held = torch.nn.functional.one_hot(owner.to(torch.int64).clamp(min=0), MAX_SEATS).float()
+    held = held * (owner >= 0)[..., None]
+    land = held.mean(1)
+    troops = (held * armies.float()[..., None]).sum(1)
+    return 0.5 * land + 0.5 * troops / troops.sum(1, keepdim=True).clamp(min=1)
+
+
+def advantages(env: Env, boot: torch.Tensor, lam: float, shaping: float = 0.0) -> dict:
+    """GAE over each seat's chain of learner decisions. With `shaping`, each link also earns
+    shaping × (Φ at the seat's next decision − Φ at this one), Φ 0 once the game has ended: over a
+    game the extra rewards sum to −shaping × Φ at its first decision, so they move credit earlier
+    without changing which policy is best (Ng et al., potential-based shaping)."""
     buf, T, B = env.buf, env.cfg.horizon, env.cfg.batch
     rows = torch.arange(B, device=boot.device)
     next_v = boot.clone()
     next_a = torch.zeros_like(boot)
+    next_phi = shaping * potential(env.state.owner, env.state.armies) if shaping else None
     pending = torch.zeros_like(boot)
     final = torch.zeros_like(boot)
     final_ok = torch.zeros(B, dtype=torch.bool, device=boot.device)
@@ -66,18 +82,25 @@ def advantages(env: Env, boot: torch.Tensor, lam: float) -> dict:
         reward = buf["reward"][t]
         next_v = torch.where(ended[:, None], 0.0, next_v)
         next_a = torch.where(ended[:, None], 0.0, next_a)
+        if next_phi is not None:
+            next_phi = torch.where(ended[:, None], 0.0, next_phi)
         pending = torch.where(ended[:, None], reward, pending)
         final = torch.where(ended[:, None], reward, final)
         final_ok = final_ok | ended
         a = buf["active"][t].to(torch.int64)
         v = buf["value"][t]
         delta = pending[rows, a] + next_v[rows, a] - v
+        if next_phi is not None:
+            phi = shaping * potential(buf["owner"][t], buf["armies"][t])[rows, a]
+            delta = delta + torch.where(buf["learner"][t], next_phi[rows, a] - phi, 0.0)
         advantage = delta + lam * next_a[rows, a]
         adv[t] = advantage
         # Only the learner's own decisions are links in a seat's chain; other rows pass through.
         mine = buf["learner"][t]
         next_v[rows, a] = torch.where(mine, v, next_v[rows, a])
         next_a[rows, a] = torch.where(mine, advantage, next_a[rows, a])
+        if next_phi is not None:
+            next_phi[rows, a] = torch.where(mine, phi, next_phi[rows, a])
         pending[rows, a] = torch.where(mine, 0.0, pending[rows, a])
         mc[t] = final
         mc_ok[t] = final_ok
@@ -366,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--chunk", type=int, default=8192, help="rows a forward and backward pass takes at once; a larger minibatch sums its chunks")
     p.add_argument("--clip", type=float, default=0.2)
     p.add_argument("--lam", type=float, default=0.95)
+    p.add_argument("--shaping", type=float, default=0.0, help="weight of the territory-and-army potential's shaping reward (0: the win alone)")
     p.add_argument("--vf", type=float, default=0.5)
     p.add_argument("--vo", type=float, default=0.25)
     p.add_argument("--aux", type=float, default=0.25)
@@ -471,7 +495,7 @@ def main(argv: list[str] | None = None) -> int:
         snaps = anchors + len(chosen)
         # The anchors (`--league-fixed`) hold the first slots for good, nets of their own sizes.
         for k, path in enumerate(chosen):
-            env.snapshots[anchors + k].load_state_dict(torch.load(path, map_location=device, weights_only=False))
+            env.snapshots[anchors + k].load_state_dict(torch.load(os.path.join(GPU, path), map_location=device, weights_only=False))
         for k in range(snaps):
             probs[SNAPSHOT + k] = snap_share / snaps
         env.kind_probs.copy_(probs.to(device))
@@ -501,7 +525,7 @@ def main(argv: list[str] | None = None) -> int:
                 group["lr"] = args.lr + (args.lr_end - args.lr) * frac
         env.run(args.horizon)
         boot = env.bootstrap()
-        targets = advantages(env, boot, args.lam)
+        targets = advantages(env, boot, args.lam, args.shaping)
         torch.cuda.synchronize()
         t1 = time.time()
         losses = update(net, opt, env, targets, args)
@@ -521,7 +545,8 @@ def main(argv: list[str] | None = None) -> int:
         if iteration % args.snapshot_every == 0:
             path = os.path.join(out_dir, f"snap-{iteration}.pt")
             torch.save(net.state_dict(), path)
-            league.append(path)
+            # Kept relative to the GPU folder, so a run resumes in any checkout of the repo.
+            league.append(os.path.relpath(path, GPU))
             set_league()
         if iteration % args.eval_every == 0:
             record["eval"] = [e.run() for e in evaluators]
