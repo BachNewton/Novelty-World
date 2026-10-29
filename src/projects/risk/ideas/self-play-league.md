@@ -364,6 +364,47 @@ is why every run here uses 2,048-row minibatches. The update now takes a minibat
 (`--chunk`), summing their gradients before Adam's step, so the minibatch is no longer bounded by
 memory; chunks of 2,048 fit.
 
+## pf4's results: it holds its ground, and still slides
+
+pf4 resumed from iteration 32 and ran to 100. Its checks (win %):
+
+| Iteration | v1 in | v1 out | 450 in | 450 out | GDdef | GDstk | Greedy |
+|---|---|---|---|---|---|---|---|
+| 25 | 30.1 | 87.3 | 21.3 | 76.0 | 75.8 | 75.3 | 90.4 |
+| 50 | 32.1 | 88.7 | 22.5 | 84.0 | 73.9 | 73.6 | 92.3 |
+| 75 | 23.4 | 83.0 | 21.9 | 81.3 | 72.5 | 74.3 | 91.8 |
+| 100 | 18.4 | 60.7 | 21.1 | 85.4 | 69.7 | 72.3 | 92.5 |
+
+The mixed-table ladder, seven nets, 8192 games, all decisive, win Elo with sw-450 at 0:
+
+| Net | Win Elo |
+|---|---|
+| pf4-50 | +35 |
+| pf4-75 | +18 |
+| pf4-100 | +14 |
+| net-v1 (m2a-50) | +3 |
+| sw-450 | 0 |
+| pf2-100 | −74 |
+| pf3-100 | −84 |
+
+21. One-out against sw128b-450 at or above 76% at every check: **held** (76, 84, 81, 85).
+22. pf4-100 within 30 Elo of sw-450, or above it: **held** (+14).
+23. pf4-100 above pf2-100: **held**, by 88.
+24. pf4-100 more than 30 Elo above sw-450: **failed**.
+
+So the colder update stopped the fall the earlier continuations took on the same tables (pf2 and pf3
+end 74 and 84 below sw-450), which makes the update's temperature a real cause of the drift. It
+didn't stop all of it: pf4 is best at 50 and slides after (35, 18, 14, each about ±20 of luck), and
+against net-v1 its one-out fell from 89% to 61%, the same direction as every run before it, at a
+slower pace.
+
+The ladder also moved under the nets it shares with the first one: there sw-450 was 95 above
+net-v1, here they are level, and pf2-100 went from 36 below sw-450 to 74 below. A mixed table's
+rating depends on who else sits at it, so ratings compare only within one ladder, and a net's
+strength "at mixed tables" is a strength in that field.
+
+By the rule above (22 held, 24 failed), the next step is the shaping's noise measurement.
+
 ## Did sw128b stop learning?
 
 It learned, then flattened, then wandered. Its checks against the fixed bots (win %; par 33% for
@@ -385,10 +426,7 @@ than the wander's. That is what pf4 tests.
 
 ## What comes next, and why
 
-1. **Finish pf4** once the laptop is on its charger and the GPU is back: `runs/selfplay/pf4.ps1`
-   resumes from iteration 32. Then the mixed-table ladder (sw-450, pf2-100, pf3-100, pf4-100,
-   net-v1) and predictions 21 to 24. pf4 is the cheapest test of the reading the evidence points
-   to: if the drift is noise, a colder update holds its ground.
+1. **pf4 is done**: it held (22) and didn't climb (24 failed), so step 2 follows.
 2. **If pf4 holds (22) but doesn't climb (24 fails)**, the training needs more signal per
    decision, not only less heat. A richer reward is the lever the owner raised: credit for taking
    territories and eliminating players, so a move is judged within a few turns rather than at a
