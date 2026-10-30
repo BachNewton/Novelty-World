@@ -1,0 +1,7 @@
+numpy==2.5.4
+pillow==13.0.0
+pyproj==3.8.0
+pyshp==3.1.6
+rasterio==1.5.2
+scikit-image==0.26.0
+scipy==1.18.1

@@ -1,0 +1,4 @@
+# The pipeline's own Python environment, and everything it downloads or leaves behind.
+pipeline/.venv/
+pipeline/__pycache__/
+.data/
