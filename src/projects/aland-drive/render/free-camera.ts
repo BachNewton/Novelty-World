@@ -1,8 +1,8 @@
 import type { PerspectiveCamera } from "three/webgpu";
 
 /*
- * A free camera for looking round the data: WASD to move, Q and E to sink and
- * rise, Shift to go faster, drag to look, the wheel to set the speed.
+ * A free camera for inspecting the world, off by default: WASD to move, Q and E
+ * to sink and rise, Shift to go faster, drag to look, the wheel to set the speed.
  */
 
 const START_SPEED_M_S = 60;
@@ -23,11 +23,12 @@ export interface View {
   pitch: number;
 }
 
-export function startFreeCamera(camera: PerspectiveCamera, element: HTMLElement, start: View) {
-  const view = { ...start };
+export function startFreeCamera(camera: PerspectiveCamera, element: HTMLElement) {
+  const view: View = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
   const held = new Set<string>();
   let speed = START_SPEED_M_S;
   let dragging = false;
+  let active = false;
   let last: number | null = null;
 
   const apply = () => {
@@ -39,6 +40,7 @@ export function startFreeCamera(camera: PerspectiveCamera, element: HTMLElement,
   const onKeyUp = (event: KeyboardEvent) => held.delete(event.code);
   const onBlur = () => held.clear();
   const onPointerDown = (event: PointerEvent) => {
+    if (!active) return;
     dragging = true;
     element.setPointerCapture(event.pointerId);
   };
@@ -51,6 +53,7 @@ export function startFreeCamera(camera: PerspectiveCamera, element: HTMLElement,
     view.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, view.pitch - event.movementY * LOOK_RADIANS_PER_PIXEL));
   };
   const onWheel = (event: WheelEvent) => {
+    if (!active) return;
     event.preventDefault();
     speed = Math.max(MIN_SPEED_M_S, Math.min(MAX_SPEED_M_S, speed * SPEED_STEP ** (-event.deltaY / WHEEL_NOTCH)));
   };
@@ -62,11 +65,25 @@ export function startFreeCamera(camera: PerspectiveCamera, element: HTMLElement,
   element.addEventListener("pointerup", onPointerUp);
   element.addEventListener("pointermove", onPointerMove);
   element.addEventListener("wheel", onWheel, { passive: false });
-  apply();
 
   const axis = (minus: string, plus: string) => (held.has(plus) ? 1 : 0) - (held.has(minus) ? 1 : 0);
 
   return {
+    /** Takes over the camera, from wherever it is now. */
+    enter() {
+      active = true;
+      last = null;
+      view.x = camera.position.x;
+      view.y = camera.position.y;
+      view.z = camera.position.z;
+      const look = camera.rotation.reorder("YXZ");
+      view.yaw = look.y;
+      view.pitch = look.x;
+    },
+    leave() {
+      active = false;
+      dragging = false;
+    },
     update(now: number) {
       const seconds = Math.min(last === null ? 0 : (now - last) / 1000, LONGEST_FRAME_S);
       last = now;
@@ -80,6 +97,7 @@ export function startFreeCamera(camera: PerspectiveCamera, element: HTMLElement,
       apply();
     },
     set(next: View) {
+      active = true;
       Object.assign(view, next);
       apply();
     },

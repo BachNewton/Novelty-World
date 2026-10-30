@@ -1,7 +1,7 @@
 import { gunzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { decodeHeights, patchIndices, surfaceHeight, type Road, type TileManifest } from "./tile";
+import { decodeHeights, patchIndices, surfaceHeight, type TileManifest } from "./tile";
 
 const manifestFor = (nodes: number, stepM: number): TileManifest =>
   ({ tile: "TEST", heights: { nodes, stepM, unitM: 0.01 }, bounds: { west: 100, north: 500 } }) as unknown as TileManifest;
@@ -42,7 +42,7 @@ describe("the built tile", () => {
   it("has the heights it declares, and its roads in the terrain's own space", () => {
     const raw = gunzipSync(readFileSync("public/aland-drive/tiles/L2343C/heights.bin.gz"));
     expect(raw.length).toBe(manifest.heights.nodes ** 2 * 2);
-    const { roads } = JSON.parse(readFileSync("public/aland-drive/tiles/L2343C/roads.json", "utf8")) as { roads: Road[] };
+    const { roads } = JSON.parse(readFileSync("public/aland-drive/tiles/L2343C/roads.json", "utf8")) as { roads: { line: [number, number][] }[] };
     expect(roads.length).toBeGreaterThan(0);
     for (const point of roads.flatMap((road) => road.line)) {
       expect(point[0]).toBeGreaterThanOrEqual(manifest.bounds.west);

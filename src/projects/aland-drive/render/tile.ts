@@ -10,16 +10,35 @@ export interface TileManifest {
   bounds: { west: number; south: number; east: number; north: number };
   heights: { file: string; nodes: number; stepM: number; unitM: number };
   shade: { file: string; gamma: number };
-  water: { file: string };
-  roads: { file: string };
+  water: { file: string; nodesFile: string };
+  roadSurface: { file: string; chains: RoadChain[] };
+  sun: { azimuthDeg: number; elevationDeg: number };
   attribution: string[];
 }
 
-export interface Road {
+/** One continuous drive through the network, the greatest road first: chain 0 is the tile's main road. */
+export interface RoadChain {
+  sections: number;
   kind: string;
+  ref?: string;
+  name?: string;
   motor: boolean;
-  line: [east: number, north: number][];
 }
+
+/** Cross-sections across a road, in rings of five points: outer left, edge left, centre, edge right, outer right. */
+export const RING_POINTS = 5;
+const RING_FLOATS = RING_POINTS * 3;
+
+/** The baked road surface in scene space: every ribbon's rings end to end. */
+export interface RoadSurface {
+  rings: Float32Array;
+  /** Each section's tier, an index into `ROAD_TIERS`. */
+  tiers: Uint8Array;
+  chains: (RoadChain & { first: number })[];
+}
+
+export const ROAD_TIERS = ["main", "minor", "track"] as const;
+export type RoadTier = (typeof ROAD_TIERS)[number];
 
 /** Heights on a square grid, rows from north to south. */
 export interface HeightGrid {
@@ -83,19 +102,59 @@ export function patchIndices(cells: number): Uint32Array {
   return indices;
 }
 
-export async function loadTile(base: string): Promise<{ manifest: TileManifest; grid: HeightGrid; roads: Road[]; shade: ImageBitmap; water: ImageBitmap }> {
+/** The pipeline writes (east, north, height); the scene is (east, up, -north). */
+export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): RoadSurface {
+  const sections = manifest.roadSurface.chains.reduce((sum, chain) => sum + chain.sections, 0);
+  const floats = sections * RING_FLOATS;
+  const baked = new Float32Array(data, 0, floats);
+  if (data.byteLength !== floats * 4 + sections) throw new Error(`${manifest.tile}: expected ${sections} road sections, got ${data.byteLength} bytes`);
+  const rings = new Float32Array(floats);
+  for (let at = 0; at < floats; at += 3) {
+    rings[at] = baked[at];
+    rings[at + 1] = baked[at + 2];
+    rings[at + 2] = -baked[at + 1];
+  }
+  let first = 0;
+  const chains = manifest.roadSurface.chains.map((chain) => {
+    const placed = { ...chain, first };
+    first += chain.sections;
+    return placed;
+  });
+  return { rings, tiers: new Uint8Array(data, floats * 4), chains };
+}
+
+/** Everything about a tile the simulation needs, with no GPU in sight. */
+export interface TileData {
+  manifest: TileManifest;
+  grid: HeightGrid;
+  surface: RoadSurface;
+  /** A byte per height node: 1 on a lake or the sea. */
+  waterNodes: Uint8Array;
+}
+
+async function fetchInflated(url: string): Promise<ArrayBuffer> {
+  const response = await fetchOk(url);
+  if (!response.body) throw new Error(`${url}: empty response`);
+  return new Response(response.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+}
+
+export async function loadTile(base: string): Promise<TileData & { shade: ImageBitmap; water: ImageBitmap }> {
   const manifest = await fetchOk(`${base}/tile.json`).then((response) => response.json() as Promise<TileManifest>);
-  const [grid, roads, shade, water] = await Promise.all([
-    fetchOk(`${base}/${manifest.heights.file}`).then(async (response) => {
-      if (!response.body) throw new Error(`${manifest.heights.file}: empty response`);
-      const inflated = new Response(response.body.pipeThrough(new DecompressionStream("gzip")));
-      return decodeHeights(new Int16Array(await inflated.arrayBuffer()), manifest);
-    }),
-    fetchOk(`${base}/${manifest.roads.file}`).then(async (response) => ((await response.json()) as { roads: Road[] }).roads),
+  const [heights, surface, waterNodes, shade, water] = await Promise.all([
+    fetchInflated(`${base}/${manifest.heights.file}`),
+    fetchInflated(`${base}/${manifest.roadSurface.file}`),
+    fetchInflated(`${base}/${manifest.water.nodesFile}`),
     fetchBitmap(`${base}/${manifest.shade.file}`),
     fetchBitmap(`${base}/${manifest.water.file}`),
   ]);
-  return { manifest, grid, roads, shade, water };
+  return {
+    manifest,
+    grid: decodeHeights(new Int16Array(heights), manifest),
+    surface: decodeRoadSurface(surface, manifest),
+    waterNodes: new Uint8Array(waterNodes),
+    shade,
+    water,
+  };
 }
 
 async function fetchOk(url: string): Promise<Response> {

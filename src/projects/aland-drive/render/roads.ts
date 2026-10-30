@@ -1,78 +1,67 @@
-import { surfaceHeight, type HeightGrid, type Road } from "./tile";
+import { RING_POINTS, type RoadSurface } from "./tile";
 
 /*
- * Roads as flat ribbons laid on the terrain: a little above the surface at
- * their left edge, middle and right edge, every few metres along the line.
+ * The baked road surface as a mesh: the pipeline's cross-sections joined along
+ * each chain. The car collides with these very triangles (`sim/ground.ts`).
  */
-
-const STATION_SPACING_M = 4;
-const LIFT_M = 0.2;
-
-/** Ribbon widths in metres by OSM highway kind. OSM rarely tags a width here, so these are typical sizes. */
-const WIDTH_M: Partial<Record<string, number>> = { primary: 7.5, secondary: 7, tertiary: 6, unclassified: 4.5, residential: 4.5, service: 3.5, track: 2.5 };
-const OTHER_WIDTH_M = 2;
-
-export type RoadTier = "main" | "minor" | "track";
-
-const tierOf = (kind: string): RoadTier => {
-  if (kind === "primary" || kind === "secondary" || kind === "tertiary") return "main";
-  if (kind === "unclassified" || kind === "residential" || kind === "service") return "minor";
-  return "track";
-};
 
 export interface RibbonMesh {
   positions: Float32Array;
-  /** Each vertex's tier, as an index into `RoadTier` order. */
+  /** Across the road: 0 on the centre, ±1 at the carriageway's edges, ±2 where the shoulder meets the land. */
+  across: Float32Array;
+  /** Metres along the chain. */
+  along: Float32Array;
+  /** Each vertex's tier, as an index into `ROAD_TIERS`. */
   tiers: Float32Array;
   indices: Uint32Array;
 }
 
-export const ROAD_TIERS: readonly RoadTier[] = ["main", "minor", "track"];
+const ACROSS = [2, 1, 0, -1, -2];
+const CENTRE = 2;
+const SMALLEST_TRIANGLE_M2 = 0.01;
 
-function stations(line: Road["line"]): [number, number][] {
-  const points: [number, number][] = [];
-  for (let index = 1; index < line.length; index++) {
-    const [fromEast, fromNorth] = line[index - 1];
-    const [toEast, toNorth] = line[index];
-    const steps = Math.max(1, Math.ceil(Math.hypot(toEast - fromEast, toNorth - fromNorth) / STATION_SPACING_M));
-    for (let step = 0; step < steps; step++) {
-      const part = step / steps;
-      points.push([fromEast + part * (toEast - fromEast), fromNorth + part * (toNorth - fromNorth)]);
-    }
-  }
-  points.push(line[line.length - 1]);
-  return points;
+/** Where a lesser road slides along a greater one's edge, two points of a ring can land together. */
+function hasArea(positions: Float32Array, a: number, b: number, c: number): boolean {
+  const [ax, ay, az] = [positions[a * 3], positions[a * 3 + 1], positions[a * 3 + 2]];
+  const [ux, uy, uz] = [positions[b * 3] - ax, positions[b * 3 + 1] - ay, positions[b * 3 + 2] - az];
+  const [vx, vy, vz] = [positions[c * 3] - ax, positions[c * 3 + 1] - ay, positions[c * 3 + 2] - az];
+  return Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) > SMALLEST_TRIANGLE_M2;
 }
 
-export function buildRibbons(roads: readonly Road[], grid: HeightGrid): RibbonMesh {
-  const positions: number[] = [];
-  const tiers: number[] = [];
-  const indices: number[] = [];
-  for (const road of roads) {
-    const halfWidth = (WIDTH_M[road.kind] ?? OTHER_WIDTH_M) / 2;
-    const tier = ROAD_TIERS.indexOf(tierOf(road.kind));
-    const points = stations(road.line);
-    const first = positions.length / 3;
-    points.forEach(([east, north], index) => {
-      const [beforeEast, beforeNorth] = points[Math.max(index - 1, 0)];
-      const [afterEast, afterNorth] = points[Math.min(index + 1, points.length - 1)];
-      const length = Math.hypot(afterEast - beforeEast, afterNorth - beforeNorth);
-      const leftEast = (-(afterNorth - beforeNorth) / length) * halfWidth;
-      const leftNorth = ((afterEast - beforeEast) / length) * halfWidth;
-      for (const side of [1, 0, -1]) {
-        const pointEast = east + side * leftEast;
-        const pointNorth = north + side * leftNorth;
-        positions.push(pointEast, surfaceHeight(grid, pointEast, pointNorth) + LIFT_M, -pointNorth);
-        tiers.push(tier);
+export function ribbonMesh(surface: RoadSurface): RibbonMesh {
+  const vertices = surface.rings.length / 3;
+  const quads = surface.chains.reduce((sum, chain) => sum + (chain.sections - 1) * (RING_POINTS - 1), 0);
+  const across = new Float32Array(vertices);
+  const along = new Float32Array(vertices);
+  const tiers = new Float32Array(vertices);
+  const indices = new Uint32Array(quads * 6);
+  let next = 0;
+  for (const chain of surface.chains) {
+    let distance = 0;
+    for (let section = 0; section < chain.sections; section++) {
+      const ring = (chain.first + section) * RING_POINTS;
+      if (section > 0) {
+        const centre = (ring + CENTRE) * 3;
+        const before = centre - RING_POINTS * 3;
+        distance += Math.hypot(surface.rings[centre] - surface.rings[before], surface.rings[centre + 2] - surface.rings[before + 2]);
       }
-    });
-    for (let station = 0; station < points.length - 1; station++) {
-      for (let lane = 0; lane < 2; lane++) {
-        const here = first + station * 3 + lane;
-        const next = here + 3;
-        indices.push(here, here + 1, next, next, here + 1, next + 1);
+      for (let point = 0; point < RING_POINTS; point++) {
+        across[ring + point] = ACROSS[point];
+        along[ring + point] = distance;
+        tiers[ring + point] = surface.tiers[chain.first + section];
+      }
+      if (section === chain.sections - 1) continue;
+      for (let lane = 0; lane < RING_POINTS - 1; lane++) {
+        const here = ring + lane;
+        const ahead = here + RING_POINTS;
+        for (const [a, b, c] of [[here, here + 1, ahead], [ahead, here + 1, ahead + 1]]) {
+          if (hasArea(surface.rings, a, b, c)) {
+            indices.set([a, b, c], next);
+            next += 3;
+          }
+        }
       }
     }
   }
-  return { positions: Float32Array.from(positions), tiers: Float32Array.from(tiers), indices: Uint32Array.from(indices) };
+  return { positions: surface.rings, across, along, tiers, indices: indices.slice(0, next) };
 }
