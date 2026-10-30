@@ -44,6 +44,10 @@ A green check runs what the change can reach:
 
 The one gap: the graph sees only imports. A test that reaches something by another route, a file read by path or a Python process (the family tree's layout tests run `layout/solver/`), isn't selected when that changes. A test imports what it uses wherever it can, and a change to something reached another way runs its tests by name.
 
+**Handing the owner an HTML file:** the desktop app's file pane and browser can't show HTML over 512 KB, which a page with embedded audio usually is. Give a clickable `file:///C:/...` link to open in Chrome, and don't try to open it in the app or start a server for it.
+
+**Long runs and sleep:** keeping the machine awake is never Claude's job. The owner handles sleep for anything long-running without being asked, so don't request keep-awake or raise it.
+
 ## Principles
 
 - **The owner works at the level of architecture, not implementation.** The owner doesn't read implementation code and is language-agnostic; engineering discussions are about software engineering principles, repo conventions and product decisions. Choose languages, tools, patterns and workflows on technical merit and on how well Claude, as a language model, can build and maintain them, never on whether the owner can read them. Explain tradeoffs in those terms, not in code.

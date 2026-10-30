@@ -15,11 +15,15 @@ Clones from a locked reference clip and takes a delivery note as its instruction
 - Calm words ("steady", "unhurried") flatten a voice. Naming a feeling keeps it alive.
 - "Soft", "gentle" and "shy" in a voice description come out muffled. Ask for a clear, close-microphone recording instead.
 - A voice can win on a short line and fail at length. Judge on a long passage, and inside hand-offs.
-- Clips can cut off or end loud, so takes are checked and re-recorded.
+- Nana had audible cut-offs at some line changes, cause unknown. Nothing guards against them: one heard here gets solved as its own problem.
 
 ### Heard on Otto and Dot (a playful children's story)
 
 - The whole performance is usable, but a bit cringe. That may be the children's genre or the big, playful direction, not the model: a grounded story will tell the two apart.
+
+### Heard on Citizens of the Federation
+
+- A dull reference clip dulls every line, so voices cloned from different clips can sound like different microphones. Casting now checks this.
 
 ### Unknown, with no line-level notes yet
 

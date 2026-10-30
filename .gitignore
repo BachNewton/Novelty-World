@@ -98,4 +98,5 @@ __pycache__/
 
 # audiobook drama renders (regenerable from the scripts and locked voices)
 src/projects/audiobook/drama/**/audio/
+src/projects/audiobook/drama/**/book/*.mp3
 **/__pycache__/

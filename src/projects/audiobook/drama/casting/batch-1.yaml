@@ -1,0 +1,29 @@
+# Voices to calibrate the casting score against the owner's ears. They aren't for any
+# story: they span ages, pitches and accents, and some descriptions are expected to
+# come out poor, since a score can't find a line it has only seen one side of.
+text: >
+  I walked down to the harbour this morning, before anyone else was awake. The boats
+  were still tied up, the water was perfectly flat, and somebody had left a thermos on
+  the wall. I stood there for a while, thinking about what she said, and then I went
+  home.
+voices:
+  - { id: v01, seed: 101, design: "A clear, crisp woman in her thirties with a bright, articulate American voice. A close-microphone studio recording." }
+  - { id: v02, seed: 102, design: "A warm American man in his thirties, a friendly tenor. A clear, crisp, close-microphone studio recording." }
+  - { id: v03, seed: 103, design: "A deep, resonant American man in his fifties, a commanding bass. A clear, crisp, close-microphone studio recording." }
+  - { id: v04, seed: 104, design: "A very deep, gravelly, weathered man in his sixties, slow and low. A close-microphone studio recording." }
+  - { id: v05, seed: 105, design: "An elderly American woman of about eighty, thin and precise. A clear, crisp, close-microphone studio recording." }
+  - { id: v06, seed: 106, design: "An elderly American man of about eighty, dry and wry. A clear, crisp, close-microphone studio recording." }
+  - { id: v07, seed: 107, design: "A dry, tired Midwestern woman of about forty, low and quick. A clear, crisp, close-microphone studio recording." }
+  - { id: v08, seed: 108, design: "A dry, tired Midwestern woman of about forty, low and quick, with sharp consonants and an open, bright tone. A condenser microphone close to the mouth." }
+  - { id: v09, seed: 109, design: "A bright, confident English woman in her twenties, with a crisp Received Pronunciation accent. A clear broadcast recording." }
+  - { id: v10, seed: 110, design: "A Scottish man in his forties, lively and rough-edged. A clear, crisp, close-microphone studio recording." }
+  - { id: v11, seed: 111, design: "A Nigerian-British woman in her fifties, rich and authoritative. A clear, crisp, close-microphone studio recording." }
+  - { id: v12, seed: 112, design: "An Indian-American man in his thirties, quick and precise. A clear, crisp, close-microphone studio recording." }
+  - { id: v13, seed: 113, design: "A seven-year-old American girl, bright and matter-of-fact. A clear, crisp, close-microphone studio recording." }
+  - { id: v14, seed: 114, design: "A teenage American boy of about sixteen, awkward and quick. A clear, crisp, close-microphone studio recording." }
+  - { id: v15, seed: 115, design: "A soft, gentle, shy woman in her thirties, speaking quietly and warmly." }
+  - { id: v16, seed: 116, design: "A soft, warm, intimate man in his fifties, murmuring gently, low and unhurried." }
+  - { id: v17, seed: 117, design: "A woman in her forties speaking in a large empty hall, with the microphone across the room." }
+  - { id: v18, seed: 118, design: "A man in his forties on an old telephone line." }
+  - { id: v19, seed: 119, design: "A deep, measured, slightly weathered man in his late fifties, warm and resonant, with an open, forward voice and crisp consonants. A condenser microphone close to the mouth, bright and present." }
+  - { id: v20, seed: 120, design: "A clearly elderly, well-spoken woman in her mid-seventies, gracious and exact, with crisp consonants and a bright, forward tone. A condenser microphone close to the mouth." }

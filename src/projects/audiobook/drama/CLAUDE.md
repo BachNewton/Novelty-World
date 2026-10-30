@@ -15,7 +15,7 @@ The first focus is the writing, the voices and the performances. Ambience, effec
 ## How a story gets made
 
 1. **Script.** The owner reviews it before any audio: editing text is cheap, and re-recording is expensive.
-2. **Cast.** A character needs a good voice that fits its description, not one right voice, so there are no audition rounds. Claude designs one voice per character, checks its pitch fits, and replaces it only if the owner rejects it. That clip is locked, and every line is cloned from it, because designing from a description makes a new person each time.
+2. **Cast.** The `voice-casting` skill casts each role without auditions. Its clip is locked, and every line is cloned from it, because designing from a description makes a new person each time.
 3. **Render, then listen.** The owner gives notes by line id.
 4. **A line that fails is rewritten, not only re-rendered.** The writer can change the words here, unlike the Nana biography.
 5. **Notes go into `capabilities.md`**, so the next story is written to fit.
@@ -26,6 +26,7 @@ The first focus is the writing, the voices and the performances. Ambience, effec
 - `stories/<slug>/script.yaml`: the performance script. `cast.yaml` beside it: each role and how its voice is designed.
 - `stories/<slug>/voices/<role>/`: the locked reference clip and its transcript, committed.
 - `stories/<slug>/audio/`: renders, ignored by git and regenerable.
+- A story in chapters keeps `cast.yaml` and `voices/` at its root, one voice per role across the book, and each chapter's `script.yaml` and `audio/` in `chapters/<nn>/`. `book/` holds what goes to the player. The tools take the chapter's folder.
 - `tools/`: `design_voices.py`, `render.py` (both in WSL under `run_breeze.sh`), then `assemble.py` (Windows).
 
 ## Script format

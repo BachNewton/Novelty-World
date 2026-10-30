@@ -1,0 +1,26 @@
+# Does the wording change the score, or only the seed? The narrator and Ruth failed
+# every seed on their cast descriptions. Each pair here shares a seed, with and without
+# the microphone phrase, and none uses the texture words of those descriptions
+# ("weathered", "grain", "thin", "tremble").
+text: >
+  I walked down to the harbour this morning, before anyone else was awake. The boats
+  were still tied up, the water was perfectly flat, and somebody had left a thermos on
+  the wall. I stood there for a while, thinking about what she said, and then I went
+  home.
+voices:
+  - { id: n1a, seed: 201, design: "A deep, measured American man in his late fifties, resonant and interested. A clear, crisp, close-microphone studio recording." }
+  - { id: n1b, seed: 201, design: "A deep, measured American man in his late fifties, resonant and interested." }
+  - { id: n2a, seed: 202, design: "A deep, measured American man in his late fifties, resonant and interested. A clear, crisp, close-microphone studio recording." }
+  - { id: n2b, seed: 202, design: "A deep, measured American man in his late fifties, resonant and interested." }
+  - { id: n3a, seed: 203, design: "A deep American man in his late fifties with crisp, precise consonants, speaking forward in the mouth. A bright, present recording." }
+  - { id: n3b, seed: 204, design: "A deep American man in his late fifties with crisp, precise consonants, speaking forward in the mouth. A bright, present recording." }
+  - { id: n4a, seed: 205, design: "A deep American man in his late fifties with crisp, precise consonants, speaking forward in the mouth." }
+  - { id: n4b, seed: 206, design: "A deep American man in his late fifties with crisp, precise consonants, speaking forward in the mouth." }
+  - { id: r1a, seed: 211, design: "An elderly American woman in her mid-seventies, well-spoken, gracious and precise, like a retired piano teacher. A clear, crisp, close-microphone studio recording." }
+  - { id: r1b, seed: 211, design: "An elderly American woman in her mid-seventies, well-spoken, gracious and precise, like a retired piano teacher." }
+  - { id: r2a, seed: 212, design: "An elderly American woman in her mid-seventies, well-spoken, gracious and precise, like a retired piano teacher. A clear, crisp, close-microphone studio recording." }
+  - { id: r2b, seed: 212, design: "An elderly American woman in her mid-seventies, well-spoken, gracious and precise, like a retired piano teacher." }
+  - { id: r3a, seed: 213, design: "An elderly American woman in her mid-seventies with crisp, exact consonants, speaking forward in the mouth. A bright, present recording." }
+  - { id: r3b, seed: 214, design: "An elderly American woman in her mid-seventies with crisp, exact consonants, speaking forward in the mouth. A bright, present recording." }
+  - { id: r4a, seed: 215, design: "An elderly American woman in her mid-seventies with crisp, exact consonants, speaking forward in the mouth." }
+  - { id: r4b, seed: 216, design: "An elderly American woman in her mid-seventies with crisp, exact consonants, speaking forward in the mouth." }
