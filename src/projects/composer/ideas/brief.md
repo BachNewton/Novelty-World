@@ -11,6 +11,7 @@ Write an original piece of about a minute to ninety seconds that a listener woul
 - **Parts:** a lead melody, an accompaniment in the `keys` role, and a `bass` line. A `pad` is optional. No drums.
 - **Key and metre** are the writer's choice.
 - **Original melodies only:** no quoting or paraphrasing any existing tune.
+- **An analysis comes with it,** written as the project's `CLAUDE.md` says: sections, named themes with every occurrence, patterns and harmony, passing its checker.
 
 ## What each writer reports
 

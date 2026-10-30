@@ -687,3 +687,24 @@ body {
   opacity: 0;
   animation: wh-heart-rise 1.6s ease-out forwards;
 }
+
+/* Composer: one palette for its tracks, sections and themes, spaced so that
+   neighbours differ. */
+@theme static {
+  --color-composer-1: #ff9f43;
+  --color-composer-2: #48dbfb;
+  --color-composer-3: #ff6b9d;
+  --color-composer-4: #7bed9f;
+  --color-composer-5: #a29bfe;
+  --color-composer-6: #feca57;
+  --color-composer-7: #1dd1a1;
+  --color-composer-8: #ff7675;
+  --color-composer-9: #74b9ff;
+  --color-composer-10: #e056fd;
+  --color-composer-11: #badc58;
+  --color-composer-12: #f8a5c2;
+  --color-composer-13: #55efc4;
+  --color-composer-14: #fab1a0;
+  --color-composer-15: #c8d6e5;
+  --color-composer-16: #d6a2e8;
+}

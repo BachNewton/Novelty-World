@@ -1,53 +1,86 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Music, Play, Square, Upload } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AudioLines, FileMusic, Library, LoaderCircle, Music, Pause, Piano, Play } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
-import { humanize } from "../humanize";
-import { midiToScore, scoreToMidi } from "../midi";
-import { isRendered, play, prepare, stop } from "../player";
-import { FORMATS, PIECES } from "../pieces";
-import { scoreToAbc } from "../score-abc";
-import { PERFORMERS } from "../synth/render";
-import { barBeats, beatSeconds, scoreBeats, type Piece } from "../types";
-import { PianoRoll, ROLE_TOKEN } from "./piano-roll";
+import { featuresOf, type Feature, type Section as FormSection } from "../analysis";
+import { playStream, seek, stop } from "../player";
+import { PIECES, shelve } from "../pieces";
+import { instrumentNamesForTrack, LIBRARY, PIANO_IDS, pianoOf, withPiano, type InstrumentId } from "../synth/library";
+import { timingOf } from "../tempo";
+import { bandsOf, barBeats, scoreBeats } from "../types";
+import { FeaturePicker } from "./feature-picker";
+import { HarmonyLane } from "./harmony-lane";
+import { Instruments } from "./instruments";
+import { PianoRoll } from "./piano-roll";
+import { Sampler } from "./sampler";
+import { Scrubber } from "./scrubber";
 import { SheetMusic } from "./sheet-music";
+import { TrackLegend, trackLabel } from "./track-legend";
 
-type View = "roll" | "sheet" | "source";
+type View = "roll" | "sheet";
 
-const VIEWS: readonly { id: View; name: string }[] = [
-  { id: "roll", name: "Piano roll" },
-  { id: "sheet", name: "Sheet music" },
-  { id: "source", name: "Source" },
-];
+const VIEWS = [
+  { id: "roll", name: "Piano roll", Icon: Piano },
+  { id: "sheet", name: "Sheet music", Icon: FileMusic },
+] as const satisfies readonly { id: View; name: string; Icon: typeof Piano }[];
 
-const CHIP = "rounded-md border px-3 py-1.5 text-sm transition-colors";
+type Area = "music" | "instruments" | "sampler";
+
+const AREAS = [
+  { id: "music", name: "Music", Icon: Music },
+  { id: "instruments", name: "Instruments", Icon: Library },
+  { id: "sampler", name: "Sampler", Icon: AudioLines },
+] as const satisfies readonly { id: Area; name: string; Icon: typeof Piano }[];
+
+const CHIP = "shrink-0 rounded-md border px-3 py-1.5 text-sm transition-colors";
 const CHIP_ON = "border-brand-orange bg-surface-elevated text-text-primary";
 const CHIP_OFF = "border-border-default text-text-secondary hover:border-border-hover";
 
-function midiName(title: string): string {
-  return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.mid`;
-}
-
 export function Composer() {
-  const [uploaded, setUploaded] = useState<Piece[]>([]);
-  const pieces = useMemo(() => [...PIECES, ...uploaded], [uploaded]);
+  const [area, setArea] = useState<Area>("music");
   const [pieceId, setPieceId] = useState(PIECES[0].id);
-  const [performer, setPerformer] = useState(PERFORMERS[0].id);
-  const [human, setHuman] = useState(true);
   const [view, setView] = useState<View>("roll");
   const [state, setState] = useState<"idle" | "rendering" | "playing">("idle");
+  const [failure, setFailure] = useState<string | null>(null);
   const requested = useRef<string | null>(null);
 
-  const piece = pieces.find((candidate) => candidate.id === pieceId) ?? pieces[0];
-  const written = useMemo(() => piece.score(), [piece]);
-  const score = useMemo(() => (human ? humanize(written) : written), [written, human]);
-  const renderKey = `${piece.id}|${performer}|${String(human)}`;
-  const seconds = scoreBeats(written) * beatSeconds(written);
+  const piece = PIECES.find((candidate) => candidate.id === pieceId) ?? PIECES[0];
+  const score = useMemo(() => piece.score(), [piece]);
+  const [pianos, setPianos] = useState<Partial<Record<string, InstrumentId>>>({});
+  const [bandChoices, setBandChoices] = useState<Partial<Record<string, number>>>({});
+  const bands = useMemo(() => bandsOf(piece), [piece]);
+  const bandIndex = bandChoices[piece.id] ?? 0;
+  const chosenBand = bands[bandIndex];
+  const pianoKey = `${piece.id}|${String(bandIndex)}`;
+  const ownPiano = pianoOf(chosenBand);
+  const piano = ownPiano === undefined ? undefined : (pianos[pianoKey] ?? ownPiano);
+  const band = useMemo(() => (piano === undefined ? chosenBand : withPiano(chosenBand, piano)), [chosenBand, piano]);
+  const features = useMemo(() => (piece.analysis === undefined ? [] : featuresOf(score, piece.analysis)), [piece, score]);
+  const trackInstruments = useMemo(
+    () => Object.fromEntries(score.tracks.map(({ name }) => [name, instrumentNamesForTrack(band, name).join(", ") || trackLabel(name)])),
+    [score, band],
+  );
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const picked = features.find((feature) => feature.id === pickedId) ?? null;
+  const [focus, setFocus] = useState<string | null>(null);
+  const [formSection, setFormSection] = useState<FormSection | undefined>();
+  const [detail, setDetail] = useState("");
+  const onSection = useCallback((next: FormSection | undefined) => setFormSection(next), []);
+  const light = useMemo(() => {
+    const index = score.tracks.findIndex((track) => track.name === focus);
+    return { notes: picked?.notes ?? null, tone: picked?.tone ?? 1, focus: index < 0 ? null : index };
+  }, [picked, focus, score]);
+  const pickFeature = (feature: Feature | null): void => {
+    setPickedId(feature?.id ?? null);
+    setDetail(feature === null ? "" : `${feature.name}: ${feature.about}`);
+  };
+  const renderKey = `${pianoKey}|${String(piano)}`;
 
   const halt = (): void => {
     requested.current = null;
+    setFailure(null);
     stop();
     setState("idle");
   };
@@ -56,17 +89,29 @@ export function Composer() {
     () => () => {
       requested.current = null;
       stop();
+      seek(0);
     },
     [],
   );
 
   const start = (): void => {
     requested.current = renderKey;
-    if (!isRendered(renderKey)) setState("rendering");
-    void prepare(renderKey, score, performer).then(async (buffer) => {
-      if (requested.current !== renderKey) return;
-      await play(buffer, () => setState("idle"));
-      setState("playing");
+    setFailure(null);
+    setState("rendering");
+    const live = (): boolean => requested.current === renderKey;
+    void playStream(score, band, {
+      onState: (next) => {
+        if (live()) setState(next === "playing" ? "playing" : "rendering");
+      },
+      onEnded: () => {
+        if (live()) setState("idle");
+      },
+      onError: (error) => {
+        if (!live()) return;
+        setState("idle");
+        setFailure(error.message.split("\n")[0]);
+        throw error;
+      },
     });
   };
 
@@ -77,132 +122,142 @@ export function Composer() {
     change();
   };
 
-  const download = (): void => {
-    const url = URL.createObjectURL(new Blob([scoreToMidi(written)], { type: "audio/midi" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = midiName(written.title);
-    link.click();
-    URL.revokeObjectURL(url);
+  const pick = (id: string): void => {
+    choose(() => setPieceId(id));
+    setPickedId(null);
+    setFocus(null);
+    setDetail("");
+    seek(0);
   };
 
-  const upload = async (file: File): Promise<void> => {
-    const title = file.name.replace(/\.midi?$/i, "");
-    const parsed = midiToScore(new Uint8Array(await file.arrayBuffer()), title);
-    const added: Piece = { id: `upload-${title}`, title, format: "midi", source: null, score: () => parsed };
-    setUploaded((list) => [...list.filter((entry) => entry.id !== added.id), added]);
-    choose(() => setPieceId(added.id));
-  };
+  const areas = (
+    <nav aria-label="Composer" className="flex shrink-0 gap-1 overflow-x-auto px-2 pt-2 max-md:hidden">
+      {AREAS.map(({ id, name, Icon }) => (
+        <button
+          key={id}
+          type="button"
+          aria-current={id === area ? "page" : undefined}
+          onClick={() => choose(() => setArea(id))}
+          className={cn(CHIP, "inline-flex items-center gap-1.5", id === area ? CHIP_ON : CHIP_OFF)}
+        >
+          <Icon size={16} />
+          {name}
+        </button>
+      ))}
+    </nav>
+  );
+
+  if (area !== "music") {
+    return (
+      <main className="flex h-dvh w-full flex-col overflow-hidden">
+        {areas}
+        {area === "instruments" ? <Instruments /> : <Sampler />}
+      </main>
+    );
+  }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-5 px-4 py-6">
-      <header className="flex items-center gap-3">
-        <div className="rounded-md bg-surface-elevated p-2 text-brand-orange">
-          <Music size={24} />
-        </div>
-        <h1 className="text-2xl font-bold">Composer</h1>
-      </header>
-
-      <section aria-label="Pieces" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {pieces.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            aria-pressed={entry.id === piece.id}
-            onClick={() => choose(() => setPieceId(entry.id))}
-            className={cn("rounded-md border px-3 py-2 text-left transition-colors", entry.id === piece.id ? CHIP_ON : CHIP_OFF)}
-          >
-            <span className="block truncate font-medium text-text-primary">{entry.title}</span>
-            <span className="block text-xs text-text-muted">{FORMATS[entry.format]}</span>
-          </button>
-        ))}
-      </section>
-
-      <section aria-label="Performance" className="flex flex-wrap items-center gap-2">
-        {state === "playing" ? (
-          <Button onClick={halt} aria-label="Stop">
-            <Square size={18} />
-          </Button>
-        ) : (
-          <Button onClick={start} disabled={state === "rendering"} aria-label="Play">
+    <main className="flex h-dvh w-full flex-col overflow-hidden">
+      {areas}
+      <section aria-label="Tracks" className="flex items-center gap-2 p-2">
+        {state === "idle" ? (
+          <Button onClick={start} aria-label="Play" className="shrink-0">
             <Play size={18} />
           </Button>
+        ) : (
+          <Button onClick={halt} aria-label={state === "rendering" ? "Stop rendering" : "Pause"} className="shrink-0">
+            {state === "rendering" ? <LoaderCircle size={18} className="animate-spin" /> : <Pause size={18} />}
+          </Button>
         )}
-        {state === "rendering" && <span className="text-sm text-text-muted">Rendering…</span>}
-        <div className="flex flex-wrap gap-1">
-          {PERFORMERS.map((entry) => (
+        <select
+          aria-label="Track"
+          value={piece.id}
+          onChange={(event) => pick(event.target.value)}
+          className="min-w-0 flex-1 truncate rounded-md border border-border-default bg-surface-elevated px-3 py-1.5 text-sm text-text-primary"
+        >
+          {shelve(PIECES).map((shelf) => (
+            <optgroup key={shelf.name} label={shelf.name}>
+              {shelf.pieces.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.after === undefined ? entry.title : `${entry.after} – ${entry.title}`}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        {bands.length > 1 && (
+          <select
+            aria-label="Band"
+            title="Band"
+            value={bandIndex}
+            onChange={(event) => choose(() => setBandChoices({ ...bandChoices, [piece.id]: Number(event.target.value) }))}
+            className="w-40 shrink-0 truncate rounded-md border border-border-default bg-surface-elevated px-2 py-1.5 text-sm text-text-primary max-md:hidden"
+          >
+            {bands.map((entry, index) => (
+              <option key={entry.name} value={index}>
+                {entry.name}
+                {index === 0 ? " ★" : ""}
+              </option>
+            ))}
+          </select>
+        )}
+        {piano !== undefined && (
+          <select
+            aria-label="Piano"
+            title="Piano"
+            value={piano}
+            onChange={(event) => choose(() => setPianos({ ...pianos, [pianoKey]: event.target.value as InstrumentId }))}
+            className="w-40 shrink-0 truncate rounded-md border border-border-default bg-surface-elevated px-2 py-1.5 text-sm text-text-primary max-md:hidden"
+          >
+            {PIANO_IDS.map((id) => (
+              <option key={id} value={id}>
+                {LIBRARY[id].name}
+                {id === ownPiano ? " ★" : ""}
+              </option>
+            ))}
+          </select>
+        )}
+        <div role="tablist" className="flex shrink-0 gap-1">
+          {VIEWS.map(({ id, name, Icon }) => (
             <button
-              key={entry.id}
+              key={id}
               type="button"
-              aria-pressed={entry.id === performer}
-              onClick={() => choose(() => setPerformer(entry.id))}
-              className={cn(CHIP, entry.id === performer ? CHIP_ON : CHIP_OFF)}
+              role="tab"
+              aria-selected={id === view}
+              aria-label={name}
+              title={name}
+              onClick={() => setView(id)}
+              className={cn(CHIP, id === view ? CHIP_ON : CHIP_OFF)}
             >
-              {entry.name}
+              <Icon size={18} />
             </button>
           ))}
         </div>
-        <button type="button" aria-pressed={human} onClick={() => choose(() => setHuman(!human))} className={cn(CHIP, human ? CHIP_ON : CHIP_OFF)}>
-          Humanize
-        </button>
-        <div className="ml-auto flex gap-1">
-          <Button variant="secondary" onClick={download} aria-label="Download MIDI" title="Download MIDI">
-            <Download size={18} />
-          </Button>
-          <label title="Open a MIDI file" className={cn(CHIP, CHIP_OFF, "inline-flex cursor-pointer items-center")}>
-            <Upload size={18} />
-            <span className="sr-only">Open a MIDI file</span>
-            <input
-              type="file"
-              accept=".mid,.midi"
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file !== undefined) void upload(file);
-              }}
-            />
-          </label>
-        </div>
       </section>
 
-      <section aria-label="Facts" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-secondary">
-        <span>{written.key}</span>
-        <span>{written.metre.join("/")}</span>
-        <span>{Math.round(written.bpm)} bpm</span>
-        <span>{Math.ceil(scoreBeats(written) / barBeats(written))} bars</span>
-        <span>
-          {Math.floor(seconds / 60)}:{String(Math.round(seconds % 60)).padStart(2, "0")}
-        </span>
-        {written.tracks.map((track) => (
-          <span key={track.name} className="flex items-center gap-1.5">
-            <span aria-hidden className="size-2.5 rounded-full" style={{ backgroundColor: `var(${ROLE_TOKEN[track.role]})` }} />
-            {track.name}
-          </span>
-        ))}
-      </section>
-
-      <div role="tablist" className="flex gap-1">
-        {VIEWS.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            role="tab"
-            aria-selected={entry.id === view}
-            onClick={() => setView(entry.id)}
-            className={cn(CHIP, entry.id === view ? CHIP_ON : CHIP_OFF)}
-          >
-            {entry.name}
-          </button>
-        ))}
-      </div>
-
-      {view === "roll" && <PianoRoll score={score} />}
-      {view === "sheet" && <SheetMusic abc={piece.format === "abc" && piece.source !== null ? piece.source : scoreToAbc(written)} />}
-      {view === "source" && (
-        <pre className="max-h-[32rem] overflow-auto rounded-lg bg-surface-secondary p-3 text-xs text-text-secondary">
-          {piece.source ?? scoreToAbc(written)}
-        </pre>
+      {failure !== null && (
+        <p role="alert" className="px-2 pb-2 text-sm text-brand-pink">
+          {failure}
+        </p>
       )}
+
+      {view === "roll" && <TrackLegend score={score} instruments={trackInstruments} focus={focus} onFocus={setFocus} />}
+      <HarmonyLane score={score} analysis={piece.analysis} picked={picked} onDetail={setDetail} />
+      {view === "roll" && <PianoRoll score={score} light={light} />}
+      {view === "sheet" && <SheetMusic score={score} light={light} instruments={trackInstruments} />}
+      {piece.analysis !== undefined && (
+        <FeaturePicker features={features} section={formSection} barLength={barBeats(score)} picked={picked} onPick={pickFeature} detail={detail} />
+      )}
+      <Scrubber
+        key={piece.id}
+        seconds={timingOf(score).seconds(scoreBeats(score))}
+        barLength={barBeats(score)}
+        time={timingOf(score)}
+        analysis={piece.analysis}
+        picked={picked}
+        onSection={onSection}
+        onDetail={setDetail}
+      />
     </main>
   );
 }

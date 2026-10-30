@@ -1,13 +1,19 @@
-import { ROLES, type Role, type Score, type Track } from "../types";
+import { ROLES, type PedalSpan, type Role, type Score, type TempoPoint, type Track } from "../types";
 
-// A piece as bare MIDI events, the way a MIDI file holds them, in numbers
+// A piece as bare MIDI events, in numbers
 // rather than note names: 480 ticks to the quarter, pitch and velocity from 0
-// to 127.
+// to 127. `tempo` changes the tempo at a tick; `glide` arrives at one by a tick,
+// evenly from the last. `pedal` is down from a tick for a length: under a `track`
+// line for that track, above them all for every track.
 //
 //   title: Example
 //   bpm: 96
 //   metre: 4/4
 //   key: Am
+//
+//   tempo 3840 80
+//   glide 7680 60
+//   pedal 0 1920
 //
 //   track lead melody
 //   # tick length pitch velocity
@@ -15,9 +21,10 @@ import { ROLES, type Role, type Score, type Track } from "../types";
 //   480 240 72 84
 //
 //   track bass bass
+//   pedal 960 960
 //   0 1920 45 70
 
-export const TICKS_PER_BEAT = 480;
+const TICKS_PER_BEAT = 480;
 
 function isRole(word: string): word is Role {
   return (ROLES as readonly string[]).includes(word);
@@ -26,6 +33,8 @@ function isRole(word: string): word is Role {
 export function eventsScore(source: string): Score {
   const header = new Map<string, string>();
   const tracks: Track[] = [];
+  const changes: TempoPoint[] = [];
+  const pedal: PedalSpan[] = [];
   for (const raw of source.split("\n")) {
     const line = raw.trim();
     if (line === "" || line.startsWith("#")) continue;
@@ -33,6 +42,20 @@ export function eventsScore(source: string): Score {
       const [, role, name] = line.split(/\s+/);
       if (!isRole(role)) throw new Error(`Events: "${role}" is not a role, in "${line}"`);
       tracks.push({ name, role, notes: [] });
+      continue;
+    }
+    const [word, ...rest] = line.split(/\s+/);
+    if (word === "tempo" || word === "glide") {
+      const [tick, bpm] = rest.map(Number);
+      changes.push({ beat: tick / TICKS_PER_BEAT, bpm, ...(word === "glide" ? { glide: true } : {}) });
+      continue;
+    }
+    if (word === "pedal") {
+      const [tick, length] = rest.map(Number);
+      const span = { start: tick / TICKS_PER_BEAT, end: (tick + length) / TICKS_PER_BEAT };
+      const track = tracks.at(-1);
+      if (track === undefined) pedal.push(span);
+      else (track.pedal ??= []).push(span);
       continue;
     }
     const colon = line.indexOf(":");
@@ -59,5 +82,5 @@ export function eventsScore(source: string): Score {
     return value;
   };
   const [beats, unit] = field("metre").split("/").map(Number);
-  return { title: field("title"), bpm: Number(field("bpm")), metre: [beats, unit], key: field("key"), tracks };
+  return { title: field("title"), tempo: [{ beat: 0, bpm: Number(field("bpm")) }, ...changes], pedal, metre: [beats, unit], key: field("key"), tracks };
 }
