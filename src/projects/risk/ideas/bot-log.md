@@ -1394,7 +1394,7 @@ Bar 5's mirror check, every seat `native-v2~{"execute":1}`, seeds `v2mirror`, 50
 
 Bar 5 (at most 1 in 100) **fails** at both, by 7 and 14 times. Bar 4 (nine turns in ten under 5 s) holds.
 
-The plain baseline's own 6-player mirror, the same seeds and count: 9 capped (1.8%), mean 282 turns, so the baseline misses bar 5 too, narrowly, and `execute` multiplies it by about eight.
+The plain baseline's own 6-player mirror, the same seeds and count: 9 capped (1.8%), mean 282 turns, so the baseline misses bar 5 too, narrowly, and `execute` multiplies it by about eight. At 5 players the baseline passes: 4 capped (0.8%), mean 213 turns, against `execute`'s 7.0% and 328.
 
 Recorded on 24 seeds of their own (`stalla`–`stalld`, 6 players), `execute` capped 3 and the plain baseline 0, so the stall is `execute`'s. Its capped games aren't passive: every turn attacks. Two shapes:
 
