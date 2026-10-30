@@ -507,6 +507,36 @@ slow slide.
 If 32 fails too, a colder update only slows the fall, and the gradient's noise isn't the whole
 story: step 3's bias diagnosis comes before any more training.
 
+## pf4 longer: it wanders, and all three predictions failed
+
+The five-hour budget ran out at iteration 244. The one-out checks (the learner's seats' win share,
+par 80%, 1,024 games each):
+
+| Iteration | 25 | 50 | 75 | 100 | 125 | 150 | 175 | 200 | 225 |
+|---|---|---|---|---|---|---|---|---|---|
+| Against sw128b-450 | 76 | 84 | 81 | 85 | 82 | 80 | 72 | 71 | 75 |
+| Against m2a-50 | 87 | 89 | 83 | 61 | 63 | 53 | 40 | 41 | 46 |
+
+31 failed: against sw128b-450 it held through 150, then fell to the low 70s. Against m2a-50 the
+fall is larger and steady, from par-plus to half of par.
+
+The ladder (5 players, 8,192 games, sw-450 at 0):
+
+| net-v1 | pf4-50 | pf4-100 | pf4-244 | sw-450 | pf4-150 | pf4-225 | pf4-200 |
+|---|---|---|---|---|---|---|---|
+| +74 | +61 | +29 | +19 | 0 | −2 | −27 | −63 |
+
+32 and 33 failed: the last snapshot rates 10 below pf4-100 and 19 above sw-450. The order isn't a
+slide but a wander: 200 at −63 and 244 at +19 are 44 iterations apart, the same scatter sw128b
+showed after 450. pf4-50 rates above everything it trained into, so the colder run's best moment
+was its first, as with every run so far. net-v1 (m2a-50) leads this ladder by 74 where the
+earlier one put it at +3: a field of pf4's snapshots, trained against sw-450 and drifting from
+it, is a field m2a-50 happens to beat, which is the field dependence of the Luce fit again, and
+why a ladder's ratings are read only within it.
+
+So a colder update slows the drift but doesn't stop it, and longer training doesn't climb. Step 3
+comes next: the bias diagnosis, before any more training.
+
 ## Did sw128b stop learning?
 
 It learned, then flattened, then wandered. Its checks against the fixed bots (win %; par 33% for
@@ -552,8 +582,9 @@ than the wander's. That is what pf4 tests.
 3. **If pf4 doesn't hold (22 fails)**, temperature isn't the lever, and the noise reading needs
    revisiting before any more training: the next suspect is a bias in the update (the value
    baseline, or PPO's clipping at this scale), measured, not guessed.
-4. **Longer cold runs** come after: pf4's progress per iteration is about half pf2's by
-   construction, so a real climb may need several hundred iterations to show.
+   pf4 held at first but wandered given time, and shaping by army share taught pf5 to stall, so
+   this is the next step whatever 22 said.
+4. **Longer cold runs are done**: pf4 to 244 wandered without climbing (31 to 33 failed).
 
 Checkpoints and logs live in the main checkout's `gpu/runs/selfplay/` (git-ignored), with the
 launch scripts beside them.
