@@ -96,5 +96,5 @@ Traffic, weather, seasons (a Finnish winter would set this game apart) and ferri
 - **Forest at speed on an integrated GPU.** Forest to the horizon is the most expensive thing in the scene. The plan is flat cards beyond a short distance, and the real cost shows at phase 4.
 - **Generated buildings.** Footprints give shapes, not character. Mariehamn will need hand-made work, while the countryside can stay simple.
 - **Cars.** They are invented, so there is no licensing problem, but a good car is hard to generate in code. Expect a mix of openly licensed models and custom work, chosen at phase 4.
-- **Data volume and download cost.** Raw land terrain is roughly 2 GB by estimate, before compression. Phase 3 replaces the estimate with a measurement.
+- **Data volume and download cost.** Measured at phase 3: a built tile is about 4.5 MB, and a player's download is bounded by the map because the browser keeps what it fetched, about 285 MB for one person to see the whole main island. `CLAUDE.md` holds the numbers and the hosting recommendation.
 - **Relay load.** Fast car positions are a new kind of traffic for it. Phase 6 tests this before building on it.
