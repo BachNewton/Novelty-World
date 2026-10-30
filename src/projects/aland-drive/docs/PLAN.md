@@ -61,6 +61,8 @@ About nine tiles, loaded as the car moves.
 
 Dress the nine-tile area: forest, shoreline, fields and building shapes from footprints. Then look at it and decide how realistic the game is going to be, and pick the car style to match.
 
+NLS's 3D buildings are shapes with no textures, so walls have to be made. Try a library of wall textures made with image generation from real reference photos (Åland red timber, white trim, plaster, shopfronts), assigned by building type, side by side with purely procedural walls on one street, and keep whichever looks better. AI use is disclosed if the generated textures ship.
+
 **Exit test:** the owner has judged the result in the running game, and the art direction and car style are decided and written into `CLAUDE.md`.
 
 ### 5. Whole island
