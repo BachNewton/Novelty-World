@@ -164,6 +164,29 @@ test("the next chapter downloads while one plays, and follows it without going b
   expect(requests.filter((url) => url.endsWith("/two.wav"))).toEqual([]);
 });
 
+test("a stop the listener didn't ask for says so, and offers its log; their own pause doesn't", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await stubBucket(page);
+  await page.goto("/tools/audiobook/test-book");
+  const stopped = page.getByRole("status").filter({ hasText: "Stopped" });
+
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await expect(stopped).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  // As the phone does it: the audio paused from outside the player's controls.
+  await page.locator("audio").evaluate((el: HTMLAudioElement) => el.pause());
+  await expect(stopped).toContainText("not by you");
+  await expect(stopped.getByRole("button", { name: "Copy log" })).toBeVisible();
+  expect(await page.evaluate(() => [document.scrollingElement?.scrollHeight, document.scrollingElement?.scrollWidth])).toEqual([640, 360]);
+
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(stopped).toHaveCount(0);
+});
+
 test("on a phone, the player fits the screen and the lists open over it", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await stubBucket(page);

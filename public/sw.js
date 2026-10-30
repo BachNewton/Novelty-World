@@ -26,11 +26,16 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+// A new version takes over at once, rather than waiting for every tab of the site to close: a phone keeps its tabs
+// open for weeks.
+self.addEventListener("install", () => self.skipWaiting());
+
 // Clean up old caches on activation
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });

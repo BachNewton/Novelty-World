@@ -15,6 +15,7 @@ import {
   SKIP_BACK_SECONDS,
   SKIP_FORWARD_SECONDS,
 } from "../logic";
+import { logPlayback, playbackLogText } from "../playback-log";
 import { useListening } from "../store";
 import type { Book, Bookmark, Photo } from "../types";
 import { BookArt } from "./book-art";
@@ -59,6 +60,10 @@ export function Player({ book }: { book: Book }) {
   const [source, setSource] = useState(() => fileUrl(book.chapters[start.chapter].audio));
   const [started, setStarted] = useState(false);
   const [downloaded, setDownloaded] = useState<string | null>(null);
+  // Set while a pause is the listener's own, so a pause nobody asked for can be told apart (ideas/lock-screen-stop.md).
+  const listenerPaused = useRef(false);
+  const [unaskedStop, setUnaskedStop] = useState<string | null>(null);
+  const [logCopied, setLogCopied] = useState(false);
 
   const chapter = book.chapters[chapterIndex];
   const nextAudio = chapterIndex < book.chapters.length - 1 ? book.chapters[chapterIndex + 1].audio : undefined;
@@ -108,11 +113,18 @@ export function Player({ book }: { book: Book }) {
     goTo(chapterIndex, Math.min(Math.max(0, position), el.duration || chapter.duration), !el.paused);
   }
 
+  function play() {
+    void audio.current?.play();
+  }
+
+  function pause() {
+    listenerPaused.current = true;
+    audio.current?.pause();
+  }
+
   function togglePlay() {
-    const el = audio.current;
-    if (!el) return;
-    if (el.paused) void el.play();
-    else el.pause();
+    if (audio.current?.paused) play();
+    else pause();
   }
 
   function previousChapter() {
@@ -124,9 +136,9 @@ export function Player({ book }: { book: Book }) {
   }
 
   // The lock screen's and headphones' controls call whatever this render's handlers are.
-  const actions = useRef({ togglePlay, seek, time, previousChapter, nextChapter });
+  const actions = useRef({ play, pause, togglePlay, seek, time, previousChapter, nextChapter });
   useEffect(() => {
-    actions.current = { togglePlay, seek, time, previousChapter, nextChapter };
+    actions.current = { play, pause, togglePlay, seek, time, previousChapter, nextChapter };
   });
 
   useEffect(() => {
@@ -191,8 +203,20 @@ export function Player({ book }: { book: Book }) {
     if (!("mediaSession" in navigator)) return;
     const session = navigator.mediaSession;
     const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
-      ["play", () => actions.current.togglePlay()],
-      ["pause", () => actions.current.togglePlay()],
+      [
+        "play",
+        () => {
+          logPlayback("lock screen: play", audio.current);
+          actions.current.play();
+        },
+      ],
+      [
+        "pause",
+        () => {
+          logPlayback("lock screen: pause", audio.current);
+          actions.current.pause();
+        },
+      ],
       ["seekbackward", (d) => actions.current.seek(actions.current.time - (d.seekOffset ?? SKIP_BACK_SECONDS))],
       ["seekforward", (d) => actions.current.seek(actions.current.time + (d.seekOffset ?? SKIP_FORWARD_SECONDS))],
       ["seekto", (d) => actions.current.seek(d.seekTime ?? actions.current.time)],
@@ -205,6 +229,43 @@ export function Player({ book }: { book: Book }) {
       session.metadata = null;
     };
   }, []);
+
+  // Everything the audio and the page do that could stop playback, logged for ideas/lock-screen-stop.md.
+  useEffect(() => {
+    const el = audio.current;
+    if (!el) return;
+    const log = (e: Event) => logPlayback(e.type, el);
+    const onError = (e: Event) => {
+      log(e);
+      setUnaskedStop(`playback error ${el.error ? String(el.error.code) : "?"}`);
+    };
+    const mediaEvents = ["playing", "waiting", "stalled", "emptied", "abort", "ended", "loadstart", "canplay"];
+    const pageEvents = ["visibilitychange", "freeze", "resume", "pagehide", "pageshow"];
+    const networkEvents = ["online", "offline"];
+    for (const type of mediaEvents) el.addEventListener(type, log);
+    el.addEventListener("error", onError);
+    for (const type of pageEvents) document.addEventListener(type, log);
+    for (const type of networkEvents) window.addEventListener(type, log);
+    const worker = "serviceWorker" in navigator ? navigator.serviceWorker.controller : null;
+    logPlayback("player opened", el, worker ? `service worker ${worker.scriptURL}` : "no service worker");
+    return () => {
+      for (const type of mediaEvents) el.removeEventListener(type, log);
+      el.removeEventListener("error", onError);
+      for (const type of pageEvents) document.removeEventListener(type, log);
+      for (const type of networkEvents) window.removeEventListener(type, log);
+    };
+  }, []);
+
+  function onPause() {
+    const el = audio.current;
+    setPlaying(false);
+    const asked = listenerPaused.current;
+    listenerPaused.current = false;
+    // A chapter's end, or the load of another chapter, stops the audio on its way to the next.
+    if (!el || el.ended || pending.current !== null) return;
+    logPlayback(asked ? "pause (listener)" : "pause (not the listener)", el);
+    if (!asked) setUnaskedStop(`paused at ${formatTime(el.currentTime)}, not by you`);
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -263,10 +324,12 @@ export function Player({ book }: { book: Book }) {
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
         onPlay={() => {
+          logPlayback("play", audio.current);
           setPlaying(true);
           setStarted(true);
+          setUnaskedStop(null);
         }}
-        onPause={() => setPlaying(false)}
+        onPause={onPause}
         onEnded={onEnded}
       />
 
@@ -293,6 +356,24 @@ export function Player({ book }: { book: Book }) {
               <p className="shrink-0 text-center text-sm break-words text-text-secondary" data-testid="photo-caption">
                 {photo.caption}
               </p>
+            )}
+
+            {unaskedStop !== null && (
+              <div
+                role="status"
+                className="flex shrink-0 items-center justify-between gap-3 rounded-lg border border-brand-pink/50 bg-surface-elevated px-3 py-2 text-sm"
+              >
+                <span className="min-w-0 break-words">Stopped: {unaskedStop}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(playbackLogText()).then(() => setLogCopied(true));
+                  }}
+                  className="shrink-0 rounded-full bg-brand-pink px-3 py-1 font-bold text-surface-primary"
+                >
+                  {logCopied ? "Copied" : "Copy log"}
+                </button>
+              </div>
             )}
 
             <div className="flex shrink-0 items-baseline justify-between gap-3">

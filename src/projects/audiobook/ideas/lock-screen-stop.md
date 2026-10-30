@@ -1,6 +1,10 @@
 # Playback stops when the phone locks
 
-An open bug, not yet reproduced. The owner, listening on Android (Chrome), sometimes finds that the player has stopped after the screen locks. Opening the page and pressing play starts it again. It isn't known whether it stops partway through a chapter or where one chapter should roll into the next.
+An open bug, not yet reproduced. The owner, listening on Android (Chrome), sometimes finds that the player has stopped after the screen locks. Opening the page and pressing play starts it again. It happens partway through a chapter, not at chapter boundaries, and it still happened after both changes below.
+
+## Diagnosis in place
+
+The player logs what the audio element and the page do (`playback-log.ts`, in this browser's localStorage): play and pause, buffering, errors, the page being hidden, frozen or resumed, the network going on or off, and the lock screen's play and pause. A pause the listener didn't ask for, or a playback error, shows a "Stopped" banner over the chapter title, with a button that copies the log for the owner to paste back. The banner, the log and the listener-pause bookkeeping in `player.tsx` all go once the cause is found.
 
 ## Done so far, on suspicion
 
