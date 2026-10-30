@@ -52,10 +52,4 @@ CC BY and ODbL sources are credited on the credits page when their data first sh
 
 ## Phases
 
-1. **Data proof** on the one tile, and settle the unconfirmed sources.
-2. **First drive** on that area: simple graphics, one placeholder car, keyboard and controller, proving driving feel and road smoothing. Raw terrain makes bumpy roads, so roads need smoothing and blending into the land.
-3. **Grow** to about 9 tiles and build streaming.
-4. **Art direction check** with forest, shoreline, fields and building shapes, then pick the car style.
-5. **Whole island**, with map, GPS and bridges.
-6. **Game loop**: road discovery, races, buying cars and a house, then online free-roam on the relay. Car positions are designed for that from phase 2.
-7. **Traffic, weather, seasons, ferries.**
+`docs/PLAN.md` holds the phases, why they run in that order, each phase's exit test and the risks.
