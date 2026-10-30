@@ -68,7 +68,8 @@ Dress the nine-tile area: forest, shoreline, fields and building shapes from foo
 Everything, end to end.
 
 - All land tiles through the pipeline, with sizes and hosting confirmed.
-- Map and GPS.
+- A mini map while driving, and a world map of the whole island with GPS routes set from it.
+- Street names on the road as you drive, and on both maps.
 - Bridges and causeways, which the terrain data doesn't carry as driving surfaces.
 - First hand-made landmarks: Kastelholm, Bomarsund, central Mariehamn.
 
