@@ -43,6 +43,7 @@ export function AlandDrive() {
   const speedText = useRef<HTMLSpanElement>(null);
   const speedBar = useRef<HTMLDivElement>(null);
   const [noWebGpu, setNoWebGpu] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const [attribution, setAttribution] = useState<string[]>([]);
   const [input, setInput] = useState<InputKind>("keyboard-mouse");
   const [camera, setCamera] = useState<CameraMode>("chase");
@@ -68,7 +69,7 @@ export function AlandDrive() {
       }
       const { NoWebGpuError, startGame } = await import("../render/game");
       try {
-        const game = await startGame(element, { onHud: showSpeed, onInputKind: setInput, onCamera: setCamera });
+        const game = await startGame(element, { onHud: showSpeed, onInputKind: setInput, onCamera: setCamera, onFailure: (lost) => { setFailure(lost.message); } });
         if (closed()) {
           game.dispose();
           return;
@@ -80,7 +81,10 @@ export function AlandDrive() {
           delete window.__alandDrive;
         };
       } catch (error) {
-        if (!(error instanceof NoWebGpuError)) throw error;
+        if (!(error instanceof NoWebGpuError)) {
+          setFailure(error instanceof Error ? error.message : String(error));
+          throw error;
+        }
         setNoWebGpu(true);
       }
     })();
@@ -119,6 +123,11 @@ export function AlandDrive() {
             {attribution.join(" · ")}
           </Link>
         </>
+      )}
+      {failure !== null && (
+        <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
+          <p className="max-w-md text-lg">Åland Drive lost part of the map: {failure}</p>
+        </div>
       )}
       {noWebGpu && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK }}>

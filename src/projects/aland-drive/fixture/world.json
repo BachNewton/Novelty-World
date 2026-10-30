@@ -1,0 +1,62 @@
+{
+  "format": 3,
+  "version": "fixture",
+  "worldOrigin": {
+    "east": 110000,
+    "north": 6690000
+  },
+  "tileM": 6000,
+  "tiles": [
+    {
+      "name": "L2343C",
+      "west": -12000,
+      "north": 6000
+    }
+  ],
+  "start": {
+    "tile": "L2343C",
+    "chain": 0
+  },
+  "heights": {
+    "file": "heights.bin.gz",
+    "nodes": 1501,
+    "stepM": 4.0,
+    "unitM": 0.01,
+    "encoding": "gzip of int16le; rows north to south, west to east; each value the difference from the one to its west",
+    "min": -0.04,
+    "max": 40.06
+  },
+  "far": {
+    "heightsFile": "heights-far.bin.gz",
+    "nodes": 376,
+    "stepM": 16.0,
+    "shadeFile": "shade-far.webp",
+    "shadePixels": 750
+  },
+  "shade": {
+    "file": "shade.webp",
+    "pixels": 3000,
+    "pixelM": 2,
+    "gamma": 2.2
+  },
+  "mask": {
+    "file": "mask.png",
+    "pixels": 1500,
+    "channels": [
+      "water",
+      "main road",
+      "lesser road"
+    ]
+  },
+  "water": {
+    "nodesFile": "water-nodes.bin.gz"
+  },
+  "sun": {
+    "azimuthDeg": 215,
+    "elevationDeg": 30
+  },
+  "attribution": [
+    "Elevation: National Land Survey of Finland, 2 m elevation model, CC BY 4.0",
+    "Roads and buildings: © OpenStreetMap contributors, ODbL 1.0"
+  ]
+}

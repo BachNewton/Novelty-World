@@ -1,10 +1,10 @@
 import { steerLimit, type DriveInput } from "./car";
 import { headingOf, speedOf, type CarState } from "./car-state";
-import type { RoadNet } from "./road-net";
+import type { RoadLine } from "./road-net";
 import { CAR } from "./tuning";
 
 /*
- * A plain driver for measuring: pure pursuit along one chain, as fast as the
+ * A plain driver for measuring: pure pursuit along one line, as fast as the
  * bends ahead allow. It stands in for a player in the scripted drive, and being
  * a pure function of the car's state and its place on the road, the same drive
  * comes out every time.
@@ -22,12 +22,11 @@ const SEARCH_STEP_M = 2;
 const wrap = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
 
 export class Autopilot {
-  /** How far along the chain the car has got. */
+  /** How far along the line the car has got. */
   along: number;
 
   constructor(
-    private readonly net: RoadNet,
-    private readonly chain: number,
+    private readonly line: RoadLine,
     /** The speed to hold where the road allows it. */
     private readonly cruiseMS: number,
     from: number,
@@ -38,8 +37,8 @@ export class Autopilot {
   private follow(car: CarState): void {
     let best = this.along;
     let nearest = Infinity;
-    for (let along = this.along - SEARCH_M; along <= this.along + SEARCH_M; along += SEARCH_STEP_M) {
-      const point = this.net.at(this.chain, along);
+    for (let along = Math.max(this.along - SEARCH_M, 0); along <= this.along + SEARCH_M; along += SEARCH_STEP_M) {
+      const point = this.line.at(along);
       const distance = Math.hypot(point.x - car.position[0], point.z - car.position[2]);
       if (distance < nearest) {
         nearest = distance;
@@ -49,15 +48,15 @@ export class Autopilot {
     this.along = best;
   }
 
-  /** True once the car is within a stopping distance of the chain's far end. */
+  /** True once the car is within a stopping distance of the line's far end. */
   finished(): boolean {
-    return this.along >= this.net.lengthOf(this.chain) - 60;
+    return this.along >= this.line.length - 60;
   }
 
   input(car: CarState): DriveInput {
     this.follow(car);
     const speed = speedOf(car);
-    const ahead = this.net.at(this.chain, this.along + Math.max(SHORTEST_LOOK_M, speed * LOOK_AHEAD_S));
+    const ahead = this.line.at(this.along + Math.max(SHORTEST_LOOK_M, speed * LOOK_AHEAD_S));
     const toTarget = Math.atan2(-(ahead.x - car.position[0]), -(ahead.z - car.position[2]));
     const off = wrap(toTarget - headingOf(car.rotation));
     const distance = Math.hypot(ahead.x - car.position[0], ahead.z - car.position[2]);
@@ -67,7 +66,7 @@ export class Autopilot {
     let allowed = this.cruiseMS;
     for (let step = 1; step <= LOOK_STEPS; step++) {
       const reach = this.along + (step / LOOK_STEPS) * Math.max(speed * SPEED_LOOK_S, 40);
-      const bend = Math.abs(wrap(this.net.at(this.chain, reach + 12).heading - this.net.at(this.chain, reach - 12).heading)) / 24;
+      const bend = Math.abs(wrap(this.line.at(reach + 12).heading - this.line.at(reach - 12).heading)) / 24;
       if (bend > 1e-5) allowed = Math.min(allowed, Math.sqrt(CORNER_MS2 / bend));
     }
 

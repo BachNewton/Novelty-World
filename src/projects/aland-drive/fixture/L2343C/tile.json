@@ -1,5 +1,5 @@
 {
-  "format": 2,
+  "format": 3,
   "tile": "L2343C",
   "crs": "EPSG:3067",
   "worldOrigin": {
@@ -21,6 +21,13 @@
     "min": -0.02,
     "max": 51.34
   },
+  "far": {
+    "heightsFile": "heights-far.bin.gz",
+    "nodes": 376,
+    "stepM": 16.0,
+    "shadeFile": "shade-far.webp",
+    "shadePixels": 750
+  },
   "shade": {
     "file": "shade.webp",
     "pixels": 3000,
@@ -31,10 +38,16 @@
     "azimuthDeg": 215,
     "elevationDeg": 30
   },
+  "mask": {
+    "file": "mask.png",
+    "pixels": 1500,
+    "channels": [
+      "water",
+      "main road",
+      "lesser road"
+    ]
+  },
   "water": {
-    "file": "water.png",
-    "pixels": 3000,
-    "pixelM": 2,
     "nodesFile": "water-nodes.bin.gz"
   },
   "roads": {
@@ -66,7 +79,7 @@
     ],
     "chains": [
       {
-        "sections": 547,
+        "sections": 549,
         "kind": "primary",
         "ref": "1",
         "name": "Hammarlandsvägen",
@@ -80,7 +93,7 @@
         "motor": true
       },
       {
-        "sections": 146,
+        "sections": 149,
         "kind": "tertiary",
         "ref": "180",
         "name": "Torpvägen",
@@ -99,21 +112,21 @@
         "motor": true
       },
       {
-        "sections": 397,
+        "sections": 400,
         "kind": "tertiary",
         "ref": "180",
         "name": "Torpvägen",
         "motor": true
       },
       {
-        "sections": 366,
+        "sections": 369,
         "kind": "tertiary",
         "ref": "270",
         "name": "Vestansundabyaväg",
         "motor": true
       },
       {
-        "sections": 179,
+        "sections": 181,
         "kind": "tertiary",
         "ref": "183",
         "name": "Janssonsgatan",
@@ -127,7 +140,7 @@
         "motor": true
       },
       {
-        "sections": 40,
+        "sections": 41,
         "kind": "tertiary",
         "ref": "180",
         "name": "Torpvägen",
@@ -141,7 +154,7 @@
         "motor": true
       },
       {
-        "sections": 21,
+        "sections": 23,
         "kind": "tertiary",
         "ref": "267",
         "name": "Brobackavägen",
@@ -162,7 +175,7 @@
         "motor": true
       },
       {
-        "sections": 205,
+        "sections": 206,
         "kind": "unclassified",
         "name": "Djekenbölsnäsvägen",
         "motor": true
@@ -210,7 +223,7 @@
         "motor": true
       },
       {
-        "sections": 164,
+        "sections": 166,
         "kind": "residential",
         "name": "Storhagskroken",
         "motor": true
@@ -234,7 +247,7 @@
         "motor": true
       },
       {
-        "sections": 90,
+        "sections": 95,
         "kind": "unclassified",
         "name": "Varggropsvägen",
         "motor": true
@@ -269,7 +282,7 @@
         "motor": true
       },
       {
-        "sections": 268,
+        "sections": 269,
         "kind": "residential",
         "name": "Östergårds",
         "motor": true
@@ -285,7 +298,7 @@
         "motor": true
       },
       {
-        "sections": 293,
+        "sections": 291,
         "kind": "residential",
         "name": "Dalenvägen",
         "motor": true
@@ -446,7 +459,7 @@
         "motor": true
       },
       {
-        "sections": 47,
+        "sections": 44,
         "kind": "unclassified",
         "name": "Västra Näsvägen",
         "motor": true
@@ -509,7 +522,7 @@
         "motor": true
       },
       {
-        "sections": 32,
+        "sections": 35,
         "kind": "residential",
         "name": "Kallesgatan",
         "motor": true
@@ -541,7 +554,7 @@
         "motor": true
       },
       {
-        "sections": 94,
+        "sections": 99,
         "kind": "unclassified",
         "motor": true
       },
@@ -670,7 +683,7 @@
         "motor": true
       },
       {
-        "sections": 53,
+        "sections": 52,
         "kind": "service",
         "motor": true
       },
@@ -711,7 +724,7 @@
         "motor": true
       },
       {
-        "sections": 52,
+        "sections": 49,
         "kind": "service",
         "motor": true
       },
@@ -1241,7 +1254,7 @@
         "motor": true
       },
       {
-        "sections": 7,
+        "sections": 8,
         "kind": "service",
         "motor": true
       },
@@ -1326,7 +1339,7 @@
         "motor": true
       },
       {
-        "sections": 182,
+        "sections": 183,
         "kind": "track",
         "motor": true
       },
@@ -1351,7 +1364,7 @@
         "motor": true
       },
       {
-        "sections": 62,
+        "sections": 61,
         "kind": "track",
         "motor": true
       },
@@ -1416,7 +1429,7 @@
         "motor": true
       },
       {
-        "sections": 59,
+        "sections": 57,
         "kind": "track",
         "motor": true
       },
@@ -1451,7 +1464,7 @@
         "motor": true
       },
       {
-        "sections": 48,
+        "sections": 49,
         "kind": "track",
         "motor": true
       },
@@ -1476,12 +1489,12 @@
         "motor": true
       },
       {
-        "sections": 51,
+        "sections": 50,
         "kind": "track",
         "motor": true
       },
       {
-        "sections": 53,
+        "sections": 55,
         "kind": "track",
         "motor": true
       },
@@ -1641,7 +1654,7 @@
         "motor": true
       },
       {
-        "sections": 22,
+        "sections": 19,
         "kind": "track",
         "motor": true
       },
@@ -1706,7 +1719,7 @@
         "motor": true
       },
       {
-        "sections": 12,
+        "sections": 13,
         "kind": "track",
         "motor": true
       },
@@ -1776,7 +1789,7 @@
         "motor": true
       },
       {
-        "sections": 4,
+        "sections": 5,
         "kind": "track",
         "motor": true
       },
@@ -1846,12 +1859,12 @@
         "motor": false
       },
       {
-        "sections": 47,
+        "sections": 48,
         "kind": "cycleway",
         "motor": false
       },
       {
-        "sections": 25,
+        "sections": 26,
         "kind": "cycleway",
         "motor": false
       },
@@ -1866,7 +1879,7 @@
         "motor": false
       },
       {
-        "sections": 34,
+        "sections": 35,
         "kind": "cycleway",
         "motor": false
       },

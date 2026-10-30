@@ -1,14 +1,11 @@
-import { gunzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { decodeHeights, patchIndices, surfaceHeight, type TileManifest } from "./tile";
-
-const manifestFor = (nodes: number, stepM: number): TileManifest =>
-  ({ tile: "TEST", heights: { nodes, stepM, unitM: 0.01 }, bounds: { west: 100, north: 500 } }) as unknown as TileManifest;
+import { FIXTURE_TILES, readWorld } from "../sim/read-tile";
+import { decodeHeights, patchIndices, surfaceHeight, type TileManifest, type WorldManifest } from "./tile";
 
 describe("the height grid", () => {
   // Rows north to south: the north-west corner is 1 m, the north-east 2, the south-west 3, the south-east 5.
-  const grid = decodeHeights(Int16Array.from([100, 100, 300, 200]), manifestFor(2, 10));
+  const grid = decodeHeights(Int16Array.from([100, 100, 300, 200]), { nodes: 2, stepM: 10, unitM: 0.01 }, { west: 100, north: 500 });
 
   it("undoes the differences along each row, without carrying a row into the next", () => {
     expect([...grid.heights]).toEqual([1, 2, 3, 5]);
@@ -31,24 +28,24 @@ describe("the height grid", () => {
 });
 
 describe("the built tile", () => {
-  const manifest = JSON.parse(readFileSync("public/aland-drive/tiles/L2343C/tile.json", "utf8")) as TileManifest;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the committed fixture
+  const manifest = JSON.parse(readFileSync(`${FIXTURE_TILES}/L2343C/tile.json`, "utf8")) as TileManifest;
 
   it("keeps NLS sheet L2343C at its real place in the world", () => {
-    const { bounds, worldOrigin } = manifest;
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- the committed fixture
+    const { worldOrigin } = JSON.parse(readFileSync(`${FIXTURE_TILES}/world.json`, "utf8")) as WorldManifest;
+    const { bounds } = manifest;
     expect([bounds.west + worldOrigin.east, bounds.south + worldOrigin.north]).toEqual([98000, 6690000]);
     expect([bounds.east + worldOrigin.east, bounds.north + worldOrigin.north]).toEqual([104000, 6696000]);
   });
 
-  it("has the heights it declares, and its roads in the terrain's own space", () => {
-    const raw = gunzipSync(readFileSync("public/aland-drive/tiles/L2343C/heights.bin.gz"));
-    expect(raw.length).toBe(manifest.heights.nodes ** 2 * 2);
-    const { roads } = JSON.parse(readFileSync("public/aland-drive/tiles/L2343C/roads.json", "utf8")) as { roads: { line: [number, number][] }[] };
-    expect(roads.length).toBeGreaterThan(0);
-    for (const point of roads.flatMap((road) => road.line)) {
-      expect(point[0]).toBeGreaterThanOrEqual(manifest.bounds.west);
-      expect(point[0]).toBeLessThanOrEqual(manifest.bounds.east);
-      expect(point[1]).toBeGreaterThanOrEqual(manifest.bounds.south);
-      expect(point[1]).toBeLessThanOrEqual(manifest.bounds.north);
+  it("has the heights it declares, at both details, and the far ones are the near ones' every fourth node", () => {
+    const world = readWorld(FIXTURE_TILES);
+    const { far, detail } = world.named("L2343C");
+    if (!far || !detail) throw new Error("the fixture didn't load");
+    expect(detail.grid.heights.length).toBe(1501 ** 2);
+    for (const [row, column] of [[0, 0], [0, 375], [200, 100], [375, 375]]) {
+      expect(far.heights[row * far.nodes + column]).toBe(detail.grid.heights[row * 4 * detail.grid.nodes + column * 4]);
     }
   });
 });

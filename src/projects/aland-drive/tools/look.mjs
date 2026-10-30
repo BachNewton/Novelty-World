@@ -4,7 +4,8 @@
 //
 // Prereq: a dev server. Usage:
 //   node src/projects/aland-drive/tools/look.mjs <out.png> [east north height yaw pitch] [--size=WxH]
-// Positions are ETRS-TM35FIN metres. ALAND_DRIVE_URL overrides the page's address.
+// Positions are ETRS-TM35FIN metres. ALAND_DRIVE_URL overrides the page's address; add ?tiles=local:<port> to it for a
+// local tile server (`tools/serve-tiles.mjs`), which is what a look should use rather than the real host.
 
 import { chromium } from "playwright";
 
@@ -35,8 +36,14 @@ if (PLACE.length === 5) {
   await page.evaluate((place) => window.__alandDrive.look(place), { east, north, height, yaw, pitch });
 }
 await page.evaluate(async (settle) => {
-  const target = window.__alandDrive.frames() + settle;
-  while (window.__alandDrive.frames() < target) await new Promise(requestAnimationFrame);
+  const probe = window.__alandDrive;
+  const framesPass = async (count) => {
+    const target = probe.frames() + count;
+    while (probe.frames() < target) await new Promise(requestAnimationFrame);
+  };
+  await framesPass(settle);
+  while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
+  await framesPass(settle);
 }, FRAMES_TO_SETTLE);
 
 const report = await page.evaluate(async () => {

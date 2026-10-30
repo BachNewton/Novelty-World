@@ -6,14 +6,37 @@
 
 export interface TileManifest {
   tile: string;
-  worldOrigin: { east: number; north: number };
   bounds: { west: number; south: number; east: number; north: number };
-  heights: { file: string; nodes: number; stepM: number; unitM: number };
-  shade: { file: string; gamma: number };
-  water: { file: string; nodesFile: string };
   roadSurface: { file: string; chains: RoadChain[] };
+}
+
+/** What `world.json` says about the whole of what's been built. */
+export interface WorldManifest {
+  version: string;
+  tileM: number;
+  worldOrigin: { east: number; north: number };
+  tiles: WorldTileEntry[];
+  /** Where the drive starts: this tile's chain. */
+  start: { tile: string; chain: number };
+  heights: HeightsFormat & { file: string };
+  far: { nodes: number; stepM: number; heightsFile: string; shadeFile: string; shadePixels: number };
+  shade: { file: string; pixels: number; gamma: number };
+  mask: { file: string; pixels: number };
+  water: { nodesFile: string };
   sun: { azimuthDeg: number; elevationDeg: number };
   attribution: string[];
+}
+
+export interface WorldTileEntry {
+  name: string;
+  west: number;
+  north: number;
+}
+
+interface HeightsFormat {
+  nodes: number;
+  stepM: number;
+  unitM: number;
 }
 
 /** One continuous drive through the network, the greatest road first: chain 0 is the tile's main road. */
@@ -49,9 +72,9 @@ export interface HeightGrid {
   heights: Float32Array;
 }
 
-export function decodeHeights(deltas: Int16Array, manifest: TileManifest): HeightGrid {
-  const { nodes, stepM, unitM } = manifest.heights;
-  if (deltas.length !== nodes * nodes) throw new Error(`${manifest.tile}: expected ${nodes * nodes} heights, got ${deltas.length}`);
+export function decodeHeights(deltas: Int16Array, format: HeightsFormat, tile: { west: number; north: number }): HeightGrid {
+  const { nodes, stepM, unitM } = format;
+  if (deltas.length !== nodes * nodes) throw new Error(`expected ${nodes * nodes} heights, got ${deltas.length}`);
   const heights = new Float32Array(deltas.length);
   for (let row = 0; row < nodes; row++) {
     let units = 0;
@@ -60,7 +83,7 @@ export function decodeHeights(deltas: Int16Array, manifest: TileManifest): Heigh
       heights[row * nodes + column] = units * unitM;
     }
   }
-  return { nodes, stepM, west: manifest.bounds.west, north: manifest.bounds.north, heights };
+  return { nodes, stepM, west: tile.west, north: tile.north, heights };
 }
 
 /**
@@ -121,49 +144,4 @@ export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): Ro
     return placed;
   });
   return { rings, tiers: new Uint8Array(data, floats * 4), chains };
-}
-
-/** Everything about a tile the simulation needs, with no GPU in sight. */
-export interface TileData {
-  manifest: TileManifest;
-  grid: HeightGrid;
-  surface: RoadSurface;
-  /** A byte per height node: 1 on a lake or the sea. */
-  waterNodes: Uint8Array;
-}
-
-async function fetchInflated(url: string): Promise<ArrayBuffer> {
-  const response = await fetchOk(url);
-  if (!response.body) throw new Error(`${url}: empty response`);
-  return new Response(response.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
-}
-
-export async function loadTile(base: string): Promise<TileData & { shade: ImageBitmap; water: ImageBitmap }> {
-  const manifest = await fetchOk(`${base}/tile.json`).then((response) => response.json() as Promise<TileManifest>);
-  const [heights, surface, waterNodes, shade, water] = await Promise.all([
-    fetchInflated(`${base}/${manifest.heights.file}`),
-    fetchInflated(`${base}/${manifest.roadSurface.file}`),
-    fetchInflated(`${base}/${manifest.water.nodesFile}`),
-    fetchBitmap(`${base}/${manifest.shade.file}`),
-    fetchBitmap(`${base}/${manifest.water.file}`),
-  ]);
-  return {
-    manifest,
-    grid: decodeHeights(new Int16Array(heights), manifest),
-    surface: decodeRoadSurface(surface, manifest),
-    waterNodes: new Uint8Array(waterNodes),
-    shade,
-    water,
-  };
-}
-
-async function fetchOk(url: string): Promise<Response> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url}: ${response.status}`);
-  return response;
-}
-
-async function fetchBitmap(url: string): Promise<ImageBitmap> {
-  const response = await fetchOk(url);
-  return createImageBitmap(await response.blob(), { colorSpaceConversion: "none", premultiplyAlpha: "none" });
 }
