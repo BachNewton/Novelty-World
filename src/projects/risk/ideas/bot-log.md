@@ -1382,3 +1382,21 @@ The same way, 1,000 games each way round, seeds `v2h2h`, rotated (runs 407279855
 ## native-v2 against rule-v7.1: the first gauntlet played no games (2026-10-29)
 
 Run 40720793871 (`native-v2~{"execute":1}`, base and field rule-v7.1, train seeds) ran all sixteen rounds and every one of its 3,200 games threw: `risk:shard`, which plays a remote round's games, never listed the native bots on its main thread, so no worker could seat one. Its report stopped at its header. The shard now checks a plan's labels before its pool starts, as every CLI does. The gauntlet is to run again.
+
+## native-v2: execute fails the stall bar (2026-10-30)
+
+Bar 5's mirror check, every seat `native-v2~{"execute":1}`, seeds `v2mirror`, 500 games each, on the laptop:
+
+| Players | Capped | Mean turns | Median turn | 9 in 10 under | Longest turn |
+|---|---|---|---|---|---|
+| 5 | 35 (7.0%) | 328 | 0.41 s | 0.95 s | 19.5 s |
+| 6 | 70 (14.0%) | 404 | 0.50 s | 1.25 s | 25.2 s |
+
+Bar 5 (at most 1 in 100) **fails** at both, by 7 and 14 times. Bar 4 (nine turns in ten under 5 s) holds.
+
+Recorded on 24 seeds of their own (`stalla`–`stalld`, 6 players), `execute` capped 3 and the plain baseline 0, so the stall is `execute`'s. Its capped games aren't passive: every turn attacks. Two shapes:
+
+- **Endgame churn** (2 of 3): three seats left with about 20 armies each over the 42 territories, each turn capturing five or so one-army territories that the next seat takes back. Nobody holds a stack that could finish anyone.
+- **A five-way grind** (1 of 3): five seats alive at turn 600 with 150 to 200 armies each, about two captures a turn.
+
+In three-seat endgames the two bots' turns look alike (about 5.4 against 6.1 captures a turn, 8.2 against 8.8 armies moved in, three in four move-ins leaving exactly 1 behind); `execute`'s endgames just last longer (2,147 turns over the 24 games against 1,246). So the cause isn't how it moves in, but that it doesn't close games: what keeps it from the kill is open. Candidates, unmeasured: `beyond`'s gate, which takes no capture past the plan unless the board scores better with the feed charge (at weight 1 while `feed` is off), and the plan given up below an even chance.
