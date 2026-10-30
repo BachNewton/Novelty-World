@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { GameProbe } from "../render/game";
 
@@ -21,6 +22,7 @@ const SHADE = "var(--color-aland-drive-ui-shade)";
 export function AlandDrive() {
   const container = useRef<HTMLDivElement>(null);
   const [noWebGpu, setNoWebGpu] = useState(false);
+  const [attribution, setAttribution] = useState<string[]>([]);
 
   useEffect(() => {
     const element = container.current;
@@ -43,6 +45,7 @@ export function AlandDrive() {
         return;
       }
       window.__alandDrive = game.probe;
+      setAttribution(game.attribution);
       stop = () => {
         game.dispose();
         delete window.__alandDrive;
@@ -57,6 +60,11 @@ export function AlandDrive() {
   return (
     <div className="fixed inset-0" style={{ background: SHADE }}>
       <div ref={container} className="absolute inset-0" />
+      {attribution.length > 0 && (
+        <Link href="/credits" className="absolute bottom-2 left-3 text-xs" style={{ color: INK, textShadow: `0 0 4px ${SHADE}` }}>
+          {attribution.join(" · ")}
+        </Link>
+      )}
       {noWebGpu && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK }}>
           <p className="max-w-sm text-lg">Åland Drive needs a browser with WebGPU, such as a recent Chrome, Edge or Safari.</p>

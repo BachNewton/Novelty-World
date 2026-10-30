@@ -375,6 +375,10 @@
 :root {
   --color-aland-drive-sky: #8fc4ea;
   --color-aland-drive-ground: #6f9a55;
+  --color-aland-drive-water: #3f6f94;
+  --color-aland-drive-road-main: #55585c;
+  --color-aland-drive-road-minor: #8d8674;
+  --color-aland-drive-road-track: #b09a74;
   --color-aland-drive-sun: #fff4e0;
   --color-aland-drive-ui-ink: #f4f8fb;
   --color-aland-drive-ui-shade: #1c2a36;

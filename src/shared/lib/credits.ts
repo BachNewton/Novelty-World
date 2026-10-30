@@ -28,6 +28,8 @@ export const LICENSES = {
   "public-domain": { name: "Public domain", url: null, attribution: false },
   "cc0-1.0": { name: "CC0 1.0", url: "https://creativecommons.org/publicdomain/zero/1.0/", attribution: false },
   "cc-by-3.0": { name: "CC-BY 3.0", url: "https://creativecommons.org/licenses/by/3.0/", attribution: true },
+  "cc-by-4.0": { name: "CC-BY 4.0", url: "https://creativecommons.org/licenses/by/4.0/", attribution: true },
+  "odbl-1.0": { name: "ODbL 1.0", url: "https://opendatacommons.org/licenses/odbl/1-0/", attribution: true },
   mit: { name: "MIT", url: "https://opensource.org/license/mit", attribution: true },
   isc: { name: "ISC", url: "https://opensource.org/license/isc-license-txt", attribution: true },
   "bsd-3-clause": { name: "BSD 3-Clause", url: "https://opensource.org/license/bsd-3-clause", attribution: true },
