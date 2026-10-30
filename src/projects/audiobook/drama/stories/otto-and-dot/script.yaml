@@ -1,0 +1,183 @@
+title: Otto and Dot
+audience: Five years old. Read aloud, about two and a half minutes.
+lines:
+  - id: s01
+    speaker: narrator
+    text: "Once upon a time, at the edge of a big green wood, there lived a bear called Otto."
+    direction: "Speak warmly and playfully, like the start of a favourite story."
+    pause_after: 0.6
+  - id: s02
+    speaker: narrator
+    text: "Otto was a very kind bear. But Otto had one small problem. Otto... was loud."
+    direction: "Speak with a twinkle, holding back the last word, then whisper it like a secret."
+    pause_after: 0.5
+    probe: A long held pause inside a take.
+  - id: s03
+    speaker: otto
+    text: "Good morning, trees!"
+    direction: "Shout it with huge, happy joy, as loud as you can."
+    pause_after: 0.5
+    probe: A full shout, and whether the voice survives it.
+  - id: s04
+    speaker: narrator
+    text: "All the leaves fell off."
+    direction: "Speak flatly, trying not to laugh."
+    pause_after: 0.5
+  - id: s05
+    speaker: otto
+    text: "Oops! Sorry, trees!"
+    direction: "Shout it, cheerful and sorry."
+    pause_after: 0.5
+  - id: s06
+    speaker: narrator
+    text: "And the leaves that were left fell off too. So nobody stayed long to talk to Otto."
+    direction: "Speak with amusement, then let it turn a little sad."
+    pause_after: 1.0
+    probe: A change of feeling inside one line.
+  - id: s07
+    speaker: narrator
+    text: "Now, in the very same wood, there also lived—"
+    direction: "Speak grandly, about to announce someone, and stop suddenly."
+    pause_after: 0
+    probe: Cut off mid-sentence.
+  - id: s08
+    speaker: mabel
+    text: "A goose!"
+    direction: "Announce it proudly, jumping in."
+    pause_after: 0.3
+    probe: A reply landing straight on an interruption.
+  - id: s09
+    speaker: narrator
+    text: "No. There also lived—"
+    direction: "Speak patiently, starting over, and stop suddenly."
+    pause_after: 0
+  - id: s10
+    speaker: mabel
+    text: "A beautiful goose!"
+    direction: "Announce it louder and even more proudly."
+    pause_after: 0.3
+  - id: s11
+    speaker: narrator
+    text: "A mouse, Mabel. A very small mouse, called Dot."
+    direction: "Speak firmly, with a smile."
+    pause_after: 0.3
+  - id: s12
+    speaker: mabel
+    text: "Honk."
+    direction: "Say it in a huff, deeply offended."
+    pause_after: 0.6
+    probe: A one-word line, and an animal sound as a word.
+  - id: s13
+    speaker: narrator
+    text: "Dot was as quiet as Otto was loud. When Dot said hello, it sounded like this."
+    direction: "Speak warmly, leaning in close."
+    pause_after: 0.5
+  - id: s14
+    speaker: dot
+    text: "Hello."
+    direction: "Whisper it, tiny and hopeful."
+    pause_after: 0.8
+    probe: A very short whisper.
+  - id: s15
+    speaker: narrator
+    text: "Nobody heard her. Nobody ever heard her. Well. Nearly nobody."
+    direction: "Speak tenderly, a little sad, and brighten at the end."
+    pause_after: 1.0
+  - id: s16
+    speaker: narrator
+    text: "One evening, the fog came down, and Dot went out to find some berries. And the fog got thicker, and the wood got darker, and Dot could not find her way home."
+    direction: "Speak slowly, getting quieter and more worried with every word."
+    pause_after: 0.6
+    probe: A long build inside one take.
+  - id: s17
+    speaker: dot
+    text: "Help? Oh, please. I don't know where I am."
+    direction: "Whisper it, frightened and trying very hard to be brave."
+    pause_after: 1.0
+    probe: Real fear in a small voice.
+  - id: s18
+    speaker: mabel
+    text: "Dot is lost! Dot is lost! Honk! Honk! Honk!"
+    direction: "Cry it out in a tremendous flap, thrilled to be needed."
+    pause_after: 0.3
+  - id: s19
+    speaker: otto
+    text: "Lost? Little Dot? Dot! Where are you? Dot! Dot!"
+    direction: "Start worried, then call out as loudly as you can, far across a wood."
+    pause_after: 0.5
+    probe: A shout with fear in it, not joy.
+  - id: s20
+    speaker: narrator
+    text: "He called and he called. Every bird flew up. Every leaf came down. But Otto could not hear a thing, except for Otto."
+    direction: "Speak quickly and urgently, then slow right down at the end."
+    pause_after: 0.5
+  - id: s21
+    speaker: mabel
+    text: "Otto! How can she answer you, if you never stop?"
+    direction: "Scold him sharply, and mean it for once."
+    pause_after: 0.8
+  - id: s22
+    speaker: otto
+    text: "Oh."
+    direction: "Say it quietly, understanding for the first time."
+    pause_after: 1.2
+    probe: The turn of the story, on one word.
+  - id: s23
+    speaker: narrator
+    text: "So Otto stopped. He had never stopped before. He stood very, very still. He held his big bear breath. And he listened, with both ears. The whole wood went quiet. And then, from a long way off..."
+    direction: "Speak more and more quietly, in wonder, as if everyone is holding their breath."
+    pause_after: 1.5
+    probe: The quiet turn, sustained.
+  - id: s24
+    speaker: dot
+    text: "Here."
+    direction: "Whisper it, faint and far away."
+    pause_after: 1.2
+  - id: s25
+    speaker: narrator
+    text: "Otto went on tiptoe. Have you ever seen a bear on tiptoe? Step. Step. Step. And there, under a leaf, was Dot. And Otto bent his great big head, and did something he had never done in all his life."
+    direction: "Whisper it with delight, enjoying every step."
+    pause_after: 0.8
+  - id: s26
+    speaker: otto
+    text: "There you are."
+    direction: "Whisper it with enormous tenderness, very low and very close."
+    pause_after: 1.2
+    probe: Whether a very deep voice can whisper and stay itself.
+  - id: s27
+    speaker: dot
+    text: "I heard you, Otto. I always hear you. Hee hee! You're very loud."
+    direction: "Speak with a small voice, happy and relieved, and giggle on the hee hee."
+    pause_after: 0.6
+    probe: Laughter written as words.
+  - id: s28
+    speaker: otto
+    text: "And I heard you."
+    direction: "Whisper it, smiling."
+    pause_after: 1.0
+  - id: s29
+    speaker: narrator
+    text: "So Otto carried Dot home on the very top of his nose. And that night, for the first time, he whispered to the trees."
+    direction: "Speak warmly and contentedly, winding the story down."
+    pause_after: 0.6
+  - id: s30
+    speaker: otto
+    text: "Good night, trees."
+    direction: "Whisper it, sleepy and proud of himself."
+    pause_after: 0.8
+    probe: The same words as s03, at the other extreme.
+  - id: s31
+    speaker: narrator
+    text: "And only one leaf fell. The end."
+    direction: "Speak fondly, settling into a smile."
+    pause_after: 0.8
+  - id: s32
+    speaker: mabel
+    text: "Honk."
+    direction: "Say it quietly, getting the last word."
+    pause_after: 0.5
+  - id: s33
+    speaker: narrator
+    text: "Goodnight, Mabel."
+    direction: "Speak with a sigh and a smile."
+    pause_after: 2.0

@@ -1,0 +1,43 @@
+narrator:
+  role: Tells the story, delighted by it, and is the only one who can manage Mabel.
+  seed: 11
+  design: >
+    A warm, bright, playful woman in her forties, a natural storyteller reading aloud
+    to a child. A clear, crisp, close-microphone studio recording. Her voice rises and
+    falls with delight.
+  reference_text: >
+    Come and sit down, because this is one of my very favourite stories. It has a
+    wood in it, and a great deal of mischief, and I promise you will want to hear how
+    it ends.
+otto:
+  role: A huge, kind bear who doesn't know how loud he is.
+  seed: 12
+  design: >
+    A very deep, resonant, booming bass voice, clearly masculine, big and friendly and
+    slightly slow, like a giant who is pleased to see you. A clear, crisp,
+    close-microphone studio recording.
+  reference_text: >
+    Hello there, my friend! What a fine big morning this is. I have been up since
+    sunrise, and I have eaten all my honey, and now I would like very much to go for a
+    walk with you.
+dot:
+  role: A very small mouse. Brave, and almost never heard.
+  seed: 13
+  design: >
+    A tiny, high, breathy young voice, small and bright and quick, like a very small
+    creature speaking up. A clear, crisp, close-microphone studio recording.
+  reference_text: >
+    Excuse me, please. I know that I am very small, but I found a berry, and it is
+    nearly as big as I am, and I would like to share it with somebody, if anybody is
+    listening.
+mabel:
+  role: A goose who believes the story is about her.
+  seed: 14
+  design: >
+    A grand, nasal, theatrical older woman with a plummy upper-class English accent,
+    pompous and very pleased with herself. A clear, crisp, close-microphone studio
+    recording.
+  reference_text: >
+    Well, naturally I am the most important bird on the pond, darling. One simply
+    cannot help it. Everyone says so, and those who do not say so are quite wrong, and
+    I shall tell them.
