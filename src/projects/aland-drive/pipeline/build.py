@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+import roads as road_surface
 import terrain
 import vectors
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, tile_from_name, to_local
@@ -22,7 +23,7 @@ OUTPUT = REPO / "public" / "aland-drive" / "tiles"
 HEIGHT_UNIT_M = 0.01
 SHADE_QUALITY = 90
 SHADE_GAMMA = 2.2
-FORMAT = 1
+FORMAT = 2
 ATTRIBUTION = [
     "Elevation: National Land Survey of Finland, 2 m elevation model, CC BY 4.0",
     "Roads and buildings: © OpenStreetMap contributors, ODbL 1.0",
@@ -37,6 +38,19 @@ def encode_heights(nodes: np.ndarray) -> bytes:
     return gzip.compress(np.diff(units, axis=1, prepend=0).astype("<i2").tobytes(), 9, mtime=0)
 
 
+def water_nodes(water: np.ndarray) -> np.ndarray:
+    """A byte for each height node: 1 where the 2 m mask holds water at the node's corner."""
+    padded = np.pad(water, ((0, 1), (0, 1)), mode="edge")
+    return padded[:: terrain.HEIGHT_STEP_SAMPLES, :: terrain.HEIGHT_STEP_SAMPLES].astype(np.uint8)
+
+
+def encode_road_surface(ribbons: list[tuple[np.ndarray, np.ndarray]]) -> bytes:
+    """Every ribbon's rings of (east, north, height) as float32, then every section's tier as a byte."""
+    rings = b"".join(ring.astype("<f4").tobytes() for ring, _ in ribbons)
+    tiers = b"".join(tier.astype("u1").tobytes() for _, tier in ribbons)
+    return gzip.compress(rings + tiers, 9, mtime=0)
+
+
 def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None:
     if dem_path(tile) is None:
         raise SystemExit(f"{tile.name}: the mirror has no such tile")
@@ -44,18 +58,18 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     folder.mkdir(parents=True, exist_ok=True)
 
     mosaic = terrain.read_with_rim(tile)
-    nodes = terrain.height_nodes(mosaic)
-    (folder / "heights.bin.gz").write_bytes(encode_heights(nodes))
-
-    shade = terrain.bake_shade(mosaic)
-    encoded = np.round(255 * np.clip(shade, 0, 1) ** (1 / SHADE_GAMMA)).astype(np.uint8)
-    Image.fromarray(encoded).save(folder / "shade.webp", quality=SHADE_QUALITY, method=6)
-
     water = terrain.water_mask(mosaic)
     Image.fromarray(water).save(folder / "water.png", optimize=True)
 
+    west, south = to_local(tile.west, tile.south)
+    east, north = to_local(tile.east, tile.north)
+    corners = terrain.sample_corners(mosaic)
+    raw = terrain.tile_corners(corners)
+    conformed = raw
+
     roads: list[dict] = []
     buildings: list[dict] = []
+    surface_manifest = None
     if with_vectors:
         roads, buildings, osm_timestamp = vectors.build(osm_path(tile, refresh_osm), tile)
         osm_licence = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors", "asOf": osm_timestamp}
@@ -63,8 +77,34 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         (folder / "roads.json").write_text(json.dumps({**osm_licence, "roads": roads}, **compact), encoding="utf-8")
         (folder / "buildings.json").write_text(json.dumps({**osm_licence, "buildings": buildings}, **compact), encoding="utf-8")
 
-    west, south = to_local(tile.west, tile.south)
-    east, north = to_local(tile.east, tile.north)
+        ground = road_surface.Ground(corners, west, north, terrain.CORNER_RIM)
+        surface = road_surface.lay_roads(roads, ground)
+        conformed = surface.conformed
+        if not all(np.array_equal(conformed[edge], raw[edge]) for edge in ((0, ...), (-1, ...), (..., 0), (..., -1))):
+            raise ValueError(f"{tile.name}: laying the roads changed a row of heights a neighbour shares")
+        mesh_nodes = terrain.height_nodes(conformed)
+        ribbons = road_surface.ribbons(surface, mesh_nodes, TILE_SIZE_M / (mesh_nodes.shape[0] - 1), west, north)
+        (folder / "road-surface.bin.gz").write_bytes(encode_road_surface([(ring, tier) for _, ring, tier in ribbons]))
+        surface_manifest = {
+            "file": "road-surface.bin.gz",
+            "encoding": "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order",
+            "ring": ["outer left", "edge left", "centre", "edge right", "outer right"],
+            "tiers": road_surface.TIERS,
+            "chains": [
+                {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor}.items() if value is not None}
+                for chain, ring, _ in ribbons
+            ],
+            **osm_licence,
+        }
+
+    nodes = terrain.height_nodes(conformed)
+    (folder / "heights.bin.gz").write_bytes(encode_heights(nodes))
+    (folder / "water-nodes.bin.gz").write_bytes(gzip.compress(water_nodes(water).tobytes(), 9, mtime=0))
+
+    shade = terrain.bake_shade(terrain.with_ground_moved(mosaic, raw, conformed))
+    encoded = np.round(255 * np.clip(shade, 0, 1) ** (1 / SHADE_GAMMA)).astype(np.uint8)
+    Image.fromarray(encoded).save(folder / "shade.webp", quality=SHADE_QUALITY, method=6)
+
     manifest = {
         "format": FORMAT,
         "tile": tile.name,
@@ -82,11 +122,13 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         },
         "shade": {"file": "shade.webp", "pixels": SAMPLES, "pixelM": SAMPLE_M, "gamma": SHADE_GAMMA},
         "sun": {"azimuthDeg": terrain.SUN_AZIMUTH_DEG, "elevationDeg": terrain.SUN_ELEVATION_DEG},
-        "water": {"file": "water.png", "pixels": SAMPLES, "pixelM": SAMPLE_M},
+        "water": {"file": "water.png", "pixels": SAMPLES, "pixelM": SAMPLE_M, "nodesFile": "water-nodes.bin.gz"},
         "roads": {"file": "roads.json", "count": len(roads)},
         "buildings": {"file": "buildings.json", "count": len(buildings)},
         "attribution": ATTRIBUTION,
     }
+    if surface_manifest is not None:
+        manifest["roadSurface"] = surface_manifest
     (folder / "tile.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     sizes = {path.name: path.stat().st_size for path in sorted(folder.iterdir())}

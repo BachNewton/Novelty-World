@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "tile": "L2343C",
   "crs": "EPSG:3067",
   "worldOrigin": {
@@ -34,7 +34,8 @@
   "water": {
     "file": "water.png",
     "pixels": 3000,
-    "pixelM": 2
+    "pixelM": 2,
+    "nodesFile": "water-nodes.bin.gz"
   },
   "roads": {
     "file": "roads.json",
@@ -47,5 +48,1931 @@
   "attribution": [
     "Elevation: National Land Survey of Finland, 2 m elevation model, CC BY 4.0",
     "Roads and buildings: © OpenStreetMap contributors, ODbL 1.0"
-  ]
+  ],
+  "roadSurface": {
+    "file": "road-surface.bin.gz",
+    "encoding": "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order",
+    "ring": [
+      "outer left",
+      "edge left",
+      "centre",
+      "edge right",
+      "outer right"
+    ],
+    "tiers": [
+      "main",
+      "minor",
+      "track"
+    ],
+    "chains": [
+      {
+        "sections": 547,
+        "kind": "primary",
+        "ref": "1",
+        "name": "Hammarlandsvägen",
+        "motor": true
+      },
+      {
+        "sections": 394,
+        "kind": "secondary",
+        "ref": "40",
+        "name": "Emkarbyvägen",
+        "motor": true
+      },
+      {
+        "sections": 146,
+        "kind": "tertiary",
+        "ref": "180",
+        "name": "Torpvägen",
+        "motor": true
+      },
+      {
+        "sections": 371,
+        "kind": "tertiary",
+        "name": "Vestmyravägen",
+        "motor": true
+      },
+      {
+        "sections": 242,
+        "kind": "tertiary",
+        "name": "Byttbölevägen",
+        "motor": true
+      },
+      {
+        "sections": 397,
+        "kind": "tertiary",
+        "ref": "180",
+        "name": "Torpvägen",
+        "motor": true
+      },
+      {
+        "sections": 366,
+        "kind": "tertiary",
+        "ref": "270",
+        "name": "Vestansundabyaväg",
+        "motor": true
+      },
+      {
+        "sections": 179,
+        "kind": "tertiary",
+        "ref": "183",
+        "name": "Janssonsgatan",
+        "motor": true
+      },
+      {
+        "sections": 566,
+        "kind": "tertiary",
+        "ref": "187",
+        "name": "Östanträskvägen",
+        "motor": true
+      },
+      {
+        "sections": 40,
+        "kind": "tertiary",
+        "ref": "180",
+        "name": "Torpvägen",
+        "motor": true
+      },
+      {
+        "sections": 71,
+        "kind": "tertiary",
+        "ref": "183",
+        "name": "Tellholmsvägen",
+        "motor": true
+      },
+      {
+        "sections": 21,
+        "kind": "tertiary",
+        "ref": "267",
+        "name": "Brobackavägen",
+        "motor": true
+      },
+      {
+        "sections": 28,
+        "kind": "tertiary",
+        "ref": "183",
+        "name": "Tellholmsvägen",
+        "motor": true
+      },
+      {
+        "sections": 19,
+        "kind": "tertiary",
+        "ref": "180",
+        "name": "Torpvägen",
+        "motor": true
+      },
+      {
+        "sections": 205,
+        "kind": "unclassified",
+        "name": "Djekenbölsnäsvägen",
+        "motor": true
+      },
+      {
+        "sections": 107,
+        "kind": "unclassified",
+        "name": "Råskärsvägen",
+        "motor": true
+      },
+      {
+        "sections": 700,
+        "kind": "residential",
+        "name": "Vidmansvägen",
+        "motor": true
+      },
+      {
+        "sections": 175,
+        "kind": "unclassified",
+        "name": "Övergårdsvägen",
+        "motor": true
+      },
+      {
+        "sections": 202,
+        "kind": "unclassified",
+        "name": "Boda Tingsvägen",
+        "motor": true
+      },
+      {
+        "sections": 689,
+        "kind": "unclassified",
+        "name": "Ridstigen",
+        "motor": true
+      },
+      {
+        "sections": 101,
+        "kind": "unclassified",
+        "name": "Vargsundsvägen",
+        "motor": true
+      },
+      {
+        "sections": 358,
+        "kind": "unclassified",
+        "name": "Djeknevägen",
+        "motor": true
+      },
+      {
+        "sections": 164,
+        "kind": "residential",
+        "name": "Storhagskroken",
+        "motor": true
+      },
+      {
+        "sections": 140,
+        "kind": "unclassified",
+        "name": "Berghagsvägen",
+        "motor": true
+      },
+      {
+        "sections": 180,
+        "kind": "unclassified",
+        "name": "Storhagskroken",
+        "motor": true
+      },
+      {
+        "sections": 95,
+        "kind": "unclassified",
+        "name": "Gunnarsvägen",
+        "motor": true
+      },
+      {
+        "sections": 90,
+        "kind": "unclassified",
+        "name": "Varggropsvägen",
+        "motor": true
+      },
+      {
+        "sections": 226,
+        "kind": "unclassified",
+        "name": "Drygsbölevägen",
+        "motor": true
+      },
+      {
+        "sections": 134,
+        "kind": "unclassified",
+        "name": "Marvägen",
+        "motor": true
+      },
+      {
+        "sections": 127,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 90,
+        "kind": "unclassified",
+        "name": "Östergårds",
+        "motor": true
+      },
+      {
+        "sections": 93,
+        "kind": "residential",
+        "name": "Lingonstigen",
+        "motor": true
+      },
+      {
+        "sections": 268,
+        "kind": "residential",
+        "name": "Östergårds",
+        "motor": true
+      },
+      {
+        "sections": 72,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 54,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 293,
+        "kind": "residential",
+        "name": "Dalenvägen",
+        "motor": true
+      },
+      {
+        "sections": 63,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 140,
+        "kind": "residential",
+        "name": "Krokgränd",
+        "motor": true
+      },
+      {
+        "sections": 523,
+        "kind": "residential",
+        "name": "Färgarsgatan",
+        "motor": true
+      },
+      {
+        "sections": 85,
+        "kind": "unclassified",
+        "name": "Axellundsväg",
+        "motor": true
+      },
+      {
+        "sections": 105,
+        "kind": "residential",
+        "motor": true
+      },
+      {
+        "sections": 99,
+        "kind": "residential",
+        "name": "Lillåkersgränd",
+        "motor": true
+      },
+      {
+        "sections": 93,
+        "kind": "residential",
+        "name": "Vestansundabyaväg",
+        "motor": true
+      },
+      {
+        "sections": 73,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 163,
+        "kind": "unclassified",
+        "name": "Hosterslättsvägen",
+        "motor": true
+      },
+      {
+        "sections": 245,
+        "kind": "residential",
+        "name": "Östergårdsvägen",
+        "motor": true
+      },
+      {
+        "sections": 77,
+        "kind": "unclassified",
+        "name": "Söderskogsvägen",
+        "motor": true
+      },
+      {
+        "sections": 72,
+        "kind": "residential",
+        "name": "Brinkgränd",
+        "motor": true
+      },
+      {
+        "sections": 49,
+        "kind": "residential",
+        "name": "Brinkgränd",
+        "motor": true
+      },
+      {
+        "sections": 46,
+        "kind": "residential",
+        "name": "Storhagskroken",
+        "motor": true
+      },
+      {
+        "sections": 124,
+        "kind": "residential",
+        "name": "Furubogränd",
+        "motor": true
+      },
+      {
+        "sections": 31,
+        "kind": "residential",
+        "name": "Lillåkersgränd",
+        "motor": true
+      },
+      {
+        "sections": 63,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 66,
+        "kind": "residential",
+        "motor": true
+      },
+      {
+        "sections": 40,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 57,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 76,
+        "kind": "unclassified",
+        "name": "Björknäsuddsvägen",
+        "motor": true
+      },
+      {
+        "sections": 92,
+        "kind": "residential",
+        "name": "Övrevägen",
+        "motor": true
+      },
+      {
+        "sections": 120,
+        "kind": "unclassified",
+        "name": "Fågelvägen",
+        "motor": true
+      },
+      {
+        "sections": 47,
+        "kind": "residential",
+        "name": "Myrvägen",
+        "motor": true
+      },
+      {
+        "sections": 170,
+        "kind": "unclassified",
+        "name": "Fridhemsslingan",
+        "motor": true
+      },
+      {
+        "sections": 38,
+        "kind": "residential",
+        "name": "Erlandsbacken",
+        "motor": true
+      },
+      {
+        "sections": 55,
+        "kind": "residential",
+        "name": "Skomakargränd",
+        "motor": true
+      },
+      {
+        "sections": 47,
+        "kind": "unclassified",
+        "name": "Västra Näsvägen",
+        "motor": true
+      },
+      {
+        "sections": 17,
+        "kind": "residential",
+        "name": "Östergårdsvägen",
+        "motor": true
+      },
+      {
+        "sections": 75,
+        "kind": "residential",
+        "name": "Dalenvägen",
+        "motor": true
+      },
+      {
+        "sections": 34,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 47,
+        "kind": "residential",
+        "name": "Brinkgränd",
+        "motor": true
+      },
+      {
+        "sections": 70,
+        "kind": "residential",
+        "name": "Bondtorpsvägen",
+        "motor": true
+      },
+      {
+        "sections": 37,
+        "kind": "residential",
+        "motor": true
+      },
+      {
+        "sections": 23,
+        "kind": "residential",
+        "motor": true
+      },
+      {
+        "sections": 56,
+        "kind": "residential",
+        "name": "Myrvägen",
+        "motor": true
+      },
+      {
+        "sections": 131,
+        "kind": "residential",
+        "name": "Bondtorpsvägen",
+        "motor": true
+      },
+      {
+        "sections": 34,
+        "kind": "residential",
+        "name": "Östergårdsvägen",
+        "motor": true
+      },
+      {
+        "sections": 32,
+        "kind": "residential",
+        "name": "Kallesgatan",
+        "motor": true
+      },
+      {
+        "sections": 45,
+        "kind": "residential",
+        "motor": true
+      },
+      {
+        "sections": 83,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 12,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 16,
+        "kind": "residential",
+        "name": "Kallesgatan",
+        "motor": true
+      },
+      {
+        "sections": 94,
+        "kind": "unclassified",
+        "motor": true
+      },
+      {
+        "sections": 12,
+        "kind": "residential",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "unclassified",
+        "name": "Söderskogsvägen",
+        "motor": true
+      },
+      {
+        "sections": 392,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 279,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 151,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 220,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 341,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 183,
+        "kind": "service",
+        "name": "Snigelstigen",
+        "motor": true
+      },
+      {
+        "sections": 72,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 384,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 37,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 69,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 69,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 445,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 107,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 281,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 93,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 97,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 234,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 82,
+        "kind": "service",
+        "name": "Djäkenböle gårdsväg",
+        "motor": true
+      },
+      {
+        "sections": 91,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 47,
+        "kind": "service",
+        "name": "Fågelvägen",
+        "motor": true
+      },
+      {
+        "sections": 73,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 65,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 53,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 64,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 62,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 56,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 55,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 51,
+        "kind": "service",
+        "name": "Lergropsvägen",
+        "motor": true
+      },
+      {
+        "sections": 61,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 68,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 52,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 41,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 61,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 109,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 29,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 59,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 56,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 41,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 21,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 55,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 224,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 41,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 27,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 45,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 35,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 96,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 43,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 40,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 35,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 44,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 41,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 49,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 43,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 18,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 49,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 32,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 33,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 34,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 50,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 33,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 25,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 30,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 18,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 108,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 32,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 33,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 20,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 25,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 50,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 22,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 67,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 26,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 18,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 26,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 21,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 17,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 21,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 25,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 27,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 26,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 13,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 19,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 10,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 18,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 52,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 16,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 22,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 19,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 19,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 17,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 21,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 23,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 172,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 19,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 23,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 28,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 23,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 11,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 12,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 22,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 19,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 17,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 16,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 35,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 11,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 11,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 3,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 16,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 10,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 11,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 11,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 10,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 6,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 6,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 4,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 2,
+        "kind": "service",
+        "motor": true
+      },
+      {
+        "sections": 199,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 190,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 230,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 182,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 281,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 134,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 136,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 225,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 62,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 184,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 158,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 149,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 82,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 157,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 55,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 56,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 208,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 91,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 67,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 90,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 45,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 59,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 128,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 74,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 126,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 76,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 76,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 75,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 48,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 66,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 64,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 53,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 170,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 51,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 53,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 78,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 91,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 51,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 23,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 45,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 52,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 46,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 35,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 61,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 120,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 82,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 22,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 71,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 37,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 49,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 49,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 25,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 35,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 47,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 48,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 36,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 18,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 29,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 25,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 27,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 29,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 24,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 22,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 23,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 25,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 26,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 23,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 140,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 19,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 13,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 20,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 13,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 10,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 12,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 20,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 13,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 16,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 15,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 14,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 9,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 12,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 8,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 10,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 7,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 4,
+        "kind": "track",
+        "motor": true
+      },
+      {
+        "sections": 240,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 153,
+        "kind": "path",
+        "motor": false
+      },
+      {
+        "sections": 159,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 262,
+        "kind": "path",
+        "motor": false
+      },
+      {
+        "sections": 58,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 66,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 68,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 53,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 46,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 62,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 49,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 45,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 33,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 47,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 25,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 38,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 26,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 34,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 22,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 38,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 21,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 36,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 31,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 36,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 40,
+        "kind": "footway",
+        "motor": false
+      },
+      {
+        "sections": 29,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 48,
+        "kind": "footway",
+        "motor": false
+      },
+      {
+        "sections": 19,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 16,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 14,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 11,
+        "kind": "footway",
+        "motor": false
+      },
+      {
+        "sections": 12,
+        "kind": "footway",
+        "motor": false
+      },
+      {
+        "sections": 7,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 6,
+        "kind": "path",
+        "motor": false
+      },
+      {
+        "sections": 4,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 6,
+        "kind": "cycleway",
+        "motor": false
+      },
+      {
+        "sections": 4,
+        "kind": "path",
+        "motor": false
+      },
+      {
+        "sections": 3,
+        "kind": "footway",
+        "motor": false
+      }
+    ],
+    "license": "ODbL-1.0",
+    "attribution": "© OpenStreetMap contributors",
+    "asOf": "2026-10-30T18:29:51Z"
+  }
 }

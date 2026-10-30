@@ -15,6 +15,7 @@ from grid import SAMPLE_M, SAMPLES, Tile, neighbour
 from sources import dem_path
 
 RIM_SAMPLES = 200
+CORNER_RIM = RIM_SAMPLES - 1
 # The mirror's own sea surface sits about here where it does have a tile.
 ABSENT_TILE_HEIGHT_M = 0.1
 HEIGHT_STEP_SAMPLES = 2
@@ -56,12 +57,26 @@ def read_with_rim(tile: Tile) -> np.ndarray:
     return mosaic
 
 
-def height_nodes(mosaic: np.ndarray) -> np.ndarray:
-    """Heights on the sample corners, every HEIGHT_STEP_SAMPLES, from the north-west corner."""
-    first = RIM_SAMPLES - 1
-    block = mosaic[first : first + SAMPLES + 2, first : first + SAMPLES + 2]
-    corners = (block[:-1, :-1] + block[1:, :-1] + block[:-1, 1:] + block[1:, 1:]) / 4
-    return corners[:: HEIGHT_STEP_SAMPLES, :: HEIGHT_STEP_SAMPLES]
+def sample_corners(mosaic: np.ndarray) -> np.ndarray:
+    """Heights on the corners of the samples, each the mean of the four round it."""
+    return (mosaic[:-1, :-1] + mosaic[1:, :-1] + mosaic[:-1, 1:] + mosaic[1:, 1:]) / 4
+
+
+def tile_corners(corners: np.ndarray) -> np.ndarray:
+    return corners[CORNER_RIM:-CORNER_RIM, CORNER_RIM:-CORNER_RIM]
+
+
+def height_nodes(tile: np.ndarray) -> np.ndarray:
+    """A tile's corners thinned to the mesh's nodes, from the north-west corner."""
+    return tile[:: HEIGHT_STEP_SAMPLES, :: HEIGHT_STEP_SAMPLES]
+
+
+def with_ground_moved(mosaic: np.ndarray, was: np.ndarray, now: np.ndarray) -> np.ndarray:
+    """The mosaic with a tile's corners moved from `was` to `now`, for shading what the game really draws."""
+    moved = now - was
+    shifted = mosaic.copy()
+    shifted[RIM_SAMPLES:-RIM_SAMPLES, RIM_SAMPLES:-RIM_SAMPLES] += (moved[:-1, :-1] + moved[1:, :-1] + moved[:-1, 1:] + moved[1:, 1:]) / 4
+    return shifted
 
 
 def _shifted(heights: np.ndarray, rows: int, columns: int) -> np.ndarray:
