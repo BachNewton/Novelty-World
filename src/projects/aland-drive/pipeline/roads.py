@@ -8,9 +8,10 @@ ribbons are the surface, drawn and collided with alike. The ground is then cut
 or filled to lie just under them, and eases back to the real land beyond.
 
 Everything here is a pure function of the lines and the heights. A tile's edge
-row of heights is never changed, and a road crossing that edge takes its height
-and slope from the elevation model round the crossing, which both tiles see the
-same, so two neighbours built apart meet.
+row of heights is never changed, and a road crossing that edge ends on a seam
+section read only from what both tiles see the same (the whole way's direction
+there, its class, and the elevation model round the crossing), so two neighbours
+built apart end on the same cross-section.
 """
 
 from dataclasses import dataclass, field
@@ -31,11 +32,17 @@ EDGE_FADE_M = 24.0
 EDGE_PIN_RADIUS_M = 24.0
 EDGE_PIN_LIFT_M = 0.03
 PIN_WEIGHT = 1e7
+# Over this run a road eases on to its seam section: straight, level across, and its class's own widths.
+SEAM_RUN_M = 40.0
+# How obliquely a road's width is read along an edge it crosses: never more than this many half-widths.
+SEAM_LONGEST_REACH = 3.0
 
 # How a lesser road meets the one it ends on.
 JUNCTION_APPROACH_M = 16.0
 JUNCTION_FLARE_M = 12.0
 UNDER_ANOTHER_ROAD_M = 0.3
+SHOULDER_LONGEST_DROP_M = 1.0
+BENEATH_GREATER_ROAD_M = 0.05
 
 # A cross-section is kept once the ribbon has moved this far from a straight run.
 KEEP_WITHIN_M = 0.02
@@ -151,6 +158,7 @@ class Chain:
     right: np.ndarray = field(default=None)
     centre: np.ndarray = field(default=None)
     kept: np.ndarray = field(default=None)  # Stations left once the ends are cut to the roads they land on.
+    seam_stations: list = field(default_factory=list)  # Those ending on a tile's edge, which a junction nearby can't move.
     tree: cKDTree = field(default=None)
 
     @property
@@ -305,8 +313,8 @@ def _smoothed_profile(ideal: np.ndarray, weights: np.ndarray, wavelength_m: floa
     return spsolve(system.tocsc(), right)
 
 
-def _edge_pin(ground: Ground, point: np.ndarray, half: float) -> tuple[float, float, float]:
-    """The land's height and gradient at a tile-edge crossing, from what both tiles can see."""
+def _edge_pin(ground: Ground, point: np.ndarray, half: float, direction: np.ndarray) -> tuple[float, float, float]:
+    """The land's height and gradient at a tile-edge crossing, from what both tiles can see, rounded so both agree."""
     spacing = ground.spacing
     steps = int(EDGE_PIN_RADIUS_M / spacing)
     offsets = np.arange(-steps, steps + 1) * spacing
@@ -315,13 +323,15 @@ def _edge_pin(ground: Ground, point: np.ndarray, half: float) -> tuple[float, fl
     east, north = east[inside], north[inside]
     heights = ground.sample(np.column_stack((point[0] + east, point[1] + north)))
     fit = np.linalg.lstsq(np.column_stack((east, north, np.ones_like(east))), heights, rcond=None)[0]
-    along = np.arange(-half, half + spacing, spacing)
-    row = ground.sample(np.column_stack((point[0] + along, np.full_like(along, point[1])))).max()
-    column = ground.sample(np.column_stack((np.full_like(along, point[0]), point[1] + along))).max()
+    # A road crossing an edge obliquely lies over more of that edge than its width.
+    along_row = np.arange(-1, 1 + 1e-6, spacing / half) * half * min(1 / max(abs(direction[1]), 1e-6), SEAM_LONGEST_REACH)
+    along_column = np.arange(-1, 1 + 1e-6, spacing / half) * half * min(1 / max(abs(direction[0]), 1e-6), SEAM_LONGEST_REACH)
+    row = ground.sample(np.column_stack((point[0] + along_row, np.full_like(along_row, point[1])))).max()
+    column = ground.sample(np.column_stack((np.full_like(along_column, point[0]), point[1] + along_column))).max()
     on_row = min(abs(point[1] - ground.north), abs(point[1] - (ground.north - ground.size_m))) < 1e-6
     on_column = min(abs(point[0] - ground.west), abs(point[0] - (ground.west + ground.size_m))) < 1e-6
     clear = float(max(row if on_row else -np.inf, column if on_column else -np.inf))
-    return max(float(fit[2]), clear + EDGE_PIN_LIFT_M), float(fit[0]), float(fit[1])
+    return round(max(float(fit[2]), clear + EDGE_PIN_LIFT_M), 3), round(float(fit[0]), 4), round(float(fit[1]), 4)
 
 
 def _on_tile_edge(ground: Ground, point: np.ndarray) -> bool:
@@ -330,8 +340,14 @@ def _on_tile_edge(ground: Ground, point: np.ndarray) -> bool:
     return min(east, north, size - east, size - north) < 1e-6
 
 
-def _ends_of(chain: Chain) -> tuple[np.ndarray, np.ndarray]:
-    return chain.edges[0].points[0], chain.edges[-1].points[-1]
+def _seam_at(edge: Edge, point: np.ndarray, ground: Ground) -> np.ndarray | None:
+    """The whole road's direction where this end crosses a tile's edge, or None for any other end."""
+    if not _on_tile_edge(ground, point):
+        return None
+    for x, y, east, north in edge.road.get("seams", ()):
+        if _key((x, y)) == _key(point):
+            return np.array((east, north))
+    return None
 
 
 def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
@@ -355,19 +371,43 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
     smooth = lambda values, metres: ndimage.gaussian_filter1d(np.array(values, dtype=float), metres / STATION_M, mode="nearest")
 
     xy = _round_corners(stations, chain.kind.corner_m / STATION_M)
+
+    # Each end on a tile's edge eases on to the straight line through the crossing, the way the whole road runs there.
+    seam_ends = []
+    for station, seam in ((0, _seam_at(chain.edges[0], points[0], ground)), (len(xy) - 1, _seam_at(chain.edges[-1], points[-1], ground))):
+        if seam is None:
+            continue
+        distance = along if station == 0 else along[-1] - along
+        share = 1 - _smoothstep(distance / SEAM_RUN_M)
+        forwards = 1.0 if (xy[-1] - xy[0]) @ seam >= 0 else -1.0
+        straight = xy[station] + forwards * seam * (along - along[station])[:, None]
+        xy = xy + share[:, None] * (straight - xy)
+        seam_ends.append((station, share, forwards * seam))
+
     tangent = np.gradient(xy, axis=0)
     tangent /= np.maximum(np.hypot(tangent[:, 0], tangent[:, 1])[:, None], 1e-9)
+    for station, _, direction in seam_ends:
+        tangent[station] = direction
     normal = np.column_stack((-tangent[:, 1], tangent[:, 0]))
 
     half = smooth([kind.width_m / 2 for kind in kinds], 6)
     crown = smooth([kind.crown for kind in kinds], 6)
     bank_limit = smooth([kind.bank_limit for kind in kinds], 6)
+    shoulder = smooth([kind.shoulder_m for kind in kinds], 6)
+    blend = smooth([kind.blend_m for kind in kinds], 6)
 
     heading = np.unwrap(np.arctan2(tangent[:, 1], tangent[:, 0]))
     curvature = np.gradient(heading, STATION_M)
     # A left-hand bend (heading rising) lifts the right side, so the rise towards the left is negative.
     bank = -np.clip(curvature * BANK_SPEED_M_S**2 / GRAVITY, -bank_limit, bank_limit)
     bank = smooth(bank, BANK_SMOOTHING_M)
+    for station, share, _ in seam_ends:
+        kind = kinds[station]
+        half += share * (kind.width_m / 2 - half)
+        crown += share * (kind.crown - crown)
+        shoulder += share * (kind.shoulder_m - shoulder)
+        blend += share * (kind.blend_m - blend)
+        bank *= 1 - share
 
     across = np.linspace(-0.6, 0.6, 3)[None, :, None]
     spread = xy[:, None, :] + normal[:, None, :] * half[:, None, None] * across
@@ -381,18 +421,20 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
         here = xy[station]
         if parent is not None:
             pins.append((station, float(parent.plane(here[None])[0])))
-        elif _on_tile_edge(ground, here) and len(xy) > 2:
-            height, rise_east, rise_north = _edge_pin(ground, here, float(half[station]))
+        elif _on_tile_edge(ground, here):
+            height, rise_east, rise_north = _edge_pin(ground, here, float(half[station]), tangent[station])
             pins.append((station, height))
             step = xy[next_station] - here
             slopes.append((station, next_station, rise_east * step[0] + rise_north * step[1]))
 
     chain.xy, chain.tangent, chain.normal, chain.half = xy, tangent, normal, half
     chain.crown, chain.bank = crown, bank
-    chain.shoulder = smooth([kind.shoulder_m for kind in kinds], 6)
-    chain.blend = smooth([kind.blend_m for kind in kinds], 6)
+    chain.shoulder = shoulder
+    chain.blend = blend
     chain.tier = np.array([TIERS.index(kind.tier) for kind in kinds], dtype=np.uint8)
     chain.height = _smoothed_profile(ideal, weights, chain.kind.wavelength_m, pins, slopes)
+    chain.height[[station for station, _ in pins]] = [height for _, height in pins]
+    chain.seam_stations = [station for station, _, _ in seam_ends]
     chain.tree = cKDTree(xy)
     _cut_sections(chain, along, starts_on, ends_on)
 
@@ -438,11 +480,23 @@ def _cut_sections(chain: Chain, along: np.ndarray, starts_on: Chain | None, ends
             outside = np.nonzero(~inside)[0]
             last = min(last, int(outside[-1]) + 1) if len(outside) else last
 
+    for station in chain.seam_stations:
+        left_xy[station] = chain.xy[station] + chain.normal[station] * chain.half[station]
+        right_xy[station] = chain.xy[station] - chain.normal[station] * chain.half[station]
+        left_z[station] = chain.height[station] - falls[station] + rises[station]
+        right_z[station] = chain.height[station] - falls[station] - rises[station]
+        centre_z[station] = chain.height[station]
+
     keep = np.arange(max(first, 0), min(last, len(along) - 1) + 1)
     chain.left = np.column_stack((left_xy, left_z))[keep]
     chain.right = np.column_stack((right_xy, right_z))[keep]
     chain.centre = np.column_stack((chain.xy, centre_z))[keep]
     chain.kept = keep
+    # An end that stops at a greater road has both edges on that road's edge. Its centre would still stand out on the
+    # road itself, and a surface laid over a surface never quite agrees: a car feels the lip at speed.
+    for parent, end in ((starts_on, 0), (ends_on, -1)):
+        if parent is not None and len(keep) >= 2 and keep[end] in (first, last):
+            chain.centre[end] = (chain.left[end] + chain.right[end]) / 2
 
 
 def _slide_to_edge(parent: Chain, xy: np.ndarray, z: np.ndarray, near: np.ndarray) -> np.ndarray:
@@ -472,6 +526,7 @@ class Fields:
     road_z: np.ndarray
     shoulder: np.ndarray
     blend: np.ndarray
+    owner: np.ndarray  # Which chain that station is on: the lower the number, the greater the road.
 
 
 def road_fields(chains: list[Chain], ground: Ground) -> Fields:
@@ -481,6 +536,7 @@ def road_fields(chains: list[Chain], ground: Ground) -> Fields:
     laid = [chain for chain in chains if len(chain.kept) >= 2]
     xy = np.concatenate([chain.centre[:, :2] for chain in laid])
     normal, shoulder, blend = [np.concatenate([getattr(chain, name)[chain.kept] for chain in laid]) for name in ("normal", "shoulder", "blend")]
+    owner = np.concatenate([np.full(len(chain.kept), chain.index) for chain in laid])
     middle = np.concatenate([chain.centre[:, 2] for chain in laid])
     left = np.concatenate([chain.left for chain in laid])
     right = np.concatenate([chain.right for chain in laid])
@@ -502,7 +558,7 @@ def road_fields(chains: list[Chain], ground: Ground) -> Fields:
     side = np.where(across >= 0, left[station, 2], right[station, 2])
     share = np.minimum(np.abs(across) / np.maximum(half, 1e-6), 1)
     road_z = middle[station] + share * (side - middle[station])
-    return Fields(np.hypot(offset_east, offset_north), half, road_z, shoulder[station], blend[station])
+    return Fields(np.hypot(offset_east, offset_north), half, road_z, shoulder[station], blend[station], owner[station])
 
 
 def conform_ground(raw: np.ndarray, fields: Fields, spacing: float = STATION_M) -> np.ndarray:
@@ -579,22 +635,40 @@ def _thin_sections(rings: np.ndarray, distance: np.ndarray) -> np.ndarray:
     return np.array(kept)
 
 
-def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: float, fields: Fields, spacing: float) -> tuple[np.ndarray, np.ndarray]:
+def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: float, fields: Fields, spacing: float, ground: Ground) -> tuple[np.ndarray, np.ndarray]:
     """A chain's kept cross-sections as rings of (x, y, z), and each section's tier."""
     keep = chain.kept
     shoulder = chain.shoulder[keep][:, None] * chain.normal[keep]
     outer_left_xy = chain.left[:, :2] + shoulder
     outer_right_xy = chain.right[:, :2] - shoulder
 
-    def outer(xy: np.ndarray) -> np.ndarray:
+    def outer(xy: np.ndarray, edge: np.ndarray) -> np.ndarray:
         height = surface_height(nodes, step, west, north, xy)
         columns = np.clip(np.round((xy[:, 0] - west) / spacing).astype(int), 0, fields.distance.shape[0] - 1)
         rows = np.clip(np.round((north - xy[:, 1]) / spacing).astype(int), 0, fields.distance.shape[0] - 1)
         under = fields.distance[rows, columns] < fields.half[rows, columns] - 0.05
         lowered = np.minimum(height, fields.road_z[rows, columns] - UNDER_ANOTHER_ROAD_M)
-        return np.column_stack((xy, np.where(under, lowered, height)))
+        # Where the land falls away (a road on a bridge, or over an underpass) the shoulder stays a deck: reaching
+        # down to the ground it would be a wall across whatever passes beneath.
+        return np.column_stack((xy, np.maximum(np.where(under, lowered, height), edge - SHOULDER_LONGEST_DROP_M)))
 
-    rings = np.stack((outer(outer_left_xy), chain.left, chain.centre, chain.right, outer(outer_right_xy)), axis=1)
+    def beneath_greater_roads(points: np.ndarray) -> np.ndarray:
+        """Where a lesser road runs across a greater one with no junction, such as a path, it passes just under: the greater road's surface is the one a car meets."""
+        columns = np.clip(np.round((points[:, 0] - west) / spacing).astype(int), 0, fields.distance.shape[0] - 1)
+        rows = np.clip(np.round((north - points[:, 1]) / spacing).astype(int), 0, fields.distance.shape[0] - 1)
+        crossing = (fields.distance[rows, columns] < fields.half[rows, columns] - 0.05) & (fields.owner[rows, columns] < chain.index)
+        return np.column_stack((points[:, :2], np.where(crossing, np.minimum(points[:, 2], fields.road_z[rows, columns] - BENEATH_GREATER_ROAD_M), points[:, 2])))
+
+    left, centre, right = (beneath_greater_roads(points) for points in (chain.left, chain.centre, chain.right))
+    for station in (0, -1):
+        if _on_tile_edge(ground, chain.centre[station]):
+            left[station], centre[station], right[station] = chain.left[station], chain.centre[station], chain.right[station]
+    rings = np.stack((outer(outer_left_xy, left[:, 2]), left, centre, right, outer(outer_right_xy, right[:, 2])), axis=1)
+    # A seam section may reach over the edge, so its outer points take the land both tiles agree on, and it's rounded so they match.
+    for station in (0, -1):
+        if _on_tile_edge(ground, rings[station, 2, :2]):
+            rings[station, [0, 4], 2] = ground.sample(rings[station, [0, 4], :2])
+            rings[station] = np.round(rings[station], 3)
     steps = np.hypot(*np.diff(chain.centre[:, :2], axis=0).T)
     distance = np.concatenate(([0], np.cumsum(steps)))
     thin = _thin_sections(rings, distance)
@@ -607,6 +681,7 @@ class Surface:
     conformed: np.ndarray  # The ground's heights at every 2 m corner of the tile.
     fields: Fields
     spacing: float
+    ground: Ground
 
 
 def ribbons(surface: Surface, nodes: np.ndarray, step: float, west: float, north: float) -> list[tuple[Chain, np.ndarray, np.ndarray]]:
@@ -614,7 +689,7 @@ def ribbons(surface: Surface, nodes: np.ndarray, step: float, west: float, north
     made = []
     for chain in surface.chains:
         if len(chain.kept) >= 2:
-            rings, tiers = ribbon_of(chain, nodes, step, west, north, surface.fields, surface.spacing)
+            rings, tiers = ribbon_of(chain, nodes, step, west, north, surface.fields, surface.spacing, surface.ground)
             made.append((chain, rings, tiers))
     return made
 
@@ -626,4 +701,4 @@ def lay_roads(roads: list[dict], ground: Ground) -> Surface:
         lay_chain(chain, chains, ground)
     fields = road_fields(chains, ground)
     conformed = under_every_ribbon(conform_ground(ground.tile_corners(), fields, ground.spacing), chains, ground, NODE_STRIDE)
-    return Surface(chains, conformed, fields, ground.spacing)
+    return Surface(chains, conformed, fields, ground.spacing, ground)

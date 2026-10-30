@@ -11,6 +11,8 @@ from grid import Tile, lonlat_to_grid, to_local
 NOT_A_ROAD = {"proposed", "construction", "abandoned", "razed", "raceway", "bus_stop", "platform", "rest_area", "services"}
 FOOT_OR_BIKE = {"footway", "path", "cycleway", "steps", "bridleway", "pedestrian", "corridor"}
 KEPT_TAGS = ("name", "ref", "surface", "lanes", "width", "oneway", "bridge", "tunnel", "maxspeed")
+# Far enough along the line either side of a tile edge to read the road's direction, not one kink's.
+SEAM_CHORD_M = 30.0
 
 
 def line_to_grid(geometry: list[dict]) -> np.ndarray:
@@ -50,6 +52,28 @@ def clip_line(line: np.ndarray, tile: Tile) -> list[np.ndarray]:
     return parts
 
 
+def seam_direction(line: np.ndarray, point: np.ndarray) -> np.ndarray:
+    """The way a whole line runs at a point on it, from a chord centred there: both tiles it crosses read the same."""
+    lengths = np.concatenate(([0], np.cumsum(np.hypot(*np.diff(line, axis=0).T))))
+    steps = line[1:] - line[:-1]
+    shares = np.clip(((point - line[:-1]) * steps).sum(axis=1) / np.maximum((steps**2).sum(axis=1), 1e-12), 0, 1)
+    nearest = np.hypot(*(line[:-1] + shares[:, None] * steps - point).T).argmin()
+    along = lengths[nearest] + shares[nearest] * (lengths[nearest + 1] - lengths[nearest])
+    at = lambda distance: np.array([np.interp(distance, lengths, line[:, axis]) for axis in (0, 1)])
+    chord = at(along + SEAM_CHORD_M) - at(along - SEAM_CHORD_M)
+    return chord / np.hypot(*chord)
+
+
+def _seams(line: np.ndarray, part: np.ndarray, tile: Tile) -> list[list[float]]:
+    """For each end of a clipped part on the tile's edge: its place and the whole line's direction there."""
+    seams = []
+    for point in (part[0], part[-1]):
+        if min(abs(point[0] - tile.west), abs(point[0] - tile.east), abs(point[1] - tile.south), abs(point[1] - tile.north)) < 1e-6:
+            direction = seam_direction(line, point)
+            seams.append([*_rounded(point[None])[0], round(float(direction[0]), 6), round(float(direction[1]), 6)])
+    return seams
+
+
 def _rounded(line: np.ndarray) -> list[list[float]]:
     return [[round(float(x), 2), round(float(y), 2)] for x, y in zip(*to_local(line[:, 0], line[:, 1]))]
 
@@ -63,8 +87,12 @@ def build(osm_file: Path, tile: Tile) -> tuple[list[dict], list[dict], str]:
         tags = element.get("tags", {})
         if element["type"] == "way" and "highway" in tags and tags["highway"] not in NOT_A_ROAD:
             kind = tags["highway"]
-            for part in clip_line(line_to_grid(element["geometry"]), tile):
+            whole = line_to_grid(element["geometry"])
+            for part in clip_line(whole, tile):
                 road = {"id": element["id"], "kind": kind, "motor": kind not in FOOT_OR_BIKE, "line": _rounded(part)}
+                seams = _seams(whole, part, tile)
+                if seams:
+                    road["seams"] = seams
                 road.update({key: tags[key] for key in KEPT_TAGS if key in tags})
                 roads.append(road)
         if "building" in tags:

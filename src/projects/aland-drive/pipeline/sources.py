@@ -5,9 +5,11 @@ missing.
 """
 
 import json
+import time
 import urllib.error
-import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ElementTree
+from datetime import datetime, timezone
 from pathlib import Path
 
 from pyproj import Transformer
@@ -16,8 +18,11 @@ from grid import Tile
 
 RAW = Path(__file__).resolve().parent.parent / ".data" / "raw"
 DEM_MIRROR = "https://mirrors.nic.funet.fi/index/geodata/mml/dem2m/2008_latest/"
-# Public servers that are often at capacity, so each is tried in turn.
-OVERPASS = ("https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter")
+# OSM's own API rather than Overpass, whose public servers are often down. It answers a
+# small box at once, and one tile at a time is the use its policy allows.
+OSM_API = "https://api.openstreetmap.org/api/0.6/map"
+OSM_RETRIES = 4
+OSM_FIRST_WAIT_S = 30
 USER_AGENT = "NoveltyWorld-AlandDrive-pipeline/1.0 (https://github.com/BachNewton/Novelty-World)"
 REQUEST_TIMEOUT_S = 90
 # Roads are clipped at the tile's edge, so a little past it catches every way that crosses.
@@ -51,10 +56,41 @@ def dem_path(tile: Tile) -> Path | None:
     return path
 
 
-def osm_path(tile: Tile, refresh: bool = False) -> Path:
-    path = RAW / "osm" / f"{tile.name}.json"
-    if path.exists() and not refresh:
-        return path
+def _fetch_box(name: str, box: tuple[float, float, float, float]) -> list[Path]:
+    """The API's answers for a box, kept as they came. A box over its limit of 50,000 nodes is asked for in quarters."""
+    path = RAW / "osm-api" / f"{name}.xml"
+    if path.exists():
+        return [path]
+    west, south, east, north = box
+    if (RAW / "osm-api" / f"{name}.split").exists():
+        return _fetch_quarters(name, box)
+    url = f"{OSM_API}?bbox={west:.6f},{south:.6f},{east:.6f},{north:.6f}"
+    for attempt in range(OSM_RETRIES):
+        try:
+            _download(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), path)
+            return [path]
+        except urllib.error.HTTPError as error:
+            if error.code == 400:
+                (RAW / "osm-api" / f"{name}.split").touch()
+                return _fetch_quarters(name, box)
+            # 429 and 5xx are the server asking for room. Anything else is a real failure.
+            if error.code != 429 and error.code < 500 or attempt == OSM_RETRIES - 1:
+                raise
+        except OSError:
+            if attempt == OSM_RETRIES - 1:
+                raise
+        time.sleep(OSM_FIRST_WAIT_S * 2**attempt)
+    raise AssertionError("unreachable: the last attempt raises")
+
+
+def _fetch_quarters(name: str, box: tuple[float, float, float, float]) -> list[Path]:
+    west, south, east, north = box
+    middle_lon, middle_lat = (west + east) / 2, (south + north) / 2
+    quarters = ((west, south, middle_lon, middle_lat), (middle_lon, south, east, middle_lat), (west, middle_lat, middle_lon, north), (middle_lon, middle_lat, east, north))
+    return [path for index, quarter in enumerate(quarters) for path in _fetch_box(f"{name}.{index}", quarter)]
+
+
+def _osm_xml(tile: Tile) -> list[Path]:
     to_lonlat = Transformer.from_crs("EPSG:3067", "EPSG:4326", always_xy=True)
     corners = [
         to_lonlat.transform(east, north)
@@ -62,21 +98,39 @@ def osm_path(tile: Tile, refresh: bool = False) -> Path:
         for north in (tile.south - OSM_MARGIN_M, tile.north + OSM_MARGIN_M)
     ]
     lons, lats = zip(*corners)
-    box = f"{min(lats):.6f},{min(lons):.6f},{max(lats):.6f},{max(lons):.6f}"
-    query = (
-        f"[out:json][timeout:{REQUEST_TIMEOUT_S - 10}];"
-        f'(way["highway"]({box});way["building"]({box});relation["building"]({box}););'
-        "out tags geom;"
-    )
-    body = urllib.parse.urlencode({"data": query}).encode()
-    failures = []
-    for server in OVERPASS:
-        try:
-            _download(urllib.request.Request(server, data=body, headers={"User-Agent": USER_AGENT}), path)
-            # A busy Overpass can answer with an HTML page: fail here, not later.
-            json.loads(path.read_text(encoding="utf-8"))
-            return path
-        except (OSError, json.JSONDecodeError) as error:
-            path.unlink(missing_ok=True)
-            failures.append(f"{server}: {error}")
-    raise SystemExit("no Overpass server answered:\n" + "\n".join(failures))
+    return _fetch_box(tile.name, (min(lons), min(lats), max(lons), max(lats)))
+
+
+def _roads_and_buildings(xml_files: list[Path]) -> dict:
+    """The API's nodes joined into each road and building, in the shape vectors.py reads."""
+    roots = [ElementTree.parse(path).getroot() for path in xml_files]
+    nodes = {node.get("id"): {"lat": float(node.get("lat")), "lon": float(node.get("lon"))} for root in roots for node in root.iter("node")}
+    tags_of = lambda element: {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
+    ways = {way.get("id"): way for root in roots for way in root.iter("way")}
+    relations = {relation.get("id"): relation for root in roots for relation in root.iter("relation")}
+    lines = {id: [nodes[nd.get("ref")] for nd in way.findall("nd") if nd.get("ref") in nodes] for id, way in ways.items()}
+    elements: list[dict] = []
+    for id, way in ways.items():
+        tags = tags_of(way)
+        if "highway" in tags or "building" in tags:
+            elements.append({"type": "way", "id": int(id), "tags": tags, "geometry": lines[id]})
+    for id, relation in relations.items():
+        tags = tags_of(relation)
+        if "building" in tags:
+            members = [
+                {"role": member.get("role"), "geometry": lines[member.get("ref")]}
+                for member in relation.findall("member")
+                if member.get("type") == "way" and member.get("ref") in lines
+            ]
+            elements.append({"type": "relation", "id": int(id), "tags": tags, "members": members})
+    fetched = datetime.fromtimestamp(xml_files[0].stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"osm3s": {"timestamp_osm_base": fetched}, "elements": elements}
+
+
+def osm_path(tile: Tile, refresh: bool = False) -> Path:
+    path = RAW / "osm" / f"{tile.name}.json"
+    if path.exists() and not refresh:
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_roads_and_buildings(_osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
+    return path

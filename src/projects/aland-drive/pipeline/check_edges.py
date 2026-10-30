@@ -47,7 +47,8 @@ def built_shade(name: str) -> np.ndarray:
 
 
 def built_water(name: str) -> np.ndarray:
-    return np.asarray(Image.open(OUT / name / "water.png").convert("L")) > 0
+    """At the mask's 4 m, so the raw samples beside it are taken every second one."""
+    return np.asarray(Image.open(OUT / name / "mask.png"))[..., 0] > 127
 
 
 def road_ends(name: str, side: str, value: float) -> np.ndarray:
@@ -58,7 +59,7 @@ def road_ends(name: str, side: str, value: float) -> np.ndarray:
 
 
 def report_sea(name: str) -> None:
-    samples = raw(name)
+    samples = raw(name)[::2, ::2]
     water = built_water(name)
     values, counts = np.unique(np.round(samples[water], 2), return_counts=True)
     common = sorted(zip(counts, values), reverse=True)[:4]
@@ -74,7 +75,7 @@ def report_sea(name: str) -> None:
 
 
 def report_shore(name: str) -> None:
-    samples = raw(name)
+    samples = raw(name)[::2, ::2]
     water = built_water(name)
     land = ~water
     shore_land = land & ndimage.binary_dilation(water, iterations=SHORE_SAMPLES)

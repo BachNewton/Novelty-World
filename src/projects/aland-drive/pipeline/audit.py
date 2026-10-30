@@ -34,7 +34,7 @@ from terrain import RIM_SAMPLES, read_with_rim, water_mask
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE.parent / ".data"
-TILES = HERE.parents[3] / "public" / "aland-drive" / "tiles"
+TILES = HERE.parent / ".data" / "tiles"
 
 # NLS road classes: paved and gravel roads by size, then tracks and paths.
 NLS_ROADS = {12121: "road IIa", 12122: "road IIb", 12131: "road IIIa", 12132: "road IIIb", 12141: "drive"}

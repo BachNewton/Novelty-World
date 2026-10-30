@@ -6,12 +6,16 @@ No network, and no real tile: these pin what a change to the road code could
 quietly break, and `road_audit.py` measures the real thing.
 """
 
+import gzip
 import unittest
 
 import numpy as np
 
 import roads
+from build import encode_heights
+from grid import Tile
 from roads import Ground, lay_roads
+from vectors import clip_line, seam_direction
 
 
 def land(size_cells=1500, rim=100, height=None):
@@ -80,10 +84,50 @@ class Ground_(unittest.TestCase):
         east_tile = land(height=lambda east, north: world(east + 3000, north))
         east_tile.west = 0.0
         crossing = np.array([3000.0, 1500.0])
-        here = roads._edge_pin(west_tile, crossing, 3.75)
-        there = roads._edge_pin(east_tile, crossing - [3000, 0], 3.75)
+        east_way = np.array((1.0, 0.0))
+        here = roads._edge_pin(west_tile, crossing, 3.75, east_way)
+        there = roads._edge_pin(east_tile, crossing - [3000, 0], 3.75, east_way)
         for near, far in zip(here, there):
             self.assertAlmostEqual(near, far, places=3)
+
+
+    def test_a_road_built_apart_on_two_tiles_ends_on_one_cross_section_whatever_its_chain_does(self):
+        """An oblique, curving road, cut into chains running opposite ways: the ring at the seam must still be one ring."""
+
+        def world(east, north):
+            return 12 + 0.01 * east + 0.2 * np.sin(east / 5 + north / 9)
+
+        whole = np.array([(2400 + step * 12.0, 1200 + 40 * np.sin(step / 6) + step * 5.0) for step in range(100)])
+        west_of_seam = clip_line(whole, Tile("W", -3000, 0))
+        east_of_seam = clip_line(whole, Tile("E", 3000, 0))
+        self.assertEqual((len(west_of_seam), len(east_of_seam)), (1, 1))
+
+        def tile_road(part, tile):
+            ends = [end for end in (part[0], part[-1]) if abs(end[0] - 3000) < 1e-6]
+            direction = seam_direction(whole, ends[0])
+            local = part - [tile.west, 0]
+            seam = [round(ends[0][0] - tile.west, 2), round(ends[0][1], 2), direction[0], direction[1]]
+            return road(np.round(local[::-1] if tile.name == "E" else local, 2), seams=[seam])
+
+        west_ground = land(height=world)
+        east_ground = land(height=lambda east, north: world(east + 3000, north))
+
+        def seam_ring(ground, line, ring_end):
+            surface = lay_roads([line], ground)
+            nodes = surface.conformed[::2, ::2]
+            rings, _ = roads.ribbons(surface, nodes, 4.0, 0.0, 3000.0)[0][1:]
+            return rings[ring_end]
+
+        here = seam_ring(west_ground, tile_road(west_of_seam[0], Tile("W", 0, 0)), -1)
+        there = seam_ring(east_ground, tile_road(east_of_seam[0], Tile("E", 3000, 0)), -1) + [3000, 0, 0]
+        ends_match = min(np.abs(here - there).max(), np.abs(here - there[::-1]).max())
+        self.assertLess(ends_match, 0.002)
+
+    def test_two_tiles_share_their_edge_row_of_heights_however_their_arrays_are_typed(self):
+        row = np.array([1.2349999, 7.0049996, 0.0150001], dtype=np.float32)
+        single = gzip.decompress(encode_heights(row[None]))
+        double = gzip.decompress(encode_heights(row[None].astype(np.float64)))
+        self.assertEqual(single, double)
 
 
 class Junctions(unittest.TestCase):
