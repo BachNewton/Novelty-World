@@ -370,6 +370,16 @@
   --color-hearthwood-valley-season-ground-russet: #b77a46;
 }
 
+/* Åland Drive's world and its UI. The world's are read only by the 3D scene
+   through themeColor, so all are declared outside @theme. */
+:root {
+  --color-aland-drive-sky: #8fc4ea;
+  --color-aland-drive-ground: #6f9a55;
+  --color-aland-drive-sun: #fff4e0;
+  --color-aland-drive-ui-ink: #f4f8fb;
+  --color-aland-drive-ui-shade: #1c2a36;
+}
+
 /* Tell the browser the UI is dark so it themes NATIVE controls to match —
    <select> popups, date/color pickers, form fields. Must live on the ROOT
    element: Chromium resolves the color scheme for OS-drawn popups from the

@@ -139,6 +139,13 @@ export const PROJECTS: Project[] = [
     icon: "Cat",
   },
   {
+    name: "Åland Drive",
+    slug: "aland-drive",
+    description: "Drive the open roads of Åland, a whole island at 1:1 scale built from real map data",
+    categorySlug: "3d-games",
+    icon: "Car",
+  },
+  {
     name: "Pi Solver",
     slug: "pi-solver",
     description: "Compute digits of Pi with various algorithms",
