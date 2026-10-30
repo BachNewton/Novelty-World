@@ -1,4 +1,4 @@
-import "./no-audio-context";
+import "@/shared/lib/sound/no-audio-context";
 import { ZZFX } from "zzfx";
 import { zzfxm, type ZzfxmSong } from "./zzfxm";
 

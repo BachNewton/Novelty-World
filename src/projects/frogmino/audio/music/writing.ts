@@ -1,4 +1,5 @@
-import { parseNote, tokens } from "./song";
+import { parseNote } from "@/shared/lib/sound";
+import { tokens } from "./song";
 
 // Helpers for writing themes in the note format of `song.ts`: lines on a
 // coarser grid than a sixteenth, a bar per chord, and moving a line by key

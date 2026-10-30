@@ -74,6 +74,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   audiobook: dynamic(() =>
     import("@/projects/audiobook").then((m) => ({ default: m.Audiobook })),
   ),
+  composer: dynamic(() =>
+    import("@/projects/composer").then((m) => ({ default: m.Composer })),
+  ),
 };
 
 interface Props {

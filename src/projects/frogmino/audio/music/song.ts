@@ -1,4 +1,4 @@
-import { zzfxParams, type ZzfxSound } from "@/shared/lib/sound";
+import { noteFrequency, parseNote, zzfxParams, type ZzfxSound } from "@/shared/lib/sound";
 import type { ZzfxmChannel, ZzfxmSong } from "./zzfxm";
 
 // Frogmino's music themes as data, written for reading and compiled to
@@ -50,24 +50,6 @@ export interface Theme {
   instruments: readonly Instrument[];
   patterns: readonly (readonly Channel[])[];
   sequence: readonly number[];
-}
-
-const NOTE_STEPS: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-const NOTE = /^([A-G])(#|b|)(\d)((?:\.\d)?)$/;
-
-// Semitones from C0, and how far the note is turned down.
-export function parseNote(token: string): { semitone: number; quieter: number } {
-  const match = NOTE.exec(token);
-  if (match === null) throw new Error(`Not a note: "${token}"`);
-  // An absent fraction is the empty string, which Number reads as 0.
-  const [, letter, accidental, octave, fraction] = match;
-  const shift = accidental === "#" ? 1 : accidental === "b" ? -1 : 0;
-  return { semitone: NOTE_STEPS[letter] + shift + 12 * Number(octave), quieter: Number(fraction) };
-}
-
-export function noteFrequency(name: string): number {
-  // A4 is 440 Hz, and 57 semitones above C0.
-  return 440 * 2 ** ((parseNote(name).semitone - 57) / 12);
 }
 
 // ZzFXM's notes run from 1 to 36, with 12 at the instrument's own pitch.

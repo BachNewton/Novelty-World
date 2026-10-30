@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { compileTheme, noteFrequency, themeSeconds, tokens, zzfxmSource, type Theme } from "./song";
+import { noteFrequency } from "@/shared/lib/sound";
+import { compileTheme, themeSeconds, tokens, zzfxmSource, type Theme } from "./song";
 import { THEMES } from "./themes";
 import { rowSamples, zzfxm, type ZzfxmSong } from "./zzfxm";
 

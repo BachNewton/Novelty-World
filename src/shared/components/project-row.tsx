@@ -31,6 +31,7 @@ import {
   FlaskConical,
   Cat,
   Headphones,
+  Music,
   PawPrint,
   ChevronRight,
   type LucideIcon,
@@ -63,6 +64,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   FlaskConical,
   Cat,
   Headphones,
+  Music,
   PawPrint,
 };
 

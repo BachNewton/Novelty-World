@@ -9,6 +9,7 @@ export const CATEGORIES: Category[] = [
   { name: "Card Games", slug: "card-games", parentSlug: "games", description: "Classic card games" },
   { name: "Tools", slug: "tools", description: "Utilities and solvers" },
   { name: "Travel", slug: "travel", parentSlug: "tools", description: "Travel guides and catalogues" },
+  { name: "Music", slug: "music", parentSlug: "tools", description: "Making and hearing music" },
 ];
 
 export const PROJECTS: Project[] = [
@@ -207,6 +208,13 @@ export const PROJECTS: Project[] = [
     description: "Listen to a book chapter by chapter, picking up where you left off",
     categorySlug: "tools",
     icon: "Headphones",
+  },
+  {
+    name: "Composer",
+    slug: "composer",
+    description: "Claude writes music: compare formats, synths and scores",
+    categorySlug: "music",
+    icon: "Music",
   },
 ];
 
