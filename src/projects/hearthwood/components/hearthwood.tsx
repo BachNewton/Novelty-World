@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { parseDate } from "../engine/calendar";
 import type { GameProbe, GameStatus } from "../render/game";
-import { useFrameStats } from "../render/frame-stats";
+import { useFrameStats } from "@/shared/lib/three/frame-stats";
 
 /*
  * The page round the world: the canvas the game draws into, the frame

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 
-// The stats.js frame meter, always shown in the top right while the valley is
+// The stats.js frame meter, shown in the top right while a 3D game is
 // open. Click it to cycle FPS / frame ms / memory. Its own animation frame
 // loop is the feature: each frame's update is what it measures.
 export function useFrameStats(): void {
