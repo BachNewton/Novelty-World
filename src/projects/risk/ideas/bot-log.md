@@ -1402,3 +1402,20 @@ Recorded on 24 seeds of their own (`stalla`–`stalld`, 6 players), `execute` ca
 - **A five-way grind** (1 of 3): five seats alive at turn 600 with 150 to 200 armies each, about two captures a turn.
 
 In three-seat endgames the two bots' turns look alike (about 5.4 against 6.1 captures a turn, 8.2 against 8.8 armies moved in, three in four move-ins leaving exactly 1 behind); `execute`'s endgames just last longer (2,147 turns over the 24 games against 1,246). So the cause isn't how it moves in, but that it doesn't close games: what keeps it from the kill is open. Candidates, unmeasured: `beyond`'s gate, which takes no capture past the plan unless the board scores better with the feed charge (at weight 1 while `feed` is off), and the plan given up below an even chance.
+
+## native-v2: the switch factorial (2026-10-30)
+
+All 64 combinations of `execute`, `kinds`, `feed`, `threat`, `hoard` and `margin` 0.5, each alone among native v6.1s at 5 players, 500 games on `v2screen` seeds, rotated, on Actions. 32,000 games, 46 capped (18 without `execute`, 28 with it). Fitted on the lone seat's win share as a logit, weighted by its binomial variance:
+
+| Switch | Main effect (logit) | Reading |
+|---|---|---|
+| `execute` | +0.26 ± 0.02 | a clear gain |
+| `kinds` | +0.04 ± 0.02 | nothing measurable |
+| `margin` 0.5 | −0.00 ± 0.02 | nothing |
+| `threat` | −0.10 ± 0.02 | a clear loss |
+| `hoard` | −0.13 ± 0.02 | a clear loss |
+| `feed` | −0.15 ± 0.02 | a clear loss |
+
+The main effects alone fit the 64 tables to their luck (χ² 47 on 57 degrees of freedom), and all 15 pairwise interactions together add nothing (χ² down 11.7 for 15 more terms; none of them past two standard errors). So the switches add up: no pair helps or hurts together beyond its parts, and the best combination is the good switches on and the bad ones off.
+
+Win Elo a seat, one-in among v6.1s: the baseline +159, `execute` +195, `execute` + `kinds` +209 (the top, tied with + `margin`), down to `feed` + `hoard` + `threat` at +61. Each is about ±15 of luck. `kinds` on `execute` gains 14 here, inside its luck, as in the head-to-head at 5 players.
