@@ -467,7 +467,27 @@ reinforcement. Potential-based shaping leaves the best policy unchanged only ove
 cut short by λ, it pays for what Φ measures, and army share measures hoarding. This is the coherent
 bias the noise measurement couldn't see: its seven-fold gain in signal was largely this.
 
-The ladder settles 27 and 29 (below). Shaping isn't dead, but any Φ for it must not pay for
+The ladder, seven nets, 8192 games, win Elo with sw-450 at 0; 1,294 games capped, every one with pf5
+seated:
+
+| Net | Win Elo |
+|---|---|
+| pf4-50 | +23 |
+| sw-450 | 0 |
+| pf4-100 | −9 |
+| net-v1 (m2a-50) | −27 |
+| pf5-50 | −62 |
+| pf5-100 | −64 |
+| pf2-100 | −77 |
+
+27. pf5-100 above pf4-100: **failed**, 55 below.
+28 and 29 (at iteration 300) weren't reached; at 100, pf5 is level with its 50 and 64 below sw-450,
+past the 30 the rule above reads as shaping teaching something other than winning.
+
+pf4 sits where the first ladder put it (pf4-100 within 30 of sw-450, pf4-50 above it), though every
+net moved by up to 30 with the field again.
+
+Shaping isn't dead, but any Φ for it must not pay for
 holding back: territory alone, or the value head's own estimate, which already knows that armies
 only matter if used. Neither is tried before its noise and its stalling are measured, at a few
 iterations' cost rather than a night's.
