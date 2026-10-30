@@ -59,7 +59,14 @@ About nine tiles, loaded as the car moves.
 
 ### 4. Art direction check
 
-Dress the nine-tile area: forest, shoreline, fields and building shapes from footprints. Then look at it and decide how realistic the game is going to be, and pick the car style to match.
+Dress the nine-tile area, then look at it and decide how realistic the game is going to be, and pick the car style to match. In order of what fills the view:
+
+- Forest and roadside verges.
+- Shoreline and fields.
+- Buildings: NLS 3D buildings first, and simple generated gables on footprints for the small and missing ones.
+- Roofs coloured from the aerial photos.
+- Walls with windows, doors, white trim and roof overhangs. A bare textured wall reads as a windowless block, so a wall texture alone isn't a building. Windows are drawn by the shader rather than built as geometry, with their rhythm set by each building's real size and height.
+- A small kit of roadside objects (lamps, poles, signs, fences), placed from OpenStreetMap where it has them and by rule where it doesn't.
 
 NLS's 3D buildings are shapes with no textures, so walls have to be made. Try a library of wall textures made with image generation from real reference photos (Åland red timber, white trim, plaster, shopfronts), assigned by building type, side by side with purely procedural walls on one street, and keep whichever looks better. AI use is disclosed if the generated textures ship.
 
@@ -73,7 +80,8 @@ Everything, end to end.
 - A mini map while driving, and a world map of the whole island with GPS routes set from it.
 - Street names on the road as you drive, and on both maps.
 - Bridges and causeways, which the terrain data doesn't carry as driving surfaces.
-- First hand-made landmarks: Kastelholm, Bomarsund, central Mariehamn.
+- First hand-made landmarks: Kastelholm, Bomarsund, and in Mariehamn the water tower, Pommern and the towers of S:t Görans and the town hall, which the 3D data lacks or cuts short.
+- Mariehamn's harbour: false solids removed (the terminal's walkways, the slab in the town centre), and piers from OpenStreetMap.
 
 **Exit test:** Eckerö to Lumparland in one unbroken drive, navigated by the game's own map.
 

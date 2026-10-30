@@ -85,6 +85,20 @@ Undecided until a prototype shows how the real data looks. Expected: real land a
 - **NLS Topographic Database** (CC BY 4.0): `maastotietokanta/2025/shp/L2/L23/L2343L.shp.zip` on the same mirror has 96 km of classed roads and drives, 56 km of tracks and paths and about 880 building footprints on tile L2343C alone. Its shapefile sheets are named by left and right halves (`L2343L`, `L2343R`).
 - **NLS orthophotos** (CC BY 4.0): `orto/normal_color_3067/mara_v_25000_50/2025/L23/02m/1/L2343C.jp2` is 12000×12000 RGB at 0.5 m, flown in 2025, 107 MB. The index `ortho_newest` lists 140 sheets in a box around the island.
 - **NLS laser point clouds** (CC BY 4.0): `laserkeilaus/2008_latest/2013/L234/1/L2343C1.laz` is a 3×3 km classified LAZ of 75 MB and 15.65 M points (1.7 per m²), scanned in 2013. Its ground points sit on the 2 m model (median 0.00 m, 90% within 0.14 m) and first returns stand up to 27 m above it, so tree heights are there. The index `2008_latest` lists 422 sheets in the same box.
+- **NLS 3D buildings** (CC BY 4.0): CityGML LOD2 by 6×6 km sheet, from a 2022 scan, with 80 Åland sheets. They aren't on the mirror: MapSite's Buildings 3D page takes a free order of up to 100 sheets with an email address, and the zip's link comes back from the order's page and by email. Three sheets were decoded.
+
+| | L2343C rural | L2334F north town | L2334E town centre | Central grid only |
+|---|---|---|---|---|
+| Buildings | 639 | 3,405 | 3,070 | 425 |
+| Built area modelled | 91% | 97.5% | 97.1% | 98.5% |
+| Footprints of 20 m² or more missing | 14% | 5% | 4.6% | 2.7% |
+| Median roof distance from laser | 8 cm | 10 cm | 11 cm | 6 cm |
+| Triangles | 18,000 | 129,000 | 133,000 | 33,000 |
+| Gzipped | 85 kB | 624 kB | 634 kB | |
+
+The model has real roof shapes as geometry and nothing else: no textures, windows or doors, and its `roofType`, `function` and `creationDate` are constants. Nothing under 20 m² is modelled, so sheds and about 11,700 footprints across the island need a generated shape. Joined buildings are one solid. Walls are sunk into the ground on purpose, about 0.8 m at the median, but a few dozen float, so walls get extended down. A building crossing a sheet edge lives in one sheet only, so sheets are processed with their neighbours. Rings can hold duplicate vertices and holes, and a few faces are invalid and need repair.
+
+In Mariehamn, ordinary blocks and the esplanade houses are right. Landmarks vary: Sjöfartsmuseet, the Savoy, Ålands museum and the Västerhamn terminal read well; the water tower has no building at all, the towers of S:t Görans and the town hall are cut short, and the terminal's walkways are solid walls. At least one solid is false, a 34.6 m slab about 19 m above the laser at 108027, 6683455. Eleven solids contain OSM drivable roads, which needs checking before routing through them. The whole island is estimated at about 34,600 buildings, 950,000 triangles and 4.6 MB gzipped, from these three sheets.
 
 **Unconfirmed or ruled out:** none.
 
