@@ -1,4 +1,6 @@
 import { ALAND_DRIVE_CREDITS } from "@/projects/aland-drive/credits";
+import { AUDIOBOOK_CREDITS } from "@/projects/audiobook/credits";
+import { COMPOSER_CREDITS } from "@/projects/composer/credits";
 import { FAMILY_TREE_CREDITS } from "@/projects/family-tree/credits";
 import { HALO_CREDITS } from "@/projects/halo/credits";
 import { POKEMON_CREDITS } from "@/projects/pokemon/credits";
@@ -13,6 +15,8 @@ import { SITE_CREDITS, type Credit } from "@/shared/lib/credits";
 // else's work registers its list here.
 export const PROJECT_CREDITS: Partial<Record<string, readonly Credit[]>> = {
   "aland-drive": ALAND_DRIVE_CREDITS,
+  audiobook: AUDIOBOOK_CREDITS,
+  composer: COMPOSER_CREDITS,
   "family-tree": FAMILY_TREE_CREDITS,
   halo: HALO_CREDITS,
   pokemon: POKEMON_CREDITS,

@@ -1,0 +1,670 @@
+title: Dark by Four
+audience: Adults, and Star Trek fans who will catch what the family can't. Literary, grounded drama, about twenty minutes.
+lines:
+  # The world
+  - id: l001
+    speaker: narrator
+    text: "It is Sunday, the eighth of November, two thousand and twenty-six."
+    direction: "Speak with quiet sorrow, as if opening a ledger you have opened many times."
+    pause_after: 1.2
+  - id: l002
+    speaker: narrator
+    text: "It has been two years and two months since the riots in San Francisco, the ones that took their name from a man called Gabriel Bell, who died in them. In America the hearings go on. The National Guard is in two more cities than it was in the summer. The word Sanctuary, which used to be a kind word, is in the papers most days."
+    direction: "Report it with tender attention, setting down each fact and letting it lie."
+    pause_after: 1.0
+  - id: l003
+    speaker: narrator
+    text: "Elsewhere, there are other kinds of news. Ireland has been one country for two years. A French astronaut named Renée Picard has gone out to Europa, and the pictures from that mission are pinned up in classrooms all over the world, including one in Helsinki, where a seven-year-old has copied the moon in orange crayon, because orange was the crayon she had."
+    direction: "Speak with quiet curiosity, letting a little fondness in at the end."
+    pause_after: 1.0
+  - id: l004
+    speaker: narrator
+    text: "And in Helsinki, at sixty degrees north, under this much cloud, it is dark by four."
+    direction: "Say it with plain tenderness, letting the last word fall away."
+    pause_after: 1.8
+  # Dinner
+  - id: l005
+    speaker: narrator
+    text: "The flags were out this morning, on the schools and the churches, because in Finland the second Sunday of November is Father's Day. Ben, who is from Toledo, Ohio, was woken at seven by his daughter, with coffee he hadn't asked for and a card he can't read."
+    direction: "Speak with quiet amusement, enjoying the small facts."
+    pause_after: 0.8
+  - id: l006
+    speaker: narrator
+    text: "It is a third-floor apartment in the north of the city. Five years ago they carried a two-year-old up these stairs. Now there are two children at the table and a third on the way, due in January, and in the hall there is a cardboard box from the Finnish state, full of baby clothes, with a mattress in the bottom, so that the box can be a bed."
+    direction: "Speak with tender attention, walking through the rooms."
+    pause_after: 1.0
+  - id: l006a
+    speaker: narrator
+    text: "The radiators are warm from October to April, on hot water piped under the city from its power plants. Nobody in the building has ever had to think about it."
+    direction: "Speak with quiet curiosity, pleased by how little there is to say."
+    pause_after: 0.8
+  - id: l007
+    speaker: narrator
+    text: "Nobody made them leave. Nothing had happened to them, in Ohio, in two thousand and twenty-one. They read the news, and looked at their daughter, and a job came up. On the forms they are third-country nationals. Neither of them can yet follow the evening news in Finnish, so they follow it in English, from home, on a phone."
+    direction: "Speak with quiet sorrow, fair to everyone in the room."
+    pause_after: 1.0
+  - id: l007a
+    speaker: narrator
+    text: "Five days ago there was an election in America. They voted in it from this table, on ballots that went by post to a county in Ohio. In Finland, a foreigner who has lived here for two years may vote for the city council, though not for parliament. So they have a vote on the trams here, and a vote on the country there."
+    direction: "Report it with quiet curiosity, weighing the two votes evenly."
+    pause_after: 0.8
+  - id: l007b
+    speaker: narrator
+    text: "Ben was hired to write software. These days he mostly checks what the software writes. The team he left behind in Columbus had eleven people on it. It has two. The other nine are looking for work, in a country that has less of it each year."
+    direction: "Report it with quiet sorrow, counting the numbers down."
+    pause_after: 1.0
+  - id: l008
+    speaker: ben
+    text: "Huh."
+    direction: "Murmur it with mild interest, eyes on a screen."
+    pause_after: 0.4
+  - id: l009
+    speaker: anna
+    text: "Not at the table."
+    direction: "Say it dryly, without looking up."
+    pause_after: 0.3
+  - id: l010
+    speaker: ben
+    text: "Sorry. It's just, they've sent the Guard into Pittsburgh."
+    direction: "Mention it with an apologetic shrug in the voice."
+    pause_after: 0.4
+  - id: l011
+    speaker: anna
+    text: "Do we know anybody in Pittsburgh?"
+    direction: "Ask it flatly, cutting up someone's food."
+    pause_after: 0.3
+  - id: l012
+    speaker: ben
+    text: "No."
+    direction: "Answer with a little relief."
+    pause_after: 0.3
+  - id: l013
+    speaker: anna
+    text: "Then put it down and tell them about your card."
+    direction: "Say it with brisk affection, closing the subject."
+    pause_after: 0.6
+  - id: l014
+    speaker: ben
+    text: "So I ran it through the phone. The card. I want it on the record that according to the phone, I am a good father, and I am tall."
+    direction: "Announce it with mock pride, pleased with yourself."
+    pause_after: 0.4
+  - id: l015
+    speaker: nora
+    text: "It says funny. It doesn't say tall."
+    direction: "Correct him patiently, a little amused by how little he knows."
+    pause_after: 0.3
+    probe: A child voice in ordinary dialogue, with no performing.
+  - id: l016
+    speaker: ben
+    text: "The phone said tall, Nora."
+    direction: "Protest it with cheerful dignity."
+    pause_after: 0.3
+  - id: l017
+    speaker: anna
+    text: "Eat, please. Both of you. Theo, that's the good macaroni, that's from the store with the good macaroni. Ben, tell him."
+    direction: "Say it with tired fondness, already reaching across the table."
+    pause_after: 0.3
+  - id: l018
+    speaker: ben
+    text: "It's makaronilaatikko, buddy. Daddy can't say it, but it's delicious."
+    direction: "Coax it playfully, stumbling cheerfully over the long word."
+    pause_after: 0.4
+  - id: l019
+    speaker: theo
+    text: "I don't want the orange cup."
+    direction: "Say it stubbornly, with deep suspicion."
+    pause_after: 0.3
+    probe: A four-year-old voice, and whether it holds at all.
+  - id: l020
+    speaker: anna
+    text: "It's the same as the blue cup, it's just — Theo, careful, careful, that's —"
+    direction: "Start out reasonable and rise into alarm, cutting off."
+    pause_after: 0
+    probe: A line cut off, with the next speaker landing straight on it.
+  - id: l021
+    speaker: ben
+    text: "There it goes. I've got it, I've got it. Don't get up."
+    direction: "Say it quickly and cheerfully, already moving."
+    pause_after: 0.4
+  - id: l022
+    speaker: anna
+    text: "Oh, honey, no, don't cry. That was Mommy. I shouldn't have put it there. I'm sorry. Nora, your sleeve, I'm sorry, it's going everywhere."
+    direction: "Hurry through it with weary apology, close to giving up."
+    pause_after: 0.5
+  - id: l023
+    speaker: nora
+    text: "Ei se mitään."
+    direction: "Say it lightly and automatically, a child repeating something ordinary."
+    pause_after: 0.8
+    probe: Finnish in a cloned child voice, three short words.
+  - id: l024
+    speaker: narrator
+    text: "She doesn't look up. She says it the way a child in Ohio would say, it's okay. Her mother stops, with a dishcloth in her hand."
+    direction: "Speak with quiet curiosity, watching closely."
+    pause_after: 0.6
+  - id: l025
+    speaker: anna
+    text: "Is that — do I know that one? Ben, what's that one?"
+    direction: "Ask it with a small, embarrassed laugh in the voice."
+    pause_after: 0.3
+  - id: l026
+    speaker: ben
+    text: "No problem. It's, like, no problem."
+    direction: "Offer it hopefully, not at all sure."
+    pause_after: 0.3
+  - id: l027
+    speaker: nora
+    text: "It's not no problem. It means it's nothing. It's what you say when somebody's sorry."
+    direction: "Explain it kindly, as you would to someone much younger."
+    pause_after: 0.5
+  - id: l028
+    speaker: ben
+    text: "Five years of Tuesday night classes, ladies and gentlemen."
+    direction: "Say it wryly, enjoying your own defeat."
+    pause_after: 1.5
+  - id: l028a
+    speaker: narrator
+    text: "Under the building there is a room with concrete walls and a steel door, because Finnish law has long said that a building this size must have one. There is space in it for everyone who lives upstairs. In peacetime the residents keep their skis there, and their winter tires. The law says it must be possible to empty it and make it ready within seventy-two hours."
+    direction: "Report it with quiet curiosity, setting each fact down with care."
+    pause_after: 0.8
+  - id: l028b
+    speaker: narrator
+    text: "Ben brought the crib up from there this afternoon. Nora held the door, which took both of her hands. She asked him what the room was for. He said, skis."
+    direction: "Speak with tender attention, leaving the last word alone."
+    pause_after: 1.5
+  # The call
+  - id: l029
+    speaker: narrator
+    text: "At six, the tablet goes against the fruit bowl. Dayton, Ohio is seven hours behind, so it is eleven in the morning there, and the Sunday call has been made every week for five years. It begins, as it has always begun, with a ceiling fan."
+    direction: "Speak with tender attention, noticing the fan with affection."
+    pause_after: 0.8
+  - id: l030
+    speaker: anna
+    text: "Dad. Dad, we've got the ceiling again. Tip it down. The other — toward you. There you are. Hi."
+    direction: "Say it with fond exasperation, a routine you know by heart."
+    pause_after: 0.3
+  - id: l031
+    speaker: walt
+    text: "There she is. How's my girl? How's that baby? You look good. You look big."
+    direction: "Greet her with gruff delight, pleased and a little too loud for the microphone."
+    pause_after: 0.3
+  - id: l032
+    speaker: anna
+    text: "Thank you, Dad. Happy Father's Day."
+    direction: "Say it dryly, waiting for him to bite."
+    pause_after: 0.3
+  - id: l033
+    speaker: walt
+    text: "That's June."
+    direction: "Say it with amused suspicion, sure of your ground."
+    pause_after: 0.3
+  - id: l034
+    speaker: anna
+    text: "Not here. Here it's today. They put the flags out."
+    direction: "Tell him with a smile you can hear."
+    pause_after: 0.3
+  - id: l035
+    speaker: walt
+    text: "Dark at four and Father's Day in November. And you people pay for this? Well, tell Ben I said happy Father's Day. Where's my Nora? Is that Nora?"
+    direction: "Tease it with relish, delighted at his own joke."
+    pause_after: 0.3
+  - id: l036
+    speaker: nora
+    text: "Hi, Grandpa. I have to take a bath now."
+    direction: "Say it politely and quickly, already leaving."
+    pause_after: 0.3
+  - id: l037
+    speaker: walt
+    text: "Well, you go on then. That's the important thing."
+    direction: "Say it warmly, hiding a small disappointment."
+    pause_after: 0.8
+  - id: l038
+    speaker: walt
+    text: "You got a name yet, for that baby?"
+    direction: "Ask it with hopeful nonchalance."
+    pause_after: 0.3
+  - id: l039
+    speaker: anna
+    text: "We've got a list. It has to work in two languages."
+    direction: "Say it with a smile, tired and fond."
+    pause_after: 0.3
+  - id: l040
+    speaker: walt
+    text: "Walter works."
+    direction: "Offer it deadpan, very pleased with yourself."
+    pause_after: 0.3
+  - id: l041
+    speaker: anna
+    text: "Not in either one, Dad."
+    direction: "Tease it back with real love."
+    pause_after: 0.8
+  - id: l042
+    speaker: narrator
+    text: "Walter Dorsey caught polio in the summer of nineteen fifty-two, when he was five. It was the worst year for polio in American history. He went on to work thirty-four years at Delco, on a steel brace, on one good leg. Decades on, the disease can come back for the muscles it spared. It has come back for the good leg."
+    direction: "Report it with quiet sorrow, keeping every word plain."
+    pause_after: 0.8
+  - id: l043
+    speaker: anna
+    text: "So what's new? How's the house? How's Mom?"
+    direction: "Ask it lightly, watching him carefully."
+    pause_after: 0.3
+  - id: l044
+    speaker: walt
+    text: "Oh, everything's fine. We had rain Tuesday, so I didn't get to the gutters, but they'll keep. The Henderson boy brought the cans up. Your mother's fine. She's been in with her piano. Everything's fine here."
+    direction: "Run through it with cheerful stubbornness, a list you have recited before."
+    pause_after: 0.4
+  - id: l045
+    speaker: anna
+    text: "Dad, what's that behind you? By the door. Is that a walker?"
+    direction: "Ask it with sudden sharp attention, keeping it casual."
+    pause_after: 0.4
+  - id: l046
+    speaker: walt
+    text: "That? That's for the cans."
+    direction: "Say it breezily, avoiding her eyes."
+    pause_after: 0.3
+  - id: l047
+    speaker: anna
+    text: "The Henderson boy brings up the cans."
+    direction: "Say it flatly, with weary love."
+    pause_after: 0.3
+  - id: l048
+    speaker: walt
+    text: "Well, there you go, then. It's not getting much use."
+    direction: "Answer with sly satisfaction, pleased to have won."
+    pause_after: 0.9
+  - id: l049
+    speaker: narrator
+    text: "From somewhere behind him there is a piano. Four bars of something, then it stops, and the same four bars again. Then it stops, and there are footsteps. Ruth Dorsey taught piano in the front room of that house for forty years. She has lived with her illness for fifty-two."
+    direction: "Speak with tender attention, listening along with them."
+    pause_after: 0.6
+  - id: l050
+    speaker: ruth
+    text: "Walter, who is that? Who are you talking to?"
+    direction: "Ask it from a little way off, with polite concern."
+    pause_after: 0.3
+  - id: l051
+    speaker: walt
+    text: "It's Annie, Ruthie. It's Sunday. Come say hello to Annie."
+    direction: "Say it with practised tenderness, keeping your voice bright."
+    pause_after: 0.3
+  - id: l052
+    speaker: anna
+    text: "Hi, Mom. You look nice. I like that sweater."
+    direction: "Say it warmly and carefully, like setting down something full."
+    pause_after: 0.8
+  - id: l053
+    speaker: ruth
+    text: "Oh. I'm sorry, Walter, you might have told me. Good morning, miss. You've come from the county."
+    direction: "Say it with sudden gracious formality, hiding alarm."
+    pause_after: 0.6
+  - id: l054
+    speaker: walt
+    text: "Ruthie, that's —"
+    direction: "Begin it with tired kindness and stop as she goes on."
+    pause_after: 0
+  - id: l055
+    speaker: ruth
+    text: "No, it's quite all right. You're welcome to look at anything you like. I keep a clean kitchen. Walter, this young woman has come all this way and nobody has offered her a thing."
+    direction: "Speak with proud courtesy, your fear held very straight."
+    pause_after: 0.6
+  - id: l056
+    speaker: narrator
+    text: "It was the autumn of nineteen ninety-six. Ruth was in the hospital for eleven weeks, and when she came home, a woman from the county came to the house on Thursdays, for a year, with a clipboard, to see whether the child should stay. Anna was eleven. She used to watch from the stairs."
+    direction: "Tell it with quiet sorrow, adding nothing to it."
+    pause_after: 0.8
+  - id: l057
+    speaker: ruth
+    text: "I take my medicine. You can put that down. My daughter's at her lesson just now, or you could ask her yourself. She's fed and she's clean, and she goes to school every day with a lunch I make for her. She is a very good girl. She doesn't need to go anywhere."
+    direction: "Plead it with dignity, your voice trembling and your chin up."
+    pause_after: 1.0
+  - id: l058
+    speaker: anna
+    text: "I know she is."
+    direction: "Say it barely above a breath, with love and held-back tears."
+    pause_after: 0.8
+  - id: l059
+    speaker: ruth
+    text: "You'll tell them that."
+    direction: "Ask it with fierce, frightened hope, not quite a question."
+    pause_after: 0.9
+  - id: l060
+    speaker: anna
+    text: "I'll tell them. I'm putting it down right now, Mrs. Dorsey. You're doing a very good job. She's staying right where she is."
+    direction: "Speak with formal kindness, holding back grief with every word."
+    pause_after: 1.2
+  - id: l061
+    speaker: ruth
+    text: "Well. Thank you. That's kind."
+    direction: "Say it with deep relief, a breath let go."
+    pause_after: 0.8
+  - id: l062
+    speaker: ruth
+    text: "You look tired, dear. How far along are you?"
+    direction: "Ask it with sudden sharp-eyed tenderness."
+    pause_after: 0.5
+  - id: l063
+    speaker: anna
+    text: "Seven months."
+    direction: "Answer with a catch in your throat, trying to smile."
+    pause_after: 0.5
+  - id: l064
+    speaker: ruth
+    text: "And you're on your feet, going around to people's houses. Does your mother know?"
+    direction: "Scold it fondly, with real concern."
+    pause_after: 1.2
+  - id: l065
+    speaker: anna
+    text: "Yes. I told her."
+    direction: "Say it very quietly, almost breaking, and hold."
+    pause_after: 0.8
+  - id: l066
+    speaker: ruth
+    text: "Good. You want your mother for that."
+    direction: "Say it with warm certainty, satisfied, turning away."
+    pause_after: 1.5
+  - id: l067
+    speaker: narrator
+    text: "She goes back to the front room. After a moment, there are the four bars again."
+    direction: "Speak with tender attention, leaving plenty of room."
+    pause_after: 1.5
+  - id: l068
+    speaker: walt
+    text: "Don't mind that. That's a bad morning, is all. She'd know you most days. She's been a little off since the clinic closed, and it's the time change, it gets her turned around."
+    direction: "Brush it aside with forced lightness, a little out of breath."
+    pause_after: 0.9
+  - id: l069
+    speaker: anna
+    text: "Since what closed?"
+    direction: "Ask it slowly, with dawning dread."
+    pause_after: 0.4
+  - id: l070
+    speaker: walt
+    text: "Hm?"
+    direction: "Say it innocently, knowing already."
+    pause_after: 0.3
+    probe: A very short line that has to act.
+  - id: l071
+    speaker: anna
+    text: "Dad. Wayne Avenue? Dolores's clinic? That clinic?"
+    direction: "Press it with a rising, frightened patience."
+    pause_after: 0.4
+  - id: l072
+    speaker: walt
+    text: "Oh, well, the levy went down in the spring, so the county lost its money or some such. I voted for the darn thing. There was a sign on the door in September. Dolores called me herself. Nineteen years she's been giving your mother that shot, she cried on the phone. It's nothing to do with us. They sent a letter."
+    direction: "Say it offhandedly, trying to make it small, and fail near the end."
+    pause_after: 0.5
+  - id: l073
+    speaker: anna
+    text: "So who's giving her the shot?"
+    direction: "Ask it low and direct, with fear pressed flat."
+    pause_after: 0.7
+  - id: l074
+    speaker: walt
+    text: "There's a fella at the county. He says there's a place in Columbus, if she gets on the list. And he says there's other places, for people who can't manage. Downtown. I told him we're managing."
+    direction: "Answer with stiff pride, a flicker of unease under it."
+    pause_after: 0.4
+  - id: l075
+    speaker: anna
+    text: "Columbus is an hour and a half. You don't drive on the highway anymore."
+    direction: "Say it with helpless worry, already doing the arithmetic."
+    pause_after: 0.4
+  - id: l076
+    speaker: walt
+    text: "I've got a call in. Annie. I've got a call in. You look after that baby. You don't need this. It's Father's Day, isn't it? Everything's fine here."
+    direction: "Close it down with loving firmness, wanting very much to stop."
+    pause_after: 1.5
+  - id: l077
+    speaker: narrator
+    text: "He loses his grip on the tablet, as he does at the end of every call, and for a few seconds the two of them look together at the ceiling fan in Dayton. Then it's gone."
+    direction: "Speak with quiet sorrow and a trace of love for the fan."
+    pause_after: 2.0
+  - id: l078
+    speaker: narrator
+    text: "The medicine Ruth Dorsey takes comes as an injection, once a month. It leaves the body slowly, over weeks. A person can miss one and seem all right. A person can miss a second and seem a little off. In the bathroom in Helsinki, Ben is running the water, and asking a four-year-old to please sit down."
+    direction: "Report it with quiet sorrow, keeping both halves equally plain."
+    pause_after: 1.8
+  # Bedtime
+  - id: l079
+    speaker: nora
+    text: "Mom? I heard Grandma. Why did she call you miss?"
+    direction: "Ask it sleepily, curious and not worried."
+    pause_after: 0.9
+  - id: l080
+    speaker: anna
+    text: "Ei se mitään."
+    direction: "Say it carefully and tenderly, trying out new words."
+    pause_after: 0.9
+    probe: Finnish in an adult American voice, deliberately a little careful.
+  - id: l081
+    speaker: nora
+    text: "That was good, Mom."
+    direction: "Say it with sleepy encouragement, proud of her."
+    pause_after: 2.0
+  # The kitchen
+  - id: l082
+    speaker: narrator
+    text: "Over nearly every kitchen sink in Finland there is a cupboard with no floor. You wash a plate and put it in the rack inside, and it drips into the sink behind a closed door. In the nineteen-forties, a woman at the Finnish Work Efficiency Institute calculated how much of a housewife's life went to dishes, and she gave some of it back."
+    direction: "Share it with quiet curiosity, fond of the woman and her sums."
+    pause_after: 0.7
+  - id: l083
+    speaker: narrator
+    text: "Anna has lived with one of these cupboards for five years. She takes each plate out and dries it with a towel. Her mother did."
+    direction: "Speak with tender attention, letting the last words stand alone."
+    pause_after: 1.2
+  - id: l084
+    speaker: ben
+    text: "They're both down. Theo wants the blue cup entered into the record. You don't have to dry those, you know."
+    direction: "Say it lightly, testing the air in the room."
+    pause_after: 0.6
+  - id: l085
+    speaker: anna
+    text: "September."
+    direction: "Say it flatly, still far away."
+    pause_after: 0.4
+  - id: l086
+    speaker: ben
+    text: "What?"
+    direction: "Ask it quietly, coming closer."
+    pause_after: 0.3
+  - id: l087
+    speaker: anna
+    text: "It closed in September. That's nine Sundays. Nine Sundays he sat there and told me about the gutters."
+    direction: "Say it with a dry, shaking anger that has nowhere to go."
+    pause_after: 0.5
+  - id: l088
+    speaker: ben
+    text: "How was she?"
+    direction: "Ask it carefully, afraid of the answer."
+    pause_after: 0.5
+  - id: l089
+    speaker: anna
+    text: "She thought I was from the county. The Thursday lady. She told me what a good girl I was, and could I please not take me away. So I said I wouldn't. I told her I'd put it in the report."
+    direction: "Tell it with dry, exhausted lightness that keeps nearly giving way."
+    pause_after: 0.9
+  - id: l090
+    speaker: ben
+    text: "Oh, Anna."
+    direction: "Say it low, with a wince of pain."
+    pause_after: 0.5
+  - id: l091
+    speaker: anna
+    text: "Don't. I've got four more plates."
+    direction: "Say it quickly, holding yourself together."
+    pause_after: 0.7
+  - id: l092
+    speaker: ben
+    text: "Okay. So we find something. There's got to be a home nurse, an agency, somebody who comes to the house. We can pay for that. That's a thing we can actually do."
+    direction: "Build it up with anxious practicality, grateful for a task."
+    pause_after: 0.4
+  - id: l093
+    speaker: anna
+    text: "Who? Tell me who. I've been standing here trying to think of one name. Everybody I knew there is either sixty-five or in Arizona. It took Dolores four years to get her to take that shot, Ben. She won't let a stranger near her."
+    direction: "Say it with brittle tiredness, the plate still in your hands."
+    pause_after: 0.5
+  - id: l094
+    speaker: ben
+    text: "I know."
+    direction: "Say it quietly, sorry and out of ideas."
+    pause_after: 0.5
+  - id: l094a
+    speaker: anna
+    text: "You know what happens here if a clinic closes? A letter comes. From the city, in three languages, with the new address and the tram that goes there. In Dayton a sign goes up on a door. It's the same species, Ben. They just decided different."
+    direction: "Say it with bitter wonder, not quite at him."
+    pause_after: 0.5
+  - id: l094b
+    speaker: ben
+    text: "We pay for that letter. Have you seen my check?"
+    direction: "Offer it wryly, trying to let some air in."
+    pause_after: 0.4
+  - id: l094c
+    speaker: anna
+    text: "I'd pay double. Every kid in this country has had a free hot lunch at school since my dad was a baby, and his county can't keep one nurse in one room."
+    direction: "Say it with quiet fury, drying the plate harder."
+    pause_after: 0.7
+  - id: l095
+    speaker: anna
+    text: "I could go. For a month, just to set something up. They let you fly until thirty-six weeks."
+    direction: "Float it carefully, already bracing for the answer."
+    pause_after: 0.5
+  - id: l096
+    speaker: ben
+    text: "You're at thirty-one. So that's a month, and then you're in Ohio, at thirty-five weeks, with your dad and his cans and nobody to —"
+    direction: "Work it through with growing worry, stopping yourself."
+    pause_after: 0
+  - id: l097
+    speaker: anna
+    text: "I know what thirty-five weeks is."
+    direction: "Cut in sharply, then regret it at once."
+    pause_after: 0.5
+  - id: l098
+    speaker: ben
+    text: "I just mean, what if you get there and something happens, and I can't get you back?"
+    direction: "Say it quietly, frightened, without a joke to hide in."
+    pause_after: 0.6
+  - id: l099
+    speaker: anna
+    text: "Flights don't stop, Ben."
+    direction: "Say it wearily, with a little pity."
+    pause_after: 0.6
+  - id: l100
+    speaker: ben
+    text: "No. I know they don't."
+    direction: "Agree with uneasy embarrassment, wanting to believe it."
+    pause_after: 1.0
+  - id: l101
+    speaker: ben
+    text: "I don't know what to tell you. I never had this. My folks were gone before we left. I left two headstones in Toledo. They don't call on Sundays."
+    direction: "Say it wryly and awkwardly, ashamed of how lucky that sounds."
+    pause_after: 0.8
+  - id: l102
+    speaker: anna
+    text: "There's a word for her now. Did you know that? I heard a guy use it on the news, on the American feed, right out loud, a guy in a tie. Dim. Like a bulb."
+    direction: "Say it with cold, quiet wonder, tasting something bad."
+    pause_after: 0.6
+  - id: l103
+    speaker: anna
+    text: "He said, well, the dims have to go somewhere. And I thought, huh. And I went and got the kids' lunch. I made their lunch."
+    direction: "Say it with hollow disbelief at yourself."
+    pause_after: 0.7
+  - id: l104
+    speaker: ben
+    text: "That's why we left, Anna. That's the whole — that is exactly why we left."
+    direction: "Say it low and pleading, reaching for the one solid thing."
+    pause_after: 0.6
+  - id: l105
+    speaker: anna
+    text: "I know why we left. I filled out the forms. You wanted to give it another year, and I sat at my mother's kitchen table with a laptop and filled out every form, with her playing in the next room, and I said, I am not raising Nora here. That was me."
+    direction: "Say it with hard, exact honesty, not looking at him."
+    pause_after: 0.6
+  - id: l106
+    speaker: ben
+    text: "And you were right."
+    direction: "Say it with sorrowful kindness, meaning it completely."
+    pause_after: 0.5
+  - id: l107
+    speaker: anna
+    text: "Don't."
+    direction: "Say it with a quiet, warning ache."
+    pause_after: 0.5
+  - id: l108
+    speaker: ben
+    text: "No, you were. Our daughter just told you it's nothing, in a language I can't speak, and then she went to bed, in a place where nobody has ever once had to teach her how to hide under a desk. You did that. I'm not going to say it wasn't right."
+    direction: "Insist with loving, stubborn grief, close to tears."
+    pause_after: 0.7
+  - id: l109
+    speaker: anna
+    text: "I know it was right. I'd do it again. If you put me back at that table tomorrow, I'd fill it out again. That's the part I can't — that's what I stand here thinking about."
+    direction: "Admit it slowly, ashamed and certain at once."
+    pause_after: 1.0
+  - id: l110
+    speaker: ben
+    text: "We asked them to come."
+    direction: "Offer it quietly and sadly, knowing it won't help."
+    pause_after: 0.4
+  - id: l111
+    speaker: anna
+    text: "We asked them once. On the porch. He said who'd do the tomatoes. And she had Dolores. So I said, okay, Dad. I was so relieved. I said okay and I went inside and I was so relieved."
+    direction: "Remember it with dry, quiet self-reproach, nearly laughing."
+    pause_after: 0.8
+  - id: l112
+    speaker: ben
+    text: "Say we asked again. I'm not saying no. I'm asking, what does she get here? It's dark at four. Nobody at the pharmacy speaks to her. On a bad Sunday she doesn't know who you are. At least there she knows the house."
+    direction: "Ask it tenderly and honestly, hating each practical word."
+    pause_after: 0.6
+  - id: l113
+    speaker: anna
+    text: "She has a piano there."
+    direction: "Say it almost to yourself, with a small, stricken smile."
+    pause_after: 0.7
+  - id: l114
+    speaker: ben
+    text: "We could get a piano."
+    direction: "Say it with a helpless, hopeful joke, very quietly."
+    pause_after: 0.5
+  - id: l115
+    speaker: anna
+    text: "Up those stairs."
+    direction: "Say it with a tired flicker of amusement."
+    pause_after: 0.5
+  - id: l116
+    speaker: ben
+    text: "I'd carry it."
+    direction: "Say it with plain, tired love."
+    pause_after: 1.2
+  - id: l117
+    speaker: ben
+    text: "Come to bed. We've got the clinic Tuesday. We have a baby in January, Anna."
+    direction: "Ask it quietly, worn out and trying to be kind."
+    pause_after: 0.5
+  - id: l118
+    speaker: anna
+    text: "I know when we have a baby. In a minute. Go on. I'm just going to finish these."
+    direction: "Send him off with affection, your mind already elsewhere."
+    pause_after: 2.0
+  # The table
+  - id: l119
+    speaker: narrator
+    text: "She finishes them. She hangs up the towel. Then she sits down at the table, between Nora's orange moon on the refrigerator and the box in the hall, and she opens the laptop, and goes to the website of the Finnish Immigration Service, which offers its pages in English."
+    direction: "Speak with tender attention, following each small movement."
+    pause_after: 1.0
+  - id: l120
+    speaker: narrator
+    text: "It is ten o'clock. In Dayton it is three in the afternoon, and still light."
+    direction: "Say it with quiet sorrow, and let it rest."
+    pause_after: 1.0
+  - id: l121
+    speaker: narrator
+    text: "The page she finds is for family members other than a spouse or a child. It says an elderly parent may be considered dependent on a relative in Finland. It says that financial dependence alone is not enough. It says a permit is not usually granted to someone who can get treatment in her home country."
+    direction: "Read it with quiet curiosity, giving each sentence the same care."
+    pause_after: 0.9
+  - id: l122
+    speaker: narrator
+    text: "She reads that sentence again."
+    direction: "Say it with tender attention, barely moving."
+    pause_after: 1.0
+  - id: l123
+    speaker: narrator
+    text: "Further down, it explains how to apply. The form can be filled out online. But the applicant must then go, in person, to prove who she is."
+    direction: "Say it with quiet sorrow, plainly, and stop."
+    pause_after: 3.0

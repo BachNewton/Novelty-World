@@ -1,0 +1,77 @@
+narrator:
+  role: Sees everything in this family's life and the world around it, cares about all of it, and cannot step in. Carries the facts, never the feelings.
+  seed: 21
+  design: >
+    A deep, measured, slightly weathered male voice in his late fifties, warm and
+    resonant, with a little grain in the low notes, like someone who has been awake a
+    very long time and is still interested. American, with no regional colour. A clear,
+    crisp, close-microphone studio recording.
+  reference_text: >
+    There is a street I want to tell you about. Nothing has ever happened on it. A
+    woman walks her dog there in the evenings, a boy leaves his bicycle by the gate,
+    and the lights come on, one window at a time, the way they always do.
+anna:
+  role: Forty-one, seven months pregnant, from Dayton, Ohio. Dry and capable, and the one who filled in the forms to leave. Only child of Walt and Ruth.
+  seed: 22
+  design: >
+    A woman of about forty with a clear, low, Midwestern American voice, dry and quick,
+    a little tired, intelligent, with warmth under the dryness. A clear, crisp,
+    close-microphone studio recording.
+  reference_text: >
+    No, leave it, I've got it. I always end up doing it anyway. Honestly, if you put
+    the big pot on the bottom we'd have room for the rest, but nobody in this house
+    has ever listened to me about the big pot.
+ben:
+  role: Forty-three, from Toledo, Ohio. A software developer. Funny when he's frightened, kind, and practical to a fault.
+  seed: 23
+  design: >
+    A man in his early forties with a light, friendly, Midwestern American baritone,
+    easy and wry, a voice that is usually about to make a joke. A clear, crisp,
+    close-microphone studio recording.
+  reference_text: >
+    Okay, so here's what I'm thinking. We get the kids down, I'll deal with the
+    recycling, and then we sit for five minutes like actual adults. I'm not saying it's
+    a great plan. I'm saying it's the only one I've got right now.
+nora:
+  role: Seven, in first grade at a Finnish school. Finnish has become her easy language, and she is patient with her parents about it.
+  seed: 24
+  design: >
+    A bright, clear seven-year-old American girl, matter-of-fact and a little bit
+    bossy, speaking naturally, not performing. A clear, crisp, close-microphone studio
+    recording.
+  reference_text: >
+    That one goes there, and this one goes here, because I already told you. My
+    friend has a cat but it isn't allowed outside. I'm going to draw it, and then I'm
+    going to put it on the fridge, next to mine.
+theo:
+  role: Four, born in Helsinki. One small line.
+  seed: 25
+  design: >
+    A small, clear four-year-old boy with a high, slightly husky voice, speaking
+    plainly and a little stubbornly. A clear, crisp, close-microphone studio recording.
+  reference_text: >
+    I don't want that one. I want the blue one. The blue one is mine. Where's my
+    truck? It was here and now it isn't here. Can I have the blue one, and can I have
+    my truck?
+walt:
+  role: Seventy-nine, retired from thirty-four years at Delco in Dayton. Had polio at five, and post-polio weakness is now taking his good leg. Says everything's fine.
+  seed: 26
+  design: >
+    A clearly elderly American man of nearly eighty, a thin, dry, slightly gravelly
+    voice with some breath in it, an old Ohio factory man, wry and stubborn, with the
+    age plain in every word. A clear, crisp, close-microphone studio recording.
+  reference_text: >
+    Well, we had some rain Tuesday, so I didn't get to the gutters, but they'll keep.
+    The Hendersons' boy came by with the mower one last time. No, no, we're all right
+    here. Everything's fine. You don't need to worry about a thing.
+ruth:
+  role: Seventy-six, a piano teacher for forty years. Has lived with schizoaffective disorder since her twenties. Gracious, proud, sharp-eyed, and a person first.
+  seed: 27
+  design: >
+    A clearly elderly American woman in her mid-seventies, a thin, fine, well-spoken
+    voice with a slight tremble of age, gracious and precise, like a retired piano
+    teacher receiving a guest. A clear, crisp, close-microphone studio recording.
+  reference_text: >
+    Sit up, dear, and let your wrists do the work, not your shoulders. There. You see?
+    That's a very pretty sound, and you made it yourself. Now, we'll take it once more
+    from the top, and this time I want to hear the rests.
