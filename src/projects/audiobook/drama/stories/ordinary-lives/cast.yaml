@@ -1,6 +1,6 @@
 narrator:
   role: Sees everything in this family's life and the world around it, cares about all of it, and cannot step in. Carries the facts, never the feelings.
-  seed: 21
+  seed: 31
   design: >
     A deep, measured, slightly weathered male voice in his late fifties, warm and
     resonant, with a little grain in the low notes, like someone who has been awake a
@@ -12,7 +12,7 @@ narrator:
     and the lights come on, one window at a time, the way they always do.
 anna:
   role: Forty-one, seven months pregnant, from Dayton, Ohio. Dry and capable, and the one who filled in the forms to leave. Only child of Walt and Ruth.
-  seed: 22
+  seed: 32
   design: >
     A woman of about forty with a clear, low, Midwestern American voice, dry and quick,
     a little tired, intelligent, with warmth under the dryness. A clear, crisp,
@@ -66,7 +66,7 @@ walt:
     here. Everything's fine. You don't need to worry about a thing.
 ruth:
   role: Seventy-six, a piano teacher for forty years. Has lived with schizoaffective disorder since her twenties. Gracious, proud, sharp-eyed, and a person first.
-  seed: 27
+  seed: 37
   design: >
     A clearly elderly American woman in her mid-seventies, a thin, fine, well-spoken
     voice with a slight tremble of age, gracious and precise, like a retired piano
@@ -75,3 +75,94 @@ ruth:
     Sit up, dear, and let your wrists do the work, not your shoulders. There. You see?
     That's a very pretty sound, and you made it yourself. Now, we'll take it once more
     from the top, and this time I want to hear the rests.
+carol:
+  role: Carol Flory, forty-eight, intake clerk for Montgomery County for twenty-three years. A trans woman, raised Old German Baptist near Covington, who sings tenor with the Methodists on Wednesdays. Funny, tired, good at her job, and complicit, and she knows it. Carries on into chapter 3.
+  seed: 38
+  design: >
+    A woman in her late forties with a low, warm, slightly husky Ohio voice, dry and
+    quick, a voice that has told ten thousand people where to sign and can still make
+    a joke of it. Tired, wry and direct. A clear, crisp, close-microphone studio
+    recording.
+  reference_text: >
+    All right, here's how this goes. I ask you the questions, you tell me what you can,
+    and whatever you can't, we leave it and nobody dies. I've got a bad knee and a
+    cold coffee, and I have been doing this since before you could vote.
+pruitt:
+  role: Gary Pruitt, fifties, the county caseworker Walt calls the fella at the county. Two hundred and twelve families, and he has made every call he said he would.
+  seed: 39
+  design: >
+    A man in his mid-fifties with a flat, tired, decent Midwestern American voice,
+    slightly hoarse, a man who apologizes for a living. A clear, crisp, close-microphone
+    studio recording.
+  reference_text: >
+    I can tell you what the rule says, and I can tell you what I've tried. I called
+    them again on Tuesday, and I'll call them again this Tuesday. I wish I had something
+    better for you. I really do. Let me see what's in the folder.
+lucille:
+  role: Lucille Odom, sixty-two, a resident of the District, who ran an elementary school kitchen for nineteen years. Meets the medical holds at the inner door for an extra tray.
+  seed: 40
+  design: >
+    An American woman in her early sixties from Dayton, with a warm, full, lived-in
+    alto voice, plain-spoken and quick to take charge, used to feeding children. A
+    clear, crisp, close-microphone studio recording.
+  reference_text: >
+    Come on now, you're holding up my line. Take a tray, take a milk, and don't tell me
+    you're not hungry, because I can see you. There you go, baby. Sit down by the
+    window. Nobody ever got anywhere on an empty stomach.
+dolores:
+  role: Dolores, seventy-one, Ruth's nurse for nineteen years until the Wayne Avenue clinic closed. The only stranger Ruth ever let near her arm.
+  seed: 41
+  design: >
+    A woman of about seventy with a brisk, warm, slightly gravelly American voice, a
+    nurse who has said give me your arm a hundred thousand times and meant it kindly.
+    A clear, crisp, close-microphone studio recording.
+  reference_text: >
+    Roll that sleeve up for me. There we go. You've been eating? Don't tell me yes if
+    it's no, I can read a chart. Little pinch now. All done. Same time next month, and
+    I want to hear you've been getting out of that house.
+joel:
+  role: Joel Flory, twenty-six, Carol's son, a sergeant in the Ohio Guard. Named for her grandfather. Calls her Carol. Decent, worn out, and carrying something he did at a gate.
+  seed: 42
+  design: >
+    A man in his middle twenties with a clear, plain, slightly husky Ohio voice, young
+    but tired beyond it, dry like his mother's, and quiet. A clear, crisp,
+    close-microphone studio recording.
+  reference_text: >
+    I'm just telling you what they told me. We got in around dark, and nobody knows
+    where the trucks are, and I've been up since Sunday. It's fine. I can sleep in the
+    cab. You don't have to get up, I know where everything is.
+naomi:
+  role: Naomi Garber, Carol's older sister, in her late fifties, Old German Baptist Brethren, a farm wife near Covington. Drives the grain truck. Takes no side, and won't say her sister's name.
+  seed: 43
+  pitch: [150, 220]
+  design: >
+    A woman in her late fifties with a plain, slow, level country Ohio voice, modest and
+    unhurried in rhythm but warm underneath, a woman who has never needed to raise her
+    voice. A clear, crisp, close-microphone studio recording.
+  reference_text: >
+    We put the beans up in August, the same as always. There's enough for us and for
+    whoever comes. I don't know that it's for me to say who ought to have it. You'll want
+    to bring a coat, it gets cold in that truck, and the heater doesn't work.
+bea:
+  role: Beatrice Yancey, Miss Bea, seventy-one, a retired children's librarian who directs the choir on Salem Avenue. Hides both sides' banned books in the church basement.
+  seed: 44
+  pitch: [150, 230]
+  design: >
+    An American woman of about seventy from Dayton with a crisp, bright, well-read
+    voice, amused and exacting, a retired librarian who has silenced three generations
+    with one look. A clear, crisp, close-microphone studio recording.
+  reference_text: >
+    We do not bend the corners of the pages, young man, not in my room. Now, sit up.
+    Altos, that is a rest, and I will thank you to observe it. You may have the book
+    when you can tell me what happens in it, and not one minute before.
+henderson:
+  role: The Henderson boy, Caleb, nineteen, from the Dorseys' street. Brings up the cans. Nobody pays him.
+  seed: 45
+  design: >
+    A young American man of nineteen with a light, shy, polite Ohio voice, a little
+    unsure of itself, speaking plainly. A clear, crisp, close-microphone studio
+    recording.
+  reference_text: >
+    Yes, ma'am, I can get that. It's no trouble, I was coming by anyway. I don't really
+    know what time it was. I just saw the light on, is all, and I figured I'd go around
+    and take a look, so I did.

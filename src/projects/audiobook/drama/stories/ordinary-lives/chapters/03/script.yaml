@@ -1,0 +1,719 @@
+title: Known As
+audience: Adults, and Star Trek fans who will catch what the people in it can't. Literary, grounded drama, about thirty minutes. Contains war, killing and transphobic violence, told plainly.
+lines:
+  # The hours between
+  - id: l001
+    speaker: narrator
+    text: "It is Tuesday, the thirteenth of August, two thousand and thirty."
+    direction: "Speak with quiet sorrow, as if turning to a page you had hoped to skip."
+    pause_after: 1.2
+  - id: l002
+    speaker: narrator
+    text: "There are two Presidents of the United States, and there have been for nineteen months. One took the oath in Washington, and says a President stays until a count can be trusted. One took the oath in Philadelphia, and says the count was the count. So people in Ohio call each other Stays and Counts. It began as a joke. Lucille Odom, who hasn't been outside a fence in over three years, calls them both the weather."
+    direction: "Report it with tender attention, setting down each fact and letting it lie."
+    pause_after: 1.0
+  - id: l003
+    speaker: narrator
+    text: "Tonight Dayton has no government. The Safety Board, which ran the city for six months from a Methodist church, left this afternoon on Route Thirty-Five, with its files. The Ohio Guard reached the Needmore Road exit at sundown and stopped. Between the one and the other are some hours in which nobody anywhere is in charge of Montgomery County. There is no power. People are out on their porches, to see who comes."
+    direction: "Speak with quiet curiosity, listening to the dark streets."
+    pause_after: 1.0
+  - id: l004
+    speaker: narrator
+    text: "At the visitors' window of the Sanctuary District, by the river, there is a lantern and a green county ledger. Carol Flory is fifty-two. The county hasn't paid her since January. She's still here because nobody has told her to stop. A little after nine, someone knocks on the glass."
+    direction: "Speak with tender attention, coming slowly up to the window."
+    pause_after: 0.8
+  - id: l005
+    speaker: carol
+    text: "Visiting's over at four. Name, and who you're here to see."
+    direction: "Say it with dry, tired habit, not looking up."
+    pause_after: 0.4
+  - id: l006
+    speaker: joel
+    text: "Flory. I'm here to see the county."
+    direction: "Say it with careful, frightened lightness."
+    pause_after: 1.2
+    probe: Joel's first line, and whether the voice sits as Carol's son beside her.
+  - id: l007
+    speaker: carol
+    text: "You're thin."
+    direction: "Say it low, with a love you won't let any further."
+    pause_after: 0.4
+  - id: l008
+    speaker: joel
+    text: "Hi, Carol."
+    direction: "Say it with shy, weary relief."
+    pause_after: 0.4
+  - id: l009
+    speaker: carol
+    text: "Hi, Joel."
+    direction: "Answer with rough tenderness, holding very still."
+    pause_after: 1.0
+  - id: l010
+    speaker: narrator
+    text: "He is twenty-six, and a sergeant in the Ohio Guard. He enlisted at eighteen, for the tuition. She named him for her grandfather. There is a verse in the Book of Joel where the plowshares are beaten back into swords, and she looked it up the day he signed."
+    direction: "Report it with quiet sorrow, adding nothing to the verse."
+    pause_after: 0.8
+  - id: l011
+    speaker: joel
+    text: "The colonel wants three things on his table by eight. The water plant, the courthouse keys, and the District's rolls. He asked who had them, and somebody said there's a clerk with a paper book. I said I'd go. I said I knew her."
+    direction: "Lay it out with stiff, unhappy duty, reciting it."
+    pause_after: 0.4
+  - id: l012
+    speaker: carol
+    text: "What's he want it for?"
+    direction: "Ask it flatly, already knowing some of it."
+    pause_after: 0.4
+  - id: l013
+    speaker: joel
+    text: "You've got three hundred Stays behind that fence, on a letter your Board made up. He wants them out. You going to tell me that's wrong?"
+    direction: "Say it with hard, hurt defiance."
+    pause_after: 0.4
+  - id: l014
+    speaker: carol
+    text: "No. What about the rest?"
+    direction: "Admit it evenly, with a dry ache."
+    pause_after: 0.4
+  - id: l015
+    speaker: joel
+    text: "The R's go to the jail. The D's go north on buses. There's a facility."
+    direction: "Say it fast, wanting it behind you."
+    pause_after: 0.4
+  - id: l016
+    speaker: carol
+    text: "Where?"
+    direction: "Ask it quietly, with cold attention."
+    pause_after: 0.6
+  - id: l017
+    speaker: joel
+    text: "He's got the buses, Carol. That's what I know."
+    direction: "Say it with low, ashamed honesty."
+    pause_after: 0.8
+  - id: l018
+    speaker: carol
+    text: "Okay. Here's how this goes. In twenty-six years I've never handed over a record I hadn't audited, and you're not carrying this one till you've heard it. Sit down. Hold the lantern."
+    direction: "Say it with brisk, worn authority, opening the book."
+    pause_after: 1.5
+  # Page one
+  - id: l019
+    speaker: carol
+    text: "Page one. Known as, Mrs. Dorsey. Dorsey, Ruth. Letter D. Seventy-nine. Responsible party, Anna Dorsey, county of residence, Other."
+    direction: "Read it with dry, practised fondness, a line you know by heart."
+    pause_after: 0.4
+  - id: l020
+    speaker: joel
+    text: "What's known as?"
+    direction: "Ask it with reluctant curiosity."
+    pause_after: 0.3
+  - id: l021
+    speaker: carol
+    text: "Optional field. Everybody tabs past it. I put it in the first column because it's the one I like."
+    direction: "Say it lightly, with a small private pride."
+    pause_after: 0.8
+  - id: l022
+    speaker: narrator
+    text: "The supervisor opened her field in May of twenty twenty-seven. She did nothing cruel. She saw who had filed it, and that the state had given the clerk a new license with an M on it. The hand no longer agreed with the file, and a process existed. So Carol Flory lost her login, and was moved to the visitors' window, where there is no glass, only a pen. She ruled this ledger, on the right-hand pages only, to have something to do. Then they forgot her."
+    direction: "Report it with quiet curiosity, fair to everyone in the building."
+    pause_after: 0.8
+  - id: l023
+    speaker: narrator
+    text: "In the first week of this February, nobody paid for the servers the Interface lived on, and it went dark. Four thousand two hundred people stopped being on record anywhere, except in a book kept by a clerk who wasn't allowed to log in."
+    direction: "Say it with tender amusement that is close to something else."
+    pause_after: 0.8
+  - id: l024
+    speaker: narrator
+    text: "Mrs. Dorsey's medicine started working again that spring of twenty twenty-seven, or most of it did. She got past the four bars. She has drawn a keyboard the length of a table in Building C, on the backs of cereal boxes, and eleven children take lessons on it, in silence, and are corrected."
+    direction: "Speak with tender attention, enjoying the silence of the lessons."
+    pause_after: 0.8
+  - id: l025
+    speaker: narrator
+    text: "Anna Dorsey's application took thirty-two months. Last November, Finland said yes, on a county document that said, none available. The applicant had still to go in person and prove who she was. The embassy in Washington gave her a Tuesday, the fifth of February. Carol signed the release. Dolores bought two seats on a bus."
+    direction: "Report it with quiet sorrow, keeping the last fact plain."
+    pause_after: 0.6
+  - id: l026
+    speaker: carol
+    text: "First time in twenty-six years anybody picked that dropdown. None available. That's what cost me the glass."
+    direction: "Say it with dry satisfaction, tapping the page."
+    pause_after: 0.3
+  - id: l027
+    speaker: joel
+    text: "What happened on the fifth?"
+    direction: "Ask it without thinking, looking at the date."
+    pause_after: 0.6
+  - id: l028
+    speaker: carol
+    text: "You happened. Turn to January."
+    direction: "Say it gently, and that is the worst of it."
+    pause_after: 1.5
+  # The gate
+  - id: l029
+    speaker: narrator
+    text: "On Monday, the fourteenth of January, two thousand and thirty, the Governor of Ohio, who recognizes Washington, sends two companies of his Guard to Gate Twelve-A of Wright-Patterson Air Force Base, on Route Four Forty-Four in Fairborn, to take possession of it. The general inside recognizes Philadelphia, and he has put his airmen on the gate. The two lines stand forty minutes in the cold, ten feet apart, in the same camouflage."
+    direction: "Report it with quiet sorrow, as if reading it into a record."
+    pause_after: 0.8
+  - id: l030
+    speaker: narrator
+    text: "At nineteen minutes past seven, somebody fires. Eleven people are dead, nine seconds later, all of them from Ohio or stationed there. There will be books that give this date. Nobody in Dayton knows it is the date. That morning, Route Four Forty-Four is closed, and people are late for work."
+    direction: "Speak with quiet sorrow, leaving the last sentence alone."
+    pause_after: 0.8
+  - id: l031
+    speaker: narrator
+    text: "That Friday the county auditor does what Ohio law tells her to do, and issues her warrants. But the county's bank now has two federal regulators, with two sets of orders, and it declines to pay anything until someone tells it which is real. Columbus has stopped sending the state's share, until the commissioners say whose county this is. They can't. They vote two to one to wait."
+    direction: "Report it with quiet curiosity, following the money from desk to desk."
+    pause_after: 0.6
+  - id: l032
+    speaker: pruitt
+    text: "Zero point zero zero. Did you get zero? It'll be the bank, Carol. They'll fix it by Monday."
+    direction: "Say it with tired, hopeful apology, frowning at a phone."
+    pause_after: 0.3
+  - id: l033
+    speaker: carol
+    text: "Sure they will, Gary."
+    direction: "Say it dryly, not looking at your own phone."
+    pause_after: 0.3
+  - id: l034
+    speaker: pruitt
+    text: "Isn't this — Carol, isn't this your boy?"
+    direction: "Ask it slowly, with dawning, embarrassed alarm."
+    pause_after: 1.0
+  - id: l035
+    speaker: narrator
+    text: "Nine seconds of phone video, shot from a van on the shoulder. Forty million people have seen it, and it starts too late. It shows a young man's face behind a rifle. To the Stays he was the Hero of Fairborn. To the Counts he was the Butcher of the Gate. By Wednesday, someone in Kettering had looked up his family. The Stays took his picture down. The Counts put hers beside it, and found it very funny."
+    direction: "Report it with quiet sorrow, flinching at nothing."
+    pause_after: 1.0
+  - id: l036
+    speaker: joel
+    text: "I saw that. The garage door. Somebody sent me a picture of your garage door."
+    direction: "Say it very quietly, sick with it."
+    pause_after: 0.5
+  - id: l037
+    speaker: carol
+    text: "I painted it. It's a nice gray now. Dale next door did that, you know. He plowed my drive nine winters. In February he plowed it again, at six, in the dark, so nobody would see him do it. Same man. Page two hundred and nine."
+    direction: "Say it with dry, bruised wonder, turning the page out from under him."
+    pause_after: 1.5
+  # Walt
+  - id: l038
+    speaker: carol
+    text: "This one's a note in the margin, against page one. Spouse deceased, the tenth of February. That one's not in any column."
+    direction: "Read it with lowered, careful respect."
+    pause_after: 0.8
+  - id: l039
+    speaker: narrator
+    text: "The buses to Washington stopped that week, and the flights, and then the embassy's telephone. Medicare paid for Walter Dorsey's first hundred days, in part, three years ago. Then his savings paid, and then Medicaid, most of which came from a federal government there were now two of. The nursing home in Kettering stopped answering its phone on a Friday. On Sunday morning, Carol Flory's rang."
+    direction: "Speak with quiet sorrow, in plain steps."
+    pause_after: 0.5
+  - id: l040
+    speaker: anna
+    text: "Ms. Flory? It's Anna Dorsey. I don't have anybody else in that county who picks up. I told my husband flights don't stop. I said that to him, in my kitchen. It's Sunday. I need somebody to go and hold up a phone."
+    direction: "Say it fast and exact, with terror pressed flat."
+    pause_after: 1.0
+  - id: l041
+    speaker: narrator
+    text: "It took the last of her gas. The staff had gone, unpaid, except for one aide, Marie-Ange Pierre, of Springfield, a Haitian woman the law had twice told to leave. She had moved the residents who were left into one room with a window. The power had been off since Friday. The mask that did some of Walter Dorsey's breathing had run down its battery on Saturday. He was eighty-two."
+    direction: "Tell it with tender attention, staying with the aide a moment."
+    pause_after: 0.6
+  - id: l042
+    speaker: walt
+    text: "How's she eating?"
+    direction: "Ask it in a thread of breath, with stubborn urgency."
+    pause_after: 0.5
+  - id: l043
+    speaker: carol
+    text: "She's eating, Mr. Dorsey. She's got eleven pupils."
+    direction: "Say it warmly and clearly, bending close."
+    pause_after: 0.7
+  - id: l044
+    speaker: walt
+    text: "Tell Annie everything's fine."
+    direction: "Say it with the last of your breath, with sly, loving pride."
+    pause_after: 1.0
+  - id: l045
+    speaker: anna
+    text: "I know, Dad. I know it is. Everything's fine here too."
+    direction: "Say it from far away, smiling, your voice breaking."
+    pause_after: 1.5
+  - id: l046
+    speaker: narrator
+    text: "Her hand was tired, and the phone tipped back. For a few seconds, in Helsinki, Anna Dorsey looked at a ceiling in Kettering. It had no fan."
+    direction: "Say it with quiet sorrow, letting the last words fall away."
+    pause_after: 2.0
+  # Miss Lucille
+  - id: l047
+    speaker: carol
+    text: "Known as, Miss Lucille. Odom, Lucille. Letter E. Sixty-five."
+    direction: "Read it with fond, returning humor."
+    pause_after: 0.6
+  - id: l048
+    speaker: narrator
+    text: "The contractor in Indiana sent its last truck on the first of February. The guards went home after the second missed pay. Nobody took the fence down. The gate stood open, and hardly anyone walked through it, because outside there was no tray. So Lucille Odom took the kitchen of Building C, with what the co-op on Salem Avenue could carry over from its shelves, on credit, from a neighborhood with none."
+    direction: "Report it with tender attention, slowing for the open gate."
+    pause_after: 0.6
+  - id: l049
+    speaker: narrator
+    text: "Her rule in the line is that nobody is anything in the line. The monthly shot keeps at room temperature, which is why Dolores could stretch a case of it from Wayne Avenue. Insulin doesn't keep long without cold. By June it was gone, and nine people in Building C went with it. Lucille Odom took insulin. She has a sore on her foot that she doesn't discuss."
+    direction: "Say it with quiet sorrow, giving the two medicines the same care."
+    pause_after: 0.6
+  - id: l050
+    speaker: narrator
+    text: "In the third week of February, a grain truck came to the inner door. It had crossed two Stay checkpoints and one of the Board's. The driver wore a white prayer covering. Her church has forbidden the internet since nineteen ninety-six, and that winter she was the only person in Ohio who didn't know Joel Flory's face. Carol had not seen her sister in sixteen years."
+    direction: "Speak with quiet curiosity, watching the truck come in."
+    pause_after: 0.6
+  - id: l051
+    speaker: naomi
+    text: "Forty sacks of wheat and the potatoes. There were forty-eight. The elder says bring it to the door and ask nobody what they are. Where do you want it?"
+    direction: "Say it with plain, guarded courtesy, not meeting her eyes."
+    pause_after: 0.3
+    probe: Naomi's first line, a plain, slow Ohio farm voice with no accent performed.
+  - id: l052
+    speaker: carol
+    text: "Hello, Naomi. What happened to the eight?"
+    direction: "Say it with dry, shaken care."
+    pause_after: 0.3
+  - id: l053
+    speaker: naomi
+    text: "They asked which side we were on, and Brother Landis said we haven't got one, and they laughed, and took four. The Board took four. That's the fare. We don't resist it."
+    direction: "Explain it with mild, stubborn pride in the faith."
+    pause_after: 0.4
+  - id: l054
+    speaker: carol
+    text: "You could say my name, you know. It's been in the directory sixteen years."
+    direction: "Say it lightly, and let it hurt."
+    pause_after: 0.6
+  - id: l055
+    speaker: naomi
+    text: "I can't say that one. And you've asked me not to say the other. So I don't say anything. Mother asks if you're eating."
+    direction: "Say it with slow, sorrowing honesty, and hold your ground."
+    pause_after: 0.8
+  - id: l056
+    speaker: lucille
+    text: "Who's that, your people?"
+    direction: "Ask it with shrewd interest, hauling at a sack."
+    pause_after: 0.3
+  - id: l057
+    speaker: carol
+    text: "That's my sister. She thinks I'm going to hell."
+    direction: "Say it dryly, watching the truck go."
+    pause_after: 0.3
+  - id: l058
+    speaker: lucille
+    text: "She bring potatoes?"
+    direction: "Ask it with practical amusement."
+    pause_after: 0.3
+  - id: l059
+    speaker: carol
+    text: "It's not nothing, Lucille. What she thinks."
+    direction: "Say it low, with an old anger."
+    pause_after: 0.5
+  - id: l060
+    speaker: lucille
+    text: "No, baby, it's not. Get the other end of this."
+    direction: "Agree with warm, unsurprised sorrow, and keep working."
+    pause_after: 1.5
+  # Gary
+  - id: l061
+    speaker: joel
+    text: "What about your friend with the sorry face? Pruitt. Is he in there?"
+    direction: "Ask it tiredly, trying to change the air."
+    pause_after: 0.4
+  - id: l062
+    speaker: carol
+    text: "No. He's not in the book."
+    direction: "Say it shortly, shutting something."
+    pause_after: 0.8
+  - id: l063
+    speaker: narrator
+    text: "For thirty years Gary Pruitt made every call he said he would. Now there was no one to call and nothing to offer, and his wife had gone to her sister's in Kentucky. There is one spot in the county lot with a signal. He began sitting there in his car in February. By March it was nine hours a day."
+    direction: "Tell it with tender attention, not judging him at all."
+    pause_after: 0.6
+  - id: l064
+    speaker: narrator
+    text: "He had never had a hobby. The phone was the first thing in thirty years to tell him that none of it was his fault. Then it told him whose it was."
+    direction: "Say it with quiet sorrow, keeping both halves equally plain."
+    pause_after: 0.8
+  - id: l065
+    speaker: pruitt
+    text: "You know they closed Wayne Avenue on purpose? There's a fella in Tipp City's got the contracts, it's all laid out. They wanted the clinic gone. They wanted those people in here. They've known since twenty twenty-five."
+    direction: "Say it with bright, sleepless certainty, thumb moving."
+    pause_after: 0.3
+  - id: l066
+    speaker: carol
+    text: "Gary, you were in the room. A levy failed. Nobody had to want it."
+    direction: "Say it gently and carefully, as to someone on a ledge."
+    pause_after: 0.3
+  - id: l067
+    speaker: pruitt
+    text: "That's what they'd need you to say. I'm not blaming you. I'm just keeping track. Jewish on a Lutheran. Clergy in the visitors' log. That green book of yours, that nobody authorized. I've got it all down. Somebody ought to be told, Carol, and I'll call them. I always do."
+    direction: "Say it kindly, with a new, flat, shining certainty."
+    pause_after: 1.5
+  # Miss Bea
+  - id: l068
+    speaker: carol
+    text: "Page two hundred and sixty-one. Known as, Miss Bea. Yancey, Beatrice. Seventy-one. Letter H."
+    direction: "Read it with fond ease at first, then let your voice drop."
+    pause_after: 0.4
+  - id: l069
+    speaker: joel
+    text: "That's the letter. What did she do?"
+    direction: "Ask it with weary suspicion."
+    pause_after: 0.3
+  - id: l070
+    speaker: carol
+    text: "She ran the children's room at the main library for thirty-one years, and she ran the choir on Salem Avenue. I wrote that one myself."
+    direction: "Say it with dry, unsparing honesty."
+    pause_after: 0.8
+  - id: l071
+    speaker: narrator
+    text: "Nearly half of the library's money comes from the state. In twenty twenty-eight, Columbus attached a list. Books with people like Carol Flory in them, and books on what was done to west Dayton, went into cartons, and on Saturdays Miss Bea drove the cartons to the church basement in her Buick. This April, the Safety Board sent a polite young man with a second list."
+    direction: "Report it with quiet curiosity, fond of the Buick."
+    pause_after: 0.6
+  - id: l072
+    speaker: bea
+    text: "Hold that flashlight up. By the furnace, those are Columbus's. These here are the Board's. The generals, the preachers, the old novels with the old words in them. Huckleberry Finn is on both lists. That child has never had a home."
+    direction: "Say it with crisp, delighted disgust, sorting cartons."
+    pause_after: 0.3
+    probe: Miss Bea's first line, an elderly librarian with bite.
+  - id: l073
+    speaker: carol
+    text: "He give a reason?"
+    direction: "Ask it mildly, lifting a box."
+    pause_after: 0.3
+  - id: l074
+    speaker: bea
+    text: "He said harm. So did the man from Columbus. They both said please. Now they want number five thirty-four out of the hymnal, on account of The Lord is on thy side, and both armies are singing it. You know the Russians banned that tune? The Czar's censors. So they printed it under other names. Happy Feelings at the Awakening of Finnish Spring. Nobody arrests a spring."
+    direction: "Tell it with sharp, rising relish, wagging a finger."
+    pause_after: 0.3
+  - id: l075
+    speaker: carol
+    text: "What's it called on Wednesday?"
+    direction: "Ask it with a slow, conspiring smile."
+    pause_after: 0.3
+  - id: l076
+    speaker: bea
+    text: "Number five thirty-four, dear. Tenors, watch me."
+    direction: "Say it with sweet, immovable menace."
+    pause_after: 1.2
+  - id: l077
+    speaker: narrator
+    text: "Each step had its reason. In February the Board kept the water on and opened the warehouses, and it was right to. In March, a ration took a signature, to stop the hoarding. In April a bomb went off at the Needmore Road substation, and the signature became a pledge. Those who wouldn't pledge were asked to wait somewhere, pending review, for sixty days. There was a fence downtown, with no one guarding it, and a form."
+    direction: "Lay it out with quiet sorrow, one step at a time, with dread you never show."
+    pause_after: 0.6
+  - id: l078
+    speaker: carol
+    text: "They asked could the form take another letter. They were my people, Joel. They let a tenor in and they didn't ask. I'd have followed them off a roof. It took me four minutes. H, held pending review. Miss Bea wouldn't say where she'd put the second pile. She came to the window with her purse, and she said, which column do you want me in, Carol?"
+    direction: "Say it with hard, exact shame, and do not stop."
+    pause_after: 1.5
+  # The Henderson boy
+  - id: l079
+    speaker: carol
+    text: "Page two hundred and ninety. Henderson, Caleb. Nineteen. Letter H. I asked him what people call him."
+    direction: "Read it with a tired, private tenderness."
+    pause_after: 0.5
+  - id: l080
+    speaker: henderson
+    text: "I don't know, ma'am. The Henderson boy, I guess."
+    direction: "Say it shyly, with polite, frightened confusion."
+    pause_after: 0.3
+    probe: A young man's voice, nineteen, with very little to say.
+  - id: l081
+    speaker: carol
+    text: "Whose cans did you bring up?"
+    direction: "Ask it quietly, with sudden close attention."
+    pause_after: 0.3
+  - id: l082
+    speaker: henderson
+    text: "Mr. Dorsey's. Why? Is he okay?"
+    direction: "Ask it with startled, simple worry."
+    pause_after: 1.0
+  - id: l083
+    speaker: narrator
+    text: "He had signed up with the Governor's reserve in January, because it was the only thing in the county that paid. The Board's men took him in April in a Kroger parking lot. The mains in Building C failed that month. Since then he has carried water up six floors in plastic cans, all day, for people on the other side. Nobody pays him."
+    direction: "Report it with tender attention, slowing for the boy."
+    pause_after: 0.6
+  - id: l084
+    speaker: joel
+    text: "You locked up that kid. For what? He's nineteen. You took a kid who found an old man on a floor and you put him behind a fence with a letter on him."
+    direction: "Say it with rising, shaking anger, keeping your voice down."
+    pause_after: 0.4
+  - id: l085
+    speaker: carol
+    text: "Yes, I did. And the people you work for took Terri Bowman out of her pharmacy in Troy, over the letter on her license, and put her in the river with wire on her wrists. Same glove box as me. I've been doing that sum since March. They don't come out even, Joel. They don't. And it doesn't get me off."
+    direction: "Answer with quiet, shaking fury, every word set down."
+    pause_after: 1.5
+  - id: l086
+    speaker: narrator
+    text: "For a while nobody says anything. Somewhere west of the fence, a dog is barking at the porches. It is past two. He turns the lantern down a little, to save it."
+    direction: "Speak with tender attention, barely moving."
+    pause_after: 1.0
+  - id: l087
+    speaker: joel
+    text: "The video starts too late. You know that? There was a kid across the barrier. Airman. We'd been standing there forty minutes, and he asked if I was from around here. Same uniform. The only thing different on him was the thread. His name was sewn in brown. Mine's black."
+    direction: "Say it slowly and flatly, looking at the lantern."
+    pause_after: 0.6
+  - id: l088
+    speaker: joel
+    text: "Something went off, behind me, I think behind me. And I shot him. I don't know who was first, Carol. Nobody does. I know who was second."
+    direction: "Say it barely aloud, with dry, stunned grief."
+    pause_after: 1.5
+  - id: l089
+    speaker: joel
+    text: "I stayed because they were the only ones still paying. Then I stayed because of what I'd done with them. I sign for things now. Buses. I signed for buses."
+    direction: "Admit it with hollow, exhausted disgust."
+    pause_after: 1.0
+  - id: l090
+    speaker: carol
+    text: "I know you did."
+    direction: "Say it very low, with love and no comfort in it."
+    pause_after: 0.5
+  - id: l091
+    speaker: joel
+    text: "So burn it. There's a barrel right out there."
+    direction: "Say it suddenly, with raw, pleading hope."
+    pause_after: 0.4
+  - id: l092
+    speaker: carol
+    text: "Burn it and four thousand people were never here. There's six hundred dead in this book, and it's the only place they died. Burn it and Ruth Dorsey's a confused old lady who says she's somebody. Her daughter's got a permit from the Republic of Finland, made out to a person nobody can prove. Nobody finds anybody. Nobody comes home."
+    direction: "Say it with sharp, frightened exactness, gripping the book."
+    pause_after: 0.4
+  - id: l093
+    speaker: joel
+    text: "And if he gets it, he can sort them with a pen."
+    direction: "Say it quietly, and leave it there."
+    pause_after: 1.5
+  - id: l094
+    speaker: narrator
+    text: "She has both hands flat on the open page. It is how she began every working day for twenty-three years. She looks at it the way she used to look at the amber light. Seven columns. Six of them she ruled because the county asked her to. The first one, nearest the binding, is the one nobody asked for."
+    direction: "Speak with quiet curiosity, very close to her hands."
+    pause_after: 1.5
+  - id: l095
+    speaker: carol
+    text: "Hand me that steel rule."
+    direction: "Say it slowly, with dawning, dry astonishment."
+    pause_after: 0.4
+  - id: l096
+    speaker: joel
+    text: "What?"
+    direction: "Ask it blankly, thrown."
+    pause_after: 0.3
+  - id: l097
+    speaker: carol
+    text: "What do people call you, when they like you? That's all anybody who's looking for you needs. Nobody arrests a spring, Joel. It's no use at all to a man with a bus."
+    direction: "Say it with growing, breathless certainty, reaching for the cutter."
+    pause_after: 1.5
+  # The blade
+  - id: l098
+    speaker: narrator
+    text: "A box cutter will go through four pages at a stroke, against a steel rule, if the person holding the rule leans on it. So they work the way people carry a couch. He leans. She draws the blade from the top of the page to the bottom, an inch from the binding. The legal names come away, and the letters, the dates and the next of kin, in long sheaves, and what stays in the spine is a single column, a narrow book of what people are called."
+    direction: "Speak with tender attention, following the blade down the page."
+    pause_after: 0.8
+  - id: l099
+    speaker: carol
+    text: "Big Mike. Sister. Miss Odessa. Doc, he wasn't one. Baby Ray. Grandma Tran. The Reverend. Sugar."
+    direction: "Read them low and slowly, like a roll called in a church."
+    pause_after: 1.0
+  - id: l100
+    speaker: narrator
+    text: "She has never damaged a record in her life, and she reads every page before she cuts it. A woman who wanted to be found would have to be found now by someone who loved her. Some of them have no one. That's in the book as well, or rather it is not. The sheaves go out to the barrel, and he stands over them, in the Governor's uniform, with a stick. The sky over the river is going gray when only one page is left."
+    direction: "Report it with quiet sorrow, keeping the cost plain."
+    pause_after: 1.0
+  - id: l101
+    speaker: joel
+    text: "That's page one."
+    direction: "Say it gently, already knowing."
+    pause_after: 0.4
+  - id: l102
+    speaker: carol
+    text: "I told that girl she'd be the only person who could ever get her mother out. I sat here and I took her signature. Sign with your finger. It looks terrible."
+    direction: "Say it haltingly, with dry grief, your thumb on the name."
+    pause_after: 1.0
+  - id: l103
+    speaker: narrator
+    text: "She cuts it herself. It takes one stroke. Then she goes around the counter, on the bad knee, to take it out to the barrel, and she stays out there a little while, and he stays at the counter, with a ballpoint, and the narrow book."
+    direction: "Speak with quiet sorrow, leaving the pen alone."
+    pause_after: 1.0
+  - id: l104
+    speaker: joel
+    text: "It's light. What do you want done with this?"
+    direction: "Ask it quietly, closing the narrow book."
+    pause_after: 0.4
+  - id: l105
+    speaker: carol
+    text: "Inner door, on your way out. Miss Lucille, nobody else. In all my years nobody has ever searched a kitchen."
+    direction: "Say it hoarsely, with a clerk's care, your hands black from the barrel."
+    pause_after: 0.5
+  - id: l106
+    speaker: joel
+    text: "What was that thing again, in the dropdown?"
+    direction: "Ask it lightly, pulling a folded form from a pocket."
+    pause_after: 0.4
+  - id: l107
+    speaker: carol
+    text: "Don't you do that. Joel, you say the Board took it. You say you never saw it. That's a paper with your name on it. Don't you dare."
+    direction: "Say it in a sudden, frightened rush."
+    pause_after: 0.5
+  - id: l108
+    speaker: joel
+    text: "You've got your sorry face on."
+    direction: "Say it with a tired smile you can hear, very kindly."
+    pause_after: 0.5
+  - id: l109
+    speaker: carol
+    text: "Eat something."
+    direction: "Say it roughly, with everything you have, and let go."
+    pause_after: 0.4
+  - id: l110
+    speaker: joel
+    text: "See you, Carol."
+    direction: "Say it easily, already turning."
+    pause_after: 2.0
+  # Collection day
+  - id: l111
+    speaker: narrator
+    text: "It is Wednesday, the fourteenth of August. At eight, Sergeant Flory stands at a folding table in the county building and hands a colonel his receipt for the water plant and the keys. On the third line, District rolls, he has written two words, in his own hand. None available."
+    direction: "Report it with quiet sorrow, as if reading it into a record."
+    pause_after: 1.0
+  - id: l112
+    speaker: narrator
+    text: "At noon, Gary Pruitt comes to the same table with a spiral notebook. He told her he would. It has dates, and it has the green ledger, and who kept it, and who had gone in to see her the night before."
+    direction: "Say it with tender attention, and judge nothing."
+    pause_after: 0.8
+  - id: l113
+    speaker: narrator
+    text: "They ask the sergeant where the book is. They ask him for some time. He says, none available. The hearing itself takes eleven minutes, which is about what a trained clerk would need. At four in the afternoon, on the levee behind the old Job Center, under the Governor's flag, the Ohio Guard shoots Joel Flory for making a false record. He was twenty-six. He had his name on in black thread."
+    direction: "Tell it with quiet sorrow, adding nothing to it, flinching at nothing."
+    pause_after: 2.5
+  - id: l114
+    speaker: narrator
+    text: "It is a Wednesday. At seven o'clock, in Building F, an old woman with a pencil gives a note, and fourteen people sing number five thirty-four, in four parts, with nobody on the tenor line."
+    direction: "Say it with tender attention, hardly touching it."
+    pause_after: 2.0
+  - id: l115
+    speaker: narrator
+    text: "They ask her as well, and she says what the sergeant said. On Thursday they need a clerk for her, and there is one man left who knows the form."
+    direction: "Say it plainly, with quiet sorrow."
+    pause_after: 0.8
+  - id: l116
+    speaker: pruitt
+    text: "Name of applicant. It says to take it from the license."
+    direction: "Read it in a flat, sleepless voice, not looking up."
+    pause_after: 0.8
+  - id: l117
+    speaker: pruitt
+    text: "I said I'd call them. I told you."
+    direction: "Say it with a faint, puzzled tremor, as if asking something."
+    pause_after: 0.6
+  - id: l118
+    speaker: carol
+    text: "You did, Gary. You made every call."
+    direction: "Say it with a dry voice that has gone somewhere far away."
+    pause_after: 1.0
+  - id: l119
+    speaker: narrator
+    text: "He types the name on the license. He gives her the letter she invented. The field after that is optional, and he tabs past it, and his hand is shaking, and that will have to be all that is known about Gary Pruitt."
+    direction: "Speak with quiet sorrow, not judging him at all."
+    pause_after: 1.2
+  - id: l120
+    speaker: lucille
+    text: "That your card, baby? They're going to have that off you by supper. Hold still. Let me see your neck."
+    direction: "Say it with warm, no-nonsense concern, your voice very gentle."
+    pause_after: 1.0
+  - id: l121
+    speaker: narrator
+    text: "She gets down on the bad foot to do it. Her left shoe has been tied with string since March of twenty twenty-seven. She takes the lace out of the right. When the knot is done, she reaches into her apron, where the book has been since Wednesday morning, and puts it in Carol Flory's hands."
+    direction: "Speak with tender attention, following the old fingers."
+    pause_after: 0.5
+  - id: l122
+    speaker: lucille
+    text: "That boy of yours gave me this over the counter. He said you'd want to audit the end of it."
+    direction: "Say it softly, with a sorrow that does not look away."
+    pause_after: 1.5
+  - id: l123
+    speaker: narrator
+    text: "Four thousand one hundred and six lines, in her own square county hand. Under the last of them is one more, in ballpoint, that she didn't write. It has no number. It is in the first column, where she put the field she liked. It says,"
+    direction: "Speak with tender attention, slowing almost to nothing."
+    pause_after: 1.5
+  - id: l124
+    speaker: narrator
+    text: "Mom."
+    direction: "Say it plainly, with quiet love, and stop."
+    pause_after: 3.0
+    probe: One word, alone, from the narrator. The chapter turns on it.
+  - id: l125
+    speaker: carol
+    text: "That field's optional."
+    direction: "Say it in a voice that is coming apart, trying to be dry."
+    pause_after: 1.0
+  - id: l126
+    speaker: lucille
+    text: "Yes, ma'am, it is."
+    direction: "Answer with deep, plain tenderness, holding on to her."
+    pause_after: 2.5
+  # What was left
+  - id: l127
+    speaker: narrator
+    text: "The colonel cannot sort them. He has three thousand people and no letters, and each one, asked, states a name. His men fill the buses by looking, as people do. A hundred and six go north. What their people called them is in the narrow book, and nothing else of them is anywhere."
+    direction: "Report it with quiet sorrow, giving each one the same care."
+    pause_after: 1.0
+  - id: l128
+    speaker: narrator
+    text: "The H's are let go on the Friday. Miss Bea walks out of the gate and down to the basement on Salem Avenue. The Henderson boy goes home, and on Monday he is back in Building C with the cans. Dolores went out on the twenty-ninth of June, with the cooler bag. The log has her going. It doesn't have her coming back."
+    direction: "Speak with tender attention, letting each one go in turn."
+    pause_after: 1.0
+  - id: l129
+    speaker: narrator
+    text: "In October the column is needed in the south. No one has been ordered to close the Montgomery County Sanctuary District, and no one ever is. It is getting cold, and steel will buy flour. Over nine days the residents take down the fence themselves, a panel at a time, and carry it to the scrap yard on the far side of the river."
+    direction: "Speak with quiet curiosity, watching the panels carried off."
+    pause_after: 0.8
+  - id: l130
+    speaker: narrator
+    text: "Three thousand people walk out into a city that has no food either. They are free, and most of them are hungry. Lucille Odom keeps the kitchen. It just has no fence now."
+    direction: "Say it with quiet sorrow, not lifting your voice at all."
+    pause_after: 1.0
+  - id: l131
+    speaker: narrator
+    text: "That month the Stay sheriff of Miami County and a man from what's left of the Board meet in a meetinghouse near Covington, because neither will go to the other, and because the elders there have told them nothing will be recorded. They agree on one thing, which is wheat. A truck with wheat in it may pass. It is not peace, and neither of them will call it anything. It holds."
+    direction: "Report it with tender attention, pleased by how little there is to say."
+    pause_after: 1.0
+  - id: l132
+    speaker: narrator
+    text: "Section eleven requires a responsible party with a fixed address. There is no county to file it with. Naomi Garber fills one out anyway, because a form was what her sister asked her for, and takes nine old people north in the grain truck. The house has no instruments in it. It never has. Mrs. Dorsey's last injection was on the twenty-second of May. She is, by now, a little off. She sits down at the kitchen table, on the oilcloth, and spreads her hands."
+    direction: "Speak with tender attention, carrying her up the road."
+    pause_after: 1.0
+  - id: l133
+    speaker: ruth
+    text: "You're very late for your lesson. Come here. Spread your fingers, please. Who told you that you couldn't?"
+    direction: "Say it with crisp, sharp-eyed delight, to a very small person."
+    pause_after: 1.2
+  - id: l134
+    speaker: narrator
+    text: "Naomi's granddaughter is seven. She looks at the door. Then she puts her fingers down on the oilcloth, beside the old ones, and there is no sound in the kitchen at all."
+    direction: "Say it with quiet love, barely above the silence."
+    pause_after: 2.0
+  - id: l135
+    speaker: narrator
+    text: "Carol Flory keeps a folding table on the levee, where people can find it. Nobody pays her. Her prescription ran out in the spring, and her son is on the hill at Woodland, under a marker she paid for in flour. People come in the mornings with a name that a stranger would laugh at, and she runs a finger down the column. On Sundays a tower on Germantown Street gets an hour of somebody's diesel. At eleven, a phone rings."
+    direction: "Report it with tender attention, keeping every word plain."
+    pause_after: 0.8
+  - id: l136
+    speaker: anna
+    text: "Ms. Flory? It's Anna Dorsey. I know the rolls are gone. I know what that means. I don't have anything left to prove who she is. I'm looking for my mother."
+    direction: "Say it dry and exact, with a child's voice somewhere near, holding on."
+    pause_after: 0.6
+  - id: l137
+    speaker: carol
+    text: "I've got a form for that. There's just the one question. What do people call her, when they like her?"
+    direction: "Ask it slowly, with worn, shaking kindness."
+    pause_after: 1.5
+  - id: l138
+    speaker: anna
+    text: "Her pupils call her Mrs. Dorsey. My father called her Ruthie. He wasn't to be encouraged."
+    direction: "Say it with a breaking, disbelieving smile."
+    pause_after: 1.5
+  - id: l139
+    speaker: carol
+    text: "Yes, ma'am. I've got her right here. Page one."
+    direction: "Say it with plain, shaken joy, and a finger on the line."
+    pause_after: 2.0
+  - id: l140
+    speaker: narrator
+    text: "It is a very narrow book. It doesn't say what anyone was, or which side, or who did what to whom. It is not evidence of anything. At four o'clock, the Henderson boy brings up the water. There is no telling yet how any of this ends. It is Sunday, in Ohio, and somebody is still looking after the book."
+    direction: "Say it with quiet love, letting the last words fall away."
+    pause_after: 3.0
