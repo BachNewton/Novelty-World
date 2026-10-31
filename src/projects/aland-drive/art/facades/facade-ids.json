@@ -1,0 +1,6 @@
+{
+  "styles": { "villa": 4, "brick": 5, "block": 6, "glass": 7, "hall": 8, "barn": 9, "granite": 10 },
+  "paints": ["wall-red", "wall-white", "wall-yellow", "wall-cream", "wall-grey", "wall-pale", "villa-butter", "villa-sage", "villa-sky", "villa-rose", "villa-sand", "villa-ash", "brick-red", "brick-brown", "brick-yellow", "render-sand", "render-grey", "render-salmon", "render-ochre", "panel-graphite", "panel-slate", "clad-white", "clad-blue", "clad-green", "clad-grey", "clad-dark", "barn-red", "barn-silver", "barn-tar", "church-granite", "church-granite-grey", "church-wall"],
+  "fronts": { "none": 0, "shop": 1, "supermarket": 2, "plate": 3 },
+  "words": ["BAGERI", "KIOSK", "KAFFE", "APOTEK", "BOKHANDEL", "BLOMMOR", "KLÄDER", "SKOR", "FRISÖR", "FISK", "CYKLAR", "UR & GULD", "BILAR", "MÖBLER", "OPTIK", "FÄRG", "PRESENTER", "SPORT", "LEKSAKER", "JÄRN", "DJUR", "LOPPIS", "MAT", "BUTIK", "VINBODEN", "HAVSBODEN", "MATHOLMEN", "SKUTHALLEN", "BYGGHOLMEN", "VOLTVIKEN", "SOFFKOBBEN", "VÄSTANVIND", "RODDAREN", "SKARPÖGA", "DÄCKHOLMEN", "BILVIKEN", "TASSEN", "TÄRNAN", "SILVERMÅS"]
+}

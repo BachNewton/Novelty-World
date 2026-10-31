@@ -1,0 +1,251 @@
+[
+{
+"east": 108095.0,
+"north": 6684224.2,
+"bearing": 359.6,
+"roadM": 13.7,
+"word": "TÄRNAN",
+"osm": "w169334905",
+"tile": "L2334F",
+"solids": [
+[
+"ahvenanmaa_2022_26877",
+522
+]
+]
+},
+{
+"east": 108102.0,
+"north": 6684270.0,
+"bearing": 212.2,
+"roadM": 10.3,
+"word": "SILVERMÅS",
+"osm": "w1328606037",
+"tile": "L2334F",
+"solids": [
+[
+"ahvenanmaa_2022_26873",
+549
+]
+]
+},
+{
+"east": 107884.3,
+"north": 6686718.2,
+"bearing": 192.9,
+"roadM": 0.7,
+"word": "TÄRNAN",
+"osm": "w163283071",
+"tile": "L2334F",
+"solids": [
+[
+"ahvenanmaa_2022_26561",
+88
+]
+]
+},
+{
+"east": 107976.8,
+"north": 6687242.3,
+"bearing": 102.1,
+"roadM": 0.3,
+"word": "SILVERMÅS",
+"osm": "w173383814",
+"tile": "L2334F",
+"solids": [
+[
+"ahvenanmaa_2022_31769",
+87
+]
+]
+},
+{
+"east": 108156.7,
+"north": 6683786.7,
+"bearing": 90.0,
+"roadM": 5.4,
+"word": "TÄRNAN",
+"osm": "n833129791",
+"tile": "L2334E",
+"solids": [
+[
+"ahvenanmaa_2022_20293",
+218
+]
+]
+},
+{
+"east": 107453.9,
+"north": 6684840.1,
+"bearing": 181.7,
+"roadM": 9.2,
+"word": "SILVERMÅS",
+"osm": "n833234425",
+"tile": "L2334F",
+"solids": [
+[
+"ahvenanmaa_2022_24141",
+106
+]
+]
+},
+{
+"east": 108359.4,
+"north": 6686134.1,
+"bearing": 191.3,
+"roadM": 9.6,
+"word": "TÄRNAN",
+"osm": "n1951462454",
+"tile": "L2334F",
+"solids": [
+[
+"ahvenanmaa_2022_30057",
+92
+]
+]
+},
+{
+"east": 115580.5,
+"north": 6679472.5,
+"bearing": 45.5,
+"roadM": 7.2,
+"word": "SILVERMÅS",
+"osm": "n1005932688",
+"tile": "L2334G",
+"solids": []
+},
+{
+"east": 88396.3,
+"north": 6699534.5,
+"bearing": 332.5,
+"roadM": 7.9,
+"word": "TÄRNAN",
+"osm": "n833129815",
+"tile": "L2341H",
+"solids": []
+},
+{
+"east": 87374.5,
+"north": 6700694.0,
+"bearing": 25.6,
+"roadM": 14.4,
+"word": "SILVERMÅS",
+"osm": "n6002450792",
+"tile": "L2341H",
+"solids": [
+[
+"ahvenanmaa_2022_46437",
+124
+],
+[
+"ahvenanmaa_2022_46681",
+36
+]
+]
+},
+{
+"east": 98287.4,
+"north": 6697625.5,
+"bearing": 93.9,
+"roadM": 10.1,
+"word": "TÄRNAN",
+"osm": "n736939122",
+"tile": "L2343D",
+"solids": []
+},
+{
+"east": 95168.7,
+"north": 6698674.2,
+"bearing": 17.3,
+"roadM": 10.2,
+"word": "SILVERMÅS",
+"osm": "n737191163",
+"tile": "L2343B",
+"solids": []
+},
+{
+"east": 96709.9,
+"north": 6698070.9,
+"bearing": 94.1,
+"roadM": 6.1,
+"word": "TÄRNAN",
+"osm": "n4236852427",
+"tile": "L2343B",
+"solids": []
+},
+{
+"east": 112023.1,
+"north": 6697614.5,
+"bearing": 51.3,
+"roadM": 3.3,
+"word": "SILVERMÅS",
+"osm": "n462496205",
+"tile": "L2343H",
+"solids": [
+[
+"ahvenanmaa_2022_73949",
+42
+]
+]
+},
+{
+"east": 113198.0,
+"north": 6697368.4,
+"bearing": 342.2,
+"roadM": 15.0,
+"word": "TÄRNAN",
+"osm": "n9102184663",
+"tile": "L2343H",
+"solids": []
+},
+{
+"east": 112068.5,
+"north": 6697605.3,
+"bearing": 43.8,
+"roadM": 8.6,
+"word": "SILVERMÅS",
+"osm": "n13108981308",
+"tile": "L2343H",
+"solids": []
+},
+{
+"east": 111841.4,
+"north": 6706504.0,
+"bearing": 62.3,
+"roadM": 0.5,
+"word": "TÄRNAN",
+"osm": "n845938041",
+"tile": "L2344G",
+"solids": []
+},
+{
+"east": 131958.6,
+"north": 6673296.5,
+"bearing": 59.7,
+"roadM": 29.7,
+"word": "SILVERMÅS",
+"osm": "n5016869082",
+"tile": "L3111F",
+"solids": []
+},
+{
+"east": 121023.6,
+"north": 6695852.9,
+"bearing": 165.7,
+"roadM": 4.8,
+"word": "TÄRNAN",
+"osm": "n1830796013",
+"tile": "L3121A",
+"solids": []
+},
+{
+"east": 132342.6,
+"north": 6697340.6,
+"bearing": 143.6,
+"roadM": 14.7,
+"word": "SILVERMÅS",
+"osm": "n12067721178",
+"tile": "L3121F",
+"solids": []
+}
+]
