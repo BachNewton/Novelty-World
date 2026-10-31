@@ -8,6 +8,8 @@ import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createCarView } from "./car";
 import { createClipmap } from "./clipmap";
 import { createForest, FOREST_REACH_M } from "./forest";
+import { ROAD_MASK_MIP } from "./tree-place";
+import { createWater, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose } from "./map-camera";
 import { SHOWCASE, type ShowcaseSpot } from "./showcase";
@@ -373,8 +375,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const overviewUv = positionWorld.xz.sub(vec2(manifest.overview.west, -manifest.overview.north)).div(overviewSize);
   const overviewPixel = texture(overviewTexture, overviewUv);
   const inOverview = all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1))));
-  const pastTiles = select(inOverview, mix(colorOf("water"), overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), colorOf("water"));
-  const terrainColor = hazed(mix(pastTiles, mix(colorOf("water"), land, photo.a), farSeen));
+  const waterOf = createWater({ colour: colorOf, sun: manifest.sun, shoreAt: select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0)) });
+  const pastTiles = select(inOverview, mix(waterOf.color, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), waterOf.color);
+  const terrainColor = hazed(mix(pastTiles, mix(waterOf.color, land, photo.a), farSeen));
 
   /** A tree's height at a place anywhere, off the image of whichever tile holds it, at a level of its mips. */
   const canopyAt = (place: Node<"vec2">, mip: number) => {
@@ -392,10 +395,22 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (level < 1) return float(0);
     return canopyAt(place, level).mul(smoothstep(float(CANOPY_RISE_FROM_M), float(CANOPY_RISE_FULL_M), place.sub(cameraSpot).length()));
   });
+  const roadsAt = (place: Node<"vec2">) => {
+    const inTiles = place.div(tileM);
+    const tile = inTiles.floor();
+    const spot = tile.sub(vec2(layers.mapColumn, layers.mapRow));
+    const within = all(greaterThanEqual(spot, vec2(0, 0))).and(all(lessThan(spot, vec2(layers.mapColumns, layers.mapRows))));
+    const row = textureLoad(layers.slots, ivec2(spot.clamp(vec2(0, 0), vec2(layers.mapColumns - 1, layers.mapRows - 1))));
+    const layer = int(row.r.mul(255).round().sub(1).max(0));
+    const roads = texture(layers.mask, inTiles.sub(tile)).depth(layer).level(float(ROAD_MASK_MIP));
+    return select(within.and(row.r.greaterThan(0.001)), roads.g.add(roads.b), float(0));
+  };
   const forest = createForest(scene, {
     canopyAt: (place) => canopyAt(place, 0),
     groundNear: (place) => clipmap.groundAt(FOREST_NEAR_RING, place),
+    groundMid: (place) => clipmap.groundAt(1, place),
     groundFar: (place) => clipmap.groundAt(FOREST_FAR_RING, place),
+    roads: { at: roadsAt, tileM },
     colour: colorOf,
     hazed,
     sun: manifest.sun,
@@ -405,7 +420,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const seaGeometry = new PlaneGeometry(2 * CAMERA_FAR, 2 * CAMERA_FAR);
   seaGeometry.rotateX(-Math.PI / 2);
   const seaMaterial = new MeshBasicNodeMaterial();
-  seaMaterial.colorNode = hazed(colorOf("water"));
+  seaMaterial.colorNode = hazed(waterOf.color);
   const sea = new Mesh(seaGeometry, seaMaterial);
   sea.position.y = SEA_BELOW_LAND_M;
   scene.add(sea);
@@ -942,6 +957,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       edgeGeometry.dispose();
       edgeMaterial.dispose();
       seaMaterial.dispose();
+      waterOf.dispose();
       roadMaterial.dispose();
       layers.dispose();
       renderer.dispose();
