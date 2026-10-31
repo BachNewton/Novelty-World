@@ -24,7 +24,7 @@ const QUIET_ROAD_MS = 12;
 const SHORTEST_LINE_M = 120;
 const FROM_ALONG_M = 20;
 const LANDING_M = 60;
-const STEPS_PER_METRE_LIMIT = 8;
+const STEPS_PER_METRE_LIMIT = 14;
 const LONGEST_SECONDS = 600;
 const ROUGH_JOLT_G = 0.6;
 
@@ -50,6 +50,7 @@ interface Result {
   respawns: number;
   offRoadM: number;
   finished: boolean;
+  endedAt: [number, number];
 }
 const results: Result[] = [];
 const started = process.hrtime.bigint();
@@ -96,6 +97,7 @@ for (const { name, kind, chains, line } of lines) {
     respawns: drive.log.respawns,
     offRoadM: drive.log.furthestOffRoadM,
     finished: pilot.finished(),
+    endedAt: [Math.round(drive.stateAt(1).position[0]), Math.round(drive.stateAt(1).position[2])],
   });
 }
 
@@ -124,5 +126,5 @@ console.log(
 const worstFirst = [...results].sort((a, b) => b.worstJoltG - a.worstJoltG).slice(0, 12);
 for (const result of worstFirst) console.log("rough:", JSON.stringify({ ...result, km: round(result.km), worstJoltG: round(result.worstJoltG), joltAtM: round(result.joltAtM, 0), joltAt: result.joltAt.map((value) => round(value, 0)), topKmh: round(result.topKmh, 0), offRoadM: round(result.offRoadM, 1) }));
 for (const result of dropped.sort((a, b) => b.dropsOnTheWay - a.dropsOnTheWay).slice(0, 12)) console.log("drops:", JSON.stringify({ name: result.name, kind: result.kind, km: round(result.km), drops: result.dropsOnTheWay, joltAt: result.joltAt.map((value) => round(value, 0)) }));
-for (const result of lost.slice(0, 12)) console.log("lost:", JSON.stringify({ name: result.name, kind: result.kind, km: round(result.km), respawns: result.respawns, finished: result.finished, offRoadM: round(result.offRoadM, 1) }));
+for (const result of lost.slice(0, 12)) console.log("lost:", JSON.stringify({ name: result.name, kind: result.kind, km: round(result.km), respawns: result.respawns, finished: result.finished, offRoadM: round(result.offRoadM, 1), endedAt: result.endedAt }));
 drive.dispose();
