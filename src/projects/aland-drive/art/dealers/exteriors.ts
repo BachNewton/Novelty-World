@@ -77,7 +77,7 @@ function villageGarage(): Exterior {
   s.within({ x: -5, y: 3.4, z: wz1 + 0.3 }, () => s.box([-0.2, 0, -0.3], [0.2, 0.06, 0.1], "dealer-steel-dark"));
 
   // A single pump island, under a flat canopy.
-  const [canopyZ, canopyH] = [6.5, 4.5];
+  const [canopyZ, canopyH] = [8, 4.5];
   s.within({ x: 3.5, z: canopyZ }, () => {
     s.box([-3.6, 0, -0.75], [3.6, 0.16, 0.75], "dealer-concrete");
     for (const x of [-1.6, 1.6]) s.within({ x, y: 0.16 }, () => fuelPump(s, brand));
@@ -93,7 +93,7 @@ function villageGarage(): Exterior {
   s.within({ x: -10, z: 10.3 }, () => {
     postSign(s, [brand.name, "95 1.79", "D  1.72"], 2, 2.3, 1.2, "wall-trim", brand.ink);
   });
-  s.within({ x: -1.4, z: 7 }, () => {
+  s.within({ x: -1.4, z: 8.4 }, () => {
     s.box([-0.1, 0, -0.08], [0.1, 1.3, 0.08], "wall-red");
     s.bar([0.1, 1.05, 0], [0.26, 0.45, 0], 0.03, "dealer-rubber");
   });
@@ -165,9 +165,8 @@ function townDealer(): Exterior {
   const front = 11.6;
   for (let bay = 0; bay < 8; bay++) s.within({ x: -13.2 + bay * 3.1, y: 0.05, z: front }, () => bayLines(s, 3.1, 5.4));
   for (const x of [-18.6, 18.4]) s.within({ x, y: 0.05, z: 8 }, () => lampPost(s, 7));
-  s.within({ x: 18.4, y: 0.05, z: 2, yaw: Math.PI }, () => lampPost(s, 7));
   s.within({ x: -18, y: 0.05, z: 12.4 }, () => pylon(s, brand, 2.2, 8.5));
-  for (const x of [5, 8, 11]) s.within({ x, y: 0.05, z: 13.1 }, () => bannerFlag(s, brand, 7));
+  for (const z of [-1, 2.5, 6]) s.within({ x: 18.9, y: 0.05, z, yaw: -Math.PI / 2 }, () => bannerFlag(s, brand, 7));
   for (const x of [-11, 1, 15]) s.within({ x, y: 0.05, z: -0.3 }, () => planter(s, 3));
   for (let x = -14; x < 3; x += 3.2) s.within({ x, y: 0.05, z: 13.3 }, () => bollard(s, 0.8, "dealer-steel-dark"));
 
@@ -213,7 +212,7 @@ function waterfrontShowroom(): Exterior {
 
   // The way in: a tall slot of glass with the logo in light beside it.
   const doorH = heightAt(z1);
-  s.quad([-2.2, 0.4, z1 + 0.03], [2.2, 0.4, z1 + 0.03], [2.2, doorH - 0.2, z1 + 0.03], [-2.2, doorH - 0.2, z1 + 0.03], "dealer-light-warm", { glow: 0.6 });
+  s.quad([-2.2, 0.4, z1 + 0.03], [2.2, 0.4, z1 + 0.03], [2.2, doorH - 0.2, z1 + 0.03], [-2.2, doorH - 0.2, z1 + 0.03], "dealer-light-warm", { glow: 0.6, shade: [0.95, 0.95, 0.6, 0.6] });
   for (const x of [-2.2, 0, 2.2]) s.box([x - 0.05, 0.4, z1], [x + 0.05, doorH - 0.15, z1 + 0.09], "dealer-tarna");
   s.within({ x: -6.5, y: 2.2, z: z1 + 0.04 }, () => s.logo(brand, 0.9, { glow: 0.9 }));
   s.within({ x: 6.5, y: 1.9, z: z1 + 0.04 }, () => s.text(brand.name, 0.74, "dealer-tarna", { glow: 0.95 }));
@@ -226,7 +225,7 @@ function waterfrontShowroom(): Exterior {
   // Street side: a low wall with the name, lights along the walk, a car on a disc of stone.
   s.within({ x: 10, y: 0.05, z: 18.4 }, () => {
     s.box([-5.5, 0, -0.28], [5.5, 1.2, 0.28], "dealer-stone");
-    s.within({ y: 0.32, z: 0.285 }, () => s.text(brand.name, 0.54, brand.ink));
+    s.within({ y: 0.32, z: 0.285 }, () => s.text(brand.name, 0.54, "dealer-tarna-ink"));
     s.within({ x: -4.2, y: 0.6, z: 0.285 }, () => s.logo(brand, 0.42));
   });
   s.within({ x: -9, y: 0.05, z: 14 }, () => s.lathe([[3.2, 0], [3.2, 0.24], [3.05, 0.27], [0, 0.27]], 20, "dealer-stone"));

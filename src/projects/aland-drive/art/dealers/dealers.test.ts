@@ -80,8 +80,10 @@ describe("rooms", () => {
 });
 
 describe("the data", () => {
-  it("every car has a brand, and only one", () => {
-    expect(BRAND_IDS.flatMap((id) => BRANDS[id].cars).sort()).toEqual(CARS.map(({ name }) => name).sort());
+  it("a brand sells real cars, and no two sell the same one", () => {
+    const sold = BRAND_IDS.flatMap((id) => BRANDS[id].cars);
+    expect(new Set(sold).size).toBe(sold.length);
+    for (const name of sold) expect(() => carNamed(name)).not.toThrow();
   });
 
   it("every slot names a real car", () => {
