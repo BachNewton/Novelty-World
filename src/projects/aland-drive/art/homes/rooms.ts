@@ -218,12 +218,14 @@ export interface SaunaLayout {
   benchWood?: InteriorPart;
   walls?: InteriorPart;
   tall?: number;
+  windowTall?: number;
+  sill?: number;
 }
 
-export function sauna({ wide, deep, view, windowWide = 0.7, benchWood = "birch", walls = "wall-aspen", tall = 2.25 }: SaunaLayout): Room {
+export function sauna({ wide, deep, view, windowWide = 0.7, benchWood = "birch", walls = "wall-aspen", tall = 2.25, windowTall = 0.5, sill = 1.2 }: SaunaLayout): Room {
   const mesh = roomMesh(wide, deep, tall);
   const [halfX, halfZ] = [wide / 2, deep / 2];
-  buildShell(mesh, { wide, deep, tall, floor: "floor-duckboard", ceiling: "wall-aspen", walls, skirting: "wall-aspen", view, openings: [windowOn("west", -0.1, windowWide, 0.5, 1.2, [1, 1]), doorOn("south", -halfX + 0.65)] });
+  buildShell(mesh, { wide, deep, tall, floor: "floor-duckboard", ceiling: "wall-aspen", walls, skirting: "wall-aspen", view, openings: [windowOn("west", -0.1, windowWide, windowTall, sill, [1, 1]), doorOn("south", -halfX + 0.65)] });
   mesh.place(0, -halfZ + 0.3, 0, (m) => {
     saunaBenches(m, { wide, wood: benchWood });
   });
@@ -348,8 +350,8 @@ export function garage({ wide, deep, tall, walls, floor = "floor-concrete", ceil
     mesh.block([slot.x - 0.85, 0.2, slot.z - 2], [slot.x + 0.85, 1.1, slot.z + 2]);
   }
   return finish("garage", "Garage", mesh, { wide, deep, tall }, [
-    { name: "from the bench", position: [-halfX + 0.5, EYE_M + 0.15, -halfZ + 0.9], target: [halfX * 0.3, 0.8, halfZ - 0.6], fieldOfViewDeg: LENS + 4 },
     { name: "from the door", position: [halfX - 0.4, EYE_M + 0.2, halfZ - 0.3], target: [-halfX * 0.3, 0.8, -halfZ + 1], fieldOfViewDeg: LENS + 4 },
+    { name: "from the bench", position: [-halfX + 0.5, EYE_M + 0.15, -halfZ + 0.9], target: [halfX * 0.3, 0.8, halfZ - 0.6], fieldOfViewDeg: LENS + 4 },
   ], fit);
 }
 

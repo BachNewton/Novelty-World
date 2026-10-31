@@ -51,8 +51,8 @@ function plotScene(shoreZ: number | null) {
   const rock = mix(colour("wall-grey"), colour("wall-red"), 0.14).mul(mix(float(0.75), float(1), patch));
   groundMaterial.colorNode = shoreZ === null ? grass : mix(rock, grass, smoothstep(float(shoreZ + 1), float(shoreZ + 7), at.y));
   const land = new Mesh(plane, groundMaterial);
-  land.scale.set(1200, 1, 800);
-  land.position.set(0, 0, 400 + (shoreZ ?? -1000));
+  land.scale.set(1600, 1, 1600);
+  land.position.set(0, 0, shoreZ === null ? 0 : 800 + shoreZ);
   scene.add(land);
   const seaMaterial = new MeshBasicNodeMaterial();
   seaMaterial.colorNode = colour("water");

@@ -1,4 +1,5 @@
 import { COTTAGE } from "./cottage";
+import { FARMHOUSE } from "./farmhouse";
 import type { Home } from "./home";
 
 export { carSize, carSizes, fitCars, parkedState, type CarSize, type CarSlot, type GarageFit } from "./garage";
@@ -7,4 +8,4 @@ export { interiorMaterial, type InteriorMaterial, type RoomLights } from "./mate
 export type { Room, RoomCamera } from "./rooms";
 
 /** The ladder, cheapest first. */
-export const HOMES: readonly Home[] = [COTTAGE];
+export const HOMES: readonly Home[] = [COTTAGE, FARMHOUSE];
