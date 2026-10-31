@@ -1,0 +1,55 @@
+/* The bikes' and riders' own colours. A rider's come from a seed (`look.ts`), a bike's from its spec. */
+:root {
+  --color-aland-drive-bike-tyre: #1b1c1d;
+  --color-aland-drive-bike-metal: #aeb5ba;
+  --color-aland-drive-bike-dark: #1f2123;
+  --color-aland-drive-bike-saddle: #5d3a22;
+  --color-aland-drive-bike-bag: #7d3b26;
+  --color-aland-drive-bike-basket: #a8804f;
+  --color-aland-drive-bike-lamp: #e7e3cf;
+  --color-aland-drive-bike-shadow: #10140f;
+
+  --color-aland-drive-bike-paint-sage: #7f9c8a;
+  --color-aland-drive-bike-paint-cream: #e3dcc6;
+  --color-aland-drive-bike-paint-falu: #8c2d22;
+  --color-aland-drive-bike-paint-sea: #1f5f7a;
+  --color-aland-drive-bike-paint-moss: #4a5a33;
+  --color-aland-drive-bike-paint-yellow: #dcaa22;
+  --color-aland-drive-bike-paint-ink: #20262c;
+
+  --color-aland-drive-rider-skin-1: #f0cfb4;
+  --color-aland-drive-rider-skin-2: #e0b08c;
+  --color-aland-drive-rider-skin-3: #b57c54;
+  --color-aland-drive-rider-skin-4: #6d452d;
+
+  --color-aland-drive-rider-hair-1: #e2c98a;
+  --color-aland-drive-rider-hair-2: #a97b45;
+  --color-aland-drive-rider-hair-3: #4a3020;
+  --color-aland-drive-rider-hair-4: #1e1a18;
+  --color-aland-drive-rider-hair-5: #c9c6c0;
+
+  --color-aland-drive-rider-top-1: #f0eee6;
+  --color-aland-drive-rider-top-2: #2f5f94;
+  --color-aland-drive-rider-top-3: #c9483a;
+  --color-aland-drive-rider-top-4: #e8c24a;
+  --color-aland-drive-rider-top-5: #7fb2c9;
+  --color-aland-drive-rider-top-6: #3f7a5a;
+  --color-aland-drive-rider-top-7: #e49a9a;
+
+  --color-aland-drive-rider-bottom-1: #1f2f4a;
+  --color-aland-drive-rider-bottom-2: #c8b891;
+  --color-aland-drive-rider-bottom-3: #4b5a3e;
+  --color-aland-drive-rider-bottom-4: #6e8ba8;
+  --color-aland-drive-rider-bottom-5: #2a2a2c;
+
+  --color-aland-drive-rider-shoe-1: #f1f1ec;
+  --color-aland-drive-rider-shoe-2: #6b4a30;
+  --color-aland-drive-rider-shoe-3: #2c3744;
+  --color-aland-drive-rider-shoe-4: #b2392e;
+
+  --color-aland-drive-rider-helmet-1: #e8ebea;
+  --color-aland-drive-rider-helmet-2: #16181a;
+  --color-aland-drive-rider-helmet-3: #2d78b0;
+  --color-aland-drive-rider-helmet-4: #d9662b;
+  --color-aland-drive-rider-helmet-5: #4f9a78;
+}
