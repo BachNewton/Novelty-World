@@ -244,7 +244,7 @@ export function sauna({ wide, deep, view, windowWide = 0.7, benchWood = "birch",
     towelRail(m);
   });
   return finish("sauna", "Sauna", mesh, { wide, deep, tall }, [
-    { name: "from the door", position: [-halfX + 0.5, 1.4, halfZ - 0.2], target: [halfX * 0.4, 0.8, -halfZ + 0.4], fieldOfViewDeg: LENS + 8 },
+    { name: "from the door", position: [-halfX + 0.4, 1.5, halfZ - 0.2], target: [halfX * 0.45, 0.95, -0.1], fieldOfViewDeg: LENS + 4 },
     { name: "from the top bench", position: [-halfX + 0.35, 1.5, -halfZ + 0.35], target: [halfX - 0.4, 0.75, halfZ - 0.4], fieldOfViewDeg: LENS + 8 },
   ]);
 }
@@ -299,7 +299,7 @@ export function bedroom(style: Style, { wide, deep, bedWide = 1.6, cover = "wool
   });
   return finish("bedroom", "Bedroom", mesh, { wide, deep, tall }, [
     { name: "from the door", position: [halfX - 0.5, EYE_M, halfZ - 0.3], target: [-halfX * 0.4, 0.8, -halfZ + 0.6], fieldOfViewDeg: LENS },
-    { name: "from the wardrobe", position: [-halfX + 0.45, EYE_M, halfZ - 0.3], target: [halfX * 0.3, 0.9, -halfZ * 0.4], fieldOfViewDeg: LENS },
+    { name: "from the foot of the bed", position: [-halfX + 1.05, EYE_M, halfZ - 0.25], target: [halfX * 0.35, 0.85, -halfZ * 0.5], fieldOfViewDeg: LENS },
     { name: "to the window", position: [-halfX + 0.5, 1.2, -0.1], target: [halfX, 1.3, -0.1], fieldOfViewDeg: LENS },
   ]);
 }

@@ -4,8 +4,8 @@ import type { Home } from "./home";
 import { bedroom, garage, kitchen, livingRoom, sauna, type Style } from "./rooms";
 
 /*
- * The top rung: a modern house on the rocks, two long boxes of dark larch, the upper
- * one slid out over the lower, a wall of glass to the water, a terrace on piers, a
+ * The top rung: a modern house on the rocks, a long box of dark larch under a red one
+ * slid out over it, a wall of glass to the water, a terrace on piers, a
  * garage for four cars along the road, and a glass sauna by the jetty.
  */
 
@@ -14,14 +14,14 @@ const REACH_M = 1600;
 const SHORE_Z = -11;
 
 const LOWER: Block = { x: 0, z: 0, halfWide: 5, halfLong: 11, ridgeAlong: "x", eaves: 3.2, ridge: 3.2, overhang: 0.1, wall: "tar-boards" };
-const UPPER: Block = { x: 3, z: -1.2, halfWide: 4.6, halfLong: 8, ridgeAlong: "x", floor: 3.5, eaves: 6.4, ridge: 6.4, overhang: 0.7, wall: "tar-boards" };
+const UPPER: Block = { x: 3, z: -1.2, halfWide: 4.6, halfLong: 8, ridgeAlong: "x", floor: 3.5, eaves: 6.4, ridge: 6.4, overhang: 0.7, wall: "red-boards" };
 const GARAGE: Block = { x: -6, z: 10.2, halfWide: 3.9, halfLong: 6.6, ridgeAlong: "x", eaves: 2.9, ridge: 2.9, overhang: 0.3, wall: "grey-boards" };
 const SAUNA: Block = { x: -12, z: -9.5, halfWide: 1.8, halfLong: 2.3, ridgeAlong: "x", floor: 0.3, eaves: 2.7, ridge: 2.7, overhang: 0.5, wall: "tar-boards" };
 
 /** A full-height wall of glass in slim dark frames. */
 function glassWall(mesh: RuralMesh, wall: WallFrame, from: number, to: number, floor: number, tall: number, bays: number, frame: RuralPart = "tractor-dark") {
   const pane = (a0: number, y0: number, a1: number, y1: number, out: number, part: RuralPart) => mesh.face([wall.at(a0, y0, out), wall.at(a1, y0, out), wall.at(a1, y1, out), wall.at(a0, y1, out)], part);
-  pane(from, floor, to, floor + tall, 0.03, "glass");
+  pane(from, floor, to, floor + tall, 0.03, "tractor-glass");
   for (let bay = 0; bay <= bays; bay++) {
     const a = from + ((to - from) * bay) / bays;
     pane(a - 0.035, floor, a + 0.035, floor + tall, 0.05, frame);

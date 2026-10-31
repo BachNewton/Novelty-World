@@ -88,8 +88,10 @@ for (const home of HOMES) {
   for (const { name, position, target, fieldOfViewDeg } of exteriorViews) {
     shots.push({ name: `${home.id}-${name}`, label: `${home.name}: ${name}`, triangles, home: home.id, show: () => ({ scene: outdoors, position, target, fieldOfViewDeg }) });
   }
+  const started = performance.now();
   const rooms = home.interior();
-  counts.push({ id: home.id, exterior: triangles, far: (model.far?.index?.count ?? 0) / 3, interior: rooms.reduce((sum, room) => sum + room.triangles, 0), rooms: rooms.map(({ id, triangles: t, fit }) => `${id} ${t}${fit ? ` (${fit.cars} cars)` : ""}`) });
+  const buildMs = Math.round(performance.now() - started);
+  counts.push({ id: home.id, buildMs, exterior: triangles, far: (model.far?.index?.count ?? 0) / 3, interior: rooms.reduce((sum, room) => sum + room.triangles, 0), rooms: rooms.map(({ id, triangles: t, fit }) => `${id} ${t}${fit ? ` (${fit.cars} cars)` : ""}`) });
   for (const room of rooms) {
     const scene = new Scene();
     const mesh = new Mesh(room.geometry, interior.material);
