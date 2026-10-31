@@ -1,8 +1,14 @@
-import { Group, Vector3, type Camera, type Mesh, type Node, type Scene } from "three/webgpu";
+import { Group, Mesh, MeshBasicNodeMaterial, PlaneGeometry, Vector3, type Camera, type Node, type Scene } from "three/webgpu";
+import { float, mix, sin, smoothstep, step, uv } from "three/tsl";
 import { startGame, type Place } from "../../render/game";
 import type { Sky, SkyLook } from "../sky/sky";
 import { placesOf } from "../marina/places";
-import { createAurora, createCarGlows, createGlows, createLampPools, createSeaBeams, harbourGlows, lampGlow, NIGHT_STOPS, seaLightGlows, type Headlights, type LampKind, type LampSpot, type Night, type NightLook } from ".";
+import { placeModel } from "../roadside/material";
+import { buildTownLamp } from "../town-kit/lamps";
+import { townMaterials } from "../town-kit/material";
+import { rhythm } from "./characteristic";
+import { shareOf } from "./sea-lights";
+import { createAurora, createCarGlows, createGlows, createLampPools, createSeaBeams, harbourGlows, lampGlow, litSign, NIGHT_STOPS, SEA_LIGHTS, seaLightGlows, type Headlights, type LampKind, type LampSpot, type Night, type NightLook } from ".";
 
 /* The gallery's page: the real game on real tiles, with the night's integration applied in memory and its pieces on stage. */
 
@@ -16,14 +22,21 @@ interface Hook {
   lookAtHour: (amount: number) => SkyLook;
   headlights: Headlights;
   clipmap: { groundAt: (level: number, place: Node<"vec2">) => Node<"float"> };
+  colour: (name: string) => Node<"vec3">;
+  hazed: (color: Node<"vec3">) => Node<"vec3">;
+  sun: { azimuthDeg: number; elevationDeg: number };
+  linear: (name: string) => Vector3;
 }
 
 export interface NightView {
   name: string;
   at?: Place;
-  /** Metres along the start tile's main road, in the chase camera with the headlights on. */
-  chaseAlong?: number;
-  seconds: number;
+  /** A showcase spot's key, for the chase camera with the headlights on. */
+  jump?: string;
+  seconds?: number;
+  /** Sets the clock to a turning light's flash as seen from `at`, and this share of a period after it. */
+  flashOf?: string;
+  afterFlash?: number;
   aurora?: number;
 }
 
@@ -41,20 +54,11 @@ interface LampRow {
 const LAMP_ROWS: readonly LampRow[] = [
   { kind: "town", fromEast: 108060, fromNorth: 6683258, bearingDeg: 268, sideM: 8, stepM: 32, count: 22 },
   { kind: "town", fromEast: 107740, fromNorth: 6683073, bearingDeg: 92, sideM: 7, stepM: 30, count: 22 },
-  { kind: "road", fromEast: 106700, fromNorth: 6683123, bearingDeg: 0, sideM: 12, stepM: 42, count: 14 },
 ];
 const CARS_ON_STAGE = 6;
 
 declare global {
   interface Window {
-    __alandDrive?: {
-      look: (at: Place) => void;
-      hold: (held: boolean) => void;
-      setCamera: (mode: "chase" | "free") => void;
-      startRoute: (chain: number, cruiseMS: number, from: number) => void;
-      advance: (steps: number) => void;
-      car: () => { position: [number, number, number]; rotation: [number, number, number, number] };
-    };
     __nightHookReady?: Hook;
     __nightHook?: { beforeFrame: () => void };
     __nightFailure?: string;
@@ -70,6 +74,32 @@ declare global {
 
 const element = document.getElementById("game");
 if (!element) throw new Error("no game element");
+
+function flashSeconds({ at, flashOf, afterFlash = 0 }: NightView, { manifest }: Hook) {
+  const light = SEA_LIGHTS.find(({ name }) => name?.startsWith(flashOf ?? "") === true);
+  if (!light || !at) throw new Error("gallery: no such light in view");
+  const [eyeX, eyeZ] = [at.east - manifest.worldOrigin.east, -(at.north - manifest.worldOrigin.north)];
+  const found = rhythm(light.sectors[0]);
+  const flash = found.flashes[0];
+  const share = (flash.fromS + flash.toS) / 2 / found.periodS;
+  const bearing = Math.atan2(light.x - eyeX, -(light.z - eyeZ)) / (Math.PI * 2);
+  const seconds = (share - shareOf(light.x, light.z) + bearing + afterFlash) * found.periodS;
+  return seconds + found.periodS * 1000;
+}
+
+/** A shop's board on a wall's height beside the street, in a shop's colour, with blocks for letters: the facades' real boards take `litSign` the same way. */
+function shopBoard({ world, manifest, night, colour, hazed }: Hook) {
+  const [x, z] = [107930 - manifest.worldOrigin.east, -(6683062 - manifest.worldOrigin.north)];
+  const geometry = new PlaneGeometry(7, 1.1);
+  const material = new MeshBasicNodeMaterial({ side: 2 });
+  const letters = smoothstep(float(0.35), float(0.4), sin(uv().x.mul(70)).abs()).mul(step(float(0.3), uv().y)).mul(step(uv().y, float(0.7))).mul(step(float(0.08), uv().x)).mul(step(uv().x, float(0.92)));
+  const painted = mix(colour("edge"), colour("wall-trim"), letters);
+  material.colorNode = hazed(painted).add(litSign(night, painted, letters).sub(painted).max(0));
+  const mesh = new Mesh(geometry, material);
+  mesh.position.set(x, world.height(x, z) + 3.4, z);
+  mesh.rotation.y = -Math.PI / 2;
+  return mesh;
+}
 
 function lampSpots({ world, manifest }: Hook): LampSpot[] {
   const spots: LampSpot[] = [];
@@ -96,7 +126,7 @@ startGame(element, {
   },
 })
   .then((game) => {
-    window.__alandDrive = game.probe as unknown as Window["__alandDrive"];
+    (window as unknown as { __alandDrive: unknown }).__alandDrive = game.probe;
     const hook = window.__nightHookReady;
     if (!hook) throw new Error("no hook: the integration did not apply");
     const { night, sky, scene, camera, lookAtHour, headlights, clipmap } = hook;
@@ -112,7 +142,7 @@ startGame(element, {
     const aurora = createAurora(night, 110000);
     const stage = new Group();
     const meshes: Mesh[] = [glows.mesh, pools.mesh, beams.mesh, cars.mesh, aurora.mesh];
-    stage.add(...meshes);
+    stage.add(...meshes, shopBoard(hook), ...placeModel(buildTownLamp(), spots, townMaterials({ colour: hook.colour, linear: hook.linear, hazed: hook.hazed, sun: hook.sun, time: night.seconds })));
     scene.add(stage);
 
     const eye = new Vector3();
@@ -136,7 +166,7 @@ startGame(element, {
         sky.setLook(lookAtHour(NIGHT_STOPS[look]));
       },
       show(view) {
-        night.seconds.value = view.seconds;
+        night.seconds.value = view.seconds ?? flashSeconds(view, hook);
         aurora.setStrength(view.aurora ?? 0);
         if (view.at) {
           probe.look(view.at);

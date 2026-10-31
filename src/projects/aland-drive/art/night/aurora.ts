@@ -1,5 +1,5 @@
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Mesh, MeshBasicNodeMaterial, Vector3 } from "three/webgpu";
-import { float, fract, mix, positionGeometry, sin, smoothstep, uniform, varying } from "three/tsl";
+import { float, mix, positionGeometry, sin, smoothstep, uniform, varying } from "three/tsl";
 import { nightColour, type F, type Night } from "./night";
 
 /*
@@ -14,7 +14,7 @@ const LOW_DEG = 2;
 const HIGH_DEG = 24;
 const TRUE_NORTH_GRID_DEG = 6.25;
 const DRIFT = 0.016;
-const STRENGTH = 0.3;
+const STRENGTH = 0.15;
 /** About one night in this many has one at all. */
 const NIGHTS_PER_AURORA = 12;
 
@@ -67,13 +67,13 @@ export function createAurora(night: Night, reach: number): Aurora {
   const clock = night.seconds.mul(DRIFT);
   const fold = (rate: number, speed: number, phase: number): F => sin(arc.mul(rate).add(clock.mul(speed)).add(phase));
   const shift = fold(2.1, 1, 0).mul(0.5).add(fold(4.7, -1.6, 2).mul(0.3)).add(fold(9.3, 2.3, 4).mul(0.2));
-  const base = float(0.06).add(shift.mul(0.03));
-  const curtain = smoothstep(base, base.add(0.035), rise).mul(float(1).sub(smoothstep(base.add(0.05), base.add(0.33), rise)));
-  const rays = fract(sin(arc.mul(43).add(shift.mul(9))).mul(0.5).add(0.5)).mul(0.6).add(0.4);
-  const banks = smoothstep(float(-0.4), float(0.7), fold(3.3, 0.7, 1));
+  const base = float(0.03).add(shift.mul(0.018));
+  const curtain = smoothstep(base, base.add(0.035), rise).mul(float(1).sub(smoothstep(base.add(0.03), base.add(0.2), rise)));
+  const rays = sin(arc.mul(43).add(shift.mul(9))).mul(sin(arc.mul(71).sub(shift.mul(5)))).mul(0.3).add(0.7);
+  const banks = smoothstep(float(-1), float(0.5), fold(3.3, 0.7, 1)).mul(0.65).add(0.35);
   const ends = smoothstep(float(0.95), float(0.5), place.x.div(reach).abs().mul(1.35));
   const deepest = smoothstep(float(0.72), float(0.95), night.amount);
-  const colour = mix(nightColour("aurora-low"), nightColour("aurora-high"), smoothstep(base.add(0.08), base.add(0.3), rise));
+  const colour = mix(nightColour("aurora-low"), nightColour("aurora-high"), smoothstep(base.add(0.05), base.add(0.18), rise));
   material.colorNode = colour.mul(curtain.mul(rays).mul(banks).mul(ends).mul(deepest).mul(strength).mul(STRENGTH));
 
   const mesh = new Mesh(geometry, material);

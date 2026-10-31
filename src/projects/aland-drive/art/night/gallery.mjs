@@ -5,7 +5,7 @@
 //   node src/projects/aland-drive/art/night/gallery.mjs --out=<folder> [--size=2408x1007] [--only=a,b] [--hours=day,night] [--measure] [--pairs=8]
 
 /* eslint-disable security/detect-non-literal-fs-filename -- a localhost tool writing to the folder it was told to */
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,11 +35,12 @@ const toRad = (deg) => (deg * Math.PI) / 180;
 const at = (east, north, height, bearingDeg, pitchDeg = 2) => ({ east, north, height, yaw: -toRad(bearingDeg), pitch: toRad(pitchDeg) });
 
 const VIEWS = [
+  { name: "country-chase", jump: "5", seconds: 2 },
   { name: "esplanade", at: at(107940, 6683264, 2.6, 268), seconds: 3 },
   { name: "sodragatan", at: at(107880, 6683073, 2.6, 92, 3), seconds: 3 },
-  { name: "vasterhamn", at: at(106930, 6683290, 7, 240, 1), seconds: 4.2 },
-  { name: "country-chase", chaseAlong: 1400, seconds: 2 },
-  { name: "lighthouse", at: at(127020, 6682800, 14, 58, 2), seconds: 1.2 },
+  { name: "vasterhamn", at: at(106850, 6683900, 6, 160, 0.5), seconds: 4.3 },
+  { name: "lighthouse-flash", at: at(110700, 6670700, 8, 132, 1), flashOf: "Stora", afterFlash: 0.02 },
+  { name: "lighthouse-sweep", at: at(110700, 6670700, 8, 132, 1), flashOf: "Stora", afterFlash: 0.3 },
   { name: "aurora-north", at: at(106200, 6716000, 120, 6, 6), seconds: 40, aurora: 1 },
 ];
 
@@ -68,7 +69,7 @@ async function bundle(folder) {
 function pageHtml() {
   const globals = readFileSync(join(REPO, "src/app/globals.css"), "utf8");
   const tokens = [...globals.matchAll(/--color-aland-drive-[\w-]+:\s*[^;]+;/g)].map(([line]) => line).join("");
-  const own = readFileSync(join(HERE, "tokens.css"), "utf8");
+  const own = readdirSync(join(HERE, "..")).map((folder) => join(HERE, "..", folder, "tokens.css")).filter(existsSync).map((file) => readFileSync(file, "utf8")).join("");
   return `<!doctype html><meta charset="utf-8"><style>:root{${tokens}}${own}html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#000}</style><div id="game"></div><script type="module" src="/page.js"></script>`;
 }
 
@@ -153,9 +154,9 @@ const place = (view) =>
       probe.loadAround({ x: wanted.at.east - origin.east, z: -(wanted.at.north - origin.north) });
     } else {
       probe.loadAround(null);
+      await probe.jumpTo(wanted.jump);
       probe.setCamera("chase");
-      probe.startRoute(0, 40, wanted.chaseAlong);
-      probe.advance(600);
+      probe.advance(120);
     }
     await new Promise(requestAnimationFrame);
     while (probe.stream().loading > 0 && window.__nightFailure === undefined) await new Promise(requestAnimationFrame);

@@ -1,5 +1,5 @@
 import { AdditiveBlending, BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, type Node } from "three/webgpu";
-import { attribute, cameraPosition, float, max, positionGeometry, select, smoothstep, varying, vec2, vec3 } from "three/tsl";
+import { attribute, cameraPosition, float, positionGeometry, select, smoothstep, varying, vec2, vec3 } from "three/tsl";
 import type { GlowInstance } from "./glows";
 import { nightRgb, type F, type Night } from "./night";
 
@@ -25,7 +25,7 @@ interface LampLook {
 
 export const LAMP_LOOKS: Record<LampKind, LampLook> = {
   road: { headM: 9.05, outM: 1.75, token: "lamp-road", haloM: 2.4, poolM: 15, poolLight: 0.2, reachM: 2400 },
-  town: { headM: 4.65, outM: 0, token: "lamp-town", haloM: 1.4, poolM: 8, poolLight: 0.13, reachM: 1500 },
+  town: { headM: 4.65, outM: 0, token: "lamp-town", haloM: 1.6, poolM: 10, poolLight: 0.14, reachM: 1500 },
   wall: { headM: 2.6, outM: 0.58, token: "lamp-town", haloM: 0.8, poolM: 5, poolLight: 0.12, reachM: 500 },
   harbour: { headM: 6.5, outM: 0, token: "lamp-harbour", haloM: 2, poolM: 12, poolLight: 0.17, reachM: 4500 },
 };
@@ -36,8 +36,6 @@ const POOL_LIFT_M = 0.42;
 const POOL_REACH_M = 700;
 const LAMP_MIN_PIXELS = 3;
 const POOL_FLOATS = 4;
-/** A pool never drapes lower than this under its own post: where the ring's nodes are coarser than the road on them. */
-const FOOT_BELOW_M = 0.3;
 const MIN_POOL_FADE = 0.55;
 
 export interface LampSpot {
@@ -108,9 +106,9 @@ export function createLampPools(night: Night, spots: readonly LampSpot[], ground
   const spot = vec2(place.x.add(positionGeometry.x.mul(place.w)), place.z.add(positionGeometry.z.mul(place.w)));
   const hour = smoothstep(tint.w.mul(0.6), tint.w.mul(0.6).add(0.4), night.lampsOn);
   const shown = float(1).sub(smoothstep(float(POOL_REACH_M * MIN_POOL_FADE), float(POOL_REACH_M), place.xyz.sub(cameraPosition).length())).mul(hour);
-  const height = groundAt ? max(groundAt(spot), place.y.sub(FOOT_BELOW_M)) : place.y;
+  const height = groundAt ? groundAt(spot) : place.y;
 
-  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending });
+  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending, side: 2 });
   // A pool that isn't lit has no size, so day pays for its vertices only.
   const scale = select(shown.greaterThan(0.001), float(1), float(0));
   material.positionNode = vec3(spot.x.mul(scale), height.add(POOL_LIFT_M).mul(scale), spot.y.mul(scale));

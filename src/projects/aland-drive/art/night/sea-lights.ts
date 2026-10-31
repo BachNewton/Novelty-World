@@ -41,8 +41,8 @@ const METRES_A_NAUTICAL_MILE = 1852;
 const FALLBACK_RANGE_NM = 3;
 /** A light carries further in the game than its size in the haze would, or the sea would be empty at the scale it's seen. */
 const RANGE_GAIN = 1.6;
-const SIZE_M: Record<string, number> = { lighthouse: 7, leading: 6, beacon: 4, buoy: 2.4 };
-const MIN_PIXELS: Record<string, number> = { lighthouse: 7, leading: 6, beacon: 5, buoy: 4 };
+const SIZE_M: Record<string, number> = { lighthouse: 14, leading: 10, beacon: 7, buoy: 4 };
+const MIN_PIXELS: Record<string, number> = { lighthouse: 16, leading: 12, beacon: 10, buoy: 8 };
 const FALLBACK_HEIGHT_M: Record<string, number> = { lighthouse: 12, leading: 14, beacon: 7, buoy: 4.2 };
 const COLOURS: Record<string, string> = { white: "sea-white", red: "sea-red", green: "sea-green", yellow: "sea-yellow" };
 /** The longest a great light's beam: it needn't reach as far as the flash. */
@@ -55,12 +55,13 @@ const WATER_Y = 0.1;
 
 const colourOf = (name: string) => nightRgb(COLOURS[name] ?? "sea-white");
 
-const shareOf = (x: number, z: number) => {
+/** Rolled from where a light is, so each keeps its own moment. */
+export const shareOf = (x: number, z: number) => {
   const value = Math.sin(x * 0.0173 + z * 0.0311) * 9973.1;
   return value - Math.floor(value);
 };
 
-const turns = (light: SeaLight) => light.kind === "lighthouse" && light.sectors.every(({ character, periodS }) => (character === "Fl" || character === "LFl") && periodS >= MIN_TURNING_PERIOD_S);
+export const turns = (light: SeaLight) => light.kind === "lighthouse" && light.sectors.every(({ character, periodS }) => (character === "Fl" || character === "LFl") && periodS >= MIN_TURNING_PERIOD_S);
 
 /** Every sea light as glows, a reflection under each, and the rhythms they read: each distinct rhythm once. */
 export function seaLightGlows(lights: readonly SeaLight[] = SEA_LIGHTS): { glows: GlowInstance[]; rhythms: Rhythm[] } {
@@ -113,7 +114,7 @@ export function harbourGlows(harbours: readonly { x: number; z: number }[]): Glo
     for (let lamp = 0; lamp < HARBOUR_LAMPS; lamp++) {
       const turn = shareOf(x + lamp * 91, z - lamp * 37) * Math.PI * 2;
       const out = shareOf(x - lamp * 53, z + lamp * 11) * HARBOUR_SPREAD_M;
-      const glow: GlowInstance = { x: x + Math.cos(turn) * out, y: HARBOUR_LAMP_M, z: z + Math.sin(turn) * out, sizeM: 1.9, minPixels: 3, colour: nightRgb("lamp-harbour"), brightness: 1, reachM: HARBOUR_REACH_M, rhythm: -1, periodS: 1, phase: 0, strikes: shareOf(z, x) * 0.7 };
+      const glow: GlowInstance = { x: x + Math.cos(turn) * out, y: HARBOUR_LAMP_M, z: z + Math.sin(turn) * out, sizeM: 3, minPixels: 7, colour: nightRgb("lamp-harbour"), brightness: 1, reachM: HARBOUR_REACH_M, rhythm: -1, periodS: 1, phase: 0, strikes: shareOf(z, x) * 0.7 };
       glows.push(glow, { ...glow, y: WATER_Y, brightness: 0.5, streak: true, reachM: HARBOUR_REACH_M * 0.4 });
     }
   }
@@ -126,7 +127,7 @@ const ATTRIBUTE_FLOATS = 4;
 export function createSeaBeams(night: Night, lights: readonly SeaLight[] = SEA_LIGHTS) {
   const beams = lights.filter(turns).flatMap((light) => {
     const found = rhythm(light.sectors[0]);
-    return found.flashes.map(({ fromS, toS }) => ({ light, periodS: found.periodS, angle: 1 - ((fromS + toS) / 2 / found.periodS), phase: shareOf(light.x, light.z) }));
+    return found.flashes.map(({ fromS, toS }) => ({ light, periodS: found.periodS, angle: 0.5 - (fromS + toS) / 2 / found.periodS, phase: shareOf(light.x, light.z) }));
   });
   const geometry = quadGeometry();
   geometry.instanceCount = beams.length;
@@ -148,7 +149,7 @@ export function createSeaBeams(night: Night, lights: readonly SeaLight[] = SEA_L
   const sideways = cross(way, toEye);
   const side = normalize(sideways);
   const half = float(BEAM_FOOT_M).add(along.mul(BEAM_END_M - BEAM_FOOT_M));
-  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending });
+  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: AdditiveBlending, side: 2 });
   material.positionNode = place.xyz.add(way.mul(along.mul(BEAM_LONG_M))).add(side.mul(positionGeometry.y.mul(half)));
 
   const out = varying(along);

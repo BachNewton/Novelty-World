@@ -65,7 +65,7 @@ import { createSky, skyLooks } from "../art/sky/sky";`,
     [
       `const drive = new Drive(world, startLine(manifest.start.chain).at(START_ALONG_M));`,
       `const drive = new Drive(world, startLine(manifest.start.chain).at(START_ALONG_M));
-  (window as unknown as { __nightHookReady: unknown }).__nightHookReady = { scene, camera, world, manifest, night, sky, lookAtHour, headlights, clipmap };`,
+  (window as unknown as { __nightHookReady: unknown }).__nightHookReady = { scene, camera, world, manifest, night, sky, lookAtHour, headlights, clipmap, colour: colorOf, hazed, linear, sun: manifest.sun };`,
     ],
   ],
 };
