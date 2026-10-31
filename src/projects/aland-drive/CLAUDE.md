@@ -94,7 +94,7 @@ Grid north is 6.25° off true north (see Data), and both maps are drawn to grid 
 
 ## Art direction
 
-Clean, stylised realism: real land colour under a low-poly forest and flat-shaded buildings with real shapes, red houses with white trim. Detail comes from real data and simple shapes, not photographic textures. **All 3D models and textures are made from code:** no generative image models and no outside assets. Open geodata stays the world's base, aerial land colour included; other photos are reference only. Cars are invented, with no real brands, and match this style.
+Clean, stylised realism: real land colour under a low-poly forest and flat-shaded buildings with real shapes, red houses with white trim. Detail comes from real data and simple shapes, not photographic textures. **All 3D models and textures are made from code:** no generative image models and no outside assets. Open geodata stays the world's base, aerial land colour included; other photos are reference only. Road signs are the one exception: they follow Finland's official drawings, shapes and lettering both, because a road sign has to be the real sign. Cars are invented, with no real brands, and match this style.
 
 ## Data
 

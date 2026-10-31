@@ -43,4 +43,18 @@ export const ALAND_DRIVE_CREDITS: readonly Credit[] = [
     source: "https://www.openstreetmap.org/copyright",
     attribution: "© OpenStreetMap contributors",
   },
+  {
+    work: "Finnish road sign designs (the shapes, symbols and colours of the road signs)",
+    author: "Finnish Transport Infrastructure Agency and Traficom",
+    license: LICENSES["public-domain"],
+    source: "https://commons.wikimedia.org/wiki/File:Finland_road_sign_A20.1.svg",
+    attribution: "",
+  },
+  {
+    work: "Finnish road sign lettering (the letters and digits on the road signs)",
+    author: "Traficom",
+    license: LICENSES["all-rights-reserved"],
+    source: "https://www.traficom.fi/files/media/regulation/LIITE_11_Liikenne-_ja_viestint%C3%A4viraston_tieliikennemerkkien_kirjasintyypin_mitoitus_11.pdf",
+    attribution: "",
+  },
 ];
