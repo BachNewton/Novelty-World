@@ -4,6 +4,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { placeModel } from "../roadside";
 import { CATALOGUE } from "./catalogue";
 import { boatMaterials } from "./material";
+import { buildRegatta } from "./regatta";
 import { triangles } from "./mesh";
 
 /*
@@ -79,6 +80,21 @@ fleet("fleet-swap", "the fleet just past its swap, 230 m", 230, 42);
 fleet("fleet-far", "the fleet at 600 m", 600, 18);
 fleet("fleet-reach", "the fleet at 1.2 km", 1200, 9);
 
+// A harbour's worth of the fleet, at berths down a line, for how they sit together.
+const RAFT_Z = -700;
+const raft = ["cruiser", "folkboat", "large", "launch", "cruiser", "double-ender", "fishing", "cruiser"].map((name) => CATALOGUE.find((candidate) => candidate.name === name));
+let berthX = lastX + 200;
+const firstBerth = berthX;
+raft.forEach((boat) => {
+  if (boat === undefined) throw new Error("no such boat");
+  scene.add(...placeModel(boat.model(), [{ x: berthX, y: 0, z: RAFT_Z }], materials));
+  berthX += 5.4;
+});
+shots.push({ name: "row", label: "a row of berths", camera: [firstBerth + 18, 3, RAFT_Z - 30], target: [firstBerth + 20, 3.2, RAFT_Z], fieldOfView: 50 });
+
+scene.add(buildRegatta(inputs, { from: { x: 2000, z: -9000 }, to: { x: 5200, z: -9400 }, y: 0, wideM: 1100, count: 64, seed: 7 }));
+shots.push({ name: "regatta", label: "regatta, 64 sails in one draw call, about 9 km off", camera: [3200, 3, 0], target: [3600, 45, -9200], fieldOfView: 22 });
+
 const frame = async (name: string) => {
   const shot = shots.find((candidate) => candidate.name === name);
   if (shot === undefined) throw new Error(`no shot ${name}`);
@@ -87,7 +103,7 @@ const frame = async (name: string) => {
   camera.updateProjectionMatrix();
   camera.lookAt(...shot.target);
   renderer.render(scene, camera);
-  await renderer.backend.device.queue.onSubmittedWorkDone();
+  await new Promise(requestAnimationFrame);
   return { triangles: renderer.info.render.triangles, calls: renderer.info.render.drawCalls };
 };
 
