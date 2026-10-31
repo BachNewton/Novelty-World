@@ -1,0 +1,25 @@
+/* The surfaces' colours. On integration this block joins the other --color-aland-drive-* tokens in globals.css. */
+:root {
+  --color-aland-drive-surface-asphalt: #505256;
+  --color-aland-drive-surface-asphalt-patch: #3a3c40;
+  --color-aland-drive-surface-gravel: #978a74;
+  --color-aland-drive-surface-gravel-worn: #a99c85;
+  --color-aland-drive-surface-kerb: #b4b2aa;
+  --color-aland-drive-surface-paving: #8f8d86;
+  --color-aland-drive-surface-litter: #3f3a2c;
+  --color-aland-drive-surface-roof-moss: #4f5a35;
+  --color-aland-drive-shop-riser: #2f3032;
+  --color-aland-drive-shop-interior: #6a5a42;
+  --color-aland-drive-shop-lit: #e6c98c;
+  --color-aland-drive-shop-fascia-a: #24384a;
+  --color-aland-drive-shop-fascia-b: #6d2b26;
+  --color-aland-drive-shop-fascia-c: #2e4a3a;
+  --color-aland-drive-shop-fascia-d: #d9d3c5;
+  --color-aland-drive-shop-awning: #2b6a5d;
+  --color-aland-drive-sign-yellow: #f6c21c;
+  --color-aland-drive-sign-red: #d3202a;
+  --color-aland-drive-sign-blue: #0d5aa7;
+  --color-aland-drive-sign-black: #17181a;
+  --color-aland-drive-sign-white: #f5f4ef;
+  --color-aland-drive-sign-back: #8d9195;
+}
