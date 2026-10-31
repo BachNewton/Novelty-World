@@ -89,7 +89,7 @@ export interface WallFrame {
 }
 
 /** The face of a block on one side, whatever way its ridge runs. */
-export function wallOf({ x, z, ridgeAlong, halfWide, halfLong }: Block, side: WallSide): WallFrame {
+export function wallOf({ x, z, ridgeAlong, halfWide, halfLong }: Pick<Block, "x" | "z" | "ridgeAlong" | "halfWide" | "halfLong">, side: WallSide): WallFrame {
   const [halfX, halfZ] = ridgeAlong === "z" ? [halfWide, halfLong] : [halfLong, halfWide];
   return {
     at(along, up, out = 0) {
