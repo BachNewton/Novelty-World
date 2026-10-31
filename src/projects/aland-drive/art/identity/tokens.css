@@ -1,0 +1,35 @@
+/*
+ * The identity kit's colours that no existing token can mix. On integration this block joins the other
+ * --color-aland-drive-* tokens in globals.css. The stamp inks are a printer's limited set, so a stamp reads as
+ * printed rather than as a screenshot of the 3D art.
+ */
+:root {
+  --color-aland-drive-apple-red: #b8282a;
+  --color-aland-drive-apple-green: #9fb23f;
+  --color-aland-drive-pancake: #e6bd6d;
+  --color-aland-drive-pancake-crust: #b9762f;
+  --color-aland-drive-prune: #3d1f33;
+  --color-aland-drive-skin: #dba98a;
+  --color-aland-drive-float-orange: #e8772a;
+
+  --color-aland-drive-stamp-paper: #fbf6e9;
+  --color-aland-drive-stamp-ink: #1d2b3a;
+  --color-aland-drive-stamp-sea: #2f6c95;
+  --color-aland-drive-stamp-deep: #174262;
+  --color-aland-drive-stamp-sky: #bfe0ee;
+  --color-aland-drive-stamp-dusk: #f3c98b;
+  --color-aland-drive-stamp-sun: #f5b52e;
+  --color-aland-drive-stamp-red: #b5322a;
+  --color-aland-drive-stamp-rust: #d9663a;
+  --color-aland-drive-stamp-pink: #d98d7d;
+  --color-aland-drive-stamp-green: #3e7a4c;
+  --color-aland-drive-stamp-moss: #8fae50;
+  --color-aland-drive-stamp-pine: #1f4a39;
+  --color-aland-drive-stamp-stone: #a9a79c;
+  --color-aland-drive-stamp-wood: #8a5a35;
+
+  --color-aland-drive-album-page: #efe6d0;
+  --color-aland-drive-album-mount: #e3d7bb;
+  --color-aland-drive-album-line: #b8a988;
+  --color-aland-drive-album-ink: #4a4436;
+}
