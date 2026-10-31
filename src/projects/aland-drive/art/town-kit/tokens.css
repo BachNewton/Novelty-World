@@ -1,0 +1,23 @@
+/*
+ * The town kit's colours that no existing token can mix. On integration this block joins the other
+ * --color-aland-drive-* tokens in globals.css. The ferry's are invented: no Baltic line runs a dark
+ * teal hull with an ochre funnel.
+ */
+:root {
+  --color-aland-drive-signal-red: #ff2b1e;
+  --color-aland-drive-signal-amber: #ffb01f;
+  --color-aland-drive-signal-green: #2fe08a;
+  --color-aland-drive-plate-blue: #1f4f9c;
+  --color-aland-drive-plate-yellow: #f2c230;
+
+  --color-aland-drive-bike-red: #a4382f;
+  --color-aland-drive-bike-blue: #2c5f8a;
+
+  --color-aland-drive-terminal-glass: #4e7f9c;
+  --color-aland-drive-ramp-blue: #4a6b86;
+
+  --color-aland-drive-ferry-hull: #17474a;
+  --color-aland-drive-ferry-boot: #7a3a30;
+  --color-aland-drive-ferry-funnel: #c9962f;
+  --color-aland-drive-ferry-lifeboat: #e8762a;
+}
