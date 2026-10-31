@@ -1,0 +1,31 @@
+// What the gallery looks at. Each view's `from` and `at` are metres east, north and height above sea level, from the
+// model's origin; road level is about 1.3 m over the ground.
+
+export const VIEWS = [
+  { id: "water-tower", name: "pad", version: "near", from: [-6, -50, 42.2], at: [0, 0, 49], groundM: 40.76 },
+  { id: "water-tower", name: "close", version: "near", from: [8, -22, 42.2], at: [0, 0, 49], groundM: 40.76 },
+  { id: "water-tower", name: "north", version: "near", from: [30, 60, 42.2], at: [0, 0, 49], groundM: 40.76 },
+  { id: "water-tower", name: "far", version: "far", from: [-260, -700, 12], at: [0, 0, 50], groundM: 8 },
+  { id: "pommern", name: "quay-bow", version: "near", from: [46, -78, 2.9], at: [0, 0, 19], groundM: 1.6, slab: [32, -300, 500, 500] },
+  { id: "pommern", name: "road-broadside", version: "near", from: [130, -15, 3.2], at: [0, 0, 20], groundM: 1.6, slab: [32, -300, 500, 500] },
+  { id: "pommern", name: "stern-water", version: "near", from: [-55, 112, 1.6], at: [-10, 20, 20], groundM: 1.6, slab: [32, -300, 500, 500] },
+  { id: "pommern", name: "close", version: "near", from: [34, -28, 3], at: [-6, 10, 16], groundM: 1.6, slab: [32, -300, 500, 500] },
+  { id: "pommern", name: "far", version: "far", from: [-750, -700, 2], at: [0, 0, 18], groundM: 1.6, slab: [32, -300, 500, 500] },
+  { id: "church", name: "south-east", version: "near", from: [38, -42, 10.6], at: [0, -4, 18], groundM: 9.3 },
+  { id: "church", name: "side", version: "near", from: [-62, 6, 10.6], at: [0, 0, 18], groundM: 9.3 },
+  { id: "church", name: "north", version: "near", from: [25, 62, 10.6], at: [0, 0, 18], groundM: 9.3 },
+  { id: "town-hall", name: "park", version: "near", from: [-20, 62, 16.8], at: [0, 0, 22], groundM: 15.5 },
+  { id: "town-hall", name: "corner", version: "near", from: [50, 48, 16.8], at: [0, 0, 22], groundM: 15.5 },
+  { id: "kastelholm", name: "east", version: "near", from: [95, -15, 8.3], at: [0, -2, 16], groundM: 7 },
+  { id: "kastelholm", name: "south-east", version: "near", from: [50, -95, 8.3], at: [0, -5, 16], groundM: 7 },
+  { id: "kastelholm", name: "north-east", version: "near", from: [60, 95, 8.3], at: [0, 5, 16], groundM: 7 },
+  { id: "kastelholm", name: "far", version: "far", from: [340, -400, 8.3], at: [0, 0, 20], groundM: 7 },
+  { id: "bomarsund-fort", name: "road-north", version: "near", from: [-74, 18, 7.5], at: [-82, 36, 8], groundM: 6.2 },
+  { id: "bomarsund-fort", name: "road-south", version: "near", from: [-30, -92, 7.5], at: [-5, -122, 8], groundM: 6.2 },
+  { id: "notvikstornet", name: "court", version: "near", from: [18, -24, 29.6], at: [-8, 8, 33], groundM: 28.2 },
+  { id: "notvikstornet", name: "behind", version: "near", from: [-40, 40, 29.6], at: [-8, 8, 33], groundM: 28.2 },
+  { id: "von-knorring", name: "north", version: "near", from: [-16, 44, 1.6], at: [0, 0, 5], groundM: 1.6, slab: [-100, -200, 100, -20] },
+  { id: "von-knorring", name: "quay", version: "near", from: [-58, -14, 2.9], at: [0, 0, 5], groundM: 1.6, slab: [-200, -200, -24, 200] },
+  { id: "ferry", name: "quay", version: "near", from: [105, -170, 3.3], at: [0, 0, 22], groundM: 2, slab: [17, -600, 800, 600] },
+  { id: "ferry", name: "water", version: "near", from: [-240, -120, 2], at: [0, 0, 22], groundM: 2, slab: [17, -600, 800, 600] },
+];
