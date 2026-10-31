@@ -1,6 +1,7 @@
 import { Color, Group, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, TimestampQuery, Vector3, WebGPURenderer, type Node } from "three/webgpu";
 import { cameraPosition, exp, float, mix, positionWorld, sin, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import type { CarDetail } from "../cars/build";
 import { buildCarArt, createCarModel, type CarArt } from "../cars/model";
 import { BRANDS, BRAND_IDS, buildExterior, carNamed, dealerMaterial, EXTERIOR_IDS, geometryOf, loadInterior, restingCar, type ExteriorId, type InteriorId } from "./index";
 import { INTERIOR_IDS } from "./interiors";
@@ -49,13 +50,14 @@ const scenes = new Map<string, Scene>();
 const counts: Record<string, number> = {};
 
 const arts = new Map<string, CarArt>();
-const artOf = (name: string): CarArt => {
-  const art = arts.get(name) ?? buildCarArt(carNamed(name), "near");
-  arts.set(name, art);
+const artOf = (name: string, detail: CarDetail): CarArt => {
+  const key = `${name} ${detail}`;
+  const art = arts.get(key) ?? buildCarArt(carNamed(name), detail);
+  arts.set(key, art);
   return art;
 };
-const placeCar = (parent: Group | Scene, name: string, at: readonly [number, number, number], yaw: number, paint?: string) => {
-  const art = artOf(name);
+const placeCar = (parent: Group | Scene, name: string, at: readonly [number, number, number], yaw: number, paint: string | undefined, detail: CarDetail) => {
+  const art = artOf(name, detail);
   const model = createCarModel(art, CAR_SUN, { paint });
   model.draw(restingCar(art.spec, at, yaw));
   parent.add(model.root);
@@ -93,13 +95,13 @@ EXTERIOR_IDS.forEach((id: ExteriorId, index) => {
   const group = new Group();
   group.position.x = x;
   group.add(new Mesh(geometryOf(exterior.soup), outdoors));
-  for (const { car, at, yaw, paint } of exterior.slots) placeCar(group, car, at, yaw, paint);
+  for (const { car, at, yaw, paint } of exterior.slots) placeCar(group, car, at, yaw, paint, "hero");
   world.add(group);
   const [wide, deep] = exterior.plotHalf;
   const front = Math.min(deep, 14);
-  const hero = wide * 1.7;
-  shots.push({ name: `ext-${id}-hero`, label: `${id}, three-quarter`, scene: "world", camera: [x + hero, 7, front + hero * 0.9], target: [x, 2.4, -2], fieldOfView: 46 });
-  shots.push({ name: `ext-${id}-road`, label: `${id}, from the road`, scene: "world", camera: [x - wide * 1.25, EYE_M, 26], target: [x + 2, 2.6, -2], fieldOfView: 60 });
+  const hero = wide * 1.05;
+  shots.push({ name: `ext-${id}-hero`, label: `${id}, three-quarter`, scene: "world", camera: [x + hero, 5.5, front + hero * 0.9], target: [x, 2, 0], fieldOfView: 38 });
+  shots.push({ name: `ext-${id}-road`, label: `${id}, from the road`, scene: "world", camera: [x - wide * 0.8, EYE_M, deep * 0.5 + 20], target: [x + 2, 2.8, -2], fieldOfView: 56 });
 });
 // The waterfront over its pier, on water, with the sea plane under it for this shot alone.
 {
@@ -142,12 +144,12 @@ for (const id of INTERIOR_IDS as readonly InteriorId[]) {
   const spin = new Group();
   spin.position.set(...interior.turntable.centre);
   spin.add(new Mesh(geometryOf(interior.turntable.soup), material));
-  placeCar(spin, interior.onTurntable.car, [0, interior.turntable.deckY, 0], 0, interior.onTurntable.paint);
+  placeCar(spin, interior.onTurntable.car, [0, interior.turntable.deckY, 0], 0, interior.onTurntable.paint, "hero");
   scene.add(spin);
   tables.push({ scene: id, spin });
-  for (const { car, at, yaw, paint } of interior.displays) placeCar(scene, car, at, yaw, paint);
+  for (const { car, at, yaw, paint } of interior.displays) placeCar(scene, car, at, yaw, paint, "hero");
   counts[`interior ${id}`] = interior.soup.triangles + interior.turntable.soup.triangles;
-  for (const { name, position, target, fovDeg } of interior.cameras) shots.push({ name: `int-${id}-${name}`, label: `${id} inside, ${name} camera`, scene: id, camera: position, target, fieldOfView: fovDeg, turn: 0.7 });
+  for (const { name, position, target, fovDeg } of interior.cameras) shots.push({ name: `int-${id}-${name}`, label: `${id} inside, ${name} camera`, scene: id, camera: position, target, fieldOfView: fovDeg, turn: 3.75 });
 }
 
 async function frame(name: string) {

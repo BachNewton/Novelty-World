@@ -1,6 +1,6 @@
 import { BRANDS, type Brand } from "./brands";
 import type { CarSlot } from "./exteriors";
-import { carLift, ceilingBanner, ceilingPanel, chair, coffeeTable, lightHalo, pendantLamp, planter, priceStand, salesDesk, sofa, turntableDeck, tyreRack, tyreStack, workbench, barrel, windowFrame, bollard } from "./kit";
+import { carLift, ceilingBanner, ceilingPanel, chair, coffeeTable, lightHalo, pendantLamp, planter, priceStand, salesDesk, sofa, turntableDeck, tyreRack, tyreStack, workbench, barrel } from "./kit";
 import type { Lighting, RoomLight } from "./material";
 import { Shell, type Paint, type Soup, type V3 } from "./shell";
 
@@ -58,10 +58,6 @@ function backdrop(s: Shell, a: V3, b: V3, low: Paint, high: Paint, shades: reado
   s.tri(a, [a[0], a[1] + 1, a[2]], [b[0], b[1] + 1, b[2]], high, { glow: 1, shade: shades[1] });
 }
 
-function sunDisc(s: Shell, centre: V3, radius: number) {
-  s.within({ x: centre[0], y: centre[1], z: centre[2], pitch: Math.PI / 2 }, () => s.lathe([[radius, 0], [0, 0]], 12, "dealer-light-warm", { glow: 1 }));
-}
-
 const WALL_SHADE: readonly number[] = [0.78, 0.78, 1, 1];
 
 function villageGarage(): Interior {
@@ -72,7 +68,6 @@ function villageGarage(): Interior {
   const heightAt = (z: number) => eave + (1 - Math.abs(z - midZ) / (midZ - z0)) * (ridge - eave);
 
   s.quad([x0, 0, z1], [x1, 0, z1], [x1, 0, z0], [x0, 0, z0], "dealer-concrete", { pattern: "speckle" });
-  s.quad([x0, 0.002, -0.3], [x1, 0.002, -0.3], [x1, 0.002, -1.1], [x0, 0.002, -1.1], "dealer-shade", { shade: 2.2 });
   for (const [from, to] of [[z1, midZ], [z0, midZ]] as const) {
     s.quad([x0, heightAt(from), from], [x1, heightAt(from), from], [x1, ridge, to], [x0, ridge, to], "dealer-timber", { pattern: "boards", shade: 0.72 });
   }
@@ -133,7 +128,6 @@ function villageGarage(): Interior {
   // The office: a half wall with glass over it, a counter, a price board, a coffee maker.
   const officeX = 2.6;
   s.box([officeX - 0.08, 0, -9], [officeX + 0.08, 1.1, -1.4], "wall-trim", { pattern: "boards", shade: [0.8, 0.8, 1, 1] }, []);
-  s.box([officeX - 0.04, 1.1, -9], [officeX + 0.04, 2.5, -1.4], "dealer-glass", { gloss: 0.5, shade: 1.5 }, []);
   for (let z = -9; z <= -1.4; z += 1.9) s.box([officeX - 0.05, 1.1, z - 0.04], [officeX + 0.05, 2.5, z + 0.04], "wall-trim");
   s.box([officeX - 0.05, 2.5, -9], [officeX + 0.05, 2.6, -1.4], "wall-trim", {}, []);
   s.within({ x: 5, z: -3, yaw: Math.PI / 2 + 0.25 }, () => salesDesk(s, "dealer-timber", "wall-trim", brand));
@@ -148,7 +142,6 @@ function villageGarage(): Interior {
     s.box([-0.9, 0, -0.3], [0.9, 0.9, 0.3], "dealer-timber-dark");
     s.box([-0.5, 0.9, -0.15], [-0.2, 1.3, 0.15], "dealer-rubber");
   });
-  s.within({ x: 6.6, z: -8.5 }, () => windowFrame(s, 0.01, 0.01, 0, "wall-trim"));
 
   // The turntable: a steel plate let into the floor, with a pit ring round it.
   const centre: V3 = [-9.5, 0, -4.5];
@@ -164,7 +157,7 @@ function villageGarage(): Interior {
 
   const near = (slotX: number, slotZ: number, car: string, price: string) => s.within({ x: slotX, z: slotZ, yaw: 0.2 }, () => priceStand(s, brand, car, price, "wall-trim"));
   near(-3.2, -1.7, "Kobb", "27 400 €");
-  near(centre[0] + 3.7, centre[2] + 3.4, "Holm", "34 900 €");
+  near(centre[0] + 3.4, centre[2] - 3.7, "Holm", "34 900 €");
 
   const lights: RoomLight[] = [
     { at: [centre[0], 3.4, centre[2]], paint: "dealer-light-warm", power: 0.8, reachM: 5 },
@@ -188,7 +181,7 @@ function villageGarage(): Interior {
     cameras: [
       { name: "floor", kind: "floor", position: [-12.4, 1.7, -0.5], target: [-1, 1.2, -5], fovDeg: 62 },
       { name: "desk", kind: "desk", position: [6.3, 1.5, -0.6], target: [-3, 1.3, -5.5], fovDeg: 60 },
-      { name: "turntable", kind: "turntable", position: [-4.6, 1.15, -1.2], target: [centre[0], 0.72, centre[2]], fovDeg: 42 },
+      { name: "turntable", kind: "turntable", position: [-6.5, 1.15, -0.5], target: [centre[0], 0.8, centre[2]], fovDeg: 50 },
     ],
     room: { x: [x0, x1], z: [z0, z1], height: eave },
     background: "sky",
@@ -210,7 +203,6 @@ function townDealer(): Interior {
   s.box([-9, 0, z0], [9, height, z0 + 0.25], brand.colour, { shade: [0.8, 0.8, 1, 1] }, ["bottom", "top"]);
   s.within({ y: 3.2, z: z0 + 0.26 }, () => s.logo(brand, 1.15, { glow: 0.92 }));
   s.within({ y: 1.2, z: z0 + 0.26 }, () => s.text(brand.name, 0.56, brand.ink, { glow: 0.92 }));
-  s.quad([x0, 0.01, z1], [x1, 0.01, z1], [x1, 0.01, z1 - 1.4], [x0, 0.01, z1 - 1.4], "dealer-shade", { shade: 2.4 });
 
   // The glass front: posts and rails, no pane. Past it the forecourt, the road, the trees.
   const postsX: number[] = [];
@@ -262,7 +254,6 @@ function townDealer(): Interior {
   s.within({ x: 14.3, z: -7.3 }, () => coffeeTable(s));
   s.within({ x: -16.2, z: -7.3, yaw: Math.PI / 2 }, () => planter(s, 3));
   s.within({ x: 15.9, y: 2.7, z: -14.97 }, () => s.box([-0.9, -1.6, 0], [0.9, 1.6, 0.03], brand.colour));
-  for (const x of [-3, 3]) s.within({ x, z: -1.2 }, () => bollard(s, 0.01, "dealer-steel-dark"));
 
   const lights: RoomLight[] = [
     { at: [centre[0], 4.2, centre[2]], paint: "dealer-light-cool", power: 0.75, reachM: 5 },
@@ -282,7 +273,7 @@ function townDealer(): Interior {
     lighting: { kind: "room", lights, mirrors: ["dealer-tile", "dealer-light-cool"] },
     cameras: [
       { name: "floor", kind: "floor", position: [-15.6, 2.1, -0.9], target: [1, 1, -8], fovDeg: 68 },
-      { name: "desk", kind: "desk", position: [6.2, 1.25, -14.2], target: [-1, 1.1, -3], fovDeg: 62 },
+      { name: "desk", kind: "desk", position: [6.9, 1.25, -10.4], target: [5.2, 1.15, -15], fovDeg: 62 },
       { name: "turntable", kind: "turntable", position: [5.4, 1.2, -1.5], target: [centre[0], 0.75, centre[2]], fovDeg: 42 },
     ],
     room: { x: [x0, x1], z: [z0, z1], height: 4.3 },
@@ -321,7 +312,6 @@ function waterfrontShowroom(): Interior {
     s.tri([x - span, -1, z], [x + span, -1, z], [x + span * 0.2, top, z], "tree-spruce", { glow: 1, shade: 1.5 });
     s.tri([x - span * 1.1, -1, z + 2], [x + span * 0.4, -1, z + 2], [x - span * 0.3, top * 0.6, z + 2], "dealer-stone", { glow: 1, shade: 0.75 });
   }
-  sunDisc(s, [260, 240, -880], 34);
 
   // The brand wall and a stone desk.
   s.box([-5.5, 0, z1 - 0.15], [5.5, lowH, z1], brand.colour, {}, ["bottom", "top"]);
@@ -330,13 +320,12 @@ function waterfrontShowroom(): Interior {
   s.within({ z: 5.4, yaw: Math.PI }, () => {
     s.box([-3, 0, -0.5], [3, 1.08, 0.5], "dealer-stone");
     s.box([-3.1, 1.08, -0.56], [3.1, 1.14, 0.56], "dealer-tarna-ink", { gloss: 0.8 });
-    s.box([-0.33, 1.17, 0.1], [0.33, 1.5, 0.13], "dealer-rubber");
+    s.box([1.9, 1.17, 0.1], [2.56, 1.5, 0.13], "dealer-rubber");
     s.within({ x: -1.6, z: -1.3 }, () => chair(s, "dealer-leather"));
     s.within({ x: 1.6, z: -1.3 }, () => chair(s, "dealer-leather"));
     s.within({ y: 0.56, z: 0.505 }, () => s.logo(brand, 0.26));
     s.within({ y: 0.56, z: -0.505, yaw: Math.PI }, () => s.logo(brand, 0.26));
   });
-  s.within({ x: 0, z: 7 }, () => chair(s, "dealer-rubber"));
 
   // The lounge in the corner, the sea in front of it.
   s.within({ x: -10.6, z: 4.8, yaw: Math.PI }, () => sofa(s, 2.6, "dealer-leather"));
@@ -404,9 +393,9 @@ function waterfrontShowroom(): Interior {
     displays: slots.map(({ x, z, yaw, car, paint }) => ({ car, paint, at: [x, plinth + 0.015, z], yaw })),
     lighting: { kind: "room", lights, mirrors: ["dealer-polish", "sky"] },
     cameras: [
-      { name: "floor", kind: "floor", position: [-1.5, 1.55, 7.1], target: [1.5, 1, -8], fovDeg: 70 },
-      { name: "desk", kind: "desk", position: [-3.2, 1.3, 4.3], target: [1.2, 0.9, -3], fovDeg: 56 },
-      { name: "turntable", kind: "turntable", position: [-4.8, 1, 3], target: [centre[0], 0.72, centre[2]], fovDeg: 42 },
+      { name: "floor", kind: "floor", position: [-1.5, 1.7, 4.2], target: [1, 1, -8], fovDeg: 72 },
+      { name: "desk", kind: "desk", position: [1.4, 1.35, 2.3], target: [-0.4, 1.25, 8], fovDeg: 62 },
+      { name: "turntable", kind: "turntable", position: [-5, 1, 2.9], target: [centre[0], 0.8, centre[2]], fovDeg: 42 },
     ],
     room: { x: [x0, x1], z: [z0, z1], height: lowH },
     background: "sky",

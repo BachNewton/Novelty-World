@@ -348,8 +348,8 @@ function tyreShop(): Exterior {
   s.box([6, top + 0.2, -4.5], [8, top + 0.5, -3.5], "dealer-steel-dark");
 
   // Stacks along the front, a low pile round the side.
-  const stacks: [number, number, number][] = [[3.6, 1.4, 5], [4.4, 1.3, 4], [5.2, 1.4, 5], [8.6, 1.4, 3], [9.4, 1.3, 5], [10.2, 1.4, 4], [-12.2, -2, 4], [-12.2, -3, 5], [-12.2, -4, 3]];
-  for (const [x, z, count] of stacks) s.within({ x, z: z === 1.4 || z === 1.3 ? z : z, y: 0.05 }, () => tyreStack(s, count));
+  const stacks: [number, number, number][] = [[3.6, 1.4, 5], [4.4, 1.3, 4], [5.2, 1.4, 5], [8.6, 1.4, 3], [9.4, 1.3, 5], [10.2, 1.4, 4], [-12.2, -3, 4]];
+  for (const [x, z, count] of stacks) s.within({ x, z, y: 0.05 }, () => tyreStack(s, count));
   s.within({ x: -12, y: 0.05, z: 9.6 }, () => postSign(s, ["DÄCK", "SERVICE"], 2.2, 1.6, 1.1, "dealer-hazard", "dealer-klippa-ink"));
   s.within({ x: 11.4, y: 0.05, z: 9.6, pitch: Math.PI / 2 }, () => tyre(s, -0.2, 0.7, 0.4, 10));
   for (let bay = 0; bay < 3; bay++) s.within({ x: -8.4 + bay * 4.2, y: 0.05, z: 7 }, () => bayLines(s, 3.5, 6));

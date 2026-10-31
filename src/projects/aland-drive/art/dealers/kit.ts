@@ -6,8 +6,8 @@ import type { Finish, Paint, Shell, V3 } from "./shell";
  * `shell.within`. Each is small: a building or a room wears many.
  */
 
-export function tyre(s: Shell, y: number, radius = 0.33, width = 0.22, sides = 8): void {
-  s.lathe([[radius * 0.62, y], [radius, y], [radius, y + width], [radius * 0.62, y + width], [radius * 0.5, y + width * 0.4]], sides, "dealer-rubber");
+export function tyre(s: Shell, y: number, radius = 0.33, width = 0.22, sides = 6): void {
+  s.lathe([[radius * 0.6, y], [radius, y], [radius, y + width], [radius * 0.6, y + width]], sides, "dealer-rubber");
 }
 
 export function tyreStack(s: Shell, count: number): void {
@@ -92,7 +92,7 @@ export function bayLines(s: Shell, wide: number, long: number, paint: Paint = "r
 export function planter(s: Shell, wide: number): void {
   s.box([-wide / 2, 0, -0.3], [wide / 2, 0.5, 0.3], "dealer-stone");
   s.box([-wide / 2 + 0.06, 0.5, -0.24], [wide / 2 - 0.06, 0.58, 0.24], "tree-birch", { pattern: "speckle" });
-  for (const x of [-wide / 4, wide / 4]) s.lathe([[0.26, 0.55], [0.34, 0.8], [0.14, 1.05], [0, 1.1]], 6, "tree-spruce");
+  for (const x of [-wide / 4, wide / 4]) s.within({ x }, () => s.lathe([[0.26, 0.55], [0.34, 0.8], [0.14, 1.05], [0, 1.1]], 6, "tree-spruce"));
 }
 
 /** A car lift: two posts and arms, the arms at `liftM`. */
