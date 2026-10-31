@@ -1,0 +1,26 @@
+/* The cars' own colours, beside the car tokens in globals.css (body, glass, tyre, lamp, tail, shadow). */
+:root {
+  --color-aland-drive-car-trim: #15171a;
+  --color-aland-drive-car-cladding: #24272a;
+  --color-aland-drive-car-gap: #0b0c0d;
+  --color-aland-drive-car-under: #08090a;
+  --color-aland-drive-car-rim: #b9bfc4;
+  --color-aland-drive-car-rim-dark: #3a3f44;
+  --color-aland-drive-car-grille: #0e1012;
+  --color-aland-drive-car-plate: #e9eaea;
+  --color-aland-drive-car-lens-tail: #8f1016;
+  --color-aland-drive-car-lens-reverse: #d9dcdc;
+  --color-aland-drive-car-lens-amber: #c97a14;
+  --color-aland-drive-car-lens-head: #cfd8dc;
+  --color-aland-drive-car-glow-tail: #ff2a1c;
+  --color-aland-drive-car-glow-head: #fff6dc;
+  --color-aland-drive-car-reflect-ground: #4a4d48;
+
+  --color-aland-drive-car-paint-white: #dfe2e0;
+  --color-aland-drive-car-paint-silver: #9aa3a8;
+  --color-aland-drive-car-paint-graphite: #33383d;
+  --color-aland-drive-car-paint-navy: #1d3a5c;
+  --color-aland-drive-car-paint-teal: #1f6f73;
+  --color-aland-drive-car-paint-forest: #2f5a42;
+  --color-aland-drive-car-paint-mustard: #d8a52e;
+}
