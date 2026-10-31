@@ -100,6 +100,10 @@ Traffic, weather, a day/night cycle, seasons (a Finnish winter would set this ga
 
 Two pieces of work sit outside the numbered order. **Art integration** brings the models and surfaces built under `art/` into the game after phase 5, ground detail and the car first. **Sound** (engine, road, wind) comes early, alongside phase 6, because a driving game feels empty without it.
 
+## Open questions
+
+- **Aerial photo resolution.** The ground uses the 0.5 m photos at 2 m. A side-by-side of one junction showed a clear gain at 1 m and a much smaller one at 0.5 m, though that was flat photos rather than the game at car height, where the difference is less. Options are to stay at 2 m and rely on close-up detail, or 1 m with GPU-compressed textures (BC), possibly applied only along roads. Near-ground GPU memory uncompressed is about 325 MB at 2 m, 1.3 GB at 1 m and 5.2 GB at 0.5 m. Compression cuts memory to about an eighth but raises downloads, so it depends on hosting. Sharper photos also show their baked shadows and rooftops more. The owner decides once the ground detail layer is in the game.
+
 ## Art still needed
 
 In priority order. The priority is what fills the view most, and the source is open for each one.
