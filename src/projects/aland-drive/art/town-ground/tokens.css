@@ -1,0 +1,12 @@
+/* The town ground's colours. On integration this block joins the other --color-aland-drive-* tokens in globals.css. */
+:root {
+  --color-aland-drive-town-slab: #a9a69c;
+  --color-aland-drive-town-slab-pale: #bdb9ad;
+  --color-aland-drive-town-sett: #9a9892;
+  --color-aland-drive-town-sett-warm: #a08f86;
+  --color-aland-drive-town-joint: #3e3b36;
+  --color-aland-drive-town-lawn: #5f7f3c;
+  --color-aland-drive-town-lawn-dry: #84894a;
+  --color-aland-drive-town-bed: #3f3128;
+  --color-aland-drive-town-yard: #a2967f;
+}
