@@ -1,0 +1,39 @@
+/*
+ * Night's colours that no existing token can mix: on integration this block joins the other --color-aland-drive-* tokens
+ * in globals.css. The land's are not colours seen but what the light does to them, multiplied in.
+ */
+:root {
+  --color-aland-drive-night-window-warm: #ffc06a;
+  --color-aland-drive-night-window-amber: #ff9440;
+  --color-aland-drive-night-window-pale: #ffe2ae;
+  --color-aland-drive-night-window-screen: #86aeff;
+  --color-aland-drive-night-lamp-road: #ffae58;
+  --color-aland-drive-night-lamp-town: #ffcf8a;
+  --color-aland-drive-night-lamp-harbour: #ffe7c2;
+  --color-aland-drive-night-sign: #fff0d0;
+  --color-aland-drive-night-head: #fff1d6;
+  --color-aland-drive-night-tail: #ff2216;
+  --color-aland-drive-night-sea-white: #fff6e4;
+  --color-aland-drive-night-sea-red: #ff3a2e;
+  --color-aland-drive-night-sea-green: #39f08e;
+  --color-aland-drive-night-sea-yellow: #ffd23c;
+
+  --color-aland-drive-night-land-dusk: #8a84b4;
+  --color-aland-drive-night-land-deep: #36456f;
+  --color-aland-drive-night-forest-dusk: #6a6ea0;
+  --color-aland-drive-night-forest-deep: #2a3a62;
+  --color-aland-drive-night-sea-dusk: #b08cb0;
+  --color-aland-drive-night-sea-deep: #2c4070;
+
+  --color-aland-drive-night-zenith-dusk: #2c3f73;
+  --color-aland-drive-night-zenith-deep: #0d1630;
+  --color-aland-drive-night-horizon-dusk: #d98e7c;
+  --color-aland-drive-night-horizon-deep: #2c4266;
+  --color-aland-drive-night-glow-dusk: #ff8a4c;
+  --color-aland-drive-night-glow-deep: #5f8fa8;
+  --color-aland-drive-night-cloud-dusk: #5c4a6e;
+  --color-aland-drive-night-cloud-deep: #18233f;
+
+  --color-aland-drive-night-aurora-low: #47ffa6;
+  --color-aland-drive-night-aurora-high: #7a5cff;
+}
