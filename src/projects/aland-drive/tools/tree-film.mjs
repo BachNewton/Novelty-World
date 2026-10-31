@@ -21,9 +21,9 @@ const FOLDER = option("folder", "src/projects/aland-drive/.data/tiles");
 const PAGE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
 const ORIGIN = [110000, 6690000];
 const STEP_M = 6;
-const EYE_M = 70;
+const EYE_M = Number(option("eye", "12"));
 const FAR_M = 1500;
-const NEAR_M = 60;
+const NEAR_M = 40;
 const STEPS = 60;
 const STRIP_EVERY = 5;
 const CROP = 260;
@@ -65,7 +65,7 @@ for (let step = 0; step <= STEPS; step++) {
   for (let y = 0; y < HEIGHT; y++) {
     for (let x2 = 0; x2 < WIDTH; x2++) {
       const at = (y * WIDTH + x2) * 3;
-      if (alone.data[at] > 200 && alone.data[at + 1] < 80 && alone.data[at + 2] > 200) {
+      if (alone.data[at] > alone.data[at + 1] + 40 && alone.data[at + 2] > alone.data[at + 1] + 40) {
         top = Math.min(top, y);
         bottom = Math.max(bottom, y);
         left = Math.min(left, x2);

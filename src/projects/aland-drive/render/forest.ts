@@ -70,7 +70,7 @@ const OUTLINE_RINGS: Ring[] = [
 const OUTLINE_LINKS: Link[] = ["thin", "none", "whole", "whole"];
 
 const CONE_RINGS: Ring[] = [
-  [[0.04, 0.17, 1], [0.34, 0.15, 1], [0.2, 0.14, 1]],
+  [[0.08, 0.17, 1], [0.52, 0.15, 1], [0.32, 0.14, 1]],
   [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
 ];
 const CONE_LINKS: Link[] = ["whole"];
