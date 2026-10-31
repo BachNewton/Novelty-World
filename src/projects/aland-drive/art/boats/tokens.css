@@ -1,0 +1,41 @@
+/* The boats' own colours. On integration this block joins the other --color-aland-drive-* tokens in globals.css. */
+:root {
+  --color-aland-drive-boat-gelcoat: #ecebe3;
+  --color-aland-drive-boat-gelcoat-warm: #e4dcc6;
+  --color-aland-drive-boat-navy: #1f3148;
+  --color-aland-drive-boat-green: #2c4a3e;
+  --color-aland-drive-boat-grey: #6f7b82;
+  --color-aland-drive-boat-tar: #1c1d1f;
+  --color-aland-drive-boat-antifoul-red: #7c2d25;
+  --color-aland-drive-boat-antifoul-blue: #27405e;
+  --color-aland-drive-boat-boot: #1d2a38;
+  --color-aland-drive-boat-mahogany: #5e2913;
+  --color-aland-drive-boat-varnish: #94572a;
+  --color-aland-drive-boat-teak: #b08d5e;
+  --color-aland-drive-boat-oiled-pine: #a9804c;
+  --color-aland-drive-boat-non-skid: #d5d1c4;
+  --color-aland-drive-boat-glass: #1b262e;
+  --color-aland-drive-boat-alu: #bcc1c3;
+  --color-aland-drive-boat-spar-black: #25282a;
+  --color-aland-drive-boat-spar-wood: #bd9259;
+  --color-aland-drive-boat-rope: #d9d2bf;
+  --color-aland-drive-boat-wire: #5b6064;
+  --color-aland-drive-boat-rescue: #e8591a;
+  --color-aland-drive-boat-pilot: #d9471c;
+  --color-aland-drive-boat-rib-tube: #474c51;
+  --color-aland-drive-boat-engine: #2a2c2e;
+  --color-aland-drive-boat-fisher-blue: #2f6585;
+  --color-aland-drive-boat-beacon: #2a62c9;
+
+  --color-aland-drive-boat-sail-white: #f4f0e4;
+  --color-aland-drive-boat-sail-cream: #e8dcb9;
+  --color-aland-drive-boat-sail-tan: #a65a34;
+  --color-aland-drive-boat-sail-laminate: #3c3f43;
+  --color-aland-drive-boat-sail-red: #b23a2c;
+  --color-aland-drive-boat-sail-blue: #2d6aa0;
+  --color-aland-drive-boat-cover-navy: #22375a;
+  --color-aland-drive-boat-cover-green: #2d5a4a;
+  --color-aland-drive-boat-cover-red: #7a2c2a;
+  --color-aland-drive-boat-cover-grey: #8d9093;
+  --color-aland-drive-boat-fender-blue: #2c4f86;
+}
