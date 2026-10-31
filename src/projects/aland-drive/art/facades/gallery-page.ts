@@ -26,7 +26,6 @@ interface DoorWanted {
 
 declare global {
   interface Window {
-    __alandDrive?: { look: (at: Place) => void; hold: (held: boolean) => void };
     __facadesHook?: Hook;
     __facadeCells?: SolidsCell[];
     __facadesFailure?: string;
