@@ -133,6 +133,54 @@ export class Soup {
     return this;
   }
 
+  /** Closed rows of points joined into a skin, each row the same length. */
+  bands(rows: readonly (readonly V3[])[], part: Part, shade = 1): this {
+    const firsts = rows.map((row) => {
+      const first = this.vertexCount;
+      for (const point of row) this.vertex(point, part, shade);
+      return first;
+    });
+    const size = rows[0].length;
+    for (let band = 0; band + 1 < rows.length; band++) {
+      for (let side = 0; side < size; side++) {
+        const after = (side + 1) % size;
+        const [top, bottom] = [firsts[band], firsts[band + 1]];
+        this.indices.push(top + side, top + after, bottom + side, bottom + side, top + after, bottom + after);
+      }
+    }
+    return this;
+  }
+
+  /** A row of points closed to a single one, as the crown of a head of hair. */
+  fan(apex: V3, row: readonly V3[], part: Part): this {
+    const centre = this.vertex(apex, part);
+    const first = this.vertexCount;
+    for (const point of row) this.vertex(point, part);
+    for (let side = 0; side < row.length; side++) this.indices.push(centre, first + side, first + (side + 1) % row.length);
+    return this;
+  }
+
+  /** Rings each on a rig of its own, closed at a point: what's pinned at both ends and stretches between. */
+  strand(rings: readonly (Ring & { rig: Rig })[], end: V3, part: Part, sides: number): this {
+    const before = this.rig;
+    const firsts = rings.map((ring) => {
+      this.rig = ring.rig;
+      return this.ringVertices(ring, part, sides, 0.5);
+    });
+    for (let band = 0; band + 1 < firsts.length; band++) {
+      for (let side = 0; side < sides; side++) {
+        const after = (side + 1) % sides;
+        const [top, bottom] = [firsts[band], firsts[band + 1]];
+        this.indices.push(top + side, top + after, bottom + side, bottom + side, top + after, bottom + after);
+      }
+    }
+    const last = firsts[firsts.length - 1];
+    const apex = this.vertex(end, part);
+    for (let side = 0; side < sides; side++) this.indices.push(last + side, last + (side + 1) % sides, apex);
+    this.rig = before;
+    return this;
+  }
+
   quad(a: V3, b: V3, c: V3, d: V3, part: Part, shade = 1): this {
     const first = this.vertexCount;
     for (const corner of [a, b, c, d]) this.vertex(corner, part, shade);

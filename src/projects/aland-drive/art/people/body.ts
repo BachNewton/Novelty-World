@@ -1,4 +1,5 @@
 import type { FigureSpec, Outfit } from "./figure";
+import { drawHair, drawHat, drawHead, farHair } from "./head";
 import type { Part } from "./parts";
 import { posed, type Limb, type Piece, type PoseName, type Posed, type Prop } from "./poses";
 import { add, cross, frameAlong, inFrame, lengthOf, lerp, measure, sub, unit, type Body, type Frame, type V3 } from "./skeleton";
@@ -33,7 +34,6 @@ export const wearsSkirt = (outfit: Outfit) => CUT[outfit].lower === "skirt";
 const ARM_SIDES = 4;
 const LEG_SIDES = 5;
 const TORSO_SIDES = 7;
-const HEAD_SIDES = 7;
 
 /** A round part from one point to another, each end closed by a blunt tip. */
 function capsule(soup: Soup, from: V3, to: V3, radiusFrom: number, radiusTo: number, part: Part, sides: number, { closed = true, blunt = 0.8 }: { closed?: boolean; blunt?: number } = {}) {
@@ -154,70 +154,6 @@ function skirt(soup: Soup, { pelvis, legLeft, legRight }: Posed, body: Body, par
   soup.loft(rings, part, { sides: TORSO_SIDES });
 }
 
-function head(soup: Soup, frame: Frame, body: Body, skin: Part) {
-  const s = body.headScale;
-  soup.loft([ringIn(frame, 0.004 * s, 0.034 * s, 0.038 * s, 0.022 * s), ringIn(frame, 0.04 * s, 0.056 * s, 0.069 * s, 0.018 * s), ringIn(frame, 0.095 * s, 0.075 * s, 0.092 * s, 0.006 * s), ringIn(frame, 0.155 * s, 0.079 * s, 0.098 * s), ringIn(frame, 0.2 * s, 0.058 * s, 0.072 * s, -0.004 * s)], skin, { sides: HEAD_SIDES, turn: 0, capStart: true });
-  soup.tip(ringIn(frame, 0.2 * s, 0.058 * s, 0.072 * s, -0.004 * s), inFrame(frame, 0, 0.222 * s, -0.004 * s), skin, HEAD_SIDES, 0);
-}
-
-/*
- * Hair is a shell pushed back from the skull, so its front falls inside the face and
- * the hairline is simply where the two meet. Each style is the rings of that shell.
- */
-function hair(soup: Soup, frame: Frame, body: Body, { hair: style, hat: kind }: FigureSpec, part: Part) {
-  const s = body.headScale;
-  const covered = kind !== "none";
-  type Band = readonly [number, number, number, number];
-  const rings = (list: readonly Band[]) => list.map(([y, x, z, back]) => ringIn(frame, y * s, x * s, z * s, back * s));
-  const shell = (list: readonly Band[]) => {
-    // Under a hat only what shows below its band is drawn, or the crown of the hair comes through it.
-    const shown = rings(covered ? list.filter(([y]) => y < HAT_LINE) : list);
-    soup.loft(shown, part, { sides: 6, turn: 0, capStart: true, capEnd: covered });
-    if (!covered) soup.tip(shown[shown.length - 1], inFrame(frame, 0, 0.25 * s, -0.012 * s), part, 6, 0);
-  };
-  const cap: readonly [number, number, number, number][] = [[0.065, 0.058, 0.066, -0.046], [0.125, 0.083, 0.094, -0.026], [0.19, 0.082, 0.096, -0.012], [0.236, 0.056, 0.066, -0.012]];
-  switch (style) {
-    case "receding":
-      shell([[0.07, 0.06, 0.066, -0.036], [0.125, 0.081, 0.092, -0.016], [0.17, 0.079, 0.088, -0.022], [0.19, 0.04, 0.05, -0.05]]);
-      break;
-    case "short":
-      shell(cap);
-      break;
-    case "bob":
-      shell([[0.002, 0.082, 0.07, -0.034], [0.08, 0.095, 0.102, -0.028], [0.19, 0.084, 0.098, -0.012], [0.236, 0.056, 0.066, -0.012]]);
-      break;
-    case "long":
-      shell([[-0.2, 0.07, 0.035, -0.09], [-0.03, 0.098, 0.062, -0.066], [0.1, 0.094, 0.1, -0.03], [0.19, 0.084, 0.098, -0.012], [0.236, 0.056, 0.066, -0.012]]);
-      break;
-    case "ponytail":
-      shell(cap);
-      capsule(soup, inFrame(frame, 0, 0.15 * s, -0.11 * s), inFrame(frame, 0, -0.03 * s, -0.135 * s), 0.03 * s, 0.018 * s, part, 4, { closed: false });
-      break;
-    case "bun":
-      shell(cap);
-      if (!covered) capsule(soup, inFrame(frame, 0, 0.205 * s, -0.075 * s), inFrame(frame, 0, 0.235 * s, -0.092 * s), 0.036 * s, 0.03 * s, part, 5);
-      break;
-  }
-}
-
-const HAT_LINE = 0.16;
-
-function hat(soup: Soup, frame: Frame, body: Body, { hat: kind, colours }: FigureSpec) {
-  const s = body.headScale;
-  const brimAt = 0.168 * s;
-  if (kind === "cap") {
-    soup.loft([ringIn(frame, 0.16 * s, 0.086 * s, 0.102 * s, -0.004 * s), ringIn(frame, 0.205 * s, 0.078 * s, 0.092 * s, -0.006 * s), ringIn(frame, 0.24 * s, 0.03 * s, 0.036 * s, -0.008 * s)], colours.hat, { sides: 7, turn: 0, capEnd: true });
-    const [left, right, tipL, tipR] = [inFrame(frame, 0.07 * s, brimAt, 0.075 * s), inFrame(frame, -0.07 * s, brimAt, 0.075 * s), inFrame(frame, 0.052 * s, brimAt - 0.022 * s, 0.17 * s), inFrame(frame, -0.052 * s, brimAt - 0.022 * s, 0.17 * s)];
-    soup.quad(left, right, tipR, tipL, colours.hat, 0.9);
-  } else if (kind === "sun-hat") {
-    const top = ringIn(frame, 0.215 * s, 0.09 * s, 0.1 * s, -0.006 * s);
-    soup.loft([ringIn(frame, brimAt - 0.014 * s, 0.195 * s, 0.205 * s, -0.004 * s), ringIn(frame, brimAt, 0.098 * s, 0.112 * s, -0.004 * s), top], ["straw", colours.hat], { sides: 7, turn: 0 });
-    soup.tip(top, inFrame(frame, 0, 0.262 * s, -0.008 * s), "straw", 7, 0);
-  } else if (kind === "helmet") {
-    soup.loft([ringIn(frame, 0.135 * s, 0.09 * s, 0.112 * s, -0.008 * s), ringIn(frame, 0.2 * s, 0.09 * s, 0.116 * s, -0.012 * s), ringIn(frame, 0.25 * s, 0.05 * s, 0.078 * s, -0.016 * s)], colours.hat, { sides: 7, turn: 0, capEnd: true });
-  }
-}
-
 function prop(soup: Soup, { kind, from, to, lineTo }: Prop) {
   const way = unit(sub(to, from));
   const frame = frameAlong(from, to);
@@ -306,11 +242,12 @@ export function buildNear(spec: FigureSpec, name: PoseName): Soup {
   leg(soup, pose.legLeft, body, cut.lower, cut.skin, cut.bottom, cut.shoes, rigs.legLeft[0], rigs.legLeft[1]);
   leg(soup, pose.legRight, body, cut.lower, cut.skin, cut.bottom, cut.shoes, rigs.legRight[0], rigs.legRight[1]);
 
-  soup.rigged(rigOf(pose, "head"), () => {
-    head(soup, pose.head, body, spec.skin);
-    hair(soup, pose.head, body, spec, spec.hairColour);
-    hat(soup, pose.head, body, spec);
+  const headRig = rigOf(pose, "head");
+  soup.rigged(headRig, () => {
+    drawHead(soup, pose.head, body, spec);
+    drawHat(soup, pose.head, body, spec);
   });
+  drawHair(soup, pose, body, spec, headRig, chestRig);
 
   if (pose.prop !== undefined) {
     const held = pose.prop.heldBy === undefined ? rigOf(pose, "prop") : rigOf(pose, pose.prop.heldBy);
@@ -368,7 +305,7 @@ export function buildFar(spec: FigureSpec, name: PoseName): Soup {
   });
   if (cut.lower === "skirt") {
     const hem = lerp(lerp(pose.legLeft.root, pose.legRight.root, 0.5), lerp(pose.legLeft.joint, pose.legRight.joint, 0.5), 1);
-    soup.loft([{ at: inFrame(pelvis, 0, body.waistUp, 0), u: [body.waistX, 0, 0], v: [0, 0, body.waistZ] }, { at: hem, u: [body.hipX * 1.4, 0, 0], v: [0, 0, body.hipZ * 1.7] }], cut.bottom, { sides: FAR_SIDES });
+    soup.tip({ at: hem, u: [body.hipX * 1.4, 0, 0], v: [0, 0, body.hipZ * 1.7] }, inFrame(pelvis, 0, body.waistUp, 0), cut.bottom, FAR_SIDES);
   }
   farLimb(soup, pose.armLeft, body.armR * 1.5, body.armR * 1.2, limbPart, spec.skin, rigs.armLeft[0], rigs.armLeft[1], 1.3);
   farLimb(soup, pose.armRight, body.armR * 1.5, body.armR * 1.2, limbPart, spec.skin, rigs.armRight[0], rigs.armRight[1], 1.3);
@@ -379,11 +316,12 @@ export function buildFar(spec: FigureSpec, name: PoseName): Soup {
 
   soup.rigged(rigOf(pose, "head"), () => {
     const s = body.headScale;
-    const crown: Part = spec.hat === "none" ? spec.hairColour : spec.hat === "sun-hat" ? "straw" : spec.colours.hat;
+    const { crown, hangs } = farHair(spec);
     const wide = spec.hat === "sun-hat" ? 0.17 : 0.095;
     const middle = ringIn(top, (spec.hat === "sun-hat" ? 0.17 : 0.14) * s, wide * s, wide * s, -0.008 * s);
     soup.tip(middle, top.at, spec.skin, FAR_SIDES);
     soup.tip(middle, inFrame(top, 0, 0.225 * s, -0.01 * s), crown, FAR_SIDES);
+    if (hangs) soup.tip(ringIn(top, 0.12 * s, 0.085 * s, 0.05 * s, -0.05 * s), inFrame(chest, 0, chestUp * 0.56, -body.chestZ * 1.3), spec.hairColour, FAR_SIDES);
   });
   return soup;
 }

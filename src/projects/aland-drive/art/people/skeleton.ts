@@ -73,6 +73,8 @@ export interface Body {
   headM: number;
   /** The head's size over an adult's. */
   headScale: number;
+  /** The head's width over a nominal one: narrow on a slim frame, broad on a heavy one. */
+  headWide: number;
   neckM: number;
   hipY: number;
   ankleY: number;
@@ -125,6 +127,7 @@ export function measure({ heightM, build, frame, age }: FigureSpec): Body {
     scale,
     headM,
     headScale,
+    headWide: isChild ? 1 : 0.95 + 0.07 * build + 0.04 * man,
     neckM,
     hipY,
     ankleY,

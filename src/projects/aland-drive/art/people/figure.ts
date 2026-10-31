@@ -7,7 +7,8 @@ import { CLOTHS, HAIRS, SHOES, SKINS, type Cloth, type Hair, type Shoe, type Ski
  */
 
 export type Age = "adult" | "older" | "child";
-export type HairStyle = "short" | "receding" | "bob" | "long" | "ponytail" | "bun";
+export const HAIR_STYLES = ["crop", "side-part", "curly", "bob", "long", "ponytail", "bun", "set", "receding", "bald"] as const;
+export type HairStyle = (typeof HAIR_STYLES)[number];
 export type Hat = "none" | "cap" | "sun-hat" | "helmet";
 /** What they wear, which sets the shape of their clothes: colours are `Colours`. */
 export type Outfit = "tee-shorts" | "shirt-trousers" | "jacket-trousers" | "summer-dress" | "blouse-skirt" | "sailing-jacket" | "overalls" | "cyclist";
@@ -47,6 +48,12 @@ const SHORTS: readonly Cloth[] = ["cloth-navy", "cloth-sand", "cloth-khaki", "cl
 const SAILING: readonly [Cloth, Cloth][] = [["cloth-red", "cloth-charcoal"], ["cloth-navy", "cloth-signal"], ["cloth-mustard", "cloth-navy"], ["cloth-white", "cloth-navy"]];
 const CYCLING: readonly [Cloth, Cloth][] = [["cloth-signal", "cloth-charcoal"], ["cloth-sky", "cloth-white"], ["cloth-mustard", "cloth-charcoal"], ["cloth-sea", "cloth-white"]];
 
+const MEN_HAIR: readonly HairStyle[] = ["crop", "crop", "side-part", "side-part", "curly", "bald", "ponytail"];
+const WOMEN_HAIR: readonly HairStyle[] = ["bob", "bob", "long", "long", "ponytail", "bun", "side-part", "curly", "crop"];
+const OLDER_MEN_HAIR: readonly HairStyle[] = ["receding", "receding", "bald", "crop", "side-part"];
+const OLDER_WOMEN_HAIR: readonly HairStyle[] = ["set", "set", "bob", "crop", "bun"];
+const CHILD_HAIR: readonly HairStyle[] = ["crop", "side-part", "bob", "ponytail", "curly"];
+
 const MALE_HEIGHTS = [1.7, 1.92] as const;
 const FEMALE_HEIGHTS = [1.56, 1.76] as const;
 const OUTFITS: readonly Outfit[] = ["tee-shorts", "tee-shorts", "shirt-trousers", "shirt-trousers", "jacket-trousers"];
@@ -69,7 +76,7 @@ export function rollFigure(seed: number, fixed: Partial<FigureSpec> = {}): Figur
 
   const skin = random() < 0.72 ? pick(random, SKINS.slice(0, 3)) : pick(random, SKINS);
   const hairColour: Hair = age === "older" ? pick(random, ["hair-grey", "hair-white", "hair-grey", "hair-ash"] as const) : pick(random, skin === "skin-5" || skin === "skin-6" ? (["hair-black", "hair-brown"] as const) : HAIRS.slice(0, 6));
-  const hair: HairStyle = age === "older" && !feminine && random() < 0.5 ? "receding" : feminine ? pick(random, ["bob", "long", "ponytail", "bun", "short"] as const) : pick(random, ["short", "short", "short", "ponytail"] as const);
+  const hair = pick(random, age === "child" ? CHILD_HAIR : age === "older" ? (feminine ? OLDER_WOMEN_HAIR : OLDER_MEN_HAIR) : feminine ? WOMEN_HAIR : MEN_HAIR);
 
   const roll = random();
   const outfit: Outfit = age === "child" ? pick(random, CHILD_OUTFITS) : feminine && roll < 0.42 ? pick(random, DRESSED) : pick(random, OUTFITS);

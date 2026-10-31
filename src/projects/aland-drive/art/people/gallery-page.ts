@@ -123,7 +123,7 @@ look("kit", "sailing, work, cycling, older, a sun hat, children", [ROW_X, 1.2, R
 const CLOSE_X = -70;
 const closes: Omit<PlacedFigure, "x" | "y" | "z">[] = [
   { seed: 41, pose: "stand", spec: { outfit: "summer-dress", hat: "none", hair: "long", frame: 0.85, heightM: 1.68, hairColour: "hair-blond", skin: "skin-2", build: 0.3 } },
-  { seed: 42, pose: "stand", spec: { ...sailor(1), hat: "cap", frame: 0.12, heightM: 1.84, hair: "short", hairColour: "hair-brown", skin: "skin-3", build: 0.45 } },
+  { seed: 42, pose: "stand", spec: { ...sailor(1), hat: "cap", frame: 0.12, heightM: 1.84, hair: "crop", hairColour: "hair-brown", skin: "skin-3", build: 0.45 } },
   { seed: 43, pose: "stand", spec: { age: "older", outfit: "jacket-trousers", hat: "none", hair: "receding", frame: 0.15, heightM: 1.74, build: 0.7, skin: "skin-1", hairColour: "hair-white" } },
 ];
 closes.forEach((figure, index) => figures.push({ ...figure, x: CLOSE_X + index * 1.1, y: 0, z: 0, phase: 0, yaw: 0.25 }));
