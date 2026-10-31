@@ -476,10 +476,11 @@ function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: nu
   block([0, dashH - 0.1, dashZ + 0.2], [wide * 0.96, 0.16, 0.42], "interior", false, [0.98, 0.6]);
   block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior");
   const seat = (x: number, z: number, seatWide: number) => {
-    const seatH = floorH + 0.28;
+    const seatH = Math.min(floorH + 0.28, dashH - 0.25);
+    const backTall = dashH + 0.2 - seatH;
     block([x, seatH - 0.05, z - 0.13], [seatWide, 0.1, 0.42], seatSurface, true);
-    block([x, seatH + 0.25, z + 0.1], [seatWide * 0.92, 0.5, 0.1], seatSurface, true, [0.92, 0.95]);
-    block([x, seatH + 0.56, z + 0.1], [seatWide * 0.5, 0.12, 0.08], seatSurface, true);
+    block([x, seatH + backTall / 2, z + 0.1], [seatWide * 0.92, backTall, 0.1], seatSurface, true, [0.92, 0.95]);
+    block([x, seatH + backTall + 0.05, z + 0.1], [seatWide * 0.5, 0.1, 0.08], seatSurface, true);
   };
   seat(seatX, seatZ, 0.46);
   if (rearSeatZ !== undefined) seat(seatX * 0.92, rearSeatZ, 0.48);

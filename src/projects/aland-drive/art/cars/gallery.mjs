@@ -74,6 +74,12 @@ const adapter = await tab.evaluate(async () => (await navigator.gpu.requestAdapt
 console.log(`adapter: ${adapter}`);
 for (const car of cars) console.log(`${car.index} ${car.name}: near ${car.near.total} (body ${car.near.body}, glass ${car.near.glass}, wheel ${car.near.wheel}), far ${car.far.total}`);
 
+console.log(JSON.stringify(await tab.evaluate(() => window.__carGallery.worldCounts())));
+console.log("hero cost:", JSON.stringify(await tab.evaluate(async () => {
+  window.__carGallery.clear();
+  return window.__carGallery.heroCost(0, 40);
+})));
+
 const views = (car) => {
   const shots = [
     { name: "chase", car, detail: "hero", camera: "chase" },
@@ -107,6 +113,16 @@ for (const car of cars) {
     await tab.screenshot({ path });
     saved.push({ path, car: car.name, view: name });
   }
+}
+
+for (const view of ["ranks", "line"]) {
+  await tab.evaluate(async (v) => {
+    window.__carGallery.clear();
+    return window.__carGallery.fleet(v);
+  }, view);
+  const path = join(outFolder, `fleet-${view}.png`);
+  await tab.screenshot({ path });
+  saved.push({ path, car: "world cars", view });
 }
 
 // The sheet is a page of the shots themselves, screenshotted whole.

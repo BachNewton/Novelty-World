@@ -65,6 +65,9 @@ const FINISHES: Record<Surface, Finish> = {
   plateBand: { token: "car-plate-band", mirror: 0.03, gloss: 0.2, metal: 0, lamp: 0 },
 };
 
+/** A hero's paint: a deeper coat, smooth enough now to carry the horizon along its doors. */
+const HERO_PAINT: Finish = { token: null, mirror: 0.07, gloss: 0.8, metal: 0, lamp: 0 };
+
 const carToken = (name: string): Color => themeColor(`--color-aland-drive-${name}`);
 
 const tokenRgb = (name: string) => {
@@ -73,7 +76,7 @@ const tokenRgb = (name: string) => {
 };
 
 /** A soup as a geometry: colours and finishes on the vertices, so instances can share it. */
-export function geometryOf(soup: Soup): BufferGeometry {
+export function geometryOf(soup: Soup, hero = false): BufferGeometry {
   const colours = new Float32Array(soup.triangles * 9);
   const finishes = new Float32Array(soup.triangles * 12);
   const colourOf = new Map<number, Color | null>();
@@ -82,7 +85,7 @@ export function geometryOf(soup: Soup): BufferGeometry {
     colourOf.set(index, token === null ? null : carToken(token));
   });
   soup.surfaces.forEach((surface, vertex) => {
-    const finish = FINISHES[SURFACES[surface]];
+    const finish = hero && SURFACES[surface] === "paint" ? HERO_PAINT : FINISHES[SURFACES[surface]];
     const colour = colourOf.get(surface);
     if (colour) colours.set([colour.r, colour.g, colour.b], vertex * 3);
     finishes.set([colour ? finish.mirror : finish.mirror + 1, finish.gloss, finish.metal, finish.lamp], vertex * 4);

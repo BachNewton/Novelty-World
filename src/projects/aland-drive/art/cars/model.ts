@@ -31,7 +31,7 @@ export interface CarArt {
 
 export function buildCarArt(spec: CarSpec, detail: CarDetail = "hero"): CarArt {
   const parts = buildCarParts(spec, detail);
-  const body = geometryOf(parts.body);
+  const body = geometryOf(parts.body, detail === "hero");
   const wheel = geometryOf(parts.wheel);
   const glass = parts.glass && geometryOf(parts.glass);
   const glassTriangles = parts.glass?.triangles ?? 0;

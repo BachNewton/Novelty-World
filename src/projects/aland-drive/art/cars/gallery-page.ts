@@ -1,10 +1,11 @@
-import { Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, WebGPURenderer } from "three/webgpu";
+import { Color, Mesh, TimestampQuery, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, WebGPURenderer } from "three/webgpu";
 import { positionWorld, smoothstep, abs, float, mix, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { CarState } from "../../sim/car-state";
 import { AXLE_Y, groundY, SAG_M, type CarDetail } from "./build";
 import { buildCarArt, createCarModel, type CarLights } from "./model";
-import { CARS } from "./specs";
+import { createCarFleet, triangleCounts, type FleetCar } from "./fleet";
+import { CARS, WORLD_CARS } from "./specs";
 
 /*
  * The page `gallery.mjs` drives: one car at a time on a stretch of road, on the
@@ -38,7 +39,7 @@ export interface Shot {
 }
 
 async function start(width: number, height: number) {
-  const renderer = new WebGPURenderer({ antialias: true, reversedDepthBuffer: true });
+  const renderer = new WebGPURenderer({ antialias: true, reversedDepthBuffer: true, trackTimestamp: true });
   await renderer.init();
   if (!("isWebGPUBackend" in renderer.backend)) throw new Error("not WebGPU");
   renderer.setSize(width, height);
@@ -105,6 +106,63 @@ async function start(width: number, height: number) {
       await new Promise(requestAnimationFrame);
       const size = { triangles: art.triangles, drawCalls: renderer.info.render.drawCalls };
       return size;
+    },
+    /** Every world car in ranks, or one model in a line going away, to see the dissolve. */
+    async fleet(view: "ranks" | "line") {
+      const specs = [...CARS, ...WORLD_CARS];
+      const cars: FleetCar[] =
+        view === "ranks"
+          ? specs.flatMap((spec, index) => {
+              const column = index % 8;
+              const rank = Math.floor(index / 8);
+              return [{ spec, x: -14 + column * 3.9, y: 0, z: 6 - rank * 7.5, yaw: 0, seed: index + 3 }];
+            })
+          : Array.from({ length: 34 }, (_, index) => ({ spec: specs[index % specs.length], x: 2, y: 0, z: 40 - index * 8, yaw: Math.PI, seed: index }));
+      const made = createCarFleet(cars, SUN);
+      ground.position.y = 0;
+      scene.add(...made.meshes);
+      if (view === "ranks") camera.position.set(-1, 13, 21);
+      else camera.position.set(-1.5, 2, 60);
+      camera.fov = view === "ranks" ? 32 : 3.5;
+      camera.lookAt(view === "ranks" ? -0.3 : 2, view === "ranks" ? 0 : 0.7, view === "ranks" ? -6 : -60);
+      camera.updateProjectionMatrix();
+      await renderer.compileAsync(scene, camera);
+      renderer.render(scene, camera);
+      await new Promise(requestAnimationFrame);
+      renderer.render(scene, camera);
+      await new Promise(requestAnimationFrame);
+    },
+    worldCounts: () => [...CARS, ...WORLD_CARS].map((spec) => ({ name: spec.name, ...triangleCounts(spec) })),
+    /** The GPU's time for the road alone against the road with the hero, in alternating pairs: only the ratio and difference mean anything. */
+    async heroCost(car: number, pairs: number) {
+      const art = artOf(car, "hero");
+      const model = createCarModel(art, SUN);
+      model.draw(restState(0, 0));
+      camera.fov = CHASE.fieldOfViewDeg;
+      camera.position.set(0, CHASE.aboveM, CHASE.behindM);
+      camera.lookAt(0, CHASE.lookAboveM, -CHASE.lookAheadM);
+      camera.updateProjectionMatrix();
+      const timed = async () => {
+        renderer.render(scene, camera);
+        await new Promise(requestAnimationFrame);
+        return renderer.resolveTimestampsAsync(TimestampQuery.RENDER);
+      };
+      scene.add(model.root);
+      await renderer.compileAsync(scene, camera);
+      const withCar: number[] = [];
+      const without: number[] = [];
+      for (let pair = 0; pair < pairs; pair++) {
+        scene.add(model.root);
+        const a = await timed();
+        scene.remove(model.root);
+        const b = await timed();
+        if (a !== undefined && b !== undefined && a > 0 && b > 0) {
+          withCar.push(a);
+          without.push(b);
+        }
+      }
+      const middle = (values: number[]) => [...values].sort((x, y) => x - y)[Math.floor(values.length / 2)];
+      return { pairs: withCar.length, withCarMs: middle(withCar), roadMs: middle(without) };
     },
     clear() {
       for (const child of [...scene.children]) if (child !== ground) scene.remove(child);

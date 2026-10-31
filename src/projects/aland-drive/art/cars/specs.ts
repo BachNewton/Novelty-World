@@ -83,6 +83,8 @@ interface Shape {
   extra?: Partial<BodySpec>;
   rearPlateH: number;
   blocks?: readonly Block[];
+  /** No roof: the screen's back is glass too, down to the cockpit. */
+  openTop?: boolean;
 }
 
 /**
@@ -196,8 +198,8 @@ function bodyOf(shape: Shape): BodySpec {
       ...hoodOf(shape),
       { z: cowl[0] - 0.08, h: cowl[1] - 0.015, band: "cowl" },
       { z: cowl[0], h: cowl[1], band: "screen" },
-      { z: header[0], h: header[1] },
-      { z: roof[0], h: roof[1] },
+      { z: header[0], h: header[1], band: shape.openTop ? "screen" : undefined },
+      { z: roof[0], h: roof[1], band: shape.openTop ? "screen" : undefined },
       { z: roofEnd[0], h: roofEnd[1] },
       ...shape.tail,
     ],
@@ -258,7 +260,7 @@ const reflector = (x: number, h: number): Decal => ({ on: "rear", at: [x, h], si
 
 /** A hero's lamps as units: projectors in the headlamp, dividers in the tail's light. */
 function lampUnits({ headX, headH, tailH, tailX }: { headX: readonly number[]; headH: number; tailH: number; tailX: readonly [number, number] }): Decal[] {
-  const dividers = Array.from({ length: 6 }, (_, at) => tailX[0] + ((tailX[1] - tailX[0]) * at) / 5);
+  const dividers = Array.from({ length: 4 }, (_, at) => tailX[0] + ((tailX[1] - tailX[0]) * at) / 3);
   return [
     ...headX.flatMap((x): Decal[] => [
       { on: "front", at: [x, headH], size: [0.075, 0.05], surface: "trim", mirror: true, round: true, fine: true, liftM: 0.012 },
@@ -340,8 +342,8 @@ const playerShape: Shape = {
   pillars: [[0.33, 0.39]],
   mirror: { z: -0.42, h: 0.99, x: 0.82 },
   rearPlateH: 0.68,
-  decals: [...plates(0.68, 0.36), reflector(0.56, 0.42), reversing(0.56, 0.8), ...handles([-0.1, 0.76], 0.92), thirdBrake(1.2), ...lampUnits({ headX: [0.38, 0.54], headH: 0.628, tailH: 0.945, tailX: [0.3, 0.84] })],
-  extra: { exhausts: { x: [-0.5, 0.5], h: 0.3, z: 2.14, radius: 0.042 } },
+  decals: [...plates(0.68, 0.36), reflector(0.56, 0.42), reversing(0.56, 0.8), ...handles([-0.1, 0.76], 0.92), thirdBrake(1.2), ...lampUnits({ headX: [0.38, 0.54], headH: 0.628, tailH: 0.945, tailX: [0.52, 0.78] })],
+  extra: { exhausts: { x: [-0.5, 0.5], h: 0.3, z: 2.2, radius: 0.042 } },
 };
 
 export const PLAYER_CAR: CarSpec = {
@@ -576,7 +578,7 @@ const COUPE: CarSpec = {
     decals: [...plates(0.68, 0.3), reflector(0.6, 0.36), reversing(0.32, 0.78), ...handles([0.72], 0.9), thirdBrake(1.05, 0.4)],
     extra: {
       wing: { z: 1.92, h: 1.13, halfWidth: 0.76, chord: 0.13, rise: 0.04 },
-      exhausts: { x: [-0.58, -0.48, 0.48, 0.58], h: 0.26, z: 2.09, radius: 0.036 },
+      exhausts: { x: [-0.58, -0.48, 0.48, 0.58], h: 0.26, z: 2.15, radius: 0.036 },
     },
   }),
 };
@@ -846,6 +848,7 @@ function sketched(car: Sketch): CarSpec {
   const seats = !open && !bed && style !== "box" ? car.rearSeats ?? true : (car.rearSeats ?? false);
 
   const shape: Shape = {
+    openTop: open,
     trackM: width - tyre - 0.03,
     axleZ,
     wheelRadiusM: radius,
