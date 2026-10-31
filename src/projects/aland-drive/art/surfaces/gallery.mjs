@@ -3,7 +3,7 @@
 // place; `--measure` swaps the art in and out at each place and reads the GPU's timestamps in alternated pairs.
 // The full Chromium is asked for by name: the default headless shell falls back to WebGL2 here.
 //
-//   node src/projects/aland-drive/art/surfaces/gallery.mjs --out=<folder> [--tiles=<tiles folder>] [--base=<folder>] [--size=3440x1440] [--only=a,b] [--measure] [--shimmer]
+//   node src/projects/aland-drive/art/surfaces/gallery.mjs --out=<folder> [--tiles=<tiles folder>] [--base=<folder>] [--size=3440x1440] [--only=a,b] [--measure] [--shimmer] [--plates]
 //
 // --base is a copy of the repo's layout holding the project's code, for working while the game itself is being changed:
 // this folder is copied into it and the page is built from there.
@@ -15,6 +15,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { chromium } from "playwright";
+import sharp from "sharp";
 import { serveTiles } from "../../tools/serve-tiles.mjs";
 import { patchSource } from "./integration.mjs";
 import { LOOKS } from "./gallery-looks.mjs";
@@ -150,17 +151,27 @@ const settle = (frames) =>
 
 const results = [];
 page.setDefaultTimeout(120000);
+if (flags.includes("--plates")) {
+  const plates = join(OUT, "plates");
+  mkdirSync(plates, { recursive: true });
+  const { names, size } = await page.evaluate(() => ({ names: window.__surfacesPlates.names, size: window.__surfacesPlates.size }));
+  for (const name of names) {
+    const pixels = await page.evaluate((plate) => window.__surfacesPlates.show(plate), name);
+    await sharp(Buffer.from(pixels, "base64"), { raw: { width: size, height: size, channels: 4 } }).flatten({ background: "#f0f" }).png().toFile(join(plates, `${name}.png`));
+  }
+  console.log(`${names.length} plates`);
+}
 for (const look of LOOKS.filter(({ name }) => !ONLY || ONLY.some((wanted) => name.startsWith(wanted)))) {
-  await page.evaluate(async ({ at, add }) => {
+  await page.evaluate(async ({ at, add, away }) => {
     const probe = window.__alandDrive;
     probe.hold(true);
-    window.__surfacesGallery?.show(add ?? null, at);
+    window.__surfacesGallery?.show(add ?? null, { ...at, away });
     const worldOrigin = window.__surfacesGallery?.worldOrigin ?? { east: 110000, north: 6690000 };
     probe.loadAround({ x: at.east - worldOrigin.east, z: -(at.north - worldOrigin.north) });
     await new Promise(requestAnimationFrame);
     while (probe.stream().loading > 0 && window.__galleryFailure === undefined) await new Promise(requestAnimationFrame);
     probe.look(at);
-  }, look);
+  }, { at: look.at, add: look.add, away: look.away ?? 0 });
   const broke = await page.evaluate(() => window.__galleryFailure);
   if (broke !== undefined) throw new Error(`${broke}\n${problems.slice(0, 10).join("\n")}`);
   console.log(`${look.name}: placed`);

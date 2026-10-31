@@ -10,10 +10,12 @@ function look(name, x, z, bearing, away, extra = {}) {
     name: extra.add?.startsWith("street") ? name : `${name}-${away}m`,
     at: { east: ORIGIN.east + x - aheadX * away, north: ORIGIN.north - (z - aheadZ * away), height: eye, yaw: -bearing, pitch: extra.pitch ?? -Math.atan(eye / away) },
     add: extra.add,
+    away,
     measure: extra.measure,
   };
 }
 
+// A sign's cross is `add` at the look's own point, not the camera: the set works that out from the distance.
 const threeWays = (name, x, z, bearing) => [2, 10, 30].map((away) => look(name, x, z, bearing, away));
 
 export const LOOKS = [
@@ -33,7 +35,11 @@ export const LOOKS = [
   look("roofs-2m", -9330, -3150, 0.3, 2, { eye: 12, pitch: -0.3, add: "street:3" }),
   look("roofs-10m", -9330, -3150, 0.3, 2, { eye: 15, pitch: -0.3, add: "street:12" }),
   look("roofs-30m", -9330, -3150, 0.3, 2, { eye: 18, pitch: -0.3, add: "street:30" }),
-  look("signs", -7640, -4819, 1.3, 2, { eye: 1.6, pitch: 0.02, add: "signs" }),
+  // The lineup stands across the road's direction at the look's point, so its distance is the look's own.
+  look("signs", -7640, -4819, 1.3, 8, { eye: 1.6, pitch: 0.1, add: "signs" }),
+  look("signs", -7640, -4819, 1.3, 20, { eye: 1.6, pitch: 0.05, add: "signs" }),
+  look("signs", -7640, -4819, 1.3, 40, { eye: 1.6, pitch: 0.03, add: "signs" }),
+  look("signs-back", -7640, -4819, 1.3, 8, { eye: 1.6, pitch: 0.1, add: "signs-back" }),
   look("chase", -9749, -3084, -0.05, 30, { eye: 2.6, pitch: -0.12, measure: ["ground", "road"] }),
   look("town-chase", -1686, 4094, 0.12, 30, { eye: 2.6, pitch: -0.1, measure: ["ground", "road", "walls"] }),
 ];

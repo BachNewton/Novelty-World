@@ -1,49 +1,81 @@
-import { BufferAttribute, BufferGeometry, CanvasTexture, DoubleSide, LinearFilter, LinearMipmapLinearFilter, MeshBasicNodeMaterial, SRGBColorSpace, Vector3, type Node } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, CanvasTexture, CylinderGeometry, DoubleSide, LinearFilter, LinearMipmapLinearFilter, MeshBasicNodeMaterial, SRGBColorSpace, Vector3, type Node } from "three/webgpu";
 import { float, frontFacing, normalWorld, select, texture, uniform, uv, vec3 } from "three/tsl";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { Sun } from "./detail";
+import { GLYPHS, SIGN_ART, type SignInk } from "./sign-art";
 
 /*
- * The road signs: one sheet drawn on a canvas when the game starts, from the
- * shapes and colours of the Finnish standard, as our own drawing. Plates are cut
- * to their true outlines in geometry, so a sign is opaque, with no alpha edge to
- * shimmer. The sheet is the one thing here that's a picture: lettering is cheaper
- * read from a texture than drawn by a shader.
+ * The road signs, drawn once on a canvas when the game starts. A sign is one
+ * record in millimetres from its middle: its cut edge and how to paint it. The
+ * sheet's cell and the plate's mesh are both worked out from that record at one
+ * scale, so art and plate can't drift apart and nothing is stretched. Plates are
+ * cut to their outlines in geometry, so a sign is opaque, with no alpha edge to
+ * shimmer.
+ *
+ * `sign-art.ts` is Traficom's own drawings and road-sign letters. The circular
+ * and information signs below are the same regulation's numbers, and a direction
+ * plate is laid out from its F13.
  *
  * The sheet also holds the words on shop signs (`shopfront.ts`).
  */
 
-const SHEET_PIXELS = 1024;
-const CELL = 128;
-const INSET = 4;
-const PLATE_ROWS = 3;
-const NAME_WIDE = 340;
-const NAME_TALL = 76;
-const NAME_COLUMNS = 3;
-const NAME_ROWS = 5;
-const WORD_WIDE = 256;
-const WORD_TALL = 44;
+const SHEET_PIXELS = 2048;
+/** Sheet pixels per millimetre of plate: a 900 mm triangle is 252 pixels, enough for 8 m, with mips for the rest. */
+const PIXELS_PER_MM = 0.28;
+const GUTTER = 8;
+const WORD_WIDE = 512;
+const WORD_TALL = 88;
 export const WORD_COLUMNS = 4;
 export const WORD_ROWS = 2;
-const FONT = '"Arial Narrow", "Liberation Sans Narrow", Arial, sans-serif';
-const CIRCLE_SIDES = 28;
+const CIRCLE_SIDES = 96;
 const AMBIENT = 0.78;
 const SUN_SHARE = 0.42;
 
-const SPEEDS = [30, 40, 50, 60, 70, 80, 90, 100] as const;
+/** Circular signs and speed-limit areas, millimetres. */
+const ROUND_MM = 640;
+const RING_MM = { edge: 320, red: 310, inner: 245 };
+const DIGIT_MM = 300;
+const DIGIT_GAP_MM = { two: 32.5, three: 11.7 };
+const NO_ENTRY_MM = { red: 305, bar: 275, barHalf: 62.5 };
+const AREA_MM = { side: 900, outerCorner: 45, band: 30, innerCorner: 20 };
+const INFORMATION_MM = { width: 900, height: 740, outerCorner: 60, band: 30, innerCorner: 30, square: 450, squareTop: 145 };
+/** Its i, in the drawing's own numbers, whose middle is at (450, 370 - 443). */
+const INFORMATION_I = { x: -450, y: 73, dotX: 450, dotY: -203, dotRadius: 75, stem: "M520 -108V32C520 76.3 555.7 112 600 112V122H300V112C344.3 112 380 76.3 380 32V-53C380 -80.7 357.7 -103 330 -103V-108Z" };
+
+/** A direction plate (F13), in millimetres, with capitals 150 tall. */
+const DIRECTION_MM = { height: 377, cap: 150, border: 22, corner: 45, innerCorner: 20, pad: 76, tip: 188 };
+/** Between capitals, in the letters' own hundredths of a capital's height, tighter beside a letter with open sides. */
+const LETTER_GAP = 30.5;
+const OPEN_ON_THE_RIGHT = new Set("ALPTVWY");
+const OPEN_ON_THE_LEFT = new Set("AJTVWY");
+const OPEN_GAP = 18;
+const WORD_SPACE = { advance: 70, path: "" };
+
+const SPEEDS = [30, 40, 50, 60, 70, 80, 90, 100, 120] as const;
+const AREA_SPEEDS = [30, 40, 50] as const;
 const PLACES = ["Mariehamn", "Jomala", "Godby", "Hammarland", "Eckerö", "Finström", "Sund", "Kastelholm", "Bomarsund", "Saltvik", "Geta", "Lemland", "Lumparland", "Vårdö", "Färjhamn"] as const;
-const SHOP_WORDS = ["BAGERI", "KIOSK", "CAFÉ", "APOTEK", "BOKHANDEL", "BLOMMOR", "KLÄDER", "SKOR"] as const;
+const SHOP_WORDS = ["BAGERI", "KIOSK", "KAFFE", "APOTEK", "BOKHANDEL", "BLOMMOR", "KLÄDER", "SKOR"] as const;
 
-type Shape = "circle" | "triangle" | "invertedTriangle" | "octagon" | "diamond" | "square" | "name";
+type Pen = CanvasRenderingContext2D;
+type Ink = (name: string) => string;
 
-export interface SignRecord {
-  shape: Shape;
-  /** Across the plate, metres. A name plate's height comes from its proportions. */
-  sizeM: number;
-  /** Its rectangle on the sheet, in pixels. */
-  x: number;
-  y: number;
+interface Drawn {
   width: number;
   height: number;
+  /** The cut edge, x and y in turn, millimetres from the middle, y down. */
+  outline: number[];
+  /** What shows at the edge, painted past it so filtering never reads a neighbouring cell. */
+  base: SignInk;
+  paint: (pen: Pen, ink: (name: SignInk) => string) => void;
+}
+
+export interface SignRecord {
+  widthM: number;
+  heightM: number;
+  outline: number[];
+  /** The middle of its cell, in sheet pixels. */
+  x: number;
+  y: number;
 }
 
 export interface SignSheet {
@@ -53,215 +85,238 @@ export interface SignSheet {
   words: { u: number; v: number; width: number; height: number };
 }
 
-type Ink = (name: string) => string;
-type Pen = CanvasRenderingContext2D;
+const ring = (radius: number) => Array.from({ length: CIRCLE_SIDES * 2 }, (_, at) => {
+  const angle = (Math.floor(at / 2) / CIRCLE_SIDES) * Math.PI * 2;
+  return (at % 2 === 0 ? Math.cos(angle) : Math.sin(angle)) * radius;
+});
 
-function polygon(pen: Pen, points: [number, number][]): void {
-  pen.beginPath();
-  points.forEach(([x, y], at) => {
-    if (at === 0) pen.moveTo(x, y);
-    else pen.lineTo(x, y);
-  });
-  pen.closePath();
+/** A rectangle's outline with round corners, or one side pointed. */
+function roundedBox(width: number, height: number, corner: number): number[] {
+  const points: number[] = [];
+  const [right, bottom] = [width / 2 - corner, height / 2 - corner];
+  for (const [cx, cy, from] of [[right, -bottom, -90], [right, bottom, 0], [-right, bottom, 90], [-right, -bottom, 180]]) {
+    for (let step = 0; step <= 6; step++) {
+      const angle = ((from + step * 15) * Math.PI) / 180;
+      points.push(cx + Math.cos(angle) * corner, cy + Math.sin(angle) * corner);
+    }
+  }
+  return points;
 }
 
-const fitted = (pen: Pen, text: string, tall: number, wide: number) => {
-  pen.font = `bold ${tall}px ${FONT}`;
-  return Math.min(1, wide / pen.measureText(text).width);
+function disc(pen: Pen, radius: number): void {
+  pen.beginPath();
+  pen.arc(0, 0, radius, 0, Math.PI * 2);
+  pen.fill();
+}
+
+function box(pen: Pen, x: number, y: number, width: number, height: number, corner: number): void {
+  pen.beginPath();
+  pen.roundRect(x, y, width, height, corner);
+  pen.fill();
+}
+
+const textWidth = (text: string) => {
+  let total = 0;
+  [...text].forEach((letter, at) => {
+    total += glyph(letter).advance;
+    if (at > 0) total += gapBetween(text[at - 1], letter);
+  });
+  return total;
 };
 
-function lettering(pen: Pen, text: string, x: number, y: number, tall: number, wide: number): void {
-  pen.textAlign = "center";
-  pen.textBaseline = "middle";
-  const squeeze = fitted(pen, text, tall, wide);
+function glyph(letter: string) {
+  if (letter === " ") return WORD_SPACE;
+  if (!(letter in GLYPHS)) throw new Error(`no road-sign letter ${letter}`);
+  return GLYPHS[letter];
+}
+
+function gapBetween(left: string, right: string): number {
+  if (left === " " || right === " ") return 0;
+  return OPEN_ON_THE_RIGHT.has(left) || OPEN_ON_THE_LEFT.has(right) ? OPEN_GAP : LETTER_GAP;
+}
+
+/** Lettering in Traficom's road-sign letters, its middle at (x, y), squeezed to fit a width if one is given. */
+function lettering(pen: Pen, text: string, x: number, y: number, cap: number, gap?: number, wide?: number): void {
+  const letters = [...text.toLocaleUpperCase("sv")];
+  const size = cap / 100;
+  const spaced = gap === undefined ? textWidth(letters.join("")) : letters.reduce((sum, letter) => sum + glyph(letter).advance, 0) + (gap / size) * (letters.length - 1);
+  const squeeze = wide === undefined ? 1 : Math.min(1, wide / (spaced * size));
   pen.save();
-  pen.translate(x, y);
-  pen.scale(squeeze, 1);
-  pen.fillText(text, 0, 0);
+  pen.translate(x, y - cap / 2);
+  pen.scale(size * squeeze, size);
+  pen.translate(-spaced / 2, 0);
+  let at = 0;
+  letters.forEach((letter, index) => {
+    pen.save();
+    pen.translate(at, 0);
+    pen.fill(new Path2D(glyph(letter).path), "evenodd");
+    pen.restore();
+    const next = letters[index + 1] as string | undefined;
+    at += glyph(letter).advance + (next === undefined ? 0 : gap === undefined ? gapBetween(letter, next) : gap / size);
+  });
   pen.restore();
 }
 
-function speedLimit(pen: Pen, ink: Ink, speed: number): void {
-  pen.fillStyle = ink("sign-red");
-  pen.fillRect(0, 0, CELL, CELL);
-  pen.fillStyle = ink("sign-yellow");
-  pen.beginPath();
-  pen.arc(CELL / 2, CELL / 2, CELL * 0.37, 0, Math.PI * 2);
-  pen.fill();
-  pen.fillStyle = ink("sign-black");
-  lettering(pen, String(speed), CELL / 2, CELL / 2 + 3, 58, CELL * 0.6);
+function speedDigits(pen: Pen, speed: number): void {
+  const text = String(speed);
+  lettering(pen, text, 0, 0, DIGIT_MM, text.length > 2 ? DIGIT_GAP_MM.three : DIGIT_GAP_MM.two);
 }
 
-/** A triangle's painted field, its point up or down. */
-function triangleField(pen: Pen, ink: Ink, pointUp: boolean): void {
-  pen.fillStyle = ink("sign-red");
-  pen.fillRect(0, 0, CELL, CELL);
-  const top = pointUp ? 26 : 102;
-  const base = pointUp ? 111 : 17;
-  pen.fillStyle = ink("sign-yellow");
-  polygon(pen, [
-    [CELL / 2, top],
-    [CELL - 23, base],
-    [23, base],
-  ]);
-  pen.fill();
+function speedRing(pen: Pen, ink: (name: SignInk) => string): void {
+  pen.fillStyle = ink("red");
+  disc(pen, RING_MM.red);
+  pen.fillStyle = ink("yellow");
+  disc(pen, RING_MM.inner);
 }
 
-function crossroads(pen: Pen): void {
-  pen.fillRect(CELL / 2 - 6, 44, 12, 60);
-  pen.fillRect(CELL / 2 - 24, 68, 48, 11);
+function speedLimit(speed: number): Drawn {
+  return {
+    width: ROUND_MM,
+    height: ROUND_MM,
+    outline: ring(RING_MM.edge),
+    base: "yellow",
+    paint(pen, ink) {
+      speedRing(pen, ink);
+      pen.fillStyle = ink("black");
+      speedDigits(pen, speed);
+    },
+  };
 }
 
-function sideRoad(pen: Pen, side: 1 | -1): void {
-  pen.fillRect(CELL / 2 - 6, 44, 12, 60);
-  pen.fillRect(CELL / 2 + (side > 0 ? 0 : -26), 66, 26, 10);
+function speedArea(speed: number): Drawn {
+  const { side, outerCorner, band, innerCorner } = AREA_MM;
+  return {
+    width: side,
+    height: side,
+    outline: roundedBox(side, side, outerCorner),
+    base: "red",
+    paint(pen, ink) {
+      pen.fillStyle = ink("yellow");
+      box(pen, -side / 2 + band, -side / 2 + band, side - band * 2, side - band * 2, innerCorner);
+      speedRing(pen, ink);
+      pen.fillStyle = ink("black");
+      speedDigits(pen, speed);
+    },
+  };
 }
 
-function bend(pen: Pen): void {
-  pen.lineWidth = 11;
-  pen.beginPath();
-  pen.moveTo(52, 103);
-  pen.bezierCurveTo(52, 80, 80, 78, 72, 48);
-  pen.stroke();
-}
+const noEntry: Drawn = {
+  width: ROUND_MM,
+  height: ROUND_MM,
+  outline: ring(RING_MM.edge),
+  base: "yellow",
+  paint(pen, ink) {
+    pen.fillStyle = ink("red");
+    disc(pen, NO_ENTRY_MM.red);
+    pen.fillStyle = ink("yellow");
+    const reach = Math.sqrt(NO_ENTRY_MM.bar ** 2 - NO_ENTRY_MM.barHalf ** 2);
+    pen.fillRect(-reach, -NO_ENTRY_MM.barHalf, reach * 2, NO_ENTRY_MM.barHalf * 2);
+  },
+};
 
-/** A bull moose side on, in the plainest shapes that still say so. */
-function moose(pen: Pen): void {
-  polygon(pen, [
-    [36, 70],
-    [44, 60],
-    [66, 58],
-    [76, 60],
-    [86, 52],
-    [96, 56],
-    [99, 63],
-    [91, 66],
-    [85, 72],
-    [84, 82],
-    [80, 104],
-    [75, 104],
-    [73, 84],
-    [52, 86],
-    [47, 104],
-    [42, 104],
-    [41, 84],
-  ]);
-  pen.fill();
-  pen.lineWidth = 3;
-  pen.beginPath();
-  pen.moveTo(84, 54);
-  pen.lineTo(76, 44);
-  pen.moveTo(84, 54);
-  pen.lineTo(84, 42);
-  pen.moveTo(85, 53);
-  pen.lineTo(93, 44);
-  pen.stroke();
-}
-
-function pedestrianCrossing(pen: Pen, ink: Ink): void {
-  pen.fillStyle = ink("sign-blue");
-  pen.fillRect(0, 0, CELL, CELL);
-  pen.fillStyle = ink("sign-white");
-  polygon(pen, [
-    [CELL / 2, 12],
-    [CELL - 10, CELL - 16],
-    [10, CELL - 16],
-  ]);
-  pen.fill();
-  pen.fillStyle = ink("sign-black");
-  pen.strokeStyle = ink("sign-black");
-  pen.beginPath();
-  pen.arc(66, 44, 6.5, 0, Math.PI * 2);
-  pen.fill();
-  pen.lineWidth = 7;
-  pen.lineCap = "round";
-  pen.beginPath();
-  pen.moveTo(64, 55);
-  pen.lineTo(60, 75);
-  pen.lineTo(72, 92);
-  pen.moveTo(60, 75);
-  pen.lineTo(47, 92);
-  pen.moveTo(63, 58);
-  pen.lineTo(76, 68);
-  pen.moveTo(63, 58);
-  pen.lineTo(48, 68);
-  pen.stroke();
-  pen.lineCap = "butt";
-}
-
-function plates(pen: Pen, ink: Ink, signs: Map<string, SignRecord>): void {
-  const place = (name: string, shape: Shape, sizeM: number, draw: () => void, column: number, row: number) => {
-    const [x, y] = [column * CELL, row * CELL];
+const information: Drawn = {
+  width: INFORMATION_MM.width,
+  height: INFORMATION_MM.height,
+  outline: roundedBox(INFORMATION_MM.width, INFORMATION_MM.height, INFORMATION_MM.outerCorner),
+  base: "white",
+  paint(pen, ink) {
+    const { width, height, band, innerCorner, square, squareTop } = INFORMATION_MM;
+    pen.fillStyle = ink("blue");
+    box(pen, -width / 2 + band, -height / 2 + band, width - band * 2, height - band * 2, innerCorner);
+    pen.fillStyle = ink("white");
+    pen.fillRect(-square / 2, -height / 2 + squareTop, square, square);
+    pen.fillStyle = ink("black");
     pen.save();
-    pen.translate(x, y);
+    pen.translate(INFORMATION_I.x, INFORMATION_I.y);
     pen.beginPath();
-    pen.rect(0, 0, CELL, CELL);
-    pen.clip();
-    draw();
+    pen.arc(INFORMATION_I.dotX, INFORMATION_I.dotY, INFORMATION_I.dotRadius, 0, Math.PI * 2);
+    pen.fill();
+    pen.fill(new Path2D(INFORMATION_I.stem));
     pen.restore();
-    signs.set(name, { shape, sizeM, x: x + INSET, y: y + INSET, width: CELL - INSET * 2, height: CELL - INSET * 2 });
+  },
+};
+
+function fromArt(name: string, mirrored = false): Drawn {
+  const { width, height, outline, layers } = SIGN_ART[name];
+  return {
+    width,
+    height,
+    outline: mirrored ? outline.map((value, at) => (at % 2 === 0 ? -value : value)) : outline,
+    base: layers[0].ink,
+    paint(pen, ink) {
+      if (mirrored) pen.scale(-1, 1);
+      for (const { ink: colour, path, evenOdd } of layers) {
+        pen.fillStyle = ink(colour);
+        pen.fill(new Path2D(path), evenOdd ? "evenodd" : "nonzero");
+      }
+    },
   };
-  SPEEDS.forEach((speed, column) => {
-    place(`speed-${speed}`, "circle", 0.64, () => { speedLimit(pen, ink, speed); }, column, 0);
-  });
-  const warning = (name: string, column: number, symbol: () => void) => {
-    place(name, "triangle", 0.9, () => {
-      triangleField(pen, ink, true);
-      pen.fillStyle = pen.strokeStyle = ink("sign-black");
-      symbol();
-    }, column, 1);
-  };
-  warning("crossroads", 0, () => { crossroads(pen); });
-  warning("side-road-left", 1, () => { sideRoad(pen, -1); });
-  warning("side-road-right", 2, () => { sideRoad(pen, 1); });
-  warning("bend", 3, () => { bend(pen); });
-  warning("moose", 4, () => { moose(pen); });
-  place("give-way", "invertedTriangle", 0.9, () => { triangleField(pen, ink, false); }, 5, 1);
-  place("stop", "octagon", 0.8, () => {
-    pen.fillStyle = ink("sign-white");
-    pen.fillRect(0, 0, CELL, CELL);
-    const [near, far] = [CELL * 0.33, CELL * 0.67];
-    pen.fillStyle = ink("sign-red");
-    polygon(pen, [[near, 12], [far, 12], [CELL - 12, near], [CELL - 12, far], [far, CELL - 12], [near, CELL - 12], [12, far], [12, near]]);
-    pen.fill();
-    pen.fillStyle = ink("sign-white");
-    lettering(pen, "STOP", CELL / 2, CELL / 2 + 2, 42, CELL * 0.72);
-  }, 6, 1);
-  place("priority-road", "diamond", 0.64, () => {
-    pen.fillStyle = ink("sign-white");
-    pen.fillRect(0, 0, CELL, CELL);
-    pen.fillStyle = ink("sign-yellow");
-    polygon(pen, [[CELL / 2, 26], [CELL - 26, CELL / 2], [CELL / 2, CELL - 26], [26, CELL / 2]]);
-    pen.fill();
-  }, 7, 1);
-  place("pedestrian-crossing", "square", 0.64, () => { pedestrianCrossing(pen, ink); }, 0, 2);
-  place("parking", "square", 0.64, () => {
-    pen.fillStyle = ink("sign-blue");
-    pen.fillRect(0, 0, CELL, CELL);
-    pen.fillStyle = ink("sign-white");
-    lettering(pen, "P", CELL / 2, CELL / 2 + 3, 92, CELL);
-  }, 1, 2);
 }
 
-function placeNames(pen: Pen, ink: Ink, signs: Map<string, SignRecord>): void {
-  const top = PLATE_ROWS * CELL;
-  PLACES.forEach((name, at) => {
-    const x = (at % NAME_COLUMNS) * NAME_WIDE;
-    const y = top + Math.floor(at / NAME_COLUMNS) * NAME_TALL;
-    pen.fillStyle = ink("sign-white");
-    pen.fillRect(x, y, NAME_WIDE, NAME_TALL);
-    pen.fillStyle = ink("sign-blue");
-    pen.fillRect(x + 8, y + 8, NAME_WIDE - 16, NAME_TALL - 16);
-    pen.fillStyle = ink("sign-white");
-    polygon(pen, [
-      [x + NAME_WIDE - 62, y + 22],
-      [x + NAME_WIDE - 36, y + NAME_TALL / 2],
-      [x + NAME_WIDE - 62, y + NAME_TALL - 22],
-    ]);
-    pen.fill();
-    lettering(pen, name, x + (NAME_WIDE - 56) / 2, y + NAME_TALL / 2 + 2, 42, NAME_WIDE - 96);
-    signs.set(`to-${name}`, { shape: "name", sizeM: 1.8, x: x + INSET, y: y + INSET, width: NAME_WIDE - INSET * 2, height: NAME_TALL - INSET * 2 });
+function directionPlate(place: string): Drawn {
+  const { height, cap, border, corner, innerCorner, pad, tip } = DIRECTION_MM;
+  const lettersWide = (textWidth(place.toLocaleUpperCase("sv")) * cap) / 100;
+  const body = lettersWide + pad * 2 + border * 2;
+  const width = body + tip;
+  const left = -width / 2;
+  const edge = roundedBox(body + corner, height, corner).map((value, at) => (at % 2 === 0 ? value + left + (body + corner) / 2 : value));
+  // Only the left-hand corners stay round: the right runs on to the point.
+  const leftSide = edge.filter((_, at) => {
+    const point = Math.floor(at / 2);
+    return point >= 14;
   });
+  const outline = [left + body, -height / 2, width / 2, 0, left + body, height / 2, ...leftSide];
+  return {
+    width,
+    height,
+    outline,
+    base: "white",
+    paint(pen, ink) {
+      pen.fillStyle = ink("blue");
+      box(pen, left + border, -height / 2 + border, body - border * 2, height - border * 2, innerCorner);
+      pen.fillStyle = ink("white");
+      lettering(pen, place, left + border + pad + lettersWide / 2, 0, cap);
+    },
+  };
+}
+
+function allSigns(extraPlaces: readonly string[]): Map<string, Drawn> {
+  const signs = new Map<string, Drawn>();
+  for (const speed of SPEEDS) signs.set(`speed-${speed}`, speedLimit(speed));
+  for (const speed of AREA_SPEEDS) signs.set(`speed-area-${speed}`, speedArea(speed));
+  for (const name of Object.keys(SIGN_ART)) signs.set(name, fromArt(name));
+  signs.set("side-road-right", fromArt("side-road-left", true));
+  signs.set("no-entry", noEntry);
+  signs.set("information", information);
+  for (const place of [...PLACES, ...extraPlaces]) signs.set(`to-${place}`, directionPlate(place));
+  return signs;
+}
+
+/** Fills the sheet from its top, row by row, leaving the shop words the bottom of it. */
+function drawSigns(pen: Pen, ink: Ink, extraPlaces: readonly string[]): Map<string, SignRecord> {
+  const records = new Map<string, SignRecord>();
+  const signInk = (name: SignInk) => ink(`sign-${name}`);
+  const room = SHEET_PIXELS - WORD_ROWS * WORD_TALL;
+  let [x, y, rowTall] = [0, 0, 0];
+  const all = [...allSigns(extraPlaces)].sort(([, a], [, b]) => b.height - a.height);
+  for (const [name, sign] of all) {
+    const wide = Math.ceil(sign.width * PIXELS_PER_MM) + GUTTER * 2;
+    const tall = Math.ceil(sign.height * PIXELS_PER_MM) + GUTTER * 2;
+    if (x + wide > SHEET_PIXELS) [x, y, rowTall] = [0, y + rowTall, 0];
+    if (y + tall > room) throw new Error(`the sign sheet is full at ${name}`);
+    pen.fillStyle = signInk(sign.base);
+    pen.fillRect(x, y, wide, tall);
+    const [middleX, middleY] = [x + wide / 2, y + tall / 2];
+    pen.save();
+    pen.translate(middleX, middleY);
+    pen.scale(PIXELS_PER_MM, PIXELS_PER_MM);
+    sign.paint(pen, signInk);
+    pen.restore();
+    records.set(name, { widthM: sign.width / 1000, heightM: sign.height / 1000, outline: sign.outline, x: middleX, y: middleY });
+    x += wide;
+    rowTall = Math.max(rowTall, tall);
+  }
+  return records;
 }
 
 function shopWords(pen: Pen, ink: Ink, top: number): void {
@@ -271,20 +326,18 @@ function shopWords(pen: Pen, ink: Ink, top: number): void {
   SHOP_WORDS.forEach((word, at) => {
     const x = (at % WORD_COLUMNS) * WORD_WIDE;
     const y = top + Math.floor(at / WORD_COLUMNS) * WORD_TALL;
-    lettering(pen, word, x + WORD_WIDE / 2, y + WORD_TALL / 2 + 1, WORD_TALL - 10, WORD_WIDE - 28);
+    lettering(pen, word, x + WORD_WIDE / 2, y + WORD_TALL / 2, WORD_TALL * 0.7, undefined, WORD_WIDE * 0.9);
   });
 }
 
-/** Draws the sheet. `ink` gives a token's colour as CSS. */
-export function createSignSheet(ink: Ink): SignSheet {
+/** Draws the sheet. `ink` gives a token's colour as CSS, and `extraPlaces` adds direction plates to the usual ones. */
+export function createSignSheet(ink: Ink, extraPlaces: readonly string[] = []): SignSheet {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = SHEET_PIXELS;
   const pen = canvas.getContext("2d");
   if (!pen) throw new Error("no 2D canvas for the sign sheet");
-  const signs = new Map<string, SignRecord>();
-  plates(pen, ink, signs);
-  placeNames(pen, ink, signs);
-  const wordsTop = PLATE_ROWS * CELL + NAME_ROWS * NAME_TALL;
+  const signs = drawSigns(pen, ink, extraPlaces);
+  const wordsTop = SHEET_PIXELS - WORD_ROWS * WORD_TALL;
   shopWords(pen, ink, wordsTop);
 
   const sheet = new CanvasTexture(canvas);
@@ -293,7 +346,7 @@ export function createSignSheet(ink: Ink): SignSheet {
   sheet.generateMipmaps = true;
   sheet.minFilter = LinearMipmapLinearFilter;
   sheet.magFilter = LinearFilter;
-  sheet.anisotropy = 8;
+  sheet.anisotropy = 16;
   return {
     texture: sheet,
     signs,
@@ -301,38 +354,33 @@ export function createSignSheet(ink: Ink): SignSheet {
   };
 }
 
-/** A shape's outline, as shares of its plate from the centre, x right and y up. */
-function outline(shape: Shape): [number, number][] {
-  const ring = (count: number, turn: number, radius: number) => Array.from({ length: count }, (_, at): [number, number] => {
-    const angle = turn + (at / count) * Math.PI * 2;
-    return [Math.cos(angle) * radius, Math.sin(angle) * radius];
-  });
-  const edge = 0.5 / Math.cos(Math.PI / 8);
-  // Triangles sit on the cell's own lines, which `triangleField` paints to.
-  if (shape === "triangle") return [[0, 0.5], [-0.5, -0.42], [0.5, -0.42]];
-  if (shape === "invertedTriangle") return [[0, -0.5], [0.5, 0.42], [-0.5, 0.42]];
-  if (shape === "circle") return ring(CIRCLE_SIDES, 0, 0.5);
-  if (shape === "octagon") return ring(8, Math.PI / 8, edge);
-  if (shape === "diamond") return ring(4, Math.PI / 2, 0.5);
-  return [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-}
-
 /** A plate as a flat mesh facing +z with its middle at the origin, ready to stand on a post. */
 export function signPlate({ signs }: SignSheet, name: string): BufferGeometry {
   const sign = signs.get(name);
   if (!sign) throw new Error(`no sign called ${name}`);
-  const tall = (sign.sizeM * sign.height) / sign.width;
-  const corners = outline(sign.shape);
-  const positions = new Float32Array(corners.length * 3);
-  const normals = new Float32Array(corners.length * 3);
-  const uvs = new Float32Array(corners.length * 2);
-  corners.forEach(([x, y], at) => {
-    positions.set([x * sign.sizeM, y * tall, 0], at * 3);
+  const corners = sign.outline.length / 2;
+  const positions = new Float32Array((corners + 1) * 3);
+  const normals = new Float32Array((corners + 1) * 3);
+  const uvs = new Float32Array((corners + 1) * 2);
+  const put = (at: number, x: number, y: number) => {
+    positions.set([x / 1000, -y / 1000, 0], at * 3);
     normals.set([0, 0, 1], at * 3);
-    uvs.set([(sign.x + (x + 0.5) * sign.width) / SHEET_PIXELS, (sign.y + (0.5 - y) * sign.height) / SHEET_PIXELS], at * 2);
-  });
+    uvs.set([(sign.x + x * PIXELS_PER_MM) / SHEET_PIXELS, (sign.y + y * PIXELS_PER_MM) / SHEET_PIXELS], at * 2);
+  };
+  put(corners, 0, 0);
+  for (let at = 0; at < corners; at++) put(at, sign.outline[at * 2], sign.outline[at * 2 + 1]);
+  // Outlines run either way round, and a plate's front has to face +z whichever they do.
+  let turning = 0;
+  for (let at = 0; at < corners; at++) {
+    const next = (at + 1) % corners;
+    turning += sign.outline[at * 2] * sign.outline[next * 2 + 1] - sign.outline[next * 2] * sign.outline[at * 2 + 1];
+  }
   const indices: number[] = [];
-  for (let at = 1; at < corners.length - 1; at++) indices.push(0, at, at + 1);
+  for (let at = 0; at < corners; at++) {
+    const next = (at + 1) % corners;
+    if (turning > 0) indices.push(corners, next, at);
+    else indices.push(corners, at, next);
+  }
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(positions, 3));
   geometry.setAttribute("normal", new BufferAttribute(normals, 3));
@@ -341,20 +389,51 @@ export function signPlate({ signs }: SignSheet, name: string): BufferGeometry {
   return geometry;
 }
 
+export function signNames({ signs }: SignSheet): string[] {
+  return [...signs.keys()];
+}
+
+const POLE_RADIUS_M = 0.03;
+const CLAMP_RADIUS_M = 0.036;
+const CLAMP_TALL_M = 0.05;
+
+/** A galvanised pole from the ground up, its middle on the origin's axis, with a clamp at each height given. */
+export function signPost(heightM: number, clampsAtM: number[]): BufferGeometry {
+  const pole = new CylinderGeometry(POLE_RADIUS_M, POLE_RADIUS_M, heightM, 8);
+  pole.translate(0, heightM / 2, 0);
+  const clamps = clampsAtM.map((at) => {
+    const clamp = new CylinderGeometry(CLAMP_RADIUS_M, CLAMP_RADIUS_M, CLAMP_TALL_M, 8);
+    clamp.translate(0, at, 0);
+    return clamp;
+  });
+  return mergeGeometries([pole, ...clamps]);
+}
+
 export interface SignLook {
   colour: (name: string) => Node<"vec3">;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
 }
 
-/** The plates' material: the sheet on the front, bare metal behind, lit as the walls are. */
+const lightFrom = ({ azimuthDeg, elevationDeg }: Sun) => {
+  const azimuth = (azimuthDeg * Math.PI) / 180;
+  const elevation = (elevationDeg * Math.PI) / 180;
+  return uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+};
+
+/** The plates' material: the sheet on the front, bare grey metal behind, lit as the walls are. */
 export function signMaterial({ texture: sheet }: SignSheet, { colour, hazed }: SignLook, sun: Sun): MeshBasicNodeMaterial {
-  const azimuth = (sun.azimuthDeg * Math.PI) / 180;
-  const elevation = (sun.elevationDeg * Math.PI) / 180;
-  const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
+  const toSun = lightFrom(sun);
   const facing = select(frontFacing, normalWorld, normalWorld.negate());
   const light = float(AMBIENT).add(facing.dot(toSun).max(0).mul(SUN_SHARE));
   const material = new MeshBasicNodeMaterial();
   material.colorNode = hazed(select(frontFacing, vec3(texture(sheet, uv()).rgb), colour("sign-back")).mul(light));
   material.side = DoubleSide;
+  return material;
+}
+
+/** Galvanised steel, lit the same way. */
+export function signPostMaterial({ colour, hazed }: SignLook, sun: Sun): MeshBasicNodeMaterial {
+  const material = new MeshBasicNodeMaterial();
+  material.colorNode = hazed(colour("sign-post").mul(float(AMBIENT).add(normalWorld.dot(lightFrom(sun)).max(0).mul(SUN_SHARE))));
   return material;
 }

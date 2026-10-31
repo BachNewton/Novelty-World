@@ -17,10 +17,10 @@ interface Swappable {
 
 declare global {
   interface Window {
-    __alandDrive?: unknown;
     __surfacesHook?: Hook;
     __galleryFailure?: string;
-    __surfacesGallery?: { worldOrigin: { east: number; north: number }; setArt: (group: string, on: boolean) => void; show: (what: string | null, at: Place) => void };
+    __surfacesPlates?: { names: string[]; size: number; show: (name: string) => Promise<string> };
+    __surfacesGallery?: { worldOrigin: { east: number; north: number }; setArt: (group: string, on: boolean) => void; show: (what: string | null, at: Place & { away: number }) => void };
   }
 }
 
@@ -46,7 +46,7 @@ startGame(element, {
   .then(async (game) => {
     const hook = window.__surfacesHook;
     if (!hook) {
-      window.__alandDrive = game.probe;
+      (window as unknown as { __alandDrive: unknown }).__alandDrive = game.probe;
       return;
     }
     const swaps = new Map<MeshBasicNodeMaterial, Swappable>();
@@ -61,7 +61,7 @@ startGame(element, {
       swaps.set(swap.off, swap);
       return swap;
     };
-    const { startSets, showSet } = await import("./gallery-sets");
+    const { startSets, showSet, startPlates } = await import("./gallery-sets");
     startSets(hook);
     window.__surfacesGallery = {
       worldOrigin: hook.manifest.worldOrigin,
@@ -76,7 +76,8 @@ startGame(element, {
         showSet(what, at);
       },
     };
-    window.__alandDrive = game.probe;
+    window.__surfacesPlates = await startPlates();
+    (window as unknown as { __alandDrive: unknown }).__alandDrive = game.probe;
   })
   .catch((error: unknown) => {
     window.__galleryFailure = String(error);

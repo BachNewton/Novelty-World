@@ -1,7 +1,9 @@
-import { BufferAttribute, BufferGeometry, CylinderGeometry, Group, Mesh, MeshBasicNodeMaterial, type Node, type Scene } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, Color, Group, Mesh, MeshBasicNodeMaterial, NoColorSpace, OrthographicCamera, RenderTarget, Scene, WebGPURenderer, type Material, type Node } from "three/webgpu";
+import { texture, uv } from "three/tsl";
+import { themeColor } from "@/shared/lib/three/theme-color";
 import type { Place } from "../../render/game";
 import type { World } from "../../sim/world";
-import { signMaterial, signPlate, type SignSheet } from "./signs";
+import { createSignSheet, signMaterial, signNames, signPlate, signPost, signPostMaterial, type SignSheet } from "./signs";
 
 /* Props the gallery stands in front of the camera, for art that has no place in the world yet. */
 
@@ -10,16 +12,15 @@ export interface SetHook {
   world: World;
   manifest: { worldOrigin: { east: number; north: number } };
   signSheet: SignSheet;
-  wallMaterial: MeshBasicNodeMaterial;
+  wallMaterial: Material;
   colour: (name: string) => Node<"vec3">;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
   sun: { azimuthDeg: number; elevationDeg: number };
 }
 
-const SPACING_M = 1.5;
+const GAP_M = 0.5;
 const PLATE_UP_M = 2;
-const AWAY_M = 12;
-const ROW = ["speed-50", "speed-80", "give-way", "stop", "crossroads", "side-road-right", "moose", "priority-road", "pedestrian-crossing", "to-Mariehamn", "to-Eckerö"];
+const ROW = ["speed-50", "speed-100", "speed-area-40", "no-entry", "give-way", "stop", "crossroads", "side-road-right", "side-road-left", "moose", "roadworks", "bend", "priority-road", "end-of-priority", "pedestrian-crossing", "parking", "bus-stop", "one-way-ahead", "built-up", "built-up-end", "information", "to-Mariehamn", "to-Eckerö", "to-Vårdö"];
 
 /** Made-up buildings, for shops and roofs up close: the walls' real material, on the attributes the pipeline writes. */
 const STREET = [
@@ -65,6 +66,46 @@ function streetGeometry(x: number, z: number, ground: number, yaw: number): Buff
   return geometry;
 }
 
+// WebGPU reads rows back padded to 256 bytes, so a width of 960 comes back with none.
+const PLATE_PIXELS = 960;
+const PLATE_FRAME = 1.1;
+
+/** Each plate front-on with no perspective, on its own canvas, for measuring against the regulation's drawing. */
+export async function startPlates() {
+  const renderer = new WebGPURenderer({ antialias: true });
+  await renderer.init();
+  const target = new RenderTarget(PLATE_PIXELS, PLATE_PIXELS, { samples: 4 });
+  renderer.setClearColor(new Color(1, 0, 1));
+  const sheet = createSignSheet((name) => themeColor(`--color-aland-drive-${name}`).getStyle(), ["Helsinki 119"]);
+  // Read straight back, so the sheet's own bytes stay as they are, with no trip through linear light.
+  sheet.texture.colorSpace = NoColorSpace;
+  const material = new MeshBasicNodeMaterial();
+  material.colorNode = texture(sheet.texture, uv()).rgb;
+  const scene = new Scene();
+  const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+  camera.position.z = 2;
+  return {
+    names: signNames(sheet),
+    size: PLATE_PIXELS,
+    async show(name: string): Promise<string> {
+      scene.clear();
+      scene.add(new Mesh(signPlate(sheet, name), material));
+      const sign = sheet.signs.get(name);
+      if (!sign) throw new Error(`no sign ${name}`);
+      const half = (Math.max(sign.widthM, sign.heightM) * PLATE_FRAME) / 2;
+      Object.assign(camera, { left: -half, right: half, top: half, bottom: -half });
+      camera.updateProjectionMatrix();
+      renderer.setRenderTarget(target);
+      await renderer.renderAsync(scene, camera);
+      const pixels = await renderer.readRenderTargetPixelsAsync(target, 0, 0, PLATE_PIXELS, PLATE_PIXELS);
+      const bytes = pixels as Uint8Array;
+      let text = "";
+      for (let at = 0; at < bytes.length; at += 0x8000) text += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+      return btoa(text);
+    },
+  };
+}
+
 let started: SetHook | null = null;
 const group = new Group();
 
@@ -73,7 +114,7 @@ export function startSets(hook: SetHook): void {
   hook.scene.add(group);
 }
 
-export function showSet(what: string | null, at: Place): void {
+export function showSet(what: string | null, at: Place & { away: number }): void {
   group.clear();
   if (what === null || !started) return;
   const { world, manifest, signSheet, wallMaterial, colour, hazed, sun } = started;
@@ -84,21 +125,30 @@ export function showSet(what: string | null, at: Place): void {
     return;
   }
   const material = signMaterial(signSheet, { colour, hazed }, sun);
-  const post = new MeshBasicNodeMaterial();
-  post.colorNode = hazed(colour("sign-back"));
+  const post = signPostMaterial({ colour, hazed }, sun);
   const x = at.east - manifest.worldOrigin.east;
   const z = -(at.north - manifest.worldOrigin.north);
   const [forwardX, forwardZ] = [-Math.sin(at.yaw), -Math.cos(at.yaw)];
   const [rightX, rightZ] = [-forwardZ, forwardX];
-  ROW.forEach((name, slot) => {
-    const offset = (slot - (ROW.length - 1) / 2) * SPACING_M;
-    const [px, pz] = [x + forwardX * AWAY_M + rightX * offset, z + forwardZ * AWAY_M + rightZ * offset];
+  const row = what === "signs-back" ? ROW.slice(0, 6) : ROW;
+  const facing = what === "signs-back" ? at.yaw + Math.PI : at.yaw;
+  let offset = -row.reduce((sum, name) => sum + plateWidth(signSheet, name) + GAP_M, 0) / 2;
+  for (const name of row) {
+    const width = plateWidth(signSheet, name);
+    offset += width / 2 + GAP_M / 2;
+    const [px, pz] = [x + forwardX * at.away + rightX * offset, z + forwardZ * at.away + rightZ * offset];
+    offset += width / 2 + GAP_M / 2;
     const ground = world.height(px, pz);
+    const sign = signSheet.signs.get(name);
+    if (!sign) throw new Error(`no sign ${name}`);
     const plate = new Mesh(signPlate(signSheet, name), material);
     plate.position.set(px, ground + PLATE_UP_M, pz);
-    plate.rotation.y = at.yaw;
-    const pole = new Mesh(new CylinderGeometry(0.03, 0.03, PLATE_UP_M, 8), post);
-    pole.position.set(px + forwardX * 0.03, ground + PLATE_UP_M / 2, pz + forwardZ * 0.03);
+    plate.rotation.y = facing;
+    const pole = new Mesh(signPost(PLATE_UP_M + sign.heightM / 2 - 0.05, [PLATE_UP_M - sign.heightM / 3, PLATE_UP_M + sign.heightM / 3]), post);
+    const behind = what === "signs-back" ? -0.05 : 0.05;
+    pole.position.set(px + forwardX * behind, ground, pz + forwardZ * behind);
     group.add(plate, pole);
-  });
+  }
 }
+
+const plateWidth = (sheet: SignSheet, name: string) => sheet.signs.get(name)?.widthM ?? 0;
