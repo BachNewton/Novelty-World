@@ -1,0 +1,24 @@
+/*
+ * The street kit's colours that no existing token can mix. On integration this block joins the other
+ * --color-aland-drive-* tokens in globals.css.
+ *
+ * The flags' colours are set by law, so they are not to be tuned by eye:
+ *
+ * Finland: Government decision 827/1993, under the Act on the Flag of Finland (380/1978), defines the blue
+ * as CIE L* 29.06, a* 7.24, b* -36.98 (Y 5.86, x 0.1856, y 0.1696). Taken to sRGB as relative L*a*b*, so the
+ * standard's white stays white, that is #18447e. The ministry's quick equivalent, PMS 294 C, is #002f6c in
+ * Pantone's sRGB, visibly darker: the decision's measured colour is the definition, Pantone the approximation.
+ *
+ * Åland: landskapsförordning 2004:15 defines NCS 3065-R90B, 0580-Y10R and 1085-Y90R, and names PMS 2945 C,
+ * 116 C and 186 C as their nearest reproduction. These are those three in Pantone's sRGB.
+ */
+:root {
+  --color-aland-drive-flag-white: #ffffff;
+  --color-aland-drive-flag-fi-blue: #18447e;
+  --color-aland-drive-flag-ax-blue: #004c97;
+  --color-aland-drive-flag-ax-yellow: #ffcd00;
+  --color-aland-drive-flag-ax-red: #c8102e;
+
+  --color-aland-drive-flower-lupine: #6a5bb0;
+  --color-aland-drive-flower-fireweed: #c95a9a;
+}
