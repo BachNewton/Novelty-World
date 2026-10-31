@@ -96,7 +96,9 @@ Everything, end to end.
 
 ### 7. Depth
 
-Traffic, weather, seasons (a Finnish winter would set this game apart) and ferries to other islands. Picked one at a time by what the game wants most.
+Traffic, weather, a day/night cycle, seasons (a Finnish winter would set this game apart) and ferries to other islands. Picked one at a time by what the game wants most.
+
+Two pieces of work sit outside the numbered order. **Art integration** brings the models and surfaces built under `art/` into the game after phase 5, ground detail and the car first. **Sound** (engine, road, wind) comes early, alongside phase 6, because a driving game feels empty without it.
 
 ## Art still needed
 
