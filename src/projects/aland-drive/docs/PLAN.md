@@ -112,6 +112,8 @@ In priority order. The priority is what fills the view most, and the source is o
 
 **3D models:** the player's car, then further invented cars to buy; a roadside kit of about five objects (street lamp, power pole, sign set, fence, mailbox); a better pine; a generic bridge kit; piers and pontoons; landmarks (the water tower, Pommern, the towers of S:t Görans and the town hall, Kastelholm, Bomarsund, von Knorring); later, ferries and traffic.
 
+**Backlog beyond that:** windmills, granite outcrops and boulders, bushes, reeds, stone walls, boathouses and small boats, hay bales, tractors and sheep; guard rails, reflector posts, speed cameras, verges and wildflowers; linden trees, street furniture, parked cars and harbour fittings; flags, midsummer poles, and a cloud sky.
+
 ## Risks
 
 - **Road quality.** Roads are the one surface the player stares at for the whole game, and neither the terrain nor OpenStreetMap gives a drivable surface directly. Phases 1 and 2 exist largely to prove this.
