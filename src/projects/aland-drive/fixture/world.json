@@ -1,6 +1,6 @@
 {
-  "format": 4,
-  "version": "faa9bf9313af",
+  "format": 5,
+  "version": "9631bb81cce2",
   "worldOrigin": {
     "east": 110000,
     "north": 6690000
@@ -23,8 +23,8 @@
     "stepM": 4.0,
     "unitM": 0.01,
     "encoding": "gzip of int16le; rows north to south, west to east; each value the difference from the one to its west",
-    "min": -0.04,
-    "max": 40.06
+    "min": -0.02,
+    "max": 51.34
   },
   "far": {
     "heightsFile": "heights-far.bin.gz",
@@ -61,6 +61,21 @@
   },
   "water": {
     "nodesFile": "water-nodes.bin.gz"
+  },
+  "overview": {
+    "west": -12000,
+    "north": 6000,
+    "columns": 76,
+    "rows": 76,
+    "stepM": 80,
+    "unitM": 0.01,
+    "heightsFile": "overview-heights.bin.gz",
+    "imageFile": "overview.webp",
+    "imageWidth": 150,
+    "imageHeight": 150
+  },
+  "map": {
+    "file": "map.json.gz"
   },
   "sun": {
     "azimuthDeg": 215,

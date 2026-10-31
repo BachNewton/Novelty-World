@@ -28,6 +28,7 @@ USER_AGENT = "NoveltyWorld-AlandDrive-pipeline/1.0 (https://github.com/BachNewto
 REQUEST_TIMEOUT_S = 90
 # Roads are clipped at the tile's edge, so a little past it catches every way that crosses.
 OSM_MARGIN_M = 200
+ORTHO_YEARS = (2025, 2024, 2023, 2022)
 
 
 def _download(request: urllib.request.Request, path: Path) -> None:
@@ -64,13 +65,35 @@ def _mirrored(folder: str, url: str, name: str) -> Path:
     return path
 
 
+def _mirrored_or_none(folder: str, url: str, name: str) -> Path | None:
+    """Like _mirrored for a sheet the mirror may not have: only a 404 means that, and it's remembered."""
+    absent = RAW / folder / f"{name}.absent"
+    if absent.exists():
+        return None
+    try:
+        return _mirrored(folder, url, name)
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise
+    absent.parent.mkdir(parents=True, exist_ok=True)
+    absent.touch()
+    return None
+
+
 def ortho_path(tile: Tile) -> Path:
-    return _mirrored("ortho", f"{MIRROR}orto/normal_color_3067/mara_v_25000_50/2025/{tile.name[:3]}/02m/1/{tile.name}.jp2", f"{tile.name}.jp2")
+    """The newest photo of a tile. Far out in the archipelago that isn't always the latest flight."""
+    for year in ORTHO_YEARS:
+        path = _mirrored_or_none("ortho", f"{MIRROR}orto/normal_color_3067/mara_v_25000_50/{year}/{tile.name[:3]}/02m/1/{tile.name}.jp2", f"{tile.name}.jp2")
+        if path is not None:
+            return path
+        (RAW / "ortho" / f"{tile.name}.jp2.absent").unlink()
+    raise FileNotFoundError(f"{tile.name}: the mirror has no photo from any of {ORTHO_YEARS}")
 
 
 def laser_paths(tile: Tile) -> list[Path]:
-    """A tile's four 3×3 km sheets."""
-    return [_mirrored("laser", f"{MIRROR}laserkeilaus/2008_latest/2013/{tile.name[:4]}/1/{tile.name}{part}.laz", f"{tile.name}{part}.laz") for part in (1, 2, 3, 4)]
+    """A tile's 3×3 km sheets, of the four. Over open sea the scan has none."""
+    sheets = [_mirrored_or_none("laser", f"{MIRROR}laserkeilaus/2008_latest/2013/{tile.name[:4]}/1/{tile.name}{part}.laz", f"{tile.name}{part}.laz") for part in (1, 2, 3, 4)]
+    return [sheet for sheet in sheets if sheet is not None]
 
 
 def topographic_path(tile: Tile) -> Path:

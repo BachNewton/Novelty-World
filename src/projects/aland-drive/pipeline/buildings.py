@@ -52,6 +52,9 @@ RED, WHITE, YELLOW, CREAM, GREY, PALE = range(6)
 HOUSE_COLOURS = ((RED, 0.66), (WHITE, 0.13), (YELLOW, 0.11), (CREAM, 0.10))
 PLASTER_COLOURS = ((CREAM, 0.4), (PALE, 0.3), (WHITE, 0.2), (YELLOW, 0.1))
 
+# Solids in NLS's data that stand on nothing: the laser sees open air where they are.
+FALSE_SOLIDS = ((108027, 6683455),)
+
 SMALL_SHED_M2 = 40.0
 LARGE_TOWN_BUILDING_M2 = 300.0
 OVERHANG_M = 0.4
@@ -520,6 +523,8 @@ def build(tile: Tile, corners: np.ndarray, above: np.ndarray, photo: np.ndarray,
     built = np.zeros((SAMPLES, SAMPLES), dtype=bool)
     for solid in solids:
         middle = solid.footprint.centroid
+        if any(solid.footprint.contains(Point(place)) for place in FALSE_SOLIDS):
+            continue
         if not (tile.west <= middle.x < tile.east and tile.south <= middle.y < tile.north):
             continue
         hits = [index for index in tree.query(solid.footprint) if footprints[index].shape.intersects(solid.footprint)]

@@ -1,5 +1,5 @@
 {
-  "format": 4,
+  "format": 5,
   "tile": "L2343C",
   "crs": "EPSG:3067",
   "worldOrigin": {
@@ -483,6 +483,17 @@
     "modelled": 641,
     "generated": 239
   },
+  "buildingSheets": [
+    "L2334B",
+    "L2334D",
+    "L2334F",
+    "L2343A",
+    "L2343B",
+    "L2343C",
+    "L2343D",
+    "L2343E",
+    "L2343F"
+  ],
   "water": {
     "nodesFile": "water-nodes.bin.gz"
   },
@@ -969,9 +980,15 @@
         "motor": true
       },
       {
-        "sections": 83,
+        "sections": 87,
         "kind": "unclassified",
-        "motor": true
+        "motor": true,
+        "spans": [
+          [
+            53,
+            56
+          ]
+        ]
       },
       {
         "sections": 12,
@@ -2285,7 +2302,7 @@
         "motor": false
       },
       {
-        "sections": 45,
+        "sections": 46,
         "kind": "cycleway",
         "motor": false
       },

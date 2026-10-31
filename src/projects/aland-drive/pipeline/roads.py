@@ -44,6 +44,20 @@ UNDER_ANOTHER_ROAD_M = 0.3
 SHOULDER_LONGEST_DROP_M = 1.0
 BENEATH_GREATER_ROAD_M = 0.05
 
+# A span is a stretch of road held up over a gap rather than laid on the land: a bridge, or a road the elevation model
+# has over water. Shorter than this it's a culvert, and the land under it is filled as for any road.
+SPAN_SHORTEST_M = 12.0
+# Tagged bridge and water this close together are one span.
+SPAN_JOIN_M = 8.0
+# A bridge over water rises in the middle, by this share of its length, up to a limit.
+SPAN_RISE_SHARE = 0.04
+SPAN_RISE_MOST_M = 4.0
+SPAN_ABOVE_WATER_M = 1.5
+# How hard a span's profile holds to that rise: the road's own stiffness has the last word.
+SPAN_WEIGHT = 0.1
+# Not quite nothing: a road that is all bridge, with no junction to hold it, still needs somewhere to be.
+BRIDGE_WEIGHT = 1e-3
+
 # A cross-section is kept once the ribbon has moved this far from a straight run.
 KEEP_WITHIN_M = 0.02
 LONGEST_SECTION_M = 14.0
@@ -98,17 +112,26 @@ CLASSES = {
 class Ground:
     """Heights on the corners of the 2 m samples, with a rim beyond the tile."""
 
-    def __init__(self, corners: np.ndarray, west: float, north: float, rim: int, spacing: float = STATION_M):
+    def __init__(self, corners: np.ndarray, west: float, north: float, rim: int, spacing: float = STATION_M, water: np.ndarray | None = None):
         self.corners = corners
         self.west = west
         self.north = north
         self.rim = rim
         self.spacing = spacing
+        self.water = water  # True on 2 m samples of lake or sea, with a rim of one sample more than the corners.
 
     def sample(self, xy: np.ndarray) -> np.ndarray:
         columns = (xy[..., 0] - self.west) / self.spacing + self.rim
         rows = (self.north - xy[..., 1]) / self.spacing + self.rim
         return ndimage.map_coordinates(self.corners, [rows.ravel(), columns.ravel()], order=1, mode="nearest").reshape(rows.shape)
+
+    def is_water(self, xy: np.ndarray) -> np.ndarray:
+        if self.water is None:
+            return np.zeros(xy.shape[:-1], dtype=bool)
+        columns = np.floor((xy[..., 0] - self.west) / self.spacing).astype(int) + self.rim + 1
+        rows = np.floor((self.north - xy[..., 1]) / self.spacing).astype(int) + self.rim + 1
+        last = self.water.shape[0] - 1
+        return self.water[np.clip(rows, 0, last), np.clip(columns, 0, last)]
 
     def tile_corners(self) -> np.ndarray:
         return self.corners[self.rim : -self.rim, self.rim : -self.rim] if self.rim else self.corners
@@ -157,6 +180,7 @@ class Chain:
     left: np.ndarray = field(default=None)  # (x, y, z) of the road's left edge.
     right: np.ndarray = field(default=None)
     centre: np.ndarray = field(default=None)
+    span: np.ndarray = field(default=None)  # True on stations held up over a gap.
     kept: np.ndarray = field(default=None)  # Stations left once the ends are cut to the roads they land on.
     seam_stations: list = field(default_factory=list)  # Those ending on a tile's edge, which a junction nearby can't move.
     tree: cKDTree = field(default=None)
@@ -334,6 +358,40 @@ def _edge_pin(ground: Ground, point: np.ndarray, half: float, direction: np.ndar
     return round(max(float(fit[2]), clear + EDGE_PIN_LIFT_M), 3), round(float(fit[0]), 4), round(float(fit[1]), 4)
 
 
+def _runs(flags: np.ndarray) -> list[tuple[int, int]]:
+    """The first and last index of each run of True."""
+    edges = np.flatnonzero(np.diff(np.concatenate(([0], flags.astype(np.int8), [0]))))
+    return [(int(first), int(past) - 1) for first, past in zip(edges[::2], edges[1::2])]
+
+
+def find_spans(tagged: np.ndarray, wet: np.ndarray) -> np.ndarray:
+    """Which stations are held up: a tagged bridge or a road over water, long enough not to be a culvert."""
+    join = int(SPAN_JOIN_M / STATION_M)
+    either = ndimage.binary_closing(tagged | wet, np.ones(2 * join + 1)) | tagged | wet
+    span = np.zeros(len(tagged), dtype=bool)
+    for first, last in _runs(either):
+        if (last - first) * STATION_M >= SPAN_SHORTEST_M:
+            span[first : last + 1] = True
+    return span
+
+
+def _over_spans(ideal: np.ndarray, weights: np.ndarray, span: np.ndarray, tagged: np.ndarray, wet: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """What a profile aims for across each span: straight from bank to bank, rising over open water."""
+    ideal, weights = ideal.copy(), weights.copy()
+    for first, last in _runs(span):
+        low, high = ideal[max(first - 1, 0)], ideal[min(last + 1, len(ideal) - 1)]
+        share = (np.arange(first, last + 1) - first + 1) / (last - first + 2)
+        target = low + share * (high - low)
+        over = wet[first : last + 1]
+        if over.any():
+            target = np.maximum(target, float(np.median(ideal[first : last + 1][over])) + SPAN_ABOVE_WATER_M)
+            if tagged[first : last + 1].any():
+                target += min(SPAN_RISE_SHARE * (last - first) * STATION_M, SPAN_RISE_MOST_M) * np.sin(np.pi * share)
+        ideal[first : last + 1] = target
+        weights[first : last + 1] = SPAN_WEIGHT
+    return ideal, weights
+
+
 def _on_tile_edge(ground: Ground, point: np.ndarray) -> bool:
     east, north = point[0] - ground.west, ground.north - point[1]
     size = ground.size_m
@@ -374,11 +432,13 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
 
     # Each end on a tile's edge eases on to the straight line through the crossing, the way the whole road runs there.
     seam_ends = []
+    # A short road that dips across an edge and back has two seams, and neither may move the other's end.
+    seam_run = min(SEAM_RUN_M, along[-1] / 2)
     for station, seam in ((0, _seam_at(chain.edges[0], points[0], ground)), (len(xy) - 1, _seam_at(chain.edges[-1], points[-1], ground))):
         if seam is None:
             continue
         distance = along if station == 0 else along[-1] - along
-        share = 1 - _smoothstep(distance / SEAM_RUN_M)
+        share = 1 - _smoothstep(distance / seam_run)
         forwards = 1.0 if (xy[-1] - xy[0]) @ seam >= 0 else -1.0
         straight = xy[station] + forwards * seam * (along - along[station])[:, None]
         xy = xy + share[:, None] * (straight - xy)
@@ -413,7 +473,11 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
     spread = xy[:, None, :] + normal[:, None, :] * half[:, None, None] * across
     ideal = np.median(ground.sample(spread), axis=1)
     bridge = np.array([chain.edges[index].road.get("bridge") not in (None, "no") for index in which])
-    weights = np.where(bridge, 0.0, 1.0)
+    weights = np.where(bridge, BRIDGE_WEIGHT, 1.0)
+    wet = ground.is_water(xy)
+    # A footbridge is left to cross whatever it crosses: only over water does it need holding up.
+    span = find_spans(bridge if chain.motor else np.zeros_like(bridge), wet)
+    ideal, weights = _over_spans(ideal, weights, span, bridge, wet)
 
     pins: list[tuple[int, float]] = []
     slopes: list[tuple[int, int, float]] = []
@@ -429,6 +493,7 @@ def lay_chain(chain: Chain, chains: list[Chain], ground: Ground) -> None:
 
     chain.xy, chain.tangent, chain.normal, chain.half = xy, tangent, normal, half
     chain.crown, chain.bank = crown, bank
+    chain.span = span
     chain.shoulder = shoulder
     chain.blend = blend
     chain.tier = np.array([TIERS.index(kind.tier) for kind in kinds], dtype=np.uint8)
@@ -535,7 +600,7 @@ def road_fields(chains: list[Chain], ground: Ground) -> Fields:
     seeds = np.full((size, size), -1, dtype=np.int32)
     laid = [chain for chain in chains if len(chain.kept) >= 2]
     xy = np.concatenate([chain.centre[:, :2] for chain in laid])
-    normal, shoulder, blend = [np.concatenate([getattr(chain, name)[chain.kept] for chain in laid]) for name in ("normal", "shoulder", "blend")]
+    normal, shoulder, blend, span = [np.concatenate([getattr(chain, name)[chain.kept] for chain in laid]) for name in ("normal", "shoulder", "blend", "span")]
     owner = np.concatenate([np.full(len(chain.kept), chain.index) for chain in laid])
     middle = np.concatenate([chain.centre[:, 2] for chain in laid])
     left = np.concatenate([chain.left for chain in laid])
@@ -544,8 +609,10 @@ def road_fields(chains: list[Chain], ground: Ground) -> Fields:
     half_right = np.hypot(*(right[:, :2] - xy).T)
     rows = np.clip(np.round((ground.north - xy[:, 1]) / ground.spacing).astype(int), 0, size - 1)
     columns = np.clip(np.round((xy[:, 0] - ground.west) / ground.spacing).astype(int), 0, size - 1)
-    # The greatest roads go last, so they hold a raster cell two stations share.
-    seeds[rows[::-1], columns[::-1]] = np.arange(len(xy))[::-1]
+    # The greatest roads go last, so they hold a raster cell two stations share. A span shapes no land.
+    # A tile whose only road is a pier still needs a nearest station for every cell, and shapes no land either.
+    laid_on_land = np.flatnonzero(~span)[::-1] if not span.all() else np.arange(len(span))[::-1]
+    seeds[rows[laid_on_land], columns[laid_on_land]] = laid_on_land
     nearest_cell = ndimage.distance_transform_edt(seeds < 0, return_distances=False, return_indices=True)
     station = seeds[nearest_cell[0], nearest_cell[1]]
 
@@ -558,7 +625,8 @@ def road_fields(chains: list[Chain], ground: Ground) -> Fields:
     side = np.where(across >= 0, left[station, 2], right[station, 2])
     share = np.minimum(np.abs(across) / np.maximum(half, 1e-6), 1)
     road_z = middle[station] + share * (side - middle[station])
-    return Fields(np.hypot(offset_east, offset_north), half, road_z, shoulder[station], blend[station], owner[station])
+    distance = np.full_like(offset_east, np.inf) if span.all() else np.hypot(offset_east, offset_north)
+    return Fields(distance, half, road_z, shoulder[station], blend[station], owner[station])
 
 
 def conform_ground(raw: np.ndarray, fields: Fields, spacing: float = STATION_M) -> np.ndarray:
@@ -635,9 +703,10 @@ def _thin_sections(rings: np.ndarray, distance: np.ndarray) -> np.ndarray:
     return np.array(kept)
 
 
-def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: float, fields: Fields, spacing: float, ground: Ground) -> tuple[np.ndarray, np.ndarray]:
-    """A chain's kept cross-sections as rings of (x, y, z), and each section's tier."""
+def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: float, fields: Fields, spacing: float, ground: Ground) -> tuple[np.ndarray, np.ndarray, list[tuple[int, int]]]:
+    """A chain's kept cross-sections as rings of (x, y, z), each section's tier, and the sections each span runs between."""
     keep = chain.kept
+    span = chain.span[keep]
     shoulder = chain.shoulder[keep][:, None] * chain.normal[keep]
     outer_left_xy = chain.left[:, :2] + shoulder
     outer_right_xy = chain.right[:, :2] - shoulder
@@ -650,7 +719,8 @@ def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: 
         lowered = np.minimum(height, fields.road_z[rows, columns] - UNDER_ANOTHER_ROAD_M)
         # Where the land falls away (a road on a bridge, or over an underpass) the shoulder stays a deck: reaching
         # down to the ground it would be a wall across whatever passes beneath.
-        return np.column_stack((xy, np.maximum(np.where(under, lowered, height), edge - SHOULDER_LONGEST_DROP_M)))
+        drawn = np.maximum(np.where(under, lowered, height), edge - SHOULDER_LONGEST_DROP_M)
+        return np.column_stack((xy, np.where(span, edge, drawn)))
 
     def beneath_greater_roads(points: np.ndarray) -> np.ndarray:
         """Where a lesser road runs across a greater one with no junction, such as a path, it passes just under: the greater road's surface is the one a car meets."""
@@ -672,7 +742,10 @@ def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: 
     steps = np.hypot(*np.diff(chain.centre[:, :2], axis=0).T)
     distance = np.concatenate(([0], np.cumsum(steps)))
     thin = _thin_sections(rings, distance)
-    return rings[thin].astype(np.float32), chain.tier[keep][thin]
+    # A span's first and last stations stay, so its ends are where the land stops and not a section short of it.
+    ends = np.flatnonzero(np.diff(span.astype(np.int8)))
+    kept = np.union1d(thin, np.concatenate((ends, ends + 1)))
+    return rings[kept].astype(np.float32), chain.tier[keep][kept], _runs(span[kept])
 
 
 @dataclass
@@ -684,13 +757,12 @@ class Surface:
     ground: Ground
 
 
-def ribbons(surface: Surface, nodes: np.ndarray, step: float, west: float, north: float) -> list[tuple[Chain, np.ndarray, np.ndarray]]:
-    """Every chain long enough to have a surface, greatest first, as its rings and tiers."""
+def ribbons(surface: Surface, nodes: np.ndarray, step: float, west: float, north: float) -> list[tuple[Chain, np.ndarray, np.ndarray, list[tuple[int, int]]]]:
+    """Every chain long enough to have a surface, greatest first, as its rings, tiers and spans."""
     made = []
     for chain in surface.chains:
         if len(chain.kept) >= 2:
-            rings, tiers = ribbon_of(chain, nodes, step, west, north, surface.fields, surface.spacing, surface.ground)
-            made.append((chain, rings, tiers))
+            made.append((chain, *ribbon_of(chain, nodes, step, west, north, surface.fields, surface.spacing, surface.ground)))
     return made
 
 

@@ -9,7 +9,13 @@ import argparse
 import gzip
 import hashlib
 import json
+import os
+from multiprocessing import get_context
 from pathlib import Path
+
+# One thread to a tile: the tiles are what's run side by side, and this has to be set before NumPy and GDAL load.
+for setting in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "GDAL_NUM_THREADS"):
+    os.environ[setting] = "1"
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -18,17 +24,22 @@ import buildings as solids
 import canopy
 import ground as ground_colour
 import laser
+import overview
+import road_map
 import roads as road_surface
 import terrain
 import vectors
-from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, tile_from_name, to_local
-from sources import dem_path, osm_path
+from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
+from island import ISLAND_FILE
+from sources import buildings3d_path, dem_path, osm_path
 
 OUTPUT = Path(__file__).resolve().parent.parent / ".data" / "tiles"
+# What's written beside the tiles but isn't part of what they are: the world's own list, and the local tools' routes.
+NOT_IN_VERSION = {"world.json", "routes.json"}
 HEIGHT_UNIT_M = 0.01
 SHADE_QUALITY = 90
 SHADE_GAMMA = 2.2
-FORMAT = 4
+FORMAT = 5
 # Far terrain: every fourth height node, so the nodes it shares with the 4 m grid, edges included, are the same numbers.
 FAR_NODE_STRIDE = 4
 FAR_SHADE_PIXELS = 750
@@ -79,6 +90,12 @@ def encode_road_surface(ribbons: list[tuple[np.ndarray, np.ndarray]]) -> bytes:
     return gzip.compress(rings + tiers, 9, mtime=0)
 
 
+def building_sheets(tile: Tile) -> list[str]:
+    """The 3D sheets a tile's buildings came from: its own and its neighbours', as many as are on disk."""
+    around = [neighbour(tile, east, north) for north in (-1, 0, 1) for east in (-1, 0, 1)]
+    return sorted(near.name for near in around if buildings3d_path(near) is not None)
+
+
 def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None:
     folder = OUTPUT / tile.name
     folder.mkdir(parents=True, exist_ok=True)
@@ -105,7 +122,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         (folder / "roads.json").write_text(json.dumps({**osm_licence, "roads": roads}, **compact), encoding="utf-8")
         (folder / "buildings.json").write_text(json.dumps({**osm_licence, "buildings": buildings}, **compact), encoding="utf-8")
 
-        ground = road_surface.Ground(corners, west, north, terrain.CORNER_RIM)
+        ground = road_surface.Ground(corners, west, north, terrain.CORNER_RIM, water=water_with_rim)
         ribbons = []
         if roads:
             surface = road_surface.lay_roads(roads, ground)
@@ -114,8 +131,10 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
                 raise ValueError(f"{tile.name}: laying the roads changed a row of heights a neighbour shares")
             mesh_nodes = terrain.height_nodes(conformed)
             ribbons = road_surface.ribbons(surface, mesh_nodes, TILE_SIZE_M / (mesh_nodes.shape[0] - 1), west, north)
-        baked = [(ring, tier) for _, ring, tier in ribbons]
-        motor_roads = [(ring, tier) for chain, ring, tier in ribbons if chain.motor]
+        if not all(np.isfinite(ring).all() for _, ring, _, _ in ribbons):
+            raise ValueError(f"{tile.name}: a road surface came out with no height")
+        baked = [(ring, tier) for _, ring, tier, _ in ribbons]
+        motor_roads = [(ring, tier) for chain, ring, tier, _ in ribbons if chain.motor]
         (folder / "road-surface.bin.gz").write_bytes(encode_road_surface(baked))
         surface_manifest = {
             "file": "road-surface.bin.gz",
@@ -123,8 +142,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
             "ring": ["outer left", "edge left", "centre", "edge right", "outer right"],
             "tiers": road_surface.TIERS,
             "chains": [
-                {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor}.items() if value is not None}
-                for chain, ring, _ in ribbons
+                {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor, "spans": spans or None}.items() if value is not None}
+                for chain, ring, _, spans in ribbons
             ],
             **osm_licence,
         }
@@ -170,6 +189,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "ground": {"file": "ground.webp", "pixels": SAMPLES, "farFile": "ground-far.webp", "farPixels": ground_colour.FAR_PIXELS},
         "canopy": {"file": "canopy.webp", "pixels": canopy.PIXELS, "unitM": canopy.UNIT_M},
         "solids": solids_manifest,
+        "buildingSheets": building_sheets(tile),
         "water": {"nodesFile": "water-nodes.bin.gz"},
         "roads": {"file": "roads.json", "count": len(roads)},
         "buildings": {"file": "buildings.json", "count": len(buildings)},
@@ -188,10 +208,12 @@ def write_world(output: Path = OUTPUT) -> dict:
     """world.json lists the tiles built, and hashes them into the version that names a published copy."""
     manifests = [json.loads((folder / "tile.json").read_text(encoding="utf-8")) for folder in sorted(output.iterdir()) if (folder / "tile.json").exists()]
     digest = hashlib.sha256()
-    for path in sorted(path for path in output.rglob("*") if path.is_file() and path.name != "world.json"):
+    first = manifests[0]
+    overview_manifest = overview.build(output, manifests, TILE_SIZE_M, HEIGHT_UNIT_M)
+    map_manifest = road_map.build(output, [manifest["tile"] for manifest in manifests])
+    for path in sorted(path for path in output.rglob("*") if path.is_file() and path.name not in NOT_IN_VERSION):
         digest.update(path.relative_to(output).as_posix().encode())
         digest.update(path.read_bytes())
-    first = manifests[0]
     world = {
         "format": FORMAT,
         "version": digest.hexdigest()[:12],
@@ -206,6 +228,8 @@ def write_world(output: Path = OUTPUT) -> dict:
         "ground": first["ground"],
         "canopy": first["canopy"],
         "water": first["water"],
+        "overview": overview_manifest,
+        "map": map_manifest,
         "sun": first["sun"],
         "attribution": ATTRIBUTION,
     }
@@ -213,17 +237,45 @@ def write_world(output: Path = OUTPUT) -> dict:
     return world
 
 
+def tiles_with_new_sheets() -> list[str]:
+    """Built tiles whose buildings would come out differently now: a 3D sheet has landed on them or beside them."""
+    stale = []
+    for folder in sorted(OUTPUT.iterdir()):
+        path = folder / "tile.json"
+        if path.exists() and json.loads(path.read_text(encoding="utf-8")).get("buildingSheets") != building_sheets(tile_from_name(folder.name)):
+            stale.append(folder.name)
+    return stale
+
+
+def build_named(name: str, refresh_osm: bool = False) -> None:
+    tile = tile_from_name(name)
+    if dem_path(tile) is None:
+        print(f"{name}: the mirror has no such tile, which means open sea, so it stays out of the world")
+        return
+    build_tile(tile, refresh_osm)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("tiles", nargs="+", help="NLS sheet names, such as L2343C")
-    parser.add_argument("--refresh-osm", action="store_true", help="ask Overpass again instead of reusing the kept copy")
+    parser.add_argument("tiles", nargs="*", help="NLS sheet names, such as L2343C")
+    parser.add_argument("--island", action="store_true", help="every tile in island.json")
+    parser.add_argument("--new-building-sheets", action="store_true", help="the built tiles a 3D sheet added since their build reaches")
+    parser.add_argument("--jobs", type=int, default=1, help="tiles built side by side, on a core each")
+    parser.add_argument("--refresh-osm", action="store_true", help="ask OSM's API again instead of reusing the kept copy")
     arguments = parser.parse_args()
-    for name in arguments.tiles:
-        tile = tile_from_name(name)
-        if dem_path(tile) is None:
-            print(f"{name}: the mirror has no such tile, which means open sea, so it stays out of the world")
-            continue
-        build_tile(tile, arguments.refresh_osm)
+    names = list(arguments.tiles)
+    if arguments.island:
+        island = json.loads(ISLAND_FILE.read_text(encoding="utf-8"))
+        names += island["roadTiles"] + island["around"]
+    if arguments.new_building_sheets:
+        names += tiles_with_new_sheets()
+        print(f"{len(names)} tiles reach a new 3D sheet: {' '.join(names)}")
+    if arguments.jobs > 1:
+        with get_context("spawn").Pool(arguments.jobs, maxtasksperchild=1) as pool:
+            pool.starmap(build_named, [(name, arguments.refresh_osm) for name in names], chunksize=1)
+    else:
+        for name in names:
+            build_named(name, arguments.refresh_osm)
     world = write_world()
     print(f"world {world['version']}: {len(world['tiles'])} tiles")
 

@@ -115,7 +115,7 @@ class Ground_(unittest.TestCase):
         def seam_ring(ground, line, ring_end):
             surface = lay_roads([line], ground)
             nodes = surface.conformed[::2, ::2]
-            rings, _ = roads.ribbons(surface, nodes, 4.0, 0.0, 3000.0)[0][1:]
+            rings = roads.ribbons(surface, nodes, 4.0, 0.0, 3000.0)[0][1]
             return rings[ring_end]
 
         here = seam_ring(west_ground, tile_road(west_of_seam[0], Tile("W", 0, 0)), -1)
@@ -128,6 +128,46 @@ class Ground_(unittest.TestCase):
         single = gzip.decompress(encode_heights(row[None]))
         double = gzip.decompress(encode_heights(row[None].astype(np.float64)))
         self.assertEqual(single, double)
+
+
+class Spans(unittest.TestCase):
+    def strait(self):
+        """Land at 3 m with a strait of water 100 m wide from east 1000."""
+        def height(east, north):
+            return np.where((east > 1000) & (east < 1100), 0.1, 3.0)
+
+        ground = land(height=height)
+        rows, columns = np.mgrid[0 : ground.corners.shape[0] + 1, 0 : ground.corners.shape[1] + 1]
+        ground.water = ((columns - ground.rim - 1) * 2.0 > 1000) & ((columns - ground.rim - 1) * 2.0 < 1100)
+        return ground
+
+    def test_a_bridge_stands_clear_of_the_water_and_the_land_under_it_stays_where_it_was(self):
+        ground = self.strait()
+        surface = lay_roads([road([(800, 1500), (1300, 1500)], bridge="yes")], ground)
+        chain = surface.chains[0]
+        over = (chain.xy[:, 0] > 1010) & (chain.xy[:, 0] < 1090)
+        self.assertTrue(chain.span[over].all())
+        self.assertGreater(chain.height[over].min(), 1.5)
+        middle = surface.conformed[750, 525]
+        self.assertAlmostEqual(float(middle), 0.1, places=3)
+
+    def test_the_spans_sections_are_reported_between_their_ends(self):
+        ground = self.strait()
+        line = road([(800, 1500), (1040, 1500)], kind="service"), road([(1040, 1500), (1300, 1500)], kind="service", bridge="yes")
+        surface = lay_roads([line[0], line[1]], ground)
+        nodes = surface.conformed[::2, ::2]
+        _, rings, _, spans = roads.ribbons(surface, nodes, 4.0, 0.0, 3000.0)[0]
+        self.assertEqual(len(spans), 1)
+        first, last = spans[0]
+        self.assertLess(rings[first, 2, 0], 1010)
+        self.assertGreater(rings[last, 2, 0], 1090)
+
+    def test_a_culvert_is_only_a_road(self):
+        self.assertFalse(roads.find_spans(np.ones(4, dtype=bool), np.zeros(4, dtype=bool)).any())
+
+    def test_a_footbridge_over_land_shapes_it_as_any_path_does(self):
+        surface = lay_roads([{**road([(800, 1500), (1300, 1500)], kind="footway", bridge="yes"), "motor": False}], land())
+        self.assertFalse(surface.chains[0].span.any())
 
 
 class Junctions(unittest.TestCase):
