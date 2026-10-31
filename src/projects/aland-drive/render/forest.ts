@@ -1,47 +1,47 @@
 import { BufferAttribute, DoubleSide, InstancedBufferGeometry, Mesh, MeshBasicNodeMaterial, Vector2, type Node, type Scene, type Vector3 } from "three/webgpu";
-import { all, attribute, cos, dot, float, floor, fract, instanceIndex, lessThan, max, mix, select, sin, smoothstep, uniform, vec2, vec3 } from "three/tsl";
+import { all, attribute, cos, dot, float, floor, fract, instanceIndex, lessThan, max, mix, screenCoordinate, select, sin, smoothstep, uniform, varying, vec2, vec3 } from "three/tsl";
 import { FAR_STEP_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M } from "./tree-place";
 
 /*
- * The forest: two fixed grids of trees that follow the camera, like the terrain,
+ * The forest: three fixed grids of trees that follow the camera, like the terrain,
  * with no list of trees anywhere. An instance is only a place on a lattice of the
  * world, and the shader reads there how tall a tree stands (the tile's canopy
  * image, nothing if there's none) and rolls the rest from the place, so a tree
  * is the same tree whenever it comes back, and moving costs nothing at all.
  *
- * Near the camera trees are turned shapes. Further out every other place goes on
- * as a few triangles of the same outline, opaque, so they need no alpha test and
- * shimmer no worse than any edge. Past those the terrain itself rises by the
- * canopy (`clipmap.ts`).
- *
- * Nothing changes all at once, and each tree changes at a distance of its own, so
- * nothing pops. A place the far grid also holds has both trees through the
- * hand-over: the outline swells inside the turned shape, then the shape draws in
- * round the outline. The places it doesn't hold grow as the camera comes. At the far
- * edge trees shrink into the terrain as it rises to meet them.
+ * A tree never changes size. Near the camera it's a turned shape, then an outline of
+ * the same height and width at the same place, then, far off where it's a few pixels,
+ * a plain cone. Each change of detail is a screen-door crossfade: the two models take
+ * opposite pixels of a fixed pattern, at a distance of the tree's own, so a tree is
+ * always whole. The nearest two grids hold every place. Past those only every other
+ * place goes on, a little wider, and the rest dissolve the same way, where a tree is
+ * twenty pixels tall. At the far edge trees dissolve too, tiny, and by then the
+ * terrain has risen by the canopy behind them (`clipmap.ts`).
  *
  * All three species are one mesh: its rings say where each species' outline goes.
  */
 
-/** A grid moves by whole cells and ends a cell short on its far sides, so a tree must be gone by its last sure row, or a row at a time drops in. */
+/** A grid moves by whole cells and ends a cell short on its far sides, so each is done with by its last sure row, or a row at a time drops in. */
 const NEAR_GRID_M = 150;
-export const FOREST_REACH_M = 1076;
-/** Where the hand-over starts, by a roll for each tree, and how long it takes. */
-const SWAP_FROM_M = 96;
-const SWAP_TO_M = 118;
-const SWAP_RUN_M = 16;
-/** A place with no far twin takes longer, about a second at top speed, starting sooner. */
-const FADE_FROM_M = 62;
-const FADE_TO_M = 100;
-const FADE_RUN_M = 34;
-/** A far tree's outline widens this much, to stand for the three places round it that have gone, over this run past its hand-over. */
-const FAR_WIDEN = 1.35;
-const WIDEN_RUN_M = 90;
-/** Far trees shrink away over this run, ending within the last stretch of the reach by a roll for each tree. */
-const SHRINK_RUN_M = 170;
-const SHRINK_ENDS_WITHIN_M = 60;
+const MID_GRID_M = 480;
+const FAR_GRID_M = 1536;
+export const FOREST_REACH_M = 1500;
+/** Each crossfade starts within the first pair, by a roll for each tree, and takes the run. */
+const TO_OUTLINE_M: Band = [82, 110, 24];
+const TO_CONE_M: Band = [372, 440, 24];
+/** Places the far grid doesn't hold dissolve here, more slowly. */
+const THINNED_M: Band = [340, 410, 54];
+const EDGE_M: Band = [FOREST_REACH_M - 220, FOREST_REACH_M - 90, 90];
+/** A triangle's outline is narrower than the turned shape's, for the same radius. */
+const OUTLINE_FILL = 1.25;
+/** One far tree stands for the places round it that have gone. */
+const CONE_WIDEN = 1.35;
 /** Stood this far into the ground, so the coarser ground a shader reads never shows under a trunk on a slope. */
 const SINK_M = 0.5;
+/** A near tree eases on to the coarser ground over this run, well before it's handed over, too slowly to see. */
+const GROUND_EASE_M: [number, number] = [40, 82];
+
+type Band = [from: number, to: number, run: number];
 
 /** How far up, then how wide, as shares of the tree's height, then 0 for bark and 1 for leaves. */
 type Point = [up: number, wide: number, leaves: number];
@@ -59,17 +59,29 @@ const NEAR_RINGS: Ring[] = [
   [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
 ];
 
-const FAR_RINGS: Ring[] = [
-  [[0, 0.17, 1], [0.45, 0.12, 1], [0.2, 0.11, 1]],
-  [[0.5, 0.1, 1], [0.8, 0.15, 1], [0.6, 0.15, 1]],
+const OUTLINE_RINGS: Ring[] = [
+  [[0, 0.016, 0], [0, 0.016, 0], [0, 0.014, 0]],
+  [[0.1, 0.014, 0], [0.52, 0.012, 0], [0.32, 0.01, 0]],
+  [[0.11, 0.21, 1], [0.54, 0.15, 1], [0.34, 0.13, 1]],
+  [[0.5, 0.12, 1], [0.8, 0.16, 1], [0.66, 0.15, 1]],
   [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
 ];
+/** The trunk's two faces cover what three would, and nothing joins it to the crown. */
+const OUTLINE_LINKS: Link[] = ["thin", "none", "whole", "whole"];
+
+const CONE_RINGS: Ring[] = [
+  [[0.04, 0.17, 1], [0.34, 0.15, 1], [0.2, 0.14, 1]],
+  [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
+];
+const CONE_LINKS: Link[] = ["whole"];
 
 const NEAR_SIDES = 5;
 const FAR_SIDES = 3;
 
+type Link = "whole" | "thin" | "none";
+
 /** A spun outline: per vertex, each species' height and width and whether it's leaves, and its way round. */
-function turned(rings: Ring[], sides: number): InstancedBufferGeometry {
+function turned(rings: Ring[], sides: number, links?: Link[]): InstancedBufferGeometry {
   const positions: number[] = [];
   const heights: number[] = [];
   const radii: number[] = [];
@@ -85,7 +97,8 @@ function turned(rings: Ring[], sides: number): InstancedBufferGeometry {
       heights.push(ring[0][0], ring[1][0], ring[2][0]);
       radii.push(ring[0][1], ring[1][1], ring[2][1]);
       leaves.push(ring[0][2], ring[1][2], ring[2][2]);
-      if (level > 0 && side < sides) {
+      const link = level > 0 ? (links?.[level - 1] ?? "whole") : "none";
+      if (link !== "none" && side < (link === "thin" ? 2 : sides)) {
         const here = level * across + side;
         indices.push(here - across, here - across + 1, here, here, here - across + 1, here + 1);
       }
@@ -106,6 +119,8 @@ export interface ForestInputs {
   canopyAt: (place: Node<"vec2">) => Node<"float">;
   /** The ground at a place: the terrain's own heights near the camera, read coarser further out. */
   groundNear: (place: Node<"vec2">) => Node<"float">;
+  /** For the outlines, out to their reach; without one they read `groundFar`. */
+  groundMid?: (place: Node<"vec2">) => Node<"float">;
   groundFar: (place: Node<"vec2">) => Node<"float">;
   /** How much road the mask holds at a place, and the size of a tile: a tree stands clear of roads, and of a neighbour's over a tile's edge. */
   roads?: { at: (place: Node<"vec2">) => Node<"float">; tileM: number };
@@ -119,15 +134,18 @@ export interface Forest {
   dispose: () => void;
 }
 
-export function createForest(scene: Scene, { canopyAt, groundNear, groundFar, roads, colour, hazed, sun }: ForestInputs): Forest {
+export function createForest(scene: Scene, { canopyAt, groundNear, groundMid = (place) => groundFar(place), groundFar, roads, colour, hazed, sun }: ForestInputs): Forest {
   const cameraSpot = uniform(new Vector2());
   const sunWay = (sun.azimuthDeg * Math.PI) / 180;
   const toSun = vec2(Math.sin(sunWay), -Math.cos(sunWay));
   const parts: { mesh: Mesh; anchor: { value: Vector2 }; step: number; cells: number }[] = [];
+  // Interleaved gradient noise: a fixed pattern on the screen, with no clumps for a crossfade to show as.
+  const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
-  const grid = (rings: Ring[], sides: number, step: number, reach: number, isNear: boolean) => {
+  type Model = "turned" | "outline" | "cone";
+  const grid = (model: Model, rings: Ring[], sides: number, step: number, reach: number, links?: Link[]) => {
     const cells = Math.ceil((2 * reach) / step);
-    const geometry = turned(rings, sides);
+    const geometry = turned(rings, sides, links);
     geometry.instanceCount = cells * cells;
     const anchor = uniform(new Vector2());
     const index = float(instanceIndex);
@@ -138,22 +156,21 @@ export function createForest(scene: Scene, { canopyAt, groundNear, groundFar, ro
     const place = cell.mul(NEAR_STEP_M).add(jitter);
     const height = canopyAt(place).mul(mix(float(HEIGHT_RANGE[0]), float(HEIGHT_RANGE[1]), roll(cell, ...HEIGHT_ROLL)));
     const offset = place.sub(cameraSpot).length();
-    const swap = mix(float(SWAP_FROM_M), float(SWAP_TO_M), roll(cell, 21.17, 5.71));
-    let upShare: Node<"float">;
-    let acrossShare: Node<"float">;
-    if (isNear) {
-      const stays = float(1).sub(smoothstep(swap, swap.add(SWAP_RUN_M), offset));
-      const hasTwin = all(lessThan(fract(cell.mul(0.5)), vec2(0.25)));
-      const fadeStarts = mix(float(FADE_FROM_M), float(FADE_TO_M), roll(cell, 21.17, 5.71));
-      const fades = float(1).sub(smoothstep(fadeStarts, fadeStarts.add(FADE_RUN_M), offset));
-      upShare = select(hasTwin, float(1), fades);
-      acrossShare = select(hasTwin, stays, fades);
-    } else {
-      const shrinkEnds = float(reach).sub(roll(cell, 61.3, 29.7).mul(SHRINK_ENDS_WITHIN_M));
-      upShare = float(1).sub(smoothstep(shrinkEnds.sub(SHRINK_RUN_M), shrinkEnds, offset));
-      acrossShare = smoothstep(swap.sub(SWAP_RUN_M), swap, offset).mul(mix(float(1), float(FAR_WIDEN), smoothstep(swap, swap.add(WIDEN_RUN_M), offset))).mul(upShare);
-    }
-    let here = height.greaterThanEqual(SHORTEST_M).and(acrossShare.greaterThan(0));
+
+    // How much of a tree is still in the model before each change, from 1 down to 0. Together they share out the pattern.
+    const tree = roll(cell, 21.17, 5.71);
+    const stillIn = ([from, to, run]: Band) => {
+      const starts = mix(float(from), float(to), tree);
+      return float(1).sub(smoothstep(starts, starts.add(run), offset));
+    };
+    const onFarGrid = all(lessThan(fract(cell.mul(0.5)), vec2(0.25)));
+    const turnedShare = stillIn(TO_OUTLINE_M);
+    const outlineShare = select(onFarGrid, stillIn(TO_CONE_M), stillIn(THINNED_M));
+    const coneShare = stillIn(EDGE_M);
+    const [from, to] = model === "turned" ? [float(0), turnedShare] : model === "outline" ? [turnedShare, outlineShare] : [outlineShare, coneShare];
+    const live = varying(vec2(from, to));
+
+    let here = height.greaterThanEqual(SHORTEST_M).and(to.greaterThan(from));
     if (roads) {
       // The mask stops at a tile's edge, so close to one a tree looks over it too.
       const inTile = fract(place.div(roads.tileM)).mul(roads.tileM);
@@ -175,11 +192,10 @@ export function createForest(scene: Scene, { canopyAt, groundNear, groundFar, ro
     const unit = attribute<"vec3">("position", "vec3");
     const radial = vec2(unit.x.mul(cos(yaw)).sub(unit.z.mul(sin(yaw))), unit.x.mul(sin(yaw)).add(unit.z.mul(cos(yaw))));
     const rise = pick(attribute<"vec3">("heights", "vec3"));
-    const width = pick(attribute<"vec3">("radii", "vec3")).mul(acrossShare);
-    // The far grid's ground is coarser, so a near tree slides on to it before the two meet.
-    const ground = isNear ? mix(groundNear(place), groundFar(place), smoothstep(swap.sub(SWAP_RUN_M), swap, offset)) : groundFar(place);
+    const width = pick(attribute<"vec3">("radii", "vec3")).mul(model === "cone" ? OUTLINE_FILL * CONE_WIDEN : model === "outline" ? OUTLINE_FILL : 1);
+    const ground = model === "turned" ? mix(groundNear(place), groundMid(place), smoothstep(float(GROUND_EASE_M[0]), float(GROUND_EASE_M[1]), offset)) : model === "outline" ? mix(groundMid(place), groundFar(place), smoothstep(float(TO_OUTLINE_M[1] + TO_OUTLINE_M[2]), float(THINNED_M[0]), offset)) : groundFar(place);
     const material = new MeshBasicNodeMaterial();
-    material.positionNode = vec3(place.x.add(radial.x.mul(width).mul(scale)), ground.sub(SINK_M).add(rise.mul(scale).mul(upShare)), place.y.add(radial.y.mul(width).mul(scale)));
+    material.positionNode = vec3(place.x.add(radial.x.mul(width).mul(scale)), ground.sub(SINK_M).add(rise.mul(scale)), place.y.add(radial.y.mul(width).mul(scale)));
 
     // Sharp at once, or a crown's underside takes the colour of the trunk it spreads from.
     const leafy = smoothstep(float(0), float(0.08), pick(attribute<"vec3">("leaves", "vec3")));
@@ -188,6 +204,7 @@ export function createForest(scene: Scene, { canopyAt, groundNear, groundFar, ro
     const sunSide = dot(radial, toSun).mul(0.2).add(1);
     const shaded = rise.mul(0.5).add(0.62).mul(sunSide).mul(mix(float(0.84), float(1.14), roll(cell, 17.3, 91.1)));
     material.colorNode = hazed(mix(bark, leaf, leafy).mul(shaded));
+    material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y));
     material.side = DoubleSide;
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
@@ -195,8 +212,9 @@ export function createForest(scene: Scene, { canopyAt, groundNear, groundFar, ro
     parts.push({ mesh, anchor, step, cells });
   };
 
-  grid(NEAR_RINGS, NEAR_SIDES, NEAR_STEP_M, NEAR_GRID_M, true);
-  grid(FAR_RINGS, FAR_SIDES, FAR_STEP_M, FOREST_REACH_M, false);
+  grid("turned", NEAR_RINGS, NEAR_SIDES, NEAR_STEP_M, NEAR_GRID_M);
+  grid("outline", OUTLINE_RINGS, FAR_SIDES, NEAR_STEP_M, MID_GRID_M, OUTLINE_LINKS);
+  grid("cone", CONE_RINGS, FAR_SIDES, FAR_STEP_M, FAR_GRID_M, CONE_LINKS);
 
   return {
     update(camera) {

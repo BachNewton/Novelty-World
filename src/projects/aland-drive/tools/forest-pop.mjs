@@ -4,10 +4,10 @@
 //  the same frame with the forest's distances measured from where the car will be half a second on (camera unmoved, so
 //    only the forest's own changes show, with no parallax: this needs `window.__lodShift` in the game's frame loop, which
 //    only a private patch of the game has),
-//  the real next frame, the camera 27.5 m on, half a second at 55 m/s, compared with each pixel free to match within a few pixels, so
+//  the real next frame, the camera half a second on at that speed, compared with each pixel free to match within a few pixels, so
 //    only what isn't explained by the view moving counts, in the band of the picture holding the distance.
 //
-// Prereq: a page server. Usage: node forest-pop.mjs --out=<folder> --gps=<x,z;x,z> [--size=2408x1007] [--stops=8] [--cost] [--folder=<tiles>]
+// Prereq: a page server. Usage: node forest-pop.mjs --out=<folder> --gps=<x,z;x,z> [--size=2408x1007] [--stops=8] [--speed=<km/h>] [--cost] [--folder=<tiles>]
 // --cost skips the pictures and reads draw calls, triangles and GPU time over the stops instead.
 
 /* eslint-disable security/detect-non-literal-fs-filename -- a folder this tool was told to write to */
@@ -24,7 +24,7 @@ const STOPS = Number(option("stops", "8"));
 const COST = process.argv.includes("--cost");
 const FOLDER = option("folder", "src/projects/aland-drive/.data/tiles");
 const PAGE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
-const SPEED_M_S = 55;
+const SPEED_M_S = Number(option("speed", "198")) / 3.6;
 const STEPS_PER_S = 120;
 const STOP_EVERY_STEPS = 600;
 const ONWARD_M = SPEED_M_S / 2;
