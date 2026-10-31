@@ -77,8 +77,8 @@
       {
         "x": -11700.0,
         "z": -2700.0,
-        "vertices": 1116,
-        "indices": 1728
+        "vertices": 1146,
+        "indices": 1782
       },
       {
         "x": -11700.0,
@@ -215,8 +215,8 @@
       {
         "x": -9900.0,
         "z": -300.0,
-        "vertices": 636,
-        "indices": 990
+        "vertices": 580,
+        "indices": 906
       },
       {
         "x": -9300.0,
@@ -257,8 +257,8 @@
       {
         "x": -9300.0,
         "z": -300.0,
-        "vertices": 2656,
-        "indices": 4182
+        "vertices": 2692,
+        "indices": 4242
       },
       {
         "x": -8700.0,
@@ -425,8 +425,8 @@
       {
         "x": -6900.0,
         "z": -300.0,
-        "vertices": 5536,
-        "indices": 8826
+        "vertices": 5404,
+        "indices": 8628
       },
       {
         "x": -6300.0,
@@ -477,11 +477,11 @@
         "indices": 438
       }
     ],
-    "walls": 3997,
+    "walls": 3985,
     "encoding": "gzip; per cell: x, y, z, along, up, width, eaves as int16le differences, tint as four byte columns, indices as uint16le; then walls as four float32le (x1, z1, x2, z2)",
     "overRoads": 23,
-    "modelled": 638,
-    "generated": 245
+    "modelled": 641,
+    "generated": 239
   },
   "water": {
     "nodesFile": "water-nodes.bin.gz"

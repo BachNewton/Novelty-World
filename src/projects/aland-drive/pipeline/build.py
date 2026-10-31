@@ -145,7 +145,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     above = laser.above_ground(tile)
     solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
-    ground_colour.bake(photo, water_with_rim, trees, folder)
+    ground_colour.bake(photo, water_with_rim, trees, built, folder)
     print(f"  {trees.mean():.1%} under trees")
 
     manifest = {

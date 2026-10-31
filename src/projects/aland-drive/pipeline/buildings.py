@@ -18,6 +18,7 @@ import math
 import xml.etree.ElementTree as ElementTree
 import zipfile
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -103,7 +104,8 @@ def _polygons(element) -> list[np.ndarray]:
     return [np.array(ring.text.split(), float).reshape(-1, 3)[:-1] for ring in element.iter(f"{GML}posList")]
 
 
-def read_solids(path: Path) -> list[Solid]:
+@lru_cache(maxsize=None)
+def read_solids(path: Path) -> tuple[Solid, ...]:
     """The CityGML's buildings, as untrusted data: no document type or entities, so the parser expands nothing."""
     with path.open("rb") as raw:
         head = raw.read(65536)
@@ -127,7 +129,7 @@ def read_solids(path: Path) -> list[Solid]:
         if outline is not None and any(face.kind == "wall" for face in faces):
             solids.append(Solid(outline, faces, element.get(f"{GML}id"), True))
         element.clear()
-    return solids
+    return tuple(solids)
 
 
 def _outline(faces: list[Face], ground: list[np.ndarray]) -> Polygon | None:

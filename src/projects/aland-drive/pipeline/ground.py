@@ -29,11 +29,14 @@ FAR_QUALITY = 70
 HAZE = np.array([40.0, 54.0, 80.0])
 BRIGHTEST = np.array([250.0, 240.0, 244.0])
 SATURATION = 1.25
-DARK_GREY = 0.08
-FULL_COLOUR_GREY = 0.3
+# The deepest shadow stays this light, because the render takes the photo to linear light, where dark goes near to black.
+SHADOW_FLOOR = 0.15
+DARK_GREY = 0.2
+FULL_COLOUR_GREY = 0.42
 # Under trees the ground is in shade, and the photo there is treetops, not ground.
 UNDER_TREES_LIGHT = 0.5
 UNDER_TREES_SOFTNESS_SAMPLES = 2
+ROOF_LEAN_SAMPLES = 3
 
 
 def read_photo(tile: Tile) -> np.ndarray:
@@ -46,15 +49,19 @@ def read_photo(tile: Tile) -> np.ndarray:
 
 def graded(photo: np.ndarray) -> np.ndarray:
     """The photo with its haze taken off, as bytes."""
-    clear = np.clip((photo.astype(np.float32) - HAZE) / (BRIGHTEST - HAZE), 0, 1)
+    clear = SHADOW_FLOOR + (1 - SHADOW_FLOOR) * np.clip((photo.astype(np.float32) - HAZE) / (BRIGHTEST - HAZE), 0, 1)
     grey = clear.mean(axis=2, keepdims=True)
     # Shadows hold the sky's blue, which reads as paint on the ground, so colour comes in only with the light.
     saturation = SATURATION * np.clip((grey - DARK_GREY) / (FULL_COLOUR_GREY - DARK_GREY), 0.15, 1)
     return np.round(255 * np.clip(grey + saturation * (clear - grey), 0, 1)).astype(np.uint8)
 
 
-def bake(photo: np.ndarray, water_with_rim: np.ndarray, trees: np.ndarray, folder: Path) -> None:
+def bake(photo: np.ndarray, water_with_rim: np.ndarray, trees: np.ndarray, built: np.ndarray, folder: Path) -> None:
     """`ground.webp` at the shading's size and `ground-far.webp` for every tile's far data."""
+    # The photo leans: a building's roof lies beside where it stands, and its shadow beyond that. The ground nearest takes their place.
+    roofs = ndimage.binary_dilation(built, iterations=ROOF_LEAN_SAMPLES)
+    nearest = ndimage.distance_transform_edt(roofs, return_distances=False, return_indices=True)
+    photo = photo[nearest[0], nearest[1]]
     shaded = ndimage.gaussian_filter(trees.astype(np.float32), UNDER_TREES_SOFTNESS_SAMPLES)
     photo = np.round(photo * (1 - (1 - UNDER_TREES_LIGHT) * shaded)[..., None]).astype(np.uint8)
     into_water = ndimage.distance_transform_edt(water_with_rim)[RIM_SAMPLES:-RIM_SAMPLES, RIM_SAMPLES:-RIM_SAMPLES] * SAMPLE_M
