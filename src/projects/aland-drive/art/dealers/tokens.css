@@ -1,0 +1,35 @@
+/*
+ * The dealerships' colours that no existing token can mix: three invented brands, and the floors, cladding, light
+ * and rubber of a car trade. On integration this block joins the other --color-aland-drive-* tokens in globals.css.
+ */
+:root {
+  --color-aland-drive-dealer-klippa: #d9822b;
+  --color-aland-drive-dealer-klippa-ink: #2a2622;
+  --color-aland-drive-dealer-vastan: #1c74b8;
+  --color-aland-drive-dealer-vastan-ink: #f3f8fb;
+  --color-aland-drive-dealer-tarna: #cdb785;
+  --color-aland-drive-dealer-tarna-ink: #141c26;
+
+  --color-aland-drive-dealer-concrete: #8f8d86;
+  --color-aland-drive-dealer-tile: #d9d7d0;
+  --color-aland-drive-dealer-polish: #34383c;
+  --color-aland-drive-dealer-paving: #a9a59b;
+  --color-aland-drive-dealer-paving-dark: #5f6264;
+  --color-aland-drive-dealer-gravel: #9a917e;
+  --color-aland-drive-dealer-asphalt: #4b4d50;
+  --color-aland-drive-dealer-panel: #e4e6e4;
+  --color-aland-drive-dealer-steel: #8d969c;
+  --color-aland-drive-dealer-steel-dark: #3b4146;
+  --color-aland-drive-dealer-timber: #a8794c;
+  --color-aland-drive-dealer-timber-dark: #3a2a20;
+  --color-aland-drive-dealer-stone: #bdb8ad;
+  --color-aland-drive-dealer-leather: #6b3f2a;
+  --color-aland-drive-dealer-fabric: #46525c;
+  --color-aland-drive-dealer-rubber: #1d1e20;
+  --color-aland-drive-dealer-hazard: #e3b52b;
+  --color-aland-drive-dealer-glass: #3a4c58;
+  --color-aland-drive-dealer-shade: #15181b;
+  --color-aland-drive-dealer-light-warm: #fff0cf;
+  --color-aland-drive-dealer-light-cool: #eaf4ff;
+  --color-aland-drive-dealer-ceiling: #d7d4cb;
+}
