@@ -96,8 +96,9 @@ async function start(width: number, height: number) {
       renderer.render(scene, camera);
       await new Promise(requestAnimationFrame);
       renderer.render(scene, camera);
+      const drawn = { drawCalls: renderer.info.render.drawCalls, triangles: renderer.info.render.triangles };
       await new Promise(requestAnimationFrame);
-      return { drawCalls: renderer.info.render.drawCalls, triangles: renderer.info.render.triangles };
+      return drawn;
     },
   };
 }

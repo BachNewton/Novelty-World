@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Color, Matrix4, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { attribute, cameraPosition, float, int, mat4, mix, modelWorldMatrix, normalGeometry, positionGeometry, positionWorld, reflect, smoothstep, uniform, uniformArray, varying, vec3, vec4 } from "three/tsl";
+import { attribute, cameraPosition, float, int, mix, modelWorldMatrix, normalGeometry, positionGeometry, positionWorld, reflect, smoothstep, uniform, uniformArray, varying, vec3, vec4 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { BikeMesh } from "./build";
 import { PARTS } from "./rig";
@@ -60,16 +60,16 @@ export function bikeMaterial({ sun, hazed }: BikeMaterialOptions) {
   const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
 
   const matrices = PARTS.map(() => new Matrix4());
-  const partMatrices = uniformArray(matrices, "mat4");
+  const partMatrices = uniformArray<"mat4">(matrices, "mat4");
   const palette = SLOTS.map(() => new Color());
-  const paletteColours = uniformArray(palette, "color");
+  const paletteColours = uniformArray<"vec3">(palette);
 
   const tag = attribute<"vec3">("bikeTag", "vec3");
-  const placed = mat4(partMatrices.element(int(tag.x)));
+  const placed = partMatrices.element(int(tag.x));
   const position = placed.mul(vec4(positionGeometry, 1)).xyz;
   const normalInModel = placed.mul(vec4(normalGeometry, 0)).xyz;
   const normalInWorld = varying(modelWorldMatrix.mul(vec4(normalInModel, 0)).xyz);
-  const base = varying(vec3(paletteColours.element(int(tag.y)) as Node<"vec3">));
+  const base = varying(paletteColours.element(int(tag.y)));
   const gloss = varying(tag.z);
   const height = varying(position.y);
 

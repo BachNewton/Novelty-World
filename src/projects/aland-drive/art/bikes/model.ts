@@ -47,7 +47,7 @@ export interface BikeViewOptions {
   helmet?: boolean;
   /** False draws the bike alone. */
   rider?: boolean;
-  /** Hides the head and body, for a camera at the eyes. */
+  /** Hides the head, body and upper arms, for a camera at the eyes. */
   firstPerson?: boolean;
   hazed?: (color: Node<"vec3">) => Node<"vec3">;
 }

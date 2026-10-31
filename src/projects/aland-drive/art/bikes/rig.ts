@@ -58,7 +58,7 @@ export interface RiderOptions {
   rider: boolean;
   helmet: boolean;
   hair: "short" | "long";
-  /** Hides the head and body, for a camera at the eyes. */
+  /** Hides the head, body and upper arms, for a camera at the eyes. */
   firstPerson?: boolean;
 }
 
@@ -221,7 +221,7 @@ export function poseBike(spec: BikeSpec, input: RideInput, motion: RideMotion, o
       const grip = apply(steerAt, [side * l.grip[0], l.grip[1], l.grip[2]]);
       const { joint: elbow, tip, short } = reach(shoulder, grip, BODY.upperArmM, BODY.foreArmM, armPole(side));
       reachShort = Math.max(reachShort, short);
-      set(names[0], aim(shoulder, elbow));
+      if (!options.firstPerson) set(names[0], aim(shoulder, elbow));
       set(names[1], aim(elbow, tip));
     };
     arm(1, ["upperArmRight", "foreArmRight"]);
