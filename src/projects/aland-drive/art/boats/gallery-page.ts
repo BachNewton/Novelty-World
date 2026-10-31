@@ -38,6 +38,8 @@ export interface Shot {
   camera: [number, number, number];
   target: [number, number, number];
   fieldOfView?: number;
+  /** The water's clock for this shot, so two shots show a boat rock. */
+  time?: number;
 }
 
 const renderer = new WebGPURenderer({ antialias: true, reversedDepthBuffer: true });
@@ -95,9 +97,16 @@ shots.push({ name: "row", label: "a row of berths", camera: [firstBerth + 18, 3,
 scene.add(buildRegatta(inputs, { from: { x: 2000, z: -9000 }, to: { x: 5200, z: -9400 }, y: 0, wideM: 1100, count: 64, seed: 7 }));
 shots.push({ name: "regatta", label: "regatta, 64 sails in one draw call, about 9 km off", camera: [3200, 3, 0], target: [3600, 45, -9200], fieldOfView: 22 });
 
+// The optimist, lively, at two moments, square on, so its roll shows against the horizon.
+for (const [name, time] of [["rock-a", 3.1], ["rock-b", 5.2]] as const) {
+  const optimist = CATALOGUE.findIndex((candidate) => candidate.name === "single-hander");
+  shots.push({ name, label: `Laser-type, the water's clock at ${time} s`, camera: [optimist * BERTH_M, 1.4, -9], target: [optimist * BERTH_M, 3.2, 0], time });
+}
+
 const frame = async (name: string) => {
   const shot = shots.find((candidate) => candidate.name === name);
   if (shot === undefined) throw new Error(`no shot ${name}`);
+  clock.value = shot.time ?? 3.1;
   camera.position.set(...shot.camera);
   camera.fov = shot.fieldOfView ?? FIELD_OF_VIEW;
   camera.updateProjectionMatrix();
