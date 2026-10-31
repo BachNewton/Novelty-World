@@ -15,7 +15,7 @@ Cloning copies a reference clip's recording as well as its person. Every line in
 
 1. Add the role to the story's `cast.yaml`: `role`, `seed`, `design` and `reference_text`. The description sets the pitch: the owner trusts it to, so casting doesn't check it.
 2. Run `tools/design_voices.py` from `src/projects/audiobook/drama` (the usage is in its header). It tries up to eight seeds and locks the first that scores at least 3 of 5.
-3. If it reports `NO VOICE`, read the candidates' measures in its log. Change the description, or start from a new `seed`, and run it again. Rewording alone may not be enough.
+3. If it reports `NO VOICE`, run `tools/audition.py` on a batch of reworded descriptions and new seeds, score it with `tools/score_voices.py`, and copy the winner into `voices/<role>/` with its transcript. Then put its description and seed in `cast.yaml`.
 4. Commit the new `voices/<role>/` folder, and set the role's `seed` to the one that passed.
 5. Render as usual. Keep one voice per role across a whole book.
 
@@ -43,6 +43,6 @@ The owner calibrated it by listening to a batch of test voices (`casting/batch-1
 
 - **Taste and fit.** Whether a voice is likeable or suits the character is the owner's call when they listen to the story.
 - **Fuzz is only approximated.** Breath, hiss and rasp sit in the same frequencies as clarity, so the score also measures how noise-like the highs are and caps a fuzzy voice at 2. That limit was set from the test batch's suspicious voices, not from the owner's verdicts on them.
-- **Description wording doesn't reliably set the score.** "Clear, crisp, close-microphone" helps, but seeds of one description can land far apart, which is why casting tries several.
+- **The seed matters more than the wording.** One description landed 36 dB apart on top end across seeds. In `casting/batch-2.yaml`, the same seed with and without the microphone phrase moved in no consistent direction, so rewording works as a fresh draw, not a fix. Very deep and elderly voices pass least often: expect to need several rounds, and look through earlier batches before generating more.
 
 When the owner disagrees with a score, believe them, and update this skill and the bands in `score_voices.py`.
