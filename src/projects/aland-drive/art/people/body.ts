@@ -89,7 +89,7 @@ function arm(soup: Soup, limb: Limb, body: Body, sleeve: Sleeve, skin: Part, clo
     }
   });
   soup.rigged(rigLower, () => {
-    capsule(soup, elbow, wrist, r * 0.86 * bulk, r * 0.62 * (sleeve === "long" ? bulk : 1), sleeve === "long" ? cloth : skin, ARM_SIDES);
+    capsule(soup, elbow, wrist, r * 0.86 * bulk, r * 0.62 * (sleeve === "long" ? bulk : 1), sleeve === "long" ? cloth : skin, ARM_SIDES, { closed: false });
     hand(soup, limb, body, skin);
   });
 }
@@ -104,26 +104,25 @@ function leg(soup: Soup, limb: Limb, body: Body, lower: Lower, skin: Part, cloth
       length(soup, limb.root, hem, thighR * 0.92, thighR * 1.0, cloth, LEG_SIDES);
       capsule(soup, hem, knee, thighR * 0.86, calfR * 1.08, skin, LEG_SIDES, { closed: false });
     } else {
-      capsule(soup, limb.root, knee, thighR * 0.92, calfR * 1.08, dressed ? cloth : skin, LEG_SIDES, { closed: false });
+      capsule(soup, lerp(limb.root, knee, 0.1), knee, thighR * 0.9, calfR * 1.08, dressed ? cloth : skin, LEG_SIDES, { closed: false });
     }
   });
   soup.rigged(rigLower, () => {
     const part = dressed ? cloth : skin;
     const frame = frameAlong(knee, ankle);
     const ring = (at: V3, radius: number): Ring => ({ at, u: add([0, 0, 0], frame.x, radius), v: add([0, 0, 0], frame.z, radius) });
-    soup.tip(ring(knee, calfR * 1.05), add(knee, frame.y, -calfR * 0.8), part, LEG_SIDES);
     soup.loft([ring(knee, calfR * 1.05), ring(lerp(knee, ankle, 0.36), calfR * 1.12), ring(ankle, calfR * (dressed ? 1 : 0.7))], part, { sides: LEG_SIDES, capEnd: true });
     foot(soup, limb, body, shoes);
   });
 }
 
 /** The trunk: hips to the neck's root, with the waist between. */
-function torso(soup: Soup, pose: Posed, body: Body, lowerPart: Part, topPart: Part, jacket: boolean, yoke: Part, rig: Rig) {
+function torso(soup: Soup, pose: Posed, body: Body, lowerPart: Part, topPart: Part, jacket: boolean, skirted: boolean, yoke: Part, rig: Rig) {
   const { pelvis, chest } = pose;
   const chestUp = body.shoulderUp - body.waistUp;
   const swell = jacket ? 1.06 : 1;
   const hem = jacket ? ringIn(pelvis, -0.06 * body.scale, body.hipX * 1.05, body.hipZ * 1.08, -0.01) : ringIn(pelvis, -0.01, body.hipX, body.hipZ, -0.012);
-  soup.loft([ringIn(pelvis, -0.085 * body.scale, body.hipX * 0.58, body.hipZ * 0.72), hem, ringIn(pelvis, body.waistUp + 0.02, body.waistX * swell, body.waistZ * swell)], [lowerPart, jacket ? topPart : lowerPart], { sides: TORSO_SIDES, capStart: true });
+  if (!skirted) soup.loft([ringIn(pelvis, -0.085 * body.scale, body.hipX * 0.58, body.hipZ * 0.72), hem, ringIn(pelvis, body.waistUp + 0.02, body.waistX * swell, body.waistZ * swell)], [lowerPart, jacket ? topPart : lowerPart], { sides: TORSO_SIDES, capStart: true });
   soup.rigged(rig, () => {
     const breast = ringIn(chest, chestUp * 0.5, body.chestX * swell, body.chestZ * swell, 0.012);
     const shoulders = [ringIn(chest, chestUp * 0.88, body.shoulderX * swell, body.shoulderZ * swell, 0.004), ringIn(chest, chestUp * 1.05, body.shoulderX * 0.42, body.shoulderZ * 0.66, -0.004)];
@@ -172,9 +171,9 @@ function hair(soup: Soup, frame: Frame, body: Body, { hair: style, hat: kind }: 
   const rings = (list: readonly Band[]) => list.map(([y, x, z, back]) => ringIn(frame, y * s, x * s, z * s, back * s));
   const shell = (list: readonly Band[]) => {
     // Under a hat only what shows below its band is drawn, or the crown of the hair comes through it.
-    const shown = rings(covered ? list.filter(([y]) => y < HAT_LINE) : list.slice(0, -1));
+    const shown = rings(covered ? list.filter(([y]) => y < HAT_LINE) : list);
     soup.loft(shown, part, { sides: 6, turn: 0, capStart: true, capEnd: covered });
-    if (!covered) soup.tip(shown[shown.length - 1], inFrame(frame, 0, 0.244 * s, -0.012 * s), part, 6, 0);
+    if (!covered) soup.tip(shown[shown.length - 1], inFrame(frame, 0, 0.25 * s, -0.012 * s), part, 6, 0);
   };
   const cap: readonly [number, number, number, number][] = [[0.065, 0.058, 0.066, -0.046], [0.125, 0.083, 0.094, -0.026], [0.19, 0.082, 0.096, -0.012], [0.236, 0.056, 0.066, -0.012]];
   switch (style) {
@@ -192,7 +191,7 @@ function hair(soup: Soup, frame: Frame, body: Body, { hair: style, hat: kind }: 
       break;
     case "ponytail":
       shell(cap);
-      capsule(soup, inFrame(frame, 0, 0.15 * s, -0.11 * s), inFrame(frame, 0, -0.03 * s, -0.135 * s), 0.03 * s, 0.018 * s, part, 4);
+      capsule(soup, inFrame(frame, 0, 0.15 * s, -0.11 * s), inFrame(frame, 0, -0.03 * s, -0.135 * s), 0.03 * s, 0.018 * s, part, 4, { closed: false });
       break;
     case "bun":
       shell(cap);
@@ -211,7 +210,9 @@ function hat(soup: Soup, frame: Frame, body: Body, { hat: kind, colours }: Figur
     const [left, right, tipL, tipR] = [inFrame(frame, 0.07 * s, brimAt, 0.075 * s), inFrame(frame, -0.07 * s, brimAt, 0.075 * s), inFrame(frame, 0.052 * s, brimAt - 0.022 * s, 0.17 * s), inFrame(frame, -0.052 * s, brimAt - 0.022 * s, 0.17 * s)];
     soup.quad(left, right, tipR, tipL, colours.hat, 0.9);
   } else if (kind === "sun-hat") {
-    soup.loft([ringIn(frame, brimAt - 0.014 * s, 0.195 * s, 0.205 * s, -0.004 * s), ringIn(frame, brimAt, 0.098 * s, 0.112 * s, -0.004 * s), ringIn(frame, 0.215 * s, 0.09 * s, 0.1 * s, -0.006 * s), ringIn(frame, 0.255 * s, 0.05 * s, 0.056 * s, -0.008 * s)], ["straw", colours.hat, "straw"], { sides: 7, turn: 0, capEnd: true });
+    const top = ringIn(frame, 0.215 * s, 0.09 * s, 0.1 * s, -0.006 * s);
+    soup.loft([ringIn(frame, brimAt - 0.014 * s, 0.195 * s, 0.205 * s, -0.004 * s), ringIn(frame, brimAt, 0.098 * s, 0.112 * s, -0.004 * s), top], ["straw", colours.hat], { sides: 7, turn: 0 });
+    soup.tip(top, inFrame(frame, 0, 0.262 * s, -0.008 * s), "straw", 7, 0);
   } else if (kind === "helmet") {
     soup.loft([ringIn(frame, 0.135 * s, 0.09 * s, 0.112 * s, -0.008 * s), ringIn(frame, 0.2 * s, 0.09 * s, 0.116 * s, -0.012 * s), ringIn(frame, 0.25 * s, 0.05 * s, 0.078 * s, -0.016 * s)], colours.hat, { sides: 7, turn: 0, capEnd: true });
   }
@@ -287,7 +288,7 @@ export function buildNear(spec: FigureSpec, name: PoseName): Soup {
   const chestRig = rigOf(pose, "chest");
   const bulk = cut.jacket === true ? 1.2 : 1.06;
 
-  torso(soup, pose, body, cut.hipCloth, cut.chestCloth, cut.jacket === true, spec.outfit === "sailing-jacket" ? cut.accent : cut.chestCloth, chestRig);
+  torso(soup, pose, body, cut.hipCloth, cut.chestCloth, cut.jacket === true, cut.lower === "skirt", spec.outfit === "sailing-jacket" ? cut.accent : cut.chestCloth, chestRig);
   if (cut.lower === "skirt") skirt(soup, pose, body, cut.bottom, spec.outfit === "summer-dress" ? 1.02 : 0.9);
 
   const chestUp = body.shoulderUp - body.waistUp;

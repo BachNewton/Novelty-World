@@ -265,7 +265,8 @@ async function budget() {
     renderer.render(scene, camera);
     await renderer.resolveTimestampsAsync(TimestampQuery.RENDER);
     renderer.render(scene, camera);
-    return { ms: (await renderer.resolveTimestampsAsync(TimestampQuery.RENDER)) ?? 0, triangles: renderer.info.render.triangles, calls: renderer.info.render.drawCalls };
+    const counts = { triangles: renderer.info.render.triangles, calls: renderer.info.render.drawCalls };
+    return { ms: (await renderer.resolveTimestampsAsync(TimestampQuery.RENDER)) ?? 0, ...counts };
   };
   const pairs: [Awaited<ReturnType<typeof timed>>, Awaited<ReturnType<typeof timed>>][] = [];
   for (let pair = 0; pair < PAIRS; pair++) {
