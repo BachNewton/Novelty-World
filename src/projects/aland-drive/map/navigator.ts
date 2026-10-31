@@ -1,4 +1,4 @@
-import { drawCar, drawLand, drawNames, drawRoads, drawRoute, type MapInk, type MapView } from "./draw";
+import { drawCar, drawLand, drawNames, drawRoads, drawRoute, flatView, type MapInk } from "./draw";
 import type { RoadGraph, Route } from "./road-graph";
 import type { OverviewFormat } from "../render/tile";
 
@@ -145,7 +145,7 @@ export class Navigator {
     this.lastDraw = { x, z, turn: headingClockwise, route: this.route };
     const { width, height } = this.mini;
     const share = Math.min(speedMS / MINI_FAR_SPEED_MS, 1);
-    const view: MapView = { x, z, scale: MINI_NEAR_SCALE + share * (MINI_FAR_SCALE - MINI_NEAR_SCALE), turn: headingClockwise, width, height, centreX: width / 2, centreY: height * 0.62 };
+    const view = flatView(x, z, MINI_NEAR_SCALE + share * (MINI_FAR_SCALE - MINI_NEAR_SCALE), headingClockwise, width, height, width / 2, height * 0.62);
     const { pen, ink } = this;
     drawLand(pen, view, this.land, this.format, ink, MINI_LAND_DIM);
     drawRoads(pen, view, this.graph, 3, ink);

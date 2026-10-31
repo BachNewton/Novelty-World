@@ -9,17 +9,32 @@ import type { RoadGraph, Route } from "./road-graph";
  */
 
 export interface MapView {
-  x: number;
-  z: number;
-  /** Pixels a metre. */
+  /** Pixels a metre, at the middle of the view. */
   scale: number;
   /** Radians clockwise that the map's top is from north. */
   turn: number;
   width: number;
   height: number;
-  /** Where on the canvas the view's centre is drawn. */
-  centreX: number;
-  centreY: number;
+  /** A place on the ground on the canvas. */
+  toScreen: (x: number, z: number) => [number, number];
+  /** The place on the ground under a point on the canvas. */
+  toWorld: (screenX: number, screenY: number) => [number, number];
+}
+
+/** A flat map seen from straight above, centred at a point on the canvas. */
+export function flatView(x: number, z: number, scale: number, turn: number, width: number, height: number, centreX: number, centreY: number): MapView {
+  const [cos, sin] = [Math.cos(turn), Math.sin(turn)];
+  return {
+    scale,
+    turn,
+    width,
+    height,
+    toScreen: (placeX, placeZ) => [centreX + scale * ((placeX - x) * cos + (placeZ - z) * sin), centreY + scale * ((placeZ - z) * cos - (placeX - x) * sin)],
+    toWorld: (screenX, screenY) => {
+      const [dx, dy] = [(screenX - centreX) / scale, (screenY - centreY) / scale];
+      return [x + dx * cos - dy * sin, z + dx * sin + dy * cos];
+    },
+  };
 }
 
 export interface MapInk {
@@ -44,26 +59,13 @@ export function landImage(pixels: Uint8Array, format: OverviewFormat): Offscreen
   return canvas;
 }
 
-export function toScreen(view: MapView, x: number, z: number): [number, number] {
-  const [dx, dz] = [x - view.x, z - view.z];
-  const [cos, sin] = [Math.cos(view.turn), Math.sin(view.turn)];
-  return [view.centreX + view.scale * (dx * cos + dz * sin), view.centreY + view.scale * (dz * cos - dx * sin)];
-}
-
-/** The scene's place under a point on the canvas. */
-export function toWorld(view: MapView, screenX: number, screenY: number): [number, number] {
-  const [dx, dy] = [(screenX - view.centreX) / view.scale, (screenY - view.centreY) / view.scale];
-  const [cos, sin] = [Math.cos(view.turn), Math.sin(view.turn)];
-  return [view.x + dx * cos - dy * sin, view.z + dx * sin + dy * cos];
-}
-
 export function drawLand(pen: CanvasRenderingContext2D, view: MapView, land: OffscreenCanvas, format: OverviewFormat, ink: MapInk, dim: number): void {
   pen.fillStyle = ink.water;
   pen.fillRect(0, 0, view.width, view.height);
   const metresWide = (format.columns - 1) * format.stepM;
   const pixel = (metresWide / format.imageWidth) * view.scale;
   const [cos, sin] = [Math.cos(view.turn), Math.sin(view.turn)];
-  const [left, top] = toScreen(view, format.west, -format.north);
+  const [left, top] = view.toScreen(format.west, -format.north);
   pen.save();
   pen.setTransform(pixel * cos, -pixel * sin, pixel * sin, pixel * cos, left, top);
   pen.imageSmoothingEnabled = true;
@@ -77,7 +79,7 @@ export function drawLand(pen: CanvasRenderingContext2D, view: MapView, land: Off
 
 /** What's in sight, as a box in the scene, whatever way the map is turned. */
 function sightBox(view: MapView) {
-  const corners = [[0, 0], [view.width, 0], [0, view.height], [view.width, view.height]].map(([x, y]) => toWorld(view, x, y));
+  const corners = [[0, 0], [view.width, 0], [0, view.height], [view.width, view.height]].map(([x, y]) => view.toWorld(x, y));
   const xs = corners.map(([x]) => x);
   const zs = corners.map(([, z]) => z);
   return { west: Math.min(...xs), east: Math.max(...xs), top: Math.min(...zs), bottom: Math.max(...zs) };
@@ -87,7 +89,7 @@ const WIDTHS = [2.6, 2, 1.3, 0.9];
 const ALPHAS = [1, 0.9, 0.7, 0.45];
 
 /** Roads up to a rank, the greatest on top. */
-export function drawRoads(pen: CanvasRenderingContext2D, view: MapView, graph: RoadGraph, mostRank: number, ink: MapInk): void {
+export function drawRoads(pen: CanvasRenderingContext2D, view: MapView, graph: RoadGraph, mostRank: number, ink: MapInk, widthShare = 1): void {
   const { west, east, top, bottom } = sightBox(view);
   const { first, pointX, pointZ, kind, ranks } = graph.data;
   const paths = WIDTHS.map(() => new Path2D());
@@ -96,7 +98,7 @@ export function drawRoads(pen: CanvasRenderingContext2D, view: MapView, graph: R
     if (rank > mostRank) return;
     const path = paths[rank];
     for (let point = first[edge]; point < first[edge + 1]; point++) {
-      const [x, y] = toScreen(view, pointX[point], pointZ[point]);
+      const [x, y] = view.toScreen(pointX[point], pointZ[point]);
       if (point === first[edge]) path.moveTo(x, y);
       else path.lineTo(x, y);
     }
@@ -106,7 +108,7 @@ export function drawRoads(pen: CanvasRenderingContext2D, view: MapView, graph: R
   for (let rank = mostRank; rank >= 0; rank--) {
     pen.strokeStyle = ink.ink;
     pen.globalAlpha = ALPHAS[rank];
-    pen.lineWidth = WIDTHS[rank];
+    pen.lineWidth = WIDTHS[rank] * widthShare;
     pen.stroke(paths[rank]);
   }
   pen.globalAlpha = 1;
@@ -118,7 +120,7 @@ export function drawRoute(pen: CanvasRenderingContext2D, view: MapView, route: R
   let started = false;
   for (let point = 0; point < lengths.length; point++) {
     if (lengths[point] < fromAlong) continue;
-    const [x, y] = toScreen(view, points[point * 3], points[point * 3 + 2]);
+    const [x, y] = view.toScreen(points[point * 3], points[point * 3 + 2]);
     if (started) pen.lineTo(x, y);
     else pen.moveTo(x, y);
     started = true;
@@ -129,7 +131,7 @@ export function drawRoute(pen: CanvasRenderingContext2D, view: MapView, route: R
   pen.strokeStyle = ink.accent;
   pen.lineWidth = 4;
   pen.stroke();
-  const [endX, endY] = toScreen(view, route.end.x, route.end.z);
+  const [endX, endY] = view.toScreen(route.end.x, route.end.z);
   pen.fillStyle = ink.accent;
   pen.strokeStyle = ink.shade;
   pen.lineWidth = 2;
@@ -158,7 +160,7 @@ export function drawNames(pen: CanvasRenderingContext2D, view: MapView, graph: R
   for (const edge of edges) {
     if (taken.length >= room) break;
     const middle = Math.floor((first[edge] + first[edge + 1]) / 2);
-    const [x, y] = toScreen(view, pointX[middle], pointZ[middle]);
+    const [x, y] = view.toScreen(pointX[middle], pointZ[middle]);
     if (x < 0 || y < 0 || x > view.width || y > view.height) continue;
     const text = graph.roadName(edge);
     const half = pen.measureText(text).width / 2 + 4;
@@ -174,7 +176,7 @@ export function drawNames(pen: CanvasRenderingContext2D, view: MapView, graph: R
 
 /** The car: an arrow pointing the way it faces, on the map's own turn. */
 export function drawCar(pen: CanvasRenderingContext2D, view: MapView, x: number, z: number, headingClockwise: number, size: number, ink: MapInk): void {
-  const [screenX, screenY] = toScreen(view, x, z);
+  const [screenX, screenY] = view.toScreen(x, z);
   pen.save();
   pen.translate(screenX, screenY);
   pen.rotate(headingClockwise - view.turn);
