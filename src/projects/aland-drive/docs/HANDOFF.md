@@ -59,6 +59,6 @@ After the owner's judgement, in order:
 
 ## Useful leftovers
 
-- **NLS 3D orders:** MapSite's Buildings 3D page. The flow, its quirks and the terms are in `CLAUDE.md`. The owner has approved ordering NLS data with kyle1235@gmail.com on CC BY 4.0 terms without asking again; anything else on that page, such as an account or payment, goes back to the owner.
+- **NLS 3D orders:** MapSite's Buildings 3D page, with `?lang=en&n=<north>&e=<east>&zoom=9` to centre the map. In a 1400×900 window: choose LOD2, then click the sheet tool, click the map, click the tool again, hover and drag a box until "N map sheets selected" shows. Confirm the sheets in the cart, enter the email twice, tick the licence box itself and order. The confirmation page's `/lataukset/<uuid>` link maps to `/karttapaikka/api/purchaseorders/downloadables/<uuid>`, which lists the zip links. The owner has approved ordering NLS data with kyle1235@gmail.com on CC BY 4.0 terms without asking again; anything else on that page, such as an account or payment, goes back to the owner.
 - **Texture work and town-centre analysis** live only in a temporary session folder and will be lost. Gemini's original red timber image is in the owner's Downloads. The code-made textures would need regenerating, and the findings that matter are already in `CLAUDE.md`.
 - **Gemini prompts:** ask for one image per new chat, starting with "Generate an image:". Plain requests failed with an access error more than once, with no known cause.
