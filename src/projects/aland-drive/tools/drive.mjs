@@ -34,10 +34,12 @@ const points = routes[ROUTE];
 if (!points) throw new Error(`no route ${ROUTE}`);
 
 const tiles = await serveTiles(FOLDER, KBPS === null ? null : Number(KBPS));
+// On the clock the frame rate stays capped, as a player's is: uncapped, frames outrun the GPU by seconds of queued work,
+// and a texture copy then blocks the main thread until that drains, a stall no player meets.
 const browser = await chromium.launch({
   channel: "chromium",
   headless: true,
-  args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu", "--disable-gpu-vsync", "--disable-frame-rate-limit"],
+  args: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--enable-gpu", ...(CLOCK ? [] : ["--disable-gpu-vsync", "--disable-frame-rate-limit"])],
 });
 const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
 const problems = [];

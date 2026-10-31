@@ -414,6 +414,12 @@ export async function startGame(container: HTMLElement, events: GameEvents): Pro
 
   const drive = new Drive(world, startLine(manifest.start.chain).at(START_ALONG_M));
 
+  // A pipeline first used mid-drive stalls that frame while it compiles, so every mesh is built once before the drive starts.
+  for (const { cells } of [...ribbons.values(), ...buildings.values()]) {
+    for (const { mesh } of cells) mesh.visible = true;
+  }
+  await renderer.compileAsync(scene, camera);
+
   const carView = createCarView(scene, manifest.sun);
 
   const { worldOrigin } = manifest;

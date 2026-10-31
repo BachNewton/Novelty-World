@@ -4,7 +4,7 @@
 //
 // Prereq: a dev server. Usage:
 //   node src/projects/aland-drive/tools/look.mjs <out.png> [east north height yaw pitch] [--size=WxH]
-//   node src/projects/aland-drive/tools/look.mjs --shots=<folder> [--size=WxH] <name>:<east>,<north>,<height>,<yaw>,<pitch> or <name>:<metres along Route 1> ...
+//   node src/projects/aland-drive/tools/look.mjs --shots=<folder> [--size=WxH] <name>:<east>,<north>,<height>,<yaw>,<pitch> or <name>:<metres along Route 1> or <name>:<x1>,<y1>,<z1>,<x2>,<y2>,<z2> for a chase view along that line ...
 // Positions are ETRS-TM35FIN metres. ALAND_DRIVE_URL overrides the page's address; add ?tiles=local:<port> to it for a
 // local tile server (`tools/serve-tiles.mjs`), which is what a look should use rather than the real host.
 
@@ -59,6 +59,20 @@ for (const { out, place } of looks) {
       probe.startRoute(0, 40, along);
       probe.advance(600);
     }, place[0]);
+  }
+  // Six numbers are a chase view along a line of two scene points (x, y, z).
+  if (place.length === 6) {
+    await page.evaluate(async (points) => {
+      const probe = window.__alandDrive;
+      probe.hold(true);
+      probe.loadAround({ x: points[0], z: points[2] });
+      await new Promise(requestAnimationFrame);
+      while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
+      probe.setCamera("chase");
+      probe.startLine(points, 12);
+      probe.loadAround(null);
+      probe.advance(240);
+    }, place);
   }
   await page.evaluate(async (settle) => {
     const probe = window.__alandDrive;
