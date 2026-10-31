@@ -65,7 +65,9 @@ export function startChaseCamera(camera: PerspectiveCamera, groundAt: (x: number
         return;
       }
       const speed = speedOf(car);
-      const travel = speed > CHASE.slowMS ? Math.atan2(-car.velocity[0], -car.velocity[2]) : heading;
+      const moving = speed > CHASE.slowMS ? Math.atan2(-car.velocity[0], -car.velocity[2]) : heading;
+      // Backing up, the camera stays behind the nose: following the travel itself would swing it round the car.
+      const travel = Math.cos(wrap(moving - heading)) < 0 ? moving + Math.PI : moving;
       const facing = heading + wrap(travel - heading) * Math.min(speed / CHASE.topSpeedMS + 0.45, 0.8);
       if (swing === null) {
         swing = facing;
