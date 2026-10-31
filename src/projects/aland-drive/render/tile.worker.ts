@@ -1,4 +1,5 @@
 import { decodeHeights, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
+import { decodeSolids, type SolidsCell } from "./solids";
 import { tileDetail, type TileDetail } from "../sim/world";
 
 /*
@@ -15,6 +16,8 @@ export interface FarTile {
   grid: HeightGrid;
   shade: Mips;
   mask: Mips;
+  ground: Mips;
+  canopy: Mips;
   /** Compressed bytes this load read, whether from the network or the browser's cache. */
   bytes: number;
 }
@@ -22,6 +25,8 @@ export interface FarTile {
 export interface DetailTile {
   detail: TileDetail;
   shade: Mips;
+  ground: Mips;
+  buildings: SolidsCell[];
   bytes: number;
 }
 
@@ -95,13 +100,21 @@ export function mipChain(pixels: Uint8Array, size: number, channels: number): Mi
 
 async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<FarTile> {
   const reader = new Reader(`${base}/${tile.name}`);
-  const { far: format, heights, mask } = world;
-  const [farHeights, shade, maskPixels] = await Promise.all([reader.inflated(format.heightsFile), reader.pixels(format.shadeFile, format.shadePixels, 1), reader.pixels(mask.file, mask.pixels, 4)]);
+  const { far: format, heights, mask, ground, canopy } = world;
+  const [farHeights, shade, maskPixels, groundPixels, canopyPixels] = await Promise.all([
+    reader.inflated(format.heightsFile),
+    reader.pixels(format.shadeFile, format.shadePixels, 1),
+    reader.pixels(mask.file, mask.pixels, 4),
+    reader.pixels(ground.farFile, ground.farPixels, 4),
+    reader.pixels(canopy.file, canopy.pixels, 1),
+  ]);
   return {
     name: tile.name,
     grid: decodeHeights(new Int16Array(farHeights), { nodes: format.nodes, stepM: format.stepM, unitM: heights.unitM }, tile),
     shade: mipChain(shade, format.shadePixels, 1),
     mask: mipChain(maskPixels, mask.pixels, 4),
+    ground: mipChain(groundPixels, ground.farPixels, 4),
+    canopy: mipChain(canopyPixels, canopy.pixels, 1),
     bytes: reader.bytes,
   };
 }
@@ -109,20 +122,23 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
 async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<DetailTile> {
   const reader = new Reader(`${base}/${tile.name}`);
   const manifest = await reader.json<TileManifest>("tile.json");
-  const [heights, surface, waterNodes, shade] = await Promise.all([
+  const [heights, surface, waterNodes, shade, ground, solids] = await Promise.all([
     reader.inflated(world.heights.file),
     reader.inflated(manifest.roadSurface.file),
     reader.inflated(world.water.nodesFile),
     reader.pixels(world.shade.file, world.shade.pixels, 1),
+    reader.pixels(world.ground.file, world.ground.pixels, 4),
+    reader.inflated(manifest.solids.file),
   ]);
   const grid = decodeHeights(new Int16Array(heights), world.heights, tile);
-  return { detail: tileDetail(manifest, grid, surface, new Uint8Array(waterNodes), world.tileM), shade: mipChain(shade, world.shade.pixels, 1), bytes: reader.bytes };
+  const { cells, walls } = decodeSolids(solids, manifest.solids);
+  return { detail: tileDetail(manifest, grid, surface, new Uint8Array(waterNodes), world.tileM, walls), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, bytes: reader.bytes };
 }
 
-const transfersOf = ({ grid, shade, mask }: FarTile): Transferable[] => [grid.heights.buffer as ArrayBuffer, ...[...shade, ...mask].map((mip) => mip.buffer as ArrayBuffer)];
+const transfersOf = ({ grid, shade, mask, ground, canopy }: FarTile): Transferable[] => [grid.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy].map((mip) => mip.buffer as ArrayBuffer)];
 
-function detailTransfers({ detail, shade }: DetailTile): Transferable[] {
-  const { ribbon, surface, roads, blockRoads, grid, waterNodes } = detail;
+function detailTransfers({ detail, shade, ground, buildings }: DetailTile): Transferable[] {
+  const { ribbon, surface, roads, blockRoads, grid, waterNodes, walls, blockWalls } = detail;
   const arrays = [
     grid.heights,
     waterNodes,
@@ -141,7 +157,12 @@ function detailTransfers({ detail, shade }: DetailTile): Transferable[] {
     roads.cellSegments,
     blockRoads.first,
     blockRoads.triangles,
+    walls,
+    blockWalls.first,
+    blockWalls.items,
     ...shade,
+    ...ground,
+    ...buildings.flatMap((cell) => [cell.positions, cell.facades, cell.tints, cell.indices]),
   ];
   return [...new Set(arrays.map((array) => array.buffer as ArrayBuffer))];
 }

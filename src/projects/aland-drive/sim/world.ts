@@ -38,6 +38,40 @@ export interface TileDetail {
   ribbon: RibbonMesh;
   roads: TileRoads;
   blockRoads: BlockRoads;
+  /** What the car can't pass: (x1, z1, x2, z2) for each wall of the tile's buildings. */
+  walls: Float32Array;
+  blockWalls: BlockList;
+}
+
+/** For each block of a tile and a rim of one beyond it, the things crossing it. */
+export interface BlockList {
+  /** Where each block's list starts in `items`. */
+  first: Int32Array;
+  items: Int32Array;
+  blocksAcross: number;
+}
+
+function blockWalls(walls: Float32Array, west: number, north: number, tileM: number): BlockList {
+  const blocks = Math.round(tileM / BLOCK_M);
+  const blocksAcross = blocks + 2 * BLOCK_RIM;
+  const lists = Array.from({ length: blocksAcross * blocksAcross }, (): number[] => []);
+  const clamp = (block: number) => Math.max(0, Math.min(blocksAcross - 1, block + BLOCK_RIM));
+  for (let wall = 0; wall < walls.length; wall += 4) {
+    const [firstColumn, lastColumn] = [walls[wall], walls[wall + 2]].map((x) => clamp(Math.floor((x - west) / BLOCK_M))).sort((a, b) => a - b);
+    const [firstRow, lastRow] = [walls[wall + 1], walls[wall + 3]].map((z) => clamp(Math.floor((z + north) / BLOCK_M))).sort((a, b) => a - b);
+    for (let row = firstRow; row <= lastRow; row++) {
+      for (let column = firstColumn; column <= lastColumn; column++) lists[row * blocksAcross + column].push(wall);
+    }
+  }
+  const first = new Int32Array(lists.length + 1);
+  lists.forEach((list, block) => {
+    first[block + 1] = first[block] + list.length;
+  });
+  const items = new Int32Array(first[lists.length]);
+  lists.forEach((list, block) => {
+    items.set(list, first[block]);
+  });
+  return { first, items, blocksAcross };
 }
 
 function blockRoads(ribbon: RibbonMesh, west: number, north: number, tileM: number): BlockRoads {
@@ -75,7 +109,7 @@ function blockRoads(ribbon: RibbonMesh, west: number, north: number, tileM: numb
   return { first, triangles, blocksAcross };
 }
 
-export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterNodes: Uint8Array, tileM: number): TileDetail {
+export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterNodes: Uint8Array, tileM: number, walls: Float32Array = new Float32Array(0)): TileDetail {
   const surface = decodeRoadSurface(surfaceBytes, manifest);
   const ribbon = ribbonMesh(surface, manifest.bounds);
   const column = Math.round(manifest.bounds.west / tileM);
@@ -91,6 +125,8 @@ export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceByte
     ribbon,
     roads: tileRoads(surface, column, row, tileM),
     blockRoads: blockRoads(ribbon, manifest.bounds.west, manifest.bounds.north, tileM),
+    walls,
+    blockWalls: blockWalls(walls, manifest.bounds.west, manifest.bounds.north, tileM),
   };
 }
 
@@ -100,6 +136,8 @@ export interface WorldTile {
   row: number;
   far: HeightGrid | null;
   detail: TileDetail | null;
+  /** Grows whenever its data comes or goes. */
+  revision: number;
 }
 
 const tileKey = (column: number, row: number) => column * 4096 + row;
@@ -124,7 +162,7 @@ export class World {
     for (const { name, west, north } of manifest.tiles) {
       const column = Math.round(west / this.tileM);
       const row = Math.round(-north / this.tileM);
-      this.tiles.set(tileKey(column, row), { name, column, row, far: null, detail: null });
+      this.tiles.set(tileKey(column, row), { name, column, row, far: null, detail: null, revision: 0 });
     }
   }
 
@@ -146,12 +184,16 @@ export class World {
   }
 
   addFar(name: string, grid: HeightGrid): void {
-    this.named(name).far = grid;
+    const tile = this.named(name);
+    tile.far = grid;
+    tile.revision++;
     this.revision++;
   }
 
   addDetail(detail: TileDetail): void {
-    this.named(detail.name).detail = detail;
+    const tile = this.named(detail.name);
+    tile.detail = detail;
+    tile.revision++;
     this.roads.add(detail.roads);
     this.revision++;
   }
@@ -159,6 +201,7 @@ export class World {
   removeDetail(name: string): void {
     const tile = this.named(name);
     tile.detail = null;
+    tile.revision++;
     this.roads.remove(tile.column, tile.row);
     this.revision++;
   }
@@ -223,6 +266,20 @@ export class World {
       if (column < 0 || row < 0 || column >= blocksAcross || row >= blocksAcross) continue;
       const block = row * blocksAcross + column;
       for (let entry = first[block]; entry < first[block + 1]; entry++) visit(detail.ribbon, triangles[entry]);
+    }
+  }
+
+  /** Every loaded tile's building walls crossing a block. */
+  forWallsInBlock(blockColumn: number, blockRow: number, visit: (walls: Float32Array, wall: number) => void): void {
+    const blocks = Math.round(this.tileM / BLOCK_M);
+    for (const { detail } of this.tiles.values()) {
+      if (!detail) continue;
+      const { first, items, blocksAcross } = detail.blockWalls;
+      const column = blockColumn - detail.column * blocks + BLOCK_RIM;
+      const row = blockRow - detail.row * blocks + BLOCK_RIM;
+      if (column < 0 || row < 0 || column >= blocksAcross || row >= blocksAcross) continue;
+      const block = row * blocksAcross + column;
+      for (let entry = first[block]; entry < first[block + 1]; entry++) visit(detail.walls, items[entry]);
     }
   }
 }

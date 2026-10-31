@@ -13,14 +13,16 @@ import { BLOCK_M, type World } from "./world";
 
 const BLOCK_CELLS = 30;
 const REACH_BLOCKS = 1;
+/** Buildings to the car are only walls, from under the ground to above any car. */
+const WALL_BELOW_M = 1;
+const WALL_TALL_M = 6;
 
 const blockKey = (row: number, column: number) => row * 65536 + column;
 
 export class GroundBlocks {
-  private readonly loaded = new Map<number, RAPIER.Collider>();
+  private readonly loaded = new Map<number, { collider: RAPIER.Collider; stamp: number }>();
   private readonly patch = patchIndices(BLOCK_CELLS);
   private readonly stepM: number;
-  private revision: number;
   /** Colliders built since the start: what moving round the world has cost. */
   built = 0;
 
@@ -29,20 +31,26 @@ export class GroundBlocks {
     private readonly world: World,
   ) {
     this.stepM = BLOCK_M / BLOCK_CELLS;
-    this.revision = world.revision;
   }
 
-  private letGo(key: number, collider: RAPIER.Collider): void {
-    this.rapier.removeCollider(collider, false);
+  private letGo(key: number): void {
+    const block = this.loaded.get(key);
+    if (!block) return;
+    this.rapier.removeCollider(block.collider, false);
     this.loaded.delete(key);
   }
 
-  /** Loads the blocks round a point and lets go of the rest. New detail anywhere rebuilds them, so the car stands on the best ground known. */
-  around(x: number, z: number): void {
-    if (this.world.revision !== this.revision) {
-      this.revision = this.world.revision;
-      for (const [key, collider] of this.loaded) this.letGo(key, collider);
+  /** What a block was built from: the tiles its corners and a road's or wall's reach beyond them lie in. Only their changing can change it. */
+  private stampOf(row: number, column: number): number {
+    let stamp = 0;
+    for (const r of [row - 1, row + 2]) {
+      for (const c of [column - 1, column + 2]) stamp = stamp * 31 + (this.world.tileAt(c * BLOCK_M, r * BLOCK_M)?.revision ?? 0);
     }
+    return stamp;
+  }
+
+  /** Loads the blocks round a point and lets go of the rest. New detail under a block rebuilds it, so the car stands on the best ground known; detail landing anywhere else costs the car nothing. */
+  around(x: number, z: number): void {
     const column = Math.floor(x / BLOCK_M);
     const row = Math.floor(z / BLOCK_M);
     const wanted = new Set<number>();
@@ -51,11 +59,15 @@ export class GroundBlocks {
         if (!this.world.tileAt((c + 0.5) * BLOCK_M, (r + 0.5) * BLOCK_M)) continue;
         const key = blockKey(r, c);
         wanted.add(key);
-        if (!this.loaded.has(key)) this.loaded.set(key, this.build(r, c));
+        const stamp = this.stampOf(r, c);
+        const block = this.loaded.get(key);
+        if (block?.stamp === stamp) continue;
+        this.letGo(key);
+        this.loaded.set(key, { collider: this.build(r, c), stamp });
       }
     }
-    for (const [key, collider] of this.loaded) {
-      if (!wanted.has(key)) this.letGo(key, collider);
+    for (const key of this.loaded.keys()) {
+      if (!wanted.has(key)) this.letGo(key);
     }
   }
 
@@ -66,8 +78,12 @@ export class GroundBlocks {
     world.forRoadsInBlock(column, row, (ribbon, triangle) => {
       road.push({ positions: ribbon.positions, indices: ribbon.indices, triangle });
     });
-    const vertices = new Float32Array((across * across + road.length * 3) * 3);
-    const indices = new Uint32Array(this.patch.length + road.length * 3);
+    const walls: { from: Float32Array; at: number }[] = [];
+    world.forWallsInBlock(column, row, (from, at) => {
+      walls.push({ from, at });
+    });
+    const vertices = new Float32Array((across * across + road.length * 3 + walls.length * 4) * 3);
+    const indices = new Uint32Array(this.patch.length + road.length * 3 + walls.length * 6);
     const top = row * BLOCK_CELLS;
     const left = column * BLOCK_CELLS;
     for (let r = 0; r < across; r++) {
@@ -87,6 +103,14 @@ export class GroundBlocks {
         vertices.set(positions.subarray(from, from + 3), vertex * 3);
         indices[next++] = vertex++;
       }
+    }
+    for (const { from, at } of walls) {
+      const [x1, z1, x2, z2] = [from[at], from[at + 1], from[at + 2], from[at + 3]];
+      const [foot1, foot2] = [world.height(x1, z1) - WALL_BELOW_M, world.height(x2, z2) - WALL_BELOW_M];
+      vertices.set([x1, foot1, z1, x2, foot2, z2, x2, foot2 + WALL_TALL_M, z2, x1, foot1 + WALL_TALL_M, z1], vertex * 3);
+      indices.set([vertex, vertex + 1, vertex + 2, vertex, vertex + 2, vertex + 3], next);
+      vertex += 4;
+      next += 6;
     }
     this.built++;
     return this.rapier.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setFriction(0.3));

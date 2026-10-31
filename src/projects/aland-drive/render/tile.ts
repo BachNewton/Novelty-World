@@ -8,6 +8,7 @@ export interface TileManifest {
   tile: string;
   bounds: { west: number; south: number; east: number; north: number };
   roadSurface: { file: string; chains: RoadChain[] };
+  solids: { file: string; unitM: number; cells: { x: number; z: number; vertices: number; indices: number }[]; walls: number };
 }
 
 /** What `world.json` says about the whole of what's been built. */
@@ -22,6 +23,8 @@ export interface WorldManifest {
   far: { nodes: number; stepM: number; heightsFile: string; shadeFile: string; shadePixels: number };
   shade: { file: string; pixels: number; gamma: number };
   mask: { file: string; pixels: number };
+  ground: { file: string; pixels: number; farFile: string; farPixels: number };
+  canopy: { file: string; pixels: number; unitM: number };
   water: { nodesFile: string };
   sun: { azimuthDeg: number; elevationDeg: number };
   attribution: string[];

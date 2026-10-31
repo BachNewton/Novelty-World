@@ -1,6 +1,6 @@
 {
-  "format": 3,
-  "version": "fixture",
+  "format": 4,
+  "version": "80fae7e95888",
   "worldOrigin": {
     "east": 110000,
     "north": 6690000
@@ -48,6 +48,17 @@
       "lesser road"
     ]
   },
+  "ground": {
+    "file": "ground-far.webp",
+    "pixels": 750,
+    "farFile": "ground-far.webp",
+    "farPixels": 750
+  },
+  "canopy": {
+    "file": "canopy.webp",
+    "pixels": 1500,
+    "unitM": 0.25
+  },
   "water": {
     "nodesFile": "water-nodes.bin.gz"
   },
@@ -56,7 +67,7 @@
     "elevationDeg": 30
   },
   "attribution": [
-    "Elevation: National Land Survey of Finland, 2 m elevation model, CC BY 4.0",
-    "Roads and buildings: © OpenStreetMap contributors, ODbL 1.0"
+    "Land: National Land Survey of Finland (elevation, orthophotos, laser scanning, 3D buildings, Topographic Database), CC BY 4.0",
+    "Roads: © OpenStreetMap contributors, ODbL 1.0"
   ]
 }

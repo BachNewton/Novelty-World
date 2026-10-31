@@ -1,5 +1,5 @@
 {
-  "format": 3,
+  "format": 4,
   "tile": "L2343C",
   "crs": "EPSG:3067",
   "worldOrigin": {
@@ -47,6 +47,442 @@
       "lesser road"
     ]
   },
+  "ground": {
+    "file": "ground.webp",
+    "pixels": 3000,
+    "farFile": "ground-far.webp",
+    "farPixels": 750
+  },
+  "canopy": {
+    "file": "canopy.webp",
+    "pixels": 1500,
+    "unitM": 0.25
+  },
+  "solids": {
+    "file": "solids.bin.gz",
+    "unitM": 0.02,
+    "cells": [
+      {
+        "x": -11700.0,
+        "z": -5700.0,
+        "vertices": 1912,
+        "indices": 3120
+      },
+      {
+        "x": -11700.0,
+        "z": -5100.0,
+        "vertices": 222,
+        "indices": 354
+      },
+      {
+        "x": -11700.0,
+        "z": -2700.0,
+        "vertices": 1116,
+        "indices": 1728
+      },
+      {
+        "x": -11700.0,
+        "z": -2100.0,
+        "vertices": 288,
+        "indices": 456
+      },
+      {
+        "x": -11700.0,
+        "z": -1500.0,
+        "vertices": 162,
+        "indices": 246
+      },
+      {
+        "x": -11700.0,
+        "z": -900.0,
+        "vertices": 4016,
+        "indices": 6354
+      },
+      {
+        "x": -11700.0,
+        "z": -300.0,
+        "vertices": 1580,
+        "indices": 2502
+      },
+      {
+        "x": -11100.0,
+        "z": -5700.0,
+        "vertices": 56,
+        "indices": 84
+      },
+      {
+        "x": -11100.0,
+        "z": -5100.0,
+        "vertices": 1498,
+        "indices": 2400
+      },
+      {
+        "x": -11100.0,
+        "z": -4500.0,
+        "vertices": 868,
+        "indices": 1368
+      },
+      {
+        "x": -11100.0,
+        "z": -900.0,
+        "vertices": 692,
+        "indices": 1098
+      },
+      {
+        "x": -11100.0,
+        "z": -300.0,
+        "vertices": 2728,
+        "indices": 4326
+      },
+      {
+        "x": -10500.0,
+        "z": -5700.0,
+        "vertices": 1674,
+        "indices": 2688
+      },
+      {
+        "x": -10500.0,
+        "z": -5100.0,
+        "vertices": 1033,
+        "indices": 1638
+      },
+      {
+        "x": -10500.0,
+        "z": -4500.0,
+        "vertices": 162,
+        "indices": 246
+      },
+      {
+        "x": -10500.0,
+        "z": -2700.0,
+        "vertices": 1805,
+        "indices": 2835
+      },
+      {
+        "x": -10500.0,
+        "z": -2100.0,
+        "vertices": 56,
+        "indices": 84
+      },
+      {
+        "x": -10500.0,
+        "z": -900.0,
+        "vertices": 2134,
+        "indices": 3378
+      },
+      {
+        "x": -10500.0,
+        "z": -300.0,
+        "vertices": 2892,
+        "indices": 4842
+      },
+      {
+        "x": -9900.0,
+        "z": -5700.0,
+        "vertices": 3871,
+        "indices": 6129
+      },
+      {
+        "x": -9900.0,
+        "z": -5100.0,
+        "vertices": 3913,
+        "indices": 6177
+      },
+      {
+        "x": -9900.0,
+        "z": -4500.0,
+        "vertices": 276,
+        "indices": 438
+      },
+      {
+        "x": -9900.0,
+        "z": -3900.0,
+        "vertices": 206,
+        "indices": 318
+      },
+      {
+        "x": -9900.0,
+        "z": -3300.0,
+        "vertices": 404,
+        "indices": 642
+      },
+      {
+        "x": -9900.0,
+        "z": -900.0,
+        "vertices": 56,
+        "indices": 84
+      },
+      {
+        "x": -9900.0,
+        "z": -300.0,
+        "vertices": 636,
+        "indices": 990
+      },
+      {
+        "x": -9300.0,
+        "z": -5700.0,
+        "vertices": 254,
+        "indices": 402
+      },
+      {
+        "x": -9300.0,
+        "z": -5100.0,
+        "vertices": 1208,
+        "indices": 1908
+      },
+      {
+        "x": -9300.0,
+        "z": -4500.0,
+        "vertices": 76,
+        "indices": 114
+      },
+      {
+        "x": -9300.0,
+        "z": -3900.0,
+        "vertices": 956,
+        "indices": 1524
+      },
+      {
+        "x": -9300.0,
+        "z": -3300.0,
+        "vertices": 934,
+        "indices": 1506
+      },
+      {
+        "x": -9300.0,
+        "z": -900.0,
+        "vertices": 870,
+        "indices": 1374
+      },
+      {
+        "x": -9300.0,
+        "z": -300.0,
+        "vertices": 2656,
+        "indices": 4182
+      },
+      {
+        "x": -8700.0,
+        "z": -5700.0,
+        "vertices": 538,
+        "indices": 852
+      },
+      {
+        "x": -8700.0,
+        "z": -5100.0,
+        "vertices": 654,
+        "indices": 1038
+      },
+      {
+        "x": -8700.0,
+        "z": -4500.0,
+        "vertices": 788,
+        "indices": 1248
+      },
+      {
+        "x": -8700.0,
+        "z": -3900.0,
+        "vertices": 1118,
+        "indices": 1764
+      },
+      {
+        "x": -8700.0,
+        "z": -3300.0,
+        "vertices": 50,
+        "indices": 78
+      },
+      {
+        "x": -8700.0,
+        "z": -2700.0,
+        "vertices": 56,
+        "indices": 84
+      },
+      {
+        "x": -8700.0,
+        "z": -300.0,
+        "vertices": 352,
+        "indices": 546
+      },
+      {
+        "x": -8100.0,
+        "z": -5700.0,
+        "vertices": 520,
+        "indices": 828
+      },
+      {
+        "x": -8100.0,
+        "z": -5100.0,
+        "vertices": 1522,
+        "indices": 2364
+      },
+      {
+        "x": -8100.0,
+        "z": -4500.0,
+        "vertices": 1248,
+        "indices": 1980
+      },
+      {
+        "x": -8100.0,
+        "z": -3900.0,
+        "vertices": 648,
+        "indices": 1020
+      },
+      {
+        "x": -8100.0,
+        "z": -3300.0,
+        "vertices": 432,
+        "indices": 678
+      },
+      {
+        "x": -8100.0,
+        "z": -2700.0,
+        "vertices": 290,
+        "indices": 438
+      },
+      {
+        "x": -8100.0,
+        "z": -1500.0,
+        "vertices": 178,
+        "indices": 276
+      },
+      {
+        "x": -7500.0,
+        "z": -5700.0,
+        "vertices": 766,
+        "indices": 1170
+      },
+      {
+        "x": -7500.0,
+        "z": -5100.0,
+        "vertices": 2006,
+        "indices": 3150
+      },
+      {
+        "x": -7500.0,
+        "z": -4500.0,
+        "vertices": 1612,
+        "indices": 2592
+      },
+      {
+        "x": -7500.0,
+        "z": -3900.0,
+        "vertices": 244,
+        "indices": 390
+      },
+      {
+        "x": -7500.0,
+        "z": -3300.0,
+        "vertices": 674,
+        "indices": 1056
+      },
+      {
+        "x": -7500.0,
+        "z": -300.0,
+        "vertices": 616,
+        "indices": 960
+      },
+      {
+        "x": -6900.0,
+        "z": -5700.0,
+        "vertices": 750,
+        "indices": 1206
+      },
+      {
+        "x": -6900.0,
+        "z": -5100.0,
+        "vertices": 2434,
+        "indices": 3834
+      },
+      {
+        "x": -6900.0,
+        "z": -4500.0,
+        "vertices": 212,
+        "indices": 324
+      },
+      {
+        "x": -6900.0,
+        "z": -3900.0,
+        "vertices": 1476,
+        "indices": 2364
+      },
+      {
+        "x": -6900.0,
+        "z": -3300.0,
+        "vertices": 1016,
+        "indices": 1602
+      },
+      {
+        "x": -6900.0,
+        "z": -1500.0,
+        "vertices": 632,
+        "indices": 1002
+      },
+      {
+        "x": -6900.0,
+        "z": -900.0,
+        "vertices": 1440,
+        "indices": 2286
+      },
+      {
+        "x": -6900.0,
+        "z": -300.0,
+        "vertices": 5536,
+        "indices": 8826
+      },
+      {
+        "x": -6300.0,
+        "z": -5700.0,
+        "vertices": 3127,
+        "indices": 4896
+      },
+      {
+        "x": -6300.0,
+        "z": -5100.0,
+        "vertices": 760,
+        "indices": 1158
+      },
+      {
+        "x": -6300.0,
+        "z": -4500.0,
+        "vertices": 156,
+        "indices": 240
+      },
+      {
+        "x": -6300.0,
+        "z": -3300.0,
+        "vertices": 366,
+        "indices": 582
+      },
+      {
+        "x": -6300.0,
+        "z": -2700.0,
+        "vertices": 156,
+        "indices": 240
+      },
+      {
+        "x": -6300.0,
+        "z": -2100.0,
+        "vertices": 106,
+        "indices": 162
+      },
+      {
+        "x": -6300.0,
+        "z": -900.0,
+        "vertices": 1172,
+        "indices": 1860
+      },
+      {
+        "x": -6300.0,
+        "z": -300.0,
+        "vertices": 274,
+        "indices": 438
+      }
+    ],
+    "walls": 3997,
+    "encoding": "gzip; per cell: x, y, z, along, up, width, eaves as int16le differences, tint as four byte columns, indices as uint16le; then walls as four float32le (x1, z1, x2, z2)",
+    "overRoads": 23,
+    "modelled": 638,
+    "generated": 245
+  },
   "water": {
     "nodesFile": "water-nodes.bin.gz"
   },
@@ -59,8 +495,8 @@
     "count": 484
   },
   "attribution": [
-    "Elevation: National Land Survey of Finland, 2 m elevation model, CC BY 4.0",
-    "Roads and buildings: © OpenStreetMap contributors, ODbL 1.0"
+    "Land: National Land Survey of Finland (elevation, orthophotos, laser scanning, 3D buildings, Topographic Database), CC BY 4.0",
+    "Roads: © OpenStreetMap contributors, ODbL 1.0"
   ],
   "roadSurface": {
     "file": "road-surface.bin.gz",
