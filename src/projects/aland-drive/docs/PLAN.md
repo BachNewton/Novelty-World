@@ -98,6 +98,14 @@ Everything, end to end.
 
 Traffic, weather, seasons (a Finnish winter would set this game apart) and ferries to other islands. Picked one at a time by what the game wants most.
 
+## Art still needed
+
+In priority order. The priority is what fills the view most, and the source is open for each one.
+
+**Textures and surfaces:** close-up ground detail (grass, field, gravel, rock, pavement), asphalt and gravel roads, kerbs, road paint at crossings and junctions, a sheet of Finnish road signs, roof detail up close, shopfronts for town, and landmark surfaces.
+
+**3D models:** the player's car, then further invented cars to buy; a roadside kit of about five objects (street lamp, power pole, sign set, fence, mailbox); a better pine; a generic bridge kit; piers and pontoons; landmarks (the water tower, Pommern, the towers of S:t Görans and the town hall, Kastelholm, Bomarsund, von Knorring); later, ferries and traffic.
+
 ## Risks
 
 - **Road quality.** Roads are the one surface the player stares at for the whole game, and neither the terrain nor OpenStreetMap gives a drivable surface directly. Phases 1 and 2 exist largely to prove this.

@@ -78,7 +78,7 @@ Start simple, and add a feature only when it fixes something visibly wrong and i
 
 ## Art direction
 
-Undecided, until the owner has judged the running game. What's there to judge: real land colour under a low-poly forest and flat-shaded buildings with real shapes, red houses with white trim. Cars are invented, with no real brands, and must match the world's art style; they stay placeholder until that is judged.
+Clean, stylised realism: real land colour under a low-poly forest and flat-shaded buildings with real shapes, red houses with white trim. Detail comes from real data and simple shapes, not photographic textures. Cars are invented, with no real brands, and match this style.
 
 ## Data
 
