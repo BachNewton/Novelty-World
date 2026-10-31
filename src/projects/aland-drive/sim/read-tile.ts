@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { decodeHeights, type TileManifest, type WorldManifest } from "../render/tile";
 import { decodeSolids } from "../render/solids";
-import { tileDetail, World } from "./world";
+import { decodeOverview, tileDetail, World } from "./world";
 
 const inflated = (gzipped: Buffer) => {
   const bytes = gunzipSync(gzipped);
@@ -18,6 +18,8 @@ export function readWorld(folder: string): World {
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
   const manifest = JSON.parse(readFileSync(join(folder, "world.json"), "utf8")) as WorldManifest;
   const world = new World(manifest);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
+  world.addOverview(decodeOverview(new Int16Array(inflated(readFileSync(join(folder, manifest.overview.heightsFile)))), manifest.overview));
   for (const { name } of manifest.tiles) {
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
     const tile = JSON.parse(readFileSync(join(folder, name, "tile.json"), "utf8")) as TileManifest;

@@ -22,7 +22,9 @@ import type { World } from "../sim/world";
 
 /** A ring's width in its own cells. A multiple of four, so the hole for the ring within lands on whole cells. */
 const CELLS = 192;
-const LEVELS = 7;
+const LEVELS = 9;
+/** Rings past this one only show on the world map: a drive never sees that far, and they aren't drawn for it. */
+const DRIVING_LEVELS = 7;
 /** A share of a ring's half width: inside it the ring is at its own detail. */
 const FOLD_STARTS = 0.75;
 
@@ -55,10 +57,13 @@ interface Ring {
   column: number;
   row: number;
   revision: number;
+  farRevision: number;
   mesh: Mesh;
 }
 
 export interface Clipmap {
+  /** Shows or hides the rings only the world map needs. */
+  showWide: (shown: boolean) => void;
   /** Moves the rings to the camera, copying heights where they moved or the world's changed. */
   update: (camera: Vector3) => void;
   /** The height of the ring's nearest node to a place: for a shader to stand something on the ground. */
@@ -123,7 +128,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
     mesh.frustumCulled = false;
     scene.add(mesh);
     const groundAt = (spot: Node<"vec2">) => textureLoad(texture, ivec2(round(spot.sub(origin).div(ringStep)))).r;
-    return { stepM: ringStep, groundAt, heights, texture, origin, column: Number.NaN, row: Number.NaN, revision: -1, mesh };
+    return { stepM: ringStep, groundAt, heights, texture, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh };
   });
 
   const copyHeights = (ring: Ring, level: number) => {
@@ -141,9 +146,14 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
     groundAt(level, place) {
       return rings[level].groundAt(place);
     },
+    showWide(shown) {
+      for (const ring of rings.slice(DRIVING_LEVELS)) ring.mesh.visible = shown;
+    },
     update(camera) {
       cameraSpot.value.set(camera.x, camera.z);
       let inside: Ring | null = null;
+      // Far data landing changes every ring, and copying them all at once would cost a frame: one ring a frame instead.
+      let farCopyDone = false;
       rings.forEach((ring, level) => {
         const stride = nodeStride(level);
         // Snapped to twice the ring's own step, so its vertices with even indices are the next ring's.
@@ -152,11 +162,14 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
         const column = centreColumn - (CELLS / 2) * stride;
         const row = centreRow - (CELLS / 2) * stride;
         // From the far grid's step up, a ring reads the same heights with or without detail.
-        const changed = ring.revision !== world.revision && ring.stepM < world.manifest.far.stepM;
+        const farChanged = ring.farRevision !== world.farRevision && !farCopyDone;
+        const changed = farChanged || (ring.revision !== world.revision && ring.stepM < world.manifest.far.stepM);
         if (column !== ring.column || row !== ring.row || changed) {
           ring.column = column;
           ring.row = row;
           ring.revision = world.revision;
+          if (ring.farRevision !== world.farRevision) farCopyDone = true;
+          ring.farRevision = world.farRevision;
           copyHeights(ring, level);
         }
         if (inside) {

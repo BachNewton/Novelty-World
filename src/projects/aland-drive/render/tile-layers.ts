@@ -6,9 +6,10 @@ import type { World, WorldTile } from "../sim/world";
 /*
  * The tiles' images, each kind in one array texture with a layer per tile, so
  * one shader can draw any tile, and its neighbour in the next pixel, with no
- * draw call or material per tile. The far shading and the surface mask have a
- * layer for every tile; the 2 m shading has a few, reused as the car moves.
- * `slots` is a little map from a tile's place to its layers.
+ * draw call or material per tile. Each kind has a few layers, reused as the car
+ * moves, so what this holds doesn't grow with the island: tiles past the far
+ * images are the overview's. `slots` is a little map from a tile's place to its
+ * layers, with a texel for every tile.
  *
  * A layer's mips arrive made, from the worker. They go to the GPU in slices over
  * several frames, because the copy is the one part of a tile that has to happen
@@ -17,6 +18,8 @@ import type { World, WorldTile } from "../sim/world";
 
 /** The most tiles at full detail at once, and the two that can be landing as others leave. */
 const NEAR_LAYERS = 6;
+/** The most tiles the stream holds far data for: four each way, as a car crosses a corner. */
+const FAR_LAYERS = 16;
 const ANISOTROPY = 8;
 /** At 60 fps this is a 2 m image in about half a second, and a few milliseconds' memcpy a frame. */
 const UPLOAD_BYTES_A_FRAME = 2_000_000;
@@ -54,7 +57,10 @@ export class TileLayers {
   readonly mapColumns: number;
   readonly mapRows: number;
   private readonly slotBytes: Uint8Array;
+  /** What every layer holds on the GPU, mips included: it's fixed, so memory can't grow with the drive. */
+  readonly textureBytes: number;
   private readonly freeNear: number[];
+  private readonly freeFar: number[];
   private readonly nearOf = new Map<string, number>();
   private readonly farOf = new Map<string, number>();
   private readonly backend: TextureBackend;
@@ -64,13 +70,19 @@ export class TileLayers {
     const { manifest } = world;
     const tiles = [...world.all()];
     this.backend = renderer.backend as unknown as TextureBackend;
-    this.shadeNear = this.layers(renderer, manifest.shade.pixels, NEAR_LAYERS, 1);
-    this.shadeFar = this.layers(renderer, manifest.far.shadePixels, tiles.length, 1);
-    this.mask = this.layers(renderer, manifest.mask.pixels, tiles.length, 4);
-    this.groundNear = this.layers(renderer, manifest.ground.pixels, NEAR_LAYERS, 4);
-    this.groundFar = this.layers(renderer, manifest.ground.farPixels, tiles.length, 4);
-    this.canopy = this.layers(renderer, manifest.canopy.pixels, tiles.length, 1);
+    const farLayers = Math.min(FAR_LAYERS, tiles.length);
+    const held: [size: number, depth: number, channels: 1 | 4][] = [
+      [manifest.shade.pixels, NEAR_LAYERS, 1],
+      [manifest.far.shadePixels, farLayers, 1],
+      [manifest.mask.pixels, farLayers, 4],
+      [manifest.ground.pixels, NEAR_LAYERS, 4],
+      [manifest.ground.farPixels, farLayers, 4],
+      [manifest.canopy.pixels, farLayers, 1],
+    ];
+    [this.shadeNear, this.shadeFar, this.mask, this.groundNear, this.groundFar, this.canopy] = held.map(([size, depth, channels]) => this.layers(renderer, size, depth, channels));
+    this.textureBytes = Math.round(held.reduce((sum, [size, depth, channels]) => sum + size * size * depth * channels, 0) * (4 / 3));
     this.freeNear = Array.from({ length: NEAR_LAYERS }, (_, layer) => layer);
+    this.freeFar = Array.from({ length: farLayers }, (_, layer) => layer);
 
     this.mapColumn = Math.min(...tiles.map((tile) => tile.column));
     this.mapRow = Math.min(...tiles.map((tile) => tile.row));
@@ -80,9 +92,6 @@ export class TileLayers {
     this.slots = new DataTexture(this.slotBytes, this.mapColumns, this.mapRows, RGFormat);
     this.slots.minFilter = this.slots.magFilter = NearestFilter;
     this.slots.needsUpdate = true;
-    tiles.forEach((tile, layer) => {
-      this.farOf.set(tile.name, layer);
-    });
   }
 
   private layers(renderer: WebGPURenderer, size: number, depth: number, channels: 1 | 4): DataArrayTexture {
@@ -133,10 +142,11 @@ export class TileLayers {
     }
   }
 
-  /** A tile's far images, for the game's start. */
+  /** A tile's far images. */
   placeFar(tile: WorldTile, { shade, mask, ground, canopy }: Pick<FarTile, "shade" | "mask" | "ground" | "canopy">, manifest: WorldManifest, done: () => void): void {
-    const layer = this.farOf.get(tile.name);
-    if (layer === undefined) throw new Error(`no far layer for ${tile.name}`);
+    const layer = this.freeFar.pop();
+    if (layer === undefined) throw new Error(`no free far layer for ${tile.name}: more tiles with far data than the stream allows`);
+    this.farOf.set(tile.name, layer);
     let waiting = 4;
     const landed = () => {
       if (--waiting > 0) return;
@@ -147,6 +157,14 @@ export class TileLayers {
     this.enqueue(this.mask, layer, mask, manifest.mask.pixels, 4, landed);
     this.enqueue(this.groundFar, layer, ground, manifest.ground.farPixels, 4, landed);
     this.enqueue(this.canopy, layer, canopy, manifest.canopy.pixels, 1, landed);
+  }
+
+  releaseFar(tile: WorldTile): void {
+    const layer = this.farOf.get(tile.name);
+    if (layer === undefined) throw new Error(`${tile.name} holds no far layer`);
+    this.farOf.delete(tile.name);
+    this.freeFar.push(layer);
+    this.setSlot(tile, 0, 0);
   }
 
   placeNear(tile: WorldTile, shade: Mips, ground: Mips, manifest: WorldManifest, done: () => void): void {

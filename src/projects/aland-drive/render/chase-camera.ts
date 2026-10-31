@@ -46,6 +46,10 @@ export function startChaseCamera(camera: PerspectiveCamera, groundAt: (x: number
   };
 
   return {
+    /** Forgets where it was, for a car that's been put somewhere else. */
+    snap() {
+      swing = null;
+    },
     /** Moves the camera after `seconds` of the car's motion. */
     update(car: CarState, view: CarView, seconds: number) {
       const heading = headingOf(car.rotation);

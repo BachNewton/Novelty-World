@@ -1,9 +1,12 @@
 // The scripted drives across the tiles, in headless Chromium on the real GPU, each on a fresh server of its own so the
 // bytes it counts are the drive's. Prints what each drive did, what its frames cost and what it downloaded.
 //
-// Prereq: a page server (the dev server is fine), and routes.json beside the tiles (`make-routes.ts`). Usage:
-//   node src/projects/aland-drive/tools/drive.mjs [--route=edge-to-edge|wander|route-1] [--clock] [--kbps=<limit>] [--return]
-//     [--size=3440x1440] [--steps-per-frame=8] [--cruise=<m/s>] [--shots=<folder>]
+// The route is the game's own: the car is put on the road nearest the first place, and the GPS sets a route through the
+// rest in the scene's x and z (two places is exactly picking a destination on the world map).
+//
+// Prereq: a page server (the dev server is fine). Usage:
+//   node src/projects/aland-drive/tools/drive.mjs --gps=<x,z;x,z;...> [--clock] [--kbps=<limit>] [--return]
+//     [--size=3440x1440] [--steps-per-frame=8] [--cruise=<m/s>]
 //
 // --clock drives on the wall clock at real speed, so the frames and the stream race as they do for a player: it's what
 // says whether loading stalled or the car outran it. Without it the simulation is held and stepped by hand, a fixed
@@ -11,7 +14,6 @@
 // --return drives the route again in the same browser, to measure what the browser's cache saves. ALAND_DRIVE_URL
 // overrides the page's address; the tile server is this script's own, whatever that address says.
 
-import { readFileSync } from "node:fs";
 import { chromium } from "playwright";
 import { serveTiles } from "./serve-tiles.mjs";
 
@@ -19,19 +21,14 @@ const option = (name, otherwise) => process.argv.find((arg) => arg.startsWith(`-
 const flag = (name) => process.argv.includes(`--${name}`);
 const [WIDTH, HEIGHT] = option("size", "3440x1440").split("x").map(Number);
 const STEPS_PER_FRAME = Number(option("steps-per-frame", "8"));
-const SHOTS = option("shots", null);
-const ROUTE = option("route", "edge-to-edge");
+const GPS = option("gps", "").split(";").map((place) => place.split(",").map(Number));
+if (GPS.length < 2) throw new Error("--gps needs at least two places");
 const CLOCK = flag("clock");
 const KBPS = option("kbps", null);
 const AGAIN = flag("return");
 const CRUISE_M_S = Number(option("cruise", "60"));
 const FOLDER = option("folder", "src/projects/aland-drive/.data/tiles");
 const PAGE = process.env.ALAND_DRIVE_URL ?? "http://localhost:3001/games/3d-games/aland-drive";
-
-// eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder given on the command line
-const routes = JSON.parse(readFileSync(`${FOLDER}/routes.json`, "utf8"));
-const points = routes[ROUTE];
-if (!points) throw new Error(`no route ${ROUTE}`);
 
 const tiles = await serveTiles(FOLDER, KBPS === null ? null : Number(KBPS));
 // On the clock the frame rate stays capped, as a player's is: uncapped, frames outrun the GPU by seconds of queued work,
@@ -51,10 +48,12 @@ page.on("pageerror", (error) => {
   console.log(`thrown: ${error.stack ?? error.message}`);
 });
 
+const loadStartedAt = Date.now();
 await page.goto(`${PAGE}?tiles=local:${tiles.port}`, { waitUntil: "load" });
 await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
 await page.waitForFunction(() => window.__alandDrive !== undefined, null, { timeout: 120000 });
 
+const firstLoadSeconds = (Date.now() - loadStartedAt) / 1000;
 const gpu = await page.evaluate(async () => {
   const adapter = await navigator.gpu.requestAdapter();
   return { vendor: adapter?.info?.vendor, architecture: adapter?.info?.architecture, description: adapter?.info?.description };
@@ -62,11 +61,22 @@ const gpu = await page.evaluate(async () => {
 const startingBytes = tiles.counts().served;
 const counts = () => fetch(`http://localhost:${tiles.port}/__counts`).then((response) => response.json());
 
-const framesPassed = (count) =>
-  page.evaluate(async (settle) => {
-    const target = window.__alandDrive.frames() + settle;
-    while (window.__alandDrive.frames() < target) await new Promise(requestAnimationFrame);
-  }, count);
+// The map's network arrives after the drive starts. Then the first place loads and the car goes on the road there.
+const points = await page.evaluate(
+  async (places) => {
+    const probe = window.__alandDrive;
+    while (!probe.mapReady()) await new Promise(requestAnimationFrame);
+    probe.hold(true);
+    probe.loadAround({ x: places[0][0], z: places[0][1] });
+    for (let frame = probe.frames() + 4; probe.frames() < frame || probe.stream().loading > 0; ) await new Promise(requestAnimationFrame);
+    probe.placeNear(places[0][0], places[0][1]);
+    if (places.length > 2) return probe.routeThrough(places);
+    if (!probe.setDestination(places[1][0], places[1][1])) throw new Error("no road leads there");
+    return probe.routePoints();
+  },
+  GPS,
+);
+const ROUTE = `${(points.length / 3) | 0} points`;
 
 /** Drives the route once, returning the log and each frame's cost. */
 const driveOnce = () =>
@@ -95,6 +105,7 @@ const driveOnce = () =>
       await idle();
       const costs = [];
       const worst = [];
+      const memory = [];
       const budgetSteps = 120 * 3600;
       let stepped = 0;
       let last = performance.now();
@@ -116,6 +127,7 @@ const driveOnce = () =>
         last = now;
         const { gpuMs, drawCalls, triangles } = probe.counts();
         costs.push({ interval, gpuMs, drawCalls, triangles });
+        if (costs.length % 300 === 0) memory.push(probe.memory());
         if (interval > 25) worst.push({ interval: Number(interval.toFixed(1)), at: probe.log().metres | 0, loading: probe.stream().loading });
       }
       const after = probe.stream();
@@ -128,7 +140,9 @@ const driveOnce = () =>
         return { median: at(0.5), p95: at(0.95), p99: at(0.99), p999: at(0.999), max: at(1) };
       };
       const frames = { count: costs.length, drawCalls: summary((cost) => cost.drawCalls), triangles: summary((cost) => cost.triangles), gpuMs: summary((cost) => cost.gpuMs), interval: summary((cost) => cost.interval) };
-      return { finished: probe.routeFinished(), car: probe.car().position, log: probe.log(), frames, worst: worst.sort((a, b) => b.interval - a.interval).slice(0, 8), loads: after.loads - before.loads, unloads: after.unloads - before.unloads, stream: after, wallSeconds: (performance.now() - startedAt) / 1000 };
+      const memoryRange = (name) => ({ first: Number(memory[0]?.[name].toFixed(0)), peak: Number(Math.max(...memory.map((sample) => sample[name])).toFixed(0)), last: Number(memory[memory.length - 1]?.[name].toFixed(0)) });
+      const held = { jsMB: memoryRange("jsMB"), meshMB: memoryRange("meshMB"), texturesMB: memory[0]?.texturesMB };
+      return { held, finished: probe.routeFinished(), car: probe.car().position, log: probe.log(), frames, worst: worst.sort((a, b) => b.interval - a.interval).slice(0, 8), loads: after.loads - before.loads, unloads: after.unloads - before.unloads, stream: after, wallSeconds: (performance.now() - startedAt) / 1000 };
     },
     { line: points, cruise: CRUISE_M_S, perFrame: STEPS_PER_FRAME, clock: CLOCK, limitSeconds: Number(option("limit-seconds", "1500")) },
   );
@@ -141,9 +155,10 @@ const report = (label, drive, served) => {
   console.log(`  draw calls ${JSON.stringify(drive.frames.drawCalls)} triangles ${JSON.stringify(drive.frames.triangles)}`);
   console.log(`  gpu ms ${JSON.stringify(drive.frames.gpuMs)} frame interval ms ${JSON.stringify(drive.frames.interval)} (${drive.frames.count} frames, ${drive.wallSeconds.toFixed(0)} s)`);
   console.log(`  longest frames ${JSON.stringify(drive.worst)}`);
+  console.log(`  held ${JSON.stringify(drive.held)}`);
 };
 
-console.log(JSON.stringify({ gpu, viewport: `${WIDTH}x${HEIGHT}`, drawnAt: await page.evaluate(() => { const { width, height } = window.__alandDrive.counts(); return `${width}x${height}`; }), startupMB: Number((startingBytes / 1e6).toFixed(2)) }));
+console.log(JSON.stringify({ gpu, viewport: `${WIDTH}x${HEIGHT}`, drawnAt: await page.evaluate(() => { const { width, height } = window.__alandDrive.counts(); return `${width}x${height}`; }), startupMB: Number((startingBytes / 1e6).toFixed(2)), firstLoadSeconds }));
 
 const first = await counts();
 const watching = setInterval(() => {
@@ -158,31 +173,6 @@ if (AGAIN) {
   const back = await driveOnce();
   const third = await counts();
   report("return", back, { bytes: third.served - second.served, requests: third.requests - second.requests });
-}
-
-if (SHOTS !== null) {
-  const shot = async (name, set) => {
-    await page.evaluate(set);
-    await page.evaluate(async () => {
-      const probe = window.__alandDrive;
-      const frame = probe.frames();
-      while (probe.frames() < frame + 4) await new Promise(requestAnimationFrame);
-      while (probe.stream().loading > 0) await new Promise(requestAnimationFrame);
-    });
-    await framesPassed(8);
-    await page.screenshot({ path: `${SHOTS}/${name}.png` });
-    console.log(`${SHOTS}/${name}.png`);
-  };
-  await shot("chase-route-1", () => {
-    const probe = window.__alandDrive;
-    probe.hold(true);
-    probe.setCamera("chase");
-    probe.startRoute(0, 40, 1200);
-    probe.advance(1200);
-  });
-  await shot("hood-route-1", () => {
-    window.__alandDrive.setCamera("hood");
-  });
 }
 
 if (problems.length > 0) console.log(`The page reported:\n${[...new Set(problems)].slice(0, 20).join("\n")}`);

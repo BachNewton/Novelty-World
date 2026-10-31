@@ -26,8 +26,24 @@ export interface WorldManifest {
   ground: { file: string; pixels: number; farFile: string; farPixels: number };
   canopy: { file: string; pixels: number; unitM: number };
   water: { nodesFile: string };
+  overview: OverviewFormat;
+  map: { file: string };
   sun: { azimuthDeg: number; elevationDeg: number };
   attribution: string[];
+}
+
+/** The whole world, small: heights with the forest on them, and the land's colour with its light in it. */
+export interface OverviewFormat {
+  west: number;
+  north: number;
+  columns: number;
+  rows: number;
+  stepM: number;
+  unitM: number;
+  heightsFile: string;
+  imageFile: string;
+  imageWidth: number;
+  imageHeight: number;
 }
 
 export interface WorldTileEntry {
@@ -49,6 +65,8 @@ export interface RoadChain {
   ref?: string;
   name?: string;
   motor: boolean;
+  /** The first and last section of each stretch held up over a gap. */
+  spans?: [number, number][];
 }
 
 /** Cross-sections across a road, in rings of five points: outer left, edge left, centre, edge right, outer right. */

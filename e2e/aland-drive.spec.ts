@@ -53,6 +53,33 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
   await expect(page.getByRole("status")).not.toHaveText("0");
 });
 
+test("a place picked on the world map sets a route on both maps, and the map closes back to the drive", async ({ page }) => {
+  await page.goto(onFixture);
+  await page.waitForFunction(() => window.__alandDrive?.mapReady() === true, null, { timeout: 60_000 });
+  await expect(page.getByLabel("Mini map")).toBeVisible();
+
+  await page.keyboard.press("KeyM");
+  const map = page.getByLabel("Island map");
+  await expect(map).toBeVisible();
+  // The map's view only exists once it has fitted itself to the canvas, a frame after it shows.
+  await page.waitForFunction(() => window.__alandDrive?.mapShown() === 1);
+  const box = await map.boundingBox();
+  if (!box) throw new Error("the world map has no size");
+  await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.6);
+  await page.waitForFunction(() => (window.__alandDrive?.routePoints()?.length ?? 0) > 6);
+
+  await page.keyboard.press("Escape");
+  await expect(map).toBeHidden();
+  await expect(page.getByLabel("Next direction")).toBeVisible();
+
+  // Clearing goes through the map, and takes the direction with it.
+  await page.keyboard.press("KeyM");
+  await expect(map).toBeVisible();
+  await page.keyboard.press("KeyX");
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => window.__alandDrive?.routePoints() === null);
+});
+
 test("a browser that only gets WebGL2 is told the game needs WebGPU", async ({ page }) => {
   // The failure three hides: an adapter is there, the device can't be made, and it quietly drops to WebGL2.
   await page.addInitScript(() => {
@@ -66,7 +93,7 @@ test("a browser that only gets WebGL2 is told the game needs WebGPU", async ({ p
 test("a tile that can't be fetched says so, and the page doesn't pretend otherwise", async ({ page }) => {
   // A world whose tiles aren't there: the same path a dropped connection or a bad deploy takes.
   const folder = mkdtempSync(join(tmpdir(), "aland-drive-"));
-  cpSync(`${FIXTURE_TILES}/world.json`, join(folder, "world.json"));
+  for (const file of ["world.json", "overview-heights.bin.gz", "overview.webp", "map.json.gz"]) cpSync(`${FIXTURE_TILES}/${file}`, join(folder, file));
   const { server, port } = await serveTiles(folder);
   await page.goto(`${PAGE}?tiles=local:${port}`);
   await expect(page.getByText("lost part of the map")).toContainText(": 404", { timeout: 60_000 });

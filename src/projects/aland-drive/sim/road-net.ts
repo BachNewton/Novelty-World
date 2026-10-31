@@ -121,6 +121,8 @@ export function tileRoads(surface: RoadSurface, column: number, row: number, til
       if (section > 0) lengths[point] = lengths[point - 1] + Math.hypot(points[point * 3] - points[point * 3 - 3], points[point * 3 + 2] - points[point * 3 - 1]);
     }
     for (let segment = next; segment < next + chain.sections - 1; segment++) {
+      // Two sections can land on one place where a road ends on another's edge.
+      if (lengths[segment + 1] === lengths[segment]) continue;
       const steps = Math.ceil((lengths[segment + 1] - lengths[segment]) / (CELL_M / 2));
       for (let step = 0; step <= steps; step++) {
         const share = step / steps;

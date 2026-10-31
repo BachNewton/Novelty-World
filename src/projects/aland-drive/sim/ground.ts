@@ -1,6 +1,6 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { patchIndices } from "../render/tile";
-import { BLOCK_M, type World } from "./world";
+import { BLOCK_M, WALL_FLOATS, type World } from "./world";
 
 /*
  * What the car can touch: the drawn triangles themselves, ground and road, in
@@ -105,8 +105,9 @@ export class GroundBlocks {
       }
     }
     for (const { from, at } of walls) {
-      const [x1, z1, x2, z2] = [from[at], from[at + 1], from[at + 2], from[at + 3]];
-      const [foot1, foot2] = [world.height(x1, z1) - WALL_BELOW_M, world.height(x2, z2) - WALL_BELOW_M];
+      const [x1, z1, x2, z2, stands1, stands2] = from.subarray(at, at + WALL_FLOATS);
+      const foot1 = Number.isNaN(stands1) ? world.height(x1, z1) - WALL_BELOW_M : stands1;
+      const foot2 = Number.isNaN(stands2) ? world.height(x2, z2) - WALL_BELOW_M : stands2;
       vertices.set([x1, foot1, z1, x2, foot2, z2, x2, foot2 + WALL_TALL_M, z2, x1, foot1 + WALL_TALL_M, z1], vertex * 3);
       indices.set([vertex, vertex + 1, vertex + 2, vertex, vertex + 2, vertex + 3], next);
       vertex += 4;

@@ -19,21 +19,32 @@ export const BINDINGS = {
   respawn: binding("Y", "R"),
   view: binding("RB", "C"),
   freeCamera: binding("View", "F"),
+  map: binding("Menu", "M"),
+  mapPick: binding("A", "Click"),
+  mapClear: binding("X", "X"),
+  mapClose: binding("B", "Esc"),
 } as const;
 
-export type GameAction = "respawn" | "view" | "freeCamera";
+export type GameAction = "respawn" | "view" | "freeCamera" | "map";
+export type MapAction = "pick" | "clear" | "close";
 
-const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyC: "view", KeyF: "freeCamera" };
-const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", RB: "view", View: "freeCamera" };
+const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyC: "view", KeyF: "freeCamera", KeyM: "map" };
+const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", RB: "view", View: "freeCamera", Menu: "map" };
+const KEY_MAP_ACTIONS: Partial<Record<string, MapAction>> = { KeyX: "clear", Escape: "close", KeyM: "close" };
+const PAD_MAP_ACTIONS: Partial<Record<StandardButton, MapAction>> = { A: "pick", X: "clear", B: "close", Menu: "close" };
 const TAKEN_KEYS = new Set(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
 export interface ControlsListener {
   onAction: (action: GameAction) => void;
+  onMapAction: (action: MapAction) => void;
+  /** A number key: the digit, as a string. */
+  onDigit: (digit: string) => void;
   onInputKind: (kind: InputKind) => void;
 }
 
-export function startControls({ onAction, onInputKind }: ControlsListener) {
+export function startControls({ onAction, onMapAction, onDigit, onInputKind }: ControlsListener) {
   const held = new Set<string>();
+  let mapOpen = false;
   let pad: PadReading | null = null;
   let kind: InputKind = "keyboard-mouse";
 
@@ -48,8 +59,14 @@ export function startControls({ onAction, onInputKind }: ControlsListener) {
     if (event.repeat) return;
     switchTo("keyboard-mouse");
     held.add(event.code);
+    if (mapOpen) {
+      const mapAction = KEY_MAP_ACTIONS[event.code];
+      if (mapAction) onMapAction(mapAction);
+      return;
+    }
     const action = KEY_ACTIONS[event.code];
     if (action) onAction(action);
+    if (event.code.startsWith("Digit")) onDigit(event.code.slice(5));
   };
   const onKeyUp = (event: KeyboardEvent) => held.delete(event.code);
   const onBlur = () => {
@@ -67,6 +84,11 @@ export function startControls({ onAction, onInputKind }: ControlsListener) {
     },
     onButton(edge) {
       if (!edge.pressed || edge.name === null) return;
+      if (mapOpen) {
+        const mapAction = PAD_MAP_ACTIONS[edge.name];
+        if (mapAction) onMapAction(mapAction);
+        return;
+      }
       const action = PAD_ACTIONS[edge.name];
       if (action) onAction(action);
     },
@@ -95,6 +117,15 @@ export function startControls({ onAction, onInputKind }: ControlsListener) {
       };
     },
     kind: () => kind,
+    setMapOpen(open: boolean) {
+      mapOpen = open;
+    },
+    /** A pad's steady inputs, for the world map. */
+    mapSteer() {
+      const controls = pad?.controls;
+      if (!controls) return { stickX: 0, stickY: 0, panX: 0, panY: 0, zoom: 0 };
+      return { stickX: controls.leftStick.x, stickY: controls.leftStick.y, panX: controls.rightStick.x, panY: controls.rightStick.y, zoom: controls.rightTrigger - controls.leftTrigger };
+    },
     dispose() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);

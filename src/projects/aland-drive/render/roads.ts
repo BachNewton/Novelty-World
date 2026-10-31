@@ -32,13 +32,21 @@ const ACROSS = [2, 1, 0, -1, -2];
 const CENTRE = 2;
 const SMALLEST_TRIANGLE_M2 = 0.01;
 const ON_EDGE_M = 0.01;
+const CLIFF_RISE_M = 1.2;
+/** The upright share of a triangle's normal: under this it's steeper than 45°. */
+const CLIFF_FLATNESS = Math.SQRT1_2;
 
 /** Where a lesser road slides along a greater one's edge, two points of a ring can land together. */
 function hasArea(positions: Float32Array, a: number, b: number, c: number): boolean {
   const [ax, ay, az] = [positions[a * 3], positions[a * 3 + 1], positions[a * 3 + 2]];
   const [ux, uy, uz] = [positions[b * 3] - ax, positions[b * 3 + 1] - ay, positions[b * 3 + 2] - az];
   const [vx, vy, vz] = [positions[c * 3] - ax, positions[c * 3 + 1] - ay, positions[c * 3 + 2] - az];
-  return Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) > SMALLEST_TRIANGLE_M2;
+  const [nx, ny, nz] = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+  const length = Math.hypot(nx, ny, nz);
+  if (length <= SMALLEST_TRIANGLE_M2) return false;
+  // A track crossing above a road dives under it for one section: a cliff of ribbon, which no car should meet.
+  const rise = Math.max(ay, ay + uy, ay + vy) - Math.min(ay, ay + uy, ay + vy);
+  return !(rise > CLIFF_RISE_M && Math.abs(ny) / length < CLIFF_FLATNESS);
 }
 
 /**

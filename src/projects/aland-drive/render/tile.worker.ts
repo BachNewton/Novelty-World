@@ -1,6 +1,7 @@
 import { decodeHeights, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
 import { decodeSolids, type SolidsCell } from "./solids";
-import { tileDetail, type TileDetail } from "../sim/world";
+import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
+import { decodeOverview, tileDetail, type Overview, type TileDetail } from "../sim/world";
 
 /*
  * Everything slow about a tile, off the main thread: fetching it, inflating it,
@@ -30,8 +31,15 @@ export interface DetailTile {
   bytes: number;
 }
 
-export type TileRequest = { id: number; kind: "far" | "detail"; base: string; world: WorldManifest; tile: WorldTileEntry };
-export type TileReply = { id: number; far: FarTile } | { id: number; detailed: DetailTile } | { id: number; error: string };
+export interface OverviewData {
+  heights: Overview;
+  /** RGBA, north at the top. */
+  image: Uint8Array;
+  bytes: number;
+}
+
+export type TileRequest = { id: number; kind: "far" | "detail" | "overview" | "map"; base: string; world: WorldManifest; tile: WorldTileEntry };
+export type TileReply = { id: number; far: FarTile } | { id: number; detailed: DetailTile } | { id: number; overview: OverviewData } | { id: number; map: RoadGraphData } | { id: number; error: string };
 
 // The project's TypeScript sees the DOM's `self`, not a worker's.
 const context = self as unknown as { onmessage: (event: MessageEvent<TileRequest>) => void; postMessage: (reply: TileReply, transfers?: Transferable[]) => void };
@@ -60,16 +68,16 @@ class Reader {
   }
 
   /** The image's first `channels` channels, unpremultiplied and unconverted. */
-  async pixels(file: string, size: number, channels: 1 | 4): Promise<Uint8Array> {
+  async pixels(file: string, size: number, channels: 1 | 4, height = size): Promise<Uint8Array> {
     const bitmap = await createImageBitmap(new Blob([await this.raw(file)]), { colorSpaceConversion: "none", premultiplyAlpha: "none" });
-    const canvas = new OffscreenCanvas(size, size);
+    const canvas = new OffscreenCanvas(size, height);
     const pen = canvas.getContext("2d", { willReadFrequently: true });
     if (!pen) throw new Error("no 2D canvas in this worker");
     pen.drawImage(bitmap, 0, 0);
     bitmap.close();
-    const rgba = pen.getImageData(0, 0, size, size).data;
+    const rgba = pen.getImageData(0, 0, size, height).data;
     if (channels === 4) return new Uint8Array(rgba.buffer);
-    const one = new Uint8Array(size * size);
+    const one = new Uint8Array(size * height);
     for (let at = 0; at < one.length; at++) one[at] = rgba[at * 4];
     return one;
   }
@@ -119,6 +127,19 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
   };
 }
 
+async function overview(base: string, world: WorldManifest): Promise<OverviewData> {
+  const reader = new Reader(base);
+  const format = world.overview;
+  const [deltas, image] = await Promise.all([reader.inflated(format.heightsFile), reader.pixels(format.imageFile, format.imageWidth, 4, format.imageHeight)]);
+  return { heights: decodeOverview(new Int16Array(deltas), format), image, bytes: reader.bytes };
+}
+
+async function roadMap(base: string, world: WorldManifest): Promise<RoadGraphData> {
+  const reader = new Reader(base);
+  const text = new TextDecoder().decode(await reader.inflated(world.map.file));
+  return decodeRoadGraph(JSON.parse(text) as RoadMapFile, reader.bytes);
+}
+
 async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<DetailTile> {
   const reader = new Reader(`${base}/${tile.name}`);
   const manifest = await reader.json<TileManifest>("tile.json");
@@ -138,7 +159,7 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
 const transfersOf = ({ grid, shade, mask, ground, canopy }: FarTile): Transferable[] => [grid.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy].map((mip) => mip.buffer as ArrayBuffer)];
 
 function detailTransfers({ detail, shade, ground, buildings }: DetailTile): Transferable[] {
-  const { ribbon, surface, roads, blockRoads, grid, waterNodes, walls, blockWalls } = detail;
+  const { ribbon, surface, roads, blockRoads, grid, waterNodes, bridges, walls, blockWalls } = detail;
   const arrays = [
     grid.heights,
     waterNodes,
@@ -157,6 +178,9 @@ function detailTransfers({ detail, shade, ground, buildings }: DetailTile): Tran
     roads.cellSegments,
     blockRoads.first,
     blockRoads.triangles,
+    bridges.positions,
+    bridges.parts,
+    bridges.rails,
     walls,
     blockWalls.first,
     blockWalls.items,
@@ -171,7 +195,13 @@ context.onmessage = (event: MessageEvent<TileRequest>) => {
   const { id, kind, base, world, tile } = event.data;
   void (async () => {
     try {
-      if (kind === "far") {
+      if (kind === "overview") {
+        const result = await overview(base, world);
+        context.postMessage({ id, overview: result } satisfies TileReply, [result.heights.heights.buffer as ArrayBuffer, result.image.buffer as ArrayBuffer]);
+      } else if (kind === "map") {
+        const result = await roadMap(base, world);
+        context.postMessage({ id, map: result } satisfies TileReply, graphTransfers(result));
+      } else if (kind === "far") {
         const result = await far(base, world, tile);
         context.postMessage({ id, far: result } satisfies TileReply, transfersOf(result));
       } else {
