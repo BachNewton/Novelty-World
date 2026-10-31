@@ -90,7 +90,7 @@ entries.forEach(({ name, model }, index) => {
   const box = model.near.boundingBox ?? new Box3();
   const centre = box.getCenter(new Vector3());
   const radius = box.getSize(new Vector3()).length() / 2;
-  const distance = Math.max(3, radius * 2.15);
+  const distance = Math.max(3, radius * 3);
   const toward = name.includes("hull on") || name.includes("harbour hut") || name.includes("pilot") ? [0.74, 0.3, 0.62] : [0.62, 0.3, 0.72];
   shots.push({
     name: name.replaceAll(" ", "-"),
@@ -138,7 +138,7 @@ function composed() {
   add(buildBoatInCradle(), [atHarbour(20, -14), atHarbour(30, -14), atHarbour(0, -26), atHarbour(10, -26)]);
   add(buildMastRack(), [atHarbour(-14, -30)]);
   add(buildBoatTrolley("launching"), [atHarbour(-24, 2)]);
-  shots.push({ name: "scene-marina", label: "a guest harbour, composed", camera: [SCENE_X + 34, 9, 800 + 54], target: [SCENE_X - 8, 1.5, 800 + 2], fieldOfView: 50 });
+  shots.push({ name: "scene-marina", label: "a guest harbour, composed", camera: [SCENE_X + 12, 6.5, 800 + 44], target: [SCENE_X - 14, 2.5, 800 - 4], fieldOfView: 60 });
 
   const yardAt = (x: number, z: number, yaw?: number): Placement => ({ x: SCENE_X + 300 + x, y: 0, z: 800 + z, yaw });
   add(buildHullOnStocks(), [yardAt(0, 0)]);
@@ -149,7 +149,7 @@ function composed() {
   add(buildSmithy(), [yardAt(22, -9)]);
   add(buildRopewalkShed(), [yardAt(-4, -22)]);
   add(buildHistoricShedRow(), [{ ...yardAt(-SHED_ROW_M / 2, 38) }]);
-  shots.push({ name: "scene-yard", label: "a boatyard, Sjökvarteret style", camera: [SCENE_X + 300 + 26, 7, 800 + 27], target: [SCENE_X + 300 - 2, 2, 800 - 4], fieldOfView: 50 });
+  shots.push({ name: "scene-yard", label: "a boatyard, Sjökvarteret style", camera: [SCENE_X + 300 + 13, 4.5, 800 + 17], target: [SCENE_X + 300 - 1, 2.6, 800 - 6], fieldOfView: 64 });
 
   const shoreAt = (x: number, z: number, yaw?: number): Placement => ({ x: SCENE_X + 600 + x, y: 0, z: 800 + z, yaw });
   addWith(buildFishingHut("red"), [shoreAt(-6, -4), shoreAt(10, -8, 0.4)], identity);
@@ -159,7 +159,7 @@ function composed() {
   addWith(buildNetHeap(), [shoreAt(-8, 5)], identity);
   add(buildFishBoxes(), [shoreAt(-3, 2), shoreAt(10, 2)]);
   add(buildFloatHeap(), [shoreAt(7, 3)]);
-  shots.push({ name: "scene-shore", label: "a fishing shore", camera: [SCENE_X + 600 + 22, 6.5, 800 + 22], target: [SCENE_X + 600, 1.2, 800 - 2], fieldOfView: 50 });
+  shots.push({ name: "scene-shore", label: "a fishing shore", camera: [SCENE_X + 600 + 9, 3.2, 800 + 15], target: [SCENE_X + 600 - 1, 1.3, 800 - 4], fieldOfView: 62 });
 
   const seaAt = (x: number, z: number): Placement => ({ x: SCENE_X + 900 + x, y: 0, z: WATER_Z + z });
   add(buildPilotStation(), [seaAt(-20, -40)]);
@@ -175,7 +175,7 @@ function composed() {
   add(buildSpar("starboard"), [seaAt(30, 30), seaAt(66, 70)]);
   add(buildSpar("west"), [seaAt(90, 10)]);
   add(buildNetMarker(), [seaAt(-34, 46), seaAt(-40, 52)]);
-  shots.push({ name: "scene-sea", label: "a pilot station, its marks and a fairway", camera: [SCENE_X + 900 + 62, 8, WATER_Z + 130], target: [SCENE_X + 900 - 8, 4, WATER_Z - 30], fieldOfView: 46 });
+  shots.push({ name: "scene-sea", label: "a pilot station, its marks and a fairway", camera: [SCENE_X + 900 + 34, 5, WATER_Z + 44], target: [SCENE_X + 900 - 14, 5, WATER_Z - 40], fieldOfView: 56 });
 }
 composed();
 

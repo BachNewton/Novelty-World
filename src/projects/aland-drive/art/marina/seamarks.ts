@@ -133,7 +133,8 @@ export function buildPillarBuoy(mark: SeaMark): RoadsideModel {
     const sides = detail ? 6 : 4;
     const into = new Marked();
     const body = spec.vertical === undefined ? spec.bands[spec.bands.length - 1] : "mark-white";
-    into.tube([0, -0.3, 0], [0, PILLAR_BODY_M, 0], 1, sides, { radiusTo: 0.78, shadeFrom: 0.85, shadeTo: 1 }, body);
+    if (spec.vertical === undefined) into.tube([0, -0.3, 0], [0, PILLAR_BODY_M, 0], 1, sides, { radiusTo: 0.78, shadeFrom: 0.85, shadeTo: 1 }, body);
+    else bandedShaft(into, spec, -0.3, PILLAR_BODY_M, (y) => 1 - ((y + 0.3) / 1.4) * 0.22, sides);
     into.tube([0, PILLAR_BODY_M, 0], [0, PILLAR_BODY_M + 0.12, 0], 0.78, sides, { radiusTo: 0.42, shadeFrom: 1, shadeTo: 1.1 }, body);
     bandedShaft(into, spec, PILLAR_BODY_M + 0.12, PILLAR_ABOVE_M, (y) => 0.42 - ((y - PILLAR_BODY_M) / (PILLAR_ABOVE_M - PILLAR_BODY_M)) * 0.2, detail ? 6 : 4);
     if (detail) {
@@ -196,7 +197,7 @@ export function buildCairn(seed: number): RoadsideModel {
       near.lathe([x, up - 0.05, z], [[0, size * (0.75 + random() * 0.3)], [size * 0.85, size * 0.3]], 4, stone(index + level));
     }
   });
-  near.tube([0, 0, 0], [0, 2.1, 0], 1.05, 5, { radiusTo: 0.1, cap: true, shadeFrom: 0.55, shadeTo: 0.8 }, "stone-grey");
+  near.tube([0, 0, 0], [0, 2.2, 0], 1.3, 5, { radiusTo: 0.1, cap: true, shadeFrom: 0.55, shadeTo: 0.8 }, "stone-grey");
   const far = new Marked().tube([0, 0, 0], [0, 2.4, 0], 1.5, 4, { radiusTo: 0.1, cap: true }, "stone-grey");
   return marinaModel(near, far, 100, MARK_REACH_M);
 }
