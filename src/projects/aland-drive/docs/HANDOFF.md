@@ -40,6 +40,7 @@ Road sign lettering is decided: the regulation letters stay. The credits page li
 
 ## Known problems
 
+- **First load got slower:** in a hidden browser pane the live game took about 35 s to start before the forest and water went in, and about 90 s after, sitting near the end of the bar. A hidden pane isn't a fair measure and it's one reading each, but shader building is the likely cause and worth checking in a visible window.
 - **Road check:** 12 of 5,462 road lines failed, with a worst jolt of 21 g. On real roads: L2334G:3 near (341, 7249) by Lemström, L2334E:3 near (-2782, 7397), L2433G:17, and L2343H:14, the Färjsund cycleway chain. The likely cause, rails or town geometry, is unconfirmed.
 - **Bridges:** 73 of 91 crossed both ways. Of the other 18, 12 fail only because the tool starts at the very end of a ribbon, 2 are off main routes, and 4 failed in one run and were not investigated.
 - **Floating cone:** one forest cone floats above the hill at the far left of Västerhamn's water view. It's new with the 1.5 km cone grid and not diagnosed. Look at it first.
