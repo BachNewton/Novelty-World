@@ -1,0 +1,50 @@
+/*
+ * The people kit's colours. On integration this block joins the other --color-aland-drive-* tokens in globals.css.
+ * Skin and hair are named for what they are; clothes are a Nordic summer's: pale linen, navy, sea blues, one strong colour.
+ */
+:root {
+  --color-aland-drive-skin-1: #f3d7c3;
+  --color-aland-drive-skin-2: #e8bf9f;
+  --color-aland-drive-skin-3: #d8a57f;
+  --color-aland-drive-skin-4: #b98058;
+  --color-aland-drive-skin-5: #8a5a3c;
+  --color-aland-drive-skin-6: #5e3c2a;
+
+  --color-aland-drive-hair-black: #2a2523;
+  --color-aland-drive-hair-brown: #4c3426;
+  --color-aland-drive-hair-chestnut: #7a4f2f;
+  --color-aland-drive-hair-ash: #a18762;
+  --color-aland-drive-hair-blond: #d4b476;
+  --color-aland-drive-hair-copper: #a8562c;
+  --color-aland-drive-hair-grey: #9a9894;
+  --color-aland-drive-hair-white: #dcdad4;
+
+  --color-aland-drive-cloth-white: #f1efe8;
+  --color-aland-drive-cloth-linen: #e2d6bd;
+  --color-aland-drive-cloth-sand: #c8b48d;
+  --color-aland-drive-cloth-khaki: #8f8a68;
+  --color-aland-drive-cloth-grey: #8d9298;
+  --color-aland-drive-cloth-charcoal: #3d4046;
+  --color-aland-drive-cloth-navy: #27375a;
+  --color-aland-drive-cloth-denim: #466186;
+  --color-aland-drive-cloth-sky: #93bcd8;
+  --color-aland-drive-cloth-sea: #2f7f8c;
+  --color-aland-drive-cloth-forest: #3f6349;
+  --color-aland-drive-cloth-red: #bd3a33;
+  --color-aland-drive-cloth-coral: #e27f68;
+  --color-aland-drive-cloth-mustard: #d8a635;
+  --color-aland-drive-cloth-lilac: #a596c8;
+  --color-aland-drive-cloth-rose: #dfa6b4;
+  --color-aland-drive-cloth-work: #33557e;
+  --color-aland-drive-cloth-signal: #e4682a;
+
+  --color-aland-drive-shoe-dark: #33302e;
+  --color-aland-drive-shoe-brown: #6a4a33;
+  --color-aland-drive-shoe-white: #e6e4de;
+
+  --color-aland-drive-straw: #dcc58c;
+  --color-aland-drive-prop-wood: #8d6a44;
+  --color-aland-drive-prop-rod: #2c2c30;
+  --color-aland-drive-prop-steel: #9ca3aa;
+  --color-aland-drive-prop-line: #d9dcdc;
+}
