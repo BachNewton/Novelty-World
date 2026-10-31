@@ -14,7 +14,7 @@ export interface ShowcaseSpot {
 }
 
 export const SHOWCASE: readonly ShowcaseSpot[] = [
-  { key: "1", name: "Esplanade, Mariehamn", x: -1946, z: 6599, headingDeg: 180 },
+  { key: "1", name: "Esplanade, Mariehamn", x: -2400, z: 6800, headingDeg: 180 },
   { key: "2", name: "Västerhamn", x: -3013, z: 6877, headingDeg: 270 },
   { key: "3", name: "Farms of Eckerö", x: -18502, z: -7976, headingDeg: 90 },
   { key: "4", name: "Deep forest", x: -4935, z: -3182, headingDeg: 0 },
