@@ -72,23 +72,23 @@ await tab.evaluate(async ([width, height]) => window.__startCarGallery(width, he
 const cars = await tab.evaluate(() => window.__carGallery.cars());
 const adapter = await tab.evaluate(async () => (await navigator.gpu.requestAdapter())?.info?.description);
 console.log(`adapter: ${adapter}`);
-for (const car of cars) console.log(`${car.index} ${car.name}: near ${car.near.total} (body ${car.near.body}, wheel ${car.near.wheel}), far ${car.far.total}`);
+for (const car of cars) console.log(`${car.index} ${car.name}: near ${car.near.total} (body ${car.near.body}, glass ${car.near.glass}, wheel ${car.near.wheel}), far ${car.far.total}`);
 
 const views = (car) => {
   const shots = [
-    { name: "chase", car, detail: "near", camera: "chase" },
-    { name: "side", car, detail: "near", camera: [20, 0.3, 0, 0, 0.15, 0, 9] },
-    { name: "front34", car, detail: "near", camera: [8, 1.3, -11, 0, 0.1, 0, 11] },
-    { name: "rear34", car, detail: "near", camera: [8, 1.6, 11, 0, 0.1, 0, 11] },
+    { name: "chase", car, detail: "hero", camera: "chase" },
+    { name: "side", car, detail: "hero", camera: [20, 0.3, 0, 0, 0.15, 0, 9] },
+    { name: "front34", car, detail: "hero", camera: [8, 1.3, -11, 0, 0.1, 0, 11] },
+    { name: "rear34", car, detail: "hero", camera: [8, 1.6, 11, 0, 0.1, 0, 11] },
   ];
   if (detail) {
     shots.push(
-      { name: "chase-tight", car, detail: "near", camera: [0, 2.15, 6.2, 0, 0.25, 0, 22] },
-      { name: "back", car, detail: "near", camera: [0, 0.5, 8, 0, 0.2, 0, 24] },
-      { name: "brake", car, detail: "near", camera: [0, 2.15, 6.2, 0, 0.25, 0, 22], lights: { brake: true, headlights: true } },
-      { name: "steer", car, detail: "near", camera: [3.5, 1.2, -5.2, 0, 0.1, -0.8, 26], steer: 0.5, roll: 0.6 },
+      { name: "chase-tight", car, detail: "hero", camera: [0, 2.15, 6.2, 0, 0.25, 0, 22] },
+      { name: "back", car, detail: "hero", camera: [0, 0.5, 8, 0, 0.2, 0, 24] },
+      { name: "brake", car, detail: "hero", camera: [0, 2.15, 6.2, 0, 0.25, 0, 22], lights: { brake: true, headlights: true } },
+      { name: "steer", car, detail: "hero", camera: [3.5, 1.2, -5.2, 0, 0.1, -0.8, 26], steer: 0.5, roll: 0.6 },
       { name: "far", car, detail: "far", camera: [8, 2.5, 18, 0, 0.1, 0, 12] },
-      { name: "hood", car, detail: "near", camera: "hood" },
+      { name: "hood", car, detail: "hero", camera: "hood" },
     );
   }
   return shots;

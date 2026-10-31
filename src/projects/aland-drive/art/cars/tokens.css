@@ -16,6 +16,11 @@
   --color-aland-drive-car-glow-head: #fff6dc;
   --color-aland-drive-car-reflect-ground: #4a4d48;
 
+  --color-aland-drive-car-seat: #2b2622;
+  --color-aland-drive-car-seat-tan: #8a6a48;
+  --color-aland-drive-car-interior: #1e2023;
+  --color-aland-drive-car-disc: #6d7176;
+
   --color-aland-drive-car-paint-white: #dfe2e0;
   --color-aland-drive-car-paint-silver: #9aa3a8;
   --color-aland-drive-car-paint-graphite: #33383d;
@@ -23,4 +28,14 @@
   --color-aland-drive-car-paint-teal: #1f6f73;
   --color-aland-drive-car-paint-forest: #2f5a42;
   --color-aland-drive-car-paint-mustard: #d8a52e;
+  --color-aland-drive-car-paint-cream: #e8dcb8;
+  --color-aland-drive-car-paint-sky: #6fa9c9;
+  --color-aland-drive-car-paint-oxblood: #5c1a1e;
+  --color-aland-drive-car-paint-orange: #dd6a22;
+  --color-aland-drive-car-paint-mint: #9fcfb8;
+  --color-aland-drive-car-paint-black: #16181b;
+  --color-aland-drive-car-paint-post: #e6b422;
+  --color-aland-drive-car-paint-grey: #62686d;
+  --color-aland-drive-car-stripe-blue: #1f4f8f;
+  --color-aland-drive-car-plate-band: #2a4f9e;
 }

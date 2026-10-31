@@ -71,7 +71,7 @@ async function start(width: number, height: number) {
   };
 
   return {
-    cars: () => CARS.map((car, index) => ({ index, name: car.name, near: artOf(index, "near").triangles, far: artOf(index, "far").triangles })),
+    cars: () => CARS.map((car, index) => ({ index, name: car.name, near: artOf(index, "hero").triangles, far: artOf(index, "far").triangles })),
     async shoot(shot: Shot) {
       const art = artOf(shot.car, shot.detail);
       const model = createCarModel(art, SUN);

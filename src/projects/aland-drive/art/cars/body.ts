@@ -42,8 +42,10 @@ export interface SilhouettePoint {
   h: number;
   /** The band on the stretch from here to the next point. */
   band?: string;
-  /** From here to the next point the top is open: a pickup's bed. */
+  /** From here to the next point the top is open: a pickup's bed, or a convertible's cockpit. */
   bed?: boolean;
+  /** Only the hero's: a far model needs no more than the firm points. */
+  fine?: boolean;
 }
 
 export type DecalFace = "rear" | "front" | "side" | "top";
@@ -60,6 +62,32 @@ export interface Decal {
   liftM?: number;
   /** A far model leaves it out. */
   fine?: boolean;
+  /** A disc rather than a rectangle, `size` its width and height. */
+  round?: boolean;
+}
+
+/** A box stuck on a car, narrowing to `taper` of its size along z. */
+export interface Block {
+  at: readonly [x: number, h: number, z: number];
+  size: readonly [wide: number, tall: number, long: number];
+  surface: Surface;
+  mirror?: boolean;
+  /** The far end's width and height as a share of the near end's. */
+  taper?: readonly [wide: number, tall: number];
+  fine?: boolean;
+}
+
+/** Where the inside of the car is. */
+export interface Cabin {
+  dashZ: number;
+  dashH: number;
+  floorH: number;
+  seatZ: number;
+  rearSeatZ?: number;
+  /** Behind this is bulkhead. */
+  endZ: number;
+  seatX: number;
+  seatSurface: Surface;
 }
 
 export interface BodySpec {
@@ -103,6 +131,11 @@ export interface BodySpec {
   exhausts?: { x: readonly number[]; h: number; z: number; radius: number };
   roofBars?: { from: number; to: number; x: number; rise: number };
   bedFloorH?: number;
+  bedSurface?: Surface;
+  blocks?: readonly Block[];
+  cabin?: Cabin;
+  /** Where the hood's shut lines run, from and to. */
+  hoodSeamZ?: readonly [from: number, to: number];
 }
 
 export interface BodyDetail {
@@ -112,6 +145,8 @@ export interface BodyDetail {
   seams: boolean;
   fine: boolean;
   creaseDeg: number;
+  /** A cabin to see through the glass to. */
+  cabin: boolean;
 }
 
 interface Station extends SilhouettePoint {
@@ -128,6 +163,8 @@ interface Curves {
   railWidth: (z: number) => number;
 }
 
+/** The rows that are a thin strip of gap: under the doors, and along the hood. */
+const SEAM_ROWS = { door: 1, hood: 7.93 } as const;
 const SEAM_HALF_M = 0.006;
 const MERGE_M = 0.012;
 
@@ -157,7 +194,7 @@ function stationsOf(spec: BodySpec, curves: Curves, detail: BodyDetail): Station
   for (const [from, to] of spec.pillars) wanted.push({ z: from }, { z: to });
 
   const stations: Station[] = [];
-  const path = spec.silhouette;
+  const path = spec.silhouette.filter((point) => detail.fine || !point.fine);
   for (let at = 0; at + 1 < path.length; at++) {
     const [from, to] = [path[at], path[at + 1]];
     const [low, high] = from.z < to.z ? [from.z, to.z] : [to.z, from.z];
@@ -180,6 +217,20 @@ function stationsOf(spec: BodySpec, curves: Curves, detail: BodyDetail): Station
   }
   stations.push({ ...path[path.length - 1], band: undefined, bed: false });
   return stations;
+}
+
+/** A row between the rib's own rows, on a curve through its neighbours, so a hero's panels round off instead of folding. */
+function rowAt(rib: readonly (readonly [number, number])[], row: number): [number, number] {
+  const low = Math.floor(row);
+  const share = row - low;
+  if (share === 0) return [rib[low][0], rib[low][1]];
+  const [p0, p1, p2, p3] = [rib[Math.max(low - 1, 0)], rib[low], rib[low + 1], rib[Math.min(low + 2, rib.length - 1)]];
+  const along = (axis: 0 | 1) => {
+    const [a, b, c, d] = [p0[axis], p1[axis], p2[axis], p3[axis]];
+    const smooth = 0.5 * (2 * b + (c - a) * share + (2 * a - 5 * b + 4 * c - d) * share ** 2 + (3 * b - a - 3 * c + d) * share ** 3);
+    return Math.min(Math.max(b, c), Math.max(Math.min(b, c), smooth));
+  };
+  return [along(0), along(1)];
 }
 
 function ribOf(spec: BodySpec, curves: Curves, station: Station, sideWall: boolean): [x: number, h: number][] {
@@ -254,6 +305,27 @@ function addDecal(builder: SoupBuilder, ground: number, decal: Decal) {
     const hit = builder.raycast(origin, [-facing[0], -facing[1], -facing[2]]);
     return hit && [hit[0] + facing[0] * liftM, hit[1] + facing[1] * liftM, hit[2] + facing[2] * liftM];
   };
+  if (decal.round) {
+    const sides = 14;
+    const rim = Array.from({ length: sides }, (_, step) => {
+      const angle = (step / sides) * Math.PI * 2;
+      return onSurface(at[0] + (Math.cos(angle) * size[0]) / 2, at[1] + (Math.sin(angle) * size[1]) / 2);
+    });
+    const middle = onSurface(at[0], at[1]);
+    if (!middle) return;
+    const group = builder.newGroup();
+    const wedge = (a: Point, b: Point) => {
+      const raw: Point = [(a[1] - middle[1]) * (b[2] - middle[2]) - (a[2] - middle[2]) * (b[1] - middle[1]), (a[2] - middle[2]) * (b[0] - middle[0]) - (a[0] - middle[0]) * (b[2] - middle[2]), (a[0] - middle[0]) * (b[1] - middle[1]) - (a[1] - middle[1]) * (b[0] - middle[0])];
+      const [first, second] = raw[0] * facing[0] + raw[1] * facing[1] + raw[2] * facing[2] > 0 ? [a, b] : [b, a];
+      builder.triangle(middle, first, second, surface, group);
+      if (decal.mirror) builder.triangle([-middle[0], middle[1], middle[2]], [-second[0], second[1], second[2]], [-first[0], first[1], first[2]], surface, group);
+    };
+    rim.forEach((point, step) => {
+      const next = rim[(step + 1) % sides];
+      if (point && next) wedge(point, next);
+    });
+    return;
+  }
   const grid: (Point | null)[][] = [];
   for (let row = 0; row <= cells[1]; row++) {
     const line: (Point | null)[] = [];
@@ -278,7 +350,7 @@ function addDecal(builder: SoupBuilder, ground: number, decal: Decal) {
   }
 }
 
-function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number) {
+function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number, fine: boolean) {
   const { z, h, x } = spec.mirror;
   const y = h + ground;
   for (const side of [1, -1]) {
@@ -289,7 +361,10 @@ function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number) {
       [side * out, y + tall, z - wide],
       [side * out, y - tall * 0.7, z - wide],
     ];
-    builder.rings(ordered([shell(x, 0.03, 0.035, 0.03), shell(x + 0.05, 0.055, 0.055, 0.035), shell(x + 0.16, 0.035, 0.05, 0.03)]), "paint");
+    const stations = fine
+      ? [shell(x, 0.03, 0.03, 0.03), shell(x + 0.02, 0.05, 0.05, 0.033), shell(x + 0.06, 0.06, 0.06, 0.036), shell(x + 0.11, 0.058, 0.06, 0.036), shell(x + 0.145, 0.05, 0.052, 0.034), shell(x + 0.165, 0.03, 0.035, 0.03)]
+      : [shell(x, 0.03, 0.035, 0.03), shell(x + 0.05, 0.055, 0.055, 0.035), shell(x + 0.16, 0.035, 0.05, 0.03)];
+    builder.rings(ordered(stations), "paint");
     const stalk = (out: number): Point[] => [
       [side * out, y - 0.04, z - 0.03],
       [side * out, y - 0.015, z - 0.03],
@@ -304,8 +379,9 @@ function addMirrors(builder: SoupBuilder, spec: BodySpec, ground: number) {
       [side * (x + 0.155), y + 0.042, glassZ],
       [side * (x + 0.155), y - 0.036, glassZ],
     ];
-    if (side > 0) builder.quad(d, c, b, a, "trim");
-    else builder.quad(a, b, c, d, "trim");
+    const glass = fine ? "rim" : "trim";
+    if (side > 0) builder.quad(d, c, b, a, glass);
+    else builder.quad(a, b, c, d, glass);
   }
 }
 
@@ -374,6 +450,58 @@ function addRoofBars(builder: SoupBuilder, spec: BodySpec, curves: Curves, groun
   }
 }
 
+function addBlock(builder: SoupBuilder, { at, size, surface, mirror, taper = [1, 1] }: Block, ground: number) {
+  const ring = (z: number, wide: number, tall: number, side: number): Point[] => [
+    [side * at[0] - wide / 2, at[1] + ground - tall / 2, z],
+    [side * at[0] - wide / 2, at[1] + ground + tall / 2, z],
+    [side * at[0] + wide / 2, at[1] + ground + tall / 2, z],
+    [side * at[0] + wide / 2, at[1] + ground - tall / 2, z],
+  ];
+  for (const side of mirror ? [1, -1] : [1]) {
+    builder.rings([ring(at[2] - size[2] / 2, size[0], size[1], side), ring(at[2] + size[2] / 2, size[0] * taper[0], size[1] * taper[1], side)], surface);
+  }
+}
+
+/** Enough of an inside for a window to look into: floor, dash, seats and a wheel, on the driver's side as in Finland. */
+function addCabin(builder: SoupBuilder, spec: BodySpec, cabin: Cabin, ground: number) {
+  const { dashZ, dashH, floorH, seatZ, rearSeatZ, endZ, seatX, seatSurface } = cabin;
+  const block = (at: Block["at"], size: Block["size"], surface: Surface, mirror = false, taper?: Block["taper"]) => {
+    addBlock(builder, { at, size, surface, mirror, taper }, ground);
+  };
+  const wide = spec.trackM * 0.92;
+  const length = endZ - dashZ;
+  block([0, floorH - 0.02, dashZ + length / 2], [wide, 0.04, length], "interior");
+  block([0, (floorH + dashH) / 2, dashZ], [wide, dashH - floorH, 0.05], "interior");
+  block([0, (floorH + dashH) / 2 + 0.05, endZ], [wide, dashH - floorH + 0.1, 0.04], "interior");
+  block([0, dashH - 0.1, dashZ + 0.2], [wide * 0.96, 0.16, 0.42], "interior", false, [0.98, 0.6]);
+  block([0, floorH + 0.12, dashZ + 0.68], [0.2, 0.2, 0.8], "interior");
+  const seat = (x: number, z: number, seatWide: number) => {
+    const seatH = floorH + 0.28;
+    block([x, seatH - 0.05, z - 0.13], [seatWide, 0.1, 0.42], seatSurface, true);
+    block([x, seatH + 0.25, z + 0.1], [seatWide * 0.92, 0.5, 0.1], seatSurface, true, [0.92, 0.95]);
+    block([x, seatH + 0.56, z + 0.1], [seatWide * 0.5, 0.12, 0.08], seatSurface, true);
+  };
+  seat(seatX, seatZ, 0.46);
+  if (rearSeatZ !== undefined) seat(seatX * 0.92, rearSeatZ, 0.48);
+  // The steering wheel, a ring leaning back towards the driver.
+  const wheelR = 0.17;
+  const wheelZ = dashZ + 0.46;
+  const wheelY = dashH + 0.08 + ground;
+  const tube = 0.014;
+  const lean = 0.42;
+  const segments = 10;
+  const point = (angle: number, grow: number, push: number): Point => {
+    const up = Math.sin(angle) * (wheelR + grow);
+    return [-seatX + Math.cos(angle) * (wheelR + grow), wheelY + up * Math.cos(lean), wheelZ + push - up * Math.sin(lean)];
+  };
+  for (let step = 0; step < segments; step++) {
+    const [from, to] = [(step / segments) * Math.PI * 2, ((step + 1) / segments) * Math.PI * 2];
+    const section = (angle: number): Point[] => [point(angle, -tube, -tube), point(angle, -tube, tube), point(angle, tube, tube), point(angle, tube, -tube)];
+    builder.rings([section(from), section(to)], "seat");
+  }
+  block([-seatX, dashH + 0.06, wheelZ - 0.1], [0.07, 0.07, 0.34], "interior");
+}
+
 /** `ground` is the height of the car's own origin above the road, negated: y in the car is height + ground. */
 export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): Soup {
   const curves: Curves = {
@@ -390,38 +518,46 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   const zRear = Math.max(...spec.silhouette.map(({ z }) => z));
   const zNose = Math.min(...spec.silhouette.map(({ z }) => z));
   const builder = new SoupBuilder();
+  const under = builder.newGroup();
   const rows = detail.rows;
   const ribs = stations.map((station) => ribOf(spec, curves, station, false));
   const grid: Point[][] = ribs.map((rib, index) => {
     const station = stations[index];
     const width = curves.halfWidth(station.z);
-    return rib.map(([x, h]): Point => [x, h + ground, pulledZ(spec, station.z, x, width, Math.min(zFront, zNose), zRear)]);
+    return rows.map((row): Point => {
+      const [x, h] = rowAt(rib, row);
+      return [x, h + ground, pulledZ(spec, station.z, x, width, Math.min(zFront, zNose), zRear)];
+    });
   });
+  const railAt = rows.indexOf(ROWS.rail);
 
   const inPillar = (z: number) => spec.pillars.some(([from, to]) => z >= from && z <= to);
   const windowOpen = (index: number) => ribs[index][ROWS.windowTop][1] - ribs[index][ROWS.windowBase][1] > 0.006;
+  const doorZ = [Math.min(...spec.seams), Math.max(...spec.seams)];
 
   for (let index = 0; index + 1 < stations.length; index++) {
     const station = stations[index];
     const midZ = (station.z + stations[index + 1].z) / 2;
     const open = windowOpen(index) || windowOpen(index + 1);
     for (let at = 0; at + 1 < rows.length; at++) {
-      const [row, up] = [rows[at], rows[at + 1]];
+      const exact = rows[at];
+      const row = Math.floor(exact);
       const band = station.band === undefined ? undefined : spec.bands[station.band].find(({ from, to }) => row >= from && row < to);
       const surfaceOf = (): Surface => {
         if (band) return band.surface;
         if (station.gap && row >= ROWS.sillTop && row < ROWS.belt) return "gap";
         if (row < ROWS.sillTop) return spec.sillSurface;
+        if (detail.fine && exact === SEAM_ROWS.door && midZ > doorZ[0] && midZ < doorZ[1]) return "gap";
+        if (detail.fine && exact === SEAM_ROWS.hood && spec.hoodSeamZ && midZ > spec.hoodSeamZ[0] && midZ < spec.hoodSeamZ[1]) return "gap";
         if (row === ROWS.belt && open) return spec.beltSurface;
         if (row === ROWS.windowBase && open) return inPillar(midZ) ? "trim" : "glass";
         if (row === ROWS.windowTop && open) return spec.pillarSurface;
-        if (station.bed && row >= ROWS.rail) return "trim";
+        if (station.bed && row >= ROWS.rail) return spec.bedSurface ?? "trim";
         return "paint";
       };
-      builder.mirroredQuad(grid[index][row], grid[index][up], grid[index + 1][up], grid[index + 1][row], surfaceOf());
+      builder.mirroredQuad(grid[index][at], grid[index][at + 1], grid[index + 1][at + 1], grid[index + 1][at], surfaceOf());
     }
     const [a, b] = [grid[index][0], grid[index + 1][0]];
-    const under = builder.newGroup();
     builder.quad(a, b, [-b[0], b[1], b[2]], [-a[0], a[1], a[2]], "under", under);
   }
 
@@ -432,7 +568,7 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
   for (const axle of spec.axleZ) {
     const low = spec.sill[0][1] + ground;
     const high = spec.wheelRadiusM + radius + ground + 0.03;
-    const inWell = stations.map((station, index) => ({ z: station.z, top: Math.min(high, grid[index][ROWS.rail][1] - 0.04) })).filter(({ z }) => Math.abs(z - axle) <= radius);
+    const inWell = stations.map((station, index) => ({ z: station.z, top: Math.min(high, grid[index][railAt][1] - 0.04) })).filter(({ z }) => Math.abs(z - axle) <= radius);
     inWell.slice(1).forEach(({ z, top }, index) => {
       const before = inWell[index];
       if (z > before.z) builder.mirroredQuad([wellX, low, before.z], [wellX, before.top, before.z], [wellX, top, z], [wellX, low, z], "under", wall);
@@ -441,8 +577,59 @@ export function buildBody(spec: BodySpec, ground: number, detail: BodyDetail): S
 
   for (const decal of spec.decals) if (detail.fine || !decal.fine) addDecal(builder, ground, decal);
   if (detail.fine) addExhausts(builder, spec, ground);
-  addMirrors(builder, spec, ground);
+  addMirrors(builder, spec, ground, detail.fine);
   addWing(builder, spec, ground);
   addRoofBars(builder, spec, curves, ground);
+  for (const block of spec.blocks ?? []) if (detail.fine || !block.fine) addBlock(builder, block, ground);
+  if (detail.cabin && spec.cabin) addCabin(builder, spec, spec.cabin, ground);
   return builder.finish(detail.creaseDeg);
+}
+
+/** A car at a distance: its outline in four ribs, glass where the glass is, about thirty triangles. */
+export function buildDistant(spec: BodySpec, ground: number): Soup {
+  const curves = { sill: curve(spec.sill), belt: curve(spec.belt), halfWidth: curve(spec.halfWidth), railWidth: curve(spec.railWidth) };
+  const path = spec.silhouette;
+  const topAt = (z: number) => Math.max(...path.slice(1).map((point, index) => {
+    const before = path[index];
+    const [low, high] = before.z < point.z ? [before.z, point.z] : [point.z, before.z];
+    if (z < low || z > high || low === high) return 0;
+    return before.h + ((point.h - before.h) * (z - before.z)) / (point.z - before.z);
+  }));
+  const ends = path.map(({ z }) => z);
+  const [nose, tail] = [Math.min(...ends), Math.max(...ends)];
+  const hasGlass = spec.windowZ[1] > spec.windowZ[0];
+  const middle = hasGlass ? spec.windowZ : [nose + (tail - nose) * 0.3, nose + (tail - nose) * 0.7];
+  const stations = [nose + 0.04, middle[0], middle[1], tail - 0.04];
+  const ribs = stations.map((z): Point[] => {
+    const top = topAt(z);
+    const width = curves.halfWidth(z) + 0.01;
+    const belt = Math.min(curves.belt(z), top);
+    return [
+      [width, curves.sill(z) + ground, z],
+      [width, belt + ground, z],
+      [Math.min(curves.railWidth(z), width), top + ground, z],
+    ];
+  });
+  const builder = new SoupBuilder();
+  ribs.slice(1).forEach((rib, at) => {
+    const before = ribs[at];
+    const upper = at === 1 && hasGlass ? "glass" : "paint";
+    builder.mirroredQuad(before[0], before[1], rib[1], rib[0], "paint");
+    builder.mirroredQuad(before[1], before[2], rib[2], rib[1], upper);
+    const [a, b] = [before[2], rib[2]];
+    builder.quad(a, [-a[0], a[1], a[2]], [-b[0], b[1], b[2]], b, "paint");
+  });
+  const cap = (rib: Point[], outward: boolean) => {
+    const [a, b, c] = rib;
+    const flip = ([x, y, z]: Point): Point => [-x, y, z];
+    const quad = (p: Point, q: Point, r: Point, t: Point) => {
+      if (outward) builder.quad(p, q, r, t, "paint");
+      else builder.quad(t, r, q, p, "paint");
+    };
+    quad(flip(a), a, b, flip(b));
+    quad(flip(b), b, c, flip(c));
+  };
+  cap(ribs[ribs.length - 1], true);
+  cap(ribs[0], false);
+  return builder.finish(1);
 }

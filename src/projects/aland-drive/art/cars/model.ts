@@ -4,7 +4,7 @@ import { themeColor } from "@/shared/lib/three/theme-color";
 import { CAR, SUSPENSION } from "../../sim/tuning";
 import type { CarState } from "../../sim/car-state";
 import { AXLE_Y, buildCarParts, groundY, type CarDetail, type CarSpec } from "./build";
-import { carMaterial, geometryOf, type CarLights } from "./material";
+import { carMaterial, geometryOf, glassMaterial, type CarLights } from "./material";
 import "./tokens.css";
 
 /*
@@ -23,22 +23,28 @@ export interface CarArt {
   spec: CarSpec;
   body: BufferGeometry;
   wheel: BufferGeometry;
-  triangles: { body: number; wheel: number; total: number };
+  /** A hero's see-through glass. */
+  glass: BufferGeometry | null;
+  triangles: { body: number; glass: number; wheel: number; total: number };
   dispose: () => void;
 }
 
-export function buildCarArt(spec: CarSpec, detail: CarDetail = "near"): CarArt {
+export function buildCarArt(spec: CarSpec, detail: CarDetail = "hero"): CarArt {
   const parts = buildCarParts(spec, detail);
   const body = geometryOf(parts.body);
   const wheel = geometryOf(parts.wheel);
+  const glass = parts.glass && geometryOf(parts.glass);
+  const glassTriangles = parts.glass?.triangles ?? 0;
   return {
     spec,
     body,
     wheel,
-    triangles: { body: parts.body.triangles, wheel: parts.wheel.triangles, total: parts.body.triangles + parts.wheel.triangles * 4 },
+    glass,
+    triangles: { body: parts.body.triangles, glass: glassTriangles, wheel: parts.wheel.triangles, total: parts.body.triangles + glassTriangles + parts.wheel.triangles * 4 },
     dispose() {
       body.dispose();
       wheel.dispose();
+      glass?.dispose();
     },
   };
 }
@@ -52,7 +58,8 @@ export interface CarViewOptions {
 export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevationDeg: number }, options: CarViewOptions = {}) {
   const { spec } = art;
   const road = groundY(spec.wheel.radiusM);
-  const { material, setLights, setPaint } = carMaterial({ sun, paint: options.paint ?? spec.paint, groundY: road, hazed: options.hazed });
+  const { material, setLights, setPaint } = carMaterial({ sun, paint: options.paint ?? spec.paint, groundY: road, hazed: options.hazed, hero: art.glass !== null });
+  const glassLook = art.glass && glassMaterial({ sun, hazed: options.hazed });
 
   const root = new Group();
   const pivot = new Group();
@@ -60,6 +67,12 @@ export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevation
   const shell = new Mesh(art.body, material);
   shell.position.y = -CAR.massUpM;
   pivot.add(shell);
+  if (art.glass && glassLook) {
+    const glass = new Mesh(art.glass, glassLook);
+    glass.position.y = -CAR.massUpM;
+    glass.renderOrder = 1;
+    pivot.add(glass);
+  }
   root.add(pivot);
 
   const [frontZ, rearZ] = spec.body.axleZ;
@@ -122,6 +135,7 @@ export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevation
     },
     dispose() {
       material.dispose();
+      glassLook?.dispose();
       shadowGeometry.dispose();
       shadowMaterial.dispose();
     },
@@ -134,7 +148,7 @@ export type CarModel = ReturnType<typeof createCarModel>;
  * A drop-in for `render/car.ts`: the same shape, a real car, and `setLights` for
  * what a `CarState` doesn't carry.
  */
-export function createCarView(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }, spec: CarSpec, detail: CarDetail = "near") {
+export function createCarView(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }, spec: CarSpec, detail: CarDetail = "hero") {
   const art = buildCarArt(spec, detail);
   const model = createCarModel(art, sun);
   scene.add(model.root);

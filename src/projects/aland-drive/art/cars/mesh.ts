@@ -7,7 +7,7 @@
 export type Point = [x: number, y: number, z: number];
 
 /** What a face is made of. The order is the attribute's values, and the table in `material.ts` follows it. */
-export const SURFACES = ["paint", "glass", "trim", "cladding", "gap", "under", "tyre", "rim", "rimDark", "grille", "plate", "lensTail", "lensReverse", "lensAmber", "lensHead"] as const;
+export const SURFACES = ["paint", "glass", "trim", "cladding", "gap", "under", "tyre", "rim", "rimDark", "grille", "plate", "lensTail", "lensReverse", "lensAmber", "lensHead", "seat", "seatTan", "interior", "disc", "rack", "plateBand", "stripe"] as const;
 export type Surface = (typeof SURFACES)[number];
 
 export interface Soup {
@@ -15,6 +15,19 @@ export interface Soup {
   normals: Float32Array;
   surfaces: Uint8Array;
   triangles: number;
+}
+
+/** The faces of a soup that pass a test, as a soup of their own. */
+export function pick({ positions, normals, surfaces }: Soup, keep: (surface: Surface) => boolean): Soup {
+  const kept: number[] = [];
+  for (let face = 0; face < surfaces.length / 3; face++) if (keep(SURFACES[surfaces[face * 3]])) kept.push(face);
+  const out: Soup = { positions: new Float32Array(kept.length * 9), normals: new Float32Array(kept.length * 9), surfaces: new Uint8Array(kept.length * 3), triangles: kept.length };
+  kept.forEach((face, at) => {
+    out.positions.set(positions.subarray(face * 9, face * 9 + 9), at * 9);
+    out.normals.set(normals.subarray(face * 9, face * 9 + 9), at * 9);
+    out.surfaces.set(surfaces.subarray(face * 3, face * 3 + 3), at * 3);
+  });
+  return out;
 }
 
 const MIN_AREA_M2 = 1e-7;

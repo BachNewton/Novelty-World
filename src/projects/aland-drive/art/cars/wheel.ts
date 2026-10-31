@@ -17,6 +17,8 @@ export interface WheelSpec {
 interface WheelDetail {
   sides: number;
   spokes: boolean;
+  /** Grooves in the tread, wheel nuts and a brake disc: a hero's. */
+  fine: boolean;
 }
 
 const ring = (x: number, radius: number, sides: number): Point[] =>
@@ -57,7 +59,27 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
   const radius = spec.radiusM;
   const rim = radius * spec.rimShare;
   const { sides } = detail;
-  const shoulders: [number, number][] = detail.spokes
+  const groove = (at: number): [number, number][] => [
+    [half * (at + 0.05), radius],
+    [half * (at + 0.04), radius - 0.009],
+    [half * (at - 0.04), radius - 0.009],
+    [half * (at - 0.05), radius],
+  ];
+  const shoulders: [number, number][] = detail.fine
+    ? [
+        [half * 1.02, rim + (radius - rim) * 0.5],
+        [half, radius * 0.9],
+        [half * 0.96, radius * 0.95],
+        [half * 0.9, radius * 0.985],
+        [half * 0.8, radius],
+        ...groove(0.42),
+        ...groove(0),
+        ...groove(-0.42),
+        [-half * 0.8, radius],
+        [-half * 0.93, radius * 0.975],
+        [-half, radius * 0.9],
+      ]
+    : detail.spokes
     ? [
         [half, radius * 0.9],
         [half * 0.93, radius * 0.975],
@@ -99,6 +121,15 @@ export function buildWheel(spec: WheelSpec, detail: WheelDetail): Soup {
       }
     }
     builder.rings([ring(faceX - 0.012, radius * 0.16, 8), ring(faceX - 0.04, radius * 0.17, 8)], "rim");
+    if (detail.fine) {
+      builder.rings([ring(-half * 0.1, rim - 0.06, 20), ring(-half * 0.1 - 0.02, rim - 0.06, 20)], "disc");
+      for (let nut = 0; nut < 5; nut++) {
+        const angle = (nut / 5) * Math.PI * 2 + 0.3;
+        const place = (r: number, a: number, x: number): Point => [x, Math.cos(angle) * radius * 0.1 + Math.cos(a) * r, Math.sin(angle) * radius * 0.1 + Math.sin(a) * r];
+        const nutRing = (x: number): Point[] => [0, 1, 2, 3, 4, 5].map((step) => place(0.011, (step / 6) * Math.PI * 2, x));
+        builder.rings([nutRing(faceX - 0.01), nutRing(faceX - 0.002)], "rimDark");
+      }
+    }
   } else {
     // Far off, a pale disc in the dark rim says a wheel as well as spokes would.
     builder.rings([ring(faceX - 0.02, rim - 0.03, rimSides)], "rimDark");
