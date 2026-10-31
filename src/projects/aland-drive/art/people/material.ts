@@ -85,7 +85,7 @@ function moved(time: Node<"float">): Node<"vec3"> {
   const s = sin(beat);
   const lifted = max(cos(beat.add(0.5)), float(0));
   const thigh = s.mul(0.36).add(0.03);
-  const knee = lifted.mul(lifted).mul(1.1).add(0.1).negate();
+  const knee = lifted.mul(lifted).mul(0.78).add(0.1).negate();
   const shoulder = s.mul(0.36);
   const elbow = s.mul(0.16).add(0.24);
   const upper = select(isLeg, thigh, select(isArm, shoulder, float(0))).mul(stride);

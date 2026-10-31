@@ -103,8 +103,8 @@ function trunk(body: Body, { hip, pelvisPitch = 0, spine = 0, twist = 0, headPit
     pelvis,
     chest,
     head,
-    shoulderLeft: inFrame(chest, body.armX, shoulderUp * 0.88, 0),
-    shoulderRight: inFrame(chest, -body.armX, shoulderUp * 0.88, 0),
+    shoulderLeft: inFrame(chest, body.armX * 0.97, shoulderUp * 0.85, 0),
+    shoulderRight: inFrame(chest, -body.armX * 0.97, shoulderUp * 0.85, 0),
     hipLeft: inFrame(pelvis, body.legX, 0, 0),
     hipRight: inFrame(pelvis, -body.legX, 0, 0),
   };
@@ -276,7 +276,7 @@ function sitEdge(body: Body): Posed {
 }
 
 function sunbathe(body: Body): Posed {
-  const parts = trunk(body, { hip: [0, 0.11 * body.scale, 0], pelvisPitch: -degrees(66), spine: 0.08, headPitch: degrees(44) });
+  const parts = trunk(body, { hip: [0, 0.11 * body.scale, 0], pelvisPitch: -degrees(76), spine: 0.1, headPitch: degrees(52) });
   const back = (shoulder: V3, out: number): V3 => [shoulder[0] + out, 0.03, shoulder[2] - 0.12 * body.scale];
   return {
     ...parts,

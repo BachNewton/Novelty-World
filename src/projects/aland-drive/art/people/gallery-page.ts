@@ -182,8 +182,8 @@ const rockX = station(3);
 const SLAB_TOP_M = 1.2;
 add(buildShoreSlab(), [{ x: rockX + 3.2, y: 0, z: 0, yaw: 0.6 }], rural);
 figures.push({ seed: 85, pose: "sunbathe", x: rockX + 3.2, y: SLAB_TOP_M, z: 0, yaw: 0.6, spec: { outfit: "tee-shorts", hat: "sun-hat" } });
-look("sunbathe", "sunbathing", [rockX + 8, 2.6, 5], [rockX + 3.2, 1.3, 0.3], 26);
-look("sunbathe-side", "sunbathing, from the side", [rockX - 1.2, 2.2, 5], [rockX + 3.3, 1.3, 0.4], 26);
+look("sunbathe", "sunbathing", [rockX + 6.4, 2.3, 3.2], [rockX + 3.3, 1.45, 0.3], 26);
+look("sunbathe-side", "sunbathing, from the side", [rockX + 0.4, 2.2, 3.6], [rockX + 3.4, 1.4, 0.4], 22);
 
 // Working a field.
 const fieldX = station(4);
