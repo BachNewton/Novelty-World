@@ -185,6 +185,8 @@ const eslintConfig = defineConfig([
     ".claude/**",
     ".opencode/worktrees/**",
     ".venv/**",
+    // Gitignored debug screenshots and the pages built on them.
+    "**/.shots/**",
     // Gitignored genealogy research (living people): never part of the build.
     "src/projects/family-tree/research/**",
   ]),

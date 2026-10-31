@@ -15,10 +15,10 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Cars** (player and five more) | `art/cars` | Built | Player's car swap; others by purchase and traffic | [ ] | [ ] | [ ] |
 | **Ground, roads, paint** | `art/surfaces` | Built | Shader, from photo colour and road kinds | [ ] | [ ] | [ ] |
 | **Roofs and shopfronts** | `art/surfaces` | Built | Shader, by building | [ ] | [ ] | [ ] |
-| **Road signs** | `art/surfaces` | Being reworked | OSM `traffic_sign`, stop and give way; junction rules | [ ] | [ ] | [ ] |
+| **Road signs** | `art/surfaces` | Built | OSM `traffic_sign`, stop and give way; junction rules | [ ] | [ ] | [ ] |
 | **Sky and clouds** | `art/sky` | Built | One dome | [ ] | [ ] | [ ] |
-| **Water** | `render/water.ts` | Being built | Sea plane and terrain's water | [ ] | [ ] | [ ] |
-| **Forest fixes** | `render/forest.ts` | Being built | Existing forest | [ ] | [ ] | [ ] |
+| **Water** | `render/water.ts` | In the game; sky and hour still to connect | Sea plane and terrain's water | [x] | [x] | [x] |
+| **Forest fixes** | `render/forest.ts` | In the game | Existing forest | [x] | [x] | [x] |
 | **Roadside kit** | `art/roadside` | Built | Lamps, poles, stops, fences from OSM; mailboxes at drives by rule | [ ] | [ ] | [ ] |
 | **Better pine** | `art/roadside` | Built | Replaces the forest's pine, once measured | [ ] | [ ] | [ ] |
 | **Piers, pontoons** | `art/roadside` | Built | OSM `man_made=pier`, `floating=yes` | [ ] | [ ] | [ ] |
@@ -37,16 +37,19 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 | **Stone walls** | `art/rural` | Built | OSM `barrier=wall`; field edges by rule | [ ] | [ ] | [ ] |
 | **Jetties, boats** | `art/rural` | Built | OSM piers (2,109); boats by rule | [ ] | [ ] | [ ] |
 | **Bales, tractor, sheep** | `art/rural` | Built | Rule, on fields and meadows | [ ] | [ ] | [ ] |
-| **Town ground, parks** | `art/town-ground` | Being built | OSM land use, paths, parks; a baked surface mask | [ ] | [ ] | [ ] |
-| **Facades, wooden houses, shops, churches** | `art/facades` | Being built | By building class and location; OSM `shop=*`, `amenity=fuel`; churches at real places | [ ] | [ ] | [ ] |
-| **Town detail, terminal, ferry** | `art/town-kit` | Being built | OSM and rules; the terminal at its real place | [ ] | [ ] | [ ] |
-| **Homes** | `art/homes` | Being built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
-| **Dealerships** | `art/dealers` | Being built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
-| **Identity props** | `art/identity` | Being built | OSM and rules | [ ] | [ ] | [ ] |
-| **Stamp album** | `art/identity` | Being built | Awarded at discoveries | [ ] | [ ] | [ ] |
-| **Bicycles and riders** | `art/bikes` | Being built | Rideable; cyclists on roads | [ ] | [ ] | [ ] |
-| **Boats** | `art/boats` | Being built | OSM marinas and moorings; a distant regatta | [ ] | [ ] | [ ] |
-| **Marinas, sea marks, boatyards** | `art/marina` | Being built | OSM `seamark:*`, marinas, `man_made=lighthouse` | [ ] | [ ] | [ ] |
+| **Town ground, parks** | `art/town-ground` | Built | OSM land use, paths, parks; a baked surface mask | [ ] | [ ] | [ ] |
+| **Facades, wooden houses, shops, churches** | `art/facades` | Built | By building class and location; OSM `shop=*`, `amenity=fuel`; churches at real places | [ ] | [ ] | [ ] |
+| **Town detail, terminal, ferry** | `art/town-kit` | Built | OSM and rules; the terminal at its real place | [ ] | [ ] | [ ] |
+| **Homes** | `art/homes` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
+| **Dealerships** | `art/dealers` | Built | Real plots, chosen in phase 6 | [ ] | [ ] | [ ] |
+| **Identity props** | `art/identity` | Built | OSM and rules | [ ] | [ ] | [ ] |
+| **Stamp album** | `art/identity` | Built | Awarded at discoveries | [ ] | [ ] | [ ] |
+| **Bicycles and riders** | `art/bikes` | Built | Rideable; cyclists on roads | [ ] | [ ] | [ ] |
+| **Boats** | `art/boats` | Built | OSM marinas and moorings; a distant regatta | [ ] | [ ] | [ ] |
+| **Marinas, sea marks, boatyards** | `art/marina` | Built | OSM `seamark:*`, marinas, `man_made=lighthouse` | [ ] | [ ] | [ ] |
+| **People** | `art/people` | Built | Sparse rules: terraces, jetties, parks, landmarks | [ ] | [ ] | [ ] |
+| **Night** | `art/night` | Built | Hour dial, windows, OSM lamps and sea lights | [ ] | [ ] | [ ] |
+| **Sound** | `audio` | Built, not yet heard | Driven by the car, the surface and the place | [ ] | [ ] | [ ] |
 
 ## Landmarks
 

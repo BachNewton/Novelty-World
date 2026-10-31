@@ -10,6 +10,7 @@ What Test Drive Unlimited is about, and what this game has to keep:
 - **Cruising as the core**: the drive has to feel good with nothing else happening.
 - **Ownership**: cars and a house, earned by driving.
 - **Other players on the same roads**, met in passing and challenged on the spot.
+- **A reason to explore**: enough varied art, made in code, that the next road is worth driving. Variety comes from each area having its own character, so objects are placed by regional rules over real data rather than one mix everywhere, and real places such as windmills and parish churches become things to find.
 
 Åland suits this: roads through forest, farmland and shoreline, one small capital, and bridges joining the land together. End to end it is a drive of roughly half an hour at road speed.
 
@@ -68,7 +69,7 @@ Dress the nine-tile area, then look at it and decide how realistic the game is g
 - Walls with windows, doors, white trim and roof overhangs. A bare textured wall reads as a windowless block, so a wall texture alone isn't a building. Windows are drawn by the shader rather than built as geometry, with their rhythm set by each building's real size and height.
 - A small kit of roadside objects (lamps, poles, signs, fences), placed from OpenStreetMap where it has them and by rule where it doesn't.
 
-NLS's 3D buildings are shapes with no textures, so walls have to be made. Try a library of wall textures made with image generation from real reference photos (Åland red timber, white trim, plaster, shopfronts), assigned by building type, side by side with purely procedural walls on one street, and keep whichever looks better. AI use is disclosed if the generated textures ship.
+NLS's 3D buildings are shapes with no textures, so walls are drawn in code, assigned by building type.
 
 **Exit test:** the owner has judged the result in the running game, and the art direction and car style are decided and written into `CLAUDE.md`.
 
@@ -80,8 +81,8 @@ Everything, end to end.
 - A mini map while driving, and a world map of the whole island with GPS routes set from it.
 - Street names on the road as you drive, and on both maps.
 - Bridges and causeways, which the terrain data doesn't carry as driving surfaces.
-- First hand-made landmarks: Kastelholm, Bomarsund, and in Mariehamn the water tower, Pommern and the towers of S:t Görans and the town hall, which the 3D data lacks or cuts short.
-- Mariehamn's harbour: false solids removed (the terminal's walkways, the slab in the town centre), and piers from OpenStreetMap.
+- First hand-made landmarks (built under `art/landmarks`, placed with the art integration): Kastelholm, Bomarsund, and in Mariehamn the water tower, Pommern and the towers of S:t Görans and the town hall, which the 3D data lacks or cuts short.
+- Mariehamn's harbour: the town centre's false slab is removed; the terminal's walkways and piers from OpenStreetMap come with the art integration.
 
 **Exit test:** Eckerö to Lumparland in one unbroken drive, navigated by the game's own map.
 
@@ -98,6 +99,8 @@ Everything, end to end.
 
 Traffic, weather, a day/night cycle, seasons (a Finnish winter would set this game apart) and ferries to other islands. Picked one at a time by what the game wants most.
 
+**Cycling** is a way to play: a rideable bike on the map's real cycleways and paths, which are already in the road data. **A history thread** teaches the island's past through light errands to real places, as text and places rather than cutscenes.
+
 Two pieces of work sit outside the numbered order. **Art integration** brings the models and surfaces built under `art/` into the game after phase 5, ground detail and the car first. **Sound** (engine, road, wind) comes early, alongside phase 6, because a driving game feels empty without it.
 
 ## Open questions
@@ -112,13 +115,13 @@ In priority order. The priority is what fills the view most, and the source is o
 
 **3D models:** the player's car, then further invented cars to buy; a roadside kit of about five objects (street lamp, power pole, sign set, fence, mailbox); a better pine; a generic bridge kit; piers and pontoons; landmarks (the water tower, Pommern, the towers of S:t Görans and the town hall, Kastelholm, Bomarsund, von Knorring); later, ferries and traffic.
 
-**Backlog beyond that:** windmills, granite outcrops and boulders, bushes, reeds, stone walls, boathouses and small boats, hay bales, tractors and sheep; guard rails, reflector posts, speed cameras, verges and wildflowers; linden trees, street furniture, parked cars and harbour fittings; flags, midsummer poles, and a cloud sky.
+**Backlog beyond that:** windmills, granite outcrops and boulders, bushes, reeds, stone walls, boathouses and small boats, hay bales, tractors and sheep; guard rails, reflector posts, speed cameras, verges and wildflowers; linden trees, street furniture, parked cars and harbour fittings; flags, midsummer poles, and a cloud sky. For Mariehamn and the villages: town ground surfaces and parks, esplanade wooden houses, facade variety, invented shop brands, a petrol station, town lamps and traffic lights, the terminal's walkways, and a parametric stone church. For phase 6's ownership: dealerships and homes to buy, inside and out, with a garage for each home.
 
 ## Risks
 
 - **Road quality.** Roads are the one surface the player stares at for the whole game, and neither the terrain nor OpenStreetMap gives a drivable surface directly. Phases 1 and 2 exist largely to prove this.
 - **Forest at speed on an integrated GPU.** Forest to the horizon is the most expensive thing in the scene. The plan is flat cards beyond a short distance, and the real cost shows at phase 4.
 - **Generated buildings.** Footprints give shapes, not character. Mariehamn will need hand-made work, while the countryside can stay simple.
-- **Cars.** They are invented, so there is no licensing problem, but a good car is hard to generate in code. Expect a mix of openly licensed models and custom work, chosen at phase 4.
+- **Cars.** They are invented and made in code, so there is no licensing problem. They hold up at chase distance; a close-up shows their stylised build.
 - **Data volume and download cost.** Measured at phase 3: a built tile is 5–8 MB on land, and a player's download is bounded by the map because the browser keeps what it fetched, 313 MB for one person to see the whole main island. `CLAUDE.md` holds the numbers and the hosting recommendation.
 - **Relay load.** Fast car positions are a new kind of traffic for it. Phase 6 tests this before building on it.
