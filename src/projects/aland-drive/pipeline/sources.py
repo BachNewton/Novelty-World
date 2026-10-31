@@ -17,7 +17,8 @@ from pyproj import Transformer
 from grid import Tile
 
 RAW = Path(__file__).resolve().parent.parent / ".data" / "raw"
-DEM_MIRROR = "https://mirrors.nic.funet.fi/index/geodata/mml/dem2m/2008_latest/"
+MIRROR = "https://mirrors.nic.funet.fi/index/geodata/mml/"
+DEM_MIRROR = f"{MIRROR}dem2m/2008_latest/"
 # OSM's own API rather than Overpass, whose public servers are often down. It answers a
 # small box at once, and one tile at a time is the use its policy allows.
 OSM_API = "https://api.openstreetmap.org/api/0.6/map"
@@ -54,6 +55,34 @@ def dem_path(tile: Tile) -> Path | None:
         absent.touch()
         return None
     return path
+
+
+def _mirrored(folder: str, url: str, name: str) -> Path:
+    path = RAW / folder / name
+    if not path.exists():
+        _download(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), path)
+    return path
+
+
+def ortho_path(tile: Tile) -> Path:
+    return _mirrored("ortho", f"{MIRROR}orto/normal_color_3067/mara_v_25000_50/2025/{tile.name[:3]}/02m/1/{tile.name}.jp2", f"{tile.name}.jp2")
+
+
+def laser_paths(tile: Tile) -> list[Path]:
+    """A tile's four 3×3 km sheets."""
+    return [_mirrored("laser", f"{MIRROR}laserkeilaus/2008_latest/2013/{tile.name[:4]}/1/{tile.name}{part}.laz", f"{tile.name}{part}.laz") for part in (1, 2, 3, 4)]
+
+
+def topographic_path(tile: Tile) -> Path:
+    """The half sheet holding a tile: its first four tiles are the left half."""
+    half = f"{tile.name[:5]}{'L' if tile.name[5] in 'ABCD' else 'R'}"
+    return _mirrored("mtk", f"{MIRROR}maastotietokanta/2025/shp/L2/{tile.name[:3]}/{half}.shp.zip", f"{half}.shp.zip")
+
+
+def buildings3d_path(tile: Tile) -> Path | None:
+    """NLS's CityGML sheet, which only comes as a MapSite order and is put here by hand. None until it has been."""
+    path = RAW / "buildings3d" / f"{tile.name}.gml"
+    return path if path.exists() else None
 
 
 def _fetch_box(name: str, box: tuple[float, float, float, float]) -> list[Path]:

@@ -126,7 +126,7 @@ def bake_shade(mosaic: np.ndarray) -> np.ndarray:
 
 
 def water_mask(mosaic: np.ndarray) -> np.ndarray:
-    """True on the tile's samples that are lake or sea: large areas of one exact level."""
+    """True on the mosaic's samples, rim included, that are lake or sea: large areas of one exact level."""
     spread = ndimage.maximum_filter(mosaic, 3) - ndimage.minimum_filter(mosaic, 3)
     labels, _ = ndimage.label(spread <= WATER_FLATNESS_M)
     sizes = np.bincount(labels.ravel())
@@ -134,5 +134,4 @@ def water_mask(mosaic: np.ndarray) -> np.ndarray:
     water = sizes[labels] >= WATER_MIN_SAMPLES
     # The flatness test loses the cell next to every shore, and the line where two tiles'
     # water levels meet, a few centimetres apart: give both back.
-    water = ndimage.binary_closing(ndimage.binary_dilation(water))
-    return water[RIM_SAMPLES:-RIM_SAMPLES, RIM_SAMPLES:-RIM_SAMPLES]
+    return ndimage.binary_closing(ndimage.binary_dilation(water))

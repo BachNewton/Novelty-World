@@ -14,6 +14,10 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
+import buildings as solids
+import canopy
+import ground as ground_colour
+import laser
 import roads as road_surface
 import terrain
 import vectors
@@ -24,7 +28,7 @@ OUTPUT = Path(__file__).resolve().parent.parent / ".data" / "tiles"
 HEIGHT_UNIT_M = 0.01
 SHADE_QUALITY = 90
 SHADE_GAMMA = 2.2
-FORMAT = 3
+FORMAT = 4
 # Far terrain: every fourth height node, so the nodes it shares with the 4 m grid, edges included, are the same numbers.
 FAR_NODE_STRIDE = 4
 FAR_SHADE_PIXELS = 750
@@ -33,8 +37,8 @@ MASK_PIXELS = 1500
 # The drive starts here, on this tile's main road.
 START_TILE = "L2343C"
 ATTRIBUTION = [
-    "Elevation: National Land Survey of Finland, 2 m elevation model, CC BY 4.0",
-    "Roads and buildings: © OpenStreetMap contributors, ODbL 1.0",
+    "Land: National Land Survey of Finland (elevation, orthophotos, laser scanning, 3D buildings, Topographic Database), CC BY 4.0",
+    "Roads: © OpenStreetMap contributors, ODbL 1.0",
 ]
 
 
@@ -80,7 +84,8 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     folder.mkdir(parents=True, exist_ok=True)
 
     mosaic = terrain.read_with_rim(tile)
-    water = terrain.water_mask(mosaic)
+    water_with_rim = terrain.water_mask(mosaic)
+    water = water_with_rim[terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES, terrain.RIM_SAMPLES : -terrain.RIM_SAMPLES]
 
     west, south = to_local(tile.west, tile.south)
     east, north = to_local(tile.east, tile.north)
@@ -92,6 +97,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     buildings: list[dict] = []
     surface_manifest = None
     baked: list[tuple[np.ndarray, np.ndarray]] = []
+    motor_roads: list[tuple[np.ndarray, np.ndarray]] = []
     if with_vectors:
         roads, buildings, osm_timestamp = vectors.build(osm_path(tile, refresh_osm), tile)
         osm_licence = {"license": "ODbL-1.0", "attribution": "© OpenStreetMap contributors", "asOf": osm_timestamp}
@@ -109,6 +115,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
             mesh_nodes = terrain.height_nodes(conformed)
             ribbons = road_surface.ribbons(surface, mesh_nodes, TILE_SIZE_M / (mesh_nodes.shape[0] - 1), west, north)
         baked = [(ring, tier) for _, ring, tier in ribbons]
+        motor_roads = [(ring, tier) for chain, ring, tier in ribbons if chain.motor]
         (folder / "road-surface.bin.gz").write_bytes(encode_road_surface(baked))
         surface_manifest = {
             "file": "road-surface.bin.gz",
@@ -133,6 +140,14 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     Image.fromarray(encoded).save(folder / "shade.webp", quality=SHADE_QUALITY, method=6)
     Image.fromarray(encoded).reduce(SAMPLES // FAR_SHADE_PIXELS).save(folder / "shade-far.webp", quality=FAR_SHADE_QUALITY, method=6)
 
+    raw_photo = ground_colour.read_photo(tile)
+    photo = ground_colour.graded(raw_photo)
+    above = laser.above_ground(tile)
+    solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder)
+    trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
+    ground_colour.bake(photo, water_with_rim, trees, folder)
+    print(f"  {trees.mean():.1%} under trees")
+
     manifest = {
         "format": FORMAT,
         "tile": tile.name,
@@ -152,6 +167,9 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "shade": {"file": "shade.webp", "pixels": SAMPLES, "pixelM": SAMPLE_M, "gamma": SHADE_GAMMA},
         "sun": {"azimuthDeg": terrain.SUN_AZIMUTH_DEG, "elevationDeg": terrain.SUN_ELEVATION_DEG},
         "mask": {"file": "mask.png", "pixels": MASK_PIXELS, "channels": ["water", "main road", "lesser road"]},
+        "ground": {"file": "ground.webp", "pixels": SAMPLES, "farFile": "ground-far.webp", "farPixels": ground_colour.FAR_PIXELS},
+        "canopy": {"file": "canopy.webp", "pixels": canopy.PIXELS, "unitM": canopy.UNIT_M},
+        "solids": solids_manifest,
         "water": {"nodesFile": "water-nodes.bin.gz"},
         "roads": {"file": "roads.json", "count": len(roads)},
         "buildings": {"file": "buildings.json", "count": len(buildings)},
@@ -185,6 +203,8 @@ def write_world(output: Path = OUTPUT) -> dict:
         "far": first["far"],
         "shade": first["shade"],
         "mask": first["mask"],
+        "ground": first["ground"],
+        "canopy": first["canopy"],
         "water": first["water"],
         "sun": first["sun"],
         "attribution": ATTRIBUTION,

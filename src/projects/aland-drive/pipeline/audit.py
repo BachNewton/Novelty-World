@@ -214,7 +214,7 @@ def visible_strips(heights: Heights) -> np.ndarray:
     sizes = np.bincount(labels.ravel(), minlength=count + 1)
     sizes[0] = 0
     long_enough = sizes[labels] * SAMPLE_M >= STRIP_MIN_LENGTH_M
-    return long_enough[RIM_SAMPLES:-RIM_SAMPLES, RIM_SAMPLES:-RIM_SAMPLES] & ~water_mask(heights.mosaic)
+    return (long_enough & ~water_mask(heights.mosaic))[RIM_SAMPLES:-RIM_SAMPLES, RIM_SAMPLES:-RIM_SAMPLES]
 
 
 def near_mask(lines: list[np.ndarray], tile: Tile, reach: float) -> np.ndarray:
