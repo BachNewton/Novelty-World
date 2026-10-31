@@ -1,6 +1,6 @@
 import { DataArrayTexture, DataTexture, LinearFilter, LinearMipmapLinearFilter, NearestFilter, NoColorSpace, RedFormat, RGBAFormat, RGFormat, type Texture, type WebGPURenderer } from "three/webgpu";
 import type { WorldManifest } from "./tile";
-import type { Mips } from "./tile.worker";
+import type { FarTile, Mips } from "./tile.worker";
 import type { World, WorldTile } from "../sim/world";
 
 /*
@@ -44,6 +44,9 @@ export class TileLayers {
   readonly shadeNear: DataArrayTexture;
   readonly shadeFar: DataArrayTexture;
   readonly mask: DataArrayTexture;
+  readonly groundNear: DataArrayTexture;
+  readonly groundFar: DataArrayTexture;
+  readonly canopy: DataArrayTexture;
   readonly slots: DataTexture;
   /** The lattice place of the map's first texel, and how many tiles it spans. */
   readonly mapColumn: number;
@@ -64,6 +67,9 @@ export class TileLayers {
     this.shadeNear = this.layers(renderer, manifest.shade.pixels, NEAR_LAYERS, 1);
     this.shadeFar = this.layers(renderer, manifest.far.shadePixels, tiles.length, 1);
     this.mask = this.layers(renderer, manifest.mask.pixels, tiles.length, 4);
+    this.groundNear = this.layers(renderer, manifest.ground.pixels, NEAR_LAYERS, 4);
+    this.groundFar = this.layers(renderer, manifest.ground.farPixels, tiles.length, 4);
+    this.canopy = this.layers(renderer, manifest.canopy.pixels, tiles.length, 1);
     this.freeNear = Array.from({ length: NEAR_LAYERS }, (_, layer) => layer);
 
     this.mapColumn = Math.min(...tiles.map((tile) => tile.column));
@@ -128,10 +134,10 @@ export class TileLayers {
   }
 
   /** A tile's far images, for the game's start. */
-  placeFar(tile: WorldTile, shade: Mips, mask: Mips, manifest: WorldManifest, done: () => void): void {
+  placeFar(tile: WorldTile, { shade, mask, ground, canopy }: Pick<FarTile, "shade" | "mask" | "ground" | "canopy">, manifest: WorldManifest, done: () => void): void {
     const layer = this.farOf.get(tile.name);
     if (layer === undefined) throw new Error(`no far layer for ${tile.name}`);
-    let waiting = 2;
+    let waiting = 4;
     const landed = () => {
       if (--waiting > 0) return;
       this.setSlot(tile, 0, layer + 1);
@@ -139,13 +145,16 @@ export class TileLayers {
     };
     this.enqueue(this.shadeFar, layer, shade, manifest.far.shadePixels, 1, landed);
     this.enqueue(this.mask, layer, mask, manifest.mask.pixels, 4, landed);
+    this.enqueue(this.groundFar, layer, ground, manifest.ground.farPixels, 4, landed);
+    this.enqueue(this.canopy, layer, canopy, manifest.canopy.pixels, 1, landed);
   }
 
-  placeNear(tile: WorldTile, shade: Mips, size: number, done: () => void): void {
+  placeNear(tile: WorldTile, shade: Mips, ground: Mips, manifest: WorldManifest, done: () => void): void {
     const layer = this.freeNear.pop();
     if (layer === undefined) throw new Error(`no free layer for ${tile.name}: more tiles at full detail than the stream allows`);
     this.nearOf.set(tile.name, layer);
-    this.enqueue(this.shadeNear, layer, shade, size, 1, () => {
+    this.enqueue(this.shadeNear, layer, shade, manifest.shade.pixels, 1, () => undefined);
+    this.enqueue(this.groundNear, layer, ground, manifest.ground.pixels, 4, () => {
       this.setSlot(tile, 1, layer + 1);
       done();
     });
@@ -168,6 +177,9 @@ export class TileLayers {
     this.shadeNear.dispose();
     this.shadeFar.dispose();
     this.mask.dispose();
+    this.groundNear.dispose();
+    this.groundFar.dispose();
+    this.canopy.dispose();
     this.slots.dispose();
   }
 }

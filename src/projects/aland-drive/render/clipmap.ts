@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, DataTexture, FloatType, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Node, type Scene, type Vector3 } from "three/webgpu";
-import { abs, float, ivec2, max, mix, mod, positionGeometry, smoothstep, textureLoad, uniform, vec3 } from "three/tsl";
+import { abs, float, ivec2, max, mix, mod, positionGeometry, round, smoothstep, textureLoad, uniform, vec3 } from "three/tsl";
 import { patchIndices } from "./tile";
 import type { World } from "../sim/world";
 
@@ -47,6 +47,7 @@ function ringIndices(holeColumn: number, holeRow: number): Uint32Array {
 
 interface Ring {
   stepM: number;
+  groundAt: (place: Node<"vec2">) => Node<"float">;
   heights: Float32Array;
   texture: DataTexture;
   origin: { value: Vector2 };
@@ -60,10 +61,15 @@ interface Ring {
 export interface Clipmap {
   /** Moves the rings to the camera, copying heights where they moved or the world's changed. */
   update: (camera: Vector3) => void;
+  /** The height of the ring's nearest node to a place: for a shader to stand something on the ground. */
+  groundAt: (level: number, place: Node<"vec2">) => Node<"float">;
   dispose: () => void;
 }
 
-export function createClipmap(scene: Scene, world: World, stepM: number, colorNode: Node<"vec3">): Clipmap {
+/** What rises from the ground far off (the forest's canopy), given a place and the ring's level. */
+export type TerrainLift = (place: Node<"vec2">, level: number) => Node<"float">;
+
+export function createClipmap(scene: Scene, world: World, stepM: number, colorNode: Node<"vec3">, lift: TerrainLift): Clipmap {
   const across = CELLS + 1;
   const positions = new Float32Array(across * across * 3);
   for (let row = 0; row < across; row++) {
@@ -105,7 +111,7 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
     const moved = place.sub(odd.mul(ringStep).mul(fold));
 
     const material = new MeshBasicNodeMaterial();
-    material.positionNode = vec3(moved.x, mix(own, coarse, fold), moved.y);
+    material.positionNode = vec3(moved.x, mix(own, coarse, fold).add(lift(moved, level)), moved.y);
     material.colorNode = colorNode;
     materials.push(material);
 
@@ -116,7 +122,8 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
     scene.add(mesh);
-    return { stepM: ringStep, heights, texture, origin, column: Number.NaN, row: Number.NaN, revision: -1, mesh };
+    const groundAt = (spot: Node<"vec2">) => textureLoad(texture, ivec2(round(spot.sub(origin).div(ringStep)))).r;
+    return { stepM: ringStep, groundAt, heights, texture, origin, column: Number.NaN, row: Number.NaN, revision: -1, mesh };
   });
 
   const copyHeights = (ring: Ring, level: number) => {
@@ -131,6 +138,9 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
   };
 
   return {
+    groundAt(level, place) {
+      return rings[level].groundAt(place);
+    },
     update(camera) {
       cameraSpot.value.set(camera.x, camera.z);
       let inside: Ring | null = null;
