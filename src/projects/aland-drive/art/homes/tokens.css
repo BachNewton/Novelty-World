@@ -1,0 +1,30 @@
+/*
+ * The homes' colours that no existing token can mix: woods, cloth and the three lights a room is baked
+ * for. On integration this block joins the other --color-aland-drive-* tokens in globals.css.
+ */
+:root {
+  --color-aland-drive-home-pine: #c99a62;
+  --color-aland-drive-home-oak: #b68a58;
+  --color-aland-drive-home-birch: #dcc196;
+  --color-aland-drive-home-walnut: #66432e;
+  --color-aland-drive-home-aspen: #d9b98a;
+  --color-aland-drive-home-plaster: #ece6da;
+  --color-aland-drive-home-paper: #d9d2bc;
+  --color-aland-drive-home-sage: #8b9b82;
+  --color-aland-drive-home-linen: #d8cdb8;
+  --color-aland-drive-home-wool: #ebe5d6;
+  --color-aland-drive-home-rust: #a9553a;
+  --color-aland-drive-home-navy: #2f4661;
+  --color-aland-drive-home-moss: #5f6f47;
+  --color-aland-drive-home-mustard: #c9a03c;
+  --color-aland-drive-home-charcoal: #2b2a2b;
+  --color-aland-drive-home-tile: #d4dcd8;
+  --color-aland-drive-home-concrete: #a5a49c;
+  --color-aland-drive-home-steel: #b8bcbd;
+  --color-aland-drive-home-ember: #ff8a3a;
+  --color-aland-drive-home-bulb: #ffe2b0;
+
+  --color-aland-drive-home-light-ambient: #d9d3c8;
+  --color-aland-drive-home-light-window: #dbe8f4;
+  --color-aland-drive-home-light-lamp: #ffc98a;
+}
