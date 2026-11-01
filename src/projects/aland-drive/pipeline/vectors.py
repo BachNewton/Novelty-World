@@ -22,6 +22,7 @@ def line_to_grid(geometry: list[dict]) -> np.ndarray:
 
 # A line that nicks a tile's corner or edge leaves a stub this short, which rounding to the centimetre makes one point.
 SHORTEST_PART_M = 0.02
+DEAD_END_CLEAR_M = 1.0
 
 
 def clip_line(line: np.ndarray, tile: Tile) -> list[np.ndarray]:
@@ -69,6 +70,16 @@ def seam_direction(line: np.ndarray, point: np.ndarray) -> np.ndarray:
     return chord / np.hypot(*chord)
 
 
+def stop_short_of_edge(line: np.ndarray, part: np.ndarray) -> np.ndarray:
+    """A way that ends just past an edge has nothing over there to meet, so its part ends as a dead end, not on the seam."""
+    part = part.copy()
+    for at, inside, end in ((0, 1, line[0]), (-1, -2, line[-1])):
+        if 0 < np.hypot(*(part[at] - end)) < SHORTEST_PART_M:
+            step = part[inside] - part[at]
+            part[at] += step * min(DEAD_END_CLEAR_M / np.hypot(*step), 0.5)
+    return part
+
+
 def _seams(line: np.ndarray, part: np.ndarray, tile: Tile) -> list[list[float]]:
     """For each end of a clipped part on the tile's edge: its place and the whole line's direction there."""
     seams = []
@@ -93,7 +104,8 @@ def build(osm_file: Path, tile: Tile) -> tuple[list[dict], list[dict], str]:
         if element["type"] == "way" and "highway" in tags and tags["highway"] not in NOT_A_ROAD:
             kind = tags["highway"]
             whole = line_to_grid(element["geometry"])
-            for part in clip_line(whole, tile):
+            for clipped in clip_line(whole, tile):
+                part = stop_short_of_edge(whole, clipped)
                 road = {"id": element["id"], "kind": kind, "motor": kind not in FOOT_OR_BIKE, "line": _rounded(part)}
                 seams = _seams(whole, part, tile)
                 if seams:

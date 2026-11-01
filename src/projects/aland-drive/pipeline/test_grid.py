@@ -11,7 +11,7 @@ import unittest
 import numpy as np
 
 import grid
-from vectors import clip_line
+from vectors import clip_line, stop_short_of_edge
 
 SHEET_CORNERS = {
     "L2343C": (98000, 6690000),
@@ -76,6 +76,16 @@ class Clipping(unittest.TestCase):
 
     def test_a_line_nicking_the_edge_by_millimetres_is_gone(self):
         self.assertEqual(clip_line(np.array([[-100.0, 100.0], [0.003, 100.0], [-100.0, 100.3]]), self.tile), [])
+
+    def test_a_way_ending_just_past_the_edge_stops_short_of_it(self):
+        whole = np.array([[100.0, 100.0], [-0.005, 100.0]])
+        part = stop_short_of_edge(whole, clip_line(whole, self.tile)[0])
+        self.assertEqual(part.tolist(), [[100.0, 100.0], [1.0, 100.0]])
+
+    def test_a_way_crossing_the_edge_still_ends_on_it(self):
+        whole = np.array([[100.0, 100.0], [-50.0, 100.0]])
+        part = stop_short_of_edge(whole, clip_line(whole, self.tile)[0])
+        self.assertEqual(part.tolist(), [[100.0, 100.0], [0.0, 100.0]])
 
     def test_a_line_that_ends_on_the_edge_has_no_repeated_point(self):
         parts = clip_line(np.array([[100.0, 100.0], [0.0, 100.0], [-100.0, 300.0]]), self.tile)
