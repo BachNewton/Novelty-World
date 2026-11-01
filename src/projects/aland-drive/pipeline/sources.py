@@ -87,6 +87,12 @@ def ortho_path(tile: Tile) -> Path:
         if path is not None:
             return path
         (RAW / "ortho" / f"{tile.name}.jp2.absent").unlink()
+    # The outermost skerries were only flown lower, and those sheets sit in folders by their pixel size.
+    for size in ("02m", "10m"):
+        path = _mirrored_or_none("ortho", f"{MIRROR}orto/normal_color_3067/smk_v_15000_50/2025/{tile.name[:3]}/{size}/1/{tile.name}.jp2", f"{tile.name}.jp2")
+        if path is not None:
+            return path
+        (RAW / "ortho" / f"{tile.name}.jp2.absent").unlink()
     raise FileNotFoundError(f"{tile.name}: the mirror has no photo from any of {ORTHO_YEARS}")
 
 

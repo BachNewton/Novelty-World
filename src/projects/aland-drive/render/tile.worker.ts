@@ -1,4 +1,4 @@
-import { decodeHeights, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
+import { decodeHeights, litPhoto, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
 import { decodeSolids, type SolidsCell } from "./solids";
 import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
 import { decodeOverview, tileDetail, type Overview, type TileDetail } from "../sim/world";
@@ -19,6 +19,8 @@ export interface FarTile {
   mask: Mips;
   ground: Mips;
   canopy: Mips;
+  /** The far photo with its light in it, for the mini map. */
+  land: ImageBitmap;
   /** Compressed bytes this load read, whether from the network or the browser's cache. */
   bytes: number;
 }
@@ -116,6 +118,7 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
     reader.pixels(ground.farFile, ground.farPixels, 4),
     reader.pixels(canopy.file, canopy.pixels, 1),
   ]);
+  const land = await createImageBitmap(new ImageData(litPhoto(groundPixels, shade, world.shade.gamma), ground.farPixels, ground.farPixels));
   return {
     name: tile.name,
     grid: decodeHeights(new Int16Array(farHeights), { nodes: format.nodes, stepM: format.stepM, unitM: heights.unitM }, tile),
@@ -123,6 +126,7 @@ async function far(base: string, world: WorldManifest, tile: WorldTileEntry): Pr
     mask: mipChain(maskPixels, mask.pixels, 4),
     ground: mipChain(groundPixels, ground.farPixels, 4),
     canopy: mipChain(canopyPixels, canopy.pixels, 1),
+    land,
     bytes: reader.bytes,
   };
 }
@@ -156,7 +160,7 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
   return { detail: tileDetail(manifest, grid, surface, new Uint8Array(waterNodes), world.tileM, walls), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, bytes: reader.bytes };
 }
 
-const transfersOf = ({ grid, shade, mask, ground, canopy }: FarTile): Transferable[] => [grid.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy].map((mip) => mip.buffer as ArrayBuffer)];
+const transfersOf = ({ grid, shade, mask, ground, canopy, land }: FarTile): Transferable[] => [land, grid.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy].map((mip) => mip.buffer as ArrayBuffer)];
 
 function detailTransfers({ detail, shade, ground, buildings }: DetailTile): Transferable[] {
   const { ribbon, surface, roads, blockRoads, grid, waterNodes, bridges, walls, blockWalls } = detail;

@@ -4,6 +4,22 @@
  * world origin. In the scene, east is +x, up is +y and north is -z.
  */
 
+/** Light on flat open ground in the baked shading: at this the photo shows as it was taken. */
+export const FLAT_LIGHT = 0.8;
+/** The photo already holds most of its own relief, so the baked shading only adds to it. */
+export const SHADE_SHARE = 0.65;
+
+/** A photo with its light in it, as the render draws it: RGBA in, sRGB bytes, and one shade byte for each pixel. */
+export function litPhoto(ground: Uint8Array, shade: Uint8Array, gamma: number): Uint8ClampedArray<ArrayBuffer> {
+  const brightness = Float32Array.from({ length: 256 }, (_, byte) => Math.max(1 + SHADE_SHARE * ((byte / 255) ** gamma / FLAT_LIGHT - 1), 0) ** (1 / 2.2));
+  const lit = new Uint8ClampedArray(ground);
+  for (let pixel = 0; pixel < shade.length; pixel++) {
+    const by = brightness[shade[pixel]];
+    for (let channel = 0; channel < 3; channel++) lit[pixel * 4 + channel] = ground[pixel * 4 + channel] * by;
+  }
+  return lit;
+}
+
 export interface TileManifest {
   tile: string;
   bounds: { west: number; south: number; east: number; north: number };

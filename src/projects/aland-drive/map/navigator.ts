@@ -1,4 +1,4 @@
-import { drawCar, drawLand, drawNames, drawRoads, drawRoute, flatView, type MapInk } from "./draw";
+import { drawCar, drawLand, drawNames, drawRoads, drawRoute, flatView, type MapInk, type SharpLand } from "./draw";
 import type { RoadGraph, Route } from "./road-graph";
 import type { OverviewFormat } from "../render/tile";
 
@@ -51,13 +51,14 @@ export class Navigator {
   private pendingSince = { x: 0, z: 0 };
   private lastRoute = { x: Number.NaN, z: Number.NaN };
   private lastRead = { x: Number.NaN, z: Number.NaN };
-  private lastDraw = { x: Number.NaN, z: Number.NaN, turn: 0, route: null as Route | null };
+  private lastDraw = { x: Number.NaN, z: Number.NaN, turn: 0, route: null as Route | null, land: 0 };
   private readonly pen: CanvasRenderingContext2D;
 
   constructor(
     private readonly graph: RoadGraph,
     private readonly land: OffscreenCanvas,
     private readonly format: OverviewFormat,
+    private readonly sharp: SharpLand,
     private readonly mini: HTMLCanvasElement,
     private readonly ink: MapInk,
     private readonly events: NavigatorEvents,
@@ -140,14 +141,14 @@ export class Navigator {
 
   private drawMini(x: number, z: number, headingClockwise: number, speedMS: number): void {
     const last = this.lastDraw;
-    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route;
+    const unchanged = Math.hypot(last.x - x, last.z - z) < REDRAW_MOVED_M && Math.abs(last.turn - headingClockwise) < REDRAW_TURNED_RADIANS && last.route === this.route && last.land === this.sharp.revision;
     if (unchanged) return;
-    this.lastDraw = { x, z, turn: headingClockwise, route: this.route };
+    this.lastDraw = { x, z, turn: headingClockwise, route: this.route, land: this.sharp.revision };
     const { width, height } = this.mini;
     const share = Math.min(speedMS / MINI_FAR_SPEED_MS, 1);
     const view = flatView(x, z, MINI_NEAR_SCALE + share * (MINI_FAR_SCALE - MINI_NEAR_SCALE), headingClockwise, width, height, width / 2, height * 0.62);
     const { pen, ink } = this;
-    drawLand(pen, view, this.land, this.format, ink, MINI_LAND_DIM);
+    drawLand(pen, view, this.land, this.format, this.sharp, ink, MINI_LAND_DIM);
     drawRoads(pen, view, this.graph, 3, ink);
     if (this.route) drawRoute(pen, view, this.route, this.along, ink);
     drawNames(pen, view, this.graph, 2, MINI_NAMES, ink);

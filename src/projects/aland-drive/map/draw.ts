@@ -59,7 +59,43 @@ export function landImage(pixels: Uint8Array, format: OverviewFormat): Offscreen
   return canvas;
 }
 
-export function drawLand(pen: CanvasRenderingContext2D, view: MapView, land: OffscreenCanvas, format: OverviewFormat, ink: MapInk, dim: number): void {
+/** The sharper land that's loaded just now, by tile. */
+export class SharpLand {
+  private readonly tiles = new Map<string, { x: number; z: number; image: ImageBitmap }>();
+  /** Moves on whenever what's here changes. */
+  revision = 0;
+
+  constructor(private readonly tileM: number) {}
+
+  add(name: string, column: number, row: number, image: ImageBitmap): void {
+    this.tiles.set(name, { x: column * this.tileM, z: row * this.tileM, image });
+    this.revision++;
+  }
+
+  remove(name: string): void {
+    this.tiles.get(name)?.image.close();
+    this.tiles.delete(name);
+    this.revision++;
+  }
+
+  /** Each tile in sight, over what's already drawn. */
+  draw(pen: CanvasRenderingContext2D, view: MapView): void {
+    const { west, east, top, bottom } = sightBox(view);
+    const [cos, sin] = [Math.cos(view.turn), Math.sin(view.turn)];
+    pen.save();
+    pen.imageSmoothingEnabled = true;
+    for (const { x, z, image } of this.tiles.values()) {
+      if (x > east || x + this.tileM < west || z > bottom || z + this.tileM < top) continue;
+      const pixel = (this.tileM / image.width) * view.scale;
+      const [left, up] = view.toScreen(x, z);
+      pen.setTransform(pixel * cos, -pixel * sin, pixel * sin, pixel * cos, left, up);
+      pen.drawImage(image, 0, 0);
+    }
+    pen.restore();
+  }
+}
+
+export function drawLand(pen: CanvasRenderingContext2D, view: MapView, land: OffscreenCanvas, format: OverviewFormat, sharp: SharpLand, ink: MapInk, dim: number): void {
   pen.fillStyle = ink.water;
   pen.fillRect(0, 0, view.width, view.height);
   const metresWide = (format.columns - 1) * format.stepM;
@@ -71,6 +107,7 @@ export function drawLand(pen: CanvasRenderingContext2D, view: MapView, land: Off
   pen.imageSmoothingEnabled = true;
   pen.drawImage(land, 0, 0);
   pen.restore();
+  sharp.draw(pen, view);
   pen.globalAlpha = dim;
   pen.fillStyle = ink.shade;
   pen.fillRect(0, 0, view.width, view.height);
