@@ -52,7 +52,7 @@ export function canopyLift(canopyAt: (place: Node<"vec2">, mip: number) => Node<
 }
 
 /** The ground each of the forest's models stands on. */
-export function forestGround(clipmap: Clipmap, read: Clipmap["groundAt"] = clipmap.groundAt): Pick<ForestInputs, "groundNear" | "groundMid" | "groundFar"> {
+export function forestGround(clipmap: Clipmap, read: Clipmap["groundAt"] = clipmap.groundBlendedAt): Pick<ForestInputs, "groundNear" | "groundMid" | "groundFar"> {
   return {
     groundNear: (place) => read(FOREST_NEAR_RING, place),
     groundMid: (place) => read(1, place),

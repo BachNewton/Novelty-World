@@ -9,39 +9,40 @@ import { FAR_STEP_M, HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_
  * image, nothing if there's none) and rolls the rest from the place, so a tree
  * is the same tree whenever it comes back, and moving costs nothing at all.
  *
- * A tree never changes size. Near the camera it's a turned shape, then an outline of
- * the same height and width at the same place, then, far off where it's a few pixels,
- * a plain cone. Each change of detail is a screen-door crossfade: the two models take
- * opposite pixels of a fixed pattern, at a distance of the tree's own, so a tree is
- * always whole. The nearest two grids hold every place. Past those only every other
- * place goes on, a little wider, and the rest dissolve the same way, where a tree is
- * twenty pixels tall. At the far edge trees dissolve too, tiny, and by then the
+ * A tree never changes height, and stands on the same ground whichever model it is.
+ * Near the camera it's a turned shape, then an outline of the same tiers at the same
+ * place, then, far off where it's a few pixels, a plain cone. Each change of detail is
+ * a screen-door crossfade: the two models take opposite pixels of a fixed pattern, at a
+ * distance of the tree's own, so a tree is always whole. The nearest two grids hold
+ * every place. Past those only every other place goes on, and the rest dissolve the
+ * same way over a long run while those that stay fill out to cover for them. At the far edge trees dissolve too, tiny, and by then the
  * terrain has risen by the canopy behind them (`clipmap.ts`).
  *
  * All three species are one mesh: its rings say where each species' outline goes.
  */
 
 /** A grid moves by whole cells and ends a cell short on its far sides, so each is done with by its last sure row, or a row at a time drops in. */
-const NEAR_GRID_M = 150;
+const NEAR_GRID_M = 180;
 const MID_GRID_M = 480;
 const FAR_GRID_M = 1536;
 export const FOREST_REACH_M = 1500;
 /** Each crossfade starts within the first pair, by a roll for each tree, and takes the run. */
-const TO_OUTLINE_M: Band = [82, 110, 24];
+const TO_OUTLINE_M: Band = [100, 140, 24];
 const TO_CONE_M: Band = [372, 440, 24];
-/** Places the far grid doesn't hold dissolve here, more slowly. */
-const THINNED_M: Band = [340, 410, 54];
+/** Places the far grid doesn't hold dissolve here, more slowly, over a long way, so no stretch of forest thins at once. */
+const THINNED_M: Band = [240, 400, 64];
 const EDGE_M: Band = [FOREST_REACH_M - 220, FOREST_REACH_M - 90, 90];
 /** Where each change of detail starts and has finished by, for the lab to mark on the ground. */
 export const FOREST_BANDS = [TO_OUTLINE_M, THINNED_M, TO_CONE_M, EDGE_M].map(([from, to, run]): [number, number] => [from, to + run]);
 /** A triangle's outline is narrower than the turned shape's, for the same radius. */
 const OUTLINE_FILL = 1.25;
-/** One far tree stands for the places round it that have gone. */
-const CONE_WIDEN = 1.35;
+/** One far tree stands for the places round it that have gone, and fills out as they go. */
+const CONE_WIDEN = 1.5;
 /** Stood this far into the ground, so the coarser ground a shader reads never shows under a trunk on a slope. */
 const SINK_M = 0.5;
-/** A near tree eases on to the coarser ground over this run, well before it's handed over, too slowly to see. */
-const GROUND_EASE_M: [number, number] = [40, 82];
+/** A tree eases from one ring's ground to the next over these runs, by its distance and not its model, so a handover can't move it, and each run is done before the ring it leaves runs out. */
+const NEAR_TO_MID_M: [number, number] = [200, 340];
+const MID_TO_FAR_M: [number, number] = [560, 740];
 
 type Band = [from: number, to: number, run: number];
 
@@ -61,15 +62,18 @@ const NEAR_RINGS: Ring[] = [
   [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
 ];
 
+/** The turned shape's crown in fewer rings, following its tiers, so handing over doesn't change a tree's outline. */
 const OUTLINE_RINGS: Ring[] = [
   [[0, 0.016, 0], [0, 0.016, 0], [0, 0.014, 0]],
   [[0.1, 0.014, 0], [0.52, 0.012, 0], [0.32, 0.01, 0]],
-  [[0.11, 0.21, 1], [0.54, 0.15, 1], [0.34, 0.13, 1]],
-  [[0.5, 0.12, 1], [0.8, 0.16, 1], [0.66, 0.15, 1]],
+  [[0.11, 0.21, 1], [0.54, 0.13, 1], [0.34, 0.1, 1]],
+  [[0.35, 0.11, 1], [0.66, 0.16, 1], [0.5, 0.14, 1]],
+  [[0.36, 0.16, 1], [0.72, 0.16, 1], [0.66, 0.15, 1]],
+  [[0.6, 0.09, 1], [0.86, 0.14, 1], [0.82, 0.12, 1]],
   [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
 ];
 /** The trunk's two faces cover what three would, and nothing joins it to the crown. */
-const OUTLINE_LINKS: Link[] = ["thin", "none", "whole", "whole"];
+const OUTLINE_LINKS: Link[] = ["thin", "none", "whole", "whole", "whole", "whole"];
 
 const CONE_RINGS: Ring[] = [
   [[0.08, 0.17, 1], [0.52, 0.15, 1], [0.32, 0.14, 1]],
@@ -208,8 +212,10 @@ export function createForest(scene: Scene, { canopyAt, groundNear, groundMid = (
     const unit = attribute<"vec3">("position", "vec3");
     const radial = vec2(unit.x.mul(cos(yaw)).sub(unit.z.mul(sin(yaw))), unit.x.mul(sin(yaw)).add(unit.z.mul(cos(yaw))));
     const rise = pick(attribute<"vec3">("heights", "vec3"));
-    const width = pick(attribute<"vec3">("radii", "vec3")).mul(model === "cone" ? OUTLINE_FILL * CONE_WIDEN : model === "outline" ? OUTLINE_FILL : 1);
-    const ground = model === "turned" ? mix(groundNear(place), groundMid(place), smoothstep(float(GROUND_EASE_M[0]), float(GROUND_EASE_M[1]), offset)) : model === "outline" ? mix(groundMid(place), groundFar(place), smoothstep(float(TO_OUTLINE_M[1] + TO_OUTLINE_M[2]), float(THINNED_M[0]), offset)) : groundFar(place);
+    const fillingOut = mix(float(1), float(CONE_WIDEN), select(onFarGrid, smoothstep(float(THINNED_M[0]), float(THINNED_M[1] + THINNED_M[2]), offset), float(0)));
+    const width = pick(attribute<"vec3">("radii", "vec3")).mul(model === "cone" ? OUTLINE_FILL * CONE_WIDEN : model === "outline" ? fillingOut.mul(OUTLINE_FILL) : 1);
+    // A turned tree stays inside the near ring's run, and a cone starts past it, so each reads only the rings it can be on.
+    const ground = model === "turned" ? groundNear(place) : model === "outline" ? mix(groundNear(place), groundMid(place), smoothstep(float(NEAR_TO_MID_M[0]), float(NEAR_TO_MID_M[1]), offset)) : mix(groundMid(place), groundFar(place), smoothstep(float(MID_TO_FAR_M[0]), float(MID_TO_FAR_M[1]), offset));
     const material = new MeshBasicNodeMaterial();
     material.positionNode = vec3(place.x.add(radial.x.mul(width).mul(scale)), ground.sub(SINK_M).add(rise.mul(scale)), place.y.add(radial.y.mul(width).mul(scale)));
 

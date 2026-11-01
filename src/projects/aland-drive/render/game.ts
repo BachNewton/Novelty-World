@@ -145,8 +145,8 @@ export const CAMERA_NEAR = 0.25;
 /** Far enough to see the whole island from straight above. */
 const CAMERA_FAR = 200000;
 const SEA_BELOW_LAND_M = -1.2;
-/** The 3D world is drawn at this share of the screen's pixels each way, and stretched to fit. The page's UI stays sharp. */
-export const RENDER_SCALE = 0.7;
+/** The 3D world is drawn at this share of the screen's real pixels each way, and stretched to fit if it's under 1. The page's UI stays sharp. */
+export const RENDER_SCALE = 1;
 const LONGEST_FRAME_S = 0.1;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
@@ -292,7 +292,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     throw new NoWebGpuError();
   }
   renderer.setClearColor(new Color(token("sky")));
-  renderer.setPixelRatio(RENDER_SCALE);
+  renderer.setPixelRatio(window.devicePixelRatio * RENDER_SCALE);
   renderer.domElement.style.display = "block";
   renderer.domElement.style.width = "100%";
   renderer.domElement.style.height = "100%";

@@ -44,7 +44,7 @@ export function ForestLab() {
   const [pinned, setPinned] = useState(false);
   const [distance, setDistance] = useState(400);
   const [approaching, setApproaching] = useState(false);
-  const [blended, setBlended] = useState(false);
+  const [oldGround, setOldGround] = useState(false);
   const [bands, setBands] = useState(true);
   const [hidden, setHidden] = useState<ForestModel[]>([]);
   useFrameStats();
@@ -189,13 +189,13 @@ export function ForestLab() {
         <label className="flex items-center gap-1 text-xs">
           <input
             type="checkbox"
-            checked={blended}
+            checked={oldGround}
             onChange={(event) => {
-              setBlended(event.target.checked);
-              lab?.blendGround(event.target.checked);
+              setOldGround(event.target.checked);
+              lab?.useOldGround(event.target.checked);
             }}
           />
-          Try the fix: blend the ground under trees
+          Compare: the old ground under trees
         </label>
 
         <p className="text-xs">

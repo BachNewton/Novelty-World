@@ -65,8 +65,8 @@ export interface ForestLab {
   pin: (metres: number | null) => void;
   /** Runs a pinned distance down to nothing and round again, at a car's speed. */
   approach: (running: boolean) => void;
-  /** Reads the ground as the game does, or the blended way, and rebuilds the forest to match. */
-  blendGround: (blended: boolean) => void;
+  /** Reads the ground at the nearest node, as the game used to, or blended as it does, and rebuilds the forest to match. */
+  useOldGround: (old: boolean) => void;
   nextWorstTree: () => void;
   state: () => ForestLabState;
   dispose: () => void;
@@ -85,7 +85,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     throw new NoWebGpuError();
   }
   renderer.setClearColor(new Color(token("sky")));
-  renderer.setPixelRatio(RENDER_SCALE);
+  renderer.setPixelRatio(window.devicePixelRatio * RENDER_SCALE);
   renderer.domElement.style.display = "block";
   renderer.domElement.style.width = "100%";
   renderer.domElement.style.height = "100%";
@@ -127,11 +127,11 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
   const isView = (view: ForestLabView) => abs(viewShown.sub(VIEWS.indexOf(view))).lessThan(0.5);
   const modelColours: Record<ForestModel, string> = { turned: "lab-turned", outline: "lab-outline", cone: "lab-cone" };
   const hidden = new Set<ForestModel>();
-  let blended = false;
+  let oldGround = false;
   const buildForest = (): Forest => {
     const built = createForest(scene, {
       canopyAt: (place) => reads.canopyAt(place, 0),
-      ...forestGround(clipmap, blended ? clipmap.groundBlendedAt : clipmap.groundAt),
+      ...forestGround(clipmap, oldGround ? clipmap.groundAt : clipmap.groundBlendedAt),
       roads: { at: reads.roadsAt, tileM },
       colour: colorOf,
       hazed: (color) => color,
@@ -297,9 +297,9 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
       approaching = running;
       if (running && pinned === null) pinned = APPROACH_FROM_M;
     },
-    blendGround(next) {
-      if (next === blended) return;
-      blended = next;
+    useOldGround(next) {
+      if (next === oldGround) return;
+      oldGround = next;
       forest.dispose();
       forest = buildForest();
     },
