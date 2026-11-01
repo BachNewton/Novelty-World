@@ -60,6 +60,7 @@ APRON_REACH_STATIONS = 12
 # Less road than this left between two cuts is paved as part of the apron.
 APRON_SHORTEST_STUB_M = 16.0
 APRON_SHOULDER_M = 1.5
+APRON_SHOULDER_READ_M = 0.3
 # How far the land eases back from an apron, by its tier: its roads' own blends.
 APRON_BLEND_M = {"main": 12.0, "minor": 8.0, "track": 5.0}
 # The aprons tuck this far under the ribbons they join, so no crack shows between them.
@@ -1062,7 +1063,9 @@ def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: 
     shoulder = chain.shoulder[keep][:, None] * chain.normal[keep]
     outer_left_xy = chain.left[:, :2] + shoulder
     outer_right_xy = chain.right[:, :2] - shoulder
-    apron_over_left, apron_over_right = cover.height(outer_left_xy), cover.height(outer_right_xy)
+    # Read just past the edge: a thin wedge of apron can lie over a shoulder's inner part and stop short of its outer point.
+    just_past = APRON_SHOULDER_READ_M * chain.normal[keep]
+    apron_over_left, apron_over_right = cover.height(chain.left[:, :2] + just_past), cover.height(chain.right[:, :2] - just_past)
 
     def outer(xy: np.ndarray, edge: np.ndarray, apron: np.ndarray) -> np.ndarray:
         height = surface_height(nodes, step, west, north, xy)

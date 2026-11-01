@@ -44,6 +44,8 @@ const SHORTEST_LOOK_M = 5;
 const JUDGED_BEYOND_M = 40;
 /** The car settling on to its springs after being put down. */
 const LANDING_M = 15;
+/** Put down on a dead end's very last metre, the car's tail hangs off the road's end and it can't pull away. */
+const CLEAR_OF_THE_END_M = 4;
 const END_WITHIN_M = 3;
 const LOST_M = 25;
 /** Under the car's real pull away, so a run-up always gets there. */
@@ -130,7 +132,7 @@ const speedFor = (move: Movement) => {
 
 /** The line from far enough back to reach a speed, and how far along that leaves the junction. */
 const lineOf = (move: Movement, cruise: number) => {
-  const dropped = Math.max(0, Math.floor(move.entersAt - LANDING_M - cruise ** 2 / (2 * PULLS_AWAY_MS2) - JUDGED_BEYOND_M));
+  const dropped = Math.max(CLEAR_OF_THE_END_M, Math.floor(move.entersAt - LANDING_M - cruise ** 2 / (2 * PULLS_AWAY_MS2) - JUDGED_BEYOND_M));
   const count = move.line.length / 2 - dropped;
   const points = new Float32Array(count * 3);
   for (let at = 0; at < count; at++) {

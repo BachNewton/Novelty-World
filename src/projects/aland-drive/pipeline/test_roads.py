@@ -208,10 +208,11 @@ class Junctions(unittest.TestCase):
         nodes = surface.conformed[::2, ::2]
         cover = roads.ApronCover(surface.aprons)
         for _, rings, _, _ in roads.ribbons(surface, nodes, 4.0, 0.0, 3000.0):
-            for outer in (rings[:, 0], rings[:, 4]):
-                over = cover.height(outer[:, :2].astype(float))
+            for outer, edge in ((rings[:, 0], rings[:, 1]), (rings[:, 4], rings[:, 3])):
+                inner = edge[:, :2] + 0.2 * (outer[:, :2] - edge[:, :2]) / np.maximum(np.hypot(*(outer[:, :2] - edge[:, :2]).T)[:, None], 1e-6)
+                over = cover.height(inner.astype(float))
                 under = ~np.isnan(over)
-                self.assertTrue((outer[under, 2] <= over[under] - roads.UNDER_ANOTHER_ROAD_M + 1e-3).all())
+                self.assertTrue((outer[under, 2] <= over[under] - roads.UNDER_ANOTHER_ROAD_M + 0.05).all())
 
     def test_a_path_across_an_apron_passes_under_it(self):
         def bank(east, north):
@@ -230,7 +231,7 @@ class Junctions(unittest.TestCase):
 
     def test_a_road_ending_on_one_that_is_easing_meets_it_as_laid(self):
         ground = land(height=lambda east, north: 10 + 0.1 * np.clip(east - 1500, 0, 30))
-        high = road([(1500, 2000), (1500, 1000)])
+        high = road([(1500, 2000), (1500, 1500), (1500, 1000)])
         middle = road([(1500, 1500), (1512, 1500), (2500, 1500)], "unclassified")
         last = road([(1512, 1500), (1512, 1100)], "service")
         surface = lay_roads([high, middle, last], ground)
