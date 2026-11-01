@@ -7,7 +7,7 @@
 export interface TileManifest {
   tile: string;
   bounds: { west: number; south: number; east: number; north: number };
-  roadSurface: { file: string; chains: RoadChain[] };
+  roadSurface: { file: string; chains: RoadChain[]; aprons?: { points: number; triangles: number } };
   solids: { file: string; unitM: number; cells: { x: number; z: number; vertices: number; indices: number }[]; walls: number };
 }
 
@@ -72,6 +72,15 @@ export interface RoadChain {
 /** Cross-sections across a road, in rings of five points: outer left, edge left, centre, edge right, outer right. */
 export const RING_POINTS = 5;
 const RING_FLOATS = RING_POINTS * 3;
+const APRON_POINT_FLOATS = 5;
+
+export interface RoadAprons {
+  firstPoint: number;
+  /** Per point, as `RibbonMesh`'s. */
+  across: Float32Array;
+  tiers: Float32Array;
+  indices: Uint32Array;
+}
 
 /** The baked road surface in scene space: every ribbon's rings end to end. */
 export interface RoadSurface {
@@ -79,6 +88,8 @@ export interface RoadSurface {
   /** Each section's tier, an index into `ROAD_TIERS`. */
   tiers: Uint8Array;
   chains: (RoadChain & { first: number })[];
+  /** The junction aprons: their points follow the chains' in `rings`, and they number their triangles from there. */
+  aprons: RoadAprons;
 }
 
 export const ROAD_TIERS = ["main", "minor", "track"] as const;
@@ -150,9 +161,11 @@ export function patchIndices(cells: number): Uint32Array {
 export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): RoadSurface {
   const sections = manifest.roadSurface.chains.reduce((sum, chain) => sum + chain.sections, 0);
   const floats = sections * RING_FLOATS;
+  const { points, triangles } = manifest.roadSurface.aprons ?? { points: 0, triangles: 0 };
   const baked = new Float32Array(data, 0, floats);
-  if (data.byteLength !== floats * 4 + sections) throw new Error(`${manifest.tile}: expected ${sections} road sections, got ${data.byteLength} bytes`);
-  const rings = new Float32Array(floats);
+  const apronsAt = floats * 4 + sections;
+  if (data.byteLength !== apronsAt + points * APRON_POINT_FLOATS * 4 + triangles * 12) throw new Error(`${manifest.tile}: expected ${sections} road sections and ${points} apron points, got ${data.byteLength} bytes`);
+  const rings = new Float32Array(floats + points * 3);
   for (let at = 0; at < floats; at += 3) {
     rings[at] = baked[at];
     rings[at + 1] = baked[at + 2];
@@ -164,5 +177,16 @@ export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): Ro
     first += chain.sections;
     return placed;
   });
-  return { rings, tiers: new Uint8Array(data, floats * 4), chains };
+  // After a byte per section, so not on a boundary a typed array can view.
+  const apronPoints = new Float32Array(data.slice(apronsAt, apronsAt + points * APRON_POINT_FLOATS * 4));
+  const across = new Float32Array(points);
+  const tiers = new Float32Array(points);
+  for (let point = 0; point < points; point++) {
+    const at = point * APRON_POINT_FLOATS;
+    rings.set([apronPoints[at], apronPoints[at + 2], -apronPoints[at + 1]], floats + point * 3);
+    across[point] = apronPoints[at + 3];
+    tiers[point] = apronPoints[at + 4];
+  }
+  const indices = new Uint32Array(data.slice(apronsAt + points * APRON_POINT_FLOATS * 4));
+  return { rings, tiers: new Uint8Array(data, floats * 4, sections), chains, aprons: { firstPoint: sections * RING_POINTS, across, tiers, indices } };
 }
