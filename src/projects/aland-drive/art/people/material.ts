@@ -1,7 +1,6 @@
 import { DoubleSide, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
 import { attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, int, max, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3, vec4 } from "three/tsl";
 import type { RoadsideInputs } from "../roadside/material";
-import "../cars/tokens.css";
 import type { Crowd } from "./crowd";
 import { PARTS } from "./parts";
 import { DRIVES, ROCK_MAX_DEGREES, ROCK_MAX_RATE, type Drive } from "./soup";

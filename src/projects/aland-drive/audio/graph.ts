@@ -387,6 +387,9 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
       unlockAudio();
       await ready;
       if (rig === null) throw new Error("The drive's sounds were never built");
+      // Only `update` raises the master from silence, and no drive may be running here.
+      const { muted, volume } = settings();
+      rig.master.gain.value = muted ? 0 : volume * HEADROOM;
       return rig.player;
     },
     reading: () => (last === null ? null : { mix: last, engine }),

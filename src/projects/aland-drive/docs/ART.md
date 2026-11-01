@@ -12,12 +12,13 @@ Most objects need a per-tile list from the pipeline: model, position, yaw, scale
 
 | Kit | Folder | Status | Placed from | In game | Placed | Seen |
 |---|---|---|---|---|---|---|
-| **Cars** (player and five more) | `art/cars` | Built | Player's car swap; others by purchase and traffic | [ ] | [ ] | [ ] |
+| **Player's car** | `art/cars` | Built | The car the game starts in, drawn from `CarState` | [x] | [x] | [ ] |
+| **Other cars** | `art/cars` | Built | By purchase and traffic | [ ] | [ ] | [ ] |
 | **Ground, roads, paint** | `art/surfaces` | Built | Shader, from photo colour and road kinds | [ ] | [ ] | [ ] |
 | **Roofs and shopfronts** | `art/surfaces` | Built | Shader, by building | [ ] | [ ] | [ ] |
 | **Road signs** | `art/surfaces` | Built | OSM `traffic_sign`, stop and give way; junction rules | [ ] | [ ] | [ ] |
-| **Sky and clouds** | `art/sky` | Built | One dome | [ ] | [ ] | [ ] |
-| **Water** | `render/water.ts` | In the game; sky and hour still to connect | Sea plane and terrain's water | [x] | [x] | [x] |
+| **Sky and clouds** | `art/sky` | Built | One dome | [x] | [x] | [ ] |
+| **Water** | `render/water.ts` | In the game, reflecting the sky; hour still to connect | Sea plane and terrain's water | [x] | [x] | [x] |
 | **Forest fixes** | `render/forest.ts` | In the game | Existing forest | [x] | [x] | [x] |
 | **Roadside kit** | `art/roadside` | Built | Lamps, poles, stops, fences from OSM; mailboxes at drives by rule | [ ] | [ ] | [ ] |
 | **Better pine** | `art/roadside` | Built | Replaces the forest's pine, once measured | [ ] | [ ] | [ ] |

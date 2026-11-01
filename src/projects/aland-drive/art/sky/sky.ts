@@ -1,5 +1,5 @@
 import { BackSide, DataTexture, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, RepeatWrapping, RGBAFormat, SphereGeometry, Vector2, Vector3, type Node } from "three/webgpu";
-import { dot, float, fract, max, mix, normalize, positionLocal, screenCoordinate, smoothstep, sqrt, texture, uniform, vec2, vec3 } from "three/tsl";
+import { dot, float, fract, max, mix, modelViewProjection, normalize, positionLocal, screenCoordinate, smoothstep, sqrt, texture, uniform, vec2, vec3, vec4 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { cloudPixels } from "./cloud-noise";
 
@@ -317,6 +317,9 @@ export function createSky({ reach, look }: SkyOptions): Sky {
   const geometry = new SphereGeometry(reach, DOME_WIDTH_SEGMENTS, DOME_HEIGHT_SEGMENTS);
   const material = new MeshBasicNodeMaterial({ side: BackSide, depthWrite: false });
   material.colorNode = dithered(colourAlong(positionLocal));
+  // Depth 0 is the far plane of a reversed depth buffer: a sky at any real distance would cover the ground at the corners of a view from high up.
+  const clip = modelViewProjection as Node<"vec4">;
+  material.vertexNode = vec4(clip.xy, 0, clip.w);
   material.fog = false;
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;

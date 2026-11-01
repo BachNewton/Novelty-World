@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, Camera, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, X } from "lucide-react";
+import { ArrowUp, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, X } from "lucide-react";
+import { DevMenu } from "./dev-menu";
 import { BINDINGS } from "../input/controls";
-import type { CameraMode, GameProbe, HudReading, LoadingProgress } from "../render/game";
+import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
 
 /*
  * The page round the world: the canvas the game draws into, and the UI over it.
@@ -29,7 +30,6 @@ const ACCENT = "var(--color-aland-drive-ui-accent)";
 const HINTS = [
   { binding: BINDINGS.handbrake, icon: Hand, label: "Handbrake" },
   { binding: BINDINGS.respawn, icon: RefreshCcw, label: "Back to the road" },
-  { binding: BINDINGS.view, icon: Camera, label: "Change view" },
   { binding: BINDINGS.freeCamera, icon: Eye, label: "Free camera" },
   { binding: BINDINGS.map, icon: MapIcon, label: "World map" },
 ];
@@ -66,6 +66,9 @@ export function AlandDrive() {
   const [mapReady, setMapReady] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [road, setRoad] = useState<{ name: string; seen: number } | null>(null);
+  const [dev, setDev] = useState<Pick<Game, "cars" | "setCar" | "setDevMenuOpen"> | null>(null);
+  const [devMenuOpen, setDevMenuOpen] = useState(false);
+  const [carName, setCarName] = useState("");
   useFrameStats();
 
   useEffect(() => {
@@ -103,6 +106,8 @@ export function AlandDrive() {
           onLoading: setLoading,
           onMapReady: () => { setMapReady(true); },
           onMapOpen: setMapOpen,
+          onDevMenuOpen: setDevMenuOpen,
+          onCarChange: setCarName,
           onRoad: (name) => { setRoad((last) => ({ name, seen: (last?.seen ?? 0) + 1 })); },
         }, { mini, world });
         if (closed()) {
@@ -110,6 +115,8 @@ export function AlandDrive() {
           return;
         }
         window.__alandDrive = game.probe;
+        setDev(game);
+        setCarName(game.probe.carName());
         setStarted(true);
         stop = () => {
           game.dispose();
@@ -179,6 +186,7 @@ export function AlandDrive() {
           </ul>
         </>
       )}
+      {devMenuOpen && dev !== null && <DevMenu cars={dev.cars} car={carName} onCar={dev.setCar} onClose={() => { dev.setDevMenuOpen(false); }} />}
       {failure !== null && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center" style={{ color: INK, background: SHADE }} role="alert">
           <p className="max-w-md text-lg">Åland Drive lost part of the map: {failure}</p>

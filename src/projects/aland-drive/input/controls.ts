@@ -17,7 +17,6 @@ export const BINDINGS = {
   right: binding("L3", "D"),
   handbrake: binding("A", "Space"),
   respawn: binding("Y", "R"),
-  view: binding("RB", "C"),
   freeCamera: binding("View", "F"),
   map: binding("Menu", "M"),
   mapPick: binding("A", "Click"),
@@ -25,26 +24,31 @@ export const BINDINGS = {
   mapClose: binding("B", "Esc"),
 } as const;
 
-export type GameAction = "respawn" | "view" | "freeCamera" | "map";
+export type GameAction = "respawn" | "freeCamera" | "map";
 export type MapAction = "pick" | "clear" | "close";
 
-const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyC: "view", KeyF: "freeCamera", KeyM: "map" };
-const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", RB: "view", View: "freeCamera", Menu: "map" };
+const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF: "freeCamera", KeyM: "map" };
+const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", View: "freeCamera", Menu: "map" };
 const KEY_MAP_ACTIONS: Partial<Record<string, MapAction>> = { KeyX: "clear", Escape: "close", KeyM: "close" };
 const PAD_MAP_ACTIONS: Partial<Record<StandardButton, MapAction>> = { A: "pick", X: "clear", B: "close", Menu: "close" };
 const TAKEN_KEYS = new Set(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
+/** `~` is a dead key on some layouts, sent as "Dead" until it's pressed twice, so the key under Esc counts by where it is. */
+const isDevMenuKey = ({ key, code }: KeyboardEvent) => key === "~" || code === "Backquote";
 
 export interface ControlsListener {
   onAction: (action: GameAction) => void;
   onMapAction: (action: MapAction) => void;
   /** A number key: the digit, as a string. */
   onDigit: (digit: string) => void;
+  onDevMenu: (open: boolean) => void;
   onInputKind: (kind: InputKind) => void;
 }
 
-export function startControls({ onAction, onMapAction, onDigit, onInputKind }: ControlsListener) {
+export function startControls({ onAction, onMapAction, onDigit, onDevMenu, onInputKind }: ControlsListener) {
   const held = new Set<string>();
   let mapOpen = false;
+  let devMenuOpen = false;
   let pad: PadReading | null = null;
   let kind: InputKind = "keyboard-mouse";
 
@@ -55,13 +59,22 @@ export function startControls({ onAction, onMapAction, onDigit, onInputKind }: C
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (TAKEN_KEYS.has(event.code)) event.preventDefault();
+    // Open, the menu's buttons take Space themselves.
+    if (TAKEN_KEYS.has(event.code) && !devMenuOpen) event.preventDefault();
     if (event.repeat) return;
     switchTo("keyboard-mouse");
     held.add(event.code);
     if (mapOpen) {
       const mapAction = KEY_MAP_ACTIONS[event.code];
       if (mapAction) onMapAction(mapAction);
+      return;
+    }
+    if (devMenuOpen) {
+      if (event.code === "Escape" || isDevMenuKey(event)) onDevMenu(false);
+      return;
+    }
+    if (isDevMenuKey(event)) {
+      onDevMenu(true);
       return;
     }
     const action = KEY_ACTIONS[event.code];
@@ -83,7 +96,7 @@ export function startControls({ onAction, onMapAction, onDigit, onInputKind }: C
       if (changed && pad) switchTo("pad");
     },
     onButton(edge) {
-      if (!edge.pressed || edge.name === null) return;
+      if (!edge.pressed || edge.name === null || devMenuOpen) return;
       if (mapOpen) {
         const mapAction = PAD_MAP_ACTIONS[edge.name];
         if (mapAction) onMapAction(mapAction);
@@ -119,6 +132,9 @@ export function startControls({ onAction, onMapAction, onDigit, onInputKind }: C
     kind: () => kind,
     setMapOpen(open: boolean) {
       mapOpen = open;
+    },
+    setDevMenuOpen(open: boolean) {
+      devMenuOpen = open;
     },
     /** The steady inputs on the world map: a pad's, and WASD's panning. */
     mapSteer() {
