@@ -33,6 +33,8 @@ The render (`render/game.ts`) is one renderer, one scene and one loop. The page 
 
 The tools run against local tiles, never the real host: `tools/serve-tiles.mjs` serves a folder of them and counts the bytes it sent, and a page takes it with `?tiles=local:<port>`. `tools/look.mjs` takes a screenshot from any place on the map. `tools/drive.mjs` drives a route the game's own GPS sets (`--gps=<x,z;x,z;...>`) and prints what it did, cost, held and downloaded, held and stepped by hand, or with `--clock` at real speed, which is the one that says whether anything stalled. `tools/landings.mjs` walks the load focus round the world so tiles land over and over, and prints what each cost. `tools/road-check.ts` drives every motor road in the simulation alone, and `tools/bridge-check.ts` every span, both ways. The browser tools use headless Playwright with `channel: "chromium"`, because the default headless shell falls back to WebGL2 here.
 
+`?forest-lab` is the forest on its own (`render/forest-lab.ts`, `components/forest-lab.tsx`), on the game's own forest and terrain code and real tiles, to see how its detail works and to judge a change to it. What detail is measured from can be pinned away from the camera, so a tree goes through everything a drive does to it with the view held still. It colours trees by model, by whether they thin out and by how far their base slides, finds the worst trees nearby, and can try the blended ground. `render/tile-reads.ts` is what the game and the lab share, so the lab's trees are the game's.
+
 The scene is east +x, up +y and north -z. The renderer uses a reversed depth buffer.
 
 ## The car
