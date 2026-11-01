@@ -60,8 +60,12 @@ APRON_REACH_STATIONS = 12
 # Less road than this left between two cuts is paved as part of the apron.
 APRON_SHORTEST_STUB_M = 16.0
 APRON_SHOULDER_M = 1.5
+# How far the land eases back from an apron, by its tier: its roads' own blends.
+APRON_BLEND_M = {"main": 12.0, "minor": 8.0, "track": 5.0}
 # The aprons tuck this far under the ribbons they join, so no crack shows between them.
 APRON_TUCK_M = 0.05
+# And sink this far under them there, or two surfaces at one height flicker through each other along the join.
+APRON_TUCK_DROP_M = 0.01
 APRON_LEAST_AREA_M2 = 0.2
 # Within this of a ribbon, an apron's height is that ribbon's.
 APRON_PIN_M = 0.2
@@ -745,7 +749,8 @@ def _shoulders(shape: shapely.Polygon, points: np.ndarray, height: np.ndarray, f
             at_a, at_b = vertex.get(tuple(a)), vertex.get(tuple(b))
             step = b - a
             length = float(np.hypot(*step))
-            if at_a is None or at_b is None or length < 1e-6 or not (free[at_a] and free[at_b]):
+            # Where the outline leaves a ribbon counts too: its shoulder ends at its last section, and the land shows in the notch.
+            if at_a is None or at_b is None or length < 1e-6 or not (free[at_a] or free[at_b]):
                 continue
             out = np.array((step[1], -step[0])) / length * APRON_SHOULDER_M
             first = len(points) + len(laid)
@@ -765,9 +770,12 @@ def _apron_of(shape: shapely.Polygon, members: list[Chain], tier: int) -> Apron:
     located = shapely.points(points)
     # The greatest first: where two ribbons meet, the point keeps to the greater.
     for chain in laid:
-        pinned = np.isnan(height) & (shapely.distance(located, _kept_strip(chain)) < APRON_PIN_M)
+        strip = _kept_strip(chain)
+        pinned = np.isnan(height) & (shapely.distance(located, strip) < APRON_PIN_M)
         if pinned.any():
             height[pinned] = _surface_at(chain, points[pinned])
+            tucked = pinned & (shapely.distance(located, strip.buffer(-APRON_TUCK_M / 2)) == 0)
+            height[tucked] -= APRON_TUCK_DROP_M
     free = np.isnan(height)
     if free.any():
         # The rest hang between the pinned points like a soap film, so an apron has no ridge of its own.
@@ -860,7 +868,27 @@ class Fields:
     owner: np.ndarray  # Which chain that station is on: the lower the number, the greater the road.
 
 
-def road_fields(chains: list[Chain], ground: Ground) -> Fields:
+def _apron_stations(aprons: list[Apron], ground: Ground) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Every 2 m corner under an apron's carriageway, with the height it stands at and how far its land eases back."""
+    cover = ApronCover(aprons)
+    size = ground.tile_corners().shape[0]
+    found: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+    for apron in aprons:
+        road = apron.points[apron.across == APRON_ACROSS]
+        columns = np.arange(max(int((road[:, 0].min() - ground.west) // ground.spacing), 0), min(int((road[:, 0].max() - ground.west) // ground.spacing) + 2, size))
+        rows = np.arange(max(int((ground.north - road[:, 1].max()) // ground.spacing), 0), min(int((ground.north - road[:, 1].min()) // ground.spacing) + 2, size))
+        if len(columns) == 0 or len(rows) == 0:
+            continue
+        lattice = np.stack(np.meshgrid(ground.west + columns * ground.spacing, ground.north - rows * ground.spacing), axis=-1).reshape(-1, 2)
+        height = cover.height(lattice)
+        solid = ~np.isnan(height) & ~ground.is_water(lattice)
+        found.append((lattice[solid], height[solid], np.full(int(solid.sum()), APRON_BLEND_M[TIERS[apron.tier]])))
+    if not found:
+        return np.zeros((0, 2)), np.zeros(0), np.zeros(0)
+    return tuple(np.concatenate(parts) for parts in zip(*found))
+
+
+def road_fields(chains: list[Chain], ground: Ground, aprons: list[Apron] = ()) -> Fields:
     corners = ground.tile_corners()
     size = corners.shape[0]
     seeds = np.full((size, size), -1, dtype=np.int32)
@@ -873,6 +901,22 @@ def road_fields(chains: list[Chain], ground: Ground) -> Fields:
     right = np.concatenate([chain.right for chain in laid])
     half_left = np.hypot(*(left[:, :2] - xy).T)
     half_right = np.hypot(*(right[:, :2] - xy).T)
+    # An apron shapes the land round it as a ribbon does, or that land stays the raw ground and the apron ends on a step.
+    # Its stations come last, so a ribbon keeps any raster cell the two share.
+    apron_xy, apron_z, apron_blend = _apron_stations(list(aprons), ground)
+    extra = len(apron_xy)
+    apron_points = np.column_stack((apron_xy, apron_z))
+    xy = np.concatenate((xy, apron_xy))
+    normal = np.concatenate((normal, np.tile((1.0, 0.0), (extra, 1))))
+    shoulder = np.concatenate((shoulder, np.full(extra, APRON_SHOULDER_M)))
+    blend = np.concatenate((blend, apron_blend))
+    span = np.concatenate((span, np.zeros(extra, dtype=bool)))
+    owner = np.concatenate((owner, np.full(extra, len(chains))))
+    middle = np.concatenate((middle, apron_z))
+    left = np.concatenate((left, apron_points))
+    right = np.concatenate((right, apron_points))
+    half_left = np.concatenate((half_left, np.zeros(extra)))
+    half_right = np.concatenate((half_right, np.zeros(extra)))
     rows = np.clip(np.round((ground.north - xy[:, 1]) / ground.spacing).astype(int), 0, size - 1)
     columns = np.clip(np.round((xy[:, 0] - ground.west) / ground.spacing).astype(int), 0, size - 1)
     # The greatest roads go last, so they hold a raster cell two stations share. A span shapes no land.
@@ -931,6 +975,28 @@ def under_every_ribbon(conformed: np.ndarray, chains: list[Chain], ground: Groun
     return result
 
 
+class ApronCover:
+    """How high the aprons' carriageways stand at a place."""
+
+    def __init__(self, aprons: list[Apron]):
+        road = [apron.points[apron.triangles[apron.across[apron.triangles].max(1) == APRON_ACROSS]] for apron in aprons]
+        self.triangles = np.concatenate(road) if road else np.zeros((0, 3, 3))
+        self.tree = shapely.STRtree(shapely.polygons(np.concatenate((self.triangles[:, :, :2], self.triangles[:, :1, :2]), axis=1)))
+
+    def height(self, xy: np.ndarray) -> np.ndarray:
+        """NaN where no apron is."""
+        height = np.full(len(xy), np.nan)
+        at, triangle = self.tree.query(shapely.points(xy), predicate="intersects")
+        a, b, c = np.moveaxis(self.triangles[triangle], 1, 0)
+        across = (b[:, 1] - c[:, 1]) * (a[:, 0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (a[:, 1] - c[:, 1])
+        solid = np.abs(across) > 1e-9
+        offset = xy[at[solid]] - c[solid, :2]
+        first = ((b[solid, 1] - c[solid, 1]) * offset[:, 0] + (c[solid, 0] - b[solid, 0]) * offset[:, 1]) / across[solid]
+        second = ((c[solid, 1] - a[solid, 1]) * offset[:, 0] + (a[solid, 0] - c[solid, 0]) * offset[:, 1]) / across[solid]
+        height[at[solid]] = first * a[solid, 2] + second * b[solid, 2] + (1 - first - second) * c[solid, 2]
+        return height
+
+
 def apron_footprints(aprons: list[Apron]) -> list[tuple[np.ndarray, np.ndarray]]:
     """Each apron triangle as a little ribbon, for what's drawn from ribbons' carriageways: the mask and the clearing of trees."""
     footprints = []
@@ -984,15 +1050,16 @@ def _thin_sections(rings: np.ndarray, distance: np.ndarray) -> np.ndarray:
     return np.array(kept)
 
 
-def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: float, fields: Fields, spacing: float, ground: Ground) -> tuple[np.ndarray, np.ndarray, list[tuple[int, int]]]:
+def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: float, fields: Fields, spacing: float, ground: Ground, cover: ApronCover) -> tuple[np.ndarray, np.ndarray, list[tuple[int, int]]]:
     """A chain's kept cross-sections as rings of (x, y, z), each section's tier, and the sections each span runs between."""
     keep = chain.kept
     span = chain.span[keep]
     shoulder = chain.shoulder[keep][:, None] * chain.normal[keep]
     outer_left_xy = chain.left[:, :2] + shoulder
     outer_right_xy = chain.right[:, :2] - shoulder
+    apron_over_left, apron_over_right = cover.height(outer_left_xy), cover.height(outer_right_xy)
 
-    def outer(xy: np.ndarray, edge: np.ndarray) -> np.ndarray:
+    def outer(xy: np.ndarray, edge: np.ndarray, apron: np.ndarray) -> np.ndarray:
         height = surface_height(nodes, step, west, north, xy)
         columns = np.clip(np.round((xy[:, 0] - west) / spacing).astype(int), 0, fields.distance.shape[0] - 1)
         rows = np.clip(np.round((north - xy[:, 1]) / spacing).astype(int), 0, fields.distance.shape[0] - 1)
@@ -1001,7 +1068,9 @@ def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: 
         # Where the land falls away (a road on a bridge, or over an underpass) the shoulder stays a deck: reaching
         # down to the ground it would be a wall across whatever passes beneath.
         drawn = np.maximum(np.where(under, lowered, height), edge - SHOULDER_LONGEST_DROP_M)
-        return np.column_stack((xy, np.where(span, edge, drawn)))
+        laid = np.where(span, edge, drawn)
+        # A shoulder running on under an apron stands nearly level with it, and a surface that close flickers through.
+        return np.column_stack((xy, np.where(np.isnan(apron), laid, np.minimum(laid, apron - UNDER_ANOTHER_ROAD_M))))
 
     def beneath_greater_roads(points: np.ndarray) -> np.ndarray:
         """Where a lesser road runs across a greater one with no junction, such as a path, it passes just under: the greater road's surface is the one a car meets."""
@@ -1014,7 +1083,7 @@ def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: 
     for station in (0, -1):
         if _on_tile_edge(ground, chain.centre[station]):
             left[station], centre[station], right[station] = chain.left[station], chain.centre[station], chain.right[station]
-    rings = np.stack((outer(outer_left_xy, left[:, 2]), left, centre, right, outer(outer_right_xy, right[:, 2])), axis=1)
+    rings = np.stack((outer(outer_left_xy, left[:, 2], apron_over_left), left, centre, right, outer(outer_right_xy, right[:, 2], apron_over_right)), axis=1)
     # A seam section may reach over the edge, so its outer points take the land both tiles agree on, and it's rounded so they match.
     for station in (0, -1):
         if _on_tile_edge(ground, rings[station, 2, :2]):
@@ -1025,7 +1094,10 @@ def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: 
     thin = _thin_sections(rings, distance)
     # A span's first and last stations stay, so its ends are where the land stops and not a section short of it.
     ends = np.flatnonzero(np.diff(span.astype(np.int8)))
-    kept = np.union1d(thin, np.concatenate((ends, ends + 1)))
+    # So do those either side of where a shoulder goes under an apron.
+    under_apron = ~(np.isnan(apron_over_left) & np.isnan(apron_over_right))
+    tucks = np.flatnonzero(np.diff(under_apron.astype(np.int8)))
+    kept = np.union1d(thin, np.concatenate((ends, ends + 1, tucks, tucks + 1)))
     return rings[kept].astype(np.float32), chain.tier[keep][kept], _runs(span[kept])
 
 
@@ -1042,9 +1114,10 @@ class Surface:
 def ribbons(surface: Surface, nodes: np.ndarray, step: float, west: float, north: float) -> list[tuple[Chain, np.ndarray, np.ndarray, list[tuple[int, int]]]]:
     """Every chain long enough to have a surface, greatest first, as its rings, tiers and spans."""
     made = []
+    cover = ApronCover(surface.aprons)
     for chain in surface.chains:
         if len(chain.kept) >= 2:
-            made.append((chain, *ribbon_of(chain, nodes, step, west, north, surface.fields, surface.spacing, surface.ground)))
+            made.append((chain, *ribbon_of(chain, nodes, step, west, north, surface.fields, surface.spacing, surface.ground, cover)))
     return made
 
 
@@ -1053,8 +1126,8 @@ def lay_roads(roads: list[dict], ground: Ground) -> Surface:
     chains = chains_from(split_at_junctions(roads))
     for chain in chains:
         lay_chain(chain, chains, ground)
-    fields = road_fields(chains, ground)
     aprons = lay_aprons(chains, ground)
+    fields = road_fields(chains, ground, aprons)
     conformed = under_every_ribbon(conform_ground(ground.tile_corners(), fields, ground.spacing), chains, ground, NODE_STRIDE)
     conformed = under_every_apron(conformed, aprons, ground, NODE_STRIDE)
     return Surface(chains, conformed, aprons, fields, ground.spacing, ground)

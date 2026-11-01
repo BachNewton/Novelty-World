@@ -11,6 +11,7 @@ import unittest
 
 import numpy as np
 
+import road_map
 import roads
 from build import encode_heights
 from grid import Tile
@@ -188,6 +189,30 @@ class Junctions(unittest.TestCase):
         self.assertTrue(on_main.any())
         self.assertLess(np.abs(carriageway[on_main, 2] - main.plane(carriageway[on_main, :2])).max(), 0.02)
 
+    def test_the_land_comes_up_to_an_apron_so_it_ends_on_no_step(self):
+        def pit(east, north):
+            hole = (east > 1486) & (east < 1500) & (north > 1503) & (north < 1516)
+            return np.where(hole, 9.0, 10.0)
+
+        ground = land(height=pit)
+        surface = lay_roads([self.main, self.side], ground)
+        xy, height, _ = roads._apron_stations(surface.aprons, ground)
+        in_the_pit = pit(xy[:, 0], xy[:, 1]) == 9.0
+        self.assertTrue(in_the_pit.any())
+        columns = np.round((xy[in_the_pit, 0] - ground.west) / ground.spacing).astype(int)
+        rows = np.round((ground.north - xy[in_the_pit, 1]) / ground.spacing).astype(int)
+        self.assertLess(np.abs(surface.conformed[rows, columns] - (height[in_the_pit] - roads.CLEARANCE_M)).max(), 0.1)
+
+    def test_a_shoulder_under_an_apron_stands_clear_of_it(self):
+        surface = lay_roads([self.main, self.side], land())
+        nodes = surface.conformed[::2, ::2]
+        cover = roads.ApronCover(surface.aprons)
+        for _, rings, _, _ in roads.ribbons(surface, nodes, 4.0, 0.0, 3000.0):
+            for outer in (rings[:, 0], rings[:, 4]):
+                over = cover.height(outer[:, :2].astype(float))
+                under = ~np.isnan(over)
+                self.assertTrue((outer[under, 2] <= over[under] - roads.UNDER_ANOTHER_ROAD_M + 1e-3).all())
+
     def test_a_shallow_merge_lays_no_road_over_another(self):
         merging = road([(1500, 1500), (2200, 1560), (2900, 1800)], "secondary")
         surface = lay_roads([self.main, merging], land())
@@ -223,6 +248,12 @@ class Junctions(unittest.TestCase):
     def test_a_road_cut_into_ways_runs_on_as_one_chain(self):
         ways = [road([(0, 500), (800, 520)]), road([(800, 520), (1500, 480)]), road([(1500, 480), (2600, 500)], "secondary")]
         self.assertEqual(len(roads.chains_from(roads.split_at_junctions(ways))), 1)
+
+
+class RoadMap(unittest.TestCase):
+    def test_a_closed_loop_keeps_its_shape_when_thinned(self):
+        loop = np.array([(0.0, 0.0), (10, 0), (10, 10), (0, 10), (0.0, 0.0)])
+        self.assertGreater(len(road_map._thin(loop)), 2)
 
 
 if __name__ == "__main__":
