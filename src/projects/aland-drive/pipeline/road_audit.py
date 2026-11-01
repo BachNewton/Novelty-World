@@ -35,7 +35,7 @@ def load(name: str):
     data = gzip.decompress((folder / manifest["roadSurface"]["file"]).read_bytes())
     sections = sum(chain["sections"] for chain in manifest["roadSurface"]["chains"])
     raw = np.frombuffer(data[: sections * RINGS * 12], "<f4").reshape(sections, RINGS, 3)[..., [0, 2, 1]]  # To (east, height, north).
-    tiers = np.frombuffer(data[sections * RINGS * 12 :], "u1")
+    tiers = np.frombuffer(data[sections * RINGS * 12 :], "u1", count=sections)
     chains = []
     first = 0
     for chain in manifest["roadSurface"]["chains"]:
