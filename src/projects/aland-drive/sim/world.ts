@@ -322,6 +322,15 @@ export class World {
   }
 
   /** A lake or the sea at a point. Ground with no detail loaded yet counts as land. */
+  /** How many walls cross the block a place is in: how built up it is there. */
+  wallsAt(x: number, z: number): number {
+    const detail = this.tileAt(x, z)?.detail;
+    if (!detail) return 0;
+    const { blockWalls: { first, blocksAcross }, manifest: { bounds } } = detail;
+    const block = (Math.floor((z + bounds.north) / BLOCK_M) + BLOCK_RIM) * blocksAcross + Math.floor((x - bounds.west) / BLOCK_M) + BLOCK_RIM;
+    return first[block + 1] - first[block];
+  }
+
   isWater(x: number, z: number): boolean {
     const detail = this.tileAt(x, z)?.detail;
     if (!detail) return false;

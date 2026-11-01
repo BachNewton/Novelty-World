@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InputKind } from "@/shared/lib/input";
 import { Prompt } from "@/shared/components/prompts";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import { ArrowUp, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, X } from "lucide-react";
+import { ArrowUp, Crosshair, Eye, Map as MapIcon, MapPinOff, RefreshCcw, Hand, Volume2, X } from "lucide-react";
 import { DevMenu } from "./dev-menu";
 import { BINDINGS } from "../input/controls";
 import type { CameraMode, Game, GameProbe, HudReading, LoadingProgress } from "../render/game";
@@ -26,12 +26,19 @@ declare global {
 const INK = "var(--color-aland-drive-ui-ink)";
 const SHADE = "var(--color-aland-drive-ui-shade)";
 const ACCENT = "var(--color-aland-drive-ui-accent)";
+const REDLINE = "var(--color-aland-drive-ui-redline)";
+
+/** How much of its circle the rev dial covers, leaving the gap at the bottom that holds the gear. */
+const DIAL_SWEEP = 0.75;
+/** Where the rev dial's red begins, as a share of the dial. */
+const REDLINE_FROM = 0.9;
 
 const HINTS = [
   { binding: BINDINGS.handbrake, icon: Hand, label: "Handbrake" },
   { binding: BINDINGS.respawn, icon: RefreshCcw, label: "Back to the road" },
   { binding: BINDINGS.freeCamera, icon: Eye, label: "Free camera" },
   { binding: BINDINGS.map, icon: MapIcon, label: "World map" },
+  { binding: BINDINGS.mute, icon: Volume2, label: "Sound on or off" },
 ];
 
 const MAP_HINTS = [
@@ -51,7 +58,9 @@ function distanceText(metres: number): string {
 export function AlandDrive() {
   const container = useRef<HTMLDivElement>(null);
   const speedText = useRef<HTMLSpanElement>(null);
-  const speedBar = useRef<HTMLDivElement>(null);
+  const gearText = useRef<HTMLSpanElement>(null);
+  const revArc = useRef<SVGCircleElement>(null);
+  const revNeedle = useRef<SVGLineElement>(null);
   const miniMap = useRef<HTMLCanvasElement>(null);
   const worldMap = useRef<HTMLCanvasElement>(null);
   const cue = useRef<HTMLDivElement>(null);
@@ -80,9 +89,11 @@ export function AlandDrive() {
     // Asked again after each wait: the page may have closed while it waited.
     const closed = () => cleanup.signal.aborted;
     let stop: (() => void) | null = null;
-    const showSpeed = ({ speedKmh, speedShare, cue: next }: HudReading) => {
+    const showSpeed = ({ speedKmh, gear, revs, cue: next }: HudReading) => {
       if (speedText.current) speedText.current.textContent = speedKmh.toFixed(0);
-      if (speedBar.current) speedBar.current.style.transform = `scaleX(${speedShare})`;
+      if (gearText.current) gearText.current.textContent = gear;
+      if (revArc.current) revArc.current.style.strokeDasharray = `${revs * DIAL_SWEEP} 1`;
+      revNeedle.current?.setAttribute("transform", `rotate(${revs * DIAL_SWEEP * 360} 50 50)`);
       if (cue.current) cue.current.style.visibility = next ? "visible" : "hidden";
       if (next && cueArrow.current && cueText.current) {
         cueArrow.current.style.transform = `rotate(${next.radians}rad)`;
@@ -167,13 +178,19 @@ export function AlandDrive() {
             </div>
           )}
           {camera !== "free" && (
-            <div className="pointer-events-none absolute right-6 bottom-5 w-44 text-right" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }} role="status" aria-label="Speed in kilometres an hour">
-              <span ref={speedText} className="text-6xl font-bold tabular-nums">
+            <div className="pointer-events-none absolute right-5 bottom-3 size-48" style={{ color: INK, textShadow: `0 0 6px ${SHADE}` }}>
+              <svg viewBox="0 0 100 100" className="absolute inset-0 rotate-[135deg]" aria-hidden fill="none" strokeWidth={5}>
+                <circle cx={50} cy={50} r={44} pathLength={1} stroke={SHADE} strokeDasharray={`${DIAL_SWEEP} 1`} />
+                <circle ref={revArc} cx={50} cy={50} r={44} pathLength={1} stroke={ACCENT} strokeDasharray={`0 1`} />
+                <circle cx={50} cy={50} r={44} pathLength={1} stroke={REDLINE} strokeDasharray={`${DIAL_SWEEP * (1 - REDLINE_FROM)} 1`} strokeDashoffset={-DIAL_SWEEP * REDLINE_FROM} />
+                <line ref={revNeedle} x1={78} y1={50} x2={98} y2={50} stroke={INK} strokeWidth={2.5} strokeLinecap="round" />
+              </svg>
+              <span ref={speedText} className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-6xl font-bold tabular-nums" role="status" aria-label="Speed in kilometres an hour">
                 0
               </span>
-              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full" style={{ background: SHADE }}>
-                <div ref={speedBar} className="h-full w-full origin-left" style={{ background: ACCENT, transform: "scaleX(0)" }} />
-              </div>
+              <span ref={gearText} className="absolute inset-x-0 bottom-1 text-center text-3xl font-bold tabular-nums" aria-label="Gear">
+                1
+              </span>
             </div>
           )}
           <ul className="pointer-events-none absolute top-3 left-3 flex flex-wrap items-center gap-3 text-sm" style={{ color: INK, filter: `drop-shadow(0 0 3px ${SHADE})` }}>

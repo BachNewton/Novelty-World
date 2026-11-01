@@ -1,11 +1,12 @@
 import { speedOf, type CarState, type Rotation, type Vector3 } from "../sim/car-state";
 import type { DriveInput } from "../sim/car";
+import type { EngineRead } from "../sim/gearbox";
 import { SUSPENSION } from "../sim/tuning";
 import { BIKE, type EngineSpec, type VehicleId } from "./vehicles";
 
 /*
  * The sound's rules, with no Web Audio in them: what the game tells the sound
- * each frame, the gearbox, the jolts heard in the car's motion, and the levels
+ * each frame, the jolts heard in the car's motion, and the levels
  * and pitches all of that asks for. `graph.ts` plays what this says.
  */
 
@@ -35,6 +36,8 @@ export interface DriveAudioState {
   paused?: boolean;
   /** Holds the revs here instead of the gearbox's, for the audition's slider. */
   heldRpm?: number;
+  /** The simulation's own engine. With none, as in the audition, the sound runs a gearbox of its own. */
+  engine?: EngineRead;
 }
 
 const clamp = (value: number, low = 0, high = 1) => Math.min(Math.max(value, low), high);
@@ -66,7 +69,7 @@ export function slipOf(car: CarState, handbrake: boolean): number {
 }
 
 /** A frame's state from the simulation's car, with what only the game knows passed in. */
-export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "surface" | "place" | "paused">): DriveAudioState {
+export function stateFromCar(car: CarState, input: DriveInput, known: Pick<DriveAudioState, "vehicle" | "surface" | "place" | "paused" | "engine">): DriveAudioState {
   return {
     ...known,
     speedMS: speedOf(car),
@@ -76,58 +79,6 @@ export function stateFromCar(car: CarState, input: DriveInput, known: Pick<Drive
     slip: slipOf(car, input.handbrake),
     suspension: car.suspension,
   };
-}
-
-// ---- The gearbox ----
-
-export interface EngineRead {
-  gear: number;
-  rpm: number;
-  load: number;
-  shiftLeftS: number;
-}
-
-export const restingEngine = (spec: EngineSpec): EngineRead => ({ gear: 0, rpm: spec.idleRpm, load: 0, shiftLeftS: 0 });
-
-/** Below this share of first gear's top speed the clutch is still slipping. */
-const CLUTCH_SHARE = 0.32;
-/** How far the revs rise in first with the clutch slipping, as a share of the redline. */
-const CLUTCH_REVS = 0.5;
-const DOWNSHIFT_AT = [0.3, 0.46] as const;
-const REV_FOLLOW_S = 0.05;
-const REV_FREE_S = 0.14;
-const LOAD_FOLLOW_S = 0.06;
-
-const revsIn = (spec: EngineSpec, gear: number, speed: number) => (speed / spec.gearTopMS[gear]) * spec.redlineRpm;
-
-/** One step of the revs, the gear and the load. `shifted` says a change happened in this step. */
-export function stepEngine(spec: EngineSpec, read: EngineRead, speed: number, throttle: number, dt: number): { read: EngineRead; shifted: boolean } {
-  let { gear, shiftLeftS } = read;
-  let shifted = false;
-  shiftLeftS = Math.max(0, shiftLeftS - dt);
-
-  if (shiftLeftS === 0) {
-    const upAt = lerp(spec.gentleShift, 0.97, throttle) * spec.redlineRpm;
-    const downAt = lerp(DOWNSHIFT_AT[0], DOWNSHIFT_AT[1], throttle) * spec.redlineRpm;
-    const last = spec.gearTopMS.length - 1;
-    if (gear < last && revsIn(spec, gear, speed) > upAt && revsIn(spec, gear + 1, speed) > downAt) {
-      gear += 1;
-      shifted = true;
-    } else if (gear > 0 && revsIn(spec, gear, speed) < downAt && revsIn(spec, gear - 1, speed) < upAt * 0.92) {
-      gear -= 1;
-      shifted = true;
-    }
-    if (shifted) shiftLeftS = spec.shiftS;
-  }
-
-  const hasClutch = spec.idleRpm > 0;
-  const atWheels = revsIn(spec, gear, speed);
-  const slipping = hasClutch && gear === 0 && speed < spec.gearTopMS[0] * CLUTCH_SHARE;
-  const clutchRevs = slipping ? lerp(spec.idleRpm, spec.redlineRpm * CLUTCH_REVS, throttle) : 0;
-  const target = Math.min(Math.max(atWheels, clutchRevs, spec.idleRpm), spec.redlineRpm * 1.01);
-  const rpm = read.rpm + (target - read.rpm) * settle(dt, slipping ? REV_FREE_S : REV_FOLLOW_S);
-  const load = read.load + ((shiftLeftS > 0 ? 0 : throttle) - read.load) * settle(dt, LOAD_FOLLOW_S);
-  return { read: { gear, rpm, load, shiftLeftS }, shifted };
 }
 
 // ---- The jolts ----

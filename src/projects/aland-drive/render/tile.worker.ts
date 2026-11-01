@@ -177,6 +177,7 @@ function detailTransfers({ detail, shade, ground, buildings }: DetailTile): Tran
     roads.points,
     roads.lengths,
     roads.chainFirst,
+    roads.paved,
     roads.chainPoints,
     roads.cellFirst,
     roads.cellSegments,

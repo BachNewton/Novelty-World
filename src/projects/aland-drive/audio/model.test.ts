@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { mix, noJolts, readJolts, restingEngine, slipOf, stepEngine, type DriveAudioState, type EngineRead } from "./model";
+import { mix, noJolts, readJolts, slipOf, type DriveAudioState } from "./model";
 import type { CarState } from "../sim/car-state";
+import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
 import { engineCycle, gravelLoop, shoreBed } from "./synthesis";
 import { ENGINE_IDS, ENGINES } from "./vehicles";
 

@@ -17,6 +17,8 @@ export const FAR_FROM_MARK_M = 9999;
 
 const PAVED_KINDS = new Set(["primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link", "residential", "living_street"]);
 const PAVED_IN_TOWN = new Set(["unclassified", "service", "cycleway", "footway", "pedestrian"]);
+
+export const isPaved = (kind: string, town: number) => PAVED_KINDS.has(kind) || (town > 0.5 && PAVED_IN_TOWN.has(kind));
 /** Vertices of building in a 600 m cell that make it town. */
 const TOWN_VERTICES = [2500, 6000] as const;
 const CELL_M = 600;
@@ -154,7 +156,7 @@ export function roadAttributes(surface: RoadSurface, built: BuiltCell[]): RoadAt
     for (let section = 0; section < sections; section++) {
       const { x, z } = centreOf(surface.rings, first + section);
       const town = townAt(x, z);
-      const paved = PAVED_KINDS.has(kind) || (town > 0.5 && PAVED_IN_TOWN.has(kind)) ? 1 : 0;
+      const paved = isPaved(kind, town) ? 1 : 0;
       const halfWidth = halfWidthOf(surface.rings, first + section);
       const shoulder = shoulderOf(surface.rings, first + section);
       const toStart = startMark === NO_MARK ? FAR_FROM_MARK_M : distances[section];

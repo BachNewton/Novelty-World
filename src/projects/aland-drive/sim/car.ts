@@ -1,6 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import { CAR, GRIP, POWER, STEERING, STEP_S, SUSPENSION, WORLD } from "./tuning";
+import { CAR, GEARBOX, GRIP, POWER, STEERING, STEP_S, SUSPENSION, WORLD } from "./tuning";
 import type { CarState, Rotation, Vector3 } from "./car-state";
+import { engineBrakeAt, radiansPerMetre, restingEngine, stepEngine, torqueAt, type EngineRead } from "./gearbox";
 
 /*
  * The car: a rigid body on four rays. Each step a ray from each wheel's mount
@@ -69,7 +70,8 @@ export class Car {
   private readonly collider: RAPIER.Collider;
   private steer = 0;
   private roll = 0;
-  private reversing = false;
+  private reversingNow = false;
+  private engineNow = restingEngine(GEARBOX);
   private readonly suspension: [number, number, number, number] = [0, 0, 0, 0];
   /** Whether each wheel touched the road on the last step. */
   readonly contact = [false, false, false, false];
@@ -92,7 +94,16 @@ export class Car {
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.steer = 0;
-    this.reversing = false;
+    this.reversingNow = false;
+    this.engineNow = restingEngine(GEARBOX);
+  }
+
+  get engine(): EngineRead {
+    return this.engineNow;
+  }
+
+  get reversing(): boolean {
+    return this.reversingNow;
   }
 
   private sag() {
@@ -109,8 +120,9 @@ export class Car {
     const speed = Math.hypot(...velocity);
     const forward = dot(velocity, nose);
 
-    if (input.brake > 0 && forward < STOPPED_FOR_REVERSE_MS && input.throttle === 0) this.reversing = true;
-    if (input.throttle > 0) this.reversing = false;
+    if (input.brake > 0 && forward < STOPPED_FOR_REVERSE_MS && input.throttle === 0) this.reversingNow = true;
+    if (input.throttle > 0) this.reversingNow = false;
+    this.engineNow = stepEngine(GEARBOX, this.engineNow, Math.abs(forward), this.reversingNow ? input.brake : input.throttle, STEP_S).read;
 
     const target = input.steer * steerLimit(speed, input.handbrake);
     const rate = (Math.abs(target) < Math.abs(this.steer) ? STEERING.returnPerS : STEERING.turnPerS) * STEP_S;
@@ -165,7 +177,7 @@ export class Car {
       const slip = Math.atan2(slideSpeed, Math.max(Math.abs(rollSpeed), GRIP.lowSpeedMS));
       let side = -reachGrip * gripAt(slip);
       let ahead = (isFront ? 1 - POWER.rearShare : POWER.rearShare) * drive / 2;
-      const braking = input.brake > 0 && !this.reversing ? input.brake * POWER.brakeN * (isFront ? POWER.brakeFrontShare : 1 - POWER.brakeFrontShare) / 2 : 0;
+      const braking = input.brake > 0 && !this.reversingNow ? input.brake * POWER.brakeN * (isFront ? POWER.brakeFrontShare : 1 - POWER.brakeFrontShare) / 2 : 0;
       const handbrake = handbraked ? POWER.handbrakeN / 2 : 0;
       const parked = input.throttle === 0 && input.brake === 0 && speed < SLOW_MS ? POWER.brakeN / 8 : POWER.rollingN / 4;
       ahead -= clamp(rollSpeed / SLOW_MS, -1, 1) * (braking + handbrake + parked);
@@ -197,9 +209,12 @@ export class Car {
   }
 
   private driveForce(input: DriveInput, forward: number): number {
-    if (this.reversing) return forward > -POWER.reverseSpeedMS ? -input.brake * POWER.reverseN : 0;
-    if (forward >= POWER.topSpeedMS) return 0;
-    return input.throttle * Math.min(POWER.launchN, POWER.engineW / Math.max(forward, 1));
+    if (this.reversingNow) return forward > -POWER.reverseSpeedMS ? -input.brake * POWER.reverseN : 0;
+    const { gear, rpm, shiftLeftS } = this.engineNow;
+    if (shiftLeftS > 0) return 0;
+    const toRoad = radiansPerMetre(gear);
+    const pull = Math.min(POWER.launchN, torqueAt(rpm) * toRoad);
+    return input.throttle * pull - (1 - input.throttle) * engineBrakeAt(rpm) * toRoad;
   }
 
   rotation(): Rotation {

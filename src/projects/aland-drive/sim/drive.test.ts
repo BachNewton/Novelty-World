@@ -64,6 +64,22 @@ function route(cruise: number, from: number): Drive {
 }
 
 describe("the drive along Route 1", () => {
+  it("climbs the gears on the way up to speed, and reverse reads as reverse", () => {
+    const drive = newDrive();
+    const pilot = new Autopilot(route1, GOOD_ROAD_CRUISE_MS, START_ALONG_M);
+    const gears = new Set<number>();
+    for (let step = 0; step < 120 * 20; step++) {
+      drive.step(pilot.input(drive.stateAt(1)));
+      gears.add(drive.engine().gear);
+    }
+    expect([...gears]).toEqual(expect.arrayContaining([0, 1, 2, 3]));
+    drive.placeAt(route1.at(START_ALONG_M));
+    expect(drive.engine().gear).toBe(0);
+    for (let step = 0; step < 60; step++) drive.step({ ...NO_INPUT, brake: 1 });
+    expect(drive.engine().reversing).toBe(true);
+    drive.dispose();
+  });
+
   it("stays on the road at full speed with every wheel down", () => {
     const drive = route(GOOD_ROAD_CRUISE_MS, 150);
     expect(drive.log.metres).toBeGreaterThan(5800);

@@ -1,3 +1,4 @@
+import { isPaved } from "../art/surfaces/road-attributes";
 import { RING_POINTS, type RoadSurface } from "../render/tile";
 
 /*
@@ -17,6 +18,8 @@ export interface RoadPoint {
   along: number;
   /** Metres from wherever was asked about. */
   distance: number;
+  /** Whether the road here is sealed, known of a point found on the road network. */
+  paved?: boolean;
 }
 
 const CENTRE = 2;
@@ -100,6 +103,8 @@ export interface TileRoads {
   points: Float32Array;
   /** Metres along its own line at each point. */
   lengths: Float32Array;
+  /** A byte per point: 1 on a sealed road. */
+  paved: Uint8Array;
   /** Where each of the tile's chains starts in `points`, as a count of points, or -1 for one no car can use. */
   chainFirst: Int32Array;
   /** How many points each chain has. */
@@ -115,6 +120,7 @@ export function tileRoads(surface: RoadSurface, column: number, row: number, til
   const total = drivable.reduce((sum, chain) => sum + chain.sections, 0);
   const points = new Float32Array(total * 3);
   const lengths = new Float32Array(total);
+  const paved = new Uint8Array(total);
   const chainFirst = new Int32Array(surface.chains.length).fill(-1);
   const chainPoints = new Int32Array(surface.chains.length);
   const cellsAcross = Math.round(tileM / CELL_M);
@@ -126,6 +132,7 @@ export function tileRoads(surface: RoadSurface, column: number, row: number, til
     if (!chain.motor || chain.sections < 2) return;
     chainFirst[index] = next;
     chainPoints[index] = chain.sections;
+    paved.fill(isPaved(chain.kind, 0) ? 1 : 0, next, next + chain.sections);
     for (let section = 0; section < chain.sections; section++) {
       const at = ((chain.first + section) * RING_POINTS + CENTRE) * 3;
       const point = next + section;
@@ -156,7 +163,7 @@ export function tileRoads(surface: RoadSurface, column: number, row: number, til
   lists.forEach((list, cell) => {
     cellSegments.set(list, cellFirst[cell]);
   });
-  return { column, row, points, lengths, chainFirst, chainPoints, cellFirst, cellSegments };
+  return { column, row, points, lengths, paved, chainFirst, chainPoints, cellFirst, cellSegments };
 }
 
 /** A chain's own line, to follow or to place a car on. */
@@ -205,8 +212,9 @@ export class RoadNet {
     const cell = Math.floor((cellZ - tileRow * this.tileM) / CELL_M) * cellsAcross + Math.floor((cellX - tileColumn * this.tileM) / CELL_M);
     let found = best;
     for (let entry = roads.cellFirst[cell]; entry < roads.cellFirst[cell + 1]; entry++) {
-      const point = onSegment(roads.points, roads.lengths, roads.cellSegments[entry], x, z);
-      if (!found || point.distance < found.distance) found = point;
+      const segment = roads.cellSegments[entry];
+      const point = onSegment(roads.points, roads.lengths, segment, x, z);
+      if (!found || point.distance < found.distance) found = { ...point, paved: roads.paved[segment] === 1 };
     }
     return found;
   }
