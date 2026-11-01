@@ -71,6 +71,16 @@ class Clipping(unittest.TestCase):
     def test_a_line_passing_outside_is_gone(self):
         self.assertEqual(clip_line(np.array([[-10.0, -10.0], [-10.0, 7000.0]]), self.tile), [])
 
+    def test_a_line_only_touching_the_edge_is_gone(self):
+        self.assertEqual(clip_line(np.array([[-100.0, 100.0], [0.0, 100.0], [-100.0, 300.0]]), self.tile), [])
+
+    def test_a_line_nicking_the_edge_by_millimetres_is_gone(self):
+        self.assertEqual(clip_line(np.array([[-100.0, 100.0], [0.003, 100.0], [-100.0, 100.3]]), self.tile), [])
+
+    def test_a_line_that_ends_on_the_edge_has_no_repeated_point(self):
+        parts = clip_line(np.array([[100.0, 100.0], [0.0, 100.0], [-100.0, 300.0]]), self.tile)
+        self.assertEqual([part.tolist() for part in parts], [[[100.0, 100.0], [0.0, 100.0]]])
+
 
 if __name__ == "__main__":
     unittest.main()

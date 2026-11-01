@@ -20,13 +20,17 @@ def line_to_grid(geometry: list[dict]) -> np.ndarray:
     return np.column_stack((east, north))
 
 
+# A line that nicks a tile's corner or edge leaves a stub this short, which rounding to the centimetre makes one point.
+SHORTEST_PART_M = 0.02
+
+
 def clip_line(line: np.ndarray, tile: Tile) -> list[np.ndarray]:
     """The parts of a line inside the tile, cut exactly on its edges so neighbours meet."""
     parts: list[np.ndarray] = []
     current: list[np.ndarray] = []
 
     def finish() -> None:
-        if len(current) > 1:
+        if len(current) > 1 and np.hypot(*np.diff(current, axis=0).T).sum() >= SHORTEST_PART_M:
             parts.append(np.array(current))
         current.clear()
 
@@ -40,7 +44,8 @@ def clip_line(line: np.ndarray, tile: Tile) -> list[np.ndarray]:
                 continue
             near, far = sorted(((low - start[axis]) / step[axis], (high - start[axis]) / step[axis]))
             enter, leave = max(enter, near), min(leave, far)
-        if enter > leave:
+        # Only touching the edge is outside: that part would be a road of no length.
+        if enter >= leave:
             finish()
             continue
         if not current:
