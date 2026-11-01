@@ -39,7 +39,8 @@ def _thin(line: np.ndarray) -> np.ndarray:
         run = line[last] - line[first]
         length = max(float(np.hypot(*run)), 1e-9)
         offset = line[first + 1 : last] - line[first]
-        distance = np.abs(run[0] * offset[:, 1] - run[1] * offset[:, 0]) / length
+        # A closed loop's ends are one point, with no line between them to measure from.
+        distance = np.abs(run[0] * offset[:, 1] - run[1] * offset[:, 0]) / length if length > 1e-6 else np.hypot(*offset.T)
         worst = int(distance.argmax())
         if distance[worst] > THIN_WITHIN_M:
             keep[first + 1 + worst] = True

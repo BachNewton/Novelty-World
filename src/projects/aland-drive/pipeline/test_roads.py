@@ -11,6 +11,7 @@ import unittest
 
 import numpy as np
 
+import road_map
 import roads
 from build import encode_heights
 from grid import Tile
@@ -188,6 +189,66 @@ class Junctions(unittest.TestCase):
         self.assertTrue(on_main.any())
         self.assertLess(np.abs(carriageway[on_main, 2] - main.plane(carriageway[on_main, :2])).max(), 0.02)
 
+    def test_the_land_comes_up_to_an_apron_so_it_ends_on_no_step(self):
+        def pit(east, north):
+            hole = (east > 1486) & (east < 1500) & (north > 1503) & (north < 1516)
+            return np.where(hole, 9.0, 10.0)
+
+        ground = land(height=pit)
+        surface = lay_roads([self.main, self.side], ground)
+        xy, height, _ = roads._apron_stations(surface.aprons, ground)
+        in_the_pit = pit(xy[:, 0], xy[:, 1]) == 9.0
+        self.assertTrue(in_the_pit.any())
+        columns = np.round((xy[in_the_pit, 0] - ground.west) / ground.spacing).astype(int)
+        rows = np.round((ground.north - xy[in_the_pit, 1]) / ground.spacing).astype(int)
+        self.assertLess(np.abs(surface.conformed[rows, columns] - (height[in_the_pit] - roads.CLEARANCE_M)).max(), 0.1)
+
+    def test_a_shoulder_under_an_apron_stands_clear_of_it(self):
+        surface = lay_roads([self.main, self.side], land())
+        nodes = surface.conformed[::2, ::2]
+        cover = roads.ApronCover(surface.aprons)
+        for _, rings, _, _ in roads.ribbons(surface, nodes, 4.0, 0.0, 3000.0):
+            for outer, edge in ((rings[:, 0], rings[:, 1]), (rings[:, 4], rings[:, 3])):
+                inner = edge[:, :2] + 0.2 * (outer[:, :2] - edge[:, :2]) / np.maximum(np.hypot(*(outer[:, :2] - edge[:, :2]).T)[:, None], 1e-6)
+                over = cover.height(inner.astype(float))
+                under = ~np.isnan(over)
+                self.assertTrue((outer[under, 2] <= over[under] - roads.UNDER_ANOTHER_ROAD_M + 0.05).all())
+
+    def test_a_path_across_an_apron_passes_under_it(self):
+        def bank(east, north):
+            return 10 + 1.5 * (np.abs(north - 1505) < 2)
+
+        path = {**road([(1480, 1505), (1520, 1505)], "path"), "motor": False}
+        surface = lay_roads([self.main, self.side, path], land(height=bank))
+        nodes = surface.conformed[::2, ::2]
+        cover = roads.ApronCover(surface.aprons)
+        crossing = next(rings for chain, rings, _, _ in roads.ribbons(surface, nodes, 4.0, 0.0, 3000.0) if not chain.motor)
+        points = crossing[:, 1:4].reshape(-1, 3)
+        over = cover.height(points[:, :2].astype(float))
+        under = ~np.isnan(over)
+        self.assertTrue(under.any())
+        self.assertTrue((points[under, 2] < over[under]).all())
+
+    def test_a_road_ending_on_one_that_is_easing_meets_it_as_laid(self):
+        ground = land(height=lambda east, north: 10 + 0.1 * np.clip(east - 1500, 0, 30))
+        high = road([(1500, 2000), (1500, 1500), (1500, 1000)])
+        middle = road([(1500, 1500), (1512, 1500), (2500, 1500)], "unclassified")
+        last = road([(1512, 1500), (1512, 1100)], "service")
+        surface = lay_roads([high, middle, last], ground)
+        lesser = next(chain for chain in surface.chains if chain.kind_name == "service")
+        parent = surface.chains[lesser.start_on]
+        station = int(parent.tree.query(lesser.xy[0])[1])
+        self.assertGreater(abs(float(parent.eased[station])), 0.05)
+        self.assertAlmostEqual(float(lesser.height[0]), float(parent.height[station] + parent.eased[station]), delta=0.03)
+
+    def test_a_road_stands_no_lower_past_its_edge_than_at_it(self):
+        chain = lay_roads([road([(0, 1500), (1500, 1500), (1700, 1700), (3000, 1700)])], land()).chains[0]
+        station = int(np.abs(chain.bank).argmax())
+        self.assertGreater(abs(float(chain.bank[station])), 0.02)
+        at_edge = chain.xy[station] + chain.normal[station] * chain.half[station]
+        beyond = chain.xy[station] + chain.normal[station] * (chain.half[station] + 3)
+        self.assertAlmostEqual(float(chain.plane(beyond[None])[0]), float(chain.plane(at_edge[None])[0]), delta=0.02)
+
     def test_a_shallow_merge_lays_no_road_over_another(self):
         merging = road([(1500, 1500), (2200, 1560), (2900, 1800)], "secondary")
         surface = lay_roads([self.main, merging], land())
@@ -223,6 +284,12 @@ class Junctions(unittest.TestCase):
     def test_a_road_cut_into_ways_runs_on_as_one_chain(self):
         ways = [road([(0, 500), (800, 520)]), road([(800, 520), (1500, 480)]), road([(1500, 480), (2600, 500)], "secondary")]
         self.assertEqual(len(roads.chains_from(roads.split_at_junctions(ways))), 1)
+
+
+class RoadMap(unittest.TestCase):
+    def test_a_closed_loop_keeps_its_shape_when_thinned(self):
+        loop = np.array([(0.0, 0.0), (10, 0), (10, 10), (0, 10), (0.0, 0.0)])
+        self.assertGreater(len(road_map._thin(loop)), 2)
 
 
 if __name__ == "__main__":

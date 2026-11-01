@@ -13,14 +13,24 @@ const inflated = (gzipped: Buffer) => {
 /** The committed copy of one real tile: a world of its own, for tests. */
 export const FIXTURE_TILES = "src/projects/aland-drive/fixture";
 
-/** Tiles read from a folder on disk with every tile at full detail, for anything running outside a browser. */
-export function readWorld(folder: string): World {
+/** A tile and those touching it, for a tool that only drives there. */
+export function tilesAround(folder: string, name: string): Set<string> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
+  const { tiles, tileM } = JSON.parse(readFileSync(join(folder, "world.json"), "utf8")) as WorldManifest;
+  const middle = tiles.find((tile) => tile.name === name);
+  if (!middle) throw new Error(`no tile ${name} in ${folder}`);
+  return new Set(tiles.filter(({ west, north }) => Math.abs(west - middle.west) <= tileM && Math.abs(north - middle.north) <= tileM).map((tile) => tile.name));
+}
+
+/** Tiles read from a folder on disk with every tile at full detail, or only those named, for anything running outside a browser. */
+export function readWorld(folder: string, only?: Set<string>): World {
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
   const manifest = JSON.parse(readFileSync(join(folder, "world.json"), "utf8")) as WorldManifest;
   const world = new World(manifest);
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
   world.addOverview(decodeOverview(new Int16Array(inflated(readFileSync(join(folder, manifest.overview.heightsFile)))), manifest.overview));
   for (const { name } of manifest.tiles) {
+    if (only && !only.has(name)) continue;
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
     const tile = JSON.parse(readFileSync(join(folder, name, "tile.json"), "utf8")) as TileManifest;
     const { west, north } = tile.bounds;

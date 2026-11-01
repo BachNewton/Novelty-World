@@ -23,6 +23,8 @@ const CENTRE = 2;
 /** Divides a tile exactly, so a search stepping by a cell reaches every cell of a neighbour too. */
 const CELL_M = 60;
 const FURTHEST_SEARCH_CELLS = 200;
+const FOLD_READ_M = 10;
+const FOLD_COSINE = -0.8;
 
 /** A line through the scene, however it was made: one chain, or a route joined from many. */
 export class RoadLine {
@@ -58,6 +60,16 @@ export class RoadLine {
     }
     const share = (clamped - lengths[low]) / (lengths[low + 1] - lengths[low]);
     return onSegment(points, lengths, low, points[low * 3] + share * (points[low * 3 + 3] - points[low * 3]), points[low * 3 + 2] + share * (points[low * 3 + 5] - points[low * 3 + 2]));
+  }
+
+  /** The first place the line turns straight back along itself, as a route does for a U-turn at a junction: a driver following a line can't. */
+  foldsAt(): RoadPoint | null {
+    for (let along = 0; along + FOLD_READ_M < this.length; along += FOLD_READ_M / 2) {
+      const before = this.at(along);
+      const turn = this.at(along + FOLD_READ_M).heading - before.heading;
+      if (Math.cos(turn) < FOLD_COSINE) return before;
+    }
+    return null;
   }
 }
 

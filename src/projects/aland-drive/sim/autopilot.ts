@@ -30,6 +30,10 @@ export class Autopilot {
     /** The speed to hold where the road allows it. */
     private readonly cruiseMS: number,
     from: number,
+    /** How near the line's end counts as there. */
+    private readonly endsWithinM = 60,
+    /** Tighter for a slow, narrow corner, which a long look cuts. */
+    private readonly shortestLookM = SHORTEST_LOOK_M,
   ) {
     this.along = from;
   }
@@ -48,15 +52,15 @@ export class Autopilot {
     this.along = best;
   }
 
-  /** True once the car is within a stopping distance of the line's far end. */
+  /** True once the car is near enough the line's far end, by default within a stopping distance. */
   finished(): boolean {
-    return this.along >= this.line.length - 60;
+    return this.along >= this.line.length - this.endsWithinM;
   }
 
   input(car: CarState): DriveInput {
     this.follow(car);
     const speed = speedOf(car);
-    const ahead = this.line.at(this.along + Math.max(SHORTEST_LOOK_M, speed * LOOK_AHEAD_S));
+    const ahead = this.line.at(this.along + Math.max(this.shortestLookM, speed * LOOK_AHEAD_S));
     const toTarget = Math.atan2(-(ahead.x - car.position[0]), -(ahead.z - car.position[2]));
     const off = wrap(toTarget - headingOf(car.rotation));
     const distance = Math.hypot(ahead.x - car.position[0], ahead.z - car.position[2]);

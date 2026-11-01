@@ -145,7 +145,9 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         baked = [(ring, tier) for _, ring, tier, _ in ribbons]
         motor_roads = [(ring, tier) for chain, ring, tier, _ in ribbons if chain.motor]
         (folder / "road-surface.bin.gz").write_bytes(encode_road_surface(baked, aprons))
-        baked += road_surface.apron_footprints(aprons)
+        footprints = road_surface.apron_footprints(aprons)
+        baked += footprints
+        motor_roads += footprints
         surface_manifest = {
             "file": "road-surface.bin.gz",
             "encoding": "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the aprons: float32le points of (east, north, height, across, tier), then uint32le triangles",

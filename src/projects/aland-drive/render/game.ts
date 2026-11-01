@@ -889,6 +889,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       },
       startLine: (points, cruiseMS) => {
         const line = new RoadLine(Float32Array.from(points));
+        const fold = line.foldsAt();
+        if (fold) throw new Error(`the scripted driver can't follow a route that turns back on itself, as this does at ${fold.x.toFixed(0)}, ${fold.z.toFixed(0)}`);
         const start = line.at(0);
         drive.placeAt({ ...start, y: world.roads.nearest(start.x, start.z)?.y ?? start.y });
         drive.log = emptyLog();
@@ -900,7 +902,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       routeThrough: (places) => {
         if (!roadGraph) throw new Error("no road network yet");
         const points: number[] = [];
-        let heading = 0;
+        // Facing the first place to go, so the route doesn't start the far way along the road only to turn back.
+        let heading = Math.atan2(places[1][0] - places[0][0], places[0][1] - places[1][1]);
         for (let leg = 1; leg < places.length; leg++) {
           const route = roadGraph.route(places[leg - 1][0], places[leg - 1][1], heading, places[leg][0], places[leg][1]);
           if (!route) throw new Error(`no way from ${places[leg - 1].join(", ")} to ${places[leg].join(", ")}`);
