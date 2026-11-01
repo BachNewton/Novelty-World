@@ -174,14 +174,44 @@ class Junctions(unittest.TestCase):
     main = road([(0, 1500), (1500, 1500), (3000, 1500)])
     side = road([(1500, 1500), (1500, 2400)], "unclassified")
 
-    def test_a_lesser_road_ends_on_the_greater_ones_edge_at_its_height(self):
+    def test_a_lesser_road_stops_clear_of_the_greater_and_an_apron_joins_them_at_their_heights(self):
         ground = land(height=lambda east, north: 12 + 0.02 * north + 0.01 * east)
         surface = lay_roads([self.main, self.side], ground)
         main, side = surface.chains
         self.assertEqual(side.start_on, main.index)
         for point in (side.left[0], side.right[0]):
-            self.assertAlmostEqual(abs(point[1] - 1500), main.half[0], delta=0.2)
-            self.assertAlmostEqual(point[2], float(main.plane(point[None, :2])[0]), delta=0.01)
+            self.assertGreaterEqual(abs(point[1] - 1500), main.half[0])
+            self.assertLess(abs(point[1] - 1500), main.half[0] + 3)
+        self.assertTrue(surface.aprons)
+        carriageway = np.concatenate([apron.points[apron.across == roads.APRON_ACROSS] for apron in surface.aprons])
+        on_main = np.abs(carriageway[:, 1] - 1500) < main.half[0] + 0.1
+        self.assertTrue(on_main.any())
+        self.assertLess(np.abs(carriageway[on_main, 2] - main.plane(carriageway[on_main, :2])).max(), 0.02)
+
+    def test_a_shallow_merge_lays_no_road_over_another(self):
+        merging = road([(1500, 1500), (2200, 1560), (2900, 1800)], "secondary")
+        surface = lay_roads([self.main, merging], land())
+        main, lesser = surface.chains
+        self.assertTrue(roads._clear_of(main, lesser.left[:, :2]).all())
+        self.assertTrue(roads._clear_of(main, lesser.right[:, :2]).all())
+        self.assertGreater(float(np.hypot(*(lesser.centre[0, :2] - (1500, 1500)))), 50)
+        self.assertTrue(surface.aprons)
+
+    def test_a_roundabout_stays_a_closed_ring_of_its_real_size_and_roads_end_on_it(self):
+        angles = np.linspace(0, 2 * np.pi, 25)
+        circle = [(1500 + 12 * np.cos(angle), 1500 + 12 * np.sin(angle)) for angle in angles]
+        circle[-1] = circle[0]
+        ring = road(circle, "primary", junction="roundabout")
+        west = road([(0, 1500), circle[12]])
+        east = road([circle[0], (3000, 1500)])
+        surface = lay_roads([west, ring, east], land(height=lambda east, north: 12 + 0.05 * north + 0.3 * np.sin(east / 9)))
+        laid = surface.chains[0]
+        self.assertAlmostEqual(float(laid.height[0]), float(laid.height[-1]), places=3)
+        self.assertTrue(laid.edges[0].is_ring)
+        self.assertEqual(len(surface.chains), 3)
+        self.assertLess(np.abs(np.hypot(*(laid.xy - (1500, 1500)).T) - 12).max(), 0.5)
+        self.assertTrue(all(0 in (chain.start_on, chain.end_on) for chain in surface.chains[1:]))
+        self.assertEqual(laid.tangent[0].tolist(), laid.tangent[-1].tolist())
 
     def test_a_crossroads_keeps_the_greater_road_whole(self):
         through = road([(1500, 600), (1500, 1500), (1500, 2400)], "unclassified")

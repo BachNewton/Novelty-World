@@ -10,7 +10,7 @@ from grid import Tile, lonlat_to_grid, to_local
 # Highway tags that aren't a surface anyone can use.
 NOT_A_ROAD = {"proposed", "construction", "abandoned", "razed", "raceway", "bus_stop", "platform", "rest_area", "services"}
 FOOT_OR_BIKE = {"footway", "path", "cycleway", "steps", "bridleway", "pedestrian", "corridor"}
-KEPT_TAGS = ("name", "ref", "surface", "lanes", "width", "oneway", "bridge", "tunnel", "maxspeed")
+KEPT_TAGS = ("name", "ref", "surface", "lanes", "width", "oneway", "bridge", "tunnel", "maxspeed", "junction")
 # Far enough along the line either side of a tile edge to read the road's direction, not one kink's.
 SEAM_CHORD_M = 30.0
 

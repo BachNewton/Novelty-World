@@ -1,18 +1,34 @@
 import { drawCar, drawNames, drawRoads, drawRoute, type MapInk, type MapView } from "./draw";
+import type { MapTarget } from "../render/map-camera";
 import type { RoadGraph, Route } from "./road-graph";
 
 /*
  * What's drawn over the game's render on the way up to the map, and the input
  * there. The map is no screen of its own: `render/map-camera.ts` flies the camera
- * from the car to one fixed view of the whole island, north up. This holds how far
- * along that flight things are, takes a place to go to from the mouse or a pad,
- * and draws the road network, route, names and car on a clear canvas above the
+ * from the car to a view of the main island, north up. This holds how far along
+ * that flight things are, and takes the mouse and a pad to zoom, pan and pick once
+ * it has arrived: none of that moves the flight, so zooming can't leave the map.
+ * It draws the road network, route, names and car on a clear canvas above the
  * render. Roads keep a width on screen, so they stay legible from any height, and
  * the canvas fades in with altitude as the car becomes too small to see.
  */
 
+export interface PadSteer {
+  stickX: number;
+  stickY: number;
+  panX: number;
+  panY: number;
+  /** Positive zooms in. */
+  zoom: number;
+}
+
 const FLIGHT_S = 1.6;
 const PAD_CURSOR_PX_S = 420;
+const PAD_PAN_PX_S = 700;
+const PAD_ZOOM_S = 2.5;
+const WHEEL_ZOOM = 1.0015;
+/** The closest the map comes: streets and their names, with the land's height still small against the camera's. */
+const LOWEST_M = 3000;
 /** Past this zoom, streets; past the next, everything, with room for more names. */
 const STREETS_FROM_SCALE = 0.05;
 const ALL_FROM_SCALE = 0.13;
@@ -25,12 +41,19 @@ export class WorldMap {
   /** How far along the camera's flight things are, 0 at the car and 1 at the map, and which way it's going. */
   flight = 0;
   wanted = false;
+  /** The map's own view: how high as a share of the height that shows all of Åland, and how far from that view's middle. */
+  private heightShare = 1;
+  private opened = false;
+  private panX = 0;
+  private panZ = 0;
+  private whole: MapTarget | null = null;
   private view: MapView | null = null;
   private stale = true;
   private cursor: { x: number; y: number } | null = null;
   private car = { x: 0, z: 0, heading: 0 };
   private route: Route | null = null;
   private along = 0;
+  private dragFrom: { x: number; y: number; moved: boolean } | null = null;
   private readonly pen: CanvasRenderingContext2D;
   private readonly abort = new AbortController();
 
@@ -45,12 +68,63 @@ export class WorldMap {
     if (!pen) throw new Error("no 2D canvas for the world map");
     this.pen = pen;
     const { signal } = this.abort;
+    canvas.addEventListener("pointerdown", (event) => {
+      this.dragFrom = { x: event.offsetX, y: event.offsetY, moved: false };
+    }, { signal });
     canvas.addEventListener("pointermove", (event) => {
       this.moveCursor(event.offsetX, event.offsetY);
+      const drag = this.dragFrom;
+      if (drag && Math.hypot(event.offsetX - drag.x, event.offsetY - drag.y) > 4) {
+        drag.moved = true;
+        this.panBy(drag.x - event.offsetX, drag.y - event.offsetY);
+        drag.x = event.offsetX;
+        drag.y = event.offsetY;
+      }
     }, { signal });
-    canvas.addEventListener("click", (event) => {
-      this.pickAt(event.offsetX, event.offsetY);
+    canvas.addEventListener("pointerup", (event) => {
+      if (this.dragFrom && !this.dragFrom.moved) this.pickAt(event.offsetX, event.offsetY);
+      this.dragFrom = null;
     }, { signal });
+    canvas.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      this.zoomAt(event.offsetX, event.offsetY, WHEEL_ZOOM ** event.deltaY);
+    }, { signal, passive: false });
+  }
+
+  private panBy(screenX: number, screenY: number): void {
+    if (!this.view || this.flight < 1) return;
+    this.panX += screenX / this.view.scale;
+    this.panZ += screenY / this.view.scale;
+    this.stale = true;
+  }
+
+  /** Changes the height by a factor, keeping the ground under a point of the screen where it is. */
+  private zoomAt(screenX: number, screenY: number, by: number): void {
+    const { view, whole } = this;
+    if (!view || !whole || this.flight < 1) return;
+    const next = Math.max(LOWEST_M / whole.heightM, Math.min(1, this.heightShare * by));
+    const [groundX, groundZ] = view.toWorld(screenX, screenY);
+    const kept = next / this.heightShare;
+    this.panX = groundX + (whole.x + this.panX - groundX) * kept - whole.x;
+    this.panZ = groundZ + (whole.z + this.panZ - groundZ) * kept - whole.z;
+    this.heightShare = next;
+    this.stale = true;
+  }
+
+  /** Where the flight ends, from the view that shows all of Åland, how far that view reaches from its middle, and the view the map opens on. */
+  target(whole: MapTarget, reachX: number, reachZ: number, opening: MapTarget): MapTarget {
+    this.whole = whole;
+    if (!this.opened) {
+      this.opened = true;
+      this.heightShare = Math.min(1, opening.heightM / whole.heightM);
+      this.panX = opening.x - whole.x;
+      this.panZ = opening.z - whole.z;
+    }
+    const roomX = reachX * (1 - this.heightShare);
+    const roomZ = reachZ * (1 - this.heightShare);
+    this.panX = Math.max(-roomX, Math.min(roomX, this.panX));
+    this.panZ = Math.max(-roomZ, Math.min(roomZ, this.panZ));
+    return { ...whole, x: whole.x + this.panX, z: whole.z + this.panZ, heightM: whole.heightM * this.heightShare };
   }
 
   private moveCursor(x: number, y: number): void {
@@ -69,6 +143,7 @@ export class WorldMap {
     this.route = route;
     this.along = along;
     this.cursor = null;
+    this.opened = false;
     this.stale = true;
     this.canvas.width = this.canvas.clientWidth;
     this.canvas.height = this.canvas.clientHeight;
@@ -87,15 +162,19 @@ export class WorldMap {
     this.pickAt(x, y);
   }
 
-  /** Moves the flight on by a frame, and a pad's cursor with it. */
-  step(stick: { x: number; y: number }, seconds: number): void {
+  /** Moves the flight on by a frame, and a pad's steady inputs with it. */
+  step({ stickX, stickY, panX, panY, zoom }: PadSteer, seconds: number): void {
     const view = this.view;
-    if (view && this.flight === 1 && (stick.x !== 0 || stick.y !== 0)) {
+    if (view && this.flight === 1) {
       const { x, y } = this.cursor ?? { x: view.width / 2, y: view.height / 2 };
-      this.moveCursor(
-        Math.max(0, Math.min(view.width, x + stick.x * PAD_CURSOR_PX_S * seconds)),
-        Math.max(0, Math.min(view.height, y + stick.y * PAD_CURSOR_PX_S * seconds)),
-      );
+      if (stickX !== 0 || stickY !== 0) {
+        this.moveCursor(
+          Math.max(0, Math.min(view.width, x + stickX * PAD_CURSOR_PX_S * seconds)),
+          Math.max(0, Math.min(view.height, y + stickY * PAD_CURSOR_PX_S * seconds)),
+        );
+      }
+      if (panX !== 0 || panY !== 0) this.panBy(panX * PAD_PAN_PX_S * seconds, panY * PAD_PAN_PX_S * seconds);
+      if (zoom !== 0) this.zoomAt(x, y, Math.exp(-zoom * PAD_ZOOM_S * seconds));
     }
     const next = Math.max(0, Math.min(1, this.flight + ((this.wanted ? 1 : -1) * seconds) / FLIGHT_S));
     if (next !== this.flight) this.stale = true;

@@ -85,11 +85,16 @@ def water_nodes(water: np.ndarray) -> np.ndarray:
     return padded[:: terrain.HEIGHT_STEP_SAMPLES, :: terrain.HEIGHT_STEP_SAMPLES].astype(np.uint8)
 
 
-def encode_road_surface(ribbons: list[tuple[np.ndarray, np.ndarray]]) -> bytes:
-    """Every ribbon's rings of (east, north, height) as float32, then every section's tier as a byte."""
+def encode_road_surface(ribbons: list[tuple[np.ndarray, np.ndarray]], aprons: list[road_surface.Apron]) -> bytes:
+    """Every ribbon's rings of (east, north, height) as float32, then every section's tier as a byte, then the aprons."""
     rings = b"".join(ring.astype("<f4").tobytes() for ring, _ in ribbons)
     tiers = b"".join(tier.astype("u1").tobytes() for _, tier in ribbons)
-    return gzip.compress(rings + tiers, 9, mtime=0)
+    points = b"".join(np.column_stack((apron.points, apron.across, np.full(len(apron.points), apron.tier))).astype("<f4").tobytes() for apron in aprons)
+    numbered, first = [], 0
+    for apron in aprons:
+        numbered.append((apron.triangles + first).astype("<u4").tobytes())
+        first += len(apron.points)
+    return gzip.compress(rings + tiers + points + b"".join(numbered), 9, mtime=0)
 
 
 def building_sheets(tile: Tile) -> list[str]:
@@ -126,6 +131,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
 
         ground = road_surface.Ground(corners, west, north, terrain.CORNER_RIM, water=water_with_rim)
         ribbons = []
+        aprons = []
         if roads:
             surface = road_surface.lay_roads(roads, ground)
             conformed = surface.conformed
@@ -133,20 +139,23 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
                 raise ValueError(f"{tile.name}: laying the roads changed a row of heights a neighbour shares")
             mesh_nodes = terrain.height_nodes(conformed)
             ribbons = road_surface.ribbons(surface, mesh_nodes, TILE_SIZE_M / (mesh_nodes.shape[0] - 1), west, north)
+            aprons = road_surface.aprons_on_ground(surface.aprons, mesh_nodes, TILE_SIZE_M / (mesh_nodes.shape[0] - 1), west, north)
         if not all(np.isfinite(ring).all() for _, ring, _, _ in ribbons):
             raise ValueError(f"{tile.name}: a road surface came out with no height")
         baked = [(ring, tier) for _, ring, tier, _ in ribbons]
         motor_roads = [(ring, tier) for chain, ring, tier, _ in ribbons if chain.motor]
-        (folder / "road-surface.bin.gz").write_bytes(encode_road_surface(baked))
+        (folder / "road-surface.bin.gz").write_bytes(encode_road_surface(baked, aprons))
+        baked += road_surface.apron_footprints(aprons)
         surface_manifest = {
             "file": "road-surface.bin.gz",
-            "encoding": "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order",
+            "encoding": "gzip of float32le rings of (east, north, height) in world metres, then one tier byte per section, in chain order, then the aprons: float32le points of (east, north, height, across, tier), then uint32le triangles",
             "ring": ["outer left", "edge left", "centre", "edge right", "outer right"],
             "tiers": road_surface.TIERS,
             "chains": [
                 {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor, "spans": spans or None}.items() if value is not None}
                 for chain, ring, _, spans in ribbons
             ],
+            "aprons": {"points": sum(len(apron.points) for apron in aprons), "triangles": sum(len(apron.triangles) for apron in aprons)},
             **osm_licence,
         }
 
