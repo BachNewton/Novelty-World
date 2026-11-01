@@ -968,7 +968,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       jumpTo: jumpByKey,
       driveFrom: async (spot) => {
         await jump(spot);
-        setCamera(lastCarView);
+        setCamera("chase");
       },
       openMap: setMapOpen,
       holdFlight: (flight) => {
