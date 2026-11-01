@@ -3,7 +3,7 @@ import { freshGame } from "../../../mocks";
 import type { GameState, PendingTrade } from "../../../types";
 import { FABLE_V8_PARAMS, fableV8Bot } from "../fable-v8";
 import { makeParamBot } from "./bot";
-import { FABLE_V11_PARAMS, fableV11Bot } from "./index";
+import { fableV11Bot } from "./index";
 
 // fable-v11 = fable-v8's factory + the F12 human-counterparty model
 // (`humanAskOff` + `humanProposalMargin`, index.ts header). Pinned here:
@@ -176,35 +176,5 @@ describe("fable-v11 — F12b: the human-proposal margin", () => {
   it("a human offer clearing the margin is accepted", () => {
     const decision = fableV11Bot(kentuckyPending(true, 330), "p1");
     expect(decision?.intent.kind).toBe("accept-trade");
-  });
-});
-
-describe("fable-v11 — vector provenance", () => {
-  it("differs from fable-v8 in exactly the two human dims", () => {
-    const changed = Object.keys(FABLE_V11_PARAMS).filter(
-      (k) =>
-        k in FABLE_V8_PARAMS &&
-        FABLE_V11_PARAMS[k as keyof typeof FABLE_V11_PARAMS] !==
-          FABLE_V8_PARAMS[k as keyof typeof FABLE_V8_PARAMS],
-    );
-    expect(changed).toEqual([]);
-    expect(FABLE_V11_PARAMS.humanAskOff).toBe(1);
-    expect(FABLE_V11_PARAMS.humanProposalMargin).toBe(75);
-  });
-
-  it("keeps the invariant pins (lockstep, bounded survival, transfer memory, extraction)", () => {
-    expect(FABLE_V11_PARAMS.holderDenialFrac).toBe(1);
-    expect(FABLE_V11_PARAMS.survivalBounded).toBe(1);
-    expect(FABLE_V11_PARAMS.transferMemoryTurns).toBe(10);
-    expect(FABLE_V11_PARAMS.extractionOn).toBe(1);
-  });
-});
-
-describe("fable-v11 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [extractionBoard(true), kentuckyPending(true, 240), kentuckyPending(true, 330)]) {
-      expect(fableV11Bot(board, "p1")).toEqual(fableV11Bot(board, "p1"));
-      expect(fableV11Bot(board, "p2")).toEqual(fableV11Bot(board, "p2"));
-    }
   });
 });

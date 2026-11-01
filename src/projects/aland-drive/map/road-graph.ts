@@ -145,7 +145,8 @@ export class RoadGraph {
   private readonly linksFirst: Int32Array;
   /** Pairs of (road, 1 when it's walked from its start). */
   private readonly links: Int32Array;
-  readonly bounds: { west: number; east: number; top: number; bottom: number };
+  /** The box round every road a route can reach: the main island. */
+  readonly mainIsland: { west: number; east: number; top: number; bottom: number };
 
   constructor(readonly data: RoadGraphData) {
     const { from, to, flags, first, pointX, pointZ, nodeX } = data;
@@ -173,13 +174,14 @@ export class RoadGraph {
         const list = this.cells.get(key);
         if (!list) this.cells.set(key, [edge]);
         else if (list[list.length - 1] !== edge) list.push(edge);
+        if (!(flags[edge] & CAN_ROUTE)) continue;
         west = Math.min(west, pointX[point]);
         east = Math.max(east, pointX[point]);
         top = Math.min(top, pointZ[point]);
         bottom = Math.max(bottom, pointZ[point]);
       }
     }
-    this.bounds = { west, east, top, bottom };
+    this.mainIsland = { west, east, top, bottom };
   }
 
   private cellKey(x: number, z: number): number {

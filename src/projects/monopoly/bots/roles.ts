@@ -1,5 +1,5 @@
 import { BOT_RATINGS } from "./ratings";
-import { HUMAN_MODEL_VERSIONS, VERSIONS } from "./versions";
+import { VERSIONS } from "./versions";
 
 // ---------------------------------------------------------------------------
 // The PLAYER-FACING lobby offering — ENTIRELY DERIVED, not hand-curated. This is
@@ -12,7 +12,7 @@ import { HUMAN_MODEL_VERSIONS, VERSIONS } from "./versions";
 //     `npm run sim:ratings`; anchored `claude-v2 = 0`).
 //
 // Consequences:
-//   - The STRONGEST (lobby default + the bot `addBot`/`freshGame` seat) is simply
+//   - The STRONGEST (the lobby's headline pick) is simply
 //     the highest-Elo version across all families. NO confidence gate — it just
 //     follows the top of the ladder, so if two bots are within noise the label may
 //     flip between them (they're genuinely ~equally hard, so the player loses
@@ -144,35 +144,3 @@ export const LOBBY_BOTS: LobbyBots = (() => {
   const overallBest = strongest(families.flatMap((f) => f.best ?? []));
   return { overallBest, families };
 })();
-
-/** The version a fresh bot seat plays by default (`addBot`, `freshGame`) — the
- *  opponent a HUMAN actually faces. This is NOT simply the top of the Elo ladder:
- *  Elo is measured bot-vs-bot, and the archive's human-facing refinement (the fable
- *  human-counterparty model) is pinned IDENTICAL to its base in bot play, so the
- *  ladder can't see it and would seat a human against a human-BLIND bot. So whenever
- *  the Elo-strongest bot does not itself carry the model, we seat the FULLEST version
- *  that does (see `bots/CLAUDE.md` "The human-counterparty model" and
- *  `HUMAN_MODEL_VERSIONS`). The Elo-derived "Strongest" DISPLAY
- *  (`LOBBY_BOTS.overallBest`) is unchanged — this moves only the default SEAT. Falls
- *  back to the newest registered version when nothing is rated yet, so a seat is
- *  ALWAYS a real, playable bot. */
-export const DEFAULT_BOT_VERSION: string = humanFacingDefault();
-
-function humanFacingDefault(): string {
-  const eloBest = LOBBY_BOTS.overallBest?.version ?? newestRegisteredVersion();
-  if (HUMAN_MODEL_VERSIONS.includes(eloBest)) return eloBest;
-  const fullest = HUMAN_MODEL_VERSIONS.at(-1);
-  if (fullest !== undefined && fullest in VERSIONS) return fullest;
-  return eloBest;
-}
-
-/** Newest version label by family order then index — the safety fallback for
- *  `DEFAULT_BOT_VERSION` before any ratings exist. */
-function newestRegisteredVersion(): string {
-  for (const family of LOBBY_BOTS.families) {
-    const last = family.versions.at(-1);
-    if (last) return last.version;
-  }
-  // Unreachable: the archive always has at least one registered version.
-  throw new Error("no bot versions registered");
-}

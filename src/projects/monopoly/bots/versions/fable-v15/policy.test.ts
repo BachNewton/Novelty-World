@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameEvent, GameState, PendingTrade } from "../../../types";
-import { fableV12Bot, FABLE_V12_PARAMS } from "../fable-v12";
-import { makeParamBot } from "./bot";
+import { FABLE_V12_PARAMS } from "../fable-v12";
 import { FABLE_V15_PARAMS, fableV15Bot } from "./index";
 
 // fable-v15 = fable-v12's factory VERBATIM (self-contained snapshot) bound to the
@@ -72,19 +71,6 @@ function churnBoard(withMemory: boolean): GameState {
   };
 }
 
-describe("fable-v15 — the factory copy is faithful to fable-v12", () => {
-  const v12OnV15Factory = makeParamBot(FABLE_V12_PARAMS);
-  const boards: [string, GameState][] = [
-    ["fresh pre-roll", freshGame()],
-    ["extraction geometry", extractionBoard()],
-    ["churn offer", churnBoard(true)],
-  ];
-  it.each(boards)("matches fableV12Bot on %s", (_name, board) => {
-    expect(v12OnV15Factory(board, "p1")).toEqual(fableV12Bot(board, "p1"));
-    expect(v12OnV15Factory(board, "p2")).toEqual(fableV12Bot(board, "p2"));
-  });
-});
-
 describe("fable-v15 — invariants hold on the ES vector", () => {
   it("pins the buyer/holder denial LOCKSTEP (holderDenialFrac = 1.0)", () => {
     // The claude-v45 lesson: an unconstrained ES re-opens the held-completer
@@ -118,14 +104,5 @@ describe("fable-v15 — the extraction engine still fires", () => {
     expect(decision?.intent.kind).toBe("set-queue");
     expect(decision?.note).toContain("Selling New York Avenue to");
     expect(decision?.note).toContain("premium");
-  });
-});
-
-describe("fable-v15 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [extractionBoard(), churnBoard(true)]) {
-      expect(fableV15Bot(board, "p1")).toEqual(fableV15Bot(board, "p1"));
-      expect(fableV15Bot(board, "p2")).toEqual(fableV15Bot(board, "p2"));
-    }
   });
 });

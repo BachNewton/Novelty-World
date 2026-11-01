@@ -20,7 +20,7 @@ Next.js's own docs for the installed version are bundled in `node_modules/next/d
 | Build | `npm run build` |
 | Lint | `npm run lint` |
 | Type-check | `npm run typecheck` |
-| Unit tests | `npm run test` (the tests the change reaches, see "Checking a change"; skips `*.slow.test.ts`) |
+| Unit tests | `npm run test` (the tests the change can affect, see "Checking a change"; skips `*.slow.test.ts`) |
 | Slow unit tests | `npm run test:slow` (the same, for only `*.slow.test.ts`: heavy geometry, simulations, production-sized fixtures) |
 | Every unit or slow test | `npx vitest run`, or `npx vitest run --config vitest.slow.config.ts` |
 | Single test file | `npx vitest run src/projects/euchre/logic.test.ts` |
@@ -38,11 +38,13 @@ E2E tests (Playwright) are self-contained: each run builds the app (a snapshot o
 A green check runs what the change can reach:
 
 - **Lint and typecheck** always run whole: they are fast, and catch a broken import anywhere.
-- **Unit and slow tests** are scoped by their scripts: `npm run test` and `npm run test:slow` run only the tests whose imports reach a file changed against `main`, committed or not (Vitest's `--changed main`), and pass with nothing to run. A change to a file every test depends on without importing it (`package.json`, the lockfile, `tsconfig*.json`, either vitest config) runs them all: those are the `forceRerunTriggers` in `vitest.config.ts`.
+- **Unit and slow tests** are scoped by their scripts: `npm run test` and `npm run test:slow` run `scripts/affected-tests.mjs`, which selects the test files a change against `origin/main` could affect, committed or not, from the import graph. A test also runs when something it imports reads the disk, starts a process or a worker: the graph can't see what those reach, so it runs when the change touches its project or anything shared. Changing `package.json`, the lockfile, `tsconfig*.json`, a vitest config or the selector runs them all, and so does a failed diff. Add `--list` to see what is selected and why, or `--all` for everything.
 - **E2E** runs the specs of the project changed: `npx playwright test e2e/<project>`. Specs are named for their project (`e2e/<project>-<topic>.spec.ts`, or `e2e/<project>.spec.ts` for a single one), except `lobby-games.spec.ts`, which plays the room-code games (Tic-Tac-Toe and Euchre). Playwright's `--only-changed` doesn't fit: specs load the app by URL, not by import. Every spec runs when the change reaches `src/shared/`, the dependencies (`package.json`, the lockfile), or test, build or TypeScript config.
 - After a failure, rerun only the failing files, never the whole suite.
 
-The one gap: the graph sees only imports. A test that reaches something by another route, a file read by path or a Python process (the family tree's layout tests run `layout/solver/`), isn't selected when that changes. A test imports what it uses wherever it can, and a change to something reached another way runs its tests by name.
+**The import graph is what makes this worth having.** A test pays for everything it imports, so a shared file that drags in a whole subsystem makes every test look like it depends on that subsystem. A module a project's fixtures or setup rely on stays light: labels and data live apart from the frozen bots or heavy code behind them.
+
+The gaps: a project's disk-reading test is assumed to read only its own project and what's shared, and a computed import is invisible. Nothing else catches these: no CI runs the tests here, so `npm run test:all` is the backstop. A deleted module is in no closure, which is why typecheck stays whole.
 
 **Handing the owner an HTML file:** the desktop app's file pane and browser can't show HTML over 512 KB, which a page with embedded audio usually is. Give a clickable `file:///C:/...` link to open in Chrome, and don't try to open it in the app or start a server for it.
 

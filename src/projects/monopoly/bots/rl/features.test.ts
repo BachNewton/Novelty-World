@@ -3,7 +3,7 @@ import { freshGame } from "../../mocks";
 import type { GameState } from "../../types";
 import { applyCandidate, candidateFor } from "./candidates";
 import { driveOp } from "../../pacing";
-import { DEFAULT_BOT_VERSION } from "../roles";
+import { DEFAULT_BOT_VERSION } from "../default-bot";
 import { encode, FEATURE_COUNT, FEATURE_NAMES } from "./features";
 
 /** A fresh 4-bot game at its opening pre-roll — every seat a bot so the headless

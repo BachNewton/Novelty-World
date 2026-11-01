@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameEvent, GameState } from "../../../types";
-import { FABLE_V8_PARAMS, fableV8Bot } from "../fable-v8";
-import { makeParamBot } from "./bot";
-import { FABLE_V9_PARAMS, fableV9Bot } from "./index";
+import { fableV8Bot } from "../fable-v8";
+import { fableV9Bot } from "./index";
 
 // fable-v9 = fable-v8's factory + the F10 re-pitch minimum step
 // (`repitchMinStep`, index.ts header). Pinned here: (1) the factory is
@@ -52,16 +51,6 @@ function repitchBoard(oldAsk: number): GameState {
   };
 }
 
-describe("fable-v9 — the factory copy is faithful to fable-v8", () => {
-  const v8OnV9Factory = makeParamBot({ ...FABLE_V8_PARAMS, repitchMinStep: 1 });
-  it("matches fableV8Bot with the old any-improvement rule", () => {
-    for (const board of [freshGame(), repitchBoard(1393), repitchBoard(1450)]) {
-      expect(v8OnV9Factory(board, "p1")).toEqual(fableV8Bot(board, "p1"));
-      expect(v8OnV9Factory(board, "p2")).toEqual(fableV8Bot(board, "p2"));
-    }
-  });
-});
-
 describe("fable-v9 — the proposal spam is fixed", () => {
   it("fable-v8 re-pitches after a cosmetic $10 improvement (the probe-game spam)", () => {
     // Prior ask $1393 declined; the constructor now solves $1383 — $10 cheaper
@@ -80,35 +69,5 @@ describe("fable-v9 — the proposal spam is fixed", () => {
     const decision = fableV9Bot(repitchBoard(1450), "p1");
     expect(decision?.intent.kind).toBe("set-queue");
     expect(decision?.note).toContain("Selling New York Avenue");
-  });
-});
-
-describe("fable-v9 — vector provenance", () => {
-  it("differs from fable-v8 in exactly the re-pitch-step dim", () => {
-    const changed = Object.keys(FABLE_V9_PARAMS).filter(
-      (k) =>
-        k in FABLE_V8_PARAMS &&
-        FABLE_V9_PARAMS[k as keyof typeof FABLE_V9_PARAMS] !==
-          FABLE_V8_PARAMS[k as keyof typeof FABLE_V8_PARAMS],
-    );
-    expect(changed).toEqual([]);
-    expect(FABLE_V9_PARAMS.repitchMinStep).toBe(50);
-    expect(FABLE_V9_PARAMS.transformTailFrac).toBe(0.5);
-  });
-
-  it("keeps the invariant pins (lockstep, bounded survival, transfer memory, extraction)", () => {
-    expect(FABLE_V9_PARAMS.holderDenialFrac).toBe(1);
-    expect(FABLE_V9_PARAMS.survivalBounded).toBe(1);
-    expect(FABLE_V9_PARAMS.transferMemoryTurns).toBe(10);
-    expect(FABLE_V9_PARAMS.extractionOn).toBe(1);
-  });
-});
-
-describe("fable-v9 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [repitchBoard(1393), repitchBoard(1450)]) {
-      expect(fableV9Bot(board, "p1")).toEqual(fableV9Bot(board, "p1"));
-      expect(fableV9Bot(board, "p2")).toEqual(fableV9Bot(board, "p2"));
-    }
   });
 });

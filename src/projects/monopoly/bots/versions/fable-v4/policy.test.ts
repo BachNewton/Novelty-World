@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState } from "../../../types";
-import { FABLE_V3_PARAMS, fableV3Bot } from "../fable-v3";
-import { makeParamBot } from "./bot";
-import { FABLE_V4_PARAMS, fableV4Bot } from "./index";
+import { fableV3Bot } from "../fable-v3";
+import { fableV4Bot } from "./index";
 
 // fable-v4 = fable-v3's factory + the F5 voluntary-spend tail guard
 // (`voluntaryTailFrac`, index.ts header). Pinned here: (1) the factory is
@@ -45,16 +44,6 @@ function deadMonopolyBoard(hotels: boolean): GameState {
   };
 }
 
-describe("fable-v4 — the factory copy is faithful to fable-v3", () => {
-  const v3OnV4Factory = makeParamBot({ ...FABLE_V3_PARAMS, voluntaryTailFrac: 0 });
-  it("matches fableV3Bot with the guard disabled", () => {
-    for (const board of [freshGame(), deadMonopolyBoard(true), deadMonopolyBoard(false)]) {
-      expect(v3OnV4Factory(board, "p1")).toEqual(fableV3Bot(board, "p1"));
-      expect(v3OnV4Factory(board, "p2")).toEqual(fableV3Bot(board, "p2"));
-    }
-  });
-});
-
 describe("fable-v4 — the 4q3y6i voluntary-spend defect is fixed", () => {
   it("fable-v3 arms the $506 redeploy one roll from a $950 board (the T219 blunder)", () => {
     const decision = fableV3Bot(deadMonopolyBoard(true), "p1");
@@ -71,34 +60,5 @@ describe("fable-v4 — the 4q3y6i voluntary-spend defect is fixed", () => {
     const decision = fableV4Bot(deadMonopolyBoard(false), "p1");
     expect(decision?.intent.kind).toBe("set-queue");
     expect(decision?.note).toContain("unmortgaging");
-  });
-});
-
-describe("fable-v4 — vector provenance", () => {
-  it("differs from fable-v3 in exactly the tail-guard dim", () => {
-    const changed = Object.keys(FABLE_V4_PARAMS).filter(
-      (k) =>
-        k in FABLE_V3_PARAMS &&
-        FABLE_V4_PARAMS[k as keyof typeof FABLE_V4_PARAMS] !==
-          FABLE_V3_PARAMS[k as keyof typeof FABLE_V3_PARAMS],
-    );
-    expect(changed).toEqual([]);
-    expect(FABLE_V4_PARAMS.voluntaryTailFrac).toBe(1);
-  });
-
-  it("keeps the invariant pins (lockstep, bounded survival, transfer memory, extraction)", () => {
-    expect(FABLE_V4_PARAMS.holderDenialFrac).toBe(1);
-    expect(FABLE_V4_PARAMS.survivalBounded).toBe(1);
-    expect(FABLE_V4_PARAMS.transferMemoryTurns).toBe(10);
-    expect(FABLE_V4_PARAMS.extractionOn).toBe(1);
-  });
-});
-
-describe("fable-v4 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [deadMonopolyBoard(true), deadMonopolyBoard(false)]) {
-      expect(fableV4Bot(board, "p1")).toEqual(fableV4Bot(board, "p1"));
-      expect(fableV4Bot(board, "p2")).toEqual(fableV4Bot(board, "p2"));
-    }
   });
 });

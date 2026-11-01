@@ -2,13 +2,13 @@ import { BufferAttribute, BufferGeometry, Color, ClampToEdgeWrapping, DataTextur
 import { all, attribute, dFdx, dFdy, exp, float, fract, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
-import { ROAD_TIERS, type RoadTier, type WorldManifest } from "./tile";
+import { FLAT_LIGHT, ROAD_TIERS, SHADE_SHARE, type RoadTier, type WorldManifest } from "./tile";
 import { startChaseCamera, type CarView } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createCarView } from "./car";
 import { createClipmap } from "./clipmap";
-import { createForest } from "./forest";
-import { canopyLift, forestGround, tileReads } from "./tile-reads";
+import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
+import { canopyLift, tileReads } from "./tile-reads";
 import { createWater, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
@@ -17,7 +17,7 @@ import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, typ
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
-import { landImage, mapInk, type MapView } from "../map/draw";
+import { landImage, mapInk, SharpLand, type MapView } from "../map/draw";
 import { Navigator, type RouteCue } from "../map/navigator";
 import { RoadGraph } from "../map/road-graph";
 import { WorldMap } from "../map/world-map";
@@ -57,6 +57,7 @@ export interface GameProbe {
   look: (at: Place) => void;
   /** What the last frame cost, counted, and how big it was drawn. */
   counts: () => { webGpu: boolean; drawCalls: number; triangles: number; gpuMs: number | null; width: number; height: number };
+  forestDrawn: () => ForestDrawn;
   car: () => CarState;
   log: () => DriveLog;
   /** Stops the simulation following the clock, so `advance` is all that moves it. */
@@ -147,6 +148,8 @@ const CAMERA_FAR = 200000;
 const SEA_BELOW_LAND_M = -1.2;
 /** The 3D world is drawn at this share of the screen's real pixels each way, and stretched to fit if it's under 1. The page's UI stays sharp. */
 export const RENDER_SCALE = 1;
+/** What the forest draws on the floor laptop. It scales within `FOREST_MOST`. */
+export const FOREST_DEFAULTS: ForestSettings = { fullReachM: 464, forestReachM: 1500, farDensity: 1 };
 const LONGEST_FRAME_S = 0.1;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
@@ -175,12 +178,12 @@ const PAINTED_ROADS_GONE_M = 500;
 const OVERLAY_FROM_M = 250;
 const OVERLAY_FULL_M = 1100;
 const MAP_FIELD_OF_VIEW = 45;
+/** Below these heights the map looks at its own place: a sharper image only shows once a screen pixel is about as small as twice the image's. */
+const MAP_FAR_FROM_M = 10000;
+const MAP_DETAIL_FROM_M = 3500;
 /** Room round the island on the map. */
 const MAP_MARGIN = 1.05;
-/** Light on flat open ground in the baked shading: at this the photo shows as it was taken. */
-const FLAT_LIGHT = 0.8;
-/** The photo already holds most of its own relief, so the baked shading only adds to it. */
-const SHADE_SHARE = 0.65;
+const MAP_SLOPE = Math.tan((MAP_FIELD_OF_VIEW * Math.PI) / 360);
 const BUILDINGS_REACH_M = DETAIL_SEEN_M;
 const GRAIN_M = 7;
 const GRAIN_SECOND_SCALE = 0.31;
@@ -316,6 +319,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   events.onLoading?.({ ...progress });
 
   const overviewData = await fetcher.overview();
+  const sharpLand = new SharpLand(manifest.tileM);
   landed();
   world.addOverview(overviewData.heights);
   const overviewTexture = new DataTexture(overviewData.image, manifest.overview.imageWidth, manifest.overview.imageHeight, RGBAFormat);
@@ -376,10 +380,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   const { canopyAt, roadsAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
-  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot));
-  const forest = createForest(scene, {
+  const knobs = forestKnobs(FOREST_DEFAULTS);
+  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot, knobs.forestReach));
+  const forest = createForest(scene, renderer, {
+    knobs,
     canopyAt: (place) => canopyAt(place, 0),
-    ...forestGround(clipmap),
+    groundAt: clipmap.groundBlendedAt,
     roads: { at: roadsAt, tileM },
     colour: colorOf,
     hazed,
@@ -473,9 +479,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         layers.placeNear(world.named(detail.name), mips, ground, manifest, done);
       },
       placeFar(tile, done) {
-        layers.placeFar(world.named(tile.name), tile, manifest, done);
+        const place = world.named(tile.name);
+        sharpLand.add(tile.name, place.column, place.row, tile.land);
+        layers.placeFar(place, tile, manifest, done);
       },
       releaseFar(tile) {
+        sharpLand.remove(tile.name);
         layers.releaseFar(tile);
       },
       release(detail) {
@@ -538,6 +547,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   }
   clipmap.showWide(true);
   await renderer.compileAsync(scene, camera);
+  await forest.compile();
   clipmap.showWide(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
@@ -572,8 +582,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
 
   let navigator: Navigator | null = null;
-  // The camera left the chase view here, and detail stays here until it's back. Null while driving.
+  // The camera left the chase view here, and detail stays here until it's back or the map looks closely elsewhere. Null while driving.
   let mapFrom: ChasePose | null = null;
+  let mapLook: { x: number; z: number; detail: boolean } | null = null;
   let heldFlight = false;
   const raycaster = new Raycaster();
   const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
@@ -597,7 +608,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       roadGraph = graph;
       const land = landImage(overviewData.image, manifest.overview);
       const ink = mapInk();
-      navigator = new Navigator(graph, land, manifest.overview, canvases.mini, ink, { onRoad: (name) => events.onRoad?.(name) });
+      navigator = new Navigator(graph, land, manifest.overview, sharpLand, canvases.mini, ink, { onRoad: (name) => events.onRoad?.(name) });
       worldMap = new WorldMap(
         canvases.world,
         graph,
@@ -609,6 +620,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
           mapFrom = null;
           controls.setMapOpen(false);
           events.onMapOpen?.(false);
+          const { position } = drive.stateAt(1);
+          if (stream.wanted(position[0], position[2]) === 0) return;
+          // The map looked elsewhere, so the car waits for its ground, as it does for a jump.
+          jumping = true;
+          void stream.settled().then(() => {
+            jumping = false;
+          });
         },
       );
       stream.addBytes(data.bytes);
@@ -649,14 +667,20 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return spot ? jump(spot) : Promise.resolve();
   };
 
-  /** The whole island, centred, whatever the screen's shape. */
-  const mapTarget = (): MapTarget => {
-    if (!roadGraph) throw new Error("no road network yet");
-    const { west, east, top, bottom } = roadGraph.bounds;
+  /** The view that fits a box, centred, whatever the screen's shape. */
+  const mapFitting = ({ west, east, top, bottom }: { west: number; east: number; top: number; bottom: number }): MapTarget => {
     const across = (east - west) / 2 / Math.max(camera.aspect, 0.1);
     const along = (bottom - top) / 2;
-    const heightM = (MAP_MARGIN * Math.max(across, along)) / Math.tan((MAP_FIELD_OF_VIEW * Math.PI) / 360);
+    const heightM = (MAP_MARGIN * Math.max(across, along)) / MAP_SLOPE;
     return { x: (west + east) / 2, z: (top + bottom) / 2, heightM, fieldOfViewDeg: MAP_FIELD_OF_VIEW };
+  };
+
+  /** The main island to start with, out to all of Åland, as the map's zoom and pan have moved it. */
+  const mapTarget = (map: WorldMap): MapTarget => {
+    if (!roadGraph) throw new Error("no road network yet");
+    const { west, north, columns, rows, stepM } = manifest.overview;
+    const whole = mapFitting({ west, east: west + (columns - 1) * stepM, top: -north, bottom: -north + (rows - 1) * stepM });
+    return map.target(whole, whole.heightM * MAP_SLOPE * camera.aspect, whole.heightM * MAP_SLOPE, mapFitting(roadGraph.mainIsland));
   };
 
   const setMapOpen = (open: boolean) => {
@@ -678,6 +702,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       });
     }
     worldMap.wanted = open;
+    if (!open) mapLook = null;
   };
 
   const onAction = (action: GameAction) => {
@@ -759,7 +784,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const seconds = Math.min(lastFrame === null ? 0 : (now - lastFrame) / 1000, LONGEST_FRAME_S);
     lastFrame = now;
     let share = 1;
-    if (mapFrom && !heldFlight) worldMap?.step(controls.mapStick(), seconds);
+    if (mapFrom && !heldFlight) worldMap?.step(controls.mapSteer(), seconds);
     if (!held && !mapFrom && !jumping) {
       owedSeconds += seconds;
       const steps = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
@@ -771,7 +796,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     carView.draw(car);
     if (mapFrom && worldMap) {
       const carNow = mapFrom.car;
-      const pose = mapCameraAt(worldMap.flight, mapFrom, mapTarget(), groundAt);
+      const pose = mapCameraAt(worldMap.flight, mapFrom, mapTarget(worldMap), groundAt);
       camera.position.set(...pose.position);
       camera.rotation.set(pose.pitch, -pose.turn, 0, "YXZ");
       if (camera.fov !== pose.fieldOfViewDeg) {
@@ -780,6 +805,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       }
       camera.updateMatrixWorld();
       const height = camera.position.y - carNow[1];
+      if (worldMap.wanted && worldMap.flight === 1 && height < MAP_FAR_FROM_M) mapLook = { x: camera.position.x, z: camera.position.z, detail: height < MAP_DETAIL_FROM_M };
       hazeM.value = HAZE_M * (1 + (Math.max(height, 0) / HAZE_CLEARS_FROM_M) ** 2);
       paintedShare.value = Math.max(1 - height / PAINTED_ROADS_GONE_M, 0);
       const shown = Math.max(0, Math.min(1, (height - OVERLAY_FROM_M) / (OVERLAY_FULL_M - OVERLAY_FROM_M)));
@@ -792,7 +818,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       paintedShare.value = 1;
     }
     const lifted = mapFrom !== null;
-    const [spotX, spotY, spotZ] = mapFrom ? mapFrom.position : camera.position.toArray();
+    const [spotX, spotY, spotZ] = mapLook ? [mapLook.x, groundAt(mapLook.x, mapLook.z), mapLook.z] : mapFrom ? mapFrom.position : camera.position.toArray();
     detailSpotAt.set(spotX, spotY, spotZ);
     const spot = detailSpotAt;
     detailSpot.value.copy(spot);
@@ -801,19 +827,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const speed = speedOf(car);
     const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed) ?? null;
     events.onHud({ speedKmh: speed * 3.6, speedShare: Math.min(speed / TOP_SPEED_SHARE_MS, 1), cue });
-    const focus = loadingAround ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
-    stream.update(focus.x, focus.z);
+    const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
+    stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
     clipmap.update(spot);
     cameraSpot.value.set(spot.x, spot.z);
-    forest.update(spot);
+    forest.update(spot, camera);
     showRibbons(spot);
     renderer.render(scene, camera);
     frames++;
     if (!resolving) {
       resolving = true;
-      void renderer.resolveTimestampsAsync(TimestampQuery.RENDER).then((ms) => {
-        if (ms !== undefined && ms > 0) gpuMs = ms;
+      void Promise.all([renderer.resolveTimestampsAsync(TimestampQuery.RENDER), renderer.resolveTimestampsAsync(TimestampQuery.COMPUTE)]).then(([ms, computeMs]) => {
+        if (ms !== undefined && ms > 0) gpuMs = ms + (computeMs ?? 0);
         resolving = false;
       });
     }
@@ -830,11 +856,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       counts: () => ({
         webGpu: "isWebGPUBackend" in renderer.backend,
         drawCalls: renderer.info.render.drawCalls,
-        triangles: renderer.info.render.triangles,
+        // three counts an indirect draw as one tree, so the forest's come from the GPU's own count, a few frames old.
+        triangles: renderer.info.render.triangles + forest.drawn().triangles,
         gpuMs,
         width: renderer.domElement.width,
         height: renderer.domElement.height,
       }),
+      forestDrawn: forest.drawn,
       car: () => drive.stateAt(1),
       log: () => drive.log,
       hold: (next) => {

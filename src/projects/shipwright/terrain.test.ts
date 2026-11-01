@@ -30,10 +30,6 @@ const sampleWide = (height: (x: number, z: number) => number, step = 15) => {
 };
 
 describe("noise2", () => {
-  it("is deterministic for the same (x, z, seed)", () => {
-    expect(noise2(12.5, -3.25, 7)).toBe(noise2(12.5, -3.25, 7));
-  });
-
   it("varies with the seed", () => {
     expect(noise2(12.5, -3.25, 7)).not.toBe(noise2(12.5, -3.25, 8));
   });
@@ -50,10 +46,6 @@ describe("noise2", () => {
 });
 
 describe("fbm2", () => {
-  it("is deterministic", () => {
-    expect(fbm2(1.5, 2.5, 9, 4)).toBe(fbm2(1.5, 2.5, 9, 4));
-  });
-
   it("stays normalised within [-1, 1] regardless of octave count", () => {
     for (const octaves of [1, 3, 6]) {
       for (let i = 0; i < 500; i++) {
@@ -65,10 +57,6 @@ describe("fbm2", () => {
 
 describe("bedrockHeight", () => {
   const height = bedrockHeight(PROFILE);
-
-  it("is deterministic", () => {
-    expect(height(3, -8)).toBe(height(3, -8));
-  });
 
   it("produces a different archipelago for a different seed", () => {
     const other = bedrockHeight({ ...PROFILE, seed: PROFILE.seed + 1 });

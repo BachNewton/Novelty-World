@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { NAMED_FIXTURES, productionTree } from "./__fixtures__/trees";
 import {
   GEN_HEIGHT,
@@ -49,15 +49,20 @@ const fixtures: [string, () => Tree][] = [
 
 describe("tree 3D simulation", () => {
   describe.each(fixtures)("%s", (_name, make) => {
+    let sim: ReturnType<typeof settled>;
+    beforeAll(() => {
+      sim = settled(make());
+    });
+
     it("settles with finite positions", () => {
-      const { nodes } = settled(make());
+      const { nodes } = sim;
       for (const n of nodes) {
         expect(Number.isFinite(n.x + n.y + n.z)).toBe(true);
       }
     });
 
     it("locks every node to its generation row", () => {
-      const { nodes } = settled(make());
+      const { nodes } = sim;
       for (const n of nodes) {
         expect(n.y).toBeCloseTo(-n.gen * GEN_HEIGHT, 6);
       }
@@ -66,7 +71,7 @@ describe("tree 3D simulation", () => {
     // The union line stays shorter than the drop to the couple's children,
     // so a couple always reads as a pair above them.
     it("keeps partners closer together than a generation apart", () => {
-      const { links } = settled(make());
+      const { links } = sim;
       for (const l of links) {
         if (l.kind !== "union") continue;
         const d = Math.hypot(

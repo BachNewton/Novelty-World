@@ -27,6 +27,7 @@ import laser
 import overview
 import road_map
 import roads as road_surface
+import stands
 import terrain
 import vectors
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, WORLD_ORIGIN, Tile, neighbour, tile_from_name, to_local
@@ -49,6 +50,7 @@ MASK_PIXELS = 1500
 START_TILE = "L2343C"
 ATTRIBUTION = [
     "Land: National Land Survey of Finland (elevation, orthophotos, laser scanning, 3D buildings, Topographic Database), CC BY 4.0",
+    "Forest stands: ©Natural Resources Institute Finland, 2023, The Multi-source National Forest Inventory Raster Maps of 2023, CC BY 4.0",
     "Roads: © OpenStreetMap contributors, ODbL 1.0",
 ]
 
@@ -175,6 +177,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
     above = laser.above_ground(tile)
     solids_manifest, built = solids.build(tile, conformed, above, photo, motor_roads, folder)
     trees = canopy.bake(above, raw_photo, water, built, baked, west, north, folder)
+    stands.bake(tile, folder)
     ground_colour.bake(photo, water_with_rim, trees, built, folder)
     print(f"  {trees.mean():.1%} under trees")
 
@@ -199,6 +202,7 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
         "mask": {"file": "mask.png", "pixels": MASK_PIXELS, "channels": ["water", "main road", "lesser road"]},
         "ground": {"file": "ground.webp", "pixels": SAMPLES, "farFile": "ground-far.webp", "farPixels": ground_colour.FAR_PIXELS},
         "canopy": {"file": "canopy.webp", "pixels": canopy.PIXELS, "unitM": canopy.UNIT_M},
+        "stands": stands.MANIFEST,
         "solids": solids_manifest,
         "buildingSheets": building_sheets(tile),
         "water": {"nodesFile": "water-nodes.bin.gz"},
@@ -238,6 +242,7 @@ def write_world(output: Path = OUTPUT) -> dict:
         "mask": first["mask"],
         "ground": first["ground"],
         "canopy": first["canopy"],
+        "stands": stands.MANIFEST,
         "water": first["water"],
         "overview": overview_manifest,
         "map": map_manifest,

@@ -27,6 +27,9 @@ const MOST_LOADS_AT_ONCE = 2;
 /** Far data is seen out to FAR_SEEN_M. At this reach a tile holds it from the moment it could be, and at most sixteen tiles do. */
 export const FAR_LOAD_M = 6000;
 const FAR_UNLOAD_M = 7500;
+/** What the GPU's layers hold. A car can't reach these, but a map's focus jumps, and tiles on their way land after it has moved on. */
+export const MOST_DETAIL_TILES = 6;
+export const MOST_FAR_TILES = 16;
 
 /** The shortest way from a point to a tile. */
 export function distanceToTile(x: number, z: number, column: number, row: number, tileM: number): number {
@@ -161,7 +164,7 @@ export class TileStream {
   private unloads = 0;
   private bytes = 0;
   private stopped = false;
-  private focus: { x: number; z: number } | null = null;
+  private focus: { x: number; z: number; detail: boolean } | null = null;
   private waiters: (() => void)[] = [];
   /** Told each time a tile lands. */
   onLanded: () => void = () => undefined;
@@ -177,9 +180,9 @@ export class TileStream {
     this.bytes += bytes;
   }
 
-  /** Called each frame with where the focus has got to, and again as each tile lands. */
-  update(x: number, z: number): void {
-    this.focus = { x, z };
+  /** Called each frame with where the focus has got to, and again as each tile lands. With `detail` false, it only wants far data. */
+  update(x: number, z: number, detail = true): void {
+    this.focus = { x, z, detail };
     const { world } = this;
     for (const tile of world.all()) {
       if (!tile.detail || !isPastUnload(tile, x, z, world.tileM)) continue;
@@ -192,14 +195,23 @@ export class TileStream {
       this.target.releaseFar(tile);
       world.removeFar(tile.name);
     }
+    const farComing = [...this.busy].filter((key) => key.endsWith(":far")).length;
+    let farHeld = farComing;
+    let detailHeld = this.busy.size - farComing;
+    for (const tile of world.all()) {
+      if (tile.far) farHeld++;
+      if (tile.detail) detailHeld++;
+    }
     while (this.busy.size < MOST_LOADS_AT_ONCE) {
-      const near = nextToLoad(world.all(), x, z, world.tileM, this.busy);
+      const near = detail && detailHeld < MOST_DETAIL_TILES ? nextToLoad(world.all(), x, z, world.tileM, this.busy) : null;
       if (near) {
+        detailHeld++;
         void this.load(near.name);
         continue;
       }
-      const far = nextFarToLoad(world.all(), x, z, world.tileM, this.busy);
+      const far = farHeld < MOST_FAR_TILES ? nextFarToLoad(world.all(), x, z, world.tileM, this.busy) : null;
       if (!far) break;
+      farHeld++;
       void this.loadFar(far.name);
     }
     if (this.busy.size === 0) {
@@ -249,7 +261,7 @@ export class TileStream {
       )
       .then(() => {
         this.busy.delete(key);
-        if (this.focus && !this.stopped) this.update(this.focus.x, this.focus.z);
+        if (this.focus && !this.stopped) this.update(this.focus.x, this.focus.z, this.focus.detail);
       });
     landed.catch((error: unknown) => {
       this.onFailure(error instanceof Error ? error : new Error(String(error)));
@@ -280,7 +292,7 @@ export class TileStream {
       )
       .then(() => {
         this.busy.delete(name);
-        if (this.focus && !this.stopped) this.update(this.focus.x, this.focus.z);
+        if (this.focus && !this.stopped) this.update(this.focus.x, this.focus.z, this.focus.detail);
       });
     landed.catch((error: unknown) => {
       this.onFailure(error instanceof Error ? error : new Error(String(error)));

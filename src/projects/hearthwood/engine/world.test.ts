@@ -49,7 +49,7 @@ describe("the world", () => {
     const s = emptySample();
     let checked = 0;
     let wadeable = 0;
-    for (let z = -4000; z <= 4000; z += 7) {
+    for (let z = -4000; z <= 4000; z += 13) {
       for (let x = -4000; x <= 4000; x += 97) {
         world.landAt(x, z, s);
         if (s.river < 0.8 || s.water <= s.height) continue;

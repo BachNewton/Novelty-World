@@ -21,16 +21,6 @@ const BASE: ChunkRequest = {
 };
 
 describe("generateChunk", () => {
-  it("is deterministic: the same request produces byte-identical buffers", () => {
-    const a = generateChunk(BASE);
-    const b = generateChunk(BASE);
-    expect(a.positions).toEqual(b.positions);
-    expect(a.normals).toEqual(b.normals);
-    expect(a.colors).toEqual(b.colors);
-    expect(a.index).toEqual(b.index);
-    expect(a.trees).toEqual(b.trees);
-  });
-
   it("agrees with its neighbour on the shared edge (world-anchored heights + apron normals)", () => {
     // Two chunks sharing the x = originX + size/2 edge. Without the apron,
     // edge normals would each be computed from half a neighbourhood and disagree —

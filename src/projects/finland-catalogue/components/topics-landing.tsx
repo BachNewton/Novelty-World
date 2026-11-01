@@ -1,7 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState, useSyncExternalStore } from "react";
-import { shuffleArray } from "@/shared/lib/utils";
+import { shuffleArray } from "@/shared/lib/shuffle";
 import { useHydrated } from "@/shared/lib/use-hydrated";
 import { applySearch, topicHaystack } from "../filters";
 import { TOPICS } from "../topics";

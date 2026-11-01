@@ -12,7 +12,10 @@ import xml.etree.ElementTree as ElementTree
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
+import rasterio
 from pyproj import Transformer
+from rasterio.windows import from_bounds
 
 from grid import Tile
 
@@ -29,6 +32,15 @@ REQUEST_TIMEOUT_S = 90
 # Roads are clipped at the tile's edge, so a little past it catches every way that crosses.
 OSM_MARGIN_M = 200
 ORTHO_YEARS = (2025, 2024, 2023, 2022)
+MSNFI = "https://www.nic.funet.fi/index/geodata/luke/vmi/2023/"
+# In m³/ha, then %, m²/ha, cm and dm.
+MSNFI_THEMES = {"pine": "manty", "spruce": "kuusi", "birch": "koivu", "other": "muulp", "cover": "latvuspeitto", "basal": "ppa", "diameter": "keskilapimitta", "height": "keskipituus"}
+MSNFI_PIXEL_M = 16
+# As far as stands.py's widest kernel reaches, so a tile's edge reads the same from both sides.
+MSNFI_RIM_PIXELS = 60
+# 32766 couldn't be computed, 32767 isn't forest land.
+MSNFI_NODATA_FROM = 32766
+MSNFI_OUTSIDE = 32767
 
 
 def _download(request: urllib.request.Request, path: Path) -> None:
@@ -87,6 +99,12 @@ def ortho_path(tile: Tile) -> Path:
         if path is not None:
             return path
         (RAW / "ortho" / f"{tile.name}.jp2.absent").unlink()
+    # The outermost skerries were only flown lower, and those sheets sit in folders by their pixel size.
+    for size in ("02m", "10m"):
+        path = _mirrored_or_none("ortho", f"{MIRROR}orto/normal_color_3067/smk_v_15000_50/2025/{tile.name[:3]}/{size}/1/{tile.name}.jp2", f"{tile.name}.jp2")
+        if path is not None:
+            return path
+        (RAW / "ortho" / f"{tile.name}.jp2.absent").unlink()
     raise FileNotFoundError(f"{tile.name}: the mirror has no photo from any of {ORTHO_YEARS}")
 
 
@@ -100,6 +118,25 @@ def topographic_path(tile: Tile) -> Path:
     """The half sheet holding a tile: its first four tiles are the left half."""
     half = f"{tile.name[:5]}{'L' if tile.name[5] in 'ABCD' else 'R'}"
     return _mirrored("mtk", f"{MIRROR}maastotietokanta/2025/shp/L2/{tile.name[:3]}/{half}.shp.zip", f"{half}.shp.zip")
+
+
+def msnfi_path(tile: Tile) -> Path:
+    """A tile's window of each MS-NFI theme and a rim, as uint16 in the source's units. The rasters are whole-country, so only the window is read."""
+    path = RAW / "msnfi" / f"{tile.name}.npz"
+    if path.exists():
+        return path
+    rim = MSNFI_RIM_PIXELS * MSNFI_PIXEL_M
+    themes = {}
+    with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".tif", CPL_VSIL_CURL_USE_HEAD="NO"):
+        for name, theme in MSNFI_THEMES.items():
+            with rasterio.open(f"/vsicurl/{MSNFI}{theme}_vmi1x_1923.tif") as raster:
+                window = from_bounds(tile.west - rim, tile.south - rim, tile.east + rim, tile.north + rim, raster.transform).round_offsets().round_lengths()
+                themes[name] = raster.read(1, window=window, boundless=True, fill_value=MSNFI_OUTSIDE)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    partial = path.with_suffix(".part.npz")
+    np.savez_compressed(partial, **themes)
+    partial.replace(path)
+    return path
 
 
 def buildings3d_path(tile: Tile) -> Path | None:

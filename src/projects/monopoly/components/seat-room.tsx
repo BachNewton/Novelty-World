@@ -11,7 +11,7 @@ import {
   parseAiStrategy,
   type AiStrategy,
 } from "../bots/ai/strategy";
-import { AI_VERSION_LABELS } from "../bots/ai/versions";
+import { AI_VERSION_LABELS } from "../bots/ai/versions/labels";
 import { LOBBY_BOTS, type BotOption } from "../bots/roles";
 import { PLAYER_COLORS, PLAYER_ICONS } from "../data";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../lobby";

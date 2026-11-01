@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mix, noJolts, readJolts, restingEngine, slipOf, stepEngine, type DriveAudioState, type EngineRead } from "./model";
 import type { CarState } from "../sim/car-state";
-import { engineCycle, gravelLoop, noiseLoop, shoreBed } from "./synthesis";
+import { engineCycle, gravelLoop, shoreBed } from "./synthesis";
 import { ENGINE_IDS, ENGINES } from "./vehicles";
 
 const state = (changes: Partial<DriveAudioState> = {}): DriveAudioState => ({
@@ -133,8 +133,4 @@ describe("the loops", () => {
     }
   });
 
-  it("are the same each visit", () => {
-    expect(engineCycle(ENGINES["old-estate"], 5).channels[0]).toEqual(engineCycle(ENGINES["old-estate"], 5).channels[0]);
-    expect(noiseLoop().channels[0][1000]).toBe(noiseLoop().channels[0][1000]);
-  });
 });

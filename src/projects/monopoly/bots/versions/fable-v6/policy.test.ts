@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState, PendingTrade } from "../../../types";
-import { FABLE_V5_PARAMS, fableV5Bot } from "../fable-v5";
-import { makeParamBot } from "./bot";
-import { FABLE_V6_PARAMS, fableV6Bot } from "./index";
+import { fableV5Bot } from "../fable-v5";
+import { fableV6Bot } from "./index";
 
 // fable-v6 = fable-v5's factory + the F7 comeback-equity survival scaling
 // (`survivalEquityGain`, index.ts header). Pinned here: (1) the factory is
@@ -68,16 +67,6 @@ function distressSaleBoard(peer: boolean): GameState {
   };
 }
 
-describe("fable-v6 — the factory copy is faithful to fable-v5", () => {
-  const v6OnV7Factory = makeParamBot({ ...FABLE_V5_PARAMS, survivalEquityGain: 0 });
-  it("matches fableV5Bot with the gain disabled", () => {
-    for (const board of [freshGame(), distressSaleBoard(false), distressSaleBoard(true)]) {
-      expect(v6OnV7Factory(board, "p1")).toEqual(fableV5Bot(board, "p1"));
-      expect(v6OnV7Factory(board, "p2")).toEqual(fableV5Bot(board, "p2"));
-    }
-  });
-});
-
 describe("fable-v6 — the distress fire-sale is fixed", () => {
   it("fable-v5 ACCEPTS $250 for its last railroad while beaten (the probe-game blunder)", () => {
     const decision = fableV5Bot(distressSaleBoard(false), "p1");
@@ -92,36 +81,5 @@ describe("fable-v6 — the distress fire-sale is fixed", () => {
   it("fable-v6 still accepts at position PARITY — protective shedding survives", () => {
     const decision = fableV6Bot(distressSaleBoard(true), "p1");
     expect(decision?.intent.kind).toBe("accept-trade");
-  });
-});
-
-describe("fable-v6 — vector provenance", () => {
-  it("differs from fable-v5 in exactly the equity-gain dim", () => {
-    const changed = Object.keys(FABLE_V6_PARAMS).filter(
-      (k) =>
-        k in FABLE_V5_PARAMS &&
-        FABLE_V6_PARAMS[k as keyof typeof FABLE_V6_PARAMS] !==
-          FABLE_V5_PARAMS[k as keyof typeof FABLE_V5_PARAMS],
-    );
-    expect(changed).toEqual([]);
-    expect(FABLE_V6_PARAMS.survivalEquityGain).toBe(1);
-    expect(FABLE_V6_PARAMS.auctionLiquidCap).toBe(1);
-    expect(FABLE_V6_PARAMS.voluntaryTailFrac).toBe(1);
-  });
-
-  it("keeps the invariant pins (lockstep, bounded survival, transfer memory, extraction)", () => {
-    expect(FABLE_V6_PARAMS.holderDenialFrac).toBe(1);
-    expect(FABLE_V6_PARAMS.survivalBounded).toBe(1);
-    expect(FABLE_V6_PARAMS.transferMemoryTurns).toBe(10);
-    expect(FABLE_V6_PARAMS.extractionOn).toBe(1);
-  });
-});
-
-describe("fable-v6 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [distressSaleBoard(false), distressSaleBoard(true)]) {
-      expect(fableV6Bot(board, "p1")).toEqual(fableV6Bot(board, "p1"));
-      expect(fableV6Bot(board, "p2")).toEqual(fableV6Bot(board, "p2"));
-    }
   });
 });

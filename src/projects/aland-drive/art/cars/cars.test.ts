@@ -22,21 +22,20 @@ function signedVolume({ positions }: Soup) {
 }
 
 describe("the cars", () => {
-  it.each(CARS.map((car) => [car.name, car] as const))("%s stays in its triangle budget, at both details", (_, car) => {
-    expect(total(buildCarParts(car, "hero"))).toBeLessThan(HERO_BUDGET);
-    expect(total(buildCarParts(car, "far"))).toBeLessThan(FAR_BUDGET);
-  });
-
-  it.each(CARS.map((car) => [car.name, car] as const))("%s has its faces outwards and no broken normals", (_, car) => {
-    const { body, wheel } = buildCarParts(car, "hero");
-    expect(signedVolume(buildCarParts(car, "far").body)).toBeGreaterThan(0);
-    expect(signedVolume(wheel)).toBeGreaterThan(0);
-    expect(body.normals.every(Number.isFinite)).toBe(true);
+  it.each(CARS.map((car) => [car.name, car] as const))("%s stays in its triangle budget at both details, its faces outwards and its normals whole", (_, car) => {
+    const hero = buildCarParts(car, "hero");
+    const far = buildCarParts(car, "far");
+    expect(total(hero)).toBeLessThan(HERO_BUDGET);
+    expect(total(far)).toBeLessThan(FAR_BUDGET);
+    expect(signedVolume(far.body)).toBeGreaterThan(0);
+    expect(signedVolume(hero.wheel)).toBeGreaterThan(0);
+    expect(hero.body.normals.every(Number.isFinite)).toBe(true);
   });
 
   it.each(WORLD_CARS.map((car) => [car.name, car] as const))("%s, a world car, stays under the world budget", (_, car) => {
-    expect(total(buildCarParts(car, "far", true))).toBeLessThan(FAR_BUDGET);
-    expect(signedVolume(buildCarParts(car, "far").body)).toBeGreaterThan(0);
+    const far = buildCarParts(car, "far", true);
+    expect(total(far)).toBeLessThan(FAR_BUDGET);
+    expect(signedVolume(far.body)).toBeGreaterThan(0);
   });
 
   it.each([...CARS, ...WORLD_CARS].map((car) => [car.name, car] as const))("%s has a stand-in of about thirty triangles, facing out", (_, car) => {

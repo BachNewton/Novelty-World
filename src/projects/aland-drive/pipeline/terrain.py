@@ -34,8 +34,8 @@ WATER_FLATNESS_M = 0.002
 WATER_MIN_SAMPLES = 2500  # One hectare.
 
 
-def read_with_rim(tile: Tile) -> np.ndarray:
-    """The tile's samples with RIM_SAMPLES of its neighbours round them, north-first."""
+def read_with_rim(tile: Tile, nodata_is_sea: bool = False) -> np.ndarray:
+    """The tile's samples with RIM_SAMPLES of its neighbours round them, north-first. Far out, a sheet's survey can stop in open sea."""
     size = SAMPLES + 2 * RIM_SAMPLES
     mosaic = np.full((size, size), ABSENT_TILE_HEIGHT_M, dtype=np.float32)
     for steps_north in (1, 0, -1):
@@ -48,7 +48,9 @@ def read_with_rim(tile: Tile) -> np.ndarray:
                     raise ValueError(f"{path.name}: not a 3000×3000 2 m grid")
                 samples = dataset.read(1)
                 if dataset.nodata is not None and (samples == dataset.nodata).any():
-                    raise ValueError(f"{path.name}: has nodata samples, which no tile checked so far did")
+                    if not nodata_is_sea:
+                        raise ValueError(f"{path.name}: has nodata samples, which no tile checked so far did")
+                    samples[samples == dataset.nodata] = ABSENT_TILE_HEIGHT_M
             row = RIM_SAMPLES - steps_north * SAMPLES
             column = RIM_SAMPLES + steps_east * SAMPLES
             top, left = max(row, 0), max(column, 0)

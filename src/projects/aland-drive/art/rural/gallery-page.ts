@@ -1,7 +1,7 @@
 import { Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, TimestampQuery, Vector3, WebGPURenderer, type Node } from "three/webgpu";
 import { cameraPosition, exp, float, max, mix, positionWorld, sin, smoothstep, step, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { createForest } from "../../render/forest";
+import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { buildFarmFence, buildPine, FARM_FENCE_M, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside/index";
 import { catalogue } from "./catalogue";
 import { buildBirch, buildBoathouse, buildBoulder, buildBush, buildHayBale, buildJettyHead, buildJettySection, buildJuniper, buildOutcrop, buildReedBed, buildRowingBoat, buildSailboat, buildSheep, buildShed, buildShoreSlab, buildStoneWall, buildTractor, buildWindmill, buildWrappedBale, JETTY_SECTION_M, REED_BED_M, ROCK_SEEDS, ruralMaterials, STONE_WALL_M } from "./index";
@@ -100,10 +100,10 @@ sea.scale.set(80000, 1, 80000);
 sea.position.y = SEA_Y;
 scene.add(sea);
 
-const forest = createForest(scene, {
+const forest = createForest(scene, renderer, {
+  knobs: forestKnobs(FOREST_MOST),
   canopyAt: (at) => max(float(0), smoothstep(float(60), float(66), at.y.negate()).mul(float(19)).add(float(3).mul(sin(at.x.mul(0.05)).mul(sin(at.y.mul(0.07)))))).mul(step(at.x, float(LAND_END_X - 60))).mul(step(float(170), at.y.add(1800).abs())),
-  groundNear: () => float(0),
-  groundFar: () => float(0),
+  groundAt: () => float(0),
   colour: colorOf,
   hazed,
   sun: SUN,
@@ -294,7 +294,7 @@ function pose(shot: Shot) {
   camera.updateProjectionMatrix();
   camera.position.set(...shot.camera);
   camera.lookAt(...shot.target);
-  forest.update(camera.position);
+  forest.update(camera.position, camera);
 }
 
 async function frame(shot: Shot) {

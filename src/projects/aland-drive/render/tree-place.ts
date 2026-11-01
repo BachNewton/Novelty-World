@@ -14,7 +14,10 @@ export const JITTER_ROLLS: [x: [number, number], z: [number, number]] = [
   [39.346, 11.135],
 ];
 export const HEIGHT_ROLL: [number, number] = [93.989, 67.345];
-export const HEIGHT_RANGE: [number, number] = [0.78, 1.02];
+/** A tree's height over the canopy image's. A place reads the canopy's surface from a 2013 scan, not a treetop today, and MS-NFI 2023's mean height is 1.2 times that. */
+export const HEIGHT_RANGE: [number, number] = [1.05, 1.35];
+/** What the forest averages over the canopy image, for whatever stands in for its trees. */
+export const MEAN_HEIGHT = (HEIGHT_RANGE[0] + HEIGHT_RANGE[1]) / 2;
 /** The widest a crown spreads, as a share of the tree's height, with a ring's swell. */
 export const WIDEST_CROWN = 0.21 * 1.16;
 

@@ -1284,7 +1284,7 @@ Built for the live `ai:claude` seats, so each is **model-specific**: one change
 to llm-v8, measured on Claude Sonnet 5.5 only (`--model claude-cli:sonnet`,
 two calls at a time, 5 reps per scenario beside llm-v8 in the same runs, 10
 where a judgment moved). Each imports the rest of the frozen llm-v8 instead of
-copying it. They are listed in `MODEL_SPECIFIC` (`versions/index.ts`), so a
+copying it. They are listed in `MODEL_SPECIFIC` (`versions/labels.ts`), so a
 new seat still defaults to llm-v8, the newest general version. 290 decisions
 (~405 CLI calls with counter follow-ups) in all.
 

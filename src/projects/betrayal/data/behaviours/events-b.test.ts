@@ -111,8 +111,9 @@ function eachRow(
       (r) => rolled[0].result >= r.min && rolled[0].result <= r.max,
     );
     expect(index).toBeGreaterThanOrEqual(0);
+    if (!hit.has(index)) rows[index].check({ before, after, rolled });
     hit.add(index);
-    rows[index].check({ before, after, rolled });
+    if (hit.size === rows.length) break;
   }
   expect([...hit].sort()).toEqual(rows.map((_r, i) => i));
 }
@@ -258,6 +259,7 @@ describe("Possession", () => {
       state = choose(state, "Lower Knowledge");
       expect(explorer(state, 0).traits.clips.knowledge).toBe(0);
       expect(explorer(state, 0).traits.clips.sanity).not.toBe(0);
+      break;
     }
     expect(found).toBe(true);
   });

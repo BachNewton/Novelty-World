@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aiStrategyId, isAiStrategy, parseAiStrategy } from "./strategy";
-import { AI_VERSION_LABELS, AI_VERSIONS, DEFAULT_AI_VERSION, MODEL_SPECIFIC } from "./versions";
+import { AI_VERSIONS } from "./versions";
+import { AI_VERSION_LABELS, DEFAULT_AI_VERSION, MODEL_SPECIFIC } from "./versions/labels";
 
 describe("an AI seat's strategy encoding", () => {
   it("round-trips a profile and a version", () => {

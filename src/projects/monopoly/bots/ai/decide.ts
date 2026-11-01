@@ -4,7 +4,7 @@ import { aiDecisionFor } from "./decisions";
 import type { CallMetrics, JsonSchema, ModelAdapter, ModelResult } from "./model/adapter";
 import { aiSeat, currentTurnNumber, withAiSeat } from "./seat";
 import { isRecord, type AiResolution, type AiVersion, type DecisionSpec } from "./spec";
-import { aiVersionOf } from "./strategy";
+import { aiVersionOf } from "./versions";
 
 // The route's side of an AI seat, as pure steps around the one async call:
 //   claim → ask the model → settle (commit, stale, or fail).

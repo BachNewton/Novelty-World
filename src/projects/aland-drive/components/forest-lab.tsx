@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFrameStats } from "@/shared/lib/three/frame-stats";
-import type { ForestModel } from "../render/forest";
+import { FOREST_MOST, type ForestModel, type ForestSettings } from "../render/forest";
+import { FOREST_DEFAULTS } from "../render/game";
 import { startForestLab, type ForestLab as Lab, type ForestLabState, type ForestLabView } from "../render/forest-lab";
 
 /*
@@ -19,20 +20,25 @@ declare global {
 const INK = "var(--color-aland-drive-ui-ink)";
 const SHADE = "var(--color-aland-drive-ui-shade)";
 const ACCENT = "var(--color-aland-drive-ui-accent)";
-const MOST_DISTANCE_M = 1600;
+const MOST_DISTANCE_M = FOREST_MOST.forestReachM + 100;
 const READ_EVERY_FRAMES = 10;
 
 const VIEWS: { view: ForestLabView; label: string; key: string }[] = [
   { view: "game", label: "As in the game", key: "Natural colours." },
-  { view: "models", label: "Which model", key: "Green turned, yellow outline, blue cone. A speckled tree is mid-crossfade." },
-  { view: "thinned", label: "Which trees go", key: "Red trees dissolve away with distance. Grey ones stay on as cones." },
+  { view: "models", label: "Which model", key: "Green turned, blue cone. A speckled tree is mid-crossfade." },
+  { view: "changing", label: "What's changing", key: "Red trees are part way through a handover or dissolving. Grey ones are holding still." },
   { view: "slide", label: "Who slides", key: "Redder trees move further up or down between near and far: full red is 2 m." },
 ];
 
 const MODELS: { model: ForestModel; label: string }[] = [
   { model: "turned", label: "Turned" },
-  { model: "outline", label: "Outline" },
   { model: "cone", label: "Cone" },
+];
+
+const SETTINGS: { key: keyof ForestSettings; label: string; min: number; max: number; step: number; show: (value: number) => string }[] = [
+  { key: "fullReachM", label: "Full shape to", min: 100, max: FOREST_MOST.fullReachM, step: 4, show: (value) => `${value} m` },
+  { key: "forestReachM", label: "Forest to", min: 500, max: FOREST_MOST.forestReachM, step: 20, show: (value) => `${value} m` },
+  { key: "farDensity", label: "Far trees kept", min: 0.2, max: FOREST_MOST.farDensity, step: 0.05, show: (value) => `${Math.round(value * 100)}%` },
 ];
 
 export function ForestLab() {
@@ -44,7 +50,7 @@ export function ForestLab() {
   const [pinned, setPinned] = useState(false);
   const [distance, setDistance] = useState(400);
   const [approaching, setApproaching] = useState(false);
-  const [oldGround, setOldGround] = useState(false);
+  const [settings, setSettings] = useState(FOREST_DEFAULTS);
   const [bands, setBands] = useState(true);
   const [hidden, setHidden] = useState<ForestModel[]>([]);
   useFrameStats();
@@ -186,17 +192,27 @@ export function ForestLab() {
           )}
         </div>
 
-        <label className="flex items-center gap-1 text-xs">
-          <input
-            type="checkbox"
-            checked={oldGround}
-            onChange={(event) => {
-              setOldGround(event.target.checked);
-              lab?.useOldGround(event.target.checked);
-            }}
-          />
-          Compare: the old ground under trees
-        </label>
+        <div className="space-y-1">
+          {SETTINGS.map(({ key, label, min, max, step, show }) => (
+            <label key={key} className="block text-xs">
+              {label} {show(settings[key])}
+              <input
+                type="range"
+                className="w-full"
+                min={min}
+                max={max}
+                step={step}
+                value={settings[key]}
+                onChange={(event) => {
+                  const next = { ...settings, [key]: Number(event.target.value) };
+                  setSettings(next);
+                  lab?.setForest(next);
+                }}
+              />
+            </label>
+          ))}
+          <p className="text-xs">{state ? `Drew ${state.drawn.turned.toLocaleString()} turned, ${state.drawn.cone.toLocaleString()} cones` : ""}</p>
+        </div>
 
         <p className="text-xs">
           {state ? `${(state.triangles / 1e6).toFixed(2)} M triangles, ${state.gpuMs?.toFixed(1) ?? "?"} ms GPU` : "Loading"}

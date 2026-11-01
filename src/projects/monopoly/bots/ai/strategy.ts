@@ -1,6 +1,5 @@
 import type { BotStrategy, GameState } from "../../types";
-import type { AiVersion } from "./spec";
-import { AI_VERSIONS, type AiVersionLabel } from "./versions";
+import { AI_VERSION_LABELS, type AiVersionLabel } from "./versions/labels";
 
 /** The model profiles an AI seat can play through: which server and model it
  *  reaches is server-side config (`model/config.ts`), so a client can only pick
@@ -56,16 +55,10 @@ export function aiStrategyOf(state: GameState, playerId: string): AiStrategy | n
   return player === undefined ? null : parseAiStrategy(player.botStrategy);
 }
 
-/** The AI version a seat plays, or null when it isn't an AI seat. */
-export function aiVersionOf(state: GameState, playerId: string): AiVersion | null {
-  const strategy = aiStrategyOf(state, playerId);
-  return strategy === null ? null : AI_VERSIONS[strategy.version];
-}
-
 function isProfile(id: string): id is AiProfileId {
   return id in AI_PROFILES;
 }
 
 function isVersion(label: string): label is AiVersionLabel {
-  return label in AI_VERSIONS;
+  return AI_VERSION_LABELS.some((known) => known === label);
 }

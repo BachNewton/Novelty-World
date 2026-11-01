@@ -44,7 +44,7 @@ Road sign lettering is decided: the regulation letters stay. The credits page li
 - **Road check:** 12 of 5,462 road lines failed, with a worst jolt of 21 g. On real roads: L2334G:3 near (341, 7249) by Lemström, L2334E:3 near (-2782, 7397), L2433G:17, and L2343H:14, the Färjsund cycleway chain. The likely cause, rails or town geometry, is unconfirmed.
 - **Bridges:** 73 of 91 crossed both ways. Of the other 18, 12 fail only because the tool starts at the very end of a ribbon, 2 are off main routes, and 4 failed in one run and were not investigated.
 - **Floating cone:** one forest cone floats above the hill at the far left of Västerhamn's water view. It's new with the 1.5 km cone grid and not diagnosed. Look at it first.
-- **Forest cost:** the new forest adds about 0.4 M triangles and about 1.4 ms on a contested machine. If it's too much, the cheapest cut is the outline grid's reach. Stands past about 460 m are visibly sparser, and the dither shows faintly from above.
+- **Forest cost:** the new forest adds about 0.4 M triangles and about 1.4 ms on a contested machine. If it's too much, the cheapest cut is the forest's settings: full-shape reach, then far density. The dither shows faintly from above.
 - **Road corridors:** roads have a clearing 6–8 m wider than the carriageway, even on forest tracks, and 33 crowns still reach a carriageway.
 - **World map:** at the top of the zoom the island sits off-centre when the car is at its edge, until the player pans. Tiles using 2022 photos look brighter at the south-east, and faint square patches of sea tone show at the outer tiles.
 - **Coverage:** 7 outer tiles have no 2025 photo, and 10 have no laser sheets, so no trees.

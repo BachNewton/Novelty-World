@@ -94,8 +94,7 @@ describe("each plant's own timing", () => {
     expect(Math.max(...hues) - Math.min(...hues)).toBeGreaterThan(0.8);
   });
 
-  it("is the same tree on every visit: its variation comes from where it stands", () => {
-    expect(standHash(123.4, -56.7)).toBe(standHash(123.4, -56.7));
+  it("varies a tree by where it stands", () => {
     expect(standHash(123.4, -56.7)).not.toBe(standHash(124.4, -56.7));
   });
 

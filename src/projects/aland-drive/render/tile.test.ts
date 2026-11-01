@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FIXTURE_TILES, readWorld } from "../sim/read-tile";
-import { decodeHeights, patchIndices, surfaceHeight, type TileManifest, type WorldManifest } from "./tile";
+import { decodeHeights, FLAT_LIGHT, litPhoto, patchIndices, surfaceHeight, type TileManifest, type WorldManifest } from "./tile";
 
 describe("the height grid", () => {
   // Rows north to south: the north-west corner is 1 m, the north-east 2, the south-west 3, the south-east 5.
@@ -48,4 +48,12 @@ describe("the built tile", () => {
       expect(far.heights[row * far.nodes + column]).toBe(detail.grid.heights[row * 4 * detail.grid.nodes + column * 4]);
     }
   });
+});
+
+it("lights a photo the way the render does, leaving its alpha", () => {
+  const atFlatLight = Math.round(255 * FLAT_LIGHT ** (1 / 2.2));
+  const lit = litPhoto(new Uint8Array([100, 100, 100, 77, 100, 100, 100, 77]), new Uint8Array([atFlatLight, 255]), 2.2);
+  expect(lit[0]).toBeCloseTo(100, -0.5);
+  expect(lit[4]).toBeGreaterThan(105);
+  expect([lit[3], lit[7]]).toEqual([77, 77]);
 });

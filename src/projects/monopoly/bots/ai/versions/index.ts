@@ -1,4 +1,7 @@
+import type { GameState } from "../../../types";
 import type { AiVersion } from "../spec";
+import { aiStrategyOf } from "../strategy";
+import type { AiVersionLabel } from "./labels";
 import { LLM_V1 } from "./llm-v1";
 import { LLM_V2 } from "./llm-v2";
 import { LLM_V3 } from "./llm-v3";
@@ -27,28 +30,10 @@ export const AI_VERSIONS = {
   "llm-v9": LLM_V9,
   "llm-v11": LLM_V11,
   "llm-v12": LLM_V12,
-} as const satisfies Readonly<Record<string, AiVersion>>;
+} as const satisfies Readonly<Record<AiVersionLabel, AiVersion>>;
 
-export type AiVersionLabel = keyof typeof AI_VERSIONS;
-
-/** Newest first: the order the lobby lists them in. */
-export const AI_VERSION_LABELS: readonly AiVersionLabel[] = ["llm-v12", "llm-v11", "llm-v9", "llm-v8", "llm-v7", "llm-v6", "llm-v5", "llm-v4", "llm-v3", "llm-v2", "llm-v1"];
-
-/** Versions tuned and measured on one model only (METHOD.md, "model-specific"),
- *  by the model they were measured on. They stay selectable, but are never a
- *  new seat's default: a model-specific setting may hold another model back. */
-export const MODEL_SPECIFIC: Readonly<Partial<Record<AiVersionLabel, string>>> = {
-  "llm-v9": "Claude Sonnet 5.5",
-  "llm-v11": "Claude Sonnet 5.5",
-  "llm-v12": "Claude Sonnet 5.5",
-};
-
-/** The version a new AI seat plays unless another is picked: the newest one
- *  that isn't model-specific. */
-export const DEFAULT_AI_VERSION: AiVersionLabel = newestGeneral();
-
-function newestGeneral(): AiVersionLabel {
-  const label = AI_VERSION_LABELS.find((candidate) => !(candidate in MODEL_SPECIFIC));
-  if (label === undefined) throw new Error("every AI version is model-specific");
-  return label;
+/** The AI version a seat plays, or null when it isn't an AI seat. */
+export function aiVersionOf(state: GameState, playerId: string): AiVersion | null {
+  const strategy = aiStrategyOf(state, playerId);
+  return strategy === null ? null : AI_VERSIONS[strategy.version];
 }

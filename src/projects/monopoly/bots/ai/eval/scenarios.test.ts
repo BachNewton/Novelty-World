@@ -3,7 +3,7 @@ import type { AiDecisionRecord } from "../../../types";
 import { claimAi } from "../decide";
 import type { CallMetrics, ModelAdapter, ModelResult } from "../model/adapter";
 import { aiStrategyId } from "../strategy";
-import { AI_VERSION_LABELS } from "../versions";
+import { AI_VERSION_LABELS } from "../versions/labels";
 import { AI, RIVAL } from "./board";
 import { runScenario } from "./run";
 import { movementClaim } from "./scenario";

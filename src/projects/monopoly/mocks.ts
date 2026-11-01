@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { CHANCE, COMMUNITY_CHEST } from "./data";
 import { initialDecks } from "./engine";
 import { STATE_VERSION } from "./state-version";
-import { DEFAULT_BOT_VERSION } from "./bots/roles";
+import { DEFAULT_BOT_VERSION } from "./bots/default-bot";
 import { DEFAULT_PREFERENCES, STARTING_CASH } from "./lobby";
 import type { GameState, Player, PlayerCount, TurnGroup } from "./types";
 

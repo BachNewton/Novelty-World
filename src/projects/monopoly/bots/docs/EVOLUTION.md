@@ -1154,7 +1154,7 @@ exactly what this section used to do (it published a hand-typed Elo that the
 | Pointer | Lives in | Why there |
 |---|---|---|
 | **Crown** + **substrate** | `champion.ts` (`CROWN` / `SUBSTRATE`) | mutable state; as code a stale label fails `champion.test.ts` loudly instead of misinforming a reader |
-| **Strongest / default** | derived — `roles.ts` `DEFAULT_BOT_VERSION` | follows the top of the generated ladder, ungated; never hand-set |
+| **Strongest / default** | derived — `default-bot.ts` `DEFAULT_BOT_VERSION` | follows the top of the generated ladder, ungated; never hand-set |
 | **The Elo numbers** | generated — `ratings.ts` (`npm run sim:ratings`) | build output; a hand-typed rating lies to players |
 
 Read those, not a date-stamped paragraph. Why the three are distinct — and why

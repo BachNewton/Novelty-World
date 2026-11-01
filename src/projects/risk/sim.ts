@@ -1,5 +1,5 @@
 import { createRng } from "@/shared/lib/seeded-random";
-import { shuffleArray } from "@/shared/lib/utils";
+import { shuffleArray } from "@/shared/lib/shuffle";
 import { FULL_DECK } from "./cards";
 import type { CardId, GameEvent, GameState, GameView, Move, Options, Seat } from "./contract";
 import { referenceEngine } from "./engine";

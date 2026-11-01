@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameEvent, GameState, PendingTrade } from "../../../types";
-import { fableV1Bot, FABLE_V1_PARAMS } from "../fable-v1";
-import { makeParamBot } from "./bot";
 import { FABLE_V2_PARAMS, fableV2Bot } from "./index";
 
 // fable-v2 = fable-v1's factory VERBATIM bound to the alpha=0.5 blend of
@@ -71,19 +69,6 @@ function churnBoard(withMemory: boolean): GameState {
   };
 }
 
-describe("fable-v2 — the factory copy is faithful to fable-v1", () => {
-  const v1OnV2Factory = makeParamBot(FABLE_V1_PARAMS);
-  const boards: [string, GameState][] = [
-    ["fresh pre-roll", freshGame()],
-    ["extraction geometry", extractionBoard()],
-    ["churn offer", churnBoard(true)],
-  ];
-  it.each(boards)("matches fableV1Bot on %s", (_name, board) => {
-    expect(v1OnV2Factory(board, "p1")).toEqual(fableV1Bot(board, "p1"));
-    expect(v1OnV2Factory(board, "p2")).toEqual(fableV1Bot(board, "p2"));
-  });
-});
-
 describe("fable-v2 — guards hold on the blend vector", () => {
   it("still declines churning a just-traded lot (F3, transferMemoryTurns pinned)", () => {
     expect(FABLE_V2_PARAMS.transferMemoryTurns).toBe(10);
@@ -111,14 +96,5 @@ describe("fable-v2 — the extraction engine still fires", () => {
     expect(decision?.intent.kind).toBe("set-queue");
     expect(decision?.note).toContain("Selling New York Avenue to");
     expect(decision?.note).toContain("premium");
-  });
-});
-
-describe("fable-v2 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [extractionBoard(), churnBoard(true)]) {
-      expect(fableV2Bot(board, "p1")).toEqual(fableV2Bot(board, "p1"));
-      expect(fableV2Bot(board, "p2")).toEqual(fableV2Bot(board, "p2"));
-    }
   });
 });

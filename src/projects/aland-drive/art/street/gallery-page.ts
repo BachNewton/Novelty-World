@@ -1,7 +1,7 @@
 import { Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, TimestampQuery, Vector3, WebGPURenderer, type Node } from "three/webgpu";
 import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, uniform, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { createForest } from "../../render/forest";
+import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { buildPier, buildStreetLamp, placeModel, roadsideMaterials, type Placement, type RoadsideModel } from "../roadside";
 import { BIKE_RACK_M, buildBench, buildBikeRack, buildBin, buildBollard, buildCafeChair, buildCafeSet, buildCafeTable, buildFlagpole, buildGrassTuft, buildGuardRail, buildGuardRailEnd, buildGuardRailReturn, buildHarbourCrane, buildLinden, buildMidsummerPole, buildParasol, buildPlanter, buildPlanterRound, buildReflectorPost, buildSailboat, buildSeedGrass, buildSpeedCamera, buildWildflowers, GUARD_RAIL_M, parkedCarMaterial, parkingBays, placeParkedCars, rowAlong, runSections, scatterVerge, shareOut, streetMaterials, treeRow, type LinePoint, type Wildflower } from "./index";
 
@@ -96,10 +96,10 @@ sea.scale.set(80000, 1, 80000);
 sea.position.y = SEA_Y;
 scene.add(sea);
 
-const forest = createForest(scene, {
+const forest = createForest(scene, renderer, {
+  knobs: forestKnobs(FOREST_MOST),
   canopyAt: (at) => smoothstep(float(46), float(50), at.y.negate()).mul(float(19)).add(float(3).mul(sin(at.x.mul(0.05)).mul(sin(at.y.mul(0.07))))),
-  groundNear: () => float(0),
-  groundFar: () => float(0),
+  groundAt: () => float(0),
   colour: colorOf,
   hazed,
   sun: SUN,
@@ -282,7 +282,7 @@ function pose(shot: Shot) {
   camera.position.set(...shot.camera);
   camera.lookAt(...shot.target);
   clock.value = shot.time ?? 2.4;
-  forest.update(camera.position);
+  forest.update(camera.position, camera);
 }
 
 async function frame(shot: Shot) {

@@ -210,12 +210,3 @@ describe("fable-v1 F2b — standing embargo on clamp-max leaders", () => {
     expect(decision?.note ?? "").not.toContain("Selling");
   });
 });
-
-describe("fable-v1 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [extractionBoard(), fireSaleBoard()]) {
-      expect(fableBot(board, "p1")).toEqual(fableBot(board, "p1"));
-      expect(fableBot(board, "p2")).toEqual(fableBot(board, "p2"));
-    }
-  });
-});

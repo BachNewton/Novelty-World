@@ -1,4 +1,5 @@
 import { DataArrayTexture, DataTexture, LinearFilter, LinearMipmapLinearFilter, NearestFilter, NoColorSpace, RedFormat, RGBAFormat, RGFormat, type Texture, type WebGPURenderer } from "three/webgpu";
+import { MOST_DETAIL_TILES, MOST_FAR_TILES } from "./stream";
 import type { WorldManifest } from "./tile";
 import type { FarTile, Mips } from "./tile.worker";
 import type { World, WorldTile } from "../sim/world";
@@ -17,9 +18,9 @@ import type { World, WorldTile } from "../sim/world";
  */
 
 /** The most tiles at full detail at once, and the two that can be landing as others leave. */
-const NEAR_LAYERS = 6;
+const NEAR_LAYERS = MOST_DETAIL_TILES;
 /** The most tiles the stream holds far data for: four each way, as a car crosses a corner. */
-const FAR_LAYERS = 16;
+const FAR_LAYERS = MOST_FAR_TILES;
 const ANISOTROPY = 8;
 /** At 60 fps this is a 2 m image in about half a second, and a few milliseconds' memcpy a frame. */
 const UPLOAD_BYTES_A_FRAME = 2_000_000;

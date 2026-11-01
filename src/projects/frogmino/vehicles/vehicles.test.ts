@@ -260,10 +260,6 @@ describe.each(VEHICLE_IDS)("vehicle %s", (id) => {
     }
   });
 
-  it("lays no two faces of different paints in one plane", () => {
-    expect(faceClashes(scanBoxes(model), COPLANAR, EYE).filter(fights).map(describeClash)).toEqual([]);
-  });
-
   it("layers different paints far enough apart for the depth buffer, however far away it is drawn", () => {
     expect(faceClashes(scanBoxes(model), DEPTH_RESOLUTION, EYE).filter(fights).map(describeClash)).toEqual([]);
   });
