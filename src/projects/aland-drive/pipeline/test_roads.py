@@ -213,6 +213,29 @@ class Junctions(unittest.TestCase):
                 under = ~np.isnan(over)
                 self.assertTrue((outer[under, 2] <= over[under] - roads.UNDER_ANOTHER_ROAD_M + 1e-3).all())
 
+    def test_a_path_across_an_apron_passes_under_it(self):
+        def bank(east, north):
+            return 10 + 1.5 * (np.abs(north - 1505) < 2)
+
+        path = {**road([(1480, 1505), (1520, 1505)], "path"), "motor": False}
+        surface = lay_roads([self.main, self.side, path], land(height=bank))
+        nodes = surface.conformed[::2, ::2]
+        cover = roads.ApronCover(surface.aprons)
+        crossing = next(rings for chain, rings, _, _ in roads.ribbons(surface, nodes, 4.0, 0.0, 3000.0) if not chain.motor)
+        points = crossing[:, 1:4].reshape(-1, 3)
+        over = cover.height(points[:, :2].astype(float))
+        under = ~np.isnan(over)
+        self.assertTrue(under.any())
+        self.assertTrue((points[under, 2] < over[under]).all())
+
+    def test_a_road_stands_no_lower_past_its_edge_than_at_it(self):
+        chain = lay_roads([road([(0, 1500), (1500, 1500), (1700, 1700), (3000, 1700)])], land()).chains[0]
+        station = int(np.abs(chain.bank).argmax())
+        self.assertGreater(abs(float(chain.bank[station])), 0.02)
+        at_edge = chain.xy[station] + chain.normal[station] * chain.half[station]
+        beyond = chain.xy[station] + chain.normal[station] * (chain.half[station] + 3)
+        self.assertAlmostEqual(float(chain.plane(beyond[None])[0]), float(chain.plane(at_edge[None])[0]), delta=0.02)
+
     def test_a_shallow_merge_lays_no_road_over_another(self):
         merging = road([(1500, 1500), (2200, 1560), (2900, 1800)], "secondary")
         surface = lay_roads([self.main, merging], land())

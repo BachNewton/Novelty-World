@@ -241,9 +241,12 @@ class Chain:
         return next((edge.road[key] for edge in self.edges if key in edge.road), None)
 
     def plane(self, xy: np.ndarray) -> np.ndarray:
-        """This chain's surface at points, its nearest cross-section carried on past the edges."""
+        """This chain's surface at points, level with its nearest edge beyond the carriageway.
+
+        A shallow merge stops many metres from the road it lands on, and a crown or banking carried on that far would pull it down a slope that isn't there.
+        """
         _, nearest = self.tree.query(xy)
-        across = ((xy - self.xy[nearest]) * self.normal[nearest]).sum(-1)
+        across = np.clip(((xy - self.xy[nearest]) * self.normal[nearest]).sum(-1), -self.half[nearest], self.half[nearest])
         return self.height[nearest] - self.crown[nearest] * np.abs(across) + self.bank[nearest] * across
 
 
@@ -1077,7 +1080,12 @@ def ribbon_of(chain: Chain, nodes: np.ndarray, step: float, west: float, north: 
         columns = np.clip(np.round((points[:, 0] - west) / spacing).astype(int), 0, fields.distance.shape[0] - 1)
         rows = np.clip(np.round((north - points[:, 1]) / spacing).astype(int), 0, fields.distance.shape[0] - 1)
         crossing = (fields.distance[rows, columns] < fields.half[rows, columns] - 0.05) & (fields.owner[rows, columns] < chain.index)
-        return np.column_stack((points[:, :2], np.where(crossing, np.minimum(points[:, 2], fields.road_z[rows, columns] - BENEATH_GREATER_ROAD_M), points[:, 2])))
+        lowered = np.where(crossing, np.minimum(points[:, 2], fields.road_z[rows, columns] - BENEATH_GREATER_ROAD_M), points[:, 2])
+        # An apron is the greater road to any track or path crossing it. The roads it joins stop at its edge by themselves.
+        if not chain.motor or chain.kind.rank > LEAST_APRON_RANK:
+            apron = cover.height(points[:, :2].astype(float))
+            lowered = np.where(np.isnan(apron), lowered, np.minimum(lowered, apron - BENEATH_GREATER_ROAD_M))
+        return np.column_stack((points[:, :2], lowered))
 
     left, centre, right = (beneath_greater_roads(points) for points in (chain.left, chain.centre, chain.right))
     for station in (0, -1):
