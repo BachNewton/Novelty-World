@@ -1,6 +1,7 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, Frustum, IndirectStorageBufferAttribute, Matrix4, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, Vector4, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
 import { HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
+import { FAR_RINGS, FAR_TABLE, NEAR_RINGS, NEAR_TABLE, ROCK_ROW, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, type TreeKind } from "./tree-shapes";
 
 /*
  * The forest, with no list of trees anywhere: a tree is a place on a lattice of the
@@ -22,8 +23,13 @@ import { HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVE
  * always whole. At the far edge trees dissolve, tiny, and by then the terrain has risen
  * by the canopy behind them (`canopyLift`).
  *
- * All three species are one mesh: its rings say where each species' outline goes.
- * Other broadleaf has no shape of its own, and stands as birch.
+ * Every kind of tree is one mesh, and a table says where its rings go (`tree-shapes.ts`).
+ * The compute pass decides what a tree is: its kind from the stand, with other broadleaf
+ * rounder the more open it stands; its stage of life from its height, so a sapling
+ * isn't a shrunken old tree; and whether it's a pine grown on bare rock, from being
+ * short among gaps in the canopy, which also tells it from a young pine in a thicket.
+ * A far tree reads the same table at fewer rings, so the forest's mix and its age
+ * carry out to its reach. None of that adds a draw.
  */
 
 export interface ForestSettings {
@@ -56,10 +62,10 @@ const GROUND_RUNS: [number, number][] = [
 /** No ground in the world, with the tallest tree the canopy image can hold on it, is outside these, or a tree's crown wider than this. */
 const WORLD_HEIGHTS_M = [-10, 225];
 const WIDEST_CROWN_M = 15;
-/** A share of a tree's height: past this from the middle of its trunk there's none of it, whichever model. */
-const TREE_BOUND = 0.6;
-/** A tree in a list is two rows of four floats. */
-const ROWS_A_TREE = 2;
+/** A share of a tree's height: past this from the middle of its trunk there's none of it, whichever model, leaning or not. */
+const TREE_BOUND = 0.7;
+/** A tree in a list is three rows of four floats. */
+const ROWS_A_TREE = 3;
 /** Where each list's draw starts in the buffer of draws, and where in a draw its count of trees is. */
 const TURNED_DRAW = 0;
 const CONE_DRAW = 5;
@@ -67,66 +73,60 @@ const TREES_AT = 1;
 
 type Band = [from: number, to: number, run: number];
 
-/** How far up, then how wide, as shares of the tree's height, then 0 for bark and 1 for leaves. */
-type Point = [up: number, wide: number, leaves: number];
-type Ring = [spruce: Point, pine: Point, birch: Point];
-
-const NEAR_RINGS: Ring[] = [
-  [[0, 0.016, 0], [0, 0.016, 0], [0, 0.014, 0]],
-  [[0.1, 0.014, 0], [0.52, 0.012, 0], [0.32, 0.01, 0]],
-  [[0.11, 0.21, 1], [0.54, 0.13, 1], [0.34, 0.1, 1]],
-  [[0.34, 0.12, 1], [0.64, 0.17, 1], [0.5, 0.15, 1]],
-  [[0.36, 0.17, 1], [0.74, 0.16, 1], [0.66, 0.16, 1]],
-  [[0.58, 0.08, 1], [0.82, 0.17, 1], [0.8, 0.13, 1]],
-  [[0.6, 0.12, 1], [0.9, 0.12, 1], [0.9, 0.08, 1]],
-  [[0.8, 0.04, 1], [0.96, 0.06, 1], [0.97, 0.04, 1]],
-  [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
-];
+/** How tall a tree is at each stage of life, and how far a roll moves that, so a stand doesn't change all at one height. Most of Åland's trees stand from 5 to 25 m. */
+const YOUNG_M = 5;
+const GROWN_M = 13;
+const OLD_M = 22;
+const STAGE_SPREAD_M = 1.5;
+/** The canopy's mean round a tree, as a share of its own place's: below the first it stands in the open, above the second among others. Read off a level of the image 32 m across. */
+const AROUND_MIP = 3;
+const AMONG_OTHERS: [number, number] = [0.6, 0.95];
+/** Short and in the open is a pine on rock: the aerial photo is about a quarter brighter under such trees than under short ones among others. Above this height it's no longer one. */
+const ROCK_TALLEST_M: [number, number] = [9, 13];
+/** How much of other broadleaf is round, and how much more in the open, where oak and ash stand in meadows. */
+const ROUND_SHARE = 0.35;
+const ROUND_OPEN_SHARE = 0.5;
+/** The most any tree leans, as a share of its height, then a rock pine's lean from the wind off the sea, which is mostly south-westerly. */
+const LEAN = 0.04;
+const ROCK_LEAN: [number, number] = [0.1, 0.24];
+const DOWNWIND = vec2(0.7, -0.7);
+/** How far a rock pine's trunk and crown wander from straight, as a share of its height. */
+const GNARL = 0.05;
+/** How much a tree's crown differs from its kind's, either way. */
+const CROWN_SPREAD = 0.12;
 
 /** A stand for a scene with no tile: Åland's own mix of pine, spruce and birch, at every place. */
 const ANY_STAND = vec4(0.6, 0.15, 0.13, 1);
 
-const CONE_RINGS: Ring[] = [
-  [[0.08, 0.17, 1], [0.52, 0.15, 1], [0.32, 0.14, 1]],
-  [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
-];
-
 const NEAR_SIDES = 5;
 const FAR_SIDES = 3;
 
-/** A spun outline: per vertex, each species' height and width and whether it's leaves, and its way round. */
-function turned(rings: Ring[], sides: number): BufferGeometry {
+/** A spun outline: per vertex only its ring and its way round, the table saying where a ring goes. A pointed one starts from a point, as a far crown does. */
+function turned(rings: number, sides: number, pointed: boolean): BufferGeometry {
   const positions: number[] = [];
-  const heights: number[] = [];
-  const radii: number[] = [];
-  const leaves: number[] = [];
   const indices: number[] = [];
   const across = sides + 1;
-  rings.forEach((ring, level) => {
-    const tip = ring.every(([, wide]) => wide === 0);
+  for (let level = 0; level < rings; level++) {
     for (let side = 0; side < across; side++) {
       // Each ring turns a little from the last and swells unevenly, so a tree isn't a lathe's.
       const angle = ((side % sides) + level * 0.37) * ((2 * Math.PI) / sides);
-      const swell = 1 + 0.16 * Math.sin(side * 2.4 + level * 1.7);
+      const swell = 1 + SWELL * Math.sin(side * 2.4 + level * 1.7);
       positions.push(Math.sin(angle) * swell, level, Math.cos(angle) * swell);
-      heights.push(ring[0][0], ring[1][0], ring[2][0]);
-      radii.push(ring[0][1], ring[1][1], ring[2][1]);
-      leaves.push(ring[0][2], ring[1][2], ring[2][2]);
       if (level > 0 && side < sides) {
         const here = level * across + side;
-        indices.push(here - across, here - across + 1, here);
-        if (!tip) indices.push(here, here - across + 1, here + 1);
+        if (level === rings - 1) indices.push(here - across, here - across + 1, here);
+        else if (level === 1 && pointed) indices.push(here - across, here + 1, here);
+        else indices.push(here - across, here - across + 1, here, here, here - across + 1, here + 1);
       }
     }
-  });
+  }
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(Float32Array.from(positions), 3));
-  geometry.setAttribute("heights", new BufferAttribute(Float32Array.from(heights), 3));
-  geometry.setAttribute("radii", new BufferAttribute(Float32Array.from(radii), 3));
-  geometry.setAttribute("leaves", new BufferAttribute(Float32Array.from(leaves), 3));
   geometry.setIndex(indices);
   return geometry;
 }
+
+const kindAt = (kind: TreeKind) => float(TREE_KINDS.indexOf(kind));
 
 const roll = (cell: Node<"vec2">, a: number, b: number) => fract(sin(dot(cell, vec2(a, b))).mul(43758.5453));
 
@@ -174,7 +174,8 @@ export function forestBands({ fullReachM, forestReachM, farDensity }: ForestSett
 
 export interface ForestInputs {
   knobs: ForestKnobs;
-  canopyAt: (place: Node<"vec2">) => Node<"float">;
+  /** The canopy's height at a place, at a level of its mips. */
+  canopyAt: (place: Node<"vec2">, mip: number) => Node<"float">;
   /** The shares of pine, spruce and birch at a place, what's left being other broadleaf, then the share of places holding a tree. */
   standsAt?: (place: Node<"vec2">) => Node<"vec4">;
   /** The ground at a place on one of the terrain's rings. */
@@ -228,13 +229,15 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
   // Interleaved gradient noise: a fixed pattern on the screen, with no clumps for a crossfade to show as.
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
-  const turnedShape = turned(NEAR_RINGS, NEAR_SIDES);
-  const coneShape = turned(CONE_RINGS, FAR_SIDES);
+  const turnedShape = turned(NEAR_RINGS, NEAR_SIDES, false);
+  const coneShape = turned(FAR_RINGS, FAR_SIDES, true);
   const indicesOf = (shape: BufferGeometry) => shape.getIndex()?.count ?? 0;
   const draws = new IndirectStorageBufferAttribute(Uint32Array.from([indicesOf(turnedShape), 0, 0, 0, 0, indicesOf(coneShape), 0, 0, 0, 0]), 5);
   const counters = storage(draws, "uint", draws.array.length).toAtomic();
   const turnedRows = placesWithin(FOREST_MOST.fullReachM + bandEnd(HANDOVER)) * ROWS_A_TREE;
   const coneRows = placesWithin(FOREST_MOST.forestReachM) * ROWS_A_TREE;
+  const nearShapes = new StorageBufferAttribute(NEAR_TABLE, 2);
+  const farShapes = new StorageBufferAttribute(FAR_TABLE, 2);
   const turnedList = new StorageBufferAttribute(turnedRows, 4);
   const coneList = new StorageBufferAttribute(coneRows, 4);
 
@@ -267,7 +270,8 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     const perhapsSeen = sides.map(({ plane, rough }) => dot(plane.xz, place).add(rough).greaterThanEqual(0)).reduce((all, side) => all.and(side));
 
     If(distance.lessThan(knobs.forestReach).and(perhapsSeen), () => {
-      const height = canopyAt(place).mul(mix(float(HEIGHT_RANGE[0]), float(HEIGHT_RANGE[1]), roll(cell, ...HEIGHT_ROLL))).toVar();
+      const canopy = canopyAt(place, 0).toVar();
+      const height = canopy.mul(mix(float(HEIGHT_RANGE[0]), float(HEIGHT_RANGE[1]), roll(cell, ...HEIGHT_ROLL))).toVar();
       const stand = standsAt(place).toVar();
       If(height.greaterThanEqual(SHORTEST_M).and(roll(cell, ...STAND_ROLL).lessThan(stand.a)), () => {
         If(roadsAround(place).lessThanEqual(ROAD_COVERAGE), () => {
@@ -291,8 +295,19 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
             const turnedTo = min(turnedShare, coneTo).toVar();
 
             const mixRoll = roll(cell, 3.11, 47.3).toVar();
-            const species = select(mixRoll.lessThan(stand.g), float(0), select(mixRoll.lessThan(stand.g.add(stand.r)), float(1), float(2)));
-            const look = species.add(roll(cell, 17.3, 91.1).mul(0.99)).toVar();
+            const among = smoothstep(float(AMONG_OTHERS[0]), float(AMONG_OTHERS[1]), canopyAt(place, AROUND_MIP).div(canopy)).toVar();
+            const open = float(1).sub(among).toVar();
+            const broadleaf = select(roll(cell, 37.7, 59.3).lessThan(open.mul(ROUND_OPEN_SHARE).add(ROUND_SHARE)), kindAt("round"), kindAt("upright"));
+            const toPine = stand.g.add(stand.r).toVar();
+            const kind = select(mixRoll.lessThan(stand.g), kindAt("spruce"), select(mixRoll.lessThan(toPine), kindAt("pine"), select(mixRoll.lessThan(toPine.add(stand.b)), kindAt("birch"), broadleaf))).toVar();
+            const look = kind.add(roll(cell, 17.3, 91.1).mul(0.99)).toVar();
+            const reached = height.add(roll(cell, 8.41, 66.1).sub(0.5).mul(2 * STAGE_SPREAD_M)).toVar();
+            const stage = select(reached.lessThan(GROWN_M), reached.sub(YOUNG_M).div(GROWN_M - YOUNG_M), reached.sub(GROWN_M).div(OLD_M - GROWN_M).add(1)).clamp(0, STAGES - 1.001).toVar();
+            const rocky = select(kind.equal(kindAt("pine")), open.mul(float(1).sub(smoothstep(float(ROCK_TALLEST_M[0]), float(ROCK_TALLEST_M[1]), height))), float(0)).toVar();
+            const leanWay = roll(cell, 29.9, 13.7).mul(6.283).toVar();
+            const lean = vec2(cos(leanWay), sin(leanWay)).mul(LEAN).mul(roll(cell, 71.3, 3.9)).toVar();
+            const blown = DOWNWIND.mul(mix(float(ROCK_LEAN[0]), float(ROCK_LEAN[1]), roll(cell, 11.3, 97.1))).mul(rocky);
+            const growing = vec4(stage, rocky, lean.add(blown)).toVar();
             const yaw = roll(cell, 54.1, 18.7).mul(6.283).toVar();
             const standing = vec4(place.x, ground.sub(SINK_M), place.y, height).toVar();
 
@@ -300,6 +315,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
               const row = atomicAdd(counters.element(draw + TREES_AT), uint(1)).mul(ROWS_A_TREE).toVar();
               rows.element(row).assign(standing);
               rows.element(row.add(1)).assign(vec4(yaw, look, from, to));
+              rows.element(row.add(2)).assign(growing);
             };
             If(turnedTo.greaterThan(0), () => list(writeTurned, TURNED_DRAW, float(0), turnedTo));
             If(coneTo.greaterThan(turnedShare), () => list(writeCone, CONE_DRAW, turnedShare, coneTo));
@@ -310,37 +326,49 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
   })().computeKernel([PLACES_A_GROUP]);
 
   const meshes: { model: ForestModel; mesh: Mesh }[] = [];
-  const model = (name: ForestModel, geometry: BufferGeometry, list: StorageBufferAttribute, rows: number, draw: number) => {
+  const model = (name: ForestModel, geometry: BufferGeometry, list: StorageBufferAttribute, rows: number, draw: number, shapes: StorageBufferAttribute, rings: number) => {
     geometry.setIndirect(draws, draw * Uint32Array.BYTES_PER_ELEMENT);
     const trees = storage(list, "vec4", rows).toReadOnly();
     const standing = trees.element(instanceIndex.mul(ROWS_A_TREE)).toVar();
     const carried = trees.element(instanceIndex.mul(ROWS_A_TREE).add(1)).toVar();
     const place = standing.xz;
     const height = standing.w;
-    const species = floor(carried.y);
-    const isSpecies = (which: number) => float(1).sub(species.sub(which).abs().min(1));
-    const [isSpruce, isPine, isBirch] = [isSpecies(0), isSpecies(1), isSpecies(2)];
-    const pick = (values: Node<"vec3">) => values.x.mul(isSpruce).add(values.y.mul(isPine)).add(values.z.mul(isBirch));
+    const growing = trees.element(instanceIndex.mul(ROWS_A_TREE).add(2)).toVar();
+    const kind = floor(carried.y).toVar();
+    const treeRoll = fract(carried.y).div(0.99).toVar();
+    const rocky = growing.y;
 
     const yaw = carried.x;
     const unit = attribute<"vec3">("position", "vec3");
     const radial = vec2(unit.x.mul(cos(yaw)).sub(unit.z.mul(sin(yaw))), unit.x.mul(sin(yaw)).add(unit.z.mul(cos(yaw))));
-    const rise = pick(attribute<"vec3">("heights", "vec3"));
+    const table = storage(shapes, "vec2", shapes.count).toReadOnly();
+    const shapeAt = (row: Node<"float">) => table.element(uint(row.mul(rings).add(unit.y)));
+    const stageRow = kind.mul(STAGES).add(floor(growing.x)).toVar();
+    const shape = mix(mix(shapeAt(stageRow), shapeAt(stageRow.add(1)), fract(growing.x)), shapeAt(float(ROCK_ROW)), rocky).toVar();
+    const rise = shape.x;
     // Those left past the thinning fill out to cover for the rest, so the forest keeps its weight.
     const filling = smoothstep(knobs.fullReach.add(THINNING[0]), knobs.fullReach.add(bandEnd(THINNING)), place.sub(cameraSpot).length());
     const fill = name === "cone" ? mix(float(1), sqrt(float(1).div(knobs.farDensity)), filling).mul(CONE_FILL) : float(1);
-    const width = pick(attribute<"vec3">("radii", "vec3")).mul(fill);
+    const width = shape.y.mul(fill).mul(treeRoll.sub(0.5).mul(2 * CROWN_SPREAD).add(1));
+    // A rock pine's rings wander from straight, each its own way, though its foot stays where it grew.
+    const wander = vec2(sin(unit.y.mul(2.1).add(yaw)), cos(unit.y.mul(1.3).add(yaw.mul(2)))).mul(rocky).mul(GNARL).mul(smoothstep(float(0), float(0.3), rise));
+    const across = radial.mul(width).add(growing.zw.mul(rise).mul(rise)).add(wander).mul(height);
     const material = new MeshBasicNodeMaterial();
-    material.positionNode = vec3(place.x.add(radial.x.mul(width).mul(height)), standing.y.add(rise.mul(height)), place.y.add(radial.y.mul(width).mul(height)));
+    material.positionNode = vec3(place.x.add(across.x), standing.y.add(rise.mul(height)), place.y.add(across.y));
 
     const live = varying(carried.zw);
-    const same = varying(vec4(isSpruce, isPine, isBirch, fract(carried.y).div(0.99)));
+    const kindHere = varying(kind);
+    const ofKind = (colours: Record<TreeKind, Node<"vec3">>) => TREE_KINDS.slice(1).reduce((picked, other, at) => select(kindHere.greaterThan(at + 0.5), colours[other], picked), colours.spruce);
     // Sharp at once, or a crown's underside takes the colour of the trunk it spreads from.
-    const leafy = smoothstep(float(0), float(0.08), varying(pick(attribute<"vec3">("leaves", "vec3"))));
-    const leaf = colour("tree-spruce").mul(same.x).add(colour("tree-pine").mul(same.y)).add(colour("tree-birch").mul(same.z));
-    const bark = colour("tree-bark").mul(same.x.add(same.y)).add(colour("tree-birch-bark").mul(same.z));
+    const leafy = name === "cone" ? float(1) : smoothstep(float(0), float(0.08), varying(unit.y.sub(TRUNK_RINGS - 1).clamp(0, 1)));
+    const leaf = ofKind({ spruce: colour("tree-spruce"), pine: colour("tree-pine"), birch: colour("tree-birch"), round: colour("tree-round"), upright: colour("tree-upright") });
+    const riseHere = varying(rise);
+    // A pine's bark turns from grey-brown to fox red up its trunk, and a birch's is dark at the foot.
+    const pineBark = mix(colour("tree-bark"), colour("tree-pine-bark"), smoothstep(float(0.08), float(0.34), riseHere));
+    const birchBark = mix(colour("tree-bark"), colour("tree-birch-bark"), smoothstep(float(0.03), float(0.1), riseHere));
+    const bark = ofKind({ spruce: colour("tree-bark"), pine: pineBark, birch: birchBark, round: colour("tree-round-bark"), upright: colour("tree-upright-bark") });
     const sunSide = dot(varying(radial), toSun).mul(0.2).add(1);
-    const shaded = varying(rise).mul(0.5).add(0.62).mul(sunSide).mul(mix(float(0.84), float(1.14), same.w));
+    const shaded = riseHere.mul(0.5).add(0.62).mul(sunSide).mul(mix(float(0.84), float(1.14), varying(treeRoll)));
     const natural = mix(bark, leaf, leafy);
     const painted = paint ? paint({ model: name, natural, changing: live.x.greaterThan(0).or(live.y.lessThan(1)), groundGap: varying(groundAt(1, place).sub(groundAt(2, place)).abs()) }) : natural;
     material.colorNode = hazed(painted.mul(shaded));
@@ -351,8 +379,8 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
     scene.add(mesh);
     meshes.push({ model: name, mesh });
   };
-  model("turned", turnedShape, turnedList, turnedRows, TURNED_DRAW);
-  model("cone", coneShape, coneList, coneRows, CONE_DRAW);
+  model("turned", turnedShape, turnedList, turnedRows, TURNED_DRAW, nearShapes, NEAR_RINGS);
+  model("cone", coneShape, coneList, coneRows, CONE_DRAW, farShapes, FAR_RINGS);
 
   const frustum = new Frustum();
   const viewProjection = new Matrix4();
@@ -411,6 +439,8 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
       draws.dispose();
       turnedList.dispose();
       coneList.dispose();
+      nearShapes.dispose();
+      farShapes.dispose();
     },
   };
 }

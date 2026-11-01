@@ -52,11 +52,12 @@ ISLAND_COVER = 0.41
 EMPTY_WEIGHT = 1e-6
 
 # These restate render/tree-place.ts and forest.ts, which draw what this plans for: a lattice of 6 m, each place
-# jittered by a share of a cell, a tree the canopy times a roll, and each species' widest ring as a share of height.
+# jittered by a share of a cell, a tree the canopy times a roll, and each species' widest ring when grown, as a share
+# of height (render/tree-shapes.ts). Other broadleaf is two shapes, so it takes the mean of their areas.
 LATTICE_M = 6
 JITTER = 0.8
 HEIGHT_RANGE = (1.05, 1.35)
-CROWN_SHARE = np.array([0.17, 0.21, 0.16, 0.16])
+CROWN_SHARE = np.array([0.17, 0.21, 0.16, 0.2])
 MEAN_HEIGHT_SHARE = sum(HEIGHT_RANGE) / 2
 
 # A place in a stand can't be all crown once they're jittered, and a share near 1 would ask for infinitely many.

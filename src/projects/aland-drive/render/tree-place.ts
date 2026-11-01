@@ -19,8 +19,6 @@ export const STAND_ROLL: [number, number] = [61.73, 83.19];
 export const HEIGHT_RANGE: [number, number] = [1.05, 1.35];
 /** What the forest averages over the canopy image, for whatever stands in for its trees. */
 export const MEAN_HEIGHT = (HEIGHT_RANGE[0] + HEIGHT_RANGE[1]) / 2;
-/** The widest a crown spreads, as a share of the tree's height, with a ring's swell. */
-export const WIDEST_CROWN = 0.21 * 1.16;
 
 /** The level of the road mask a tree keeps off, and how much road there is too much. At 8 m it reaches further than the 4 m canopy image blurs. */
 export const ROAD_MASK_MIP = 1;

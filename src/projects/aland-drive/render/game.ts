@@ -384,7 +384,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot, knobs.forestReach));
   const forest = createForest(scene, renderer, {
     knobs,
-    canopyAt: (place) => canopyAt(place, 0),
+    canopyAt,
     standsAt,
     groundAt: clipmap.groundBlendedAt,
     roads: { at: roadsAt, tileM },
