@@ -228,6 +228,18 @@ class Junctions(unittest.TestCase):
         self.assertTrue(under.any())
         self.assertTrue((points[under, 2] < over[under]).all())
 
+    def test_a_road_ending_on_one_that_is_easing_meets_it_as_laid(self):
+        ground = land(height=lambda east, north: 10 + 0.1 * np.clip(east - 1500, 0, 30))
+        high = road([(1500, 2000), (1500, 1000)])
+        middle = road([(1500, 1500), (1512, 1500), (2500, 1500)], "unclassified")
+        last = road([(1512, 1500), (1512, 1100)], "service")
+        surface = lay_roads([high, middle, last], ground)
+        lesser = next(chain for chain in surface.chains if chain.kind_name == "service")
+        parent = surface.chains[lesser.start_on]
+        station = int(parent.tree.query(lesser.xy[0])[1])
+        self.assertGreater(abs(float(parent.eased[station])), 0.05)
+        self.assertAlmostEqual(float(lesser.height[0]), float(parent.height[station] + parent.eased[station]), delta=0.03)
+
     def test_a_road_stands_no_lower_past_its_edge_than_at_it(self):
         chain = lay_roads([road([(0, 1500), (1500, 1500), (1700, 1700), (3000, 1700)])], land()).chains[0]
         station = int(np.abs(chain.bank).argmax())

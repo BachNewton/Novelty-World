@@ -209,6 +209,7 @@ class Chain:
     normal: np.ndarray = field(default=None)  # To the left of the way the chain runs.
     half: np.ndarray = field(default=None)
     height: np.ndarray = field(default=None)
+    eased: np.ndarray = field(default=None)  # What easing on to the road it lands on added to the height: a road ending here meets the surface as laid.
     bank: np.ndarray = field(default=None)  # Rise per metre towards the left.
     crown: np.ndarray = field(default=None)
     shoulder: np.ndarray = field(default=None)
@@ -247,7 +248,7 @@ class Chain:
         """
         _, nearest = self.tree.query(xy)
         across = np.clip(((xy - self.xy[nearest]) * self.normal[nearest]).sum(-1), -self.half[nearest], self.half[nearest])
-        return self.height[nearest] - self.crown[nearest] * np.abs(across) + self.bank[nearest] * across
+        return self.height[nearest] + self.eased[nearest] - self.crown[nearest] * np.abs(across) + self.bank[nearest] * across
 
 
 def _key(point) -> tuple:
@@ -617,6 +618,7 @@ def _cut_sections(chain: Chain, along: np.ndarray, starts_on: Chain | None, ends
             outside = np.nonzero(~inside)[0]
             last = min(last, int(outside[-1]) + 1) if len(outside) else last
 
+    chain.eased = centre_z - chain.height
     # An end on a tile's edge stays, however close a junction: the neighbour's road ends on it.
     if 0 in chain.seam_stations:
         first, last = 0, max(last, 1)
