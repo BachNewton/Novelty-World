@@ -14,6 +14,7 @@ export const JITTER_ROLLS: [x: [number, number], z: [number, number]] = [
   [39.346, 11.135],
 ];
 export const HEIGHT_ROLL: [number, number] = [93.989, 67.345];
+export const STAND_ROLL: [number, number] = [61.73, 83.19];
 /** A tree's height over the canopy image's. A place reads the canopy's surface from a 2013 scan, not a treetop today, and MS-NFI 2023's mean height is 1.2 times that. */
 export const HEIGHT_RANGE: [number, number] = [1.05, 1.35];
 /** What the forest averages over the canopy image, for whatever stands in for its trees. */
@@ -58,6 +59,11 @@ export function roadLevel(mask: ArrayLike<number>, size: number, stride: number)
     }
   }
   return roads;
+}
+
+/** Whether a place holds a tree, at a stand's density: the share of its places that do. */
+export function treeStands(column: number, row: number, density: number): boolean {
+  return rollAt(column, row, STAND_ROLL) < density;
 }
 
 /** A cell's place in the scene's x and z. */

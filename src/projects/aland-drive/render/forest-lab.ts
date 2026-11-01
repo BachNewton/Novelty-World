@@ -9,7 +9,7 @@ import type { WorldManifest } from "./tile";
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
 import { canopyLift, tileReads } from "./tile-reads";
-import { NEAR_STEP_M, readImage, ROAD_COVERAGE, ROAD_MASK_MIP, roadLevel, SHORTEST_M, treeHeight, treePlace } from "./tree-place";
+import { NEAR_STEP_M, readImage, ROAD_COVERAGE, ROAD_MASK_MIP, roadLevel, SHORTEST_M, treeHeight, treePlace, treeStands } from "./tree-place";
 import { World } from "../sim/world";
 
 /*
@@ -136,6 +136,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
   const forest = createForest(scene, renderer, {
     knobs,
     canopyAt: (place) => reads.canopyAt(place, 0),
+    standsAt: reads.standsAt,
     groundAt: clipmap.groundBlendedAt,
     roads: { at: reads.roadsAt, tileM },
     colour: colorOf,
@@ -150,6 +151,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
 
   // The search below reads what the forest's shader reads, off the images as they arrive.
   const canopyOf = new Map<string, Uint8Array>();
+  const standsOf = new Map<string, Uint8Array>();
   const roadsOf = new Map<string, Float32Array>();
   const stream = new TileStream(
     world,
@@ -163,11 +165,13 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
       },
       placeFar(tile, done) {
         canopyOf.set(tile.name, tile.canopy[0].slice());
+        standsOf.set(tile.name, tile.stands[0].slice());
         roadsOf.set(tile.name, roadLevel(tile.mask[0], manifest.mask.pixels, 4));
         layers.placeFar(world.named(tile.name), tile, manifest, done);
       },
       releaseFar(tile) {
         canopyOf.delete(tile.name);
+        standsOf.delete(tile.name);
         roadsOf.delete(tile.name);
         layers.releaseFar(tile);
       },
@@ -209,11 +213,13 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
         const [tileColumn, tileRow] = [Math.floor(x / tileM), Math.floor(z / tileM)];
         const tile = [...world.all()].find((entry) => entry.column === tileColumn && entry.row === tileRow);
         const canopy = tile && canopyOf.get(tile.name);
+        const stands = tile && standsOf.get(tile.name);
         const roads = tile && roadsOf.get(tile.name);
-        if (!canopy || !roads) continue;
+        if (!canopy || !stands || !roads) continue;
         const [localX, localZ] = [x - tileColumn * tileM, z - tileRow * tileM];
         const height = treeHeight(column, row, readImage(canopy, manifest.canopy.pixels, 1, 0, canopyTexelM, localX, localZ) * manifest.canopy.unitM);
         if (height < SHORTEST_M) continue;
+        if (!treeStands(column, row, readImage(stands, manifest.stands.pixels, 4, 3, tileM / manifest.stands.pixels, localX, localZ) / 255)) continue;
         if (readImage(roads, manifest.mask.pixels >> ROAD_MASK_MIP, 1, 0, roadTexelM, localX, localZ) > ROAD_COVERAGE) continue;
         const slide = Math.abs(nodeNear(x, z, 8) - nodeNear(x, z, 16));
         found.push({ x, z, height, slide, rank: 0, of: 0 });

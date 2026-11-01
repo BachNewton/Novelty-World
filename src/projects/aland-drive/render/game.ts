@@ -378,13 +378,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const pastTiles = select(inOverview, mix(waterOf.color, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), waterOf.color);
   const terrainColor = hazed(mix(pastTiles, mix(waterOf.color, land, photo.a), farSeen));
 
-  const { canopyAt, roadsAt } = tileReads(layers, tileM, manifest.canopy.unitM);
+  const { canopyAt, standsAt, roadsAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
   const knobs = forestKnobs(FOREST_DEFAULTS);
   const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot, knobs.forestReach));
   const forest = createForest(scene, renderer, {
     knobs,
     canopyAt: (place) => canopyAt(place, 0),
+    standsAt,
     groundAt: clipmap.groundBlendedAt,
     roads: { at: roadsAt, tileM },
     colour: colorOf,

@@ -1,4 +1,4 @@
-import { all, float, greaterThanEqual, int, ivec2, lessThan, select, smoothstep, texture, textureLoad, vec2 } from "three/tsl";
+import { all, float, greaterThanEqual, int, ivec2, lessThan, select, smoothstep, texture, textureLoad, vec2, vec4 } from "three/tsl";
 import type { Node } from "three/webgpu";
 import type { TerrainLift } from "./clipmap";
 import type { TileLayers } from "./tile-layers";
@@ -31,6 +31,11 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
       const { uv, layer, held } = slotOf(place);
       const units = texture(layers.canopy, uv).depth(layer).level(float(mip)).r.mul(255);
       return select(held, units.mul(canopyUnitM), float(0));
+    },
+    /** The stand at a place: the shares of pine, spruce and birch, then the density. Over a tile not held, no trees. */
+    standsAt(place: Node<"vec2">) {
+      const { uv, layer, held } = slotOf(place);
+      return select(held, texture(layers.stands, uv).depth(layer).level(float(0)), vec4(0));
     },
     roadsAt(place: Node<"vec2">) {
       const { uv, layer, held } = slotOf(place);

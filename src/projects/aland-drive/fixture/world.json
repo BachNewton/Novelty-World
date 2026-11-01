@@ -59,6 +59,11 @@
     "pixels": 1500,
     "unitM": 0.25
   },
+  "stands": {
+    "file": "stands.bin.gz",
+    "pixels": 125,
+    "encoding": "gzip of bytes, 4 a pixel, rows north to south, west to east: the shares of pine, spruce and birch, 0 to 255, what's left being other broadleaf, then the share of lattice places holding a tree"
+  },
   "water": {
     "nodesFile": "water-nodes.bin.gz"
   },

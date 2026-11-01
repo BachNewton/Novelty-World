@@ -41,6 +41,7 @@ export interface WorldManifest {
   mask: { file: string; pixels: number };
   ground: { file: string; pixels: number; farFile: string; farPixels: number };
   canopy: { file: string; pixels: number; unitM: number };
+  stands: { file: string; pixels: number };
   water: { nodesFile: string };
   overview: OverviewFormat;
   map: { file: string };

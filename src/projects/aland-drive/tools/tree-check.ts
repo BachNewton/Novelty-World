@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import sharp from "sharp";
-import { NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, ROAD_MASK_MIP, SHORTEST_M, WIDEST_CROWN, readImage, roadLevel, treeHeight, treePlace } from "../render/tree-place";
+import { NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, ROAD_MASK_MIP, SHORTEST_M, WIDEST_CROWN, readImage, roadLevel, treeHeight, treePlace, treeStands } from "../render/tree-place";
 import type { TileManifest, WorldManifest } from "../render/tile";
 
 const option = (name: string, otherwise: string) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3) ?? otherwise;
@@ -120,6 +120,7 @@ for (const { name, west, north } of tiles) {
     if (Math.abs(near.west - west) <= manifest.tileM && Math.abs(near.north - north) <= manifest.tileM) addRoads(near.name);
   }
   const canopy = await decoded(join(FOLDER, name, manifest.canopy.file));
+  const stands = gunzipSync(readFileSync(join(FOLDER, name, manifest.stands.file)));
   const top = -north;
   for (let row = Math.floor(top / NEAR_STEP_M) - 1; row <= Math.ceil((top + manifest.tileM) / NEAR_STEP_M) + 1; row++) {
     for (let column = Math.floor(west / NEAR_STEP_M) - 1; column <= Math.ceil((west + manifest.tileM) / NEAR_STEP_M) + 1; column++) {
@@ -129,6 +130,7 @@ for (const { name, west, north } of tiles) {
       const canopyM = readImage(canopy.data, pixels, canopy.stride, 0, texelM, localX, localZ) * manifest.canopy.unitM;
       const height = treeHeight(column, row, canopyM);
       if (height < SHORTEST_M) continue;
+      if (!treeStands(column, row, readImage(stands, manifest.stands.pixels, 4, 3, manifest.tileM / manifest.stands.pixels, localX, localZ) / 255)) continue;
       if (GATED && Math.max(await roadsAt(x, z), await roadsAt(x + lookOver(x), z + lookOver(z))) > ROAD_COVERAGE) continue;
       counts.trees++;
       const list = buckets.get(`${Math.floor(x / BUCKET_M)},${Math.floor(z / BUCKET_M)}`);

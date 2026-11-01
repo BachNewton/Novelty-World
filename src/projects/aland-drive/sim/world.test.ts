@@ -46,6 +46,7 @@ const manifest = {
   mask: { file: "", pixels: 1500 },
   ground: { file: "", pixels: 3000, farFile: "", farPixels: 750 },
   canopy: { file: "", pixels: 1500, unitM: 0.25 },
+  stands: { file: "", pixels: 125 },
   water: { nodesFile: "" },
   overview: { west: -TILE_M, north: TILE_M, columns: 2, rows: 2, stepM: 80, unitM: 0.01, heightsFile: "", imageFile: "", imageWidth: 1, imageHeight: 1 },
   map: { file: "" },

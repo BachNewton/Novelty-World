@@ -1,11 +1,12 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, Frustum, IndirectStorageBufferAttribute, Matrix4, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, Vector4, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
-import { HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M } from "./tree-place";
+import { HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
 
 /*
  * The forest, with no list of trees anywhere: a tree is a place on a lattice of the
  * world. What stands there is worked out from the place, how tall from the tile's
- * canopy image and the rest from rolls, so a tree is the same tree whenever it comes
+ * canopy image, which species and whether at all from its stands (`pipeline/stands.py`)
+ * and the rest from rolls, so a tree is the same tree whenever it comes
  * back, and nothing is stored or streamed for one.
  *
  * Each frame a compute pass goes through the places within the forest's reach of the
@@ -22,6 +23,7 @@ import { HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVE
  * by the canopy behind them (`canopyLift`).
  *
  * All three species are one mesh: its rings say where each species' outline goes.
+ * Other broadleaf has no shape of its own, and stands as birch.
  */
 
 export interface ForestSettings {
@@ -80,6 +82,9 @@ const NEAR_RINGS: Ring[] = [
   [[0.8, 0.04, 1], [0.96, 0.06, 1], [0.97, 0.04, 1]],
   [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
 ];
+
+/** A stand for a scene with no tile: Åland's own mix of pine, spruce and birch, at every place. */
+const ANY_STAND = vec4(0.6, 0.15, 0.13, 1);
 
 const CONE_RINGS: Ring[] = [
   [[0.08, 0.17, 1], [0.52, 0.15, 1], [0.32, 0.14, 1]],
@@ -170,6 +175,8 @@ export function forestBands({ fullReachM, forestReachM, farDensity }: ForestSett
 export interface ForestInputs {
   knobs: ForestKnobs;
   canopyAt: (place: Node<"vec2">) => Node<"float">;
+  /** The shares of pine, spruce and birch at a place, what's left being other broadleaf, then the share of places holding a tree. */
+  standsAt?: (place: Node<"vec2">) => Node<"vec4">;
   /** The ground at a place on one of the terrain's rings. */
   groundAt: (ring: number, place: Node<"vec2">) => Node<"float">;
   /** How much road the mask holds at a place, and the size of a tile: a tree stands clear of roads, and of a neighbour's over a tile's edge. */
@@ -211,7 +218,7 @@ export interface Forest {
   dispose: () => void;
 }
 
-export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, canopyAt, groundAt, roads, colour, hazed, sun, paint }: ForestInputs): Forest {
+export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, canopyAt, standsAt = () => ANY_STAND, groundAt, roads, colour, hazed, sun, paint }: ForestInputs): Forest {
   const cameraSpot = uniform(new Vector2());
   const anchor = uniform(new Vector2());
   const placesAcross = uniform(1, "uint");
@@ -261,7 +268,8 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
 
     If(distance.lessThan(knobs.forestReach).and(perhapsSeen), () => {
       const height = canopyAt(place).mul(mix(float(HEIGHT_RANGE[0]), float(HEIGHT_RANGE[1]), roll(cell, ...HEIGHT_ROLL))).toVar();
-      If(height.greaterThanEqual(SHORTEST_M), () => {
+      const stand = standsAt(place).toVar();
+      If(height.greaterThanEqual(SHORTEST_M).and(roll(cell, ...STAND_ROLL).lessThan(stand.a)), () => {
         If(roadsAround(place).lessThanEqual(ROAD_COVERAGE), () => {
           const ground = float(0).toVar();
           const between = (ring: number) => {
@@ -282,10 +290,8 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
             const turnedShare = shareLeft(distance, tree, knobs.fullReach, HANDOVER).toVar();
             const turnedTo = min(turnedShare, coneTo).toVar();
 
-            // Mostly spruce and pine, in stands rather than salt and pepper; birch at a share of it.
-            const stand = fract(sin(dot(floor(place.div(70)), vec2(7.13, 3.77))).mul(9173.31));
-            const mixRoll = roll(cell, 3.11, 47.3).mul(0.55).add(stand.mul(0.45)).toVar();
-            const species = select(mixRoll.greaterThanEqual(0.745), float(2), select(mixRoll.greaterThanEqual(0.455), float(1), float(0)));
+            const mixRoll = roll(cell, 3.11, 47.3).toVar();
+            const species = select(mixRoll.lessThan(stand.g), float(0), select(mixRoll.lessThan(stand.g.add(stand.r)), float(1), float(2)));
             const look = species.add(roll(cell, 17.3, 91.1).mul(0.99)).toVar();
             const yaw = roll(cell, 54.1, 18.7).mul(6.283).toVar();
             const standing = vec4(place.x, ground.sub(SINK_M), place.y, height).toVar();

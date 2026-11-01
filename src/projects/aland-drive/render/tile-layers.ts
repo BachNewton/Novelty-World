@@ -51,6 +51,7 @@ export class TileLayers {
   readonly groundNear: DataArrayTexture;
   readonly groundFar: DataArrayTexture;
   readonly canopy: DataArrayTexture;
+  readonly stands: DataArrayTexture;
   readonly slots: DataTexture;
   /** The lattice place of the map's first texel, and how many tiles it spans. */
   readonly mapColumn: number;
@@ -79,8 +80,9 @@ export class TileLayers {
       [manifest.ground.pixels, NEAR_LAYERS, 4],
       [manifest.ground.farPixels, farLayers, 4],
       [manifest.canopy.pixels, farLayers, 1],
+      [manifest.stands.pixels, farLayers, 4],
     ];
-    [this.shadeNear, this.shadeFar, this.mask, this.groundNear, this.groundFar, this.canopy] = held.map(([size, depth, channels]) => this.layers(renderer, size, depth, channels));
+    [this.shadeNear, this.shadeFar, this.mask, this.groundNear, this.groundFar, this.canopy, this.stands] = held.map(([size, depth, channels]) => this.layers(renderer, size, depth, channels));
     this.textureBytes = Math.round(held.reduce((sum, [size, depth, channels]) => sum + size * size * depth * channels, 0) * (4 / 3));
     this.freeNear = Array.from({ length: NEAR_LAYERS }, (_, layer) => layer);
     this.freeFar = Array.from({ length: farLayers }, (_, layer) => layer);
@@ -144,11 +146,11 @@ export class TileLayers {
   }
 
   /** A tile's far images. */
-  placeFar(tile: WorldTile, { shade, mask, ground, canopy }: Pick<FarTile, "shade" | "mask" | "ground" | "canopy">, manifest: WorldManifest, done: () => void): void {
+  placeFar(tile: WorldTile, { shade, mask, ground, canopy, stands }: Pick<FarTile, "shade" | "mask" | "ground" | "canopy" | "stands">, manifest: WorldManifest, done: () => void): void {
     const layer = this.freeFar.pop();
     if (layer === undefined) throw new Error(`no free far layer for ${tile.name}: more tiles with far data than the stream allows`);
     this.farOf.set(tile.name, layer);
-    let waiting = 4;
+    let waiting = 5;
     const landed = () => {
       if (--waiting > 0) return;
       this.setSlot(tile, 0, layer + 1);
@@ -158,6 +160,7 @@ export class TileLayers {
     this.enqueue(this.mask, layer, mask, manifest.mask.pixels, 4, landed);
     this.enqueue(this.groundFar, layer, ground, manifest.ground.farPixels, 4, landed);
     this.enqueue(this.canopy, layer, canopy, manifest.canopy.pixels, 1, landed);
+    this.enqueue(this.stands, layer, stands, manifest.stands.pixels, 4, landed);
   }
 
   releaseFar(tile: WorldTile): void {
@@ -199,6 +202,7 @@ export class TileLayers {
     this.groundNear.dispose();
     this.groundFar.dispose();
     this.canopy.dispose();
+    this.stands.dispose();
     this.slots.dispose();
   }
 }
