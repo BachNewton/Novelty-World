@@ -41,6 +41,9 @@ const placeOf = (x: number, z: number) => ({ east: x + WORLD_EAST, north: -z + W
 
 export const fromAbove = ({ x, z }: JunctionSpot): Place => ({ ...placeOf(x, z), height: ABOVE_M, yaw: 0, pitch: -Math.PI / 2 });
 
+/** Where the car goes to drive it: on the road it's approached by, facing the junction. */
+export const startOfApproach = ({ name, x, z, from }: JunctionSpot) => ({ name, x: from.x, z: from.z, headingDeg: (Math.atan2(x - from.x, from.z - z) * 180) / Math.PI });
+
 /** At a driver's eye, looking at the junction. */
 export function onApproach({ x, z, from }: JunctionSpot): Place {
   return { ...placeOf(from.x, from.z), height: DRIVER_M, yaw: Math.atan2(from.x - x, from.z - z), pitch: DRIVER_PITCH };

@@ -72,6 +72,8 @@ export interface GameProbe {
   setCamera: (mode: CameraMode) => void;
   /** Moves the car to a showcase spot by its key, resolving once it's there, on loaded ground. */
   jumpTo: (key: string) => Promise<void>;
+  /** Moves the car to a place near a road, in a car's view, resolving once it's there, on loaded ground. */
+  driveFrom: (spot: Omit<ShowcaseSpot, "key">) => Promise<void>;
   /** Tiles at full detail, and what loading them has read. */
   stream: () => StreamStats;
   /** Loads the tiles round a place, wherever the car is, until `loadAround(null)`. */
@@ -640,7 +642,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   // Everything stops for a jump: the car stays where it is until the ground where it's going has landed.
   let jumping = false;
-  const jump = async ({ x, z, headingDeg, name }: ShowcaseSpot) => {
+  const jump = async ({ x, z, headingDeg, name }: Omit<ShowcaseSpot, "key">) => {
     if (jumping || mapFrom) return;
     jumping = true;
     const wanted = { done: 0, total: Math.max(stream.wanted(x, z), 1) };
@@ -914,6 +916,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         return points;
       },
       jumpTo: jumpByKey,
+      driveFrom: async (spot) => {
+        await jump(spot);
+        setCamera(lastCarView);
+      },
       openMap: setMapOpen,
       holdFlight: (flight) => {
         heldFlight = flight !== null;

@@ -1,17 +1,17 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { JUNCTION_SPOTS, fromAbove, onApproach, type JunctionSpot } from "../render/junction-spots";
+import { JUNCTION_SPOTS, fromAbove, onApproach, startOfApproach, type JunctionSpot } from "../render/junction-spots";
 import { AlandDrive } from "./aland-drive";
 
 /*
  * The `?junction-lab` page: the real game, with the hardest junctions a click
- * away, from above or at a driver's eye. It looks through the game's own probe,
+ * away, from above, at a driver's eye or at the wheel. It looks through the game's own probe,
  * so what it shows is what's driven on. F leaves the camera free to look round;
  * `?tiles=local:<port>` beside it shows a build of one's own.
  */
 
-type View = "above" | "driver";
+type View = "above" | "driver" | "drive";
 
 export function JunctionLab() {
   const [spot, setSpot] = useState<JunctionSpot | null>(null);
@@ -20,7 +20,10 @@ export function JunctionLab() {
   const show = (next: JunctionSpot, nextView: View) => {
     setSpot(next);
     setView(nextView);
-    window.__alandDrive?.look(nextView === "above" ? fromAbove(next) : onApproach(next));
+    // Space is the handbrake, and it would press a button that kept the focus.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    if (nextView === "drive") void window.__alandDrive?.driveFrom(startOfApproach(next));
+    else window.__alandDrive?.look(nextView === "above" ? fromAbove(next) : onApproach(next));
   };
 
   return (
@@ -37,7 +40,7 @@ export function JunctionLab() {
           </Fragment>
         ))}
         <div className="mt-2 flex gap-1">
-          {(["above", "driver"] as const).map((option) => (
+          {(["above", "driver", "drive"] as const).map((option) => (
             <button key={option} type="button" aria-pressed={option === view} disabled={spot === null} className={`flex-1 rounded px-2 py-1 capitalize disabled:opacity-50 ${option === view ? "bg-surface-tertiary font-bold" : ""}`} onClick={() => spot && show(spot, option)}>
               {option}
             </button>
