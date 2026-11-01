@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
-import { shuffleArray } from "@/shared/lib/utils";
+import { shuffleArray } from "@/shared/lib/shuffle";
 import type { CardId, GameEvent, GameState, GameView, Move, Seat } from "./contract";
 import { referenceEngine as engine } from "./engine";
 import { wrap } from "./engine/state";

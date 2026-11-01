@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_BOT_VERSION, HUMAN_MODEL_VERSIONS } from "./default-bot";
 import { BOT_RATINGS } from "./ratings";
 import { RATING_EXCLUDED, RATING_PANEL, VERSIONS } from "./versions";
 
@@ -9,6 +10,11 @@ import { RATING_EXCLUDED, RATING_PANEL, VERSIONS } from "./versions";
 // `RATING_EXCLUDED` (deliberately unrated — those render DEPRECATED). If this
 // fails after you add a version, regenerate the ladder: `npm run sim:ratings`.
 describe("bot strength ratings coverage", () => {
+  // The default seat is derived without importing the archive, so this is what ties its label to it.
+  it("seats a registered version by default", () => {
+    for (const label of [DEFAULT_BOT_VERSION, ...HUMAN_MODEL_VERSIONS]) expect(VERSIONS).toHaveProperty([label]);
+  });
+
   it("rates every version except dumb and the excluded set", () => {
     const rateable = Object.keys(VERSIONS).filter(
       (v) => v !== "dumb" && !RATING_EXCLUDED.has(v),

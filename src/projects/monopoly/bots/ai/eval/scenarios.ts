@@ -1,7 +1,7 @@
 import { mortgageValueAt } from "../../../logic";
 import type { GameState } from "../../../types";
 import { withAiSeat } from "../seat";
-import { aiVersionOf } from "../strategy";
+import { aiVersionOf } from "../versions";
 import {
   AI,
   atTurn,

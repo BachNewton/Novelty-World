@@ -484,8 +484,8 @@ generated `BOT_RATINGS`):
   model's dims are gated on `botStrategy === null` — so the ladder **cannot see** the
   one thing that most affects beating a human, and left alone would seat them against
   a human-BLIND bot. So whenever the Elo top does **not itself carry the model**, the
-  seat becomes the fullest version that does (`HUMAN_MODEL_VERSIONS` in
-  `versions/index.ts` → `roles.ts` `humanFacingDefault`). Strictly less exploitable by
+  seat becomes the fullest version that does (`HUMAN_MODEL_VERSIONS` and `humanFacingDefault` in
+  `default-bot.ts`). Strictly less exploitable by
   a human's trades. The *display* stays honest Elo; only the seat moves. This is a
   fair-pricing/legibility win, **not** a win-rate flip — a caveat the 2026-07-21 probe
   fleet re-confirmed hard (fleet record 2–7 against a human-blind crown, at/below the

@@ -301,11 +301,11 @@ and model it reaches: `ai:local` or `ai:claude`) and an **AI version** (`llm-vN`
 place that writes or parses it. The lobby lists every version under each
 profile, newest first; a new seat takes the newest general one
 (`DEFAULT_AI_VERSION`). A version tuned and measured on one model only
-(`MODEL_SPECIFIC` in `versions/index.ts`, e.g. the Sonnet versions
+(`MODEL_SPECIFIC` in `versions/labels.ts`, e.g. the Sonnet versions
 llm-v9, llm-v11 and llm-v12) is listed but never the default.
 
 **AI versions are frozen, like the rule-bot archive.** A version
-(`bots/ai/versions/llm-vN/`, registered in `versions/index.ts`) bundles
+(`bots/ai/versions/llm-vN/`, registered in `versions/index.ts` and `versions/labels.ts`) bundles
 everything we control that shapes play: the prompt and the view it builds, each
 decision's question, schema and answer-to-intent mapping (trade terms included),
 which decisions think, the thinking budget, sampling, the notes' length limits,
@@ -614,7 +614,8 @@ bots/rl/mcts.ts          MCTS over applyCandidate guided by the net (RL phase 5)
 bots/rl/selfplay.ts      self-play recorder + value bootstrap (RL phase 6): playSelfPlayGame (visit-dist policy + outcome value targets) and collectRuleGame (warm-start)
 bots/rl/train-cli.ts     `npm run train:rl` — the self-play training loop (RL phase 6): self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. All-CPU tfjs-node; eGPU optional. Needs Node 22: run it under `mise exec node@22 --`
 bots/rl/tfjs-setup.ts    side-effect import (FIRST, before tfjs loads): places the Windows tensorflow.dll next to the binding + shields process.argv from tfjs-node's node-pre-gyp
-bots/roles.ts         LOBBY_BOTS — the lobby offering DERIVED from the Elo ladder (overall best, per-family best, full lists, deprecation) + DEFAULT_BOT_VERSION; only hand-maintained data is FAMILY_SPECS
+bots/roles.ts         LOBBY_BOTS — the lobby offering DERIVED from the Elo ladder (overall best, per-family best, full lists, deprecation); only hand-maintained data is FAMILY_SPECS
+bots/default-bot.ts   DEFAULT_BOT_VERSION + HUMAN_MODEL_VERSIONS: the seat a game defaults to, from the ratings alone, so game setup doesn't import the archive
 bots/eval/simulate.ts      headless self-play driver (per-seat Contenders / strategies)
 bots/eval/simulate-cli.ts  `npm run sim` — watch one bot self-play game (roster, seed, --log)
 bots/eval/render-log.ts    shared per-event log renderer (one line per GameEvent); used by sim --log AND game:review

@@ -1,6 +1,6 @@
 import type { HaloMapEntry, GameState } from "./types";
 import allMaps from "./data/halo-maps.json";
-import { shuffleArray } from "@/shared/lib/utils";
+import { shuffleArray } from "@/shared/lib/shuffle";
 
 /** All distinct source game titles, sorted alphabetically. */
 export function getSourceGames(): string[] {

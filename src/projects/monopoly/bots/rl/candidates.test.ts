@@ -4,7 +4,7 @@ import { freshGame } from "../../mocks";
 import { driveOp } from "../../pacing";
 import type { GameState } from "../../types";
 import { applyCandidate, candidateFor, legalCandidates } from "./candidates";
-import { DEFAULT_BOT_VERSION } from "../roles";
+import { DEFAULT_BOT_VERSION } from "../default-bot";
 
 function botGame(seed: string): GameState {
   const base = freshGame(seed, undefined, 4);

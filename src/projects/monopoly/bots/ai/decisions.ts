@@ -1,7 +1,7 @@
 import { auctionBidCap, BID_INCREMENT, firstNegativePlayer, hasPendingBoundary } from "../../engine";
 import type { AiDecision, GameState, Intent } from "../../types";
 import { aiSeat, currentTurnNumber } from "./seat";
-import { aiVersionOf } from "./strategy";
+import { aiVersionOf } from "./versions";
 
 /** The decision an AI seat owes a model call for right now, or null when it owes
  *  nothing (or isn't an AI seat). One function decides it for both the pacer

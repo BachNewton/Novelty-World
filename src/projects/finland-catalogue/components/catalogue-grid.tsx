@@ -4,7 +4,8 @@ import { useDeferredValue, useMemo, useState, useSyncExternalStore } from "react
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookOpen, SlidersHorizontal, Star } from "lucide-react";
-import { cn, shuffleArray } from "@/shared/lib/utils";
+import { cn } from "@/shared/lib/utils";
+import { shuffleArray } from "@/shared/lib/shuffle";
 import { useHydrated } from "@/shared/lib/use-hydrated";
 import { IDEAS } from "../ideas";
 import type { Idea } from "../types";

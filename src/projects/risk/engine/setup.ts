@@ -1,5 +1,5 @@
 import { createRng, pick } from "@/shared/lib/seeded-random";
-import { shuffleArray } from "@/shared/lib/utils";
+import { shuffleArray } from "@/shared/lib/shuffle";
 import type { GameConfig, GameEvent, GameState, Seat } from "../contract";
 import type { TerritoryId } from "../map";
 import { FULL_DECK, TERRITORY_CARDS } from "../cards";

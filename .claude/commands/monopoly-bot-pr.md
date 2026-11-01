@@ -128,7 +128,7 @@ user. Run every command from the repo root.
    bar has already decayed and a PASS is meaningless. Real case (2026-07-21): jane-v20
    scored an identical $530 to crown `fable-v7` and PASSED, while the archive's best
    was **$130** — fable-v7 predates the human model entirely. The fullest human-model
-   version is the last entry of `HUMAN_MODEL_VERSIONS` (`versions/index.ts`); use that
+   version is the last entry of `HUMAN_MODEL_VERSIONS` (`default-bot.ts`); use that
    as the third label. Also note **which scenarios actually moved**: a scenario that
    returns the same score for every version is measuring nothing, and a near-empty
    instrument reads exactly like a clean bill of health.
@@ -144,7 +144,7 @@ user. Run every command from the repo root.
      `ratings-cache.json`. It joins its family list with its Elo regardless.
    - **Strongest / player default:** does it top the ladder? The Elo "Strongest"
      DISPLAY is auto and ungated — but the **default SEAT is not purely derived**:
-     `roles.ts` `humanFacingDefault` seats the fullest `HUMAN_MODEL_VERSIONS` entry
+     `default-bot.ts` `humanFacingDefault` seats the fullest `HUMAN_MODEL_VERSIONS` entry
      whenever the ladder-topper does not itself carry the human-counterparty model.
      So a human-blind ladder-topper takes the display and **not** the seat. Say which
      of the two it won, and verify by running the labels rather than reasoning about

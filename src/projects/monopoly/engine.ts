@@ -1,4 +1,4 @@
-import { shuffleArray } from "@/shared/lib/utils";
+import { shuffleArray } from "@/shared/lib/shuffle";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import {
   BID_INCREMENT,

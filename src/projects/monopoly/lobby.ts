@@ -1,7 +1,7 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
-import { shuffleArray } from "@/shared/lib/utils";
+import { shuffleArray } from "@/shared/lib/shuffle";
 import { createRng } from "@/shared/lib/seeded-random";
-import { DEFAULT_BOT_VERSION } from "./bots/roles";
+import { DEFAULT_BOT_VERSION } from "./bots/default-bot";
 import { BOT_NAMES } from "./bot-names";
 import { PLAYER_COLORS, PLAYER_ICONS } from "./data";
 import { initialDecks } from "./engine";

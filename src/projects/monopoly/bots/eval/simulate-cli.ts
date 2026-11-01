@@ -6,7 +6,7 @@ import {
   type Contender,
   type SimOptions,
 } from "./simulate";
-import { DEFAULT_BOT_VERSION } from "../roles";
+import { DEFAULT_BOT_VERSION } from "../default-bot";
 import { valueNetStubBot } from "../rl/value-net-stub";
 import { valuePolicyStubBot } from "../rl/value-policy";
 import { tokenStubBot } from "../rl/token-bot";

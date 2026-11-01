@@ -9,7 +9,7 @@ import type {
   PlayerCount,
 } from "../../types";
 import { botFor, type Bot } from "../registry";
-import { DEFAULT_BOT_VERSION } from "../roles";
+import { DEFAULT_BOT_VERSION } from "../default-bot";
 // The standings scoreboard orders players by the engine's OBJECTIVE `netWorth`
 // (cash + full liquidation value) — a bot-independent yardstick. It only orders
 // the final standings; the winner is the engine's. Deliberately NOT a bot's

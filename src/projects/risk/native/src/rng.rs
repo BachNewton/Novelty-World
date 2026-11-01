@@ -1,4 +1,4 @@
-//! `src/shared/lib/seeded-random.ts` and `shuffleArray` from `src/shared/lib/utils.ts`: xmur3 over
+//! `src/shared/lib/seeded-random.ts` and `shuffleArray` from `src/shared/lib/shuffle.ts`: xmur3 over
 //! the seed's UTF-16 code units into a mulberry32 state.
 
 use crate::jsmath::imul;

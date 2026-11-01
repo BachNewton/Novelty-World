@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
-import { shuffleArray } from "@/shared/lib/utils";
+import { shuffleArray } from "@/shared/lib/shuffle";
 import type { CardId } from "../../contract";
 import { balance, balancedFight, captureChance, estimatedWinChance, fairFight, resolveBlitz } from "../../blitz";
 import { FULL_DECK, isValidSet, setsIn, setValue } from "../../cards";

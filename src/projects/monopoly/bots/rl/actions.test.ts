@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { freshGame } from "../../mocks";
 import type { GameState } from "../../types";
 import { driveOp } from "../../pacing";
-import { DEFAULT_BOT_VERSION } from "../roles";
+import { DEFAULT_BOT_VERSION } from "../default-bot";
 import { applyCandidate, candidateFor } from "./candidates";
 import { ACTION_COUNT, ACTION_NAMES, legalActions, legalMask } from "./actions";
 

@@ -14,7 +14,7 @@ import {
   startGame,
   type LobbyResult,
 } from "./lobby";
-import { DEFAULT_BOT_VERSION } from "./bots/roles";
+import { DEFAULT_BOT_VERSION } from "./bots/default-bot";
 import type { GameState } from "./types";
 
 const HOST = { id: "host", name: "Kyle" };
