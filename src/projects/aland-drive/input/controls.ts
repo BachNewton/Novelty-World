@@ -120,9 +120,13 @@ export function startControls({ onAction, onMapAction, onDigit, onInputKind }: C
     setMapOpen(open: boolean) {
       mapOpen = open;
     },
-    /** A pad's cursor on the world map. */
-    mapStick() {
-      return pad?.controls?.leftStick ?? { x: 0, y: 0 };
+    /** The steady inputs on the world map: a pad's, and WASD's panning. */
+    mapSteer() {
+      const panX = axis(["KeyA"], ["KeyD"]);
+      const panY = axis(["KeyW"], ["KeyS"]);
+      const controls = pad?.controls;
+      if (!controls) return { stickX: 0, stickY: 0, panX, panY, zoom: 0 };
+      return { stickX: controls.leftStick.x, stickY: controls.leftStick.y, panX: panX !== 0 ? panX : controls.rightStick.x, panY: panY !== 0 ? panY : controls.rightStick.y, zoom: controls.rightTrigger - controls.leftTrigger };
     },
     dispose() {
       window.removeEventListener("keydown", onKeyDown);

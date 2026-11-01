@@ -91,6 +91,25 @@ test("a place picked on the world map sets a route on both maps, and the map clo
   await page.waitForFunction(() => window.__alandDrive?.mapShown() === 1);
   const box = await map.boundingBox();
   if (!box) throw new Error("the world map has no size");
+  const height = () => page.evaluate(() => window.__alandDrive?.cameraPlace()[1] ?? 0);
+  const opening = await height();
+  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.6);
+
+  // Zooming stays on the map, however far it's pushed either way.
+  await page.mouse.wheel(0, -20_000);
+  await page.waitForFunction((from) => (window.__alandDrive?.cameraPlace()[1] ?? from) < from / 2, opening);
+  expect(await page.evaluate(() => window.__alandDrive?.mapShown())).toBe(1);
+
+  // WASD pans the map, and doesn't drive.
+  const east = await page.evaluate(() => window.__alandDrive?.cameraPlace()[0] ?? 0);
+  await page.keyboard.down("KeyD");
+  await page.waitForFunction((from) => (window.__alandDrive?.cameraPlace()[0] ?? from) > from, east);
+  await page.keyboard.up("KeyD");
+
+  await page.mouse.wheel(0, 40_000);
+  await page.waitForFunction((from) => (window.__alandDrive?.cameraPlace()[1] ?? 0) >= from, opening);
+  expect(await page.evaluate(() => window.__alandDrive?.mapShown())).toBe(1);
+
   await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.6);
   await page.waitForFunction(() => (window.__alandDrive?.routePoints()?.length ?? 0) > 6);
 

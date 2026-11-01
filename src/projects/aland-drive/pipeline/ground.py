@@ -56,6 +56,12 @@ def graded(photo: np.ndarray) -> np.ndarray:
     return np.round(255 * np.clip(grey + saturation * (clear - grey), 0, 1)).astype(np.uint8)
 
 
+def land_alpha(water_with_rim: np.ndarray) -> np.ndarray:
+    """How much of the photo shows, 0–1, for the tile's samples."""
+    into_water = ndimage.distance_transform_edt(water_with_rim)[RIM_SAMPLES:-RIM_SAMPLES, RIM_SAMPLES:-RIM_SAMPLES] * SAMPLE_M
+    return 1 - (1 - OPEN_WATER_ALPHA) * np.clip(into_water / SHALLOWS_M, 0, 1)
+
+
 def bake(photo: np.ndarray, water_with_rim: np.ndarray, trees: np.ndarray, built: np.ndarray, folder: Path) -> None:
     """`ground.webp` at the shading's size and `ground-far.webp` for every tile's far data."""
     # The photo leans: a building's roof lies beside where it stands, and its shadow beyond that. The ground nearest takes their place.
@@ -64,8 +70,6 @@ def bake(photo: np.ndarray, water_with_rim: np.ndarray, trees: np.ndarray, built
     photo = photo[nearest[0], nearest[1]]
     shaded = ndimage.gaussian_filter(trees.astype(np.float32), UNDER_TREES_SOFTNESS_SAMPLES)
     photo = np.round(photo * (1 - (1 - UNDER_TREES_LIGHT) * shaded)[..., None]).astype(np.uint8)
-    into_water = ndimage.distance_transform_edt(water_with_rim)[RIM_SAMPLES:-RIM_SAMPLES, RIM_SAMPLES:-RIM_SAMPLES] * SAMPLE_M
-    alpha = 1 - (1 - OPEN_WATER_ALPHA) * np.clip(into_water / SHALLOWS_M, 0, 1)
-    image = Image.fromarray(np.dstack((photo, np.round(alpha * 255).astype(np.uint8))), "RGBA")
+    image = Image.fromarray(np.dstack((photo, np.round(land_alpha(water_with_rim) * 255).astype(np.uint8))), "RGBA")
     image.save(folder / "ground.webp", quality=QUALITY, alpha_quality=70, method=5)
     image.reduce(SAMPLES // FAR_PIXELS).save(folder / "ground-far.webp", quality=FAR_QUALITY, alpha_quality=70, method=5)
