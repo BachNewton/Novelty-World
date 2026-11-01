@@ -1,11 +1,10 @@
-import { BufferGeometry, CircleGeometry, Group, Mesh, MeshBasicNodeMaterial, type Node, type Object3D, type Scene } from "three/webgpu";
+import { BufferGeometry, CircleGeometry, Group, Mesh, MeshBasicNodeMaterial, Vector3, type Node, type Object3D, type Scene } from "three/webgpu";
 import { float, positionGeometry, smoothstep, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { CAR, SUSPENSION } from "../../sim/tuning";
 import type { CarState } from "../../sim/car-state";
 import { AXLE_Y, buildCarParts, groundY, type CarDetail, type CarSpec } from "./build";
 import { carMaterial, geometryOf, glassMaterial, type CarLights } from "./material";
-import "./tokens.css";
 
 /*
  * A car to draw, from a `CarState` and nothing else, in the same frame as the
@@ -144,16 +143,19 @@ export function createCarModel(art: CarArt, sun: { azimuthDeg: number; elevation
 
 export type CarModel = ReturnType<typeof createCarModel>;
 
-/**
- * A drop-in for `render/car.ts`: the same shape, a real car, and `setLights` for
- * what a `CarState` doesn't carry.
- */
+/** A car in the scene, with `setLights` for what a `CarState` doesn't carry. */
 export function createCarView(scene: Scene, sun: { azimuthDeg: number; elevationDeg: number }, spec: CarSpec, detail: CarDetail = "hero") {
   const art = buildCarArt(spec, detail);
   const model = createCarModel(art, sun);
   scene.add(model.root);
+  // The simulation has one size of wheel, so its road is where that wheel touches: a car on others rides up or down to meet it.
+  const ride = new Vector3();
+  const rideM = spec.wheel.radiusM - CAR.wheelRadiusM;
   return {
-    draw: model.draw,
+    draw(state: CarState) {
+      model.draw(state);
+      model.root.position.add(ride.set(0, rideM, 0).applyQuaternion(model.root.quaternion));
+    },
     setLights: model.setLights,
     objects: [model.root] as Object3D[],
     dispose() {

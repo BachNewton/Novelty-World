@@ -2,10 +2,9 @@ import type { PerspectiveCamera } from "three/webgpu";
 import { headingOf, speedOf, type CarState } from "../sim/car-state";
 
 /*
- * The cameras that ride with the car: the chase and the front bumper. The chase
- * camera trails the way the car is going rather than the way it points, so a
- * slide shows the side of the car, and it pulls back and widens with speed. The
- * tuning for how they move is here.
+ * The camera that rides with the car. It trails the way the car is going rather
+ * than the way it points, so a slide shows the side of the car, and it pulls
+ * back and widens with speed. The tuning for how it moves is here.
  */
 
 const CHASE = {
@@ -28,11 +27,7 @@ const CHASE = {
   aboveGroundM: 1,
 } as const;
 
-const HOOD = { forwardM: 2.35, aboveM: 0.28, lookAheadM: 30, fieldOfViewDeg: 72 } as const;
-
 const wrap = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
-
-export type CarView = "chase" | "hood";
 
 export function startChaseCamera(camera: PerspectiveCamera, groundAt: (x: number, z: number) => number) {
   let swing: number | null = null;
@@ -51,19 +46,9 @@ export function startChaseCamera(camera: PerspectiveCamera, groundAt: (x: number
       swing = null;
     },
     /** Moves the camera after `seconds` of the car's motion. */
-    update(car: CarState, view: CarView, seconds: number) {
+    update(car: CarState, seconds: number) {
       const heading = headingOf(car.rotation);
       const [x, y, z] = car.position;
-      if (view === "hood") {
-        const noseX = -Math.sin(heading);
-        const noseZ = -Math.cos(heading);
-        camera.position.set(x + noseX * HOOD.forwardM, y + HOOD.aboveM, z + noseZ * HOOD.forwardM);
-        camera.up.set(0, 1, 0);
-        camera.lookAt(x + noseX * HOOD.lookAheadM, y + HOOD.aboveM, z + noseZ * HOOD.lookAheadM);
-        setFieldOfView(HOOD.fieldOfViewDeg);
-        swing = null;
-        return;
-      }
       const speed = speedOf(car);
       const moving = speed > CHASE.slowMS ? Math.atan2(-car.velocity[0], -car.velocity[2]) : heading;
       // Backing up, the camera stays behind the nose: following the travel itself would swing it round the car.

@@ -37,19 +37,18 @@ await build({
 
 const globals = await readFile(join(root, "src/app/globals.css"), "utf8");
 const tokens = globals.match(/--color-aland-drive-[a-z-]+:[^;]+;/g).join("\n");
-const page = `<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><style>:root{${tokens}}html,body{margin:0;background:#000;overflow:hidden}</style><link rel="stylesheet" href="/gallery.css"><script type="module" src="/gallery.js"></script>`;
+const page = `<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><style>:root{${tokens}}html,body{margin:0;background:#000;overflow:hidden}</style><script type="module" src="/gallery.js"></script>`;
 
 const server = createServer(async (request, response) => {
   if (request.url === "/") {
     response.writeHead(200, { "content-type": "text/html" }).end(page);
     return;
   }
-  const name = request.url === "/gallery.js" ? "gallery.js" : request.url === "/gallery.css" ? "gallery.css" : null;
-  if (name === null) {
+  if (request.url !== "/gallery.js") {
     response.writeHead(404).end();
     return;
   }
-  response.writeHead(200, { "content-type": name.endsWith(".js") ? "text/javascript" : "text/css" }).end(await readFile(join(bundleDir, name)));
+  response.writeHead(200, { "content-type": "text/javascript" }).end(await readFile(join(bundleDir, "gallery.js")));
 });
 await new Promise((ready) => server.listen(0, "127.0.0.1", ready));
 const address = `http://127.0.0.1:${server.address().port}/`;

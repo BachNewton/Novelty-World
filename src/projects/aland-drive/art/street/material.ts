@@ -2,7 +2,6 @@ import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/web
 import { attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, int, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3 } from "three/tsl";
 import type { RoadsideInputs } from "../roadside/material";
 import { MOTION_KINDS, MOTION_RANGE_M, STREET_PARTS, type MotionKind, type StreetPart } from "./paint";
-import "../cars/tokens.css";
 import "./tokens.css";
 
 /*

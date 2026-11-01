@@ -6,14 +6,14 @@ Where the project stands, and what's next. `CLAUDE.md` holds how things work, `d
 
 Phase 5's core is done and live at `https://novelty-world.vercel.app/games/3d-games/aland-drive`: the whole island, 94 tiles and 313 MB, streaming from Supabase as version `1af18d018287`, with 91 bridges, a mini map, a world map on one continuous crane camera, GPS, street names and showcase spots on keys 1–0. The exit test passed: Eckerö harbour to Långnäs on the game's own route, 57.8 km, no respawns.
 
-A large library of art is built and pushed under `art/`, and almost none of it is in the game. There is no gameplay yet. The car on screen is still the red placeholder.
+A large library of art is built and pushed under `art/`, and almost none of it is in the game. There is no gameplay yet. The car on screen is the real player's car from `art/cars`, waiting for the owner's look. Its brake, reversing and headlamps stay off, because `CarState` doesn't carry them.
 
 Older tile versions remain in the bucket, which now holds about 538 MB and shares its 1 GB with `audiobooks`. Superseded versions can go once the live one has proved itself.
 
 ## What's next, in order
 
 1. **Measure performance alone on the machine.** Agents held the GPU for every recent measurement. Take a baseline before any art goes in, using `tools/drive.mjs --clock` on a production build. Average cost is level with Phase 4, but the worst frames are not: frame p99 39.8 ms and max 185 ms, against 20.5 and 54.5 ms. The long frames cluster round Mariehamn with nothing loading, possibly first-time building meshes, which is a guess.
-2. **Integrate art in stages, showing the owner each one in the running game.** Ground and road detail, the player's car and the sky; then town ground and facades with the churches; then night art; then sound; then objects placed across the island by regional rules, the biggest piece. Landmarks and the harbour go in along the way. Measure after each stage, because the kits' costs add up and interact.
+2. **Integrate art in stages, showing the owner each one in the running game.** Ground and road detail; then town ground and facades with the churches; then night art; then sound; then objects placed across the island by regional rules, the biggest piece. Landmarks and the harbour go in along the way. Measure after each stage, because the kits' costs add up and interact.
 3. **Fix the leftovers** listed under Known problems.
 
 Teleporting from the map is about half a day, because `jump` already handles streaming and placement.
@@ -26,8 +26,8 @@ Most kits have an `integration.mjs` beside their code, holding exact replacement
 - **Town ground (`art/town-ground`):** needs three new pipeline outputs, baked by `bake_surface.py`: `<tile>/town-surface.rgba.gz` (3000² RGBA of signed distances at 2 m), `<tile>/town-ribbons.bin` (a class byte per ribbon section) and `town-props` (hedges and fountains). `sources._roads_and_buildings` must pass through the OSM areas it drops today; `read_osm` in `bake_tile.py` shows how. It adds about 290 MB of GPU memory over six near layers, the decision to check first. Only L2334E is baked, and seams between tiles are unverified.
 - **Facades and churches (`art/facades`):** `assign.py` picks a building's look and needs new facts per building in `pipeline/buildings.py`: nearest named street, OSM tags, nearby shop, rural, roof rise and fill. `bake.py` shows each one, but it's a gallery shortcut, not the pipeline path. Skip the solids in `replaced-solids.json`. `surfaces/shopfront.ts` and these fronts touch the same line and need merging. None of the models have collision. `church-yards.json` and `fuel-stations.json` came from scripts that were not kept.
 - **Night (`art/night`):** the `real` list in `integration.mjs`, with steps for the baked light, haze, windows and each frame's updates. `lights.json` needs an OSM/ODbL credit when it ships. Make the new meshes part of the precompile, or the first use stalls a frame.
-- **Water:** give `createWater` the sky with `skyAlong: sky.clearAlong` once the sky lands, and `seaAtHour` once the night does.
-- **Sound (`audio/`):** add a thin wrapper round `AlandDrive` for the `?sounds` audition, loading `audio/sound-lab` with `ssr: false`, and a Sound section in `CLAUDE.md`. In the game: `createDriveAudio()` at start, `audio.update(stateFromCar(car, input, { vehicle, surface, place, paused }), dt)` each frame, `reset()` after a jump, `dispose()` on stop. The game must supply `surface` and `place` (forest, shore and town from 0 to 1), which nothing computes yet. The canopy image, water mask and building density are the obvious sources. It has only been checked by numbers. Nobody has heard it, and the owner judges it by ear.
+- **Water:** it reflects the sky and melts into its foot at the horizon. Give `createWater` `seaAtHour` once the night lands.
+- **Sound (`audio/`):** the `?sounds` page is the audition, on `audio/sound-lab`. Still to add: a Sound section in `CLAUDE.md`. In the game: `createDriveAudio()` at start, `audio.update(stateFromCar(car, input, { vehicle, surface, place, paused }), dt)` each frame, `reset()` after a jump, `dispose()` on stop. The game must supply `surface` and `place` (forest, shore and town from 0 to 1), which nothing computes yet. The canopy image, water mask and building density are the obvious sources. It has only been checked by numbers. Nobody has heard it, and the owner judges it by ear.
 
 ## Decisions waiting on the owner
 

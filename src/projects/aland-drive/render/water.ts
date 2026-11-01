@@ -99,6 +99,8 @@ export interface WaterInputs {
   shoreAt: Node<"float">;
   /** The sky along a direction, to reflect: `sky.clearAlong`, or `sky.colourAlong` for clouds at five more reads. Without one, the sky's flat colour. */
   skyAlong?: (direction: Node<"vec3">) => Node<"vec3">;
+  /** Melts a colour into the sky's foot along a direction from the eye: `sky.seaToSky`. Open water takes it, so the sea has no line at the horizon, and shores don't. */
+  meltAlong?: (colour: Node<"vec3">, direction: Node<"vec3">) => Node<"vec3">;
 }
 
 export interface Water {
@@ -106,7 +108,7 @@ export interface Water {
   dispose: () => void;
 }
 
-export function createWater({ colour, sun, shoreAt, skyAlong }: WaterInputs): Water {
+export function createWater({ colour, sun, shoreAt, skyAlong, meltAlong }: WaterInputs): Water {
   const map = new DataTexture(slopePixels(SLOPE_PIXELS), SLOPE_PIXELS, SLOPE_PIXELS, RGBAFormat);
   map.colorSpace = NoColorSpace;
   map.wrapS = map.wrapT = RepeatWrapping;
@@ -150,8 +152,10 @@ export function createWater({ colour, sun, shoreAt, skyAlong }: WaterInputs): Wa
   const glint = pow(max(dot(glintWay, toSun), 0), mix(float(SUN_SHARP_NEAR), float(SUN_SHARP_FAR), farShare));
   const sunlight = colour("sun").mul(glint).mul(mix(float(SUN_BRIGHT_NEAR), float(SUN_BRIGHT_FAR), farShare));
 
+  const seen = mix(body, mirrored, fresnel).add(sunlight);
+
   return {
-    color: mix(body, mirrored, fresnel).add(sunlight),
+    color: meltAlong ? mix(meltAlong(seen, toEye.negate()), seen, shore) : seen,
     dispose() {
       map.dispose();
     },

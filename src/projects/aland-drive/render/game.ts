@@ -1,11 +1,10 @@
-import { BufferAttribute, BufferGeometry, Color, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RedFormat, RepeatWrapping, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
-import { all, attribute, dFdx, dFdy, exp, float, fract, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
+import { BufferAttribute, BufferGeometry, ClampToEdgeWrapping, DataTexture, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, MeshBasicNodeMaterial, NoColorSpace, PerspectiveCamera, Plane, PlaneGeometry, Raycaster, RedFormat, RepeatWrapping, RGBAFormat, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node, type Texture } from "three/webgpu";
+import { all, attribute, cameraPosition, dFdx, dFdy, exp, float, fract, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { startFreeCamera, type View } from "./free-camera";
 import { FLAT_LIGHT, ROAD_TIERS, SHADE_SHARE, type RoadTier, type WorldManifest } from "./tile";
-import { startChaseCamera, type CarView } from "./chase-camera";
+import { startChaseCamera } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
-import { createCarView } from "./car";
 import { createClipmap } from "./clipmap";
 import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
 import { canopyLift, tileReads } from "./tile-reads";
@@ -16,6 +15,9 @@ import { SHOWCASE, type ShowcaseSpot } from "./showcase";
 import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, type StreamStats } from "./stream";
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
+import { createCarView } from "../art/cars/model";
+import { CARS, PLAYER_CAR } from "../art/cars/specs";
+import { createSky, skyLooks } from "../art/sky/sky";
 import { startControls, type GameAction, type MapAction } from "../input/controls";
 import { landImage, mapInk, SharpLand, type MapView } from "../map/draw";
 import { Navigator, type RouteCue } from "../map/navigator";
@@ -48,7 +50,7 @@ export interface Place {
   pitch: number;
 }
 
-export type CameraMode = CarView | "free";
+export type CameraMode = "chase" | "free";
 
 /** A control surface for tests and tools: everything here waits on events, never time. */
 export interface GameProbe {
@@ -97,6 +99,12 @@ export interface GameProbe {
   placeNear: (x: number, z: number) => void;
   /** What's held: the JS heap, what the GPU holds for loaded tiles' meshes, and the fixed images. */
   memory: () => { jsMB: number; meshMB: number; texturesMB: number };
+  /** The renderer's own counts of what it holds, to show nothing is left behind. */
+  rendererMemory: () => Record<string, number>;
+  /** Draws a different car, by name. The drive carries on: nothing in the simulation changes. */
+  setCar: (name: string) => void;
+  /** The name of the car being drawn. */
+  carName: () => string;
 }
 
 export interface HudReading {
@@ -123,6 +131,9 @@ export interface GameEvents {
   /** The road network has arrived: the mini map can show. */
   onMapReady?: () => void;
   onMapOpen?: (open: boolean) => void;
+  onDevMenuOpen?: (open: boolean) => void;
+  /** Another car is being drawn. */
+  onCarChange?: (name: string) => void;
   /** The car has entered a named road. */
   onRoad?: (name: string) => void;
 }
@@ -133,8 +144,19 @@ export interface MapCanvases {
   world: HTMLCanvasElement;
 }
 
+/** A car the dev menu can offer. */
+export interface CarChoice {
+  name: string;
+  /** A paint token, without the `--color-aland-drive-` prefix. */
+  paint: string;
+}
+
 export interface Game {
   probe: GameProbe;
+  /** What a dev menu needs, so the page imports no car art. */
+  cars: readonly CarChoice[];
+  setCar: (name: string) => void;
+  setDevMenuOpen: (open: boolean) => void;
   dispose: () => void;
 }
 
@@ -145,6 +167,7 @@ export const CAMERA_FIELD_OF_VIEW = 60;
 export const CAMERA_NEAR = 0.25;
 /** Far enough to see the whole island from straight above. */
 const CAMERA_FAR = 200000;
+const SKY_REACH_M = CAMERA_FAR * 0.9;
 const SEA_BELOW_LAND_M = -1.2;
 /** The 3D world is drawn at this share of the screen's real pixels each way, and stretched to fit if it's under 1. The page's UI stays sharp. */
 export const RENDER_SCALE = 1;
@@ -294,7 +317,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     renderer.dispose();
     throw new NoWebGpuError();
   }
-  renderer.setClearColor(new Color(token("sky")));
   renderer.setPixelRatio(window.devicePixelRatio * RENDER_SCALE);
   renderer.domElement.style.display = "block";
   renderer.domElement.style.width = "100%";
@@ -361,7 +383,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const grain = texture(grainTexture, positionWorld.xz.div(GRAIN_M)).r.mul(texture(grainTexture, positionWorld.xz.div(GRAIN_M * GRAIN_SECOND_SCALE)).r).mul(2.6).add(0.45);
   const grainShare = float(1).sub(smoothstep(float(GRAIN_FADE_M * 0.3), float(GRAIN_FADE_M), toCamera));
   const groundColor = photo.rgb.pow(vec3(2.2)).mul(mix(float(1), grain, grainShare));
-  const hazed = (color: Node<"vec3">) => mix(color, colorOf("sky"), float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
+  const sky = createSky({ reach: SKY_REACH_M, look: { ...skyLooks().summer, sun: manifest.sun } });
+  scene.add(sky.mesh);
+  const hazeColour = sky.hazeAlong(positionWorld.sub(cameraPosition));
+  const hazed = (color: Node<"vec3">) => mix(color, hazeColour, float(1).sub(exp(toCamera.div(hazeM).pow(2).negate())));
 
   // From high up the mask's mips blur a road into a wide band, so the paint goes as the camera lifts: the map draws its own roads.
   const paintedShare = uniform(1);
@@ -374,7 +399,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const overviewUv = positionWorld.xz.sub(vec2(manifest.overview.west, -manifest.overview.north)).div(overviewSize);
   const overviewPixel = texture(overviewTexture, overviewUv);
   const inOverview = all(greaterThanEqual(overviewUv, vec2(0, 0))).and(all(lessThan(overviewUv, vec2(1, 1))));
-  const waterOf = createWater({ colour: colorOf, sun: manifest.sun, shoreAt: select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0)) });
+  const waterOf = createWater({ colour: colorOf, sun: manifest.sun, shoreAt: select(inOverview, texture(overviewTexture, overviewUv).level(float(WATER_SHORE_MIP)).a, float(0)), skyAlong: sky.clearAlong, meltAlong: sky.seaToSky });
   const pastTiles = select(inOverview, mix(waterOf.color, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), waterOf.color);
   const terrainColor = hazed(mix(pastTiles, mix(waterOf.color, land, photo.a), farSeen));
 
@@ -540,20 +565,29 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   scene.add(edgeMesh);
 
   const drive = new Drive(world, startLine(manifest.start.chain).at(START_ALONG_M));
+  let carSpec = PLAYER_CAR;
+  let carView = createCarView(scene, manifest.sun, carSpec);
+  const cullCar = (culled: boolean) => {
+    for (const object of carView.objects) {
+      object.traverse((part) => {
+        part.frustumCulled = culled;
+      });
+    }
+  };
 
   // A pipeline first used mid-drive stalls that frame while it compiles, so every mesh is built once before the drive starts.
   for (const { cells } of [...ribbons.values(), ...buildings.values()]) {
     for (const { mesh } of cells) mesh.visible = true;
   }
   clipmap.showWide(true);
+  cullCar(false);
   await renderer.compileAsync(scene, camera);
   await forest.compile();
+  cullCar(true);
   clipmap.showWide(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
   landed();
-
-  const carView = createCarView(scene, manifest.sun);
 
   const { worldOrigin } = manifest;
   const groundAt = (x: number, z: number) => world.height(x, z);
@@ -566,7 +600,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const chaseCamera = startChaseCamera(camera, groundAt);
 
   let cameraMode: CameraMode = "chase";
-  let lastCarView: CarView = "chase";
   const setCamera = (mode: CameraMode) => {
     if (mode === cameraMode) return;
     if (mode === "free") {
@@ -575,7 +608,6 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       camera.updateProjectionMatrix();
     } else {
       freeCamera.leave();
-      lastCarView = mode;
     }
     cameraMode = mode;
     events.onCamera(mode);
@@ -586,6 +618,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let mapFrom: ChasePose | null = null;
   let mapLook: { x: number; z: number; detail: boolean } | null = null;
   let heldFlight = false;
+  let devMenuOpen = false;
   const raycaster = new Raycaster();
   const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
   const groundHit = new Vector3();
@@ -705,10 +738,26 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (!open) mapLook = null;
   };
 
+  const setDevMenuOpen = (open: boolean) => {
+    if (open === devMenuOpen || (open && (mapFrom || jumping))) return;
+    devMenuOpen = open;
+    controls.setDevMenuOpen(open);
+    events.onDevMenuOpen?.(open);
+  };
+
+  const setCar = (name: string) => {
+    const spec = CARS.find((car) => car.name === name);
+    if (!spec) throw new Error(`no car called ${name}`);
+    if (spec === carSpec) return;
+    carView.dispose();
+    carSpec = spec;
+    carView = createCarView(scene, manifest.sun, spec);
+    events.onCarChange?.(name);
+  };
+
   const onAction = (action: GameAction) => {
     if (action === "respawn") drive.respawn();
-    if (action === "view" && cameraMode !== "free") setCamera(cameraMode === "chase" ? "hood" : "chase");
-    if (action === "freeCamera") setCamera(cameraMode === "free" ? lastCarView : "free");
+    if (action === "freeCamera") setCamera(cameraMode === "free" ? "chase" : "free");
     if (action === "map") setMapOpen(true);
   };
   const onMapAction = (action: MapAction) => {
@@ -719,7 +768,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       worldMap?.setRoute(null);
     }
   };
-  const controls = startControls({ onAction, onMapAction, onDigit: (digit) => void jumpByKey(digit).catch(fail), onInputKind: events.onInputKind });
+  const controls = startControls({ onAction, onMapAction, onDigit: (digit) => void jumpByKey(digit).catch(fail), onDevMenu: setDevMenuOpen, onInputKind: events.onInputKind });
 
   const resize = () => {
     const { clientWidth, clientHeight } = container;
@@ -785,7 +834,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     lastFrame = now;
     let share = 1;
     if (mapFrom && !heldFlight) worldMap?.step(controls.mapSteer(), seconds);
-    if (!held && !mapFrom && !jumping) {
+    if (!held && !mapFrom && !jumping && !devMenuOpen) {
       owedSeconds += seconds;
       const steps = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
       for (let step = 0; step < steps; step++) drive.step(nextInput());
@@ -811,9 +860,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       const shown = Math.max(0, Math.min(1, (height - OVERLAY_FROM_M) / (OVERLAY_FULL_M - OVERLAY_FROM_M)));
       worldMap.draw(mapViewOf(height, pose.turn), shown);
     } else if (cameraMode === "free") {
-      freeCamera.update(now);
+      if (!devMenuOpen) freeCamera.update(now);
     } else {
-      chaseCamera.update(car, cameraMode, held ? STEP_S * 4 : seconds);
+      chaseCamera.update(car, held ? STEP_S * 4 : seconds);
       hazeM.value = HAZE_M;
       paintedShare.value = 1;
     }
@@ -834,6 +883,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     cameraSpot.value.set(spot.x, spot.z);
     forest.update(spot, camera);
     showRibbons(spot);
+    sky.update(camera.position, seconds);
     renderer.render(scene, camera);
     frames++;
     if (!resolving) {
@@ -929,7 +979,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         const { usedJSHeapSize } = (performance as unknown as { memory: { usedJSHeapSize: number } }).memory;
         return { jsMB: usedJSHeapSize / 1e6, meshMB: meshBytes / 1e6, texturesMB: layers.textureBytes / 1e6 };
       },
+      rendererMemory: () => ({ ...renderer.info.memory }),
+      setCar,
+      carName: () => carSpec.name,
     },
+    cars: CARS.map(({ name, paint }) => ({ name, paint })),
+    setCar,
+    setDevMenuOpen,
     dispose() {
       void renderer.setAnimationLoop(null);
       observer.disconnect();
@@ -957,6 +1013,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       edgeGeometry.dispose();
       edgeMaterial.dispose();
       seaMaterial.dispose();
+      sky.dispose();
       waterOf.dispose();
       roadMaterial.dispose();
       layers.dispose();

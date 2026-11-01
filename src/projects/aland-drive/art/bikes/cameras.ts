@@ -1,5 +1,5 @@
 /*
- * Suggested cameras for riding, in the shape of `CHASE` and `HOOD` in
+ * Suggested cameras for riding, in the shape of `CHASE` in
  * `render/chase-camera.ts`. Closer and lower than the car's, because a rider is
  * 1.8 m tall and half a metre wide, and at 8 m/s the road needs no reading far
  * ahead. Metres from the bike's origin, on the road between the axles.
