@@ -13,7 +13,7 @@ Older tile versions remain in the bucket, which now holds about 538 MB and share
 ## What's next, in order
 
 1. **Measure performance alone on the machine.** Agents held the GPU for every recent measurement. Take a baseline before any art goes in, using `tools/drive.mjs --clock` on a production build. Average cost is level with Phase 4, but the worst frames are not: frame p99 39.8 ms and max 185 ms, against 20.5 and 54.5 ms. The long frames cluster round Mariehamn with nothing loading, possibly first-time building meshes, which is a guess.
-2. **Integrate art in stages, showing the owner each one in the running game.** Ground and road detail; then town ground and facades with the churches; then night art; then sound; then objects placed across the island by regional rules, the biggest piece. Landmarks and the harbour go in along the way. Measure after each stage, because the kits' costs add up and interact.
+2. **Integrate art in stages, showing the owner each one in the running game.** Ground and road detail; then town ground and facades with the churches; then night art; then objects placed across the island by regional rules, the biggest piece. Landmarks and the harbour go in along the way. Measure after each stage, because the kits' costs add up and interact.
 3. **Fix the leftovers** listed under Known problems.
 
 Teleporting from the map is about half a day, because `jump` already handles streaming and placement.
@@ -27,7 +27,7 @@ Most kits have an `integration.mjs` beside their code, holding exact replacement
 - **Facades and churches (`art/facades`):** `assign.py` picks a building's look and needs new facts per building in `pipeline/buildings.py`: nearest named street, OSM tags, nearby shop, rural, roof rise and fill. `bake.py` shows each one, but it's a gallery shortcut, not the pipeline path. Skip the solids in `replaced-solids.json`. `surfaces/shopfront.ts` and these fronts touch the same line and need merging. None of the models have collision. `church-yards.json` and `fuel-stations.json` came from scripts that were not kept.
 - **Night (`art/night`):** the `real` list in `integration.mjs`, with steps for the baked light, haze, windows and each frame's updates. `lights.json` needs an OSM/ODbL credit when it ships. Make the new meshes part of the precompile, or the first use stalls a frame.
 - **Water:** it reflects the sky and melts into its foot at the horizon. Give `createWater` `seaAtHour` once the night lands.
-- **Sound (`audio/`):** the `?sounds` page is the audition, on `audio/sound-lab`. Still to add: a Sound section in `CLAUDE.md`. In the game: `createDriveAudio()` at start, `audio.update(stateFromCar(car, input, { vehicle, surface, place, paused }), dt)` each frame, `reset()` after a jump, `dispose()` on stop. The game must supply `surface` and `place` (forest, shore and town from 0 to 1), which nothing computes yet. The canopy image, water mask and building density are the obvious sources. It has only been checked by numbers. Nobody has heard it, and the owner judges it by ear.
+- **Sound (`audio/`):** in the game, every car sounding as the Skerry GT, and the `?sounds` page is the audition, on `audio/sound-lab`. Still to add: a Sound section in `CLAUDE.md`. `sim/surroundings.ts` reads the surface and the place. Forest is a stand-in, the land that's neither town nor shore, because canopy data is only on the GPU, and service and unclassified roads read as gravel in town too. The owner judges it by ear.
 
 ## Decisions waiting on the owner
 

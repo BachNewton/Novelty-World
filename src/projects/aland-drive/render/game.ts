@@ -15,6 +15,10 @@ import { SHOWCASE, type ShowcaseSpot } from "./showcase";
 import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, type StreamStats } from "./stream";
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
+import { createDriveAudio } from "../audio/graph";
+import { stateFromCar } from "../audio/model";
+import { useDriveSoundSettings } from "../audio/settings";
+import { audioContext } from "@/shared/lib/sound";
 import { createCarView } from "../art/cars/model";
 import { CARS, PLAYER_CAR } from "../art/cars/specs";
 import { createSky, skyLooks } from "../art/sky/sky";
@@ -28,7 +32,8 @@ import { NO_INPUT, type DriveInput } from "../sim/car";
 import { headingOf, speedOf, type CarState } from "../sim/car-state";
 import { Drive, emptyLog, initPhysics, START_ALONG_M, type DriveLog } from "../sim/drive";
 import { RoadLine, chainLine } from "../sim/road-net";
-import { STEP_S } from "../sim/tuning";
+import { placeAround, surfaceUnder } from "../sim/surroundings";
+import { GEARBOX, STEP_S } from "../sim/tuning";
 import { World, type TileDetail } from "../sim/world";
 import type { InputKind } from "@/shared/lib/input";
 
@@ -111,8 +116,10 @@ export interface GameProbe {
 
 export interface HudReading {
   speedKmh: number;
-  /** 0 at rest to 1 at top speed. */
-  speedShare: number;
+  /** The gear as a driver reads it: R, or 1 and up. */
+  gear: string;
+  /** 0 to 1 at the redline. */
+  revs: number;
   /** The GPS's next direction. */
   cue: RouteCue | null;
 }
@@ -178,7 +185,6 @@ export const FOREST_DEFAULTS: ForestSettings = { fullReachM: 464, forestReachM: 
 const LONGEST_FRAME_S = 0.1;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
-const TOP_SPEED_SHARE_MS = 55.6;
 const EDGE_WALL_HEIGHT_M = 2.5;
 const EDGE_WALL_STEP_M = 40;
 const DASH_SHARE = 0.34;
@@ -762,6 +768,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     if (action === "respawn") drive.respawn();
     if (action === "freeCamera") setCamera(cameraMode === "free" ? "chase" : "free");
     if (action === "map") setMapOpen(true);
+    if (action === "mute") useDriveSoundSettings.getState().toggleMuted();
   };
   const onMapAction = (action: MapAction) => {
     if (action === "close") setMapOpen(false);
@@ -803,9 +810,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     }
   };
 
+  const audio = createDriveAudio();
+  let lastInput = NO_INPUT;
+  let placements = drive.placements;
+  // No frames run in a hidden tab, so the last one's engine note would hold.
+  const hushWhenHidden = () => {
+    void audioContext().then((context) => (document.hidden ? context.suspend() : context.resume()));
+  };
+  document.addEventListener("visibilitychange", hushWhenHidden);
+
   const nextInput = (): DriveInput => {
-    if (autopilot) return autopilot.input(drive.stateAt(1));
-    return cameraMode === "free" ? NO_INPUT : controls.read();
+    if (autopilot) lastInput = autopilot.input(drive.stateAt(1));
+    else lastInput = cameraMode === "free" ? NO_INPUT : controls.read();
+    return lastInput;
   };
 
   const detailSpotAt = new Vector3();
@@ -878,7 +895,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     clipmap.showWide(lifted);
     const speed = speedOf(car);
     const cue = navigator?.update(car.position[0], car.position[2], headingClockwise(car), speed) ?? null;
-    events.onHud({ speedKmh: speed * 3.6, speedShare: Math.min(speed / TOP_SPEED_SHARE_MS, 1), cue });
+    const engine = drive.engine();
+    events.onHud({ speedKmh: speed * 3.6, gear: engine.reversing ? "R" : String(engine.gear + 1), revs: Math.min(engine.rpm / GEARBOX.redlineRpm, 1), cue });
+    if (drive.placements !== placements) {
+      placements = drive.placements;
+      audio.reset();
+    }
+    const [carX, , carZ] = car.position;
+    audio.update(stateFromCar(car, lastInput, { vehicle: "skerry-gt", engine, surface: surfaceUnder(world, carX, carZ), place: placeAround(world, carX, carZ), paused: mapFrom !== null || jumping || devMenuOpen }), seconds);
     const focus = loadingAround ?? mapLook ?? (cameraMode === "free" ? { x: camera.position.x, z: camera.position.z } : { x: car.position[0], z: car.position[2] });
     stream.update(focus.x, focus.z, mapLook?.detail);
     layers.uploadStep();
@@ -995,6 +1019,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     setDevMenuOpen,
     dispose() {
       void renderer.setAnimationLoop(null);
+      document.removeEventListener("visibilitychange", hushWhenHidden);
+      audio.dispose();
       observer.disconnect();
       freeCamera.dispose();
       controls.dispose();

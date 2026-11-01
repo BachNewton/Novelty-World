@@ -19,16 +19,17 @@ export const BINDINGS = {
   respawn: binding("Y", "R"),
   freeCamera: binding("View", "F"),
   map: binding("Menu", "M"),
+  mute: binding("X", "N"),
   mapPick: binding("A", "Click"),
   mapClear: binding("X", "X"),
   mapClose: binding("B", "Esc"),
 } as const;
 
-export type GameAction = "respawn" | "freeCamera" | "map";
+export type GameAction = "respawn" | "freeCamera" | "map" | "mute";
 export type MapAction = "pick" | "clear" | "close";
 
-const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF: "freeCamera", KeyM: "map" };
-const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", View: "freeCamera", Menu: "map" };
+const KEY_ACTIONS: Partial<Record<string, GameAction>> = { KeyR: "respawn", KeyF: "freeCamera", KeyM: "map", KeyN: "mute" };
+const PAD_ACTIONS: Partial<Record<StandardButton, GameAction>> = { Y: "respawn", View: "freeCamera", Menu: "map", X: "mute" };
 const KEY_MAP_ACTIONS: Partial<Record<string, MapAction>> = { KeyX: "clear", Escape: "close", KeyM: "close" };
 const PAD_MAP_ACTIONS: Partial<Record<StandardButton, MapAction>> = { A: "pick", X: "clear", B: "close", Menu: "close" };
 const TAKEN_KEYS = new Set(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);

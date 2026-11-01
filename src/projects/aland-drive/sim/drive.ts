@@ -1,6 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Car, type DriveInput } from "./car";
 import { blendCarStates, headingOf, speedOf, type CarState } from "./car-state";
+import type { EngineRead } from "./gearbox";
 import { GroundBlocks } from "./ground";
 import type { RoadPoint } from "./road-net";
 import { STEP_S, WORLD as PHYSICS } from "./tuning";
@@ -49,6 +50,8 @@ export class Drive {
   private flippedSteps = 0;
   private readonly recentVerticalSpeeds: number[] = [];
   private touching = [true, true, true, true];
+  /** Times the car has been put somewhere rather than driven there. */
+  placements = 0;
   log = emptyLog();
 
   constructor(
@@ -89,6 +92,12 @@ export class Drive {
     this.wetSteps = 0;
     this.flippedSteps = 0;
     this.recentVerticalSpeeds.length = 0;
+    this.placements++;
+  }
+
+  /** The engine as it stands after the last step, and whether the car is in reverse. */
+  engine(): EngineRead & { reversing: boolean } {
+    return { ...this.car.engine, reversing: this.car.reversing };
   }
 
   /** Back to the nearest road, facing the way along it nearest the way the car faced. */

@@ -1,6 +1,7 @@
 import { audioContext, listenForAudioUnlock, renderSound, SoundPlayer, unlockAudio, type SoundSettings } from "@/shared/lib/sound";
 import { useDriveSoundSettings } from "./settings";
-import { mix, noJolts, readJolts, restingEngine, stepEngine, type DriveAudioState, type EngineRead, type Jolt, type Mix } from "./model";
+import { restingEngine, stepEngine, type EngineRead } from "../sim/gearbox";
+import { mix, noJolts, readJolts, type DriveAudioState, type Jolt, type Mix } from "./model";
 import { SOUNDS, type SoundId } from "./sounds";
 import { CYCLE_RPM, engineCycle, forestBed, freewheelLoop, grassLoop, gravelLoop, gullsBed, noiseLoop, shoreBed, townBed, type Loop } from "./synthesis";
 import { ENGINES, type EngineId, type EngineSpec, type VehicleId } from "./vehicles";
@@ -361,7 +362,7 @@ export function createDriveAudio({ context, settings = currentSettings }: DriveA
       choose(state.vehicle, live, rig);
 
       if (engine !== null && spec !== null) {
-        const stepped = stepEngine(spec, engine, state.speedMS, state.throttle, dt);
+        const stepped = state.engine ? { read: state.engine, shifted: state.engine.gear !== engine.gear } : stepEngine(spec, engine, state.speedMS, state.throttle, dt);
         engine = stepped.read;
         if (stepped.shifted && state.paused !== true) rig.player.play("gear");
       }

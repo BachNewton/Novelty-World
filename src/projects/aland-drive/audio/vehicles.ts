@@ -1,7 +1,11 @@
+import type { Gearbox } from "../sim/gearbox";
+import { GEARBOX } from "../sim/tuning";
+
 /*
- * What each drivetrain sounds like, as numbers. The simulation has one engine
- * and no gears, so the gearbox and the revs are the sound's own: they follow
- * the car's speed, and nothing in the car's behaviour depends on them.
+ * What each drivetrain sounds like, as numbers. The Skerry GT's gearbox is the
+ * simulation's own, and in the game the sound hears that car's real gear and
+ * revs. The others run their gearboxes in the audition alone, until the
+ * simulation has more than one engine.
  */
 
 export type EngineId = "skerry-gt" | "old-estate" | "electric" | "diesel-van";
@@ -27,17 +31,9 @@ export interface Harmonic {
   cents: number;
 }
 
-export interface EngineSpec {
-  idleRpm: number;
-  redlineRpm: number;
+export interface EngineSpec extends Gearbox {
   /** Firings per crankshaft turn: half the cylinders in a four-stroke, or a motor's poles. */
   firesPerRev: number;
-  /** The speed at the redline in each gear, m/s. One entry is a car with no gearbox. */
-  gearTopMS: readonly number[];
-  /** How long the drive is cut for a gear change. */
-  shiftS: number;
-  /** Upshift point lifting off, as a share of the redline. Flat out it shifts near the redline. */
-  gentleShift: number;
 
   /** One firing's ring, as multiples of the firing frequency, in the rendered cycle. */
   pulseOrders: readonly number[];
@@ -71,12 +67,8 @@ export interface EngineSpec {
 export const ENGINES: Record<EngineId, EngineSpec> = {
   // A straight six that loves to rev: smooth at idle, a hard edge up high.
   "skerry-gt": {
-    idleRpm: 900,
-    redlineRpm: 7800,
+    ...GEARBOX,
     firesPerRev: 3,
-    gearTopMS: [15, 25, 35, 45, 53, 62],
-    shiftS: 0.11,
-    gentleShift: 0.42,
     pulseOrders: [1, 2.02, 3.04, 5.1],
     pulseDecay: 0.5,
     unevenness: 0.12,
