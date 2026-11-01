@@ -9,7 +9,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import sharp from "sharp";
-import { NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, ROAD_MASK_MIP, SHORTEST_M, WIDEST_CROWN, readImage, roadLevel, treeHeight, treePlace, treeStands } from "../render/tree-place";
+import { NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, ROAD_MASK_MIP, SHORTEST_M, readImage, roadLevel, treeHeight, treePlace, treeStands } from "../render/tree-place";
+import { WIDEST_CROWN } from "../render/tree-shapes";
 import type { TileManifest, WorldManifest } from "../render/tile";
 
 const option = (name: string, otherwise: string) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3) ?? otherwise;

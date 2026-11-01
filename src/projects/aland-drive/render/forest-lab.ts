@@ -135,7 +135,7 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
   const modelColours: Record<ForestModel, string> = { turned: "lab-turned", cone: "lab-cone" };
   const forest = createForest(scene, renderer, {
     knobs,
-    canopyAt: (place) => reads.canopyAt(place, 0),
+    canopyAt: reads.canopyAt,
     standsAt: reads.standsAt,
     groundAt: clipmap.groundBlendedAt,
     roads: { at: reads.roadsAt, tileM },
