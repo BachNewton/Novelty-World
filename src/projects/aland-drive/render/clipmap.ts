@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, DataTexture, FloatType, Mesh, MeshBasicNodeMaterial, NearestFilter, RedFormat, Vector2, type Node, type Scene, type Vector3 } from "three/webgpu";
-import { abs, float, ivec2, max, mix, mod, positionGeometry, round, smoothstep, textureLoad, uniform, vec3 } from "three/tsl";
+import { abs, float, floor, ivec2, max, mix, mod, positionGeometry, round, smoothstep, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { patchIndices } from "./tile";
 import type { World } from "../sim/world";
 
@@ -50,6 +50,7 @@ function ringIndices(holeColumn: number, holeRow: number): Uint32Array {
 interface Ring {
   stepM: number;
   groundAt: (place: Node<"vec2">) => Node<"float">;
+  groundBlendedAt: (place: Node<"vec2">) => Node<"float">;
   heights: Float32Array;
   texture: DataTexture;
   origin: { value: Vector2 };
@@ -68,6 +69,8 @@ export interface Clipmap {
   update: (camera: Vector3) => void;
   /** The height of the ring's nearest node to a place: for a shader to stand something on the ground. */
   groundAt: (level: number, place: Node<"vec2">) => Node<"float">;
+  /** The same ground read between the ring's four nearest nodes, so it follows a slope. */
+  groundBlendedAt: (level: number, place: Node<"vec2">) => Node<"float">;
   dispose: () => void;
 }
 
@@ -128,7 +131,14 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
     mesh.frustumCulled = false;
     scene.add(mesh);
     const groundAt = (spot: Node<"vec2">) => textureLoad(texture, ivec2(round(spot.sub(origin).div(ringStep)))).r;
-    return { stepM: ringStep, groundAt, heights, texture, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh };
+    const groundBlendedAt = (spot: Node<"vec2">) => {
+      const inRing = spot.sub(origin).div(ringStep);
+      const corner = floor(inRing);
+      const share = inRing.sub(corner);
+      const at = (column: number, row: number) => textureLoad(texture, ivec2(corner.add(vec2(column, row)))).r;
+      return mix(mix(at(0, 0), at(1, 0), share.x), mix(at(0, 1), at(1, 1), share.x), share.y);
+    };
+    return { stepM: ringStep, groundAt, groundBlendedAt, heights, texture, origin, column: Number.NaN, row: Number.NaN, revision: -1, farRevision: -1, mesh };
   });
 
   const copyHeights = (ring: Ring, level: number) => {
@@ -145,6 +155,9 @@ export function createClipmap(scene: Scene, world: World, stepM: number, colorNo
   return {
     groundAt(level, place) {
       return rings[level].groundAt(place);
+    },
+    groundBlendedAt(level, place) {
+      return rings[level].groundBlendedAt(place);
     },
     showWide(shown) {
       for (const ring of rings.slice(DRIVING_LEVELS)) ring.mesh.visible = shown;

@@ -1,1 +1,1 @@
-export { AlandDrive } from "./components/aland-drive";
+export { AlandDrivePage as AlandDrive } from "./components/aland-drive-page";

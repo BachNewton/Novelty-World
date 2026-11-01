@@ -7,11 +7,11 @@ import { startChaseCamera, type CarView } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createCarView } from "./car";
 import { createClipmap } from "./clipmap";
-import { createForest, FOREST_REACH_M } from "./forest";
-import { ROAD_MASK_MIP } from "./tree-place";
+import { createForest } from "./forest";
+import { canopyLift, forestGround, tileReads } from "./tile-reads";
 import { createWater, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
-import { mapCameraAt, type ChasePose } from "./map-camera";
+import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
 import { SHOWCASE, type ShowcaseSpot } from "./showcase";
 import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, type StreamStats } from "./stream";
 import { tileBase } from "./tile-address";
@@ -86,9 +86,9 @@ export interface GameProbe {
   /** The GPS's own route through places in order, each (x, z), for a drive that must pass them. */
   routeThrough: (places: [number, number][]) => number[];
   openMap: (open: boolean) => void;
-  /** Holds the camera at a place along the map's path, or lets it go with null. */
-  holdZoom: (zoom: number | null) => void;
-  /** How far along the map's path the camera is, 0 at the car to 1 at the top. */
+  /** Holds the camera at a place along the flight to the map, or lets it go with null. */
+  holdFlight: (flight: number | null) => void;
+  /** How far along the flight to the map the camera is, 0 at the car to 1 at the map. */
   mapShown: () => number;
   /** Where the camera is, and which way it looks. */
   cameraPlace: () => number[];
@@ -140,13 +140,13 @@ export interface Game {
 /** Three drops to WebGL2 by itself when it can't make a WebGPU device; this game doesn't run there. */
 export class NoWebGpuError extends Error {}
 
-const CAMERA_FIELD_OF_VIEW = 60;
-const CAMERA_NEAR = 0.25;
+export const CAMERA_FIELD_OF_VIEW = 60;
+export const CAMERA_NEAR = 0.25;
 /** Far enough to see the whole island from straight above. */
 const CAMERA_FAR = 200000;
 const SEA_BELOW_LAND_M = -1.2;
 /** The 3D world is drawn at this share of the screen's pixels each way, and stretched to fit. The page's UI stays sharp. */
-const RENDER_SCALE = 0.7;
+export const RENDER_SCALE = 0.7;
 const LONGEST_FRAME_S = 0.1;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
@@ -175,25 +175,20 @@ const PAINTED_ROADS_GONE_M = 500;
 const OVERLAY_FROM_M = 250;
 const OVERLAY_FULL_M = 1100;
 const MAP_FIELD_OF_VIEW = 45;
-/** Room round the island at the top of the zoom. */
+/** Room round the island on the map. */
 const MAP_MARGIN = 1.05;
 /** Light on flat open ground in the baked shading: at this the photo shows as it was taken. */
 const FLAT_LIGHT = 0.8;
 /** The photo already holds most of its own relief, so the baked shading only adds to it. */
 const SHADE_SHARE = 0.65;
-/** Past the trees, the terrain itself rises by the forest. */
-const CANOPY_RISE_FROM_M = FOREST_REACH_M - 300;
-const CANOPY_RISE_FULL_M = FOREST_REACH_M - 40;
 const BUILDINGS_REACH_M = DETAIL_SEEN_M;
 const GRAIN_M = 7;
 const GRAIN_SECOND_SCALE = 0.31;
 const GRAIN_FADE_M = 160;
 const GRAIN_PIXELS = 256;
-const FOREST_NEAR_RING = 0;
-const FOREST_FAR_RING = 2;
 
-const token = (name: string) => themeColor(`--color-aland-drive-${name}`);
-const colorOf = (name: string) => {
+export const token = (name: string) => themeColor(`--color-aland-drive-${name}`);
+export const colorOf = (name: string) => {
   const { r, g, b } = token(name);
   return vec3(r, g, b);
 };
@@ -379,37 +374,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const pastTiles = select(inOverview, mix(waterOf.color, overviewPixel.rgb.pow(vec3(2.2)), overviewPixel.a), waterOf.color);
   const terrainColor = hazed(mix(pastTiles, mix(waterOf.color, land, photo.a), farSeen));
 
-  /** A tree's height at a place anywhere, off the image of whichever tile holds it, at a level of its mips. */
-  const canopyAt = (place: Node<"vec2">, mip: number) => {
-    const inTiles = place.div(tileM);
-    const tile = inTiles.floor();
-    const spot = tile.sub(vec2(layers.mapColumn, layers.mapRow));
-    const within = all(greaterThanEqual(spot, vec2(0, 0))).and(all(lessThan(spot, vec2(layers.mapColumns, layers.mapRows))));
-    const row = textureLoad(layers.slots, ivec2(spot.clamp(vec2(0, 0), vec2(layers.mapColumns - 1, layers.mapRows - 1))));
-    const layer = int(row.r.mul(255).round().sub(1).max(0));
-    const units = texture(layers.canopy, inTiles.sub(tile)).depth(layer).level(float(mip)).r.mul(255);
-    return select(within.and(row.r.greaterThan(0.001)), units.mul(manifest.canopy.unitM), float(0));
-  };
+  const { canopyAt, roadsAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
-  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, (place, level) => {
-    if (level < 1) return float(0);
-    return canopyAt(place, level).mul(smoothstep(float(CANOPY_RISE_FROM_M), float(CANOPY_RISE_FULL_M), place.sub(cameraSpot).length()));
-  });
-  const roadsAt = (place: Node<"vec2">) => {
-    const inTiles = place.div(tileM);
-    const tile = inTiles.floor();
-    const spot = tile.sub(vec2(layers.mapColumn, layers.mapRow));
-    const within = all(greaterThanEqual(spot, vec2(0, 0))).and(all(lessThan(spot, vec2(layers.mapColumns, layers.mapRows))));
-    const row = textureLoad(layers.slots, ivec2(spot.clamp(vec2(0, 0), vec2(layers.mapColumns - 1, layers.mapRows - 1))));
-    const layer = int(row.r.mul(255).round().sub(1).max(0));
-    const roads = texture(layers.mask, inTiles.sub(tile)).depth(layer).level(float(ROAD_MASK_MIP));
-    return select(within.and(row.r.greaterThan(0.001)), roads.g.add(roads.b), float(0));
-  };
+  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot));
   const forest = createForest(scene, {
     canopyAt: (place) => canopyAt(place, 0),
-    groundNear: (place) => clipmap.groundAt(FOREST_NEAR_RING, place),
-    groundMid: (place) => clipmap.groundAt(1, place),
-    groundFar: (place) => clipmap.groundAt(FOREST_FAR_RING, place),
+    ...forestGround(clipmap),
     roads: { at: roadsAt, tileM },
     colour: colorOf,
     hazed,
@@ -604,7 +574,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   let navigator: Navigator | null = null;
   // The camera left the chase view here, and detail stays here until it's back. Null while driving.
   let mapFrom: ChasePose | null = null;
-  let heldZoom = false;
+  let heldFlight = false;
   const raycaster = new Raycaster();
   const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
   const groundHit = new Vector3();
@@ -679,18 +649,19 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     return spot ? jump(spot) : Promise.resolve();
   };
 
-  /** How high the whole island needs the camera, seen from above the car. */
-  const topDistance = (car: CarState) => {
+  /** The whole island, centred, whatever the screen's shape. */
+  const mapTarget = (): MapTarget => {
     if (!roadGraph) throw new Error("no road network yet");
     const { west, east, top, bottom } = roadGraph.bounds;
-    const across = Math.max(car.position[0] - west, east - car.position[0]) / Math.max(camera.aspect, 0.1);
-    const along = Math.max(car.position[2] - top, bottom - car.position[2]);
-    return (MAP_MARGIN * Math.max(across, along)) / Math.tan((MAP_FIELD_OF_VIEW * Math.PI) / 360);
+    const across = (east - west) / 2 / Math.max(camera.aspect, 0.1);
+    const along = (bottom - top) / 2;
+    const heightM = (MAP_MARGIN * Math.max(across, along)) / Math.tan((MAP_FIELD_OF_VIEW * Math.PI) / 360);
+    return { x: (west + east) / 2, z: (top + bottom) / 2, heightM, fieldOfViewDeg: MAP_FIELD_OF_VIEW };
   };
 
   const setMapOpen = (open: boolean) => {
     if (!worldMap || !navigator || cameraMode === "free" || jumping) return;
-    if (open === (worldMap.goal > 0)) return;
+    if (open === worldMap.wanted) return;
     if (open && !mapFrom) {
       const car = drive.stateAt(1);
       const { x, y, z } = camera.position;
@@ -706,7 +677,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
         map.startAt(car.position[0], car.position[2], headingClockwise(car), route, along);
       });
     }
-    worldMap.toggle();
+    worldMap.wanted = open;
   };
 
   const onAction = (action: GameAction) => {
@@ -762,13 +733,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   const detailSpotAt = new Vector3();
   /** This frame's camera as a view of the ground, for what's drawn over the render. */
-  const mapViewOf = (height: number): MapView => {
+  const mapViewOf = (height: number, turn: number): MapView => {
     const { clientWidth: width, clientHeight: tall } = container;
     const scale = tall / 2 / Math.tan((camera.fov * Math.PI) / 360) / Math.max(height, 1);
     return {
       scale,
-      // Up on screen stays the car's way, whatever that is.
-      turn: mapFrom ? Math.atan2(mapFrom.forward[0], -mapFrom.forward[2]) : 0,
+      turn,
       width,
       height: tall,
       toScreen: (x, z) => {
@@ -789,7 +759,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     const seconds = Math.min(lastFrame === null ? 0 : (now - lastFrame) / 1000, LONGEST_FRAME_S);
     lastFrame = now;
     let share = 1;
-    if (mapFrom && !heldZoom) worldMap?.step(controls.mapSteer(), seconds);
+    if (mapFrom && !heldFlight) worldMap?.step(controls.mapStick(), seconds);
     if (!held && !mapFrom && !jumping) {
       owedSeconds += seconds;
       const steps = Math.min(Math.floor(owedSeconds / STEP_S), MOST_STEPS_A_FRAME);
@@ -801,10 +771,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     carView.draw(car);
     if (mapFrom && worldMap) {
       const carNow = mapFrom.car;
-      const pose = mapCameraAt(worldMap.zoom, mapFrom, { topDistanceM: topDistance(car), fieldOfViewDeg: MAP_FIELD_OF_VIEW, panX: worldMap.panX, panZ: worldMap.panZ }, groundAt);
+      const pose = mapCameraAt(worldMap.flight, mapFrom, mapTarget(), groundAt);
       camera.position.set(...pose.position);
-      camera.up.set(0, 1, 0);
-      camera.lookAt(...pose.lookAt);
+      camera.rotation.set(pose.pitch, -pose.turn, 0, "YXZ");
       if (camera.fov !== pose.fieldOfViewDeg) {
         camera.fov = pose.fieldOfViewDeg;
         camera.updateProjectionMatrix();
@@ -814,7 +783,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       hazeM.value = HAZE_M * (1 + (Math.max(height, 0) / HAZE_CLEARS_FROM_M) ** 2);
       paintedShare.value = Math.max(1 - height / PAINTED_ROADS_GONE_M, 0);
       const shown = Math.max(0, Math.min(1, (height - OVERLAY_FROM_M) / (OVERLAY_FULL_M - OVERLAY_FROM_M)));
-      worldMap.draw(mapViewOf(height), shown);
+      worldMap.draw(mapViewOf(height, pose.turn), shown);
     } else if (cameraMode === "free") {
       freeCamera.update(now);
     } else {
@@ -914,11 +883,11 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       },
       jumpTo: jumpByKey,
       openMap: setMapOpen,
-      holdZoom: (zoom) => {
-        heldZoom = zoom !== null;
-        if (zoom !== null) worldMap?.holdAt(zoom);
+      holdFlight: (flight) => {
+        heldFlight = flight !== null;
+        if (flight !== null) worldMap?.holdAt(flight);
       },
-      mapShown: () => worldMap?.zoom ?? 0,
+      mapShown: () => worldMap?.flight ?? 0,
       cameraPlace: () => [...camera.position.toArray(), ...camera.getWorldDirection(new Vector3()).toArray()],
       placeNear: (x, z) => {
         const road = world.roads.nearest(x, z);

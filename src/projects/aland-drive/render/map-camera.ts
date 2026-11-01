@@ -1,10 +1,9 @@
 /*
- * The one path of the camera between the chase view and the whole island, as a
- * pure function of one number. Like a crane behind the car: from the chase pose
- * it pulls back along the car's rear axis and up together, keeping the way it
- * faces and always looking at the car, until it looks straight down. There is no
- * map view apart from this path. Distance grows exponentially, so the world
- * moves at one apparent speed from the road to the whole island.
+ * The camera's flight between the chase view and the map, as a pure function of
+ * how far along it is. It rises looking at the car, tilts down, and turns to north
+ * while the car slides across the frame to its place on the map. The camera only
+ * ever pitches and turns, each on its own number: blending the two views' rotations
+ * directly takes the shortest way between them, which rolls the horizon over.
  */
 
 export type Vec3 = readonly [x: number, y: number, z: number];
@@ -18,40 +17,42 @@ export interface ChasePose {
   car: Vec3;
 }
 
+/** The fixed view at the end of the flight, straight down with north up. */
 export interface MapTarget {
-  /** How far from the car the top of the path is. */
-  topDistanceM: number;
+  x: number;
+  z: number;
+  heightM: number;
   fieldOfViewDeg: number;
-  /** How far the player has panned, in the scene's x and z. It counts for all of it high up, and nothing at the car. */
-  panX: number;
-  panZ: number;
 }
 
 export interface CameraPose {
   position: Vec3;
-  lookAt: Vec3;
+  /** Radians, down being negative. */
+  pitch: number;
+  /** Radians clockwise from north. */
+  turn: number;
   fieldOfViewDeg: number;
 }
 
-/** By this zoom the camera looks straight down. */
-const LEVEL_OFF_ZOOM = 0.55;
-/** Just short of straight down, so which way is up on screen stays the car's heading. */
-const STEEPEST_RADIANS = Math.PI / 2 - 0.001;
-/** By this zoom the look has moved from the chase's point ahead to the car itself. */
-const ON_THE_CAR_ZOOM = 0.12;
-const PAN_FROM_ZOOM = 0.2;
-const PAN_FULL_ZOOM = 0.45;
+const STRAIGHT_DOWN = -Math.PI / 2;
+/** Parts of the flight, 0 to 1. The tilt ends as the turn is under way, so most of the turn is the map itself going round. */
+const TILTED_BY = 0.6;
+const TURN_FROM = 0.25;
+const ON_THE_CAR_BY = 0.12;
+const FOV_BY = 0.5;
+const CLEARED_BY = 0.1;
 const CLEARANCE_M = 2.5;
 /** How far behind the camera the land is read, so it rises before a hill rather than at it. */
 const LOOK_BEHIND_M = [0, 12, 30];
 const CLEAR_SOFTNESS_M = 2;
-const CLEARED_BY_ZOOM = 0.04;
-const FOV_BY_ZOOM = 0.5;
+const NEAREST_M = 1;
 
 const smoothstep = (from: number, to: number, value: number) => {
   const share = Math.max(0, Math.min(1, (value - from) / (to - from)));
   return share * share * (3 - 2 * share);
 };
+
+const smootherstep = (value: number) => value * value * value * (value * (value * 6 - 15) + 10);
 
 /** The larger of two heights, rounded where they meet, so one taking over from the other never shows as a kink. */
 const softMax = (a: number, b: number, softness: number) => {
@@ -62,41 +63,38 @@ const softMax = (a: number, b: number, softness: number) => {
 /** The ground under a place in the scene, for rising over hills. */
 export type GroundAt = (x: number, z: number) => number;
 
-/** The camera at a zoom from 0, exactly the chase pose, to 1, straight above the car. */
-export function mapCameraAt(zoom: number, chase: ChasePose, target: MapTarget, groundAt?: GroundAt): CameraPose {
+/** The camera at a point of the flight, from 0, exactly the chase pose, to 1, exactly the map. */
+export function mapCameraAt(flight: number, chase: ChasePose, target: MapTarget, groundAt?: GroundAt): CameraPose {
   const { position, forward, car } = chase;
-  const flat = Math.max(Math.hypot(forward[0], forward[2]), 1e-6);
-  const backX = -forward[0] / flat;
-  const backZ = -forward[2] / flat;
+  const share = smootherstep(flight);
 
-  // The chase camera in the crane's terms: how far behind the car, and how far above it.
-  const behind = (position[0] - car[0]) * backX + (position[2] - car[2]) * backZ;
-  const above = position[1] - car[1];
-  const distance = Math.hypot(behind, above);
-  const fromElevation = Math.atan2(above, behind);
-  const elevation = fromElevation + (STEEPEST_RADIANS - fromElevation) * smoothstep(0, LEVEL_OFF_ZOOM, zoom);
-  const out = distance * (target.topDistanceM / distance) ** zoom;
+  const fromPitch = Math.asin(Math.max(-1, Math.min(1, forward[1])));
+  const pitch = fromPitch + (STRAIGHT_DOWN - fromPitch) * smoothstep(0, TILTED_BY, flight);
+  const turn = Math.atan2(forward[0], -forward[2]) * (1 - smoothstep(TURN_FROM, 1, flight));
+  const [flatLook, sinTurn, cosTurn] = [Math.cos(pitch), Math.sin(turn), Math.cos(turn)];
+  const look: Vec3 = [flatLook * sinTurn, Math.sin(pitch), -flatLook * cosTurn];
 
-  const panShare = smoothstep(PAN_FROM_ZOOM, PAN_FULL_ZOOM, zoom);
-  const panX = target.panX * panShare;
-  const panZ = target.panZ * panShare;
-  // Any sideways offset the chase camera had goes with the start of the climb: that's the swing behind a turning car.
-  const sideX = position[0] - car[0] - behind * backX;
-  const sideZ = position[2] - car[2] - behind * backZ;
-  const onCar = smoothstep(0, ON_THE_CAR_ZOOM, zoom);
-  const x = car[0] + (1 - onCar) * sideX + backX * out * Math.cos(elevation) + panX;
-  const z = car[2] + (1 - onCar) * sideZ + backZ * out * Math.cos(elevation) + panZ;
-  let y = car[1] + out * Math.sin(elevation);
+  const fromDistance = Math.max(Math.hypot(position[0] - car[0], position[1] - car[1], position[2] - car[2]), NEAREST_M);
+  const distance = fromDistance * (target.heightM / fromDistance) ** share;
+
+  // Across in step with height, so the car slides evenly from the frame's middle to its place on the map and never leaves the frame.
+  const across = share * (distance / target.heightM);
+  const onCar = smoothstep(0, ON_THE_CAR_BY, flight);
+  const near = [0, 1, 2].map((axis) => position[axis] + forward[axis] * fromDistance + onCar * (car[axis] - position[axis] - forward[axis] * fromDistance));
+  const focus: Vec3 = [near[0] + across * (target.x - near[0]), near[1] * (1 - across), near[2] + across * (target.z - near[2])];
+
+  const x = focus[0] - look[0] * distance;
+  const z = focus[2] - look[2] * distance;
+  let y = focus[1] - look[1] * distance;
   if (groundAt) {
-    const clear = Math.max(...LOOK_BEHIND_M.map((metres) => groundAt(x + backX * metres, z + backZ * metres))) + CLEARANCE_M;
-    y += smoothstep(0, CLEARED_BY_ZOOM, zoom) * (softMax(y, clear, CLEAR_SOFTNESS_M) - y);
+    const clear = Math.max(...LOOK_BEHIND_M.map((metres) => groundAt(x - sinTurn * metres, z + cosTurn * metres))) + CLEARANCE_M;
+    y += smoothstep(0, CLEARED_BY, flight) * (softMax(y, clear, CLEAR_SOFTNESS_M) - y);
   }
 
-  const reach = Math.hypot(position[0] - car[0], position[1] - car[1], position[2] - car[2]) + 20;
-  const chaseLook: Vec3 = [position[0] + forward[0] * reach, position[1] + forward[1] * reach, position[2] + forward[2] * reach];
   return {
     position: [x, y, z],
-    lookAt: [chaseLook[0] + onCar * (car[0] - chaseLook[0]) + panX, chaseLook[1] + onCar * (car[1] - chaseLook[1]), chaseLook[2] + onCar * (car[2] - chaseLook[2]) + panZ],
-    fieldOfViewDeg: chase.fieldOfViewDeg + (target.fieldOfViewDeg - chase.fieldOfViewDeg) * smoothstep(0, FOV_BY_ZOOM, zoom),
+    pitch,
+    turn,
+    fieldOfViewDeg: chase.fieldOfViewDeg + (target.fieldOfViewDeg - chase.fieldOfViewDeg) * smoothstep(0, FOV_BY, flight),
   };
 }

@@ -32,6 +32,8 @@ const TO_CONE_M: Band = [372, 440, 24];
 /** Places the far grid doesn't hold dissolve here, more slowly. */
 const THINNED_M: Band = [340, 410, 54];
 const EDGE_M: Band = [FOREST_REACH_M - 220, FOREST_REACH_M - 90, 90];
+/** Where each change of detail starts and has finished by, for the lab to mark on the ground. */
+export const FOREST_BANDS = [TO_OUTLINE_M, THINNED_M, TO_CONE_M, EDGE_M].map(([from, to, run]): [number, number] => [from, to + run]);
 /** A triangle's outline is narrower than the turned shape's, for the same radius. */
 const OUTLINE_FILL = 1.25;
 /** One far tree stands for the places round it that have gone. */
@@ -127,23 +129,37 @@ export interface ForestInputs {
   colour: (name: string) => Node<"vec3">;
   hazed: (color: Node<"vec3">) => Node<"vec3">;
   sun: { azimuthDeg: number; elevationDeg: number };
+  /** The forest lab's colours in place of a tree's own. The game passes none, and its shaders hold none of this. */
+  paint?: (tree: PaintedTree) => Node<"vec3">;
+}
+
+export type ForestModel = "turned" | "outline" | "cone";
+
+export interface PaintedTree {
+  model: ForestModel;
+  /** The tree's own colour. */
+  natural: Node<"vec3">;
+  /** Still standing past the band where the far grid thins the forest. */
+  onFarGrid: Node<"bool">;
+  /** How far the ground a far tree stands on is from the ground a nearer model stands on. */
+  groundGap: Node<"float">;
 }
 
 export interface Forest {
   update: (camera: Vector3) => void;
+  show: (model: ForestModel, shown: boolean) => void;
   dispose: () => void;
 }
 
-export function createForest(scene: Scene, { canopyAt, groundNear, groundMid = (place) => groundFar(place), groundFar, roads, colour, hazed, sun }: ForestInputs): Forest {
+export function createForest(scene: Scene, { canopyAt, groundNear, groundMid = (place) => groundFar(place), groundFar, roads, colour, hazed, sun, paint }: ForestInputs): Forest {
   const cameraSpot = uniform(new Vector2());
   const sunWay = (sun.azimuthDeg * Math.PI) / 180;
   const toSun = vec2(Math.sin(sunWay), -Math.cos(sunWay));
-  const parts: { mesh: Mesh; anchor: { value: Vector2 }; step: number; cells: number }[] = [];
+  const parts: { model: ForestModel; mesh: Mesh; anchor: { value: Vector2 }; step: number; cells: number }[] = [];
   // Interleaved gradient noise: a fixed pattern on the screen, with no clumps for a crossfade to show as.
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
-  type Model = "turned" | "outline" | "cone";
-  const grid = (model: Model, rings: Ring[], sides: number, step: number, reach: number, links?: Link[]) => {
+  const grid = (model: ForestModel, rings: Ring[], sides: number, step: number, reach: number, links?: Link[]) => {
     const cells = Math.ceil((2 * reach) / step);
     const geometry = turned(rings, sides, links);
     geometry.instanceCount = cells * cells;
@@ -203,13 +219,14 @@ export function createForest(scene: Scene, { canopyAt, groundNear, groundMid = (
     const bark = colour("tree-bark").mul(isSpruce.add(isPine)).add(colour("tree-birch-bark").mul(isBirch));
     const sunSide = dot(radial, toSun).mul(0.2).add(1);
     const shaded = rise.mul(0.5).add(0.62).mul(sunSide).mul(mix(float(0.84), float(1.14), roll(cell, 17.3, 91.1)));
-    material.colorNode = hazed(mix(bark, leaf, leafy).mul(shaded));
+    const natural = mix(bark, leaf, leafy);
+    material.colorNode = hazed((paint ? paint({ model, natural, onFarGrid, groundGap: groundMid(place).sub(groundFar(place)).abs() }) : natural).mul(shaded));
     material.maskNode = pattern.greaterThanEqual(live.x).and(pattern.lessThan(live.y));
     material.side = DoubleSide;
     const mesh = new Mesh(geometry, material);
     mesh.frustumCulled = false;
     scene.add(mesh);
-    parts.push({ mesh, anchor, step, cells });
+    parts.push({ model, mesh, anchor, step, cells });
   };
 
   grid("turned", NEAR_RINGS, NEAR_SIDES, NEAR_STEP_M, NEAR_GRID_M);
@@ -220,6 +237,11 @@ export function createForest(scene: Scene, { canopyAt, groundNear, groundMid = (
     update(camera) {
       cameraSpot.value.set(camera.x, camera.z);
       for (const { anchor, step, cells } of parts) anchor.value.set(Math.floor(camera.x / step) - cells / 2, Math.floor(camera.z / step) - cells / 2);
+    },
+    show(shown, visible) {
+      for (const { model, mesh } of parts) {
+        if (model === shown) mesh.visible = visible;
+      }
     },
     dispose() {
       for (const { mesh } of parts) {
