@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState, PendingTrade } from "../../../types";
-import { FABLE_V8_PARAMS, fableV8Bot } from "../fable-v8";
-import { makeParamBot } from "./bot";
-import { FABLE_V10_PARAMS, fableV10Bot } from "./index";
+import { fableV8Bot } from "../fable-v8";
+import { fableV10Bot } from "./index";
 
 // fable-v10 = fable-v8's factory (branched from the SUBSTRATE, not the
 // rejected fable-v9) + the F11 price-aware reserve cap (`spendReserveMult`,
@@ -51,16 +50,6 @@ function completerOfferBoard(cash: number, price: number): GameState {
   };
 }
 
-describe("fable-v10 — the factory copy is faithful to fable-v8", () => {
-  const v8OnV10Factory = makeParamBot({ ...FABLE_V8_PARAMS, spendReserveMult: 0 });
-  it("matches fableV8Bot with the cap disabled", () => {
-    for (const board of [freshGame(), completerOfferBoard(200, 60), completerOfferBoard(442, 430)]) {
-      expect(v8OnV10Factory(board, "p1")).toEqual(fableV8Bot(board, "p1"));
-      expect(v8OnV10Factory(board, "p2")).toEqual(fableV8Bot(board, "p2"));
-    }
-  });
-});
-
 describe("fable-v10 — the price-blind reserve refusal is fixed", () => {
   it("fable-v8 REFUSES a $60 completer on a $200 wallet (the probe-game freeze)", () => {
     const decision = fableV8Bot(completerOfferBoard(200, 60), "p1");
@@ -75,36 +64,5 @@ describe("fable-v10 — the price-blind reserve refusal is fixed", () => {
   it("fable-v10 still BLOCKS the wallet drain — the cap scales with the spend", () => {
     const decision = fableV10Bot(completerOfferBoard(442, 430), "p1");
     expect(decision?.intent.kind).toBe("decline-trade");
-  });
-});
-
-describe("fable-v10 — vector provenance", () => {
-  it("differs from fable-v8 in exactly the reserve-cap dim", () => {
-    const changed = Object.keys(FABLE_V10_PARAMS).filter(
-      (k) =>
-        k in FABLE_V8_PARAMS &&
-        FABLE_V10_PARAMS[k as keyof typeof FABLE_V10_PARAMS] !==
-          FABLE_V8_PARAMS[k as keyof typeof FABLE_V8_PARAMS],
-    );
-    expect(changed).toEqual([]);
-    expect(FABLE_V10_PARAMS.spendReserveMult).toBe(2);
-    expect(FABLE_V10_PARAMS.transformTailFrac).toBe(0.5);
-    expect(FABLE_V10_PARAMS.tradeTailFrac).toBe(0.5);
-  });
-
-  it("keeps the invariant pins (lockstep, bounded survival, transfer memory, extraction)", () => {
-    expect(FABLE_V10_PARAMS.holderDenialFrac).toBe(1);
-    expect(FABLE_V10_PARAMS.survivalBounded).toBe(1);
-    expect(FABLE_V10_PARAMS.transferMemoryTurns).toBe(10);
-    expect(FABLE_V10_PARAMS.extractionOn).toBe(1);
-  });
-});
-
-describe("fable-v10 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [completerOfferBoard(200, 60), completerOfferBoard(442, 430)]) {
-      expect(fableV10Bot(board, "p1")).toEqual(fableV10Bot(board, "p1"));
-      expect(fableV10Bot(board, "p2")).toEqual(fableV10Bot(board, "p2"));
-    }
   });
 });

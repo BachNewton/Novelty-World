@@ -44,6 +44,8 @@ const ROADS = [
 
 describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLength", ({ lanes, courseLength }) => {
   const PLAN: WorldPlan = { seed: 20260930, courseLength, lanes, finishAt: courseLength };
+  // Only the finish and the gantry move with the course's length, so the rest is checked once per width.
+  const firstOfWidth = ROADS.find((road) => road.lanes === lanes)?.courseLength === courseLength;
 
   // Every tile from well behind the start to well past the finish.
   const COURSE_TILES = Array.from({ length: 16 }, (_, i) => i - 4);
@@ -61,7 +63,7 @@ describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLeng
 
   const laneArea: Area = { minX: ROAD_LEFT, maxX: roadRight(lanes), minDepth: -Infinity, maxDepth: Infinity };
 
-  describe("the roadside", () => {
+  describe.runIf(firstOfWidth)("the roadside", () => {
     it("is the same for the same seed, and differs for another", () => {
       expect(propsOf(PLAN)).toEqual(propsOf(PLAN));
       expect(propsOf({ ...PLAN, seed: 1 })).not.toEqual(propsOf(PLAN));
@@ -164,7 +166,7 @@ describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLeng
     });
   });
 
-  describe("the road", () => {
+  describe.runIf(firstOfWidth)("the road", () => {
     function covered(camera: number): [number, number][] {
       return roadTiles(camera)
         .flatMap((k) => roadTile(PLAN, k).surfaces)
@@ -300,7 +302,7 @@ describe.each(ROADS)("beside a road $lanes lanes wide, its finish at $courseLeng
       }
     });
 
-    it.each([PLAN.seed, 1, 2, 3])("lays no two faces of the whole world in one plane, for seed %d", (seed) => {
+    it.each(firstOfWidth ? [PLAN.seed, 1] : [PLAN.seed])("lays no two faces of the whole world in one plane, for seed %d", (seed) => {
       const plan = { ...PLAN, seed };
       const road = roadOf(plan, ALL_TILES);
       const finish = finishMarkings(lanes, plan.courseLength);

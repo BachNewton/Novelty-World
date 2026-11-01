@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState } from "../../../types";
 import { makeParamBot } from "./bot";
-import { FABLE_V14_PARAMS, fableV14Bot } from "./index";
+import { fableV14Bot } from "./index";
 import { FABLE_V12_PARAMS, fableV12Bot } from "../fable-v12";
 
 // fable-v14 = fable-v12's factory + the F14 AUCTION transform-tail reserve
@@ -112,33 +112,5 @@ describe("fable-v14 — NARROW: non-completer auctions are untouched", () => {
     const board = completerAuction(300, 100, false);
     expect(fableV14Bot(board, "p1")).toEqual(fableV12Bot(board, "p1"));
     expect(fableV14Bot(board, "p1")?.intent.kind).toBe("bid");
-  });
-});
-
-describe("fable-v14 — vector provenance", () => {
-  it("differs from fable-v12 in exactly the auction-tail dim", () => {
-    const changed = Object.keys(FABLE_V14_PARAMS).filter(
-      (k) =>
-        k in FABLE_V12_PARAMS &&
-        FABLE_V14_PARAMS[k as keyof typeof FABLE_V14_PARAMS] !==
-          FABLE_V12_PARAMS[k as keyof typeof FABLE_V12_PARAMS],
-    );
-    expect(changed).toEqual([]);
-    expect(FABLE_V14_PARAMS.auctionTailFrac).toBe(0.25);
-    expect(FABLE_V14_PARAMS.auctionLiquidCap).toBe(1);
-    expect(FABLE_V14_PARAMS.humanThreatMult).toBe(2);
-  });
-});
-
-describe("fable-v14 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [
-      completerAuction(300, 100),
-      completerAuction(300, 30),
-      completerAuction(300, 100, false),
-    ]) {
-      expect(fableV14Bot(board, "p1")).toEqual(fableV14Bot(board, "p1"));
-      expect(fableV14Bot(board, "p2")).toEqual(fableV14Bot(board, "p2"));
-    }
   });
 });

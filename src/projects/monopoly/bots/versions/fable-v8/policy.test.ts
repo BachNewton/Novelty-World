@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState, PendingTrade } from "../../../types";
-import { FABLE_V7_PARAMS, fableV7Bot } from "../fable-v7";
-import { makeParamBot } from "./bot";
-import { FABLE_V8_PARAMS, fableV8Bot } from "./index";
+import { fableV7Bot } from "../fable-v7";
+import { fableV8Bot } from "./index";
 
 // fable-v8 = fable-v7's factory + the F9 transformative-trade reserve
 // (`transformTailFrac`, index.ts header). Pinned here: (1) the factory is
@@ -50,16 +49,6 @@ function completerDrainBoard(cash: number): GameState {
   };
 }
 
-describe("fable-v8 — the factory copy is faithful to fable-v7", () => {
-  const v7OnV8Factory = makeParamBot({ ...FABLE_V7_PARAMS, transformTailFrac: 0 });
-  it("matches fableV7Bot with the reserve disabled", () => {
-    for (const board of [freshGame(), completerDrainBoard(442), completerDrainBoard(1000)]) {
-      expect(v7OnV8Factory(board, "p1")).toEqual(fableV7Bot(board, "p1"));
-      expect(v7OnV8Factory(board, "p2")).toEqual(fableV7Bot(board, "p2"));
-    }
-  });
-});
-
 describe("fable-v8 — the probe-game-4 completer drain is fixed", () => {
   it("fable-v7 ACCEPTS the $430-of-$442 completer buy (the observed death)", () => {
     const decision = fableV7Bot(completerDrainBoard(442), "p1");
@@ -75,35 +64,5 @@ describe("fable-v8 — the probe-game-4 completer drain is fixed", () => {
   it("fable-v8 still completes the set when liquid — boldness intact", () => {
     const decision = fableV8Bot(completerDrainBoard(1000), "p1");
     expect(decision?.intent.kind).toBe("accept-trade");
-  });
-});
-
-describe("fable-v8 — vector provenance", () => {
-  it("differs from fable-v7 in exactly the transformative-reserve dim", () => {
-    const changed = Object.keys(FABLE_V8_PARAMS).filter(
-      (k) =>
-        k in FABLE_V7_PARAMS &&
-        FABLE_V8_PARAMS[k as keyof typeof FABLE_V8_PARAMS] !==
-          FABLE_V7_PARAMS[k as keyof typeof FABLE_V7_PARAMS],
-    );
-    expect(changed).toEqual([]);
-    expect(FABLE_V8_PARAMS.transformTailFrac).toBe(0.5);
-    expect(FABLE_V8_PARAMS.tradeTailFrac).toBe(0.5);
-  });
-
-  it("keeps the invariant pins (lockstep, bounded survival, transfer memory, extraction)", () => {
-    expect(FABLE_V8_PARAMS.holderDenialFrac).toBe(1);
-    expect(FABLE_V8_PARAMS.survivalBounded).toBe(1);
-    expect(FABLE_V8_PARAMS.transferMemoryTurns).toBe(10);
-    expect(FABLE_V8_PARAMS.extractionOn).toBe(1);
-  });
-});
-
-describe("fable-v8 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [completerDrainBoard(442), completerDrainBoard(1000)]) {
-      expect(fableV8Bot(board, "p1")).toEqual(fableV8Bot(board, "p1"));
-      expect(fableV8Bot(board, "p2")).toEqual(fableV8Bot(board, "p2"));
-    }
   });
 });

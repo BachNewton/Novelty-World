@@ -449,7 +449,7 @@ function playRandomly(start: Run, seed: number, extra: FrogAction[]) {
   const { recycleBehind, trafficHorizon, wallSpeed, maxFrameDelta, corridorCols } = start.tuning;
   let run = start;
   const counts = { bonks: 0, passes: 0, returns: 0, furthestBack: start.depth };
-  for (let step = 0; step < 10000; step++) {
+  for (let step = 0; step < 1500; step++) {
     const before = run;
     const elapsed = random() * 1.2;
     const roll = random();

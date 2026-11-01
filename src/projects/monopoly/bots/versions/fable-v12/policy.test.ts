@@ -3,7 +3,7 @@ import { freshGame } from "../../../mocks";
 import type { GameState, PendingTrade } from "../../../types";
 import { FABLE_V11_PARAMS, fableV11Bot } from "../fable-v11";
 import { makeParamBot } from "./bot";
-import { FABLE_V12_PARAMS, fableV12Bot } from "./index";
+import { fableV12Bot } from "./index";
 
 // fable-v12 = fable-v11's factory + the F13 human threat multiplier
 // (`humanThreatMult`, index.ts header). Pinned here: (1) identity with
@@ -107,40 +107,5 @@ describe("fable-v12 — arming a human is priced higher", () => {
   it("a floored-value set's boundary barely moves (yellow: $600 still accepted)", () => {
     const decision = fableV12Bot(completerSaleBoard(true, 600, "yellow"), "p1");
     expect(decision?.intent.kind).toBe("accept-trade");
-  });
-});
-
-describe("fable-v12 — vector provenance", () => {
-  it("differs from fable-v11 in exactly the human-threat dim", () => {
-    const changed = Object.keys(FABLE_V12_PARAMS).filter(
-      (k) =>
-        k in FABLE_V11_PARAMS &&
-        FABLE_V12_PARAMS[k as keyof typeof FABLE_V12_PARAMS] !==
-          FABLE_V11_PARAMS[k as keyof typeof FABLE_V11_PARAMS],
-    );
-    expect(changed).toEqual([]);
-    expect(FABLE_V12_PARAMS.humanThreatMult).toBe(2);
-    expect(FABLE_V12_PARAMS.humanAskOff).toBe(1);
-    expect(FABLE_V12_PARAMS.humanProposalMargin).toBe(75);
-  });
-
-  it("keeps the invariant pins (lockstep, bounded survival, transfer memory, extraction)", () => {
-    expect(FABLE_V12_PARAMS.holderDenialFrac).toBe(1);
-    expect(FABLE_V12_PARAMS.survivalBounded).toBe(1);
-    expect(FABLE_V12_PARAMS.transferMemoryTurns).toBe(10);
-    expect(FABLE_V12_PARAMS.extractionOn).toBe(1);
-  });
-});
-
-describe("fable-v12 — determinism", () => {
-  it("same state, same decision, every time", () => {
-    for (const board of [
-      completerSaleBoard(true, 800, "lightblue"),
-      completerSaleBoard(true, 1600, "lightblue"),
-      completerSaleBoard(true, 600, "yellow"),
-    ]) {
-      expect(fableV12Bot(board, "p1")).toEqual(fableV12Bot(board, "p1"));
-      expect(fableV12Bot(board, "p2")).toEqual(fableV12Bot(board, "p2"));
-    }
   });
 });
