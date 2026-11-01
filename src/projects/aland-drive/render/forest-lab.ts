@@ -1,14 +1,14 @@
 import { Color, PerspectiveCamera, Scene, TimestampQuery, Vector2, Vector3, WebGPURenderer, type Node } from "three/webgpu";
 import { abs, float, fwidth, greaterThanEqual, int, ivec2, lessThan, mix, positionWorld, select, smoothstep, texture, textureLoad, uniform, vec2, vec3 } from "three/tsl";
 import { createClipmap } from "./clipmap";
-import { createForest, FOREST_BANDS, type Forest, type ForestModel } from "./forest";
+import { createForest, forestBands, forestKnobs, type ForestDrawn, type ForestModel, type ForestSettings } from "./forest";
 import { startFreeCamera } from "./free-camera";
-import { CAMERA_FIELD_OF_VIEW, CAMERA_NEAR, colorOf, NoWebGpuError, RENDER_SCALE, token } from "./game";
+import { CAMERA_FIELD_OF_VIEW, CAMERA_NEAR, colorOf, FOREST_DEFAULTS, NoWebGpuError, RENDER_SCALE, token } from "./game";
 import { TileFetcher, TileStream } from "./stream";
 import type { WorldManifest } from "./tile";
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
-import { canopyLift, forestGround, tileReads } from "./tile-reads";
+import { canopyLift, tileReads } from "./tile-reads";
 import { NEAR_STEP_M, readImage, ROAD_COVERAGE, ROAD_MASK_MIP, roadLevel, SHORTEST_M, treeHeight, treePlace } from "./tree-place";
 import { World } from "../sim/world";
 
@@ -19,11 +19,13 @@ import { World } from "../sim/world";
  * camera, so the camera can stay close to one tree while the tree goes through
  * everything a drive does to it, and a change in the picture is the forest's and
  * never the view's. The same split lets the camera rise and look down on the bands.
+ * The forest's settings change here on the running forest, and the page shows how
+ * many trees each of its lists drew.
  */
 
-export type ForestLabView = "game" | "models" | "thinned" | "slide";
+export type ForestLabView = "game" | "models" | "changing" | "slide";
 
-const VIEWS: ForestLabView[] = ["game", "models", "thinned", "slide"];
+const VIEWS: ForestLabView[] = ["game", "models", "changing", "slide"];
 const CAMERA_FAR = 40000;
 const START_HEIGHT_M = 2;
 const SLIDE_FULL_M = 2;
@@ -50,6 +52,8 @@ export interface ForestLabState {
   frames: number;
   triangles: number;
   drawCalls: number;
+  drawn: ForestDrawn;
+  settings: ForestSettings;
   gpuMs: number | null;
   loading: number;
   /** How far the tree in focus, or the camera, is from the LOD spot. */
@@ -65,8 +69,8 @@ export interface ForestLab {
   pin: (metres: number | null) => void;
   /** Runs a pinned distance down to nothing and round again, at a car's speed. */
   approach: (running: boolean) => void;
-  /** Reads the ground at the nearest node, as the game used to, or blended as it does, and rebuilds the forest to match. */
-  useOldGround: (old: boolean) => void;
+  /** Changes the forest's settings on the running forest. */
+  setForest: (settings: ForestSettings) => void;
   nextWorstTree: () => void;
   state: () => ForestLabState;
   dispose: () => void;
@@ -112,40 +116,37 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
   const photo = texture(layers.groundFar, worldUv.sub(pixelTile)).depth(int(slots.r.mul(255).round().sub(1).max(0)));
   const land = select(slots.r.greaterThan(0.001), photo.rgb.pow(vec3(2.2)), colorOf("ground"));
   const fromSpot = positionWorld.xz.sub(lodSpot).length();
-  const line = (distance: number) => float(1).sub(smoothstep(float(BAND_LINE_M), float(BAND_LINE_M).add(fwidth(fromSpot)), abs(fromSpot.sub(distance))));
-  const inBand = (from: number, to: number) => greaterThanEqual(fromSpot, float(from)).and(lessThan(fromSpot, float(to)));
-  const bandColours = ["lab-turned", "lab-hot", "lab-outline", "lab-cone"];
-  const marked = FOREST_BANDS.reduce<Node<"vec3">>((colour, [from, to], band) => {
-    const ink = colorOf(bandColours[band]);
+  const line = (distance: Node<"float">) => float(1).sub(smoothstep(float(BAND_LINE_M), float(BAND_LINE_M).add(fwidth(fromSpot)), abs(fromSpot.sub(distance))));
+  const inBand = (from: Node<"float">, to: Node<"float">) => greaterThanEqual(fromSpot, from).and(lessThan(fromSpot, to));
+  const knobs = forestKnobs(FOREST_DEFAULTS);
+  const bands = forestBands(FOREST_DEFAULTS).map(([from, to]) => uniform(new Vector2(from, to)));
+  const bandColours = ["lab-turned", "lab-hot", "lab-cone"];
+  const marked = bands.reduce<Node<"vec3">>((colour, band, at) => {
+    const ink = colorOf(bandColours[at]);
+    const [from, to] = [band.x, band.y];
     const washed = mix(colour, ink, select(inBand(from, to), float(0.22), float(0)).mul(bandsShown));
     return mix(washed, ink, line(from).add(line(to)).clamp(0, 1).mul(bandsShown));
   }, land);
 
   const reads = tileReads(layers, tileM, manifest.canopy.unitM);
-  const clipmap = createClipmap(scene, world, manifest.heights.stepM, marked, canopyLift(reads.canopyAt, lodSpot));
+  const clipmap = createClipmap(scene, world, manifest.heights.stepM, marked, canopyLift(reads.canopyAt, lodSpot, knobs.forestReach));
 
   const isView = (view: ForestLabView) => abs(viewShown.sub(VIEWS.indexOf(view))).lessThan(0.5);
-  const modelColours: Record<ForestModel, string> = { turned: "lab-turned", outline: "lab-outline", cone: "lab-cone" };
-  const hidden = new Set<ForestModel>();
-  let oldGround = false;
-  const buildForest = (): Forest => {
-    const built = createForest(scene, {
-      canopyAt: (place) => reads.canopyAt(place, 0),
-      ...forestGround(clipmap, oldGround ? clipmap.groundAt : clipmap.groundBlendedAt),
-      roads: { at: reads.roadsAt, tileM },
-      colour: colorOf,
-      hazed: (color) => color,
-      sun: manifest.sun,
-      paint: ({ model, natural, onFarGrid, groundGap }) => {
-        const slid = mix(colorOf("lab-still"), colorOf("lab-hot"), groundGap.div(SLIDE_FULL_M).clamp(0, 1));
-        const thinned = select(onFarGrid, colorOf("lab-still"), colorOf("lab-hot"));
-        return select(isView("models"), colorOf(modelColours[model]), select(isView("thinned"), thinned, select(isView("slide"), slid, natural)));
-      },
-    });
-    for (const model of hidden) built.show(model, false);
-    return built;
-  };
-  let forest = buildForest();
+  const modelColours: Record<ForestModel, string> = { turned: "lab-turned", cone: "lab-cone" };
+  const forest = createForest(scene, renderer, {
+    knobs,
+    canopyAt: (place) => reads.canopyAt(place, 0),
+    groundAt: clipmap.groundBlendedAt,
+    roads: { at: reads.roadsAt, tileM },
+    colour: colorOf,
+    hazed: (color) => color,
+    sun: manifest.sun,
+    paint: ({ model, natural, changing, groundGap }) => {
+      const slid = mix(colorOf("lab-still"), colorOf("lab-hot"), groundGap.div(SLIDE_FULL_M).clamp(0, 1));
+      const going = select(changing, colorOf("lab-hot"), colorOf("lab-still"));
+      return select(isView("models"), colorOf(modelColours[model]), select(isView("changing"), going, select(isView("slide"), slid, natural)));
+    },
+  });
 
   // The search below reads what the forest's shader reads, off the images as they arrive.
   const canopyOf = new Map<string, Uint8Array>();
@@ -264,17 +265,18 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     layers.uploadStep();
     clipmap.update(spot);
     lodSpot.value.set(spot.x, spot.z);
-    forest.update(spot);
+    forest.update(spot, camera);
     renderer.render(scene, camera);
     frames++;
     if (!resolving) {
       resolving = true;
-      void renderer.resolveTimestampsAsync(TimestampQuery.RENDER).then((ms) => {
-        if (ms !== undefined && ms > 0) gpuMs = ms;
+      void Promise.all([renderer.resolveTimestampsAsync(TimestampQuery.RENDER), renderer.resolveTimestampsAsync(TimestampQuery.COMPUTE)]).then(([ms, computeMs]) => {
+        if (ms !== undefined && ms > 0) gpuMs = ms + (computeMs ?? 0);
         resolving = false;
       });
     }
   };
+  await forest.compile();
   await renderer.setAnimationLoop(frame);
 
   return {
@@ -282,8 +284,6 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
       viewShown.value = VIEWS.indexOf(view);
     },
     showModel(model, shown) {
-      if (shown) hidden.delete(model);
-      else hidden.add(model);
       forest.show(model, shown);
     },
     showBands(shown) {
@@ -297,11 +297,9 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
       approaching = running;
       if (running && pinned === null) pinned = APPROACH_FROM_M;
     },
-    useOldGround(next) {
-      if (next === oldGround) return;
-      oldGround = next;
-      forest.dispose();
-      forest = buildForest();
+    setForest(settings) {
+      knobs.set(settings);
+      forestBands(knobs.get()).forEach(([from, to], at) => bands[at].value.set(from, to));
     },
     nextWorstTree() {
       if (!focus || worst.length === 0 || focus.rank === worst.length) worst = worstTrees();
@@ -310,10 +308,14 @@ export async function startForestLab(container: HTMLElement, onFailure: (error: 
     },
     state() {
       const { render } = renderer.info;
+      const drawn = forest.drawn();
       return {
         frames,
-        triangles: render.triangles,
+        // three counts an indirect draw as one tree, so the forest's come from the GPU's own count, a few frames old.
+        triangles: render.triangles + drawn.triangles,
         drawCalls: render.drawCalls,
+        drawn,
+        settings: knobs.get(),
         gpuMs,
         loading: stream.stats().loading + stream.wanted(camera.position.x, camera.position.z),
         distance: Math.hypot((focus?.x ?? camera.position.x) - spot.x, (focus?.z ?? camera.position.z) - spot.z),

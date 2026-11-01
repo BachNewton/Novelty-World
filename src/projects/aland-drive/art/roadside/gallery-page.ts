@@ -1,7 +1,7 @@
 import { Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, TimestampQuery, Vector3, WebGPURenderer, type Node } from "three/webgpu";
 import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, step, uniform, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { createForest } from "../../render/forest";
+import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { buildBridge, buildBusShelter, buildFarmFence, buildFarmFencePost, buildGangway, buildMailbox, buildPier, buildPine, buildPontoon, buildPowerPole, buildSignPlate, buildSignPost, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, FARM_FENCE_M, placeModel, placeSigns, placeWires, roadsideMaterials, SIGN_PLATE_Y_M, SIGN_PLATE_Z_M, signMaterial, signSheetUv, TOWN_FENCE_M, wireMaterial, type Placement, type RoadsideModel, type SignShape } from "./index";
 
 /*
@@ -92,10 +92,10 @@ sea.position.y = SEA_Y;
 scene.add(sea);
 
 // The game's own forest behind the road, for colour and scale.
-const forest = createForest(scene, {
+const forest = createForest(scene, renderer, {
+  knobs: forestKnobs(FOREST_MOST),
   canopyAt: (at) => smoothstep(float(30), float(34), at.y.negate()).mul(float(19)).add(float(3).mul(sin(at.x.mul(0.05)).mul(sin(at.y.mul(0.07))))),
-  groundNear: () => float(0),
-  groundFar: () => float(0),
+  groundAt: () => float(0),
   colour: colorOf,
   hazed,
   sun: SUN,
@@ -232,7 +232,7 @@ function pose(shot: Shot) {
   camera.updateProjectionMatrix();
   camera.position.set(...shot.camera);
   camera.lookAt(...shot.target);
-  forest.update(camera.position);
+  forest.update(camera.position, camera);
 }
 
 async function frame(shot: Shot) {

@@ -53,6 +53,32 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
   await expect(page.getByRole("status")).not.toHaveText("0");
 });
 
+test("the forest draws only what the GPU picked, and a setting changes that with no rebuild", async ({ page }) => {
+  await page.goto(`${onFixture}&forest-lab`);
+  const drawnOnce = (reach: number) =>
+    page.evaluate(async (forestReachM) => {
+      const lab = window.__forestLab;
+      if (!lab) throw new Error("no lab");
+      lab.setForest({ fullReachM: 464, forestReachM, farDensity: 1 });
+      // The count read back when the setting went in may be older than it: only one begun after a frame with it will do.
+      for (let reads = 0, seen = lab.state().frames; reads < 2; ) {
+        await new Promise(requestAnimationFrame);
+        if (lab.state().frames > seen + 8) {
+          seen = lab.state().frames;
+          reads++;
+        }
+      }
+      return lab.state().drawn;
+    }, reach);
+  await page.waitForFunction(() => window.__forestLab !== undefined && window.__forestLab.state().frames > 0 && window.__forestLab.state().loading === 0, null, { timeout: 60_000 });
+  await page.evaluate(() => window.__forestLab?.nextWorstTree());
+
+  const wide = await drawnOnce(1500);
+  expect(wide.turned + wide.cone).toBeGreaterThan(0);
+  const narrow = await drawnOnce(500);
+  expect(narrow.turned + narrow.cone).toBeLessThan(wide.turned + wide.cone);
+});
+
 test("a place picked on the world map sets a route on both maps, and the map closes back to the drive", async ({ page }) => {
   await page.goto(onFixture);
   await page.waitForFunction(() => window.__alandDrive?.mapReady() === true, null, { timeout: 60_000 });

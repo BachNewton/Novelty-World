@@ -7,8 +7,8 @@ import { startChaseCamera, type CarView } from "./chase-camera";
 import { buildingMaterial, buildingMeshes } from "./buildings";
 import { createCarView } from "./car";
 import { createClipmap } from "./clipmap";
-import { createForest } from "./forest";
-import { canopyLift, forestGround, tileReads } from "./tile-reads";
+import { createForest, forestKnobs, type ForestDrawn, type ForestSettings } from "./forest";
+import { canopyLift, tileReads } from "./tile-reads";
 import { createWater, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
@@ -57,6 +57,7 @@ export interface GameProbe {
   look: (at: Place) => void;
   /** What the last frame cost, counted, and how big it was drawn. */
   counts: () => { webGpu: boolean; drawCalls: number; triangles: number; gpuMs: number | null; width: number; height: number };
+  forestDrawn: () => ForestDrawn;
   car: () => CarState;
   log: () => DriveLog;
   /** Stops the simulation following the clock, so `advance` is all that moves it. */
@@ -147,6 +148,8 @@ const CAMERA_FAR = 200000;
 const SEA_BELOW_LAND_M = -1.2;
 /** The 3D world is drawn at this share of the screen's real pixels each way, and stretched to fit if it's under 1. The page's UI stays sharp. */
 export const RENDER_SCALE = 1;
+/** What the forest draws on the floor laptop. It scales within `FOREST_MOST`. */
+export const FOREST_DEFAULTS: ForestSettings = { fullReachM: 464, forestReachM: 1500, farDensity: 1 };
 const LONGEST_FRAME_S = 0.1;
 /** Too many steps owed in one go means the tab was away: drop them rather than catch up. */
 const MOST_STEPS_A_FRAME = 12;
@@ -376,10 +379,12 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
 
   const { canopyAt, roadsAt } = tileReads(layers, tileM, manifest.canopy.unitM);
   const cameraSpot = uniform(new Vector2());
-  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot));
-  const forest = createForest(scene, {
+  const knobs = forestKnobs(FOREST_DEFAULTS);
+  const clipmap = createClipmap(scene, world, manifest.heights.stepM, terrainColor, canopyLift(canopyAt, cameraSpot, knobs.forestReach));
+  const forest = createForest(scene, renderer, {
+    knobs,
     canopyAt: (place) => canopyAt(place, 0),
-    ...forestGround(clipmap),
+    groundAt: clipmap.groundBlendedAt,
     roads: { at: roadsAt, tileM },
     colour: colorOf,
     hazed,
@@ -538,6 +543,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   }
   clipmap.showWide(true);
   await renderer.compileAsync(scene, camera);
+  await forest.compile();
   clipmap.showWide(false);
   scene.remove(compiledBridge);
   bridgeStandIn.dispose();
@@ -806,14 +812,14 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     layers.uploadStep();
     clipmap.update(spot);
     cameraSpot.value.set(spot.x, spot.z);
-    forest.update(spot);
+    forest.update(spot, camera);
     showRibbons(spot);
     renderer.render(scene, camera);
     frames++;
     if (!resolving) {
       resolving = true;
-      void renderer.resolveTimestampsAsync(TimestampQuery.RENDER).then((ms) => {
-        if (ms !== undefined && ms > 0) gpuMs = ms;
+      void Promise.all([renderer.resolveTimestampsAsync(TimestampQuery.RENDER), renderer.resolveTimestampsAsync(TimestampQuery.COMPUTE)]).then(([ms, computeMs]) => {
+        if (ms !== undefined && ms > 0) gpuMs = ms + (computeMs ?? 0);
         resolving = false;
       });
     }
@@ -830,11 +836,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       counts: () => ({
         webGpu: "isWebGPUBackend" in renderer.backend,
         drawCalls: renderer.info.render.drawCalls,
-        triangles: renderer.info.render.triangles,
+        // three counts an indirect draw as one tree, so the forest's come from the GPU's own count, a few frames old.
+        triangles: renderer.info.render.triangles + forest.drawn().triangles,
         gpuMs,
         width: renderer.domElement.width,
         height: renderer.domElement.height,
       }),
+      forestDrawn: forest.drawn,
       car: () => drive.stateAt(1),
       log: () => drive.log,
       hold: (next) => {
