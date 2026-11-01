@@ -15,14 +15,16 @@ from pathlib import Path
 
 import numpy as np
 from scipy import ndimage
+from scipy.spatial import cKDTree
 
 import stands
 from grid import TILE_SIZE_M, tile_from_name
 from sources import MSNFI_PIXEL_M, msnfi_path
 
 SHORTEST_M = 3
-COVER_CELL_M = 2
-RADIUS_BIN_M = 0.5
+COVER_POINTS = 400_000
+# More crowns than can reach one point of ground on a 6 m lattice.
+NEAREST_TREES = 16
 HECTARE_M2 = 10_000
 # Trees this much of the ground under them, so the stand's top is the laser's own.
 WELL_WOODED = 0.8
@@ -57,18 +59,13 @@ def plant(canopy_m: np.ndarray, shares: np.ndarray, occupancy: np.ndarray, rng: 
     return Planted(east[standing], south[standing], height[standing], species[standing])
 
 
-def covered(trees: Planted) -> np.ndarray:
-    """Which cells of ground a crown is over, seen from above, crowns as discs."""
-    cells = TILE_SIZE_M // COVER_CELL_M
-    bins = np.round(stands.CROWN_SHARE[trees.species] * trees.height / RADIUS_BIN_M).astype(int)
-    rows = np.clip((trees.south / COVER_CELL_M).astype(int), 0, cells - 1)
-    columns = np.clip((trees.east / COVER_CELL_M).astype(int), 0, cells - 1)
-    result = np.zeros((cells, cells), dtype=bool)
-    for size in np.unique(bins):
-        empty = np.ones((cells, cells), dtype=bool)
-        empty[rows[bins == size], columns[bins == size]] = False
-        result |= ndimage.distance_transform_edt(empty) * COVER_CELL_M <= size * RADIUS_BIN_M
-    return result
+def covered(trees: Planted, east: np.ndarray, south: np.ndarray) -> np.ndarray:
+    """Whether a crown is over each point of ground, seen from above, crowns as discs. Exact: stamped on a grid, a crown's area is off by a third."""
+    radii = np.append(stands.CROWN_SHARE[trees.species] * trees.height, 0)
+    if len(trees.east) == 0:
+        return np.zeros(len(east), dtype=bool)
+    distances, nearest = cKDTree(np.column_stack([trees.east, trees.south])).query(np.column_stack([east, south]), k=NEAREST_TREES, distance_upper_bound=radii.max())
+    return (distances <= radii[nearest]).any(axis=1)
 
 
 def audit(name: str, folder: Path) -> dict:
@@ -82,17 +79,18 @@ def audit(name: str, folder: Path) -> dict:
     inner = (slice(rim, -rim),) * 2
     known = real.known
     volumes = np.array([cut[species][inner][known].astype(np.float64).sum() for species in stands.SPECIES])
-    land = known.repeat(MSNFI_PIXEL_M // COVER_CELL_M, axis=0).repeat(MSNFI_PIXEL_M // COVER_CELL_M, axis=1)
-    land_ha = land.sum() * COVER_CELL_M**2 / HECTARE_M2
+    land_ha = known.sum() * MSNFI_PIXEL_M**2 / HECTARE_M2
 
     rng = np.random.default_rng(int.from_bytes(name.encode(), "little") % 2**32)
     full, thinned = plant(canopy_m, shares, occupancy, rng, thin=False), plant(canopy_m, shares, occupancy, rng)
 
-    def on_land(trees: Planted) -> np.ndarray:
-        last = land.shape[0] - 1
-        return land[(trees.south / COVER_CELL_M).astype(int).clip(0, last), (trees.east / COVER_CELL_M).astype(int).clip(0, last)]
+    def on_land(east: np.ndarray, south: np.ndarray) -> np.ndarray:
+        last = known.shape[0] - 1
+        return known[(south / MSNFI_PIXEL_M).astype(int).clip(0, last), (east / MSNFI_PIXEL_M).astype(int).clip(0, last)]
 
-    mine = on_land(thinned)
+    east, south = rng.uniform(0, TILE_SIZE_M, (2, COVER_POINTS))
+    ground = on_land(east, south)
+    mine = on_land(thinned.east, thinned.south)
     counts = np.bincount(thinned.species[mine], minlength=4)
     crowns = np.bincount(thinned.species[mine], weights=(stands.CROWN_SHARE[thinned.species[mine]] * thinned.height[mine]) ** 2, minlength=4)
     tree_share, canopy_height = stands.laser_stands(canopy_m)
@@ -104,9 +102,9 @@ def audit(name: str, folder: Path) -> dict:
         "count_mix": counts / max(counts.sum(), 1),
         "crown_mix": crowns / max(crowns.sum(), 1e-9),
         "real_cover": real.cover[known].mean() if known.any() else 0,
-        "full_cover": covered(full)[land].mean() if land.any() else 0,
-        "new_cover": covered(thinned)[land].mean() if land.any() else 0,
-        "full_ha": on_land(full).sum() / max(land_ha, 1e-9),
+        "full_cover": covered(full, east[ground], south[ground]).mean() if ground.any() else 0,
+        "new_cover": covered(thinned, east[ground], south[ground]).mean() if ground.any() else 0,
+        "full_ha": on_land(full.east, full.south).sum() / max(land_ha, 1e-9),
         "new_ha": mine.sum() / max(land_ha, 1e-9),
         "stems_ha": real.stems_ha[known].mean() if known.any() else 0,
         "land_ha": land_ha,

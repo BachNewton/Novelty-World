@@ -9,7 +9,7 @@ import numpy as np
 
 import stands
 from sources import MSNFI_NODATA_FROM, MSNFI_OUTSIDE, MSNFI_RIM_PIXELS
-from stand_audit import COVER_CELL_M, covered, plant
+from stand_audit import covered, plant
 from stands import MSNFI_PIXELS, PIXELS, decode, density, encode, occupancy_for, read_stands
 
 SIZE = MSNFI_PIXELS + 2 * MSNFI_RIM_PIXELS
@@ -114,9 +114,8 @@ class Density(unittest.TestCase):
             occupancy = density(read, full, full * canopy)[0, 0]
             shares = np.broadcast_to(np.array([1.0, 0, 0, 0])[:, None, None], (4, PIXELS, PIXELS))
             trees = plant(np.full((1500, 1500), canopy), shares, np.full((PIXELS, PIXELS), occupancy), rng)
-            drawn = covered(trees)
-            self.assertEqual(drawn.shape[0] * COVER_CELL_M, 6000)
-            self.assertAlmostEqual(float(drawn.mean()), cover / 100, delta=0.03)
+            east, south = rng.uniform(1000, 5000, (2, 100_000))
+            self.assertAlmostEqual(float(covered(trees, east, south).mean()), cover / 100, delta=0.015)
 
 
 class File(unittest.TestCase):

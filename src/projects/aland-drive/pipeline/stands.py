@@ -55,7 +55,7 @@ EMPTY_WEIGHT = 1e-6
 # jittered by a share of a cell, a tree the canopy times a roll, and each species' widest ring as a share of height.
 LATTICE_M = 6
 JITTER = 0.8
-HEIGHT_RANGE = (0.78, 1.02)
+HEIGHT_RANGE = (1.05, 1.35)
 CROWN_SHARE = np.array([0.17, 0.21, 0.16, 0.16])
 MEAN_HEIGHT_SHARE = sum(HEIGHT_RANGE) / 2
 

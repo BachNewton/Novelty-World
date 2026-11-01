@@ -17,6 +17,7 @@ from scipy import ndimage
 
 from grid import tile_from_name, to_local
 from outlying import OUTLYING_FILE, baked_path
+from stands import MEAN_HEIGHT_SHARE
 
 STEP_M = 80
 IMAGE_M = 40
@@ -85,7 +86,7 @@ def build(output: Path, manifests: list[dict], tile_m: int, unit_m: float) -> di
         ground = _far_heights(folder, far["heightsFile"], far["nodes"])[::stride, ::stride] * unit_m
         canopy = np.asarray(Image.open(folder / "canopy.webp").convert("L"), dtype=np.float32) * manifest["canopy"]["unitM"]
         block = manifest["canopy"]["pixels"] // per_tile
-        forest = canopy.reshape(per_tile, block, per_tile, block).mean(axis=(1, 3))
+        forest = canopy.reshape(per_tile, block, per_tile, block).mean(axis=(1, 3)) * MEAN_HEIGHT_SHARE
         top, left = row * per_tile, column * per_tile
         heights[top : top + per_tile + 1, left : left + per_tile + 1] = ground
         heights[top : top + per_tile, left : left + per_tile] += forest

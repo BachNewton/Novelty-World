@@ -2,7 +2,7 @@ import { all, float, greaterThanEqual, int, ivec2, lessThan, select, smoothstep,
 import type { Node } from "three/webgpu";
 import type { TerrainLift } from "./clipmap";
 import type { TileLayers } from "./tile-layers";
-import { ROAD_MASK_MIP } from "./tree-place";
+import { MEAN_HEIGHT, ROAD_MASK_MIP } from "./tree-place";
 
 /*
  * What a shader reads of the world for the forest: the canopy and the road mask
@@ -43,6 +43,6 @@ export function tileReads(layers: TileLayers, tileM: number, canopyUnitM: number
 export function canopyLift(canopyAt: (place: Node<"vec2">, mip: number) => Node<"float">, cameraSpot: Node<"vec2">, forestReach: Node<"float">): TerrainLift {
   return (place, level) => {
     if (level < 1) return float(0);
-    return canopyAt(place, level).mul(smoothstep(forestReach.sub(CANOPY_RISE_FROM_M), forestReach.sub(CANOPY_RISE_FULL_M), place.sub(cameraSpot).length()));
+    return canopyAt(place, level).mul(MEAN_HEIGHT).mul(smoothstep(forestReach.sub(CANOPY_RISE_FROM_M), forestReach.sub(CANOPY_RISE_FULL_M), place.sub(cameraSpot).length()));
   };
 }
