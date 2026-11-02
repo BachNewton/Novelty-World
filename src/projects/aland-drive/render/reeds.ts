@@ -28,9 +28,14 @@ const LATTICES: Lattice[] = [{ stepM: 3, ends: [650, 850, 60], salt: 91.7 }];
 const SWAP_M = 90;
 const SWAP_BAND = 0.15;
 
-/** The mask's level at which its texels are about a kilometre: how open the water is round a shore. */
-const SHELTER_MIP = 8;
-/** Read this far either side of a place, so the kilometre has no step where tiles meet. */
+/**
+ * How open the water is round a shore: the mask's 256 m level, read on a grid of
+ * nine this far apart, about a kilometre square. A coarser level won't do: each mip
+ * halves rounding down, so a tile's 1500 pixels are 5 at 1 km, which hold only its
+ * first 1280 and are stretched over all of it, reading water up to 900 m from where
+ * it is.
+ */
+const SHELTER_MIP = 6;
 const SHELTER_SPREAD_M = 400;
 /** Open water within a kilometre, from as much as reeds take to as much as they never do. */
 const OPEN = [0.3, 0.55] as const;
@@ -129,7 +134,8 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
       If(chance.lessThan(MOST_OF_A_PLACE).and(waterAt(place, 0).greaterThan(IN_WATER)), () => {
         const land = float(1).sub(waterAt(place, BELT_MIP)).toVar();
         If(land.greaterThan(LEAST_LAND), () => {
-          const open = [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([x, z]) => waterAt(place.add(vec2(x, z).mul(SHELTER_SPREAD_M)), SHELTER_MIP)).reduce((sum, read) => sum.add(read)).div(4);
+          const grid = [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((z) => waterAt(place.add(vec2(x, z).mul(SHELTER_SPREAD_M)), SHELTER_MIP)));
+          const open = grid.reduce((sum, read) => sum.add(read)).div(grid.length);
           const sheltered = float(1).sub(smoothstep(float(OPEN[0]), float(OPEN[1]), open));
           const shore = landAt(place);
           const shallow = smoothstep(float(SHALLOW[0]), float(SHALLOW[1]), dot(shore.broad, vec3(1 / 3)));
