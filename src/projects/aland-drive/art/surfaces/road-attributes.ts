@@ -21,6 +21,8 @@ const PAVED_IN_TOWN = new Set(["unclassified", "service", "cycleway", "footway",
 const TOWN_VERTICES = [2500, 6000] as const;
 const CELL_M = 600;
 const GRID_M = 24;
+// A town street's: the pipeline's residential half-width.
+const PAVED_AREA_HALF_WIDTH_M = 2.25;
 const TOUCHING_M = 2.5;
 const SHORTEST_MARKED_M = 25;
 const STOP_EVERY = 5;
@@ -195,15 +197,22 @@ export function roadAttributes(surface: RoadSurface, built: BuiltCell[]): RoadAt
   return { surface: shaded, mark: marks };
 }
 
-/** An apron has no chain of its own: it's the road it joins, bare, with no mark to reach. */
+/**
+ * An apron has no chain of its own: it's the road it joins, bare, with no mark to reach. A car park or bus station is
+ * paving of its own, as wide as a street, so its middle, far from any road, looks as its edge does.
+ */
 function dressAprons(surface: RoadSurface, grid: Map<string, Segment[]>, townAt: (x: number, z: number) => number, shaded: Float32Array, marks: Float32Array) {
   const vertices = surface.rings.length / 3;
   for (let vertex = surface.aprons.firstPoint; vertex < vertices; vertex++) {
     const [x, z] = [surface.rings[vertex * 3], surface.rings[vertex * 3 + 2]];
     const town = townAt(x, z);
+    marks.set([APRON_SHOULDER_M, NO_MARK], vertex * 2);
+    if (vertex >= surface.aprons.firstAreaPoint) {
+      shaded.set([1, town, PAVED_AREA_HALF_WIDTH_M, FAR_FROM_MARK_M], vertex * 4);
+      continue;
+    }
     const road = nearestSegment(grid, x, z);
     if (!road) throw new Error(`an apron point at ${x}, ${z} has no road within ${GRID_M} m`);
     shaded.set([isPaved(surface.chains[road.chain].kind, town) ? 1 : 0, town, road.halfWidth, FAR_FROM_MARK_M], vertex * 4);
-    marks.set([APRON_SHOULDER_M, NO_MARK], vertex * 2);
   }
 }

@@ -31,6 +31,10 @@ USER_AGENT = "NoveltyWorld-AlandDrive-pipeline/1.0 (https://github.com/BachNewto
 REQUEST_TIMEOUT_S = 90
 # Roads are clipped at the tile's edge, so a little past it catches every way that crosses.
 OSM_MARGIN_M = 200
+# What a kept copy of a tile's OSM holds. Raising it remakes every copy from the API's answers, which stay as they came.
+OSM_KEPT_VERSION = 2
+# Areas laid as one paved surface (see vectors.paved_areas).
+PAVED_AMENITIES = {"parking", "bus_station"}
 ORTHO_YEARS = (2025, 2024, 2023, 2022)
 MSNFI = "https://www.nic.funet.fi/index/geodata/luke/vmi/2023/"
 # In m³/ha, then %, m²/ha, cm and dm.
@@ -192,7 +196,7 @@ def osm_xml(tile: Tile) -> list[Path]:
 
 
 def _roads_and_buildings(xml_files: list[Path]) -> dict:
-    """The API's nodes joined into each road and building, in the shape vectors.py reads."""
+    """The API's nodes joined into each road, building and paved area, in the shape vectors.py reads."""
     roots = [ElementTree.parse(path).getroot() for path in xml_files]
     nodes = {node.get("id"): {"lat": float(node.get("lat")), "lon": float(node.get("lon"))} for root in roots for node in root.iter("node")}
     tags_of = lambda element: {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
@@ -202,11 +206,11 @@ def _roads_and_buildings(xml_files: list[Path]) -> dict:
     elements: list[dict] = []
     for id, way in ways.items():
         tags = tags_of(way)
-        if "highway" in tags or "building" in tags:
+        if "highway" in tags or "building" in tags or tags.get("amenity") in PAVED_AMENITIES:
             elements.append({"type": "way", "id": int(id), "tags": tags, "geometry": lines[id]})
     for id, relation in relations.items():
         tags = tags_of(relation)
-        if "building" in tags:
+        if "building" in tags or (tags.get("type") == "multipolygon" and tags.get("amenity") in PAVED_AMENITIES):
             members = [
                 {"role": member.get("role"), "geometry": lines[member.get("ref")]}
                 for member in relation.findall("member")
@@ -214,12 +218,12 @@ def _roads_and_buildings(xml_files: list[Path]) -> dict:
             ]
             elements.append({"type": "relation", "id": int(id), "tags": tags, "members": members})
     fetched = datetime.fromtimestamp(xml_files[0].stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return {"osm3s": {"timestamp_osm_base": fetched}, "elements": elements}
+    return {"version": OSM_KEPT_VERSION, "osm3s": {"timestamp_osm_base": fetched}, "elements": elements}
 
 
 def osm_path(tile: Tile, refresh: bool = False) -> Path:
     path = RAW / "osm" / f"{tile.name}.json"
-    if path.exists() and not refresh:
+    if path.exists() and not refresh and json.loads(path.read_text(encoding="utf-8")).get("version") == OSM_KEPT_VERSION:
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_roads_and_buildings(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")

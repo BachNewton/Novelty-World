@@ -4,12 +4,16 @@ import json
 from pathlib import Path
 
 import numpy as np
+import shapely
 
 from grid import Tile, lonlat_to_grid, to_local
+from sources import PAVED_AMENITIES
 
 # Highway tags that aren't a surface anyone can use.
 NOT_A_ROAD = {"proposed", "construction", "abandoned", "razed", "raceway", "bus_stop", "platform", "rest_area", "services"}
 FOOT_OR_BIKE = {"footway", "path", "cycleway", "steps", "bridleway", "pedestrian", "corridor"}
+# A car park on the ground: the others are buildings, or under one.
+PARKING_ON_THE_GROUND = {None, "surface", "lane", "street_side", "layby"}
 KEPT_TAGS = ("name", "ref", "surface", "lanes", "width", "oneway", "bridge", "tunnel", "maxspeed", "junction")
 # Far enough along the line either side of a tile edge to read the road's direction, not one kink's.
 SEAM_CHORD_M = 30.0
@@ -123,3 +127,29 @@ def build(osm_file: Path, tile: Tile) -> tuple[list[dict], list[dict], str]:
                 if tile.west <= middle[0] < tile.east and tile.south <= middle[1] < tile.north:
                     buildings.append({"id": element["id"], "kind": tags["building"], "ring": _rounded(grid_ring)})
     return roads, buildings, osm.get("osm3s", {}).get("timestamp_osm_base", "")
+
+
+def paved_areas(osm_file: Path, tile: Tile) -> list[shapely.Polygon]:
+    """Car parks and bus stations reaching into the tile, in the game's metric space: each is laid as one paved surface."""
+    osm = json.loads(osm_file.read_text(encoding="utf-8"))
+    box = shapely.box(*to_local(tile.west, tile.south), *to_local(tile.east, tile.north))
+    areas: list[shapely.Polygon] = []
+    for element in osm["elements"]:
+        tags = element.get("tags", {})
+        if tags.get("amenity") not in PAVED_AMENITIES or tags.get("parking") not in PARKING_ON_THE_GROUND:
+            continue
+        if element["type"] == "way":
+            outers, inners = [element["geometry"]], []
+        else:
+            outers = [member["geometry"] for member in element["members"] if member["role"] == "outer"]
+            inners = [member["geometry"] for member in element["members"] if member["role"] == "inner"]
+        # A relation's rings can be drawn in several ways each, so they're joined up before they're filled.
+        filled = [shapely.union_all(list(shapely.get_parts(shapely.polygonize([_local_line(line) for line in rings if len(line) >= 2])))) for rings in (outers, inners)]
+        area = shapely.difference(filled[0], filled[1]).buffer(0)
+        areas += [part for part in shapely.get_parts(area) if isinstance(part, shapely.Polygon) and part.intersects(box)]
+    return areas
+
+
+def _local_line(geometry: list[dict]) -> shapely.LineString:
+    east, north = to_local(*line_to_grid(geometry).T)
+    return shapely.LineString(np.column_stack((east, north)))

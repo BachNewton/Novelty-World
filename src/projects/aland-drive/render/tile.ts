@@ -23,7 +23,7 @@ export function litPhoto(ground: Uint8Array, shade: Uint8Array, gamma: number): 
 export interface TileManifest {
   tile: string;
   bounds: { west: number; south: number; east: number; north: number };
-  roadSurface: { file: string; chains: RoadChain[]; aprons?: { points: number; triangles: number } };
+  roadSurface: { file: string; chains: RoadChain[]; aprons?: { points: number; triangles: number; areaPoints?: number } };
   solids: { file: string; unitM: number; cells: { x: number; z: number; vertices: number; indices: number }[]; walls: number };
   /** Boathouses and sheds drawn by the rural kit on real footprints. A tile built before them has none. */
   models?: { file: string };
@@ -95,6 +95,8 @@ const APRON_POINT_FLOATS = 5;
 
 export interface RoadAprons {
   firstPoint: number;
+  /** The points from here on are car parks and bus stations: paving of their own, not the road nearest them. */
+  firstAreaPoint: number;
   /** Per point, as `RibbonMesh`'s. */
   across: Float32Array;
   tiers: Float32Array;
@@ -180,7 +182,7 @@ export function patchIndices(cells: number): Uint32Array {
 export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): RoadSurface {
   const sections = manifest.roadSurface.chains.reduce((sum, chain) => sum + chain.sections, 0);
   const floats = sections * RING_FLOATS;
-  const { points, triangles } = manifest.roadSurface.aprons ?? { points: 0, triangles: 0 };
+  const { points, triangles, areaPoints = 0 } = manifest.roadSurface.aprons ?? { points: 0, triangles: 0 };
   const baked = new Float32Array(data, 0, floats);
   const apronsAt = floats * 4 + sections;
   if (data.byteLength !== apronsAt + points * APRON_POINT_FLOATS * 4 + triangles * 12) throw new Error(`${manifest.tile}: expected ${sections} road sections and ${points} apron points, got ${data.byteLength} bytes`);
@@ -207,5 +209,5 @@ export function decodeRoadSurface(data: ArrayBuffer, manifest: TileManifest): Ro
     tiers[point] = apronPoints[at + 4];
   }
   const indices = new Uint32Array(data.slice(apronsAt + points * APRON_POINT_FLOATS * 4));
-  return { rings, tiers: new Uint8Array(data, floats * 4, sections), chains, aprons: { firstPoint: sections * RING_POINTS, across, tiers, indices } };
+  return { rings, tiers: new Uint8Array(data, floats * 4, sections), chains, aprons: { firstPoint: sections * RING_POINTS, firstAreaPoint: sections * RING_POINTS + points - areaPoints, across, tiers, indices } };
 }
