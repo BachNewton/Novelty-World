@@ -9,7 +9,7 @@ import { Painted, streetModel, type Motion, type StreetPart } from "./paint";
  *
  * Finland: Act on the Flag of Finland (380/1978), section 1: 11 high by 18 long, a
  * cross 3 wide, fields 4 high, 5 and 10 long. Colours: Government decision 827/1993
- * (see `tokens.css`).
+ * (see `globals.css`).
  *
  * Åland: landskapslag 41/1992 om Ålands flagga: 17 high by 26 long, hoist
  * 6-1.5-2-1.5-6, fly 8-1.5-2-1.5-13. Colours: landskapsförordning 2004:15.

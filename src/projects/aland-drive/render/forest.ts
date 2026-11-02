@@ -1,7 +1,8 @@
-import { BufferAttribute, BufferGeometry, DoubleSide, Frustum, IndirectStorageBufferAttribute, Matrix4, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, Vector4, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
+import { BufferAttribute, BufferGeometry, DoubleSide, IndirectStorageBufferAttribute, Mesh, MeshBasicNodeMaterial, StorageBufferAttribute, Vector2, Vector3, type Node, type PerspectiveCamera, type Scene, type WebGPURenderer } from "three/webgpu";
 import { atomicAdd, atomicStore, attribute, cos, dot, float, floor, Fn, fract, If, instanceIndex, min, mix, screenCoordinate, select, sin, smoothstep, sqrt, storage, uint, uniform, varying, vec2, vec3, vec4 } from "three/tsl";
 import { HEIGHT_RANGE, HEIGHT_ROLL, JITTER, JITTER_ROLLS, NEAR_STEP_M, ROAD_COVERAGE, ROAD_LOOK_M, SHORTEST_M, STAND_ROLL } from "./tree-place";
 import { FAR_RINGS, FAR_TABLE, NEAR_RINGS, NEAR_TABLE, ROCK_ROW, STAGES, SWELL, TREE_KINDS, TRUNK_RINGS, type TreeKind } from "./tree-shapes";
+import { viewSides } from "./view-sides";
 
 /*
  * The forest, with no list of trees anywhere: a tree is a place on a lattice of the
@@ -60,7 +61,7 @@ const GROUND_RUNS: [number, number][] = [
   [1200, 1450],
 ];
 /** No ground in the world, with the tallest tree the canopy image can hold on it, is outside these, or a tree's crown wider than this. */
-const WORLD_HEIGHTS_M = [-10, 225];
+const WORLD_HEIGHTS_M = [-10, 225] as const;
 const WIDEST_CROWN_M = 15;
 /** A share of a tree's height: past this from the middle of its trunk there's none of it, whichever model, leaning or not. */
 const TREE_BOUND = 0.7;
@@ -223,7 +224,8 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
   const cameraSpot = uniform(new Vector2());
   const anchor = uniform(new Vector2());
   const placesAcross = uniform(1, "uint");
-  const sides = [0, 1, 2, 3].map(() => ({ plane: uniform(new Vector4()), rough: uniform(0) }));
+  const view = viewSides(WORLD_HEIGHTS_M, WIDEST_CROWN_M);
+  const { sides } = view;
   const sunWay = (sun.azimuthDeg * Math.PI) / 180;
   const toSun = vec2(Math.sin(sunWay), -Math.cos(sunWay));
   // Interleaved gradient noise: a fixed pattern on the screen, with no clumps for a crossfade to show as.
@@ -382,8 +384,6 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
   model("turned", turnedShape, turnedList, turnedRows, TURNED_DRAW, nearShapes, NEAR_RINGS);
   model("cone", coneShape, coneList, coneRows, CONE_DRAW, farShapes, FAR_RINGS);
 
-  const frustum = new Frustum();
-  const viewProjection = new Matrix4();
   const aim = (spot: Vector3) => {
     const across = Math.ceil((2 * knobs.get().forestReachM) / NEAR_STEP_M) + 2;
     placesAcross.value = across;
@@ -399,13 +399,7 @@ export function createForest(scene: Scene, renderer: WebGPURenderer, { knobs, ca
   return {
     update(spot, camera) {
       aim(spot);
-      camera.updateMatrixWorld();
-      frustum.setFromProjectionMatrix(viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
-      sides.forEach(({ plane, rough }, side) => {
-        const { normal, constant } = frustum.planes[side];
-        plane.value.set(normal.x, normal.y, normal.z, constant);
-        rough.value = constant + Math.max(normal.y * WORLD_HEIGHTS_M[0], normal.y * WORLD_HEIGHTS_M[1]) + WIDEST_CROWN_M;
-      });
+      view.update(camera);
       void renderer.compute([reset, cull]);
     },
     async compile() {

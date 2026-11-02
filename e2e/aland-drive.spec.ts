@@ -53,6 +53,17 @@ test("the drive starts on WebGPU and the car moves under the keyboard", async ({
   await expect(page.getByRole("status")).not.toHaveText("0");
 });
 
+test("the verge grows beside the road, and leaving it out takes its triangles away", async ({ page }) => {
+  await page.goto(onFixture);
+  await page.waitForFunction(() => window.__alandDrive !== undefined && window.__alandDrive.frames() > 0, null, { timeout: 60_000 });
+  await page.waitForFunction(() => {
+    const verge = window.__alandDrive?.vergeDrawn();
+    return verge !== undefined && verge.near > 0 && verge.far > 0;
+  });
+  await page.evaluate(() => window.__alandDrive?.showVerge(false));
+  await page.waitForFunction(() => window.__alandDrive?.vergeDrawn().triangles === 0);
+});
+
 test("the forest draws only what the GPU picked, and a setting changes that with no rebuild", async ({ page }) => {
   await page.goto(`${onFixture}&forest-lab`);
   const drawnOnce = (reach: number) =>

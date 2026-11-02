@@ -179,7 +179,8 @@ def _fetch_quarters(name: str, box: tuple[float, float, float, float]) -> list[P
     return [path for index, quarter in enumerate(quarters) for path in _fetch_box(f"{name}.{index}", quarter)]
 
 
-def _osm_xml(tile: Tile) -> list[Path]:
+def osm_xml(tile: Tile) -> list[Path]:
+    """OSM's answers for the tile's box and a margin round it, fetched once and kept."""
     to_lonlat = Transformer.from_crs("EPSG:3067", "EPSG:4326", always_xy=True)
     corners = [
         to_lonlat.transform(east, north)
@@ -221,5 +222,5 @@ def osm_path(tile: Tile, refresh: bool = False) -> Path:
     if path.exists() and not refresh:
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(_roads_and_buildings(_osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(_roads_and_buildings(osm_xml(tile)), ensure_ascii=False), encoding="utf-8")
     return path

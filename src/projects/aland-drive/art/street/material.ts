@@ -2,7 +2,6 @@ import { DoubleSide, MeshBasicNodeMaterial, Vector3, type Node } from "three/web
 import { attribute, cameraPosition, cos, cross, dFdx, dFdy, dot, float, fract, int, mix, normalize, positionGeometry, positionWorld, round, screenCoordinate, select, sin, smoothstep, uniform, uniformArray, vec2, vec3 } from "three/tsl";
 import type { RoadsideInputs } from "../roadside/material";
 import { MOTION_KINDS, MOTION_RANGE_M, STREET_PARTS, type MotionKind, type StreetPart } from "./paint";
-import "./tokens.css";
 
 /*
  * The same instance layout as the roadside kit, so `placeModel` places these
@@ -113,16 +112,30 @@ const screenPattern = () => fract(fract(dot(screenCoordinate.xy, vec2(0.06711056
 /** How far along its two versions a place's distance has come: 0 is all near, 1 all far. */
 const swapShare = (reach: Node<"vec2">, distance: Node<"float">) => smoothstep(reach.x.mul(1 - SWAP_BAND), reach.x.mul(1 + SWAP_BAND), distance);
 
+/** Every part's paint in linear light, by its place in `STREET_PARTS`. */
+export function streetColours(linear: RoadsideInputs["linear"]): Vector3[] {
+  return STREET_PARTS.map((part) => {
+    const { from, to, share = 0, gain = 1 } = PAINT[part];
+    return linear(from).lerp(to === undefined ? linear(from) : linear(to), share).multiplyScalar(gain);
+  });
+}
+
+/** Every part's paint, by its place in `STREET_PARTS`, for a shader. */
+export function streetPalette(linear: RoadsideInputs["linear"]) {
+  return uniformArray(streetColours(linear));
+}
+
+/** A vertex's paint from the kit's palette, before any light. */
+export function streetPaint(palette: ReturnType<typeof streetPalette>): Node<"vec3"> {
+  const tint = attribute<"vec4">("tint", "vec4");
+  return (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
+}
+
 function paintOf({ linear, sun }: Pick<RoadsideInputs, "linear" | "sun">, foot: Node<"float">, roll: Node<"float">, kind: Node<"float">) {
   const azimuth = (sun.azimuthDeg * Math.PI) / 180;
   const elevation = (sun.elevationDeg * Math.PI) / 180;
   const toSun = uniform(new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), -Math.cos(azimuth) * Math.cos(elevation)));
-  const palette = uniformArray(STREET_PARTS.map((part) => {
-    const { from, to, share = 0, gain = 1 } = PAINT[part];
-    return linear(from).lerp(to === undefined ? linear(from) : linear(to), share).multiplyScalar(gain);
-  }));
-  const tint = attribute<"vec4">("tint", "vec4");
-  const painted = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(tint.g.mul(255 / 128));
+  const painted = streetPaint(streetPalette(linear));
   // No two trees or tufts are quite the one green.
   const base = select(kindIs(kind, "leaf"), painted.mul(mix(float(0.88), float(1.1), roll)), painted);
 

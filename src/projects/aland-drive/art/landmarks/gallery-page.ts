@@ -2,6 +2,7 @@ import { Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, S
 import { cameraPosition, exp, float, mix, positionWorld, vec3 } from "three/tsl";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { buildingMaterial, buildingMeshes } from "../../render/buildings";
+import { createSignSheet, detailTexture } from "../surfaces";
 import { LANDMARKS } from "./index";
 import { placed, triangles } from "./landmark";
 
@@ -54,7 +55,7 @@ async function start() {
     const { r, g, b } = token(name);
     return new Vector3(r, g, b);
   };
-  const material = buildingMaterial({ colour, linear, hazed }, SUN);
+  const material = buildingMaterial({ colour, linear, hazed }, SUN, { detail: detailTexture(SUN), sheet: createSignSheet((name) => token(name).getStyle()) });
 
   const plane = (name: string) => {
     const surface = new MeshBasicNodeMaterial();

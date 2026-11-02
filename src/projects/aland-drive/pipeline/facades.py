@@ -1,4 +1,4 @@
-"""Which facade a building gets: the rule the pipeline runs per building (`integration.mjs` says where it goes).
+"""Which facade a building gets (`art/facades`): the rule `buildings.py` runs per building, and what it reads from OSM.
 
 It reads what the data knows, in order of how much that's worth: OSM's own word for a building's material, then what kind
 of thing NLS says it is, then its shape and street. Everything else is a seeded roll, so a rebuild gives the same town.
@@ -12,10 +12,17 @@ them cabins. They stay timber here.
 """
 
 import json
+import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass, field
 from pathlib import Path
 
-IDS = json.loads((Path(__file__).parent / "facade-ids.json").read_text(encoding="utf-8"))
+import shapely
+from pyproj import Transformer
+from shapely.geometry import LineString, Point, Polygon
+
+from grid import to_local
+
+IDS = json.loads((Path(__file__).resolve().parent.parent / "art" / "facades" / "facade-ids.json").read_text(encoding="utf-8"))
 STYLES = IDS["styles"]
 PAINT = {name: at for at, name in enumerate(IDS["paints"])}
 WORD = {name: at for at, name in enumerate(IDS["words"])}
@@ -77,7 +84,7 @@ BARN_PAINTS = (("barn-red", 0.62), ("barn-silver", 0.24), ("barn-tar", 0.14))
 OSM_COLOURS = {"white": "wall-white", "red": "wall-red", "yellow": "villa-butter", "lightgoldenrodyellow": "villa-butter", "blue": "villa-sky", "green": "villa-sage", "tan": "villa-sand", "#ffe0a0": "villa-butter", "#fffacd": "villa-butter", "#da9898": "villa-rose", "#bcc1bd": "wall-pale", "#bb0707": "wall-red"}
 
 # A sign says the trade, from OSM's shop value.
-TRADE_WORDS = {"bakery": "BAGERI", "kiosk": "KIOSK", "coffee": "KAFFE", "chemist": "APOTEK", "books": "BOKHANDEL", "florist": "BLOMMOR", "clothes": "KLÄDER", "fashion": "KLÄDER", "shoes": "SKOR", "hairdresser": "FRISÖR", "beauty": "FRISÖR", "seafood": "FISK", "bicycle": "CYKLAR", "jewelry": "UR & GULD", "car": "BILAR", "car_repair": "BILAR", "car_parts": "BILAR", "tyres": "BILAR", "furniture": "MÖBLER", "interior_decoration": "MÖBLER", "optician": "OPTIK", "paint": "FÄRG", "gift": "PRESENTER", "craft": "PRESENTER", "sports": "SPORT", "toys": "LEKSAKER", "hardware": "JÄRN", "doityourself": "JÄRN", "pet": "DJUR", "second_hand": "LOPPIS", "supermarket": "MAT", "convenience": "MAT", "deli": "MAT", "alcohol": "VINBODEN", "electronics": "BUTIK", "garden_centre": "BLOMMOR"}
+TRADE_WORDS = {"bakery": "BAGERI", "kiosk": "KIOSK", "coffee": "KAFFE", "chemist": "APOTEK", "books": "BOKHANDEL", "florist": "BLOMMOR", "clothes": "KLÄDER", "fashion": "KLÄDER", "shoes": "SKOR", "hairdresser": "FRISÖR", "beauty": "FRISÖR", "seafood": "FISK", "bicycle": "CYKLAR", "jewelry": "GULDSMED", "car": "BILAR", "car_repair": "BILAR", "car_parts": "BILAR", "tyres": "BILAR", "furniture": "MÖBLER", "interior_decoration": "MÖBLER", "optician": "OPTIK", "paint": "FÄRG", "gift": "PRESENTER", "craft": "PRESENTER", "sports": "SPORT", "toys": "LEKSAKER", "hardware": "JÄRN", "doityourself": "JÄRN", "pet": "DJUR", "second_hand": "LOPPIS", "supermarket": "MAT", "convenience": "MAT", "deli": "MAT", "alcohol": "VINBODEN", "electronics": "BUTIK", "garden_centre": "BLOMMOR"}
 # A chain takes an invented house name of its trade.
 CHAIN_WORDS = {"supermarket": ("MATHOLMEN", "SKUTHALLEN"), "convenience": ("HAVSBODEN",), "clothes": ("VÄSTANVIND",), "sports": ("RODDAREN",), "optician": ("SKARPÖGA",), "pet": ("TASSEN",), "doityourself": ("BYGGHOLMEN",), "furniture": ("SOFFKOBBEN",), "electronics": ("VOLTVIKEN",), "car": ("BILVIKEN",), "tyres": ("DÄCKHOLMEN",)}
 # Shops that take a whole big building, not a ground floor.
@@ -227,3 +234,131 @@ def choose(facts: Facts) -> Choice | None:
             return None
         choice = Choice(STYLES["block"], _own_colour(facts.tags, _pick(facts.seed, 3, BLOCK_PAINTS)), why="a shop in a plain building")
     return _with_front(choice, facts)
+
+
+# What OSM says round the buildings
+
+STREET_REACH_M = 34
+SHOP_REACH_M = 6
+RURAL_REACH_M = 120
+RURAL_BELOW = 14
+_to_grid = Transformer.from_crs(4326, 3067, always_xy=True)
+
+
+def _local(lon: float, lat: float) -> tuple[float, float]:
+    return to_local(*_to_grid.transform(lon, lat))
+
+
+@dataclass
+class Osm:
+    """A tile's named streets, tagged buildings and shops, in the pipeline's local metres."""
+
+    streets: list[tuple[LineString, str]]
+    tagged: list[tuple[Polygon, dict]]
+    shops: list[tuple[Point, dict]]
+
+    def __post_init__(self):
+        self._streets = shapely.STRtree([line for line, _ in self.streets])
+        self._tagged = shapely.STRtree([outline for outline, _ in self.tagged])
+        self._shops = shapely.STRtree([point for point, _ in self.shops])
+
+    def street(self, middle: Point) -> str | None:
+        found = self._streets.query_nearest(middle, max_distance=STREET_REACH_M)
+        return self.streets[int(found[0])][1] if len(found) else None
+
+    def tags(self, middle: Point) -> dict:
+        return next((self.tagged[at][1] for at in self._tagged.query(middle) if self.tagged[at][0].contains(middle)), {})
+
+    def shop(self, outline: Polygon) -> dict | None:
+        return next((self.shops[at][1] for at in self._shops.query(outline.buffer(SHOP_REACH_M))), None)
+
+
+def read_osm(xml_files: list[Path]) -> Osm:
+    """The API's answers for a tile, as untrusted data. A shop is a node or a building's own tags."""
+    streets, tagged, shops = [], [], []
+    for path in xml_files:
+        nodes = {}
+        for _, element in ElementTree.iterparse(path, events=("end",)):
+            if element.tag == "node":
+                place = _local(float(element.get("lon")), float(element.get("lat")))
+                nodes[element.get("id")] = place
+                tags = {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
+                if "shop" in tags:
+                    shops.append((Point(place), tags))
+                element.clear()
+            elif element.tag == "way":
+                tags = {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
+                points = [nodes[nd.get("ref")] for nd in element.findall("nd") if nd.get("ref") in nodes]
+                if "highway" in tags and "name" in tags and len(points) >= 2:
+                    streets.append((LineString(points), tags["name"]))
+                if "building" in tags and len(points) >= 4 and points[0] == points[-1]:
+                    outline = shapely.make_valid(Polygon(points))
+                    tagged.append((outline, tags))
+                    if "shop" in tags:
+                        shops.append((outline.representative_point(), tags))
+                element.clear()
+            elif element.tag == "relation":
+                element.clear()
+    return Osm(streets, tagged, shops)
+
+
+# What OSM says round the buildings
+
+STREET_REACH_M = 34
+SHOP_REACH_M = 6
+RURAL_REACH_M = 120
+RURAL_BELOW = 14
+_to_grid = Transformer.from_crs(4326, 3067, always_xy=True)
+
+
+@dataclass
+class Osm:
+    """A tile's named streets, tagged buildings and shops, in the pipeline's local metres."""
+
+    streets: list[tuple[LineString, str]]
+    tagged: list[tuple[Polygon, dict]]
+    shops: list[tuple[Point, dict]]
+
+    def __post_init__(self):
+        self._streets = shapely.STRtree([line for line, _ in self.streets])
+        self._tagged = shapely.STRtree([outline for outline, _ in self.tagged])
+        self._shops = shapely.STRtree([point for point, _ in self.shops])
+
+    def street(self, middle: Point) -> str | None:
+        found = self._streets.query_nearest(middle, max_distance=STREET_REACH_M)
+        return self.streets[int(found[0])][1] if len(found) else None
+
+    def tags(self, middle: Point) -> dict:
+        return next((self.tagged[at][1] for at in self._tagged.query(middle) if self.tagged[at][0].contains(middle)), {})
+
+    def shop(self, outline: Polygon) -> dict | None:
+        return next((self.shops[at][1] for at in self._shops.query(outline.buffer(SHOP_REACH_M))), None)
+
+
+def read_osm(xml_files: list[Path]) -> Osm:
+    """OSM's answers for a tile, as untrusted data. A shop is a node of its own or a building's own tags."""
+    streets, tagged, shops = [], [], []
+    for path in xml_files:
+        nodes = {}
+        for _, element in ElementTree.iterparse(path, events=("end",)):
+            if element.tag == "node":
+                place = to_local(*_to_grid.transform(float(element.get("lon")), float(element.get("lat"))))
+                nodes[element.get("id")] = place
+                tags = {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
+                if "shop" in tags:
+                    shops.append((Point(place), tags))
+                element.clear()
+            elif element.tag == "way":
+                tags = {tag.get("k"): tag.get("v") for tag in element.findall("tag")}
+                points = [nodes[nd.get("ref")] for nd in element.findall("nd") if nd.get("ref") in nodes]
+                if "highway" in tags and "name" in tags and len(points) >= 2:
+                    streets.append((LineString(points), tags["name"]))
+                if "building" in tags and len(points) >= 4 and points[0] == points[-1]:
+                    outline = shapely.make_valid(Polygon(points))
+                    tagged.append((outline, tags))
+                    if "shop" in tags:
+                        shops.append((outline.representative_point(), tags))
+                element.clear()
+            elif element.tag == "relation":
+                element.clear()
+    return Osm(streets, tagged, shops)

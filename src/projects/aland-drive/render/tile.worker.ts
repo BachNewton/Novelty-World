@@ -2,6 +2,7 @@ import { decodeHeights, litPhoto, type HeightGrid, type TileManifest, type World
 import { decodeSolids, type SolidsCell } from "./solids";
 import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
 import { decodeOverview, tileDetail, type Overview, type TileDetail } from "../sim/world";
+import { roadAttributes, type RoadAttributes } from "../art/surfaces/road-attributes";
 
 /*
  * Everything slow about a tile, off the main thread: fetching it, inflating it,
@@ -28,6 +29,7 @@ export interface FarTile {
 
 export interface DetailTile {
   detail: TileDetail;
+  roadDress: RoadAttributes;
   shade: Mips;
   ground: Mips;
   buildings: SolidsCell[];
@@ -160,12 +162,13 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
   ]);
   const grid = decodeHeights(new Int16Array(heights), world.heights, tile);
   const { cells, walls } = decodeSolids(solids, manifest.solids);
-  return { detail: tileDetail(manifest, grid, surface, new Uint8Array(waterNodes), world.tileM, walls), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, bytes: reader.bytes };
+  const detail = tileDetail(manifest, grid, surface, new Uint8Array(waterNodes), world.tileM, walls);
+  return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, bytes: reader.bytes };
 }
 
 const transfersOf = ({ grid, shade, mask, ground, canopy, stands, land }: FarTile): Transferable[] => [land, grid.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy, ...stands].map((mip) => mip.buffer as ArrayBuffer)];
 
-function detailTransfers({ detail, shade, ground, buildings }: DetailTile): Transferable[] {
+function detailTransfers({ detail, roadDress, shade, ground, buildings }: DetailTile): Transferable[] {
   const { ribbon, surface, roads, blockRoads, grid, waterNodes, bridges, walls, blockWalls } = detail;
   const arrays = [
     grid.heights,
@@ -176,6 +179,8 @@ function detailTransfers({ detail, shade, ground, buildings }: DetailTile): Tran
     ribbon.along,
     ribbon.tiers,
     ribbon.indices,
+    roadDress.surface,
+    roadDress.mark,
     ...ribbon.cells.map((cell) => cell.indices),
     roads.points,
     roads.lengths,
