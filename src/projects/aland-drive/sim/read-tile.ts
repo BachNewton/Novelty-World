@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { decodeHeights, type TileManifest, type WorldManifest } from "../render/tile";
 import { decodeSolids } from "../render/solids";
+import { wallFaces, wallSections, type WallsFile } from "../render/tile-walls";
 import { decodeOverview, tileDetail, World } from "./world";
 
 const inflated = (gzipped: Buffer) => {
@@ -39,7 +40,9 @@ export function readWorld(folder: string, only?: Set<string>): World {
     world.addFar(name, decodeHeights(new Int16Array(read(manifest.far.heightsFile)), { ...manifest.far, unitM: manifest.heights.unitM }, { west, north }));
     const grid = decodeHeights(new Int16Array(read(manifest.heights.file)), manifest.heights, { west, north });
     const { walls } = decodeSolids(read(tile.solids.file), tile.solids);
-    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), new Uint8Array(read(manifest.water.nodesFile)), manifest.tileM, walls));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- a tile folder a tool or test named
+    const stoneWalls = tile.walls ? wallSections(JSON.parse(readFileSync(join(folder, name, tile.walls.file), "utf8")) as WallsFile, grid) : new Float32Array(0);
+    world.addDetail(tileDetail(tile, grid, read(tile.roadSurface.file), new Uint8Array(read(manifest.water.nodesFile)), manifest.tileM, walls, wallFaces(stoneWalls)));
   }
   return world;
 }

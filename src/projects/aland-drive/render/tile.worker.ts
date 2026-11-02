@@ -1,6 +1,7 @@
 import { decodeHeights, litPhoto, type HeightGrid, type TileManifest, type WorldManifest, type WorldTileEntry } from "./tile";
 import { decodeModels, type ModelsFile, type TileModels } from "./tile-models";
 import { decodeSolids, type SolidsCell } from "./solids";
+import { wallFaces, wallSections, type WallSections, type WallsFile } from "./tile-walls";
 import { decodeRoadGraph, graphTransfers, type RoadGraphData, type RoadMapFile } from "../map/road-graph";
 import { decodeOverview, tileDetail, type Overview, type TileDetail } from "../sim/world";
 import { roadAttributes, type RoadAttributes } from "../art/surfaces/road-attributes";
@@ -35,6 +36,7 @@ export interface DetailTile {
   ground: Mips;
   buildings: SolidsCell[];
   models: TileModels;
+  stoneWalls: WallSections;
   bytes: number;
 }
 
@@ -154,7 +156,7 @@ async function roadMap(base: string, world: WorldManifest): Promise<RoadGraphDat
 async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry): Promise<DetailTile> {
   const reader = new Reader(`${base}/${tile.name}`);
   const manifest = await reader.json<TileManifest>("tile.json");
-  const [heights, surface, waterNodes, shade, ground, solids, models] = await Promise.all([
+  const [heights, surface, waterNodes, shade, ground, solids, models, walls] = await Promise.all([
     reader.inflated(world.heights.file),
     reader.inflated(manifest.roadSurface.file),
     reader.inflated(world.water.nodesFile),
@@ -162,16 +164,18 @@ async function detailed(base: string, world: WorldManifest, tile: WorldTileEntry
     reader.pixels(world.ground.file, world.ground.pixels, 4),
     reader.inflated(manifest.solids.file),
     manifest.models ? reader.json<ModelsFile>(manifest.models.file) : { models: {} },
+    manifest.walls ? reader.json<WallsFile>(manifest.walls.file) : { walls: [] },
   ]);
   const grid = decodeHeights(new Int16Array(heights), world.heights, tile);
-  const { cells, walls } = decodeSolids(solids, manifest.solids);
-  const detail = tileDetail(manifest, grid, surface, new Uint8Array(waterNodes), world.tileM, walls);
-  return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, models: decodeModels(models), bytes: reader.bytes };
+  const { cells, walls: outlines } = decodeSolids(solids, manifest.solids);
+  const stoneWalls = wallSections(walls, grid);
+  const detail = tileDetail(manifest, grid, surface, new Uint8Array(waterNodes), world.tileM, outlines, wallFaces(stoneWalls));
+  return { detail, roadDress: roadAttributes(detail.surface, manifest.solids.cells), shade: mipChain(shade, world.shade.pixels, 1), ground: mipChain(ground, world.ground.pixels, 4), buildings: cells, models: decodeModels(models), stoneWalls, bytes: reader.bytes };
 }
 
 const transfersOf = ({ grid, shade, mask, ground, canopy, stands, land }: FarTile): Transferable[] => [land, grid.heights.buffer as ArrayBuffer, ...[...shade, ...mask, ...ground, ...canopy, ...stands].map((mip) => mip.buffer as ArrayBuffer)];
 
-function detailTransfers({ detail, roadDress, shade, ground, buildings, models }: DetailTile): Transferable[] {
+function detailTransfers({ detail, roadDress, shade, ground, buildings, models, stoneWalls }: DetailTile): Transferable[] {
   const { ribbon, surface, roads, blockRoads, grid, waterNodes, bridges, walls, blockWalls } = detail;
   const arrays = [
     grid.heights,
@@ -204,6 +208,7 @@ function detailTransfers({ detail, roadDress, shade, ground, buildings, models }
     ...ground,
     ...buildings.flatMap((cell) => [cell.positions, cell.facades, cell.tints, cell.indices]),
     ...Object.values(models),
+    stoneWalls,
   ];
   return [...new Set(arrays.map((array) => array.buffer as ArrayBuffer))];
 }

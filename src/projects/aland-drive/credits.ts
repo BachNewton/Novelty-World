@@ -30,7 +30,7 @@ export const ALAND_DRIVE_CREDITS: readonly Credit[] = [
     attribution: "Contains data from the National Land Survey of Finland Buildings 3D, licensed under CC BY 4.0",
   },
   {
-    work: "Topographic Database of Åland (building footprints and classes)",
+    work: "Topographic Database of Åland (building footprints and classes, and the fields and meadows whose edges the stone walls follow)",
     author: "National Land Survey of Finland",
     license: LICENSES["cc-by-4.0"],
     source: "https://www.maanmittauslaitos.fi/en/maps-and-spatial-data/datasets-and-interfaces/product-descriptions/topographic-database",
@@ -44,7 +44,7 @@ export const ALAND_DRIVE_CREDITS: readonly Credit[] = [
     attribution: "©Natural Resources Institute Finland, 2023, The Multi-source National Forest Inventory Raster Maps of 2023",
   },
   {
-    work: "Roads of Åland and building outlines kept beside them, reprojected and clipped to the game's tiles; those tiles' road and building files are offered under the same licence",
+    work: "Roads of Åland, building outlines kept beside them, and its mapped stone walls, reprojected and clipped to the game's tiles; those tiles' road, building and wall files are offered under the same licence",
     author: "OpenStreetMap contributors",
     license: LICENSES["odbl-1.0"],
     source: "https://www.openstreetmap.org/copyright",

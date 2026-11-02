@@ -44,7 +44,7 @@ export interface TileDetail {
   blockRoads: BlockRoads;
   /** The tile's bridges as drawn. */
   bridges: BridgeKit;
-  /** What the car can't pass, `WALL_FLOATS` to a wall: the outlines of the tile's buildings and the sides of its bridges. */
+  /** What the car can't pass, `WALL_FLOATS` to a wall: the outlines of the tile's buildings, the sides of its bridges and its stone walls. */
   walls: Float32Array;
   blockWalls: BlockList;
 }
@@ -73,12 +73,13 @@ export function decodeOverview(deltas: Int16Array, format: Omit<Overview, "heigh
   return { west: format.west, north: format.north, columns, rows, stepM: format.stepM, heights };
 }
 
-/** Building outlines and bridge sides as one list of walls. */
-function allWalls(solid: Float32Array, rails: Float32Array): Float32Array {
+/** Building outlines, bridge sides and anything else that stands as one list of walls. */
+function allWalls(solid: Float32Array, rails: Float32Array, others: Float32Array): Float32Array {
   const count = solid.length / SOLID_WALL_FLOATS;
-  const walls = new Float32Array(count * WALL_FLOATS + rails.length).fill(Number.NaN);
+  const walls = new Float32Array(count * WALL_FLOATS + rails.length + others.length).fill(Number.NaN);
   for (let wall = 0; wall < count; wall++) walls.set(solid.subarray(wall * SOLID_WALL_FLOATS, (wall + 1) * SOLID_WALL_FLOATS), wall * WALL_FLOATS);
   walls.set(rails, count * WALL_FLOATS);
+  walls.set(others, count * WALL_FLOATS + rails.length);
   return walls;
 }
 
@@ -148,11 +149,12 @@ function blockRoads(ribbon: RibbonMesh, west: number, north: number, tileM: numb
   return { first, triangles, blocksAcross };
 }
 
-export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterNodes: Uint8Array, tileM: number, walls: Float32Array = new Float32Array(0)): TileDetail {
+/** `walls` are the buildings' outlines, two ends to one; `standing` is anything else the car can't pass, `WALL_FLOATS` to one. */
+export function tileDetail(manifest: TileManifest, grid: HeightGrid, surfaceBytes: ArrayBuffer, waterNodes: Uint8Array, tileM: number, walls: Float32Array = new Float32Array(0), standing: Float32Array = new Float32Array(0)): TileDetail {
   const surface = decodeRoadSurface(surfaceBytes, manifest);
   const ribbon = ribbonMesh(surface, manifest.bounds);
   const bridges = bridgeKit(surface, grid);
-  const allWallsHere = allWalls(walls, bridges.rails);
+  const allWallsHere = allWalls(walls, bridges.rails, standing);
   const column = Math.round(manifest.bounds.west / tileM);
   const row = Math.round(-manifest.bounds.north / tileM);
   return {
