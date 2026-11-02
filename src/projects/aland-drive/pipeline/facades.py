@@ -7,8 +7,8 @@ Nothing is wood because it's central. The town's own record says about fifty Hon
 around Södragatan and Mariegatan, and that many wooden houses on those same streets went for modern blocks after 1945.
 So a villa takes a street on the short list, a house's size, a pitched roof, and even then only a share of them.
 
-The class `pipeline/buildings.py` calls PUBLIC, 42231, is NLS's holiday cottages: its median is 59–72 m² and OSM calls
-them cabins. They stay timber here.
+The classes are the Topographic Database's, read against every footprint on the island and OSM's tags on them. 42231 is
+holiday cottages (median 66 m², OSM's cabins), and 42270 and 42251 are churches and chapels. Both keep the plain look.
 """
 
 import json
@@ -34,7 +34,8 @@ APARTMENTS = 42212
 COMMERCIAL = (42221, 42222)
 COTTAGE = (42231, 42232)
 INDUSTRIAL = (42241, 42242)
-OUTBUILDINGS = (42260, 42261, 42262, 42270)
+CHURCH = (42270, 42251, 42252)
+OUTBUILDINGS = (42260, 42261, 42262)
 
 # A street's share of villas, ranked by the record above.
 VILLA_STREETS = {
@@ -194,7 +195,7 @@ def _is_recent(facts: Facts) -> bool:
 def _rule(facts: Facts) -> Choice | None:
     seed, kind, area, eaves = facts.seed, facts.kind, facts.area, facts.eaves
     osm = facts.tags.get("building")
-    if osm in ("church", "chapel", "ship", "boathouse", "ruins") or facts.tags.get("historic") == "ship":
+    if kind in CHURCH or osm in ("church", "chapel", "ship", "boathouse", "ruins") or facts.tags.get("historic") == "ship":
         return None
     if kind in OUTBUILDINGS or osm in ("barn", "farm_auxiliary"):
         if facts.rural and area >= FARM_BARN_M2:

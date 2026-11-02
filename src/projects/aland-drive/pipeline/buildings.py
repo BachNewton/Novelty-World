@@ -33,6 +33,7 @@ from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import split, unary_union
 
 import facades
+from facades import APARTMENTS, CHURCH, COMMERCIAL, COTTAGE, HOUSE, INDUSTRIAL, OUTBUILDINGS
 from grid import SAMPLE_M, SAMPLES, TILE_SIZE_M, Tile, neighbour, to_local
 from outbuildings import Placed, toward
 from sources import buildings3d_path, osm_xml, topographic_path
@@ -43,13 +44,6 @@ GML = "{http://www.opengis.net/gml}"
 BUILDING = "{http://www.opengis.net/citygml/building/2.0}"
 SURFACES = {"WallSurface": "wall", "RoofSurface": "roof"}
 
-# Topographic Database classes.
-HOUSE = 42211
-APARTMENTS = 42212
-COMMERCIAL = (42221, 42222)
-PUBLIC = 42231
-INDUSTRIAL = 42241
-OUTBUILDINGS = (42260, 42261, 42270)
 BUILDING_CLASSES = range(42000, 43000)
 
 ROOF, TIMBER, PLASTER, BOARDS = 0, 1, 2, 3
@@ -72,7 +66,7 @@ TOUCHES_ROAD_M2 = 0.5
 # A car on the very edge of a road still fits past a wall this far away.
 CAR_ROOM_M = 1.2
 # (eaves, ridge) when the laser saw nothing there, and the tallest ridge believed when it did, by class: it sees trees too.
-SHAPE = {HOUSE: (3.0, 6.5, 10.0), APARTMENTS: (9.0, 11.0, 28.0), PUBLIC: (5.0, 8.0, 16.0), INDUSTRIAL: (6.0, 8.0, 16.0)}
+SHAPE = {HOUSE: (3.0, 6.5, 10.0), APARTMENTS: (9.0, 11.0, 28.0), **dict.fromkeys(COTTAGE, (2.5, 4.8, 6.5)), **dict.fromkeys(INDUSTRIAL, (6.0, 8.0, 16.0))}
 SMALL_SHAPE = (2.3, 4.2, 7.0)
 OTHER_SHAPE = (3.5, 6.0, 14.0)
 
@@ -275,8 +269,12 @@ def _material(kind: int, area: float, seed: int) -> tuple[int, int]:
     """A wall's style and palette colour, from what the building is and how big."""
     if kind in OUTBUILDINGS or (kind == 0 and area < SMALL_SHED_M2):
         return BOARDS, GREY
-    if kind in (APARTMENTS, INDUSTRIAL, *COMMERCIAL, PUBLIC) or area > LARGE_TOWN_BUILDING_M2:
-        return PLASTER, GREY if kind == INDUSTRIAL else _pick(seed, PLASTER_COLOURS)
+    if kind in CHURCH:
+        return PLASTER, PALE
+    if kind in COTTAGE:
+        return TIMBER, _pick(seed, HOUSE_COLOURS)
+    if kind in (APARTMENTS, *INDUSTRIAL, *COMMERCIAL) or area > LARGE_TOWN_BUILDING_M2:
+        return PLASTER, GREY if kind in INDUSTRIAL else _pick(seed, PLASTER_COLOURS)
     return TIMBER, _pick(seed, HOUSE_COLOURS)
 
 
