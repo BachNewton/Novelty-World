@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPine, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, type RoadsideModel } from "./index";
+import { buildBusShelter, buildFarmFence, buildFarmFencePost, buildMailbox, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, type RoadsideModel } from "./index";
 
 const ROADSIDE_LIMIT = 150;
 const FAR_LIMIT = 24;
@@ -18,7 +18,6 @@ describe("roadside triangle budgets", () => {
     townPost: buildTownFencePost(),
     mailbox: buildMailbox(),
     shelter: buildBusShelter(),
-    pine: buildPine(),
   };
 
   it.each(Object.entries(kit))("%s stays within its budget", (_, model) => {

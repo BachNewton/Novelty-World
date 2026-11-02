@@ -3,7 +3,7 @@ import { cameraPosition, exp, float, mix, positionWorld, sin, smoothstep, unifor
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { createForest, FOREST_MOST, forestKnobs } from "../../render/forest";
 import { createSignSheet } from "../surfaces";
-import { buildBridge, buildBusShelter, buildFarmFence, buildFarmFencePost, buildGangway, buildMailbox, buildPier, buildPine, buildPontoon, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, createSignKit, FARM_FENCE_M, placeModel, placeWires, roadsideMaterials, TOWN_FENCE_M, wireMaterial, type Placement, type RoadsideModel } from "./index";
+import { buildBridge, buildBusShelter, buildFarmFence, buildFarmFencePost, buildGangway, buildMailbox, buildPier, buildPontoon, buildPowerPole, buildStreetLamp, buildTownFence, buildTownFencePost, buildWireSpan, createSignKit, FARM_FENCE_M, placeModel, placeWires, roadsideMaterials, TOWN_FENCE_M, wireMaterial, type Placement, type RoadsideModel } from "./index";
 
 /*
  * The gallery's scene: one stretch of straight road on the game's own renderer,
@@ -152,21 +152,6 @@ look("mailbox", "mailbox", station(5), [-1.4, 1.3, 1.5], [0.3, 1.1, VERGE_Z + 2]
 add(buildBusShelter(), [{ x: station(6), y: 0, z: VERGE_Z }]);
 look("bus-shelter", "bus shelter", station(6), [-5.5, 1.3, 1.5], [0, 1.4, VERGE_Z], 38);
 
-// 7: pines, a stand on open ground and lone ones by the road.
-const pineModel = buildPine();
-const pines: Placement[] = [];
-for (let index = 0; index < 28; index++) {
-  const roll = (Math.sin(index * 12.9898) * 43758.5453) % 1;
-  const other = (Math.sin(index * 78.233) * 12543.123) % 1;
-  pines.push({ x: station(7) - 45 + index * 3.6 + roll * 2, y: -0.3, z: VERGE_Z - 9 - Math.abs(other) * 18 - (index % 3) * 3, yaw: index * 2.4, scale: 17 + Math.abs(roll) * 7 });
-}
-add(pineModel, pines);
-look("pine", "pine stand", station(7), [-70, 11, 40], [0, 11, VERGE_Z - 14], 34);
-look("pine-road", "pine from the road", station(7), [-20, 1.3, 1.5], [0, 8, VERGE_Z - 12]);
-look("pine-far", "pine far version, 190 m", station(7), [-4, 11, 180], [0, 11, VERGE_Z - 14], 9);
-
-// 8: forest's own pines for comparison are the ones in every shot behind the road.
-
 // A bridge off the land's end over the sea, with a stand-in for the road's own ribbon on its deck.
 const bridgeSpan = 48;
 const bridgeX = LAND_END_X + 2;
@@ -192,7 +177,7 @@ look("harbour-deck", "on the pier", harbourX, [-16, SEA_Y + 2.6, -18], [2, SEA_Y
 
 // 11: a stretch of road with hundreds of everything, for the cost and the far versions.
 const streetX = -3200;
-const street: Record<string, Placement[]> = { lamps: [], poles: [], pines: [], fences: [], mail: [], signs: [], shelters: [] };
+const street: Record<string, Placement[]> = { lamps: [], poles: [], fences: [], mail: [], signs: [], shelters: [] };
 const STREET_M = 2400;
 for (let along = 0; along < STREET_M; along += 45) street.lamps.push({ x: streetX + along, y: 0, z: 5, yaw: Math.PI });
 for (let along = 0; along < STREET_M; along += 55) street.poles.push({ x: streetX + along, y: 0, z: -9, yaw: 0 });
@@ -202,7 +187,6 @@ for (let along = 0; along < STREET_M; along += 130) {
   street.signs.push({ x: streetX + along + 40, y: 0, z: 4.5, yaw: Math.PI });
 }
 for (let along = 0; along < STREET_M; along += 500) street.shelters.push({ x: streetX + along + 90, y: 0, z: -7 });
-for (let along = 0; along < STREET_M; along += 14) street.pines.push({ x: streetX + along, y: 0, z: 13 + (along % 9), yaw: along, scale: 18 + (along % 6) });
 add(buildStreetLamp(), street.lamps);
 add(poleModel, street.poles);
 addMeshes(placeWires(wireModel, street.poles.slice(1).map((pole, index) => ({ from: { yaw: 0, ...street.poles[index] }, to: { yaw: 0, ...pole } })), wires));
@@ -210,8 +194,7 @@ add(farmModel, street.fences);
 add(buildMailbox(), street.mail);
 addMeshes(...signKit.place(new Map([["speed-60", street.signs]])));
 add(buildBusShelter(), street.shelters);
-add(pineModel, street.pines);
-const streetModels: [RoadsideModel, Placement[]][] = [[buildStreetLamp(), street.lamps], [poleModel, street.poles], [farmModel, street.fences], [buildMailbox(), street.mail], [buildBusShelter(), street.shelters], [pineModel, street.pines]];
+const streetModels: [RoadsideModel, Placement[]][] = [[buildStreetLamp(), street.lamps], [poleModel, street.poles], [farmModel, street.fences], [buildMailbox(), street.mail], [buildBusShelter(), street.shelters]];
 const counted = Object.values(street).reduce((sum, places) => sum + places.length, 0);
 const streetEye = { x: streetX + 1100, z: 1.5 };
 look("street", `${counted} objects, mid-way along 2.4 km`, streetX, [1100, 1.3, 1.5], [1300, 3, 0]);
@@ -294,7 +277,6 @@ window.__roadsideGallery = {
     "town fence post": triangles(buildTownFencePost()),
     mailbox: triangles(buildMailbox()),
     "bus shelter": triangles(buildBusShelter()),
-    pine: triangles(pineModel),
     "bridge 48 × 7 m": triangles(buildBridge({ spanM: 48, widthM: 7, dropM: 5 })),
     "pier 32 × 3 m": triangles(buildPier({ lengthM: 32, widthM: 3 })),
     "pontoon 24 × 2.6 m": triangles(buildPontoon({ lengthM: 24, widthM: 2.6 })),
