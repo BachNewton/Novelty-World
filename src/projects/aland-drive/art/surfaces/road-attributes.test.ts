@@ -22,7 +22,7 @@ function junction(kind: string, tier: number): RoadSurface {
   return {
     rings: Float32Array.from([...main, ...lesser]),
     tiers: Uint8Array.from([...Array<number>(21).fill(0), ...Array<number>(6).fill(tier)]),
-    aprons: { firstPoint: 27 * 5, across: new Float32Array(), tiers: new Float32Array(), indices: new Uint32Array() },
+    aprons: { firstPoint: 27 * 5, firstAreaPoint: Infinity, across: new Float32Array(), tiers: new Float32Array(), indices: new Uint32Array() },
     chains: [
       { sections: 21, kind: "primary", motor: true, first: 0 },
       { sections: 6, kind, motor: true, first: 21 },
@@ -42,6 +42,16 @@ describe("road attributes", () => {
     expect(info[vertex * 4 + 2]).toBeCloseTo(HALF_WIDTH);
     expect(info[vertex * 4 + 3]).toBe(FAR_FROM_MARK_M);
     expect(mark[vertex * 2 + 1]).toBe(0);
+  });
+
+  it("dresses a car park as paving of its own, however far from a road, and fails on a junction apron far from one", () => {
+    const road = junction("track", 2);
+    const far = { ...road, rings: Float32Array.from([...road.rings, 0, 0, 500]) };
+    const vertex = road.rings.length / 3;
+    const { surface: info } = roadAttributes({ ...far, aprons: { ...far.aprons, firstAreaPoint: vertex } }, []);
+    expect(info[vertex * 4]).toBe(1);
+    expect(info[vertex * 4 + 3]).toBe(FAR_FROM_MARK_M);
+    expect(() => roadAttributes(far, [])).toThrow(/no road within/);
   });
 
   it("marks the end of a lesser road on a main road, and not the main road", () => {

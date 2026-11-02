@@ -80,6 +80,14 @@ class Sheds(unittest.TestCase):
         self.assertIsNone(take(where, OUTBUILDING, box(100, 150, 110, 160)))
         self.assertIsNone(take(where, OUTBUILDING, box(100, 150, 112, 152)))
 
+    def test_one_on_a_steep_bank_keeps_its_generated_shape_rather_than_float(self):
+        # Its west side at the foot of a bank 8 m high and its east side on top, as beside a road cut.
+        outline = box(100, 150, 104, 153)
+        steep = np.array([0.0 if east < 102 else 8.0 for east, _ in outline.exterior.coords])
+        gentle = np.array([0.0 if east < 102 else 0.4 for east, _ in outline.exterior.coords])
+        self.assertFalse(placed().take(OUTBUILDING, outline, steep, None, seed=0))
+        self.assertTrue(placed().take(OUTBUILDING, outline, gentle, None, seed=0))
+
 
 if __name__ == "__main__":
     unittest.main()

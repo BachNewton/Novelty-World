@@ -110,10 +110,12 @@ export function buildBirch(seed = 1, form: BirchForm = "silver"): RoadsideModel 
     const share = (up - foot[1]) / (top[1] - foot[1]);
     return [foot[0] + (top[0] - foot[0]) * share, up, foot[2] + (top[2] - foot[2]) * share];
   };
-  for (const [index, { foot, top, radius }] of stems.entries()) {
-    const middle = stemAt(index, 0.5);
+  for (const [index, { foot, radius }] of stems.entries()) {
+    // A stem ends inside its own crown, or its white tip pokes out of the leaves.
+    const inCrown = Math.max(...crown.filter(([, , , , , stem]) => stem === index).map(([up, , , , tall]) => up + tall * 0.3));
+    const middle = stemAt(index, Math.min(0.5, inCrown / 2));
     near.tube(foot, middle, radius, 3, { radiusTo: radius * 0.68 }, "birch-bark");
-    near.tube(middle, top, radius * 0.68, 3, { radiusTo: 0.002 }, "birch-bark");
+    near.tube(middle, stemAt(index, inCrown), radius * 0.68, 3, { radiusTo: 0.002 }, "birch-bark");
   }
   for (const [up, out, turn, wide, tall, stem] of crown) {
     const leader = stemAt(stem, up);

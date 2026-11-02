@@ -1,7 +1,7 @@
-import { DoubleSide, MeshBasicNodeMaterial, Triangle, Vector3 as Colour, type BufferGeometry, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
+import { DoubleSide, MeshBasicNodeMaterial, type Node, type PerspectiveCamera, type Scene, type Vector3, type WebGPURenderer } from "three/webgpu";
 import { cos, dot, float, fract, If, int, mix, positionGeometry, screenCoordinate, select, sin, smoothstep, uniformArray, varying, vec2, vec3, vec4 } from "three/tsl";
 import { buildReedClump, ruralColours, ruralPaint } from "../art/rural";
-import { createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
+import { bandColours, createPlanting, placesWithin, reachOf, roll, type Lattice } from "./planting";
 import type { LandAt } from "./tile-reads";
 
 /*
@@ -14,7 +14,8 @@ import type { LandAt } from "./tile-reads";
  * much open water lies round a shore. Within a kilometre, mapped reed beds have 36%
  * water at the median and bare rock 71%: reeds fill inner bays, and the open shores
  * are rock. So a clump stands in the water near land, where the water round about is
- * mostly land, and where the shallows are pale enough to be shallow. Over the built
+ * mostly land, where the shallows are pale enough to be shallow, and away from a
+ * town's quays, which its roads give away. Over the built
  * tiles that keeps a quarter of the mapped beds' water, 3% of the water off mapped
  * rock, and 7% of other shallows, much of which is beds nobody mapped.
  *
@@ -51,6 +52,14 @@ const LEAST_LAND = 0.12;
 /** The photo's brightness from dark deep water to pale shallows. */
 const SHALLOW = [85 / 255, 120 / 255] as const;
 const IN_WATER = 0.5;
+/**
+ * Roads as a share of the land round a shore, at the mask's 256 m level: a town's is a
+ * fifth road, a country shore's a twentieth, and a town's has quays, not reeds. Of the
+ * land, not of everything, or the water beside a quay would dilute it.
+ */
+const BUILT_MIP = 6;
+const BUILT = [0.1, 0.16] as const;
+const LEAST_LAND_AROUND = 0.1;
 const ROAD_CLEAR = 0.05;
 const MOST_OF_A_PLACE = 0.8;
 const SIZES = [0.85, 1.2] as const;
@@ -70,29 +79,6 @@ const MOST_CLUMPS = 0.1;
 
 /** The far clump is painted by height in these bands, each the near clump's own mean colour there. */
 const BAND_TOPS_M = [0.4, 0.9, 1.4, 1.9, 3.2];
-
-/** A shape's area-weighted mean paint in each height band, in the paint's own light. */
-function bandColours(shape: BufferGeometry, colours: Colour[]): Colour[] {
-  const position = shape.getAttribute("position");
-  const tint = shape.getAttribute("tint");
-  const order = shape.getIndex();
-  const corner = (at: number) => order?.getX(at) ?? at;
-  const triangle = new Triangle();
-  const middle = new Colour();
-  const sums = BAND_TOPS_M.map(() => ({ sum: new Colour(), area: 0 }));
-  for (let at = 0; at < (order?.count ?? position.count); at += 3) {
-    const first = corner(at);
-    triangle.setFromAttributeAndIndices(position, first, corner(at + 1), corner(at + 2));
-    triangle.getMidpoint(middle);
-    const band = sums[Math.max(0, BAND_TOPS_M.findIndex((top) => middle.y < top))];
-    const area = triangle.getArea();
-    band.sum.addScaledVector(colours[Math.round(tint.getX(first) * 255)], area * ((tint.getY(first) * 255) / 128));
-    band.area += area;
-  }
-  const filled = sums.filter(({ area }) => area > 0);
-  const top = filled[filled.length - 1];
-  return sums.map(({ sum, area }) => (area > 0 ? sum.divideScalar(area) : top.sum.clone().divideScalar(top.area)));
-}
 
 export interface ReedInputs {
   waterAt: (place: Node<"vec2">, mip: number) => Node<"float">;
@@ -124,7 +110,7 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
   const pattern = fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189));
   const colours = ruralColours(linear);
   const paint = ruralPaint(uniformArray(colours));
-  const bandsOf = uniformArray(clumps.flatMap(({ near }) => bandColours(near, colours)));
+  const bandsOf = uniformArray(clumps.flatMap(({ near }) => bandColours(near, colours, BAND_TOPS_M)));
 
   const far = Math.ceil(LATTICES.reduce((sum, lattice) => sum + placesWithin(reachOf(lattice), lattice.stepM), 0) * MOST_CLUMPS);
   const near = LATTICES.reduce((sum, { stepM }) => sum + placesWithin(SWAP_M * (1 + SWAP_BAND) + WIDEST_CLUMP_M, stepM), 0);
@@ -144,7 +130,8 @@ export function createReeds(scene: Scene, renderer: WebGPURenderer, { waterAt, l
         If(land.greaterThan(LEAST_LAND), () => {
           const grid = [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((z) => waterAt(place.add(vec2(x, z).mul(SHELTER_SPREAD_M)), SHELTER_MIP)));
           const open = grid.reduce((sum, read) => sum.add(read)).div(grid.length);
-          const sheltered = float(1).sub(smoothstep(float(OPEN[0]), float(OPEN[1]), open));
+          const built = roadsAt(place, BUILT_MIP).div(float(1).sub(waterAt(place, BUILT_MIP)).max(LEAST_LAND_AROUND));
+          const sheltered = float(1).sub(smoothstep(float(OPEN[0]), float(OPEN[1]), open)).mul(float(1).sub(smoothstep(float(BUILT[0]), float(BUILT[1]), built)));
           const shore = landAt(place);
           const shallow = smoothstep(float(SHALLOW[0]), float(SHALLOW[1]), dot(shore.broad, vec3(1 / 3)));
           const clear = roadsAt(place, 0).lessThan(ROAD_CLEAR);
