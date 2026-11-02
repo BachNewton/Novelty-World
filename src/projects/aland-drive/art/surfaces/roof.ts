@@ -6,7 +6,8 @@ import { COARSE_M } from "./ground";
  * A roof up close: the colour stays the photo's, and the slope's own direction
  * lays out what the roof is made of. Warm roofs are tile, in courses up the
  * slope; the rest are sheet metal, with a standing seam running down it. A flat
- * roof is felt. Like the walls' boards, it all fades by the size of a pixel.
+ * roof is felt. Like the walls' boards, the courses and seams fade by the size
+ * of a pixel, to what they average to.
  */
 
 const COURSE_M = 0.34;
@@ -60,5 +61,6 @@ export function roofDetail({ base, position, normal, toSun, moss, detail }: Roof
 
   const weathered = float(1).add(stain.a.sub(0.5).mul(0.3));
   const mossy = smoothstep(float(0.58), float(0.72), stain.a).mul(select(up.greaterThan(FLAT_FROM), float(0), float(1))).mul(MOSS_SHARE).mul(warm);
-  return mix(base.mul(pattern).mul(mix(float(1), weathered, shown)), moss, mossy.mul(shown));
+  // Weathering and moss are a mipmapped texture's, which blurs them with distance by itself, so they never fade.
+  return mix(base.mul(pattern).mul(weathered), moss, mossy);
 }

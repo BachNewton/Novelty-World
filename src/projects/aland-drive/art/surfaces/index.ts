@@ -1,3 +1,4 @@
+export { band, pulses } from "./coverage";
 export { detailTexture, type Sun } from "./detail";
 export { groundDetail } from "./ground";
 export { dressRoad } from "./road";

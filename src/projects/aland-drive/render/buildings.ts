@@ -1,12 +1,13 @@
 import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicNodeMaterial, Vector3, type Node } from "three/webgpu";
-import { abs, attribute, cameraPosition, cross, dFdx, dFdy, float, floor, fract, fwidth, int, max, min, mix, normalize, positionWorld, round, select, smoothstep, uniform, uniformArray, vec3 } from "three/tsl";
+import { abs, attribute, cameraPosition, cross, dFdx, dFdy, float, floor, fract, fwidth, int, max, mix, normalize, positionWorld, round, select, smoothstep, uniform, uniformArray, vec3 } from "three/tsl";
 import type { SolidsCell } from "./solids";
+import { band, pulses } from "../art/surfaces";
 
 /*
  * Buildings, a mesh per 600 m cell. Their walls have no art of their own: boards,
  * windows, a door and white trim are all drawn here, laid out from each facade's
- * real width and eaves, so they fit whatever size the wall is, and fade to the
- * wall's own colour before they could shimmer.
+ * real width and eaves, so they fit whatever size the wall is, and blur into the
+ * wall's average far off rather than fading, so they neither shimmer nor pop.
  */
 
 /** Styles and palette as the pipeline numbers them. */
@@ -25,9 +26,11 @@ const TRIM_M = 0.16;
 const PLINTH_M = 0.38;
 const BOARD_M = 0.15;
 const PLANK_M = 0.22;
-/** A pixel this many metres across along a wall: boards and then windows have gone, and it's the wall's own colour. */
+/** A pixel this many metres across along a wall: board lines are too fine to draw, and are their average. */
 const BOARDS_GONE = [0.03, 0.09] as const;
-const WINDOWS_GONE = [0.16, 0.45] as const;
+/** The averages of the board and plank lines' profiles, what they blur into. */
+const BOARD_LINE_SHARE = 0.18;
+const PLANK_LINE_SHARE = 0.125;
 
 export interface BuildingPalette {
   colour: (name: string) => Node<"vec3">;
@@ -49,59 +52,60 @@ export function buildingMaterial({ colour, linear, hazed }: BuildingPalette, sun
   const style = round(tint.a.mul(255));
   const isStyle = (name: keyof typeof STYLE) => abs(style.sub(STYLE[name])).lessThan(0.5);
 
-  const pixel = fwidth(along).add(fwidth(up));
-  const windowsShow = float(1).sub(smoothstep(float(WINDOWS_GONE[0]), float(WINDOWS_GONE[1]), pixel));
+  // Every shape below is its share of the pixel (`art/surfaces/coverage.ts`), so far off it blurs into the wall's
+  // average rather than fading out: only lines too fine to draw fade, and they fade to their own average.
+  const wide = fwidth(along);
+  const tall = fwidth(up);
+  const pixel = wide.add(tall);
   const boardsShow = float(1).sub(smoothstep(float(BOARDS_GONE[0]), float(BOARDS_GONE[1]), pixel));
-  /** 1 inside a box round a centre, with an edge a pixel soft. */
-  const inside = (x: Node<"float">, halfX: Node<"float">, y: Node<"float">, halfY: Node<"float">) => {
-    const soft = pixel.mul(0.5).max(0.002);
-    const edgeX = float(1).sub(smoothstep(soft.negate(), soft, abs(x).sub(halfX)));
-    return edgeX.mul(float(1).sub(smoothstep(soft.negate(), soft, abs(y).sub(halfY))));
-  };
+  const box = (x: Node<"float">, halfX: number, y: Node<"float">, halfY: number) =>
+    band(x, -halfX, halfX, wide).mul(band(y, -halfY, halfY, tall));
 
   const storeys = max(float(1), round(eaves.div(STOREY_M)));
   const storey = eaves.div(storeys);
   const bays = max(float(1), round(width.div(BAY_M)));
   const bay = width.div(bays);
-  const inBay = fract(along.div(bay)).sub(0.5).mul(bay);
   const inStorey = fract(up.div(storey)).sub(0.5).mul(storey).sub(WINDOW.lift);
-  const isOnFacade = up.lessThan(eaves.sub(0.15)).and(width.greaterThan(NARROWEST_WITH_WINDOWS_M));
-  const pane = inside(inBay, float(WINDOW.halfWide), inStorey, float(WINDOW.halfTall));
-  const frame = inside(inBay, float(WINDOW.halfWide + WINDOW.frame), inStorey, float(WINDOW.halfTall + WINDOW.frame));
+  const rowOf = (half: number) => pulses(along.sub(bay.mul(0.5)), bay, half, wide);
+  const storeyOf = (half: number) => pulses(up.sub(storey.mul(0.5)).sub(WINDOW.lift), storey, half, tall);
+  const onFacade = band(up, -1, eaves.sub(0.15), tall).mul(select(width.greaterThan(NARROWEST_WITH_WINDOWS_M), float(1), float(0)));
+  const pane = rowOf(WINDOW.halfWide).mul(storeyOf(WINDOW.halfTall));
+  const frame = rowOf(WINDOW.halfWide + WINDOW.frame).mul(storeyOf(WINDOW.halfTall + WINDOW.frame));
 
   const fromCentre = along.sub(width.mul(0.5));
-  const gable = up.greaterThan(eaves.add(0.15)).and(width.greaterThan(4));
+  const gable = band(up, eaves.add(0.15), eaves.add(100), tall).mul(select(width.greaterThan(4), float(1), float(0)));
   const gableUp = up.sub(eaves).sub(1);
-  const gablePane = inside(fromCentre, float(0.4), gableUp, float(0.5));
-  const gableFrame = inside(fromCentre, float(0.49), gableUp, float(0.59));
+  const gablePane = box(fromCentre, 0.4, gableUp, 0.5);
+  const gableFrame = box(fromCentre, 0.49, gableUp, 0.59);
 
   // In the facade's middle bay, whichever that is: an even count's middle is on a boundary, so it's offset by half a bay.
   const middleBay = floor(bays.mul(0.5)).add(0.5).mul(bay);
   const hasDoor = smoothstep(float(0.4), float(0.6), tint.g);
-  const doorHere = inside(along.sub(middleBay), float(DOOR.halfWide), up.sub(DOOR.tall / 2), float(DOOR.tall / 2)).mul(hasDoor);
-  const doorFrame = inside(along.sub(middleBay), float(DOOR.halfWide + 0.1), up.sub(DOOR.tall / 2), float(DOOR.tall / 2 + 0.1)).mul(hasDoor);
+  const doorHere = box(along.sub(middleBay), DOOR.halfWide, up.sub(DOOR.tall / 2), DOOR.tall / 2).mul(hasDoor);
+  const doorFrame = box(along.sub(middleBay), DOOR.halfWide + 0.1, up.sub(DOOR.tall / 2), DOOR.tall / 2 + 0.1).mul(hasDoor);
 
   const palette = uniformArray(WALL_COLOURS.map(linear));
   const base = (palette.element(int(round(tint.r.mul(255)))) as unknown as Node<"vec3">).mul(mix(float(0.9), float(1.1), tint.b));
-  const boardLine = smoothstep(float(0.72), float(0.92), fract(up.div(BOARD_M))).mul(boardsShow);
-  const plankLine = smoothstep(float(0.8), float(0.95), fract(along.div(PLANK_M))).mul(boardsShow);
+  const boardLine = mix(float(BOARD_LINE_SHARE), smoothstep(float(0.72), float(0.92), fract(up.div(BOARD_M))), boardsShow);
+  const plankLine = mix(float(PLANK_LINE_SHARE), smoothstep(float(0.8), float(0.95), fract(along.div(PLANK_M))), boardsShow);
   const timber = base.mul(float(1).sub(boardLine.mul(0.32)));
   const planks = base.mul(float(1).sub(plankLine.mul(0.4)));
   const plain = select(isStyle("boards"), planks, select(isStyle("timber"), timber, base));
 
   const trim = colour("wall-trim");
-  const corner = float(1).sub(smoothstep(float(CORNER_BOARD_M), float(CORNER_BOARD_M).add(pixel), min(along, width.sub(along)))).mul(select(isStyle("timber"), float(1), float(0)));
-  const fascia = float(1).sub(smoothstep(float(TRIM_M), float(TRIM_M).add(pixel), abs(up.sub(eaves)))).mul(select(isStyle("boards"), float(0), float(1)));
-  const trimmed = mix(plain, trim, max(corner, fascia).mul(windowsShow));
+  const corner = band(along, -1, CORNER_BOARD_M, wide).add(band(along, width.sub(CORNER_BOARD_M), width.add(1), wide)).min(1).mul(select(isStyle("timber"), float(1), float(0)));
+  const fascia = band(up, eaves.sub(TRIM_M), eaves.add(TRIM_M), tall).mul(select(isStyle("boards"), float(0), float(1)));
+  const trimmed = mix(plain, trim, max(corner, fascia));
 
   const hasWindows = select(isStyle("boards"), float(0), float(1));
-  const skyInGlass = mix(colour("wall-glass"), colour("sky"), inStorey.div(WINDOW.halfTall * 2).add(0.5).clamp(0, 1).mul(0.45));
-  const framed = max(select(isOnFacade, frame, float(0)), select(gable, gableFrame, float(0))).mul(hasWindows);
-  const glazed = max(select(isOnFacade, pane, float(0)), select(gable, gablePane, float(0))).mul(hasWindows);
-  const withWindows = mix(mix(trimmed, trim, framed.mul(windowsShow)), skyInGlass, glazed.mul(windowsShow));
-  const withDoor = mix(mix(withWindows, trim, doorFrame.mul(windowsShow)), colour("wall-door"), doorHere.mul(windowsShow));
-  // Far off, the glass still darkens the wall a little, so it doesn't brighten as the windows fade.
-  const faded = mix(withDoor.mul(mix(float(0.86), float(1), windowsShow)), colour("wall-plinth"), float(1).sub(smoothstep(float(PLINTH_M), float(PLINTH_M).add(pixel), up)));
+  // Once a pane is a few pixels tall its gradient reads as its middle, or it would sparkle from pixel to pixel.
+  const glassUp = mix(inStorey.div(WINDOW.halfTall * 2).add(0.5).clamp(0, 1), float(0.5), smoothstep(float(0.1), float(0.3), tall));
+  const skyInGlass = mix(colour("wall-glass"), colour("sky"), glassUp.mul(0.45));
+  const framed = max(frame.mul(onFacade), gableFrame.mul(gable)).mul(hasWindows);
+  const glazed = max(pane.mul(onFacade), gablePane.mul(gable)).mul(hasWindows);
+  const withWindows = mix(mix(trimmed, trim, framed), skyInGlass, glazed);
+  const withDoor = mix(mix(withWindows, trim, doorFrame), colour("wall-door"), doorHere);
+  const faded = mix(withDoor, colour("wall-plinth"), band(up, -100, PLINTH_M, tall));
 
   const facing = normalize(cross(dFdx(positionWorld), dFdy(positionWorld)));
   const towardsCamera = cameraPosition.sub(positionWorld);
