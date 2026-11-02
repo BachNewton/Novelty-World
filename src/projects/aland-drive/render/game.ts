@@ -15,6 +15,7 @@ import { createWater, WATER_SHORE_MIP } from "./water";
 import { DASH_LENGTH_M, RIBBON_CELL_M } from "./roads";
 import { mapCameraAt, type ChasePose, type MapTarget } from "./map-camera";
 import { SHOWCASE, type ShowcaseSpot } from "./showcase";
+import { placeAsked, placeLink } from "./start-place";
 import { DETAIL_SEEN_M, distanceToTile, FAR_LOAD_M, TileFetcher, TileStream, type StreamStats } from "./stream";
 import { tileBase } from "./tile-address";
 import { TileLayers } from "./tile-layers";
@@ -331,8 +332,13 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const layers = new TileLayers(renderer, world);
   const fetcher = new TileFetcher(base, manifest);
 
+  // A link may ask to start somewhere else (`?at=`): the drive then starts on the road nearest it, in the free camera.
+  const asked = placeAsked(window.location.search);
+  const askedAt = asked && { x: asked.east - manifest.worldOrigin.east, z: manifest.worldOrigin.north - asked.north };
+  const startName = askedAt ? world.tileAt(askedAt.x, askedAt.z)?.name : manifest.start.tile;
+  if (startName === undefined) throw new Error(`?at= asks for ${asked?.east}, ${asked?.north}, which is off the map`);
   // The tiles a drive needs before it starts: the same few wherever the island ends.
-  const startSpot = world.named(manifest.start.tile);
+  const startSpot = world.named(startName);
   const startTiles = [...world.all()].filter((tile) => distanceToTile((startSpot.column + 0.5) * manifest.tileM, (startSpot.row + 0.5) * manifest.tileM, tile.column, tile.row, manifest.tileM) < FAR_LOAD_M);
   const progress = { done: 0, total: 3 + startTiles.length };
   const landed = () => {
@@ -548,7 +554,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   // The far data round the start comes first, and detail under the car, then the drive begins. From here on the frame loop
   // does the uploads, but it hasn't started yet: this first lot goes up here.
   stream.addBytes(overviewData.bytes);
-  const loaded = Promise.all([...startTiles.map((tile) => stream.loadFar(tile.name).then(landed)), stream.load(manifest.start.tile).then(landed)]);
+  const loaded = Promise.all([...startTiles.map((tile) => stream.loadFar(tile.name).then(landed)), stream.load(startName).then(landed)]);
   let uploading = true;
   void loaded.finally(() => {
     uploading = false;
@@ -561,8 +567,8 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   };
   await Promise.all([loaded, pumpUploads()]);
 
-  const startTile = world.named(manifest.start.tile);
-  if (!startTile.detail) throw new Error(`${manifest.start.tile} didn't load`);
+  const startTile = world.named(startName);
+  if (!startTile.detail) throw new Error(`${startName} didn't load`);
   const startRoads = startTile.detail.roads;
   const startLine = (chain: number) => chainLine(startRoads, chain);
   const edgeGeometry = edgeBand(world);
@@ -572,7 +578,9 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
   const edgeMesh = new Mesh(edgeGeometry, edgeMaterial);
   scene.add(edgeMesh);
 
-  const drive = new Drive(world, startLine(manifest.start.chain).at(START_ALONG_M));
+  const askedRoad = askedAt ? world.roads.nearest(askedAt.x, askedAt.z) : undefined;
+  if (askedRoad === null) throw new Error(`?at= asks for ${asked?.east}, ${asked?.north}, and no road is near it`);
+  const drive = new Drive(world, askedRoad ?? startLine(manifest.start.chain).at(START_ALONG_M));
   let carSpec = PLAYER_CAR;
   let carView = createCarView(scene, manifest.sun, carSpec);
   const cullCar = (culled: boolean) => {
@@ -623,6 +631,10 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
     cameraMode = mode;
     events.onCamera(mode);
   };
+  if (asked) {
+    setCamera("free");
+    freeCamera.set(toView(asked));
+  }
 
   let navigator: Navigator | null = null;
   // The camera left the chase view here, and detail stays here until it's back or the map looks closely elsewhere. Null while driving.
@@ -772,6 +784,7 @@ export async function startGame(container: HTMLElement, events: GameEvents, canv
       `scene x ${x.toFixed(1)}, y ${y.toFixed(1)}, z ${z.toFixed(1)}; ETRS-TM35FIN east ${(x + worldOrigin.east).toFixed(1)}, north ${(worldOrigin.north - z).toFixed(1)}`,
       `heading ${headingDeg.toFixed(0)}° clockwise from grid north, ${(speedOf(car) * 3.6).toFixed(0)} km/h, ${cameraMode} camera`,
       `the view on screen: tools/look.mjs <out.png> ${[...look, ...turn].join(" ")}`,
+      `a link to it: ${placeLink(window.location.href, { east: Number(look[0]), north: Number(look[1]), height: Number(look[2]), yaw: Number(turn[0]), pitch: Number(turn[1]) })}`,
     ].join("\n");
   };
 
