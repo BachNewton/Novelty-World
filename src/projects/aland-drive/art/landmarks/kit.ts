@@ -6,13 +6,16 @@ import { LANDMARK_COLOURS, type LandmarkColour } from "./palette";
  * landmark draws with `buildingMaterial`, for one mesh and no new pipeline. That material shades every face flat from
  * its screen derivatives, so nothing here carries a normal, and it draws both sides, so nothing depends on winding.
  *
- * A paint is a vertex's four tint bytes as that material reads them, all of them its "roof" style: a flat colour, with
+ * A paint is a vertex's four tint bytes as that material reads them, in its plain paint style: a flat colour, with
  * the facade attribute left at zero. The shader's windows suit a house's rhythm; these buildings' are modelled instead.
  */
 
 export type Vec3 = readonly [number, number, number];
 export type Vec2 = readonly [number, number];
 export type Paint = readonly [number, number, number, number];
+
+/** The wall material's style for a model's own flat colour: no roof detail, no facade, only the colour lit. */
+export const PAINT_STYLE = 255;
 
 export interface LandmarkMesh {
   positions: Float32Array;
@@ -32,7 +35,7 @@ export function flat(name: LandmarkColour, shade = 1): Paint {
     const linear = Math.pow(parseInt(hex.slice(at, at + 2), 16) / 255, 2.2);
     return Math.min(255, Math.round(255 * Math.pow((linear * shade) / ROOF_GAIN, 1 / ROOF_GAMMA)));
   };
-  return [byte(1), byte(3), byte(5), 0];
+  return [byte(1), byte(3), byte(5), PAINT_STYLE];
 }
 
 export function blend(a: Paint, b: Paint, share: number): Paint {
