@@ -708,6 +708,7 @@ class Apron:
     across: np.ndarray  # As a ribbon's: past 1 is shoulder, and the carriageway's value paints nothing.
     tier: int
     outer: np.ndarray  # Indices of the shoulder's outer points, whose heights come from the ground.
+    area: bool = False  # A car park or bus station, drawn as paving of its own rather than as the road it joins.
 
 
 def _strip(left: np.ndarray, right: np.ndarray) -> shapely.Geometry:
@@ -948,7 +949,7 @@ def lay_paved(areas: list[shapely.Polygon], chains: list[Chain], aprons: list[Ap
     paved = []
     for part in _flat(shapely.intersection(shapely.union_all(areas), tile).difference(taken)):
         members = [chain for chain, strip in strips if strip.distance(part) < APRON_PIN_M]
-        paved.append(_apron_of(part, members, TIERS.index("minor"), tile, cells_m=PAVED_CELL_M, land=ground, cover=cover))
+        paved.append(replace(_apron_of(part, members, TIERS.index("minor"), tile, cells_m=PAVED_CELL_M, land=ground, cover=cover), area=True))
     return paved
 
 
@@ -983,6 +984,8 @@ def lay_gaps(chains: list[Chain], aprons: list[Apron], ground: Ground) -> list[A
     if gaps.is_empty:
         return []
     tree = shapely.STRtree([strip for _, strip in strips])
+    areas = [apron for apron in aprons if apron.area]
+    area_footprint = _footprint(areas) if areas else shapely.Polygon()
     kept = []
     for cell in (cell for part in _flat(gaps) for cell in _cells(part, GAP_CELL_M)):
         beside = [strips[index][0] for index in tree.query(cell, predicate="dwithin", distance=APRON_PIN_M)]
@@ -1002,7 +1005,9 @@ def lay_gaps(chains: list[Chain], aprons: list[Apron], ground: Ground) -> list[A
             members = [strips[index][0] for index in tree.query(piece, predicate="dwithin", distance=APRON_PIN_M)]
             if members or cover is not None:
                 tier = min((int(chain.tier.min()) for chain in members), default=TIERS.index("minor"))
-                paved.append(_apron_of(piece, members, tier, tile, cells_m=GAP_CELL_M, cover=cover))
+                # Between two car parks there may be no road at all: paving that joins one is part of its paving.
+                joins_area = piece.distance(area_footprint) < APRON_PIN_M if areas else False
+                paved.append(replace(_apron_of(piece, members, tier, tile, cells_m=GAP_CELL_M, cover=cover), area=joins_area))
     return paved
 
 
@@ -1319,7 +1324,8 @@ def lay_roads(roads: list[dict], ground: Ground, paved: list[shapely.Polygon] = 
     aprons = lay_aprons(chains, ground)
     aprons += lay_paved(list(paved), chains, aprons, ground)
     aprons += lay_gaps(chains, aprons, ground)
-    aprons = _shoulders_on_land(aprons, chains)
+    # The areas last, so the tile can say where they start.
+    aprons = sorted(_shoulders_on_land(aprons, chains), key=lambda apron: apron.area)
     fields = road_fields(chains, ground, aprons)
     conformed = under_every_ribbon(conform_ground(ground.tile_corners(), fields, ground.spacing), chains, ground, NODE_STRIDE)
     conformed = under_every_apron(conformed, aprons, ground, NODE_STRIDE)

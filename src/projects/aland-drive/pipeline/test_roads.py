@@ -345,6 +345,16 @@ class PavedGround(unittest.TestCase):
         self.assertIn("footway", [chain.kind_name for chain in surface.chains])
         self.assertGreater(len(paved_between(surface, 1460, 1540, 1502.1, 1504.1)), 20)
 
+    def test_paving_between_two_car_parks_is_theirs_and_not_a_road_s(self):
+        lots = [shapely.box(1450, 1520, 1550, 1600), shapely.box(1450, 1602, 1550, 1680)]
+        surface = lay_roads([self.street], land(), lots)
+        carriageway = lambda apron: apron.points[apron.across == roads.APRON_ACROSS]
+        between = [apron for apron in surface.aprons if carriageway(apron)[:, 1].min() > 1599.5 and carriageway(apron)[:, 1].max() < 1602.5]
+        self.assertTrue(between)
+        self.assertTrue(all(apron.area for apron in between))
+        firsts = [apron.area for apron in surface.aprons]
+        self.assertEqual(firsts, sorted(firsts))
+
     def test_no_shoulder_lies_on_another_surface(self):
         sidewalk = {**road([(0, 1504.5), (3000, 1504.5)], "footway"), "motor": False}
         side = road([(1500, 1500), (1500, 1600)], "service")

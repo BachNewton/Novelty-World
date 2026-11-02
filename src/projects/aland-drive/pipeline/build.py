@@ -159,7 +159,11 @@ def build_tile(tile: Tile, refresh_osm: bool, with_vectors: bool = True) -> None
                 {key: value for key, value in {"sections": len(ring), "kind": chain.kind_name, "ref": chain.tag("ref"), "name": chain.tag("name"), "motor": chain.motor, "spans": spans or None}.items() if value is not None}
                 for chain, ring, _, spans in ribbons
             ],
-            "aprons": {"points": sum(len(apron.points) for apron in aprons), "triangles": sum(len(apron.triangles) for apron in aprons)},
+            "aprons": {
+                "points": sum(len(apron.points) for apron in aprons),
+                "triangles": sum(len(apron.triangles) for apron in aprons),
+                "areaPoints": sum(len(apron.points) for apron in aprons if apron.area),
+            },
             **osm_licence,
         }
 
