@@ -73,6 +73,7 @@ Each has a real position, exported with its model, and `pipeline/landmarks.py` d
 ## Cleanup found along the way
 
 - Kastelholm's near walls are 2 m patches of flat red and white, drawn as geometry, so they shimmer at a distance and, at the 1.4 km swap, still read as red-and-white speckle against the far version's even average. Drawing the patches as each one's share of the pixel would fix both. Pommern's near rigging sparkles in single pixels before its swap for the same reason.
+- Marinas are drawn as bridges. The owner saw many places in the game that should read as a marina, a pier or pontoons, drawn instead with `bridgeKit`'s parapets, rails and piers: probably OSM paths along piers and pontoons (`man_made=pier`, `floating=yes`), which `pipeline/roads.py` holds up as spans because they run over water. They want the marina kit (`art/marina`, `art/roadside`'s piers and pontoons) instead, and no bridge where there's no road across the water. To come back to.
 - A placed boathouse or shed has the kit's dark roof, where a generated or NLS building takes its roof's colour from the photo.
 
 - Remove the false slab `ahvenanmaa_2022_20193` in central Mariehamn, and check `ahvenanmaa_2022_12785`.
